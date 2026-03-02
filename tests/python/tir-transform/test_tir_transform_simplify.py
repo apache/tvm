@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: E501
 import tvm
 import tvm.testing
 from tvm.script import ir as I
@@ -36,8 +35,14 @@ def test_stmt_simplify():
     # Navigate through DeclBuffer nodes to reach the inner body
     while isinstance(body, tvm.tir.DeclBuffer):
         body = body.body
-    # After simplification, LetStmt -> For -> BufferStore (if is eliminated since i < 12 is always true for i in 0..10)
-    assert isinstance(body.body, tvm.tir.BufferStore)
+    # After simplification, Bind is kept (not inlined) but the if is eliminated
+    # since i < 12 is always true for i in 0..10.
+    # Body is SeqStmt(Bind(n_val, 10), For(i, ...))
+    stmts = body if isinstance(body, tvm.tir.SeqStmt) else [body]
+    # Find the For loop in the sequence
+    for_stmt = [s for s in stmts if isinstance(s, tvm.tir.For)]
+    assert len(for_stmt) == 1, f"Expected one For loop, got {len(for_stmt)}"
+    assert isinstance(for_stmt[0].body, tvm.tir.BufferStore)
 
 
 def test_thread_extent_simplify():
@@ -56,11 +61,16 @@ def test_thread_extent_simplify():
     # Navigate through DeclBuffer nodes to reach the inner body
     while isinstance(body, tvm.tir.DeclBuffer):
         body = body.body
-    # After simplification: For(tx) -> For(ty) -> BufferStore
-    # The LetStmt and if are eliminated since tx + ty < 12 is always true for tx in 0..10 and ty = 0
-    assert isinstance(body, tvm.tir.For)  # tx loop
-    assert isinstance(body.body, tvm.tir.For)  # ty loop
-    assert isinstance(body.body.body, tvm.tir.BufferStore)  # The if was eliminated
+    # After simplification: Bind is kept but the if is eliminated
+    # since tx + ty < 12 is always true for tx in 0..10 and ty = 0.
+    stmts = list(body) if isinstance(body, tvm.tir.SeqStmt) else [body]
+    for_stmts = [s for s in stmts if isinstance(s, tvm.tir.For)]
+    assert len(for_stmts) >= 1, f"Expected For loop, got stmts: {[type(s).__name__ for s in stmts]}"
+    # The outermost For is the tx loop
+    tx_loop = for_stmts[0]
+    assert isinstance(tx_loop, tvm.tir.For)  # tx loop
+    assert isinstance(tx_loop.body, tvm.tir.For)  # ty loop
+    assert isinstance(tx_loop.body.body, tvm.tir.BufferStore)  # The if was eliminated
 
 
 def test_if_likely():
@@ -385,6 +395,10 @@ def test_prove_condition_using_let():
     Not all let bindings are inlined when they occur in later
     expressions.  However, even if they are not inlined, they may be
     used to prove the value of a condition.
+
+    With flat Bind, the analyzer binds the variable to its value for
+    constraint proving, which also substitutes the variable in later
+    expressions.
     """
 
     @T.prim_func(private=True)
@@ -397,8 +411,8 @@ def test_prove_condition_using_let():
     @T.prim_func(private=True)
     def expected(A: T.Buffer(4, "bool")):
         for i in T.serial(4):
-            condition = i < 3
-            A[i] = condition
+            condition: T.bool = i < 3  # noqa: F841
+            A[i] = i < 3
 
     after = _apply_simplify(before)
     tvm.ir.assert_structural_equal(after, expected)
@@ -407,9 +421,8 @@ def test_prove_condition_using_let():
 def test_prove_let_condition():
     """Simplify conditions using non-inlined let bindings
 
-    Not all let bindings are inlined when they occur in later
-    expressions.  However, even if they are not inlined, they may be
-    used to prove the value of a condition.
+    With flat Bind, analyzer binds variable to value, which also
+    substitutes the variable in later expressions.
     """
 
     @T.prim_func(private=True)
@@ -423,9 +436,9 @@ def test_prove_let_condition():
     @T.prim_func(private=True)
     def expected(A: T.Buffer(4, "bool")):
         for i in T.serial(4):
-            condition = i < 3
+            condition: T.bool = i < 3  # noqa: F841
             if i < 3:
-                A[i] = condition
+                A[i] = T.bool(True)
 
     after = _apply_simplify(before)
     tvm.ir.assert_structural_equal(after, expected)
@@ -434,8 +447,9 @@ def test_prove_let_condition():
 def test_prove_repeated_let_condition():
     """Simplify conditions using non-inlined let bindings
 
-    A variable may be used as a literal constraint, and be recognized
-    as being True within the context of the constraint.
+    With analyzer Bind, the variable is substituted with its value,
+    so `if condition` becomes `if i < 3`, and within that context
+    the inner `if condition` simplifies to True and is eliminated.
     """
 
     @T.prim_func(private=True)
@@ -449,9 +463,9 @@ def test_prove_repeated_let_condition():
     @T.prim_func(private=True)
     def expected(A: T.Buffer(4, "bool")):
         for i in T.serial(4):
-            condition = i < 3
-            if condition:
-                A[i] = True
+            condition: T.bool = i < 3  # noqa: F841
+            if i < 3:
+                A[i] = T.bool(True)
 
     after = _apply_simplify(before)
     tvm.ir.assert_structural_equal(after, expected)
@@ -492,7 +506,11 @@ def test_ceil_log2_int():
 
 
 def test_left_ceil_log2_lower_bound():
-    """Integer bounds are propagated through topi.math.ceil_log2"""
+    """Integer bounds are propagated through topi.math.ceil_log2
+
+    With flat Bind, the Bind is kept even when the variable is unused
+    after simplification. The if condition is still eliminated.
+    """
 
     @T.prim_func(private=True)
     def before(A: T.Buffer(16, "float32")):
@@ -507,7 +525,11 @@ def test_left_ceil_log2_lower_bound():
     @T.prim_func(private=True)
     def expected(A: T.Buffer(16, "float32")):
         for i in T.serial(16):
-            A[i] = 0.0
+            x: T.int32 = T.Cast(  # noqa: F841
+                "int32",
+                T.ceil(T.log2(T.Cast("float64", i + 1025))),
+            )
+            A[i] = T.float32(0)
 
     after = _apply_simplify(before)
     tvm.ir.assert_structural_equal(after, expected)
