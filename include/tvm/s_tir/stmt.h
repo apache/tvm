@@ -31,10 +31,6 @@ namespace tvm {
 namespace s_tir {
 namespace attr {
 
-// -----------------------------------------------------------------------
-// AttrStmt attribute keys moved from tir::attr (S-TIR owned attributes)
-// -----------------------------------------------------------------------
-
 /*!
  * \brief Annotations for invoking and synchronizing asynchronous operations.
  */
