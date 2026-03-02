@@ -216,17 +216,31 @@ def should_skip_file(filepath: str) -> bool:
 
 
 def get_git_files() -> list[str] | None:
-    """Get list of files tracked by git."""
+    """Get list of files tracked by git (excluding files staged for deletion)."""
     try:
         result = subprocess.run(
             ["git", "ls-files"], check=False, capture_output=True, text=True, cwd=Path.cwd()
         )
-        if result.returncode == 0:
-            return [line.strip() for line in result.stdout.split("\n") if line.strip()]
-        else:
+        if result.returncode != 0:
             print("Error: Could not get git files. Make sure you're in a git repository.")
             print("Git command failed:", result.stderr.strip())
             return None
+        all_files = {line.strip() for line in result.stdout.split("\n") if line.strip()}
+        # Exclude files staged for deletion so the header check does not
+        # report errors for files that are intentionally being removed.
+        deleted_result = subprocess.run(
+            ["git", "ls-files", "--deleted"],
+            check=False,
+            capture_output=True,
+            text=True,
+            cwd=Path.cwd(),
+        )
+        if deleted_result.returncode == 0:
+            deleted = {line.strip() for line in deleted_result.stdout.split("\n") if line.strip()}
+            all_files -= deleted
+        elif deleted_result.stderr:
+            print(f"Warning: 'git ls-files --deleted' failed: {deleted_result.stderr.strip()}")
+        return sorted(all_files)
     except FileNotFoundError:
         print("Error: Git not found. This tool requires git to be installed.")
         return None
