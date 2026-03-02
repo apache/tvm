@@ -118,7 +118,6 @@ class BlockReadWriteDetector : public StmtExprVisitor {
   void VisitStmt_(const SBlockRealizeNode* op) override;
   void VisitStmt_(const BufferStoreNode* op) override;
   void VisitStmt_(const BindNode* op) override;
-  void VisitStmt_(const SeqStmtNode* op) override;
   void VisitExpr_(const BufferLoadNode* op) override;
   void VisitExpr_(const VarNode* op) override;
   void VisitExpr_(const CallNode* op) override;
@@ -191,30 +190,13 @@ void BlockReadWriteDetector::VisitStmt_(const IfThenElseNode* op) {
 }
 
 void BlockReadWriteDetector::VisitStmt_(const BindNode* op) {
-  // With flat Bind, the binding persists for subsequent siblings.
-  // The SeqStmt handler manages the lifecycle; standalone Bind just adds.
+  // Add the binding to let_bindings_ so it can be used for index substitution.
+  // The binding persists for subsequent siblings in the enclosing SeqStmt
+  // (default visitor processes children sequentially). Cleanup is handled by
+  // the enclosing block frame scope -- let_bindings_ is scoped to the
+  // BlockReadWriteDetector instance which processes one block at a time.
   let_bindings_[op->var.get()] = op->value;
   StmtVisitor::VisitStmt_(op);
-  // Note: we do NOT erase here. The SeqStmt handler will erase
-  // all Bind-defined vars when it finishes processing the sequence.
-  // For standalone Bind (not in a SeqStmt), the binding persists
-  // until the parent scope ends.
-}
-
-void BlockReadWriteDetector::VisitStmt_(const SeqStmtNode* op) {
-  // Track which variables were defined by Bind nodes in this sequence,
-  // so we can erase them when the sequence ends.
-  std::vector<const VarNode*> seq_bindings;
-  for (size_t i = 0; i < op->seq.size(); ++i) {
-    if (auto* bind = op->seq[i].as<BindNode>()) {
-      seq_bindings.push_back(bind->var.get());
-    }
-    VisitStmt(op->seq[i]);
-  }
-  // Erase bindings defined in this sequence.
-  for (auto* var : seq_bindings) {
-    let_bindings_.erase(var);
-  }
 }
 
 void BlockReadWriteDetector::VisitExpr_(const CallNode* op) {
