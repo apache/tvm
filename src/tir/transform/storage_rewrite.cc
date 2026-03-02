@@ -609,14 +609,13 @@ class StoragePlanRewriter : public StmtExprMutator {
     std::vector<const AllocDescriptor*> allocs;
     // The children of this entry, not including itself.
     std::vector<StorageEntry*> merged_children;
-    // The replacement Allocate, if any.  May also include associated
-    // DeclBuffer statement.
+    // The replacement AllocBuffer, if any.
     std::vector<Stmt> alloc_nest;
     // The var expr of new allocation.
     Var alloc_var;
     // The allocation element type.
     DataType elem_type;
-    // This is non-zero if this allocate is folded into another one
+    // This is non-zero if this alloc_buffer is folded into another one
     // the address(in bits) becomes alloc_var + bits_offset;
     // can be effectively converted to the element type.
     // We need to convert bit_offset to offset of specific element type later.
@@ -1080,7 +1079,7 @@ class StoragePlanRewriter : public StmtExprMutator {
   std::vector<std::unique_ptr<StorageEntry>> alloc_vec_;
   // The buffer objects being remapped
   std::unordered_map<const BufferNode*, Buffer> buffer_remap_;
-  // Buffers whose DeclBuffer has been hoisted to be adjacent to the new Allocate location
+  // Buffers whose DeclBuffer has been hoisted to be adjacent to the new AllocBuffer location
   std::unordered_set<const BufferNode*> hoisted_buffer_decls_;
   // Any buffers that is accessed at some point.  DeclBuffer instances
   // that do not appear in this list may be removed.

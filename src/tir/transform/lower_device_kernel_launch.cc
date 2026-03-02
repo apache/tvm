@@ -93,7 +93,7 @@ class DeviceInfoCollector : public StmtVisitor {
     if (launch_param == tvm::runtime::launch_param::kUseDynamicSharedMemoryTag) {
       TVM_FFI_ICHECK(dyn_shmem_size.defined())
           << "Compute kernel requires launch parameter \"" << launch_param
-          << "\", but PrimFunc did not contain Allocate node with shared dynamic scope.";
+          << "\", but PrimFunc did not contain AllocBuffer node with shared dynamic scope.";
       return dyn_shmem_size.value();
     }
 
