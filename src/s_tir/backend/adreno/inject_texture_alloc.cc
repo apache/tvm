@@ -95,8 +95,7 @@ class TextureAllocInjector : public arith::IRMutatorWithAnalyzer {
     if (IsTextureStorage(storage_scope)) {
       op = stmt.as<AllocBufferNode>();
       const auto& extents = op->buffer->shape;
-      TVM_FFI_ICHECK(extents.size() >= 3)
-          << "Only 2D Array RGBA texture is currently supported";
+      TVM_FFI_ICHECK(extents.size() >= 3) << "Only 2D Array RGBA texture is currently supported";
       const int data_bits = op->buffer->dtype.bits(),
                 vec_length = static_cast<int>(extents.back().as<IntImmNode>()->value);
       const int channel_size = data_bits * vec_length;
@@ -111,9 +110,9 @@ class TextureAllocInjector : public arith::IRMutatorWithAnalyzer {
       args.push_back(Call(DataType::Handle(), builtin::tvm_stack_make_shape(),
                           {texture.width, texture.height, texture.depth}));
       args.push_back(IntImm(DataType::Int(64), channel_size));
-      stmt = LetStmt(
-          op->buffer->data,
-          Call(op->buffer->data.dtype(), builtin::nd_mem_alloc_with_scope(), args), op->body);
+      stmt = LetStmt(op->buffer->data,
+                     Call(op->buffer->data.dtype(), builtin::nd_mem_alloc_with_scope(), args),
+                     op->body);
     }
     return stmt;
   }

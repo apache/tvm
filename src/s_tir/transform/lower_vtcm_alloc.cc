@@ -59,9 +59,9 @@ class VtcmAllocator : public StmtExprMutator {
       args.push_back(StringImm(storage_scope));
       args.push_back(IntImm(DataType::Int(64), op->buffer->shape.size()));
       args.push_back(Call(DataType::Handle(), builtin::tvm_stack_make_shape(), op->buffer->shape));
-      return LetStmt(
-          op->buffer->data,
-          Call(op->buffer->data.dtype(), builtin::nd_mem_alloc_with_scope(), args), body);
+      return LetStmt(op->buffer->data,
+                     Call(op->buffer->data.dtype(), builtin::nd_mem_alloc_with_scope(), args),
+                     body);
     }
     return StmtExprMutator::VisitStmt_(op);
   }
