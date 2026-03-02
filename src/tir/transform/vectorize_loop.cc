@@ -815,7 +815,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
   // While
   Stmt VisitStmt_(const WhileNode* op) final {
     TVM_FFI_THROW(InternalError) << "A while loop inside a vectorized loop not supported.";
-    __builtin_unreachable();
+    TVM_FFI_UNREACHABLE();
   }
   // Bind
   Stmt VisitStmt_(const BindNode* op) final {

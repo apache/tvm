@@ -364,7 +364,7 @@ class IRConvertSSA final : public StmtExprMutator {
   Stmt VisitStmt_(const SeqStmtNode* op) final {
     // Process children sequentially, maintaining ScopedRedefine for Bind nodes
     // so that remappings persist for subsequent siblings (mimicking old nested
-    // LetStmt scope behavior).
+    // Bind scope behavior).
     std::vector<ScopedRedefine> seq_redefines;
     ffi::Array<Stmt> new_seq;
     bool changed = false;

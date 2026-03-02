@@ -227,7 +227,7 @@ class TVMFFIABIBuilder {
    * \brief Internal scalar bind with AccessPath tracking and rich error messages.
    *
    * Binds \p arg to \p value. If arg is a Var not yet in var_defs_, creates a
-   * new definition (LetStmt to init_nest_); otherwise emits a rich assertion
+   * new definition (Bind to init_nest_); otherwise emits a rich assertion
    * (to asserts_) that the existing value matches the new one.
    *
    * When arg is a non-Var expression (e.g. batch_size + 1), the assertion is

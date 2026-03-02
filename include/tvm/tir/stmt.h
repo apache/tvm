@@ -70,7 +70,7 @@ class Stmt : public ObjectRef {
 /*!
  * \brief Bind a variable to a value in the enclosing scope.
  *
- * Unlike LetStmt, BindNode has no body field. The bound variable is visible
+ * BindNode has no body field. The bound variable is visible
  * in all subsequent statements within the same enclosing scope (SeqStmt,
  * ForNode.body, etc.). This enables flat (non-nested) IR sequences.
  */
@@ -984,7 +984,7 @@ inline const char* ForKind2String(ForKind t) {
       return "thread_binding";
   }
   TVM_FFI_THROW(InternalError) << "Unknown ForKind" << t;
-  __builtin_unreachable();
+  TVM_FFI_UNREACHABLE();
 }
 
 }  // namespace tir

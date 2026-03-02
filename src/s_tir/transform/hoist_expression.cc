@@ -53,7 +53,7 @@ enum class HoistedConditionals : int {
 enum class HoistedLetBindings : int {
   kNone = 0,
   kRequiredByCondition = (1 << 0),
-  kLetStmt = (1 << 1),
+  kBind = (1 << 1),
   kLetExpr = (1 << 2),
 };
 
@@ -72,7 +72,7 @@ struct HoistExpressionConfigNode : public AttrsNodeReflAdapter<HoistExpressionCo
         .def_ro("hoisted_let_bindings", &HoistExpressionConfigNode::hoisted_let_bindings,
                 "Bitflags for the types of let bindings to hoist",
                 refl::DefaultValue(static_cast<int>(HoistedLetBindings::kRequiredByCondition) |
-                                   static_cast<int>(HoistedLetBindings::kLetStmt) |
+                                   static_cast<int>(HoistedLetBindings::kBind) |
                                    static_cast<int>(HoistedLetBindings::kLetExpr)));
   }
 
@@ -147,7 +147,7 @@ class HoistInfoCollector : public StmtExprVisitor {
       bool all_required_bindings_are_hoisted =
           required_let_bindings.empty() ||
           config->FlagSet(HoistedLetBindings::kRequiredByCondition) ||
-          config->FlagSet(HoistedLetBindings::kLetStmt);
+          config->FlagSet(HoistedLetBindings::kBind);
 
       bool valid_block_var_usage =
           config->FlagSet(HoistedConditionals::kUsingBlockVar) || !uses_block_var;
@@ -174,7 +174,7 @@ class HoistInfoCollector : public StmtExprVisitor {
     // The For or AttrStmt that defines the loop var.
     Stmt loop_def;
 
-    // Bindings defined in LetStmt inside the for-loop whose value
+    // Bindings defined in Bind nodes inside the for-loop whose value
     // does not depend on the loop variable.  These can be hoisted
     // outside this for-loop.
     std::vector<LetBindingInfo> let_bindings;
@@ -323,7 +323,7 @@ class HoistInfoCollector : public StmtExprVisitor {
   }
 
   void VisitStmt_(const BindNode* op) final {
-    VisitBinding(op->var, op->value, HoistedLetBindings::kLetStmt);
+    VisitBinding(op->var, op->value, HoistedLetBindings::kBind);
     Parent::VisitStmt_(op);
     // Don't erase here; SeqStmt handler manages the lifecycle.
   }

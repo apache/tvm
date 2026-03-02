@@ -49,7 +49,7 @@ bool AllowConciseScoping(const IRDocsifier& d, const ObjectRef& obj) {
     return f->allow_concise_scoping;
   }
   TVM_FFI_THROW(NotImplementedError) << "fragment printing";
-  __builtin_unreachable();
+  TVM_FFI_UNREACHABLE();
 }
 
 bool IsAncestorOfAllVarUse(const tir::Stmt& node, const ObjectRef& var, const IRDocsifier& d) {
@@ -108,9 +108,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       }
       // Step 2. RHS
       ExprDoc rhs = d->AsDoc<ExprDoc>(stmt->value, p->Attr("value"));
-      // Step 3. LHS - Bind has no body, it is a flat assignment
-      bool var_defined = d->IsVarDefined(stmt->var);
-      if (!var_defined) {
+      // Step 3. LHS - Bind is flat, define var if new, otherwise just assign
+      if (!d->IsVarDefined(stmt->var)) {
         TVM_FFI_ICHECK(!d->frames.empty());
         ExprDoc lhs = DefineVar(stmt->var, d->frames.back(), d);
         return AssignDoc(lhs, rhs, type_doc);

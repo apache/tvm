@@ -293,11 +293,11 @@ static const char* kRFactorCrossThreadReductionApplicableBlockDef =
     R"(Definition of a reduction block that is applicable by RFactor and Cross-Thread Reduction:
 1) The block init should be a single BufferStore or a SeqStmt of BufferStores
 2) The buffers initialized in the block init should be all different
-3) The number of consecutive LetStmts in the block body (if any) should equal the number of BufferStores in the block init
-4) The variables of the LetStmts in the block body should be all different
-5) The body of the innermost LetStmt should be a single BufferStore or a SeqStmt of BufferStores
-6) The number of BufferStores under the block body should equal the number of BufferStores in the block init, and thereby equal the number of LetStmts above
-7) The variables bound by the LetStmts in the block body must all directly serve as values of the BufferStores inside, and the stored values of the BufferStores can only be those variables
+3) The number of consecutive Binds in the block body (if any) should equal the number of BufferStores in the block init
+4) The variables of the Binds in the block body should be all different
+5) The statement after the innermost Bind should be a single BufferStore or a SeqStmt of BufferStores
+6) The number of BufferStores under the block body should equal the number of BufferStores in the block init, and thereby equal the number of Binds above
+7) The variables bound by the Binds in the block body must all directly serve as values of the BufferStores inside, and the stored values of the BufferStores can only be those variables
 8) The variables stored by the BufferStores in the block body should be all different
 9) The buffers written by the BufferStores in the block body should be all different
 10) The buffers initialized in the block init and written in the block body should match
@@ -343,11 +343,11 @@ void ErrorRFactorCrossThreadReductionNotApplicable(const ffi::Optional<ScheduleS
 }
 
 /*!
- * \brief Extract the BufferStores, which serve as the reduction updates, from the given LetStmt and
- * the BufferStores inside. And meanwhile set the buffer order of the reduction
+ * \brief Extract the BufferStores, which serve as the reduction updates, from the given Bind nodes
+ * and the BufferStores inside. And meanwhile set the buffer order of the reduction
  * \param self The schedule state, used for error reporting
  * \param block The reduction block, used for error reporting
- * \param let The LetStmt from which the reduction updates are extracted
+ * \param let The Bind nodes from which the reduction updates are extracted
  * \param n_buffers The number of buffers participating in the reduction
  * \param updates The extracted reduction updates
  * \param buf2index A mapping from reduction buffers to their indices of the reduction order

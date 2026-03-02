@@ -460,7 +460,7 @@ AssertFrame Assert(PrimExpr condition, ffi::String error_kind,
   return AssertFrame(n);
 }
 
-LetFrame LetStmt(PrimExpr value, ffi::Optional<Type> type_annotation, ffi::Optional<Var> var) {
+LetFrame Bind(PrimExpr value, ffi::Optional<Type> type_annotation, ffi::Optional<Var> var) {
   ObjectPtr<LetFrameNode> n = ffi::make_object<LetFrameNode>();
   if (var.defined()) {
     n->var = var.value();
@@ -753,7 +753,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("script.ir_builder.tir.ThreadBinding", ThreadBinding)
       .def("script.ir_builder.tir.Grid", Grid)
       .def("script.ir_builder.tir.Assert", Assert)
-      .def("script.ir_builder.tir.LetStmt", LetStmt)
+      .def("script.ir_builder.tir.Bind", Bind)
+      .def("script.ir_builder.tir.LetStmt", Bind)  // backward-compat alias
       .def("script.ir_builder.tir.LegacyLetStmt", LegacyLetStmt)
       .def("script.ir_builder.tir.Allocate", Allocate)
       .def("script.ir_builder.tir.Attr", Attr)

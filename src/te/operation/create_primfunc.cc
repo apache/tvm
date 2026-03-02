@@ -398,8 +398,8 @@ Stmt GenerateBodyStmt(const ffi::Array<PrimExpr>& indices, const ffi::Array<Buff
     // - When there is only one buffer, we directly create a BufferStore which stores "combiner(lhs,
     //   rhs)" into the target buffer position.
     // - In case there are multiple buffers, to avoid incorrect results, we create some intermediate
-    //   variables and use LetStmts to bind the variables with "combiner(lhs, rhs)". After that, we
-    //   then store the value of the variables into the target buffer positions.
+    //   variables and use Bind nodes to bind the variables with "combiner(lhs, rhs)". After that,
+    //   we then store the value of the variables into the target buffer positions.
     for (int i = 0; i < n_buffers; ++i) {
       const Buffer& buffer = buffers[i];
       PrimExpr value{nullptr};

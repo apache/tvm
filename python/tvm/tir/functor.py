@@ -374,7 +374,7 @@ class PyStmtExprVisitor:
         _ffi_api.PyStmtExprVisitorDefaultVisitStmt(self._outer(), op)  # type: ignore
 
     def visit_let_stmt_(self, op: LetStmt) -> None:
-        """Visit Bind (LetStmt alias).
+        """Visit Bind (LetStmt is a backward-compat alias for Bind).
         Users can customize this function to overwrite VisitStmt_(const BindNode* op)
         on the C++ side.
 
@@ -1197,7 +1197,7 @@ class PyStmtExprMutator:
         return _ffi_api.PyStmtExprMutatorDefaultVisitStmt(self._outer(), op)  # type: ignore
 
     def visit_let_stmt_(self, op: LetStmt) -> Stmt:
-        """Visit Bind (LetStmt alias).
+        """Visit Bind (LetStmt is a backward-compat alias for Bind).
         Users can customize this function to overwrite VisitStmt_(const BindNode* op)
         on the C++ side.
 

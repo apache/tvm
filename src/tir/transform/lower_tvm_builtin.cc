@@ -540,7 +540,7 @@ class BuiltinLower : public StmtExprMutator {
           return ffi::TypeIndex::kTVMFFIOpaquePtr;
         } else {
           TVM_FFI_THROW(InternalError) << "Unsupported type: " << api_dtype;
-          __builtin_unreachable();
+          TVM_FFI_UNREACHABLE();
         }
       }();
 

@@ -736,7 +736,7 @@ class BaseBlockCreator {
     }
 
     // Case 3. In case the reduction is for multiple buffers, we should create the reduction with
-    // LetStmt so that the reduction execution generates correct results.
+    // Bind nodes so that the reduction execution generates correct results.
     ffi::Array<Var> let_vars;
     let_vars.reserve(n_buffers_);
     for (int i = 0; i < n_buffers_; ++i) {

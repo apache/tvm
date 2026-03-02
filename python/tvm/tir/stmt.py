@@ -49,7 +49,7 @@ class Bind(Stmt):
     """Bind node.
 
     Bind a variable to a value in the enclosing scope.
-    Unlike the deprecated LetStmt, Bind has no body field.
+    Bind has no body field (unlike the old LetStmt which required a nested body).
     The bound variable is visible in all subsequent statements
     within the same enclosing scope (SeqStmt, ForNode.body, etc.).
 
@@ -78,8 +78,8 @@ class Bind(Stmt):
         )
 
 
-# Deprecated: use Bind instead.
-# LetStmt(var, value, body) now returns SeqStmt(Bind(var, value), body).
+# Deprecated alias: use Bind instead.
+# For backward compat: LetStmt(var, value, body) returns SeqStmt(Bind(var, value), body).
 LetStmt = Bind
 
 

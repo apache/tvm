@@ -544,7 +544,7 @@ Stmt CommonSubexpressionEliminator::VisitStmt_(const BindNode* op) {
 /*!
  * \brief Process a slice of a SeqStmt starting from index `start`.
  *
- * This mirrors the old nested LetStmt CSE approach: each Bind is
+ * This mirrors the old nested Bind CSE approach: each Bind is
  * processed one at a time (VisitExpr on value, augment context),
  * and then VisitStmt is called on the "body" (all remaining children).
  * Non-Bind children at the front are processed individually, then
@@ -555,7 +555,7 @@ Stmt CommonSubexpressionEliminator::VisitSeqStmtSlice(const ffi::Array<Stmt>& se
     return Evaluate(0);  // shouldn't happen
   }
 
-  // If seq[start] is a Bind, process it (like the old LetStmt handler):
+  // If seq[start] is a Bind, process it:
   // 1) VisitExpr on the value
   // 2) Augment context
   // 3) Call VisitStmt on the "body" (remaining children as SeqStmt)

@@ -154,7 +154,7 @@ class PrimFuncSpecializer : public StmtExprMutator {
 
     // If the buffer variable is being remapped to an expression, we
     // still need a tir::Var to be used as a the buffer variable.
-    // Therefore, generate a LetStmt that will provide a tir::Var for
+    // Therefore, generate a Bind that will provide a tir::Var for
     // the buffer to use.
     //
     // This step is only required when a buffer definition is using a

@@ -294,16 +294,24 @@ AssertFrame Assert(PrimExpr condition, ffi::String error_kind,
                    ffi::Array<ffi::String> message_parts);
 
 /*!
- * \brief The let binding.
+ * \brief Create a Bind (variable binding).
  * \param value The value to be bound.
- * \param type_annotation  The type annotation of the let binding.
+ * \param type_annotation  The type annotation of the binding.
  *                         Usually it is used for fine-grained var typing,
  *                         particularly, PointerType.
  * \param var The variable to be bound. If not specified, a new variable will be created.
  * \return The created LetFrame.
  */
-LetFrame LetStmt(PrimExpr value, ffi::Optional<Type> type_annotation = std::nullopt,
-                 ffi::Optional<Var> var = std::nullopt);
+LetFrame Bind(PrimExpr value, ffi::Optional<Type> type_annotation = std::nullopt,
+              ffi::Optional<Var> var = std::nullopt);
+
+/*!
+ * \brief Deprecated alias for Bind(). Use Bind() instead.
+ */
+inline LetFrame LetStmt(PrimExpr value, ffi::Optional<Type> type_annotation = std::nullopt,
+                        ffi::Optional<Var> var = std::nullopt) {
+  return Bind(value, type_annotation, var);
+}
 
 /*!
  * \brief The allocate node.

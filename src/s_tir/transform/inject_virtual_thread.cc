@@ -360,7 +360,7 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
   Stmt VisitStmt_(const WhileNode* op) final {
     // TODO(masahi): What should we do for While nodes?
     TVM_FFI_THROW(InternalError) << "WhileNode in InjectVirtualThread not supported yet";
-    __builtin_unreachable();
+    TVM_FFI_UNREACHABLE();
   }
 
   // Seq

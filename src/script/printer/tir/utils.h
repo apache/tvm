@@ -107,61 +107,22 @@ inline IdDoc DefineBuffer(const tir::Buffer& buffer, const Frame& frame, const I
  * \param f The frame
  * \param d The IRDocsifier
  */
-/*!
- * \brief Helper to process remaining SeqStmt children starting at index `start`
- *        into the given frame's stmts, handling Bind-with-already-defined-var
- *        by creating scoped T.LetStmt forms.
- */
-inline void AsDocBodySeqSlice(const ffi::Array<tir::Stmt>& body, int start, AccessPath p,
-                              TIRFrameNode* f, const IRDocsifier& d);
-
 inline void AsDocBody(const tir::Stmt& stmt, AccessPath p, TIRFrameNode* f, const IRDocsifier& d) {
   if (const auto* seq_stmt = stmt.as<tir::SeqStmtNode>()) {
-    AsDocBodySeqSlice(seq_stmt->seq, 0, p, f, d);
+    ffi::Array<tir::Stmt> body = seq_stmt->seq;
+    for (int i = 0, n = body.size(); i < n; ++i) {
+      f->allow_concise_scoping = (i == n - 1);
+      Doc doc = d->AsDoc(body[i], p->Attr("seq")->ArrayItem(i));
+      doc->source_paths.push_back(p);
+      if (const auto* block = doc.as<StmtBlockDocNode>()) {
+        f->stmts.insert(f->stmts.end(), block->stmts.begin(), block->stmts.end());
+      } else {
+        f->stmts.push_back(Downcast<StmtDoc>(doc));
+      }
+    }
   } else {
     f->allow_concise_scoping = true;
     Doc doc = d->AsDoc(stmt, p);
-    if (const auto* block = doc.as<StmtBlockDocNode>()) {
-      f->stmts.insert(f->stmts.end(), block->stmts.begin(), block->stmts.end());
-    } else {
-      f->stmts.push_back(Downcast<StmtDoc>(doc));
-    }
-  }
-}
-
-inline void AsDocBodySeqSlice(const ffi::Array<tir::Stmt>& body, int start, AccessPath p,
-                              TIRFrameNode* f, const IRDocsifier& d) {
-  int n = body.size();
-  for (int i = start; i < n; ++i) {
-    // Check if this is a Bind with an already-defined variable.
-    // If so, we need to use the scoped T.LetStmt form and wrap
-    // remaining siblings as the body (for correct roundtrip).
-    if (const auto* bind = body[i].as<tir::BindNode>()) {
-      if (d->IsVarDefined(bind->var)) {
-        // Create a scoped LetStmt form:
-        //   with T.LetStmt(value, var=X):
-        //     <remaining siblings>
-        auto bind_p = p->Attr("seq")->ArrayItem(i);
-        ExprDoc rhs = d->AsDoc<ExprDoc>(bind->value, bind_p->Attr("value"));
-        ExprDoc lhs = d->AsDoc<ExprDoc>(bind->var, bind_p->Attr("var"));
-        // Collect the remaining siblings as the body
-        ffi::Array<StmtDoc> scope_stmts;
-        // Create a temporary frame for body processing
-        auto temp_frame = ffi::make_object<TIRFrameNode>();
-        AsDocBodySeqSlice(body, i + 1, p, temp_frame.get(), d);
-        scope_stmts = temp_frame->stmts;
-
-        ExprDoc call = TIR(d, "LetStmt")->Call({rhs}, {"var"}, {lhs});
-        StmtDoc scope_doc = ScopeDoc(std::nullopt, call, scope_stmts);
-        scope_doc->source_paths.push_back(p);
-        f->stmts.push_back(scope_doc);
-        return;  // remaining siblings are inside the scope
-      }
-    }
-
-    f->allow_concise_scoping = (i == n - 1);
-    Doc doc = d->AsDoc(body[i], p->Attr("seq")->ArrayItem(i));
-    doc->source_paths.push_back(p);
     if (const auto* block = doc.as<StmtBlockDocNode>()) {
       f->stmts.insert(f->stmts.end(), block->stmts.begin(), block->stmts.end());
     } else {

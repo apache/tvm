@@ -369,7 +369,7 @@ std::string CodeGenC::GetStructRef(DataType t, const PrimExpr& buffer, const Pri
     return os.str();
   } else {
     TVM_FFI_THROW(RuntimeError) << "Unsupported type index: " << kind;
-    __builtin_unreachable();
+    TVM_FFI_UNREACHABLE();
   }
 }
 
