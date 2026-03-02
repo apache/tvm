@@ -57,56 +57,42 @@ bool IsStaticSharedMemory(Var buffer_var) {
   return storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == "";
 }
 
-/*! \brief Lightweight allocation descriptor for merge planning. */
-struct AllocDescriptor {
-  Var buffer_var;
-  DataType dtype;
-  ffi::Array<PrimExpr> extents;
-  PrimExpr condition;
-
-  int64_t ConstantAllocationSize() const {
-    int64_t result = 1;
-    for (size_t i = 0; i < extents.size(); ++i) {
-      if (const IntImmNode* int_size = extents[i].as<IntImmNode>()) {
-        result *= int_size->value;
-        if (result > std::numeric_limits<int64_t>::max()) return 0;
-      } else {
-        return 0;
-      }
+/*!
+ * \brief Compute constant allocation size from buffer's allocation shape.
+ * \return Product of extents if all constant, 0 otherwise.
+ */
+static int64_t ConstantAllocationSize(const ffi::Array<PrimExpr>& extents) {
+  int64_t result = 1;
+  for (size_t i = 0; i < extents.size(); ++i) {
+    if (const IntImmNode* int_size = extents[i].as<IntImmNode>()) {
+      result *= int_size->value;
+      if (result > std::numeric_limits<int64_t>::max()) return 0;
+    } else {
+      return 0;
     }
-    return result;
   }
-};
+  return result;
+}
 
 /*!
- * \brief collect the mapping from the buffer var to its allocate
+ * \brief collect the mapping from the buffer var to its Buffer
  */
 class AllocateCollector : public StmtExprVisitor {
  public:
   void VisitStmt_(const AllocBufferNode* op) final {
     if (IsDynamicSharedMemory(op->buffer->data) || IsStaticSharedMemory(op->buffer->data)) {
-      ffi::Array<PrimExpr> alloc_shape = GetBufferAllocationShape(op->buffer);
-      auto desc = std::make_unique<AllocDescriptor>();
-      desc->buffer_var = op->buffer->data;
-      desc->dtype = op->buffer->dtype;
-      desc->extents = alloc_shape;
-      desc->condition = const_true();
-      const AllocDescriptor* desc_ptr = desc.get();
-      alloc_descs_.push_back(std::move(desc));
       if (IsDynamicSharedMemory(op->buffer->data)) {
-        dyn_shmem_allocs_[op->buffer->data.get()] = desc_ptr;
+        dyn_shmem_allocs_[op->buffer->data.get()] = op->buffer;
       } else {
-        static_shmem_allocs_[op->buffer->data.get()] = desc_ptr;
+        static_shmem_allocs_[op->buffer->data.get()] = op->buffer;
       }
     }
     StmtExprVisitor::VisitStmt_(op);
   }
-  // The dynamic mapping from the original buffer var to its descriptor
-  std::unordered_map<const VarNode*, const AllocDescriptor*> dyn_shmem_allocs_;
-  // The static mapping from the original buffer var to its descriptor
-  std::unordered_map<const VarNode*, const AllocDescriptor*> static_shmem_allocs_;
-  // Owned AllocDescriptor instances
-  std::vector<std::unique_ptr<AllocDescriptor>> alloc_descs_;
+  // The dynamic mapping from the original buffer var to its Buffer
+  std::unordered_map<const VarNode*, Buffer> dyn_shmem_allocs_;
+  // The static mapping from the original buffer var to its Buffer
+  std::unordered_map<const VarNode*, Buffer> static_shmem_allocs_;
 };
 
 // Find a linear pattern of storage access
@@ -118,9 +104,9 @@ class AllocateCollector : public StmtExprVisitor {
 // before_scope -> scope_body -> after_scope
 //
 // This pass tries to detect last point that we need to keep memory
-// alive under the same scope as Allocate.
-// The storage need to be kept alive between Allocate and last access.
-// The free point is only inserted at the same scope of Allocate.
+// alive under the same scope as AllocBuffer.
+// The storage need to be kept alive between AllocBuffer and last access.
+// The free point is only inserted at the same scope of AllocBuffer.
 //
 class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
  public:
@@ -141,22 +127,15 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
   struct AllocEntry {
     // the level in the scope stack
     size_t level{0};
-    // allocation descriptor
-    const AllocDescriptor* alloc{nullptr};
+    // The buffer object
+    Buffer buffer;
   };
 
   void VisitStmt_(const AllocBufferNode* op) final {
     size_t level = scope_.size();
     const VarNode* buf = op->buffer->data.get();
-    ffi::Array<PrimExpr> alloc_shape = GetBufferAllocationShape(op->buffer);
-    auto desc = std::make_unique<AllocDescriptor>();
-    desc->buffer_var = op->buffer->data;
-    desc->dtype = op->buffer->dtype;
-    desc->extents = alloc_shape;
-    desc->condition = const_true();
-    alloc_info_[buf].alloc = desc.get();
+    alloc_info_[buf].buffer = op->buffer;
     alloc_info_[buf].level = level;
-    alloc_descs_.push_back(std::move(desc));
     StmtExprVisitor::VisitStmt_(op);
   }
 
@@ -167,7 +146,7 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
     // Add write access.
     const VarNode* buf = op->buffer->data.get();
     auto it = alloc_info_.find(buf);
-    if (it != alloc_info_.end() && it->second.alloc) {
+    if (it != alloc_info_.end() && it->second.buffer.defined()) {
       TVM_FFI_ICHECK_LT(it->second.level, scope_.size());
       if (IsAppropriateSharedMemory(ffi::GetRef<Var>(buf))) {
         scope_[it->second.level].touched.push_back(buf);
@@ -194,11 +173,11 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
   }
 
   void VisitExpr_(const BufferLoadNode* op) final {
-    // Add write access.
+    // Add read access.
     StmtExprVisitor::VisitExpr_(op);
     const VarNode* buf = op->buffer->data.get();
     auto it = alloc_info_.find(buf);
-    if (it != alloc_info_.end() && it->second.alloc) {
+    if (it != alloc_info_.end() && it->second.buffer.defined()) {
       TVM_FFI_ICHECK_LT(it->second.level, scope_.size())
           << "Load memory in places other than store.";
       if (IsAppropriateSharedMemory(ffi::GetRef<Var>(buf))) {
@@ -221,7 +200,7 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
   void VisitExpr_(const VarNode* buf) final {
     // Directly reference to the variable count as a read.
     auto it = alloc_info_.find(buf);
-    if (it != alloc_info_.end() && it->second.alloc) {
+    if (it != alloc_info_.end() && it->second.buffer.defined()) {
       TVM_FFI_ICHECK_LT(it->second.level, scope_.size());
       if (IsAppropriateSharedMemory(ffi::GetRef<Var>(buf))) {
         scope_[it->second.level].touched.push_back(buf);
@@ -283,12 +262,10 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
   bool IsAppropriateSharedMemory(const Var& var) {
     return is_dynamic_ ? IsDynamicSharedMemory(var) : IsStaticSharedMemory(var);
   }
-  // Whether do dyanmic analysis.
+  // Whether do dynamic analysis.
   bool is_dynamic_{true};
   // Whether already in thread env.
   bool in_thread_env_{false};
-  // Owned AllocDescriptor instances
-  std::vector<std::unique_ptr<AllocDescriptor>> alloc_descs_;
   // The scope stack.
   std::vector<StmtEntry> scope_;
 };
@@ -298,9 +275,8 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
  */
 class SharedMemoryRewriter : public StmtExprMutator {
  public:
-  explicit SharedMemoryRewriter(
-      const std::unordered_map<const VarNode*, const AllocDescriptor*>& shmem_allocs,
-      bool is_dynamic = true)
+  explicit SharedMemoryRewriter(const std::unordered_map<const VarNode*, Buffer>& shmem_allocs,
+                                bool is_dynamic = true)
       : is_dynamic_{is_dynamic}, shmem_allocs_{shmem_allocs} {
     if (!is_dynamic) {
       merged_buf_var_ = Var("buf_shmem", PointerType(PrimType(DataType::UInt(8)), "shared"));
@@ -338,8 +314,8 @@ class SharedMemoryRewriter : public StmtExprMutator {
       for (const StorageEntry* e : all_entry) {
         for (int i = 0; i < static_cast<int>(e->allocs.size()); i++) {
           for (const VarNode* buffer : e->allocs[i]) {
-            const AllocDescriptor* alloc = shmem_allocs_[buffer];
-            align[i] = std::max(align[i], alloc->dtype.bytes());
+            const Buffer& buf = shmem_allocs_.at(buffer);
+            align[i] = std::max(align[i], buf->dtype.bytes());
           }
         }
       }
@@ -349,9 +325,10 @@ class SharedMemoryRewriter : public StmtExprMutator {
         for (int i = 0; i < static_cast<int>(e->allocs.size()); i++) {
           PrimExpr inner_offset = 0;
           for (const VarNode* buffer : e->allocs[i]) {
-            const AllocDescriptor* alloc = shmem_allocs_[buffer];
+            const Buffer& buf = shmem_allocs_.at(buffer);
+            ffi::Array<PrimExpr> alloc_shape = GetBufferAllocationShape(buf);
             buffer_byte_offsets_[buffer] = merged_alloc_size_ + inner_offset;
-            inner_offset += alloc->extents[0] * alloc->dtype.bytes();
+            inner_offset += alloc_shape[0] * buf->dtype.bytes();
             inner_offset += indexmod(align[i] - indexmod(inner_offset, align[i]), align[i]);
           }
           max_inner_offset = max(max_inner_offset, inner_offset);
@@ -538,7 +515,6 @@ class SharedMemoryRewriter : public StmtExprMutator {
   /*!
    * \brief Memory plan algorithm
    * \param seq the linear pattern of storage access
-   * \param alloc_info
    */
   void PlanMemory(const std::vector<StmtEntry>& seq) {
     std::unordered_set<const VarNode*> inplace_flag;
@@ -565,8 +541,8 @@ class SharedMemoryRewriter : public StmtExprMutator {
       if (it != event_map_.end() && seq[i].scope_pair_offset >= 0) {
         for (const VarNode* var : it->second.gen) {
           TVM_FFI_ICHECK(shmem_allocs_.count(var));
-          const AllocDescriptor* alloc = shmem_allocs_[var];
-          StorageEntry* dst_entry = FindAlloc(alloc);
+          const Buffer& buf = shmem_allocs_.at(var);
+          StorageEntry* dst_entry = FindAlloc(buf);
           alloc_map_[var] = dst_entry;
         }
       }
@@ -579,34 +555,34 @@ class SharedMemoryRewriter : public StmtExprMutator {
   }
   /*!
    * \brief Allocate new storage entry.
-   * \param op the allocate node
-   * \param the size of the allocation in bits
+   * \param buf the buffer object
+   * \param const_nbits the size of the allocation in bits
    * \return the new storage entry
    */
-  StorageEntry* NewAlloc(const AllocDescriptor* op, size_t const_nbits) {
-    TVM_FFI_ICHECK(op != nullptr);
+  StorageEntry* NewAlloc(const Buffer& buf, size_t const_nbits) {
     // Re-use not successful, allocate a new buffer.
     StorageEntry* entry = arena_.make<StorageEntry>();
-    entry->allocs.push_back({op->buffer_var.get()});
+    entry->allocs.push_back({buf->data.get()});
     entry->const_nbits = const_nbits;
     return entry;
   }
   /*!
-   * \brief find the storage entry in the free list for the allocate
-   * \param op the allocate node
+   * \brief find the storage entry in the free list for the buffer
+   * \param buf the buffer object
    * \return the storage entry
    */
-  StorageEntry* FindAlloc(const AllocDescriptor* op) {
-    TVM_FFI_ICHECK(op != nullptr);
+  StorageEntry* FindAlloc(const Buffer& buf) {
     // skip plan for local variable,
     // compiler can do a better job with register allocation.
     const uint64_t match_range = 16;
-    uint64_t op_elem_bits = op->dtype.bits() * op->dtype.lanes();
-    uint64_t const_nbits = static_cast<uint64_t>(op->ConstantAllocationSize() * op_elem_bits);
+    ffi::Array<PrimExpr> alloc_shape = GetBufferAllocationShape(buf);
+    uint64_t op_elem_bits = buf->dtype.bits() * buf->dtype.lanes();
+    uint64_t const_nbits =
+        static_cast<uint64_t>(ConstantAllocationSize(alloc_shape) * op_elem_bits);
     // disable reuse of small arrays, they will be lowered to registers in LLVM
     // This rules only apply if we are using non special memory
     if (const_nbits > 0 && const_nbits <= 32) {
-      return NewAlloc(op, const_nbits);
+      return NewAlloc(buf, const_nbits);
     }
 
     if (const_nbits != 0) {
@@ -621,7 +597,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
         StorageEntry* e = it->second;
         e->const_nbits = std::max(const_nbits, e->const_nbits);
         const_free_map_.erase(it);
-        it->second->allocs.push_back({op->buffer_var.get()});
+        it->second->allocs.push_back({buf->data.get()});
         return e;
       }
       // Then start looking at smaller buffers.
@@ -648,7 +624,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
           break;
         }
       }
-      reuse_allocs.push_back({op->buffer_var.get()});
+      reuse_allocs.push_back({buf->data.get()});
       if (mem_ct != 0) {
         StorageEntry* e = arena_.make<StorageEntry>();
         e->const_nbits = std::max(const_nbits, mem_ct);
@@ -667,7 +643,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
         return e;
       }
     }
-    return NewAlloc(op, const_nbits);
+    return NewAlloc(buf, const_nbits);
   }
 
   /*!
@@ -690,12 +666,12 @@ class SharedMemoryRewriter : public StmtExprMutator {
       sym_free_list_.push_back(e);
     }
   }
-  // Wheather enable dyanmic analysis.
+  // Whether enable dynamic analysis.
   bool is_dynamic_{true};
   // The var for the merged buffer
   Var merged_buf_var_{"buf_dyn_shmem", PointerType(PrimType(DataType::UInt(8)), "shared.dyn")};
-  // The mapping from the original buffer var to its allocate
-  std::unordered_map<const VarNode*, const AllocDescriptor*> shmem_allocs_;
+  // The mapping from the original buffer var to its Buffer
+  std::unordered_map<const VarNode*, Buffer> shmem_allocs_;
   // The size of the merged buffer
   PrimExpr merged_alloc_size_{0};
   // The mapping from the original buffer var to its offset in the merged buffer
