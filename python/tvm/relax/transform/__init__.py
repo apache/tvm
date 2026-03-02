@@ -41,7 +41,6 @@ from .transform import (
     EliminateCommonSubexpr,
     ExpandMatmulOfSum,
     ExpandTupleArguments,
-    FewShotTuning,
     FoldConstant,
     FunctionPass,
     FuseOps,
