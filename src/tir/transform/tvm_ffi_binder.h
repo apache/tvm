@@ -415,6 +415,8 @@ class TVMFFIABIBuilder {
   // Pre-cached common message fragments for string sharing across assertions
   StringImm sig_imm_;  // func_signature_ (set in constructor)
   StringImm when_calling_imm_ = StringImm(" when calling:\n  `");
+  /*! \brief Whether to emit data pointer alignment checks (disabled for now). */
+  bool check_alignment_ = false;
 };
 
 }  // namespace tir

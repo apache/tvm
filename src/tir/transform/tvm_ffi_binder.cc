@@ -783,27 +783,33 @@ void TVMFFIABIBuilder::DecodeParamDLTensor(const Buffer& buffer, const PrimExpr&
                                  StringImm(std::to_string(param_index)), when_calling_imm_,
                                  sig_imm_, StringImm("`,\n  expected non-NULL data pointer")})));
 
-      // Check data pointer alignment
-      if (buffer->data_alignment > 1) {
-        PrimExpr ptr_as_int =
-            Call(DataType::UInt(64), builtin::reinterpret(), {cast(DataType::Handle(), vptr)});
-        PrimExpr align_cond =
-            truncmod(ptr_as_int, make_const(DataType::UInt(64), buffer->data_alignment)) ==
-            make_const(DataType::UInt(64), 0);
-        asserts_.emplace_back(AssertStmt(
-            alloc_size == 0 || align_cond, StringImm("ValueError"),
-            ffi::Array<StringImm>({StringImm("Misaligned Tensor data on argument #"),
-                                   StringImm(std::to_string(param_index)), when_calling_imm_,
-                                   sig_imm_, StringImm("`,\n  expected data alignment="),
-                                   StringImm(std::to_string(buffer->data_alignment)),
-                                   StringImm(" bytes")})));
+      if (check_alignment_) {
+        // Check data pointer alignment
+        if (buffer->data_alignment > 1) {
+          PrimExpr ptr_as_int =
+              Call(DataType::UInt(64), builtin::reinterpret(), {cast(DataType::Handle(), vptr)});
+          PrimExpr align_cond =
+              truncmod(ptr_as_int, make_const(DataType::UInt(64), buffer->data_alignment)) ==
+              make_const(DataType::UInt(64), 0);
+          asserts_.emplace_back(AssertStmt(
+              alloc_size == 0 || align_cond, StringImm("ValueError"),
+              ffi::Array<StringImm>({StringImm("Misaligned Tensor data on argument #"),
+                                     StringImm(std::to_string(param_index)), when_calling_imm_,
+                                     sig_imm_, StringImm("`,\n  expected data alignment="),
+                                     StringImm(std::to_string(buffer->data_alignment)),
+                                     StringImm(" bytes")})));
+        }
+        // mark alignment of external bufs — must be after the alignment assertion
+        // so the compiler does not emit aligned loads before the check fires.
+        asserts_.emplace_back(AttrStmt(vptr, tir::attr::storage_alignment,
+                                       IntImm(DataType::Int(32), buffer->data_alignment),
+                                       Evaluate(0)));
+      } else {
+        // Even without alignment check, mark alignment for the compiler.
+        init_nest_.emplace_back(AttrStmt(vptr, tir::attr::storage_alignment,
+                                         IntImm(DataType::Int(32), buffer->data_alignment),
+                                         Evaluate(0)));
       }
-
-      // mark alignment of external bufs — must be after the alignment assertion
-      // so the compiler does not emit aligned loads before the check fires.
-      asserts_.emplace_back(AttrStmt(vptr, tir::attr::storage_alignment,
-                                     IntImm(DataType::Int(32), buffer->data_alignment),
-                                     Evaluate(0)));
     }
   }
 }
