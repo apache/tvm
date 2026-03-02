@@ -220,10 +220,6 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::Allocate>(  //
         "", [](tir::Allocate stmt, AccessPath stmt_p, IRDocsifier d) -> Doc {
           bool concise = AllowConciseScoping(d, stmt_p);
-          if (d->cfg->syntax_sugar && IsAllocateDeclBufferPattern(stmt.get())) {
-            return DeclBufferDoc(Downcast<tir::DeclBuffer>(stmt->body), stmt_p->Attr("body"), d,
-                                 BufferVarDefinition::DataPointer);
-          }
           ffi::Array<ExprDoc> args;
           ffi::Array<ffi::String> kwargs_keys;
           ffi::Array<ExprDoc> kwargs_values;
@@ -318,12 +314,11 @@ TVM_SCRIPT_REPR(tir::WhileNode, ReprPrintTIR);
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::AllocBuffer>(  //
         "", [](tir::AllocBuffer stmt, AccessPath p, IRDocsifier d) -> Doc {
+          // Print AllocBuffer as T.decl_buffer (without data= parameter).
+          // When the parser sees T.decl_buffer without data, DeclBufferFrame
+          // creates AllocBuffer on exit, ensuring a clean roundtrip.
           bool concise = AllowConciseScoping(d, stmt);
-          ffi::Array<ExprDoc> extra_args;
-          if (!stmt->annotations.empty()) {
-            extra_args.push_back(d->AsDoc<ExprDoc>(stmt->annotations, p->Attr("annotations")));
-          }
-          ExprDoc rhs = BufferDecl(stmt->buffer, "alloc_buffer", extra_args, p->Attr("buffer"),
+          ExprDoc rhs = BufferDecl(stmt->buffer, "decl_buffer", {}, p->Attr("buffer"),
                                    d->frames.back(), d, BufferVarDefinition::DataPointer);
           With<TIRFrame> f(d, stmt);
           ExprDoc lhs = DefineBuffer(stmt->buffer, *f, d);
