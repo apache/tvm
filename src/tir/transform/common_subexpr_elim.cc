@@ -542,121 +542,66 @@ Stmt CommonSubexpressionEliminator::VisitStmt_(const BindNode* op) {
 }
 
 /*!
- * \brief Process a slice of a SeqStmt starting from index `start`.
- *
- * This mirrors the old nested Bind CSE approach: each Bind is
- * processed one at a time (VisitExpr on value, augment context),
- * and then VisitStmt is called on the "body" (all remaining children).
- * Non-Bind children at the front are processed individually, then
- * we recurse on the rest.
- */
-Stmt CommonSubexpressionEliminator::VisitSeqStmtSlice(const ffi::Array<Stmt>& seq, size_t start) {
-  if (start >= seq.size()) {
-    return Evaluate(0);  // shouldn't happen
-  }
-
-  // If seq[start] is a Bind, process it:
-  // 1) VisitExpr on the value
-  // 2) Augment context
-  // 3) Call VisitStmt on the "body" (remaining children as SeqStmt)
-  if (auto bind = seq[start].as<BindNode>()) {
-    Context context_at_entry = context_;
-
-    PrimExpr value_new = VisitExpr(bind->value);
-    context_.push_back({bind->var, MaybeValue(bind->value)});
-
-    Stmt bind_new;
-    if (value_new.same_as(bind->value)) {
-      bind_new = ffi::GetRef<Stmt>(bind);
-    } else {
-      bind_new = Bind(bind->var, value_new, bind->span);
-    }
-
-    // Construct the "body" from remaining siblings
-    Stmt body;
-    if (start + 2 == seq.size()) {
-      body = seq[start + 1];
-    } else if (start + 1 < seq.size()) {
-      ffi::Array<Stmt> remaining;
-      for (size_t j = start + 1; j < seq.size(); j++) {
-        remaining.push_back(seq[j]);
-      }
-      body = SeqStmt(remaining);
-    } else {
-      // Bind is the last element, no body
-      context_ = context_at_entry;
-      return bind_new;
-    }
-
-    // Call the full CSE VisitStmt on the body (with augmented context).
-    // This is the key step that allows CSE to find common subexpressions
-    // in subsequent siblings with the Bind variable in scope.
-    Stmt body_new = VisitStmt(body);
-
-    context_ = context_at_entry;
-
-    // Flatten into a flat result
-    ffi::Array<Stmt> result;
-    result.push_back(bind_new);
-    if (auto inner = body_new.as<SeqStmtNode>()) {
-      for (const auto& s : inner->seq) {
-        result.push_back(s);
-      }
-    } else {
-      result.push_back(body_new);
-    }
-    return SeqStmt::Flatten(result);
-  }
-
-  // seq[start] is a non-Bind child.
-  // Process it individually with VisitStmt, then recurse on the rest.
-  Stmt child_new = VisitStmt(seq[start]);
-
-  if (start + 1 >= seq.size()) {
-    // Single remaining child -- return it directly
-    return child_new;
-  }
-
-  ffi::Array<Stmt> result;
-  if (auto inner = child_new.as<SeqStmtNode>()) {
-    for (const auto& s : inner->seq) {
-      result.push_back(s);
-    }
-  } else {
-    result.push_back(child_new);
-  }
-
-  Stmt rest = VisitSeqStmtSlice(seq, start + 1);
-  if (auto inner = rest.as<SeqStmtNode>()) {
-    for (const auto& s : inner->seq) {
-      result.push_back(s);
-    }
-  } else {
-    result.push_back(rest);
-  }
-
-  return SeqStmt::Flatten(result);
-}
-
-/*!
  * \brief The method which overrides the specific treatment for a SeqStmtNode.
  *
- * With flat Bind nodes (no body), the SeqStmt must be processed
- * sequentially: each Bind node augments the context, and the remaining
- * non-Bind siblings are wrapped into a "body" for CSE analysis.
+ * Process the flat sequence one child at a time:
+ * - Bind nodes: process the value (via VisitExpr), augment context, then wrap
+ *   all remaining siblings as a body and pass to VisitStmt for cross-sibling
+ *   CSE with the newly augmented context.
+ * - Non-Bind nodes: process individually via VisitStmt, then continue to the
+ *   next child.
+ *
+ * This approach ensures that each Bind variable is available in the context
+ * when analyzing subsequent siblings, enabling CSE to find common
+ * subexpressions that use Bind-defined variables.
  */
 Stmt CommonSubexpressionEliminator::VisitStmt_(const SeqStmtNode* op) {
   Context context_at_entry = context_;
+  ffi::Array<Stmt> new_seq;
 
-  // Use in_seq_stmt_handler_ to track recursive calls.
-  // On first entry: process the whole SeqStmt via VisitSeqStmtSlice.
-  // On recursive entry (from VisitStmt -> StmtExprMutator dispatch):
-  //   also use VisitSeqStmtSlice, but starting fresh (the context
-  //   has already been updated by the outer call).
-  Stmt result = VisitSeqStmtSlice(op->seq, 0);
+  for (size_t i = 0; i < op->seq.size(); ++i) {
+    if (auto* bind = op->seq[i].as<BindNode>()) {
+      // Process the Bind: VisitExpr on value, augment context.
+      PrimExpr value_new = VisitExpr(bind->value);
+      context_.push_back({bind->var, MaybeValue(bind->value)});
+      Stmt bind_new = value_new.same_as(bind->value) ? ffi::GetRef<Stmt>(bind)
+                                                     : Bind(bind->var, value_new, bind->span);
+      new_seq.push_back(bind_new);
+
+      // Now wrap remaining siblings [i+1..end) as a body and call VisitStmt
+      // for cross-sibling CSE with the updated context.
+      if (i + 1 < op->seq.size()) {
+        Stmt body;
+        if (i + 2 == op->seq.size()) {
+          body = op->seq[i + 1];
+        } else {
+          ffi::Array<Stmt> rest;
+          for (size_t j = i + 1; j < op->seq.size(); ++j) rest.push_back(op->seq[j]);
+          body = SeqStmt(rest);
+        }
+        Stmt body_new = VisitStmt(body);
+        // Flatten the result.
+        if (auto* inner = body_new.as<SeqStmtNode>()) {
+          for (const auto& s : inner->seq) new_seq.push_back(s);
+        } else {
+          new_seq.push_back(body_new);
+        }
+        context_ = context_at_entry;
+        return SeqStmt::Flatten(new_seq);
+      }
+    } else {
+      // Non-Bind child: process individually, then continue.
+      Stmt child_new = VisitStmt(op->seq[i]);
+      if (auto* inner = child_new.as<SeqStmtNode>()) {
+        for (const auto& s : inner->seq) new_seq.push_back(s);
+      } else {
+        new_seq.push_back(child_new);
+      }
+    }
+  }
 
   context_ = context_at_entry;
-  return result;
+  return SeqStmt::Flatten(new_seq);
 }
 
 /*!
