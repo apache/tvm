@@ -54,6 +54,7 @@ class IRMutatorWithAnalyzer : public tir::StmtExprMutator {
   // override functions that need to populate the context information.
   tir::Stmt VisitStmt_(const tir::ForNode* op) override;
   tir::Stmt VisitStmt_(const tir::SBlockNode* op) override;
+  tir::Stmt VisitStmt_(const tir::BindNode* op) override;
   tir::Stmt VisitStmt_(const tir::LetStmtNode* op) override;
   tir::Stmt VisitStmt_(const tir::IfThenElseNode* op) override;
   tir::Stmt VisitStmt_(const tir::AttrStmtNode* op) override;

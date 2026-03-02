@@ -106,6 +106,7 @@ class TIRVisitorWithPath
   }
 
   using StmtFunctor::VisitStmt;
+  void VisitStmt_(const BindNode* op, ffi::reflection::AccessPath path) override;
   void VisitStmt_(const AttrStmtNode* op, ffi::reflection::AccessPath path) override;
   void VisitStmt_(const IfThenElseNode* op, ffi::reflection::AccessPath path) override;
   void VisitStmt_(const LetStmtNode* op, ffi::reflection::AccessPath path) override;

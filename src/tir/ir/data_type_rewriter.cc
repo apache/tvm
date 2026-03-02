@@ -140,6 +140,22 @@ PrimExpr DataTypeLegalizer::VisitExpr_(const LetNode* op) {
   }
 }
 
+Stmt DataTypeLegalizer::VisitStmt_(const BindNode* op) {
+  PrimExpr value = this->VisitExpr(op->value);
+  Var var = op->var;
+
+  if (value.dtype() != op->var->dtype) {
+    var = op->var.copy_with_dtype(value.dtype());
+    var_remap_[op->var.get()] = var;
+  }
+
+  if (value.same_as(op->value) && var.same_as(op->var)) {
+    return ffi::GetRef<Stmt>(op);
+  } else {
+    return Bind(var, value, op->span);
+  }
+}
+
 Stmt DataTypeLegalizer::VisitStmt_(const LetStmtNode* op) {
   PrimExpr value = this->VisitExpr(op->value);
   Var var = op->var;
@@ -526,6 +542,20 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const ForNode* op) {
   } else {
     return ffi::GetRef<Stmt>(op);
   }
+}
+
+Stmt IndexDataTypeRewriter::VisitStmt_(const BindNode* op) {
+  Bind bind_stmt = Downcast<Bind>(DataTypeLegalizer::VisitStmt_(op));
+  if (var_remap_.find(bind_stmt->var.get()) == var_remap_.end()) {
+    return bind_stmt;
+  }
+  bool is_enabled = is_enabled_;
+  is_enabled_ = true;
+  PrimExpr value = VisitExpr(op->value);
+  Var var = var_remap_[bind_stmt->var.get()];
+  is_enabled_ = is_enabled;
+  TVM_FFI_ICHECK(value.dtype() == var.dtype());
+  return Bind(var, value, bind_stmt->span);
 }
 
 Stmt IndexDataTypeRewriter::VisitStmt_(const LetStmtNode* op) {

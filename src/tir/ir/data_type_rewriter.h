@@ -53,6 +53,7 @@ class DataTypeLegalizer : public StmtExprMutator {
   Stmt VisitStmt_(const AttrStmtNode* op) override;
   Stmt VisitStmt_(const SBlockRealizeNode* op) override;
   Stmt VisitStmt_(const SBlockNode* op) override;
+  Stmt VisitStmt_(const BindNode* op) override;
   Stmt VisitStmt_(const LetStmtNode* op) override;
   PrimExpr VisitExpr_(const VarNode* op) override;
   PrimExpr VisitExpr_(const SelectNode* op) override;
@@ -110,6 +111,10 @@ class IndexDataTypeRewriter : public DataTypeLegalizer {
   PrimExpr VisitExpr_(const BufferLoadNode* op) override;
   ffi::Array<PrimExpr> VisitIndices(ffi::Array<PrimExpr> indices);
   Stmt VisitStmt_(const IfThenElseNode* op) override;
+  Stmt VisitStmt_(const DeclBufferNode* op) override;
+  Stmt VisitStmt_(const AllocBufferNode* op) override;
+  Stmt VisitStmt_(const AllocateNode* op) override;
+  Stmt VisitStmt_(const BindNode* op) override;
   Stmt VisitStmt_(const LetStmtNode* op) override;
   PrimExpr VisitExpr_(const EQNode* op) override;
   PrimExpr VisitExpr_(const NENode* op) override;

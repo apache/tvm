@@ -172,6 +172,14 @@ void TIRVisitorWithPath::Visit(const Range& range, AccessPath path) {
   Visit(range->extent, path->Attr("extent"));
 }
 
+void TIRVisitorWithPath::VisitStmt_(const BindNode* op, AccessPath path) {
+  // Bind has no body -- var scope is defined by the enclosing scope.
+  Visit(op->value, path->Attr("value"));
+  // Note: we do NOT call WithDef here because Bind's var scope extends
+  // to subsequent siblings in the enclosing SeqStmt, not just a subtree.
+  // Scope tracking for BindNode is handled at the SeqStmt level by callers.
+}
+
 void TIRVisitorWithPath::VisitStmt_(const LetStmtNode* op, AccessPath path) {
   Visit(op->value, path->Attr("value"));
   auto context = WithDef(op->var, path->Attr("var"));

@@ -54,6 +54,11 @@ void VarUseDefAnalyzer::VisitStmt_(const AttrStmtNode* op) {
   }
 }
 
+void VarUseDefAnalyzer::VisitStmt_(const BindNode* op) {
+  this->HandleDef(op->var);
+  StmtExprVisitor::VisitStmt_(op);
+}
+
 void VarUseDefAnalyzer::VisitStmt_(const LetStmtNode* op) {
   this->HandleDef(op->var);
   StmtExprVisitor::VisitStmt_(op);

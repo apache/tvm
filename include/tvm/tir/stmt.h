@@ -68,7 +68,43 @@ class Stmt : public ObjectRef {
 };
 
 /*!
+ * \brief Bind a variable to a value in the enclosing scope.
+ *
+ * Unlike LetStmt, BindNode has no body field. The bound variable is visible
+ * in all subsequent statements within the same enclosing scope (SeqStmt,
+ * ForNode.body, etc.). This enables flat (non-nested) IR sequences.
+ */
+class BindNode : public StmtNode {
+ public:
+  /*! \brief The variable being bound. */
+  Var var;
+  /*! \brief The value to bind to the variable. */
+  PrimExpr value;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<BindNode>()
+        .def_ro("var", &BindNode::var, refl::AttachFieldFlag::SEqHashDef())
+        .def_ro("value", &BindNode::value);
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.Bind", BindNode, StmtNode);
+};
+
+/*!
+ * \brief Managed reference to BindNode.
+ * \sa BindNode
+ */
+class Bind : public Stmt {
+ public:
+  TVM_DLL Bind(Var var, PrimExpr value, Span span = Span());
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Bind, Stmt, BindNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(BindNode);
+};
+
+/*!
  * \brief Let binding, bind var to value, then run body.
+ * \deprecated Use Bind instead, which has flat scope semantics.
  */
 class LetStmtNode : public StmtNode {
  public:
@@ -92,6 +128,7 @@ class LetStmtNode : public StmtNode {
 /*!
  * \brief Managed reference to LetStmtNode.
  * \sa LetStmtNode
+ * \deprecated Use Bind instead.
  */
 class LetStmt : public Stmt {
  public:

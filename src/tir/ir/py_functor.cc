@@ -170,6 +170,8 @@ class PyStmtExprVisitorNode : public Object, public StmtExprVisitor {
   // Statement functions
   /*! \brief The packed function to the `VisitStmt(const Stmt& stmt)` function. */
   ffi::Function f_visit_stmt{nullptr};
+  /*! \brief The packed function to the `VisitStmt_(const BindNode* op)` function. */
+  ffi::Function f_visit_bind{nullptr};
   /*! \brief The packed function to the `VisitStmt_(const LetStmtNode* op)` function. */
   ffi::Function f_visit_attr_stmt{nullptr};
   /*! \brief The packed function to the `VisitStmt_(const IfThenElseNode* op)` function. */
@@ -220,6 +222,7 @@ class PyStmtExprVisitorNode : public Object, public StmtExprVisitor {
 
  private:
   // Statement functions
+  PY_STMT_VISITOR_DISPATCH(BindNode, f_visit_bind);
   PY_STMT_VISITOR_DISPATCH(LetStmtNode, f_visit_let_stmt);
   PY_STMT_VISITOR_DISPATCH(AttrStmtNode, f_visit_attr_stmt);
   PY_STMT_VISITOR_DISPATCH(IfThenElseNode, f_visit_if_then_else);
@@ -311,6 +314,7 @@ class PyStmtExprVisitorNode : public Object, public StmtExprVisitor {
 
   static FStmtType InitStmtVTable() {
     FStmtType vtable;
+    PY_STMT_VISITOR_DEFAULT_DISPATCH(BindNode);
     PY_STMT_VISITOR_DEFAULT_DISPATCH(LetStmtNode);
     PY_STMT_VISITOR_DEFAULT_DISPATCH(AttrStmtNode);
     PY_STMT_VISITOR_DEFAULT_DISPATCH(IfThenElseNode);
@@ -525,6 +529,8 @@ class PyStmtExprMutatorNode : public Object, public StmtExprMutator {
   // Statement functions
   /*! \brief The packed function to the `VisitStmt(const Stmt& stmt)` function. */
   ffi::Function f_visit_stmt{nullptr};
+  /*! \brief The packed function to the `VisitStmt_(const BindNode* op)` function. */
+  ffi::Function f_visit_bind{nullptr};
   /*! \brief The packed function to the `VisitStmt_(const LetStmtNode* op)` function. */
   ffi::Function f_visit_let_stmt{nullptr};
   /*! \brief The packed function to the `VisitStmt_(const AttrStmtNode* op)` function. */
@@ -575,6 +581,7 @@ class PyStmtExprMutatorNode : public Object, public StmtExprMutator {
 
  private:
   // Statement functions
+  PY_STMT_MUTATOR_DISPATCH(BindNode, f_visit_bind);
   PY_STMT_MUTATOR_DISPATCH(LetStmtNode, f_visit_let_stmt);
   PY_STMT_MUTATOR_DISPATCH(AttrStmtNode, f_visit_attr_stmt);
   PY_STMT_MUTATOR_DISPATCH(IfThenElseNode, f_visit_if_then_else);
@@ -666,6 +673,7 @@ class PyStmtExprMutatorNode : public Object, public StmtExprMutator {
 
   static FStmtType InitStmtVTable() {
     FStmtType vtable;
+    PY_STMT_MUTATOR_DEFAULT_DISPATCH(BindNode);
     PY_STMT_MUTATOR_DEFAULT_DISPATCH(LetStmtNode);
     PY_STMT_MUTATOR_DEFAULT_DISPATCH(AttrStmtNode);
     PY_STMT_MUTATOR_DEFAULT_DISPATCH(IfThenElseNode);

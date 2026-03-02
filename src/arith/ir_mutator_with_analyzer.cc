@@ -80,6 +80,20 @@ Stmt IRMutatorWithAnalyzer::VisitStmt_(const SBlockNode* op) {
   });
 }
 
+Stmt IRMutatorWithAnalyzer::VisitStmt_(const BindNode* op) {
+  PrimExpr value = this->VisitExpr(op->value);
+  if (SideEffect(value) <= CallEffectKind::kPure) {
+    analyzer_->Bind(op->var, value);
+  }
+  if (value.same_as(op->value)) {
+    return ffi::GetRef<Stmt>(op);
+  } else {
+    auto n = this->CopyOnWrite(op);
+    n->value = std::move(value);
+    return Stmt(n);
+  }
+}
+
 Stmt IRMutatorWithAnalyzer::VisitStmt_(const LetStmtNode* op) {
   PrimExpr value = this->VisitExpr(op->value);
   if (SideEffect(value) <= CallEffectKind::kPure) {

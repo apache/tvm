@@ -72,6 +72,11 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
 
   void VisitStmt(const Stmt& n) final { StmtExprVisitor::VisitStmt(n); }
 
+  void VisitStmt_(const BindNode* op) final {
+    // Book keep definitions
+    defs_[op->var.get()] = op->value;
+    return StmtExprVisitor::VisitStmt_(op);
+  }
   void VisitStmt_(const LetStmtNode* op) final {
     // Book keep definitions
     defs_[op->var.get()] = op->value;

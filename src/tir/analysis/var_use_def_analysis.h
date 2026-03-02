@@ -57,6 +57,8 @@ class VarUseDefAnalyzer : public StmtExprVisitor {
   std::unordered_map<const VarNode*, const LetNode*> let_binding_;
   void VisitStmt_(const AttrStmtNode* op) final;
 
+  void VisitStmt_(const BindNode* op) final;
+
   void VisitStmt_(const LetStmtNode* op) final;
 
   void VisitStmt_(const ForNode* op) final;

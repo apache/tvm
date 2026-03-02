@@ -33,6 +33,11 @@
 namespace tvm {
 namespace tir {
 
+void StmtVisitor::VisitStmt_(const BindNode* op) {
+  // Bind has no body -- only visit the value expression.
+  this->VisitExpr(op->value);
+}
+
 void StmtVisitor::VisitStmt_(const LetStmtNode* op) {
   this->VisitExpr(op->value);
   this->VisitStmt(op->body);
@@ -248,6 +253,18 @@ class StmtMutator::Internal {
     return MutateArray(self, arr, fmutate);
   }
 };
+
+Stmt StmtMutator::VisitStmt_(const BindNode* op) {
+  // Bind has no body -- only mutate the value expression.
+  PrimExpr value = this->VisitExpr(op->value);
+  if (value.same_as(op->value)) {
+    return ffi::GetRef<Stmt>(op);
+  } else {
+    auto n = CopyOnWrite(op);
+    n->value = std::move(value);
+    return Stmt(n);
+  }
+}
 
 Stmt StmtMutator::VisitStmt_(const AttrStmtNode* op) {
   PrimExpr value = this->VisitExpr(op->value);
