@@ -302,8 +302,8 @@ def test_ir_builder_tir_assert():
     assert_expected = tir.SeqStmt(
         [
             tir.AssertStmt(
-                tir.StringImm("RuntimeError"),
                 T.int32() == 0,
+                tir.StringImm("RuntimeError"),
                 [tir.StringImm("a is 0")],
             ),
             tir.Evaluate(0),
