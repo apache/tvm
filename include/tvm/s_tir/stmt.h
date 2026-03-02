@@ -32,6 +32,53 @@ namespace s_tir {
 namespace attr {
 
 // -----------------------------------------------------------------------
+// AttrStmt attribute keys moved from tir::attr (S-TIR owned attributes)
+// -----------------------------------------------------------------------
+
+/*!
+ * \brief Annotations for invoking and synchronizing asynchronous operations.
+ */
+constexpr const char* async_commit_queue_scope = "async_commit_queue_scope";
+constexpr const char* async_wait_queue_scope = "async_wait_queue_scope";
+constexpr const char* async_wait_inflight_count = "async_wait_inflight_count";
+
+/*!
+ * \brief Mark that the attached statement runs asynchronously.
+ */
+constexpr const char* async_scope = "async_scope";
+
+/*!
+ * \brief Marks production of double buffer data
+ */
+constexpr const char* double_buffer_scope = "double_buffer_scope";
+
+/*!
+ * \brief Marks region used by double buffer write
+ */
+constexpr const char* double_buffer_write = "double_buffer_write";
+
+/*!
+ * \brief Mark that the shape of TensorCore fragment
+ */
+constexpr const char* fragment_shape = "fragment_shape";
+
+/*!
+ * \brief Mark that the layout of TensorCore fragment
+ */
+constexpr const char* fragment_layout = "fragment_layout";
+
+/*!
+ * \brief Mark that the loop should be partitioned.
+ */
+constexpr const char* pragma_loop_partition_hint = "pragma_loop_partition_hint";
+
+/*! \brief Mark of reduce scope */
+constexpr const char* reduce_scope = "reduce_scope";
+
+/*! \brief Mark launching of a virtual thread. */
+constexpr const char* virtual_thread = "virtual_thread";
+
+// -----------------------------------------------------------------------
 // meta_schedule annotations
 // -----------------------------------------------------------------------
 

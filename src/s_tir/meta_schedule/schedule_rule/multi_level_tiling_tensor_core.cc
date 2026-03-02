@@ -670,12 +670,12 @@ std::vector<State> MultiLevelTilingTensorCoreNode::AddSoftwarePipeline(
       sch->Annotate(cache_read, s_tir::attr::vector_bytes, Integer(16));
       if (!state->use_async) {
         sch->Annotate(cache_read, s_tir::attr::local_stage, Integer(1));
-        sch->Annotate(cache_read, tir::attr::double_buffer_scope, Integer(0));
+        sch->Annotate(cache_read, s_tir::attr::double_buffer_scope, Integer(0));
       }
     } else {
       // Add local stage and double buffering
       sch->Annotate(cache_read, s_tir::attr::manifest_shared_memory_local_stage, Integer(1));
-      sch->Annotate(cache_read, tir::attr::double_buffer_scope, Integer(0));
+      sch->Annotate(cache_read, s_tir::attr::double_buffer_scope, Integer(0));
     }
   }
 

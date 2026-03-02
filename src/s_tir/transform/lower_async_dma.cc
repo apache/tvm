@@ -26,6 +26,7 @@
 #include <tvm/arith/iter_affine_map.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/analysis.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tir/buffer.h>
 #include <tvm/tir/stmt.h>
@@ -93,7 +94,7 @@ class AsyncDMALowerer : public arith::IRMutatorWithAnalyzer {
     //   0, /* in flight count */
     //   dtype=int32
     // )
-    if (op->attr_key == tir::attr::async_wait_queue_scope) {
+    if (op->attr_key == s_tir::attr::async_wait_queue_scope) {
       // get queue ID
       auto queue_id_node = op->value.as<IntImmNode>();
       TVM_FFI_ICHECK(queue_id_node);
@@ -108,7 +109,7 @@ class AsyncDMALowerer : public arith::IRMutatorWithAnalyzer {
       }
 
       auto async_wait = op->body.as<AttrStmtNode>();
-      if (!async_wait || async_wait->attr_key != tir::attr::async_wait_inflight_count) {
+      if (!async_wait || async_wait->attr_key != s_tir::attr::async_wait_inflight_count) {
         DLOG(INFO) << "AsyncDMALowerer exiting because the body of the `AttrStmtNode` with key "
                       "`async_wait_queue_scope` does not contain an `AttrStmtNode` with key "
                       "`async_wait_inflight_count`";
@@ -135,7 +136,7 @@ class AsyncDMALowerer : public arith::IRMutatorWithAnalyzer {
       //   128, /* size */
       //   dtype=int32
       // )
-    } else if (op->attr_key == tir::attr::async_commit_queue_scope) {
+    } else if (op->attr_key == s_tir::attr::async_commit_queue_scope) {
       // get queue ID
       auto queue_id_node = op->value.as<IntImmNode>();
       TVM_FFI_ICHECK(queue_id_node);

@@ -23,6 +23,7 @@
  */
 #include "codegen_spirv.h"
 
+#include <tvm/s_tir/stmt.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
@@ -874,7 +875,7 @@ void CodeGenSPIRV::VisitStmt_(const AttrStmtNode* op) {
     const VarNode* v = op->node.as<VarNode>();
     TVM_FFI_ICHECK(v);
     storage_info_[v].is_volatile = true;
-  } else if (op->attr_key == tir::attr::fragment_shape) {
+  } else if (op->attr_key == s_tir::attr::fragment_shape) {
     const VarNode* buffer = op->node.as<VarNode>();
     const StringImmNode* shape_str = op->value.as<StringImmNode>();
     fragment_info_[buffer] = {shape_str->value};

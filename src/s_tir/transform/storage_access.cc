@@ -110,7 +110,7 @@ void StorageAccessVisitor::VisitStmt_(const LetStmtNode* op) {
 }
 
 void StorageAccessVisitor::VisitStmt_(const AttrStmtNode* op) {
-  if (op->attr_key == tir::attr::double_buffer_write) {
+  if (op->attr_key == s_tir::attr::double_buffer_write) {
     TVM_FFI_ICHECK(double_buffer_write_ == nullptr);
     double_buffer_write_ = op->node.as<VarNode>();
     scope_.push_back(std::vector<StmtEntry>());

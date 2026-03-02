@@ -755,8 +755,8 @@ class PipelineRewriter : public StmtExprMutator {
           SBlockNode* n = block.CopyOnWrite();
           auto zero = make_zero(DataType::Int(32));
           n->body =
-              AttrStmt(zero, tir::attr::async_wait_queue_scope, stage_id,
-                       AttrStmt(zero, tir::attr::async_wait_inflight_count, wait_count, n->body));
+              AttrStmt(zero, s_tir::attr::async_wait_queue_scope, stage_id,
+                       AttrStmt(zero, s_tir::attr::async_wait_inflight_count, wait_count, n->body));
         };
 
         if (state.predicate && !ana_normalized->CanProve(state.predicate.value())) {
@@ -798,7 +798,7 @@ class PipelineRewriter : public StmtExprMutator {
 
         for (auto body : group_bodies) {
           auto commit_queue_scope = AttrStmt(make_zero(DataType::Int(32)),
-                                             tir::attr::async_commit_queue_scope, stage_id, body);
+                                             s_tir::attr::async_commit_queue_scope, stage_id, body);
           auto new_block = MakeSBlock(commit_queue_scope, buffer_data_to_buffer_);
           stmts.push_back(SBlockRealize({}, predicate, new_block));
         }
@@ -914,7 +914,7 @@ class PipelineRewriter : public StmtExprMutator {
         }
 
         SBlockNode* n = new_block.CopyOnWrite();
-        n->body = AttrStmt(make_zero(DataType::Int(32)), tir::attr::async_scope, 1, n->body);
+        n->body = AttrStmt(make_zero(DataType::Int(32)), s_tir::attr::async_scope, 1, n->body);
       }
 
       new_blocks.push_back(
@@ -1212,7 +1212,7 @@ class PipelineInjector : private StmtExprMutator {
       buffer_data_to_buffer_.Set(buffer->data, buffer);
     }
 
-    auto it = op->annotations.find(tir::attr::double_buffer_scope);
+    auto it = op->annotations.find(s_tir::attr::double_buffer_scope);
     if (it != op->annotations.end()) {
       int buffer_index = Downcast<Integer>((*it).second).IntValue();
       TVM_FFI_CHECK(buffer_index >= 0 && static_cast<size_t>(buffer_index) < op->writes.size(),

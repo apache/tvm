@@ -24,6 +24,7 @@
 #include <tvm/arith/bound.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/builtin.h>
@@ -152,7 +153,7 @@ class CandidateSelector final : public StmtExprVisitor {
         record_.erase(var.get());
         return;
       }
-    } else if (op->attr_key == tir::attr::pragma_loop_partition_hint) {
+    } else if (op->attr_key == s_tir::attr::pragma_loop_partition_hint) {
       if (analyzer_.CanProve(op->value)) {
         const VarNode* var = nullptr;
         if (op->node.as<VarNode>()) {
@@ -791,7 +792,7 @@ class RemoveLikelyTagsAndHints : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == tir::attr::pragma_loop_partition_hint) {
+    if (op->attr_key == s_tir::attr::pragma_loop_partition_hint) {
       return VisitStmt(op->body);
     }
     return StmtExprMutator::VisitStmt_(op);

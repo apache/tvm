@@ -24,6 +24,7 @@
 #include "tir_visitor_with_path.h"
 
 #include <tvm/ffi/reflection/access_path.h>
+#include <tvm/s_tir/stmt.h>
 
 #include <algorithm>
 #include <optional>
@@ -179,7 +180,8 @@ void TIRVisitorWithPath::VisitStmt_(const AttrStmtNode* op, AccessPath path) {
 
   std::vector<std::variant<DefContext<IterVar>, DefContext<Var>, DefContext<Buffer>>> context;
   if (auto iter_var = op->node.as<IterVar>();
-      iter_var && (op->attr_key == attr::thread_extent || op->attr_key == attr::virtual_thread)) {
+      iter_var &&
+      (op->attr_key == attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread)) {
     // Some attributes serve as a source of definition for the
     // tir::Var they annotate.
     context.push_back(WithDef(iter_var.value(), path->Attr("node")));

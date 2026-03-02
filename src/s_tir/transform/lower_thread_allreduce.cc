@@ -24,6 +24,7 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/builtin.h>
@@ -53,7 +54,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       Stmt ret = StmtExprMutator::VisitStmt_(op);
       thread_extents_.pop_back();
       return ret;
-    } else if (op->attr_key == tir::attr::reduce_scope) {
+    } else if (op->attr_key == s_tir::attr::reduce_scope) {
       const CommReducerNode* combiner = op->node.as<CommReducerNode>();
       TVM_FFI_ICHECK(combiner);
       reduce_combiner_.push_back(combiner);

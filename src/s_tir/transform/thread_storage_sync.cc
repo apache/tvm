@@ -22,6 +22,7 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/builtin.h>
@@ -292,15 +293,16 @@ class ThreadSyncAfterWaitQueueInserter : public StmtExprMutator {
   explicit ThreadSyncAfterWaitQueueInserter(StorageScope sync_scope) : sync_scope_(sync_scope) {}
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == tir::attr::async_wait_queue_scope) {
+    if (op->attr_key == s_tir::attr::async_wait_queue_scope) {
       auto sync = Evaluate(Call(DataType::Int(32), builtin::tvm_storage_sync(),
                                 {StringImm(sync_scope_.to_string())}));
       auto inner = op->body.as<AttrStmtNode>();
-      TVM_FFI_ICHECK(inner && inner->attr_key == tir::attr::async_wait_inflight_count);
+      TVM_FFI_ICHECK(inner && inner->attr_key == s_tir::attr::async_wait_inflight_count);
       auto zero = make_zero(DataType::Int(32));
       auto new_body = SeqStmt({sync, inner->body});
-      return AttrStmt(zero, tir::attr::async_wait_queue_scope, op->value,
-                      AttrStmt(zero, tir::attr::async_wait_inflight_count, inner->value, new_body));
+      return AttrStmt(
+          zero, s_tir::attr::async_wait_queue_scope, op->value,
+          AttrStmt(zero, s_tir::attr::async_wait_inflight_count, inner->value, new_body));
     }
     return StmtExprMutator::VisitStmt_(op);
   }

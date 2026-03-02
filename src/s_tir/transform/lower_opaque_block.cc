@@ -146,7 +146,7 @@ class OpaqueBlockLower : public StmtExprMutator {
                      /*thread_tag=*/thread_tag);
     ffi::String attr_key = (thread_tag == "vthread" || thread_tag == "vthread.x" ||
                             thread_tag == "vthread.y" || thread_tag == "vthread.z")
-                               ? tir::attr::virtual_thread
+                               ? s_tir::attr::virtual_thread
                                : tir::attr::thread_extent;
     return AttrStmt(/*node=*/std::move(iter_var),
                     /*attr_key=*/std::move(attr_key),

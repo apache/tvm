@@ -919,8 +919,6 @@ namespace attr {
 // The above attr does not pass to ir stage.
 /*! \brief Mark launching extent of thread, used by device API. */
 constexpr const char* thread_extent = "thread_extent";
-/*! \brief Mark launching of a virtual thread. */
-constexpr const char* virtual_thread = "virtual_thread";
 /*! \brief Mark the scope as volatile access for certain handle. */
 constexpr const char* volatile_scope = "volatile_scope";
 /*!
@@ -940,8 +938,6 @@ constexpr const char* storage_alignment = "storage_alignment";
 constexpr const char* device_id = "device_id";
 /*! \brief The device type. */
 constexpr const char* device_type = "device_type";
-/*! \brief Mark of reduce scope */
-constexpr const char* reduce_scope = "reduce_scope";
 /*! \brief Pragma: auto-unroll, max_step */
 constexpr const char* pragma_auto_unroll_max_step = "pragma_auto_unroll_max_step";
 /*! \brief Pragma: unroll explicit */
@@ -954,14 +950,6 @@ constexpr const char* pragma_import_c = "pragma_import_c";
 constexpr const char* pragma_import_llvm = "pragma_import_llvm";
 /*! \brief Try to modify the AST to support Tensor Core */
 constexpr const char* pragma_tensor_core = "pragma_tensor_core";
-/*!
- * \brief Marks production of double buffer data
- */
-constexpr const char* double_buffer_scope = "double_buffer_scope";
-/*!
- * \brief Marks region used by double buffer write
- */
-constexpr const char* double_buffer_write = "double_buffer_write";
 /*! \brief Mark stores/loads with theirs bounds.  */
 constexpr const char* buffer_bound = "buffer_bound";
 
@@ -969,47 +957,6 @@ constexpr const char* buffer_bound = "buffer_bound";
  * \brief Mark that it is in the device scope.
  */
 constexpr const char* device_scope = "device_scope";
-
-/*!
- * \brief Mark that the attached statement runs asynchronously.
- */
-constexpr const char* async_scope = "async_scope";
-
-/*!
- * \brief Annotations for invoking and synchronizing asynchronous operations.
-
- * Synchronization is done in terms of "queue": It is an abstract entity associated
- * with each asynchronous unit, and it tracks invocations and completions of asynchronous
- * operations in the FIFO order.
- *
- * Similarly to PTX instructions commit_group and wait_group, these annotations express
- * synchronization by "counting":
- *
- * async_commit_queue(i): Group one or more invocations of async operations in the given scope,
- * and "commit" (or push) them to the queue i. A group of operations committed together is
- * awaited as one chunk. Groups committed to the same queue complete in the FIFO order.
- *
- * async_wait_queue(i, N): Block until only N most recent committed groups are still in-flight at
- * the queue i. N does not have to be a constant, but some backends may require a constant count.
-*/
-constexpr const char* async_commit_queue_scope = "async_commit_queue_scope";
-constexpr const char* async_wait_queue_scope = "async_wait_queue_scope";
-constexpr const char* async_wait_inflight_count = "async_wait_inflight_count";
-
-/*!
- * \brief Mark that the shape of TensorCore fragment
- */
-constexpr const char* fragment_shape = "fragment_shape";
-
-/*!
- * \brief Mark that the layout of TensorCore fragment
- */
-constexpr const char* fragment_layout = "fragment_layout";
-
-/*!
- * \brief Mark that the loop should be partitioned.
- */
-constexpr const char* pragma_loop_partition_hint = "pragma_loop_partition_hint";
 
 /*!
  * \brief Check if attr_key is a pragma key extension
