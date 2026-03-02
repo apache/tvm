@@ -110,7 +110,7 @@ void TIRVisitorWithPath::Visit(const PrimFunc& func, AccessPath path) {
     }
   }
 
-  Visit(func->body, path->Attr("body"));
+  bind_scope_.WithNewScope([&]() { Visit(func->body, path->Attr("body")); });
 
   while (context.size()) context.pop_back();
 }
@@ -173,11 +173,10 @@ void TIRVisitorWithPath::Visit(const Range& range, AccessPath path) {
 }
 
 void TIRVisitorWithPath::VisitStmt_(const BindNode* op, AccessPath path) {
-  // Bind has no body -- var scope is defined by the enclosing scope.
   Visit(op->value, path->Attr("value"));
-  // Note: we do NOT call WithDef here because Bind's var scope extends
-  // to subsequent siblings in the enclosing SeqStmt, not just a subtree.
-  // Scope tracking for BindNode is handled at the SeqStmt level by callers.
+  // Push the Bind's var definition into the current scope.
+  // The def lives until the enclosing scope (body-carrying stmt) exits.
+  bind_scope_.Current().push_back(WithDef(op->var, path->Attr("var")));
 }
 
 void TIRVisitorWithPath::VisitStmt_(const AttrStmtNode* op, AccessPath path) {
@@ -194,7 +193,7 @@ void TIRVisitorWithPath::VisitStmt_(const AttrStmtNode* op, AccessPath path) {
   } else if (auto expr = op->node.as<PrimExpr>()) {
     Visit(expr.value(), path->Attr("node"));
   }
-  Visit(op->body, path->Attr("body"));
+  bind_scope_.WithNewScope([&]() { Visit(op->body, path->Attr("body")); });
 
   while (context.size()) {
     context.pop_back();
@@ -205,12 +204,12 @@ void TIRVisitorWithPath::VisitStmt_(const ForNode* op, AccessPath path) {
   Visit(op->min, path->Attr("min"));
   Visit(op->extent, path->Attr("extent"));
   auto context = WithDef(op->loop_var, path->Attr("loop_var"));
-  Visit(op->body, path->Attr("body"));
+  bind_scope_.WithNewScope([&]() { Visit(op->body, path->Attr("body")); });
 }
 
 void TIRVisitorWithPath::VisitStmt_(const WhileNode* op, AccessPath path) {
   Visit(op->condition, path->Attr("condition"));
-  Visit(op->body, path->Attr("body"));
+  bind_scope_.WithNewScope([&]() { Visit(op->body, path->Attr("body")); });
 }
 
 void TIRVisitorWithPath::VisitStmt_(const AllocBufferNode* op, AccessPath path) {
@@ -225,7 +224,7 @@ void TIRVisitorWithPath::VisitStmt_(const AllocBufferNode* op, AccessPath path) 
 
 void TIRVisitorWithPath::VisitStmt_(const DeclBufferNode* op, AccessPath path) {
   auto context = WithDef(op->buffer, path->Attr("buffer"));
-  Visit(op->body, path->Attr("body"));
+  bind_scope_.WithNewScope([&]() { Visit(op->body, path->Attr("body")); });
 }
 
 void TIRVisitorWithPath::VisitStmt_(const BufferStoreNode* op, AccessPath path) {
@@ -236,8 +235,8 @@ void TIRVisitorWithPath::VisitStmt_(const BufferStoreNode* op, AccessPath path) 
 
 void TIRVisitorWithPath::VisitStmt_(const IfThenElseNode* op, AccessPath path) {
   Visit(op->condition, path->Attr("condition"));
-  Visit(op->then_case, path->Attr("then_case"));
-  Visit(op->else_case, path->Attr("else_case"));
+  bind_scope_.WithNewScope([&]() { Visit(op->then_case, path->Attr("then_case")); });
+  bind_scope_.WithNewScope([&]() { Visit(op->else_case, path->Attr("else_case")); });
 }
 
 void TIRVisitorWithPath::VisitStmt_(const AssertStmtNode* op, AccessPath path) {
@@ -247,17 +246,9 @@ void TIRVisitorWithPath::VisitStmt_(const AssertStmtNode* op, AccessPath path) {
 }
 
 void TIRVisitorWithPath::VisitStmt_(const SeqStmtNode* op, AccessPath path) {
-  // Visit children sequentially. When a child is a BindNode, define its
-  // variable for all subsequent siblings (BindNode scope extends to
-  // the rest of the enclosing SeqStmt).
   auto seq_path = path->Attr("seq");
-  std::vector<DefContext<Var>> bind_defs;
   for (size_t i = 0; i < op->seq.size(); i++) {
-    auto item_path = seq_path->ArrayItem(i);
-    Visit(op->seq[i], item_path);
-    if (auto bind = op->seq[i].as<BindNode>()) {
-      bind_defs.push_back(WithDef(bind->var, item_path->Attr("var")));
-    }
+    Visit(op->seq[i], seq_path->ArrayItem(i));
   }
 }
 
@@ -305,8 +296,8 @@ void TIRVisitorWithPath::VisitStmt_(const SBlockNode* op, AccessPath path) {
     }
   }
 
-  Visit(op->init, path->Attr("init"));
-  Visit(op->body, path->Attr("body"));
+  bind_scope_.WithNewScope([&]() { Visit(op->init, path->Attr("init")); });
+  bind_scope_.WithNewScope([&]() { Visit(op->body, path->Attr("body")); });
 
   while (context.size()) context.pop_back();
 }
