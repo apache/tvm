@@ -51,7 +51,7 @@ using runtime::StorageScope;
 
 /*! \brief Lightweight struct capturing allocation metadata for storage planning.
  *
- *  Replaces the former use of `const AllocateNode*` as a read-only descriptor.
+ *  Captures buffer_var, dtype, extents, and condition from AllocBuffer nodes.
  *  Instances are owned by LinearAccessPatternFinder::alloc_info_descs_ and
  *  referenced by raw pointer throughout the planner.
  */
