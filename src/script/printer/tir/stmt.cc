@@ -267,37 +267,57 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::AllocBuffer>(  //
         "", [](tir::AllocBuffer stmt, AccessPath p, IRDocsifier d) -> Doc {
           bool concise = AllowConciseScoping(d, stmt);
-          // Always print AllocBuffer as T.alloc_buffer (without data= parameter).
-          // When the parser sees T.alloc_buffer without data, DeclBufferFrame
-          // creates AllocBuffer on exit, ensuring a clean roundtrip.
-          // Annotations are passed as an extra kwarg when present.
-          ffi::Array<ExprDoc> extra_args;
-          ffi::Array<ffi::String> extra_kwargs_keys;
-          ffi::Array<ExprDoc> extra_kwargs_values;
+          tir::Buffer buffer = stmt->buffer;
+          AccessPath buffer_p = p->Attr("buffer");
+          Frame frame = d->frames.back();
+          // Define buffer's data var inline as buffer.data
+          if (!d->IsVarDefined(buffer->data)) {
+            d->Define(buffer->data, frame,
+                      [&]() { return d->AsDoc<ExprDoc>(buffer, buffer_p)->Attr("data"); });
+          }
+          // Build simplified T.alloc_buffer(shape, dtype, scope=...) call.
+          // Only print shape, dtype, scope (and annotations if non-empty).
+          ffi::Array<ExprDoc> args;
+          ffi::Array<ffi::String> kwargs_keys;
+          ffi::Array<ExprDoc> kwargs_values;
+          // shape (positional)
+          {
+            int n = buffer->shape.size();
+            ffi::Array<ExprDoc> shape_docs;
+            shape_docs.reserve(n);
+            AccessPath shape_p = buffer_p->Attr("shape");
+            for (int i = 0; i < n; ++i) {
+              PrimExpr e = buffer->shape[i];
+              AccessPath e_p = shape_p->ArrayItem(i);
+              if (!d->IsVarDefined(e) && e->IsInstance<tir::VarNode>()) {
+                ExprDoc lhs = DefineVar(Downcast<tir::Var>(e), frame, d);
+                lhs->source_paths.push_back(e_p);
+                frame->stmts.push_back(
+                    AssignDoc(lhs, PrintVarCreation(Downcast<tir::Var>(e), e_p, d), std::nullopt));
+              }
+              shape_docs.push_back(d->AsDoc<ExprDoc>(e, e_p));
+            }
+            args.push_back(TupleDoc(shape_docs));
+          }
+          // dtype (positional, skip if default float32)
+          if (buffer->dtype != d->cfg->buffer_dtype) {
+            args.push_back(LiteralDoc::DataType(buffer->dtype, buffer_p->Attr("dtype")));
+          }
+          // scope (keyword, skip if "global")
+          {
+            ffi::String scope = buffer.scope();
+            if (scope != "global") {
+              kwargs_keys.push_back("scope");
+              kwargs_values.push_back(LiteralDoc::Str(
+                  scope, buffer_p->Attr("data")->Attr("type_annotation")->Attr("storage_scope")));
+            }
+          }
+          // annotations (keyword, skip if empty)
           if (!stmt->annotations.empty()) {
-            extra_kwargs_keys.push_back("annotations");
-            extra_kwargs_values.push_back(
-                d->AsDoc<ExprDoc>(stmt->annotations, p->Attr("annotations")));
+            kwargs_keys.push_back("annotations");
+            kwargs_values.push_back(d->AsDoc<ExprDoc>(stmt->annotations, p->Attr("annotations")));
           }
-          ExprDoc rhs = BufferDecl(stmt->buffer, "alloc_buffer", {}, p->Attr("buffer"),
-                                   d->frames.back(), d, BufferVarDefinition::DataPointer);
-          // Append annotations kwarg if present
-          if (!extra_kwargs_keys.empty()) {
-            // BufferDecl returns a CallDoc; we need to extend it with annotations kwarg.
-            // Build a new call with the extra kwargs.
-            auto call = Downcast<CallDoc>(rhs);
-            ffi::Array<ffi::String> all_keys;
-            ffi::Array<ExprDoc> all_values;
-            for (size_t i = 0; i < call->kwargs_keys.size(); ++i) {
-              all_keys.push_back(call->kwargs_keys[i]);
-              all_values.push_back(call->kwargs_values[i]);
-            }
-            for (size_t i = 0; i < extra_kwargs_keys.size(); ++i) {
-              all_keys.push_back(extra_kwargs_keys[i]);
-              all_values.push_back(extra_kwargs_values[i]);
-            }
-            rhs = CallDoc(call->callee, call->args, all_keys, all_values);
-          }
+          ExprDoc rhs = TIR(d, "alloc_buffer")->Call(args, kwargs_keys, kwargs_values);
           With<TIRFrame> f(d, stmt);
           ExprDoc lhs = DefineBuffer(stmt->buffer, *f, d);
           AsDocBody(stmt->body, p->Attr("body"), f->get(), d);

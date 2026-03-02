@@ -294,7 +294,18 @@ class AllocBuffer : public Stmt {
    * \brief If the buffer's shape is constant, return the total number of elements.
    * \return The product of all shape extents if all are constant, std::nullopt otherwise.
    */
-  std::optional<int64_t> ConstantAllocationSize() const;
+  std::optional<int64_t> ConstantAllocationSize() const {
+    int64_t result = 1;
+    for (const PrimExpr& extent : (*this)->buffer->shape) {
+      if (const auto* int_size = extent.as<IntImmNode>()) {
+        result *= int_size->value;
+      } else {
+        return std::nullopt;
+      }
+    }
+    return result;
+  }
+
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(AllocBuffer, Stmt, AllocBufferNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(AllocBufferNode);
 };

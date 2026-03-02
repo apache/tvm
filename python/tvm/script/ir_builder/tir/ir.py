@@ -470,14 +470,7 @@ def sblock_attr(attrs: dict[str, Any]) -> None:
 def alloc_buffer(
     shape: list[PrimExpr] | tuple[PrimExpr] | PrimExpr | Integral,
     dtype: str = "float32",
-    data: Var = None,
-    strides: list[PrimExpr] | None = None,
-    elem_offset: PrimExpr = None,
     scope: str = "global",
-    align: int = 0,
-    offset_factor: int = 0,
-    buffer_type: str = "",
-    axis_separators: list[int] | None = None,
     annotations: dict[str, Any] | None = None,
 ) -> frame.DeclBufferFrame:
     """Statement-level buffer allocation (creates an AllocBuffer IR node).
@@ -494,25 +487,11 @@ def alloc_buffer(
     Parameters
     ----------
     shape : Union[List[PrimExpr], Tuple[PrimExpr], PrimExpr, Integral]
-        The type of the buffer prior to flattening.
+        The shape of the buffer to allocate.
     dtype : str
-        The data type in the content of the buffer.
-    data : Var
-        The pointer to the head of the data.
-    strides : List[PrimExpr]
-        The strides of each dimension.
-    elem_offset : PrimExpr
-        The offset in terms of number of dtype elements (including lanes).
+        The data type of the buffer elements.
     scope : str
-        The optional storage scope of buffer data pointer.
-    align : int
-        The alignment requirement of data pointer in bytes.
-    offset_factor : int
-        The factor of elem_offset field.
-    buffer_type : str
-        The buffer type.
-    axis_separators : List[int]
-        The separators between input axes when generating flattened output axes.
+        The storage scope of the buffer (e.g., "global", "shared").
     annotations : Optional[Dict[str, Any]]
         Optional annotations for the allocation.
 
@@ -522,22 +501,18 @@ def alloc_buffer(
         The result DeclBufferFrame.
     """
     shape = (shape,) if isinstance(shape, PrimExpr | Integral) else shape
-    if strides is not None:
-        strides = [Var(s, "int32") if isinstance(s, str) else s for s in strides]
-    else:
-        strides = []
     return _ffi_api.DeclBuffer(  # type: ignore[attr-defined] # pylint: disable=no-member
         shape,
         dtype,
         "",
-        data,
-        strides,
-        elem_offset,
+        None,
+        [],
+        None,
         scope,
-        align,
-        offset_factor,
-        buffer_type,
-        axis_separators,
+        0,
+        0,
+        "",
+        None,
         annotations,
     )
 

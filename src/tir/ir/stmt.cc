@@ -269,18 +269,6 @@ AllocBuffer::AllocBuffer(Buffer buffer, Stmt body, ffi::Map<ffi::String, Any> an
   data_ = std::move(node);
 }
 
-std::optional<int64_t> AllocBuffer::ConstantAllocationSize() const {
-  int64_t result = 1;
-  for (const PrimExpr& extent : (*this)->buffer->shape) {
-    if (const auto* int_size = extent.as<IntImmNode>()) {
-      result *= int_size->value;
-    } else {
-      return std::nullopt;
-    }
-  }
-  return result;
-}
-
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(

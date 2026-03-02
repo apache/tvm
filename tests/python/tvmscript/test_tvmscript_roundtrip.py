@@ -3342,7 +3342,8 @@ def undefined_stride_in_decl_buffer():
     @T.prim_func(check_well_formed=False)
     def func():
         stride = T.int32()
-        buf = T.decl_buffer(shape=[1], dtype="float32", strides=[stride])
+        data_ptr = T.handle("float32")
+        buf = T.decl_buffer(shape=[1], dtype="float32", data=data_ptr, strides=[stride])
         T.evaluate(buf[0])
 
     return func
@@ -3353,7 +3354,8 @@ def undefined_elem_offset_in_decl_buffer():
     @T.prim_func(check_well_formed=False)
     def func():
         elem_offset = T.int32()
-        buf = T.decl_buffer(shape=[1], dtype="float32", elem_offset=elem_offset)
+        data_ptr = T.handle("float32")
+        buf = T.decl_buffer(shape=[1], dtype="float32", data=data_ptr, elem_offset=elem_offset)
         T.evaluate(buf[0])
 
     return func
