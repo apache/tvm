@@ -444,21 +444,24 @@ class BuiltinLower : public StmtExprMutator {
     PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<CallNode>();
 
-    prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kArrData, op->args[0]));
-    prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kArrShape, op->args[1]));
+    prep_seq.emplace_back(
+        TVMStructSet(scope.stack_array, idx, builtin::kDLTensorData, op->args[0]));
+    prep_seq.emplace_back(
+        TVMStructSet(scope.stack_array, idx, builtin::kDLTensorShape, op->args[1]));
     PrimExpr strides = op->args[2];
     if (!strides.defined() || is_zero(strides)) {
       strides = make_zero(DataType::Handle());
     }
-    prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kArrStrides, strides));
-    prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kArrNDim, op->args[3]));
+    prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kDLTensorStrides, strides));
+    prep_seq.emplace_back(
+        TVMStructSet(scope.stack_array, idx, builtin::kDLTensorNDim, op->args[3]));
     DataType dtype = op->args[4].dtype();
     prep_seq.emplace_back(
-        TVMStructSet(scope.stack_array, idx, builtin::kArrTypeCode,
+        TVMStructSet(scope.stack_array, idx, builtin::kDLTensorTypeCode,
                      make_const(DataType::UInt(8), static_cast<int>(dtype.code()))));
-    prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kArrTypeBits,
+    prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kDLTensorTypeBits,
                                        make_const(DataType::UInt(8), dtype.bits())));
-    prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kArrTypeLanes,
+    prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kDLTensorTypeLanes,
                                        make_const(DataType::UInt(16), dtype.lanes())));
     // set byte offset
     int data_bytes = GetVectorBytes(dtype);
@@ -469,15 +472,15 @@ class BuiltinLower : public StmtExprMutator {
     } else {
       byte_offset = elem_offset;
     }
-    prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kArrByteOffset,
+    prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kDLTensorByteOffset,
                                        cast(DataType::UInt(64), byte_offset)));
     TVM_FFI_ICHECK(device_type_) << "Unknown device type in current IR";
     TVM_FFI_ICHECK(device_id_) << "Unknown device id in current IR";
-    prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kArrDeviceId,
+    prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kDLTensorDeviceId,
                                        cast(DataType::Int(32), device_id_.value())));
-    prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kArrDeviceType,
+    prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kDLTensorDeviceType,
                                        cast(DataType::Int(32), device_type_.value())));
-    return TVMStructGet(DataType::Handle(), scope.stack_array, idx, builtin::kArrAddr);
+    return TVMStructGet(DataType::Handle(), scope.stack_array, idx, builtin::kDLTensorAddr);
   }
 
   void SetPackedArg(PrimExpr arg, const Var& args_stack, size_t stack_offset,
@@ -648,7 +651,7 @@ class BuiltinLower : public StmtExprMutator {
     // specially set array handle.
     if (const CallNode* buf = arg.as<CallNode>()) {
       if (buf->op.same_as(builtin::tvm_struct_get()) &&
-          buf->args[2].as<IntImmNode>()->value == builtin::kArrAddr) {
+          buf->args[2].as<IntImmNode>()->value == builtin::kDLTensorAddr) {
         return true;
       }
     }

@@ -1428,7 +1428,13 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
     return post_dummy;
   } else if (op->op.same_as(builtin::reinterpret())) {
     llvm::Type* target = DTypeToLLVMType(op->dtype);
-    return builder_->CreateBitCast(MakeValue(op->args[0]), target);
+    llvm::Value* value = MakeValue(op->args[0]);
+    if (value->getType()->isPointerTy() && target->isIntegerTy()) {
+      return builder_->CreatePtrToInt(value, target);
+    } else if (value->getType()->isIntegerTy() && target->isPointerTy()) {
+      return builder_->CreateIntToPtr(value, target);
+    }
+    return builder_->CreateBitCast(value, target);
   } else if (op->op.same_as(builtin::isnan())) {
     // TODO(hgt312): set fast math flag
     llvm::Value* a = MakeValue(op->args[0]);
