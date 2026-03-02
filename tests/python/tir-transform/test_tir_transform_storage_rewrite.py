@@ -392,7 +392,7 @@ def test_access_in_let_value():
 
     @T.prim_func
     def func_rewritten(A: T.Buffer((8,), "float32")) -> None:
-        B = T.decl_buffer((1,))
+        B = T.alloc_buffer((1,))
         for i in range(8):
             B_1 = T.decl_buffer((1,), data=B.data)
             B_1[0] = 3.14

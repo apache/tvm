@@ -49,34 +49,6 @@ namespace tir {
 using runtime::StorageRank;
 using runtime::StorageScope;
 
-/*! \brief Lightweight struct capturing allocation metadata for storage planning.
- *
- *  Captures buffer_var, dtype, extents, and condition from AllocBuffer nodes.
- *  Instances are owned by LinearAccessPatternFinder::alloc_info_descs_ and
- *  referenced by raw pointer throughout the planner.
- */
-struct AllocDescriptor {
-  Var buffer_var;
-  DataType dtype;
-  ffi::Array<PrimExpr> extents;
-  PrimExpr condition;
-
-  int64_t ConstantAllocationSize() const {
-    int64_t result = 1;
-    for (size_t i = 0; i < extents.size(); ++i) {
-      if (const IntImmNode* int_size = extents[i].as<IntImmNode>()) {
-        result *= int_size->value;
-        if (result > std::numeric_limits<int64_t>::max()) {
-          return 0;
-        }
-      } else {
-        return 0;
-      }
-    }
-    return result;
-  }
-};
-
 // Find a linear pattern of storage access
 // Used for liveness analysis.
 // Composite scopes(loop/thread_launch/IfThen) is represented by two points:
@@ -111,29 +83,18 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
     size_t num_physical_dimensions{0};
     // scope level
     size_t level{0};
-    // Allocation descriptor capturing buffer_var, dtype, extents, condition.
-    const AllocDescriptor* alloc{nullptr};
-    // If this entry was created from an AllocBufferNode, the original buffer.
-    Buffer alloc_buffer;
+    // The AllocBuffer node that created this allocation.
+    const AllocBufferNode* alloc{nullptr};
   };
 
   void VisitStmt_(const AllocBufferNode* op) final {
     size_t level = scope_.size();
     const VarNode* buf = op->buffer->data.get();
 
-    auto desc = std::make_unique<AllocDescriptor>();
-    desc->buffer_var = op->buffer->data;
-    desc->dtype = op->buffer->dtype;
-    desc->extents = op->buffer->shape;
-    desc->condition = const_true();
-    const AllocDescriptor* desc_ptr = desc.get();
-    alloc_info_descs_.push_back(std::move(desc));
-
     AllocEntry entry;
-    entry.alloc = desc_ptr;
+    entry.alloc = op;
     entry.level = level;
     entry.num_physical_dimensions = op->buffer->shape.size();
-    entry.alloc_buffer = op->buffer;
     alloc_info_[buf] = entry;
 
     StmtExprVisitor::VisitStmt_(op);
@@ -267,9 +228,6 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
   bool in_thread_env_{false};
   // The scope stack.
   std::vector<StmtEntry> scope_;
-  // Owned AllocDescriptor instances, kept alive so that their raw pointers
-  // in alloc_info_ remain valid.
-  std::vector<std::unique_ptr<AllocDescriptor>> alloc_info_descs_;
 };
 
 // Verify if the statement can be run safely via inplace fashion
@@ -606,7 +564,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     // this is the number of extent dimensions.
     size_t ndim;
     // Allocs that shares this entry.
-    std::vector<const AllocDescriptor*> allocs;
+    std::vector<const AllocBufferNode*> allocs;
     // The children of this entry, not including itself.
     std::vector<StorageEntry*> merged_children;
     // The replacement AllocBuffer, if any.
@@ -691,26 +649,26 @@ class StoragePlanRewriter : public StmtExprMutator {
           continue;
         }
         // Get the allocation size;
-        e->alloc_var = e->allocs[0]->buffer_var;
-        DataType alloc_type = e->allocs[0]->dtype;
-        for (const AllocDescriptor* op : e->allocs) {
-          if (op->dtype.lanes() > alloc_type.lanes()) {
-            alloc_type = op->dtype;
+        e->alloc_var = e->allocs[0]->buffer->data;
+        DataType alloc_type = e->allocs[0]->buffer->dtype;
+        for (const AllocBufferNode* op : e->allocs) {
+          if (op->buffer->dtype.lanes() > alloc_type.lanes()) {
+            alloc_type = op->buffer->dtype;
           }
         }
 
         bool all_allocs_identical = std::all_of(
-            e->allocs.begin() + 1, e->allocs.end(), [&](const AllocDescriptor* op) -> bool {
-              const AllocDescriptor* first = *e->allocs.begin();
-              if (op->dtype != first->dtype) {
+            e->allocs.begin() + 1, e->allocs.end(), [&](const AllocBufferNode* op) -> bool {
+              const AllocBufferNode* first = *e->allocs.begin();
+              if (op->buffer->dtype != first->buffer->dtype) {
                 return false;
               }
-              if (op->extents.size() != first->extents.size()) {
+              if (op->buffer->shape.size() != first->buffer->shape.size()) {
                 return false;
               }
               ExprDeepEqual expr_equal;
-              for (size_t i = 0; i < op->extents.size(); i++) {
-                if (!expr_equal(op->extents[i], first->extents[i])) {
+              for (size_t i = 0; i < op->buffer->shape.size(); i++) {
+                if (!expr_equal(op->buffer->shape[i], first->buffer->shape[i])) {
                   return false;
                 }
               }
@@ -718,33 +676,21 @@ class StoragePlanRewriter : public StmtExprMutator {
             });
 
         if (all_allocs_identical) {
-          // Check if the first allocation came from an AllocBufferNode.
-          auto info_it = alloc_info_.find(e->allocs[0]->buffer_var.get());
-          bool from_alloc_buffer =
-              info_it != alloc_info_.end() && info_it->second.alloc_buffer.defined();
-
-          if (from_alloc_buffer) {
-            // Emit AllocBuffer for the hoisted allocation.
-            Buffer buf = RemapBuffer(info_it->second.alloc_buffer, e->alloc_var);
-            e->alloc_nest.push_back(AllocBuffer(buf, Evaluate(0)));
-          } else {
-            // Emit AllocBuffer wrapping the original extents.
-            Buffer buf(e->alloc_var, alloc_type, e->allocs[0]->extents, {}, PrimExpr(),
-                       e->alloc_var->name_hint, 0, 0, BufferType::kDefault);
-            e->alloc_nest.push_back(AllocBuffer(buf, Evaluate(0)));
-          }
+          // Emit AllocBuffer for the hoisted allocation.
+          Buffer buf = RemapBuffer(e->allocs[0]->buffer, e->alloc_var);
+          e->alloc_nest.push_back(AllocBuffer(buf, Evaluate(0)));
         } else {
           // Build a merged allocation
           PrimExpr combo_size;
-          for (const AllocDescriptor* op : e->allocs) {
-            TVM_FFI_ICHECK_EQ(op->extents.size(), 1)
-                << "Buffer var " << op->buffer_var->name_hint
-                << " was identified as a re-usable allocation, but has " << op->extents.size()
+          for (const AllocBufferNode* op : e->allocs) {
+            TVM_FFI_ICHECK_EQ(op->buffer->shape.size(), 1)
+                << "Buffer var " << op->buffer->data->name_hint
+                << " was identified as a re-usable allocation, but has " << op->buffer->shape.size()
                 << " physical dimensions.  "
                 << "Currently, only flat 1-d memory spaces should be identified as re-usable "
                    "allocations.";
-            PrimExpr sz = op->extents[0];
-            auto nbits = op->dtype.bits() * op->dtype.lanes();
+            PrimExpr sz = op->buffer->shape[0];
+            auto nbits = op->buffer->dtype.bits() * op->buffer->dtype.lanes();
             if (const auto* imm = sz.as<IntImmNode>()) {
               if (imm->value > std::numeric_limits<int>::max() / nbits) {
                 LOG(WARNING) << "The allocation requires : " << imm->value << " * " << nbits
@@ -791,7 +737,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     if (total_bits % align != 0) {
       total_bits += align - (total_bits % align);
     }
-    e->alloc_var = e->allocs[0]->buffer_var;
+    e->alloc_var = e->allocs[0]->buffer->data;
     for (StorageEntry* child : e->merged_children) {
       TVM_FFI_ICHECK_NE(child->const_nbits, 0U);
       TVM_FFI_ICHECK_NE(total_bits, 0U);
@@ -803,8 +749,8 @@ class StoragePlanRewriter : public StmtExprMutator {
       }
     }
     uint64_t type_bits = e->elem_type.bits() * e->elem_type.lanes();
-    PrimExpr alloc_size =
-        make_const(e->allocs[0]->extents[0].dtype(), (total_bits + type_bits - 1) / type_bits);
+    PrimExpr alloc_size = make_const(e->allocs[0]->buffer->shape[0].dtype(),
+                                     (total_bits + type_bits - 1) / type_bits);
     Buffer buf(e->alloc_var, e->elem_type, {alloc_size}, {}, PrimExpr(), e->alloc_var->name_hint, 0,
                0, BufferType::kDefault);
     e->alloc_nest.push_back(AllocBuffer(buf, Evaluate(0)));
@@ -882,7 +828,7 @@ class StoragePlanRewriter : public StmtExprMutator {
         for (const VarNode* var : it->second.gen) {
           TVM_FFI_ICHECK(alloc_info.count(var));
           const AllocEntry& entry = alloc_info.at(var);
-          const AllocDescriptor* alloc = entry.alloc;
+          const AllocBufferNode* alloc = entry.alloc;
           auto storage_scope = StorageScope::Create(GetPtrStorageScope(ffi::GetRef<Var>(var)));
           StorageEntry* dst_entry = nullptr;
           // inplace detection
@@ -895,10 +841,13 @@ class StoragePlanRewriter : public StmtExprMutator {
                 StorageEntry* src_entry = alloc_map_.at(src);
                 if (src_entry->scope == storage_scope &&
                     src_entry->attach_scope_ == thread_scope_ &&
-                    src_entry->elem_type == alloc->dtype.element_of() &&
+                    src_entry->elem_type == alloc->buffer->dtype.element_of() &&
                     visitor.Check(s.stmt, var, src)) {
-                  uint64_t const_nbits = static_cast<uint64_t>(alloc->ConstantAllocationSize()) *
-                                         alloc->dtype.bits() * alloc->dtype.lanes();
+                  int64_t const_size = AllocBuffer(ffi::GetRef<AllocBuffer>(alloc))
+                                           .ConstantAllocationSize()
+                                           .value_or(0);
+                  uint64_t const_nbits = static_cast<uint64_t>(const_size) *
+                                         alloc->buffer->dtype.bits() * alloc->buffer->dtype.lanes();
                   if (src_entry->const_nbits == const_nbits && !inplace_found) {
                     // successfully inplace
                     dst_entry = src_entry;
@@ -950,29 +899,31 @@ class StoragePlanRewriter : public StmtExprMutator {
     }
   }
   // Allocate new storage entry.
-  StorageEntry* NewAlloc(const AllocDescriptor* op, const Object* attach_scope,
+  StorageEntry* NewAlloc(const AllocBufferNode* op, const Object* attach_scope,
                          const StorageScope& scope, size_t const_nbits) {
     TVM_FFI_ICHECK(op != nullptr);
     // Re-use not successful, allocate a new buffer.
     auto entry = std::make_unique<StorageEntry>();
     entry->attach_scope_ = attach_scope;
     entry->scope = scope;
-    entry->elem_type = op->dtype.element_of();
+    entry->elem_type = op->buffer->dtype.element_of();
     entry->const_nbits = const_nbits;
     StorageEntry* e = entry.get();
     alloc_vec_.emplace_back(std::move(entry));
     return e;
   }
 
-  StorageEntry* FindAlloc(const AllocDescriptor* op, const Object* attach_scope,
+  StorageEntry* FindAlloc(const AllocBufferNode* op, const Object* attach_scope,
                           const StorageScope& scope, size_t num_physical_dimensions,
                           bool enable_reuse, bool reuse_require_exact_matched_dtype) {
     TVM_FFI_ICHECK(op != nullptr);
     // skip plan for local variable,
     // compiler can do a better job with register allocation.
     const uint64_t match_range = 16;
-    uint64_t op_elem_bits = op->dtype.bits() * op->dtype.lanes();
-    uint64_t const_nbits = static_cast<uint64_t>(op->ConstantAllocationSize() * op_elem_bits);
+    uint64_t op_elem_bits = op->buffer->dtype.bits() * op->buffer->dtype.lanes();
+    int64_t const_size =
+        AllocBuffer(ffi::GetRef<AllocBuffer>(op)).ConstantAllocationSize().value_or(0);
+    uint64_t const_nbits = static_cast<uint64_t>(const_size * op_elem_bits);
 
     // If the size of the array isn't known at compile-time, it must
     // have its own allocation with size determined at runtime.
@@ -985,9 +936,9 @@ class StoragePlanRewriter : public StmtExprMutator {
 
     // disable reuse of small arrays, they will be lowered to registers in LLVM
     // This rules only apply if we are using non special memory
-    bool is_small_array =
-        (scope.tag.length() == 0) && (scope.rank >= StorageRank::kWarp || op->dtype.is_handle() ||
-                                      (is_known_size && const_nbits <= 32));
+    bool is_small_array = (scope.tag.length() == 0) &&
+                          (scope.rank >= StorageRank::kWarp || op->buffer->dtype.is_handle() ||
+                           (is_known_size && const_nbits <= 32));
 
     if (!enable_reuse || is_small_array || !is_flat_memory_space) {
       return NewAlloc(op, attach_scope, scope, const_nbits);
@@ -1005,7 +956,7 @@ class StoragePlanRewriter : public StmtExprMutator {
         if (e->scope != scope) continue;
         // when not divided, no reuse, eg, float4 vs float3
         if (e->bits_offset % op_elem_bits != 0) continue;
-        if (reuse_require_exact_matched_dtype && e->elem_type != op->dtype) {
+        if (reuse_require_exact_matched_dtype && e->elem_type != op->buffer->dtype) {
           continue;
         }
         e->const_nbits = std::max(const_nbits, e->const_nbits);
@@ -1018,8 +969,8 @@ class StoragePlanRewriter : public StmtExprMutator {
         StorageEntry* e = it->second;
         if (e->attach_scope_ != attach_scope) continue;
         if (e->scope != scope) continue;
-        if (e->elem_type != op->dtype.element_of()) continue;
-        if (reuse_require_exact_matched_dtype && e->elem_type != op->dtype) {
+        if (e->elem_type != op->buffer->dtype.element_of()) continue;
+        if (reuse_require_exact_matched_dtype && e->elem_type != op->buffer->dtype) {
           continue;
         }
         e->const_nbits = std::max(const_nbits, e->const_nbits);
@@ -1032,7 +983,7 @@ class StoragePlanRewriter : public StmtExprMutator {
         StorageEntry* e = *it;
         if (e->attach_scope_ != attach_scope) continue;
         if (e->scope != scope) continue;
-        if (e->elem_type != op->dtype.element_of()) continue;
+        if (e->elem_type != op->buffer->dtype.element_of()) continue;
         sym_free_list_.erase(it);
         return e;
       }
@@ -1050,7 +1001,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     // This rules only apply if we are using non special memory
     if (e->scope.tag.length() == 0) {
       // Disable sharing of local memory.
-      if (e->scope.rank >= StorageRank::kWarp || e->allocs[0]->dtype.is_handle()) return;
+      if (e->scope.rank >= StorageRank::kWarp || e->allocs[0]->buffer->dtype.is_handle()) return;
       // disable reuse of small arrays
       if (e->const_nbits > 0 && e->const_nbits <= 32) return;
     }
