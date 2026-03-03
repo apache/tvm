@@ -57,9 +57,19 @@ void StmtVisitor::VisitStmt_(const WhileNode* op) {
   this->VisitStmt(op->body);
 }
 
-void StmtVisitor::VisitStmt_(const AllocBufferNode* op) { this->VisitStmt(op->body); }
+void StmtVisitor::VisitStmt_(const AllocBufferNode* op) {
+  VisitArray(op->buffer->shape, [this](const PrimExpr& e) { this->VisitExpr(e); });
+  VisitArray(op->buffer->strides, [this](const PrimExpr& e) { this->VisitExpr(e); });
+  this->VisitExpr(op->buffer->elem_offset);
+  this->VisitStmt(op->body);
+}
 
-void StmtVisitor::VisitStmt_(const DeclBufferNode* op) { this->VisitStmt(op->body); }
+void StmtVisitor::VisitStmt_(const DeclBufferNode* op) {
+  VisitArray(op->buffer->shape, [this](const PrimExpr& e) { this->VisitExpr(e); });
+  VisitArray(op->buffer->strides, [this](const PrimExpr& e) { this->VisitExpr(e); });
+  this->VisitExpr(op->buffer->elem_offset);
+  this->VisitStmt(op->body);
+}
 
 void StmtVisitor::VisitStmt_(const BufferStoreNode* op) {
   this->VisitExpr(op->value);
@@ -277,27 +287,51 @@ Stmt StmtMutator::VisitStmt_(const WhileNode* op) {
 }
 
 Stmt StmtMutator::VisitStmt_(const AllocBufferNode* op) {
+  Buffer buf = op->buffer;
+  ffi::Array<PrimExpr> shape = Internal::Mutate(this, buf->shape);
+  ffi::Array<PrimExpr> strides = Internal::Mutate(this, buf->strides);
+  PrimExpr elem_offset = this->VisitExpr(buf->elem_offset);
   Stmt body = this->VisitStmt(op->body);
 
-  if (body.same_as(op->body)) {
+  bool buf_changed = !shape.same_as(buf->shape) || !strides.same_as(buf->strides) ||
+                     !elem_offset.same_as(buf->elem_offset);
+  if (!buf_changed && body.same_as(op->body)) {
     return ffi::GetRef<Stmt>(op);
-  } else {
-    auto n = CopyOnWrite(op);
-    n->body = std::move(body);
-    return Stmt(n);
   }
+  auto n = CopyOnWrite(op);
+  n->body = std::move(body);
+  if (buf_changed) {
+    auto buf_node = ffi::make_object<BufferNode>(*buf.get());
+    buf_node->shape = std::move(shape);
+    buf_node->strides = std::move(strides);
+    buf_node->elem_offset = std::move(elem_offset);
+    n->buffer = Buffer(buf_node);
+  }
+  return Stmt(n);
 }
 
 Stmt StmtMutator::VisitStmt_(const DeclBufferNode* op) {
+  Buffer buf = op->buffer;
+  ffi::Array<PrimExpr> shape = Internal::Mutate(this, buf->shape);
+  ffi::Array<PrimExpr> strides = Internal::Mutate(this, buf->strides);
+  PrimExpr elem_offset = this->VisitExpr(buf->elem_offset);
   Stmt body = this->VisitStmt(op->body);
 
-  if (body.same_as(op->body)) {
+  bool buf_changed = !shape.same_as(buf->shape) || !strides.same_as(buf->strides) ||
+                     !elem_offset.same_as(buf->elem_offset);
+  if (!buf_changed && body.same_as(op->body)) {
     return ffi::GetRef<Stmt>(op);
-  } else {
-    auto n = CopyOnWrite(op);
-    n->body = std::move(body);
-    return Stmt(n);
   }
+  auto n = CopyOnWrite(op);
+  n->body = std::move(body);
+  if (buf_changed) {
+    auto buf_node = ffi::make_object<BufferNode>(*buf.get());
+    buf_node->shape = std::move(shape);
+    buf_node->strides = std::move(strides);
+    buf_node->elem_offset = std::move(elem_offset);
+    n->buffer = Buffer(buf_node);
+  }
+  return Stmt(n);
 }
 
 Stmt StmtMutator::VisitStmt_(const IfThenElseNode* op) {
@@ -579,13 +613,33 @@ class IRSubstitute : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const AllocBufferNode* op) final {
-    auto node = Downcast<AllocBuffer>(StmtExprMutator::VisitStmt_(op));
-    return VisitBufferAccess(std::move(node));
+    // Remap the buffer before visiting the body, so that BufferLoad/BufferStore
+    // nodes in the body that reference the same buffer get the same remapped
+    // buffer object from the buf_remap_ cache.
+    Buffer new_buf = GetRemappedBuffer(op->buffer);
+    Stmt body = this->VisitStmt(op->body);
+    if (new_buf.same_as(op->buffer) && body.same_as(op->body)) {
+      return ffi::GetRef<Stmt>(op);
+    }
+    auto n = CopyOnWrite(op);
+    n->buffer = new_buf;
+    n->body = std::move(body);
+    return Stmt(n);
   }
 
   Stmt VisitStmt_(const DeclBufferNode* op) final {
-    auto node = Downcast<DeclBuffer>(StmtExprMutator::VisitStmt_(op));
-    return VisitBufferAccess(std::move(node));
+    // Remap the buffer before visiting the body, so that BufferLoad/BufferStore
+    // nodes in the body that reference the same buffer get the same remapped
+    // buffer object from the buf_remap_ cache.
+    Buffer new_buf = GetRemappedBuffer(op->buffer);
+    Stmt body = this->VisitStmt(op->body);
+    if (new_buf.same_as(op->buffer) && body.same_as(op->body)) {
+      return ffi::GetRef<Stmt>(op);
+    }
+    auto n = CopyOnWrite(op);
+    n->buffer = new_buf;
+    n->body = std::move(body);
+    return Stmt(n);
   }
 
   template <typename Node>
