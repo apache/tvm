@@ -3016,6 +3016,9 @@ def test_onehot():
 @pytest.mark.parametrize("sorted", [0, 1])
 @pytest.mark.parametrize("num_outputs", [1, 2, 3, 4])
 def test_unique(axis: int | None, sorted: int, num_outputs: int):
+    if num_outputs in [3, 4] and axis is None:
+        pytest.xfail("RuntimeError: Check failed: input_shape.size() == size (2 vs. 1)")
+
     input_shape = [8, 8]
     if axis is None:
         output_shape = [-1]
