@@ -45,7 +45,8 @@ void CopyDataFromCLMLTensor(std::shared_ptr<cl_ml_tensor_memory_desc_qcom> tenso
 cl_ml_tensor_qcom DeviceMakeCLMLTensor(
     cl_context context, tensor_dims_t dims,
     cl_ml_tensor_layout_qcom layout = CL_TENSOR_LAYOUT_OPTIMAL_QCOM,
-    cl_channel_type dtype = CL_FLOAT, cl_ml_tensor_usage_qcom usage = CL_TENSOR_USAGE_INVALID_QCOM);
+    cl_channel_type dtype = CL_FLOAT, cl_ml_tensor_usage_qcom usage = CL_TENSOR_USAGE_INVALID_QCOM,
+    cl_ml_tensor_properties_qcom* tensorProps = nullptr);
 
 cl_mem AllocateOnChipTensorMemory(size_t size, cl_uint on_chip_mem_offset);
 
@@ -60,11 +61,13 @@ cl_arithmetic_mode_qcom MakeCLArithMode(const cl_channel_type& data_type,
 
 std::shared_ptr<cl_ml_tensor_memory_desc_qcom> MakeCLMLTensor(
     const JSONGraphNode& tensor_rep, void* data, std::vector<size_t> c_shape,
-    cl_ml_tensor_layout_qcom layout, cl_uint dtype, cl_ml_tensor_usage_qcom usage);
+    cl_ml_tensor_layout_qcom layout, cl_uint dtype, cl_ml_tensor_usage_qcom usage,
+    cl_ml_tensor_properties_qcom* tensorProps = nullptr);
 
 std::shared_ptr<cl_ml_tensor_memory_desc_qcom> MakeCLMLTensorFromJSONNode(
     const JSONGraphNode& node, cl_ml_tensor_layout_qcom layout, cl_ml_tensor_usage_qcom usage,
-    cl_uint dtype, void* data = nullptr, std::vector<size_t> shape = {});
+    cl_uint dtype, void* data = nullptr, std::vector<size_t> shape = {},
+    cl_ml_tensor_properties_qcom* tensorProps = nullptr);
 
 std::vector<cl_uint> GetVectorValues(const std::vector<std::string>& val);
 
