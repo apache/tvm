@@ -15,17 +15,16 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring
-"""Regression test for reverse_compute_at with T.alloc_buffer (AllocBuffer statement node).
+"""Regression test for reverse_compute_at with AllocBuffer in root scope.
 
 Before the fix, reverse_compute_at would raise a spurious ScheduleError:
   "Block ... is the only leaf in the scope ..., which cannot be removed"
 
-The root cause was that LeafBlockRemovalPlan in transform.cc only peeled off
-DeclBuffer nodes from a block body but not AllocBuffer nodes. When the root
-block body starts with an AllocBuffer (from T.alloc_buffer at function level),
+Root cause: LeafBlockRemovalPlan in transform.cc only peeled DeclBuffer
+nodes from a block body but not AllocBuffer nodes. When the root block
+body starts with an AllocBuffer (from T.alloc_buffer at function level),
 the SeqStmt was not visible, causing the error.
 """
-# ruff: noqa: E501
 
 import tvm
 import tvm.s_tir
@@ -33,16 +32,16 @@ import tvm.testing
 from tvm.script import tir as T
 
 
-# fmt: off
-@T.prim_func
-def matmul_relu_alloc_buffer(
-    A_handle: T.handle, B_handle: T.handle, C_handle: T.handle
+# ------------------------------------------------------------------
+# T.alloc_buffer variant (AllocBuffer statement node in root scope)
+# ------------------------------------------------------------------
+@T.prim_func(private=True)
+def alloc_buffer_before(
+    A: T.Buffer((128, 128), "float32"),
+    B: T.Buffer((128, 128), "float32"),
+    C: T.Buffer((128, 128), "float32"),
 ):
-    """Matmul + relu with T.alloc_buffer (creates AllocBuffer statement node in root block)."""
     T.func_attr({"tir.noalias": True})
-    A = T.match_buffer(A_handle, (128, 128))
-    B = T.match_buffer(B_handle, (128, 128))
-    C = T.match_buffer(C_handle, (128, 128))
     Y = T.alloc_buffer((128, 128))
     for i, j, k in T.grid(128, 128, 128):
         with T.sblock("Y"):
@@ -54,32 +53,107 @@ def matmul_relu_alloc_buffer(
         with T.sblock("C"):
             vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = T.max(Y[vi, vj], T.float32(0))
-# fmt: on
 
 
-def test_reverse_compute_at_with_alloc_buffer():
-    """reverse_compute_at must work when the scope root block body starts with AllocBuffer.
+@T.prim_func(private=True)
+def alloc_buffer_expected(
+    A: T.Buffer((128, 128), "float32"),
+    B: T.Buffer((128, 128), "float32"),
+    C: T.Buffer((128, 128), "float32"),
+):
+    T.func_attr({"tir.noalias": True})
+    Y = T.alloc_buffer((128, 128))
+    for i, j_0 in T.grid(128, 16):
+        for k, j_1 in T.grid(128, 8):
+            with T.sblock("Y"):
+                vi = T.axis.spatial(128, i)
+                vj = T.axis.spatial(128, j_0 * 8 + j_1)
+                vk = T.axis.reduce(128, k)
+                with T.init():
+                    Y[vi, vj] = T.float32(0)
+                Y[vi, vj] = Y[vi, vj] + A[vi, vk] * B[vk, vj]
+        for ax0 in range(8):
+            with T.sblock("C"):
+                vi = T.axis.spatial(128, i)
+                vj = T.axis.spatial(128, j_0 * 8 + ax0)
+                C[vi, vj] = T.max(Y[vi, vj], T.float32(0))
 
-    Regression test for the bug where LeafBlockRemovalPlan did not peel
-    AllocBuffer nodes from the block body before looking for a SeqStmt,
-    causing a spurious "only leaf in scope" ScheduleError.
-    """
-    sch = tvm.s_tir.Schedule(matmul_relu_alloc_buffer, debug_mask="all")
+
+# ------------------------------------------------------------------
+# T.sblock_alloc_buffer variant (SBlock metadata)
+# ------------------------------------------------------------------
+@T.prim_func(private=True)
+def sblock_alloc_before(
+    A: T.Buffer((128, 128), "float32"),
+    B: T.Buffer((128, 128), "float32"),
+    C: T.Buffer((128, 128), "float32"),
+):
+    T.func_attr({"tir.noalias": True})
+    with T.sblock("root"):
+        T.reads()
+        T.writes()
+        Y = T.sblock_alloc_buffer((128, 128))
+        for i, j, k in T.grid(128, 128, 128):
+            with T.sblock("Y"):
+                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                with T.init():
+                    Y[vi, vj] = T.float32(0)
+                Y[vi, vj] = Y[vi, vj] + A[vi, vk] * B[vk, vj]
+        for i, j in T.grid(128, 128):
+            with T.sblock("C"):
+                vi, vj = T.axis.remap("SS", [i, j])
+                C[vi, vj] = T.max(Y[vi, vj], T.float32(0))
+
+
+@T.prim_func(private=True)
+def sblock_alloc_expected(
+    A: T.Buffer((128, 128), "float32"),
+    B: T.Buffer((128, 128), "float32"),
+    C: T.Buffer((128, 128), "float32"),
+):
+    T.func_attr({"tir.noalias": True})
+    with T.sblock("root"):
+        T.reads()
+        T.writes()
+        Y = T.sblock_alloc_buffer((128, 128))
+        for i, j_0 in T.grid(128, 16):
+            for k, j_1 in T.grid(128, 8):
+                with T.sblock("Y"):
+                    vi = T.axis.spatial(128, i)
+                    vj = T.axis.spatial(128, j_0 * 8 + j_1)
+                    vk = T.axis.reduce(128, k)
+                    with T.init():
+                        Y[vi, vj] = T.float32(0)
+                    Y[vi, vj] = Y[vi, vj] + A[vi, vk] * B[vk, vj]
+            for ax0 in range(8):
+                with T.sblock("C"):
+                    vi = T.axis.spatial(128, i)
+                    vj = T.axis.spatial(128, j_0 * 8 + ax0)
+                    C[vi, vj] = T.max(Y[vi, vj], T.float32(0))
+
+
+def _apply_reverse_compute_at(func):
+    """Apply split + reorder + reverse_compute_at schedule."""
+    sch = tvm.s_tir.Schedule(func, debug_mask="all")
     Y = sch.get_sblock("Y")
     C_block = sch.get_sblock("C")
-
-    # Split j loop of Y into (j_0=16, j_1=8), then reorder to i, j_0, k, j_1
-    i_loop, j_loop, k_loop = sch.get_loops(Y)
-    j0, j1 = sch.split(j_loop, factors=[16, 8])
-    _, j0_new, j1_new, k_new = sch.get_loops(Y)
-    sch.reorder(sch.get_loops(Y)[0], j0_new, k_new, j1_new)
-
-    # reverse_compute_at should succeed (not raise ScheduleError)
+    i, j, k = sch.get_loops(Y)
+    j0, j1 = sch.split(j, factors=[16, 8])
+    sch.reorder(i, j0, k, j1)
     sch.reverse_compute_at(C_block, j0)
+    return sch.mod["main"]
 
-    # Verify that C was moved inside the j_0 loop
-    final_ir = sch.mod.script()
-    assert "C" in final_ir, "C block should still exist in the schedule"
+
+def test_reverse_compute_at_alloc_buffer():
+    """reverse_compute_at with T.alloc_buffer (AllocBuffer statement node)."""
+    result = _apply_reverse_compute_at(alloc_buffer_before)
+    tvm.ir.assert_structural_equal(result, alloc_buffer_expected)
+
+
+def test_reverse_compute_at_sblock_alloc_buffer():
+    """reverse_compute_at with T.sblock_alloc_buffer (SBlock metadata)."""
+    result = _apply_reverse_compute_at(sblock_alloc_before)
+    tvm.ir.assert_structural_equal(result, sblock_alloc_expected)
 
 
 if __name__ == "__main__":
