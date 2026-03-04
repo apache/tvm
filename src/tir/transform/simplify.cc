@@ -180,6 +180,12 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
     // so we always keep the Bind.
     if (SideEffect(value) <= CallEffectKind::kPure) {
       analyzer_->Bind(op->var, value);
+      // Record the binding so we can substitute it into assert conditions
+      // (see VisitStmt_(const AssertStmtNode*)).  Under SSA each var is
+      // bound exactly once, so the map grows monotonically without key
+      // conflicts.  No scope-based cleanup is needed because vars bound
+      // in inner scopes are only referenced within those scopes; stale
+      // entries are harmless and never consulted again.
       non_inlined_bindings_.Set(op->var, value);
     }
 
@@ -272,6 +278,8 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
   SimplifyConfig config_;
   std::optional<ControlFlowGraph> touch_pattern_;
 
+  // Pure Bind values kept for substitution into assert conditions.
+  // Grows monotonically under SSA — no scope-based cleanup required.
   ffi::Map<Var, PrimExpr> non_inlined_bindings_;
   ffi::Optional<Stmt> current_stmt_{std::nullopt};
 };
