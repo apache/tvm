@@ -859,6 +859,8 @@ export class Instance implements Disposable {
   private initProgressCallback: Array<InitProgressCallback> = [];
   private rng: LinearCongruentialGenerator;
   private deviceLostIsError = true;  // whether device.lost is due to actual error or dispose()
+  // Cache for shape tuples to avoid redundant FFI calls during LLM decode.
+  private shapeTupleCache: Map<string, TVMObject> = new Map();
 
   /**
    * Internal function(registered by the runtime)
@@ -954,6 +956,9 @@ export class Instance implements Disposable {
   dispose(): void {
     this.deviceLostIsError = false;  // prevent dispose to trigger device.lost error
     // order matters
+    // dispose cached shape tuples before ctx
+    this.shapeTupleCache.forEach((obj) => obj.dispose());
+    this.shapeTupleCache.clear();
     // ctx release goes back into lib.
     this.ctx.dispose();
     this.lib.dispose();
@@ -1674,8 +1679,17 @@ export class Instance implements Disposable {
    * @returns The created shape tuple.
    */
   makeShapeTuple(shape: Array<number>): TVMObject {
+    const key = shape.toString();
+    const cached = this.shapeTupleCache.get(key);
+    if (cached !== undefined) {
+      return cached;
+    }
     const shapeArray = shape.map((value) => new Scalar(value, "int"));
-    return this.ctx.makeShapeTuple(...shapeArray);
+    const tuple = this.ctx.makeShapeTuple(...shapeArray);
+    // Detach from scope so the cached object survives across scopes.
+    this.detachFromCurrentScope(tuple);
+    this.shapeTupleCache.set(key, tuple);
+    return tuple;
   }
   /**
    * Get type index from type key.
