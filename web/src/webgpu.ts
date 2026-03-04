@@ -127,10 +127,6 @@ export async function detectGPUDevice(powerPreference: "low-power" | "high-perfo
     if (adapter.features.has("shader-f16")) {
       requiredFeatures.push("shader-f16");
     }
-    if (adapter.features.has("timestamp-query")) {
-      requiredFeatures.push("timestamp-query" as GPUFeatureName);
-    }
-
     // requestAdapterInfo() is deprecated, causing requestAdapterInfo to raise
     // issue when building. However, it is still needed for older browsers, hence `as any`.
     const adapterInfo = adapter.info || await (adapter as any).requestAdapterInfo();
@@ -405,12 +401,7 @@ export class WebGPUContext {
   // internal data
   private bufferTable: Array<GPUBuffer | undefined> = [undefined];
   private bufferTableFreeId: Array<number> = [];
-  private podArgStagingBuffers: Array<GPUBuffer> = [];
   private canvasRenderManager?: CanvasRenderManager = undefined;
-  // number of pod arg staging buffers
-  private maxNumPodArgsStagingBuffers = 2;
-  // uniform buffer cache: reuse identical uniform buffers across dispatches
-  private uniformBufferCache: Map<string, GPUBuffer> = new Map();
   // Pool of MAP_READ staging buffers to avoid per-copy create/destroy overhead
   private readStagingBufferPool: Array<{ buffer: GPUBuffer; size: number }> = [];
   private maxReadStagingBuffers = 4;
@@ -419,9 +410,12 @@ export class WebGPUContext {
   // Batched command encoding: accumulate compute passes in a single encoder,
   // submit only on flush to reduce JS-native transition overhead.
   private pendingEncoder: GPUCommandEncoder | null = null;
-  // Bind group cache: avoid recreating identical bind groups every dispatch.
-  // Key is derived from pipeline + buffer pointers + uniform buffer.
-  private bindGroupCache: Map<string, GPUBindGroup> = new Map();
+  // Pool of uniform buffers reused across flushes. Each dispatch in a batch
+  // gets its own buffer (indexed by pendingDispatchCount). The pool grows
+  // as needed but buffers are never destroyed — just reused next batch.
+  private uniformBufferPool: Array<GPUBuffer> = [];
+  private uniformBufferPoolSizes: Array<number> = [];
+  private pendingDispatchCount = 0;
   // flags for debugging
   // stats of the runtime.
   // peak allocation
@@ -451,6 +445,7 @@ export class WebGPUContext {
     if (this.pendingEncoder) {
       this.device.queue.submit([this.pendingEncoder.finish()]);
       this.pendingEncoder = null;
+      this.pendingDispatchCount = 0;
     }
   }
 
@@ -464,14 +459,11 @@ export class WebGPUContext {
     while (this.bufferTable.length != 0) {
       this.bufferTable.pop()?.destroy();
     }
-    while (this.podArgStagingBuffers.length != 0) {
-      this.podArgStagingBuffers.pop()?.destroy();
-    }
-    for (const buf of this.uniformBufferCache.values()) {
+    for (const buf of this.uniformBufferPool) {
       buf.destroy();
     }
-    this.uniformBufferCache.clear();
-    this.bindGroupCache.clear();
+    this.uniformBufferPool.length = 0;
+    this.uniformBufferPoolSizes.length = 0;
     while (this.readStagingBufferPool.length != 0) {
       this.readStagingBufferPool.pop()?.buffer.destroy();
     }
@@ -581,40 +573,6 @@ export class WebGPUContext {
   }
 
   /**
-   * Get the pod arg staging buffer
-   * \param nbytes The minimum size.
-   * \return The allocated buffer
-   */
-  private getPodArgsBuffer(nbytes: number): GPUBuffer {
-    let buffer: GPUBuffer | undefined = undefined;
-    if (this.podArgStagingBuffers.length >= this.maxNumPodArgsStagingBuffers) {
-      buffer = this.podArgStagingBuffers.shift();
-    }
-    // minimum of 16 bytes
-    let allocSize = 16;
-    if (buffer !== undefined) {
-      allocSize = buffer.size;
-      if (buffer.size < nbytes) {
-        buffer.destroy();
-        buffer = undefined;
-      }
-    }
-    while (allocSize < nbytes) {
-      allocSize *= 2;
-    }
-
-    if (buffer == undefined) {
-      // create uniform buffer
-      buffer = tryCreateBuffer(this.device, {
-        size: allocSize,
-        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-      });
-    }
-    assert(nbytes <= buffer.size);
-    return buffer;
-  }
-
-  /**
    * Internal impl of createShader for both async and sync mode.
    *
     * @param finfo The function information already parsed as a record.
@@ -688,9 +646,6 @@ export class WebGPUContext {
     });
 
     // Function to create the pipeline.
-    // Unique ID for this pipeline, used as part of bind group cache keys.
-    const pipelineId = finfo.name + ":" + bufferArgIndices.length;
-
     const createShaderFunc = (pipeline: GPUComputePipeline): Function => {
       const submitShader = (...args: Array<GPUPointer | number>): void => {
         if (this.debugShaderSubmitLimit != -1 &&
@@ -749,8 +704,28 @@ export class WebGPUContext {
           });
         }
 
-        // push pod buffer with uniform buffer cache for reuse
+        // Each dispatch in a batch needs its own uniform buffer since the
+        // encoder defers submission. We maintain a reusable pool indexed by
+        // dispatch position — buffers grow as needed but are never destroyed.
         const sizeOfI32 = 4;
+        const bufBytes = (podArgIndices.length + 1) * sizeOfI32;
+        const dispatchIdx = this.pendingDispatchCount++;
+        let podArgBuffer: GPUBuffer;
+        if (dispatchIdx < this.uniformBufferPool.length &&
+            this.uniformBufferPoolSizes[dispatchIdx] >= bufBytes) {
+          podArgBuffer = this.uniformBufferPool[dispatchIdx];
+        } else {
+          // Destroy old undersized buffer if it exists.
+          if (dispatchIdx < this.uniformBufferPool.length) {
+            this.uniformBufferPool[dispatchIdx].destroy();
+          }
+          podArgBuffer = this.device.createBuffer({
+            size: bufBytes,
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+          });
+          this.uniformBufferPool[dispatchIdx] = podArgBuffer;
+          this.uniformBufferPoolSizes[dispatchIdx] = bufBytes;
+        }
         const i32View = new Int32Array(podArgIndices.length + 1);
         const u32View = new Uint32Array(i32View.buffer);
         const f32View = new Float32Array(i32View.buffer);
@@ -770,39 +745,7 @@ export class WebGPUContext {
         }
         // always pass in dim z launching grid size in
         u32View[podArgIndices.length] = packDimX;
-
-        const uniformKey = i32View.toString();
-        let podArgBuffer: GPUBuffer;
-        if (this.uniformBufferCache.has(uniformKey)) {
-          podArgBuffer = this.uniformBufferCache.get(uniformKey)!;
-        } else {
-          const bufBytes = (podArgIndices.length + 1) * sizeOfI32;
-          podArgBuffer = this.device.createBuffer({
-            size: bufBytes,
-            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-          });
-          this.device.queue.writeBuffer(podArgBuffer, 0, i32View.buffer);
-          // FIFO eviction at 512 entries
-          if (this.uniformBufferCache.size >= 512) {
-            const oldest = this.uniformBufferCache.keys().next().value;
-            if (oldest !== undefined) {
-              // Flush pending commands before destroying the uniform buffer,
-              // as it may be referenced in a pending compute pass.
-              this.flushCommands();
-              this.uniformBufferCache.get(oldest)?.destroy();
-              this.uniformBufferCache.delete(oldest);
-              // Invalidate bind group cache entries that referenced this uniform key,
-              // since bind group keys end with ":" + uniformKey.
-              const suffix = ":" + oldest;
-              for (const bgKey of this.bindGroupCache.keys()) {
-                if (bgKey.endsWith(suffix)) {
-                  this.bindGroupCache.delete(bgKey);
-                }
-              }
-            }
-          }
-          this.uniformBufferCache.set(uniformKey, podArgBuffer);
-        }
+        this.device.queue.writeBuffer(podArgBuffer, 0, i32View.buffer);
 
         bindGroupEntries.push({
           binding: bufferArgIndices.length,
@@ -812,30 +755,10 @@ export class WebGPUContext {
           }
         });
 
-        // Bind group cache: build key from pipeline identity + buffer ptrs + uniform key
-        let bgCacheKey = pipelineId;
-        for (let i = 0; i < bufferArgIndices.length; ++i) {
-          bgCacheKey += ":" + args[bufferArgIndices[i]];
-        }
-        bgCacheKey += ":" + uniformKey;
-
-        let bindGroup = this.bindGroupCache.get(bgCacheKey);
-        if (!bindGroup) {
-          bindGroup = this.device.createBindGroup({
-            layout: bindGroupLayout,
-            entries: bindGroupEntries
-          });
-          // FIFO eviction at 256 entries
-          if (this.bindGroupCache.size >= 256) {
-            const oldest = this.bindGroupCache.keys().next().value;
-            if (oldest !== undefined) {
-              this.bindGroupCache.delete(oldest);
-            }
-          }
-          this.bindGroupCache.set(bgCacheKey, bindGroup);
-        }
-
-        compute.setBindGroup(0, bindGroup);
+        compute.setBindGroup(0, this.device.createBindGroup({
+          layout: bindGroupLayout,
+          entries: bindGroupEntries
+        }));
 
         compute.dispatchWorkgroups(workDim[0], workDim[1], workDim[2]);
         compute.end();
@@ -958,9 +881,6 @@ export class WebGPUContext {
     assert(buffer !== undefined);
     this.bufferTableFreeId.push(idx);
     this.currAllocatedBytes -= buffer.size;
-    // Invalidate all cached bind groups — a freed buffer pointer could be
-    // reused, making any cached bind group referencing the old buffer stale.
-    this.bindGroupCache.clear();
     // Flush any pending compute passes that may reference this buffer
     // before destroying it, otherwise queue.submit() will fail with
     // "buffer used in submit while destroyed".
