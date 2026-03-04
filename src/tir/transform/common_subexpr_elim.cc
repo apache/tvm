@@ -716,32 +716,22 @@ Stmt CommonSubexpressionEliminator::VisitStmt_(const AttrStmtNode* op) {
 }
 
 /*!
- * \brief The method which overrides the specific treatment for an AllocateNode.
+ * \brief The method which overrides the specific treatment for an AllocBufferNode.
  *
- * Allocate has a body and introduces a buffer variable. A scope boundary
+ * AllocBuffer has a body and introduces a buffer. A scope boundary
  * prevents context entries from the body from leaking outward.
  */
-Stmt CommonSubexpressionEliminator::VisitStmt_(const AllocateNode* op) {
-  ffi::Array<PrimExpr> extents_new;
-  bool extents_changed = false;
-  for (const auto& extent : op->extents) {
-    PrimExpr e_new = VisitExpr(extent);
-    extents_new.push_back(e_new);
-    if (!e_new.same_as(extent)) extents_changed = true;
-  }
-  PrimExpr condition_new = VisitExpr(op->condition);
-
+Stmt CommonSubexpressionEliminator::VisitStmt_(const AllocBufferNode* op) {
   // The body gets its own scope to contain any context entries added within it
   Stmt body_new = context_scope_.WithNewScope([&]() -> Stmt {
     EnterContextScope();
     return VisitStmt(op->body);
   });
 
-  if (!extents_changed && condition_new.same_as(op->condition) && body_new.same_as(op->body)) {
+  if (body_new.same_as(op->body)) {
     return ffi::GetRef<Stmt>(op);
   }
-  return Allocate(op->buffer_var, op->dtype, extents_new, condition_new, body_new, op->annotations,
-                  op->span);
+  return AllocBuffer(op->buffer, body_new, op->annotations, op->span);
 }
 
 /*!

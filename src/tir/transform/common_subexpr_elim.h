@@ -75,7 +75,7 @@ class CommonSubexpressionEliminator : public StmtExprMutator {
   Stmt VisitStmt_(const ForNode* op) override;
   Stmt VisitStmt_(const IfThenElseNode* op) override;
   Stmt VisitStmt_(const AttrStmtNode* op) override;
-  Stmt VisitStmt_(const AllocateNode* op) override;
+  Stmt VisitStmt_(const AllocBufferNode* op) override;
   Stmt VisitStmt_(const DeclBufferNode* op) override;
   Stmt VisitStmt_(const WhileNode* op) override;
 
