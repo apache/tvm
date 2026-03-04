@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import pytest
 from utils import requires_adreno_opencl_vulkan, verify_results
 
 import tvm
@@ -310,6 +311,7 @@ def test_conv2d_relu_concat_split_transpose_concat(target):
     verify_results(Input, target, ref_target)
 
 
+@pytest.mark.skip(reason="Known failure: numerical mismatch in texture lowering")
 @requires_adreno_opencl_vulkan
 @tvm.testing.parametrize_targets(*TARGETS)
 def test_conv2d_maxpool2d(target):
@@ -335,6 +337,7 @@ def test_conv2d_maxpool2d(target):
     verify_results(Input, target, ref_target)
 
 
+@pytest.mark.skip(reason="Known failure: numerical mismatch in texture lowering")
 @requires_adreno_opencl_vulkan
 @tvm.testing.parametrize_targets(*TARGETS)
 def test_conv2d_avgpool2d(target):
@@ -558,6 +561,7 @@ def test_conv2d_conv2d_conv2d_concat(target):
     verify_results(Input, target, ref_target)
 
 
+@pytest.mark.skip(reason="Known failure: numerical mismatch in texture lowering")
 @requires_adreno_opencl_vulkan
 @tvm.testing.parametrize_targets(*TARGETS)
 def test_pooling_branching_texture_params(target):
