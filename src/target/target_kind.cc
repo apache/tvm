@@ -436,7 +436,7 @@ ffi::Map<ffi::String, ffi::Any> UpdateWebGPUAttrs(ffi::Map<ffi::String, ffi::Any
   if (target.count("supports_subgroups")) {
     bool subgroups = Downcast<Bool>(target.at("supports_subgroups"));
     if (subgroups) {
-      target.Set("thread_warp_size", Integer(32));
+      target.Set("thread_warp_size", int64_t(32));
     }
   }
   return target;
