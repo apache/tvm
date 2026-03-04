@@ -64,21 +64,8 @@ void VarUseDefAnalyzer::VisitStmt_(const ForNode* op) {
   StmtExprVisitor::VisitStmt_(op);
 }
 
-void VarUseDefAnalyzer::VisitStmt_(const DeclBufferNode* op) {
-  this->HandleDef(op->buffer);
-  StmtExprVisitor::VisitStmt_(op);
-}
-
 void VarUseDefAnalyzer::VisitStmt_(const AllocBufferNode* op) {
-  // AllocBuffer both allocates the data variable and declares the buffer,
-  // so we must define buffer->data before the buffer itself.
-  this->HandleDef(op->buffer->data);
-  this->HandleDef(op->buffer);
-  StmtExprVisitor::VisitStmt_(op);
-}
-
-void VarUseDefAnalyzer::VisitStmt_(const BufferStoreNode* op) {
-  HandleUse(op->buffer);
+  // VisitBufferDef (called by base) defines buffer->data and the buffer itself.
   StmtExprVisitor::VisitStmt_(op);
 }
 
@@ -113,9 +100,29 @@ void VarUseDefAnalyzer::VisitExpr_(const ReduceNode* op) {
   StmtExprVisitor::VisitExpr_(op);
 }
 
-void VarUseDefAnalyzer::VisitExpr_(const BufferLoadNode* op) {
-  HandleUse(op->buffer);
-  StmtExprVisitor::VisitExpr_(op);
+void VarUseDefAnalyzer::VisitBufferDef(const Buffer& buffer, bool alloc_data) {
+  if (alloc_data) {
+    // AllocBuffer / SBlock: data is a new allocation — define it.
+    if (!use_count_.count(buffer->data.get())) {
+      HandleDef(buffer->data);
+    }
+  } else {
+    // DeclBuffer: data references an existing variable — use it.
+    HandleUse(buffer->data);
+  }
+  HandleDef(buffer);
+  // Visit shape/strides/elem_offset as uses of vars from the enclosing scope.
+  for (const auto& e : buffer->shape) this->VisitExpr(e);
+  for (const auto& e : buffer->strides) this->VisitExpr(e);
+  this->VisitExpr(buffer->elem_offset);
+}
+
+void VarUseDefAnalyzer::VisitBufferUse(const Buffer& buffer) {
+  HandleUse(buffer);
+  // Buffer data pointer must be tracked as a use — the use site
+  // reads/writes through this pointer.  Without this, UndefinedVars
+  // misses data vars for buffers whose DeclBuffer is outside the scope.
+  HandleUse(buffer->data);
 }
 
 void VarUseDefAnalyzer::VisitBuffer(const Buffer& buffer) {
@@ -162,8 +169,8 @@ void VarUseDefAnalyzer::HandleDef(const Buffer& buf) {
       << "buffer " << ptr->name << " has been used before definition!";
   buffer_use_count_[ptr] = 0;
   buffer_def_count_[ptr] = 1;
-
-  VisitBuffer(buf);
+  // Buffer fields (data, shape, strides) are visited by the caller
+  // (VisitBufferDef) via the base class, not here.
 }
 
 void VarUseDefAnalyzer::HandleUse(const Buffer& buf) {
@@ -177,8 +184,9 @@ void VarUseDefAnalyzer::HandleUse(const Buffer& buf) {
     undefined_buffers_.push_back(ffi::GetRef<Buffer>(ptr));
     buffer_use_count_[ptr] = -1;
   }
-
-  VisitBuffer(buf);
+  // Buffer fields (shape, strides, data) are visited at the definition
+  // site via VisitBufferDef.  Do not re-visit them at use sites, as the
+  // buffer's shape variables may not be in scope at the point of use.
 }
 
 ffi::Array<Var> UndefinedVars(const Stmt& stmt, const ffi::Array<Var>& args) {

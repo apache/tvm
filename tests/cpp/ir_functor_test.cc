@@ -157,7 +157,9 @@ TEST(IRF, StmtVisitor) {
     return AllocBuffer(buf, body);
   };
   v(fmaketest());
-  TVM_FFI_ICHECK_EQ(v.count, 1);
+  // AllocBuffer now visits buffer shape via VisitBufferDef.
+  // shape = {z, z} where z = x + 1, so x is visited twice from shape + once from body = 3
+  TVM_FFI_ICHECK_EQ(v.count, 3);
 
   {
     // tests for block and block_realize
@@ -176,7 +178,10 @@ TEST(IRF, StmtVisitor) {
 
     v.count = 0;
     v(block_realize);
-    TVM_FFI_ICHECK_EQ(v.count, 5);
+    // Old count was 5 (x visited in reads/writes/match_buffers range + init body + body).
+    // VisitBufferDef now also visits AllocBuffer's buffer shape {x+1, x+1} in both init and body.
+    // Each adds 2 VarNode visits (x in each shape element), so 5 + 4 = 9.
+    TVM_FFI_ICHECK_EQ(v.count, 9);
   }
 }
 
@@ -221,8 +226,9 @@ TEST(IRF, StmtMutator) {
     auto* arrptr = arr.get();
     arr.MutateByApply([&](Stmt s) { return v(std::move(s)); });
     TVM_FFI_ICHECK(arr.get() == arrptr);
-    // buffer is not mutated (AllocBuffer mutator only visits body)
-    TVM_FFI_ICHECK(arr[0].as<AllocBufferNode>()->buffer.get() == bufptr);
+    // buffer IS mutated now (AllocBuffer mutator visits buffer shape via VisitBufferDef)
+    // shape was {1, x+1}, mutator transforms x+1 -> x, so buffer changes
+    TVM_FFI_ICHECK(arr[0].as<AllocBufferNode>()->buffer.get() != bufptr);
     // body is mutated: x+1 -> x
     TVM_FFI_ICHECK(!arr[0].as<AllocBufferNode>()->body.same_as(bref));
     TVM_FFI_ICHECK(arr[0].as<AllocBufferNode>()->body.as<EvaluateNode>()->value.same_as(x));
@@ -270,7 +276,8 @@ TEST(IRF, StmtMutator) {
     body = v(std::move(body));
     // the seq get flattened
     TVM_FFI_ICHECK(body.as<SeqStmtNode>()->size() == 3);
-    TVM_FFI_ICHECK(body.as<SeqStmtNode>()->seq[0].as<AllocBufferNode>()->buffer.get() == bufptr);
+    // buffer is now mutated (shape x+1 -> x via VisitBufferDef)
+    TVM_FFI_ICHECK(body.as<SeqStmtNode>()->seq[0].as<AllocBufferNode>()->buffer.get() != bufptr);
     TVM_FFI_ICHECK(body.as<SeqStmtNode>()->seq[1].get() == ref2);
   }
 
@@ -333,36 +340,43 @@ TEST(IRF, Substitute) {
   using namespace tvm::tir;
   DataType dtype = DataType::Float(32);
   Var x("x", PointerType(PrimType(dtype), ""));
-  auto fmaketest = [&]() {
-    Buffer buffer{/*data=*/x,
+  Var n("n", DataType::Int(32));
+
+  auto fmakebuffer = [&]() {
+    return Buffer{/*data=*/x,
                   /*dtype=*/DataType::Float(32),
-                  /*shape=*/{},
+                  /*shape=*/{n},
                   /*strides=*/{},
                   /*elem_offset=*/NullValue<PrimExpr>(),
                   /*name=*/"buf",
                   /*data_alignment=*/1,
                   /*offset_factor=*/1,
                   /*buffer_type=*/BufferType::kDefault};
-    return BufferLoad(buffer, {});
   };
 
   {
-    // test substitute buffer var
+    // test substitute buffer data var and shape var via DeclBuffer
     Var y = x.copy_with_suffix("subst");
-    BufferLoad buffer_load = fmaketest();
+    Var m("m", DataType::Int(32));
+    Buffer buffer = fmakebuffer();
+    Stmt store = BufferStore(buffer, FloatImm(dtype, 0), {IntImm(DataType::Int(32), 0)});
+    Stmt decl = DeclBuffer(buffer, store);
     auto f_subst = [&](const Var& var) -> ffi::Optional<PrimExpr> {
-      if (var.same_as(x)) {
-        return y;
-      }
+      if (var.same_as(x)) return y;
+      if (var.same_as(n)) return m;
       return std::nullopt;
     };
-    BufferLoad new_buffer_load = Downcast<BufferLoad>(Substitute(buffer_load, f_subst));
-    TVM_FFI_ICHECK(new_buffer_load->buffer->data.same_as(y));
+    Stmt new_decl = Substitute(decl, f_subst);
+    auto* decl_node = new_decl.as<DeclBufferNode>();
+    TVM_FFI_ICHECK(decl_node != nullptr);
+    TVM_FFI_ICHECK(decl_node->buffer->data.same_as(y));
+    TVM_FFI_ICHECK(decl_node->buffer->shape[0].same_as(m));
   }
 
   {
-    // test identity substitution
-    PrimExpr expr = fmaketest();
+    // test identity substitution on expression
+    Buffer buffer = fmakebuffer();
+    PrimExpr expr = BufferLoad(buffer, {IntImm(DataType::Int(32), 0)});
     auto f_subst = [&](const Var& var) -> ffi::Optional<PrimExpr> { return var; };
     PrimExpr new_expr = Substitute(expr, f_subst);
     // the expression is not changed
