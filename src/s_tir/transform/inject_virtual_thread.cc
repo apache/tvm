@@ -367,7 +367,9 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
   // When a Bind child triggers VT injection, we group the Bind together with
   // all remaining siblings (which may reference the bound variable) and wrap
   // them as a single unit in the VT loop.  This preserves the semantics that
-  // were implicit when Bind was LetStmt (where the body was nested inside).
+  // With flat Bind (no body), a Bind whose value touches vt_var must be
+  // grouped with all remaining siblings and wrapped in a VT loop together.
+  // This preserves the scoping that was implicit when Bind carried a body.
   Stmt VisitStmt_(const SeqStmtNode* op) final {
     TVM_FFI_ICHECK_EQ(max_loop_depth_, 0);
     ffi::Array<Stmt> new_seq;
@@ -397,8 +399,8 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
           new_seq.push_back(wrapped);
           max_loop_depth_ = std::max(max_loop_depth_, temp);
           changed = true;
-          // All remaining siblings consumed.
-          goto done;
+          // All remaining siblings consumed — exit loop.
+          break;
         }
         // Value did not touch vt_var.  Reset and visit the Bind normally.
         visit_touched_var_ = false;
@@ -409,7 +411,6 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
       if (!child.same_as(op->seq[i])) changed = true;
       new_seq.push_back(child);
     }
-  done:
     if (!changed) return ffi::GetRef<Stmt>(op);
     if (new_seq.size() == 1) return new_seq[0];
     return SeqStmt(new_seq);
