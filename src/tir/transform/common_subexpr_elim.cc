@@ -553,47 +553,74 @@ Stmt CommonSubexpressionEliminator::VisitStmt_(const BindNode* op) {
 }
 
 /*!
+ * \brief Whether a Bind value is trivial (constant or variable), meaning it cannot
+ * contribute eligible computations for CSE and can be safely batched.
+ */
+static bool IsTrivialBindValue(const PrimExpr& value) {
+  return value.as<IntImmNode>() != nullptr || value.as<FloatImmNode>() != nullptr ||
+         value.as<StringImmNode>() != nullptr || value.as<VarNode>() != nullptr;
+}
+
+/*!
  * \brief The method which overrides the specific treatment for a SeqStmtNode.
  *
- * Processes the flat sequence one child at a time:
- * - Bind nodes: visit the value (via VisitExpr), augment context_, then wrap
- *   all remaining siblings into a body and call VisitStmt for cross-sibling
- *   CSE with the newly augmented context. This re-runs the CSE top-level
- *   computation collection, allowing new common subexpressions to be found
- *   and introduced now that the bind-defined variable is in scope.
- * - Non-Bind nodes: visit individually via VisitStmt, then continue.
+ * Processes the flat sequence using a hybrid strategy that avoids the O(n^2)
+ * complexity of wrapping remaining siblings after every single Bind node:
  *
- * Context cleanup is handled automatically by ScopeStack. The enclosing
- * body-carrying statement (For, IfThenElse, etc.) creates a scope; when
- * that scope exits, all context entries added here (from Bind nodes) are
- * cleaned up. No manual save/restore of context_ is needed.
+ * - Trivial Bind nodes (constant/variable values) are batched: their values
+ *   are visited via VisitExpr, context_ is augmented, but the expensive
+ *   cross-sibling CSE is deferred until the batch ends.
+ * - Non-trivial Bind nodes (whose values may contain eligible computations)
+ *   use the wrap-remaining-siblings pattern to enable cross-sibling CSE.
+ * - After any Bind (trivial batch end or non-trivial), remaining siblings are
+ *   wrapped into a body and VisitStmt is called once for cross-sibling CSE.
+ * - Non-Bind children are visited individually via VisitStmt.
  *
- * Note: this still uses the "wrap remaining siblings" pattern after Bind
- * nodes, which is necessary because VisitStmt re-runs CSE computation
- * collection on the wrapped body, enabling cross-sibling optimizations.
+ * This reduces the common case of many consecutive trivial Binds (e.g., variable
+ * definitions with constant values) from O(n^2) to O(n), while preserving full
+ * CSE effectiveness for non-trivial Bind values.
+ *
+ * Context cleanup is handled automatically by ScopeStack.
  */
 Stmt CommonSubexpressionEliminator::VisitStmt_(const SeqStmtNode* op) {
   ffi::Array<Stmt> new_seq;
+  size_t i = 0;
 
-  for (size_t i = 0; i < op->seq.size(); ++i) {
+  while (i < op->seq.size()) {
     if (auto* bind = op->seq[i].as<BindNode>()) {
-      // Process the Bind: VisitExpr on value, augment context.
-      PrimExpr value_new = VisitExpr(bind->value);
-      context_.push_back({bind->var, MaybeValue(bind->value)});
-      Stmt bind_new = value_new.same_as(bind->value) ? ffi::GetRef<Stmt>(bind)
-                                                     : Bind(bind->var, value_new, bind->span);
-      new_seq.push_back(bind_new);
-
-      // Wrap remaining siblings [i+1..end) as a body and call VisitStmt
-      // to re-run CSE computation collection with the updated context.
-      // This enables CSE to introduce new bindings between siblings.
-      if (i + 1 < op->seq.size()) {
+      // Batch consecutive trivial Bind nodes (constant/variable values).
+      // These can't contribute common subexpressions, so it's safe to defer
+      // the cross-sibling CSE until the entire batch is processed.
+      if (IsTrivialBindValue(bind->value)) {
+        while (i < op->seq.size()) {
+          auto* b = op->seq[i].as<BindNode>();
+          if (!b || !IsTrivialBindValue(b->value)) break;
+          PrimExpr value_new = VisitExpr(b->value);
+          context_.push_back({b->var, MaybeValue(b->value)});
+          Stmt bind_new =
+              value_new.same_as(b->value) ? ffi::GetRef<Stmt>(b) : Bind(b->var, value_new, b->span);
+          new_seq.push_back(bind_new);
+          ++i;
+        }
+      } else {
+        // Non-trivial Bind: visit value, augment context, then wrap remaining
+        // siblings and call VisitStmt for cross-sibling CSE.
+        PrimExpr value_new = VisitExpr(bind->value);
+        context_.push_back({bind->var, MaybeValue(bind->value)});
+        Stmt bind_new = value_new.same_as(bind->value) ? ffi::GetRef<Stmt>(bind)
+                                                       : Bind(bind->var, value_new, bind->span);
+        new_seq.push_back(bind_new);
+        ++i;
+      }
+      // After the Bind (batch or single), wrap remaining siblings [i..end) and
+      // call VisitStmt once for cross-sibling CSE with the updated context.
+      if (i < op->seq.size()) {
         Stmt body;
-        if (i + 2 == op->seq.size()) {
-          body = op->seq[i + 1];
+        if (i + 1 == op->seq.size()) {
+          body = op->seq[i];
         } else {
           ffi::Array<Stmt> rest;
-          for (size_t j = i + 1; j < op->seq.size(); ++j) rest.push_back(op->seq[j]);
+          for (size_t j = i; j < op->seq.size(); ++j) rest.push_back(op->seq[j]);
           body = SeqStmt(rest);
         }
         Stmt body_new = VisitStmt(body);
@@ -606,13 +633,14 @@ Stmt CommonSubexpressionEliminator::VisitStmt_(const SeqStmtNode* op) {
         return SeqStmt::Flatten(new_seq);
       }
     } else {
-      // Non-Bind child: visit individually, then continue.
+      // Non-Bind child: visit individually via VisitStmt.
       Stmt child_new = VisitStmt(op->seq[i]);
       if (auto* inner = child_new.as<SeqStmtNode>()) {
         for (const auto& s : inner->seq) new_seq.push_back(s);
       } else {
         new_seq.push_back(child_new);
       }
+      ++i;
     }
   }
 
