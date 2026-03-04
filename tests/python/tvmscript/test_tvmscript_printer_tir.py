@@ -319,13 +319,15 @@ def test_allocate():
     _assert_print(
         obj,
         """
-with T.allocate([128, 128], "float32", "global") as v:
+with T.alloc_buffer((128, 128)) as buffer:
     T.evaluate(0)
 """,
     )
 
 
 def test_allocate_with_decl_buffer_sugar():
+    # With the introduction of AllocBuffer, the Allocate+DeclBuffer pattern
+    # produces AllocBuffer wrapping DeclBuffer.
     with IRBuilder() as ib:
         with T.allocate([128, 128], "float32") as buffer_data:
             with T.decl_buffer([128, 128], "float32", data=buffer_data) as buffer:
@@ -334,13 +336,16 @@ def test_allocate_with_decl_buffer_sugar():
     _assert_print(
         obj,
         """
-with T.decl_buffer((128, 128)) as buffer:
+with T.alloc_buffer((128, 128)) as buffer:
+    buffer_1 = T.decl_buffer((128, 128), data=buffer.data)
     T.evaluate(0)
 """,
     )
 
 
 def test_allocate_with_decl_buffer_sugar_multi_usage():
+    # With the introduction of AllocBuffer, the Allocate+DeclBuffer pattern
+    # produces AllocBuffer wrapping DeclBuffer.
     with IRBuilder() as ib:
         with T.allocate([128, 128], "float32") as buffer_data:
             with T.decl_buffer([128, 128], "float32", data=buffer_data) as buffer:
@@ -349,7 +354,8 @@ def test_allocate_with_decl_buffer_sugar_multi_usage():
     _assert_print(
         obj,
         """
-with T.decl_buffer((128, 128)) as buffer:
+with T.alloc_buffer((128, 128)) as buffer:
+    buffer_1 = T.decl_buffer((128, 128), data=buffer.data)
     T.evaluate(buffer.data)
 """,
     )
@@ -364,9 +370,9 @@ def test_allocate_with_decl_buffer_no_sugar_mismatch():
     _assert_print(
         obj,
         """
-with T.allocate([128, 128], "float32", "global") as v:
-    buffer = T.decl_buffer((256, 256), data=v)
-    T.evaluate(v)
+with T.alloc_buffer((128, 128)) as buffer:
+    buffer_1 = T.decl_buffer((256, 256), data=buffer.data)
+    T.evaluate(buffer.data)
 """,
     )
 
@@ -741,7 +747,7 @@ def test_root_block():
 
     @T.prim_func
     def root_block_implicitly():
-        a = T.alloc_buffer([128, 128])
+        a = T.sblock_alloc_buffer([128, 128])
         for i, j in T.grid(128, 128):
             with T.sblock():
                 T.evaluate(0)
@@ -749,7 +755,7 @@ def test_root_block():
     @T.prim_func
     def root_block_explicitly():
         with T.sblock("root"):
-            a = T.alloc_buffer([128, 128])
+            a = T.sblock_alloc_buffer([128, 128])
             for i, j in T.grid(128, 128):
                 with T.sblock():
                     T.evaluate(0)
@@ -760,7 +766,7 @@ def test_root_block():
 @T.prim_func
 def main():
     # with T.sblock("root"):
-    a = T.alloc_buffer((128, 128))
+    a = T.sblock_alloc_buffer((128, 128))
     for i, j in T.grid(128, 128):
         with T.sblock(""):
             T.reads()

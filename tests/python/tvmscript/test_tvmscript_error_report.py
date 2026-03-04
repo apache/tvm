@@ -246,15 +246,15 @@ def test_invalid_match_buffer_region():
 
 def test_duplicate_buffer():
     def duplicate_buffer() -> None:
-        A = T.alloc_buffer((128, 128), "float32")
-        A = T.alloc_buffer((128, 128), "float32")  # error
+        A = T.sblock_alloc_buffer((128, 128), "float32")
+        A = T.sblock_alloc_buffer((128, 128), "float32")  # error
 
     check_error(duplicate_buffer, 3)
 
 
 def test_duplicate_block_signature():
     def duplicate_reads() -> None:
-        A = T.alloc_buffer((128, 128), "float32")
+        A = T.sblock_alloc_buffer((128, 128), "float32")
         for i, j in T.grid(128, 128):
             with T.sblock():
                 vi, vj = T.axis.remap("SS", [i, j])
@@ -263,7 +263,7 @@ def test_duplicate_block_signature():
                 T.evaluate(1.0)
 
     def duplicate_writes() -> None:
-        A = T.alloc_buffer((128, 128), "float32")
+        A = T.sblock_alloc_buffer((128, 128), "float32")
         for i, j in T.grid(128, 128):
             with T.sblock():
                 vi, vj = T.axis.remap("SS", [i, j])
@@ -322,7 +322,7 @@ def test_opaque_access_during_complete():
 
 def test_convert_slice_to_bufferload():
     def convert_slice_to_bufferload() -> None:
-        A = T.alloc_buffer((128, 128), "float32")
+        A = T.sblock_alloc_buffer((128, 128), "float32")
         for i, j in T.grid(128, 128):
             with T.sblock():
                 vi, vj = T.axis.remap("SS", [i, j])
@@ -333,7 +333,7 @@ def test_convert_slice_to_bufferload():
 
 def test_tvm_exception_catch_from_special_stmt():
     def special_stmt_except() -> None:
-        A = T.alloc_buffer("(128, 128)", "float32")  # error
+        A = T.sblock_alloc_buffer("(128, 128)", "float32")  # error
         T.evaluate(1.0)
 
     check_error(special_stmt_except, 2)
@@ -439,7 +439,7 @@ def elementwise_not_affine(a: T.handle, b: T.handle) -> None:
 @T.prim_func
 def elementwise_non_single_branch(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128))
-    C = T.alloc_buffer((128, 128, 128))
+    C = T.sblock_alloc_buffer((128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128))
     for i, j in T.grid(128, 128):
         for k in T.serial(0, 128):

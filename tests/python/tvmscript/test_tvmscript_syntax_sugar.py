@@ -182,7 +182,7 @@ def test_dynamic_shape_gemm():
 @T.prim_func
 def match_buffer_int64(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (T.int64(128), T.int64(128)), dtype="float32")
-    B = T.alloc_buffer((T.int64(128), T.int64(128)), dtype="float32")
+    B = T.sblock_alloc_buffer((T.int64(128), T.int64(128)), dtype="float32")
     C = T.match_buffer(c, (T.int64(128), T.int64(128)), dtype="float32")
     for i, j in T.grid(128, 128):
         with T.sblock("B"):
@@ -199,7 +199,7 @@ def match_buffer_int64_after_roundtrip(
     A: T.Buffer((T.int64(128), T.int64(128)), "float32"),
     C: T.Buffer((T.int64(128), T.int64(128)), "float32"),
 ) -> None:
-    B = T.alloc_buffer((T.int64(128), T.int64(128)), dtype="float32")
+    B = T.sblock_alloc_buffer((T.int64(128), T.int64(128)), dtype="float32")
     for i, j in T.grid(128, 128):
         with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])

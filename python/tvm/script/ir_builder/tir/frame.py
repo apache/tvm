@@ -91,6 +91,13 @@ class DeclBufferFrame(TIRFrame):
         return self.buffer
 
 
+@_register_object("script.ir_builder.tir.AllocBufferFrame")
+class AllocBufferFrame(TIRFrame):
+    def __enter__(self) -> Buffer:
+        super().__enter__()
+        return self.buffer
+
+
 @_register_object("script.ir_builder.tir.LaunchThreadFrame")
 class LaunchThreadFrame(TIRFrame):
     def __enter__(self) -> Var:

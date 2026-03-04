@@ -167,11 +167,11 @@ void BlockAttrs(ffi::Map<ffi::String, ffi::Any> attrs);
  * \param axis_separators The separators between input axes when generating flattened output axes.
  * \return The allocated buffer.
  */
-Buffer AllocBuffer(ffi::Array<PrimExpr> shape, DataType dtype = DataType::Float(32),
-                   ffi::Optional<Var> data = std::nullopt, ffi::Array<PrimExpr> strides = {},
-                   PrimExpr elem_offset = PrimExpr(), ffi::String storage_scope = "",
-                   int align = -1, int offset_factor = 0, ffi::String buffer_type = "default",
-                   ffi::Optional<ffi::Array<IntImm>> axis_separators = std::nullopt);
+Buffer SBlockAllocBuffer(ffi::Array<PrimExpr> shape, DataType dtype = DataType::Float(32),
+                         ffi::Optional<Var> data = std::nullopt, ffi::Array<PrimExpr> strides = {},
+                         PrimExpr elem_offset = PrimExpr(), ffi::String storage_scope = "",
+                         int align = -1, int offset_factor = 0, ffi::String buffer_type = "default",
+                         ffi::Optional<ffi::Array<IntImm>> axis_separators = std::nullopt);
 namespace axis {
 
 /*!
@@ -368,11 +368,24 @@ ElseFrame Else();
  * \param axis_separators The separators between input axes when generating flattened output axes.
  * \return The declared buffer.
  */
-DeclBufferFrame DeclBuffer(ffi::Array<PrimExpr> shape, DataType dtype, ffi::String buffer_name,
-                           ffi::Optional<Var> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
-                           ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope,
-                           int align, int offset_factor, ffi::String buffer_type,
-                           ffi::Optional<ffi::Array<IntImm>> axis_separators);
+TIRFrame DeclBuffer(ffi::Array<PrimExpr> shape, DataType dtype, ffi::String buffer_name,
+                    ffi::Optional<Var> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
+                    ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope, int align,
+                    int offset_factor, ffi::String buffer_type,
+                    ffi::Optional<ffi::Array<IntImm>> axis_separators);
+
+/*!
+ * \brief Statement-level buffer allocation (creates an AllocBuffer IR node).
+ * \param shape The shape of the buffer to allocate.
+ * \param dtype The data type of buffer elements.
+ * \param storage_scope The storage scope (e.g., "global", "shared").
+ * \param annotations Optional annotations for the allocation.
+ * \return The AllocBufferFrame.
+ */
+AllocBufferFrame AllocBuffer(
+    ffi::Array<PrimExpr> shape, DataType dtype = DataType::Float(32),
+    ffi::String storage_scope = "global",
+    ffi::Optional<ffi::Map<ffi::String, ffi::Any>> annotations = std::nullopt);
 
 /*!
  * \brief Launch a thread.

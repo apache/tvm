@@ -30,7 +30,7 @@ def test_pass_simple():
         A: T.Buffer((128, 128), "float32"),
         C: T.Buffer((128, 128), "float32"),
     ):
-        B = T.alloc_buffer((128, 128), "float32")
+        B = T.sblock_alloc_buffer((128, 128), "float32")
         for i, j in T.grid(128, 128):
             with T.sblock("B"):
                 vi, vj = T.axis.remap("SS", [i, j])
@@ -378,7 +378,7 @@ def test_alloc_buffer_in_block_is_well_formed():
         @T.prim_func
         def func(A: T.Buffer((128,), "float32")):
             with T.sblock("root"):
-                B = T.alloc_buffer([128], "float32")
+                B = T.sblock_alloc_buffer([128], "float32")
                 for i in T.grid(128):
                     with T.sblock("write_B"):
                         vi = T.axis.remap("S", [i])

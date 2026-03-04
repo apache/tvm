@@ -266,27 +266,6 @@ PrimExpr DataTypeLegalizer::VisitExpr_(const CallNode* op) {
   return e;
 }
 
-Stmt IndexDataTypeRewriter::VisitStmt_(const AllocateNode* op) {
-  bool is_enabled = is_enabled_;
-  is_enabled_ = true;
-  auto new_extents = op->extents.Map([this](const PrimExpr& e) { return this->VisitExpr(e); });
-  auto new_cond = VisitExpr(op->condition);
-  is_enabled_ = is_enabled;
-  auto new_body = this->VisitStmt(op->body);
-  if (!new_extents.same_as(op->extents) || !new_cond.same_as(op->condition) ||
-      !new_body.same_as(op->body)) {
-    Allocate new_allocate = ffi::GetRef<Allocate>(op);
-    auto* n = new_allocate.CopyOnWrite();
-    n->extents = std::move(new_extents);
-    n->condition = std::move(new_cond);
-    n->body = std::move(new_body);
-    return new_allocate;
-
-  } else {
-    return ffi::GetRef<Stmt>(op);
-  }
-}
-
 Stmt IndexDataTypeRewriter::VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread) {
     bool is_enabled = is_enabled_;
@@ -296,6 +275,15 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const AttrStmtNode* op) {
     return stmt;
   }
   return DataTypeLegalizer::VisitStmt_(op);
+}
+
+Stmt IndexDataTypeRewriter::VisitStmt_(const AllocBufferNode* op) {
+  Buffer new_buffer = VisitBuffer(op->buffer);
+  AllocBuffer alloc_buffer = Downcast<AllocBuffer>(StmtExprMutator::VisitStmt_(op));
+  if (!new_buffer.same_as(op->buffer)) {
+    alloc_buffer.CopyOnWrite()->buffer = new_buffer;
+  }
+  return alloc_buffer;
 }
 
 Stmt IndexDataTypeRewriter::VisitStmt_(const DeclBufferNode* op) {

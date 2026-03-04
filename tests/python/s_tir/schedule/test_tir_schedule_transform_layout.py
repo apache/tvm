@@ -40,7 +40,7 @@ def packed_index_map_func(m, n):
 
 @T.prim_func
 def two_elementwise(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")) -> None:
-    B = T.alloc_buffer((128, 128), "float32")
+    B = T.sblock_alloc_buffer((128, 128), "float32")
     for i, j in T.grid(128, 128):
         with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
@@ -55,7 +55,7 @@ def two_elementwise(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), 
 def two_elementwise_transformed_intermediate_buffer(
     A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")
 ) -> None:
-    B = T.alloc_buffer((8, 8, 16, 16), "float32")
+    B = T.sblock_alloc_buffer((8, 8, 16, 16), "float32")
     for i, j in T.grid(128, 128):
         with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
@@ -70,7 +70,7 @@ def two_elementwise_transformed_intermediate_buffer(
 def two_elementwise_transformed_input_buffer(
     A: T.Buffer((8, 8, 16, 16), "float32"), C: T.Buffer((128, 128), "float32")
 ) -> None:
-    B = T.alloc_buffer((128, 128), "float32")
+    B = T.sblock_alloc_buffer((128, 128), "float32")
     for i, j in T.grid(128, 128):
         with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
@@ -85,7 +85,7 @@ def two_elementwise_transformed_input_buffer(
 def two_elementwise_transformed_output_buffer(
     A: T.Buffer((128, 128), "float32"), C: T.Buffer((8, 8, 16, 16), "float32")
 ) -> None:
-    B = T.alloc_buffer((128, 128), "float32")
+    B = T.sblock_alloc_buffer((128, 128), "float32")
     for i, j in T.grid(128, 128):
         with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
@@ -118,7 +118,7 @@ def conv2d_nhwc(
     Weight: T.Buffer((7, 7, 3, 64), "float32"),
     Conv2d_nhwc: T.Buffer((1, 112, 112, 64), "float32"),
 ) -> None:
-    PadInput = T.alloc_buffer([1, 230, 230, 3], dtype="float32")
+    PadInput = T.sblock_alloc_buffer([1, 230, 230, 3], dtype="float32")
     for i0, i1, i2, i3 in T.grid(1, 230, 230, 3):
         with T.sblock("PadInput"):
             i0_1, i1_1, i2_1, i3_1 = T.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -145,7 +145,7 @@ def conv2d_nhwc_transformed(
     Weight: T.Buffer((7, 7, 3, 64), "float32"),
     Conv2d_nhwc: T.Buffer((1, 112, 112, 64), "float32"),
 ) -> None:
-    PadInput = T.alloc_buffer([1, 230, 230, 3], dtype="float32")
+    PadInput = T.sblock_alloc_buffer([1, 230, 230, 3], dtype="float32")
     for i0, i1, i2, i3 in T.grid(1, 230, 230, 3):
         with T.sblock("PadInput"):
             i0_1, i1_1, i2_1, i3_1 = T.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -167,7 +167,7 @@ def conv2d_nhwc_transformed(
 
 @T.prim_func
 def two_elementwise_unit_dim(A: T.Buffer((1, 128), "float32"), C: T.Buffer((1, 128), "float32")) -> None:
-    B = T.alloc_buffer((1, 128), "float32")
+    B = T.sblock_alloc_buffer((1, 128), "float32")
     for i, j in T.grid(1, 128):
         with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
@@ -205,7 +205,7 @@ def test_transform_layout_with_cache_write_and_axis_separators():
         def main(p0: T.Buffer((T.int64(33), T.int64(128)), "float32"), p1: T.Buffer((T.int64(33), T.int64(128)), "float32"), T_add: T.Buffer((T.int64(33), T.int64(128)), "float32")):
             T.func_attr({"global_symbol": "main", "tir.noalias": True})
             # with T.sblock("root"):
-            T_add_global = T.alloc_buffer((T.int64(2), T.int64(128), T.int64(32)), axis_separators=[2])
+            T_add_global = T.sblock_alloc_buffer((T.int64(2), T.int64(128), T.int64(32)), axis_separators=[2])
             for axis0, axis1, axis2 in T.grid(T.int64(2), T.int64(128), T.int64(32)):
                 with T.sblock("T_add"):
                     v_axis0, v_axis1, v_axis2 = T.axis.remap("SSS", [axis0, axis1, axis2])
@@ -416,7 +416,7 @@ def test_transform_block_layout_unit_dim(use_block_name):
     def two_elementwise_unit_dim_transformed(
         A: T.Buffer((1, 128), "float32"), C: T.Buffer((1, 128), "float32")
     ) -> None:
-        B = T.alloc_buffer((1, 128), "float32")
+        B = T.sblock_alloc_buffer((1, 128), "float32")
         for j, i in T.grid(128, 1):
             with T.sblock("B"):
                 vj, vi = T.axis.remap("SS", [j, i])
@@ -489,7 +489,7 @@ def test_no_padding(pad_value):
     class Before:
         @T.prim_func
         def main():
-            A = T.alloc_buffer(16, "int32")
+            A = T.sblock_alloc_buffer(16, "int32")
             for i in T.serial(16):
                 with T.sblock("block"):
                     vi = T.axis.remap("S", [i])
@@ -499,7 +499,7 @@ def test_no_padding(pad_value):
     class Expected:
         @T.prim_func
         def main():
-            A = T.alloc_buffer([4, 4], "int32")
+            A = T.sblock_alloc_buffer([4, 4], "int32")
             for i in T.serial(16):
                 with T.sblock("block"):
                     vi = T.axis.remap("S", [i])
@@ -529,13 +529,13 @@ def test_no_padding_multiple_usage(pad_value):
     class Before:
         @T.prim_func
         def main():
-            A = T.alloc_buffer(16, "int32")
+            A = T.sblock_alloc_buffer(16, "int32")
             for i in T.serial(16):
                 with T.sblock("block"):
                     vi = T.axis.remap("S", [i])
                     A[vi] = 0
 
-            B = T.alloc_buffer(16, "int32")
+            B = T.sblock_alloc_buffer(16, "int32")
             for i in T.serial(16):
                 with T.sblock("other"):
                     vi = T.axis.remap("S", [i])
@@ -545,13 +545,13 @@ def test_no_padding_multiple_usage(pad_value):
     class Expected:
         @T.prim_func
         def main():
-            A = T.alloc_buffer([4, 4], "int32")
+            A = T.sblock_alloc_buffer([4, 4], "int32")
             for i in T.serial(16):
                 with T.sblock("block"):
                     vi = T.axis.remap("S", [i])
                     A[vi // 4, vi % 4] = 0
 
-            B = T.alloc_buffer(16, "int32")
+            B = T.sblock_alloc_buffer(16, "int32")
             for i in T.serial(16):
                 with T.sblock("other"):
                     vi = T.axis.remap("S", [i])
@@ -579,7 +579,7 @@ def test_no_padding_opaque_block(pad_value):
     class Before:
         @T.prim_func
         def main():
-            A = T.alloc_buffer(16, "int32")
+            A = T.sblock_alloc_buffer(16, "int32")
             for i in T.serial(16):
                 with T.sblock("block"):
                     A[i] = 0
@@ -588,7 +588,7 @@ def test_no_padding_opaque_block(pad_value):
     class Expected:
         @T.prim_func
         def main():
-            A = T.alloc_buffer([4, 4], "int32")
+            A = T.sblock_alloc_buffer([4, 4], "int32")
             for i in T.serial(16):
                 with T.sblock("block"):
                     A[i // 4, i % 4] = 0
@@ -611,7 +611,7 @@ def test_error_if_padding_forbidden():
     class Before:
         @T.prim_func
         def main():
-            A = T.alloc_buffer(14, "int32")
+            A = T.sblock_alloc_buffer(14, "int32")
             for i in T.serial(14):
                 with T.sblock("block"):
                     vi = T.axis.remap("S", [i])
@@ -636,7 +636,7 @@ def test_implicit_padding_assume_injective():
     class Before:
         @T.prim_func
         def main():
-            A = T.alloc_buffer(14, "int32")
+            A = T.sblock_alloc_buffer(14, "int32")
             for i in T.serial(14):
                 with T.sblock("block"):
                     vi = T.axis.remap("S", [i])
@@ -646,7 +646,7 @@ def test_implicit_padding_assume_injective():
     class Expected:
         @T.prim_func
         def main():
-            A = T.alloc_buffer([4, 4], "int32")
+            A = T.sblock_alloc_buffer([4, 4], "int32")
             for i in T.serial(14):
                 with T.sblock("block"):
                     vi = T.axis.remap("S", [i])
@@ -671,7 +671,7 @@ def test_error_on_wrong_padding_type():
     class Before:
         @T.prim_func
         def main():
-            A = T.alloc_buffer(14, "int32")
+            A = T.sblock_alloc_buffer(14, "int32")
             for i in T.serial(14):
                 with T.sblock("block"):
                     vi = T.axis.remap("S", [i])
@@ -694,7 +694,7 @@ def test_error_on_non_matching_types():
     class Before:
         @T.prim_func
         def main():
-            A = T.alloc_buffer(14, "float32")
+            A = T.sblock_alloc_buffer(14, "float32")
             for i in T.serial(14):
                 with T.sblock("block"):
                     vi = T.axis.remap("S", [i])
@@ -724,7 +724,7 @@ def test_padded_transform_if_then_else(dtype):
 
     @T.prim_func(private=True)
     def before_func(A: T.Buffer(14, dtype)):
-        B = T.alloc_buffer(14, dtype)
+        B = T.sblock_alloc_buffer(14, dtype)
         for i in T.serial(14):
             with T.sblock("block"):
                 vi = T.axis.remap("S", [i])
@@ -734,7 +734,7 @@ def test_padded_transform_if_then_else(dtype):
 
     @T.prim_func(private=True)
     def expected_func(A: T.Buffer(14, dtype)):
-        B = T.alloc_buffer([4, 4], dtype)
+        B = T.sblock_alloc_buffer([4, 4], dtype)
         for i, j in T.grid(4, 4):
             with T.sblock("block"):
                 vi, vj = T.axis.remap("SS", [i, j])
@@ -804,7 +804,7 @@ def test_padded_transform_if_then_else_reduction():
     class Before:
         @T.prim_func
         def main(A: T.Buffer((14, 32), "int32")):
-            B = T.alloc_buffer(14, "int32")
+            B = T.sblock_alloc_buffer(14, "int32")
             for i, k in T.grid(14, 32):
                 with T.sblock("block"):
                     vi, vk = T.axis.remap("SR", [i, k])
@@ -816,7 +816,7 @@ def test_padded_transform_if_then_else_reduction():
     class Expected:
         @T.prim_func
         def main(A: T.Buffer((14, 32), "int32")):
-            B = T.alloc_buffer([4, 4], "int32")
+            B = T.sblock_alloc_buffer([4, 4], "int32")
             for i, j, k in T.grid(4, 4, 32):
                 with T.sblock("block"):
                     vi, vj, vk = T.axis.remap("SSR", [i, j, k])
@@ -844,7 +844,7 @@ def test_padded_transform_if_then_else_reduction_opaque():
     class Before:
         @T.prim_func
         def main(A: T.Buffer((14, 32), "int32")):
-            B = T.alloc_buffer(14, "int32")
+            B = T.sblock_alloc_buffer(14, "int32")
             for i in T.serial(14):
                 B[i] = 0
                 for k in T.serial(32):
@@ -855,7 +855,7 @@ def test_padded_transform_if_then_else_reduction_opaque():
     class Expected:
         @T.prim_func
         def main(A: T.Buffer((14, 32), "int32")):
-            B = T.alloc_buffer([4, 4], "int32")
+            B = T.sblock_alloc_buffer([4, 4], "int32")
             for i, j in T.grid(4, 4):
                 B[i, j] = T.if_then_else(i == 3 and 2 <= j, 0, 0, dtype="int32")
                 for k in T.serial(32):
@@ -886,8 +886,8 @@ def test_padded_transform_post_proc_if_required_due_to_side_effects():
     class Before:
         @T.prim_func
         def main(A: T.Buffer(14, "int32")):
-            B = T.alloc_buffer(14, "int32")
-            C = T.alloc_buffer(14, "int32")
+            B = T.sblock_alloc_buffer(14, "int32")
+            C = T.sblock_alloc_buffer(14, "int32")
             for i in T.serial(14):
                 with T.sblock("block"):
                     vi = T.axis.remap("S", [i])
@@ -898,8 +898,8 @@ def test_padded_transform_post_proc_if_required_due_to_side_effects():
     class Expected:
         @T.prim_func
         def main(A: T.Buffer(14, "int32")):
-            B = T.alloc_buffer([4, 4], "int32")
-            C = T.alloc_buffer(14, "int32")
+            B = T.sblock_alloc_buffer([4, 4], "int32")
+            C = T.sblock_alloc_buffer(14, "int32")
             for i in T.serial(14):
                 with T.sblock("block"):
                     vi = T.axis.remap("S", [i])
@@ -971,7 +971,7 @@ def test_padded_transform_non_constant_value():
     class Before:
         @T.prim_func
         def main(A: T.Buffer(14, "int32")):
-            B = T.alloc_buffer(14, "int32")
+            B = T.sblock_alloc_buffer(14, "int32")
             for i in T.serial(14):
                 with T.sblock("block"):
                     vi = T.axis.remap("S", [i])
@@ -981,7 +981,7 @@ def test_padded_transform_non_constant_value():
     class Expected:
         @T.prim_func
         def main(A: T.Buffer(14, "int32")):
-            B = T.alloc_buffer([4, 4], "int32")
+            B = T.sblock_alloc_buffer([4, 4], "int32")
             for i, j in T.grid(4, 4):
                 with T.sblock("block"):
                     vi, vj = T.axis.remap("SS", [i, j])
@@ -1014,7 +1014,7 @@ def test_padded_transform_repeated_buffer_element():
     class Before:
         @T.prim_func
         def main(A: T.Buffer(14, "int32")):
-            B = T.alloc_buffer(14, "int32")
+            B = T.sblock_alloc_buffer(14, "int32")
             for i in T.serial(14):
                 with T.sblock("block"):
                     vi = T.axis.remap("S", [i])
@@ -1034,7 +1034,7 @@ def test_padded_transform_repeated_buffer_element():
                         )
                     )
 
-            B = T.alloc_buffer(14, "int32")
+            B = T.sblock_alloc_buffer(14, "int32")
             for i in T.grid(14):
                 with T.sblock("block"):
                     vi = T.axis.remap("S", [i])
@@ -1063,7 +1063,7 @@ def test_pad_value_may_not_reference_other_buffer():
     class Before:
         @T.prim_func
         def main(A: T.Buffer(14, "int32")):
-            B = T.alloc_buffer(14, "int32")
+            B = T.sblock_alloc_buffer(14, "int32")
             for i in T.serial(14):
                 with T.sblock("block"):
                     vi = T.axis.remap("S", [i])
@@ -1088,7 +1088,7 @@ def test_transform_layout_with_var():
     class Before:
         @T.prim_func
         def main(A: T.Buffer(16, "int32"), n: T.int32):
-            B = T.alloc_buffer(16, "int32")
+            B = T.sblock_alloc_buffer(16, "int32")
             for i in T.serial(16):
                 with T.sblock("block"):
                     vi = T.axis.remap("S", [i])
@@ -1098,7 +1098,7 @@ def test_transform_layout_with_var():
     class Expected:
         @T.prim_func
         def main(A: T.Buffer(16, "int32"), n: T.int32):
-            B = T.alloc_buffer([(-16 % n + 16) // n, n], dtype="int32")
+            B = T.sblock_alloc_buffer([(-16 % n + 16) // n, n], dtype="int32")
             for i, j in T.grid((-16 % n + 16) // n, n):
                 with T.sblock("block"):
                     vi, vj = T.axis.remap("SS", [i, j])

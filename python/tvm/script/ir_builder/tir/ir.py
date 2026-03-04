@@ -470,6 +470,48 @@ def sblock_attr(attrs: dict[str, Any]) -> None:
 def alloc_buffer(
     shape: list[PrimExpr] | tuple[PrimExpr] | PrimExpr | Integral,
     dtype: str = "float32",
+    scope: str = "global",
+    annotations: dict[str, Any] | None = None,
+) -> frame.AllocBufferFrame:
+    """Statement-level buffer allocation (creates an AllocBuffer IR node).
+
+    Used as a context manager or with concise scoping in TVMScript::
+
+        with T.alloc_buffer((128, 128)) as buf:  # explicit scope
+            ...
+        buf = T.alloc_buffer((128, 128))  # concise scoping
+
+    For SBlock-level buffer allocation (added to SBlock.alloc_buffers),
+    use T.sblock_alloc_buffer() instead.
+
+    Parameters
+    ----------
+    shape : Union[List[PrimExpr], Tuple[PrimExpr], PrimExpr, Integral]
+        The shape of the buffer to allocate.
+    dtype : str
+        The data type of the buffer elements.
+    scope : str
+        The storage scope of the buffer (e.g., "global", "shared").
+    annotations : Optional[Dict[str, Any]]
+        Optional annotations for the allocation.
+
+    Returns
+    -------
+    res : frame.AllocBufferFrame
+        The result AllocBufferFrame.
+    """
+    shape = (shape,) if isinstance(shape, PrimExpr | Integral) else shape
+    return _ffi_api.AllocBuffer(  # type: ignore[attr-defined] # pylint: disable=no-member
+        shape,
+        dtype,
+        scope,
+        annotations,
+    )
+
+
+def sblock_alloc_buffer(
+    shape: list[PrimExpr] | tuple[PrimExpr] | PrimExpr | Integral,
+    dtype: str = "float32",
     data: Var = None,
     strides: list[PrimExpr] | None = None,
     elem_offset: PrimExpr = None,
@@ -479,37 +521,30 @@ def alloc_buffer(
     buffer_type: str = "default",
     axis_separators: list[int] | None = None,
 ) -> Buffer:
-    """The buffer alllocation function.
+    """SBlock-level buffer allocation function.
+
+    Adds a buffer to the alloc_buffers list of the nearest SBlock or root PrimFunc.
 
     Parameters
     ----------
     shape : Union[List[PrimExpr], Tuple[PrimExpr], PrimExpr, Integral]
         The type of the buffer prior to flattening.
-
     dtype : str
         The data type in the content of the buffer.
-
     data : Var
         The pointer to the head of the data.
-
     strides : List[PrimExpr]
         The strides of each dimension.
-
     elem_offset : PrimExpr
         The offset in terms of number of dtype elements (including lanes).
-
     scope : str
         The optional storage scope of buffer data pointer.
-
     align : int
         The alignment requirement of data pointer in bytes.
-
     offset_factor : int
         The factor of elem_offset field.
-
     buffer_type : str
         The buffer type.
-
     axis_separators : List[int]
         The separators between input axes when generating flattened output axes.
 
@@ -523,7 +558,7 @@ def alloc_buffer(
         strides = [Var(s, "int32") if isinstance(s, str) else s for s in strides]
     else:
         strides = []
-    return _ffi_api.AllocBuffer(  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.SBlockAllocBuffer(  # type: ignore[attr-defined] # pylint: disable=no-member
         shape,
         dtype,
         data,
@@ -1156,6 +1191,9 @@ def decl_buffer(
     axis_separators=None,
 ) -> frame.DeclBufferFrame:
     """Create a buffer declaration node.
+
+    When ``data`` is provided, creates a DeclBuffer (alias to existing data).
+    When ``data`` is None, creates an AllocBuffer (new allocation).
 
     Parameters
     ----------
@@ -2097,6 +2135,7 @@ __all__ = float_types + [
     "writes",
     "sblock_attr",
     "alloc_buffer",
+    "sblock_alloc_buffer",
     "axis",
     "serial",
     "parallel",

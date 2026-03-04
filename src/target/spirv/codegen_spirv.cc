@@ -799,19 +799,20 @@ void CodeGenSPIRV::VisitStmt_(const IfThenElseNode* op) {
   builder_->StartLabel(merge_label);
 }
 
-void CodeGenSPIRV::VisitStmt_(const AllocateNode* op) {
-  TVM_FFI_ICHECK(!is_zero(op->condition));
-  TVM_FFI_ICHECK(!op->dtype.is_handle());
-  size_t constant_size = op->ConstantAllocationSize();
+void CodeGenSPIRV::VisitStmt_(const AllocBufferNode* op) {
+  TVM_FFI_ICHECK(!op->buffer->dtype.is_handle());
+  const IntImmNode* dim_imm = op->buffer->shape[0].as<IntImmNode>();
+  TVM_FFI_ICHECK(dim_imm) << "Can only handle constant size stack allocation in GPU";
+  size_t constant_size = static_cast<size_t>(dim_imm->value);
   TVM_FFI_ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation in GPU";
 
   spirv::Value buf;
-  const std::string scope = GetPtrStorageScope(op->buffer_var);
+  const std::string scope = GetPtrStorageScope(op->buffer->data);
   auto storage_scope = runtime::StorageScope::Create(scope);
-  spirv::SType etype = builder_->GetSType(op->dtype);
+  spirv::SType etype = builder_->GetSType(op->buffer->dtype);
   runtime::StorageRank rank = storage_scope.rank;
   spv::StorageClass storage_class;
-  const VarNode* var_node = (op->buffer_var).get();
+  const VarNode* var_node = op->buffer->data.get();
 
   switch (rank) {
     case runtime::StorageRank::kWMMAMatrixA:
@@ -819,13 +820,13 @@ void CodeGenSPIRV::VisitStmt_(const AllocateNode* op) {
     case runtime::StorageRank::kWMMAAccumulator: {
       TVM_FFI_ICHECK(fragment_info_.count(var_node));
       fragment_info_[var_node].scope = scope;
-      etype = GetFragmentSType(var_node, op->dtype);
+      etype = GetFragmentSType(var_node, op->buffer->dtype);
       storage_class = spv::StorageClassFunction;
       fragment_info_[var_node].sclass = storage_class;
       TVM_FFI_ICHECK(fragment_info_.count(var_node));
-      const std::string& scope = fragment_info_[var_node].scope;
+      const std::string& fscope = fragment_info_[var_node].scope;
       const std::string& shape_str = fragment_info_.at(var_node).shape;
-      std::pair<int32_t, int32_t> dim = GetWmmaFragmentDimSize(shape_str, scope);
+      std::pair<int32_t, int32_t> dim = GetWmmaFragmentDimSize(shape_str, fscope);
       int64_t size = dim.first * dim.second;
       buf = builder_->Allocate(etype, static_cast<uint32_t>(constant_size) / size, storage_class);
     } break;
@@ -840,22 +841,22 @@ void CodeGenSPIRV::VisitStmt_(const AllocateNode* op) {
       int32_t aligned_constant_size = ((constant_size + 3) & ~0x3);
       buf = builder_->Allocate(etype, static_cast<uint32_t>(aligned_constant_size), storage_class);
 
-      size_t num_bytes =
-          op->dtype.bytes() * op->dtype.lanes() * static_cast<uint32_t>(aligned_constant_size);
+      size_t num_bytes = op->buffer->dtype.bytes() * op->buffer->dtype.lanes() *
+                         static_cast<uint32_t>(aligned_constant_size);
       shared_memory_bytes_used_ += num_bytes;
     } break;
     default:
       TVM_FFI_THROW(InternalError) << "Can only allocate shared or local memory inside kernel";
   }
 
-  builder_->SetName(buf, op->buffer_var->name_hint);
+  builder_->SetName(buf, op->buffer->name);
 
-  StorageInfo& info = storage_info_[op->buffer_var.get()];
+  StorageInfo& info = storage_info_[var_node];
   TVM_FFI_ICHECK(!info.element_type_known);
-  info.SetContentType(op->dtype, op->buffer_var->name_hint);
+  info.SetContentType(op->buffer->dtype, op->buffer->name);
 
-  TVM_FFI_ICHECK(!var_map_.count(op->buffer_var.get()));
-  var_map_[op->buffer_var.get()] = buf;
+  TVM_FFI_ICHECK(!var_map_.count(var_node));
+  var_map_[var_node] = buf;
   this->VisitStmt(op->body);
 }
 

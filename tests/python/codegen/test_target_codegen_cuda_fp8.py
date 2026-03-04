@@ -568,7 +568,7 @@ class BaseFP8E4M3QuantScaleOnly:
             ),
         ):
             # with T.sblock("root"):
-            # test = T.alloc_buffer(1, dtype=vec_model_dtype, scope="local")
+            # test = T.sblock_alloc_buffer(1, dtype=vec_model_dtype, scope="local")
             for i0, i1 in T.grid(
                 T.int64(weight_shape[0]), T.int64(weight_shape[1] // vector_length)
             ):
@@ -810,7 +810,7 @@ class TestFP8e4x4QuantDequantScale(BaseFP8E4M3QuantScaleOnly):
 def test_const(dtype):
     @T.prim_func
     def func(A: T.Buffer((4,), dtype)) -> None:
-        A_local = T.alloc_buffer((4,), dtype=dtype, scope="local")
+        A_local = T.sblock_alloc_buffer((4,), dtype=dtype, scope="local")
         for tx in T.thread_binding(0, 4, "threadIdx.x"):
             for i in T.vectorized(4):
                 A_local[i] = T.float32(1.0).astype(dtype)
@@ -884,7 +884,7 @@ def test_moe_gemv_shfl_down_illegal_instr():
                         x[e, 0:reduce_size],
                     )
                     T.writes(o[e, 0:spatial_size])
-                    y = T.alloc_buffer((spatial_size, reduce_size), "float16")
+                    y = T.sblock_alloc_buffer((spatial_size, reduce_size), "float16")
                     for i1, i2 in T.grid(spatial_size, reduce_size):
                         with T.sblock("dequantize"):
                             i, j = T.axis.remap("SS", [i1, i2])
