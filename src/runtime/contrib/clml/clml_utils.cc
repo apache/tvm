@@ -75,12 +75,13 @@ void CopyDataFromCLMLTensor(std::shared_ptr<cl_ml_tensor_memory_desc_qcom> tenso
  */
 cl_ml_tensor_qcom DeviceMakeCLMLTensor(cl_context context, tensor_dims_t dims,
                                        cl_ml_tensor_layout_qcom layout, cl_channel_type dtype,
-                                       cl_ml_tensor_usage_qcom usage) {
+                                       cl_ml_tensor_usage_qcom usage,
+                                       cl_ml_tensor_properties_qcom* tensorProps) {
   cl_ml_tensor_qcom tensor;
 
   cl_ml_tensor_desc_qcom desc = {
       dtype, layout, dims.n, dims.c, dims.h, dims.w, 0, CL_TENSOR_DIMENSIONS_4D_QCOM, {0}};
-  CLML_CALL_clCreateMLTensorQCOM(CLML_CTX, nullptr, &desc, usage, &tensor);
+  CLML_CALL_clCreateMLTensorQCOM(CLML_CTX, tensorProps, &desc, usage, &tensor);
   TVM_FFI_ICHECK(tensor) << "clCreateMLTensorQCOM";
   return tensor;
 }
@@ -132,11 +133,11 @@ cl_mem AllocateOnChipTensorMemory(size_t size, cl_uint on_chip_mem_offset) {
  */
 tensor_dims_t GetTensorDims(const JSONGraphNode& node) {
   auto shape = node.GetOpShape()[0];
-  tensor_dims_t dims;
-  dims.n = shape[0];
-  dims.c = shape[1];
-  dims.h = shape[2];
-  dims.w = shape[3];
+  tensor_dims_t dims = {0, 0, 0, 0};
+  dims.n = fmax(shape[0], 0);
+  if (shape.size() > 1) dims.c = fmax(shape[1], 0);
+  if (shape.size() > 2) dims.h = fmax(shape[2], 0);
+  if (shape.size() > 3) dims.w = fmax(shape[3], 0);
   return dims;
 }
 
@@ -188,8 +189,9 @@ cl_arithmetic_mode_qcom MakeCLArithMode(const cl_channel_type& data_type,
  */
 std::shared_ptr<cl_ml_tensor_memory_desc_qcom> MakeCLMLTensor(
     const JSONGraphNode& tensor_rep, void* data, std::vector<size_t> c_shape,
-    cl_ml_tensor_layout_qcom layout, cl_uint dtype, cl_ml_tensor_usage_qcom usage) {
-  auto shape = tensor_rep.GetOpShape()[0];
+    cl_ml_tensor_layout_qcom layout, cl_uint dtype, cl_ml_tensor_usage_qcom usage,
+    cl_ml_tensor_properties_qcom* tensorProps) {
+  std::vector<int64_t> shape(tensor_rep.GetOpShape()[0].begin(), tensor_rep.GetOpShape()[0].end());
   std::vector<size_t> clml_shape(shape.begin(), shape.end());
   if (c_shape.size() > 0) {
     clml_shape = c_shape;
@@ -206,7 +208,7 @@ std::shared_ptr<cl_ml_tensor_memory_desc_qcom> MakeCLMLTensor(
   dims.w = clml_shape[3];
 
   auto tensor_dsc = std::make_shared<cl_ml_tensor_memory_desc_qcom>();
-  tensor_dsc->tensor = DeviceMakeCLMLTensor(CLML_CTX, dims, layout, dtype, usage);
+  tensor_dsc->tensor = DeviceMakeCLMLTensor(CLML_CTX, dims, layout, dtype, usage, tensorProps);
   return tensor_dsc;
 }
 
@@ -222,8 +224,9 @@ std::shared_ptr<cl_ml_tensor_memory_desc_qcom> MakeCLMLTensor(
  */
 std::shared_ptr<cl_ml_tensor_memory_desc_qcom> MakeCLMLTensorFromJSONNode(
     const JSONGraphNode& node, cl_ml_tensor_layout_qcom layout, cl_ml_tensor_usage_qcom usage,
-    cl_uint dtype, void* data, std::vector<size_t> shape) {
-  return MakeCLMLTensor(node, data, shape, layout, dtype, usage);
+    cl_uint dtype, void* data, std::vector<size_t> shape,
+    cl_ml_tensor_properties_qcom* tensorProps) {
+  return MakeCLMLTensor(node, data, shape, layout, dtype, usage, tensorProps);
 }
 
 /*!

@@ -60,6 +60,15 @@
     TVM_FFI_ICHECK(e == CL_SUCCESS) << "CLML Error:" #API " code=" << e; \
   }
 
+#if CL_QCOM_ML_OPS_H_MAJOR_VERSION > 4
+#define V5_API(API, ...)                                                            \
+  e = (reinterpret_cast<CLMLInterfaceV5QCOM*>(CLMLWorkspace::Global()->h_ClmlIntf)) \
+          ->API(__VA_ARGS__);                                                       \
+  CLML_CHECK_ERROR(e, API);
+#else
+#define V5_API(API, ...) \
+  TVM_FFI_THROW(InternalError) << "CLML Error:" #API " - Incompatible V5 API call\n";
+#endif
 #if CL_QCOM_ML_OPS_H_MAJOR_VERSION > 3
 #define V4_API(API, ...)                                                            \
   e = (reinterpret_cast<CLMLInterfaceV4QCOM*>(CLMLWorkspace::Global()->h_ClmlIntf)) \
@@ -130,6 +139,43 @@
     CALL_CASE(2, clCreateMLOpClipQCOM, __VA_ARGS__)                                  \
     CALL_CASE(3, clCreateMLOpClipQCOM, __VA_ARGS__)                                  \
     CALL_CASE(4, clCreateMLOpClipQCOM, __VA_ARGS__)                                  \
+    CALL_CASE(5, clCreateMLOpClipQCOM, __VA_ARGS__)                                  \
+    default:                                                                         \
+      TVM_FFI_THROW(InternalError) << "CLML Error: - Unsupported target version \n"; \
+  }
+
+// clSetMLTensorDimensionsQCOM
+#define CLML_CALL_clSetMLTensorDimensionsQCOM(...)                                   \
+  cl_int e;                                                                          \
+  switch (CLMLWorkspace::Global()->target_major) {                                   \
+    CALL_CASE(5, clSetMLTensorDimensionsQCOM, __VA_ARGS__)                           \
+    default:                                                                         \
+      TVM_FFI_THROW(InternalError) << "CLML Error: - Unsupported target version \n"; \
+  }
+
+// clUpdateMLOpQCOM
+#define CLML_CALL_clUpdateMLOpQCOM(...)                                              \
+  cl_int e;                                                                          \
+  switch (CLMLWorkspace::Global()->target_major) {                                   \
+    CALL_CASE(5, clUpdateMLOpQCOM, __VA_ARGS__)                                      \
+    default:                                                                         \
+      TVM_FFI_THROW(InternalError) << "CLML Error: - Unsupported target version \n"; \
+  }
+
+// clGetMLOpDeviceMemoryRequirementsQCOM
+#define CLML_CALL_clGetMLOpDeviceMemoryRequirementsQCOM(...)                         \
+  cl_int e;                                                                          \
+  switch (CLMLWorkspace::Global()->target_major) {                                   \
+    CALL_CASE(5, clGetMLOpDeviceMemoryRequirementsQCOM, __VA_ARGS__)                 \
+    default:                                                                         \
+      TVM_FFI_THROW(InternalError) << "CLML Error: - Unsupported target version \n"; \
+  }
+
+// clUpdateMLOpDeviceMemoryQCOM
+#define CLML_CALL_clUpdateMLOpDeviceMemoryQCOM(...)                                  \
+  cl_int e;                                                                          \
+  switch (CLMLWorkspace::Global()->target_major) {                                   \
+    CALL_CASE(5, clUpdateMLOpDeviceMemoryQCOM, __VA_ARGS__)                          \
     default:                                                                         \
       TVM_FFI_THROW(InternalError) << "CLML Error: - Unsupported target version \n"; \
   }
@@ -142,15 +188,16 @@
                                            TENSOR)                                           \
   CALL_CASE(VERSION, clCreateMLTensorWithUsageQCOM, CONTEXT, TENSORPROPS, TENSORDESC, USAGE, TENSOR)
 
-#define CLML_CALL_clCreateMLTensorQCOM(...)                                          \
-  cl_int e;                                                                          \
-  switch (CLMLWorkspace::Global()->target_major) {                                   \
-    CALL_clCreateMLTensorQCOM(1, __VA_ARGS__);                                       \
-    CALL_clCreateMLTensorQCOM(2, __VA_ARGS__);                                       \
-    CALL_clCreateMLTensorQCOM(3, __VA_ARGS__);                                       \
-    CALL_clCreateMLTensorWithUsageQCOM(4, __VA_ARGS__);                              \
-    default:                                                                         \
-      TVM_FFI_THROW(InternalError) << "CLML Error: - Unsupported target version \n"; \
+#define CLML_CALL_clCreateMLTensorQCOM(CONTEXT, TENSORPROPS, TENSORDESC, USAGE, TENSOR)     \
+  cl_int e;                                                                                 \
+  switch (CLMLWorkspace::Global()->target_major) {                                          \
+    CALL_clCreateMLTensorQCOM(1, CONTEXT, TENSORPROPS, TENSORDESC, USAGE, TENSOR);          \
+    CALL_clCreateMLTensorQCOM(2, CONTEXT, TENSORPROPS, TENSORDESC, USAGE, TENSOR);          \
+    CALL_clCreateMLTensorQCOM(3, CONTEXT, TENSORPROPS, TENSORDESC, USAGE, TENSOR);          \
+    CALL_clCreateMLTensorWithUsageQCOM(4, CONTEXT, TENSORPROPS, TENSORDESC, USAGE, TENSOR); \
+    CALL_clCreateMLTensorWithUsageQCOM(5, CONTEXT, TENSORPROPS, TENSORDESC, USAGE, TENSOR); \
+    default:                                                                                \
+      TVM_FFI_THROW(InternalError) << "CLML Error: - Unsupported target version \n";        \
   }
 
 /* Version compatibility for CLML Tensor creation */
@@ -244,7 +291,26 @@ struct NodeDescriptor {
   // Check the flag and them pick the layout.
   bool custom_layout = false;
   cl_ml_tensor_layout_qcom layout;
+  cl_channel_type dtype = CL_FLOAT;
   cl_ml_tensor_usage_qcom usage = CL_TENSOR_USAGE_INVALID_QCOM;
+  std::vector<cl_ml_tensor_properties_qcom> tensorProps = {};
+  bool is_dynamic_tensor = false;
+};
+
+/*!
+ * \brief CLML Function descriptor to hold various information related to a Function.
+ */
+struct CLMLFunctionDesc {
+  /* Created CLML operation handle for particular Op in graph */
+  cl_ml_op_qcom op;
+  /* layer names of operator in subgraph */
+  std::string layer_name;
+
+#if (CL_QCOM_ML_OPS_H_MAJOR_VERSION >= 5)
+  std::vector<cl_update_ml_op_properties_qcom> op_props = {};
+#else
+  std::vector<intptr_t> op_props = {};
+#endif
 };
 
 /*!
@@ -253,7 +319,7 @@ struct NodeDescriptor {
  */
 struct CachedLayer {
   /* List of all created CLML operation handles in graph */
-  std::vector<cl_ml_op_qcom> function;
+  std::vector<CLMLFunctionDesc> function;
   /* Map of function and original JsonNode */
   std::map<cl_ml_op_qcom, std::pair<int, JSONGraphNode>> op_node_map;
   /* The input tensor map  */
@@ -270,9 +336,9 @@ struct CachedLayer {
   std::map<int, struct NodeDescriptor> storage_map;
   /* Tensor memory descriptors list to set after backing memory allocation */
   std::vector<cl_ml_tensor_memory_desc_qcom> tensorMemDescs;
-  cl_ml_tensor_mem_desc_set_qcom descriptorSet;
-  /* List of layer names in subgraph */
-  std::vector<std::string> layer_names;
+  /* Index map of tensor memory descriptors list */
+  std::map<int, int> tensorMemDescs_indexmap;  // nid, index
+  cl_ml_tensor_mem_desc_set_qcom descriptorSet = nullptr;
   /* A dummy CLML tensor used across various ops */
   cl_ml_tensor_qcom unusedTensor = nullptr;
 

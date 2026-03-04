@@ -115,9 +115,9 @@ size_t PingPongAllocate(CachedLayer* layer, const std::map<size_t, size_t>& segm
    * for most of the graphs.
    *
    */
-  ssize_t free_start;
-  ssize_t free_size;
-  ssize_t last_found_size = CLMLWorkspace::Global()->onchip_mem_size + 1;
+  size_t free_start;
+  size_t free_size;
+  size_t last_found_size = CLMLWorkspace::Global()->onchip_mem_size + 1;
 
   for (auto it = segments.begin(); it != segments.end(); it++) {
     if (it->second < last_found_size) {
