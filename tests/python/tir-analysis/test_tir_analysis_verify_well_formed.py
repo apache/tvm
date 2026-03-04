@@ -92,9 +92,9 @@ def test_error_for_nested_rebind_usage():
     @T.prim_func(check_well_formed=False)
     def func():
         i = T.int32()
-        with T.Bind(42, var=i):
-            with T.Bind(42, var=i):
-                T.evaluate(i)
+        T.Bind(42, var=i)
+        T.Bind(42, var=i)
+        T.evaluate(i)
 
     with pytest.raises(
         ValueError, match="ill-formed, due to multiple nested definitions of variable i"
@@ -113,10 +113,10 @@ def test_error_for_repeated_binding():
     @T.prim_func(check_well_formed=False)
     def func():
         i = T.int32()
-        with T.Bind(42, var=i):
-            T.evaluate(i)
-        with T.Bind(17, var=i):
-            T.evaluate(i)
+        T.Bind(42, var=i)
+        T.evaluate(i)
+        T.Bind(17, var=i)
+        T.evaluate(i)
 
     with pytest.raises(ValueError, match="multiple nested definitions of variable i"):
         tvm.tir.analysis.verify_well_formed(func)
@@ -131,13 +131,13 @@ def test_error_for_cross_function_reuse():
     class mod:
         @T.prim_func
         def func1():
-            with T.Bind(42, var=i):
-                T.evaluate(i)
+            T.Bind(42, var=i)
+            T.evaluate(i)
 
         @T.prim_func
         def func2():
-            with T.Bind(42, var=i):
-                T.evaluate(i)
+            T.Bind(42, var=i)
+            T.evaluate(i)
 
     with pytest.raises(ValueError, match="multiple definitions of variable i"):
         tvm.tir.analysis.verify_well_formed(mod)
@@ -295,11 +295,11 @@ def test_error_message_without_previous_definition_location():
     def func():
         x = T.int32()
 
-        with T.Bind(42, var=x):
-            T.evaluate(x)
+        T.Bind(42, var=x)
+        T.evaluate(x)
 
-        with T.Bind(99, var=x):  # This should trigger the error
-            T.evaluate(x)
+        T.Bind(99, var=x)  # This should trigger the error
+        T.evaluate(x)
 
     with pytest.raises(ValueError) as exc_info:
         tvm.tir.analysis.verify_well_formed(func, assert_mode=True)
@@ -322,9 +322,9 @@ def test_error_message_with_previous_definition_location():
     def func():
         x = T.int32()
 
-        with T.Bind(42, var=x):
-            with T.Bind(99, var=x):  # This should trigger the error
-                T.evaluate(x)
+        T.Bind(42, var=x)
+        T.Bind(99, var=x)  # This should trigger the error
+        T.evaluate(x)
 
     with pytest.raises(ValueError) as exc_info:
         tvm.tir.analysis.verify_well_formed(func, assert_mode=True)
@@ -351,11 +351,11 @@ def test_sequential_redefinition_with_location():
     def func():
         x = T.int32()
 
-        with T.Bind(1, var=x):
-            T.evaluate(x)
+        T.Bind(1, var=x)
+        T.evaluate(x)
 
-        with T.Bind(2, var=x):  # This should trigger the error
-            T.evaluate(x)
+        T.Bind(2, var=x)  # This should trigger the error
+        T.evaluate(x)
 
     with pytest.raises(ValueError) as exc_info:
         tvm.tir.analysis.verify_well_formed(func, assert_mode=True)

@@ -460,17 +460,18 @@ AssertFrame Assert(PrimExpr condition, ffi::String error_kind,
   return AssertFrame(n);
 }
 
-BindFrame Bind(PrimExpr value, ffi::Optional<Type> type_annotation, ffi::Optional<Var> var) {
-  ObjectPtr<BindFrameNode> n = ffi::make_object<BindFrameNode>();
-  if (var.defined()) {
-    n->var = var.value();
-  } else if (type_annotation.defined()) {
-    n->var = Var("v", type_annotation.value());
-  } else {
-    n->var = Var("v", value.dtype());
-  }
-  n->value = value;
-  return BindFrame(n);
+Var Bind(PrimExpr value, ffi::Optional<Type> type_annotation, ffi::Optional<Var> var) {
+  Var bind_var = [&]() {
+    if (var.defined()) {
+      return var.value();
+    } else if (type_annotation.defined()) {
+      return Var("v", type_annotation.value());
+    } else {
+      return Var("v", value.dtype());
+    }
+  }();
+  AddToParent(tvm::tir::Bind(bind_var, value));
+  return bind_var;
 }
 
 LaunchThreadFrame LaunchThread(Var var, PrimExpr extent) {

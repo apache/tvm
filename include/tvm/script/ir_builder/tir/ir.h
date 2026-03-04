@@ -295,15 +295,18 @@ AssertFrame Assert(PrimExpr condition, ffi::String error_kind,
 
 /*!
  * \brief Create a Bind (variable binding).
+ *
+ * Emits a flat Bind statement to the current frame and returns the bound variable.
+ *
  * \param value The value to be bound.
  * \param type_annotation  The type annotation of the binding.
  *                         Usually it is used for fine-grained var typing,
  *                         particularly, PointerType.
  * \param var The variable to be bound. If not specified, a new variable will be created.
- * \return The created BindFrame.
+ * \return The bound Var.
  */
-BindFrame Bind(PrimExpr value, ffi::Optional<Type> type_annotation = std::nullopt,
-               ffi::Optional<Var> var = std::nullopt);
+Var Bind(PrimExpr value, ffi::Optional<Type> type_annotation = std::nullopt,
+         ffi::Optional<Var> var = std::nullopt);
 
 /*!
  * \brief The allocate node.

@@ -50,13 +50,6 @@ class ForFrame(TIRFrame):
 class AssertFrame(TIRFrame): ...
 
 
-@_register_object("script.ir_builder.tir.BindFrame")
-class BindFrame(TIRFrame):
-    def __enter__(self) -> Var:
-        super().__enter__()
-        return self.var
-
-
 @_register_object("script.ir_builder.tir.AllocateFrame")
 class AllocateFrame(TIRFrame):
     def __enter__(self) -> Buffer:

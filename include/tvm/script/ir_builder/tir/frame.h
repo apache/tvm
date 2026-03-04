@@ -342,48 +342,6 @@ class AssertFrame : public TIRFrame {
 };
 
 /*!
- * \brief A frame represents the Bind (variable binding) statement.
- *
- * \sa BindFrameNode
- */
-class BindFrameNode : public TIRFrameNode {
- public:
-  /*! \brief The variable we bind to */
-  tvm::tir::Var var;
-  /*! \brief The value we bind var to */
-  PrimExpr value;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<BindFrameNode>()
-        .def_ro("var", &BindFrameNode::var)
-        .def_ro("value", &BindFrameNode::value);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.BindFrame", BindFrameNode, TIRFrameNode);
-
- public:
-  /*!
-   * \brief The method called when exiting RAII scope.
-   * \sa tvm::support::With
-   */
-  void ExitWithScope() final;
-};
-
-/*!
- * \brief Managed reference to BindFrameNode.
- *
- * \sa BindFrameNode
- */
-class BindFrame : public TIRFrame {
- public:
-  explicit BindFrame(ObjectPtr<BindFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
-    TVM_FFI_ICHECK(data != nullptr);
-    data_ = std::move(data);
-  }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BindFrame, TIRFrame, BindFrameNode);
-};
-
-/*!
  * \brief The LaunchThreadFrameNode.
  * \note It is used only inside a PrimFunc.
  */

@@ -254,15 +254,20 @@ for i, j, k in T.grid(128, 128, 128):
 
 def test_bind():
     with IRBuilder() as ib:
-        with T.Bind(T.float32(10)) as v:
+        with T.prim_func():
+            v = T.Bind(T.float32(10))
             ib.name("v", v)
             T.evaluate(1)
     obj = ib.get()
     _assert_print(
         obj,
         """
-v: T.float32 = T.float32(10.0)
-T.evaluate(1)
+# from tvm.script import tir as T
+
+@T.prim_func(private=True)
+def main():
+    v: T.float32 = T.float32(10.0)
+    T.evaluate(1)
 """,
     )
 
