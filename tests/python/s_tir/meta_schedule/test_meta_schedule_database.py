@@ -62,7 +62,7 @@ class MatmulRelu:
         A = T.match_buffer(a, (16, 16), "float32")
         B = T.match_buffer(b, (16, 16), "float32")
         D = T.match_buffer(d, (16, 16), "float32")
-        C = T.alloc_buffer((16, 16), "float32")
+        C = T.sblock_alloc_buffer((16, 16), "float32")
         for i, j, k in T.grid(16, 16, 16):
             with T.sblock("matmul"):
                 vi, vj, vk = T.axis.remap("SSR", [i, j, k])

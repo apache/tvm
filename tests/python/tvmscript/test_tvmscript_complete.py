@@ -195,7 +195,7 @@ def test_complete_part_region():
 def func_with_bufferslice_indices(data: T.handle, index: T.handle) -> None:
     data_buf = T.match_buffer(data, (16, 16), "float32")
     index_buf = T.match_buffer(index, (1,), "int32")
-    out_buf = T.alloc_buffer((16, 16), "float32")
+    out_buf = T.sblock_alloc_buffer((16, 16), "float32")
 
     for i, j in T.grid(16, 16):
         with T.sblock():
@@ -210,7 +210,7 @@ def expected_bufferslice_indices(data: T.handle, index: T.handle) -> None:
     with T.sblock("root"):
         T.reads([])
         T.writes([])
-        out_buf = T.alloc_buffer([16, 16], elem_offset=0, align=64, offset_factor=1)
+        out_buf = T.sblock_alloc_buffer([16, 16], elem_offset=0, align=64, offset_factor=1)
         for i0, i1 in T.grid(16, 16):
             with T.sblock():
                 vi, vj = T.axis.remap("SS", [i0, i1])
@@ -223,7 +223,7 @@ def expected_bufferslice_indices(data: T.handle, index: T.handle) -> None:
 def func_with_recursive_bufferslice_indices(data: T.handle, index: T.handle) -> None:
     data_buf = T.match_buffer(data, (16, 16), "float32")
     index_buf = T.match_buffer(index, (1,), "int32")
-    out_buf = T.alloc_buffer((16, 16), "float32")
+    out_buf = T.sblock_alloc_buffer((16, 16), "float32")
 
     for i, j in T.grid(16, 16):
         with T.sblock():
@@ -238,7 +238,7 @@ def expected_recursive_bufferslice_indices(data: T.handle, index: T.handle) -> N
     with T.sblock("root"):
         T.reads([])
         T.writes([])
-        out_buf = T.alloc_buffer([16, 16], elem_offset=0, align=64, offset_factor=1)
+        out_buf = T.sblock_alloc_buffer([16, 16], elem_offset=0, align=64, offset_factor=1)
         for i0, i1 in T.grid(16, 16):
             with T.sblock():
                 vi, vj = T.axis.remap("SS", [i0, i1])
@@ -310,7 +310,7 @@ def test_complete_match_buffer():
 def alloc_buffer_func(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [2, 2], dtype="float32")
     B = T.match_buffer(b, [2, 2], dtype="float32")
-    C = T.alloc_buffer([2, 2], dtype="float32")
+    C = T.sblock_alloc_buffer([2, 2], dtype="float32")
     A[(0, 0)] = T.float32(2)
     C[(0, 0)] = A[(0, 0)] + B[(0, 0)]
     B[(0, 0)] = C[(0, 0)]
@@ -323,7 +323,7 @@ def expect_alloc_buffer_func(a: T.handle, b: T.handle) -> None:
     with T.sblock("root"):
         T.reads([])
         T.writes([])
-        C = T.alloc_buffer([2, 2], dtype="float32", elem_offset=0, align=64, offset_factor=1)
+        C = T.sblock_alloc_buffer([2, 2], dtype="float32", elem_offset=0, align=64, offset_factor=1)
         A[(0, 0)] = T.float32(2)
         C[(0, 0)] = A[(0, 0)] + B[(0, 0)]
         B[(0, 0)] = C[(0, 0)]

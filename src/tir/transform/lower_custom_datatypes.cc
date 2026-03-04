@@ -86,23 +86,25 @@ class CustomDatatypesLowerer : public StmtExprMutator {
     }
   }
 
-  Stmt VisitStmt_(const AllocateNode* allocate) final {
-    bool to_be_lowered = datatype::Registry::Global()->GetTypeRegistered(allocate->dtype.code());
+  Stmt VisitStmt_(const AllocBufferNode* op) final {
+    bool to_be_lowered = datatype::Registry::Global()->GetTypeRegistered(op->buffer->dtype.code());
 
     if (to_be_lowered) {
-      auto new_allocate_type = DataType::UInt(allocate->dtype.bits(), allocate->dtype.lanes());
+      auto new_allocate_type = DataType::UInt(op->buffer->dtype.bits(), op->buffer->dtype.lanes());
       auto new_buffer_var =
-          Var(allocate->buffer_var->name_hint, PointerType(PrimType(new_allocate_type)));
-      var_remap_[allocate->buffer_var] = new_buffer_var;
-
-      Stmt stmt = StmtExprMutator::VisitStmt_(allocate);
-      allocate = stmt.as<AllocateNode>();
-
-      return Allocate(new_buffer_var, new_allocate_type, allocate->extents, allocate->condition,
-                      allocate->body, allocate->annotations);
-    } else {
-      return StmtExprMutator::VisitStmt_(allocate);
+          Var(op->buffer->data->name_hint, PointerType(PrimType(new_allocate_type)));
+      var_remap_[op->buffer->data] = new_buffer_var;
     }
+    Stmt stmt = StmtExprMutator::VisitStmt_(op);
+    op = stmt.as<AllocBufferNode>();
+
+    Buffer new_buf = GetRemappedBuffer(op->buffer);
+    if (!new_buf.same_as(op->buffer)) {
+      auto node = Downcast<AllocBuffer>(stmt);
+      node.CopyOnWrite()->buffer = new_buf;
+      return node;
+    }
+    return stmt;
   }
 
   Stmt VisitStmt_(const DeclBufferNode* op) final {

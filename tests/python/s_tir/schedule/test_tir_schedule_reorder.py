@@ -78,7 +78,7 @@ def elementwise_predicate(a: T.handle, b: T.handle) -> None:
 @T.prim_func
 def elementwise_non_single_branch(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128))
-    C = T.alloc_buffer((128, 128, 128))
+    C = T.sblock_alloc_buffer((128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128))
     for i, j in T.grid(128, 128):
         for k in T.serial(0, 128):
@@ -277,7 +277,7 @@ def test_reorder_with_cascade_tiled_ops():
     def cascade_pool_ops(
         x: T.Buffer((1, 16, 112, 112), "float32"), y2: T.Buffer((1, 16, 108, 108), "float32")
     ) -> None:
-        y1 = T.alloc_buffer([1, 16, 110, 110], dtype="float32")
+        y1 = T.sblock_alloc_buffer([1, 16, 110, 110], dtype="float32")
         for n, c, h, w, kh, kw in T.grid(1, 16, 110, 110, 3, 3):
             with T.sblock("pool_0"):
                 ax0, ax1, ax2, ax3, rv0, rv1 = T.axis.remap("SSSSRR", [n, c, h, w, kh, kw])
@@ -295,7 +295,7 @@ def test_reorder_with_cascade_tiled_ops():
     def cascade_pool_ops_tile_reordered(
         x: T.Buffer((1, 16, 112, 112), "float32"), y2: T.Buffer((1, 16, 108, 108), "float32")
     ) -> None:
-        y1 = T.alloc_buffer([1, 16, 110, 110], dtype="float32")
+        y1 = T.sblock_alloc_buffer([1, 16, 110, 110], dtype="float32")
         for n, c, h_o in T.grid(1, 16, 27):
             for w, h_i, kh, kw in T.grid(110, 6, 3, 3):
                 with T.sblock("pool_0"):

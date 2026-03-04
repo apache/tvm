@@ -38,10 +38,10 @@ def test_nll_loss_backward():
         def nll_loss_backward(rxplaceholder: T.Buffer((), "float32"), rxplaceholder_1: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"), rxplaceholder_2: T.Buffer((T.int64(2), T.int64(4), T.int64(5)), "int64"), rxplaceholder_3: T.Buffer((T.int64(4),), "float32"), pred_grad: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32")):
             T.func_attr({"tir.noalias": True})
             # with T.sblock("root"):
-            all_weights = T.alloc_buffer((T.int64(2), T.int64(4), T.int64(5)))
-            T_broadcast_to = T.alloc_buffer((T.int64(2), T.int64(4), T.int64(5)))
-            all_weights_red = T.alloc_buffer(())
-            T_divide = T.alloc_buffer((T.int64(2), T.int64(4), T.int64(5)))
+            all_weights = T.sblock_alloc_buffer((T.int64(2), T.int64(4), T.int64(5)))
+            T_broadcast_to = T.sblock_alloc_buffer((T.int64(2), T.int64(4), T.int64(5)))
+            all_weights_red = T.sblock_alloc_buffer(())
+            T_divide = T.sblock_alloc_buffer((T.int64(2), T.int64(4), T.int64(5)))
             for i0, i1, i2 in T.grid(T.int64(2), T.int64(4), T.int64(5)):
                 with T.sblock("all_weights"):
                     v_i0, v_i1, v_i2 = T.axis.remap("SSS", [i0, i1, i2])
@@ -101,11 +101,11 @@ def test_nll_loss_backward_no_weight():
         def te_nll_loss_backward_no_weight(rxplaceholder: T.Buffer((), "float32"), rxplaceholder_1: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"), rxplaceholder_2: T.Buffer((T.int64(2), T.int64(4), T.int64(5)), "int64"), pred_grad: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32")):
             T.func_attr({"tir.noalias": True})
             # with T.sblock("root"):
-            T_full = T.alloc_buffer((T.int64(3),))
-            all_weights = T.alloc_buffer((T.int64(2), T.int64(4), T.int64(5)))
-            T_broadcast_to = T.alloc_buffer((T.int64(2), T.int64(4), T.int64(5)))
-            all_weights_red = T.alloc_buffer(())
-            T_divide = T.alloc_buffer((T.int64(2), T.int64(4), T.int64(5)))
+            T_full = T.sblock_alloc_buffer((T.int64(3),))
+            all_weights = T.sblock_alloc_buffer((T.int64(2), T.int64(4), T.int64(5)))
+            T_broadcast_to = T.sblock_alloc_buffer((T.int64(2), T.int64(4), T.int64(5)))
+            all_weights_red = T.sblock_alloc_buffer(())
+            T_divide = T.sblock_alloc_buffer((T.int64(2), T.int64(4), T.int64(5)))
             for ax0 in range(T.int64(3)):
                 with T.sblock("T_full"):
                     v_ax0 = T.axis.spatial(T.int64(3), ax0)
@@ -177,9 +177,9 @@ def test_nll_loss_backward_no_batch():
         def nll_loss_backward(rxplaceholder: T.Buffer((), "float32"), rxplaceholder_1: T.Buffer((T.int64(4),), "float32"), rxplaceholder_2: T.Buffer((), "int64"), rxplaceholder_3: T.Buffer((T.int64(4),), "float32"), pred_grad: T.Buffer((T.int64(4),), "float32")):
             T.func_attr({"tir.noalias": True})
             # with T.sblock("root"):
-            all_weights = T.alloc_buffer(())
-            T_broadcast_to = T.alloc_buffer(())
-            T_divide = T.alloc_buffer(())
+            all_weights = T.sblock_alloc_buffer(())
+            T_broadcast_to = T.sblock_alloc_buffer(())
+            T_divide = T.sblock_alloc_buffer(())
             with T.sblock("all_weights"):
                 vi = T.axis.spatial(T.int64(1), T.int64(0))
                 T.reads(rxplaceholder_3[rxplaceholder_2[()]], rxplaceholder_2[()])
@@ -222,9 +222,9 @@ def test_max_pool2d_backward():
         def max_pool2d_backward(A: T.Buffer((T.int64(3), T.int64(2), T.int64(6), T.int64(5)), "float32"), B: T.Buffer((T.int64(3), T.int64(2), T.int64(10), T.int64(10)), "float32"), T_pool_grad: T.Buffer((T.int64(3), T.int64(2), T.int64(10), T.int64(10)), "float32")):
             T.func_attr({"tir.noalias": True})
             # with T.sblock("root"):
-            pad_temp = T.alloc_buffer((T.int64(3), T.int64(2), T.int64(15), T.int64(13)))
-            maxpool_grad_argmax_v0 = T.alloc_buffer((T.int64(3), T.int64(2), T.int64(6), T.int64(5)), "int64")
-            maxpool_grad_argmax_v1 = T.alloc_buffer((T.int64(3), T.int64(2), T.int64(6), T.int64(5)))
+            pad_temp = T.sblock_alloc_buffer((T.int64(3), T.int64(2), T.int64(15), T.int64(13)))
+            maxpool_grad_argmax_v0 = T.sblock_alloc_buffer((T.int64(3), T.int64(2), T.int64(6), T.int64(5)), "int64")
+            maxpool_grad_argmax_v1 = T.sblock_alloc_buffer((T.int64(3), T.int64(2), T.int64(6), T.int64(5)))
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(3), T.int64(2), T.int64(15), T.int64(13)):
                 with T.sblock("pad_temp"):
                     v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])

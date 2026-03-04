@@ -28,6 +28,7 @@
 #include <tvm/node/script_printer.h>
 #include <tvm/tir/expr.h>
 
+#include <optional>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -232,71 +233,6 @@ class BufferStore : public Stmt {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferStoreNode);
 };
 
-/*!
- * \brief Allocate a buffer that can be used in body.
- */
-class AllocateNode : public StmtNode {
- public:
-  /*! \brief The buffer variable. */
-  Var buffer_var;
-  /*! \brief The type of the buffer. */
-  DataType dtype;
-  /*! \brief The extents of the buffer. */
-  ffi::Array<PrimExpr> extents;
-  /*! \brief Only allocate buffer when condition is satisfied. */
-  PrimExpr condition;
-  /*! \brief The body to be executed. */
-  Stmt body;
-  /*!
-   * \brief Additional annotations about the allocation.
-   *
-   *  These annotations can be used as auxiliary hint
-   *  to future transformations.
-   */
-  ffi::Map<ffi::String, ffi::Any> annotations;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<AllocateNode>()
-        .def_ro("buffer_var", &AllocateNode::buffer_var, refl::AttachFieldFlag::SEqHashDef())
-        .def_ro("dtype", &AllocateNode::dtype)
-        .def_ro("extents", &AllocateNode::extents)
-        .def_ro("condition", &AllocateNode::condition)
-        .def_ro("body", &AllocateNode::body)
-        .def_ro("annotations", &AllocateNode::annotations);
-  }
-
-  /*!
-   * \brief If the buffer size is constant, return the size.
-   *        Otherwise return 0.
-   * \return The result.
-   */
-  int64_t ConstantAllocationSize() const { return ConstantAllocationSize(extents); }
-  /*!
-   * \brief If the buffer size is constant, return the size.
-   *        Otherwise return 0.
-   * \param extents The extents of the buffer.
-   * \return The result.
-   */
-  TVM_DLL static int64_t ConstantAllocationSize(const ffi::Array<PrimExpr>& extents);
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.Allocate", AllocateNode, StmtNode);
-};
-
-/*!
- * \brief Managed reference to AllocateNode.
- * \sa AllocateNode
- */
-class Allocate : public Stmt {
- public:
-  TVM_DLL Allocate(Var buffer_var, DataType dtype, ffi::Array<PrimExpr> extents, PrimExpr condition,
-                   Stmt body,
-                   ffi::Map<ffi::String, ffi::Any> annotations = ffi::Map<ffi::String, ffi::Any>(),
-                   Span span = Span());
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Allocate, Stmt, AllocateNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(AllocateNode);
-};
-
 /*! \brief Declare a buffer that can be used in the body */
 class DeclBufferNode : public StmtNode {
  public:
@@ -320,6 +256,58 @@ class DeclBuffer : public Stmt {
   TVM_DLL DeclBuffer(Buffer buffer, Stmt body, Span span = Span());
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DeclBuffer, Stmt, DeclBufferNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(DeclBufferNode);
+};
+
+/*! \brief Allocate a buffer and declare it in scope */
+class AllocBufferNode : public StmtNode {
+ public:
+  /*! \brief The buffer being allocated and declared */
+  Buffer buffer;
+  /*!
+   * \brief Additional annotations about the allocation.
+   *
+   *  These annotations can be used as auxiliary hint
+   *  to future transformations.
+   */
+  ffi::Map<ffi::String, ffi::Any> annotations;
+  /*! \brief The body to be executed */
+  Stmt body;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<AllocBufferNode>()
+        .def_ro("buffer", &AllocBufferNode::buffer, refl::AttachFieldFlag::SEqHashDef())
+        .def_ro("annotations", &AllocBufferNode::annotations)
+        .def_ro("body", &AllocBufferNode::body);
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.AllocBuffer", AllocBufferNode, StmtNode);
+};
+
+/*! \brief Managed reference to AllocBufferNode */
+class AllocBuffer : public Stmt {
+ public:
+  TVM_DLL AllocBuffer(
+      Buffer buffer, Stmt body,
+      ffi::Map<ffi::String, ffi::Any> annotations = ffi::Map<ffi::String, ffi::Any>(),
+      Span span = Span());
+  /*!
+   * \brief If the buffer's shape is constant, return the total number of elements.
+   * \return The product of all shape extents if all are constant, std::nullopt otherwise.
+   */
+  std::optional<int64_t> ConstantAllocationSize() const {
+    int64_t result = 1;
+    for (const PrimExpr& extent : (*this)->buffer->shape) {
+      if (const auto* int_size = extent.as<IntImmNode>()) {
+        result *= int_size->value;
+      } else {
+        return std::nullopt;
+      }
+    }
+    return result;
+  }
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(AllocBuffer, Stmt, AllocBufferNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(AllocBufferNode);
 };
 
 /*!

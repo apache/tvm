@@ -72,11 +72,8 @@ def test_basic():
                     "reduce_scope",
                     T.reinterpret("handle", T.uint64(0)),
                 ):
-                    mask_data = T.allocate([1], "uint32", "local")
-                    mask = T.decl_buffer(1, "uint32", data=mask_data, scope="local")
-
-                    t0_data = T.allocate([1], "float32", "local")
-                    t0 = T.decl_buffer(1, data=t0_data, scope="local")
+                    mask = T.decl_buffer((1,), "uint32", scope="local")
+                    t0 = T.decl_buffer((1,), scope="local")
 
                     reduce[0] = A_flat[0]
                     mask[0] = T.tvm_warp_activemask()
@@ -146,11 +143,8 @@ def test_basic_with_decl_buffer():
                     "reduce_scope",
                     T.reinterpret("handle", T.uint64(0)),
                 ):
-                    mask_data = T.allocate([1], "uint32", "local")
-                    mask = T.decl_buffer(1, "uint32", data=mask_data, scope="local")
-
-                    t0_data = T.allocate([1], "float32", "local")
-                    t0 = T.decl_buffer(1, data=t0_data, scope="local")
+                    mask = T.decl_buffer((1,), "uint32", scope="local")
+                    t0 = T.decl_buffer((1,), scope="local")
 
                     reduce[0] = A_flat[0]
                     mask[0] = T.tvm_warp_activemask()
@@ -236,11 +230,9 @@ def test_reduce_summation():
                     "reduce_scope",
                     T.reinterpret("handle", T.uint64(0)),
                 ):
-                    mask_data = T.allocate([1], "uint32", "local")
-                    mask = T.decl_buffer(1, "uint32", data=mask_data, scope="local")
+                    mask = T.decl_buffer(1, "uint32", scope="local")
 
-                    t0_data = T.allocate([1], "float32", "local")
-                    t0 = T.decl_buffer(1, data=t0_data, scope="local")
+                    t0 = T.decl_buffer(1, scope="local")
 
                     reduce[0] = normal_reduce[0]
                     mask[0] = T.tvm_warp_activemask()

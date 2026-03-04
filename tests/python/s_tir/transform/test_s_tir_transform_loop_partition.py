@@ -361,32 +361,28 @@ def test_loop_partition_recursive_unroll_hint():
 
     @T.prim_func
     def partitioned_main():
-        placeholder_0_dm = T.allocate([16384], "int8", "global")
-        placeholder_0_dm_1 = T.decl_buffer([16384], dtype="int8", data=placeholder_0_dm)
+        placeholder_0_dm = T.decl_buffer((16384,), "int8")
         for i3_0 in T.unroll(2):
             for i2_0 in T.unroll(2):
-                pad_temp = T.allocate([4096], "int8", "global")
-                pad_temp_1 = T.decl_buffer([4096], dtype="int8", data=pad_temp)
+                pad_temp = T.decl_buffer((4096,), "int8")
                 for ax0, ax1, ax2 in T.grid(16, 16, 16):
                     if 6 <= i2_0 * 4 + ax0 and 6 <= i3_0 * 4 + ax1:
-                        pad_temp_1[ax0 * 256 + ax1 * 16 + ax2] = placeholder_0_dm_1[
+                        pad_temp[ax0 * 256 + ax1 * 16 + ax2] = placeholder_0_dm[
                             i2_0 * 2048 + ax0 * 512 + i3_0 * 64 + ax1 * 16 + ax2
                         ]
         for i2_0 in T.unroll(2):
-            pad_temp_2 = T.allocate([4096], "int8", "global")
-            pad_temp_3 = T.decl_buffer([4096], dtype="int8", data=pad_temp_2)
+            pad_temp = T.decl_buffer((4096,), "int8")
             for ax0, ax1, ax2 in T.grid(16, 16, 16):
                 if 6 <= i2_0 * 4 + ax0:
-                    pad_temp_3[ax0 * 256 + ax1 * 16 + ax2] = placeholder_0_dm_1[
+                    pad_temp[ax0 * 256 + ax1 * 16 + ax2] = placeholder_0_dm[
                         i2_0 * 2048 + ax0 * 512 + ax1 * 16 + ax2 + 128
                     ]
         for i3_0 in T.unroll(2):
             for i2_0 in T.unroll(2):
-                pad_temp_4 = T.allocate([4096], "int8", "global")
-                pad_temp_5 = T.decl_buffer([4096], dtype="int8", data=pad_temp_4)
+                pad_temp = T.decl_buffer((4096,), "int8")
                 for ax0, ax1, ax2 in T.grid(16, 16, 16):
                     if 6 <= i2_0 * 4 + ax0 and i3_0 * 4 + ax1 < 14:
-                        pad_temp_5[ax0 * 256 + ax1 * 16 + ax2] = placeholder_0_dm_1[
+                        pad_temp[ax0 * 256 + ax1 * 16 + ax2] = placeholder_0_dm[
                             i2_0 * 2048 + ax0 * 512 + i3_0 * 64 + ax1 * 16 + ax2 + 192
                         ]
 
@@ -471,12 +467,13 @@ def test_loop_partition_with_unit_loop_in_condition():
         placeholder_1_1 = T.decl_buffer((25088,), "int8", data=placeholder_1.data)
         placeholder_2_1 = T.decl_buffer((25088,), "int8", data=placeholder_2.data)
         T_concat_1 = T.decl_buffer((100352,), "int8", data=T_concat.data)
-        for _ in T.serial(1, annotations={"preserve_unit_loop": True}):
+        for k in T.serial(1, annotations={"preserve_unit_loop": True}):
             for i1, i2, i3 in T.grid(64, 28, 28):
                 T_concat_1[i1 * 784 + i2 * 28 + i3] = placeholder_3[i1 * 784 + i2 * 28 + i3]
             for i1, i2, i3 in T.grid(32, 28, 28):
-                idx = i1 * 784 + i2 * 28 + i3
-                T_concat_1[idx + 50176] = placeholder_1_1[idx]
+                T_concat_1[i1 * 784 + i2 * 28 + i3 + 50176] = placeholder_1_1[
+                    i1 * 784 + i2 * 28 + i3
+                ]
             for i1, i2, i3 in T.grid(32, 28, 28):
                 T_concat_1[i2 * 28 + i3] = placeholder_2_1[i1 * 784 + i2 * 28 + i3]
 

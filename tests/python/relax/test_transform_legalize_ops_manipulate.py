@@ -1143,7 +1143,7 @@ def test_repeat_no_axis():
         ):
             T.func_attr({"tir.noalias": True})
             # with T.sblock("root"):
-            T_reshape = T.alloc_buffer((T.int64(18),))
+            T_reshape = T.sblock_alloc_buffer((T.int64(18),))
             for ax0 in range(T.int64(18)):
                 with T.sblock("T_reshape"):
                     v_ax0 = T.axis.spatial(T.int64(18), ax0)
@@ -1815,7 +1815,7 @@ def test_scatter_nd():
             with T.sblock("root"):
                 T.reads()
                 T.writes()
-                T_transpose = T.alloc_buffer((T.int64(1), T.int64(4)), "int64")
+                T_transpose = T.sblock_alloc_buffer((T.int64(1), T.int64(4)), "int64")
                 for ax0 in range(T.int64(1)):
                     for ax1 in range(T.int64(4)):
                         with T.sblock("T_transpose"):

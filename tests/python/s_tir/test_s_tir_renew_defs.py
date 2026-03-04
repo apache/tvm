@@ -52,7 +52,7 @@ def test_simple():
     # Buffer A should be remapped
     def elementwise(A: T.Buffer((128, 128), "float32")):
         # Buffer B should be remapped
-        B = T.alloc_buffer((128, 128), "float32")
+        B = T.sblock_alloc_buffer((128, 128), "float32")
         # i, j should be remapped
         for i, j in T.grid(128, 128):
             with T.sblock("B"):
@@ -146,7 +146,7 @@ def test_undefined_buffer():
     f2 = tvm.s_tir.renew_defs(f1)
     tvm.ir.assert_structural_equal(f1, f2)
 
-    assert f1.body.buffer_var != f2.body.buffer_var
+    assert f1.body.buffer.data != f2.body.buffer.data
 
     def _get_buffer_store_buffer(f):
         return f.body.body.body[1].body.buffer

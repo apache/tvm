@@ -338,7 +338,7 @@ def test_async_copy():
     # key properties instead of exact structural equality.
     script = After["main"].script()
     # Verify merged allocation (1024 bytes = 128*4 + 128*4)
-    assert 'T.allocate([1024], "uint8", "shared.dyn")' in script
+    assert '"uint8"' in script and '"shared.dyn"' in script and "(1024,)" in script
     # Verify cp_async uses correct byte offsets
     assert "threadIdx_x * 4" in script
     assert "(128 + threadIdx_x) * 4" in script

@@ -69,8 +69,11 @@ void VarUseDefAnalyzer::VisitStmt_(const DeclBufferNode* op) {
   StmtExprVisitor::VisitStmt_(op);
 }
 
-void VarUseDefAnalyzer::VisitStmt_(const AllocateNode* op) {
-  this->HandleDef(op->buffer_var);
+void VarUseDefAnalyzer::VisitStmt_(const AllocBufferNode* op) {
+  // AllocBuffer both allocates the data variable and declares the buffer,
+  // so we must define buffer->data before the buffer itself.
+  this->HandleDef(op->buffer->data);
+  this->HandleDef(op->buffer);
   StmtExprVisitor::VisitStmt_(op);
 }
 

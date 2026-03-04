@@ -129,13 +129,12 @@ class VarTouchedAnalysis : public StmtVisitor {
       Record(var, tc);
     }
   }
-  void VisitStmt_(const AllocateNode* op) final {
+  void VisitStmt_(const AllocBufferNode* op) final {
     ExprTouched tc(touched_var_, false);
-    for (size_t i = 0; i < op->extents.size(); ++i) {
-      tc(op->extents[i]);
+    for (size_t i = 0; i < op->buffer->shape.size(); ++i) {
+      tc(op->buffer->shape[i]);
     }
-    tc.VisitExpr(op->condition);
-    Record(op->buffer_var.get(), tc);
+    Record(op->buffer->data.get(), tc);
     this->VisitStmt(op->body);
   }
   void Record(const VarNode* var, const ExprTouched& tc) {
@@ -378,13 +377,12 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
     return StmtMutator::VisitSeqStmt_(op, false, fmutate);
   }
   // Allocate
-  Stmt VisitStmt_(const AllocateNode* op) final {
-    Allocate node = ffi::GetRef<Allocate>(op);
+  // AllocBuffer
+  Stmt VisitStmt_(const AllocBufferNode* op) final {
+    AllocBuffer node = ffi::GetRef<AllocBuffer>(op);
 
-    PrimExpr condition = this->VisitExpr(op->condition);
-
-    ffi::Array<PrimExpr> extents =
-        op->extents.Map([this](const PrimExpr& extent) { return this->VisitExpr(extent); });
+    ffi::Array<PrimExpr> shape =
+        op->buffer->shape.Map([this](const PrimExpr& s) { return this->VisitExpr(s); });
 
     if (visit_touched_var_ && !vt_loop_injected_) {
       return InjectVTLoop(ffi::GetRef<Stmt>(op), true);
@@ -392,34 +390,22 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
 
     visit_touched_var_ = false;
 
-    // Rewrite the buffer if its shape or any value stored in it
-    // depends on the virtual thread var.  If `allow_share_` is false,
-    // then the buffer is always rewritten, even if separate virtual
-    // threads only read from the buffer.
-    if (touched_var_.count(op->buffer_var.get()) || !allow_share_) {
-      // place v on highest dimension.
-
-      // TODO(Lunderberg): Move pass to apply before
-      // FlattenBuffer.  Would rewrite the Buffer to
-      // add the injected virtual thread as the first index.
-      TVM_FFI_ICHECK_EQ(extents.size(), 1)
+    if (touched_var_.count(op->buffer->data.get()) || !allow_share_) {
+      TVM_FFI_ICHECK_EQ(shape.size(), 1)
           << "InjectVirtualThread expects rewritten allocations to be flat memory.";
-      PrimExpr stride = extents[0];
-      extents = {stride * num_threads_};
-
-      // Mark the buffer var as touched.  BufferLoad/BufferStore should
-      // access locations at `current_index + stride*vthread_var`.
-      alloc_remap_[op->buffer_var.get()] = stride;
+      PrimExpr stride = shape[0];
+      shape = {stride * num_threads_};
+      alloc_remap_[op->buffer->data.get()] = stride;
     }
 
-    // Mutate the body.  Depends on alloc_remap_.
     auto body = this->VisitStmt(op->body);
 
-    if (extents.same_as(op->extents) && body.same_as(op->body) &&
-        condition.same_as(op->condition)) {
+    if (shape.same_as(op->buffer->shape) && body.same_as(op->body)) {
       return ffi::GetRef<Stmt>(op);
     } else {
-      return Allocate(op->buffer_var, op->dtype, extents, condition, body);
+      Buffer new_buffer = op->buffer;
+      new_buffer.CopyOnWrite()->shape = shape;
+      return AllocBuffer(new_buffer, body, op->annotations);
     }
   }
 

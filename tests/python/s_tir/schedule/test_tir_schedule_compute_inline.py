@@ -34,7 +34,7 @@ from tvm.script import tir as T
 @T.prim_func
 def elementwise(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
-    B = T.alloc_buffer((128, 128))
+    B = T.sblock_alloc_buffer((128, 128))
     C = T.match_buffer(c, (128, 128))
     for i, j in T.grid(128, 128):
         with T.sblock("B"):
@@ -49,7 +49,7 @@ def elementwise(a: T.handle, c: T.handle) -> None:
 @T.prim_func
 def elementwise_multi_producer_consumer(a: T.handle, c: T.handle, d: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
-    B = T.alloc_buffer((128, 128))
+    B = T.sblock_alloc_buffer((128, 128))
     C = T.match_buffer(c, (128, 128))
     D = T.match_buffer(d, (128, 128))
     for i, j in T.grid(128, 128):
@@ -84,7 +84,7 @@ def elementwise_multi_consumer_inlined(a: T.handle, c: T.handle, d: T.handle) ->
 @T.prim_func
 def elementwise_standalone(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
-    B = T.alloc_buffer((128, 128))
+    B = T.sblock_alloc_buffer((128, 128))
     C = T.match_buffer(c, (128, 128))
     for i, j in T.grid(128, 128):
         with T.sblock("B"):
@@ -110,7 +110,7 @@ def elementwise_standalone_dce(a: T.handle, c: T.handle) -> None:
 def elementwise_under_loop(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     C = T.match_buffer(c, (128, 128))
-    B = T.alloc_buffer((128, 128))
+    B = T.sblock_alloc_buffer((128, 128))
     for i in T.serial(0, 128):
         for j in T.serial(0, 128):
             with T.sblock("B"):
@@ -135,8 +135,8 @@ def elementwise_inlined(a: T.handle, c: T.handle) -> None:
 @T.prim_func
 def fail_multi_reader_writer(a: T.handle, d: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
-    B = T.alloc_buffer((128, 128))
-    C = T.alloc_buffer((128, 128))
+    B = T.sblock_alloc_buffer((128, 128))
+    C = T.sblock_alloc_buffer((128, 128))
     D = T.match_buffer(d, (128, 128))
     for i, j in T.grid(128, 128):
         with T.sblock("B"):
@@ -152,7 +152,7 @@ def fail_multi_reader_writer(a: T.handle, d: T.handle) -> None:
 @T.prim_func
 def elementwise_multi_reverse_loads(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
-    B = T.alloc_buffer((128, 128))
+    B = T.sblock_alloc_buffer((128, 128))
     C = T.match_buffer(c, (128, 128))
     for i, j in T.grid(128, 128):
         with T.sblock("B"):
@@ -178,7 +178,7 @@ def elementwise_multi_reverse_loads_inlined(a: T.handle, c: T.handle) -> None:
 def elementwise_reverse_affine_load(
     A: T.Buffer((128, 128), "float32"), C: T.Buffer((8, 32, 8, 8), "float32")
 ) -> None:
-    B = T.alloc_buffer((128, 128))
+    B = T.sblock_alloc_buffer((128, 128))
     for i, j in T.grid(128, 128):
         with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
@@ -213,7 +213,7 @@ def elementwise_reverse_affine_load_unit_iter(
     B: T.Buffer((8, 16, 1), "float32"),
     D: T.Buffer((1, 8, 16, 128), "float32"),
 ) -> None:
-    C = T.alloc_buffer((128, 128))
+    C = T.sblock_alloc_buffer((128, 128))
     for i, j in T.grid(128, 128):
         with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
@@ -242,7 +242,7 @@ def elementwise_reverse_affine_load_unit_iter_simplified(
     B: T.Buffer((8, 16, 1), "float32"),
     D: T.Buffer((1, 8, 16, 128), "float32"),
 ) -> None:
-    C = T.alloc_buffer((128, 128))
+    C = T.sblock_alloc_buffer((128, 128))
     for i, j in T.grid(128, 128):
         with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
@@ -269,8 +269,8 @@ def elementwise_reverse_affine_load_unit_iter_simplified_inlined(
 def elementwise_reverse_affine_chain(
     A: T.Buffer((128, 128), "float32"), D: T.Buffer((1, 8, 16, 128), "float32")
 ):
-    B = T.alloc_buffer((128, 128))
-    C = T.alloc_buffer((8, 16, 128))
+    B = T.sblock_alloc_buffer((128, 128))
+    C = T.sblock_alloc_buffer((8, 16, 128))
     for i, j in T.grid(128, 128):
         with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
@@ -300,7 +300,7 @@ def elementwise_multi_reverse_affine_load(
     A: T.Buffer((128, 128), "float32"),
     C: T.Buffer((8, 16, 128), "float32"),
 ) -> None:
-    B = T.alloc_buffer((128, 128))
+    B = T.sblock_alloc_buffer((128, 128))
     for i, j in T.grid(128, 128):
         with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
@@ -326,7 +326,7 @@ def elementwise_multi_reverse_affine_load_inlined(
 def elementwise_reverse_non_affine_load(
     A: T.Buffer((128, 128), "float32"), C: T.Buffer((8, 16, 128), "float32")
 ) -> None:
-    B = T.alloc_buffer((128, 128))
+    B = T.sblock_alloc_buffer((128, 128))
     for i, j in T.grid(128, 128):
         with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
@@ -340,7 +340,7 @@ def elementwise_reverse_non_affine_load(
 @T.prim_func
 def opaque_access_load(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
-    B = T.alloc_buffer((128, 128))
+    B = T.sblock_alloc_buffer((128, 128))
     C = T.match_buffer(c, (128, 128))
     for i, j in T.grid(128, 128):
         with T.sblock("B"):
@@ -358,7 +358,7 @@ def opaque_access_load(a: T.handle, c: T.handle) -> None:
 @T.prim_func
 def opaque_access_store(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
-    B = T.alloc_buffer((128, 128))
+    B = T.sblock_alloc_buffer((128, 128))
     C = T.match_buffer(c, (128, 128))
     for i, j in T.grid(128, 128):
         with T.sblock("B"):
@@ -377,7 +377,7 @@ def opaque_access_store(a: T.handle, c: T.handle) -> None:
 @T.prim_func
 def buffer_matched(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
-    B = T.alloc_buffer((128, 128))
+    B = T.sblock_alloc_buffer((128, 128))
     C = T.match_buffer(c, (128, 128))
     for i, j in T.grid(128, 128):
         with T.sblock("B"):
@@ -393,7 +393,7 @@ def buffer_matched(a: T.handle, c: T.handle) -> None:
 @T.prim_func
 def elementwise_predicate(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
-    B = T.alloc_buffer((128, 128))
+    B = T.sblock_alloc_buffer((128, 128))
     C = T.match_buffer(c, (128, 128))
     for i, j in T.grid(128, 128):
         with T.sblock("B"):
@@ -420,7 +420,7 @@ def elementwise_predicate_inlined(a: T.handle, c: T.handle) -> None:
 @T.prim_func
 def elementwise_multi_loads(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
-    B = T.alloc_buffer((128, 128))
+    B = T.sblock_alloc_buffer((128, 128))
     C = T.match_buffer(c, (128, 128))
     for i, j in T.grid(128, 128):
         with T.sblock("B"):
@@ -446,8 +446,8 @@ def elementwise_multi_loads_inlined(a: T.handle, c: T.handle) -> None:
 def access_opaque_ptr_then_elemwise(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [1024])
     B = T.match_buffer(b, [1024])
-    A_cache = T.alloc_buffer([1024])
-    BB = T.alloc_buffer([1024])
+    A_cache = T.sblock_alloc_buffer([1024])
+    BB = T.sblock_alloc_buffer([1024])
     with T.sblock("opaque"):
         # annotated opaque partial access
         T.reads(A[0:512])
@@ -468,7 +468,7 @@ def access_opaque_ptr_then_elemwise(a: T.handle, b: T.handle) -> None:
 def access_opaque_ptr_then_elemwise_inline(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [1024], dtype="float32")
     B = T.match_buffer(b, [1024], dtype="float32")
-    A_cache = T.alloc_buffer([1024], dtype="float32")
+    A_cache = T.sblock_alloc_buffer([1024], dtype="float32")
     with T.sblock("opaque"):
         # annotated opaque partial access should be kept
         T.reads(A[0:512])
@@ -488,7 +488,7 @@ def matmul_relu(var_A: T.handle, var_B: T.handle, var_compute: T.handle) -> None
     A = T.match_buffer(var_A, [512, 512], dtype="float32")
     B = T.match_buffer(var_B, [512, 512], dtype="float32")
     compute = T.match_buffer(var_compute, [512, 512], dtype="float32")
-    C = T.alloc_buffer([512, 512], dtype="float32")
+    C = T.sblock_alloc_buffer([512, 512], dtype="float32")
     for i0, i1, i2 in T.grid(512, 512, 512):
         with T.sblock("C"):
             i, j, k = T.axis.remap("SSR", [i0, i1, i2])
@@ -525,7 +525,7 @@ def inline_block_with_init(
     A: T.Buffer((1, 512, 7, 7), "float32"),
     B: T.Buffer((1, 512, 1, 1), "float32"),
 ) -> None:
-    B_rf = T.alloc_buffer([1, 512, 1, 1, 49], dtype="float32")
+    B_rf = T.sblock_alloc_buffer([1, 512, 1, 1, 49], dtype="float32")
     for i0, i1, i2, i3, i4, i5 in T.grid(1, 512, 1, 1, 49, 1):
         with T.sblock("tensor_rf"):
             vi4 = T.axis.spatial(49, i4)
@@ -563,7 +563,7 @@ def exp_exp_opaque_access_with_tvm_access_ptr(
     x: T.Buffer((16,), "float16"),
     compute: T.Buffer((16,), "float16"),
 ) -> None:
-    compute_1 = T.alloc_buffer([16], dtype="float16")
+    compute_1 = T.sblock_alloc_buffer([16], dtype="float16")
     for i0 in T.serial(16):
         with T.sblock("compute"):
             i0_1 = T.axis.spatial(16, i0)
@@ -606,7 +606,7 @@ def exp_exp_opaque_access_with_tvm_access_ptr_inlined(
 def elementwise_overcomputed_producer(
     A: T.Buffer((128, 128), "float32"), C: T.Buffer((127, 127), "float32")
 ) -> None:
-    B = T.alloc_buffer((128, 128))
+    B = T.sblock_alloc_buffer((128, 128))
     for i, j in T.grid(128, 128):
         with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
@@ -632,7 +632,7 @@ def elementwise_overcomputed_producer_reverse_inlined(
 def elementwise_overcomputed_producer_simplify_predicate(
     A: T.Buffer((128, 128), "float32"), C: T.Buffer((127, 127), "float32")
 ) -> None:
-    B = T.alloc_buffer((128, 128))
+    B = T.sblock_alloc_buffer((128, 128))
     for i in T.grid(16384):
         with T.sblock("B"):
             vi = T.axis.spatial(128, i // 128)
@@ -660,7 +660,7 @@ def elementwise_overcomputed_producer_simplify_predicate_reverse_inlined(
 def elementwise_overcomputed_producer_injective_load(
     A: T.Buffer((128, 128), "float32"), C: T.Buffer((127, 127), "float32")
 ) -> None:
-    B = T.alloc_buffer((8, 8, 16, 16))
+    B = T.sblock_alloc_buffer((8, 8, 16, 16))
     for i0, j0, i1, j1 in T.grid(8, 8, 16, 16):
         with T.sblock("B"):
             vi, vj, vm, vn = T.axis.remap("SSSS", [i0, j0, i1, j1])
@@ -686,7 +686,7 @@ def elementwise_overcomputed_producer_injective_load_reverse_inlined(
 def elementwise_producer_not_cover_consumer(
     A: T.Buffer((128, 128), "float32"), D: T.Buffer((256, 128), "float32")
 ) -> None:
-    B = T.alloc_buffer((128, 128))
+    B = T.sblock_alloc_buffer((128, 128))
     for i, j in T.grid(128, 128):
         with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
@@ -701,7 +701,7 @@ def elementwise_producer_not_cover_consumer(
 def elementwise_producer_is_reduction(
     A: T.Buffer((128, 128), "float32"), D: T.Buffer((128), "float32")
 ) -> None:
-    B = T.alloc_buffer(128)
+    B = T.sblock_alloc_buffer(128)
     for i, j in T.grid(128, 128):
         with T.sblock("B"):
             vi, vj = T.axis.remap("SR", [i, j])
@@ -717,7 +717,7 @@ def elementwise_producer_is_reduction(
 @T.prim_func
 def elementwise_predicate_producer(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
-    B = T.alloc_buffer((127, 128))
+    B = T.sblock_alloc_buffer((127, 128))
     C = T.match_buffer(c, (127, 128))
     for i, j in T.grid(128, 128):
         with T.sblock("B"):
@@ -755,13 +755,13 @@ class Conv2dInt8_TensorCore_with_predicate_before:
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.unroll_explicit":1024})
-            compute_3 = T.alloc_buffer([16, 56, 56, 256], dtype="int32")
-            conv2d_nhwc_reindex_shared = T.alloc_buffer([50176, 256], dtype="int32", scope="shared")
-            conv2d_nhwc_reindex_shared_wmma_accumulator = T.alloc_buffer([50176, 256], dtype="int32", scope="wmma.accumulator")
-            pad_temp_reindex_shared = T.alloc_buffer([50176, 64], dtype="int8", scope="shared")
-            p1_reindex_shared = T.alloc_buffer([1, 1, 256, 64], dtype="int8", scope="shared")
-            pad_temp_reindex_shared_wmma_matrix_a = T.alloc_buffer([50176, 64], dtype="int8", scope="wmma.matrix_a")
-            p1_reindex_shared_wmma_matrix_b = T.alloc_buffer([1, 1, 256, 64], dtype="int8", scope="wmma.matrix_b")
+            compute_3 = T.sblock_alloc_buffer([16, 56, 56, 256], dtype="int32")
+            conv2d_nhwc_reindex_shared = T.sblock_alloc_buffer([50176, 256], dtype="int32", scope="shared")
+            conv2d_nhwc_reindex_shared_wmma_accumulator = T.sblock_alloc_buffer([50176, 256], dtype="int32", scope="wmma.accumulator")
+            pad_temp_reindex_shared = T.sblock_alloc_buffer([50176, 64], dtype="int8", scope="shared")
+            p1_reindex_shared = T.sblock_alloc_buffer([1, 1, 256, 64], dtype="int8", scope="shared")
+            pad_temp_reindex_shared_wmma_matrix_a = T.sblock_alloc_buffer([50176, 64], dtype="int8", scope="wmma.matrix_a")
+            p1_reindex_shared_wmma_matrix_b = T.sblock_alloc_buffer([1, 1, 256, 64], dtype="int8", scope="wmma.matrix_b")
             for ax2_0_0_ax3_0_0_fused in T.thread_binding(32, thread="blockIdx.y"):
                 for ax2_0_1_ax3_0_1_fused in T.thread_binding(196, thread="blockIdx.x"):
                     for ax2_0_2_ax3_0_2_fused in T.thread_binding(4, thread="threadIdx.y"):
@@ -874,12 +874,12 @@ class Conv2dInt8_TensorCore_with_predicate_after:
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.unroll_explicit": 1024})
-            conv2d_nhwc_reindex_shared = T.alloc_buffer((50176, 256), "int32", scope="shared")
-            conv2d_nhwc_reindex_shared_wmma_accumulator = T.alloc_buffer((50176, 256), "int32", scope="wmma.accumulator")
-            pad_temp_reindex_shared = T.alloc_buffer((50176, 64), "int8", scope="shared")
-            p1_reindex_shared = T.alloc_buffer((1, 1, 256, 64), "int8", scope="shared")
-            pad_temp_reindex_shared_wmma_matrix_a = T.alloc_buffer((50176, 64), "int8", scope="wmma.matrix_a")
-            p1_reindex_shared_wmma_matrix_b = T.alloc_buffer((1, 1, 256, 64), "int8", scope="wmma.matrix_b")
+            conv2d_nhwc_reindex_shared = T.sblock_alloc_buffer((50176, 256), "int32", scope="shared")
+            conv2d_nhwc_reindex_shared_wmma_accumulator = T.sblock_alloc_buffer((50176, 256), "int32", scope="wmma.accumulator")
+            pad_temp_reindex_shared = T.sblock_alloc_buffer((50176, 64), "int8", scope="shared")
+            p1_reindex_shared = T.sblock_alloc_buffer((1, 1, 256, 64), "int8", scope="shared")
+            pad_temp_reindex_shared_wmma_matrix_a = T.sblock_alloc_buffer((50176, 64), "int8", scope="wmma.matrix_a")
+            p1_reindex_shared_wmma_matrix_b = T.sblock_alloc_buffer((1, 1, 256, 64), "int8", scope="wmma.matrix_b")
             for ax2_0_0_ax3_0_0_fused in T.thread_binding(32, thread="blockIdx.y"):
                 for ax2_0_1_ax3_0_1_fused in T.thread_binding(196, thread="blockIdx.x"):
                     for ax2_0_2_ax3_0_2_fused in T.thread_binding(4, thread="threadIdx.y"):
@@ -1315,10 +1315,10 @@ def test_compute_inline_softmax():
         n, m = T.int64(), T.int64()
         lv44 = T.match_buffer(p_lv44, (T.int64(1), T.int64(32), n, m))
         var_compute_intermediate = T.match_buffer(p_output0, (T.int64(1), T.int64(32), n, m), "float16")
-        T_softmax_maxelem = T.alloc_buffer((T.int64(1), T.int64(32), n))
-        T_softmax_exp = T.alloc_buffer((T.int64(1), T.int64(32), n, m))
-        T_softmax_expsum = T.alloc_buffer((T.int64(1), T.int64(32), n))
-        var_T_softmax_norm_intermediate = T.alloc_buffer((T.int64(1), T.int64(32), n, m))
+        T_softmax_maxelem = T.sblock_alloc_buffer((T.int64(1), T.int64(32), n))
+        T_softmax_exp = T.sblock_alloc_buffer((T.int64(1), T.int64(32), n, m))
+        T_softmax_expsum = T.sblock_alloc_buffer((T.int64(1), T.int64(32), n))
+        var_T_softmax_norm_intermediate = T.sblock_alloc_buffer((T.int64(1), T.int64(32), n, m))
         for i0, i1, i2, k in T.grid(T.int64(1), T.int64(32), n, m):
             with T.sblock("T_softmax_maxelem"):
                 v_i0, v_i1, v_i2, v_k = T.axis.remap("SSSR", [i0, i1, i2, k])
@@ -1362,9 +1362,9 @@ def test_compute_inline_softmax():
         lv44 = T.match_buffer(p_lv44, (T.int64(1), T.int64(32), n, m))
         var_compute_intermediate = T.match_buffer(p_output0, (T.int64(1), T.int64(32), n, m), "float16")
         # with T.sblock("root"):
-        T_softmax_maxelem = T.alloc_buffer((T.int64(1), T.int64(32), n))
-        T_softmax_expsum = T.alloc_buffer((T.int64(1), T.int64(32), n))
-        var_T_softmax_norm_intermediate = T.alloc_buffer((T.int64(1), T.int64(32), n, m))
+        T_softmax_maxelem = T.sblock_alloc_buffer((T.int64(1), T.int64(32), n))
+        T_softmax_expsum = T.sblock_alloc_buffer((T.int64(1), T.int64(32), n))
+        var_T_softmax_norm_intermediate = T.sblock_alloc_buffer((T.int64(1), T.int64(32), n, m))
         for i0, i1, i2, k in T.grid(T.int64(1), T.int64(32), n, m):
             with T.sblock("T_softmax_maxelem"):
                 v_i0, v_i1, v_i2, v_k = T.axis.remap("SSSR", [i0, i1, i2, k])
@@ -1409,9 +1409,9 @@ def test_reverse_compute_inline_layer_norm():
         n = T.int64()
         lv6 = T.match_buffer(p_lv6, (T.int64(1), n, T.int64(2560)))
         var_compute_intermediate = T.match_buffer(p_output0, (T.int64(1), n, T.int64(2560)), "float16")
-        A_red_temp_v0_shared = T.alloc_buffer((T.int64(1), n), scope="shared")
-        A_red_temp_v1_shared = T.alloc_buffer((T.int64(1), n), scope="shared")
-        var_T_layer_norm_intermediate = T.alloc_buffer((T.int64(1), n, T.int64(2560)))
+        A_red_temp_v0_shared = T.sblock_alloc_buffer((T.int64(1), n), scope="shared")
+        A_red_temp_v1_shared = T.sblock_alloc_buffer((T.int64(1), n), scope="shared")
+        var_T_layer_norm_intermediate = T.sblock_alloc_buffer((T.int64(1), n, T.int64(2560)))
         for ax0_ax1_fused in T.thread_binding(n, thread="blockIdx.x", annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
             for ax0, ax1, ax2_0 in T.grid(T.int64(1), T.int64(1), T.int64(10)):
                 for ax2_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
@@ -1451,8 +1451,8 @@ def test_reverse_compute_inline_layer_norm():
         lv6 = T.match_buffer(p_lv6, (T.int64(1), n, T.int64(2560)))
         var_compute_intermediate = T.match_buffer(p_output0, (T.int64(1), n, T.int64(2560)), "float16")
         # with T.sblock("root"):
-        A_red_temp_v0_shared = T.alloc_buffer((T.int64(1), n), scope="shared")
-        A_red_temp_v1_shared = T.alloc_buffer((T.int64(1), n), scope="shared")
+        A_red_temp_v0_shared = T.sblock_alloc_buffer((T.int64(1), n), scope="shared")
+        A_red_temp_v1_shared = T.sblock_alloc_buffer((T.int64(1), n), scope="shared")
         for ax0_ax1_fused in T.thread_binding(n, thread="blockIdx.x", annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
             for ax0, ax1, ax2_0 in T.grid(T.int64(1), T.int64(1), T.int64(10)):
                 for ax2_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
@@ -1491,7 +1491,7 @@ def test_reverse_compute_inline_slicing_then_cachewrite():
         x: T.Buffer((1, 16, 7, 7), "float32"),
         T_strided_slice_with_axes: T.Buffer((1, 12, 7, 7), "float32"),
     ):
-        T_add = T.alloc_buffer((1, 16, 7, 7))
+        T_add = T.sblock_alloc_buffer((1, 16, 7, 7))
         for ax0, ax1, ax2, ax3 in T.grid(1, 16, 7, 7):
             with T.sblock("T_add"):
                 v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
@@ -1508,7 +1508,7 @@ def test_reverse_compute_inline_slicing_then_cachewrite():
         x: T.Buffer((1, 16, 7, 7), "float32"),
         T_strided_slice_with_axes: T.Buffer((1, 12, 7, 7), "float32"),
     ):
-        T_strided_slice_with_axes_global = T.alloc_buffer((1, 12, 7, 7))
+        T_strided_slice_with_axes_global = T.sblock_alloc_buffer((1, 12, 7, 7))
         for ax0, ax1, ax2, ax3 in T.grid(1, 16, 7, 7):
             with T.sblock("T_add"):
                 v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
@@ -1536,7 +1536,7 @@ def test_inline_with_reduction():
         T_reshape_2: T.Buffer((T.int64(6), T.int64(1), T.int64(64)), "float32"),
         T_transpose: T.Buffer((T.int64(1), T.int64(1), T.int64(6), T.int64(64)), "float32"),
     ):
-        T_batch_matmul_NN = T.alloc_buffer((T.int64(6), T.int64(1), T.int64(64)))
+        T_batch_matmul_NN = T.sblock_alloc_buffer((T.int64(6), T.int64(1), T.int64(64)))
         for ax0, ax1 in T.grid(T.int64(6), T.int64(64)):
             with T.sblock("bmm"):
                 v0, v1 = T.axis.remap("SS", [ax0, ax1])

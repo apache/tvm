@@ -96,7 +96,7 @@ def elementwise_symbolic_split(a: T.handle, b: T.handle, n: T.int32) -> None:
 def elementwise_with_seq(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128))
-    C = T.alloc_buffer((128, 128, 128))
+    C = T.sblock_alloc_buffer((128, 128, 128))
     for i, j in T.grid(128, 128):
         for k in T.serial(0, 128):
             with T.sblock("C"):

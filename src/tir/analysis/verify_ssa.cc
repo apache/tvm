@@ -75,8 +75,8 @@ class SSAVerifier final : public StmtExprVisitor {
     MarkDef(op->loop_var, op->loop_var);
     StmtExprVisitor::VisitStmt_(op);
   }
-  void VisitStmt_(const AllocateNode* op) final {
-    MarkDef(op->buffer_var, op->buffer_var);
+  void VisitStmt_(const AllocBufferNode* op) final {
+    MarkDef(op->buffer->data, op->buffer->data);
     StmtExprVisitor::VisitStmt_(op);
   }
 

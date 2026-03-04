@@ -32,7 +32,7 @@ def test_fallback():
             A: T.Buffer((1, 32, 1, 128), "float16"),
             C: T.Buffer((1, 1, 4096), "float16"),
         ):
-            B = T.alloc_buffer((1, 1, 32, 128), "float16")
+            B = T.sblock_alloc_buffer((1, 1, 32, 128), "float16")
             for i, j, k, l in T.grid(1, 1, 32, 128):
                 with T.sblock("T_transpose"):
                     vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
@@ -190,7 +190,7 @@ def test_gpu_fallback_ignores_non_gpu_functions():
             A: T.Buffer((1, 32, 1, 128), "float16"),
             C: T.Buffer((1, 1, 4096), "float16"),
         ):
-            B = T.alloc_buffer((1, 1, 32, 128), "float16")
+            B = T.sblock_alloc_buffer((1, 1, 32, 128), "float16")
             for i, j, k, l in T.grid(1, 1, 32, 128):
                 with T.sblock("T_transpose"):
                     vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
@@ -209,7 +209,7 @@ def test_gpu_fallback_ignores_non_gpu_functions():
             C: T.Buffer((1, 1, 4096), "float16"),
         ):
             T.func_attr({"target": T.target("llvm")})
-            B = T.alloc_buffer((1, 1, 32, 128), "float16")
+            B = T.sblock_alloc_buffer((1, 1, 32, 128), "float16")
             for i, j, k, l in T.grid(1, 1, 32, 128):
                 with T.sblock("T_transpose"):
                     vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
@@ -241,7 +241,7 @@ def test_gpu_fallback_ignores_non_gpu_functions():
             C: T.Buffer((1, 1, 4096), "float16"),
         ):
             T.func_attr({"target": T.target("llvm")})
-            B = T.alloc_buffer((1, 1, 32, 128), "float16")
+            B = T.sblock_alloc_buffer((1, 1, 32, 128), "float16")
             for i, j, k, l in T.grid(1, 1, 32, 128):
                 with T.sblock("T_transpose"):
                     vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])

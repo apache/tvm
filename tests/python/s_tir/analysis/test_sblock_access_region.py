@@ -25,10 +25,10 @@ from tvm.script import tir as T
 
 @T.prim_func
 def func() -> None:
-    A = T.alloc_buffer((128, 128), "float32")
-    B = T.alloc_buffer((128, 128), "float32")
-    C = T.alloc_buffer((128, 128), "float32")
-    D = T.alloc_buffer((128, 128), "float32")
+    A = T.sblock_alloc_buffer((128, 128), "float32")
+    B = T.sblock_alloc_buffer((128, 128), "float32")
+    C = T.sblock_alloc_buffer((128, 128), "float32")
+    D = T.sblock_alloc_buffer((128, 128), "float32")
     with T.sblock():
         # Need add read/write region manually to avoid triggering block access region detector
         T.reads([B[0, 0], C[0:16, 0:16], A[4:12, 4:12]])
@@ -48,8 +48,8 @@ def func() -> None:
 @T.prim_func
 def match_buffer_func() -> None:
     with T.sblock("root"):
-        A = T.alloc_buffer((128, 128), "float32")
-        B = T.alloc_buffer((128, 128), "float32")
+        A = T.sblock_alloc_buffer((128, 128), "float32")
+        B = T.sblock_alloc_buffer((128, 128), "float32")
         T.reads([])
         T.writes([])
         # Need add read/write region manually to avoid triggering block access region detector
@@ -77,8 +77,8 @@ def match_buffer_func() -> None:
 @T.prim_func
 def opaque_block_func() -> None:
     with T.sblock("root"):
-        A = T.alloc_buffer((16, 16), "float32")
-        B = T.alloc_buffer((16, 16), "float32")
+        A = T.sblock_alloc_buffer((16, 16), "float32")
+        B = T.sblock_alloc_buffer((16, 16), "float32")
         T.reads([])
         T.writes([])
         # Need add read/write region manually to avoid triggering block access region detector
@@ -95,8 +95,8 @@ def opaque_block_func() -> None:
 
 @T.prim_func
 def opaque_access_func() -> None:
-    A = T.alloc_buffer([1024])
-    B = T.alloc_buffer([1024])
+    A = T.sblock_alloc_buffer([1024])
+    B = T.sblock_alloc_buffer([1024])
     for i in T.serial(0, 8):
         with T.sblock():
             v = T.axis.S(8, i)
@@ -109,9 +109,9 @@ def opaque_access_func() -> None:
 
 @T.prim_func
 def opaque_access_with_tvm_access_ptr_func() -> None:
-    A = T.alloc_buffer([1024])
-    B = T.alloc_buffer([1024])
-    C = T.alloc_buffer([1024])
+    A = T.sblock_alloc_buffer([1024])
+    B = T.sblock_alloc_buffer([1024])
+    C = T.sblock_alloc_buffer([1024])
     with T.sblock("opaque"):
         T.reads(A[0:1024], C[0:1024])
         T.writes(B[0:1024], C[0:1024])
@@ -122,8 +122,8 @@ def opaque_access_with_tvm_access_ptr_func() -> None:
 
 @T.prim_func
 def access_in_if_then_else_func() -> None:
-    A = T.alloc_buffer([8])
-    B = T.alloc_buffer([8])
+    A = T.sblock_alloc_buffer([8])
+    B = T.sblock_alloc_buffer([8])
     with T.sblock():
         T.reads([A[0:5]])
         T.writes([B[0:8]])
@@ -133,8 +133,8 @@ def access_in_if_then_else_func() -> None:
 
 @T.prim_func
 def access_in_branch_func() -> None:
-    A = T.alloc_buffer([8])
-    B = T.alloc_buffer([8])
+    A = T.sblock_alloc_buffer([8])
+    B = T.sblock_alloc_buffer([8])
     with T.sblock():
         T.reads([A[0:7]])
         T.writes([B[0:8]])
@@ -147,9 +147,9 @@ def access_in_branch_func() -> None:
 
 @T.prim_func
 def gemm() -> None:
-    A = T.alloc_buffer([16, 16], "float32")
-    B = T.alloc_buffer([16, 16], "float32")
-    C = T.alloc_buffer([16, 16], "float32")
+    A = T.sblock_alloc_buffer([16, 16], "float32")
+    B = T.sblock_alloc_buffer([16, 16], "float32")
+    C = T.sblock_alloc_buffer([16, 16], "float32")
     for i, j, k, ii, jj in T.grid(4, 4, 16, 4, 4):
         with T.sblock("update"):
             vi = T.axis.S(16, i * 4 + ii)
@@ -164,9 +164,9 @@ def gemm() -> None:
 
 @T.prim_func
 def decomposed_gemm() -> None:
-    A = T.alloc_buffer([16, 16], "float32")
-    B = T.alloc_buffer([16, 16], "float32")
-    C = T.alloc_buffer([16, 16], "float32")
+    A = T.sblock_alloc_buffer([16, 16], "float32")
+    B = T.sblock_alloc_buffer([16, 16], "float32")
+    C = T.sblock_alloc_buffer([16, 16], "float32")
     for i, j in T.grid(4, 4):
         for ii, jj in T.grid(4, 4):
             with T.sblock("init"):
@@ -187,9 +187,9 @@ def decomposed_gemm() -> None:
 
 @T.prim_func
 def access_of_padding_pattern() -> None:
-    X = T.alloc_buffer([28, 28])
-    X_pad = T.alloc_buffer([32, 32])
-    Y = T.alloc_buffer([28, 28])
+    X = T.sblock_alloc_buffer([28, 28])
+    X_pad = T.sblock_alloc_buffer([32, 32])
+    Y = T.sblock_alloc_buffer([28, 28])
     for i, j in T.grid(32, 32):
         with T.sblock("padding"):
             vi, vj = T.axis.remap("SS", [i, j])

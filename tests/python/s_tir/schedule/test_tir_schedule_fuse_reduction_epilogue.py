@@ -38,7 +38,7 @@ def matmul_bias_before(
     C: T.Buffer((16, 16), "int32"),
     D: T.Buffer((16, 16), "int32"),
 ) -> None:
-    temp = T.alloc_buffer((16, 16), dtype="int32")
+    temp = T.sblock_alloc_buffer((16, 16), dtype="int32")
     for i, j, k in T.grid(16, 16, 16):
         with T.sblock("multiply"):
             vi, vj, vk = T.axis.remap("SSR", [i, j, k])
@@ -58,7 +58,7 @@ def matmul_bias_expected(
     C: T.Buffer((16, 16), "int32"),
     D: T.Buffer((16, 16), "int32"),
 ) -> None:
-    temp = T.alloc_buffer((16, 16), dtype="int32")
+    temp = T.sblock_alloc_buffer((16, 16), dtype="int32")
     for i, j, k in T.grid(16, 16, 16):
         with T.sblock("multiply"):
             vi, vj, vk = T.axis.remap("SSR", [i, j, k])
@@ -76,7 +76,7 @@ def matmul_bias_fp32_before(
     C: T.Buffer((32, 32), "float32"),
     D: T.Buffer((32, 32), "float32"),
 ) -> None:
-    temp = T.alloc_buffer((32, 32), dtype="float32")
+    temp = T.sblock_alloc_buffer((32, 32), dtype="float32")
     for i, j, k in T.grid(32, 32, 32):
         with T.sblock("multiply"):
             vi, vj, vk = T.axis.remap("SSR", [i, j, k])
@@ -96,7 +96,7 @@ def matmul_bias_fp32_expected(
     C: T.Buffer((32, 32), "float32"),
     D: T.Buffer((32, 32), "float32"),
 ) -> None:
-    temp = T.alloc_buffer((32, 32), dtype="float32")
+    temp = T.sblock_alloc_buffer((32, 32), dtype="float32")
     for i, j, k in T.grid(32, 32, 32):
         with T.sblock("multiply"):
             vi, vj, vk = T.axis.remap("SSR", [i, j, k])
@@ -115,7 +115,7 @@ def matmul_bias_multiple_epilogue_before(
     D: T.Buffer((16, 16), "int32"),
     E: T.Buffer((16, 16), "int32"),
 ) -> None:
-    temp = T.alloc_buffer((16, 16), dtype="int32")
+    temp = T.sblock_alloc_buffer((16, 16), dtype="int32")
     for i, j, k in T.grid(16, 16, 16):
         with T.sblock("multiply"):
             vi, vj, vk = T.axis.remap("SSR", [i, j, k])
@@ -140,7 +140,7 @@ def matmul_bias_multiple_epilogue_expected(
     D: T.Buffer((16, 16), "int32"),
     E: T.Buffer((16, 16), "int32"),
 ) -> None:
-    temp = T.alloc_buffer((16, 16), dtype="int32")
+    temp = T.sblock_alloc_buffer((16, 16), dtype="int32")
     for i, j, k in T.grid(16, 16, 16):
         with T.sblock("multiply"):
             vi, vj, vk = T.axis.remap("SSR", [i, j, k])
@@ -225,7 +225,7 @@ def matmul_bias_invalid_multiple_use_before(
     D: T.Buffer((16, 16), "int32"),
 ) -> None:
     """Epilogue uses the reduction result twice; fusion must be rejected."""
-    temp = T.alloc_buffer((16, 16), dtype="int32")
+    temp = T.sblock_alloc_buffer((16, 16), dtype="int32")
     for i, j, k in T.grid(16, 16, 16):
         with T.sblock("multiply"):
             vi, vj, vk = T.axis.remap("SSR", [i, j, k])
@@ -254,7 +254,7 @@ def matmul_bias_invalid_scaling_before(
     D: T.Buffer((16, 16), "int32"),
 ) -> None:
     """Epilogue scales the reduction result; fusion must be rejected."""
-    temp = T.alloc_buffer((16, 16), dtype="int32")
+    temp = T.sblock_alloc_buffer((16, 16), dtype="int32")
     for i, j, k in T.grid(16, 16, 16):
         with T.sblock("multiply"):
             vi, vj, vk = T.axis.remap("SSR", [i, j, k])

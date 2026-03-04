@@ -177,21 +177,18 @@ class InferFragmenter : public StmtMutator {
  public:
   explicit InferFragmenter(const FragmentGetter& getter) : fragment_getter(getter) {}
 
-  Stmt VisitStmt_(const AllocateNode* op) final {
+  Stmt VisitStmt_(const AllocBufferNode* op) final {
     Stmt stmt = StmtMutator::VisitStmt_(op);
-    const VarNode* buffer = op->buffer_var.get();
+    const VarNode* buffer = op->buffer->data.get();
     if (fragment_getter.fragments.count(buffer)) {
-      // Add attribute to fragments allocation
       FragmentInfo info = fragment_getter.fragments.at(buffer);
 
-      // Add shape attribute to all fragments
       std::string shape =
           std::to_string(info.m) + ", " + std::to_string(info.n) + ", " + std::to_string(info.k);
       PrimExpr shape_expr = StringImm(shape);
-      Stmt shape_attr = AttrStmt(op->buffer_var, s_tir::attr::fragment_shape, shape_expr, stmt);
+      Stmt shape_attr = AttrStmt(op->buffer->data, s_tir::attr::fragment_shape, shape_expr, stmt);
       if (info.layout != "") {
-        // Add shape attribute to matrix_a and matrix_b
-        Stmt layout_attr = AttrStmt(op->buffer_var, s_tir::attr::fragment_layout,
+        Stmt layout_attr = AttrStmt(op->buffer->data, s_tir::attr::fragment_layout,
                                     StringImm(info.layout), shape_attr);
         return layout_attr;
       } else {

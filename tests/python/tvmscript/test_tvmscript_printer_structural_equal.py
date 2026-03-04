@@ -123,8 +123,8 @@ def test_allocate():
     assert _error_message(ve.value) == _expected_result(
         func1,
         func2,
-        AccessPath.root().attr("body").attr("extents").array_item(0).attr("value"),
-        AccessPath.root().attr("body").attr("extents").array_item(0).attr("value"),
+        AccessPath.root().attr("body").attr("buffer").attr("shape").array_item(0).attr("value"),
+        AccessPath.root().attr("body").attr("buffer").attr("shape").array_item(0).attr("value"),
     )
 
 

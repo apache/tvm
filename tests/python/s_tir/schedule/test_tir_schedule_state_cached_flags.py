@@ -34,7 +34,7 @@ from tvm.tir.stmt_functor import post_order_visit
 def elementwise(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128), "float32")
     C = T.match_buffer(c, (128, 128), "float32")
-    B = T.alloc_buffer((128, 128), "float32")
+    B = T.sblock_alloc_buffer((128, 128), "float32")
     for i, j in T.grid(128, 128):
         with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
@@ -193,7 +193,7 @@ def multi_producer_consumer(a: T.handle, b: T.handle) -> None:
 def elementwise_affine_producer(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128), "float32")
     C = T.match_buffer(c, (128, 128), "float32")
-    B = T.alloc_buffer((128, 128), "float32")
+    B = T.sblock_alloc_buffer((128, 128), "float32")
     for i, j, k, l in T.grid(16, 2, 32, 16):
         with T.sblock("B"):
             vi = T.axis.S(128, i * 8 + j * 4 + k // 8)
@@ -209,7 +209,7 @@ def elementwise_affine_producer(a: T.handle, c: T.handle) -> None:
 def elementwise_subblock(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128), "float32")
     C = T.match_buffer(c, (128, 128), "float32")
-    B = T.alloc_buffer((128, 128), "float32")
+    B = T.sblock_alloc_buffer((128, 128), "float32")
     for i, j in T.grid(32, 32):
         with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
@@ -229,7 +229,7 @@ def elementwise_subblock(a: T.handle, c: T.handle) -> None:
 def elementwise_subblock_uncovered(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128), "float32")
     C = T.match_buffer(c, (128, 128), "float32")
-    B = T.alloc_buffer((128, 128), "float32")
+    B = T.sblock_alloc_buffer((128, 128), "float32")
     for i, j in T.grid(32, 32):
         with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
@@ -249,7 +249,7 @@ def elementwise_subblock_uncovered(a: T.handle, c: T.handle) -> None:
 def bound_to_thread(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128])
     C = T.match_buffer(c, [128, 128])
-    B = T.alloc_buffer([128, 128], scope="shared")
+    B = T.sblock_alloc_buffer([128, 128], scope="shared")
     for i in T.thread_binding(0, 128, thread="threadIdx.x"):
         for j in T.serial(0, 128):
             with T.sblock("B"):
@@ -265,7 +265,7 @@ def bound_to_thread(a: T.handle, c: T.handle) -> None:
 def equal_ranked_threads(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128])
     C = T.match_buffer(c, [128, 128])
-    B = T.alloc_buffer([128, 128], scope="shared")
+    B = T.sblock_alloc_buffer([128, 128], scope="shared")
     for i_o in T.thread_binding(0, 16, thread="threadIdx.x"):
         for i_i in T.thread_binding(0, 8, thread="threadIdx.y"):
             for j in T.serial(0, 128):
@@ -284,7 +284,7 @@ def equal_ranked_threads(a: T.handle, c: T.handle) -> None:
 def warp_memory(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128])
     C = T.match_buffer(c, [128, 128])
-    B = T.alloc_buffer([128, 4, 32], scope="warp")
+    B = T.sblock_alloc_buffer([128, 4, 32], scope="warp")
     for i_o in T.thread_binding(0, 4, thread="threadIdx.y"):
         for i_i in T.thread_binding(0, 32, thread="threadIdx.x"):
             for j in T.serial(0, 128):
@@ -301,7 +301,7 @@ def warp_memory(a: T.handle, c: T.handle) -> None:
 def warp_memory_negative(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128])
     C = T.match_buffer(c, [128, 128])
-    B = T.alloc_buffer([128, 4, 32], scope="warp")
+    B = T.sblock_alloc_buffer([128, 4, 32], scope="warp")
     for i_o in T.thread_binding(0, 4, thread="threadIdx.y"):
         for i_i in T.thread_binding(0, 32, thread="threadIdx.x"):
             for j in T.serial(0, 128):
@@ -321,7 +321,7 @@ def warp_memory_negative(a: T.handle, c: T.handle) -> None:
 def non_perfect_tiling_cache(a: T.handle, b: T.handle) -> None:
     X = T.match_buffer(a, [224, 224], dtype="float32")
     Y = T.match_buffer(b, [224, 224], dtype="float32")
-    cache = T.alloc_buffer([224, 224], dtype="float32")
+    cache = T.sblock_alloc_buffer([224, 224], dtype="float32")
     for hh_0, ww_0 in T.grid(28, 28):
         for ax0 in T.serial(0, 10):
             for ax1 in T.serial(0, 10):
@@ -374,11 +374,11 @@ def matmul_relu_padding(A: T.Buffer((127, 127), "float16"), B: T.Buffer((127, 12
     T.func_attr({"global_symbol": "main", "tir.noalias": True})
     # body
     # with T.sblock("root")
-    C = T.alloc_buffer([127, 127], dtype="float32")
-    A_reindex = T.alloc_buffer([128, 128], dtype="float16")
-    B_reindex = T.alloc_buffer([128, 128], dtype="float16")
-    C_reindex_shared = T.alloc_buffer([128, 128], dtype="float32", scope="shared")
-    C_reindex_shared_wmma_accumulator = T.alloc_buffer([128, 128], dtype="float32", scope="wmma.accumulator")
+    C = T.sblock_alloc_buffer([127, 127], dtype="float32")
+    A_reindex = T.sblock_alloc_buffer([128, 128], dtype="float16")
+    B_reindex = T.sblock_alloc_buffer([128, 128], dtype="float16")
+    C_reindex_shared = T.sblock_alloc_buffer([128, 128], dtype="float32", scope="shared")
+    C_reindex_shared_wmma_accumulator = T.sblock_alloc_buffer([128, 128], dtype="float32", scope="wmma.accumulator")
     for ax0, ax1, ax2 in T.grid(128, 1, 128):
         with T.sblock("A_reindex"):
             v0, v1, v2 = T.axis.remap("SSS", [ax0, ax1, ax2])

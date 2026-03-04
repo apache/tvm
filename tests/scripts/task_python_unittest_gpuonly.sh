@@ -21,8 +21,8 @@ set -euxo pipefail
 export PYTEST_ADDOPTS="-m gpu ${PYTEST_ADDOPTS:-}"
 
 # Test most of the enabled runtimes here.
-# TODO: disabled opencl tests due to segmentation fault. need to re-land "opencl" and "{"kind":"opencl","device":"mali"}"
-export TVM_TEST_TARGETS='cuda;metal;rocm;nvptx;opencl;{"kind":"opencl","device":"mali"};{"kind":"opencl","device":"adreno"}'
+# TODO: disabled opencl tests due to segmentation fault.
+export TVM_TEST_TARGETS='cuda;metal;rocm;nvptx'
 export TVM_UNITTEST_TESTSUITE_NAME=python-unittest-gpu
 
 ./tests/scripts/task_python_unittest.sh

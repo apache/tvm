@@ -110,7 +110,7 @@ def alloc_zero_dim_buffer(a: T.handle, b: T.handle) -> None:
     B = T.match_buffer(b, [], dtype="float32")
     # body
     # tir.with block("root")
-    C = T.alloc_buffer([], dtype="float32")
+    C = T.sblock_alloc_buffer([], dtype="float32")
     A[()] = T.float32(2)
     C[()] = A[()] + B[()]
     B[()] = C[()]
@@ -123,7 +123,7 @@ def alloc_zero_dim_buffer_block(a: T.handle, b: T.handle) -> None:
     with T.sblock("root"):
         T.reads([])
         T.writes([])
-        C = T.alloc_buffer((), "float32")
+        C = T.sblock_alloc_buffer((), "float32")
         A[()] = T.float32(2)
         C[()] = A[()] + B[()]
         B[()] = C[()]

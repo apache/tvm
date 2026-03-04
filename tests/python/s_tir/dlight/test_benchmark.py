@@ -107,9 +107,9 @@ def cuda_workload(var_inp0: T.handle, inp1: T.Buffer((T.int64(4096), T.int64(409
     inp0 = T.match_buffer(var_inp0, (T.int64(1), m, T.int64(4096)))
     matmul = T.match_buffer(var_matmul, (T.int64(1), m, T.int64(4096)))
     # with T.sblock("root"):
-    matmul_reindex_pad_local = T.alloc_buffer((T.int64(1), (m + T.int64(31)) // T.int64(32) * T.int64(32), T.int64(4096)), scope="local")
-    inp0_reindex_pad_shared = T.alloc_buffer((T.int64(1), (m + T.int64(31)) // T.int64(32) * T.int64(32), T.int64(4096)), scope="shared")
-    inp1_reindex_shared = T.alloc_buffer((T.int64(1), T.int64(4096), T.int64(4096)), scope="shared")
+    matmul_reindex_pad_local = T.sblock_alloc_buffer((T.int64(1), (m + T.int64(31)) // T.int64(32) * T.int64(32), T.int64(4096)), scope="local")
+    inp0_reindex_pad_shared = T.sblock_alloc_buffer((T.int64(1), (m + T.int64(31)) // T.int64(32) * T.int64(32), T.int64(4096)), scope="shared")
+    inp1_reindex_shared = T.sblock_alloc_buffer((T.int64(1), T.int64(4096), T.int64(4096)), scope="shared")
     for ax0 in T.thread_binding(T.int64(1), thread="blockIdx.z"):
         for ax1_0 in T.thread_binding((m + T.int64(31)) // T.int64(32), thread="blockIdx.x"):
             for ax2_0 in T.thread_binding(T.int64(64), thread="blockIdx.y"):

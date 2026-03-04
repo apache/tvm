@@ -851,7 +851,7 @@ def test_try_unaligned_vector_load():
 def test_cuda_thread_sync_inside_condition():
     @T.prim_func
     def func1(A: T.Buffer((4, 4), "float32")) -> None:
-        A_shared = T.alloc_buffer((4, 4), "float32", scope="shared")
+        A_shared = T.sblock_alloc_buffer((4, 4), "float32", scope="shared")
         for bx in T.thread_binding(1, "blockIdx.x"):
             for tx in T.thread_binding(32, "threadIdx.x"):
                 if A[0, 0] > 1.0:
@@ -862,7 +862,7 @@ def test_cuda_thread_sync_inside_condition():
 
     @T.prim_func
     def func2(A: T.Buffer((4, 4), "float32")) -> None:
-        A_shared = T.alloc_buffer((4, 4), "float32", scope="shared")
+        A_shared = T.sblock_alloc_buffer((4, 4), "float32", scope="shared")
         for bx in T.thread_binding(1, "blockIdx.x"):
             for tx in T.thread_binding(32, "threadIdx.x"):
                 if T.tvm_thread_invariant(A[0, 0] > 1.0):
@@ -873,7 +873,7 @@ def test_cuda_thread_sync_inside_condition():
 
     @T.prim_func
     def func3(A: T.Buffer((4, 4), "float32")) -> None:
-        A_shared = T.alloc_buffer((4, 4), "float32", scope="shared")
+        A_shared = T.sblock_alloc_buffer((4, 4), "float32", scope="shared")
         for bx in T.thread_binding(1, "blockIdx.x"):
             for tx in T.thread_binding(32, "threadIdx.x"):
                 while T.tvm_thread_invariant(A[0, 0] > 1.0):

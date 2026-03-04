@@ -35,7 +35,7 @@ def elementwise(a: T.handle, c: T.handle, d: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     C = T.match_buffer(c, (128, 128))
     D = T.match_buffer(d, (64, 64))
-    B = T.alloc_buffer((128, 128))
+    B = T.sblock_alloc_buffer((128, 128))
     for i, j in T.grid(128, 128):
         with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
@@ -63,7 +63,7 @@ def elementwise_merged(a: T.handle, c: T.handle, d: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     C = T.match_buffer(c, (128, 128))
     D = T.match_buffer(d, (64, 64))
-    B = T.alloc_buffer((128, 128))
+    B = T.sblock_alloc_buffer((128, 128))
     for i, j in T.grid(128, 128):
         with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
@@ -92,7 +92,7 @@ def elementwise_merged2(a: T.handle, c: T.handle, d: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     C = T.match_buffer(c, (128, 128))
     D = T.match_buffer(d, (64, 64))
-    B = T.alloc_buffer((128, 128))
+    B = T.sblock_alloc_buffer((128, 128))
     for i, j in T.grid(128, 128):
         with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
@@ -143,8 +143,8 @@ def test_merge_fail_not_only_child():
     def elementwise_with_seq(a: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (128, 128, 128))
         C = T.match_buffer(c, (128, 128, 128))
-        B = T.alloc_buffer((128, 128, 128))
-        D = T.alloc_buffer((128, 128, 128))
+        B = T.sblock_alloc_buffer((128, 128, 128))
+        D = T.sblock_alloc_buffer((128, 128, 128))
         for i, j in T.grid(128, 128):
             for k in T.serial(0, 128):
                 with T.sblock("D"):
@@ -174,7 +174,7 @@ def test_merge_fail_not_start_with_zero():
     def elementwise_loops_not_start_with_zero(a: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (128, 128, 128))
         C = T.match_buffer(c, (128, 128, 128))
-        B = T.alloc_buffer((128, 128, 128))
+        B = T.sblock_alloc_buffer((128, 128, 128))
         for i, j in T.grid(128, 128):
             for k in T.serial(1, 128):
                 with T.sblock("B"):
@@ -200,7 +200,7 @@ def test_merge_fail_not_same_extent():
     def elementwise_loops_not_same_extent(a: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (128, 128, 128))
         C = T.match_buffer(c, (128, 128, 128))
-        B = T.alloc_buffer((64, 128, 128))
+        B = T.sblock_alloc_buffer((64, 128, 128))
         for i, j in T.grid(64, 128):
             for k in T.serial(0, 128):
                 with T.sblock("B"):
@@ -226,7 +226,7 @@ def test_merge_fail_not_same_level():
     def elementwise_not_same_level(a: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (128, 128, 128))
         C = T.match_buffer(c, (128, 128, 128))
-        B = T.alloc_buffer((128, 128, 128))
+        B = T.sblock_alloc_buffer((128, 128, 128))
         for i, j in T.grid(128, 128):
             for k in T.serial(0, 128):
                 with T.sblock("B"):
@@ -252,7 +252,7 @@ def test_merge_fail_with_different_scope():
     def elementwise_with_different_scope(a: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (128, 128, 128))
         C = T.match_buffer(c, (128, 128, 128))
-        B = T.alloc_buffer((128, 128, 128))
+        B = T.sblock_alloc_buffer((128, 128, 128))
         with T.sblock("A"):
             for i, j in T.grid(128, 128):
                 for k in T.serial(0, 128):

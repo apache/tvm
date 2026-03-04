@@ -405,11 +405,11 @@ def test_cooperative_matrix(out_dtype):
         @T.prim_func
         def main(X: T.Buffer((16, 32), "float16"), W: T.Buffer((32, 16), "float16"), compute: T.Buffer((16, 16), out_dtype)):
             T.func_attr({"tir.noalias": True})
-            X_shared = T.alloc_buffer((16, 32), "float16", scope="shared")
-            W_shared = T.alloc_buffer((32, 16), "float16", scope="shared")
-            X_shared_wmma_matrix_a = T.alloc_buffer((16, 32), "float16", scope="wmma.matrix_a")
-            W_shared_wmma_matrix_b = T.alloc_buffer((32, 16), "float16", scope="wmma.matrix_b")
-            compute_wmma_accumulator = T.alloc_buffer((16, 16), out_dtype, scope="wmma.accumulator")
+            X_shared = T.sblock_alloc_buffer((16, 32), "float16", scope="shared")
+            W_shared = T.sblock_alloc_buffer((32, 16), "float16", scope="shared")
+            X_shared_wmma_matrix_a = T.sblock_alloc_buffer((16, 32), "float16", scope="wmma.matrix_a")
+            W_shared_wmma_matrix_b = T.sblock_alloc_buffer((32, 16), "float16", scope="wmma.matrix_b")
+            compute_wmma_accumulator = T.sblock_alloc_buffer((16, 16), out_dtype, scope="wmma.accumulator")
             for i_0_j_0_fused in T.thread_binding(1, thread="blockIdx.x"):
                 with T.sblock("compute_init_o"):
                     v_i_o = T.axis.spatial(1, 0)
