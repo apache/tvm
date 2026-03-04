@@ -173,10 +173,10 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
     return is_no_op(op->body) ? MakeEvaluate({op->min, op->extent}) : stmt;
   }
 
-  Stmt VisitStmt_(const AllocateNode* op) final {
+  Stmt VisitStmt_(const AllocBufferNode* op) final {
     Stmt stmt = StmtMutator::VisitStmt_(op);
-    op = stmt.as<AllocateNode>();
-    return is_no_op(op->body) ? MakeEvaluate(op->extents) : stmt;
+    op = stmt.as<AllocBufferNode>();
+    return is_no_op(op->body) ? MakeEvaluate(op->buffer->shape) : stmt;
   }
 
   Stmt VisitStmt_(const EvaluateNode* op) final {

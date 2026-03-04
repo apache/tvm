@@ -223,7 +223,7 @@ def test_fail_on_buffer_map():
 def test_fail_on_buffer_map():
     @T.prim_func(private=True)
     def func(A: T.Buffer((128,), "int32"), B: T.Buffer((128,), "int32")):
-        C = T.alloc_buffer((128,), "int64")
+        C = T.sblock_alloc_buffer((128,), "int64")
         for i in T.serial(0, 16):
             for j in T.serial(0, 8):
                 with T.sblock():

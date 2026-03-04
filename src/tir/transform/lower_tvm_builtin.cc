@@ -221,16 +221,11 @@ class BuiltinLower : public StmtExprMutator {
     return StmtExprMutator::VisitStmt_(op);
   }
 
-  Stmt VisitStmt_(const AllocateNode* op) {
-    // Lower allocate to device allocate when needed.
+  Stmt VisitStmt_(const AllocBufferNode* op) {
+    // Lower AllocBuffer to device allocate when needed.
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<AllocateNode>();
-    // Get constant allocation bound.
-    int64_t nbytes = GetVectorBytes(op->dtype);
-    // If the buffers are for CPU and have global scope,
-    // and less than runtime::kMaxStackAlloca heuristic
-    // they are not serviced with TVMBackendWorkspaceAlloc calls
-    // to be placed on stack.
+    op = stmt.as<AllocBufferNode>();
+    int64_t nbytes = GetVectorBytes(op->buffer->dtype);
     if (op->annotations.count(transform::kDisableLowerTVMBuiltin)) {
       if (Downcast<Bool>(op->annotations[transform::kDisableLowerTVMBuiltin])) {
         return stmt;
@@ -238,51 +233,43 @@ class BuiltinLower : public StmtExprMutator {
     }
     if (const auto* dev_type = device_type_.as<IntImmNode>();
         dev_type && dev_type->value == kDLCPU) {
-      auto storage_scope = Downcast<PointerType>(op->buffer_var->type_annotation)->storage_scope;
+      auto storage_scope = Downcast<PointerType>(op->buffer->data->type_annotation)->storage_scope;
       if (storage_scope == "global") {
-        size_t constant_size = op->ConstantAllocationSize();
-        if (constant_size > 0 && constant_size * nbytes < runtime::kMaxStackAlloca) {
+        auto constant_size = Downcast<AllocBuffer>(stmt).ConstantAllocationSize();
+        if (constant_size.has_value() && constant_size.value() > 0 &&
+            static_cast<size_t>(constant_size.value()) * nbytes < runtime::kMaxStackAlloca) {
           return stmt;
         }
       }
     }
     PrimExpr total_bytes = make_const(DataType::UInt(64), nbytes);
-    for (size_t i = 0; i < op->extents.size(); ++i) {
-      // set total_bytes to uint64 to avoid overflow
-      total_bytes = total_bytes * op->extents[i];
+    for (size_t i = 0; i < op->buffer->shape.size(); ++i) {
+      total_bytes = total_bytes * op->buffer->shape[i];
     }
     TVM_FFI_ICHECK(device_type_) << "Unknown device type in current IR";
     TVM_FFI_ICHECK(device_id_) << "Unknown device id in current IR";
     Stmt throw_last_error = Evaluate(Call(DataType::Int(32), builtin::tvm_throw_last_error(), {}));
 
     Stmt alloc_nullptr_check = IfThenElse(
-        Call(DataType::Bool(), builtin::isnullptr(), {op->buffer_var}), throw_last_error);
+        Call(DataType::Bool(), builtin::isnullptr(), {op->buffer->data}), throw_last_error);
+
     PrimExpr free_op = Call(DataType::Int(32), Op::Get("tir.TVMBackendFreeWorkspace"),
                             {cast(DataType::Int(32), device_type_.value()),
-                             cast(DataType::Int(32), device_id_.value()), op->buffer_var});
+                             cast(DataType::Int(32), device_id_.value()), op->buffer->data});
     Stmt free_stmt = IfThenElse(free_op != make_zero(DataType::Int(32)), throw_last_error);
 
     Stmt body = op->body;
-    std::vector<Stmt> nest;
-    while (auto opt = body.as<DeclBuffer>()) {
-      auto decl = opt.value();
-      body = decl->body;
-      decl.CopyOnWrite()->body = Evaluate(0);
-      nest.push_back(decl);
-    }
-
     body = SeqStmt::Flatten(body, free_stmt);
-    body = MergeNest(nest, body);
     body = SeqStmt::Flatten(alloc_nullptr_check, body);
 
-    body = AttrStmt(op->buffer_var, attr::storage_alignment,
+    body = AttrStmt(op->buffer->data, attr::storage_alignment,
                     make_const(DataType::Int(32), runtime::kTempAllocaAlignment), body);
-    body = LetStmt(op->buffer_var,
-                   Call(op->buffer_var.dtype(), Op::Get("tir.TVMBackendAllocWorkspace"),
+    body = LetStmt(op->buffer->data,
+                   Call(op->buffer->data.dtype(), Op::Get("tir.TVMBackendAllocWorkspace"),
                         {cast(DataType::Int(32), device_type_.value()),
                          cast(DataType::Int(32), device_id_.value()), total_bytes,
-                         IntImm(DataType::Int(32), op->dtype.code()),
-                         IntImm(DataType::Int(32), op->dtype.bits())}),
+                         IntImm(DataType::Int(32), op->buffer->dtype.code()),
+                         IntImm(DataType::Int(32), op->buffer->dtype.bits())}),
                    body);
 
     return body;

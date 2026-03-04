@@ -115,9 +115,9 @@ def test_rocm_warp_shuffle():
         for bx in T.thread_binding(1, thread="blockIdx.x"):
             for tx in T.thread_binding(32, thread="threadIdx.x"):
                 with T.sblock("test"):
-                    A_local = T.alloc_buffer((1,), "float32", scope="local")
-                    mask = T.alloc_buffer((1,), "uint32", scope="local")
-                    t0 = T.alloc_buffer((1,), "float32", scope="local")
+                    A_local = T.sblock_alloc_buffer((1,), "float32", scope="local")
+                    mask = T.sblock_alloc_buffer((1,), "uint32", scope="local")
+                    t0 = T.sblock_alloc_buffer((1,), "float32", scope="local")
 
                     A_local[0] = A[tx]
                     A_local[0] = T.tvm_warp_shuffle(mask[0], A_local[0], 0, 32, 32)

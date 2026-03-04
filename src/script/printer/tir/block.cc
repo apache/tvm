@@ -182,7 +182,7 @@ Doc PrintBlock(IRDocsifier d, tir::SBlock block, AccessPath block_p,  //
     tir::Buffer buffer = block->alloc_buffers[i];
     AccessPath buffer_p = block_p->Attr("alloc_buffers")->ArrayItem(i);
     IdDoc lhs = DefineBuffer(buffer, *frame, d);
-    ExprDoc rhs = BufferDecl(buffer, "alloc_buffer", {}, buffer_p, *frame, d,
+    ExprDoc rhs = BufferDecl(buffer, "sblock_alloc_buffer", {}, buffer_p, *frame, d,
                              BufferVarDefinition::DataPointer);
     (*frame)->stmts.push_back(AssignDoc(lhs, rhs, std::nullopt));
   }

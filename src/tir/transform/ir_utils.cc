@@ -69,8 +69,8 @@ Stmt MergeNest(const std::vector<Stmt>& nest, Stmt body) {
       body = Stmt(n);
     } else if (s.as<AssertStmtNode>()) {
       body = SeqStmt({s, body});
-    } else if (const auto* alloc = s.as<AllocateNode>()) {
-      auto n = ffi::make_object<AllocateNode>(*alloc);
+    } else if (const auto* alloc_buf = s.as<AllocBufferNode>()) {
+      auto n = ffi::make_object<AllocBufferNode>(*alloc_buf);
       TVM_FFI_ICHECK(is_no_op(n->body));
       n->body = body;
       body = Stmt(n);
@@ -122,10 +122,10 @@ class IRConvertSSA final : public StmtExprMutator {
           if (!var_ptr) return;
           if (defined_params.count(var_ptr)) return;
 
-          if (defined_.count(var_ptr)) {
-            auto var = ffi::GetRef<Var>(var_ptr);
-            redefines.emplace_back(this, var);
-          } else {
+          // Buffer_map shape vars use "match" semantics: first occurrence
+          // defines the var, subsequent occurrences (in other buffers) are
+          // just consistent uses of the same var — not redefinitions.
+          if (!defined_.count(var_ptr)) {
             defined_.insert(var_ptr);
           }
         };
@@ -363,14 +363,21 @@ class IRConvertSSA final : public StmtExprMutator {
       return StmtExprMutator::VisitStmt_(op);
     }
   }
-  Stmt VisitStmt_(const AllocateNode* op) final {
-    const Var& v = op->buffer_var;
+  Stmt VisitStmt_(const AllocBufferNode* op) final {
+    const Var& v = op->buffer->data;
     if (defined_.count(v.get())) {
       ScopedRedefine redefine(this, v);
       Stmt stmt = StmtExprMutator::VisitStmt_(op);
-      op = stmt.as<AllocateNode>();
-      return Allocate(redefine.new_var, op->dtype, op->extents, op->condition, op->body,
-                      op->annotations);
+      op = stmt.as<AllocBufferNode>();
+      // Use GetRemappedBuffer so that the AllocBuffer's buffer is the same
+      // object as the one used by BufferStore/BufferLoad in the body.
+      Buffer new_buf = GetRemappedBuffer(op->buffer);
+      if (!new_buf.same_as(op->buffer)) {
+        auto node = Downcast<AllocBuffer>(stmt);
+        node.CopyOnWrite()->buffer = std::move(new_buf);
+        return node;
+      }
+      return stmt;
     } else {
       defined_.insert(v.get());
       return StmtExprMutator::VisitStmt_(op);
@@ -754,17 +761,17 @@ class StorageAlignCollector : public StmtVisitor {
     StmtVisitor::VisitStmt_(op);
   }
 
-  /*! \brief For lowered tir, the alignment annotations reside in allocate annotations. */
-  void VisitStmt_(const AllocateNode* op) final {
+  /*! \brief AllocBuffer: check for buffer_dim_align annotations. */
+  void VisitStmt_(const AllocBufferNode* op) final {
     auto it = op->annotations.find(s_tir::attr::buffer_dim_align);
     if (it != op->annotations.end()) {
       auto storage_align_annotation = Downcast<StorageAlignAnnotation>((*it).second);
       for (const auto& storage_align_tuple : storage_align_annotation) {
         int buffer_index = storage_align_tuple.get<0>();
-        // the first buffer idx info is meaningless for allocate
+        // the first buffer idx info is meaningless for alloc
         // stmt and should set as negative intentionally.
         TVM_FFI_ICHECK_EQ(buffer_index, -1);
-        storage_align_[op->buffer_var].push_back(storage_align_tuple);
+        storage_align_[op->buffer->data].push_back(storage_align_tuple);
       }
     }
     StmtVisitor::VisitStmt_(op);
