@@ -243,6 +243,10 @@ def test_inject_async_copy_barrier():
         tvm.testing.assert_allclose(B_nd.numpy(), A_np)
 
 
+# Note: the expected output contains a dead CSE variable `cse_v1 = (i < 12)`.
+# CSE extracts (i < 12) before inject_ptx_async_copy runs, but the latter
+# replaces the original IfThenElse guards with new cast(int32, i < 12)
+# expressions for predicated async copies, leaving cse_v1 unused.
 expected_cuda_script = r"""#include <cuda.h>
 __forceinline__ __device__ unsigned int
 cast_smem_ptr_to_int(const void* const smem_ptr)
