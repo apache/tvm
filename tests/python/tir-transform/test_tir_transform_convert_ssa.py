@@ -489,5 +489,36 @@ def test_track_forward_declarations_in_attr_stmt():
     tvm.ir.assert_structural_equal(after["main"], before)
 
 
+def test_shared_shape_var_in_buffer_map_and_alloc_buffer():
+    """Shape var shared across buffer_map entries and AllocBuffer should not be renamed.
+
+    When the same SizeVar (e.g., `n`) appears in multiple buffer_map
+    entries (A and B both have shape [n]), ConvertSSA should not treat
+    the second occurrence as a redefinition.  All uses of `n` in the
+    function body (including AllocBuffer shapes) must remain the same
+    Var object so that MakePackedAPI can bind it from the DLTensor shape.
+    """
+    n = tir.SizeVar("n", "int32")
+    A_handle = tir.Var("A_handle", "handle")
+    B_handle = tir.Var("B_handle", "handle")
+    A = tir.decl_buffer((n,), "float32", "A")
+    B = tir.decl_buffer((n,), "float32", "B")
+
+    # AllocBuffer with shape [n] in the body
+    C = tir.decl_buffer((n,), "float32", "C")
+    alloc = tir.AllocBuffer(C, tir.Evaluate(0))
+
+    before = tir.PrimFunc(
+        [A_handle, B_handle],
+        alloc,
+        buffer_map={A_handle: A, B_handle: B},
+    )
+
+    mod = tvm.IRModule.from_expr(before)
+    after = tvm.tir.transform.ConvertSSA()(mod)
+    # The function is already SSA — ConvertSSA should not change it.
+    tvm.ir.assert_structural_equal(after["main"], before)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

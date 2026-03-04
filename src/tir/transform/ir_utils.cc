@@ -122,10 +122,10 @@ class IRConvertSSA final : public StmtExprMutator {
           if (!var_ptr) return;
           if (defined_params.count(var_ptr)) return;
 
-          if (defined_.count(var_ptr)) {
-            auto var = ffi::GetRef<Var>(var_ptr);
-            redefines.emplace_back(this, var);
-          } else {
+          // Buffer_map shape vars use "match" semantics: first occurrence
+          // defines the var, subsequent occurrences (in other buffers) are
+          // just consistent uses of the same var — not redefinitions.
+          if (!defined_.count(var_ptr)) {
             defined_.insert(var_ptr);
           }
         };
