@@ -37,7 +37,7 @@ from tvm.script import tir as T
 @T.prim_func
 def elementwise(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
-    B = T.alloc_buffer((128, 128))
+    B = T.sblock_alloc_buffer((128, 128))
     C = T.match_buffer(c, (128, 128))
     for i, j in T.grid(128, 128):
         with T.sblock("B"):
@@ -52,7 +52,7 @@ def elementwise(a: T.handle, c: T.handle) -> None:
 @T.prim_func
 def elementwise_shape_int64(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (T.int64(128), T.int64(128)))
-    B = T.alloc_buffer((T.int64(128), T.int64(128)))
+    B = T.sblock_alloc_buffer((T.int64(128), T.int64(128)))
     C = T.match_buffer(c, (T.int64(128), T.int64(128)))
     for i, j in T.grid(128, 128):
         with T.sblock("B"):
@@ -68,8 +68,8 @@ def elementwise_shape_int64(a: T.handle, c: T.handle) -> None:
 def elementwise_reindex_cache_read(
     A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")
 ):
-    B = T.alloc_buffer((128, 128))
-    B_shared = T.alloc_buffer((128, 64, 2), scope="shared")
+    B = T.sblock_alloc_buffer((128, 128))
+    B_shared = T.sblock_alloc_buffer((128, 64, 2), scope="shared")
     for i, j in T.grid(128, 128):
         with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
@@ -94,8 +94,8 @@ def elementwise_reindex_cache_read(
 def elementwise_reindex_cache_write(
     A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")
 ):
-    B = T.alloc_buffer((128, 128))
-    B_shared = T.alloc_buffer((128, 128), scope="shared")
+    B = T.sblock_alloc_buffer((128, 128))
+    B_shared = T.sblock_alloc_buffer((128, 128), scope="shared")
     for i, j in T.grid(128, 128):
         with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
@@ -118,7 +118,7 @@ def elementwise_reindex_cache_write(
 
 @T.prim_func
 def reduce(A: T.Buffer((128, 128, 128, 128), "float32"), C: T.Buffer((128, 128), "float32")):
-    B = T.alloc_buffer((128, 128, 128), dtype="float32")
+    B = T.sblock_alloc_buffer((128, 128, 128), dtype="float32")
     for i, j, k in T.grid(128, 128, 128):
         for l in range(128):
             with T.sblock("B"):
@@ -137,8 +137,8 @@ def reduce(A: T.Buffer((128, 128, 128, 128), "float32"), C: T.Buffer((128, 128),
 def reduce_reindex_cache_write_0(
     A: T.Buffer((128, 128, 128, 128), "float32"), C: T.Buffer((128, 128), "float32")
 ):
-    B = T.alloc_buffer((128, 128, 128))
-    B_shared = T.alloc_buffer((128, 128, 128), scope="shared")
+    B = T.sblock_alloc_buffer((128, 128, 128))
+    B_shared = T.sblock_alloc_buffer((128, 128, 128), scope="shared")
     for i, j, k in T.grid(128, 128, 128):
         for l in range(128):
             with T.sblock("B"):
@@ -166,9 +166,9 @@ def reduce_reindex_cache_write_0(
 def reduce_reindex_cache_write_1(
     A: T.Buffer((128, 128, 128, 128), "float32"), C: T.Buffer((128, 128), "float32")
 ):
-    B = T.alloc_buffer((128, 128, 128))
-    B_shared = T.alloc_buffer((128, 128, 128), scope="shared")
-    C_shared = T.alloc_buffer((128, 128), scope="shared")
+    B = T.sblock_alloc_buffer((128, 128, 128))
+    B_shared = T.sblock_alloc_buffer((128, 128, 128), scope="shared")
+    C_shared = T.sblock_alloc_buffer((128, 128), scope="shared")
     for i, j, k in T.grid(128, 128, 128):
         for l in range(128):
             with T.sblock("B"):
@@ -200,7 +200,7 @@ def reduce_reindex_cache_write_1(
 
 @T.prim_func
 def func_nested_seq(b: T.handle, c: T.handle) -> None:
-    A = T.alloc_buffer((128, 128))
+    A = T.sblock_alloc_buffer((128, 128))
     B = T.match_buffer(b, (128, 128))
     C = T.match_buffer(c, (128, 128))
 
@@ -227,7 +227,7 @@ def func_nested_seq(b: T.handle, c: T.handle) -> None:
 
 @T.prim_func
 def access_under_scope(b: T.handle, c: T.handle) -> None:
-    A = T.alloc_buffer((128, 128))
+    A = T.sblock_alloc_buffer((128, 128))
     B = T.match_buffer(b, (128, 128))
     C = T.match_buffer(c, (128, 128))
 
@@ -337,9 +337,9 @@ def opaque_access(a: T.handle, b: T.handle, c: T.handle, d: T.handle) -> None:
 
 @T.prim_func
 def func_multi_consumer() -> None:
-    A = T.alloc_buffer(128)
-    B = T.alloc_buffer(128)
-    C = T.alloc_buffer(128)
+    A = T.sblock_alloc_buffer(128)
+    B = T.sblock_alloc_buffer(128)
+    C = T.sblock_alloc_buffer(128)
     for i in T.grid(8):
         for j in T.grid(16):
             with T.sblock("A"):
@@ -357,10 +357,10 @@ def func_multi_consumer() -> None:
 
 @T.prim_func
 def reindex_cache_read_multi_consumer() -> None:
-    A = T.alloc_buffer((128,))
-    B = T.alloc_buffer((128,))
-    C = T.alloc_buffer((128,))
-    A_shared = T.alloc_buffer((4, 32), scope="shared")
+    A = T.sblock_alloc_buffer((128,))
+    B = T.sblock_alloc_buffer((128,))
+    C = T.sblock_alloc_buffer((128,))
+    A_shared = T.sblock_alloc_buffer((4, 32), scope="shared")
     for i in range(8):
         for j in range(16):
             with T.sblock("A"):
@@ -390,8 +390,8 @@ def reindex_cache_read_multi_consumer() -> None:
 
 @T.prim_func
 def func_multi_producer() -> None:
-    A = T.alloc_buffer(128)
-    B = T.alloc_buffer(128)
+    A = T.sblock_alloc_buffer(128)
+    B = T.sblock_alloc_buffer(128)
     for i in range(128):
         with T.sblock("A0"):
             vi = T.axis.S(128, i)
@@ -408,8 +408,8 @@ def func_multi_producer() -> None:
 
 @T.prim_func
 def func_with_block_predicate() -> None:
-    A = T.alloc_buffer(120)
-    B = T.alloc_buffer(120)
+    A = T.sblock_alloc_buffer(120)
+    B = T.sblock_alloc_buffer(120)
     for i, j in T.grid(16, 8):
         with T.sblock("producer"):
             T.where(i * 8 + j < 120)
@@ -424,7 +424,7 @@ def func_with_block_predicate() -> None:
 
 @T.prim_func
 def inplace_func(data_io: T.Buffer((64), "int32")):
-    data_1d = T.alloc_buffer([64], dtype="int32")
+    data_1d = T.sblock_alloc_buffer([64], dtype="int32")
     for i0 in T.serial(64):
         with T.sblock("copy_in"):
             v0 = T.axis.remap("S", [i0])
@@ -453,8 +453,8 @@ def inplace_call(data_io: T.Buffer((64), "int32")):
 def cache_read_nested_seq_target(
     B: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")
 ) -> None:
-    A = T.alloc_buffer([128, 128], dtype="float32")
-    A_global = T.alloc_buffer([128, 128], dtype="float32")
+    A = T.sblock_alloc_buffer([128, 128], dtype="float32")
+    A_global = T.sblock_alloc_buffer([128, 128], dtype="float32")
     for i, j in T.grid(128, 128):
         with T.sblock("A"):
             vi, vj = T.axis.remap("SS", [i, j])
@@ -510,9 +510,9 @@ def nested_buffer_access(var_A: T.handle, var_B: T.handle, var_C: T.handle):
 def cache_read_elementwise(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     C = T.match_buffer(c, (128, 128))
-    B = T.alloc_buffer((128, 128))
-    A_global = T.alloc_buffer((128, 128))
-    B_local = T.alloc_buffer((128, 128), scope="local")
+    B = T.sblock_alloc_buffer((128, 128))
+    A_global = T.sblock_alloc_buffer((128, 128))
+    B_local = T.sblock_alloc_buffer((128, 128), scope="local")
     for i, j in T.grid(128, 128):
         with T.sblock("A_global"):
             vi, vj = T.axis.remap("SS", [i, j])
@@ -533,15 +533,15 @@ def cache_read_elementwise(a: T.handle, c: T.handle) -> None:
 
 @T.prim_func
 def cache_read_under_scope(b: T.handle, c: T.handle) -> None:
-    A = T.alloc_buffer((128, 128))
+    A = T.sblock_alloc_buffer((128, 128))
     B = T.match_buffer(b, (128, 128))
     C = T.match_buffer(c, (128, 128))
-    A_global = T.alloc_buffer((128, 128))
+    A_global = T.sblock_alloc_buffer((128, 128))
 
     for i0, j0 in T.grid(8, 8):
         with T.sblock("scope"):
             i, j = T.axis.remap("SS", [i0, j0])
-            A_local = T.alloc_buffer((16, 16), scope="local")
+            A_local = T.sblock_alloc_buffer((16, 16), scope="local")
             for x, y in T.grid(16, 16):
                 with T.sblock("A"):
                     vi = T.axis.S(128, i * 16 + x)
@@ -573,7 +573,7 @@ def cache_read_opaque_access(a: T.handle, b: T.handle, c: T.handle, d: T.handle)
     B = T.match_buffer(b, (128, 128), dtype="float16")
     C = T.match_buffer(c, (128, 128), dtype="float16")
     D = T.match_buffer(d, (128, 128), dtype="float16")
-    A_global = T.alloc_buffer((128, 128), dtype="float16")
+    A_global = T.sblock_alloc_buffer((128, 128), dtype="float16")
 
     for i, j in T.grid(128, 128):
         with T.sblock("A_global"):
@@ -659,10 +659,10 @@ def cache_read_opaque_access(a: T.handle, b: T.handle, c: T.handle, d: T.handle)
 
 @T.prim_func
 def cache_read_multi_consumer() -> None:
-    A = T.alloc_buffer(128)
-    B = T.alloc_buffer(128)
-    C = T.alloc_buffer(128)
-    A_global = T.alloc_buffer(128)
+    A = T.sblock_alloc_buffer(128)
+    B = T.sblock_alloc_buffer(128)
+    C = T.sblock_alloc_buffer(128)
+    A_global = T.sblock_alloc_buffer(128)
     for i in T.grid(8):
         for j in T.grid(16):
             with T.sblock("A"):
@@ -685,10 +685,10 @@ def cache_read_multi_consumer() -> None:
 
 @T.prim_func
 def cache_read_multi_consumer_target() -> None:
-    A = T.alloc_buffer(128)
-    B = T.alloc_buffer(128)
-    C = T.alloc_buffer(128)
-    A_global = T.alloc_buffer(128)
+    A = T.sblock_alloc_buffer(128)
+    B = T.sblock_alloc_buffer(128)
+    C = T.sblock_alloc_buffer(128)
+    A_global = T.sblock_alloc_buffer(128)
     for i in T.grid(8):
         for j in T.grid(16):
             with T.sblock("A"):
@@ -713,9 +713,9 @@ def cache_read_multi_consumer_target() -> None:
 def continuous_cache_read(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     C = T.match_buffer(c, (128, 128))
-    B = T.alloc_buffer((128, 128))
-    B_shared = T.alloc_buffer((128, 128), scope="shared")
-    B_local = T.alloc_buffer((128, 128), scope="local")
+    B = T.sblock_alloc_buffer((128, 128))
+    B_shared = T.sblock_alloc_buffer((128, 128), scope="shared")
+    B_local = T.sblock_alloc_buffer((128, 128), scope="local")
     for i, j in T.grid(128, 128):
         with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
@@ -736,9 +736,9 @@ def continuous_cache_read(a: T.handle, c: T.handle) -> None:
 
 @T.prim_func
 def block_predicate_cache_read() -> None:
-    A = T.alloc_buffer([120], dtype="float32")
-    B = T.alloc_buffer([120], dtype="float32")
-    A_shared = T.alloc_buffer([120], dtype="float32", scope="shared")
+    A = T.sblock_alloc_buffer([120], dtype="float32")
+    B = T.sblock_alloc_buffer([120], dtype="float32")
+    A_shared = T.sblock_alloc_buffer([120], dtype="float32", scope="shared")
     for i, j in T.grid(16, 8):
         with T.sblock("producer"):
             ax = T.axis.spatial(120, i * 8 + j)
@@ -759,8 +759,8 @@ def block_predicate_cache_read() -> None:
 def cache_read_shape_int64(var_A: T.handle, var_C: T.handle) -> None:
     A = T.match_buffer(var_A, (T.int64(128), T.int64(128)), dtype="float32")
     C = T.match_buffer(var_C, (T.int64(128), T.int64(128)), dtype="float32")
-    B = T.alloc_buffer([T.int64(128), T.int64(128)], dtype="float32")
-    A_global = T.alloc_buffer([T.int64(128), T.int64(128)], dtype="float32")
+    B = T.sblock_alloc_buffer([T.int64(128), T.int64(128)], dtype="float32")
+    A_global = T.sblock_alloc_buffer([T.int64(128), T.int64(128)], dtype="float32")
     for ax0, ax1 in T.grid(T.int64(128), T.int64(128)):
         with T.sblock("A_global"):
             v0, v1 = T.axis.remap("SS", [ax0, ax1])
@@ -783,8 +783,8 @@ def cache_read_shape_int64(var_A: T.handle, var_C: T.handle) -> None:
 
 @T.prim_func
 def cache_read_inplace(data_io: T.Buffer(64, "int32")) -> None:
-    data_1d = T.alloc_buffer([64], dtype="int32")
-    data_io_local = T.alloc_buffer([64], dtype="int32", scope="local")
+    data_1d = T.sblock_alloc_buffer([64], dtype="int32")
+    data_io_local = T.sblock_alloc_buffer([64], dtype="int32", scope="local")
     for ax0 in T.serial(64):
         with T.sblock("data_io_local"):
             v0 = T.axis.spatial(64, ax0)
@@ -812,9 +812,9 @@ def cache_read_inplace(data_io: T.Buffer(64, "int32")) -> None:
 
 @T.prim_func
 def cache_inplace_buffer(data_io: T.Buffer(64, "int32")) -> None:
-    data_io_local = T.alloc_buffer([64], dtype="int32", scope="local")
-    data_io_global = T.alloc_buffer([64], dtype="int32")
-    data_io_global_1 = T.alloc_buffer([64], dtype="int32")
+    data_io_local = T.sblock_alloc_buffer([64], dtype="int32", scope="local")
+    data_io_global = T.sblock_alloc_buffer([64], dtype="int32")
+    data_io_global_1 = T.sblock_alloc_buffer([64], dtype="int32")
     for ax0 in T.serial(64):
         with T.sblock("data_io_global"):
             v0 = T.axis.spatial(64, ax0)
@@ -851,7 +851,7 @@ def cache_read_nested_buffer_access(var_A: T.handle, var_B: T.handle, var_C: T.h
     A = T.match_buffer(var_A, (T.int64(7), T.int64(512)), dtype="float32")
     B = T.match_buffer(var_B, T.int64(1), dtype="int32")
     C = T.match_buffer(var_C, (T.int64(1), T.int64(512)), dtype="float32")
-    B_global = T.alloc_buffer((T.int64(1),), "int32")
+    B_global = T.sblock_alloc_buffer((T.int64(1),), "int32")
     for ax0 in range(T.int64(1)):
         with T.sblock("B_global"):
             v0 = T.axis.spatial(T.int64(1), ax0)
@@ -873,9 +873,9 @@ def cache_read_nested_buffer_access(var_A: T.handle, var_B: T.handle, var_C: T.h
 def cache_write_elementwise(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     C = T.match_buffer(c, (128, 128))
-    B = T.alloc_buffer((128, 128))
-    B_global = T.alloc_buffer((128, 128), scope="local")
-    C_local = T.alloc_buffer((128, 128))
+    B = T.sblock_alloc_buffer((128, 128))
+    B_global = T.sblock_alloc_buffer((128, 128), scope="local")
+    C_local = T.sblock_alloc_buffer((128, 128))
     for i, j in T.grid(128, 128):
         with T.sblock("B_global"):
             vi, vj = T.axis.remap("SS", [i, j])
@@ -896,16 +896,16 @@ def cache_write_elementwise(a: T.handle, c: T.handle) -> None:
 
 @T.prim_func
 def cache_write_under_scope(b: T.handle, c: T.handle) -> None:
-    A = T.alloc_buffer((128, 128))
+    A = T.sblock_alloc_buffer((128, 128))
     B = T.match_buffer(b, (128, 128))
     C = T.match_buffer(c, (128, 128))
-    A_global = T.alloc_buffer((128, 128))
+    A_global = T.sblock_alloc_buffer((128, 128))
 
     for i0, j0 in T.grid(8, 8):
         with T.sblock("scope"):
             i, j = T.axis.remap("SS", [i0, j0])
-            A_local = T.alloc_buffer((16, 16), scope="local")
-            B_global = T.alloc_buffer((16, 16))
+            A_local = T.sblock_alloc_buffer((16, 16), scope="local")
+            B_global = T.sblock_alloc_buffer((16, 16))
             for x, y in T.grid(16, 16):
                 with T.sblock("A_local"):
                     vi = T.axis.S(128, i * 16 + x)
@@ -942,9 +942,9 @@ def cache_write_opaque_access(a: T.handle, b: T.handle, c: T.handle, d: T.handle
     B = T.match_buffer(b, (128, 128), dtype="float16")
     C = T.match_buffer(c, (128, 128), dtype="float16")
     D = T.match_buffer(d, (128, 128), dtype="float16")
-    D_global = T.alloc_buffer((128, 128), dtype="float16")
-    B_global = T.alloc_buffer((128, 128), dtype="float16")
-    C_global = T.alloc_buffer((128, 128), dtype="float16")
+    D_global = T.sblock_alloc_buffer((128, 128), dtype="float16")
+    B_global = T.sblock_alloc_buffer((128, 128), dtype="float16")
+    C_global = T.sblock_alloc_buffer((128, 128), dtype="float16")
 
     for i, j in T.grid(128, 128):
         with T.sblock("load_store"):
@@ -1039,10 +1039,10 @@ def cache_write_opaque_access(a: T.handle, b: T.handle, c: T.handle, d: T.handle
 
 @T.prim_func
 def cache_write_multi_consumer() -> None:
-    A = T.alloc_buffer(128)
-    B = T.alloc_buffer(128)
-    C = T.alloc_buffer(128)
-    A_global = T.alloc_buffer(128)
+    A = T.sblock_alloc_buffer(128)
+    B = T.sblock_alloc_buffer(128)
+    C = T.sblock_alloc_buffer(128)
+    A_global = T.sblock_alloc_buffer(128)
     for i in T.grid(8):
         for j in T.grid(16):
             with T.sblock("A_global"):
@@ -1065,10 +1065,10 @@ def cache_write_multi_consumer() -> None:
 
 @T.prim_func
 def cache_write_multi_consumer_B_consume_cache():
-    A = T.alloc_buffer([128], dtype="float32")
-    B = T.alloc_buffer([128], dtype="float32")
-    C = T.alloc_buffer([128], dtype="float32")
-    A_global = T.alloc_buffer([128], dtype="float32")
+    A = T.sblock_alloc_buffer([128], dtype="float32")
+    B = T.sblock_alloc_buffer([128], dtype="float32")
+    C = T.sblock_alloc_buffer([128], dtype="float32")
+    A_global = T.sblock_alloc_buffer([128], dtype="float32")
     for i in T.serial(8):
         for j in T.serial(16):
             with T.sblock("A"):
@@ -1090,10 +1090,10 @@ def cache_write_multi_consumer_B_consume_cache():
 
 @T.prim_func
 def cache_write_multi_consumer_C_consume_cache():
-    A = T.alloc_buffer([128], dtype="float32")
-    B = T.alloc_buffer([128], dtype="float32")
-    C = T.alloc_buffer([128], dtype="float32")
-    A_global = T.alloc_buffer([128], dtype="float32")
+    A = T.sblock_alloc_buffer([128], dtype="float32")
+    B = T.sblock_alloc_buffer([128], dtype="float32")
+    C = T.sblock_alloc_buffer([128], dtype="float32")
+    A_global = T.sblock_alloc_buffer([128], dtype="float32")
     for i in T.serial(8):
         for j in T.serial(16):
             with T.sblock("A"):
@@ -1115,10 +1115,10 @@ def cache_write_multi_consumer_C_consume_cache():
 
 @T.prim_func
 def cache_write_multi_consumer_all_consume_cache():
-    A = T.alloc_buffer([128], dtype="float32")
-    B = T.alloc_buffer([128], dtype="float32")
-    C = T.alloc_buffer([128], dtype="float32")
-    A_global = T.alloc_buffer([128], dtype="float32")
+    A = T.sblock_alloc_buffer([128], dtype="float32")
+    B = T.sblock_alloc_buffer([128], dtype="float32")
+    C = T.sblock_alloc_buffer([128], dtype="float32")
+    A_global = T.sblock_alloc_buffer([128], dtype="float32")
     for i in T.serial(8):
         for j in T.serial(16):
             with T.sblock("A"):
@@ -1141,10 +1141,10 @@ def cache_write_multi_consumer_all_consume_cache():
 @T.prim_func
 def continuous_cache_write(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
-    B = T.alloc_buffer((128, 128))
+    B = T.sblock_alloc_buffer((128, 128))
     C = T.match_buffer(c, (128, 128))
-    B_shared = T.alloc_buffer((128, 128), scope="shared")
-    B_local = T.alloc_buffer((128, 128), scope="local")
+    B_shared = T.sblock_alloc_buffer((128, 128), scope="shared")
+    B_local = T.sblock_alloc_buffer((128, 128), scope="local")
     for i, j in T.grid(128, 128):
         with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
@@ -1165,9 +1165,9 @@ def continuous_cache_write(a: T.handle, c: T.handle) -> None:
 
 @T.prim_func
 def block_predicate_cache_write_intermediate_buf() -> None:
-    A = T.alloc_buffer([120], dtype="float32")
-    B = T.alloc_buffer([120], dtype="float32")
-    A_shared = T.alloc_buffer([120], dtype="float32", scope="shared")
+    A = T.sblock_alloc_buffer([120], dtype="float32")
+    B = T.sblock_alloc_buffer([120], dtype="float32")
+    A_shared = T.sblock_alloc_buffer([120], dtype="float32", scope="shared")
     for i, j in T.grid(16, 8):
         with T.sblock("producer"):
             ax = T.axis.spatial(120, i * 8 + j)
@@ -1186,9 +1186,9 @@ def block_predicate_cache_write_intermediate_buf() -> None:
 
 @T.prim_func
 def block_predicate_cache_write_output_buf() -> None:
-    A = T.alloc_buffer([120], dtype="float32")
-    B = T.alloc_buffer([120], dtype="float32")
-    B_shared = T.alloc_buffer([120], dtype="float32", scope="shared")
+    A = T.sblock_alloc_buffer([120], dtype="float32")
+    B = T.sblock_alloc_buffer([120], dtype="float32")
+    B_shared = T.sblock_alloc_buffer([120], dtype="float32", scope="shared")
     for i, j in T.grid(16, 8):
         with T.sblock("producer"):
             ax = T.axis.spatial(120, i * 8 + j)
@@ -1246,7 +1246,7 @@ def symbolic_matmul_blocked_cache_read(
                 B[0:4, v_i1_o * 32 : v_i1_o * 32 + 32],
             )
             T.writes(C[v_i0_o * 32 : v_i0_o * 32 + 32, v_i1_o * 32 : v_i1_o * 32 + 32])
-            A_shared = T.alloc_buffer((32, 4), scope="shared")
+            A_shared = T.sblock_alloc_buffer((32, 4), scope="shared")
             for ax0, ax1 in T.grid(32, 4):
                 with T.sblock("A_shared"):
                     v0 = T.axis.spatial(32, ax0)
@@ -1282,7 +1282,7 @@ def symbolic_matmul_blocked_cache_write(
                 B[0:4, v_i1_o * 32 : v_i1_o * 32 + 32],
             )
             T.writes(C[v_i0_o * 32 : v_i0_o * 32 + 32, v_i1_o * 32 : v_i1_o * 32 + 32])
-            C_pad_local = T.alloc_buffer((32, 32), scope="local")
+            C_pad_local = T.sblock_alloc_buffer((32, 32), scope="local")
             for i0_1, i1_1, k in T.grid(32, 32, 4):
                 with T.sblock("matmul"):
                     v_i0_i, v_i1_i, v_k_i = T.axis.remap("SSR", [i0_1, i1_1, k])

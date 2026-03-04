@@ -398,7 +398,7 @@ def test_inplace_single_call():
     @T.prim_func(private=True)
     def expected_silu(A: T.Buffer((T.int64(2), T.int64(3)), "float32")):
         T.func_attr({"tir.noalias": True})
-        compute = T.alloc_buffer((T.int64(2), T.int64(3)))
+        compute = T.sblock_alloc_buffer((T.int64(2), T.int64(3)))
         for i0, i1 in T.grid(T.int64(2), T.int64(3)):
             with T.sblock("compute"):
                 v_i0, v_i1 = T.axis.remap("SS", [i0, i1])

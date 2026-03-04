@@ -93,7 +93,7 @@ def test_two_elementwise_blockize_reverse_compute_at():
         A: T.Buffer((128, 128), "float32"),
         C: T.Buffer((128, 128), "float32"),
     ) -> None:
-        B = T.alloc_buffer([128, 128], dtype="float32")
+        B = T.sblock_alloc_buffer([128, 128], dtype="float32")
         for i, j in T.grid(8, 8):
             with T.sblock("B_o"):
                 vi, vj = T.axis.remap("SS", [i, j])
@@ -118,7 +118,7 @@ def test_two_elementwise_blockize_reverse_compute_at():
         A: T.Buffer((128, 128), "float32"),
         C: T.Buffer((128, 128), "float32"),
     ) -> None:
-        B = T.alloc_buffer([128, 128], dtype="float32")
+        B = T.sblock_alloc_buffer([128, 128], dtype="float32")
         for i, j in T.grid(8, 8):
             with T.sblock("B_o"):
                 vi, vj = T.axis.remap("SS", [i, j])
@@ -159,7 +159,7 @@ def test_two_elementwise_blockize_compute_at():
     ) -> None:
         # body
         # with T.sblock("root")
-        B = T.alloc_buffer([128, 128], dtype="float32")
+        B = T.sblock_alloc_buffer([128, 128], dtype="float32")
         for i_0, j_0 in T.grid(8, 8):
             for ax0, ax1 in T.grid(16, 16):
                 with T.sblock("B"):
@@ -186,7 +186,7 @@ def test_two_elementwise_blockize_compute_at():
         A: T.Buffer((128, 128), "float32"),
         C: T.Buffer((128, 128), "float32"),
     ) -> None:
-        B = T.alloc_buffer([128, 128], dtype="float32")
+        B = T.sblock_alloc_buffer([128, 128], dtype="float32")
         for i_0, j_0 in T.grid(8, 8):
             with T.sblock("B_o"):
                 vi_o, vj_o = T.axis.remap("SS", [i_0, j_0])

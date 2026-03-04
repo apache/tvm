@@ -61,8 +61,8 @@ def test_relax_dynamo():
             T.func_attr({"tir.noalias": True, "global_symbol": "main"})
             # body
             # with T.sblock("root")
-            matmul = T.alloc_buffer([T.int64(10), T.int64(10)], dtype="float32")
-            T_add = T.alloc_buffer([T.int64(10), T.int64(10)], dtype="float32")
+            matmul = T.sblock_alloc_buffer([T.int64(10), T.int64(10)], dtype="float32")
+            T_add = T.sblock_alloc_buffer([T.int64(10), T.int64(10)], dtype="float32")
             for i0, i1, k in T.grid(T.int64(10), T.int64(10), T.int64(100)):
                 with T.sblock("matmul"):
                     v_i0, v_i1, v_k = T.axis.remap("SSR", [i0, i1, k])

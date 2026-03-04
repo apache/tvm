@@ -22,7 +22,7 @@ import json
 import numpy as np
 import onnx
 import pytest
-from adreno_utils import verify
+from utils import verify_results
 
 import tvm
 import tvm.testing
@@ -35,9 +35,10 @@ from tvm.script import tir as T
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import relax as relax_builder
 
+TARGETS = [tvm.target.Target("qcom/adreno-opencl-texture")]
 
-@tvm.testing.requires_opencl
-@tvm.testing.parametrize_targets("opencl")
+
+@tvm.testing.parametrize_targets(*TARGETS)
 def test_network_resnet(target):
     @I.ir_module
     class Resnet:
@@ -797,7 +798,7 @@ def test_network_resnet(target):
                 R.output(gv)
             return gv
 
-    verify(Resnet, target)
+    verify_results(Resnet, target, tvm.target.Target("llvm"))
 
 
 if __name__ == "__main__":

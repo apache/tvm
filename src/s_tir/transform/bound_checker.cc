@@ -68,10 +68,9 @@ class BoundChecker : public StmtExprMutator {
       const std::unordered_map<const VarNode*, ffi::Array<PrimExpr>>& mem_to_shape)
       : mem_to_shape_(mem_to_shape) {}
 
-  Stmt VisitStmt_(const AllocateNode* op) final {
-    // If the shape was updated we should update the hashtable.
-    if (UpdateIsNeeded(op->buffer_var)) {
-      Update(op->buffer_var, op->extents, op->dtype);
+  Stmt VisitStmt_(const AllocBufferNode* op) final {
+    if (UpdateIsNeeded(op->buffer->data)) {
+      Update(op->buffer->data, op->buffer->shape, op->buffer->dtype);
     }
     return StmtExprMutator::VisitStmt_(op);
   }

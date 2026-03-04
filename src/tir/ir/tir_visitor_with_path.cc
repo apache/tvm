@@ -208,10 +208,13 @@ void TIRVisitorWithPath::VisitStmt_(const WhileNode* op, AccessPath path) {
   Visit(op->body, path->Attr("body"));
 }
 
-void TIRVisitorWithPath::VisitStmt_(const AllocateNode* op, AccessPath path) {
-  Visit(op->condition, path->Attr("condition"));
-  Visit(op->extents, path->Attr("extents"));
-  auto context = WithDef(op->buffer_var, path->Attr("buffer_var"));
+void TIRVisitorWithPath::VisitStmt_(const AllocBufferNode* op, AccessPath path) {
+  // AllocBuffer both allocates the data variable and declares the buffer,
+  // so we must define buffer->data before defining the buffer itself
+  // (similar to SBlockNode::alloc_buffers handling).
+  auto buf_path = path->Attr("buffer");
+  auto data_context = WithDef(op->buffer->data, buf_path->Attr("data"));
+  auto buf_context = WithDef(op->buffer, buf_path);
   Visit(op->body, path->Attr("body"));
 }
 

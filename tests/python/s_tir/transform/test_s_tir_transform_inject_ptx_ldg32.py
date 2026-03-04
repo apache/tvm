@@ -26,7 +26,7 @@ def _count_alloc(stmt):
     num_alloc = [0]
 
     def visit(n):
-        if isinstance(n, tvm.tir.Allocate):
+        if isinstance(n, tvm.tir.AllocBuffer):
             num_alloc[0] += 1
 
     tvm.tir.stmt_functor.post_order_visit(stmt, visit)

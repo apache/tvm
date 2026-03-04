@@ -889,8 +889,8 @@ def test_layer_norm_silu():
 
         @T.prim_func(private=True)
         def layer_norm(A: T.Buffer((T.int64(1), T.int64(512), T.int64(64), T.int64(64)), "float32"), gamma: T.Buffer((T.int64(64), T.int64(64)), "float32"), beta: T.Buffer((T.int64(64), T.int64(64)), "float32"), T_layer_norm: T.Buffer((T.int64(1), T.int64(512), T.int64(64), T.int64(64)), "float32")):
-            rxplaceholder_red_temp_v0 = T.alloc_buffer([T.int64(64), T.int64(64)], dtype="float32")
-            rxplaceholder_red_temp_v1 = T.alloc_buffer([T.int64(64), T.int64(64)], dtype="float32")
+            rxplaceholder_red_temp_v0 = T.sblock_alloc_buffer([T.int64(64), T.int64(64)], dtype="float32")
+            rxplaceholder_red_temp_v1 = T.sblock_alloc_buffer([T.int64(64), T.int64(64)], dtype="float32")
             for i0, i1, i2, i3 in T.grid(T.int64(1), T.int64(512), T.int64(64), T.int64(64)):
                 with T.sblock("rxplaceholder_red_temp"):
                     ax0, ax1, k2, k3 = T.axis.remap("SSRR", [i0, i1, i2, i3])
@@ -925,8 +925,8 @@ def test_layer_norm_silu():
         def layer_norm(A: T.Buffer((T.int64(1), T.int64(512), T.int64(64), T.int64(64)), "float32"), gamma: T.Buffer((T.int64(64), T.int64(64)), "float32"), beta: T.Buffer((T.int64(64), T.int64(64)), "float32"), T_layer_norm: T.Buffer((T.int64(1), T.int64(512), T.int64(64), T.int64(64)), "float32")):
             T.func_attr({"op_pattern": 4})
             # with T.sblock("root"):
-            rxplaceholder_red_temp_v0 = T.alloc_buffer((T.int64(64), T.int64(64)))
-            rxplaceholder_red_temp_v1 = T.alloc_buffer((T.int64(64), T.int64(64)))
+            rxplaceholder_red_temp_v0 = T.sblock_alloc_buffer((T.int64(64), T.int64(64)))
+            rxplaceholder_red_temp_v1 = T.sblock_alloc_buffer((T.int64(64), T.int64(64)))
             for i0, i1, i2, i3 in T.grid(T.int64(1), T.int64(512), T.int64(64), T.int64(64)):
                 with T.sblock("rxplaceholder_red_temp"):
                     ax0, ax1, k2, k3 = T.axis.remap("SSRR", [i0, i1, i2, i3])
@@ -1041,7 +1041,7 @@ def test_multiple_paths():
         @T.prim_func(private=True)
         def conv2d(rxplaceholder: T.Buffer((T.int64(2), T.int64(320), T.int64(64), T.int64(64)), "float32"), rxplaceholder_1: T.Buffer((T.int64(320), T.int64(320), T.int64(3), T.int64(3)), "float32"), conv2d_nchw: T.Buffer((T.int64(2), T.int64(320), T.int64(64), T.int64(64)), "float32")):
             T.func_attr({"op_pattern": 4, "tir.noalias": True})
-            pad_temp = T.alloc_buffer((T.int64(2), T.int64(320), T.int64(66), T.int64(66)))
+            pad_temp = T.sblock_alloc_buffer((T.int64(2), T.int64(320), T.int64(66), T.int64(66)))
             for i0, i1, i2, i3 in T.grid(T.int64(2), T.int64(320), T.int64(66), T.int64(66)):
                 with T.sblock("pad_temp"):
                     v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])

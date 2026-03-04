@@ -694,14 +694,10 @@ class DeclBufferFrameNode : public TIRFrameNode {
  public:
   /*! \brief The declared buffer. */
   tvm::tir::Buffer buffer;
-  /*! \brief The buffer allocated or not. */
-  bool allocated;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<DeclBufferFrameNode>()
-        .def_ro("buffer", &DeclBufferFrameNode::buffer)
-        .def_ro("allocated", &DeclBufferFrameNode::allocated);
+    refl::ObjectDef<DeclBufferFrameNode>().def_ro("buffer", &DeclBufferFrameNode::buffer);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.DeclBufferFrame", DeclBufferFrameNode,
                                     TIRFrameNode);
@@ -716,6 +712,34 @@ class DeclBufferFrame : public TIRFrame {
     TVM_FFI_ICHECK(data != nullptr);
   }
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DeclBufferFrame, TIRFrame, DeclBufferFrameNode);
+};
+
+class AllocBufferFrameNode : public TIRFrameNode {
+ public:
+  /*! \brief The buffer being allocated. */
+  tvm::tir::Buffer buffer;
+  /*! \brief Optional annotations for the allocation. */
+  ffi::Map<ffi::String, ffi::Any> annotations;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<AllocBufferFrameNode>()
+        .def_ro("buffer", &AllocBufferFrameNode::buffer)
+        .def_ro("annotations", &AllocBufferFrameNode::annotations);
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.AllocBufferFrame", AllocBufferFrameNode,
+                                    TIRFrameNode);
+
+ public:
+  void ExitWithScope() final;
+};
+
+class AllocBufferFrame : public TIRFrame {
+ public:
+  explicit AllocBufferFrame(ObjectPtr<AllocBufferFrameNode> data) : TIRFrame(data) {
+    TVM_FFI_ICHECK(data != nullptr);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AllocBufferFrame, TIRFrame, AllocBufferFrameNode);
 };
 
 }  // namespace tir

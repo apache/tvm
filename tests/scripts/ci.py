@@ -377,7 +377,7 @@ def generate_command(
     """
 
     def fn(
-        tests: list[str] | None,
+        tests: list[str] | None = None,
         skip_build: bool = False,
         interactive: bool = False,
         docker_image: str | None = None,

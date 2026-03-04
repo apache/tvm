@@ -33,7 +33,7 @@ from tvm.script import tir as T
 
 @T.prim_func
 def element_wise(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")) -> None:
-    B = T.alloc_buffer((128, 128), dtype="float32")
+    B = T.sblock_alloc_buffer((128, 128), dtype="float32")
 
     for i, j in T.grid(128, 128):
         with T.sblock("B"):
@@ -46,7 +46,7 @@ def element_wise(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "fl
 
 @T.prim_func
 def element_wise_set_dtype(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")):
-    B = T.alloc_buffer((128, 128), "float16")
+    B = T.sblock_alloc_buffer((128, 128), "float16")
     for i, j in T.grid(128, 128):
         with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
@@ -62,7 +62,7 @@ def element_wise_set_dtype(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128,
 
 @T.prim_func
 def element_wise_subregion_match(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")) -> None:
-    B = T.alloc_buffer((128, 128), dtype="float32")
+    B = T.sblock_alloc_buffer((128, 128), dtype="float32")
 
     for i, j in T.grid(128, 128):
         with T.sblock("B"):
@@ -78,7 +78,7 @@ def element_wise_subregion_match(A: T.Buffer((128, 128), "float32"), C: T.Buffer
 
 @T.prim_func
 def element_wise_subregion_match_set_dtype(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")) -> None:
-    B = T.alloc_buffer((128, 128), "float16")
+    B = T.sblock_alloc_buffer((128, 128), "float16")
     for i, j in T.grid(128, 128):
         with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])

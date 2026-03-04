@@ -213,7 +213,7 @@ def test_tir_macro_non_hygienic():
 def test_tir_macro_in_class():
     class Object:
         def __init__(self, x: T.Buffer):
-            self.local_x = T.alloc_buffer(x.shape, x.dtype)
+            self.local_x = T.sblock_alloc_buffer(x.shape, x.dtype)
 
         @T.macro
         def load(self, x: T.Buffer):
@@ -234,12 +234,12 @@ def test_tir_macro_in_class():
     @T.prim_func(private=True)
     def func_no_macro(a: T.handle):
         A = T.match_buffer(a, [128, 128])
-        local_a = T.alloc_buffer([128, 128])
+        local_a = T.sblock_alloc_buffer([128, 128])
         for i, j in T.grid(128, 128):
             with T.sblock("update"):
                 vi, vj = T.axis.remap("SS", [i, j])
                 local_a[vi, vj] = A[vi, vj]
-        local_b = T.alloc_buffer([128, 128])
+        local_b = T.sblock_alloc_buffer([128, 128])
         for i, j in T.grid(128, 128):
             with T.sblock("update"):
                 vi, vj = T.axis.remap("SS", [i, j])
@@ -620,9 +620,9 @@ def test_alloc_inside_block():
     @T.prim_func(private=True)
     def func() -> None:
         with T.sblock():
-            A = T.alloc_buffer([10], "float32")
+            A = T.sblock_alloc_buffer([10], "float32")
             for i in T.serial(0, 10):
-                B = T.alloc_buffer([10], "float32")
+                B = T.sblock_alloc_buffer([10], "float32")
                 for j in T.serial(0, 10):
                     B[j] = T.float32(j)
                     A[i] += B[j]
@@ -630,8 +630,8 @@ def test_alloc_inside_block():
     @T.prim_func(private=True)
     def expected() -> None:
         with T.sblock():
-            A = T.alloc_buffer([10], "float32")
-            B = T.alloc_buffer([10], "float32")
+            A = T.sblock_alloc_buffer([10], "float32")
+            B = T.sblock_alloc_buffer([10], "float32")
             for i, j in T.grid(10, 10):
                 B[j] = T.float32(j)
                 A[i] += B[j]

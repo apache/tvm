@@ -96,6 +96,11 @@ class Var2BufferCollector : public StmtExprVisitor {
     var2buffer_[op->buffer->data].insert(op->buffer);
     StmtExprVisitor::VisitStmt_(op);
   }
+
+  void VisitStmt_(const AllocBufferNode* op) final {
+    var2buffer_[op->buffer->data].insert(op->buffer);
+    StmtExprVisitor::VisitStmt_(op);
+  }
 };
 
 /*!
@@ -298,24 +303,19 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     StmtExprVisitor::VisitStmt_(op);
   }
 
-  void VisitStmt_(const AllocateNode* op) final {
-    auto it = var2buffer_.find(op->buffer_var);
+  void VisitStmt_(const AllocBufferNode* op) final {
+    auto it = var2buffer_.find(op->buffer->data);
 
-    // Do not make compaction when the buffer def and
-    // the allocation is not one-to-one with the same dtype.
     if (it == var2buffer_.end() || it->second.size() > 1) {
       return StmtExprVisitor::VisitStmt_(op);
     }
     const Buffer& buffer = *it->second.begin();
-    if (buffer->dtype != op->dtype) {
+    if (buffer->dtype != op->buffer->dtype) {
       return StmtExprVisitor::VisitStmt_(op);
     }
 
-    // Step 0. Record relax position of ancestor_loops_
-    VisitBufferDef(op->buffer_var);
-    // Step 1. Visit block body recursively
+    VisitBufferDef(op->buffer->data);
     StmtExprVisitor::VisitStmt(op->body);
-    // Step 2. Update buffer_access_region_ from relaxed_accesses_ for inner buffers.
     SimplifyAndNarrowBufferRegionFromNDIntSet(buffer);
   }
 
@@ -589,24 +589,18 @@ class BufferCompactor : public StmtExprMutator {
     return DeclBuffer(n);
   }
 
-  Stmt VisitStmt_(const AllocateNode* op) final {
-    Allocate allocate = Downcast<Allocate>(StmtExprMutator::VisitStmt_(op));
-    auto it = buffer_info_.find(allocate->buffer_var);
+  Stmt VisitStmt_(const AllocBufferNode* op) final {
+    AllocBuffer alloc_buf = Downcast<AllocBuffer>(StmtExprMutator::VisitStmt_(op));
+    auto it = buffer_info_.find(alloc_buf->buffer->data);
     if (it == buffer_info_.end()) {
-      return allocate;
+      return alloc_buf;
     }
-    // Rewrite allocation shape if the corresponding buffer is in the buffer_info_
-    // dict and the dtype is consistent, which denotes there are no buffer aliasing
-    // and the compaction is safe.
     const Buffer& new_buffer = it->second.new_buffer;
-    if (op->dtype != new_buffer->dtype) {
-      return allocate;
+    if (op->buffer->dtype != new_buffer->dtype) {
+      return alloc_buf;
     }
-    ffi::Array<PrimExpr> new_shape = GetBufferAllocationShape(new_buffer);
-    auto n = allocate.CopyOnWrite();
-    TVM_FFI_ICHECK(n->buffer_var.same_as(new_buffer->data));
-    n->extents = new_shape;
-    return allocate;
+    alloc_buf.CopyOnWrite()->buffer = new_buffer;
+    return alloc_buf;
   }
 
   Buffer RewriteAllocBuffer(const Buffer& buffer) {

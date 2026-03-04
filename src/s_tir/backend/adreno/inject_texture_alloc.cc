@@ -40,7 +40,7 @@ using runtime::DefaultTextureLayoutSeparator;
 using runtime::IsTextureStorage;
 
 /*!
- * \brief Inject Texture Alloc Intrensic right after AllocateNode are realized.
+ * \brief Inject Texture Alloc Intrinsic right after AllocBufferNode are realized.
  */
 class TextureAllocInjector : public arith::IRMutatorWithAnalyzer {
  public:
@@ -61,30 +61,30 @@ class TextureAllocInjector : public arith::IRMutatorWithAnalyzer {
 
   explicit TextureAllocInjector(arith::Analyzer* ana) : IRMutatorWithAnalyzer(ana) {}
 
-  Stmt VisitStmt_(const AllocateNode* op) final {
+  Stmt VisitStmt_(const AllocBufferNode* op) final {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    std::string storage_scope = GetStorageScope(op->buffer_var);
+    std::string storage_scope = GetStorageScope(op->buffer->data);
     if (IsTextureStorage(storage_scope)) {
-      op = stmt.as<AllocateNode>();
-      TVM_FFI_ICHECK(op->extents.size() >= 3)
-          << "Only 2D Array RGBA texture is currently supported";
-      const int data_bits = op->dtype.bits(),
-                vec_length = static_cast<int>(op->extents.back().as<IntImmNode>()->value);
+      op = stmt.as<AllocBufferNode>();
+      const auto& extents = op->buffer->shape;
+      TVM_FFI_ICHECK(extents.size() >= 3) << "Only 2D Array RGBA texture is currently supported";
+      const int data_bits = op->buffer->dtype.bits(),
+                vec_length = static_cast<int>(extents.back().as<IntImmNode>()->value);
       const int channel_size = data_bits * vec_length;
       TVM_FFI_ICHECK(channel_size == 128 || channel_size == 64)
           << "Invalid Channel Size: " << channel_size << " bits";
 
-      size_t axis = DefaultTextureLayoutSeparator(op->extents.size(), storage_scope);
-      auto texture = ApplyTexture2DFlattening<PrimExpr>(op->extents, op->extents.size(), axis);
+      size_t axis = DefaultTextureLayoutSeparator(extents.size(), storage_scope);
+      auto texture = ApplyTexture2DFlattening<PrimExpr>(extents, extents.size(), axis);
       ffi::Array<PrimExpr> args;
       args.push_back(StringImm(storage_scope));
-      args.push_back(IntImm(DataType::Int(64), 3));  // 2d Array
+      args.push_back(IntImm(DataType::Int(64), 3));
       args.push_back(Call(DataType::Handle(), builtin::tvm_stack_make_shape(),
                           {texture.width, texture.height, texture.depth}));
       args.push_back(IntImm(DataType::Int(64), channel_size));
-      stmt =
-          LetStmt(op->buffer_var,
-                  Call(op->buffer_var.dtype(), builtin::nd_mem_alloc_with_scope(), args), op->body);
+      stmt = LetStmt(op->buffer->data,
+                     Call(op->buffer->data.dtype(), builtin::nd_mem_alloc_with_scope(), args),
+                     op->body);
     }
     return stmt;
   }

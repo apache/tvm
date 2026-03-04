@@ -100,8 +100,20 @@ class RenewDefMutator : public StmtExprMutator {
 
  private:
   STMT_REGENERATE_VAR_DEF(LetStmtNode, var);
-  STMT_REGENERATE_VAR_DEF(AllocateNode, buffer_var);
   STMT_REGENERATE_VAR_DEF(ForNode, loop_var);
+
+  Stmt VisitStmt_(const AllocBufferNode* op) final {
+    Buffer new_buffer = VisitBuffer(op->buffer, /*define=*/true);
+    Stmt body = this->VisitStmt(op->body);
+    if (new_buffer.same_as(op->buffer) && body.same_as(op->body)) {
+      return ffi::GetRef<Stmt>(op);
+    } else {
+      auto n = ffi::make_object<AllocBufferNode>(*op);
+      n->buffer = std::move(new_buffer);
+      n->body = std::move(body);
+      return Stmt(n);
+    }
+  }
 
   Stmt VisitStmt_(const DeclBufferNode* op) final {
     Buffer new_buffer = VisitBuffer(op->buffer, /*define=*/true);
@@ -214,13 +226,15 @@ class RenewDefMutator : public StmtExprMutator {
       }
     };
 
-    // update data
+    // data is DEFINED by this buffer — needs a fresh copy
     Var data = Downcast<Var>(redefine_if_is_var(buffer->data));
-    // update shape
-    ffi::Array<PrimExpr> shape = buffer->shape.Map(redefine_if_is_var);
-    // update strides
+    // shape is USED (references existing definitions like buffer_map shape vars),
+    // remap via VisitExpr to avoid creating spurious new var definitions
+    auto visit_expr = [this](const PrimExpr& e) -> PrimExpr { return this->VisitExpr(e); };
+    ffi::Array<PrimExpr> shape = buffer->shape.Map(visit_expr);
+    // strides/elem_offset may define NEW vars (e.g. in match_buffer),
+    // so use redefine_if_is_var to create fresh copies for unknown vars
     ffi::Array<PrimExpr> strides = buffer->strides.Map(redefine_if_is_var);
-    // update elem_offset
     PrimExpr elem_offset = redefine_if_is_var(buffer->elem_offset);
 
     auto n = ffi::make_object<BufferNode>(*buffer.get());

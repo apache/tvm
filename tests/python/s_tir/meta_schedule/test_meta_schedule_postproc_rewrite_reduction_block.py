@@ -54,9 +54,9 @@ class Matmul_before_rewrite:
         A = T.match_buffer(var_A, [512, 512], dtype="float32")
         B = T.match_buffer(var_B, [512, 512], dtype="float32")
         C = T.match_buffer(var_C, [512, 512], dtype="float32")
-        C_local = T.alloc_buffer([512, 512], dtype="float32", scope="local")
-        A_shared = T.alloc_buffer([512, 512], dtype="float32", scope="shared")
-        B_shared = T.alloc_buffer([512, 512], dtype="float32", scope="shared")
+        C_local = T.sblock_alloc_buffer([512, 512], dtype="float32", scope="local")
+        A_shared = T.sblock_alloc_buffer([512, 512], dtype="float32", scope="shared")
+        B_shared = T.sblock_alloc_buffer([512, 512], dtype="float32", scope="shared")
         for i0_0_i1_0_fused in T.thread_binding(0, 16, thread="blockIdx.x"):
             for i0_1_i1_1_fused in T.thread_binding(0, 16, thread="vthread.x"):
                 for i0_2_i1_2_fused in T.thread_binding(0, 8, thread="threadIdx.x"):
@@ -106,9 +106,9 @@ class Matmul_after_rewrite:
         A = T.match_buffer(var_A, [512, 512], dtype="float32")
         B = T.match_buffer(var_B, [512, 512], dtype="float32")
         C = T.match_buffer(var_C, [512, 512], dtype="float32")
-        C_local = T.alloc_buffer([512, 512], dtype="float32", scope="local")
-        A_shared = T.alloc_buffer([512, 512], dtype="float32", scope="shared")
-        B_shared = T.alloc_buffer([512, 512], dtype="float32", scope="shared")
+        C_local = T.sblock_alloc_buffer([512, 512], dtype="float32", scope="local")
+        A_shared = T.sblock_alloc_buffer([512, 512], dtype="float32", scope="shared")
+        B_shared = T.sblock_alloc_buffer([512, 512], dtype="float32", scope="shared")
         for i0_0_i1_0_fused in T.thread_binding(0, 16, thread="blockIdx.x"):
             for i0_1_i1_1_fused in T.thread_binding(0, 16, thread="vthread.x"):
                 for i0_2_i1_2_fused in T.thread_binding(0, 8, thread="threadIdx.x"):
@@ -160,8 +160,8 @@ class Matmul_after_rewrite:
 class Softmax_cross_thread_reduction:
     @T.prim_func
     def main(A: T.Buffer((256, 256), "float32"), T_softmax_norm: T.Buffer((256, 256), "float32")) -> None:
-        T_softmax_maxelem_shared = T.alloc_buffer([256], dtype="float32", scope="shared")
-        T_softmax_expsum_shared = T.alloc_buffer([256], dtype="float32", scope="shared")
+        T_softmax_maxelem_shared = T.sblock_alloc_buffer([256], dtype="float32", scope="shared")
+        T_softmax_expsum_shared = T.sblock_alloc_buffer([256], dtype="float32", scope="shared")
         for i0 in T.serial(256):
             for ax0, ax1_0 in T.grid(1, 8):
                 for ax1_1 in T.thread_binding(32, thread="threadIdx.x"):

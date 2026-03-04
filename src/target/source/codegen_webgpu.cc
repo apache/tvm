@@ -646,26 +646,26 @@ void CodeGenWebGPU::VisitStmt_(const BufferStoreNode* op) {
   }
 }
 
-void CodeGenWebGPU::VisitStmt_(const AllocateNode* op) {
-  TVM_FFI_ICHECK(!is_zero(op->condition));
-  std::string vid = AllocVarID(op->buffer_var.get());
-  size_t constant_size = op->ConstantAllocationSize();
+void CodeGenWebGPU::VisitStmt_(const AllocBufferNode* op) {
+  TVM_FFI_ICHECK(op->buffer.defined());
+  std::string vid = AllocVarID(op->buffer->data.get());
+  size_t constant_size = 1;
+  for (const auto& dim : op->buffer->shape) {
+    const IntImmNode* dim_imm = dim.as<IntImmNode>();
+    TVM_FFI_ICHECK(dim_imm) << "Can only handle constant size stack allocation for now";
+    constant_size *= dim_imm->value;
+  }
   TVM_FFI_ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation for now";
-  auto storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(op->buffer_var));
+  auto storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(op->buffer->data));
 
   if (storage_scope.rank == runtime::StorageRank::kShared) {
     this->decl_stream << "var<workgroup> " << vid << " : array<";
-    PrintType(op->dtype, this->decl_stream);
+    PrintType(op->buffer->dtype, this->decl_stream);
     this->decl_stream << ", " << constant_size << ">;\n";
   } else if (storage_scope.rank == runtime::StorageRank::kLocal) {
-    // TODO(Charlie): These code would cause non-uniformity as it introduces variables in module
-    // scope rather than function scope; but it was included for some unknown reasons; kept for now.
-    // this->decl_stream << "var<private> " << vid << " : array<";
-    // PrintType(op->dtype, this->decl_stream);
-    // this->decl_stream << ", " << constant_size << ">;\n";
     this->PrintIndent();
     this->stream << "var " << vid << " : array<";
-    PrintType(op->dtype, this->stream);
+    PrintType(op->buffer->dtype, this->stream);
     this->stream << ", " << constant_size << ">;\n";
   } else {
     TVM_FFI_THROW(InternalError) << "WebGPU: Do not support storage scope: "

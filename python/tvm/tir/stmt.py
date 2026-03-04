@@ -280,64 +280,39 @@ class BufferStore(Stmt):
         )
 
 
-@tvm_ffi.register_object("tir.Allocate")
-class Allocate(Stmt):
-    """Allocate node.
+@tvm_ffi.register_object("tir.AllocBuffer")
+class AllocBuffer(Stmt):
+    """AllocBuffer node.
+
+    Allocates a buffer and declares it in scope.
 
     Parameters
     ----------
-    buffer_var : Var
-        The buffer variable.
+    buffer: Buffer
+        The buffer being allocated and declared.
 
-    dtype : str
-        The data type of the buffer.
+    body: Stmt
+        The body statement to be executed.
 
-    extents : list of Expr
-        The extents of the allocate
+    annotations: Optional[dict]
+        Additional annotations about the allocation.
 
-    condition : PrimExpr
-        The condition.
-
-    body : Stmt
-        The body statement.
-
-    annotations: Optional[Mapping[str, Object]]
-        Additional annotation hints
-
-    span : Optional[Span]
-        The location of the stmt in the source code.
+    span: Optional[Span]
+        The location of this AllocBuffer in the source code.
     """
 
-    buffer_var: Var
-    dtype: str
-    extents: list[PrimExpr]
-    condition: PrimExpr
+    buffer: Buffer
     body: Stmt
-    annotations: Mapping[str, Object]
     span: Span | None
 
     def __init__(
         self,
-        buffer_var: Var,
-        dtype: str,
-        extents: list[PrimExpr],
-        condition: PrimExpr,
+        buffer: Buffer,
         body: Stmt,
-        annotations: Mapping[str, Object] | None = None,
+        annotations: dict | None = None,
         span: Span | None = None,
     ) -> None:
-        if annotations is None:
-            annotations = dict()
-        self.__init_handle_by_constructor__(
-            _ffi_api.Allocate,  # type: ignore
-            buffer_var,
-            dtype,
-            extents,
-            condition,
-            body,
-            annotations,
-            span,
-        )
+        self.__init_handle_by_constructor__(_ffi_api.AllocBuffer, buffer, body, annotations, span)
 
 
 @tvm_ffi.register_object("tir.DeclBuffer")

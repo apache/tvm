@@ -46,12 +46,12 @@ def conv2d_async_non_contig(
     T.func_attr({"tir.noalias": True, "global_symbol": "main"})
     # body
     # with T.sblock("root")
-    p0_global_vtcm = T.alloc_buffer(
+    p0_global_vtcm = T.sblock_alloc_buffer(
         [T.int64(1), T.int64(1), T.int64(56), T.int64(56), T.int64(4)],
         dtype="uint8",
         scope="global.vtcm",
     )
-    fused_constant_global_vtcm = T.alloc_buffer(
+    fused_constant_global_vtcm = T.sblock_alloc_buffer(
         [T.int64(1), T.int64(1), T.int64(3), T.int64(3), T.int64(1), T.int64(32), T.int64(4)],
         dtype="uint8",
         scope="global.vtcm",
@@ -545,9 +545,15 @@ class ModulePipelined:
         T.func_attr({"tir.noalias": True, "global_symbol": "main"})
         # body
         # with T.sblock("root")
-        conv2d_nchwc_int8 = T.alloc_buffer([1, 2, 112, 112, 32], dtype="int32", scope="global.vtcm")
-        p0_global_vtcm = T.alloc_buffer([1, 1, 230, 230, 4], dtype="uint8", scope="global.vtcm")
-        p1_global_vtcm = T.alloc_buffer([2, 1, 7, 7, 1, 32, 4], dtype="int8", scope="global.vtcm")
+        conv2d_nchwc_int8 = T.sblock_alloc_buffer(
+            [1, 2, 112, 112, 32], dtype="int32", scope="global.vtcm"
+        )
+        p0_global_vtcm = T.sblock_alloc_buffer(
+            [1, 1, 230, 230, 4], dtype="uint8", scope="global.vtcm"
+        )
+        p1_global_vtcm = T.sblock_alloc_buffer(
+            [2, 1, 7, 7, 1, 32, 4], dtype="int8", scope="global.vtcm"
+        )
         for ax0, ax1, ax2, ax3, ax4, ax5, ax6 in T.grid(2, 1, 7, 7, 1, 32, 4):
             with T.sblock("p1_global.vtcm"):
                 v0_ind, v1_ind, v2_ind, v3_ind, v4_ind, v5_ind, v6_ind = T.axis.remap(
@@ -697,7 +703,7 @@ class ModuleBase:
         # buffer definition
         # body
         # with T.sblock("root")
-        conv2d_nchwc_int8 = T.alloc_buffer([1, 2, 112, 112, 32], dtype="int32")
+        conv2d_nchwc_int8 = T.sblock_alloc_buffer([1, 2, 112, 112, 32], dtype="int32")
         for i0_0_i1_0_i2_0_i3_0_fused in T.parallel(
             112, annotations={"pragma_auto_unroll_max_step": 64, "pragma_unroll_explicit": 1}
         ):

@@ -2033,7 +2033,7 @@ def element_wise():
     def element_wise(a: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (128, 128), "float32")
         C = T.match_buffer(c, (128, 128), "float32")
-        B = T.alloc_buffer((128, 128), "float32")
+        B = T.sblock_alloc_buffer((128, 128), "float32")
 
         for i, j in T.grid(128, 128):
             with T.sblock("B"):
@@ -2199,7 +2199,7 @@ def block_elements():
             T.reads(A[0:16, 0:16])
             T.writes(B[0, 0])
             T.sblock_attr({"attr_key": "attr_value"})
-            C = T.alloc_buffer((4, 4), dtype="float32")
+            C = T.sblock_alloc_buffer((4, 4), dtype="float32")
             D = T.match_buffer(A[0:4, 0], (4, 1))
             with T.init():
                 B[0, 0] = T.float32(0)
@@ -2265,7 +2265,7 @@ def rank0():
     @T.prim_func
     def rank0(a: T.handle) -> None:
         A = T.match_buffer(a, (), "float32")
-        B = T.alloc_buffer((), "float32")
+        B = T.sblock_alloc_buffer((), "float32")
         A[()] = 2
         B[()] = A[()]
 
@@ -2276,7 +2276,7 @@ def rank0_block():
     @T.prim_func
     def rank0_block(a: T.handle) -> None:
         A = T.match_buffer(a, (), "float32")
-        B = T.alloc_buffer((), "float32")
+        B = T.sblock_alloc_buffer((), "float32")
         B[()] = A[()]
 
         with T.sblock("update"):
@@ -2375,7 +2375,7 @@ def while_loop():
     def while_loop(a: T.handle, b: T.handle) -> None:
         A = T.match_buffer(a, (16,), "float32")
         B = T.match_buffer(b, (16,), "float32")
-        i = T.alloc_buffer((), "int32", scope="local")
+        i = T.sblock_alloc_buffer((), "int32", scope="local")
         for ii in range(16):
             with T.sblock():
                 vi = T.axis.S(16, ii)
@@ -2672,7 +2672,7 @@ def int64_support():
     @T.prim_func
     def elementwise_shape_int64(a: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (T.int64(128), T.int64(128)), dtype="float32")
-        B = T.alloc_buffer((T.int64(128), T.int64(128)), dtype="float32")
+        B = T.sblock_alloc_buffer((T.int64(128), T.int64(128)), dtype="float32")
         C = T.match_buffer(c, (T.int64(128), T.int64(128)), dtype="float32")
         for i, j in T.grid(128, 128):
             with T.sblock("B"):
@@ -2723,7 +2723,7 @@ def buffer_axis_separator():
     def element_wise(a: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (128, 128), "float32", axis_separators=[1])
         C = T.match_buffer(c, (128, 128), "float32")
-        B = T.alloc_buffer((128, 128), "float32", axis_separators=[1])
+        B = T.sblock_alloc_buffer((128, 128), "float32", axis_separators=[1])
 
         for i, j in T.grid(128, 128):
             with T.sblock("B"):
@@ -2847,6 +2847,20 @@ def allocate_and_decl_buffer():
                     D[j] = C[j]
             for j in range(4):
                 B[i * 4 + j] = D[j]
+
+    return func
+
+
+def alloc_buffer_example():
+    @T.prim_func
+    def func(a: T.handle, c: T.handle):
+        A = T.match_buffer(a, (128,), "float32")
+        C = T.match_buffer(c, (128,), "float32")
+        B = T.alloc_buffer((128,), "float32")
+        for i in range(128):
+            B[i] = A[i] * T.float32(2)
+        for i in range(128):
+            C[i] = B[i] + T.float32(1)
 
     return func
 
@@ -3015,7 +3029,7 @@ def nested_boolean_expressions():
 def multi_env_threads():
     @T.prim_func
     def func(A: T.Buffer(128, "float32"), C: T.Buffer(128, "float32")):
-        B = T.alloc_buffer([128], dtype="float32")
+        B = T.sblock_alloc_buffer([128], dtype="float32")
         for i in T.thread_binding(128, thread="threadIdx.x"):
             B[i] = A[i] + 1.0
         for i in T.thread_binding(128, thread="threadIdx.x"):
@@ -3342,7 +3356,8 @@ def undefined_stride_in_decl_buffer():
     @T.prim_func(check_well_formed=False)
     def func():
         stride = T.int32()
-        buf = T.decl_buffer(shape=[1], dtype="float32", strides=[stride])
+        data_ptr = T.handle("float32")
+        buf = T.decl_buffer(shape=[1], dtype="float32", data=data_ptr, strides=[stride])
         T.evaluate(buf[0])
 
     return func
@@ -3353,7 +3368,8 @@ def undefined_elem_offset_in_decl_buffer():
     @T.prim_func(check_well_formed=False)
     def func():
         elem_offset = T.int32()
-        buf = T.decl_buffer(shape=[1], dtype="float32", elem_offset=elem_offset)
+        data_ptr = T.handle("float32")
+        buf = T.decl_buffer(shape=[1], dtype="float32", data=data_ptr, elem_offset=elem_offset)
         T.evaluate(buf[0])
 
     return func
@@ -3409,7 +3425,7 @@ def func_attr_with_list():
         D: T.Buffer((128, 128), "float32"),
     ) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True, "layout_free_buffers": [1]})
-        C = T.alloc_buffer([128, 128], dtype="float32")
+        C = T.sblock_alloc_buffer([128, 128], dtype="float32")
         for i0, i1, i2 in T.grid(128, 128, 128):
             with T.sblock("C"):
                 x, y, k = T.axis.remap("SSR", [i0, i1, i2])
@@ -3637,6 +3653,7 @@ ir_generator = tvm.testing.parameter(
     void_ptr,
     decl_buffer,
     allocate_and_decl_buffer,
+    alloc_buffer_example,
     float_infinity,
     minimal_i32_literal,
     boolean_argument,

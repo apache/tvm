@@ -50,8 +50,8 @@ def test_cpu_c1d():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.parallel":288, "meta_schedule.unroll_explicit":512, "meta_schedule.vectorize":64})
-            PadInput = T.alloc_buffer((1, 258, 64), dtype="float32")
-            conv1d_nlc_global = T.alloc_buffer((1, 128, 128), dtype="float32")
+            PadInput = T.sblock_alloc_buffer((1, 258, 64), dtype="float32")
+            conv1d_nlc_global = T.sblock_alloc_buffer((1, 128, 128), dtype="float32")
             for i0, i1, i2 in T.grid(1, 258, 64):
                 with T.sblock("PadInput"):
                     v_i0, v_i1, v_i2 = T.axis.remap("SSS", [i0, i1, i2])
@@ -86,8 +86,8 @@ def test_cpu_c1d():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.parallel": 288, "meta_schedule.unroll_explicit": 512, "meta_schedule.vectorize": 64})
-            PadInput = T.alloc_buffer((1, 258, 64))
-            conv1d_nlc_global = T.alloc_buffer((1, 128, 128))
+            PadInput = T.sblock_alloc_buffer((1, 258, 64))
+            conv1d_nlc_global = T.sblock_alloc_buffer((1, 128, 128))
             for n_0, l_0, co_0 in T.grid(1, 1, 2):
                 for n_1, l_1, co_1 in T.grid(1, 1, 8):
                     for ax0, ax1, ax2 in T.grid(1, 257, 64):
@@ -189,8 +189,8 @@ def test_cpu_c2d():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.parallel": 288, "meta_schedule.unroll_explicit": 16, "meta_schedule.vectorize": 64})
-            PadInput = T.alloc_buffer((1, 230, 230, 3))
-            conv2d_nhwc_global = T.alloc_buffer((1, 112, 112, 64))
+            PadInput = T.sblock_alloc_buffer((1, 230, 230, 3))
+            conv2d_nhwc_global = T.sblock_alloc_buffer((1, 112, 112, 64))
             for n_0, h_0, w_0, co_0, n_1, h_1, w_1 in T.grid(1, 7, 4, 2, 1, 1, 28):
                 for ax0, ax1, ax2, ax3 in T.grid(1, 37, 7, 3):
                     with T.sblock("PadInput"):
@@ -233,8 +233,8 @@ def test_cpu_c2d():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.parallel": 288, "meta_schedule.unroll_explicit": 512, "meta_schedule.vectorize": 64})
-            PadInput = T.alloc_buffer((1, 230, 230, 3))
-            conv2d_nhwc_global = T.alloc_buffer((1, 112, 112, 64))
+            PadInput = T.sblock_alloc_buffer((1, 230, 230, 3))
+            conv2d_nhwc_global = T.sblock_alloc_buffer((1, 112, 112, 64))
             for i0, i1, i2, i3 in T.grid(1, 230, 230, 3):
                 with T.sblock("PadInput"):
                     v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -273,7 +273,7 @@ def test_cpu_c2d():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.parallel": 288, "meta_schedule.unroll_explicit": 0, "meta_schedule.vectorize": 64})
-            PadInput = T.alloc_buffer((1, 230, 230, 3))
+            PadInput = T.sblock_alloc_buffer((1, 230, 230, 3))
             for n_0, h_0 in T.grid(1, 7):
                 for ax0, ax1, ax2, ax3 in T.grid(1, 37, 229, 3):
                     with T.sblock("PadInput"):
@@ -354,8 +354,8 @@ def test_cpu_c3d():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.parallel": 288, "meta_schedule.unroll_explicit": 512, "meta_schedule.vectorize": 64})
-            PadInput = T.alloc_buffer((1, 22, 230, 230, 3))
-            conv3d_ndhwc_global = T.alloc_buffer((1, 8, 112, 112, 64))
+            PadInput = T.sblock_alloc_buffer((1, 22, 230, 230, 3))
+            conv3d_ndhwc_global = T.sblock_alloc_buffer((1, 8, 112, 112, 64))
             for n_0, d_0, h_0, w_0, co_0 in T.grid(1, 2, 4, 1, 2):
                 for ax0, ax1, ax2, ax3, ax4 in T.grid(1, 13, 61, 229, 3):
                     with T.sblock("PadInput"):
@@ -402,8 +402,8 @@ def test_cpu_c3d():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.parallel": 288, "meta_schedule.unroll_explicit": 64, "meta_schedule.vectorize": 64})
-            PadInput = T.alloc_buffer((1, 22, 230, 230, 3))
-            conv3d_ndhwc_global = T.alloc_buffer((1, 8, 112, 112, 64))
+            PadInput = T.sblock_alloc_buffer((1, 22, 230, 230, 3))
+            conv3d_ndhwc_global = T.sblock_alloc_buffer((1, 8, 112, 112, 64))
             for n_0, d_0, h_0, w_0, co_0 in T.grid(1, 2, 4, 1, 2):
                 for n_1, d_1, h_1, w_1 in T.grid(1, 4, 4, 14):
                     for ax0, ax1, ax2, ax3, ax4 in T.grid(1, 7, 19, 21, 3):
@@ -450,7 +450,7 @@ def test_cpu_c3d():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.parallel": 288, "meta_schedule.unroll_explicit": 16, "meta_schedule.vectorize": 64})
-            PadInput = T.alloc_buffer((1, 22, 230, 230, 3))
+            PadInput = T.sblock_alloc_buffer((1, 22, 230, 230, 3))
             for n_0, d_0, h_0, w_0, co_0, n_1, d_1, h_1, w_1 in T.grid(1, 2, 4, 1, 2, 1, 4, 4, 14):
                 for ax0, ax1, ax2, ax3, ax4 in T.grid(1, 7, 19, 21, 3):
                     with T.sblock("PadInput"):
@@ -540,8 +540,8 @@ def test_cpu_cap():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.parallel": 288, "meta_schedule.unroll_explicit": 0, "meta_schedule.vectorize": 64})
-            PadInput = T.alloc_buffer((1, 18, 18, 4, 4, 32))
-            conv2d_capsule_nhwijc_global = T.alloc_buffer((1, 8, 8, 4, 4, 32))
+            PadInput = T.sblock_alloc_buffer((1, 18, 18, 4, 4, 32))
+            conv2d_capsule_nhwijc_global = T.sblock_alloc_buffer((1, 8, 8, 4, 4, 32))
             for n_0, h_0, w_0, cap_i_0, cap_j_0, co_0, n_1, h_1 in T.grid(1, 2, 1, 1, 1, 1, 1, 4):
                 for ax0, ax1, ax2, ax3, ax4, ax5 in T.grid(1, 3, 17, 4, 4, 32):
                     with T.sblock("PadInput"):
@@ -589,8 +589,8 @@ def test_cpu_cap():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.parallel": 288, "meta_schedule.unroll_explicit": 0, "meta_schedule.vectorize": 64})
-            PadInput = T.alloc_buffer((1, 18, 18, 4, 4, 32))
-            conv2d_capsule_nhwijc_global = T.alloc_buffer((1, 8, 8, 4, 4, 32))
+            PadInput = T.sblock_alloc_buffer((1, 18, 18, 4, 4, 32))
+            conv2d_capsule_nhwijc_global = T.sblock_alloc_buffer((1, 8, 8, 4, 4, 32))
             for n_0, h_0, w_0, cap_i_0, cap_j_0, co_0 in T.grid(1, 2, 1, 1, 1, 1):
                 for n_1, h_1, w_1, cap_i_1, cap_j_1, co_1 in T.grid(1, 4, 4, 1, 4, 2):
                     for ax0, ax1, ax2, ax3, ax4, ax5 in T.grid(1, 3, 5, 4, 4, 32):
@@ -635,7 +635,7 @@ def test_cpu_cap():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.parallel": 288, "meta_schedule.unroll_explicit": 16, "meta_schedule.vectorize": 64})
-            PadInput = T.alloc_buffer((1, 18, 18, 4, 4, 32))
+            PadInput = T.sblock_alloc_buffer((1, 18, 18, 4, 4, 32))
             for i0, i1, i2, i3, i4, i5 in T.grid(1, 18, 18, 4, 4, 32):
                 with T.sblock("PadInput"):
                     v_i0, v_i1, v_i2, v_i3, v_i4, v_i5 = T.axis.remap("SSSSSS", [i0, i1, i2, i3, i4, i5])
@@ -722,8 +722,8 @@ def test_cpu_dep():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.parallel": 288, "meta_schedule.unroll_explicit": 64, "meta_schedule.vectorize": 64})
-            PadInput = T.alloc_buffer((1, 114, 114, 32))
-            depth_conv2d_nhwc_global = T.alloc_buffer((1, 112, 112, 32))
+            PadInput = T.sblock_alloc_buffer((1, 114, 114, 32))
+            depth_conv2d_nhwc_global = T.sblock_alloc_buffer((1, 112, 112, 32))
             for i0, i1, i2, i3 in T.grid(1, 114, 114, 32):
                 with T.sblock("PadInput"):
                     v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -761,8 +761,8 @@ def test_cpu_dep():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.parallel": 288, "meta_schedule.unroll_explicit": 16, "meta_schedule.vectorize": 64})
-            PadInput = T.alloc_buffer((1, 114, 114, 32))
-            depth_conv2d_nhwc_global = T.alloc_buffer((1, 112, 112, 32))
+            PadInput = T.sblock_alloc_buffer((1, 114, 114, 32))
+            depth_conv2d_nhwc_global = T.sblock_alloc_buffer((1, 112, 112, 32))
             for i0, i1, i2, i3 in T.grid(1, 114, 114, 32):
                 with T.sblock("PadInput"):
                     v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -797,7 +797,7 @@ def test_cpu_dep():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.parallel": 288, "meta_schedule.unroll_explicit": 0, "meta_schedule.vectorize": 64})
-            PadInput = T.alloc_buffer((1, 114, 114, 32))
+            PadInput = T.sblock_alloc_buffer((1, 114, 114, 32))
             for n_0, h_0, w_0, c_0, n_1, h_1 in T.grid(1, 1, 1, 1, 1, 4):
                 for ax0, ax1, ax2, ax3 in T.grid(1, 30, 114, 32):
                     with T.sblock("PadInput"):
@@ -871,8 +871,8 @@ def test_cpu_dil():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.parallel": 288, "meta_schedule.unroll_explicit": 64, "meta_schedule.vectorize": 64})
-            PadInput = T.alloc_buffer((1, 230, 230, 3))
-            conv2d_nhwc_global = T.alloc_buffer((1, 109, 109, 64))
+            PadInput = T.sblock_alloc_buffer((1, 230, 230, 3))
+            conv2d_nhwc_global = T.sblock_alloc_buffer((1, 109, 109, 64))
             for n_0, h_0, w_0, co_0, n_1, h_1, w_1, co_1 in T.grid(1, 109, 1, 4, 1, 1, 1, 2):
                 for ax0, ax1, ax2, ax3 in T.grid(1, 13, 229, 3):
                     with T.sblock("PadInput"):
@@ -914,8 +914,8 @@ def test_cpu_dil():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.parallel": 288, "meta_schedule.unroll_explicit": 0, "meta_schedule.vectorize": 64})
-            PadInput = T.alloc_buffer((1, 230, 230, 3))
-            conv2d_nhwc_global = T.alloc_buffer((1, 109, 109, 64))
+            PadInput = T.sblock_alloc_buffer((1, 230, 230, 3))
+            conv2d_nhwc_global = T.sblock_alloc_buffer((1, 109, 109, 64))
             for n_0, h_0, w_0, co_0 in T.grid(1, 109, 1, 4):
                 for n_1, h_1, w_1, co_1, rh_0 in T.grid(1, 1, 1, 2, 7):
                     for ax0, ax1, ax2, ax3 in T.grid(1, 1, 229, 3):
@@ -958,7 +958,7 @@ def test_cpu_dil():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.parallel": 288, "meta_schedule.unroll_explicit": 0, "meta_schedule.vectorize": 64})
-            PadInput = T.alloc_buffer((1, 230, 230, 3))
+            PadInput = T.sblock_alloc_buffer((1, 230, 230, 3))
             for n_0, h_0 in T.grid(1, 109):
                 for ax0, ax1, ax2, ax3 in T.grid(1, 13, 229, 3):
                     with T.sblock("PadInput"):
@@ -1037,7 +1037,7 @@ def test_cpu_gmm():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.parallel": 288, "meta_schedule.unroll_explicit": 16, "meta_schedule.vectorize": 64})
-            Z_global = T.alloc_buffer((1, 128, 128))
+            Z_global = T.sblock_alloc_buffer((1, 128, 128))
             for b_0, i_0, j_0, b_1, i_1, j_1 in T.grid(1, 4, 2, 1, 1, 8):
                 for k_0, b_2, i_2, j_2, k_1, b_3, i_3, j_3 in T.grid(128, 1, 16, 1, 1, 1, 2, 8):
                     with T.sblock("Z"):
@@ -1066,7 +1066,7 @@ def test_cpu_gmm():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.parallel": 288, "meta_schedule.unroll_explicit": 16, "meta_schedule.vectorize": 64})
-            Z_global = T.alloc_buffer((1, 128, 128))
+            Z_global = T.sblock_alloc_buffer((1, 128, 128))
             for b_0, i_0, j_0 in T.grid(1, 4, 2):
                 for b_1, i_1, j_1, k_0, b_2, i_2, j_2, k_1, b_3, i_3, j_3 in T.grid(1, 1, 8, 128, 1, 16, 1, 1, 1, 2, 8):
                     with T.sblock("Z"):
@@ -1148,8 +1148,8 @@ def test_cpu_grp():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.parallel": 288, "meta_schedule.unroll_explicit": 16, "meta_schedule.vectorize": 64})
-            PadInput = T.alloc_buffer((1, 58, 58, 64))
-            conv2d_nhwc_global = T.alloc_buffer((1, 28, 28, 128))
+            PadInput = T.sblock_alloc_buffer((1, 58, 58, 64))
+            conv2d_nhwc_global = T.sblock_alloc_buffer((1, 28, 28, 128))
             for n_0, h_0, w_0, co_0 in T.grid(1, 7, 1, 2):
                 for ax0, ax1, ax2, ax3 in T.grid(1, 9, 57, 32):
                     with T.sblock("PadInput"):
@@ -1192,8 +1192,8 @@ def test_cpu_grp():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.parallel": 288, "meta_schedule.unroll_explicit": 512, "meta_schedule.vectorize": 64})
-            PadInput = T.alloc_buffer((1, 58, 58, 64))
-            conv2d_nhwc_global = T.alloc_buffer((1, 28, 28, 128))
+            PadInput = T.sblock_alloc_buffer((1, 58, 58, 64))
+            conv2d_nhwc_global = T.sblock_alloc_buffer((1, 28, 28, 128))
             for i0, i1, i2, i3 in T.grid(1, 58, 58, 64):
                 with T.sblock("PadInput"):
                     v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -1232,7 +1232,7 @@ def test_cpu_grp():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.parallel": 288, "meta_schedule.unroll_explicit": 16, "meta_schedule.vectorize": 64})
-            PadInput = T.alloc_buffer((1, 58, 58, 64))
+            PadInput = T.sblock_alloc_buffer((1, 58, 58, 64))
             for n_0, h_0, w_0, co_0, n_1, h_1, w_1, co_1, rh_0, rw_0 in T.grid(1, 7, 1, 2, 1, 4, 1, 1, 1, 3):
                 for ax0, ax1, ax2, ax3 in T.grid(1, 3, 55, 32):
                     with T.sblock("PadInput"):
@@ -1311,8 +1311,8 @@ def test_cpu_t2d():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.parallel": 288, "meta_schedule.unroll_explicit": 64, "meta_schedule.vectorize": 64})
-            PadInput = T.alloc_buffer((1, 6, 6, 512))
-            conv2d_transpose_nhwc_global = T.alloc_buffer((1, 8, 8, 256))
+            PadInput = T.sblock_alloc_buffer((1, 6, 6, 512))
+            conv2d_transpose_nhwc_global = T.sblock_alloc_buffer((1, 8, 8, 256))
             for i0, i1, i2, i3 in T.grid(1, 6, 6, 512):
                 with T.sblock("PadInput"):
                     v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -1351,8 +1351,8 @@ def test_cpu_t2d():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.parallel": 288, "meta_schedule.unroll_explicit": 64, "meta_schedule.vectorize": 64})
-            PadInput = T.alloc_buffer((1, 6, 6, 512))
-            conv2d_transpose_nhwc_global = T.alloc_buffer((1, 8, 8, 256))
+            PadInput = T.sblock_alloc_buffer((1, 6, 6, 512))
+            conv2d_transpose_nhwc_global = T.sblock_alloc_buffer((1, 8, 8, 256))
             for n_0, h_0, w_0, co_0 in T.grid(1, 1, 2, 8):
                 for ax0, ax1, ax2, ax3 in T.grid(1, 6, 4, 512):
                     with T.sblock("PadInput"):
@@ -1461,8 +1461,8 @@ def test_cpu_nrm():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.parallel": 288, "meta_schedule.unroll_explicit": 0, "meta_schedule.vectorize": 64})
-            C = T.alloc_buffer((1,))
-            C_rf = T.alloc_buffer((1, 32768))
+            C = T.sblock_alloc_buffer((1,))
+            C_rf = T.sblock_alloc_buffer((1, 32768))
             for b, i_j_fused_0, i_j_fused_1 in T.grid(1, 32768, 2):
                 with T.sblock("C_rf"):
                     vi_j_fused_0, v_b, vi_j_fused_1 = T.axis.remap("SSR", [i_j_fused_0, b, i_j_fused_1])
@@ -1492,8 +1492,8 @@ def test_cpu_nrm():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.parallel": 288, "meta_schedule.unroll_explicit": 16, "meta_schedule.vectorize": 64})
-            C = T.alloc_buffer((1,))
-            C_rf = T.alloc_buffer((1, 2))
+            C = T.sblock_alloc_buffer((1,))
+            C_rf = T.sblock_alloc_buffer((1, 2))
             for b, i_j_fused_0, i_j_fused_1 in T.grid(1, 32768, 2):
                 with T.sblock("C_rf"):
                     vi_j_fused_1, v_b, vi_j_fused_0 = T.axis.remap("SSR", [i_j_fused_1, b, i_j_fused_0])
@@ -1523,7 +1523,7 @@ def test_cpu_nrm():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.parallel": 288, "meta_schedule.unroll_explicit": 0, "meta_schedule.vectorize": 64})
-            C = T.alloc_buffer((1,))
+            C = T.sblock_alloc_buffer((1,))
             for b, i, j in T.grid(1, 256, 256):
                 with T.sblock("C"):
                     v_b, v_i, v_j = T.axis.remap("SRR", [b, i, j])
@@ -1574,10 +1574,10 @@ def test_cpu_sfm():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.parallel": 288, "meta_schedule.unroll_explicit": 0, "meta_schedule.vectorize": 64})
-            T_softmax_maxelem = T.alloc_buffer((256,))
-            T_softmax_expsum = T.alloc_buffer((256,))
-            T_softmax_expsum_rf = T.alloc_buffer((256, 16))
-            T_softmax_maxelem_rf = T.alloc_buffer((256, 4))
+            T_softmax_maxelem = T.sblock_alloc_buffer((256,))
+            T_softmax_expsum = T.sblock_alloc_buffer((256,))
+            T_softmax_expsum_rf = T.sblock_alloc_buffer((256, 16))
+            T_softmax_maxelem_rf = T.sblock_alloc_buffer((256, 4))
             for i0, k_0, k_1 in T.grid(256, 4, 64):
                 with T.sblock("T_softmax_maxelem_rf"):
                     vk_0, v_i0, vk_1 = T.axis.remap("SSR", [k_0, i0, k_1])
@@ -1625,11 +1625,11 @@ def test_cpu_sfm():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.parallel": 288, "meta_schedule.unroll_explicit": 16, "meta_schedule.vectorize": 64})
-            T_softmax_maxelem = T.alloc_buffer((256,))
-            T_softmax_exp = T.alloc_buffer((256, 256))
-            T_softmax_expsum = T.alloc_buffer((256,))
-            T_softmax_expsum_rf = T.alloc_buffer((256, 16))
-            T_softmax_maxelem_rf = T.alloc_buffer((256, 64))
+            T_softmax_maxelem = T.sblock_alloc_buffer((256,))
+            T_softmax_exp = T.sblock_alloc_buffer((256, 256))
+            T_softmax_expsum = T.sblock_alloc_buffer((256,))
+            T_softmax_expsum_rf = T.sblock_alloc_buffer((256, 16))
+            T_softmax_maxelem_rf = T.sblock_alloc_buffer((256, 64))
             for i0 in range(256):
                 for ax0, ax1, ax2 in T.grid(64, 1, 4):
                     with T.sblock("T_softmax_maxelem_rf"):
@@ -1686,9 +1686,9 @@ def test_cpu_sfm():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.parallel": 288, "meta_schedule.unroll_explicit": 512, "meta_schedule.vectorize": 64})
-            T_softmax_maxelem = T.alloc_buffer((256,))
-            T_softmax_expsum = T.alloc_buffer((256,))
-            T_softmax_expsum_rf = T.alloc_buffer((256, 16))
+            T_softmax_maxelem = T.sblock_alloc_buffer((256,))
+            T_softmax_expsum = T.sblock_alloc_buffer((256,))
+            T_softmax_expsum_rf = T.sblock_alloc_buffer((256, 16))
             for i0, k in T.grid(256, 256):
                 with T.sblock("T_softmax_maxelem"):
                     v_i0, v_k = T.axis.remap("SR", [i0, k])
@@ -1727,11 +1727,11 @@ def test_cpu_sfm():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.parallel": 288, "meta_schedule.unroll_explicit": 512, "meta_schedule.vectorize": 64})
-            T_softmax_maxelem = T.alloc_buffer((256,))
-            T_softmax_exp = T.alloc_buffer((256, 256))
-            T_softmax_expsum = T.alloc_buffer((256,))
-            T_softmax_expsum_rf = T.alloc_buffer((256, 16))
-            T_softmax_maxelem_rf = T.alloc_buffer((256, 256))
+            T_softmax_maxelem = T.sblock_alloc_buffer((256,))
+            T_softmax_exp = T.sblock_alloc_buffer((256, 256))
+            T_softmax_expsum = T.sblock_alloc_buffer((256,))
+            T_softmax_expsum_rf = T.sblock_alloc_buffer((256, 16))
+            T_softmax_maxelem_rf = T.sblock_alloc_buffer((256, 256))
             for i0, i1 in T.grid(256, 256):
                 for ax0, ax1, ax2 in T.grid(256, 1, 1):
                     with T.sblock("T_softmax_maxelem_rf"):
@@ -1792,11 +1792,11 @@ def test_cpu_sfm():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.parallel": 288, "meta_schedule.unroll_explicit": 0, "meta_schedule.vectorize": 64})
-            T_softmax_maxelem = T.alloc_buffer((256,))
-            T_softmax_exp = T.alloc_buffer((256, 256))
-            T_softmax_expsum = T.alloc_buffer((256,))
-            T_softmax_expsum_rf = T.alloc_buffer((256, 16))
-            T_softmax_maxelem_rf = T.alloc_buffer((256, 1))
+            T_softmax_maxelem = T.sblock_alloc_buffer((256,))
+            T_softmax_exp = T.sblock_alloc_buffer((256, 256))
+            T_softmax_expsum = T.sblock_alloc_buffer((256,))
+            T_softmax_expsum_rf = T.sblock_alloc_buffer((256, 16))
+            T_softmax_maxelem_rf = T.sblock_alloc_buffer((256, 1))
             for i0 in range(256):
                 for ax0, ax1, ax2 in T.grid(1, 1, 256):
                     with T.sblock("T_softmax_maxelem_rf"):
@@ -1852,10 +1852,10 @@ def test_cpu_sfm():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.parallel": 288, "meta_schedule.unroll_explicit": 512, "meta_schedule.vectorize": 64})
-            T_softmax_maxelem = T.alloc_buffer((256,))
-            T_softmax_exp = T.alloc_buffer((256, 256))
-            T_softmax_expsum = T.alloc_buffer((256,))
-            T_softmax_expsum_rf = T.alloc_buffer((256, 16))
+            T_softmax_maxelem = T.sblock_alloc_buffer((256,))
+            T_softmax_exp = T.sblock_alloc_buffer((256, 256))
+            T_softmax_expsum = T.sblock_alloc_buffer((256,))
+            T_softmax_expsum_rf = T.sblock_alloc_buffer((256, 16))
             for i0 in range(256):
                 for ax0, ax1 in T.grid(1, 256):
                     with T.sblock("T_softmax_maxelem"):
@@ -1907,9 +1907,9 @@ def test_cpu_sfm():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.parallel": 288, "meta_schedule.unroll_explicit": 64, "meta_schedule.vectorize": 64})
-            T_softmax_maxelem = T.alloc_buffer((256,))
-            T_softmax_expsum = T.alloc_buffer((256,))
-            T_softmax_maxelem_rf = T.alloc_buffer((256, 64))
+            T_softmax_maxelem = T.sblock_alloc_buffer((256,))
+            T_softmax_expsum = T.sblock_alloc_buffer((256,))
+            T_softmax_maxelem_rf = T.sblock_alloc_buffer((256, 64))
             for i0 in range(256):
                 for ax0, ax1, ax2 in T.grid(64, 1, 4):
                     with T.sblock("T_softmax_maxelem_rf"):
@@ -1951,9 +1951,9 @@ def test_cpu_sfm():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.parallel": 288, "meta_schedule.unroll_explicit": 64, "meta_schedule.vectorize": 64})
-            T_softmax_maxelem = T.alloc_buffer((256,))
-            T_softmax_expsum = T.alloc_buffer((256,))
-            T_softmax_maxelem_rf = T.alloc_buffer((256, 4))
+            T_softmax_maxelem = T.sblock_alloc_buffer((256,))
+            T_softmax_expsum = T.sblock_alloc_buffer((256,))
+            T_softmax_maxelem_rf = T.sblock_alloc_buffer((256, 4))
             for i0, k_0, k_1 in T.grid(256, 64, 4):
                 with T.sblock("T_softmax_maxelem_rf"):
                     vk_1, v_i0, vk_0 = T.axis.remap("SSR", [k_1, i0, k_0])
@@ -1993,9 +1993,9 @@ def test_cpu_sfm():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.parallel": 288, "meta_schedule.unroll_explicit": 512, "meta_schedule.vectorize": 64})
-            T_softmax_maxelem = T.alloc_buffer((256,))
-            T_softmax_exp = T.alloc_buffer((256, 256))
-            T_softmax_expsum = T.alloc_buffer((256,))
+            T_softmax_maxelem = T.sblock_alloc_buffer((256,))
+            T_softmax_exp = T.sblock_alloc_buffer((256, 256))
+            T_softmax_expsum = T.sblock_alloc_buffer((256,))
             for i0 in range(256):
                 for ax0, ax1 in T.grid(1, 256):
                     with T.sblock("T_softmax_maxelem"):
@@ -2135,7 +2135,7 @@ def test_cpu_cbr():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.parallel": 288, "meta_schedule.unroll_explicit": 64, "meta_schedule.vectorize": 64})
-            Conv2dOutput = T.alloc_buffer((1, 112, 112, 64))
+            Conv2dOutput = T.sblock_alloc_buffer((1, 112, 112, 64))
             for nn_0, yy_0, xx_0, ff_0, nn_1, yy_1, xx_1, ff_1, ry_0, rx_0, rc_0, nn_2, yy_2, xx_2, ff_2, ry_1, rx_1, rc_1, nn_3, yy_3, xx_3, ff_3 in T.grid(1, 2, 7, 1, 1, 2, 2, 32, 7, 7, 1, 1, 1, 4, 1, 1, 1, 3, 1, 28, 2, 2):
                 with T.sblock("Conv2dOutput"):
                     v_nn = T.axis.spatial(1, nn_0 + nn_1 + nn_2 + nn_3)
@@ -2164,8 +2164,8 @@ def test_cpu_cbr():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.parallel": 288, "meta_schedule.unroll_explicit": 512, "meta_schedule.vectorize": 64})
-            PaddedInput = T.alloc_buffer((1, 230, 230, 3))
-            Conv2dOutput = T.alloc_buffer((1, 112, 112, 64))
+            PaddedInput = T.sblock_alloc_buffer((1, 230, 230, 3))
+            Conv2dOutput = T.sblock_alloc_buffer((1, 112, 112, 64))
             for nn_0, yy_0 in T.grid(1, 2):
                 for ax0, ax1, ax2, ax3 in T.grid(1, 117, 229, 3):
                     with T.sblock("PaddedInput"):
@@ -2208,8 +2208,8 @@ def test_cpu_cbr():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.parallel": 288, "meta_schedule.unroll_explicit": 64, "meta_schedule.vectorize": 64})
-            PaddedInput = T.alloc_buffer((1, 230, 230, 3))
-            Conv2dOutput = T.alloc_buffer((1, 112, 112, 64))
+            PaddedInput = T.sblock_alloc_buffer((1, 230, 230, 3))
+            Conv2dOutput = T.sblock_alloc_buffer((1, 112, 112, 64))
             for nn_0, yy_0 in T.grid(1, 2):
                 for ax0, ax1, ax2, ax3 in T.grid(1, 117, 229, 3):
                     with T.sblock("PaddedInput"):
@@ -2298,9 +2298,9 @@ def test_cpu_tbg():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.parallel": 288, "meta_schedule.unroll_explicit": 64, "meta_schedule.vectorize": 64})
-            query_T = T.alloc_buffer((1, 12, 128, 64))
-            value_T = T.alloc_buffer((1, 12, 64, 128))
-            C_global = T.alloc_buffer((1, 12, 128, 128))
+            query_T = T.sblock_alloc_buffer((1, 12, 128, 64))
+            value_T = T.sblock_alloc_buffer((1, 12, 64, 128))
+            C_global = T.sblock_alloc_buffer((1, 12, 128, 128))
             for b_0, h_0, i_0, j_0, b_1, h_1, i_1 in T.grid(1, 1, 1, 2, 1, 6, 2):
                 for ax0, ax1, ax2, ax3 in T.grid(1, 2, 64, 64):
                     with T.sblock("value_T"):
@@ -2350,9 +2350,9 @@ def test_cpu_tbg():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.parallel": 288, "meta_schedule.unroll_explicit": 64, "meta_schedule.vectorize": 64})
-            query_T = T.alloc_buffer((1, 12, 128, 64))
-            value_T = T.alloc_buffer((1, 12, 64, 128))
-            C_global = T.alloc_buffer((1, 12, 128, 128))
+            query_T = T.sblock_alloc_buffer((1, 12, 128, 64))
+            value_T = T.sblock_alloc_buffer((1, 12, 64, 128))
+            C_global = T.sblock_alloc_buffer((1, 12, 128, 128))
             for b, h, l, d in T.grid(1, 12, 128, 64):
                 with T.sblock("query_T"):
                     v_b, v_h, v_l, v_d = T.axis.remap("SSSS", [b, h, l, d])
@@ -2397,7 +2397,7 @@ def test_cpu_tbg():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.parallel": 288, "meta_schedule.unroll_explicit": 512, "meta_schedule.vectorize": 64})
-            value_T = T.alloc_buffer((1, 12, 64, 128))
+            value_T = T.sblock_alloc_buffer((1, 12, 64, 128))
             for b_0, h_0, i_0, j_0, b_1, h_1, i_1, j_1 in T.grid(1, 1, 1, 2, 1, 6, 2, 8):
                 for ax0, ax1, ax2, ax3 in T.grid(1, 2, 64, 8):
                     with T.sblock("value_T"):

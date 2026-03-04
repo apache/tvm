@@ -32,8 +32,8 @@ def test_lift_tx_beyond_local():
             with T.sblock(""):
                 T.reads(A[ax0_ax1_fused // n, 0, 0:256], B[ax0_ax1_fused // n, ax0_ax1_fused % n, 0:256])
                 T.writes(C[ax0_ax1_fused // n, 0, ax0_ax1_fused % n])
-                D_local = T.alloc_buffer((32, 1, n), scope="local")
-                D_rf_local = T.alloc_buffer((256, 32, 1, n), scope="local")
+                D_local = T.sblock_alloc_buffer((32, 1, n), scope="local")
+                D_rf_local = T.sblock_alloc_buffer((256, 32, 1, n), scope="local")
                 for ax2_fused_1 in T.thread_binding(256, thread="threadIdx.x"):
                     with T.sblock("NT_matmul_rf_init"):
                         T.reads()
@@ -50,8 +50,8 @@ def test_lift_tx_beyond_local():
                         with T.sblock(""):
                             T.reads(D_rf_local[ax0_fused, ax0_ax1_fused // n, 0, ax0_ax1_fused % n])
                             T.writes(D_local[ax0_ax1_fused // n, 0, ax0_ax1_fused % n])
-                            cross_thread_D_local = T.alloc_buffer((1,), strides=(1,), scope="local")
-                            in_thread_D_local = T.alloc_buffer((1,), strides=(1,), scope="local")
+                            cross_thread_D_local = T.sblock_alloc_buffer((1,), strides=(1,), scope="local")
+                            in_thread_D_local = T.sblock_alloc_buffer((1,), strides=(1,), scope="local")
                             with T.sblock("NT_matmul_in_thread_init"):
                                 T.reads()
                                 T.writes(in_thread_D_local[0])
@@ -88,8 +88,8 @@ def test_lift_tx_beyond_local():
                 with T.sblock(""):
                     T.reads(A[blockIdx_x // n, 0, 0:256], B[blockIdx_x // n, blockIdx_x % n, 0:256])
                     T.writes(C[blockIdx_x // n, 0, blockIdx_x % n])
-                    D_local = T.alloc_buffer((32, 1, n), scope="local")
-                    D_rf_local = T.alloc_buffer((256, 32, 1, n), scope="local")
+                    D_local = T.sblock_alloc_buffer((32, 1, n), scope="local")
+                    D_rf_local = T.sblock_alloc_buffer((256, 32, 1, n), scope="local")
                     with T.sblock("NT_matmul_rf_init"):
                         T.reads()
                         T.writes(D_rf_local[threadIdx_x, blockIdx_x // n, 0, blockIdx_x % n])
@@ -104,8 +104,8 @@ def test_lift_tx_beyond_local():
                         with T.sblock(""):
                             T.reads(D_rf_local[threadIdx_x, blockIdx_x // n, 0, blockIdx_x % n])
                             T.writes(D_local[blockIdx_x // n, 0, blockIdx_x % n])
-                            cross_thread_D_local = T.alloc_buffer((1,), strides=(1,), scope="local")
-                            in_thread_D_local = T.alloc_buffer((1,), strides=(1,), scope="local")
+                            cross_thread_D_local = T.sblock_alloc_buffer((1,), strides=(1,), scope="local")
+                            in_thread_D_local = T.sblock_alloc_buffer((1,), strides=(1,), scope="local")
                             with T.sblock("NT_matmul_in_thread_init"):
                                 T.reads()
                                 T.writes(in_thread_D_local[0])

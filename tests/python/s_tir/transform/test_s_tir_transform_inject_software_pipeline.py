@@ -62,7 +62,7 @@ def trivial_pipeline(A: T.Buffer((16, 1), "float32"), C: T.Buffer((16, 1), "floa
             with T.sblock():
                 T.reads(A[tx, i])
                 T.writes(C[tx, i])
-                B = T.alloc_buffer((16, 1), dtype="float32", scope="shared")
+                B = T.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
                 with T.sblock():
                     T.reads(A[tx, i])
                     T.writes(B[tx, 0])
@@ -81,7 +81,7 @@ def transformed_trivial_pipeline(
         with T.sblock():
             T.reads(A[tx, 0])
             T.writes(C[tx, 0])
-            B = T.alloc_buffer([2, 16, 1], dtype="float32", scope="shared")
+            B = T.sblock_alloc_buffer([2, 16, 1], dtype="float32", scope="shared")
             with T.sblock():
                 T.reads(A[tx, 0])
                 T.writes(B[0, tx, 0])
@@ -111,7 +111,7 @@ def gen_simple_compute(num_stages):
                 with T.sblock("compute"):
                     T.reads(A[tx, i])
                     T.writes(C[tx, i])
-                    B = T.alloc_buffer((16, 1), dtype="float32", scope="shared")
+                    B = T.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
                     with T.sblock():
                         T.reads(A[tx, i])
                         T.writes(B[tx, 0])
@@ -132,7 +132,7 @@ def transformed_simple_compute(
         with T.sblock():
             T.reads([A[tx, 0:16]])
             T.writes([C[tx, 0:16]])
-            B = T.alloc_buffer([2, 16, 1], dtype="float32", scope="shared")
+            B = T.sblock_alloc_buffer([2, 16, 1], dtype="float32", scope="shared")
             with T.sblock():
                 T.reads([A[tx, 0]])
                 T.writes([B[0, tx, 0]])
@@ -172,7 +172,7 @@ def dynamic_compute(a_handle: T.handle, c_handle: T.handle):
             with T.sblock("compute"):
                 T.reads(A[tx, i])
                 T.writes(C[tx, i])
-                B = T.alloc_buffer((16, 1), dtype="float32", scope="shared")
+                B = T.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
                 with T.sblock():
                     T.reads(A[tx, i])
                     T.writes(B[tx, 0])
@@ -192,7 +192,7 @@ def transformed_dynamic_compute(a_handle: T.handle, c_handle: T.handle):
         with T.sblock():
             T.reads(A[tx, 0 : T.max(1, k)])
             T.writes(C[tx, T.min(0, k - 1) : T.min(0, k - 1) + T.max(k, 1)])
-            B = T.alloc_buffer([2, 16, 1], dtype="float32", scope="shared")
+            B = T.sblock_alloc_buffer([2, 16, 1], dtype="float32", scope="shared")
             with T.sblock(""):
                 T.reads(A[tx, 0])
                 T.writes(B[0, tx, 0])
@@ -240,7 +240,7 @@ def simple_compute_with_other_annotation(
             with T.sblock("compute"):
                 T.reads(A[tx, i])
                 T.writes(C[tx, i])
-                B = T.alloc_buffer((16, 1), dtype="float32", scope="shared")
+                B = T.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
                 with T.sblock():
                     T.reads(A[tx, i])
                     T.writes(B[tx, 0])
@@ -259,7 +259,7 @@ def transformed_simple_compute_with_other_annotation(
         with T.sblock():
             T.reads([A[tx, 0:16]])
             T.writes([C[tx, 0:16]])
-            B = T.alloc_buffer([2, 16, 1], dtype="float32", scope="shared")
+            B = T.sblock_alloc_buffer([2, 16, 1], dtype="float32", scope="shared")
             with T.sblock():
                 T.reads([A[tx, 0]])
                 T.writes([B[0, tx, 0]])
@@ -300,8 +300,8 @@ def three_stage_compute(A: T.Buffer((16, 16), "float32"), D: T.Buffer((16, 16), 
             with T.sblock("compute"):
                 T.reads(A[tx, i])
                 T.writes(D[tx, i])
-                B = T.alloc_buffer((16, 1), dtype="float32", scope="shared")
-                C = T.alloc_buffer((16, 1), dtype="float32", scope="shared")
+                B = T.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
+                C = T.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
                 with T.sblock():
                     T.reads(A[tx, i])
                     T.writes(B[tx, 0])
@@ -324,8 +324,8 @@ def transformed_three_stage_compute(
         with T.sblock():
             T.reads(A[tx, 0:16])
             T.writes(D[tx, 0:16])
-            B = T.alloc_buffer([2, 16, 1], dtype="float32", scope="shared")
-            C = T.alloc_buffer([2, 16, 1], dtype="float32", scope="shared")
+            B = T.sblock_alloc_buffer([2, 16, 1], dtype="float32", scope="shared")
+            C = T.sblock_alloc_buffer([2, 16, 1], dtype="float32", scope="shared")
             with T.sblock():
                 T.reads(A[tx, 0:2], B[0:2, tx, 0])
                 T.writes(B[0:2, tx, 0], C[0:2, tx, 0])
@@ -388,10 +388,10 @@ def dag_interleaving(
             with T.sblock():
                 T.reads(A[tx, i])
                 T.writes(C[tx, i])
-                AS = T.alloc_buffer((16, 1), dtype="float32", scope="shared")
-                BS = T.alloc_buffer((16, 1), dtype="float32", scope="shared")
-                AL = T.alloc_buffer((1, 1), dtype="float32", scope="local")
-                BL = T.alloc_buffer((1, 1), dtype="float32", scope="local")
+                AS = T.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
+                BS = T.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
+                AL = T.sblock_alloc_buffer((1, 1), dtype="float32", scope="local")
+                BL = T.sblock_alloc_buffer((1, 1), dtype="float32", scope="local")
                 with T.sblock():
                     T.reads(A[tx, i])
                     T.writes(AS[tx, 0])
@@ -424,10 +424,10 @@ def transformed_dag_interleaving(
         with T.sblock():
             T.reads(A[tx, 0:16], B[tx, 0:16])
             T.writes(C[tx, 0:16])
-            AS = T.alloc_buffer([16, 1], dtype="float32", scope="shared")
-            BS = T.alloc_buffer([16, 1], dtype="float32", scope="shared")
-            AL = T.alloc_buffer([2, 1, 1], dtype="float32", scope="local")
-            BL = T.alloc_buffer([2, 1, 1], dtype="float32", scope="local")
+            AS = T.sblock_alloc_buffer([16, 1], dtype="float32", scope="shared")
+            BS = T.sblock_alloc_buffer([16, 1], dtype="float32", scope="shared")
+            AL = T.sblock_alloc_buffer([2, 1, 1], dtype="float32", scope="local")
+            BL = T.sblock_alloc_buffer([2, 1, 1], dtype="float32", scope="local")
             with T.sblock():
                 T.reads(A[tx, 0], B[tx, 0], AS[tx, 0], BS[tx, 0])
                 T.writes(AS[tx, 0], BS[tx, 0], AL[0, 0, 0], BL[0, 0, 0])
@@ -495,7 +495,7 @@ def nested_pipeline_simple(
             with T.sblock():
                 T.reads(A[tx, i, 0:16])
                 T.writes(C[tx, i, 0:16])
-                A_shared = T.alloc_buffer((16, 1, 16), dtype="float32", scope="shared")
+                A_shared = T.sblock_alloc_buffer((16, 1, 16), dtype="float32", scope="shared")
                 for j in T.serial(0, 16):
                     with T.sblock():
                         T.reads(A[tx, i, j])
@@ -512,7 +512,7 @@ def nested_pipeline_simple(
                     with T.sblock():
                         T.reads(A_shared[tx, 0, j])
                         T.writes(C[tx, i, j])
-                        B = T.alloc_buffer((16, 1, 1), dtype="float32", scope="shared")
+                        B = T.sblock_alloc_buffer((16, 1, 1), dtype="float32", scope="shared")
                         with T.sblock():
                             T.reads(A_shared[tx, i, j])
                             T.writes(B[tx, i, 0])
@@ -531,8 +531,8 @@ def transformed_nested_pipeline_simple(
         with T.sblock():
             T.reads([A[tx, 0:16, 0:16]])
             T.writes([C[tx, 0:16, 0:16]])
-            A_shared = T.alloc_buffer([2, 16, 1, 16], dtype="float32", scope="shared")
-            B = T.alloc_buffer([2, 16, 1, 1], dtype="float32", scope="shared")
+            A_shared = T.sblock_alloc_buffer([2, 16, 1, 16], dtype="float32", scope="shared")
+            B = T.sblock_alloc_buffer([2, 16, 1, 1], dtype="float32", scope="shared")
             with T.sblock():
                 T.reads([A[tx, 0, 0:16]])
                 T.writes([A_shared[0, tx, 0, 0:16]])
@@ -616,7 +616,7 @@ def nested_pipeline_prefetch_inner(
             with T.sblock():
                 T.reads(A[tx, i, 0:16])
                 T.writes(C[tx, i, 0:16])
-                A_shared = T.alloc_buffer((16, 1, 16), dtype="float32", scope="shared")
+                A_shared = T.sblock_alloc_buffer((16, 1, 16), dtype="float32", scope="shared")
                 for j in T.serial(0, 16):
                     with T.sblock():
                         T.reads(A[tx, i, j])
@@ -633,7 +633,7 @@ def nested_pipeline_prefetch_inner(
                     with T.sblock():
                         T.reads(A_shared[tx, 0, j])
                         T.writes(C[tx, i, j])
-                        B = T.alloc_buffer((16, 1, 1), dtype="float32", scope="shared")
+                        B = T.sblock_alloc_buffer((16, 1, 1), dtype="float32", scope="shared")
                         with T.sblock():
                             T.reads(A_shared[tx, i, j])
                             T.writes(B[tx, i, 0])
@@ -652,8 +652,8 @@ def transformed_nested_pipeline_prefetch_inner(
         with T.sblock():
             T.reads([A[tx, 0:16, 0:16]])
             T.writes([C[tx, 0:16, 0:16]])
-            A_shared = T.alloc_buffer([2, 16, 1, 16], dtype="float32", scope="shared")
-            B = T.alloc_buffer([2, 16, 1, 1], dtype="float32", scope="shared")
+            A_shared = T.sblock_alloc_buffer([2, 16, 1, 16], dtype="float32", scope="shared")
+            B = T.sblock_alloc_buffer([2, 16, 1, 1], dtype="float32", scope="shared")
             with T.sblock():
                 T.reads([A[tx, 0, 0:16], A_shared[0, tx, 0, 0]])
                 T.writes([A_shared[0, tx, 0, 0:16], B[0, tx, 0, 0]])
@@ -740,8 +740,8 @@ def nested_pipeline_interleaving(
             with T.sblock():
                 T.reads(A[tx, i, 0:16])
                 T.writes(C[tx, i, 0:16])
-                A_shared = T.alloc_buffer((16, 1, 16), dtype="float32", scope="shared")
-                A_local = T.alloc_buffer((1, 1, 16), dtype="float32", scope="local")
+                A_shared = T.sblock_alloc_buffer((16, 1, 16), dtype="float32", scope="shared")
+                A_local = T.sblock_alloc_buffer((1, 1, 16), dtype="float32", scope="local")
                 for j in T.serial(0, 16):
                     with T.sblock():
                         T.reads(A[tx, i, j])
@@ -763,7 +763,7 @@ def nested_pipeline_interleaving(
                     with T.sblock():
                         T.reads(A_local[0, 0, j])
                         T.writes(C[tx, i, j])
-                        B = T.alloc_buffer((16, 1, 1), dtype="float32", scope="shared")
+                        B = T.sblock_alloc_buffer((16, 1, 1), dtype="float32", scope="shared")
                         with T.sblock():
                             T.reads(A_local[tx, i, j])
                             T.writes(B[tx, i, 0])
@@ -782,9 +782,9 @@ def transformed_nested_pipeline_interleaving(
         with T.sblock():
             T.reads([A[tx, 0:16, 0:16]])
             T.writes([C[tx, 0:16, 0:16]])
-            A_shared = T.alloc_buffer([16, 1, 16], dtype="float32", scope="shared")
-            A_local = T.alloc_buffer([1, 1, 16], dtype="float32", scope="local")
-            B = T.alloc_buffer([2, 16, 1, 1], dtype="float32", scope="shared")
+            A_shared = T.sblock_alloc_buffer([16, 1, 16], dtype="float32", scope="shared")
+            A_local = T.sblock_alloc_buffer([1, 1, 16], dtype="float32", scope="local")
+            B = T.sblock_alloc_buffer([2, 16, 1, 1], dtype="float32", scope="shared")
             with T.sblock():
                 T.reads([A[tx, 0, 0:16], A_shared[tx, 0, 0:16], A_local[tx, 0, 0]])
                 T.writes([A_shared[tx, 0, 0:16], A_local[0, 0, 0:16], B[0, tx, 0, 0]])
@@ -899,8 +899,8 @@ def nested_pipeline_double_buffer(
             with T.sblock():
                 T.reads(A[tx, i, 0:16])
                 T.writes(C[tx, i, 0:16])
-                A_shared = T.alloc_buffer((16, 1, 16), dtype="float32", scope="shared")
-                A_local = T.alloc_buffer((1, 1, 16), dtype="float32", scope="local")
+                A_shared = T.sblock_alloc_buffer((16, 1, 16), dtype="float32", scope="shared")
+                A_local = T.sblock_alloc_buffer((1, 1, 16), dtype="float32", scope="local")
                 for j in T.serial(0, 16):
                     with T.sblock():
                         T.reads(A[tx, i, j])
@@ -923,7 +923,7 @@ def nested_pipeline_double_buffer(
                     with T.sblock():
                         T.reads(A_local[0, 0, j])
                         T.writes(C[tx, i, j])
-                        B = T.alloc_buffer((16, 1, 1), dtype="float32", scope="shared")
+                        B = T.sblock_alloc_buffer((16, 1, 1), dtype="float32", scope="shared")
                         with T.sblock():
                             T.reads(A_local[tx, i, j])
                             T.writes(B[tx, i, 0])
@@ -942,9 +942,9 @@ def transformed_nested_pipeline_double_buffer(
         with T.sblock():
             T.reads([A[tx, 0:16, 0:16]])
             T.writes([C[tx, 0:16, 0:16]])
-            A_shared = T.alloc_buffer([16, 1, 16], dtype="float32", scope="shared")
-            A_local = T.alloc_buffer([2, 1, 1, 16], dtype="float32", scope="local")
-            B = T.alloc_buffer([2, 16, 1, 1], dtype="float32", scope="shared")
+            A_shared = T.sblock_alloc_buffer([16, 1, 16], dtype="float32", scope="shared")
+            A_local = T.sblock_alloc_buffer([2, 1, 1, 16], dtype="float32", scope="local")
+            B = T.sblock_alloc_buffer([2, 16, 1, 1], dtype="float32", scope="shared")
             with T.sblock():
                 T.reads([A[tx, 0, 0:16], A_shared[tx, 0, 0:16], A_local[0, tx, 0, 0]])
                 T.writes([A_shared[tx, 0, 0:16], A_local[0, 0, 0, 0:16], B[0, tx, 0, 0]])
@@ -1063,8 +1063,8 @@ def simple_compute_incorrect_reorder(
             with T.sblock():
                 T.reads(A[tx, i])
                 T.writes(D[tx, i])
-                B = T.alloc_buffer((16, 1), dtype="float32", scope="shared")
-                C = T.alloc_buffer((16, 1), dtype="float32", scope="shared")
+                B = T.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
+                C = T.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
                 with T.sblock():
                     T.reads(A[tx, i])
                     T.writes(B[tx, 0])
@@ -1095,8 +1095,8 @@ def simple_compute_conflicting_order(
             with T.sblock():
                 T.reads(A[tx, i])
                 T.writes(D[tx, i])
-                B = T.alloc_buffer((16, 1), dtype="float32", scope="shared")
-                C = T.alloc_buffer((16, 1), dtype="float32", scope="shared")
+                B = T.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
+                C = T.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
                 with T.sblock():
                     T.reads(A[tx, i])
                     T.writes(B[tx, 0])
@@ -1120,7 +1120,7 @@ def simple_compute_missing_annotation(
             with T.sblock():
                 T.reads(A[tx, i])
                 T.writes(C[tx, i])
-                B = T.alloc_buffer((16, 1), dtype="float32", scope="shared")
+                B = T.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
                 with T.sblock():
                     T.reads(A[tx, i])
                     T.writes(B[tx, 0])
@@ -1197,7 +1197,7 @@ def test_simple_compute_async():
             with T.sblock():
                 T.reads(A[tx, 0:16])
                 T.writes(C[tx, 0:16])
-                B = T.alloc_buffer([2, 16, 1], dtype="float32", scope="shared")
+                B = T.sblock_alloc_buffer([2, 16, 1], dtype="float32", scope="shared")
                 with T.sblock():
                     T.reads(A[tx, 0])
                     T.writes(B[T.FloorMod(0, 2), tx, 0])
@@ -1244,7 +1244,7 @@ def test_simple_compute_async():
             with T.sblock():
                 T.reads(A[tx, 0:16])
                 T.writes(C[tx, 0:16])
-                B = T.alloc_buffer([4, 16, 1], dtype="float32", scope="shared")
+                B = T.sblock_alloc_buffer([4, 16, 1], dtype="float32", scope="shared")
                 with T.sblock():
                     T.reads(A[tx, 0:3])
                     T.writes(B[0:3, tx, 0])
@@ -1301,8 +1301,8 @@ def test_async_producer_interleaving():
                 with T.sblock("compute"):
                     T.reads(A[tx, i])
                     T.writes(C[tx, i])
-                    A_shared = T.alloc_buffer((16, 1), dtype="float32", scope="shared")
-                    B_shared = T.alloc_buffer((16, 1), dtype="float32", scope="shared")
+                    A_shared = T.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
+                    B_shared = T.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
                     with T.sblock():
                         T.reads(A[tx, i])
                         T.writes(A_shared[tx, 0])
@@ -1335,8 +1335,8 @@ def test_async_producer_interleaving():
             with T.sblock():
                 T.reads(A[tx, 0:16], B[tx, 0:16])
                 T.writes(C[tx, 0:16])
-                A_shared = T.alloc_buffer([4, 16, 1], dtype="float32", scope="shared")
-                B_shared = T.alloc_buffer([4, 16, 1], dtype="float32", scope="shared")
+                A_shared = T.sblock_alloc_buffer([4, 16, 1], dtype="float32", scope="shared")
+                B_shared = T.sblock_alloc_buffer([4, 16, 1], dtype="float32", scope="shared")
                 with T.sblock():
                     T.reads(A[tx, 0:3], B[tx, 0:3])
                     T.writes(A_shared[0:3, tx, 0], B_shared[0:3, tx, 0])
@@ -1411,8 +1411,8 @@ def test_three_stage_compute_two_stage_async():
             with T.sblock():
                 T.reads(A[tx, 0:16])
                 T.writes(D[tx, 0:16])
-                B = T.alloc_buffer([2, 16, 1], dtype="float32", scope="shared")
-                C = T.alloc_buffer([2, 16, 1], dtype="float32", scope="shared")
+                B = T.sblock_alloc_buffer([2, 16, 1], dtype="float32", scope="shared")
+                C = T.sblock_alloc_buffer([2, 16, 1], dtype="float32", scope="shared")
                 with T.sblock():
                     T.reads(A[tx, 0:2], B[0:2, tx, 0])
                     T.writes(B[0:2, tx, 0], C[0:2, tx, 0])
@@ -1647,9 +1647,9 @@ def test_less_loop_than_num_stage():
             },
         ):
             with T.sblock("compute"):
-                B = T.alloc_buffer((1), dtype="float32", scope="shared")
-                C = T.alloc_buffer((1), dtype="float32", scope="shared")
-                D = T.alloc_buffer((1), dtype="float32", scope="shared")
+                B = T.sblock_alloc_buffer((1), dtype="float32", scope="shared")
+                C = T.sblock_alloc_buffer((1), dtype="float32", scope="shared")
+                D = T.sblock_alloc_buffer((1), dtype="float32", scope="shared")
                 with T.sblock():
                     B[0] = A[i] * T.float32(2)
                 with T.sblock():
@@ -1667,9 +1667,9 @@ def test_less_loop_than_num_stage():
             with T.sblock(""):
                 T.reads(A[0:3])
                 T.writes(E[0:2])
-                B = T.alloc_buffer((2, 1), scope="shared")
-                C = T.alloc_buffer((2, 1), scope="shared")
-                D = T.alloc_buffer((2, 1), scope="shared")
+                B = T.sblock_alloc_buffer((2, 1), scope="shared")
+                C = T.sblock_alloc_buffer((2, 1), scope="shared")
+                D = T.sblock_alloc_buffer((2, 1), scope="shared")
                 with T.sblock(""):
                     T.reads(A[0:3], B[0:2, 0], C[0:2, 0])
                     T.writes(B[0:2, 0], C[0:2, 0], D[0:2, 0])
@@ -1725,9 +1725,9 @@ def test_less_loop_than_num_stage_dynamic():
             },
         ):
             with T.sblock("compute"):
-                B = T.alloc_buffer((1), dtype="float32", scope="shared")
-                C = T.alloc_buffer((1), dtype="float32", scope="shared")
-                D = T.alloc_buffer((1), dtype="float32", scope="shared")
+                B = T.sblock_alloc_buffer((1), dtype="float32", scope="shared")
+                C = T.sblock_alloc_buffer((1), dtype="float32", scope="shared")
+                D = T.sblock_alloc_buffer((1), dtype="float32", scope="shared")
                 with T.sblock():
                     B[0] = A[i] * T.float32(2)
                 with T.sblock():
@@ -1748,9 +1748,9 @@ def test_less_loop_than_num_stage_dynamic():
             with T.sblock(""):
                 T.reads(A[0 : T.max(3, K)])
                 T.writes(E[T.min(0, K - 3) : T.min(0, K - 3) + T.max(K, 3)])
-                B = T.alloc_buffer((2, 1), scope="shared")
-                C = T.alloc_buffer((2, 1), scope="shared")
-                D = T.alloc_buffer((2, 1), scope="shared")
+                B = T.sblock_alloc_buffer((2, 1), scope="shared")
+                C = T.sblock_alloc_buffer((2, 1), scope="shared")
+                D = T.sblock_alloc_buffer((2, 1), scope="shared")
                 with T.sblock(""):
                     T.reads(A[0:3], B[0:2, 0], C[0:2, 0])
                     T.writes(B[0:2, 0], C[0:2, 0], D[0:2, 0])

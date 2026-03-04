@@ -75,19 +75,15 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       return stmt;
     }
   }
-  Stmt VisitStmt_(const AllocateNode* op) final {
-    auto node = Downcast<Allocate>(StmtExprMutator::VisitStmt_(op));
+  Stmt VisitStmt_(const AllocBufferNode* op) final {
+    auto node = Downcast<AllocBuffer>(StmtExprMutator::VisitStmt_(op));
 
-    if (auto it = alloc_remap_.find(node->buffer_var.get()); it != alloc_remap_.end()) {
+    if (auto it = alloc_remap_.find(node->buffer->data.get()); it != alloc_remap_.end()) {
       Buffer buf = Downcast<Buffer>(it->second);
       auto write_ptr = node.CopyOnWrite();
-      write_ptr->buffer_var = buf->data;
-      write_ptr->dtype = buf->dtype;
-      write_ptr->extents = buf->shape;
-      write_ptr->condition = const_true(buf->dtype.lanes());
+      write_ptr->buffer = buf;
 
       if (buf.scope() == "shared") {
-        // Use volatile access to shared buffer.
         write_ptr->body = AttrStmt(buf->data, tir::attr::volatile_scope, 1, write_ptr->body);
       }
     }
@@ -380,12 +376,12 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       // Write back allreduce results and update existing allocations.
       for (size_t i = 0; i < size; ++i) {
         TVM_FFI_ICHECK(!load_remap_.count(buffers[i]->data.get()));
-        PrimExpr pred = const_true(types[i].lanes());
         Buffer buf = Downcast<BufferLoad>(reduce_results[i])->buffer;
         TVM_FFI_ICHECK_EQ(reduce_results[i]->dtype, types[i]);
         load_remap_[buffers[i]->data.get()] = reduce_results[i];
 
-        auto node = Allocate(buf->data, types[i], buf->shape, pred, Evaluate(0));
+        // The AllocBuffer doesn't need to be emitted here since alloc_remap_
+        // will cause the existing allocation to be rewritten in VisitStmt_(AllocBufferNode*).
         alloc_remap_[buffers[i]->data.get()] = buf;
         var_remap_[buffers[i]->data.get()] = buf->data;
         buf_remap_[buffers[i].get()] = buf;
@@ -428,8 +424,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     // Fix all local allocations as all statements are built.
     Stmt body = SeqStmt::Flatten(seq);
     for (Buffer buf : new_alloc_bufs) {
-      body = DeclBuffer(buf, body);
-      body = Allocate(buf->data, buf->dtype, buf->shape, const_true(buf->dtype.lanes()), body);
+      body = AllocBuffer(buf, body);
     }
 
     return body;

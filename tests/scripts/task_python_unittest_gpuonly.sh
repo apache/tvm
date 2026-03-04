@@ -21,7 +21,7 @@ set -euxo pipefail
 export PYTEST_ADDOPTS="-m gpu ${PYTEST_ADDOPTS:-}"
 
 # Test most of the enabled runtimes here.
-# TODO: disabled opencl tests due to segmentation fault. need to re-land "opencl" and "{"kind":"opencl","device":"mali"}"
+# TODO: disabled opencl tests due to segmentation fault.
 export TVM_TEST_TARGETS='cuda;metal;rocm;nvptx'
 export TVM_UNITTEST_TESTSUITE_NAME=python-unittest-gpu
 
@@ -35,15 +35,3 @@ export TVM_UNITTEST_TESTSUITE_NAME=python-codegen-vulkan
 source tests/scripts/setup-pytest-env.sh
 
 run_pytest ${TVM_UNITTEST_TESTSUITE_NAME}-1 tests/python/codegen/test_target_codegen_vulkan.py
-
-# TODO: disabled opencl tests due to segmentation fault
-exit 0
-
-# Adreno : A comprehensive Texture tests on Nvidia GPU and clml codegen tests.
-export PYTEST_ADDOPTS=""
-export TVM_TEST_TARGETS="opencl"
-export TVM_UNITTEST_TESTSUITE_NAME=python-codegen-clml-texture
-
-source tests/scripts/setup-pytest-env.sh
-
-run_pytest ${TVM_UNITTEST_TESTSUITE_NAME}-1 tests/python/relax/texture/

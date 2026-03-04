@@ -105,7 +105,7 @@ class TIRVisitorWithPath
   void VisitStmt_(const LetStmtNode* op, ffi::reflection::AccessPath path) override;
   void VisitStmt_(const ForNode* op, ffi::reflection::AccessPath path) override;
   void VisitStmt_(const WhileNode* op, ffi::reflection::AccessPath path) override;
-  void VisitStmt_(const AllocateNode* op, ffi::reflection::AccessPath path) override;
+  void VisitStmt_(const AllocBufferNode* op, ffi::reflection::AccessPath path) override;
   void VisitStmt_(const DeclBufferNode* op, ffi::reflection::AccessPath path) override;
   void VisitStmt_(const BufferStoreNode* op, ffi::reflection::AccessPath path) override;
   void VisitStmt_(const AssertStmtNode* op, ffi::reflection::AccessPath path) override;

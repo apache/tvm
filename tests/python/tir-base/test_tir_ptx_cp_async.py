@@ -31,7 +31,7 @@ def ptx_cp_async(A: T.Buffer((32, 128), "float16"), B: T.Buffer((32, 128), "floa
     T.launch_thread(bx, 1)
     T.launch_thread(tx, 32)
     with T.sblock():
-        A_shared = T.alloc_buffer([32, 128], "float16", scope="shared")
+        A_shared = T.sblock_alloc_buffer([32, 128], "float16", scope="shared")
         T.reads(A[0:32, 0:128])
         T.writes(B[0:32, 0:128])
 
@@ -74,7 +74,7 @@ def ptx_cp_async_barrier(
     T.launch_thread(bx, 1)
     T.launch_thread(tx, 32)
     with T.sblock():
-        A_shared = T.alloc_buffer([32, 128], "float16", scope="shared")
+        A_shared = T.sblock_alloc_buffer([32, 128], "float16", scope="shared")
 
         T.reads(A[0:32, 0:128])
         T.writes(B[0:32, 0:128])
@@ -119,7 +119,7 @@ def ptx_cp_async_bulk(A: T.Buffer((32, 128), "float16"), B: T.Buffer((32, 128), 
     T.launch_thread(bx, 1)
     T.launch_thread(tx, 32)
     with T.sblock():
-        A_shared = T.alloc_buffer([32, 128], "float16", scope="shared")
+        A_shared = T.sblock_alloc_buffer([32, 128], "float16", scope="shared")
 
         T.reads(A[0:32, 0:128])
         T.writes(B[0:32, 0:128])
