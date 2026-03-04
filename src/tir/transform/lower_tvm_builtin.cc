@@ -23,6 +23,7 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/scope_stack.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
@@ -180,7 +181,10 @@ class BuiltinLower : public StmtExprMutator {
       }
     }
 
-    stmt = this->VisitStmt(stmt);
+    stmt = scope_.WithNewScope([&]() -> Stmt {
+      Stmt visited = this->VisitStmt(stmt);
+      return AppendPendingFrees(visited);
+    });
 
     TVM_FFI_ICHECK(!alloca_scope_.empty());
     alloca_scope_.pop_back();
@@ -220,22 +224,6 @@ class BuiltinLower : public StmtExprMutator {
     }
   }
 
-  Stmt VisitStmt_(const SeqStmtNode* op) final {
-    Stmt result = StmtExprMutator::VisitStmt_(op);
-    if (!pending_nd_frees_.empty()) {
-      const auto* seq = result.as<SeqStmtNode>();
-      if (seq) {
-        ffi::Array<Stmt> new_seq(seq->seq.begin(), seq->seq.end());
-        for (const auto& free_stmt : pending_nd_frees_) {
-          new_seq.push_back(free_stmt);
-        }
-        pending_nd_frees_.clear();
-        return SeqStmt(new_seq);
-      }
-    }
-    return result;
-  }
-
   Stmt VisitStmt_(const BindNode* op) final {
     if (const CallNode* call = op->value.as<CallNode>()) {
       if (call->op.same_as(builtin::nd_mem_alloc_with_scope())) {
@@ -247,7 +235,17 @@ class BuiltinLower : public StmtExprMutator {
 
   Stmt VisitStmt_(const AllocBufferNode* op) {
     // Lower AllocBuffer to device allocate when needed.
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
+    // Visit body in a new scope so nd_mem_alloc frees are scoped to the body.
+    Stmt stmt = scope_.WithNewScope([&]() -> Stmt {
+      Stmt visited = StmtExprMutator::VisitStmt_(op);
+      const auto* alloc = visited.as<AllocBufferNode>();
+      if (alloc && !scope_.Current().pending_frees.empty()) {
+        auto n = CopyOnWrite(alloc);
+        n->body = AppendPendingFrees(alloc->body);
+        return Stmt(n);
+      }
+      return visited;
+    });
     op = stmt.as<AllocBufferNode>();
     int64_t nbytes = GetVectorBytes(op->buffer->dtype);
     if (op->annotations.count(transform::kDisableLowerTVMBuiltin)) {
@@ -303,17 +301,33 @@ class BuiltinLower : public StmtExprMutator {
     if (op->attr_key == attr::device_id) {
       auto cache = device_id_;
       device_id_ = op->value;
-      Stmt out = this->VisitStmt(op->body);
+      Stmt out = scope_.WithNewScope([&]() -> Stmt {
+        Stmt body = this->VisitStmt(op->body);
+        return AppendPendingFrees(body);
+      });
       device_id_ = cache;
       return out;
     } else if (op->attr_key == attr::device_type) {
       auto cache = device_type_;
       device_type_ = op->value;
-      Stmt out = this->VisitStmt(op->body);
+      Stmt out = scope_.WithNewScope([&]() -> Stmt {
+        Stmt body = this->VisitStmt(op->body);
+        return AppendPendingFrees(body);
+      });
       device_type_ = cache;
       return out;
     } else {
-      return StmtExprMutator::VisitStmt_(op);
+      return scope_.WithNewScope([&]() -> Stmt {
+        Stmt visited = StmtExprMutator::VisitStmt_(op);
+        if (!scope_.Current().pending_frees.empty()) {
+          const auto* attr = visited.as<AttrStmtNode>();
+          if (attr) {
+            return AttrStmt(attr->node, attr->attr_key, attr->value, AppendPendingFrees(attr->body),
+                            attr->span);
+          }
+        }
+        return visited;
+      });
     }
   }
   Stmt VisitStmt_(const ForNode* op) final {
@@ -324,7 +338,10 @@ class BuiltinLower : public StmtExprMutator {
     if (op->kind == ForKind::kParallel) {
       body = this->VisitBodyAndRealizeAlloca(op->body);
     } else {
-      body = this->VisitStmt(op->body);
+      body = scope_.WithNewScope([&]() -> Stmt {
+        Stmt visited = this->VisitStmt(op->body);
+        return AppendPendingFrees(visited);
+      });
     }
 
     if (min.same_as(op->min) && extent.same_as(op->extent) && body.same_as(op->body)) {
@@ -336,6 +353,27 @@ class BuiltinLower : public StmtExprMutator {
       n->body = std::move(body);
       return Stmt(n);
     }
+  }
+
+  Stmt VisitStmt_(const IfThenElseNode* op) final {
+    PrimExpr condition = this->VisitExpr(op->condition);
+    // Each branch gets its own scope to prevent frees from leaking across branches.
+    Stmt then_case = scope_.WithNewScope([&]() -> Stmt {
+      Stmt visited = this->VisitStmt(op->then_case);
+      return AppendPendingFrees(visited);
+    });
+    ffi::Optional<Stmt> else_case;
+    if (op->else_case) {
+      else_case = scope_.WithNewScope([&]() -> Stmt {
+        Stmt visited = this->VisitStmt(op->else_case.value());
+        return AppendPendingFrees(visited);
+      });
+    }
+    if (condition.same_as(op->condition) && then_case.same_as(op->then_case) &&
+        else_case.same_as(op->else_case)) {
+      return ffi::GetRef<Stmt>(op);
+    }
+    return IfThenElse(condition, then_case, else_case, op->span);
   }
 
   PrimExpr VisitExpr_(const CallNode* op) final {
@@ -644,14 +682,14 @@ class BuiltinLower : public StmtExprMutator {
     Stmt null_check =
         IfThenElse(Call(DataType::Bool(), builtin::isnullptr(), {let->var}), throw_last_error);
 
-    // Construct free_nd call and push to pending frees.
-    // The enclosing SeqStmt handler will append these after the body.
+    // Construct free_nd call and register in current scope.
+    // The free will be emitted on scope exit, matching the old LetStmt body semantics.
     PrimExpr storage_scope = call->args[0];
     Call free_op = Call(DataType::Int(32), builtin::tvm_call_packed(),
                         {GetDeviceMethodName("free_nd"), device_type_.value(), device_id_.value(),
                          storage_scope, let->var});
     Stmt free_stmt = IfThenElse(free_op != make_zero(DataType::Int(32)), throw_last_error);
-    pending_nd_frees_.push_back(free_stmt);
+    scope_.Current().pending_frees.push_back(free_stmt);
 
     return SeqStmt({Bind(let->var, call_packed), null_check});
   }
@@ -668,6 +706,32 @@ class BuiltinLower : public StmtExprMutator {
     return false;
   }
 
+  /*!
+   * \brief Scope level for tracking nd_mem_alloc_with_scope deallocations.
+   *
+   * When a Bind allocates via nd_mem_alloc_with_scope, the corresponding
+   * free_nd stmt is pushed to the current scope's pending_frees. Body-carrying
+   * stmts (For, IfThenElse, AllocBuffer, AttrStmt) create new scopes via
+   * WithNewScope. On scope exit, pending_frees are appended after the body,
+   * matching the old LetStmt body semantics structurally.
+   */
+  struct ScopeLevel {
+    std::vector<Stmt> pending_frees;
+  };
+
+  /*! \brief Emit any pending frees from the current scope after the given body stmt. */
+  Stmt AppendPendingFrees(Stmt body) {
+    auto& frees = scope_.Current().pending_frees;
+    if (frees.empty()) return body;
+    ffi::Array<Stmt> stmts;
+    stmts.push_back(body);
+    for (const auto& free_stmt : frees) {
+      stmts.push_back(free_stmt);
+    }
+    frees.clear();
+    return SeqStmt::Flatten(stmts);
+  }
+
   // The prepration sequence to be emitted before the current statement.
   std::vector<std::vector<Stmt>> prep_seq_stack_;
   ffi::Optional<PrimExpr> device_type_{std::nullopt};
@@ -677,8 +741,8 @@ class BuiltinLower : public StmtExprMutator {
 
   // Record all stack frames.
   std::vector<AllocaScope> alloca_scope_;
-  // Pending free_nd stmts to be appended at the end of the enclosing SeqStmt.
-  std::vector<Stmt> pending_nd_frees_;
+  // Scope stack for nd_mem_alloc_with_scope free tracking.
+  ScopeStack<ScopeLevel> scope_;
 };
 
 namespace transform {
