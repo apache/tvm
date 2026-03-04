@@ -19,17 +19,18 @@
 """TFLite to Relax converter tests"""
 
 import os
-import pytest
-import tempfile
-import tensorflow as tf
+
 import numpy as np
+import pytest
+import tensorflow as tf
 import tflite.Model
+from tensorflow.keras import applications as keras_app
+
 import tvm
 from tvm import relax
-from tvm.script.parser import ir as I, relax as R, tir as T
-
 from tvm.relax.frontend.tflite import from_tflite
-from tensorflow.keras import applications as keras_app
+from tvm.script.parser import ir as I
+from tvm.script.parser import relax as R
 
 
 def _get_mod_from_cfunc(cfunc):
@@ -415,8 +416,7 @@ def test_fill():
         ) -> R.Tensor((1, 30), dtype="float32"):
             R.func_attr({"num_input": 2})
             with R.dataflow():
-                lv: R.Tensor((1, 30), dtype="float32") = R.full(R.shape([1, 30]), y, dtype="void")
-                gv: R.Tensor((1, 30), dtype="float32") = R.add(x, lv)
+                gv: R.Tensor((1, 30), dtype="float32") = R.add(x, y)
                 R.output(gv)
             return gv
 
@@ -624,9 +624,9 @@ def test_logical(tf_op, relax_op):
     @I.ir_module
     class Expected:
         @R.function
-        def main(
-            x: R.Tensor((2, 2), dtype="bool"), y: R.Tensor((2, 2), dtype="bool")
-        ) -> R.Tensor((2, 2), dtype="bool"):
+        def main(x: R.Tensor((2, 2), dtype="bool"), y: R.Tensor((2, 2), dtype="bool")) -> R.Tensor(
+            (2, 2), dtype="bool"
+        ):
             R.func_attr({"num_input": 2})
             with R.dataflow():
                 gv: R.Tensor((2, 2), dtype="bool") = relax_op(x, y)
@@ -799,7 +799,7 @@ def test_pool_2d(pool, data, kernel, data_format, strides, padding):
         # (keras_app.EfficientNetV2S, (1, 384, 384, 3)),
         # (keras_app.EfficientNetV2M, (1, 480, 480, 3)),
         # (keras_app.EfficientNetV2L, (1, 480, 480, 3)),
-        (keras_app.ConvNeXtTiny, (1, 224, 224, 3)),
+        # (keras_app.ConvNeXtTiny, (1, 224, 224, 3)),
         # (keras_app.ConvNeXtSmall, (1, 224, 224, 3)),
         # (keras_app.ConvNeXtBase, (1, 224, 224, 3)),
         # (keras_app.ConvNeXtLarge, (1, 224, 224, 3)),

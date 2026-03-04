@@ -65,7 +65,7 @@ class FlexBufferType(IntEnum):
     FBT_VECTOR_BOOL = 36  # To Allow the same type of conversion of type to vector type
 
 
-class FlexBufferDecoder(object):
+class FlexBufferDecoder:
     """
     This implements partial flexbuffer deserialization to be able
     to read custom options. It is not intended to be a general
