@@ -689,9 +689,12 @@ class BuiltinLower : public StmtExprMutator {
                         {GetDeviceMethodName("free_nd"), device_type_.value(), device_id_.value(),
                          storage_scope, let->var});
     Stmt free_stmt = IfThenElse(free_op != make_zero(DataType::Int(32)), throw_last_error);
+    // Visit the free_stmt so tvm_call_packed builtins inside it get lowered.
+    free_stmt = StmtExprMutator::VisitStmt(free_stmt);
     scope_.Current().pending_frees.push_back(free_stmt);
 
-    return SeqStmt({Bind(let->var, call_packed), null_check});
+    // Re-visit so tvm_call_packed in the Bind value and null_check get lowered.
+    return StmtExprMutator::VisitStmt(SeqStmt({Bind(let->var, call_packed), null_check}));
   }
 
  private:

@@ -143,7 +143,14 @@ void AssertFrameNode::ExitWithScope() {
 
 void BindFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
-  AddToParent(tvm::tir::SeqStmt({tvm::tir::Bind(var, value), AsStmt(stmts)}));
+  if (stmts.empty()) {
+    AddToParent(tvm::tir::Bind(var, value));
+  } else {
+    ffi::Array<tvm::tir::Stmt> combined;
+    combined.push_back(tvm::tir::Bind(var, value));
+    for (const auto& s : stmts) combined.push_back(s);
+    AddToParent(tvm::tir::SeqStmt::Flatten(combined));
+  }
 }
 
 void LaunchThreadFrameNode::ExitWithScope() {

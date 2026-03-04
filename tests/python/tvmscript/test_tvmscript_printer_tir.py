@@ -256,13 +256,13 @@ def test_bind():
     with IRBuilder() as ib:
         with T.Bind(T.float32(10)) as v:
             ib.name("v", v)
-            T.evaluate(0)
+            T.evaluate(1)
     obj = ib.get()
     _assert_print(
         obj,
         """
 v: T.float32 = T.float32(10.0)
-T.evaluate(0)
+T.evaluate(1)
 """,
     )
 
