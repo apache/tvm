@@ -68,37 +68,38 @@ class Stmt : public ObjectRef {
 };
 
 /*!
- * \brief Let binding, bind var to value, then run body.
+ * \brief Bind a variable to a value in the enclosing scope.
+ *
+ * BindNode has no body field. The bound variable is visible
+ * in all subsequent statements within the same enclosing scope (SeqStmt,
+ * ForNode.body, etc.). This enables flat (non-nested) IR sequences.
  */
-class LetStmtNode : public StmtNode {
+class BindNode : public StmtNode {
  public:
-  /*! \brief The variable. */
+  /*! \brief The variable being bound. */
   Var var;
-  /*! \brief The value to be bound. */
+  /*! \brief The value to bind to the variable. */
   PrimExpr value;
-  /*! \brief The body block. */
-  Stmt body;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<LetStmtNode>()
-        .def_ro("var", &LetStmtNode::var, refl::AttachFieldFlag::SEqHashDef())
-        .def_ro("value", &LetStmtNode::value)
-        .def_ro("body", &LetStmtNode::body);
+    refl::ObjectDef<BindNode>()
+        .def_ro("var", &BindNode::var, refl::AttachFieldFlag::SEqHashDef())
+        .def_ro("value", &BindNode::value);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.LetStmt", LetStmtNode, StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.Bind", BindNode, StmtNode);
 };
 
 /*!
- * \brief Managed reference to LetStmtNode.
- * \sa LetStmtNode
+ * \brief Managed reference to BindNode.
+ * \sa BindNode
  */
-class LetStmt : public Stmt {
+class Bind : public Stmt {
  public:
-  TVM_DLL LetStmt(Var var, PrimExpr value, Stmt body, Span span = Span());
+  TVM_DLL Bind(Var var, PrimExpr value, Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(LetStmt, Stmt, LetStmtNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(LetStmtNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Bind, Stmt, BindNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(BindNode);
 };
 
 /*!
@@ -978,6 +979,7 @@ inline const char* ForKind2String(ForKind t) {
       return "thread_binding";
   }
   TVM_FFI_THROW(InternalError) << "Unknown ForKind" << t;
+  TVM_FFI_UNREACHABLE();
 }
 
 }  // namespace tir

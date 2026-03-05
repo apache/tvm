@@ -25,6 +25,7 @@
 #define TVM_TIR_IR_TIR_VISITOR_WITH_PATH_H_
 
 #include <tvm/ir/module.h>
+#include <tvm/ir/scope_stack.h>
 #include <tvm/tir/expr_functor.h>
 #include <tvm/tir/stmt_functor.h>
 
@@ -106,9 +107,9 @@ class TIRVisitorWithPath
   }
 
   using StmtFunctor::VisitStmt;
+  void VisitStmt_(const BindNode* op, ffi::reflection::AccessPath path) override;
   void VisitStmt_(const AttrStmtNode* op, ffi::reflection::AccessPath path) override;
   void VisitStmt_(const IfThenElseNode* op, ffi::reflection::AccessPath path) override;
-  void VisitStmt_(const LetStmtNode* op, ffi::reflection::AccessPath path) override;
   void VisitStmt_(const ForNode* op, ffi::reflection::AccessPath path) override;
   void VisitStmt_(const WhileNode* op, ffi::reflection::AccessPath path) override;
   void VisitStmt_(const AllocBufferNode* op, ffi::reflection::AccessPath path) override;
@@ -249,6 +250,14 @@ class TIRVisitorWithPath
   }
 
   std::unordered_set<ObjectRef, ObjectPtrHash, ObjectPtrEqual> in_scope_definitions_;
+
+  /*! \brief Scope stack for Bind variable definitions.
+   *
+   * Body-carrying statements (For, IfThenElse, etc.) push a new scope.
+   * BindNode pushes its WithDef into the current scope.  When the
+   * scope exits, all Bind defs are cleaned up automatically.
+   */
+  ScopeStack<std::vector<DefContext<Var>>> bind_scope_;
 };
 
 }  // namespace tir

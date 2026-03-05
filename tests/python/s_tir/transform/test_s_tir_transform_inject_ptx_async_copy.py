@@ -243,6 +243,10 @@ def test_inject_async_copy_barrier():
         tvm.testing.assert_allclose(B_nd.numpy(), A_np)
 
 
+# Note: the expected output contains a dead CSE variable `cse_v1 = (i < 12)`.
+# CSE extracts (i < 12) before inject_ptx_async_copy runs, but the latter
+# replaces the original IfThenElse guards with new cast(int32, i < 12)
+# expressions for predicated async copies, leaving cse_v1 unused.
 expected_cuda_script = r"""#include <cuda.h>
 __forceinline__ __device__ unsigned int
 cast_smem_ptr_to_int(const void* const smem_ptr)
@@ -335,7 +339,7 @@ __asm__ __volatile__("cp.async.commit_group;");
 
   {
     unsigned int addr = cast_smem_ptr_to_int(A_shared + ((((i + 3) & 3) * 16) + ((int)threadIdx.x)));
-    int pred_guard = (int)cse_v1;
+    int pred_guard = (int)(i < 12);
     __asm__ __volatile__(
         "{  .reg .pred p;"
         "  setp.ne.b32 p, %0, 0;"
@@ -358,7 +362,7 @@ __asm__ __volatile__("cp.async.wait_group 5;");
 
   {
     unsigned int addr = cast_smem_ptr_to_int(B_shared + ((((i + 3) & 3) * 16) + ((int)threadIdx.x)));
-    int pred_guard = (int)cse_v1;
+    int pred_guard = (int)(i < 12);
     __asm__ __volatile__(
         "{  .reg .pred p;"
         "  setp.ne.b32 p, %0, 0;"

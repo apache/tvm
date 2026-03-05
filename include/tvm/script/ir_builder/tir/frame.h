@@ -342,48 +342,6 @@ class AssertFrame : public TIRFrame {
 };
 
 /*!
- * \brief A frame represents the let binding expression, which binds a var.
- *
- * \sa LetFrameNode
- */
-class LetFrameNode : public TIRFrameNode {
- public:
-  /*! \brief The variable we bind to */
-  tvm::tir::Var var;
-  /*! \brief The value we bind var to */
-  PrimExpr value;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<LetFrameNode>()
-        .def_ro("var", &LetFrameNode::var)
-        .def_ro("value", &LetFrameNode::value);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.LetFrame", LetFrameNode, TIRFrameNode);
-
- public:
-  /*!
-   * \brief The method called when exiting RAII scope.
-   * \sa tvm::support::With
-   */
-  void ExitWithScope() final;
-};
-
-/*!
- * \brief Managed reference to LetFrameNode.
- *
- * \sa LetFrameNode
- */
-class LetFrame : public TIRFrame {
- public:
-  explicit LetFrame(ObjectPtr<LetFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
-    TVM_FFI_ICHECK(data != nullptr);
-    data_ = std::move(data);
-  }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(LetFrame, TIRFrame, LetFrameNode);
-};
-
-/*!
  * \brief The LaunchThreadFrameNode.
  * \note It is used only inside a PrimFunc.
  */

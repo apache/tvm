@@ -2047,7 +2047,7 @@ void CodeGenLLVM::VisitStmt_(const AssertStmtNode* op) {
   // Constraint scoping is handled by ScopeStack in analysis passes.
 }
 
-void CodeGenLLVM::VisitStmt_(const LetStmtNode* op) {
+void CodeGenLLVM::VisitStmt_(const BindNode* op) {
   EmitDebugLocation(op);
   const VarNode* v = op->var.get();
   TVM_FFI_ICHECK(!var_map_.count(v));
@@ -2081,7 +2081,6 @@ void CodeGenLLVM::VisitStmt_(const LetStmtNode* op) {
                                         alloc_storage_info_[v].alignment);
   }
   AddDebugInformation(value, op->var);
-  this->VisitStmt(op->body);
 }
 
 void CodeGenLLVM::VisitStmt_(const SeqStmtNode* op) {

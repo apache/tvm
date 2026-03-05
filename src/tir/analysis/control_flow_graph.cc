@@ -332,7 +332,7 @@ class ControlFlowGraphBuilder final : public IRVisitorWithAnalyzer {
     Parent::VisitExpr_(op);
   }
 
-  void VisitStmt_(const LetStmtNode* op) override {
+  void VisitStmt_(const BindNode* op) override {
     std::optional<BindLetVar> binding;
     if (UsesLoopVar(op->value)) {
       binding.emplace(this, op->var, op->value);
@@ -588,18 +588,17 @@ class ControlFlowGraphBuilder final : public IRVisitorWithAnalyzer {
     BindActiveLoopVar& operator=(BindActiveLoopVar&&) = delete;
   };
 
-  // Internal utility, context manager for tracking a variable binding
+  // Internal utility, context manager for tracking a variable binding.
+  // Under SSA, each variable is bound exactly once, so the maps grow
+  // monotonically and cleanup is unnecessary.  Omitting cleanup also
+  // ensures correctness for flat BindNode (which has no body): the
+  // binding must remain visible to subsequent sibling statements.
   struct BindLetVar {
-    BindLetVar(ControlFlowGraphBuilder* self, Var var, PrimExpr value) : self(self), var(var) {
+    BindLetVar(ControlFlowGraphBuilder* self, Var var, PrimExpr value) {
       self->let_bindings_using_loop_.Set(var, value);
       self->loop_dependent_vars_.insert(var.get());
     }
-    ~BindLetVar() {
-      self->loop_dependent_vars_.erase(var.get());
-      self->let_bindings_using_loop_.erase(var);
-    }
-    ControlFlowGraphBuilder* self;
-    Var var;
+    ~BindLetVar() {}
 
     // Disable default-generated copy/move assignment and constructors
     BindLetVar(const BindLetVar&) = delete;

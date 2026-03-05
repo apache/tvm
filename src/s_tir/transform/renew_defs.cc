@@ -99,7 +99,7 @@ class RenewDefMutator : public StmtExprMutator {
   }
 
  private:
-  STMT_REGENERATE_VAR_DEF(LetStmtNode, var);
+  STMT_REGENERATE_VAR_DEF(BindNode, var);
   STMT_REGENERATE_VAR_DEF(ForNode, loop_var);
 
   // Override VisitBufferDef to create fresh buffer copies at definition sites

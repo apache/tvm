@@ -293,11 +293,11 @@ static const char* kRFactorCrossThreadReductionApplicableBlockDef =
     R"(Definition of a reduction block that is applicable by RFactor and Cross-Thread Reduction:
 1) The block init should be a single BufferStore or a SeqStmt of BufferStores
 2) The buffers initialized in the block init should be all different
-3) The number of consecutive LetStmts in the block body (if any) should equal the number of BufferStores in the block init
-4) The variables of the LetStmts in the block body should be all different
-5) The body of the innermost LetStmt should be a single BufferStore or a SeqStmt of BufferStores
-6) The number of BufferStores under the block body should equal the number of BufferStores in the block init, and thereby equal the number of LetStmts above
-7) The variables bound by the LetStmts in the block body must all directly serve as values of the BufferStores inside, and the stored values of the BufferStores can only be those variables
+3) The number of consecutive Binds in the block body (if any) should equal the number of BufferStores in the block init
+4) The variables of the Binds in the block body should be all different
+5) The statement after the innermost Bind should be a single BufferStore or a SeqStmt of BufferStores
+6) The number of BufferStores under the block body should equal the number of BufferStores in the block init, and thereby equal the number of Binds above
+7) The variables bound by the Binds in the block body must all directly serve as values of the BufferStores inside, and the stored values of the BufferStores can only be those variables
 8) The variables stored by the BufferStores in the block body should be all different
 9) The buffers written by the BufferStores in the block body should be all different
 10) The buffers initialized in the block init and written in the block body should match
@@ -343,18 +343,18 @@ void ErrorRFactorCrossThreadReductionNotApplicable(const ffi::Optional<ScheduleS
 }
 
 /*!
- * \brief Extract the BufferStores, which serve as the reduction updates, from the given LetStmt and
- * the BufferStores inside. And meanwhile set the buffer order of the reduction
+ * \brief Extract the BufferStores, which serve as the reduction updates, from the given Bind nodes
+ * and the BufferStores inside. And meanwhile set the buffer order of the reduction
  * \param self The schedule state, used for error reporting
  * \param block The reduction block, used for error reporting
- * \param let The LetStmt from which the reduction updates are extracted
+ * \param let The Bind nodes from which the reduction updates are extracted
  * \param n_buffers The number of buffers participating in the reduction
  * \param updates The extracted reduction updates
  * \param buf2index A mapping from reduction buffers to their indices of the reduction order
  * \throw ScheduleError If rfactor or cross-thread reduction cannot be applied to the block
  */
 void ExtractReductionUpdates(const ffi::Optional<ScheduleState>& self, SBlock block,
-                             const LetStmtNode* let, int n_buffers,
+                             const ffi::Array<Stmt>& stmts, int n_buffers,
                              ffi::Array<BufferStore>* updates,
                              std::unordered_map<const BufferNode*, int>* buf2index) {
   std::unordered_map<const VarNode*, int> var2index;
@@ -363,37 +363,35 @@ void ExtractReductionUpdates(const ffi::Optional<ScheduleState>& self, SBlock bl
   updates->resize(n_buffers);
 
   // Step 1.
-  // - Extract the BufferStore values from the LetStmts.
-  // - Construct the mapping from let variables to the index.
+  // - Extract the Bind values from the sequence.
+  // - Construct the mapping from bind variables to the index.
+  // The first n_buffers stmts should be Bind nodes.
   for (int i = 0; i < n_buffers; ++i) {
-    if (let == nullptr) {
+    if (i >= static_cast<int>(stmts.size())) {
       ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/3);
     }
-
-    let_values.push_back(let->value);
-    auto insert_result = var2index.insert(std::make_pair(let->var.get(), i));
+    const auto* bind = stmts[i].as<BindNode>();
+    if (bind == nullptr) {
+      ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/3);
+    }
+    let_values.push_back(bind->value);
+    auto insert_result = var2index.insert(std::make_pair(bind->var.get(), i));
     if (!insert_result.second) {
       ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/4);
     }
-    if (i != n_buffers - 1) {
-      let = let->body.as<LetStmtNode>();
-    }
   }
 
-  // There should be no more LetStmt.
-  if (let->body->IsInstance<LetStmtNode>()) {
+  // There should be no more Bind after the first n_buffers.
+  if (n_buffers < static_cast<int>(stmts.size()) && stmts[n_buffers]->IsInstance<BindNode>()) {
     ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/3);
   }
 
-  // Now `let` is expected to be the innermost LetStmt, whose body should either be a SeqStmt or
-  // a BufferStore
-  const auto* p_seq = let->body.as<SeqStmtNode>();
-  const auto* p_buf_store = let->body.as<BufferStoreNode>();
-  if (p_seq == nullptr && p_buf_store == nullptr) {
-    ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/5);
+  // The remaining stmts after the Bind nodes should be BufferStores.
+  // Collect them into a sequence.
+  ffi::Array<Stmt> seq;
+  for (int i = n_buffers; i < static_cast<int>(stmts.size()); ++i) {
+    seq.push_back(stmts[i]);
   }
-  ffi::Array<Stmt> seq =
-      p_seq != nullptr ? p_seq->seq : ffi::Array<Stmt>{ffi::GetRef<BufferStore>(p_buf_store)};
   if (static_cast<int>(seq.size()) != n_buffers) {
     ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/6);
   }
@@ -460,9 +458,10 @@ std::pair<ffi::Array<PrimExpr>, ffi::Array<BufferStore>> GetInitValuesAndUpdates
   if (const auto* update = block->body.as<BufferStoreNode>()) {
     updates.push_back(ffi::GetRef<BufferStore>(update));
     buf2index[update->buffer.get()] = 0;
+  } else if (const auto* seq = block->body.as<SeqStmtNode>()) {
+    ExtractReductionUpdates(self, block, seq->seq, n_buffers, &updates, &buf2index);
   } else {
-    const auto* let = block->body.as<LetStmtNode>();
-    ExtractReductionUpdates(self, block, let, n_buffers, &updates, &buf2index);
+    ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/3);
   }
   TVM_FFI_ICHECK_EQ(updates.size(), n_buffers);
 

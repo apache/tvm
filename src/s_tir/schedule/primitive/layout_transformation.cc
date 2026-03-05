@@ -131,7 +131,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
     StmtExprVisitor::VisitStmt_(op);
   }
 
-  void VisitStmt_(const LetStmtNode* op) override {
+  void VisitStmt_(const BindNode* op) override {
     BindVariableDefinition context(this, op->var, op->value);
     StmtExprVisitor::VisitStmt_(op);
   }
@@ -625,37 +625,23 @@ class TransformLayoutPlanner : private StmtExprVisitor {
     Var var_;
   };
 
+  // Under SSA, each variable is bound exactly once, so the lookup maps
+  // grow monotonically and cleanup is unnecessary.  Omitting cleanup also
+  // ensures correctness for flat BindNode (which has no body): the
+  // binding must remain visible to subsequent sibling statements.
   struct BindVariableDefinition {
     BindVariableDefinition() {}
-    BindVariableDefinition(TransformLayoutPlanner* self, Var var, PrimExpr value)
-        : self_(self), var_(var) {
+    BindVariableDefinition(TransformLayoutPlanner* self, Var var, PrimExpr value) {
       if (auto loop_depth = self->LoopDependencyRange(value); loop_depth.has_value()) {
-        self_->loop_depth_lookup_[var_.get()] = loop_depth.value();
-        self_->active_var_bindings_[var_.get()] = Substitute(value, self_->active_var_bindings_);
+        self->loop_depth_lookup_[var.get()] = loop_depth.value();
+        self->active_var_bindings_[var.get()] = Substitute(value, self->active_var_bindings_);
       }
     }
-    ~BindVariableDefinition() {
-      if (self_) {
-        self_->loop_depth_lookup_.erase(var_.get());
-        self_->active_var_bindings_.erase(var_.get());
-      }
-    }
+    ~BindVariableDefinition() {}
     BindVariableDefinition(const BindVariableDefinition&) = delete;
     BindVariableDefinition& operator=(const BindVariableDefinition&) = delete;
-    BindVariableDefinition(BindVariableDefinition&& other) : BindVariableDefinition() {
-      swap(other);
-    }
-    BindVariableDefinition& operator=(BindVariableDefinition&& other) {
-      swap(other);
-      return *this;
-    }
-    void swap(BindVariableDefinition& other) {
-      std::swap(self_, other.self_);
-      std::swap(var_, other.var_);
-    }
-
-    TransformLayoutPlanner* self_{nullptr};
-    Var var_;
+    BindVariableDefinition(BindVariableDefinition&&) = default;
+    BindVariableDefinition& operator=(BindVariableDefinition&&) = default;
   };
 
   struct BindBlockRealize {

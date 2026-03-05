@@ -823,7 +823,7 @@ def argmax_split_init_buffer_duplicate(
 
 
 @T.prim_func
-def argmax_split_letstmt_fewer_than_init(
+def argmax_split_bind_fewer_than_init(
     idx: T.Buffer((128, 128), "int32"),
     val: T.Buffer((128, 128), "float32"),
     argmax_v0: T.Buffer((128,), "int32"),
@@ -844,7 +844,7 @@ def argmax_split_letstmt_fewer_than_init(
 
 
 @T.prim_func
-def argmax_split_letstmt_more_than_init(
+def argmax_split_bind_more_than_init(
     idx: T.Buffer((128, 128), "int32"),
     val: T.Buffer((128, 128), "float32"),
     argmax_v0: T.Buffer((128,), "int32"),
@@ -1544,16 +1544,16 @@ def test_reduction_rfactor_argmax_init_buffer_duplicate():
         s.rfactor(ki, 1)
 
 
-def test_reduction_rfactor_argmax_letstmt_fewer_than_init():
-    s = tvm.s_tir.Schedule(argmax_split_letstmt_fewer_than_init, debug_mask="all")
+def test_reduction_rfactor_argmax_bind_fewer_than_init():
+    s = tvm.s_tir.Schedule(argmax_split_bind_fewer_than_init, debug_mask="all")
     argmax = s.get_sblock("argmax")
     _, _, ki = s.get_loops(argmax)
     with pytest.raises(tvm.s_tir.ScheduleError):
         s.rfactor(ki, 1)
 
 
-def test_reduction_rfactor_argmax_letstmt_more_than_init():
-    s = tvm.s_tir.Schedule(argmax_split_letstmt_more_than_init, debug_mask="all")
+def test_reduction_rfactor_argmax_bind_more_than_init():
+    s = tvm.s_tir.Schedule(argmax_split_bind_more_than_init, debug_mask="all")
     argmax = s.get_sblock("argmax")
     _, _, ki = s.get_loops(argmax)
     with pytest.raises(tvm.s_tir.ScheduleError):

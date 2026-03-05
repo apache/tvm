@@ -99,11 +99,10 @@ class ExprTouched final : public StmtExprVisitor {
 // Analyze if the buffers are invariant to value of var
 class VarTouchedAnalysis : public StmtVisitor {
  public:
-  void VisitStmt_(const LetStmtNode* op) final {
+  void VisitStmt_(const BindNode* op) final {
     ExprTouched tc(touched_var_, false);
     tc(op->value);
     Record(op->var.get(), tc);
-    this->VisitStmt(op->body);
   }
 
   void VisitStmt_(const BufferStoreNode* op) final {
@@ -299,18 +298,17 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
       }
     }
   }
-  // LetStmt
-  Stmt VisitStmt_(const LetStmtNode* op) final {
+  // Bind
+  Stmt VisitStmt_(const BindNode* op) final {
     PrimExpr value = this->VisitExpr(op->value);
     if (visit_touched_var_ && !vt_loop_injected_) {
       return InjectVTLoop(ffi::GetRef<Stmt>(op), true);
     }
     visit_touched_var_ = false;
-    Stmt body = this->VisitStmt(op->body);
-    if (value.same_as(op->value) && body.same_as(op->body)) {
+    if (value.same_as(op->value)) {
       return ffi::GetRef<Stmt>(op);
     } else {
-      return LetStmt(op->var, value, body);
+      return Bind(op->var, value);
     }
   }
   // For
@@ -362,19 +360,60 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
   Stmt VisitStmt_(const WhileNode* op) final {
     // TODO(masahi): What should we do for While nodes?
     TVM_FFI_THROW(InternalError) << "WhileNode in InjectVirtualThread not supported yet";
+    TVM_FFI_UNREACHABLE();
   }
 
   // Seq
+  // When a Bind child triggers VT injection, we group the Bind together with
+  // all remaining siblings (which may reference the bound variable) and wrap
+  // them as a single unit in the VT loop.  This preserves the semantics that
+  // With flat Bind (no body), a Bind whose value touches vt_var must be
+  // grouped with all remaining siblings and wrapped in a VT loop together.
+  // This preserves the scoping that was implicit when Bind carried a body.
   Stmt VisitStmt_(const SeqStmtNode* op) final {
     TVM_FFI_ICHECK_EQ(max_loop_depth_, 0);
-    auto fmutate = [this](const Stmt& s) {
+    ffi::Array<Stmt> new_seq;
+    bool changed = false;
+    for (size_t i = 0; i < op->seq.size(); ++i) {
       int temp = max_loop_depth_;
       max_loop_depth_ = 0;
-      Stmt ret = this->VisitStmt(s);
+      // For Bind children, pre-check if the value touches vt_var before
+      // visiting.  If so, group the Bind with all remaining siblings and
+      // wrap the group with InjectVTLoop.
+      if (const auto* bind = op->seq[i].as<BindNode>(); bind && !vt_loop_injected_) {
+        // Visit just the value expression to probe for vt_var dependency.
+        TVM_FFI_ICHECK(!visit_touched_var_);
+        this->VisitExpr(bind->value);
+        if (visit_touched_var_) {
+          // Reset flag (InjectVTLoop will handle it).
+          visit_touched_var_ = false;
+          // Gather the original Bind + all remaining original siblings.
+          ffi::Array<Stmt> group;
+          for (size_t j = i; j < op->seq.size(); ++j) {
+            group.push_back(op->seq[j]);
+          }
+          Stmt grouped = group.size() == 1 ? group[0] : SeqStmt(group);
+          // before_mutation=true: InjectVTLoop will re-visit the entire group
+          // with vt_loop_injected_=true, properly substituting vt_var.
+          Stmt wrapped = InjectVTLoop(grouped, true);
+          new_seq.push_back(wrapped);
+          max_loop_depth_ = std::max(max_loop_depth_, temp);
+          changed = true;
+          // All remaining siblings consumed — exit loop.
+          break;
+        }
+        // Value did not touch vt_var.  Reset and visit the Bind normally.
+        visit_touched_var_ = false;
+      }
+      // Non-Bind child or Bind that does not touch vt_var: visit normally.
+      Stmt child = this->VisitStmt(op->seq[i]);
       max_loop_depth_ = std::max(max_loop_depth_, temp);
-      return ret;
-    };
-    return StmtMutator::VisitSeqStmt_(op, false, fmutate);
+      if (!child.same_as(op->seq[i])) changed = true;
+      new_seq.push_back(child);
+    }
+    if (!changed) return ffi::GetRef<Stmt>(op);
+    if (new_seq.size() == 1) return new_seq[0];
+    return SeqStmt(new_seq);
   }
   // Allocate
   // AllocBuffer

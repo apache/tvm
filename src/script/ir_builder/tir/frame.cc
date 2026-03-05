@@ -35,7 +35,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   BlockInitFrameNode::RegisterReflection();
   ForFrameNode::RegisterReflection();
   AssertFrameNode::RegisterReflection();
-  LetFrameNode::RegisterReflection();
   LaunchThreadFrameNode::RegisterReflection();
   AllocateFrameNode::RegisterReflection();
   AttrFrameNode::RegisterReflection();
@@ -139,11 +138,6 @@ void AssertFrameNode::ExitWithScope() {
     }
     AddToParent(tvm::tir::SeqStmt(seq));
   }
-}
-
-void LetFrameNode::ExitWithScope() {
-  TIRFrameNode::ExitWithScope();
-  AddToParent(tvm::tir::LetStmt(var, value, AsStmt(stmts)));
 }
 
 void LaunchThreadFrameNode::ExitWithScope() {

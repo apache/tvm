@@ -42,7 +42,7 @@ namespace tir {
  * - Allocate
  * - For
  * - Let
- * - LetStmt
+ * - Bind
  */
 class VarNode : public PrimExprNode {
  public:

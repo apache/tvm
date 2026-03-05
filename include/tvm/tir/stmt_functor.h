@@ -84,7 +84,7 @@ class StmtFunctor<R(const Stmt& n, Args... args)> {
     return vtable(n, this, std::forward<Args>(args)...);
   }
   // Functions that can be overriden by subclass
-  virtual R VisitStmt_(const LetStmtNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmt_(const BindNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const AttrStmtNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const IfThenElseNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const ForNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
@@ -106,7 +106,7 @@ class StmtFunctor<R(const Stmt& n, Args... args)> {
   // initialize the vtable.
   static FType InitVTable() {
     FType vtable;
-    IR_STMT_FUNCTOR_DISPATCH(LetStmtNode);
+    IR_STMT_FUNCTOR_DISPATCH(BindNode);
     IR_STMT_FUNCTOR_DISPATCH(AttrStmtNode);
     IR_STMT_FUNCTOR_DISPATCH(IfThenElseNode);
     IR_STMT_FUNCTOR_DISPATCH(ForNode);
@@ -159,9 +159,9 @@ class TVM_DLL StmtVisitor : protected StmtFunctor<void(const Stmt&)> {
    */
   virtual void VisitBufferUse(const Buffer& buffer);
   // statement visitor
+  void VisitStmt_(const BindNode* op) override;
   void VisitStmt_(const AttrStmtNode* op) override;
   void VisitStmt_(const IfThenElseNode* op) override;
-  void VisitStmt_(const LetStmtNode* op) override;
   void VisitStmt_(const ForNode* op) override;
   void VisitStmt_(const WhileNode* op) override;
   void VisitStmt_(const AllocBufferNode* op) override;
@@ -273,9 +273,9 @@ class TVM_DLL StmtMutator : protected StmtFunctor<Stmt(const Stmt&)> {
    */
   virtual Buffer VisitBufferUse(const Buffer& buffer);
   // statement visitor
+  Stmt VisitStmt_(const BindNode* op) override;
   Stmt VisitStmt_(const AttrStmtNode* op) override;
   Stmt VisitStmt_(const IfThenElseNode* op) override;
-  Stmt VisitStmt_(const LetStmtNode* op) override;
   Stmt VisitStmt_(const ForNode* op) override;
   Stmt VisitStmt_(const WhileNode* op) override;
   Stmt VisitStmt_(const AllocBufferNode* op) override;

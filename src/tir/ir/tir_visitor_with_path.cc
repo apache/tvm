@@ -110,7 +110,7 @@ void TIRVisitorWithPath::Visit(const PrimFunc& func, AccessPath path) {
     }
   }
 
-  Visit(func->body, path->Attr("body"));
+  bind_scope_.WithNewScope([&]() { Visit(func->body, path->Attr("body")); });
 
   while (context.size()) context.pop_back();
 }
@@ -172,10 +172,11 @@ void TIRVisitorWithPath::Visit(const Range& range, AccessPath path) {
   Visit(range->extent, path->Attr("extent"));
 }
 
-void TIRVisitorWithPath::VisitStmt_(const LetStmtNode* op, AccessPath path) {
+void TIRVisitorWithPath::VisitStmt_(const BindNode* op, AccessPath path) {
   Visit(op->value, path->Attr("value"));
-  auto context = WithDef(op->var, path->Attr("var"));
-  Visit(op->body, path->Attr("body"));
+  // Push the Bind's var definition into the current scope.
+  // The def lives until the enclosing scope (body-carrying stmt) exits.
+  bind_scope_.Current().push_back(WithDef(op->var, path->Attr("var")));
 }
 
 void TIRVisitorWithPath::VisitStmt_(const AttrStmtNode* op, AccessPath path) {
@@ -192,7 +193,7 @@ void TIRVisitorWithPath::VisitStmt_(const AttrStmtNode* op, AccessPath path) {
   } else if (auto expr = op->node.as<PrimExpr>()) {
     Visit(expr.value(), path->Attr("node"));
   }
-  Visit(op->body, path->Attr("body"));
+  bind_scope_.WithNewScope([&]() { Visit(op->body, path->Attr("body")); });
 
   while (context.size()) {
     context.pop_back();
@@ -203,12 +204,12 @@ void TIRVisitorWithPath::VisitStmt_(const ForNode* op, AccessPath path) {
   Visit(op->min, path->Attr("min"));
   Visit(op->extent, path->Attr("extent"));
   auto context = WithDef(op->loop_var, path->Attr("loop_var"));
-  Visit(op->body, path->Attr("body"));
+  bind_scope_.WithNewScope([&]() { Visit(op->body, path->Attr("body")); });
 }
 
 void TIRVisitorWithPath::VisitStmt_(const WhileNode* op, AccessPath path) {
   Visit(op->condition, path->Attr("condition"));
-  Visit(op->body, path->Attr("body"));
+  bind_scope_.WithNewScope([&]() { Visit(op->body, path->Attr("body")); });
 }
 
 void TIRVisitorWithPath::VisitStmt_(const AllocBufferNode* op, AccessPath path) {
@@ -223,7 +224,7 @@ void TIRVisitorWithPath::VisitStmt_(const AllocBufferNode* op, AccessPath path) 
 
 void TIRVisitorWithPath::VisitStmt_(const DeclBufferNode* op, AccessPath path) {
   auto context = WithDef(op->buffer, path->Attr("buffer"));
-  Visit(op->body, path->Attr("body"));
+  bind_scope_.WithNewScope([&]() { Visit(op->body, path->Attr("body")); });
 }
 
 void TIRVisitorWithPath::VisitStmt_(const BufferStoreNode* op, AccessPath path) {
@@ -234,8 +235,8 @@ void TIRVisitorWithPath::VisitStmt_(const BufferStoreNode* op, AccessPath path) 
 
 void TIRVisitorWithPath::VisitStmt_(const IfThenElseNode* op, AccessPath path) {
   Visit(op->condition, path->Attr("condition"));
-  Visit(op->then_case, path->Attr("then_case"));
-  Visit(op->else_case, path->Attr("else_case"));
+  bind_scope_.WithNewScope([&]() { Visit(op->then_case, path->Attr("then_case")); });
+  bind_scope_.WithNewScope([&]() { Visit(op->else_case, path->Attr("else_case")); });
 }
 
 void TIRVisitorWithPath::VisitStmt_(const AssertStmtNode* op, AccessPath path) {
@@ -245,7 +246,10 @@ void TIRVisitorWithPath::VisitStmt_(const AssertStmtNode* op, AccessPath path) {
 }
 
 void TIRVisitorWithPath::VisitStmt_(const SeqStmtNode* op, AccessPath path) {
-  Visit(op->seq, path->Attr("seq"));
+  auto seq_path = path->Attr("seq");
+  for (size_t i = 0; i < op->seq.size(); i++) {
+    Visit(op->seq[i], seq_path->ArrayItem(i));
+  }
 }
 
 void TIRVisitorWithPath::VisitStmt_(const EvaluateNode* op, AccessPath path) {
@@ -292,8 +296,8 @@ void TIRVisitorWithPath::VisitStmt_(const SBlockNode* op, AccessPath path) {
     }
   }
 
-  Visit(op->init, path->Attr("init"));
-  Visit(op->body, path->Attr("body"));
+  bind_scope_.WithNewScope([&]() { Visit(op->init, path->Attr("init")); });
+  bind_scope_.WithNewScope([&]() { Visit(op->body, path->Attr("body")); });
 
   while (context.size()) context.pop_back();
 }

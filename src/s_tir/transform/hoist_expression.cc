@@ -53,7 +53,7 @@ enum class HoistedConditionals : int {
 enum class HoistedLetBindings : int {
   kNone = 0,
   kRequiredByCondition = (1 << 0),
-  kLetStmt = (1 << 1),
+  kBind = (1 << 1),
   kLetExpr = (1 << 2),
 };
 
@@ -72,7 +72,7 @@ struct HoistExpressionConfigNode : public AttrsNodeReflAdapter<HoistExpressionCo
         .def_ro("hoisted_let_bindings", &HoistExpressionConfigNode::hoisted_let_bindings,
                 "Bitflags for the types of let bindings to hoist",
                 refl::DefaultValue(static_cast<int>(HoistedLetBindings::kRequiredByCondition) |
-                                   static_cast<int>(HoistedLetBindings::kLetStmt) |
+                                   static_cast<int>(HoistedLetBindings::kBind) |
                                    static_cast<int>(HoistedLetBindings::kLetExpr)));
   }
 
@@ -147,7 +147,7 @@ class HoistInfoCollector : public StmtExprVisitor {
       bool all_required_bindings_are_hoisted =
           required_let_bindings.empty() ||
           config->FlagSet(HoistedLetBindings::kRequiredByCondition) ||
-          config->FlagSet(HoistedLetBindings::kLetStmt);
+          config->FlagSet(HoistedLetBindings::kBind);
 
       bool valid_block_var_usage =
           config->FlagSet(HoistedConditionals::kUsingBlockVar) || !uses_block_var;
@@ -174,7 +174,7 @@ class HoistInfoCollector : public StmtExprVisitor {
     // The For or AttrStmt that defines the loop var.
     Stmt loop_def;
 
-    // Bindings defined in LetStmt inside the for-loop whose value
+    // Bindings defined in Bind nodes inside the for-loop whose value
     // does not depend on the loop variable.  These can be hoisted
     // outside this for-loop.
     std::vector<LetBindingInfo> let_bindings;
@@ -322,13 +322,34 @@ class HoistInfoCollector : public StmtExprVisitor {
     let_var_to_let_vars[var.get()] = std::move(let_bindings_used);
   }
 
-  void VisitStmt_(const LetStmtNode* op) final {
-    VisitBinding(op->var, op->value, HoistedLetBindings::kLetStmt);
-
+  void VisitStmt_(const BindNode* op) final {
+    VisitBinding(op->var, op->value, HoistedLetBindings::kBind);
     Parent::VisitStmt_(op);
+  }
 
-    let_var_to_loop_vars.erase(op->var.get());
-    let_var_to_let_vars.erase(op->var.get());
+  void VisitStmt_(const SeqStmtNode* op) final {
+    if (active_loops.size()) {
+      int non_bind_count = 0;
+      for (size_t i = 0; i < op->seq.size(); ++i) {
+        if (!op->seq[i].as<BindNode>()) {
+          non_bind_count++;
+        }
+      }
+      if (non_bind_count > 1) {
+        active_loops.back().reached_sequential_node = true;
+      }
+    }
+    std::vector<const VarNode*> seq_bind_vars;
+    for (size_t i = 0; i < op->seq.size(); ++i) {
+      if (auto* bind = op->seq[i].as<BindNode>()) {
+        seq_bind_vars.push_back(bind->var.get());
+      }
+      VisitStmt(op->seq[i]);
+    }
+    for (auto* var : seq_bind_vars) {
+      let_var_to_loop_vars.erase(var);
+      let_var_to_let_vars.erase(var);
+    }
   }
 
   void VisitExpr_(const LetNode* op) final {
@@ -352,13 +373,6 @@ class HoistInfoCollector : public StmtExprVisitor {
       AttemptHoistConditional(cond, HoistedConditionals::kIfElseExpr);
     }
     Parent::VisitExpr_(op);
-  }
-
-  void VisitStmt_(const SeqStmtNode* op) final {
-    if (active_loops.size()) {
-      active_loops.back().reached_sequential_node = true;
-    }
-    Parent::VisitStmt_(op);
   }
 
   // Find the loop above which this expression could be hoisted.  If
@@ -482,9 +496,16 @@ class ExpressionHoister : public arith::IRMutatorWithAnalyzer {
         }
       }
     }
-    for (auto let_it = info.let_bindings.rbegin(); let_it != info.let_bindings.rend(); let_it++) {
-      if (hoisted_let_bindings.count(let_it->var.get())) {
-        stmt = LetStmt(let_it->var, let_it->value, stmt);
+    {
+      ffi::Array<Stmt> binds;
+      for (auto let_it = info.let_bindings.begin(); let_it != info.let_bindings.end(); let_it++) {
+        if (hoisted_let_bindings.count(let_it->var.get())) {
+          binds.push_back(Bind(let_it->var, let_it->value));
+        }
+      }
+      if (!binds.empty()) {
+        binds.push_back(stmt);
+        stmt = SeqStmt(binds);
       }
     }
 
@@ -511,9 +532,10 @@ class ExpressionHoister : public arith::IRMutatorWithAnalyzer {
     }
   }
 
-  Stmt VisitStmt_(const LetStmtNode* op) final {
+  Stmt VisitStmt_(const BindNode* op) final {
     if (hoisted_let_bindings.count(op->var.get())) {
-      return this->VisitStmt(op->body);
+      // The binding was hoisted; remove it from this location.
+      return Evaluate(0);
     } else {
       return Parent::VisitStmt_(op);
     }

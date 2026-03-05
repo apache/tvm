@@ -201,7 +201,11 @@ Stmt CommonSubexpressionEliminator::PerformCSE(const Stmt& stmt, const Context& 
 CommonSubexpressionEliminator::CommonSubexpressionEliminator(const Stmt& stmt,
                                                              const Context& context_init,
                                                              bool identify_equiv_terms)
-    : initial_body_(stmt), context_(context_init), identify_equiv_terms_(identify_equiv_terms) {}
+    : initial_body_(stmt), context_(context_init), identify_equiv_terms_(identify_equiv_terms) {
+  // The initial scope level (from ScopeStack's constructor) does not need
+  // EnterContextScope() because it should never be popped -- it persists
+  // for the lifetime of the CSE pass and holds the function parameters.
+}
 
 /*!
  * \brief The method which overrides the generic dispatcher of StmtExprMutator.
@@ -342,32 +346,31 @@ PrimExpr CommonSubexpressionEliminator::VisitExpr(const PrimExpr& expr) {
 }
 
 /*!
- * \brief The method which overrides the specific treatment for a LetNode
+ * \brief The method which overrides the specific treatment for a LetNode.
+ *
+ * The let-in expression introduces a new variable binding that is only visible
+ * within the body. We use context_scope_.WithNewScope to automatically clean up
+ * the binding when the body has been visited, replacing the old manual
+ * save/restore of context_.
  */
 PrimExpr CommonSubexpressionEliminator::VisitExpr_(const LetNode* op) {
   // At this point, we have already done the generic treatment of introducing (via let-in) what
   // was doable at the toplevel of the given let-in.
 
-  // Save the context at the entry of the function
-  Context context_at_entry = context_;
-
   // Recurse on the `value` field for potentially rewriting it
   PrimExpr value_new = VisitExpr(op->value);
 
-  // Augment the context with the association (`var`, `value`) for preparing the next recursion
-  // on the `body`
-  context_.push_back({op->var, MaybeValue(op->value)});
-
-  // Recurse on the `body` (with this extended context)
-  // The recursive call will have potentially done new simplifications, because in this recursive
-  // call `var` will be a part of the context.
-  // (see in VisitExpr() that no introduction were performed when a computation was using an
-  // undefined variable, as that would lead to ill-formed code)
-  PrimExpr body_new = VisitExpr(op->body);
-
-  // Restaure the context to its content at the entrance to not carry out of scope declarations
-  // as the variable introduced by the let-in is not in scope outside of its body
-  context_ = context_at_entry;
+  // Visit the body in a new scope. The let-in variable binding is added to the
+  // context inside the scope and automatically removed when the scope exits.
+  PrimExpr body_new = context_scope_.WithNewScope([&]() -> PrimExpr {
+    EnterContextScope();
+    // Augment the context with the association (`var`, `value`) for the body
+    context_.push_back({op->var, MaybeValue(op->value)});
+    // Recurse on the `body` (with this extended context)
+    // The recursive call will have potentially done new simplifications, because in this recursive
+    // call `var` will be a part of the context.
+    return VisitExpr(op->body);
+  });
 
   // Rebuild the let-in with a new `value_new` and `body_new` where new simplifications might
   // have been done.
@@ -478,8 +481,8 @@ Stmt CommonSubexpressionEliminator::VisitStmt(const Stmt& stmt) {
         // right to dive.
         result = ReplaceSelectedExpr::ReplaceSelectedExprInStmt(result, predicate_selector, new_var,
                                                                 CanContainEligibleComputations);
-        // Build a let-in that introduces the new variable in the current `result`
-        result = LetStmt(new_var, computation_and_nb.first, result);
+        // Build a bind that introduces the new variable before the current `result`
+        result = SeqStmt({Bind(new_var, computation_and_nb.first), result});
         // We don't add the variable to the context because the invariant is that the
         // context is the context in which 'result' makes sense, and we've just updated it.
       } else {
@@ -523,56 +526,139 @@ Stmt CommonSubexpressionEliminator::VisitStmt(const Stmt& stmt) {
 }
 
 /*!
- * \brief The method which overrides the specific treatment for a LetStmtNode
+ * \brief The method which overrides the specific treatment for a BindNode.
+ *
+ * BindNode adds a (var, value) entry to the flat context_ vector. This entry
+ * persists across subsequent SeqStmt siblings in the same scope, enabling CSE
+ * to find common subexpressions that reference bind-defined variables.
+ * Cleanup happens automatically when the enclosing body-carrying statement's
+ * scope exits (via ContextScopeLevel's destructor), so no manual save/restore
+ * is needed here.
  */
-Stmt CommonSubexpressionEliminator::VisitStmt_(const LetStmtNode* op) {
-  // At this point, we have already done the generic treatment of introducing (via let-in) what
-  // was doable at the toplevel of the given let-in.
-
-  // Save the context at the entry of the function
-  Context context_at_entry = context_;
-
+Stmt CommonSubexpressionEliminator::VisitStmt_(const BindNode* op) {
   // Recurse on the `value` field for potentially rewriting it
   PrimExpr value_new = VisitExpr(op->value);
 
-  // Augment the context with the association (`var`, `value`) for preparing the next recursion
-  // on the `body`
+  // Augment the context with the association (`var`, `value`).
+  // This persists across SeqStmt siblings and is cleaned up by the
+  // enclosing scope's ContextScopeLevel destructor.
   context_.push_back({op->var, MaybeValue(op->value)});
 
-  // Recurse on the `body` (with this extended context)
-  // The recursive call will have potentially done new simplifications, because in this recursive
-  // call `var` will be a part of the context.
-  // (see in VisitStmt() that no introduction were performed when a computation was using an
-  // undefined variable, as that would lead to ill-formed code)
-  Stmt body_new = VisitStmt(op->body);
-
-  // Restaure the context to its content at the entrance to not carry out of scope declarations
-  // as the variable introduced by the let-in is not in scope outside of its body
-  context_ = context_at_entry;
-
-  // Rebuild the let-in with a new `value_new` and `body_new` where new simplifications might
-  // have been done.
-
-  // If the `value` and the `body` of the let-in have been rewritten to the same thing
-  if (value_new.same_as(op->value) && body_new.same_as(op->body)) {
-    // Return a reference to the same node
+  // Rebuild the Bind if value changed
+  if (value_new.same_as(op->value)) {
     return ffi::GetRef<Stmt>(op);
   } else {
-    // Otherwise return a let-in built with the new `value_new` and the new `body_new` that
-    // have just been obtained
-    return LetStmt(op->var, value_new, body_new, op->span);
+    return Bind(op->var, value_new, op->span);
   }
 }
 
 /*!
- * \brief The method which overrides the specific treatment for a ForNode
+ * \brief Whether a Bind value is trivial (constant or variable), meaning it cannot
+ * contribute eligible computations for CSE and can be safely batched.
+ */
+static bool IsTrivialBindValue(const PrimExpr& value) {
+  return value.as<IntImmNode>() != nullptr || value.as<FloatImmNode>() != nullptr ||
+         value.as<StringImmNode>() != nullptr || value.as<VarNode>() != nullptr;
+}
+
+/*!
+ * \brief The method which overrides the specific treatment for a SeqStmtNode.
+ *
+ * Processes the flat sequence using a hybrid strategy that avoids the O(n^2)
+ * complexity of wrapping remaining siblings after every single Bind node:
+ *
+ * - Trivial Bind nodes (constant/variable values) are batched: their values
+ *   are visited via VisitExpr, context_ is augmented, but the expensive
+ *   cross-sibling CSE is deferred until the batch ends.
+ * - Non-trivial Bind nodes (whose values may contain eligible computations)
+ *   use the wrap-remaining-siblings pattern to enable cross-sibling CSE.
+ * - After any Bind (trivial batch end or non-trivial), remaining siblings are
+ *   wrapped into a body and VisitStmt is called once for cross-sibling CSE.
+ * - Non-Bind children are visited individually via VisitStmt.
+ *
+ * This reduces the common case of many consecutive trivial Binds (e.g., variable
+ * definitions with constant values) from O(n^2) to O(n), while preserving full
+ * CSE effectiveness for non-trivial Bind values.
+ *
+ * Context cleanup is handled automatically by ScopeStack.
+ */
+Stmt CommonSubexpressionEliminator::VisitStmt_(const SeqStmtNode* op) {
+  ffi::Array<Stmt> new_seq;
+  size_t i = 0;
+
+  while (i < op->seq.size()) {
+    if (auto* bind = op->seq[i].as<BindNode>()) {
+      // Batch consecutive trivial Bind nodes (constant/variable values).
+      // These can't contribute common subexpressions, so it's safe to defer
+      // the cross-sibling CSE until the entire batch is processed.
+      if (IsTrivialBindValue(bind->value)) {
+        while (i < op->seq.size()) {
+          auto* b = op->seq[i].as<BindNode>();
+          if (!b || !IsTrivialBindValue(b->value)) break;
+          PrimExpr value_new = VisitExpr(b->value);
+          context_.push_back({b->var, MaybeValue(b->value)});
+          Stmt bind_new =
+              value_new.same_as(b->value) ? ffi::GetRef<Stmt>(b) : Bind(b->var, value_new, b->span);
+          new_seq.push_back(bind_new);
+          ++i;
+        }
+      } else {
+        // Non-trivial Bind: visit value, augment context, then wrap remaining
+        // siblings and call VisitStmt for cross-sibling CSE.
+        PrimExpr value_new = VisitExpr(bind->value);
+        context_.push_back({bind->var, MaybeValue(bind->value)});
+        Stmt bind_new = value_new.same_as(bind->value) ? ffi::GetRef<Stmt>(bind)
+                                                       : Bind(bind->var, value_new, bind->span);
+        new_seq.push_back(bind_new);
+        ++i;
+      }
+      // After the Bind (batch or single), wrap remaining siblings [i..end) and
+      // call VisitStmt once for cross-sibling CSE with the updated context.
+      if (i < op->seq.size()) {
+        Stmt body;
+        if (i + 1 == op->seq.size()) {
+          body = op->seq[i];
+        } else {
+          ffi::Array<Stmt> rest;
+          for (size_t j = i; j < op->seq.size(); ++j) rest.push_back(op->seq[j]);
+          body = SeqStmt(rest);
+        }
+        Stmt body_new = VisitStmt(body);
+        // Flatten the result.
+        if (auto* inner = body_new.as<SeqStmtNode>()) {
+          for (const auto& s : inner->seq) new_seq.push_back(s);
+        } else {
+          new_seq.push_back(body_new);
+        }
+        return SeqStmt::Flatten(new_seq);
+      }
+    } else {
+      // Non-Bind child: visit individually via VisitStmt.
+      Stmt child_new = VisitStmt(op->seq[i]);
+      if (auto* inner = child_new.as<SeqStmtNode>()) {
+        for (const auto& s : inner->seq) new_seq.push_back(s);
+      } else {
+        new_seq.push_back(child_new);
+      }
+      ++i;
+    }
+  }
+
+  return SeqStmt::Flatten(new_seq);
+}
+
+/*!
+ * \brief The method which overrides the specific treatment for a ForNode.
+ *
+ * The for loop introduces a loop variable that is only visible within the body.
+ * We use context_scope_.WithNewScope to create a scope boundary: the loop
+ * variable (with no value, since it changes each iteration) is pushed inside
+ * the scope and automatically cleaned up on exit, replacing the old manual
+ * save/restore of context_.
  */
 Stmt CommonSubexpressionEliminator::VisitStmt_(const ForNode* op) {
   // At this point, we have already done the generic treatment of introducing (via let-in) what
   // was doable at the toplevel of the given for loop.
-
-  // Save the context at the entry of the function
-  Context context_at_entry = context_;
 
   // Recurse on the `min` field for potentially rewriting it
   PrimExpr min_new = VisitExpr(op->min);
@@ -580,16 +666,14 @@ Stmt CommonSubexpressionEliminator::VisitStmt_(const ForNode* op) {
   // Recurse on the `extent` field for potentially rewriting it
   PrimExpr extent_new = VisitExpr(op->extent);
 
-  // Augment the context with the association {loop_var, no value} (no value as its value will
-  // change during the execution of the loop) for preparing the next recursion on the `body`
-  context_.push_back({op->loop_var, MaybeValue()});
-
-  // Recurse on the `body` (with this extended context)
-  Stmt body_new = VisitStmt(op->body);
-
-  // Restaure the context to its content at the entrance to not carry out of scope declarations
-  // as the variable introduced by the for loop is not in scope outside of its body
-  context_ = context_at_entry;
+  // Visit the body in a new scope. The loop variable is added to context_ inside
+  // the scope and automatically removed when the scope exits.
+  Stmt body_new = context_scope_.WithNewScope([&]() -> Stmt {
+    EnterContextScope();
+    // Add loop_var with no value (its value changes each iteration)
+    context_.push_back({op->loop_var, MaybeValue()});
+    return VisitStmt(op->body);
+  });
 
   // Rebuild the for loop with (potentially) a new `min_new`, `extent_new` and `body_new`, where
   // new simplifications might have been done.
@@ -604,6 +688,118 @@ Stmt CommonSubexpressionEliminator::VisitStmt_(const ForNode* op) {
     return For(op->loop_var, min_new, extent_new, op->kind, body_new, op->thread_binding,
                op->annotations, op->step, op->span);
   }
+}
+
+/*!
+ * \brief The method which overrides the specific treatment for an IfThenElseNode.
+ *
+ * Each branch of the if-then-else gets its own scope, preventing context entries
+ * (e.g., from Bind nodes inside one branch) from leaking into the other branch.
+ * Without this override, the default StmtExprMutator would visit both branches
+ * in the same scope, which could cause incorrect CSE across branches.
+ */
+Stmt CommonSubexpressionEliminator::VisitStmt_(const IfThenElseNode* op) {
+  PrimExpr condition_new = VisitExpr(op->condition);
+
+  // Each branch gets its own scope to prevent context leaks between branches
+  Stmt then_new = context_scope_.WithNewScope([&]() -> Stmt {
+    EnterContextScope();
+    return VisitStmt(op->then_case);
+  });
+
+  ffi::Optional<Stmt> else_new;
+  if (op->else_case) {
+    else_new = context_scope_.WithNewScope([&]() -> Stmt {
+      EnterContextScope();
+      return VisitStmt(op->else_case.value());
+    });
+  }
+
+  if (condition_new.same_as(op->condition) && then_new.same_as(op->then_case) &&
+      else_new.same_as(op->else_case)) {
+    return ffi::GetRef<Stmt>(op);
+  }
+  return IfThenElse(condition_new, then_new, else_new, op->span);
+}
+
+/*!
+ * \brief The method which overrides the specific treatment for an AttrStmtNode.
+ *
+ * AttrStmt has a body that may contain Bind nodes. A scope boundary prevents
+ * context entries from the body from leaking to subsequent statements.
+ */
+Stmt CommonSubexpressionEliminator::VisitStmt_(const AttrStmtNode* op) {
+  PrimExpr value_new = VisitExpr(op->value);
+
+  // The body gets its own scope to contain any context entries added within it
+  Stmt body_new = context_scope_.WithNewScope([&]() -> Stmt {
+    EnterContextScope();
+    return VisitStmt(op->body);
+  });
+
+  if (value_new.same_as(op->value) && body_new.same_as(op->body)) {
+    return ffi::GetRef<Stmt>(op);
+  }
+  return AttrStmt(op->node, op->attr_key, value_new, body_new, op->span);
+}
+
+/*!
+ * \brief The method which overrides the specific treatment for an AllocBufferNode.
+ *
+ * AllocBuffer has a body and introduces a buffer. A scope boundary
+ * prevents context entries from the body from leaking outward.
+ */
+Stmt CommonSubexpressionEliminator::VisitStmt_(const AllocBufferNode* op) {
+  // The body gets its own scope to contain any context entries added within it
+  Stmt body_new = context_scope_.WithNewScope([&]() -> Stmt {
+    EnterContextScope();
+    return VisitStmt(op->body);
+  });
+
+  if (body_new.same_as(op->body)) {
+    return ffi::GetRef<Stmt>(op);
+  }
+  return AllocBuffer(op->buffer, body_new, op->annotations, op->span);
+}
+
+/*!
+ * \brief The method which overrides the specific treatment for a DeclBufferNode.
+ *
+ * DeclBuffer declares a buffer for use within its body. A scope boundary
+ * prevents context entries from the body from leaking outward.
+ */
+Stmt CommonSubexpressionEliminator::VisitStmt_(const DeclBufferNode* op) {
+  // The body gets its own scope to contain any context entries added within it
+  Stmt body_new = context_scope_.WithNewScope([&]() -> Stmt {
+    EnterContextScope();
+    return VisitStmt(op->body);
+  });
+
+  if (body_new.same_as(op->body)) {
+    return ffi::GetRef<Stmt>(op);
+  }
+  return DeclBuffer(op->buffer, body_new, op->span);
+}
+
+/*!
+ * \brief The method which overrides the specific treatment for a WhileNode.
+ *
+ * While loop has a body that may contain Bind nodes. A scope boundary prevents
+ * context entries from the body from leaking outward.
+ */
+Stmt CommonSubexpressionEliminator::VisitStmt_(const WhileNode* op) {
+  PrimExpr condition_new = VisitExpr(op->condition);
+
+  // The body gets its own scope to contain any context entries added within it
+  Stmt body_new = context_scope_.WithNewScope([&]() -> Stmt {
+    EnterContextScope();
+    return VisitStmt(op->body);
+  });
+
+  if (condition_new.same_as(op->condition) && body_new.same_as(op->body)) {
+    return ffi::GetRef<Stmt>(op);
+  }
+  return While(condition_new, body_new, op->span);
 }
 
 namespace transform {

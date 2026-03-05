@@ -91,22 +91,10 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
               const StmtNode* context)
       : Parent(analyzer), touch_pattern_(touch_pattern), context_(context) {}
 
-  Stmt VisitStmt_(const LetStmtNode* op) final {
-    Stmt stmt = Parent::VisitStmt_(op);
-    op = stmt.as<LetStmtNode>();
-    if (is_no_op(op->body)) {
-      return MakeEvaluate(op->value);
-    }
-
-    bool body_uses_bound_variable =
-        !UsesVar(op->body, [&](const VarNode* var) { return var == op->var.get(); });
-    if (body_uses_bound_variable && HasSideEffect(op->value)) {
-      return SeqStmt({MakeEvaluate(op->value), op->body});
-    } else if (body_uses_bound_variable) {
-      return op->body;
-    } else {
-      return stmt;
-    }
+  Stmt VisitStmt_(const BindNode* op) final {
+    // Simply mutate the value and return.
+    // Unused Bind elimination can be done later via a separate two-pass approach.
+    return Parent::VisitStmt_(op);
   }
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == "pragma_debug_skip_region") {

@@ -241,7 +241,7 @@ def test_match_buffer_input_requires_shape_arg():
             T.evaluate(0)
 
 
-def test_letstmt_bufferload_without_type_annotation():
+def test_bind_bufferload_without_type_annotation():
     # Variable assignment of PrimExpr types uses the dtype of the
     # PrimExpr to determine the variable's dtype.  Parsing of
     # buf[indices] is done by generating a BufferSlice object, which
@@ -255,7 +255,7 @@ def test_letstmt_bufferload_without_type_annotation():
         T.evaluate(x)
 
 
-def test_letstmt_bind_with_constant():
+def test_bind_with_constant():
     @T.prim_func
     def constant_binds():
         x = T.meta_var(1)
@@ -410,7 +410,7 @@ def test_preserve_trivial_let_binding():
     @T.prim_func
     def explicit(i: T.int32):
         j = T.int32()
-        T.LetStmt(i, var=j)
+        T.Bind(i, var=j)
         T.evaluate(j)
 
     @T.prim_func
@@ -425,7 +425,7 @@ def test_preserve_trivial_let_binding_of_value():
     @T.prim_func
     def explicit(i: T.int32):
         j = T.int32()
-        T.LetStmt(42, var=j)
+        T.Bind(42, var=j)
         T.evaluate(j)
 
     @T.prim_func
@@ -447,7 +447,7 @@ def test_preserve_parameter_name():
 
 
 def test_preserve_variable_name():
-    """Use variable name when generating tir::LetStmt"""
+    """Use variable name when generating tir::Bind"""
 
     @T.prim_func
     def func():
@@ -455,7 +455,8 @@ def test_preserve_variable_name():
             j = i // 4
             T.evaluate(j)
 
-    var_name = func.body.body.var.name
+    # With flat Bind, the for body is SeqStmt([Bind(j, i//4), Evaluate(j)])
+    var_name = func.body.body.seq[0].var.name
     assert var_name == "j"
 
 

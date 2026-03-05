@@ -135,10 +135,10 @@ def test_call_packed_return_non_i32():
         # 2. Let binding: Aptr_dup = packed_echo(Ab.data), then store const into Ab[1]
         Aptr_dup = tvm.tir.Var("Aptr_dup", "handle")
         store1 = tvm.tir.BufferStore(Ab, tvm.tir.const(expected_value[1], "float32"), [1])
-        let_stmt = tvm.tir.LetStmt(Aptr_dup, packed_echo(Ab.data), store1)
+        bind_stmt = tvm.tir.Bind(Aptr_dup, packed_echo(Ab.data))
 
         # Combine into sequence
-        stmt = tvm.tir.SeqStmt([store0, let_stmt])
+        stmt = tvm.tir.SeqStmt([store0, bind_stmt, store1])
 
         return tvm.IRModule.from_expr(
             tvm.tir.PrimFunc([Ab], stmt).with_attr("global_symbol", "packed_test")

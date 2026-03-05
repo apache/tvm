@@ -460,24 +460,18 @@ AssertFrame Assert(PrimExpr condition, ffi::String error_kind,
   return AssertFrame(n);
 }
 
-LetFrame LetStmt(PrimExpr value, ffi::Optional<Type> type_annotation, ffi::Optional<Var> var) {
-  ObjectPtr<LetFrameNode> n = ffi::make_object<LetFrameNode>();
-  if (var.defined()) {
-    n->var = var.value();
-  } else if (type_annotation.defined()) {
-    n->var = Var("v", type_annotation.value());
-  } else {
-    n->var = Var("v", value.dtype());
-  }
-  n->value = value;
-  return LetFrame(n);
-}
-
-LetFrame LegacyLetStmt(Var var, PrimExpr value) {
-  ObjectPtr<LetFrameNode> n = ffi::make_object<LetFrameNode>();
-  n->var = var;
-  n->value = value;
-  return LetFrame(n);
+Var Bind(PrimExpr value, ffi::Optional<Type> type_annotation, ffi::Optional<Var> var) {
+  Var bind_var = [&]() {
+    if (var.defined()) {
+      return var.value();
+    } else if (type_annotation.defined()) {
+      return Var("v", type_annotation.value());
+    } else {
+      return Var("v", value.dtype());
+    }
+  }();
+  AddToParent(tvm::tir::Bind(bind_var, value));
+  return bind_var;
 }
 
 LaunchThreadFrame LaunchThread(Var var, PrimExpr extent) {
@@ -753,8 +747,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("script.ir_builder.tir.ThreadBinding", ThreadBinding)
       .def("script.ir_builder.tir.Grid", Grid)
       .def("script.ir_builder.tir.Assert", Assert)
-      .def("script.ir_builder.tir.LetStmt", LetStmt)
-      .def("script.ir_builder.tir.LegacyLetStmt", LegacyLetStmt)
+      .def("script.ir_builder.tir.Bind", Bind)
       .def("script.ir_builder.tir.Allocate", Allocate)
       .def("script.ir_builder.tir.Attr", Attr)
       .def("script.ir_builder.tir.While", While)

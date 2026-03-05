@@ -373,7 +373,7 @@ def test_buffer_conditional_lowering():
 
 
 def test_dltensor_buffer_is_unlowered():
-    """Buffers allocated with a LetStmt are unmodified
+    """Buffers allocated with a Bind are unmodified
 
     Confirm that the `tir.PlanAndUpdateBufferAllocationLocation` pass
     leaves (Buffer nodes corresponding to PrimFunc DLTensor arguments)
