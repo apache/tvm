@@ -1072,6 +1072,9 @@ void CodeGenC::VisitStmt_(const AllocBufferNode* op) {
   stream << ' ' << vid << '[' << constant_size << "];\n";
 
   RegisterHandleType(op->buffer->data.get(), op->buffer->dtype);
+  if (op->annotations.count(tir::attr::kVolatile)) {
+    MarkVolatile(op->buffer->data.get());
+  }
 }
 
 void CodeGenC::VisitStmt_(const AttrStmtNode* op) {
@@ -1082,10 +1085,6 @@ void CodeGenC::VisitStmt_(const AttrStmtNode* op) {
         BindThreadIndex(iv);
       }
     }
-  } else if (op->attr_key == tir::attr::volatile_scope) {
-    const VarNode* v = op->node.as<VarNode>();
-    TVM_FFI_ICHECK(v);
-    volatile_buf_.insert(v);
   } else if (op->attr_key == tir::attr::pragma_import_c) {
     const StringImmNode* value = op->value.as<StringImmNode>();
     TVM_FFI_ICHECK(value != nullptr);

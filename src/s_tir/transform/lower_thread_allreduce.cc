@@ -98,10 +98,12 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
    * \return The remapped statement(s).
    */
   Stmt RemapAllocBuffer(AllocBuffer node, const Buffer& replacement) {
-    node.CopyOnWrite()->buffer = replacement;
+    auto* cow = node.CopyOnWrite();
+    cow->buffer = replacement;
     if (replacement.scope() == "shared") {
-      Stmt volatile_attr = AttrStmt(replacement->data, tir::attr::volatile_scope, 1, Evaluate(0));
-      return SeqStmt::Flatten(node, volatile_attr);
+      auto annotations = cow->annotations;
+      annotations.Set(tir::attr::kVolatile, Bool(true));
+      cow->annotations = annotations;
     }
     return node;
   }
@@ -826,15 +828,10 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
 namespace transform {
 
 /*!
- * \brief Post-processing pass to apply deferred AllocBuffer remappings.
+ * \brief Post-processing pass to apply deferred remappings for flat IR.
  *
  * In flat IR, AllocBuffer nodes may be visited before the alloc_remap_ is populated
  * (since MakeAllreduce runs when Evaluate is visited, which is later in the flat sequence).
- * This pass walks the result and applies any pending remappings.
- */
-/*!
- * \brief Post-processing pass to apply deferred remappings for flat IR.
- *
  * Handles AllocBuffer, DeclBuffer, and BufferLoad nodes whose remappings
  * were not available during the main traversal.
  */
@@ -863,11 +860,12 @@ class DeferredRemapper : public StmtExprMutator {
     if (pending_set_.count(data_ptr)) {
       if (auto it = alloc_remap_.find(data_ptr); it != alloc_remap_.end()) {
         const Buffer& replacement = it->second;
-        node.CopyOnWrite()->buffer = replacement;
+        auto* cow = node.CopyOnWrite();
+        cow->buffer = replacement;
         if (replacement.scope() == "shared") {
-          Stmt volatile_attr =
-              AttrStmt(replacement->data, tir::attr::volatile_scope, 1, Evaluate(0));
-          return SeqStmt::Flatten(node, volatile_attr);
+          auto annotations = cow->annotations;
+          annotations.Set(tir::attr::kVolatile, Bool(true));
+          cow->annotations = annotations;
         }
       }
     }

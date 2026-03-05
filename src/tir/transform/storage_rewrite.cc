@@ -324,7 +324,16 @@ class InplaceOpVerifier : public StmtExprVisitor {
 
   void VisitStmt_(const AttrStmtNode* op) final {
     // always reject extern code
-    if (op->attr_key == attr::extern_scope || op->attr_key == attr::volatile_scope) {
+    if (op->attr_key == attr::extern_scope) {
+      result_ = false;
+      return;
+    }
+    StmtExprVisitor::VisitStmt_(op);
+  }
+
+  void VisitStmt_(const AllocBufferNode* op) final {
+    // reject inplace for volatile buffers
+    if (op->annotations.count(attr::kVolatile)) {
       result_ = false;
       return;
     }
@@ -501,12 +510,6 @@ class StoragePlanRewriter : public StmtExprMutator {
       } else {
         return StmtExprMutator::VisitStmt_(op);
       }
-    } else if (op->attr_key == attr::volatile_scope) {
-      Stmt stmt = StmtExprMutator::VisitStmt_(op);
-      op = stmt.as<AttrStmtNode>();
-      auto it = alloc_map_.find(op->node.as<VarNode>());
-      if (it == alloc_map_.end()) return stmt;
-      return AttrStmt(it->second->alloc_var, op->attr_key, op->value, op->body);
     } else {
       return StmtExprMutator::VisitStmt_(op);
     }
@@ -582,6 +585,8 @@ class StoragePlanRewriter : public StmtExprMutator {
     Var alloc_var;
     // The allocation element type.
     DataType elem_type;
+    // Whether any constituent allocation was marked volatile.
+    bool is_volatile{false};
     // This is non-zero if this alloc_buffer is folded into another one
     // the address(in bits) becomes alloc_var + bits_offset;
     // can be effectively converted to the element type.
@@ -687,7 +692,11 @@ class StoragePlanRewriter : public StmtExprMutator {
         if (all_allocs_identical) {
           // Emit AllocBuffer for the hoisted allocation.
           Buffer buf = RemapBuffer(e->allocs[0]->buffer, e->alloc_var);
-          e->alloc_nest.push_back(AllocBuffer(buf));
+          ffi::Map<ffi::String, ffi::Any> annotations;
+          if (e->is_volatile) {
+            annotations.Set(attr::kVolatile, Bool(true));
+          }
+          e->alloc_nest.push_back(AllocBuffer(buf, annotations));
         } else {
           // Build a merged allocation
           PrimExpr combo_size;
@@ -728,7 +737,11 @@ class StoragePlanRewriter : public StmtExprMutator {
           combo_size = analyzer_.Simplify(combo_size);
           Buffer buf(e->alloc_var, alloc_type, {combo_size}, {}, PrimExpr(),
                      e->alloc_var->name_hint, 0, 0, BufferType::kDefault);
-          e->alloc_nest.push_back(AllocBuffer(buf));
+          ffi::Map<ffi::String, ffi::Any> annotations;
+          if (e->is_volatile) {
+            annotations.Set(attr::kVolatile, Bool(true));
+          }
+          e->alloc_nest.push_back(AllocBuffer(buf, annotations));
         }
       }
     }
@@ -762,7 +775,15 @@ class StoragePlanRewriter : public StmtExprMutator {
                                      (total_bits + type_bits - 1) / type_bits);
     Buffer buf(e->alloc_var, e->elem_type, {alloc_size}, {}, PrimExpr(), e->alloc_var->name_hint, 0,
                0, BufferType::kDefault);
-    e->alloc_nest.push_back(AllocBuffer(buf));
+    bool any_volatile = e->is_volatile;
+    for (StorageEntry* child : e->merged_children) {
+      if (child->is_volatile) any_volatile = true;
+    }
+    ffi::Map<ffi::String, ffi::Any> annotations;
+    if (any_volatile) {
+      annotations.Set(attr::kVolatile, Bool(true));
+    }
+    e->alloc_nest.push_back(AllocBuffer(buf, annotations));
   }
   // Liveness analysis to find gen and kill point of each variable.
   void LivenessAnalysis(const std::vector<StmtEntry>& seq) {
@@ -873,6 +894,9 @@ class StoragePlanRewriter : public StmtExprMutator {
                           enable_reuse, reuse_require_exact_matched_dtype);
           }
           dst_entry->allocs.emplace_back(alloc);
+          if (alloc->annotations.count(attr::kVolatile)) {
+            dst_entry->is_volatile = true;
+          }
           alloc_map_[var] = dst_entry;
         }
       }

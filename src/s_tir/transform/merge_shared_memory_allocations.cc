@@ -339,8 +339,12 @@ class SharedMemoryRewriter : public StmtExprMutator {
       allocated_ = true;
       Buffer merged_buf(merged_buf_var_, DataType::UInt(8), {merged_alloc_size_}, {}, PrimExpr(),
                         merged_buf_var_->name_hint, 0, 0, BufferType::kDefault);
-      Stmt alloc_stmt = AllocBuffer(merged_buf);
       Stmt visited_body = StmtExprMutator::VisitStmt(op->body);
+      ffi::Map<ffi::String, ffi::Any> annotations;
+      if (has_volatile_alloc_) {
+        annotations.Set(tir::attr::kVolatile, Bool(true));
+      }
+      Stmt alloc_stmt = AllocBuffer(merged_buf, annotations);
       Stmt new_body = SeqStmt::Flatten(alloc_stmt, visited_body);
       return AttrStmt(op->node, op->attr_key, op->value, new_body, op->span);
     }
@@ -349,6 +353,9 @@ class SharedMemoryRewriter : public StmtExprMutator {
 
   Stmt VisitStmt_(const AllocBufferNode* op) final {
     if (IsAppropriateSharedMemory(op->buffer->data)) {
+      if (op->annotations.count(tir::attr::kVolatile)) {
+        has_volatile_alloc_ = true;
+      }
       return Evaluate(0);
     }
     return StmtExprMutator::VisitStmt_(op);
@@ -682,6 +689,8 @@ class SharedMemoryRewriter : public StmtExprMutator {
   std::unordered_map<const BufferNode*, Buffer> buffer_remap_;
   // The flag indicating whether the merged buffer has been allocated
   bool allocated_{false};
+  // Whether any original shared memory allocation had the volatile annotation
+  bool has_volatile_alloc_{false};
   // Locations of free ops.
   std::unordered_map<const Object*, EventEntry> event_map_;
   // constant size free map.

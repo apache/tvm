@@ -933,8 +933,8 @@ constexpr const char* pragma_unroll_explicit = "pragma_unroll_explicit";
 constexpr const char* storage_alignment = "storage_alignment";
 /*! \brief Mark launching extent of thread, used by device API. */
 constexpr const char* thread_extent = "thread_extent";
-/*! \brief Mark the scope as volatile access for certain handle. */
-constexpr const char* volatile_scope = "volatile_scope";
+/*! \brief Annotation key on AllocBuffer marking the allocation as volatile. */
+constexpr const char* kVolatile = "tir.volatile";
 
 /*!
  * \brief Check if attr_key is a pragma key extension

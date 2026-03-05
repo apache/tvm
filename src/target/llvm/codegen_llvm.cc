@@ -2012,6 +2012,9 @@ void CodeGenLLVM::VisitStmt_(const AllocBufferNode* op) {
 
   TVM_FFI_ICHECK(!var_map_.count(op->buffer->data.get()));
   var_map_[op->buffer->data.get()] = buf;
+  if (op->annotations.count(tir::attr::kVolatile)) {
+    volatile_buf_.insert(op->buffer->data.get());
+  }
 }
 
 void CodeGenLLVM::VisitStmt_(const AttrStmtNode* op) {
@@ -2032,10 +2035,6 @@ void CodeGenLLVM::VisitStmt_(const AttrStmtNode* op) {
       builder_->CreateAlignmentAssumption(*data_layout_, GetVarValue(v),
                                           alloc_storage_info_[v].alignment);
     }
-  } else if (op->attr_key == tir::attr::volatile_scope) {
-    const VarNode* v = op->node.as<VarNode>();
-    TVM_FFI_ICHECK(v);
-    volatile_buf_.insert(v);
   }
   this->VisitStmt(op->body);
 }

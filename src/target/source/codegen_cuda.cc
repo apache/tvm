@@ -1434,6 +1434,9 @@ void CodeGenCUDA::VisitStmt_(const AllocBufferNode* op) {
   }
 
   RegisterHandleType(op->buffer->data.get(), dtype);
+  if (op->annotations.count(tir::attr::kVolatile)) {
+    MarkVolatile(op->buffer->data.get());
+  }
 }
 
 void CodeGenCUDA::VisitStmt_(const EvaluateNode* op) {
