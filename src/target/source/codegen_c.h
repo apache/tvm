@@ -187,7 +187,7 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   void VisitExpr_(const FloatImmNode* op, std::ostream& os) override;    // NOLINT(*)
   void VisitExpr_(const StringImmNode* op, std::ostream& os) override;   // NOLINT(*)
   // statment
-  void VisitStmt_(const LetStmtNode* op) override;
+  void VisitStmt_(const BindNode* op) override;
   void VisitStmt_(const BufferStoreNode* op) override;
   void VisitStmt_(const ForNode* op) override;
   void VisitStmt_(const WhileNode* op) override;

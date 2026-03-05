@@ -91,7 +91,7 @@ def test_ir2():
 def test_let():
     x = tvm.tir.Var("x", "int32")
     y = tvm.tir.Var("y", "int32")
-    stmt = tvm.tir.LetStmt(x, 10, tvm.tir.Evaluate(x + 1))
+    stmt = tvm.tir.Bind(x, 10)
 
 
 def test_cast():
@@ -306,7 +306,7 @@ def test_prim_func():
     x = tvm.tir.Var("x", "int32")
     y = tvm.tir.Var("y", "int32")
     b = tvm.tir.decl_buffer((x,), "float32")
-    stmt = tvm.tir.LetStmt(x, 10, tvm.tir.Evaluate(x + 1))
+    stmt = tvm.tir.SeqStmt([tvm.tir.Bind(x, 10), tvm.tir.Evaluate(x + 1)])
 
     func = tvm.tir.PrimFunc([x, y, b], stmt)
     # make sure we can print

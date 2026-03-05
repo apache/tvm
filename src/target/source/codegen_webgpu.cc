@@ -569,7 +569,7 @@ void CodeGenWebGPU::VisitExpr_(const BufferLoadNode* op, std::ostream& os) {  //
   }
 }
 
-void CodeGenWebGPU::VisitStmt_(const LetStmtNode* op) {
+void CodeGenWebGPU::VisitStmt_(const BindNode* op) {
   // use ssa form.
   if (print_ssa_form_) {
     std::string value = PrintExpr(op->value);
@@ -582,7 +582,6 @@ void CodeGenWebGPU::VisitStmt_(const LetStmtNode* op) {
     PrintType(op->var.dtype(), this->stream);
     this->stream << " = " << value << ";\n";
   }
-  PrintStmt(op->body);
 }
 
 void CodeGenWebGPU::VisitStmt_(const BufferStoreNode* op) {

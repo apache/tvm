@@ -37,7 +37,6 @@
 
 #include "../../arith/ir_mutator_with_analyzer.h"
 #include "../../tir/analysis/control_flow_graph.h"
-#include "../../tir/analysis/var_use_def_analysis.h"
 
 namespace tvm {
 namespace arith {
@@ -97,46 +96,6 @@ struct SimplifyConfigNode : public AttrsNodeReflAdapter<SimplifyConfigNode> {
   }
 };
 
-/* \brief Utility function to collect vars that should be retained */
-std::unordered_set<const VarNode*> CollectVarsUsedInBufferDefinition(const Stmt& stmt) {
-  struct Visitor : StmtExprVisitor {
-    using StmtExprVisitor::VisitExpr_;
-    using StmtExprVisitor::VisitStmt_;
-
-    void VisitExpr_(const BufferLoadNode* op) override {
-      VisitBuffer(op->buffer);
-      StmtExprVisitor::VisitExpr_(op);
-    }
-    void VisitStmt_(const BufferStoreNode* op) override {
-      VisitBuffer(op->buffer);
-      StmtExprVisitor::VisitStmt_(op);
-    }
-
-    void VisitBuffer(const Buffer& buf) {
-      // Collect variables that should remain defined
-      VarUseDefAnalyzer usage(ffi::Array<Var>{});
-      usage(buf->data);
-      for (const auto& dim : buf->shape) {
-        usage(dim);
-      }
-      for (const auto& dim : buf->strides) {
-        usage(dim);
-      }
-      usage(buf->elem_offset);
-
-      // Track for use in LetStmtNode mutator
-      for (const auto& var : usage.undefined_) {
-        used_in_buffer_def_.insert(var.get());
-      }
-    }
-    std::unordered_set<const VarNode*> used_in_buffer_def_;
-  };
-
-  Visitor visitor;
-  visitor(stmt);
-  return visitor.used_in_buffer_def_;
-}
-
 class SimplifyConfig : public Attrs {
  public:
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SimplifyConfig, Attrs, SimplifyConfigNode);
@@ -159,10 +118,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
       touch_pattern = ControlFlowGraph(func->body);
     }
 
-    std::unordered_set<const VarNode*> used_in_buffer_def =
-        CollectVarsUsedInBufferDefinition(func->body);
-    StmtSimplifier simplifier(analyzer, config, std::move(touch_pattern),
-                              std::move(used_in_buffer_def));
+    StmtSimplifier simplifier(analyzer, config, std::move(touch_pattern));
     simplifier.MarkBufferMapShapes(func);
     func.CopyOnWrite()->body = simplifier(func->body);
     return func;
@@ -170,12 +126,8 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
 
  private:
   explicit StmtSimplifier(Analyzer* analyzer, SimplifyConfig config,
-                          std::optional<ControlFlowGraph> touch_pattern,
-                          std::unordered_set<const VarNode*> used_in_buffer_def)
-      : IRMutatorWithAnalyzer(analyzer),
-        config_(config),
-        touch_pattern_(touch_pattern),
-        used_in_buffer_def_(used_in_buffer_def) {}
+                          std::optional<ControlFlowGraph> touch_pattern)
+      : IRMutatorWithAnalyzer(analyzer), config_(config), touch_pattern_(touch_pattern) {}
 
   using Parent = IRMutatorWithAnalyzer;
   using Parent::VisitExpr_;
@@ -220,52 +172,28 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
     return Parent::VisitStmt_(op);
   }
 
-  bool CanInlineLetStmt(const LetStmtNode* op) {
-    if (is_const_number(op->value)) return true;
-    if (op->value.as<VarNode>()) return true;
-    // Won't face the deep expression explosion problem as in Let expression.
-    // attempt to inline as much as possible if the value integer type(can be index).
-    if (!op->value.dtype().is_int()) return false;
-    return SideEffect(op->value) <= CallEffectKind::kPure;
-  }
-
-  Stmt VisitStmt_(const LetStmtNode* op) override {
+  Stmt VisitStmt_(const BindNode* op) override {
     PrimExpr value = this->VisitExpr(op->value);
-    bool can_inline = CanInlineLetStmt(op);
-    if (can_inline) {
-      // It is usually fine to discard the let binding because the
-      // call to simplify will always inline the var.
-      //
-      // The exception is when the variable is used in a Buffer's
-      // definition, as these are not updated by the simplification.
-      // After DeclBuffer is required prior to use of a buffer,
-      // simplifying can update the buffer definition as well.  The
-      // buffer can only be updated at its point of definition,
-      // because the points of use may occur within contexts that
-      // allow for additional simplifications (e.g. a buffer of shape
-      // [i,j] whose first use occurs within "if i==1" should not have
-      // its shape simplified to [1,j]).
+    // Bind in analyzer for constraint proving and simplification of
+    // subsequent expressions.  Don't remove the Bind statement --
+    // with flat Bind there's no body to inspect for usage patterns,
+    // so we always keep the Bind.
+    if (SideEffect(value) <= CallEffectKind::kPure) {
       analyzer_->Bind(op->var, value);
-    } else if (SideEffect(op->value) <= CallEffectKind::kPure) {
-      // Even if we aren't replacing all occurrences, they may be
-      // necessary for proving conditional statements.
+      // Record the binding so we can substitute it into assert conditions
+      // (see VisitStmt_(const AssertStmtNode*)).  Under SSA each var is
+      // bound exactly once, so the map grows monotonically without key
+      // conflicts.  No scope-based cleanup is needed because vars bound
+      // in inner scopes are only referenced within those scopes; stale
+      // entries are harmless and never consulted again.
       non_inlined_bindings_.Set(op->var, value);
     }
-    Stmt body = this->VisitStmt(op->body);
 
-    // TODO(Lunderberg): Update the Buffer object as part of
-    // DeclBuffer updates, which will first require
-    // https://github.com/apache/tvm/pull/14778.
-    bool used_in_buffer_def = used_in_buffer_def_.count(op->var.get());
-
-    if (can_inline && !used_in_buffer_def) {
-      return body;
-    } else if (value.same_as(op->value) && body.same_as(op->body)) {
+    if (value.same_as(op->value)) {
       return ffi::GetRef<Stmt>(op);
     } else {
       auto n = this->CopyOnWrite(op);
       n->value = std::move(value);
-      n->body = std::move(body);
       return Stmt(n);
     }
   }
@@ -350,9 +278,10 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
   SimplifyConfig config_;
   std::optional<ControlFlowGraph> touch_pattern_;
 
+  // Pure Bind values kept for substitution into assert conditions.
+  // Grows monotonically under SSA — no scope-based cleanup required.
   ffi::Map<Var, PrimExpr> non_inlined_bindings_;
   ffi::Optional<Stmt> current_stmt_{std::nullopt};
-  std::unordered_set<const VarNode*> used_in_buffer_def_;
 };
 
 }  // namespace arith

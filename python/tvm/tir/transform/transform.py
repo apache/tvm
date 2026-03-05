@@ -472,13 +472,13 @@ class HoistedLetBindings(enum.Flag):
     RequiredByConditional = 1
     """ Bindings that are used by a hoisted conditional """
 
-    LetStmt = 2
-    """ Bindings occurring in LetStmt """
+    Bind = 2
+    """ Bindings occurring in Bind nodes """
 
     LetExpr = 4
     """ Bindings occurring in Let expressions """
 
-    All = RequiredByConditional | LetStmt | LetExpr
+    All = RequiredByConditional | Bind | LetExpr
     """ Enable all hoisting of let bindings """
 
 

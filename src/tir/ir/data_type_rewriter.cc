@@ -140,7 +140,7 @@ PrimExpr DataTypeLegalizer::VisitExpr_(const LetNode* op) {
   }
 }
 
-Stmt DataTypeLegalizer::VisitStmt_(const LetStmtNode* op) {
+Stmt DataTypeLegalizer::VisitStmt_(const BindNode* op) {
   PrimExpr value = this->VisitExpr(op->value);
   Var var = op->var;
 
@@ -149,12 +149,10 @@ Stmt DataTypeLegalizer::VisitStmt_(const LetStmtNode* op) {
     var_remap_[op->var.get()] = var;
   }
 
-  Stmt new_body = this->VisitStmt(op->body);
-
-  if (value.same_as(op->value) && new_body.same_as(op->body)) {
+  if (value.same_as(op->value) && var.same_as(op->var)) {
     return ffi::GetRef<Stmt>(op);
   } else {
-    return LetStmt(var, value, new_body, op->span);
+    return Bind(var, value, op->span);
   }
 }
 
@@ -528,19 +526,18 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const ForNode* op) {
   }
 }
 
-Stmt IndexDataTypeRewriter::VisitStmt_(const LetStmtNode* op) {
-  LetStmt let_stmt = Downcast<LetStmt>(DataTypeLegalizer::VisitStmt_(op));
-  if (var_remap_.find(let_stmt->var.get()) == var_remap_.end()) {
-    return let_stmt;
+Stmt IndexDataTypeRewriter::VisitStmt_(const BindNode* op) {
+  Bind bind_stmt = Downcast<Bind>(DataTypeLegalizer::VisitStmt_(op));
+  if (var_remap_.find(bind_stmt->var.get()) == var_remap_.end()) {
+    return bind_stmt;
   }
   bool is_enabled = is_enabled_;
   is_enabled_ = true;
   PrimExpr value = VisitExpr(op->value);
-  Var var = var_remap_[let_stmt->var.get()];
+  Var var = var_remap_[bind_stmt->var.get()];
   is_enabled_ = is_enabled;
   TVM_FFI_ICHECK(value.dtype() == var.dtype());
-  // No need to re-visit body
-  return LetStmt(var, value, let_stmt->body, let_stmt->span);
+  return Bind(var, value, bind_stmt->span);
 }
 
 #define TVM_DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(OP, FUNC)                     \
