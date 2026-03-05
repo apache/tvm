@@ -277,22 +277,16 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const AttrStmtNode* op) {
   return DataTypeLegalizer::VisitStmt_(op);
 }
 
-Stmt IndexDataTypeRewriter::VisitStmt_(const AllocBufferNode* op) {
-  Buffer new_buffer = VisitBuffer(op->buffer);
-  AllocBuffer alloc_buffer = Downcast<AllocBuffer>(StmtExprMutator::VisitStmt_(op));
-  if (!new_buffer.same_as(op->buffer)) {
-    alloc_buffer.CopyOnWrite()->buffer = new_buffer;
-  }
-  return alloc_buffer;
+Buffer IndexDataTypeRewriter::VisitBufferDef(const Buffer& buffer, bool alloc_data) {
+  bool is_enabled = is_enabled_;
+  is_enabled_ = true;
+  Buffer new_buf = StmtMutator::VisitBufferDef(buffer, alloc_data);
+  is_enabled_ = is_enabled;
+  return new_buf;
 }
 
-Stmt IndexDataTypeRewriter::VisitStmt_(const DeclBufferNode* op) {
-  Buffer new_buffer = VisitBuffer(op->buffer);
-  DeclBuffer decl_buffer = Downcast<DeclBuffer>(StmtExprMutator::VisitStmt_(op));
-  if (!new_buffer.same_as(op->buffer)) {
-    decl_buffer.CopyOnWrite()->buffer = new_buffer;
-  }
-  return decl_buffer;
+Buffer IndexDataTypeRewriter::VisitBufferUse(const Buffer& buffer) {
+  return StmtMutator::VisitBufferUse(buffer);
 }
 
 Stmt IndexDataTypeRewriter::VisitStmt_(const SBlockRealizeNode* op) {
@@ -322,11 +316,11 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const SBlockRealizeNode* op) {
 }
 
 Stmt IndexDataTypeRewriter::VisitStmt_(const SBlockNode* op) {
-  ffi::Array<Buffer> new_alloc_buffers =
-      op->alloc_buffers.Map([this](const Buffer& buffer) { return this->VisitBuffer(buffer); });
+  ffi::Array<Buffer> new_alloc_buffers = op->alloc_buffers.Map(
+      [this](const Buffer& buffer) { return this->VisitBufferDef(buffer, /*alloc_data=*/true); });
   ffi::Array<MatchBufferRegion> new_match_buffers =
       op->match_buffers.Map([this](const MatchBufferRegion& match_buffer_region) {
-        Buffer new_buffer = this->VisitBuffer(match_buffer_region->buffer);
+        Buffer new_buffer = this->VisitBufferDef(match_buffer_region->buffer, /*alloc_data=*/true);
         BufferRegion new_buffer_region = this->VisitBufferRegion(match_buffer_region->source);
         if (!new_buffer.same_as(match_buffer_region->buffer) ||
             !new_buffer_region.same_as(match_buffer_region->source)) {
@@ -378,7 +372,7 @@ ffi::Map<ffi::String, ffi::Any> IndexDataTypeRewriter::VisitBlockAnnotations(
     }
     if (obj.as<BufferNode>()) {
       Buffer buffer = Downcast<Buffer>(obj);
-      if (Buffer new_buffer = GetRemappedBuffer(buffer); !new_buffer.same_as(buffer)) {
+      if (Buffer new_buffer = VisitBufferUse(buffer); !new_buffer.same_as(buffer)) {
         return new_buffer;
       }
     } else if (obj.as<ffi::ArrayObj>()) {
@@ -395,13 +389,6 @@ ffi::Map<ffi::String, ffi::Any> IndexDataTypeRewriter::VisitBlockAnnotations(
     }
   }
   return new_annotations;
-}
-
-Buffer IndexDataTypeRewriter::GetRemappedBuffer(const Buffer& buffer) {
-  if (auto it = buffer_remap_.find(buffer); it != buffer_remap_.end()) {
-    return (*it).second;
-  }
-  return buffer;
 }
 
 IterVar IndexDataTypeRewriter::VisitIterVar(const IterVar& iter_var) {
@@ -422,33 +409,8 @@ IterVar IndexDataTypeRewriter::VisitIterVar(const IterVar& iter_var) {
   return iter_var;
 }
 
-Buffer IndexDataTypeRewriter::VisitBuffer(const Buffer& buffer) {
-  bool is_enabled = is_enabled_;
-
-  is_enabled_ = true;
-  ffi::Array<PrimExpr> new_shape =
-      buffer->shape.Map([&](const PrimExpr& e) { return this->VisitExpr(e); });
-  ffi::Array<PrimExpr> new_strides =
-      buffer->strides.Map([&](const PrimExpr& e) { return this->VisitExpr(e); });
-  auto new_elem_offset = VisitExpr(buffer->elem_offset);
-  is_enabled_ = is_enabled;
-
-  if (!buffer->shape.same_as(new_shape) || !buffer->strides.same_as(new_strides) ||
-      !buffer->elem_offset.same_as(new_elem_offset)) {
-    Buffer new_buffer = buffer;
-    BufferNode* new_buffer_node = new_buffer.CopyOnWrite();
-    new_buffer_node->shape = std::move(new_shape);
-    new_buffer_node->strides = std::move(new_strides);
-    new_buffer_node->elem_offset = std::move(new_elem_offset);
-    buffer_remap_.Set(buffer, new_buffer);
-    return new_buffer;
-  } else {
-    return buffer;
-  }
-}
-
 BufferRegion IndexDataTypeRewriter::VisitBufferRegion(const BufferRegion& buffer_region) {
-  Buffer remapped_buffer = GetRemappedBuffer(buffer_region->buffer);
+  Buffer remapped_buffer = VisitBufferUse(buffer_region->buffer);
 
   bool is_enabled = is_enabled_;
   is_enabled_ = true;
@@ -468,7 +430,7 @@ BufferRegion IndexDataTypeRewriter::VisitBufferRegion(const BufferRegion& buffer
 Stmt IndexDataTypeRewriter::VisitStmt_(const BufferStoreNode* op) {
   BufferStore store = ffi::GetRef<BufferStore>(op);
 
-  Buffer new_buffer = GetRemappedBuffer(op->buffer);
+  Buffer new_buffer = VisitBufferUse(op->buffer);
   auto value = this->VisitExpr(op->value);
   if (new_buffer->dtype != value->dtype && value->dtype.is_scalar()) {
     value = cast(new_buffer->dtype, value);
@@ -489,7 +451,7 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const BufferStoreNode* op) {
 PrimExpr IndexDataTypeRewriter::VisitExpr_(const BufferLoadNode* op) {
   BufferLoad load = ffi::GetRef<BufferLoad>(op);
 
-  Buffer new_buffer = GetRemappedBuffer(op->buffer);
+  Buffer new_buffer = VisitBufferUse(op->buffer);
   auto indices = VisitIndices(op->indices);
 
   if (!new_buffer.same_as(op->buffer) || !indices.same_as(op->indices)) {
@@ -642,7 +604,7 @@ PrimFunc IndexDataTypeNormalizer::Rewrite(PrimFunc func) {
   // start rewrite
   ffi::Map<Var, Buffer> new_buffer_map = func->buffer_map;
   for (const auto& [var, buffer] : func->buffer_map) {
-    new_buffer_map.Set(var, VisitBuffer(buffer));
+    new_buffer_map.Set(var, VisitBufferDef(buffer, /*alloc_data=*/true));
   }
   // remap params
   bool is_enabled = true;

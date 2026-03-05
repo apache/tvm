@@ -1819,7 +1819,7 @@ def test_simplify_trivial_let_buffer_var():
 
 
 def test_simplify_trivial_let_elem_offset():
-    """A LetStmt used in a buffer definition should be retained"""
+    """A LetStmt used in a buffer definition should be retained, buffer fields unchanged"""
 
     @T.prim_func(private=True)
     def before(A_ptr: T.handle("float32"), A_offset: T.int32):
@@ -1827,14 +1827,18 @@ def test_simplify_trivial_let_elem_offset():
         A = T.decl_buffer(1, "float32", elem_offset=A_offset_redef, data=A_ptr)
         A[0] = 42.0
 
-    expected = before
+    @T.prim_func(private=True)
+    def expected(A_ptr: T.handle("float32"), A_offset: T.int32):
+        A_offset_redef = A_offset
+        A = T.decl_buffer(1, "float32", elem_offset=A_offset_redef, data=A_ptr)
+        A[0] = 42.0
 
     after = _apply_simplify(before)
     tvm.ir.assert_structural_equal(after, expected)
 
 
 def test_simplify_trivial_let_shape():
-    """A LetStmt used in a buffer definition should be retained"""
+    """A LetStmt used in a buffer definition should be retained, buffer fields unchanged"""
 
     @T.prim_func(private=True)
     def before(A_ptr: T.handle("float32"), A_size: T.int32):
@@ -1842,14 +1846,18 @@ def test_simplify_trivial_let_shape():
         A = T.decl_buffer([A_size_redef], "float32", data=A_ptr)
         A[0] = 42.0
 
-    expected = before
+    @T.prim_func(private=True)
+    def expected(A_ptr: T.handle("float32"), A_size: T.int32):
+        A_size_redef = A_size
+        A = T.decl_buffer([A_size_redef], "float32", data=A_ptr)
+        A[0] = 42.0
 
     after = _apply_simplify(before)
     tvm.ir.assert_structural_equal(after, expected)
 
 
 def test_simplify_trivial_let_stride():
-    """A LetStmt used in a buffer definition should be retained"""
+    """A LetStmt used in a buffer definition should be retained, buffer fields unchanged"""
 
     @T.prim_func(private=True)
     def before(A_ptr: T.handle("float32"), A_stride: T.int32):
@@ -1857,10 +1865,35 @@ def test_simplify_trivial_let_stride():
         A = T.decl_buffer(1, "float32", strides=[A_stride_redef], data=A_ptr)
         A[0] = 42.0
 
-    expected = before
+    @T.prim_func(private=True)
+    def expected(A_ptr: T.handle("float32"), A_stride: T.int32):
+        A_stride_redef = A_stride
+        A = T.decl_buffer(1, "float32", strides=[A_stride_redef], data=A_ptr)
+        A[0] = 42.0
 
     after = _apply_simplify(before)
     tvm.ir.assert_structural_equal(after, expected)
+
+
+def test_simplify_buffer_identity_well_formed():
+    """Regression: Simplify must not diverge buffer identity between DeclBuffer and BufferLoad.
+
+    The simplifier's VisitExpr calls analyzer_->Simplify() directly, bypassing
+    normal ExprMutator dispatch.  If VisitBufferDef remaps a buffer at a DeclBuffer
+    site (e.g. inlining n_val -> n in the shape), BufferLoad inside a BufferStore
+    value would NOT pick up the remap because VisitBufferUse is never called.
+    This causes DeclBuffer/BufferLoad buffer identity divergence.
+    """
+
+    @T.prim_func(private=True)
+    def before(A_ptr: T.handle("float32"), B_ptr: T.handle("float32"), n: T.int32):
+        n_val = n
+        A = T.decl_buffer([n_val], "float32", data=A_ptr)
+        B = T.decl_buffer([n_val], "float32", data=B_ptr)
+        B[0] = A[0]
+
+    after = _apply_simplify(before)
+    tvm.tir.analysis.verify_well_formed(after)
 
 
 def test_buffer_shape_constraint():
