@@ -129,23 +129,26 @@ void TIRVisitorWithPath::ExitDef(const IterVar& iter_var, AccessPath path) {
 void TIRVisitorWithPath::EnterDef(const Buffer& buffer, AccessPath path) {
   // Defining a buffer counts as using all parameters in the buffer
   // (e.g. shape/strides).
-  Visit(buffer->data, path->Attr("data"));
-  Visit(buffer->shape, path->Attr("shape"));
-  Visit(buffer->strides, path->Attr("strides"));
-  Visit(buffer->elem_offset, path->Attr("elem_offset"));
+  VisitBufferDef(buffer, path);
 }
 void TIRVisitorWithPath::ExitDef(const Buffer& buffer, AccessPath path) {}
 
-void TIRVisitorWithPath::Visit(const Buffer& buffer, AccessPath path) {
-  // Using a buffer *also* counts as using all parameters in the buffer.
+void TIRVisitorWithPath::VisitBufferDef(const Buffer& buffer, AccessPath path) {
   Visit(buffer->data, path->Attr("data"));
   Visit(buffer->shape, path->Attr("shape"));
   Visit(buffer->strides, path->Attr("strides"));
   Visit(buffer->elem_offset, path->Attr("elem_offset"));
 }
 
+// Default: buffer use sites do not re-visit buffer fields. Buffer fields
+// (shape, strides, elem_offset) are visited at the definition site via
+// VisitBufferDef/EnterDef. Re-visiting at use sites would require those
+// variables to be in scope at every use, which may not hold when buffers
+// are allocated in a different scope than where they are used.
+void TIRVisitorWithPath::VisitBufferUse(const Buffer& buffer, AccessPath path) {}
+
 void TIRVisitorWithPath::Visit(const BufferRegion& region, AccessPath path) {
-  Visit(region->buffer, path->Attr("buffer"));
+  VisitBufferUse(region->buffer, path->Attr("buffer"));
   Visit(region->region, path->Attr("region"));
 }
 
@@ -225,7 +228,7 @@ void TIRVisitorWithPath::VisitStmt_(const DeclBufferNode* op, AccessPath path) {
 
 void TIRVisitorWithPath::VisitStmt_(const BufferStoreNode* op, AccessPath path) {
   Visit(op->value, path->Attr("value"));
-  Visit(op->buffer, path->Attr("buffer"));
+  VisitBufferUse(op->buffer, path->Attr("buffer"));
   Visit(op->indices, path->Attr("indices"));
 }
 
@@ -308,7 +311,7 @@ void TIRVisitorWithPath::VisitExpr_(const SizeVarNode* op, AccessPath path) {
 }
 
 void TIRVisitorWithPath::VisitExpr_(const BufferLoadNode* op, AccessPath path) {
-  Visit(op->buffer, path->Attr("buffer"));
+  VisitBufferUse(op->buffer, path->Attr("buffer"));
   Visit(op->indices, path->Attr("indices"));
 }
 
