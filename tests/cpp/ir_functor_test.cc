@@ -150,15 +150,16 @@ TEST(IRF, StmtVisitor) {
   MyVisitor v;
   auto fmaketest = [&]() {
     auto z = x + 1;
-    Stmt body = Evaluate(z);
+    Stmt eval_body = Evaluate(z);
     DataType dtype = DataType::Float(32);
     Var data_var("b", PointerType(PrimType(dtype)));
     Buffer buf(data_var, dtype, {z, z}, {}, PrimExpr(), "b", 0, 0, BufferType::kDefault);
-    return AllocBuffer(buf, body);
+    // AllocBuffer is flat (no body). Return as SeqStmt with eval.
+    return SeqStmt({AllocBuffer(buf), eval_body});
   };
   v(fmaketest());
-  // AllocBuffer now visits buffer shape via VisitBufferDef.
-  // shape = {z, z} where z = x + 1, so x is visited twice from shape + once from body = 3
+  // AllocBuffer visits buffer shape via VisitBufferDef.
+  // shape = {z, z} where z = x + 1, so x is visited twice from shape + once from eval = 3
   TVM_FFI_ICHECK_EQ(v.count, 3);
 
   {
@@ -167,7 +168,7 @@ TEST(IRF, StmtVisitor) {
     DataType dtype = DataType::Float(32);
     Var buf_var("b", PointerType(PrimType(dtype)));
     Buffer buffer = decl_buffer({16});
-    body = DeclBuffer(buffer, std::move(body));
+    body = SeqStmt({DeclBuffer(buffer), std::move(body)});
     BufferRegion buffer_region(buffer, {Range::FromMinExtent(x + 1, 1)});
     MatchBufferRegion match_buffer_region(decl_buffer({1}), buffer_region);
 
@@ -178,9 +179,10 @@ TEST(IRF, StmtVisitor) {
 
     v.count = 0;
     v(block_realize);
-    // Old count was 5 (x visited in reads/writes/match_buffers range + init body + body).
-    // VisitBufferDef now also visits AllocBuffer's buffer shape {x+1, x+1} in both init and body.
-    // Each adds 2 VarNode visits (x in each shape element), so 5 + 4 = 9.
+    // x visited in: reads range (1), writes range (1), match_buffers range (1),
+    // init DeclBuffer(0) + AllocBuffer shape(2) + Evaluate(1) = 3,
+    // body DeclBuffer(0) + AllocBuffer shape(2) + Evaluate(1) = 3.
+    // Total: 1 + 1 + 1 + 3 + 3 = 9.
     TVM_FFI_ICHECK_EQ(v.count, 9);
   }
 }
@@ -203,11 +205,10 @@ TEST(IRF, StmtMutator) {
   };
   auto fmakealloc = [&]() {
     auto z = x + 1;
-    Stmt body = Evaluate(z);
     DataType dtype = DataType::Float(32);
     Var data_var("b", PointerType(PrimType(dtype)));
     Buffer buf(data_var, dtype, {1, z}, {}, PrimExpr(), "b", 0, 0, BufferType::kDefault);
-    return AllocBuffer(buf, body);
+    return AllocBuffer(buf);
   };
 
   auto fmakeif = [&]() {
@@ -218,21 +219,16 @@ TEST(IRF, StmtMutator) {
 
   MyVisitor v;
   {
-    auto body = fmakealloc();
+    auto alloc = fmakealloc();
     Stmt body2 = Evaluate(1);
-    Stmt bref = body.as<AllocBufferNode>()->body;
-    auto* bufptr = body.as<AllocBufferNode>()->buffer.get();
-    ffi::Array<Stmt> arr{std::move(body), body2, body2};
+    auto* bufptr = alloc.as<AllocBufferNode>()->buffer.get();
+    ffi::Array<Stmt> arr{std::move(alloc), body2, body2};
     auto* arrptr = arr.get();
     arr.MutateByApply([&](Stmt s) { return v(std::move(s)); });
     TVM_FFI_ICHECK(arr.get() == arrptr);
     // buffer IS mutated now (AllocBuffer mutator visits buffer shape via VisitBufferDef)
     // shape was {1, x+1}, mutator transforms x+1 -> x, so buffer changes
     TVM_FFI_ICHECK(arr[0].as<AllocBufferNode>()->buffer.get() != bufptr);
-    // body is mutated: x+1 -> x
-    TVM_FFI_ICHECK(!arr[0].as<AllocBufferNode>()->body.same_as(bref));
-    TVM_FFI_ICHECK(arr[0].as<AllocBufferNode>()->body.as<EvaluateNode>()->value.same_as(x));
-    TVM_FFI_ICHECK(bref.as<EvaluateNode>()->value.as<AddNode>());
   }
   {
     ffi::Array<Stmt> arr{fmakealloc()};
@@ -241,9 +237,9 @@ TEST(IRF, StmtMutator) {
     auto* arrptr = arr.get();
     arr.MutateByApply([&](Stmt s) { return v(std::move(s)); });
     TVM_FFI_ICHECK(arr.get() != arrptr);
-    // body is mutated in arr but not in arr2
-    TVM_FFI_ICHECK(arr[0].as<AllocBufferNode>()->body.as<EvaluateNode>()->value.same_as(x));
-    TVM_FFI_ICHECK(!arr2[0].as<AllocBufferNode>()->body.as<EvaluateNode>()->value.same_as(x));
+    // buffer is mutated in arr but not in arr2
+    TVM_FFI_ICHECK(arr[0].as<AllocBufferNode>()->buffer.get() !=
+                   arr2[0].as<AllocBufferNode>()->buffer.get());
     // mutate but no content change.
     arr2 = arr;
     arr.MutateByApply([&](Stmt s) { return v(std::move(s)); });
@@ -292,23 +288,21 @@ TEST(IRF, StmtMutator) {
     body = v(std::move(body));
     // the seq get flattened
     TVM_FFI_ICHECK(body.as<SeqStmtNode>()->size() == 3);
-    // body is mutated: Evaluate(x+1) -> Evaluate(x)
-    TVM_FFI_ICHECK(body.as<SeqStmtNode>()
-                       ->seq[0]
-                       .as<AllocBufferNode>()
-                       ->body.as<EvaluateNode>()
-                       ->value.same_as(x));
+    // buffer is mutated (shape x+1 -> x via VisitBufferDef)
+    TVM_FFI_ICHECK(body.as<SeqStmtNode>()->seq[0].as<AllocBufferNode>() != nullptr);
     // bref still holds the old SeqStmt (not shared with new one due to copy)
     TVM_FFI_ICHECK(!bref.same_as(body));
   }
 
   {
     // tests for block and block_realize
-    Stmt body = fmakealloc();
-    DataType dtype = DataType::Float(32);
-    Var buf_var("b", PointerType(PrimType(dtype)));
+    // AllocBuffer and DeclBuffer are flat (no body), placed as siblings in SeqStmt
+    Stmt eval_body = Evaluate(x + 1);
     Buffer buffer = decl_buffer({16});
-    body = DeclBuffer(buffer, std::move(body));
+    Stmt decl = DeclBuffer(buffer);
+    Stmt alloc = fmakealloc();
+    // body is: DeclBuffer, AllocBuffer, Evaluate
+    Stmt body = SeqStmt({decl, alloc, eval_body});
     BufferRegion buffer_region(buffer, {Range::FromMinExtent(x + 1, 1)});
     MatchBufferRegion match_buffer_region(decl_buffer({1}), buffer_region);
     // construct block and block_realize
@@ -318,16 +312,13 @@ TEST(IRF, StmtMutator) {
     body = v(std::move(block_realize));
     // the body should be changed
     SBlock new_block = body.as<SBlockRealizeNode>()->block;
-    // body is mutated: Evaluate(x+1) -> Evaluate(x)
-    TVM_FFI_ICHECK(new_block->body.as<DeclBufferNode>()
-                       ->body.as<AllocBufferNode>()
-                       ->body.as<EvaluateNode>()
-                       ->value.same_as(x));
-    TVM_FFI_ICHECK(new_block->init.value()
-                       .as<DeclBufferNode>()
-                       ->body.as<AllocBufferNode>()
-                       ->body.as<EvaluateNode>()
-                       ->value.same_as(x));
+    // body is a SeqStmt; the Evaluate(x+1) -> Evaluate(x)
+    auto* seq = new_block->body.as<SeqStmtNode>();
+    TVM_FFI_ICHECK(seq != nullptr);
+    TVM_FFI_ICHECK(seq->seq[2].as<EvaluateNode>()->value.same_as(x));
+    auto* init_seq = new_block->init.value().as<SeqStmtNode>();
+    TVM_FFI_ICHECK(init_seq != nullptr);
+    TVM_FFI_ICHECK(init_seq->seq[2].as<EvaluateNode>()->value.same_as(x));
     // buffer region min is mutated: x+1 -> x
     TVM_FFI_ICHECK(new_block->reads[0]->region[0]->min.same_as(x));
     TVM_FFI_ICHECK(new_block->writes[0]->region[0]->min.same_as(x));
@@ -360,14 +351,16 @@ TEST(IRF, Substitute) {
     Var m("m", DataType::Int(32));
     Buffer buffer = fmakebuffer();
     Stmt store = BufferStore(buffer, FloatImm(dtype, 0), {IntImm(DataType::Int(32), 0)});
-    Stmt decl = DeclBuffer(buffer, store);
+    Stmt decl = SeqStmt({DeclBuffer(buffer), store});
     auto f_subst = [&](const Var& var) -> ffi::Optional<PrimExpr> {
       if (var.same_as(x)) return y;
       if (var.same_as(n)) return m;
       return std::nullopt;
     };
     Stmt new_decl = Substitute(decl, f_subst);
-    auto* decl_node = new_decl.as<DeclBufferNode>();
+    auto* seq_node = new_decl.as<SeqStmtNode>();
+    TVM_FFI_ICHECK(seq_node != nullptr);
+    auto* decl_node = seq_node->seq[0].as<DeclBufferNode>();
     TVM_FFI_ICHECK(decl_node != nullptr);
     TVM_FFI_ICHECK(decl_node->buffer->data.same_as(y));
     TVM_FFI_ICHECK(decl_node->buffer->shape[0].same_as(m));

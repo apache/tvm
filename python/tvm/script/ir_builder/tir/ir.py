@@ -472,14 +472,12 @@ def alloc_buffer(
     dtype: str = "float32",
     scope: str = "global",
     annotations: dict[str, Any] | None = None,
-) -> frame.AllocBufferFrame:
+) -> Buffer:
     """Statement-level buffer allocation (creates an AllocBuffer IR node).
 
-    Used as a context manager or with concise scoping in TVMScript::
+    Emits an AllocBuffer statement and returns the Buffer directly::
 
-        with T.alloc_buffer((128, 128)) as buf:  # explicit scope
-            ...
-        buf = T.alloc_buffer((128, 128))  # concise scoping
+        buf = T.alloc_buffer((128, 128))
 
     For SBlock-level buffer allocation (added to SBlock.alloc_buffers),
     use T.sblock_alloc_buffer() instead.
@@ -497,8 +495,8 @@ def alloc_buffer(
 
     Returns
     -------
-    res : frame.AllocBufferFrame
-        The result AllocBufferFrame.
+    res : Buffer
+        The allocated buffer.
     """
     shape = (shape,) if isinstance(shape, PrimExpr | Integral) else shape
     return _ffi_api.AllocBuffer(  # type: ignore[attr-defined] # pylint: disable=no-member
@@ -1064,39 +1062,6 @@ def let(
         return let_expr(v, value, body)
 
 
-def allocate(
-    extents: list[PrimExpr],
-    dtype: str,
-    scope: str = "global",
-    condition: PrimExpr = None,
-    annotations=None,
-) -> frame.AllocateFrame:
-    """Allocate node.
-
-    Parameters
-    ----------
-    extents : List[PrimExpr]
-        The extents of the allocate.
-
-    dtype : str
-        The data type of the buffer.
-
-    scope : str
-        The storage scope.
-
-    condition : PrimExpr
-        The condition.
-
-    annotations: Optional[Mapping[str, Object]]
-        Additional annotation hints.
-    """
-    if isinstance(condition, bool):
-        condition = IntImm("bool", condition)
-    return _ffi_api.Allocate(  # type: ignore[attr-defined] # pylint: disable=no-member
-        extents, dtype, scope, condition, annotations
-    )
-
-
 def attr(node: Any, attr_key: str, value: PrimExpr | str) -> frame.AttrFrame:
     """Create an attribute node.
 
@@ -1191,11 +1156,13 @@ def decl_buffer(
     offset_factor=0,
     buffer_type="",
     axis_separators=None,
-) -> frame.DeclBufferFrame:
+) -> Buffer:
     """Create a buffer declaration node.
 
     When ``data`` is provided, creates a DeclBuffer (alias to existing data).
     When ``data`` is None, creates an AllocBuffer (new allocation).
+
+    Emits the statement and returns the Buffer directly.
 
     Parameters
     ----------
@@ -1231,8 +1198,8 @@ def decl_buffer(
 
     Returns
     -------
-    res : frame.DeclBufferFrame
-        The result DeclBufferFrame.
+    res : Buffer
+        The declared buffer.
     """
     shape = (shape,) if isinstance(shape, PrimExpr | Integral) else shape
     if strides is not None:
@@ -1582,7 +1549,10 @@ def boolean(expr: PrimExpr | None = None, is_size_var: bool = False) -> PrimExpr
 
 
 def handle(
-    dtype: str | None = None, storage_scope: str = "global", *, is_size_var: bool = False
+    dtype: str | None = None,
+    storage_scope: str = "global",
+    *,
+    is_size_var: bool = False,
 ) -> Var:
     """Create a TIR var that represents a pointer.
 
@@ -2146,7 +2116,6 @@ __all__ = float_types + [
     "thread_binding",
     "grid",
     "Assert",
-    "allocate",
     "attr",
     "While",
     "If",

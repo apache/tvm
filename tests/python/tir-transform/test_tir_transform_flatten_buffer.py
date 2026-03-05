@@ -75,8 +75,8 @@ def test_elementwise_without_decl_buffer():
         @T.prim_func
         def main(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")):
             for i in T.serial(0, 16):
-                B_new_data = T.allocate([1, 16], "float32", "global")
-                B_new = T.Buffer([1, 16], "float32", data=B_new_data)
+                B_new_buf = T.alloc_buffer((1, 16), "float32")
+                B_new = T.Buffer([1, 16], "float32", data=B_new_buf.data)
                 for j in T.serial(0, 16):
                     B_new[0, j] = A[i, j] + 1.0
                 for j in T.serial(0, 16):
@@ -89,8 +89,8 @@ def test_elementwise_without_decl_buffer():
             A = T.decl_buffer(256, dtype="float32", data=input_A.data)
             C = T.decl_buffer(256, dtype="float32", data=input_C.data)
             for i in T.serial(0, 16):
-                B_new_data = T.allocate([16], "float32", "global")
-                B_new = T.Buffer(16, "float32", data=B_new_data)
+                B_new_buf = T.alloc_buffer((16,), "float32")
+                B_new = T.Buffer(16, "float32", data=B_new_buf.data)
                 for j in T.serial(0, 16):
                     B_new[j] = A[((i * 16) + j)] + 1.0
                 for j in T.serial(0, 16):

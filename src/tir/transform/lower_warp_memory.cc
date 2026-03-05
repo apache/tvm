@@ -234,7 +234,9 @@ class WarpAccessRewriter : protected StmtExprMutator {
       : warp_size_(warp_size), analyzer_(analyzer) {}
   // Rewrite the AllocBuffer statement which transforms
   // warp memory to local memory.
-  Stmt Rewrite(const AllocBufferNode* op) {
+  // \param op  The AllocBuffer node for warp memory.
+  // \param body The remaining statements (siblings) that use this buffer.
+  Stmt Rewrite(const AllocBufferNode* op, Stmt body) {
     buffer_ = op->buffer->data.get();
     int64_t alloc_size = 1;
     for (const auto& dim : op->buffer->shape) {
@@ -246,8 +248,8 @@ class WarpAccessRewriter : protected StmtExprMutator {
     }
     TVM_FFI_ICHECK_GT(alloc_size, 0) << "warp memory only support constant alloc size";
     alloc_size *= op->buffer->dtype.lanes();
-    std::tie(warp_index_, width_) = WarpIndexFinder(warp_size_).Find(op->body);
-    warp_coeff_ = WarpStoreCoeffFinder(buffer_, warp_index_, analyzer_).Find(op->body);
+    std::tie(warp_index_, width_) = WarpIndexFinder(warp_size_).Find(body);
+    warp_coeff_ = WarpStoreCoeffFinder(buffer_, warp_index_, analyzer_).Find(body);
 
     // Align the local memory size. The number of elements may not
     // be a multiple of width_ * warp_coeff_; round it up.
@@ -259,7 +261,8 @@ class WarpAccessRewriter : protected StmtExprMutator {
     Buffer new_buf(op->buffer->data, op->buffer->dtype,
                    {make_const(DataType::Int(32), alloc_size / width_)}, {}, PrimExpr(),
                    op->buffer->data->name_hint, 0, 0, BufferType::kDefault);
-    return AllocBuffer(new_buf, this->VisitStmt(op->body), op->annotations);
+    Stmt rewritten_body = this->VisitStmt(body);
+    return SeqStmt::Flatten(AllocBuffer(new_buf, op->annotations), rewritten_body);
   }
 
  protected:
@@ -440,15 +443,38 @@ class WarpMemoryRewriter : private StmtMutator {
   std::unordered_map<const VarNode*, ffi::String> new_storage_scopes_;
 
  private:
-  Stmt VisitStmt_(const AllocBufferNode* op) {
-    auto ret = StmtMutator::VisitStmt_(op);
-    op = ret.as<AllocBufferNode>();
-    if (GetPtrStorageScope(op->buffer->data) == "warp") {
-      new_storage_scopes_[op->buffer->data.get()] = "local";
-      WarpAccessRewriter rewriter(warp_size_, &analyzer_);
-      ret = rewriter.Rewrite(op);
+  Stmt VisitStmt_(const SeqStmtNode* op) {
+    // Process SeqStmt to find warp AllocBuffer and gather remaining siblings as body.
+    ffi::Array<Stmt> new_seq;
+    bool changed = false;
+    for (size_t i = 0; i < op->seq.size(); ++i) {
+      const auto* alloc = op->seq[i].as<AllocBufferNode>();
+      if (alloc && GetPtrStorageScope(alloc->buffer->data) == "warp") {
+        new_storage_scopes_[alloc->buffer->data.get()] = "local";
+        // Gather remaining siblings as the "body" for rewriting.
+        ffi::Array<Stmt> remaining;
+        for (size_t j = i + 1; j < op->seq.size(); ++j) {
+          remaining.push_back(op->seq[j]);
+        }
+        Stmt body = remaining.empty() ? Stmt(Evaluate(0)) : SeqStmt::Flatten(remaining);
+        WarpAccessRewriter rewriter(warp_size_, &analyzer_);
+        Stmt rewritten = rewriter.Rewrite(alloc, body);
+        new_seq.push_back(rewritten);
+        changed = true;
+        break;  // remaining siblings are consumed by Rewrite
+      } else {
+        Stmt visited = this->VisitStmt(op->seq[i]);
+        new_seq.push_back(visited);
+        if (!visited.same_as(op->seq[i])) changed = true;
+      }
     }
-    return ret;
+    if (!changed) return ffi::GetRef<Stmt>(op);
+    return SeqStmt::Flatten(new_seq);
+  }
+
+  Stmt VisitStmt_(const AllocBufferNode* op) {
+    // Non-warp AllocBuffer: just delegate to base class.
+    return StmtMutator::VisitStmt_(op);
   }
 
   int warp_size_{0};

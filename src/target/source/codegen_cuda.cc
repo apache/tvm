@@ -1434,7 +1434,6 @@ void CodeGenCUDA::VisitStmt_(const AllocBufferNode* op) {
   }
 
   RegisterHandleType(op->buffer->data.get(), dtype);
-  this->PrintStmt(op->body);
 }
 
 void CodeGenCUDA::VisitStmt_(const EvaluateNode* op) {

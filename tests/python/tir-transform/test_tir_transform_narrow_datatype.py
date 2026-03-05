@@ -28,11 +28,16 @@ def lower_stmt(params, stmt, target_bits):
 
 
 def lower_func_body(func, target_bits):
-    """Lower a TVMScript function and return the body (navigating past DeclBuffer)."""
+    """Lower a TVMScript function and return the first For loop in the body."""
     mod = tvm.IRModule.from_expr(func)
     gvar = next(iter(mod.functions.keys()))
     func = tvm.tir.transform.NarrowDataType(target_bits)(mod)[gvar]
     body = func.body
+    # With flat buffer semantics, navigate to the first For node
+    if isinstance(body, tvm.tir.SeqStmt):
+        for stmt in body:
+            if isinstance(stmt, tvm.tir.For):
+                return stmt
     while hasattr(body, "body") and not isinstance(body, tvm.tir.For):
         body = body.body
     return body

@@ -1169,9 +1169,8 @@ def test_invalid_volatile_masked_buffer_load():
         @T.prim_func
         def main(b: T.handle):
             B = T.match_buffer(b, [4])
-            a = T.allocate([4], "float32", scope="global")
-            T.attr(a, "volatile_scope", 1)
-            A = T.decl_buffer([4], data=a)
+            A = T.alloc_buffer((4,))
+            T.attr(A.data, "volatile_scope", 1)
             B[0:4] = A.vload([T.Ramp(0, 1, 4)], predicate=T.Broadcast(T.bool(True), 4))
 
     err_msg = "The masked load intrinsic does not support declaring load as volatile."
@@ -1185,10 +1184,13 @@ def test_invalid_volatile_masked_buffer_store():
     class Module:
         @T.prim_func
         def main():
-            a = T.allocate([4], "float32", scope="global")
-            T.attr(a, "volatile_scope", 1)
-            A = T.decl_buffer([4], data=a)
-            A.vstore([T.Ramp(0, 1, 4)], T.Broadcast(0.0, 4), predicate=T.Broadcast(T.bool(True), 4))
+            A = T.alloc_buffer((4,))
+            T.attr(A.data, "volatile_scope", 1)
+            A.vstore(
+                [T.Ramp(0, 1, 4)],
+                T.Broadcast(0.0, 4),
+                predicate=T.Broadcast(T.bool(True), 4),
+            )
 
     err_msg = "The masked store intrinsic does not support declaring store as volatile."
     with pytest.raises(tvm.TVMError, match=err_msg):

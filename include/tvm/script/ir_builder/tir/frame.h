@@ -387,61 +387,6 @@ class LaunchThreadFrame : public TIRFrame {
 };
 
 /*!
- * \brief A frame represents the allocate.
- *
- * \sa AllocateFrame
- */
-class AllocateFrameNode : public TIRFrameNode {
- public:
-  /*! \brief The extents of the allocate. */
-  ffi::Array<PrimExpr> extents;
-  /*! \brief The data type of the buffer. */
-  DataType dtype;
-  /*! \brief The storage scope. */
-  ffi::String storage_scope;
-  /*! \brief The condition. */
-  PrimExpr condition;
-  /*! \brief Additional annotation hints. */
-  ffi::Map<ffi::String, Any> annotations;
-  /*! \brief The buffer var. */
-  tvm::tir::Var buffer_var;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<AllocateFrameNode>()
-        .def_ro("extents", &AllocateFrameNode::extents)
-        .def_ro("dtype", &AllocateFrameNode::dtype)
-        .def_ro("storage_scope", &AllocateFrameNode::storage_scope)
-        .def_ro("condition", &AllocateFrameNode::condition)
-        .def_ro("annotations", &AllocateFrameNode::annotations)
-        .def_ro("buffer_var", &AllocateFrameNode::buffer_var);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.AllocateFrame", AllocateFrameNode,
-                                    TIRFrameNode);
-
- public:
-  /*!
-   * \brief The method called when exiting RAII scope.
-   * \sa tvm::support::With
-   */
-  void ExitWithScope() final;
-};
-
-/*!
- * \brief Managed reference to AllocateFrameNode.
- *
- * \sa AllocateFrameNode
- */
-class AllocateFrame : public TIRFrame {
- public:
-  explicit AllocateFrame(ObjectPtr<AllocateFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
-    TVM_FFI_ICHECK(data != nullptr);
-    data_ = std::move(data);
-  }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AllocateFrame, TIRFrame, AllocateFrameNode);
-};
-
-/*!
  * \brief A frame that represents attribute node.
  *
  * \sa AttrFrame
@@ -646,58 +591,6 @@ class ElseFrame : public TIRFrame {
   }
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ElseFrame, TIRFrame, ElseFrameNode);
-};
-
-class DeclBufferFrameNode : public TIRFrameNode {
- public:
-  /*! \brief The declared buffer. */
-  tvm::tir::Buffer buffer;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<DeclBufferFrameNode>().def_ro("buffer", &DeclBufferFrameNode::buffer);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.DeclBufferFrame", DeclBufferFrameNode,
-                                    TIRFrameNode);
-
- public:
-  void ExitWithScope() final;
-};
-
-class DeclBufferFrame : public TIRFrame {
- public:
-  explicit DeclBufferFrame(ObjectPtr<DeclBufferFrameNode> data) : TIRFrame(data) {
-    TVM_FFI_ICHECK(data != nullptr);
-  }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DeclBufferFrame, TIRFrame, DeclBufferFrameNode);
-};
-
-class AllocBufferFrameNode : public TIRFrameNode {
- public:
-  /*! \brief The buffer being allocated. */
-  tvm::tir::Buffer buffer;
-  /*! \brief Optional annotations for the allocation. */
-  ffi::Map<ffi::String, ffi::Any> annotations;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<AllocBufferFrameNode>()
-        .def_ro("buffer", &AllocBufferFrameNode::buffer)
-        .def_ro("annotations", &AllocBufferFrameNode::annotations);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.AllocBufferFrame", AllocBufferFrameNode,
-                                    TIRFrameNode);
-
- public:
-  void ExitWithScope() final;
-};
-
-class AllocBufferFrame : public TIRFrame {
- public:
-  explicit AllocBufferFrame(ObjectPtr<AllocBufferFrameNode> data) : TIRFrame(data) {
-    TVM_FFI_ICHECK(data != nullptr);
-  }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AllocBufferFrame, TIRFrame, AllocBufferFrameNode);
 };
 
 }  // namespace tir

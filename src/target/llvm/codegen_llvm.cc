@@ -2012,7 +2012,6 @@ void CodeGenLLVM::VisitStmt_(const AllocBufferNode* op) {
 
   TVM_FFI_ICHECK(!var_map_.count(op->buffer->data.get()));
   var_map_[op->buffer->data.get()] = buf;
-  this->VisitStmt(op->body);
 }
 
 void CodeGenLLVM::VisitStmt_(const AttrStmtNode* op) {
@@ -2090,10 +2089,7 @@ void CodeGenLLVM::VisitStmt_(const SeqStmtNode* op) {
   }
 }
 
-void CodeGenLLVM::VisitStmt_(const DeclBufferNode* op) {
-  EmitDebugLocation(op);
-  VisitStmt(op->body);
-}
+void CodeGenLLVM::VisitStmt_(const DeclBufferNode* op) { EmitDebugLocation(op); }
 
 void CodeGenLLVM::VisitStmt_(const EvaluateNode* op) {
   EmitDebugLocation(op);

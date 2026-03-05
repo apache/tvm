@@ -345,7 +345,6 @@ void CodeGenMetal::VisitStmt_(const AllocBufferNode* op) {
   }
 
   RegisterHandleType(op->buffer->data.get(), dtype);
-  this->PrintStmt(op->body);
 }
 
 void CodeGenMetal::VisitExpr_(const SelectNode* op, std::ostream& os) {  // NOLINT(*)

@@ -857,10 +857,11 @@ void CodeGenSPIRV::VisitStmt_(const AllocBufferNode* op) {
 
   TVM_FFI_ICHECK(!var_map_.count(var_node));
   var_map_[var_node] = buf;
-  this->VisitStmt(op->body);
 }
 
-void CodeGenSPIRV::VisitStmt_(const DeclBufferNode* op) { this->VisitStmt(op->body); }
+void CodeGenSPIRV::VisitStmt_(const DeclBufferNode* op) {
+  // DeclBuffer is a flat statement with no body — nothing to emit.
+}
 
 void CodeGenSPIRV::VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == tir::attr::thread_extent) {

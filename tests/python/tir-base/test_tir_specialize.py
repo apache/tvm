@@ -324,7 +324,8 @@ def test_specialize_buffer_var_to_expr():
             B_buf[i] = A_buf[i] * 2.0
 
     B_data = before.params[1]
-    A_buf = before.body.buffer
+    # body is a SeqStmt; the first statement is DeclBuffer for A_buf
+    A_buf = before.body[0].buffer
     param_map = {B_data: tvm.tir.address_of(A_buf[16])}
     after = before.specialize(param_map)
 

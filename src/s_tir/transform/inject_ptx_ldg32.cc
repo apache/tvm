@@ -41,8 +41,7 @@ class PTXRewriter : public StmtMutator {
       return body;
     }
     EnsureBuffers();
-    body = AllocBuffer(addr_buffer, body);
-    body = AllocBuffer(predicate_buffer, body);
+    body = SeqStmt::Flatten(AllocBuffer(predicate_buffer), AllocBuffer(addr_buffer), body);
     has_buffer_2 = true;
     return body;
   }
@@ -52,8 +51,7 @@ class PTXRewriter : public StmtMutator {
     if (needs_buffer && !has_buffer_2) {
       EnsureBuffers();
       has_buffer_2 = true;
-      result = AllocBuffer(addr_buffer, result);
-      result = AllocBuffer(predicate_buffer, result);
+      result = SeqStmt::Flatten(AllocBuffer(predicate_buffer), AllocBuffer(addr_buffer), result);
     }
     return result;
   }

@@ -750,35 +750,18 @@ Stmt CommonSubexpressionEliminator::VisitStmt_(const AttrStmtNode* op) {
  * prevents context entries from the body from leaking outward.
  */
 Stmt CommonSubexpressionEliminator::VisitStmt_(const AllocBufferNode* op) {
-  // The body gets its own scope to contain any context entries added within it
-  Stmt body_new = context_scope_.WithNewScope([&]() -> Stmt {
-    EnterContextScope();
-    return VisitStmt(op->body);
-  });
-
-  if (body_new.same_as(op->body)) {
-    return ffi::GetRef<Stmt>(op);
-  }
-  return AllocBuffer(op->buffer, body_new, op->annotations, op->span);
+  // With flat semantics, context entries persist to subsequent siblings.
+  return StmtExprMutator::VisitStmt_(op);
 }
 
 /*!
  * \brief The method which overrides the specific treatment for a DeclBufferNode.
  *
- * DeclBuffer declares a buffer for use within its body. A scope boundary
- * prevents context entries from the body from leaking outward.
+ * With flat semantics, DeclBuffer has no body. Context entries persist
+ * to subsequent siblings in the enclosing scope (same as Bind).
  */
 Stmt CommonSubexpressionEliminator::VisitStmt_(const DeclBufferNode* op) {
-  // The body gets its own scope to contain any context entries added within it
-  Stmt body_new = context_scope_.WithNewScope([&]() -> Stmt {
-    EnterContextScope();
-    return VisitStmt(op->body);
-  });
-
-  if (body_new.same_as(op->body)) {
-    return ffi::GetRef<Stmt>(op);
-  }
-  return DeclBuffer(op->buffer, body_new, op->span);
+  return StmtExprMutator::VisitStmt_(op);
 }
 
 /*!

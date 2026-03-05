@@ -774,7 +774,9 @@ void CodeGenC::PrintVecBinaryOp(const std::string& op, DataType t, PrimExpr lhs,
   }
 }
 
-void CodeGenC::VisitStmt_(const DeclBufferNode* op) { this->PrintStmt(op->body); }
+void CodeGenC::VisitStmt_(const DeclBufferNode* op) {
+  // DeclBuffer is a flat statement with no body — nothing to emit.
+}
 
 void CodeGenC::VisitExpr_(const BufferLoadNode* op, std::ostream& os) {  // NOLINT(*)
   TVM_FFI_ICHECK_EQ(op->indices.size(), 1) << "Load from non-flat memory not supported.";
@@ -1070,7 +1072,6 @@ void CodeGenC::VisitStmt_(const AllocBufferNode* op) {
   stream << ' ' << vid << '[' << constant_size << "];\n";
 
   RegisterHandleType(op->buffer->data.get(), op->buffer->dtype);
-  this->PrintStmt(op->body);
 }
 
 void CodeGenC::VisitStmt_(const AttrStmtNode* op) {

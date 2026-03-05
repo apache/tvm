@@ -117,35 +117,26 @@ def _nms_loop(
 
         with T.If(tvm.tir.all(iou_threshold > te.const(0), valid_count[i] > te.const(0))):
             with T.Then():
-                with T.allocate([1], "int32", scope="local") as num_valid_boxes_local_ptr:
-                    num_valid_boxes_local = T.buffer_proxy(
-                        tvm.tir.decl_buffer(
-                            [1],
-                            "int32",
-                            "num_valid_boxes_local",
-                            data=num_valid_boxes_local_ptr,
-                            scope="local",
+                num_valid_boxes_local_buf = T.alloc_buffer((1,), "int32", scope="local")
+                num_valid_boxes_local = T.buffer_proxy(num_valid_boxes_local_buf)
+                num_valid_boxes_local[0] = T.int32(0)
+
+                with T.serial(0, nkeep) as j:
+                    with T.If(
+                        tvm.tir.all(
+                            out_scores[i, j] > -1.0,  # box is still valid
+                            num_valid_boxes_local[0] < max_output_size,  # haven't reached max limit
                         )
-                    )
-                    num_valid_boxes_local[0] = T.int32(0)
+                    ):
+                        with T.Then():
+                            if score_threshold is not None:
+                                with T.If(out_scores[i, j] > score_threshold[()]):
+                                    with T.Then():
+                                        nms_inner_loop(i, j, nkeep, num_valid_boxes_local)
+                            else:
+                                nms_inner_loop(i, j, nkeep, num_valid_boxes_local)
 
-                    with T.serial(0, nkeep) as j:
-                        with T.If(
-                            tvm.tir.all(
-                                out_scores[i, j] > -1.0,  # box is still valid
-                                num_valid_boxes_local[0]
-                                < max_output_size,  # haven't reached max limit
-                            )
-                        ):
-                            with T.Then():
-                                if score_threshold is not None:
-                                    with T.If(out_scores[i, j] > score_threshold[()]):
-                                        with T.Then():
-                                            nms_inner_loop(i, j, nkeep, num_valid_boxes_local)
-                                else:
-                                    nms_inner_loop(i, j, nkeep, num_valid_boxes_local)
-
-                    num_valid_boxes[i] = num_valid_boxes_local[0]
+                num_valid_boxes[i] = num_valid_boxes_local[0]
 
             with T.Else():
                 num_valid_boxes[i] = T.int32(0)

@@ -34,9 +34,8 @@ def test_double_buffer():
             C_buf = T.decl_buffer((m,), "float32", data=C)
             tx = T.launch_thread("threadIdx.x", 1)
             for i in range(n):
-                B_data = T.allocate([m], "float32", scope="shared")
-                B = T.decl_buffer([m], "float32", data=B_data, scope="shared")
-                with T.attr(B_data, "double_buffer_scope", 1):
+                B = T.alloc_buffer((m,), "float32", scope="shared")
+                with T.attr(B.data, "double_buffer_scope", 1):
                     for j in range(m):
                         B[j] = A_buf[i * 4 + j]
                 for j in range(m):
@@ -88,10 +87,9 @@ def test_double_buffer_transform():
         @T.prim_func
         def main(A: T.Buffer([16, 32], "float32"), B: T.Buffer(16, "float32")):
             for i in range(16):
-                cache_data = T.allocate([32], "float32")
-                cache = T.decl_buffer(32, "float32", data=cache_data)
+                cache = T.alloc_buffer((32,), "float32")
 
-                T.attr(cache_data, "double_buffer_scope", 1)
+                T.attr(cache.data, "double_buffer_scope", 1)
 
                 for j in range(32):
                     cache[j] = A[i, j]

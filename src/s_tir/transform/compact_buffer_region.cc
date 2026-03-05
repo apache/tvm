@@ -120,6 +120,8 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
 
     // collect buffer access regions
     region_collector(f->body);
+    // Compact any remaining flat AllocBuffer nodes at function scope
+    region_collector.CompactPendingFlatAllocBuffers();
     return std::move(region_collector.buffer_access_region_);
   }
 
@@ -164,7 +166,10 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     ancestor_iters_.push_back(iter);
     dom_analyzer_.Bind(op->loop_var, loop_range);
     dom_map_.emplace(op->loop_var.get(), arith::IntSet::FromRange(loop_range));
+    size_t n_pending_before = pending_flat_alloc_buffers_.size();
     StmtExprVisitor::VisitStmt_(op);
+    // Compact flat AllocBuffers defined inside this For scope
+    CompactPendingFlatAllocBuffers(n_pending_before);
     dom_map_.erase(op->loop_var.get());
     ancestor_iters_.pop_back();
   }
@@ -300,19 +305,10 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
   }
 
   void VisitStmt_(const AllocBufferNode* op) final {
-    auto it = var2buffer_.find(op->buffer->data);
-
-    if (it == var2buffer_.end() || it->second.size() > 1) {
-      return StmtExprVisitor::VisitStmt_(op);
-    }
-    const Buffer& buffer = *it->second.begin();
-    if (buffer->dtype != op->buffer->dtype) {
-      return StmtExprVisitor::VisitStmt_(op);
-    }
-
+    // AllocBuffer is flat: register the buffer def and track for post-scope compaction.
     VisitBufferDef(op->buffer->data);
-    StmtExprVisitor::VisitStmt(op->body);
-    SimplifyAndNarrowBufferRegionFromNDIntSet(buffer);
+    pending_flat_alloc_buffers_.push_back(op->buffer);
+    return StmtExprVisitor::VisitStmt_(op);
   }
 
   void VisitStmt_(const AttrStmtNode* op) final {
@@ -325,7 +321,9 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
       }
       dom_analyzer_.Bind(iter->var, dom);
       dom_map_.emplace(iter->var.get(), arith::IntSet::FromRange(dom));
+      size_t n_pending_before = pending_flat_alloc_buffers_.size();
       StmtExprVisitor::VisitStmt_(op);
+      CompactPendingFlatAllocBuffers(n_pending_before);
       dom_map_.erase(iter->var.get());
       ancestor_iters_.pop_back();
       return;
@@ -477,9 +475,26 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     }
   }
 
+  /*!
+   * \brief Compact pending flat AllocBuffer nodes registered since position n_before.
+   * Call SimplifyAndNarrowBufferRegionFromNDIntSet for each, then remove them.
+   */
+  void CompactPendingFlatAllocBuffers(size_t n_before = 0) {
+    for (size_t i = n_before; i < pending_flat_alloc_buffers_.size(); ++i) {
+      const Buffer& buf = pending_flat_alloc_buffers_[i];
+      auto it = relaxed_accesses_.find(buf);
+      if (it != relaxed_accesses_.end()) {
+        SimplifyAndNarrowBufferRegionFromNDIntSet(buf);
+      }
+    }
+    pending_flat_alloc_buffers_.resize(n_before);
+  }
+
   /**************** Class members ****************/
   /*! \brief Only collect accessed region within original buffer shape bound. */
   bool collect_inbound_{true};
+  /*! \brief Pending flat AllocBuffer nodes to compact when leaving scope. */
+  std::vector<Buffer> pending_flat_alloc_buffers_;
 
   /*! \brief The iteration scopes from the current node up to the root. */
   std::vector<IterVar> ancestor_iters_;
@@ -579,9 +594,11 @@ class BufferCompactor : public StmtExprMutator {
 
   Stmt VisitStmt_(const DeclBufferNode* op) final {
     Buffer new_buffer = RewriteAllocBuffer(op->buffer);
+    if (new_buffer.same_as(op->buffer)) {
+      return ffi::GetRef<Stmt>(op);
+    }
     auto n = CopyOnWrite(op);
     n->buffer = std::move(new_buffer);
-    n->body = VisitStmt(op->body);
     return DeclBuffer(n);
   }
 

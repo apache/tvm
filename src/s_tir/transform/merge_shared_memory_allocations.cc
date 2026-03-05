@@ -339,7 +339,9 @@ class SharedMemoryRewriter : public StmtExprMutator {
       allocated_ = true;
       Buffer merged_buf(merged_buf_var_, DataType::UInt(8), {merged_alloc_size_}, {}, PrimExpr(),
                         merged_buf_var_->name_hint, 0, 0, BufferType::kDefault);
-      Stmt new_body = AllocBuffer(merged_buf, StmtExprMutator::VisitStmt(op->body));
+      Stmt alloc_stmt = AllocBuffer(merged_buf);
+      Stmt visited_body = StmtExprMutator::VisitStmt(op->body);
+      Stmt new_body = SeqStmt::Flatten(alloc_stmt, visited_body);
       return AttrStmt(op->node, op->attr_key, op->value, new_body, op->span);
     }
     return StmtMutator::VisitStmt_(op);
@@ -347,7 +349,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
 
   Stmt VisitStmt_(const AllocBufferNode* op) final {
     if (IsAppropriateSharedMemory(op->buffer->data)) {
-      return StmtExprMutator::VisitStmt(op->body);
+      return Evaluate(0);
     }
     return StmtExprMutator::VisitStmt_(op);
   }

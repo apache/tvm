@@ -140,7 +140,6 @@ class CodeGenAMDGPU : public CodeGenLLVM {
         buf, llvmGetPointerTo(DTypeToLLVMType(dtype), buf->getType()->getPointerAddressSpace()));
     TVM_FFI_ICHECK(!var_map_.count(op->buffer->data.get()));
     var_map_[op->buffer->data.get()] = buf;
-    this->VisitStmt(op->body);
   }
 
   // Return the thread index via intrinsics.

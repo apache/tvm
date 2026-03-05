@@ -240,28 +240,24 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // DeclBuffer
-DeclBuffer::DeclBuffer(Buffer buffer, Stmt body, Span span) {
+DeclBuffer::DeclBuffer(Buffer buffer, Span span) {
   ObjectPtr<DeclBufferNode> node = ffi::make_object<DeclBufferNode>();
   node->buffer = std::move(buffer);
-  node->body = std::move(body);
   node->span = std::move(span);
   data_ = std::move(node);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.DeclBuffer", [](Buffer buffer, Stmt body, Span span) {
-    return DeclBuffer(buffer, body, span);
-  });
+  refl::GlobalDef().def("tir.DeclBuffer",
+                        [](Buffer buffer, Span span) { return DeclBuffer(buffer, span); });
 }
 
 // AllocBuffer
-AllocBuffer::AllocBuffer(Buffer buffer, Stmt body, ffi::Map<ffi::String, Any> annotations,
-                         Span span) {
+AllocBuffer::AllocBuffer(Buffer buffer, ffi::Map<ffi::String, Any> annotations, Span span) {
   ObjectPtr<AllocBufferNode> node = ffi::make_object<AllocBufferNode>();
   node->buffer = std::move(buffer);
   node->annotations = std::move(annotations);
-  node->body = std::move(body);
   node->span = std::move(span);
   data_ = std::move(node);
 }
@@ -269,9 +265,9 @@ AllocBuffer::AllocBuffer(Buffer buffer, Stmt body, ffi::Map<ffi::String, Any> an
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
-      "tir.AllocBuffer", [](Buffer buffer, Stmt body,
-                            ffi::Optional<ffi::Map<ffi::String, Any>> annotations, Span span) {
-        return AllocBuffer(buffer, body, annotations.value_or(ffi::Map<ffi::String, Any>()), span);
+      "tir.AllocBuffer",
+      [](Buffer buffer, ffi::Optional<ffi::Map<ffi::String, Any>> annotations, Span span) {
+        return AllocBuffer(buffer, annotations.value_or(ffi::Map<ffi::String, Any>()), span);
       });
 }
 

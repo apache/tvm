@@ -529,26 +529,25 @@ class StoragePlanRewriter : public StmtExprMutator {
   Stmt VisitStmt_(const AllocBufferNode* op) final {
     // AllocBuffer combines allocation and buffer declaration.
     // Storage rewrite may merge this allocation with others.
-    Stmt body = this->VisitStmt(op->body);
     if (auto it = alloc_map_.find(op->buffer->data.get()); it != alloc_map_.end()) {
       if (it->second->alloc_var.get() == op->buffer->data.get()) {
         // This is the "winner" allocation -- its AllocBuffer was already
-        // hoisted by PrepareNewAlloc.  Just return the body.
-        return body;
+        // hoisted by PrepareNewAlloc.  Strip this one.
+        return Evaluate(0);
       }
       // This allocation was merged into another.  Emit a DeclBuffer
       // aliasing the winner's data variable.
       Buffer buf = RemapBuffer(op->buffer, it->second->alloc_var);
-      return DeclBuffer(buf, body);
+      return DeclBuffer(buf);
     }
     // If not in alloc_map (e.g. unused), strip entirely.
-    return body;
+    return Evaluate(0);
   }
 
   Stmt VisitStmt_(const DeclBufferNode* op) final {
     if (hoisted_buffer_decls_.count(op->buffer.get()) ||
         !all_buffers_accessed_.count(op->buffer.get())) {
-      return this->VisitStmt(op->body);
+      return Evaluate(0);
     }
     auto node = Downcast<DeclBuffer>(StmtExprMutator::VisitStmt_(op));
 
@@ -688,7 +687,7 @@ class StoragePlanRewriter : public StmtExprMutator {
         if (all_allocs_identical) {
           // Emit AllocBuffer for the hoisted allocation.
           Buffer buf = RemapBuffer(e->allocs[0]->buffer, e->alloc_var);
-          e->alloc_nest.push_back(AllocBuffer(buf, Evaluate(0)));
+          e->alloc_nest.push_back(AllocBuffer(buf));
         } else {
           // Build a merged allocation
           PrimExpr combo_size;
@@ -729,7 +728,7 @@ class StoragePlanRewriter : public StmtExprMutator {
           combo_size = analyzer_.Simplify(combo_size);
           Buffer buf(e->alloc_var, alloc_type, {combo_size}, {}, PrimExpr(),
                      e->alloc_var->name_hint, 0, 0, BufferType::kDefault);
-          e->alloc_nest.push_back(AllocBuffer(buf, Evaluate(0)));
+          e->alloc_nest.push_back(AllocBuffer(buf));
         }
       }
     }
@@ -763,7 +762,7 @@ class StoragePlanRewriter : public StmtExprMutator {
                                      (total_bits + type_bits - 1) / type_bits);
     Buffer buf(e->alloc_var, e->elem_type, {alloc_size}, {}, PrimExpr(), e->alloc_var->name_hint, 0,
                0, BufferType::kDefault);
-    e->alloc_nest.push_back(AllocBuffer(buf, Evaluate(0)));
+    e->alloc_nest.push_back(AllocBuffer(buf));
   }
   // Liveness analysis to find gen and kill point of each variable.
   void LivenessAnalysis(const std::vector<StmtEntry>& seq) {
@@ -1537,13 +1536,11 @@ class VectorTypeRewriter : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const AllocBufferNode* op) final {
-    Stmt body = this->VisitStmt(op->body);
     Buffer new_buf = RemapBuffer(op->buffer);
-    if (body.same_as(op->body) && new_buf.same_as(op->buffer)) {
+    if (new_buf.same_as(op->buffer)) {
       return ffi::GetRef<Stmt>(op);
     }
     auto n = CopyOnWrite(op);
-    n->body = std::move(body);
     n->buffer = std::move(new_buf);
     return Stmt(n);
   }

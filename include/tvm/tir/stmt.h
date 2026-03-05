@@ -239,14 +239,10 @@ class DeclBufferNode : public StmtNode {
  public:
   /*! \brief The buffer being declared */
   Buffer buffer;
-  /*! \brief The body to be executed */
-  Stmt body;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<DeclBufferNode>()
-        .def_ro("buffer", &DeclBufferNode::buffer)
-        .def_ro("body", &DeclBufferNode::body);
+    refl::ObjectDef<DeclBufferNode>().def_ro("buffer", &DeclBufferNode::buffer);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.DeclBuffer", DeclBufferNode, StmtNode);
 };
@@ -254,7 +250,7 @@ class DeclBufferNode : public StmtNode {
 /*! \brief Managed reference to DeclBufferNode */
 class DeclBuffer : public Stmt {
  public:
-  TVM_DLL DeclBuffer(Buffer buffer, Stmt body, Span span = Span());
+  TVM_DLL DeclBuffer(Buffer buffer, Span span = Span());
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DeclBuffer, Stmt, DeclBufferNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(DeclBufferNode);
 };
@@ -271,15 +267,12 @@ class AllocBufferNode : public StmtNode {
    *  to future transformations.
    */
   ffi::Map<ffi::String, ffi::Any> annotations;
-  /*! \brief The body to be executed */
-  Stmt body;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<AllocBufferNode>()
         .def_ro("buffer", &AllocBufferNode::buffer, refl::AttachFieldFlag::SEqHashDef())
-        .def_ro("annotations", &AllocBufferNode::annotations)
-        .def_ro("body", &AllocBufferNode::body);
+        .def_ro("annotations", &AllocBufferNode::annotations);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.AllocBuffer", AllocBufferNode, StmtNode);
 };
@@ -288,7 +281,7 @@ class AllocBufferNode : public StmtNode {
 class AllocBuffer : public Stmt {
  public:
   TVM_DLL AllocBuffer(
-      Buffer buffer, Stmt body,
+      Buffer buffer,
       ffi::Map<ffi::String, ffi::Any> annotations = ffi::Map<ffi::String, ffi::Any>(),
       Span span = Span());
   /*!

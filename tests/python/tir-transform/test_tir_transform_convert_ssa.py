@@ -519,13 +519,13 @@ def test_shared_shape_var_in_buffer_map_and_alloc_buffer():
     A = tir.decl_buffer((n,), "float32", "A")
     B = tir.decl_buffer((n,), "float32", "B")
 
-    # AllocBuffer with shape [n] in the body
+    # AllocBuffer with shape [n] in the body (flat, no body)
     C = tir.decl_buffer((n,), "float32", "C")
-    alloc = tir.AllocBuffer(C, tir.Evaluate(0))
+    body = tir.SeqStmt([tir.AllocBuffer(C), tir.Evaluate(1)])
 
     before = tir.PrimFunc(
         [A_handle, B_handle],
-        alloc,
+        body,
         buffer_map={A_handle: A, B_handle: B},
     )
 

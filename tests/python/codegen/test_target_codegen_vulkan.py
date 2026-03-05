@@ -507,8 +507,8 @@ def test_codegen_decl_buffer():
         @T.prim_func
         def kernel():
             T.func_attr({"calling_conv": 2, "global_symbol": "kernel", "tir.noalias": True})
-            A_data = T.allocate([256], dtype="float32", scope="local")
-            A_buf = T.decl_buffer([256], dtype="float32", scope="local", data=A_data)
+            A = T.alloc_buffer((256,), dtype="float32", scope="local")
+            A_buf = T.decl_buffer([256], dtype="float32", scope="local", data=A.data)
 
     target = tvm.target.Target("vulkan")
     vulkan_codegen = tvm.get_global_func("target.build.vulkan")
