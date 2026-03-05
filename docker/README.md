@@ -60,7 +60,7 @@ Note that these are convenience images and are not part of the ASF release.
 ## Use Local Build Script
 
 We also provide script to build docker images locally.
-We use (`build.sh`)[./build.sh] to build and (optionally) run commands
+We use [`build.sh`](./build.sh) to build and (optionally) run commands
 in the container. To build and run docker images, we can run the following
 command at the root of the project.
 
@@ -87,16 +87,16 @@ produces the image ``tvm.ci_cpu`` that is displayed in the list of docker images
 using the command ``docker images``. To run an interactive terminal, execute:
 
 ````bash
-./docker/bash.sh tvm.ci_cpu
+./docker/bash.sh Dockerfile.ci_cpu
 ````
 
 or
 
 ````bash
-./docker/bash.sh tvm.ci_cpu echo hello tvm world
+./docker/bash.sh ci_cpu echo hello tvm world
 ````
 
-the same applies to the other images (``./docker/Dockerfile.*```).
+the same applies to the other images (```./docker/Dockerfile.*```).
 
 The command ``./docker/build.sh image_name COMMANDS`` is almost equivalent to
 ``./docker/bash.sh image_name COMMANDS`` but in the case of ``bash.sh``
