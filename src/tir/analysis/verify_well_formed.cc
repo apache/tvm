@@ -348,7 +348,7 @@ class UndefinedBufferVerifier : public Verifier<UndefinedBufferVerifier> {
     previously_defined_.insert({buffer, path});
   }
 
-  void Visit(const Buffer& buffer, AccessPath path) override {
+  void VisitBufferUse(const Buffer& buffer, AccessPath path) override {
     bool is_declared = currently_defined_.count(buffer);
     bool was_declared = previously_defined_.count(buffer);
 
@@ -363,8 +363,8 @@ class UndefinedBufferVerifier : public Verifier<UndefinedBufferVerifier> {
       Verify(false) << "TIR is ill-formed: buffer " << buffer->name << " is used at " << path
                     << " without a prior DeclBuffer or other declaration.";
     }
-    // Still visit the buffer's internal vars so variable usage is tracked.
-    Verifier::Visit(buffer, path);
+    // Buffer fields are visited at definition site (EnterDef), not here.
+    Verifier::VisitBufferUse(buffer, path);
   }
 
   // Buffers defined in the currently-visited scope.

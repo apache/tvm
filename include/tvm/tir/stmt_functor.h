@@ -144,6 +144,20 @@ class TVM_DLL StmtVisitor : protected StmtFunctor<void(const Stmt&)> {
    *       and redirect Visit to ExprMutator::VisitExpr(Expr)
    */
   virtual void VisitExpr(const PrimExpr& e) {}
+  /*!
+   * \brief Visit buffer at definition site (AllocBuffer, DeclBuffer, SBlock alloc_buffers).
+   *  Visits buffer shape, strides, elem_offset via VisitExpr.
+   * \param buffer The buffer being defined.
+   * \param alloc_data If true, the buffer's data pointer is a new allocation (AllocBuffer);
+   *              if false, data references an existing variable (DeclBuffer).
+   */
+  virtual void VisitBufferDef(const Buffer& buffer, bool alloc_data);
+  /*!
+   * \brief Visit buffer at use site (BufferStore, BufferLoad, SBlock reads/writes).
+   *  By default, this is a no-op, as buffer fields (shape, strides, elem_offset)
+   *  are visited at their definition site.
+   */
+  virtual void VisitBufferUse(const Buffer& buffer);
   // statement visitor
   void VisitStmt_(const AttrStmtNode* op) override;
   void VisitStmt_(const IfThenElseNode* op) override;
@@ -179,6 +193,8 @@ class TVM_DLL StmtMutator : protected StmtFunctor<Stmt(const Stmt&)> {
   }
 
  protected:
+  /*! \brief Map from old buffer to new buffer, populated by VisitBufferDef. */
+  ffi::Map<Buffer, Buffer> buffer_remap_;
   // We perform copy on write optimizations on the StmtMutator
   // so that an unique copy of parent can be mutated inplace
   // when some of its children changed.
@@ -240,6 +256,22 @@ class TVM_DLL StmtMutator : protected StmtFunctor<Stmt(const Stmt&)> {
    *       and redirect Mutate to ExprMutator::Mutate(Expr)
    */
   virtual PrimExpr VisitExpr(const PrimExpr& e) { return e; }
+  /*!
+   * \brief Visit buffer at definition site. Visits shape/strides/elem_offset via VisitExpr.
+   *  If any field changes, creates a new buffer and records it in buffer_remap_.
+   * \param buffer The buffer being defined.
+   * \param alloc_data If true, the buffer's data pointer is a new allocation (AllocBuffer);
+   *              if false, data references an existing variable (DeclBuffer).
+   * \return The (possibly new) buffer.
+   */
+  virtual Buffer VisitBufferDef(const Buffer& buffer, bool alloc_data);
+  /*!
+   * \brief Visit buffer at use site (BufferStore, BufferLoad, SBlock reads/writes).
+   *  By default, returns the remapped buffer from buffer_remap_ if exists, otherwise
+   *  returns the original buffer. Buffer fields are visited at their definition site.
+   * \return The (possibly remapped) buffer.
+   */
+  virtual Buffer VisitBufferUse(const Buffer& buffer);
   // statement visitor
   Stmt VisitStmt_(const AttrStmtNode* op) override;
   Stmt VisitStmt_(const IfThenElseNode* op) override;
@@ -276,31 +308,35 @@ class TVM_DLL StmtMutator : protected StmtFunctor<Stmt(const Stmt&)> {
 /*!
  * \brief Visitor that recursively visit stmts and exprs on them.
  */
-class StmtExprVisitor : public StmtVisitor, public ExprVisitor {
+class StmtExprVisitor : public ExprVisitor, public StmtVisitor {
  public:
   using StmtVisitor::operator();
   using ExprVisitor::operator();
 
  protected:
   using ExprVisitor::VisitExpr;
+  using ExprVisitor::VisitExpr_;
   using StmtVisitor::VisitStmt;
 
   void VisitExpr(const PrimExpr& e) override { return ExprVisitor::VisitExpr(e); }
+  void VisitExpr_(const BufferLoadNode* op) override;
 };
 
 /*!
  * \brief Mutator that recursively mutates stmts and exprs on them.
  */
-class StmtExprMutator : public StmtMutator, public ExprMutator {
+class StmtExprMutator : public ExprMutator, public StmtMutator {
  public:
   using StmtMutator::operator();
   using ExprMutator::operator();
 
  protected:
   using ExprMutator::VisitExpr;
-  using StmtMutator::VisitExpr;
+  using ExprMutator::VisitExpr_;
+  using StmtMutator::VisitStmt;
 
   PrimExpr VisitExpr(const PrimExpr& e) override { return ExprMutator::VisitExpr(e); }
+  PrimExpr VisitExpr_(const BufferLoadNode* op) override;
 };
 
 /*!

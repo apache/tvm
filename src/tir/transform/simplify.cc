@@ -182,6 +182,19 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
   using Parent::VisitStmt;
   using Parent::VisitStmt_;
 
+  // Do not simplify buffer definition fields (shape, strides, elem_offset).
+  //
+  // The simplifier's VisitExpr override calls analyzer_->Simplify() directly,
+  // bypassing the normal ExprMutator dispatch. This means BufferLoad expressions
+  // inside values (e.g., BufferStore value) skip VisitExpr_(BufferLoadNode*) and
+  // thus skip VisitBufferUse. If VisitBufferDef remaps buffers at DeclBuffer sites,
+  // the BufferLoad use sites won't pick up the remap, causing DeclBuffer/BufferLoad
+  // buffer identity divergence and well-formedness violations.
+  //
+  // Instead, we keep buffer definitions unchanged and rely on used_in_buffer_def_
+  // to prevent inlining LetStmt vars that appear in buffer definitions.
+  Buffer VisitBufferDef(const Buffer& buffer, bool alloc_data) override { return buffer; }
+
   PrimExpr VisitExpr(const PrimExpr& expr) final {
     if (config_->propagate_knowns_to_simplify_expressions) {
       return touch_pattern_->SimplifyInContext(expr, current_stmt_.value(), analyzer_);

@@ -101,6 +101,8 @@ class IndexDataTypeRewriter : public DataTypeLegalizer {
   using Parent::VisitExpr_;
   using Parent::VisitStmt_;
 
+  Buffer VisitBufferDef(const Buffer& buffer, bool alloc_data) override;
+  Buffer VisitBufferUse(const Buffer& buffer) override;
   Stmt VisitStmt_(const SBlockRealizeNode* op) override;
   Stmt VisitStmt_(const SBlockNode* op) override;
   Stmt VisitStmt_(const BufferStoreNode* op) override;
@@ -108,8 +110,6 @@ class IndexDataTypeRewriter : public DataTypeLegalizer {
   PrimExpr VisitExpr_(const BufferLoadNode* op) override;
   ffi::Array<PrimExpr> VisitIndices(ffi::Array<PrimExpr> indices);
   Stmt VisitStmt_(const IfThenElseNode* op) override;
-  Stmt VisitStmt_(const DeclBufferNode* op) override;
-  Stmt VisitStmt_(const AllocBufferNode* op) override;
   Stmt VisitStmt_(const LetStmtNode* op) override;
   PrimExpr VisitExpr_(const EQNode* op) override;
   PrimExpr VisitExpr_(const NENode* op) override;
@@ -122,8 +122,6 @@ class IndexDataTypeRewriter : public DataTypeLegalizer {
 
   Stmt VisitStmt_(const ForNode* op) override;
 
-  Buffer VisitBuffer(const Buffer& buffer);
-  Buffer GetRemappedBuffer(const Buffer& buffer);
   ffi::Map<ffi::String, ffi::Any> VisitBlockAnnotations(
       const ffi::Map<ffi::String, ffi::Any>& annotations);
   BufferRegion VisitBufferRegion(const BufferRegion& region);
@@ -132,8 +130,6 @@ class IndexDataTypeRewriter : public DataTypeLegalizer {
   bool is_enabled_{false};
   // indicator of condition
   bool is_condition_{false};
-
-  ffi::Map<Buffer, Buffer> buffer_remap_;
 };
 
 /*!

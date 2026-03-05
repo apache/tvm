@@ -177,35 +177,8 @@ class PrimFuncSpecializer : public StmtExprMutator {
     return stmt;
   }
 
-  Stmt VisitStmt_(const BufferStoreNode* op) final {
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<BufferStoreNode>();
-    TVM_FFI_ICHECK(op != nullptr);
-
-    auto new_buf = GetNewBuffer(op->buffer);
-    if (new_buf.same_as(op->buffer)) {
-      return ffi::GetRef<BufferStore>(op);
-    } else {
-      auto n = CopyOnWrite(op);
-      n->buffer = new_buf;
-      return Stmt(n);
-    }
-  }
-
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
-    op = expr.as<BufferLoadNode>();
-    TVM_FFI_ICHECK(op != nullptr);
-
-    auto new_buf = GetNewBuffer(op->buffer);
-    if (new_buf.same_as(op->buffer)) {
-      return ffi::GetRef<BufferLoad>(op);
-    } else {
-      auto n = ffi::make_object<BufferLoadNode>(*op);
-      n->buffer = new_buf;
-      return PrimExpr(n);
-    }
-  }
+  // Override VisitBufferUse to use our own buffer_map_ instead of base class field visiting.
+  Buffer VisitBufferUse(const Buffer& buffer) final { return GetNewBuffer(buffer); }
 
   PrimExpr VisitExpr_(const VarNode* op) final {
     auto it = var_map_.find(ffi::GetRef<Var>(op));

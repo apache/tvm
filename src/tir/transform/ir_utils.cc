@@ -205,6 +205,16 @@ class IRConvertSSA final : public StmtExprMutator {
     return func;
   }
 
+  // Do not use the base VisitBufferDef for buffer remapping.
+  //
+  // IRConvertSSA has its own scoped buffer remapping via GetRemappedBuffer and
+  // buf_remap_, which handles SSA conversion of buffer data vars, shape, strides,
+  // and elem_offset with proper scope tracking. The base StmtMutator::VisitBufferDef
+  // would create a conflicting second remap (into base buffer_remap_) when called
+  // from the default DeclBuffer/AllocBuffer handlers, producing buffers with
+  // undefined SSA-renamed variables.
+  Buffer VisitBufferDef(const Buffer& buffer, bool alloc_data) override { return buffer; }
+
   PrimExpr VisitExpr_(const VarNode* op) final { return GetRemappedVar(ffi::GetRef<Var>(op)); }
   PrimExpr VisitExpr_(const LetNode* op) final {
     const Var& v = op->var;
