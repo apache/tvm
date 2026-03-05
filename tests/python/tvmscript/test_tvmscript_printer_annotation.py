@@ -95,9 +95,11 @@ def test_disable_concise_scoping_when_scope_annotated():
         y = x + 1
         T.evaluate(y - 1)
 
+    # With flat Bind, the body is SeqStmt([Bind(x,1), Bind(y,x+1), Evaluate(y-1)]).
+    # Annotate the second Bind (y = x + 1).
     result = _func.with_attr("global_symbol", "main").script(
         obj_to_annotate={
-            _func.body.body: "annotation 1",
+            _func.body.seq[1]: "annotation 1",
         }
     )
     assert (
@@ -107,7 +109,6 @@ def test_disable_concise_scoping_when_scope_annotated():
 @T.prim_func
 def main():
     x: T.int32 = 1
-    # annotation 1
-    with T.LetStmt(x + 1) as y:
-        T.evaluate(y - 1)"""
+    y: T.int32 = x + 1  # annotation 1
+    T.evaluate(y - 1)"""
     )

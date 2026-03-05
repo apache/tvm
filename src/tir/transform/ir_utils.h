@@ -46,7 +46,7 @@ namespace tvm {
 namespace tir {
 /*!
  * \brief combine the nest stmt, whose body is not defined.
- * \param nest A list of For and LetStmt, whose body is not defined.
+ * \param nest A list of For and Bind, whose body is not defined.
  * \param body body
  * \return The combined Stmt
  */
@@ -54,7 +54,7 @@ Stmt MergeNest(const std::vector<Stmt>& nest, Stmt body);
 
 /*!
  * \brief combine the nest stmt, whose body is not defined.
- * \param nest A list of For and LetStmt, whose body is not defined.
+ * \param nest A list of For and Bind, whose body is not defined.
  * \param body body
  * \return The combined Stmt
  */

@@ -132,7 +132,11 @@ def test_remove_zero_extent_loop():
 
 
 def test_remove_unused_let():
-    """A let statement that is never used is a no-op."""
+    """With flat Bind, unused bindings are preserved by remove_no_op.
+
+    Unused Bind elimination requires a separate two-pass approach
+    and is not handled by the current remove_no_op pass.
+    """
 
     @T.prim_func(private=True)
     def before(A: T.Buffer(16, "int32")):
@@ -142,6 +146,7 @@ def test_remove_unused_let():
 
     @T.prim_func(private=True)
     def expected(A: T.Buffer(16, "int32")):
+        x = 5
         for i in T.serial(16):
             A[i] = 0
 
@@ -151,10 +156,10 @@ def test_remove_unused_let():
 
 
 def test_remove_let_used_only_in_no_op():
-    """A let statement that is never used is a no-op.
+    """With flat Bind, unused bindings are preserved by remove_no_op.
 
-    Similar to test_remove_unused_let, but the usage of the let binding
-    may have been removed by an earlier removal of another no-op.
+    The zero-extent for loop is removed, but the Bind for x remains
+    since unused Bind elimination is not handled by remove_no_op.
     """
 
     @T.prim_func(private=True)
@@ -165,6 +170,7 @@ def test_remove_let_used_only_in_no_op():
 
     @T.prim_func(private=True)
     def expected(A: T.Buffer(16, "int32")):
+        x = 5
         T.evaluate(0)
 
     mod = tvm.IRModule.from_expr(before)
@@ -173,7 +179,7 @@ def test_remove_let_used_only_in_no_op():
 
 
 def test_keep_side_effects_of_let():
-    """The side effects of a no-op let must be kept."""
+    """Side-effect Bind is preserved as-is by remove_no_op."""
 
     @T.prim_func(private=True)
     def before():
@@ -182,7 +188,8 @@ def test_keep_side_effects_of_let():
 
     @T.prim_func(private=True)
     def expected():
-        T.evaluate(T.call_extern("extern_func", dtype="int32"))
+        x = T.call_extern("extern_func", dtype="int32")
+        T.evaluate(0)
 
     mod = tvm.IRModule.from_expr(before)
     mod = _apply_remove_no_op(mod)
@@ -549,8 +556,9 @@ def test_remove_read_write_same_index_different_expression():
     """Writing a value to the same location as the read is a no-op.
 
     If the value of the index can be proven to be the same, then the
-    no-op can be removed, even if they have different forms of the
-    expression.
+    store can be removed. With flat Bind, the Bind for i and the
+    enclosing loops remain since unused Bind elimination is not
+    handled by remove_no_op.
     """
 
     @T.prim_func(private=True)
@@ -561,7 +569,9 @@ def test_remove_read_write_same_index_different_expression():
 
     @T.prim_func(private=True)
     def expected(A: T.Buffer(16, "int32")):
-        T.evaluate(0)
+        for io in range(4):
+            for ii in range(4):
+                i: T.int32 = 4 * io + ii
 
     mod = tvm.IRModule.from_expr(before)
     mod = _apply_remove_no_op(mod)

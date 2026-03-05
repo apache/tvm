@@ -59,7 +59,7 @@ namespace tir {
  * by a later buffer's shape (batch_size).  Separating definitions from
  * checks guarantees all variables are in scope when assertions reference them.
  *
- * - init_nest: LetStmts, DeclBuffers for shape/strides arrays, AttrStmts —
+ * - init_nest: Binds, DeclBuffers for shape/strides arrays, AttrStmts —
  *   all value-loading code that defines variables.
  * - asserts: AssertStmts — all validation checks.
  * - decl_buffers: DeclBuffer for buffer_map entries — buffer declarations.
@@ -95,7 +95,7 @@ class TVMFFIABIBuilder {
   struct Result {
     /*! \brief Var -> VarDefInfo map for defined variables. */
     std::unordered_map<const VarNode*, VarDefInfo> var_defs;
-    /*! \brief Variable definitions (LetStmts, shape/strides DeclBuffers, AttrStmts). */
+    /*! \brief Variable definitions (Binds, shape/strides DeclBuffers, AttrStmts). */
     std::vector<Stmt> init_nest;
     /*! \brief Validation checks (all AssertStmts). */
     std::vector<Stmt> asserts;
@@ -227,7 +227,7 @@ class TVMFFIABIBuilder {
    * \brief Internal scalar bind with AccessPath tracking and rich error messages.
    *
    * Binds \p arg to \p value. If arg is a Var not yet in var_defs_, creates a
-   * new definition (LetStmt to init_nest_); otherwise emits a rich assertion
+   * new definition (Bind to init_nest_); otherwise emits a rich assertion
    * (to asserts_) that the existing value matches the new one.
    *
    * When arg is a non-Var expression (e.g. batch_size + 1), the assertion is
@@ -236,7 +236,7 @@ class TVMFFIABIBuilder {
    *
    * \param arg The argument expression to bind (typically a Var or constant).
    * \param value The value expression to bind to the argument.
-   * \param with_lets If true, emit LetStmt bindings into init_nest_.
+   * \param with_lets If true, emit Bind bindings into init_nest_.
    * \param path AccessPath for rich error message rendering.
    * \return True if this was the first bind (definition created), false otherwise.
    */
@@ -284,7 +284,7 @@ class TVMFFIABIBuilder {
   // ── DLTensor sub-helpers ───────────────────────────────────────
 
   /*!
-   * \brief Get a DLTensor field pointer (shape or strides) and store it in a LetStmt.
+   * \brief Get a DLTensor field pointer (shape or strides) and store it in a Bind.
    *
    * \param handle The DLTensor handle variable.
    * \param field_kind kDLTensorShape or kDLTensorStrides.
@@ -390,7 +390,7 @@ class TVMFFIABIBuilder {
 
   /*! \brief The definition map: VarNode* -> VarDefInfo (value + first_def_path). */
   std::unordered_map<const VarNode*, VarDefInfo> var_defs_;
-  /*! \brief Variable definitions: LetStmts, shape/strides DeclBuffers, AttrStmts. */
+  /*! \brief Variable definitions: Binds, shape/strides DeclBuffers, AttrStmts. */
   std::vector<Stmt> init_nest_;
   /*! \brief Validation checks: all AssertStmts. */
   std::vector<Stmt> asserts_;

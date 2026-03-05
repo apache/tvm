@@ -34,7 +34,8 @@ namespace tir {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   StmtNode::RegisterReflection();
-  LetStmtNode::RegisterReflection();
+  BindNode::RegisterReflection();
+
   AttrStmtNode::RegisterReflection();
   AssertStmtNode::RegisterReflection();
   BufferStoreNode::RegisterReflection();
@@ -51,32 +52,28 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   SBlockRealizeNode::RegisterReflection();
 }
 
-// LetStmt
-LetStmt::LetStmt(Var var, PrimExpr value, Stmt body, Span span) {
+// Bind
+Bind::Bind(Var var, PrimExpr value, Span span) {
   TVM_FFI_ICHECK(value.defined());
-  TVM_FFI_ICHECK(body.defined());
   auto vdtype = value.dtype();
-  // It is still valid to bind a pointer type
-  // var to a value that is of type handle.
+  // It is still valid to bind a pointer type var to a value that is of type handle.
   if (var->type_annotation.as<PointerTypeNode>()) {
     TVM_FFI_ICHECK(vdtype.is_handle());
   } else {
     TVM_FFI_ICHECK_EQ(value.dtype(), var.dtype());
   }
 
-  ObjectPtr<LetStmtNode> node = ffi::make_object<LetStmtNode>();
+  ObjectPtr<BindNode> node = ffi::make_object<BindNode>();
   node->var = std::move(var);
   node->value = std::move(value);
-  node->body = std::move(body);
   node->span = std::move(span);
   data_ = std::move(node);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.LetStmt", [](Var var, PrimExpr value, Stmt body, Span span) {
-    return LetStmt(var, value, body, span);
-  });
+  refl::GlobalDef().def("tir.Bind",
+                        [](Var var, PrimExpr value, Span span) { return Bind(var, value, span); });
 }
 
 // AttrStmt

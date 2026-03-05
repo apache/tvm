@@ -369,6 +369,7 @@ std::string CodeGenC::GetStructRef(DataType t, const PrimExpr& buffer, const Pri
     return os.str();
   } else {
     TVM_FFI_THROW(RuntimeError) << "Unsupported type index: " << kind;
+    TVM_FFI_UNREACHABLE();
   }
 }
 
@@ -1028,7 +1029,7 @@ void CodeGenC::VisitExpr_(const SelectNode* op, std::ostream& os) {  // NOLINT(*
   os << ")";
 }
 
-void CodeGenC::VisitStmt_(const LetStmtNode* op) {
+void CodeGenC::VisitStmt_(const BindNode* op) {
   std::string value = PrintExpr(op->value);
   if (print_ssa_form_) {
     TVM_FFI_ICHECK(!var_idmap_.count(op->var.get()));
@@ -1045,7 +1046,6 @@ void CodeGenC::VisitStmt_(const LetStmtNode* op) {
       this->stream << ' ' << AllocVarID(op->var.get()) << " = " << value << ";\n";
     }
   }
-  PrintStmt(op->body);
 }
 
 void CodeGenC::VisitStmt_(const AllocBufferNode* op) {

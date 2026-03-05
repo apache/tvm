@@ -105,9 +105,7 @@ class HostDeviceSplitter : public StmtMutator {
       Call kernel_call(success->dtype, kernel_symbol_global, args);
       AssertStmt assert_success(kernel_error_code == success, StringImm("RuntimeError"),
                                 {StringImm("Error executing compute kernel")});
-      LetStmt let_check(kernel_error_code, kernel_call, assert_success);
-
-      return let_check;
+      return SeqStmt({Bind(kernel_error_code, kernel_call), assert_success});
 
     } else {
       return Evaluate(Call(DataType::Void(), kernel_symbol_global, args));
