@@ -96,7 +96,7 @@ or
 ./docker/bash.sh ci_cpu echo hello tvm world
 ````
 
-the same applies to the other images (```./docker/Dockerfile.*```).
+the same applies to the other images (``./docker/Dockerfile.*``).
 
 The command ``./docker/build.sh image_name COMMANDS`` is almost equivalent to
 ``./docker/bash.sh image_name COMMANDS`` but in the case of ``bash.sh``
