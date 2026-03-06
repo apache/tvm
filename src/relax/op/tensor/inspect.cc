@@ -320,9 +320,8 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
                              {dlpack_handle, IntImm(DataType::Int(32), 0),
                               IntImm(DataType::Int(32),
                                      tir::builtin::TVMStructFieldKind::kDLTensorShape)})),
-         tir::DeclBuffer(shape_buffer,
-                         tir::SeqStmt({tir::Bind(extent, tir::BufferLoad(shape_buffer, {axis})),
-                                       tir::Evaluate(tvm::ret(extent))}))});
+         tir::DeclBuffer(shape_buffer), tir::Bind(extent, tir::BufferLoad(shape_buffer, {axis})),
+         tir::Evaluate(tvm::ret(extent))});
 
     DictAttrs attrs({{"tir.is_scheduled", true}, {"tir.is_host", true}});
 

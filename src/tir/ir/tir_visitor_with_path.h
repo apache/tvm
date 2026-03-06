@@ -33,6 +33,7 @@
 #include <optional>
 #include <unordered_set>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace tvm {
@@ -257,7 +258,8 @@ class TIRVisitorWithPath
    * BindNode pushes its WithDef into the current scope.  When the
    * scope exits, all Bind defs are cleaned up automatically.
    */
-  ScopeStack<std::vector<DefContext<Var>>> bind_scope_;
+  using BindScopeEntry = std::variant<DefContext<Var>, DefContext<Buffer>>;
+  ScopeStack<std::vector<BindScopeEntry>> bind_scope_;
 };
 
 }  // namespace tir

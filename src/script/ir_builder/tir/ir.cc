@@ -505,19 +505,6 @@ LaunchThreadFrame LaunchThread(ffi::String thread_tag, PrimExpr extent) {
   return LaunchThread(EnvThread(thread_tag, extent.dtype()), extent);
 }
 
-AllocateFrame Allocate(ffi::Array<PrimExpr> extents, DataType dtype, ffi::String storage_scope,
-                       ffi::Optional<PrimExpr> condition,
-                       ffi::Optional<ffi::Map<ffi::String, Any>> annotations) {
-  ObjectPtr<AllocateFrameNode> n = ffi::make_object<AllocateFrameNode>();
-  n->extents = extents;
-  n->dtype = dtype;
-  n->storage_scope = storage_scope;
-  n->condition = condition.value_or(tvm::Bool(true));
-  n->annotations = annotations.value_or(ffi::Map<ffi::String, Any>());
-  n->buffer_var = Var("", tvm::PointerType(tvm::PrimType(dtype), storage_scope));
-  return AllocateFrame(n);
-}
-
 AttrFrame Attr(ffi::Any node, ffi::String attr_key, PrimExpr value) {
   // convert POD value to PrimExpr
   if (node.type_index() < ffi::TypeIndex::kTVMFFISmallStr) {
@@ -631,34 +618,30 @@ void BufferStore(Buffer buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
   AddToParent(tvm::tir::BufferStore(buffer, value, indices, predicate));
 }
 
-TIRFrame DeclBuffer(ffi::Array<PrimExpr> shape, DataType dtype, ffi::String buffer_name,
-                    ffi::Optional<Var> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
-                    ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope, int align,
-                    int offset_factor, ffi::String buffer_type,
-                    ffi::Optional<ffi::Array<IntImm>> axis_separators) {
+Buffer DeclBuffer(ffi::Array<PrimExpr> shape, DataType dtype, ffi::String buffer_name,
+                  ffi::Optional<Var> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
+                  ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope, int align,
+                  int offset_factor, ffi::String buffer_type,
+                  ffi::Optional<ffi::Array<IntImm>> axis_separators) {
   Buffer buffer = BufferDecl(shape, dtype, buffer_name, data, strides, elem_offset, storage_scope,
                              align, offset_factor, buffer_type, axis_separators);
   if (data.defined()) {
-    // Alias an existing buffer: produce DeclBuffer
-    ObjectPtr<DeclBufferFrameNode> n = ffi::make_object<DeclBufferFrameNode>();
-    n->buffer = buffer;
-    return DeclBufferFrame(n);
+    // Alias an existing buffer: emit DeclBuffer statement
+    AddToParent(tvm::tir::DeclBuffer(buffer));
   } else {
-    // No backing data pointer: allocate a new buffer via AllocBuffer
-    ObjectPtr<AllocBufferFrameNode> n = ffi::make_object<AllocBufferFrameNode>();
-    n->buffer = buffer;
-    n->annotations = {};
-    return AllocBufferFrame(n);
+    // No backing data pointer: emit AllocBuffer statement
+    AddToParent(tvm::tir::AllocBuffer(buffer));
   }
+  return buffer;
 }
 
-AllocBufferFrame AllocBuffer(ffi::Array<PrimExpr> shape, DataType dtype, ffi::String storage_scope,
-                             ffi::Optional<ffi::Map<ffi::String, ffi::Any>> annotations) {
-  ObjectPtr<AllocBufferFrameNode> n = ffi::make_object<AllocBufferFrameNode>();
-  n->buffer = BufferDecl(shape, dtype, "", std::nullopt, std::nullopt, std::nullopt, storage_scope,
-                         0, 0, "", std::nullopt);
-  n->annotations = annotations.value_or(ffi::Map<ffi::String, ffi::Any>());
-  return AllocBufferFrame(n);
+Buffer AllocBuffer(ffi::Array<PrimExpr> shape, DataType dtype, ffi::String storage_scope,
+                   ffi::Optional<ffi::Map<ffi::String, ffi::Any>> annotations) {
+  Buffer buffer = BufferDecl(shape, dtype, "", std::nullopt, std::nullopt, std::nullopt,
+                             storage_scope, 0, 0, "", std::nullopt);
+  AddToParent(
+      tvm::tir::AllocBuffer(buffer, annotations.value_or(ffi::Map<ffi::String, ffi::Any>())));
+  return buffer;
 }
 
 void Evaluate(PrimExpr value) { AddToParent(tvm::tir::Evaluate(value)); }
@@ -748,7 +731,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("script.ir_builder.tir.Grid", Grid)
       .def("script.ir_builder.tir.Assert", Assert)
       .def("script.ir_builder.tir.Bind", Bind)
-      .def("script.ir_builder.tir.Allocate", Allocate)
       .def("script.ir_builder.tir.Attr", Attr)
       .def("script.ir_builder.tir.While", While)
       .def("script.ir_builder.tir.If", If)

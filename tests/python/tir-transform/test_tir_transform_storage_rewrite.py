@@ -32,12 +32,10 @@ def test_alloc_seq():
     def func(n: T.int32):
         for i in T.serial(n):
             for j in range(10):
-                A_data = T.allocate([200], "float32", scope=scope_tb)
-                A = T.decl_buffer([200], "float32", data=A_data, scope=scope_tb)
+                A = T.alloc_buffer((200,), scope=scope_tb)
                 A[j] = T.float32(1.2)
             for j in range(10):
-                B_data = T.allocate([200], "float32", scope=scope_tb)
-                B = T.decl_buffer([200], "float32", data=B_data, scope=scope_tb)
+                B = T.alloc_buffer((200,), scope=scope_tb)
                 B[j] = T.float32(1.3)
 
     mod = tvm.IRModule.from_expr(func)
@@ -62,16 +60,11 @@ def test_alloc_different_dtypes():
         @T.prim_func
         def func():
             # Allocate all buffers in parent scope (before any loops)
-            A_data = T.allocate([length], dtype_list[0], scope="local.L0A")
-            A = T.decl_buffer([length], dtype_list[0], data=A_data, scope="local.L0A")
-            B_data = T.allocate([length], dtype_list[1], scope="local.L0A")
-            B = T.decl_buffer([length], dtype_list[1], data=B_data, scope="local.L0A")
-            C_data = T.allocate([length], dtype_list[2], scope="local.L0A")
-            C = T.decl_buffer([length], dtype_list[2], data=C_data, scope="local.L0A")
-            D_data = T.allocate([length], dtype_list[3], scope="local.L0A")
-            D = T.decl_buffer([length], dtype_list[3], data=D_data, scope="local.L0A")
-            E_data = T.allocate([length], "int8", scope="local.L0A")
-            E = T.decl_buffer([length], "int8", data=E_data, scope="local.L0A")
+            A = T.alloc_buffer((length,), dtype_list[0], scope="local.L0A")
+            B = T.alloc_buffer((length,), dtype_list[1], scope="local.L0A")
+            C = T.alloc_buffer((length,), dtype_list[2], scope="local.L0A")
+            D = T.alloc_buffer((length,), dtype_list[3], scope="local.L0A")
+            E = T.alloc_buffer((length,), "int8", scope="local.L0A")
 
             for j in range(length):
                 A[j] = T.Cast(dtype_list[0], 1)
@@ -134,24 +127,21 @@ def test_address_of():
     # combine buffers B and D, but not C
     @T.prim_func
     def before(A: T.Buffer(8, "float32"), E: T.Buffer(8, "float32")):
-        B_data = T.allocate([8], "float32")
-        B = T.decl_buffer(8, data=B_data, align=32)
+        B = T.alloc_buffer((8,))
         for i in range(8):
             B[i] = (
                 T.call_extern("deref", T.address_of(A[i]), dtype="float32")
                 + T.call_extern("deref", T.address_of(A[0]), dtype="float32")
                 + T.float32(1)
             )
-        C_data = T.allocate([8], "float32")
-        C = T.decl_buffer(8, data=C_data, align=32)
+        C = T.alloc_buffer((8,))
         for i in range(8):
             C[i] = (
                 T.call_extern("deref", T.address_of(B[i]), dtype="float32")
                 + T.call_extern("deref", T.address_of(B[0]), dtype="float32")
                 + T.float32(2)
             )
-        D_data = T.allocate([8], "float32")
-        D = T.decl_buffer(8, data=D_data, align=32)
+        D = T.alloc_buffer((8,))
         for i in range(8):
             D[i] = (
                 T.call_extern("deref", T.address_of(C[i]), dtype="float32")
@@ -171,13 +161,11 @@ def test_address_of():
 
     total_alloc = [0]
     mod = tvm.IRModule.from_expr(before.with_attr("global_symbol", "main"))
-    mod.show()
     tvm.tir.stmt_functor.post_order_visit(mod["main"].body, verify)
     assert total_alloc[0] == 24
 
     total_alloc[0] = 0
     mod = tvm.tir.transform.StorageRewrite()(mod)
-    mod.show()
     tvm.tir.stmt_functor.post_order_visit(mod["main"].body, verify)
     assert total_alloc[0] == 16
 
@@ -187,14 +175,14 @@ def test_parallel_alloc():
     def func1(n: T.int32):
         for i in T.parallel(n):
             for j in range(10):
-                A_data = T.allocate([n], "float32", scope="global")
-                A = T.decl_buffer([n], "float32", data=A_data, scope="global")
+                A = T.alloc_buffer((n,))
                 A[j] = A[j] + T.float32(2)
 
     mod = tvm.IRModule.from_expr(func1)
     body = tvm.tir.transform.StorageRewrite()(mod)["func1"]
 
-    assert isinstance(body.body.body, tvm.tir.AllocBuffer)
+    # With flat AllocBuffer, the for body is a SeqStmt; first element is AllocBuffer
+    assert isinstance(body.body.body[0], tvm.tir.AllocBuffer)
 
     @T.prim_func
     def func2(n: T.int32):
@@ -202,38 +190,33 @@ def test_parallel_alloc():
             with T.attr(T.int32(1), "pragma_scope", "parallel_launch_point"):
                 for i in T.parallel(n):
                     for j in range(10):
-                        A_data = T.allocate([n], "float32", scope="global")
-                        A = T.decl_buffer([n], "float32", data=A_data, scope="global")
+                        A = T.alloc_buffer((n,))
                         A[j] = A[j] + T.float32(2)
 
     mod = tvm.IRModule.from_expr(func2)
     body = tvm.tir.transform.StorageRewrite()(mod)["func2"]
 
-    assert isinstance(body.body.body.body.body, tvm.tir.AllocBuffer)
+    assert isinstance(body.body.body.body.body[0], tvm.tir.AllocBuffer)
 
 
 def test_while_alloc():
     @T.prim_func
     def func_parallel(n: T.int32):
         for i in T.parallel(n):
-            j_data = T.allocate([1], "int32", scope="global")
-            j = T.decl_buffer([1], "int32", data=j_data, scope="global")
+            j = T.alloc_buffer((1,), "int32")
             j[0] = 0
             while j[0] < 10:
-                A_data = T.allocate([n], "float32", scope="global")
-                A = T.decl_buffer([n], "float32", data=A_data, scope="global")
+                A = T.alloc_buffer((n,))
                 A[j[0]] = A[j[0]] + T.float32(2)
                 j[0] = j[0] + j[0] + 1
 
     @T.prim_func
     def func_serial(n: T.int32):
         for i in T.serial(n):
-            j_data = T.allocate([1], "int32", scope="global")
-            j = T.decl_buffer([1], "int32", data=j_data, scope="global")
+            j = T.alloc_buffer((1,), "int32")
             j[0] = 0
             while j[0] < 10:
-                A_data = T.allocate([n], "float32", scope="global")
-                A = T.decl_buffer([n], "float32", data=A_data, scope="global")
+                A = T.alloc_buffer((n,))
                 A[j[0]] = A[j[0]] + T.float32(2)
                 j[0] = j[0] + j[0] + 1
 
@@ -276,23 +259,17 @@ def test_alloc_seq_type():
     def func(n: T.int32):
         for i in T.serial(n):
             for j in range(10):
-                A_data = T.allocate([200], "float32", scope="local.L0A")
-                A = T.decl_buffer([200], "float32", data=A_data, scope="local.L0A")
-                A1_data = T.allocate([200], "float32", scope="local.L0A")
-                A1 = T.decl_buffer([200], "float32", data=A1_data, scope="local.L0A")
+                A = T.alloc_buffer((200,), scope="local.L0A")
+                A1 = T.alloc_buffer((200,), scope="local.L0A")
                 A[j] = T.float32(1.2)
                 A1[j] = T.float32(1.3)
-                B_data = T.allocate([200], "int16", scope="local.L0A")
-                B = T.decl_buffer([200], "int16", data=B_data, scope="local.L0A")
+                B = T.alloc_buffer((200,), "int16", scope="local.L0A")
                 B[j] = T.int16(1)
-                C_data = T.allocate([200], "int16", scope="local.L0A")
-                C = T.decl_buffer([200], "int16", data=C_data, scope="local.L0A")
+                C = T.alloc_buffer((200,), "int16", scope="local.L0A")
                 C[j] = T.int16(1)
-                D_data = T.allocate([200], "int16", scope="local.L0A")
-                D = T.decl_buffer([200], "int16", data=D_data, scope="local.L0A")
+                D = T.alloc_buffer((200,), "int16", scope="local.L0A")
                 D[j] = B[j] + C[j]
-                A2_data = T.allocate([200], "float32", scope="local.L0A")
-                A2 = T.decl_buffer([200], "float32", data=A2_data, scope="local.L0A")
+                A2 = T.alloc_buffer((200,), scope="local.L0A")
                 A2[j] = A[j]
 
     mod = tvm.IRModule.from_expr(func)
@@ -316,16 +293,13 @@ def test_alloc_seq_type2():
     def func(n: T.int32):
         for i in T.serial(n):
             for j in range(10):
-                A_data = T.allocate([200], "float32", scope=scope_tb)
-                A = T.decl_buffer([200], "float32", data=A_data, scope=scope_tb)
+                A = T.alloc_buffer((200,), scope=scope_tb)
                 A[j] = T.float32(1.2)
             for j in range(20):
-                B_data = T.allocate([400], "int16", scope=scope_tb)
-                B = T.decl_buffer([400], "int16", data=B_data, scope=scope_tb)
+                B = T.alloc_buffer((400,), "int16", scope=scope_tb)
                 B[j] = T.int16(1)
             for j in range(10):
-                C_data = T.allocate([200], "float32", scope=scope_tb)
-                C = T.decl_buffer([200], "float32", data=C_data, scope=scope_tb)
+                C = T.alloc_buffer((200,), scope=scope_tb)
                 C[j] = T.float32(1.2)
 
     mod = tvm.IRModule.from_expr(func)
@@ -347,23 +321,17 @@ def test_reuse_small_buffer():
     def func(n: T.int32):
         for i in T.serial(n):
             for j in range(10):
-                A_data = T.allocate([200], "int16", scope="local.L0A")
-                A = T.decl_buffer([200], "int16", data=A_data, scope="local.L0A")
+                A = T.alloc_buffer((200,), "int16", scope="local.L0A")
                 A[j] = T.int16(1)
-                B_data = T.allocate([200], "int16", scope="local.L0A")
-                B = T.decl_buffer([200], "int16", data=B_data, scope="local.L0A")
+                B = T.alloc_buffer((200,), "int16", scope="local.L0A")
                 B[j] = T.int16(1)
-                B1_data = T.allocate([200], "int16", scope="local.L0A")
-                B1 = T.decl_buffer([200], "int16", data=B1_data, scope="local.L0A")
+                B1 = T.alloc_buffer((200,), "int16", scope="local.L0A")
                 B1[j] = A[j] + B[j]
-                C_data = T.allocate([400], "int16", scope="local.L0A")
-                C = T.decl_buffer([400], "int16", data=C_data, scope="local.L0A")
+                C = T.alloc_buffer((400,), "int16", scope="local.L0A")
                 C[j] = T.int16(1)
-                D_data = T.allocate([400], "int16", scope="local.L0A")
-                D = T.decl_buffer([400], "int16", data=D_data, scope="local.L0A")
+                D = T.alloc_buffer((400,), "int16", scope="local.L0A")
                 D[j] = T.int16(1)
-                E_data = T.allocate([400], "int16", scope="local.L0A")
-                E = T.decl_buffer([400], "int16", data=E_data, scope="local.L0A")
+                E = T.alloc_buffer((400,), "int16", scope="local.L0A")
                 E[j] = C[j]
 
     mod = tvm.IRModule.from_expr(func)
@@ -384,8 +352,7 @@ def test_access_in_let_value():
     @T.prim_func
     def func(A: T.Buffer((8,), "float32")):
         for i in range(8):
-            B_data = T.allocate((1,), "float32", "global")
-            B = T.decl_buffer(shape=[1], dtype="float32", data=B_data)
+            B = T.alloc_buffer((1,))
             B[0] = 3.14
             x: T.float32 = T.exp(B[0], dtype="float32")
             A[i] = (x + 1.0) / (x - 1.0)
@@ -394,9 +361,8 @@ def test_access_in_let_value():
     def func_rewritten(A: T.Buffer((8,), "float32")) -> None:
         B = T.alloc_buffer((1,))
         for i in range(8):
-            B_1 = T.decl_buffer((1,), data=B.data)
-            B_1[0] = 3.14
-            x: T.float32 = T.exp(B_1[0], dtype="float32")
+            B[0] = 3.14
+            x: T.float32 = T.exp(B[0], dtype="float32")
             A[i] = (x + 1.0) / (x - 1.0)
 
     mod = tvm.tir.transform.StorageRewrite()(

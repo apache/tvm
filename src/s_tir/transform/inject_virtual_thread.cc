@@ -134,7 +134,7 @@ class VarTouchedAnalysis : public StmtVisitor {
       tc(op->buffer->shape[i]);
     }
     Record(op->buffer->data.get(), tc);
-    this->VisitStmt(op->body);
+    StmtVisitor::VisitStmt_(op);
   }
   void Record(const VarNode* var, const ExprTouched& tc) {
     if (touched_var_.count(var)) return;
@@ -437,14 +437,12 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
       alloc_remap_[op->buffer->data.get()] = stride;
     }
 
-    auto body = this->VisitStmt(op->body);
-
-    if (shape.same_as(op->buffer->shape) && body.same_as(op->body)) {
+    if (shape.same_as(op->buffer->shape)) {
       return ffi::GetRef<Stmt>(op);
     } else {
       Buffer new_buffer = op->buffer;
       new_buffer.CopyOnWrite()->shape = shape;
-      return AllocBuffer(new_buffer, body, op->annotations);
+      return AllocBuffer(new_buffer, op->annotations);
     }
   }
 

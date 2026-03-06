@@ -1240,9 +1240,9 @@ class TestNotCompactAliasBuffer(BaseCompactTest):
     def before():
         """Partially accessed buffer, but should not compact
         because existence of aliasing buffer B."""
-        data = T.allocate([1024], "int8")
-        A = T.decl_buffer([1024], "int8", data)
-        B = T.decl_buffer([512], "float16", data)
+        data = T.alloc_buffer((1024,), "int8")
+        A = T.decl_buffer([1024], "int8", data=data.data)
+        B = T.decl_buffer([512], "float16", data=data.data)
         for i in range(10):
             A[i] = A[i] + T.int8(1)
         for i in range(10):
@@ -1259,8 +1259,8 @@ class TestNotCompactBufferWithDifferentDtype(BaseCompactTest):
     def before():
         """Partially accessed buffer, but should not compact
         because existence of aliasing buffer B."""
-        data = T.allocate([1024], "int8")
-        A = T.decl_buffer([256], "int32", data)
+        data = T.alloc_buffer((1024,), "int8")
+        A = T.decl_buffer([256], "int32", data=data.data)
         for i in range(10):
             A[i] = A[i] + 1
 

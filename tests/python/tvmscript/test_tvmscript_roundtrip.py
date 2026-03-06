@@ -40,18 +40,12 @@ def opt_gemm_lower():
             B_1 = T.match_buffer(B, [1024, 1024], elem_offset=0, align=64, offset_factor=1)
             C_1 = T.match_buffer(C, [16384], elem_offset=0, align=64, offset_factor=1)
             # body
-            packedB_data = T.allocate([32768], "float32", "global")
-            packedB = T.decl_buffer(
-                shape=[32768], dtype="float32", scope="global", data=packedB_data
-            )
+            packedB = T.alloc_buffer((32768,))
             for x in T.parallel(0, 32):
                 for y in T.serial(0, 1024):
                     packedB[T.ramp(((x * 32768) + (y * 32)), 1, 32)] = B_1[y, T.ramp(x * 32, 1, 32)]
             for x_outer in T.parallel(0, 32):
-                C_global_data = T.allocate([1024], "float32", "global")
-                C_global = T.decl_buffer(
-                    shape=[1024], dtype="float32", scope="global", data=C_global_data
-                )
+                C_global = T.alloc_buffer((1024,))
                 for y_outer in T.serial(0, 32):
                     for x_c_init in T.serial(0, 32):
                         C_global[T.ramp((x_c_init * 32), 1, 32)] = T.broadcast(T.float32(0), 32)
@@ -147,24 +141,11 @@ def opt_conv_tensorcore_lower():
         ty = T.env_thread("threadIdx.y")
         tz = T.env_thread("threadIdx.z")
         T.launch_thread(bz, 196)
-        Conv_wmma_accumulator_data = T.allocate([2048], "float32", "wmma.accumulator")
-        Conv_wmma_accumulator = T.decl_buffer(
-            shape=[2048], dtype="float32", scope="wmma.accumulator", data=Conv_wmma_accumulator_data
-        )
-        Apad_shared_data = T.allocate([12288], "float16", "shared")
-        Apad_shared = T.decl_buffer(
-            shape=[12288], dtype="float16", scope="shared", data=Apad_shared_data
-        )
-        W_shared_data = T.allocate([12288], "float16", "shared")
-        W_shared = T.decl_buffer(shape=[12288], dtype="float16", scope="shared", data=W_shared_data)
-        Apad_shared_wmma_matrix_a_data = T.allocate([512], "float16", "wmma.matrix_a")
-        Apad_shared_wmma_matrix_a = T.decl_buffer(
-            shape=[512], dtype="float16", scope="wmma.matrix_a", data=Apad_shared_wmma_matrix_a_data
-        )
-        W_shared_wmma_matrix_b_data = T.allocate([1024], "float16", "wmma.matrix_b")
-        W_shared_wmma_matrix_b = T.decl_buffer(
-            shape=[1024], dtype="float16", scope="wmma.matrix_b", data=W_shared_wmma_matrix_b_data
-        )
+        Conv_wmma_accumulator = T.alloc_buffer((2048,), scope="wmma.accumulator")
+        Apad_shared = T.alloc_buffer((12288,), "float16", scope="shared")
+        W_shared = T.alloc_buffer((12288,), "float16", scope="shared")
+        Apad_shared_wmma_matrix_a = T.alloc_buffer((512,), "float16", scope="wmma.matrix_a")
+        W_shared_wmma_matrix_b = T.alloc_buffer((1024,), "float16", scope="wmma.matrix_b")
         T.launch_thread(bx, 2)
         T.launch_thread(by, 4)
         T.launch_thread(ty, 4)
@@ -1686,8 +1667,7 @@ def vthread_func():
         T.launch_thread(i0, 4)
         T.launch_thread(i1, 2)
         T.launch_thread(i2, 2)
-        B_data = T.allocate([16], "float32", "local")
-        B = T.decl_buffer(shape=[16], dtype="float32", scope="local", data=B_data)
+        B = T.alloc_buffer((16,), scope="local")
         for j in range(16):
             B[j] = A[i0 * 64 + i1 * 32 + i2 * 16 + j] + T.float32(1)
         for j in range(16):
@@ -2101,8 +2081,7 @@ def primfunc_with_allocate_annotations():
         placeholder_29 = T.match_buffer(placeholder_28, [802816], dtype="uint8", elem_offset=0, align=64, offset_factor=1)
         T_cast_7 = T.match_buffer(T_cast_6, [200704], dtype="int16", elem_offset=0, align=64, offset_factor=1)
         # body
-        tensor_2_data = T.allocate([200704], "uint8", "global", annotations={"attr1_key": "attr1_value"})
-        tensor_2 = T.decl_buffer(shape=[200704], dtype="uint8", scope="global", data=tensor_2_data)
+        tensor_2 = T.alloc_buffer((200704,), "uint8", annotations={"attr1_key": "attr1_value"})
         for ax0_ax1_fused_4 in T.serial(0, 56):
             for ax2_4 in T.serial(0, 56):
                 for ax3_init in T.serial(0, 64):
@@ -2126,8 +2105,7 @@ def comm_reducer_single_reduce_group():
         A = T.match_buffer(a, [16384], dtype="float32")
         for i in T.serial(0, 128):
             T.launch_thread(threadIdx_x, 128)
-            reduce_temp0_data = T.allocate([1], "float32", "local")
-            reduce_temp0 = T.decl_buffer(shape=[1], dtype="float32", scope="local", data=reduce_temp0_data)
+            reduce_temp0 = T.alloc_buffer((1,), scope="local")
             with T.attr(T.comm_reducer(lambda x, y: x + y, [T.float32(0)]), "reduce_scope", T.reinterpret(T.uint64(0), dtype="handle")):
                 T.evaluate(T.tvm_thread_allreduce(T.uint32(1), A[i * 128 + threadIdx_x], True, reduce_temp0.data, threadIdx_x, dtype="handle"))
 
@@ -2142,8 +2120,7 @@ def comm_reducer_multiple_reduce_groups():
         A = T.match_buffer(a, [16384], dtype="float32")
         for i in T.serial(0, 128):
             T.launch_thread(threadIdx_x, 128)
-            reduce_temp0_data = T.allocate([1], "float32", "local")
-            reduce_temp0 = T.decl_buffer(shape=[1], dtype="float32", scope="local", data=reduce_temp0_data)
+            reduce_temp0 = T.alloc_buffer((1,), scope="local")
             with T.attr(T.comm_reducer(lambda x0, x1, y0, y1: (T.Select((x1 >= y1), x0, y0), T.Select((x1 >= y1), x1, y1)), [T.int32(-1), T.min_value("float32")]), "reduce_scope", T.reinterpret(T.uint64(0), dtype="handle")):
                 T.evaluate(T.tvm_thread_allreduce(T.uint32(1), A[i * 128 + threadIdx_x], True, reduce_temp0.data, threadIdx_x, dtype="handle"))
 
@@ -2320,8 +2297,7 @@ def func_T_ptr_let_statement():
 def func_T_ptr_allocate():
     @T.prim_func
     def func_T_ptr_allocate() -> None:
-        A_data = T.allocate([1024], "float32", "global")
-        A = T.decl_buffer(shape=[1024], dtype="float32", scope="global", data=A_data)
+        A = T.alloc_buffer((1024,))
         A[0] = 0.0
 
     return func_T_ptr_allocate
@@ -2412,10 +2388,8 @@ def string_annotation_escaping():
 def pointer_type():
     @T.prim_func
     def func_with_ptr_type_annotations(x: T.handle("int32"), y: T.handle("int32", "shared")):
-        xx_data = T.allocate([16], "int32", "global")
-        xx = T.decl_buffer(shape=[16], dtype="int32", scope="global", data=xx_data)
-        yy_data = T.allocate([16], "int32", "shared")
-        yy = T.decl_buffer(shape=[16], dtype="int32", scope="shared", data=yy_data)
+        xx = T.alloc_buffer((16,), "int32")
+        yy = T.alloc_buffer((16,), "int32", scope="shared")
         a: T.handle("int32") = T.address_of(xx[0], dtype="handle")
         b: T.handle("int32", "shared") = T.address_of(yy[0], dtype="handle")
         T.evaluate(T.call_extern("copy", a, b, dtype=""))
@@ -2541,15 +2515,13 @@ def decl_buffer():
 def allocate_and_decl_buffer():
     @T.prim_func
     def func(A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")) -> None:
-        D_data = T.allocate((16,), "float32", "global")
-        D = T.decl_buffer((16,), "float32", data=D_data)
+        D = T.alloc_buffer((16,))
         for i in range(4):
-            with T.allocate((4,), "float32", "global") as C_data:
-                C = T.decl_buffer((4,), "float32", data=C_data)
-                for j in range(4):
-                    C[j] = A[i * 4 + j] + T.float32(1.0)
-                for j in range(4):
-                    D[j] = C[j]
+            C = T.alloc_buffer((4,))
+            for j in range(4):
+                C[j] = A[i * 4 + j] + T.float32(1.0)
+            for j in range(4):
+                D[j] = C[j]
             for j in range(4):
                 B[i * 4 + j] = D[j]
 
@@ -2856,29 +2828,29 @@ def tvm_shfl_builtins():
     ):
         blockIdx_x = T.launch_thread("blockIdx.x", 1)
         threadIdx_x = T.launch_thread("threadIdx.x", 32)
-        A_warp = T.allocate([1], "float32", "local")
-        B_warp = T.allocate([1], "float32", "local")
-        red_buf0 = T.allocate([1], "float32", "local")
-        A_warp_1 = T.decl_buffer((32,), data=A_warp, scope="local")
-        A_1 = T.decl_buffer((32,), data=A)
+        A_warp = T.alloc_buffer((1,), scope="local")
+        B_warp = T.alloc_buffer((1,), scope="local")
+        red_buf0 = T.alloc_buffer((1,), scope="local")
+        A_warp_1 = T.decl_buffer((32,), data=A_warp.data, scope="local")
+        A_1 = T.decl_buffer((32,), data=A)  # A is a handle param
         A_warp_1[0] = A_1[threadIdx_x]
-        B_warp_1 = T.decl_buffer((32,), data=B_warp, scope="local")
+        B_warp_1 = T.decl_buffer((32,), data=B_warp.data, scope="local")
         T.tvm_storage_sync("warp")
         B_warp_1[0] = T.tvm_warp_shuffle(
             T.tvm_warp_activemask(), A_warp_1[0], threadIdx_x % 4 * 8 + threadIdx_x // 4, 32, 32
         ) + T.float32(1)
-        red_buf0_1 = T.decl_buffer((1,), data=red_buf0, scope="local")
+        red_buf0_1 = T.decl_buffer((1,), data=red_buf0.data, scope="local")
         with T.attr(
             T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
             "reduce_scope",
             T.reinterpret("handle", T.uint64(0)),
         ):
-            mask = T.allocate([1], "uint32", "local")
-            t0 = T.allocate([1], "float32", "local")
+            mask = T.alloc_buffer((1,), "uint32", scope="local")
+            t0 = T.alloc_buffer((1,), scope="local")
             red_buf0_1[0] = A_warp_1[0]
-            mask_1 = T.decl_buffer((1,), "uint32", data=mask, scope="local")
+            mask_1 = T.decl_buffer((1,), "uint32", data=mask.data, scope="local")
             mask_1[0] = T.tvm_warp_activemask()
-            t0_1 = T.decl_buffer((1,), data=t0, scope="local")
+            t0_1 = T.decl_buffer((1,), data=t0.data, scope="local")
             t0_1[0] = T.tvm_warp_shuffle_down(mask_1[0], red_buf0_1[0], 16, 32, 32)
             red_buf0_1[0] = red_buf0_1[0] + t0_1[0]
             t0_1[0] = T.tvm_warp_shuffle_down(mask_1[0], red_buf0_1[0], 8, 32, 32)

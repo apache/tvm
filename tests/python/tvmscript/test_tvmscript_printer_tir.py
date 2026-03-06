@@ -318,81 +318,91 @@ while v < 10:
 
 def test_allocate():
     with IRBuilder() as ib:
-        with T.allocate([128, 128], "float32"):
-            T.evaluate(0)
+        with T.prim_func():
+            T.func_name("test")
+            buf = T.alloc_buffer([128, 128], "float32")
+            T.evaluate(1)
     obj = ib.get()
     _assert_print(
-        obj,
+        obj.body,
         """
-with T.alloc_buffer((128, 128)) as buffer:
-    T.evaluate(0)
+buffer = T.alloc_buffer((128, 128))
+T.evaluate(1)
 """,
     )
 
 
 def test_allocate_with_decl_buffer_sugar():
-    # With the introduction of AllocBuffer, the Allocate+DeclBuffer pattern
-    # produces AllocBuffer wrapping DeclBuffer.
+    # AllocBuffer and DeclBuffer are flat siblings
     with IRBuilder() as ib:
-        with T.allocate([128, 128], "float32") as buffer_data:
-            with T.decl_buffer([128, 128], "float32", data=buffer_data) as buffer:
-                T.evaluate(0)
+        with T.prim_func():
+            T.func_name("test")
+            buf = T.alloc_buffer([128, 128], "float32")
+            buf2 = T.decl_buffer([128, 128], "float32", data=buf.data)
+            T.evaluate(1)
     obj = ib.get()
     _assert_print(
-        obj,
+        obj.body,
         """
-with T.alloc_buffer((128, 128)) as buffer:
-    buffer_1 = T.decl_buffer((128, 128), data=buffer.data)
-    T.evaluate(0)
+buffer = T.alloc_buffer((128, 128))
+buffer_1 = T.decl_buffer((128, 128), data=buffer.data)
+T.evaluate(1)
 """,
     )
 
 
 def test_allocate_with_decl_buffer_sugar_multi_usage():
-    # With the introduction of AllocBuffer, the Allocate+DeclBuffer pattern
-    # produces AllocBuffer wrapping DeclBuffer.
+    # AllocBuffer and DeclBuffer are flat siblings
     with IRBuilder() as ib:
-        with T.allocate([128, 128], "float32") as buffer_data:
-            with T.decl_buffer([128, 128], "float32", data=buffer_data) as buffer:
-                T.evaluate(buffer_data)
+        with T.prim_func():
+            T.func_name("test")
+            buf = T.alloc_buffer([128, 128], "float32")
+            buf2 = T.decl_buffer([128, 128], "float32", data=buf.data)
+            T.evaluate(buf.data)
     obj = ib.get()
     _assert_print(
-        obj,
+        obj.body,
         """
-with T.alloc_buffer((128, 128)) as buffer:
-    buffer_1 = T.decl_buffer((128, 128), data=buffer.data)
-    T.evaluate(buffer.data)
+buffer = T.alloc_buffer((128, 128))
+buffer_1 = T.decl_buffer((128, 128), data=buffer.data)
+T.evaluate(buffer.data)
 """,
     )
 
 
 def test_allocate_with_decl_buffer_no_sugar_mismatch():
     with IRBuilder() as ib:
-        with T.allocate([128, 128], "float32") as buffer_data:
-            with T.decl_buffer([256, 256], "float32", data=buffer_data) as buffer:
-                T.evaluate(buffer_data)
+        with T.prim_func():
+            T.func_name("test")
+            buf = T.alloc_buffer([128, 128], "float32")
+            buf2 = T.decl_buffer([256, 256], "float32", data=buf.data)
+            T.evaluate(buf.data)
     obj = ib.get()
     _assert_print(
-        obj,
+        obj.body,
         """
-with T.alloc_buffer((128, 128)) as buffer:
-    buffer_1 = T.decl_buffer((256, 256), data=buffer.data)
-    T.evaluate(buffer.data)
+buffer = T.alloc_buffer((128, 128))
+buffer_1 = T.decl_buffer((256, 256), data=buffer.data)
+T.evaluate(buffer.data)
 """,
     )
 
 
 def test_decl_buffer():
+    # DeclBuffer is flat: we need a frame to hold multiple stmts
     with IRBuilder() as ib:
-        with T.decl_buffer((10, 10), data=T.ptr("float32")):
-            T.evaluate(0)
+        with T.prim_func():
+            T.func_name("test")
+            buf = T.decl_buffer((10, 10), data=T.ptr("float32"))
+            T.evaluate(1)
     obj = ib.get()
+    # Print only the body (skip PrimFunc wrapper)
     _assert_print(
-        obj,
+        obj.body,
         """
 v = T.handle("float32", "global")
-with T.decl_buffer((10, 10), data=v) as buffer:
-    T.evaluate(0)
+buffer = T.decl_buffer((10, 10), data=v)
+T.evaluate(1)
 """,
     )
 

@@ -309,19 +309,6 @@ Var Bind(PrimExpr value, ffi::Optional<Type> type_annotation = std::nullopt,
          ffi::Optional<Var> var = std::nullopt);
 
 /*!
- * \brief The allocate node.
- * \param extents The extents of the allocate.
- * \param dtype The data type of the buffer.
- * \param storage_scope The storage scope.
- * \param condition The condition.
- * \param annotations Additional annotation hints.
- * \return The created AllocateFrame.
- */
-AllocateFrame Allocate(ffi::Array<PrimExpr> extents, DataType dtype, ffi::String storage_scope = "",
-                       ffi::Optional<PrimExpr> condition = std::nullopt,
-                       ffi::Optional<ffi::Map<ffi::String, Any>> annotations = std::nullopt);
-
-/*!
  * \brief Create an attribute.
  * \param node The node to annotate the attribute.
  * \param attr_key Attribute type key.
@@ -371,11 +358,11 @@ ElseFrame Else();
  * \param axis_separators The separators between input axes when generating flattened output axes.
  * \return The declared buffer.
  */
-TIRFrame DeclBuffer(ffi::Array<PrimExpr> shape, DataType dtype, ffi::String buffer_name,
-                    ffi::Optional<Var> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
-                    ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope, int align,
-                    int offset_factor, ffi::String buffer_type,
-                    ffi::Optional<ffi::Array<IntImm>> axis_separators);
+Buffer DeclBuffer(ffi::Array<PrimExpr> shape, DataType dtype, ffi::String buffer_name,
+                  ffi::Optional<Var> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
+                  ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope, int align,
+                  int offset_factor, ffi::String buffer_type,
+                  ffi::Optional<ffi::Array<IntImm>> axis_separators);
 
 /*!
  * \brief Statement-level buffer allocation (creates an AllocBuffer IR node).
@@ -383,12 +370,11 @@ TIRFrame DeclBuffer(ffi::Array<PrimExpr> shape, DataType dtype, ffi::String buff
  * \param dtype The data type of buffer elements.
  * \param storage_scope The storage scope (e.g., "global", "shared").
  * \param annotations Optional annotations for the allocation.
- * \return The AllocBufferFrame.
+ * \return The allocated buffer.
  */
-AllocBufferFrame AllocBuffer(
-    ffi::Array<PrimExpr> shape, DataType dtype = DataType::Float(32),
-    ffi::String storage_scope = "global",
-    ffi::Optional<ffi::Map<ffi::String, ffi::Any>> annotations = std::nullopt);
+Buffer AllocBuffer(ffi::Array<PrimExpr> shape, DataType dtype = DataType::Float(32),
+                   ffi::String storage_scope = "global",
+                   ffi::Optional<ffi::Map<ffi::String, ffi::Any>> annotations = std::nullopt);
 
 /*!
  * \brief Launch a thread.

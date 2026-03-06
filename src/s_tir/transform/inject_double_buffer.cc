@@ -122,14 +122,13 @@ class DoubleBufferInjector : public StmtExprMutator {
           << "InjectDoubleBuffer expects flat 1-d buffers.  "
           << "Has FlattenBuffer been run?";
       entry.stride = op->buffer->shape[0];
-      Stmt stmt = StmtExprMutator::VisitStmt_(op);
-      op = stmt.as<AllocBufferNode>();
 
-      auto new_buf = GetRemappedBuffer(op->buffer, entry.stride);
-      TVM_FFI_ICHECK(entry.loop != nullptr);
-      auto& alloc_nest = loop_allocs_[entry.loop];
-      alloc_nest.emplace_back(AllocBuffer(new_buf, Evaluate(0), op->annotations));
-      return op->body;
+      // In flat IR, AllocBuffer appears before its usage in the SeqStmt,
+      // so entry.loop may not be set yet. Defer double-buffer allocation
+      // processing to be handled in VisitStmt_(ForNode*).
+      pending_dbuffer_allocs_[buf] = ffi::GetRef<AllocBuffer>(op);
+      // Remove the original AllocBuffer (will be re-emitted in ForNode visitor)
+      return Evaluate(0);
     } else {
       return StmtExprMutator::VisitStmt_(op);
     }
@@ -138,6 +137,22 @@ class DoubleBufferInjector : public StmtExprMutator {
   Stmt VisitStmt_(const ForNode* op) final {
     loop_nest_.push_back(op);
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
+    // Process any pending double-buffer allocations that were deferred
+    // from VisitStmt_(AllocBufferNode*) -- now entry.loop should be set.
+    for (auto pend_it = pending_dbuffer_allocs_.begin();
+         pend_it != pending_dbuffer_allocs_.end();) {
+      auto db_it = dbuffer_info_.find(pend_it->first);
+      if (db_it != dbuffer_info_.end() && db_it->second.loop != nullptr) {
+        StorageEntry& entry = db_it->second;
+        const AllocBuffer& alloc = pend_it->second;
+        auto new_buf = GetRemappedBuffer(alloc->buffer, entry.stride);
+        auto& alloc_nest = loop_allocs_[entry.loop];
+        alloc_nest.emplace_back(AllocBuffer(new_buf, alloc->annotations));
+        pend_it = pending_dbuffer_allocs_.erase(pend_it);
+      } else {
+        ++pend_it;
+      }
+    }
     auto it = loop_pre_.find(op);
     if (it != loop_pre_.end()) {
       const ForNode* old_loop = stmt.as<ForNode>();
@@ -304,6 +319,8 @@ class DoubleBufferInjector : public StmtExprMutator {
   std::unordered_map<const VarNode*, StorageEntry> dbuffer_info_;
   // The updated Buffer objects
   std::unordered_map<const BufferNode*, Buffer> buf_remap_;
+  // Pending double-buffer AllocBuffer nodes (deferred from flat AllocBuffer visit)
+  std::unordered_map<const VarNode*, AllocBuffer> pending_dbuffer_allocs_;
 };
 
 namespace transform {

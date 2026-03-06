@@ -62,16 +62,16 @@ def test_sync_shared_dyn():
     @T.prim_func(private=True)
     def func(A: T.Buffer((4, 4), "float32"), E: T.Buffer((4, 4), "float32")):
         blockIdx_x = T.launch_thread("blockIdx.x", 1)
-        B = T.allocate([24], "float32", "shared.dyn")
-        C = T.allocate([1], "float32", "local")
-        D = T.allocate([16], "float32", "shared.dyn")
+        B = T.alloc_buffer((24,), "float32", scope="shared.dyn")
+        C = T.alloc_buffer((1,), "float32", scope="local")
+        D = T.alloc_buffer((16,), "float32", scope="shared.dyn")
         threadIdx_x = T.launch_thread("threadIdx.x", 16)
-        B_1 = T.decl_buffer((24,), data=B, scope="shared.dyn")
+        B_1 = T.decl_buffer((24,), data=B.data, scope="shared.dyn")
         A_1 = T.decl_buffer((16,), data=A.data)
         B_1[threadIdx_x // 4 * 6 + threadIdx_x % 4] = A_1[threadIdx_x]
-        C_1 = T.decl_buffer((1,), data=C, scope="local")
+        C_1 = T.decl_buffer((1,), data=C.data, scope="local")
         C_1[0] = B_1[threadIdx_x // 4 * 6 + threadIdx_x % 4]
-        D_1 = T.decl_buffer((16,), data=D, scope="shared.dyn")
+        D_1 = T.decl_buffer((16,), data=D.data, scope="shared.dyn")
         D_1[threadIdx_x] = C_1[0]
         E_1 = T.decl_buffer((16,), data=E.data)
         E_1[threadIdx_x] = D_1[threadIdx_x]
@@ -79,16 +79,16 @@ def test_sync_shared_dyn():
     @T.prim_func(private=True)
     def expected(A: T.Buffer((4, 4), "float32"), E: T.Buffer((4, 4), "float32")):
         blockIdx_x = T.launch_thread("blockIdx.x", 1)
-        B_1 = T.allocate([24], "float32", "shared.dyn")
-        C_1 = T.allocate([1], "float32", "local")
-        D_1 = T.allocate([16], "float32", "shared.dyn")
+        B_1 = T.alloc_buffer((24,), "float32", scope="shared.dyn")
+        C_1 = T.alloc_buffer((1,), "float32", scope="local")
+        D_1 = T.alloc_buffer((16,), "float32", scope="shared.dyn")
         threadIdx_x = T.launch_thread("threadIdx.x", 16)
-        B_1_1 = T.decl_buffer((24,), data=B_1, scope="shared.dyn")
+        B_1_1 = T.decl_buffer((24,), data=B_1.data, scope="shared.dyn")
         A_1 = T.decl_buffer((16,), data=A.data)
         B_1_1[threadIdx_x // 4 * 6 + threadIdx_x % 4] = A_1[threadIdx_x]
-        C_1_1 = T.decl_buffer((1,), data=C_1, scope="local")
+        C_1_1 = T.decl_buffer((1,), data=C_1.data, scope="local")
         C_1_1[0] = B_1_1[threadIdx_x // 4 * 6 + threadIdx_x % 4]
-        D_1_1 = T.decl_buffer((16,), data=D_1, scope="shared.dyn")
+        D_1_1 = T.decl_buffer((16,), data=D_1.data, scope="shared.dyn")
         T.tvm_storage_sync("shared.dyn")
         D_1_1[threadIdx_x] = C_1_1[0]
         E_1 = T.decl_buffer((16,), data=E.data)
@@ -104,14 +104,14 @@ def test_sync_bind():
     @T.prim_func(private=True)
     def func(A: T.Buffer((16 * 512), "float32")):
         blockIdx_x = T.launch_thread("blockIdx.x", 16)
-        A_shared = T.allocate([512], "float32", "shared")
-        in_thread_A_temp = T.allocate([1], "float32", "local")
-        cross_thread_A_temp = T.allocate([1], "float32", "local")
+        A_shared = T.alloc_buffer((512,), "float32", scope="shared")
+        in_thread_A_temp = T.alloc_buffer((1,), "float32", scope="local")
+        cross_thread_A_temp = T.alloc_buffer((1,), "float32", scope="local")
         threadIdx_x = T.launch_thread("threadIdx.x", 128)
-        A_shared_1 = T.decl_buffer((512,), data=A_shared, scope="shared")
+        A_shared_1 = T.decl_buffer((512,), data=A_shared.data, scope="shared")
         for ax0 in range(512):
             A_shared_1[ax0] = A[blockIdx_x * 512 + ax0]
-        in_thread_A_temp_1 = T.decl_buffer((1,), data=in_thread_A_temp, scope="local")
+        in_thread_A_temp_1 = T.decl_buffer((1,), data=in_thread_A_temp.data, scope="local")
         in_thread_A_temp_1[0] = T.float32(0)
         A_temp_1 = T.Bind(in_thread_A_temp_1[0] + A_shared_1[threadIdx_x])
         in_thread_A_temp_1[0] = A_temp_1
@@ -121,7 +121,7 @@ def test_sync_bind():
         in_thread_A_temp_1[0] = A_temp_3
         A_temp_4 = T.Bind(in_thread_A_temp_1[0] + A_shared_1[threadIdx_x + 384])
         in_thread_A_temp_1[0] = A_temp_4
-        cross_thread_A_temp_1 = T.decl_buffer((1,), data=cross_thread_A_temp, scope="local")
+        cross_thread_A_temp_1 = T.decl_buffer((1,), data=cross_thread_A_temp.data, scope="local")
         with T.attr(
             T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
             "reduce_scope",
@@ -138,14 +138,14 @@ def test_sync_bind():
     @T.prim_func(private=True)
     def expected(A: T.Buffer((8192,), "float32")):
         blockIdx_x = T.launch_thread("blockIdx.x", 16)
-        A_shared_1 = T.allocate([512], "float32", "shared")
-        in_thread_A_temp_1 = T.allocate([1], "float32", "local")
-        cross_thread_A_temp_1 = T.allocate([1], "float32", "local")
+        A_shared_1 = T.alloc_buffer((512,), "float32", scope="shared")
+        in_thread_A_temp_1 = T.alloc_buffer((1,), "float32", scope="local")
+        cross_thread_A_temp_1 = T.alloc_buffer((1,), "float32", scope="local")
         threadIdx_x = T.launch_thread("threadIdx.x", 128)
-        A_shared_1_1 = T.decl_buffer((512,), data=A_shared_1, scope="shared")
+        A_shared_1_1 = T.decl_buffer((512,), data=A_shared_1.data, scope="shared")
         for ax0 in range(512):
             A_shared_1_1[ax0] = A[blockIdx_x * 512 + ax0]
-        in_thread_A_temp_1_1 = T.decl_buffer((1,), data=in_thread_A_temp_1, scope="local")
+        in_thread_A_temp_1_1 = T.decl_buffer((1,), data=in_thread_A_temp_1.data, scope="local")
         in_thread_A_temp_1_1[0] = T.float32(0)
         T.tvm_storage_sync("shared")
         A_temp_1 = T.Bind(in_thread_A_temp_1_1[0] + A_shared_1_1[threadIdx_x])
@@ -156,7 +156,9 @@ def test_sync_bind():
         in_thread_A_temp_1_1[0] = A_temp_3
         A_temp_4 = T.Bind(in_thread_A_temp_1_1[0] + A_shared_1_1[threadIdx_x + 384])
         in_thread_A_temp_1_1[0] = A_temp_4
-        cross_thread_A_temp_1_1 = T.decl_buffer((1,), data=cross_thread_A_temp_1, scope="local")
+        cross_thread_A_temp_1_1 = T.decl_buffer(
+            (1,), data=cross_thread_A_temp_1.data, scope="local"
+        )
         T.attr(
             T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
             "reduce_scope",

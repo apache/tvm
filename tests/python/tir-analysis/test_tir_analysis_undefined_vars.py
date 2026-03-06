@@ -35,9 +35,10 @@ def test_decl_buffer_data_is_use():
     buf = tir.decl_buffer((n,), "float32", "buf", data=data_ptr)
 
     body = tir.Evaluate(tir.BufferLoad(buf, [0]))
-    decl = tir.DeclBuffer(buf, body)
+    decl = tir.DeclBuffer(buf)
+    stmt = tir.SeqStmt([decl, body])
 
-    undef = tvm.tir.analysis.undefined_vars(decl, [])
+    undef = tvm.tir.analysis.undefined_vars(stmt, [])
     undef_names = {v.name for v in undef}
     # data_ptr must be undefined (it comes from outside the DeclBuffer)
     assert "buf_data" in undef_names, f"Expected buf_data in undefined vars, got {undef_names}"
@@ -57,9 +58,10 @@ def test_decl_buffer_elem_offset_is_use():
     buf = tir.decl_buffer((n,), "float32", "buf", data=data_ptr, elem_offset=elem_off)
 
     body = tir.Evaluate(tir.BufferLoad(buf, [0]))
-    decl = tir.DeclBuffer(buf, body)
+    decl = tir.DeclBuffer(buf)
+    stmt = tir.SeqStmt([decl, body])
 
-    undef = tvm.tir.analysis.undefined_vars(decl, [])
+    undef = tvm.tir.analysis.undefined_vars(stmt, [])
     undef_names = {v.name for v in undef}
     assert "buf_data" in undef_names, f"Expected buf_data in undefined vars, got {undef_names}"
     assert "buf_elem_offset" in undef_names, (
@@ -77,9 +79,10 @@ def test_alloc_buffer_data_is_def():
     buf = tir.decl_buffer((n,), "float32", "buf")
 
     body = tir.Evaluate(tir.BufferLoad(buf, [0]))
-    alloc = tir.AllocBuffer(buf, body)
+    alloc = tir.AllocBuffer(buf)
+    stmt = tir.SeqStmt([alloc, body])
 
-    undef = tvm.tir.analysis.undefined_vars(alloc, [])
+    undef = tvm.tir.analysis.undefined_vars(stmt, [])
     undef_names = {v.name for v in undef}
     # data should NOT be undefined — AllocBuffer defines it
     assert buf.data.name not in undef_names, (

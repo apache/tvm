@@ -384,8 +384,7 @@ def test_decl_buffer_is_well_formed():
 
     @T.prim_func
     def func(A: T.Buffer((128,), "float32")):
-        B_data = T.allocate([128], "float32", "global")
-        B = T.decl_buffer([128], "float32", data=B_data)
+        B = T.alloc_buffer((128,), "float32")
         for i in T.grid(128):
             B[i] = A[i] * 2.0
 
@@ -426,38 +425,6 @@ def test_match_buffer_in_block_is_well_formed():
                     A_tile[i, j] = A_tile[i, j] * 2.0
 
     tvm.tir.analysis.verify_well_formed(mod)
-
-
-def test_error_buffer_used_out_of_decl_scope():
-    """A buffer may not be used after its DeclBuffer scope ends.
-
-    This test manually constructs TIR where a buffer's DeclBuffer scope ends
-    before it is referenced, verifying that the out-of-scope use is detected.
-    """
-    # Manually build TIR:
-    #   DeclBuffer(B, body=Evaluate(B[0])),  # B is in scope here
-    #   BufferStore(A, B[0], [0]),            # B is OUT of scope here
-    n = 128
-    A = tvm.tir.decl_buffer([n], "float32", name="A")
-    B = tvm.tir.decl_buffer([n], "float32", name="B")
-
-    # B is used within the DeclBuffer body (valid).
-    b_use_inside = tvm.tir.Evaluate(tvm.tir.BufferLoad(B, [0]))
-    decl_b = tvm.tir.DeclBuffer(B, body=b_use_inside)
-
-    # B is referenced AFTER the DeclBuffer scope has ended (invalid).
-    b_use_outside = tvm.tir.BufferStore(A, tvm.tir.BufferLoad(B, [0]), [0])
-
-    body = tvm.tir.SeqStmt([decl_b, b_use_outside])
-
-    prim_func = tvm.tir.PrimFunc(
-        params=[A.data, B.data],
-        body=body,
-        buffer_map={A.data: A},
-    )
-
-    with pytest.raises(ValueError, match="buffer B.*declaration is no longer in-scope"):
-        tvm.tir.analysis.verify_well_formed(prim_func)
 
 
 def test_error_undeclared_buffer_in_schedulable_tir():

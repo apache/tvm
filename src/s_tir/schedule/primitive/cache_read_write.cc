@@ -459,38 +459,27 @@ bool CalculateAffineFlag(const ScheduleState& self, const StmtSRef& block_sref) 
  * \return A SeqStmt, the result after insertion
  */
 Stmt InsertCacheStage(const Stmt& stmt, int pos, const Stmt& stage) {
-  std::vector<Stmt> nest;
-  Stmt body = stmt;
-  while (true) {
-    if (auto opt = body.as<DeclBuffer>()) {
-      auto decl_buffer = opt.value();
-      body = decl_buffer->body;
-      decl_buffer.CopyOnWrite()->body = Evaluate(0);
-      nest.push_back(decl_buffer);
-    } else {
-      break;
-    }
-  }
-
-  if (const auto* seq_stmt = body.as<SeqStmtNode>()) {
+  if (const auto* seq_stmt = stmt.as<SeqStmtNode>()) {
     ffi::Array<Stmt> seq = seq_stmt->seq;
     TVM_FFI_ICHECK_LE(pos, seq.size())
         << "Cannot insert at position " << pos << " into sequence of length " << seq.size();
     seq.insert(seq.begin() + pos, stage);
-    body = SeqStmt(seq);
+    return SeqStmt(seq);
   } else if (pos == 0) {
-    body = SeqStmt({stage, body});
+    ffi::Array<Stmt> seq;
+    seq.push_back(stage);
+    seq.push_back(stmt);
+    return SeqStmt(seq);
   } else if (pos == 1) {
-    body = SeqStmt({body, stage});
+    ffi::Array<Stmt> seq;
+    seq.push_back(stmt);
+    seq.push_back(stage);
+    return SeqStmt(seq);
   } else {
     TVM_FFI_THROW(InternalError) << "Cannot insert at position " << pos
                                  << ".  When inserting adjacent to non-SeqStmt, "
                                  << "only positions 0 and 1 are valid.";
   }
-
-  body = MergeNest(nest, body);
-
-  return body;
 }
 
 /*!
@@ -635,16 +624,6 @@ class CacheLocDetector : public StmtVisitor {
       info->loc_sref = scope_sref;
 
       auto block_body = scope_sref->StmtAs<SBlockNode>()->body;
-      // Find the SeqStmtNode within (potentially nested) DeclBuffer/AllocBuffer nodes
-      while (true) {
-        if (auto* ptr = block_body.as<DeclBufferNode>()) {
-          block_body = ptr->body;
-        } else if (auto* ptr = block_body.as<AllocBufferNode>()) {
-          block_body = ptr->body;
-        } else {
-          break;
-        }
-      }
       const auto* body = block_body.as<SeqStmtNode>();
       info->loc_pos = body == nullptr ? 1 : body->size();
     }

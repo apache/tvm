@@ -79,8 +79,22 @@ class AllocBufferCalculator : public StmtExprVisitor {
     size *= op->buffer->dtype.bytes() * op->buffer->dtype.lanes();
     _current_size[storage_scope] += size;
     _max_size[storage_scope] = std::max(_current_size[storage_scope], _max_size[storage_scope]);
-    StmtExprVisitor::VisitStmt(op->body);
-    _current_size[storage_scope] -= size;
+    StmtExprVisitor::VisitStmt_(op);
+  }
+  void VisitStmt_(const ForNode* op) override {
+    auto snapshot = _current_size;
+    StmtExprVisitor::VisitStmt_(op);
+    _current_size = snapshot;
+  }
+  void VisitStmt_(const IfThenElseNode* op) override {
+    auto snapshot = _current_size;
+    StmtExprVisitor::VisitStmt_(op);
+    _current_size = snapshot;
+  }
+  void VisitStmt_(const AttrStmtNode* op) override {
+    auto snapshot = _current_size;
+    StmtExprVisitor::VisitStmt_(op);
+    _current_size = snapshot;
   }
   std::unordered_map<std::string, int64_t> _max_size;
   std::unordered_map<std::string, int64_t> _current_size;

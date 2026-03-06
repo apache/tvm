@@ -71,7 +71,7 @@ class OpaqueBlockLower : public StmtExprMutator {
         allocate_annotations.Set(s_tir::attr::buffer_dim_align, allocate_aligns);
       }
 
-      body = AllocBuffer(buffer, std::move(body), allocate_annotations);
+      body = SeqStmt::Flatten(AllocBuffer(buffer, allocate_annotations), std::move(body));
     }
     // Step 4. Handle annotations, block annotations are not preserved by default.
     std::vector<std::pair<std::string, PrimExpr>> pragma_attrs;

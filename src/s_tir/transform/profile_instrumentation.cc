@@ -150,8 +150,7 @@ class LoopAnalyzer : public StmtExprVisitor {
       const AttrStmtNode* n = stmt.as<AttrStmtNode>();
       return TraverseLoop(n->body, parent_depth, has_parallel);
     } else if (stmt->IsInstance<AllocBufferNode>()) {
-      const AllocBufferNode* n = stmt.as<AllocBufferNode>();
-      return TraverseLoop(n->body, parent_depth, has_parallel);
+      return 0;
     } else {
       return 0;  // inner-most loop
     }
