@@ -119,6 +119,9 @@ class AutoReleasePoolWrapper {
 class Stream {
  public:
   explicit Stream(id<MTLDevice> device) { queue_ = [device newCommandQueue]; }
+  // Stream is only destroyed during MetalWorkspace teardown (process exit
+  // or ReinitializeDefaultStreams), so no GPU work is in flight. We flush
+  // to commit any pending CB but do not wait for completion.
   ~Stream() {
     FlushCommandBuffer();
     [queue_ release];
@@ -182,7 +185,7 @@ class Stream {
    * and before subsequent ones.
    */
   id<MTLBlitCommandEncoder> GetBlitEncoderOnPendingBuffer() {
-    PauseComputeEncoder();
+    EndPendingComputeEncoder();
     id<MTLCommandBuffer> cb = GetOrCreatePendingCommandBuffer();
     profile.blits++;
     return [cb blitCommandEncoder];
@@ -194,7 +197,7 @@ class Stream {
    * Safe to call when nothing is pending (no-op).
    */
   void FlushCommandBuffer() {
-    PauseComputeEncoder();
+    EndPendingComputeEncoder();
     if (pending_command_buffer_ != nil) {
       [pending_command_buffer_ commit];
       [pending_command_buffer_ release];
@@ -267,7 +270,7 @@ class Stream {
   }
 
   /*! \brief End the active compute encoder without committing the command buffer. */
-  void PauseComputeEncoder() {
+  void EndPendingComputeEncoder() {
     if (pending_compute_encoder_ != nil) {
       [pending_compute_encoder_ endEncoding];
       [pending_compute_encoder_ release];
@@ -358,41 +361,46 @@ class MetalThreadEntry {
    * Buffers are recycled after FlushCommandBuffer()/Synchronize().
    */
   struct StagingBufferPool {
-    struct Entry {
-      id<MTLBuffer> buffer = nil;
-      size_t size = 0;
-    };
-    std::vector<Entry> pool;
-    size_t next_index = 0;  // sequential within current batch, reset on sync
-
+   public:
     id<MTLBuffer> GetOrCreate(id<MTLDevice> dev, size_t nbytes) {
-      if (next_index < pool.size() && pool[next_index].size >= nbytes) {
-        return pool[next_index++].buffer;
+      if (next_index_ < pool_.size() && pool_[next_index_].size >= nbytes) {
+        return pool_[next_index_++].buffer;
       }
       // Need a new or bigger buffer at this index
-      if (next_index < pool.size() && pool[next_index].buffer != nil) {
-        [pool[next_index].buffer release];
+      if (next_index_ < pool_.size() && pool_[next_index_].buffer != nil) {
+        [pool_[next_index_].buffer release];
       }
-      if (next_index >= pool.size()) {
-        pool.push_back({nil, 0});
+      if (next_index_ >= pool_.size()) {
+        pool_.push_back({nil, 0});
       }
-      pool[next_index].buffer = [dev newBufferWithLength:nbytes options:MTLStorageModeShared];
-      TVM_FFI_ICHECK(pool[next_index].buffer != nil)
+      pool_[next_index_].buffer = [dev newBufferWithLength:nbytes options:MTLStorageModeShared];
+      TVM_FFI_ICHECK(pool_[next_index_].buffer != nil)
           << "Failed to allocate staging buffer of size " << nbytes;
-      pool[next_index].size = nbytes;
-      return pool[next_index++].buffer;
+      pool_[next_index_].size = nbytes;
+      return pool_[next_index_++].buffer;
     }
 
     // Called after flush/sync, all staging buffers are safe to reuse
-    void ResetIndex() { next_index = 0; }
+    void ResetIndex() { next_index_ = 0; }
+
+    // Number of staging buffers used in the current batch
+    size_t Size() const { return next_index_; }
 
     ~StagingBufferPool() {
-      for (auto& e : pool) {
+      for (auto& e : pool_) {
         if (e.buffer != nil) {
           [e.buffer release];
         }
       }
     }
+
+   private:
+    struct Entry {
+      id<MTLBuffer> buffer = nil;
+      size_t size = 0;
+    };
+    std::vector<Entry> pool_;
+    size_t next_index_ = 0;  // sequential within current batch, reset on sync
   };
   std::vector<StagingBufferPool> staging_pools_;  // per device
   /*! \brief workspace pool */
