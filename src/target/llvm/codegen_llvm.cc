@@ -1987,7 +1987,10 @@ void CodeGenLLVM::VisitStmt_(const AllocBufferNode* op) {
   TVM_FFI_ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation";
 
   StorageInfo& info = alloc_storage_info_[op->buffer->data.get()];
-  if (constant_size % 4 == 0 && info.alignment == 0) {
+  // Use buffer's data_alignment if specified, otherwise compute from shape.
+  if (op->buffer->data_alignment > 0) {
+    info.alignment = op->buffer->data_alignment;
+  } else if (constant_size % 4 == 0 && info.alignment == 0) {
     info.alignment = GetTempAllocaAlignment(op->buffer->dtype, constant_size);
   }
   // maximum necessary alignment in the NV devices

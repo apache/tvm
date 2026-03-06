@@ -281,10 +281,7 @@ class BuiltinLower : public StmtExprMutator {
                                  IntImm(DataType::Int(32), op->buffer->dtype.code()),
                                  IntImm(DataType::Int(32), op->buffer->dtype.bits())}));
 
-    Stmt result = AttrStmt(op->buffer->data, attr::storage_alignment,
-                           make_const(DataType::Int(32), runtime::kTempAllocaAlignment),
-                           SeqStmt({alloc_bind, alloc_nullptr_check}));
-    return result;
+    return SeqStmt({alloc_bind, alloc_nullptr_check});
   }
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
