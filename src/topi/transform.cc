@@ -156,6 +156,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                   [](ffi::PackedArgs args, ffi::Any* rv) {
                     *rv = tile(args[0].cast<te::Tensor>(), args[1].cast<ffi::Array<Integer>>());
                   })
+      .def_packed("topi.dyn_tile",
+                  [](ffi::PackedArgs args, ffi::Any* rv) {
+                    *rv = dyn_tile(args[0].cast<te::Tensor>(), args[1].cast<ffi::Array<PrimExpr>>(),
+                                   args[2].cast<int>());
+                  })
       .def_packed("topi.gather",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
                     *rv = gather(args[0].cast<te::Tensor>(), args[1].cast<int>(),
