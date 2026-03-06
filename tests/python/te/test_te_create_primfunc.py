@@ -359,7 +359,7 @@ def test_constant():
     tvm.testing.assert_allclose(a_np + 2, c.numpy())
 
 
-@pytest.mark.parametrize("op_name", ["acos", "asin"])
+@pytest.mark.parametrize("op_name", ["acos", "acosh", "asin", "asinh", "atanh"])
 def test_topi_float_unary_rejects_integer_input(op_name):
     x = te.placeholder((1, 8), dtype="int16", name="x")
     op = getattr(topi, op_name)
@@ -371,9 +371,10 @@ def test_topi_float_unary_rejects_integer_input(op_name):
         op(x)
 
 
-@pytest.mark.parametrize("op_name", ["acos", "asin"])
-def test_topi_float_unary_accepts_float_input(op_name):
-    x = te.placeholder((1, 8), dtype="float32", name="x")
+@pytest.mark.parametrize("op_name", ["acos", "acosh", "asin", "asinh", "atanh"])
+@pytest.mark.parametrize("dtype", ["float32", "bfloat16"])
+def test_topi_float_unary_accepts_float_input(op_name, dtype):
+    x = te.placeholder((1, 8), dtype=dtype, name="x")
     op = getattr(topi, op_name)
     out = op(x)
 

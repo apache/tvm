@@ -235,6 +235,7 @@ def acosh(x):
     y : tvm.te.Tensor
         The result.
     """
+    x = _require_float_tensor("acosh", x)
     return te.compute(x.shape, lambda *i: te.acosh(x(*i)))
 
 
@@ -270,6 +271,7 @@ def asinh(x):
     y : tvm.te.Tensor
         The result.
     """
+    x = _require_float_tensor("asinh", x)
     return te.compute(x.shape, lambda *i: te.asinh(x(*i)))
 
 
@@ -304,6 +306,7 @@ def atanh(x):
     y : tvm.te.Tensor
         The result.
     """
+    x = _require_float_tensor("atanh", x)
     return te.compute(x.shape, lambda *i: te.atanh(x(*i)))
 
 
