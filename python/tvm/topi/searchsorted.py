@@ -38,31 +38,27 @@ def binary_search(sequence_offset, search_range, sorted_sequence, value, right, 
     Note that we index N-D Buffer by 1-D linearlized indices.
 
     """
-    with T.frame_scope(
-        [
-            T.decl_buffer([1], out_dtype, scope="local"),
-            T.decl_buffer([1], out_dtype, scope="local"),
-        ]
-    ) as (lo_buf, hi_buf):
-        lo = T.buffer_proxy(lo_buf)
-        hi = T.buffer_proxy(hi_buf)
+    lo_buf = T.decl_buffer([1], out_dtype, scope="local")
+    hi_buf = T.decl_buffer([1], out_dtype, scope="local")
+    lo = T.buffer_proxy(lo_buf)
+    hi = T.buffer_proxy(hi_buf)
 
-        lo[0] = cast(0, out_dtype)
-        hi[0] = cast(search_range, out_dtype)
+    lo[0] = cast(0, out_dtype)
+    hi[0] = cast(search_range, out_dtype)
 
-        # Reference: pytorch/aten/src/ATen/native/cuda/Bucketization.cu
-        def condition(current_val, target_val):
-            if right:
-                return current_val <= target_val
-            return current_val < target_val
+    # Reference: pytorch/aten/src/ATen/native/cuda/Bucketization.cu
+    def condition(current_val, target_val):
+        if right:
+            return current_val <= target_val
+        return current_val < target_val
 
-        with T.While(lo[0] < hi[0]):
-            mid = lo[0] + (hi[0] - lo[0] >> 1)
-            with T.If(condition(sorted_sequence[sequence_offset + mid], value)):
-                with T.Then():
-                    lo[0] = mid + 1
-                with T.Else():
-                    hi[0] = mid
+    with T.While(lo[0] < hi[0]):
+        mid = lo[0] + (hi[0] - lo[0] >> 1)
+        with T.If(condition(sorted_sequence[sequence_offset + mid], value)):
+            with T.Then():
+                lo[0] = mid + 1
+            with T.Else():
+                hi[0] = mid
 
     return lo[0]
 

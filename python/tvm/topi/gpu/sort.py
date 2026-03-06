@@ -110,96 +110,72 @@ def _odd_even_sort(
         tid = 2 * tx
         start = bx * block_size
 
-        # Build list of buffer declarations (DeclBuffer generates both Allocate + DeclBuffer nodes)
-        decl_frames = [
-            T.decl_buffer([block_size], keys_swap.dtype, scope="shared"),  # tmp_keys_swap
-            T.decl_buffer([1], keys_swap.dtype, scope="local"),  # temp_keys
-            T.decl_buffer([1], keys_swap.dtype, scope="local"),  # temp_cond1
-            T.decl_buffer([1], keys_swap.dtype, scope="local"),  # temp_cond2
-        ]
+        # Buffer declarations (DeclBuffer generates both Allocate + DeclBuffer nodes)
+        tmp_keys_swap = T.decl_buffer([block_size], keys_swap.dtype, scope="shared")
+        temp_keys = T.decl_buffer([1], keys_swap.dtype, scope="local")
+        temp_cond1 = T.decl_buffer([1], keys_swap.dtype, scope="local")
+        temp_cond2 = T.decl_buffer([1], keys_swap.dtype, scope="local")
         if values_swap is not None:
-            decl_frames.append(
-                T.decl_buffer([block_size], values_swap.dtype, scope="shared")
-            )  # tmp_values_swap
-            decl_frames.append(T.decl_buffer([1], values_swap.dtype, scope="local"))  # temp_values
+            tmp_values_swap = T.decl_buffer([block_size], values_swap.dtype, scope="shared")
+            temp_values = T.decl_buffer([1], values_swap.dtype, scope="local")
 
-        with T.frame_scope(decl_frames) as bufs:
-            if values_swap is not None:
-                (
-                    tmp_keys_swap,
-                    temp_keys,
-                    temp_cond1,
-                    temp_cond2,
-                    tmp_values_swap,
-                    temp_values,
-                ) = bufs
-            else:
-                (
-                    tmp_keys_swap,
-                    temp_keys,
-                    temp_cond1,
-                    temp_cond2,
-                ) = bufs
-
-            # Copy data to scratch space
-            base_idx = by_val * size * axis_mul_after + bz
-            with T.serial(0, 2) as n:
-                with T.If((tid + n + start) < size):
-                    with T.Then():
+        # Copy data to scratch space
+        base_idx = by_val * size * axis_mul_after + bz
+        with T.serial(0, 2) as n:
+            with T.If((tid + n + start) < size):
+                with T.Then():
+                    T.buffer_store(
+                        tmp_keys_swap,
+                        keys[base_idx + (tid + n + start) * axis_mul_after],
+                        [tid + n],
+                    )
+                    if values_swap is not None:
                         T.buffer_store(
-                            tmp_keys_swap,
-                            keys[base_idx + (tid + n + start) * axis_mul_after],
+                            tmp_values_swap,
+                            values[base_idx + (tid + n + start) * axis_mul_after],
                             [tid + n],
                         )
-                        if values_swap is not None:
-                            T.buffer_store(
-                                tmp_values_swap,
-                                values[base_idx + (tid + n + start) * axis_mul_after],
-                                [tid + n],
-                            )
 
+        T.evaluate(tvm.tir.Call(None, "tir.tvm_storage_sync", tvm.runtime.convert(["shared"])))
+
+        idxm = tvm.tir.indexmod
+        # OddEvenTransposeSort
+        current_sort_num = tvm.tir.min(block_size, size - start)
+        with T.serial(0, current_sort_num) as k:
+            n = idxm(tid + k, 2)
+            with T.If(tid + n < current_sort_num - 1):
+                with T.Then():
+                    T.buffer_store(temp_cond1, tmp_keys_swap[tid + n], [0])
+                    T.buffer_store(temp_cond2, tmp_keys_swap[tid + n + 1], [0])
+                    if is_ascend:
+                        cond = temp_cond1[0] > temp_cond2[0]
+                    else:
+                        cond = temp_cond1[0] < temp_cond2[0]
+                    with T.If(cond):
+                        with T.Then():
+                            T.buffer_store(temp_keys, tmp_keys_swap[tid + n], [0])
+                            T.buffer_store(tmp_keys_swap, tmp_keys_swap[tid + n + 1], [tid + n])
+                            T.buffer_store(tmp_keys_swap, temp_keys[0], [tid + n + 1])
+                            if values_swap is not None:
+                                T.buffer_store(temp_values, tmp_values_swap[tid + n], [0])
+                                T.buffer_store(
+                                    tmp_values_swap,
+                                    tmp_values_swap[tid + n + 1],
+                                    [tid + n],
+                                )
+                                T.buffer_store(tmp_values_swap, temp_values[0], [tid + n + 1])
             T.evaluate(tvm.tir.Call(None, "tir.tvm_storage_sync", tvm.runtime.convert(["shared"])))
 
-            idxm = tvm.tir.indexmod
-            # OddEvenTransposeSort
-            current_sort_num = tvm.tir.min(block_size, size - start)
-            with T.serial(0, current_sort_num) as k:
-                n = idxm(tid + k, 2)
-                with T.If(tid + n < current_sort_num - 1):
-                    with T.Then():
-                        T.buffer_store(temp_cond1, tmp_keys_swap[tid + n], [0])
-                        T.buffer_store(temp_cond2, tmp_keys_swap[tid + n + 1], [0])
-                        if is_ascend:
-                            cond = temp_cond1[0] > temp_cond2[0]
-                        else:
-                            cond = temp_cond1[0] < temp_cond2[0]
-                        with T.If(cond):
-                            with T.Then():
-                                T.buffer_store(temp_keys, tmp_keys_swap[tid + n], [0])
-                                T.buffer_store(tmp_keys_swap, tmp_keys_swap[tid + n + 1], [tid + n])
-                                T.buffer_store(tmp_keys_swap, temp_keys[0], [tid + n + 1])
-                                if values_swap is not None:
-                                    T.buffer_store(temp_values, tmp_values_swap[tid + n], [0])
-                                    T.buffer_store(
-                                        tmp_values_swap,
-                                        tmp_values_swap[tid + n + 1],
-                                        [tid + n],
-                                    )
-                                    T.buffer_store(tmp_values_swap, temp_values[0], [tid + n + 1])
-                T.evaluate(
-                    tvm.tir.Call(None, "tir.tvm_storage_sync", tvm.runtime.convert(["shared"]))
-                )
-
-            ## Copy sorted data to output
-            with T.serial(0, 2) as n:
-                with T.If(tid + n + start < size):
-                    with T.Then():
-                        out_idx = base_idx + (tid + n + start) * axis_mul_after
-                        keys[out_idx] = tmp_keys_swap[tid + n]
-                        keys_swap[out_idx] = tmp_keys_swap[tid + n]
-                        if values_swap is not None:
-                            values[out_idx] = tmp_values_swap[tid + n]
-                            values_swap[out_idx] = tmp_values_swap[tid + n]
+        ## Copy sorted data to output
+        with T.serial(0, 2) as n:
+            with T.If(tid + n + start < size):
+                with T.Then():
+                    out_idx = base_idx + (tid + n + start) * axis_mul_after
+                    keys[out_idx] = tmp_keys_swap[tid + n]
+                    keys_swap[out_idx] = tmp_keys_swap[tid + n]
+                    if values_swap is not None:
+                        values[out_idx] = tmp_values_swap[tid + n]
+                        values_swap[out_idx] = tmp_values_swap[tid + n]
 
 
 def _sort_common(
@@ -349,66 +325,58 @@ def _sort_common(
         step_count,
         even,
     ):
-        with T.frame_scope(
-            [
-                T.decl_buffer([1], target_dtype, scope="local"),  # first
-                T.decl_buffer([1], target_dtype, scope="local"),  # last
-                T.decl_buffer([1], target_dtype, scope="local"),  # i_buf
-                T.decl_buffer([1], target_dtype, scope="local"),  # j_buf
-            ]
-        ) as (first_buf, last_buf, i_buf_buf, j_buf_buf):
-            first = T.buffer_proxy(first_buf)
-            last = T.buffer_proxy(last_buf)
-            i_buf = T.buffer_proxy(i_buf_buf)
-            j_buf = T.buffer_proxy(j_buf_buf)
+        first_buf = T.decl_buffer([1], target_dtype, scope="local")
+        last_buf = T.decl_buffer([1], target_dtype, scope="local")
+        i_buf_buf = T.decl_buffer([1], target_dtype, scope="local")
+        j_buf_buf = T.decl_buffer([1], target_dtype, scope="local")
+        first = T.buffer_proxy(first_buf)
+        last = T.buffer_proxy(last_buf)
+        i_buf = T.buffer_proxy(i_buf_buf)
+        j_buf = T.buffer_proxy(j_buf_buf)
 
-            diag = tx * step_count
-            with T.If(even):
-                with T.Then():
-                    get_merge_begin(
-                        source, base_idx, aCount, bCount, aStart, bStart, diag, first, last
-                    )
-                    serial_merge(
-                        source,
-                        dest,
-                        source_idx,
-                        dest_idx,
-                        base_idx,
-                        aCount,
-                        bCount,
-                        aStart,
-                        bStart,
-                        kStart,
-                        diag,
-                        step_count,
-                        first,
-                        last,
-                        i_buf,
-                        j_buf,
-                    )
-                with T.Else():
-                    get_merge_begin(
-                        dest, base_idx, aCount, bCount, aStart, bStart, diag, first, last
-                    )
-                    # Intentionally swap source/dest for reverse direction merge
-                    serial_merge(  # pylint: disable=arguments-out-of-order
-                        dest,
-                        source,
-                        dest_idx,
-                        source_idx,
-                        base_idx,
-                        aCount,
-                        bCount,
-                        aStart,
-                        bStart,
-                        kStart,
-                        diag,
-                        step_count,
-                        first,
-                        last,
-                        i_buf,
-                        j_buf,
-                    )
+        diag = tx * step_count
+        with T.If(even):
+            with T.Then():
+                get_merge_begin(source, base_idx, aCount, bCount, aStart, bStart, diag, first, last)
+                serial_merge(
+                    source,
+                    dest,
+                    source_idx,
+                    dest_idx,
+                    base_idx,
+                    aCount,
+                    bCount,
+                    aStart,
+                    bStart,
+                    kStart,
+                    diag,
+                    step_count,
+                    first,
+                    last,
+                    i_buf,
+                    j_buf,
+                )
+            with T.Else():
+                get_merge_begin(dest, base_idx, aCount, bCount, aStart, bStart, diag, first, last)
+                # Intentionally swap source/dest for reverse direction merge
+                serial_merge(  # pylint: disable=arguments-out-of-order
+                    dest,
+                    source,
+                    dest_idx,
+                    source_idx,
+                    base_idx,
+                    aCount,
+                    bCount,
+                    aStart,
+                    bStart,
+                    kStart,
+                    diag,
+                    step_count,
+                    first,
+                    last,
+                    i_buf,
+                    j_buf,
+                )
 
     def dual_mergepath(
         source,
@@ -424,101 +392,97 @@ def _sort_common(
         step_count,
         even,
     ):
-        with T.frame_scope(
-            [
-                T.decl_buffer([1], target_dtype, scope="local"),  # outer_first
-                T.decl_buffer([1], target_dtype, scope="local"),  # outer_last
-                T.decl_buffer([1], target_dtype, scope="local"),  # first
-                T.decl_buffer([1], target_dtype, scope="local"),  # last
-                T.decl_buffer([1], target_dtype, scope="local"),  # i_buf
-                T.decl_buffer([1], target_dtype, scope="local"),  # j_buf
-            ]
-        ) as (outer_first_buf, outer_last_buf, first_buf, last_buf, i_buf_buf, j_buf_buf):
-            outer_first = T.buffer_proxy(outer_first_buf)
-            outer_last = T.buffer_proxy(outer_last_buf)
-            first = T.buffer_proxy(first_buf)
-            last = T.buffer_proxy(last_buf)
-            i_buf = T.buffer_proxy(i_buf_buf)
-            j_buf = T.buffer_proxy(j_buf_buf)
+        outer_first_buf = T.decl_buffer([1], target_dtype, scope="local")
+        outer_last_buf = T.decl_buffer([1], target_dtype, scope="local")
+        first_buf = T.decl_buffer([1], target_dtype, scope="local")
+        last_buf = T.decl_buffer([1], target_dtype, scope="local")
+        i_buf_buf = T.decl_buffer([1], target_dtype, scope="local")
+        j_buf_buf = T.decl_buffer([1], target_dtype, scope="local")
+        outer_first = T.buffer_proxy(outer_first_buf)
+        outer_last = T.buffer_proxy(outer_last_buf)
+        first = T.buffer_proxy(first_buf)
+        last = T.buffer_proxy(last_buf)
+        i_buf = T.buffer_proxy(i_buf_buf)
+        j_buf = T.buffer_proxy(j_buf_buf)
 
-            diag = bx * step_count
-            with T.If(even):
-                with T.Then():
-                    get_merge_begin(
-                        source,
-                        base_idx,
-                        middle - start_pos,
-                        end - middle,
-                        start_pos,
-                        middle,
-                        diag,
-                        outer_first,
-                        outer_last,
-                    )
-                    aStart = start_pos + outer_first[0]
-                    bStart = middle + diag - outer_last[0]
-                    aCount = tvm.te.min(middle - aStart, step_count)
-                    bCount = tvm.te.min(end - bStart, step_count)
-                    inner_diag = tx * thread_work
-                    get_merge_begin(
-                        source, base_idx, aCount, bCount, aStart, bStart, inner_diag, first, last
-                    )
-                    serial_merge(
-                        source,
-                        dest,
-                        source_idx,
-                        dest_idx,
-                        base_idx,
-                        aCount,
-                        bCount,
-                        aStart,
-                        bStart,
-                        start_pos + diag,
-                        inner_diag,
-                        thread_work,
-                        first,
-                        last,
-                        i_buf,
-                        j_buf,
-                    )
-                with T.Else():
-                    get_merge_begin(
-                        dest,
-                        base_idx,
-                        middle - start_pos,
-                        end - middle,
-                        start_pos,
-                        middle,
-                        diag,
-                        outer_first,
-                        outer_last,
-                    )
-                    aStart = start_pos + outer_first[0]
-                    bStart = middle + diag - outer_last[0]
-                    aCount = tvm.te.min(middle - aStart, step_count)
-                    bCount = tvm.te.min(end - bStart, step_count)
-                    inner_diag = tx * thread_work
-                    get_merge_begin(
-                        dest, base_idx, aCount, bCount, aStart, bStart, inner_diag, first, last
-                    )
-                    serial_merge(
-                        dest,
-                        source,
-                        dest_idx,
-                        source_idx,
-                        base_idx,
-                        aCount,
-                        bCount,
-                        aStart,
-                        bStart,
-                        start_pos + diag,
-                        inner_diag,
-                        thread_work,
-                        first,
-                        last,
-                        i_buf,
-                        j_buf,
-                    )
+        diag = bx * step_count
+        with T.If(even):
+            with T.Then():
+                get_merge_begin(
+                    source,
+                    base_idx,
+                    middle - start_pos,
+                    end - middle,
+                    start_pos,
+                    middle,
+                    diag,
+                    outer_first,
+                    outer_last,
+                )
+                aStart = start_pos + outer_first[0]
+                bStart = middle + diag - outer_last[0]
+                aCount = tvm.te.min(middle - aStart, step_count)
+                bCount = tvm.te.min(end - bStart, step_count)
+                inner_diag = tx * thread_work
+                get_merge_begin(
+                    source, base_idx, aCount, bCount, aStart, bStart, inner_diag, first, last
+                )
+                serial_merge(
+                    source,
+                    dest,
+                    source_idx,
+                    dest_idx,
+                    base_idx,
+                    aCount,
+                    bCount,
+                    aStart,
+                    bStart,
+                    start_pos + diag,
+                    inner_diag,
+                    thread_work,
+                    first,
+                    last,
+                    i_buf,
+                    j_buf,
+                )
+            with T.Else():
+                get_merge_begin(
+                    dest,
+                    base_idx,
+                    middle - start_pos,
+                    end - middle,
+                    start_pos,
+                    middle,
+                    diag,
+                    outer_first,
+                    outer_last,
+                )
+                aStart = start_pos + outer_first[0]
+                bStart = middle + diag - outer_last[0]
+                aCount = tvm.te.min(middle - aStart, step_count)
+                bCount = tvm.te.min(end - bStart, step_count)
+                inner_diag = tx * thread_work
+                get_merge_begin(
+                    dest, base_idx, aCount, bCount, aStart, bStart, inner_diag, first, last
+                )
+                serial_merge(
+                    dest,
+                    source,
+                    dest_idx,
+                    source_idx,
+                    base_idx,
+                    aCount,
+                    bCount,
+                    aStart,
+                    bStart,
+                    start_pos + diag,
+                    inner_diag,
+                    thread_work,
+                    first,
+                    last,
+                    i_buf,
+                    j_buf,
+                )
 
     with T.serial(0, cast(upper_lim - lower_lim, target_dtype)) as l2_width:
         width = 2 << (l2_width + lower_lim)
