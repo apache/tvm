@@ -68,16 +68,8 @@ Stmt MergeNest(const std::vector<Stmt>& nest, Stmt body) {
       body = Stmt(n);
     } else if (s.as<AssertStmtNode>()) {
       body = SeqStmt({s, body});
-    } else if (const auto* alloc_buf = s.as<AllocBufferNode>()) {
-      auto n = ffi::make_object<AllocBufferNode>(*alloc_buf);
-      TVM_FFI_ICHECK(is_no_op(n->body));
-      n->body = body;
-      body = Stmt(n);
-    } else if (const auto* decl_buffer = s.as<DeclBufferNode>()) {
-      auto n = ffi::make_object<DeclBufferNode>(*decl_buffer);
-      TVM_FFI_ICHECK(is_no_op(n->body));
-      n->body = body;
-      body = Stmt(n);
+    } else if (s.as<AllocBufferNode>() || s.as<DeclBufferNode>()) {
+      body = SeqStmt::Flatten(s, body);
     } else {
       TVM_FFI_THROW(InternalError) << "not supported nest type";
     }
@@ -243,14 +235,12 @@ class IRConvertSSA final : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const DeclBufferNode* op) final {
-    return scope_.WithNewScope([&]() -> Stmt {
-      DeclBuffer decl = Downcast<DeclBuffer>(StmtExprMutator::VisitStmt_(op));
-      Buffer new_buffer = GetRemappedBuffer(decl->buffer);
-      if (!new_buffer.same_as(decl->buffer)) {
-        decl.CopyOnWrite()->buffer = std::move(new_buffer);
-      }
-      return decl;
-    });
+    DeclBuffer decl = Downcast<DeclBuffer>(StmtExprMutator::VisitStmt_(op));
+    Buffer new_buffer = GetRemappedBuffer(decl->buffer);
+    if (!new_buffer.same_as(decl->buffer)) {
+      decl.CopyOnWrite()->buffer = std::move(new_buffer);
+    }
+    return decl;
   }
 
   Stmt VisitStmt_(const SBlockNode* op) final {
@@ -403,24 +393,22 @@ class IRConvertSSA final : public StmtExprMutator {
   Stmt VisitStmt_(const AllocBufferNode* op) final {
     const Var& v = op->buffer->data;
     if (defined_.count(v.get())) {
-      return scope_.WithNewScope([&]() -> Stmt {
-        Var new_var = MakeNewVar(v);
-        PushVarRemap(v, new_var);
-        Stmt stmt = StmtExprMutator::VisitStmt_(op);
-        op = stmt.as<AllocBufferNode>();
-        // Use GetRemappedBuffer so that the AllocBuffer's buffer is the same
-        // object as the one used by BufferStore/BufferLoad in the body.
-        Buffer new_buf = GetRemappedBuffer(op->buffer);
-        if (!new_buf.same_as(op->buffer)) {
-          auto node = Downcast<AllocBuffer>(stmt);
-          node.CopyOnWrite()->buffer = std::move(new_buf);
-          return node;
-        }
-        return stmt;
-      });
+      Var new_var = MakeNewVar(v);
+      PushVarRemap(v, new_var);
+      Stmt stmt = StmtExprMutator::VisitStmt_(op);
+      op = stmt.as<AllocBufferNode>();
+      // Use GetRemappedBuffer so that the AllocBuffer's buffer is the same
+      // object as the one used by BufferStore/BufferLoad in subsequent siblings.
+      Buffer new_buf = GetRemappedBuffer(op->buffer);
+      if (!new_buf.same_as(op->buffer)) {
+        auto node = Downcast<AllocBuffer>(stmt);
+        node.CopyOnWrite()->buffer = std::move(new_buf);
+        return node;
+      }
+      return stmt;
     } else {
       defined_.insert(v.get());
-      return scope_.WithNewScope([&]() -> Stmt { return StmtExprMutator::VisitStmt_(op); });
+      return StmtExprMutator::VisitStmt_(op);
     }
   }
   Stmt VisitStmt_(const AttrStmtNode* op) final {

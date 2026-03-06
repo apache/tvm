@@ -172,7 +172,7 @@ class BuiltinLower : public StmtExprMutator {
                                         DataType::Int(64), "stack_shape");
         alloca_stmts.push_back(
             Bind(scope.stack_shape->data, StackAlloca("shape", scope.max_sizes.shape_stack)));
-        stmt = DeclBuffer(scope.stack_shape, stmt);
+        stmt = SeqStmt::Flatten(DeclBuffer(scope.stack_shape), stmt);
       }
 
       if (!alloca_stmts.empty()) {
@@ -233,19 +233,10 @@ class BuiltinLower : public StmtExprMutator {
     return StmtExprMutator::VisitStmt_(op);
   }
 
-  Stmt VisitStmt_(const AllocBufferNode* op) {
+  Stmt VisitStmt_(const AllocBufferNode* op) final {
     // Lower AllocBuffer to device allocate when needed.
-    // Visit body in a new scope so nd_mem_alloc frees are scoped to the body.
-    Stmt stmt = scope_.WithNewScope([&]() -> Stmt {
-      Stmt visited = StmtExprMutator::VisitStmt_(op);
-      const auto* alloc = visited.as<AllocBufferNode>();
-      if (alloc && !scope_.Current().pending_frees.empty()) {
-        auto n = CopyOnWrite(alloc);
-        n->body = AppendPendingFrees(alloc->body);
-        return Stmt(n);
-      }
-      return visited;
-    });
+    // AllocBuffer is flat (no body). Visit buffer fields via base class.
+    Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<AllocBufferNode>();
     int64_t nbytes = GetVectorBytes(op->buffer->dtype);
     if (op->annotations.count(transform::kDisableLowerTVMBuiltin)) {
@@ -280,21 +271,17 @@ class BuiltinLower : public StmtExprMutator {
                              cast(DataType::Int(32), device_id_.value()), op->buffer->data});
     Stmt free_stmt = IfThenElse(free_op != make_zero(DataType::Int(32)), throw_last_error);
 
-    Stmt body = op->body;
-    body = SeqStmt::Flatten(body, free_stmt);
-    body = SeqStmt::Flatten(alloc_nullptr_check, body);
+    // Push free to enclosing scope's pending_frees (LIFO ordering preserved).
+    scope_.Current().pending_frees.push_back(free_stmt);
 
-    body = AttrStmt(op->buffer->data, attr::storage_alignment,
-                    make_const(DataType::Int(32), runtime::kTempAllocaAlignment), body);
-    body = SeqStmt({Bind(op->buffer->data,
-                         Call(op->buffer->data.dtype(), Op::Get("tir.TVMBackendAllocWorkspace"),
-                              {cast(DataType::Int(32), device_type_.value()),
-                               cast(DataType::Int(32), device_id_.value()), total_bytes,
-                               IntImm(DataType::Int(32), op->buffer->dtype.code()),
-                               IntImm(DataType::Int(32), op->buffer->dtype.bits())})),
-                    body});
+    Stmt alloc_bind = Bind(op->buffer->data,
+                           Call(op->buffer->data.dtype(), Op::Get("tir.TVMBackendAllocWorkspace"),
+                                {cast(DataType::Int(32), device_type_.value()),
+                                 cast(DataType::Int(32), device_id_.value()), total_bytes,
+                                 IntImm(DataType::Int(32), op->buffer->dtype.code()),
+                                 IntImm(DataType::Int(32), op->buffer->dtype.bits())}));
 
-    return body;
+    return SeqStmt({alloc_bind, alloc_nullptr_check});
   }
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
@@ -714,9 +701,9 @@ class BuiltinLower : public StmtExprMutator {
    *
    * When a Bind allocates via nd_mem_alloc_with_scope, the corresponding
    * free_nd stmt is pushed to the current scope's pending_frees. Body-carrying
-   * stmts (For, IfThenElse, AllocBuffer, AttrStmt) create new scopes via
-   * WithNewScope. On scope exit, pending_frees are appended after the body,
-   * matching the old LetStmt body semantics structurally.
+   * stmts (For, IfThenElse, AttrStmt) create new scopes via
+   * WithNewScope. On scope exit, pending_frees are appended after the body.
+   * AllocBuffer (flat, no body) pushes its free to the enclosing scope.
    */
   struct ScopeLevel {
     std::vector<Stmt> pending_frees;
@@ -728,8 +715,8 @@ class BuiltinLower : public StmtExprMutator {
     if (frees.empty()) return body;
     ffi::Array<Stmt> stmts;
     stmts.push_back(body);
-    for (const auto& free_stmt : frees) {
-      stmts.push_back(free_stmt);
+    for (auto it = frees.rbegin(); it != frees.rend(); ++it) {
+      stmts.push_back(*it);
     }
     frees.clear();
     return SeqStmt::Flatten(stmts);

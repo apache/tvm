@@ -144,13 +144,10 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 namespace {
 Doc DeclBufferDoc(tir::DeclBuffer stmt, AccessPath p, IRDocsifier d,
                   BufferVarDefinition var_definitions) {
-  bool concise = AllowConciseScoping(d, stmt);
   ExprDoc rhs = BufferDecl(stmt->buffer, "decl_buffer", {}, p->Attr("buffer"), d->frames.back(), d,
                            var_definitions);
-  With<TIRFrame> f(d, stmt);
-  ExprDoc lhs = DefineBuffer(stmt->buffer, *f, d);
-  AsDocBody(stmt->body, p->Attr("body"), f->get(), d);
-  return DoConciseScoping(lhs, rhs, &(*f)->stmts, concise);
+  ExprDoc lhs = DefineBuffer(stmt->buffer, d->frames.back(), d);
+  return AssignDoc(lhs, rhs, std::nullopt);
 }
 }  // namespace
 
@@ -255,14 +252,14 @@ TVM_SCRIPT_REPR(tir::WhileNode, ReprPrintTIR);
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::AllocBuffer>(  //
         "", [](tir::AllocBuffer stmt, AccessPath p, IRDocsifier d) -> Doc {
-          bool concise = AllowConciseScoping(d, stmt);
           tir::Buffer buffer = stmt->buffer;
           AccessPath buffer_p = p->Attr("buffer");
           Frame frame = d->frames.back();
           // Define buffer's data var inline as buffer.data
           if (!d->IsVarDefined(buffer->data)) {
-            d->Define(buffer->data, frame,
-                      [&]() { return d->AsDoc<ExprDoc>(buffer, buffer_p)->Attr("data"); });
+            d->Define(buffer->data, frame, [buffer, buffer_p, d]() {
+              return d->AsDoc<ExprDoc>(buffer, buffer_p)->Attr("data");
+            });
           }
           // Build simplified T.alloc_buffer(shape, dtype, scope=...) call.
           // Only print shape, dtype, scope (and annotations if non-empty).
@@ -307,10 +304,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             kwargs_values.push_back(d->AsDoc<ExprDoc>(stmt->annotations, p->Attr("annotations")));
           }
           ExprDoc rhs = TIR(d, "alloc_buffer")->Call(args, kwargs_keys, kwargs_values);
-          With<TIRFrame> f(d, stmt);
-          ExprDoc lhs = DefineBuffer(stmt->buffer, *f, d);
-          AsDocBody(stmt->body, p->Attr("body"), f->get(), d);
-          return DoConciseScoping(lhs, rhs, &(*f)->stmts, concise);
+          ExprDoc lhs = DefineBuffer(stmt->buffer, frame, d);
+          return AssignDoc(lhs, rhs, std::nullopt);
         });
 
 TVM_SCRIPT_REPR(tir::AllocBufferNode, ReprPrintTIR);

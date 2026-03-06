@@ -106,13 +106,11 @@ def test_evaluate():
 def test_allocate():
     @T.prim_func
     def func1():
-        a_data = T.allocate((128, 128), dtype="float32")
-        a = T.decl_buffer((128, 128), dtype="float32", data=a_data)
+        a = T.alloc_buffer((128, 128), dtype="float32")
 
     @T.prim_func
     def func2():
-        a_data = T.allocate((256, 128), dtype="float32")
-        a = T.decl_buffer((256, 128), dtype="float32", data=a_data)
+        a = T.alloc_buffer((256, 128), dtype="float32")
 
     func1 = func1.with_attr("global_symbol", "main")
     func2 = func2.with_attr("global_symbol", "main")

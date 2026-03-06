@@ -291,9 +291,6 @@ class AllocBuffer(Stmt):
     buffer: Buffer
         The buffer being allocated and declared.
 
-    body: Stmt
-        The body statement to be executed.
-
     annotations: Optional[dict]
         Additional annotations about the allocation.
 
@@ -302,17 +299,15 @@ class AllocBuffer(Stmt):
     """
 
     buffer: Buffer
-    body: Stmt
     span: Span | None
 
     def __init__(
         self,
         buffer: Buffer,
-        body: Stmt,
         annotations: dict | None = None,
         span: Span | None = None,
     ) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.AllocBuffer, buffer, body, annotations, span)
+        self.__init_handle_by_constructor__(_ffi_api.AllocBuffer, buffer, annotations, span)
 
 
 @tvm_ffi.register_object("tir.DeclBuffer")
@@ -324,19 +319,15 @@ class DeclBuffer(Stmt):
     buffer: Buffer
         The buffer being declared.
 
-    body: Stmt
-        The body statement to be executed.
-
     span: Optional[Span]
         The location of this DeclBuffer in the source code.
     """
 
     buffer: Buffer
-    body: Stmt
     span: Span | None
 
-    def __init__(self, buffer: Buffer, body: Stmt, span: Span | None = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.DeclBuffer, buffer, body, span)
+    def __init__(self, buffer: Buffer, span: Span | None = None) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.DeclBuffer, buffer, span)
 
 
 @tvm_ffi.register_object("tir.AttrStmt")
@@ -368,7 +359,12 @@ class AttrStmt(Stmt):
     span: Span | None
 
     def __init__(
-        self, node: Object, attr_key: str, value: PrimExpr, body: Stmt, span: Span | None = None
+        self,
+        node: Object,
+        attr_key: str,
+        value: PrimExpr,
+        body: Stmt,
+        span: Span | None = None,
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.AttrStmt,

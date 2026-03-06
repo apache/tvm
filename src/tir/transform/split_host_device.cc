@@ -89,7 +89,7 @@ class HostDeviceSplitter : public StmtMutator {
     }
 
     for (Buffer buf : buffers_to_declare) {
-      body = DeclBuffer(buf, std::move(body));
+      body = SeqStmt::Flatten(DeclBuffer(buf), std::move(body));
     }
     PrimFunc device_func(params, body, kernel_ret_type);
     device_func = WithAttrs(std::move(device_func), {{tvm::attr::kTarget, device_target},

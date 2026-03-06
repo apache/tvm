@@ -161,11 +161,7 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
     return is_no_op(op->body) ? MakeEvaluate({op->min, op->extent}) : stmt;
   }
 
-  Stmt VisitStmt_(const AllocBufferNode* op) final {
-    Stmt stmt = StmtMutator::VisitStmt_(op);
-    op = stmt.as<AllocBufferNode>();
-    return is_no_op(op->body) ? MakeEvaluate(op->buffer->shape) : stmt;
-  }
+  Stmt VisitStmt_(const AllocBufferNode* op) final { return StmtMutator::VisitStmt_(op); }
 
   Stmt VisitStmt_(const EvaluateNode* op) final {
     if (HasSideEffect(op->value)) {
@@ -230,19 +226,7 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
     return store;
   }
 
-  Stmt VisitStmt_(const DeclBufferNode* op) final {
-    auto node = Downcast<DeclBuffer>(Parent::VisitStmt_(op));
-
-    VarUseDefAnalyzer var_use({});
-    var_use(node->body);
-
-    if (var_use.buffer_use_count_.count(node->buffer.get())) {
-      return node;
-
-    } else {
-      return node->body;
-    }
-  }
+  Stmt VisitStmt_(const DeclBufferNode* op) final { return StmtMutator::VisitStmt_(op); }
 
  private:
   bool ArrayValueEqual(const ffi::Array<PrimExpr>& a, const ffi::Array<PrimExpr>& b) {
