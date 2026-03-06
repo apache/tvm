@@ -726,10 +726,10 @@ inline void CheckMathUnaryOpInputDType(const char* op_name, DataType dtype) {
 }
 
 // Intrinsic operators
-#define TVM_DECLARE_FLOAT_INTRIN_UNARY(OpName)                          \
+#define TVM_DECLARE_INTRIN_UNARY_WITH_CHECK(OpName, CheckInputDType)    \
   inline PrimExpr OpName(PrimExpr x, Span span = Span()) {              \
     static const Op& op = Op::Get("tir." #OpName);                      \
-    CheckMathUnaryOpInputDType(#OpName, x.dtype());                     \
+    CheckInputDType(#OpName, x.dtype());                                \
     if (x.dtype().is_bfloat16()) {                                      \
       DataType bf16_dtype = x.dtype();                                  \
       DataType fp32_dtype(kDLFloat, 32, bf16_dtype.lanes());            \
@@ -741,11 +741,11 @@ inline void CheckMathUnaryOpInputDType(const char* op_name, DataType dtype) {
     }                                                                   \
   }
 
-#define TVM_DECLARE_INTRIN_UNARY(OpName)                   \
-  inline PrimExpr OpName(PrimExpr x, Span span = Span()) { \
-    static const Op& op = Op::Get("tir." #OpName);         \
-    return tir::Call(x.dtype(), op, {x}, span);            \
-  }
+#define TVM_DECLARE_INTRIN_UNARY(OpName) \
+  TVM_DECLARE_INTRIN_UNARY_WITH_CHECK(OpName, [](const char*, DataType) {})
+
+#define TVM_DECLARE_FLOAT_INTRIN_UNARY(OpName) \
+  TVM_DECLARE_INTRIN_UNARY_WITH_CHECK(OpName, CheckMathUnaryOpInputDType)
 
 TVM_DECLARE_INTRIN_UNARY(exp);
 TVM_DECLARE_INTRIN_UNARY(exp2);

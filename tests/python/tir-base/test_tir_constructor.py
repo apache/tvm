@@ -209,5 +209,11 @@ def test_topi_tan_requires_float_dtype():
         topi.tan(x)
 
 
+def test_math_unary_constructor_preserves_bfloat16():
+    x = tvm.tir.Var("x", "bfloat16")
+    y = tvm.tir.exp(x)
+    assert y.dtype == "bfloat16"
+
+
 if __name__ == "__main__":
     tvm.testing.main()
