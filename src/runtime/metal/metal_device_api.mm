@@ -280,6 +280,11 @@ void MetalWorkspace::CopyDataFromTo(const void* from, size_t from_offset, void* 
       id<MTLBuffer> to_buf = (id<MTLBuffer>)(to);
       if (to_buf.storageMode != MTLStorageModeShared) {
         MetalThreadEntry* t = MetalThreadEntry::ThreadLocal();
+        // If the staging pool is full, flush pending work so buffers can be reused.
+        if (t->StagingPoolNeedsFlush(dev_to)) {
+          s->FlushCommandBuffer();
+          t->ResetStagingPool(dev_to);
+        }
         id<MTLBuffer> staging = t->GetOrCreateStagingBuffer(dev_to, size);
         memcpy([staging contents], static_cast<const char*>(from) + from_offset, size);
         id<MTLBlitCommandEncoder> encoder = s->GetBlitEncoderOnPendingBuffer();
@@ -374,6 +379,12 @@ id<MTLBuffer> MetalThreadEntry::GetOrCreateStagingBuffer(Device dev, size_t size
   id<MTLDevice> mtl_dev = MetalWorkspace::Global()->GetDevice(dev);
   return staging_pools_[dev.device_id].GetOrCreate(mtl_dev, size);
 }
+
+bool MetalThreadEntry::StagingPoolNeedsFlush(Device dev) {
+  return staging_pools_[dev.device_id].NeedsFlush();
+}
+
+void MetalThreadEntry::ResetStagingPool(Device dev) { staging_pools_[dev.device_id].ResetIndex(); }
 
 MetalThreadEntry* MetalThreadEntry::ThreadLocal() {
   static thread_local MetalThreadEntry inst;

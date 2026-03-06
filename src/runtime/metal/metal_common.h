@@ -362,6 +362,13 @@ class MetalThreadEntry {
    */
   struct StagingBufferPool {
    public:
+    /*! \brief Maximum staging buffers before requiring a flush.
+     * Prevents unbounded pool growth in workloads with many CPU→GPU copies
+     * between syncs. When this limit is reached, the caller must flush the
+     * stream (to make all pending staging buffers safe to reuse) before
+     * requesting more buffers. */
+    static constexpr size_t kMaxStagingBuffers = 64;
+
     id<MTLBuffer> GetOrCreate(id<MTLDevice> dev, size_t nbytes) {
       if (next_index_ < pool_.size() && pool_[next_index_].size >= nbytes) {
         return pool_[next_index_++].buffer;
@@ -385,6 +392,9 @@ class MetalThreadEntry {
 
     // Number of staging buffers used in the current batch
     size_t Size() const { return next_index_; }
+
+    // True when the pool has reached its limit and needs a flush before more allocations
+    bool NeedsFlush() const { return next_index_ >= kMaxStagingBuffers; }
 
     ~StagingBufferPool() {
       for (auto& e : pool_) {
@@ -418,6 +428,10 @@ class MetalThreadEntry {
   id<MTLBuffer> GetTempBuffer(Device dev, size_t size);
   // Get a staging buffer for inlined CPU→GPU copy (from pool).
   id<MTLBuffer> GetOrCreateStagingBuffer(Device dev, size_t size);
+  // Check if the staging pool has reached its limit and needs a flush.
+  bool StagingPoolNeedsFlush(Device dev);
+  // Reset the staging pool index after a flush.
+  void ResetStagingPool(Device dev);
   // get the global workspace
   static MetalThreadEntry* ThreadLocal();
 };
