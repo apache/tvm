@@ -339,7 +339,7 @@ ObjectPtr<TargetNode> TargetInternal::FromConfig(ffi::Map<ffi::String, ffi::Any>
     std::vector<ffi::String> feature_keys;
     for (const auto& kv : config) {
       std::string key_str(kv.first);
-      if (key_str.size() > 8 && key_str.substr(0, 8) == "feature.") {
+      if (key_str.size() > 8 && key_str.compare(0, 8, "feature.") == 0) {
         saved_features[key_str] = kv.second;
         feature_keys.push_back(kv.first);
       }

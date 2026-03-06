@@ -276,13 +276,7 @@ TEST(TargetCreationFail, UnknownNonFeatureKeyStillFails) {
       {"mcpu", ffi::String("woof")},
       {"unknown_key", ffi::String("bad")},
   };
-  bool failed = false;
-  try {
-    Target tgt(config);
-  } catch (...) {
-    failed = true;
-  }
-  ASSERT_EQ(failed, true);
+  ASSERT_THROW({ Target(config); }, tvm::Error);
 }
 
 TVM_REGISTER_TARGET_KIND("TestStringKind", kDLCPU)
