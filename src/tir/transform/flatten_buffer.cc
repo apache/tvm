@@ -58,7 +58,7 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
         if (pass.buffers_used_.count(old_buf)) {
           auto new_buf = pass.GetFlattenedBuffer(old_buf);
           if (!old_buf.same_as(new_buf)) {
-            body = DeclBuffer(new_buf, std::move(body));
+            body = SeqStmt::Flatten(DeclBuffer(new_buf), std::move(body));
           }
         }
       }

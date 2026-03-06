@@ -135,9 +135,7 @@ def test_undefined_buffer():
     @T.prim_func
     def access_alloc():
         # Buffer A should be remapped
-        A_data = T.allocate([128], "float16", "global")
-        A = T.decl_buffer(shape=[128], dtype="float16", data=A_data)
-        # check if buffer var also get remapped
+        A = T.alloc_buffer((128,), "float16")
         T.evaluate(A.data)
         for i in range(128):
             A[i] = A[i] + T.float16(1.0)
@@ -146,10 +144,12 @@ def test_undefined_buffer():
     f2 = tvm.s_tir.renew_defs(f1)
     tvm.ir.assert_structural_equal(f1, f2)
 
-    assert f1.body.buffer.data != f2.body.buffer.data
+    # AllocBuffer is now a flat statement in SeqStmt
+    assert f1.body.seq[0].buffer.data != f2.body.seq[0].buffer.data
 
     def _get_buffer_store_buffer(f):
-        return f.body.body.body[1].body.buffer
+        # SeqStmt: [AllocBuffer, Evaluate, For]; For body has the BufferStore
+        return f.body.seq[2].body.buffer
 
     _check_buffer_decl(_get_buffer_store_buffer(f1), _get_buffer_store_buffer(f2))
 

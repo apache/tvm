@@ -670,7 +670,6 @@ void CodeGenWebGPU::VisitStmt_(const AllocBufferNode* op) {
     TVM_FFI_THROW(InternalError) << "WebGPU: Do not support storage scope: "
                                  << storage_scope.to_string();
   }
-  this->PrintStmt(op->body);
 }
 
 void CodeGenWebGPU::VisitStmt_(const ForNode* op) {

@@ -166,10 +166,9 @@ def test_stmt_constructor():
     assert x.value.value == 1
 
     buf = tvm.tir.decl_buffer([10], "float32")
-    x = tvm.tir.AllocBuffer(buf, nop)
+    x = tvm.tir.AllocBuffer(buf)
     assert isinstance(x, tvm.tir.AllocBuffer)
     assert x.buffer == buf
-    assert x.body == nop
 
     x = tvm.tir.AttrStmt(buffer_var, "xyz", 1, nop)
     assert isinstance(x, tvm.tir.AttrStmt)

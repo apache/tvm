@@ -76,12 +76,10 @@ void StmtExprVisitor::VisitExpr_(const BufferLoadNode* op) {
 
 void StmtVisitor::VisitStmt_(const AllocBufferNode* op) {
   this->VisitBufferDef(op->buffer, /*alloc_data=*/true);
-  this->VisitStmt(op->body);
 }
 
 void StmtVisitor::VisitStmt_(const DeclBufferNode* op) {
   this->VisitBufferDef(op->buffer, /*alloc_data=*/false);
-  this->VisitStmt(op->body);
 }
 
 void StmtVisitor::VisitStmt_(const BufferStoreNode* op) {
@@ -355,28 +353,24 @@ PrimExpr StmtExprMutator::VisitExpr_(const BufferLoadNode* op) {
 
 Stmt StmtMutator::VisitStmt_(const AllocBufferNode* op) {
   Buffer new_buf = this->VisitBufferDef(op->buffer, /*alloc_data=*/true);
-  Stmt body = this->VisitStmt(op->body);
 
-  if (new_buf.same_as(op->buffer) && body.same_as(op->body)) {
+  if (new_buf.same_as(op->buffer)) {
     return ffi::GetRef<Stmt>(op);
   } else {
     auto n = CopyOnWrite(op);
     n->buffer = std::move(new_buf);
-    n->body = std::move(body);
     return Stmt(n);
   }
 }
 
 Stmt StmtMutator::VisitStmt_(const DeclBufferNode* op) {
   Buffer new_buf = this->VisitBufferDef(op->buffer, /*alloc_data=*/false);
-  Stmt body = this->VisitStmt(op->body);
 
-  if (new_buf.same_as(op->buffer) && body.same_as(op->body)) {
+  if (new_buf.same_as(op->buffer)) {
     return ffi::GetRef<Stmt>(op);
   } else {
     auto n = CopyOnWrite(op);
     n->buffer = std::move(new_buf);
-    n->body = std::move(body);
     return Stmt(n);
   }
 }

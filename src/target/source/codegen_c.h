@@ -306,6 +306,8 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
 
   /*! \brief Check if buf_var is volatile or not. */
   bool IsVolatile(const VarNode* buf_var) const { return volatile_buf_.count(buf_var) != 0; }
+  /*! \brief Mark buf_var as volatile. */
+  void MarkVolatile(const VarNode* buf_var) { volatile_buf_.insert(buf_var); }
 
   /*! \brief restrict keyword */
   std::string restrict_keyword_{""};

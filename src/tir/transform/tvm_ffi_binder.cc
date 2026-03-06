@@ -538,7 +538,7 @@ void TVMFFIABIBuilder::DecodeAllParams() {
           AccessPath::Root()->Extend(AccessStep::ArrayItem(i))->Attr(ffi::String(buffer->name));
       DecodeParamDLTensor(buffer, device_type_, device_id_, param,
                           func_name_ + "." + param->name_hint, param_path);
-      decl_buffers_.push_back(DeclBuffer(buffer, nop));
+      decl_buffers_.push_back(DeclBuffer(buffer));
     }
   }
 }

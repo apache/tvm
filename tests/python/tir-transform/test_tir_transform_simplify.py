@@ -86,9 +86,10 @@ def test_if_likely():
 
     mod = tvm.IRModule.from_expr(func)
     body = tvm.tir.transform.Simplify()(mod)["main"].body
-    # Navigate through DeclBuffer nodes to reach the inner body
-    while isinstance(body, tvm.tir.DeclBuffer):
-        body = body.body
+    # With flat semantics, skip DeclBuffer/AllocBuffer siblings to find the For
+    if isinstance(body, tvm.tir.SeqStmt):
+        for_stmts = [s for s in body.seq if isinstance(s, tvm.tir.For)]
+        body = for_stmts[0] if for_stmts else body
     # Structure: For(tx) -> For(ty) -> IfThenElse
     assert isinstance(body.body.body, tvm.tir.IfThenElse)
     assert not isinstance(body.body.body.then_case, tvm.tir.IfThenElse)

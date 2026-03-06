@@ -138,14 +138,6 @@ def test_no_body():
     check_error(no_body, 3)
 
 
-def test_allocate_with_buffers():
-    def allocate_with_buffers() -> None:
-        with T.allocate([1], "float32", "") as [A, B]:  # error
-            T.evaluate(1.0)
-
-    check_error(allocate_with_buffers, 2)
-
-
 def test_inconsistent_binding():
     def inconsistent_binding_value() -> None:
         for i, j in T.grid(16, 16):
@@ -382,7 +374,7 @@ def test_match_buffer_shape_mismatch():
 def test_high_dim_store():
     def high_dim_store() -> None:
         with T.sblock("root"):
-            B = T.allocate([256], "float32", "global")
+            B = T.alloc_buffer((256,), "float32")
             for i, j in T.grid(16, 16):
                 B[i, j] = 1.0  # error: Store is only allowed with one index
 

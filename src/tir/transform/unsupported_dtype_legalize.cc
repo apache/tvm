@@ -400,7 +400,7 @@ class ComputeLegalizer : public StmtExprMutator {
     if (new_buf.same_as(op->buffer)) {
       return ret;
     } else {
-      return DeclBuffer(new_buf, op->body);
+      return DeclBuffer(new_buf);
     }
   }
 
@@ -540,13 +540,11 @@ class StorageLegalizer : public StmtExprMutator {
                    buf->span);
       buffer_remap_[op->buffer] = buf;
     }
-    Stmt body = VisitStmt(op->body);
-    if (buf.same_as(op->buffer) && body.same_as(op->body)) {
+    if (buf.same_as(op->buffer)) {
       return ffi::GetRef<Stmt>(op);
     } else {
       auto node = Downcast<AllocBuffer>(ffi::GetRef<Stmt>(op));
       node.CopyOnWrite()->buffer = buf;
-      node.CopyOnWrite()->body = body;
       return node;
     }
   }
@@ -562,11 +560,10 @@ class StorageLegalizer : public StmtExprMutator {
                    buf->buffer_type, buf->axis_separators, buf->span);
       buffer_remap_[op->buffer] = buf;
     }
-    Stmt body = VisitStmt(op->body);
-    if (buf.same_as(op->buffer) && body.same_as(op->body)) {
+    if (buf.same_as(op->buffer)) {
       return ffi::GetRef<Stmt>(op);
     } else {
-      return DeclBuffer(buf, body, op->span);
+      return DeclBuffer(buf, op->span);
     }
   }
 
