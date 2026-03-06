@@ -1974,14 +1974,49 @@ class Pad(OnnxOpConverter):
 class Tile(OnnxOpConverter):
     """Converts an onnx Tile node into an equivalent Relax expression."""
 
+    @staticmethod
+    def _tensor_length(expr):
+        shape = expr.struct_info.shape
+        if not isinstance(shape, relax.ShapeExpr):
+            return None
+
+        length = shape.values[0]
+        if not isinstance(length, tir.IntImm):
+            return None
+        return length.value
+
     @classmethod
     def _impl_v13(cls, bb, inputs, attr, params):
         reps = get_constant(inputs[1], params)
         if isinstance(reps, relax.Constant):
             reps = reps.data.numpy().tolist()
-        else:
-            raise ValueError("Dynamic reps for Tile are supported yet.")
-        return bb.emit_te(topi.tile, inputs[0], reps)
+            return bb.emit_te(topi.tile, inputs[0], reps)
+
+        data = inputs[0]
+        data_ndim = data.struct_info.ndim
+        reps_len = cls._tensor_length(reps)
+        if data_ndim == -1 or reps_len is None:
+            raise ValueError("Dynamic Tile requires known input rank and repeats length.")
+
+        if reps.struct_info.dtype != "int64":
+            reps = bb.normalize(relax.op.astype(reps, "int64"))
+
+        data_shape = list(data.struct_info.shape.values)
+        data_shape_tensor = bb.normalize(relax.op.shape_to_tensor(relax.ShapeExpr(data_shape)))
+        output_shape_tensor = reps
+
+        if data_ndim > reps_len:
+            reps_prefix = relax.const(_np.ones((data_ndim - reps_len,), dtype="int64"), "int64")
+            output_shape_tensor = bb.normalize(relax.op.concat([reps_prefix, output_shape_tensor], axis=0))
+        elif reps_len > data_ndim:
+            data_prefix = relax.const(_np.ones((reps_len - data_ndim,), dtype="int64"), "int64")
+            data_shape_tensor = bb.normalize(relax.op.concat([data_prefix, data_shape_tensor], axis=0))
+
+        output_shape_tensor = bb.normalize(relax.op.multiply(output_shape_tensor, data_shape_tensor))
+        output_shape = bb.normalize(relax.op.tensor_to_shape(output_shape_tensor))
+        output_shape_vars = [tir.Var(f"tile_dim_{i}", "int64") for i in range(max(data_ndim, reps_len))]
+        bb.match_cast(output_shape, relax.ShapeStructInfo(output_shape_vars))
+        return bb.emit_te(topi.dyn_tile, data, output_shape_vars, reps_len)
 
 
 class Expand(OnnxOpConverter):

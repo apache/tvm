@@ -657,6 +657,28 @@ def tile(a, reps):
     return cpp.tile(a, reps)
 
 
+def dyn_tile(a, new_shape, rdim):
+    """Repeats the whole array multiple times with dynamic output shape.
+
+    Parameters
+    ----------
+    a : tvm.te.Tensor
+        The tensor to be tiled.
+
+    new_shape : tuple of PrimExpr
+        The output shape after tiling.
+
+    rdim : int
+        The rank of the repeats input.
+
+    Returns
+    -------
+    ret : tvm.te.Tensor
+    """
+
+    return cpp.dyn_tile(a, new_shape, rdim)
+
+
 def layout_transform(array, src_layout, dst_layout, schedule_rule="None"):
     """Transform the layout according to src_layout and dst_layout
 
