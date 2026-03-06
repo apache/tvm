@@ -19,6 +19,7 @@
 import pytest
 
 import tvm
+from tvm import te, topi
 
 
 def test_expr_constructor():
@@ -186,6 +187,26 @@ def test_stmt_constructor():
 def test_float_constructor_requires_float_dtype():
     with pytest.raises(tvm.TVMError):
         tvm.tir.FloatImm("int32", 1.0)
+
+
+def test_math_unary_constructor_requires_float_dtype():
+    x = tvm.tir.Var("x", "int32")
+
+    with pytest.raises(TypeError, match=r"tir\.tan only supports floating-point inputs"):
+        tvm.tir.tan(x)
+
+    with pytest.raises(TypeError, match=r"tir\.sin only supports floating-point inputs"):
+        tvm.tir.sin(x)
+
+    y = tvm.tir.Var("y", "float32")
+    assert tvm.tir.tan(y).dtype == "float32"
+
+
+def test_topi_tan_requires_float_dtype():
+    x = te.placeholder((2, 2), dtype="int32", name="x")
+
+    with pytest.raises(TypeError, match=r"tir\.tan only supports floating-point inputs"):
+        topi.tan(x)
 
 
 if __name__ == "__main__":
