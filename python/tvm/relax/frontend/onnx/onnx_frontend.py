@@ -2001,20 +2001,28 @@ class Tile(OnnxOpConverter):
         if reps.struct_info.dtype != "int64":
             reps = bb.normalize(relax.op.astype(reps, "int64"))
 
-        data_shape = list(data.struct_info.shape.values)
-        data_shape_tensor = bb.normalize(relax.op.shape_to_tensor(relax.ShapeExpr(data_shape)))
+        data_shape = bb.normalize(relax.op.shape_of(data))
+        data_shape_tensor = bb.normalize(relax.op.shape_to_tensor(data_shape))
         output_shape_tensor = reps
 
         if data_ndim > reps_len:
             reps_prefix = relax.const(_np.ones((data_ndim - reps_len,), dtype="int64"), "int64")
-            output_shape_tensor = bb.normalize(relax.op.concat([reps_prefix, output_shape_tensor], axis=0))
+            output_shape_tensor = bb.normalize(
+                relax.op.concat([reps_prefix, output_shape_tensor], axis=0)
+            )
         elif reps_len > data_ndim:
             data_prefix = relax.const(_np.ones((reps_len - data_ndim,), dtype="int64"), "int64")
-            data_shape_tensor = bb.normalize(relax.op.concat([data_prefix, data_shape_tensor], axis=0))
+            data_shape_tensor = bb.normalize(
+                relax.op.concat([data_prefix, data_shape_tensor], axis=0)
+            )
 
-        output_shape_tensor = bb.normalize(relax.op.multiply(output_shape_tensor, data_shape_tensor))
+        output_shape_tensor = bb.normalize(
+            relax.op.multiply(output_shape_tensor, data_shape_tensor)
+        )
         output_shape = bb.normalize(relax.op.tensor_to_shape(output_shape_tensor))
-        output_shape_vars = [tir.Var(f"tile_dim_{i}", "int64") for i in range(max(data_ndim, reps_len))]
+        output_shape_vars = [
+            tir.Var(f"tile_dim_{i}", "int64") for i in range(max(data_ndim, reps_len))
+        ]
         bb.match_cast(output_shape, relax.ShapeStructInfo(output_shape_vars))
         return bb.emit_te(topi.dyn_tile, data, output_shape_vars, reps_len)
 
