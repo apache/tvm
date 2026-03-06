@@ -306,3 +306,22 @@ def test_call_raises_error_for_invalid_function():
 
 if __name__ == "__main__":
     tvm.testing.main()
+
+
+import pytest
+from tvm.relax.expr import make_shape
+
+
+def test_make_shape_invalid_type():
+    with pytest.raises(TypeError):
+        make_shape(123)
+
+
+def test_make_shape_valid_list():
+    shape = make_shape([1, 2, 3])
+    assert len(shape) == 3
+
+
+def test_make_shape_valid_tuple():
+    shape = make_shape((4, 5))
+    assert len(shape) == 2
