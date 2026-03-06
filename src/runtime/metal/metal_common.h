@@ -363,7 +363,7 @@ class MetalThreadEntry {
       size_t size = 0;
     };
     std::vector<Entry> pool;
-    size_t next_index = 0;  // round-robin within current batch
+    size_t next_index = 0;  // sequential within current batch, reset on sync
 
     id<MTLBuffer> GetOrCreate(id<MTLDevice> dev, size_t nbytes) {
       if (next_index < pool.size() && pool[next_index].size >= nbytes) {
@@ -377,6 +377,8 @@ class MetalThreadEntry {
         pool.push_back({nil, 0});
       }
       pool[next_index].buffer = [dev newBufferWithLength:nbytes options:MTLStorageModeShared];
+      TVM_FFI_ICHECK(pool[next_index].buffer != nil)
+          << "Failed to allocate staging buffer of size " << nbytes;
       pool[next_index].size = nbytes;
       return pool[next_index++].buffer;
     }
