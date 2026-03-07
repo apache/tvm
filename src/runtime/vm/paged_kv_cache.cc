@@ -690,7 +690,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     // Create the child sequence with the child block.
     auto [child_it, inserted] =
         seq_map_.insert({child_seq_id, Sequence(&global_block_pool_, child_block_idx)});
-    ICHECK(inserted);
+    TVM_FFI_ICHECK(inserted);
     child_it->second.lora_adapter_id = parent_it->second.lora_adapter_id;
     dirty_aux_data_device_ = true;
   }
@@ -1204,17 +1204,19 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   }
 
   void SetSequenceLoraAdapter(int64_t seq_id, int64_t lora_adapter_id) final {
-    CHECK_GE(lora_adapter_id, 0) << "LoRA adapter id must be non-negative.";
-    CHECK_LE(lora_adapter_id, std::numeric_limits<int32_t>::max())
+    TVM_FFI_ICHECK(lora_adapter_id >= 0) << "LoRA adapter id must be non-negative.";
+    TVM_FFI_ICHECK(lora_adapter_id <= std::numeric_limits<int32_t>::max())
         << "LoRA adapter id exceeds int32 range.";
     auto it = seq_map_.find(seq_id);
-    CHECK(it != seq_map_.end()) << "The sequence \"" << seq_id << "\" cannot be found in KV cache.";
+    TVM_FFI_ICHECK(it != seq_map_.end())
+        << "The sequence \"" << seq_id << "\" cannot be found in KV cache.";
     it->second.lora_adapter_id = static_cast<int32_t>(lora_adapter_id);
   }
 
   int64_t GetSequenceLoraAdapter(int64_t seq_id) final {
     auto it = seq_map_.find(seq_id);
-    CHECK(it != seq_map_.end()) << "The sequence \"" << seq_id << "\" cannot be found in KV cache.";
+    TVM_FFI_ICHECK(it != seq_map_.end())
+        << "The sequence \"" << seq_id << "\" cannot be found in KV cache.";
     return it->second.lora_adapter_id;
   }
 
