@@ -158,6 +158,26 @@ class AttentionKVCacheObj : public KVStateObj {
   virtual void CommitAcceptedTokenTreeNodes(const IntTuple& seq_ids,
                                             const IntTuple& leaf_indices) = 0;
 
+  /*!
+   * \brief Set the LoRA adapter id for the specified sequence.
+   * \param seq_id The id of the sequence to update.
+   * \param lora_adapter_id The LoRA adapter id to associate with the sequence.
+   */
+  virtual void SetSequenceLoraAdapter(int64_t seq_id, int64_t lora_adapter_id) = 0;
+
+  /*!
+   * \brief Get the LoRA adapter id for the specified sequence.
+   * \param seq_id The id of the sequence to query.
+   * \return The LoRA adapter id associated with the sequence.
+   */
+  virtual int64_t GetSequenceLoraAdapter(int64_t seq_id) = 0;
+
+  /*!
+   * \brief Get the LoRA adapter ids of the current batch specified in BeginForward.
+   * \return The LoRA adapter ids, in the same order as the current batch sequence ids.
+   */
+  virtual ffi::Shape GetCurrentLoraAdapterIds() = 0;
+
   /*! \brief Prepare for the disaggregation KV data receive for the specified sequence and length.*/
   virtual IntTuple DisaggPrepareRecv(int64_t seq_id, int length) = 0;
 
