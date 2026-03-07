@@ -385,6 +385,10 @@ class CSEPlanner : public StmtExprVisitor {
    */
   void RecordExpr(const PrimExpr& e, std::initializer_list<PrimExpr> ast_children) {
     if (!IsEligible(e)) return;
+    // Inside a Let body, expressions may reference Let-bound variables that
+    // are not visible at the statement level. Skip recording to prevent
+    // extracting them before the containing statement.
+    if (let_depth_ > 0) return;
     ExprEntry& entry = table_[e];
     bool is_first_occurrence = (entry.count == 0);
     if (is_first_occurrence) {
@@ -477,6 +481,21 @@ class CSEPlanner : public StmtExprVisitor {
   void VisitExpr_(const SelectNode* op) override {
     StmtExprVisitor::VisitExpr_(op);
     RecordExpr(ffi::GetRef<PrimExpr>(op), {op->condition, op->true_value, op->false_value});
+  }
+
+  /*!
+   * \brief Let expressions bind variables visible only in their body.
+   *
+   * The value is visited normally (Let-bound var not yet in scope).
+   * The body is visited with let_depth_ incremented to prevent CSE from
+   * extracting expressions that may reference the Let-bound variable
+   * to a position before the containing statement where it is undefined.
+   */
+  void VisitExpr_(const LetNode* op) override {
+    VisitExpr(op->value);
+    ++let_depth_;
+    VisitExpr(op->body);
+    --let_depth_;
   }
 
   // ------------------------------------------------------------------
@@ -652,6 +671,8 @@ class CSEPlanner : public StmtExprVisitor {
   int current_scope_ = 0;
   /*! \brief Current statement for insertion-point tracking. Set by VisitStmt. */
   Stmt current_stmt_;
+  /*! \brief Nesting depth of Let expression bodies. When > 0, recording is suppressed. */
+  int let_depth_ = 0;
 };
 
 // ============================================================================
