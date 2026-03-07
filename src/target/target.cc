@@ -330,11 +330,38 @@ ObjectPtr<TargetNode> TargetInternal::FromConfig(ffi::Map<ffi::String, ffi::Any>
     target->host = std::nullopt;
   }
 
-  // Step 3: Use ConfigSchema to validate types, apply defaults, and run canonicalizer
+  // Step 3: Extract any "feature.*" keys from the input config before schema validation.
+  // These are canonicalizer-owned metadata that may appear in exported configs (via ToConfig())
+  // but are not part of the target kind's declared schema. We preserve them across round-trip
+  // and let the canonicalizer's output take priority if it re-emits the same key.
+  std::unordered_map<std::string, ffi::Any> saved_features;
+  {
+    std::vector<ffi::String> feature_keys;
+    for (const auto& kv : config) {
+      std::string key_str(kv.first);
+      if (key_str.size() > 8 && key_str.compare(0, 8, "feature.") == 0) {
+        saved_features[key_str] = kv.second;
+        feature_keys.push_back(kv.first);
+      }
+    }
+    for (const auto& k : feature_keys) {
+      config.erase(k);
+    }
+  }
+
+  // Step 4: Use ConfigSchema to validate types, apply defaults, and run canonicalizer
   // Note: structural keys (kind, tag, keys, device) pass through to canonicalizer
   ffi::Map<ffi::String, ffi::Any> resolved = target->kind->schema_.Resolve(config);
 
-  // Step 4: Extract structural fields from resolved config
+  // Step 5: Merge back preserved feature.* keys. Canonicalizer output is authoritative:
+  // only restore a saved feature if the canonicalizer did not re-emit it.
+  for (const auto& kv : saved_features) {
+    if (resolved.find(ffi::String(kv.first)) == resolved.end()) {
+      resolved.Set(ffi::String(kv.first), kv.second);
+    }
+  }
+
+  // Step 6: Extract structural fields from resolved config
   if (resolved.count(kTag)) {
     if (auto tag = resolved[kTag].try_cast<ffi::String>()) {
       target->tag = tag.value();
@@ -367,14 +394,14 @@ ObjectPtr<TargetNode> TargetInternal::FromConfig(ffi::Map<ffi::String, ffi::Any>
     resolved.erase(kKeys);
   }
 
-  // Step 5: Build attrs from resolved entries (excluding structural keys)
+  // Step 7: Build attrs from resolved entries (excluding structural keys)
   resolved.erase(kKind);
   std::unordered_map<ffi::String, ffi::Any> attrs;
   for (const auto& kv : resolved) {
     attrs[kv.first] = kv.second;
   }
 
-  // Step 6: If requested, query attributes from the device. User-specified
+  // Step 8: If requested, query attributes from the device. User-specified
   // parameters take precedence over queried parameters.
   int64_t from_device_id = -1;
   if (auto it = attrs.find(kFromDevice); it != attrs.end()) {
