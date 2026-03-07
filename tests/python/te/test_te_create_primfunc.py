@@ -359,6 +359,32 @@ def test_constant():
     tvm.testing.assert_allclose(a_np + 2, c.numpy())
 
 
+@pytest.mark.parametrize("op_name", ["acos", "acosh", "asin", "asinh", "atanh"])
+def test_topi_float_unary_rejects_integer_input(op_name):
+    x = te.placeholder((1, 8), dtype="int16", name="x")
+    op = getattr(topi, op_name)
+
+    with pytest.raises(
+        TypeError,
+        match=rf"topi\.{op_name} only supports floating-point inputs, but got int16",
+    ):
+        op(x)
+
+
+@pytest.mark.parametrize("op_name", ["acos", "acosh", "asin", "asinh", "atanh"])
+@pytest.mark.parametrize("dtype", ["float32", "bfloat16"])
+def test_topi_float_unary_accepts_float_input(op_name, dtype):
+    x = te.placeholder((1, 8), dtype=dtype, name="x")
+    op = getattr(topi, op_name)
+    out = op(x)
+
+    func = te.create_prim_func([x, out]).with_attr("target", tvm.target.Target("llvm"))
+    mod = tvm.IRModule({"main": func})
+    compiled = tvm.build(mod, target="llvm")
+
+    assert compiled is not None
+
+
 def test_data_dependent_access():
     A = te.placeholder((10,), name="A")
     B = te.placeholder((10,), name="B", dtype="int32")

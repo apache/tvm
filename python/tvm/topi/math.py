@@ -18,11 +18,17 @@
 
 # pylint: disable=redefined-builtin,unused-argument
 import tvm
-from tvm import te
+from tvm import DataType, DataTypeCode, te
 from tvm.tir import PrimExpr
 
 from . import cpp, tag
 from .utils import get_const_tuple
+
+
+def _require_float_tensor(op_name, x):
+    if DataType(x.dtype).type_code not in (DataTypeCode.FLOAT, DataTypeCode.BFLOAT):
+        raise TypeError(f"topi.{op_name} only supports floating-point inputs, but got {x.dtype}")
+    return x
 
 
 @tvm.te.tag_scope(tag=tag.ELEMWISE)
@@ -211,6 +217,7 @@ def acos(x):
     y : tvm.te.Tensor
         The result.
     """
+    x = _require_float_tensor("acos", x)
     return te.compute(x.shape, lambda *i: te.acos(x(*i)))
 
 
@@ -228,6 +235,7 @@ def acosh(x):
     y : tvm.te.Tensor
         The result.
     """
+    x = _require_float_tensor("acosh", x)
     return te.compute(x.shape, lambda *i: te.acosh(x(*i)))
 
 
@@ -245,6 +253,7 @@ def asin(x):
     y : tvm.te.Tensor
         The result.
     """
+    x = _require_float_tensor("asin", x)
     return te.compute(x.shape, lambda *i: te.asin(x(*i)))
 
 
@@ -262,6 +271,7 @@ def asinh(x):
     y : tvm.te.Tensor
         The result.
     """
+    x = _require_float_tensor("asinh", x)
     return te.compute(x.shape, lambda *i: te.asinh(x(*i)))
 
 
@@ -296,6 +306,7 @@ def atanh(x):
     y : tvm.te.Tensor
         The result.
     """
+    x = _require_float_tensor("atanh", x)
     return te.compute(x.shape, lambda *i: te.atanh(x(*i)))
 
 
