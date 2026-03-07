@@ -14,399 +14,214 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F401
 import hashlib
 
 import tvm
 from tvm.ir.base import save_json
-from tvm.ir.module import IRModule
 from tvm.script import tir as T
 
 
-# -----------------------------------------------------
-# Basic test for the expected Behavior of the CSE pass
-# -----------------------------------------------------
-# A test program which gives the opportunity for the CSE pass to introduce two new variables,
-# at two different levels
-def test_cse():
-    z1 = tvm.tir.Var("z1", "int32")
-    z2 = tvm.tir.Var("z2", "int32")
-    z3 = tvm.tir.Var("z3", "int32")
-    i1 = tvm.tir.Var("i1", "int32")
-    i2 = tvm.tir.Var("i2", "int32")
-    x = tvm.tir.Var("x", "int32")
-    y = tvm.tir.Var("y", "int32")
-    a = tvm.tir.Var("a", "int32")
-    b = tvm.tir.Var("b", "int32")
-    dtype = "int32"
-    buffer = tvm.tir.decl_buffer((50,), dtype)
-    # Test prog (flat Bind style):
-    # z1 = 1; z2 = 2;
-    # Mem[i1] = z1+z2;
-    # x = 1; y = 1;
-    # a = (x+y) + (z1+z2);
-    # b = (x+y) + z3;
-    # Mem[i2] = a+b;
-    body = tvm.tir.SeqStmt(
-        [
-            tvm.tir.Bind(z1, 1),
-            tvm.tir.Bind(z2, 2),
-            tvm.tir.BufferStore(buffer, z1 + z2, [i1]),
-            tvm.tir.Bind(x, 1),
-            tvm.tir.Bind(y, 1),
-            tvm.tir.Bind(a, (x + y) + (z1 + z2)),
-            tvm.tir.Bind(b, (x + y) + z3),
-            tvm.tir.BufferStore(buffer, a + b, [i2]),
-        ]
-    )
-    # This test program gives the opportunity to introduce two new variables,
-    # and to perform replacements in the value of "a" and "b", using these new variables.
-
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([i1, i2, z3], body))
-    body = tvm.tir.transform.CommonSubexprElimTIR()(mod)
-
-    tvm.transform.PrintIR()(body)
-
-    body = body["main"].body  # Gets the body of the main, i.e. the full statement
-
-    # The result should be a flat SeqStmt with Bind nodes for z1, z2, cse_v1 (z1+z2),
-    # the store, x, y, cse_v2 (x+y), a (using cse vars), b (using cse vars), store
-    assert isinstance(body, tvm.tir.SeqStmt)
-
-    # Walk through the flat sequence and check the CSE-introduced bindings
-    stmts = list(body)
-    idx = 0
-
-    # z1 = 1
-    assert isinstance(stmts[idx], tvm.tir.Bind)
-    assert stmts[idx].var.name == "z1"
-    assert stmts[idx].value == 1
-    idx += 1
-
-    # z2 = 2
-    assert isinstance(stmts[idx], tvm.tir.Bind)
-    assert stmts[idx].var.name == "z2"
-    assert stmts[idx].value == 2
-    idx += 1
-
-    # CSE should introduce cse_v1 = z1 + z2 here
-    assert isinstance(stmts[idx], tvm.tir.Bind)
-    cse_v1 = stmts[idx].var
-    assert stmts[idx].var.name == "cse_v1"
-    tvm.ir.assert_structural_equal(stmts[idx].value, z1 + z2)
-    idx += 1
-
-    # Mem[i1] = cse_v1 (was z1+z2, now replaced)
-    assert isinstance(stmts[idx], tvm.tir.BufferStore)
-    tvm.ir.assert_structural_equal(stmts[idx].value, cse_v1)
-    idx += 1
-
-    # x = 1
-    assert isinstance(stmts[idx], tvm.tir.Bind)
-    assert stmts[idx].var.name == "x"
-    assert stmts[idx].value == 1
-    idx += 1
-
-    # y = 1
-    assert isinstance(stmts[idx], tvm.tir.Bind)
-    assert stmts[idx].var.name == "y"
-    assert stmts[idx].value == 1
-    idx += 1
-
-    # CSE should introduce cse_v2 = x + y here
-    assert isinstance(stmts[idx], tvm.tir.Bind)
-    cse_v2 = stmts[idx].var
-    assert stmts[idx].var.name == "cse_v2"
-    tvm.ir.assert_structural_equal(stmts[idx].value, x + y)
-    idx += 1
-
-    # a = cse_v2 + cse_v1 (was (x+y) + (z1+z2), now replaced)
-    assert isinstance(stmts[idx], tvm.tir.Bind)
-    assert stmts[idx].var.name == "a"
-    tvm.ir.assert_structural_equal(stmts[idx].value, cse_v2 + cse_v1)
-    idx += 1
-
-    # b = cse_v2 + z3 (was (x+y) + z3, now replaced)
-    assert isinstance(stmts[idx], tvm.tir.Bind)
-    assert stmts[idx].var.name == "b"
-    tvm.ir.assert_structural_equal(stmts[idx].value, cse_v2 + z3)
-    idx += 1
-
-    # Mem[i2] = a + b
-    assert isinstance(stmts[idx], tvm.tir.BufferStore)
-    idx += 1
-
-
-# -----------------------------------------------------
-# Tests related to If nodes
-# -----------------------------------------------------
-# First specific test for if nodes : Some duplicated computations appear only in one branch (here
-# the Then branch), not in both branches.
-# In this case, the CSE pass should introduce the redundant computation at the top of the Then
-# branch, not before the whole If (otherwise that would lead to some computations being computed
-# for nothing when it is the Else branch that is executed).
-def test_cse_ifNode_1():
-    b = tvm.tir.Var("b", "int32")
-    i1 = tvm.tir.Var("i1", "int32")
-    i2 = tvm.tir.Var("i2", "int32")
-    i3 = tvm.tir.Var("i3", "int32")
-    y = tvm.tir.Var("y", "int32")
-    z = tvm.tir.Var("z", "int32")
-    dtype = "int32"
-    buffer = tvm.tir.decl_buffer((50,), dtype)
-    # Test prog:
-    # b = 1;
-    # if(b) { Mem[i1] = y+z; Mem[i2] = y+z }
-    # else { Mem[i3] = y }
-    body = tvm.tir.SeqStmt(
-        [
-            tvm.tir.Bind(b, 1),
-            tvm.tir.IfThenElse(
-                b,
-                tvm.tir.SeqStmt(
-                    [
-                        tvm.tir.BufferStore(buffer, y + z, [i1]),
-                        tvm.tir.BufferStore(buffer, y + z, [i2]),
-                    ]
-                ),
-                tvm.tir.BufferStore(buffer, y, [i3]),
-            ),
-        ]
-    )
-
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([i1, i2, i3, y, z], body))
-    body = tvm.tir.transform.CommonSubexprElimTIR()(mod)
-
-    tvm.transform.PrintIR()(body)
-
-    body = body["main"].body  # Gets the body of the main, i.e. the full statement
-
-    assert isinstance(body, tvm.tir.SeqStmt)
-    stmts = list(body)
-
-    # b = 1
-    assert isinstance(stmts[0], tvm.tir.Bind)
-    assert stmts[0].var.name == "b"
-    assert stmts[0].value == 1
-
-    # The If node
-    assert isinstance(stmts[1], tvm.tir.IfThenElse)
-    if_node = stmts[1]
-
-    # The CSE variable should be inside the Then branch
-    then_stmts = list(if_node.then_case)
-    assert isinstance(then_stmts[0], tvm.tir.Bind)
-    assert then_stmts[0].var.name == "cse_v1"
-    tvm.ir.assert_structural_equal(then_stmts[0].value, y + z)
-
-
-# Second test for if nodes : Some duplicated computations appear in both the Then and Else branch.
-# In this case, the CSE pass should introduce the redundant computation before the whole If node,
-# because regardless of the execution path, it is going to be computed.
-def test_cse_ifNode_2():
-    b = tvm.tir.Var("b", "int32")
-    i1 = tvm.tir.Var("i1", "int32")
-    i2 = tvm.tir.Var("i2", "int32")
-    i3 = tvm.tir.Var("i3", "int32")
-    y = tvm.tir.Var("y", "int32")
-    z = tvm.tir.Var("z", "int32")
-    dtype = "int32"
-    buffer = tvm.tir.decl_buffer((50,), dtype)
-    # Test prog:
-    # b = 1;
-    # if(b) { Mem[i1] = y+z; Mem[i2] = y }
-    # else { Mem[i3] = y+z }
-    body = tvm.tir.SeqStmt(
-        [
-            tvm.tir.Bind(b, 1),
-            tvm.tir.IfThenElse(
-                b,
-                tvm.tir.SeqStmt(
-                    [
-                        tvm.tir.BufferStore(buffer, y + z, [i1]),
-                        tvm.tir.BufferStore(buffer, y, [i2]),
-                    ]
-                ),
-                tvm.tir.BufferStore(buffer, y + z, [i3]),
-            ),
-        ]
-    )
-
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([i1, i2, i3, y, z], body))
-    body = tvm.tir.transform.CommonSubexprElimTIR()(mod)
-
-    tvm.transform.PrintIR()(body)
-
-    body = body["main"].body  # Gets the body of the main, i.e. the full statement
-
-    assert isinstance(body, tvm.tir.SeqStmt)
-    stmts = list(body)
-
-    # CSE should introduce cse_v1 = y + z before the If
-    # Find the cse_v1 binding
-    found_cse = False
-    for s in stmts:
-        if isinstance(s, tvm.tir.Bind) and s.var.name == "cse_v1":
-            tvm.ir.assert_structural_equal(s.value, y + z)
-            found_cse = True
-            break
-    assert found_cse
-
-
-# -------------------------------------------------------------------------------------------------
-# Test commoning in cascade : after having introduced a big exp ((x+y)+z) into a new variable,
-# it will become possible to do another commoning for (x+y) which appears both in the new variable
-# and in the rest of the program.
-# -------------------------------------------------------------------------------------------------
-def test_cse_cascade():
-    i1 = tvm.tir.Var("i1", "int32")
-    i2 = tvm.tir.Var("i2", "int32")
-    i3 = tvm.tir.Var("i3", "int32")
-    x = tvm.tir.Var("x", "int32")
-    y = tvm.tir.Var("y", "int32")
-    z = tvm.tir.Var("z", "int32")
-    dtype = "int32"
-    buffer = tvm.tir.decl_buffer((50,), dtype)
-    # Test prog :
-    # Mem[i1] = (x+y)+z;
-    # Mem[i2] = (x+y)+z;
-    # Mem[i3] = x+y
-    body = tvm.tir.SeqStmt(
-        [
-            tvm.tir.BufferStore(buffer, (x + y) + z, [i1]),
-            tvm.tir.BufferStore(buffer, (x + y) + z, [i2]),
-            tvm.tir.BufferStore(buffer, (x + y), [i3]),
-        ]
-    )
-
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([i1, i2, i3, x, y, z], body))
-    body = tvm.tir.transform.CommonSubexprElimTIR()(mod)
-
-    tvm.transform.PrintIR()(body)
-
-    body = body["main"].body  # Gets the body of the main, i.e. the full statement
-
-    assert isinstance(body, tvm.tir.SeqStmt)
-    stmts = list(body)
-
-    # cse_v2 = x + y
-    assert isinstance(stmts[0], tvm.tir.Bind)
-    cse_v2 = stmts[0].var
-    assert stmts[0].var.name == "cse_v2"
-    tvm.ir.assert_structural_equal(stmts[0].value, (x + y))
-
-    # cse_v1 = cse_v2 + z
-    assert isinstance(stmts[1], tvm.tir.Bind)
-    cse_v1 = stmts[1].var
-    assert stmts[1].var.name == "cse_v1"
-    tvm.ir.assert_structural_equal(stmts[1].value, cse_v2 + z)
-
-    # Three stores
-    assert isinstance(stmts[2], tvm.tir.BufferStore)
-    assert isinstance(stmts[3], tvm.tir.BufferStore)
-    assert isinstance(stmts[4], tvm.tir.BufferStore)
-
-    tvm.ir.assert_structural_equal(stmts[2].value, cse_v1)
-    tvm.ir.assert_structural_equal(stmts[3].value, cse_v1)
-    tvm.ir.assert_structural_equal(stmts[4].value, cse_v2)
-
-
-# -----------------------------------------------------------------------------------------
-# A test which ensures that we don't perform normalizations outside of introduced variables
-# -----------------------------------------------------------------------------------------
-def test_no_normalization_without_commoning():
-    x = tvm.tir.Var("x", "int32")
-    y = tvm.tir.Var("y", "int32")
-    z = tvm.tir.Var("z", "int32")
-    a = tvm.tir.Var("a", "int32")
-    # Test prog :
-    # a = x + (y + z); evaluate(a)
-    body = tvm.tir.SeqStmt([tvm.tir.Bind(a, x + (y + z)), tvm.tir.Evaluate(a)])
-
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([x, y, z], body))
-    body = tvm.tir.transform.CommonSubexprElimTIR(identify_equiv_terms=True)(mod)
-
-    tvm.transform.PrintIR()(body)
-
-    body = body["main"].body  # Gets the body of the main, i.e. the full statement
-
-    assert isinstance(body, tvm.tir.SeqStmt)
-    stmts = list(body)
-    assert isinstance(stmts[0], tvm.tir.Bind)
-    assert stmts[0].var.name == "a"
-    tvm.ir.assert_structural_equal(stmts[0].value, x + (y + z))
-
-
-# -------------------------------------------------
-# Part for testing the commoning with equivalences
-# -------------------------------------------------
-@T.prim_func
-def func_distributivity(
-    B: T.Buffer((50,), "int32"), i1: T.int32, i2: T.int32, x: T.int32, y: T.int32, z: T.int32
-) -> None:
-    B[i1] = (y + z) * x
-    B[i2] = x * y + x * z
-
-
-@T.prim_func
-def func_distributivity_expected(
-    B: T.Buffer((50,), "int32"), i1: T.int32, i2: T.int32, x: T.int32, y: T.int32, z: T.int32
-) -> None:
-    cse_v1 = T.Bind((y + z) * x)
-    B[i1] = cse_v1
-    B[i2] = cse_v1
-
-
-@T.prim_func
-def func_associativity(
-    B: T.Buffer((50,), "int32"), i1: T.int32, i2: T.int32, x: T.int32, y: T.int32, z: T.int32
-) -> None:
-    B[i1] = (x + y) + z
-    B[i2] = x + (y + z)
-
-
-@T.prim_func
-def func_associativity_expected(
-    B: T.Buffer((50,), "int32"), i1: T.int32, i2: T.int32, x: T.int32, y: T.int32, z: T.int32
-) -> None:
-    cse_v1 = T.Bind(x + y + z)
-    B[i1] = cse_v1
-    B[i2] = cse_v1
-
-
-def _check(original, transformed):
-    func = original
-    mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
-    body = tvm.tir.transform.CommonSubexprElimTIR(identify_equiv_terms=True)(mod)
-    tvm.transform.PrintIR()(body)
-    tvm.ir.assert_structural_equal(body["main"], transformed.with_attr("global_symbol", "main"))
-
-
-def test_semantic_equiv_distributivity():
-    _check(func_distributivity, func_distributivity_expected)
-
-
-def test_semantic_equiv_associativity():
-    _check(func_associativity, func_associativity_expected)
-
-
-# -----------------------------------------------------
-# Tests that verify the determinism of the pass
-# -----------------------------------------------------
-def test_deterministic_cse():
-    import random
-
-    """Test deterministic allocation of CSE vars
-
-    We expect something like
-
-        result = (x + 1) + (x + 2) + (x + 3) + (x + 1) + (x + 2) + (x + 3)
-            -->
-        cse_v3 = (x + 1)
-        cse_v2 = (x + 2)
-        cse_v1 = (x + 3)
-        result = cse_v3 + cse_v2 + cse_v1 + cse_v3 + cse_v2 + cse_v1
-    """
+# =====================================================================
+# T1: Basic multi-level CSE
+# Two common subexpressions at different scoping levels.
+# =====================================================================
+def test_basic():
+    @tvm.script.ir_module
+    class Before:
+        @T.prim_func
+        def main(B: T.Buffer((50,), "int32"), i1: T.int32, i2: T.int32, z3: T.int32):
+            z1 = T.bind(1)
+            z2 = T.bind(2)
+            B[i1] = z1 + z2
+            x = T.bind(1)
+            y = T.bind(1)
+            a = T.bind((x + y) + (z1 + z2))
+            b = T.bind((x + y) + z3)
+            B[i2] = a + b
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func
+        def main(B: T.Buffer((50,), "int32"), i1: T.int32, i2: T.int32, z3: T.int32):
+            z1 = T.bind(1)
+            z2 = T.bind(2)
+            cse_v1 = T.bind(z1 + z2)
+            B[i1] = cse_v1
+            x = T.bind(1)
+            y = T.bind(1)
+            cse_v2 = T.bind(x + y)
+            a = T.bind(cse_v2 + cse_v1)
+            b = T.bind(cse_v2 + z3)
+            B[i2] = a + b
+
+    after = tvm.tir.transform.CommonSubexprElim()(Before)
+    tvm.ir.assert_structural_equal(after, Expected)
+
+
+# =====================================================================
+# T2: If -- single-branch CSE
+# Duplicated expression only in then-branch stays inside then-branch.
+# =====================================================================
+def test_if_single_branch():
+    @tvm.script.ir_module
+    class Before:
+        @T.prim_func
+        def main(
+            B: T.Buffer((50,), "int32"),
+            i1: T.int32,
+            i2: T.int32,
+            i3: T.int32,
+            y: T.int32,
+            z: T.int32,
+        ):
+            b = T.bind(1)
+            if b:
+                B[i1] = y + z
+                B[i2] = y + z
+            else:
+                B[i3] = y
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func
+        def main(
+            B: T.Buffer((50,), "int32"),
+            i1: T.int32,
+            i2: T.int32,
+            i3: T.int32,
+            y: T.int32,
+            z: T.int32,
+        ):
+            b = T.bind(1)
+            if b:
+                cse_v1 = T.bind(y + z)
+                B[i1] = cse_v1
+                B[i2] = cse_v1
+            else:
+                B[i3] = y
+
+    after = tvm.tir.transform.CommonSubexprElim()(Before)
+    tvm.ir.assert_structural_equal(after, Expected)
+
+
+# =====================================================================
+# T3: If -- both-branch CSE
+# Duplicated expression in both branches is hoisted before the if.
+# =====================================================================
+def test_if_both_branches():
+    @tvm.script.ir_module
+    class Before:
+        @T.prim_func
+        def main(
+            B: T.Buffer((50,), "int32"),
+            i1: T.int32,
+            i2: T.int32,
+            i3: T.int32,
+            y: T.int32,
+            z: T.int32,
+        ):
+            b = T.bind(1)
+            if b:
+                B[i1] = y + z
+                B[i2] = y
+            else:
+                B[i3] = y + z
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func
+        def main(
+            B: T.Buffer((50,), "int32"),
+            i1: T.int32,
+            i2: T.int32,
+            i3: T.int32,
+            y: T.int32,
+            z: T.int32,
+        ):
+            b = T.bind(1)
+            cse_v1 = T.bind(y + z)
+            if b:
+                B[i1] = cse_v1
+                B[i2] = y
+            else:
+                B[i3] = cse_v1
+
+    after = tvm.tir.transform.CommonSubexprElim()(Before)
+    tvm.ir.assert_structural_equal(after, Expected)
+
+
+# =====================================================================
+# T4: Cascade CSE
+# Introducing (x+y)+z creates opportunity for x+y.
+# =====================================================================
+def test_cascade():
+    @tvm.script.ir_module
+    class Before:
+        @T.prim_func
+        def main(
+            B: T.Buffer((50,), "int32"),
+            i1: T.int32,
+            i2: T.int32,
+            i3: T.int32,
+            x: T.int32,
+            y: T.int32,
+            z: T.int32,
+        ):
+            B[i1] = (x + y) + z
+            B[i2] = (x + y) + z
+            B[i3] = x + y
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func
+        def main(
+            B: T.Buffer((50,), "int32"),
+            i1: T.int32,
+            i2: T.int32,
+            i3: T.int32,
+            x: T.int32,
+            y: T.int32,
+            z: T.int32,
+        ):
+            cse_v2 = T.bind(x + y)
+            cse_v1 = T.bind(cse_v2 + z)
+            B[i1] = cse_v1
+            B[i2] = cse_v1
+            B[i3] = cse_v2
+
+    after = tvm.tir.transform.CommonSubexprElim()(Before)
+    tvm.ir.assert_structural_equal(after, Expected)
+
+
+# =====================================================================
+# T5: No change when no duplication
+# Single occurrence — pass is identity.
+# =====================================================================
+def test_no_duplication():
+    @tvm.script.ir_module
+    class Before:
+        @T.prim_func
+        def main(x: T.int32, y: T.int32, z: T.int32):
+            a = T.bind(x + (y + z))
+            T.evaluate(a)
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func
+        def main(x: T.int32, y: T.int32, z: T.int32):
+            a = T.bind(x + (y + z))
+            T.evaluate(a)
+
+    after = tvm.tir.transform.CommonSubexprElim()(Before)
+    tvm.ir.assert_structural_equal(after, Expected)
+
+
+# =====================================================================
+# T6: Deterministic output
+# Multiple runs on same input produce identical output (same var names,
+# ordering). Verified via JSON serialization hash.
+# =====================================================================
+def test_deterministic():
     NUM_TERMS = 10
     REPEATS = 10
 
@@ -425,31 +240,498 @@ def test_deterministic_cse():
 
     initial_hash = None
     for _ in range(REPEATS):
-        body = tvm.tir.transform.CommonSubexprElimTIR()(mod)
-
-        body = body["main"]
-
-        # Hash and ensure serialize json is the same every time
-        json_val = save_json(body)
+        out = tvm.tir.transform.CommonSubexprElim()(mod)
+        func = out["main"]
+        json_val = save_json(func)
         json_hash = hashlib.sha256(json_val.encode()).hexdigest()
-
         if initial_hash is None:
             initial_hash = json_hash
         assert json_hash == initial_hash
 
 
+# =====================================================================
+# T7: CSE inside for-loop
+# Common sub-expression inside a for-loop body.
+# =====================================================================
+def test_for_loop():
+    @tvm.script.ir_module
+    class Before:
+        @T.prim_func
+        def main(B: T.Buffer((50,), "int32"), y: T.int32, z: T.int32):
+            for i in range(10):
+                B[i] = y + z
+                B[i + 10] = y + z
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func
+        def main(B: T.Buffer((50,), "int32"), y: T.int32, z: T.int32):
+            for i in range(10):
+                cse_v1 = T.bind(y + z)
+                B[i] = cse_v1
+                B[i + 10] = cse_v1
+
+    after = tvm.tir.transform.CommonSubexprElim()(Before)
+    tvm.ir.assert_structural_equal(after, Expected)
+
+
+# =====================================================================
+# T8: CSE across for-loop and outer scope
+# Expression appears both outside and inside a for-loop. Binding placed
+# in outer scope before the for.
+# =====================================================================
+def test_for_hoist():
+    @tvm.script.ir_module
+    class Before:
+        @T.prim_func
+        def main(B: T.Buffer((50,), "int32"), y: T.int32, z: T.int32):
+            B[0] = y + z
+            for i in range(10):
+                B[i + 1] = y + z
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func
+        def main(B: T.Buffer((50,), "int32"), y: T.int32, z: T.int32):
+            cse_v1 = T.bind(y + z)
+            B[0] = cse_v1
+            for i in range(10):
+                B[i + 1] = cse_v1
+
+    after = tvm.tir.transform.CommonSubexprElim()(Before)
+    tvm.ir.assert_structural_equal(after, Expected)
+
+
+# =====================================================================
+# T9: Cannot-lift -- expressions containing BufferLoad
+# Expressions containing BufferLoad are ineligible even when duplicated,
+# because lifting them would change semantics (buffer may alias).
+# =====================================================================
+def test_cannot_lift_bufferload():
+    @tvm.script.ir_module
+    class Before:
+        @T.prim_func
+        def main(A: T.Buffer((50,), "int32"), B: T.Buffer((50,), "int32")):
+            B[0] = A[0] + A[0]
+            B[1] = A[0] + A[0]
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func
+        def main(A: T.Buffer((50,), "int32"), B: T.Buffer((50,), "int32")):
+            B[0] = A[0] + A[0]
+            B[1] = A[0] + A[0]
+
+    after = tvm.tir.transform.CommonSubexprElim()(Before)
+    tvm.ir.assert_structural_equal(after, Expected)
+
+
+# =====================================================================
+# T10: Nested if -- multi-level scope LCA
+# Expression in both branches of an inner if, but not the outer else.
+# Binding placed at the inner if's parent scope.
+# =====================================================================
+def test_nested_if():
+    @tvm.script.ir_module
+    class Before:
+        @T.prim_func
+        def main(
+            B: T.Buffer((50,), "int32"),
+            c1: T.int32,
+            c2: T.int32,
+            y: T.int32,
+            z: T.int32,
+        ):
+            if c1:
+                if c2:
+                    B[0] = y + z
+                else:
+                    B[1] = y + z
+            else:
+                B[2] = y
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func
+        def main(
+            B: T.Buffer((50,), "int32"),
+            c1: T.int32,
+            c2: T.int32,
+            y: T.int32,
+            z: T.int32,
+        ):
+            if c1:
+                cse_v1 = T.bind(y + z)
+                if c2:
+                    B[0] = cse_v1
+                else:
+                    B[1] = cse_v1
+            else:
+                B[2] = y
+
+    after = tvm.tir.transform.CommonSubexprElim()(Before)
+    tvm.ir.assert_structural_equal(after, Expected)
+
+
+# =====================================================================
+# T11: Multiple independent CSE candidates
+# Several independent expressions, each duplicated.
+# =====================================================================
+def test_multi_independent():
+    @tvm.script.ir_module
+    class Before:
+        @T.prim_func
+        def main(
+            B: T.Buffer((50,), "int32"),
+            a: T.int32,
+            b: T.int32,
+            c: T.int32,
+            d: T.int32,
+        ):
+            B[0] = a + b
+            B[1] = c + d
+            B[2] = a + b
+            B[3] = c + d
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func
+        def main(
+            B: T.Buffer((50,), "int32"),
+            a: T.int32,
+            b: T.int32,
+            c: T.int32,
+            d: T.int32,
+        ):
+            cse_v1 = T.bind(a + b)
+            B[0] = cse_v1
+            cse_v2 = T.bind(c + d)
+            B[1] = cse_v2
+            B[2] = cse_v1
+            B[3] = cse_v2
+
+    after = tvm.tir.transform.CommonSubexprElim()(Before)
+    tvm.ir.assert_structural_equal(after, Expected)
+
+
+# =====================================================================
+# T12: Expression in if-condition and branch
+# One occurrence in the if-condition (parent scope), one in the
+# then-branch. Binding hoisted before the if.
+# =====================================================================
+def test_if_condition():
+    @tvm.script.ir_module
+    class Before:
+        @T.prim_func
+        def main(B: T.Buffer((50,), "int32"), y: T.int32, z: T.int32):
+            if y + z > 0:
+                B[0] = y + z
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func
+        def main(B: T.Buffer((50,), "int32"), y: T.int32, z: T.int32):
+            cse_v1 = T.bind(y + z)
+            if cse_v1 > 0:
+                B[0] = cse_v1
+
+    after = tvm.tir.transform.CommonSubexprElim()(Before)
+    tvm.ir.assert_structural_equal(after, Expected)
+
+
+# =====================================================================
+# T13: Cannot-lift -- expression containing Call
+# Function calls cannot be lifted.
+# =====================================================================
+def test_cannot_lift_call():
+    @tvm.script.ir_module
+    class Before:
+        @T.prim_func
+        def main(B: T.Buffer((50,), "int32"), x: T.int32):
+            B[0] = T.call_extern("my_func", x, dtype="int32") + 1
+            B[1] = T.call_extern("my_func", x, dtype="int32") + 1
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func
+        def main(B: T.Buffer((50,), "int32"), x: T.int32):
+            B[0] = T.call_extern("my_func", x, dtype="int32") + 1
+            B[1] = T.call_extern("my_func", x, dtype="int32") + 1
+
+    after = tvm.tir.transform.CommonSubexprElim()(Before)
+    tvm.ir.assert_structural_equal(after, Expected)
+
+
+# =====================================================================
+# T14: No single-use binding
+# When all occurrences of a sub-expression are inside a deeper
+# expression that is also CSE'd, the sub-expression should NOT get
+# its own binding (it would be used only once in the parent's value).
+# =====================================================================
+def test_no_single_use_binding():
+    @tvm.script.ir_module
+    class Before:
+        @T.prim_func
+        def main(
+            B: T.Buffer((50,), "int32"),
+            x: T.int32,
+            y: T.int32,
+            z: T.int32,
+        ):
+            B[0] = (x + y) + z
+            B[1] = (x + y) + z
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func
+        def main(
+            B: T.Buffer((50,), "int32"),
+            x: T.int32,
+            y: T.int32,
+            z: T.int32,
+        ):
+            cse_v1 = T.bind((x + y) + z)
+            B[0] = cse_v1
+            B[1] = cse_v1
+
+    after = tvm.tir.transform.CommonSubexprElim()(Before)
+    tvm.ir.assert_structural_equal(after, Expected)
+
+
+# =====================================================================
+# T15: For-loop extent lifting
+# Expression shared between loop extent and body is hoisted outside the
+# loop rather than being re-evaluated every iteration.
+# =====================================================================
+def test_for_extent_lift():
+    @tvm.script.ir_module
+    class Before:
+        @T.prim_func
+        def main(B: T.Buffer((50,), "int32"), y: T.int32, z: T.int32):
+            for i in range(y + z):
+                B[i] = y + z
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func
+        def main(B: T.Buffer((50,), "int32"), y: T.int32, z: T.int32):
+            cse_v1 = T.bind(y + z)
+            for i in range(cse_v1):
+                B[i] = cse_v1
+
+    after = tvm.tir.transform.CommonSubexprElim()(Before)
+    tvm.ir.assert_structural_equal(after, Expected)
+
+
+# =====================================================================
+# T16: Loop-variable expression stays inside loop
+# An expression using the loop variable (i*4) that appears multiple
+# times inside the body must NOT be hoisted outside the loop.
+# =====================================================================
+def test_loop_var_expr_stays_inside():
+    @tvm.script.ir_module
+    class Before:
+        @T.prim_func
+        def main(
+            A: T.Buffer((50,), "int32"),
+            B: T.Buffer((50,), "int32"),
+        ):
+            for i in range(10):
+                A[i * 4] = B[i * 4]
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func
+        def main(
+            A: T.Buffer((50,), "int32"),
+            B: T.Buffer((50,), "int32"),
+        ):
+            for i in range(10):
+                cse_v1 = T.bind(i * 4)
+                A[cse_v1] = B[cse_v1]
+
+    after = tvm.tir.transform.CommonSubexprElim()(Before)
+    tvm.ir.assert_structural_equal(after, Expected)
+
+
+# =====================================================================
+# T17: No normalization without commoning
+# Single-occurrence expression is not normalized or modified.
+# =====================================================================
+def test_no_normalization_without_commoning():
+    @tvm.script.ir_module
+    class Before:
+        @T.prim_func
+        def main(x: T.int32, y: T.int32, z: T.int32):
+            a = T.bind(x + (y + z))
+            T.evaluate(a)
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func
+        def main(x: T.int32, y: T.int32, z: T.int32):
+            a = T.bind(x + (y + z))
+            T.evaluate(a)
+
+    after = tvm.tir.transform.CommonSubexprElim()(Before)
+    tvm.ir.assert_structural_equal(after, Expected)
+
+
+# =====================================================================
+# T18: Let-bound variable -- no extraction from Let body
+# Expressions inside a Let body that reference the Let-bound variable
+# must NOT be extracted, because the variable is only in scope inside
+# the Let body, not at the statement level where Bind would be placed.
+# =====================================================================
+def test_let_body_no_extraction():
+    """CSE must not extract expressions from Let bodies that use Let-bound vars."""
+    x = tvm.tir.Var("x", "int32")
+    y = tvm.tir.Var("y", "int32")
+    # Let(x, 1, (x+y) + (x+y)) -- x+y appears twice but x is Let-bound
+    let_expr = tvm.tir.Let(x, tvm.tir.IntImm("int32", 1), (x + y) + (x + y))
+    buf = tvm.tir.decl_buffer((10,), "int32", name="B")
+    i = tvm.tir.Var("i", "int32")
+    store = tvm.tir.BufferStore(buf, let_expr, [i])
+    loop = tvm.tir.For(
+        i,
+        tvm.tir.const(0, "int32"),
+        tvm.tir.const(10, "int32"),
+        tvm.tir.ForKind.SERIAL,
+        store,
+    )
+    func = tvm.tir.PrimFunc([buf, y], loop)
+    mod = tvm.IRModule({"main": func})
+    mod_after = tvm.tir.transform.CommonSubexprElim()(mod)
+    # No CSE variables should be introduced
+    script = mod_after["main"].script()
+    assert "cse_v" not in script, f"CSE incorrectly extracted from Let body:\n{script}"
+
+
+# =====================================================================
+# T19: Let value -- CSE works for shared Let value expressions
+# The Let value is evaluated before the binding takes effect, so
+# expressions in the Let value CAN be CSE'd with expressions outside.
+# =====================================================================
+def test_let_value_cse():
+    """CSE can extract from Let values (computed before binding)."""
+    x = tvm.tir.Var("x", "int32")
+    y = tvm.tir.Var("y", "int32")
+    z = tvm.tir.Var("z", "int32")
+    # Let(x, y+z, x+1) with y+z also appearing outside the Let
+    let_expr = tvm.tir.Let(x, y + z, x + 1)
+    buf = tvm.tir.decl_buffer((10,), "int32", name="B")
+    i = tvm.tir.Var("i", "int32")
+    store = tvm.tir.BufferStore(buf, (y + z) + let_expr, [i])
+    loop = tvm.tir.For(
+        i,
+        tvm.tir.const(0, "int32"),
+        tvm.tir.const(10, "int32"),
+        tvm.tir.ForKind.SERIAL,
+        store,
+    )
+    func = tvm.tir.PrimFunc([buf, y, z], loop)
+    mod = tvm.IRModule({"main": func})
+    mod_after = tvm.tir.transform.CommonSubexprElim()(mod)
+    # y+z should be extracted (appears in Let value AND outside)
+    script = mod_after["main"].script()
+    assert "cse_v" in script, f"CSE should extract y+z from Let value:\n{script}"
+
+
+# =====================================================================
+# T20: Nested Let -- both levels respected
+# Multiple nested Let expressions with common sub-expressions in the
+# innermost body. None should be extracted.
+# =====================================================================
+def test_nested_let_no_extraction():
+    """CSE must not extract from nested Let bodies."""
+    x = tvm.tir.Var("x", "int32")
+    y = tvm.tir.Var("y", "int32")
+    z = tvm.tir.Var("z", "int32")
+    # Let(x, 1, Let(y, 2, (x+y+z) + (x+y+z)))
+    inner = (x + y + z) + (x + y + z)
+    nested_let = tvm.tir.Let(
+        x, tvm.tir.IntImm("int32", 1), tvm.tir.Let(y, tvm.tir.IntImm("int32", 2), inner)
+    )
+    buf = tvm.tir.decl_buffer((10,), "int32", name="B")
+    i = tvm.tir.Var("i", "int32")
+    store = tvm.tir.BufferStore(buf, nested_let, [i])
+    loop = tvm.tir.For(
+        i,
+        tvm.tir.const(0, "int32"),
+        tvm.tir.const(10, "int32"),
+        tvm.tir.ForKind.SERIAL,
+        store,
+    )
+    func = tvm.tir.PrimFunc([buf, z], loop)
+    mod = tvm.IRModule({"main": func})
+    mod_after = tvm.tir.transform.CommonSubexprElim()(mod)
+    script = mod_after["main"].script()
+    assert "cse_v" not in script, f"CSE incorrectly extracted from nested Let body:\n{script}"
+
+
+# =====================================================================
+# T21: Let with lowered floordiv pattern
+# Simulates the pattern produced by LowerIntrin for floordiv:
+# Let(rmod, truncmod(a,b), Let(rdiv, div(a,b), Select(...)))
+# wrapped in Let(x, load, Let(y, load, ...))
+# This is the regression test for the CI failure in lower_intrin tests.
+# =====================================================================
+def test_let_floordiv_pattern():
+    """CSE must handle the Let pattern from LowerIntrin's floordiv lowering."""
+    x = tvm.tir.Var("x", "int32")
+    y = tvm.tir.Var("y", "int32")
+    rmod = tvm.tir.Var("rmod", "int32")
+    rdiv = tvm.tir.Var("rdiv", "int32")
+    # Simulate lowered floordiv: Let(rmod, x%y, Let(rdiv, x/y, Select(...)))
+    select_cond = tvm.tir.And(y >= 0, rmod >= 0) | tvm.tir.And(y < 0, rmod <= 0)
+    select_expr = tvm.tir.Select(select_cond, rdiv, rdiv - 1)
+    inner_let = tvm.tir.Let(rdiv, tvm.tir.Div(x, y), select_expr)
+    outer_let = tvm.tir.Let(rmod, tvm.tir.Mod(x, y), inner_let)
+    # Wrap in Let(x, load, Let(y, load, ...))
+    buf_a = tvm.tir.decl_buffer((10,), "int32", name="A")
+    buf_b = tvm.tir.decl_buffer((10,), "int32", name="B")
+    buf_c = tvm.tir.decl_buffer((10,), "int32", name="C")
+    i = tvm.tir.Var("i", "int32")
+    full_expr = tvm.tir.Let(
+        x,
+        tvm.tir.BufferLoad(buf_a, [i]),
+        tvm.tir.Let(y, tvm.tir.BufferLoad(buf_b, [i]), outer_let),
+    )
+    store = tvm.tir.BufferStore(buf_c, full_expr, [i])
+    loop = tvm.tir.For(
+        i,
+        tvm.tir.const(0, "int32"),
+        tvm.tir.const(10, "int32"),
+        tvm.tir.ForKind.SERIAL,
+        store,
+    )
+    func = tvm.tir.PrimFunc([buf_a, buf_b, buf_c], loop)
+    mod = tvm.IRModule({"main": func})
+    # Should not crash and should not extract Let-bound vars
+    mod_after = tvm.tir.transform.CommonSubexprElim()(mod)
+    script = mod_after["main"].script()
+    assert "cse_v" not in script, f"CSE incorrectly extracted from Let body:\n{script}"
+
+
 if __name__ == "__main__":
-    # Basic test:
-    test_cse()
-    # Tests related to If nodes:
-    test_cse_ifNode_1()
-    test_cse_ifNode_2()
-    # Test performing a commoning on a commoning:
-    test_cse_cascade()
-    # Test that verifies that the input program itself is not being normalized by the pass:
+    test_basic()
+    test_if_single_branch()
+    test_if_both_branches()
+    test_cascade()
+    test_no_duplication()
+    test_deterministic()
+    test_for_loop()
+    test_for_hoist()
+    test_cannot_lift_bufferload()
+    test_nested_if()
+    test_multi_independent()
+    test_if_condition()
+    test_cannot_lift_call()
+    test_no_single_use_binding()
+    test_for_extent_lift()
+    test_loop_var_expr_stays_inside()
     test_no_normalization_without_commoning()
-    # Tests that turn on the equivalence of terms and verify the commoning with equivalences:
-    test_semantic_equiv_distributivity()
-    test_semantic_equiv_associativity()
-    # Tests that verify the determinism of the pass:
-    test_deterministic_cse()
+    test_let_body_no_extraction()
+    test_let_value_cse()
+    test_nested_let_no_extraction()
+    test_let_floordiv_pattern()
