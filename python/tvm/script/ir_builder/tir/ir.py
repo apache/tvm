@@ -1024,6 +1024,9 @@ def Let(  # pylint: disable=invalid-name
     return tir.Let(var, value, expr)
 
 
+bind = Bind
+
+
 def let(
     v: Var,
     value: PrimExpr,
@@ -2315,6 +2318,7 @@ __all__ = float_types + [
     "CallEffectKind",
     "let",
     "Bind",
+    "bind",
     "Let",
     "IterVar",
     "CommReducer",

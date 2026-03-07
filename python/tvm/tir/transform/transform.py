@@ -200,7 +200,7 @@ def FP8StorageLegalize():
     return _ffi_api.FP8StorageLegalize()  # type: ignore
 
 
-def CommonSubexprElimTIR(enable_cse_tir: bool = True, identify_equiv_terms: bool = False):
+def CommonSubexprElim():
     """Replace redundant computations by new variables.
 
     Returns
@@ -208,7 +208,7 @@ def CommonSubexprElimTIR(enable_cse_tir: bool = True, identify_equiv_terms: bool
     fpass : tvm.transform.Pass
         The result pass
     """
-    return _ffi_api.CommonSubexprElimTIR(enable_cse_tir, identify_equiv_terms)  # type: ignore
+    return _ffi_api.CommonSubexprElim()  # type: ignore
 
 
 @_ffi.register_object("tir.transform.SimplifyConfig")
