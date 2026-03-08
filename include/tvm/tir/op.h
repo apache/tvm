@@ -720,10 +720,16 @@ TVM_DLL PrimExpr q_multiply_shift(PrimExpr x, PrimExpr y, PrimExpr q, PrimExpr s
  */
 TVM_DLL PrimExpr fast_erf_float_expr(PrimExpr arg, int bits);
 
+inline void CheckMathUnaryOpInputDType(const char* op_name, DataType dtype) {
+  TVM_FFI_CHECK(dtype.is_float() || dtype.is_bfloat16(), TypeError)
+      << "tir." << op_name << " only supports floating-point inputs, but got " << dtype;
+}
+
 // Intrinsic operators
-#define TVM_DECLARE_INTRIN_UNARY(OpName)                                \
+#define TVM_DECLARE_INTRIN_UNARY_WITH_CHECK(OpName, CheckInputDType)    \
   inline PrimExpr OpName(PrimExpr x, Span span = Span()) {              \
     static const Op& op = Op::Get("tir." #OpName);                      \
+    CheckInputDType(#OpName, x.dtype());                                \
     if (x.dtype().is_bfloat16()) {                                      \
       DataType bf16_dtype = x.dtype();                                  \
       DataType fp32_dtype(kDLFloat, 32, bf16_dtype.lanes());            \
@@ -735,11 +741,17 @@ TVM_DLL PrimExpr fast_erf_float_expr(PrimExpr arg, int bits);
     }                                                                   \
   }
 
+#define TVM_DECLARE_INTRIN_UNARY(OpName) \
+  TVM_DECLARE_INTRIN_UNARY_WITH_CHECK(OpName, [](const char*, DataType) {})
+
+#define TVM_DECLARE_FLOAT_INTRIN_UNARY(OpName) \
+  TVM_DECLARE_INTRIN_UNARY_WITH_CHECK(OpName, CheckMathUnaryOpInputDType)
+
 TVM_DECLARE_INTRIN_UNARY(exp);
 TVM_DECLARE_INTRIN_UNARY(exp2);
 TVM_DECLARE_INTRIN_UNARY(exp10);
 TVM_DECLARE_INTRIN_UNARY(erf);
-TVM_DECLARE_INTRIN_UNARY(tanh);
+TVM_DECLARE_FLOAT_INTRIN_UNARY(tanh);
 TVM_DECLARE_INTRIN_UNARY(sigmoid);
 TVM_DECLARE_INTRIN_UNARY(sqrt);
 TVM_DECLARE_INTRIN_UNARY(rsqrt);
@@ -748,17 +760,17 @@ TVM_DECLARE_INTRIN_UNARY(log2);
 TVM_DECLARE_INTRIN_UNARY(log10);
 TVM_DECLARE_INTRIN_UNARY(log1p);
 TVM_DECLARE_INTRIN_UNARY(popcount);
-TVM_DECLARE_INTRIN_UNARY(tan);
-TVM_DECLARE_INTRIN_UNARY(cos);
-TVM_DECLARE_INTRIN_UNARY(cosh);
-TVM_DECLARE_INTRIN_UNARY(sin);
-TVM_DECLARE_INTRIN_UNARY(sinh);
-TVM_DECLARE_INTRIN_UNARY(asin);
-TVM_DECLARE_INTRIN_UNARY(acos);
-TVM_DECLARE_INTRIN_UNARY(atan);
-TVM_DECLARE_INTRIN_UNARY(acosh);
-TVM_DECLARE_INTRIN_UNARY(asinh);
-TVM_DECLARE_INTRIN_UNARY(atanh);
+TVM_DECLARE_FLOAT_INTRIN_UNARY(tan);
+TVM_DECLARE_FLOAT_INTRIN_UNARY(cos);
+TVM_DECLARE_FLOAT_INTRIN_UNARY(cosh);
+TVM_DECLARE_FLOAT_INTRIN_UNARY(sin);
+TVM_DECLARE_FLOAT_INTRIN_UNARY(sinh);
+TVM_DECLARE_FLOAT_INTRIN_UNARY(asin);
+TVM_DECLARE_FLOAT_INTRIN_UNARY(acos);
+TVM_DECLARE_FLOAT_INTRIN_UNARY(atan);
+TVM_DECLARE_FLOAT_INTRIN_UNARY(acosh);
+TVM_DECLARE_FLOAT_INTRIN_UNARY(asinh);
+TVM_DECLARE_FLOAT_INTRIN_UNARY(atanh);
 TVM_DECLARE_INTRIN_UNARY(clz);
 
 #define TVM_DECLARE_INTRIN_BINARY(OpName)                              \
