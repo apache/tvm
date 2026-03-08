@@ -238,6 +238,13 @@ def call_extern(dtype, func_name, *args, span=None):
     return Call(dtype, Op.get("tir.call_extern"), [func_name, *args], span=span)
 
 
+def _require_float_arg(op_name, x):
+    x = tir.convert(x)
+    if "float" not in x.dtype and "bfloat" not in x.dtype:
+        raise TypeError(f"tir.{op_name} only supports floating-point inputs, but got {x.dtype}")
+    return x
+
+
 def call_llvm_intrin(dtype, name, *args, span=None):
     """Build expression by calling a llvm intrinsic function
 
@@ -2186,7 +2193,7 @@ def tanh(x):
     y : PrimExpr
         The result.
     """
-    x = tir.convert(x)
+    x = _require_float_arg("tanh", x)
     return call_intrin(x.dtype, "tir.tanh", x)
 
 
@@ -2288,7 +2295,7 @@ def tan(x):
     y : PrimExpr
         The result.
     """
-    x = tir.convert(x)
+    x = _require_float_arg("tan", x)
     return call_intrin(x.dtype, "tir.tan", x)
 
 
@@ -2305,7 +2312,7 @@ def cos(x):
     y : PrimExpr
         The result.
     """
-    x = tir.convert(x)
+    x = _require_float_arg("cos", x)
     return call_intrin(x.dtype, "tir.cos", x)
 
 
@@ -2322,7 +2329,7 @@ def cosh(x):
     y : PrimExpr
         The result.
     """
-    x = tir.convert(x)
+    x = _require_float_arg("cosh", x)
     return call_intrin(x.dtype, "tir.cosh", x)
 
 
@@ -2339,7 +2346,7 @@ def acos(x):
     y : PrimExpr
         The result.
     """
-    x = tir.convert(x)
+    x = _require_float_arg("acos", x)
     return call_intrin(x.dtype, "tir.acos", x)
 
 
@@ -2356,7 +2363,7 @@ def acosh(x):
     y : PrimExpr
         The result.
     """
-    x = tir.convert(x)
+    x = _require_float_arg("acosh", x)
     return call_intrin(x.dtype, "tir.acosh", x)
 
 
@@ -2373,7 +2380,7 @@ def sin(x):
     y : PrimExpr
         The result.
     """
-    x = tir.convert(x)
+    x = _require_float_arg("sin", x)
     return call_intrin(x.dtype, "tir.sin", x)
 
 
@@ -2390,7 +2397,7 @@ def sinh(x):
     y : PrimExpr
         The result.
     """
-    x = tir.convert(x)
+    x = _require_float_arg("sinh", x)
     return call_intrin(x.dtype, "tir.sinh", x)
 
 
@@ -2407,7 +2414,7 @@ def asin(x):
     y : PrimExpr
         The result.
     """
-    x = tir.convert(x)
+    x = _require_float_arg("asin", x)
     return call_intrin(x.dtype, "tir.asin", x)
 
 
@@ -2424,7 +2431,7 @@ def asinh(x):
     y : PrimExpr
         The result.
     """
-    x = tir.convert(x)
+    x = _require_float_arg("asinh", x)
     return call_intrin(x.dtype, "tir.asinh", x)
 
 
@@ -2441,7 +2448,7 @@ def atan(x):
     y : PrimExpr
         The result.
     """
-    x = tir.convert(x)
+    x = _require_float_arg("atan", x)
     return call_intrin(x.dtype, "tir.atan", x)
 
 
@@ -2458,7 +2465,7 @@ def atanh(x):
     y : PrimExpr
         The result.
     """
-    x = tir.convert(x)
+    x = _require_float_arg("atanh", x)
     return call_intrin(x.dtype, "tir.atanh", x)
 
 
