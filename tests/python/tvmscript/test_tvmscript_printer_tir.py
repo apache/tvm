@@ -255,7 +255,7 @@ for i, j, k in T.grid(128, 128, 128):
 def test_bind():
     with IRBuilder() as ib:
         with T.prim_func():
-            v = T.Bind(T.float32(10))
+            v = T.bind(T.float32(10))
             ib.name("v", v)
             T.evaluate(1)
     obj = ib.get()

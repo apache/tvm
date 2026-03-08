@@ -981,7 +981,7 @@ def Assert(condition: PrimExpr, message, error_kind: str = "RuntimeError") -> fr
     return _ffi_api.Assert(condition, error_kind, message)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def Bind(  # pylint: disable=invalid-name
+def bind(
     value: PrimExpr,
     type_annotation: Type | None = None,  # pylint: disable=redefined-outer-name
     *,
@@ -1024,7 +1024,7 @@ def Let(  # pylint: disable=invalid-name
     return tir.Let(var, value, expr)
 
 
-bind = Bind
+Bind = bind  # backward-compat alias
 
 
 def let(
@@ -1055,9 +1055,9 @@ def let(
     def let_expr(v: Var, value: PrimExpr, body: PrimExpr) -> PrimExpr:
         return tir.Let(v, value, body)
 
-    @deprecated("T.let", "T.Bind")
+    @deprecated("T.let", "T.bind")
     def let_stmt(v: Var, value: PrimExpr) -> Var:
-        return Bind(value, var=v)
+        return bind(value, var=v)
 
     if body is None:
         return let_stmt(v, value)

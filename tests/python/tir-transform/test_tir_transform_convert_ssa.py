@@ -42,9 +42,9 @@ def test_reuse_in_sequential_bind():
 
     @T.prim_func(private=True)
     def expected():
-        var1 = T.Bind(T.int32(16))
+        var1 = T.bind(T.int32(16))
         T.evaluate(var1)
-        var2 = T.Bind(T.int32(32))
+        var2 = T.bind(T.int32(32))
         T.evaluate(var2)
 
     mod = tvm.IRModule.from_expr(before)
@@ -108,7 +108,7 @@ def test_reused_var_across_module():
 
     @T.prim_func(private=True)
     def func():
-        var = T.Bind(10)
+        var = T.bind(10)
         T.evaluate(var)
 
     before = tvm.IRModule(
