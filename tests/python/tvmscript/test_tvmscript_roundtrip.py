@@ -2729,8 +2729,8 @@ def intrinsic_pow():
 def bind_var():
     @T.prim_func
     def func():
-        x = T.Bind(0)
-        y = T.Bind(0)
+        x = T.bind(0)
+        y = T.bind(0)
         T.evaluate(0)
         T.evaluate(0)
 

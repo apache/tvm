@@ -113,13 +113,13 @@ def test_sync_bind():
             A_shared_1[ax0] = A[blockIdx_x * 512 + ax0]
         in_thread_A_temp_1 = T.decl_buffer((1,), data=in_thread_A_temp.data, scope="local")
         in_thread_A_temp_1[0] = T.float32(0)
-        A_temp_1 = T.Bind(in_thread_A_temp_1[0] + A_shared_1[threadIdx_x])
+        A_temp_1 = T.bind(in_thread_A_temp_1[0] + A_shared_1[threadIdx_x])
         in_thread_A_temp_1[0] = A_temp_1
-        A_temp_2 = T.Bind(in_thread_A_temp_1[0] + A_shared_1[threadIdx_x + 128])
+        A_temp_2 = T.bind(in_thread_A_temp_1[0] + A_shared_1[threadIdx_x + 128])
         in_thread_A_temp_1[0] = A_temp_2
-        A_temp_3 = T.Bind(in_thread_A_temp_1[0] + A_shared_1[threadIdx_x + 256])
+        A_temp_3 = T.bind(in_thread_A_temp_1[0] + A_shared_1[threadIdx_x + 256])
         in_thread_A_temp_1[0] = A_temp_3
-        A_temp_4 = T.Bind(in_thread_A_temp_1[0] + A_shared_1[threadIdx_x + 384])
+        A_temp_4 = T.bind(in_thread_A_temp_1[0] + A_shared_1[threadIdx_x + 384])
         in_thread_A_temp_1[0] = A_temp_4
         cross_thread_A_temp_1 = T.decl_buffer((1,), data=cross_thread_A_temp.data, scope="local")
         with T.attr(
@@ -148,13 +148,13 @@ def test_sync_bind():
         in_thread_A_temp_1_1 = T.decl_buffer((1,), data=in_thread_A_temp_1.data, scope="local")
         in_thread_A_temp_1_1[0] = T.float32(0)
         T.tvm_storage_sync("shared")
-        A_temp_1 = T.Bind(in_thread_A_temp_1_1[0] + A_shared_1_1[threadIdx_x])
+        A_temp_1 = T.bind(in_thread_A_temp_1_1[0] + A_shared_1_1[threadIdx_x])
         in_thread_A_temp_1_1[0] = A_temp_1
-        A_temp_2 = T.Bind(in_thread_A_temp_1_1[0] + A_shared_1_1[threadIdx_x + 128])
+        A_temp_2 = T.bind(in_thread_A_temp_1_1[0] + A_shared_1_1[threadIdx_x + 128])
         in_thread_A_temp_1_1[0] = A_temp_2
-        A_temp_3 = T.Bind(in_thread_A_temp_1_1[0] + A_shared_1_1[threadIdx_x + 256])
+        A_temp_3 = T.bind(in_thread_A_temp_1_1[0] + A_shared_1_1[threadIdx_x + 256])
         in_thread_A_temp_1_1[0] = A_temp_3
-        A_temp_4 = T.Bind(in_thread_A_temp_1_1[0] + A_shared_1_1[threadIdx_x + 384])
+        A_temp_4 = T.bind(in_thread_A_temp_1_1[0] + A_shared_1_1[threadIdx_x + 384])
         in_thread_A_temp_1_1[0] = A_temp_4
         cross_thread_A_temp_1_1 = T.decl_buffer(
             (1,), data=cross_thread_A_temp_1.data, scope="local"
