@@ -1221,12 +1221,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   }
 
   ffi::Shape GetCurrentLoraAdapterIds() final {
-    std::vector<ffi::Shape::index_type> adapter_ids;
-    adapter_ids.reserve(current_lora_adapter_ids_host_.size());
-    for (size_t i = 0; i < current_lora_adapter_ids_host_.size(); ++i) {
-      adapter_ids.push_back(current_lora_adapter_ids_host_[i]);
-    }
-    return ffi::Shape(std::move(adapter_ids));
+    return current_lora_adapter_ids_host_.as_int_tuple();
   }
 
   ffi::Shape DisaggPrepareRecv(int64_t seq_id, int append_length) final {
