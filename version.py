@@ -180,7 +180,7 @@ def sync_version(pub_ver, local_ver, dry_run):
     # pyproject.toml
     update(
         os.path.join(PROJ_ROOT, "pyproject.toml"),
-        r"(?<=version = \")[.0-9a-z\+]+",
+        r"(?<=^version = \")[.0-9a-z\+]+",
         pub_ver,
         dry_run,
     )
