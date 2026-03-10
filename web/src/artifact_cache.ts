@@ -130,18 +130,13 @@ declare global {
 }
 
 const HASH_ALGORITHM = "SHA-256";
-const HASH_CACHE_SYMBOL = Symbol.for("tvmjs.crossOriginStorage.hashCache");
 const DEFAULT_FETCH_OPTIONS: RequestInit = { method: "GET" };
 let crossOriginFallbackWarningLogged = false;
 
-const globalScope = globalThis as Record<PropertyKey, unknown>;
-if (!globalScope[HASH_CACHE_SYMBOL]) {
-  globalScope[HASH_CACHE_SYMBOL] = new Map<string, CrossOriginHashDescriptor>();
-}
-const GLOBAL_HASH_CACHE = globalScope[HASH_CACHE_SYMBOL] as Map<
+const GLOBAL_HASH_CACHE = new Map<
   string,
   CrossOriginHashDescriptor
->;
+>();
 
 class CrossOriginStorage {
   private hashCache: Map<string, CrossOriginHashDescriptor>;

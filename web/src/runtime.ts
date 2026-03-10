@@ -30,6 +30,7 @@ import { FunctionInfo, WebGPUContext } from "./webgpu";
 import { CacheState } from "./cache_state";
 import {
   ArtifactCacheTemplate,
+  ArtifactCacheType,
   TensorCacheAccessOptions,
   TensorShardEntry,
   createArtifactCache,
@@ -1291,16 +1292,9 @@ export class Instance implements Disposable {
       };
     }
     const cacheScope = options.cacheScope ?? "tvmjs";
-    const normalizedLegacyCacheType = cacheType.toLowerCase();
-    const legacyCacheType =
-      normalizedLegacyCacheType === "cache" ||
-        normalizedLegacyCacheType === "indexeddb" ||
-        normalizedLegacyCacheType === "cross-origin"
-        ? normalizedLegacyCacheType
-        : "cache";
     const artifactCache = createArtifactCache(cacheScope, {
       ...options,
-      cacheType: options.cacheType ?? legacyCacheType,
+      cacheType: options.cacheType ?? (cacheType as ArtifactCacheType),
     });
     const effectiveSignal = options.signal ?? signal;
     const jsonUrl = new URL("tensor-cache.json", tensorCacheUrl).href;
