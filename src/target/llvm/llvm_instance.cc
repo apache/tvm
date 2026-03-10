@@ -443,12 +443,18 @@ llvm::TargetMachine* LLVMTargetInfo::GetOrCreateTargetMachine(bool allow_missing
 bool LLVMTargetInfo::IsValidCPU(const std::string& cpu) const {
   auto llvm_instance = CreateLLVMTargetInstance(triple_, true);
   if (!llvm_instance) return false;
-  auto tm = CreateLLVMTargetMachine(llvm_instance, triple_, "", "");
-  if (!tm) return false;
-  const auto* MCInfo = tm->getMCSubtargetInfo();
-  // Use isCPUStringValid which correctly handles CPU aliases (e.g. apple-m1
-  // in LLVM 22+) that don't appear in getAllProcessorDescriptions().
-  return MCInfo && MCInfo->isCPUStringValid(cpu);
+  // Create MCSubtargetInfo directly instead of a full TargetMachine,
+  // since we only need isCPUStringValid which correctly handles CPU aliases
+  // (e.g. apple-m1 in LLVM 22+) that don't appear in getAllProcessorDescriptions().
+#if TVM_LLVM_VERSION >= 220
+  llvm::Triple triple_obj(triple_);
+  std::unique_ptr<llvm::MCSubtargetInfo> mc_info(
+      llvm_instance->createMCSubtargetInfo(triple_obj, "", ""));
+#else
+  std::unique_ptr<llvm::MCSubtargetInfo> mc_info(
+      llvm_instance->createMCSubtargetInfo(triple_, "", ""));
+#endif
+  return mc_info && mc_info->isCPUStringValid(cpu);
 }
 
 std::string LLVMTargetInfo::GetTargetFeatureString() const {  //
