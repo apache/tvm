@@ -21,13 +21,17 @@ export {
   Scalar, DLDevice, DLDataType,
   PackedFunc, Module, Tensor,
   TVMArray, TVMObject, VirtualMachine,
-  InitProgressCallback, InitProgressReport,
+  InitProgressCallback, InitProgressReport, FetchTensorCacheOptions,
   Instance, instantiate
 } from "./runtime";
 export {
+  ArtifactCacheType,
+  TensorCacheAccessOptions,
   ArtifactCacheTemplate,
   ArtifactCache,
   ArtifactIndexedDBCache,
+  ArtifactCrossOriginStorageCache,
+  createArtifactCache,
   hasTensorInCache,
   deleteTensorCache
 } from "./artifact_cache";
