@@ -941,6 +941,20 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         if end_val is None:
             end_val = sys.maxsize
 
+        # Skip identity slice (start=0, end>=maxsize, step=1) which is commonly
+        # emitted by torch.export for dynamic shapes. Without this, strided_slice
+        # produces shapes like T.min(9223372036854775807, s) that don't simplify,
+        # causing downstream shape inference failures.
+        if (
+            isinstance(start, int)
+            and isinstance(end_val, int)
+            and isinstance(step, int)
+            and start == 0
+            and end_val >= sys.maxsize
+            and step == 1
+        ):
+            return x
+
         axes = [dim]
         begin = [start]
         end = [end_val]
