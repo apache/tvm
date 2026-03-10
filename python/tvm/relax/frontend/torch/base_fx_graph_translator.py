@@ -2076,7 +2076,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
         # Skip identity reshape
         current_shape = self.shape_of(x)
-        if list(current_shape) == list(dims):
+        if current_shape is not None and list(current_shape) == list(dims):
             return x
 
         return self.block_builder.emit(relax.op.reshape(x, dims))
