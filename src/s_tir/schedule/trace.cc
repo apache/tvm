@@ -188,7 +188,7 @@ ffi::Array<Any> TranslateInputRVs(const ffi::Array<Any>& inputs,
     const char* name = (*opt_str).data();
     int64_t size = (*opt_str).size();
     if (name[0] == '{' && name[size - 1] == '}') {
-      Any obj = LoadJSON(name);
+      Any obj = ffi::FromJSONGraph(ffi::json::Parse(name));
       // Case 6. IndexMap
       if (obj.as<IndexMapNode>()) {
         IndexMap index_map = Downcast<IndexMap>(obj);

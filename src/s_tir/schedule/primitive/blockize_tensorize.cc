@@ -39,7 +39,7 @@ Range RangeFromExtent(const PrimExpr& extent) {
 
 template <class T>
 T DeepCopy(const T& stmt) {
-  return Downcast<T>(LoadJSON(SaveJSON(stmt)));
+  return Downcast<T>(ffi::FromJSONGraph(ffi::ToJSONGraph(stmt)));
 }
 
 /*!
@@ -877,6 +877,7 @@ struct BlockizeTraits : public UnpackedInstTraits<BlockizeTraits> {
       return sch->Blockize(blocks.value(), preserve_unit_iters.operator bool());
     }
     TVM_FFI_THROW(TypeError) << "expect Loop or list of SBlocks, but gets:" << target->GetTypeKey();
+    TVM_FFI_UNREACHABLE();
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ObjectRef target,

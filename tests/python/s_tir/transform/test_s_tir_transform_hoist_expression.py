@@ -228,20 +228,22 @@ def test_hoist_with_let():
     @T.prim_func(private=True)
     def expected(A: T.Buffer((4, 4), "float32")):
         for i in T.serial(4):
-            condition = i < 3
-            if condition:
+            condition: T.bool = i < 3  # noqa: F841
+            if i < 3:
                 for j in T.serial(4):
-                    A[i, j] = 0.0
+                    A[i, j] = T.float32(0.0)
 
     after = _run_transform(before, HoistedConditionals.All, HoistedLetBindings.All)
     tvm.ir.assert_structural_equal(after, expected)
 
 
 def test_hoist_disable_let():
-    """As test_hoist_with_let, but forbid hoisting of LetStmt
+    """As test_hoist_with_let, but forbid hoisting of Bind
 
     Because the condition depends on the let binding, it should no
-    longer be hoisted.
+    longer be hoisted.  With Bind lifecycle management, the condition
+    var is erased at sequence boundaries, so the if-condition uses
+    the raw expression.
     """
 
     @T.prim_func(private=True)
@@ -252,7 +254,12 @@ def test_hoist_disable_let():
                 if condition:
                     A[i, j] = 0.0
 
-    expected = before
+    @T.prim_func(private=True)
+    def expected(A: T.Buffer((4, 4), "float32")):
+        for i, j in T.grid(4, 4):
+            condition: T.bool = i < 3  # noqa: F841
+            if i < 3:
+                A[i, j] = T.float32(0.0)
 
     after = _run_transform(before, HoistedConditionals.All, HoistedLetBindings.Never)
     tvm.ir.assert_structural_equal(after, expected)
@@ -512,9 +519,9 @@ def test_hoist_let_expr():
     @T.prim_func(private=True)
     def expected(A: T.Buffer((4, 4), "float32")):
         for i in T.serial(4):
-            x = T.cast(i + 1, "float32")
+            x: T.float32 = T.cast(i + 1, "float32")  # noqa: F841
             for j in T.serial(4):
-                A[i, j] = 5.0 * x + T.cast(j, "float32")
+                A[i, j] = T.float32(5.0) * T.cast(i + 1, "float32") + T.cast(j, "float32")
 
     after = _run_transform(before, HoistedConditionals.All, HoistedLetBindings.All)
     tvm.ir.assert_structural_equal(after, expected)

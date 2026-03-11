@@ -20,7 +20,7 @@
 source "$(dirname $0)/dev_common.sh"
 
 SCRIPT_NAME="$0"
-DEFAULT_STEPS=( precommit cpplint cppdocs docker_format )
+DEFAULT_STEPS=( precommit )
 
 inplace_fix=0
 
@@ -35,22 +35,9 @@ function run_lint_step() {
         precommit)
             cmd=( pre-commit run --all-files )
             ;;
-        cpplint)
-            cmd=( tests/lint/cpplint.sh )
-            ;;
-        cppdocs)
-            cmd=( tests/lint/cppdocs.sh )
-            ;;
-        docker_format)
-            cmd=( tests/lint/docker-format.sh )
-            ;;
         # Legacy aliases — these now delegate to pre-commit
-        blocklint|file_type|asf|clang_format|python_format|pylint)
+        cpplint|cppdocs|docker_format|blocklint|file_type|asf|clang_format|python_format|pylint|mypy)
             cmd=( pre-commit run --all-files )
-            ;;
-        mypy)
-            echo "mypy: now handled by pre-commit (skipping standalone run)"
-            return 0
             ;;
         *)
             echo "error: don't know how to run lint step: $1" >&2
@@ -75,7 +62,6 @@ function run_lint_step() {
 }
 
 if [ $# -eq 0 ]; then
-    # NOTE: matches order in tests/scripts/task_lint.sh
     steps=( "${DEFAULT_STEPS[@]}" )
 else
     steps=( "$@" )

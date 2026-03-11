@@ -93,7 +93,7 @@ class DeviceInfoCollector : public StmtVisitor {
     if (launch_param == tvm::runtime::launch_param::kUseDynamicSharedMemoryTag) {
       TVM_FFI_ICHECK(dyn_shmem_size.defined())
           << "Compute kernel requires launch parameter \"" << launch_param
-          << "\", but PrimFunc did not contain Allocate node with shared dynamic scope.";
+          << "\", but PrimFunc did not contain AllocBuffer node with shared dynamic scope.";
       return dyn_shmem_size.value();
     }
 
@@ -120,18 +120,18 @@ class DeviceInfoCollector : public StmtVisitor {
     StmtVisitor::VisitStmt_(op);
   }
 
-  void VisitStmt_(const AllocateNode* op) final {
-    auto storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(op->buffer_var));
+  void VisitStmt_(const AllocBufferNode* op) final {
+    auto storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(op->buffer->data));
     if (storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == ".dyn") {
       TVM_FFI_ICHECK(!dyn_shmem_size.defined())
           << "Only one dynamic shared memory allocation is allowed.";
-      TVM_FFI_ICHECK_GT(op->extents.size(), 0);
+      TVM_FFI_ICHECK_GT(op->buffer->shape.size(), 0);
 
       PrimExpr dyn_size = Integer(1);
-      for (const auto& extent : op->extents) {
+      for (const auto& extent : op->buffer->shape) {
         dyn_size *= extent;
       }
-      dyn_size *= op->dtype.bytes();
+      dyn_size *= op->buffer->dtype.bytes();
 
       dyn_shmem_size = dyn_size;
     }

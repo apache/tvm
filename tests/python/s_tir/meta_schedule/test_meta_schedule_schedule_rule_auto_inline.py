@@ -40,11 +40,11 @@ class Conv2DBiasBnReLU:
         bn_scale = T.match_buffer(var_bn_scale, [512, 1, 1], dtype="float32")
         bn_offset = T.match_buffer(var_bn_offset, [512, 1, 1], dtype="float32")
         compute = T.match_buffer(var_compute, [1, 512, 56, 56], dtype="float32")
-        pad_temp = T.alloc_buffer([1, 512, 58, 58], dtype="float32")
-        compute_1 = T.alloc_buffer([1, 512, 56, 56], dtype="float32")
-        bias_add = T.alloc_buffer([1, 512, 56, 56], dtype="float32")
-        bn_mul = T.alloc_buffer([1, 512, 56, 56], dtype="float32")
-        bn_add = T.alloc_buffer([1, 512, 56, 56], dtype="float32")
+        pad_temp = T.sblock_alloc_buffer([1, 512, 58, 58], dtype="float32")
+        compute_1 = T.sblock_alloc_buffer([1, 512, 56, 56], dtype="float32")
+        bias_add = T.sblock_alloc_buffer([1, 512, 56, 56], dtype="float32")
+        bn_mul = T.sblock_alloc_buffer([1, 512, 56, 56], dtype="float32")
+        bn_add = T.sblock_alloc_buffer([1, 512, 56, 56], dtype="float32")
         for i0, i1, i2, i3 in T.grid(1, 512, 58, 58):
             with T.sblock("pad_temp"):
                 i0_1, i1_1, i2_1, i3_1 = T.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -83,8 +83,8 @@ class Conv2DBiasBnReLUInlined:
         bn_scale = T.match_buffer(var_bn_scale, [512, 1, 1], dtype="float32")
         bn_offset = T.match_buffer(var_bn_offset, [512, 1, 1], dtype="float32")
         compute = T.match_buffer(var_compute, [1, 512, 56, 56], dtype="float32")
-        pad_temp = T.alloc_buffer([1, 512, 58, 58], dtype="float32")
-        compute_1 = T.alloc_buffer([1, 512, 56, 56], dtype="float32")
+        pad_temp = T.sblock_alloc_buffer([1, 512, 58, 58], dtype="float32")
+        compute_1 = T.sblock_alloc_buffer([1, 512, 56, 56], dtype="float32")
         for i0, i1, i2, i3 in T.grid(1, 512, 58, 58):
             with T.sblock("pad_temp"):
                 i0_1, i1_1, i2_1, i3_1 = T.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -111,11 +111,11 @@ class MultiLevelTiledConv2D:
         bn_scale = T.match_buffer(var_bn_scale, [512, 1, 1], dtype="float32")
         bn_offset = T.match_buffer(var_bn_offset, [512, 1, 1], dtype="float32")
         compute = T.match_buffer(var_compute, [1, 512, 56, 56], dtype="float32")
-        pad_temp = T.alloc_buffer([1, 512, 58, 58], dtype="float32")
-        compute_1 = T.alloc_buffer([1, 512, 56, 56], dtype="float32")
-        compute_local = T.alloc_buffer([1, 512, 56, 56], dtype="float32", scope="local")
-        pad_temp_shared = T.alloc_buffer([1, 512, 58, 58], dtype="float32", scope="shared")
-        W_shared = T.alloc_buffer([512, 512, 3, 3], dtype="float32", scope="shared")
+        pad_temp = T.sblock_alloc_buffer([1, 512, 58, 58], dtype="float32")
+        compute_1 = T.sblock_alloc_buffer([1, 512, 56, 56], dtype="float32")
+        compute_local = T.sblock_alloc_buffer([1, 512, 56, 56], dtype="float32", scope="local")
+        pad_temp_shared = T.sblock_alloc_buffer([1, 512, 58, 58], dtype="float32", scope="shared")
+        W_shared = T.sblock_alloc_buffer([512, 512, 3, 3], dtype="float32", scope="shared")
         for i0, i1, i2, i3 in T.grid(1, 512, 58, 58):
             with T.sblock("pad_temp"):
                 i0_1, i1_1, i2_1, i3_1 = T.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -168,7 +168,7 @@ class MultiLevelTiledConv2D:
 class MultiLevelTiledConv2DAfterInline:
     @T.prim_func
     def main(X: T.Buffer((1, 512, 56, 56), "float32"), W: T.Buffer((512, 512, 3, 3), "float32"), B: T.Buffer((512, 1, 1), "float32"), bn_scale: T.Buffer((512, 1, 1), "float32"), bn_offset: T.Buffer((512, 1, 1), "float32"), compute: T.Buffer((1, 512, 56, 56), "float32")) -> None:
-        compute_local = T.alloc_buffer([1, 512, 56, 56], dtype="float32", scope="local")
+        compute_local = T.sblock_alloc_buffer([1, 512, 56, 56], dtype="float32", scope="local")
         for i0_0_i1_0_i2_0_i3_0_fused in T.thread_binding(224, thread="blockIdx.x"):
             for i0_1_i1_1_i2_1_i3_1_fused in T.thread_binding(2, thread="vthread.x"):
                 for i0_2_i1_2_i2_2_i3_2_fused in T.thread_binding(8, thread="threadIdx.x"):
@@ -196,9 +196,9 @@ class MultiLevelTiledConv2DAfterInline:
 class SoftmaxBeforeInline:
     @T.prim_func
     def main(A: T.Buffer((256, 256), "float32"), T_softmax_norm: T.Buffer((256, 256), "float32")) -> None:
-        T_softmax_maxelem = T.alloc_buffer([256], dtype="float32")
-        T_softmax_exp = T.alloc_buffer([256, 256], dtype="float32")
-        T_softmax_expsum = T.alloc_buffer([256], dtype="float32")
+        T_softmax_maxelem = T.sblock_alloc_buffer([256], dtype="float32")
+        T_softmax_exp = T.sblock_alloc_buffer([256, 256], dtype="float32")
+        T_softmax_expsum = T.sblock_alloc_buffer([256], dtype="float32")
         for i0, i1 in T.grid(256, 256):
             with T.sblock("T_softmax_maxelem"):
                 i0_1, k = T.axis.remap("SR", [i0, i1])
@@ -225,8 +225,8 @@ class SoftmaxBeforeInline:
 class SoftmaxAfterInline:
     @T.prim_func
     def main(A: T.Buffer((256, 256), "float32"), T_softmax_norm: T.Buffer((256, 256), "float32")) -> None:
-        T_softmax_maxelem = T.alloc_buffer([256], dtype="float32")
-        T_softmax_expsum = T.alloc_buffer([256], dtype="float32")
+        T_softmax_maxelem = T.sblock_alloc_buffer([256], dtype="float32")
+        T_softmax_expsum = T.sblock_alloc_buffer([256], dtype="float32")
         for i0, i1 in T.grid(256, 256):
             with T.sblock("T_softmax_maxelem"):
                 i0_1, k = T.axis.remap("SR", [i0, i1])
@@ -255,12 +255,12 @@ class BeforePureSpatial:
         T_add: T.Buffer((1, 384, 768), "float32"),
     ) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        compile_engine_const = T.alloc_buffer([], dtype="int64")
-        T_less = T.alloc_buffer([1, 384], dtype="bool")
-        compile_engine_const_1 = T.alloc_buffer([], dtype="int64")
-        T_add_1 = T.alloc_buffer([1, 384], dtype="int64")
-        T_where = T.alloc_buffer([1, 384], dtype="int64")
-        T_take = T.alloc_buffer([1, 384, 768], dtype="float32")
+        compile_engine_const = T.sblock_alloc_buffer([], dtype="int64")
+        T_less = T.sblock_alloc_buffer([1, 384], dtype="bool")
+        compile_engine_const_1 = T.sblock_alloc_buffer([], dtype="int64")
+        T_add_1 = T.sblock_alloc_buffer([1, 384], dtype="int64")
+        T_where = T.sblock_alloc_buffer([1, 384], dtype="int64")
+        T_take = T.sblock_alloc_buffer([1, 384, 768], dtype="float32")
         with T.sblock("compile_engine_const"):
             vi = T.axis.spatial(1, 0)
             T.reads()
@@ -349,17 +349,17 @@ class Conv2dInt8:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         # body
         # with T.sblock("root")
-        compile_engine_const = T.alloc_buffer([], dtype="int32")
-        pad_temp = T.alloc_buffer([16, 14, 14, 256], dtype="int8")
-        conv2d_nhwc = T.alloc_buffer([16, 14, 14, 1024], dtype="int32")
-        T_subtract = T.alloc_buffer([16, 14, 14, 1024], dtype="int32")
-        T_add = T.alloc_buffer([16, 14, 14, 1024], dtype="int32")
-        compute_1 = T.alloc_buffer([16, 14, 14, 1024], dtype="int32")
-        T_add_1 = T.alloc_buffer([16, 14, 14, 1024], dtype="int32")
-        compute_2 = T.alloc_buffer([16, 14, 14, 1024], dtype="int32")
-        T_subtract_1 = T.alloc_buffer([16, 14, 14, 1024], dtype="int32")
-        compute_3 = T.alloc_buffer([16, 14, 14, 1024], dtype="int32")
-        T_add_2 = T.alloc_buffer([16, 14, 14, 1024], dtype="int32")
+        compile_engine_const = T.sblock_alloc_buffer([], dtype="int32")
+        pad_temp = T.sblock_alloc_buffer([16, 14, 14, 256], dtype="int8")
+        conv2d_nhwc = T.sblock_alloc_buffer([16, 14, 14, 1024], dtype="int32")
+        T_subtract = T.sblock_alloc_buffer([16, 14, 14, 1024], dtype="int32")
+        T_add = T.sblock_alloc_buffer([16, 14, 14, 1024], dtype="int32")
+        compute_1 = T.sblock_alloc_buffer([16, 14, 14, 1024], dtype="int32")
+        T_add_1 = T.sblock_alloc_buffer([16, 14, 14, 1024], dtype="int32")
+        compute_2 = T.sblock_alloc_buffer([16, 14, 14, 1024], dtype="int32")
+        T_subtract_1 = T.sblock_alloc_buffer([16, 14, 14, 1024], dtype="int32")
+        compute_3 = T.sblock_alloc_buffer([16, 14, 14, 1024], dtype="int32")
+        T_add_2 = T.sblock_alloc_buffer([16, 14, 14, 1024], dtype="int32")
         with T.sblock("compile_engine_const"):
             vi = T.axis.spatial(1, 0)
             T.reads()

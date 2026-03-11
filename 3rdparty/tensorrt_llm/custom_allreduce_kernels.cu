@@ -269,7 +269,7 @@ inline int divUp(int a, int b) { return (a + b - 1) / b; }
 
 std::tuple<int, int> kernelLaunchConfig(AllReduceStrategyType algo, AllReduceParams& param,
                                         size_t elts_per_thread) {
-  ICHECK(param.elts_total % elts_per_thread == 0);
+  TVM_FFI_ICHECK(param.elts_total % elts_per_thread == 0);
 
   int blocks_per_grid = 1, threads_per_block = DEFAULT_BLOCK_SIZE;
 
@@ -291,11 +291,11 @@ std::tuple<int, int> kernelLaunchConfig(AllReduceStrategyType algo, AllReducePar
     }
     case AllReduceStrategyType::TWOSHOT: {  // two stage all reduce algo
       const size_t elts_per_rank = param.elts_total / param.ranks_per_node;
-      ICHECK(elts_per_rank % elts_per_thread == 0);
+      TVM_FFI_ICHECK(elts_per_rank % elts_per_thread == 0);
 
       size_t total_threads = elts_per_rank / elts_per_thread;
       total_threads = WARP_SIZE * ((total_threads + WARP_SIZE - 1) / WARP_SIZE);
-      ICHECK(total_threads % WARP_SIZE == 0);
+      TVM_FFI_ICHECK(total_threads % WARP_SIZE == 0);
 
       while (total_threads % blocks_per_grid != 0 ||
              total_threads / blocks_per_grid > DEFAULT_BLOCK_SIZE) {
@@ -343,7 +343,7 @@ void dispatchARKernels(AllReduceStrategyType algo, AllReduceParams& param, int b
 template <typename T>
 void invokeOneOrTwoShotAllReduceKernel(AllReduceParams& param, AllReduceStrategyType strat,
                                        cudaStream_t stream) {
-  ICHECK(strat == AllReduceStrategyType::ONESHOT || strat == AllReduceStrategyType::TWOSHOT);
+  TVM_FFI_ICHECK(strat == AllReduceStrategyType::ONESHOT || strat == AllReduceStrategyType::TWOSHOT);
   auto last_error = cudaGetLastError();
   if (last_error != cudaSuccess) {
     LOG(INFO) << "cuda error:" << cudaGetErrorString(last_error);

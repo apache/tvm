@@ -22,6 +22,7 @@
  */
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/access_path.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/module.h>
@@ -37,8 +38,8 @@
 #include <utility>
 #include <vector>
 
-#include "arg_binder.h"
 #include "ir_utils.h"
+#include "tvm_ffi_binder.h"
 
 namespace tvm {
 namespace tir {
@@ -167,15 +168,6 @@ class SubroutineCallRewriter : public StmtExprMutator {
 
 }  // namespace
 
-inline Stmt MakeAssertEQ(PrimExpr lhs, PrimExpr rhs, std::string msg) {
-  return AssertStmt(lhs == rhs, tvm::tir::StringImm(msg));
-}
-
-inline Stmt MakeAssertNotNull(PrimExpr ptr, std::string msg) {
-  Call isnull(DataType::Bool(), builtin::isnullptr(), {ptr});
-  return AssertStmt(!isnull, tvm::tir::StringImm(msg));
-}
-
 /* \brief Return the global_symbol of the function, if it should be updated
  *
  * \param func The function to be inspected
@@ -226,12 +218,9 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   }
 
   auto* func_ptr = func.CopyOnWrite();
-  // set the global symbol to the packed function name
   const Stmt nop = Evaluate(0);
-  int num_args = static_cast<int>(func_ptr->params.size());
 
   // Data field definitions
-  // The packed fields
   Var v_self_handle("self_handle", DataType::Handle());
   Var v_packed_args("args", DataType::Handle());
   Var v_num_packed_args("num_args", DataType::Int(32));
@@ -240,132 +229,20 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   // The device context
   Var device_id("dev_id");
   Integer device_type(target_device_type);
-  // seq_init gives sequence of initialization
-  // seq_check gives sequence of later checks after init
-  std::vector<Stmt> seq_init, seq_check, arg_buffer_declarations;
-  std::unordered_map<const VarNode*, PrimExpr> vmap;
-  ArgBinder binder(&vmap);
 
-  // ---------------------------
-  // local function definitions
-  // load i-th argument as type t
-  auto f_load_arg_value = [&](DataType arg_type, int i) {
-    ffi::Array<PrimExpr> call_args{v_packed_args, IntImm(DataType::Int(32), i),
-                                   IntImm(DataType::Int(32), builtin::kTVMFFIAnyUnionValue)};
-    // load 64 bit version
-    DataType api_type = APIType(arg_type);
-    PrimExpr res = Call(api_type, builtin::tvm_struct_get(), call_args);
-    // cast to the target version.
-    if (api_type != arg_type) {
-      res = Cast(arg_type, res);
-    }
-    return res;
-  };
+  // Create TVMFFIABIBuilder and decode all packed args
+  TVMFFIABIBuilder binder(name_hint, func_ptr->params, func_ptr->buffer_map, v_packed_args,
+                          v_num_packed_args, device_type, device_id);
+  binder.DecodeAllParams();
 
-  // Assert correct type codes for each argument.  This must be done
-  // *before* any initialization steps produced by
-  // `binder.BindDLTensor()`.  The validity of those initialization
-  // steps depends on the correct types being present, and must not
-  // occur before the type codes are actually checked.
-  seq_init.push_back(MakeAssertEQ(v_num_packed_args, num_args, [&]() -> std::string {
-    std::ostringstream error_message;
-    error_message << name_hint << ": num_args should be " << num_args;
-    return error_message.str();
-  }()));
+  auto result = binder.Finalize();
+  bool need_set_device = result.var_defs.count(device_id.get());
 
-  if (num_args > 0) {
-    seq_init.push_back(MakeAssertNotNull(v_packed_args, name_hint + ": args pointer is NULL"));
-  }
-
-  // Need to delay binding of the buffers, in case some arguments also
-  // appear in the buffer.
-  std::vector<std::pair<PrimExpr, Var>> var_def;
-  std::vector<std::pair<Var, Buffer>> buffer_def;
-
-  for (int i = 0; i < static_cast<int>(func_ptr->params.size()); ++i) {
-    Var param = func_ptr->params[i];
-    PrimExpr arg_value;
-    // type index checks
-    Var type_index(param->name_hint + ".type_index", DataType::Int(32));
-    seq_init.push_back(LetStmt(type_index,
-                               tir::Call(DataType::Int(32), builtin::tvm_struct_get(),
-                                         {v_packed_args, IntImm(DataType::Int(32), i),
-                                          IntImm(DataType::Int(32), builtin::kTVMFFIAnyTypeIndex)}),
-                               nop));
-    DataType dtype = param.dtype();
-    if (dtype.is_handle()) {
-      std::ostringstream msg;
-      msg << name_hint << ": Expect arg[" << i << "] to be pointer";
-      seq_init.emplace_back(AssertStmt(type_index == ffi::TypeIndex::kTVMFFINone ||
-                                           type_index == ffi::TypeIndex::kTVMFFIOpaquePtr ||
-                                           type_index == ffi::TypeIndex::kTVMFFIDLTensorPtr ||
-                                           type_index >= ffi::TypeIndex::kTVMFFIStaticObjectBegin,
-                                       tvm::tir::StringImm(msg.str())));
-      // if type_index is Tensor, we need to add the offset of the DLTensor header
-      // which always equals 16 bytes, this ensures that T.handle always shows up as a DLTensor*
-      const int64_t object_cell_offset = sizeof(TVMFFIObject);
-      static_assert(object_cell_offset == 24);
-      arg_value = f_load_arg_value(param.dtype(), i);
-      PrimExpr handle_from_tensor =
-          Call(DataType::Handle(), tir::builtin::handle_add_byte_offset(),
-               {arg_value, IntImm(DataType::Int(32), object_cell_offset)});
-      arg_value =
-          Select(type_index == ffi::TypeIndex::kTVMFFITensor, handle_from_tensor, arg_value);
-    } else if (dtype.is_bool()) {
-      std::ostringstream msg;
-      msg << name_hint << ": Expect arg[" << i << "] to be boolean";
-      seq_init.emplace_back(AssertStmt(
-          type_index == ffi::TypeIndex::kTVMFFIBool || type_index == ffi::TypeIndex::kTVMFFIInt,
-          tvm::tir::StringImm(msg.str())));
-      arg_value = Cast(DataType::Bool(), f_load_arg_value(DataType::Int(64), i));
-
-    } else if (dtype.is_int() || dtype.is_uint()) {
-      std::ostringstream msg;
-      msg << name_hint << ": Expect arg[" << i << "] to be int";
-      seq_init.emplace_back(AssertStmt(
-          type_index == ffi::TypeIndex::kTVMFFIInt || type_index == ffi::TypeIndex::kTVMFFIBool,
-          tvm::tir::StringImm(msg.str())));
-      arg_value = f_load_arg_value(param.dtype(), i);
-    } else {
-      TVM_FFI_ICHECK(dtype.is_float());
-      std::ostringstream msg;
-      msg << name_hint << ": Expect arg[" << i << "] to be float";
-      seq_init.emplace_back(AssertStmt(type_index == ffi::TypeIndex::kTVMFFIFloat ||
-                                           type_index == ffi::TypeIndex::kTVMFFIInt ||
-                                           type_index == ffi::TypeIndex::kTVMFFIBool,
-                                       tvm::tir::StringImm(msg.str())));
-      // use select so we can also handle int conversion to bool
-      arg_value = tir::Select(
-          type_index == ffi::TypeIndex::kTVMFFIFloat,
-          /* true_value = */ f_load_arg_value(param.dtype(), i),
-          /* false_value = */ Cast(param.dtype(), f_load_arg_value(DataType::Int(64), i)));
-    }
-    var_def.emplace_back(arg_value, param);
-    if (func_ptr->buffer_map.count(param)) {
-      // buffer binding now depends on type index
-      // if the index is Tensor handle, we need to offset to get the DLTensor*
-      buffer_def.emplace_back(param, func_ptr->buffer_map[param]);
-    }
-  }
+  std::vector<Stmt> seq_check;
 
   // signature: (void* handle, TVMFFIAny* packed_args, int num_args, TVMFFIAny* v_result)
   ffi::Array<Var> args{v_self_handle, v_packed_args, v_num_packed_args, v_result};
 
-  // Arg definitions are defined before buffer binding to avoid the use before
-  // def errors.
-  //
-  // For example, for auto broadcasting, checks are required to guarantee that
-  // either 0 or the original stride will be correctly used. Checks here have
-  // to use the args that may have no let binding yet. Therefore, hoisting let
-  // binding for args before buffer declaration is needed.
-  for (const auto& [expr, param] : var_def) {
-    binder.Bind(param, expr, name_hint + "." + param->name_hint, true);
-  }
-
-  for (const auto& [var, buffer] : buffer_def) {
-    binder.BindDLTensor(buffer, device_type, device_id, var, name_hint + "." + var->name_hint);
-    arg_buffer_declarations.push_back(DeclBuffer(buffer, nop));
-  }
   // reset global symbol to attach prefix
   func = WithAttrs(
       std::move(func),
@@ -377,7 +254,7 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   body = AttrStmt(make_zero(DataType::Int(32)), attr::compute_scope,
                   StringImm(name_hint + "_compute_"), body);
   // Set device context
-  if (vmap.count(device_id.get())) {
+  if (need_set_device) {
     ffi::Any node = ffi::String("default");
     seq_check.push_back(AttrStmt(node, attr::device_id, device_id, nop));
     seq_check.push_back(AttrStmt(node, attr::device_type, device_type, nop));
@@ -393,8 +270,9 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   // Return error code of zero on success
   body = SeqStmt({body, Evaluate(ret(Integer(0)))});
 
-  body = MergeNest(
-      {seq_init, binder.init_nest(), seq_check, binder.asserts(), arg_buffer_declarations}, body);
+  body = MergeNest({std::move(result.init_nest), seq_check, std::move(result.asserts),
+                    std::move(result.decl_buffers)},
+                   body);
   func_ptr->body = body;
   func_ptr->params = args;
 

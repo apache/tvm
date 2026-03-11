@@ -33,7 +33,6 @@
 #include "../../profiler/prof_utils.h"
 #include "hexagon_sim_proto.h"
 #include "tvm/ffi/function.h"
-#include "tvm/runtime/packed_func.h"
 
 namespace tvm {
 namespace runtime {

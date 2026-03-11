@@ -71,7 +71,7 @@ class RenewDefMutator : public StmtExprMutator {
       if (param->dtype.is_handle()) {
         const Buffer& buffer = func->buffer_map.at(param);
         Var new_param = Downcast<Var>(generator.VisitExpr(param));
-        Buffer new_buffer = generator.VisitBuffer(buffer, true);
+        Buffer new_buffer = generator.DefineBuffer(buffer);
         buffer_map.Set(new_param, new_buffer);
       }
     }
@@ -99,18 +99,27 @@ class RenewDefMutator : public StmtExprMutator {
   }
 
  private:
-  STMT_REGENERATE_VAR_DEF(LetStmtNode, var);
-  STMT_REGENERATE_VAR_DEF(AllocateNode, buffer_var);
+  STMT_REGENERATE_VAR_DEF(BindNode, var);
   STMT_REGENERATE_VAR_DEF(ForNode, loop_var);
+
+  // Override VisitBufferDef to create fresh buffer copies at definition sites
+  // (AllocBuffer, DeclBuffer, SBlock alloc_buffers, match_buffers)
+  Buffer VisitBufferDef(const Buffer& buffer, bool alloc_data) final {
+    return DefineBuffer(buffer);
+  }
+
+  // Override VisitBufferUse to remap buffers at use sites
+  // (BufferStore, BufferLoad, SBlock reads/writes)
+  Buffer VisitBufferUse(const Buffer& buffer) final { return UseOrRemapBuffer(buffer); }
 
   Stmt VisitStmt_(const SBlockNode* op) final {
     // Step 0. Re-define Itervars
     ffi::Array<IterVar> iter_vars =
         op->iter_vars.Map(std::bind(&RenewDefMutator::VisitIterVar, this, std::placeholders::_1));
 
-    // Step 1. Re-define buffers allocate under the block
-    ffi::Array<Buffer> alloc_buffers = op->alloc_buffers.Map(
-        std::bind(&RenewDefMutator::VisitBuffer, this, std::placeholders::_1, /*define=*/true));
+    // Step 1. Re-define buffers allocated under the block
+    ffi::Array<Buffer> alloc_buffers =
+        op->alloc_buffers.Map([this](const Buffer& buf) { return this->DefineBuffer(buf); });
 
     // Step 2. Re-define match_buffers
     ffi::Array<MatchBufferRegion> match_buffers = op->match_buffers.Map(
@@ -142,34 +151,6 @@ class RenewDefMutator : public StmtExprMutator {
     return Stmt(n);
   }
 
-  Stmt VisitStmt_(const BufferStoreNode* op) final {
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<BufferStoreNode>();
-    TVM_FFI_ICHECK(op != nullptr);
-    Buffer buffer = VisitDeclOrRemapBuffer(op->buffer);
-    if (buffer.same_as(op->buffer)) {
-      return stmt;
-    } else {
-      auto n = ffi::make_object<BufferStoreNode>(*op);
-      n->buffer = std::move(buffer);
-      return BufferStore(n);
-    }
-  }
-
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
-    op = expr.as<BufferLoadNode>();
-    TVM_FFI_ICHECK(op != nullptr);
-    Buffer buffer = VisitDeclOrRemapBuffer(op->buffer);
-    if (buffer.same_as(op->buffer)) {
-      return expr;
-    } else {
-      auto n = ffi::make_object<BufferLoadNode>(*op);
-      n->buffer = std::move(buffer);
-      return BufferLoad(n);
-    }
-  }
-
  private:
   Var ReDefineVar(const Var& var) {
     Var new_var = Var(ffi::make_object<VarNode>(*var.get()));
@@ -183,12 +164,11 @@ class RenewDefMutator : public StmtExprMutator {
     remap_.Set(source, target);
   }
 
-  Buffer VisitBuffer(const Buffer& buffer, bool define = false) {
+  Buffer DefineBuffer(const Buffer& buffer) {
     auto it = remap_.find(buffer);
     if (it != remap_.end()) {
       return Downcast<Buffer>((*it).second);
     }
-    TVM_FFI_ICHECK(define);
 
     auto redefine_if_is_var = [this](const PrimExpr& expr) -> PrimExpr {
       auto it = remap_.find(expr);
@@ -201,14 +181,40 @@ class RenewDefMutator : public StmtExprMutator {
       }
     };
 
-    // update data
+    // data is DEFINED by this buffer — needs a fresh copy
     Var data = Downcast<Var>(redefine_if_is_var(buffer->data));
-    // update shape
-    ffi::Array<PrimExpr> shape = buffer->shape.Map(redefine_if_is_var);
-    // update strides
+    // shape is USED (references existing definitions like buffer_map shape vars),
+    // remap via VisitExpr to avoid creating spurious new var definitions
+    auto visit_expr = [this](const PrimExpr& e) -> PrimExpr { return this->VisitExpr(e); };
+    ffi::Array<PrimExpr> shape = buffer->shape.Map(visit_expr);
+    // strides/elem_offset may define NEW vars (e.g. in match_buffer),
+    // so use redefine_if_is_var to create fresh copies for unknown vars
     ffi::Array<PrimExpr> strides = buffer->strides.Map(redefine_if_is_var);
-    // update elem_offset
     PrimExpr elem_offset = redefine_if_is_var(buffer->elem_offset);
+
+    auto n = ffi::make_object<BufferNode>(*buffer.get());
+    n->data = std::move(data);
+    n->shape = std::move(shape);
+    n->strides = std::move(strides);
+    n->elem_offset = std::move(elem_offset);
+    Buffer new_buffer(n);
+    this->AddDefRemap(buffer, new_buffer);
+    return new_buffer;
+  }
+
+  Buffer UseOrRemapBuffer(const Buffer& buffer) {
+    // If the buffer has been remapped, return the remapped buffer, otherwise,
+    // remap it without creating new var definitions.
+    auto it = remap_.find(buffer);
+    if (it != remap_.end()) {
+      return Downcast<Buffer>((*it).second);
+    }
+    Var data = Downcast<Var>(VisitExpr(buffer->data));
+    ffi::Array<PrimExpr> shape =
+        buffer->shape.Map(std::bind(&RenewDefMutator::VisitExpr, this, std::placeholders::_1));
+    ffi::Array<PrimExpr> strides =
+        buffer->strides.Map(std::bind(&RenewDefMutator::VisitExpr, this, std::placeholders::_1));
+    PrimExpr elem_offset = VisitExpr(buffer->elem_offset);
 
     auto n = ffi::make_object<BufferNode>(*buffer.get());
     n->data = std::move(data);
@@ -233,34 +239,8 @@ class RenewDefMutator : public StmtExprMutator {
     return new_iter_var;
   }
 
-  Buffer VisitDeclOrRemapBuffer(const Buffer& buffer) {
-    // If the buffer has been remapped, return the remapped buffer, otherwise,
-    // return the declared one.
-    // Due to a recent PR, we can allow undefined buffer appearing in BufferLoad/Store. We need
-    // to remap them but will not create new var
-    auto it = remap_.find(buffer);
-    if (it != remap_.end()) {
-      return Downcast<Buffer>((*it).second);
-    }
-    Var data = Downcast<Var>(VisitExpr(buffer->data));
-    ffi::Array<PrimExpr> shape =
-        buffer->shape.Map(std::bind(&RenewDefMutator::VisitExpr, this, std::placeholders::_1));
-    ffi::Array<PrimExpr> strides =
-        buffer->strides.Map(std::bind(&RenewDefMutator::VisitExpr, this, std::placeholders::_1));
-    PrimExpr elem_offset = VisitExpr(buffer->elem_offset);
-
-    auto n = ffi::make_object<BufferNode>(*buffer.get());
-    n->data = std::move(data);
-    n->shape = std::move(shape);
-    n->strides = std::move(strides);
-    n->elem_offset = std::move(elem_offset);
-    Buffer new_buffer(n);
-    this->AddDefRemap(buffer, new_buffer);
-    return new_buffer;
-  }
-
   MatchBufferRegion VisitMatchBuffer(const MatchBufferRegion& match_buffer) {
-    Buffer buffer = VisitBuffer(match_buffer->buffer, /*define=*/true);
+    Buffer buffer = DefineBuffer(match_buffer->buffer);
     BufferRegion region = VisitBufferRegion(match_buffer->source);
     return MatchBufferRegion(std::move(buffer), std::move(region));
   }
@@ -276,7 +256,7 @@ class RenewDefMutator : public StmtExprMutator {
   }
 
   BufferRegion VisitBufferRegion(const BufferRegion& buffer_region) {
-    Buffer buffer = VisitBuffer(buffer_region->buffer);
+    Buffer buffer = UseOrRemapBuffer(buffer_region->buffer);
     ffi::Array<Range> region = buffer_region->region.Map(
         std::bind(&RenewDefMutator::VisitRange, this, std::placeholders::_1));
     if (buffer.same_as(buffer_region->buffer) && region.same_as(buffer_region->region)) {

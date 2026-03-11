@@ -41,7 +41,7 @@ from .tree_attn import (
 
 
 def _var_cpu(dtype):
-    return T.alloc_buffer((1,), dtype)
+    return T.sblock_alloc_buffer((1,), dtype)
 
 
 def get_max_num_threads_per_block(target: Target) -> int:
@@ -879,7 +879,7 @@ def _rope(
 
 
 def _var(dtype):
-    return T.alloc_buffer((1,), dtype, scope="local")
+    return T.sblock_alloc_buffer((1,), dtype, scope="local")
 
 
 def _causal_mask(causal, row, col, kv_len, qo_len):
@@ -985,19 +985,19 @@ def _attention_prefill_cpu(
         for h_qo in T.serial(h_q):
             for b_idx in T.serial(batch_size):
                 with T.sblock("attn"):
-                    O_local = T.alloc_buffer((d, ), "float32")
-                    Q_local = T.alloc_buffer((d, ), "float32")
-                    K_local = T.alloc_buffer((d, ), "float32")
-                    V_local = T.alloc_buffer((d, ), "float32")
+                    O_local = T.sblock_alloc_buffer((d, ), "float32")
+                    Q_local = T.sblock_alloc_buffer((d, ), "float32")
+                    K_local = T.sblock_alloc_buffer((d, ), "float32")
+                    V_local = T.sblock_alloc_buffer((d, ), "float32")
 
-                    kv_chunk_len = T.alloc_buffer((1, ), "int32")
+                    kv_chunk_len = T.sblock_alloc_buffer((1, ), "int32")
 
-                    m_val = T.alloc_buffer((1, ), "float32")
-                    new_m = T.alloc_buffer((1, ), "float32")
-                    d_val = T.alloc_buffer((1, ), "float32")
-                    S_val = T.alloc_buffer((1, ), "float32")
-                    scale_O = T.alloc_buffer((1, ), "float32")
-                    factor = T.alloc_buffer((1, ), "float32")
+                    m_val = T.sblock_alloc_buffer((1, ), "float32")
+                    new_m = T.sblock_alloc_buffer((1, ), "float32")
+                    d_val = T.sblock_alloc_buffer((1, ), "float32")
+                    S_val = T.sblock_alloc_buffer((1, ), "float32")
+                    scale_O = T.sblock_alloc_buffer((1, ), "float32")
+                    factor = T.sblock_alloc_buffer((1, ), "float32")
                     cur_page_indptr_begin: T.int32 = page_indptr[b_idx]
                     cur_page_indptr_end: T.int32 = page_indptr[b_idx + 1]
                     #max_kv_len: T.int32 = max_num_pages * page_size
@@ -1314,21 +1314,21 @@ def _attention_prefill(
                             iterator = _var("int32")
                             kv_chunk_len = _var("int32")
 
-                            Q_smem = T.alloc_buffer((tile_x, d), dtype, scope="shared")
-                            K_smem = T.alloc_buffer((tile_z, d), dtype, scope="shared")
-                            V_smem = T.alloc_buffer((tile_z, d), dtype, scope="shared")
-                            S_smem = T.alloc_buffer((tile_x, tile_z), "float32", scope="shared")
+                            Q_smem = T.sblock_alloc_buffer((tile_x, d), dtype, scope="shared")
+                            K_smem = T.sblock_alloc_buffer((tile_z, d), dtype, scope="shared")
+                            V_smem = T.sblock_alloc_buffer((tile_z, d), dtype, scope="shared")
+                            S_smem = T.sblock_alloc_buffer((tile_x, tile_z), "float32", scope="shared")
 
-                            S_local = T.alloc_buffer((tile_x, tile_z), "float32", scope="local")
-                            O_local = T.alloc_buffer((tile_x, d), "float32", scope="local")
+                            S_local = T.sblock_alloc_buffer((tile_x, tile_z), "float32", scope="local")
+                            O_local = T.sblock_alloc_buffer((tile_x, d), "float32", scope="local")
 
-                            m_smem = T.alloc_buffer((tile_x, ), "float32", scope="shared")
-                            m_prev_smem = T.alloc_buffer((tile_x, ), "float32", scope="shared")
-                            d_smem = T.alloc_buffer((tile_x, ), "float32", scope="shared")
+                            m_smem = T.sblock_alloc_buffer((tile_x, ), "float32", scope="shared")
+                            m_prev_smem = T.sblock_alloc_buffer((tile_x, ), "float32", scope="shared")
+                            d_smem = T.sblock_alloc_buffer((tile_x, ), "float32", scope="shared")
 
-                            m_new = T.alloc_buffer((math.ceil(tile_x / (bdx * num_warps)),), "float32", scope="local")
-                            m_prev = T.alloc_buffer((math.ceil(tile_x / (bdx * num_warps)),), "float32", scope="local")
-                            d_new = T.alloc_buffer((math.ceil(tile_x / (bdx * num_warps)),), "float32", scope="local")
+                            m_new = T.sblock_alloc_buffer((math.ceil(tile_x / (bdx * num_warps)),), "float32", scope="local")
+                            m_prev = T.sblock_alloc_buffer((math.ceil(tile_x / (bdx * num_warps)),), "float32", scope="local")
+                            d_new = T.sblock_alloc_buffer((math.ceil(tile_x / (bdx * num_warps)),), "float32", scope="local")
 
                             ## get tile_no, batch_idx, batch_tiles, batch_rows
                             tile_id[0] = bx
@@ -1599,19 +1599,19 @@ def _attention_decode_cpu(
 
         for b in T.serial(B):
             with T.sblock("attn"):
-                O_local = T.alloc_buffer((D,), "float32")
-                Q_local = T.alloc_buffer((D,), "float32")
-                K_local = T.alloc_buffer((D,), "float32")
-                V_local = T.alloc_buffer((D,), "float32")
+                O_local = T.sblock_alloc_buffer((D,), "float32")
+                Q_local = T.sblock_alloc_buffer((D,), "float32")
+                K_local = T.sblock_alloc_buffer((D,), "float32")
+                V_local = T.sblock_alloc_buffer((D,), "float32")
 
-                kv_chunk_len = T.alloc_buffer((1,), "int32")
+                kv_chunk_len = T.sblock_alloc_buffer((1,), "int32")
 
-                m_val = T.alloc_buffer((1,), "float32")
-                new_m = T.alloc_buffer((1,), "float32")
-                d_val = T.alloc_buffer((1,), "float32")
-                S_val = T.alloc_buffer((1,), "float32")
-                scale_O = T.alloc_buffer((1,), "float32")
-                factor = T.alloc_buffer((1,), "float32")
+                m_val = T.sblock_alloc_buffer((1,), "float32")
+                new_m = T.sblock_alloc_buffer((1,), "float32")
+                d_val = T.sblock_alloc_buffer((1,), "float32")
+                S_val = T.sblock_alloc_buffer((1,), "float32")
+                scale_O = T.sblock_alloc_buffer((1,), "float32")
+                factor = T.sblock_alloc_buffer((1,), "float32")
 
                 cur_page_indptr_begin: T.int32 = page_table_indptr[b]
                 cur_page_indptr_end: T.int32 = page_table_indptr[b + 1]
@@ -1777,28 +1777,28 @@ def _attention_decode(
                     for tx in T.thread_binding(bdx, thread="threadIdx.x"):
                         for tz in T.thread_binding(bdz, thread="threadIdx.z"):
                             with T.sblock("attn"):
-                                Q_local = T.alloc_buffer((VEC_SIZE,), qkv_dtype, scope="local")
-                                kv_chunk_len = T.alloc_buffer((1,), "int32", scope="local")
-                                K_smem = T.alloc_buffer((bdz * bdy * tile_size_per_bdx, D), qkv_dtype, scope="shared")
-                                V_smem = T.alloc_buffer((bdz * bdy * tile_size_per_bdx, D), qkv_dtype, scope="shared")
-                                O_allreduce = T.alloc_buffer((bdz, bdy, D), "float32", scope="shared")
-                                md_allreduce = T.alloc_buffer((bdz, bdy, 2), "float32", scope="shared")
-                                S_reduce_local = T.alloc_buffer((1,), "float32", scope="local")
-                                t0 = T.alloc_buffer((1,), "float32", scope="local")
+                                Q_local = T.sblock_alloc_buffer((VEC_SIZE,), qkv_dtype, scope="local")
+                                kv_chunk_len = T.sblock_alloc_buffer((1,), "int32", scope="local")
+                                K_smem = T.sblock_alloc_buffer((bdz * bdy * tile_size_per_bdx, D), qkv_dtype, scope="shared")
+                                V_smem = T.sblock_alloc_buffer((bdz * bdy * tile_size_per_bdx, D), qkv_dtype, scope="shared")
+                                O_allreduce = T.sblock_alloc_buffer((bdz, bdy, D), "float32", scope="shared")
+                                md_allreduce = T.sblock_alloc_buffer((bdz, bdy, 2), "float32", scope="shared")
+                                S_reduce_local = T.sblock_alloc_buffer((1,), "float32", scope="local")
+                                t0 = T.sblock_alloc_buffer((1,), "float32", scope="local")
 
-                                S_local = T.alloc_buffer((bdy * tile_size_per_bdx), "float32", scope="local")
-                                QK_local = T.alloc_buffer((VEC_SIZE,), "float32", scope="local")
-                                V_local = T.alloc_buffer((VEC_SIZE,), qkv_dtype, scope="local")
-                                m_prev = T.alloc_buffer((1,), "float32", scope="local")
-                                d_prev = T.alloc_buffer((1,), "float32", scope="local")
-                                other_m = T.alloc_buffer((1,), "float32", scope="local")
-                                other_d = T.alloc_buffer((1,), "float32", scope="local")
-                                exp_mprev = T.alloc_buffer((1,), "float32", scope="local")
-                                exp_otherm = T.alloc_buffer((1,), "float32", scope="local")
-                                other_o = T.alloc_buffer((VEC_SIZE,), "float32", scope="local")
-                                st_m = T.alloc_buffer((1,), "float32", scope="local")
-                                st_d = T.alloc_buffer((1,), "float32", scope="local")
-                                O_local = T.alloc_buffer((VEC_SIZE,), "float32", scope="local")
+                                S_local = T.sblock_alloc_buffer((bdy * tile_size_per_bdx), "float32", scope="local")
+                                QK_local = T.sblock_alloc_buffer((VEC_SIZE,), "float32", scope="local")
+                                V_local = T.sblock_alloc_buffer((VEC_SIZE,), qkv_dtype, scope="local")
+                                m_prev = T.sblock_alloc_buffer((1,), "float32", scope="local")
+                                d_prev = T.sblock_alloc_buffer((1,), "float32", scope="local")
+                                other_m = T.sblock_alloc_buffer((1,), "float32", scope="local")
+                                other_d = T.sblock_alloc_buffer((1,), "float32", scope="local")
+                                exp_mprev = T.sblock_alloc_buffer((1,), "float32", scope="local")
+                                exp_otherm = T.sblock_alloc_buffer((1,), "float32", scope="local")
+                                other_o = T.sblock_alloc_buffer((VEC_SIZE,), "float32", scope="local")
+                                st_m = T.sblock_alloc_buffer((1,), "float32", scope="local")
+                                st_d = T.sblock_alloc_buffer((1,), "float32", scope="local")
+                                O_local = T.sblock_alloc_buffer((VEC_SIZE,), "float32", scope="local")
 
                                 by: T.int32 = fused_by_bz % H_kv
                                 bz: T.int32 = fused_by_bz // H_kv
@@ -2017,8 +2017,8 @@ def _merge_state_inplace(
                             scale = _var("float32")
                             other_scale = _var("float32")
 
-                            v_vec = T.alloc_buffer((VEC_SIZE,), v_dtype, scope="local")
-                            v_other_vec = T.alloc_buffer((VEC_SIZE,), v_dtype, scope="local")
+                            v_vec = T.sblock_alloc_buffer((VEC_SIZE,), v_dtype, scope="local")
+                            v_other_vec = T.sblock_alloc_buffer((VEC_SIZE,), v_dtype, scope="local")
 
                             s_val[0] = S[bx, ty + by * bdy]
                             s_other_val[0] = S_other[bx, ty + by * bdy]
@@ -2096,25 +2096,25 @@ def _attention_sequence_prefill(h_kv, h_q, d, dtype, target: Target, causal=0, s
                             T.reads()
                             T.writes()
 
-                            Q_smem = T.alloc_buffer((tile_x, d), dtype, scope="shared")
-                            K_smem = T.alloc_buffer((tile_z, d), dtype, scope="shared")
-                            V_smem = T.alloc_buffer((tile_z, d), dtype, scope="shared")
-                            S_smem = T.alloc_buffer((tile_x, tile_z), "float32", scope="shared")
+                            Q_smem = T.sblock_alloc_buffer((tile_x, d), dtype, scope="shared")
+                            K_smem = T.sblock_alloc_buffer((tile_z, d), dtype, scope="shared")
+                            V_smem = T.sblock_alloc_buffer((tile_z, d), dtype, scope="shared")
+                            S_smem = T.sblock_alloc_buffer((tile_x, tile_z), "float32", scope="shared")
 
-                            S_local = T.alloc_buffer((tile_x, tile_z), "float32", scope="local")
-                            O_local = T.alloc_buffer((tile_x, d), "float32", scope="local")
+                            S_local = T.sblock_alloc_buffer((tile_x, tile_z), "float32", scope="local")
+                            O_local = T.sblock_alloc_buffer((tile_x, d), "float32", scope="local")
 
-                            m_smem = T.alloc_buffer((tile_x,), "float32", scope="shared")
-                            m_prev_smem = T.alloc_buffer((tile_x,), "float32", scope="shared")
-                            d_smem = T.alloc_buffer((tile_x,), "float32", scope="shared")
+                            m_smem = T.sblock_alloc_buffer((tile_x,), "float32", scope="shared")
+                            m_prev_smem = T.sblock_alloc_buffer((tile_x,), "float32", scope="shared")
+                            d_smem = T.sblock_alloc_buffer((tile_x,), "float32", scope="shared")
 
-                            m_new = T.alloc_buffer(
+                            m_new = T.sblock_alloc_buffer(
                                 (math.ceil(tile_x / (bdx * num_warps)),), "float32", scope="local"
                             )
-                            m_prev = T.alloc_buffer(
+                            m_prev = T.sblock_alloc_buffer(
                                 (math.ceil(tile_x / (bdx * num_warps)),), "float32", scope="local"
                             )
-                            d_new = T.alloc_buffer(
+                            d_new = T.sblock_alloc_buffer(
                                 (math.ceil(tile_x / (bdx * num_warps)),), "float32", scope="local"
                             )
 
@@ -2355,19 +2355,19 @@ def _attention_prefill_ragged_cpu(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dic
 
         for b in T.serial(batch_size):
             with T.sblock("attn"):
-                softmax_sum = T.alloc_buffer([h_q], "float32")
-                m_prev = T.alloc_buffer([h_q], "float32")
-                m_new = T.alloc_buffer([h_q], "float32")
-                d_prev = T.alloc_buffer([h_q], "float32")
-                d_new = T.alloc_buffer([h_q], "float32")
-                p_sum = T.alloc_buffer([d_v], "float32")
-                max_score = T.alloc_buffer([h_q], "float32")
-                attention_scores = T.alloc_buffer([kv_len, h_q], "float32")
-                exp_scores = T.alloc_buffer([kv_len, h_q], "float32")
-                attention_score = T.alloc_buffer([1], "float32")
-                query_val = T.alloc_buffer([1], "float32")
-                key_val = T.alloc_buffer([1], "float32")
-                result = T.alloc_buffer([1], "float32")
+                softmax_sum = T.sblock_alloc_buffer([h_q], "float32")
+                m_prev = T.sblock_alloc_buffer([h_q], "float32")
+                m_new = T.sblock_alloc_buffer([h_q], "float32")
+                d_prev = T.sblock_alloc_buffer([h_q], "float32")
+                d_new = T.sblock_alloc_buffer([h_q], "float32")
+                p_sum = T.sblock_alloc_buffer([d_v], "float32")
+                max_score = T.sblock_alloc_buffer([h_q], "float32")
+                attention_scores = T.sblock_alloc_buffer([kv_len, h_q], "float32")
+                exp_scores = T.sblock_alloc_buffer([kv_len, h_q], "float32")
+                attention_score = T.sblock_alloc_buffer([1], "float32")
+                query_val = T.sblock_alloc_buffer([1], "float32")
+                key_val = T.sblock_alloc_buffer([1], "float32")
+                result = T.sblock_alloc_buffer([1], "float32")
 
                 for q_idx in T.serial(q_indptr[b + 1] - q_indptr[b]):
                     for i in T.serial(h_q):
@@ -2503,21 +2503,21 @@ def _attention_prefill_ragged(
                             iterator = _var("int32")
                             kv_chunk_len = _var("int32")
 
-                            Q_smem = T.alloc_buffer((tile_x, d_qk), dtype, scope="shared")
-                            K_smem = T.alloc_buffer((tile_z, d_qk), dtype, scope="shared")
-                            V_smem = T.alloc_buffer((tile_z, d_v), dtype, scope="shared")
-                            S_smem = T.alloc_buffer((tile_x, tile_z), "float32", scope="shared")
+                            Q_smem = T.sblock_alloc_buffer((tile_x, d_qk), dtype, scope="shared")
+                            K_smem = T.sblock_alloc_buffer((tile_z, d_qk), dtype, scope="shared")
+                            V_smem = T.sblock_alloc_buffer((tile_z, d_v), dtype, scope="shared")
+                            S_smem = T.sblock_alloc_buffer((tile_x, tile_z), "float32", scope="shared")
 
-                            S_local = T.alloc_buffer((tile_x, tile_z), "float32", scope="local")
-                            O_local = T.alloc_buffer((tile_x, d_v), "float32", scope="local")
+                            S_local = T.sblock_alloc_buffer((tile_x, tile_z), "float32", scope="local")
+                            O_local = T.sblock_alloc_buffer((tile_x, d_v), "float32", scope="local")
 
-                            m_smem = T.alloc_buffer((tile_x, ), "float32", scope="shared")
-                            m_prev_smem = T.alloc_buffer((tile_x, ), "float32", scope="shared")
-                            d_smem = T.alloc_buffer((tile_x, ), "float32", scope="shared")
+                            m_smem = T.sblock_alloc_buffer((tile_x, ), "float32", scope="shared")
+                            m_prev_smem = T.sblock_alloc_buffer((tile_x, ), "float32", scope="shared")
+                            d_smem = T.sblock_alloc_buffer((tile_x, ), "float32", scope="shared")
 
-                            m_new = T.alloc_buffer((math.ceil(tile_x / (bdx * num_warps)),), "float32", scope="local")
-                            m_prev = T.alloc_buffer((math.ceil(tile_x / (bdx * num_warps)),), "float32", scope="local")
-                            d_new = T.alloc_buffer((math.ceil(tile_x / (bdx * num_warps)),), "float32", scope="local")
+                            m_new = T.sblock_alloc_buffer((math.ceil(tile_x / (bdx * num_warps)),), "float32", scope="local")
+                            m_prev = T.sblock_alloc_buffer((math.ceil(tile_x / (bdx * num_warps)),), "float32", scope="local")
+                            d_new = T.sblock_alloc_buffer((math.ceil(tile_x / (bdx * num_warps)),), "float32", scope="local")
 
                             ## get tile_no, batch_idx, batch_tiles, batch_rows
                             tile_id[0] = bx
@@ -2780,20 +2780,20 @@ def _attention_prefill_mla(
                         iterator = _var("int32")
                         kv_chunk_len = _var("int32")
 
-                        Q_smem = T.alloc_buffer((tile_x, d_qk), dtype, scope="shared")
-                        KV_smem = T.alloc_buffer((tile_z, d_qk), dtype, scope="shared")
-                        S_smem = T.alloc_buffer((tile_x, tile_z), "float32", scope="shared")
+                        Q_smem = T.sblock_alloc_buffer((tile_x, d_qk), dtype, scope="shared")
+                        KV_smem = T.sblock_alloc_buffer((tile_z, d_qk), dtype, scope="shared")
+                        S_smem = T.sblock_alloc_buffer((tile_x, tile_z), "float32", scope="shared")
 
-                        S_local = T.alloc_buffer((tile_x, tile_z), "float32", scope="local")
-                        O_local = T.alloc_buffer((tile_x, d_latent), "float32", scope="local")
+                        S_local = T.sblock_alloc_buffer((tile_x, tile_z), "float32", scope="local")
+                        O_local = T.sblock_alloc_buffer((tile_x, d_latent), "float32", scope="local")
 
-                        m_smem = T.alloc_buffer((tile_x, ), "float32", scope="shared")
-                        m_prev_smem = T.alloc_buffer((tile_x, ), "float32", scope="shared")
-                        d_smem = T.alloc_buffer((tile_x, ), "float32", scope="shared")
+                        m_smem = T.sblock_alloc_buffer((tile_x, ), "float32", scope="shared")
+                        m_prev_smem = T.sblock_alloc_buffer((tile_x, ), "float32", scope="shared")
+                        d_smem = T.sblock_alloc_buffer((tile_x, ), "float32", scope="shared")
 
-                        m_new = T.alloc_buffer((math.ceil(tile_x / (bdx * num_warps)),), "float32", scope="local")
-                        m_prev = T.alloc_buffer((math.ceil(tile_x / (bdx * num_warps)),), "float32", scope="local")
-                        d_new = T.alloc_buffer((math.ceil(tile_x / (bdx * num_warps)),), "float32", scope="local")
+                        m_new = T.sblock_alloc_buffer((math.ceil(tile_x / (bdx * num_warps)),), "float32", scope="local")
+                        m_prev = T.sblock_alloc_buffer((math.ceil(tile_x / (bdx * num_warps)),), "float32", scope="local")
+                        d_new = T.sblock_alloc_buffer((math.ceil(tile_x / (bdx * num_warps)),), "float32", scope="local")
 
                         ## get tile_no, batch_idx, batch_tiles, batch_rows
                         tile_id[0] = bx

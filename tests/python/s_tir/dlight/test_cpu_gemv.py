@@ -34,10 +34,10 @@ def test_gemv_basic():
         lv1614 = T.match_buffer(p_lv1614, (1, 1, 1, n), "float16")
         var_compute_intermediate = T.match_buffer(p_output0, (1, 32, 1, n))
         # with T.sblock("root"):
-        var_NT_matmul_intermediate = T.alloc_buffer((1, 32, 1, n), "float16")
-        var_T_divide_intermediate = T.alloc_buffer((1, 32, 1, n), "float16")
-        var_T_maximum_intermediate = T.alloc_buffer((1, 32, 1, n), "float16")
-        var_T_minimum_intermediate = T.alloc_buffer((1, 32, 1, n), "float16")
+        var_NT_matmul_intermediate = T.sblock_alloc_buffer((1, 32, 1, n), "float16")
+        var_T_divide_intermediate = T.sblock_alloc_buffer((1, 32, 1, n), "float16")
+        var_T_maximum_intermediate = T.sblock_alloc_buffer((1, 32, 1, n), "float16")
+        var_T_minimum_intermediate = T.sblock_alloc_buffer((1, 32, 1, n), "float16")
         for i0, i1, i2, i3, k in T.grid(1, 32, 1, n, 128):
             with T.sblock("NT_matmul"):
                 v_i0, v_i1, v_i2, v_i3, v_k = T.axis.remap("SSSSR", [i0, i1, i2, i3, k])
@@ -79,7 +79,7 @@ def test_gemv_basic():
         lv1614 = T.match_buffer(p_lv1614, (1, 1, 1, n), "float16")
         var_compute_intermediate = T.match_buffer(p_output0, (1, 32, 1, n))
         # with T.sblock("root"):
-        var_NT_matmul_intermediate = T.alloc_buffer((1, 32, 1, n), "float16")
+        var_NT_matmul_intermediate = T.sblock_alloc_buffer((1, 32, 1, n), "float16")
         for ax0_fused in range(32):
             for ax1_fused_0 in T.parallel((n + 63) // 64):
                 for ax1_fused_1 in T.vectorized(64):
@@ -116,7 +116,7 @@ def test_decode_gemv_256_threads():
     def before(lv571: T.Buffer((22016, 512), "uint32"), lv572: T.Buffer((22016, 128), "float16"), lv1654: T.Buffer((1, 1, 4096), "float16"), var_NT_matmul_intermediate: T.Buffer((1, 1, 22016), "float16")):
         T.func_attr({"tir.noalias": True})
         # with T.sblock("root"):
-        p_output0_intermediate = T.alloc_buffer((22016, 4096), "float16")
+        p_output0_intermediate = T.sblock_alloc_buffer((22016, 4096), "float16")
         for i, j in T.grid(22016, 4096):
             with T.sblock("decode"):
                 v_i, v_j = T.axis.remap("SS", [i, j])
@@ -164,7 +164,7 @@ def test_decode_gemv1():
     def before(lv571: T.Buffer((22016, 512), "uint32"), lv572: T.Buffer((22016, 128), "float16"), lv1654: T.Buffer((1, 1, 4096), "float16"), var_NT_matmul_intermediate: T.Buffer((1, 1, 22016), "float16")):
         T.func_attr({"tir.noalias": True})
         # with T.sblock("root"):
-        p_output0_intermediate = T.alloc_buffer((22016, 4096), "float16")
+        p_output0_intermediate = T.sblock_alloc_buffer((22016, 4096), "float16")
         for i, j in T.grid(22016, 4096):
             with T.sblock("decode"):
                 v_i, v_j = T.axis.remap("SS", [i, j])
@@ -212,8 +212,8 @@ def test_decode_gemv2():
     def before(lv771: T.Buffer((32000, 512), "uint32"), lv772: T.Buffer((32000, 128), "float16"), lv3216: T.Buffer((1, 1, 4096), "float16"), p_output0_intermediate: T.Buffer((1, 1, 32000), "float32")):
         T.func_attr({"tir.noalias": True})
         # with T.sblock("root"):
-        p_output0_intermediate_1 = T.alloc_buffer((32000, 4096), "float16")
-        var_NT_matmul_intermediate = T.alloc_buffer((1, 1, 32000), "float16")
+        p_output0_intermediate_1 = T.sblock_alloc_buffer((32000, 4096), "float16")
+        var_NT_matmul_intermediate = T.sblock_alloc_buffer((1, 1, 32000), "float16")
         for i, j in T.grid(32000, 4096):
             with T.sblock("decode"):
                 v_i, v_j = T.axis.remap("SS", [i, j])
@@ -239,7 +239,7 @@ def test_decode_gemv2():
     def expected(lv771: T.Buffer((32000, 512), "uint32"), lv772: T.Buffer((32000, 128), "float16"), lv3216: T.Buffer((1, 1, 4096), "float16"), p_output0_intermediate: T.Buffer((1, 1, 32000), "float32")):
         T.func_attr({"tir.is_scheduled": True, "tir.noalias": True})
         # with T.sblock("root"):
-        var_NT_matmul_intermediate = T.alloc_buffer((1, 1, 32000), "float16")
+        var_NT_matmul_intermediate = T.sblock_alloc_buffer((1, 1, 32000), "float16")
         for u_fused in range(1):
             for ax0_fused_0 in T.parallel(250):
                 for ax0_fused_1 in T.vectorized(128):
@@ -274,8 +274,8 @@ def test_decode_gemv3():
     def before(lv575: T.Buffer((T.int64(4096), T.int64(1376)), "uint32"), lv576: T.Buffer((T.int64(4096), T.int64(344)), "float16"), lv574: T.Buffer((T.int64(1), T.int64(1), T.int64(11008)), "float16"), lv570: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16"), p_output0_intermediate: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16")):
         T.func_attr({"tir.noalias": True})
         # with T.sblock("root"):
-        p_output0_intermediate_1 = T.alloc_buffer((T.int64(4096), T.int64(11008)), "float16")
-        var_NT_matmul_intermediate = T.alloc_buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16")
+        p_output0_intermediate_1 = T.sblock_alloc_buffer((T.int64(4096), T.int64(11008)), "float16")
+        var_NT_matmul_intermediate = T.sblock_alloc_buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16")
         for i, j in T.grid(T.int64(4096), T.int64(11008)):
             with T.sblock("decode"):
                 v_i, v_j = T.axis.remap("SS", [i, j])
@@ -301,7 +301,7 @@ def test_decode_gemv3():
     def expected(lv575: T.Buffer((T.int64(4096), T.int64(1376)), "uint32"), lv576: T.Buffer((T.int64(4096), T.int64(344)), "float16"), lv574: T.Buffer((T.int64(1), T.int64(1), T.int64(11008)), "float16"), lv570: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16"), p_output0_intermediate: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16")):
         T.func_attr({"tir.is_scheduled": True, "tir.noalias": True})
         # with T.sblock("root"):
-        var_NT_matmul_intermediate = T.alloc_buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16")
+        var_NT_matmul_intermediate = T.sblock_alloc_buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16")
         for u_fused in range(1):
             for ax0_fused_0 in T.parallel(T.int64(64)):
                 for ax0_fused_1 in T.vectorized(T.int64(64)):
@@ -336,8 +336,8 @@ def test_autogptq_decode_gemv():
     def func(lv9: T.Buffer((T.int64(512), T.int64(4096)), "uint32"), lv10: T.Buffer((T.int64(32), T.int64(512)), "uint32"), lv11: T.Buffer((T.int64(32), T.int64(4096)), "float16"), lv12: T.Buffer((T.int64(4096),), "uint32"), lv8: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16"), lv1613: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16"), p_output0_intermediate: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16")):
         T.func_attr({"tir.noalias": True})
         # with T.sblock("root"):
-        decode_intermediate = T.alloc_buffer((T.int64(4096), T.int64(4096)), "float16")
-        var_matmul_intermediate = T.alloc_buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16")
+        decode_intermediate = T.sblock_alloc_buffer((T.int64(4096), T.int64(4096)), "float16")
+        var_matmul_intermediate = T.sblock_alloc_buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16")
         for i, j in T.grid(T.int64(4096), T.int64(4096)):
             with T.sblock("decode"):
                 v_i, v_j = T.axis.remap("SS", [i, j])
@@ -380,8 +380,8 @@ def test_outer_reduction_adreno():
     ):
         T.func_attr({"tir.noalias": True})
         # with T.sblock("root"):
-        p_output0_intermediate_1 = T.alloc_buffer((11008, 4096), "float16")
-        var_matmul_intermediate = T.alloc_buffer((1, 1, 4096), "float16")
+        p_output0_intermediate_1 = T.sblock_alloc_buffer((11008, 4096), "float16")
+        var_matmul_intermediate = T.sblock_alloc_buffer((1, 1, 4096), "float16")
         for i, j in T.grid(11008, 4096):
             with T.sblock("decode"):
                 v_i, v_j = T.axis.remap("SS", [i, j])
@@ -401,8 +401,8 @@ def test_outer_reduction_adreno():
     def expected(lv575: T.Buffer((1376, 4096), "uint32"), lv576: T.Buffer((344, 4096), "float16"), lv574: T.Buffer((1, 1, 11008), "float16"), lv570: T.Buffer((1, 1, 4096), "float16"), p_output0_intermediate: T.Buffer((1, 1, 4096), "float16")):
         T.func_attr({"tir.noalias": True})
         # with T.sblock("root"):
-        p_output0_intermediate_1 = T.alloc_buffer((11008, 4096), "float16")
-        var_matmul_intermediate = T.alloc_buffer((1, 1, 4096), "float16")
+        p_output0_intermediate_1 = T.sblock_alloc_buffer((11008, 4096), "float16")
+        var_matmul_intermediate = T.sblock_alloc_buffer((1, 1, 4096), "float16")
         for i, j in T.grid(11008, 4096):
             with T.sblock("decode"):
                 v_i, v_j = T.axis.remap("SS", [i, j])
@@ -440,8 +440,8 @@ def test_outer_reduction_adreno_dynamic():
         lv613 = T.match_buffer(p_lv613, (T.int64(128), v), "float16")
         p_output0_intermediate = T.match_buffer(p_output0, (T.int64(1), T.int64(1), v))
         # with T.sblock("root"):
-        p_output0_intermediate_1 = T.alloc_buffer((T.int64(4096), v), "float16")
-        var_matmul_intermediate = T.alloc_buffer((T.int64(1), T.int64(1), v), "float16")
+        p_output0_intermediate_1 = T.sblock_alloc_buffer((T.int64(4096), v), "float16")
+        var_matmul_intermediate = T.sblock_alloc_buffer((T.int64(1), T.int64(1), v), "float16")
         for i, j in T.grid(T.int64(4096), v):
             with T.sblock("decode"):
                 v_i, v_j = T.axis.remap("SS", [i, j])
@@ -471,8 +471,8 @@ def test_outer_reduction_adreno_dynamic():
         lv613 = T.match_buffer(p_lv613, (T.int64(128), v), "float16")
         p_output0_intermediate = T.match_buffer(p_output0, (T.int64(1), T.int64(1), v))
         # with T.sblock("root"):
-        p_output0_intermediate_1 = T.alloc_buffer((T.int64(4096), v), "float16")
-        var_matmul_intermediate = T.alloc_buffer((T.int64(1), T.int64(1), v), "float16")
+        p_output0_intermediate_1 = T.sblock_alloc_buffer((T.int64(4096), v), "float16")
+        var_matmul_intermediate = T.sblock_alloc_buffer((T.int64(1), T.int64(1), v), "float16")
         for i, j in T.grid(T.int64(4096), v):
             with T.sblock("decode"):
                 v_i, v_j = T.axis.remap("SS", [i, j])

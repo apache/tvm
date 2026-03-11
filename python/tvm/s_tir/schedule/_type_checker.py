@@ -345,17 +345,22 @@ FType = TypeVar("FType", bound=Callable[..., Any])
 def type_checked(func: FType) -> FType:
     """Type check the input arguments of a function."""
     sig = inspect.signature(func)
+    try:
+        hints = typing.get_type_hints(func)
+    except Exception:
+        hints = {}
 
     @functools.wraps(func)
     def wrap(*args, **kwargs):
         bound_args = sig.bind(*args, **kwargs)
         bound_args.apply_defaults()
         for param in sig.parameters.values():
-            if param.annotation != inspect.Signature.empty:
+            type_hint = hints.get(param.name, inspect.Parameter.empty)
+            if type_hint != inspect.Parameter.empty:
                 error_msg = _type_check(
                     bound_args.arguments[param.name],
                     param.name,
-                    param.annotation,
+                    type_hint,
                 )
                 if error_msg is not None:
                     error_msg = f'In "{func.__qualname__}", {error_msg}'

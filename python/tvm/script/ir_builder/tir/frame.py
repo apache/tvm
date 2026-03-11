@@ -18,7 +18,7 @@
 
 from tvm_ffi import register_object as _register_object
 
-from tvm.tir import Buffer, Var
+from tvm.tir import Var
 
 from ..base import IRBuilderFrame
 
@@ -50,20 +50,6 @@ class ForFrame(TIRFrame):
 class AssertFrame(TIRFrame): ...
 
 
-@_register_object("script.ir_builder.tir.LetFrame")
-class LetFrame(TIRFrame):
-    def __enter__(self) -> Var:
-        super().__enter__()
-        return self.var
-
-
-@_register_object("script.ir_builder.tir.AllocateFrame")
-class AllocateFrame(TIRFrame):
-    def __enter__(self) -> Buffer:
-        super().__enter__()
-        return self.buffer_var
-
-
 @_register_object("script.ir_builder.tir.AttrFrame")
 class AttrFrame(TIRFrame): ...
 
@@ -82,13 +68,6 @@ class ThenFrame(TIRFrame): ...
 
 @_register_object("script.ir_builder.tir.ElseFrame")
 class ElseFrame(TIRFrame): ...
-
-
-@_register_object("script.ir_builder.tir.DeclBufferFrame")
-class DeclBufferFrame(TIRFrame):
-    def __enter__(self) -> Buffer:
-        super().__enter__()
-        return self.buffer
 
 
 @_register_object("script.ir_builder.tir.LaunchThreadFrame")

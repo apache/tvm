@@ -182,9 +182,8 @@ class FlopEstimator : private ExprFunctor<TResult(const PrimExpr& n)>,
     return result;
   }
 
-  TResult VisitStmt_(const LetStmtNode* let) override {
+  TResult VisitStmt_(const BindNode* let) override {
     TResult value = VisitExpr(let->value);
-    value += VisitStmt(let->body);
     return value;
   }
 
@@ -196,9 +195,6 @@ class FlopEstimator : private ExprFunctor<TResult(const PrimExpr& n)>,
 
   TResult VisitStmt_(const AssertStmtNode* op) override {
     TResult result = VisitExpr(op->condition);
-    if (op->message.defined()) {
-      result += VisitExpr(op->message);
-    }
     return result;
   }
 
@@ -208,8 +204,8 @@ class FlopEstimator : private ExprFunctor<TResult(const PrimExpr& n)>,
   TResult VisitExpr_(const FloatImmNode* op) override { return TResult(); }
   TResult VisitExpr_(const StringImmNode* op) override { return TResult(); }
   TResult VisitExpr_(const CastNode* op) override { return VisitExpr(op->value); }
-  TResult VisitStmt_(const AllocateNode* op) override { return VisitStmt(op->body); }
-  TResult VisitStmt_(const DeclBufferNode* op) override { return VisitStmt(op->body); }
+  TResult VisitStmt_(const AllocBufferNode* op) override { return TResult(); }
+  TResult VisitStmt_(const DeclBufferNode* op) override { return TResult(); }
   TResult VisitStmt_(const EvaluateNode* op) override { return TResult(); }
 
   TResult VisitStmt_(const SeqStmtNode* seq) override {

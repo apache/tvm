@@ -201,22 +201,11 @@ ffi::Optional<ffi::Function> LLVMModuleNode::GetFunction(const ffi::String& name
 }
 
 namespace {
-#if TVM_LLVM_VERSION <= 70
-constexpr auto llvm_open_output_flag = llvm::sys::fs::F_None;
-#else
 constexpr auto llvm_open_output_flag = llvm::sys::fs::OF_None;
-#endif
 
-#if TVM_LLVM_VERSION <= 60
-std::unique_ptr<llvm::Module> CloneLLVMModule(llvm::Module* mod) { return llvm::CloneModule(mod); }
-#else
 std::unique_ptr<llvm::Module> CloneLLVMModule(llvm::Module* mod) { return llvm::CloneModule(*mod); }
-#endif
 
-#if TVM_LLVM_VERSION <= 90
-constexpr auto llvm_object_file_target = llvm::TargetMachine::CGFT_ObjectFile;
-constexpr auto llvm_assembly_file_target = llvm::TargetMachine::CGFT_AssemblyFile;
-#elif TVM_LLVM_VERSION <= 170
+#if TVM_LLVM_VERSION <= 170
 constexpr auto llvm_object_file_target = llvm::CGFT_ObjectFile;
 constexpr auto llvm_assembly_file_target = llvm::CGFT_AssemblyFile;
 #else
@@ -227,11 +216,7 @@ constexpr auto llvm_assembly_file_target = llvm::CodeGenFileType::AssemblyFile;
 bool LLVMAddPassesToEmitFile(llvm::TargetMachine* tm, llvm::legacy::PassManager* pm,
                              llvm::raw_fd_ostream* dest,
                              decltype(llvm_object_file_target) llvm_file_target) {
-#if TVM_LLVM_VERSION <= 60
-  return tm->addPassesToEmitFile(*pm, *dest, llvm_file_target);
-#else
   return tm->addPassesToEmitFile(*pm, *dest, nullptr, llvm_file_target);
-#endif
 }
 
 }  // namespace
@@ -261,11 +246,7 @@ void LLVMModuleNode::WriteToFile(const ffi::String& file_name_str,
   } else if (fmt == "ll") {
     module_->print(dest, nullptr);
   } else if (fmt == "bc") {
-#if TVM_LLVM_VERSION <= 60
-    llvm::WriteBitcodeToFile(module_, dest);
-#else
     llvm::WriteBitcodeToFile(*module_, dest);
-#endif
   } else {
     TVM_FFI_THROW(InternalError) << "Do not know how to save file " << file_name
                                  << " with format=\'" << format << "\'";
@@ -285,21 +266,10 @@ ffi::String LLVMModuleNode::InspectSource(const ffi::String& format) const {
 
   if (fmt == "s" || fmt == "asm") {
     With<LLVMTarget> llvm_target(*llvm_instance_, LLVMTarget::GetTargetMetadata(*module_));
-#if TVM_LLVM_VERSION <= 60
-    std::unique_ptr<llvm::Module> m = llvm::CloneModule(module_);
-#else
     std::unique_ptr<llvm::Module> m = llvm::CloneModule(*module_);
-#endif
     llvm::legacy::PassManager pass;
     llvm::TargetMachine* tm = llvm_target->GetOrCreateTargetMachine();
-#if TVM_LLVM_VERSION <= 60
-    TVM_FFI_ICHECK(tm->addPassesToEmitFile(pass, rso, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
-        << "Cannot emit target CGFT_AssemblyFile";
-#elif TVM_LLVM_VERSION <= 90
-    TVM_FFI_ICHECK(
-        tm->addPassesToEmitFile(pass, rso, nullptr, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
-        << "Cannot emit target CGFT_AssemblyFile";
-#elif TVM_LLVM_VERSION <= 170
+#if TVM_LLVM_VERSION <= 170
     TVM_FFI_ICHECK(tm->addPassesToEmitFile(pass, rso, nullptr, llvm::CGFT_AssemblyFile) == 0)
         << "Cannot emit target CGFT_AssemblyFile";
 #else
@@ -512,7 +482,6 @@ void LLVMModuleNode::InitORCJIT() {
     return std::make_unique<llvm::orc::TMOwningSimpleCompiler>(std::move(tm));
   };
 
-#if TVM_LLVM_VERSION >= 130
   // linker
   const auto linkerBuilder =
 #if TVM_LLVM_VERSION >= 210
@@ -549,17 +518,12 @@ void LLVMModuleNode::InitORCJIT() {
     return ObjLinkingLayer;
 #endif
   };  // NOLINT(readability/braces)
-#endif
 
   // create LLJIT
   orcjit_ee_ = llvm::cantFail(llvm::orc::LLJITBuilder()
-#if TVM_LLVM_VERSION >= 110
                                   .setDataLayout(layout)
-#endif
                                   .setCompileFunctionCreator(compilerBuilder)
-#if TVM_LLVM_VERSION >= 130
                                   .setObjectLinkingLayerCreator(linkerBuilder)
-#endif
                                   .create());
 
   TVM_FFI_ICHECK(orcjit_ee_ != nullptr) << "Failed to initialize LLVM ORCJIT engine for "
@@ -626,11 +590,7 @@ void* LLVMModuleNode::GetGlobalAddr(const std::string& name, const LLVMTarget& l
     if (jit_engine_ == "mcjit") {
       return reinterpret_cast<void*>(mcjit_ee_->getGlobalValueAddress(name));
     } else if (jit_engine_ == "orcjit") {
-#if TVM_LLVM_VERSION >= 150
       auto addr = llvm::cantFail(orcjit_ee_->lookup(name)).getValue();
-#else
-      auto addr = llvm::cantFail(orcjit_ee_->lookup(name)).getAddress();
-#endif
       return reinterpret_cast<void*>(addr);
     } else {
       TVM_FFI_THROW(InternalError) << "Either `mcjit` or `orcjit` are not initialized.";
@@ -646,11 +606,7 @@ void* LLVMModuleNode::GetFunctionAddr(const std::string& name,
     if (jit_engine_ == "mcjit") {
       return reinterpret_cast<void*>(mcjit_ee_->getFunctionAddress(name));
     } else if (jit_engine_ == "orcjit") {
-#if TVM_LLVM_VERSION >= 150
       auto addr = llvm::cantFail(orcjit_ee_->lookup(name)).getValue();
-#else
-      auto addr = llvm::cantFail(orcjit_ee_->lookup(name)).getAddress();
-#endif
       return reinterpret_cast<void*>(addr);
     } else {
       TVM_FFI_THROW(InternalError) << "Either `mcjit` or `orcjit` are not initialized.";
@@ -698,7 +654,6 @@ static void LLVMReflectionRegister() {
            [](int64_t id) -> ffi::String { return llvmGetIntrinName(id); })
       .def("target.llvm_get_system_x86_vendor",
            []() -> ffi::String {
-#if TVM_LLVM_VERSION >= 120
 #if defined(__i386__) || defined(_M_IX86) || defined(__x86_64__) || defined(_M_X64)
              using namespace llvm::sys::detail::x86;
              const auto x86_sign = getVendorSignature();
@@ -708,7 +663,6 @@ static void LLVMReflectionRegister() {
                return "amd";
              else if (x86_sign == VendorSignatures::UNKNOWN)
                return "unknown";
-#endif
 #endif
              return "unimplemented";
            })

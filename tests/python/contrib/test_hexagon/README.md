@@ -40,8 +40,6 @@ You can find more information about downloading [Hexagon SDK](https://developer.
 
 First build Hexagon API application under `apps/hexagon_api`. This step will generate `tvm_rpc_android` and `libtvm_runtime.so` to run on Android. Also, it generates `libtvm_runtime.a` `libtvm_runtime.so`, `libhexagon_rpc_skel.so` and `libhexagon_rpc_sim.so` to run on Hexagon device or Hexagon simulator.
 
-**Note:** To get the most updated instructions, please take a look at [task_build_hexagon_api.sh](https://github.com/apache/tvm/blob/main/tests/scripts/task_build_hexagon_api.sh).
-
 ```bash
 cd apps/hexagon_api
 mkdir build
@@ -58,8 +56,6 @@ make -j2
 ```
 
 Next, we need to build TVM on host with RPC and Hexagon dependencies. To do that follow these commands.
-
-**Note:** To get the most recent configs for this step, please take a look at [task_config_build_hexagon.sh](https://github.com/apache/tvm/blob/main/tests/scripts/task_config_build_hexagon.sh).
 
 ```bash
 cd tvm
@@ -83,22 +79,18 @@ To use hexagon docker image, install TVM and Hexagon API follow these steps from
 
 # Build TVM
 rm -rf build
-./tests/scripts/task_config_build_hexagon.sh build
-cd build
-cmake ..
+mkdir build && cd build
+cmake -DUSE_LLVM=ON \
+      -DUSE_RPC=ON \
+      -DUSE_HEXAGON_SDK=$HEXAGON_SDK_PATH \
+      -DUSE_HEXAGON=ON ..
 make -j2
-
-# Build Hexagon API
-cd ..
-./tests/scripts/task_build_hexagon_api.sh
 ```
 
 Now that you have built required tools, you can jump to [run test examples](#run-tests).
 
 ## Run Tests
 You have the options of running Hexagon test on real hardware or on Hexagon simulator. Also, depending on whether you decided to use Hexagon docker image or not we will explain both cases here.
-
-**Note: You can always find updated instructions based on this [script](https://github.com/apache/tvm/blob/main/tests/scripts/task_python_hexagon.sh).**
 
 ### Only follow these steps if running tests outside of docker
 ```bash

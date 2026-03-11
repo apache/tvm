@@ -51,9 +51,9 @@ def get_c2d_prim_func(stage: int):
                 T.reads()
                 T.writes()
                 T.sblock_attr({"meta_schedule.unroll_explicit": 1024})
-                conv2d_nhwc_local = T.alloc_buffer((1, 112, 112, 64), scope="local")
-                PadInput_shared = T.alloc_buffer((1, 230, 230, 3), scope="shared")
-                weight_shared = T.alloc_buffer((7, 7, 3, 64), scope="shared")
+                conv2d_nhwc_local = T.sblock_alloc_buffer((1, 112, 112, 64), scope="local")
+                PadInput_shared = T.sblock_alloc_buffer((1, 230, 230, 3), scope="shared")
+                weight_shared = T.sblock_alloc_buffer((7, 7, 3, 64), scope="shared")
                 for n_0_h_0_w_0_co_0_fused in T.thread_binding(112, thread="blockIdx.x"):
                     for n_1_h_1_w_1_co_1_fused in T.thread_binding(8, thread="vthread.x"):
                         for n_2_h_2_w_2_co_2_fused in T.thread_binding(64, thread="threadIdx.x"):
@@ -112,9 +112,9 @@ def get_c2d_prim_func(stage: int):
                 T.reads()
                 T.writes()
                 T.sblock_attr({"meta_schedule.unroll_explicit": 1024})
-                conv2d_nhwc_local = T.alloc_buffer((1, 112, 112, 64), scope="local")
-                PadInput_shared = T.alloc_buffer((1, 230, 230, 3), scope="shared")
-                weight_shared = T.alloc_buffer((7, 7, 3, 64), scope="shared")
+                conv2d_nhwc_local = T.sblock_alloc_buffer((1, 112, 112, 64), scope="local")
+                PadInput_shared = T.sblock_alloc_buffer((1, 230, 230, 3), scope="shared")
+                weight_shared = T.sblock_alloc_buffer((7, 7, 3, 64), scope="shared")
                 for n_0_h_0_w_0_co_0_fused in T.thread_binding(112, thread="blockIdx.x"):
                     for n_1_h_1_w_1_co_1_fused in T.thread_binding(8, thread="vthread.x"):
                         for n_2_h_2_w_2_co_2_fused in T.thread_binding(64, thread="threadIdx.x"):
@@ -205,9 +205,9 @@ def get_gmm_prim_func(stage: int):
                 T.reads()
                 T.writes()
                 T.sblock_attr({"meta_schedule.unroll_explicit": 16})
-                Z_local = T.alloc_buffer((1, 1024, 1024), scope="local")
-                X_shared = T.alloc_buffer((1, 1024, 1024), scope="shared")
-                Y_shared = T.alloc_buffer((1, 1024, 1024), scope="shared")
+                Z_local = T.sblock_alloc_buffer((1, 1024, 1024), scope="local")
+                X_shared = T.sblock_alloc_buffer((1, 1024, 1024), scope="shared")
+                Y_shared = T.sblock_alloc_buffer((1, 1024, 1024), scope="shared")
                 for b_0_i_0_j_0_fused in T.thread_binding(256, thread="blockIdx.x"):
                     for b_1_i_1_j_1_fused in T.thread_binding(32, thread="vthread.x"):
                         for b_2_i_2_j_2_fused in T.thread_binding(64, thread="threadIdx.x"):
@@ -260,9 +260,9 @@ def get_gmm_prim_func(stage: int):
                 T.reads()
                 T.writes()
                 T.sblock_attr({"meta_schedule.unroll_explicit": 16})
-                Z_local = T.alloc_buffer((1, 1024, 1024), scope="local")
-                X_shared = T.alloc_buffer((1, 1024, 1024), scope="shared")
-                Y_shared = T.alloc_buffer((1, 1024, 1024), scope="shared")
+                Z_local = T.sblock_alloc_buffer((1, 1024, 1024), scope="local")
+                X_shared = T.sblock_alloc_buffer((1, 1024, 1024), scope="shared")
+                Y_shared = T.sblock_alloc_buffer((1, 1024, 1024), scope="shared")
                 for b_0_i_0_j_0_fused in T.thread_binding(256, thread="blockIdx.x"):
                     for b_1_i_1_j_1_fused in T.thread_binding(32, thread="vthread.x"):
                         for b_2_i_2_j_2_fused in T.thread_binding(64, thread="threadIdx.x"):

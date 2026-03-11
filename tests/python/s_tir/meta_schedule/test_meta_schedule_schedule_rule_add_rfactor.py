@@ -50,7 +50,7 @@ def test_cpu_matmul():
         C: T.Buffer((4, 4), "float32"),
     ) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        C_rf = T.alloc_buffer([4, 4, 128], dtype="float32")
+        C_rf = T.sblock_alloc_buffer([4, 4, 128], dtype="float32")
         for i0, i1, i2_0, i2_1 in T.grid(4, 4, 4, 128):
             with T.sblock("C_rf"):
                 vi2_1, i, j, vi2_0 = T.axis.remap("SSSR", [i2_1, i0, i1, i2_0])
@@ -78,7 +78,7 @@ def test_cpu_matmul():
         C: T.Buffer((4, 4), "float32"),
     ) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        C_rf = T.alloc_buffer([4, 4, 4], dtype="float32")
+        C_rf = T.sblock_alloc_buffer([4, 4, 4], dtype="float32")
         for i0, i1, i2_0, i2_1 in T.grid(4, 4, 4, 128):
             with T.sblock("C_rf"):
                 vi2_0, i, j, vi2_1 = T.axis.remap("SSSR", [i2_0, i0, i1, i2_1])
@@ -174,8 +174,8 @@ def test_cpu_argmax():
         argmax_v0: T.Buffer(128, "int32"),
         argmax_v1: T.Buffer(128, "float32"),
     ) -> None:
-        argmax_v0_rf = T.alloc_buffer([128, 16], dtype="int32")
-        argmax_v1_rf = T.alloc_buffer([128, 16], dtype="float32")
+        argmax_v0_rf = T.sblock_alloc_buffer([128, 16], dtype="int32")
+        argmax_v1_rf = T.sblock_alloc_buffer([128, 16], dtype="float32")
         for i0, i1_0, i1_1 in T.grid(128, 8, 16):
             with T.sblock("argmax_rf"):
                 vi1_1, i, vi1_0 = T.axis.remap("SSR", [i1_1, i0, i1_0])
@@ -223,8 +223,8 @@ def test_cpu_argmax():
     ) -> None:
         # body
         # with T.sblock("root")
-        argmax_v0_rf = T.alloc_buffer([128, 8], dtype="int32")
-        argmax_v1_rf = T.alloc_buffer([128, 8], dtype="float32")
+        argmax_v0_rf = T.sblock_alloc_buffer([128, 8], dtype="int32")
+        argmax_v1_rf = T.sblock_alloc_buffer([128, 8], dtype="float32")
         for i0, i1_0, i1_1 in T.grid(128, 8, 16):
             with T.sblock("argmax_rf"):
                 vi1_0, i, vi1_1 = T.axis.remap("SSR", [i1_0, i0, i1_1])

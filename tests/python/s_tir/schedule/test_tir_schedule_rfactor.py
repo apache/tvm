@@ -70,7 +70,7 @@ def matmul_rfactor(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128], dtype="float32")
     B = T.match_buffer(b, [128, 128], dtype="float32")
     C = T.match_buffer(c, [128, 128], dtype="float32")
-    C_rf = T.alloc_buffer([4, 128, 128], dtype="float32")
+    C_rf = T.sblock_alloc_buffer([4, 128, 128], dtype="float32")
 
     for i0, i1, i2_outer, i2_inner_outer, i2_inner_inner in T.grid(128, 128, 4, 8, 4):
         with T.sblock("update_rf"):
@@ -99,7 +99,7 @@ def matmul_not_stage_pipeline(a: T.handle, b: T.handle, d: T.handle) -> None:
     A = T.match_buffer(a, [256, 256])
     B = T.match_buffer(b, [256, 256])
     D = T.match_buffer(d, [256, 256])
-    C = T.alloc_buffer([256, 256])
+    C = T.sblock_alloc_buffer([256, 256])
 
     for i, j, k in T.grid(128, 128, 128):
         with T.sblock("C"):
@@ -165,7 +165,7 @@ def square_sum(a: T.handle, c: T.handle) -> None:
 def square_sum_rfactor(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [16, 256, 256])
     C = T.match_buffer(c, [16])
-    C_rf = T.alloc_buffer([16, 256])
+    C_rf = T.sblock_alloc_buffer([16, 256])
 
     for i0, i1, i2 in T.grid(16, 256, 256):
         with T.sblock("C_rf"):
@@ -186,7 +186,7 @@ def square_sum_rfactor(a: T.handle, c: T.handle) -> None:
 def transformed_square_sum_square_root(a: T.handle, d: T.handle) -> None:
     A = T.match_buffer(a, [16, 256, 256])
     D = T.match_buffer(d, [16])
-    C = T.alloc_buffer([16])
+    C = T.sblock_alloc_buffer([16])
 
     for i0, i1_i2_fused_outer, i1_i2_fused_inner in T.grid(16, 65536, 1):
         with T.sblock("C"):
@@ -210,8 +210,8 @@ def transformed_square_sum_square_root(a: T.handle, d: T.handle) -> None:
 def square_sum_square_root_rfactor(a: T.handle, d: T.handle) -> None:
     A = T.match_buffer(a, [16, 256, 256])
     D = T.match_buffer(d, [16])
-    C = T.alloc_buffer([16])
-    C_rf = T.alloc_buffer([1, 16])
+    C = T.sblock_alloc_buffer([16])
+    C_rf = T.sblock_alloc_buffer([1, 16])
 
     for i0, i1_i2_fused_outer, i1_i2_fused_inner in T.grid(16, 65536, 1):
         with T.sblock("C_rf"):
@@ -239,7 +239,7 @@ def square_sum_square_root_rfactor(a: T.handle, d: T.handle) -> None:
 def transformed_square_sum_square_root_factor_one_1(a: T.handle, d: T.handle) -> None:
     A = T.match_buffer(a, [16, 256, 256])
     D = T.match_buffer(d, [16])
-    C = T.alloc_buffer([16])
+    C = T.sblock_alloc_buffer([16])
 
     for i0, i1_i2_fused_outer, i1_i2_fused_inner in T.grid(16, 65536, 1):
         with T.sblock("C"):
@@ -259,8 +259,8 @@ def transformed_square_sum_square_root_factor_one_1(a: T.handle, d: T.handle) ->
 def square_sum_square_root_factor_one_1_rfactor(
     A: T.Buffer((16, 256, 256), "float32"), D: T.Buffer((16,), "float32")
 ) -> None:
-    C = T.alloc_buffer([16], dtype="float32")
-    C_rf = T.alloc_buffer([1, 16], dtype="float32")
+    C = T.sblock_alloc_buffer([16], dtype="float32")
+    C_rf = T.sblock_alloc_buffer([1, 16], dtype="float32")
     for i0, i1_i2_fused_outer, i1_i2_fused_inner in T.grid(16, 65536, 1):
         with T.sblock("C_rf"):
             b = T.axis.spatial(16, i0)
@@ -286,7 +286,7 @@ def square_sum_square_root_factor_one_1_rfactor(
 def transformed_square_sum_square_root_factor_one_2(a: T.handle, d: T.handle) -> None:
     A = T.match_buffer(a, [16, 256, 256])
     D = T.match_buffer(d, [16])
-    C = T.alloc_buffer([16])
+    C = T.sblock_alloc_buffer([16])
 
     for i0, i1_i2_fused_outer, i1_i2_fused_inner in T.grid(16, 1, 65536):
         with T.sblock("C"):
@@ -306,8 +306,8 @@ def transformed_square_sum_square_root_factor_one_2(a: T.handle, d: T.handle) ->
 def square_sum_square_root_factor_one_2_rfactor(
     A: T.Buffer((16, 256, 256), "float32"), D: T.Buffer((16,), "float32")
 ) -> None:
-    C = T.alloc_buffer([16], dtype="float32")
-    C_rf = T.alloc_buffer([16, 1], dtype="float32")
+    C = T.sblock_alloc_buffer([16], dtype="float32")
+    C_rf = T.sblock_alloc_buffer([16, 1], dtype="float32")
     for i0, i1_i2_fused_outer, i1_i2_fused_inner in T.grid(16, 1, 65536):
         with T.sblock("C_rf"):
             b = T.axis.spatial(16, i0)
@@ -347,7 +347,7 @@ def square_sum_with_annotation(a: T.handle, c: T.handle) -> None:
 def square_sum_with_annotation_rfactor(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [16, 256, 256])
     C = T.match_buffer(c, [16])
-    C_rf = T.alloc_buffer([16, 256])
+    C_rf = T.sblock_alloc_buffer([16, 256])
 
     for i0, i1, i2 in T.grid(16, 256, 256):
         with T.sblock("C_rf"):
@@ -502,7 +502,7 @@ def rowsum_zero_dim(a: T.handle, b: T.handle) -> None:
 def rowsum_zero_dim_rfactor(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128])
     B = T.match_buffer(b, [])
-    B_rf = T.alloc_buffer([128], elem_offset=T.int64(0))
+    B_rf = T.sblock_alloc_buffer([128], elem_offset=T.int64(0))
 
     for i in range(128):
         with T.sblock("B_rf"):
@@ -535,7 +535,7 @@ def rowsum_predicate(a: T.handle, b: T.handle) -> None:
 def rowsum_predicate_rfactor(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128, 128], dtype="float32")
     B = T.match_buffer(b, [128], dtype="float32")
-    B_rf = T.alloc_buffer([128, 13], dtype="float32")
+    B_rf = T.sblock_alloc_buffer([128, 13], dtype="float32")
     for i, k_0, k_1 in T.grid(128, 13, 10):
         with T.sblock("B_rf"):
             vk_0, vi, vk_1 = T.axis.remap("SSR", [k_0, i, k_1])
@@ -554,9 +554,9 @@ def rowsum_predicate_rfactor(a: T.handle, b: T.handle) -> None:
 @T.prim_func
 def multiple_reduction_blocks(a: T.handle, f: T.handle) -> None:
     A = T.match_buffer(a, (16, 16, 16))
-    C = T.alloc_buffer((16, 16))
-    D = T.alloc_buffer((16, 16))
-    E = T.alloc_buffer((16, 16))
+    C = T.sblock_alloc_buffer((16, 16))
+    D = T.sblock_alloc_buffer((16, 16))
+    E = T.sblock_alloc_buffer((16, 16))
     F = T.match_buffer(f, (16, 16))
 
     for i in T.serial(0, 16):
@@ -595,11 +595,11 @@ def multiple_reduction_blocks(a: T.handle, f: T.handle) -> None:
 @T.prim_func
 def multiple_reduction_blocks_rfactor(a: T.handle, f: T.handle) -> None:
     A = T.match_buffer(a, [16, 16, 16])
-    C = T.alloc_buffer([16, 16])
-    D = T.alloc_buffer([16, 16])
-    E = T.alloc_buffer([16, 16])
+    C = T.sblock_alloc_buffer([16, 16])
+    D = T.sblock_alloc_buffer([16, 16])
+    E = T.sblock_alloc_buffer([16, 16])
     F = T.match_buffer(f, [16, 16])
-    C_rf = T.alloc_buffer([16, 16, 4])
+    C_rf = T.sblock_alloc_buffer([16, 16, 4])
 
     for i, j1, k1o, k1i in T.grid(16, 16, 4, 4):
         with T.sblock("C_rf"):
@@ -668,7 +668,7 @@ def rfactor_spatial_only_after(
 ) -> None:
     # body
     # with T.sblock("root")
-    B_rf = T.alloc_buffer([1, 512, 1, 1, 49], dtype="float32")
+    B_rf = T.sblock_alloc_buffer([1, 512, 1, 1, 49], dtype="float32")
     for _i0, i1, _i2, _i3, i4, _i5 in T.grid(1, 512, 1, 1, 49, 1):
         with T.sblock("acc_rf"):
             vi4 = T.axis.spatial(49, i4)
@@ -823,7 +823,7 @@ def argmax_split_init_buffer_duplicate(
 
 
 @T.prim_func
-def argmax_split_letstmt_fewer_than_init(
+def argmax_split_bind_fewer_than_init(
     idx: T.Buffer((128, 128), "int32"),
     val: T.Buffer((128, 128), "float32"),
     argmax_v0: T.Buffer((128,), "int32"),
@@ -844,7 +844,7 @@ def argmax_split_letstmt_fewer_than_init(
 
 
 @T.prim_func
-def argmax_split_letstmt_more_than_init(
+def argmax_split_bind_more_than_init(
     idx: T.Buffer((128, 128), "int32"),
     val: T.Buffer((128, 128), "float32"),
     argmax_v0: T.Buffer((128,), "int32"),
@@ -1050,8 +1050,8 @@ def argmax_split_rfactor(
     argmax_v0: T.Buffer((128,), "int32"),
     argmax_v1: T.Buffer((128,), "float32"),
 ) -> None:
-    argmax_v0_rf = T.alloc_buffer([128, 32], dtype="int32")
-    argmax_v1_rf = T.alloc_buffer([128, 32], dtype="float32")
+    argmax_v0_rf = T.sblock_alloc_buffer([128, 32], dtype="int32")
+    argmax_v1_rf = T.sblock_alloc_buffer([128, 32], dtype="float32")
     for i0, i1_0, i1_1 in T.grid(128, 4, 32):
         with T.sblock("argmax_rf"):
             vi1_1, i, vi1_0 = T.axis.remap("SSR", [i1_1, i0, i1_0])
@@ -1097,8 +1097,8 @@ def argmin_split_rfactor(
     argmin_v0: T.Buffer((128,), "int32"),
     argmin_v1: T.Buffer((128,), "float32"),
 ) -> None:
-    argmin_v0_rf = T.alloc_buffer([128, 32], dtype="int32")
-    argmin_v1_rf = T.alloc_buffer([128, 32], dtype="float32")
+    argmin_v0_rf = T.sblock_alloc_buffer([128, 32], dtype="int32")
+    argmin_v1_rf = T.sblock_alloc_buffer([128, 32], dtype="float32")
     for i0, i1_0, i1_1 in T.grid(128, 4, 32):
         with T.sblock("argmin_rf"):
             vi1_1, i, vi1_0 = T.axis.remap("SSR", [i1_1, i0, i1_0])
@@ -1142,10 +1142,10 @@ def argmax_topi_rfactor(
     placeholder: T.Buffer((1, 32), "int32"), placeholder_red: T.Buffer(1, "int32")
 ) -> None:
     T.func_attr({"global_symbol": "main", "tir.noalias": True})
-    placeholder_red_temp_v0 = T.alloc_buffer([1], dtype="int32")
-    placeholder_red_temp_v1 = T.alloc_buffer([1], dtype="int32")
-    placeholder_red_temp_v0_rf = T.alloc_buffer([1, 8], dtype="int32")
-    placeholder_red_temp_v1_rf = T.alloc_buffer([1, 8], dtype="int32")
+    placeholder_red_temp_v0 = T.sblock_alloc_buffer([1], dtype="int32")
+    placeholder_red_temp_v1 = T.sblock_alloc_buffer([1], dtype="int32")
+    placeholder_red_temp_v0_rf = T.sblock_alloc_buffer([1, 8], dtype="int32")
+    placeholder_red_temp_v1_rf = T.sblock_alloc_buffer([1, 8], dtype="int32")
     for i0, i1_0, i1_1 in T.grid(1, 4, 8):
         with T.sblock("placeholder_red_temp_rf"):
             vi1_1, ax0, vi1_0 = T.axis.remap("SSR", [i1_1, i0, i1_0])
@@ -1207,10 +1207,10 @@ def argmin_topi_rfactor(
     placeholder: T.Buffer((1, 32), "int32"), placeholder_red: T.Buffer(1, "int32")
 ) -> None:
     T.func_attr({"global_symbol": "main", "tir.noalias": True})
-    placeholder_red_temp_v0 = T.alloc_buffer([1], dtype="int32")
-    placeholder_red_temp_v1 = T.alloc_buffer([1], dtype="int32")
-    placeholder_red_temp_v0_rf = T.alloc_buffer([1, 8], dtype="int32")
-    placeholder_red_temp_v1_rf = T.alloc_buffer([1, 8], dtype="int32")
+    placeholder_red_temp_v0 = T.sblock_alloc_buffer([1], dtype="int32")
+    placeholder_red_temp_v1 = T.sblock_alloc_buffer([1], dtype="int32")
+    placeholder_red_temp_v0_rf = T.sblock_alloc_buffer([1, 8], dtype="int32")
+    placeholder_red_temp_v1_rf = T.sblock_alloc_buffer([1, 8], dtype="int32")
     for i0, i1_0, i1_1 in T.grid(1, 4, 8):
         with T.sblock("placeholder_red_temp_rf"):
             vi1_1, ax0, vi1_0 = T.axis.remap("SSR", [i1_1, i0, i1_0])
@@ -1544,16 +1544,16 @@ def test_reduction_rfactor_argmax_init_buffer_duplicate():
         s.rfactor(ki, 1)
 
 
-def test_reduction_rfactor_argmax_letstmt_fewer_than_init():
-    s = tvm.s_tir.Schedule(argmax_split_letstmt_fewer_than_init, debug_mask="all")
+def test_reduction_rfactor_argmax_bind_fewer_than_init():
+    s = tvm.s_tir.Schedule(argmax_split_bind_fewer_than_init, debug_mask="all")
     argmax = s.get_sblock("argmax")
     _, _, ki = s.get_loops(argmax)
     with pytest.raises(tvm.s_tir.ScheduleError):
         s.rfactor(ki, 1)
 
 
-def test_reduction_rfactor_argmax_letstmt_more_than_init():
-    s = tvm.s_tir.Schedule(argmax_split_letstmt_more_than_init, debug_mask="all")
+def test_reduction_rfactor_argmax_bind_more_than_init():
+    s = tvm.s_tir.Schedule(argmax_split_bind_more_than_init, debug_mask="all")
     argmax = s.get_sblock("argmax")
     _, _, ki = s.get_loops(argmax)
     with pytest.raises(tvm.s_tir.ScheduleError):
@@ -1683,7 +1683,7 @@ def test_reduction_rfactor_int64():
         B: T.Buffer((T.int64(128), T.int64(128)), "float32"),
         C: T.Buffer((T.int64(128), T.int64(128)), "float32"),
     ):
-        C_rf = T.alloc_buffer((T.int64(4), T.int64(128), T.int64(128)), "float32")
+        C_rf = T.sblock_alloc_buffer((T.int64(4), T.int64(128), T.int64(128)), "float32")
 
         for i0, i1, i2_outer, i2_inner_outer, i2_inner_inner in T.grid(T.int64(128), T.int64(128), T.int64(4), T.int64(8), T.int64(4)):
             with T.sblock("update_rf"):

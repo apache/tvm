@@ -40,7 +40,7 @@ def elementwise_func(a: T.handle, c: T.handle) -> None:
         with T.sblock():
             T.reads(A[i, 0:16])
             T.writes(C[i, 0:16])
-            B = T.alloc_buffer((16, 16), "float32")
+            B = T.sblock_alloc_buffer((16, 16), "float32")
             for j in range(0, 16):
                 with T.sblock():
                     vi = T.axis.S(16, i)
@@ -61,7 +61,7 @@ def substituted_elementwise_func(a: T.handle, c: T.handle) -> None:
         with T.sblock():
             T.reads(A[i, 0:16])
             T.writes(C[i, 0:16])
-            B = T.alloc_buffer([16, 16], "float32")
+            B = T.sblock_alloc_buffer([16, 16], "float32")
             for j in range(0, 16):
                 with T.sblock():
                     T.reads([A[i, j]])

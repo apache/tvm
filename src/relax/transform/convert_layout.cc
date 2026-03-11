@@ -21,8 +21,8 @@
  * \brief Automatic layout conversion pass, especially for axis swapping.
  */
 
+#include <tvm/ffi/extra/serialization.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/serialization.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/nested_msg.h>
 #include <tvm/relax/op_attr_types.h>
@@ -130,7 +130,7 @@ class LayoutConvertMutator : public ExprMutator {
         ObjectPtr<LayoutTransformAttrs> attrs = ffi::make_object<LayoutTransformAttrs>();
         ffi::Array<IntImm> axis_separator;
         ffi::Array<IntImm> input_axis_separator;
-        attrs->index_map = Downcast<IndexMap>(LoadJSON(SaveJSON(index_map)));
+        attrs->index_map = Downcast<IndexMap>(ffi::FromJSONGraph(ffi::ToJSONGraph(index_map)));
         attrs->axis_separators = std::move(axis_separator);
         attrs->input_axis_separators = std::move(input_axis_separator);
         const Op& layout_transform_op_ = Op::Get("relax.layout_transform");

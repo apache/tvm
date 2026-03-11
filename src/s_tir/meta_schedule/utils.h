@@ -20,8 +20,9 @@
 #define TVM_S_TIR_META_SCHEDULE_UTILS_H_
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/extra/json.h>
+#include <tvm/ffi/extra/serialization.h>
 #include <tvm/ffi/optional.h>
-#include <tvm/ir/serialization.h>
 #include <tvm/node/cast.h>
 #include <tvm/runtime/object.h>
 #include <tvm/s_tir/meta_schedule/arg_info.h>
@@ -268,7 +269,9 @@ inline std::vector<support::LinearCongruentialEngine::TRandState> ForkSeed(
  * \param mod The IRModule to make a deep copy.
  * \return The deep copy of the IRModule.
  */
-inline IRModule DeepCopyIRModule(IRModule mod) { return LoadJSON(SaveJSON(mod)).cast<IRModule>(); }
+inline IRModule DeepCopyIRModule(IRModule mod) {
+  return ffi::FromJSONGraph(ffi::ToJSONGraph(mod)).cast<IRModule>();
+}
 
 /*!
  * \brief Concatenate strings

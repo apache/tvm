@@ -30,22 +30,18 @@
 #include <llvm/IR/InlineAsm.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Intrinsics.h>
-#include <tvm/ffi/reflection/registry.h>
-#if TVM_LLVM_VERSION >= 100
 #include <llvm/IR/IntrinsicsNVPTX.h>
-#endif
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/IR/Metadata.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IR/Type.h>
 #include <llvm/IRReader/IRReader.h>
-#if TVM_LLVM_VERSION >= 100
 #include <llvm/Support/Alignment.h>
-#endif
 #include <llvm/Support/CodeGen.h>
 #include <llvm/Support/SourceMgr.h>
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Target/TargetMachine.h>
+#include <tvm/ffi/reflection/registry.h>
 #if TVM_LLVM_VERSION < 170
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
 #endif
@@ -82,61 +78,55 @@ class CodeGenNVPTX : public CodeGenLLVM {
                    llvm::ValueAsMetadata::get(ConstInt32(1))}));
   }
 
-  void VisitStmt_(const AllocateNode* op) final {
-    TVM_FFI_ICHECK(!is_zero(op->condition));
+  void VisitStmt_(const AllocBufferNode* op) final {
     llvm::Value* buf = nullptr;
-    StorageInfo& info = alloc_storage_info_[op->buffer_var.get()];
+    StorageInfo& info = alloc_storage_info_[op->buffer->data.get()];
     // maximum necessary alignment in the NV devices
     if (info.alignment > 16) {
       info.alignment = 16;
     }
 
-    auto storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(op->buffer_var));
+    auto storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(op->buffer->data));
+    DataType dtype = op->buffer->dtype;
+
     if (storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == ".dyn") {
-      // Shared memory: address space  == 3
-      buf =
-          AllocateSharedMemory(op->dtype, 0, 3, info.alignment, llvm::GlobalValue::ExternalLinkage);
+      // Shared memory: address space == 3
+      buf = AllocateSharedMemory(dtype, 0, 3, info.alignment, llvm::GlobalValue::ExternalLinkage);
     } else {
-      size_t constant_size = op->ConstantAllocationSize();
+      // Compute constant_size from buffer shape
+      const IntImmNode* dim_imm = op->buffer->shape[0].as<IntImmNode>();
+      TVM_FFI_ICHECK(dim_imm) << "Can only handle constant size stack allocation in GPU";
+      size_t constant_size = static_cast<size_t>(dim_imm->value);
       TVM_FFI_ICHECK_GT(constant_size, 0)
           << "Can only handle constant size stack allocation in GPU";
 
       if (constant_size % 4 == 0 && info.alignment == 0) {
-        info.alignment = GetTempAllocaAlignment(op->dtype, constant_size);
+        info.alignment = GetTempAllocaAlignment(dtype, constant_size);
       }
       if (storage_scope.rank == runtime::StorageRank::kLocal) {
-        // const int local_address_space = 5;
-        // TODO(tqchen): for higher version of LLVM, local address space can be set.
         llvm::AllocaInst* alloca = WithFunctionEntry([&]() {
-          return builder_->CreateAlloca(DTypeToLLVMType(op->dtype), ConstInt32(constant_size));
+          return builder_->CreateAlloca(DTypeToLLVMType(dtype), ConstInt32(constant_size));
         });
-#if TVM_LLVM_VERSION >= 110
         auto alignment = static_cast<unsigned>(alloca->getAlign().value());
-#else
-        unsigned alignment = alloca->getAlignment();
-#endif
         if (alignment < static_cast<unsigned>(info.alignment)) {
-#if TVM_LLVM_VERSION >= 100
           alloca->setAlignment(llvm::Align(info.alignment));
-#else
-          alloca->setAlignment(info.alignment);
-#endif
         }
         buf = alloca;
       } else {
         TVM_FFI_ICHECK(storage_scope.rank == runtime::StorageRank::kShared)
             << "Can only allocate shared or local memory inside kernel";
-        buf = AllocateSharedMemory(op->dtype, constant_size, 3, info.alignment,
+        buf = AllocateSharedMemory(dtype, constant_size, 3, info.alignment,
                                    llvm::GlobalValue::ExternalLinkage);
       }
     }
 
     buf = builder_->CreatePointerCast(
-        buf,
-        llvmGetPointerTo(DTypeToLLVMType(op->dtype), buf->getType()->getPointerAddressSpace()));
-    TVM_FFI_ICHECK(!var_map_.count(op->buffer_var.get()));
-    var_map_[op->buffer_var.get()] = buf;
-    this->VisitStmt(op->body);
+        buf, llvmGetPointerTo(DTypeToLLVMType(dtype), buf->getType()->getPointerAddressSpace()));
+    TVM_FFI_ICHECK(!var_map_.count(op->buffer->data.get()));
+    var_map_[op->buffer->data.get()] = buf;
+    if (op->annotations.count(tir::attr::kVolatile)) {
+      volatile_buf_.insert(op->buffer->data.get());
+    }
   }
 
   // Return the thread index via intrinsics.
@@ -293,25 +283,11 @@ llvm::Value* CodeGenNVPTX::CreateIntrinsic(const CallNode* op) {
     llvm::Value* v0 = MakeValue(op->args[0]);
     llvm::Value* v1 = MakeValue(op->args[1]);
     if (op->args[1]->dtype.is_float()) {
-#if TVM_LLVM_VERSION >= 90
-#if TVM_LLVM_VERSION >= 130
       return builder_->CreateAtomicRMW(llvm::AtomicRMWInst::FAdd, v0, v1, llvm::MaybeAlign(),
                                        llvm::AtomicOrdering::Monotonic);
-#else
-      return builder_->CreateAtomicRMW(llvm::AtomicRMWInst::FAdd, v0, v1,
-                                       llvm::AtomicOrdering::Monotonic);
-#endif
-#else
-      TVM_FFI_THROW(InternalError) << "Floating point atomic requires LLVM 9 or newer";
-#endif
     }
-#if TVM_LLVM_VERSION >= 130
     return builder_->CreateAtomicRMW(llvm::AtomicRMWInst::Add, v0, v1, llvm::MaybeAlign(),
                                      llvm::AtomicOrdering::Monotonic);
-#else
-    return builder_->CreateAtomicRMW(llvm::AtomicRMWInst::Add, v0, v1,
-                                     llvm::AtomicOrdering::Monotonic);
-#endif
   }
   return CodeGenLLVM::CreateIntrinsic(op);
 }
@@ -359,15 +335,7 @@ ffi::Module BuildNVPTX(IRModule mod, Target target) {
   std::string ll(data_ll.begin(), data_ll.end());
   // emit ptx
   llvm::legacy::PassManager pass;
-#if TVM_LLVM_VERSION <= 60
-  TVM_FFI_ICHECK(tm->addPassesToEmitFile(pass, dest_ptx, llvm::TargetMachine::CGFT_AssemblyFile) ==
-                 0)
-      << "Cannot emit target CGFT_ObjectFile";
-#elif TVM_LLVM_VERSION <= 90
-  TVM_FFI_ICHECK(
-      tm->addPassesToEmitFile(pass, dest_ptx, nullptr, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
-      << "Cannot emit target CGFT_ObjectFile";
-#elif TVM_LLVM_VERSION <= 170
+#if TVM_LLVM_VERSION <= 170
   TVM_FFI_ICHECK(tm->addPassesToEmitFile(pass, dest_ptx, nullptr, llvm::CGFT_AssemblyFile) == 0)
       << "Cannot emit target CGFT_ObjectFile";
 #else

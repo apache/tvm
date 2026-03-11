@@ -18,7 +18,7 @@
 """Relax unary arithmetic operators."""
 
 from ..expr import Expr
-from ..utils import args_converter
+from ..utils import convert_to_expr
 from . import _ffi_api
 
 ###################### Arithmetic operators ######################
@@ -526,7 +526,6 @@ def trunc(x: Expr) -> Expr:
     return _ffi_api.trunc(x)  # type: ignore
 
 
-@args_converter.auto
 def clip(x: Expr, min: Expr, max: Expr) -> Expr:
     """Clips tensor values to a specified min and max.
 
@@ -546,6 +545,8 @@ def clip(x: Expr, min: Expr, max: Expr) -> Expr:
     result : relax.Expr
         The computed result.
     """
+    min = convert_to_expr(min)
+    max = convert_to_expr(max)
     return _ffi_api.clip(x, min, max)  # type: ignore
 
 

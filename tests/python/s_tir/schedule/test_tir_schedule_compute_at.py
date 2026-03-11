@@ -33,7 +33,7 @@ from tvm.script import tir as T
 @T.prim_func
 def two_elementwise(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128), "float32")
-    B = T.alloc_buffer((128, 128), "float32")
+    B = T.sblock_alloc_buffer((128, 128), "float32")
     C = T.match_buffer(c, (128, 128), "float32")
     for i, j in T.grid(128, 128):
         with T.sblock("B"):
@@ -48,7 +48,7 @@ def two_elementwise(a: T.handle, c: T.handle) -> None:
 @T.prim_func
 def two_elementwise_after_compute_at(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128), "float32")
-    B = T.alloc_buffer((128, 128), "float32")
+    B = T.sblock_alloc_buffer((128, 128), "float32")
     C = T.match_buffer(c, (128, 128), "float32")
     for i in range(0, 128):
         for ax0, ax1 in T.grid(1, 128):
@@ -65,7 +65,7 @@ def two_elementwise_after_compute_at(a: T.handle, c: T.handle) -> None:
 @T.prim_func
 def blockized_1(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128], "float32")
-    B = T.alloc_buffer([128, 128], "float32")
+    B = T.sblock_alloc_buffer([128, 128], "float32")
     C = T.match_buffer(c, [128, 128], "float32")
     for i, j in T.grid(128, 128):
         with T.sblock("B"):
@@ -92,7 +92,7 @@ def blockized_1(a: T.handle, c: T.handle) -> None:
 @T.prim_func
 def blockized_after_compute_at(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128], "float32")
-    B = T.alloc_buffer([128, 128], "float32")
+    B = T.sblock_alloc_buffer([128, 128], "float32")
     C = T.match_buffer(c, [128, 128], "float32")
     for i0_0, i1_0 in T.grid(8, 8):
         for ax0, ax1 in T.grid(16, 16):
@@ -120,7 +120,7 @@ def blockized_after_compute_at(a: T.handle, c: T.handle) -> None:
 @T.prim_func
 def blockized_2(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128], "float32")
-    B = T.alloc_buffer([128, 128], "float32")
+    B = T.sblock_alloc_buffer([128, 128], "float32")
     C = T.match_buffer(c, [128, 128], "float32")
     for i_o, j_o in T.grid(8, 8):
         with T.sblock("B_outer"):
@@ -148,7 +148,7 @@ def blockized_2(a: T.handle, c: T.handle) -> None:
 @T.prim_func
 def blockized_2_after_reverse_compute_at(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128], "float32")
-    B = T.alloc_buffer([128, 128], "float32")
+    B = T.sblock_alloc_buffer([128, 128], "float32")
     C = T.match_buffer(c, [128, 128], "float32")
     for i_o, j_o in T.grid(8, 8):
         with T.sblock("B_outer"):
@@ -178,7 +178,7 @@ def blockized_2_after_reverse_compute_at(a: T.handle, c: T.handle) -> None:
 @T.prim_func
 def blockized_2_after_compute_at(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128], "float32")
-    B = T.alloc_buffer([128, 128], "float32")
+    B = T.sblock_alloc_buffer([128, 128], "float32")
     C = T.match_buffer(c, [128, 128], "float32")
     for i_o, j_o in T.grid(4, 4):
         for ax0, ax1 in T.grid(2, 2):
@@ -209,11 +209,11 @@ def cuda_matmul_0(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: dis
     A = T.match_buffer(a, [2048, 2048], "float32")
     B = T.match_buffer(b, [2048, 2048], "float32")
     C = T.match_buffer(c, [2048, 2048], "float32")
-    A_shared = T.alloc_buffer([2048, 2048], "float32", scope="shared")
-    B_shared = T.alloc_buffer([2048, 2048], "float32", scope="shared")
-    A_shared_local = T.alloc_buffer([2048, 2048], "float32", scope="local")
-    B_shared_local = T.alloc_buffer([2048, 2048], "float32", scope="local")
-    C_local = T.alloc_buffer([2048, 2048], "float32", scope="local")
+    A_shared = T.sblock_alloc_buffer([2048, 2048], "float32", scope="shared")
+    B_shared = T.sblock_alloc_buffer([2048, 2048], "float32", scope="shared")
+    A_shared_local = T.sblock_alloc_buffer([2048, 2048], "float32", scope="local")
+    B_shared_local = T.sblock_alloc_buffer([2048, 2048], "float32", scope="local")
+    C_local = T.sblock_alloc_buffer([2048, 2048], "float32", scope="local")
     for i, j in T.grid(2048, 2048):
         with T.sblock("A_shared"):
             v0, v1 = T.axis.remap("SS", [i, j])
@@ -254,11 +254,11 @@ def cuda_matmul_0_after_compute_at(a: T.handle, b: T.handle, c: T.handle) -> Non
     A = T.match_buffer(a, [2048, 2048], "float32")
     B = T.match_buffer(b, [2048, 2048], "float32")
     C = T.match_buffer(c, [2048, 2048], "float32")
-    A_shared = T.alloc_buffer([2048, 2048], "float32", scope="shared")
-    B_shared = T.alloc_buffer([2048, 2048], "float32", scope="shared")
-    A_shared_local = T.alloc_buffer([2048, 2048], "float32", scope="local")
-    B_shared_local = T.alloc_buffer([2048, 2048], "float32", scope="local")
-    C_local = T.alloc_buffer([2048, 2048], "float32", scope="local")
+    A_shared = T.sblock_alloc_buffer([2048, 2048], "float32", scope="shared")
+    B_shared = T.sblock_alloc_buffer([2048, 2048], "float32", scope="shared")
+    A_shared_local = T.sblock_alloc_buffer([2048, 2048], "float32", scope="local")
+    B_shared_local = T.sblock_alloc_buffer([2048, 2048], "float32", scope="local")
+    C_local = T.sblock_alloc_buffer([2048, 2048], "float32", scope="local")
     for i, j in T.grid(2048, 2048):
         with T.sblock("A_shared"):
             v0, v1 = T.axis.remap("SS", [i, j])
@@ -301,11 +301,11 @@ def cuda_matmul_1(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: dis
     A = T.match_buffer(a, [2048, 2048], "float32")
     B = T.match_buffer(b, [2048, 2048], "float32")
     C = T.match_buffer(c, [2048, 2048], "float32")
-    A_shared = T.alloc_buffer([2048, 2048], "float32", scope="shared")
-    B_shared = T.alloc_buffer([2048, 2048], "float32", scope="shared")
-    A_shared_local = T.alloc_buffer([2048, 2048], "float32", scope="local")
-    B_shared_local = T.alloc_buffer([2048, 2048], "float32", scope="local")
-    C_local = T.alloc_buffer([2048, 2048], "float32", scope="local")
+    A_shared = T.sblock_alloc_buffer([2048, 2048], "float32", scope="shared")
+    B_shared = T.sblock_alloc_buffer([2048, 2048], "float32", scope="shared")
+    A_shared_local = T.sblock_alloc_buffer([2048, 2048], "float32", scope="local")
+    B_shared_local = T.sblock_alloc_buffer([2048, 2048], "float32", scope="local")
+    C_local = T.sblock_alloc_buffer([2048, 2048], "float32", scope="local")
     for i, j in T.grid(2048, 2048):
         with T.sblock("A_shared"):
             v0, v1 = T.axis.remap("SS", [i, j])
@@ -350,11 +350,11 @@ def cuda_matmul_2(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: dis
     A = T.match_buffer(a, [2048, 2048], "float32")
     B = T.match_buffer(b, [2048, 2048], "float32")
     C = T.match_buffer(c, [2048, 2048], "float32")
-    A_shared = T.alloc_buffer([2048, 2048], "float32", scope="shared")
-    B_shared = T.alloc_buffer([2048, 2048], "float32", scope="shared")
-    A_shared_local = T.alloc_buffer([2048, 2048], "float32", scope="local")
-    B_shared_local = T.alloc_buffer([2048, 2048], "float32", scope="local")
-    C_local = T.alloc_buffer([2048, 2048], "float32", scope="local")
+    A_shared = T.sblock_alloc_buffer([2048, 2048], "float32", scope="shared")
+    B_shared = T.sblock_alloc_buffer([2048, 2048], "float32", scope="shared")
+    A_shared_local = T.sblock_alloc_buffer([2048, 2048], "float32", scope="local")
+    B_shared_local = T.sblock_alloc_buffer([2048, 2048], "float32", scope="local")
+    C_local = T.sblock_alloc_buffer([2048, 2048], "float32", scope="local")
     for i, j in T.grid(2048, 2048):
         with T.sblock("A_shared"):
             v0, v1 = T.axis.remap("SS", [i, j])
@@ -400,11 +400,11 @@ def cuda_matmul_3(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: dis
     A = T.match_buffer(a, [2048, 2048], "float32")
     B = T.match_buffer(b, [2048, 2048], "float32")
     C = T.match_buffer(c, [2048, 2048], "float32")
-    A_shared = T.alloc_buffer([2048, 2048], "float32", scope="shared")
-    B_shared = T.alloc_buffer([2048, 2048], "float32", scope="shared")
-    A_shared_local = T.alloc_buffer([2048, 2048], "float32", scope="local")
-    B_shared_local = T.alloc_buffer([2048, 2048], "float32", scope="local")
-    C_local = T.alloc_buffer([2048, 2048], "float32", scope="local")
+    A_shared = T.sblock_alloc_buffer([2048, 2048], "float32", scope="shared")
+    B_shared = T.sblock_alloc_buffer([2048, 2048], "float32", scope="shared")
+    A_shared_local = T.sblock_alloc_buffer([2048, 2048], "float32", scope="local")
+    B_shared_local = T.sblock_alloc_buffer([2048, 2048], "float32", scope="local")
+    C_local = T.sblock_alloc_buffer([2048, 2048], "float32", scope="local")
     for i, j in T.grid(2048, 2048):
         with T.sblock("A_shared"):
             v0, v1 = T.axis.remap("SS", [i, j])
@@ -451,11 +451,11 @@ def cuda_matmul_4(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: dis
     A = T.match_buffer(a, [2048, 2048], "float32")
     B = T.match_buffer(b, [2048, 2048], "float32")
     C = T.match_buffer(c, [2048, 2048], "float32")
-    A_shared = T.alloc_buffer([2048, 2048], "float32", scope="shared")
-    B_shared = T.alloc_buffer([2048, 2048], "float32", scope="shared")
-    A_shared_local = T.alloc_buffer([2048, 2048], "float32", scope="local")
-    B_shared_local = T.alloc_buffer([2048, 2048], "float32", scope="local")
-    C_local = T.alloc_buffer([2048, 2048], "float32", scope="local")
+    A_shared = T.sblock_alloc_buffer([2048, 2048], "float32", scope="shared")
+    B_shared = T.sblock_alloc_buffer([2048, 2048], "float32", scope="shared")
+    A_shared_local = T.sblock_alloc_buffer([2048, 2048], "float32", scope="local")
+    B_shared_local = T.sblock_alloc_buffer([2048, 2048], "float32", scope="local")
+    C_local = T.sblock_alloc_buffer([2048, 2048], "float32", scope="local")
     for i, j in T.grid(2048, 2048):
         with T.sblock("B_shared"):
             v0, v1 = T.axis.remap("SS", [i, j])
@@ -503,11 +503,11 @@ def cuda_matmul_5(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: dis
     A = T.match_buffer(a, [2048, 2048], "float32")
     B = T.match_buffer(b, [2048, 2048], "float32")
     C = T.match_buffer(c, [2048, 2048], "float32")
-    A_shared = T.alloc_buffer([2048, 2048], "float32", scope="shared")
-    B_shared = T.alloc_buffer([2048, 2048], "float32", scope="shared")
-    A_shared_local = T.alloc_buffer([2048, 2048], "float32", scope="local")
-    B_shared_local = T.alloc_buffer([2048, 2048], "float32", scope="local")
-    C_local = T.alloc_buffer([2048, 2048], "float32", scope="local")
+    A_shared = T.sblock_alloc_buffer([2048, 2048], "float32", scope="shared")
+    B_shared = T.sblock_alloc_buffer([2048, 2048], "float32", scope="shared")
+    A_shared_local = T.sblock_alloc_buffer([2048, 2048], "float32", scope="local")
+    B_shared_local = T.sblock_alloc_buffer([2048, 2048], "float32", scope="local")
+    C_local = T.sblock_alloc_buffer([2048, 2048], "float32", scope="local")
     for by in T.thread_binding(0, 32, thread = "blockIdx.y"):
         for bx in T.thread_binding(0, 32, thread = "blockIdx.x"):
             for vy in T.thread_binding(0, 2, thread = "vthread.y"):
@@ -554,7 +554,7 @@ def cuda_matmul_5(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: dis
 @T.prim_func
 def tiled(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128], "float32")
-    B = T.alloc_buffer([128, 128], "float32")
+    B = T.sblock_alloc_buffer([128, 128], "float32")
     C = T.match_buffer(c, [128, 128], "float32")
     for i_0, j_0, i_1, j_1 in T.grid(8, 8, 16, 16):
         with T.sblock("B"):
@@ -570,7 +570,7 @@ def tiled(a: T.handle, c: T.handle) -> None:
 @T.prim_func
 def tiled_after_reverse_compute_at(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128], "float32")
-    B = T.alloc_buffer([128, 128], "float32")
+    B = T.sblock_alloc_buffer([128, 128], "float32")
     C = T.match_buffer(c, [128, 128], "float32")
     for i_0, j_0, i_1 in T.grid(8, 8, 16):
         for j_1 in T.serial(0, 16):
@@ -588,7 +588,7 @@ def tiled_after_reverse_compute_at(a: T.handle, c: T.handle) -> None:
 @T.prim_func
 def tiled_trivial_binding(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [1, 128, 128], "float32")
-    B = T.alloc_buffer([1, 128, 128], "float32")
+    B = T.sblock_alloc_buffer([1, 128, 128], "float32")
     C = T.match_buffer(c, [1, 128, 128], "float32")
     for i_0, j_0, i_1, j_1 in T.grid(8, 8, 16, 16):
         with T.sblock("B"):
@@ -604,7 +604,7 @@ def tiled_trivial_binding(a: T.handle, c: T.handle) -> None:
 @T.prim_func
 def tiled_trivial_binding_after_reverse_compute_at(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [1, 128, 128], "float32")
-    B = T.alloc_buffer([1, 128, 128], "float32")
+    B = T.sblock_alloc_buffer([1, 128, 128], "float32")
     C = T.match_buffer(c, [1, 128, 128], "float32")
     for i_0, j_0, i_1 in T.grid(8, 8, 16):
         for j_1 in T.serial(0, 16):
@@ -623,7 +623,7 @@ def tiled_trivial_binding_after_reverse_compute_at(a: T.handle, c: T.handle) -> 
 def factorized(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [16, 16, 16], "float32")
     B = T.match_buffer(b, [16], "float32")
-    B_rf_local = T.alloc_buffer([16, 16], "float32", scope="local")
+    B_rf_local = T.sblock_alloc_buffer([16, 16], "float32", scope="local")
     for j in T.thread_binding(0, 16, thread = "blockIdx.x"):
         for i_o in T.thread_binding(0, 4, thread = "threadIdx.x"):
             for i_i, k in T.grid(4, 16):
@@ -645,7 +645,7 @@ def factorized(a: T.handle, b: T.handle) -> None:
 def factorized_after_reverse_compute_at(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [16, 16, 16], "float32")
     B = T.match_buffer(b, [16], "float32")
-    B_rf_local = T.alloc_buffer([16, 16], "float32", scope="local")
+    B_rf_local = T.sblock_alloc_buffer([16, 16], "float32", scope="local")
     for j in T.thread_binding(0, 16, thread = "blockIdx.x"):
         for i_o in T.thread_binding(0, 4, thread = "threadIdx.x"):
             for i_i, k in T.grid(4, 16):
@@ -668,7 +668,7 @@ def factorized_after_reverse_compute_at(a: T.handle, b: T.handle) -> None:
 @T.prim_func
 def not_all_compact_data_flow(a: T.handle, c: T.handle):
     A = T.match_buffer(a, (128, 128), "float32")
-    B = T.alloc_buffer((128, 128), "float32")
+    B = T.sblock_alloc_buffer((128, 128), "float32")
     C = T.match_buffer(c, (128, 128), "float32")
     for i, j in T.grid(128, 128):
         with T.sblock("B"):
@@ -686,7 +686,7 @@ def not_all_compact_data_flow(a: T.handle, c: T.handle):
 @T.prim_func
 def not_all_compact_data_flow_after_compute_at(a: T.handle, c: T.handle):
     A = T.match_buffer(a, (128, 128), "float32")
-    B = T.alloc_buffer((128, 128), "float32")
+    B = T.sblock_alloc_buffer((128, 128), "float32")
     C = T.match_buffer(c, (128, 128), "float32")
     for i, j in T.grid(128, 64):
         for t in range(2):
@@ -705,7 +705,7 @@ def not_all_compact_data_flow_after_compute_at(a: T.handle, c: T.handle):
 @T.prim_func
 def fail_subtree_compact_dataflow(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128), "float32")
-    B = T.alloc_buffer((128, 128), "float32")
+    B = T.sblock_alloc_buffer((128, 128), "float32")
     C = T.match_buffer(c, (128, 128), "float32")
     for i in range(0, 128):
         for j in range(0, 64):
@@ -727,7 +727,7 @@ def fail_subtree_compact_dataflow(a: T.handle, c: T.handle) -> None:
 @T.prim_func
 def fail_all_consumers_under_loop(a: T.handle, c: T.handle, d: T.handle) -> None:
     A = T.match_buffer(a, (128, 128), "float32")
-    B = T.alloc_buffer((128, 128), "float32")
+    B = T.sblock_alloc_buffer((128, 128), "float32")
     C = T.match_buffer(c, (128, 128), "float32")
     D = T.match_buffer(d, (128, 128), "float32")
     for i, j in T.grid(128, 128):
@@ -747,8 +747,8 @@ def fail_all_consumers_under_loop(a: T.handle, c: T.handle, d: T.handle) -> None
 @T.prim_func
 def fail_all_producers_under_loop(a: T.handle, d: T.handle) -> None:
     A = T.match_buffer(a, (128, 128), "float32")
-    B = T.alloc_buffer((128, 128), "float32")
-    C = T.alloc_buffer((128, 128), "float32")
+    B = T.sblock_alloc_buffer((128, 128), "float32")
+    C = T.sblock_alloc_buffer((128, 128), "float32")
     D = T.match_buffer(d, (128, 128), "float32")
     for i, j in T.grid(128, 128):
         with T.sblock("B"):
@@ -767,7 +767,7 @@ def fail_all_producers_under_loop(a: T.handle, d: T.handle) -> None:
 @T.prim_func
 def read_out_of_bound(a: T.handle, c:T.handle) -> None:
     A = T.match_buffer(a, [16], "float32")
-    B = T.alloc_buffer([16], "float32")
+    B = T.sblock_alloc_buffer([16], "float32")
     C = T.match_buffer(c, [16], "float32")
     for i in T.serial(0, 16):
         with T.sblock("B"):
@@ -783,7 +783,7 @@ def read_out_of_bound(a: T.handle, c:T.handle) -> None:
 @T.prim_func
 def read_out_of_bound_after_compute_at(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [16], "float32")
-    B = T.alloc_buffer([16], "float32")
+    B = T.sblock_alloc_buffer([16], "float32")
     C = T.match_buffer(c, [16], "float32")
     for j in T.serial(0, 16):
         for i in T.serial(0, 2):
@@ -799,7 +799,7 @@ def read_out_of_bound_after_compute_at(a: T.handle, c: T.handle) -> None:
 
 @T.prim_func
 def multi_reduction(A: T.Buffer((16, 16), "float32"), C: T.Buffer((), "float32")):
-    B = T.alloc_buffer((16, ), dtype="float32")
+    B = T.sblock_alloc_buffer((16, ), dtype="float32")
     for i, k in T.grid(16, 16):
         with T.sblock("B"):
             vi, vk = T.axis.remap("SR", [i, k])
@@ -819,7 +819,7 @@ def multi_reduction_after_compute_at(
     A: T.Buffer((16, 16), "float32"),
     C:T.Buffer((), "float32"),
 ):
-    B = T.alloc_buffer((16, ), dtype="float32")
+    B = T.sblock_alloc_buffer((16, ), dtype="float32")
     for k in T.grid(16):
         for kk in T.grid(16):
             with T.sblock("B"):
@@ -838,7 +838,7 @@ def multi_reduction_after_compute_at(
 def tiled_pooling_read_cache(a: T.handle, b: T.handle) -> None:
     X = T.match_buffer(a, [224, 224], dtype="float32")
     Y = T.match_buffer(b, [224, 224], dtype="float32")
-    cache = T.alloc_buffer([224, 224], dtype="float32")
+    cache = T.sblock_alloc_buffer([224, 224], dtype="float32")
     for hh, ww in T.grid(224, 224):
         with T.sblock("cache"):
             h, w = T.axis.remap("SS", [hh, ww])
@@ -861,7 +861,7 @@ def tiled_pooling_read_cache(a: T.handle, b: T.handle) -> None:
 def tiled_pooling_read_cache_after_compute_at(a: T.handle, b: T.handle) -> None:
     X = T.match_buffer(a, [224, 224], dtype="float32")
     Y = T.match_buffer(b, [224, 224], dtype="float32")
-    cache = T.alloc_buffer([224, 224], dtype="float32")
+    cache = T.sblock_alloc_buffer([224, 224], dtype="float32")
     for hh_0, ww_0 in T.grid(28, 28):
         for ax0, ax1 in T.grid(10, 10):
             with T.sblock("cache"):
@@ -887,7 +887,7 @@ def tiled_pooling_read_cache_after_compute_at(a: T.handle, b: T.handle) -> None:
 def non_uniform_tiled_conv(x: T.Buffer((1, 3, 100, 100), "float32"),
                            w: T.Buffer((16, 3, 3, 3), "float32"),
                            y: T.Buffer((1, 16, 98, 98), "float32")) -> None:
-    x_global = T.alloc_buffer([1, 3, 100, 100], dtype="float32")
+    x_global = T.sblock_alloc_buffer([1, 3, 100, 100], dtype="float32")
     for ax0, ax1, ax2, ax3 in T.grid(1, 3, 100, 100):
         with T.sblock("cache"):
             v0, v1, v2, v3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
@@ -909,7 +909,7 @@ def non_uniform_tiled_conv(x: T.Buffer((1, 3, 100, 100), "float32"),
 def non_uniform_tiled_conv_after_compute_at(x: T.Buffer((1, 3, 100, 100), "float32"),
                                             w: T.Buffer((16, 3, 3, 3), "float32"),
                                             y: T.Buffer((1, 16, 98, 98), "float32")) -> None:
-    x_global = T.alloc_buffer([1, 3, 100, 100], dtype="float32")
+    x_global = T.sblock_alloc_buffer([1, 3, 100, 100], dtype="float32")
     for h_o, w_o in T.grid(7, 7):
         for ax0, ax1, ax2 in T.grid(3, 17, 17):
             with T.sblock("cache"):
@@ -936,8 +936,8 @@ def non_uniform_tiled_conv_after_compute_at(x: T.Buffer((1, 3, 100, 100), "float
 def concat_two_elemwise(x: T.Buffer((16,), "float32"),
                         y: T.Buffer((8,), "float32"),
                         T_concat: T.Buffer((24,), "float32")) -> None:
-    T_add_1 = T.alloc_buffer([16], dtype="float32")
-    T_add_2 = T.alloc_buffer([8], dtype="float32")
+    T_add_1 = T.sblock_alloc_buffer([16], dtype="float32")
+    T_add_2 = T.sblock_alloc_buffer([8], dtype="float32")
     for i in T.serial(16):
         with T.sblock("T_add_1"):
             ax = T.axis.spatial(16, i)
@@ -955,8 +955,8 @@ def concat_two_elemwise(x: T.Buffer((16,), "float32"),
 def concat_two_elemwise_after_compute_at(x: T.Buffer((16,), "float32"),
                                          y: T.Buffer((8,), "float32"),
                                          T_concat: T.Buffer((24,), "float32")) -> None:
-    T_add_1 = T.alloc_buffer([16], dtype="float32")
-    T_add_2 = T.alloc_buffer([8], dtype="float32")
+    T_add_1 = T.sblock_alloc_buffer([16], dtype="float32")
+    T_add_2 = T.sblock_alloc_buffer([8], dtype="float32")
     for i in T.serial(24):
         with T.sblock("T_add_1"):
             ax = T.axis.spatial(16, i)
@@ -974,7 +974,7 @@ def concat_two_elemwise_after_compute_at(x: T.Buffer((16,), "float32"),
 def floordiv_and_floormod_indices(a: T.handle, b: T.handle) -> None:
     X = T.match_buffer(a, [16, 16])
     Y = T.match_buffer(b, [256])
-    temp = T.alloc_buffer([16, 16])
+    temp = T.sblock_alloc_buffer([16, 16])
     for i, j in T.grid(16, 16):
         with T.sblock("A"):
             v_i, v_j = T.axis.remap("SS", [i, j])
@@ -988,7 +988,7 @@ def floordiv_and_floormod_indices(a: T.handle, b: T.handle) -> None:
 def floordiv_and_floormod_indices_after_reverse_compute_at(a: T.handle, b: T.handle) -> None:
     X = T.match_buffer(a, [16, 16], dtype="float32")
     Y = T.match_buffer(b, [256], dtype="float32")
-    temp = T.alloc_buffer([16, 16], dtype="float32")
+    temp = T.sblock_alloc_buffer([16, 16], dtype="float32")
     for i in T.serial(0, 16):
         for j in T.serial(0, 16):
             with T.sblock("A"):
@@ -1005,7 +1005,7 @@ def recursive_floordiv_floormod(A: T.Buffer((16, 64, 1, 8, 8, 32), "float32"),
                                 C: T.Buffer((3, 512, 512), "float32")) -> None:
     T.func_attr({"tir.noalias": True})
     # with T.sblock("root"):
-    B = T.alloc_buffer((1, 128, 16, 8, 2, 32, 2), "float32")
+    B = T.sblock_alloc_buffer((1, 128, 16, 8, 2, 32, 2), "float32")
     for axis1, axis2, axis3, axis4, axis5, axis6, axis7 in T.grid(1, 128, 16, 8, 2, 32, 2):
         with T.sblock("In"):
             v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6, v_axis7 = T.axis.remap("SSSSSSS", [axis1, axis2, axis3, axis4, axis5, axis6, axis7])
@@ -1024,7 +1024,7 @@ def recursive_floordiv_floormod(A: T.Buffer((16, 64, 1, 8, 8, 32), "float32"),
 def recursive_floordiv_floormod_after_reverse_compute_at(A: T.Buffer((16, 64, 1, 8, 8, 32), "float32"), C: T.Buffer((3, 512, 512), "float32")) -> None:
     T.func_attr({"tir.noalias": True})
     # with T.sblock("root"):
-    B = T.alloc_buffer((1, 128, 16, 8, 2, 32, 2))
+    B = T.sblock_alloc_buffer((1, 128, 16, 8, 2, 32, 2))
     for axis1, axis2, axis3 in T.grid(1, 128, 16):
         for axis4, axis5, axis6, axis7 in T.grid(8, 2, 32, 2):
             with T.sblock("In"):
@@ -1044,7 +1044,7 @@ def recursive_floordiv_floormod_after_reverse_compute_at(A: T.Buffer((16, 64, 1,
 
 @T.prim_func
 def tiled_repeat_op(x: T.Buffer((4,), "float32"), T_repeat: T.Buffer((64,), "float32")) -> None:
-    T_add = T.alloc_buffer([4], dtype="float32")
+    T_add = T.sblock_alloc_buffer([4], dtype="float32")
     for i0 in T.serial(4):
         with T.sblock("T_add"):
             ax0 = T.axis.spatial(4, i0)
@@ -1056,7 +1056,7 @@ def tiled_repeat_op(x: T.Buffer((4,), "float32"), T_repeat: T.Buffer((64,), "flo
 
 @T.prim_func
 def tiled_repeat_op_after_compute_at(x: T.Buffer((4,), "float32"), T_repeat: T.Buffer((64,), "float32")) -> None:
-    T_add = T.alloc_buffer([4], dtype="float32")
+    T_add = T.sblock_alloc_buffer([4], dtype="float32")
     for i0_0 in T.serial(8):
         with T.sblock("T_add"):
             ax0 = T.axis.spatial(4, i0_0 // 2)
@@ -1068,7 +1068,7 @@ def tiled_repeat_op_after_compute_at(x: T.Buffer((4,), "float32"), T_repeat: T.B
 
 @T.prim_func
 def static_bound(A: T.Buffer((32, 1), "float32"), C: T.Buffer((32, 1), "float32")) -> None:
-    B = T.alloc_buffer((32, 1), "float32")
+    B = T.sblock_alloc_buffer((32, 1), "float32")
     for i, j in T.grid(32, 1):
         with T.sblock("B"):
             vi = T.axis.spatial(32, i)
@@ -1083,7 +1083,7 @@ def static_bound(A: T.Buffer((32, 1), "float32"), C: T.Buffer((32, 1), "float32"
 
 @T.prim_func
 def static_bound_after_compute_at(A: T.Buffer((32, 1), "float32"), C: T.Buffer((32, 1), "float32")) -> None:
-    B = T.alloc_buffer((32, 1), "float32")
+    B = T.sblock_alloc_buffer((32, 1), "float32")
     for i in range(32):
         for ax0, ax1 in T.grid(1, 1):
             with T.sblock("B"):
@@ -1230,7 +1230,7 @@ def test_compute_at_tiled_repeat_op(use_block_name):
 def test_compute_at_rev_iter():
     @T.prim_func
     def before(X: T.Buffer((10, 10), "float32"), Z: T.Buffer((10, 10), "float32")):
-        Y = T.alloc_buffer([10, 10], "float32")
+        Y = T.sblock_alloc_buffer([10, 10], "float32")
         for i, j in T.grid(10, 10):
             with T.sblock("b0"):
                 vi, vj = T.axis.remap("SS", [i, j])
@@ -1242,7 +1242,7 @@ def test_compute_at_rev_iter():
 
     @T.prim_func
     def after(X: T.Buffer((10, 10), "float32"), Z: T.Buffer((10, 10), "float32")):
-        Y = T.alloc_buffer([10, 10], "float32")
+        Y = T.sblock_alloc_buffer([10, 10], "float32")
         for i in range(10):
             for j in range(10):
                 with T.sblock("b0"):
@@ -1373,7 +1373,7 @@ def test_compute_at_simplify_symbolic_predicate():
         def main(x: T.handle, y: T.handle, n: T.int64):
             X = T.match_buffer(x, (T.int64(8), n * T.int64(32)))
             Y = T.match_buffer(y, (T.int64(8), n * T.int64(32)))
-            X_global = T.alloc_buffer((T.int64(8), n * T.int64(32)))
+            X_global = T.sblock_alloc_buffer((T.int64(8), n * T.int64(32)))
 
             for i, k_0 in T.grid(T.int64(8), n):
                 for ax0 in range(T.int64(32)):
@@ -1401,7 +1401,7 @@ def test_compute_at_non_perfect_channel_group(use_block_name):
     def grouped_channel_bias(
         X: T.Buffer((720, 8, 8), "float32"), Y: T.Buffer((720, 8, 8), "float32")
     ):
-        B = T.alloc_buffer([45], dtype="float32", scope="")
+        B = T.sblock_alloc_buffer([45], dtype="float32", scope="")
         for i in T.grid(45):
             with T.sblock("init"):
                 vi = T.axis.remap("S", [i])
@@ -1416,7 +1416,7 @@ def test_compute_at_non_perfect_channel_group(use_block_name):
     def grouped_channel_bias_non_perfect_tiled(
         X: T.Buffer((720, 8, 8), "float32"), Y: T.Buffer((720, 8, 8), "float32")
     ):
-        B = T.alloc_buffer([45], dtype="float32")
+        B = T.sblock_alloc_buffer([45], dtype="float32")
         for c_o in range(2):
             for ax0 in range(23):
                 with T.sblock("init"):
@@ -1510,8 +1510,8 @@ def test_compute_at_to_index():
         w: T.Buffer((16, 3, 7, 7), "int8"),
         conv: T.Buffer((1, 16, 112, 112), "int32"),
     ) -> None:
-        pad = T.alloc_buffer([1, 3, 230, 230], dtype="int8")
-        wbuf = T.alloc_buffer([16, 3, 7, 7], dtype="int8")
+        pad = T.sblock_alloc_buffer([1, 3, 230, 230], dtype="int8")
+        wbuf = T.sblock_alloc_buffer([16, 3, 7, 7], dtype="int8")
         for i0, i1, i2, i3 in T.grid(1, 3, 230, 230):
             with T.sblock("pad"):
                 i0_1, i1_1, i2_1, i3_1 = T.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -1549,8 +1549,8 @@ def test_compute_at_to_index():
         w: T.Buffer((16, 3, 7, 7), "int8"),
         conv: T.Buffer((1, 16, 112, 112), "int32"),
     ) -> None:
-        pad = T.alloc_buffer([1, 3, 230, 230], dtype="int8")
-        wbuf = T.alloc_buffer([16, 3, 7, 7], dtype="int8")
+        pad = T.sblock_alloc_buffer([1, 3, 230, 230], dtype="int8")
+        wbuf = T.sblock_alloc_buffer([16, 3, 7, 7], dtype="int8")
         for i0 in T.serial(1):
             for ax0, ax1, ax2 in T.grid(3, 229, 229):
                 with T.sblock("pad"):
@@ -1595,8 +1595,8 @@ def test_compute_at_to_index():
 def test_reverse_compute_at_to_index():
     @T.prim_func
     def main(A: T.Buffer((128, 128), "float32"), D: T.Buffer((128, 128), "float32")) -> None:
-        B = T.alloc_buffer([128, 128], dtype="float32")
-        C = T.alloc_buffer([128, 128], dtype="float32")
+        B = T.sblock_alloc_buffer([128, 128], dtype="float32")
+        C = T.sblock_alloc_buffer([128, 128], dtype="float32")
         for i_0, j_0, i_1 in T.grid(8, 8, 16):
             for j_1 in T.serial(16):
                 with T.sblock("B"):
@@ -1623,8 +1623,8 @@ def test_reverse_compute_at_to_index():
     def main_reverse_compute_at(
         A: T.Buffer((128, 128), "float32"), D: T.Buffer((128, 128), "float32")
     ) -> None:
-        B = T.alloc_buffer([128, 128], dtype="float32")
-        C = T.alloc_buffer([128, 128], dtype="float32")
+        B = T.sblock_alloc_buffer([128, 128], dtype="float32")
+        C = T.sblock_alloc_buffer([128, 128], dtype="float32")
         for i_0, j_0, i_1 in T.grid(8, 8, 16):
             for j_1 in T.serial(16):
                 with T.sblock("B"):
@@ -1658,7 +1658,7 @@ def test_reverse_compute_at_to_index():
 def test_reverse_compute_at_with_unit_loop():
     @T.prim_func
     def main(A: T.Buffer((128, 128), "float32"), D: T.Buffer((1, 2, 1), "float32")) -> None:
-        B = T.alloc_buffer([128, 128], dtype="float32")
+        B = T.sblock_alloc_buffer([128, 128], dtype="float32")
         for i_0, j_0, i_1 in T.grid(T.int64(8), T.int64(8), T.int64(16)):
             for j_1 in T.serial(T.int64(16)):
                 with T.sblock("B"):
@@ -1678,7 +1678,7 @@ def test_reverse_compute_at_with_unit_loop():
     def main_reverse_compute_at(
         A: T.Buffer((128, 128), "float32"), D: T.Buffer((1, 2, 1), "float32")
     ):
-        B = T.alloc_buffer([128, 128], dtype="float32")
+        B = T.sblock_alloc_buffer([128, 128], dtype="float32")
         for i_0, j_0, i_1 in T.grid(T.int64(8), T.int64(8), T.int64(16)):
             for j_1 in T.serial(T.int64(16)):
                 with T.sblock("B"):
@@ -1710,7 +1710,7 @@ def test_reverse_compute_at_with_unit_loop():
 def test_reverse_compute_at_layout_trans():
     @T.prim_func
     def before(A: T.Buffer((1, 3, 5, 5, 16), "float32"), C: T.Buffer((1, 6, 5, 5, 8), "float32")):
-        B = T.alloc_buffer((1, 3, 5, 5, 16))
+        B = T.sblock_alloc_buffer((1, 3, 5, 5, 16))
         for i0, i1, i2, i3, i4 in T.grid(1, 3, 5, 5, 16):
             with T.sblock("compute"):
                 v_i0, v_i1, v_i2, v_i3, v_i4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
@@ -1724,7 +1724,7 @@ def test_reverse_compute_at_layout_trans():
 
     @T.prim_func
     def after(A: T.Buffer((1, 3, 5, 5, 16), "float32"), C: T.Buffer((1, 6, 5, 5, 8), "float32")):
-        B = T.alloc_buffer((1, 3, 5, 5, 16))
+        B = T.sblock_alloc_buffer((1, 3, 5, 5, 16))
         for i0, i1 in T.grid(1, 3):
             for i2, i3, i4 in T.grid(5, 5, 16):
                 with T.sblock("compute"):
@@ -1756,7 +1756,7 @@ def test_shape_var_as_bound():
         B = T.match_buffer(b, (32, n, 128))
         C = T.match_buffer(c, (32, 1, n))
         # with T.sblock("root"):
-        C_rf = T.alloc_buffer((128, 32, 1, n))
+        C_rf = T.sblock_alloc_buffer((128, 32, 1, n))
         for ax0_ax1_fused, ax2_fused_1, ax2_fused_0 in T.grid(n * 32, 128, 1):
             with T.sblock("NT_matmul_rf"):
                 vax2_fused_1 = T.axis.spatial(128, ax2_fused_1)
@@ -1785,7 +1785,7 @@ def test_shape_var_as_bound():
         B = T.match_buffer(b, (32, n, 128))
         C = T.match_buffer(c, (32, 1, n))
         # with T.sblock("root"):
-        C_rf = T.alloc_buffer((128, 32, 1, n))
+        C_rf = T.sblock_alloc_buffer((128, 32, 1, n))
         for ax0_ax1_fused in range(n * 32):
             for ax2_fused_1, ax2_fused_0 in T.grid(128, 1):
                 with T.sblock("NT_matmul_rf"):
@@ -1821,11 +1821,11 @@ def test_shape_var_as_bound():
 def test_compute_at_sliced_concatenate():
     @T.prim_func
     def before():
-        X = T.alloc_buffer((1, 16, 28, 64), "float32")
-        Y = T.alloc_buffer((1, 32, 28, 64), "float32")
-        Z = T.alloc_buffer((1, 53, 28, 64), "float32")
-        Concat = T.alloc_buffer((1, 101, 28, 64), "float32")
-        Slice = T.alloc_buffer((1, 87, 28, 64), "float32")
+        X = T.sblock_alloc_buffer((1, 16, 28, 64), "float32")
+        Y = T.sblock_alloc_buffer((1, 32, 28, 64), "float32")
+        Z = T.sblock_alloc_buffer((1, 53, 28, 64), "float32")
+        Concat = T.sblock_alloc_buffer((1, 101, 28, 64), "float32")
+        Slice = T.sblock_alloc_buffer((1, 87, 28, 64), "float32")
         for ax0, ax1, ax2, ax3 in T.grid(1, 16, 28, 64):
             with T.sblock("compute"):
                 v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
@@ -1849,11 +1849,11 @@ def test_compute_at_sliced_concatenate():
 
     @T.prim_func
     def expect():
-        X = T.alloc_buffer((1, 16, 28, 64))
-        Y = T.alloc_buffer((1, 32, 28, 64))
-        Z = T.alloc_buffer((1, 53, 28, 64))
-        Concat = T.alloc_buffer((1, 101, 28, 64))
-        Slice = T.alloc_buffer((1, 87, 28, 64))
+        X = T.sblock_alloc_buffer((1, 16, 28, 64))
+        Y = T.sblock_alloc_buffer((1, 32, 28, 64))
+        Z = T.sblock_alloc_buffer((1, 53, 28, 64))
+        Concat = T.sblock_alloc_buffer((1, 101, 28, 64))
+        Slice = T.sblock_alloc_buffer((1, 87, 28, 64))
         for ax0 in range(1):
             for ax0_1, ax1, ax2 in T.grid(2, 28, 64):
                 with T.sblock("compute"):

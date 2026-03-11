@@ -46,7 +46,7 @@ class IrregularLoopAnnotator : public StmtMutator {
           << "Loop kind " << op->kind << " is invalid for irregular loop " << op->loop_var;
       for (const char* key :
            {tir::attr::pragma_auto_unroll_max_step, tir::attr::pragma_unroll_explicit,
-            tir::attr::pragma_loop_partition_hint, s_tir::attr::software_pipeline_stage}) {
+            s_tir::attr::pragma_loop_partition_hint, s_tir::attr::software_pipeline_stage}) {
         TVM_FFI_ICHECK(!res->annotations.count(key))
             << "Annotation `" << key << "` is invalid for irregular loop " << op->loop_var;
       }

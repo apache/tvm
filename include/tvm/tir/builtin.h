@@ -963,25 +963,27 @@ TVM_DLL const Op& ignore_loop_partition();
 
 /*! \brief The kind of structure field info used in intrinsic */
 enum TVMStructFieldKind : int {
-  // array head address
-  kArrAddr,
-  kArrData,
-  kArrShape,
-  kArrStrides,
-  kArrNDim,
-  kArrTypeCode,
-  kArrTypeBits,
-  kArrTypeLanes,
-  kArrByteOffset,
-  kArrDeviceId,
-  kArrDeviceType,
-  kArrKindBound_,
+  // DLTensor fields
+  kDLTensorAddr,
+  kDLTensorData,
+  kDLTensorShape,
+  kDLTensorStrides,
+  kDLTensorNDim,
+  kDLTensorTypeCode,
+  kDLTensorTypeBits,
+  kDLTensorTypeLanes,
+  kDLTensorByteOffset,
+  kDLTensorDeviceId,
+  kDLTensorDeviceType,
+  kDLTensorKindBound_,
   // TVMValue field
   kTVMValueContent,
   kTVMFFIAnyTypeIndex,
   kTVMFFIAnyZeroPadding,
   kTVMFFIAnyUnionValue,
-  kTVMValueKindBound_
+  kTVMValueKindBound_,
+  // Generic int64 array element access: ((int64_t*)buf)[index]
+  kInt64ArrayElem,
 };
 }  // namespace builtin
 }  // namespace tir

@@ -54,11 +54,6 @@ set(USE_CUDA OFF)
 # - /path/to/nccl: use specific path to nccl
 set(USE_NCCL OFF)
 
-# Whether to enable MSCCL support:
-# - ON: enable MSCCL
-# - OFF: disable MSCCL
-set(USE_MSCCL OFF)
-
 # Whether to enable NVTX support (must have USE_CUDA enabled):
 # - ON: enable NCCL with CMake's auto search
 # - OFF: disable NCCL
@@ -127,7 +122,7 @@ set(USE_CPP_RTVM OFF)
 set(USE_IOS_RPC OFF)
 
 # Whether build with LLVM support
-# Requires LLVM version >= 4.0
+# Requires LLVM version >= 15
 #
 # Possible values:
 # - ON: enable llvm with CMake's find search
@@ -216,9 +211,6 @@ set(USE_SORT ON)
 #                        TensorRT library. OFF/ON/"path/to/TensorRT"
 set(USE_TENSORRT_CODEGEN OFF)
 set(USE_TENSORRT_RUNTIME OFF)
-
-# Whether to use the Multi-System Compiler
-set(USE_MSC OFF)
 
 #Whether to use CLML codegen
 set(USE_CLML OFF)

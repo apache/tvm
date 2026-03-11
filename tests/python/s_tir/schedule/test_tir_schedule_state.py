@@ -34,7 +34,7 @@ from tvm.script import tir as T
 def elementwise(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128), "float32")
     C = T.match_buffer(c, (128, 128), "float32")
-    B = T.alloc_buffer((128, 128), "float32")
+    B = T.sblock_alloc_buffer((128, 128), "float32")
     for i, j in T.grid(128, 128):
         with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])

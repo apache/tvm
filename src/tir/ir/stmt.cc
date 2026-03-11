@@ -34,12 +34,13 @@ namespace tir {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   StmtNode::RegisterReflection();
-  LetStmtNode::RegisterReflection();
+  BindNode::RegisterReflection();
+
   AttrStmtNode::RegisterReflection();
   AssertStmtNode::RegisterReflection();
   BufferStoreNode::RegisterReflection();
-  AllocateNode::RegisterReflection();
   DeclBufferNode::RegisterReflection();
+  AllocBufferNode::RegisterReflection();
   SeqStmtNode::RegisterReflection();
   EvaluateNode::RegisterReflection();
   IfThenElseNode::RegisterReflection();
@@ -51,32 +52,28 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   SBlockRealizeNode::RegisterReflection();
 }
 
-// LetStmt
-LetStmt::LetStmt(Var var, PrimExpr value, Stmt body, Span span) {
+// Bind
+Bind::Bind(Var var, PrimExpr value, Span span) {
   TVM_FFI_ICHECK(value.defined());
-  TVM_FFI_ICHECK(body.defined());
   auto vdtype = value.dtype();
-  // It is still valid to bind a pointer type
-  // var to a value that is of type handle.
+  // It is still valid to bind a pointer type var to a value that is of type handle.
   if (var->type_annotation.as<PointerTypeNode>()) {
     TVM_FFI_ICHECK(vdtype.is_handle());
   } else {
     TVM_FFI_ICHECK_EQ(value.dtype(), var.dtype());
   }
 
-  ObjectPtr<LetStmtNode> node = ffi::make_object<LetStmtNode>();
+  ObjectPtr<BindNode> node = ffi::make_object<BindNode>();
   node->var = std::move(var);
   node->value = std::move(value);
-  node->body = std::move(body);
   node->span = std::move(span);
   data_ = std::move(node);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.LetStmt", [](Var var, PrimExpr value, Stmt body, Span span) {
-    return LetStmt(var, value, body, span);
-  });
+  refl::GlobalDef().def("tir.Bind",
+                        [](Var var, PrimExpr value, Span span) { return Bind(var, value, span); });
 }
 
 // AttrStmt
@@ -104,25 +101,27 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // AssertStmt
-AssertStmt::AssertStmt(PrimExpr condition, PrimExpr message, Span span) {
+AssertStmt::AssertStmt(PrimExpr condition, StringImm error_kind,
+                       ffi::Array<StringImm> message_parts, Span span) {
   TVM_FFI_ICHECK(condition.defined());
-  TVM_FFI_ICHECK(condition.dtype().is_bool())
+  TVM_FFI_ICHECK(condition.dtype().is_predicate_dtype())
       << "AssertStmt should have boolean condition, "
       << "but received " << condition << " with dtype " << condition.dtype();
-  TVM_FFI_CHECK(message.dtype() == DataType::Int(32) || message.as<StringImmNode>(), TypeError)
-      << "AssertStmt message must be an int or string:" << message << "\n";
+  TVM_FFI_ICHECK(error_kind.defined());
 
   ObjectPtr<AssertStmtNode> node = ffi::make_object<AssertStmtNode>();
   node->condition = std::move(condition);
-  node->message = std::move(message);
+  node->error_kind = std::move(error_kind);
+  node->message_parts = std::move(message_parts);
   node->span = std::move(span);
   data_ = std::move(node);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.AssertStmt", [](PrimExpr condition, StringImm message, Span span) {
-    return AssertStmt(condition, message, span);
+  refl::GlobalDef().def("tir.AssertStmt", [](PrimExpr condition, StringImm error_kind,
+                                             ffi::Array<StringImm> message_parts, Span span) {
+    return AssertStmt(condition, error_kind, message_parts, span);
   });
 }
 
@@ -240,74 +239,36 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   });
 }
 
-// Allocate
-Allocate::Allocate(Var buffer_var, DataType dtype, ffi::Array<PrimExpr> extents, PrimExpr condition,
-                   Stmt body, ffi::Map<ffi::String, Any> annotations, Span span) {
-  TVM_FFI_ICHECK(IsPointerType(buffer_var->type_annotation, dtype) ||
-                 (dtype.is_bool() && IsPointerType(buffer_var->type_annotation, DataType::Int(8))))
-      << "The allocated data type (" << dtype
-      << ") does not match the type annotation of the buffer " << buffer_var << " ("
-      << buffer_var->type_annotation
-      << "). The data type should be an element of the pointer type.";
+// DeclBuffer
+DeclBuffer::DeclBuffer(Buffer buffer, Span span) {
+  ObjectPtr<DeclBufferNode> node = ffi::make_object<DeclBufferNode>();
+  node->buffer = std::move(buffer);
+  node->span = std::move(span);
+  data_ = std::move(node);
+}
 
-  for (size_t i = 0; i < extents.size(); ++i) {
-    TVM_FFI_ICHECK(extents[i].defined());
-    TVM_FFI_ICHECK(extents[i].dtype().is_scalar());
-  }
-  TVM_FFI_ICHECK(body.defined());
-  TVM_FFI_ICHECK(condition.defined());
-  TVM_FFI_ICHECK(condition.dtype().is_bool());
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.DeclBuffer",
+                        [](Buffer buffer, Span span) { return DeclBuffer(buffer, span); });
+}
 
-  ObjectPtr<AllocateNode> node = ffi::make_object<AllocateNode>();
-  node->buffer_var = std::move(buffer_var);
-  node->dtype = dtype;
-  node->extents = std::move(extents);
-  node->condition = std::move(condition);
-  node->body = std::move(body);
+// AllocBuffer
+AllocBuffer::AllocBuffer(Buffer buffer, ffi::Map<ffi::String, Any> annotations, Span span) {
+  ObjectPtr<AllocBufferNode> node = ffi::make_object<AllocBufferNode>();
+  node->buffer = std::move(buffer);
   node->annotations = std::move(annotations);
   node->span = std::move(span);
   data_ = std::move(node);
 }
 
-int64_t AllocateNode::ConstantAllocationSize(const ffi::Array<PrimExpr>& extents) {
-  int64_t result = 1;
-  for (size_t i = 0; i < extents.size(); ++i) {
-    if (const IntImmNode* int_size = extents[i].as<IntImmNode>()) {
-      result *= int_size->value;
-      if (result > std::numeric_limits<int64_t>::max()) {
-        return 0;
-      }
-    } else {
-      return 0;
-    }
-  }
-  return static_cast<int64_t>(result);
-}
-
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
-      "tir.Allocate",
-      [](Var buffer_var, DataType type, ffi::Array<PrimExpr> extents, PrimExpr condition, Stmt body,
-         ffi::Map<ffi::String, Any> annotations, Span span) {
-        return Allocate(buffer_var, type, extents, condition, body, annotations, span);
+      "tir.AllocBuffer",
+      [](Buffer buffer, ffi::Optional<ffi::Map<ffi::String, Any>> annotations, Span span) {
+        return AllocBuffer(buffer, annotations.value_or(ffi::Map<ffi::String, Any>()), span);
       });
-}
-
-// DeclBuffer
-DeclBuffer::DeclBuffer(Buffer buffer, Stmt body, Span span) {
-  ObjectPtr<DeclBufferNode> node = ffi::make_object<DeclBufferNode>();
-  node->buffer = std::move(buffer);
-  node->body = std::move(body);
-  node->span = std::move(span);
-  data_ = std::move(node);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.DeclBuffer", [](Buffer buffer, Stmt body, Span span) {
-    return DeclBuffer(buffer, body, span);
-  });
 }
 
 // SeqStmt

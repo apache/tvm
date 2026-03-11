@@ -44,7 +44,9 @@ class MutateThreadBindingNode : public MutatorNode {
  public:
   // Inherit from `MutatorNode`
   void InitializeWithTuneContext(const TuneContext& context) final {
-    this->json_mod_ = SaveJSON(context->mod.value());
+    this->json_mod_ = ffi::json::Stringify(
+        ffi::ToJSONGraph(context->mod.value(), ffi::json::Object{{"tvm_version", TVM_VERSION}}),
+        /*indent=*/2);
   }
   // Inherit from `MutatorNode`
   ffi::Optional<Trace> Apply(const Trace& trace, TRandState* rand_state) final;

@@ -285,7 +285,7 @@ def docs(
         ]
 
         extra_setup = [
-            "python3 -m pip install " + " ".join(requirements),
+            "uv pip install " + " ".join(requirements),
         ]
     else:
         check_gpu()
@@ -350,7 +350,7 @@ def lint(interactive: bool = False, fix: bool = False, docker_image: str | None 
     docker(
         name=gen_name("ci-lint"),
         image="ci_lint" if docker_image is None else docker_image,
-        scripts=["./tests/scripts/task_lint.sh"],
+        scripts=["pre-commit run --all-files"],
         env=env,
         interactive=interactive,
     )
@@ -377,7 +377,7 @@ def generate_command(
     """
 
     def fn(
-        tests: list[str] | None,
+        tests: list[str] | None = None,
         skip_build: bool = False,
         interactive: bool = False,
         docker_image: str | None = None,
@@ -590,12 +590,10 @@ generated = [
                 "run unit tests",
                 [
                     "./tests/scripts/task_java_unittest.sh",
-                    "./tests/scripts/task_opencl_cpp_unittest.sh {build_dir}",
                     "./tests/scripts/task_python_unittest_gpuonly.sh",
                     "./tests/scripts/task_python_integration_gpuonly.sh",
                 ],
             ),
-            "frontend": ("run frontend tests", ["./tests/scripts/task_python_frontend.sh"]),
         },
     ),
     generate_command(
@@ -613,20 +611,6 @@ generated = [
                     "./tests/scripts/task_python_unittest.sh",
                 ],
             ),
-            "frontend": ("run frontend tests", ["./tests/scripts/task_python_frontend_cpu.sh"]),
-        },
-    ),
-    generate_command(
-        name="minimal",
-        help="Run minimal CPU build and test(s)",
-        options={
-            "cpp": CPP_UNITTEST,
-            "unittest": (
-                "run unit tests",
-                [
-                    "./tests/scripts/task_python_unittest.sh",
-                ],
-            ),
         },
     ),
     generate_command(
@@ -635,20 +619,6 @@ generated = [
         options={
             "cpp": CPP_UNITTEST,
             "test": ("run WASM tests", ["./tests/scripts/task_web_wasm.sh"]),
-        },
-    ),
-    generate_command(
-        name="hexagon",
-        help="Run Hexagon build and test(s)",
-        post_build=["./tests/scripts/task_build_hexagon_api.sh --output build-hexagon"],
-        options={
-            "cpp": CPP_UNITTEST,
-            "test": (
-                "run Hexagon API/Python tests",
-                [
-                    "./tests/scripts/task_python_hexagon.sh",
-                ],
-            ),
         },
     ),
     generate_command(
@@ -661,48 +631,6 @@ generated = [
                 "run full Python tests",
                 [
                     "./tests/scripts/task_python_unittest.sh",
-                ],
-            ),
-        },
-    ),
-    generate_command(
-        name="adreno",
-        help="Run Adreno build and test(s)",
-        post_build=["./tests/scripts/task_build_adreno_bins.sh"],
-        additional_flags={
-            "--volume": os.environ.get("ADRENO_OPENCL", "/tmp/") + ":/adreno-opencl",
-            "--net": "host",
-        },
-        env={
-            "ADRENO_OPENCL": "/adreno-opencl",
-            "ADRENO_TARGET_CLML_VERSION": os.environ.get("ADRENO_TARGET_CLML_VERSION", "3"),
-        },
-        options={
-            "test": (
-                "run Adreno API/Python tests",
-                [
-                    "./tests/scripts/task_python_adreno.sh " + os.environ.get("ANDROID_SERIAL", ""),
-                ],
-            ),
-            "benchmarks": (
-                "run Adreno Benchmarks (Native OpenCL, CLML SDK)",
-                [
-                    "./apps/benchmark/adreno/bench.sh texture "
-                    + os.environ.get("ANDROID_SERIAL", ""),
-                    "./apps/benchmark/adreno/bench.sh clml " + os.environ.get("ANDROID_SERIAL", ""),
-                ],
-            ),
-            "nativebenchmarks": (
-                "run Adreno Texture Benchmarks",
-                [
-                    "./apps/benchmark/adreno/bench.sh texture "
-                    + os.environ.get("ANDROID_SERIAL", ""),
-                ],
-            ),
-            "clmlbenchmarks": (
-                "run Adreno CLML SDK Benchmarks",
-                [
-                    "./apps/benchmark/adreno/bench.sh clml " + os.environ.get("ANDROID_SERIAL", ""),
                 ],
             ),
         },

@@ -24,12 +24,10 @@
 #ifdef TVM_LLVM_VERSION
 
 #include <llvm/IR/Intrinsics.h>
+#include <llvm/IR/IntrinsicsARM.h>
+#include <llvm/Target/TargetMachine.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#if TVM_LLVM_VERSION >= 100
-#include <llvm/IR/IntrinsicsARM.h>
-#endif
-#include <llvm/Target/TargetMachine.h>
 
 #include "codegen_cpu.h"
 

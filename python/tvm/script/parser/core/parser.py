@@ -528,6 +528,9 @@ class Parser(doc.NodeVisitor):
             return {target.id}
         elif isinstance(target, doc.Starred):
             return self._duplicate_lhs_check(target.value)
+        elif isinstance(target, doc.Attribute):
+            # Attribute assignment like packedB.data = ..., treated as rebinding.
+            return {target.attr}
         else:
             self.report_error(target, "Invalid type in assign statement")
             raise NotImplementedError

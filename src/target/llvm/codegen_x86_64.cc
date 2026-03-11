@@ -26,12 +26,10 @@
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/Intrinsics.h>
-#include <tvm/ffi/reflection/registry.h>
-#if TVM_LLVM_VERSION >= 100
 #include <llvm/IR/IntrinsicsX86.h>
-#endif
 #include <llvm/Support/Casting.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 
 #include <string>
 #include <vector>
@@ -74,18 +72,6 @@ llvm::Value* CodeGenX86_64::VisitExpr_(const CastNode* op) {
               /*rounding-mode=*/MakeValue(IntImm(DataType::Int(32), 4)),
           });
     }
-
-#if TVM_LLVM_VERSION <= 100
-    // The intrinsic x86_vcvtph2ps_256 was removed in LLVM 11.
-    const auto has_f16c = llvm_target_->TargetHasCPUFeature("f16c");
-
-    if (from.lanes() >= 8 && has_f16c) {
-      return CallVectorIntrin(llvm::Intrinsic::x86_vcvtph2ps_256, 8,
-                              DTypeToLLVMType(DataType::Float(32, from.lanes())),
-                              {MakeValue(tir::Call(DataType::Int(16, from.lanes()),
-                                                   tir::builtin::reinterpret(), {op->value}))});
-    }
-#endif
   }
 
   return CodeGenCPU::VisitExpr_(op);
@@ -100,11 +86,7 @@ llvm::Value* CodeGenX86_64::CallVectorIntrin(llvm::Intrinsic::ID id, size_t intr
 #else
   llvm::Function* f = llvm::Intrinsic::getDeclaration(module_.get(), id);
 #endif
-#if TVM_LLVM_VERSION >= 120
   size_t num_elems = llvm::cast<llvm::FixedVectorType>(result_ty)->getNumElements();
-#else
-  size_t num_elems = llvm::cast<llvm::VectorType>(result_ty)->getNumElements();
-#endif
   if (intrin_lanes == num_elems) {
     return builder_->CreateCall(f, args);
   }
@@ -123,11 +105,7 @@ llvm::Value* CodeGenX86_64::CallVectorIntrin(llvm::Intrinsic::ID id, size_t intr
         split_args.push_back(v);
       }
     }
-#if TVM_LLVM_VERSION >= 110
     llvm::Type* type = llvm::FixedVectorType::get(result_ty->getScalarType(), intrin_lanes);
-#else
-    llvm::Type* type = llvm::VectorType::get(result_ty->getScalarType(), intrin_lanes);
-#endif
     split_results.push_back(CallVectorIntrin(id, intrin_lanes, type, split_args));
   }
   return CreateVecSlice(CreateVecConcat(split_results), 0, num_elems);

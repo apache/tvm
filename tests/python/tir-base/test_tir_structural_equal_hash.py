@@ -109,7 +109,7 @@ def test_prim_func():
 
     # new cases
     b = tvm.tir.decl_buffer((x,), "float32")
-    stmt = tvm.tir.LetStmt(x, 10, tvm.tir.Evaluate(x + 1))
+    stmt = tvm.tir.SeqStmt([tvm.tir.Bind(x, 10), tvm.tir.Evaluate(x + 1)])
     func0 = tvm.tir.PrimFunc([x, y, b], stmt)
     # easiest way to deep copy is via save/load
     func1 = tvm.ir.load_json(tvm.ir.save_json(func0))

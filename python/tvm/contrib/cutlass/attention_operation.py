@@ -26,7 +26,7 @@ def instantiate_attention_template(attrs):
     based on a template and the provided attribute map."""
 
     bias_template = """
-  CHECK(${bias}->ndim == 4); // B, N, S, S'
+  TVM_FFI_CHECK(${bias}->ndim == 4, ValueError); // B, N, S, S'
 
   p.attn_bias_ptr = reinterpret_cast<T *>(${bias}->data);
   p.bias_strideM = ${bias_strideM};
@@ -46,9 +46,9 @@ def instantiate_attention_template(attrs):
   p.query_ptr = reinterpret_cast<T *>(${query}->data);
   p.key_ptr = reinterpret_cast<T *>(${key}->data);
   p.value_ptr = reinterpret_cast<T *>(${value}->data);
-  CHECK(${query}->ndim == 4); // B, S, N, H
-  CHECK(${key}->ndim == 4); // B, S', N, H
-  CHECK(${value}->ndim == 4); // B, S', N, H'
+  TVM_FFI_CHECK(${query}->ndim == 4, ValueError); // B, S, N, H
+  TVM_FFI_CHECK(${key}->ndim == 4, ValueError); // B, S', N, H
+  TVM_FFI_CHECK(${value}->ndim == 4, ValueError); // B, S', N, H'
 
   // stride for N
   p.q_strideH = p.head_dim; // H
@@ -69,7 +69,7 @@ def instantiate_attention_template(attrs):
   p.query_ptr = reinterpret_cast<T *>(${qkv}->data);
   p.key_ptr = reinterpret_cast<T *>(${qkv}->data) + p.head_dim * p.num_heads;
   p.value_ptr = reinterpret_cast<T *>(${qkv}->data) + p.head_dim * p.num_heads * 2;
-  CHECK(${qkv}->ndim == 3); // B, S, NH + NH + NH'
+  TVM_FFI_CHECK(${qkv}->ndim == 3, ValueError); // B, S, NH + NH + NH'
 
   // stride for N
   p.q_strideH = p.head_dim; // H
@@ -132,7 +132,7 @@ def instantiate_attention_template(attrs):
 
 
   p.o_strideM = p.head_dim_value * p.num_heads; // H' * N
-  CHECK(out0->ndim == 4); // B, S, N, H'
+  TVM_FFI_CHECK(out0->ndim == 4, ValueError); // B, S, N, H'
 
   ${qkv_template}
   ${bias_template}
@@ -148,7 +148,7 @@ def instantiate_attention_template(attrs):
     }();
   }
 
-  CHECK(Attention::check_supported(p));
+  TVM_FFI_CHECK(Attention::check_supported(p), RuntimeError);
   cudaStream_t stream = static_cast<cudaStream_t>(TVMFFIEnvGetStream(kDLCUDA, ${query}->device.device_id));
 
   kernel_fn<<<p.getBlocksGrid(), p.getThreadsGrid(), smem_bytes, stream>>>(p);

@@ -23,21 +23,13 @@
 
 #include <llvm/ADT/ArrayRef.h>
 #include <llvm/ADT/StringRef.h>
-#if TVM_LLVM_VERSION >= 150
 #include <llvm/IR/FMF.h>
-#else
-#include <llvm/IR/Operator.h>
-#endif
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Metadata.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IRReader/IRReader.h>
 #include <llvm/MC/MCSubtargetInfo.h>
-#if TVM_LLVM_VERSION >= 140
 #include <llvm/MC/TargetRegistry.h>
-#else
-#include <llvm/Support/TargetRegistry.h>
-#endif
 #include <llvm/Support/CodeGen.h>
 #include <llvm/Support/CommandLine.h>
 #include <llvm/Support/ErrorOr.h>
@@ -218,9 +210,7 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance,
   // llvm module target
   if (Downcast<ffi::String>(target.Get("kind").value()) == "llvm") {
     // legalize -mcpu with the target -mtriple
-    auto arches = GetAllLLVMTargetArches();
-    bool has_arch =
-        std::any_of(arches.begin(), arches.end(), [&](const auto& var) { return var == cpu_; });
+    bool has_arch = IsValidCPU(cpu_);
     if (!has_arch) {
       // Flag an error, but don't abort. This mimicks the behaviour of 'llc' to
       // give the code a chance to run with a less-specific target.
@@ -293,7 +283,6 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance,
   if (arch == llvm::Triple::riscv32 || arch == llvm::Triple::riscv64) {
     // code model
     code_model_ = llvm::CodeModel::Medium;
-#if TVM_LLVM_VERSION >= 140
     // get VLEN from the LLVM backend (zvlXXXb)
     ffi::Map<ffi::String, ffi::String> features = GetAllLLVMCpuFeatures();
     // check vector ISA
@@ -312,13 +301,9 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance,
         }
       }
     }
-#endif
   }
 
   // Target options
-#if TVM_LLVM_VERSION < 50
-  target_options_.LessPreciseFPMADOption = true;
-#endif
   // In clang, these are fed from LangOpts which describe language specific features
   // TODO(AndrewZhaoLuo): figure out how these relate to fast math flags
   target_options_.AllowFPOpFusion = llvm::FPOpFusion::Fast;
@@ -379,18 +364,11 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance,
     }
   };
   if (GetBoolFlag("fast-math")) {
-#if TVM_LLVM_VERSION >= 60
     fast_math_flags_.setFast();
-#else
-    fast_math_flags_.setUnsafeAlgebra();
-#endif
   } else {
-#if TVM_LLVM_VERSION >= 50
     // This option was added in 5.x, and has a boolean argument,
     // unlike the rest of options at the time.
     fast_math_flags_.setAllowContract(GetBoolFlag("fast-math-contract"));
-#endif
-#if TVM_LLVM_VERSION >= 70
     fast_math_flags_.setNoNaNs(GetBoolFlag("fast-math-nnan"));
     fast_math_flags_.setNoInfs(GetBoolFlag("fast-math-ninf"));
     fast_math_flags_.setNoSignedZeros(GetBoolFlag("fast-math-nsz"));
@@ -398,17 +376,6 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance,
     fast_math_flags_.setAllowContract(GetBoolFlag("fast-math-contract"));
     fast_math_flags_.setAllowReassoc(GetBoolFlag("fast-math-reassoc"));
     fast_math_flags_.setApproxFunc(GetBoolFlag("fast-math-afn"));
-#else
-    // LLVM 4.x, 5.x, and 6.x
-    if (GetBoolFlag("fast-math-nnan")) fast_math_flags_.setNoNaNs();
-    if (GetBoolFlag("fast-math-ninf")) fast_math_flags_.setNoInfs();
-    if (GetBoolFlag("fast-math-nsz")) fast_math_flags_.setNoSignedZeros();
-    if (GetBoolFlag("fast-math-arcp")) fast_math_flags_.setAllowReciprocal();
-#if TVM_LLVM_VERSION >= 60
-    if (GetBoolFlag("fast-math-reassoc")) fast_math_flags_.setAllowReassoc();
-    if (GetBoolFlag("fast-math-afn")) fast_math_flags_.setApproxFunc();
-#endif
-#endif
   }
 }
 
@@ -473,6 +440,23 @@ llvm::TargetMachine* LLVMTargetInfo::GetOrCreateTargetMachine(bool allow_missing
   return target_machine_.get();
 }
 
+bool LLVMTargetInfo::IsValidCPU(const std::string& cpu) const {
+  auto llvm_instance = CreateLLVMTargetInstance(triple_, true);
+  if (!llvm_instance) return false;
+  // Create MCSubtargetInfo directly instead of a full TargetMachine,
+  // since we only need isCPUStringValid which correctly handles CPU aliases
+  // (e.g. apple-m1 in LLVM 22+) that don't appear in getAllProcessorDescriptions().
+#if TVM_LLVM_VERSION >= 220
+  llvm::Triple triple_obj(triple_);
+  std::unique_ptr<llvm::MCSubtargetInfo> mc_info(
+      llvm_instance->createMCSubtargetInfo(triple_obj, "", ""));
+#else
+  std::unique_ptr<llvm::MCSubtargetInfo> mc_info(
+      llvm_instance->createMCSubtargetInfo(triple_, "", ""));
+#endif
+  return mc_info && mc_info->isCPUStringValid(cpu);
+}
+
 std::string LLVMTargetInfo::GetTargetFeatureString() const {  //
   return Join(",", attrs_);
 }
@@ -511,30 +495,19 @@ std::string LLVMTargetInfo::str() const {
   }
 
   bool do_individual = true;
-#if TVM_LLVM_VERSION >= 60
   if (fast_math_flags_.isFast()) {
     obj.Set(ffi::String("fast-math"), true);
     do_individual = false;
   }
-#else
-  if (fast_math_flags_.unsafeAlgebra()) {
-    obj.Set(ffi::String("fast-math"), true);
-    do_individual = false;
-  }
-#endif
 
   if (do_individual) {
     if (fast_math_flags_.noNaNs()) obj.Set(ffi::String("fast-math-nnan"), true);
     if (fast_math_flags_.noInfs()) obj.Set(ffi::String("fast-math-ninf"), true);
     if (fast_math_flags_.noSignedZeros()) obj.Set(ffi::String("fast-math-nsz"), true);
     if (fast_math_flags_.allowReciprocal()) obj.Set(ffi::String("fast-math-arcp"), true);
-#if TVM_LLVM_VERSION >= 50
     if (fast_math_flags_.allowContract()) obj.Set(ffi::String("fast-math-contract"), true);
-#endif
-#if TVM_LLVM_VERSION >= 60
     if (fast_math_flags_.allowReassoc()) obj.Set(ffi::String("fast-math-reassoc"), true);
     if (fast_math_flags_.approxFunc()) obj.Set(ffi::String("fast-math-afn"), true);
-#endif
   }
 
 #if TVM_LLVM_VERSION <= 170

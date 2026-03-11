@@ -30,7 +30,7 @@
 
 #include <algorithm>
 
-#include "../node/attr_registry.h"
+#include "../ir/attr_registry.h"
 #include "../support/utils.h"
 #include "./canonicalizer/llvm/canonicalize.h"
 

@@ -49,11 +49,11 @@ def test_multi_element_array_in_outmost_namespace():
 def test_different_dtype_assignment_to_var():
     @T.prim_func
     def test_case():
-        a = T.alloc_buffer((10, 10), dtype="int8")
+        a = T.sblock_alloc_buffer((10, 10), dtype="int8")
 
     @T.prim_func
     def func_ref():
-        a = T.alloc_buffer([10, 10], dtype="int8")
+        a = T.sblock_alloc_buffer([10, 10], dtype="int8")
         T.evaluate(0)
 
     tvm.ir.assert_structural_equal(

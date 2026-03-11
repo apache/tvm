@@ -320,7 +320,7 @@ Currently, ROCm is supported only on linux, so all the instructions are written 
 
 - Set ``set(USE_ROCM ON)``, set ROCM_PATH to the correct path.
 - You need to first install HIP runtime from ROCm. Make sure the installation system has ROCm installed in it.
-- Install latest stable version of LLVM (v6.0.1), and LLD, make sure ``ld.lld`` is available via command line.
+- Install LLVM (>= 15), and LLD, make sure ``ld.lld`` is available via command line.
 
 .. _install-from-source-cpp-tests:
 

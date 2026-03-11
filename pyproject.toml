@@ -230,7 +230,6 @@ unfixable = []
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["E402", "F401", "F403", "F405"]
-"python/tvm/contrib/msc/**" = ["UP"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["tvm"]

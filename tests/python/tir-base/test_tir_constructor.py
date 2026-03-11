@@ -19,6 +19,7 @@
 import pytest
 
 import tvm
+from tvm import te, topi
 
 
 def test_expr_constructor():
@@ -131,18 +132,24 @@ def test_expr_constructor():
 def test_stmt_constructor():
     v = tvm.tir.Var("aa", "int32")
     nop = tvm.tir.Evaluate(1)
-    x = tvm.tir.LetStmt(v, 1, tvm.tir.Evaluate(1))
-    assert isinstance(x, tvm.tir.LetStmt)
+    x = tvm.tir.Bind(v, 1)
+    assert isinstance(x, tvm.tir.Bind)
     assert x.var == v
     assert x.value.value == 1
-    assert isinstance(x.body, tvm.tir.Evaluate)
 
     x = tvm.tir.AttrStmt(v == 1, "xx", 1, tvm.tir.Evaluate(1))
     assert isinstance(x, tvm.tir.AttrStmt)
     assert x.value.value == 1
 
-    x = tvm.tir.AssertStmt(tvm.tir.const(1, "bool"), tvm.runtime.convert("hellow"))
+    x = tvm.tir.AssertStmt(
+        tvm.tir.const(1, "bool"),
+        tvm.tir.StringImm("RuntimeError"),
+        [tvm.tir.StringImm("hellow")],
+    )
     assert isinstance(x, tvm.tir.AssertStmt)
+    assert x.error_kind.value == "RuntimeError"
+    assert len(x.message_parts) == 1
+    assert x.message_parts[0].value == "hellow"
 
     x = tvm.tir.For(tvm.tir.Var("x", "int32"), 0, 10, tvm.tir.ForKind.SERIAL, nop)
     assert isinstance(x, tvm.tir.For)
@@ -159,21 +166,10 @@ def test_stmt_constructor():
     assert list(x.indices) == [10]
     assert x.value.value == 1
 
-    buffer_var = tvm.tir.Var("buf", tvm.ir.PointerType(tvm.ir.PrimType("float32")))
-    x = tvm.tir.Allocate(buffer_var, "float32", [10], tvm.tir.const(1, "bool"), nop)
-    assert isinstance(x, tvm.tir.Allocate)
-    assert x.dtype == "float32"
-    assert x.buffer_var == buffer_var
-    assert x.body == nop
-
-    storage_scope = "global.texture"
-    buffer_var = tvm.tir.Var("buf", tvm.ir.PointerType(tvm.ir.PrimType("float32"), storage_scope))
-    x = tvm.tir.Allocate(buffer_var, "float32", [10], tvm.tir.const(1, "bool"), nop)
-    assert isinstance(x, tvm.tir.Allocate)
-    assert x.dtype == "float32"
-    assert x.buffer_var == buffer_var
-    assert x.buffer_var.type_annotation.storage_scope == storage_scope
-    assert x.body == nop
+    buf = tvm.tir.decl_buffer([10], "float32")
+    x = tvm.tir.AllocBuffer(buf)
+    assert isinstance(x, tvm.tir.AllocBuffer)
+    assert x.buffer == buf
 
     x = tvm.tir.AttrStmt(buffer_var, "xyz", 1, nop)
     assert isinstance(x, tvm.tir.AttrStmt)
@@ -190,6 +186,32 @@ def test_stmt_constructor():
 def test_float_constructor_requires_float_dtype():
     with pytest.raises(tvm.TVMError):
         tvm.tir.FloatImm("int32", 1.0)
+
+
+def test_math_unary_constructor_requires_float_dtype():
+    x = tvm.tir.Var("x", "int32")
+
+    with pytest.raises(TypeError, match=r"tir\.tan only supports floating-point inputs"):
+        tvm.tir.tan(x)
+
+    with pytest.raises(TypeError, match=r"tir\.sin only supports floating-point inputs"):
+        tvm.tir.sin(x)
+
+    y = tvm.tir.Var("y", "float32")
+    assert tvm.tir.tan(y).dtype == "float32"
+
+
+def test_topi_tan_requires_float_dtype():
+    x = te.placeholder((2, 2), dtype="int32", name="x")
+
+    with pytest.raises(TypeError, match=r"tir\.tan only supports floating-point inputs"):
+        topi.tan(x)
+
+
+def test_math_unary_constructor_preserves_bfloat16():
+    x = tvm.tir.Var("x", "bfloat16")
+    y = tvm.tir.exp(x)
+    assert y.dtype == "bfloat16"
 
 
 if __name__ == "__main__":

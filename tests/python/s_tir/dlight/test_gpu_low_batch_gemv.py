@@ -33,8 +33,8 @@ def test_batch_decode_gemv():
         lv807 = T.match_buffer(p_lv807, (batch_size, T.int64(1), T.int64(28672)), "float16")
         NT_matmul_intermediate = T.match_buffer(p_output0, (batch_size, T.int64(1), T.int64(4096)), "float16")
         # with T.sblock("root"):
-        compute = T.alloc_buffer((T.int64(4096), T.int64(28672)), "float16")
-        dequantize_intermediate_intermediate = T.alloc_buffer((T.int64(4096), T.int64(28672)), "float16")
+        compute = T.sblock_alloc_buffer((T.int64(4096), T.int64(28672)), "float16")
+        dequantize_intermediate_intermediate = T.sblock_alloc_buffer((T.int64(4096), T.int64(28672)), "float16")
         for i0, i1 in T.grid(T.int64(4096), T.int64(28672)):
             with T.sblock("compute"):
                 v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
@@ -63,10 +63,10 @@ def test_batch_decode_gemv():
         lv807 = T.match_buffer(p_lv807, (batch_size, T.int64(1), T.int64(28672)), "float16")
         NT_matmul_intermediate = T.match_buffer(p_output0, (batch_size, T.int64(1), T.int64(4096)), "float16")
         # with T.sblock("root"):
-        dequantize_intermediate_intermediate_local = T.alloc_buffer((T.int64(4096), T.int64(28672)), "float16", scope="local")
-        NT_matmul_intermediate_pad_local = T.alloc_buffer(((batch_size + T.int64(3)) // T.int64(4) * T.int64(4), T.int64(1), T.int64(4096)), "float16", scope="local")
-        NT_matmul_intermediate_pad_rf_local = T.alloc_buffer((T.int64(128), (batch_size + T.int64(3)) // T.int64(4) * T.int64(4), T.int64(1), T.int64(4096)), "float16", scope="local")
-        NT_matmul_intermediate_pad_rf_local_1 = T.alloc_buffer((T.int64(32), (batch_size + T.int64(3)) // T.int64(4) * T.int64(4), T.int64(1), T.int64(4096)), "float16", scope="local")
+        dequantize_intermediate_intermediate_local = T.sblock_alloc_buffer((T.int64(4096), T.int64(28672)), "float16", scope="local")
+        NT_matmul_intermediate_pad_local = T.sblock_alloc_buffer(((batch_size + T.int64(3)) // T.int64(4) * T.int64(4), T.int64(1), T.int64(4096)), "float16", scope="local")
+        NT_matmul_intermediate_pad_rf_local = T.sblock_alloc_buffer((T.int64(128), (batch_size + T.int64(3)) // T.int64(4) * T.int64(4), T.int64(1), T.int64(4096)), "float16", scope="local")
+        NT_matmul_intermediate_pad_rf_local_1 = T.sblock_alloc_buffer((T.int64(32), (batch_size + T.int64(3)) // T.int64(4) * T.int64(4), T.int64(1), T.int64(4096)), "float16", scope="local")
         for ax0_0 in T.thread_binding((batch_size + T.int64(3)) // T.int64(4), thread="blockIdx.y"):
             for u_fused_ax1_fused_fused_0 in T.thread_binding(T.int64(256), thread="blockIdx.x"):
                 for u_fused_ax1_fused_fused_1 in T.thread_binding(T.int64(8), thread="threadIdx.x"):
@@ -177,9 +177,9 @@ def test_batch_gemv():
         A = T.match_buffer(var_A, (batch_size, T.int64(1), T.int64(4096)), "float16")
         NT_matmul = T.match_buffer(var_NT_matmul, (batch_size, T.int64(1), T.int64(4096)), "float16")
         # with T.sblock("root"):
-        NT_matmul_pad_local = T.alloc_buffer(((batch_size + T.int64(3)) // T.int64(4) * T.int64(4), T.int64(1), T.int64(4096)), "float16", scope="local")
-        NT_matmul_pad_rf_local = T.alloc_buffer((T.int64(128), (batch_size + T.int64(3)) // T.int64(4) * T.int64(4), T.int64(1), T.int64(4096)), "float16", scope="local")
-        NT_matmul_pad_rf_local_1 = T.alloc_buffer((T.int64(32), (batch_size + T.int64(3)) // T.int64(4) * T.int64(4), T.int64(1), T.int64(4096)), "float16", scope="local")
+        NT_matmul_pad_local = T.sblock_alloc_buffer(((batch_size + T.int64(3)) // T.int64(4) * T.int64(4), T.int64(1), T.int64(4096)), "float16", scope="local")
+        NT_matmul_pad_rf_local = T.sblock_alloc_buffer((T.int64(128), (batch_size + T.int64(3)) // T.int64(4) * T.int64(4), T.int64(1), T.int64(4096)), "float16", scope="local")
+        NT_matmul_pad_rf_local_1 = T.sblock_alloc_buffer((T.int64(32), (batch_size + T.int64(3)) // T.int64(4) * T.int64(4), T.int64(1), T.int64(4096)), "float16", scope="local")
         for ax0_0 in T.thread_binding((batch_size + T.int64(3)) // T.int64(4), thread="blockIdx.y"):
             for u_fused_ax1_fused_fused_0 in T.thread_binding(T.int64(256), thread="blockIdx.x"):
                 for u_fused_ax1_fused_fused_1 in T.thread_binding(T.int64(8), thread="threadIdx.x"):
@@ -301,9 +301,9 @@ def test_small_spatial_axis():
         A = T.match_buffer(var_A, (batch_size, T.int64(4096)), "float16")
         C = T.match_buffer(var_C, (batch_size, T.int64(8)), "float16")
         # with T.sblock("root"):
-        C_pad_local = T.alloc_buffer(((batch_size + T.int64(3)) // T.int64(4) * T.int64(4), T.int64(8)), "float16", scope="local")
-        C_pad_rf_local = T.alloc_buffer((T.int64(128), (batch_size + T.int64(3)) // T.int64(4) * T.int64(4), T.int64(8)), "float16", scope="local")
-        C_pad_rf_local_1 = T.alloc_buffer((T.int64(32), (batch_size + T.int64(3)) // T.int64(4) * T.int64(4), T.int64(8)), "float16", scope="local")
+        C_pad_local = T.sblock_alloc_buffer(((batch_size + T.int64(3)) // T.int64(4) * T.int64(4), T.int64(8)), "float16", scope="local")
+        C_pad_rf_local = T.sblock_alloc_buffer((T.int64(128), (batch_size + T.int64(3)) // T.int64(4) * T.int64(4), T.int64(8)), "float16", scope="local")
+        C_pad_rf_local_1 = T.sblock_alloc_buffer((T.int64(32), (batch_size + T.int64(3)) // T.int64(4) * T.int64(4), T.int64(8)), "float16", scope="local")
         for ax0_0 in T.thread_binding((batch_size + T.int64(3)) // T.int64(4), thread="blockIdx.y"):
             for u_fused_ax1_fused_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
                 for u_fused_ax1_fused_fused_1 in T.thread_binding(T.int64(16), thread="threadIdx.y"):
@@ -395,8 +395,8 @@ def test_outer_reduction():
         batch_size = T.int32()
         A = T.match_buffer(var_A, (batch_size, 1, 4096), "float16")
         C = T.match_buffer(var_C, (batch_size, 1, 6144), "float16")
-        compute = T.alloc_buffer((4096, 6144), "float16")
-        B = T.alloc_buffer((4096, 6144), "float16")
+        compute = T.sblock_alloc_buffer((4096, 6144), "float16")
+        B = T.sblock_alloc_buffer((4096, 6144), "float16")
         for i0, i1 in T.grid(4096, 6144):
             with T.sblock("compute"):
                 v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
@@ -419,13 +419,13 @@ def test_outer_reduction():
         A = T.match_buffer(var_A, (batch_size, 1, 4096), "float16")
         C = T.match_buffer(var_C, (batch_size, 1, 6144), "float16")
         # with T.sblock("root"):
-        B_local = T.alloc_buffer((4096, 6144), "float16", scope="local")
-        A_pad_shared = T.alloc_buffer(((batch_size + 3) // 4 * 4, 1, 4096), "float16", scope="shared")
-        C_pad_local = T.alloc_buffer(((batch_size + 3) // 4 * 4, 1, 6144), "float16", scope="local")
-        C_pad_rf_local = T.alloc_buffer((32, (batch_size + 3) // 4 * 4, 1, 6144), "float16", scope="local")
-        C_pad_rf_local_1 = T.alloc_buffer((4, (batch_size + 3) // 4 * 4, 1, 6144), "float16", scope="local")
-        B0_local = T.alloc_buffer((512, 6144), "uint32", scope="local")
-        B1_local = T.alloc_buffer((128, 6144), "float16", scope="local")
+        B_local = T.sblock_alloc_buffer((4096, 6144), "float16", scope="local")
+        A_pad_shared = T.sblock_alloc_buffer(((batch_size + 3) // 4 * 4, 1, 4096), "float16", scope="shared")
+        C_pad_local = T.sblock_alloc_buffer(((batch_size + 3) // 4 * 4, 1, 6144), "float16", scope="local")
+        C_pad_rf_local = T.sblock_alloc_buffer((32, (batch_size + 3) // 4 * 4, 1, 6144), "float16", scope="local")
+        C_pad_rf_local_1 = T.sblock_alloc_buffer((4, (batch_size + 3) // 4 * 4, 1, 6144), "float16", scope="local")
+        B0_local = T.sblock_alloc_buffer((512, 6144), "uint32", scope="local")
+        B1_local = T.sblock_alloc_buffer((128, 6144), "float16", scope="local")
         for ax0_0 in T.thread_binding((batch_size + 3) // 4, thread="blockIdx.y"):
             for ax1_fused_0 in T.thread_binding(96, thread="blockIdx.x"):
                 for ax1_fused_1 in T.thread_binding(64, thread="threadIdx.x"):

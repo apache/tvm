@@ -190,7 +190,7 @@ enum class BufferVarDefinition {
   // The data pointer is defined along with the buffer, but buffer
   // parameters (shape/stride/elem_offset) must be defined prior to
   // use.  For example, `BlockNode::alloc_buffers`, or the
-  // syntax-sugar representation of an `Allocate`/`DeclBuffer` pair.
+  // syntax-sugar representation of an `AllocBuffer`.
   DataPointer,
 
   // The data pointer is defined along with the buffer, along with any
@@ -259,6 +259,11 @@ class OccurrenceCounter : public tir::StmtExprVisitor {
   void VisitExpr_(const tir::BufferLoadNode* op) final {
     VisitBuffer(op->buffer.get());
     tir::StmtExprVisitor::VisitExpr_(op);
+  }
+
+  void VisitStmt_(const tir::AllocBufferNode* op) final {
+    VisitBuffer(op->buffer.get());
+    tir::StmtExprVisitor::VisitStmt_(op);
   }
 
   void VisitStmt_(const tir::DeclBufferNode* op) final {

@@ -28,14 +28,14 @@
 
 namespace tvm {
 
-std::string SaveJSON(Any n) {
+static std::string SaveJSON(ffi::Any n) {
   int indent = 2;
   ffi::json::Object metadata{{"tvm_version", TVM_VERSION}};
   ffi::json::Value jgraph = ffi::ToJSONGraph(n, metadata);
   return ffi::json::Stringify(jgraph, indent);
 }
 
-Any LoadJSON(std::string json_str) {
+static ffi::Any LoadJSON(std::string json_str) {
   ffi::json::Value jgraph = ffi::json::Parse(json_str);
   return ffi::FromJSONGraph(jgraph);
 }

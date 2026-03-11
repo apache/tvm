@@ -135,15 +135,22 @@ class LoopAnalyzer : public StmtExprVisitor {
       loop_info.height = height;
       loops[f] = loop_info;
       return height + 1;
-    } else if (stmt->IsInstance<LetStmtNode>()) {
-      const LetStmtNode* n = stmt.as<LetStmtNode>();
-      return TraverseLoop(n->body, parent_depth, has_parallel);
+    } else if (stmt->IsInstance<BindNode>()) {
+      // Bind has no body; skip it and return 0 (not a loop).
+      return 0;
+    } else if (stmt->IsInstance<SeqStmtNode>()) {
+      // For flat sequences, traverse children looking for loops.
+      const SeqStmtNode* seq = stmt.as<SeqStmtNode>();
+      unsigned max_height = 0;
+      for (const auto& s : seq->seq) {
+        max_height = std::max(max_height, TraverseLoop(s, parent_depth, has_parallel));
+      }
+      return max_height;
     } else if (stmt->IsInstance<AttrStmtNode>()) {
       const AttrStmtNode* n = stmt.as<AttrStmtNode>();
       return TraverseLoop(n->body, parent_depth, has_parallel);
-    } else if (stmt->IsInstance<AllocateNode>()) {
-      const AllocateNode* n = stmt.as<AllocateNode>();
-      return TraverseLoop(n->body, parent_depth, has_parallel);
+    } else if (stmt->IsInstance<AllocBufferNode>()) {
+      return 0;
     } else {
       return 0;  // inner-most loop
     }

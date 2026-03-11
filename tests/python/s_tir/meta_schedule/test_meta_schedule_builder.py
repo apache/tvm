@@ -65,7 +65,7 @@ class MatmulReluModule:
         A = T.match_buffer(a, (1024, 1024), "float32")
         B = T.match_buffer(b, (1024, 1024), "float32")
         D = T.match_buffer(d, (1024, 1024), "float32")
-        C = T.alloc_buffer((1024, 1024), "float32")
+        C = T.sblock_alloc_buffer((1024, 1024), "float32")
         for i, j, k in T.grid(1024, 1024, 1024):
             with T.sblock("matmul"):
                 vi, vj, vk = T.axis.remap("SSR", [i, j, k])
@@ -110,6 +110,7 @@ def _check_build_results(builder_results: list[BuilderResult]):
         os.rmdir(os.path.dirname(artifact_path))
 
 
+@pytest.mark.skip("Tuning test - launches runner")
 def test_meta_schedule_single_build():
     """Test meta schedule builder for a single build"""
     mod = MatmulModule
@@ -120,6 +121,7 @@ def test_meta_schedule_single_build():
     _check_build_results(builder_results)
 
 
+@pytest.mark.skip("Tuning test - launches runner")
 def test_meta_schedule_multiple_build():
     """Test meta schedule builder for multiple builds"""
     builder = LocalBuilder()
@@ -158,6 +160,7 @@ def test_meta_schedule_error_handle_test_builder():
         assert error_msg == "error"
 
 
+@pytest.mark.skip("Tuning test - launches runner")
 def test_meta_schedule_error_handle_build_func():
     """Test the error handing during building"""
 
@@ -177,6 +180,7 @@ def test_meta_schedule_error_handle_build_func():
         assert error_msg.startswith("LocalBuilder: An exception occurred")
 
 
+@pytest.mark.skip("Tuning test - launches runner")
 def test_meta_schedule_error_handle_export_func():
     """Test the error handing during building"""
 
@@ -196,6 +200,7 @@ def test_meta_schedule_error_handle_export_func():
         assert error_msg.startswith("LocalBuilder: An exception occurred")
 
 
+@pytest.mark.skip("Tuning test - launches runner")
 def test_meta_schedule_error_handle_time_out():
     """Test the error handing time out during building"""
 

@@ -281,25 +281,10 @@ void LeafBlockRemovalPlan(const ScheduleState& self, const StmtSRef& leaf_block_
   }
   if (const auto* block = sref->StmtAs<SBlockNode>()) {
     auto body = block->body;
-    // Peel off DeclBuffer nodes at the beginning of the block body.
-    std::vector<Stmt> allocs;
-    while (true) {
-      if (auto opt = body.as<DeclBuffer>()) {
-        auto decl_buffer = opt.value();
-        body = decl_buffer->body;
-        decl_buffer.CopyOnWrite()->body = Evaluate(0);
-        allocs.push_back(decl_buffer);
-      } else {
-        break;
-      }
-    }
-
     if (const auto* seq = body.as<SeqStmtNode>()) {
       ObjectPtr<SBlockNode> n = ffi::make_object<SBlockNode>(*block);
       auto new_seq = RemoveFromSeqStmt(ffi::GetRef<SeqStmt>(seq), ffi::GetRef<Stmt>(last_stmt));
-      // Re-attach DeclBuffer nodes
-      auto new_body = MergeNest(allocs, new_seq);
-      n->body = new_body;
+      n->body = new_seq;
       *src_stmt = ffi::GetRef<Stmt>(block);
       *tgt_stmt = Stmt(std::move(n));
       return;

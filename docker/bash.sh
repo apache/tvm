@@ -21,7 +21,8 @@
 # Start a bash, mount REPO_MOUNT_POINT to be current directory.
 #
 # Usage: docker/bash.sh [-i|--interactive] [--net=host] [-t|--tty]
-#          [--mount MOUNT_DIR] [--repo-mount-point REPO_MOUNT_POINT]
+#          [--shell SHELL] [--mount MOUNT_DIR]
+#          [--repo-mount-point REPO_MOUNT_POINT]
 #          [--dry-run] [--name NAME] [--privileged]
 #          <DOCKER_IMAGE_NAME> [--] [COMMAND]
 #
@@ -35,10 +36,45 @@
 
 set -euo pipefail
 
+##############################################
+### Section 1: Constants and defaults      ###
+##############################################
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+REPO_DIR="$(dirname "${SCRIPT_DIR}")"
+
+DRY_RUN=false
+INTERACTIVE=false
+TTY=false
+USE_NET_HOST=false
+USE_GPU=true
+DOCKER_IMAGE_NAME=
+COMMAND=bash
+MOUNT_DIRS=( )
+CONTAINER_NAME=
+USER_SHELL=
+
+# TODO(Lunderberg): Remove this if statement and always set to
+# "${REPO_DIR}".  The consistent directory for Jenkins is currently
+# necessary to allow CMake build commands to run in CI after the build
+# steps.
+# TODO(https://github.com/apache/tvm/issues/11952):
+# Figure out a better way to keep the same path
+# between build and testing stages.
+if [[ -n "${JENKINS_HOME:-}" ]]; then
+    REPO_MOUNT_POINT=/workspace
+else
+    REPO_MOUNT_POINT="${REPO_DIR}"
+fi
+
+##############################################
+### Section 2: Helper functions            ###
+##############################################
+
 function show_usage() {
     cat <<EOF
 Usage: docker/bash.sh [-i|--interactive] [--net=host] [-t|--tty]
-          [--cpus NUM_CPUS] [--mount MOUNT_DIR]
+          [--shell SHELL] [--cpus NUM_CPUS] [--mount MOUNT_DIR]
           [--repo-mount-point REPO_MOUNT_POINT]
           [--dry-run] [--name NAME]
           <DOCKER_IMAGE_NAME> [--] [COMMAND]
@@ -55,6 +91,12 @@ Usage: docker/bash.sh [-i|--interactive] [--net=host] [-t|--tty]
 -t, --tty
 
     Start the docker session with a pseudo terminal (tty).
+
+--shell SHELL
+
+    Specify a shell (e.g. --shell zsh) to use instead of bash
+    when entering auto-interactive mode (no command or command
+    is "bash").
 
 --cpus NUM_CPUS
 
@@ -126,46 +168,65 @@ COMMAND
     contains dash-prefixed arguments, the command should be preceded
     by -- to indicate arguments that are not intended for bash.sh.
 
+Environment Variables:
+
+TVM_DEV_DOCKER_MOUNTS
+
+    Space-separated list of additional mount specifications.
+    Each entry is either:
+      /path/to/dir          - bind mount at same path inside container
+      /src:/dst             - bind mount src to dst inside container
+    Source paths are validated; missing sources are skipped with a warning.
+
 EOF
 }
-
-
-#################################
-### Start of argument parsing ###
-#################################
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-REPO_DIR="$(dirname "${SCRIPT_DIR}")"
-
-DRY_RUN=false
-INTERACTIVE=false
-TTY=false
-USE_NET_HOST=false
-USE_GPU=true
-DOCKER_IMAGE_NAME=
-COMMAND=bash
-MOUNT_DIRS=( )
-CONTAINER_NAME=
-
-# TODO(Lunderberg): Remove this if statement and always set to
-# "${REPO_DIR}".  The consistent directory for Jenkins is currently
-# necessary to allow CMake build commands to run in CI after the build
-# steps.
-# TODO(https://github.com/apache/tvm/issues/11952):
-# Figure out a better way to keep the same path
-# between build and testing stages.
-if [[ -n "${JENKINS_HOME:-}" ]]; then
-    REPO_MOUNT_POINT=/workspace
-else
-    REPO_MOUNT_POINT="${REPO_DIR}"
-fi
-
 
 function parse_error() {
     echo "$@" >&2
     show_usage >&2
     exit 1
 }
+
+# Detect if Docker daemon is running in rootless mode.
+# Uses DOCKER_IS_ROOTLESS env var as override (for CI), otherwise auto-detects.
+# Result is cached after first call.
+_ROOTLESS_CACHED=
+_ROOTLESS_RESULT=1
+function detect_rootless() {
+    if [ -n "${_ROOTLESS_CACHED}" ]; then
+        return $_ROOTLESS_RESULT
+    fi
+    _ROOTLESS_CACHED=1
+    if [ -n "${DOCKER_IS_ROOTLESS:-}" ]; then
+        # env var override for CI
+        _ROOTLESS_RESULT=0
+        return 0
+    fi
+    if docker info -f '{{.SecurityOptions}}' 2>/dev/null | grep -q "rootless"; then
+        _ROOTLESS_RESULT=0
+        return 0
+    fi
+    _ROOTLESS_RESULT=1
+    return 1
+}
+
+# Validate a mount source path exists, warn if missing.
+# Usage: validate_mount /path/to/source
+# Returns 0 if source exists, 1 if missing.
+function validate_mount() {
+    local src="$1"
+    if [ -e "$src" ]; then
+        return 0
+    else
+        echo "Warning: Mount source '$src' not found on host, skipping." >&2
+        return 1
+    fi
+}
+
+
+##############################################
+### Section 3: Argument parsing            ###
+##############################################
 
 # Handle joined flags, such as interpreting -ih as -i -h.  Either rewrites
 # the current argument if it is a joined argument, or shifts all arguments
@@ -191,7 +252,21 @@ while (( $# )); do
 
         -t*|--tty)
             TTY=true
-            eval $break_joined_flag
+            if [[ "$1" == "--tty" ]]; then
+                shift
+            else
+                # Short form: -t or combined like -th
+                eval $break_joined_flag
+            fi
+            ;;
+
+        --shell)
+            if (( $# >= 2 )) && [[ -n "$2" ]]; then
+                USER_SHELL="$2"
+                shift 2
+            else
+                parse_error 'ERROR: --shell requires a non-empty argument'
+            fi
             ;;
 
         --cpus)
@@ -320,18 +395,33 @@ if [[ -z "${DOCKER_IMAGE_NAME}" ]]; then
     show_usage >&2
 fi
 
+# Smart defaults: "bash" command triggers interactive mode
 if [[ ${COMMAND[@]+"${COMMAND[@]}"} = bash ]]; then
     INTERACTIVE=true
     TTY=true
 fi
 
 
+##############################################
+### Section 4: Image resolution            ###
+##############################################
 
-###############################
-### End of argument parsing ###
-###############################
+# Save user-set DOCKER_IS_ROOTLESS before dev_common.sh overwrites it.
+# detect_rootless() should only see the user's explicit env var, not
+# the auto-detection done by dev_common.sh.
+_USER_ROOTLESS="${DOCKER_IS_ROOTLESS+__set__}"
+_USER_ROOTLESS_VAL="${DOCKER_IS_ROOTLESS:-}"
 
 source "$(dirname $0)/dev_common.sh" || exit 2
+
+# Restore: if user had set DOCKER_IS_ROOTLESS, keep their value;
+# otherwise unset the one dev_common.sh created.
+if [ "$_USER_ROOTLESS" = "__set__" ]; then
+    DOCKER_IS_ROOTLESS="$_USER_ROOTLESS_VAL"
+else
+    unset DOCKER_IS_ROOTLESS
+fi
+unset _USER_ROOTLESS _USER_ROOTLESS_VAL
 
 DOCKER_MOUNT=( )
 DOCKER_DEVICES=( )
@@ -349,14 +439,55 @@ if [ -n "${EXPANDED_SHORTCUT}" ]; then
     fi
 fi
 
-# Set up working directories
 
+##############################################
+### Section 5: Mount construction          ###
+##############################################
+
+# Working directories
 DOCKER_FLAGS+=( --workdir "${REPO_MOUNT_POINT}" )
 DOCKER_MOUNT+=( --volume "${REPO_DIR}":"${REPO_MOUNT_POINT}"
                 --volume "${SCRIPT_DIR}":/docker
               )
 
-# Set up CI-specific environment variables
+# Expose external directories from --mount flags
+for MOUNT_DIR in ${MOUNT_DIRS[@]+"${MOUNT_DIRS[@]}"}; do
+    DOCKER_MOUNT+=( --volume "${MOUNT_DIR}:${MOUNT_DIR}" )
+done
+
+# Parse TVM_DEV_DOCKER_MOUNTS env var: space-separated mount specs
+# Each entry is either /path (same path) or /src:/dst
+if [[ -n "${TVM_DEV_DOCKER_MOUNTS:-}" ]]; then
+    for mount_spec in ${TVM_DEV_DOCKER_MOUNTS}; do
+        if [[ "$mount_spec" == *:* ]]; then
+            # src:dst format
+            mount_src="${mount_spec%%:*}"
+            if validate_mount "$mount_src"; then
+                DOCKER_MOUNT+=( --volume "$mount_spec" )
+            fi
+        else
+            # Same path format
+            if validate_mount "$mount_spec"; then
+                DOCKER_MOUNT+=( --volume "$mount_spec:$mount_spec" )
+            fi
+        fi
+    done
+fi
+
+# When running from a git worktree, also mount the original git dir.
+if [ -f "${REPO_DIR}/.git" ]; then
+    git_dir=$(cd ${REPO_DIR} && git rev-parse --git-common-dir)
+    if [ "${git_dir}" != "${REPO_DIR}/.git" ]; then
+        DOCKER_MOUNT+=( --volume "${git_dir}:${git_dir}" )
+    fi
+fi
+
+
+##############################################
+### Section 6: Environment construction    ###
+##############################################
+
+# CI-specific environment variables
 DOCKER_ENV+=( --env CI_BUILD_HOME="${REPO_MOUNT_POINT}"
               --env CI_BUILD_USER="$(id -u -n)"
               --env CI_BUILD_UID="$(id -u)"
@@ -373,10 +504,9 @@ DOCKER_FLAGS+=(--rm)
 # have pid 1 and SIGKILL is propagated to the process inside, allowing
 # jenkins to kill it if needed.  This is only necessary for docker
 # daemons running as root.
-if [ -z "${DOCKER_IS_ROOTLESS}" ]; then
+if ! detect_rootless; then
     DOCKER_FLAGS+=(--pid=host)
 fi
-
 
 # Expose services running in container to the host.
 if $USE_NET_HOST; then
@@ -403,60 +533,28 @@ if [[ ! -z "${CONTAINER_NAME}" ]]; then
     DOCKER_FLAGS+=( --name ${CONTAINER_NAME} --hostname ${CONTAINER_NAME})
 fi
 
-# Expose external directories to the docker container
-for MOUNT_DIR in ${MOUNT_DIRS[@]+"${MOUNT_DIRS[@]}"}; do
-    DOCKER_MOUNT+=( --volume "${MOUNT_DIR}:${MOUNT_DIR}" )
-done
-
-# Use nvidia-docker for GPU container.  If nvidia-docker is not
-# available, fall back to using "--gpus all" flag, requires docker
-# version 19.03 or higher.
-if [[ "$USE_GPU" == "true" ]] && [[ "${DOCKER_IMAGE_NAME}" == *"gpu"* || "${DOCKER_IMAGE_NAME}" == *"cuda"* ]]; then
-    if type nvidia-docker 1> /dev/null 2> /dev/null; then
-        DOCKER_BINARY=nvidia-docker
-    else
-        DOCKER_BINARY=docker
-        DOCKER_FLAGS+=( --gpus all )
-    fi
-
-    # nvidia-docker treats Vulkan as a graphics API, so we need to
-    # request passthrough of graphics APIs.  This could also be set in
-    # the Dockerfile.
-    DOCKER_ENV+=( --env NVIDIA_DRIVER_CAPABILITIES=compute,graphics,utility )
-
-    # But as of nvidia-docker version 2.6.0-1, we still need to pass
-    # through the nvidia icd files ourselves.
-    ICD_SEARCH_LOCATIONS=(
-        # https://github.com/KhronosGroup/Vulkan-Loader/blob/master/loader/LoaderAndLayerInterface.md#icd-discovery-on-linux
-        /usr/local/etc/vulkan/icd.d
-        /usr/local/share/vulkan/icd.d
-        /etc/vulkan/icd.d
-        /usr/share/vulkan/icd.d
-        # https://github.com/NVIDIA/libglvnd/blob/master/src/EGL/icd_enumeration.md#icd-installation
-        /etc/glvnd/egl_vendor.d
-        /usr/share/glvnd/egl_vendor.d
-    )
-    for filename in $(find "${ICD_SEARCH_LOCATIONS[@]}" -name "*nvidia*.json" 2> /dev/null); do
-        DOCKER_MOUNT+=( --volume "${filename}":"${filename}":ro )
-    done
-
-else
-    DOCKER_BINARY=docker
-fi
-
-
-
 # Pass any restrictions of allowed CUDA devices from the host to the
 # docker container.
 if [[ -n ${CUDA_VISIBLE_DEVICES:-} ]]; then
     DOCKER_ENV+=( --env CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES}" )
 fi
 
-
-
 # Set TVM import path inside the docker image
 if [[ "${DOCKER_IMAGE_NAME}" == *"ci"* ]]; then
     DOCKER_ENV+=( --env PYTHONPATH="${REPO_MOUNT_POINT}"/python )
+fi
+
+
+##############################################
+### Section 7: GPU/device setup            ###
+##############################################
+
+DOCKER_BINARY=docker
+
+# Use --gpus all for GPU/CUDA containers
+if [[ "$USE_GPU" == "true" ]] && [[ "${DOCKER_IMAGE_NAME}" == *"gpu"* || "${DOCKER_IMAGE_NAME}" == *"cuda"* ]]; then
+    DOCKER_FLAGS+=( --gpus all )
+    DOCKER_ENV+=( --env NVIDIA_DRIVER_CAPABILITIES=compute,graphics,utility )
 fi
 
 # Add ROCm devices and set ROCM_ENABLED=1 which is used in the with_the_same_user script
@@ -466,23 +564,32 @@ if [[ "${DOCKER_IMAGE_NAME}" == *"rocm"* && -d "/dev/dri" ]]; then
     DOCKER_ENV+=( --env ROCM_ENABLED=1 )
 fi
 
-# When running from a git worktree, also mount the original git dir.
-if [ -f "${REPO_DIR}/.git" ]; then
-    git_dir=$(cd ${REPO_DIR} && git rev-parse --git-common-dir)
-    if [ "${git_dir}" != "${REPO_DIR}/.git" ]; then
-        DOCKER_MOUNT+=( --volume "${git_dir}:${git_dir}" )
-    fi
+
+##############################################
+### Section 8: Entry command               ###
+##############################################
+
+# Apply --shell override: when command is "bash" (auto-interactive)
+# and a custom shell was requested via --shell <name>, use that shell
+if [[ ${COMMAND[@]+"${COMMAND[@]}"} = bash ]] && [[ -n "$USER_SHELL" ]]; then
+    COMMAND=( "$USER_SHELL" )
 fi
 
-# If the docker daemon is running as root, use the TVM-provided
-# "with_the_same_user" script to update the PID.  When using rootless
-# docker, this step is unnecessary.
-if [ -z "${DOCKER_IS_ROOTLESS}" ]; then
+# Build the entry command
+if ! detect_rootless; then
+    # If the docker daemon is running as root, use the TVM-provided
+    # "with_the_same_user" script to update the PID.  When using rootless
+    # docker, this step is unnecessary.
     COMMAND=(
         bash --login /docker/with_the_same_user
         ${COMMAND[@]+"${COMMAND[@]}"}
     )
 fi
+
+
+##############################################
+### Section 9: Final docker run            ###
+##############################################
 
 # Print arguments.
 echo "REPO_DIR: ${REPO_DIR}"

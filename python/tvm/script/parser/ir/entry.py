@@ -46,6 +46,9 @@ def ir_module(mod: type | None = None, check_well_formed: bool = True) -> IRModu
         The parsed ir module.
     """
 
+    # Capture stack outside wrapper (wrapper adds to the stack)
+    outer_stack = inspect.stack()
+
     def decorator_wrapper(mod):
         if not inspect.isclass(mod):
             raise TypeError(f"Expect a class, but got: {mod}")
@@ -53,7 +56,10 @@ def ir_module(mod: type | None = None, check_well_formed: bool = True) -> IRModu
         # Check BasePyModule inheritance
         base_py_module_inherited = any(base.__name__ == "BasePyModule" for base in mod.__bases__)
 
-        m = parse(mod, utils.inspect_class_capture(mod), check_well_formed=check_well_formed)
+        extra_vars = utils.inspect_class_capture(mod)
+        # Resolve closure variables hidden by PEP 563 (annotation-only names)
+        utils.resolve_closure_vars(mod, extra_vars, outer_stack)
+        m = parse(mod, extra_vars, check_well_formed=check_well_formed)
 
         if base_py_module_inherited:
             # Lazy import: tvm.relax cannot be imported at module level in tvm.script.parser

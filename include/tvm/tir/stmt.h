@@ -28,6 +28,7 @@
 #include <tvm/node/script_printer.h>
 #include <tvm/tir/expr.h>
 
+#include <optional>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -67,37 +68,38 @@ class Stmt : public ObjectRef {
 };
 
 /*!
- * \brief Let binding, bind var to value, then run body.
+ * \brief Bind a variable to a value in the enclosing scope.
+ *
+ * BindNode has no body field. The bound variable is visible
+ * in all subsequent statements within the same enclosing scope (SeqStmt,
+ * ForNode.body, etc.). This enables flat (non-nested) IR sequences.
  */
-class LetStmtNode : public StmtNode {
+class BindNode : public StmtNode {
  public:
-  /*! \brief The variable. */
+  /*! \brief The variable being bound. */
   Var var;
-  /*! \brief The value to be bound. */
+  /*! \brief The value to bind to the variable. */
   PrimExpr value;
-  /*! \brief The body block. */
-  Stmt body;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<LetStmtNode>()
-        .def_ro("var", &LetStmtNode::var, refl::AttachFieldFlag::SEqHashDef())
-        .def_ro("value", &LetStmtNode::value)
-        .def_ro("body", &LetStmtNode::body);
+    refl::ObjectDef<BindNode>()
+        .def_ro("var", &BindNode::var, refl::AttachFieldFlag::SEqHashDef())
+        .def_ro("value", &BindNode::value);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.LetStmt", LetStmtNode, StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.Bind", BindNode, StmtNode);
 };
 
 /*!
- * \brief Managed reference to LetStmtNode.
- * \sa LetStmtNode
+ * \brief Managed reference to BindNode.
+ * \sa BindNode
  */
-class LetStmt : public Stmt {
+class Bind : public Stmt {
  public:
-  TVM_DLL LetStmt(Var var, PrimExpr value, Stmt body, Span span = Span());
+  TVM_DLL Bind(Var var, PrimExpr value, Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(LetStmt, Stmt, LetStmtNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(LetStmtNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Bind, Stmt, BindNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(BindNode);
 };
 
 /*!
@@ -147,25 +149,28 @@ class AttrStmt : public Stmt {
 
 /*!
  * \brief Assert condition, if an error occurs, return the error message.
+ *
+ * The error is described by:
+ * - \p error_kind: the error kind (e.g. "RuntimeError", "TypeError", "ValueError")
+ * - \p message_parts: an array of string fragments that are concatenated at runtime
+ *   via TVMFFIErrorSetRaisedFromCStrParts. This enables string fragment reuse
+ *   across multiple assertions to reduce binary size.
  */
 class AssertStmtNode : public StmtNode {
  public:
   /*! \brief Condition to be checked. */
   PrimExpr condition;
-  /*! \brief Error message when assertion failed. */
-  PrimExpr message;
-  /*!
-   * \brief Body which this assertion holds true.
-   *  Will be executed after the assertion.
-   */
-  Stmt body;
+  /*! \brief The error kind, e.g. "RuntimeError", "TypeError", "ValueError". */
+  StringImm error_kind;
+  /*! \brief Error message fragments, concatenated at runtime when assertion fails. */
+  ffi::Array<StringImm> message_parts;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<AssertStmtNode>()
         .def_ro("condition", &AssertStmtNode::condition)
-        .def_ro("message", &AssertStmtNode::message)
-        .def_ro("body", &AssertStmtNode::body);
+        .def_ro("error_kind", &AssertStmtNode::error_kind)
+        .def_ro("message_parts", &AssertStmtNode::message_parts);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.AssertStmt", AssertStmtNode, StmtNode);
 };
@@ -176,7 +181,8 @@ class AssertStmtNode : public StmtNode {
  */
 class AssertStmt : public Stmt {
  public:
-  TVM_DLL AssertStmt(PrimExpr condition, PrimExpr message, Span span = Span());
+  TVM_DLL AssertStmt(PrimExpr condition, StringImm error_kind, ffi::Array<StringImm> message_parts,
+                     Span span = Span());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(AssertStmt, Stmt, AssertStmtNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(AssertStmtNode);
@@ -228,21 +234,32 @@ class BufferStore : public Stmt {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferStoreNode);
 };
 
-/*!
- * \brief Allocate a buffer that can be used in body.
- */
-class AllocateNode : public StmtNode {
+/*! \brief Declare a buffer that can be used in the body */
+class DeclBufferNode : public StmtNode {
  public:
-  /*! \brief The buffer variable. */
-  Var buffer_var;
-  /*! \brief The type of the buffer. */
-  DataType dtype;
-  /*! \brief The extents of the buffer. */
-  ffi::Array<PrimExpr> extents;
-  /*! \brief Only allocate buffer when condition is satisfied. */
-  PrimExpr condition;
-  /*! \brief The body to be executed. */
-  Stmt body;
+  /*! \brief The buffer being declared */
+  Buffer buffer;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<DeclBufferNode>().def_ro("buffer", &DeclBufferNode::buffer);
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.DeclBuffer", DeclBufferNode, StmtNode);
+};
+
+/*! \brief Managed reference to DeclBufferNode */
+class DeclBuffer : public Stmt {
+ public:
+  TVM_DLL DeclBuffer(Buffer buffer, Span span = Span());
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DeclBuffer, Stmt, DeclBufferNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(DeclBufferNode);
+};
+
+/*! \brief Allocate a buffer and declare it in scope */
+class AllocBufferNode : public StmtNode {
+ public:
+  /*! \brief The buffer being allocated and declared */
+  Buffer buffer;
   /*!
    * \brief Additional annotations about the allocation.
    *
@@ -253,69 +270,38 @@ class AllocateNode : public StmtNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<AllocateNode>()
-        .def_ro("buffer_var", &AllocateNode::buffer_var, refl::AttachFieldFlag::SEqHashDef())
-        .def_ro("dtype", &AllocateNode::dtype)
-        .def_ro("extents", &AllocateNode::extents)
-        .def_ro("condition", &AllocateNode::condition)
-        .def_ro("body", &AllocateNode::body)
-        .def_ro("annotations", &AllocateNode::annotations);
+    refl::ObjectDef<AllocBufferNode>()
+        .def_ro("buffer", &AllocBufferNode::buffer, refl::AttachFieldFlag::SEqHashDef())
+        .def_ro("annotations", &AllocBufferNode::annotations);
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.AllocBuffer", AllocBufferNode, StmtNode);
+};
+
+/*! \brief Managed reference to AllocBufferNode */
+class AllocBuffer : public Stmt {
+ public:
+  TVM_DLL AllocBuffer(
+      Buffer buffer,
+      ffi::Map<ffi::String, ffi::Any> annotations = ffi::Map<ffi::String, ffi::Any>(),
+      Span span = Span());
+  /*!
+   * \brief If the buffer's shape is constant, return the total number of elements.
+   * \return The product of all shape extents if all are constant, std::nullopt otherwise.
+   */
+  std::optional<int64_t> ConstantAllocationSize() const {
+    int64_t result = 1;
+    for (const PrimExpr& extent : (*this)->buffer->shape) {
+      if (const auto* int_size = extent.as<IntImmNode>()) {
+        result *= int_size->value;
+      } else {
+        return std::nullopt;
+      }
+    }
+    return result;
   }
 
-  /*!
-   * \brief If the buffer size is constant, return the size.
-   *        Otherwise return 0.
-   * \return The result.
-   */
-  int64_t ConstantAllocationSize() const { return ConstantAllocationSize(extents); }
-  /*!
-   * \brief If the buffer size is constant, return the size.
-   *        Otherwise return 0.
-   * \param extents The extents of the buffer.
-   * \return The result.
-   */
-  TVM_DLL static int64_t ConstantAllocationSize(const ffi::Array<PrimExpr>& extents);
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.Allocate", AllocateNode, StmtNode);
-};
-
-/*!
- * \brief Managed reference to AllocateNode.
- * \sa AllocateNode
- */
-class Allocate : public Stmt {
- public:
-  TVM_DLL Allocate(Var buffer_var, DataType dtype, ffi::Array<PrimExpr> extents, PrimExpr condition,
-                   Stmt body,
-                   ffi::Map<ffi::String, ffi::Any> annotations = ffi::Map<ffi::String, ffi::Any>(),
-                   Span span = Span());
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Allocate, Stmt, AllocateNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(AllocateNode);
-};
-
-/*! \brief Declare a buffer that can be used in the body */
-class DeclBufferNode : public StmtNode {
- public:
-  /*! \brief The buffer being declared */
-  Buffer buffer;
-  /*! \brief The body to be executed */
-  Stmt body;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<DeclBufferNode>()
-        .def_ro("buffer", &DeclBufferNode::buffer)
-        .def_ro("body", &DeclBufferNode::body);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.DeclBuffer", DeclBufferNode, StmtNode);
-};
-
-/*! \brief Managed reference to DeclBufferNode */
-class DeclBuffer : public Stmt {
- public:
-  TVM_DLL DeclBuffer(Buffer buffer, Stmt body, Span span = Span());
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DeclBuffer, Stmt, DeclBufferNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(DeclBufferNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(AllocBuffer, Stmt, AllocBufferNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(AllocBufferNode);
 };
 
 /*!
@@ -912,136 +898,43 @@ class SBlockRealize : public Stmt {
 
 /*! \brief namespace of possible attributes in AttrStmt.attr_key */
 namespace attr {
-// The above attr does not pass to ir stage.
-/*! \brief Mark launching extent of thread, used by device API. */
-constexpr const char* thread_extent = "thread_extent";
-/*! \brief Mark launching of a virtual thread. */
-constexpr const char* virtual_thread = "virtual_thread";
-/*! \brief Mark region is processed by a co-processor */
-constexpr const char* coproc_scope = "coproc_scope";
+/*! \brief Mark stores/loads with their bounds. */
+constexpr const char* buffer_bound = "buffer_bound";
 /*!
- * \brief Mark region creates coprocessor micro ops,
- *  can be reused if corresponding variable is independent.
- */
-constexpr const char* coproc_uop_scope = "coproc_uop_scope";
-/*! \brief Mark the scope as volatile access for certain handle. */
-constexpr const char* volatile_scope = "volatile_scope";
-/*!
- * \brief Mark the scope as generated by extern primitive.
- *  such scope can contain arbitrary ir program and we need to be careful
- *  when make certain assumptions about the structure of the program.
- */
-constexpr const char* extern_scope = "extern_scope";
-/*!
- * \brief Mark the scope as when computation start to happen
+ * \brief Mark the scope as when computation start to happen.
  *  This can hint some code generator to create a new function for compute.
  */
 constexpr const char* compute_scope = "compute_scope";
-/*! \brief Mark storage alignment requirement of buffers */
-constexpr const char* storage_alignment = "storage_alignment";
 /*! \brief The allocation device for global malloc in host. */
 constexpr const char* device_id = "device_id";
+/*! \brief Mark that it is in the device scope. */
+constexpr const char* device_scope = "device_scope";
 /*! \brief The device type. */
 constexpr const char* device_type = "device_type";
-/*! \brief Mark of loop scope */
-constexpr const char* loop_scope = "loop_scope";
-/*! \brief Mark of reduce scope */
-constexpr const char* reduce_scope = "reduce_scope";
+/*!
+ * \brief Mark the scope as generated by extern primitive.
+ *  Such scope can contain arbitrary ir program and we need to be careful
+ *  when making certain assumptions about the structure of the program.
+ */
+constexpr const char* extern_scope = "extern_scope";
 /*! \brief Pragma: auto-unroll, max_step */
 constexpr const char* pragma_auto_unroll_max_step = "pragma_auto_unroll_max_step";
-/*! \brief Pragma: unroll explicit */
-constexpr const char* pragma_unroll_explicit = "pragma_unroll_explicit";
-/*! \brief Mark region is guarded by the pragma extension */
-constexpr const char* pragma_scope_prefix = "pragma_";
 /*! \brief Import C source or file into the final code gen module */
 constexpr const char* pragma_import_c = "pragma_import_c";
 /*! \brief Import llvm source or file into the final code gen module */
 constexpr const char* pragma_import_llvm = "pragma_import_llvm";
+/*! \brief Mark region is guarded by the pragma extension */
+constexpr const char* pragma_scope_prefix = "pragma_";
 /*! \brief Try to modify the AST to support Tensor Core */
 constexpr const char* pragma_tensor_core = "pragma_tensor_core";
-/*!
- * \brief Marks production of double buffer data
- */
-constexpr const char* double_buffer_scope = "double_buffer_scope";
-/*!
- * \brief Marks region used by double buffer write
- */
-constexpr const char* double_buffer_write = "double_buffer_write";
-/*! \brief Mark of scan update scope */
-constexpr const char* scan_update_scope = "scan_update_scope";
-/*! \brief Mark of scan init scope */
-constexpr const char* scan_init_scope = "scan_init_scope";
-/*! \brief Mark stores/loads with theirs bounds.  */
-constexpr const char* buffer_bound = "buffer_bound";
-/*!
- * \brief Bind the buffer specification to the region of the op
- *  When this scope occurs, the stmt.node is a ffi::Array<NodeRef> = [buffer, tensor]
- *  stmt.value is a tvm_tuple(min0, extent0, min1, extent1, ...).
- *  The scope represents that we need to bind the storage region of tensor to buffer.
- *  This will affect replacement of some variables inside the scope that
- *  corresponds to field of buffer to be the actual expressions of tensor during
- *  storage flattening phase.
- */
-constexpr const char* buffer_bind_scope = "buffer_bind_scope";
-// Pipeline related attributes
-/*! \brief channel read scope */
-constexpr const char* channel_read_scope = "channel_read_scope";
-/*! \brief Advance step of channel after end of scope */
-constexpr const char* channel_read_advance = "channel_read_advance";
-/*! \brief channel write scope */
-constexpr const char* channel_write_scope = "channel_write_scope";
-/*! \brief Advance step of channel after end of scope */
-constexpr const char* channel_write_advance = "channel_write_advance";
-/*! \brief pipeline stage scope, implies always execution */
-constexpr const char* pipeline_stage_scope = "pipeline_stage_scope";
-/*! \brief pipeline execution scope, implies the scope can be pipelined. */
-constexpr const char* pipeline_exec_scope = "pipeline_exec_scope";
-
-/*!
- * \brief Mark that it is in the device scope.
- */
-constexpr const char* device_scope = "device_scope";
-
-/*!
- * \brief Mark that the attached statement runs asynchronously.
- */
-constexpr const char* async_scope = "async_scope";
-
-/*!
- * \brief Annotations for invoking and synchronizing asynchronous operations.
-
- * Synchronization is done in terms of "queue": It is an abstract entity associated
- * with each asynchronous unit, and it tracks invocations and completions of asynchronous
- * operations in the FIFO order.
- *
- * Similarly to PTX instructions commit_group and wait_group, these annotations express
- * synchronization by "counting":
- *
- * async_commit_queue(i): Group one or more invocations of async operations in the given scope,
- * and "commit" (or push) them to the queue i. A group of operations committed together is
- * awaited as one chunk. Groups committed to the same queue complete in the FIFO order.
- *
- * async_wait_queue(i, N): Block until only N most recent committed groups are still in-flight at
- * the queue i. N does not have to be a constant, but some backends may require a constant count.
-*/
-constexpr const char* async_commit_queue_scope = "async_commit_queue_scope";
-constexpr const char* async_wait_queue_scope = "async_wait_queue_scope";
-constexpr const char* async_wait_inflight_count = "async_wait_inflight_count";
-
-/*!
- * \brief Mark that the shape of TensorCore fragment
- */
-constexpr const char* fragment_shape = "fragment_shape";
-
-/*!
- * \brief Mark that the layout of TensorCore fragment
- */
-constexpr const char* fragment_layout = "fragment_layout";
-
-/*!
- * \brief Mark that the loop should be partitioned.
- */
-constexpr const char* pragma_loop_partition_hint = "pragma_loop_partition_hint";
+/*! \brief Pragma: unroll explicit */
+constexpr const char* pragma_unroll_explicit = "pragma_unroll_explicit";
+/*! \brief Mark storage alignment requirement of buffers */
+constexpr const char* storage_alignment = "storage_alignment";
+/*! \brief Mark launching extent of thread, used by device API. */
+constexpr const char* thread_extent = "thread_extent";
+/*! \brief Annotation key on AllocBuffer marking the allocation as volatile. */
+constexpr const char* kVolatile = "tir.volatile";
 
 /*!
  * \brief Check if attr_key is a pragma key extension
@@ -1079,6 +972,7 @@ inline const char* ForKind2String(ForKind t) {
       return "thread_binding";
   }
   TVM_FFI_THROW(InternalError) << "Unknown ForKind" << t;
+  TVM_FFI_UNREACHABLE();
 }
 
 }  // namespace tir

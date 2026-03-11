@@ -22,6 +22,7 @@
  */
 #include "ir_visitor_with_analyzer.h"
 
+#include <tvm/s_tir/stmt.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/op.h>
@@ -47,10 +48,9 @@ void IRVisitorWithAnalyzer::VisitStmt_(const SBlockNode* op) {
   });
 }
 
-void IRVisitorWithAnalyzer::VisitStmt_(const LetStmtNode* op) {
+void IRVisitorWithAnalyzer::VisitStmt_(const BindNode* op) {
   this->VisitExpr(op->value);
   analyzer_.Bind(op->var, op->value);
-  this->VisitStmt(op->body);
 }
 
 void IRVisitorWithAnalyzer::VisitStmt_(const IfThenElseNode* op) {
@@ -75,7 +75,7 @@ void IRVisitorWithAnalyzer::VisitStmt_(const IfThenElseNode* op) {
 
 void IRVisitorWithAnalyzer::VisitStmt_(const AttrStmtNode* op) {
   constraint_scope_.WithNewScope([&]() {
-    if (op->attr_key == tir::attr::thread_extent || op->attr_key == tir::attr::virtual_thread) {
+    if (op->attr_key == tir::attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread) {
       IterVar iv = Downcast<IterVar>(op->node);
       TVM_FFI_ICHECK_NE(iv->thread_tag.length(), 0U);
       analyzer_.Bind(iv->var, Range::FromMinExtent(IntImm(op->value->dtype, 0), op->value));
@@ -86,7 +86,6 @@ void IRVisitorWithAnalyzer::VisitStmt_(const AttrStmtNode* op) {
 
 void IRVisitorWithAnalyzer::VisitStmt_(const AssertStmtNode* op) {
   this->VisitExpr(op->condition);
-  this->VisitExpr(op->message);
   constraint_scope_.Current().Emplace(&analyzer_, op->condition);
 }
 

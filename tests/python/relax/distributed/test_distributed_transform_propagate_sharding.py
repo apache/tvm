@@ -395,7 +395,7 @@ def test_decoder_layer():
             A = T.match_buffer(var_A, (T.int64(1), 256, T.int64(4096)), "float16")
             rms_norm_1 = T.match_buffer(var_rms_norm, (T.int64(1), 256, T.int64(4096)), "float16")
             # with T.sblock("root"):
-            Ared_temp = T.alloc_buffer((T.int64(1), 256))
+            Ared_temp = T.sblock_alloc_buffer((T.int64(1), 256))
             for bsz, i, k in T.grid(T.int64(1), 256, T.int64(4096)):
                 with T.sblock("Ared_temp"):
                     v_bsz, v_i, v_k = T.axis.remap("SSR", [bsz, i, k])
@@ -605,7 +605,7 @@ def test_decoder_layer():
         ):
             T.func_attr({"tir.noalias": True})
             # with T.sblock("root"):
-            Ared_temp = T.alloc_buffer((T.int64(1), 256))
+            Ared_temp = T.sblock_alloc_buffer((T.int64(1), 256))
             for bsz, i, k in T.grid(T.int64(1), 256, T.int64(4096)):
                 with T.sblock("Ared_temp"):
                     v_bsz, v_i, v_k = T.axis.remap("SSR", [bsz, i, k])
@@ -1024,7 +1024,7 @@ def test_decoder_layer_tir():
         ):
             T.func_attr({"tir.noalias": True})
             # with T.sblock("root"):
-            Ared_temp = T.alloc_buffer((T.int64(1), 256))
+            Ared_temp = T.sblock_alloc_buffer((T.int64(1), 256))
             for bsz, i, k in T.grid(T.int64(1), 256, T.int64(4096)):
                 with T.sblock("Ared_temp"):
                     v_bsz = T.axis.spatial(T.int64(1), T.int64(0))
@@ -1095,11 +1095,15 @@ def test_decoder_layer_tir():
         ):
             T.func_attr({"tir.noalias": True})
             # with T.sblock("root"):
-            T_softmax_maxelem = T.alloc_buffer((T.int64(1), T.int64(32), T.int64(256)), "float16")
-            T_softmax_exp = T.alloc_buffer(
+            T_softmax_maxelem = T.sblock_alloc_buffer(
+                (T.int64(1), T.int64(32), T.int64(256)), "float16"
+            )
+            T_softmax_exp = T.sblock_alloc_buffer(
                 (T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"
             )
-            T_softmax_expsum = T.alloc_buffer((T.int64(1), T.int64(32), T.int64(256)), "float16")
+            T_softmax_expsum = T.sblock_alloc_buffer(
+                (T.int64(1), T.int64(32), T.int64(256)), "float16"
+            )
             for i0, i1, i2, k in T.grid(T.int64(1), T.int64(32), T.int64(256), T.int64(256)):
                 with T.sblock("T_softmax_maxelem"):
                     v_i0 = T.axis.spatial(T.int64(1), T.int64(0))
@@ -1604,7 +1608,7 @@ def test_decoder_layer_dynamic_shape():
             A = T.match_buffer(var_A, (T.int64(1), n, T.int64(4096)), "float16")
             rms_norm_1 = T.match_buffer(var_rms_norm, (T.int64(1), n, T.int64(4096)), "float16")
             # with T.sblock("root"):
-            Ared_temp = T.alloc_buffer((T.int64(1), n))
+            Ared_temp = T.sblock_alloc_buffer((T.int64(1), n))
             for bsz, i, k in T.grid(T.int64(1), n, T.int64(4096)):
                 with T.sblock("Ared_temp"):
                     v_bsz, v_i, v_k = T.axis.remap("SSR", [bsz, i, k])
@@ -1812,7 +1816,7 @@ def test_decoder_layer_dynamic_shape():
             A = T.match_buffer(var_A, (T.int64(1), n, T.int64(4096)), "float16")
             rms_norm_1 = T.match_buffer(var_rms_norm, (T.int64(1), n, T.int64(4096)), "float16")
             # with T.sblock("root"):
-            Ared_temp = T.alloc_buffer((T.int64(1), n))
+            Ared_temp = T.sblock_alloc_buffer((T.int64(1), n))
             for bsz, i, k in T.grid(T.int64(1), n, T.int64(4096)):
                 with T.sblock("Ared_temp"):
                     v_bsz, v_i, v_k = T.axis.remap("SSR", [bsz, i, k])

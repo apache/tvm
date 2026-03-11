@@ -31,7 +31,7 @@ globs = [
     "NOTICE",
     "KEYS",
     "tests/lint/*",
-    "tests/scripts/task_lint.sh",
+    ".pre-commit-config.yaml",
 ]
 
 

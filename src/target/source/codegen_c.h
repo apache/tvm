@@ -187,12 +187,12 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   void VisitExpr_(const FloatImmNode* op, std::ostream& os) override;    // NOLINT(*)
   void VisitExpr_(const StringImmNode* op, std::ostream& os) override;   // NOLINT(*)
   // statment
-  void VisitStmt_(const LetStmtNode* op) override;
+  void VisitStmt_(const BindNode* op) override;
   void VisitStmt_(const BufferStoreNode* op) override;
   void VisitStmt_(const ForNode* op) override;
   void VisitStmt_(const WhileNode* op) override;
   void VisitStmt_(const IfThenElseNode* op) override;
-  void VisitStmt_(const AllocateNode* op) override;
+  void VisitStmt_(const AllocBufferNode* op) override;
   void VisitStmt_(const AttrStmtNode* op) override;
   void VisitStmt_(const AssertStmtNode* op) override;
   void VisitStmt_(const EvaluateNode* op) override;
@@ -234,6 +234,8 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   }
 
  protected:
+  /*! \brief Print a C string literal with proper escaping of special chars. */
+  void PrintEscapedCString(const std::string& str, std::ostream& os);
   // Print reference to struct location
   std::string GetStructRef(DataType t, const PrimExpr& buffer, const PrimExpr& index, int kind);
   // Print reference to a buffer as type t in index.
@@ -304,6 +306,8 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
 
   /*! \brief Check if buf_var is volatile or not. */
   bool IsVolatile(const VarNode* buf_var) const { return volatile_buf_.count(buf_var) != 0; }
+  /*! \brief Mark buf_var as volatile. */
+  void MarkVolatile(const VarNode* buf_var) { volatile_buf_.insert(buf_var); }
 
   /*! \brief restrict keyword */
   std::string restrict_keyword_{""};

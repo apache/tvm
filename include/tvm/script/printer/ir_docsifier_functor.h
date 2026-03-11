@@ -81,6 +81,7 @@ class IRDocsifierFunctor {
                           << runtime::Object::TypeIndex2Key(type_index) << " (token: " << token
                           << ")"
                           << ". ObjectType: " << obj->GetTypeKey() << ". Object: " << obj;
+    TVM_FFI_UNREACHABLE();
   }
 
   /*!

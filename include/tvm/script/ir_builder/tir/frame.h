@@ -304,14 +304,17 @@ class AssertFrameNode : public TIRFrameNode {
  public:
   /*! \brief The PrimExpr to test. */
   PrimExpr condition;
-  /*! \brief The output error message when the assertion failed. */
-  PrimExpr message;
+  /*! \brief The error kind, e.g. "RuntimeError", "TypeError", "ValueError". */
+  tvm::tir::StringImm error_kind;
+  /*! \brief Error message fragments, concatenated at runtime when assertion fails. */
+  ffi::Array<tvm::tir::StringImm> message_parts;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<AssertFrameNode>()
         .def_ro("condition", &AssertFrameNode::condition)
-        .def_ro("message", &AssertFrameNode::message);
+        .def_ro("error_kind", &AssertFrameNode::error_kind)
+        .def_ro("message_parts", &AssertFrameNode::message_parts);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.AssertFrame", AssertFrameNode,
                                     TIRFrameNode);
@@ -336,48 +339,6 @@ class AssertFrame : public TIRFrame {
     data_ = std::move(data);
   }
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AssertFrame, TIRFrame, AssertFrameNode);
-};
-
-/*!
- * \brief A frame represents the let binding expression, which binds a var.
- *
- * \sa LetFrameNode
- */
-class LetFrameNode : public TIRFrameNode {
- public:
-  /*! \brief The variable we bind to */
-  tvm::tir::Var var;
-  /*! \brief The value we bind var to */
-  PrimExpr value;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<LetFrameNode>()
-        .def_ro("var", &LetFrameNode::var)
-        .def_ro("value", &LetFrameNode::value);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.LetFrame", LetFrameNode, TIRFrameNode);
-
- public:
-  /*!
-   * \brief The method called when exiting RAII scope.
-   * \sa tvm::support::With
-   */
-  void ExitWithScope() final;
-};
-
-/*!
- * \brief Managed reference to LetFrameNode.
- *
- * \sa LetFrameNode
- */
-class LetFrame : public TIRFrame {
- public:
-  explicit LetFrame(ObjectPtr<LetFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
-    TVM_FFI_ICHECK(data != nullptr);
-    data_ = std::move(data);
-  }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(LetFrame, TIRFrame, LetFrameNode);
 };
 
 /*!
@@ -423,61 +384,6 @@ class LaunchThreadFrame : public TIRFrame {
     data_ = std::move(data);
   }
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(LaunchThreadFrame, TIRFrame, LaunchThreadFrameNode);
-};
-
-/*!
- * \brief A frame represents the allocate.
- *
- * \sa AllocateFrame
- */
-class AllocateFrameNode : public TIRFrameNode {
- public:
-  /*! \brief The extents of the allocate. */
-  ffi::Array<PrimExpr> extents;
-  /*! \brief The data type of the buffer. */
-  DataType dtype;
-  /*! \brief The storage scope. */
-  ffi::String storage_scope;
-  /*! \brief The condition. */
-  PrimExpr condition;
-  /*! \brief Additional annotation hints. */
-  ffi::Map<ffi::String, Any> annotations;
-  /*! \brief The buffer var. */
-  tvm::tir::Var buffer_var;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<AllocateFrameNode>()
-        .def_ro("extents", &AllocateFrameNode::extents)
-        .def_ro("dtype", &AllocateFrameNode::dtype)
-        .def_ro("storage_scope", &AllocateFrameNode::storage_scope)
-        .def_ro("condition", &AllocateFrameNode::condition)
-        .def_ro("annotations", &AllocateFrameNode::annotations)
-        .def_ro("buffer_var", &AllocateFrameNode::buffer_var);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.AllocateFrame", AllocateFrameNode,
-                                    TIRFrameNode);
-
- public:
-  /*!
-   * \brief The method called when exiting RAII scope.
-   * \sa tvm::support::With
-   */
-  void ExitWithScope() final;
-};
-
-/*!
- * \brief Managed reference to AllocateFrameNode.
- *
- * \sa AllocateFrameNode
- */
-class AllocateFrame : public TIRFrame {
- public:
-  explicit AllocateFrame(ObjectPtr<AllocateFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
-    TVM_FFI_ICHECK(data != nullptr);
-    data_ = std::move(data);
-  }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AllocateFrame, TIRFrame, AllocateFrameNode);
 };
 
 /*!
@@ -685,34 +591,6 @@ class ElseFrame : public TIRFrame {
   }
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ElseFrame, TIRFrame, ElseFrameNode);
-};
-
-class DeclBufferFrameNode : public TIRFrameNode {
- public:
-  /*! \brief The declared buffer. */
-  tvm::tir::Buffer buffer;
-  /*! \brief The buffer allocated or not. */
-  bool allocated;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<DeclBufferFrameNode>()
-        .def_ro("buffer", &DeclBufferFrameNode::buffer)
-        .def_ro("allocated", &DeclBufferFrameNode::allocated);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.DeclBufferFrame", DeclBufferFrameNode,
-                                    TIRFrameNode);
-
- public:
-  void ExitWithScope() final;
-};
-
-class DeclBufferFrame : public TIRFrame {
- public:
-  explicit DeclBufferFrame(ObjectPtr<DeclBufferFrameNode> data) : TIRFrame(data) {
-    TVM_FFI_ICHECK(data != nullptr);
-  }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DeclBufferFrame, TIRFrame, DeclBufferFrameNode);
 };
 
 }  // namespace tir

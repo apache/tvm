@@ -29,8 +29,7 @@ def test_rewrite_to_shuffle_0():
     class Before:
         @T.prim_func
         def main(A: T.Buffer((16,), "float32"), B: T.Buffer((4,), "float32")):
-            A_local_data = T.allocate([16], "float32", scope="local")
-            A_local = T.Buffer((16,), "float32", data=A_local_data, scope="local")
+            A_local = T.alloc_buffer((16,), scope="local")
             for i in range(4):
                 A_local[i * 4 : i * 4 + 4] = A[i * 4 : i * 4 + 4]
             for i in range(4):
@@ -40,8 +39,7 @@ def test_rewrite_to_shuffle_0():
     class Expected:
         @T.prim_func
         def main(A: T.Buffer((4,), "float32x4"), B: T.Buffer((4,), "float32")):
-            A_local_data = T.allocate([4], "float32x4", scope="local")
-            A_local = T.Buffer((4,), "float32x4", data=A_local_data, scope="local")
+            A_local = T.alloc_buffer((4,), "float32x4", scope="local")
             for i in range(4):
                 A_local[T.Div(i * 4, 4)] = A[T.Div(i * 4, 4)]
             for i in range(4):
@@ -63,8 +61,7 @@ def test_rewrite_to_shuffle_1():
     class Before:
         @T.prim_func
         def main(A: T.Buffer((8,), "float32"), B: T.Buffer((1,), "float32")):
-            A_local_data = T.allocate([8], "float32", scope="local")
-            A_local = T.Buffer((8,), "float32", data=A_local_data, scope="local")
+            A_local = T.alloc_buffer((8,), scope="local")
             A_local[0:4] = A[0:4]
             A_local[4:8] = A[4:8]
             B[0] = (
@@ -82,8 +79,7 @@ def test_rewrite_to_shuffle_1():
     class Expected:
         @T.prim_func
         def main(A: T.Buffer((2,), "float32x4"), B: T.Buffer((1,), "float32")):
-            A_local_data = T.allocate([2], "float32x4", "local")
-            A_local = T.Buffer((2,), "float32x4", data=A_local_data, scope="local")
+            A_local = T.alloc_buffer((2,), "float32x4", scope="local")
             A_local[0] = A[0]
             A_local[1] = A[1]
             B[0] = (

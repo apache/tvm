@@ -23,7 +23,9 @@ def test_verify_ssa():
     z = tvm.tir.Evaluate(x + y)
     assert tvm.tir.analysis.verify_ssa(tvm.tir.PrimFunc([x, y], z))
 
-    assert not tvm.tir.analysis.verify_ssa(tvm.tir.PrimFunc([x, y], tvm.tir.LetStmt(x, 1, z)))
+    assert not tvm.tir.analysis.verify_ssa(
+        tvm.tir.PrimFunc([x, y], tvm.tir.SeqStmt([tvm.tir.Bind(x, 1), z]))
+    )
 
 
 def test_verify_weak_let_ssa():

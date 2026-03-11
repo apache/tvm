@@ -685,16 +685,16 @@ def test_pass_dltensor_arg_to_tir():
             T.func_attr({"tir.is_scheduled": True, "tir.is_host_func": True})
 
             # From #include <tvm/tir/builtin.h>
-            kArrTypeCode = T.meta_var(5)
-            kArrTypeBits = T.meta_var(6)
-            kArrTypeLanes = T.meta_var(7)
+            kDLTensorTypeCode = T.meta_var(5)
+            kDLTensorTypeBits = T.meta_var(6)
+            kDLTensorTypeLanes = T.meta_var(7)
 
             # From #include <dlpack/dlpack.h>
             kDLBfloat = T.meta_var(4)
 
-            type_code = T.tvm_struct_get(tensor, 0, kArrTypeCode, dtype="uint8")
-            type_bits = T.tvm_struct_get(tensor, 0, kArrTypeBits, dtype="uint8")
-            type_lanes = T.tvm_struct_get(tensor, 0, kArrTypeLanes, dtype="uint16")
+            type_code = T.tvm_struct_get(tensor, 0, kDLTensorTypeCode, dtype="uint8")
+            type_bits = T.tvm_struct_get(tensor, 0, kDLTensorTypeBits, dtype="uint8")
+            type_lanes = T.tvm_struct_get(tensor, 0, kDLTensorTypeLanes, dtype="uint16")
 
             is_bfloat16: T.bool = (
                 (type_code == kDLBfloat) and (type_bits == 16) and (type_lanes == 1)

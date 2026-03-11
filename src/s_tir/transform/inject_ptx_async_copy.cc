@@ -31,6 +31,7 @@
 
 #include "../../tir/ir/buffer_common.h"
 #include "storage_access.h"
+#include "tvm/s_tir/stmt.h"
 #include "tvm/tir/stmt.h"
 
 namespace tvm {
@@ -40,7 +41,7 @@ using namespace tvm::tir;
 class PTXAsyncCopyInjector : public StmtMutator {
  public:
   Stmt VisitStmt_(const AttrStmtNode* attr) {
-    if (attr->attr_key == tir::attr::async_scope) {
+    if (attr->attr_key == s_tir::attr::async_scope) {
       TVM_FFI_ICHECK(in_async == false) << "Nested async scopes not supported";
       in_async = true;
       auto body = this->VisitStmt(attr->body);

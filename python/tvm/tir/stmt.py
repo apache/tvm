@@ -37,16 +37,21 @@ from tvm.runtime import Object, Scriptable, const
 
 from . import _ffi_api
 from .buffer import Buffer
-from .expr import IterVar, Var
+from .expr import IterVar, StringImm, Var
 
 
 class Stmt(Object, Scriptable):
     """Base class of all the statements."""
 
 
-@tvm_ffi.register_object("tir.LetStmt")
-class LetStmt(Stmt):
-    """LetStmt node.
+@tvm_ffi.register_object("tir.Bind")
+class Bind(Stmt):
+    """Bind node.
+
+    Bind a variable to a value in the enclosing scope.
+    Bind has no body field.
+    The bound variable is visible in all subsequent statements
+    within the same enclosing scope (SeqStmt, ForNode.body, etc.).
 
     Parameters
     ----------
@@ -54,10 +59,7 @@ class LetStmt(Stmt):
         The variable in the binding.
 
     value : PrimExpr
-        The value in to be bound.
-
-    body : Stmt
-        The body statement.
+        The value to be bound.
 
     span : Optional[Span]
         The location of the stmt in the source code.
@@ -65,15 +67,13 @@ class LetStmt(Stmt):
 
     var: Var
     value: PrimExpr
-    body: Stmt
     span: Span | None
 
-    def __init__(self, var: Var, value: PrimExpr, body: Stmt, span: Span | None = None) -> None:
+    def __init__(self, var: Var, value: PrimExpr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.LetStmt,
+            _ffi_api.Bind,
             var,
             value,
-            body,
             span,  # type: ignore
         )
 
@@ -84,25 +84,38 @@ class AssertStmt(Stmt):
 
     Parameters
     ----------
+    kind : StringImm
+        The error kind, e.g. "RuntimeError", "TypeError", "ValueError".
+
     condition : PrimExpr
         The assert condition.
 
-    message : PrimExpr
-        The error message.
+    message_parts : list[StringImm]
+        Error message fragments, concatenated at runtime when assertion fails.
 
     span : Span | None
         The location of the stmt in the source code.
     """
 
+    kind: StringImm
     condition: PrimExpr
-    message: PrimExpr
+    message_parts: list
     span: Span | None
 
-    def __init__(self, condition: PrimExpr, message: PrimExpr, span: Span | None = None) -> None:
+    def __init__(
+        self,
+        kind: StringImm,
+        condition: PrimExpr,
+        message_parts: list | None = None,
+        span: Span | None = None,
+    ) -> None:
+        if message_parts is None:
+            message_parts = []
         self.__init_handle_by_constructor__(
             _ffi_api.AssertStmt,
+            kind,
             condition,
-            message,
+            message_parts,
             span,  # type: ignore
         )
 
@@ -267,64 +280,34 @@ class BufferStore(Stmt):
         )
 
 
-@tvm_ffi.register_object("tir.Allocate")
-class Allocate(Stmt):
-    """Allocate node.
+@tvm_ffi.register_object("tir.AllocBuffer")
+class AllocBuffer(Stmt):
+    """AllocBuffer node.
+
+    Allocates a buffer and declares it in scope.
 
     Parameters
     ----------
-    buffer_var : Var
-        The buffer variable.
+    buffer: Buffer
+        The buffer being allocated and declared.
 
-    dtype : str
-        The data type of the buffer.
+    annotations: Optional[dict]
+        Additional annotations about the allocation.
 
-    extents : list of Expr
-        The extents of the allocate
-
-    condition : PrimExpr
-        The condition.
-
-    body : Stmt
-        The body statement.
-
-    annotations: Optional[Mapping[str, Object]]
-        Additional annotation hints
-
-    span : Optional[Span]
-        The location of the stmt in the source code.
+    span: Optional[Span]
+        The location of this AllocBuffer in the source code.
     """
 
-    buffer_var: Var
-    dtype: str
-    extents: list[PrimExpr]
-    condition: PrimExpr
-    body: Stmt
-    annotations: Mapping[str, Object]
+    buffer: Buffer
     span: Span | None
 
     def __init__(
         self,
-        buffer_var: Var,
-        dtype: str,
-        extents: list[PrimExpr],
-        condition: PrimExpr,
-        body: Stmt,
-        annotations: Mapping[str, Object] | None = None,
+        buffer: Buffer,
+        annotations: dict | None = None,
         span: Span | None = None,
     ) -> None:
-        if annotations is None:
-            annotations = dict()
-        self.__init_handle_by_constructor__(
-            _ffi_api.Allocate,  # type: ignore
-            buffer_var,
-            dtype,
-            extents,
-            condition,
-            body,
-            annotations,
-            span,
-        )
+        self.__init_handle_by_constructor__(_ffi_api.AllocBuffer, buffer, annotations, span)
 
 
 @tvm_ffi.register_object("tir.DeclBuffer")
@@ -336,19 +319,15 @@ class DeclBuffer(Stmt):
     buffer: Buffer
         The buffer being declared.
 
-    body: Stmt
-        The body statement to be executed.
-
     span: Optional[Span]
         The location of this DeclBuffer in the source code.
     """
 
     buffer: Buffer
-    body: Stmt
     span: Span | None
 
-    def __init__(self, buffer: Buffer, body: Stmt, span: Span | None = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.DeclBuffer, buffer, body, span)
+    def __init__(self, buffer: Buffer, span: Span | None = None) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.DeclBuffer, buffer, span)
 
 
 @tvm_ffi.register_object("tir.AttrStmt")
@@ -380,7 +359,12 @@ class AttrStmt(Stmt):
     span: Span | None
 
     def __init__(
-        self, node: Object, attr_key: str, value: PrimExpr, body: Stmt, span: Span | None = None
+        self,
+        node: Object,
+        attr_key: str,
+        value: PrimExpr,
+        body: Stmt,
+        span: Span | None = None,
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.AttrStmt,

@@ -470,6 +470,46 @@ def sblock_attr(attrs: dict[str, Any]) -> None:
 def alloc_buffer(
     shape: list[PrimExpr] | tuple[PrimExpr] | PrimExpr | Integral,
     dtype: str = "float32",
+    scope: str = "global",
+    annotations: dict[str, Any] | None = None,
+) -> Buffer:
+    """Statement-level buffer allocation (creates an AllocBuffer IR node).
+
+    Emits an AllocBuffer statement and returns the Buffer directly::
+
+        buf = T.alloc_buffer((128, 128))
+
+    For SBlock-level buffer allocation (added to SBlock.alloc_buffers),
+    use T.sblock_alloc_buffer() instead.
+
+    Parameters
+    ----------
+    shape : Union[List[PrimExpr], Tuple[PrimExpr], PrimExpr, Integral]
+        The shape of the buffer to allocate.
+    dtype : str
+        The data type of the buffer elements.
+    scope : str
+        The storage scope of the buffer (e.g., "global", "shared").
+    annotations : Optional[Dict[str, Any]]
+        Optional annotations for the allocation.
+
+    Returns
+    -------
+    res : Buffer
+        The allocated buffer.
+    """
+    shape = (shape,) if isinstance(shape, PrimExpr | Integral) else shape
+    return _ffi_api.AllocBuffer(  # type: ignore[attr-defined] # pylint: disable=no-member
+        shape,
+        dtype,
+        scope,
+        annotations,
+    )
+
+
+def sblock_alloc_buffer(
+    shape: list[PrimExpr] | tuple[PrimExpr] | PrimExpr | Integral,
+    dtype: str = "float32",
     data: Var = None,
     strides: list[PrimExpr] | None = None,
     elem_offset: PrimExpr = None,
@@ -479,37 +519,30 @@ def alloc_buffer(
     buffer_type: str = "default",
     axis_separators: list[int] | None = None,
 ) -> Buffer:
-    """The buffer alllocation function.
+    """SBlock-level buffer allocation function.
+
+    Adds a buffer to the alloc_buffers list of the nearest SBlock or root PrimFunc.
 
     Parameters
     ----------
     shape : Union[List[PrimExpr], Tuple[PrimExpr], PrimExpr, Integral]
         The type of the buffer prior to flattening.
-
     dtype : str
         The data type in the content of the buffer.
-
     data : Var
         The pointer to the head of the data.
-
     strides : List[PrimExpr]
         The strides of each dimension.
-
     elem_offset : PrimExpr
         The offset in terms of number of dtype elements (including lanes).
-
     scope : str
         The optional storage scope of buffer data pointer.
-
     align : int
         The alignment requirement of data pointer in bytes.
-
     offset_factor : int
         The factor of elem_offset field.
-
     buffer_type : str
         The buffer type.
-
     axis_separators : List[int]
         The separators between input axes when generating flattened output axes.
 
@@ -523,7 +556,7 @@ def alloc_buffer(
         strides = [Var(s, "int32") if isinstance(s, str) else s for s in strides]
     else:
         strides = []
-    return _ffi_api.AllocBuffer(  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.SBlockAllocBuffer(  # type: ignore[attr-defined] # pylint: disable=no-member
         shape,
         dtype,
         data,
@@ -920,7 +953,7 @@ def grid(*extents: PrimExpr) -> frame.ForFrame:
     return _ffi_api.Grid(extents)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def Assert(condition: PrimExpr, message: str) -> frame.AssertFrame:  # pylint: disable=invalid-name
+def Assert(condition: PrimExpr, message, error_kind: str = "RuntimeError") -> frame.AssertFrame:  # pylint: disable=invalid-name
     """Create an assertion statement.
 
     Parameters
@@ -928,8 +961,13 @@ def Assert(condition: PrimExpr, message: str) -> frame.AssertFrame:  # pylint: d
     condition : PrimExpr
         The PrimExpr to test.
 
-    message : str
-        The output error message when the assertion fails.
+    message : str or list[str]
+        The error message when the assertion fails. Can be a single string
+        or a list of string parts (fragments stored separately in the IR
+        for binary size reduction through string reuse).
+
+    error_kind : str
+        The error kind (e.g. "RuntimeError", "TypeError", "ValueError").
 
     Returns
     -------
@@ -938,38 +976,42 @@ def Assert(condition: PrimExpr, message: str) -> frame.AssertFrame:  # pylint: d
     """
     if isinstance(condition, bool):
         condition = IntImm("bool", condition)
-    return _ffi_api.Assert(condition, message)  # type: ignore[attr-defined] # pylint: disable=no-member
+    if not isinstance(message, list | tuple):
+        message = [message]
+    return _ffi_api.Assert(condition, error_kind, message)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def LetStmt(  # pylint: disable=invalid-name
+def bind(
     value: PrimExpr,
     type_annotation: Type | None = None,  # pylint: disable=redefined-outer-name
     *,
     var: Var | None = None,  # pylint: disable=redefined-outer-name
-) -> frame.LetFrame:
-    """Create a LetStmt binding
+) -> Var:
+    """Create a Bind (variable binding).
+
+    Emits a flat Bind statement to the current frame and returns the bound variable.
 
     Parameters
     ----------
     value : PrimExpr
         The value to be bound.
     type_annotation : Optional[Type] = None
-        The type annotation of the let binding. Usually it is used for fine-grained var typing,
+        The type annotation of the binding. Usually it is used for fine-grained var typing,
         particularly, PointerType.
     var : Optional[Var] = None
         The variable to bind. If not specified, a new variable will be created.
 
     Returns
     -------
-    let_frame : frame.LetFrame
-        The result LetFrame.
+    var : Var
+        The bound variable.
     """
     if type_annotation is not None:
         if callable(type_annotation):
             type_annotation = type_annotation()
         if isinstance(type_annotation, Var):
             type_annotation = type_annotation.type_annotation
-    return _ffi_api.LetStmt(value, type_annotation, var)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.Bind(value, type_annotation, var)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def Let(  # pylint: disable=invalid-name
@@ -986,7 +1028,7 @@ def let(
     v: Var,
     value: PrimExpr,
     body: PrimExpr = None,
-) -> frame.LetFrame:
+) -> Var:
     """Create a new let binding.
 
     Parameters
@@ -1002,55 +1044,22 @@ def let(
 
     Returns
     -------
-    res : frame.LetFrame
-        The result LetFrame.
+    res : Var
+        The bound variable.
     """
 
     @deprecated("T.let", "T.Let")
     def let_expr(v: Var, value: PrimExpr, body: PrimExpr) -> PrimExpr:
         return tir.Let(v, value, body)
 
-    @deprecated("T.let", "T.LetStmt")
-    def let_stmt(v: Var, value: PrimExpr) -> frame.LetFrame:
-        return _ffi_api.LegacyLetStmt(v, value)  # type: ignore[attr-defined] # pylint: disable=no-member
+    @deprecated("T.let", "T.bind")
+    def let_stmt(v: Var, value: PrimExpr) -> Var:
+        return bind(value, var=v)
 
     if body is None:
         return let_stmt(v, value)
     else:
         return let_expr(v, value, body)
-
-
-def allocate(
-    extents: list[PrimExpr],
-    dtype: str,
-    scope: str = "global",
-    condition: PrimExpr = None,
-    annotations=None,
-) -> frame.AllocateFrame:
-    """Allocate node.
-
-    Parameters
-    ----------
-    extents : List[PrimExpr]
-        The extents of the allocate.
-
-    dtype : str
-        The data type of the buffer.
-
-    scope : str
-        The storage scope.
-
-    condition : PrimExpr
-        The condition.
-
-    annotations: Optional[Mapping[str, Object]]
-        Additional annotation hints.
-    """
-    if isinstance(condition, bool):
-        condition = IntImm("bool", condition)
-    return _ffi_api.Allocate(  # type: ignore[attr-defined] # pylint: disable=no-member
-        extents, dtype, scope, condition, annotations
-    )
 
 
 def attr(node: Any, attr_key: str, value: PrimExpr | str) -> frame.AttrFrame:
@@ -1147,8 +1156,13 @@ def decl_buffer(
     offset_factor=0,
     buffer_type="",
     axis_separators=None,
-) -> frame.DeclBufferFrame:
+) -> Buffer:
     """Create a buffer declaration node.
+
+    When ``data`` is provided, creates a DeclBuffer (alias to existing data).
+    When ``data`` is None, creates an AllocBuffer (new allocation).
+
+    Emits the statement and returns the Buffer directly.
 
     Parameters
     ----------
@@ -1184,8 +1198,8 @@ def decl_buffer(
 
     Returns
     -------
-    res : frame.DeclBufferFrame
-        The result DeclBufferFrame.
+    res : Buffer
+        The declared buffer.
     """
     shape = (shape,) if isinstance(shape, PrimExpr | Integral) else shape
     if strides is not None:
@@ -1535,7 +1549,10 @@ def boolean(expr: PrimExpr | None = None, is_size_var: bool = False) -> PrimExpr
 
 
 def handle(
-    dtype: str | None = None, storage_scope: str = "global", *, is_size_var: bool = False
+    dtype: str | None = None,
+    storage_scope: str = "global",
+    *,
+    is_size_var: bool = False,
 ) -> Var:
     """Create a TIR var that represents a pointer.
 
@@ -2090,6 +2107,7 @@ __all__ = float_types + [
     "writes",
     "sblock_attr",
     "alloc_buffer",
+    "sblock_alloc_buffer",
     "axis",
     "serial",
     "parallel",
@@ -2098,7 +2116,6 @@ __all__ = float_types + [
     "thread_binding",
     "grid",
     "Assert",
-    "allocate",
     "attr",
     "While",
     "If",
@@ -2297,7 +2314,7 @@ __all__ = float_types + [
     "Call",
     "CallEffectKind",
     "let",
-    "LetStmt",
+    "bind",
     "Let",
     "IterVar",
     "CommReducer",

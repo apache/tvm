@@ -89,7 +89,7 @@ class HostDeviceSplitter : public StmtMutator {
     }
 
     for (Buffer buf : buffers_to_declare) {
-      body = DeclBuffer(buf, std::move(body));
+      body = SeqStmt::Flatten(DeclBuffer(buf), std::move(body));
     }
     PrimFunc device_func(params, body, kernel_ret_type);
     device_func = WithAttrs(std::move(device_func), {{tvm::attr::kTarget, device_target},
@@ -103,11 +103,9 @@ class HostDeviceSplitter : public StmtMutator {
     if (can_propagate_errors) {
       Var kernel_error_code("kernel_error_code", success->dtype);
       Call kernel_call(success->dtype, kernel_symbol_global, args);
-      AssertStmt assert_success(kernel_error_code == success,
-                                StringImm("Error executing compute kernel"));
-      LetStmt let_check(kernel_error_code, kernel_call, assert_success);
-
-      return let_check;
+      AssertStmt assert_success(kernel_error_code == success, StringImm("RuntimeError"),
+                                {StringImm("Error executing compute kernel")});
+      return SeqStmt({Bind(kernel_error_code, kernel_call), assert_success});
 
     } else {
       return Evaluate(Call(DataType::Void(), kernel_symbol_global, args));

@@ -68,24 +68,20 @@ def binary_search(y, num_boxes, scores, score_threshold, out):
     Must be called within an IRBuilder context.
     """
     out = T.buffer_proxy(out)
-    with T.frame_scope(
-        [
-            T.allocate([1], "int32", scope="local"),
-            T.allocate([1], "int32", scope="local"),
-        ]
-    ) as (lo_ptr, hi_ptr):
-        lo = T.buffer_proxy(tvm.tir.decl_buffer([1], "int32", "lo", data=lo_ptr, scope="local"))
-        hi = T.buffer_proxy(tvm.tir.decl_buffer([1], "int32", "hi", data=hi_ptr, scope="local"))
-        lo[0] = T.int32(0)
-        hi[0] = tvm.tir.Cast("int32", num_boxes)
-        with T.While(lo[0] < hi[0]):
-            mid = (hi[0] + lo[0]) >> 1
-            with T.If(scores[y, mid] > score_threshold):
-                with T.Then():
-                    lo[0] = mid + 1
-                with T.Else():
-                    hi[0] = mid
-        out[y] = lo[0]
+    lo_buf = T.decl_buffer([1], "int32", scope="local")
+    hi_buf = T.decl_buffer([1], "int32", scope="local")
+    lo = T.buffer_proxy(lo_buf)
+    hi = T.buffer_proxy(hi_buf)
+    lo[0] = T.int32(0)
+    hi[0] = tvm.tir.Cast("int32", num_boxes)
+    with T.While(lo[0] < hi[0]):
+        mid = (hi[0] + lo[0]) >> 1
+        with T.If(scores[y, mid] > score_threshold):
+            with T.Then():
+                lo[0] = mid + 1
+            with T.Else():
+                hi[0] = mid
+    out[y] = lo[0]
 
 
 def _estimate_max_detections(batch_class, input_image_size=None):

@@ -131,7 +131,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
     StmtExprVisitor::VisitStmt_(op);
   }
 
-  void VisitStmt_(const LetStmtNode* op) override {
+  void VisitStmt_(const BindNode* op) override {
     BindVariableDefinition context(this, op->var, op->value);
     StmtExprVisitor::VisitStmt_(op);
   }
@@ -625,37 +625,23 @@ class TransformLayoutPlanner : private StmtExprVisitor {
     Var var_;
   };
 
+  // Under SSA, each variable is bound exactly once, so the lookup maps
+  // grow monotonically and cleanup is unnecessary.  Omitting cleanup also
+  // ensures correctness for flat BindNode (which has no body): the
+  // binding must remain visible to subsequent sibling statements.
   struct BindVariableDefinition {
     BindVariableDefinition() {}
-    BindVariableDefinition(TransformLayoutPlanner* self, Var var, PrimExpr value)
-        : self_(self), var_(var) {
+    BindVariableDefinition(TransformLayoutPlanner* self, Var var, PrimExpr value) {
       if (auto loop_depth = self->LoopDependencyRange(value); loop_depth.has_value()) {
-        self_->loop_depth_lookup_[var_.get()] = loop_depth.value();
-        self_->active_var_bindings_[var_.get()] = Substitute(value, self_->active_var_bindings_);
+        self->loop_depth_lookup_[var.get()] = loop_depth.value();
+        self->active_var_bindings_[var.get()] = Substitute(value, self->active_var_bindings_);
       }
     }
-    ~BindVariableDefinition() {
-      if (self_) {
-        self_->loop_depth_lookup_.erase(var_.get());
-        self_->active_var_bindings_.erase(var_.get());
-      }
-    }
+    ~BindVariableDefinition() {}
     BindVariableDefinition(const BindVariableDefinition&) = delete;
     BindVariableDefinition& operator=(const BindVariableDefinition&) = delete;
-    BindVariableDefinition(BindVariableDefinition&& other) : BindVariableDefinition() {
-      swap(other);
-    }
-    BindVariableDefinition& operator=(BindVariableDefinition&& other) {
-      swap(other);
-      return *this;
-    }
-    void swap(BindVariableDefinition& other) {
-      std::swap(self_, other.self_);
-      std::swap(var_, other.var_);
-    }
-
-    TransformLayoutPlanner* self_{nullptr};
-    Var var_;
+    BindVariableDefinition(BindVariableDefinition&&) = default;
+    BindVariableDefinition& operator=(BindVariableDefinition&&) = default;
   };
 
   struct BindBlockRealize {
@@ -861,7 +847,14 @@ class TransformLayoutRewriter : private arith::IRMutatorWithAnalyzer {
     auto fmutate = [this, &infered_access_regions](const BufferRegion& buffer_region) {
       if (buffer_region->buffer.same_as(old_buffer_)) {
         TVM_FFI_ICHECK(infered_access_regions.size() == 1);
-        return infered_access_regions[0];
+        BufferRegion result = infered_access_regions[0];
+        // The inferred region may reference old_buffer_ (e.g. when resolved
+        // through match_buffer source).  Ensure we use new_buffer_ instead.
+        if (result->buffer.same_as(old_buffer_)) {
+          auto* n = result.CopyOnWrite();
+          n->buffer = new_buffer_;
+        }
+        return result;
       }
       return buffer_region;
     };
@@ -887,6 +880,18 @@ class TransformLayoutRewriter : private arith::IRMutatorWithAnalyzer {
     auto* n = block.CopyOnWrite();
     RewriteAccessRegion(&n->reads, infered_access_regions[0]);
     RewriteAccessRegion(&n->writes, infered_access_regions[1]);
+    // Update match_buffers whose source references old_buffer_
+    n->match_buffers.MutateByApply([this](const MatchBufferRegion& match_buf) {
+      if (match_buf->source->buffer.same_as(old_buffer_)) {
+        auto new_source = match_buf->source;
+        auto* source_n = new_source.CopyOnWrite();
+        source_n->buffer = new_buffer_;
+        auto new_match = match_buf;
+        new_match.CopyOnWrite()->source = new_source;
+        return new_match;
+      }
+      return match_buf;
+    });
     n->alloc_buffers.MutateByApply([this](const Buffer& buffer) {
       if (buffer.same_as(old_buffer_)) {
         return new_buffer_;
@@ -1605,7 +1610,9 @@ struct TransformLayoutTraits : public UnpackedInstTraits<TransformLayoutTraits> 
     attrs_record.push_back(attrs[0]);
     attrs_record.push_back(attrs[1]);
     if (attrs[2] != nullptr) {
-      attrs_record.push_back(ffi::String(::tvm::SaveJSON(attrs[2])));
+      attrs_record.push_back(ffi::String(ffi::json::Stringify(
+          ffi::ToJSONGraph(attrs[2], ffi::json::Object{{"tvm_version", TVM_VERSION}}),
+          /*indent=*/2)));
     } else {
       attrs_record.push_back(attrs[2]);
     }
@@ -1619,7 +1626,7 @@ struct TransformLayoutTraits : public UnpackedInstTraits<TransformLayoutTraits> 
     attrs.push_back(attrs_record[0]);
     attrs.push_back(attrs_record[1]);
     if (attrs_record[2] != nullptr) {
-      attrs.push_back(::tvm::LoadJSON(Downcast<ffi::String>(attrs_record[2])));
+      attrs.push_back(ffi::FromJSONGraph(ffi::json::Parse(Downcast<ffi::String>(attrs_record[2]))));
     } else {
       attrs.push_back(attrs_record[2]);
     }
@@ -1656,14 +1663,16 @@ struct TransformBlockLayoutTraits : public UnpackedInstTraits<TransformBlockLayo
   static ObjectRef AttrsAsJSON(const ffi::Array<Any>& attrs) {
     ffi::Array<Any> attrs_record;
     attrs_record.reserve(kNumAttrs);
-    attrs_record.push_back(ffi::String(::tvm::SaveJSON(attrs[0])));
+    attrs_record.push_back(ffi::String(ffi::json::Stringify(
+        ffi::ToJSONGraph(attrs[0], ffi::json::Object{{"tvm_version", TVM_VERSION}}),
+        /*indent=*/2)));
     return attrs_record;
   }
 
   static ffi::Array<Any> AttrsFromJSON(const ObjectRef& attrs_record_) {
     ffi::Array<Any> attrs_record = Downcast<ffi::Array<Any>>(attrs_record_);
     ffi::Array<Any> attrs;
-    attrs.push_back(::tvm::LoadJSON(Downcast<ffi::String>(attrs_record[0])));
+    attrs.push_back(ffi::FromJSONGraph(ffi::json::Parse(Downcast<ffi::String>(attrs_record[0]))));
     return attrs;
   }
 

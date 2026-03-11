@@ -118,7 +118,7 @@ def test_1d_decompose_padding():
 def sum_pool_2d(
     x: T.Buffer((1, 16, 225, 225), "int8"), tensor: T.Buffer((1, 16, 225, 225), "int8")
 ):
-    pad_temp = T.alloc_buffer([1, 16, 231, 231], dtype="int8")
+    pad_temp = T.sblock_alloc_buffer([1, 16, 231, 231], dtype="int8")
     for i0, i1, i2, i3 in T.grid(1, 16, 231, 231):
         with T.sblock("pad_temp"):
             ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -145,7 +145,7 @@ def test_decompose_hw_padding_direct():
     def pooling_decompose_0(
         x: T.Buffer((1, 16, 225, 225), "int8"), tensor: T.Buffer((1, 16, 225, 225), "int8")
     ):
-        pad_temp = T.alloc_buffer([1, 16, 231, 231], dtype="int8")
+        pad_temp = T.sblock_alloc_buffer([1, 16, 231, 231], dtype="int8")
         for i0, i1, i2, i3 in T.grid(1, 16, 231, 231):
             with T.sblock("pad_temp_pad_const"):
                 ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -176,7 +176,7 @@ def test_decompose_hw_padding_tiled():
     def pooling_decompose_1(
         x: T.Buffer((1, 16, 225, 225), "int8"), tensor: T.Buffer((1, 16, 225, 225), "int8")
     ) -> None:
-        pad_temp = T.alloc_buffer([1, 16, 231, 231], dtype="int8")
+        pad_temp = T.sblock_alloc_buffer([1, 16, 231, 231], dtype="int8")
         for i0, i2_0, i3_0 in T.grid(1, 3, 3):
             for ax0, ax1, ax2 in T.grid(16, 81, 81):
                 with T.sblock("pad_temp_pad_const"):
@@ -236,7 +236,7 @@ def test_decompose_hw_padding_tiled_and_lift_pad():
     def pooling_decompose_2(
         x: T.Buffer((1, 16, 225, 225), "int8"), tensor: T.Buffer((1, 16, 225, 225), "int8")
     ) -> None:
-        pad_temp = T.alloc_buffer([1, 16, 231, 231], dtype="int8")
+        pad_temp = T.sblock_alloc_buffer([1, 16, 231, 231], dtype="int8")
         for i0, i2_0, i3_0, ax0, ax1, ax2 in T.grid(1, 3, 3, 16, 81, 81):
             with T.sblock("pad_temp_pad_const"):
                 ax0_1 = T.axis.spatial(1, 0)
@@ -296,7 +296,7 @@ def test_decompose_hw_padding_non_perfect_tiled():
     def pooling_decompose_3(
         x: T.Buffer((1, 16, 225, 225), "int8"), tensor: T.Buffer((1, 16, 225, 225), "int8")
     ) -> None:
-        pad_temp = T.alloc_buffer([1, 16, 231, 231], dtype="int8")
+        pad_temp = T.sblock_alloc_buffer([1, 16, 231, 231], dtype="int8")
         for i0, i2_0, i3_0 in T.grid(1, 3, 3):
             for ax0, ax1, ax2 in T.grid(16, 86, 86):
                 with T.sblock("pad_temp_pad_const"):

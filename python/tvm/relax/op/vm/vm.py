@@ -16,11 +16,10 @@
 """Relax vm primitives."""
 
 from ...expr import Call, DataTypeImm, Expr, PrimValue, StringImm, Tuple
-from ...utils import args_converter
+from ...utils import convert_to_expr
 from . import _ffi_api
 
 
-@args_converter.auto
 def alloc_storage(
     shape: Expr,
     runtime_device_index: int | Expr,
@@ -50,6 +49,7 @@ def alloc_storage(
     result : Call
         A relax Call, which gets the allocated storage.
     """
+    shape = convert_to_expr(shape)
     if isinstance(dtype, str):
         dtype = DataTypeImm(dtype)
     if isinstance(storage_scope, str):
@@ -59,7 +59,6 @@ def alloc_storage(
     return _ffi_api.alloc_storage(shape, runtime_device_index, dtype, storage_scope)  # type: ignore
 
 
-@args_converter.auto
 def alloc_tensor(
     storage: Expr,
     offset: int | Expr,
@@ -94,6 +93,7 @@ def alloc_tensor(
     """
     if isinstance(offset, int):
         offset = PrimValue(offset)
+    shape = convert_to_expr(shape)
     if isinstance(dtype, str):
         dtype = DataTypeImm(dtype)
     return _ffi_api.alloc_tensor(storage, offset, shape, dtype, runtime_device_ind)  # type: ignore
@@ -116,7 +116,6 @@ def kill_object(obj: Expr) -> Call:
     return _ffi_api.kill_object(obj)  # type: ignore
 
 
-@args_converter.auto
 def call_tir_dyn(func: Expr, args: Tuple) -> Call:
     """Construct a Call to call_tir_dyn (invoke the given TIR PrimFunc)
     consisting of the input tensors and the shape of the result.
@@ -134,6 +133,7 @@ def call_tir_dyn(func: Expr, args: Tuple) -> Call:
     result : Call
         A relax Call to call_tir_dyn.
     """
+    func = convert_to_expr(func)
     if isinstance(args, list | tuple):
         args = Tuple(args)
 

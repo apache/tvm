@@ -22,6 +22,7 @@
  */
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
@@ -418,7 +419,7 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
                /*name_hint=*/block->name_hint + "_cross_thread",
                /*body=*/
                AttrStmt(/*node=*/reducer,
-                        /*attr_key=*/tir::attr::reduce_scope,
+                        /*attr_key=*/s_tir::attr::reduce_scope,
                         /*value=*/make_zero(DataType::Handle()),
                         /*body=*/
                         Evaluate(Call(/*dtype=*/DataType::Handle(),

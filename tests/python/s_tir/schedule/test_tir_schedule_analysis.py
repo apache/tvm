@@ -411,7 +411,7 @@ def test_is_output_block():
     @T.prim_func
     def two_elementwise(a: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (128, 128), "float32")
-        B = T.alloc_buffer((128, 128), "float32")
+        B = T.sblock_alloc_buffer((128, 128), "float32")
         C = T.match_buffer(c, (128, 128), "float32")
         for i, j in T.grid(128, 128):
             with T.sblock("B"):
@@ -430,7 +430,7 @@ def test_is_output_block():
 def test_empty_grid():
     @T.prim_func
     def foo(out: T.Buffer((T.int64(1), T.int64(8), T.int64(8)), "int32")):
-        act = T.alloc_buffer((1, 8, 8), "int32")
+        act = T.sblock_alloc_buffer((1, 8, 8), "int32")
         for z2, y2, x2 in T.grid(1, 8, 8):
             with T.sblock("b0"):
                 az, ay, ax = T.axis.remap("SSS", [z2, y2, x2])

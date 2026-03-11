@@ -47,6 +47,7 @@ def sch_fn(sch: tvm.s_tir.Schedule, block: tvm.tir.SBlock) -> list[tvm.s_tir.Sch
     raise ValueError("Intended for s_tir.meta_schedule.cpu.test_apply_custom_rule")
 
 
+@pytest.mark.skip("Tuning test - launches runner")
 def test_custom_rule():
     with pytest.raises(ValueError) as e_info:
         with tempfile.TemporaryDirectory() as tmpdir:

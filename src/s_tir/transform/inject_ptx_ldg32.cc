@@ -41,22 +41,17 @@ class PTXRewriter : public StmtMutator {
       return body;
     }
     EnsureBuffers();
-    body = Allocate(addr_buffer->data, addr_buffer->dtype, addr_buffer->shape, Bool(true), body);
-    body = Allocate(predicate_buffer->data, predicate_buffer->dtype, predicate_buffer->shape,
-                    Bool(true), body);
+    body = SeqStmt::Flatten(AllocBuffer(predicate_buffer), AllocBuffer(addr_buffer), body);
     has_buffer_2 = true;
     return body;
   }
 
-  Stmt VisitStmt_(const AllocateNode* allocate) final {
-    Stmt result = StmtMutator::VisitStmt_(allocate);
+  Stmt VisitStmt_(const AllocBufferNode* op) final {
+    Stmt result = StmtMutator::VisitStmt_(op);
     if (needs_buffer && !has_buffer_2) {
       EnsureBuffers();
       has_buffer_2 = true;
-      result =
-          Allocate(addr_buffer->data, addr_buffer->dtype, addr_buffer->shape, Bool(true), result);
-      result = Allocate(predicate_buffer->data, predicate_buffer->dtype, predicate_buffer->shape,
-                        Bool(true), result);
+      result = SeqStmt::Flatten(AllocBuffer(predicate_buffer), AllocBuffer(addr_buffer), result);
     }
     return result;
   }

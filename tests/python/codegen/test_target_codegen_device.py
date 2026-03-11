@@ -65,7 +65,7 @@ def test_add_pipeline():
             n = T.int32(is_size_var=True)
             A = T.match_buffer(var_A, (n,))
             D = T.match_buffer(var_D, (n,))
-            C = T.alloc_buffer((n,))
+            C = T.sblock_alloc_buffer((n,))
             for i0_0 in T.thread_binding((n + 255) // 256, thread="blockIdx.x"):
                 for i0_1 in T.thread_binding(256, thread="threadIdx.x"):
                     with T.sblock("C"):

@@ -462,13 +462,20 @@ def run_pytorch_model_via_rpc():
     # Step 5: Run Inference on Remote Device
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     # Execute the model on the remote ARM device and retrieve results
+    #
+    # Note: When running VM over RPC, we use set_input() and invoke_stateful()
+    # instead of direct function call (vm["main"](...)). This is because RPC
+    # transmits tensors as DLTensor*, while VM builtins expect ffi.Tensor.
+    # The set_input API handles this conversion internally.
 
     # Prepare input data
     input_data = np.random.randn(1, 1, 28, 28).astype("float32")
     remote_input = tvm.runtime.tensor(input_data, dev)
 
-    # Run inference on remote device
-    output = vm["main"](remote_input, *remote_params)
+    # Run inference using set_input + invoke_stateful for RPC compatibility
+    vm.set_input("main", remote_input, *remote_params)
+    vm.invoke_stateful("main")
+    output = vm.get_outputs("main")
 
     # Extract result (handle both tuple and single tensor outputs)
     if isinstance(output, tvm.ir.Array) and len(output) > 0:
@@ -483,12 +490,21 @@ def run_pytorch_model_via_rpc():
     print(f"  Predicted class: {np.argmax(result_np)}")
 
     ######################################################################
+    # Alternative: Direct Function Call (Local Only)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # Note: The direct call syntax vm["main"](input, *params) works for
+    # local execution but may fail over RPC due to type mismatch between
+    # DLTensor* (RPC) and ffi.Tensor (VM builtins). For RPC, always use
+    # the set_input + invoke_stateful pattern shown above.
+
+    ######################################################################
     # Step 6: Performance Evaluation (Optional)
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     # Measure inference time on the remote device, excluding network overhead
+    # Note: For RPC, use invoke_stateful with time_evaluator
 
-    time_f = vm.time_evaluator("main", dev, number=10, repeat=3)
-    prof_res = time_f(remote_input, *remote_params)
+    time_f = vm.time_evaluator("invoke_stateful", dev, number=10, repeat=3)
+    prof_res = time_f("main")
     print(f"Inference time on remote device: {prof_res.mean * 1000:.2f} ms")
 
     ######################################################################

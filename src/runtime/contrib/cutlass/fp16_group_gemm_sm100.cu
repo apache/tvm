@@ -21,7 +21,6 @@
 #include <float.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/tensor.h>
 
 #include "fp16_group_gemm.cuh"

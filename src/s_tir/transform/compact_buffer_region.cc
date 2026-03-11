@@ -96,6 +96,11 @@ class Var2BufferCollector : public StmtExprVisitor {
     var2buffer_[op->buffer->data].insert(op->buffer);
     StmtExprVisitor::VisitStmt_(op);
   }
+
+  void VisitStmt_(const AllocBufferNode* op) final {
+    var2buffer_[op->buffer->data].insert(op->buffer);
+    StmtExprVisitor::VisitStmt_(op);
+  }
 };
 
 /*!
@@ -115,6 +120,8 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
 
     // collect buffer access regions
     region_collector(f->body);
+    // Compact any remaining flat AllocBuffer nodes at function scope
+    region_collector.CompactPendingFlatAllocBuffers();
     return std::move(region_collector.buffer_access_region_);
   }
 
@@ -159,20 +166,19 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     ancestor_iters_.push_back(iter);
     dom_analyzer_.Bind(op->loop_var, loop_range);
     dom_map_.emplace(op->loop_var.get(), arith::IntSet::FromRange(loop_range));
+    size_t n_pending_before = pending_flat_alloc_buffers_.size();
     StmtExprVisitor::VisitStmt_(op);
+    // Compact flat AllocBuffers defined inside this For scope
+    CompactPendingFlatAllocBuffers(n_pending_before);
     dom_map_.erase(op->loop_var.get());
     ancestor_iters_.pop_back();
   }
 
-  void VisitStmt_(const LetStmtNode* op) final {
+  void VisitStmt_(const BindNode* op) final {
     StmtExprVisitor::VisitExpr(op->value);
     if (arith::IsIndexType(op->value->dtype)) {
       dom_analyzer_.Bind(op->var, op->value);
       dom_map_.emplace(op->var.get(), arith::IntSet::SinglePoint(op->value));
-    }
-    StmtExprVisitor::VisitStmt(op->body);
-    if (arith::IsIndexType(op->value->dtype)) {
-      dom_map_.erase(op->var.get());
     }
   }
 
@@ -298,29 +304,15 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     StmtExprVisitor::VisitStmt_(op);
   }
 
-  void VisitStmt_(const AllocateNode* op) final {
-    auto it = var2buffer_.find(op->buffer_var);
-
-    // Do not make compaction when the buffer def and
-    // the allocation is not one-to-one with the same dtype.
-    if (it == var2buffer_.end() || it->second.size() > 1) {
-      return StmtExprVisitor::VisitStmt_(op);
-    }
-    const Buffer& buffer = *it->second.begin();
-    if (buffer->dtype != op->dtype) {
-      return StmtExprVisitor::VisitStmt_(op);
-    }
-
-    // Step 0. Record relax position of ancestor_loops_
-    VisitBufferDef(op->buffer_var);
-    // Step 1. Visit block body recursively
-    StmtExprVisitor::VisitStmt(op->body);
-    // Step 2. Update buffer_access_region_ from relaxed_accesses_ for inner buffers.
-    SimplifyAndNarrowBufferRegionFromNDIntSet(buffer);
+  void VisitStmt_(const AllocBufferNode* op) final {
+    // AllocBuffer is flat: register the buffer def and track for post-scope compaction.
+    VisitBufferDef(op->buffer->data);
+    pending_flat_alloc_buffers_.push_back(op->buffer);
+    return StmtExprVisitor::VisitStmt_(op);
   }
 
   void VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == tir::attr::thread_extent || op->attr_key == tir::attr::virtual_thread) {
+    if (op->attr_key == tir::attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread) {
       IterVar iter = Downcast<IterVar>(op->node);
       ancestor_iters_.push_back(iter);
       Range dom = iter->dom;
@@ -329,7 +321,9 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
       }
       dom_analyzer_.Bind(iter->var, dom);
       dom_map_.emplace(iter->var.get(), arith::IntSet::FromRange(dom));
+      size_t n_pending_before = pending_flat_alloc_buffers_.size();
       StmtExprVisitor::VisitStmt_(op);
+      CompactPendingFlatAllocBuffers(n_pending_before);
       dom_map_.erase(iter->var.get());
       ancestor_iters_.pop_back();
       return;
@@ -481,9 +475,26 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     }
   }
 
+  /*!
+   * \brief Compact pending flat AllocBuffer nodes registered since position n_before.
+   * Call SimplifyAndNarrowBufferRegionFromNDIntSet for each, then remove them.
+   */
+  void CompactPendingFlatAllocBuffers(size_t n_before = 0) {
+    for (size_t i = n_before; i < pending_flat_alloc_buffers_.size(); ++i) {
+      const Buffer& buf = pending_flat_alloc_buffers_[i];
+      auto it = relaxed_accesses_.find(buf);
+      if (it != relaxed_accesses_.end()) {
+        SimplifyAndNarrowBufferRegionFromNDIntSet(buf);
+      }
+    }
+    pending_flat_alloc_buffers_.resize(n_before);
+  }
+
   /**************** Class members ****************/
   /*! \brief Only collect accessed region within original buffer shape bound. */
   bool collect_inbound_{true};
+  /*! \brief Pending flat AllocBuffer nodes to compact when leaving scope. */
+  std::vector<Buffer> pending_flat_alloc_buffers_;
 
   /*! \brief The iteration scopes from the current node up to the root. */
   std::vector<IterVar> ancestor_iters_;
@@ -583,30 +594,26 @@ class BufferCompactor : public StmtExprMutator {
 
   Stmt VisitStmt_(const DeclBufferNode* op) final {
     Buffer new_buffer = RewriteAllocBuffer(op->buffer);
+    if (new_buffer.same_as(op->buffer)) {
+      return ffi::GetRef<Stmt>(op);
+    }
     auto n = CopyOnWrite(op);
     n->buffer = std::move(new_buffer);
-    n->body = VisitStmt(op->body);
     return DeclBuffer(n);
   }
 
-  Stmt VisitStmt_(const AllocateNode* op) final {
-    Allocate allocate = Downcast<Allocate>(StmtExprMutator::VisitStmt_(op));
-    auto it = buffer_info_.find(allocate->buffer_var);
+  Stmt VisitStmt_(const AllocBufferNode* op) final {
+    AllocBuffer alloc_buf = Downcast<AllocBuffer>(StmtExprMutator::VisitStmt_(op));
+    auto it = buffer_info_.find(alloc_buf->buffer->data);
     if (it == buffer_info_.end()) {
-      return allocate;
+      return alloc_buf;
     }
-    // Rewrite allocation shape if the corresponding buffer is in the buffer_info_
-    // dict and the dtype is consistent, which denotes there are no buffer aliasing
-    // and the compaction is safe.
     const Buffer& new_buffer = it->second.new_buffer;
-    if (op->dtype != new_buffer->dtype) {
-      return allocate;
+    if (op->buffer->dtype != new_buffer->dtype) {
+      return alloc_buf;
     }
-    ffi::Array<PrimExpr> new_shape = GetBufferAllocationShape(new_buffer);
-    auto n = allocate.CopyOnWrite();
-    TVM_FFI_ICHECK(n->buffer_var.same_as(new_buffer->data));
-    n->extents = new_shape;
-    return allocate;
+    alloc_buf.CopyOnWrite()->buffer = new_buffer;
+    return alloc_buf;
   }
 
   Buffer RewriteAllocBuffer(const Buffer& buffer) {

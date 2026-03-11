@@ -93,7 +93,7 @@ def element_wise(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (m, n), "float32")
     C = T.match_buffer(c, (m, n), "float32")
 
-    B = T.alloc_buffer((m, n), "float32")
+    B = T.sblock_alloc_buffer((m, n), "float32")
 
     for i, j in T.grid(m, n):
         with T.sblock("B"):
@@ -110,7 +110,7 @@ def element_wise(a: T.handle, c: T.handle) -> None:
 def element_wise_128_64(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 64), "float32")
     C = T.match_buffer(c, (128, 64), "float32")
-    B = T.alloc_buffer((128, 64), "float32")
+    B = T.sblock_alloc_buffer((128, 64), "float32")
 
     for i, j in T.grid(128, 64):
         with T.sblock("B"):
@@ -128,7 +128,7 @@ def element_wise_128_n(a: T.handle, c: T.handle) -> None:
     n = T.int32()
     A = T.match_buffer(a, (128, n), "float32")
     C = T.match_buffer(c, (128, n), "float32")
-    B = T.alloc_buffer((128, n), "float32")
+    B = T.sblock_alloc_buffer((128, n), "float32")
 
     for i, j in T.grid(128, n):
         with T.sblock("B"):
@@ -324,7 +324,8 @@ def test_specialize_buffer_var_to_expr():
             B_buf[i] = A_buf[i] * 2.0
 
     B_data = before.params[1]
-    A_buf = before.body.buffer
+    # body is a SeqStmt; the first statement is DeclBuffer for A_buf
+    A_buf = before.body[0].buffer
     param_map = {B_data: tvm.tir.address_of(A_buf[16])}
     after = before.specialize(param_map)
 

@@ -72,15 +72,14 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
 
   void VisitStmt(const Stmt& n) final { StmtExprVisitor::VisitStmt(n); }
 
-  void VisitStmt_(const LetStmtNode* op) final {
+  void VisitStmt_(const BindNode* op) final {
     // Book keep definitions
     defs_[op->var.get()] = op->value;
     return StmtExprVisitor::VisitStmt_(op);
   }
 
   void VisitStmt_(const AttrStmtNode* op) final {
-    if (!InThreadEnv() &&
-        (op->attr_key == attr::thread_extent || op->attr_key == attr::pipeline_exec_scope)) {
+    if (!InThreadEnv() && op->attr_key == attr::thread_extent) {
       EnterThreadEnv();
       StmtExprVisitor::VisitStmt_(op);
       ExitThreadEnv();

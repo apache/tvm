@@ -21,13 +21,13 @@ set -u
 set -o pipefail
 
 uv pip install \
-    autodocsumm==0.2.7 \
+    autodocsumm==0.2.14 \
     commonmark==0.9.1 \
-    docutils==0.16 \
+    docutils==0.21.2 \
     image==1.5.33 \
-    matplotlib==3.3.4 \
-    sphinx==4.2.0 \
+    matplotlib==3.10.8 \
+    sphinx==8.1.3 \
     sphinx_autodoc_annotation~=1.0 \
-    git+https://github.com/sphinx-gallery/sphinx-gallery.git@6142f1791151849b5bec4bf3959f75697ba226cd \
-    sphinx_rtd_theme==1.0.0 \
-    git+https://github.com/tlc-pack/tlcpack-sphinx-addon.git@768ec1dce349fe4708f6ad68be1ebb3f3dabafa1
+    sphinx-gallery==0.20.0 \
+    sphinx_rtd_theme==3.1.0 \
+    git+https://github.com/tlc-pack/tlcpack-sphinx-addon.git@99c6947b05b1ae26ff5003277fb7cff57ce78353

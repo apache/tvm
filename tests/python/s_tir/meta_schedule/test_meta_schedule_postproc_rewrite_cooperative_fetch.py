@@ -61,9 +61,9 @@ class AfterRewrite0:
         C = T.match_buffer(var_C, [512, 512], dtype="float32")
         # body
         # with T.sblock("root")
-        C_local = T.alloc_buffer([512, 512], dtype="float32", scope="local")
-        A_shared = T.alloc_buffer([512, 512], dtype="float32", scope="shared")
-        B_shared = T.alloc_buffer([512, 512], dtype="float32", scope="shared")
+        C_local = T.sblock_alloc_buffer([512, 512], dtype="float32", scope="local")
+        A_shared = T.sblock_alloc_buffer([512, 512], dtype="float32", scope="shared")
+        B_shared = T.sblock_alloc_buffer([512, 512], dtype="float32", scope="shared")
         for i0_0_i1_0_fused in T.thread_binding(0, 16, thread="blockIdx.x"):
             for i0_1_i1_1_fused in T.thread_binding(0, 16, thread="vthread.x"):
                 for i0_2_i1_2_fused in T.thread_binding(0, 8, thread="threadIdx.x"):
@@ -116,9 +116,9 @@ class WarpExecutionAfterRewrite:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         # body
         # with T.sblock("root")
-        C_local = T.alloc_buffer([512, 512], dtype="float32", scope="local")
-        A_shared = T.alloc_buffer([512, 512], dtype="float32", scope="shared")
-        B_shared = T.alloc_buffer([512, 512], dtype="float32", scope="shared")
+        C_local = T.sblock_alloc_buffer([512, 512], dtype="float32", scope="local")
+        A_shared = T.sblock_alloc_buffer([512, 512], dtype="float32", scope="shared")
+        B_shared = T.sblock_alloc_buffer([512, 512], dtype="float32", scope="shared")
         for i0_0_i1_0_fused in T.thread_binding(0, 16, thread="blockIdx.x"):
             for i0_1_i1_1_fused in T.thread_binding(0, 16, thread="vthread.x"):
                 for i0_2_i1_2_fused in T.thread_binding(0, 8, thread="threadIdx.y"):

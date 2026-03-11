@@ -29,7 +29,7 @@ def vector_add(A: T.Buffer((16), "float32"), B: T.Buffer((32), "float32")) -> No
     T.launch_thread(bx, 1)
     T.launch_thread(tx, 32)
     with T.sblock():
-        A_local = T.alloc_buffer((32), "float32", scope="local")
+        A_local = T.sblock_alloc_buffer((32), "float32", scope="local")
 
         with T.sblock():
             T.reads(A[0:16])

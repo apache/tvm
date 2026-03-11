@@ -38,7 +38,7 @@ def compacted_elementwise_func(a: T.handle, c: T.handle) -> None:
         with T.sblock():
             T.reads(A[i, 0:16])
             T.writes(C[i, 0:16])
-            B = T.alloc_buffer([1, 16], "float32", scope="global")
+            B = T.sblock_alloc_buffer([1, 16], "float32", scope="global")
             for j in range(0, 16):
                 with T.sblock():
                     T.reads(A[i, j])
@@ -73,7 +73,7 @@ def compacted_gpu_func(a: T.handle, c: T.handle) -> None:
                 with T.sblock():
                     T.reads(A[i0 * 4 + i1 * 2 + i2, 0:16])
                     T.writes(C[i0 * 4 + i1 * 2 + i2, 0:16])
-                    B = T.alloc_buffer([1, 16], "float32", scope="local")
+                    B = T.sblock_alloc_buffer([1, 16], "float32", scope="local")
                     for j in range(0, 16):
                         with T.sblock():
                             T.reads(A[i0 * 4 + i1 * 2 + i2, j])
@@ -114,7 +114,7 @@ def compacted_symbolic_func(a: T.handle, c: T.handle, n: T.int32, m: T.int32) ->
         with T.sblock():
             T.reads(A[i, m])
             T.writes(C[i, m])
-            B = T.alloc_buffer((m,), "float32", scope="global")
+            B = T.sblock_alloc_buffer((m,), "float32", scope="global")
             for j in range(0, m):
                 with T.sblock():
                     T.reads(A[i, j])
@@ -193,8 +193,8 @@ def compacted_multi_alloc_func(a: T.handle, d: T.handle) -> None:
         with T.sblock():
             T.reads(A[i])
             T.writes(D[i])
-            B = T.alloc_buffer((32,), scope="global")
-            C = T.alloc_buffer((32,), scope="global")
+            B = T.sblock_alloc_buffer((32,), scope="global")
+            C = T.sblock_alloc_buffer((32,), scope="global")
             B[i] = A[i] + 1.0
             C[i] = A[i] + B[i]
             D[i] = C[i] * 2.0
@@ -221,7 +221,7 @@ def compacted_strided_buffer_func(a: T.handle, c: T.handle) -> None:
         with T.sblock():
             T.reads(A[i0 * 4 : i0 * 4 + 4, 0:16])
             T.writes(C[i0 * 4 : i0 * 4 + 4, 0:16])
-            B = T.alloc_buffer([4, 16], "float32", strides=[17, 1], scope="global")
+            B = T.sblock_alloc_buffer([4, 16], "float32", strides=[17, 1], scope="global")
             for i1 in range(0, 4):
                 for j in range(0, 16):
                     with T.sblock():
@@ -242,8 +242,7 @@ def transformed_strided_buffer_func(
 ) -> None:
     # body
     for i0 in T.serial(4):
-        B_data = T.allocate([4, 17], "float32", "global")
-        B = T.decl_buffer(shape=[4, 16], dtype="float32", strides=[17, 1], data=B_data)
+        B = T.decl_buffer(shape=[4, 16], dtype="float32", strides=[17, 1])
         for i1, j in T.grid(4, 16):
             B[i1, j] = A[i0 * 4 + i1, j] + T.float32(1)
         for i1, j in T.grid(4, 16):
@@ -258,7 +257,7 @@ def compacted_symbolic_strided_buffer_func(a: T.handle) -> None:
     # with T.sblock("root"):
     for i, j, k in T.grid(((n + 63) // 64 * 4 + 7) // 8, 2, 160):
         with T.sblock(""):
-            A_pad_shared_dyn = T.alloc_buffer(
+            A_pad_shared_dyn = T.sblock_alloc_buffer(
                 (1, padded_size, 64), strides=(72 * padded_size, 72, 1), scope="shared.dyn"
             )
             for ax0, ax1 in T.grid(96, 64):
@@ -276,18 +275,14 @@ def transformed_symbolic_strided_buffer_func(a: T.handle):
     n = T.int32()
     A = T.match_buffer(a, (1, n, 10240))
     for i, j, k in T.grid(((n + 63) // 64 * 4 + 7) // 8, 2, 160):
-        A_pad_shared_dyn = T.allocate(
-            [1, T.min((n + 63) // 64 * 64, 96), 72], "float32", "shared.dyn"
-        )
-        A_pad_shared_dyn_1 = T.decl_buffer(
+        A_pad_shared_dyn = T.decl_buffer(
             (1, T.min((n + 63) // 64 * 64, 96), 64),
-            data=A_pad_shared_dyn,
             strides=(72 * T.min((n + 63) // 64 * 64, 96), 72, 1),
             scope="shared.dyn",
         )
         for ax0, ax1 in T.grid(96, 64):
             if i * 128 + j * 32 + ax0 < (n + 63) // 64 * 64:
-                A_pad_shared_dyn_1[0, ax0, ax1] = T.if_then_else(
+                A_pad_shared_dyn[0, ax0, ax1] = T.if_then_else(
                     i * 128 + j * 32 + ax0 < n,
                     A[0, i * 128 + j * 32 + ax0, k * 64 + ax1],
                     T.float32(0),

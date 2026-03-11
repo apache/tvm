@@ -43,7 +43,8 @@ Workload::Workload(IRModule mod, Workload::THashCode shash) {
 
 ObjectRef WorkloadNode::AsJSON() const {
   // Convert `this->mod` to JSON
-  std::string json_mod = tvm::SaveJSON(this->mod);
+  std::string json_mod = ffi::json::Stringify(
+      ffi::ToJSONGraph(this->mod, ffi::json::Object{{"tvm_version", TVM_VERSION}}), /*indent=*/2);
   // Dump the JSON string to base64
   std::string b64_mod = Base64Encode(json_mod);
   // Output
@@ -62,7 +63,7 @@ Workload Workload::FromJSON(const ObjectRef& json_obj) {
     {
       ffi::String b64_mod = json_array->at(1).cast<ffi::String>();
       std::string json_mod = Base64Decode(b64_mod);
-      mod = LoadJSON(json_mod).cast<IRModule>();
+      mod = ffi::FromJSONGraph(ffi::json::Parse(json_mod)).cast<IRModule>();
       std::stringstream(str_shash) >> shash;
     }
   } catch (const std::runtime_error& e) {  // includes tvm::Error and dmlc::Error

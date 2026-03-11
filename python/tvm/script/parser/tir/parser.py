@@ -145,11 +145,8 @@ def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -
         return value
     else:
         value = tvm.runtime.convert(value)
-        frame = T.LetStmt(value)
-        var = frame.var
+        var = T.bind(value)
         IRBuilder.name(var_name, var)
-        frame.add_callback(partial(frame.__exit__, None, None, None))
-        frame.__enter__()
         return var
 
 
@@ -352,9 +349,7 @@ def visit_ann_assign(self: Parser, node: doc.AnnAssign) -> None:
     if not isinstance(ann_var, Var):
         self.report_error(node.annotation, "Annotation should be Var")
     self.eval_assign(target=lhs, source=ann_var, bind_value=bind_assign_value)
-    frame = T.LetStmt(rhs, var=ann_var)
-    frame.add_callback(partial(frame.__exit__, None, None, None))
-    frame.__enter__()
+    T.bind(rhs, var=ann_var)
 
 
 @dispatch.register(token="tir", type_name="With")
@@ -471,6 +466,11 @@ def visit_expr_stmt(self: Parser, node: doc.Expr) -> None:
     elif isinstance(res, Frame):
         res.add_callback(partial(res.__exit__, None, None, None))
         res.__enter__()
+    elif isinstance(res, Var):
+        # Standalone Var expression (e.g. from T.bind(value, var=v)) --
+        # the Bind statement was already emitted to the parent frame by the FFI call,
+        # so just discard the returned Var.
+        pass
     elif isinstance(res, PrimExpr):
         T.evaluate(res)
     elif isinstance(res, int | bool):
@@ -537,10 +537,40 @@ def visit_assert(self: Parser, node: doc.Assert) -> None:
 
     node : doc.Assert
         The doc AST assert node.
+
+    The assert message can be either:
+    - A plain string: ``assert cond, "message"``
+    - A tuple of (kind, [parts...]): ``assert cond, ("ValueError", ["part0", "part1"])``
     """
     cond = self.eval_expr(node.test)
     msg = self.eval_expr(node.msg)
-    frame = T.Assert(cond, msg)
+
+    kind = "RuntimeError"
+    message = msg
+
+    if isinstance(msg, tuple):
+        if len(msg) != 2:
+            self.report_error(
+                node,
+                f"Assert message tuple must have exactly 2 elements (kind, [parts...]), "
+                f"got {len(msg)} elements",
+            )
+        kind_str, parts = msg
+        if isinstance(kind_str, tvm.tir.StringImm):
+            kind_str = kind_str.value
+        if not isinstance(kind_str, str):
+            self.report_error(
+                node,
+                f"Assert message tuple first element must be a string (error kind like "
+                f'"ValueError"), got {type(kind_str).__name__}',
+            )
+        kind = kind_str
+        message = parts
+
+    if isinstance(message, list | tuple):
+        message = [p.value if isinstance(p, tvm.tir.StringImm) else str(p) for p in message]
+
+    frame = T.Assert(cond, message, error_kind=kind)
     frame.add_callback(partial(frame.__exit__, None, None, None))
     frame.__enter__()
 

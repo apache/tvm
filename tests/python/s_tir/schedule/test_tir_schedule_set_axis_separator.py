@@ -34,7 +34,7 @@ from tvm.tir import IndexMap
 
 @T.prim_func
 def element_wise(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")) -> None:
-    B = T.alloc_buffer((128, 128), dtype="float32")
+    B = T.sblock_alloc_buffer((128, 128), dtype="float32")
 
     for i, j in T.grid(128, 128):
         with T.sblock("B"):
@@ -48,7 +48,7 @@ def element_wise(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "fl
 
 @T.prim_func
 def element_wise_set_axis_separator(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")) -> None:
-    B = T.alloc_buffer([128, 128], dtype="float32", axis_separators=[1])
+    B = T.sblock_alloc_buffer([128, 128], dtype="float32", axis_separators=[1])
 
     for i, j in T.grid(128, 128):
         with T.sblock("B"):
@@ -62,7 +62,7 @@ def element_wise_set_axis_separator(A: T.Buffer((128, 128), "float32"), C: T.Buf
 
 @T.prim_func
 def element_wise_set_axis_separator_input_buffer(A: T.Buffer(shape=(128, 128), dtype="float32", axis_separators=(1,)), C: T.Buffer((128, 128), "float32")) -> None:
-    B = T.alloc_buffer([128, 128], dtype="float32")
+    B = T.sblock_alloc_buffer([128, 128], dtype="float32")
 
     for i, j in T.grid(128, 128):
         with T.sblock("B"):
@@ -76,7 +76,7 @@ def element_wise_set_axis_separator_input_buffer(A: T.Buffer(shape=(128, 128), d
 
 @T.prim_func
 def element_wise_subregion_match(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")) -> None:
-    B = T.alloc_buffer((128, 128), dtype="float32")
+    B = T.sblock_alloc_buffer((128, 128), dtype="float32")
 
     for i, j in T.grid(128, 128):
         with T.sblock("B"):
@@ -92,7 +92,7 @@ def element_wise_subregion_match(A: T.Buffer((128, 128), "float32"), C: T.Buffer
 
 @T.prim_func
 def element_wise_subregion_match_set_axis_separator(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")) -> None:
-    B = T.alloc_buffer([128, 128], dtype="float32", axis_separators=[1])
+    B = T.sblock_alloc_buffer([128, 128], dtype="float32", axis_separators=[1])
 
     for i, j in T.grid(128, 128):
         with T.sblock("B"):
@@ -182,8 +182,8 @@ def test_indexed_lookup():
     class Before:
         @T.prim_func
         def main():
-            A = T.alloc_buffer([4,4], dtype="int32")
-            B = T.alloc_buffer([1,1], dtype="int32")
+            A = T.sblock_alloc_buffer([4,4], dtype="int32")
+            B = T.sblock_alloc_buffer([1,1], dtype="int32")
             for j in T.serial(4):
                 with T.sblock('block'):
                     A[B[0,0],j] = 0
@@ -192,8 +192,8 @@ def test_indexed_lookup():
     class Expected:
         @T.prim_func
         def main():
-            A = T.alloc_buffer([4,4], dtype="int32")
-            B = T.alloc_buffer([1,1], dtype="int32", axis_separators=[1])
+            A = T.sblock_alloc_buffer([4,4], dtype="int32")
+            B = T.sblock_alloc_buffer([1,1], dtype="int32", axis_separators=[1])
             for j in T.serial(4):
                 with T.sblock('block'):
                     A[B[0,0],j] = 0

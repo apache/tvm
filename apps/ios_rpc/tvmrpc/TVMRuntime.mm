@@ -100,7 +100,7 @@ class UnsignedDSOLoader final : public Library {
   }
   void Init(const std::string& name) {
     lib_handle_ = custom_dlopen(name.c_str(), RTLD_NOW | RTLD_LOCAL);
-    ICHECK(lib_handle_ != nullptr)
+    TVM_FFI_ICHECK(lib_handle_ != nullptr)
         << "Failed to load dynamic shared library " << name << " " << custom_dlerror();
   }
 

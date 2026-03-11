@@ -27,7 +27,7 @@ from tvm.runtime.object import Object
 from ...ir import PrimExpr
 from ..expr import Call, Expr, ExternFunc, GlobalVar, ShapeExpr, StringImm, Var
 from ..struct_info import StructInfo, TensorStructInfo
-from ..utils import args_converter
+from ..utils import convert_to_expr
 from . import _ffi_api
 
 py_print = print  # pylint: disable=invalid-name
@@ -76,7 +76,9 @@ def _wrap_inline_arg_tuple(args) -> Expr:
     in-line relax Tuple.
 
     """
-    if (
+    if isinstance(args, tuple | list):
+        return tvm.relax.Tuple([convert_to_expr(a) for a in args])
+    elif (
         isinstance(args, Expr)
         and not isinstance(args, tvm.relax.Tuple)
         and (
@@ -89,7 +91,6 @@ def _wrap_inline_arg_tuple(args) -> Expr:
         return args
 
 
-@args_converter.auto
 def call_tir(
     gvar: GlobalVar,
     args: Expr,
@@ -131,7 +132,6 @@ def call_tir(
     return _ffi_api.call_tir(gvar, args, out_sinfo, tir_vars)  # type: ignore
 
 
-@args_converter.auto
 def call_tir_with_grad(
     gvar: GlobalVar,
     args: Expr,
@@ -190,7 +190,6 @@ def call_tir_with_grad(
     )
 
 
-@args_converter.auto
 def call_tir_inplace(
     gvar: GlobalVar,
     args: Expr,
@@ -261,7 +260,6 @@ def call_tir_inplace(
     )
 
 
-@args_converter.auto
 def call_dps_packed(
     func: str | Expr,
     args: Expr,
@@ -303,7 +301,6 @@ def call_dps_packed(
     return _ffi_api.call_dps_packed(func, args, out_sinfo)  # type: ignore
 
 
-@args_converter.auto
 def call_py_func(
     func_name: str,
     args: Expr,
@@ -339,7 +336,6 @@ def call_py_func(
     return _ffi_api.call_py_func(func_name, args, out_sinfo)  # type: ignore
 
 
-@args_converter.auto
 def call_builtin_with_ctx(
     func: str | Expr,
     args: Expr,
@@ -367,6 +363,8 @@ def call_builtin_with_ctx(
     if isinstance(func, str):
         func = ExternFunc(func)
 
+    args = _wrap_inline_arg_tuple(args)
+
     if sinfo_args is not None and not isinstance(sinfo_args, list | tuple):
         sinfo_args = [sinfo_args]
 
@@ -377,7 +375,6 @@ def call_builtin_with_ctx(
     )
 
 
-@args_converter.auto
 def make_closure(
     func: Expr,
     args: Expr,
@@ -400,10 +397,11 @@ def make_closure(
         The VMClosure.
     """
 
+    args = _wrap_inline_arg_tuple(args)
+
     return _ffi_api.make_closure(func, args)  # type: ignore
 
 
-@args_converter.auto
 def invoke_closure(
     closure: Expr,
     args: Expr,
@@ -428,6 +426,7 @@ def invoke_closure(
     ret: Call
         A call to `invoke_closure`.
     """
+    args = _wrap_inline_arg_tuple(args)
 
     if not isinstance(sinfo_args, list | tuple):
         sinfo_args = [sinfo_args]
@@ -677,7 +676,6 @@ def shape_to_tensor(expr: Expr) -> Expr:
     return _ffi_api.shape_to_tensor(expr)  # type: ignore # pylint: disable=no-member
 
 
-@args_converter.auto
 def call_inplace_packed(
     func: str | ExternFunc | GlobalVar,
     *args: Expr,
@@ -731,6 +729,7 @@ def call_inplace_packed(
         func = func.global_symbol
 
     op = ExternFunc(func)
+    args = tuple(convert_to_expr(a) for a in args)
     if sinfo_args is None:
         raise ValueError("R.call_pure_packed is required to have type_args")
     if isinstance(sinfo_args, tuple):  # type: ignore
@@ -743,7 +742,6 @@ def call_inplace_packed(
     return _ffi_api.call_inplace_packed(op, args, inplace_indices, sinfo_args)  # type: ignore # pylint: disable=no-member
 
 
-@args_converter.auto
 def call_pure_packed(
     func: str | ExternFunc | GlobalVar,
     *args: Expr,
@@ -782,6 +780,7 @@ def call_pure_packed(
         func = func.global_symbol
 
     op = ExternFunc(func)
+    args = tuple(convert_to_expr(a) for a in args)
 
     if sinfo_args is None:
         raise ValueError("R.call_pure_packed is required to have type_args")
@@ -807,7 +806,6 @@ def call_pure_packed(
     return _ffi_api.call_pure_packed(op, args, None, sinfo_args)  # type: ignore # pylint: disable=no-member
 
 
-@args_converter.auto
 def invoke_pure_closure(
     closure: Expr,
     args: Expr,
@@ -838,6 +836,7 @@ def invoke_pure_closure(
     ret: Call
         A call to `invoke_pure_closure`.
     """
+    args = _wrap_inline_arg_tuple(args)
 
     if not isinstance(sinfo_args, list | tuple):
         sinfo_args = [sinfo_args]

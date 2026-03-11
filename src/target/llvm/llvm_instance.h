@@ -25,11 +25,7 @@
 #ifdef TVM_LLVM_VERSION
 
 #include <llvm/ADT/ArrayRef.h>
-#if TVM_LLVM_VERSION >= 150
 #include <llvm/IR/FMF.h>
-#else
-#include <llvm/IR/Operator.h>
-#endif
 #include <llvm/Support/CodeGen.h>
 #include <llvm/Target/TargetOptions.h>
 #include <tvm/ffi/container/array.h>
@@ -51,20 +47,8 @@
 #define llvmGetPointerTo(arg, offset) (arg->getPointerTo(offset))
 #endif
 
-#if TVM_LLVM_VERSION >= 130
 #define llvmGetIntrinName(id) \
   std::string(llvm::Intrinsic::getBaseName(static_cast<llvm::Intrinsic::ID>(id)))
-#elif TVM_LLVM_VERSION >= 40
-// This is the version of Intrinsic::getName that works for overloaded
-// intrinsics. Helpfully, if we provide no types to this function, it
-// will give us the overloaded name without the types appended. This
-// should be enough information for most uses.
-#define llvmGetIntrinName(id) \
-  std::string(llvm::Intrinsic::getName(static_cast<llvm::Intrinsic::ID>(id), {}))
-#else
-// Nothing to do, just return the intrinsic id number
-#define llvmGetIntrinName(id) std::to_string(id)
-#endif
 
 namespace llvm {
 class LLVMContext;
@@ -332,6 +316,13 @@ class LLVMTargetInfo {
    * \note The arches are fetched from the LLVM backend using the target `-mtriple`.
    */
   const ffi::Array<ffi::String> GetAllLLVMTargetArches() const;
+
+  /*!
+   * \brief Check if a CPU name is valid for this target triple
+   * \param cpu The CPU name to validate
+   * \return true if the CPU is recognized (including aliases)
+   */
+  bool IsValidCPU(const std::string& cpu) const;
 
   /*!
    * \brief Get all CPU features from target

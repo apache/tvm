@@ -82,7 +82,10 @@ void JSONDumps(Any json_obj, std::ostringstream& os) {
     }
     os << "}";
   } else if (json_obj.as<tir::IndexMapNode>()) {
-    JSONDumps(ffi::String(SaveJSON(json_obj)), os);
+    JSONDumps(ffi::String(ffi::json::Stringify(
+                  ffi::ToJSONGraph(json_obj, ffi::json::Object{{"tvm_version", TVM_VERSION}}),
+                  /*indent=*/2)),
+              os);
   } else {
     TVM_FFI_THROW(TypeError) << "Unsupported type in JSON object: " << json_obj.GetTypeKey();
   }

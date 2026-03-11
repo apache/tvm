@@ -22,7 +22,8 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/arith/int_set.h>
 #include <tvm/arith/iter_affine_map.h>
-#include <tvm/ir/serialization.h>
+#include <tvm/ffi/extra/json.h>
+#include <tvm/ffi/extra/serialization.h>
 #include <tvm/s_tir/schedule/instruction.h>
 #include <tvm/s_tir/schedule/schedule.h>
 #include <tvm/s_tir/schedule/state.h>
@@ -39,7 +40,7 @@
 #include <utility>
 
 #include "../../arith/pattern_match.h"
-#include "../../node/attr_registry.h"
+#include "../../ir/attr_registry.h"
 #include "../../runtime/thread_storage_scope.h"
 #include "../../support/array.h"
 #include "../../support/nd_int_set.h"

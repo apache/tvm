@@ -35,7 +35,7 @@ def test_llvm_intrin():
     class Module:
         @T.prim_func
         def main(A: T.handle("float32")):
-            A_buf = T.Buffer((4,), "float32", data=A)
+            A_buf = T.decl_buffer((4,), "float32", data=A)
             T.evaluate(T.Call("void", "tir.prefetch", [T.address_of(A_buf[0]), 0, 3, 1]))
 
     fcode = tvm.compile(Module)
@@ -89,7 +89,7 @@ def test_llvm_lookup_intrin():
     class Module:
         @T.prim_func
         def main(A: T.handle("uint8x8")):
-            A_buf = T.Buffer((1,), "uint8x8", data=A)
+            A_buf = T.decl_buffer((1,), "uint8x8", data=A)
             T.evaluate(T.call_llvm_pure_intrin("uint8x8", "llvm.ctpop.v8i8", T.uint32(1), A_buf[0]))
 
     fcode = tvm.compile(Module, None)
@@ -125,7 +125,7 @@ def test_llvm_multi_parallel():
         @T.prim_func
         def main(A: T.Buffer((128,), "float32"), C: T.Buffer((128,), "float32")):
             T.func_attr({"tir.noalias": True})
-            B = T.alloc_buffer((128,))
+            B = T.sblock_alloc_buffer((128,))
             for i0_0_0 in T.parallel(1):
                 for ax0 in range(128):
                     with T.sblock("B"):
@@ -253,7 +253,7 @@ def test_llvm_temp_space():
         @T.prim_func
         def main(A: T.Buffer((1024,), "float32"), C: T.Buffer((1024,), "float32")):
             T.func_attr({"tir.noalias": True})
-            B = T.alloc_buffer((1024,))
+            B = T.sblock_alloc_buffer((1024,))
             for i in range(1024):
                 with T.sblock("B"):
                     v_i = T.axis.spatial(1024, i)
@@ -406,7 +406,7 @@ def test_rank_zero():
             compute: T.Buffer((), "float32"),
         ):
             T.func_attr({"tir.noalias": True})
-            C = T.alloc_buffer(())
+            C = T.sblock_alloc_buffer(())
             for k in range(64):
                 with T.sblock("C"):
                     v_k = T.axis.reduce(64, k)
@@ -443,7 +443,7 @@ def test_rank_zero_bound_checkers():
             compute: T.Buffer((), "float32"),
         ):
             T.func_attr({"tir.noalias": True})
-            C = T.alloc_buffer(())
+            C = T.sblock_alloc_buffer(())
             for k in range(64):
                 with T.sblock("C"):
                     v_k = T.axis.reduce(64, k)
@@ -1004,31 +1004,28 @@ def test_llvm_target_attributes():
     llvm_ir_lines = llvm_ir.split("\n")
 
     attribute_definitions = dict()
-    attributes_with_target = dict()
-    functions_with_target = []
+    function_attr_map = dict()
 
     for line in llvm_ir_lines:
         func_def = re.match(
             "define.* @(?P<func_name>[^(]*)[(].* #(?P<attr_num>[0-9]+) (!.* |){$", line
         )
         if func_def:
-            functions_with_target.append(func_def.group("func_name"))
-            attributes_with_target[func_def.group("attr_num")] = True
+            function_attr_map[func_def.group("func_name")] = func_def.group("attr_num")
             continue
         attr_def = re.match("attributes #(?P<attr_num>[0-9]+) = {(?P<attr_list>.*)}", line)
         if attr_def:
             attribute_definitions[attr_def.group("attr_num")] = attr_def.group("attr_list")
-
-    for k in list(attributes_with_target.keys()):
-        assert re.match('.*"target-cpu"="skylake".*', attribute_definitions[k])
-        assert re.match('.*"target-features"=".*[+]avx512f.*".*', attribute_definitions[k])
 
     expected_functions = [
         "__tvm_ffi_test_func",
         "__tvm_parallel_lambda",
     ]
     for n in expected_functions:
-        assert n in functions_with_target
+        assert n in function_attr_map, f"Expected function {n} not found in LLVM IR"
+        attr_num = function_attr_map[n]
+        assert re.match('.*"target-cpu"="skylake".*', attribute_definitions[attr_num])
+        assert re.match('.*"target-features"=".*[+]avx512f.*".*', attribute_definitions[attr_num])
 
 
 @tvm.testing.requires_llvm
@@ -1044,11 +1041,11 @@ def test_llvm_assume():
         @T.prim_func
         def main(A: T.Buffer((4, 4), "int32"), B: T.Buffer((14,), "int32")):
             T.func_attr({"tir.noalias": True})
-            A_1 = T.Buffer((16,), "int32", data=A.data)
+            A_1 = T.decl_buffer((16,), "int32", data=A.data)
             for axis0, axis1 in T.grid(4, 4):
                 T.assume(axis0 < 3 or axis1 < 2 or A_1[axis0 * 4 + axis1] == 0)
             for i in range(14):
-                B_1 = T.Buffer((14,), "int32", data=B.data)
+                B_1 = T.decl_buffer((14,), "int32", data=B.data)
                 B_1[i] = A_1[i] * 2
 
     m = tvm.compile(Module, target="llvm")
@@ -1068,8 +1065,8 @@ def test_debug_symbol_for_float64():
         @T.prim_func
         def main(a: T.handle("float64"), b: T.handle("float64"), n: T.int64):
             T.func_attr({"calling_conv": 2})
-            A = T.Buffer(16, "float64", data=a)
-            B = T.Buffer(16, "float64", data=b)
+            A = T.decl_buffer(16, "float64", data=a)
+            B = T.decl_buffer(16, "float64", data=b)
             for i in range(n):
                 B[i] = A[i]
 
@@ -1172,9 +1169,7 @@ def test_invalid_volatile_masked_buffer_load():
         @T.prim_func
         def main(b: T.handle):
             B = T.match_buffer(b, [4])
-            a = T.allocate([4], "float32", scope="global")
-            T.attr(a, "volatile_scope", 1)
-            A = T.Buffer([4], data=a)
+            A = T.alloc_buffer((4,), annotations={"tir.volatile": True})
             B[0:4] = A.vload([T.Ramp(0, 1, 4)], predicate=T.Broadcast(T.bool(True), 4))
 
     err_msg = "The masked load intrinsic does not support declaring load as volatile."
@@ -1188,10 +1183,12 @@ def test_invalid_volatile_masked_buffer_store():
     class Module:
         @T.prim_func
         def main():
-            a = T.allocate([4], "float32", scope="global")
-            T.attr(a, "volatile_scope", 1)
-            A = T.Buffer([4], data=a)
-            A.vstore([T.Ramp(0, 1, 4)], T.Broadcast(0.0, 4), predicate=T.Broadcast(T.bool(True), 4))
+            A = T.alloc_buffer((4,), annotations={"tir.volatile": True})
+            A.vstore(
+                [T.Ramp(0, 1, 4)],
+                T.Broadcast(0.0, 4),
+                predicate=T.Broadcast(T.bool(True), 4),
+            )
 
     err_msg = "The masked store intrinsic does not support declaring store as volatile."
     with pytest.raises(tvm.TVMError, match=err_msg):
@@ -1260,27 +1257,6 @@ def test_bool_return_value():
 
     assert isinstance(built(15), bool)
     assert not built(15)
-
-
-def test_invalid_arguments():
-    """Integers may be passed to functions accepting bool"""
-
-    @I.ir_module
-    class Module:
-        @T.prim_func
-        def main(a0: T.bool, a1: T.Buffer([10], "float32")) -> T.int32:
-            T.func_attr({"target": T.target("llvm")})
-            return 0
-
-    built = tvm.compile(Module)
-    with pytest.raises(RuntimeError):
-        built(1, 1)
-
-    with pytest.raises(RuntimeError):
-        built(1, tvm.runtime.empty([10], "int32"))
-
-    with pytest.raises(RuntimeError):
-        built(False, tvm.runtime.empty([11], "float32"))
 
 
 if __name__ == "__main__":

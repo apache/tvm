@@ -759,7 +759,7 @@ def test_reshape_pattern_with_raggedness():
 def test_reshape_pattern_reject_seqstmt():
     @T.prim_func
     def identity_bias(A: T.Buffer((4, 4), "float32"), B: T.Buffer((4, 4), "float32")):
-        C = T.alloc_buffer((128, 128), "float32")
+        C = T.sblock_alloc_buffer((128, 128), "float32")
         for i0, i1 in T.grid(4, 4):
             with T.sblock("identity"):
                 vi0, vi1 = T.axis.remap("SS", [i0, i1])
@@ -771,7 +771,7 @@ def test_reshape_pattern_reject_seqstmt():
 
     @T.prim_func
     def identity_identity(A: T.Buffer((4, 4), "float32"), B: T.Buffer((4, 4), "float32")):
-        C = T.alloc_buffer((128, 128), "float32")
+        C = T.sblock_alloc_buffer((128, 128), "float32")
         for i0, i1 in T.grid(4, 4):
             with T.sblock("identity"):
                 vi0, vi1 = T.axis.remap("SS", [i0, i1])

@@ -117,7 +117,7 @@ def tir_element_wise(a: T.handle, c: T.handle) -> None:
     T.func_attr({"global_symbol": "main", "tir.noalias": True})
     A = T.match_buffer(a, (128, 128))
     C = T.match_buffer(c, (128, 128))
-    B = T.alloc_buffer((128, 128))
+    B = T.sblock_alloc_buffer((128, 128))
 
     for i0, j0 in T.grid(128, 128):
         with T.sblock():
@@ -170,7 +170,7 @@ def tir_conv2d(a: T.handle, w: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [16, 16, 14, 14])
     W = T.match_buffer(w, [16, 3, 3, 32])
     B = T.match_buffer(b, [16, 32, 14, 14])
-    Apad = T.alloc_buffer([16, 16, 16, 16])
+    Apad = T.sblock_alloc_buffer([16, 16, 16, 16])
 
     for n, c, y, x in T.grid(16, 16, 16, 16):
         with T.sblock("Apad"):
@@ -359,6 +359,32 @@ def test_constant():
     tvm.testing.assert_allclose(a_np + 2, c.numpy())
 
 
+@pytest.mark.parametrize("op_name", ["acos", "acosh", "asin", "asinh", "atanh"])
+def test_topi_float_unary_rejects_integer_input(op_name):
+    x = te.placeholder((1, 8), dtype="int16", name="x")
+    op = getattr(topi, op_name)
+
+    with pytest.raises(
+        TypeError,
+        match=rf"topi\.{op_name} only supports floating-point inputs, but got int16",
+    ):
+        op(x)
+
+
+@pytest.mark.parametrize("op_name", ["acos", "acosh", "asin", "asinh", "atanh"])
+@pytest.mark.parametrize("dtype", ["float32", "bfloat16"])
+def test_topi_float_unary_accepts_float_input(op_name, dtype):
+    x = te.placeholder((1, 8), dtype=dtype, name="x")
+    op = getattr(topi, op_name)
+    out = op(x)
+
+    func = te.create_prim_func([x, out]).with_attr("target", tvm.target.Target("llvm"))
+    mod = tvm.IRModule({"main": func})
+    compiled = tvm.build(mod, target="llvm")
+
+    assert compiled is not None
+
+
 def test_data_dependent_access():
     A = te.placeholder((10,), name="A")
     B = te.placeholder((10,), name="B", dtype="int32")
@@ -407,7 +433,7 @@ def expected_layout_attr(
     D: T.Buffer((128, 128), "float32"),
 ) -> None:
     T.func_attr({"global_symbol": "main", "tir.noalias": True, "layout_free_buffers": [1]})
-    C = T.alloc_buffer([128, 128], dtype="float32")
+    C = T.sblock_alloc_buffer([128, 128], dtype="float32")
     for i0, i1, i2 in T.grid(128, 128, 128):
         with T.sblock("C"):
             x, y, k = T.axis.remap("SSR", [i0, i1, i2])
@@ -428,7 +454,7 @@ def expected_layout_attr_int64(
     D: T.Buffer((T.int64(128), T.int64(128)), "float32"),
 ):
     T.func_attr({"global_symbol": "main", "tir.noalias": True, "layout_free_buffers": [1]})
-    C = T.alloc_buffer([T.int64(128), T.int64(128)], dtype="float32")
+    C = T.sblock_alloc_buffer([T.int64(128), T.int64(128)], dtype="float32")
     for x, y, k in T.grid(T.int64(128), T.int64(128), T.int64(128)):
         with T.sblock("C"):
             v_x, v_y, v_k = T.axis.remap("SSR", [x, y, k])
@@ -848,7 +874,7 @@ def test_adaptive_pooling_window():
     ):
         T.func_attr({"tir.noalias": True, "global_symbol": "main"})
         # fmt: off
-        adaptive_pool_sum = T.alloc_buffer((1, 1024, 12, 30))
+        adaptive_pool_sum = T.sblock_alloc_buffer((1, 1024, 12, 30))
         for ax0, ax1, ax2, ax3 in T.grid(1, 1024, 12, 30):
             with T.sblock("adaptive_pool_sum_1"):
                 v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])

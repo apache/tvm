@@ -25,6 +25,7 @@
 #define TVM_TIR_IR_TIR_VISITOR_WITH_PATH_H_
 
 #include <tvm/ir/module.h>
+#include <tvm/ir/scope_stack.h>
 #include <tvm/tir/expr_functor.h>
 #include <tvm/tir/stmt_functor.h>
 
@@ -32,6 +33,7 @@
 #include <optional>
 #include <unordered_set>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace tvm {
@@ -53,12 +55,18 @@ class TIRVisitorWithPath
   // Delegate to ExprFunctor::VisitStmt for Stmt, and any subclasses
   inline void Visit(const Stmt& obj, ffi::reflection::AccessPath path) { VisitStmt(obj, path); }
 
+  // Visit a buffer at a use site (BufferLoad, BufferStore, reads/writes).
+  // By default, does not re-visit buffer fields (shape, strides, elem_offset),
+  // as those are visited at the definition site via EnterDef.
+  virtual void VisitBufferUse(const Buffer& obj, ffi::reflection::AccessPath path);
+  // Visit a buffer at a definition site. By default visits buffer fields.
+  virtual void VisitBufferDef(const Buffer& obj, ffi::reflection::AccessPath path);
+
   // Visitors for TIR constructs that are neither PrimExpr nor Stmt
   virtual void Visit(const IRModule& obj, ffi::reflection::AccessPath path);
   virtual void Visit(const PrimFunc& obj, ffi::reflection::AccessPath path);
   virtual void Visit(const GlobalVar& obj, ffi::reflection::AccessPath path) {}
   virtual void Visit(const Range& obj, ffi::reflection::AccessPath path);
-  virtual void Visit(const Buffer& obj, ffi::reflection::AccessPath path);
   virtual void Visit(const BufferRegion& obj, ffi::reflection::AccessPath path);
   virtual void Visit(const MatchBufferRegion& obj, ffi::reflection::AccessPath path);
   virtual void Visit(const IterVar& obj, ffi::reflection::AccessPath path);
@@ -100,12 +108,12 @@ class TIRVisitorWithPath
   }
 
   using StmtFunctor::VisitStmt;
+  void VisitStmt_(const BindNode* op, ffi::reflection::AccessPath path) override;
   void VisitStmt_(const AttrStmtNode* op, ffi::reflection::AccessPath path) override;
   void VisitStmt_(const IfThenElseNode* op, ffi::reflection::AccessPath path) override;
-  void VisitStmt_(const LetStmtNode* op, ffi::reflection::AccessPath path) override;
   void VisitStmt_(const ForNode* op, ffi::reflection::AccessPath path) override;
   void VisitStmt_(const WhileNode* op, ffi::reflection::AccessPath path) override;
-  void VisitStmt_(const AllocateNode* op, ffi::reflection::AccessPath path) override;
+  void VisitStmt_(const AllocBufferNode* op, ffi::reflection::AccessPath path) override;
   void VisitStmt_(const DeclBufferNode* op, ffi::reflection::AccessPath path) override;
   void VisitStmt_(const BufferStoreNode* op, ffi::reflection::AccessPath path) override;
   void VisitStmt_(const AssertStmtNode* op, ffi::reflection::AccessPath path) override;
@@ -243,6 +251,15 @@ class TIRVisitorWithPath
   }
 
   std::unordered_set<ObjectRef, ObjectPtrHash, ObjectPtrEqual> in_scope_definitions_;
+
+  /*! \brief Scope stack for Bind variable definitions.
+   *
+   * Body-carrying statements (For, IfThenElse, etc.) push a new scope.
+   * BindNode pushes its WithDef into the current scope.  When the
+   * scope exits, all Bind defs are cleaned up automatically.
+   */
+  using BindScopeEntry = std::variant<DefContext<Var>, DefContext<Buffer>>;
+  ScopeStack<std::vector<BindScopeEntry>> bind_scope_;
 };
 
 }  // namespace tir

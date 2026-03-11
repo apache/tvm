@@ -28,33 +28,13 @@ from . import ir as T
 class _FrameScope:
     """Context manager to enter multiple IRBuilder frames without deep nesting.
 
-    This class allows entering multiple frames (e.g., T.allocate) in a single
-    `with` statement, avoiding the pyramid of nested context managers.
+    This class allows entering multiple frames in a single `with` statement,
+    avoiding the pyramid of nested context managers.
 
     Parameters
     ----------
     frames : List[IRBuilderFrame]
         The list of frames to enter.
-
-    Examples
-    --------
-    Instead of deeply nested allocations:
-
-    .. code-block:: python
-
-        with T.allocate([1], "int32", scope="local") as lo:
-            with T.allocate([1], "int32", scope="local") as hi:
-                # code here
-
-    Use frame_scope for flat structure:
-
-    .. code-block:: python
-
-        with frame_scope([
-            T.allocate([1], "int32", scope="local"),
-            T.allocate([1], "int32", scope="local"),
-        ]) as (lo, hi):
-            # code here
     """
 
     def __init__(self, frames):
@@ -88,24 +68,6 @@ def frame_scope(frames: list[frame.TIRFrame]) -> _FrameScope:
     -------
     _FrameScope
         A context manager that enters all frames and returns their values.
-
-    Examples
-    --------
-    .. code-block:: python
-
-        from tvm.script.ir_builder import IRBuilder
-        from tvm.script.ir_builder import tir as T
-        from tvm.script.ir_builder.tir.utils import frame_scope
-
-        with IRBuilder() as ib:
-            with frame_scope([
-                T.allocate([1], "int32", scope="local"),
-                T.allocate([1], "int32", scope="local"),
-                T.allocate([size], dtype, scope="local"),
-            ]) as (lo, hi, temp):
-                # Use lo, hi, temp directly
-                T.buffer_store(lo, T.int32(0), [0])
-                ...
     """
     return _FrameScope(frames)
 

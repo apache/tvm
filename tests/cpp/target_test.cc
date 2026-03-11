@@ -222,6 +222,63 @@ TEST(TargetCreation, TargetParserProcessing) {
   ASSERT_EQ(test_target->GetAttr<ffi::String>("mattr").value(), "cake");
 }
 
+TEST(TargetCreation, RoundTripCanonicalizerFeatures) {
+  // Construct a target whose canonicalizer sets feature.test and transforms mcpu
+  Target original(ffi::Map<ffi::String, ffi::Any>{
+      {"kind", ffi::String("TestTargetParser")},
+      {"mcpu", ffi::String("woof")},
+  });
+  ASSERT_EQ(original->GetAttr<ffi::String>("mcpu").value(), "super_woof");
+  ASSERT_EQ(original->GetAttr<bool>("feature.test").value(), true);
+
+  // Export to config and reconstruct
+  ffi::Map<ffi::String, ffi::Any> exported = original->ToConfig();
+  Target reconstructed(exported);
+
+  // Canonicalized attrs must survive the round-trip
+  // Note: mcpu gets canonicalized again (super_super_woof) because the canonicalizer runs
+  ASSERT_TRUE(reconstructed->GetAttr<ffi::String>("mcpu").has_value());
+  ASSERT_EQ(reconstructed->GetAttr<bool>("feature.test").value(), true);
+  ASSERT_EQ(reconstructed->keys.size(), 1);
+  ASSERT_EQ(reconstructed->keys[0], "super");
+}
+
+TEST(TargetCreation, RoundTripCanonicalizerFeaturesNestedHost) {
+  // Construct a host target whose canonicalizer sets feature.test
+  Target host(ffi::Map<ffi::String, ffi::Any>{
+      {"kind", ffi::String("TestTargetParser")},
+      {"mcpu", ffi::String("woof")},
+  });
+  ASSERT_EQ(host->GetAttr<bool>("feature.test").value(), true);
+
+  // Attach it as host to another target
+  Target outer(ffi::Map<ffi::String, ffi::Any>{
+      {"kind", ffi::String("TestTargetKind")},
+      {"my_bool", true},
+  });
+  Target combined(outer, host);
+
+  // Export the outer target (includes nested host) and reconstruct
+  ffi::Map<ffi::String, ffi::Any> exported = combined->ToConfig();
+  Target reconstructed(exported);
+
+  // The nested host must reconstruct successfully with feature.* preserved
+  ffi::Optional<Target> reconstructed_host = reconstructed->GetHost();
+  ASSERT_TRUE(reconstructed_host.defined());
+  ASSERT_EQ(reconstructed_host.value()->GetAttr<bool>("feature.test").value(), true);
+  ASSERT_TRUE(reconstructed_host.value()->GetAttr<ffi::String>("mcpu").has_value());
+}
+
+TEST(TargetCreationFail, UnknownNonFeatureKeyStillFails) {
+  // Verify that unknown non-feature.* keys still fail schema validation
+  ffi::Map<ffi::String, ffi::Any> config = {
+      {"kind", ffi::String("TestTargetParser")},
+      {"mcpu", ffi::String("woof")},
+      {"unknown_key", ffi::String("bad")},
+  };
+  ASSERT_THROW({ Target{config}; }, tvm::Error);
+}
+
 TVM_REGISTER_TARGET_KIND("TestStringKind", kDLCPU)
     .add_attr_option<ffi::String>("single")
     .add_attr_option<ffi::Array<ffi::String>>("array")

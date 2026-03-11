@@ -280,12 +280,12 @@ std::string CodeGenC::GetBufferRef(DataType t, const BufferNode* buffer, PrimExp
 // Print a reference expression to a buffer.
 std::string CodeGenC::GetStructRef(DataType t, const PrimExpr& buffer, const PrimExpr& index,
                                    int kind) {
-  if (kind < builtin::kArrKindBound_) {
+  if (kind < builtin::kDLTensorKindBound_) {
     std::ostringstream os;
     os << "(((DLTensor*)";
     this->PrintExpr(buffer, os);
     os << ")";
-    if (kind == builtin::kArrAddr) {
+    if (kind == builtin::kDLTensorAddr) {
       os << " + ";
       this->PrintExpr(index, os);
       os << ")";
@@ -296,34 +296,34 @@ std::string CodeGenC::GetStructRef(DataType t, const PrimExpr& buffer, const Pri
     os << "].";
     // other case: get fields.
     switch (kind) {
-      case builtin::kArrData:
+      case builtin::kDLTensorData:
         os << "data";
         break;
-      case builtin::kArrShape:
+      case builtin::kDLTensorShape:
         os << "shape";
         break;
-      case builtin::kArrStrides:
+      case builtin::kDLTensorStrides:
         os << "strides";
         break;
-      case builtin::kArrNDim:
+      case builtin::kDLTensorNDim:
         os << "ndim";
         break;
-      case builtin::kArrTypeCode:
+      case builtin::kDLTensorTypeCode:
         os << "dtype.code";
         break;
-      case builtin::kArrTypeBits:
+      case builtin::kDLTensorTypeBits:
         os << "dtype.bits";
         break;
-      case builtin::kArrByteOffset:
+      case builtin::kDLTensorByteOffset:
         os << "byte_offset";
         break;
-      case builtin::kArrTypeLanes:
+      case builtin::kDLTensorTypeLanes:
         os << "dtype.lanes";
         break;
-      case builtin::kArrDeviceId:
+      case builtin::kDLTensorDeviceId:
         os << "device.device_id";
         break;
-      case builtin::kArrDeviceType:
+      case builtin::kDLTensorDeviceType:
         os << "device.device_type";
         break;
       default:
@@ -359,8 +359,17 @@ std::string CodeGenC::GetStructRef(DataType t, const PrimExpr& buffer, const Pri
     }
     os << ")";
     return os.str();
+  } else if (kind == builtin::kInt64ArrayElem) {
+    std::ostringstream os;
+    os << "(((int64_t*)";
+    this->PrintExpr(buffer, os);
+    os << ")[";
+    this->PrintExpr(index, os);
+    os << "])";
+    return os.str();
   } else {
     TVM_FFI_THROW(RuntimeError) << "Unsupported type index: " << kind;
+    TVM_FFI_UNREACHABLE();
   }
 }
 
@@ -765,7 +774,9 @@ void CodeGenC::PrintVecBinaryOp(const std::string& op, DataType t, PrimExpr lhs,
   }
 }
 
-void CodeGenC::VisitStmt_(const DeclBufferNode* op) { this->PrintStmt(op->body); }
+void CodeGenC::VisitStmt_(const DeclBufferNode* op) {
+  // DeclBuffer is a flat statement with no body — nothing to emit.
+}
 
 void CodeGenC::VisitExpr_(const BufferLoadNode* op, std::ostream& os) {  // NOLINT(*)
   TVM_FFI_ICHECK_EQ(op->indices.size(), 1) << "Load from non-flat memory not supported.";
@@ -1020,7 +1031,7 @@ void CodeGenC::VisitExpr_(const SelectNode* op, std::ostream& os) {  // NOLINT(*
   os << ")";
 }
 
-void CodeGenC::VisitStmt_(const LetStmtNode* op) {
+void CodeGenC::VisitStmt_(const BindNode* op) {
   std::string value = PrintExpr(op->value);
   if (print_ssa_form_) {
     TVM_FFI_ICHECK(!var_idmap_.count(op->var.get()));
@@ -1037,26 +1048,33 @@ void CodeGenC::VisitStmt_(const LetStmtNode* op) {
       this->stream << ' ' << AllocVarID(op->var.get()) << " = " << value << ";\n";
     }
   }
-  PrintStmt(op->body);
 }
 
-void CodeGenC::VisitStmt_(const AllocateNode* op) {
-  TVM_FFI_ICHECK(!is_zero(op->condition));
-  std::string vid = AllocVarID(op->buffer_var.get());
+void CodeGenC::VisitStmt_(const AllocBufferNode* op) {
+  TVM_FFI_ICHECK(op->buffer.defined());
+  std::string vid = AllocVarID(op->buffer->data.get());
 
   this->PrintIndent();
-  size_t constant_size = op->ConstantAllocationSize();
+  const auto& shape = op->buffer->shape;
+  size_t constant_size = 1;
+  for (const auto& dim : shape) {
+    const IntImmNode* dim_imm = dim.as<IntImmNode>();
+    TVM_FFI_ICHECK(dim_imm) << "Can only handle constant size stack allocation for now";
+    constant_size *= dim_imm->value;
+  }
   TVM_FFI_ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation for now";
 
-  auto scope = GetPtrStorageScope(op->buffer_var);
-  alloc_storage_scope_[op->buffer_var.get()] = scope;
+  auto scope = GetPtrStorageScope(op->buffer->data);
+  alloc_storage_scope_[op->buffer->data.get()] = scope;
   PrintStorageScope(scope, stream);
 
-  PrintType(op->dtype, stream);
+  PrintType(op->buffer->dtype, stream);
   stream << ' ' << vid << '[' << constant_size << "];\n";
 
-  RegisterHandleType(op->buffer_var.get(), op->dtype);
-  this->PrintStmt(op->body);
+  RegisterHandleType(op->buffer->data.get(), op->buffer->dtype);
+  if (op->annotations.count(tir::attr::kVolatile)) {
+    MarkVolatile(op->buffer->data.get());
+  }
 }
 
 void CodeGenC::VisitStmt_(const AttrStmtNode* op) {
@@ -1067,10 +1085,6 @@ void CodeGenC::VisitStmt_(const AttrStmtNode* op) {
         BindThreadIndex(iv);
       }
     }
-  } else if (op->attr_key == tir::attr::volatile_scope) {
-    const VarNode* v = op->node.as<VarNode>();
-    TVM_FFI_ICHECK(v);
-    volatile_buf_.insert(v);
   } else if (op->attr_key == tir::attr::pragma_import_c) {
     const StringImmNode* value = op->value.as<StringImmNode>();
     TVM_FFI_ICHECK(value != nullptr);
@@ -1079,12 +1093,77 @@ void CodeGenC::VisitStmt_(const AttrStmtNode* op) {
   this->PrintStmt(op->body);
 }
 
+void CodeGenC::PrintEscapedCString(const std::string& str, std::ostream& os) {
+  os << "\"";
+  for (unsigned char c : str) {
+    switch (c) {
+      case '"':
+        os << "\\\"";
+        break;
+      case '\\':
+        os << "\\\\";
+        break;
+      case '\n':
+        os << "\\n";
+        break;
+      case '\t':
+        os << "\\t";
+        break;
+      case '\r':
+        os << "\\r";
+        break;
+      case '\a':
+        os << "\\a";
+        break;
+      case '\b':
+        os << "\\b";
+        break;
+      case '\f':
+        os << "\\f";
+        break;
+      case '\v':
+        os << "\\v";
+        break;
+      case '\0':
+        os << "\\0";
+        break;
+      default:
+        if (c < 0x20 || c >= 0x7f) {
+          // Non-printable: emit as hex escape
+          os << "\\x" << std::setfill('0') << std::setw(2) << std::hex << static_cast<int>(c)
+             << std::dec;
+        } else {
+          os << static_cast<char>(c);
+        }
+        break;
+    }
+  }
+  os << "\"";
+}
+
 void CodeGenC::VisitStmt_(const AssertStmtNode* op) {
   std::string cond = PrintExpr(op->condition);
   PrintIndent();
-  if (const auto* str = op->message.as<StringImmNode>()) {
-    // GLOG style check
-    stream << "TVM_FFI_ICHECK(" << cond << ") << \"" << str->value << "\";\n";
+  int num_parts = static_cast<int>(op->message_parts.size());
+  if (num_parts > 0) {
+    stream << "if (!(" << cond << ")) {\n";
+    int assert_if_scope = this->BeginScope();
+    PrintIndent();
+    stream << "const char* __tvm_assert_parts[" << num_parts << "] = {";
+    for (int i = 0; i < num_parts; ++i) {
+      if (i > 0) stream << ", ";
+      PrintEscapedCString(op->message_parts[i]->value, stream);
+    }
+    stream << "};\n";
+    PrintIndent();
+    stream << "TVMFFIErrorSetRaisedFromCStrParts(";
+    PrintEscapedCString(op->error_kind->value, stream);
+    stream << ", __tvm_assert_parts, " << num_parts << ");\n";
+    PrintIndent();
+    stream << "return -1;\n";
+    this->EndScope(assert_if_scope);
+    PrintIndent();
+    stream << "}\n";
   } else {
     stream << "assert(" << cond << ");\n";
   }
@@ -1179,10 +1258,10 @@ void CodeGenC::VisitStmt_(const EvaluateNode* op) {
                      << " = 0;\n";
       }
 
-      if (kind == builtin::kArrStrides) {
+      if (kind == builtin::kDLTensorStrides) {
         // cast void* to int64_t*
         cast = call->args[3]->dtype.is_handle() ? "(int64_t*)" : "";
-      } else if (kind == builtin::kArrDeviceType) {
+      } else if (kind == builtin::kDLTensorDeviceType) {
         // cast int to enum
         cast = "(DLDeviceType)";
       }

@@ -213,10 +213,9 @@ class MetalWrappedFunc {
       int blockSize = wl.block_dim(0) * wl.block_dim(1) * wl.block_dim(2);
       auto maxTotalThreadsPerThreadgroup = scache_[device_id].maxTotalThreadsPerThreadgroup;
       TVM_FFI_ICHECK_LE(blockSize, maxTotalThreadsPerThreadgroup);
-      // attach error message directly in this functio
-      id<MTLCommandBuffer> cb = stream->GetCommandBuffer(/*label=*/"TVMKernel:" + func_name_,
-                                                         /*attach_error_callback=*/false);
-      id<MTLComputeCommandEncoder> encoder = [cb computeCommandEncoder];
+      // Reuse the pending compute encoder to batch dispatches.
+      // The encoder is flushed on sync, copy, or buffer deallocation.
+      id<MTLComputeCommandEncoder> encoder = stream->GetPendingComputeEncoder(func_name_);
       [encoder setComputePipelineState:scache_[device_id]];
       for (size_t i = 0; i < num_buffer_args_; ++i) {
         void* buf = args[static_cast<int>(i)].cast<void*>();
@@ -231,18 +230,6 @@ class MetalWrappedFunc {
       MTLSize dimGrid = MTLSizeMake(wl.grid_dim(0), wl.grid_dim(1), wl.grid_dim(2));
       MTLSize dimBlock = MTLSizeMake(wl.block_dim(0), wl.block_dim(1), wl.block_dim(2));
       [encoder dispatchThreadgroups:dimGrid threadsPerThreadgroup:dimBlock];
-      [encoder endEncoding];
-      // attach error message with function name
-      [cb addCompletedHandler:^(id<MTLCommandBuffer> buffer) {
-        if (buffer.status == MTLCommandBufferStatusError) {
-          TVM_FFI_ICHECK(buffer.error != nil);
-          std::ostringstream os;
-          os << "GPUError happens after running " << func_name_ << ": "
-             << buffer.error.localizedDescription.UTF8String;
-          stream->SetError(os.str());
-        }
-      }];
-      [cb commit];
     };
   }
 

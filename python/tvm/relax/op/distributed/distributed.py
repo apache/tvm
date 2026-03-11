@@ -20,10 +20,10 @@
 from tvm.ir import PrimExpr
 from tvm.relax.distributed import DTensorStructInfo
 from tvm.relax.distributed.struct_info import DeviceMesh, Placement
-from tvm.relax.utils import args_converter
 
 from ...expr import Call, Expr, GlobalVar, ShapeExpr
 from ...expr import Tuple as RxTuple
+from ...utils import convert_to_expr
 from . import _ffi_api
 
 
@@ -66,7 +66,6 @@ def redistribute(input: Expr, device_mesh: DeviceMesh, placement: Placement) -> 
     return _ffi_api.redistribute(input, device_mesh, placement)  # type: ignore
 
 
-@args_converter.auto
 def call_tir_local_view(
     gvar: GlobalVar,
     args: Expr,
@@ -99,7 +98,9 @@ def call_tir_local_view(
     ret: Call
         A call node for the call_tir_local_view operator.
     """
-    if isinstance(args, Expr) and not isinstance(args, RxTuple):  # type: ignore
+    if isinstance(args, tuple | list):
+        args = RxTuple([convert_to_expr(a) for a in args])
+    elif isinstance(args, Expr) and not isinstance(args, RxTuple):  # type: ignore
         args = RxTuple((args,))
 
     if not isinstance(out_sinfo, list):

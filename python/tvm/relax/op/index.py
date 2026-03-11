@@ -18,8 +18,8 @@
 
 from tvm.ir.expr import PrimExpr
 
-from .. import args_converter
 from ..expr import Expr
+from ..utils import convert_to_expr
 from . import _ffi_api
 
 PrimExprLike = int | PrimExpr
@@ -58,7 +58,6 @@ def take(x: Expr, indices: Expr, axis: int | None = None, mode: str = "fast") ->
     return _ffi_api.take(x, indices, axis, mode)  # type: ignore
 
 
-@args_converter.auto
 def strided_slice(
     x: Expr,
     axes: Expr,
@@ -101,6 +100,11 @@ def strided_slice(
     strided_slice require the input `begin`, `end` and `strides` to have the
     same length as `axes`.
     """
+    axes = convert_to_expr(axes)
+    begin = convert_to_expr(begin)
+    end = convert_to_expr(end)
+    if strides is not None:
+        strides = convert_to_expr(strides)
     return _ffi_api.strided_slice(x, axes, begin, end, strides, assume_inbound)  # type: ignore
 
 

@@ -323,9 +323,18 @@ void CodeGenCHost::VisitStmt_(const AssertStmtNode* op) {  // NOLINT(*)
     PrintIndent();
     stream << "if (!(" << cond << ")) {\n";
     int assert_if_scope = this->BeginScope();
+    int num_parts = static_cast<int>(op->message_parts.size());
     PrintIndent();
-    stream << "TVMFFIErrorSetRaisedFromCStr(\"RuntimeError\", \""
-           << op->message.as<StringImmNode>()->value << "\", NULL);\n";
+    stream << "const char* __tvm_assert_parts[" << num_parts << "] = {";
+    for (int i = 0; i < num_parts; ++i) {
+      if (i > 0) stream << ", ";
+      PrintEscapedCString(op->message_parts[i]->value, stream);
+    }
+    stream << "};\n";
+    PrintIndent();
+    stream << "TVMFFIErrorSetRaisedFromCStrParts(";
+    PrintEscapedCString(op->error_kind->value, stream);
+    stream << ", __tvm_assert_parts, " << num_parts << ");\n";
     PrintIndent();
     stream << "return -1;\n";
     this->EndScope(assert_if_scope);
@@ -358,7 +367,7 @@ inline void CodeGenCHost::PrintTernaryCondExpr(const T* op, const char* compare,
 
 ffi::Module BuildCHost(IRModule mod, Target target) {
   bool output_ssa = false;
-  bool emit_asserts = false;
+  bool emit_asserts = true;
   bool emit_fwd_func_decl = true;
 
   std::unordered_set<std::string> devices;

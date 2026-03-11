@@ -24,6 +24,7 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt.h>
@@ -90,27 +91,15 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
               const StmtNode* context)
       : Parent(analyzer), touch_pattern_(touch_pattern), context_(context) {}
 
-  Stmt VisitStmt_(const LetStmtNode* op) final {
-    Stmt stmt = Parent::VisitStmt_(op);
-    op = stmt.as<LetStmtNode>();
-    if (is_no_op(op->body)) {
-      return MakeEvaluate(op->value);
-    }
-
-    bool body_uses_bound_variable =
-        !UsesVar(op->body, [&](const VarNode* var) { return var == op->var.get(); });
-    if (body_uses_bound_variable && HasSideEffect(op->value)) {
-      return SeqStmt({MakeEvaluate(op->value), op->body});
-    } else if (body_uses_bound_variable) {
-      return op->body;
-    } else {
-      return stmt;
-    }
+  Stmt VisitStmt_(const BindNode* op) final {
+    // Simply mutate the value and return.
+    // Unused Bind elimination can be done later via a separate two-pass approach.
+    return Parent::VisitStmt_(op);
   }
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == "pragma_debug_skip_region") {
       return MakeEvaluate(0);
-    } else if (op->attr_key == attr::async_wait_queue_scope) {
+    } else if (op->attr_key == s_tir::attr::async_wait_queue_scope) {
       auto wait_attrs = GetAsyncWaitAttributes(op);
       auto wait_cnt = wait_attrs.second;
       arith::Analyzer ana;
@@ -172,11 +161,7 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
     return is_no_op(op->body) ? MakeEvaluate({op->min, op->extent}) : stmt;
   }
 
-  Stmt VisitStmt_(const AllocateNode* op) final {
-    Stmt stmt = StmtMutator::VisitStmt_(op);
-    op = stmt.as<AllocateNode>();
-    return is_no_op(op->body) ? MakeEvaluate(op->extents) : stmt;
-  }
+  Stmt VisitStmt_(const AllocBufferNode* op) final { return StmtMutator::VisitStmt_(op); }
 
   Stmt VisitStmt_(const EvaluateNode* op) final {
     if (HasSideEffect(op->value)) {
@@ -241,19 +226,7 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
     return store;
   }
 
-  Stmt VisitStmt_(const DeclBufferNode* op) final {
-    auto node = Downcast<DeclBuffer>(Parent::VisitStmt_(op));
-
-    VarUseDefAnalyzer var_use({});
-    var_use(node->body);
-
-    if (var_use.buffer_use_count_.count(node->buffer.get())) {
-      return node;
-
-    } else {
-      return node->body;
-    }
-  }
+  Stmt VisitStmt_(const DeclBufferNode* op) final { return StmtMutator::VisitStmt_(op); }
 
  private:
   bool ArrayValueEqual(const ffi::Array<PrimExpr>& a, const ffi::Array<PrimExpr>& b) {

@@ -57,15 +57,11 @@ class VarUseDefAnalyzer : public StmtExprVisitor {
   std::unordered_map<const VarNode*, const LetNode*> let_binding_;
   void VisitStmt_(const AttrStmtNode* op) final;
 
-  void VisitStmt_(const LetStmtNode* op) final;
+  void VisitStmt_(const BindNode* op) final;
 
   void VisitStmt_(const ForNode* op) final;
 
-  void VisitStmt_(const DeclBufferNode* op) final;
-
-  void VisitStmt_(const AllocateNode* op) final;
-
-  void VisitStmt_(const BufferStoreNode* op) final;
+  void VisitStmt_(const AllocBufferNode* op) final;
 
   void VisitExpr_(const LetNode* op) final;
 
@@ -73,7 +69,11 @@ class VarUseDefAnalyzer : public StmtExprVisitor {
 
   void VisitExpr_(const ReduceNode* op) final;
 
-  void VisitExpr_(const BufferLoadNode* op) final;
+  // Piggyback on base class VisitBufferDef/VisitBufferUse to handle buffer
+  // def/use tracking. Base class calls these from AllocBuffer, DeclBuffer,
+  // BufferStore, BufferLoad, and SBlock visitors.
+  void VisitBufferDef(const Buffer& buffer, bool alloc_data) final;
+  void VisitBufferUse(const Buffer& buffer) final;
 
   void HandleDef(const Var& v);
   void HandleUse(const Var& v);
