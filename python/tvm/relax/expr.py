@@ -712,7 +712,7 @@ class ShapeExpr(ExprWithOp):
 
 
 def make_shape(shape: list[Any] | tuple[Any, ...]) -> ShapeExpr:
-    if isinstance(shape, list | tuple):
+   if isinstance(shape, list | tuple):
         return ShapeExpr(shape)
     raise ValueError("Wrong type")
 
