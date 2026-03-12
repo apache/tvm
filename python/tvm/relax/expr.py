@@ -711,8 +711,6 @@ class ShapeExpr(ExprWithOp):
         return len(self.values)
 
 
-
-
 def make_shape(shape: list[Any] | tuple[Any, ...]) -> ShapeExpr:
     if isinstance(shape, list | tuple):
         return ShapeExpr(shape)
@@ -720,6 +718,7 @@ def make_shape(shape: list[Any] | tuple[Any, ...]) -> ShapeExpr:
         "make_shape expects a list or tuple of shape values, "
         f"but received type {type(shape).__name__}"
     )
+
 
 @tvm_ffi.register_object("relax.expr.Constant")
 class Constant(ExprWithOp):

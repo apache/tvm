@@ -21,6 +21,7 @@ import pytest
 import tvm
 from tvm import relax as rx
 from tvm import tir
+from tvm.relax.expr import make_shape
 from tvm.script import relax as R
 
 
@@ -308,10 +309,6 @@ if __name__ == "__main__":
     tvm.testing.main()
 
 
-import pytest
-from tvm.relax.expr import make_shape
-
-
 def test_make_shape_invalid_type():
     with pytest.raises(TypeError):
         make_shape(123)
@@ -325,3 +322,7 @@ def test_make_shape_valid_list():
 def test_make_shape_valid_tuple():
     shape = make_shape((4, 5))
     assert len(shape) == 2
+
+
+if __name__ == "__main__":
+    tvm.testing.main()
