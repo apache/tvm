@@ -711,16 +711,15 @@ class ShapeExpr(ExprWithOp):
         return len(self.values)
 
 
-def make_shape(shape: list[Any] | tuple[Any, ...]) -> ShapeExpr:
-<<<<<<< HEAD
-   if isinstance(shape, list | tuple):
-=======
-    if isinstance(shape, (list, tuple)):
->>>>>>> f1654aef3aa3cb96050ba095038b774722fe6140
+
+
+ def make_shape(shape: list[Any] | tuple[Any, ...]) -> ShapeExpr:
+    if isinstance(shape, list | tuple):
         return ShapeExpr(shape)
     raise TypeError(
         "make_shape expects a list or tuple of shape values, "
         f"but received type {type(shape).__name__}"
+    
     )
 
 @tvm_ffi.register_object("relax.expr.Constant")
