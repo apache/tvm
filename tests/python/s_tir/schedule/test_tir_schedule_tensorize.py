@@ -917,8 +917,8 @@ def test_tensorize_arith_simplification():
     # fmt: off
     @T.prim_func
     def decode_i4s_to_int32_to_f16():
-        B_decode_local = T.alloc_buffer((16384, 16384), "float16", scope="local")
-        B_local = T.alloc_buffer((16384, 2048), "int32", scope="local")
+        B_decode_local = T.sblock_alloc_buffer((16384, 16384), "float16", scope="local")
+        B_local = T.sblock_alloc_buffer((16384, 2048), "int32", scope="local")
         for ax0_0 in T.thread_binding(8192, thread="blockIdx.x"):
             for ax0_1 in T.thread_binding(2, thread="threadIdx.y"):
                 for ax1_0 in range(32):
@@ -933,8 +933,8 @@ def test_tensorize_arith_simplification():
 
     @T.prim_func
     def tensorized_decode_i4s_to_int32_to_f16():
-        B_decode_local = T.alloc_buffer((16384, 16384), "float16", scope="local")
-        B_local = T.alloc_buffer((16384, 2048), "int32", scope="local")
+        B_decode_local = T.sblock_alloc_buffer((16384, 16384), "float16", scope="local")
+        B_local = T.sblock_alloc_buffer((16384, 2048), "int32", scope="local")
         for ax0_0 in T.thread_binding(8192, thread="blockIdx.x"):
             for ax0_1 in T.thread_binding(2, thread="threadIdx.y"):
                 for ax1_0 in range(32):

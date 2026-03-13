@@ -369,6 +369,7 @@ std::string CodeGenC::GetStructRef(DataType t, const PrimExpr& buffer, const Pri
     return os.str();
   } else {
     TVM_FFI_THROW(RuntimeError) << "Unsupported type index: " << kind;
+    TVM_FFI_UNREACHABLE();
   }
 }
 
@@ -773,7 +774,9 @@ void CodeGenC::PrintVecBinaryOp(const std::string& op, DataType t, PrimExpr lhs,
   }
 }
 
-void CodeGenC::VisitStmt_(const DeclBufferNode* op) { this->PrintStmt(op->body); }
+void CodeGenC::VisitStmt_(const DeclBufferNode* op) {
+  // DeclBuffer is a flat statement with no body — nothing to emit.
+}
 
 void CodeGenC::VisitExpr_(const BufferLoadNode* op, std::ostream& os) {  // NOLINT(*)
   TVM_FFI_ICHECK_EQ(op->indices.size(), 1) << "Load from non-flat memory not supported.";
@@ -1028,7 +1031,7 @@ void CodeGenC::VisitExpr_(const SelectNode* op, std::ostream& os) {  // NOLINT(*
   os << ")";
 }
 
-void CodeGenC::VisitStmt_(const LetStmtNode* op) {
+void CodeGenC::VisitStmt_(const BindNode* op) {
   std::string value = PrintExpr(op->value);
   if (print_ssa_form_) {
     TVM_FFI_ICHECK(!var_idmap_.count(op->var.get()));
@@ -1045,26 +1048,33 @@ void CodeGenC::VisitStmt_(const LetStmtNode* op) {
       this->stream << ' ' << AllocVarID(op->var.get()) << " = " << value << ";\n";
     }
   }
-  PrintStmt(op->body);
 }
 
-void CodeGenC::VisitStmt_(const AllocateNode* op) {
-  TVM_FFI_ICHECK(!is_zero(op->condition));
-  std::string vid = AllocVarID(op->buffer_var.get());
+void CodeGenC::VisitStmt_(const AllocBufferNode* op) {
+  TVM_FFI_ICHECK(op->buffer.defined());
+  std::string vid = AllocVarID(op->buffer->data.get());
 
   this->PrintIndent();
-  size_t constant_size = op->ConstantAllocationSize();
+  const auto& shape = op->buffer->shape;
+  size_t constant_size = 1;
+  for (const auto& dim : shape) {
+    const IntImmNode* dim_imm = dim.as<IntImmNode>();
+    TVM_FFI_ICHECK(dim_imm) << "Can only handle constant size stack allocation for now";
+    constant_size *= dim_imm->value;
+  }
   TVM_FFI_ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation for now";
 
-  auto scope = GetPtrStorageScope(op->buffer_var);
-  alloc_storage_scope_[op->buffer_var.get()] = scope;
+  auto scope = GetPtrStorageScope(op->buffer->data);
+  alloc_storage_scope_[op->buffer->data.get()] = scope;
   PrintStorageScope(scope, stream);
 
-  PrintType(op->dtype, stream);
+  PrintType(op->buffer->dtype, stream);
   stream << ' ' << vid << '[' << constant_size << "];\n";
 
-  RegisterHandleType(op->buffer_var.get(), op->dtype);
-  this->PrintStmt(op->body);
+  RegisterHandleType(op->buffer->data.get(), op->buffer->dtype);
+  if (op->annotations.count(tir::attr::kVolatile)) {
+    MarkVolatile(op->buffer->data.get());
+  }
 }
 
 void CodeGenC::VisitStmt_(const AttrStmtNode* op) {
@@ -1075,10 +1085,6 @@ void CodeGenC::VisitStmt_(const AttrStmtNode* op) {
         BindThreadIndex(iv);
       }
     }
-  } else if (op->attr_key == tir::attr::volatile_scope) {
-    const VarNode* v = op->node.as<VarNode>();
-    TVM_FFI_ICHECK(v);
-    volatile_buf_.insert(v);
   } else if (op->attr_key == tir::attr::pragma_import_c) {
     const StringImmNode* value = op->value.as<StringImmNode>();
     TVM_FFI_ICHECK(value != nullptr);

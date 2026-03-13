@@ -23,6 +23,7 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/scope_stack.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
@@ -154,25 +155,36 @@ class BuiltinLower : public StmtExprMutator {
       // used when mutating.
       scope.max_sizes = GetMaxStack(stmt);
 
-      if (scope.max_sizes.shape_stack != -1) {
-        scope.stack_shape = decl_buffer({IntImm(DataType::Int(64), scope.max_sizes.shape_stack)},
-                                        DataType::Int(64), "stack_shape");
-        stmt = DeclBuffer(scope.stack_shape, stmt);
-        stmt = LetStmt(scope.stack_shape->data, StackAlloca("shape", scope.max_sizes.shape_stack),
-                       stmt);
+      // Build a flat list of Bind stmts followed by the body
+      ffi::Array<Stmt> alloca_stmts;
+      if (scope.max_sizes.arg_stack != 0) {
+        alloca_stmts.push_back(
+            Bind(scope.stack_ffi_any, StackAlloca("tvm_ffi_any", scope.max_sizes.arg_stack)));
       }
 
       if (scope.max_sizes.array_stack != 0) {
-        stmt = LetStmt(scope.stack_array, StackAlloca("array", scope.max_sizes.array_stack), stmt);
+        alloca_stmts.push_back(
+            Bind(scope.stack_array, StackAlloca("array", scope.max_sizes.array_stack)));
       }
 
-      if (scope.max_sizes.arg_stack != 0) {
-        stmt = LetStmt(scope.stack_ffi_any, StackAlloca("tvm_ffi_any", scope.max_sizes.arg_stack),
-                       stmt);
+      if (scope.max_sizes.shape_stack != -1) {
+        scope.stack_shape = decl_buffer({IntImm(DataType::Int(64), scope.max_sizes.shape_stack)},
+                                        DataType::Int(64), "stack_shape");
+        alloca_stmts.push_back(
+            Bind(scope.stack_shape->data, StackAlloca("shape", scope.max_sizes.shape_stack)));
+        stmt = SeqStmt::Flatten(DeclBuffer(scope.stack_shape), stmt);
+      }
+
+      if (!alloca_stmts.empty()) {
+        alloca_stmts.push_back(stmt);
+        stmt = SeqStmt(alloca_stmts);
       }
     }
 
-    stmt = this->VisitStmt(stmt);
+    stmt = scope_.WithNewScope([&]() -> Stmt {
+      Stmt visited = this->VisitStmt(stmt);
+      return AppendPendingFrees(visited);
+    });
 
     TVM_FFI_ICHECK(!alloca_scope_.empty());
     alloca_scope_.pop_back();
@@ -212,25 +224,21 @@ class BuiltinLower : public StmtExprMutator {
     }
   }
 
-  Stmt VisitStmt_(const LetStmtNode* op) final {
+  Stmt VisitStmt_(const BindNode* op) final {
     if (const CallNode* call = op->value.as<CallNode>()) {
       if (call->op.same_as(builtin::nd_mem_alloc_with_scope())) {
-        return StmtExprMutator::VisitStmt(MakeNdMemAllocWithScope(op, call));
+        return MakeNdMemAllocWithScope(op, call);
       }
     }
     return StmtExprMutator::VisitStmt_(op);
   }
 
-  Stmt VisitStmt_(const AllocateNode* op) {
-    // Lower allocate to device allocate when needed.
+  Stmt VisitStmt_(const AllocBufferNode* op) final {
+    // Lower AllocBuffer to device allocate when needed.
+    // AllocBuffer is flat (no body). Visit buffer fields via base class.
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<AllocateNode>();
-    // Get constant allocation bound.
-    int64_t nbytes = GetVectorBytes(op->dtype);
-    // If the buffers are for CPU and have global scope,
-    // and less than runtime::kMaxStackAlloca heuristic
-    // they are not serviced with TVMBackendWorkspaceAlloc calls
-    // to be placed on stack.
+    op = stmt.as<AllocBufferNode>();
+    int64_t nbytes = GetVectorBytes(op->buffer->dtype);
     if (op->annotations.count(transform::kDisableLowerTVMBuiltin)) {
       if (Downcast<Bool>(op->annotations[transform::kDisableLowerTVMBuiltin])) {
         return stmt;
@@ -238,71 +246,75 @@ class BuiltinLower : public StmtExprMutator {
     }
     if (const auto* dev_type = device_type_.as<IntImmNode>();
         dev_type && dev_type->value == kDLCPU) {
-      auto storage_scope = Downcast<PointerType>(op->buffer_var->type_annotation)->storage_scope;
+      auto storage_scope = Downcast<PointerType>(op->buffer->data->type_annotation)->storage_scope;
       if (storage_scope == "global") {
-        size_t constant_size = op->ConstantAllocationSize();
-        if (constant_size > 0 && constant_size * nbytes < runtime::kMaxStackAlloca) {
+        auto constant_size = Downcast<AllocBuffer>(stmt).ConstantAllocationSize();
+        if (constant_size.has_value() && constant_size.value() > 0 &&
+            static_cast<size_t>(constant_size.value()) * nbytes < runtime::kMaxStackAlloca) {
           return stmt;
         }
       }
     }
     PrimExpr total_bytes = make_const(DataType::UInt(64), nbytes);
-    for (size_t i = 0; i < op->extents.size(); ++i) {
-      // set total_bytes to uint64 to avoid overflow
-      total_bytes = total_bytes * op->extents[i];
+    for (size_t i = 0; i < op->buffer->shape.size(); ++i) {
+      total_bytes = total_bytes * op->buffer->shape[i];
     }
     TVM_FFI_ICHECK(device_type_) << "Unknown device type in current IR";
     TVM_FFI_ICHECK(device_id_) << "Unknown device id in current IR";
     Stmt throw_last_error = Evaluate(Call(DataType::Int(32), builtin::tvm_throw_last_error(), {}));
 
     Stmt alloc_nullptr_check = IfThenElse(
-        Call(DataType::Bool(), builtin::isnullptr(), {op->buffer_var}), throw_last_error);
+        Call(DataType::Bool(), builtin::isnullptr(), {op->buffer->data}), throw_last_error);
+
     PrimExpr free_op = Call(DataType::Int(32), Op::Get("tir.TVMBackendFreeWorkspace"),
                             {cast(DataType::Int(32), device_type_.value()),
-                             cast(DataType::Int(32), device_id_.value()), op->buffer_var});
+                             cast(DataType::Int(32), device_id_.value()), op->buffer->data});
     Stmt free_stmt = IfThenElse(free_op != make_zero(DataType::Int(32)), throw_last_error);
 
-    Stmt body = op->body;
-    std::vector<Stmt> nest;
-    while (auto opt = body.as<DeclBuffer>()) {
-      auto decl = opt.value();
-      body = decl->body;
-      decl.CopyOnWrite()->body = Evaluate(0);
-      nest.push_back(decl);
-    }
+    // Push free to enclosing scope's pending_frees (LIFO ordering preserved).
+    scope_.Current().pending_frees.push_back(free_stmt);
 
-    body = SeqStmt::Flatten(body, free_stmt);
-    body = MergeNest(nest, body);
-    body = SeqStmt::Flatten(alloc_nullptr_check, body);
+    Stmt alloc_bind = Bind(op->buffer->data,
+                           Call(op->buffer->data.dtype(), Op::Get("tir.TVMBackendAllocWorkspace"),
+                                {cast(DataType::Int(32), device_type_.value()),
+                                 cast(DataType::Int(32), device_id_.value()), total_bytes,
+                                 IntImm(DataType::Int(32), op->buffer->dtype.code()),
+                                 IntImm(DataType::Int(32), op->buffer->dtype.bits())}));
 
-    body = AttrStmt(op->buffer_var, attr::storage_alignment,
-                    make_const(DataType::Int(32), runtime::kTempAllocaAlignment), body);
-    body = LetStmt(op->buffer_var,
-                   Call(op->buffer_var.dtype(), Op::Get("tir.TVMBackendAllocWorkspace"),
-                        {cast(DataType::Int(32), device_type_.value()),
-                         cast(DataType::Int(32), device_id_.value()), total_bytes,
-                         IntImm(DataType::Int(32), op->dtype.code()),
-                         IntImm(DataType::Int(32), op->dtype.bits())}),
-                   body);
-
-    return body;
+    return SeqStmt({alloc_bind, alloc_nullptr_check});
   }
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::device_id) {
       auto cache = device_id_;
       device_id_ = op->value;
-      Stmt out = this->VisitStmt(op->body);
+      Stmt out = scope_.WithNewScope([&]() -> Stmt {
+        Stmt body = this->VisitStmt(op->body);
+        return AppendPendingFrees(body);
+      });
       device_id_ = cache;
       return out;
     } else if (op->attr_key == attr::device_type) {
       auto cache = device_type_;
       device_type_ = op->value;
-      Stmt out = this->VisitStmt(op->body);
+      Stmt out = scope_.WithNewScope([&]() -> Stmt {
+        Stmt body = this->VisitStmt(op->body);
+        return AppendPendingFrees(body);
+      });
       device_type_ = cache;
       return out;
     } else {
-      return StmtExprMutator::VisitStmt_(op);
+      return scope_.WithNewScope([&]() -> Stmt {
+        Stmt visited = StmtExprMutator::VisitStmt_(op);
+        if (!scope_.Current().pending_frees.empty()) {
+          const auto* attr = visited.as<AttrStmtNode>();
+          if (attr) {
+            return AttrStmt(attr->node, attr->attr_key, attr->value, AppendPendingFrees(attr->body),
+                            attr->span);
+          }
+        }
+        return visited;
+      });
     }
   }
   Stmt VisitStmt_(const ForNode* op) final {
@@ -313,7 +325,10 @@ class BuiltinLower : public StmtExprMutator {
     if (op->kind == ForKind::kParallel) {
       body = this->VisitBodyAndRealizeAlloca(op->body);
     } else {
-      body = this->VisitStmt(op->body);
+      body = scope_.WithNewScope([&]() -> Stmt {
+        Stmt visited = this->VisitStmt(op->body);
+        return AppendPendingFrees(visited);
+      });
     }
 
     if (min.same_as(op->min) && extent.same_as(op->extent) && body.same_as(op->body)) {
@@ -325,6 +340,27 @@ class BuiltinLower : public StmtExprMutator {
       n->body = std::move(body);
       return Stmt(n);
     }
+  }
+
+  Stmt VisitStmt_(const IfThenElseNode* op) final {
+    PrimExpr condition = this->VisitExpr(op->condition);
+    // Each branch gets its own scope to prevent frees from leaking across branches.
+    Stmt then_case = scope_.WithNewScope([&]() -> Stmt {
+      Stmt visited = this->VisitStmt(op->then_case);
+      return AppendPendingFrees(visited);
+    });
+    ffi::Optional<Stmt> else_case;
+    if (op->else_case) {
+      else_case = scope_.WithNewScope([&]() -> Stmt {
+        Stmt visited = this->VisitStmt(op->else_case.value());
+        return AppendPendingFrees(visited);
+      });
+    }
+    if (condition.same_as(op->condition) && then_case.same_as(op->then_case) &&
+        else_case.same_as(op->else_case)) {
+      return ffi::GetRef<Stmt>(op);
+    }
+    return IfThenElse(condition, then_case, else_case, op->span);
   }
 
   PrimExpr VisitExpr_(const CallNode* op) final {
@@ -509,6 +545,7 @@ class BuiltinLower : public StmtExprMutator {
           return ffi::TypeIndex::kTVMFFIOpaquePtr;
         } else {
           TVM_FFI_THROW(InternalError) << "Unsupported type: " << api_dtype;
+          TVM_FFI_UNREACHABLE();
         }
       }();
 
@@ -608,26 +645,13 @@ class BuiltinLower : public StmtExprMutator {
     return Call(op->dtype, lowered_packed_op, packed_args);
   }
 
-  Stmt MakeNdMemAllocWithScope(const LetStmtNode* let, const CallNode* call) {
+  Stmt MakeNdMemAllocWithScope(const BindNode* let, const CallNode* call) {
     TVM_FFI_ICHECK(device_type_) << "Unknown device type in current IR";
     TVM_FFI_ICHECK(device_id_) << "Unknown device id in current IR";
     Stmt throw_last_error = Evaluate(Call(DataType::Int(32), builtin::tvm_throw_last_error(), {}));
 
-    PrimExpr storage_scope = call->args[0];
-    Call free_op = Call(DataType::Int(32), builtin::tvm_call_packed(),
-                        {GetDeviceMethodName("free_nd"), device_type_.value(), device_id_.value(),
-                         storage_scope, let->var});
-    Stmt free_stmt = IfThenElse(free_op != make_zero(DataType::Int(32)), throw_last_error);
-
-    Stmt body = SeqStmt(
-        {IfThenElse(Call(DataType::Bool(), builtin::isnullptr(), {let->var}), throw_last_error),
-         let->body, free_stmt});
-
     DataType dtype =
         let->var->type_annotation.as<PointerTypeNode>()->element_type.as<PrimTypeNode>()->dtype;
-
-    std::string fdevapi_prefix = "device_api.";
-    fdevapi_prefix += runtime::DLDeviceType2Str(device_type_.as<IntImmNode>()->value);
 
     ffi::Array<PrimExpr> args = {
         GetDeviceMethodName("alloc_nd"),
@@ -642,8 +666,22 @@ class BuiltinLower : public StmtExprMutator {
     }
 
     Call call_packed = Call(let->var.dtype(), builtin::tvm_call_packed(), args);
-    Stmt alloca = LetStmt(let->var, call_packed, body);
-    return alloca;
+    Stmt null_check =
+        IfThenElse(Call(DataType::Bool(), builtin::isnullptr(), {let->var}), throw_last_error);
+
+    // Construct free_nd call and register in current scope.
+    // The free will be emitted on scope exit, matching the old LetStmt body semantics.
+    PrimExpr storage_scope = call->args[0];
+    Call free_op = Call(DataType::Int(32), builtin::tvm_call_packed(),
+                        {GetDeviceMethodName("free_nd"), device_type_.value(), device_id_.value(),
+                         storage_scope, let->var});
+    Stmt free_stmt = IfThenElse(free_op != make_zero(DataType::Int(32)), throw_last_error);
+    // Visit the free_stmt so tvm_call_packed builtins inside it get lowered.
+    free_stmt = StmtExprMutator::VisitStmt(free_stmt);
+    scope_.Current().pending_frees.push_back(free_stmt);
+
+    // Re-visit so tvm_call_packed in the Bind value and null_check get lowered.
+    return StmtExprMutator::VisitStmt(SeqStmt({Bind(let->var, call_packed), null_check}));
   }
 
  private:
@@ -658,6 +696,32 @@ class BuiltinLower : public StmtExprMutator {
     return false;
   }
 
+  /*!
+   * \brief Scope level for tracking nd_mem_alloc_with_scope deallocations.
+   *
+   * When a Bind allocates via nd_mem_alloc_with_scope, the corresponding
+   * free_nd stmt is pushed to the current scope's pending_frees. Body-carrying
+   * stmts (For, IfThenElse, AttrStmt) create new scopes via
+   * WithNewScope. On scope exit, pending_frees are appended after the body.
+   * AllocBuffer (flat, no body) pushes its free to the enclosing scope.
+   */
+  struct ScopeLevel {
+    std::vector<Stmt> pending_frees;
+  };
+
+  /*! \brief Emit any pending frees from the current scope after the given body stmt. */
+  Stmt AppendPendingFrees(Stmt body) {
+    auto& frees = scope_.Current().pending_frees;
+    if (frees.empty()) return body;
+    ffi::Array<Stmt> stmts;
+    stmts.push_back(body);
+    for (auto it = frees.rbegin(); it != frees.rend(); ++it) {
+      stmts.push_back(*it);
+    }
+    frees.clear();
+    return SeqStmt::Flatten(stmts);
+  }
+
   // The prepration sequence to be emitted before the current statement.
   std::vector<std::vector<Stmt>> prep_seq_stack_;
   ffi::Optional<PrimExpr> device_type_{std::nullopt};
@@ -667,6 +731,8 @@ class BuiltinLower : public StmtExprMutator {
 
   // Record all stack frames.
   std::vector<AllocaScope> alloca_scope_;
+  // Scope stack for nd_mem_alloc_with_scope free tracking.
+  ScopeStack<ScopeLevel> scope_;
 };
 
 namespace transform {

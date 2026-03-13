@@ -18,10 +18,12 @@
 """Pattern table for CLML backend"""
 
 import tvm
-from tvm import IRModule, relax
+from tvm import IRModule, relax, tir
 from tvm.ir.transform import PassContext, module_pass
 from tvm.relax import transform
 from tvm.relax.dpl.pattern import (
+    GlobalVarPattern,
+    TuplePattern,
     is_const,
     is_op,
     is_tuple_get_item,
@@ -610,4 +612,103 @@ class OpenCLMLOffLoad:
             ],
         )
         mod = seq(mod)
+        return mod
+
+
+def _check_dequantize_matmul(ctx: relax.transform.PatternCheckContext) -> bool:
+    _input = ctx.annotated_expr["lhs"]
+    root = ctx.annotated_expr["root"]
+    wdq = ctx.annotated_expr["w_decoded"]
+    w_pack = ctx.annotated_expr["w_encoded"]
+
+    if ctx.annotated_expr["lhs"].struct_info.dtype != "float16":
+        return False
+    if not isinstance(wdq, relax.Call):
+        return False
+    g_var = wdq.args[0]
+    if not (isinstance(g_var, relax.GlobalVar) and "dequantize" in g_var.name_hint):
+        return False
+
+    if not (
+        (len(root.struct_info.shape) == 3)
+        and isinstance(root.struct_info.shape[0], tir.IntImm)
+        and (root.struct_info.dtype == "float16")
+        and (root.struct_info.shape[0] == 1)
+    ):
+        return False
+
+    if not (
+        (len(wdq.struct_info.shape) == 2)
+        and (w_pack.struct_info.shape[-1] == root.struct_info.shape[-1])
+        and (wdq.struct_info.shape[-2] == _input.struct_info.shape[-1])
+    ):
+        return False
+
+    return True
+
+
+def dequantize_matmul_patterns():
+    """Returns a list of supported decode -> matmul patterns."""
+
+    def _dequantize_matmul_pattern(name):
+        scales = wildcard()
+        x = wildcard()
+        w_packed = wildcard()
+
+        w_decoded = is_op("relax.call_tir")(
+            GlobalVarPattern(),
+            TuplePattern([w_packed, scales]),
+        )
+        matmul = is_op("relax.matmul")(x, w_decoded)
+
+        annotations = {
+            "root": matmul,
+            "lhs": x,
+            "w_encoded": w_packed,
+            "w_decoded": w_decoded,
+            "scales": scales,
+        }
+
+        return name, matmul, annotations, _check_dequantize_matmul
+
+    return [
+        _dequantize_matmul_pattern("openclml.dequant_matmul"),
+    ]
+
+
+clml_llm_patterns = [
+    *dequantize_matmul_patterns(),
+]
+register_patterns(clml_llm_patterns)
+
+
+@tvm.transform.module_pass(opt_level=0, name="OpenCLMLOffLoadForLLM")
+class OpenCLMLOffLoadForLLM:
+    """A compiler pass that partition the graph with dequant Matmul to CLML backend offload."""
+
+    def __init__(self, target: tvm.target.Target) -> None:
+        """Initializer.
+        Parameters
+        ----------
+        target : tvm.target.Target
+            Target device.
+        """
+        self.target = target
+
+    def transform_module(
+        self,
+        mod: IRModule,
+        _ctx: tvm.transform.PassContext,
+    ) -> IRModule:
+        """Apply required passed to transform"""
+
+        if "adreno" in self.target.keys and (clml_sdk_version() >= 5):
+            mod = tvm.transform.Sequential(
+                [
+                    transform.Normalize(),
+                    transform.FuseOpsByPattern(clml_llm_patterns, annotate_codegen=True),
+                    transform.RunCodegen(),
+                ]
+            )(mod)
+
         return mod

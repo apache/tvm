@@ -34,18 +34,24 @@ namespace tvm {
 namespace s_tir {
 using namespace tvm::tir;
 
+struct UndefInfo {
+  std::unordered_set<const BufferStoreNode*> undef_stores;
+  std::unordered_set<const VarNode*> undef_bind_vars;
+};
+
 class StoreUndefLocator : public StmtExprVisitor {
  public:
-  static std::unordered_set<const BufferStoreNode*> Locate(Stmt stmt) {
+  static UndefInfo Locate(Stmt stmt) {
     StoreUndefLocator locator;
     locator(std::move(stmt));
-    return locator.undef_stores_;
+    return {locator.undef_stores_, locator.var_bindings_with_undef_};
   }
 
  private:
   StoreUndefLocator() = default;
 
   void VisitStmt_(const BufferStoreNode* op) final {
+    // Check the value for undef.
     bool stash_undef = false;
     std::swap(has_undef_, stash_undef);
     StmtExprVisitor::VisitExpr(op->value);
@@ -56,16 +62,32 @@ class StoreUndefLocator : public StmtExprVisitor {
           << "must not have other side effects";
       undef_stores_.insert(op);
     }
+
+    // Check indices for undef.  Undef in buffer indices is always an
+    // error (there is no valid lowering).  With flat Bind, we must
+    // check indices eagerly because the Bind node is a sibling rather
+    // than an ancestor and may be removed before post-validation.
+    bool idx_undef = false;
+    std::swap(has_undef_, idx_undef);
+    for (const auto& idx : op->indices) {
+      StmtExprVisitor::VisitExpr(idx);
+    }
+    std::swap(has_undef_, idx_undef);
+    TVM_FFI_ICHECK(!idx_undef) << "Error: T.undef() may not be used in buffer indices";
   }
 
   void VisitExpr_(const BufferLoadNode* op) final {
-    // This function left deliberately empty.  builtin::undef()
-    // shouldn't occur in the indices of BufferLoad.  Avoiding
-    // visiting the indices catches the builtin::undef in
-    // ValidateAllUndefRemoved.
+    // Check indices for undef.  Undef in buffer indices is always an error.
+    bool idx_undef = false;
+    std::swap(has_undef_, idx_undef);
+    for (const auto& idx : op->indices) {
+      StmtExprVisitor::VisitExpr(idx);
+    }
+    std::swap(has_undef_, idx_undef);
+    TVM_FFI_ICHECK(!idx_undef) << "Error: T.undef() may not be used in buffer indices";
   }
 
-  void VisitStmt_(const LetStmtNode* op) final {
+  void VisitStmt_(const BindNode* op) final {
     bool stash_undef = false;
     std::swap(has_undef_, stash_undef);
     StmtExprVisitor::VisitExpr(op->value);
@@ -76,8 +98,6 @@ class StoreUndefLocator : public StmtExprVisitor {
           << "must not have other side effects";
       var_bindings_with_undef_.insert(op->var.get());
     }
-
-    StmtExprVisitor::VisitStmt(op->body);
   }
 
   void VisitExpr_(const VarNode* op) final {
@@ -99,33 +119,44 @@ class StoreUndefLocator : public StmtExprVisitor {
   std::unordered_set<const BufferStoreNode*> undef_stores_;
 };
 
-// Remove any BufferStores whose value depends on T.undef
+// Remove BufferStores whose value depends on T.undef, and also
+// remove Bind nodes whose value contains undef.  Undef in buffer
+// indices is already caught eagerly in the locator phase.
 class StoreUndefRemover : public StmtExprMutator {
  public:
   static Stmt Apply(Stmt stmt) {
-    auto to_remove = StoreUndefLocator::Locate(stmt);
-    StoreUndefRemover mutator(to_remove);
+    auto info = StoreUndefLocator::Locate(stmt);
+    StoreUndefRemover mutator(info);
     return mutator(std::move(stmt));
   }
 
  private:
   using Parent = StmtExprMutator;
 
-  explicit StoreUndefRemover(const std::unordered_set<const BufferStoreNode*>& to_remove)
-      : to_remove_(to_remove) {}
+  explicit StoreUndefRemover(const UndefInfo& info)
+      : stores_to_remove_(info.undef_stores), bind_vars_to_remove_(info.undef_bind_vars) {}
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
-    if (to_remove_.count(op)) {
+    if (stores_to_remove_.count(op)) {
       return Evaluate(0);
     } else {
       return Parent::VisitStmt_(op);
     }
   }
 
-  const std::unordered_set<const BufferStoreNode*>& to_remove_;
+  Stmt VisitStmt_(const BindNode* op) final {
+    if (bind_vars_to_remove_.count(op->var.get())) {
+      return Evaluate(0);
+    } else {
+      return Parent::VisitStmt_(op);
+    }
+  }
+
+  const std::unordered_set<const BufferStoreNode*>& stores_to_remove_;
+  const std::unordered_set<const VarNode*>& bind_vars_to_remove_;
 };
 
-// Remove any BufferStores whose value depends on T.undef
+// Check that no builtin::undef() remains in the IR.
 class ContainsUndefChecker : public StmtExprVisitor {
  public:
   static bool Check(const Stmt& stmt) {

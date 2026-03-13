@@ -98,8 +98,8 @@ class TrinityMatmul:
     def main(a: T.handle, d: T.handle) -> None:
         T.func_attr({"global_symbol": "main"})
         A = T.match_buffer(a, (1024, 1024), "float32")
-        B = T.alloc_buffer((1024, 1024), "float32")
-        C = T.alloc_buffer((1024, 1024), "float32")
+        B = T.sblock_alloc_buffer((1024, 1024), "float32")
+        C = T.sblock_alloc_buffer((1024, 1024), "float32")
         D = T.match_buffer(d, (1024, 1024), "float32")
         for i, j in T.grid(1024, 1024):
             with T.sblock("A"):
@@ -125,7 +125,7 @@ class TrinityMatmulProcessedForReference:
         D = T.match_buffer(d, [1024, 1024], dtype="float32")
         # body
         # with tir.block("root")
-        B = T.alloc_buffer([1024, 1024], dtype="float32")
+        B = T.sblock_alloc_buffer([1024, 1024], dtype="float32")
         for i0_0, i1_0, i0_1, i1_1 in T.grid(16, 64, 64, 16):
             with T.sblock("A"):
                 vi = T.axis.S(1024, i0_0 * 64 + i0_1)

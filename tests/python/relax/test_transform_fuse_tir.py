@@ -638,8 +638,8 @@ def test_multiple_relax_functions():
             T_squeeze: T.Buffer((T.int64(20), T.int64(10)), "float32"),
         ):
             T.func_attr({"tir.noalias": True})
-            T_add = T.alloc_buffer((T.int64(20), T.int64(10)))
-            compute = T.alloc_buffer((T.int64(20), T.int64(10)))
+            T_add = T.sblock_alloc_buffer((T.int64(20), T.int64(10)))
+            compute = T.sblock_alloc_buffer((T.int64(20), T.int64(10)))
             for ax0, ax1 in T.grid(T.int64(20), T.int64(10)):
                 with T.sblock("T_add"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
@@ -666,8 +666,8 @@ def test_multiple_relax_functions():
             T_squeeze: T.Buffer((T.int64(10), T.int64(20)), "float32"),
         ):
             T.func_attr({"tir.noalias": True})
-            T_add = T.alloc_buffer((T.int64(10), T.int64(20)))
-            compute = T.alloc_buffer((T.int64(10), T.int64(20)))
+            T_add = T.sblock_alloc_buffer((T.int64(10), T.int64(20)))
+            compute = T.sblock_alloc_buffer((T.int64(10), T.int64(20)))
             for ax0, ax1 in T.grid(T.int64(10), T.int64(20)):
                 with T.sblock("T_add"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
@@ -783,7 +783,7 @@ def test_fuse_of_dynamic_kernel_with_var_params_and_static_args():
             Z: T.Buffer([T.int64(16), T.int64(32)], "float32"),
         ):
             T.func_attr({"tir.noalias": True})
-            Y = T.alloc_buffer(X.shape, "float32")
+            Y = T.sblock_alloc_buffer(X.shape, "float32")
             for iters in T.grid(*X.shape):
                 with T.sblock("compute_Y"):
                     i, j = T.axis.remap("SS", iters)
@@ -867,7 +867,7 @@ def test_fuse_of_dynamic_kernel_with_expression_params_and_static_args():
             Z: T.Buffer(T.int64(512), "float32"),
         ):
             T.func_attr({"tir.noalias": True})
-            Y = T.alloc_buffer((T.int64(512),))
+            Y = T.sblock_alloc_buffer((T.int64(512),))
             for i, j in T.grid(T.int64(16), T.int64(32)):
                 with T.sblock("compute"):
                     vi, vj = T.axis.remap("SS", [i, j])
@@ -1009,7 +1009,7 @@ def test_symbolic_var_in_call_tir_args():
             m: T.int64,
         ):
             T.func_attr({"tir.noalias": True})
-            T_add = T.alloc_buffer((T.int64(1), T.int64(1), T.int64(32), T.int64(128)))
+            T_add = T.sblock_alloc_buffer((T.int64(1), T.int64(1), T.int64(32), T.int64(128)))
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(1), T.int64(1), T.int64(32), T.int64(128)):
                 with T.sblock("T_add"):
                     v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
@@ -1122,7 +1122,7 @@ def test_same_buffer_multiple_read():
             ),
         ):
             T.func_attr({"tir.noalias": True})
-            T_concat_handle_intermediate = T.alloc_buffer(
+            T_concat_handle_intermediate = T.sblock_alloc_buffer(
                 (T.int64(2), T.int64(4), T.int64(64), T.int64(64))
             )
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(2), T.int64(4), T.int64(64), T.int64(64)):
@@ -1202,7 +1202,7 @@ def test_tir_expression_in_shape():
             T.func_attr({"tir.noalias": True})
             y = T.match_buffer(p_y, (n - T.int64(1), T.int64(4)))
             var_T_matmul_intermediate = T.match_buffer(p_output0, (n - T.int64(1), T.int64(3)))
-            var_T_transpose_intermediate = T.alloc_buffer((T.int64(4), T.int64(3)))
+            var_T_transpose_intermediate = T.sblock_alloc_buffer((T.int64(4), T.int64(3)))
             for ax0, ax1 in T.grid(T.int64(4), T.int64(3)):
                 with T.sblock("T_transpose"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
@@ -1412,7 +1412,7 @@ def test_unique_duplicated_buffer_allocation():
             Out_intermediate_1: T.Buffer((T.int64(4096), T.int64(4096)), "float16"),
         ):
             T.func_attr({"tir.noalias": True})
-            Out_intermediate = T.alloc_buffer((T.int64(4096), T.int64(4096)), "float16")
+            Out_intermediate = T.sblock_alloc_buffer((T.int64(4096), T.int64(4096)), "float16")
             for i, j in T.grid(T.int64(4096), T.int64(4096)):
                 with T.sblock("add"):
                     vi, vj = T.axis.remap("SS", [i, j])
@@ -1536,7 +1536,7 @@ def test_symbolic_var_in_buffer_shape():
                 rotary_handle, [T.int64(1), sequence_length, T.int64(32), T.int64(128)], "float32"
             )
 
-            T_add = T.alloc_buffer((T.int64(1), sequence_length, T.int64(32), T.int64(128)))
+            T_add = T.sblock_alloc_buffer((T.int64(1), sequence_length, T.int64(32), T.int64(128)))
             for ax0, ax1, ax2, ax3 in T.grid(
                 T.int64(1), sequence_length, T.int64(32), T.int64(128)
             ):
@@ -1726,8 +1726,8 @@ def test_symbolic_var_called_with_multiple_static_shapes():
         ):
             T.func_attr({"tir.noalias": True})
 
-            XSum = T.alloc_buffer([T.int64(1)], "float32")
-            YSum = T.alloc_buffer([T.int64(1)], "float32")
+            XSum = T.sblock_alloc_buffer([T.int64(1)], "float32")
+            YSum = T.sblock_alloc_buffer([T.int64(1)], "float32")
 
             for i in range(T.int64(64)):
                 with T.sblock("XSum"):
@@ -1908,7 +1908,9 @@ def test_gather():
             T_take: T.Buffer((T.int64(1), T.int64(4096)), "float16"),
         ):
             T.func_attr({"tir.noalias": True})
-            Out_handle_intermediate = T.alloc_buffer((T.int64(4096), T.int64(4096)), "float16")
+            Out_handle_intermediate = T.sblock_alloc_buffer(
+                (T.int64(4096), T.int64(4096)), "float16"
+            )
             for i, j in T.grid(T.int64(4096), T.int64(4096)):
                 with T.sblock("add"):
                     vi, vj = T.axis.remap("SS", [i, j])
@@ -2373,7 +2375,7 @@ def test_fuse_with_axis_separators():
             Y = T.match_buffer(y, [T.int64(16), T.int64(32)], "float32", axis_separators=[1])
             Z = T.match_buffer(z, [T.int64(16), T.int64(32)], "float32", axis_separators=[1])
             C = T.match_buffer(c, [T.int64(16), T.int64(32)], "float32", axis_separators=[1])
-            Temp = T.alloc_buffer(X.shape, "float32", axis_separators=[1])
+            Temp = T.sblock_alloc_buffer(X.shape, "float32", axis_separators=[1])
             for iters in T.grid(*X.shape):
                 with T.sblock("compute_Y"):
                     i, j = T.axis.remap("SS", iters)
@@ -2493,7 +2495,7 @@ def test_block_name_numeric_suffix_deduplication():
             with T.sblock("root"):
                 T.reads()
                 T.writes()
-                y_intermediate = T.alloc_buffer((T.int64(10),), elem_offset=T.int32(0))
+                y_intermediate = T.sblock_alloc_buffer((T.int64(10),), elem_offset=T.int32(0))
                 for i in range(10):
                     with T.sblock("compute1"):
                         vi = T.axis.spatial(10, i)

@@ -117,7 +117,7 @@ class BlockReadWriteDetector : public StmtExprVisitor {
   void VisitStmt_(const IfThenElseNode* op) override;
   void VisitStmt_(const SBlockRealizeNode* op) override;
   void VisitStmt_(const BufferStoreNode* op) override;
-  void VisitStmt_(const LetStmtNode* op) override;
+  void VisitStmt_(const BindNode* op) override;
   void VisitExpr_(const BufferLoadNode* op) override;
   void VisitExpr_(const VarNode* op) override;
   void VisitExpr_(const CallNode* op) override;
@@ -189,10 +189,9 @@ void BlockReadWriteDetector::VisitStmt_(const IfThenElseNode* op) {
   }
 }
 
-void BlockReadWriteDetector::VisitStmt_(const LetStmtNode* op) {
+void BlockReadWriteDetector::VisitStmt_(const BindNode* op) {
   let_bindings_[op->var.get()] = op->value;
   StmtVisitor::VisitStmt_(op);
-  let_bindings_.erase(op->var.get());
 }
 
 void BlockReadWriteDetector::VisitExpr_(const CallNode* op) {

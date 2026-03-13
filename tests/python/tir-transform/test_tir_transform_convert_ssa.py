@@ -23,7 +23,7 @@ from tvm.script import ir as I
 from tvm.script import tir as T
 
 
-def test_reuse_in_sequential_let_stmt():
+def test_reuse_in_sequential_bind():
     """De-dup sequential variable bindings"""
 
     # Manually construct the PrimFunc body, as SSA violations are
@@ -32,56 +32,71 @@ def test_reuse_in_sequential_let_stmt():
     var = tir.Var("var", "int32")
     sequential_bindings = tir.SeqStmt(
         [
-            tir.LetStmt(var, 16, tir.Evaluate(var)),
-            tir.LetStmt(var, 32, tir.Evaluate(var)),
+            tir.Bind(var, 16),
+            tir.Evaluate(var),
+            tir.Bind(var, 32),
+            tir.Evaluate(var),
         ]
     )
     before = tir.PrimFunc([], sequential_bindings)
 
     @T.prim_func(private=True)
     def expected():
-        with T.LetStmt(T.int32(16)) as var1:
-            T.evaluate(var1)
-        with T.LetStmt(T.int32(32)) as var2:
-            T.evaluate(var2)
+        var1 = T.bind(T.int32(16))
+        T.evaluate(var1)
+        var2 = T.bind(T.int32(32))
+        T.evaluate(var2)
 
     mod = tvm.IRModule.from_expr(before)
     mod = tvm.tir.transform.ConvertSSA()(mod)
     tvm.ir.assert_structural_equal(mod["main"], expected)
 
 
-def test_reuse_in_nested_let_stmt():
-    """De-dup nested bindings
+def test_reuse_in_nested_bind():
+    """De-dup sequential bindings of the same variable.
 
-    Use of a variable with nested bindings is de-duplicated to refer
-    to the inner-most binding that contains the use site.
+    In the flat Bind model, all Binds are siblings in a SeqStmt. A second
+    Bind of the same variable redefines it for all subsequent siblings.
+    ConvertSSA should create a new variable for the second binding and
+    update all subsequent uses to refer to the new variable.
     """
 
     # Manually construct the PrimFunc body, as SSA violations are
     # not valid TIR, and may not be expressible in future versions
-    # of TVMSCript.
+    # of TVMScript.
     var = tir.Var("var", "int32")
-    inner_let = tir.LetStmt(var, 16, tir.Evaluate(var))
-    outer_let = tir.LetStmt(
-        var,
-        32,
-        tir.SeqStmt(
-            [
-                tir.Evaluate(var),
-                inner_let,
-                tir.Evaluate(var),
-            ]
-        ),
+    # Note: nested SeqStmt is flattened by the IR builder, so the input
+    # is actually a flat SeqStmt with 5 elements.
+    inner_seq = tir.SeqStmt(
+        [
+            tir.Bind(var, 16),
+            tir.Evaluate(var),
+        ]
     )
-    before = tir.PrimFunc([], outer_let)
+    outer_seq = tir.SeqStmt(
+        [
+            tir.Bind(var, 32),
+            tir.Evaluate(var),
+            inner_seq,
+            tir.Evaluate(var),
+        ]
+    )
+    before = tir.PrimFunc([], outer_seq)
 
-    @T.prim_func(private=True)
-    def expected():
-        with T.LetStmt(T.int32(32)) as outer:
-            T.evaluate(outer)
-            with T.LetStmt(T.int32(16)) as inner:
-                T.evaluate(inner)
-            T.evaluate(outer)
+    # In the flat model, the second Bind(var, 16) redefines var for
+    # ALL subsequent siblings including the last Evaluate.
+    var1 = tir.Var("var", "int32")
+    var2 = tir.Var("var", "int32")
+    expected_body = tir.SeqStmt(
+        [
+            tir.Bind(var1, 32),
+            tir.Evaluate(var1),
+            tir.Bind(var2, 16),
+            tir.Evaluate(var2),
+            tir.Evaluate(var2),
+        ]
+    )
+    expected = tir.PrimFunc([], expected_body)
 
     mod = tvm.IRModule.from_expr(before)
     mod = tvm.tir.transform.ConvertSSA()(mod)
@@ -93,8 +108,8 @@ def test_reused_var_across_module():
 
     @T.prim_func(private=True)
     def func():
-        with T.LetStmt(10) as var:
-            T.evaluate(var)
+        var = T.bind(10)
+        T.evaluate(var)
 
     before = tvm.IRModule(
         {
@@ -486,6 +501,37 @@ def test_track_forward_declarations_in_attr_stmt():
 
     mod = tvm.IRModule.from_expr(before)
     after = tvm.tir.transform.ConvertSSA()(mod)
+    tvm.ir.assert_structural_equal(after["main"], before)
+
+
+def test_shared_shape_var_in_buffer_map_and_alloc_buffer():
+    """Shape var shared across buffer_map entries and AllocBuffer should not be renamed.
+
+    When the same SizeVar (e.g., `n`) appears in multiple buffer_map
+    entries (A and B both have shape [n]), ConvertSSA should not treat
+    the second occurrence as a redefinition.  All uses of `n` in the
+    function body (including AllocBuffer shapes) must remain the same
+    Var object so that MakePackedAPI can bind it from the DLTensor shape.
+    """
+    n = tir.SizeVar("n", "int32")
+    A_handle = tir.Var("A_handle", "handle")
+    B_handle = tir.Var("B_handle", "handle")
+    A = tir.decl_buffer((n,), "float32", "A")
+    B = tir.decl_buffer((n,), "float32", "B")
+
+    # AllocBuffer with shape [n] in the body (flat, no body)
+    C = tir.decl_buffer((n,), "float32", "C")
+    body = tir.SeqStmt([tir.AllocBuffer(C), tir.Evaluate(1)])
+
+    before = tir.PrimFunc(
+        [A_handle, B_handle],
+        body,
+        buffer_map={A_handle: A, B_handle: B},
+    )
+
+    mod = tvm.IRModule.from_expr(before)
+    after = tvm.tir.transform.ConvertSSA()(mod)
+    # The function is already SSA — ConvertSSA should not change it.
     tvm.ir.assert_structural_equal(after["main"], before)
 
 

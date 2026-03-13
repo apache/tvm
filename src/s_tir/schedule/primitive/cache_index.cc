@@ -18,9 +18,9 @@
  */
 #include <tvm/arith/int_set.h>
 
-#include "../../../tir/transform/common_subexpr_elim_tools.h"
 #include "../../../tir/transform/replace_selected_expr.h"
 #include "../utils.h"
+#include "cache_index_helpers.h"
 
 namespace tvm {
 namespace s_tir {

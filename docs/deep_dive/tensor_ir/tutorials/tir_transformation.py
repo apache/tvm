@@ -50,17 +50,20 @@ class MyModule:
         C: T.Buffer((128, 128), "float32"),
     ):
         T.func_attr({"tir.noalias": True})
-        Y = T.alloc_buffer((128, 128))
-        for i, j, k in T.grid(128, 128, 128):
-            with T.sblock("Y"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                with T.init():
-                    Y[vi, vj] = T.float32(0)
-                Y[vi, vj] = Y[vi, vj] + A[vi, vk] * B[vk, vj]
-        for i, j in T.grid(128, 128):
-            with T.sblock("C"):
-                vi, vj = T.axis.remap("SS", [i, j])
-                C[vi, vj] = T.max(Y[vi, vj], T.float32(0))
+        with T.sblock("root"):
+            T.reads()
+            T.writes()
+            Y = T.sblock_alloc_buffer((128, 128))
+            for i, j, k in T.grid(128, 128, 128):
+                with T.sblock("Y"):
+                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                    with T.init():
+                        Y[vi, vj] = T.float32(0)
+                    Y[vi, vj] = Y[vi, vj] + A[vi, vk] * B[vk, vj]
+            for i, j in T.grid(128, 128):
+                with T.sblock("C"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    C[vi, vj] = T.max(Y[vi, vj], T.float32(0))
 
 
 ######################################################################

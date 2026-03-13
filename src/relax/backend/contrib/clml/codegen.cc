@@ -168,9 +168,6 @@ class OpenCLMLJSONSerializer : public JSONSerializer {
       // Transfer attributes from the collector's node to the final node.
       node->CaptureAttrs(*collector.node_);
 
-      // Capture global settings on the JSON node.
-      SaveGlobalAttributes(node);
-
       VLOG(1) << name << " has " << node->GetInputs().size() << " inputs";
     }
 

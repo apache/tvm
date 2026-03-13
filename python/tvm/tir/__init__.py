@@ -29,10 +29,10 @@ from .expr import Min, Max, EQ, NE, LT, LE, GT, GE, And, Or, Not
 from .expr import Select, BufferLoad, ProducerLoad, Ramp, Broadcast, Shuffle
 from .expr import Call, CallEffectKind, Let, IterVar, CommReducer
 
-from .stmt import Stmt, LetStmt, AssertStmt, ForKind, For, While
+from .stmt import Stmt, Bind, AssertStmt, ForKind, For, While
 from .stmt import (
     BufferStore,
-    Allocate,
+    AllocBuffer,
     AttrStmt,
     DeclBuffer,
 )

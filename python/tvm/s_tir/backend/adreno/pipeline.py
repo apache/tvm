@@ -78,12 +78,8 @@ def default_tir_pipeline():
             passes.append(s_tir.transform.InstrumentBoundCheckers())
         if bool(config.get("tir.ptx_ldg32", False)):
             passes.append(s_tir.transform.InjectPTXLDG32(True))
-        passes.append(
-            tir.transform.CommonSubexprElimTIR(
-                not bool(config.get("tir.disable_cse_tir", False)),
-                bool(config.get("tir.enable_equiv_terms_in_cse_tir", False)),
-            )
-        )
+        if not bool(config.get("tir.disable_cse_tir", False)):
+            passes.append(tir.transform.CommonSubexprElim())
         if bool(config.get("tir.instrument_lwp", False)):
             passes.append(s_tir.transform.InstrumentProfileIntrinsics())
         passes.extend(

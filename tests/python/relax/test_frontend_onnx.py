@@ -2700,6 +2700,37 @@ def test_tile(dynamic):
     verify_tile(x.shape, repeats, z_array.shape)
 
 
+@pytest.mark.parametrize("dynamic_input", [True, False])
+@pytest.mark.parametrize(
+    "in_shape,repeats",
+    [
+        ((2, 3), np.array([2, 2], dtype=np.int64)),
+        ((2, 3, 4), np.array([2, 2, 1], dtype=np.int64)),
+        ((2, 3, 4, 5), np.array([1, 2, 1, 2], dtype=np.int64)),
+    ],
+)
+def test_tile_dynamic_repeats(dynamic_input, in_shape, repeats):
+    x = np.random.rand(*in_shape).astype(np.float32)
+    out_shape = np.tile(x, repeats).shape
+
+    input_shape = ["?" for _ in in_shape] if dynamic_input else list(x.shape)
+    output_shape = ["?" for _ in out_shape] if dynamic_input else list(out_shape)
+
+    node = helper.make_node("Tile", inputs=["input", "repeats"], outputs=["out"])
+    graph = helper.make_graph(
+        [node],
+        "tile_dynamic_repeats_test",
+        inputs=[
+            helper.make_tensor_value_info("input", TensorProto.FLOAT, input_shape),
+            helper.make_tensor_value_info("repeats", TensorProto.INT64, [len(repeats)]),
+        ],
+        outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, output_shape)],
+    )
+    model = helper.make_model(graph, producer_name="tile_dynamic_repeats_test")
+
+    check_correctness(model, inputs={"input": x, "repeats": repeats}, opset=13)
+
+
 def _generate_roi_cases():
     # Base case when with_roi is False
     roi_list = [

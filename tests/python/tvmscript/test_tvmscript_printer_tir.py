@@ -252,17 +252,22 @@ for i, j, k in T.grid(128, 128, 128):
     )
 
 
-def test_let_stmt():
+def test_bind():
     with IRBuilder() as ib:
-        with T.LetStmt(T.float32(10)) as v:
+        with T.prim_func():
+            v = T.bind(T.float32(10))
             ib.name("v", v)
-            T.evaluate(0)
+            T.evaluate(1)
     obj = ib.get()
     _assert_print(
         obj,
         """
-with T.LetStmt(T.float32(10.0)) as v:
-    T.evaluate(0)
+# from tvm.script import tir as T
+
+@T.prim_func(private=True)
+def main():
+    v: T.float32 = T.float32(10.0)
+    T.evaluate(1)
 """,
     )
 
@@ -313,75 +318,91 @@ while v < 10:
 
 def test_allocate():
     with IRBuilder() as ib:
-        with T.allocate([128, 128], "float32"):
-            T.evaluate(0)
+        with T.prim_func():
+            T.func_name("test")
+            buf = T.alloc_buffer([128, 128], "float32")
+            T.evaluate(1)
     obj = ib.get()
     _assert_print(
-        obj,
+        obj.body,
         """
-with T.allocate([128, 128], "float32", "global") as v:
-    T.evaluate(0)
+buffer = T.alloc_buffer((128, 128))
+T.evaluate(1)
 """,
     )
 
 
 def test_allocate_with_decl_buffer_sugar():
+    # AllocBuffer and DeclBuffer are flat siblings
     with IRBuilder() as ib:
-        with T.allocate([128, 128], "float32") as buffer_data:
-            with T.decl_buffer([128, 128], "float32", data=buffer_data) as buffer:
-                T.evaluate(0)
+        with T.prim_func():
+            T.func_name("test")
+            buf = T.alloc_buffer([128, 128], "float32")
+            buf2 = T.decl_buffer([128, 128], "float32", data=buf.data)
+            T.evaluate(1)
     obj = ib.get()
     _assert_print(
-        obj,
+        obj.body,
         """
-with T.decl_buffer((128, 128)) as buffer:
-    T.evaluate(0)
+buffer = T.alloc_buffer((128, 128))
+buffer_1 = T.decl_buffer((128, 128), data=buffer.data)
+T.evaluate(1)
 """,
     )
 
 
 def test_allocate_with_decl_buffer_sugar_multi_usage():
+    # AllocBuffer and DeclBuffer are flat siblings
     with IRBuilder() as ib:
-        with T.allocate([128, 128], "float32") as buffer_data:
-            with T.decl_buffer([128, 128], "float32", data=buffer_data) as buffer:
-                T.evaluate(buffer_data)
+        with T.prim_func():
+            T.func_name("test")
+            buf = T.alloc_buffer([128, 128], "float32")
+            buf2 = T.decl_buffer([128, 128], "float32", data=buf.data)
+            T.evaluate(buf.data)
     obj = ib.get()
     _assert_print(
-        obj,
+        obj.body,
         """
-with T.decl_buffer((128, 128)) as buffer:
-    T.evaluate(buffer.data)
+buffer = T.alloc_buffer((128, 128))
+buffer_1 = T.decl_buffer((128, 128), data=buffer.data)
+T.evaluate(buffer.data)
 """,
     )
 
 
 def test_allocate_with_decl_buffer_no_sugar_mismatch():
     with IRBuilder() as ib:
-        with T.allocate([128, 128], "float32") as buffer_data:
-            with T.decl_buffer([256, 256], "float32", data=buffer_data) as buffer:
-                T.evaluate(buffer_data)
+        with T.prim_func():
+            T.func_name("test")
+            buf = T.alloc_buffer([128, 128], "float32")
+            buf2 = T.decl_buffer([256, 256], "float32", data=buf.data)
+            T.evaluate(buf.data)
     obj = ib.get()
     _assert_print(
-        obj,
+        obj.body,
         """
-with T.allocate([128, 128], "float32", "global") as v:
-    buffer = T.decl_buffer((256, 256), data=v)
-    T.evaluate(v)
+buffer = T.alloc_buffer((128, 128))
+buffer_1 = T.decl_buffer((256, 256), data=buffer.data)
+T.evaluate(buffer.data)
 """,
     )
 
 
 def test_decl_buffer():
+    # DeclBuffer is flat: we need a frame to hold multiple stmts
     with IRBuilder() as ib:
-        with T.decl_buffer((10, 10), data=T.ptr("float32")):
-            T.evaluate(0)
+        with T.prim_func():
+            T.func_name("test")
+            buf = T.decl_buffer((10, 10), data=T.ptr("float32"))
+            T.evaluate(1)
     obj = ib.get()
+    # Print only the body (skip PrimFunc wrapper)
     _assert_print(
-        obj,
+        obj.body,
         """
 v = T.handle("float32", "global")
-with T.decl_buffer((10, 10), data=v) as buffer:
-    T.evaluate(0)
+buffer = T.decl_buffer((10, 10), data=v)
+T.evaluate(1)
 """,
     )
 
@@ -741,7 +762,7 @@ def test_root_block():
 
     @T.prim_func
     def root_block_implicitly():
-        a = T.alloc_buffer([128, 128])
+        a = T.sblock_alloc_buffer([128, 128])
         for i, j in T.grid(128, 128):
             with T.sblock():
                 T.evaluate(0)
@@ -749,7 +770,7 @@ def test_root_block():
     @T.prim_func
     def root_block_explicitly():
         with T.sblock("root"):
-            a = T.alloc_buffer([128, 128])
+            a = T.sblock_alloc_buffer([128, 128])
             for i, j in T.grid(128, 128):
                 with T.sblock():
                     T.evaluate(0)
@@ -760,7 +781,7 @@ def test_root_block():
 @T.prim_func
 def main():
     # with T.sblock("root"):
-    a = T.alloc_buffer((128, 128))
+    a = T.sblock_alloc_buffer((128, 128))
     for i, j in T.grid(128, 128):
         with T.sblock(""):
             T.reads()

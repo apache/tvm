@@ -41,10 +41,10 @@ def test_mlp():
         ):
             T.func_attr({"tir.noalias": True})
             # with T.sblock("root"):
-            T_multiply_1 = T.alloc_buffer((T.int64(128), T.int64(64)))
-            compute = T.alloc_buffer((T.int64(128), T.int64(64)))
-            T_multiply_2 = T.alloc_buffer((T.int64(128), T.int64(64)))
-            T_add = T.alloc_buffer((T.int64(128), T.int64(64)))
+            T_multiply_1 = T.sblock_alloc_buffer((T.int64(128), T.int64(64)))
+            compute = T.sblock_alloc_buffer((T.int64(128), T.int64(64)))
+            T_multiply_2 = T.sblock_alloc_buffer((T.int64(128), T.int64(64)))
+            T_add = T.sblock_alloc_buffer((T.int64(128), T.int64(64)))
             for ax0, ax1 in T.grid(T.int64(128), T.int64(64)):
                 with T.sblock("T_multiply"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
@@ -200,10 +200,10 @@ def test_mlp_with_tuple():
         ):
             T.func_attr({"tir.noalias": True})
             # with T.sblock("root"):
-            T_multiply_1 = T.alloc_buffer((T.int64(128), T.int64(64)))
-            compute = T.alloc_buffer((T.int64(128), T.int64(64)))
-            T_multiply_2 = T.alloc_buffer((T.int64(128), T.int64(64)))
-            T_add = T.alloc_buffer((T.int64(128), T.int64(64)))
+            T_multiply_1 = T.sblock_alloc_buffer((T.int64(128), T.int64(64)))
+            compute = T.sblock_alloc_buffer((T.int64(128), T.int64(64)))
+            T_multiply_2 = T.sblock_alloc_buffer((T.int64(128), T.int64(64)))
+            T_add = T.sblock_alloc_buffer((T.int64(128), T.int64(64)))
             for ax0, ax1 in T.grid(T.int64(128), T.int64(64)):
                 with T.sblock("T_multiply"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])

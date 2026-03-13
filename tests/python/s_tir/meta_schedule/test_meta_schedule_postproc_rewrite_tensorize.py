@@ -253,9 +253,9 @@ class DenseDP4ATiled:
         compute: T.Buffer((128, 128), "int32"),
     ) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        compute_local = T.alloc_buffer([128, 128], dtype="int32", scope="local")
-        X_shared = T.alloc_buffer([128, 128], dtype="int8", scope="shared")
-        W_shared = T.alloc_buffer([128, 128], dtype="int8", scope="shared")
+        compute_local = T.sblock_alloc_buffer([128, 128], dtype="int32", scope="local")
+        X_shared = T.sblock_alloc_buffer([128, 128], dtype="int8", scope="shared")
+        W_shared = T.sblock_alloc_buffer([128, 128], dtype="int8", scope="shared")
         for i0_0_i1_0_fused in T.thread_binding(16, thread="blockIdx.x"):
             for i0_1_i1_1_fused in T.thread_binding(2, thread="vthread.x"):
                 for i0_2_i1_2_fused in T.thread_binding(2, thread="threadIdx.x"):
@@ -344,9 +344,9 @@ class DenseDP4ATensorized:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         # body
         # with T.sblock("root")
-        compute_local = T.alloc_buffer([128, 128], dtype="int32", scope="local")
-        X_shared = T.alloc_buffer([128, 128], dtype="int8", scope="shared")
-        W_shared = T.alloc_buffer([128, 128], dtype="int8", scope="shared")
+        compute_local = T.sblock_alloc_buffer([128, 128], dtype="int32", scope="local")
+        X_shared = T.sblock_alloc_buffer([128, 128], dtype="int8", scope="shared")
+        W_shared = T.sblock_alloc_buffer([128, 128], dtype="int8", scope="shared")
         for i0_0_i1_0_fused in T.thread_binding(16, thread="blockIdx.x"):
             for i0_1_i1_1_fused in T.thread_binding(2, thread="vthread.x"):
                 for i0_2_i1_2_fused in T.thread_binding(2, thread="threadIdx.x"):

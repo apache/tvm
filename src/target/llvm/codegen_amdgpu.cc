@@ -94,33 +94,33 @@ class CodeGenAMDGPU : public CodeGenLLVM {
     function_->addFnAttr("amdgpu-flat-work-group-size", attr.str());
   }
 
-  void VisitStmt_(const AllocateNode* op) final {
-    TVM_FFI_ICHECK(!is_zero(op->condition));
+  void VisitStmt_(const AllocBufferNode* op) final {
     llvm::Value* buf = nullptr;
-    StorageInfo& info = alloc_storage_info_[op->buffer_var.get()];
-    auto storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(op->buffer_var));
+    StorageInfo& info = alloc_storage_info_[op->buffer->data.get()];
+    auto storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(op->buffer->data));
+    DataType dtype = op->buffer->dtype;
 
     if (storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == ".dyn") {
       LOG(WARNING) << "Dynamic shared memory support for rocm is experimental.";
-      buf = AllocateSharedMemory(op->dtype, 0, 3, std::min(info.alignment, 16),
+      buf = AllocateSharedMemory(dtype, 0, 3, std::min(info.alignment, 16),
                                  llvm::GlobalValue::ExternalLinkage);
     } else {
-      size_t constant_size = op->ConstantAllocationSize();
+      const IntImmNode* dim_imm = op->buffer->shape[0].as<IntImmNode>();
+      TVM_FFI_ICHECK(dim_imm) << "Can only handle constant size stack allocation in GPU";
+      size_t constant_size = static_cast<size_t>(dim_imm->value);
       TVM_FFI_ICHECK_GT(constant_size, 0)
           << "Can only handle constant size stack allocation in GPU";
 
       if (constant_size % 4 == 0 && info.alignment == 0) {
-        info.alignment = GetTempAllocaAlignment(op->dtype, constant_size);
+        info.alignment = GetTempAllocaAlignment(dtype, constant_size);
       }
       // maximum necessary alignment in the AMD devices
       if (info.alignment > 16) {
         info.alignment = 16;
       }
       if (storage_scope.rank == runtime::StorageRank::kLocal) {
-        // const int local_address_space = 5;
-        // TODO(tqchen): for higher version of LLVM, local address space can be set.
         llvm::AllocaInst* alloca = WithFunctionEntry([&]() {
-          return builder_->CreateAlloca(DTypeToLLVMType(op->dtype), ConstInt32(constant_size));
+          return builder_->CreateAlloca(DTypeToLLVMType(dtype), ConstInt32(constant_size));
         });
         auto alignment = static_cast<unsigned>(alloca->getAlign().value());
         if (alignment < static_cast<unsigned>(info.alignment)) {
@@ -130,18 +130,19 @@ class CodeGenAMDGPU : public CodeGenLLVM {
       } else {
         TVM_FFI_ICHECK(storage_scope.rank == runtime::StorageRank::kShared)
             << "Can only allocate shared or local memory inside kernel";
-        // Shared memory: address space  == 3
-        buf = AllocateSharedMemory(op->dtype, constant_size, 3, info.alignment,
+        // Shared memory: address space == 3
+        buf = AllocateSharedMemory(dtype, constant_size, 3, info.alignment,
                                    llvm::GlobalValue::PrivateLinkage);
       }
     }
 
     buf = builder_->CreatePointerCast(
-        buf,
-        llvmGetPointerTo(DTypeToLLVMType(op->dtype), buf->getType()->getPointerAddressSpace()));
-    TVM_FFI_ICHECK(!var_map_.count(op->buffer_var.get()));
-    var_map_[op->buffer_var.get()] = buf;
-    this->VisitStmt(op->body);
+        buf, llvmGetPointerTo(DTypeToLLVMType(dtype), buf->getType()->getPointerAddressSpace()));
+    TVM_FFI_ICHECK(!var_map_.count(op->buffer->data.get()));
+    var_map_[op->buffer->data.get()] = buf;
+    if (op->annotations.count(tir::attr::kVolatile)) {
+      volatile_buf_.insert(op->buffer->data.get());
+    }
   }
 
   // Return the thread index via intrinsics.

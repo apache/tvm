@@ -169,7 +169,7 @@ bool TVMFFIABIBuilder::BindScalar(const PrimExpr& arg, const PrimExpr& value,
       // First bind: define the variable
       if (with_lets) {
         var_defs_.emplace(v_arg.get(), VarDefInfo{arg, path});
-        init_nest_.emplace_back(LetStmt(v_arg, value, Evaluate(0)));
+        init_nest_.emplace_back(Bind(v_arg, value));
       } else {
         var_defs_.emplace(v_arg.get(), VarDefInfo{value, path});
       }
@@ -488,17 +488,15 @@ PrimExpr TVMFFIABIBuilder::DecodeParamFloat(int param_index, const Var& type_ind
 // ============================================================
 
 void TVMFFIABIBuilder::DecodeParam(int param_index) {
-  const Stmt nop = Evaluate(0);
   Var param = params_[param_index];
   DataType dtype = param.dtype();
 
   // Extract type_index from packed_args
   Var type_index(param->name_hint + ".type_index", DataType::Int(32));
-  init_nest_.push_back(LetStmt(type_index,
-                               tir::Call(DataType::Int(32), builtin::tvm_struct_get(),
-                                         {v_packed_args_, IntImm(DataType::Int(32), param_index),
-                                          IntImm(DataType::Int(32), builtin::kTVMFFIAnyTypeIndex)}),
-                               nop));
+  init_nest_.push_back(
+      Bind(type_index, tir::Call(DataType::Int(32), builtin::tvm_struct_get(),
+                                 {v_packed_args_, IntImm(DataType::Int(32), param_index),
+                                  IntImm(DataType::Int(32), builtin::kTVMFFIAnyTypeIndex)})));
 
   // Type-check and load value via per-dtype dispatch
   PrimExpr arg_value;
@@ -540,7 +538,7 @@ void TVMFFIABIBuilder::DecodeAllParams() {
           AccessPath::Root()->Extend(AccessStep::ArrayItem(i))->Attr(ffi::String(buffer->name));
       DecodeParamDLTensor(buffer, device_type_, device_id_, param,
                           func_name_ + "." + param->name_hint, param_path);
-      decl_buffers_.push_back(DeclBuffer(buffer, nop));
+      decl_buffers_.push_back(DeclBuffer(buffer));
     }
   }
 }
@@ -553,10 +551,8 @@ Var TVMFFIABIBuilder::DLTensorGetFieldPtr(const Var& handle, int field_kind,
                                           const std::string& var_name) {
   Var ptr(var_name, DataType::Handle());
   init_nest_.emplace_back(
-      LetStmt(ptr,
-              TVMStructGet(DataType::Handle(), handle, 0,
-                           static_cast<builtin::TVMStructFieldKind>(field_kind)),
-              Evaluate(0)));
+      Bind(ptr, TVMStructGet(DataType::Handle(), handle, 0,
+                             static_cast<builtin::TVMStructFieldKind>(field_kind))));
   return ptr;
 }
 

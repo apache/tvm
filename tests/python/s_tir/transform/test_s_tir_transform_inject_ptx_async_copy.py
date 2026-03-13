@@ -52,7 +52,7 @@ def generate_global_to_shared_vectorized_copy(dtype, vector_size):
         T.launch_thread(bx, 1)
         T.launch_thread(tx, 32)
         with T.sblock():
-            A_shared = T.alloc_buffer([32, 128], dtype, scope="shared")
+            A_shared = T.sblock_alloc_buffer([32, 128], dtype, scope="shared")
             T.reads(A[0:32, 0:128])
             T.writes(B[0:32, 0:128])
 
@@ -80,7 +80,7 @@ def ptx_global_to_shared_copy_fp32x1(
     T.launch_thread(bx, 1)
     T.launch_thread(tx, 32)
     with T.sblock():
-        A_shared = T.alloc_buffer([32, 128], "float32", scope="shared")
+        A_shared = T.sblock_alloc_buffer([32, 128], "float32", scope="shared")
         T.reads(A[0:32, 0:128])
         T.writes(B[0:32, 0:128])
 
@@ -107,8 +107,8 @@ def ptx_global_to_shared_dyn_copy_fp16x8(
     T.launch_thread(bx, 1)
     T.launch_thread(tx, 32)
     with T.sblock():
-        A_shared = T.alloc_buffer([32, 128], "float16", scope="shared.dyn")
-        B_shared = T.alloc_buffer([32, 128], "float16", scope="shared.dyn")
+        A_shared = T.sblock_alloc_buffer([32, 128], "float16", scope="shared.dyn")
+        B_shared = T.sblock_alloc_buffer([32, 128], "float16", scope="shared.dyn")
         T.reads(A[0:32, 0:128], B[0:32, 0:128])
         T.writes(C[0:32, 0:128])
 
@@ -197,7 +197,7 @@ def ptx_global_to_shared_copy_fp32x1_barrier(
     T.launch_thread(bx, 1)
     T.launch_thread(tx, 32)
     with T.sblock():
-        A_shared = T.alloc_buffer([32, 128], "float32", scope="shared")
+        A_shared = T.sblock_alloc_buffer([32, 128], "float32", scope="shared")
 
         T.reads(A[0:32, 0:128])
         T.writes(B[0:32, 0:128])
@@ -243,6 +243,10 @@ def test_inject_async_copy_barrier():
         tvm.testing.assert_allclose(B_nd.numpy(), A_np)
 
 
+# Note: the expected output contains a dead CSE variable `cse_v1 = (i < 12)`.
+# CSE extracts (i < 12) before inject_ptx_async_copy runs, but the latter
+# replaces the original IfThenElse guards with new cast(int32, i < 12)
+# expressions for predicated async copies, leaving cse_v1 unused.
 expected_cuda_script = r"""#include <cuda.h>
 __forceinline__ __device__ unsigned int
 cast_smem_ptr_to_int(const void* const smem_ptr)
@@ -335,7 +339,7 @@ __asm__ __volatile__("cp.async.commit_group;");
 
   {
     unsigned int addr = cast_smem_ptr_to_int(A_shared + ((((i + 3) & 3) * 16) + ((int)threadIdx.x)));
-    int pred_guard = (int)cse_v1;
+    int pred_guard = (int)(i < 12);
     __asm__ __volatile__(
         "{  .reg .pred p;"
         "  setp.ne.b32 p, %0, 0;"
@@ -358,7 +362,7 @@ __asm__ __volatile__("cp.async.wait_group 5;");
 
   {
     unsigned int addr = cast_smem_ptr_to_int(B_shared + ((((i + 3) & 3) * 16) + ((int)threadIdx.x)));
-    int pred_guard = (int)cse_v1;
+    int pred_guard = (int)(i < 12);
     __asm__ __volatile__(
         "{  .reg .pred p;"
         "  setp.ne.b32 p, %0, 0;"
@@ -458,8 +462,8 @@ def test_cp_async_in_if_then_else(postproc_if_missing_async_support):
                 with T.sblock("compute"):
                     T.reads(A[tx, i])
                     T.writes(C[tx, i])
-                    A_shared = T.alloc_buffer((16, 1), dtype="float32", scope="shared")
-                    B_shared = T.alloc_buffer((16, 1), dtype="float32", scope="shared")
+                    A_shared = T.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
+                    B_shared = T.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
                     with T.sblock():
                         T.reads(A[tx, i])
                         T.writes(A_shared[tx, 0])
@@ -501,17 +505,19 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
     ):
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         # with T.sblock("root"):
-        data_im2col_reindex_shared_dyn = T.alloc_buffer((512, 11520), "float16", scope="shared.dyn")
-        data_im2col_reindex_shared_dyn_wmma_matrix_a = T.alloc_buffer(
+        data_im2col_reindex_shared_dyn = T.sblock_alloc_buffer(
+            (512, 11520), "float16", scope="shared.dyn"
+        )
+        data_im2col_reindex_shared_dyn_wmma_matrix_a = T.sblock_alloc_buffer(
             (512, 11520), "float16", scope="wmma.matrix_a"
         )
-        weight_flatten_reindex_shared_dyn = T.alloc_buffer(
+        weight_flatten_reindex_shared_dyn = T.sblock_alloc_buffer(
             (1280, 11520), "float16", scope="shared.dyn"
         )
-        weight_flatten_reindex_shared_dyn_wmma_matrix_b = T.alloc_buffer(
+        weight_flatten_reindex_shared_dyn_wmma_matrix_b = T.sblock_alloc_buffer(
             (1280, 11520), "float16", scope="wmma.matrix_b"
         )
-        Conv_reindex_wmma_accumulator = T.alloc_buffer(
+        Conv_reindex_wmma_accumulator = T.sblock_alloc_buffer(
             (512, 1280), "float16", scope="wmma.accumulator"
         )
         for x_0_0 in T.thread_binding(8, thread="blockIdx.y"):

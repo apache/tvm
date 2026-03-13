@@ -28,6 +28,7 @@
 #include <tvm/node/script_printer.h>
 #include <tvm/tir/expr.h>
 
+#include <optional>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -67,37 +68,38 @@ class Stmt : public ObjectRef {
 };
 
 /*!
- * \brief Let binding, bind var to value, then run body.
+ * \brief Bind a variable to a value in the enclosing scope.
+ *
+ * BindNode has no body field. The bound variable is visible
+ * in all subsequent statements within the same enclosing scope (SeqStmt,
+ * ForNode.body, etc.). This enables flat (non-nested) IR sequences.
  */
-class LetStmtNode : public StmtNode {
+class BindNode : public StmtNode {
  public:
-  /*! \brief The variable. */
+  /*! \brief The variable being bound. */
   Var var;
-  /*! \brief The value to be bound. */
+  /*! \brief The value to bind to the variable. */
   PrimExpr value;
-  /*! \brief The body block. */
-  Stmt body;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<LetStmtNode>()
-        .def_ro("var", &LetStmtNode::var, refl::AttachFieldFlag::SEqHashDef())
-        .def_ro("value", &LetStmtNode::value)
-        .def_ro("body", &LetStmtNode::body);
+    refl::ObjectDef<BindNode>()
+        .def_ro("var", &BindNode::var, refl::AttachFieldFlag::SEqHashDef())
+        .def_ro("value", &BindNode::value);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.LetStmt", LetStmtNode, StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.Bind", BindNode, StmtNode);
 };
 
 /*!
- * \brief Managed reference to LetStmtNode.
- * \sa LetStmtNode
+ * \brief Managed reference to BindNode.
+ * \sa BindNode
  */
-class LetStmt : public Stmt {
+class Bind : public Stmt {
  public:
-  TVM_DLL LetStmt(Var var, PrimExpr value, Stmt body, Span span = Span());
+  TVM_DLL Bind(Var var, PrimExpr value, Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(LetStmt, Stmt, LetStmtNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(LetStmtNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Bind, Stmt, BindNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(BindNode);
 };
 
 /*!
@@ -232,21 +234,32 @@ class BufferStore : public Stmt {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferStoreNode);
 };
 
-/*!
- * \brief Allocate a buffer that can be used in body.
- */
-class AllocateNode : public StmtNode {
+/*! \brief Declare a buffer that can be used in the body */
+class DeclBufferNode : public StmtNode {
  public:
-  /*! \brief The buffer variable. */
-  Var buffer_var;
-  /*! \brief The type of the buffer. */
-  DataType dtype;
-  /*! \brief The extents of the buffer. */
-  ffi::Array<PrimExpr> extents;
-  /*! \brief Only allocate buffer when condition is satisfied. */
-  PrimExpr condition;
-  /*! \brief The body to be executed. */
-  Stmt body;
+  /*! \brief The buffer being declared */
+  Buffer buffer;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<DeclBufferNode>().def_ro("buffer", &DeclBufferNode::buffer);
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.DeclBuffer", DeclBufferNode, StmtNode);
+};
+
+/*! \brief Managed reference to DeclBufferNode */
+class DeclBuffer : public Stmt {
+ public:
+  TVM_DLL DeclBuffer(Buffer buffer, Span span = Span());
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DeclBuffer, Stmt, DeclBufferNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(DeclBufferNode);
+};
+
+/*! \brief Allocate a buffer and declare it in scope */
+class AllocBufferNode : public StmtNode {
+ public:
+  /*! \brief The buffer being allocated and declared */
+  Buffer buffer;
   /*!
    * \brief Additional annotations about the allocation.
    *
@@ -257,69 +270,38 @@ class AllocateNode : public StmtNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<AllocateNode>()
-        .def_ro("buffer_var", &AllocateNode::buffer_var, refl::AttachFieldFlag::SEqHashDef())
-        .def_ro("dtype", &AllocateNode::dtype)
-        .def_ro("extents", &AllocateNode::extents)
-        .def_ro("condition", &AllocateNode::condition)
-        .def_ro("body", &AllocateNode::body)
-        .def_ro("annotations", &AllocateNode::annotations);
+    refl::ObjectDef<AllocBufferNode>()
+        .def_ro("buffer", &AllocBufferNode::buffer, refl::AttachFieldFlag::SEqHashDef())
+        .def_ro("annotations", &AllocBufferNode::annotations);
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.AllocBuffer", AllocBufferNode, StmtNode);
+};
+
+/*! \brief Managed reference to AllocBufferNode */
+class AllocBuffer : public Stmt {
+ public:
+  TVM_DLL AllocBuffer(
+      Buffer buffer,
+      ffi::Map<ffi::String, ffi::Any> annotations = ffi::Map<ffi::String, ffi::Any>(),
+      Span span = Span());
+  /*!
+   * \brief If the buffer's shape is constant, return the total number of elements.
+   * \return The product of all shape extents if all are constant, std::nullopt otherwise.
+   */
+  std::optional<int64_t> ConstantAllocationSize() const {
+    int64_t result = 1;
+    for (const PrimExpr& extent : (*this)->buffer->shape) {
+      if (const auto* int_size = extent.as<IntImmNode>()) {
+        result *= int_size->value;
+      } else {
+        return std::nullopt;
+      }
+    }
+    return result;
   }
 
-  /*!
-   * \brief If the buffer size is constant, return the size.
-   *        Otherwise return 0.
-   * \return The result.
-   */
-  int64_t ConstantAllocationSize() const { return ConstantAllocationSize(extents); }
-  /*!
-   * \brief If the buffer size is constant, return the size.
-   *        Otherwise return 0.
-   * \param extents The extents of the buffer.
-   * \return The result.
-   */
-  TVM_DLL static int64_t ConstantAllocationSize(const ffi::Array<PrimExpr>& extents);
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.Allocate", AllocateNode, StmtNode);
-};
-
-/*!
- * \brief Managed reference to AllocateNode.
- * \sa AllocateNode
- */
-class Allocate : public Stmt {
- public:
-  TVM_DLL Allocate(Var buffer_var, DataType dtype, ffi::Array<PrimExpr> extents, PrimExpr condition,
-                   Stmt body,
-                   ffi::Map<ffi::String, ffi::Any> annotations = ffi::Map<ffi::String, ffi::Any>(),
-                   Span span = Span());
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Allocate, Stmt, AllocateNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(AllocateNode);
-};
-
-/*! \brief Declare a buffer that can be used in the body */
-class DeclBufferNode : public StmtNode {
- public:
-  /*! \brief The buffer being declared */
-  Buffer buffer;
-  /*! \brief The body to be executed */
-  Stmt body;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<DeclBufferNode>()
-        .def_ro("buffer", &DeclBufferNode::buffer)
-        .def_ro("body", &DeclBufferNode::body);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.DeclBuffer", DeclBufferNode, StmtNode);
-};
-
-/*! \brief Managed reference to DeclBufferNode */
-class DeclBuffer : public Stmt {
- public:
-  TVM_DLL DeclBuffer(Buffer buffer, Stmt body, Span span = Span());
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DeclBuffer, Stmt, DeclBufferNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(DeclBufferNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(AllocBuffer, Stmt, AllocBufferNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(AllocBufferNode);
 };
 
 /*!
@@ -951,8 +933,8 @@ constexpr const char* pragma_unroll_explicit = "pragma_unroll_explicit";
 constexpr const char* storage_alignment = "storage_alignment";
 /*! \brief Mark launching extent of thread, used by device API. */
 constexpr const char* thread_extent = "thread_extent";
-/*! \brief Mark the scope as volatile access for certain handle. */
-constexpr const char* volatile_scope = "volatile_scope";
+/*! \brief Annotation key on AllocBuffer marking the allocation as volatile. */
+constexpr const char* kVolatile = "tir.volatile";
 
 /*!
  * \brief Check if attr_key is a pragma key extension
@@ -990,6 +972,7 @@ inline const char* ForKind2String(ForKind t) {
       return "thread_binding";
   }
   TVM_FFI_THROW(InternalError) << "Unknown ForKind" << t;
+  TVM_FFI_UNREACHABLE();
 }
 
 }  // namespace tir

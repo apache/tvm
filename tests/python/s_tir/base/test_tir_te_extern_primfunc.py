@@ -38,7 +38,7 @@ def func_1(A: T.Buffer((16,), "float32"), C: T.Buffer((1,), "float32")):
         16,
     ):
         with T.sblock():
-            B = T.alloc_buffer((1,), dtype="float32")
+            B = T.sblock_alloc_buffer((1,), dtype="float32")
             with T.sblock():
                 B[0] = A[i] * T.float32(2)
             with T.sblock():
@@ -67,7 +67,7 @@ def func_2(
         16,
     ):
         with T.sblock():
-            B = T.alloc_buffer((1,), dtype="float32")
+            B = T.sblock_alloc_buffer((1,), dtype="float32")
             with T.sblock():
                 B[0] = A[i] * T.float32(2)
             with T.sblock():
@@ -101,7 +101,7 @@ def func_3(
         16,
     ):
         with T.sblock():
-            B = T.alloc_buffer((1,), dtype="float32")
+            B = T.sblock_alloc_buffer((1,), dtype="float32")
             with T.sblock():
                 B[0] = A[i] * T.float32(2)
             with T.sblock():
@@ -143,7 +143,7 @@ def func_4(
         16,
     ):
         with T.sblock():
-            B = T.alloc_buffer((1,), dtype="float32")
+            B = T.sblock_alloc_buffer((1,), dtype="float32")
             with T.sblock():
                 B[0] = A[i] * T.float32(2)
             with T.sblock():

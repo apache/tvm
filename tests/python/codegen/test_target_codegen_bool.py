@@ -35,7 +35,7 @@ def test_cmp_load_store(target, dev):
             D: T.Buffer((32,), "float32"),
         ):
             T.func_attr({"tir.noalias": True})
-            C = T.alloc_buffer((32,), "bool")
+            C = T.sblock_alloc_buffer((32,), "bool")
             for i0_0 in T.thread_binding(8, thread="blockIdx.x"):
                 for i0_1 in T.thread_binding(4, thread="blockIdx.x"):
                     with T.sblock("C"):
@@ -60,7 +60,7 @@ def test_cmp_load_store(target, dev):
             D: T.Buffer((32,), "float32"),
         ):
             T.func_attr({"tir.noalias": True})
-            C = T.alloc_buffer((32,), "bool")
+            C = T.sblock_alloc_buffer((32,), "bool")
             for i0 in range(32):
                 with T.sblock("C"):
                     v_i0 = T.axis.spatial(32, i0)

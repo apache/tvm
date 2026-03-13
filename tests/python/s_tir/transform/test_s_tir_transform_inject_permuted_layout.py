@@ -49,7 +49,7 @@ def test_backward_compatibility_shared_a():
                             with T.sblock(""):
                                 T.reads(X[blockIdx_y // 8 * 128 + threadIdx_y * 8 + threadIdx_x // 4:blockIdx_y // 8 * 128 + threadIdx_y * 8 + threadIdx_x // 4 + 97, ax2_0_0 * 32 + threadIdx_x % 4 * 8:ax2_0_0 * 32 + threadIdx_x % 4 * 8 + 8])
                                 T.writes()
-                                X_reindex_shared_dyn = T.alloc_buffer((128, 32), "float16", strides=(32, 1), scope="shared.dyn")
+                                X_reindex_shared_dyn = T.sblock_alloc_buffer((128, 32), "float16", strides=(32, 1), scope="shared.dyn")
                                 with T.sblock("X_reindex_shared.dyn"):
                                     T.reads(X[blockIdx_y // 8 * 128 + threadIdx_y * 8 + threadIdx_x // 4:blockIdx_y // 8 * 128 + threadIdx_y * 8 + threadIdx_x // 4 + 97, ax2_0_0 * 32 + threadIdx_x % 4 * 8:ax2_0_0 * 32 + threadIdx_x % 4 * 8 + 8])
                                     T.writes(X_reindex_shared_dyn[threadIdx_y * 8 + threadIdx_x // 4:threadIdx_y * 8 + threadIdx_x // 4 + 97, threadIdx_x % 4 * 8:threadIdx_x % 4 * 8 + 8])
@@ -61,7 +61,7 @@ def test_backward_compatibility_shared_a():
                                     with T.sblock(""):
                                         T.reads(X_reindex_shared_dyn[threadIdx_y // 2 * 64:threadIdx_y // 2 * 64 + 64, ax2_0_1 * 8:ax2_0_1 * 8 + 8])
                                         T.writes()
-                                        X_reindex_shared_dyn_m16n8k8_matrixA = T.alloc_buffer((64, 8), "float16", scope="m16n8k8.matrixA")
+                                        X_reindex_shared_dyn_m16n8k8_matrixA = T.sblock_alloc_buffer((64, 8), "float16", scope="m16n8k8.matrixA")
                                         for ax0_0, ax1_0 in T.grid(2, 1):
                                             with T.sblock("X_reindex_shared.dyn_m16n8k8.matrixA_o"):
                                                 T.reads(X_reindex_shared_dyn[threadIdx_y // 2 * 64 + ax0_0 * 32:threadIdx_y // 2 * 64 + ax0_0 * 32 + 32, ax2_0_1 * 8:ax2_0_1 * 8 + 8])
@@ -77,7 +77,7 @@ def test_backward_compatibility_shared_a():
                     with T.sblock(""):
                         for ax2_0_0 in T.serial(128):
                             with T.sblock(""):
-                                X_reindex_shared_dyn = T.alloc_buffer((128, 32), "float16", strides=(32, 1), scope="shared.dyn")
+                                X_reindex_shared_dyn = T.sblock_alloc_buffer((128, 32), "float16", strides=(32, 1), scope="shared.dyn")
                                 with T.sblock("X_reindex_shared.dyn"):
                                     # annotate the reads and writes because they cannot be inferred from tir.bitwise_xor
                                     T.reads(X[blockIdx_y // 8 * 128 + threadIdx_y * 8 + threadIdx_x // 4:blockIdx_y // 8 * 128 + threadIdx_y * 8 + threadIdx_x // 4 + 97, ax2_0_0 * 32 + threadIdx_x % 4 * 8:ax2_0_0 * 32 + threadIdx_x % 4 * 8 + 8])
@@ -87,7 +87,7 @@ def test_backward_compatibility_shared_a():
                                             X_reindex_shared_dyn[ax0_ax1_fused_0 * 32 + threadIdx_y * 8 + threadIdx_x // 4, T.bitwise_xor(threadIdx_x % 4, threadIdx_x // 8) * 8 + ax0_ax1_fused_3] = X[blockIdx_y // 8 * 128 + ax0_ax1_fused_0 * 32 + threadIdx_y * 8 + threadIdx_x // 4, ax2_0_0 * 32 + threadIdx_x % 4 * 8 + ax0_ax1_fused_3]
                                 for ax2_0_1 in T.serial(4):
                                     with T.sblock(""):
-                                        X_reindex_shared_dyn_m16n8k8_matrixA = T.alloc_buffer((64, 8), "float16", scope="m16n8k8.matrixA")
+                                        X_reindex_shared_dyn_m16n8k8_matrixA = T.sblock_alloc_buffer((64, 8), "float16", scope="m16n8k8.matrixA")
                                         for ax0_0, ax1_0 in T.grid(2, 1):
                                             with T.sblock("X_reindex_shared.dyn_m16n8k8.matrixA_o"):
                                                 T.reads(X_reindex_shared_dyn[threadIdx_y // 2 * 64 + ax0_0 * 32:threadIdx_y // 2 * 64 + ax0_0 * 32 + 32, ax2_0_1 * 8:ax2_0_1 * 8 + 8])
@@ -108,8 +108,8 @@ def test_backward_compatibility_shared_a_and_b():
                         with T.sblock(""):
                             for ax2_0_0 in T.serial(128):
                                 with T.sblock(""):
-                                    X_reindex_shared_dyn = T.alloc_buffer((128, 32), "float16", strides=(32, 1), scope="shared.dyn")
-                                    Y_reindex_shared_dyn = T.alloc_buffer((32, 128), "float16", strides=(128, 1), scope="shared.dyn")
+                                    X_reindex_shared_dyn = T.sblock_alloc_buffer((128, 32), "float16", strides=(32, 1), scope="shared.dyn")
+                                    Y_reindex_shared_dyn = T.sblock_alloc_buffer((32, 128), "float16", strides=(128, 1), scope="shared.dyn")
                                     with T.sblock("X_reindex_shared.dyn"):
                                         T.sblock_attr({"permuted_layout": "g2s_A"})
                                         for ax0_ax1_fused_0 in range(4):
@@ -122,8 +122,8 @@ def test_backward_compatibility_shared_a_and_b():
                                                 Y_reindex_shared_dyn[ax0_ax1_fused_0 * 8 + threadIdx_y * 2 + threadIdx_x // 16, threadIdx_x % 16 * 8 + ax0_ax1_fused_3] = Y[ax2_0_0 * 32 + ax0_ax1_fused_0 * 8 + threadIdx_y * 2 + threadIdx_x // 16, blockIdx_x * 1024 + blockIdx_y % 8 * 128 + threadIdx_x % 16 * 8 + ax0_ax1_fused_3]
                                     for ax2_0_1 in T.serial(4):
                                         with T.sblock(""):
-                                            X_reindex_shared_dyn_m16n8k8_matrixA = T.alloc_buffer((64, 8), "float16", scope="m16n8k8.matrixA")
-                                            Y_reindex_shared_dyn_m16n8k8_matrixB = T.alloc_buffer((8, 64), "float16", scope="m16n8k8.matrixB")
+                                            X_reindex_shared_dyn_m16n8k8_matrixA = T.sblock_alloc_buffer((64, 8), "float16", scope="m16n8k8.matrixA")
+                                            Y_reindex_shared_dyn_m16n8k8_matrixB = T.sblock_alloc_buffer((8, 64), "float16", scope="m16n8k8.matrixB")
                                             for ax0_0, ax1_0 in T.grid(2, 1):
                                                 with T.sblock("X_reindex_shared.dyn_m16n8k8.matrixA_o"):
                                                     T.reads(X_reindex_shared_dyn[threadIdx_y // 2 * 64 + ax0_0 * 32:threadIdx_y // 2 * 64 + ax0_0 * 32 + 32, ax2_0_1 * 8:ax2_0_1 * 8 + 8])
@@ -150,8 +150,8 @@ def test_backward_compatibility_shared_a_and_b():
                                 with T.sblock(""):
                                     T.reads(X[blockIdx_y // 8 * 128 + threadIdx_y * 8 + threadIdx_x // 4:blockIdx_y // 8 * 128 + threadIdx_y * 8 + threadIdx_x // 4 + 97, ax2_0_0 * 32 + threadIdx_x % 4 * 8:ax2_0_0 * 32 + threadIdx_x % 4 * 8 + 8], Y[ax2_0_0 * 32 + threadIdx_y * 2 + threadIdx_x // 16:ax2_0_0 * 32 + threadIdx_y * 2 + threadIdx_x // 16 + 25, blockIdx_x * 1024 + blockIdx_y % 8 * 128 + threadIdx_x % 16 * 8:blockIdx_x * 1024 + blockIdx_y % 8 * 128 + threadIdx_x % 16 * 8 + 8])
                                     T.writes()
-                                    X_reindex_shared_dyn = T.alloc_buffer((128, 32), "float16", strides=(32, 1), scope="shared.dyn")
-                                    Y_reindex_shared_dyn = T.alloc_buffer((32, 128), "float16", strides=(128, 1), scope="shared.dyn")
+                                    X_reindex_shared_dyn = T.sblock_alloc_buffer((128, 32), "float16", strides=(32, 1), scope="shared.dyn")
+                                    Y_reindex_shared_dyn = T.sblock_alloc_buffer((32, 128), "float16", strides=(128, 1), scope="shared.dyn")
                                     with T.sblock("X_reindex_shared.dyn"):
                                         T.reads(X[blockIdx_y // 8 * 128 + threadIdx_y * 8 + threadIdx_x // 4:blockIdx_y // 8 * 128 + threadIdx_y * 8 + threadIdx_x // 4 + 97, ax2_0_0 * 32 + threadIdx_x % 4 * 8:ax2_0_0 * 32 + threadIdx_x % 4 * 8 + 8])
                                         T.writes(X_reindex_shared_dyn[threadIdx_y * 8 + threadIdx_x // 4:threadIdx_y * 8 + threadIdx_x // 4 + 97, threadIdx_x % 4 * 8:threadIdx_x % 4 * 8 + 8])
@@ -166,8 +166,8 @@ def test_backward_compatibility_shared_a_and_b():
                                                 Y_reindex_shared_dyn[ax0_ax1_fused_0 * 8 + threadIdx_y * 2 + threadIdx_x // 16, T.bitwise_xor(threadIdx_x % 16, threadIdx_y * 2 + threadIdx_x // 16) * 8 + ax0_ax1_fused_3]   = Y[ax2_0_0 * 32 + ax0_ax1_fused_0 * 8 + threadIdx_y * 2 + threadIdx_x // 16, blockIdx_x * 1024 + blockIdx_y % 8 * 128 + threadIdx_x % 16 * 8 + ax0_ax1_fused_3]
                                     for ax2_0_1 in T.serial(4):
                                         with T.sblock(""):
-                                            X_reindex_shared_dyn_m16n8k8_matrixA = T.alloc_buffer((64, 8), "float16", scope="m16n8k8.matrixA")
-                                            Y_reindex_shared_dyn_m16n8k8_matrixB = T.alloc_buffer((8, 64), "float16", scope="m16n8k8.matrixB")
+                                            X_reindex_shared_dyn_m16n8k8_matrixA = T.sblock_alloc_buffer((64, 8), "float16", scope="m16n8k8.matrixA")
+                                            Y_reindex_shared_dyn_m16n8k8_matrixB = T.sblock_alloc_buffer((8, 64), "float16", scope="m16n8k8.matrixB")
                                             for ax0_0, ax1_0 in T.grid(2, 1):
                                                 with T.sblock("X_reindex_shared.dyn_m16n8k8.matrixA_o"):
                                                     T.reads(X_reindex_shared_dyn[threadIdx_y // 2 * 64 + ax0_0 * 32:threadIdx_y // 2 * 64 + ax0_0 * 32 + 32, ax2_0_1 * 8:ax2_0_1 * 8 + 8])
@@ -187,8 +187,8 @@ def test_buffer_a():
     @T.prim_func
     def before(p_A: T.handle):
         A = T.match_buffer(p_A, (T.int64(128), T.int64(32)), "float16")
-        A_shared_dyn = T.alloc_buffer((T.int64(128), T.int64(32)), "float16", scope="shared.dyn")
-        A_warp = T.alloc_buffer((T.int64(4), T.int64(1), T.int64(32), T.int64(8)), "float16", scope="warp")
+        A_shared_dyn = T.sblock_alloc_buffer((T.int64(128), T.int64(32)), "float16", scope="shared.dyn")
+        A_warp = T.sblock_alloc_buffer((T.int64(4), T.int64(1), T.int64(32), T.int64(8)), "float16", scope="warp")
         for threadIdx_z in T.thread_binding(T.int64(2), thread="threadIdx.z"):
             for threadIdx_y in T.thread_binding(T.int64(2), thread="threadIdx.y"):
                 for threadIdx_x in T.thread_binding(T.int64(32), thread="threadIdx.x"):
@@ -222,8 +222,8 @@ def test_buffer_a():
 
     @T.prim_func
     def expected(A: T.Buffer((T.int64(128), T.int64(32)), "float16")):
-        A_shared_dyn = T.alloc_buffer((T.int64(128), T.int64(32)), "float16", scope="shared.dyn")
-        A_warp = T.alloc_buffer((T.int64(4), T.int64(1), T.int64(32), T.int64(8)), "float16", scope="warp")
+        A_shared_dyn = T.sblock_alloc_buffer((T.int64(128), T.int64(32)), "float16", scope="shared.dyn")
+        A_warp = T.sblock_alloc_buffer((T.int64(4), T.int64(1), T.int64(32), T.int64(8)), "float16", scope="warp")
         for threadIdx_z in T.thread_binding(T.int64(2), thread="threadIdx.z"):
             for threadIdx_y in T.thread_binding(T.int64(2), thread="threadIdx.y"):
                 for threadIdx_x in T.thread_binding(T.int64(32), thread="threadIdx.x"):
@@ -250,7 +250,7 @@ def test_buffer_b():
     # fmt: off
     @T.prim_func
     def before(B: T.Buffer((T.int64(128), T.int64(32)), "float16")):
-        B_shared_dyn = T.alloc_buffer((T.int64(128), T.int64(32)), "float16", scope="shared.dyn")
+        B_shared_dyn = T.sblock_alloc_buffer((T.int64(128), T.int64(32)), "float16", scope="shared.dyn")
         for threadIdx_z in T.thread_binding(T.int64(2), thread="threadIdx.z"):
             for threadIdx_y in T.thread_binding(T.int64(2), thread="threadIdx.y"):
                 for threadIdx_x in T.thread_binding(T.int64(32), thread="threadIdx.x"):
@@ -261,7 +261,7 @@ def test_buffer_b():
                                 B_shared_dyn[v0 * T.int64(32) + threadIdx_z * T.int64(16) + threadIdx_y * T.int64(8) + threadIdx_x // T.int64(4), threadIdx_x % T.int64(4) * T.int64(8) + v1] = B[v0 * T.int64(32) + threadIdx_z * T.int64(16) + threadIdx_y * T.int64(8) + threadIdx_x // T.int64(4), threadIdx_x % T.int64(4) * T.int64(8) + v1]
                     for v0 in range(T.int64(2)):
                         with T.sblock(""):
-                            B_warp = T.alloc_buffer((T.int64(4), T.int64(1), T.int64(32), T.int64(8)), "float16", scope="warp")
+                            B_warp = T.sblock_alloc_buffer((T.int64(4), T.int64(1), T.int64(32), T.int64(8)), "float16", scope="warp")
                             for v1 in range(T.int64(4)):
                                 with T.sblock("B_reindex_shared.dyn_warp_o"):
                                     T.sblock_attr({"permuted_layout": 1})
@@ -272,7 +272,7 @@ def test_buffer_b():
 
     @T.prim_func
     def expected(B: T.Buffer((T.int64(128), T.int64(32)), "float16")):
-        B_shared_dyn = T.alloc_buffer((T.int64(128), T.int64(32)), "float16", scope="shared.dyn")
+        B_shared_dyn = T.sblock_alloc_buffer((T.int64(128), T.int64(32)), "float16", scope="shared.dyn")
         for threadIdx_z in T.thread_binding(T.int64(2), thread="threadIdx.z"):
             for threadIdx_y in T.thread_binding(T.int64(2), thread="threadIdx.y"):
                 for threadIdx_x in T.thread_binding(T.int64(32), thread="threadIdx.x"):
@@ -284,7 +284,7 @@ def test_buffer_b():
                                 B_shared_dyn[v0 * T.int64(32) + threadIdx_z * T.int64(16) + threadIdx_y * T.int64(8) + threadIdx_x // T.int64(4), T.bitwise_xor(threadIdx_x % T.int64(4), threadIdx_x // T.int64(8)) * T.int64(8) + v1] = B[v0 * T.int64(32) + threadIdx_z * T.int64(16) + threadIdx_y * T.int64(8) + threadIdx_x // T.int64(4), threadIdx_x % T.int64(4) * T.int64(8) + v1]
                     for v0 in range(T.int64(2)):
                         with T.sblock(""):
-                            B_warp = T.alloc_buffer((T.int64(4), T.int64(1), T.int64(32), T.int64(8)), "float16", scope="warp")
+                            B_warp = T.sblock_alloc_buffer((T.int64(4), T.int64(1), T.int64(32), T.int64(8)), "float16", scope="warp")
                             for v1 in range(T.int64(4)):
                                 with T.sblock("B_reindex_shared.dyn_warp_o"):
                                     T.reads(B_shared_dyn[threadIdx_y * T.int64(64) + v1 * T.int64(16):threadIdx_y * T.int64(64) + v1 * T.int64(16) + T.int64(16), v0 * T.int64(16):v0 * T.int64(16) + T.int64(16)])
@@ -303,8 +303,8 @@ def test_buffer_c_fp32():
     @T.prim_func
     def before(p_O: T.handle):
         O = T.match_buffer(p_O, (T.int64(128), T.int64(128)), "float16")
-        O_shared_dyn = T.alloc_buffer((T.int64(128), T.int64(128)), scope="shared.dyn")
-        O_warp = T.alloc_buffer((T.int64(4), T.int64(4), T.int64(32), T.int64(8)), scope="warp")
+        O_shared_dyn = T.sblock_alloc_buffer((T.int64(128), T.int64(128)), scope="shared.dyn")
+        O_warp = T.sblock_alloc_buffer((T.int64(4), T.int64(4), T.int64(32), T.int64(8)), scope="warp")
         for threadIdx_z in T.thread_binding(T.int64(2), thread="threadIdx.z"):
             for threadIdx_y in T.thread_binding(T.int64(2), thread="threadIdx.y"):
                 for threadIdx_x in T.thread_binding(T.int64(32), thread="threadIdx.x"):
@@ -324,8 +324,8 @@ def test_buffer_c_fp32():
     @T.prim_func
     def expected(O: T.Buffer((T.int64(128), T.int64(128)), "float16")):
         # with T.sblock("root"):
-        O_shared_dyn = T.alloc_buffer((T.int64(128), T.int64(128)), scope="shared.dyn")
-        O_warp = T.alloc_buffer((T.int64(4), T.int64(4), T.int64(32), T.int64(8)), scope="warp")
+        O_shared_dyn = T.sblock_alloc_buffer((T.int64(128), T.int64(128)), scope="shared.dyn")
+        O_warp = T.sblock_alloc_buffer((T.int64(4), T.int64(4), T.int64(32), T.int64(8)), scope="warp")
         for threadIdx_z in T.thread_binding(T.int64(2), thread="threadIdx.z"):
             for threadIdx_y in T.thread_binding(T.int64(2), thread="threadIdx.y"):
                 for threadIdx_x in T.thread_binding(T.int64(32), thread="threadIdx.x"):

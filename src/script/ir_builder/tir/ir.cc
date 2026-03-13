@@ -267,10 +267,11 @@ void BlockAttrs(ffi::Map<ffi::String, Any> attrs) {
   }
 }
 
-Buffer AllocBuffer(ffi::Array<PrimExpr> shape, DataType dtype, ffi::Optional<Var> data,
-                   ffi::Array<PrimExpr> strides, PrimExpr elem_offset, ffi::String storage_scope,
-                   int align, int offset_factor, ffi::String buffer_type_str,
-                   ffi::Optional<ffi::Array<IntImm>> axis_separators) {
+Buffer SBlockAllocBuffer(ffi::Array<PrimExpr> shape, DataType dtype, ffi::Optional<Var> data,
+                         ffi::Array<PrimExpr> strides, PrimExpr elem_offset,
+                         ffi::String storage_scope, int align, int offset_factor,
+                         ffi::String buffer_type_str,
+                         ffi::Optional<ffi::Array<IntImm>> axis_separators) {
   Buffer buffer = BufferDecl(shape, dtype, "", data, strides, elem_offset, storage_scope, align,
                              offset_factor, buffer_type_str, axis_separators);
   IRBuilder builder = IRBuilder::Current();
@@ -459,24 +460,18 @@ AssertFrame Assert(PrimExpr condition, ffi::String error_kind,
   return AssertFrame(n);
 }
 
-LetFrame LetStmt(PrimExpr value, ffi::Optional<Type> type_annotation, ffi::Optional<Var> var) {
-  ObjectPtr<LetFrameNode> n = ffi::make_object<LetFrameNode>();
-  if (var.defined()) {
-    n->var = var.value();
-  } else if (type_annotation.defined()) {
-    n->var = Var("v", type_annotation.value());
-  } else {
-    n->var = Var("v", value.dtype());
-  }
-  n->value = value;
-  return LetFrame(n);
-}
-
-LetFrame LegacyLetStmt(Var var, PrimExpr value) {
-  ObjectPtr<LetFrameNode> n = ffi::make_object<LetFrameNode>();
-  n->var = var;
-  n->value = value;
-  return LetFrame(n);
+Var Bind(PrimExpr value, ffi::Optional<Type> type_annotation, ffi::Optional<Var> var) {
+  Var bind_var = [&]() {
+    if (var.defined()) {
+      return var.value();
+    } else if (type_annotation.defined()) {
+      return Var("v", type_annotation.value());
+    } else {
+      return Var("v", value.dtype());
+    }
+  }();
+  AddToParent(tvm::tir::Bind(bind_var, value));
+  return bind_var;
 }
 
 LaunchThreadFrame LaunchThread(Var var, PrimExpr extent) {
@@ -508,19 +503,6 @@ LaunchThreadFrame LaunchThread(Var var, PrimExpr extent) {
 
 LaunchThreadFrame LaunchThread(ffi::String thread_tag, PrimExpr extent) {
   return LaunchThread(EnvThread(thread_tag, extent.dtype()), extent);
-}
-
-AllocateFrame Allocate(ffi::Array<PrimExpr> extents, DataType dtype, ffi::String storage_scope,
-                       ffi::Optional<PrimExpr> condition,
-                       ffi::Optional<ffi::Map<ffi::String, Any>> annotations) {
-  ObjectPtr<AllocateFrameNode> n = ffi::make_object<AllocateFrameNode>();
-  n->extents = extents;
-  n->dtype = dtype;
-  n->storage_scope = storage_scope;
-  n->condition = condition.value_or(tvm::Bool(true));
-  n->annotations = annotations.value_or(ffi::Map<ffi::String, Any>());
-  n->buffer_var = Var("", tvm::PointerType(tvm::PrimType(dtype), storage_scope));
-  return AllocateFrame(n);
 }
 
 AttrFrame Attr(ffi::Any node, ffi::String attr_key, PrimExpr value) {
@@ -636,16 +618,30 @@ void BufferStore(Buffer buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
   AddToParent(tvm::tir::BufferStore(buffer, value, indices, predicate));
 }
 
-DeclBufferFrame DeclBuffer(ffi::Array<PrimExpr> shape, DataType dtype, ffi::String buffer_name,
-                           ffi::Optional<Var> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
-                           ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope,
-                           int align, int offset_factor, ffi::String buffer_type,
-                           ffi::Optional<ffi::Array<IntImm>> axis_separators) {
-  ObjectPtr<DeclBufferFrameNode> n = ffi::make_object<DeclBufferFrameNode>();
-  n->buffer = BufferDecl(shape, dtype, buffer_name, data, strides, elem_offset, storage_scope,
-                         align, offset_factor, buffer_type, axis_separators);
-  n->allocated = data.defined();
-  return DeclBufferFrame(n);
+Buffer DeclBuffer(ffi::Array<PrimExpr> shape, DataType dtype, ffi::String buffer_name,
+                  ffi::Optional<Var> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
+                  ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope, int align,
+                  int offset_factor, ffi::String buffer_type,
+                  ffi::Optional<ffi::Array<IntImm>> axis_separators) {
+  Buffer buffer = BufferDecl(shape, dtype, buffer_name, data, strides, elem_offset, storage_scope,
+                             align, offset_factor, buffer_type, axis_separators);
+  if (data.defined()) {
+    // Alias an existing buffer: emit DeclBuffer statement
+    AddToParent(tvm::tir::DeclBuffer(buffer));
+  } else {
+    // No backing data pointer: emit AllocBuffer statement
+    AddToParent(tvm::tir::AllocBuffer(buffer));
+  }
+  return buffer;
+}
+
+Buffer AllocBuffer(ffi::Array<PrimExpr> shape, DataType dtype, ffi::String storage_scope,
+                   ffi::Optional<ffi::Map<ffi::String, ffi::Any>> annotations) {
+  Buffer buffer = BufferDecl(shape, dtype, "", std::nullopt, std::nullopt, std::nullopt,
+                             storage_scope, 0, 0, "", std::nullopt);
+  AddToParent(
+      tvm::tir::AllocBuffer(buffer, annotations.value_or(ffi::Map<ffi::String, ffi::Any>())));
+  return buffer;
 }
 
 void Evaluate(PrimExpr value) { AddToParent(tvm::tir::Evaluate(value)); }
@@ -721,7 +717,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("script.ir_builder.tir.Reads", Reads)
       .def("script.ir_builder.tir.Writes", Writes)
       .def("script.ir_builder.tir.BlockAttrs", BlockAttrs)
-      .def("script.ir_builder.tir.AllocBuffer", AllocBuffer)
+      .def("script.ir_builder.tir.SBlockAllocBuffer", SBlockAllocBuffer)
       .def("script.ir_builder.tir.AxisSpatial", axis::Spatial)
       .def("script.ir_builder.tir.AxisReduce", axis::Reduce)
       .def("script.ir_builder.tir.AxisScan", axis::Scan)
@@ -734,15 +730,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("script.ir_builder.tir.ThreadBinding", ThreadBinding)
       .def("script.ir_builder.tir.Grid", Grid)
       .def("script.ir_builder.tir.Assert", Assert)
-      .def("script.ir_builder.tir.LetStmt", LetStmt)
-      .def("script.ir_builder.tir.LegacyLetStmt", LegacyLetStmt)
-      .def("script.ir_builder.tir.Allocate", Allocate)
+      .def("script.ir_builder.tir.Bind", Bind)
       .def("script.ir_builder.tir.Attr", Attr)
       .def("script.ir_builder.tir.While", While)
       .def("script.ir_builder.tir.If", If)
       .def("script.ir_builder.tir.Then", Then)
       .def("script.ir_builder.tir.Else", Else)
       .def("script.ir_builder.tir.DeclBuffer", DeclBuffer)
+      .def("script.ir_builder.tir.AllocBuffer", AllocBuffer)
       .def("script.ir_builder.tir.LaunchThread",
            [](ffi::Variant<tvm::tir::Var, ffi::String> thread_tag_or_var, PrimExpr extent) {
              if (auto var = thread_tag_or_var.as<tvm::tir::Var>()) {

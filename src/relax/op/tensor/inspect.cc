@@ -92,11 +92,11 @@ tir::PrimFunc GetDLTensorField(tir::builtin::TVMStructFieldKind field, DataType 
 
   tir::Var value("value", field_dtype);
 
-  tir::LetStmt body(
-      value,
-      tir::Call(field_dtype, tir::builtin::tvm_struct_get(),
-                {dlpack_handle, IntImm(DataType::Int(32), 0), IntImm(DataType::Int(32), field)}),
-      tir::Evaluate(tvm::ret(value)));
+  tir::Stmt body =
+      tir::SeqStmt({tir::Bind(value, tir::Call(field_dtype, tir::builtin::tvm_struct_get(),
+                                               {dlpack_handle, IntImm(DataType::Int(32), 0),
+                                                IntImm(DataType::Int(32), field)})),
+                    tir::Evaluate(tvm::ret(value))});
 
   DictAttrs attrs({{"tir.is_scheduled", true}, {"tir.is_host", true}});
 
@@ -305,33 +305,23 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
 
     tir::Var extent("extent", field_dtype);
 
-    tir::Stmt body = tir::Evaluate(tvm::ret(extent));
-
-    body = tir::LetStmt(extent, tir::BufferLoad(shape_buffer, {axis}), body);
-    body = tir::DeclBuffer(shape_buffer, body);
-    body = tir::LetStmt(
-        shape_buffer->data,
-        tir::Call(DataType::Handle(), tir::builtin::tvm_struct_get(),
-                  {dlpack_handle, IntImm(DataType::Int(32), 0),
-                   IntImm(DataType::Int(32), tir::builtin::TVMStructFieldKind::kDLTensorShape)}),
-        body);
-
-    body = tir::SeqStmt(
-        {tir::AssertStmt(
+    tir::Stmt body = tir::SeqStmt(
+        {tir::AssertStmt(0 <= axis, tir::StringImm("RuntimeError"),
+                         {tir::StringImm("Specified axis may not be negative")}),
+         tir::Bind(ndim, tir::Call(ndim->dtype, tir::builtin::tvm_struct_get(),
+                                   {dlpack_handle, IntImm(DataType::Int(32), 0),
+                                    IntImm(DataType::Int(32),
+                                           tir::builtin::TVMStructFieldKind::kDLTensorNDim)})),
+         tir::AssertStmt(
              axis < tvm::cast(axis->dtype, ndim), tir::StringImm("RuntimeError"),
              {tir::StringImm("Specified axis may not be larger than the tensor's dimensionality")}),
-         body});
-
-    body = tir::LetStmt(
-        ndim,
-        tir::Call(ndim->dtype, tir::builtin::tvm_struct_get(),
-                  {dlpack_handle, IntImm(DataType::Int(32), 0),
-                   IntImm(DataType::Int(32), tir::builtin::TVMStructFieldKind::kDLTensorNDim)}),
-        body);
-
-    body = tir::SeqStmt({tir::AssertStmt(0 <= axis, tir::StringImm("RuntimeError"),
-                                         {tir::StringImm("Specified axis may not be negative")}),
-                         body});
+         tir::Bind(shape_buffer->data,
+                   tir::Call(DataType::Handle(), tir::builtin::tvm_struct_get(),
+                             {dlpack_handle, IntImm(DataType::Int(32), 0),
+                              IntImm(DataType::Int(32),
+                                     tir::builtin::TVMStructFieldKind::kDLTensorShape)})),
+         tir::DeclBuffer(shape_buffer), tir::Bind(extent, tir::BufferLoad(shape_buffer, {axis})),
+         tir::Evaluate(tvm::ret(extent))});
 
     DictAttrs attrs({{"tir.is_scheduled", true}, {"tir.is_host", true}});
 

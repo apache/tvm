@@ -35,15 +35,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   BlockInitFrameNode::RegisterReflection();
   ForFrameNode::RegisterReflection();
   AssertFrameNode::RegisterReflection();
-  LetFrameNode::RegisterReflection();
   LaunchThreadFrameNode::RegisterReflection();
-  AllocateFrameNode::RegisterReflection();
   AttrFrameNode::RegisterReflection();
   WhileFrameNode::RegisterReflection();
   IfFrameNode::RegisterReflection();
   ThenFrameNode::RegisterReflection();
   ElseFrameNode::RegisterReflection();
-  DeclBufferFrameNode::RegisterReflection();
 }
 
 void PrimFuncFrameNode::ExitWithScope() {
@@ -140,20 +137,9 @@ void AssertFrameNode::ExitWithScope() {
   }
 }
 
-void LetFrameNode::ExitWithScope() {
-  TIRFrameNode::ExitWithScope();
-  AddToParent(tvm::tir::LetStmt(var, value, AsStmt(stmts)));
-}
-
 void LaunchThreadFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
   AddToParent(tvm::tir::AttrStmt(iter_var, attr_key, extent, AsStmt(stmts)));
-}
-
-void AllocateFrameNode::ExitWithScope() {
-  TIRFrameNode::ExitWithScope();
-  AddToParent(
-      tvm::tir::Allocate(buffer_var, dtype, extents, condition, AsStmt(stmts), annotations));
 }
 
 void AttrFrameNode::ExitWithScope() {
@@ -209,17 +195,6 @@ void ElseFrameNode::EnterWithScope() {
 void ElseFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
   FindIfFrame("T.else_")->else_stmts = stmts;
-}
-
-void DeclBufferFrameNode::ExitWithScope() {
-  TIRFrameNode::ExitWithScope();
-  if (allocated) {
-    AddToParent(tvm::tir::DeclBuffer(buffer, AsStmt(stmts)));
-  } else {
-    AddToParent(tvm::tir::Allocate(buffer->data, buffer->dtype, buffer->shape,
-                                   tvm::IntImm(DataType::Bool(), 1),
-                                   tvm::tir::DeclBuffer(buffer, AsStmt(stmts))));
-  }
 }
 
 }  // namespace tir

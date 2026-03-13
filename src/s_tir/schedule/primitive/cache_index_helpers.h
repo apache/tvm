@@ -18,13 +18,13 @@
  */
 
 /*!
- * \file common_subexpr_elim_tools.h
- * \brief Interface of analysis tools and utility functions used
-           by the Common Subexpression Elimination (CSE) pass.
+ * \file cache_index_helpers.h
+ * \brief Analysis tools and utility functions used by the cache_index primitive,
+ *        extracted from common_subexpr_elim_tools.
  */
 
-#ifndef TVM_TIR_TRANSFORM_COMMON_SUBEXPR_ELIM_TOOLS_H_
-#define TVM_TIR_TRANSFORM_COMMON_SUBEXPR_ELIM_TOOLS_H_
+#ifndef TVM_S_TIR_SCHEDULE_PRIMITIVE_CACHE_INDEX_HELPERS_H_
+#define TVM_S_TIR_SCHEDULE_PRIMITIVE_CACHE_INDEX_HELPERS_H_
 
 #include <tvm/ffi/extra/structural_hash.h>
 #include <tvm/ffi/string.h>
@@ -34,12 +34,11 @@
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/stmt_functor.h>  // For the class StmtExprVisitor
 
-#include <optional>
 #include <unordered_map>
 #include <utility>  // For pairs datatype
 #include <vector>
 
-#include "../../support/ordered_map.h"
+#include "../../../support/ordered_map.h"
 
 namespace tvm {
 namespace tir {
@@ -149,37 +148,6 @@ class DirectSubexpr : public ExprVisitor {
   std::vector<PrimExpr> direct_subexpr_;
 };
 
-/*!
- * \brief Visitor which tells if a given expression or statement uses a given variable name.
-          This is used by the CSE pass to make sure that we do not reuse existing names,
-          even though having the same name does not mean that it's the same variable, but it's
-          clearer for dumps.
- */
-class UsesVarName : public StmtExprVisitor {
- public:
-  // Toplevel (static) methods
-  static bool ExprUsesVarName(const PrimExpr& expr, ffi::String var_name);
-  static bool StmtUsesVarName(const Stmt& stmt, ffi::String var_name);
-
- protected:
-  // Constructor
-  explicit UsesVarName(ffi::String var_name);
-
-  void VisitExpr(const PrimExpr& expr) override;
-  void VisitStmt(const Stmt& stmt) override;
-
- private:
-  ffi::String var_name_;
-  bool uses_var_name_ = false;
-};
-
-/*!
- * \brief Various utility functions for the CSE pass
- */
-void PrintComputationTable(const ComputationTable& table);
-
-using MaybeValue = std::optional<PrimExpr>;
-
 bool EqualTerms(const PrimExpr& a, const PrimExpr& b);
 // Used for deciding the (decidable) equivalence relation
 PrimExpr NormalizeTerm(const PrimExpr& expr, bool do_normalization);
@@ -187,28 +155,6 @@ PrimExpr NormalizeTerm(const PrimExpr& expr, bool do_normalization);
 bool EquivalentTerms(const PrimExpr& a, const PrimExpr& b, bool identify_equiv_terms);
 std::vector<std::pair<PrimExpr, size_t>> SyntacticToSemanticComputations(
     const ComputationTable& table, bool identify_equiv_terms);
-bool PredicateIntroVarForComputation(const PrimExpr& computation, size_t nb_times_seen);
-
-// Polymorphic (functional) map on a vector, which builds a news vector with the same number of
-// elements, where each element is the application of a given function on the corresponding element
-// in the input vector.
-template <typename A, typename B>
-std::vector<B> VectorMap(const std::vector<A>& input, std::function<B(const A&)> fun) {
-  std::vector<B> result;
-  size_t size = input.size();
-  // For efficiency, allocate immediately the size needed as the result will have
-  // the same size as the input
-  result.reserve(size);
-
-  for (size_t i = 0; i < size; i++) {
-    result.push_back(fun(input[i]));
-  }
-
-  return result;
-}
-// Explicitely instanciate the template function for A=std::pair<Var,MaybeValue> and B=Var
-template std::vector<Var> VectorMap(const std::vector<std::pair<Var, MaybeValue>>&,
-                                    std::function<Var(const std::pair<Var, MaybeValue>&)>);
 
 void InsertElemToSortedSemanticComputations(std::vector<std::pair<PrimExpr, size_t>>* sorted_vec,
                                             const std::pair<PrimExpr, size_t>& pair);
@@ -220,4 +166,4 @@ void InsertVectorToSortedSemanticComputations(std::vector<std::pair<PrimExpr, si
 }  // namespace tir
 }  // namespace tvm
 
-#endif  // TVM_TIR_TRANSFORM_COMMON_SUBEXPR_ELIM_TOOLS_H_
+#endif  // TVM_S_TIR_SCHEDULE_PRIMITIVE_CACHE_INDEX_HELPERS_H_

@@ -35,4 +35,5 @@ export { Disposable, LibraryProvider } from "./types";
 export { RPCServer } from "./rpc_server";
 export { assert, wasmPath, LinearCongruentialGenerator } from "./support";
 export { detectGPUDevice, GPUDeviceDetectOutput } from "./webgpu";
+export { LRUCache, CacheState } from "./cache_state";
 export { createPolyfillWASI } from "./compact";

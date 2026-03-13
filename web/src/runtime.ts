@@ -27,6 +27,7 @@ import { assert, StringToUint8Array, LinearCongruentialGenerator } from "./suppo
 import { Environment } from "./environment";
 import { AsyncifyHandler } from "./asyncify";
 import { FunctionInfo, WebGPUContext } from "./webgpu";
+import { CacheState } from "./cache_state";
 import {
   ArtifactCache,
   ArtifactCacheTemplate,
@@ -859,6 +860,7 @@ export class Instance implements Disposable {
   private initProgressCallback: Array<InitProgressCallback> = [];
   private rng: LinearCongruentialGenerator;
   private deviceLostIsError = true;  // whether device.lost is due to actual error or dispose()
+  private cacheState: CacheState = new CacheState();
 
   /**
    * Internal function(registered by the runtime)
@@ -954,6 +956,8 @@ export class Instance implements Disposable {
   dispose(): void {
     this.deviceLostIsError = false;  // prevent dispose to trigger device.lost error
     // order matters
+    // dispose caches before ctx
+    this.cacheState.dispose();
     // ctx release goes back into lib.
     this.ctx.dispose();
     this.lib.dispose();
@@ -1674,8 +1678,14 @@ export class Instance implements Disposable {
    * @returns The created shape tuple.
    */
   makeShapeTuple(shape: Array<number>): TVMObject {
-    const shapeArray = shape.map((value) => new Scalar(value, "int"));
-    return this.ctx.makeShapeTuple(...shapeArray);
+    const key = CacheState.computeShapeKey(shape);
+    return this.cacheState.shapeCache.get(key, () => {
+      const shapeArray = shape.map((value) => new Scalar(value, "int"));
+      const tuple = this.ctx.makeShapeTuple(...shapeArray);
+      // Detach from scope so the cached object survives across scopes.
+      this.detachFromCurrentScope(tuple);
+      return tuple;
+    }) as TVMObject;
   }
   /**
    * Get type index from type key.

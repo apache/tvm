@@ -46,8 +46,8 @@ class PurityChecker : TIRVisitorWithPath {
  private:
   explicit PurityChecker(bool assert_on_error) : assert_on_error_(assert_on_error) {}
 
-  void VisitStmt_(const AllocateNode* op, AccessPath path) override {
-    internal_allocations_.insert(op->buffer_var);
+  void VisitStmt_(const AllocBufferNode* op, AccessPath path) override {
+    internal_allocations_.insert(op->buffer->data);
     TIRVisitorWithPath::VisitStmt_(op, path);
   }
 

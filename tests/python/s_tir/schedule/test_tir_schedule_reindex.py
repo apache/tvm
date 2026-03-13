@@ -43,7 +43,7 @@ def transpose_elementwise(
 def transpose_elementwise_reindex_read(
     A: T.Buffer((128, 128), "float32"), B: T.Buffer((128, 128), "float32")
 ) -> None:
-    A_reindex = T.alloc_buffer((128, 128), "float32")
+    A_reindex = T.sblock_alloc_buffer((128, 128), "float32")
     for i, j in T.grid(128, 128):
         with T.sblock("A_reindex"):
             vi, vj = T.axis.remap("SS", [i, j])
@@ -60,7 +60,7 @@ def conv2d_nhwc(
     Weight: T.Buffer((7, 7, 3, 64), "float32"),
     Conv2d_nhwc: T.Buffer((1, 112, 112, 64), "float32"),
 ) -> None:
-    PadInput = T.alloc_buffer([1, 230, 230, 3], dtype="float32")
+    PadInput = T.sblock_alloc_buffer([1, 230, 230, 3], dtype="float32")
     for i0, i1, i2, i3 in T.grid(1, 230, 230, 3):
         with T.sblock("PadInput"):
             i0_1, i1_1, i2_1, i3_1 = T.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -87,8 +87,8 @@ def conv2d_nhwc_reindex_data(
     Weight: T.Buffer((7, 7, 3, 64), "float32"),
     Conv2d_nhwc: T.Buffer((1, 112, 112, 64), "float32"),
 ) -> None:
-    PadInput = T.alloc_buffer([1, 230, 230, 3], dtype="float32")
-    ReindexInput = T.alloc_buffer([1, 112, 112, 7, 7, 3], dtype="float32")
+    PadInput = T.sblock_alloc_buffer([1, 230, 230, 3], dtype="float32")
+    ReindexInput = T.sblock_alloc_buffer([1, 112, 112, 7, 7, 3], dtype="float32")
     for i0, i1, i2, i3 in T.grid(1, 230, 230, 3):
         with T.sblock("PadInput"):
             i0_1, i1_1, i2_1, i3_1 = T.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -119,8 +119,8 @@ def conv2d_nhwc_reindex_weight(
     inputs = T.match_buffer(var_inputs, [1, 224, 224, 3], dtype="float32")
     weight = T.match_buffer(var_weight, [7, 7, 3, 64], dtype="float32")
     conv2d_nhwc = T.match_buffer(var_conv2d_nhwc, [1, 112, 112, 64], dtype="float32")
-    PadInput = T.alloc_buffer([1, 230, 230, 3], dtype="float32")
-    weight_reindex = T.alloc_buffer([64, 7, 7, 3], dtype="float32")
+    PadInput = T.sblock_alloc_buffer([1, 230, 230, 3], dtype="float32")
+    weight_reindex = T.sblock_alloc_buffer([64, 7, 7, 3], dtype="float32")
     for i0, i1, i2, i3 in T.grid(1, 230, 230, 3):
         with T.sblock("PadInput"):
             i0_1, i1_1, i2_1, i3_1 = T.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -177,7 +177,7 @@ def matmul_reindex_write(
     B: T.Buffer((512, 512), "float32"),
     C: T.Buffer((512, 512), "float32"),
 ) -> None:
-    C_reindex = T.alloc_buffer([512, 512], dtype="float32")
+    C_reindex = T.sblock_alloc_buffer([512, 512], dtype="float32")
     for i0, i1, i2 in T.grid(512, 512, 512):
         with T.sblock("matmul"):
             i, j, k = T.axis.remap("SSR", [i0, i1, i2])
@@ -225,7 +225,7 @@ def mixed_dtype_reindex_write(
     p1: T.Buffer((1280, 1280), "float16"),
     T_matmul_NT: T.Buffer((T.int64(2), 1280), "float16"),
 ) -> None:
-    T_matmul_NT_reindex = T.alloc_buffer([T.int64(2), 1280], dtype="float16")
+    T_matmul_NT_reindex = T.sblock_alloc_buffer([T.int64(2), 1280], dtype="float16")
     for i0, i1, i2 in T.grid(T.int64(2), 1280, 1280):
         with T.sblock("T_matmul_NT"):
             i = T.axis.spatial(T.int64(2), i0)
@@ -266,7 +266,7 @@ def matmul_unit_dim_reindex_write(
     B: T.Buffer((512, 1), "float32"),
     C: T.Buffer((1, 1), "float32"),
 ) -> None:
-    C_reindex = T.alloc_buffer([1, 1], dtype="float32")
+    C_reindex = T.sblock_alloc_buffer([1, 1], dtype="float32")
     for i0, i1, i2 in T.grid(1, 1, 512):
         with T.sblock("matmul"):
             i, j, k = T.axis.remap("SSR", [i0, i1, i2])

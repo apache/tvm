@@ -154,7 +154,7 @@ class PrimFuncSpecializer : public StmtExprMutator {
 
     // If the buffer variable is being remapped to an expression, we
     // still need a tir::Var to be used as a the buffer variable.
-    // Therefore, generate a LetStmt that will provide a tir::Var for
+    // Therefore, generate a Bind that will provide a tir::Var for
     // the buffer to use.
     //
     // This step is only required when a buffer definition is using a
@@ -170,42 +170,15 @@ class PrimFuncSpecializer : public StmtExprMutator {
     if (new_buffer_var.same_as(old_buffer_var)) {
       auto remapped_data = VisitExpr(old_buffer_var);
       if (!remapped_data.same_as(old_buffer_var)) {
-        stmt = LetStmt(old_buffer_var, remapped_data, stmt);
+        stmt = SeqStmt({Bind(old_buffer_var, remapped_data), stmt});
       }
     }
 
     return stmt;
   }
 
-  Stmt VisitStmt_(const BufferStoreNode* op) final {
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<BufferStoreNode>();
-    TVM_FFI_ICHECK(op != nullptr);
-
-    auto new_buf = GetNewBuffer(op->buffer);
-    if (new_buf.same_as(op->buffer)) {
-      return ffi::GetRef<BufferStore>(op);
-    } else {
-      auto n = CopyOnWrite(op);
-      n->buffer = new_buf;
-      return Stmt(n);
-    }
-  }
-
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
-    op = expr.as<BufferLoadNode>();
-    TVM_FFI_ICHECK(op != nullptr);
-
-    auto new_buf = GetNewBuffer(op->buffer);
-    if (new_buf.same_as(op->buffer)) {
-      return ffi::GetRef<BufferLoad>(op);
-    } else {
-      auto n = ffi::make_object<BufferLoadNode>(*op);
-      n->buffer = new_buf;
-      return PrimExpr(n);
-    }
-  }
+  // Override VisitBufferUse to use our own buffer_map_ instead of base class field visiting.
+  Buffer VisitBufferUse(const Buffer& buffer) final { return GetNewBuffer(buffer); }
 
   PrimExpr VisitExpr_(const VarNode* op) final {
     auto it = var_map_.find(ffi::GetRef<Var>(op));

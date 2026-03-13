@@ -318,6 +318,13 @@ class LLVMTargetInfo {
   const ffi::Array<ffi::String> GetAllLLVMTargetArches() const;
 
   /*!
+   * \brief Check if a CPU name is valid for this target triple
+   * \param cpu The CPU name to validate
+   * \return true if the CPU is recognized (including aliases)
+   */
+  bool IsValidCPU(const std::string& cpu) const;
+
+  /*!
    * \brief Get all CPU features from target
    * \return Map with all valid cpu features as keys and empty string as value. The Map
    *         is intended to be used as a Set, which TVM does not currently support.

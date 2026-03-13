@@ -45,7 +45,7 @@ def tiled_conv2d_with_padding(
     weight: T.Buffer((7, 7, 3, 64), "float32"),
     conv2d_nhwc: T.Buffer((1, 112, 112, 64), "float32"),
 ) -> None:
-    PadInput = T.alloc_buffer([1, 230, 230, 3], dtype="float32")
+    PadInput = T.sblock_alloc_buffer([1, 230, 230, 3], dtype="float32")
     for i0, i1, i2, i3 in T.grid(1, 230, 230, 3):
         with T.sblock("PadInput"):
             i0_1, i1_1, i2_1, i3_1 = T.axis.remap("SSSS", [i0, i1, i2, i3])

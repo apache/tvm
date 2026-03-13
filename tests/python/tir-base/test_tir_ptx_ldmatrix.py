@@ -32,8 +32,8 @@ def ptx_ldmatrix(
     T.launch_thread(bx, 1)
     T.launch_thread(tx, 32)
     with T.sblock():
-        A_shared = T.alloc_buffer([16, 16], "float16", scope="shared")
-        A_local = T.alloc_buffer([8], "float16", scope="local")
+        A_shared = T.sblock_alloc_buffer([16, 16], "float16", scope="shared")
+        A_local = T.sblock_alloc_buffer([8], "float16", scope="local")
 
         for i in range(8):
             A_shared[i * 2 + tx // 16, tx % 16] = A[i * 2 + tx // 16, tx % 16]

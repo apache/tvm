@@ -82,7 +82,7 @@ class TestElemwise(BaseCompactTest):
             with T.sblock():
                 T.reads(A[i, 0:16])
                 T.writes(C[i, 0:16])
-                B = T.alloc_buffer((16, 16), "float32")
+                B = T.sblock_alloc_buffer((16, 16), "float32")
                 for j in range(0, 16):
                     with T.sblock():
                         T.reads(A[i, j])
@@ -102,7 +102,7 @@ class TestElemwise(BaseCompactTest):
             with T.sblock():
                 T.reads(A[i, 0:16])
                 T.writes(C[i, 0:16])
-                B = T.alloc_buffer((1, 16), "float32")
+                B = T.sblock_alloc_buffer((1, 16), "float32")
                 for j in range(0, 16):
                     with T.sblock():
                         T.reads(A[i, j])
@@ -124,7 +124,7 @@ class TestUnschedulableFunc(BaseCompactTest):
             with T.sblock():
                 T.reads(A[i, 0:16])
                 T.writes(C[i, 0:16])
-                B = T.alloc_buffer((16, 16), "float32")
+                B = T.sblock_alloc_buffer((16, 16), "float32")
                 for j in range(0, 16):
                     T.evaluate(T.call_extern("dummy_extern_function", B.data, dtype="int32"))
                     B[i, j] = A[i, j] + 1.0
@@ -163,7 +163,7 @@ class TestSharedMem(BaseCompactTest):
                     with T.sblock():
                         T.reads(A[i0 * 8 + i1 * 4 + i2, 0:16])
                         T.writes(C[i0 * 8 + i1 * 4 + i2, 0:16])
-                        B = T.alloc_buffer((16, 16), "float32", scope="shared")
+                        B = T.sblock_alloc_buffer((16, 16), "float32", scope="shared")
                         for j in range(0, 16):
                             with T.sblock():
                                 T.reads(A[i0 * 8 + i1 * 4 + i2, j])
@@ -185,7 +185,7 @@ class TestSharedMem(BaseCompactTest):
                     with T.sblock():
                         T.reads(A[i0 * 8 + i1 * 4 + i2, 0:16])
                         T.writes(C[i0 * 8 + i1 * 4 + i2, 0:16])
-                        B = T.alloc_buffer((8, 16), "float32", scope="shared")
+                        B = T.sblock_alloc_buffer((8, 16), "float32", scope="shared")
                         for j in range(0, 16):
                             with T.sblock():
                                 T.reads(A[i0 * 8 + i1 * 4 + i2, j])
@@ -209,7 +209,7 @@ class TestWrapMem(BaseCompactTest):
                     with T.sblock():
                         T.reads(A[i0 * 8 + i1 * 4 + i2, 0:16])
                         T.writes(C[i0 * 8 + i1 * 4 + i2, 0:16])
-                        B = T.alloc_buffer((16, 16), "float32", scope="warp")
+                        B = T.sblock_alloc_buffer((16, 16), "float32", scope="warp")
                         for j in range(0, 16):
                             with T.sblock():
                                 T.reads(A[i0 * 8 + i1 * 4 + i2, j])
@@ -231,7 +231,7 @@ class TestWrapMem(BaseCompactTest):
                     with T.sblock():
                         T.reads(A[i0 * 8 + i1 * 4 + i2, 0:16])
                         T.writes(C[i0 * 8 + i1 * 4 + i2, 0:16])
-                        B = T.alloc_buffer((4, 16), "float32", scope="warp")
+                        B = T.sblock_alloc_buffer((4, 16), "float32", scope="warp")
                         for j in range(0, 16):
                             with T.sblock():
                                 T.reads(A[i0 * 8 + i1 * 4 + i2, j])
@@ -253,7 +253,7 @@ class TestSymbolic(BaseCompactTest):
             with T.sblock():
                 T.reads(A[i * 8 : i * 8 + 8])
                 T.writes(C[i * 8 : i * 8 + 8])
-                B = T.alloc_buffer((n * 8,), "float32")
+                B = T.sblock_alloc_buffer((n * 8,), "float32")
                 for j in range(0, 8):
                     with T.sblock():
                         T.reads(A[i * 8 + j])
@@ -273,7 +273,7 @@ class TestSymbolic(BaseCompactTest):
             with T.sblock():
                 T.reads(A[i * 8 : i * 8 + 8])
                 T.writes(C[i * 8 : i * 8 + 8])
-                B = T.alloc_buffer((8,), "float32")
+                B = T.sblock_alloc_buffer((8,), "float32")
                 for j in range(0, 8):
                     with T.sblock():
                         T.reads(A[i * 8 + j])
@@ -295,10 +295,10 @@ class TestComplexFunc(BaseCompactTest):
             with T.sblock():
                 T.reads(A[0, 8])
                 T.writes(C[0, 8])
-                B = T.alloc_buffer((8, 8), "float32")
+                B = T.sblock_alloc_buffer((8, 8), "float32")
                 for j in range(0, 4):
                     with T.sblock():
-                        D = T.alloc_buffer((8, 8), "float32")
+                        D = T.sblock_alloc_buffer((8, 8), "float32")
                         T.reads(A[i, j])
                         T.writes(B[i, j])
                         for k in range(4, 8):
@@ -324,10 +324,10 @@ class TestComplexFunc(BaseCompactTest):
             with T.sblock():
                 T.reads(A[0, 8])
                 T.writes(C[0, 8])
-                B = T.alloc_buffer((1, 8), "float32")
+                B = T.sblock_alloc_buffer((1, 8), "float32")
                 for j in range(0, 4):
                     with T.sblock():
-                        D = T.alloc_buffer((6, 1), "float32")
+                        D = T.sblock_alloc_buffer((6, 1), "float32")
                         T.reads(A[i, j])
                         T.writes(B[0, j])
                         for k in range(4, 8):
@@ -357,7 +357,7 @@ class TestMatchBuffer(BaseCompactTest):
             with T.sblock():
                 A0 = T.match_buffer(A[i, 0:16], (16))
                 C0 = T.match_buffer(C[i, 0:16], (16))
-                B = T.alloc_buffer((16, 16))
+                B = T.sblock_alloc_buffer((16, 16))
                 with T.sblock():
                     B0 = T.match_buffer(B[i, 0:16], (16))
                     for j in range(0, 16):
@@ -379,7 +379,7 @@ class TestMatchBuffer(BaseCompactTest):
             with T.sblock():
                 A0 = T.match_buffer(A[i, 0:16], (16))
                 C0 = T.match_buffer(C[i, 0:16], (16))
-                B = T.alloc_buffer((1, 16))
+                B = T.sblock_alloc_buffer((1, 16))
                 with T.sblock():
                     B0 = T.match_buffer(B[0, 0:16], (16))
                     for j in range(0, 16):
@@ -403,7 +403,7 @@ class TestStorageAlign(BaseCompactTest):
             with T.sblock():
                 T.reads(A[i, 0:16])
                 T.writes(C[i, 0:16])
-                B = T.alloc_buffer((16, 16), "float32")
+                B = T.sblock_alloc_buffer((16, 16), "float32")
                 for j in range(0, 16):
                     with T.sblock():
                         T.reads(A[i, j])
@@ -424,7 +424,7 @@ class TestStorageAlign(BaseCompactTest):
             with T.sblock():
                 T.reads(A[i, 0:16])
                 T.writes(C[i, 0:16])
-                B = T.alloc_buffer((1, 16), strides=(31, 1), dtype="float32")
+                B = T.sblock_alloc_buffer((1, 16), strides=(31, 1), dtype="float32")
                 for j in range(0, 16):
                     with T.sblock():
                         T.reads(A[i, j])
@@ -444,7 +444,7 @@ class TestPaddingPattern(BaseCompactTest):
         A = T.match_buffer(a, (16, 16), "float32")
         C = T.match_buffer(c, (20, 20), "float32")
         with T.sblock():
-            B = T.alloc_buffer((20, 20), dtype="float32")
+            B = T.sblock_alloc_buffer((20, 20), dtype="float32")
             for i, j in T.grid(16, 16):
                 with T.sblock():
                     B[i, j] = A[i, j]
@@ -462,7 +462,7 @@ class TestPaddingPattern(BaseCompactTest):
         A = T.match_buffer(a, [16, 16], dtype="float32")
         C = T.match_buffer(c, [20, 20], dtype="float32")
         with T.sblock():
-            B = T.alloc_buffer([16, 16], dtype="float32")
+            B = T.sblock_alloc_buffer([16, 16], dtype="float32")
             for i, j in T.grid(16, 16):
                 with T.sblock():
                     B[i, j] = A[i, j]
@@ -481,7 +481,7 @@ class TestPaddingPatternInlined(BaseCompactTest):
     def before(a: T.handle, b: T.handle) -> None:
         X = T.match_buffer(a, [224, 224], dtype="float32")
         Y = T.match_buffer(b, [224, 224], dtype="float32")
-        cache = T.alloc_buffer([224, 224], dtype="float32")
+        cache = T.sblock_alloc_buffer([224, 224], dtype="float32")
         for h, w in T.grid(224, 224):
             with T.sblock("cache"):
                 cache[h, w] = X[h, w]
@@ -502,7 +502,7 @@ class TestPaddingPatternInlined(BaseCompactTest):
 
     @T.prim_func
     def expected(X: T.Buffer((224, 224), "float32"), Y: T.Buffer((224, 224), "float32")) -> None:
-        cache = T.alloc_buffer([224, 224], dtype="float32")
+        cache = T.sblock_alloc_buffer([224, 224], dtype="float32")
         for h, w in T.grid(224, 224):
             with T.sblock("cache"):
                 cache[h, w] = X[h, w]
@@ -527,10 +527,10 @@ class TestMemAccessInBranch(BaseCompactTest):
     def before(a: T.handle) -> None:
         A = T.match_buffer(a, (224, 224), "float32")
         with T.sblock():
-            B1 = T.alloc_buffer((224, 224), dtype="float32")
-            B2 = T.alloc_buffer((224, 224), dtype="float32")
-            B3 = T.alloc_buffer((224, 224), dtype="float32")
-            B4 = T.alloc_buffer((224, 224), dtype="float32")
+            B1 = T.sblock_alloc_buffer((224, 224), dtype="float32")
+            B2 = T.sblock_alloc_buffer((224, 224), dtype="float32")
+            B3 = T.sblock_alloc_buffer((224, 224), dtype="float32")
+            B4 = T.sblock_alloc_buffer((224, 224), dtype="float32")
             for i in range(0, 224):
                 for j in range(0, 224):
                     with T.sblock():
@@ -550,10 +550,10 @@ class TestMemAccessInBranch(BaseCompactTest):
     def expected(a: T.handle) -> None:
         A = T.match_buffer(a, [224, 224], dtype="float32")
         with T.sblock():
-            B1 = T.alloc_buffer([112, 112], dtype="float32")
-            B2 = T.alloc_buffer([224, 224], dtype="float32")
-            B3 = T.alloc_buffer([224, 224], dtype="float32")
-            B4 = T.alloc_buffer([112, 112], dtype="float32")
+            B1 = T.sblock_alloc_buffer([112, 112], dtype="float32")
+            B2 = T.sblock_alloc_buffer([224, 224], dtype="float32")
+            B3 = T.sblock_alloc_buffer([224, 224], dtype="float32")
+            B4 = T.sblock_alloc_buffer([112, 112], dtype="float32")
             for i, j in T.grid(224, 224):
                 with T.sblock():
                     if i < 112 and j < 112:
@@ -575,8 +575,8 @@ class TestAnnotatedOpaqueAccess(BaseCompactTest):
     def before(a: T.handle) -> None:
         A = T.match_buffer(a, (1024,), "float32")
         with T.sblock():
-            B = T.alloc_buffer((1024,), dtype="float32")
-            C = T.alloc_buffer((1024,), dtype="float32")
+            B = T.sblock_alloc_buffer((1024,), dtype="float32")
+            C = T.sblock_alloc_buffer((1024,), dtype="float32")
             for i in range(0, 512):
                 with T.sblock():
                     # no annotation, opaque access will cover full region
@@ -600,8 +600,8 @@ class TestAnnotatedOpaqueAccess(BaseCompactTest):
     def expected(a: T.handle) -> None:
         A = T.match_buffer(a, (1024,), "float32")
         with T.sblock():
-            B = T.alloc_buffer((1024,), dtype="float32")
-            C = T.alloc_buffer((520,), dtype="float32")
+            B = T.sblock_alloc_buffer((1024,), dtype="float32")
+            C = T.sblock_alloc_buffer((520,), dtype="float32")
             for i in range(0, 512):
                 with T.sblock():
                     # no annotation, opaque access will cover full region
@@ -644,7 +644,7 @@ class TestSparseReadCache(BaseCompactTest):
                     with T.sblock():
                         T.reads(A_indptr[i], A_data[A_indptr[i] + k], B[i])
                         T.writes(B[i])
-                        A_data_local = T.alloc_buffer([819], dtype="float32", scope="local")
+                        A_data_local = T.sblock_alloc_buffer([819], dtype="float32", scope="local")
                         with T.sblock("A_data_cache_read"):
                             T.reads(A_indptr[i], A_data[A_indptr[i] + k])
                             T.writes(A_data_local[A_indptr[i] + k])
@@ -675,7 +675,7 @@ class TestSparseReadCache(BaseCompactTest):
                     with T.sblock():
                         T.reads(A_indptr[i], A_data[A_indptr[i] + k], B[i])
                         T.writes(B[i])
-                        A_data_local = T.alloc_buffer([1], dtype="float32", scope="local")
+                        A_data_local = T.sblock_alloc_buffer([1], dtype="float32", scope="local")
                         with T.sblock("A_data_cache_read"):
                             T.reads(A_indptr[i], A_data[A_indptr[i] + k])
                             T.writes(A_data_local[T.min(A_indptr[i] + k, 0)])
@@ -721,7 +721,7 @@ class TestDataDependentRegion(BaseCompactTest):
 class TestNarrowShape(BaseCompactTest):
     @T.prim_func
     def before(A: T.Buffer((10,), "float32"), B: T.Buffer((10,), "float32")) -> None:
-        B_cache = T.alloc_buffer(10, "float32")
+        B_cache = T.sblock_alloc_buffer(10, "float32")
         for j in T.serial(3):
             for k in T.serial(4):
                 with T.sblock("B_cache"):
@@ -732,7 +732,7 @@ class TestNarrowShape(BaseCompactTest):
 
     @T.prim_func
     def expected(A: T.Buffer((10,), "float32"), B: T.Buffer((10,), "float32")) -> None:
-        B_cache = T.alloc_buffer([10], dtype="float32")
+        B_cache = T.sblock_alloc_buffer([10], dtype="float32")
         for j, k in T.grid(3, 4):
             with T.sblock("B_cache"):
                 T.where(j * 4 + k < 10)
@@ -746,9 +746,9 @@ class TestNarrowShape(BaseCompactTest):
 class TestLetBinding(BaseCompactTest):
     @T.prim_func
     def before():
-        A = T.alloc_buffer((64, 8), "float32")
-        B = T.alloc_buffer((64, 8), "float32")
-        C = T.alloc_buffer((8, 8), "float32")
+        A = T.sblock_alloc_buffer((64, 8), "float32")
+        B = T.sblock_alloc_buffer((64, 8), "float32")
+        C = T.sblock_alloc_buffer((8, 8), "float32")
         for rk in range(64):
             for rii, rjj in T.grid(8, 8):
                 C[rii, rjj] = T.float32(0)
@@ -763,7 +763,7 @@ class TestLetBinding(BaseCompactTest):
 class TestNonIndexLetBinding(BaseCompactTest):
     @T.prim_func
     def before():
-        A = T.alloc_buffer((64), "float32")
+        A = T.sblock_alloc_buffer((64), "float32")
         x1 = T.call_extern("get", dtype="float16")
         x2 = T.call_extern("get", dtype="float32")
         x3 = T.call_extern("get", dtype="float64")
@@ -782,7 +782,7 @@ class TestSpatialTiledPadPooling(BaseCompactTest):
     def before(X: T.Buffer((64, 112, 112), "int32"), Y: T.Buffer((64, 56, 56), "int32")) -> None:
         for h_o, w_o in T.grid(14, 14):
             with T.sblock():
-                X_cache = T.alloc_buffer([112, 112, 64], dtype="int32")
+                X_cache = T.sblock_alloc_buffer([112, 112, 64], dtype="int32")
                 for ax0, ax1, ax2 in T.grid(64, 9, 9):
                     with T.sblock("cache"):
                         T.where(1 <= h_o * 8 + ax1 and 1 <= w_o * 8 + ax2)
@@ -822,7 +822,7 @@ class TestSpatialTiledPadPooling(BaseCompactTest):
             with T.sblock():
                 T.reads(X[0:64, h_o * 8 - 1 : h_o * 8 + 8, w_o * 8 - 1 : w_o * 8 + 8])
                 T.writes(Y[h_o * 4 : h_o * 4 + 4, w_o * 4 : w_o * 4 + 4, 0:64])
-                X_cache = T.alloc_buffer([9, 9, 64], dtype="int32")
+                X_cache = T.sblock_alloc_buffer([9, 9, 64], dtype="int32")
                 for ax0, ax1, ax2 in T.grid(64, 9, 9):
                     with T.sblock("cache"):
                         T.where(1 <= h_o * 8 + ax1 and 1 <= w_o * 8 + ax2)
@@ -879,8 +879,8 @@ class TestComplexCase1(BaseCompactTest):
                     with T.sblock():
                         for k_0 in T.serial(193):
                             with T.sblock():
-                                A_shared = T.alloc_buffer([960, 770], dtype="float32", scope="shared")
-                                B_shared = T.alloc_buffer([770, 2304], dtype="float32", scope="shared")
+                                A_shared = T.sblock_alloc_buffer([960, 770], dtype="float32", scope="shared")
+                                B_shared = T.sblock_alloc_buffer([770, 2304], dtype="float32", scope="shared")
                                 for _u in T.serial(1):
                                     for tx in T.thread_binding(256, thread="threadIdx.x"):
                                         for vec in T.vectorized(3):
@@ -905,8 +905,8 @@ class TestComplexCase1(BaseCompactTest):
                     with T.sblock():
                         for k_0 in T.serial(193):
                             with T.sblock():
-                                A_shared = T.alloc_buffer([128, 4], dtype="float32", scope="shared")
-                                B_shared = T.alloc_buffer([4, 128], dtype="float32", scope="shared")
+                                A_shared = T.sblock_alloc_buffer([128, 4], dtype="float32", scope="shared")
+                                B_shared = T.sblock_alloc_buffer([4, 128], dtype="float32", scope="shared")
                                 for v_u in T.serial(1):
                                     for tx in T.thread_binding(256, thread="threadIdx.x"):
                                         for vec in T.vectorized(3):
@@ -933,7 +933,7 @@ class TestDependentBufferIndices(BaseCompactTest):
         """This is a diagnal buffer access pattern"""
         for i in range(8):
             with T.sblock():
-                A = T.alloc_buffer((256, 256), "float32")
+                A = T.sblock_alloc_buffer((256, 256), "float32")
                 for j, k in T.grid(8, 8):
                     with T.sblock():
                         T.where(j * 8 + k < 60)
@@ -943,7 +943,7 @@ class TestDependentBufferIndices(BaseCompactTest):
     def expected() -> None:
         for i in T.serial(8):
             with T.sblock():
-                A = T.alloc_buffer([60, 60], dtype="float32")
+                A = T.sblock_alloc_buffer([60, 60], dtype="float32")
                 for j, k in T.grid(8, 8):
                     with T.sblock():
                         T.where(j * 8 + k < 60)
@@ -961,8 +961,10 @@ class TestDependentBufferIndicesOfPackedMatmul(BaseCompactTest):
     ):
         for i0, i1 in T.grid(4, 1):
             with T.sblock():
-                C_local2 = T.alloc_buffer([4, 1, 16, 1000, 16], dtype="float32", scope="local")
-                C_local1 = T.alloc_buffer([1020, 1000], dtype="float32", scope="local")
+                C_local2 = T.sblock_alloc_buffer(
+                    [4, 1, 16, 1000, 16], dtype="float32", scope="local"
+                )
+                C_local1 = T.sblock_alloc_buffer([1020, 1000], dtype="float32", scope="local")
                 for ax0, ax1, ax2 in T.grid(255, 1000, 64):
                     with T.sblock("matmul"):
                         if ax2 == 0:
@@ -998,8 +1000,10 @@ class TestDependentBufferIndicesOfPackedMatmul(BaseCompactTest):
     ) -> None:
         for i0, i1 in T.grid(4, 1):
             with T.sblock():
-                C_local2 = T.alloc_buffer([1, 1, 16, 1000, 16], dtype="float32", scope="local")
-                C_local1 = T.alloc_buffer([255, 1000], dtype="float32", scope="local")
+                C_local2 = T.sblock_alloc_buffer(
+                    [1, 1, 16, 1000, 16], dtype="float32", scope="local"
+                )
+                C_local1 = T.sblock_alloc_buffer([255, 1000], dtype="float32", scope="local")
                 for ax0, ax1, ax2 in T.grid(255, 1000, 64):
                     with T.sblock("matmul"):
                         if ax2 == 0:
@@ -1166,9 +1170,9 @@ class TestNonStrictCompactionForPaddedMatmul(BaseCompactTest):
             with T.sblock(""):
                 T.reads(A[i_0 * 32 : i_0 * 32 + 32, 0:128], B[0:128, j_0 * 32 : j_0 * 32 + 32])
                 T.writes(C[i_0 * 32 : i_0 * 32 + 32, j_0 * 32 : j_0 * 32 + 32])
-                A_local = T.alloc_buffer((127, 127), scope="local")
-                B_local = T.alloc_buffer((127, 127), scope="local")
-                C_local = T.alloc_buffer((127, 127), scope="local")
+                A_local = T.sblock_alloc_buffer((127, 127), scope="local")
+                B_local = T.sblock_alloc_buffer((127, 127), scope="local")
+                C_local = T.sblock_alloc_buffer((127, 127), scope="local")
                 for ax0, ax1 in T.grid(32, 128):
                     with T.sblock("A_local"):
                         A_local[i_0 * 32 + ax0, ax1] = T.if_then_else(
@@ -1203,9 +1207,9 @@ class TestNonStrictCompactionForPaddedMatmul(BaseCompactTest):
             with T.sblock(""):
                 T.reads(A[i_0 * 32 : i_0 * 32 + 32, 0:128], B[0:128, j_0 * 32 : j_0 * 32 + 32])
                 T.writes(C[i_0 * 32 : i_0 * 32 + 32, j_0 * 32 : j_0 * 32 + 32])
-                A_local = T.alloc_buffer((32, 128), scope="local")
-                B_local = T.alloc_buffer((128, 32), scope="local")
-                C_local = T.alloc_buffer((32, 32), scope="local")
+                A_local = T.sblock_alloc_buffer((32, 128), scope="local")
+                B_local = T.sblock_alloc_buffer((128, 32), scope="local")
+                C_local = T.sblock_alloc_buffer((32, 32), scope="local")
                 for ax0, ax1 in T.grid(32, 128):
                     with T.sblock("A_local"):
                         A_local[ax0, ax1] = T.if_then_else(
@@ -1236,9 +1240,9 @@ class TestNotCompactAliasBuffer(BaseCompactTest):
     def before():
         """Partially accessed buffer, but should not compact
         because existence of aliasing buffer B."""
-        data = T.allocate([1024], "int8")
-        A = T.decl_buffer([1024], "int8", data)
-        B = T.decl_buffer([512], "float16", data)
+        data = T.alloc_buffer((1024,), "int8")
+        A = T.decl_buffer([1024], "int8", data=data.data)
+        B = T.decl_buffer([512], "float16", data=data.data)
         for i in range(10):
             A[i] = A[i] + T.int8(1)
         for i in range(10):
@@ -1255,8 +1259,8 @@ class TestNotCompactBufferWithDifferentDtype(BaseCompactTest):
     def before():
         """Partially accessed buffer, but should not compact
         because existence of aliasing buffer B."""
-        data = T.allocate([1024], "int8")
-        A = T.decl_buffer([256], "int32", data)
+        data = T.alloc_buffer((1024,), "int8")
+        A = T.decl_buffer([256], "int32", data=data.data)
         for i in range(10):
             A[i] = A[i] + 1
 
@@ -1269,16 +1273,14 @@ class TestNonBoolCondition(BaseCompactTest):
 
     @T.prim_func
     def before():
-        data = T.allocate([12], "int32")
-        A = T.decl_buffer([12], "int32", data)
+        A = T.decl_buffer([12], "int32")
         for i in range(10):
             if i:
                 A[i] = A[i] + 1
 
     @T.prim_func
     def expected():
-        data = T.allocate([9], "int32")
-        A = T.decl_buffer([9], "int32", data)
+        A = T.decl_buffer((9,), "int32")
         for i in range(10):
             if i:
                 A[i - 1] = A[i - 1] + 1
@@ -1293,7 +1295,7 @@ class TestCompactSymbolicBound0:
         Y = T.match_buffer(y, (T.int64(8), n * T.int64(32)))
         for i, k_0 in T.grid(T.int64(8), n):
             with T.sblock(""):
-                X_global = T.alloc_buffer((T.int64(8), n * T.int64(32)))
+                X_global = T.sblock_alloc_buffer((T.int64(8), n * T.int64(32)))
                 for ax0 in range(T.int64(32)):
                     with T.sblock("X_global"):
                         X_global[i, k_0 * T.int64(32) + ax0] = X[i, k_0 * T.int64(32) + ax0]
@@ -1307,7 +1309,7 @@ class TestCompactSymbolicBound0:
         Y = T.match_buffer(y, (T.int64(8), n * T.int64(32)))
         for i, k_0 in T.grid(T.int64(8), n):
             with T.sblock(""):
-                X_global = T.alloc_buffer((T.int64(1), T.int64(32)))
+                X_global = T.sblock_alloc_buffer((T.int64(1), T.int64(32)))
                 for ax0 in range(T.int64(32)):
                     with T.sblock("X_global"):
                         X_global[T.int64(0), ax0] = X[i, k_0 * T.int64(32) + ax0]
@@ -1325,7 +1327,7 @@ class TestCompactSymbolicBound1:
         Y = T.match_buffer(y, (T.int64(8), n * T.int64(32)))
         for i, k_0 in T.grid(T.int64(8), n):
             with T.sblock(""):
-                X_global = T.alloc_buffer((T.int64(8), n * T.int64(32)))
+                X_global = T.sblock_alloc_buffer((T.int64(8), n * T.int64(32)))
                 with T.sblock("X_global"):
                     for x0 in range(T.int64(32)):
                         X_global[i, k_0 * T.int64(32) + x0] = X[i, k_0 * T.int64(32) + x0]
@@ -1340,7 +1342,7 @@ class TestCompactSymbolicBound1:
         # with T.sblock("root"):
         for i, k_0 in T.grid(T.int64(8), n):
             with T.sblock(""):
-                X_global = T.alloc_buffer((T.int64(1), T.int64(32)))
+                X_global = T.sblock_alloc_buffer((T.int64(1), T.int64(32)))
                 with T.sblock("X_global"):
                     for x0 in range(T.int64(32)):
                         X_global[T.int64(0), x0] = X[i, k_0 * T.int64(32) + x0]
@@ -1355,7 +1357,7 @@ class TestSymbolicDiagMaskCase:
     @T.prim_func
     def before(p_output0: T.handle, n: T.int32):
         A = T.match_buffer(p_output0, (1, 1, n, n))
-        B = T.alloc_buffer((n, n))
+        B = T.sblock_alloc_buffer((n, n))
         for i in T.thread_binding(256, thread="blockIdx.x"):
             for j in T.thread_binding(256, thread="threadIdx.x"):
                 for k in range((n * n + 65535) // 65536):
@@ -1384,7 +1386,7 @@ class TestSymbolicDiagMaskCase:
     @T.prim_func
     def expected(p_output0: T.handle, n: T.int32):
         A = T.match_buffer(p_output0, (1, 1, n, n))
-        B = T.alloc_buffer((n, n))
+        B = T.sblock_alloc_buffer((n, n))
         for i in T.thread_binding(256, thread="blockIdx.x"):
             for j in T.thread_binding(256, thread="threadIdx.x"):
                 for k in range((n * n + 65535) // 65536):

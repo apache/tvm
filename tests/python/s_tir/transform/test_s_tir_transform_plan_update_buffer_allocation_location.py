@@ -35,7 +35,7 @@ def _check(original, transformed):
 def element_func(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (16, 16))
     C = T.match_buffer(c, (16, 16))
-    B = T.alloc_buffer((16, 16))
+    B = T.sblock_alloc_buffer((16, 16))
     for i0 in range(0, 16):
         for j0 in range(0, 16):
             with T.sblock():
@@ -56,7 +56,7 @@ def transformed_element_func(a: T.handle, c: T.handle) -> None:
         with T.sblock():
             T.reads([A[i_0, 0:16]])
             T.writes([C[i_0, 0:16]])
-            B = T.alloc_buffer([16, 16])
+            B = T.sblock_alloc_buffer([16, 16])
             for j_0 in T.serial(0, 16):
                 with T.sblock():
                     i, j = T.axis.remap("SS", [i_0, j_0])
@@ -69,7 +69,7 @@ def transformed_element_func(a: T.handle, c: T.handle) -> None:
 
 @T.prim_func
 def original_func() -> None:
-    A = T.alloc_buffer((128, 128), "float32")
+    A = T.sblock_alloc_buffer((128, 128), "float32")
     for i0, j0 in T.grid(128, 128):
         with T.sblock():
             i, j = T.axis.remap("SS", [i0, j0])
@@ -77,9 +77,9 @@ def original_func() -> None:
     for i0, j0, k0 in T.grid(32, 32, 32):
         with T.sblock():
             i, j, k = T.axis.remap("SSR", [i0, j0, k0])
-            B = T.alloc_buffer((128, 128), "float32")
-            C = T.alloc_buffer((128, 128), "float32")
-            D = T.alloc_buffer((128, 128), "float32")
+            B = T.sblock_alloc_buffer((128, 128), "float32")
+            C = T.sblock_alloc_buffer((128, 128), "float32")
+            D = T.sblock_alloc_buffer((128, 128), "float32")
             if k == 0:
                 for ii, jj in T.grid(4, 4):
                     B[i * 4 + ii, j * 4 + jj] = A[i * 4 + ii, j * 4 + jj]
@@ -94,7 +94,7 @@ def original_func() -> None:
 
 @T.prim_func
 def transformed_func() -> None:
-    A = T.alloc_buffer([128, 128])
+    A = T.sblock_alloc_buffer([128, 128])
     for i0, j0 in T.grid(128, 128):
         with T.sblock():
             i, j = T.axis.remap("SS", [i0, j0])
@@ -102,7 +102,7 @@ def transformed_func() -> None:
     for i0, j0, k0 in T.grid(32, 32, 32):
         with T.sblock():
             i, j, k = T.axis.remap("SSR", [i0, j0, k0])
-            B = T.alloc_buffer([128, 128])
+            B = T.sblock_alloc_buffer([128, 128])
             if k == 0:
                 for ii, jj in T.grid(4, 4):
                     B[i * 4 + ii, j * 4 + jj] = A[i * 4 + ii, j * 4 + jj]
@@ -110,7 +110,7 @@ def transformed_func() -> None:
                 with T.sblock(""):
                     T.reads([B[((i * 4) + ii), ((j * 4) + jj)]])
                     T.writes([B[((i * 4) + ii), ((j * 4) + jj)]])
-                    C = T.alloc_buffer([128, 128])
+                    C = T.sblock_alloc_buffer([128, 128])
                     for kk in T.serial(0, 4):
                         B[((i * 4) + ii), ((j * 4) + jj)] = (
                             B[((i * 4) + ii), ((j * 4) + jj)] + C[((i * 4) + ii), ((k * 4) + kk)]
@@ -124,7 +124,7 @@ def transformed_func() -> None:
                                 ]
                             )
                             T.writes([B[((i * 4) + ii), ((j * 4) + jj)]])
-                            D = T.alloc_buffer([128, 128])
+                            D = T.sblock_alloc_buffer([128, 128])
                             B[((i * 4) + ii), ((j * 4) + jj)] = B[
                                 ((i * 4) + ii), ((j * 4) + jj)
                             ] + (
@@ -135,7 +135,7 @@ def transformed_func() -> None:
 
 @T.prim_func
 def match_buffer_func() -> None:
-    C = T.alloc_buffer((128, 128))
+    C = T.sblock_alloc_buffer((128, 128))
     for i in range(128):
         with T.sblock():
             vi = T.axis.S(128, i)
@@ -152,7 +152,7 @@ def transformed_match_buffer_func() -> None:
     for i in range(0, 128):
         with T.sblock():
             vi = T.axis.S(128, i)
-            C = T.alloc_buffer((128, 128))
+            C = T.sblock_alloc_buffer((128, 128))
             C0 = T.match_buffer(C[vi, 0:128], (128))
             for j in range(128):
                 with T.sblock():
@@ -165,7 +165,7 @@ def transformed_match_buffer_func() -> None:
 def opaque_access(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [1024])
     B = T.match_buffer(b, [1024])
-    A_cache = T.alloc_buffer([1024])
+    A_cache = T.sblock_alloc_buffer([1024])
     for i in T.serial(0, 8):
         with T.sblock():
             vi = T.axis.S(8, i)
@@ -202,7 +202,7 @@ def transformed_opaque_access(a: T.handle, b: T.handle) -> None:
             vi = T.axis.S(8, i)
             T.reads(A[vi * 128 : vi * 128 + 128])
             T.writes(B[vi * 128 : vi * 128 + 128])
-            A_cache = T.alloc_buffer([1024])
+            A_cache = T.sblock_alloc_buffer([1024])
             with T.sblock():
                 v = T.axis.S(8, vi)
                 T.reads([A[v * 128 : v * 128 + 128]])
@@ -243,8 +243,8 @@ def test_loop_carried_dependency():
 
     @T.prim_func
     def before(A: T.Buffer((8, 8, 8), "int32"), B: T.Buffer((8, 8, 8), "int32")):
-        C = T.alloc_buffer([8, 8, 8], dtype="int32")
-        D = T.alloc_buffer([8, 8, 8], dtype="int32")
+        C = T.sblock_alloc_buffer([8, 8, 8], dtype="int32")
+        D = T.sblock_alloc_buffer([8, 8, 8], dtype="int32")
         for i in T.serial(8):
             for j in T.serial(8):
                 for k in T.serial(8):
@@ -271,8 +271,8 @@ def test_loop_carried_dependency():
             with T.sblock():
                 T.reads(A[i, 0:8, 0:8])
                 T.writes(B[i, 0:8, 0:8])
-                C = T.alloc_buffer([8, 8, 8], dtype="int32")
-                D = T.alloc_buffer([8, 8, 8], dtype="int32")
+                C = T.sblock_alloc_buffer([8, 8, 8], dtype="int32")
+                D = T.sblock_alloc_buffer([8, 8, 8], dtype="int32")
                 for j in T.serial(8):
                     for k in T.serial(8):
                         with T.sblock("b0"):
@@ -301,7 +301,7 @@ def test_1D_cascade_op_rolling_buffer():
 
     @T.prim_func
     def before(A: T.Buffer((4, 16), "int32"), C: T.Buffer((4, 8), "int32")):
-        B = T.alloc_buffer((4, 6), "int32")
+        B = T.sblock_alloc_buffer((4, 6), "int32")
         for c in T.serial(4):
             for i in T.serial(0, 2):
                 for j in T.serial(0, 6):
@@ -331,7 +331,7 @@ def test_1D_cascade_op_rolling_buffer():
             with T.sblock():
                 T.reads(A[c, 0:12], C[c, 0:8])
                 T.writes(C[c, 0:8])
-                B = T.alloc_buffer([4, 6], dtype="int32")
+                B = T.sblock_alloc_buffer([4, 6], dtype="int32")
                 for i in T.serial(2):
                     for j, k in T.grid(6, 3):
                         with T.sblock("P1"):
@@ -373,7 +373,7 @@ def test_buffer_conditional_lowering():
 
 
 def test_dltensor_buffer_is_unlowered():
-    """Buffers allocated with a LetStmt are unmodified
+    """Buffers allocated with a Bind are unmodified
 
     Confirm that the `tir.PlanAndUpdateBufferAllocationLocation` pass
     leaves (Buffer nodes corresponding to PrimFunc DLTensor arguments)
@@ -407,7 +407,7 @@ def test_reduce_buffer_dominate_reduce_loops():
 
     @T.prim_func
     def before(x: T.Buffer((256, 256, 256), "float32"), x_red: T.Buffer((256, 256), "float32")):
-        x_red_ = T.alloc_buffer((256, 256))
+        x_red_ = T.sblock_alloc_buffer((256, 256))
         for ax0_0, k1_0, ax1_0 in T.grid(4, 4, 4):
             for ax0_1, k1_1, ax1_1 in T.grid(64, 64, 64):
                 with T.sblock("x_red"):
@@ -429,7 +429,7 @@ def test_reduce_buffer_dominate_reduce_loops():
             with T.sblock(""):
                 T.reads(x[ax0_0 * 64 : ax0_0 * 64 + 64, 0:256, 0:256])
                 T.writes(x_red[ax0_0 * 64 : ax0_0 * 64 + 64, 0:256])
-                x_red_ = T.alloc_buffer((256, 256))
+                x_red_ = T.sblock_alloc_buffer((256, 256))
                 for k1_0, ax1_0 in T.grid(4, 4):
                     for ax0_1, k1_1, ax1_1 in T.grid(64, 64, 64):
                         with T.sblock("x_red"):

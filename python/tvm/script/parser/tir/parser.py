@@ -145,11 +145,8 @@ def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -
         return value
     else:
         value = tvm.runtime.convert(value)
-        frame = T.LetStmt(value)
-        var = frame.var
+        var = T.bind(value)
         IRBuilder.name(var_name, var)
-        frame.add_callback(partial(frame.__exit__, None, None, None))
-        frame.__enter__()
         return var
 
 
@@ -352,9 +349,7 @@ def visit_ann_assign(self: Parser, node: doc.AnnAssign) -> None:
     if not isinstance(ann_var, Var):
         self.report_error(node.annotation, "Annotation should be Var")
     self.eval_assign(target=lhs, source=ann_var, bind_value=bind_assign_value)
-    frame = T.LetStmt(rhs, var=ann_var)
-    frame.add_callback(partial(frame.__exit__, None, None, None))
-    frame.__enter__()
+    T.bind(rhs, var=ann_var)
 
 
 @dispatch.register(token="tir", type_name="With")
@@ -471,6 +466,11 @@ def visit_expr_stmt(self: Parser, node: doc.Expr) -> None:
     elif isinstance(res, Frame):
         res.add_callback(partial(res.__exit__, None, None, None))
         res.__enter__()
+    elif isinstance(res, Var):
+        # Standalone Var expression (e.g. from T.bind(value, var=v)) --
+        # the Bind statement was already emitted to the parent frame by the FFI call,
+        # so just discard the returned Var.
+        pass
     elif isinstance(res, PrimExpr):
         T.evaluate(res)
     elif isinstance(res, int | bool):

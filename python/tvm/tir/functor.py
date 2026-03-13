@@ -62,15 +62,15 @@ from .expr import (
     Var,
 )
 from .stmt import (
-    Allocate,
+    AllocBuffer,
     AssertStmt,
     AttrStmt,
+    Bind,
     BufferStore,
     DeclBuffer,
     Evaluate,
     For,
     IfThenElse,
-    LetStmt,
     SBlock,
     SBlockRealize,
     SeqStmt,
@@ -160,12 +160,12 @@ class _PyStmtExprVisitor(tvm_ffi.core.Object):
         f_visit_stmt: Callable | None = None,
         f_visit_expr: Callable | None = None,
         # Stmt
-        f_visit_let_stmt: Callable | None = None,
+        f_visit_bind: Callable | None = None,
         f_visit_attr_stmt: Callable | None = None,
         f_visit_if_then_else: Callable | None = None,
         f_visit_for: Callable | None = None,
         f_visit_while: Callable | None = None,
-        f_visit_allocate: Callable | None = None,
+        f_visit_alloc_buffer: Callable | None = None,
         f_visit_decl_buffer: Callable | None = None,
         f_visit_buffer_store: Callable | None = None,
         f_visit_assert_stmt: Callable | None = None,
@@ -214,12 +214,12 @@ class _PyStmtExprVisitor(tvm_ffi.core.Object):
             f_visit_stmt,
             f_visit_expr,
             # Stmt
-            f_visit_let_stmt,
+            f_visit_bind,
             f_visit_attr_stmt,
             f_visit_if_then_else,
             f_visit_for,
             f_visit_while,
-            f_visit_allocate,
+            f_visit_alloc_buffer,
             f_visit_decl_buffer,
             f_visit_buffer_store,
             f_visit_assert_stmt,
@@ -277,12 +277,12 @@ class PyStmtExprVisitor:
             "visit_stmt",
             "visit_expr",
             # Stmt
-            "visit_let_stmt_",
+            "visit_bind_",
             "visit_attr_stmt_",
             "visit_if_then_else_",
             "visit_for_",
             "visit_while_",
-            "visit_allocate_",
+            "visit_alloc_buffer_",
             "visit_decl_buffer_",
             "visit_buffer_store_",
             "visit_assert_stmt_",
@@ -373,17 +373,17 @@ class PyStmtExprVisitor:
         print("visit_if_then_else_", op)
         _ffi_api.PyStmtExprVisitorDefaultVisitStmt(self._outer(), op)  # type: ignore
 
-    def visit_let_stmt_(self, op: LetStmt) -> None:
-        """Visit LetStmt.
-        Users can customize this function to overwrite VisitStmt_(const LetStmtNode* op)
+    def visit_bind_(self, op: Bind) -> None:
+        """Visit Bind.
+        Users can customize this function to overwrite VisitStmt_(const BindNode* op)
         on the C++ side.
 
         Parameters
         ----------
-        op : LetStmt
-            The LetStmt to be visited.
+        op : Bind
+            The Bind node to be visited.
         """
-        print("visit_let_stmt_", op)
+        print("visit_bind_", op)
         _ffi_api.PyStmtExprVisitorDefaultVisitStmt(self._outer(), op)  # type: ignore
 
     def visit_for_(self, op: For) -> None:
@@ -412,17 +412,16 @@ class PyStmtExprVisitor:
         print("visit_while_", op)
         _ffi_api.PyStmtExprVisitorDefaultVisitStmt(self._outer(), op)  # type: ignore
 
-    def visit_allocate_(self, op: Allocate) -> None:
-        """Visit Allocate.
-        Users can customize this function to overwrite VisitStmt_(const AllocateNode* op)
+    def visit_alloc_buffer_(self, op: AllocBuffer) -> None:
+        """Visit AllocBuffer.
+        Users can customize this function to overwrite VisitStmt_(const AllocBufferNode* op)
         on the C++ side.
 
         Parameters
         ----------
-        op : Allocate
-            The Allocate to be visited.
+        op : AllocBuffer
+            The AllocBuffer to be visited.
         """
-        print("visit_allocate_", op)
         _ffi_api.PyStmtExprVisitorDefaultVisitStmt(self._outer(), op)  # type: ignore
 
     def visit_decl_buffer_(self, op: DeclBuffer) -> None:
@@ -962,12 +961,12 @@ class _PyStmtExprMutator(tvm_ffi.core.Object):
         f_visit_stmt: Callable | None = None,
         f_visit_expr: Callable | None = None,
         # Stmt
-        f_visit_let_stmt: Callable | None = None,
+        f_visit_bind: Callable | None = None,
         f_visit_attr_stmt: Callable | None = None,
         f_visit_if_then_else: Callable | None = None,
         f_visit_for: Callable | None = None,
         f_visit_while: Callable | None = None,
-        f_visit_allocate: Callable | None = None,
+        f_visit_alloc_buffer: Callable | None = None,
         f_visit_decl_buffer: Callable | None = None,
         f_visit_buffer_store: Callable | None = None,
         f_visit_assert_stmt: Callable | None = None,
@@ -1016,12 +1015,12 @@ class _PyStmtExprMutator(tvm_ffi.core.Object):
             f_visit_stmt,
             f_visit_expr,
             # Stmt
-            f_visit_let_stmt,
+            f_visit_bind,
             f_visit_attr_stmt,
             f_visit_if_then_else,
             f_visit_for,
             f_visit_while,
-            f_visit_allocate,
+            f_visit_alloc_buffer,
             f_visit_decl_buffer,
             f_visit_buffer_store,
             f_visit_assert_stmt,
@@ -1079,12 +1078,12 @@ class PyStmtExprMutator:
             "visit_stmt",
             "visit_expr",
             # Stmt
-            "visit_let_stmt_",
+            "visit_bind_",
             "visit_attr_stmt_",
             "visit_if_then_else_",
             "visit_for_",
             "visit_while_",
-            "visit_allocate_",
+            "visit_alloc_buffer_",
             "visit_decl_buffer_",
             "visit_buffer_store_",
             "visit_assert_stmt_",
@@ -1197,15 +1196,15 @@ class PyStmtExprMutator:
         """
         return _ffi_api.PyStmtExprMutatorDefaultVisitStmt(self._outer(), op)  # type: ignore
 
-    def visit_let_stmt_(self, op: LetStmt) -> Stmt:
-        """Visit LetStmt.
-        Users can customize this function to overwrite VisitStmt_(const LetStmtNode* op)
+    def visit_bind_(self, op: Bind) -> Stmt:
+        """Visit Bind.
+        Users can customize this function to overwrite VisitStmt_(const BindNode* op)
         on the C++ side.
 
         Parameters
         ----------
-        op : LetStmt
-            The LetStmt to be visited.
+        op : Bind
+            The Bind node to be visited.
 
         Returns
         -------
@@ -1248,15 +1247,15 @@ class PyStmtExprMutator:
         """
         return _ffi_api.PyStmtExprMutatorDefaultVisitStmt(self._outer(), op)  # type: ignore
 
-    def visit_allocate_(self, op: Allocate) -> Stmt:
-        """Visit Allocate.
-        Users can customize this function to overwrite VisitStmt_(const AllocateNode* op)
+    def visit_alloc_buffer_(self, op: AllocBuffer) -> Stmt:
+        """Visit AllocBuffer.
+        Users can customize this function to overwrite VisitStmt_(const AllocBufferNode* op)
         on the C++ side.
 
         Parameters
         ----------
-        op : Allocate
-            The Allocate to be visited.
+        op : AllocBuffer
+            The AllocBuffer to be visited.
 
         Returns
         -------

@@ -41,7 +41,7 @@ def test_matmul():
         C: T.Buffer((16, 16), "float32"),
     ) -> None:
         T.func_attr({"layout_free_buffers": [1]})
-        B_ = T.alloc_buffer([16, 4, 4], dtype="float32")
+        B_ = T.sblock_alloc_buffer([16, 4, 4], dtype="float32")
         for i0_o, i1_o in T.grid(16, 16):
             with T.sblock("layout_rewrite"):
                 i0, i1 = T.axis.remap("SS", [i0_o, i1_o])
