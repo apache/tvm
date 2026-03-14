@@ -1300,49 +1300,49 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         # Save translator state so we can restore after subgraph import.
         saved_env = self.env
         self.env = {}
-
-        # Collect placeholder nodes and build Relax params with fresh symbolic vars.
-        nodes = list(graph_module.graph.nodes)
-        placeholders = [n for n in nodes if n.op == "placeholder"]
-        params = []
-        for ph, operand in zip(placeholders, operands):
-            if hasattr(operand, "struct_info") and isinstance(
-                operand.struct_info, relax.TensorStructInfo
-            ):
-                orig_si = operand.struct_info
-                # Create fresh SizeVars to avoid sharing with the caller function.
-                if orig_si.shape is not None:
-                    new_shape = []
-                    for s in orig_si.shape:
-                        if isinstance(s, tvm.tir.SizeVar):
-                            new_shape.append(tvm.tir.SizeVar(s.name, s.dtype))
-                        else:
-                            new_shape.append(s)
-                    si = relax.TensorStructInfo(new_shape, orig_si.dtype)
+        try:
+            # Collect placeholder nodes and build Relax params with fresh symbolic vars.
+            nodes = list(graph_module.graph.nodes)
+            placeholders = [n for n in nodes if n.op == "placeholder"]
+            params = []
+            for ph, operand in zip(placeholders, operands):
+                if hasattr(operand, "struct_info") and isinstance(
+                    operand.struct_info, relax.TensorStructInfo
+                ):
+                    orig_si = operand.struct_info
+                    # Create fresh SizeVars to avoid sharing with the caller function.
+                    if orig_si.shape is not None:
+                        new_shape = [
+                            tvm.tir.SizeVar(s.name, s.dtype)
+                            if isinstance(s, tvm.tir.SizeVar)
+                            else s
+                            for s in orig_si.shape
+                        ]
+                        si = relax.TensorStructInfo(new_shape, orig_si.dtype)
+                    else:
+                        si = orig_si
+                elif hasattr(operand, "struct_info"):
+                    si = operand.struct_info
                 else:
-                    si = orig_si
-            elif hasattr(operand, "struct_info"):
-                si = operand.struct_info
-            else:
-                si = relax.ObjectStructInfo()
-            param = relax.Var(ph.name, si)
-            params.append(param)
-            self.env[ph] = param
+                    si = relax.ObjectStructInfo()
+                param = relax.Var(ph.name, si)
+                params.append(param)
+                self.env[ph] = param
 
-        # Build the branch function (using a plain BindingBlock, not DataflowBlock).
-        with self.block_builder.function(name=unique_name, params=params):
-            inner = self._translate_fx_graph(graph_module, nodes, {})
-            if isinstance(inner, tuple | list):
-                if len(inner) == 1:
-                    output_expr = self.block_builder.emit(inner[0])
+            # Build the branch function (using a plain BindingBlock, not DataflowBlock).
+            with self.block_builder.function(name=unique_name, params=params):
+                inner = self._translate_fx_graph(graph_module, nodes, {})
+                if isinstance(inner, tuple | list):
+                    if len(inner) == 1:
+                        output_expr = self.block_builder.emit(inner[0])
+                    else:
+                        output_expr = relax.Tuple([self.block_builder.emit(v) for v in inner])
                 else:
-                    output_expr = relax.Tuple([self.block_builder.emit(v) for v in inner])
-            else:
-                output_expr = self.block_builder.emit(inner)
-            self.block_builder.emit_func_output(output_expr)
-
-        # Restore translator state.
-        self.env = saved_env
+                    output_expr = self.block_builder.emit(inner)
+                self.block_builder.emit_func_output(output_expr)
+        finally:
+            # Restore translator state.
+            self.env = saved_env
 
         # Get the GlobalVar for the function we just built.
         gv = self.block_builder.get().get_global_var(unique_name)
