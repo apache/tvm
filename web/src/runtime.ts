@@ -29,10 +29,11 @@ import { AsyncifyHandler } from "./asyncify";
 import { FunctionInfo, WebGPUContext } from "./webgpu";
 import { CacheState } from "./cache_state";
 import {
-  ArtifactCache,
   ArtifactCacheTemplate,
-  ArtifactIndexedDBCache,
+  ArtifactCacheType,
+  TensorCacheAccessOptions,
   TensorShardEntry,
+  createArtifactCache,
 } from "./artifact_cache";
 import * as compact from "./compact";
 import * as ctypes from "./ctypes";
@@ -831,6 +832,10 @@ export interface InitProgressReport {
 
 export type InitProgressCallback = (report: InitProgressReport) => void;
 
+export interface FetchTensorCacheOptions extends TensorCacheAccessOptions {
+  signal?: AbortSignal;
+}
+
 /**
  * TVM runtime instance.
  *
@@ -1252,33 +1257,52 @@ export class Instance implements Disposable {
    *
    * @param tensorCacheUrl The cache url.
    * @param device The device to be fetched to.
-   * @param cacheScope The scope identifier of the cache
-   * @param cacheType The type of the cache: "cache" or "indexedDB"
-   * @param signal An optional AbortSignal to abort the fetch
+   * @param options Options object.
+   * @param cacheScope The scope identifier of the cache (legacy positional overload).
+   * @param cacheType The type of the cache: "cache", "indexeddb", or "cross-origin" (legacy positional overload).
+   * @param signal An optional AbortSignal to abort the fetch (legacy positional overload).
    * @returns The meta data
    */
   async fetchTensorCache(
     tensorCacheUrl: string,
     device: DLDevice,
-    cacheScope = "tvmjs",
+    options?: FetchTensorCacheOptions,
+  ): Promise<any>;
+  async fetchTensorCache(
+    tensorCacheUrl: string,
+    device: DLDevice,
+    cacheScope?: string,
+    cacheType?: string,
+    signal?: AbortSignal,
+  ): Promise<any>;
+  async fetchTensorCache(
+    tensorCacheUrl: string,
+    device: DLDevice,
+    cacheScopeOrOptions: string | FetchTensorCacheOptions = "tvmjs",
     cacheType = "cache",
     signal?: AbortSignal,
   ): Promise<any> {
-    let artifactCache: ArtifactCacheTemplate;
-    if (cacheType === undefined || cacheType.toLowerCase() === "cache") {
-      artifactCache = new ArtifactCache(cacheScope);
-    } else if (cacheType.toLowerCase() == "indexeddb") {
-      artifactCache = new ArtifactIndexedDBCache(cacheScope);
+    let options: FetchTensorCacheOptions;
+    if (typeof cacheScopeOrOptions === "object" && cacheScopeOrOptions !== null) {
+      options = cacheScopeOrOptions;
     } else {
-      console.error("Unsupported cacheType: " + cacheType + ", using default ArtifactCache.");
-      artifactCache = new ArtifactCache(cacheScope);
+      options = {
+        cacheScope: cacheScopeOrOptions as string,
+        signal: signal,
+      };
     }
+    const cacheScope = options.cacheScope ?? "tvmjs";
+    const artifactCache = createArtifactCache(cacheScope, {
+      ...options,
+      cacheType: options.cacheType ?? (cacheType as ArtifactCacheType),
+    });
+    const effectiveSignal = options.signal ?? signal;
     const jsonUrl = new URL("tensor-cache.json", tensorCacheUrl).href;
-    const list = await artifactCache.fetchWithCache(jsonUrl, "json");
+    const list = await artifactCache.fetchWithCache(jsonUrl, "json", effectiveSignal);
     await this.fetchTensorCacheInternal(
       tensorCacheUrl,
       list["records"] as Array<TensorShardEntry>, device, artifactCache,
-      signal);
+      effectiveSignal);
     this.cacheMetadata = { ...this.cacheMetadata, ...(list["metadata"] as Record<string, any>) };
   }
 
