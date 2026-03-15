@@ -40,7 +40,7 @@ Apache TVM requires the following dependencies:
     - Clang 5.0
     - Apple Clang 9.3
     - Visual Studio 2019 (v16.7)
-- Python (>= 3.8)
+- Python (>= 3.10)
 - (Optional) Conda (Strongly Recommended)
 
 System Dependencies (Non-Conda)
@@ -339,4 +339,4 @@ tests in TVM. The easiest way to install GTest is from source.
     make
     sudo make install
 
-After installing GTest, the C++ tests can be built and started with ``./tests/scripts/task_cpp_unittest.sh`` or just built with ``make cpptest``.
+After installing GTest, the C++ tests can be built and started with ``./tests/scripts/task_cpp_unittest.sh``, or built via CMake with ``-DUSE_GTEST=ON`` and then running ``./build/cpptest``.
