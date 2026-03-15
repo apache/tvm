@@ -20,6 +20,7 @@
 # pylint: disable=import-outside-toplevel
 """PyTorch ExportedProgram of Relax."""
 
+import contextlib
 from collections import ChainMap, OrderedDict
 from collections.abc import Callable
 from functools import partial
@@ -1206,6 +1207,190 @@ class ExportedProgramImporter(BaseFXGraphImporter):
     def _symbolic_comparison(self, _: fx.Node) -> relax.Expr:
         return self.block_builder.emit(relax.const(True, dtype="bool"))
 
+    ########## Higher-Order Ops ##########
+
+    @staticmethod
+    def _has_cond_op(nodes) -> bool:
+        """Check whether any node in the FX graph is a `torch.ops.higher_order.cond`."""
+        for node in nodes:
+            if node.op == "call_function" and node.target.__name__ == "cond":
+                try:
+                    if node.target.__module__ == "torch.ops.higher_order":
+                        return True
+                except AttributeError:
+                    pass
+        return False
+
+    def _translate_fx_graph(
+        self,
+        graph_module,  # torch.fx.GraphModule or ExportedProgram
+        nodes,  # list[fx.Node]
+        inputs_vars: dict,  # name -> relax.Var for placeholders
+        custom_ops: set[str] | None = None,
+    ) -> tuple:
+        """Translate FX graph nodes, populating self.env.
+
+        Returns the raw output args from the output node (a tuple or relax.Tuple).
+        Handles placeholder, get_attr, call_function, and output node types.
+        """
+        custom_ops = custom_ops or set()
+        output_args = None
+
+        for node in nodes:
+            if node.op == "placeholder":
+                if "grapharg" in node.meta and node.meta["grapharg"].fake_tensor is None:
+                    continue
+                if node.name in inputs_vars:
+                    self.env[node] = inputs_vars[node.name]
+                # else: already set (e.g. branch subgraph placeholders)
+            elif node.op == "output":
+                args = self.retrieve_args(node)
+                assert len(args) == 1
+                output_args = args[0]
+                break
+            elif node.op == "get_attr":
+                self.env[node] = getattr(graph_module, node.target)
+            elif node.op == "call_function":
+                func_name = node.target.__name__
+                if func_name in custom_ops:
+                    self.env[node] = self.convert_map[func_name](node, self)
+                else:
+                    self.env[node] = self.convert_map[func_name](node)
+            else:
+                raise ValueError(f"Unsupported op {node.op}")
+
+        assert output_args is not None
+        return output_args
+
+    def _import_branch_subgraph(
+        self,
+        graph_module,  # torch.fx.GraphModule
+        operands: list[relax.Expr],
+        name_hint: str,
+    ) -> tvm.ir.GlobalVar:
+        """Translate a branch subgraph (GraphModule) into a Relax function in the IRModule.
+
+        Parameters
+        ----------
+        graph_module : torch.fx.GraphModule
+            The branch subgraph (e.g. true_graph_0 / false_graph_0).
+        operands : list[relax.Expr]
+            The operands passed to the cond; used to derive parameter struct_info.
+        name_hint : str
+            A hint for the function name (e.g. "cond_true_branch_0").
+
+        Returns
+        -------
+        gv : tvm.ir.GlobalVar
+            The GlobalVar referring to the newly added Relax function.
+        """
+        # Cache: avoid importing the same subgraph twice.
+        cache_key = id(graph_module)
+        if not hasattr(self, "_branch_cache"):
+            self._branch_cache: dict[int, tvm.ir.GlobalVar] = {}
+        if not hasattr(self, "_branch_counter"):
+            self._branch_counter: int = 0
+        if cache_key in self._branch_cache:
+            return self._branch_cache[cache_key]
+
+        # Generate a unique function name.
+        unique_name = f"{name_hint}_{self._branch_counter}"
+        self._branch_counter += 1
+
+        # Save translator state so we can restore after subgraph import.
+        saved_env = self.env
+        self.env = {}
+        try:
+            # Collect placeholder nodes and build Relax params with fresh symbolic vars.
+            nodes = list(graph_module.graph.nodes)
+            placeholders = [n for n in nodes if n.op == "placeholder"]
+            params = []
+            for ph, operand in zip(placeholders, operands):
+                if hasattr(operand, "struct_info") and isinstance(
+                    operand.struct_info, relax.TensorStructInfo
+                ):
+                    orig_si = operand.struct_info
+                    # Create fresh SizeVars to avoid sharing with the caller function.
+                    if orig_si.shape is not None:
+                        new_shape = [
+                            tvm.tir.SizeVar(s.name, s.dtype)
+                            if isinstance(s, tvm.tir.SizeVar)
+                            else s
+                            for s in orig_si.shape
+                        ]
+                        si = relax.TensorStructInfo(new_shape, orig_si.dtype)
+                    else:
+                        si = orig_si
+                elif hasattr(operand, "struct_info"):
+                    si = operand.struct_info
+                else:
+                    si = relax.ObjectStructInfo()
+                param = relax.Var(ph.name, si)
+                params.append(param)
+                self.env[ph] = param
+
+            # Build the branch function (using a plain BindingBlock, not DataflowBlock).
+            with self.block_builder.function(name=unique_name, params=params):
+                inner = self._translate_fx_graph(graph_module, nodes, {})
+                if isinstance(inner, tuple | list):
+                    if len(inner) == 1:
+                        output_expr = self.block_builder.emit(inner[0])
+                    else:
+                        output_expr = relax.Tuple([self.block_builder.emit(v) for v in inner])
+                else:
+                    output_expr = self.block_builder.emit(inner)
+                self.block_builder.emit_func_output(output_expr)
+        finally:
+            # Restore translator state.
+            self.env = saved_env
+
+        # Get the GlobalVar for the function we just built.
+        gv = self.block_builder.get().get_global_var(unique_name)
+        self._branch_cache[cache_key] = gv
+        return gv
+
+    def _cond(self, node: fx.Node) -> relax.Expr:
+        """Convert torch.ops.higher_order.cond to relax.If.
+
+        FX graph structure:
+            %pred = call_function[target=aten.gt.Scalar](...)
+            %true_graph_0 = get_attr[target=true_graph_0]
+            %false_graph_0 = get_attr[target=false_graph_0]
+            %cond = call_function[target=higher_order.cond](
+                args=(%pred, %true_graph_0, %false_graph_0, (%operands...))
+            )
+        """
+        pred_node, true_graph_node, false_graph_node = node.args[0], node.args[1], node.args[2]
+        operand_nodes = node.args[3]
+
+        # Resolve the predicate.
+        pred = self.env[pred_node]
+
+        # Resolve operands (tuple of FX nodes).
+        operands = [self.env[n] for n in operand_nodes]
+
+        # Resolve branch subgraphs (GraphModule instances stored via get_attr).
+        true_graph = self.env[true_graph_node]
+        false_graph = self.env[false_graph_node]
+
+        # Static predicate: if pred is a Python bool, pick one branch.
+        if isinstance(pred, bool):
+            chosen = true_graph if pred else false_graph
+            gv = self._import_branch_subgraph(chosen, operands, "cond_static_branch")
+            return self.block_builder.emit(relax.Call(gv, operands))
+
+        # Import both branches as Relax functions.
+        true_gv = self._import_branch_subgraph(true_graph, operands, "cond_true_branch")
+        false_gv = self._import_branch_subgraph(false_graph, operands, "cond_false_branch")
+
+        # Build the If expression.
+        # true/false branches of relax.If are SeqExpr bodies, so we construct
+        # the call expressions that will be the body of each branch.
+        true_call = relax.Call(true_gv, operands)
+        false_call = relax.Call(false_gv, operands)
+        if_expr = relax.If(pred, true_call, false_call)
+        return self.block_builder.emit(if_expr, name_hint="cond_result")
+
     ########## Others ##########
 
     def create_convert_map(
@@ -1542,6 +1727,10 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "_assert_scalar.default": lambda node: self.env[node.args[0]],
             "ge": self._symbolic_comparison,
             "le": self._symbolic_comparison,
+            "gt": self._symbolic_comparison,
+            "lt": self._symbolic_comparison,
+            # higher-order ops
+            "cond": self._cond,
         }
 
     def _process_derived_symbol(
@@ -1712,44 +1901,37 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         # Find all the missing function types
         self._check_unsupported_func_type(nodes)
 
+        # When the graph contains torch.cond, we must avoid DataflowBlock
+        # because relax.If cannot appear inside a dataflow region.
+        use_dataflow = not self._has_cond_op(nodes)
+
         with self.block_builder.function(
             name=func_name, params=list(inputs_vars.values()).copy(), attrs=func_attrs
         ):
-            output = None
-            with self.block_builder.dataflow():
-                # Translate the model.
-                for node in nodes:
-                    if node.op == "placeholder":
-                        if "grapharg" in node.meta and node.meta["grapharg"].fake_tensor is None:
-                            # Ignore sym input
-                            continue
+            with contextlib.ExitStack() as stack:
+                if use_dataflow:
+                    stack.enter_context(self.block_builder.dataflow())
 
-                        self.env[node] = inputs_vars[node.name]
-                    elif node.op == "output":
-                        args = self.retrieve_args(node)
-                        assert len(args) == 1
-                        assert isinstance(args[0], tuple | relax.Tuple)
+                output_args = self._translate_fx_graph(
+                    exported_program.graph_module, nodes, inputs_vars, custom_ops
+                )
+                assert isinstance(output_args, tuple | relax.Tuple)
 
-                        if unwrap_unit_return_tuple and len(args[0]) == 1:
-                            output = self.block_builder.emit_output(args[0][0])
-                        elif no_bind_return_tuple:
-                            output = []
-                            for ret in args[0]:
-                                output.append(self.block_builder.emit_output(ret))
-                        else:
-                            output = self.block_builder.emit_output(args[0])
-                        break
-                    elif node.op == "get_attr":
-                        self.env[node] = getattr(exported_program.graph_module, node.target)
-                    elif node.op == "call_function":
-                        func_name = node.target.__name__
-                        if func_name in custom_ops:
-                            self.env[node] = self.convert_map[func_name](node, self)
-                        else:
-                            self.env[node] = self.convert_map[func_name](node)
+                if unwrap_unit_return_tuple and len(output_args) == 1:
+                    ret = output_args[0]
+                elif no_bind_return_tuple:
+                    ret = output_args
+                else:
+                    ret = output_args
+
+                if use_dataflow:
+                    if no_bind_return_tuple:
+                        output = [self.block_builder.emit_output(r) for r in ret]
                     else:
-                        raise ValueError(f"Unsupported op {node.op}")
-            assert output is not None
+                        output = self.block_builder.emit_output(ret)
+                else:
+                    output = list(ret) if no_bind_return_tuple else ret
+
             self.block_builder.emit_func_output(output)
 
         to_bind_parameters = ChainMap(
