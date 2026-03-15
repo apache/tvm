@@ -406,5 +406,204 @@ def test_metal_no_mask():
     assert "tvm_storage_sync" in After_script
 
 
+def test_webgpu_warp_reduce():
+    transform = tvm.s_tir.transform.LowerThreadAllreduce()
+
+    @I.ir_module
+    class Before:
+        @T.prim_func(private=True)
+        def main(A: T.Buffer((128, 32), "float32"), B: T.Buffer(128, "float32")):
+            T.func_attr(
+                {
+                    "target": T.target(
+                        {
+                            "kind": "webgpu",
+                            "supports_subgroups": True,
+                            "host": "llvm",
+                        }
+                    ),
+                }
+            )
+            A_flat = T.Buffer(4096, data=A.data)
+
+            for i in range(128):
+                threadIdx_x = T.launch_thread("threadIdx.x", 32)
+
+                reduce_data = T.allocate([1], "float32", "local")
+                reduce = T.Buffer(1, data=reduce_data, scope="local")
+
+                with T.attr(
+                    T.comm_reducer(lambda x, y: x + y, [T.float32(0)]),
+                    "reduce_scope",
+                    T.reinterpret("handle", T.uint64(0)),
+                ):
+                    T.tvm_thread_allreduce(
+                        T.uint32(1),
+                        A_flat[0],
+                        T.bool(True),
+                        reduce[0],
+                        threadIdx_x,
+                    )
+                if threadIdx_x == 0:
+                    B[i] = reduce[0]
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func(private=True)
+        def main(A: T.Buffer((128, 32), "float32"), B: T.Buffer(128, "float32")):
+            T.func_attr(
+                {
+                    "target": T.target(
+                        {
+                            "kind": "webgpu",
+                            "supports_subgroups": True,
+                            "host": "llvm",
+                        }
+                    ),
+                }
+            )
+            A_flat = T.Buffer(4096, data=A.data)
+
+            for i in range(128):
+                threadIdx_x = T.launch_thread("threadIdx.x", 32)
+
+                reduce_data = T.allocate([1], "float32", "local")
+                reduce = T.Buffer(1, data=reduce_data, scope="local")
+
+                with T.attr(
+                    T.comm_reducer(lambda x, y: x + y, [T.float32(0)]),
+                    "reduce_scope",
+                    T.reinterpret("handle", T.uint64(0)),
+                ):
+                    t0_data = T.allocate([1], "float32", "local")
+                    t0 = T.decl_buffer(1, data=t0_data, scope="local")
+
+                    reduce[0] = A_flat[0]
+
+                    t0[0] = T.tvm_warp_shuffle_down(0, reduce[0], T.uint32(16), 32, 32)
+                    reduce[0] = reduce[0] + t0[0]
+                    t0[0] = T.tvm_warp_shuffle_down(0, reduce[0], T.uint32(8), 32, 32)
+                    reduce[0] = reduce[0] + t0[0]
+                    t0[0] = T.tvm_warp_shuffle_down(0, reduce[0], T.uint32(4), 32, 32)
+                    reduce[0] = reduce[0] + t0[0]
+                    t0[0] = T.tvm_warp_shuffle_down(0, reduce[0], T.uint32(2), 32, 32)
+                    reduce[0] = reduce[0] + t0[0]
+                    t0[0] = T.tvm_warp_shuffle_down(0, reduce[0], T.uint32(1), 32, 32)
+                    reduce[0] = reduce[0] + t0[0]
+                    reduce[0] = T.tvm_warp_shuffle(t0[0], reduce[0], T.uint32(0), 32, 32)
+                if threadIdx_x == 0:
+                    B[i] = reduce[0]
+
+    After = transform(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+
+
+def test_webgpu_multi_warp_reduce():
+    transform = tvm.s_tir.transform.LowerThreadAllreduce()
+
+    @I.ir_module
+    class Before:
+        @T.prim_func(private=True)
+        def main(A: T.Buffer((1, 1, 2, 128), "float32"), B: T.Buffer((1, 1, 2), "float32")):
+            T.func_attr(
+                {
+                    "target": T.target(
+                        {
+                            "kind": "webgpu",
+                            "max_num_threads": 1024,
+                            "supports_subgroups": True,
+                            "host": "llvm",
+                        }
+                    ),
+                }
+            )
+            blockIdx_x = T.launch_thread("blockIdx.x", 1)
+            cross_thread_B = T.allocate([1], "float32", "local")
+            threadIdx_z = T.launch_thread("threadIdx.z", 1)
+            threadIdx_y = T.launch_thread("threadIdx.y", 2)
+            threadIdx_x = T.launch_thread("threadIdx.x", 128)
+            cross_thread_B_1 = T.Buffer((1,), data=cross_thread_B, scope="local")
+            with T.attr(
+                T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
+                "reduce_scope",
+                T.reinterpret("handle", T.uint64(0)),
+            ):
+                A_1 = T.Buffer((256,), data=A.data)
+                T.tvm_thread_allreduce(
+                    T.uint32(1),
+                    A_1[threadIdx_y * 128 + threadIdx_x],
+                    T.bool(True),
+                    cross_thread_B_1[0],
+                    threadIdx_x,
+                )
+            if threadIdx_x == 0:
+                B_1 = T.Buffer((2,), data=B.data)
+                B_1[threadIdx_y] = cross_thread_B_1[0]
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func(private=True)
+        def main(A: T.Buffer((1, 1, 2, 128), "float32"), B: T.Buffer((1, 1, 2), "float32")):
+            T.func_attr(
+                {
+                    "target": T.target(
+                        {
+                            "kind": "webgpu",
+                            "max_num_threads": 1024,
+                            "supports_subgroups": True,
+                            "host": "llvm",
+                        }
+                    ),
+                }
+            )
+            blockIdx_x = T.launch_thread("blockIdx.x", 1)
+            red_result = T.allocate([2], "float32", "shared")
+            T.attr(red_result, "volatile_scope", 1)
+            threadIdx_z = T.launch_thread("threadIdx.z", 1)
+            threadIdx_y = T.launch_thread("threadIdx.y", 2)
+            threadIdx_x = T.launch_thread("threadIdx.x", 128)
+            red_result_1 = T.Buffer((2,), data=red_result, scope="shared")
+            with T.attr(
+                T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
+                "reduce_scope",
+                T.reinterpret("handle", T.uint64(0)),
+            ):
+                red_buf0 = T.decl_buffer([1], "float32", scope="local")
+                t0 = T.decl_buffer([1], "float32", scope="local")
+                red_buf0_1 = T.decl_buffer([1], "float32", scope="local")
+                t0_1 = T.decl_buffer([1], "float32", scope="local")
+                red_buf_staging = T.decl_buffer([8], "float32", scope="shared")
+                A_1 = T.Buffer((256,), data=A.data)
+                red_buf0_1[0] = A_1[threadIdx_y * 128 + threadIdx_x]
+                t0_1[0] = T.tvm_warp_shuffle_down(0, red_buf0_1[0], T.uint32(16), 32, 32)
+                red_buf0_1[0] = red_buf0_1[0] + t0_1[0]
+                t0_1[0] = T.tvm_warp_shuffle_down(0, red_buf0_1[0], T.uint32(8), 32, 32)
+                red_buf0_1[0] = red_buf0_1[0] + t0_1[0]
+                t0_1[0] = T.tvm_warp_shuffle_down(0, red_buf0_1[0], T.uint32(4), 32, 32)
+                red_buf0_1[0] = red_buf0_1[0] + t0_1[0]
+                t0_1[0] = T.tvm_warp_shuffle_down(0, red_buf0_1[0], T.uint32(2), 32, 32)
+                red_buf0_1[0] = red_buf0_1[0] + t0_1[0]
+                t0_1[0] = T.tvm_warp_shuffle_down(0, red_buf0_1[0], T.uint32(1), 32, 32)
+                red_buf0_1[0] = red_buf0_1[0] + t0_1[0]
+                if threadIdx_x % 32 == 0:
+                    red_buf_staging[threadIdx_y * 4 + threadIdx_x // 32] = red_buf0_1[0]
+                T.tvm_storage_sync("shared")
+                if threadIdx_x < 4:
+                    red_buf0[0] = red_buf_staging[threadIdx_y * 4 + threadIdx_x]
+                t0[0] = T.tvm_warp_shuffle_down(0, red_buf0[0], T.uint32(2), 32, 32)
+                red_buf0[0] = red_buf0[0] + t0[0]
+                t0[0] = T.tvm_warp_shuffle_down(0, red_buf0[0], T.uint32(1), 32, 32)
+                red_buf0[0] = red_buf0[0] + t0[0]
+                if threadIdx_x == 0:
+                    red_result_1[threadIdx_y] = red_buf0[0]
+                T.tvm_storage_sync("shared")
+            if threadIdx_x == 0:
+                B_1 = T.Buffer((2,), data=B.data)
+                B_1[threadIdx_y] = red_result_1[threadIdx_y]
+
+    After = transform(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

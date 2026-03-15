@@ -723,6 +723,10 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
   // Emit warp shuffle  calls.
   PrimExpr WarpShuffle(const Op& op, ffi::Optional<Buffer> mask_buffer, PrimExpr val,
                        PrimExpr delta_or_lane) {
+    // WebGPU's WGSL requires u32 for subgroupShuffle lane/delta arguments.
+    if (target_->kind->name == "webgpu") {
+      delta_or_lane = cast(DataType::UInt(32, delta_or_lane.dtype().lanes()), delta_or_lane);
+    }
     ffi::Array<PrimExpr> indices = {0};
     PrimExpr mask;
     if (mask_buffer.defined()) {
@@ -742,11 +746,11 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
   bool IsWarpReduction(const std::vector<DataType>& types, int group_extent, int reduce_extent,
                        int contiguous_reduce_extent) {
     if ((target_->kind->name != "cuda") && (target_->kind->name != "rocm") &&
-        (target_->kind->name != "metal")) {
+        (target_->kind->name != "metal") && (target_->kind->name != "webgpu")) {
       return false;
     }
 
-    need_warp_shuffle_mask_ = target_->kind->name != "metal";
+    need_warp_shuffle_mask_ = target_->kind->name != "metal" && target_->kind->name != "webgpu";
 
     // rocm only supports 32 bit operands for shuffling at the moment
     if ((target_->kind->name == "rocm") &&
