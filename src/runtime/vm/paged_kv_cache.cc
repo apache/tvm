@@ -206,6 +206,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   std::vector<HostMemoryVector> k_rope_pos_offset_on_depths_host_;
   std::vector<HostMemoryVector> k_rope_pos_offset_sliding_window_on_depths_host_;
   HostMemoryVector k_ragged_rope_pos_offset_host_;
+  HostMemoryVector current_lora_adapter_ids_host_;
   HostMemoryVector q_rope_position_map_host_;
   HostMemoryVector append_position_map_host_;
   HostMemoryVector cur_append_lengths_indptr_host_;
@@ -413,6 +414,8 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
           HostMemoryVector(reserved_num_seqs + 1, dtype_aux_, preferred_host_device));
     }
     k_ragged_rope_pos_offset_host_ =
+        HostMemoryVector(reserved_num_seqs, dtype_aux_, preferred_host_device);
+    current_lora_adapter_ids_host_ =
         HostMemoryVector(reserved_num_seqs, dtype_aux_, preferred_host_device);
     q_rope_position_map_host_ =
         HostMemoryVector(prefill_chunk_size, dtype_aux_, preferred_host_device);
@@ -685,7 +688,10 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       break;
     }
     // Create the child sequence with the child block.
-    seq_map_.insert({child_seq_id, Sequence(&global_block_pool_, child_block_idx)});
+    auto [child_it, inserted] =
+        seq_map_.insert({child_seq_id, Sequence(&global_block_pool_, child_block_idx)});
+    TVM_FFI_ICHECK(inserted);
+    child_it->second.lora_adapter_id = parent_it->second.lora_adapter_id;
     dirty_aux_data_device_ = true;
   }
 
@@ -874,11 +880,13 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     sequences.reserve(cur_batch_size_);
     last_block_length_before_append.reserve(cur_batch_size_);
     k_ragged_rope_pos_offset_host_.clear();
+    current_lora_adapter_ids_host_.clear();
     for (int i = 0; i < cur_batch_size_; ++i) {
       auto it = seq_map_.find(seq_ids[i]);
       TVM_FFI_ICHECK(it != seq_map_.end())
           << "The sequence \"" << seq_ids[i] << "\" cannot be found in KV cache.";
       sequences.push_back(&it->second);
+      current_lora_adapter_ids_host_.push_back(it->second.lora_adapter_id);
       last_block_length_before_append.push_back(
           global_block_pool_[it->second.last_block_idx].seq_length);
       int k_rope_offset = it->second.seq_length;
@@ -1193,6 +1201,27 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     if (kv_transfer_stream_ != nullptr) {
       DeviceAPI::Get(device_)->SyncStreamFromTo(device_, kv_transfer_stream_, compute_stream_);
     }
+  }
+
+  void SetSequenceLoraAdapter(int64_t seq_id, int64_t lora_adapter_id) final {
+    TVM_FFI_ICHECK(lora_adapter_id >= 0) << "LoRA adapter id must be non-negative.";
+    TVM_FFI_ICHECK(lora_adapter_id <= std::numeric_limits<int32_t>::max())
+        << "LoRA adapter id exceeds int32 range.";
+    auto it = seq_map_.find(seq_id);
+    TVM_FFI_ICHECK(it != seq_map_.end())
+        << "The sequence \"" << seq_id << "\" cannot be found in KV cache.";
+    it->second.lora_adapter_id = static_cast<int32_t>(lora_adapter_id);
+  }
+
+  int64_t GetSequenceLoraAdapter(int64_t seq_id) final {
+    auto it = seq_map_.find(seq_id);
+    TVM_FFI_ICHECK(it != seq_map_.end())
+        << "The sequence \"" << seq_id << "\" cannot be found in KV cache.";
+    return it->second.lora_adapter_id;
+  }
+
+  ffi::Shape GetCurrentLoraAdapterIds() final {
+    return current_lora_adapter_ids_host_.as_int_tuple();
   }
 
   ffi::Shape DisaggPrepareRecv(int64_t seq_id, int append_length) final {

@@ -65,6 +65,9 @@ fpopn = None
 fbegin_forward = None
 fend_forward = None
 fcommit_accepted_token_tree_nodes = None
+fset_sequence_lora_adapter = None
+fget_sequence_lora_adapter = None
+fget_current_lora_adapter_ids = None
 fattention_with_fuse_qkv = None
 fis_empty = None
 fdebug_get_kv = None
@@ -88,6 +91,7 @@ fcompact_copy = None
 def set_global_func(head_dim, dtype):
     global fclear, fadd_sequence, fremove_sequence, ffork_sequence, fenable_sliding_window_for_seq
     global fpopn, fbegin_forward, fend_forward, fcommit_accepted_token_tree_nodes
+    global fset_sequence_lora_adapter, fget_sequence_lora_adapter, fget_current_lora_adapter_ids
     global fattention_with_fuse_qkv, fis_empty, fdebug_get_kv
     global ftranspose_append, fcopy_cache, fattn_prefill, fattn_decode
     global \
@@ -109,6 +113,15 @@ def set_global_func(head_dim, dtype):
     fend_forward = tvm.get_global_func("vm.builtin.kv_state_end_forward")
     fcommit_accepted_token_tree_nodes = tvm.get_global_func(
         "vm.builtin.attention_kv_cache_commit_accepted_token_tree_nodes"
+    )
+    fset_sequence_lora_adapter = tvm.get_global_func(
+        "vm.builtin.attention_kv_cache_set_sequence_lora_adapter"
+    )
+    fget_sequence_lora_adapter = tvm.get_global_func(
+        "vm.builtin.attention_kv_cache_get_sequence_lora_adapter"
+    )
+    fget_current_lora_adapter_ids = tvm.get_global_func(
+        "vm.builtin.attention_kv_cache_get_current_lora_adapter_ids"
     )
     fattention_with_fuse_qkv = tvm.get_global_func(
         "vm.builtin.attention_kv_cache_attention_with_fused_qkv"
@@ -252,6 +265,27 @@ def verify_cached_kv(kv_cache, seq_ids, expected_k, expected_v):
         fdebug_get_kv(kv_cache, seq_id, 0, seq_length, keys, values)
         tvm.testing.assert_allclose(keys.numpy(), keys_expected, rtol=1e-3, atol=1e-3)
         tvm.testing.assert_allclose(values.numpy(), values_expected, rtol=1e-3, atol=1e-3)
+
+
+def test_lora_adapter_metadata(kv_cache_and_config):
+    kv_cache, _, _ = kv_cache_and_config
+
+    fadd_sequence(kv_cache, 1)
+    fadd_sequence(kv_cache, 2)
+    assert fget_sequence_lora_adapter(kv_cache, 1) == 0
+    assert fget_sequence_lora_adapter(kv_cache, 2) == 0
+
+    fset_sequence_lora_adapter(kv_cache, 1, 7)
+    fset_sequence_lora_adapter(kv_cache, 2, 11)
+    assert fget_sequence_lora_adapter(kv_cache, 1) == 7
+    assert fget_sequence_lora_adapter(kv_cache, 2) == 11
+
+    ffork_sequence(kv_cache, 1, 3, -1)
+    assert fget_sequence_lora_adapter(kv_cache, 3) == 7
+
+    fbegin_forward(kv_cache, ShapeTuple([2, 3, 1]), ShapeTuple([1, 2, 1]))
+    assert list(fget_current_lora_adapter_ids(kv_cache)) == [11, 7, 7]
+    fend_forward(kv_cache)
 
 
 def f_apply_rotary(x, offset, scale, theta, offset_list: list[int] | None = None):

@@ -180,6 +180,8 @@ struct Sequence {
    * in the KV cache even when sliding window is enabled.
    */
   int last_block_attn_sink_size = 0;
+  /*! \brief The LoRA adapter id associated with the sequence. */
+  int32_t lora_adapter_id = 0;
 
   /*! \brief Whether the current appended tokens form a chain (not a tree). */
   bool is_chain = true;
