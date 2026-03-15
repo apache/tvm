@@ -52,7 +52,9 @@ and the Firefly-RK3399 for an OpenCL example.
 #
 #   git clone --recursive https://github.com/apache/tvm tvm
 #   cd tvm
-#   make runtime -j2
+#   mkdir build && cd build
+#   cp ../cmake/config.cmake .
+#   cmake .. && cmake --build . --parallel $(nproc)
 #
 # After building the runtime successfully, we need to set environment variables
 # in :code:`~/.bashrc` file. We can edit :code:`~/.bashrc`
@@ -215,9 +217,10 @@ print(f"{cost:g} secs/op")
 #
 # .. code-block:: bash
 #
-#    cp cmake/config.cmake .
+#    mkdir -p build && cd build
+#    cp ../cmake/config.cmake .
 #    sed -i "s/USE_OPENCL OFF/USE_OPENCL ON/" config.cmake
-#    make runtime -j4
+#    cmake .. && cmake --build . --parallel $(nproc)
 #
 # The following function shows how we run an OpenCL kernel remotely
 
