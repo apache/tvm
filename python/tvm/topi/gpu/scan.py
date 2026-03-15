@@ -43,6 +43,9 @@ def _can_use_scan_thrust(binop):
     target = tvm.target.Target.current()
     if target is None:
         return False
+    # Excluding Pascal architecture, use fallback path code
+    if target.arch in ("sm_60", "sm_61"):
+        return False
     # pylint: disable=comparison-with-callable
     return binop == tvm.tir.generic.add and any(
         [
