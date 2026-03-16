@@ -189,10 +189,7 @@ def get_const_tuple(in_tuple):
         if hasattr(in_tuple, "shape"):
             in_tuple = in_tuple.shape
         else:
-            raise TypeError(
-                "get_const_tuple expects a tuple/list of Expr, "
-                f"but got type {type(in_tuple)}"
-            )
+            raise ValueError("Expects a tuple/list of Expr.")
     ret = []
     ana = None
     for elem in in_tuple:
