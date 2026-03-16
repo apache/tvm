@@ -5799,7 +5799,8 @@ def test_squeeze():
             R.Tensor((3, 4), dtype="float32")
         ):
             with R.dataflow():
-                lv: R.Tensor((3, 4), dtype="float32") = R.squeeze(input, axis=[0, 1, 2, 3])
+                # Only axes 1 and 3 have size 1; axes 0 (size 3) and 2 (size 4) are filtered out
+                lv: R.Tensor((3, 4), dtype="float32") = R.squeeze(input, axis=[1, 3])
                 gv: R.Tuple(R.Tensor((3, 4), dtype="float32")) = (lv,)
                 R.output(gv)
             return gv
@@ -5808,6 +5809,9 @@ def test_squeeze():
         def forward(self, input):
             return input.squeeze(2)
 
+    # When the specified dim is statically known to not be 1, the squeeze is a no-op
+    # in PyTorch. The frontend should return the original tensor without emitting a
+    # squeeze op. (Regression test for https://github.com/apache/tvm/issues/18442)
     @I.ir_module
     class Expected3:
         @R.function
@@ -5815,8 +5819,24 @@ def test_squeeze():
             R.Tensor((3, 1, 4, 1), dtype="float32")
         ):
             with R.dataflow():
-                lv: R.Tensor((3, 1, 4, 1), dtype="float32") = R.squeeze(inp_0, axis=[2])
-                gv: R.Tuple(R.Tensor((3, 1, 4, 1), dtype="float32")) = (lv,)
+                gv: R.Tuple(R.Tensor((3, 1, 4, 1), dtype="float32")) = (inp_0,)
+                R.output(gv)
+            return gv
+
+    # Issue #18442: squeeze on a dimension that is statically != 1 should be a no-op,
+    # matching PyTorch behavior, rather than raising an InternalError.
+    class Squeeze4(Module):
+        def forward(self, input):
+            return input.squeeze(1)
+
+    @I.ir_module
+    class Expected4:
+        @R.function
+        def main(inp_0: R.Tensor((32, 10, 5), dtype="float32")) -> R.Tuple(
+            R.Tensor((32, 10, 5), dtype="float32")
+        ):
+            with R.dataflow():
+                gv: R.Tuple(R.Tensor((32, 10, 5), dtype="float32")) = (inp_0,)
                 R.output(gv)
             return gv
 
@@ -5825,6 +5845,9 @@ def test_squeeze():
     verify_model(Squeeze1(), example_args, {}, Expected1)
     verify_model(Squeeze2(), example_args, {}, Expected2)
     verify_model(Squeeze3(), example_args, {}, Expected3)
+    verify_model(
+        Squeeze4(), (torch.randn(32, 10, 5, dtype=torch.float32),), {}, Expected4
+    )
 
 
 def test_stack():

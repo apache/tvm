@@ -2133,18 +2133,34 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         if dim is None:
             dim = node.kwargs.get("dims", None)
 
-        # If dims is a list, filter out axes where dimension is not 1
-        # This is needed because PyTorch decomposition may pass all axes
+        shape = self.shape_of(x)
+        ndim = len(shape)
+
         if isinstance(dim, list | tuple) and len(dim) > 0:
-            shape = self.shape_of(x)
-            # Filter to only include axes where the dimension is 1
+            # PyTorch decomposition may pass all axes. Filter to only include axes
+            # where the dimension is statically known to be 1, or is symbolic (dynamic).
+            # Axes where the dimension is statically known to be != 1 are silently
+            # ignored, matching PyTorch's behavior.
             valid_dims = []
             for d in dim:
-                axis = d if d >= 0 else len(shape) + d
-                if axis < len(shape):
-                    valid_dims.append(d)
-            # If no valid dims, use None to squeeze all size-1 dimensions
-            dim = valid_dims if valid_dims else None
+                axis = d if d >= 0 else ndim + d
+                if 0 <= axis < ndim:
+                    dim_val = shape[axis]
+                    # Include axis if it's dynamic (not a static integer) or is size 1
+                    if not isinstance(dim_val, tir.IntImm) or dim_val.value == 1:
+                        valid_dims.append(d)
+            # If no axes will actually be squeezed, return the original tensor (PyTorch no-op)
+            if not valid_dims:
+                return x
+            dim = valid_dims
+        elif dim is not None:
+            # Single-dim case: mimic PyTorch behavior — if the dimension is statically
+            # known to not be 1, squeezing is a no-op, so return the original tensor.
+            axis = dim if dim >= 0 else ndim + dim
+            if 0 <= axis < ndim:
+                dim_val = shape[axis]
+                if isinstance(dim_val, tir.IntImm) and dim_val.value != 1:
+                    return x
 
         return self.block_builder.emit(relax.op.squeeze(x, dim))
 
