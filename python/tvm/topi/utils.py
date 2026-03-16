@@ -185,10 +185,14 @@ def get_const_tuple(in_tuple):
     out_tuple : tuple of int
         The output.
     """
-    if isinstance(in_tuple, te.Tensor):
-        in_tuple = in_tuple.shape
     if not isinstance(in_tuple, tuple) and not isinstance(in_tuple, list):
-        in_tuple = (in_tuple,)
+        if hasattr(in_tuple, "shape"):
+            in_tuple = in_tuple.shape
+        else:
+            raise TypeError(
+                "get_const_tuple expects a tuple/list of Expr, "
+                f"but got type {type(in_tuple)}"
+            )
     ret = []
     ana = None
     for elem in in_tuple:
