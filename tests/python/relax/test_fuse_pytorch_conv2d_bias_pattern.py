@@ -16,13 +16,10 @@
 # under the License.
 
 import torch
-import tvm
-import tvm.testing
+
 from tvm import relax
-from tvm.relax.frontend.torch import from_fx
 from tvm.relax.dpl.pattern import make_fused_bias_activation_pattern
-from tvm.script import ir as I
-from tvm.script import relax as R
+from tvm.relax.frontend.torch import from_fx
 
 
 def test_conv2d_bias_relu_fusion():
