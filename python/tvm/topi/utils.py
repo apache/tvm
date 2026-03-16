@@ -187,7 +187,7 @@ def get_const_tuple(in_tuple):
     """
     if isinstance(in_tuple, te.Tensor):
         in_tuple = in_tuple.shape
-    if not isinstance(in_tuple, tuple) and isinstance(in_tuple, list):
+    if not isinstance(in_tuple, tuple) and not isinstance(in_tuple, list):
         in_tuple = (in_tuple,)
     ret = []
     ana = None
