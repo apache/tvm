@@ -162,10 +162,6 @@ Python APIs to create a compilation pipeline using pass context.
       }
     };
 
-    /*! \brief The thread-local store to hold the pass context. */
-    typedef dmlc::ThreadLocalStore<PassContextThreadLocalEntry>
-         PassContextThreadLocalStore;
-
 Pass Constructs
 ^^^^^^^^^^^^^^^
 

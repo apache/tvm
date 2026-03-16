@@ -41,15 +41,15 @@ C++ Code Styles
 We use ``clang-format`` to enforce the code style. Because different version
 of clang-format might change by its version, it is recommended to use the same
 version of the clang-format as the main one.
-You can also use the following command via docker.
+You can use pre-commit hooks to run formatting checks:
 
 .. code:: bash
 
-    # Run a specific file through clang-format
-    docker/bash.sh ci_lint clang-format-10 [path-to-file]
+    # Run clang-format on all files
+    pre-commit run clang-format --all-files
 
-    # Run all linters, including clang-format
-    python tests/scripts/ci.py lint
+    # Run all linters (Python + C++ + custom checks)
+    pre-commit run --all-files
 
 
 clang-format is also not perfect, when necessary, you can use disble clang-format on certain code regions.
@@ -86,8 +86,8 @@ Because clang-format may not recognize macros, it is recommended to use macro li
 Python Code Styles
 ------------------
 - The functions and classes are documented in `numpydoc <https://numpydoc.readthedocs.io/en/latest/>`_ format.
-- Check your code style using ``python tests/scripts/ci.py lint``
-- Stick to language features in ``python 3.7``
+- Check your code style using ``pre-commit run --all-files``
+- Stick to language features in ``python 3.10``
 
 - For functions with early returns, prefer ``if``/``elif``/``else``
   chains for functions with parallel and short bodies to the

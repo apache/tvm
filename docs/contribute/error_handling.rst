@@ -55,43 +55,13 @@ The following code gives an example on how to do so.
     }
   }
 
-The above function is registered as PackedFunc into the python frontend,
-under the name ``tvm._api_internal._ErrorTest``.
-Here is what will happen if we call the registered function:
+When a C++ function registered via the FFI raises an error with a typed prefix,
+the TVM FFI system will automatically map it to the corresponding Python exception
+class. For example, a ``ValueError:`` prefix in the error message will raise a Python
+``ValueError``, and an ``InternalError:`` prefix will raise ``tvm.error.InternalError``.
 
-.. code::
-
-  >>> import tvm
-  >>> tvm.testing.ErrorTest(0, 1)
-  Traceback (most recent call last):
-    File "<stdin>", line 1, in <module>
-    File "/path/to/tvm/python/tvm/_ffi/_ctypes/function.py", line 190, in __call__
-      raise get_last_ffi_error()
-  ValueError: Traceback (most recent call last):
-    [bt] (3) /path/to/tvm/build/libtvm.so(TVMFuncCall+0x48) [0x7fab500b8ca8]
-    [bt] (2) /path/to/tvm/build/libtvm.so(+0x1c4126) [0x7fab4f7f5126]
-    [bt] (1) /path/to/tvm/build/libtvm.so(+0x1ba2f8) [0x7fab4f7eb2f8]
-    [bt] (0) /path/to/tvm/build/libtvm.so(+0x177d12) [0x7fab4f7a8d12]
-    File "/path/to/tvm/src/api/api_test.cc", line 80
-  ValueError: Check failed: x == y (0 vs. 1) : expect x and y to be equal.
-  >>>
-  >>> tvm.testing.ErrorTest(1, 1)
-  Traceback (most recent call last):
-    File "<stdin>", line 1, in <module>
-    File "/path/to/tvm/python/tvm/_ffi/_ctypes/function.py", line 190, in __call__
-      raise get_last_ffi_error()
-  tvm.error.InternalError: Traceback (most recent call last):
-    [bt] (3) /path/to/tvm/build/libtvm.so(TVMFuncCall+0x48) [0x7fab500b8ca8]
-    [bt] (2) /path/to/tvm/build/libtvm.so(+0x1c4126) [0x7fab4f7f5126]
-    [bt] (1) /path/to/tvm/build/libtvm.so(+0x1ba35c) [0x7fab4f7eb35c]
-    [bt] (0) /path/to/tvm/build/libtvm.so(+0x177d12) [0x7fab4f7a8d12]
-    File "/path/to/tvm/src/api/api_test.cc", line 83
-  InternalError: cannot reach here
-  TVM hint: You hit an internal error. Please open a thread on https://discuss.tvm.ai/ to report it.
-
-As you can see in the above example, TVM's ffi system combines
-both the python and c++'s stacktrace into a single message, and generate the
-corresponding error class automatically.
+TVM's FFI system combines both the Python and C++ stacktraces into a single message,
+and generates the corresponding error class automatically.
 
 
 How to choose an Error Type
