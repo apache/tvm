@@ -102,7 +102,7 @@ focus on optimizations that are not covered by them.
 
 cross-level transformations
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Apache TVM brings a unity strategy to optimize the end-to-end models. As the IRModule includes both relax and tir functions, the cross-level transformations are designed to mutate
+Apache TVM enables cross-level optimization of end-to-end models. As the IRModule includes both relax and tir functions, the cross-level transformations are designed to mutate
 the IRModule by applying different transformations to these two types of functions.
 
 For example, ``relax.LegalizeOps`` pass mutates the IRModule by lowering relax operators, adding corresponding TIR PrimFunc into the IRModule, and replacing the relax operators
@@ -337,7 +337,7 @@ While possible to construct operators directly via TIR or tensor expressions (TE
 tvm/s_tir/meta_schedule
 -----------------------
 
-MetaSchedule is a system for automated search-based program optimization. It is designed to be a drop-in replacement for AutoTVM and AutoScheduler,
+MetaSchedule is a system for automated search-based program optimization,
 and can be used to optimize TensorIR schedules. Note that MetaSchedule only works with static-shape workloads.
 
 tvm/dlight
@@ -346,6 +346,6 @@ tvm/dlight
 DLight is a set of pre-defined, easy-to-use, and performant TIR schedules. DLight aims:
 
 - Fully support **dynamic shape workloads**.
-- **Light weight**. DLight schedules provides tuning-free or (very few-shots tuning) schedule with reasonable performance.
+- **Light weight**. DLight schedules provides tuning-free schedule with reasonable performance.
 - **Robust**. DLight schedules are designed to be robust and general-purpose for a single rule. And if the rule is not applicable,
   DLight not raise any error and switch to the next rule automatically.

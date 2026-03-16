@@ -128,7 +128,7 @@ we can pass functions from python (as PackedFunc) to C++.
       print(msg)
 
     # convert to PackedFunc
-    f = tvm.convert(callback)
+    f = tvm.runtime.convert(callback)
     callhello = tvm.get_global_func("callhello")
     # prints hello world
     callhello(f)

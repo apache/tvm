@@ -47,7 +47,7 @@ please refer to :ref:`quick_start`
 
 1. **Import/construct an ML model**
 
-    TVM supports importing models from various frameworks, such as PyTorch, TensorFlow for generic ML models. Meanwhile, we can create models directly using Relax frontend for scenarios of large language models.
+    TVM supports importing models from various frameworks, such as PyTorch and ONNX for generic ML models. Meanwhile, we can create models directly using Relax frontend for scenarios of large language models.
 
 2. **Perform composable optimization** transformations via ``pipelines``
 

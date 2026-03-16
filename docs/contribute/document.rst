@@ -61,7 +61,7 @@ How-to Guides
 These are step by step guides on how to solve particular problems. The user can
 ask meaningful questions, and the documents provide answers. An examples of
 this type of document might be, "how do I compile an optimized model for ARM
-architecture?" or "how do I compile and optimize a TensorFlow model?" These
+architecture?" or "how do I compile and optimize a PyTorch model?" These
 documents should be open enough that a user could see how to apply it to a new
 use case. Practical usability is more important than completeness. The title
 should tell the user what problem the how-to is solving.
@@ -209,8 +209,8 @@ Sphinx Gallery How-Tos
 ----------------------
 
 We use `sphinx-gallery <https://sphinx-gallery.github.io/>`_ to build many
-Python how-tos. You can find the source code under `gallery
-<https://github.com/apache/tvm/tree/main/gallery>`_.
+Python how-tos. You can find the source code under `docs/how_to/tutorials
+<https://github.com/apache/tvm/tree/main/docs/how_to/tutorials>`_.
 One thing that worth noting is that the comment blocks are written in
 reStructuredText instead of markdown so be aware of the syntax.
 
@@ -222,7 +222,7 @@ existing environment to demonstrate the usage.
 
 If you add a new categorization of how-to, you will need to add references to
 `conf.py <https://github.com/apache/tvm/tree/main/docs/conf.py>`_ and the
-`how-to index <https://github.com/apache/tvm/tree/main/docs/how-to/index.rst>`_
+`how-to index <https://github.com/apache/tvm/tree/main/docs/how_to/dev/index.rst>`_
 
 Refer to Another Location in the Document
 -----------------------------------------

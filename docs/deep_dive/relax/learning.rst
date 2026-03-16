@@ -19,7 +19,7 @@
 
 Understand Relax Abstraction
 ============================
-Relax is a graph abstraction used in Apache TVM Unity strategy, which
+Relax is a graph abstraction used in Apache TVM, which
 helps to end-to-end optimize ML models. The principal objective of Relax
 is to depict the structure and data flow of ML models, including the
 dependencies and relationships between different parts of the model, as
