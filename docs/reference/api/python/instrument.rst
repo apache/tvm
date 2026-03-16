@@ -15,8 +15,8 @@
     specific language governing permissions and limitations
     under the License.
 
-tvm.instrument
---------------
-.. automodule:: tvm.instrument
+tvm.ir.instrument
+------------------
+.. automodule:: tvm.ir.instrument
    :members:
    :imported-members:

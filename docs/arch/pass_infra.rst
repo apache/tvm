@@ -340,7 +340,7 @@ We've covered the concept of different level of passes and the context used for
 compilation. It would be interesting to see how easily users can register
 a pass.  Let's take const folding as an example. This pass has already been
 implemented to fold constants in a Relax function (found in
-`src/relax/transforms/fold_constant.cc`_).
+`src/relax/transform/fold_constant.cc`_).
 
 An API was provided to perform the ``Expr`` to ``Expr`` transformation.
 
@@ -646,7 +646,7 @@ new ``PassInstrument`` are called.
 
 .. _src/ir/instrument.cc: https://github.com/apache/tvm/blob/main/src/ir/instrument.cc
 
-.. _src/relax/transforms/fold_constant.cc: https://github.com/apache/tvm/blob/main/src/relax/transforms/fold_constant.cc
+.. _src/relax/transform/fold_constant.cc: https://github.com/apache/tvm/blob/main/src/relax/transform/fold_constant.cc
 
 .. _python/tvm/relax/transform/transform.py: https://github.com/apache/tvm/blob/main/python/tvm/relax/transform/transform.py
 
