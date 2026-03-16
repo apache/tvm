@@ -8064,7 +8064,9 @@ def test_sparse_mm():
 
     example_args = (sparse_input, dense_input)
 
-    @tvm.script.ir_module
+    # Without decomposition (skipped for sparse inputs), aten._sparse_mm maps
+    # directly to R.matmul — no spurious R.full initializer from the decomposed path.
+    @I.ir_module
     class Expected:
         @R.function
         def main(
@@ -8072,17 +8074,51 @@ def test_sparse_mm():
             dense_input: R.Tensor((100, 50), dtype="float32"),
         ) -> R.Tuple(R.Tensor((3, 50), dtype="float32")):
             with R.dataflow():
-                lv: R.Tensor((3, 50), dtype="float32") = R.full(
-                    R.shape([3, 50]), R.const(0.0, "float32"), dtype="float32"
-                )
-                lv1: R.Tensor((3, 50), dtype="float32") = R.matmul(
+                lv: R.Tensor((3, 50), dtype="float32") = R.matmul(
                     sparse_input, dense_input, out_dtype="float32"
                 )
-                gv: R.Tuple(R.Tensor((3, 50), dtype="float32")) = (lv1,)
+                gv: R.Tuple(R.Tensor((3, 50), dtype="float32")) = (lv,)
                 R.output(gv)
             return gv
 
     verify_model(SparseMatrixMultiply(), example_args, {}, Expected)
+
+
+def test_sparse_csr_user_input():
+    """Regression test for https://github.com/apache/tvm/issues/18648.
+
+    When a sparse CSR tensor is passed as a user input (not a buffer/parameter),
+    _has_sparse_tensors() previously missed it, causing run_decompositions() to
+    crash with 'layout_impl is only implemented for TensorImpl subclasses'.
+    """
+
+    class SparseCsrMM(Module):
+        def forward(self, sparse_input, dense_input):
+            return torch.sparse.mm(sparse_input, dense_input)
+
+    crow = torch.tensor([0, 2, 3])
+    col = torch.tensor([0, 1, 2])
+    val = torch.tensor([1.0, 2.0, 3.0], dtype=torch.float32)
+    sparse_input = torch.sparse_csr_tensor(crow, col, val, size=(2, 3))
+    dense_input = torch.randn(3, 4, dtype=torch.float32)
+    example_args = (sparse_input, dense_input)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            sparse_input: R.Tensor((2, 3), dtype="float32"),
+            dense_input: R.Tensor((3, 4), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((2, 4), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((2, 4), dtype="float32") = R.matmul(
+                    sparse_input, dense_input, out_dtype="float32"
+                )
+                gv: R.Tuple(R.Tensor((2, 4), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    verify_model(SparseCsrMM(), example_args, {}, Expected)
 
 
 @tvm.testing.requires_llvm

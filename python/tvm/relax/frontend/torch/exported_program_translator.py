@@ -2050,7 +2050,16 @@ def from_exported_program(
     def _has_sparse_tensors(ep: torch.export.ExportedProgram) -> bool:
         from itertools import chain
 
+        # Collect user inputs from example_inputs (args + kwargs).
+        # Parameters/buffers are covered by named_buffers/named_parameters below.
+        user_inputs: list[torch.Tensor] = []
+        if hasattr(ep, "example_inputs"):
+            args, kwargs = ep.example_inputs
+            user_inputs = [t for t in args if isinstance(t, torch.Tensor)]
+            user_inputs += [t for t in kwargs.values() if isinstance(t, torch.Tensor)]
+
         all_potential_tensors = chain(
+            user_inputs,
             (t for _, t in ep.named_buffers()),
             (t for _, t in ep.named_parameters()),
             ep.constants.values(),
