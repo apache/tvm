@@ -300,7 +300,6 @@ pass is registered with an API endpoint as we will show later.
 .. code:: c++
 
     Pass GetPass(const std::string& pass_name) {
-      using tvm::runtime::Registry;
       std::string fpass_name = "relax.transform." + pass_name;
       const std::optional<tvm::ffi::Function> f = tvm::ffi::Function::GetGlobal(fpass_name);
       TVM_FFI_ICHECK(f.has_value()) << "Cannot find " << fpass_name
@@ -659,6 +658,6 @@ new ``PassInstrument`` are called.
 
 .. _src/tir/transform/unroll_loop.cc: https://github.com/apache/tvm/blob/main/src/tir/transform/unroll_loop.cc
 
-.. _use pass infra: https://github.com/apache/tvm/blob/main/tutorials/dev/use_pass_infra.py
+.. _use pass infra: https://github.com/apache/tvm/blob/main/docs/how_to/tutorials/customize_opt.py
 
-.. _use pass instrument: https://github.com/apache/tvm/blob/main/tutorials/dev/use_pass_instrument.py
+.. _use pass instrument: https://github.com/apache/tvm/blob/main/docs/how_to/dev/index.rst

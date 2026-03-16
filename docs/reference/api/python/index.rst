@@ -63,6 +63,7 @@ Python API
     :caption: tvm.s_tir
 
     s_tir/schedule
+    s_tir/transform
     s_tir/dlight
 
 .. toctree::

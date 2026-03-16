@@ -141,7 +141,7 @@ if not IS_IN_CI:
 
 if not IS_IN_CI:
     with target:
-        mod = tvm.tir.transform.DefaultGPUSchedule()(mod)
+        mod = tvm.s_tir.transform.DefaultGPUSchedule()(mod)
     ex = tvm.compile(mod, target=target)
     dev = tvm.device("cuda", 0)
     vm = relax.VirtualMachine(ex, dev)
