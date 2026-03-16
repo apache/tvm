@@ -14,10 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: RUF005
 import numpy as np
+
 import tvm
 import tvm.testing
-
 from tvm import relax, rpc
 from tvm.contrib import utils
 from tvm.relax.testing import nn
@@ -55,7 +56,7 @@ def test_conv2d_cpu():
     ex = get_exec(data_np.shape)
 
     vm = relax.VirtualMachine(ex, tvm.cpu(), profile=True)
-    report = vm.profile("main", tvm.nd.array(data_np))
+    report = vm.profile("main", tvm.runtime.tensor(data_np))
     print(report)
 
     assert "Duration" in str(report)
@@ -76,7 +77,7 @@ def with_rpc(ex, f, data_np):
     device = remote.cpu()
 
     vm = relax.VirtualMachine(rexec, device=device, profile=True)
-    data = tvm.nd.array(data_np, device)
+    data = tvm.runtime.tensor(data_np, device)
 
     f(vm, data)
 
@@ -101,9 +102,7 @@ def test_tuple():
     @tvm.script.ir_module
     class NestedTuple:
         @R.function
-        def main(
-            x: R.Tensor((16,), "float32")
-        ) -> R.Tuple(
+        def main(x: R.Tensor((16,), "float32")) -> R.Tuple(
             R.Tuple(
                 R.Tensor((16,), "float32"),
                 R.Tuple(

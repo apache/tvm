@@ -110,12 +110,23 @@ export async function detectGPUDevice(powerPreference: "low-power" | "high-perfo
       );
     }
 
+    const candidates = [1024, 512, 256];
+    const limit = adapter.limits.maxComputeInvocationsPerWorkgroup;
+    const requiredMaxComputeInvocationsPerWorkgroup = candidates.find(x => x <= limit) || undefined;
+    if (requiredMaxComputeInvocationsPerWorkgroup === undefined) {
+      console.log(`No candidate fits device limit=${limit}; will rely on defaults`);
+    } else if (requiredMaxComputeInvocationsPerWorkgroup !== 1024) {
+      console.log(
+        `Falling back to maxComputeInvocationsPerWorkgroup=${requiredMaxComputeInvocationsPerWorkgroup} ` +
+        `due to device limit=${limit}`
+      )
+    }
+
     const requiredFeatures: GPUFeatureName[] = [];
     // Always require f16 if available
     if (adapter.features.has("shader-f16")) {
       requiredFeatures.push("shader-f16");
     }
-
     // requestAdapterInfo() is deprecated, causing requestAdapterInfo to raise
     // issue when building. However, it is still needed for older browsers, hence `as any`.
     const adapterInfo = adapter.info || await (adapter as any).requestAdapterInfo();
@@ -125,6 +136,7 @@ export async function detectGPUDevice(powerPreference: "low-power" | "high-perfo
         maxStorageBufferBindingSize: requiredMaxStorageBufferBindingSize,
         maxComputeWorkgroupStorageSize: requiredMaxComputeWorkgroupStorageSize,
         maxStorageBuffersPerShaderStage: requiredMaxStorageBuffersPerShaderStage,
+        maxComputeInvocationsPerWorkgroup: requiredMaxComputeInvocationsPerWorkgroup,
       },
       requiredFeatures
     });
@@ -144,7 +156,7 @@ export async function detectGPUDevice(powerPreference: "low-power" | "high-perfo
  * @param descriptor The GPUBufferDescriptor passed to `createBuffer()`.
  * @returns The buffer created by `createBuffer()`.
  *
- * @note We treat any error occurred at `createBuffer()` fatal and expect the user to handle
+ * Note: We treat any error occurred at `createBuffer()` fatal and expect the user to handle
  *   `device.destroy()` with `device.lost.then()`.
  */
 function tryCreateBuffer(device: GPUDevice, descriptor: GPUBufferDescriptor) {
@@ -389,10 +401,25 @@ export class WebGPUContext {
   // internal data
   private bufferTable: Array<GPUBuffer | undefined> = [undefined];
   private bufferTableFreeId: Array<number> = [];
-  private podArgStagingBuffers: Array<GPUBuffer> = [];
   private canvasRenderManager?: CanvasRenderManager = undefined;
-  // number of pod arg staging buffers
-  private maxNumPodArgsStagingBuffers = 2;
+  // Pool of MAP_READ staging buffers to avoid per-copy create/destroy overhead
+  private readStagingBufferPool: Array<{ buffer: GPUBuffer; size: number }> = [];
+  private maxReadStagingBuffers = 4;
+  // Pending mapAsync promise from the last GPU→CPU copy.
+  // Used in sync() as a fast path: if the last queue operation was a
+  // GPU→CPU copy, awaiting its mapAsync is sufficient (no need for
+  // the heavier onSubmittedWorkDone). Reset to null after any non-copy
+  // queue submission so we fall back to onSubmittedWorkDone.
+  private pendingGPUToCPUCopy: Promise<void> | null = null;
+  // Batched command encoding: accumulate compute passes in a single encoder,
+  // submit only on flush to reduce JS-native transition overhead.
+  private pendingEncoder: GPUCommandEncoder | null = null;
+  // Pool of uniform buffers reused across flushes. Each dispatch in a batch
+  // gets its own buffer (indexed by pendingDispatchCount). The pool grows
+  // as needed but buffers are never destroyed — just reused next batch.
+  private uniformBufferPool: Array<GPUBuffer> = [];
+  private uniformBufferPoolSizes: Array<number> = [];
+  private pendingDispatchCount = 0;
   // flags for debugging
   // stats of the runtime.
   // peak allocation
@@ -414,25 +441,62 @@ export class WebGPUContext {
   }
 
   /**
+   * Flush all pending compute passes by finishing and submitting the
+   * accumulated command encoder.
+   *
+   * Must be called before:
+   * - GPU→CPU readback (deviceCopyFromGPU)
+   * - CPU→GPU writes (deviceCopyToGPU, copyRawBytesToBuffer)
+   * - GPU↔GPU copies (deviceCopyWithinGPU)
+   * - Buffer deallocation (deviceFreeDataSpace)
+   * - Queue sync (sync)
+   */
+  flushCommands(): void {
+    if (this.pendingEncoder) {
+      this.device.queue.submit([this.pendingEncoder.finish()]);
+      this.pendingEncoder = null;
+      this.pendingDispatchCount = 0;
+      // A compute submission is now the last queue operation, so the
+      // GPU→CPU copy fast path in sync() is no longer valid.
+      this.pendingGPUToCPUCopy = null;
+    }
+  }
+
+  /**
    * Dispose context.
    */
   dispose() {
+    this.flushCommands();
     this.canvasRenderManager?.dispose();
     this.bufferTableFreeId = [];
     while (this.bufferTable.length != 0) {
       this.bufferTable.pop()?.destroy();
     }
-    while (this.podArgStagingBuffers.length != 0) {
-      this.podArgStagingBuffers.pop()?.destroy();
+    for (const buf of this.uniformBufferPool) {
+      buf.destroy();
+    }
+    this.uniformBufferPool.length = 0;
+    this.uniformBufferPoolSizes.length = 0;
+    while (this.readStagingBufferPool.length != 0) {
+      this.readStagingBufferPool.pop()?.buffer.destroy();
     }
     this.device.destroy();
   }
+
 
   /**
    * Wait for all pending GPU tasks to complete
    */
   async sync(): Promise<void> {
-    await this.device.queue.onSubmittedWorkDone();
+    // Flush any batched compute passes before waiting on the queue.
+    this.flushCommands();
+    if (this.pendingGPUToCPUCopy) {
+      const p = this.pendingGPUToCPUCopy;
+      this.pendingGPUToCPUCopy = null;
+      await p;
+    } else {
+      await this.device.queue.onSubmittedWorkDone();
+    }
   }
 
   /**
@@ -472,11 +536,12 @@ export class WebGPUContext {
     toOffset: number,
     nbytes: number
   ): void {
-    // Perhaps it would be more useful to use a staging buffer?
+    // Flush batched compute passes before writing, to preserve execution order.
+    this.flushCommands();
     this.device.queue.writeBuffer(
       this.gpuBufferFromPtr(toPtr),
       toOffset,
-      rawBytes,
+      rawBytes as GPUAllowSharedBufferSource,
       0,
       nbytes
     );
@@ -500,7 +565,7 @@ export class WebGPUContext {
    * Create a PackedFunc that runs the given shader
    * via createComputePipeline
    *
-   * @param info The function information already parsed as a record.
+    * @param finfo The function information already parsed as a record.
    * @param code The shader data(in WGSL)
    * @returns The shader
    */
@@ -512,7 +577,7 @@ export class WebGPUContext {
    * Create a PackedFunc that runs the given shader asynchronously
    * via createComputePipelineAsync
    *
-   * @param info The function information already parsed as a record.
+    * @param finfo The function information already parsed as a record.
    * @param code The shader data(in WGSL)
    * @returns The shader
    */
@@ -521,43 +586,48 @@ export class WebGPUContext {
   }
 
   /**
-   * Get the pod arg staging buffer
-   * \param nbytes The minimum size.
-   * \return The allocated buffer
+   * Get a uniform buffer from the per-dispatch pool.
+   *
+   * Each dispatch in a batched encoder needs its own uniform buffer because
+   * queue.writeBuffer() executes immediately while compute passes are deferred.
+   * Reusing a shared buffer would overwrite data before earlier dispatches
+   * consume it.
+   *
+   * The pool grows as needed. Buffers are reused across flushes (indexed by
+   * dispatch position within the current batch). If the pool has no slot for
+   * this dispatch, we flush first — this submits all pending passes, resets
+   * pendingDispatchCount to 0, and allows reuse from the start of the pool.
+   *
+   * State after flush: the pending encoder and all bind group / buffer
+   * references from prior dispatches are submitted and consumed. The new
+   * dispatch starts a fresh encoder, so no stale state carries over.
+   *
+   * @param nbytes Minimum buffer size in bytes.
+   * @returns A GPUBuffer with UNIFORM | COPY_DST usage, at least nbytes large.
    */
-  private getPodArgsBuffer(nbytes: number): GPUBuffer {
-    let buffer: GPUBuffer | undefined = undefined;
-    if (this.podArgStagingBuffers.length >= this.maxNumPodArgsStagingBuffers) {
-      buffer = this.podArgStagingBuffers.shift();
+  private getUniformFromPool(nbytes: number): GPUBuffer {
+    const dispatchIdx = this.pendingDispatchCount++;
+    if (dispatchIdx < this.uniformBufferPool.length &&
+        this.uniformBufferPoolSizes[dispatchIdx] >= nbytes) {
+      return this.uniformBufferPool[dispatchIdx];
     }
-    // minimum of 16 bytes
-    let allocSize = 16;
-    if (buffer !== undefined) {
-      allocSize = buffer.size;
-      if (buffer.size < nbytes) {
-        buffer.destroy();
-        buffer = undefined;
-      }
+    // Destroy old undersized buffer if it exists.
+    if (dispatchIdx < this.uniformBufferPool.length) {
+      this.uniformBufferPool[dispatchIdx].destroy();
     }
-    while (allocSize < nbytes) {
-      allocSize *= 2;
-    }
-
-    if (buffer == undefined) {
-      // create uniform buffer
-      buffer = tryCreateBuffer(this.device, {
-        size: allocSize,
-        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-      });
-    }
-    assert(nbytes <= buffer.size);
+    const buffer = this.device.createBuffer({
+      size: nbytes,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    });
+    this.uniformBufferPool[dispatchIdx] = buffer;
+    this.uniformBufferPoolSizes[dispatchIdx] = nbytes;
     return buffer;
   }
 
   /**
    * Internal impl of createShader for both async and sync mode.
    *
-   * @param info The function information already parsed as a record.
+    * @param finfo The function information already parsed as a record.
    * @param code The shader data(in WGSL)
    * @param asyncMode Whether use async mode.
    * @returns The shader function or promise of shader func.
@@ -636,8 +706,12 @@ export class WebGPUContext {
           return;
         }
 
-        const commandEncoder = this.device.createCommandEncoder();
-        const compute = commandEncoder.beginComputePass();
+        // Reuse a single command encoder across dispatches; only flush on sync/readback.
+        if (!this.pendingEncoder) {
+          this.pendingEncoder = this.device.createCommandEncoder();
+        }
+
+        const compute = this.pendingEncoder.beginComputePass();
         compute.setPipeline(pipeline);
         const bindGroupEntries: Array<GPUBindGroupEntry> = [];
         const numBufferOrPodArgs = bufferArgIndices.length + podArgIndices.length;
@@ -682,9 +756,9 @@ export class WebGPUContext {
           });
         }
 
-        // push pod buffer
         const sizeOfI32 = 4;
-        const podArgBuffer = this.getPodArgsBuffer((podArgIndices.length + 1) * sizeOfI32);
+        const bufBytes = (podArgIndices.length + 1) * sizeOfI32;
+        const podArgBuffer = this.getUniformFromPool(bufBytes);
         const i32View = new Int32Array(podArgIndices.length + 1);
         const u32View = new Uint32Array(i32View.buffer);
         const f32View = new Float32Array(i32View.buffer);
@@ -719,12 +793,12 @@ export class WebGPUContext {
           entries: bindGroupEntries
         }));
 
-        compute.dispatchWorkgroups(workDim[0], workDim[1], workDim[2])
-        compute.end()
-        const command = commandEncoder.finish();
-        this.device.queue.submit([command]);
+        compute.dispatchWorkgroups(workDim[0], workDim[1], workDim[2]);
+        compute.end();
 
+        // In debug mode, flush immediately so we can observe each submission.
         if (this.debugLogFinish) {
+          this.flushCommands();
           const currCounter = this.shaderSubmitCounter;
           this.device.queue.onSubmittedWorkDone().then(() => {
             console.log("[" + currCounter + "][Debug] finish shader" + finfo.name);
@@ -769,7 +843,7 @@ export class WebGPUContext {
 
   /**
    * Get the device API according to its name
-   * @param The name of the API.
+    * @param name The name of the API.
    * @returns The corresponding device api.
    */
   getDeviceAPI(name: string): Function {
@@ -840,6 +914,10 @@ export class WebGPUContext {
     assert(buffer !== undefined);
     this.bufferTableFreeId.push(idx);
     this.currAllocatedBytes -= buffer.size;
+    // Flush any pending compute passes that may reference this buffer
+    // before destroying it, otherwise queue.submit() will fail with
+    // "buffer used in submit while destroyed".
+    this.flushCommands();
     buffer.destroy();
   }
 
@@ -849,22 +927,62 @@ export class WebGPUContext {
     toOffset: number,
     nbytes: number
   ): void {
-    // Perhaps it would be more useful to use a staging buffer?
+    // Flush batched compute passes before writing to a GPU buffer,
+    // otherwise the write may be reordered before pending dispatches
+    // that read from the same buffer.
+    this.flushCommands();
     let rawBytes = this.memory.loadRawBytes(from, nbytes);
     if (rawBytes.length % 4 !== 0) {
       // writeBuffer requires length to be multiples of 4, so we pad here
       const toPad = 4 - rawBytes.length % 4;
-      rawBytes = new Uint8Array(rawBytes.length + toPad);
-      rawBytes.set(rawBytes);
+      const padded = new Uint8Array(rawBytes.length + toPad);
+      padded.set(rawBytes);
+      rawBytes = padded;
       nbytes = nbytes + toPad;
     }
     this.device.queue.writeBuffer(
       this.gpuBufferFromPtr(to),
       toOffset,
-      rawBytes,
+      rawBytes as GPUAllowSharedBufferSource,
       0,
       nbytes
     );
+  }
+
+  /**
+   * Get a MAP_READ staging buffer from the pool, or create one if none fits.
+   * Uses first-fit-by-size: returns the first pooled buffer >= nbytes.
+   */
+  private getOrCreateReadStagingBuffer(nbytes: number): GPUBuffer {
+    for (let i = 0; i < this.readStagingBufferPool.length; i++) {
+      if (this.readStagingBufferPool[i].size >= nbytes) {
+        const entry = this.readStagingBufferPool.splice(i, 1)[0];
+        return entry.buffer;
+      }
+    }
+    return tryCreateBuffer(this.device, {
+      size: nbytes,
+      usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
+    });
+  }
+
+  /**
+   * Return a MAP_READ staging buffer to the pool for reuse.
+   * Evicts the smallest buffer if the pool is full.
+   */
+  private recycleReadStagingBuffer(buf: GPUBuffer): void {
+    buf.unmap();
+    if (this.readStagingBufferPool.length >= this.maxReadStagingBuffers) {
+      // Evict smallest buffer to make room
+      let minIdx = 0;
+      for (let i = 1; i < this.readStagingBufferPool.length; i++) {
+        if (this.readStagingBufferPool[i].size < this.readStagingBufferPool[minIdx].size) {
+          minIdx = i;
+        }
+      }
+      this.readStagingBufferPool.splice(minIdx, 1)[0].buffer.destroy();
+    }
+    this.readStagingBufferPool.push({ buffer: buf, size: buf.size });
   }
 
   private deviceCopyFromGPU(
@@ -873,11 +991,9 @@ export class WebGPUContext {
     to: Pointer,
     nbytes: number
   ): void {
-    // Perhaps it would be more useful to resuse a staging buffer?
-    const gpuTemp = tryCreateBuffer(this.device, {
-      size: nbytes,
-      usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
-    });
+    // Flush batched compute passes before the readback copy.
+    this.flushCommands();
+    const gpuTemp = this.getOrCreateReadStagingBuffer(nbytes);
 
     const copyEncoder = this.device.createCommandEncoder();
     copyEncoder.copyBufferToBuffer(
@@ -890,11 +1006,15 @@ export class WebGPUContext {
     const copyCommands = copyEncoder.finish();
     this.device.queue.submit([copyCommands]);
 
-    gpuTemp.mapAsync(GPUMapMode.READ).then(() => {
-      const data = gpuTemp.getMappedRange();
+    const readPromise = gpuTemp.mapAsync(GPUMapMode.READ).then(() => {
+      const data = gpuTemp.getMappedRange(0, nbytes);
       this.memory.storeRawBytes(to, new Uint8Array(data));
-      gpuTemp.destroy();
+      this.recycleReadStagingBuffer(gpuTemp);
     });
+    // Chain with any existing pending read so sync() awaits all of them.
+    this.pendingGPUToCPUCopy = this.pendingGPUToCPUCopy
+      ? this.pendingGPUToCPUCopy.then(() => readPromise)
+      : readPromise;
   }
 
   private deviceCopyWithinGPU(
@@ -904,6 +1024,8 @@ export class WebGPUContext {
     toOffset: number,
     nbytes: number
   ): void {
+    // Flush batched compute passes before the GPU-to-GPU copy.
+    this.flushCommands();
     const copyEncoder = this.device.createCommandEncoder();
     copyEncoder.copyBufferToBuffer(
       this.gpuBufferFromPtr(from),

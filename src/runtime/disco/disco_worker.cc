@@ -29,17 +29,17 @@ namespace runtime {
 
 TVM_DLL DiscoWorker* DiscoWorker::ThreadLocal() {
   DiscoWorker* ret = ThreadLocalDiscoWorker::Get()->worker;
-  CHECK(ret) << "ValueError: The current thread is not a DiscoWorker thread";
+  TVM_FFI_CHECK(ret, ValueError) << "The current thread is not a DiscoWorker thread";
   return ret;
 }
 
 void DiscoWorker::SetRegister(int reg_id, ffi::AnyView value) {
-  ICHECK(0 <= reg_id && reg_id < static_cast<int>(register_file.size()));
+  TVM_FFI_ICHECK(0 <= reg_id && reg_id < static_cast<int>(register_file.size()));
   ffi::Any& rv = register_file.at(reg_id);
-  if (rv.type_index() == ffi::TypeIndex::kTVMFFINDArray &&
-      value.type_index() == ffi::TypeIndex::kTVMFFINDArray) {
-    NDArray dst = rv.cast<NDArray>();
-    NDArray src = value.cast<NDArray>();
+  if (rv.type_index() == ffi::TypeIndex::kTVMFFITensor &&
+      value.type_index() == ffi::TypeIndex::kTVMFFITensor) {
+    Tensor dst = rv.cast<Tensor>();
+    Tensor src = value.cast<Tensor>();
     dst.CopyFrom(src);
   } else {
     rv = value;
@@ -69,9 +69,9 @@ struct DiscoWorker::Impl {
         }
         case DiscoAction::kCallPacked: {
           int func_reg_id = args[2].cast<int>();
-          CHECK_LT(func_reg_id, self->register_file.size());
+          TVM_FFI_ICHECK_LT(func_reg_id, self->register_file.size());
           ffi::Function func = GetReg(self, func_reg_id).cast<ffi::Function>();
-          CHECK(func.defined());
+          TVM_FFI_ICHECK(func.defined());
           CallPacked(self, reg_id, func, args.Slice(3));
           break;
         }
@@ -106,31 +106,31 @@ struct DiscoWorker::Impl {
 
   static void GetGlobalFunc(DiscoWorker* self, int reg_id, const std::string& name) {
     const auto pf = tvm::ffi::Function::GetGlobal(name);
-    CHECK(pf.has_value()) << "ValueError: Cannot find global function: " << name;
+    TVM_FFI_CHECK(pf.has_value(), ValueError) << "Cannot find global function: " << name;
     if (reg_id != 0) {
       GetReg(self, reg_id) = *pf;
     }
   }
 
-  static NDArray GetNDArrayFromHost(DiscoWorker* self) {
+  static Tensor GetTensorFromHost(DiscoWorker* self) {
     std::lock_guard<std::mutex> lock(self->worker_zero_data->queue_mutex_);
-    NDArray array = self->worker_zero_data->host_arrays.front();
+    Tensor array = self->worker_zero_data->host_arrays.front();
     self->worker_zero_data->host_arrays.pop();
     return array;
   }
 
   static void CopyFromWorker0(DiscoWorker* self, int reg_id) {
     if (self->worker_id == 0) {
-      NDArray tgt = GetNDArrayFromHost(self);
-      NDArray src = GetReg(self, reg_id).cast<NDArray>();
+      Tensor tgt = GetTensorFromHost(self);
+      Tensor src = GetReg(self, reg_id).cast<Tensor>();
       tgt.CopyFrom(src);
     }
   }
 
   static void CopyToWorker0(DiscoWorker* self, int reg_id) {
     if (self->worker_id == 0) {
-      NDArray src = GetNDArrayFromHost(self);
-      NDArray tgt = GetReg(self, reg_id).cast<NDArray>();
+      Tensor src = GetTensorFromHost(self);
+      Tensor tgt = GetReg(self, reg_id).cast<Tensor>();
       tgt.CopyFrom(src);
     }
   }

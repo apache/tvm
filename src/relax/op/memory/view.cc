@@ -30,8 +30,9 @@ namespace tvm {
 namespace relax {
 
 /* relax.op.memory.view */
-Expr view(Expr x, Optional<Expr> shape, Optional<Expr> dtype, Optional<Expr> relative_byte_offset) {
-  Tuple void_expr(Array<Expr>{});
+Expr view(Expr x, ffi::Optional<Expr> shape, ffi::Optional<Expr> dtype,
+          ffi::Optional<Expr> relative_byte_offset) {
+  Tuple void_expr(ffi::Array<Expr>{});
 
   static const Op& op = Op::Get("relax.memory.view");
   return Call(op, {
@@ -42,10 +43,10 @@ Expr view(Expr x, Optional<Expr> shape, Optional<Expr> dtype, Optional<Expr> rel
                   });
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.memory.view", view);
-});
+}
 
 StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 4) {
@@ -63,9 +64,9 @@ StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
     if (auto opt = sinfo.as<TensorStructInfo>()) {
       return opt.value();
     } else {
-      LOG(FATAL) << "TypeError: "
-                 << "Operator " << call->op << " expects first argument to be a tensor, "
-                 << "but received " << arg_data << " with type " << sinfo;
+      TVM_FFI_THROW(TypeError) << "Operator " << call->op
+                               << " expects first argument to be a tensor, "
+                               << "but received " << arg_data << " with type " << sinfo;
     }
   }();
   auto view_shape_sinfo = [&]() -> const ShapeStructInfoNode* {
@@ -78,10 +79,10 @@ StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
       // The `R.view` operation returns a different shape.
       return ptr;
     } else {
-      LOG(FATAL) << "TypeError: "
-                 << "Operator " << call->op << " expects second argument to be a ShapeExpr, "
-                 << "or a void-type (empty relax tuple), "
-                 << "but received " << arg_shape << " with type " << sinfo;
+      TVM_FFI_THROW(TypeError) << "Operator " << call->op
+                               << " expects second argument to be a ShapeExpr, "
+                               << "or a void-type (empty relax tuple), "
+                               << "but received " << arg_shape << " with type " << sinfo;
     }
   }();
 
@@ -116,22 +117,20 @@ StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
       // being changed into.
       return DataType::Void();
     } else {
-      LOG(FATAL) << "TypeError: "
-                 << "Operator " << call->op
-                 << " expects the dtype argument to be a relax::DataTypeImm, "
-                 << "but received " << arg_dtype << " with type " << sinfo;
+      TVM_FFI_THROW(TypeError) << "Operator " << call->op
+                               << " expects the dtype argument to be a relax::DataTypeImm, "
+                               << "but received " << arg_dtype << " with type " << sinfo;
     }
   }();
 
-  auto view_relative_byte_offset = [&]() -> Optional<PrimExpr> {
+  auto view_relative_byte_offset = [&]() -> ffi::Optional<PrimExpr> {
     StructInfo sinfo = GetStructInfo(arg_relative_byte_offset);
 
     if (HasVoidStructInfo(arg_relative_byte_offset)) {
       // No byte offset is specified, so no change is applied.
       return IntImm(DataType::Int(64), 0);
     } else if (auto prim_sinfo = sinfo.as<PrimStructInfoNode>()) {
-      CHECK_EQ(prim_sinfo->dtype, DataType::Int(64))
-          << "TypeError: "
+      TVM_FFI_CHECK_EQ(prim_sinfo->dtype, DataType::Int(64), TypeError)
           << "Operator " << call->op
           << " expects the relative_byte_offset to be a 64-bit integer, but received "
           << arg_relative_byte_offset << ", which has type " << sinfo;
@@ -144,17 +143,18 @@ StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
         return std::nullopt;
       }
     } else {
-      LOG(FATAL) << "TypeError: "
-                 << "Operator " << call->op << " expects the relative_byte_offset argument "
-                 << "to be a Relax PrimValue.  "
-                 << "However, expression " << call << " provides relative_byte_offset of "
-                 << arg_relative_byte_offset << ", which has type " << sinfo;
+      TVM_FFI_THROW(TypeError) << "Operator " << call->op
+                               << " expects the relative_byte_offset argument "
+                               << "to be a Relax PrimValue.  "
+                               << "However, expression " << call
+                               << " provides relative_byte_offset of " << arg_relative_byte_offset
+                               << ", which has type " << sinfo;
     }
   }();
 
-  Optional<Array<PrimExpr>> input_shape = data_sinfo->GetShape();
+  ffi::Optional<ffi::Array<PrimExpr>> input_shape = data_sinfo->GetShape();
 
-  Optional<Array<PrimExpr>> output_shape = std::nullopt;
+  ffi::Optional<ffi::Array<PrimExpr>> output_shape = std::nullopt;
   int output_ndim = kUnknownNDim;
   if (view_shape_sinfo && view_shape_sinfo->values.defined()) {
     output_shape = view_shape_sinfo->values.value();
@@ -171,7 +171,7 @@ StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
   // Helper function, returns the number of bytes per vectorized
   // element.  Cannot use `DataType::bytes`, as it returns the
   // number of bytes per scalar element.
-  auto get_size_bytes = [](const DataType& dtype) -> Optional<IntImm> {
+  auto get_size_bytes = [](const DataType& dtype) -> ffi::Optional<IntImm> {
     if (dtype.is_void()) {
       return std::nullopt;
     } else {
@@ -182,7 +182,8 @@ StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
 
   // Helper function, returns the number of elements in an array,
   // given the shape of that array.
-  auto get_num_elements = [&ctx](const Optional<Array<PrimExpr>>& shape) -> Optional<PrimExpr> {
+  auto get_num_elements =
+      [&ctx](const ffi::Optional<ffi::Array<PrimExpr>>& shape) -> ffi::Optional<PrimExpr> {
     if (!shape.defined()) {
       return std::nullopt;
     }
@@ -194,11 +195,11 @@ StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
     return ctx->GetAnalyzer()->Simplify(num_elements);
   };
 
-  Optional<PrimExpr> input_nelements = get_num_elements(input_shape);
-  Optional<PrimExpr> output_nelements = get_num_elements(output_shape);
+  ffi::Optional<PrimExpr> input_nelements = get_num_elements(input_shape);
+  ffi::Optional<PrimExpr> output_nelements = get_num_elements(output_shape);
 
-  Optional<IntImm> input_element_size = get_size_bytes(data_sinfo->dtype);
-  Optional<IntImm> output_element_size = get_size_bytes(output_dtype);
+  ffi::Optional<IntImm> input_element_size = get_size_bytes(data_sinfo->dtype);
+  ffi::Optional<IntImm> output_element_size = get_size_bytes(output_dtype);
 
   if (input_nelements && output_nelements && input_element_size && output_element_size &&
       view_relative_byte_offset) {
@@ -212,15 +213,15 @@ StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
 
     if (ctx->GetAnalyzer()->CanProve(output_nbytes + view_relative_byte_offset.value() >
                                      input_nbytes)) {
-      LOG(FATAL) << "ValueError: "
-                 << "Views into an array must not exceed the bounds of the array being viewed.  "
-                 << "However, expression " << call << " attempted to create view of type "
-                 << TensorStructInfo(ShapeExpr(output_shape.value()), output_dtype)
-                 << " with relative byte offset " << view_relative_byte_offset
-                 << ", viewing into the array " << arg_data << " of type " << data_sinfo << ".  "
-                 << "The end of the view would occur at byte " << view_end
-                 << ", relative to the start of array " << arg_data << ", but " << arg_data
-                 << " is only " << input_nbytes << " long.";
+      TVM_FFI_THROW(ValueError)
+          << "Views into an array must not exceed the bounds of the array being viewed.  "
+          << "However, expression " << call << " attempted to create view of type "
+          << TensorStructInfo(ShapeExpr(output_shape.value()), output_dtype)
+          << " with relative byte offset " << view_relative_byte_offset
+          << ", viewing into the array " << arg_data << " of type " << data_sinfo << ".  "
+          << "The end of the view would occur at byte " << view_end
+          << ", relative to the start of array " << arg_data << ", but " << arg_data << " is only "
+          << input_nbytes << " long.";
     }
 
   } else if (input_nelements && output_nelements && input_element_size && output_element_size) {
@@ -234,13 +235,13 @@ StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
     PrimExpr output_nbytes = output_nelements.value() * output_element_size.value();
 
     if (ctx->GetAnalyzer()->CanProve(output_nbytes > input_nbytes)) {
-      LOG(FATAL) << "ValueError: "
-                 << "Views into an array must not exceed the bounds of the array being viewed.  "
-                 << "However, expression " << call << " attempted to create view of type "
-                 << TensorStructInfo(ShapeExpr(output_shape.value()), output_dtype)
-                 << " from input array of type " << data_sinfo << ".  "
-                 << "This view would increase the size from " << output_nbytes << " bytes to "
-                 << output_nbytes << " bytes.";
+      TVM_FFI_THROW(ValueError)
+          << "Views into an array must not exceed the bounds of the array being viewed.  "
+          << "However, expression " << call << " attempted to create view of type "
+          << TensorStructInfo(ShapeExpr(output_shape.value()), output_dtype)
+          << " from input array of type " << data_sinfo << ".  "
+          << "This view would increase the size from " << output_nbytes << " bytes to "
+          << output_nbytes << " bytes.";
     }
 
   } else if (input_element_size && output_element_size && !view_shape_sinfo) {
@@ -250,8 +251,8 @@ StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
     // elements, an increase to the per-element size would cause the
     // view to be larger than the original array.
 
-    CHECK_GE(input_element_size.value()->value, output_element_size.value()->value)
-        << "ValueError: "
+    TVM_FFI_CHECK_GE(input_element_size.value()->value, output_element_size.value()->value,
+                     ValueError)
         << "Operator " << call->op
         << " may not produce a view that exceeds the bounds of the original array.  "
         << "In expression " << call << " the data type is changed from " << data_sinfo->dtype
@@ -267,23 +268,23 @@ StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
     // individual element.
 
     if (ctx->GetAnalyzer()->CanProve(output_nelements.value() > input_nelements.value())) {
-      LOG(FATAL) << "ValueError: "
-                 << "Views into an array must not exceed the bounds of the array being viewed.  "
-                 << "However, expression " << call << " attempted to view array " << arg_data
-                 << " (shape = " << input_shape << ", " << input_nelements << " elements) as shape "
-                 << output_shape << " with " << output_nelements << " elements.";
+      TVM_FFI_THROW(ValueError)
+          << "Views into an array must not exceed the bounds of the array being viewed.  "
+          << "However, expression " << call << " attempted to view array " << arg_data
+          << " (shape = " << input_shape << ", " << input_nelements << " elements) as shape "
+          << output_shape << " with " << output_nelements << " elements.";
     }
   } else if (view_relative_byte_offset && !view_shape_sinfo && !view_dtype) {
     // The byte_offset is being updated, but neither the shape nor the
     // dtype is changing.  Any non-zero offset will cause the view to
     // overrun the bounds of the original array.
     if (ctx->GetAnalyzer()->CanProve(view_relative_byte_offset.value() > 0)) {
-      LOG(FATAL) << "ValueError: "
-                 << "Views into an array must not exceed the bounds of the array being viewed.  "
-                 << "However, expression " << call << " attempted to offset the view by "
-                 << view_relative_byte_offset << " bytes, "
-                 << "without reducing either the number of elements in the view "
-                 << "or the size of each element.";
+      TVM_FFI_THROW(ValueError)
+          << "Views into an array must not exceed the bounds of the array being viewed.  "
+          << "However, expression " << call << " attempted to offset the view by "
+          << view_relative_byte_offset << " bytes, "
+          << "without reducing either the number of elements in the view "
+          << "or the size of each element.";
     }
   }
 
@@ -294,10 +295,10 @@ StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tvm.relax.struct_info.infer_view_sinfo", InferStructInfoView);
-});
+}
 
 Expr LowerBuiltinView(const BlockBuilder& bb, const Call& call) {
   Expr data = call->args[0];
@@ -318,7 +319,7 @@ Expr LowerBuiltinView(const BlockBuilder& bb, const Call& call) {
 
   if (HasVoidStructInfo(shape)) {
     auto data_shape = data->struct_info_.as<TensorStructInfo>().value()->GetShape();
-    CHECK(data_shape.defined())
+    TVM_FFI_ICHECK(data_shape.defined())
         << "Legalization of " << call->op
         << " requires that either the output shape be explicitly specified, "
         << "or the input shape is known.  "
@@ -329,7 +330,7 @@ Expr LowerBuiltinView(const BlockBuilder& bb, const Call& call) {
 
   if (HasVoidStructInfo(dtype)) {
     auto data_dtype = data->struct_info_.as<TensorStructInfo>().value()->dtype;
-    CHECK(!data_dtype.is_void())
+    TVM_FFI_ICHECK(!data_dtype.is_void())
         << "Legalization of " << call->op
         << " requires that either the output dtype be explicitly specified, "
         << "or the input dtype is known.  "
@@ -346,7 +347,7 @@ Expr LowerBuiltinView(const BlockBuilder& bb, const Call& call) {
   infer_sinfo_env_func = EnvFunc::Get("tvm.relax.struct_info.infer_view_sinfo");
   auto runtime_view_sinfo = FuncStructInfo::OpaqueFunc(infer_sinfo_env_func, true);
 
-  ExternFunc runtime_view_func("runtime.TVMArrayCreateView", runtime_view_sinfo);
+  ExternFunc runtime_view_func("runtime.TVMTensorCreateView", runtime_view_sinfo);
 
   return Call(runtime_view_func, {data, shape, dtype, relative_byte_offset});
 }
@@ -368,10 +369,10 @@ Expr ensure_zero_offset(const Expr& x) {
   return Call(op, {x});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.memory.ensure_zero_offset", ensure_zero_offset);
-});
+}
 
 StructInfo InferStructInfoEnsureZeroOffset(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 1) {

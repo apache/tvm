@@ -44,15 +44,15 @@ bool IsNestedTensor(const StructInfo& sinfo) {
 bool IsNestedTensor(const Expr& expr) { return IsNestedTensor(GetStructInfo(expr)); }
 
 Function ComposeFunctions(Function func_a, Function func_b) {
-  Array<Binding> bindings;
+  ffi::Array<Binding> bindings;
 
   Var func_a_output("func_a_output", func_a->ret_struct_info);
 
   bindings.push_back(VarBinding(func_a_output, func_a->body));
 
-  auto func_a_outputs = [&]() -> Array<Expr> {
+  auto func_a_outputs = [&]() -> ffi::Array<Expr> {
     if (auto func_a_output_tuple = func_a->ret_struct_info.as<TupleStructInfoNode>()) {
-      Array<Expr> outputs;
+      ffi::Array<Expr> outputs;
       for (size_t i = 0; i < func_a_output_tuple->fields.size(); i++) {
         outputs.push_back(TupleGetItem(func_a_output, i));
       }
@@ -69,8 +69,7 @@ Function ComposeFunctions(Function func_a, Function func_b) {
     auto param = func_b->params[0];
     bindings.push_back(MatchCast(param, func_a_output, GetStructInfo(param)));
   } else {
-    CHECK_EQ(func_a_outputs.size(), func_b->params.size())
-        << "ValueError: "
+    TVM_FFI_CHECK_EQ(func_a_outputs.size(), func_b->params.size(), ValueError)
         << "Cannot compose functions together.  "
         << "First function produces " << func_a_outputs.size() << " values, "
         << "but second function expects " << func_b->params.size() << " parameters as input";

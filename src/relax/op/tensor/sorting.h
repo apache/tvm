@@ -63,7 +63,7 @@ Expr argsort(Expr data, int axis, bool descending, DataType dtype);
  * \param dtype The data type of the indices output.
  * \return The computed result.
  */
-Expr topk(Expr data, int k, int axis, String ret_type, bool largest, DataType dtype);
+Expr topk(Expr data, int k, int axis, ffi::String ret_type, bool largest, DataType dtype);
 
 }  // namespace relax
 }  // namespace tvm

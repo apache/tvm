@@ -15,15 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 """Configure pytest"""
-import pytest
+
 import numpy as np
+import pytest
+
 import tvm
-from tvm import te
-from tvm.contrib import cblas
-from tvm.contrib import mkl
-from tvm.contrib import dnnl
 import tvm.testing
 import tvm.topi.testing
+from tvm import te
+from tvm.contrib import cblas, dnnl, mkl
 
 
 def verify_matmul_add(
@@ -56,7 +56,7 @@ def verify_matmul_add(
 
     def verify(target="llvm"):
         if not tvm.testing.device_enabled(target):
-            print("skip because %s is not enabled..." % target)
+            print(f"skip because {target} is not enabled...")
             return
         if not tvm.get_global_func(lib.__name__ + ".matmul", True):
             print("skip because extern function is not available")
@@ -71,9 +71,15 @@ def verify_matmul_add(
         )
         if target == "c":
             f = compiling(f, name)
-        matrix_input1 = tvm.nd.array(np.random.uniform(size=ashape).astype(input1_data.dtype), dev)
-        matrix_input2 = tvm.nd.array(np.random.uniform(size=bshape).astype(input2_data.dtype), dev)
-        matrix_result = tvm.nd.array(np.zeros((matrix_n, matrix_m), dtype=final_result.dtype), dev)
+        matrix_input1 = tvm.runtime.tensor(
+            np.random.uniform(size=ashape).astype(input1_data.dtype), dev
+        )
+        matrix_input2 = tvm.runtime.tensor(
+            np.random.uniform(size=bshape).astype(input2_data.dtype), dev
+        )
+        matrix_result = tvm.runtime.tensor(
+            np.zeros((matrix_n, matrix_m), dtype=final_result.dtype), dev
+        )
         matrix_bias = 10.0
         f(matrix_input1, matrix_input2, matrix_result, matrix_bias)
         tvm.testing.assert_allclose(
@@ -140,7 +146,7 @@ def verify_quantized_matmul_add(matrix_m, matrix_l, matrix_n, transa=False, tran
 
     def verify(target="llvm"):
         if not tvm.testing.device_enabled(target):
-            print("skip because %s is not enabled..." % target)
+            print(f"skip because {target} is not enabled...")
             return
         if not tvm.get_global_func("tvm.contrib.mkl.matmul_u8s8s32", True):
             print("skip because extern function is not available")
@@ -149,13 +155,15 @@ def verify_quantized_matmul_add(matrix_m, matrix_l, matrix_n, transa=False, tran
         f = tvm.compile(
             te.create_prim_func([input1_data, input2_data, final_result, bias]), target=target
         )
-        matrix_input1 = tvm.nd.array(
+        matrix_input1 = tvm.runtime.tensor(
             np.random.randint(low=0, high=50, size=ashape).astype(input1_data.dtype), dev
         )
-        matrix_input2 = tvm.nd.array(
+        matrix_input2 = tvm.runtime.tensor(
             np.random.randint(low=0, high=50, size=bshape).astype(input2_data.dtype), dev
         )
-        matrix_result = tvm.nd.array(np.zeros((matrix_n, matrix_m), dtype=final_result.dtype), dev)
+        matrix_result = tvm.runtime.tensor(
+            np.zeros((matrix_n, matrix_m), dtype=final_result.dtype), dev
+        )
         matrix_bias = 10
         f(matrix_input1, matrix_input2, matrix_result, matrix_bias)
         tvm.testing.assert_allclose(
@@ -223,7 +231,7 @@ def verify_batch_matmul(
 
     def verify(target="llvm"):
         if not tvm.testing.device_enabled(target):
-            print("skip because %s is not enabled..." % target)
+            print(f"skip because {target} is not enabled...")
             return
         if not tvm.get_global_func(lib.__name__ + ".matmul", True):
             print("skip because extern function is not available")
@@ -235,9 +243,13 @@ def verify_batch_matmul(
         )
         if target == "c":
             f = compiling(f, name)
-        matrix_input1 = tvm.nd.array(np.random.uniform(size=ashape).astype(input1_data.dtype), dev)
-        matrix_input2 = tvm.nd.array(np.random.uniform(size=bshape).astype(input2_data.dtype), dev)
-        matrix_result = tvm.nd.array(
+        matrix_input1 = tvm.runtime.tensor(
+            np.random.uniform(size=ashape).astype(input1_data.dtype), dev
+        )
+        matrix_input2 = tvm.runtime.tensor(
+            np.random.uniform(size=bshape).astype(input2_data.dtype), dev
+        )
+        matrix_result = tvm.runtime.tensor(
             np.zeros((batch, matrix_n, matrix_m), dtype=final_result.dtype), dev
         )
         f(matrix_input1, matrix_input2, matrix_result)

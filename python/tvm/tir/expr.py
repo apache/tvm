@@ -27,14 +27,14 @@ For example, you can use addexp.a to get the left operand of an Add node.
   assert(isinstance(y, tvm.tir.Add))
   assert(y.a == x)
 """
-from typing import List, Optional, Union
 
-import tvm.ffi
+import tvm_ffi
+
 import tvm.ir._ffi_api
 from tvm import ir
 from tvm.ir import Op, PrimExpr
 from tvm.ir.base import Span
-from tvm.runtime import Object, ObjectGeneric, Scriptable, DataType, DataTypeCode, const
+from tvm.runtime import DataType, DataTypeCode, Object, ObjectConvertible, Scriptable, const
 
 from . import _ffi_api
 from . import generic as _generic
@@ -56,17 +56,13 @@ def div_ambiguity_error() -> RuntimeError:
 def _dtype_is_int(value):
     if isinstance(value, int):
         return True
-    return (
-        isinstance(value, ExprOp) and DataType(value.dtype).type_code == DataTypeCode.INT
-    )  # type: ignore
+    return isinstance(value, ExprOp) and DataType(value.dtype).type_code == DataTypeCode.INT  # type: ignore
 
 
 def _dtype_is_float(value):
     if isinstance(value, float):
         return True
-    return (
-        isinstance(value, ExprOp) and DataType(value.dtype).type_code == DataTypeCode.FLOAT
-    )  # type: ignore
+    return isinstance(value, ExprOp) and DataType(value.dtype).type_code == DataTypeCode.FLOAT  # type: ignore
 
 
 class ExprOp:
@@ -190,7 +186,7 @@ class ExprOp:
     def __bool__(self) -> bool:
         return self.__nonzero__()
 
-    def equal(self, other: PrimExpr, span: Optional[Span] = None) -> bool:
+    def equal(self, other: PrimExpr, span: Span | None = None) -> bool:
         """Build an equal check expression with other expr.
 
         Parameters
@@ -208,7 +204,7 @@ class ExprOp:
         """
         return _ffi_api._OpEQ(self, other, span)  # type: ignore
 
-    def astype(self, dtype: str, span: Optional[Span] = None) -> PrimExpr:
+    def astype(self, dtype: str, span: Span | None = None) -> PrimExpr:
         """Cast the expression to other type.
 
         Parameters
@@ -227,7 +223,7 @@ class ExprOp:
         return _generic.cast(self, dtype, span)
 
 
-class EqualOp(ObjectGeneric, ExprOp):
+class EqualOp(ObjectConvertible, ExprOp):
     """Deferred equal operator.
 
     This is used to support sugar that a == b can either
@@ -248,7 +244,7 @@ class EqualOp(ObjectGeneric, ExprOp):
     # This class is not manipulated by C++. So use python's identity check function is sufficient
     same_as = object.__eq__
 
-    def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None):
+    def __init__(self, a: PrimExpr, b: PrimExpr, span: Span | None = None):
         self.a = a
         self.b = b
         self.span = span
@@ -264,7 +260,7 @@ class EqualOp(ObjectGeneric, ExprOp):
         return _ffi_api._OpEQ(self.a, self.b, self.span)  # type: ignore
 
 
-class NotEqualOp(ObjectGeneric, ExprOp):
+class NotEqualOp(ObjectConvertible, ExprOp):
     """Deferred NE operator.
 
     This is used to support sugar that a != b can either
@@ -285,7 +281,7 @@ class NotEqualOp(ObjectGeneric, ExprOp):
     # This class is not manipulated by C++. So use python's identity check function is sufficient
     same_as = object.__eq__
 
-    def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
+    def __init__(self, a: PrimExpr, b: PrimExpr, span: Span | None = None) -> None:
         self.a = a
         self.b = b
         self.span = span
@@ -301,7 +297,7 @@ class NotEqualOp(ObjectGeneric, ExprOp):
         return _ffi_api._OpNE(self.a, self.b, self.span)  # type: ignore
 
 
-class IntImmEnum(ObjectGeneric):
+class IntImmEnum(ObjectConvertible):
     """Lazily evaluate an IntImm in case
     the constructor is not available in runtime.
 
@@ -314,7 +310,7 @@ class IntImmEnum(ObjectGeneric):
         The location of the cast in the source.
     """
 
-    def __init__(self, value: int, span: Optional[Span] = None) -> None:
+    def __init__(self, value: int, span: Span | None = None) -> None:
         self.value = value
         self.span = span
 
@@ -349,7 +345,7 @@ class LogicalExpr(PrimExprWithOp):
     pass
 
 
-@tvm.ffi.register_object("tir.Var")
+@tvm_ffi.register_object("tir.Var")
 class Var(PrimExprWithOp):
     """Symbolic variable.
 
@@ -368,11 +364,11 @@ class Var(PrimExprWithOp):
     name_hint: str
     type_annotation: ir.Type
 
-    def __init__(self, name: str, dtype: Union[str, ir.Type], span: Optional[Span] = None) -> None:
+    def __init__(self, name: str, dtype: str | ir.Type, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Var, name, dtype, span)  # type: ignore
 
 
-@tvm.ffi.register_object("tir.SizeVar")
+@tvm_ffi.register_object("tir.SizeVar")
 class SizeVar(Var):
     """Symbolic variable to represent a tensor index size
        which is greater or equal to zero.
@@ -390,11 +386,11 @@ class SizeVar(Var):
     """
 
     # pylint: disable=super-init-not-called
-    def __init__(self, name: str, dtype: Union[str, ir.Type], span: Optional[Span] = None) -> None:
+    def __init__(self, name: str, dtype: str | ir.Type, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.SizeVar, name, dtype, span)  # type: ignore
 
 
-@tvm.ffi.register_object("tir.IterVar")
+@tvm_ffi.register_object("tir.IterVar")
 class IterVar(ExprOp, Object, Scriptable):
     """Represent iteration variable.
 
@@ -441,13 +437,13 @@ class IterVar(ExprOp, Object, Scriptable):
     def __init__(
         self,
         dom: ir.Range,
-        var: Union[Var, str],
+        var: Var | str,
         iter_type: int,
         thread_tag: str = "",
-        span: Optional[Span] = None,
+        span: Span | None = None,
     ) -> None:
         if dom is not None:
-            if isinstance(dom, (list, tuple)):
+            if isinstance(dom, list | tuple):
                 if len(dom) != 2:
                     raise TypeError("need to be list of ranges")
                 dom = tvm.ir.Range(dom[0], dom[1])
@@ -459,15 +455,20 @@ class IterVar(ExprOp, Object, Scriptable):
         dtype = "int32" if dom is None else dom.extent.dtype
         var = Var(name, dtype=dtype, span=span) if not isinstance(var, Var) else var
         if dom is not None:
-            assert (
-                var.dtype == dom.extent.dtype
-            ), "IterVar's Var dtype must match its domain's extent's dtype"
+            assert var.dtype == dom.extent.dtype, (
+                "IterVar's Var dtype must match its domain's extent's dtype"
+            )
         self.__init_handle_by_constructor__(
-            _ffi_api.IterVar, dom, var, iter_type, thread_tag, span  # type: ignore
+            _ffi_api.IterVar,
+            dom,
+            var,
+            iter_type,
+            thread_tag,
+            span,  # type: ignore
         )
 
 
-@tvm.ffi.register_object("tir.CommReducer")
+@tvm_ffi.register_object("tir.CommReducer")
 class CommReducer(Object, Scriptable):
     """Commutative reduce operator
 
@@ -489,25 +490,30 @@ class CommReducer(Object, Scriptable):
         The location of this expression in the source code.
     """
 
-    lhs: List[Var]
-    rhs: List[Var]
-    result: List[PrimExpr]
-    identity_element: List[PrimExpr]
+    lhs: list[Var]
+    rhs: list[Var]
+    result: list[PrimExpr]
+    identity_element: list[PrimExpr]
 
     def __init__(
         self,
-        lhs: List[Var],
-        rhs: List[Var],
-        result: List[PrimExpr],
-        identity_element: List[PrimExpr],
-        span: Optional[Span] = None,
+        lhs: list[Var],
+        rhs: list[Var],
+        result: list[PrimExpr],
+        identity_element: list[PrimExpr],
+        span: Span | None = None,
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.CommReducer, lhs, rhs, result, identity_element, span  # type: ignore
+            _ffi_api.CommReducer,
+            lhs,
+            rhs,
+            result,
+            identity_element,
+            span,  # type: ignore
         )
 
 
-@tvm.ffi.register_object("tir.Reduce")
+@tvm_ffi.register_object("tir.Reduce")
 class Reduce(PrimExprWithOp):
     """Reduce node.
 
@@ -536,29 +542,36 @@ class Reduce(PrimExprWithOp):
     """
 
     combiner: CommReducer
-    source: List[PrimExpr]
-    init: List[PrimExpr]
-    axis: List[IterVar]
+    source: list[PrimExpr]
+    init: list[PrimExpr]
+    axis: list[IterVar]
     condition: PrimExpr
     value_index: int
 
     def __init__(
         self,
         combiner: CommReducer,
-        src: List[PrimExpr],
-        rdom: List[IterVar],
+        src: list[PrimExpr],
+        rdom: list[IterVar],
         condition: PrimExpr,
         value_index: int,
-        init: Optional[List[PrimExpr]] = None,
-        span: Optional[Span] = None,
+        init: list[PrimExpr] | None = None,
+        span: Span | None = None,
     ) -> None:
         init = [] if init is None else init
         self.__init_handle_by_constructor__(
-            _ffi_api.Reduce, combiner, src, rdom, condition, value_index, init, span  # type: ignore
+            _ffi_api.Reduce,
+            combiner,
+            src,
+            rdom,
+            condition,
+            value_index,
+            init,
+            span,  # type: ignore
         )
 
 
-@tvm.ffi.register_object("ir.FloatImm")
+@tvm_ffi.register_object("ir.FloatImm")
 class FloatImm(ConstExpr):
     """Float constant.
 
@@ -576,16 +589,19 @@ class FloatImm(ConstExpr):
 
     value: float
 
-    def __init__(self, dtype: str, value: float, span: Optional[Span] = None) -> None:
+    def __init__(self, dtype: str, value: float, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(
-            tvm.ir._ffi_api.FloatImm, dtype, value, span  # type: ignore
+            tvm.ir._ffi_api.FloatImm,
+            dtype,
+            value,
+            span,  # type: ignore
         )
 
     def __float__(self) -> float:
         return self.value
 
 
-@tvm.ffi.register_object("ir.IntImm")
+@tvm_ffi.register_object("ir.IntImm")
 class IntImm(ConstExpr):
     """Int constant.
 
@@ -603,9 +619,12 @@ class IntImm(ConstExpr):
 
     value: int
 
-    def __init__(self, dtype: str, value: int, span: Optional[Span] = None) -> None:
+    def __init__(self, dtype: str, value: int, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(
-            tvm.ir._ffi_api.IntImm, dtype, value, span  # type: ignore
+            tvm.ir._ffi_api.IntImm,
+            dtype,
+            value,
+            span,  # type: ignore
         )
 
     def __hash__(self) -> int:
@@ -627,7 +646,7 @@ class IntImm(ConstExpr):
         return self.__nonzero__()
 
 
-@tvm.ffi.register_object("tir.StringImm")  # type: ignore
+@tvm_ffi.register_object("tir.StringImm")  # type: ignore
 class StringImm(ConstExpr):
     """String constant.
 
@@ -642,7 +661,7 @@ class StringImm(ConstExpr):
 
     value: str
 
-    def __init__(self, value: str, span: Optional[Span] = None) -> None:
+    def __init__(self, value: str, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.StringImm, value, span)  # type: ignore
 
     def __eq__(self, other: PrimExpr) -> bool:
@@ -659,7 +678,7 @@ class StringImm(ConstExpr):
         return PrimExpr.__hash__(self)
 
 
-@tvm.ffi.register_object("tir.Cast")
+@tvm_ffi.register_object("tir.Cast")
 class Cast(PrimExprWithOp):
     """Cast expression.
 
@@ -677,11 +696,11 @@ class Cast(PrimExprWithOp):
 
     value: PrimExpr
 
-    def __init__(self, dtype, value, span: Optional[Span] = None) -> None:
+    def __init__(self, dtype, value, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Cast, dtype, value, span)  # type: ignore
 
 
-@tvm.ffi.register_object("tir.Add")
+@tvm_ffi.register_object("tir.Add")
 class Add(BinaryOpExpr):
     """Add node.
 
@@ -697,11 +716,11 @@ class Add(BinaryOpExpr):
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
+    def __init__(self, a: PrimExpr, b: PrimExpr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Add, a, b, span)  # type: ignore
 
 
-@tvm.ffi.register_object("tir.Sub")
+@tvm_ffi.register_object("tir.Sub")
 class Sub(BinaryOpExpr):
     """Sub node.
 
@@ -717,11 +736,11 @@ class Sub(BinaryOpExpr):
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
+    def __init__(self, a: PrimExpr, b: PrimExpr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Sub, a, b, span)  # type: ignore
 
 
-@tvm.ffi.register_object("tir.Mul")
+@tvm_ffi.register_object("tir.Mul")
 class Mul(BinaryOpExpr):
     """Mul node.
 
@@ -737,11 +756,11 @@ class Mul(BinaryOpExpr):
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
+    def __init__(self, a: PrimExpr, b: PrimExpr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Mul, a, b, span)  # type: ignore
 
 
-@tvm.ffi.register_object("tir.Div")
+@tvm_ffi.register_object("tir.Div")
 class Div(BinaryOpExpr):
     """Div node.
 
@@ -757,11 +776,11 @@ class Div(BinaryOpExpr):
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
+    def __init__(self, a: PrimExpr, b: PrimExpr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Div, a, b, span)  # type: ignore
 
 
-@tvm.ffi.register_object("tir.Mod")
+@tvm_ffi.register_object("tir.Mod")
 class Mod(BinaryOpExpr):
     """Mod node.
 
@@ -777,11 +796,11 @@ class Mod(BinaryOpExpr):
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
+    def __init__(self, a: PrimExpr, b: PrimExpr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Mod, a, b, span)  # type: ignore
 
 
-@tvm.ffi.register_object("tir.FloorDiv")
+@tvm_ffi.register_object("tir.FloorDiv")
 class FloorDiv(BinaryOpExpr):
     """FloorDiv node.
 
@@ -797,11 +816,11 @@ class FloorDiv(BinaryOpExpr):
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
+    def __init__(self, a: PrimExpr, b: PrimExpr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.FloorDiv, a, b, span)  # type: ignore
 
 
-@tvm.ffi.register_object("tir.FloorMod")
+@tvm_ffi.register_object("tir.FloorMod")
 class FloorMod(BinaryOpExpr):
     """FloorMod node.
 
@@ -817,11 +836,11 @@ class FloorMod(BinaryOpExpr):
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
+    def __init__(self, a: PrimExpr, b: PrimExpr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.FloorMod, a, b, span)  # type: ignore
 
 
-@tvm.ffi.register_object("tir.Min")
+@tvm_ffi.register_object("tir.Min")
 class Min(BinaryOpExpr):
     """Min node.
 
@@ -837,11 +856,11 @@ class Min(BinaryOpExpr):
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
+    def __init__(self, a: PrimExpr, b: PrimExpr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Min, a, b, span)  # type: ignore
 
 
-@tvm.ffi.register_object("tir.Max")
+@tvm_ffi.register_object("tir.Max")
 class Max(BinaryOpExpr):
     """Max node.
 
@@ -857,11 +876,11 @@ class Max(BinaryOpExpr):
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
+    def __init__(self, a: PrimExpr, b: PrimExpr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Max, a, b, span)  # type: ignore
 
 
-@tvm.ffi.register_object("tir.EQ")
+@tvm_ffi.register_object("tir.EQ")
 class EQ(CmpExpr):
     """EQ node.
 
@@ -877,11 +896,11 @@ class EQ(CmpExpr):
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
+    def __init__(self, a: PrimExpr, b: PrimExpr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.EQ, a, b, span)  # type: ignore
 
 
-@tvm.ffi.register_object("tir.NE")
+@tvm_ffi.register_object("tir.NE")
 class NE(CmpExpr):
     """NE node.
 
@@ -897,11 +916,11 @@ class NE(CmpExpr):
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
+    def __init__(self, a: PrimExpr, b: PrimExpr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.NE, a, b, span)  # type: ignore
 
 
-@tvm.ffi.register_object("tir.LT")
+@tvm_ffi.register_object("tir.LT")
 class LT(CmpExpr):
     """LT node.
 
@@ -917,11 +936,11 @@ class LT(CmpExpr):
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
+    def __init__(self, a: PrimExpr, b: PrimExpr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.LT, a, b, span)  # type: ignore
 
 
-@tvm.ffi.register_object("tir.LE")
+@tvm_ffi.register_object("tir.LE")
 class LE(CmpExpr):
     """LE node.
 
@@ -937,11 +956,11 @@ class LE(CmpExpr):
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
+    def __init__(self, a: PrimExpr, b: PrimExpr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.LE, a, b, span)  # type: ignore
 
 
-@tvm.ffi.register_object("tir.GT")
+@tvm_ffi.register_object("tir.GT")
 class GT(CmpExpr):
     """GT node.
 
@@ -957,11 +976,11 @@ class GT(CmpExpr):
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
+    def __init__(self, a: PrimExpr, b: PrimExpr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.GT, a, b, span)  # type: ignore
 
 
-@tvm.ffi.register_object("tir.GE")
+@tvm_ffi.register_object("tir.GE")
 class GE(CmpExpr):
     """GE node.
 
@@ -977,11 +996,11 @@ class GE(CmpExpr):
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
+    def __init__(self, a: PrimExpr, b: PrimExpr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.GE, a, b, span)  # type: ignore
 
 
-@tvm.ffi.register_object("tir.And")
+@tvm_ffi.register_object("tir.And")
 class And(LogicalExpr):
     """And node.
 
@@ -997,11 +1016,11 @@ class And(LogicalExpr):
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
+    def __init__(self, a: PrimExpr, b: PrimExpr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.And, a, b, span)  # type: ignore
 
 
-@tvm.ffi.register_object("tir.Or")
+@tvm_ffi.register_object("tir.Or")
 class Or(LogicalExpr):
     """Or node.
 
@@ -1020,11 +1039,11 @@ class Or(LogicalExpr):
     a: PrimExpr
     b: PrimExpr
 
-    def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
+    def __init__(self, a: PrimExpr, b: PrimExpr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Or, a, b, span)  # type: ignore
 
 
-@tvm.ffi.register_object("tir.Not")
+@tvm_ffi.register_object("tir.Not")
 class Not(LogicalExpr):
     """Not node.
 
@@ -1039,11 +1058,11 @@ class Not(LogicalExpr):
 
     a: PrimExpr
 
-    def __init__(self, a: PrimExpr, span: Optional[Span] = None) -> None:
+    def __init__(self, a: PrimExpr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Not, a, span)  # type: ignore
 
 
-@tvm.ffi.register_object("tir.Select")
+@tvm_ffi.register_object("tir.Select")
 class Select(PrimExprWithOp):
     """Select node.
 
@@ -1078,16 +1097,20 @@ class Select(PrimExprWithOp):
         condition: PrimExpr,
         true_value: PrimExpr,
         false_value: PrimExpr,
-        span: Optional[Span] = None,
+        span: Span | None = None,
     ) -> None:
         if isinstance(condition, bool):
             condition = IntImm("bool", condition)
         self.__init_handle_by_constructor__(
-            _ffi_api.Select, condition, true_value, false_value, span  # type: ignore
+            _ffi_api.Select,
+            condition,
+            true_value,
+            false_value,
+            span,  # type: ignore
         )
 
 
-@tvm.ffi.register_object("tir.BufferLoad")
+@tvm_ffi.register_object("tir.BufferLoad")
 class BufferLoad(PrimExprWithOp):
     """Buffer load node.
 
@@ -1108,21 +1131,25 @@ class BufferLoad(PrimExprWithOp):
     """
 
     buffer: Buffer
-    indices: List[PrimExpr]
+    indices: list[PrimExpr]
 
     def __init__(
         self,
         buffer: Buffer,
-        indices: List[PrimExpr],
-        predicate: Optional[PrimExpr] = None,
-        span: Optional[Span] = None,
+        indices: list[PrimExpr],
+        predicate: PrimExpr | None = None,
+        span: Span | None = None,
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.BufferLoad, buffer, indices, predicate, span  # type: ignore
+            _ffi_api.BufferLoad,
+            buffer,
+            indices,
+            predicate,
+            span,  # type: ignore
         )
 
 
-@tvm.ffi.register_object("tir.ProducerLoad")
+@tvm_ffi.register_object("tir.ProducerLoad")
 class ProducerLoad(PrimExprWithOp):
     """Producer load node.
 
@@ -1139,17 +1166,20 @@ class ProducerLoad(PrimExprWithOp):
     """
 
     producer: DataProducer
-    indices: List[PrimExpr]
+    indices: list[PrimExpr]
 
     def __init__(
-        self, producer: DataProducer, indices: List[PrimExpr], span: Optional[Span] = None
+        self, producer: DataProducer, indices: list[PrimExpr], span: Span | None = None
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.ProducerLoad, producer, indices, span  # type: ignore
+            _ffi_api.ProducerLoad,
+            producer,
+            indices,
+            span,  # type: ignore
         )
 
 
-@tvm.ffi.register_object("tir.Ramp")
+@tvm_ffi.register_object("tir.Ramp")
 class Ramp(PrimExprWithOp):
     """Ramp node.
 
@@ -1173,14 +1203,18 @@ class Ramp(PrimExprWithOp):
     lanes: PrimExpr
 
     def __init__(
-        self, base: PrimExpr, stride: PrimExpr, lanes: PrimExpr, span: Optional[Span] = None
+        self, base: PrimExpr, stride: PrimExpr, lanes: PrimExpr, span: Span | None = None
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.Ramp, base, stride, lanes, span  # type: ignore
+            _ffi_api.Ramp,
+            base,
+            stride,
+            lanes,
+            span,  # type: ignore
         )
 
 
-@tvm.ffi.register_object("tir.Broadcast")
+@tvm_ffi.register_object("tir.Broadcast")
 class Broadcast(PrimExprWithOp):
     """Broadcast node.
 
@@ -1199,11 +1233,11 @@ class Broadcast(PrimExprWithOp):
     value: PrimExpr
     lanes: PrimExpr
 
-    def __init__(self, value: PrimExpr, lanes: PrimExpr, span: Optional[Span] = None) -> None:
+    def __init__(self, value: PrimExpr, lanes: PrimExpr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Broadcast, value, lanes, span)  # type: ignore
 
 
-@tvm.ffi.register_object("tir.Shuffle")
+@tvm_ffi.register_object("tir.Shuffle")
 class Shuffle(PrimExprWithOp):
     """Shuffle node.
 
@@ -1219,14 +1253,17 @@ class Shuffle(PrimExprWithOp):
         The location of this expression in the source code.
     """
 
-    vectors: List[PrimExpr]
-    indices: List[PrimExpr]
+    vectors: list[PrimExpr]
+    indices: list[PrimExpr]
 
     def __init__(
-        self, vectors: List[PrimExpr], indices: List[PrimExpr], span: Optional[Span] = None
+        self, vectors: list[PrimExpr], indices: list[PrimExpr], span: Span | None = None
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.Shuffle, vectors, indices, span  # type: ignore
+            _ffi_api.Shuffle,
+            vectors,
+            indices,
+            span,  # type: ignore
         )
 
 
@@ -1241,7 +1278,7 @@ class CallEffectKind:
     Opaque = UpdateState
 
 
-@tvm.ffi.register_object("tir.Call")
+@tvm_ffi.register_object("tir.Call")
 class Call(PrimExprWithOp):
     """Call node.
 
@@ -1262,10 +1299,10 @@ class Call(PrimExprWithOp):
     """
 
     op: Op
-    args: List[PrimExpr]
+    args: list[PrimExpr]
 
     def __init__(
-        self, dtype: str, op: Union[Op, str], args: List[PrimExpr], span: Optional[Span] = None
+        self, dtype: str, op: Op | str, args: list[PrimExpr], span: Span | None = None
     ) -> None:
         if isinstance(op, str):
             if not op.startswith("tir."):
@@ -1281,7 +1318,7 @@ class Call(PrimExprWithOp):
         self.__init_handle_by_constructor__(_ffi_api.Call, dtype, op, args, span)  # type: ignore
 
 
-@tvm.ffi.register_object("tir.Let")
+@tvm_ffi.register_object("tir.Let")
 class Let(PrimExprWithOp):
     """Let node.
 
@@ -1304,7 +1341,5 @@ class Let(PrimExprWithOp):
     value: PrimExpr
     body: PrimExpr
 
-    def __init__(
-        self, var: Var, value: PrimExpr, body: PrimExpr, span: Optional[Span] = None
-    ) -> None:
+    def __init__(self, var: Var, value: PrimExpr, body: PrimExpr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Let, var, value, body, span)  # type: ignore

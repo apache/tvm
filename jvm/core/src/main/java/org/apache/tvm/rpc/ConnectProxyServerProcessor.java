@@ -58,11 +58,13 @@ public class ConnectProxyServerProcessor implements ServerProcessor {
   /**
    * Close the socket.
    */
-  @Override public void terminate() {
+  @Override
+  public void terminate() {
     Utils.closeQuietly(currSocket);
   }
 
-  @Override public void run() {
+  @Override
+  public void run() {
     try {
       SocketAddress address = new InetSocketAddress(host, port);
       currSocket.connect(address, 6000);
@@ -73,8 +75,7 @@ public class ConnectProxyServerProcessor implements ServerProcessor {
       out.write(Utils.toBytes(key));
       int magic = Utils.wrapBytes(Utils.recvAll(in, 4)).getInt();
       if (magic == RPC.RPC_MAGIC + 1) {
-        throw new RuntimeException(
-            String.format("key: %s has already been used in proxy", key));
+        throw new RuntimeException(String.format("key: %s has already been used in proxy", key));
       } else if (magic == RPC.RPC_MAGIC + 2) {
         System.err.println("RPCProxy do not have matching client key " + key);
       } else if (magic != RPC.RPC_MAGIC) {

@@ -40,7 +40,7 @@ class Module:
         T.func_attr({"operator_name": "relax.add"})
         for ax0 in range(2):
             for ax1 in range(2):
-                with T.block("T_add"):
+                with T.sblock("T_add"):
                     v_ax0 = T.axis.spatial(2, ax0)
                     v_ax1 = T.axis.spatial(2, ax1)
                     T.reads(arg0[v_ax0, v_ax1], arg1[v_ax0, v_ax1])
@@ -76,7 +76,7 @@ def test_alloc_storage_with_scope_global(hexagon_launcher):
 
     mod = Module
 
-    target_hexagon = tvm.target.hexagon("v69", vtcm_capacity=4 * 2**20)
+    target_hexagon = tvm.target.Target({"tag": "qcom/hexagon-v69", "vtcm-capacity": 4 * 2**20})
     target = tvm.target.Target(target_hexagon, host=target_hexagon)
     with tvm.transform.PassContext(opt_level=3):
         lib = tvm.compile(mod, target, exec_mode="compiled")
@@ -86,7 +86,7 @@ def test_alloc_storage_with_scope_global(hexagon_launcher):
         vm_mod = session.get_executor_from_factory(lib)
         # This is the important line which tests nd allocator
         vm_rt = relax.VirtualMachine(vm_mod, dev, memory_cfg="naive")
-        x = tvm.nd.array(arg0, dev)
+        x = tvm.runtime.tensor(arg0, dev)
         vm_rt.set_input("main", x)
         vm_rt.invoke_stateful("main")
         hexagon_output = vm_rt.get_outputs("main").numpy()

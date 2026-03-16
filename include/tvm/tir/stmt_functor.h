@@ -45,8 +45,10 @@ namespace tir {
 template <typename FType>
 class StmtFunctor;
 
-#define STMT_FUNCTOR_DEFAULT \
-  { return VisitStmtDefault_(op, std::forward<Args>(args)...); }
+#define STMT_FUNCTOR_DEFAULT                                   \
+  {                                                            \
+    return VisitStmtDefault_(op, std::forward<Args>(args)...); \
+  }
 
 #define IR_STMT_FUNCTOR_DISPATCH(OP)                                                       \
   vtable.template set_dispatch<OP>([](const ObjectRef& n, TSelf* self, Args... args) {     \
@@ -82,23 +84,21 @@ class StmtFunctor<R(const Stmt& n, Args... args)> {
     return vtable(n, this, std::forward<Args>(args)...);
   }
   // Functions that can be overriden by subclass
-  virtual R VisitStmt_(const LetStmtNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmt_(const BindNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const AttrStmtNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const IfThenElseNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const ForNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const WhileNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
-  virtual R VisitStmt_(const AllocateNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
-  virtual R VisitStmt_(const AllocateConstNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmt_(const AllocBufferNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const DeclBufferNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const BufferStoreNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
-  virtual R VisitStmt_(const BufferRealizeNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const AssertStmtNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const SeqStmtNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const EvaluateNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
-  virtual R VisitStmt_(const BlockNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
-  virtual R VisitStmt_(const BlockRealizeNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmt_(const SBlockNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmt_(const SBlockRealizeNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmtDefault_(const Object* op, Args...) {
-    LOG(FATAL) << "Do not have a default for " << op->GetTypeKey();
+    TVM_FFI_THROW(InternalError) << "Do not have a default for " << op->GetTypeKey();
     TVM_FFI_UNREACHABLE();
   }
 
@@ -106,21 +106,19 @@ class StmtFunctor<R(const Stmt& n, Args... args)> {
   // initialize the vtable.
   static FType InitVTable() {
     FType vtable;
-    IR_STMT_FUNCTOR_DISPATCH(LetStmtNode);
+    IR_STMT_FUNCTOR_DISPATCH(BindNode);
     IR_STMT_FUNCTOR_DISPATCH(AttrStmtNode);
     IR_STMT_FUNCTOR_DISPATCH(IfThenElseNode);
     IR_STMT_FUNCTOR_DISPATCH(ForNode);
     IR_STMT_FUNCTOR_DISPATCH(WhileNode);
-    IR_STMT_FUNCTOR_DISPATCH(AllocateNode);
-    IR_STMT_FUNCTOR_DISPATCH(AllocateConstNode);
+    IR_STMT_FUNCTOR_DISPATCH(AllocBufferNode);
     IR_STMT_FUNCTOR_DISPATCH(DeclBufferNode);
     IR_STMT_FUNCTOR_DISPATCH(AssertStmtNode);
     IR_STMT_FUNCTOR_DISPATCH(SeqStmtNode);
     IR_STMT_FUNCTOR_DISPATCH(EvaluateNode);
     IR_STMT_FUNCTOR_DISPATCH(BufferStoreNode);
-    IR_STMT_FUNCTOR_DISPATCH(BufferRealizeNode);
-    IR_STMT_FUNCTOR_DISPATCH(BlockNode);
-    IR_STMT_FUNCTOR_DISPATCH(BlockRealizeNode);
+    IR_STMT_FUNCTOR_DISPATCH(SBlockNode);
+    IR_STMT_FUNCTOR_DISPATCH(SBlockRealizeNode);
     vtable.Finalize();
     return vtable;
   }
@@ -146,22 +144,34 @@ class TVM_DLL StmtVisitor : protected StmtFunctor<void(const Stmt&)> {
    *       and redirect Visit to ExprMutator::VisitExpr(Expr)
    */
   virtual void VisitExpr(const PrimExpr& e) {}
+  /*!
+   * \brief Visit buffer at definition site (AllocBuffer, DeclBuffer, SBlock alloc_buffers).
+   *  Visits buffer shape, strides, elem_offset via VisitExpr.
+   * \param buffer The buffer being defined.
+   * \param alloc_data If true, the buffer's data pointer is a new allocation (AllocBuffer);
+   *              if false, data references an existing variable (DeclBuffer).
+   */
+  virtual void VisitBufferDef(const Buffer& buffer, bool alloc_data);
+  /*!
+   * \brief Visit buffer at use site (BufferStore, BufferLoad, SBlock reads/writes).
+   *  By default, this is a no-op, as buffer fields (shape, strides, elem_offset)
+   *  are visited at their definition site.
+   */
+  virtual void VisitBufferUse(const Buffer& buffer);
   // statement visitor
+  void VisitStmt_(const BindNode* op) override;
   void VisitStmt_(const AttrStmtNode* op) override;
   void VisitStmt_(const IfThenElseNode* op) override;
-  void VisitStmt_(const LetStmtNode* op) override;
   void VisitStmt_(const ForNode* op) override;
   void VisitStmt_(const WhileNode* op) override;
-  void VisitStmt_(const AllocateNode* op) override;
-  void VisitStmt_(const AllocateConstNode* op) override;
+  void VisitStmt_(const AllocBufferNode* op) override;
   void VisitStmt_(const DeclBufferNode* op) override;
   void VisitStmt_(const BufferStoreNode* op) override;
-  void VisitStmt_(const BufferRealizeNode* op) override;
   void VisitStmt_(const AssertStmtNode* op) override;
   void VisitStmt_(const SeqStmtNode* op) override;
   void VisitStmt_(const EvaluateNode* op) override;
-  void VisitStmt_(const BlockNode* op) override;
-  void VisitStmt_(const BlockRealizeNode* op) override;
+  void VisitStmt_(const SBlockNode* op) override;
+  void VisitStmt_(const SBlockRealizeNode* op) override;
 };
 
 /*!
@@ -183,6 +193,8 @@ class TVM_DLL StmtMutator : protected StmtFunctor<Stmt(const Stmt&)> {
   }
 
  protected:
+  /*! \brief Map from old buffer to new buffer, populated by VisitBufferDef. */
+  ffi::Map<Buffer, Buffer> buffer_remap_;
   // We perform copy on write optimizations on the StmtMutator
   // so that an unique copy of parent can be mutated inplace
   // when some of its children changed.
@@ -244,22 +256,36 @@ class TVM_DLL StmtMutator : protected StmtFunctor<Stmt(const Stmt&)> {
    *       and redirect Mutate to ExprMutator::Mutate(Expr)
    */
   virtual PrimExpr VisitExpr(const PrimExpr& e) { return e; }
+  /*!
+   * \brief Visit buffer at definition site. Visits shape/strides/elem_offset via VisitExpr.
+   *  If any field changes, creates a new buffer and records it in buffer_remap_.
+   * \param buffer The buffer being defined.
+   * \param alloc_data If true, the buffer's data pointer is a new allocation (AllocBuffer);
+   *              if false, data references an existing variable (DeclBuffer).
+   * \return The (possibly new) buffer.
+   */
+  virtual Buffer VisitBufferDef(const Buffer& buffer, bool alloc_data);
+  /*!
+   * \brief Visit buffer at use site (BufferStore, BufferLoad, SBlock reads/writes).
+   *  By default, returns the remapped buffer from buffer_remap_ if exists, otherwise
+   *  returns the original buffer. Buffer fields are visited at their definition site.
+   * \return The (possibly remapped) buffer.
+   */
+  virtual Buffer VisitBufferUse(const Buffer& buffer);
   // statement visitor
+  Stmt VisitStmt_(const BindNode* op) override;
   Stmt VisitStmt_(const AttrStmtNode* op) override;
   Stmt VisitStmt_(const IfThenElseNode* op) override;
-  Stmt VisitStmt_(const LetStmtNode* op) override;
   Stmt VisitStmt_(const ForNode* op) override;
   Stmt VisitStmt_(const WhileNode* op) override;
-  Stmt VisitStmt_(const AllocateNode* op) override;
-  Stmt VisitStmt_(const AllocateConstNode* op) override;
+  Stmt VisitStmt_(const AllocBufferNode* op) override;
   Stmt VisitStmt_(const DeclBufferNode* op) override;
   Stmt VisitStmt_(const BufferStoreNode* op) override;
-  Stmt VisitStmt_(const BufferRealizeNode* op) override;
   Stmt VisitStmt_(const AssertStmtNode* op) override;
   Stmt VisitStmt_(const SeqStmtNode* op) override;
   Stmt VisitStmt_(const EvaluateNode* op) override;
-  Stmt VisitStmt_(const BlockNode* op) override;
-  Stmt VisitStmt_(const BlockRealizeNode* op) override;
+  Stmt VisitStmt_(const SBlockNode* op) override;
+  Stmt VisitStmt_(const SBlockRealizeNode* op) override;
   /*!
    * \brief Alternative advance method for SeqStmtNode.
    *
@@ -282,31 +308,35 @@ class TVM_DLL StmtMutator : protected StmtFunctor<Stmt(const Stmt&)> {
 /*!
  * \brief Visitor that recursively visit stmts and exprs on them.
  */
-class StmtExprVisitor : public StmtVisitor, public ExprVisitor {
+class StmtExprVisitor : public ExprVisitor, public StmtVisitor {
  public:
   using StmtVisitor::operator();
   using ExprVisitor::operator();
 
  protected:
   using ExprVisitor::VisitExpr;
+  using ExprVisitor::VisitExpr_;
   using StmtVisitor::VisitStmt;
 
   void VisitExpr(const PrimExpr& e) override { return ExprVisitor::VisitExpr(e); }
+  void VisitExpr_(const BufferLoadNode* op) override;
 };
 
 /*!
  * \brief Mutator that recursively mutates stmts and exprs on them.
  */
-class StmtExprMutator : public StmtMutator, public ExprMutator {
+class StmtExprMutator : public ExprMutator, public StmtMutator {
  public:
   using StmtMutator::operator();
   using ExprMutator::operator();
 
  protected:
   using ExprMutator::VisitExpr;
-  using StmtMutator::VisitExpr;
+  using ExprMutator::VisitExpr_;
+  using StmtMutator::VisitStmt;
 
   PrimExpr VisitExpr(const PrimExpr& e) override { return ExprMutator::VisitExpr(e); }
+  PrimExpr VisitExpr_(const BufferLoadNode* op) override;
 };
 
 /*!
@@ -325,7 +355,7 @@ class StmtExprMutator : public StmtMutator, public ExprMutator {
  *          when the IRNode's type key is in the list.
  */
 TVM_DLL Stmt IRTransform(Stmt stmt, const ffi::Function& preorder, const ffi::Function& postorder,
-                         Optional<Array<String>> only_enable = std::nullopt);
+                         ffi::Optional<ffi::Array<ffi::String>> only_enable = std::nullopt);
 
 /*!
  * \brief Recursively visit the ir in post DFS order node, apply fvisit
@@ -341,7 +371,7 @@ TVM_DLL void PostOrderVisit(const ObjectRef& node, std::function<void(const Obje
  * \param vmap returns a new value if re-mapping is needed, otherwise returns nullptr.
  * \return The converted form.
  */
-TVM_DLL Stmt Substitute(Stmt stmt, std::function<Optional<PrimExpr>(const Var& var)> vmap);
+TVM_DLL Stmt Substitute(Stmt stmt, std::function<ffi::Optional<PrimExpr>(const Var& var)> vmap);
 
 /*!
  * \brief Substitute the var specified by vmap.
@@ -349,7 +379,8 @@ TVM_DLL Stmt Substitute(Stmt stmt, std::function<Optional<PrimExpr>(const Var& v
  * \param vmap returns a new value if re-mapping is needed, otherwise returns nullptr.
  * \return The result.
  */
-TVM_DLL PrimExpr Substitute(PrimExpr expr, std::function<Optional<PrimExpr>(const Var& var)> vmap);
+TVM_DLL PrimExpr Substitute(PrimExpr expr,
+                            std::function<ffi::Optional<PrimExpr>(const Var& var)> vmap);
 
 /*!
  * \brief Substitute the var specified by vmap.
@@ -358,7 +389,8 @@ TVM_DLL PrimExpr Substitute(PrimExpr expr, std::function<Optional<PrimExpr>(cons
  * \return The result.
  */
 template <typename T>
-Array<T> Substitute(const Array<T>& arr, std::function<Optional<PrimExpr>(const Var& var)> vmap) {
+ffi::Array<T> Substitute(const ffi::Array<T>& arr,
+                         std::function<ffi::Optional<PrimExpr>(const Var& var)> vmap) {
   return arr.Map([&vmap](const auto& elem) { return Substitute(elem, vmap); });
 }
 
@@ -369,7 +401,7 @@ Array<T> Substitute(const Array<T>& arr, std::function<Optional<PrimExpr>(const 
  * \return The modified Range.
  */
 inline Range Substitute(const Range& range,
-                        std::function<Optional<PrimExpr>(const Var& var)> vmap) {
+                        std::function<ffi::Optional<PrimExpr>(const Var& var)> vmap) {
   return Range::FromMinExtent(Substitute(range->min, vmap), Substitute(range->extent, vmap));
 }
 
@@ -385,8 +417,8 @@ inline Range Substitute(const Range& range,
  * \return The modified object.
  */
 template <typename Obj>
-auto Substitute(Obj&& obj, const Map<Var, PrimExpr>& vmap) {
-  auto func = [&vmap](const Var& var) -> Optional<PrimExpr> { return vmap.Get(var); };
+auto Substitute(Obj&& obj, const ffi::Map<Var, PrimExpr>& vmap) {
+  auto func = [&vmap](const Var& var) -> ffi::Optional<PrimExpr> { return vmap.Get(var); };
   return Substitute(std::forward<Obj>(obj), func);
 }
 
@@ -401,8 +433,8 @@ auto Substitute(Obj&& obj, const Map<Var, PrimExpr>& vmap) {
  */
 template <typename Obj, typename Expr,
           typename = std::enable_if_t<std::is_base_of_v<PrimExpr, Expr>>>
-auto Substitute(Obj&& obj, const Map<Var, Expr>& vmap) {
-  auto func = [&vmap](const Var& var) -> Optional<PrimExpr> {
+auto Substitute(Obj&& obj, const ffi::Map<Var, Expr>& vmap) {
+  auto func = [&vmap](const Var& var) -> ffi::Optional<PrimExpr> {
     if (auto opt = vmap.Get(var)) {
       return opt.value();
     } else {
@@ -424,7 +456,7 @@ auto Substitute(Obj&& obj, const Map<Var, Expr>& vmap) {
 template <typename Obj, typename Expr,
           typename = std::enable_if_t<std::is_base_of_v<PrimExpr, Expr>>>
 auto Substitute(Obj&& obj, const std::unordered_map<const VarNode*, Expr>& vmap) {
-  auto func = [&vmap](const Var& var) -> Optional<PrimExpr> {
+  auto func = [&vmap](const Var& var) -> ffi::Optional<PrimExpr> {
     if (auto it = vmap.find(var.get()); it != vmap.end()) {
       return it->second;
     } else {
@@ -446,7 +478,7 @@ auto Substitute(Obj&& obj, const std::unordered_map<const VarNode*, Expr>& vmap)
 template <typename Obj, typename Expr, typename Hasher, typename EqualityChecker,
           typename = std::enable_if_t<std::is_base_of_v<PrimExpr, Expr>>>
 auto Substitute(Obj&& obj, const std::unordered_map<Var, Expr, Hasher, EqualityChecker>& vmap) {
-  auto func = [&vmap](const Var& var) -> Optional<PrimExpr> {
+  auto func = [&vmap](const Var& var) -> ffi::Optional<PrimExpr> {
     if (auto it = vmap.find(var); it != vmap.end()) {
       return it->second;
     } else {
@@ -473,7 +505,7 @@ auto Substitute(Obj&& obj, const std::unordered_map<IterVar, Expr>& iter_vmap) {
     vmap[iter_var->var.get()] = expr;
   }
 
-  auto func = [&vmap](const Var& var) -> Optional<PrimExpr> {
+  auto func = [&vmap](const Var& var) -> ffi::Optional<PrimExpr> {
     if (auto it = vmap.find(var.get()); it != vmap.end()) {
       return it->second;
     } else {
@@ -493,8 +525,8 @@ auto Substitute(Obj&& obj, const std::unordered_map<IterVar, Expr>& iter_vmap) {
  * \sa Substitute
  * \return The result.
  */
-TVM_DLL Stmt SubstituteWithDataTypeLegalization(Stmt stmt,
-                                                std::function<Optional<PrimExpr>(const Var&)> vmap);
+TVM_DLL Stmt SubstituteWithDataTypeLegalization(
+    Stmt stmt, std::function<ffi::Optional<PrimExpr>(const Var&)> vmap);
 
 /*!
  * \brief Substitute the var specified by vmap and legalize data types after substitution.
@@ -507,7 +539,7 @@ TVM_DLL Stmt SubstituteWithDataTypeLegalization(Stmt stmt,
  * \return The result.
  */
 TVM_DLL PrimExpr SubstituteWithDataTypeLegalization(
-    PrimExpr expr, std::function<Optional<PrimExpr>(const Var&)> vmap);
+    PrimExpr expr, std::function<ffi::Optional<PrimExpr>(const Var&)> vmap);
 
 /*!
  * \brief Recursively visit the IR in pre DFS order node, apply fvisit.
@@ -518,15 +550,6 @@ TVM_DLL PrimExpr SubstituteWithDataTypeLegalization(
  */
 TVM_DLL void PreOrderVisit(const ObjectRef& stmt_or_expr,
                            const std::function<bool(const ObjectRef&)>& fvisit);
-
-/*!
- * \brief Renew the definition nodes for a TIR, including Var, Buffer and IterVar.
- *        This pass works as a simple DeepCopy to duplicate a function with different Vars and
- *        Buffers but the same behavior
- * \param func The input PrimFunc.
- * \return The renewed func.
- */
-TVM_DLL PrimFunc RenewDefs(const PrimFunc& func);
 
 /*!
  * \brief Check if the statement contains the specified node type.

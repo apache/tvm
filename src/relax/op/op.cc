@@ -23,18 +23,19 @@
 #include <tvm/relax/expr.h>
 #include <tvm/relax/utils.h>
 
+#include "../transform/utils.h"
 #include "op_common.h"
 
 namespace tvm {
 namespace relax {
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   CallTIRWithGradAttrs::RegisterReflection();
   CallTIRInplaceAttrs::RegisterReflection();
   CallInplacePackedAttrs::RegisterReflection();
   ToVDeviceAttrs::RegisterReflection();
   HintOnDeviceAttrs::RegisterReflection();
-});
+}
 
 bool EqualConstInt(const PrimExpr& lhs, int64_t value) {
   if (const int64_t* pvalue = tir::as_const_int(lhs)) {
@@ -57,7 +58,7 @@ bool EqualCheck(const PrimExpr& lhs, const PrimExpr& rhs) {
 }
 
 StructInfo ReturnVoidStructInfo(const Call& call, const BlockBuilder& ctx) {
-  return TupleStructInfo(Array<StructInfo>());
+  return TupleStructInfo(ffi::Array<StructInfo>());
 }
 
 StructInfo ReturnObjectStructInfo(const Call& call, const BlockBuilder& ctx) {
@@ -68,8 +69,8 @@ StructInfo InferStructInfoShapeOf(const Call& call, const BlockBuilder& ctx) {
   // use the StructInfo of the argument
   auto arg_sinfo = GetStructInfo(call->args[0]);
   auto* tensor_sinfo = GetStructInfo(call->args[0]).as<TensorStructInfoNode>();
-  CHECK(tensor_sinfo) << "shape_of expects a tensor input, but received " << arg_sinfo
-                      << "; use MatchCast if necessary";
+  TVM_FFI_ICHECK(tensor_sinfo) << "shape_of expects a tensor input, but received " << arg_sinfo
+                               << "; use MatchCast if necessary";
   if (tensor_sinfo->ndim == kUnknownNDim) {
     return ShapeStructInfo(kUnknownNDim);
   }
@@ -79,7 +80,7 @@ StructInfo InferStructInfoShapeOf(const Call& call, const BlockBuilder& ctx) {
   }
   // otherwise, copy over the values from the tensor shape
   auto* tensor_shape = tensor_sinfo->shape.as<ShapeExprNode>();
-  CHECK(tensor_shape);
+  TVM_FFI_ICHECK(tensor_shape);
   return ShapeStructInfo(tensor_shape->values);
 }
 
@@ -93,12 +94,13 @@ StructInfo InferStructInfoCallPurePacked(const Call& call, const BlockBuilder& c
 
   // the callee must be an opaque function
   auto callee = call->args[0];
-  ICHECK(!callee.as<OpNode>()) << "call_pure_packed cannot be used with an op node";
+  TVM_FFI_ICHECK(!callee.as<OpNode>()) << "call_pure_packed cannot be used with an op node";
   auto opt = MatchStructInfo<FuncStructInfo>(callee);
-  ICHECK(opt) << "Callee must have a function struct info";
+  TVM_FFI_ICHECK(opt) << "Callee must have a function struct info";
   FuncStructInfo finfo = opt.value();
-  ICHECK(finfo->IsOpaque()) << "call_pure_packed must be called with an opaque function, but "
-                            << callee << " is not opaque";
+  TVM_FFI_ICHECK(finfo->IsOpaque())
+      << "call_pure_packed must be called with an opaque function, but " << callee
+      << " is not opaque";
 
   // same logic as from DeriveCallRetStructInfo for ordinary calls
   if (finfo->derive_func.defined()) {
@@ -112,26 +114,26 @@ StructInfo InferStructInfoCallPurePacked(const Call& call, const BlockBuilder& c
 
 TVM_REGISTER_OP("relax.call_pure_packed")
     .set_num_inputs(-1)
-    .add_argument("args", "Array<Expr>",
+    .add_argument("args", "ffi::Array<Expr>",
                   "The first argument is the function being called. The rest are the "
                   "arguments to that function.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallPurePacked)
     .set_attr<Bool>("FPurity", Bool(true));
 
-Expr MakeCallPurePacked(const Expr& callee, Array<Expr> args, const Attrs& attrs,
-                        Array<StructInfo> sinfo_args) {
+Expr MakeCallPurePacked(const Expr& callee, ffi::Array<Expr> args, const Attrs& attrs,
+                        ffi::Array<StructInfo> sinfo_args) {
   static const Op& op = Op::Get("relax.call_pure_packed");
-  Array<Expr> call_args = {callee};
+  ffi::Array<Expr> call_args = {callee};
   for (auto arg : args) {
     call_args.push_back(arg);
   }
   return Call(op, call_args, attrs, sinfo_args);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.call_pure_packed", MakeCallPurePacked);
-});
+}
 
 // call_inplace_packed
 
@@ -146,12 +148,13 @@ StructInfo InferStructInfoCallInplacePacked(const Call& call, const BlockBuilder
 
   // the callee must be an opaque function
   auto callee = call->args[0];
-  ICHECK(!callee.as<OpNode>()) << "call_pure_packed cannot be used with an op node";
+  TVM_FFI_ICHECK(!callee.as<OpNode>()) << "call_pure_packed cannot be used with an op node";
   auto opt = MatchStructInfo<FuncStructInfo>(callee);
-  ICHECK(opt) << "Callee must have a function struct info";
+  TVM_FFI_ICHECK(opt) << "Callee must have a function struct info";
   FuncStructInfo finfo = opt.value();
-  ICHECK(finfo->IsOpaque()) << "call_pure_packed must be called with an opaque function, but "
-                            << callee << " is not opaque";
+  TVM_FFI_ICHECK(finfo->IsOpaque())
+      << "call_pure_packed must be called with an opaque function, but " << callee
+      << " is not opaque";
 
   // check the range for inplace indices, make sure at least one is not -1, ensure they're unique
   const auto* attrs = call->attrs.as<CallInplacePackedAttrs>();
@@ -224,12 +227,10 @@ StructInfo InferStructInfoCallInplacePacked(const Call& call, const BlockBuilder
   return ret;
 }
 
-TVM_REGISTER_NODE_TYPE(CallInplacePackedAttrs);
-
 TVM_REGISTER_OP("relax.call_inplace_packed")
     .set_num_inputs(-1)
     .set_attrs_type<CallInplacePackedAttrs>()
-    .add_argument("args", "Array<Expr>",
+    .add_argument("args", "ffi::Array<Expr>",
                   "The first argument is the function being called. The rest are the "
                   "arguments to that function.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallInplacePacked)
@@ -239,21 +240,21 @@ TVM_REGISTER_OP("relax.call_inplace_packed")
     // side effects other than modifying the arguments specified as "inplace"
     .set_attr<Bool>("FPurity", Bool(true));
 
-Expr MakeCallInplacePacked(Expr func, Array<Expr> args, Array<Integer> inplace_indices,
-                           Array<StructInfo> sinfo_args) {
-  ObjectPtr<CallInplacePackedAttrs> attrs = make_object<CallInplacePackedAttrs>();
-  attrs->inplace_indices = Array<Integer>(inplace_indices.begin(), inplace_indices.end());
+Expr MakeCallInplacePacked(Expr func, ffi::Array<Expr> args, ffi::Array<Integer> inplace_indices,
+                           ffi::Array<StructInfo> sinfo_args) {
+  ObjectPtr<CallInplacePackedAttrs> attrs = ffi::make_object<CallInplacePackedAttrs>();
+  attrs->inplace_indices = ffi::Array<Integer>(inplace_indices.begin(), inplace_indices.end());
 
   static const Op& op = Op::Get("relax.call_inplace_packed");
-  Array<Expr> call_args = {func};
+  ffi::Array<Expr> call_args = {func};
   call_args.insert(call_args.end(), args.begin(), args.end());
   return Call(op, call_args, Attrs(attrs), sinfo_args);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.call_inplace_packed", MakeCallInplacePacked);
-});
+}
 
 // call_tir
 
@@ -287,26 +288,24 @@ TVM_FFI_STATIC_INIT_BLOCK({
  * \return The `arg_sinfo`, if it can be inferred from the arguments.
  *     Otherwise, std::nullopt.
  */
-static Optional<StructInfo> InferCallTIROutputStructInfoFromArguments(
-    StructInfo func_sinfo, StructInfo arg_sinfo, Optional<StructInfo> packed_ints_sinfo,
-    Optional<Array<Integer>> opt_inplace_indices) {
+static ffi::Optional<StructInfo> InferCallTIROutputStructInfoFromArguments(
+    StructInfo func_sinfo, StructInfo arg_sinfo, ffi::Optional<StructInfo> packed_ints_sinfo,
+    ffi::Optional<ffi::Array<Integer>> opt_inplace_indices) {
   auto opt_callee_sinfo = func_sinfo.as<FuncStructInfo>();
-  CHECK(opt_callee_sinfo) << "TypeError: "
-                          << "The first argument to `R.call_tir` must be a function, "
-                          << "but instead received argument of type " << func_sinfo;
+  TVM_FFI_CHECK(opt_callee_sinfo, TypeError)
+      << "The first argument to `R.call_tir` must be a function, "
+      << "but instead received argument of type " << func_sinfo;
   auto callee_sinfo = opt_callee_sinfo.value();
 
-  CHECK(callee_sinfo->params.defined())
-      << "ValueError: "
+  TVM_FFI_CHECK(callee_sinfo->params.defined(), ValueError)
       << "The first argument to `R.call_tir` must be a function "
       << "with known argument types.  "
       << "However, the first argument was of type " << callee_sinfo;
   auto callee_params = callee_sinfo->params.value();
 
   const TupleStructInfoNode* args = arg_sinfo.as<TupleStructInfoNode>();
-  CHECK(args) << "TypeError: "
-              << "The second argument to `R.call_tir` must be a tuple, "
-              << "but instead received expression of type " << arg_sinfo;
+  TVM_FFI_CHECK(args, TypeError) << "The second argument to `R.call_tir` must be a tuple, "
+                                 << "but instead received expression of type " << arg_sinfo;
 
   // R.call_tir expects the PrimFunc to have three groups of arguments.
   //
@@ -323,8 +322,7 @@ static Optional<StructInfo> InferCallTIROutputStructInfoFromArguments(
   if (packed_ints_sinfo) {
     auto packed_sinfo = packed_ints_sinfo.value();
     packed_tuple_sinfo = packed_sinfo.as<ShapeStructInfoNode>();
-    CHECK(packed_tuple_sinfo && !packed_tuple_sinfo->IsUnknownNdim())
-        << "TypeError: "
+    TVM_FFI_CHECK(packed_tuple_sinfo && !packed_tuple_sinfo->IsUnknownNdim(), TypeError)
         << "The third argument to `R.call_tir`, if present, "
         << "must be a ffi::Shape with known dimensionality.  "
         << "However, the argument received was of type " << packed_sinfo;
@@ -333,8 +331,8 @@ static Optional<StructInfo> InferCallTIROutputStructInfoFromArguments(
     num_trailing_int_arguments = 0;
   }
 
-  CHECK_LE(num_input_arguments + num_trailing_int_arguments, callee_params.size())
-      << "ValueError: "
+  TVM_FFI_CHECK_LE(num_input_arguments + num_trailing_int_arguments, callee_params.size(),
+                   ValueError)
       << "R.call_tir attempted to call a function using " << num_input_arguments
       << " input arguments and " << num_trailing_int_arguments << " trailing integer arguments.  "
       << "However, the callee only accepts " << callee_params.size() << " arguments in total.";
@@ -370,16 +368,16 @@ static Optional<StructInfo> InferCallTIROutputStructInfoFromArguments(
   // arguments are used.
 
   auto dummy_callee_sinfo = [&]() -> FuncStructInfo {
-    Array<StructInfo> dummy_params(callee_params.begin(),
-                                   callee_params.begin() + num_input_arguments);
+    ffi::Array<StructInfo> dummy_params(callee_params.begin(),
+                                        callee_params.begin() + num_input_arguments);
 
     for (size_t i = callee_params.size() - num_trailing_int_arguments; i < callee_params.size();
          i++) {
       dummy_params.push_back(callee_params[i]);
     }
 
-    Array<StructInfo> dummy_ret(callee_params.begin() + num_input_arguments,
-                                callee_params.end() - num_trailing_int_arguments);
+    ffi::Array<StructInfo> dummy_ret(callee_params.begin() + num_input_arguments,
+                                     callee_params.end() - num_trailing_int_arguments);
 
     if (opt_inplace_indices) {
       // For R.call_tir_inplace, the `inplace_indices` are used to
@@ -407,12 +405,12 @@ static Optional<StructInfo> InferCallTIROutputStructInfoFromArguments(
     return FuncStructInfo(dummy_params, dummy_out_sinfo);
   }();
 
-  auto dummy_args = [&]() -> Array<Expr> {
-    Array<Expr> dummy_args = args->fields.Map(
+  auto dummy_args = [&]() -> ffi::Array<Expr> {
+    ffi::Array<Expr> dummy_args = args->fields.Map(
         [](const StructInfo& sinfo) -> Expr { return Var("dummy_leading_arg", sinfo); });
 
     for (size_t i = 0; i < num_trailing_int_arguments; i++) {
-      ICHECK(packed_tuple_sinfo);
+      TVM_FFI_ICHECK(packed_tuple_sinfo);
       PrimStructInfo dummy_arg_sinfo = [&]() {
         if (packed_tuple_sinfo->values) {
           return PrimStructInfo(packed_tuple_sinfo->values.value()[i]);
@@ -438,7 +436,7 @@ StructInfo InferStructInfoCallTIR(const Call& call, const BlockBuilder& ctx) {
     ctx->ReportFatal(Diagnostic::Error(call)
                      << "sinfo_args should have exactly 1 output struct info.");
   }
-  CHECK(call->args[0]->IsInstance<GlobalVarNode>())
+  TVM_FFI_ICHECK(call->args[0]->IsInstance<GlobalVarNode>())
       << "R.call_tir expects the first argument to be a GlobalVar referring to a TIR PrimFunc. "
       << "However, the argument " << call->args[0] << " instead has type "
       << call->args[0]->GetTypeKey();
@@ -454,24 +452,24 @@ Expr NormalizeCallTIR(const BlockBuilder& ctx, Call call) {
   // `relax.call_tir_inplace`.  Therefore, all error messages should
   // be written in terms of `call->op`, and should not explicitly
   // reference the `relax.call_tir` operator.`
-  CHECK(call->args.size() == 2 || call->args.size() == 3)
+  TVM_FFI_ICHECK(call->args.size() == 2 || call->args.size() == 3)
       << "Operation " << call->op << " expects either two arguments [callee, arg_tuple], "
       << "or three arguments [callee, arg_tuple, tir_args], "
       << "but " << call << " has " << call->args.size() << " arguments.";
 
   auto callee = call->args[0];
-  CHECK(callee->struct_info_.as<FuncStructInfoNode>())
+  TVM_FFI_ICHECK(callee->struct_info_.as<FuncStructInfoNode>())
       << "Operation " << call->op << " expects the first argument to be a TIR callee.  "
       << "However, the first argument " << callee << " has struct info " << callee->struct_info_;
 
   Expr arg_tuple = call->args[1];
 
-  CHECK(arg_tuple->struct_info_.as<TupleStructInfoNode>())
+  TVM_FFI_ICHECK(arg_tuple->struct_info_.as<TupleStructInfoNode>())
       << "Operation " << call->op << " expects the second argument to be a tuple of relax Expr.  "
       << "However, the second argument " << arg_tuple << " has struct info "
       << arg_tuple->struct_info_ << ".";
 
-  CHECK(arg_tuple.as<TupleNode>() || arg_tuple.as<VarNode>())
+  TVM_FFI_ICHECK(arg_tuple.as<TupleNode>() || arg_tuple.as<VarNode>())
       << "Operation " << call->op << " must hold its arguments as an in-line tuple.  "
       << "However, " << call << " has arguments " << arg_tuple
       << ", which is neither an in-line tuple, "
@@ -479,18 +477,18 @@ Expr NormalizeCallTIR(const BlockBuilder& ctx, Call call) {
 
   if (call->args.size() > 2) {
     Expr packed_ints = call->args[2];
-    CHECK(packed_ints->struct_info_.as<ShapeStructInfoNode>())
+    TVM_FFI_ICHECK(packed_ints->struct_info_.as<ShapeStructInfoNode>())
         << "Operation " << call->op << " expects the optional third argument, "
         << "if present, to be a ffi::Shape.  "
         << "However, the third argument " << packed_ints << " has struct info "
         << packed_ints->struct_info_;
   }
 
-  CHECK_EQ(call->sinfo_args.size(), 1)
+  TVM_FFI_ICHECK_EQ(call->sinfo_args.size(), 1)
       << "R.call_tir should have exactly one `sinfo_args` parameter, "
       << "which defines the output of the PrimFunc.";
 
-  auto unwrap_binding = [&ctx](Expr expr) -> Optional<Expr> {
+  auto unwrap_binding = [&ctx](Expr expr) -> ffi::Optional<Expr> {
     if (auto var = expr.as<Var>()) {
       if (auto bound_value = ctx->LookupBinding(var.value())) {
         return bound_value.value();
@@ -521,7 +519,7 @@ Expr NormalizeCallTIR(const BlockBuilder& ctx, Call call) {
     // and we don't know the value bound to that variable.  For
     // example, if a relax function accepted a tuple as an parameter,
     // then provided that same tuple as an argument to call_tir.
-    Array<Expr> tuple_elements;
+    ffi::Array<Expr> tuple_elements;
     size_t num_fields = Downcast<TupleStructInfo>(arg_tuple->struct_info_)->fields.size();
     for (size_t i = 0; i < num_fields; i++) {
       tuple_elements.push_back(TupleGetItem(arg_tuple, i));
@@ -548,7 +546,7 @@ void ValidateCallTIR(Call call) {
   auto callee = call->args[0];
   Expr arg_tuple = call->args[1];
 
-  auto packed_int_sinfo = [&]() -> Optional<StructInfo> {
+  auto packed_int_sinfo = [&]() -> ffi::Optional<StructInfo> {
     if (call->args.size() <= 2) {
       return std::nullopt;
     } else {
@@ -556,7 +554,7 @@ void ValidateCallTIR(Call call) {
     }
   }();
 
-  auto opt_inplace_indices = [&]() -> Optional<Array<Integer>> {
+  auto opt_inplace_indices = [&]() -> ffi::Optional<ffi::Array<Integer>> {
     if (const auto* attrs = call->attrs.as<CallTIRInplaceAttrs>()) {
       return attrs->inplace_indices;
     } else {
@@ -568,8 +566,7 @@ void ValidateCallTIR(Call call) {
   auto inferred_sinfo = InferCallTIROutputStructInfoFromArguments(
       GetStructInfo(callee), GetStructInfo(arg_tuple), packed_int_sinfo, opt_inplace_indices);
   if (inferred_sinfo.defined()) {
-    CHECK(IsBaseOf(inferred_sinfo.value(), explicit_sinfo))
-        << "TypeError: "
+    TVM_FFI_CHECK(IsBaseOf(inferred_sinfo.value(), explicit_sinfo), TypeError)
         << "The `out_sinfo` argument for R.call_tir must be compatible with the PrimFunc.  "
         << "However, the PrimFunc's signature implies that the output should be " << inferred_sinfo
         << ", but the `out_sinfo` argument was " << explicit_sinfo;
@@ -588,13 +585,14 @@ TVM_REGISTER_OP("relax.call_tir")
     .set_attr<FValidate>("FValidate", ValidateCallTIR)
     .set_attr<Bool>("FPurity", Bool(true));
 
-Expr MakeCallTIR(Expr func, Tuple args, Array<TensorStructInfo> out_sinfo_list,
-                 Optional<Expr> packed_ints) {
+Expr MakeCallTIR(Expr func, Tuple args, ffi::Array<TensorStructInfo> out_sinfo_list,
+                 ffi::Optional<Expr> packed_ints) {
   for (const TensorStructInfo& sinfo : out_sinfo_list) {
     const auto* shape = sinfo->shape.as<ShapeExprNode>();
-    CHECK(shape != nullptr) << "out_sinfo of call_tir should have defined ShapeExpr as shape. "
-                               "However, one given structure info is "
-                            << sinfo;
+    TVM_FFI_ICHECK(shape != nullptr)
+        << "out_sinfo of call_tir should have defined ShapeExpr as shape. "
+           "However, one given structure info is "
+        << sinfo;
   }
 
   StructInfo out_sinfo{nullptr};
@@ -615,14 +613,12 @@ Expr MakeCallTIR(Expr func, Tuple args, Array<TensorStructInfo> out_sinfo_list,
   return call;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.call_tir", MakeCallTIR);
-});
+}
 
 // call_tir_with_grad
-
-TVM_REGISTER_NODE_TYPE(CallTIRWithGradAttrs);
 
 TVM_REGISTER_OP("relax.call_tir_with_grad")
     .set_num_inputs(3)
@@ -637,12 +633,12 @@ TVM_REGISTER_OP("relax.call_tir_with_grad")
     .set_attr<FValidate>("FValidate", ValidateCallTIR)
     .set_attr<Bool>("FPurity", Bool(true));
 
-Expr MakeCallTIRWithGrad(Expr func, Tuple args, Array<TensorStructInfo> out_sinfo_list,
-                         String te_grad_name, Map<String, ffi::Any> te_grad_kwargs,
-                         Optional<Expr> packed_ints) {
+Expr MakeCallTIRWithGrad(Expr func, Tuple args, ffi::Array<TensorStructInfo> out_sinfo_list,
+                         ffi::String te_grad_name, ffi::Map<ffi::String, ffi::Any> te_grad_kwargs,
+                         ffi::Optional<Expr> packed_ints) {
   for (const TensorStructInfo& sinfo : out_sinfo_list) {
     const auto* shape = sinfo->shape.as<ShapeExprNode>();
-    CHECK(shape != nullptr)
+    TVM_FFI_ICHECK(shape != nullptr)
         << "out_sinfo of call_tir_with_grad should have defined ShapeExpr as shape. "
            "However, one given structure info is "
         << sinfo;
@@ -655,7 +651,7 @@ Expr MakeCallTIRWithGrad(Expr func, Tuple args, Array<TensorStructInfo> out_sinf
     out_sinfo = TupleStructInfo({out_sinfo_list.begin(), out_sinfo_list.end()});
   }
 
-  ObjectPtr<CallTIRWithGradAttrs> attrs = make_object<CallTIRWithGradAttrs>();
+  ObjectPtr<CallTIRWithGradAttrs> attrs = ffi::make_object<CallTIRWithGradAttrs>();
   attrs->te_grad_name = te_grad_name;
   attrs->te_grad_kwargs = te_grad_kwargs;
 
@@ -670,10 +666,10 @@ Expr MakeCallTIRWithGrad(Expr func, Tuple args, Array<TensorStructInfo> out_sinf
   return call;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.call_tir_with_grad", MakeCallTIRWithGrad);
-});
+}
 
 // call_tir_inplace
 
@@ -683,7 +679,7 @@ Expr NormalizeCallTIRInPlace(const BlockBuilder& ctx, Call call) {
   // may result in an error if performed before normalization.
   call = Downcast<Call>(NormalizeCallTIR(ctx, std::move(call)));
 
-  Array<StructInfo> sinfo_outputs = [&]() -> Array<StructInfo> {
+  ffi::Array<StructInfo> sinfo_outputs = [&]() -> ffi::Array<StructInfo> {
     auto out_sinfo = call->sinfo_args[0];
     if (auto* tuple_output = out_sinfo.as<TupleStructInfoNode>()) {
       return tuple_output->fields;
@@ -694,7 +690,7 @@ Expr NormalizeCallTIRInPlace(const BlockBuilder& ctx, Call call) {
 
   // there must be an inplace index for each output
   const auto* attrs = call->attrs.as<CallTIRInplaceAttrs>();
-  ICHECK(attrs);
+  TVM_FFI_ICHECK(attrs);
   if (attrs->inplace_indices.size() != sinfo_outputs.size()) {
     ctx->ReportFatal(Diagnostic::Error(call)
                      << "There must be an in-place index specified for each output");
@@ -766,8 +762,6 @@ Expr NormalizeCallTIRInPlace(const BlockBuilder& ctx, Call call) {
   return call;
 }
 
-TVM_REGISTER_NODE_TYPE(CallTIRInplaceAttrs);
-
 TVM_REGISTER_OP("relax.call_tir_inplace")
     .set_num_inputs(3)
     .set_attrs_type<CallTIRInplaceAttrs>()
@@ -784,17 +778,19 @@ TVM_REGISTER_OP("relax.call_tir_inplace")
     // arguments will no longer be live)
     .set_attr<Bool>("FPurity", Bool(true));
 
-Expr MakeCallTIRInplace(Expr func, Tuple args, Array<Integer> inplace_indices,
-                        Array<TensorStructInfo> out_sinfo_list, Optional<Expr> packed_ints) {
+Expr MakeCallTIRInplace(Expr func, Tuple args, ffi::Array<Integer> inplace_indices,
+                        ffi::Array<TensorStructInfo> out_sinfo_list,
+                        ffi::Optional<Expr> packed_ints) {
   for (const TensorStructInfo& sinfo : out_sinfo_list) {
     const auto* shape = sinfo->shape.as<ShapeExprNode>();
-    CHECK(shape != nullptr) << "out_sinfo of call_tir should have defined ShapeExpr as shape. "
-                               "However, one given structure info is "
-                            << sinfo;
+    TVM_FFI_ICHECK(shape != nullptr)
+        << "out_sinfo of call_tir should have defined ShapeExpr as shape. "
+           "However, one given structure info is "
+        << sinfo;
   }
 
-  ObjectPtr<CallTIRInplaceAttrs> attrs = make_object<CallTIRInplaceAttrs>();
-  attrs->inplace_indices = Array<Integer>(inplace_indices.begin(), inplace_indices.end());
+  ObjectPtr<CallTIRInplaceAttrs> attrs = ffi::make_object<CallTIRInplaceAttrs>();
+  attrs->inplace_indices = ffi::Array<Integer>(inplace_indices.begin(), inplace_indices.end());
 
   StructInfo out_sinfo{nullptr};
   if (out_sinfo_list.size() == 1) {
@@ -814,10 +810,10 @@ Expr MakeCallTIRInplace(Expr func, Tuple args, Array<Integer> inplace_indices,
   return call;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.call_tir_inplace", MakeCallTIRInplace);
-});
+}
 
 // call_dps_packed
 
@@ -838,10 +834,10 @@ TVM_REGISTER_OP("relax.call_dps_packed")
     // little reason to use DPS with an impure op
     .set_attr<Bool>("FPurity", Bool(true));
 
-Expr MakeCallDPSPacked(Expr func, Tuple args, Array<TensorStructInfo> out_sinfo_list) {
+Expr MakeCallDPSPacked(Expr func, Tuple args, ffi::Array<TensorStructInfo> out_sinfo_list) {
   for (const TensorStructInfo& sinfo : out_sinfo_list) {
     const auto* shape = sinfo->shape.as<ShapeExprNode>();
-    CHECK(shape != nullptr)
+    TVM_FFI_ICHECK(shape != nullptr)
         << "out_sinfo of call_dps_packed should have defined ShapeExpr as shape. "
            "However, one given structure info is "
         << sinfo;
@@ -858,18 +854,83 @@ Expr MakeCallDPSPacked(Expr func, Tuple args, Array<TensorStructInfo> out_sinfo_
   return Call(op, {func, args}, {}, {out_sinfo});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.call_dps_packed", MakeCallDPSPacked);
-});
+}
+
+// call_py_func
+
+StructInfo InferStructInfoCallPyFunc(const Call& call, const BlockBuilder& ctx) {
+  if (call->sinfo_args.size() != 1) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "sinfo_args should have exact 1 output struct info.");
+  }
+  return call->sinfo_args[0];
+}
+
+void ValidateCallPyFunc(Call call) {
+  // Validate that the function name is a string literal
+  auto func_name = call->args[0];
+  TVM_FFI_ICHECK(func_name->IsInstance<StringImmNode>())
+      << "Operation " << call->op << " expects the first argument to be a string literal "
+      << "specifying the Python function name. However, the first argument " << func_name
+      << " is not a string literal.";
+
+  // Validate that args is a tuple
+  Expr arg_tuple = call->args[1];
+  TVM_FFI_ICHECK(arg_tuple->struct_info_.as<TupleStructInfoNode>())
+      << "Operation " << call->op << " expects the second argument to be a tuple of relax Expr.  "
+      << "However, the second argument " << arg_tuple << " has struct info "
+      << arg_tuple->struct_info_ << ".";
+
+  TVM_FFI_ICHECK(arg_tuple.as<TupleNode>() || arg_tuple.as<VarNode>())
+      << "Operation " << call->op << " must hold its arguments as an in-line tuple.  "
+      << "However, " << call << " has arguments " << arg_tuple
+      << ", which is neither an in-line tuple, "
+      << "nor a variable binding that may be normalized to an in-line tuple.";
+}
+
+TVM_REGISTER_OP("relax.call_py_func")
+    .set_num_inputs(2)
+    .add_argument("func_name", "StringImm", "The name of the Python function to call.")
+    .add_argument("args", "Tuple", "The input arguments.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallPyFunc)
+    .set_attr<FValidate>("FValidate", ValidateCallPyFunc)
+    .set_attr<Bool>("FPurity", Bool(true));
+
+Expr MakeCallPyFunc(StringImm func_name, Tuple args, ffi::Array<TensorStructInfo> out_sinfo_list) {
+  for (const TensorStructInfo& sinfo : out_sinfo_list) {
+    const auto* shape = sinfo->shape.as<ShapeExprNode>();
+    TVM_FFI_ICHECK(shape != nullptr)
+        << "out_sinfo of call_py_func should have defined ShapeExpr as shape. "
+           "However, one given structure info is "
+        << sinfo;
+  }
+
+  StructInfo out_sinfo{nullptr};
+  if (out_sinfo_list.size() == 1) {
+    out_sinfo = out_sinfo_list[0];
+  } else {
+    out_sinfo = TupleStructInfo({out_sinfo_list.begin(), out_sinfo_list.end()});
+  }
+
+  static const Op& op = Op::Get("relax.call_py_func");
+  return Call(op, {func_name, args}, {}, {out_sinfo});
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.call_py_func", MakeCallPyFunc);
+}
 
 // call builtin
 StructInfo InferStructInfoCallBuiltinWithCtx(const Call& call, const BlockBuilder& ctx) {
   if (call->sinfo_args.size() == 0) {
     // by default return void.
-    return TupleStructInfo(Array<StructInfo>());
+    return TupleStructInfo(ffi::Array<StructInfo>());
   } else {
-    ICHECK_EQ(call->sinfo_args.size(), 1);
+    TVM_FFI_ICHECK_EQ(call->sinfo_args.size(), 1);
     return call->sinfo_args[0];
   }
 }
@@ -882,15 +943,15 @@ TVM_REGISTER_OP("relax.call_builtin_with_ctx")
     // Most builtins are pure, but some are not, like `vm.builtin.attention_kv_cache_append`
     .set_attr<Bool>("FPurity", Bool(false));
 
-Expr MakeCallBuiltinWithCtx(Expr func, Tuple args, Array<StructInfo> sinfo_args) {
+Expr MakeCallBuiltinWithCtx(Expr func, Tuple args, ffi::Array<StructInfo> sinfo_args) {
   static const Op& op = Op::Get("relax.call_builtin_with_ctx");
   return Call(op, {func, args}, Attrs(), sinfo_args);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.call_builtin_with_ctx", MakeCallBuiltinWithCtx);
-});
+}
 
 TVM_REGISTER_OP("relax.null_value")
     .set_num_inputs(0)
@@ -902,24 +963,24 @@ Expr MakeCallNullValue() {
   return Call(op, {}, {}, {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.null_value", MakeCallNullValue);
-});
+}
 
 // print
 
 TVM_REGISTER_OP("relax.print")
     .set_num_inputs(-1)
-    .add_argument("vals", "Array<Expr>",
+    .add_argument("vals", "ffi::Array<Expr>",
                   "The first value is Python-style format string to use to print. The others "
                   "are values to print")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnVoidStructInfo)
     .set_attr<FCallPacked>("FCallPacked", "relax.run.print")
     .set_attr<Bool>("FPurity", Bool(false));
 
-Expr MakePrint(Array<Expr> vals, StringImm format) {
-  Array<Expr> params;
+Expr MakePrint(ffi::Array<Expr> vals, StringImm format) {
+  ffi::Array<Expr> params;
   params.push_back(format);
   for (const auto val : vals) {
     params.push_back(val);
@@ -928,10 +989,10 @@ Expr MakePrint(Array<Expr> vals, StringImm format) {
   return Call(op, params);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.print", MakePrint);
-});
+}
 
 // assert_op
 
@@ -956,7 +1017,7 @@ StructInfo InferAssertStructInfo(const Call& call, const BlockBuilder& ctx) {
 
 TVM_REGISTER_OP("relax.assert_op")
     .set_num_inputs(-1)
-    .add_argument("vals", "Array<Expr>",
+    .add_argument("vals", "ffi::Array<Expr>",
                   "The first value is used as the assertion condition. The second value is "
                   "Python-style format string to use for displaying an error message, if the "
                   "assert fails. The others are used as format arguments if there is an error.")
@@ -964,9 +1025,9 @@ TVM_REGISTER_OP("relax.assert_op")
     .set_attr<FCallPacked>("FCallPacked", "relax.run.assert_op")
     .set_attr<Bool>("FPurity", Bool(false));
 
-Expr MakeAssertOp(Expr condition, Array<Expr> vals, StringImm format) {
+Expr MakeAssertOp(Expr condition, ffi::Array<Expr> vals, StringImm format) {
   static const Op& op = Op::Get("relax.assert_op");
-  Array<Expr> args = {condition};
+  ffi::Array<Expr> args = {condition};
   args.push_back(format);
   for (auto val : vals) {
     args.push_back(val);
@@ -974,10 +1035,10 @@ Expr MakeAssertOp(Expr condition, Array<Expr> vals, StringImm format) {
   return Call(op, args);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.assert_op", MakeAssertOp);
-});
+}
 
 // make_closure
 
@@ -993,10 +1054,10 @@ Expr MakeClosure(Expr func, Tuple args) {
   return Call(op, {func, args}, {}, {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.make_closure", MakeClosure);
-});
+}
 
 // invoke_closure
 
@@ -1018,15 +1079,15 @@ TVM_REGISTER_OP("relax.invoke_closure")
     // Not all closures are pure. Use invoke_pure_closure for specifying purity
     .set_attr<Bool>("FPurity", Bool(false));
 
-Expr InvokeClosure(Expr closure, Tuple args, Array<StructInfo> sinfo_args) {
+Expr InvokeClosure(Expr closure, Tuple args, ffi::Array<StructInfo> sinfo_args) {
   static const Op& op = Op::Get("relax.invoke_closure");
   return Call(op, {closure, args}, {}, sinfo_args);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.invoke_closure", InvokeClosure);
-});
+}
 
 // invoke_pure_closure
 
@@ -1037,15 +1098,15 @@ TVM_REGISTER_OP("relax.invoke_pure_closure")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoInvokeClosure)
     .set_attr<Bool>("FPurity", Bool(true));
 
-Expr InvokePureClosure(Expr closure, Tuple args, Array<StructInfo> sinfo_args) {
+Expr InvokePureClosure(Expr closure, Tuple args, ffi::Array<StructInfo> sinfo_args) {
   static const Op& op = Op::Get("relax.invoke_pure_closure");
   return Call(op, {closure, args}, {}, sinfo_args);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.invoke_pure_closure", InvokePureClosure);
-});
+}
 
 // shape_of
 
@@ -1060,21 +1121,47 @@ Expr MakeShapeOf(Expr expr) {
   return Call(op, {expr}, {}, {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.shape_of", MakeShapeOf);
-});
+}
+
+// size
+
+StructInfo InferStructInfoSize(const Call& call, const BlockBuilder& ctx) {
+  auto arg_sinfo = GetStructInfo(call->args[0]);
+  auto* tensor_sinfo = GetStructInfo(call->args[0]).as<TensorStructInfoNode>();
+  TVM_FFI_ICHECK(tensor_sinfo) << "size expects a tensor input, but received " << arg_sinfo
+                               << "; use MatchCast if necessary";
+  return TensorStructInfo(ShapeExpr(ffi::Array<PrimExpr>{}), DataType::Int(64));
+}
+
+TVM_REGISTER_OP("relax.size")
+    .set_num_inputs(1)
+    .add_argument("input", "Expr", "The input tensor")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoSize)
+    .set_attr<Bool>("FPurity", Bool(true));
+
+Expr MakeSize(Expr expr) {
+  static const Op& op = Op::Get("relax.size");
+  return Call(op, {expr}, {}, {});
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.size", MakeSize);
+}
 
 // tensor_to_shape
 
 StructInfo ReturnTensorToShapeStructInfo(const Call& call, const BlockBuilder& ctx) {
-  ICHECK(call->args.size() == 1);
-  ICHECK(call->args[0]->struct_info_.defined());
+  TVM_FFI_ICHECK(call->args.size() == 1);
+  TVM_FFI_ICHECK(call->args[0]->struct_info_.defined());
   const auto* tsinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
-  ICHECK(tsinfo);
-  ICHECK_EQ(tsinfo->ndim, 1) << "relax.tensor_to_shape expected argument to be 1-d, "
-                             << "but " << call << " has argument " << call->args[0]
-                             << " with struct info " << call->args[0]->struct_info_;
+  TVM_FFI_ICHECK(tsinfo);
+  TVM_FFI_ICHECK_EQ(tsinfo->ndim, 1) << "relax.tensor_to_shape expected argument to be 1-d, "
+                                     << "but " << call << " has argument " << call->args[0]
+                                     << " with struct info " << call->args[0]->struct_info_;
 
   if (tsinfo->shape.defined()) {
     ShapeExpr shape_expr = Downcast<ShapeExpr>(tsinfo->shape.value());
@@ -1097,17 +1184,17 @@ Expr MakeTensorToShape(Expr expr) {
   return Call(op, {expr}, {}, {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.tensor_to_shape", MakeTensorToShape);
-});
+}
 
 // shape_to_tensor
 StructInfo ReturnShapeToTensorStructInfo(const Call& call, const BlockBuilder& ctx) {
-  ICHECK(call->args.size() == 1);
-  ICHECK(call->args[0]->struct_info_.defined());
+  TVM_FFI_ICHECK(call->args.size() == 1);
+  TVM_FFI_ICHECK(call->args[0]->struct_info_.defined());
   const auto* sinfo = GetStructInfoAs<ShapeStructInfoNode>(call->args[0]);
-  ICHECK(sinfo);
+  TVM_FFI_ICHECK(sinfo);
   int32_t ndim = sinfo->ndim;
   return TensorStructInfo(ShapeExpr({PrimExpr(ndim)}), DataType::Int(64));
 }
@@ -1124,22 +1211,31 @@ Expr MakeShapeToTensor(Expr expr) {
   return Call(op, {expr}, {}, {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.shape_to_tensor", MakeShapeToTensor);
-});
+}
 
 // alloc_tensor
 
 StructInfo InferStructInfoAllocateTensor(const Call& call, const BlockBuilder& ctx) {
-  ICHECK(call->args[0].as<ShapeExprNode>())
+  TVM_FFI_ICHECK(call->args[0].as<ShapeExprNode>())
       << "must be ShapeExpr, but got " << call->args[0]->GetTypeKey();
-  ICHECK(call->args[1].as<DataTypeImmNode>())
+  TVM_FFI_ICHECK(call->args[1].as<DataTypeImmNode>())
       << "must be DataTypeImm, but got " << call->args[1]->GetTypeKey();
   DataType out_dtype;
   if (const auto* dtype_node = call->args[1].as<DataTypeImmNode>()) {
-    const DataTypeImm dtype_imm = GetRef<DataTypeImm>(dtype_node);
+    const DataTypeImm dtype_imm = ffi::GetRef<DataTypeImm>(dtype_node);
     out_dtype = dtype_imm->value;
+  }
+  int64_t vdevice_index = -1;
+  if (auto* prim_value_node = call->args[2].as<PrimValueNode>()) {
+    vdevice_index = prim_value_node->value.as<IntImmNode>()->value;
+  }
+  auto vdevice = GetGlobalVDevice(ctx->GetContextIRModule(), vdevice_index);
+
+  if (vdevice.defined()) {
+    return TensorStructInfo(call->args[0], out_dtype, vdevice.value());
   }
   return TensorStructInfo(call->args[0], out_dtype);
 }
@@ -1164,10 +1260,10 @@ Expr MakeAllocTensor(Expr shape, DataTypeImm dtype, PrimValue runtime_device_ind
   return Call(op, {shape, dtype, runtime_device_index, storage_scope}, Attrs(), {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.builtin.alloc_tensor", MakeAllocTensor);
-});
+}
 
 // memory planning alloc_storage
 
@@ -1192,44 +1288,71 @@ Expr MakeAllocStorage(Expr size, PrimValue virtual_device_index, StringImm stora
   return Call(op, {size, virtual_device_index, storage_scope, dtype}, Attrs(), {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.memory.alloc_storage", MakeAllocStorage);
-});
+}
 
 // memory planning alloc_tensor
 
 StructInfo InferStructInfoMemAllocTensor(const Call& call, const BlockBuilder& ctx) {
-  ICHECK(GetStructInfoAs<ShapeStructInfoNode>(call->args[2]))
+  TVM_FFI_ICHECK(GetStructInfoAs<ShapeStructInfoNode>(call->args[2]))
       << "must be a Expr of ShapeStructInfo, but got " << call->args[1]->GetTypeKey();
   DataType out_dtype;
   if (const auto* dtype_node = call->args[3].as<DataTypeImmNode>()) {
-    const DataTypeImm dtype_imm = GetRef<DataTypeImm>(dtype_node);
+    const DataTypeImm dtype_imm = ffi::GetRef<DataTypeImm>(dtype_node);
     out_dtype = dtype_imm->value;
   }
+
+  if (call->args.size() == 5) {
+    int64_t vdevice_index = -1;
+    if (auto* prim_value_node = call->args[4].as<PrimValueNode>()) {
+      vdevice_index = prim_value_node->value.as<IntImmNode>()->value;
+    }
+    auto vdevice = GetGlobalVDevice(ctx->GetContextIRModule(), vdevice_index);
+    if (vdevice.defined()) {
+      return TensorStructInfo(call->args[2], out_dtype, vdevice.value());
+    }
+  }
+
   return TensorStructInfo(call->args[2], out_dtype);
 }
 
 TVM_REGISTER_OP("relax.memory.alloc_tensor")
-    .set_num_inputs(4)
+    .set_num_inputs(5)
     .add_argument("storage", "Expr", "The storage to allocate the tensor to.")
     .add_argument("offset", "PrimValue", "Storage offset to allocate the tensor.")
     .add_argument("shape", "Expr", "The shape of the tensor to allocate.")
     .add_argument("dtype", "DataTypeImm", "The dtype of the tensor to allocate.")
+    .add_argument("runtime_device_index", "PrimValue",
+                  "The device index indicating on which device the tensor is to be "
+                  "allocated at runtime. Index -1 is reserved for the host device.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoMemAllocTensor)
     // memory allocation isn't considered a "visible effect" as far as purity is concerned
     .set_attr<Bool>("FPurity", Bool(true))
     .set_attr<Bool>("TAllocator", Bool(true));
 
-Expr MakeMemAllocTensor(Expr storage, PrimValue offset, Expr shape, DataTypeImm dtype) {
+Expr MakeMemAllocTensor(Expr storage, PrimValue offset, Expr shape, DataTypeImm dtype,
+                        PrimValue virtual_device_index) {
   static const Op& op = Op::Get("relax.memory.alloc_tensor");
-  return Call(op, {storage, offset, shape, dtype}, Attrs(), {});
+  return Call(op, {storage, offset, shape, dtype, virtual_device_index}, Attrs(), {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.memory.alloc_tensor", MakeMemAllocTensor);
-});
+  refl::GlobalDef().def_packed(
+      "relax.op.memory.alloc_tensor", [](ffi::PackedArgs args, ffi::Any* ret) {
+        if (args.size() == 5) {
+          *ret = MakeMemAllocTensor(args[0].cast<Expr>(), args[1].cast<PrimValue>(),
+                                    args[2].cast<Expr>(), args[3].cast<DataTypeImm>(),
+                                    args[4].cast<PrimValue>());
+        } else {
+          *ret = MakeMemAllocTensor(args[0].cast<Expr>(), args[1].cast<PrimValue>(),
+                                    args[2].cast<Expr>(), args[3].cast<DataTypeImm>(),
+                                    PrimValue::Int64(0));
+        }
+      });
+}
 
 // memory planning kill_storage
 
@@ -1245,10 +1368,10 @@ Expr MakeMemKillStorage(Expr storage) {
   return Call(op, {storage}, {}, {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.memory.kill_storage", MakeMemKillStorage);
-});
+}
 
 // memory planning kill_tensor
 
@@ -1264,10 +1387,10 @@ Expr MakeMemKillTensor(Expr tensor) {
   return Call(op, {tensor}, {}, {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.memory.kill_tensor", MakeMemKillTensor);
-});
+}
 
 // vm alloc_storage
 
@@ -1291,54 +1414,73 @@ Expr MakeVMAllocStorage(Expr size, PrimValue runtime_device_index, DataTypeImm d
   return Call(op, {size, runtime_device_index, dtype, storage_scope}, Attrs(), {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.vm.alloc_storage", MakeVMAllocStorage);
-});
+}
 
 // vm alloc_tensor
 
 StructInfo InferStructInfoVMAllocTensor(const Call& call, const BlockBuilder& ctx) {
   DataType out_dtype;
   if (const auto* dtype_node = call->args[3].as<DataTypeImmNode>()) {
-    const DataTypeImm dtype_imm = GetRef<DataTypeImm>(dtype_node);
+    const DataTypeImm dtype_imm = ffi::GetRef<DataTypeImm>(dtype_node);
     out_dtype = dtype_imm->value;
   }
+  int64_t vdevice_index = -1;
+  if (auto* prim_value_node = call->args[4].as<PrimValueNode>()) {
+    vdevice_index = prim_value_node->value.as<IntImmNode>()->value;
+  }
+  auto vdevice = GetGlobalVDevice(ctx->GetContextIRModule(), vdevice_index);
+
   if (const auto* output_shape = call->args[2].as<ShapeExprNode>()) {
-    return TensorStructInfo(GetRef<Expr>(output_shape), out_dtype);
+    return TensorStructInfo(ffi::GetRef<Expr>(output_shape), out_dtype, vdevice);
   } else if (const auto* shape_sinfo = GetStructInfoAs<ShapeStructInfoNode>(call->args[2])) {
     if (shape_sinfo->values.defined()) {
-      return TensorStructInfo(ShapeExpr(shape_sinfo->values.value()), out_dtype);
+      return TensorStructInfo(ShapeExpr(shape_sinfo->values.value()), out_dtype, vdevice);
     } else {
-      return TensorStructInfo(out_dtype, shape_sinfo->ndim);
+      return TensorStructInfo(out_dtype, shape_sinfo->ndim, vdevice);
     }
   }
-  return TensorStructInfo(out_dtype, kUnknownNDim);
+  return TensorStructInfo(out_dtype, kUnknownNDim, vdevice);
 }
 
 TVM_REGISTER_OP("relax.vm.alloc_tensor")
-    .set_num_inputs(4)
+    .set_num_inputs(5)
     .add_argument("storage", "Expr", "The storage to allocate the tensor to.")
     .add_argument("offset", "PrimValue", "Storage offset to allocate the tensor.")
     .add_argument("shape", "Expr", "The shape of the tensor to allocate.")
     .add_argument("dtype", "DataTypeImm", "The dtype of the tensor to allocate.")
+    .add_argument("runtime_device_index", "PrimValue",
+                  "The device index indicating on which device the tensor is "
+                  "to be allocated at runtime.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoVMAllocTensor)
     // memory allocation isn't considered a "visible effect" as far as purity is concerned
     .set_attr<Bool>("FPurity", Bool(true))
     .set_attr<Bool>("TAllocator", Bool(true));
 
-Expr MakeVMAllocTensor(Expr storage, PrimValue offset, Expr shape, DataTypeImm dtype) {
+Expr MakeVMAllocTensor(Expr storage, PrimValue offset, Expr shape, DataTypeImm dtype,
+                       PrimValue runtime_device_index) {
   static const Op& op = Op::Get("relax.vm.alloc_tensor");
-  return Call(op, {storage, offset, shape, dtype}, Attrs(), {});
+  return Call(op, {storage, offset, shape, dtype, runtime_device_index}, Attrs(), {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.vm.alloc_tensor", MakeVMAllocTensor);
-});
+  refl::GlobalDef().def_packed("relax.op.vm.alloc_tensor", [](ffi::PackedArgs args, ffi::Any* ret) {
+    if (args.size() == 5) {
+      *ret =
+          MakeVMAllocTensor(args[0].cast<Expr>(), args[1].cast<PrimValue>(), args[2].cast<Expr>(),
+                            args[3].cast<DataTypeImm>(), args[4].cast<PrimValue>());
+    } else {
+      *ret =
+          MakeVMAllocTensor(args[0].cast<Expr>(), args[1].cast<PrimValue>(), args[2].cast<Expr>(),
+                            args[3].cast<DataTypeImm>(), PrimValue::Int64(0));
+    }
+  });
+}
 
 // vm kill_object
-
 TVM_REGISTER_OP("relax.vm.kill_object")
     .set_num_inputs(1)
     .add_argument("obj", "Expr", "The object to be killed.")
@@ -1351,10 +1493,10 @@ Expr MakeVMKillObject(Expr obj) {
   return Call(op, {std::move(obj)}, Attrs(), {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.vm.kill_object", MakeVMKillObject);
-});
+}
 
 // vm call_tir_dyn
 
@@ -1372,10 +1514,10 @@ Expr MakeCallTIRDyn(Expr func, Tuple args) {
   return Call(op, {func, args}, Attrs(), {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.vm.call_tir_dyn", MakeCallTIRDyn);
-});
+}
 
 // builtin stop_lift_params
 StructInfo InferStructInfoStopLiftParams(const Call& call, const BlockBuilder& ctx) {
@@ -1393,17 +1535,16 @@ Expr MakeStopLiftParams(Expr x) {
   return Call(op, {x}, Attrs(), {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.builtin.stop_lift_params", MakeStopLiftParams);
-});
+}
 
 // to_vdevice
-TVM_REGISTER_NODE_TYPE(ToVDeviceAttrs);
 
 StructInfo InferToVDeviceStructInfo(const Call& call, const BlockBuilder& ctx) {
-  ICHECK(call->args.size() == 1);
-  ICHECK(call->args[0]->struct_info_.defined());
+  TVM_FFI_ICHECK(call->args.size() == 1);
+  TVM_FFI_ICHECK(call->args[0]->struct_info_.defined());
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
   auto attrs = call->attrs.as<ToVDeviceAttrs>();
   VDevice vdev = attrs->dst_vdevice;
@@ -1422,22 +1563,21 @@ TVM_REGISTER_OP("relax.to_vdevice")
 
 Expr MakeToVDevice(Expr data, VDevice dst_vdev) {
   static const Op& op = Op::Get("relax.to_vdevice");
-  ObjectPtr<ToVDeviceAttrs> attrs = make_object<ToVDeviceAttrs>();
+  ObjectPtr<ToVDeviceAttrs> attrs = ffi::make_object<ToVDeviceAttrs>();
   attrs->dst_vdevice = dst_vdev;
   return Call(op, {data}, Attrs(attrs), {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.to_vdevice", MakeToVDevice);
-});
+}
 
 // hint_on_device
-TVM_REGISTER_NODE_TYPE(HintOnDeviceAttrs);
 
 StructInfo InferHintOnDeviceStructInfo(const Call& call, const BlockBuilder& ctx) {
-  ICHECK(call->args.size() == 1);
-  ICHECK(call->args[0]->struct_info_.defined());
+  TVM_FFI_ICHECK(call->args.size() == 1);
+  TVM_FFI_ICHECK(call->args[0]->struct_info_.defined());
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
   return data_sinfo;
 }
@@ -1449,18 +1589,26 @@ TVM_REGISTER_OP("relax.hint_on_device")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferHintOnDeviceStructInfo)
     .set_attr<Bool>("FPurity", Bool(true));
 
-Expr MakeHintOnDevice(Expr data, Device device) {
+Expr MakeHintOnDevice(Expr data, Device device, ffi::String memory_scope = "global") {
   static const Op& op = Op::Get("relax.hint_on_device");
-  ObjectPtr<HintOnDeviceAttrs> attrs = make_object<HintOnDeviceAttrs>();
-  attrs->dev_type = static_cast<int32_t>(device.device_type);
-  attrs->dev_id = device.device_id;
+  ObjectPtr<HintOnDeviceAttrs> attrs = ffi::make_object<HintOnDeviceAttrs>();
+  attrs->device_type = static_cast<int32_t>(device.device_type);
+  attrs->index = device.device_id;
+  attrs->memory_scope = memory_scope;
   return Call(op, {data}, Attrs(attrs), {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.hint_on_device", MakeHintOnDevice);
-});
+  refl::GlobalDef().def_packed("relax.op.hint_on_device", [](ffi::PackedArgs args, ffi::Any* ret) {
+    if (args.size() == 3) {
+      *ret = MakeHintOnDevice(args[0].cast<Expr>(), args[1].cast<Device>(),
+                              args[2].cast<ffi::String>());
+    } else {
+      *ret = MakeHintOnDevice(args[0].cast<Expr>(), args[1].cast<Device>());
+    }
+  });
+}
 
 }  // namespace relax
 }  // namespace tvm

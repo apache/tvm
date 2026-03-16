@@ -23,6 +23,7 @@
 #include "ir_mutator_with_analyzer.h"
 
 #include <tvm/arith/iter_affine_map.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/op.h>
 
@@ -40,14 +41,14 @@ void IRMutatorWithAnalyzer::MarkBufferMapShapes(const tir::PrimFunc& func) {
   }
 }
 
-Array<PrimExpr> IRMutatorWithAnalyzer::IterMapSimplifyWithContext(const Array<PrimExpr>& indices,
-                                                                  bool non_trivial_only) {
+ffi::Array<PrimExpr> IRMutatorWithAnalyzer::IterMapSimplifyWithContext(
+    const ffi::Array<PrimExpr>& indices, bool non_trivial_only) {
   PrimExpr pred = const_true();
   for (PrimExpr val : iter_predicates_) {
     pred = pred && val;
   }
   int n = indices.size();
-  Array<PrimExpr> simplified = arith::IterMapSimplify(
+  ffi::Array<PrimExpr> simplified = arith::IterMapSimplify(
       indices, this->iter_vars_, pred, arith::IterMapLevel::Surjective, this->analyzer_);
   if (non_trivial_only) {
     for (int i = 0; i < n; ++i) {
@@ -60,106 +61,111 @@ Array<PrimExpr> IRMutatorWithAnalyzer::IterMapSimplifyWithContext(const Array<Pr
 }
 
 Stmt IRMutatorWithAnalyzer::VisitStmt_(const ForNode* op) {
-  // record the loop variable as iterators
-  Range dom = Range::FromMinExtent(op->min, op->extent);
-  analyzer_->Bind(op->loop_var, dom);
-  iter_vars_.Set(op->loop_var, dom);
-  return StmtExprMutator::VisitStmt_(op);
+  return constraint_scope_.WithNewScope([&]() -> Stmt {
+    // record the loop variable as iterators
+    Range dom = Range::FromMinExtent(op->min, op->extent);
+    analyzer_->Bind(op->loop_var, dom);
+    iter_vars_.Set(op->loop_var, dom);
+    return StmtExprMutator::VisitStmt_(op);
+  });
 }
 
-Stmt IRMutatorWithAnalyzer::VisitStmt_(const BlockNode* op) {
-  for (const auto& iter_var : op->iter_vars) {
-    analyzer_->Bind(iter_var->var, iter_var->dom);
-    iter_vars_.Set(iter_var->var, iter_var->dom);
-  }
-  return StmtExprMutator::VisitStmt_(op);
+Stmt IRMutatorWithAnalyzer::VisitStmt_(const SBlockNode* op) {
+  return constraint_scope_.WithNewScope([&]() -> Stmt {
+    for (const auto& iter_var : op->iter_vars) {
+      analyzer_->Bind(iter_var->var, iter_var->dom);
+      iter_vars_.Set(iter_var->var, iter_var->dom);
+    }
+    return StmtExprMutator::VisitStmt_(op);
+  });
 }
 
-Stmt IRMutatorWithAnalyzer::VisitStmt_(const LetStmtNode* op) {
+Stmt IRMutatorWithAnalyzer::VisitStmt_(const BindNode* op) {
   PrimExpr value = this->VisitExpr(op->value);
   if (SideEffect(value) <= CallEffectKind::kPure) {
     analyzer_->Bind(op->var, value);
   }
-  // We keep the let-binding here
-  // as sub-class may or maynot choose to replace it.
-  Stmt body = this->VisitStmt(op->body);
-  if (value.same_as(op->value) && body.same_as(op->body)) {
-    return GetRef<Stmt>(op);
+  if (value.same_as(op->value)) {
+    return ffi::GetRef<Stmt>(op);
   } else {
     auto n = this->CopyOnWrite(op);
     n->value = std::move(value);
-    n->body = std::move(body);
     return Stmt(n);
   }
 }
 
 Stmt IRMutatorWithAnalyzer::VisitStmt_(const IfThenElseNode* op) {
-  PrimExpr condition = this->VisitExpr(op->condition);
-  PrimExpr real_condition = condition;
-  static auto op_likely = Op::Get("tir.likely");
+  return constraint_scope_.WithNewScope([&]() -> Stmt {
+    PrimExpr condition = this->VisitExpr(op->condition);
+    PrimExpr real_condition = condition;
+    static auto op_likely = Op::Get("tir.likely");
 
-  if (auto call = condition.as<CallNode>()) {
-    if (call->op.same_as(op_likely)) {
-      real_condition = call->args[0];
+    if (auto call = condition.as<CallNode>()) {
+      if (call->op.same_as(op_likely)) {
+        real_condition = call->args[0];
+      }
     }
-  }
 
-  Stmt then_case;
-  Optional<Stmt> else_case;
-  {
-    With<ConstraintContext> ctx(analyzer_, real_condition);
-    WithRecordIterPredicate(real_condition, [&] { then_case = this->VisitStmt(op->then_case); });
-  }
-  if (op->else_case) {
-    With<ConstraintContext> ctx(analyzer_, analyzer_->rewrite_simplify(Not(real_condition)));
-    else_case = this->VisitStmt(op->else_case.value());
-  }
-  if (is_one(real_condition)) return then_case;
-  if (is_zero(real_condition)) {
-    return else_case.value_or(Evaluate(0));
-  }
+    Stmt then_case;
+    ffi::Optional<Stmt> else_case;
+    constraint_scope_.WithNewScope([&]() {
+      constraint_scope_.Current().Emplace(analyzer_, real_condition);
+      WithRecordIterPredicate(real_condition, [&] { then_case = this->VisitStmt(op->then_case); });
+    });
+    if (op->else_case) {
+      PrimExpr neg_condition = analyzer_->rewrite_simplify(Not(real_condition));
+      constraint_scope_.WithNewScope([&]() {
+        constraint_scope_.Current().Emplace(analyzer_, neg_condition);
+        else_case = this->VisitStmt(op->else_case.value());
+      });
+    }
+    if (is_one(real_condition)) return then_case;
+    if (is_zero(real_condition)) {
+      return else_case.value_or(Evaluate(0));
+    }
 
-  if (condition.same_as(op->condition) && then_case.same_as(op->then_case) &&
-      else_case.same_as(op->else_case)) {
-    return GetRef<Stmt>(op);
-  } else {
-    auto n = this->CopyOnWrite(op);
-    n->condition = std::move(condition);
-    n->then_case = std::move(then_case);
-    n->else_case = std::move(else_case);
-    return Stmt(n);
-  }
+    if (condition.same_as(op->condition) && then_case.same_as(op->then_case) &&
+        else_case.same_as(op->else_case)) {
+      return ffi::GetRef<Stmt>(op);
+    } else {
+      auto n = this->CopyOnWrite(op);
+      n->condition = std::move(condition);
+      n->then_case = std::move(then_case);
+      n->else_case = std::move(else_case);
+      return Stmt(n);
+    }
+  });
 }
 
 Stmt IRMutatorWithAnalyzer::VisitStmt_(const AttrStmtNode* op) {
-  if (op->attr_key == tir::attr::thread_extent || op->attr_key == tir::attr::virtual_thread) {
-    IterVar iv = Downcast<IterVar>(op->node);
-    ICHECK_NE(iv->thread_tag.length(), 0U);
-    Range dom = Range::FromMinExtent(make_zero(op->value.dtype()), op->value);
-    analyzer_->Bind(iv->var, dom);
-    iter_vars_.Set(iv->var, dom);
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    return stmt;
-  } else {
+  return constraint_scope_.WithNewScope([&]() -> Stmt {
+    if (op->attr_key == tir::attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread) {
+      IterVar iv = Downcast<IterVar>(op->node);
+      TVM_FFI_ICHECK_NE(iv->thread_tag.length(), 0U);
+      Range dom = Range::FromMinExtent(make_zero(op->value.dtype()), op->value);
+      analyzer_->Bind(iv->var, dom);
+      iter_vars_.Set(iv->var, dom);
+    }
     return StmtExprMutator::VisitStmt_(op);
-  }
+  });
 }
 
 Stmt IRMutatorWithAnalyzer::VisitStmt_(const AssertStmtNode* op) {
   PrimExpr condition = this->VisitExpr(op->condition);
-  PrimExpr message = this->VisitExpr(op->message);
-  With<ConstraintContext> ctx(analyzer_, condition);
-  Stmt body = this->VisitStmt(op->body);
+  constraint_scope_.Current().Emplace(analyzer_, condition);
 
-  if (condition.same_as(op->condition) && message.same_as(op->message) && body.same_as(op->body)) {
-    return GetRef<Stmt>(op);
+  if (condition.same_as(op->condition)) {
+    return ffi::GetRef<Stmt>(op);
   } else {
     auto n = this->CopyOnWrite(op);
     n->condition = std::move(condition);
-    n->message = std::move(message);
-    n->body = std::move(body);
     return Stmt(n);
   }
+}
+
+Stmt IRMutatorWithAnalyzer::VisitStmt_(const SeqStmtNode* op) {
+  // SeqStmt does NOT get WithNewScope — constraints accumulate across siblings.
+  return StmtExprMutator::VisitStmt_(op);
 }
 
 PrimExpr IRMutatorWithAnalyzer::VisitExpr_(const CallNode* op) {
@@ -168,14 +174,16 @@ PrimExpr IRMutatorWithAnalyzer::VisitExpr_(const CallNode* op) {
   if (op->op.same_as(op_if_then_else)) {
     PrimExpr cond = this->VisitExpr(op->args[0]);
     PrimExpr true_value, false_value;
-    {
-      With<ConstraintContext> constraint(analyzer_, cond);
+    constraint_scope_.WithNewScope([&]() {
+      constraint_scope_.Current().Emplace(analyzer_, cond);
       WithRecordIterPredicate(cond, [&] { true_value = this->VisitExpr(op->args[1]); });
-    }
+    });
     {
       PrimExpr not_cond = Not(cond);
-      With<ConstraintContext> constraint(analyzer_, not_cond);
-      WithRecordIterPredicate(not_cond, [&] { false_value = this->VisitExpr(op->args[2]); });
+      constraint_scope_.WithNewScope([&]() {
+        constraint_scope_.Current().Emplace(analyzer_, not_cond);
+        WithRecordIterPredicate(not_cond, [&] { false_value = this->VisitExpr(op->args[2]); });
+      });
     }
     if (is_zero(cond)) {
       return false_value;
@@ -185,7 +193,7 @@ PrimExpr IRMutatorWithAnalyzer::VisitExpr_(const CallNode* op) {
     }
     if (cond.same_as(op->args[0]) && true_value.same_as(op->args[1]) &&
         false_value.same_as(op->args[2])) {
-      return GetRef<PrimExpr>(op);
+      return ffi::GetRef<PrimExpr>(op);
     } else {
       return Call(op->dtype, op->op, {cond, true_value, false_value});
     }
@@ -202,7 +210,7 @@ PrimExpr IRMutatorWithAnalyzer::VisitExpr_(const LetNode* op) {
   // as sub-class may or maynot choose to replace it.
   PrimExpr body = this->VisitExpr(op->body);
   if (value.same_as(op->value) && body.same_as(op->body)) {
-    return GetRef<PrimExpr>(op);
+    return ffi::GetRef<PrimExpr>(op);
   } else {
     return Let(op->var, value, body);
   }
@@ -211,13 +219,16 @@ PrimExpr IRMutatorWithAnalyzer::VisitExpr_(const LetNode* op) {
 PrimExpr IRMutatorWithAnalyzer::VisitExpr_(const SelectNode* op) {
   PrimExpr cond = this->VisitExpr(op->condition);
   PrimExpr true_value, false_value;
-  {
-    With<ConstraintContext> constraint(analyzer_, cond);
+  constraint_scope_.WithNewScope([&]() {
+    constraint_scope_.Current().Emplace(analyzer_, cond);
     true_value = VisitExpr(op->true_value);
-  }
+  });
   {
-    With<ConstraintContext> constraint(analyzer_, analyzer_->rewrite_simplify(Not(cond)));
-    false_value = VisitExpr(op->false_value);
+    PrimExpr neg_cond = analyzer_->rewrite_simplify(Not(cond));
+    constraint_scope_.WithNewScope([&]() {
+      constraint_scope_.Current().Emplace(analyzer_, neg_cond);
+      false_value = VisitExpr(op->false_value);
+    });
   }
   if (is_zero(cond)) {
     return false_value;
@@ -228,7 +239,7 @@ PrimExpr IRMutatorWithAnalyzer::VisitExpr_(const SelectNode* op) {
   // normal path
   if (cond.same_as(op->condition) && true_value.same_as(op->true_value) &&
       false_value.same_as(op->false_value)) {
-    return GetRef<PrimExpr>(op);
+    return ffi::GetRef<PrimExpr>(op);
   } else {
     return Select(cond, true_value, false_value);
   }

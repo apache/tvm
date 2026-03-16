@@ -31,6 +31,7 @@
 #include <tvm/tir/op.h>
 
 #include <iterator>
+#include <list>
 #include <stack>
 
 #include "../../arith/pattern_match.h"
@@ -38,24 +39,25 @@
 namespace tvm {
 namespace tir {
 
-TVM_FFI_STATIC_INIT_BLOCK({ BufferNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { BufferNode::RegisterReflection(); }
 
 using IndexMod = tir::FloorModNode;
 using IndexDiv = tir::FloorDivNode;
 
-Array<PrimExpr> SimplifyArray(arith::Analyzer* ana, Array<PrimExpr> array) {
+ffi::Array<PrimExpr> SimplifyArray(arith::Analyzer* ana, ffi::Array<PrimExpr> array) {
   for (size_t i = 0; i < array.size(); ++i) {
     array.Set(i, ana->Simplify(array[i]));
   }
   return array;
 }
 
-Buffer decl_buffer(Array<PrimExpr> shape, DataType dtype, String name, String storage_scope,
-                   Optional<Array<IntImm>> axis_separators, Span span) {
+Buffer decl_buffer(ffi::Array<PrimExpr> shape, DataType dtype, ffi::String name,
+                   ffi::String storage_scope, ffi::Optional<ffi::Array<IntImm>> axis_separators,
+                   Span span) {
   DataType storage_dtype = (dtype == DataType::Bool() ? DataType::Int(8) : dtype);
   return Buffer(Var(name, PointerType(PrimType(storage_dtype), storage_scope), span), dtype, shape,
-                Array<PrimExpr>(), PrimExpr(), name, 0, 0, kDefault,
-                axis_separators.value_or(Array<IntImm>()), span);
+                ffi::Array<PrimExpr>(), PrimExpr(), name, 0, 0, kDefault,
+                axis_separators.value_or(ffi::Array<IntImm>()), span);
 }
 
 // Split the given expression w.r.t the add operator
@@ -143,7 +145,7 @@ inline std::pair<bool, PrimExpr> MergeMulModInner(arith::Analyzer* analyzer,
       no_opt_sum = no_opt_sum.get() ? no_opt_sum + inner_add_ptr->a : inner_add_ptr->a;
       search_ptr = &(inner_add_ptr->b);
     } else {
-      LOG(FATAL) << "Unexpected search result!";
+      TVM_FFI_THROW(InternalError) << "Unexpected search result!";
       break;
     }
   }
@@ -250,21 +252,21 @@ inline PrimExpr MergeMulMod(arith::Analyzer* analyzer, const PrimExpr& base) {
   return no_opt_sum;
 }
 
-Array<PrimExpr> Buffer::OffsetOf(Array<PrimExpr> input_indices) const {
+ffi::Array<PrimExpr> Buffer::OffsetOf(ffi::Array<PrimExpr> input_indices) const {
   return (*this)->ElemOffset(std::move(input_indices));
 }
 
 // The buffer offset in convention of number of elements of
 // original data ignoring number of lanes.
 // We also perform optimization to simplify the indexing expression.
-Array<PrimExpr> BufferNode::ElemOffset(Array<PrimExpr> input_indices) const {
-  ICHECK_EQ(shape.size(), input_indices.size())
+ffi::Array<PrimExpr> BufferNode::ElemOffset(ffi::Array<PrimExpr> input_indices) const {
+  TVM_FFI_ICHECK_EQ(shape.size(), input_indices.size())
       << "Buffer " << this->name << " is " << shape.size()
       << "-dimensional, cannot be indexed with the " << input_indices.size()
       << "-dimensional indices provided.";
 
   if (strides.size()) {
-    ICHECK_EQ(this->strides.size(), input_indices.size())
+    TVM_FFI_ICHECK_EQ(this->strides.size(), input_indices.size())
         << "If strides are defined, "
         << "the index's dimensionality must match the dimensionality of the index given.";
   }
@@ -272,18 +274,18 @@ Array<PrimExpr> BufferNode::ElemOffset(Array<PrimExpr> input_indices) const {
   // TODO(Lunderberg): Better handling for cases where there is more
   // than one output index.  Currently, this only allows elem_offset
   // to be non-zero for flat memory allocations.
-  Array<PrimExpr> elem_offsets = {};
+  ffi::Array<PrimExpr> elem_offsets = {};
   if (elem_offset.defined() && !is_zero(elem_offset)) {
     elem_offsets = {elem_offset};
   }
 
   if (elem_offsets.size()) {
-    ICHECK_EQ(elem_offsets.size(), axis_separators.size() + 1)
+    TVM_FFI_ICHECK_EQ(elem_offsets.size(), axis_separators.size() + 1)
         << "If element offsets are defined, "
         << "there must be one element offset for each output index.";
   }
 
-  Array<PrimExpr> output_indices(axis_separators.size() + 1, 0);
+  ffi::Array<PrimExpr> output_indices(axis_separators.size() + 1, 0);
 
   size_t current_output_axis = 0;
 
@@ -318,8 +320,9 @@ Array<PrimExpr> BufferNode::ElemOffset(Array<PrimExpr> input_indices) const {
   return SimplifyArray(&ana, output_indices);
 }
 
-inline Array<PrimExpr> BufferOffset(const BufferNode* n, Array<PrimExpr> index, DataType dtype) {
-  Array<PrimExpr> offsets = n->ElemOffset(index);
+inline ffi::Array<PrimExpr> BufferOffset(const BufferNode* n, ffi::Array<PrimExpr> index,
+                                         DataType dtype) {
+  ffi::Array<PrimExpr> offsets = n->ElemOffset(index);
   // If the Buffer has element type with more than one lane, scale to
   // get the offset in number of scalars.
   if (n->dtype.lanes() != 1) {
@@ -338,26 +341,23 @@ inline Array<PrimExpr> BufferOffset(const BufferNode* n, Array<PrimExpr> index, 
   return offsets;
 }
 
-static void ValidateAxisSeparators(const Array<IntImm>& axis_separators, size_t buffer_dim) {
+static void ValidateAxisSeparators(const ffi::Array<IntImm>& axis_separators, size_t buffer_dim) {
   // These checks ensure that all output axes contain at least one
   // input axis.
   for (size_t i = 0; (i + 1) < axis_separators.size(); i++) {
     auto sep = axis_separators[i]->value;
     auto next_sep = axis_separators[i + 1]->value;
-    CHECK_LE(sep, next_sep) << "ValueError: "
-                            << "Axis separators must be in increasing order, "
-                            << "but axis_separators[" << i << "] = " << sep
-                            << " is greater than or equal to axis_separators[" << (i + 1)
-                            << "] = " << next_sep << ".";
+    TVM_FFI_CHECK_LE(sep, next_sep, ValueError)
+        << "Axis separators must be in increasing order, "
+        << "but axis_separators[" << i << "] = " << sep
+        << " is greater than or equal to axis_separators[" << (i + 1) << "] = " << next_sep << ".";
   }
   if (axis_separators.size()) {
     auto first_sep = axis_separators[0]->value;
-    CHECK_GE(first_sep, 0) << "ValueError: "
-                           << "All axis separators must be non-negative.  "
-                           << "However, the axis_separators[0] = " << first_sep;
+    TVM_FFI_CHECK_GE(first_sep, 0, ValueError) << "All axis separators must be non-negative.  "
+                                               << "However, the axis_separators[0] = " << first_sep;
     auto last_sep = axis_separators[axis_separators.size() - 1]->value;
-    CHECK_LE(last_sep, buffer_dim)
-        << "ValueError: "
+    TVM_FFI_CHECK_LE(last_sep, buffer_dim, ValueError)
         << "All axis separators must be within the range "
         << "0 <= sep <= buffer_dim.  "
         << "However, the last axis_separators[" << (axis_separators.size() - 1)
@@ -370,12 +370,12 @@ Buffer Buffer::GetFlattenedBuffer() const {
 
   ValidateAxisSeparators(self->axis_separators, self->shape.size());
 
-  Array<PrimExpr> output_shape;
+  ffi::Array<PrimExpr> output_shape;
   if (self->strides.size()) {
     // If strides are defined, then the extent of each flattened
     // buffer is the stride*size for the first input axis used for
     // each output axis.
-    ICHECK_EQ(self->shape.size(), self->strides.size());
+    TVM_FFI_ICHECK_EQ(self->shape.size(), self->strides.size());
     output_shape.push_back(self->strides[0] * self->shape[0]);
     for (const auto& sep : self->axis_separators) {
       output_shape.push_back(self->strides[sep->value] * self->shape[sep->value]);
@@ -386,7 +386,7 @@ Buffer Buffer::GetFlattenedBuffer() const {
     // of the extents of each input axis used to generate that output
     // axis.  This also "flattens" rank-0 tensors to a rank-1 buffer
     // of shape [1].
-    output_shape = Array<PrimExpr>(self->axis_separators.size() + 1, 1);
+    output_shape = ffi::Array<PrimExpr>(self->axis_separators.size() + 1, 1);
     size_t current_output_index = 0;
     for (size_t i = 0; i < self->shape.size(); i++) {
       if ((current_output_index < self->axis_separators.size()) &&
@@ -398,7 +398,7 @@ Buffer Buffer::GetFlattenedBuffer() const {
   }
 
   // The axis_separators for the output buffer.
-  Array<IntImm> output_axis_separators;
+  ffi::Array<IntImm> output_axis_separators;
   for (size_t i = 0; i < self->axis_separators.size(); i++) {
     auto dtype = self->axis_separators[i]->dtype;
     output_axis_separators.push_back(IntImm(dtype, i + 1));
@@ -416,16 +416,16 @@ Buffer Buffer::GetFlattenedBuffer() const {
   }
 }
 
-PrimExpr Buffer::vload(Array<PrimExpr> begin, DataType value_dtype,
-                       Optional<PrimExpr> predicate) const {
+PrimExpr Buffer::vload(ffi::Array<PrimExpr> begin, DataType value_dtype,
+                       ffi::Optional<PrimExpr> predicate) const {
   // specially handle bool, stored as DataType::Int(8)
   const BufferNode* n = operator->();
-  ICHECK(n != nullptr);
-  ICHECK(value_dtype.element_of() == n->dtype.element_of() &&
-         value_dtype.get_lanes_or_vscale_factor() % n->dtype.lanes() == 0)
+  TVM_FFI_ICHECK(n != nullptr);
+  TVM_FFI_ICHECK(value_dtype.element_of() == n->dtype.element_of() &&
+                 value_dtype.get_lanes_or_vscale_factor() % n->dtype.lanes() == 0)
       << "Cannot load " << value_dtype << " from buffer of " << n->dtype;
 
-  Array<PrimExpr> indices = begin;
+  ffi::Array<PrimExpr> indices = begin;
   PrimExpr base = indices[indices.size() - 1];
   if (value_dtype.is_fixed_length_vector()) {
     int factor = value_dtype.lanes() / n->dtype.lanes();
@@ -436,16 +436,17 @@ PrimExpr Buffer::vload(Array<PrimExpr> begin, DataType value_dtype,
   return BufferLoad(*this, indices, predicate);
 }
 
-Stmt Buffer::vstore(Array<PrimExpr> begin, PrimExpr value, Optional<PrimExpr> predicate) const {
+Stmt Buffer::vstore(ffi::Array<PrimExpr> begin, PrimExpr value,
+                    ffi::Optional<PrimExpr> predicate) const {
   // specially handle bool, stored as DataType::Int(8)
   const BufferNode* n = operator->();
-  ICHECK(n != nullptr);
+  TVM_FFI_ICHECK(n != nullptr);
   DataType value_dtype = value.dtype();
-  ICHECK(value_dtype.element_of() == n->dtype.element_of() &&
-         value_dtype.get_lanes_or_vscale_factor() % n->dtype.lanes() == 0)
+  TVM_FFI_ICHECK(value_dtype.element_of() == n->dtype.element_of() &&
+                 value_dtype.get_lanes_or_vscale_factor() % n->dtype.lanes() == 0)
       << "Cannot store " << value_dtype << " to buffer of " << n->dtype;
 
-  Array<PrimExpr> indices = begin;
+  ffi::Array<PrimExpr> indices = begin;
   PrimExpr base = indices[indices.size() - 1];
   if (value_dtype.is_fixed_length_vector()) {
     int factor = value_dtype.lanes() / n->dtype.lanes();
@@ -456,9 +457,9 @@ Stmt Buffer::vstore(Array<PrimExpr> begin, PrimExpr value, Optional<PrimExpr> pr
   return BufferStore(*this, value, indices, predicate);
 }
 
-String Buffer::scope() const {
+ffi::String Buffer::scope() const {
   const auto* ptr_type = (*this)->data->type_annotation.as<PointerTypeNode>();
-  ICHECK(ptr_type) << "Buffer variable is not of pointer type";
+  TVM_FFI_ICHECK(ptr_type) << "Buffer variable is not of pointer type";
   if (ptr_type->storage_scope.empty()) {
     return "global";
   }
@@ -470,8 +471,8 @@ Buffer Buffer::MakeStrideView() const {
   if ((*this)->shape.size() == 0) return *this;
   std::vector<PrimExpr> temp;
   const BufferNode* self = operator->();
-  ICHECK(self != nullptr);
-  auto n = make_object<BufferNode>(*self);
+  TVM_FFI_ICHECK(self != nullptr);
+  auto n = ffi::make_object<BufferNode>(*self);
   PrimExpr acc = make_const(n->DefaultIndexType(), 1);
   for (size_t i = n->shape.size(); i != 0; --i) {
     temp.push_back(acc);
@@ -483,15 +484,15 @@ Buffer Buffer::MakeStrideView() const {
   return Buffer(n);
 }
 
-Buffer Buffer::MakeSlice(Array<PrimExpr> begins, Array<PrimExpr> extents) const {
+Buffer Buffer::MakeSlice(ffi::Array<PrimExpr> begins, ffi::Array<PrimExpr> extents) const {
   const BufferNode* n = operator->();
-  ICHECK(n != nullptr);
+  TVM_FFI_ICHECK(n != nullptr);
   arith::Analyzer ana;
   begins = SimplifyArray(&ana, begins);
-  Array<PrimExpr> elem_offset =
+  ffi::Array<PrimExpr> elem_offset =
       n->ElemOffset(begins).Map([&](const PrimExpr& expr) { return ana.Simplify(expr); });
 
-  Array<PrimExpr> strides = n->strides;
+  ffi::Array<PrimExpr> strides = n->strides;
   if (strides.size() == 0) {
     bool can_relax = true;
     bool need_stride = false;
@@ -514,7 +515,7 @@ Buffer Buffer::MakeSlice(Array<PrimExpr> begins, Array<PrimExpr> extents) const 
 
   // Buffer must be constructed with a singular element offset which means there is no
   // support for n-dimensional buffers where n > 1.  Insert sentinel value for
-  // ArgBinder::BindBuffer to state that any usage of element offset is invalid
+  // TVMFFIABIBuilder::BindBuffer to state that any usage of element offset is invalid
   // in this case.  This allows for construction of a Buffer with multiple element offsets
   // but disallows any usage of those element offsets.  See PR #10816 for discussion on
   // supporting multiple element offsets in TIR Buffer.
@@ -526,9 +527,9 @@ Buffer Buffer::MakeSlice(Array<PrimExpr> begins, Array<PrimExpr> extents) const 
 }
 
 PrimExpr Buffer::access_ptr(int access_mask, DataType ptr_type, int content_lanes, PrimExpr offset,
-                            Optional<PrimExpr> input_extent) const {
+                            ffi::Optional<PrimExpr> input_extent) const {
   const BufferNode* self = operator->();
-  ICHECK(self != nullptr);
+  TVM_FFI_ICHECK(self != nullptr);
   PrimExpr e_dtype;
   PrimExpr extent;
   if (self->shape.size() == 0) {
@@ -553,14 +554,14 @@ PrimExpr Buffer::access_ptr(int access_mask, DataType ptr_type, int content_lane
   if (input_extent.defined()) {
     extent = input_extent.value();
   }
-  Array<PrimExpr> acc_args{e_dtype, self->data, elem_offset, extent,
-                           make_const(DataType::Int(32), access_mask)};
+  ffi::Array<PrimExpr> acc_args{e_dtype, self->data, elem_offset, extent,
+                                make_const(DataType::Int(32), access_mask)};
   return tir::Call(ptr_type, tir::builtin::tvm_access_ptr(), acc_args);
 }
 
-Buffer::Buffer(Var data, DataType dtype, Array<PrimExpr> shape, Array<PrimExpr> strides,
-               PrimExpr elem_offset, String name, int data_alignment, int offset_factor,
-               BufferType buffer_type, Array<IntImm> axis_separators, Span span) {
+Buffer::Buffer(Var data, DataType dtype, ffi::Array<PrimExpr> shape, ffi::Array<PrimExpr> strides,
+               PrimExpr elem_offset, ffi::String name, int data_alignment, int offset_factor,
+               BufferType buffer_type, ffi::Array<IntImm> axis_separators, Span span) {
   DataType storage_dtype = dtype;
   // specially handle bool
   if (storage_dtype == DataType::Bool()) {
@@ -575,16 +576,16 @@ Buffer::Buffer(Var data, DataType dtype, Array<PrimExpr> shape, Array<PrimExpr> 
   // TODO(Lunderberg): Use an explicit pointer cast for the data
   // pointer.  Should be done alongside extensions to StmtExprMutator
   // to more easily handle buffer/buffer_var updates.
-  ICHECK(data->type_annotation.defined())
+  TVM_FFI_ICHECK(data->type_annotation.defined())
       << "Variable " << data->name_hint << " is missing a type annotation.";
-  ICHECK(data->type_annotation.as<PointerTypeNode>())
+  TVM_FFI_ICHECK(data->type_annotation.as<PointerTypeNode>())
       << "Variable " << data->name_hint << " is not a pointer.";
-  ICHECK(data->type_annotation.as<PointerTypeNode>()->element_type.as<PrimTypeNode>())
+  TVM_FFI_ICHECK(data->type_annotation.as<PointerTypeNode>()->element_type.as<PrimTypeNode>())
       << "Variable " << data->name_hint << " does not point to a primitive.";
 
   ValidateAxisSeparators(axis_separators, shape.size());
 
-  auto n = make_object<BufferNode>();
+  auto n = ffi::make_object<BufferNode>();
   n->data = std::move(data);
   n->dtype = dtype;
 
@@ -614,7 +615,7 @@ Buffer::Buffer(Var data, DataType dtype, Array<PrimExpr> shape, Array<PrimExpr> 
   data_ = std::move(n);
 }
 
-tir::Buffer BufferWithOffsetAlignment(Array<PrimExpr> shape, DataType dtype, std::string name,
+tir::Buffer BufferWithOffsetAlignment(ffi::Array<PrimExpr> shape, DataType dtype, std::string name,
                                       int data_alignment, int offset_factor, bool compact,
                                       std::string memory_scope) {
   DataType storage_dtype = (dtype == DataType::Bool() ? DataType::Int(8) : dtype);
@@ -637,29 +638,27 @@ tir::Buffer BufferWithOffsetAlignment(Array<PrimExpr> shape, DataType dtype, std
     elem_offset = PrimExpr();
   }
 
-  return tir::Buffer(data, dtype, shape, Array<PrimExpr>(), elem_offset, name, data_alignment,
+  return tir::Buffer(data, dtype, shape, ffi::Array<PrimExpr>(), elem_offset, name, data_alignment,
                      offset_factor, buffer_type);
 }
 
-TVM_REGISTER_NODE_TYPE(BufferNode);
-
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("tir.Buffer",
                   [](ffi::PackedArgs args, ffi::Any* ret) {
-                    ICHECK_EQ(args.size(), 11);
-                    auto buffer_type = args[8].cast<String>();
+                    TVM_FFI_ICHECK_EQ(args.size(), 11);
+                    auto buffer_type = args[8].cast<ffi::String>();
                     BufferType type = (buffer_type == "auto_broadcast") ? kAutoBroadcast : kDefault;
                     auto data = args[0].cast<Var>();
                     auto dtype = args[1].cast<DataType>();
-                    auto shape = args[2].cast<Array<PrimExpr>>();
-                    auto strides = args[3].cast<Array<PrimExpr>>();
+                    auto shape = args[2].cast<ffi::Array<PrimExpr>>();
+                    auto strides = args[3].cast<ffi::Array<PrimExpr>>();
                     auto elem_offset = args[4].cast<PrimExpr>();
-                    auto name = args[5].cast<String>();
+                    auto name = args[5].cast<ffi::String>();
                     auto data_alignment = args[6].cast<int>();
                     auto offset_factor = args[7].cast<int>();
-                    auto axis_separators = args[9].cast<Array<IntImm>>();
+                    auto axis_separators = args[9].cast<ffi::Array<IntImm>>();
                     auto span = args[10].cast<Span>();
                     *ret = Buffer(data, dtype, shape, strides, elem_offset, name, data_alignment,
                                   offset_factor, type, axis_separators, span);
@@ -670,7 +669,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def_method("tir.BufferVLoad", &Buffer::vload)
       .def_method("tir.BufferVStore", &Buffer::vstore)
       .def_method("tir.BufferStorageScope", &Buffer::scope);
-});
+}
 
 }  // namespace tir
 }  // namespace tvm

@@ -14,16 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from typing import List
+
 import tvm
 import tvm.testing
 from tvm import relax as rx
-from tvm.script import relax as R, tir as T
-
 from tvm.relax.analysis import detect_recursion
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
-def assert_groups(groups: List[List[rx.GlobalVar]], expected: List[List[str]]) -> None:
+def assert_groups(groups: list[list[rx.GlobalVar]], expected: list[list[str]]) -> None:
     assert len(groups) == len(expected)
 
     # disregard order, search only by name for convenience
@@ -422,13 +422,13 @@ def test_disregard_primfuncs():
         # copied from test_analysis.py
         @T.prim_func
         def identity_identity(A: T.Buffer((4, 4), "float32"), B: T.Buffer((4, 4), "float32")):
-            C = T.alloc_buffer((128, 128), "float32")
+            C = T.sblock_alloc_buffer((128, 128), "float32")
             for i0, i1 in T.grid(4, 4):
-                with T.block("identity"):
+                with T.sblock("identity"):
                     vi0, vi1 = T.axis.remap("SS", [i0, i1])
                     C[vi0, vi1] = A[vi0, vi1]
             for i0, i1 in T.grid(4, 4):
-                with T.block("identity"):
+                with T.sblock("identity"):
                     vi0, vi1 = T.axis.remap("SS", [i0, i1])
                     B[vi0, vi1] = C[vi0, vi1]
 

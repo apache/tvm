@@ -43,7 +43,7 @@ mechanic is integrated into TVM RPC as plugin and registered to execution only
 inside iOS RPC application.
 
 The custom implementation of `dlopen` and other functions from `dlfcn.h` header are placed in separate repository,
-and will be downloaded automatically during cmake build for iOS.
+and will be downloaded automatically during CMake build for iOS.
 
 Also, it is necessary to build `libtvm_runtime.dylib` for our iOS device. The
 iOS TVM RPC application will be linked with this library.

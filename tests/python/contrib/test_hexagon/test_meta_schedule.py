@@ -15,26 +15,28 @@
 # specific language governing permissions and limitations
 # under the License.
 
-""" Test rpc based launcher for hexagon """
+"""Test rpc based launcher for hexagon"""
+
 import tempfile
 
 import numpy as np
 import pytest
+
 import tvm.testing
 import tvm.topi.testing
-from tvm import meta_schedule as ms
 from tvm import te
 from tvm.contrib.hexagon.meta_schedule import (
     get_hexagon_local_builder,
     get_hexagon_rpc_runner,
 )
-from tvm.meta_schedule import postproc, schedule_rule
-from tvm.meta_schedule.arg_info import TensorInfo
-from tvm.meta_schedule.builder import BuilderInput
-from tvm.meta_schedule.runner import RunnerInput
+from tvm.s_tir import meta_schedule as ms
+from tvm.s_tir.meta_schedule import postproc, schedule_rule
+from tvm.s_tir.meta_schedule.arg_info import TensorInfo
+from tvm.s_tir.meta_schedule.builder import BuilderInput
+from tvm.s_tir.meta_schedule.runner import RunnerInput
+from tvm.s_tir.tensor_intrin.hexagon import VRMPY_u8u8i32_INTRIN
 from tvm.script import tir as T
 from tvm.tir import FloatImm
-from tvm.tir.tensor_intrin.hexagon import VRMPY_u8u8i32_INTRIN
 
 from .infrastructure import get_hexagon_target
 
@@ -55,7 +57,7 @@ class MatmulModule:
         b_buffer = T.match_buffer(b, (16, 16), "float32")
         c_buffer = T.match_buffer(c, (16, 16), "float32")
         for i, j, k in T.grid(16, 16, 16):
-            with T.block("matmul"):
+            with T.sblock("matmul"):
                 vi_axis, vj_axis, vk_axis = T.axis.remap("SSR", [i, j, k])
                 with T.init():
                     c_buffer[vi_axis, vj_axis] = 0.0  # type: ignore
@@ -174,9 +176,9 @@ def verify_dense(sch, target, m_size, n_size, k_size, hexagon_session):
                         k_output * 4 + t_idx
                     ]
 
-    a = tvm.nd.array(a_np, dev)
-    b = tvm.nd.array(pack_width, dev)
-    c = tvm.nd.array(np.zeros((m_size, n_size), dtype="int32"), dev)
+    a = tvm.runtime.tensor(a_np, dev)
+    b = tvm.runtime.tensor(pack_width, dev)
+    c = tvm.runtime.tensor(np.zeros((m_size, n_size), dtype="int32"), dev)
 
     mod(a, b, c)
     np.testing.assert_equal(c.numpy(), c_np)
@@ -184,7 +186,7 @@ def verify_dense(sch, target, m_size, n_size, k_size, hexagon_session):
     evaluator = mod.time_evaluator(mod.entry_name, dev, number=10)
     gflops = (n_size * m_size * k_size) * 2 / 1e9
     time_ms = evaluator(a, b, c).mean * 1e3
-    print("%f ms, %f GOPS" % (time_ms, gflops / (time_ms / 1e3)))
+    print(f"{time_ms:f} ms, {gflops / (time_ms / 1e3):f} GOPS")
 
 
 @tvm.testing.requires_hexagon
@@ -200,14 +202,14 @@ def test_vrmpy_dense(hexagon_launcher):
 
     if not do_tune:
         ir_module = tvm.IRModule({"main": workload})
-        sch = tvm.tir.Schedule(ir_module)
-        block = sch.get_block("compute")
+        sch = tvm.s_tir.Schedule(ir_module)
+        block = sch.get_sblock("compute")
         schedule_dense(sch, block, m_size, do_tune)
     else:
         with tempfile.TemporaryDirectory() as work_dir:
 
             def schedule_dense_for_tune(sch):
-                block = sch.get_block("compute")
+                block = sch.get_sblock("compute")
                 return schedule_dense(sch, block, None, True)
 
             target = get_hexagon_target("v69")
@@ -251,19 +253,19 @@ class ModuleVRMPYAutoTensorize:
             512, annotations={"pragma_auto_unroll_max_step": 64, "pragma_unroll_explicit": 1}
         ):
             for i0_1_init, i1_0_1_init, i0_2_init, i1_0_2_init in T.grid(2, 3, 1, 1):
-                with T.block("compute_o_init"):
+                with T.sblock("compute_o_init"):
                     i = T.axis.spatial(128, i0_0_i1_0_0_fused // 8 * 2 + i0_1_init + i0_2_init)
                     j_o = T.axis.spatial(24, i1_0_2_init + i0_0_i1_0_0_fused % 8 * 3 + i1_0_1_init)
                     T.reads()
                     T.writes(compute[i, j_o * 32 : j_o * 32 + 32])  # type: ignore
                     for i1_1 in T.vectorized(32):
-                        with T.block("compute_init"):
+                        with T.sblock("compute_init"):
                             j_i_init = T.axis.spatial(32, i1_1)
                             T.reads()
                             T.writes(compute[i, j_o * 32 + j_i_init])
                             compute[i, j_o * 32 + j_i_init] = 0  # type: ignore
             for i2_0_0, i0_1, i1_0_1, i2_0_1, i0_2, i1_0_2 in T.grid(32, 2, 3, 6, 1, 1):
-                with T.block("compute_o_update"):
+                with T.sblock("compute_o_update"):
                     i = T.axis.spatial(128, i0_0_i1_0_0_fused // 8 * 2 + i0_1 + i0_2)
                     j_o = T.axis.spatial(24, i1_0_2 + i0_0_i1_0_0_fused % 8 * 3 + i1_0_1)
                     k_o = T.axis.reduce(192, i2_0_0 * 6 + i2_0_1)
@@ -290,11 +292,9 @@ class ModuleVRMPYAutoTensorize:
                     )
                     a_u8x4: T.uint8x4 = a_buffer[0:4]  # type: ignore
                     a_i32: T.int32 = T.reinterpret(a_u8x4, dtype="int32")  # type: ignore
-                    b_i32x32: T.int32x32 = T.reinterpret(
-                        b_buffer[0, 0:128], dtype="int32x32"
-                    )  # type: ignore
+                    b_i32x32: T.int32x32 = T.reinterpret(b_buffer[0, 0:128], dtype="int32x32")  # type: ignore
                     c_buffer[0:32] = T.call_llvm_pure_intrin(  # type: ignore
-                        4390, T.uint32(3), c_buffer[0:32], b_i32x32, a_i32, dtype="int32x32"
+                        4390, c_buffer[0:32], b_i32x32, a_i32, dtype="int32x32"
                     )
 
 
@@ -357,7 +357,7 @@ def test_vrmpy_dense_auto_tensorize(hexagon_launcher):
             )
             sch = ms.tir_integration.compile_tir(database, workload, target)
     else:
-        sch = tvm.tir.Schedule(ModuleVRMPYAutoTensorize, debug_mask="all")
+        sch = tvm.s_tir.Schedule(ModuleVRMPYAutoTensorize, debug_mask="all")
 
     with hexagon_launcher.create_session() as session:
         verify_dense(sch, get_hexagon_target("v68"), m_size, n_size, k_size, session)

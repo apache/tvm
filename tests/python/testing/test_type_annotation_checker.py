@@ -14,16 +14,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401
 """Test type checker based on python's type annotations"""
 
 import sys
-from typing import Dict, List, Tuple, Union, Callable
+from collections.abc import Callable
+from typing import Union
 
-import pytest
 import _pytest
+import pytest
 
 import tvm
-from tvm.tir.schedule._type_checker import type_checked
+from tvm.s_tir.schedule._type_checker import type_checked
 
 
 def int_func(x: int) -> int:
@@ -41,7 +43,7 @@ test_cases = [
         "negative_cases": ["5"],
     },
     {
-        "type_annotation": List[int],
+        "type_annotation": list[int],
         "positive_cases": [
             [5],
             [],
@@ -56,14 +58,14 @@ test_cases = [
         ],
     },
     {
-        "type_annotation": Dict[str, int],
+        "type_annotation": dict[str, int],
         "positive_cases": [
             {"key1": 0, "key2": 1, "key3": -1},
         ],
         "negative_cases": [None, [1], {1: "1"}],
     },
     {
-        "type_annotation": Tuple[int],
+        "type_annotation": tuple[int],
         "positive_cases": [
             (5,),
         ],
@@ -76,7 +78,7 @@ test_cases = [
         ],
     },
     {
-        "type_annotation": Tuple[str, int],
+        "type_annotation": tuple[str, int],
         "positive_cases": [
             ("x", 5),
         ],
@@ -89,7 +91,7 @@ test_cases = [
         ],
     },
     {
-        "type_annotation": Union[str, int],
+        "type_annotation": str | int,
         "positive_cases": [
             "x",
             5,
@@ -185,6 +187,40 @@ def test_not_matches(type_annotation, case):
 
     with pytest.raises(TypeError):
         func(case)
+
+
+@pytest.mark.parametrize(
+    ["type_annotation", "expected_key", "expected_subtypes"],
+    [
+        pytest.param(str | int, "union", [str, int], id="str | int"),
+        pytest.param(list[str], "list", [str], id="List[str]"),
+        pytest.param(dict[str, int], "dict", [str, int], id="Dict[str, int]"),
+        pytest.param(tuple[str, int], "tuple", (str, int), id="Tuple[str, int]"),
+        pytest.param(
+            list[str] | dict[str, int],
+            "union",
+            [list[str], dict[str, int]],
+            id="Union[List[str], Dict[str, int]]",
+        ),
+    ],
+)
+def test_subscripted_generics(type_annotation, expected_key, expected_subtypes):
+    """Test that _dispatcher correctly handles subscripted generics in Python 3.14+.
+
+    In Python 3.14, Union and other generic types have a different internal representation.
+    This test ensures that the dispatcher correctly identifies these types.
+    """
+    from tvm.s_tir.schedule._type_checker import _dispatcher
+
+    key, subtypes = _dispatcher(type_annotation)
+    assert key == expected_key, f"Expected '{expected_key}' but got '{key}'"
+
+    if isinstance(expected_subtypes, tuple):
+        assert tuple(subtypes) == expected_subtypes, (
+            f"Expected {expected_subtypes} but got {subtypes}"
+        )
+    else:
+        assert subtypes == expected_subtypes, f"Expected {expected_subtypes} but got {subtypes}"
 
 
 if __name__ == "__main__":

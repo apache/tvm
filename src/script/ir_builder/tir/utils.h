@@ -36,12 +36,12 @@ namespace tir {
 inline void AddToParent(tvm::tir::Stmt stmt) {
   IRBuilder builder = IRBuilder::Current();
   if (builder->frames.empty()) {
-    ICHECK(!builder->result.defined()) << "ValueError: Builder.result has already been set";
+    TVM_FFI_CHECK(!builder->result.defined(), ValueError) << "Builder.result has already been set";
     builder->result = stmt;
   } else if (const auto* tir_frame = builder->frames.back().as<TIRFrameNode>()) {
-    GetRef<TIRFrame>(tir_frame)->stmts.push_back(stmt);
+    ffi::GetRef<TIRFrame>(tir_frame)->stmts.push_back(stmt);
   } else {
-    LOG(FATAL) << "TypeError: Unsupported frame type: " << builder->frames.back();
+    TVM_FFI_THROW(TypeError) << "Unsupported frame type: " << builder->frames.back();
   }
 }
 
@@ -50,7 +50,7 @@ inline void AddToParent(tvm::tir::Stmt stmt) {
  * \param stmt The array of Stmt.
  * \return The SeqStmt.
  */
-inline tvm::tir::Stmt AsStmt(const Array<tvm::tir::Stmt>& stmt) {
+inline tvm::tir::Stmt AsStmt(const ffi::Array<tvm::tir::Stmt>& stmt) {
   return tvm::tir::SeqStmt::Flatten(stmt);
 }
 
@@ -59,37 +59,40 @@ inline tvm::tir::Stmt AsStmt(const Array<tvm::tir::Stmt>& stmt) {
  * \param method The method name to be printed when throwing exception.
  * \return The top frame of PrimFuncFrame.
  */
-inline PrimFuncFrame FindPrimFuncFrame(const String& method) {
-  if (Optional<PrimFuncFrame> frame = IRBuilder::Current()->GetLastFrame<PrimFuncFrame>()) {
+inline PrimFuncFrame FindPrimFuncFrame(const ffi::String& method) {
+  if (ffi::Optional<PrimFuncFrame> frame = IRBuilder::Current()->GetLastFrame<PrimFuncFrame>()) {
     return frame.value();
-  } else if (Optional<PrimFuncFrame> frame = IRBuilder::Current()->FindFrame<PrimFuncFrame>()) {
-    LOG(FATAL) << "ValueError: " << method << " must be called at the top of a PrimFunc.  "
-               << "While " << method << " did occur within the PrimFunc \"" << frame.value()->name
-               << "\", other frames (e.g. block/if/else/let) had been introduced since the "
-               << "PrimFunc's frame";
+  } else if (ffi::Optional<PrimFuncFrame> frame =
+                 IRBuilder::Current()->FindFrame<PrimFuncFrame>()) {
+    TVM_FFI_THROW(ValueError)
+        << method << " must be called at the top of a PrimFunc.  "
+        << "While " << method << " did occur within the PrimFunc \"" << frame.value()->name
+        << "\", other frames (e.g. block/if/else/let) had been introduced since the "
+        << "PrimFunc's frame";
   } else {
-    LOG(FATAL) << "ValueError: " << method << " must be called at the top of a PrimFunc, "
-               << "but " << method << " occurred outside of any T.prim_func() frame";
+    TVM_FFI_THROW(ValueError) << method << " must be called at the top of a PrimFunc, "
+                              << "but " << method << " occurred outside of any T.prim_func() frame";
   }
   throw;
 }
 
 /*!
- * \brief Check whether the top frame in IRBuilder frame stack is BlockFrame.
+ * \brief Check whether the top frame in IRBuilder frame stack is SBlockFrame.
  * \param method The method name to be printed when throwing exception.
- * \return The top frame of BlockFrame.
+ * \return The top frame of SBlockFrame.
  */
-inline BlockFrame FindBlockFrame(const String& method) {
-  if (Optional<BlockFrame> frame = IRBuilder::Current()->FindFrame<BlockFrame>()) {
+inline SBlockFrame FindSBlockFrame(const ffi::String& method) {
+  if (ffi::Optional<SBlockFrame> frame = IRBuilder::Current()->FindFrame<SBlockFrame>()) {
     return frame.value();
-  } else if (Optional<BlockFrame> frame = IRBuilder::Current()->FindFrame<BlockFrame>()) {
-    LOG(FATAL) << "ValueError: " << method << " must be called at the top of a T.block().  "
-               << "While " << method << " did occur within the block \"" << frame.value()->name
-               << "\", other frames (e.g. if/else/let) had been introduced since the T.block(\""
-               << frame.value()->name << "\") frame";
+  } else if (ffi::Optional<SBlockFrame> frame = IRBuilder::Current()->FindFrame<SBlockFrame>()) {
+    TVM_FFI_THROW(ValueError)
+        << method << " must be called at the top of a T.sblock().  "
+        << "While " << method << " did occur within the block \"" << frame.value()->name
+        << "\", other frames (e.g. if/else/let) had been introduced since the T.sblock(\""
+        << frame.value()->name << "\") frame";
   } else {
-    LOG(FATAL) << "ValueError: " << method << " must be called at the top of a T.block(), "
-               << "but " << method << " occurred outside of any T.block() frame";
+    TVM_FFI_THROW(ValueError) << method << " must be called at the top of a T.sblock(), "
+                              << "but " << method << " occurred outside of any T.sblock() frame";
   }
   throw;
 }
@@ -99,18 +102,19 @@ inline BlockFrame FindBlockFrame(const String& method) {
  * \param method The method name to be printed when throwing exception.
  * \return The top frame of IfFrame.
  */
-inline IfFrame FindIfFrame(const String& method) {
-  if (Optional<IfFrame> frame = IRBuilder::Current()->GetLastFrame<IfFrame>()) {
+inline IfFrame FindIfFrame(const ffi::String& method) {
+  if (ffi::Optional<IfFrame> frame = IRBuilder::Current()->GetLastFrame<IfFrame>()) {
     return frame.value();
-  } else if (Optional<IfFrame> frame = IRBuilder::Current()->FindFrame<IfFrame>()) {
-    LOG(FATAL) << "ValueError: " << method << " must be called at the top of a T.if_().  "
-               << "While " << method << " did occur within the conditional based on ("
-               << frame.value()->condition
-               << "), other frames (e.g. if/else/let) had been introduced since the "
-               << "IfThenElse frame";
+  } else if (ffi::Optional<IfFrame> frame = IRBuilder::Current()->FindFrame<IfFrame>()) {
+    TVM_FFI_THROW(ValueError) << method << " must be called at the top of a T.if_().  "
+                              << "While " << method
+                              << " did occur within the conditional based on ("
+                              << frame.value()->condition
+                              << "), other frames (e.g. if/else/let) had been introduced since the "
+                              << "IfThenElse frame";
   } else {
-    LOG(FATAL) << "ValueError: IfThenElse frame not find. Please ensure '" << method
-               << "' is called under T.if_()";
+    TVM_FFI_THROW(ValueError) << "IfThenElse frame not find. Please ensure '" << method
+                              << "' is called under T.if_()";
   }
   throw;
 }
@@ -121,7 +125,7 @@ inline IfFrame FindIfFrame(const String& method) {
  * \return The converted BufferRegion.
  */
 inline tvm::tir::BufferRegion BufferRegionFromLoad(tvm::tir::BufferLoad buffer_load) {
-  Array<Range> ranges;
+  ffi::Array<Range> ranges;
   for (const PrimExpr& index : buffer_load->indices) {
     ranges.push_back(Range::FromMinExtent(index, IntImm(index->dtype, 1)));
   }

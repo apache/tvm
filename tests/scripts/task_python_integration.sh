@@ -33,5 +33,5 @@ fi
 # cleanup pycache
 find . -type f -path "*.pyc" | xargs rm -f
 
-# setup cython
-cd python; python3 setup.py build_ext --inplace; cd ..
+# setup tvm-ffi into python folder
+uv pip install -v --target=python ./3rdparty/tvm-ffi/

@@ -128,7 +128,7 @@ inline std::string TablePrinter::AsStr() const {
       column_width[i] = std::max(column_width[i], row[i].size());
     }
   }
-  ICHECK(!column_width.empty());
+  TVM_FFI_ICHECK(!column_width.empty());
   size_t total_width =
       std::accumulate(column_width.begin(), column_width.end(), 0) + 3 * column_width.size() - 1;
   bool is_first = true;

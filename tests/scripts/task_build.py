@@ -15,19 +15,19 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E402
 import argparse
-import shutil
-import os
 import logging
-import sys
 import multiprocessing
-
+import os
+import shutil
+import sys
 from pathlib import Path
 
 # Hackery to enable importing of utils from ci/scripts/jenkins
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.append(str(REPO_ROOT / "ci" / "scripts" / "jenkins"))
-from cmd_utils import Sh, init_log, REPO_ROOT
+from cmd_utils import REPO_ROOT, Sh, init_log
 
 if __name__ == "__main__":
     init_log()
@@ -57,7 +57,9 @@ if __name__ == "__main__":
             logging.info(f"Using sccache bucket: {args.sccache_bucket}")
             logging.info(f"Using sccache region: {env['SCCACHE_REGION']}")
         else:
-            logging.info(f"No sccache bucket set, using local cache")
+            logging.info("No sccache bucket set, using local cache")
+        if "SCCACHE_SERVER_PORT" in os.environ:
+            env["SCCACHE_SERVER_PORT"] = os.getenv("SCCACHE_SERVER_PORT")
         env["CXX"] = "/opt/sccache/c++"
         env["CC"] = "/opt/sccache/cc"
 
@@ -83,13 +85,10 @@ if __name__ == "__main__":
     available_cpus = nproc // executors
     num_cpus = max(available_cpus, 1)
 
-    if build_platform == "i386":
-        sh.run("cmake ..", cwd=build_dir)
+    if args.debug:
+        sh.run("cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..", cwd=build_dir)
     else:
-        if args.debug:
-            sh.run("cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..", cwd=build_dir)
-        else:
-            sh.run("cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo ..", cwd=build_dir)
+        sh.run("cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo ..", cwd=build_dir)
 
     target = ""
     if args.cmake_target:
@@ -100,13 +99,7 @@ if __name__ == "__main__":
     if verbose:
         ninja_args.append("-v")
 
-    if build_platform == "i386":
-        if args.cmake_target:
-            sh.run(f"make {args.cmake_target} -j{num_cpus}", cwd=build_dir)
-        else:
-            sh.run(f"make -j{num_cpus}", cwd=build_dir)
-    else:
-        sh.run(f"cmake --build . -- " + " ".join(ninja_args), cwd=build_dir)
+    sh.run("cmake --build . -- " + " ".join(ninja_args), cwd=build_dir)
 
     if use_sccache:
         logging.info("===== sccache stats =====")

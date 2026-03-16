@@ -58,11 +58,11 @@ class RingBuffer {
    */
   RingBuffer(uint32_t ring_buff_size, std::function<bool(T*)> in_flight)
       : ring_buff_size_(ring_buff_size), in_flight_(in_flight) {
-    CHECK_NE(ring_buff_size, 0);
+    TVM_FFI_ICHECK_NE(ring_buff_size, 0);
     int ret = posix_memalign(reinterpret_cast<void**>(&ring_buff_ptr_), sizeof(T),
                              sizeof(T) * ring_buff_size_);
-    CHECK_EQ(ret, 0);
-    CHECK_NE(ring_buff_ptr_, nullptr);
+    TVM_FFI_ICHECK_EQ(ret, 0);
+    TVM_FFI_ICHECK_NE(ring_buff_ptr_, nullptr);
   }
 
   ~RingBuffer() { free(ring_buff_ptr_); }
@@ -103,7 +103,7 @@ class QueuedRingBuffer : RingBuffer<T> {
 
   //! \brief Returns pointer to next T; add the queue ID for tracking
   T* Next(uint32_t queue_id) {
-    CHECK_LT(queue_id, max_queues_);
+    TVM_FFI_ICHECK_LT(queue_id, max_queues_);
     queue_ids_.push_back(queue_id);
     queue_descriptor* d = &queue_descriptors_[queue_id];
     if (d->group_started) {
@@ -119,9 +119,9 @@ class QueuedRingBuffer : RingBuffer<T> {
 
   //! \brief Returns the number of groups of Ts in flight for a given queue ID
   uint32_t InFlight(uint32_t queue_id) {
-    CHECK_LT(queue_id, max_queues_);
+    TVM_FFI_ICHECK_LT(queue_id, max_queues_);
     queue_descriptor* d = &queue_descriptors_[queue_id];
-    CHECK(!d->group_started);
+    TVM_FFI_ICHECK(!d->group_started);
 
     uint32_t in_flight = 0;
     // look at the queue IDs for the RingBuffer entries in flight
@@ -144,9 +144,9 @@ class QueuedRingBuffer : RingBuffer<T> {
 
   //! \brief Start a group of Ts, if not called the deafault group size is one
   void StartGroup(uint32_t queue_id) {
-    CHECK_LT(queue_id, max_queues_);
+    TVM_FFI_ICHECK_LT(queue_id, max_queues_);
     queue_descriptor* d = &queue_descriptors_[queue_id];
-    CHECK(!d->group_started);
+    TVM_FFI_ICHECK(!d->group_started);
 
     // start group
     d->group_started = true;
@@ -155,10 +155,10 @@ class QueuedRingBuffer : RingBuffer<T> {
 
   //! \brief End a group of Ts
   void EndGroup(uint32_t queue_id) {
-    CHECK_LT(queue_id, max_queues_);
+    TVM_FFI_ICHECK_LT(queue_id, max_queues_);
     queue_descriptor* d = &queue_descriptors_[queue_id];
-    CHECK(d->group_started);
-    CHECK(d->pending_in_group);
+    TVM_FFI_ICHECK(d->group_started);
+    TVM_FFI_ICHECK(d->pending_in_group);
 
     // create group
     if (d->pending_in_group) {

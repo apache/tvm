@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E731, F401, F841
 
 """Tests analysis functions of struct info"""
 
@@ -21,10 +22,10 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import TVMError
+from tvm import TVMError, ir, tir
 from tvm import relax as rx
-from tvm import tir, ir
-from tvm.script import relax as R, tir as T
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 def test_get_static_type_basic():
@@ -355,7 +356,7 @@ def _check_derive(ctx, finfo, args_sinfo, ret):
     rx.expr._update_struct_info(gv, finfo)
     args = []
     for i, sinfo in enumerate(args_sinfo):
-        arg = rx.Var("arg%i" % i, sinfo)
+        arg = rx.Var(f"arg{i}", sinfo)
         args.append(arg)
     call = rx.Call(gv, args)
     derived_ret = rx.analysis.derive_call_ret_struct_info(finfo, call, ctx)
@@ -707,9 +708,9 @@ def test_prim_struct_info_lca(test_case):
     lhs, rhs, expected = map(_normalize_sinfo, test_case)
 
     lca = rx.analysis.struct_info_lca(lhs, rhs)
-    assert tvm.ir.structural_equal(
-        lca, expected
-    ), f"Expected {lhs} and {rhs} to have LCA of {expected}, but instead found {lca}"
+    assert tvm.ir.structural_equal(lca, expected), (
+        f"Expected {lhs} and {rhs} to have LCA of {expected}, but instead found {lca}"
+    )
 
 
 def _generate_tir_var_test_cases():

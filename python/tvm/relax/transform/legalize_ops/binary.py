@@ -16,10 +16,12 @@
 # under the License.
 # pylint: disable=invalid-name
 """Default legalization function for binary operators."""
+
 from tvm import topi
+
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr
-from .common import TEFunc, LegalizeFunc, _try_convert_to_scalar_const, register_legalize
+from .common import LegalizeFunc, TEFunc, _try_convert_to_scalar_const, register_legalize
 
 
 def _binary(te_func: TEFunc) -> LegalizeFunc:

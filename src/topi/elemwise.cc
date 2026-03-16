@@ -31,7 +31,7 @@ namespace topi {
 using namespace tvm;
 using namespace tvm::runtime;
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("topi.acos", [](ffi::PackedArgs args,
@@ -100,13 +100,13 @@ TVM_FFI_STATIC_INIT_BLOCK({
                   })
       .def_packed("topi.elemwise_sum",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
-                    *rv = elemwise_sum(args[0].cast<Array<te::Tensor>>());
+                    *rv = elemwise_sum(args[0].cast<ffi::Array<te::Tensor>>());
                   })
       .def_packed("topi.sign", [](ffi::PackedArgs args,
                                   ffi::Any* rv) { *rv = sign(args[0].cast<te::Tensor>()); })
       .def_packed("topi.full",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
-                    *rv = full(args[0].cast<Array<PrimExpr>>(), args[1].cast<DataType>(),
+                    *rv = full(args[0].cast<ffi::Array<PrimExpr>>(), args[1].cast<DataType>(),
                                args[2].cast<PrimExpr>());
                   })
       .def_packed("topi.full_like",
@@ -119,7 +119,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def_packed("topi.bitwise_not", [](ffi::PackedArgs args, ffi::Any* rv) {
         *rv = bitwise_not(args[0].cast<te::Tensor>());
       });
-});
+}
 
 }  // namespace topi
 }  // namespace tvm

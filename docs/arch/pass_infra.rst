@@ -93,9 +93,9 @@ needs to be executed when running under a user-provided optimization level. The
 .. code:: c++
 
     class PassInfoNode : public Object {
-      String name;
+      ffi::String name;
       int opt_level;
-      Array<String> required;
+      ffi::Array<ffi::String> required;
     };
 
 PassContext
@@ -125,11 +125,11 @@ Python APIs to create a compilation pipeline using pass context.
     class PassContextNode : public Object {
      public:
       int opt_level{2};
-      tvm::Array<tvm::Expr> required_pass;
-      tvm::Array<tvm::Expr> disabled_pass;
-      mutable Optional<DiagnosticContext> diag_ctx;
-      Map<String, Any> config;
-      Array<instrument::PassInstrument> instruments;
+      tvm::ffi::Array<tvm::Expr> required_pass;
+      tvm::ffi::Array<tvm::Expr> disabled_pass;
+      mutable ffi::Optional<DiagnosticContext> diag_ctx;
+      ffi::Map<ffi::String, Any> config;
+      ffi::Array<instrument::PassInstrument> instruments;
     };
 
     class PassContext : public NodeRef {
@@ -262,7 +262,7 @@ of passes for execution.
     class SequentialPassNode : PassNode {
       PassInfo pass_info;
       // Passes need to be executed.
-      Array<Pass> passes;
+      ffi::Array<Pass> passes;
       bool PassEnabled(const PassInfo& info) const;
       Module operator()(const Module& mod, const PassContext& pass_ctx) const final;
     };
@@ -277,12 +277,12 @@ order that they were appended to the pass list.
                                       const PassContext& pass_ctx) const {
       Module mod = module;
       for (const Pass& pass : passes) {
-        ICHECK(pass.defined()) << "Found undefined pass for optimization.";
+        TVM_FFI_ICHECK(pass.defined()) << "Found undefined pass for optimization.";
         const PassInfo& pass_info = pass->Info();
         if (!PassEnabled(pass_info))  continue;
         for (const auto& it : pass_info->required) {
           const auto* name = it.as<tvm::ir::StringImm>();
-          ICHECK(name);
+          TVM_FFI_ICHECK(name);
           mod = GetPass(name->value)(mod, pass_ctx);
         }
         mod = pass(mod, pass_ctx);
@@ -307,7 +307,7 @@ pass is registered with an API endpoint as we will show later.
       using tvm::runtime::Registry;
       std::string fpass_name = "relax.transform." + pass_name;
       const std::optional<tvm::ffi::Function> f = tvm::ffi::Function::GetGlobal(fpass_name);
-      ICHECK(f.has_value()) << "Cannot find " << fpass_name
+      TVM_FFI_ICHECK(f.has_value()) << "Cannot find " << fpass_name
                             << "to create the pass " << pass_name;
       return (*f)();
     }
@@ -321,22 +321,22 @@ favorably use Python APIs to create a specific pass object.
     Pass CreateFunctionPass(
         std::function<Function(Function, IRModule, PassContext)> pass_func,
         int opt_level,
-        String name,
-        Array<String> required);
+        ffi::String name,
+        ffi::Array<ffi::String> required);
 
     Pass CreatePrimFuncPass(
         std::function<PrimFunc(PrimFunc, IRModule, PassContext)> pass_func,
         int opt_level,
-        String name,
-        Array<String> required);
+        ffi::String name,
+        ffi::Array<ffi::String> required);
 
     Pass CreateModulePass(
         std::function<IRModule(IRModule, PassContext)> pass_func,
         int opt_level,
-        String name,
-        Array<String> required);
+        ffi::String name,
+        ffi::Array<ffi::String> required);
 
-    Pass Sequential(tvm::Array<Pass> passes, PassInfo pass_info);
+    Pass Sequential(tvm::ffi::Array<Pass> passes, PassInfo pass_info);
 
 Pass Registration
 ^^^^^^^^^^^^^^^^^
@@ -362,7 +362,7 @@ indicates that no prerequisite is required for this pass. Otherwise, the pass
 developer has to identify and list them.
 
 Meanwhile, a pass API endpoint is registered with the name
-``"relax.transform.FoldConstant``. This pass, therefore, becomes an entry in the
+``"relax.transform.FoldConstant"``. This pass, therefore, becomes an entry in the
 registry that can be accessed by both C++ (e.g. the ``GetPass`` above) and
 Python when needed.
 
@@ -376,10 +376,10 @@ Python when needed.
       return CreateFunctionPass(pass_func, 0, "FoldConstant", {});
     }
 
-    TVM_FFI_STATIC_INIT_BLOCK({
+    TVM_FFI_STATIC_INIT_BLOCK() {
       namespace refl = tvm::ffi::reflection;
       refl::GlobalDef().def("relax.transform.FoldConstant", FoldConstant);
-    });
+    }
 
     }  // namespace transform
 
@@ -440,7 +440,7 @@ Multiple ``PassInstrument`` instances can be registed into a single
 
     class PassInstrumentNode : public Object {
      public:
-      String name;
+      ffi::String name;
       virtual void EnterPassContext() const = 0;
       virtual void ExitPassContext() const = 0;
       virtual bool ShouldRun(const IRModule& mod, const transform::PassInfo& info) const = 0;
@@ -451,7 +451,7 @@ Multiple ``PassInstrument`` instances can be registed into a single
 
     class PassInstrument : public ObjectRef {
      public:
-      TVM_DEFINE_OBJECT_REF_METHODS(PassInstrument, ObjectRef, PassInstrumentNode);
+      TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PassInstrument, ObjectRef, PassInstrumentNode);
     };
 
     }  // namespace instrument
@@ -552,7 +552,7 @@ a certain scope.
 
 .. code:: python
 
-    @tvm.ffi.register_object("transform.PassContext")
+    @tvm_ffi.register_object("transform.PassContext")
     class PassContext(tvm.runtime.Object):
         def __enter__(self):
             _transform.EnterPassContext(self)
@@ -578,7 +578,7 @@ loop unrolling pass
 
     TVM_REGISTER_PASS_CONFIG_OPTION("tir.UnrollLoop", UnrollLoopConfig);
 
-Please refer to `src/tir/transforms/unroll_loop.cc`_ for more details.
+Please refer to `src/tir/transform/unroll_loop.cc`_ for more details.
 
 .. _pass_instrument_py_frontend:
 
@@ -661,7 +661,7 @@ new ``PassInstrument`` are called.
 
 .. _python/tvm/ir/instrument.py: https://github.com/apache/tvm/blob/main/python/tvm/ir/instrument.py
 
-.. _src/tir/transforms/unroll_loop.cc: https://github.com/apache/tvm/blob/main/src/tir/transforms/unroll_loop.cc
+.. _src/tir/transform/unroll_loop.cc: https://github.com/apache/tvm/blob/main/src/tir/transform/unroll_loop.cc
 
 .. _use pass infra: https://github.com/apache/tvm/blob/main/tutorials/dev/use_pass_infra.py
 

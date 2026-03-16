@@ -16,11 +16,12 @@
 # under the License.
 # pylint: disable=invalid-name, unused-argument, redefined-argument-from-local
 """Relax Fold Batchnorm into Conv2D."""
+
+from tvm import relax, tir
 from tvm.ir.module import IRModule
 from tvm.ir.transform import PassContext
 from tvm.relax import Expr
-from tvm.relax.dpl import is_op, rewrite_call, wildcard, is_const, TupleGetItemPattern
-from tvm import relax, tir
+from tvm.relax.dpl import TupleGetItemPattern, is_const, is_op, rewrite_call, wildcard
 
 from . import function_pass
 

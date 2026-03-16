@@ -37,11 +37,10 @@ namespace {
 std::optional<int64_t> GetNumInputParams(const FunctionNode* func) {
   if (auto opt_int_imm = func->GetAttr<IntImm>(attr::kNumInput)) {
     int64_t num_input_params = opt_int_imm.value()->value;
-    CHECK_GE(num_input_params, 0) << "ValueError: "
-                                  << "Annotation for attr::kNumInput (\"" << attr::kNumInput
-                                  << "\") must be non-negative, but was " << num_input_params;
-    CHECK_LE(static_cast<size_t>(num_input_params), func->params.size())
-        << "ValueError: "
+    TVM_FFI_CHECK_GE(num_input_params, 0, ValueError)
+        << "Annotation for attr::kNumInput (\"" << attr::kNumInput
+        << "\") must be non-negative, but was " << num_input_params;
+    TVM_FFI_CHECK_LE(static_cast<size_t>(num_input_params), func->params.size(), ValueError)
         << "Annotation for attr::kNumInput (\"" << attr::kNumInput << "\") specifies "
         << num_input_params << " parameters to be provided at runtime, "
         << "but the function only accepts " << func->params.size() << " parameters in total";
@@ -69,15 +68,15 @@ class LazyInputMutator : public ExprMutator {
                    FuncStructInfo({PrimStructInfo(DataType::Int(64)), ObjectStructInfo()},
                                   ObjectStructInfo()));
 
-    Array<Var> new_params(func->params.begin(), func->params.begin() + num_input_params);
+    ffi::Array<Var> new_params(func->params.begin(), func->params.begin() + num_input_params);
     new_params.push_back(fget_param);
 
     auto array_externally_visible_vars =
         DefinableTIRVarsInStructInfo(TupleStructInfo(new_params.Map(GetStructInfo)));
     std::unordered_set<tir::Var> externally_visible_vars(array_externally_visible_vars.begin(),
                                                          array_externally_visible_vars.end());
-    StructInfo new_ret_struct_info =
-        EraseToWellDefined(func->ret_struct_info, [&](const tir::Var& var) -> Optional<PrimExpr> {
+    StructInfo new_ret_struct_info = EraseToWellDefined(
+        func->ret_struct_info, [&](const tir::Var& var) -> ffi::Optional<PrimExpr> {
           if (externally_visible_vars.count(var)) {
             return var;
           } else {
@@ -85,7 +84,7 @@ class LazyInputMutator : public ExprMutator {
           }
         });
 
-    auto node = GetRef<Function>(func);
+    auto node = ffi::GetRef<Function>(func);
     node.CopyOnWrite()->params = new_params;
     node.CopyOnWrite()->ret_struct_info = new_ret_struct_info;
     node = WithAttr(node, attr::kNumInput, num_input_params + 1);
@@ -98,7 +97,7 @@ class LazyInputMutator : public ExprMutator {
 
   Expr VisitExpr_(const VarNode* op) override {
     if (plan_) {
-      Var var = GetRef<Var>(op);
+      Var var = ffi::GetRef<Var>(op);
       if (auto it = plan_->param_lookup.find(var); it != plan_->param_lookup.end()) {
         auto untyped =
             builder_->Emit(relax::Call(plan_->fget_param,
@@ -148,9 +147,10 @@ class LazyOutputMutator : public ExprMutator {
       define_lookup(0, func_body->body);
     }
 
-    Var fset_output("fset_output",
-                    FuncStructInfo({PrimStructInfo(DataType::Int(64)), ObjectStructInfo()},
-                                   TupleStructInfo(Array<StructInfo>{}), /* purity = */ false));
+    Var fset_output(
+        "fset_output",
+        FuncStructInfo({PrimStructInfo(DataType::Int(64)), ObjectStructInfo()},
+                       TupleStructInfo(ffi::Array<StructInfo>{}), /* purity = */ false));
     plan_ = FunctionPlan{std::move(output_lookup), fset_output};
 
     std::optional<int64_t> num_input_params = GetNumInputParams(func);
@@ -160,32 +160,32 @@ class LazyOutputMutator : public ExprMutator {
                       fset_output);
 
     BindingBlock start_of_func = [&]() {
-      Array<Binding> propagated_params;
+      ffi::Array<Binding> propagated_params;
       for (auto param : func->params) {
         GenerateSetOutputCalls(param, [&](const auto& fset_output_call) {
-          Var void_output("_void", TupleStructInfo(Array<StructInfo>{}));
+          Var void_output("_void", TupleStructInfo(ffi::Array<StructInfo>{}));
           propagated_params.push_back(VarBinding(void_output, fset_output_call));
         });
       }
       return BindingBlock(propagated_params);
     }();
     BindingBlock end_of_func = [&]() {
-      Array<Binding> propagated_params;
+      ffi::Array<Binding> propagated_params;
       for (const auto& [output_index, expr] : inline_outputs) {
         Call fset_output_call(fset_output,
                               {PrimValue(IntImm(DataType::Int(64), output_index)), expr});
-        Var void_output("_void", TupleStructInfo(Array<StructInfo>{}));
+        Var void_output("_void", TupleStructInfo(ffi::Array<StructInfo>{}));
         propagated_params.push_back(VarBinding(void_output, fset_output_call));
       }
       return BindingBlock(propagated_params);
     }();
 
-    Array<BindingBlock> new_blocks = func_body->blocks;
+    ffi::Array<BindingBlock> new_blocks = func_body->blocks;
     new_blocks.insert(new_blocks.begin(), start_of_func);
     new_blocks.push_back(end_of_func);
-    Expr new_body = SeqExpr(new_blocks, Tuple(Array<Expr>{}));
+    Expr new_body = SeqExpr(new_blocks, Tuple(ffi::Array<Expr>{}));
 
-    auto node = GetRef<Function>(func);
+    auto node = ffi::GetRef<Function>(func);
     {
       auto write_ptr = node.CopyOnWrite();
       write_ptr->params = new_params;
@@ -249,7 +249,7 @@ namespace transform {
 
 Pass LazyGetInput() {
   auto pass_func = [](Function func, IRModule, PassContext) -> Function {
-    if (!func->GetAttr<String>(tvm::attr::kGlobalSymbol).defined()) {
+    if (!func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value()) {
       return func;
     }
     return WithLazyInputs(func);
@@ -260,14 +260,14 @@ Pass LazyGetInput() {
                             /*required=*/{});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.transform.LazyGetInput", LazyGetInput);
-});
+}
 
 Pass LazySetOutput() {
   auto pass_func = [](Function func, IRModule, PassContext) -> Function {
-    if (!func->GetAttr<String>(tvm::attr::kGlobalSymbol).defined()) {
+    if (!func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value()) {
       return func;
     }
     return WithLazyOutputs(func);
@@ -278,10 +278,10 @@ Pass LazySetOutput() {
                             /*required=*/{});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.transform.LazySetOutput", LazySetOutput);
-});
+}
 
 }  // namespace transform
 }  // namespace relax

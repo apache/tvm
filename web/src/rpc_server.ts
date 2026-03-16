@@ -81,8 +81,8 @@ export class RPCServer {
   state: RPCServerState = RPCServerState.InitHeader;
   logger: (msg: string) => void;
   getImports: () => Record<string, unknown>;
-  private ndarrayCacheUrl: string;
-  private ndarrayCacheDevice: string;
+  private tensorCacheUrl: string;
+  private tensorCacheDevice: string;
   private initProgressCallback?: runtime.InitProgressCallback;
   private asyncOnServerLoad?: (inst: runtime.Instance) => Promise<void>;
   private pendingSend: Promise<void> = Promise.resolve();
@@ -102,8 +102,8 @@ export class RPCServer {
     key: string,
     getImports: () => Record<string, unknown>,
     logger: (msg: string) => void = console.log,
-    ndarrayCacheUrl = "",
-    ndarrayCacheDevice = "cpu",
+    tensorCacheUrl = "",
+    tensorCacheDevice = "cpu",
     initProgressCallback: runtime.InitProgressCallback | undefined = undefined,
     asyncOnServerLoad: ((inst: runtime.Instance) => Promise<void>) | undefined = undefined,
   ) {
@@ -112,8 +112,8 @@ export class RPCServer {
     this.name = "WebSocketRPCServer[" + this.key + "]: ";
     this.getImports = getImports;
     this.logger = logger;
-    this.ndarrayCacheUrl = ndarrayCacheUrl;
-    this.ndarrayCacheDevice = ndarrayCacheDevice;
+    this.tensorCacheUrl = tensorCacheUrl;
+    this.tensorCacheDevice = tensorCacheDevice;
     this.initProgressCallback = initProgressCallback;
     this.asyncOnServerLoad = asyncOnServerLoad;
     this.checkLittleEndian();
@@ -131,7 +131,6 @@ export class RPCServer {
     });
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private onClose(_event: CloseEvent): void {
     if (this.inst !== undefined) {
       this.globalObjects.forEach(obj => {
@@ -145,14 +144,13 @@ export class RPCServer {
       this.log("Automatic reconnecting..");
       new RPCServer(
         this.url, this.key, this.getImports, this.logger,
-        this.ndarrayCacheUrl, this.ndarrayCacheDevice,
+        this.tensorCacheUrl, this.tensorCacheDevice,
         this.initProgressCallback, this.asyncOnServerLoad);
     } else {
       this.log("Closing the server, final state=" + this.state);
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private onOpen(_event: Event): void {
     // Send the headers
     let bkey = StringToUint8Array("server:" + this.key);
@@ -223,18 +221,33 @@ export class RPCServer {
     if (this.inst === undefined) {
       // initialize server.
       const reader = new ByteStreamReader(body);
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const code = reader.readU32();
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const ver = Uint8ArrayToString(reader.readByteArray());
       const nargs = reader.readU32();
+
+      // nargs=0 means no session_constructor_args (LocalSession request).
+      // WASM RPC requires ["rpc.WasmSession", wasm_binary]. Wait for proper init.
+      if (nargs === 0) {
+        this.log("Received LocalSession init (nargs=0), waiting for WasmSession init...");
+        this.requestBytes(SizeOf.I64);
+        this.state = RPCServerState.ReceivePacketHeader;
+        return;
+      }
+
       const args = [];
       for (let i = 0; i < nargs; ++i) {
         const typeIndex = reader.readU32();
         if (typeIndex === TypeIndex.kTVMFFIRawStr) {
           const str = Uint8ArrayToString(reader.readByteArray());
           args.push(str);
+        } else if (typeIndex === TypeIndex.kTVMFFIStr) {
+          reader.readU32(); // skip duplicate type_index
+          const str = Uint8ArrayToString(reader.readByteArray());
+          args.push(str);
         } else if (typeIndex === TypeIndex.kTVMFFIByteArrayPtr) {
+          args.push(reader.readByteArray());
+        } else if (typeIndex === TypeIndex.kTVMFFIBytes) {
+          reader.readU32(); // skip duplicate type_index
           args.push(reader.readByteArray());
         } else {
           throw new Error("cannot support type index " + typeIndex);
@@ -262,7 +275,7 @@ export class RPCServer {
     const asyncInitServer = async (): Promise<void> => {
       assert(args[1] instanceof Uint8Array);
       const inst = await runtime.instantiate(
-        args[1].buffer,
+        args[1].buffer as ArrayBuffer,
         this.getImports(),
         this.logger
       );
@@ -287,12 +300,12 @@ export class RPCServer {
         this.inst.registerInitProgressCallback(this.initProgressCallback);
       }
 
-      if (this.ndarrayCacheUrl.length != 0) {
-        if (this.ndarrayCacheDevice === "cpu") {
-          await this.inst.fetchNDArrayCache(this.ndarrayCacheUrl, this.inst.cpu());
+      if (this.tensorCacheUrl.length != 0) {
+        if (this.tensorCacheDevice === "cpu") {
+          await this.inst.fetchTensorCache(this.tensorCacheUrl, this.inst.cpu());
         } else {
-          assert(this.ndarrayCacheDevice === "webgpu");
-          await this.inst.fetchNDArrayCache(this.ndarrayCacheUrl, this.inst.webgpu());
+          assert(this.tensorCacheDevice === "webgpu");
+          await this.inst.fetchTensorCache(this.tensorCacheUrl, this.inst.webgpu());
         }
       }
 
@@ -360,10 +373,8 @@ export class RPCServer {
       const localSession = flocal();
       assert(localSession instanceof runtime.Module);
 
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       this.inst.registerFunc(
         "rpc.WasmSession",
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         (_args: unknown): runtime.Module => {
           return localSession;
         }
@@ -404,7 +415,6 @@ export class RPCServer {
   }
 
   private handleInitHeaderKey(): void {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const remoteKey = Uint8ArrayToString(
       this.readFromBuffer(this.remoteKeyLength)
     );

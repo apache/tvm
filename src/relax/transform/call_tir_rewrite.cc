@@ -74,26 +74,31 @@ class CallTIRMutator : public ExprMutator {
         call->op == call_dps_packed_op) {
       bool is_inplace = (call->op == call_tir_inplace_op);
       const auto* inplace_attrs = call->attrs.as<CallTIRInplaceAttrs>();
-      Array<Expr> outs;
+      ffi::Array<Expr> outs;
       if (const auto& _tensor_sinfo = MatchStructInfo<TensorStructInfo>(expr)) {
         // single output case
         const TensorStructInfo& tensor_sinfo = _tensor_sinfo.value();
-        ICHECK(tensor_sinfo->shape.defined())
+        TVM_FFI_ICHECK(tensor_sinfo->shape.defined())
             << "the TensorStructInfo shape of call_tir has not populated";
         int dev_index = 0;
+        ffi::String scope = "global";
         if (tensor_sinfo->vdevice.defined()) {
           dev_index = GetDeviceIndex(mod_, tensor_sinfo->vdevice.value());
+          scope = tensor_sinfo->vdevice.value()->memory_scope;
+        } else {
+          dev_index = GetDeviceIndexByScope(mod_, scope);
         }
+
         if (!is_inplace) {
           outs.push_back(builder_->Emit(Call(alloc_tensor_op,
                                              {Downcast<ShapeExpr>(tensor_sinfo->shape.value()),
                                               DataTypeImm(tensor_sinfo->dtype),
-                                              PrimValue::Int64(dev_index), StringImm("global")},
-                                             Attrs()),
+                                              PrimValue::Int64(dev_index), StringImm(scope)},
+                                             Attrs(), {tensor_sinfo}),
                                         "alloc"));
         } else {
           // if there is only one output, it must be an in-place argument, but check anyway
-          ICHECK(inplace_attrs->inplace_indices[0].IntValue() != -1)
+          TVM_FFI_ICHECK(inplace_attrs->inplace_indices[0].IntValue() != -1)
               << "If calling call_tir_inplace and there is one output, its in-place index must not"
                  " be -1.";
           outs.push_back(
@@ -105,32 +110,40 @@ class CallTIRMutator : public ExprMutator {
         for (size_t i = 0; i < tuple_sinfo->fields.size(); ++i) {
           const auto& field = tuple_sinfo->fields[i];
 
-          ICHECK(field->IsInstance<TensorStructInfoNode>())
+          TVM_FFI_ICHECK(field->IsInstance<TensorStructInfoNode>())
               << "call_tir expects Tuple of TensorStructInfo, but got " << field
               << " as an element of TupleStructInfo";
           const auto& field_tensor = Downcast<TensorStructInfo>(field);
-          ICHECK(field_tensor->shape.defined())
+          TVM_FFI_ICHECK(field_tensor->shape.defined())
               << "call_tir expects all TensorStructInfo has shape, but got " << field_tensor
               << " as an element of TupleStructInfo";
+
+          int dev_index = 0;
+          ffi::String scope = "global";
+          if (field_tensor->vdevice.defined()) {
+            dev_index = GetDeviceIndex(mod_, field_tensor->vdevice.value());
+            scope = field_tensor->vdevice.value()->memory_scope;
+          }
+
           if (!is_inplace || inplace_attrs->inplace_indices[i].IntValue() == -1) {
-            outs.push_back(builder_->Emit(
-                Call(alloc_tensor_op,
-                     {Downcast<ShapeExpr>(field_tensor->shape.value()),
-                      DataTypeImm(field_tensor->dtype), PrimValue::Int64(0), StringImm("global")},
-                     Attrs()),
-                "alloc"));
+            outs.push_back(builder_->Emit(Call(alloc_tensor_op,
+                                               {Downcast<ShapeExpr>(field_tensor->shape.value()),
+                                                DataTypeImm(field_tensor->dtype),
+                                                PrimValue::Int64(dev_index), StringImm(scope)},
+                                               Attrs(), {field_tensor}),
+                                          "alloc"));
           } else {
             outs.push_back(Downcast<Tuple>(call->args[1])
                                ->fields[inplace_attrs->inplace_indices[i].IntValue()]);
           }
         }
       } else {
-        LOG(FATAL) << "TypeError: The struct info of call_tir expects to be TensorStructInfo or "
-                      "TupleStructInfo, but got"
-                   << expr->struct_info_;
+        TVM_FFI_THROW(TypeError) << "The struct info of call_tir expects to be TensorStructInfo or "
+                                    "TupleStructInfo, but got"
+                                 << expr->struct_info_;
       }
 
-      Array<Expr> args;
+      ffi::Array<Expr> args;
       if (call->args[1].as<TupleNode>()) {
         args = Downcast<Tuple>(call->args[1])->fields;
         // for call_tir_inplace, don't reinsert in-place args, only the newly allocated ones
@@ -167,7 +180,7 @@ class CallTIRMutator : public ExprMutator {
       return std::move(Tuple(outs));
     }
 
-    return GetRef<Expr>(call);
+    return ffi::GetRef<Expr>(call);
   }
 
   /*! \brief The context IRModule. */
@@ -184,10 +197,10 @@ Pass CallTIRRewrite() {
                           /*required=*/{});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.transform.CallTIRRewrite", CallTIRRewrite);
-});
+}
 
 }  // namespace transform
 

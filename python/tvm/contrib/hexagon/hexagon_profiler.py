@@ -15,14 +15,16 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=consider-using-with
+# ruff: noqa: RUF005
 
 """Define HexagonProfiler class to enable profiling for Hexagon"""
 
 import os
 import subprocess
-from tvm.ir.transform import PassContext
-from tvm.contrib.hexagon.profiling.process_lwp_data import process_lwp_output
+
 from tvm.contrib import utils
+from tvm.contrib.hexagon.profiling.process_lwp_data import process_lwp_output
+from tvm.ir.transform import PassContext
 
 
 class HexagonProfiler:

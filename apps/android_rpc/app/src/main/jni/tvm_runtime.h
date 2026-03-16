@@ -25,7 +25,6 @@
 
 #include <fstream>
 
-#define DMLC_USE_LOGGING_LIBRARY <tvm/runtime/logging.h>
 #define TVM_USE_LIBBACKTRACE 0
 /* Enable custom logging - this will cause TVM to use a custom implementation
  * of tvm::runtime::detail::LogMessage. We use this to pass TVM log messages to
@@ -34,24 +33,24 @@
 #define TVM_LOG_CUSTOMIZE 1
 #define TVM_FFI_USE_LIBBACKTRACE 0
 
-#include "../ffi/src/ffi/container.cc"
-#include "../ffi/src/ffi/dtype.cc"
-#include "../ffi/src/ffi/error.cc"
-#include "../ffi/src/ffi/function.cc"
-#include "../ffi/src/ffi/ndarray.cc"
-#include "../ffi/src/ffi/object.cc"
-#include "../ffi/src/ffi/testing.cc"
-#include "../ffi/src/ffi/traceback.cc"
+#include "../3rdparty/tvm-ffi/src/ffi/backtrace.cc"
+#include "../3rdparty/tvm-ffi/src/ffi/container.cc"
+#include "../3rdparty/tvm-ffi/src/ffi/dtype.cc"
+#include "../3rdparty/tvm-ffi/src/ffi/error.cc"
+#include "../3rdparty/tvm-ffi/src/ffi/extra/library_module.cc"
+#include "../3rdparty/tvm-ffi/src/ffi/extra/library_module_dynamic_lib.cc"
+#include "../3rdparty/tvm-ffi/src/ffi/extra/library_module_system_lib.cc"
+#include "../3rdparty/tvm-ffi/src/ffi/extra/module.cc"
+#include "../3rdparty/tvm-ffi/src/ffi/extra/testing.cc"
+#include "../3rdparty/tvm-ffi/src/ffi/function.cc"
+#include "../3rdparty/tvm-ffi/src/ffi/object.cc"
+#include "../3rdparty/tvm-ffi/src/ffi/tensor.cc"
 #include "../src/runtime/cpu_device_api.cc"
 #include "../src/runtime/device_api.cc"
-#include "../src/runtime/dso_library.cc"
 #include "../src/runtime/file_utils.cc"
-#include "../src/runtime/library_module.cc"
 #include "../src/runtime/logging.cc"
 #include "../src/runtime/memory/memory_manager.cc"
 #include "../src/runtime/minrpc/minrpc_logger.cc"
-#include "../src/runtime/module.cc"
-#include "../src/runtime/ndarray.cc"
 #include "../src/runtime/profiling.cc"
 #include "../src/runtime/registry.cc"
 #include "../src/runtime/rpc/rpc_channel.cc"
@@ -62,7 +61,7 @@
 #include "../src/runtime/rpc/rpc_server_env.cc"
 #include "../src/runtime/rpc/rpc_session.cc"
 #include "../src/runtime/rpc/rpc_socket_impl.cc"
-#include "../src/runtime/system_library.cc"
+#include "../src/runtime/tensor.cc"
 #include "../src/runtime/thread_pool.cc"
 #include "../src/runtime/threading_backend.cc"
 #include "../src/runtime/workspace_pool.cc"

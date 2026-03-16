@@ -1,3 +1,4 @@
+# isort: skip_file
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -16,22 +17,23 @@
 # under the License.
 # pylint: disable=redefined-builtin, wildcard-import
 """TVM: Open Deep Learning Compiler Stack."""
+
 import multiprocessing
 import sys
 import os
 
-# top-level alias
-# tvm._ffi
-from .base import TVMError, __version__, _RUNTIME_ONLY
+# ffi module must load first
+from tvm_ffi import register_object, register_global_func, get_global_func
 
-from .ffi import register_object, register_func, get_global_func
+# top-level alias
+from .base import TVMError, __version__, _RUNTIME_ONLY
 
 # top-level alias
 # tvm.runtime
 from .runtime.object import Object
-from .runtime.ndarray import device, cpu, cuda, opencl, vulkan, metal
-from .runtime.ndarray import vpi, rocm, ext_dev, hexagon
-from .runtime import ndarray as nd, DataType, DataTypeCode
+from .runtime._tensor import device, cpu, cuda, opencl, vulkan, metal
+from .runtime._tensor import vpi, rocm, ext_dev, hexagon
+from .runtime import DataType, DataTypeCode
 
 # tvm.error
 from . import error
@@ -45,6 +47,9 @@ from . import ir
 
 # tvm.tir
 from . import tir
+
+# tvm.s_tir
+from . import s_tir
 
 # tvm.target
 from . import target
@@ -81,9 +86,7 @@ def _should_print_backtrace():
     try:
         tvm_backtrace = bool(int(tvm_backtrace))
     except ValueError:
-        raise ValueError(
-            "invalid value for TVM_BACKTRACE {}, please set to 0 or 1.".format(tvm_backtrace)
-        )
+        raise ValueError(f"invalid value for TVM_BACKTRACE {tvm_backtrace}, please set to 0 or 1.")
 
     return in_pytest or tvm_backtrace
 

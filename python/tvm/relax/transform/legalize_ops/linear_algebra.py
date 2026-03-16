@@ -16,9 +16,11 @@
 # under the License.
 # pylint: disable=invalid-name
 """Default legalization function for linear algebra operators."""
-from tvm import topi, tir, relax, te
+
+from tvm import relax, te, tir, topi
+
 from ...block_builder import BlockBuilder
-from ...expr import Call, Expr, Var, Tuple, TupleGetItem
+from ...expr import Call, Expr, Tuple, TupleGetItem, Var
 from .common import register_legalize
 
 
@@ -106,11 +108,11 @@ def _einsum(bb: BlockBuilder, call: Call) -> Expr:
     n_field = len(t.struct_info.fields)
     while isinstance(t, Var):
         binding = bb.lookup_binding(t)
-        if not isinstance(binding, (Tuple, Var)):
+        if not isinstance(binding, Tuple | Var):
             break
         t = binding
 
-    assert isinstance(t, (Tuple, Var))
+    assert isinstance(t, Tuple | Var)
     fields = (
         t.fields if isinstance(t, Tuple) else [bb.emit(TupleGetItem(t, i)) for i in range(n_field)]
     )

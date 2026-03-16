@@ -40,7 +40,8 @@ class RPCProcessor extends Thread {
     rpc_activity = activity;
   }
 
-  @Override public void run() {
+  @Override
+  public void run() {
     RPCAndroidWatchdog watchdog = new RPCAndroidWatchdog(rpc_activity);
     watchdog.start();
     while (true) {

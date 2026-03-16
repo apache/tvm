@@ -14,14 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401
 
 import tvm
 import tvm.testing
-
 from tvm import tir
 from tvm.runtime import convert
 from tvm.script import tir as T
-
 
 i = tir.Var("i", "int32")
 j = tir.Var("j", "int32")

@@ -16,13 +16,13 @@
 # under the License.
 
 import inspect
-from typing import Optional
 
 import pytest
 
 import tvm.testing
 from tvm import relax
-from tvm.script import ir as I, relax as R
+from tvm.script import ir as I
+from tvm.script import relax as R
 
 
 class Base:
@@ -36,13 +36,13 @@ class Base:
             after = transform(self.Before)
             tvm.ir.assert_structural_equal(self.Expected, after)
 
-    def update_sinfo(self, var: relax.Var) -> Optional[relax.StructInfo]:
+    def update_sinfo(self, var: relax.Var) -> relax.StructInfo | None:
         """The struct info update function provided to the transform"""
         raise NotImplementedError("Should be implemented in derived class")
 
 
 class TestSimple(Base):
-    def update_sinfo(self, var: relax.Var) -> Optional[relax.StructInfo]:
+    def update_sinfo(self, var: relax.Var) -> relax.StructInfo | None:
         if var.name_hint == "weight":
             return relax.TensorStructInfo([64, 16], "float32")
 

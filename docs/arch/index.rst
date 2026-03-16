@@ -95,8 +95,10 @@ tir transformations contain a collection of passes that apply to tir functions. 
   target-specific representation. For example, there are passes to flatten multi-dimensional access to one-dimensional pointer access, to expand the intrinsics into target-specific ones,
   and to decorate the function entry to meet the runtime calling convention.
 
-Many low-level optimizations can be handled in the target phase by the LLVM, CUDA C, and other target compilers. As a result, we leave low-level optimizations such as register allocation
- to the downstream compilers and only focus on optimizations that are not covered by them.
+Many low-level optimizations can be handled in the target phase by the LLVM,
+CUDA C, and other target compilers. As a result, we leave low-level
+optimizations such as register allocation to the downstream compilers and only
+focus on optimizations that are not covered by them.
 
 cross-level transformations
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -133,7 +135,7 @@ The main goal of TVM's runtime is to provide a minimal API for loading and execu
     import tvm
     # Example runtime execution program in python, with type annotated
     mod: tvm.runtime.Module = tvm.runtime.load_module("compiled_artifact.so")
-    arr: tvm.runtime.NDArray = tvm.nd.array([1, 2, 3], device=tvm.cuda(0))
+    arr: tvm.runtime.Tensor = tvm.runtime.tensor([1, 2, 3], device=tvm.cuda(0))
     fun: tvm.runtime.PackedFunc = mod["addone"]
     fun(arr)
     print(arr.numpy())
@@ -142,7 +144,7 @@ The main goal of TVM's runtime is to provide a minimal API for loading and execu
 :py:class:`tvm.runtime.Module` encapsulates the result of compilation. A runtime.Module contains a GetFunction method to obtain PackedFuncs by name.
 
 :py:class:`tvm.runtime.PackedFunc` is a type-erased function interface for both the generated functions. A runtime.PackedFunc can take arguments and return values with the
-following types: POD types(int, float), string, runtime.PackedFunc, runtime.Module, runtime.NDArray, and other sub-classes of runtime.Object.
+following types: POD types(int, float), string, runtime.PackedFunc, runtime.Module, runtime.Tensor, and other sub-classes of runtime.Object.
 
 :py:class:`tvm.runtime.Module` and :py:class:`tvm.runtime.PackedFunc` are powerful mechanisms to modularize the runtime. For example, to get the above `addone` function on CUDA, we can use LLVM to generate the host-side code to compute the launching parameters(e.g. size of the thread groups) and then call into another PackedFunc from a CUDAModule that is backed by the CUDA driver API. The same mechanism can be used for OpenCL kernels.
 
@@ -155,7 +157,7 @@ The above example only deals with a simple `addone` function. The code snippet b
    factory: tvm.runtime.Module = tvm.runtime.load_module("resnet18.so")
    # Create a stateful graph execution module for resnet18 on cuda(0)
    gmod: tvm.runtime.Module = factory["resnet18"](tvm.cuda(0))
-   data: tvm.runtime.NDArray = get_input_data()
+   data: tvm.runtime.Tensor = get_input_data()
    # set input
    gmod["set_input"](0, data)
    # execute the model
@@ -332,8 +334,8 @@ and then integrate it into the IRModule.
 While possible to construct operators directly via TIR or tensor expressions (TE) for each use case, it is tedious to do so.
 `topi` (Tensor operator inventory) provides a set of pre-defined operators defined by numpy and found in common deep learning workloads.
 
-tvm/meta_schedule
------------------
+tvm/s_tir/meta_schedule
+-----------------------
 
 MetaSchedule is a system for automated search-based program optimization. It is designed to be a drop-in replacement for AutoTVM and AutoScheduler,
 and can be used to optimize TensorIR schedules. Note that MetaSchedule only works with static-shape workloads.

@@ -60,6 +60,7 @@ class DataType {
     kFloat = kDLFloat,
     kHandle = kDLOpaqueHandle,
     kBFloat = kDLBfloat,
+    kBool = kDLBool,
     kFloat8_e3m4 = kDLFloat8_e3m4,
     kFloat8_e4m3 = kDLFloat8_e4m3,
     kFloat8_e4m3b11fnuz = kDLFloat8_e4m3b11fnuz,
@@ -91,22 +92,22 @@ class DataType {
     data_.code = static_cast<uint8_t>(code);
     data_.bits = static_cast<uint8_t>(bits);
     if (is_scalable) {
-      ICHECK(lanes > 1) << "Invalid value for vscale factor" << lanes;
+      TVM_FFI_ICHECK(lanes > 1) << "Invalid value for vscale factor" << lanes;
     }
     data_.lanes = is_scalable ? static_cast<uint16_t>(-lanes) : static_cast<uint16_t>(lanes);
     if (code == kBFloat) {
-      ICHECK_EQ(bits, 16);
+      TVM_FFI_ICHECK_EQ(bits, 16);
     }
     if (code == kFloat8_e3m4 || code == kFloat8_e4m3 || code == kFloat8_e4m3b11fnuz ||
         code == kFloat8_e4m3fn || code == kFloat8_e4m3fnuz || code == kFloat8_e5m2 ||
         code == kFloat8_e5m2fnuz || code == kFloat8_e8m0fnu) {
-      ICHECK_EQ(bits, 8);
+      TVM_FFI_ICHECK_EQ(bits, 8);
     }
     if (code == kFloat6_e2m3fn || code == kFloat6_e3m2fn) {
-      ICHECK_EQ(bits, 6);
+      TVM_FFI_ICHECK_EQ(bits, 6);
     }
     if (code == kFloat4_e2m1fn) {
-      ICHECK_EQ(bits, 4);
+      TVM_FFI_ICHECK_EQ(bits, 4);
     }
   }
   /*! \return The type code. */
@@ -119,7 +120,8 @@ class DataType {
   int lanes() const {
     int lanes_as_int = static_cast<int16_t>(data_.lanes);
     if (lanes_as_int < 0) {
-      LOG(FATAL) << "Can't fetch the lanes of a scalable vector at a compile time.";
+      TVM_FFI_THROW(InternalError)
+          << "Can't fetch the lanes of a scalable vector at a compile time.";
     }
     return lanes_as_int;
   }
@@ -127,7 +129,7 @@ class DataType {
   int vscale_factor() const {
     int lanes_as_int = static_cast<int16_t>(data_.lanes);
     if (lanes_as_int >= -1) {
-      LOG(FATAL) << "A fixed length vector doesn't have a vscale factor.";
+      TVM_FFI_THROW(InternalError) << "A fixed length vector doesn't have a vscale factor.";
     }
     return -lanes_as_int;
   }
@@ -137,8 +139,10 @@ class DataType {
   }
   /*! \return whether type is a scalar type. */
   bool is_scalar() const { return !is_scalable_vector() && lanes() == 1; }
-  /*! \return whether type is a scalar type. */
-  bool is_bool() const { return code() == DataType::kUInt && bits() == 1; }
+  /*! \return whether type is a bool type. */
+  bool is_bool() const { return code() == DataType::kBool; }
+  /*! \return whether type can be used in a predicate expression. */
+  bool is_predicate_dtype() const { return is_bool() || (is_uint() && bits() == 1); }
   /*! \return whether type is a float type. */
   bool is_float() const { return code() == DataType::kFloat; }
   /*! \return whether type is a bfloat type. */
@@ -204,9 +208,11 @@ class DataType {
   /*! \return whether type is a vector type. */
   bool is_vector() const { return lanes() > 1; }
   /*! \return whether type is a bool vector type. */
-  bool is_vector_bool() const { return is_scalable_or_fixed_length_vector() && bits() == 1; }
+  bool is_vector_bool() const { return is_scalable_or_fixed_length_vector() && is_bool(); }
   /*! \return whether type is a Void type. */
-  bool is_void() const { return code() == DataType::kHandle && bits() == 0 && lanes() == 0; }
+  bool is_void() const {
+    return code() == DataType::kHandle && bits() == 0 && static_cast<int16_t>(data_.lanes) == 0;
+  }
   /*!
    * \brief Create a new data type by change lanes to a specified value.
    * \param lanes The target number of lanes.
@@ -379,7 +385,7 @@ class DataType {
    * \return The constructed data type.
    */
   static DataType Bool(int lanes = 1, bool is_scalable = false) {
-    return DataType::UInt(1, lanes, is_scalable);
+    return DataType(kDLBool, 8, lanes, is_scalable);
   }
   /*!
    * \brief Construct a handle type.
@@ -422,7 +428,7 @@ inline int GetVectorBytes(DataType dtype) {
       dtype == DataType::Float6E2M3FN() || dtype == DataType::Float6E3M2FN()) {
     return 1;
   }
-  ICHECK_EQ(data_bits % 8, 0U) << "Need to load/store by multiple of bytes";
+  TVM_FFI_ICHECK_EQ(data_bits % 8, 0U) << "Need to load/store by multiple of bytes";
   return data_bits / 8;
 }
 
@@ -465,6 +471,7 @@ struct TypeTraits<runtime::DataType> : public TypeTraitsBase {
   TVM_FFI_INLINE static void CopyToAnyView(const runtime::DataType& src, TVMFFIAny* result) {
     // clear padding part to ensure the equality check can always check the v_uint64 part
     result->v_uint64 = 0;
+    result->zero_padding = 0;
     result->type_index = TypeIndex::kTVMFFIDataType;
     result->v_dtype = src;
   }
@@ -472,6 +479,7 @@ struct TypeTraits<runtime::DataType> : public TypeTraitsBase {
   TVM_FFI_INLINE static void MoveToAny(runtime::DataType src, TVMFFIAny* result) {
     // clear padding part to ensure the equality check can always check the v_uint64 part
     result->v_uint64 = 0;
+    result->zero_padding = 0;
     result->type_index = TypeIndex::kTVMFFIDataType;
     result->v_dtype = src;
   }
@@ -493,6 +501,10 @@ struct TypeTraits<runtime::DataType> : public TypeTraitsBase {
   }
 
   TVM_FFI_INLINE static std::string TypeStr() { return ffi::StaticTypeKey::kTVMFFIDataType; }
+
+  TVM_FFI_INLINE static std::string TypeSchema() {
+    return R"({"type":")" + std::string(ffi::StaticTypeKey::kTVMFFIDataType) + R"("})";
+  }
 };
 
 }  // namespace ffi

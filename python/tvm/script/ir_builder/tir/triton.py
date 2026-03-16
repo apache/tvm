@@ -14,9 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: RUF005
 """Triton kernel integration with TIR"""
 
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any
 
 import triton
 from packaging import version
@@ -44,10 +45,10 @@ class TritonKernel(BaseKernel):
 
     def compile_to_device_module(
         self,
-        launch_args: List[Union[int, tir.PrimExpr]],
-        *args: List[Any],
-        **kwargs: Dict[str, Any],
-    ) -> Tuple[str, Module, List[Any]]:
+        launch_args: list[int | tir.PrimExpr],
+        *args: list[Any],
+        **kwargs: dict[str, Any],
+    ) -> tuple[str, Module, list[Any]]:
         """Compile the kernel to a device module.
 
         Parameters
@@ -92,13 +93,13 @@ class TritonKernel(BaseKernel):
 
     def _generate_triton_kernel(
         self, func, *args, **kwargs
-    ) -> Tuple["triton.compiler.CompiledKernel", List[tir.PrimExpr]]:
+    ) -> tuple["triton.compiler.CompiledKernel", list[tir.PrimExpr]]:
         """Deduce the kernel signature and generate the Triton kernel"""
 
         kernel_params = func.params
-        assert len(kernel_params) == len(
-            args
-        ), f"Number of arguments does not match, expected {len(kernel_params)}, got {len(args)}"
+        assert len(kernel_params) == len(args), (
+            f"Number of arguments does not match, expected {len(kernel_params)}, got {len(args)}"
+        )
 
         signature = {}
         constants = {}

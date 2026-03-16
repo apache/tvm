@@ -24,19 +24,18 @@
 #include <tvm/relax/exec_builder.h>
 
 #include <sstream>
+#include <unordered_set>
 
 namespace tvm {
 namespace relax {
 
 using namespace vm;
 
-TVM_FFI_STATIC_INIT_BLOCK({ ExecBuilderNode::RegisterReflection(); });
-
-TVM_REGISTER_NODE_TYPE(ExecBuilderNode);
+TVM_FFI_STATIC_INIT_BLOCK() { ExecBuilderNode::RegisterReflection(); }
 
 ExecBuilder ExecBuilderNode::Create() {
-  ExecBuilder ret(make_object<ExecBuilderNode>());
-  ret->exec_ = make_object<VMExecutable>();
+  ExecBuilder ret(ffi::make_object<ExecBuilderNode>());
+  ret->exec_ = ffi::make_object<VMExecutable>();
   return ret;
 }
 
@@ -48,6 +47,10 @@ ObjectPtr<VMExecutable> ExecBuilderNode::Get() {
   return exec_;
 }
 
+void ExecBuilderNode::SaveMemoryScope(vm::Instruction::Arg idx, ffi::String scope) {
+  exec_->memory_scopes[idx.value()] = scope;
+}
+
 vm::Instruction::Arg ExecBuilderNode::ConvertConstant_(Any cvalue) {
   // emit constant immediate as immediate.
   if (auto opt_int = cvalue.as<int64_t>()) {
@@ -56,30 +59,21 @@ vm::Instruction::Arg ExecBuilderNode::ConvertConstant_(Any cvalue) {
       return vm::Instruction::Arg::Immediate(val);
     }
   }
-
   // run dedup for object with structural equality
-  if (auto opt_obj = cvalue.as<ObjectRef>()) {
-    ObjectRef obj = opt_obj.value();
-    auto it = const_dedup_map_.find(obj);
-    if (it != const_dedup_map_.end()) {
-      return vm::Instruction::Arg::ConstIdx(it->second);
-    }
-    vm::Index idx = exec_->constants.size();
-    exec_->constants.push_back(cvalue);
-    const_dedup_map_[obj] = idx;
-    return vm::Instruction::Arg::ConstIdx(idx);
-  } else {
-    // emit normal constant
-    vm::Index idx = exec_->constants.size();
-    exec_->constants.push_back(cvalue);
-    return vm::Instruction::Arg::ConstIdx(idx);
+  auto it = const_dedup_map_.find(cvalue);
+  if (it != const_dedup_map_.end()) {
+    return vm::Instruction::Arg::ConstIdx(it->second);
   }
+  vm::Index idx = exec_->constants.size();
+  exec_->constants.push_back(cvalue);
+  const_dedup_map_[cvalue] = idx;
+  return vm::Instruction::Arg::ConstIdx(idx);
 }
 
 void ExecBuilderNode::DeclareFunction(const std::string& func_name, VMFuncInfo::FuncKind kind) {
   auto it = exec_->func_map.find(func_name);
   if (it != exec_->func_map.end()) {
-    ICHECK(kind == exec_->func_table[it->second].kind)
+    TVM_FFI_ICHECK(kind == exec_->func_table[it->second].kind)
         << "Function " << func_name << "already declared in a different kind";
     return;
   }
@@ -96,23 +90,23 @@ void ExecBuilderNode::DeclareFunction(const std::string& func_name, VMFuncInfo::
 
 vm::Instruction::Arg ExecBuilderNode::GetFunction(const std::string& func_name) {
   auto it = exec_->func_map.find(func_name);
-  ICHECK(it != exec_->func_map.end()) << "Cannot find function " << func_name;
+  TVM_FFI_ICHECK(it != exec_->func_map.end()) << "Cannot find function " << func_name;
   return vm::Instruction::Arg::FuncIdx(it->second);
 }
 
 void ExecBuilderNode::EmitFunction(const std::string& func_name, int64_t num_inputs,
-                                   Optional<Array<String>> param_names,
+                                   ffi::Optional<ffi::Array<ffi::String>> param_names,
                                    vm::VMFuncInfo::FuncKind kind, int64_t init_register_size) {
   auto it = exec_->func_map.find(func_name);
   if (it == exec_->func_map.end()) {
     this->DeclareFunction(func_name, kind);
   }
   auto& vmfunc = exec_->func_table.at(exec_->func_map.at(func_name));
-  ICHECK_EQ(vmfunc.name, func_name);
-  ICHECK_EQ(vmfunc.num_args, -2) << "Function " << func_name << " already defined";
+  TVM_FFI_ICHECK_EQ(vmfunc.name, func_name);
+  TVM_FFI_ICHECK_EQ(vmfunc.num_args, -2) << "Function " << func_name << " already defined";
   vmfunc.num_args = num_inputs;
   if (param_names.defined()) {
-    ICHECK_EQ(num_inputs, param_names.value().size())
+    TVM_FFI_ICHECK_EQ(num_inputs, param_names.value().size())
         << "Function " << func_name << " defined with " << num_inputs << " arguments, "
         << "but the list of parameter names has " << param_names.value().size() << " names ("
         << param_names << ")";
@@ -130,9 +124,9 @@ void ExecBuilderNode::EmitFunction(const std::string& func_name, int64_t num_inp
 
 void ExecBuilderNode::EndFunction(const std::string& func_name) {
   auto it = exec_->func_map.find(func_name);
-  ICHECK(it != exec_->func_map.end());
+  TVM_FFI_ICHECK(it != exec_->func_map.end());
   VMFuncInfo& vmfunc = exec_->func_table.at(it->second);
-  ICHECK_EQ(vmfunc.end_instr, 0) << "EndFuncton can only be called once";
+  TVM_FFI_ICHECK_EQ(vmfunc.end_instr, 0) << "EndFuncton can only be called once";
 
   if (vmfunc.kind == vm::VMFuncInfo::FuncKind::kVMFunc) {
     vmfunc.end_instr = exec_->instr_offset.size();
@@ -141,7 +135,7 @@ void ExecBuilderNode::EndFunction(const std::string& func_name) {
 
 void ExecBuilderNode::EmitCall(vm::Instruction::Arg func, std::vector<vm::Instruction::Arg> args,
                                vm::RegName dst) {
-  ICHECK(func.kind() == vm::Instruction::ArgKind::kFuncIdx);
+  TVM_FFI_ICHECK(func.kind() == vm::Instruction::ArgKind::kFuncIdx);
   // store instruction
   exec_->instr_offset.push_back(exec_->instr_data.size());
   exec_->instr_data.push_back(static_cast<ExecWord>(Opcode::Call));
@@ -164,7 +158,7 @@ void ExecBuilderNode::EmitCall(const std::string& func, std::vector<Instruction:
 }
 
 void ExecBuilderNode::EmitRet(vm::Instruction::Arg result) {
-  ICHECK(result.kind() == vm::Instruction::ArgKind::kRegister);
+  TVM_FFI_ICHECK(result.kind() == vm::Instruction::ArgKind::kRegister);
   exec_->instr_offset.push_back(exec_->instr_data.size());
   exec_->instr_data.push_back(static_cast<ExecWord>(Opcode::Ret));
   exec_->instr_data.push_back(result.value());
@@ -177,7 +171,7 @@ void ExecBuilderNode::EmitGoto(Index pc_offset) {
 }
 
 void ExecBuilderNode::EmitIf(vm::Instruction::Arg cond, vm::Index false_offset) {
-  ICHECK(cond.kind() == vm::Instruction::ArgKind::kRegister);
+  TVM_FFI_ICHECK(cond.kind() == vm::Instruction::ArgKind::kRegister);
   exec_->instr_offset.push_back(exec_->instr_data.size());
   exec_->instr_data.push_back(static_cast<ExecWord>(Opcode::If));
   exec_->instr_data.push_back(cond.value());
@@ -188,7 +182,7 @@ void ExecBuilderNode::CheckExecutable() {
   for (auto it = exec_->func_table.cbegin(); it != exec_->func_table.cend(); ++it) {
     if (it->kind == VMFuncInfo::FuncKind::kPackedFunc) continue;
     if (it->kind == VMFuncInfo::FuncKind::kVMTIRFunc) {
-      ICHECK_GE(it->register_file_size, it->num_args + 1)
+      TVM_FFI_ICHECK_GE(it->register_file_size, it->num_args + 1)
           << "Function " << it->name << " do not meet register file constraint.";
       continue;
     }
@@ -198,7 +192,7 @@ void ExecBuilderNode::CheckExecutable() {
     size_t start_instr = it->start_instr;
     size_t end_instr = it->end_instr;
 
-    CHECK_LT(start_instr, end_instr)
+    TVM_FFI_ICHECK_LT(start_instr, end_instr)
         << "Function " << it->name << " EndFunction has not be been called";
 
     auto check_reg_defined = [&](Instruction::Arg arg) {
@@ -207,23 +201,23 @@ void ExecBuilderNode::CheckExecutable() {
       if (arg.value() < num_inputs) return;
 
       if (dst_registers.find(arg.value()) == dst_registers.end()) {
-        LOG(FATAL) << "register r(" << arg.value() << ") in VM function \"" << it->name
-                   << "\" is used as input while it is never defined"
-                   << " as a destination. Dump:\n"
-                   << exec_->AsText();
+        TVM_FFI_THROW(InternalError) << "register r(" << arg.value() << ") in VM function \""
+                                     << it->name << "\" is used as input while it is never defined"
+                                     << " as a destination. Dump:\n"
+                                     << exec_->AsText();
       }
     };
 
     auto check_const_defined = [&](Instruction::Arg arg) {
       if (arg.kind() != Instruction::ArgKind::kConstIdx) return;
-      CHECK_LT(arg.value(), exec_->constants.size())
+      TVM_FFI_ICHECK_LT(arg.value(), exec_->constants.size())
           << "Constant index " << arg.value() << " exceed size of constant pool. Dump:\n"
           << exec_->AsText();
     };
 
     auto check_func_defined = [&](Instruction::Arg arg) {
       if (arg.kind() != Instruction::ArgKind::kFuncIdx) return;
-      CHECK_LT(arg.value(), exec_->func_table.size())
+      TVM_FFI_ICHECK_LT(arg.value(), exec_->func_table.size())
           << "Func index " << arg.value() << " exceed size of fun_table. Dump:\n"
           << exec_->AsText();
     };
@@ -250,17 +244,18 @@ void ExecBuilderNode::CheckExecutable() {
           break;
         }
         case Opcode::Goto: {
-          ICHECK_NE(instr.pc_offset, 0);
+          TVM_FFI_ICHECK_NE(instr.pc_offset, 0);
           break;
         }
         case Opcode::If: {
-          ICHECK_GT(instr.false_offset, 1);
+          TVM_FFI_ICHECK_GT(instr.false_offset, 1);
           check_reg_defined(Instruction::Arg::Register(instr.cond));
           arg_registers.emplace(instr.cond);
           break;
         }
         default:
-          LOG(FATAL) << "should never hit this case: " << static_cast<int>(instr.op);
+          TVM_FFI_THROW(InternalError)
+              << "should never hit this case: " << static_cast<int>(instr.op);
           break;
       }
     }
@@ -322,7 +317,8 @@ void ExecBuilderNode::Formalize() {
           break;
         }
         default:
-          LOG(FATAL) << "should never hit this case: " << static_cast<int>(instr.op);
+          TVM_FFI_THROW(InternalError)
+              << "should never hit this case: " << static_cast<int>(instr.op);
           break;
       }
     }
@@ -330,7 +326,7 @@ void ExecBuilderNode::Formalize() {
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("relax.ExecBuilderCreate", ExecBuilderNode::Create)
@@ -342,17 +338,17 @@ TVM_FFI_STATIC_INIT_BLOCK({
                     *ret = builder->ConvertConstant(rt).data();
                   })
       .def("relax.ExecBuilderEmitFunction",
-           [](ExecBuilder builder, String func, int64_t num_inputs,
-              Optional<Array<String>> param_names) {
+           [](ExecBuilder builder, ffi::String func, int64_t num_inputs,
+              ffi::Optional<ffi::Array<ffi::String>> param_names) {
              builder->EmitFunction(func, num_inputs, param_names);
            })
       .def_method("relax.ExecBuilderEndFunction", &ExecBuilderNode::EndFunction)
       .def("relax.ExecBuilderDeclareFunction",
-           [](ExecBuilder builder, String name, int32_t kind) {
+           [](ExecBuilder builder, ffi::String name, int32_t kind) {
              builder->DeclareFunction(name, static_cast<VMFuncInfo::FuncKind>(kind));
            })
       .def("relax.ExecBuilderEmitCall",
-           [](ExecBuilder builder, String name, Array<IntImm> args, int64_t dst) {
+           [](ExecBuilder builder, ffi::String name, ffi::Array<IntImm> args, int64_t dst) {
              std::vector<Instruction::Arg> args_;
              for (size_t i = 0; i < args.size(); ++i) {
                args_.push_back(Instruction::Arg::FromData(args[i]->value));
@@ -381,13 +377,14 @@ TVM_FFI_STATIC_INIT_BLOCK({
            [](ExecBuilder builder, int64_t value) {
              return Instruction::Arg::ConstIdx(value).data();
            })
-      .def("relax.ExecBuilderF",
-           [](ExecBuilder builder, String value) { return builder->GetFunction(value).data(); })
+      .def(
+          "relax.ExecBuilderF",
+          [](ExecBuilder builder, ffi::String value) { return builder->GetFunction(value).data(); })
       .def("relax.ExecBuilderGet", [](ExecBuilder builder) {
         ObjectPtr<VMExecutable> p_exec = builder->Get();
-        return runtime::Module(p_exec);
+        return ffi::Module(p_exec);
       });
-});
+}
 
 }  // namespace relax
 }  // namespace tvm

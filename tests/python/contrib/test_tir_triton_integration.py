@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401
 import sys
 
 import numpy as np
@@ -63,7 +64,7 @@ def test_tir_triton_integration():
             x = T.match_buffer(x_handle, (m,), "float32")
             y = T.match_buffer(y_handle, (m,), "float32")
             output = T.match_buffer(output_handle, (m,), "float32")
-            with T.block("root"):
+            with T.sblock("root"):
                 T.reads(x[0:m], y[0:m])
                 T.writes(output[0:m])
                 BLOCK_SIZE = T.meta_var(64)
@@ -93,7 +94,7 @@ def test_tir_triton_integration():
             x = T.match_buffer(x_handle, (m,))
             y = T.match_buffer(y_handle, (m,))
             output = T.match_buffer(output_handle, (m,))
-            with T.block("root"):
+            with T.sblock("root"):
                 T.reads(x[0:m], y[0:m])
                 T.writes(output[0:m])
                 T.call_packed(
@@ -110,8 +111,8 @@ def test_tir_triton_integration():
     assert len(Module.get_attr("external_mods")) == 1
 
     device = tvm.cuda(0)
-    x_nd = tvm.nd.array(np.random.rand(256).astype(np.float32), device)
-    y_nd = tvm.nd.array(np.random.rand(256).astype(np.float32), device)
+    x_nd = tvm.runtime.tensor(np.random.rand(256).astype(np.float32), device)
+    y_nd = tvm.runtime.tensor(np.random.rand(256).astype(np.float32), device)
     output_np = x_nd.numpy() + y_nd.numpy()
 
     with tvm.target.Target("cuda"):

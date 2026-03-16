@@ -181,7 +181,7 @@ std::string CodeGenOpenCL::Finish() {
 }
 
 void CodeGenOpenCL::BindThreadIndex(const IterVar& iv) {
-  ICHECK(!var_idmap_.count(iv->var.get()));
+  TVM_FFI_ICHECK(!var_idmap_.count(iv->var.get()));
   runtime::ThreadScope ts = runtime::ThreadScope::Create(iv->thread_tag);
   std::ostringstream os;
   if (ts.rank == 1) {
@@ -195,7 +195,7 @@ void CodeGenOpenCL::BindThreadIndex(const IterVar& iv) {
 void CodeGenOpenCL::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
   int lanes = t.lanes();
   if (t.is_handle()) {
-    ICHECK_EQ(lanes, 1) << "do not yet support vector types";
+    TVM_FFI_ICHECK_EQ(lanes, 1) << "do not yet support vector types";
     os << "void*";
     return;
   }
@@ -230,14 +230,15 @@ void CodeGenOpenCL::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
       os << lanes;
       return;
     }
+  } else if (t.is_bool()) {
+    os << "uint";
+    if (!fail && ((lanes >= 2 && lanes <= 4) || lanes == 8 || lanes == 16)) {
+      os << lanes;
+      return;
+    }
   } else if (t.is_uint() || t.is_int()) {
     if (t.is_uint()) {
       os << 'u';
-    }
-    if (t.bits() == 8 && t.lanes() == 4) {
-      // directly 4 8 bit int in integer.
-      os << "int";
-      return;
     }
     switch (t.bits()) {
       case 8:
@@ -265,7 +266,7 @@ void CodeGenOpenCL::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
       return;
     }
   }
-  LOG(FATAL) << "Cannot convert type " << t << " to OpenCL type";
+  TVM_FFI_THROW(InternalError) << "Cannot convert type " << t << " to OpenCL type";
 }
 
 void CodeGenOpenCL::PrintType(const Type& type, std::ostream& os) {  // NOLINT(*)
@@ -273,7 +274,7 @@ void CodeGenOpenCL::PrintType(const Type& type, std::ostream& os) {  // NOLINT(*
     return PrintType(ptr->dtype, os);
   } else if (auto* ptr = type.as<PointerTypeNode>()) {
     if (runtime::IsTextureStorage(std::string(ptr->storage_scope))) {
-      os << "image2d_t";
+      os << "image2d_array_t";
     } else {
       PrintType(ptr->element_type, os);
       os << '*';
@@ -281,7 +282,7 @@ void CodeGenOpenCL::PrintType(const Type& type, std::ostream& os) {  // NOLINT(*
   } else if (IsVoidType(type)) {
     os << "void";
   } else {
-    LOG(FATAL) << "Type " << type << " does not have a corresponding C Type";
+    TVM_FFI_THROW(InternalError) << "Type " << type << " does not have a corresponding C Type";
   }
 }
 
@@ -318,7 +319,7 @@ void CodeGenOpenCL::PrintVecStore(const BufferNode* buffer, DataType t, PrimExpr
 
 void CodeGenOpenCL::PrintVecElemLoadExpr(DataType t, int i, const std::string& value,
                                          std::ostream& os) {  // NOLINT(*)
-  ICHECK_GT(t.lanes(), 1);
+  TVM_FFI_ICHECK_GT(t.lanes(), 1);
   if (t.bits() == 8 && (t.is_int() || t.is_uint())) {
     if (i != 0) {
       os << "|";
@@ -350,7 +351,7 @@ void CodeGenOpenCL::PrintStorageSync(const CallNode* op) {
     this->PrintIndent();
     this->stream << "barrier(CLK_LOCAL_MEM_FENCE);\n";
   } else if (sync == "global") {
-    LOG(FATAL) << "not supported";
+    TVM_FFI_THROW(InternalError) << "not supported";
   }
 }
 
@@ -397,8 +398,15 @@ std::string CodeGenOpenCL::CastTo(std::string value, DataType target) {
   }
 }
 
-void CodeGenOpenCL::VisitStmt_(const AllocateNode* op) {
-  allocation_size_.insert({op->buffer_var.get(), op->ConstantAllocationSize() * op->dtype.lanes()});
+void CodeGenOpenCL::VisitStmt_(const AllocBufferNode* op) {
+  // Compute constant_size from buffer shape
+  size_t constant_size = 1;
+  for (const auto& dim : op->buffer->shape) {
+    const IntImmNode* dim_imm = dim.as<IntImmNode>();
+    TVM_FFI_ICHECK(dim_imm) << "Can only handle constant size stack allocation for now";
+    constant_size *= dim_imm->value;
+  }
+  allocation_size_.insert({op->buffer->data.get(), constant_size * op->buffer->dtype.lanes()});
   CodeGenC::VisitStmt_(op);
 }
 
@@ -406,8 +414,9 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
   if (op->op.same_as(builtin::address_of())) {
     // Overload tvm_address_of to add storage scope (e.g. __global).
     const BufferLoadNode* load = op->args[0].as<BufferLoadNode>();
-    ICHECK(op->args.size() == 1 && load);
-    ICHECK_EQ(load->indices.size(), 1) << "CodeGenOpenCL only supports flat memory allocations.";
+    TVM_FFI_ICHECK(op->args.size() == 1 && load);
+    TVM_FFI_ICHECK_EQ(load->indices.size(), 1)
+        << "CodeGenOpenCL only supports flat memory allocations.";
     os << "((";
     auto it = alloc_storage_scope_.find(load->buffer->data.get());
     if (it != alloc_storage_scope_.end()) {
@@ -419,50 +428,88 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
     os << ')';
   } else if (op->op.same_as(builtin::texture2d_store())) {
     auto* ptr_type = op->args[0].as<VarNode>()->type_annotation.as<PointerTypeNode>();
-    ICHECK(ptr_type != nullptr) << "Texture Var's must be of PointerType";
-    ICHECK(runtime::IsTextureStorage(std::string(ptr_type->storage_scope)))
+    TVM_FFI_ICHECK(ptr_type != nullptr) << "Texture Var's must be of PointerType";
+    TVM_FFI_ICHECK(runtime::IsTextureStorage(std::string(ptr_type->storage_scope)))
         << "builtin::texture2d_store() only supports storing to texture buffers";
+    const int channel_size = Downcast<IntImm>(op->args[4])->value;
+    TVM_FFI_ICHECK(channel_size == 64 || channel_size == 128)
+        << "Unsupported Channel Size: " << channel_size;
+    DataType channel_type = runtime::GetChannelType(channel_size);
+
     DataType buffer_type = ptr_type->element_type.as<PrimTypeNode>()->dtype;
-    if (buffer_type.is_float16()) {
+    std::stringstream ss;
+    this->PrintExpr(op->args[5], ss);
+    std::string value;
+    value = this->SSAGetID(ss.str(), buffer_type.with_lanes(channel_size / buffer_type.bits()));
+    if (channel_size == 64) {
       os << "write_imageh(";
-    } else if (buffer_type.is_float()) {
+    } else if (channel_size == 128) {
       os << "write_imagef(";
     } else {
-      LOG(FATAL) << "Unsupported type: " << buffer_type
-                 << ", currently only float and half are supported for image2d OpenCL codegen.";
+      TVM_FFI_THROW(InternalError) << "Unsupported Channel Size: " << channel_size;
     }
     this->PrintExpr(op->args[0], os);
     os << ", ";
-    os << "(int2)(";
+    os << "(int4)(";
     this->PrintExpr(op->args[1], os);
     os << ", ";
     this->PrintExpr(op->args[2], os);
-    os << "), ";
+    os << ", ";
     this->PrintExpr(op->args[3], os);
+    os << ", ";
+    this->PrintExpr(make_const(DataType::Int(32), 0), os);
+    os << "), ";
+    os << "as_";
+    this->PrintType(channel_type, os);
+    os << "(" << value << ")";
     os << ")";
   } else if (op->op.same_as(builtin::texture2d_load())) {
     enable_compliant_texture_reads_ = true;
     std::stringstream ss;
-    if (op->dtype.is_float16()) {
+    const int channel_size = Downcast<IntImm>(op->args[4])->value;
+    const int data_lanes = channel_size / op->dtype.bits();
+    TVM_FFI_ICHECK(channel_size == 64 || channel_size == 128)
+        << "Unsupported Channel Size: " << channel_size;
+    ss << "as_";
+    this->PrintType(op->dtype.with_lanes(data_lanes), ss);
+    ss << "(";
+    if (channel_size == 64) {
       ss << "READ_IMAGEH(";
-    } else if (op->dtype.is_float()) {
+    } else if (channel_size == 128) {
       ss << "READ_IMAGEF(";
     } else {
-      LOG(FATAL) << "Unsupported type: " << op->dtype
-                 << ", currently only float and half are supported for image2d OpenCL codegen.";
+      TVM_FFI_THROW(InternalError) << "Unsupported Channel Size: " << channel_size;
     }
     this->PrintExpr(op->args[0], ss);
     ss << ", ";
     ss << "image_sampler, ";
-    ss << "((int2)(";
+    ss << "((int4)(";
     this->PrintExpr(op->args[1], ss);
     ss << ", ";
     this->PrintExpr(op->args[2], ss);
-    ss << ")))";
+    ss << ", ";
+    this->PrintExpr(op->args[3], ss);
+    ss << ", ";
+    this->PrintExpr(make_const(DataType::Int(32), 0), ss);
+    ss << "))))";
 
-    std::string rhs = SSAGetID(ss.str(), op->dtype.with_lanes(4));
-    if (op->args.back().as<RampNode>()) {
-      os << rhs;
+    std::string rhs = SSAGetID(ss.str(), op->dtype.with_lanes(data_lanes));
+    if (auto ramp = op->args.back().as<RampNode>()) {
+      if (ramp->base.as<IntImmNode>() && *tir::as_const_int(ramp->base) == 0 &&
+          *tir::as_const_int(ramp->lanes) == data_lanes && *tir::as_const_int(ramp->stride) == 1) {
+        os << rhs;
+      } else if (*tir::as_const_int(ramp->stride) == 1) {
+        os << "(*(";
+        this->PrintType(op->dtype.with_lanes(*tir::as_const_int(ramp->lanes)), os);
+        os << "*)";
+        os << "((";
+        this->PrintType(op->dtype.with_lanes(1), os);
+        os << "*)&" << rhs << " + ";
+        this->PrintExpr(ramp->base, os);
+        os << "))";
+      } else {
+        TVM_FFI_THROW(InternalError) << "Unsupported Texture Load Args";
+      }
     } else {
       os << "((";
       this->PrintType(op->dtype.with_lanes(1), os);
@@ -475,10 +522,10 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
     // Enable atomics extension if used.
     if (func->value == "atomic_add" && op->dtype.is_float()) {
       enable_atomics_ = true;
-      this->PrintCallExtern(GetType(GetRef<PrimExpr>(op)), "atomic_add_float_emu", op->args, true,
-                            os);
+      this->PrintCallExtern(GetType(ffi::GetRef<PrimExpr>(op)), "atomic_add_float_emu", op->args,
+                            true, os);
     } else if (func->value == "nearbyint") {
-      this->PrintCallExtern(GetType(GetRef<PrimExpr>(op)), "round", op->args, true, os);
+      this->PrintCallExtern(GetType(ffi::GetRef<PrimExpr>(op)), "round", op->args, true, os);
     } else {
       if (func->value == "atomic_add") {
         enable_atomics_ = true;
@@ -559,8 +606,8 @@ void CodeGenOpenCL::VisitExpr_(const ModNode* op, std::ostream& os) {  // NOLINT
   if (op->dtype.is_int() || op->dtype.is_uint()) {
     opstr = "%";
   } else {
-    ICHECK(op->dtype.is_float()) << "Expected floating point or integer dtype in Mod, but got "
-                                 << op->dtype;
+    TVM_FFI_ICHECK(op->dtype.is_float())
+        << "Expected floating point or integer dtype in Mod, but got " << op->dtype;
     opstr = "fmod";
   }
   if (op->dtype.lanes() == 1) {
@@ -633,9 +680,9 @@ void CodeGenOpenCL::SetTextureScope(
   }
 }
 
-runtime::Module BuildOpenCL(IRModule mod, Target target) {
+ffi::Module BuildOpenCL(IRModule mod, Target target) {
 #if TVM_ENABLE_SPIRV
-  Optional<String> device = target->GetAttr<String>("device");
+  ffi::Optional<ffi::String> device = target->GetAttr<ffi::String>("device");
   if (device && device.value() == "spirv") {
     auto [smap, spirv_text] = LowerToSPIRV(mod, target);
     return runtime::OpenCLModuleCreate(smap, spirv_text, ExtractFuncInfo(mod));
@@ -644,12 +691,13 @@ runtime::Module BuildOpenCL(IRModule mod, Target target) {
 
   bool output_ssa = false;
 
-  Map<GlobalVar, PrimFunc> functions;
+  ffi::Map<GlobalVar, PrimFunc> functions;
   for (auto [gvar, base_func] : mod->functions) {
-    ICHECK(base_func->IsInstance<PrimFuncNode>()) << "CodeGenOpenCL: Can only take PrimFunc";
+    TVM_FFI_ICHECK(base_func->IsInstance<PrimFuncNode>())
+        << "CodeGenOpenCL: Can only take PrimFunc";
     auto prim_func = Downcast<PrimFunc>(base_func);
     auto calling_conv = prim_func->GetAttr<Integer>(tvm::attr::kCallingConv);
-    ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch)
+    TVM_FFI_ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch)
         << "CodeGenOpenCL: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
     functions.Set(gvar, prim_func);
   }
@@ -674,25 +722,23 @@ runtime::Module BuildOpenCL(IRModule mod, Target target) {
   return OpenCLModuleCreate(code.str(), "cl", ExtractFuncInfo(mod), code.str());
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("target.build.opencl", BuildOpenCL);
-});
+}
 
-String DeviceScopeCompatibilityFromTarget(Target target, String memory_scope) {
-  auto prototype_keys = target->GetKeys();
-  bool is_adreno =
-      std::find(prototype_keys.begin(), prototype_keys.end(), "adreno") != prototype_keys.end();
+ffi::String DeviceScopeCompatibilityFromTarget(Target target, ffi::String memory_scope) {
+  bool is_adreno = target->HasKey("adreno");
   if (is_adreno) {
-    return String("global");
+    return ffi::String("global");
   }
   return memory_scope;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("DeviceScopeCompatibility.opencl", DeviceScopeCompatibilityFromTarget);
-});
+}
 
 }  // namespace codegen
 }  // namespace tvm

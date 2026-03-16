@@ -16,10 +16,11 @@
 # under the License.
 # pylint: disable=invalid-name, too-many-locals, too-many-arguments
 """Bitserial Dense operator."""
-from __future__ import absolute_import
+
 import tvm
 from tvm import te
 from tvm.topi.utils import get_const_tuple
+
 from .bitserial_util import bitpack
 
 

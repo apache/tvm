@@ -14,15 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401, F841
 """Sigmoid operator tests."""
 
 import numpy as np
 
 import tvm
 import tvm.testing
-from tvm import te
-from tvm import tir
-from tvm import topi
+from tvm import te, tir, topi
 from tvm.contrib.hexagon import allocate_hexagon_array
 
 from .infrastructure import get_hexagon_target
@@ -34,8 +33,8 @@ def sigmoid_compute(sigmoid_input):
 
 def sigmoid_stir_schedule(sigmoid_input, sigmoid_output):
     sigmoid_func = te.create_prim_func([sigmoid_input, sigmoid_output])
-    sch = tir.Schedule(sigmoid_func, debug_mask="all")
-    block = sch.get_block("compute")
+    sch = tvm.s_tir.Schedule(sigmoid_func, debug_mask="all")
+    block = sch.get_sblock("compute")
 
     (n,) = sch.get_loops(block)
     sch.vectorize(n)
@@ -43,7 +42,12 @@ def sigmoid_stir_schedule(sigmoid_input, sigmoid_output):
 
 
 class BaseSigmoid:
-    (in_shape, dtype, min_val, max_val,) = tvm.testing.parameters(
+    (
+        in_shape,
+        dtype,
+        min_val,
+        max_val,
+    ) = tvm.testing.parameters(
         ((64,), "float16", -8.0, 8.0),
         ((64,), "float16", -6.0, 7.0),
         ((64,), "float16", -10.0, 15.0),
@@ -94,9 +98,9 @@ class TestSigmoid(BaseSigmoid):
         with tvm.transform.PassContext(opt_level=3):
             runtime_module = tvm.compile(tir_s.mod, target=get_hexagon_target("v69"))
 
-        assert "hvx_sigmoid" in runtime_module.get_source("asm")
-        assert "vmin" in runtime_module.get_source("asm")
-        assert "vmax" in runtime_module.get_source("asm")
+        assert "hvx_sigmoid" in runtime_module.inspect_source("asm")
+        assert "vmin" in runtime_module.inspect_source("asm")
+        assert "vmax" in runtime_module.inspect_source("asm")
         mod = hexagon_session.load_module(runtime_module)
 
         mod(input_data, output_data)

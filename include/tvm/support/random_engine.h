@@ -92,7 +92,7 @@ class LinearCongruentialEngine {
       rand_state = 1;
     }
     if (rand_state < 0) {
-      LOG(FATAL) << "ValueError: Random seed must be non-negative";
+      TVM_FFI_THROW(ValueError) << "Random seed must be non-negative";
     }
     return rand_state;
   }
@@ -101,7 +101,7 @@ class LinearCongruentialEngine {
    * \param rand_state The random state given in result_type.
    */
   void Seed(TRandState rand_state) {
-    ICHECK(rand_state_ptr_ != nullptr);
+    TVM_FFI_ICHECK(rand_state_ptr_ != nullptr);
     *rand_state_ptr_ = NormalizeSeed(rand_state);
   }
 

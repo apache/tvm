@@ -14,11 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E741
 
 """FIFO buffer op"""
-from __future__ import absolute_import as _abs
+
 import tvm
 from tvm import te
+
 from .. import tag
 from ..transform import concatenate, strided_slice
 

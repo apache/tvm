@@ -14,8 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import time
+# ruff: noqa: F401
 import ctypes
+import time
 
 import tvm
 from tvm import te
@@ -27,7 +28,7 @@ def test_min_repeat_ms():
     tmp = tempdir()
     filename = tmp.relpath("log")
 
-    @tvm.register_func
+    @tvm.register_global_func
     def my_debug(filename):
         """one call lasts for 100 ms and writes one character to a file"""
         time.sleep(0.1)
@@ -37,11 +38,11 @@ def test_min_repeat_ms():
     X = te.compute((), lambda: tvm.tir.call_packed("my_debug", filename))
     func = tvm.tir.build(te.create_prim_func([X]))
 
-    x = tvm.nd.empty((), dtype="int32")
+    x = tvm.runtime.empty((), dtype="int32")
     ftimer = func.time_evaluator(func.entry_name, tvm.cpu(), number=1, repeat=1)
     ftimer(x)
 
-    with open(filename, "r") as fin:
+    with open(filename) as fin:
         ct = len(fin.readline())
 
     assert ct == 2
@@ -50,7 +51,7 @@ def test_min_repeat_ms():
     ftimer(x)
 
     # make sure we get more than 10 calls
-    with open(filename, "r") as fin:
+    with open(filename) as fin:
         ct = len(fin.readline())
 
     assert ct > 10 + 2

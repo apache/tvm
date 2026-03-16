@@ -47,8 +47,8 @@ sphinx_precheck() {
     clean_files
     echo "PreCheck sphinx doc generation WARNINGS.."
 
-    # setup cython
-    cd python; python3 setup.py build_ext --inplace; cd ..
+    # setup tvm-ffi into python folder
+    uv pip install -v --target=python ./3rdparty/tvm-ffi/
 
     pushd docs
     make clean
@@ -126,8 +126,8 @@ clean_files
 find . -type f -path "*.log" | xargs rm -f
 find . -type f -path "*.pyc" | xargs rm -f
 
-# setup cython
-cd python; python3 setup.py build_ext --inplace; cd ..
+# setup tvm-ffi into python folder
+uv pip install -v --target=python ./3rdparty/tvm-ffi/
 
 
 cd docs
@@ -149,11 +149,11 @@ if [ "$IS_LOCAL" == "1" ] && [ "$PYTHON_DOCS_ONLY" == "1" ]; then
 fi
 
 # C++ doc
-make cppdoc
+doxygen docs/Doxyfile
 rm -f docs/doxygen/html/*.map docs/doxygen/html/*.md5
 
 # Java doc
-make javadoc
+(cd jvm && mvn "javadoc:javadoc" -Dnotimestamp=true)
 
 # type doc
 cd web

@@ -23,15 +23,12 @@
  * compile code to compute it.
  */
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/node/reflection.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/target/virtual_device.h>
 
 namespace tvm {
 
-TVM_FFI_STATIC_INIT_BLOCK({ VirtualDeviceNode::RegisterReflection(); });
-
-TVM_REGISTER_NODE_TYPE(VirtualDeviceNode);
+TVM_FFI_STATIC_INIT_BLOCK() { VirtualDeviceNode::RegisterReflection(); }
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<VirtualDeviceNode>([](const ObjectRef& ref, ReprPrinter* p) {
@@ -56,7 +53,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
           if (need_sep) {
             p->stream << ", ";
           }
-          p->stream << "target=" << node->target->ToDebugString();
+          p->stream << "target=" << node->target->str();
           need_sep = true;
         }
         if (!node->memory_scope.empty()) {
@@ -71,10 +68,10 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 VirtualDevice::VirtualDevice(int device_type_int, int virtual_device_id, Target target,
                              MemoryScope memory_scope) {
-  ICHECK(!target.defined() || device_type_int == target->GetTargetDeviceType())
-      << "target " << target->ToDebugString() << " has device type "
-      << target->GetTargetDeviceType() << " but virtual device has device type " << device_type_int;
-  auto node = make_object<VirtualDeviceNode>();
+  TVM_FFI_ICHECK(!target.defined() || device_type_int == target->GetTargetDeviceType())
+      << "target " << target->str() << " has device type " << target->GetTargetDeviceType()
+      << " but virtual device has device type " << device_type_int;
+  auto node = ffi::make_object<VirtualDeviceNode>();
   node->device_type_int = device_type_int;
   node->virtual_device_id = virtual_device_id;
   node->target = std::move(target);
@@ -88,7 +85,8 @@ VirtualDevice::VirtualDevice(int device_type_int, int virtual_device_id, Target 
 }
 
 /* static */
-Optional<VirtualDevice> VirtualDevice::Join(const VirtualDevice& lhs, const VirtualDevice& rhs) {
+ffi::Optional<VirtualDevice> VirtualDevice::Join(const VirtualDevice& lhs,
+                                                 const VirtualDevice& rhs) {
   if (lhs == rhs) {
     return lhs;
   }
@@ -181,9 +179,9 @@ VirtualDevice VirtualDeviceCache::Make(int device_type, int virtual_device_id, T
     cache_.emplace(prototype);
     return prototype;
   } else {
-    ICHECK_EQ(prototype->target.defined(), (*itr)->target.defined());
+    TVM_FFI_ICHECK_EQ(prototype->target.defined(), (*itr)->target.defined());
     if (prototype->target.defined()) {
-      ICHECK_EQ(prototype->target->host.defined(), (*itr)->target->host.defined());
+      TVM_FFI_ICHECK_EQ(prototype->target->host.defined(), (*itr)->target->host.defined());
     }
     return *itr;
   }
@@ -194,10 +192,10 @@ VirtualDevice VirtualDeviceCache::Unique(const VirtualDevice& virtual_device) {
               virtual_device->target, virtual_device->memory_scope);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("target.VirtualDevice_ForDeviceTargetAndMemoryScope",
                         VirtualDevice::ForDeviceTargetAndMemoryScope);
-});
+}
 
 }  // namespace tvm

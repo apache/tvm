@@ -15,19 +15,20 @@
 # specific language governing permissions and limitations
 # under the License.
 """Util to invoke NDK compiler toolchain."""
-# pylint: disable=invalid-name
-from __future__ import absolute_import as _abs
 
-import subprocess
+# pylint: disable=invalid-name
 import os
 import shutil
-from typing import Dict
+import subprocess
 import tempfile
 from pathlib import Path
 
-from ..ffi import register_func
+from tvm_ffi import register_global_func
+
 from ..base import py_str
-from . import utils as _utils, tar as _tar, cc as _cc
+from . import cc as _cc
+from . import tar as _tar
+from . import utils as _utils
 from .cc import get_target_by_dump_machine
 
 
@@ -47,7 +48,7 @@ def create_shared(output, objects, options=None):
     """
     if "TVM_NDK_CC" not in os.environ:
         raise RuntimeError(
-            "Require environment variable TVM_NDK_CC" " to be the NDK standalone compiler"
+            "Require environment variable TVM_NDK_CC to be the NDK standalone compiler"
         )
     compiler = os.environ["TVM_NDK_CC"]
     cmd = [compiler]
@@ -90,7 +91,7 @@ def create_staticlib(output, inputs):
     """
     if "TVM_NDK_CC" not in os.environ:
         raise RuntimeError(
-            "Require environment variable TVM_NDK_CC" " to be the NDK standalone compiler"
+            "Require environment variable TVM_NDK_CC to be the NDK standalone compiler"
         )
     output_name = os.path.basename(output)
 
@@ -130,7 +131,7 @@ def create_staticlib(output, inputs):
 create_staticlib.output_format = "a"
 
 
-def get_global_symbol_section_map(path, *, nm=None) -> Dict[str, str]:
+def get_global_symbol_section_map(path, *, nm=None) -> dict[str, str]:
     """Get global symbols from a library via nm -gU in NDK
 
     Parameters
@@ -148,7 +149,7 @@ def get_global_symbol_section_map(path, *, nm=None) -> Dict[str, str]:
     """
     if "TVM_NDK_CC" not in os.environ:
         raise RuntimeError(
-            "Require environment variable TVM_NDK_CC" " to be the NDK standalone compiler"
+            "Require environment variable TVM_NDK_CC to be the NDK standalone compiler"
         )
     if nm is None:
         compiler = os.environ["TVM_NDK_CC"]
@@ -157,7 +158,7 @@ def get_global_symbol_section_map(path, *, nm=None) -> Dict[str, str]:
     return _cc.get_global_symbol_section_map(path, nm=nm)
 
 
-@register_func("meta_schedule.builder.export_ndk")
+@register_global_func("s_tir.meta_schedule.builder.export_ndk")
 def _ndk_export(mod):
     tmp_dir = tempfile.mkdtemp()
     binary_name = "tmp_binary.so"

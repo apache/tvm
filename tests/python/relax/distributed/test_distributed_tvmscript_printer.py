@@ -14,14 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501
 
 import tvm.testing
 from tvm.ir import Range
+from tvm.relax import TensorStructInfo
+from tvm.relax.distributed import DeviceMesh, DTensorStructInfo, Placement
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
 from tvm.script.parser import tir as T
-from tvm.relax.distributed import DeviceMesh, DTensorStructInfo, Placement
-from tvm.relax import TensorStructInfo
 
 
 def _assert_print(obj, expected):
@@ -91,7 +92,7 @@ class TestModule:
     ):
         T.func_attr({"tir.noalias": True})
         for i, j in T.grid(T.int64(128), T.int64(128)):
-            with T.block():
+            with T.sblock():
                 vi, vj = T.axis.remap("SS", [i, j])
                 y[vi, vj] = x[vi, vj] + 1.0
 
@@ -138,9 +139,9 @@ class Module:
     @T.prim_func
     def tir_func(x: T.Buffer((T.int64(128), T.int64(128)), "float32"), y: T.Buffer((T.int64(128), T.int64(128)), "float32")):
         T.func_attr({"tir.noalias": True})
-        # with T.block("root"):
+        # with T.sblock("root"):
         for i, j in T.grid(T.int64(128), T.int64(128)):
-            with T.block(""):
+            with T.sblock(""):
                 vi, vj = T.axis.remap("SS", [i, j])
                 T.reads(x[vi, vj])
                 T.writes(y[vi, vj])

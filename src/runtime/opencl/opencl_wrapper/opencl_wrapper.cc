@@ -33,7 +33,6 @@
 #include <dlfcn.h>
 #endif
 
-#define DMLC_USE_LOGGING_LIBRARY <tvm/runtime/logging.h>
 #include <tvm/runtime/logging.h>
 
 #include <cstring>
@@ -125,7 +124,7 @@ class LibOpenCLWrapper {
 #endif
       if (m_libHandler != nullptr) return;
     }
-    ICHECK(m_libHandler != nullptr) << "Error! Cannot open libOpenCL!";
+    TVM_FFI_ICHECK(m_libHandler != nullptr) << "Error! Cannot open libOpenCL!";
   }
 
  private:

@@ -39,12 +39,10 @@ namespace arith {
 
 using namespace tir;
 
-TVM_FFI_STATIC_INIT_BLOCK({ ModularSetNode::RegisterReflection(); });
-
-TVM_REGISTER_NODE_TYPE(ModularSetNode);
+TVM_FFI_STATIC_INIT_BLOCK() { ModularSetNode::RegisterReflection(); }
 
 ModularSet::ModularSet(int64_t coeff, int64_t base) {
-  auto node = make_object<ModularSetNode>();
+  auto node = ffi::make_object<ModularSetNode>();
   node->coeff = coeff;
   node->base = base;
   // finish construction.
@@ -60,10 +58,10 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 ModularSet MakeModularSet(int64_t coeff, int64_t base) { return ModularSet(coeff, base); }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("arith.ModularSet", MakeModularSet);
-});
+}
 
 // internal entry for const int bound
 struct ModularSetAnalyzer::Entry {
@@ -110,7 +108,7 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
     if (!allow_override) {
       auto it = var_map_.find(var);
       if (it != var_map_.end()) {
-        ICHECK(it->second == info)
+        TVM_FFI_ICHECK(it->second == info)
             << "Trying to update var \'" << var << "\'"
             << " with a different const bound: "
             << "original=" << ModularSet(it->second.coeff, it->second.base) << ", new=" << info;
@@ -186,7 +184,7 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
 
   Entry DivByConst(const PrimExpr& lhs, int64_t val, bool round_down) {
     Entry a = VisitExpr(lhs);
-    ICHECK_NE(val, 0);
+    TVM_FFI_ICHECK_NE(val, 0);
     if (a.coeff % val == 0) {
       if (a.base == 0) {
         // a c x  / c -> a x
@@ -237,7 +235,7 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
 
   Entry ModByConst(const PrimExpr& lhs, int64_t val, bool round_down) {
     Entry a = VisitExpr(lhs);
-    ICHECK_NE(val, 0);
+    TVM_FFI_ICHECK_NE(val, 0);
     int64_t coeff = ZeroAwareGCD(a.coeff, val);
     if (a.base % coeff == 0 ||
         (a.base > 0 && (round_down || parent_->CanProveGreaterEqual(lhs, 0)))) {
@@ -275,7 +273,7 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
   }
 
   Entry VisitExpr_(const VarNode* op) final {
-    Var v = GetRef<Var>(op);
+    Var v = ffi::GetRef<Var>(op);
     auto it = var_map_.find(v);
     if (it != var_map_.end()) {
       return it->second;

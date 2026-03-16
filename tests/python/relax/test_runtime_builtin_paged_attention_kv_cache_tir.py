@@ -14,15 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501, E741
 import itertools
-from typing import Dict, List, Optional, Tuple, Union
 
 import pytest
 import torch
 
 import tvm
 import tvm.testing
-from tvm import dlight as dl
 from tvm.relax.frontend.nn.llm.kv_cache import (
     AttnKind,
     RopeMode,
@@ -39,6 +38,7 @@ from tvm.relax.frontend.nn.llm.kv_cache import (
     tree_attn_with_paged_kv_cache,
 )
 from tvm.runtime import ShapeTuple
+from tvm.s_tir import dlight as dl
 
 reserved_nseq = 32
 maximum_total_seq_length = 2048
@@ -90,7 +90,10 @@ def set_global_func(head_dim, dtype):
     global fpopn, fbegin_forward, fend_forward, fcommit_accepted_token_tree_nodes
     global fattention_with_fuse_qkv, fis_empty, fdebug_get_kv
     global ftranspose_append, fcopy_cache, fattn_prefill, fattn_decode
-    global fattn_prefill_ragged, fattn_prefill_with_tree_mask, fattn_prefill_with_tree_mask_paged_kv_cache
+    global \
+        fattn_prefill_ragged, \
+        fattn_prefill_with_tree_mask, \
+        fattn_prefill_with_tree_mask_paged_kv_cache
     global fattn_prefill_sliding_window, fattn_decode_sliding_window
     global fmerge_state, fsplit_rotary, fattention_rotary, fcopy_single_page, fcompact_copy
 
@@ -142,7 +145,7 @@ def set_global_func(head_dim, dtype):
         with target:
             mod = dl.ApplyDefaultSchedule(dl.gpu.Fallback())(mod)
         f = tvm.tir.build(mod["main"], target=target)
-        builts.append(f.entry_func)
+        builts.append(f.main)
 
     (
         ftranspose_append,
@@ -184,7 +187,7 @@ def create_kv_cache(head_dim, dtype, rope_mode, support_sliding_window):
         rope_scale,
         rope_theta,
         None,  # rope_ext_factors
-        tvm.nd.empty((), dtype, device=device),
+        tvm.runtime.empty((), dtype, device=device),
         ftranspose_append,
         None,  # f_transpose_append_mla
         ["tir", fattn_prefill_ragged],
@@ -235,8 +238,8 @@ def verify_cached_kv(kv_cache, seq_ids, expected_k, expected_v):
         values_expected = expected_v[seq_id]
         assert keys_expected.shape == values_expected.shape
         seq_length = expected_k[seq_id].shape[1]
-        keys = tvm.nd.empty(keys_expected.shape, dtype=dtype, device=device)
-        values = tvm.nd.empty(values_expected.shape, dtype=dtype, device=device)
+        keys = tvm.runtime.empty(keys_expected.shape, dtype=dtype, device=device)
+        values = tvm.runtime.empty(values_expected.shape, dtype=dtype, device=device)
         fdebug_get_kv(kv_cache, seq_id, 0, seq_length, keys, values)
         torch.testing.assert_close(
             torch.from_numpy(keys.numpy()).to(device_torch), keys_expected, rtol=1e-3, atol=1e-3
@@ -246,7 +249,7 @@ def verify_cached_kv(kv_cache, seq_ids, expected_k, expected_v):
         )
 
 
-def f_apply_rotary(x, offset, scale, theta, offset_list: Optional[List[int]] = None):
+def f_apply_rotary(x, offset, scale, theta, offset_list: list[int] | None = None):
     # x: (N, H, D)
     assert len(x.shape) == 3
     nfeat = x.shape[-1]
@@ -276,13 +279,13 @@ def f_apply_rotary(x, offset, scale, theta, offset_list: Optional[List[int]] = N
 def apply_attention(
     kv_cache,
     rope_mode: RopeMode,
-    batch: List[Tuple[Union[int, Tuple[int, int, int]], int]],
-    cached_k: Dict[int, torch.Tensor],
-    cached_v: Dict[int, torch.Tensor],
-    sliding_window_sizes: Optional[List[int]] = None,
-    attn_sink_sizes: Optional[List[int]] = None,
-    token_tree_parent_ptr_list: Optional[List[List[int]]] = None,
-    accepted_leaf_indices: Optional[List[int]] = None,
+    batch: list[tuple[int | tuple[int, int, int], int]],
+    cached_k: dict[int, torch.Tensor],
+    cached_v: dict[int, torch.Tensor],
+    sliding_window_sizes: list[int] | None = None,
+    attn_sink_sizes: list[int] | None = None,
+    token_tree_parent_ptr_list: list[list[int]] | None = None,
+    accepted_leaf_indices: list[int] | None = None,
 ) -> None:
     seq_ids = []
     append_lengths = []
@@ -314,7 +317,7 @@ def apply_attention(
             )
 
     flattened_token_tree_parent_ptr = None
-    token_tree_node_depths_list: List[Optional[List[int]]] = [None for _ in batch]
+    token_tree_node_depths_list: list[list[int] | None] = [None for _ in batch]
     if token_tree_parent_ptr_list:
         assert len(token_tree_node_depths_list) == len(seq_ids)
         if accepted_leaf_indices is not None:
@@ -428,8 +431,10 @@ def apply_attention(
         queries_np = global_new_q[layer_id]
         keys_np = global_new_k[layer_id]
         values_np = global_new_v[layer_id]
-        qkv = tvm.nd.array(torch.cat([queries_np, keys_np, values_np], dim=1).cpu().numpy(), device)
-        outputs = tvm.nd.empty(queries_np.shape, dtype, device=device)
+        qkv = tvm.runtime.tensor(
+            torch.cat([queries_np, keys_np, values_np], dim=1).cpu().numpy(), device
+        )
+        outputs = tvm.runtime.empty(queries_np.shape, dtype, device=device)
         fattention_with_fuse_qkv(kv_cache, layer_id, sm_scale, qkv, outputs)
 
         # Compute attention expected results.

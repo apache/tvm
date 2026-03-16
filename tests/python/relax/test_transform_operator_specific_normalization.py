@@ -14,17 +14,19 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F841
 
 """Test FNormalize usage"""
 
-import tvm
-import tvm.testing
-import tvm.relax.testing.transform
-
-from tvm import relax
-from tvm.script.parser import ir as I, relax as R, tir as T
-
 import pytest
+
+import tvm
+import tvm.relax.testing.transform
+import tvm.testing
+from tvm import relax
+from tvm.script.parser import ir as I
+from tvm.script.parser import relax as R
+from tvm.script.parser import tir as T
 
 define_normalization = tvm.testing.parameter(True)
 
@@ -84,12 +86,12 @@ def test_normalization_suppressed_for_tvmscript(custom_op):
         return relax.Call(custom_op, [A])
 
     call_expr = func.body.blocks[0].bindings[0].value
-    assert isinstance(
-        call_expr, relax.Call
-    ), "Test implementation error, didn't extract the correct expression"
-    assert (
-        len(call_expr.args) == 1
-    ), "Expected TVMScript to suppress use of FNormalize, produce arguments as written"
+    assert isinstance(call_expr, relax.Call), (
+        "Test implementation error, didn't extract the correct expression"
+    )
+    assert len(call_expr.args) == 1, (
+        "Expected TVMScript to suppress use of FNormalize, produce arguments as written"
+    )
 
 
 @pytest.mark.skip_well_formed_check_before_transform

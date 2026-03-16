@@ -14,10 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E711
 
 import pytest
+
 import tvm
-from tvm import te
+from tvm import te, topi
 
 
 def test_expr_constructor():
@@ -50,7 +52,7 @@ def test_expr_constructor():
     assert x.value.value == 1
 
     a = tvm.tir.const(1.0, dtype="float32")
-    b = te.var("x", dtype="float32")
+    b = tvm.tir.Var("x", "float32")
 
     for cls in [
         tvm.tir.Add,
@@ -70,8 +72,8 @@ def test_expr_constructor():
         assert x.a == a
         assert x.b.same_as(b)
 
-    a = tvm.runtime.convert(te.var("x") > 1)
-    b = tvm.runtime.convert(te.var("x") == 1)
+    a = tvm.runtime.convert(tvm.tir.Var("x", "int32") > 1)
+    b = tvm.runtime.convert(tvm.tir.Var("x", "int32") == 1)
 
     for cls in [tvm.tir.And, tvm.tir.Or]:
         x = cls(a, b)
@@ -120,7 +122,7 @@ def test_expr_constructor():
     assert x.op.name == "tir.call_extern"
     assert x.args[1] == a
 
-    v = te.var("aa")
+    v = tvm.tir.Var("aa", "int32")
     x = tvm.tir.Let(v, 1, v)
     assert x.var == v
     assert x.value.value == 1
@@ -128,30 +130,35 @@ def test_expr_constructor():
 
 
 def test_stmt_constructor():
-    v = te.var("aa")
+    v = tvm.tir.Var("aa", "int32")
     nop = tvm.tir.Evaluate(1)
-    x = tvm.tir.LetStmt(v, 1, tvm.tir.Evaluate(1))
-    assert isinstance(x, tvm.tir.LetStmt)
+    x = tvm.tir.Bind(v, 1)
+    assert isinstance(x, tvm.tir.Bind)
     assert x.var == v
     assert x.value.value == 1
-    assert isinstance(x.body, tvm.tir.Evaluate)
 
     x = tvm.tir.AttrStmt(v == 1, "xx", 1, tvm.tir.Evaluate(1))
     assert isinstance(x, tvm.tir.AttrStmt)
     assert x.value.value == 1
 
-    x = tvm.tir.AssertStmt(tvm.tir.const(1, "uint1"), tvm.runtime.convert("hellow"), nop)
+    x = tvm.tir.AssertStmt(
+        tvm.tir.const(1, "bool"),
+        tvm.tir.StringImm("RuntimeError"),
+        [tvm.tir.StringImm("hellow")],
+    )
     assert isinstance(x, tvm.tir.AssertStmt)
-    assert x.body == nop
+    assert x.error_kind.value == "RuntimeError"
+    assert len(x.message_parts) == 1
+    assert x.message_parts[0].value == "hellow"
 
-    x = tvm.tir.For(te.var("x"), 0, 10, tvm.tir.ForKind.SERIAL, nop)
+    x = tvm.tir.For(tvm.tir.Var("x", "int32"), 0, 10, tvm.tir.ForKind.SERIAL, nop)
     assert isinstance(x, tvm.tir.For)
     assert x.min.value == 0
     assert x.extent.value == 10
     assert x.body == nop
 
-    buffer_var = tvm.tir.Var("buf", tvm.ir.PointerType(tvm.ir.PrimType("uint1")))
-    buffer = tvm.tir.decl_buffer([16], "uint1", data=buffer_var)
+    buffer_var = tvm.tir.Var("buf", tvm.ir.PointerType(tvm.ir.PrimType("bool")))
+    buffer = tvm.tir.decl_buffer([16], "bool", data=buffer_var)
     x = tvm.tir.BufferStore(buffer, tvm.tir.IntImm("bool", 1), [10])
     assert isinstance(x, tvm.tir.BufferStore)
     assert x.buffer == buffer
@@ -159,21 +166,10 @@ def test_stmt_constructor():
     assert list(x.indices) == [10]
     assert x.value.value == 1
 
-    buffer_var = tvm.tir.Var("buf", tvm.ir.PointerType(tvm.ir.PrimType("float32")))
-    x = tvm.tir.Allocate(buffer_var, "float32", [10], tvm.tir.const(1, "uint1"), nop)
-    assert isinstance(x, tvm.tir.Allocate)
-    assert x.dtype == "float32"
-    assert x.buffer_var == buffer_var
-    assert x.body == nop
-
-    storage_scope = "global.texture"
-    buffer_var = tvm.tir.Var("buf", tvm.ir.PointerType(tvm.ir.PrimType("float32"), storage_scope))
-    x = tvm.tir.Allocate(buffer_var, "float32", [10], tvm.tir.const(1, "uint1"), nop)
-    assert isinstance(x, tvm.tir.Allocate)
-    assert x.dtype == "float32"
-    assert x.buffer_var == buffer_var
-    assert x.buffer_var.type_annotation.storage_scope == storage_scope
-    assert x.body == nop
+    buf = tvm.tir.decl_buffer([10], "float32")
+    x = tvm.tir.AllocBuffer(buf)
+    assert isinstance(x, tvm.tir.AllocBuffer)
+    assert x.buffer == buf
 
     x = tvm.tir.AttrStmt(buffer_var, "xyz", 1, nop)
     assert isinstance(x, tvm.tir.AttrStmt)
@@ -181,7 +177,7 @@ def test_stmt_constructor():
     assert x.attr_key == "xyz"
     assert x.body == nop
 
-    x = tvm.tir.IfThenElse(tvm.tir.const(1, "uint1"), tvm.tir.Evaluate(11), nop)
+    x = tvm.tir.IfThenElse(tvm.tir.const(1, "bool"), tvm.tir.Evaluate(11), nop)
     assert isinstance(x, tvm.tir.IfThenElse)
     assert x.then_case.value.value == 11
     assert x.else_case == nop
@@ -190,6 +186,32 @@ def test_stmt_constructor():
 def test_float_constructor_requires_float_dtype():
     with pytest.raises(tvm.TVMError):
         tvm.tir.FloatImm("int32", 1.0)
+
+
+def test_math_unary_constructor_requires_float_dtype():
+    x = tvm.tir.Var("x", "int32")
+
+    with pytest.raises(TypeError, match=r"tir\.tan only supports floating-point inputs"):
+        tvm.tir.tan(x)
+
+    with pytest.raises(TypeError, match=r"tir\.sin only supports floating-point inputs"):
+        tvm.tir.sin(x)
+
+    y = tvm.tir.Var("y", "float32")
+    assert tvm.tir.tan(y).dtype == "float32"
+
+
+def test_topi_tan_requires_float_dtype():
+    x = te.placeholder((2, 2), dtype="int32", name="x")
+
+    with pytest.raises(TypeError, match=r"tir\.tan only supports floating-point inputs"):
+        topi.tan(x)
+
+
+def test_math_unary_constructor_preserves_bfloat16():
+    x = tvm.tir.Var("x", "bfloat16")
+    y = tvm.tir.exp(x)
+    assert y.dtype == "bfloat16"
 
 
 if __name__ == "__main__":

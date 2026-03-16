@@ -15,9 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm.s_tir.meta_schedule.testing import te_workload
 from tvm.script import ir as I
 from tvm.script import tir as T
-from tvm.meta_schedule.testing import te_workload
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument,missing-class-docstring,missing-function-docstring
 # fmt: off
@@ -38,9 +38,9 @@ class Module:
                 "tir.noalias": True,
             }
         )
-        # with T.block("root"):
+        # with T.sblock("root"):
         for i, j, k in T.grid(729, 729, 729):
-            with T.block("C"):
+            with T.sblock("C"):
                 v_i, v_j, v_k = T.axis.remap("SSR", [i, j, k])
                 T.reads(A[v_i, v_k], B[v_k, v_j])
                 T.writes(C[v_i, v_j])
@@ -71,9 +71,9 @@ def test_host_func():
     )(mod)
     mod = tvm.tir.transform.BindTarget(target)(mod)
     tvm.ir.assert_structural_equal(mod, Module)
-    assert (
-        "tir.is_host_func" not in mod["main"].attrs
-    ), """Target and is_host_func attributes should be mutually exclusive"""
+    assert "tir.is_host_func" not in mod["main"].attrs, (
+        """Target and is_host_func attributes should be mutually exclusive"""
+    )
 
 
 if __name__ == "__main__":

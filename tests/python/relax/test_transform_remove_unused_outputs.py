@@ -14,17 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401
 
 import tvm
 import tvm.testing
-from tvm.script import ir as I, relax as R, tir as T
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
-class BaseCompare(tvm.testing.CompareBeforeAfter):
-    transform = tvm.relax.transform.RemoveUnusedOutputs()
-
-
-class TestSimple(BaseCompare):
+def test_simple():
     @I.ir_module
     class Before:
         @R.function
@@ -50,8 +49,11 @@ class TestSimple(BaseCompare):
             A = R.zeros([16, 16], "int32")
             return A
 
+    After = tvm.relax.transform.RemoveUnusedOutputs()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
-class TestUseMultipleOutputs(BaseCompare):
+
+def test_use_multiple_outputs():
     @I.ir_module
     class Before:
         @R.function
@@ -79,8 +81,11 @@ class TestUseMultipleOutputs(BaseCompare):
             C = R.zeros([32, 32], "int32")
             return (A, C)
 
+    After = tvm.relax.transform.RemoveUnusedOutputs()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
-class TestMultipleCallSites(BaseCompare):
+
+def test_multiple_call_sites():
     @I.ir_module
     class Before:
         @R.function
@@ -118,8 +123,11 @@ class TestMultipleCallSites(BaseCompare):
             C = R.zeros([32, 32], "int32")
             return (A, C)
 
+    After = tvm.relax.transform.RemoveUnusedOutputs()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
-class TestReturnTuple(BaseCompare):
+
+def test_return_tuple():
     @I.ir_module
     class Before:
         @R.function
@@ -129,14 +137,17 @@ class TestReturnTuple(BaseCompare):
             return out_tuple
 
         @R.function(private=True)
-        def func(
-            B: R.Tensor([16, 16], "int32")
-        ) -> R.Tuple(R.Tensor([16, 16], "int32"), R.Tensor([16, 16], "int32")):
+        def func(B: R.Tensor([16, 16], "int32")) -> R.Tuple(
+            R.Tensor([16, 16], "int32"), R.Tensor([16, 16], "int32")
+        ):
             C = R.multiply(B, B)
             D = R.add(B, B)
             return (C, D)
 
     Expected = Before
+
+    After = tvm.relax.transform.RemoveUnusedOutputs()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
 if __name__ == "__main__":

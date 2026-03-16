@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401
 """This module defines a Session in Disco. Session is the primary interface that users interact
 with the distributed runtime.
 """
@@ -21,15 +22,16 @@ with the distributed runtime.
 import logging
 import os
 import pickle
-from typing import Any, Callable, Optional, Sequence, Union
+from collections.abc import Callable, Sequence
+from typing import Any, Optional, Union
 
 import numpy as np
+from tvm_ffi import get_global_func, register_global_func, register_object
 
-from ...ffi import get_global_func, register_func, register_object
-from ..device import Device
+from .._tensor import Tensor
+from .._tensor import tensor as _as_Tensor
 from ..container import ShapeTuple
-from ..ndarray import NDArray
-from ..ndarray import array as _as_NDArray
+from ..device import Device
 from ..object import Object
 from . import _ffi_api, process_pool  # pylint: disable=unused-import
 
@@ -58,20 +60,20 @@ class DRef(Object):
     def debug_copy_from(
         self,
         worker_id: int,
-        value: Union[np.ndarray, NDArray],
+        value: np.ndarray | Tensor,
     ) -> None:
-        """Copy an NDArray value to remote for debugging purposes.
+        """Copy an Tensor value to remote for debugging purposes.
 
         Parameters
         ----------
         worker_id : int
             The id of the worker to be copied to.
 
-        value : Union[numpy.ndarray, NDArray]
+        value : Union[numpy.ndarray, Tensor]
             The value to be copied.
         """
-        if not isinstance(value, NDArray):
-            value = _as_NDArray(value)
+        if not isinstance(value, Tensor):
+            value = _as_Tensor(value)
         return _ffi_api.DRefDebugCopyFrom(self, worker_id, value)  # type: ignore # pylint: disable=no-member
 
 
@@ -94,7 +96,7 @@ class DModule(DRef):
         self.session = session
 
     def __getitem__(self, name: str) -> DPackedFunc:
-        func = self.session._get_cached_method("runtime.ModuleGetFunction")
+        func = self.session._get_cached_method("ffi.ModuleGetFunction")
         return DPackedFunc(func(self, name, False), self.session)
 
 
@@ -118,22 +120,22 @@ class Session(Object):
         self,
         shape: Sequence[int],
         dtype: str,
-        device: Optional[Device] = None,
+        device: Device | None = None,
         worker0_only: bool = False,
         in_group: bool = True,
     ) -> DRef:
-        """Create an empty NDArray on all workers and attach them to a DRef.
+        """Create an empty Tensor on all workers and attach them to a DRef.
 
         Parameters
         ----------
         shape : tuple of int
-            The shape of the NDArray.
+            The shape of the Tensor.
 
         dtype : str
-            The data type of the NDArray.
+            The data type of the Tensor.
 
         device : Optional[Device] = None
-            The device of the NDArray.
+            The device of the Tensor.
 
         worker0_only: bool
             If False (default), allocate an array on each worker.  If
@@ -147,7 +149,7 @@ class Session(Object):
         Returns
         -------
         array : DRef
-            The created NDArray.
+            The created Tensor.
 
         """
         func = self._get_cached_method("runtime.disco.empty")
@@ -217,7 +219,7 @@ class Session(Object):
         Notes
         -----
         Examples of unsupported types:
-        - NDArray, DLTensor,;
+        - Tensor, DLTensor,;
         - TVM Objects, including PackedFunc, Module and String.
         """
         return _ffi_api.SessionCallPacked(self, 0, 0, func, *args)  # type: ignore # pylint: disable=no-member
@@ -246,29 +248,29 @@ class Session(Object):
         executing all the existing instructions."""
         return self._sync_worker(0)
 
-    def copy_from_worker_0(self, host_array: NDArray, remote_array: DRef) -> None:
-        """Copy an NDArray from worker-0 to the controller-side NDArray.
+    def copy_from_worker_0(self, host_array: Tensor, remote_array: DRef) -> None:
+        """Copy an Tensor from worker-0 to the controller-side Tensor.
 
         Parameters
         ----------
         host_array : numpy.ndarray
             The array to be copied to worker-0.
 
-        remote_array : NDArray
-            The NDArray on worker-0.
+        remote_array : Tensor
+            The Tensor on worker-0.
         """
         return _ffi_api.SessionCopyFromWorker0(self, host_array, remote_array)  # type: ignore # pylint: disable=no-member
 
-    def copy_to_worker_0(self, host_array: NDArray, remote_array: Optional[DRef] = None) -> DRef:
-        """Copy the controller-side NDArray to worker-0.
+    def copy_to_worker_0(self, host_array: Tensor, remote_array: DRef | None = None) -> DRef:
+        """Copy the controller-side Tensor to worker-0.
 
         Parameters
         ----------
-        host_array : NDArray
+        host_array : Tensor
             The array to be copied to worker-0.
 
         remote_array : Optiona[DRef]
-            The destination NDArray on worker-0.
+            The destination Tensor on worker-0.
 
         Returns
         -------
@@ -289,7 +291,7 @@ class Session(Object):
     def load_vm_module(
         self,
         path: str,
-        device: Optional[Device] = None,
+        device: Device | None = None,
     ) -> DModule:
         """Load a VM module from a file.
 
@@ -328,13 +330,16 @@ class Session(Object):
         self._clear_ipc_memory_pool()
 
     def broadcast(
-        self, src: Union[np.ndarray, NDArray], dst: Optional[DRef] = None, in_group: bool = True
+        self,
+        src: np.ndarray | Tensor,
+        dst: DRef | None = None,
+        in_group: bool = True,
     ) -> DRef:
         """Broadcast an array to all workers
 
         Parameters
         ----------
-        src: Union[np.ndarray, NDArray]
+        src: Union[np.ndarray, Tensor]
             The array to be broadcasted.
 
         dst: Optional[DRef]
@@ -353,8 +358,8 @@ class Session(Object):
             `dst`.  Otherwise, it is the newly allocated space.
 
         """
-        if not isinstance(src, NDArray):
-            src = _as_NDArray(src)
+        if not isinstance(src, Tensor):
+            src = _as_Tensor(src)
 
         if dst is None:
             dst = self.empty(src.shape, src.dtype)
@@ -369,7 +374,7 @@ class Session(Object):
 
         Parameters
         ----------
-        src: Union[np.ndarray, NDArray]
+        src: Union[np.ndarray, Tensor]
             The array to be broadcasted.
 
         dst: Optional[DRef]
@@ -383,13 +388,16 @@ class Session(Object):
         func(src, in_group, dst)
 
     def scatter(
-        self, src: Union[np.ndarray, NDArray], dst: Optional[DRef] = None, in_group: bool = True
+        self,
+        src: np.ndarray | Tensor,
+        dst: DRef | None = None,
+        in_group: bool = True,
     ) -> DRef:
         """Scatter an array across all workers
 
         Parameters
         ----------
-        src: Union[np.ndarray, NDArray]
+        src: Union[np.ndarray, Tensor]
             The array to be scattered.  The first dimension of this
             array, `src.shape[0]`, must be equal to the number of
             workers.
@@ -413,8 +421,8 @@ class Session(Object):
         """
         assert src.shape[0] == self.num_workers
 
-        if not isinstance(src, NDArray):
-            src = _as_NDArray(src)
+        if not isinstance(src, Tensor):
+            src = _as_Tensor(src)
 
         if dst is None:
             dst = self.empty(src.shape[1:], src.dtype)
@@ -429,7 +437,7 @@ class Session(Object):
 
         Parameters
         ----------
-        src: Union[np.ndarray, NDArray]
+        src: Union[np.ndarray, Tensor]
             The array to be scattered.  The first dimension of this
             array, `src.shape[0]`, must be equal to the number of
             workers.
@@ -540,7 +548,10 @@ class ProcessSession(Session):
     """A Disco session backed by pipe-based multi-processing."""
 
     def __init__(
-        self, num_workers: int, num_groups: int = 1, entrypoint: str = "tvm.exec.disco_worker"
+        self,
+        num_workers: int,
+        num_groups: int = 1,
+        entrypoint: str = "tvm.exec.disco_worker",
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.SessionProcess,  # type: ignore # pylint: disable=no-member
@@ -574,7 +585,7 @@ class ProcessSession(Session):
         func(config, os.getpid())
 
 
-@register_func("runtime.disco.create_socket_session_local_workers")
+@register_global_func("runtime.disco.create_socket_session_local_workers")
 def _create_socket_session_local_workers(num_workers) -> Session:
     """Create the local session for each distributed node over socket session."""
     return ProcessSession(num_workers)
@@ -585,7 +596,12 @@ class SocketSession(Session):
     """A Disco session backed by socket-based multi-node communication."""
 
     def __init__(
-        self, num_nodes: int, num_workers_per_node: int, num_groups: int, host: str, port: int
+        self,
+        num_nodes: int,
+        num_workers_per_node: int,
+        num_groups: int,
+        host: str,
+        port: int,
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.SocketSession,  # type: ignore # pylint: disable=no-member
@@ -597,7 +613,7 @@ class SocketSession(Session):
         )
 
 
-@register_func("runtime.disco._configure_structlog")
+@register_global_func("runtime.disco._configure_structlog")
 def _configure_structlog(pickled_config: bytes, parent_pid: int) -> None:
     """Configure structlog for all disco workers
 
@@ -632,7 +648,7 @@ def _configure_structlog(pickled_config: bytes, parent_pid: int) -> None:
     structlog.configure(**structlog_config)
 
 
-@register_func("runtime.disco._import_python_module")
+@register_global_func("runtime.disco._import_python_module")
 def _import_python_module(module_name: str) -> None:
     __import__(module_name)
 

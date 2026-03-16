@@ -34,6 +34,7 @@
 #include <tvm/tir/index_map.h>
 
 #include <functional>
+#include <set>
 #include <utility>
 
 namespace tvm {
@@ -53,7 +54,7 @@ namespace relax {
  *       if result is false, there is still possibility that
  *       two shapes equals to each other during runtime.
  */
-TVM_DLL bool CanProveShapeEqual(const Array<PrimExpr>& lhs, const Array<PrimExpr>& rhs,
+TVM_DLL bool CanProveShapeEqual(const ffi::Array<PrimExpr>& lhs, const ffi::Array<PrimExpr>& rhs,
                                 arith::Analyzer* ana);
 
 /*!
@@ -155,11 +156,11 @@ TVM_DLL StructInfo DeriveCallRetStructInfo(const FuncStructInfo& finfo, const Ca
  *
  * \return the corresponding erased struct info.
  */
-TVM_DLL StructInfo
-EraseToWellDefined(const StructInfo& info,
-                   std::function<Optional<PrimExpr>(const tir::Var& var)> f_shape_var_map = nullptr,
-                   std::function<Optional<Expr>(const Var& var)> f_var_map = nullptr,
-                   arith::Analyzer* ana = nullptr);
+TVM_DLL StructInfo EraseToWellDefined(
+    const StructInfo& info,
+    std::function<ffi::Optional<PrimExpr>(const tir::Var& var)> f_shape_var_map = nullptr,
+    std::function<ffi::Optional<Expr>(const Var& var)> f_var_map = nullptr,
+    arith::Analyzer* ana = nullptr);
 
 /*!
  * \brief EraseToWellDefined variant with map.
@@ -174,8 +175,9 @@ EraseToWellDefined(const StructInfo& info,
  *
  * \return the corresponding erased struct info.
  */
-TVM_DLL StructInfo EraseToWellDefined(const StructInfo& info, Map<tir::Var, PrimExpr> shape_var_map,
-                                      Map<Var, Expr> var_map, arith::Analyzer* ana = nullptr);
+TVM_DLL StructInfo EraseToWellDefined(const StructInfo& info,
+                                      ffi::Map<tir::Var, PrimExpr> shape_var_map,
+                                      ffi::Map<Var, Expr> var_map, arith::Analyzer* ana = nullptr);
 
 /*!
  * \brief Fine grained result of base check.
@@ -289,7 +291,7 @@ TVM_DLL StructInfo StructInfoLCA(const StructInfo& lhs, const StructInfo& rhs,
  * \param sinfo The struct info object to be analyzed.
  * \return The list of TIR variables that appear in the input struct info.
  */
-TVM_DLL Array<tir::Var> TIRVarsInStructInfo(const StructInfo& sinfo);
+TVM_DLL ffi::Array<tir::Var> TIRVarsInStructInfo(const StructInfo& sinfo);
 
 /*!
  * \brief Get the TIR variables that appear in the input struct info.
@@ -303,7 +305,7 @@ TVM_DLL Array<tir::Var> TIRVarsInStructInfo(const StructInfo& sinfo);
  *   deduplicated, each TIR variable will appear at most once, and in
  *   order of occurrence.
  */
-TVM_DLL Array<tir::Var> DefinableTIRVarsInStructInfo(const StructInfo& sinfo);
+TVM_DLL ffi::Array<tir::Var> DefinableTIRVarsInStructInfo(const StructInfo& sinfo);
 
 /*! \brief Collect expressions whose usage requires them to be non-negative
  *
@@ -316,7 +318,7 @@ TVM_DLL Array<tir::Var> DefinableTIRVarsInStructInfo(const StructInfo& sinfo);
  *
  * \return A list of non-negative expressions.
  */
-TVM_DLL Array<PrimExpr> CollectNonNegativeExpressions(const StructInfo& sinfo);
+TVM_DLL ffi::Array<PrimExpr> CollectNonNegativeExpressions(const StructInfo& sinfo);
 
 /*!
  * \brief Get the TIR variables that defined in the input function.
@@ -324,7 +326,7 @@ TVM_DLL Array<PrimExpr> CollectNonNegativeExpressions(const StructInfo& sinfo);
  * \param expr The relax expression (e.g. a Function) to be analyzed.
  * \return The list of TIR variables that are defined in the input function.
  */
-TVM_DLL Array<tir::Var> DefinedSymbolicVars(const Expr& expr);
+TVM_DLL ffi::Array<tir::Var> DefinedSymbolicVars(const Expr& expr);
 
 /*!
  * \brief Get the TIR variables that are used but not defined in the input function.
@@ -332,7 +334,7 @@ TVM_DLL Array<tir::Var> DefinedSymbolicVars(const Expr& expr);
  * \param expr The relax expression (e.g. a Function) to be analyzed.
  * \return The list of TIR variables that are used but not defined in the input function.
  */
-TVM_DLL Array<tir::Var> FreeSymbolicVars(const Expr& expr);
+TVM_DLL ffi::Array<tir::Var> FreeSymbolicVars(const Expr& expr);
 //-----------------------------------
 // General IR analysis
 //-----------------------------------
@@ -346,7 +348,7 @@ TVM_DLL Array<tir::Var> FreeSymbolicVars(const Expr& expr);
  *
  * \return List of bound vars, in the PostDFS order in the expression.
  */
-TVM_DLL tvm::Array<Var> BoundVars(const Expr& expr);
+TVM_DLL tvm::ffi::Array<Var> BoundVars(const Expr& expr);
 
 /*!
  * \brief Get free type parameters from expression expr.
@@ -358,7 +360,7 @@ TVM_DLL tvm::Array<Var> BoundVars(const Expr& expr);
  *
  * \return List of free vars, in the PostDFS order in the expression.
  */
-TVM_DLL tvm::Array<Var> FreeVars(const Expr& expr);
+TVM_DLL tvm::ffi::Array<Var> FreeVars(const Expr& expr);
 
 /*!
  * \brief Get all variables from expression expr.
@@ -367,7 +369,7 @@ TVM_DLL tvm::Array<Var> FreeVars(const Expr& expr);
  *
  * \return List of all vars, in the PostDFS order in the expression.
  */
-TVM_DLL tvm::Array<Var> AllVars(const Expr& expr);
+TVM_DLL tvm::ffi::Array<Var> AllVars(const Expr& expr);
 
 /*!
  * \brief Get all global variables from expression expr.
@@ -379,7 +381,7 @@ TVM_DLL tvm::Array<Var> AllVars(const Expr& expr);
  *
  * \return List of all global variables, in the PostDFS order in the expression.
  */
-TVM_DLL tvm::Array<GlobalVar> AllGlobalVars(const Expr& expr);
+TVM_DLL tvm::ffi::Array<GlobalVar> AllGlobalVars(const Expr& expr);
 
 /*!
  * \brief Find all sets of recursive or mutually recursive functions in the module.
@@ -404,7 +406,7 @@ TVM_DLL tvm::Array<GlobalVar> AllGlobalVars(const Expr& expr);
  *     If a function is simply recursive and not mutually recursive with any other,
  *     then it will be listed as a group by itself.
  */
-TVM_DLL tvm::Array<tvm::Array<GlobalVar>> DetectRecursion(const IRModule& m);
+TVM_DLL tvm::ffi::Array<tvm::ffi::Array<GlobalVar>> DetectRecursion(const IRModule& m);
 
 /*!
  * \brief Analyze var -> value mapping from VarBindings.
@@ -412,7 +414,7 @@ TVM_DLL tvm::Array<tvm::Array<GlobalVar>> DetectRecursion(const IRModule& m);
  * \param m The IRModule to check.
  * \return Var -> Value (Expr)
  */
-TVM_DLL Map<Var, Expr> AnalyzeVar2Value(const IRModule& m);
+TVM_DLL ffi::Map<Var, Expr> AnalyzeVar2Value(const IRModule& m);
 
 /*!
  * \brief Analyze var -> value mapping from VarBindings.
@@ -420,7 +422,7 @@ TVM_DLL Map<Var, Expr> AnalyzeVar2Value(const IRModule& m);
  * \param expr The expression to check.
  * \return Var -> Value (Expr)
  */
-TVM_DLL Map<Var, Expr> AnalyzeVar2Value(const Expr& expr);
+TVM_DLL ffi::Map<Var, Expr> AnalyzeVar2Value(const Expr& expr);
 
 /*!
  * \brief Analyze var -> value mapping from VarBindings.
@@ -428,7 +430,7 @@ TVM_DLL Map<Var, Expr> AnalyzeVar2Value(const Expr& expr);
  * \param dfb The dataflow block to check.
  * \return Var -> Value (Expr)
  */
-TVM_DLL Map<Var, Expr> AnalyzeVar2Value(const DataflowBlock& dfb);
+TVM_DLL ffi::Map<Var, Expr> AnalyzeVar2Value(const DataflowBlock& dfb);
 
 /*!
  * \brief Return a mapping from variable name to its Bindings.
@@ -436,7 +438,7 @@ TVM_DLL Map<Var, Expr> AnalyzeVar2Value(const DataflowBlock& dfb);
  * \param fn The function to be analyzed.
  * \return A mapping from variable name to its Bindings.
  */
-TVM_DLL Map<String, Array<Binding>> NameToBinding(const Function& fn);
+TVM_DLL ffi::Map<ffi::String, ffi::Array<Binding>> NameToBinding(const Function& fn);
 
 /*!
  * \brief Get the use-def chain of variables inside a dataflow block.
@@ -444,7 +446,7 @@ TVM_DLL Map<String, Array<Binding>> NameToBinding(const Function& fn);
  * \param dfb The dataflow block to be analyzed.
  * \return A map mapping variable definitions to a set of uses.
  */
-TVM_DLL Map<Var, Array<Var>> DataflowBlockUseDef(const DataflowBlock& dfb);
+TVM_DLL ffi::Map<Var, ffi::Array<Var>> DataflowBlockUseDef(const DataflowBlock& dfb);
 
 /*!
  * \brief Get the use-def chain of variables inside a function.
@@ -457,7 +459,7 @@ TVM_DLL Map<Var, Array<Var>> DataflowBlockUseDef(const DataflowBlock& dfb);
  * variables whose usage occurs outside of any variable binding,
  * typically the output body of a relax::Function or a relax::SeqExpr.
  */
-std::pair<Map<Var, Array<Var>>, Array<Var>> FunctionUseDef(const Expr& expr);
+std::pair<ffi::Map<Var, ffi::Array<Var>>, ffi::Array<Var>> FunctionUseDef(const Expr& expr);
 
 /*! \brief A utility struct returned by CollectVarUsage
  */
@@ -466,19 +468,19 @@ struct VarUsageInfo {
    *
    * This is equivalent to the output of AnalyzeVar2Value
    */
-  Map<Var, Expr> bound_values;
+  ffi::Map<Var, Expr> bound_values;
 
   /* \brief The map from variables to downstream usages of the variable
    *
    * This is equivalent to the first output of FunctionUseDef.
    */
-  Map<Var, Array<Var>> downstream_usage;
+  ffi::Map<Var, ffi::Array<Var>> downstream_usage;
 
   /* \brief A list of variables produced as output
    *
    * This is equivalent to the second output of FunctionUseDef
    */
-  Array<Var> outputs;
+  ffi::Array<Var> outputs;
 };
 
 /*! \brief Collect variable bindings and usage
@@ -492,6 +494,17 @@ struct VarUsageInfo {
  * \return The collected information
  */
 VarUsageInfo CollectVarUsage(const Expr& expr);
+
+/*!
+ * \brief Get the used variables in an expression.
+ *
+ * This function collects all variables that are referenced within the given expression.
+ *
+ * \param expr The expression to analyze
+ *
+ * \return A set of variable nodes that are used in the expression
+ */
+TVM_DLL std::set<const VarNode*> GetUsedVars(const Expr& expr);
 
 /*!
  * \brief Remove unused statements inside DataflowBlocks.
@@ -541,8 +554,8 @@ TVM_DLL bool HasReshapePattern(const tir::PrimFunc& func);
  *   Also, an impure call in a *nested* function does *not* mean that the outer expression contains
  *   an impure call--it only does if the nested function is *later called*.
  */
-TVM_DLL Optional<Expr> FindImpureCall(
-    const Expr& expr, const Optional<Expr>& own_name = Optional<Expr>(std::nullopt));
+TVM_DLL ffi::Optional<Expr> FindImpureCall(
+    const Expr& expr, const ffi::Optional<Expr>& own_name = ffi::Optional<Expr>(std::nullopt));
 
 /*!
  * \brief Check if the given expression (likely a function body) contains any impure calls.
@@ -555,8 +568,8 @@ TVM_DLL Optional<Expr> FindImpureCall(
  *   Also, an impure call in a *nested* function does *not* mean that the outer expression contains
  *   an impure call--it only does if the nested function is *later called*.
  */
-TVM_DLL bool ContainsImpureCall(const Expr& expr,
-                                const Optional<Expr>& own_name = Optional<Expr>(std::nullopt));
+TVM_DLL bool ContainsImpureCall(
+    const Expr& expr, const ffi::Optional<Expr>& own_name = ffi::Optional<Expr>(std::nullopt));
 
 /*!
  * \brief Check if the IRModule is well formed.
@@ -569,7 +582,7 @@ TVM_DLL bool ContainsImpureCall(const Expr& expr,
  * where `check_struct_info` might be false, so that other well-formed requirements
  * will be well tested and will not be blocked by not having structure info.
  */
-TVM_DLL bool WellFormed(Variant<IRModule, Function> obj, bool check_struct_info = true);
+TVM_DLL bool WellFormed(ffi::Variant<IRModule, Function> obj, bool check_struct_info = true);
 
 /*!
  * \brief Using the layout transforms on the outputs, suggest layout transformation on the blocks
@@ -581,8 +594,8 @@ TVM_DLL bool WellFormed(Variant<IRModule, Function> obj, bool check_struct_info 
  * from the object (block or buffer) to it's index map transformation.
  */
 
-TVM_DLL Map<tir::Block, Map<ObjectRef, tir::IndexMap>> SuggestLayoutTransforms(
-    const Function& fn, Array<tir::IndexMap> write_buffer_transformations);
+TVM_DLL ffi::Map<tir::SBlock, ffi::Map<ObjectRef, tir::IndexMap>> SuggestLayoutTransforms(
+    const Function& fn, ffi::Array<tir::IndexMap> write_buffer_transformations);
 
 /* \brief Collect variables whose value can be computed at compile-time
  *
@@ -597,7 +610,7 @@ TVM_DLL Map<tir::Block, Map<ObjectRef, tir::IndexMap>> SuggestLayoutTransforms(
  * \return The set of variables that can be computed at compile-time,
  * in order of their occurrence within the function.
  */
-TVM_DLL Array<Var> ComputableAtCompileTime(const Function& func);
+TVM_DLL ffi::Array<Var> ComputableAtCompileTime(const Function& func);
 
 }  // namespace relax
 }  // namespace tvm

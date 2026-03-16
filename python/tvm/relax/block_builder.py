@@ -15,9 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=no-else-return, invalid-name, unused-argument, import-outside-toplevel
+# ruff: noqa: RUF012
 """Developer API of constructing Relax AST."""
 
-from typing import Any, Callable, Dict, List, Optional, Sequence, Union
+from collections.abc import Callable, Sequence
+from typing import Any, Optional
+
+import tvm_ffi
 
 import tvm
 from tvm import relax as rx
@@ -32,7 +36,7 @@ from .struct_info import StructInfo
 from .utils import gen_call_tir_inputs
 
 
-class FunctionScope(object):
+class FunctionScope:
     """Auxiliary scope for function"""
 
     def __init__(self, block_builder, name, params, attrs, is_pure):
@@ -57,7 +61,7 @@ class FunctionScope(object):
         self._bb._exit_function_scope(exc_type, exc_val, exc_tb)
 
 
-class DataflowScope(object):
+class DataflowScope:
     """Auxiliary scope for Dataflow block"""
 
     def __init__(self, block_builder):
@@ -76,7 +80,7 @@ class DataflowScope(object):
         self._bb._begin_binding_block()
 
 
-class TestingScope(object):
+class TestingScope:
     """Auxiliary scope for testing purposes"""
 
     def __init__(self, block_builder, def_vars):
@@ -100,7 +104,7 @@ class TestingScope(object):
         self._bb.end_scope()
 
 
-@tvm.ffi.register_object("relax.BlockBuilder")
+@tvm_ffi.register_object("relax.BlockBuilder")
 class BlockBuilder(Object):
     """A builder to build Relax IR for testing and dev.
 
@@ -161,7 +165,7 @@ class BlockBuilder(Object):
 
     def __init__(self, mod: IRModule = None):
         # Which functions are currently being defined
-        self._func_stack: List[FunctionScope] = []
+        self._func_stack: list[FunctionScope] = []
         self.__init_handle_by_constructor__(_ffi_api.BlockBuilderCreate, mod)  # type: ignore
 
     def _begin_dataflow_block(self) -> None:
@@ -207,8 +211,8 @@ class BlockBuilder(Object):
     def function(
         self,
         name: str,
-        params: Optional[Union[Var, Tuple, List[Var]]] = None,
-        attrs: Optional[Dict[str, Object]] = None,
+        params: Var | Tuple | list[Var] | None = None,
+        attrs: dict[str, Object] | None = None,
         pure: bool = True,
         private: bool = False,
     ) -> FunctionScope:
@@ -243,14 +247,12 @@ class BlockBuilder(Object):
         """
         if isinstance(params, rx.Var):
             params = [params]
-        elif isinstance(params, (list, tuple)):
+        elif isinstance(params, list | tuple):
             for param in params:
                 if not isinstance(param, rx.Var):
                     raise TypeError(
-                        "each element of function parameters must be of type tvm.relax.Var,\
-                                    but got: {}".format(
-                            type(param)
-                        )
+                        f"each element of function parameters must be of type tvm.relax.Var,\
+                                    but got: {type(param)}"
                     )
         if attrs is None:
             attrs = {}
@@ -261,7 +263,7 @@ class BlockBuilder(Object):
 
         return FunctionScope(self, name, params, attrs, is_pure=pure)
 
-    def testing_scope(self, def_vars: List[tir.Var]) -> TestingScope:
+    def testing_scope(self, def_vars: list[tir.Var]) -> TestingScope:
         """Start a scope for unit-testing purposes.
 
         Parameters
@@ -286,7 +288,7 @@ class BlockBuilder(Object):
         """
         return DataflowScope(self)
 
-    def _normalize_python_tuple(self, expr: Union[Expr, Sequence[Expr]]):
+    def _normalize_python_tuple(self, expr: Expr | Sequence[Expr]):
         """Internal utility function to convert to relax.Tuple
 
         The `emit`, `emit_output`, and `emit_func_output` can be
@@ -296,8 +298,12 @@ class BlockBuilder(Object):
         `tvm.runtime.Array`.  In addition, any nested tuple objects
         should be converted.
         """
-        if isinstance(expr, (list, tuple)):
+        if isinstance(expr, list | tuple):
             return Tuple([self._normalize_python_tuple(element) for element in expr])
+        elif expr is None:
+            from . import op
+
+            return op.null_value()
         else:
             return expr
 
@@ -366,7 +372,7 @@ class BlockBuilder(Object):
         func: Callable,
         *args: Any,
         te_grad_name: str,
-        te_grad_kwargs: Dict[str, Object] = None,
+        te_grad_kwargs: dict[str, Object] | None = None,
         **kwargs: Any,
     ) -> Expr:
         """Generate a call node according to the te function.
@@ -477,9 +483,9 @@ class BlockBuilder(Object):
                     rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [n, m], dtype="float32")
                     compute = T.match_buffer(var_compute, [128, 128], dtype="float32")
                     # body
-                    # with T.block("root")
+                    # with T.sblock("root")
                     for i0, i1 in T.grid(128, 128):
-                        with T.block("compute"):
+                        with T.sblock("compute"):
                             i, j = T.axis.remap("SS", [i0, i1])
                             T.reads([rxplaceholder[i, j], rxplaceholder_1[i, j]])
                             T.writes([compute[i, j]])
@@ -521,9 +527,9 @@ class BlockBuilder(Object):
                                                    dtype="float32")
                     compute = T.match_buffer(var_compute, [n + T.int64(1)], dtype="float32")
                     # body
-                    # with T.block("root")
+                    # with T.sblock("root")
                     for i0 in T.serial(0, n + T.int64(1)):
-                        with T.block("compute"):
+                        with T.sblock("compute"):
                             i = T.axis.spatial(n + T.int64(1), i0)
                             T.reads([rxplaceholder[i]])
                             T.writes([compute[i]])
@@ -565,7 +571,7 @@ class BlockBuilder(Object):
             name_hint,
         )  # type: ignore
 
-    def emit_output(self, output: Union[Expr, Tuple, List[Expr]], name_hint: str = "") -> Var:
+    def emit_output(self, output: Expr | Tuple | list[Expr], name_hint: str = "") -> Var:
         """Emit output for the current dataflow block or function.
 
         Parameters
@@ -586,8 +592,8 @@ class BlockBuilder(Object):
 
     def emit_func_output(
         self,
-        output: Union[Expr, Tuple, List[Expr]],
-        params: Optional[Union[Var, Tuple, List[Var]]] = None,
+        output: Expr | Tuple | list[Expr],
+        params: Var | Tuple | list[Var] | None = None,
     ) -> GlobalVar:
         """Emit output for the function.
 
@@ -760,7 +766,7 @@ class BlockBuilder(Object):
         """
         _ffi_api.BlockBuilderEmitNormalized(self, binding)  # type: ignore
 
-    def lookup_binding(self, var: Var) -> Optional[Expr]:
+    def lookup_binding(self, var: Var) -> Expr | None:
         """Lookup a var in the binding table.
 
         Parameters
@@ -775,7 +781,7 @@ class BlockBuilder(Object):
         """
         return _ffi_api.BlockBuilderLookupBinding(self, var)  # type: ignore
 
-    def begin_scope(self, params: Optional[List[Var]] = None) -> None:
+    def begin_scope(self, params: list[Var] | None = None) -> None:
         """Begin a new scope, with optional parameters that
         are visible within the scope.
 

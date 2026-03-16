@@ -21,16 +21,16 @@ This file contains the set of passes for Relax, which exposes an interface for
 configuring the passes and scripting them in Python.
 """
 
-from typing import Dict, List, Optional, Union, Callable
+from collections.abc import Callable
 from enum import IntEnum
 
 import tvm
-from tvm import tir
-from tvm import IRModule
+from tvm import IRModule, tir
+from tvm.relax.expr import Binding, Call, DataflowBlock, Expr, Function, GlobalVar, Var
+from tvm.relax.struct_info import FuncStructInfo, StructInfo
 from tvm.relax.ty import Type
-from tvm.relax.struct_info import StructInfo, FuncStructInfo
-from tvm.relax.expr import DataflowBlock, Var, GlobalVar, Expr, Function, Call, Binding
-from tvm.tir import IndexMap, PrimFunc, Block, Buffer
+from tvm.tir import Buffer, IndexMap, PrimFunc, SBlock
+
 from . import _ffi_api
 
 
@@ -52,8 +52,8 @@ def get_static_type(sinfo: StructInfo) -> Type:
 
 def erase_to_well_defined(
     sinfo: StructInfo,
-    shape_var_map: Dict[tir.Var, tir.PrimExpr] = None,
-    var_map: Dict[Var, Expr] = None,
+    shape_var_map: dict[tir.Var, tir.PrimExpr] | None = None,
+    var_map: dict[Var, Expr] | None = None,
 ) -> StructInfo:
     """Erase sinfo into a well defined form.
 
@@ -167,7 +167,7 @@ def struct_info_lca(lhs: StructInfo, rhs: StructInfo) -> StructInfo:
     return _ffi_api.StructInfoLCA(lhs, rhs)  # type: ignore
 
 
-def tir_vars_in_struct_info(sinfo: StructInfo) -> List[tir.Var]:
+def tir_vars_in_struct_info(sinfo: StructInfo) -> list[tir.Var]:
     """Get the TIR variables that appear in the input struct info.
     The returned list is deduplicated - each TIR variable will appear at most once.
 
@@ -184,7 +184,7 @@ def tir_vars_in_struct_info(sinfo: StructInfo) -> List[tir.Var]:
     return _ffi_api.TIRVarsInStructInfo(sinfo)  # type: ignore
 
 
-def definable_tir_vars_in_struct_info(sinfo: StructInfo) -> List[tir.Var]:
+def definable_tir_vars_in_struct_info(sinfo: StructInfo) -> list[tir.Var]:
     """Get the TIR variables that may be defined from input struct info.
     The returned list is deduplicated - each TIR variable will appear at most once.
 
@@ -202,7 +202,7 @@ def definable_tir_vars_in_struct_info(sinfo: StructInfo) -> List[tir.Var]:
     return _ffi_api.DefinableTIRVarsInStructInfo(sinfo)  # type: ignore
 
 
-def collect_non_negative_expressions(sinfo: StructInfo) -> List[tir.PrimExpr]:
+def collect_non_negative_expressions(sinfo: StructInfo) -> list[tir.PrimExpr]:
     """Collect TIR expressions used in non-negative contexts
 
     Get TIR variables that are non-negative within the context where
@@ -229,7 +229,7 @@ def collect_non_negative_expressions(sinfo: StructInfo) -> List[tir.PrimExpr]:
     return _ffi_api.CollectNonNegativeExpressions(sinfo)  # type: ignore
 
 
-def defined_symbolic_vars(func: Function) -> List[Var]:
+def defined_symbolic_vars(func: Function) -> list[Var]:
     """Get the TIR variables that defined in the input function.
     The returned list is deduplicated - each TIR variable will appear at most once.
 
@@ -246,7 +246,7 @@ def defined_symbolic_vars(func: Function) -> List[Var]:
     return _ffi_api.DefinedSymbolicVars(func)  # type: ignore
 
 
-def free_symbolic_vars(func: Function) -> List[Var]:
+def free_symbolic_vars(func: Function) -> list[Var]:
     """Get the TIR variables that are used but not defined in the input function.
     The returned list is deduplicated - each TIR variable will appear at most once.
 
@@ -263,7 +263,7 @@ def free_symbolic_vars(func: Function) -> List[Var]:
     return _ffi_api.FreeSymbolicVars(func)  # type: ignore
 
 
-def bound_vars(expr: Expr) -> List[Var]:
+def bound_vars(expr: Expr) -> list[Var]:
     """
     Return all bound variables from expression expr.
     Bound variables are all variables that are declared in the expr.
@@ -280,7 +280,7 @@ def bound_vars(expr: Expr) -> List[Var]:
     return _ffi_api.bound_vars(expr)
 
 
-def free_vars(expr: Expr) -> List[Var]:
+def free_vars(expr: Expr) -> list[Var]:
     """
     Return all free variables from expression expr.
     Free variables are variables that are not bound by a
@@ -297,7 +297,7 @@ def free_vars(expr: Expr) -> List[Var]:
     return _ffi_api.free_vars(expr)
 
 
-def all_vars(expr: Expr) -> List[Var]:
+def all_vars(expr: Expr) -> list[Var]:
     """
     Return all (local) variables from expression expr.
     Parameters
@@ -312,7 +312,27 @@ def all_vars(expr: Expr) -> List[Var]:
     return _ffi_api.all_vars(expr)
 
 
-def all_global_vars(expr: Expr) -> List[GlobalVar]:
+def used_vars(expr: Expr) -> list[Var]:
+    """
+    Return all variables used in an expression.
+
+    This function collects all variable references within the given expression,
+    which is useful for analyzing variable dependencies.
+
+    Parameters
+    ----------
+    expr: Expr
+        The expression to analyze.
+
+    Returns
+    -------
+    ret: List[Var]
+        List of variables used in the expression.
+    """
+    return _ffi_api.used_vars(expr)  # type: ignore
+
+
+def all_global_vars(expr: Expr) -> list[GlobalVar]:
     """
     Return all global variables from expression expr.
     Parameters
@@ -372,7 +392,7 @@ def has_reshape_pattern(func: tir.PrimFunc) -> bool:
     return _ffi_api.has_reshape_pattern(func)  # type: ignore
 
 
-def contains_impure_call(expr: Expr, own_name: Optional[Union[Var, GlobalVar]] = None) -> bool:
+def contains_impure_call(expr: Expr, own_name: Var | GlobalVar | None = None) -> bool:
     """
     Check if the given expression (likely a function body) contains any impure calls.
 
@@ -400,7 +420,7 @@ def contains_impure_call(expr: Expr, own_name: Optional[Union[Var, GlobalVar]] =
     return _ffi_api.contains_impure_call(expr, own_name)
 
 
-def get_var2val(func: Function) -> Dict[Var, Expr]:
+def get_var2val(func: Function) -> dict[Var, Expr]:
     """
     Get a mapping from Var to Expr for each variable in the function.
 
@@ -417,7 +437,7 @@ def get_var2val(func: Function) -> Dict[Var, Expr]:
     return _ffi_api.get_var2val(func)  # type: ignore
 
 
-def udchain(dfb: DataflowBlock) -> Dict[Var, List[Var]]:
+def udchain(dfb: DataflowBlock) -> dict[Var, list[Var]]:
     """
     Analyze the variable use-def chain in a dataflow block.
 
@@ -434,7 +454,7 @@ def udchain(dfb: DataflowBlock) -> Dict[Var, List[Var]]:
     return _ffi_api.udchain(dfb)  # type: ignore
 
 
-def name_to_binding(func: Function) -> Dict[str, List[Binding]]:
+def name_to_binding(func: Function) -> dict[str, list[Binding]]:
     """Return a map from variable name to its bindings."""
     return _ffi_api.name_to_binding(func)  # type: ignore
 
@@ -461,7 +481,7 @@ def remove_all_unused(func: Function) -> Function:
     return _ffi_api.remove_all_unused(func)  # type: ignore
 
 
-def well_formed(obj: Union[IRModule, Function], check_struct_info: bool = True) -> bool:
+def well_formed(obj: IRModule | Function, check_struct_info: bool = True) -> bool:
     """Check if the IRModule is well formed.
 
     Parameters
@@ -496,8 +516,8 @@ def _get_prim_func_default_dtype(func: PrimFunc):
 
 
 def suggest_layout_transforms(
-    func: PrimFunc, write_buffer_transforms: List[Union[IndexMap, Callable]]
-) -> Dict[Block, Dict[Union[Block, Buffer], IndexMap]]:
+    func: PrimFunc, write_buffer_transforms: list[IndexMap | Callable]
+) -> dict[SBlock, dict[SBlock | Buffer, IndexMap]]:
     """Suggest Layout transformations of blocks and buffers in a PrimFunc.
 
     Parameters
@@ -511,7 +531,7 @@ def suggest_layout_transforms(
 
     Returns
     -------
-    ret: Dict[Block, Dict[Union[Block, Buffer], IndexMap]]
+    ret: Dict[SBlock, Dict[Union[SBlock, Buffer], IndexMap]]
          Suggested transforms per block in `func`. For each block the returned value is a map
          from the object (block or buffer) to it's index map transformation.
     """
@@ -525,7 +545,7 @@ def suggest_layout_transforms(
     return _ffi_api.suggest_layout_transforms(func, write_buffer_index_maps)  # type: ignore
 
 
-def detect_recursion(mod: tvm.IRModule) -> List[List[GlobalVar]]:
+def detect_recursion(mod: tvm.IRModule) -> list[list[GlobalVar]]:
     """
     Find all sets of recursive or mutually recursive functions in the module.
 
@@ -557,7 +577,7 @@ def detect_recursion(mod: tvm.IRModule) -> List[List[GlobalVar]]:
     return _ffi_api.detect_recursion(mod)  # type: ignore
 
 
-def computable_at_compile_time(func: Function) -> List[Var]:
+def computable_at_compile_time(func: Function) -> list[Var]:
     """Collect variables whose value can be computed at compile-time
 
     If a function has the `kNumInput` attribute, then the first

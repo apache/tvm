@@ -17,13 +17,15 @@
 
 # CI docker GPU env
 # tag: v0.60
-FROM nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04
+FROM nvidia/cuda:12.8.1-cudnn-devel-ubuntu22.04
+COPY --from=ghcr.io/astral-sh/uv:0.10.5 /uv /uvx /bin/
 
 COPY utils/apt-install-and-clear.sh /usr/local/bin/apt-install-and-clear
+COPY utils/download-and-verify.sh /usr/local/bin/download-and-verify
 
 # Per https://forums.developer.nvidia.com/t/notice-cuda-linux-repository-key-rotation/212772
 # we need to add a new GPG key before running apt update.
-RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/3bf863cc.pub
+RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/3bf863cc.pub
 
 # Base scripts
 RUN rm -f /etc/apt/sources.list.d/nvidia-ml.list && apt-get clean
@@ -35,30 +37,37 @@ RUN bash /install/ubuntu_setup_tz.sh
 COPY install/ubuntu_install_core.sh /install/ubuntu_install_core.sh
 RUN bash /install/ubuntu_install_core.sh
 
-COPY install/ubuntu_install_cmake_source.sh /install/ubuntu_install_cmake_source.sh
-RUN bash /install/ubuntu_install_cmake_source.sh
+COPY install/ubuntu_install_cmake.sh /install/ubuntu_install_cmake.sh
+RUN bash /install/ubuntu_install_cmake.sh
 
 COPY install/ubuntu_install_googletest.sh /install/ubuntu_install_googletest.sh
 RUN bash /install/ubuntu_install_googletest.sh /googletest
 
-ENV TVM_VENV /venv/apache-tvm-py3.9
-COPY python/bootstrap/lockfiles /install/python/bootstrap/lockfiles
+ENV UV_NO_CACHE=1
+ENV UV_PYTHON_INSTALL_DIR=/opt/uv/python
+ENV UV_MANAGED_PYTHON=1
+
+ENV TVM_VENV=/venv/apache-tvm-py3.10
 COPY install/ubuntu_install_python.sh /install/ubuntu_install_python.sh
-RUN bash /install/ubuntu_install_python.sh 3.9
-ENV PATH ${TVM_VENV}/bin:$PATH
-ENV PYTHONNOUSERSITE 1  # Disable .local directory from affecting CI.
+RUN bash /install/ubuntu_install_python.sh 3.10
+RUN uv --version
+ENV PATH=${TVM_VENV}/bin:$PATH
+ENV VIRTUAL_ENV=${TVM_VENV}
 
-# Globally disable pip cache
-RUN pip config set global.no-cache-dir false
+# Disable .local directory from affecting CI.
+ENV PYTHONNOUSERSITE=1
 
-COPY install/ubuntu2204_install_llvm.sh /install/ubuntu2204_install_llvm.sh
-RUN bash /install/ubuntu2204_install_llvm.sh
+COPY install/ubuntu_install_llvm.sh /install/ubuntu_install_llvm.sh
+RUN bash /install/ubuntu_install_llvm.sh
 
 COPY install/ubuntu_install_opencl.sh /install/ubuntu_install_opencl.sh
 RUN bash /install/ubuntu_install_opencl.sh
 
 COPY install/ubuntu_install_python_package.sh /install/ubuntu_install_python_package.sh
 RUN bash /install/ubuntu_install_python_package.sh
+
+COPY install/ubuntu_install_cuda_python.sh /install/ubuntu_install_cuda_python.sh
+RUN bash /install/ubuntu_install_cuda_python.sh
 
 COPY install/ubuntu_install_sphinx.sh /install/ubuntu_install_sphinx.sh
 RUN bash /install/ubuntu_install_sphinx.sh
@@ -76,9 +85,6 @@ COPY install/ubuntu_install_rocm.sh /install/ubuntu_install_rocm.sh
 RUN bash /install/ubuntu_install_rocm.sh
 
 # DL Frameworks
-COPY install/ubuntu_install_gluoncv.sh /install/ubuntu_install_gluoncv.sh
-RUN bash /install/ubuntu_install_gluoncv.sh
-
 COPY install/ubuntu_install_coreml.sh /install/ubuntu_install_coreml.sh
 RUN bash /install/ubuntu_install_coreml.sh
 
@@ -88,11 +94,9 @@ RUN bash /install/ubuntu_install_tensorflow.sh
 COPY install/ubuntu_install_jax.sh /install/ubuntu_install_jax.sh
 RUN bash /install/ubuntu_install_jax.sh "cuda"
 
+# ONNX and PyTorch
 COPY install/ubuntu_install_onnx.sh /install/ubuntu_install_onnx.sh
 RUN bash /install/ubuntu_install_onnx.sh "cuda"
-
-COPY install/ubuntu_install_libtorch.sh /install/ubuntu_install_libtorch.sh
-RUN bash /install/ubuntu_install_libtorch.sh
 
 COPY install/ubuntu_install_tflite.sh /install/ubuntu_install_tflite.sh
 RUN bash /install/ubuntu_install_tflite.sh
@@ -103,37 +107,22 @@ RUN bash /install/ubuntu_install_dgl.sh
 COPY install/ubuntu_install_nnef.sh /install/ubuntu_install_nnef.sh
 RUN bash /install/ubuntu_install_nnef.sh
 
-ENV NVIDIA_DRIVER_CAPABILITIES compute,graphics,utility
+ENV NVIDIA_DRIVER_CAPABILITIES=compute,graphics,utility
 COPY install/ubuntu_install_vulkan.sh /install/ubuntu_install_vulkan.sh
 RUN bash /install/ubuntu_install_vulkan.sh
 
-# Rust env (build early; takes a while)
-COPY install/ubuntu_install_rust.sh /install/ubuntu_install_rust.sh
-RUN bash /install/ubuntu_install_rust.sh
-ENV RUSTUP_HOME /opt/rust
-ENV CARGO_HOME /opt/rust
-ENV PATH $PATH:$CARGO_HOME/bin
-
-# wasmtime
-COPY install/ubuntu_install_wasmtime.sh /install/ubuntu_install_wasmtime.sh
-RUN bash /install/ubuntu_install_wasmtime.sh
-
-# AutoTVM deps
-COPY install/ubuntu_install_redis.sh /install/ubuntu_install_redis.sh
-RUN bash /install/ubuntu_install_redis.sh
+# MetaScheduler deps
+COPY install/ubuntu_install_xgboost.sh /install/ubuntu_install_xgboost.sh
+RUN bash /install/ubuntu_install_xgboost.sh
 
 # BYODT deps
 COPY install/ubuntu_install_universal.sh /install/ubuntu_install_universal.sh
 RUN bash /install/ubuntu_install_universal.sh
 
-# PAPI profiling deps
-COPY install/ubuntu_install_papi.sh /install/ubuntu_install_papi.sh
-RUN bash /install/ubuntu_install_papi.sh "cuda rocm"
-
 # sccache
 COPY install/ubuntu_install_sccache.sh /install/ubuntu_install_sccache.sh
 RUN bash /install/ubuntu_install_sccache.sh
-ENV PATH /opt/sccache:$PATH
+ENV PATH=/opt/sccache:$PATH
 
 # dnnl
 COPY install/ubuntu_install_dnnl.sh /install/ubuntu_install_dnnl.sh
@@ -142,8 +131,8 @@ RUN bash /install/ubuntu_install_dnnl.sh
 # Environment variables
 ENV PATH=/usr/local/nvidia/bin:${PATH}
 ENV PATH=/usr/local/cuda/bin:${PATH}
-ENV CPLUS_INCLUDE_PATH=/usr/local/cuda/include:${CPLUS_INCLUDE_PATH}
-ENV C_INCLUDE_PATH=/usr/local/cuda/include:${C_INCLUDE_PATH}
+ENV CPLUS_INCLUDE_PATH=/usr/local/cuda/include
+ENV C_INCLUDE_PATH=/usr/local/cuda/include
 ENV LIBRARY_PATH=/usr/local/cuda/lib64:/usr/local/cuda/compat:${LIBRARY_PATH}
 ENV LD_LIBRARY_PATH=/usr/local/cuda/lib64:/usr/local/cuda/compat:${LD_LIBRARY_PATH}
 

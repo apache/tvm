@@ -56,11 +56,11 @@ class DiscoSocketChannel : public DiscoChannel {
 class SocketSessionObj : public BcastSessionObj {
  public:
   explicit SocketSessionObj(int num_nodes, int num_workers_per_node, int num_groups,
-                            const String& host, int port)
+                            const ffi::String& host, int port)
       : num_nodes_(num_nodes), num_workers_per_node_(num_workers_per_node) {
     const auto f_create_local_session =
         tvm::ffi::Function::GetGlobal("runtime.disco.create_socket_session_local_workers");
-    ICHECK(f_create_local_session.has_value())
+    TVM_FFI_ICHECK(f_create_local_session.has_value())
         << "Cannot find function runtime.disco.create_socket_session_local_workers";
     local_session_ = ((*f_create_local_session)(num_workers_per_node)).cast<BcastSession>();
     DRef f_init_workers =
@@ -107,8 +107,9 @@ class SocketSessionObj : public BcastSessionObj {
                             static_cast<int>(DiscoAction::kDebugGetFromRemote), reg_id, worker_id);
       remote_channels_[node_id - 1]->Send(ffi::PackedArgs(packed_args, 5));
       ffi::PackedArgs args = this->RecvReplyPacked(worker_id);
-      ICHECK_EQ(args.size(), 2);
-      ICHECK(static_cast<DiscoAction>(args[0].cast<int>()) == DiscoAction::kDebugGetFromRemote);
+      TVM_FFI_ICHECK_EQ(args.size(), 2);
+      TVM_FFI_ICHECK(static_cast<DiscoAction>(args[0].cast<int>()) ==
+                     DiscoAction::kDebugGetFromRemote);
       ffi::Any result;
       result = args[1];
       return result;
@@ -134,8 +135,9 @@ class SocketSessionObj : public BcastSessionObj {
       }
       ffi::Any result;
       ffi::PackedArgs args = this->RecvReplyPacked(worker_id);
-      ICHECK_EQ(args.size(), 1);
-      ICHECK(static_cast<DiscoAction>(args[0].cast<int>()) == DiscoAction::kDebugSetRegister);
+      TVM_FFI_ICHECK_EQ(args.size(), 1);
+      TVM_FFI_ICHECK(static_cast<DiscoAction>(args[0].cast<int>()) ==
+                     DiscoAction::kDebugSetRegister);
     }
   }
 
@@ -173,8 +175,8 @@ class SocketSessionObj : public BcastSessionObj {
     return remote_channels_[node_id - 1]->Recv();
   }
 
-  void AppendHostNDArray(const NDArray& host_array) final {
-    local_session_->AppendHostNDArray(host_array);
+  void AppendHostTensor(const Tensor& host_array) final {
+    local_session_->AppendHostTensor(host_array);
   }
 
   void Shutdown() final {
@@ -196,9 +198,8 @@ class SocketSessionObj : public BcastSessionObj {
   }
 
   ~SocketSessionObj() { Shutdown(); }
-
-  static constexpr const char* _type_key = "runtime.disco.SocketSession";
-  TVM_DECLARE_FINAL_OBJECT_INFO(SocketSessionObj, BcastSessionObj);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.disco.SocketSession", SocketSessionObj,
+                                    BcastSessionObj);
   int num_nodes_;
   int num_workers_per_node_;
   TCPSocket socket_;
@@ -207,27 +208,26 @@ class SocketSessionObj : public BcastSessionObj {
   BcastSession local_session_{nullptr};
 };
 
-TVM_REGISTER_OBJECT_TYPE(SocketSessionObj);
-
 class RemoteSocketSession {
  public:
-  explicit RemoteSocketSession(const String& server_host, int server_port, int num_local_workers) {
+  explicit RemoteSocketSession(const ffi::String& server_host, int server_port,
+                               int num_local_workers) {
     socket_.Create();
     socket_.SetKeepAlive(true);
     SockAddr server_addr{server_host.c_str(), server_port};
     Socket::Startup();
     if (!socket_.Connect(server_addr)) {
-      LOG(FATAL) << "Failed to connect to server " << server_addr.AsString()
-                 << ", errno = " << Socket::GetLastErrorCode();
+      TVM_FFI_THROW(InternalError) << "Failed to connect to server " << server_addr.AsString()
+                                   << ", errno = " << Socket::GetLastErrorCode();
     }
     channel_ = std::make_unique<DiscoSocketChannel>(socket_);
     ffi::PackedArgs metadata = channel_->Recv();
-    ICHECK_EQ(metadata.size(), 4);
+    TVM_FFI_ICHECK_EQ(metadata.size(), 4);
     num_nodes_ = metadata[0].cast<int>();
     num_workers_per_node_ = metadata[1].cast<int>();
     num_groups_ = metadata[2].cast<int>();
     node_id_ = metadata[3].cast<int>();
-    CHECK_GE(num_local_workers, num_workers_per_node_);
+    TVM_FFI_ICHECK_GE(num_local_workers, num_workers_per_node_);
     InitLocalSession();
   }
 
@@ -258,7 +258,7 @@ class RemoteSocketSession {
           return;
         }
         default:
-          LOG(FATAL) << "Invalid action " << static_cast<int>(action);
+          TVM_FFI_THROW(InternalError) << "Invalid action " << static_cast<int>(action);
       }
     }
   }
@@ -289,25 +289,27 @@ class RemoteSocketSession {
   int num_workers_per_node_{-1};
 };
 
-void RemoteSocketSessionEntryPoint(const String& server_host, int server_port,
+void RemoteSocketSessionEntryPoint(const ffi::String& server_host, int server_port,
                                    int num_local_workers) {
   RemoteSocketSession proxy(server_host, server_port, num_local_workers);
   proxy.MainLoop();
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("runtime.disco.RemoteSocketSession", RemoteSocketSessionEntryPoint);
-});
+}
 
-Session SocketSession(int num_nodes, int num_workers_per_node, int num_groups, const String& host,
-                      int port) {
-  auto n = make_object<SocketSessionObj>(num_nodes, num_workers_per_node, num_groups, host, port);
+Session SocketSession(int num_nodes, int num_workers_per_node, int num_groups,
+                      const ffi::String& host, int port) {
+  auto n =
+      ffi::make_object<SocketSessionObj>(num_nodes, num_workers_per_node, num_groups, host, port);
   return Session(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<SocketSessionObj>();
   refl::GlobalDef()
       .def("runtime.disco.SocketSession", SocketSession)
       .def("runtime.disco.socket_session_init_workers",
@@ -320,7 +322,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
              worker->worker_id = worker->worker_id + node_id * num_workers_per_node;
              worker->num_workers = num_nodes * num_workers_per_node;
            });
-});
+}
 
 }  // namespace runtime
 }  // namespace tvm

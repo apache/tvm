@@ -16,16 +16,18 @@
 # under the License.
 # pylint: disable=invalid-name,unused-argument
 """Common pass infrastructure across IR variants."""
-import inspect
-import functools
 
-import tvm.ffi
+import functools
+import inspect
+
+import tvm_ffi
+
 import tvm.runtime
 
 from . import _ffi_transform_api
 
 
-@tvm.ffi.register_object("transform.PassInfo")
+@tvm_ffi.register_object("transform.PassInfo")
 class PassInfo(tvm.runtime.Object):
     """The class contains the meta data required by a pass. It is the
     container of information needed by running an optimization or analysis.
@@ -50,7 +52,7 @@ class PassInfo(tvm.runtime.Object):
         )
 
 
-@tvm.ffi.register_object("transform.PassContext")
+@tvm_ffi.register_object("transform.PassContext")
 class PassContext(tvm.runtime.Object):
     """The basis where a TVM optimization/analysis runs on.
     Each pass context contains a number of auxiliary information that is used
@@ -82,15 +84,15 @@ class PassContext(tvm.runtime.Object):
         config=None,
     ):
         required = list(required_pass) if required_pass else []
-        if not isinstance(required, (list, tuple)):
+        if not isinstance(required, list | tuple):
             raise TypeError("required_pass is expected to be the type of " + "list/tuple/set.")
 
         disabled = list(disabled_pass) if disabled_pass else []
-        if not isinstance(disabled, (list, tuple)):
+        if not isinstance(disabled, list | tuple):
             raise TypeError("disabled_pass is expected to be the type of " + "list/tuple/set.")
 
         instruments = list(instruments) if instruments else []
-        if not isinstance(instruments, (list, tuple)):
+        if not isinstance(instruments, list | tuple):
             raise TypeError("instruments is expected to be the type of " + "list/tuple/set.")
 
         config = config if config else None
@@ -138,7 +140,7 @@ class PassContext(tvm.runtime.Object):
         return _ffi_transform_api.ListConfigs()
 
 
-@tvm.ffi.register_object("transform.Pass")
+@tvm_ffi.register_object("transform.Pass")
 class Pass(tvm.runtime.Object):
     """The base class of all passes. All methods here are just simple wrappers
     that are implemented in the backend. They are defined for users to
@@ -167,7 +169,7 @@ class Pass(tvm.runtime.Object):
         return _ffi_transform_api.RunPass(self, mod)
 
 
-@tvm.ffi.register_object("transform.ModulePass")
+@tvm_ffi.register_object("transform.ModulePass")
 class ModulePass(Pass):
     """A pass that works on tvm.IRModule. Users don't need to interact with
     this class directly. Instead, a module pass should be created through
@@ -178,7 +180,7 @@ class ModulePass(Pass):
     """
 
 
-@tvm.ffi.register_object("transform.Sequential")
+@tvm_ffi.register_object("transform.Sequential")
 class Sequential(Pass):
     """A pass that works on a sequence of pass objects. Multiple passes can be
     executed sequentially using this class.
@@ -207,11 +209,11 @@ class Sequential(Pass):
 
     def __init__(self, passes=None, opt_level=0, name="sequential", required=None, traceable=False):
         passes = passes if passes else []
-        if not isinstance(passes, (list, tuple)):
+        if not isinstance(passes, list | tuple):
             raise TypeError("passes must be a list of Pass objects.")
 
         required = required if required else []
-        if not isinstance(required, (list, tuple)):
+        if not isinstance(required, list | tuple):
             raise TypeError("Required is expected to be the type of list/tuple.")
 
         self.__init_handle_by_constructor__(
@@ -330,7 +332,7 @@ def module_pass(pass_func=None, opt_level=None, name=None, required=None, tracea
         raise ValueError("Please provide opt_level for the module pass.")
 
     required = required if required else []
-    if not isinstance(required, (list, tuple)):
+    if not isinstance(required, list | tuple):
         raise TypeError("Required is expected to be the type of " + "list/tuple.")
 
     def create_module_pass(pass_arg):
@@ -348,7 +350,7 @@ def module_pass(pass_func=None, opt_level=None, name=None, required=None, tracea
     return create_module_pass
 
 
-def PrintIR(header="", show_meta_data=False):
+def PrintIR(header=""):
     """A special trace pass that prints the header and IR.
 
     Parameters
@@ -356,14 +358,11 @@ def PrintIR(header="", show_meta_data=False):
     header : str
         The header to be displayed along with the dump.
 
-    show_meta_data : bool
-        A boolean flag to indicate if meta data should be printed.
-
     Returns
     --------
     The pass
     """
-    return _ffi_transform_api.PrintIR(header, show_meta_data)
+    return _ffi_transform_api.PrintIR(header)
 
 
 def ApplyPassToFunction(

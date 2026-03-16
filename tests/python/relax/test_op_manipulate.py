@@ -14,13 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E731, F841
 import pytest
+
 import tvm
 import tvm.testing
-from tvm import relax, tir
-from tvm import TVMError
+from tvm import TVMError, relax, tir
 from tvm.ir import Op, VDevice
-from tvm.script import relax as R, tir as T
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 def test_op_correctness():
@@ -740,7 +742,7 @@ def test_layout_transform_infer_struct_info():
         relax.TensorStructInfo((10, 30, 7, 3), "float32"),
     )
 
-    flatten_transform = lambda a, b, c: (a * 600 + b * 30 + c)
+    flatten_transform = lambda a, b, c: a * 600 + b * 30 + c
     _check_inference(
         bb,
         relax.op.layout_transform(x, index_map=flatten_transform),
@@ -994,11 +996,19 @@ def test_squeeze_infer_struct_info_axis_length_not_one():
     x2 = relax.Var("x", relax.TensorStructInfo(s0, "float32"))
     x3 = relax.Var("x", relax.TensorStructInfo(s1, "float32"))
 
-    with pytest.raises(TVMError):
-        bb.normalize(relax.op.squeeze(x0, [0]))
-    _check_inference(bb, relax.op.squeeze(x1, [0]), relax.TensorStructInfo((3, 4), "float32"))
-    with pytest.raises(TVMError):
-        bb.normalize(relax.op.squeeze(x2, [0]))
+    # Squeeze concrete shape (2,3,4) at axis=0, but axis length 2 != 1, squeeze is no-op.
+    _check_inference(
+        bb, relax.op.squeeze(x0, [0]), relax.TensorStructInfo(shape=(2, 3, 4), dtype="float32")
+    )
+    # Squeeze symbolic shape (a,3,4) at axis=0, assuming a can achieve successful squeeze.
+    _check_inference(
+        bb, relax.op.squeeze(x1, [0]), relax.TensorStructInfo(shape=(3, 4), dtype="float32")
+    )
+    # Squeeze shape variable s0 (corresponding to (2,3,4)) at axis=0.
+    _check_inference(
+        bb, relax.op.squeeze(x2, [0]), relax.TensorStructInfo(shape=s0, dtype="float32")
+    )
+    # Squeeze shape variable s1 (a,3,4) at axis=0, assuming a can achieve successful squeeze.
     _check_inference(bb, relax.op.squeeze(x3, [0]), relax.TensorStructInfo(dtype="float32", ndim=2))
 
 
@@ -3408,6 +3418,20 @@ def test_scatter_elements_infer_struct_info():
         bb,
         relax.op.scatter_elements(d2, i3, u0, 0, "updates"),
         relax.TensorStructInfo(dtype="float32", ndim=-1),
+    )
+    # Test with unknown dtype for data
+    d_unknown = relax.Var("data", R.Tensor((4, 4)))
+    _check_inference(
+        bb,
+        relax.op.scatter_elements(d_unknown, i0, u0, 0, "updates"),
+        relax.TensorStructInfo((4, 4), dtype=""),
+    )
+    # Test with unknown dtype for updates
+    u_unknown = relax.Var("updates", R.Tensor((2, 2)))
+    _check_inference(
+        bb,
+        relax.op.scatter_elements(d0, i0, u_unknown, 0, "updates"),
+        relax.TensorStructInfo((4, 4), dtype="float32"),
     )
 
 

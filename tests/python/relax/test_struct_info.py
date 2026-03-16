@@ -15,11 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import tvm
-import tvm.testing
 import pytest
 
-from tvm import relax as rx, TVMError, tir
+import tvm
+import tvm.testing
+from tvm import TVMError, tir
+from tvm import relax as rx
 
 
 def _check_equal(x, y, map_free_vars=False):
@@ -51,8 +52,8 @@ def test_object_struct_info():
 
 
 def test_shape_type():
-    t0 = rx.ShapeType()
-    t1 = rx.ShapeType()
+    t0 = rx.ShapeType(ndim=-1)
+    t1 = rx.ShapeType(ndim=-1)
     assert t0 == t1
 
 

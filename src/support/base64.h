@@ -27,6 +27,7 @@
 #define TVM_SUPPORT_BASE64_H_
 
 #include <tvm/runtime/logging.h>
+#include <tvm/support/io.h>
 
 #include <cctype>
 #include <cstdio>
@@ -65,7 +66,7 @@ class StreamBufferReader {
    * \brief set input stream
    * \param stream The stream to be set
    */
-  void set_stream(dmlc::Stream* stream) {
+  void set_stream(tvm::support::Stream* stream) {
     stream_ = stream;
     read_len_ = read_ptr_ = 1;
   }
@@ -88,7 +89,7 @@ class StreamBufferReader {
 
  private:
   /*! \brief the underlying stream */
-  dmlc::Stream* stream_{nullptr};
+  tvm::support::Stream* stream_{nullptr};
   /*! \brief buffer to hold data */
   std::string buffer_;
   /*! \brief length of valid data in buffer */
@@ -100,9 +101,9 @@ class StreamBufferReader {
 /*!
  * \brief Input stream from base64 encoding
  */
-class Base64InStream : public dmlc::Stream {
+class Base64InStream : public tvm::support::Stream {
  public:
-  explicit Base64InStream(dmlc::Stream* fs) : reader_(256) { reader_.set_stream(fs); }
+  explicit Base64InStream(tvm::support::Stream* fs) : reader_(256) { reader_.set_stream(fs); }
   /*!
    * \brief initialize the stream position to beginning of next base64 stream
    * \note call this function before actually start read
@@ -116,7 +117,7 @@ class Base64InStream : public dmlc::Stream {
   /*! \brief whether current position is end of a base64 stream */
   bool IsEOF(void) const { return num_prev_ == 0 && (temp_ch_ == EOF || isspace(temp_ch_)); }
 
-  using dmlc::Stream::Read;
+  using tvm::support::Stream::Read;
   // override read function.
   size_t Read(void* ptr, size_t size) final {
     using base64::DecodeTable;
@@ -156,7 +157,7 @@ class Base64InStream : public dmlc::Stream {
       {
         // second byte
         temp_ch_ = reader_.GetChar();
-        ICHECK(temp_ch_ != EOF && !isspace(temp_ch_)) << "invalid base64 format";
+        TVM_FFI_ICHECK(temp_ch_ != EOF && !isspace(temp_ch_)) << "invalid base64 format";
         nvalue |= DecodeTable[temp_ch_] << 12;
         *cptr++ = (nvalue >> 16) & 0xFF;
         --tlen;
@@ -164,13 +165,13 @@ class Base64InStream : public dmlc::Stream {
       {
         // third byte
         temp_ch_ = reader_.GetChar();
-        ICHECK(temp_ch_ != EOF && !isspace(temp_ch_)) << "invalid base64 format";
+        TVM_FFI_ICHECK(temp_ch_ != EOF && !isspace(temp_ch_)) << "invalid base64 format";
         // handle termination
         if (temp_ch_ == '=') {
           temp_ch_ = reader_.GetChar();
-          ICHECK(temp_ch_ == '=') << "invalid base64 format";
+          TVM_FFI_ICHECK(temp_ch_ == '=') << "invalid base64 format";
           temp_ch_ = reader_.GetChar();
-          ICHECK(temp_ch_ == EOF || isspace(temp_ch_)) << "invalid base64 format";
+          TVM_FFI_ICHECK(temp_ch_ == EOF || isspace(temp_ch_)) << "invalid base64 format";
           break;
         }
         nvalue |= DecodeTable[temp_ch_] << 6;
@@ -184,10 +185,10 @@ class Base64InStream : public dmlc::Stream {
       {
         // fourth byte
         temp_ch_ = reader_.GetChar();
-        ICHECK(temp_ch_ != EOF && !isspace(temp_ch_)) << "invalid base64 format";
+        TVM_FFI_ICHECK(temp_ch_ != EOF && !isspace(temp_ch_)) << "invalid base64 format";
         if (temp_ch_ == '=') {
           temp_ch_ = reader_.GetChar();
-          ICHECK(temp_ch_ == EOF || isspace(temp_ch_)) << "invalid base64 format";
+          TVM_FFI_ICHECK(temp_ch_ == EOF || isspace(temp_ch_)) << "invalid base64 format";
           break;
         }
         nvalue |= DecodeTable[temp_ch_];
@@ -202,12 +203,13 @@ class Base64InStream : public dmlc::Stream {
       temp_ch_ = reader_.GetChar();
     }
     if (kStrictCheck) {
-      ICHECK_EQ(tlen, 0) << "Base64InStream: read incomplete";
+      TVM_FFI_ICHECK_EQ(tlen, 0) << "Base64InStream: read incomplete";
     }
     return size - tlen;
   }
   size_t Write(const void* ptr, size_t size) final {
-    LOG(FATAL) << "Base64InStream do not support write";
+    TVM_FFI_THROW(InternalError) << "Base64InStream do not support write";
+    return 0;
   }
 
  private:
@@ -223,11 +225,11 @@ class Base64InStream : public dmlc::Stream {
 /*!
  * \brief Stream to write to base64 format.
  */
-class Base64OutStream : public dmlc::Stream {
+class Base64OutStream : public tvm::support::Stream {
  public:
-  explicit Base64OutStream(dmlc::Stream* fp) : fp_(fp) {}
+  explicit Base64OutStream(tvm::support::Stream* fp) : fp_(fp) {}
 
-  using dmlc::Stream::Write;
+  using tvm::support::Stream::Write;
 
   size_t Write(const void* ptr, size_t size) final {
     using base64::EncodeTable;
@@ -250,7 +252,8 @@ class Base64OutStream : public dmlc::Stream {
     return size;
   }
   virtual size_t Read(void* ptr, size_t size) {
-    LOG(FATAL) << "Base64OutStream do not support read";
+    TVM_FFI_THROW(InternalError) << "Base64OutStream do not support read";
+    return 0;
   }
   /*!
    * \brief finish writing of all current base64 stream, do some post processing
@@ -278,7 +281,7 @@ class Base64OutStream : public dmlc::Stream {
  private:
   static constexpr size_t kBufferSize = 256;
 
-  dmlc::Stream* fp_{nullptr};
+  tvm::support::Stream* fp_{nullptr};
   int buf__top_{0};
   unsigned char buf_[4];
   std::string out_buf_;

@@ -14,12 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401
 """VTCM Tests"""
 
 import pytest
+
 import tvm.testing
 from tvm import tir
 from tvm.script import tir as T
+
 from .infrastructure import get_hexagon_target
 
 
@@ -29,14 +32,14 @@ def scale_by_two(buffer_a: T.Buffer((8192,), "int8"), buffer_c: T.Buffer((8192,)
         0,
         8192,
     ):
-        with T.block("C"):
+        with T.sblock("C"):
             buffer_c[i] = buffer_a[i] * T.int8(2)
 
 
 def get_scale_by_two_schedule():
     mod = tvm.IRModule.from_expr(scale_by_two.with_attr("global_symbol", "main"))
-    sch = tir.Schedule(mod, debug_mask="all")
-    block_c = sch.get_block("C")
+    sch = tvm.s_tir.Schedule(mod, debug_mask="all")
+    block_c = sch.get_sblock("C")
     (flat,) = sch.get_loops(block_c)
     outer, _, _, _ = sch.split(flat, factors=[8, 4, 2, 128])
     cache_block = sch.cache_read(block_c, 0, storage_scope="global.vtcm")
@@ -50,7 +53,7 @@ def test_vtcm_building():
     sch = get_scale_by_two_schedule()
     target = get_hexagon_target("v68")
     built = tvm.compile(sch.mod, target=target)
-    assert "global.vtcm" in built.get_source("asm")
+    assert "global.vtcm" in built.inspect_source("asm")
 
 
 @tvm.testing.requires_hexagon
@@ -68,14 +71,14 @@ def test_vtcm_limit(vtcm_capacity, limited):
 
     target = get_hexagon_target("v68", vtcm_capacity=vtcm_capacity)
 
-    assert (
-        _raises_exception(lambda: tvm.compile(sch.mod, target=target)) == limited
-    ), "Case 1 - arg. VTCM memory allocation limiter does not work correctly "
+    assert _raises_exception(lambda: tvm.compile(sch.mod, target=target)) == limited, (
+        "Case 1 - arg. VTCM memory allocation limiter does not work correctly "
+    )
 
     with target:
-        assert (
-            _raises_exception(lambda: tvm.compile(sch.mod)) == limited
-        ), "Case 2 - with.VTCM memory allocation limiter does not work correctly "
+        assert _raises_exception(lambda: tvm.compile(sch.mod)) == limited, (
+            "Case 2 - with.VTCM memory allocation limiter does not work correctly "
+        )
 
     with tvm.transform.PassContext(config={"tir.vtcm_capacity": vtcm_capacity}):
         assert (

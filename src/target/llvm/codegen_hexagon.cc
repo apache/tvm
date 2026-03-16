@@ -17,7 +17,7 @@
  * under the License.
  */
 
-#if defined(TVM_LLVM_VERSION) && TVM_LLVM_VERSION >= 70
+#ifdef TVM_LLVM_VERSION
 
 #include <llvm/ADT/ArrayRef.h>
 #include <llvm/ADT/SmallString.h>
@@ -29,23 +29,19 @@
 #include <llvm/IR/GlobalVariable.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Intrinsics.h>
-#include <tvm/ffi/reflection/registry.h>
-#if TVM_LLVM_VERSION >= 100
 #include <llvm/IR/IntrinsicsHexagon.h>
-#endif
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/IR/MDBuilder.h>
 #include <llvm/IR/Module.h>
-#if TVM_LLVM_VERSION >= 100
 #include <llvm/Support/Alignment.h>
-#endif
 #include <llvm/Support/CodeGen.h>
 #include <llvm/Support/CommandLine.h>
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Transforms/Utils/Cloning.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/module.h>
 #include <tvm/target/codegen.h>
 #include <tvm/tir/analysis.h>
@@ -71,7 +67,7 @@ namespace codegen {
 class CodeGenHexagon final : public CodeGenCPU {
  public:
   void Init(const std::string& module_name, LLVMTarget* llvm_target,
-            Optional<String> system_lib_prefix, bool dynamic_lookup,
+            ffi::Optional<ffi::String> system_lib_prefix, bool dynamic_lookup,
             bool target_c_runtime) override;
   void InitTarget() final;
 
@@ -79,20 +75,18 @@ class CodeGenHexagon final : public CodeGenCPU {
   llvm::Value* VisitExpr_(const BufferLoadNode* op) override;
   llvm::Value* CreateIntrinsic(const CallNode* op) override;
 
-  llvm::Value* CreateCallExtern(Type ret_type, String global_symbol, const Array<PrimExpr>& args,
-                                bool skip_first_arg) override;
-  llvm::Value* CreateCallExternQHL(Type ret_type, String global_symbol, const Array<PrimExpr>& args,
-                                   bool skip_first_arg);
+  llvm::Value* CreateCallExtern(Type ret_type, ffi::String global_symbol,
+                                const ffi::Array<PrimExpr>& args, bool skip_first_arg) override;
+  llvm::Value* CreateCallExternQHL(Type ret_type, ffi::String global_symbol,
+                                   const ffi::Array<PrimExpr>& args, bool skip_first_arg);
 
   llvm::Module* GetModulePtr() const { return module_.get(); }
 
   uint64_t GetTypeSizeInBits(llvm::Type* type) const {
 #if TVM_LLVM_VERSION >= 160
     return data_layout_->getTypeSizeInBits(type).getFixedValue();
-#elif TVM_LLVM_VERSION >= 100
-    return data_layout_->getTypeSizeInBits(type).getFixedSize();
 #else
-    return data_layout_->getTypeSizeInBits(type);
+    return data_layout_->getTypeSizeInBits(type).getFixedSize();
 #endif
   }
 
@@ -105,7 +99,7 @@ class CodeGenHexagon final : public CodeGenCPU {
 
   bool IsQHLFunction(const std::string& func);
 
-  llvm::Value* VectorLookupLoad(Buffer buffer, DataType buffer_type, Array<PrimExpr> indices);
+  llvm::Value* VectorLookupLoad(Buffer buffer, DataType buffer_type, ffi::Array<PrimExpr> indices);
   llvm::Value* Intrinsic(llvm::Intrinsic::ID, llvm::ArrayRef<llvm::Value*> args);
   std::vector<std::string> fqhl_list_ = {
       "tvm_vect_qhmath_hvx_cos_ahf",     "tvm_vect_qhmath_hvx_tanh_ahf",
@@ -116,7 +110,7 @@ class CodeGenHexagon final : public CodeGenCPU {
 };
 
 void CodeGenHexagon::Init(const std::string& module_name, LLVMTarget* llvm_target,
-                          Optional<String> system_lib_prefix, bool dynamic_lookup,
+                          ffi::Optional<ffi::String> system_lib_prefix, bool dynamic_lookup,
                           bool target_c_runtime) {
   CodeGenCPU::Init(module_name, llvm_target, system_lib_prefix, dynamic_lookup, target_c_runtime);
 }
@@ -129,18 +123,18 @@ void CodeGenHexagon::InitTarget() {
 #if TVM_LLVM_VERSION >= 180
     if (!fs.starts_with(hvx_length_feature)) continue;
 
-    ICHECK(fs.ends_with("b")) << "malformed target feature: " << f;
+    TVM_FFI_ICHECK(fs.ends_with("b")) << "malformed target feature: " << f;
 #else
     if (!fs.startswith(hvx_length_feature)) continue;
 
-    ICHECK(fs.endswith("b")) << "malformed target feature: " << f;
+    TVM_FFI_ICHECK(fs.endswith("b")) << "malformed target feature: " << f;
 #endif
 
     int hvx_bytes = 0;
     size_t len_begin = std::strlen(hvx_length_feature);
-    ICHECK(!fs.substr(len_begin, fs.size() - len_begin - 1).getAsInteger(10, hvx_bytes))
+    TVM_FFI_ICHECK(!fs.substr(len_begin, fs.size() - len_begin - 1).getAsInteger(10, hvx_bytes))
         << "invalid HVX length in feature string: " << f;
-    ICHECK(hvx_bytes == 64 || hvx_bytes == 128)
+    TVM_FFI_ICHECK(hvx_bytes == 64 || hvx_bytes == 128)
         << "invalid HVX vector length: " << hvx_bytes << ", should be 64 or 128";
     native_vector_bits_ = hvx_bytes * 8;
     // There should only be one hvx-length...
@@ -149,8 +143,9 @@ void CodeGenHexagon::InitTarget() {
   CodeGenCPU::InitTarget();
 }
 
-llvm::Value* CodeGenHexagon::CreateCallExternQHL(Type ret_type, String global_symbol,
-                                                 const Array<PrimExpr>& args, bool skip_first_arg) {
+llvm::Value* CodeGenHexagon::CreateCallExternQHL(Type ret_type, ffi::String global_symbol,
+                                                 const ffi::Array<PrimExpr>& args,
+                                                 bool skip_first_arg) {
   int num_lanes = args[1].dtype().lanes();
   int vector_length = native_vector_bits_ / args[1].dtype().bits();
   num_lanes = ((num_lanes + vector_length - 1) / vector_length) * vector_length;
@@ -170,11 +165,7 @@ llvm::Value* CodeGenHexagon::CreateCallExternQHL(Type ret_type, String global_sy
       f = llvm::Function::Create(ftype, llvm::Function::ExternalLinkage,
                                  MakeStringRef(global_symbol), module_.get());
     }
-#if TVM_LLVM_VERSION >= 90
     auto ext_callee = llvm::FunctionCallee(f);
-#else
-    auto ext_callee = f;
-#endif
     vect_split.push_back(builder_->CreateCall(ext_callee, sub_vect_val));
   }
   return CodeGenCPU::CreateVecConcat(vect_split);
@@ -184,8 +175,9 @@ bool CodeGenHexagon::IsQHLFunction(const std::string& func) {
   return std::find(fqhl_list_.begin(), fqhl_list_.end(), func) != fqhl_list_.end();
 }
 
-llvm::Value* CodeGenHexagon::CreateCallExtern(Type ret_type, String global_symbol,
-                                              const Array<PrimExpr>& args, bool skip_first_arg) {
+llvm::Value* CodeGenHexagon::CreateCallExtern(Type ret_type, ffi::String global_symbol,
+                                              const ffi::Array<PrimExpr>& args,
+                                              bool skip_first_arg) {
   int num_lanes = args[1].dtype().lanes();
   int vector_length = native_vector_bits_ / args[1].dtype().bits();
   if (IsQHLFunction(global_symbol) && (num_lanes > vector_length))
@@ -206,7 +198,6 @@ llvm::Value* CodeGenHexagon::VisitExpr_(const BufferLoadNode* op) {
 }
 
 llvm::Value* CodeGenHexagon::CreateIntrinsic(const CallNode* op) {
-#if TVM_LLVM_VERSION >= 150
   if (op->op.same_as(builtin::start_profile_intrinsic()) ||
       op->op.same_as(builtin::end_profile_intrinsic())) {
     llvm::Value* id = MakeValue(op->args[0]);
@@ -228,7 +219,6 @@ llvm::Value* CodeGenHexagon::CreateIntrinsic(const CallNode* op) {
     llvm::Type* t_int8_p_ = llvmGetPointerTo(t_int8_, 0);
     return builder_->CreateCall(func, {llvm::ConstantExpr::getBitCast(name_var, t_int8_p_), id});
   }
-#endif
   return CodeGenCPU::CreateIntrinsic(op);
 }
 
@@ -276,8 +266,9 @@ CodeGenLLVM::TypedPointer CodeGenHexagon::CreateBufferPtr(llvm::Value* buffer_pt
     return CodeGenCPU::CreateBufferPtr(buffer_ptr, buffer_element_dtype, indices, value_dtype);
   }
 
-  ICHECK_EQ(indices.size(), 2) << "CodegenHexagon supports 1-d and 2-d physical buffers, received "
-                               << indices.size() << "-d buffer indices";
+  TVM_FFI_ICHECK_EQ(indices.size(), 2)
+      << "CodegenHexagon supports 1-d and 2-d physical buffers, received " << indices.size()
+      << "-d buffer indices";
 
   // Use the first index to identify the pointer.
   DataType dtype_void_ptr = DataType::Handle();
@@ -300,14 +291,10 @@ llvm::Value* CodeGenHexagon::Intrinsic(llvm::Intrinsic::ID IntID,
 #else
   llvm::Function* intf = llvm::Intrinsic::getDeclaration(module_.get(), IntID);
 #endif
-#if TVM_LLVM_VERSION >= 90
   auto intf_callee = llvm::FunctionCallee(intf);
-#else
-  auto intf_callee = intf;
-#endif
   std::vector<llvm::Value*> conv_args;
   llvm::FunctionType* intf_type = intf->getFunctionType();
-  ICHECK(args.size() == intf_type->getNumParams());
+  TVM_FFI_ICHECK(args.size() == intf_type->getNumParams());
 
   for (int i = 0, e = args.size(); i != e; ++i) {
     llvm::Value* arg = args[i];
@@ -328,7 +315,7 @@ llvm::Value* CodeGenHexagon::Intrinsic(llvm::Intrinsic::ID IntID,
 }
 
 llvm::Value* CodeGenHexagon::VectorLookupLoad(Buffer buffer, DataType buffer_type,
-                                              Array<PrimExpr> indices) {
+                                              ffi::Array<PrimExpr> indices) {
   PrimExpr index = indices[0];
   if (!index.dtype().is_fixed_length_vector()) {
     return nullptr;
@@ -395,13 +382,9 @@ llvm::Value* CodeGenHexagon::VectorLookupLoad(Buffer buffer, DataType buffer_typ
 
   int res_bits = GetTypeSizeInBits(res_type);
   int ret_bits = GetTypeSizeInBits(ret_type);
-  ICHECK_GE(res_bits, ret_bits);
+  TVM_FFI_ICHECK_GE(res_bits, ret_bits);
   if (ret_bits < res_bits) {
-#if TVM_LLVM_VERSION >= 110
     llvm::Type* res_byte_type = llvm::VectorType::get(t_int8_, res_bits / 8, /*Scalable*/ false);
-#else
-    llvm::Type* res_byte_type = llvm::VectorType::get(t_int8_, res_bits / 8);
-#endif
     result = CreateVecSlice(builder_->CreateBitCast(result, res_byte_type), 0, ret_bits / 8);
   }
   if (result->getType() != ret_type) {
@@ -419,7 +402,7 @@ llvm::Value* CodeGenHexagon::VectorLookupLoad(Buffer buffer, DataType buffer_typ
 }
 
 namespace {
-DMLC_ATTRIBUTE_UNUSED std::ostream& operator<<(std::ostream& os, const llvm::Module& m) {
+TVM_ATTRIBUTE_UNUSED std::ostream& operator<<(std::ostream& os, const llvm::Module& m) {
   std::string ms;
   llvm::raw_string_ostream sos(ms);
   sos << m;
@@ -440,7 +423,7 @@ void ProcessLLVMOptions(const std::vector<std::string>& llvm_vec) {
 }
 }  // namespace
 
-runtime::Module BuildHexagon(IRModule mod, Target target) {
+ffi::Module BuildHexagon(IRModule mod, Target target) {
   LLVMInstance llvm_instance;
   With<LLVMTarget> llvm_target(llvm_instance, target);
 
@@ -453,8 +436,8 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
     return vec;
   };
   std::string llvm_options_str = "llvm";
-  if (const auto& llvm_options = target->GetAttr<Array<String>>("llvm-options")) {
-    for (const String& s : llvm_options.value()) llvm_options_str += "," + s;
+  if (const auto& llvm_options = target->GetAttr<ffi::Array<ffi::String>>("llvm-options")) {
+    for (const ffi::String& s : llvm_options.value()) llvm_options_str += "," + s;
   }
   // Postprocess the LLVM options string: replace '@' with '=', and ',' with ' '.
   for (int i = 0, e = llvm_options_str.size(); i != e; ++i) {
@@ -494,8 +477,8 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
     }
     auto f = Downcast<PrimFunc>(kv.second);
     if (f->HasNonzeroAttr(tir::attr::kIsEntryFunc)) {
-      auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
-      ICHECK(global_symbol.defined());
+      auto global_symbol = f->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
+      TVM_FFI_ICHECK(global_symbol.has_value());
       entry_func = global_symbol.value();
     }
   }
@@ -522,10 +505,7 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
       else
         llvm::WriteBitcodeToFile(m, os);
     } else if (cgft == Asm || cgft == Obj) {
-#if TVM_LLVM_VERSION <= 90
-      auto ft = cgft == Asm ? llvm::TargetMachine::CodeGenFileType::CGFT_AssemblyFile
-                            : llvm::TargetMachine::CodeGenFileType::CGFT_ObjectFile;
-#elif TVM_LLVM_VERSION <= 170
+#if TVM_LLVM_VERSION <= 170
       auto ft = cgft == Asm ? llvm::CGFT_AssemblyFile : llvm::CGFT_ObjectFile;
 #else
       auto ft =
@@ -537,7 +517,8 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
       std::unique_ptr<llvm::Module> cm = llvm::CloneModule(m);
       llvm::legacy::PassManager pass;
       llvm::TargetMachine* tm = llvm_target->GetOrCreateTargetMachine();
-      ICHECK(tm->addPassesToEmitFile(pass, os, nullptr, ft) == 0) << "Cannot emit target code";
+      TVM_FFI_ICHECK(tm->addPassesToEmitFile(pass, os, nullptr, ft) == 0)
+          << "Cannot emit target code";
       pass.run(*cm.get());
       out.assign(ss.c_str(), ss.size());
     }
@@ -549,13 +530,13 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
     llvm::SmallString<64> file_name;
     int fd;
     std::error_code ec = llvm::sys::fs::createTemporaryFile("tvm", suffix, fd, file_name);
-    ICHECK_EQ(static_cast<bool>(ec), false) << ec.message();
+    TVM_FFI_ICHECK_EQ(static_cast<bool>(ec), false) << ec.message();
     llvm::raw_fd_ostream file(fd, true);
     file << data;
-    ICHECK(!file.has_error()) << file.error().message();
+    TVM_FFI_ICHECK(!file.has_error()) << file.error().message();
     // If there is an error, execution will never get here, but return
     // {ec, name} anyway to allow caller to handle error conditions.
-    // This way the "ICHECK" above can be removed with minimal effort.
+    // This way the "TVM_FFI_ICHECK" above can be removed with minimal effort.
     return std::make_pair(file.error(), std::string(file_name.c_str()));
   };
 
@@ -569,28 +550,28 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
   so_name += "so";
 
   const auto f = tvm::ffi::Function::GetGlobal("tvm.contrib.hexagon.link_shared");
-  ICHECK(f.has_value()) << "tvm.contrib.hexagon.link_shared does not to exist, "
-                           "do import tvm.contrib.hexagon";
+  TVM_FFI_ICHECK(f.has_value()) << "tvm.contrib.hexagon.link_shared does not to exist, "
+                                   "do import tvm.contrib.hexagon";
 
-  Array<PrimExpr> o_names = {StringImm(o_name)};
-  Map<String, String> extra_args;
+  ffi::Array<PrimExpr> o_names = {StringImm(o_name)};
+  ffi::Map<ffi::String, ffi::String> extra_args;
   if (target->attrs.count("mcpu")) {
-    std::string mcpu = Downcast<String>(target->attrs.at("mcpu"));
+    std::string mcpu = Downcast<ffi::String>(target->attrs.at("mcpu"));
 #if TVM_LLVM_VERSION >= 180
-    ICHECK(llvm::StringRef(mcpu).starts_with("hexagon"))
+    TVM_FFI_ICHECK(llvm::StringRef(mcpu).starts_with("hexagon"))
 #else
-    ICHECK(llvm::StringRef(mcpu).startswith("hexagon"))
+    TVM_FFI_ICHECK(llvm::StringRef(mcpu).startswith("hexagon"))
 #endif
         << "unexpected -mcpu value in target:" << mcpu;
     extra_args.Set("hex_arch", llvm::StringRef(mcpu).drop_front(strlen("hexagon")).str());
   }
   int rc = (*f)(so_name, o_names, extra_args).cast<int>();
-  ICHECK(rc == 0) << "Failed to link " << so_name;
+  TVM_FFI_ICHECK(rc == 0) << "Failed to link " << so_name;
 
   return HexagonModuleCreate(so_name, "so", ExtractFuncInfo(mod), asm_str, obj_str, ir_str, bc_str);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("target.build.hexagon", BuildHexagon)
@@ -598,7 +579,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                   [](const ffi::PackedArgs& targs, ffi::Any* rv) {
                     *rv = static_cast<void*>(new CodeGenHexagon());
                   });
-});
+}
 
 }  // namespace codegen
 }  // namespace tvm

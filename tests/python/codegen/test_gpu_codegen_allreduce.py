@@ -14,38 +14,55 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E741
+import numpy as np
+import pytest
+import tvm_ffi
+
 import tvm
 import tvm.testing
-import numpy as np
+from tvm.script import ir as I
 from tvm.script import tir as T
 
-import pytest
+
+def _reduce_sum_module(d1, d2, d3):
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(A: T.Buffer((1, d1, d2, d3), "float32"), B: T.Buffer((1, d1, d2), "float32")):
+            for i in T.thread_binding(1, thread="blockIdx.x"):
+                for j in T.thread_binding(d1, thread="threadIdx.z"):
+                    for k in T.thread_binding(d2, thread="threadIdx.y"):
+                        for l in T.thread_binding(d3, thread="threadIdx.x"):
+                            with T.sblock("reduce"):
+                                vi, vj, vk, vl = T.axis.remap("SSSR", [i, j, k, l])
+                                T.reads(A[vi, vj, vk, vl])
+                                T.writes(B[vi, vj, vk])
+                                with T.init():
+                                    B[vi, vj, vk] = T.float32(0.0)
+                                B[vi, vj, vk] = B[vi, vj, vk] + A[vi, vj, vk, vl]
+
+    return Module
 
 
-@T.prim_func
-def reduce(a: T.handle, b: T.handle, d1: T.int32, d2: T.int32, d3: T.int32) -> None:
-    A = T.match_buffer(a, [1, d1, d2, d3])
-    B = T.match_buffer(b, [1, d1, d2])
+def _reduce_max_module(d1, d2, d3):
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(A: T.Buffer((1, d1, d2, d3), "float32"), B: T.Buffer((1, d1, d2), "float32")):
+            for i in T.thread_binding(1, thread="blockIdx.x"):
+                for j in T.thread_binding(d1, thread="threadIdx.z"):
+                    for k in T.thread_binding(d2, thread="threadIdx.y"):
+                        for l in T.thread_binding(d3, thread="threadIdx.x"):
+                            with T.sblock("reduce"):
+                                vi, vj, vk, vl = T.axis.remap("SSSR", [i, j, k, l])
+                                T.reads(A[vi, vj, vk, vl])
+                                T.writes(B[vi, vj, vk])
+                                with T.init():
+                                    B[vi, vj, vk] = T.float32(-3.4028234663852886e38)
+                                B[vi, vj, vk] = T.max(B[vi, vj, vk], A[vi, vj, vk, vl])
 
-    for i, j, k, l in T.grid(1, d1, d2, d3):
-        with T.block("reduce"):
-            vi, vj, vk, vl = T.axis.remap("SSSR", [i, j, k, l])
-            with T.init():
-                B[vi, vj, vk] = 0.0
-            B[vi, vj, vk] = B[vi, vj, vk] + A[vi, vj, vk, vl]
-
-
-@T.prim_func
-def reduce_max(a: T.handle, b: T.handle, d1: T.int32, d2: T.int32, d3: T.int32) -> None:
-    A = T.match_buffer(a, [1, d1, d2, d3])
-    B = T.match_buffer(b, [1, d1, d2])
-
-    for i, j, k, l in T.grid(1, d1, d2, d3):
-        with T.block("reduce"):
-            vi, vj, vk, vl = T.axis.remap("SSSR", [i, j, k, l])
-            with T.init():
-                B[vi, vj, vk] = T.float32(-3.4028234663852886e38)
-            B[vi, vj, vk] = T.max(B[vi, vj, vk], A[vi, vj, vk, vl])
+    return Module
 
 
 def generate_param_sets():
@@ -62,22 +79,14 @@ dims = tvm.testing.parameter(*generate_param_sets())
 @tvm.testing.parametrize_targets("cuda", "metal")
 def test_allreduce_sum(dims, target, dev):
     d1, d2, d3 = dims
-    _, _, _d1, _d2, _d3 = reduce.params
-    mod = reduce.specialize({_d1: d1, _d2: d2, _d3: d3})
-    sch = tvm.tir.Schedule(mod)
-    blk = sch.get_block("reduce")
-    i, j, k, l = sch.get_loops(blk)
-    sch.bind(i, "blockIdx.x")
-    sch.bind(j, "threadIdx.z")
-    sch.bind(k, "threadIdx.y")
-    sch.bind(l, "threadIdx.x")
-    f = tvm.compile(sch.mod["main"], target=target)
+    mod = _reduce_sum_module(d1, d2, d3)
+    f = tvm.compile(mod, target=target)
 
     # prepare input and output array
     a_np = np.random.rand(1, d1, d2, d3).astype("float32")
     b_np = a_np.sum(axis=-1).astype("float32")
-    a = tvm.nd.array(a_np, dev)
-    b = tvm.nd.array(np.zeros_like(b_np), dev)
+    a = tvm.runtime.tensor(a_np, dev)
+    b = tvm.runtime.tensor(np.zeros_like(b_np), dev)
 
     # launch kernel
     f(a, b)
@@ -94,17 +103,19 @@ def optional_metal_compile_callback(define_metal_compile_callback):
 
     if define_metal_compile_callback:
 
-        @tvm.register_func(name, override=True)
+        @tvm.register_global_func(name, override=True)
         def compile_metal(src, target):
-            return tvm.contrib.xcode.compile_metal(src, sdk="macosx")
+            from tvm.contrib.xcode import compile_metal  # pylint: disable=import-outside-toplevel
+
+            return compile_metal(src, sdk="macosx")
 
     yield
 
     if define_metal_compile_callback:
         if cached is None:
-            tvm.ffi.registry.remove_global_func(name)
+            tvm_ffi.registry.remove_global_func(name)
         else:
-            tvm.register_func(name, cached, override=True)
+            tvm.register_global_func(name, cached, override=True)
 
 
 @tvm.testing.requires_metal(support_required="compile-only")
@@ -114,37 +125,21 @@ def test_allreduce_sum_compile(optional_metal_compile_callback):
     target = "metal"
 
     d1, d2, d3 = dims
-    _, _, _d1, _d2, _d3 = reduce.params
-    mod = reduce.specialize({_d1: d1, _d2: d2, _d3: d3})
-    sch = tvm.tir.Schedule(mod)
-    blk = sch.get_block("reduce")
-    i, j, k, l = sch.get_loops(blk)
-    sch.bind(i, "blockIdx.x")
-    sch.bind(j, "threadIdx.z")
-    sch.bind(k, "threadIdx.y")
-    sch.bind(l, "threadIdx.x")
-    tvm.compile(sch.mod["main"], target=target)
+    mod = _reduce_sum_module(d1, d2, d3)
+    tvm.compile(mod, target=target)
 
 
 @tvm.testing.parametrize_targets("cuda", "metal")
 def test_allreduce_max(dims, target, dev):
     d1, d2, d3 = dims
-    _, _, _d1, _d2, _d3 = reduce_max.params
-    mod = reduce_max.specialize({_d1: d1, _d2: d2, _d3: d3})
-    sch = tvm.tir.Schedule(mod)
-    blk = sch.get_block("reduce")
-    i, j, k, l = sch.get_loops(blk)
-    sch.bind(i, "blockIdx.x")
-    sch.bind(j, "threadIdx.z")
-    sch.bind(k, "threadIdx.y")
-    sch.bind(l, "threadIdx.x")
-    f = tvm.compile(sch.mod["main"], target=target)
+    mod = _reduce_max_module(d1, d2, d3)
+    f = tvm.compile(mod, target=target)
 
     # prepare input and output array
     a_np = -np.random.rand(1, d1, d2, d3).astype("float32")
     b_np = a_np.max(axis=-1).astype("float32")
-    a = tvm.nd.array(a_np, dev)
-    b = tvm.nd.array(np.zeros_like(b_np), dev)
+    a = tvm.runtime.tensor(a_np, dev)
+    b = tvm.runtime.tensor(np.zeros_like(b_np), dev)
 
     # launch kernel
     f(a, b)

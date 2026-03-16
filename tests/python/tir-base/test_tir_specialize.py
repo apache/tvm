@@ -15,12 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring, missing-module-docstring
+# ruff: noqa: F401, F841
 
 import pytest
 
 import tvm
+from tvm.s_tir.schedule.testing import assert_structural_equal_ignore_global_symbol
 from tvm.script import tir as T
-from tvm.tir.schedule.testing import assert_structural_equal_ignore_global_symbol
 
 
 @T.prim_func
@@ -31,7 +32,7 @@ def matmul(a: T.handle, b: T.handle, c: T.handle, n: T.int32) -> None:
     C = T.match_buffer(c, [m, m])
 
     for i, j, k in T.grid(m, m, n):
-        with T.block("update"):
+        with T.sblock("update"):
             vi, vj, vk = T.axis.remap("SSR", [i, j, k])
             with T.init():
                 C[vi, vj] = 0.0
@@ -45,7 +46,7 @@ def matmul_128(a: T.handle, b: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, [128, 128])
 
     for i, j, k in T.grid(128, 128, 128):
-        with T.block("update"):
+        with T.sblock("update"):
             vi, vj, vk = T.axis.remap("SSR", [i, j, k])
             with T.init():
                 C[vi, vj] = 0.0
@@ -60,7 +61,7 @@ def matmul_m_128(a: T.handle, b: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, [m, m])
 
     for i, j, k in T.grid(m, m, 128):
-        with T.block("update"):
+        with T.sblock("update"):
             vi, vj, vk = T.axis.remap("SSR", [i, j, k])
             with T.init():
                 C[vi, vj] = 0.0
@@ -78,7 +79,7 @@ def matmul_m_8x(a: T.handle, b: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, [m, m])
 
     for i, j, k in T.grid(m, m, x * 8):
-        with T.block("update"):
+        with T.sblock("update"):
             vi, vj, vk = T.axis.remap("SSR", [i, j, k])
             with T.init():
                 C[vi, vj] = 0.0
@@ -92,15 +93,15 @@ def element_wise(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (m, n), "float32")
     C = T.match_buffer(c, (m, n), "float32")
 
-    B = T.alloc_buffer((m, n), "float32")
+    B = T.sblock_alloc_buffer((m, n), "float32")
 
     for i, j in T.grid(m, n):
-        with T.block("B"):
+        with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj] * 2.0
 
     for i, j in T.grid(m, n):
-        with T.block("C"):
+        with T.sblock("C"):
             vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
 
@@ -109,15 +110,15 @@ def element_wise(a: T.handle, c: T.handle) -> None:
 def element_wise_128_64(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 64), "float32")
     C = T.match_buffer(c, (128, 64), "float32")
-    B = T.alloc_buffer((128, 64), "float32")
+    B = T.sblock_alloc_buffer((128, 64), "float32")
 
     for i, j in T.grid(128, 64):
-        with T.block("B"):
+        with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj] * 2.0
 
     for i, j in T.grid(128, 64):
-        with T.block("C"):
+        with T.sblock("C"):
             vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
 
@@ -127,15 +128,15 @@ def element_wise_128_n(a: T.handle, c: T.handle) -> None:
     n = T.int32()
     A = T.match_buffer(a, (128, n), "float32")
     C = T.match_buffer(c, (128, n), "float32")
-    B = T.alloc_buffer((128, n), "float32")
+    B = T.sblock_alloc_buffer((128, n), "float32")
 
     for i, j in T.grid(128, n):
-        with T.block("B"):
+        with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj] * 2.0
 
     for i, j in T.grid(128, n):
-        with T.block("C"):
+        with T.sblock("C"):
             vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
 
@@ -146,7 +147,7 @@ def mem_copy(a: T.handle, b: T.handle, m: T.int32, n: T.int32, p: T.int32, q: T.
     B = T.match_buffer(b, (m, n), "float32", strides=[p, 1], elem_offset=q)
 
     for i, j in T.grid(m, n):
-        with T.block():
+        with T.sblock():
             vi, vj = T.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj]
 
@@ -157,7 +158,7 @@ def mem_copy_16_16_8_4(a: T.handle, b: T.handle) -> None:
     B = T.match_buffer(b, (16, 16), "float32", strides=[8, 1], elem_offset=4)
 
     for i, j in T.grid(16, 16):
-        with T.block():
+        with T.sblock():
             vi, vj = T.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj]
 
@@ -168,7 +169,7 @@ def mem_copy_m_n_p_n(a: T.handle, b: T.handle, m: T.int32, n: T.int32, p: T.int3
     B = T.match_buffer(b, (m, n), "float32", strides=[p, 1], elem_offset=n)
 
     for i, j in T.grid(m, n):
-        with T.block():
+        with T.sblock():
             vi, vj = T.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj]
 
@@ -226,7 +227,7 @@ def test_specialize_with_const_folding():
         A = T.match_buffer(a, [n // 8, 8], "int32")
         B = T.match_buffer(b, [n], "int32")
         for i in range(n - 1):
-            with T.block():
+            with T.sblock():
                 vi = T.axis.S(n - 1, i)
                 B[vi] = A[vi // 8, vi % 8] + (n + 1) * 42
 
@@ -235,7 +236,7 @@ def test_specialize_with_const_folding():
         A = T.match_buffer(a, [2, 8], "int32")
         B = T.match_buffer(b, [16], "int32")
         for i in range(15):
-            with T.block():
+            with T.sblock():
                 vi = T.axis.S(15, i)
                 B[vi] = A[vi // 8, vi % 8] + 714
 
@@ -323,7 +324,8 @@ def test_specialize_buffer_var_to_expr():
             B_buf[i] = A_buf[i] * 2.0
 
     B_data = before.params[1]
-    A_buf = before.body.buffer
+    # body is a SeqStmt; the first statement is DeclBuffer for A_buf
+    A_buf = before.body[0].buffer
     param_map = {B_data: tvm.tir.address_of(A_buf[16])}
     after = before.specialize(param_map)
 

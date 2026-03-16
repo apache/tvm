@@ -15,20 +15,22 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name
+# ruff: noqa: E731
 """Multiprocessing via Popen.
 
 This module provides a multi-processing pool backed by Popen.
 with additional timeout support.
 """
-import os
-import sys
-import struct
-import threading
-import subprocess
+
 import concurrent.futures
-from enum import IntEnum
-from collections import namedtuple
+import os
 import pickle
+import struct
+import subprocess
+import sys
+import threading
+from collections import namedtuple
+from enum import IntEnum
 
 
 def kill_child_processes(pid):
@@ -134,11 +136,11 @@ class PopenWorker:
             # allow gracefully shutdown
             try:
                 self._writer.close()
-            except IOError:
+            except OSError:
                 pass
             try:
                 self._reader.close()
-            except IOError:
+            except OSError:
                 pass
             # kill all child processes recursively
             try:
@@ -256,7 +258,7 @@ class PopenWorker:
             self._writer.write(struct.pack("<i", len(data)))
             self._writer.write(data)
             self._writer.flush()
-        except IOError:
+        except OSError:
             pass
 
         if self._remaining_uses:
@@ -287,7 +289,7 @@ class PopenWorker:
 
         try:
             len_data = self._reader.read(4)
-        except IOError:
+        except OSError:
             raise self._child_process_error()
 
         if len(len_data) == 0:
@@ -296,7 +298,7 @@ class PopenWorker:
         try:
             recv_bytes = struct.unpack("<i", len_data)[0]
             status, value = cloudpickle.loads(self._reader.read(recv_bytes))
-        except IOError:
+        except OSError:
             raise self._child_process_error()
 
         if status == StatusKind.COMPLETE:
@@ -366,11 +368,39 @@ class PopenPoolExecutor:
         self._maximum_process_uses = maximum_process_uses
         self._stdout = stdout
         self._stderr = stderr
+        self._shutdown = False
 
         if self._initializer is not None and not callable(self._initializer):
             raise TypeError("initializer must be callable for PopenPoolExecutor")
 
     def __del__(self):
+        """Destructor.
+
+        Note
+        ----
+        Called during garbage collection. This may be called later than expected.
+        Always call shutdown() explicitly to avoid deadlocks.
+        """
+        if not self._shutdown:
+            self.shutdown(wait=True)
+
+    def shutdown(self, wait=True):
+        """Shutdown the executor and clean up resources.
+
+        Parameters
+        ----------
+        wait : bool
+            If True, wait for pending work to complete.
+
+        Note
+        ----
+        DEADLOCK WARNING: This method can deadlock when called during garbage
+        collection due to exception reference cycles. When exceptions occur,
+        Python creates reference cycles that delay garbage collection. The
+        deadlock happens when: exception creates reference cycle → new pool
+        creates worker → GC cleans old pool → old pool's __del__ calls shutdown()
+        which tries to acquire locks again.
+        """
         self._lock.acquire()
         for worker in self._worker_map.values():
             try:
@@ -378,7 +408,8 @@ class PopenPoolExecutor:
             except ImportError:
                 pass
         self._lock.release()
-        self._threadpool.shutdown()
+        self._threadpool.shutdown(wait=wait)
+        self._shutdown = True
 
     def _worker_run(self, fn, args, kwargs):
         """Internal thread runner."""

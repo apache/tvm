@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-""" Test parallelism for multiple different scalar workloads. """
+"""Test parallelism for multiple different scalar workloads."""
 
 import numpy as np
 
@@ -41,7 +41,7 @@ def get_add_operator(operations):
         b_buffer = T.match_buffer(b, [operations], dtype="float64")
         c_buffer = T.match_buffer(c, [operations], dtype="float64")
         for n in T.grid(operations):
-            with T.block("c_buffer"):
+            with T.sblock("c_buffer"):
                 vn_ind = T.axis.remap("S", [n])
                 c_buffer[vn_ind] = a_buffer[vn_ind] + b_buffer[vn_ind]
 
@@ -58,7 +58,7 @@ def get_multiply_operator(operations):
         b_buffer = T.match_buffer(b, [operations], dtype="float64")
         c_buffer = T.match_buffer(c, [operations], dtype="float64")
         for n in T.grid(operations):
-            with T.block("c_buffer"):
+            with T.sblock("c_buffer"):
                 vn_ind = T.axis.remap("S", [n])
                 c_buffer[vn_ind] = a_buffer[vn_ind] * b_buffer[vn_ind]
 
@@ -75,7 +75,7 @@ def get_sub_operator(operations):
         b_buffer = T.match_buffer(b, [operations], dtype="float64")
         c_buffer = T.match_buffer(c, [operations], dtype="float64")
         for n in T.grid(operations):
-            with T.block("c_buffer"):
+            with T.sblock("c_buffer"):
                 vn_ind = T.axis.remap("S", [n])
                 c_buffer[vn_ind] = a_buffer[vn_ind] - b_buffer[vn_ind]
 
@@ -96,17 +96,15 @@ def evaluate(hexagon_session, operations, expected, sch):
     b = np.random.random(shape).astype(dtype)
     c = np.zeros(shape, dtype=dtype)
 
-    a_hexagon = tvm.runtime.ndarray.array(a, device=hexagon_session.device)
-    b_hexagon = tvm.runtime.ndarray.array(b, device=hexagon_session.device)
-    c_hexagon = tvm.runtime.ndarray.array(c, device=hexagon_session.device)
+    a_hexagon = tvm.runtime.tensor(a, device=hexagon_session.device)
+    b_hexagon = tvm.runtime.tensor(b, device=hexagon_session.device)
+    c_hexagon = tvm.runtime.tensor(c, device=hexagon_session.device)
 
     # These are reduced for CI but number=100 and repeat=10 does a good job of removing noise.
     number = 1
     repeat = 1
 
-    timer = module.time_evaluator(
-        "__tvm_main__", hexagon_session.device, number=number, repeat=repeat
-    )
+    timer = module.time_evaluator("main", hexagon_session.device, number=number, repeat=repeat)
     runtime = timer(a_hexagon, b_hexagon, c_hexagon)
 
     tvm.testing.assert_allclose(c_hexagon.numpy(), expected(a, b))
@@ -117,7 +115,11 @@ def evaluate(hexagon_session, operations, expected, sch):
 class TestMatMulVec:
     """MatMul test class."""
 
-    (operation_name, operator_producer, expected_output_producer,) = tvm.testing.parameters(
+    (
+        operation_name,
+        operator_producer,
+        expected_output_producer,
+    ) = tvm.testing.parameters(
         ("add", get_add_operator, (lambda a, b: a + b)),
         ("mul", get_multiply_operator, (lambda a, b: a * b)),
         ("sub", get_sub_operator, (lambda a, b: a - b)),
@@ -151,11 +153,11 @@ class TestMatMulVec:
     ):
         """Test Add operator."""
 
-        sch = tvm.tir.Schedule(operator_producer(operations))
+        sch = tvm.s_tir.Schedule(operator_producer(operations))
         single_thread_runtime = evaluate(hexagon_session, operations, expected_output_producer, sch)
 
-        sch = tvm.tir.Schedule(operator_producer(operations))
-        block = sch.get_block("c_buffer")
+        sch = tvm.s_tir.Schedule(operator_producer(operations))
+        block = sch.get_sblock("c_buffer")
         b = sch.get_loops(block)
         b_output, _ = sch.split(b[0], factors=[split_factor, None])
         sch.parallel(b_output)

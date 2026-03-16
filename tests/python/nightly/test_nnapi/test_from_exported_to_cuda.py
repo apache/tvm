@@ -14,17 +14,19 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501, F401
 
-import tvm
-from tvm import relax
-import tvm.testing
 import numpy as np
 import torch
 from torch import nn
-from torch.nn import functional as F
 from torch.export import export
-from tvm.relax.frontend.torch import from_exported_program
 from torch.nn import Softmax, Upsample
+from torch.nn import functional as F
+
+import tvm
+import tvm.testing
+from tvm import relax
+from tvm.relax.frontend.torch import from_exported_program
 
 
 def assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev):
@@ -47,8 +49,8 @@ def assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, tar
     ex = relax.build(tvm_mod, target=target, relax_pipeline=relax_pipeline)
     vm = relax.VirtualMachine(ex, dev)
 
-    gpu_data = tvm.nd.array(raw_data_for_tvm, dev)
-    gpu_params = [tvm.nd.array(p, dev) for p in tvm_params["main"]]
+    gpu_data = tvm.runtime.tensor(raw_data_for_tvm, dev)
+    gpu_params = [tvm.runtime.tensor(p, dev) for p in tvm_params["main"]]
     gpu_out = vm["main"](gpu_data, *gpu_params)
 
     pytorch_out = torch_module(torch_data)
@@ -57,11 +59,11 @@ def assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, tar
         for i in range(len(pytorch_out)):
             actual = gpu_out[i].numpy()
             desired = pytorch_out[i].detach().numpy()
-            np.testing.assert_allclose(actual=actual, desired=desired, rtol=1e-5, atol=1e-5)
+            tvm.testing.assert_allclose(actual=actual, desired=desired, rtol=1e-5, atol=1e-5)
     else:
         actual = gpu_out[0].numpy()
         desired = pytorch_out.detach().numpy()
-        np.testing.assert_allclose(actual=actual, desired=desired, rtol=1e-5, atol=1e-5)
+        tvm.testing.assert_allclose(actual=actual, desired=desired, rtol=1e-5, atol=1e-5)
 
 
 @tvm.testing.parametrize_targets("cuda")
@@ -466,7 +468,7 @@ def test_batch_norm_prog(target, dev):
 
     class BatchNormWrapper(nn.Module):
         def __init__(self):
-            super(BatchNormWrapper, self).__init__()
+            super().__init__()
             self.bn = nn.BatchNorm2d(3)
 
         def forward(self, x):
@@ -729,7 +731,7 @@ def test_mul(target, dev):
 def test_concat(target, dev):
     class ConcatFour(nn.Module):
         def __init__(self, dim=0):
-            super(ConcatFour, self).__init__()
+            super().__init__()
             self.dim = dim
             self.x2 = torch.randn(2, 3)
             self.x3 = torch.randn(2, 3)

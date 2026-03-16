@@ -16,14 +16,17 @@
 # under the License.
 # pylint: disable=invalid-name
 """Function definitions."""
-from typing import Union, Dict
 
 from enum import IntEnum
+
+import tvm_ffi
+
 import tvm.runtime
 from tvm.runtime.object import Object
-from .expr import RelaxExpr
-from .attrs import DictAttrs
+
 from . import _ffi_api
+from .attrs import DictAttrs
+from .expr import RelaxExpr
 
 
 class CallingConv(IntEnum):
@@ -34,7 +37,7 @@ class CallingConv(IntEnum):
     DEVICE_KERNEL_LAUNCH = 2
 
 
-@tvm.ffi.register_object("ir.BaseFunc")
+@tvm_ffi.register_object("ir.BaseFunc")
 class BaseFunc(RelaxExpr):
     """Base class of all functions."""
 
@@ -72,7 +75,7 @@ class BaseFunc(RelaxExpr):
             res._move(), attr_key_or_dict, tvm.runtime.convert(attr_value)
         )
 
-    def with_attrs(self, attr_map: Union[DictAttrs, Dict[str, Object]]) -> "BaseFunc":
+    def with_attrs(self, attr_map: DictAttrs | dict[str, Object]) -> "BaseFunc":
         """Copy the IRModule and add the given attribute map to it.
         Parameters
         ----------

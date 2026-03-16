@@ -36,7 +36,8 @@ namespace distributed {
 template <typename FType>
 StructInfo InferDistStructInfoBroadcast(const Call& call, const BlockBuilder& ctx,
                                         FType f_compute_out_dtype) {
-  Array<distributed::DTensorStructInfo> input_dtensor_sinfos = GetInputDTensorStructInfo(call, ctx);
+  ffi::Array<distributed::DTensorStructInfo> input_dtensor_sinfos =
+      GetInputDTensorStructInfo(call, ctx);
   TensorStructInfo x1_sinfo, x2_sinfo;
   x1_sinfo = input_dtensor_sinfos[0]->tensor_sinfo;
   x2_sinfo = input_dtensor_sinfos[1]->tensor_sinfo;
@@ -45,7 +46,7 @@ StructInfo InferDistStructInfoBroadcast(const Call& call, const BlockBuilder& ct
   DataType output_dtype = f_compute_out_dtype(call, ctx, x1_sinfo, x2_sinfo);
 
   // ndims
-  ICHECK(!x1_sinfo->IsUnknownNdim() && !x2_sinfo->IsUnknownNdim())
+  TVM_FFI_ICHECK(!x1_sinfo->IsUnknownNdim() && !x2_sinfo->IsUnknownNdim())
       << "Unknown ndim is not supported for distributed operators.";
   int output_ndim = std::max(x1_sinfo->ndim, x2_sinfo->ndim);
 
@@ -55,12 +56,12 @@ StructInfo InferDistStructInfoBroadcast(const Call& call, const BlockBuilder& ct
   // Shapes and ndims
   if (x1_shape && x2_shape) {
     // If all inputs have shapes, directly infer shapes
-    Optional<Array<PrimExpr>> output_shape =
+    ffi::Optional<ffi::Array<PrimExpr>> output_shape =
         InferBinaryBroadcastShape(call, ctx, x1_shape->values, x2_shape->values);
     if (!output_shape.defined()) {
       output_tensor_sinfo = TensorStructInfo(output_dtype, /*ndim=*/output_ndim);
     } else {
-      ICHECK_EQ(static_cast<int>(output_shape.value().size()), output_ndim);
+      TVM_FFI_ICHECK_EQ(static_cast<int>(output_shape.value().size()), output_ndim);
       output_tensor_sinfo = TensorStructInfo(ShapeExpr(output_shape.value()), output_dtype);
     }
   } else {

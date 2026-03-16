@@ -14,12 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501
 
 import tvm
-from tvm.relax.transform import LegalizeOps
-from tvm.script import relax as R, tir as T
 import tvm.testing
-
+from tvm.relax.transform import LegalizeOps
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 ##################### Creation #####################
 
@@ -44,7 +45,7 @@ def test_full():
         def full(rxplaceholder: T.Buffer((), "int32"), T_full: T.Buffer((T.int64(2), T.int64(3)), "int32")):
             T.func_attr({"tir.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
-                with T.block("T_full"):
+                with T.sblock("T_full"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
                     T.reads(rxplaceholder[()])
                     T.writes(T_full[ax0, ax1])
@@ -75,7 +76,7 @@ def test_full_constant_scalar_fill_value():
         def full(T_full: T.Buffer((T.int64(2), T.int64(3)), "int32")):
             T.func_attr({"tir.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
-                with T.block("T_full"):
+                with T.sblock("T_full"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
                     T.reads()
                     T.writes(T_full[ax0, ax1])
@@ -106,7 +107,7 @@ def test_full_different_dtype():
         def full(rxplaceholder: T.Buffer((), "int32"), T_full: T.Buffer((T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tir.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
-                with T.block("T_full"):
+                with T.sblock("T_full"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
                     T.reads(rxplaceholder[()])
                     T.writes(T_full[ax0, ax1])
@@ -144,7 +145,7 @@ def test_full_symbolic():
             n = T.int64()
             T_full = T.match_buffer(var_T_full, [m, n], dtype="int32")
             for i0, i1 in T.grid(m, n):
-                with T.block("T_full"):
+                with T.sblock("T_full"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
                     T.reads(rxplaceholder[()])
                     T.writes(T_full[ax0, ax1])
@@ -175,7 +176,7 @@ def test_full_like():
         def full(rxplaceholder: T.Buffer((), "float32"), T_full: T.Buffer((T.int64(2), T.int64(3)), "int32")):
             T.func_attr({"tir.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
-                with T.block("T_full"):
+                with T.sblock("T_full"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
                     T.reads(rxplaceholder[()])
                     T.writes(T_full[ax0, ax1])
@@ -206,7 +207,7 @@ def test_full_like_constant_scalar_fill_value():
         def full(T_full: T.Buffer((T.int64(2), T.int64(3)), "int32")):
             T.func_attr({"tir.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
-                with T.block("T_full"):
+                with T.sblock("T_full"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
                     T.reads()
                     T.writes(T_full[ax0, ax1])
@@ -237,7 +238,7 @@ def test_full_like_different_dtype():
         def full(rxplaceholder: T.Buffer((), "float32"), T_full: T.Buffer((T.int64(2), T.int64(3)), "float64")):
             T.func_attr({"tir.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
-                with T.block("T_full"):
+                with T.sblock("T_full"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
                     T.reads(rxplaceholder[()])
                     T.writes(T_full[ax0, ax1])
@@ -275,7 +276,7 @@ def test_full_like_symbolic():
             n = T.int64()
             T_full = T.match_buffer(var_T_full, [m, n], dtype="int32")
             for i0, i1 in T.grid(m, n):
-                with T.block("T_full"):
+                with T.sblock("T_full"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
                     T.reads(rxplaceholder[()])
                     T.writes(T_full[ax0, ax1])
@@ -306,7 +307,7 @@ def test_ones():
         def ones(T_full: T.Buffer((T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tir.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
-                with T.block("T_full"):
+                with T.sblock("T_full"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
                     T.reads()
                     T.writes(T_full[ax0, ax1])
@@ -344,7 +345,7 @@ def test_ones_symbolic():
             n = T.int64()
             T_full = T.match_buffer(var_T_full, [m, n], dtype="float32")
             for i0, i1 in T.grid(m, n):
-                with T.block("T_full"):
+                with T.sblock("T_full"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
                     T.reads()
                     T.writes(T_full[ax0, ax1])
@@ -375,7 +376,7 @@ def test_ones_like():
         def ones(T_full: T.Buffer((T.int64(2), T.int64(3)), "int32")):
             T.func_attr({"tir.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
-                with T.block("T_full"):
+                with T.sblock("T_full"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
                     T.reads()
                     T.writes(T_full[ax0, ax1])
@@ -413,7 +414,7 @@ def test_ones_like_symbolic():
             n = T.int64()
             T_full = T.match_buffer(var_T_full, [m, n], dtype="float32")
             for i0, i1 in T.grid(m, n):
-                with T.block("T_full"):
+                with T.sblock("T_full"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
                     T.reads()
                     T.writes(T_full[ax0, ax1])
@@ -444,7 +445,7 @@ def test_zeros():
         def zeros(T_full: T.Buffer((T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tir.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
-                with T.block("T_full"):
+                with T.sblock("T_full"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
                     T.reads()
                     T.writes(T_full[ax0, ax1])
@@ -482,7 +483,7 @@ def test_zeros_symbolic():
             n = T.int64()
             T_full = T.match_buffer(var_T_full, [m, n], dtype="float32")
             for i0, i1 in T.grid(m, n):
-                with T.block("T_full"):
+                with T.sblock("T_full"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
                     T.reads()
                     T.writes(T_full[ax0, ax1])
@@ -513,7 +514,7 @@ def test_zeros_like():
         def zeros(T_full: T.Buffer((T.int64(2), T.int64(3)), "int32")):
             T.func_attr({"tir.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
-                with T.block("T_full"):
+                with T.sblock("T_full"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
                     T.reads()
                     T.writes(T_full[ax0, ax1])
@@ -551,7 +552,7 @@ def test_zeros_like_symbolic():
             n = T.int64()
             T_full = T.match_buffer(var_T_full, [m, n], dtype="float32")
             for i0, i1 in T.grid(m, n):
-                with T.block("T_full"):
+                with T.sblock("T_full"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
                     T.reads()
                     T.writes(T_full[ax0, ax1])
@@ -607,7 +608,7 @@ def test_arange_symbolic():
             T.func_attr({"tir.noalias": True})
             T_arange = T.match_buffer(var_T_arange, (n // T.int64(2),), "int64")
             for ax0 in range(n // T.int64(2)):
-                with T.block("T_arange"):
+                with T.sblock("T_arange"):
                     v_ax0 = T.axis.spatial(n // T.int64(2), ax0)
                     T_arange[v_ax0] = v_ax0 * T.int64(2) + T.int64(1)
     # fmt: on
@@ -636,7 +637,7 @@ def test_tril():
         def tril(rxplaceholder: T.Buffer((T.int64(2), T.int64(3), T.int64(4)), "float32"), trilu: T.Buffer((T.int64(2), T.int64(3), T.int64(4)), "float32")):
             T.func_attr({"tir.noalias": True})
             for i0, i1, i2 in T.grid(T.int64(2), T.int64(3), T.int64(4)):
-                with T.block("trilu"):
+                with T.sblock("trilu"):
                     i0_1, i1_1, i2_1 = T.axis.remap("SSS", [i0, i1, i2])
                     T.reads(rxplaceholder[i0_1, i1_1, i2_1])
                     T.writes(trilu[i0_1, i1_1, i2_1])
@@ -678,7 +679,7 @@ def test_tril_symbolic():
             rxplaceholder = T.match_buffer(var_rxplaceholder, [m, n, k], dtype="int8")
             trilu = T.match_buffer(var_trilu, [m, n, k], dtype="int8")
             for i0, i1, i2 in T.grid(m, n, k):
-                with T.block("trilu"):
+                with T.sblock("trilu"):
                     i0_1, i1_1, i2_1 = T.axis.remap("SSS", [i0, i1, i2])
                     T.reads(rxplaceholder[i0_1, i1_1, i2_1])
                     T.writes(trilu[i0_1, i1_1, i2_1])
@@ -709,7 +710,7 @@ def test_triu():
         def triu(rxplaceholder: T.Buffer((T.int64(2), T.int64(3), T.int64(4)), "float32"), trilu: T.Buffer((T.int64(2), T.int64(3), T.int64(4)), "float32")):
             T.func_attr({"tir.noalias": True})
             for i0, i1, i2 in T.grid(T.int64(2), T.int64(3), T.int64(4)):
-                with T.block("trilu"):
+                with T.sblock("trilu"):
                     i0_1, i1_1, i2_1 = T.axis.remap("SSS", [i0, i1, i2])
                     T.reads(rxplaceholder[i0_1, i1_1, i2_1])
                     T.writes(trilu[i0_1, i1_1, i2_1])
@@ -751,7 +752,7 @@ def test_triu_symbolic():
             rxplaceholder = T.match_buffer(var_rxplaceholder, [m, n, k], dtype="int8")
             trilu = T.match_buffer(var_trilu, [m, n, k], dtype="int8")
             for i0, i1, i2 in T.grid(m, n, k):
-                with T.block("trilu"):
+                with T.sblock("trilu"):
                     i0_1, i1_1, i2_1 = T.axis.remap("SSS", [i0, i1, i2])
                     T.reads(rxplaceholder[i0_1, i1_1, i2_1])
                     T.writes(trilu[i0_1, i1_1, i2_1])
@@ -785,7 +786,7 @@ def test_astype():
         def cast(rxplaceholder: T.Buffer((T.int64(2), T.int64(3), T.int64(4)), "float32"), compute: T.Buffer((T.int64(2), T.int64(3), T.int64(4)), "int32")):
             T.func_attr({"tir.noalias": True})
             for i0, i1, i2 in T.grid(T.int64(2), T.int64(3), T.int64(4)):
-                with T.block("compute"):
+                with T.sblock("compute"):
                     i0_1, i1_1, i2_1 = T.axis.remap("SSS", [i0, i1, i2])
                     T.reads(rxplaceholder[i0_1, i1_1, i2_1])
                     T.writes(compute[i0_1, i1_1, i2_1])
@@ -845,7 +846,7 @@ def test_astype_symbolic():
             rxplaceholder = T.match_buffer(var_rxplaceholder, [m, n], dtype="float32")
             compute = T.match_buffer(var_compute, [m, n], dtype="int32")
             for i0, i1 in T.grid(m, n):
-                with T.block("compute"):
+                with T.sblock("compute"):
                     i0_1, i1_1 = T.axis.remap("SS", [i0, i1])
                     T.reads(rxplaceholder[i0_1, i1_1])
                     T.writes(compute[i0_1, i1_1])

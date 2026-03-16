@@ -16,9 +16,9 @@
 # under the License.
 # pylint: disable=invalid-name,consider-using-enumerate,redefined-outer-name
 """Injective transformation operators"""
-from __future__ import absolute_import as _abs
 
 from math import pi
+
 import numpy as np
 
 import tvm
@@ -657,6 +657,28 @@ def tile(a, reps):
     return cpp.tile(a, reps)
 
 
+def dyn_tile(a, new_shape, rdim):
+    """Repeats the whole array multiple times with dynamic output shape.
+
+    Parameters
+    ----------
+    a : tvm.te.Tensor
+        The tensor to be tiled.
+
+    new_shape : tuple of PrimExpr
+        The output shape after tiling.
+
+    rdim : int
+        The rank of the repeats input.
+
+    Returns
+    -------
+    ret : tvm.te.Tensor
+    """
+
+    return cpp.dyn_tile(a, new_shape, rdim)
+
+
 def layout_transform(array, src_layout, dst_layout, schedule_rule="None"):
     """Transform the layout according to src_layout and dst_layout
 
@@ -736,7 +758,7 @@ def sequence_mask(data, valid_length, mask_value=0, axis=0):
     return cpp.sequence_mask(data, valid_length, mask_value, axis)
 
 
-def ndarray_size(array, dtype="int32"):
+def tensor_size(array, dtype="int32"):
     """Get the number of elements of input array
 
     Parameters
@@ -752,7 +774,7 @@ def ndarray_size(array, dtype="int32"):
     result : tvm.te.Tensor
         The resulting tensor.
     """
-    return cpp.ndarray_size(array, dtype)
+    return cpp.tensor_size(array, dtype)
 
 
 def where(condition, x, y):
@@ -929,7 +951,7 @@ def matrix_set_diag(data, diagonal, k=0, align="RIGHT_LEFT"):
               [7, 5, 7, 7],
               [7, 7, 6, 7]]]
     """
-    if isinstance(k, (tuple, list)):
+    if isinstance(k, tuple | list):
         k_one = k[0]
         if len(k) >= 2:
             k_two = k[1]
@@ -1062,11 +1084,11 @@ def trilu(data, k, upper):
 
 
 def index_tensor(data, indices):
-    """Advanced‑tensor indexing (NumPy/PyTorch‐style).
+    """Advanced-tensor indexing (NumPy/PyTorch-style).
 
-    Given k index tensors ``indices = (I0, I1, …, Ik‑1)`` this
+    Given k index tensors ``indices = (I0, I1, …, Ik-1)`` this
     operator selects elements from ``data`` as if one had written
-    ``data[I0, I1, …, Ik‑1]`` in NumPy/PyTorch:
+    ``data[I0, I1, …, Ik-1]`` in NumPy/PyTorch:
 
     * All index tensors must have an integer dtype.
     * Their shapes are broadcast together to a common shape ``B`` in
@@ -1074,7 +1096,7 @@ def index_tensor(data, indices):
     * The result shape is ``B + data.shape[k:]`` (i.e. the broadcast
       shape followed by the remaining axes of ``data`` that are *not*
       indexed).
-    *  ``k`` must not exceed ``data.ndim``; otherwise a compile‑time
+    *  ``k`` must not exceed ``data.ndim``; otherwise a compile-time
        error is raised.
 
     Parameters

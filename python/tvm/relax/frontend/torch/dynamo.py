@@ -19,8 +19,8 @@
 # pylint: disable=import-outside-toplevel, unused-argument, use-list-literal
 # mypy: ignore-errors
 """PyTorch Dynamo backend of Relax."""
+
 import functools
-from typing import Optional
 
 import tvm
 from tvm.relax import build as relax_build
@@ -35,7 +35,7 @@ def device_from_inputs(example_inputs):
     return None
 
 
-def relax_dynamo(pipeline: Optional[tvm.transform.Pass] = None):
+def relax_dynamo(pipeline: tvm.transform.Pass | None = None):
     """A helper function to create a relax backend.
 
     Parameters
@@ -55,21 +55,13 @@ def relax_dynamo(pipeline: Optional[tvm.transform.Pass] = None):
         assert isinstance(graph_module, torch.fx.GraphModule)
 
         def to_torch_tensor(nd_tensor):
-            """A helper function to transfer a NDArray to torch.tensor."""
-            if isinstance(nd_tensor, tvm.nd.NDArray):
+            """A helper function to transfer a Tensor to torch.tensor."""
+            if isinstance(nd_tensor, tvm.runtime.Tensor):
                 return torch.from_numpy(nd_tensor.numpy())
             elif isinstance(nd_tensor, tvm.ir.Array):
                 return tuple(to_torch_tensor(x) for x in nd_tensor)
             else:
                 raise ValueError(f"Unsupported type {type(nd_tensor)}")
-
-        def to_tvm_tensor(torch_tensor):
-            """A helper function to transfer a torch.tensor to NDArray."""
-            if not isinstance(torch_tensor, torch._subclasses.fake_tensor.FakeTensor):
-                return tvm.nd.array(torch_tensor.numpy())
-            # Fake Tensor
-            real_tensor = torch.randn(torch_tensor.shape, dtype=torch_tensor.dtype)
-            return tvm.nd.array(real_tensor.numpy())
 
         graph_module.graph.eliminate_dead_code()
 
@@ -110,7 +102,7 @@ def relax_dynamo(pipeline: Optional[tvm.transform.Pass] = None):
 
         if device.type == "cuda":
             dev = tvm.cuda(device.index)
-            target = tvm.target.cuda()
+            target = tvm.target.Target("cuda")
         else:
             dev = tvm.cpu(0)
             target = tvm.target.Target(llvm_target())
@@ -136,10 +128,12 @@ def relax_dynamo(pipeline: Optional[tvm.transform.Pass] = None):
             args = [a.contiguous() for a in i_args if isinstance(a, torch.Tensor)]
             vm_args = list()
             for arg in args:
-                if arg.dim() != 0:
-                    if arg.requires_grad:
-                        arg = arg.detach()
-                    vm_args.append(to_tvm_tensor(arg))
+                if arg.requires_grad:
+                    arg = arg.detach()
+                if isinstance(arg, torch._subclasses.fake_tensor.FakeTensor):
+                    # Materialize a real (eager) Tensor
+                    arg = torch.randn(arg.shape, dtype=arg.dtype, device=device)
+                vm_args.append(arg)
             outputs = vm["main"](*vm_args)
             return to_torch_tensor(outputs)
 
@@ -171,8 +165,8 @@ def dynamo_capture_subgraphs(model, *params, **kwargs) -> tvm.IRModule:
         weights can be detached by `relax.frontend.detach_params`.
     """
     import torch  # type: ignore[import]
-    from torch import fx  # type: ignore[import]
     from torch import _dynamo as dynamo  # type: ignore[import]
+    from torch import fx  # type: ignore[import]
 
     keep_params_as_input = "keep_params_as_input" in kwargs and kwargs["keep_params_as_input"]
     kwargs.pop("keep_params_as_input", None)
@@ -202,6 +196,43 @@ def dynamo_capture_subgraphs(model, *params, **kwargs) -> tvm.IRModule:
 
 @functools.lru_cache(None)
 def llvm_target():
-    if "avx512" in open("/proc/cpuinfo").read():
-        return "llvm -mcpu=skylake-avx512"
-    return "llvm -mcpu=core-avx2"
+    import platform
+    import subprocess
+
+    AVX512_TARGET = {"kind": "llvm", "mcpu": "skylake-avx512"}
+    AVX2_TARGET = {"kind": "llvm", "mcpu": "core-avx2"}
+    DEFAULT_TARGET = "llvm"
+
+    system = platform.system()
+
+    if system == "Linux":
+        try:
+            with open("/proc/cpuinfo") as f:
+                cpuinfo = f.read()
+            if "avx512" in cpuinfo:
+                return AVX512_TARGET
+            return AVX2_TARGET
+        except FileNotFoundError:
+            pass
+    elif system == "Darwin":
+        try:
+            result = subprocess.run(
+                ["sysctl", "-n", "machdep.cpu.features"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if result.returncode == 0:
+                cpu_features = result.stdout.lower()
+                if "avx512" in cpu_features:
+                    return AVX512_TARGET
+                if "avx2" in cpu_features:
+                    return AVX2_TARGET
+        except (FileNotFoundError, subprocess.SubprocessError):
+            pass
+
+        if platform.machine() == "arm64":
+            return DEFAULT_TARGET
+
+    # Default fallback
+    return DEFAULT_TARGET

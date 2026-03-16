@@ -14,13 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401
 """Test eliminate common subexpr pass"""
 
 import tvm
 import tvm.testing
 from tvm.ir import VDevice
 from tvm.relax.transform import RealizeVDevice
-from tvm.script.parser import ir as I, relax as R, tir as T
+from tvm.script.parser import ir as I
+from tvm.script.parser import relax as R
+from tvm.script.parser import tir as T
 
 
 def verify(input, expected):
@@ -31,7 +34,7 @@ vdevices = [
     VDevice("llvm"),
     VDevice("cuda", 0),
     VDevice("metal", 0, "global"),
-    VDevice("cuda -arch=sm_80", 0),
+    VDevice({"kind": "cuda", "arch": "sm_80"}, 0),
 ]
 
 
@@ -45,7 +48,7 @@ def test_dataflow_binding():
                     I.vdevice("llvm"),
                     I.vdevice("cuda", 0),
                     I.vdevice("metal", 0, "global"),
-                    I.vdevice("cuda -arch=sm_80", 0),
+                    I.vdevice({"kind": "cuda", "arch": "sm_80"}, 0),
                 ]
             }
         )
@@ -76,7 +79,7 @@ def test_dataflow_binding():
                     I.vdevice("llvm"),
                     I.vdevice("cuda", 0),
                     I.vdevice("metal", 0, "global"),
-                    I.vdevice("cuda -arch=sm_80", 0),
+                    I.vdevice({"kind": "cuda", "arch": "sm_80"}, 0),
                 ]
             }
         )
@@ -267,7 +270,7 @@ def test_multi_device():
                     I.vdevice("llvm"),
                     I.vdevice("cuda", 0),
                     I.vdevice("metal", 0, "global"),
-                    I.vdevice("cuda -arch=sm_80", 0),
+                    I.vdevice({"kind": "cuda", "arch": "sm_80"}, 0),
                 ]
             }
         )
@@ -296,7 +299,7 @@ def test_multi_device():
                     I.vdevice("llvm"),
                     I.vdevice("cuda", 0),
                     I.vdevice("metal", 0, "global"),
-                    I.vdevice("cuda -arch=sm_80", 0),
+                    I.vdevice({"kind": "cuda", "arch": "sm_80"}, 0),
                 ]
             }
         )
@@ -329,7 +332,7 @@ def test_insert_to_vdevice():
                     I.vdevice("llvm"),
                     I.vdevice("cuda", 0),
                     I.vdevice("metal", 0, "global"),
-                    I.vdevice("cuda -arch=sm_80", 0),
+                    I.vdevice({"kind": "cuda", "arch": "sm_80"}, 0),
                 ]
             }
         )
@@ -359,7 +362,7 @@ def test_insert_to_vdevice():
                     I.vdevice("llvm"),
                     I.vdevice("cuda", 0),
                     I.vdevice("metal", 0, "global"),
-                    I.vdevice("cuda -arch=sm_80", 0),
+                    I.vdevice({"kind": "cuda", "arch": "sm_80"}, 0),
                 ]
             }
         )

@@ -23,6 +23,7 @@
  */
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/relax/analysis.h>
 #include <tvm/relax/binding_rewrite.h>
 #include <tvm/relax/block_builder.h>
 #include <tvm/relax/expr.h>
@@ -36,12 +37,10 @@
 namespace tvm {
 namespace relax {
 
-TVM_FFI_STATIC_INIT_BLOCK({ DataflowBlockRewriteNode::RegisterReflection(); });
-
-TVM_REGISTER_NODE_TYPE(DataflowBlockRewriteNode);
+TVM_FFI_STATIC_INIT_BLOCK() { DataflowBlockRewriteNode::RegisterReflection(); }
 
 DataflowBlockRewrite::DataflowBlockRewrite(DataflowBlock dfb, Function root_fn) {
-  auto n = make_object<DataflowBlockRewriteNode>();
+  auto n = ffi::make_object<DataflowBlockRewriteNode>();
   n->dfb_ = dfb;
   n->root_fn_ = root_fn;
   n->original_fn_ptr_ = root_fn.get();
@@ -54,12 +53,12 @@ DataflowBlockRewrite::DataflowBlockRewrite(DataflowBlock dfb, Function root_fn) 
   data_ = std::move(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.DataflowBlockRewrite", [](DataflowBlock dfb, Function root_fn) {
     return DataflowBlockRewrite(dfb, root_fn);
   });
-});
+}
 
 void DataflowBlockRewriteNode::ReplaceAllUses(Var old_var, Var new_var) {
   class ReplaceAllUsePass : public ExprMutator {
@@ -75,7 +74,7 @@ void DataflowBlockRewriteNode::ReplaceAllUses(Var old_var, Var new_var) {
     using ExprMutator::VisitExpr_;
 
     Expr VisitExpr_(const VarNode* op) override {
-      return (op == old_var.get()) ? new_var : GetRef<Expr>(op);
+      return (op == old_var.get()) ? new_var : ffi::GetRef<Expr>(op);
     }
 
     BindingBlock VisitBindingBlock_(const DataflowBlockNode* op) override {
@@ -85,8 +84,8 @@ void DataflowBlockRewriteNode::ReplaceAllUses(Var old_var, Var new_var) {
     }
   };
 
-  ICHECK(to_users_.find(old_var) != to_users_.end()) << "Cannot find " << old_var;
-  ICHECK(to_users_.find(new_var) != to_users_.end()) << "Cannot find " << new_var;
+  TVM_FFI_ICHECK(to_users_.find(old_var) != to_users_.end()) << "Cannot find " << old_var;
+  TVM_FFI_ICHECK(to_users_.find(new_var) != to_users_.end()) << "Cannot find " << new_var;
 
   // replace uses inside the DataflowBlock.
   ReplaceAllUsePass replacer(old_var, new_var, dfb_.get());
@@ -115,13 +114,13 @@ void DataflowBlockRewriteNode::ReplaceAllUses(Var old_var, Var new_var) {
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.dfb_rewrite_replace_all_uses",
                         [](DataflowBlockRewrite rwt, Var old_var, Var new_var) {
                           rwt->ReplaceAllUses(old_var, new_var);
                         });
-});
+}
 
 class UpdateDFB : public ExprMutator {
  private:
@@ -136,17 +135,6 @@ class UpdateDFB : public ExprMutator {
   }
 };
 
-// TODO(masahi): Consider moving this to analysis
-std::set<const VarNode*> GetUsedVars(Expr val) {
-  class UsedVars : public ExprVisitor {
-   public:
-    std::set<const VarNode*> used_vars;
-    void VisitExpr_(const VarNode* op) override { used_vars.insert(op); }
-  } uvar{};
-  uvar.VisitExpr(val);
-  return std::move(uvar.used_vars);
-}
-
 void DataflowBlockRewriteNode::Add(Binding binding) {
   auto [var, val] = [binding] {
     if (auto vb = binding.as<VarBindingNode>()) {
@@ -154,11 +142,11 @@ void DataflowBlockRewriteNode::Add(Binding binding) {
     } else if (auto mc = binding.as<MatchCastNode>()) {
       return std::make_pair(mc->var, mc->value);
     }
-    LOG(FATAL) << "Unsupported binding type";
+    TVM_FFI_THROW(InternalError) << "Unsupported binding type";
     return std::make_pair(Var{}, Expr{});
   }();
 
-  ICHECK(0 == to_users_.count(var)) << var << " has been defined so cannot be added.";
+  TVM_FFI_ICHECK(0 == to_users_.count(var)) << var << " has been defined so cannot be added.";
 
   // Add this VarBinding statement after the definition of uses.
   auto used_vars = GetUsedVars(val);
@@ -179,29 +167,29 @@ void DataflowBlockRewriteNode::Add(Binding binding) {
   }
 
   for (const VarNode* v : used_vars) {
-    auto var = GetRef<Var>(v);
+    auto var = ffi::GetRef<Var>(v);
     if (auto users = to_users_.Get(var)) {
       users.value().push_back(var);
     }
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("relax.dfb_rewrite_add_binding",
            [](DataflowBlockRewrite rwt, Binding vb) { rwt->Add(vb); })
       .def("relax.dfb_rewrite_add",
-           [](DataflowBlockRewrite rwt, Expr expr, Optional<String> name, bool is_dfvar) {
+           [](DataflowBlockRewrite rwt, Expr expr, ffi::Optional<ffi::String> name, bool is_dfvar) {
              if (name.has_value()) {
                rwt->Add(name.value(), expr, is_dfvar);
              } else {
                rwt->Add(expr, is_dfvar);
              }
            });
-});
+}
 
-std::set<Var> GetUnusedVars(Map<Var, Array<Var>> users_map, Array<Var> fn_outputs) {
+std::set<Var> GetUnusedVars(ffi::Map<Var, ffi::Array<Var>> users_map, ffi::Array<Var> fn_outputs) {
   std::vector<Var> unused;
 
   // iterative dataflow algorithm.
@@ -228,8 +216,8 @@ std::set<Var> GetUnusedVars(Map<Var, Array<Var>> users_map, Array<Var> fn_output
       users_map.erase(unused[i]);
       // remove def site.
       for (const auto& used_var : used) {
-        ICHECK(users_map.count(used_var));
-        Array<Var> var_users = users_map[used_var];
+        TVM_FFI_ICHECK(users_map.count(used_var));
+        ffi::Array<Var> var_users = users_map[used_var];
         // remove the unused var from the use site.
         if (auto it = std::find(var_users.begin(), var_users.end(), unused[i]);
             it != var_users.end()) {
@@ -246,11 +234,11 @@ std::set<Var> GetUnusedVars(Map<Var, Array<Var>> users_map, Array<Var> fn_output
 class RemoveUnusedVars : public ExprMutator {
  public:
   std::set<Var> unused_vars;
-  Optional<DataflowBlock> caught_rewrite = std::nullopt;
+  ffi::Optional<DataflowBlock> caught_rewrite = std::nullopt;
 
-  RemoveUnusedVars(std::set<Var> unused_vars) : unused_vars(std::move(unused_vars)) {}
+  explicit RemoveUnusedVars(std::set<Var> unused_vars) : unused_vars(std::move(unused_vars)) {}
 
-  RemoveUnusedVars(Map<Var, Array<Var>> users, Array<Var> fn_outputs)
+  RemoveUnusedVars(ffi::Map<Var, ffi::Array<Var>> users, ffi::Array<Var> fn_outputs)
       : RemoveUnusedVars(GetUnusedVars(users, fn_outputs)) {}
 
   void VisitBinding_(const VarBindingNode* binding) override {
@@ -284,10 +272,11 @@ void DataflowBlockRewriteNode::RemoveUnused(Var unused, bool allow_undef) {
   // first need to check if this var is used.
   if (to_users_.count(unused) == 0) {  // no def.
     if (allow_undef) return;
-    LOG(FATAL) << unused << " undefined. Set allow_undef=True to allow 'removing' undefined var";
+    TVM_FFI_THROW(InternalError)
+        << unused << " undefined. Set allow_undef=True to allow 'removing' undefined var";
   }
 
-  ICHECK(to_users_[unused].empty())
+  TVM_FFI_ICHECK(to_users_[unused].empty())
       << unused << " is used by " << to_users_[unused].size() << " vars";
 
   auto old_dfb = dfb_;
@@ -303,13 +292,13 @@ void DataflowBlockRewriteNode::RemoveUnused(Var unused, bool allow_undef) {
   to_users_.erase(unused);  // update use-def chain.
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.dfb_rewrite_remove_unused",
                         [](DataflowBlockRewrite rwt, Var unused, bool allow_undef) {
                           rwt->RemoveUnused(unused, allow_undef);
                         });
-});
+}
 
 void DataflowBlockRewriteNode::RemoveAllUnused() {
   RemoveUnusedVars remover(to_users_, fn_outputs_);
@@ -328,11 +317,11 @@ void DataflowBlockRewriteNode::RemoveAllUnused() {
   for (const auto& unused : remover.unused_vars) to_users_.erase(unused);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.dfb_rewrite_remove_all_unused",
                         [](DataflowBlockRewrite rwt) { rwt->RemoveAllUnused(); });
-});
+}
 
 Expr RemoveAllUnused(Expr expr) {
   auto var_usage = CollectVarUsage(expr);
@@ -347,14 +336,14 @@ Expr RemoveAllUnused(Expr expr) {
   }
 
   RemoveUnusedVars remover(var_usage.downstream_usage,
-                           Array<Var>(externally_exposed.begin(), externally_exposed.end()));
+                           ffi::Array<Var>(externally_exposed.begin(), externally_exposed.end()));
   return remover.VisitExpr(std::move(expr));
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.analysis.remove_all_unused", RemoveAllUnused);
-});
+}
 
 IRModule DataflowBlockRewriteNode::MutateIRModule(IRModule irmod) {
   BlockBuilder builder = BlockBuilder::Create(irmod);
@@ -369,12 +358,12 @@ IRModule DataflowBlockRewriteNode::MutateIRModule(IRModule irmod) {
   return builder->GetContextIRModule();
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "relax.dfb_rewrite_mutate_irmodule",
       [](DataflowBlockRewrite rwt, IRModule irmod) { return rwt->MutateIRModule(irmod); });
-});
+}
 
 }  // namespace relax
 }  // namespace tvm

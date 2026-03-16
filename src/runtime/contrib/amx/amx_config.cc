@@ -76,7 +76,7 @@ void init_tile_config(__tilecfg_u* dst, uint16_t cols, uint8_t rows) {
   _tile_loadconfig(dst->a);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("runtime.amx_tileconfig", [](ffi::PackedArgs args, ffi::Any* rv) {
     int rows = args[0].cast<int>();
@@ -89,10 +89,10 @@ TVM_FFI_STATIC_INIT_BLOCK({
     *rv = 1;
     return;
   });
-});
+}
 
 // register a global packed function in c++，to init the system for AMX config
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("runtime.amx_init", [](ffi::PackedArgs args, ffi::Any* rv) {
     // -----------Detect and request for AMX control----------------------
@@ -100,9 +100,10 @@ TVM_FFI_STATIC_INIT_BLOCK({
     int64_t status = syscall(SYS_arch_prctl, ARCH_GET_XCOMP_PERM, &bitmask);
     if (0 != status) {
       *rv = 0;
-      LOG(FATAL) << "errno:" << errno << ", " << strerror(errno);
-      LOG(FATAL) << "status[0]: " << status << ", bitmask: " << bitmask
-                 << ", XFEATURE_XTILEDATA setup is failed, TMUL feature is not allowed.";
+      TVM_FFI_THROW(InternalError) << "errno:" << errno << ", " << strerror(errno);
+      TVM_FFI_THROW(InternalError)
+          << "status[0]: " << status << ", bitmask: " << bitmask
+          << ", XFEATURE_XTILEDATA setup is failed, TMUL feature is not allowed.";
       return;
     }
     if (bitmask & XFEATURE_MASK_XTILEDATA) {
@@ -114,9 +115,10 @@ TVM_FFI_STATIC_INIT_BLOCK({
     // if XFEATURE_XTILEDATA setup is failed, TMUL usage is not allowed
     if (0 != status) {
       *rv = 0;
-      LOG(FATAL) << "errno:" << errno << ", " << strerror(errno);
-      LOG(FATAL) << "status[1]: " << status << ", bitmask: " << bitmask
-                 << ", XFEATURE_XTILEDATA setup is failed, TMUL usage is not allowed.";
+      TVM_FFI_THROW(InternalError) << "errno:" << errno << ", " << strerror(errno);
+      TVM_FFI_THROW(InternalError)
+          << "status[1]: " << status << ", bitmask: " << bitmask
+          << ", XFEATURE_XTILEDATA setup is failed, TMUL usage is not allowed.";
       return;
     }
 
@@ -124,9 +126,9 @@ TVM_FFI_STATIC_INIT_BLOCK({
     // if XFEATURE_XTILEDATA setup is failed, can't use TMUL
     if (0 != status || !(bitmask & XFEATURE_MASK_XTILEDATA)) {
       *rv = 0;
-      LOG(FATAL) << "errno:" << errno << ", " << strerror(errno);
-      LOG(FATAL) << "status[2]: " << status << ", bitmask: " << bitmask
-                 << ", XFEATURE_XTILEDATA setup is failed, can't use TMUL.";
+      TVM_FFI_THROW(InternalError) << "errno:" << errno << ", " << strerror(errno);
+      TVM_FFI_THROW(InternalError) << "status[2]: " << status << ", bitmask: " << bitmask
+                                   << ", XFEATURE_XTILEDATA setup is failed, can't use TMUL.";
       return;
     }
 
@@ -134,7 +136,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
     *rv = 1;
     return;
   });
-});
+}
 
 #endif
 }  // namespace runtime

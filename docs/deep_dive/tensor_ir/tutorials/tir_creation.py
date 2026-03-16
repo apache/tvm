@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E402
 
 """
 .. _tir-creation:
@@ -51,8 +52,8 @@ If not already acquainted, please refer to :ref:`tir-learning` initially.
 # Let's take an example of ``mm_relu`` from :ref:`tir-learning`. Here is the complete
 # format of the ir_module and in TVMScript:
 
-
 import numpy as np
+
 import tvm
 from tvm.script import ir as I
 from tvm.script import tir as T
@@ -70,7 +71,7 @@ class MyModule:
         for i in range(128):
             for j in range(128):
                 for k in range(128):
-                    with T.block("Y"):
+                    with T.sblock("Y"):
                         vi = T.axis.spatial(128, i)
                         vj = T.axis.spatial(128, j)
                         vk = T.axis.reduce(128, k)
@@ -81,7 +82,7 @@ class MyModule:
                         Y[vi, vj] = Y[vi, vj] + A[vi, vk] * B[vk, vj]
         for i in range(128):
             for j in range(128):
-                with T.block("C"):
+                with T.sblock("C"):
                     vi = T.axis.spatial(128, i)
                     vj = T.axis.spatial(128, j)
                     T.reads(Y[vi, vj])
@@ -111,13 +112,13 @@ class ConciseModule:
     ):
         Y = T.alloc_buffer((128, 128), dtype="float32")
         for i, j, k in T.grid(128, 128, 128):
-            with T.block("Y"):
+            with T.sblock("Y"):
                 vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                 with T.init():
                     Y[vi, vj] = T.float32(0)
                 Y[vi, vj] = Y[vi, vj] + A[vi, vk] * B[vk, vj]
         for i, j in T.grid(128, 128):
-            with T.block("C"):
+            with T.sblock("C"):
                 vi, vj = T.axis.remap("SS", [i, j])
                 C[vi, vj] = T.max(Y[vi, vj], T.float32(0))
 
@@ -150,13 +151,13 @@ class ConciseModuleFromPython:
     ):
         Y = T.alloc_buffer((M, N), dtype)
         for i, j, k in T.grid(M, N, K):
-            with T.block("Y"):
+            with T.sblock("Y"):
                 vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                 with T.init():
                     Y[vi, vj] = T.cast(T.float32(0), dtype)
                 Y[vi, vj] = Y[vi, vj] + A[vi, vk] * B[vk, vj]
         for i, j in T.grid(M, N):
-            with T.block("C"):
+            with T.sblock("C"):
                 vi, vj = T.axis.remap("SS", [i, j])
                 C[vi, vj] = T.max(Y[vi, vj], T.cast(T.float32(0), dtype))
 
@@ -188,13 +189,13 @@ class DynamicShapeModule:
         C = T.match_buffer(c, [M, N], dtype)
         Y = T.alloc_buffer((M, N), dtype)
         for i, j, k in T.grid(M, N, K):
-            with T.block("Y"):
+            with T.sblock("Y"):
                 vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                 with T.init():
                     Y[vi, vj] = T.cast(T.float32(0), dtype)
                 Y[vi, vj] = Y[vi, vj] + A[vi, vk] * B[vk, vj]
         for i, j in T.grid(M, N):
-            with T.block("C"):
+            with T.sblock("C"):
                 vi, vj = T.axis.remap("SS", [i, j])
                 C[vi, vj] = T.max(Y[vi, vj], T.cast(T.float32(0), dtype))
 
@@ -204,9 +205,9 @@ class DynamicShapeModule:
 
 
 def evaluate_dynamic_shape(lib: tvm.runtime.Module, m: int, n: int, k: int):
-    A = tvm.nd.array(np.random.uniform(size=(m, k)).astype("float32"))
-    B = tvm.nd.array(np.random.uniform(size=(k, n)).astype("float32"))
-    C = tvm.nd.array(np.zeros((m, n), dtype="float32"))
+    A = tvm.runtime.tensor(np.random.uniform(size=(m, k)).astype("float32"))
+    B = tvm.runtime.tensor(np.random.uniform(size=(k, n)).astype("float32"))
+    C = tvm.runtime.tensor(np.zeros((m, n), dtype="float32"))
     lib(A, B, C)
     return C.numpy()
 

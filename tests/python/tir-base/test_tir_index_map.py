@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E741, F401
 import numpy as np
 import pytest
 
@@ -21,8 +22,8 @@ import tvm
 import tvm.testing
 from tvm.ir import assert_structural_equal
 from tvm.runtime import const
-from tvm.tir import IndexMap, IntImm, floordiv, floormod
 from tvm.script import tir as T
+from tvm.tir import IndexMap, IntImm, floordiv, floormod
 
 
 def assert_equal_index_map(map1: IndexMap, map2: IndexMap) -> None:
@@ -214,12 +215,12 @@ def test_index_map_inverse_no_iter():
     assert expected_map.is_equivalent_to(inverse_map)
 
 
-def test_map_ndarray():
+def test_map_tensor():
     index_map = IndexMap.from_func(lambda i: [i // 4, i % 4])
 
     inp = np.arange(16).astype("int8")
 
-    out = index_map.map_ndarray(tvm.nd.array(inp)).numpy()
+    out = index_map.map_tensor(tvm.runtime.tensor(inp)).numpy()
 
     ref = np.zeros(out.shape).astype("int8")
 
@@ -232,7 +233,7 @@ def test_map_ndarray():
 
     inp = np.random.randn(10, 10, 10, 10).astype("float16")
 
-    out = index_map.map_ndarray(tvm.nd.array(inp)).numpy()
+    out = index_map.map_tensor(tvm.runtime.tensor(inp)).numpy()
 
     ref = np.transpose(inp, (3, 0, 1, 2))
 
@@ -254,8 +255,8 @@ def test_map_ndarray():
     I = 64
     O = 64
     inp = np.random.randn(kH, kW, I, O).astype("float32")
-    arr = tvm.nd.array(inp)
-    out = index_map.map_ndarray(arr).numpy()
+    arr = tvm.runtime.tensor(inp)
+    out = index_map.map_tensor(arr).numpy()
 
     ref = np.zeros(out.shape).astype("float32")
 
@@ -269,7 +270,7 @@ def test_map_ndarray():
     np.testing.assert_equal(ref, out)
 
     inverse_map = index_map.inverse(inp.shape)
-    np.testing.assert_equal(inverse_map.map_ndarray(index_map.map_ndarray(arr)).numpy(), inp)
+    np.testing.assert_equal(inverse_map.map_tensor(index_map.map_tensor(arr)).numpy(), inp)
 
 
 if __name__ == "__main__":

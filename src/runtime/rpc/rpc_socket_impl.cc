@@ -23,6 +23,8 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/support/io.h>
+#include <tvm/support/serializer.h>
 
 #include <memory>
 
@@ -70,32 +72,34 @@ std::shared_ptr<RPCEndpoint> RPCConnect(std::string url, int port, std::string k
   support::TCPSocket sock;
   support::SockAddr addr(url.c_str(), port);
   sock.Create(addr.ss_family());
-  ICHECK(sock.Connect(addr)) << "Connect to " << addr.AsString() << " failed";
+  TVM_FFI_ICHECK(sock.Connect(addr)) << "Connect to " << addr.AsString() << " failed";
   // hand shake
   std::ostringstream os;
   int code = kRPCMagic;
   int keylen = static_cast<int>(key.length());
-  ICHECK_EQ(sock.SendAll(&code, sizeof(code)), sizeof(code));
-  ICHECK_EQ(sock.SendAll(&keylen, sizeof(keylen)), sizeof(keylen));
+  TVM_FFI_ICHECK_EQ(sock.SendAll(&code, sizeof(code)), sizeof(code));
+  TVM_FFI_ICHECK_EQ(sock.SendAll(&keylen, sizeof(keylen)), sizeof(keylen));
   if (keylen != 0) {
-    ICHECK_EQ(sock.SendAll(key.c_str(), keylen), keylen);
+    TVM_FFI_ICHECK_EQ(sock.SendAll(key.c_str(), keylen), keylen);
   }
-  ICHECK_EQ(sock.RecvAll(&code, sizeof(code)), sizeof(code));
+  TVM_FFI_ICHECK_EQ(sock.RecvAll(&code, sizeof(code)), sizeof(code));
   if (code == kRPCMagic + 2) {
     sock.Close();
-    LOG(FATAL) << "URL " << url << ":" << port << " cannot find server that matches key=" << key;
+    TVM_FFI_THROW(InternalError) << "URL " << url << ":" << port
+                                 << " cannot find server that matches key=" << key;
   } else if (code == kRPCMagic + 1) {
     sock.Close();
-    LOG(FATAL) << "URL " << url << ":" << port << " server already have key=" << key;
+    TVM_FFI_THROW(InternalError) << "URL " << url << ":" << port
+                                 << " server already have key=" << key;
   } else if (code != kRPCMagic) {
     sock.Close();
-    LOG(FATAL) << "URL " << url << ":" << port << " is not TVM RPC server";
+    TVM_FFI_THROW(InternalError) << "URL " << url << ":" << port << " is not TVM RPC server";
   }
-  ICHECK_EQ(sock.RecvAll(&keylen, sizeof(keylen)), sizeof(keylen));
+  TVM_FFI_ICHECK_EQ(sock.RecvAll(&keylen, sizeof(keylen)), sizeof(keylen));
   std::string remote_key;
   if (keylen != 0) {
     remote_key.resize(keylen);
-    ICHECK_EQ(sock.RecvAll(&remote_key[0], keylen), keylen);
+    TVM_FFI_ICHECK_EQ(sock.RecvAll(&remote_key[0], keylen), keylen);
   }
 
   std::unique_ptr<RPCChannel> channel = std::make_unique<SockChannel>(sock);
@@ -105,8 +109,8 @@ std::shared_ptr<RPCEndpoint> RPCConnect(std::string url, int port, std::string k
   return endpt;
 }
 
-Module RPCClientConnect(std::string url, int port, std::string key, bool enable_logging,
-                        ffi::PackedArgs init_seq) {
+ffi::Module RPCClientConnect(std::string url, int port, std::string key, bool enable_logging,
+                             ffi::PackedArgs init_seq) {
   auto endpt = RPCConnect(url, port, "client:" + key, enable_logging, init_seq);
   return CreateRPCSessionModule(CreateClientSession(endpt));
 }
@@ -122,7 +126,7 @@ void RPCServerLoop(ffi::Function fsend, ffi::Function frecv) {
       ->ServerLoop();
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("rpc.Connect",
@@ -140,24 +144,24 @@ TVM_FFI_STATIC_INIT_BLOCK({
           RPCServerLoop(args[0].cast<tvm::ffi::Function>(), args[1].cast<tvm::ffi::Function>());
         }
       });
-});
+}
 
-class SimpleSockHandler : public dmlc::Stream {
+class SimpleSockHandler : public support::Stream {
   // Things that will interface with user directly.
  public:
   explicit SimpleSockHandler(int sockfd)
       : sock_(static_cast<support::TCPSocket::SockType>(sockfd)) {}
-  using dmlc::Stream::Read;
-  using dmlc::Stream::ReadArray;
-  using dmlc::Stream::Write;
-  using dmlc::Stream::WriteArray;
+  using support::Stream::Read;
+  using support::Stream::ReadArray;
+  using support::Stream::Write;
+  using support::Stream::WriteArray;
 
   // Unused here, implemented for microTVM framing layer.
   void MessageStart(uint64_t packet_nbytes) {}
   void MessageDone() {}
 
   // Internal supporting.
-  // Override methods that inherited from dmlc::Stream.
+  // Override methods that inherited from support::Stream.
  private:
   size_t Read(void* data, size_t size) final { return sock_.Recv(data, size); }
   size_t Write(const void* data, size_t size) final { return sock_.Send(data, size); }
@@ -167,14 +171,14 @@ class SimpleSockHandler : public dmlc::Stream {
   support::TCPSocket sock_;
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("rpc.ReturnException", [](int sockfd, String msg) {
+  refl::GlobalDef().def("rpc.ReturnException", [](int sockfd, ffi::String msg) {
     auto handler = SimpleSockHandler(sockfd);
     RPCReference::ReturnException(msg.c_str(), &handler);
     return;
   });
-});
+}
 
 }  // namespace runtime
 }  // namespace tvm

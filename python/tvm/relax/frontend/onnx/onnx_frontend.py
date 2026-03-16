@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501, E731, E741, F841, RUF005
 """ONNX: Open Neural Network Exchange importer for Relax.
 
 This module implements the required functionality to read ONNX models
@@ -34,11 +35,14 @@ If this fails, there may still be dynamic operations in the model.
 Not all TVM kernels currently support dynamic shapes, please file an issue on
 github.com/apache/tvm/issues if you hit an error with dynamic kernels.
 """
+
+import functools
 import math
 import operator
 import re
 import warnings
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from collections.abc import Callable
+from typing import Any
 
 import numpy as _np
 import onnx.onnx_ml_pb2
@@ -53,7 +57,7 @@ from tvm.topi.utils import get_const_tuple
 from ..common import autopad
 
 
-def get_type(elem_type: Union[str, int]) -> str:
+def get_type(elem_type: str | int) -> str:
     """Converts onnx integer datatype to numpy datatype"""
     # If a string was passed instead of a tensor type, it does not need
     # conversion and can be returned.
@@ -65,15 +69,15 @@ def get_type(elem_type: Union[str, int]) -> str:
             tensor_dtype_to_np_dtype,
         )
     except ImportError as exception:
-        raise ImportError("Unable to import onnx which is required {}".format(exception))
+        raise ImportError(f"Unable to import onnx which is required {exception}")
 
     return str(tensor_dtype_to_np_dtype(elem_type))
 
 
 def get_constant(
-    var: Union[relax.Constant, relax.Var],
-    params: List[Dict[str, relax.Var]],
-) -> Union[relax.Constant, relax.Var]:
+    var: relax.Constant | relax.Var,
+    params: list[dict[str, relax.Var]],
+) -> relax.Constant | relax.Var:
     """Attempt to convert a variable to a constant if possible.
     This is the primary function meant to interact with params.
 
@@ -106,7 +110,7 @@ def get_constant(
         return var
 
 
-def get_value(token, value_dict: Dict[str, tvm.tir.SizeVar]) -> Union[int, tvm.tir.SizeVar]:
+def get_value(token, value_dict: dict[str, tvm.tir.SizeVar]) -> int | tvm.tir.SizeVar:
     """Converts to token to an integer value if it a constant, otherwise it generates a SizeVar
 
     Parameters
@@ -133,8 +137,8 @@ def get_value(token, value_dict: Dict[str, tvm.tir.SizeVar]) -> Union[int, tvm.t
 
 
 def parse_shape_name(
-    name: str, value_dict: Dict[str, tvm.tir.SizeVar]
-) -> Union[tir.PrimExpr, tvm.tir.SizeVar]:
+    name: str, value_dict: dict[str, tvm.tir.SizeVar]
+) -> tir.PrimExpr | tvm.tir.SizeVar:
     """Converts expressions in the shape dimension name to prim expressions.
 
     Parameters
@@ -184,8 +188,8 @@ def parse_shape_name(
 
 
 def get_info(
-    info_proto: onnx.onnx_ml_pb2.ValueInfoProto, value_dict: Dict[str, tvm.tir.SizeVar]
-) -> Tuple[str, List, str, List, Dict]:
+    info_proto: onnx.onnx_ml_pb2.ValueInfoProto, value_dict: dict[str, tvm.tir.SizeVar]
+) -> tuple[str, list, str, list, dict]:
     """Extract the shape from a ValueInfoProto.
 
     Parameters
@@ -227,13 +231,13 @@ def get_numpy(tensor_proto: onnx.onnx_ml_pb2.TensorProto) -> _np.ndarray:
     try:
         from onnx.numpy_helper import to_array  # pylint: disable=import-outside-toplevel
     except ImportError as exception:
-        raise ImportError("Unable to import onnx which is required {}".format(exception))
+        raise ImportError(f"Unable to import onnx which is required {exception}")
     return to_array(tensor_proto)
 
 
 def get_prim_expr_list(
-    inputs: Union[relax.Constant, relax.ShapeExpr],
-) -> List[Union[int, tir.PrimExpr]]:
+    inputs: relax.Constant | relax.ShapeExpr,
+) -> list[int | tir.PrimExpr]:
     """Attempt to convert a variable to list of PrimExpr if possible.
 
     Parameters
@@ -249,14 +253,14 @@ def get_prim_expr_list(
     if isinstance(inputs, relax.Constant):
         np_value = inputs.data.numpy()
         if np_value.ndim != 1:
-            raise ValueError("Cannot cast {} to list of PrimExpr".format(type(inputs)))
+            raise ValueError(f"Cannot cast {type(inputs)} to list of PrimExpr")
         return np_value.tolist()
     elif isinstance(inputs, relax.ShapeExpr):
         return inputs.values
     elif isinstance(inputs, relax.PrimValue):
         return [inputs.value.value]
     else:
-        raise ValueError("Cannot cast {} to list of PrimExpr".format(type(inputs)))
+        raise ValueError(f"Cannot cast {type(inputs)} to list of PrimExpr")
 
 
 class onnx_input(list):  # pylint: disable=invalid-name
@@ -272,11 +276,11 @@ class onnx_input(list):  # pylint: disable=invalid-name
             return [self[i] for i in indices]
         if isinstance(item, int):
             return list(self)[item] if item < len(self) else None
-        raise TypeError("list indices must be integers or slices, not %s" % type(item).__name__)
+        raise TypeError(f"list indices must be integers or slices, not {type(item).__name__}")
 
 
 # pylint: disable=invalid-name, len-as-condition, unused-argument, too-many-lines, redefined-builtin
-class OnnxOpConverter(object):
+class OnnxOpConverter:
     """A helper class for holding the common logic for ONNX op converters.
     Each converter maps to a single ONNX op and defines the equivalent
     functionality using Relax expressions. The converter can define multiple versions
@@ -300,11 +304,9 @@ class OnnxOpConverter(object):
         versions = [int(d.replace("_impl_v", "")) for d in dir(cls) if "_impl_v" in d]
         versions = sorted(versions + [opset])
         version = versions[max([i for i, v in enumerate(versions) if v == opset]) - 1]
-        if hasattr(cls, "_impl_v{}".format(version)):
-            return getattr(cls, "_impl_v{}".format(version))
-        raise NotImplementedError(
-            "opset version {} of {} not implemented".format(version, cls.__name__)
-        )
+        if hasattr(cls, f"_impl_v{version}"):
+            return getattr(cls, f"_impl_v{version}")
+        raise NotImplementedError(f"opset version {version} of {cls.__name__} not implemented")
 
 
 class MatMul(OnnxOpConverter):
@@ -318,7 +320,7 @@ class MatMul(OnnxOpConverter):
 def _to_numpy(x):
     if isinstance(x, relax.PrimValue):
         x = x.value
-        if isinstance(x, (tir.IntImm, tir.FloatImm)):
+        if isinstance(x, tir.IntImm | tir.FloatImm):
             x = x.value
         return _np.array(x)
     else:
@@ -336,15 +338,19 @@ class BinaryBase(OnnxOpConverter):
         """Base implementation for binary operations."""
         if cls.numpy_op is None or cls.relax_op is None:
             raise ValueError("Numpy and Relax operators must be defined for BinaryBase.")
-        if all([isinstance(inp, relax.Constant) for inp in inputs]):
-            output = cls.numpy_op(  # pylint: disable=not-callable
-                inputs[0].data.numpy(), inputs[1].data.numpy()
-            )
-            return relax.const(output, inputs[0].struct_info.dtype)
-        if any([isinstance(inp, relax.PrimValue) for inp in inputs]):
+        if all([not isinstance(inp, relax.expr.Call | relax.Var) for inp in inputs]):
             x = _to_numpy(inputs[0])
             y = _to_numpy(inputs[1])
-            return relax.PrimValue(cls.numpy_op(x, y))  # pylint: disable=not-callable
+            output = cls.numpy_op(x, y)  # pylint: disable=not-callable
+            if isinstance(x, relax.PrimValue) and isinstance(y, relax.PrimValue):
+                return relax.PrimValue(output.item())
+            if x.dtype == y.dtype:
+                # no numpy precision widening
+                output = output.astype(x.dtype)
+            if all([isinstance(inp, relax.Constant) for inp in inputs]):
+                return relax.const(output, output.dtype)  # pylint: disable=not-callable
+            if any([isinstance(inp, relax.PrimValue) for inp in inputs]):
+                return relax.PrimValue(output.item())  # pylint: disable=not-callable
 
         return cls.relax_op(inputs[0], inputs[1])  # pylint: disable=not-callable
 
@@ -506,7 +512,7 @@ class Equal(OnnxOpConverter):
         if all([isinstance(inp, relax.Constant) for inp in inputs]):
             output = inputs[0].data.numpy() == inputs[1].data.numpy()
             return relax.const(output, output.dtype)
-        elif all([isinstance(inp, (relax.Constant, relax.ShapeExpr)) for inp in inputs]):
+        elif all([isinstance(inp, relax.Constant | relax.ShapeExpr) for inp in inputs]):
             lhs = get_prim_expr_list(inputs[0])
             rhs = get_prim_expr_list(inputs[1])
             if len(lhs) != len(rhs):
@@ -641,11 +647,34 @@ class Transpose(OnnxOpConverter):
 
     @classmethod
     def _impl_v13(cls, bb, inputs, attr, params):
+        data = inputs[0]
         axes = attr.get("perm", None)
-        if isinstance(inputs[0], relax.Constant):
-            output = _np.transpose(inputs[0].data.numpy(), axes)
+
+        if hasattr(data.struct_info, "ndim"):
+            input_ndim = data.struct_info.ndim
+        elif hasattr(data.struct_info, "shape") and data.struct_info.shape:
+            input_ndim = len(data.struct_info.shape)
+        else:
+            if isinstance(data, relax.Constant):
+                input_ndim = data.data.numpy().ndim
+            else:
+                input_ndim = None
+
+        if input_ndim == 0:
+            return data
+
+        if input_ndim is not None and axes is not None:
+            if len(axes) != input_ndim:
+                raise ValueError(
+                    f"Transpose: number of axes in perm attribute ({len(axes)}) "
+                    f"must equal the number of input tensor dimensions ({input_ndim})"
+                )
+
+        if isinstance(data, relax.Constant):
+            output = _np.transpose(data.data.numpy(), axes)
             return relax.const(output, output.dtype)
-        return relax.op.permute_dims(inputs[0], axes)
+
+        return relax.op.permute_dims(data, axes)
 
 
 class Unsqueeze(OnnxOpConverter):
@@ -719,7 +748,7 @@ class Concat(OnnxOpConverter):
                 elif isinstance(inp, relax.Constant):
                     const_inputs.extend(inp.data.numpy().tolist())
                 else:
-                    raise NotImplementedError("Unsupported input type: {}".format(type(inp)))
+                    raise NotImplementedError(f"Unsupported input type: {type(inp)}")
             return relax.ShapeExpr(const_inputs)
 
         # If all inputs are constant, perform computation directly.
@@ -770,9 +799,9 @@ class Gather(OnnxOpConverter):
 
         # If input is a shape expression, take a value from that shape and return it as a constant.
         if isinstance(data, relax.ShapeExpr):
-            assert isinstance(
-                indices, relax.Constant
-            ), "Only constant indices supported for shape gather."
+            assert isinstance(indices, relax.Constant), (
+                "Only constant indices supported for shape gather."
+            )
             np_index = indices.data.numpy()
             if len(np_index.shape) == 1:
                 np_index = np_index[0]
@@ -827,14 +856,14 @@ class ScatterND(OnnxOpConverter):
     """Convert an onnx ScatterND node into an equivalent Relax expression."""
 
     @staticmethod
-    def _reduction_check(attr, valid_reductions: List[str]):
+    def _reduction_check(attr, valid_reductions: list[str]):
         reduction = attr.get("reduction", None)
         reduction = reduction or b"update"
         reduction = reduction.decode("utf-8")
         reduction = "update" if reduction == "none" else reduction
-        assert (
-            reduction in valid_reductions
-        ), f"Only {valid_reductions} reductions are supported, but {reduction} is gotten"
+        assert reduction in valid_reductions, (
+            f"Only {valid_reductions} reductions are supported, but {reduction} is gotten"
+        )
 
         return reduction
 
@@ -884,8 +913,7 @@ class Size(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, bb, inputs, attr, params):
-        # TODO(tvm-team): add native support for size op
-        return relax.op.prod(relax.op.shape_to_tensor(relax.op.shape_of(inputs[0])))
+        return relax.op.size(inputs[0])
 
 
 class EyeLike(OnnxOpConverter):
@@ -967,7 +995,7 @@ class Where(OnnxOpConverter):
             np_inputs = [inp.data.numpy() for inp in inputs]
             output = _np.where(*np_inputs)
             return relax.const(output, output.dtype)
-        if all([isinstance(inp, (relax.Constant, relax.ShapeExpr)) for inp in inputs]):
+        if all([isinstance(inp, relax.Constant | relax.ShapeExpr) for inp in inputs]):
             condition, x, y = [get_prim_expr_list(inp) for inp in inputs]
             if len(condition) != len(x) or len(condition) != len(y):
                 raise ValueError("Cannot broadcast condition to x and y")
@@ -1100,8 +1128,31 @@ class PRelu(OnnxOpConverter):
     def _impl_v1(cls, bb, inputs, attr, params):
         x = inputs[0]
         slope = inputs[1]
-        # TODO(tvm-team): Should add a new op for this.
-        return x * slope + relax.op.nn.relu(x) * (relax.const(1.0) - slope)
+
+        x_shape = x.struct_info.shape
+        slope_shape = slope.struct_info.shape
+
+        ndim = len(x_shape)
+        s_ndim = len(slope_shape)
+
+        if all(ss == 1 for ss in slope_shape) or s_ndim == 1:
+            slope = relax.op.reshape(slope, (slope_shape[0],))
+            return relax.op.nn.prelu(x, slope, ndim - 1)
+
+        if s_ndim == ndim:
+            non_one_axes = [i for i, ss in enumerate(slope_shape) if ss != 1]
+
+            # Must have only ONE non-broadcast axis
+            if len(non_one_axes) != 1:
+                raise ValueError(
+                    f"Invalid PRelu slope shape (multiple non-broadcast dims): {slope_shape}"
+                )
+            axis = non_one_axes[0]
+
+            slope = relax.op.reshape(slope, (slope_shape[axis],))
+            return relax.op.nn.prelu(x, slope, axis)
+
+        raise ValueError(f"Unsupported PRelu slope shape: {slope_shape}")
 
 
 class ThresholdedRelu(OnnxOpConverter):
@@ -1131,14 +1182,28 @@ class LeakyRelu(OnnxOpConverter):
 
 
 class Gelu(OnnxOpConverter):
-    """Operator converter for Gelu from Microsoft onnxruntime contrib opset.
+    """Operator converter for Gelu.
+
+    Supports both Microsoft onnxruntime contrib opset and ONNX Opset 20+.
 
     gelu(x) = 0.5x(1 + erf(x/sqrt(2)))
+
+    When approximate="tanh" (ONNX Opset 20):
+    gelu(x) = 0.5x(1 + tanh(sqrt(2/pi)(x + 0.044715x^3)))
     """
 
     @classmethod
     def _impl_v1(cls, bb, inputs, attr, params):
         return relax.op.nn.gelu(inputs[0])
+
+    @classmethod
+    def _impl_v20(cls, bb, inputs, attr, params):
+        approximate = attr.get("approximate", b"none").decode("utf-8")
+        if approximate == "tanh":
+            return relax.op.nn.gelu_tanh(inputs[0])
+        if approximate == "none":
+            return relax.op.nn.gelu(inputs[0])
+        raise ValueError(f"Unsupported approximate mode for Gelu: {approximate}")
 
 
 class FastGelu(OnnxOpConverter):
@@ -1154,11 +1219,12 @@ class FastGelu(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, bb, inputs, attr, params):
-        if inputs[1]:
+        x = inputs[0]
+        if len(inputs) > 1 and inputs[1] is not None:
             bias = inputs[1]
             bias_shape = bias.struct_info.shape
             assert len(bias_shape) == 1, "bias term must be a 1D tensor"
-            x += bias
+            x = bb.emit(relax.op.add(x, bias))
 
         # Declare consts
         const_dtype = x.struct_info.dtype
@@ -1168,11 +1234,13 @@ class FastGelu(OnnxOpConverter):
         const2 = relax.const(0.044715 * math.sqrt(2 / math.pi), dtype=const_dtype)
 
         # Compute FastGelu
-        term1 = relax.op.multiply(half, x)
-        term2 = relax.op.multiply(const1, x)
-        term3 = relax.op.multiply(const2, relax.op.power(x, relax.const(3, const_dtype)))
-        tanh = relax.op.tanh(relax.op.add(term2, term3))
-        return relax.op.multiply(term1, relax.op.add(one, tanh))
+        term1 = bb.emit(relax.op.multiply(half, x))
+        term2 = bb.emit(relax.op.multiply(const1, x))
+        # use x^3 = x * x * x instead of pow(x, 3) for better performance
+        x_cubed = bb.emit(relax.op.multiply(relax.op.multiply(x, x), x))
+        term3 = bb.emit(relax.op.multiply(const2, x_cubed))
+        tanh = bb.emit(relax.op.tanh(relax.op.add(term2, term3)))
+        return bb.emit(relax.op.multiply(term1, relax.op.add(one, tanh)))
 
 
 class BiasGelu(OnnxOpConverter):
@@ -1252,8 +1320,7 @@ class Conv(OnnxOpConverter):
                 pass
             else:
                 msg = (
-                    f'Value {attr["auto_pad"]} in attribute "auto_pad" of operator Conv '
-                    f"is invalid."
+                    f'Value {attr["auto_pad"]} in attribute "auto_pad" of operator Conv is invalid.'
                 )
                 raise tvm.error.OpAttributeInvalid(msg)
             attr.pop("auto_pad")
@@ -1305,6 +1372,7 @@ class ConvTranspose(OnnxOpConverter):
             weight=inputs[1],
             strides=attr.get("strides", 1),
             padding=attr.get("pads", 0),
+            output_padding=attr.get("output_padding", 0),
             dilation=attr.get("dilations", 1),
             groups=attr.get("group", 1),
             data_layout=data_layout,
@@ -1364,7 +1432,7 @@ class Squeeze(OnnxOpConverter):
 
         # If data is constant, perform computation directly.
         if isinstance(data, relax.Constant):
-            if isinstance(axis, (tuple, type(None))):
+            if isinstance(axis, tuple | type(None)):
                 out_data = _np.squeeze(data.data.numpy(), axis)
             else:
                 raise NotImplementedError("Squeeze with symbolic axes not supported")
@@ -1606,6 +1674,22 @@ class Sqrt(OnnxOpConverter):
         return relax.op.sqrt(inputs[0])
 
 
+def compute_broadcast_shape(shape_a, shape_b):
+    """Compute target shape for Multidirectional Broadcasting"""
+    rank = max(len(shape_a), len(shape_b))
+
+    a = (1,) * (rank - len(shape_a)) + tuple(shape_a)
+    b = (1,) * (rank - len(shape_b)) + tuple(shape_b)
+
+    target = []
+    for ai, bi in zip(a, b):
+        if ai == bi or ai == 1 or bi == 1:
+            target.append(max(ai, bi))
+        else:
+            raise ValueError(f"Cannot broadcast {ai} and {bi}")
+    return tuple(target)
+
+
 class MultiInputBase(OnnxOpConverter):
     """Converts an onnx MultiInputBase node into an equivalent Relax expression."""
 
@@ -1621,9 +1705,12 @@ class MultiInputBase(OnnxOpConverter):
             output = cls.numpy_op(*np_inputs)  # pylint: disable=not-callable
             return relax.const(output, output.dtype)
 
-        # Expand inputs, stack them, then perform minimum over the new axis.
-        inputs = [bb.normalize(relax.op.expand_dims(i, axis=0)) for i in inputs]
-        stacked_tensor = relax.op.concat(inputs, axis=0)
+        input_shapes = [inp.struct_info.shape for inp in inputs]
+        target_shape = functools.reduce(compute_broadcast_shape, input_shapes)
+
+        # broadcast_to, stack them, then perform minimum over the new axis.
+        inputs = [bb.normalize(relax.op.broadcast_to(i, target_shape)) for i in inputs]
+        stacked_tensor = bb.normalize(relax.op.stack(inputs, axis=0))
         return cls.relax_op(stacked_tensor, axis=0)  # pylint: disable=not-callable
 
 
@@ -1670,9 +1757,7 @@ class Exp(OnnxOpConverter):
 
     @classmethod
     def _check_type(cls, dtype, valid_types):
-        assert dtype in valid_types, "Types {} are supported only, but {} is given".format(
-            valid_types, dtype
-        )
+        assert dtype in valid_types, f"Types {valid_types} are supported only, but {dtype} is given"
 
     @classmethod
     def _impl_v1(cls, bb, inputs, attr, params):
@@ -1697,7 +1782,8 @@ class Softplus(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, bb, inputs, attr, params):
         dtype = inputs[0].struct_info.dtype
-        return relax.op.log(relax.op.exp(inputs[0]) + relax.const(1, dtype=dtype))
+        threshold = 10.0 if dtype == "float16" else 20.0
+        return relax.op.nn.softplus(inputs[0], threshold=threshold)
 
 
 class Softsign(OnnxOpConverter):
@@ -1772,7 +1858,7 @@ class Slice(OnnxOpConverter):
         if not all(
             [
                 (
-                    isinstance(param, (relax.Constant, relax.ShapeExpr, relax.PrimValue))
+                    isinstance(param, relax.Constant | relax.ShapeExpr | relax.PrimValue)
                     or param is None
                 )
                 for param in [starts, ends, axes, steps]
@@ -1801,7 +1887,7 @@ class Slice(OnnxOpConverter):
             assert all(len(i) == 1 for i in [starts, ends, steps])
             sliced_values = shape_data[starts[0] : ends[0] : steps[0]]
 
-            if all([isinstance(val, (tir.IntImm, int)) for val in sliced_values]):
+            if all([isinstance(val, tir.IntImm | int) for val in sliced_values]):
                 return relax.const([x.value for x in sliced_values], "int64")
             else:
                 return relax.ShapeExpr(sliced_values)
@@ -1809,7 +1895,7 @@ class Slice(OnnxOpConverter):
         # If all `starts`, `ends`, and `steps` are constant, use strict mode
         # Otherwise, we assume the slice is inbound.
         assume_inbound = not all(
-            [isinstance(param, (tir.IntImm, int)) for param in [*starts, *ends, *steps]]
+            [isinstance(param, tir.IntImm | int) for param in [*starts, *ends, *steps]]
         )
 
         # Converting PrimExpr to PrimValue since relax.op.strided_slice does not accept PrimExpr
@@ -1841,7 +1927,7 @@ class Pad(OnnxOpConverter):
             raise ValueError("Dynamic pads are not supported yet.")
 
         pad_mode = attr.get("mode", b"constant").decode("utf-8")
-        if not pad_mode in ["constant", "edge", "reflect"]:
+        if pad_mode not in ["constant", "edge", "reflect"]:
             raise tvm.error.OpAttributeInvalid(
                 "Value " + pad_mode + ' in attribute "mode" is invalid for operator Pad.'
             )
@@ -1851,8 +1937,8 @@ class Pad(OnnxOpConverter):
         elif pad_mode == "reflect":
             return bb.emit_te(topi.nn.mirror_pad, inputs[0], pad_before, pad_after, "REFLECT")
         else:
-            # TODO(gigiblender) Support edge mode.
-            raise NotImplementedError("Pad mode {} not implemented".format(pad_mode))
+            # edge mode - replicate border values
+            return bb.emit_te(topi.nn.replicate_pad, inputs[0], pad_before, pad_after)
 
     @classmethod
     def _impl_v11(cls, bb, inputs, attr, params):
@@ -1871,7 +1957,7 @@ class Pad(OnnxOpConverter):
             raise ValueError("Dynamic pads are not supported yet.")
 
         pad_mode = attr.get("mode", b"constant").decode("utf-8")
-        if not pad_mode in ["constant", "edge", "reflect"]:
+        if pad_mode not in ["constant", "edge", "reflect"]:
             raise tvm.error.OpAttributeInvalid(
                 "Value " + pad_mode + ' in attribute "mode" is invalid for operator Pad.'
             )
@@ -1881,21 +1967,64 @@ class Pad(OnnxOpConverter):
         elif pad_mode == "reflect":
             return bb.emit_te(topi.nn.mirror_pad, inputs[0], pad_before, pad_after, "REFLECT")
         else:
-            # TODO(gigiblender) Support edge mode.
-            raise NotImplementedError("Pad mode {} not implemented".format(pad_mode))
+            # edge mode - replicate border values
+            return bb.emit_te(topi.nn.replicate_pad, inputs[0], pad_before, pad_after)
 
 
 class Tile(OnnxOpConverter):
     """Converts an onnx Tile node into an equivalent Relax expression."""
+
+    @staticmethod
+    def _tensor_length(expr):
+        shape = expr.struct_info.shape
+        if not isinstance(shape, relax.ShapeExpr):
+            return None
+
+        length = shape.values[0]
+        if not isinstance(length, tir.IntImm):
+            return None
+        return length.value
 
     @classmethod
     def _impl_v13(cls, bb, inputs, attr, params):
         reps = get_constant(inputs[1], params)
         if isinstance(reps, relax.Constant):
             reps = reps.data.numpy().tolist()
-        else:
-            raise ValueError("Dynamic reps for Tile are supported yet.")
-        return bb.emit_te(topi.tile, inputs[0], reps)
+            return bb.emit_te(topi.tile, inputs[0], reps)
+
+        data = inputs[0]
+        data_ndim = data.struct_info.ndim
+        reps_len = cls._tensor_length(reps)
+        if data_ndim == -1 or reps_len is None:
+            raise ValueError("Dynamic Tile requires known input rank and repeats length.")
+
+        if reps.struct_info.dtype != "int64":
+            reps = bb.normalize(relax.op.astype(reps, "int64"))
+
+        data_shape = bb.normalize(relax.op.shape_of(data))
+        data_shape_tensor = bb.normalize(relax.op.shape_to_tensor(data_shape))
+        output_shape_tensor = reps
+
+        if data_ndim > reps_len:
+            reps_prefix = relax.const(_np.ones((data_ndim - reps_len,), dtype="int64"), "int64")
+            output_shape_tensor = bb.normalize(
+                relax.op.concat([reps_prefix, output_shape_tensor], axis=0)
+            )
+        elif reps_len > data_ndim:
+            data_prefix = relax.const(_np.ones((reps_len - data_ndim,), dtype="int64"), "int64")
+            data_shape_tensor = bb.normalize(
+                relax.op.concat([data_prefix, data_shape_tensor], axis=0)
+            )
+
+        output_shape_tensor = bb.normalize(
+            relax.op.multiply(output_shape_tensor, data_shape_tensor)
+        )
+        output_shape = bb.normalize(relax.op.tensor_to_shape(output_shape_tensor))
+        output_shape_vars = [
+            tir.Var(f"tile_dim_{i}", "int64") for i in range(max(data_ndim, reps_len))
+        ]
+        bb.match_cast(output_shape, relax.ShapeStructInfo(output_shape_vars))
+        return bb.emit_te(topi.dyn_tile, data, output_shape_vars, reps_len)
 
 
 class Expand(OnnxOpConverter):
@@ -1908,15 +2037,47 @@ class Expand(OnnxOpConverter):
         if isinstance(shape, relax.ShapeExpr):
             data_shape = list(data.struct_info.shape)
             target_shape = list(shape.values)
+            original_data_shape = [
+                dim.value if hasattr(dim, "value") else str(dim) for dim in data_shape
+            ]
+            original_target_shape = [
+                dim.value if hasattr(dim, "value") else str(dim) for dim in target_shape
+            ]
             data_shape = [1] * (len(target_shape) - len(data_shape)) + data_shape
             assert len(data_shape) == len(target_shape)
-            # Fix small target shapes or target shapes assigned to -1
+            # Apply ONNX v13 Expand broadcasting rules
             for i, s in enumerate(target_shape):
-                if isinstance(s, tvm.tir.IntImm) and (
-                    (isinstance(data_shape[i], tvm.tir.IntImm) and s < data_shape[i])
-                    or s.value == -1
-                ):
-                    target_shape[i] = data_shape[i]
+                if isinstance(s, tvm.tir.IntImm):
+                    if s.value == -1:
+                        # -1 means preserve the input dimension
+                        target_shape[i] = data_shape[i]
+                    elif isinstance(data_shape[i], tvm.tir.IntImm) and data_shape[i].value == 1:
+                        # Input dimension is 1, can broadcast to any target dimension >= 1
+                        if s.value < 1:
+                            raise ValueError(
+                                f"ONNX Expand: Invalid target dimension {s.value} "
+                                f"at possition {i}. Target dimensions must be >= 1."
+                            )
+                    elif (
+                        isinstance(data_shape[i], tvm.tir.IntImm) and s.value == data_shape[i].value
+                    ):
+                        # Dimensions match, no change needed
+                        pass
+                    elif s.value == 1:
+                        # Target dimension is 1 but input dimension is not 1
+                        # This would "squeeze" the dimension - preserve input for safety
+                        target_shape[i] = data_shape[i]
+                    else:
+                        if isinstance(data_shape[i], tvm.tir.IntImm):
+                            raise ValueError(
+                                f"ONNX Expand: Cannot broadcast input shape {original_data_shape} "
+                                f"to target shape {original_target_shape}. "
+                                f"At dimension {i}: input size {data_shape[i].value} is "
+                                f"incompatible with target size {s.value}. "
+                                f"ONNX broadcasting requires corresponding dimensions to have "
+                                f"the same value or one of them to be 1."
+                            )
+                        # For dynamic shapes, let broadcast_to handle it
             if target_shape == data_shape:
                 return data
             return relax.op.broadcast_to(data, relax.ShapeExpr(target_shape))
@@ -1927,6 +2088,8 @@ class Expand(OnnxOpConverter):
             # ONNX Expand operator requires preserving target rank and broadcasting
             # according to standard rules. Dimensions are right-aligned.
             data_shape = [dim.value for dim in data.struct_info.shape]
+            original_data_shape = data_shape.copy()
+            original_new_shape = new_shape.copy()
 
             # Right-align the shapes
             if len(new_shape) > len(data_shape):
@@ -1936,12 +2099,36 @@ class Expand(OnnxOpConverter):
             # Fix small target shapes - if target dim is smaller than input dim
             # use the input dim (ONNX-specific behavior).
             for i in range(len(new_shape)):
-                if new_shape[i] < data_shape[i]:
+                if new_shape[i] == -1:
+                    # -1 means preserve the input dimension
                     new_shape[i] = data_shape[i]
+                elif data_shape[i] == 1:
+                    # Input dimension is 1, can broadcast to any target dimension >= 1
+                    if new_shape[i] < 1:
+                        raise ValueError(
+                            f"ONNX Expand: Invalid target dimension {new_shape[i]} "
+                            f"at possition {i}. Target dimensions must be >= 1."
+                        )
+                elif new_shape[i] == data_shape[i]:
+                    # Dimensions match, no change needed
+                    pass
+                elif new_shape[i] == 1:
+                    # Target dimension is 1 but input dimension is not 1
+                    # This would "squeeze" the dimension - preserve input for safety
+                    new_shape[i] = data_shape[i]
+                else:
+                    raise ValueError(
+                        f"ONNX Expand: Cannot broadcast input shape {original_data_shape} "
+                        f"to target shape {original_new_shape}. "
+                        f"At dimension {i}: input size {data_shape[i]} is incompatible "
+                        f"with target size {new_shape[i]}. "
+                        f"ONNX broadcasting requires corresponding dimensions to have the same "
+                        f"value or one of them to be 1."
+                    )
             return relax.op.broadcast_to(data, relax.ShapeExpr(new_shape))
 
         # Otherwise handle dynamic shapes.
-        shape_ndim = [dim.value for dim in shape.struct_info.shape.values][0]
+        shape_ndim = next(dim.value for dim in shape.struct_info.shape.values)
         shape_dataflow_var = bb.emit(
             relax.Call(
                 relax.ExternFunc("vm.builtin.tensor_to_shape"),
@@ -1952,9 +2139,20 @@ class Expand(OnnxOpConverter):
 
         shape_vars = []
         for i in range(shape_ndim):
-            shape_vars.append(tvm.tir.Var("x_%d" % i, "int64"))
+            shape_vars.append(tvm.tir.Var(f"x_{i}", "int64"))
         bb.match_cast(shape_dataflow_var, relax.ShapeStructInfo(shape_vars))
-        return bb.normalize(relax.op.broadcast_to(data, relax.ShapeExpr(shape_vars)))
+
+        # Applying broadcasting rules for dynamic shapes
+        data_shape = list(data.struct_info.shape)
+        data_ndim = len(data_shape)
+        target_ndim = shape_ndim
+        padded_data = data
+
+        if target_ndim > data_ndim:
+            padded_data_shape = [tir.IntImm("int64", 1)] * (target_ndim - data_ndim) + data_shape
+            padded_data = bb.normalize(relax.op.reshape(data, relax.ShapeExpr(padded_data_shape)))
+
+        return bb.normalize(relax.op.broadcast_to(padded_data, relax.ShapeExpr(shape_vars)))
 
 
 class Attention(OnnxOpConverter):
@@ -1965,9 +2163,9 @@ class Attention(OnnxOpConverter):
         num_heads = attr["num_heads"]
 
         assert "do_rotary" not in attr, "rotary position embedding is not currently supported"
-        assert (
-            "past_present_share_buffer" not in attr
-        ), "past state for key and value is not currently supported"
+        assert "past_present_share_buffer" not in attr, (
+            "past state for key and value is not currently supported"
+        )
         assert "scale" not in attr, "custom scale is not currently supported"
         assert "unidirectional" not in attr, "unidirectional attention is not currently supported"
 
@@ -2012,21 +2210,21 @@ class Attention(OnnxOpConverter):
         ]
         weight_shape = [val.value for val in weight.struct_info.shape.values]
 
-        assert (
-            weight_shape[0] == input_hidden_size
-        ), "input and weight should share the same input hiden size"
+        assert weight_shape[0] == input_hidden_size, (
+            "input and weight should share the same input hiden size"
+        )
 
         if "qkv_hidden_sizes" in attr:
-            assert (
-                attr["qkv_hidden_sizes"][0] == attr["qkv_hidden_sizes"][1]
-            ), "Q and K should share the same hidden sizes"
+            assert attr["qkv_hidden_sizes"][0] == attr["qkv_hidden_sizes"][1], (
+                "Q and K should share the same hidden sizes"
+            )
             hidden_size, _, hidden_size_v = attr["qkv_hidden_sizes"]
         else:
             hidden_size = hidden_size_v = weight_shape[1] // 3
 
-        assert (
-            hidden_size % num_heads == 0
-        ), "hidden size should be divisible by number of attention heads"
+        assert hidden_size % num_heads == 0, (
+            "hidden size should be divisible by number of attention heads"
+        )
         head_size = hidden_size // num_heads
         head_size_v = hidden_size_v // num_heads
 
@@ -2068,9 +2266,9 @@ class Attention(OnnxOpConverter):
 
         if bias:
             bias_shape = [val.value for val in bias.struct_info.shape.values]
-            assert (
-                bias_shape[0] == weight_shape[1]
-            ), "bias and weight should share the same hidden size sum"
+            assert bias_shape[0] == weight_shape[1], (
+                "bias and weight should share the same hidden size sum"
+            )
             QKV = relax.op.add(QKV, bias)
 
         QKV = relax.op.split(QKV, [hidden_size, hidden_size * 2], 2)
@@ -2111,7 +2309,10 @@ class Resize(OnnxOpConverter):
 
         # Adapt attributes to fit TVM definition.
         if mode == "nearest":
-            mode = "nearest_neighbor"
+            relax_mode = "nearest_neighbor"
+        else:
+            relax_mode = mode
+        topi_mode = relax_mode
 
         # Unpack inputs.
         x = inputs[0]
@@ -2119,16 +2320,20 @@ class Resize(OnnxOpConverter):
         scales = get_constant(inputs[2], params)
         sizes = get_constant(inputs[3], params)
         ndims = len(x.struct_info.shape)
-        assert ndims == 4, "Only resize2d is currently supported."
+        assert ndims in (3, 4, 5), "Only resize1d/resize2d/resize3d are supported."
 
-        assert (
-            scales is None or sizes is None
-        ), "Only one of scales and sizes can be provided in Resize."
+        assert scales is None or sizes is None, (
+            "Only one of scales and sizes can be provided in Resize."
+        )
 
         # Define relax implementation.
         if roi is not None:
             if isinstance(roi, relax.Constant):
                 roi = roi.data.numpy().tolist()
+                if len(roi) == 2 * ndims:
+                    roi = roi[2:ndims] + roi[ndims + 2 : 2 * ndims]
+                elif len(roi) == 0:
+                    roi = [0.0] * (2 * (ndims - 2))
             else:
                 roi = relax.op.concat(
                     [
@@ -2138,37 +2343,72 @@ class Resize(OnnxOpConverter):
                     axis=0,
                 )
                 # TODO The backend C++ func resize2d does not support dynamic ROI for now.
-                raise NotImplementedError("Dynamic ROI is not supported in resize2d for now.")
+                raise NotImplementedError("Dynamic ROI is not supported in resize for now.")
         else:
-            roi = [0.0] * 4
+            roi = [0.0] * (2 * (ndims - 2))
 
         # Convert scales to sizes if needed.
         if scales is not None:
-            assert isinstance(scales, relax.Constant), "Only constant scales currently supported."
-            scales = scales.data.numpy()
+            if isinstance(scales, relax.Constant):
+                scales = scales.data.numpy()
+            elif isinstance(scales, relax.expr.ShapeExpr):
+                scales = [int(val.value) for val in scales.values]
+            else:
+                assert f"Type {type(scales)} for scale is currently unsupported."
             sizes = []
 
             for i, dim in enumerate(x.struct_info.shape):
                 sizes.append(cast(scales[i] * dim, "int64"))
             sizes = sizes[2:]
         else:
-            assert isinstance(
-                sizes, relax.Constant
-            ), "Only constant output size currently supported."
-            sizes = sizes.data.numpy().astype("int64").tolist()[2:]
+            if isinstance(sizes, relax.Constant):
+                sizes = sizes.data.numpy().astype("int64").tolist()[2:]
+            elif isinstance(sizes, relax.expr.ShapeExpr):
+                sizes = [int(val.value) for val in sizes.values][2:]
+            else:
+                assert f"Type {type(sizes)} for size is currently unsupported."
 
-        return relax.op.image.resize2d(
-            x,
-            size=relax.ShapeExpr(sizes),
-            roi=roi,
-            layout="NCHW",
-            method=mode,
-            coordinate_transformation_mode=coord_mode,
-            rounding_method=rounding_method,
-            cubic_alpha=cubic_coeff_a,
-            cubic_exclude=exclude_outside,
-            extrapolation_value=extrapolation_value,
-        )
+        if ndims == 3:
+            return bb.emit_te(
+                topi.image.resize1d,
+                x,
+                roi,
+                sizes,
+                "NCW",
+                topi_mode,
+                coord_mode,
+                rounding_method,
+                cubic_coeff_a,
+                exclude_outside,
+                extrapolation_value,
+            )
+        elif ndims == 4:
+            return relax.op.image.resize2d(
+                x,
+                size=relax.ShapeExpr(sizes),
+                roi=roi,
+                layout="NCHW",
+                method=relax_mode,
+                coordinate_transformation_mode=coord_mode,
+                rounding_method=rounding_method,
+                cubic_alpha=cubic_coeff_a,
+                cubic_exclude=exclude_outside,
+                extrapolation_value=extrapolation_value,
+            )
+        else:  # ndims == 5
+            return bb.emit_te(
+                topi.image.resize3d,
+                x,
+                roi,
+                sizes,
+                "NCDHW",
+                topi_mode,
+                coord_mode,
+                rounding_method,
+                cubic_coeff_a,
+                exclude_outside,
+                extrapolation_value,
+            )
 
 
 class Einsum(OnnxOpConverter):
@@ -2250,8 +2490,18 @@ class BatchNormalization(OnnxOpConverter):
         mean = inputs[3]
         var = inputs[4]
         epsilon = attr.get("epsilon", 1e-05)
+        momentum = attr.get("momentum", 0.9)
+        training_mode = attr.get("training_mode", 0)
         return relax.op.nn.batch_norm(
-            data, gamma=scale, beta=bias, moving_mean=mean, moving_var=var, epsilon=epsilon, axis=1
+            data,
+            gamma=scale,
+            beta=bias,
+            moving_mean=mean,
+            moving_var=var,
+            axis=1,
+            epsilon=epsilon,
+            momentum=momentum,
+            training=training_mode,
         )
 
 
@@ -2267,6 +2517,63 @@ class MeanVarianceNormalization(OnnxOpConverter):
         data_squared = relax.op.power(data, relax.const(2, dtype="float32"))
         data_squared_mean = relax.op.mean(data_squared, axis=axis, keepdims=True)
         return (data - data_mean) / relax.op.sqrt(data_squared_mean - data_mean_squared)
+
+
+class LocalResponseNormalization(OnnxOpConverter):
+    """Converts an onnx LocalResponseNormalization node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v13(cls, bb, inputs, attr, params):
+        data = inputs[0]
+        size = attr["size"]
+        alpha = attr.get("alpha", 0.0001)
+        beta = attr.get("beta", 0.75)
+        bias = attr.get("bias", 1.0)
+
+        if hasattr(data.struct_info, "ndim"):
+            ndim = data.struct_info.ndim
+        else:
+            ndim = len(data.struct_info.shape)
+
+        if ndim not in [3, 4]:
+            raise ValueError(f"LRN only supports 3D or 4D input, got {ndim}D.")
+
+        data_squared = relax.op.multiply(data, data)
+        data_expanded = relax.op.expand_dims(data_squared, axis=1)
+        pad_len = size // 2
+        if ndim == 3:
+            pool_padding = [pad_len, 0, pad_len, 0]
+            pool_op = relax.op.nn.avg_pool2d
+            pool_size = (size, 1)
+            layout = "NCHW"
+            strides = (1, 1)
+        else:
+            pool_padding = [pad_len, 0, 0, pad_len, 0, 0]
+            pool_op = relax.op.nn.avg_pool3d
+            pool_size = (size, 1, 1)
+            layout = "NCDHW"
+            strides = (1, 1, 1)
+
+        data_avgpool = pool_op(
+            data_expanded,
+            pool_size=pool_size,
+            strides=strides,
+            padding=pool_padding,
+            layout=layout,
+            ceil_mode=False,
+            count_include_pad=True,
+        )
+        data_squeezed = relax.op.squeeze(data_avgpool, axis=1)
+
+        const_alpha = relax.const(alpha, dtype="float32")
+        const_bias = relax.const(bias, dtype="float32")
+        const_beta = relax.const(beta, dtype="float32")
+
+        scale = relax.op.multiply(data_squeezed, const_alpha)
+        scale = relax.op.add(scale, const_bias)
+        denominator = relax.op.power(scale, const_beta)
+
+        return relax.op.divide(data, denominator)
 
 
 class Pool(OnnxOpConverter):
@@ -2315,7 +2622,7 @@ class Pool(OnnxOpConverter):
             pads = []
             if cls.name == "avg_pool":
                 for axis in range(len(input_shape) - 2):
-                    axis_shape = input_shape[2 + axis]
+                    axis_shape = int(input_shape[2 + axis])
                     stride = strides[axis]
                     kernel = kernel_shape[axis]
                     pad = cls.get_pad_pair(axis_shape, kernel, stride, auto_pad)
@@ -2511,7 +2818,7 @@ class LayerNormalization(OnnxOpConverter):
             if gamma_shape != beta_shape:
                 raise ValueError("gamma and beta shapes do not match")
 
-        axis = list(axis) if isinstance(axis, (list, tuple)) else [axis]
+        axis = list(axis) if isinstance(axis, list | tuple) else [axis]
         if len(axis) < len(gamma_shape):
             axis.extend(range(axis[-1] + 1, axis[-1] + 1 + len(gamma_shape) - len(axis)))
 
@@ -2990,9 +3297,9 @@ class SkipLayerNormalization(OnnxOpConverter):
         beta = inputs[3]
         bias = inputs[4]
 
-        assert (
-            beta is not None and bias is not None
-        ), "SkipLayerNormalization import currently only supports required beta and bias"
+        assert beta is not None and bias is not None, (
+            "SkipLayerNormalization import currently only supports required beta and bias"
+        )
 
         epsilon = attr.get("epsilon", 1e-12)
 
@@ -3031,11 +3338,10 @@ class EmbedLayerNormalization(OnnxOpConverter):
 
         if pos_ids is None:
             pos_ids = relax.const([list(range(seq_len))] * batch_size, dtype="int64")
-        # TODO(jwfromm) Replace with relax ops once take has better support.
-        word_vec = bb.emit_te(topi.take, word_emb, input_ids, 0)
+        word_vec = relax.op.take(word_emb, input_ids, axis=0)
         if segment_ids:
-            segment_vec = bb.emit_te(topi.take, segment_emb, segment_ids, 0)
-        pos_vec = bb.emit_te(topi.take, pos_emb, pos_ids, 0)
+            segment_vec = relax.op.take(segment_emb, segment_ids, axis=0)
+        pos_vec = relax.op.take(pos_emb, pos_ids, axis=0)
 
         vec_sum = relax.op.add(word_vec, pos_vec)
         if segment_ids:
@@ -3076,24 +3382,63 @@ class Unique(OnnxOpConverter):
     def _impl_v11(cls, bb, inputs, attr, params):
         data = inputs[0]
         axis = attr.get("axis", None)
-        sorted = bool(attr.get("sorted", 1))
-        # TODO(tvm-team): Add support for return_index, return_inverse, return_counts
-        unique = relax.op.unique(data, sorted=sorted, axis=axis)
+        sorted_flag = bool(attr.get("sorted", 1))
+        num_outputs = attr["tvm_custom"]["num_outputs"]
+
+        return_index = num_outputs > 1
+        return_inverse = num_outputs > 2
+        return_counts = num_outputs > 3
+
+        unique = relax.op.unique(
+            data,
+            sorted=sorted_flag,
+            return_index=return_index,
+            return_inverse=return_inverse,
+            return_counts=return_counts,
+            axis=axis,
+        )
+
         unique_numbers = tir.Var("unique_numbers", "int64")
         input_shape = data.struct_info.shape
         dtype = data.struct_info.dtype
 
         if axis is None:
-            # flatten the input tensor
-            return bb.match_cast(unique, relax.TensorStructInfo((unique_numbers,), dtype))
+            output_shape = (unique_numbers,)
+        else:
+            axis = axis if axis >= 0 else len(input_shape) + axis
+            if axis < 0 or axis >= len(input_shape):
+                raise ValueError(f"Axis {axis} is out of bounds")
+            output_shape = [
+                input_shape[i] if i != axis else unique_numbers for i in range(len(input_shape))
+            ]
 
-        axis = axis if axis >= 0 else len(input_shape) + axis
-        if axis < 0 or axis >= len(input_shape):
-            raise ValueError(f"Axis {axis} is out of bounds")
-        output_shape = [
-            input_shape[i] if i != axis else unique_numbers for i in range(len(input_shape))
-        ]
-        return bb.match_cast(unique, relax.TensorStructInfo(output_shape, dtype))
+        if num_outputs == 1:
+            return bb.match_cast(unique, relax.TensorStructInfo(output_shape, dtype))
+
+        outputs = [bb.match_cast(unique[0], relax.TensorStructInfo(output_shape, dtype))]
+        tuple_idx = 1  # Track which index in the tuple we're at
+
+        if return_index:
+            index_shape = (unique_numbers,)
+            index_sinfo = relax.TensorStructInfo(index_shape, "int64")
+            outputs.append(bb.match_cast(unique[tuple_idx], index_sinfo))
+            tuple_idx += 1
+
+        if return_inverse:
+            # ONNX spec: inverse_indices is always 1D
+            # When axis is None: shape is [X.size]
+            # When axis is specified: shape is [X.shape[axis]]
+            inverse_shape = (tir.Var("inverse_numbers", "int64"),)
+            inverse_sinfo = relax.TensorStructInfo(inverse_shape, "int64")
+            outputs.append(bb.match_cast(unique[tuple_idx], inverse_sinfo))
+            tuple_idx += 1
+
+        if return_counts:
+            count_shape = (unique_numbers,)
+            count_sinfo = relax.TensorStructInfo(count_shape, "int64")
+            outputs.append(bb.match_cast(unique[tuple_idx], count_sinfo))
+
+        return relax.Tuple(outputs)
 
 
 class NonZero(OnnxOpConverter):
@@ -3106,6 +3451,35 @@ class NonZero(OnnxOpConverter):
         nonzero_numbers = tir.Var("nonzero_numbers", "int64")
         return bb.match_cast(
             relax.op.nonzero(inputs[0]), relax.TensorStructInfo((ndim, nonzero_numbers), "int64")
+        )
+
+
+class Upsample(OnnxOpConverter):
+    """Operator converter for Upsample (nearest mode)."""
+
+    @classmethod
+    def _impl_v9(cls, bb, inputs, attr, params):
+        scales = attr.get("scales")
+        assert len(scales) == 4
+        assert scales[0] == scales[1] == 1
+
+        inp_shape = [int(x) for x in inputs[0].struct_info.shape]
+        assert len(inp_shape) == 4
+        out_shape2d = [int(dim * scale) for dim, scale in zip(inp_shape[2:], scales[2:])]
+
+        mode = attr.get("mode", b"nearest").decode("ascii")
+        if mode == "nearest":
+            mode = "nearest_neighbor"
+        msg = f'Value {mode} in attribute "mode" of operator Upsample is not valid.'
+        assert mode in ("linear", "nearest_neighbor", "cubic"), msg
+
+        return relax.op.image.resize2d(
+            data=inputs[0],
+            roi=None,
+            size=relax.ShapeExpr(out_shape2d),  # (H, W)
+            layout="NCHW",
+            method=mode,
+            coordinate_transformation_mode="asymmetric",  # Align with Upsample
         )
 
 
@@ -3164,15 +3538,11 @@ class DepthToSpace(OnnxOpConverter):
         mode = attr.get("mode", b"DCR").decode("utf-8")
         b, c, h, w = inputs[0].struct_info.shape
         if mode == "DCR":
-            x = relax.op.reshape(
-                inputs[0], (b, block_size, block_size, c // (block_size**2), h, w)
-            )
+            x = relax.op.reshape(inputs[0], (b, block_size, block_size, c // (block_size**2), h, w))
             x = relax.op.permute_dims(x, [0, 3, 4, 1, 5, 2])
             return relax.op.reshape(x, (b, c // (block_size**2), h * block_size, w * block_size))
         elif mode == "CRD":
-            x = relax.op.reshape(
-                inputs[0], (b, c // (block_size**2), block_size, block_size, h, w)
-            )
+            x = relax.op.reshape(inputs[0], (b, c // (block_size**2), block_size, block_size, h, w))
             x = relax.op.permute_dims(x, [0, 1, 4, 2, 5, 3])
             return relax.op.reshape(x, (b, c // (block_size**2), h * block_size, w * block_size))
         else:
@@ -3342,11 +3712,187 @@ class SequenceAt(OnnxOpConverter):
     def _impl_v11(cls, bb, inputs, attr, params):
         input_sequence = inputs[0]
         position = inputs[1]
-        assert isinstance(
-            position, relax.Constant
-        ), "Only constant position supported for SequenceAt"
+        assert isinstance(position, relax.Constant), (
+            "Only constant position supported for SequenceAt"
+        )
         position = int(position.data.numpy())
         return input_sequence[position]
+
+
+class NonMaxSuppression(OnnxOpConverter):
+    """Converts an onnx NonMaxSuppression node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v10(cls, bb, inputs, attr, params):
+        """
+        NonMaxSuppression performs non-maximum suppression (NMS) on all classes.
+
+        Inputs:
+        - boxes: (N, 4) tensor of bounding boxes in format [x1, y1, x2, y2]
+        - scores: (N, C) tensor of scores for each box and class
+        - max_output_boxes_per_class: maximum number of boxes to keep per class
+        - iou_threshold: IoU threshold for NMS
+        - score_threshold: score threshold for filtering
+
+        Outputs:
+        - selected_indices: (M, 3) tensor with [batch_idx, class_idx, box_idx]
+        """
+        boxes = inputs[0]
+        scores = inputs[1]
+        max_output_boxes_per_class = inputs[2] if len(inputs) > 2 else None
+        iou_threshold = inputs[3] if len(inputs) > 3 else None
+        score_threshold = inputs[4] if len(inputs) > 4 else None
+
+        center_point_box = attr.get("center_point_box", 0)
+
+        if max_output_boxes_per_class is not None and isinstance(
+            max_output_boxes_per_class, relax.Constant
+        ):
+            max_output_boxes_per_class = int(max_output_boxes_per_class.data.numpy())
+        elif max_output_boxes_per_class is not None and isinstance(
+            max_output_boxes_per_class, relax.Var
+        ):
+            var_name = max_output_boxes_per_class.name_hint
+            if var_name in params[1]:
+                _, param_value = params[1][var_name]
+                max_output_boxes_per_class = int(param_value.numpy().item())
+            else:
+                max_output_boxes_per_class = 100  # Default value
+        else:
+            max_output_boxes_per_class = 100  # Default value
+
+        if iou_threshold is not None and isinstance(iou_threshold, relax.Constant):
+            iou_threshold = float(iou_threshold.data.numpy())
+        else:
+            iou_threshold = 0.5  # Default value
+
+        if score_threshold is not None and isinstance(score_threshold, relax.Constant):
+            score_threshold = float(score_threshold.data.numpy())
+        elif score_threshold is not None and isinstance(score_threshold, relax.Var):
+            var_name = score_threshold.name_hint
+            if var_name in params[1]:
+                _, param_value = params[1][var_name]
+                score_threshold = float(param_value.numpy().item())
+            else:
+                score_threshold = 0.0  # Default value
+        else:
+            score_threshold = 0.0  # Default value
+
+        if center_point_box != 0:
+            split_result = relax.op.split(boxes, 4, axis=2)
+            xc = split_result[0]
+            yc = split_result[1]
+            w = split_result[2]
+            h = split_result[3]
+            half_w = w / relax.const(2.0, boxes.struct_info.dtype)
+            half_h = h / relax.const(2.0, boxes.struct_info.dtype)
+            x1 = xc - half_w
+            x2 = xc + half_w
+            y1 = yc - half_h
+            y2 = yc + half_h
+            boxes = relax.op.concat([y1, x1, y2, x2], axis=2)
+
+        nms_out = bb.normalize(
+            relax.op.vision.all_class_non_max_suppression(
+                boxes,
+                scores,
+                relax.const(max_output_boxes_per_class, dtype="int64"),
+                relax.const(iou_threshold, dtype="float32"),
+                relax.const(score_threshold, dtype="float32"),
+                output_format="onnx",
+            )
+        )
+
+        selected_indices = bb.emit(relax.TupleGetItem(nms_out, 0))
+
+        return selected_indices
+
+
+class AllClassNMS(OnnxOpConverter):
+    """Converts an onnx AllClassNMS node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        """
+        AllClassNMS performs non-maximum suppression (NMS) on all classes.
+
+        Inputs:
+        - boxes: (N, 4) tensor of bounding boxes in format [x1, y1, x2, y2]
+        - scores: (N, C) tensor of scores for each box and class
+        - max_output_boxes_per_class: maximum number of boxes to keep per class
+        - iou_threshold: IoU threshold for NMS
+        - score_threshold: score threshold for filtering
+
+        Outputs:
+        - selected_indices: (M, 3) tensor with [batch_idx, class_idx, box_idx]
+        """
+        boxes = inputs[0]
+        scores = inputs[1]
+        max_output_boxes_per_class = inputs[2] if len(inputs) > 2 else None
+        iou_threshold = inputs[3] if len(inputs) > 3 else None
+        score_threshold = inputs[4] if len(inputs) > 4 else None
+
+        center_point_box = attr.get("center_point_box", 0)
+
+        if max_output_boxes_per_class is not None and isinstance(
+            max_output_boxes_per_class, relax.Constant
+        ):
+            max_output_boxes_per_class = int(max_output_boxes_per_class.data.numpy())
+        elif max_output_boxes_per_class is not None and isinstance(
+            max_output_boxes_per_class, relax.Var
+        ):
+            var_name = max_output_boxes_per_class.name_hint
+            if var_name in params[1]:
+                _, param_value = params[1][var_name]
+                max_output_boxes_per_class = int(param_value.numpy().item())
+            else:
+                max_output_boxes_per_class = 100  # Default value
+        else:
+            max_output_boxes_per_class = 100  # Default value
+
+        if iou_threshold is not None and isinstance(iou_threshold, relax.Constant):
+            iou_threshold = float(iou_threshold.data.numpy())
+        else:
+            iou_threshold = 0.5  # Default value
+
+        if score_threshold is not None and isinstance(score_threshold, relax.Constant):
+            score_threshold = float(score_threshold.data.numpy())
+        elif score_threshold is not None and isinstance(score_threshold, relax.Var):
+            var_name = score_threshold.name_hint
+            if var_name in params[1]:
+                _, param_value = params[1][var_name]
+                score_threshold = float(param_value.numpy().item())
+            else:
+                score_threshold = 0.0  # Default value
+        else:
+            score_threshold = 0.0  # Default value
+
+        if center_point_box != 0:
+            split_result = relax.op.split(boxes, 4, axis=2)
+            xc = split_result[0]
+            yc = split_result[1]
+            w = split_result[2]
+            h = split_result[3]
+            half_w = w / relax.const(2.0, boxes.struct_info.dtype)
+            half_h = h / relax.const(2.0, boxes.struct_info.dtype)
+            x1 = xc - half_w
+            x2 = xc + half_w
+            y1 = yc - half_h
+            y2 = yc + half_h
+            boxes = relax.op.concat([y1, x1, y2, x2], axis=2)
+
+        nms_out = bb.normalize(
+            relax.op.vision.all_class_non_max_suppression(
+                boxes,
+                scores,
+                relax.const(max_output_boxes_per_class, dtype="int64"),
+                relax.const(iou_threshold, dtype="float32"),
+                relax.const(score_threshold, dtype="float32"),
+                output_format="onnx",
+            )
+        )
+
+        return nms_out
 
 
 def _get_convert_map():
@@ -3457,6 +4003,7 @@ def _get_convert_map():
         "EmbedLayerNormalization": EmbedLayerNormalization,
         "InstanceNormalization": InstanceNormalization,
         "MeanVarianceNormalization": MeanVarianceNormalization,
+        "LRN": LocalResponseNormalization,
         # defs/reduction
         "ReduceMax": ReduceMax,
         "ReduceMin": ReduceMin,
@@ -3496,12 +4043,12 @@ def _get_convert_map():
         "Unique": Unique,
         "NonZero": NonZero,
         # "If": If,
-        # "LRN": LRN,
         # "MaxRoiPool": MaxRoiPool,
         # "RoiAlign": RoiAlign,
-        # "NonMaxSuppression": NonMaxSuppression,
+        "NonMaxSuppression": NonMaxSuppression,
+        "AllClassNMS": AllClassNMS,
         # "GridSample": GridSample,
-        # "Upsample": Upsample,
+        "Upsample": Upsample,
         # others
         "DepthToSpace": DepthToSpace,
         "SpaceToDepth": SpaceToDepth,
@@ -3538,16 +4085,16 @@ class ONNXGraphImporter:
 
     def __init__(
         self,
-        shape_dict: Dict[str, List],
-        dtype_dict: Union[str, Dict[str, str]],
+        shape_dict: dict[str, list],
+        dtype_dict: str | dict[str, str],
         keep_params_in_input: bool = False,
         sanitize: bool = True,
     ):
-        self._nodes: Dict[str, relax.Expr] = {}
-        self._inputs: Dict[str, relax.Var] = {}
+        self._nodes: dict[str, relax.Expr] = {}
+        self._inputs: dict[str, relax.Var] = {}
         self._num_input: int = 0
         self._shape = shape_dict.copy() if shape_dict else {}
-        self._input_names: List[str] = []
+        self._input_names: list[str] = []
         self._dtype = dtype_dict
         self.opset: int = None
         self._name_supply = NameSupply()
@@ -3647,10 +4194,10 @@ class ONNXGraphImporter:
             new_name = str(self._name_supply.fresh_name(new_name))
 
         if new_name != name:
-            warnings.warn(("Renaming name %s to %s" % (name, new_name)))
+            warnings.warn(f"Renaming name {name} to {new_name}")
         return new_name
 
-    def _new_var(self, var_name: str, shape: List, dtype: str = "float32"):
+    def _new_var(self, var_name: str, shape: list, dtype: str = "float32"):
         """Creates a new Relax variable."""
         return relax.Var(
             name_hint=var_name, struct_info=relax.TensorStructInfo(shape=shape, dtype=dtype)
@@ -3671,9 +4218,8 @@ class ONNXGraphImporter:
                 else:
                     if "?" in str(i_shape):
                         warning_msg = (
-                            "Input %s has unknown dimension shapes: %s. "
+                            f"Input {i_name} has unknown dimension shapes: {i_shape_name!s}. "
                             "Specifying static values may improve performance"
-                            % (i_name, str(i_shape_name))
                         )
                         warnings.warn(warning_msg)
                 if isinstance(self._dtype, dict):
@@ -3690,8 +4236,7 @@ class ONNXGraphImporter:
         for node in graph.node:
             op_name = node.op_type
             if (
-                op_name not in convert_map
-                and op_name != "Constant"
+                op_name not in convert_map and op_name != "Constant"
                 # and op_name not in _identity_list
             ):
                 unsupported_ops.add(op_name)
@@ -3723,6 +4268,7 @@ class ONNXGraphImporter:
             # convert it to a tensor.
             shape_compatible_ops = [
                 "Reshape",
+                "Resize",
                 "ConstantOfShape",
                 "Gather",
                 "Slice",
@@ -3773,10 +4319,8 @@ class ONNXGraphImporter:
                     outputs_num = 1
             else:
                 outputs_num = len(op)
-            assert (
-                len(outputs) <= outputs_num
-            ), "Missing outputs during conversion. Expected {} but Got {} in {}.".format(
-                len(outputs), outputs_num, op_name
+            assert len(outputs) <= outputs_num, (
+                f"Missing outputs during conversion. Expected {len(outputs)} but Got {outputs_num} in {op_name}."
             )
             if outputs_num == 1:
                 self._nodes[outputs[0]] = op
@@ -3792,11 +4336,11 @@ class ONNXGraphImporter:
             name = value_proto
         return name
 
-    def _parse_array(self, tensor_proto: onnx.onnx_ml_pb2.TensorProto) -> tvm.nd.array:
+    def _parse_array(self, tensor_proto: onnx.onnx_ml_pb2.TensorProto) -> tvm.runtime.tensor:
         np_array = get_numpy(tensor_proto).reshape(tuple(tensor_proto.dims))
-        return tvm.nd.array(np_array)
+        return tvm.runtime.tensor(np_array)
 
-    def _parse_attr(self, attr_proto: onnx.onnx_ml_pb2.AttributeProto) -> Dict[str, Any]:
+    def _parse_attr(self, attr_proto: onnx.onnx_ml_pb2.AttributeProto) -> dict[str, Any]:
         """Convert a list of AttributeProto to a dict, with names as keys."""
         attrs = {}
         for a in attr_proto:
@@ -3816,16 +4360,16 @@ class ONNXGraphImporter:
                     attrs[a.name] = tuple(getattr(a, f))
             for f in ["graphs"]:
                 if list(getattr(a, f)):
-                    raise NotImplementedError("Field {} is not supported in relax.".format(f))
+                    raise NotImplementedError(f"Field {f} is not supported in relax.")
             if a.name not in attrs:
-                raise ValueError("Cannot parse attribute: \n{}\n.".format(a))
+                raise ValueError(f"Cannot parse attribute: \n{a}\n.")
         return attrs
 
     def _convert_operator(
         self,
         op_name: str,
-        inputs: List[relax.Expr],
-        attrs: Dict,
+        inputs: list[relax.Expr],
+        attrs: dict,
         opset: int,
     ) -> relax.Expr:
         """Convert ONNX operator into a Relax operator.
@@ -3853,15 +4397,15 @@ class ONNXGraphImporter:
             op_function = convert_class.get_converter(opset)
             sym = op_function(self.bb, inputs, attrs, [self._nodes, self._params])
         else:
-            raise NotImplementedError("Operator {} not implemented.".format(op_name))
+            raise NotImplementedError(f"Operator {op_name} not implemented.")
         return sym
 
 
 def from_onnx(
     model: onnx.onnx_ml_pb2.GraphProto,
-    shape_dict: Optional[Dict[str, List]] = None,
-    dtype_dict: Optional[Union[str, Dict[str, str]]] = "float32",
-    opset: int = None,
+    shape_dict: dict[str, list] | None = None,
+    dtype_dict: str | dict[str, str] | None = "float32",
+    opset: int | None = None,
     keep_params_in_input: bool = False,
     sanitize_input_names: bool = True,
 ) -> IRModule:
@@ -3895,9 +4439,7 @@ def from_onnx(
     # Error if the model version is below 1.1.0
     if model.ir_version < 3:
         raise ValueError(
-            "Model IR version {} not supported. Must be at least after 1.1.0.".format(
-                model.ir_version
-            )
+            f"Model IR version {model.ir_version} not supported. Must be at least after 1.1.0."
         )
 
     try:
@@ -3911,7 +4453,7 @@ def from_onnx(
                 # the checker is a bit violent about errors, so simply print warnings here
                 warnings.warn(str(exception))
     except ImportError as error:
-        raise ImportError("Unable to import onnx which is required {}".format(error))
+        raise ImportError(f"Unable to import onnx which is required {error}")
 
     g = ONNXGraphImporter(
         shape_dict,

@@ -54,7 +54,7 @@ void Analyzer::Bind(const Var& var, const PrimExpr& expr, bool allow_override) {
 }
 
 void Analyzer::Bind(const Var& var, const Range& range, bool allow_override) {
-  ICHECK(range.defined());
+  TVM_FFI_ICHECK(range.defined());
   if (tir::is_one(range->extent)) {
     this->Bind(var, range->min, allow_override);
   } else {
@@ -103,7 +103,7 @@ void Analyzer::MarkGlobalNonNegValue(const PrimExpr& value) {
   // We may consider enhance the sub analyzer to directly take
   // MarkPositiveVar so their bounds do not overlap
   if (const auto* var_ptr = symbol.as<VarNode>()) {
-    Var var = GetRef<Var>(var_ptr);
+    Var var = ffi::GetRef<Var>(var_ptr);
     // skip non-index type, keep it to be compatible
     // with any_dim that do not represent any value
     if (!IsIndexType(var.dtype())) return;
@@ -116,14 +116,14 @@ void Analyzer::MarkGlobalNonNegValue(const PrimExpr& value) {
   }
 }
 
-void Analyzer::Bind(const Map<Var, Range>& variables, bool allow_override) {
+void Analyzer::Bind(const ffi::Map<Var, Range>& variables, bool allow_override) {
   for (const auto& iter : variables) {
     this->Bind(iter.first, iter.second, allow_override);
   }
 }
 
 void ConstraintContext::EnterWithScope() {
-  ICHECK(recovery_functions_.size() == 0);
+  TVM_FFI_ICHECK(recovery_functions_.size() == 0);
   // entering the scope.
   recovery_functions_.push_back(analyzer_->const_int_bound.EnterConstraint(constraint_));
   recovery_functions_.push_back(analyzer_->modular_set.EnterConstraint(constraint_));
@@ -202,7 +202,7 @@ bool Analyzer::CanProve(const PrimExpr& expr, ProofStrength strength) {
     // This is to avoid repeatitive calling of this function
     // that causes speed issues.
     // This strategy can only be called from top-level and not from sub-analyzers.
-    Optional<PrimExpr> pos_diff;
+    ffi::Optional<PrimExpr> pos_diff;
     int lower_bound = 0;
     if (const auto* ptr_lt = expr.as<tir::LTNode>()) {
       pos_diff = ptr_lt->b - ptr_lt->a;
@@ -270,7 +270,7 @@ PrimExpr Analyzer::Simplify(const PrimExpr& expr, int steps) {
   return res;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("arith.CreateAnalyzer", [](ffi::PackedArgs args, ffi::Any* ret) {
     using ffi::Function;
@@ -301,7 +301,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
           } else if (args.size() == 2) {
             *ret = self->Simplify(args[0].cast<PrimExpr>(), args[1].cast<int>());
           } else {
-            LOG(FATAL) << "Invalid size of argument (" << args.size() << ")";
+            TVM_FFI_THROW(InternalError) << "Invalid size of argument (" << args.size() << ")";
           }
         });
       } else if (name == "rewrite_simplify") {
@@ -322,7 +322,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
         });
       } else if (name == "int_set") {
         return ffi::Function([self](ffi::PackedArgs args, ffi::Any* ret) {
-          *ret = self->int_set(args[0].cast<PrimExpr>(), args[1].cast<Map<Var, IntSet>>());
+          *ret = self->int_set(args[0].cast<PrimExpr>(), args[1].cast<ffi::Map<Var, IntSet>>());
         });
       } else if (name == "bind") {
         return ffi::Function([self](ffi::PackedArgs args, ffi::Any* ret) {
@@ -365,7 +365,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
     };
     *ret = ffi::TypedFunction<ffi::Function(std::string)>(f);
   });
-});
+}
 
 }  // namespace arith
 }  // namespace tvm

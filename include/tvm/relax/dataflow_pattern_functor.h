@@ -43,8 +43,10 @@ template <typename FType>
 class DFPatternFunctor;
 
 // functions to be overriden.
-#define DFPATTERN_FUNCTOR_DEFAULT \
-  { return VisitDFPatternDefault_(op, std::forward<Args>(args)...); }
+#define DFPATTERN_FUNCTOR_DEFAULT                                   \
+  {                                                                 \
+    return VisitDFPatternDefault_(op, std::forward<Args>(args)...); \
+  }
 
 #define RELAX_DFPATTERN_FUNCTOR_DISPATCH(OP)                                                    \
   vtable.template set_dispatch<OP>([](const ObjectRef& n, TSelf* self, Args... args) {          \
@@ -76,7 +78,7 @@ class DFPatternFunctor<R(const DFPattern& n, Args...)> {
    * \return The result of the call
    */
   virtual R VisitDFPattern(const DFPattern& n, Args... args) {
-    ICHECK(n.defined());
+    TVM_FFI_ICHECK(n.defined());
     static FType vtable = InitVTable();
     return vtable(n, this, std::forward<Args>(args)...);
   }
@@ -109,7 +111,7 @@ class DFPatternFunctor<R(const DFPattern& n, Args...)> {
                             Args... args) DFPATTERN_FUNCTOR_DEFAULT;
 
   virtual R VisitDFPatternDefault_(const Object* op, Args...) {
-    LOG(FATAL) << "Do not have a default for " << op->GetTypeKey();
+    TVM_FFI_THROW(InternalError) << "Do not have a default for " << op->GetTypeKey();
     throw;
   }
 

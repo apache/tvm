@@ -14,11 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501
 
 import tvm
 import tvm.testing
-from tvm.script import relax as R, tir as T
 from tvm.relax.analysis import estimate_memory_usage
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 def test_basic():

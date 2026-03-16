@@ -37,7 +37,7 @@ class Module:
         T.func_attr({"operator_name": "relax.add"})
         for ax0 in range(2):
             for ax1 in range(2):
-                with T.block("T_add"):
+                with T.sblock("T_add"):
                     v_ax0 = T.axis.spatial(2, ax0)
                     v_ax1 = T.axis.spatial(2, ax1)
                     T.reads(arg0[v_ax0, v_ax1], arg1[v_ax0, v_ax1])
@@ -67,7 +67,7 @@ def test_alloc_storage_with_scope_global():
     dev = tvm.cpu()
     # This is the important line which tests nd allocator
     vm_rt = relax.VirtualMachine(lib, dev, memory_cfg="naive")
-    x = tvm.nd.array(arg0, dev)
+    x = tvm.runtime.tensor(arg0, dev)
     vm_rt.set_input("main", x)
     vm_rt.invoke_stateful("main")
     output = vm_rt.get_outputs("main").numpy()

@@ -16,6 +16,7 @@
 # under the License.
 
 import numpy as np
+
 import tvm
 import tvm.testing
 from tvm.script import tir as T
@@ -36,11 +37,11 @@ def get_valid_counts(
     out_buf = T.match_buffer(out, (1, 2500, 6), "float32")
     out_indices_buf = T.match_buffer(out_indices, (1, 2500), "int32")
 
-    with T.block("init"):
+    with T.sblock("init"):
         vi = T.axis.S(1, 0)
         valid_count_buf[vi] = T.int32(0)
         for j in range(2500):
-            with T.block("update"):
+            with T.sblock("update"):
                 vj = T.axis.S(2500, j)
                 T.reads([data_buf[vi, vj, 6]])
                 T.writes([valid_count_buf[vi], out_indices_buf[vi, vj], out_buf[vi, vj, 6]])
@@ -81,10 +82,10 @@ def _check_get_valid_counts_with_numpy(f, dshape, score_threshold, id_index, sco
                     np_out2[i, j, k] = -1.0
                 np_out3[i, j] = -1
 
-    in_data = tvm.nd.array(np_data, ctx)
-    out1 = tvm.nd.array(np_out1, ctx)
-    out2 = tvm.nd.array(np_out2, ctx)
-    out3 = tvm.nd.array(np_out3, ctx)
+    in_data = tvm.runtime.tensor(np_data, ctx)
+    out1 = tvm.runtime.tensor(np_out1, ctx)
+    out2 = tvm.runtime.tensor(np_out2, ctx)
+    out3 = tvm.runtime.tensor(np_out3, ctx)
     f(in_data, out1, out2, out3, score_threshold, id_index, score_index)
     tvm.testing.assert_allclose(out1.numpy(), np_out1, rtol=1e-5)
     tvm.testing.assert_allclose(out2.numpy(), np_out2, rtol=1e-5)
@@ -109,7 +110,7 @@ def alloc_zero_dim_buffer(a: T.handle, b: T.handle) -> None:
     B = T.match_buffer(b, [], dtype="float32")
     # body
     # tir.with block("root")
-    C = T.alloc_buffer([], dtype="float32")
+    C = T.sblock_alloc_buffer([], dtype="float32")
     A[()] = T.float32(2)
     C[()] = A[()] + B[()]
     B[()] = C[()]
@@ -119,10 +120,10 @@ def alloc_zero_dim_buffer(a: T.handle, b: T.handle) -> None:
 def alloc_zero_dim_buffer_block(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (), "float32")
     B = T.match_buffer(b, (), "float32")
-    with T.block("root"):
+    with T.sblock("root"):
         T.reads([])
         T.writes([])
-        C = T.alloc_buffer((), "float32")
+        C = T.sblock_alloc_buffer((), "float32")
         A[()] = T.float32(2)
         C[()] = A[()] + B[()]
         B[()] = C[()]
@@ -134,8 +135,8 @@ def _check_alloc_zero_dim_buffer(f):
 
     np_data = np.zeros(shape=()).astype(dtype)
     np_out = np.zeros(shape=()).astype(dtype)
-    tvm_data = tvm.nd.array(np_data, ctx)
-    tvm_out = tvm.nd.array(np_out, ctx)
+    tvm_data = tvm.runtime.tensor(np_data, ctx)
+    tvm_out = tvm.runtime.tensor(np_out, ctx)
 
     # np func exection
     np_inter = np.array(1)
@@ -175,7 +176,7 @@ def ceildiv_test(A: T.Buffer(16, "int32")):
 @tvm.testing.requires_llvm
 def test_ceildiv():
     f = tvm.compile(ceildiv_test, "llvm")
-    a = tvm.nd.array(np.arange(16).astype("int32"))
+    a = tvm.runtime.tensor(np.arange(16).astype("int32"))
     f(a)
     ref = (np.arange(16) + 3) // 4
     tvm.testing.assert_allclose(a.numpy(), ref)

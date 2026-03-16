@@ -20,7 +20,7 @@ find_rocm(${USE_ROCM})
 
 if(ROCM_FOUND)
   # always set the includedir
-  # avoid global retrigger of cmake
+  # avoid global retrigger of CMake
   include_directories(SYSTEM ${ROCM_INCLUDE_DIRS})
   add_definitions(-D__HIP_PLATFORM_HCC__=1)
   add_definitions(-D__HIP_PLATFORM_AMD__=1)
@@ -38,20 +38,6 @@ if(USE_ROCM)
   if (ROCM_HSA_LIBRARY)
     list(APPEND TVM_RUNTIME_LINKER_LIBS ${ROCM_HSA_LIBRARY})
   endif()
-
-  if(USE_MIOPEN)
-    message(STATUS "Build with MIOpen support")
-    tvm_file_glob(GLOB MIOPEN_CONTRIB_SRCS src/runtime/contrib/miopen/*.cc)
-    list(APPEND RUNTIME_SRCS ${MIOPEN_CONTRIB_SRCS})
-    list(APPEND TVM_RUNTIME_LINKER_LIBS ${ROCM_MIOPEN_LIBRARY})
-  endif(USE_MIOPEN)
-
-  if(USE_ROCBLAS)
-    message(STATUS "Build with RocBLAS support")
-    tvm_file_glob(GLOB ROCBLAS_CONTRIB_SRCS src/runtime/contrib/rocblas/*.cc)
-    list(APPEND RUNTIME_SRCS ${ROCBLAS_CONTRIB_SRCS})
-    list(APPEND TVM_RUNTIME_LINKER_LIBS ${ROCM_ROCBLAS_LIBRARY})
-  endif(USE_ROCBLAS)
 
   if(USE_HIPBLAS)
     message(STATUS "Build with HIPBLAS support")

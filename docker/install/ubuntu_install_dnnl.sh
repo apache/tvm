@@ -20,8 +20,12 @@ set -e
 set -u
 set -o pipefail
 
-pre_dir=`pwd`
 tmpdir=$(mktemp -d)
+cleanup()
+{
+	rm -rf "${tmpdir}"
+}
+trap cleanup 0
 
 rls_tag="v2.6"
 
@@ -35,14 +39,10 @@ archive_hash="4cb7b80bfe16920bc096e18e7d8caa56b9ab7a4dab2a091a230bcf562c09533392
 
 cd "${tmpdir}"
 
-curl -sL "${archive_url}" -o "${archive_name}"
-echo "$archive_hash" ${archive_name} | sha512sum -c
+download-and-verify "${archive_url}" "${archive_name}" sha512 "${archive_hash}"
 tar xf "${archive_name}"
 
 cd "${archive_folder}"
 cmake . -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_INSTALL_LIBDIR=lib
-make -j"$(nproc)"
-make install
-
-cd ${pre_dir}
-rm -rf "${tmpdir}"
+cmake --build . --parallel "$(( $(nproc) - 1 ))"
+cmake --install .

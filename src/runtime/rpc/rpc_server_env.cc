@@ -32,11 +32,11 @@ namespace runtime {
 std::string RPCGetPath(const std::string& name) {
   // do live lookup everytime as workpath can change.
   const auto f = tvm::ffi::Function::GetGlobal("tvm.rpc.server.workpath");
-  ICHECK(f.has_value()) << "require tvm.rpc.server.workpath";
+  TVM_FFI_ICHECK(f.has_value()) << "require tvm.rpc.server.workpath";
   return (*f)(name).cast<std::string>();
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("tvm.rpc.server.upload",
@@ -57,7 +57,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
         std::string file_name = RPCGetPath(args[0].cast<std::string>());
         RemoveFile(file_name);
       });
-});
+}
 
 }  // namespace runtime
 }  // namespace tvm

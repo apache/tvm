@@ -52,8 +52,6 @@ include_directories(SYSTEM
 link_directories(${QURT_LIB_DIRS})
 
 add_definitions(-D_MACH_I32=int)
-add_definitions(-DDMLC_CXX11_THREAD_LOCAL=0)
-add_definitions(-DDMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
 
 # Extra compile flags (both C and C++).
 set(EXTRA_COMP_FLAGS
@@ -90,6 +88,8 @@ ExternalProject_Add(static_hexagon_tvm_runtime
   "-DUSE_HEXAGON_ARCH=${USE_HEXAGON_ARCH}"
   "-DUSE_HEXAGON_SDK=${USE_HEXAGON_SDK}"
   "-DTVM_FFI_USE_LIBBACKTRACE=OFF"
+  "-DTVM_FFI_USE_THREADS=OFF"
+  "-DTVM_FFI_USE_DL_LIBS=OFF"
   "-DUSE_LLVM=OFF"
   "-DUSE_RPC=OFF"
   "-DUSE_CUSTOM_LOGGING=ON"

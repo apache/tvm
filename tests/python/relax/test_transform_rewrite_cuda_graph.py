@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501, F841
 
 import pytest
 
@@ -23,10 +24,6 @@ from tvm import relax
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tir as T
-
-
-class BaseCompare(tvm.testing.CompareBeforeAfter):
-    transform = relax.transform.RewriteCUDAGraph()
 
 
 @pytest.fixture(autouse=True)
@@ -46,7 +43,7 @@ def test_rewrite_cuda_graph():
             T.func_attr({"tir.noalias": True, "global_symbol": "exp"})
             for i0_i1_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
                 for i0_i1_fused_1 in T.thread_binding(T.int64(8), thread="threadIdx.x"):
-                    with T.block("compute"):
+                    with T.sblock("compute"):
                         i0 = T.axis.spatial(T.int64(2), (i0_i1_fused_0 * T.int64(8) + i0_i1_fused_1) // T.int64(4))
                         i1 = T.axis.spatial(T.int64(4), (i0_i1_fused_0 * T.int64(8) + i0_i1_fused_1) % T.int64(4))
                         compute[i0, i1] = T.exp(rxplaceholder[i0, i1], dtype="float32")
@@ -87,10 +84,10 @@ def test_rewrite_cuda_graph():
             # function attr dict
             T.func_attr({"tir.noalias": True, "global_symbol": "exp"})
             # body
-            # with T.block("root")
+            # with T.sblock("root")
             for i0_i1_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
                 for i0_i1_fused_1 in T.thread_binding(T.int64(8), thread="threadIdx.x"):
-                    with T.block("compute"):
+                    with T.sblock("compute"):
                         i0 = T.axis.spatial(T.int64(2), (i0_i1_fused_0 * T.int64(8) + i0_i1_fused_1) // T.int64(4))
                         i1 = T.axis.spatial(T.int64(4), (i0_i1_fused_0 * T.int64(8) + i0_i1_fused_1) % T.int64(4))
                         T.reads(rxplaceholder[i0, i1])
@@ -157,10 +154,10 @@ def test_tuple():
             # function attr dict
             T.func_attr({"tir.noalias": True, "global_symbol": "exp"})
             # body
-            # with T.block("root")
+            # with T.sblock("root")
             for i0_i1_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
                 for i0_i1_fused_1 in T.thread_binding(T.int64(8), thread="threadIdx.x"):
-                    with T.block("compute"):
+                    with T.sblock("compute"):
                         i0 = T.axis.spatial(T.int64(2), (i0_i1_fused_0 * T.int64(8) + i0_i1_fused_1) // T.int64(4))
                         i1 = T.axis.spatial(T.int64(4), (i0_i1_fused_0 * T.int64(8) + i0_i1_fused_1) % T.int64(4))
                         T.reads(rxplaceholder[i0, i1])
@@ -198,10 +195,10 @@ def test_tuple():
         @T.prim_func
         def exp(rxplaceholder: T.Buffer((T.int64(2), T.int64(4)), "float32"), compute: T.Buffer((T.int64(2), T.int64(4)), "float32")):
             T.func_attr({"global_symbol": "exp", "tir.noalias": True})
-            # with T.block("root"):
+            # with T.sblock("root"):
             for i0_i1_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
                 for i0_i1_fused_1 in T.thread_binding(T.int64(8), thread="threadIdx.x"):
-                    with T.block("compute"):
+                    with T.sblock("compute"):
                         i0 = T.axis.spatial(T.int64(2), (i0_i1_fused_0 * T.int64(8) + i0_i1_fused_1) // T.int64(4))
                         i1 = T.axis.spatial(T.int64(4), (i0_i1_fused_0 * T.int64(8) + i0_i1_fused_1) % T.int64(4))
                         T.reads(rxplaceholder[i0, i1])
@@ -266,7 +263,7 @@ def test_vm_builtin():
             T.func_attr({"tir.noalias": True, "global_symbol": "exp"})
             for i0_i1_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
                 for i0_i1_fused_1 in T.thread_binding(T.int64(8), thread="threadIdx.x"):
-                    with T.block("compute"):
+                    with T.sblock("compute"):
                         i0 = T.axis.spatial(T.int64(2), (i0_i1_fused_0 * T.int64(8) + i0_i1_fused_1) // T.int64(4))
                         i1 = T.axis.spatial(T.int64(4), (i0_i1_fused_0 * T.int64(8) + i0_i1_fused_1) % T.int64(4))
                         compute[i0, i1] = T.exp(rxplaceholder[i0, i1], dtype="float32")
@@ -299,10 +296,10 @@ def test_vm_builtin():
         @T.prim_func
         def exp(rxplaceholder: T.Buffer((T.int64(2), T.int64(4)), "float32"), compute: T.Buffer((T.int64(2), T.int64(4)), "float32")):
             T.func_attr({"global_symbol": "exp", "tir.noalias": True})
-            # with T.block("root"):
+            # with T.sblock("root"):
             for i0_i1_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
                 for i0_i1_fused_1 in T.thread_binding(T.int64(8), thread="threadIdx.x"):
-                    with T.block("compute"):
+                    with T.sblock("compute"):
                         i0 = T.axis.spatial(T.int64(2), (i0_i1_fused_0 * T.int64(8) + i0_i1_fused_1) // T.int64(4))
                         i1 = T.axis.spatial(T.int64(4), (i0_i1_fused_0 * T.int64(8) + i0_i1_fused_1) % T.int64(4))
                         T.reads(rxplaceholder[i0, i1])
@@ -404,15 +401,15 @@ def test_capture_fixed_inputs():
             ),
         ):
             T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
-            pad_temp = T.alloc_buffer(
+            # with T.sblock("root"):
+            pad_temp = T.sblock_alloc_buffer(
                 (T.int64(16), T.int64(34), T.int64(34), T.int64(16)), "float16"
             )
-            var_conv2d_nhwc_intermediate = T.alloc_buffer(
+            var_conv2d_nhwc_intermediate = T.sblock_alloc_buffer(
                 (T.int64(16), T.int64(32), T.int64(32), T.int64(16)), "float16"
             )
             for i0, i1, i2, i3 in T.grid(T.int64(16), T.int64(34), T.int64(34), T.int64(16)):
-                with T.block("pad_temp"):
+                with T.sblock("pad_temp"):
                     v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                     T.reads(data[v_i0, v_i1 - T.int64(1), v_i2 - T.int64(1), v_i3])
                     T.writes(pad_temp[v_i0, v_i1, v_i2, v_i3])
@@ -433,7 +430,7 @@ def test_capture_fixed_inputs():
                 T.int64(3),
                 T.int64(16),
             ):
-                with T.block("conv2d_nhwc"):
+                with T.sblock("conv2d_nhwc"):
                     v_nn, v_yy, v_xx, v_ff, v_ry, v_rx, v_rc = T.axis.remap(
                         "SSSSRRR", [nn, yy, xx, ff, ry, rx, rc]
                     )
@@ -450,7 +447,7 @@ def test_capture_fixed_inputs():
                         * weight1[v_ff, v_ry, v_rx, v_rc]
                     )
             for i0, i1, i2, i3 in T.grid(T.int64(16), T.int64(32), T.int64(32), T.int64(16)):
-                with T.block("compute"):
+                with T.sblock("compute"):
                     v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                     T.reads(var_conv2d_nhwc_intermediate[v_i0, v_i1, v_i2, v_i3])
                     T.writes(var_compute_intermediate[v_i0, v_i1, v_i2, v_i3])
@@ -466,11 +463,11 @@ def test_capture_fixed_inputs():
             T_layer_norm: T.Buffer((T.int64(16), T.int64(32), T.int64(32), T.int64(16)), "float16"),
         ):
             T.func_attr({"op_pattern": 4, "tir.noalias": True})
-            # with T.block("root"):
-            A_red_temp_v0 = T.alloc_buffer((T.int64(16), T.int64(32), T.int64(32)))
-            A_red_temp_v1 = T.alloc_buffer((T.int64(16), T.int64(32), T.int64(32)))
+            # with T.sblock("root"):
+            A_red_temp_v0 = T.sblock_alloc_buffer((T.int64(16), T.int64(32), T.int64(32)))
+            A_red_temp_v1 = T.sblock_alloc_buffer((T.int64(16), T.int64(32), T.int64(32)))
             for ax0, ax1, ax2, k3 in T.grid(T.int64(16), T.int64(32), T.int64(32), T.int64(16)):
-                with T.block("A_red_temp"):
+                with T.sblock("A_red_temp"):
                     v_ax0, v_ax1, v_ax2, v_k3 = T.axis.remap("SSSR", [ax0, ax1, ax2, k3])
                     T.reads(A[v_ax0, v_ax1, v_ax2, v_k3])
                     T.writes(A_red_temp_v0[v_ax0, v_ax1, v_ax2], A_red_temp_v1[v_ax0, v_ax1, v_ax2])
@@ -486,7 +483,7 @@ def test_capture_fixed_inputs():
                     A_red_temp_v0[v_ax0, v_ax1, v_ax2] = v_A_red_temp_v0
                     A_red_temp_v1[v_ax0, v_ax1, v_ax2] = v_A_red_temp_v1
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(16), T.int64(32), T.int64(32), T.int64(16)):
-                with T.block("T_layer_norm"):
+                with T.sblock("T_layer_norm"):
                     v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     T.reads(
                         A[v_ax0, v_ax1, v_ax2, v_ax3],
@@ -575,7 +572,7 @@ def test_capture_fixed_inputs():
                 R.Tensor((16, 3, 3, 16), dtype="float16"),
                 R.Tensor((16,), dtype="float16"),
                 R.Tensor((16,), dtype="float16"),
-            )
+            ),
         ) -> R.Tuple(
             R.Tensor((16, 3, 3, 16), dtype="float16"),
             R.Tensor((16, 3, 3, 16), dtype="float16"),
@@ -676,8 +673,9 @@ def test_capture_fixed_inputs():
     tvm.ir.assert_structural_equal(after, after)
 
 
-class TestNullValue(BaseCompare):
-    class before:
+def test_null_value():
+    @I.ir_module
+    class Before:
         @R.function
         def main() -> R.Tuple(R.Object):
             _io: R.Object = R.null_value()
@@ -685,7 +683,10 @@ class TestNullValue(BaseCompare):
             gv: R.Tuple(R.Object) = lv
             return gv
 
-    expected = before
+    Expected = Before
+
+    After = relax.transform.RewriteCUDAGraph()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
 def test_transform_is_no_op_when_disabled():
@@ -766,7 +767,7 @@ def test_dynamic_capture():
             x = T.match_buffer(x_handle, (m,), "float32")
             y = T.match_buffer(y_handle, (m,), "float32")
             for i in range(m):
-                with T.block("add"):
+                with T.sblock("add"):
                     vi = T.axis.remap("S", [i])
                     y[vi] = x[vi] + T.float32(1)
 
@@ -801,9 +802,9 @@ def test_dynamic_capture():
             m = T.int64()
             x = T.match_buffer(x_handle, (m,))
             y = T.match_buffer(y_handle, (m,))
-            # with T.block("root"):
+            # with T.sblock("root"):
             for i in range(m):
-                with T.block("add"):
+                with T.sblock("add"):
                     vi = T.axis.spatial(m, i)
                     T.reads(x[vi])
                     T.writes(y[vi])
@@ -875,7 +876,7 @@ def test_dynamic_capture():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
-class TestMergeAllocFuncs(BaseCompare):
+def test_merge_alloc_funcs():
     @I.ir_module
     class Before:
         @R.function
@@ -1012,8 +1013,11 @@ class TestMergeAllocFuncs(BaseCompare):
             R.tuple()
             return R.tuple()
 
+    After = relax.transform.RewriteCUDAGraph()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
-class TestDisableCaptureOutput(BaseCompare):
+
+def test_disable_capture_output():
     @I.ir_module
     class Before:
         @R.function
@@ -1087,8 +1091,11 @@ class TestDisableCaptureOutput(BaseCompare):
             gv = (alloc3,)
             return gv
 
+    After = relax.transform.RewriteCUDAGraph()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
-class TestStaticInputWithSymbolicShape(BaseCompare):
+
+def test_static_input_with_symbolic_shape():
     @I.ir_module
     class Before:
         @R.function
@@ -1135,9 +1142,9 @@ class TestStaticInputWithSymbolicShape(BaseCompare):
             return R.tuple()
 
         @R.function
-        def main(
-            x: R.Tensor((8,), dtype="float16"), w: R.Tensor(("m",))
-        ) -> R.Tuple(R.Tensor((8,), dtype="float16")):
+        def main(x: R.Tensor((8,), dtype="float16"), w: R.Tensor(("m",))) -> R.Tuple(
+            R.Tensor((8,), dtype="float16")
+        ):
             m = T.int64()
             R.func_attr({"num_input": 1, "relax.force_pure": True})
             cls = Expected
@@ -1174,6 +1181,9 @@ class TestStaticInputWithSymbolicShape(BaseCompare):
             R.call_packed("dummy", alloc2, w, alloc3, sinfo_args=(R.Tuple,))
             gv_1: R.Tuple(R.Tensor((8,), dtype="float16")) = (alloc3,)
             return gv_1
+
+    After = relax.transform.RewriteCUDAGraph()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
 if __name__ == "__main__":

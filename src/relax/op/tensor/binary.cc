@@ -42,13 +42,13 @@ StructInfo InferStructInfoBroadcast(const Call& call, const BlockBuilder& ctx,
   auto lhs_sinfo = GetStructInfo(call->args[0]);
   auto rhs_sinfo = GetStructInfo(call->args[1]);
 
-  CHECK(lhs_sinfo.as<PrimStructInfoNode>() || lhs_sinfo.as<TensorStructInfoNode>())
-      << "TypeError: "
+  TVM_FFI_CHECK(lhs_sinfo.as<PrimStructInfoNode>() || lhs_sinfo.as<TensorStructInfoNode>(),
+                TypeError)
       << "Arguments to binary operators must be either R.Tensor or R.Prim types, "
       << "but expression " << call << " has LHS " << call->args[0] << ", which has StructInfo "
       << lhs_sinfo;
-  CHECK(rhs_sinfo.as<PrimStructInfoNode>() || rhs_sinfo.as<TensorStructInfoNode>())
-      << "TypeError: "
+  TVM_FFI_CHECK(rhs_sinfo.as<PrimStructInfoNode>() || rhs_sinfo.as<TensorStructInfoNode>(),
+                TypeError)
       << "Arguments to binary operators must be either R.Tensor or R.Prim types, "
       << "but expression " << call << " has RHS " << call->args[1] << ", which has StructInfo "
       << rhs_sinfo;
@@ -61,7 +61,7 @@ StructInfo InferStructInfoBroadcast(const Call& call, const BlockBuilder& ctx,
   }
 
   // VDevice
-  Optional<VDevice> vdevice = InferBinaryArithOpOutVDevice(call, ctx, lhs_sinfo, rhs_sinfo);
+  ffi::Optional<VDevice> vdevice = InferBinaryArithOpOutVDevice(call, ctx, lhs_sinfo, rhs_sinfo);
 
   auto get_ndim = [&](const StructInfo& sinfo) -> int {
     if (sinfo.as<PrimStructInfoNode>()) {
@@ -86,9 +86,9 @@ StructInfo InferStructInfoBroadcast(const Call& call, const BlockBuilder& ctx,
 
   // Shapes
 
-  auto get_shape = [](const StructInfo& sinfo) -> Optional<Array<PrimExpr>> {
+  auto get_shape = [](const StructInfo& sinfo) -> ffi::Optional<ffi::Array<PrimExpr>> {
     if (sinfo.as<PrimStructInfoNode>()) {
-      return Array<PrimExpr>{IntImm(DataType::Int(64), 1)};
+      return ffi::Array<PrimExpr>{IntImm(DataType::Int(64), 1)};
     } else if (const auto* tensor = sinfo.as<TensorStructInfoNode>()) {
       return tensor->GetShape();
     } else {
@@ -101,15 +101,15 @@ StructInfo InferStructInfoBroadcast(const Call& call, const BlockBuilder& ctx,
   auto lhs_shape = get_shape(lhs_sinfo);
   auto rhs_shape = get_shape(rhs_sinfo);
   if (lhs_shape && rhs_shape) {
-    Optional<Array<PrimExpr>> output_shape =
+    ffi::Optional<ffi::Array<PrimExpr>> output_shape =
         InferBinaryBroadcastShape(call, ctx, lhs_shape.value(), rhs_shape.value());
     if (output_shape.defined()) {
-      ICHECK_EQ(static_cast<int>(output_shape.value().size()), output_ndim);
+      TVM_FFI_ICHECK_EQ(static_cast<int>(output_shape.value().size()), output_ndim);
       return TensorStructInfo(ShapeExpr(output_shape.value()), output_dtype, vdevice);
     }
   }
 
-  auto get_shape_expr = [](const StructInfo& sinfo) -> Optional<Expr> {
+  auto get_shape_expr = [](const StructInfo& sinfo) -> ffi::Optional<Expr> {
     if (const auto* tensor = sinfo.as<TensorStructInfoNode>()) {
       return tensor->shape;
     } else {
@@ -142,30 +142,35 @@ StructInfo InferStructInfoBroadcastCMP(const Call& call, const BlockBuilder& ctx
          const StructInfo& rhs_sinfo) { return DataType::Bool(); });
 }
 
-InferLayoutOutput InferLayoutBinaryEwise(const Call& call,
-                                         const Map<String, Array<String>>& desired_layouts,
-                                         const VarLayoutMap& var_layout_map) {
-  ICHECK(NoDesiredLayout(call, desired_layouts));
+InferLayoutOutput InferLayoutBinaryEwise(
+    const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
+    const VarLayoutMap& var_layout_map) {
+  TVM_FFI_ICHECK(NoDesiredLayout(call, desired_layouts));
   LayoutDecision layout1 = GetLayoutDecision(var_layout_map, call->args[0]);
   LayoutDecision layout2 = GetLayoutDecision(var_layout_map, call->args[1]);
 
   auto* x1_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
   auto* x2_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[1]);
 
-  ICHECK(!x1_sinfo->IsUnknownNdim() && !x2_sinfo->IsUnknownNdim())
+  TVM_FFI_ICHECK(!x1_sinfo->IsUnknownNdim() && !x2_sinfo->IsUnknownNdim())
       << "Unknown dim tensors should not be handled by this function";
 
-  Optional<ShapeExpr> shape1 = GetRef<ShapeExpr>(x1_sinfo->shape.as<ShapeExprNode>());
-  Optional<ShapeExpr> shape2 = GetRef<ShapeExpr>(x2_sinfo->shape.as<ShapeExprNode>());
+  ffi::Optional<ShapeExpr> shape1 = ffi::GetRef<ShapeExpr>(x1_sinfo->shape.as<ShapeExprNode>());
+  ffi::Optional<ShapeExpr> shape2 = ffi::GetRef<ShapeExpr>(x2_sinfo->shape.as<ShapeExprNode>());
   // Lets handle sub indexing as long as primal dims are matching
-  if (layout1->layout.ndim_primal() == layout2->layout.ndim_primal()) {
-    if ((layout1->layout.ndim() >= layout2->layout.ndim()) && shape2.defined()) {
-      if (CanProveLayoutTransform(layout2->layout, layout1->layout, shape2.value()->values)) {
-        return InferLayoutOutput({layout1, layout1}, {layout1}, Attrs(call->attrs));
-      }
-    } else if (shape1.defined()) {
-      if (CanProveLayoutTransform(layout1->layout, layout2->layout, shape1.value()->values)) {
-        return InferLayoutOutput({layout2, layout2}, {layout2}, Attrs(call->attrs));
+  if ((layout1->layout.ndim() != layout1->layout.ndim_primal()) ||
+      (layout2->layout.ndim() != layout2->layout.ndim_primal())) {
+    if (layout1->layout.ndim_primal() == layout2->layout.ndim_primal()) {
+      if ((layout1->layout.ndim() >= layout2->layout.ndim()) && shape2.defined()) {
+        if (CanProveLayoutTransform(InitialLayout(shape2.value()->values.size()), layout1->layout,
+                                    shape2.value()->values)) {
+          return InferLayoutOutput({layout1, layout1}, {layout1}, Attrs(call->attrs));
+        }
+      } else if (shape1.defined()) {
+        if (CanProveLayoutTransform(InitialLayout(shape1.value()->values.size()), layout2->layout,
+                                    shape1.value()->values)) {
+          return InferLayoutOutput({layout2, layout2}, {layout2}, Attrs(call->attrs));
+        }
       }
     }
   }

@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501, F401
 import numpy as np
 
 import tvm
@@ -57,7 +58,7 @@ def fp8_unary(dtype: str):
         A_fp32 = T.match_buffer(a_fp32, [128], dtype="float32")
         A_roundtrip = T.match_buffer(a_roundtrip, [128], dtype=dtype)
         for i in range(128):
-            with T.block("fp8_unary"):
+            with T.sblock("fp8_unary"):
                 vi = T.axis.spatial(128, i)
                 A_add_B[vi] = A[vi] + B[vi]
                 A_sub_B[vi] = A[vi] - B[vi]
@@ -85,7 +86,7 @@ def test_create_nv_fp8_nd_array(np_dtype, dtype_str):
         """Skip test if ml_dtypes is not installed"""
         return
     x = np.random.rand(128, 128).astype(np_dtype)
-    x_nd = tvm.nd.array(x)
+    x_nd = tvm.runtime.tensor(x)
     assert x_nd.dtype == dtype_str
     np.testing.assert_equal(x_nd.numpy(), x)
 
@@ -110,7 +111,7 @@ def test_fp8_unary_op(np_dtype, dtype_str):
     a_fp32 = np.zeros(128).astype(np.float32)
     a_roundtrip = np.zeros(128).astype(np_dtype)
     args = list(
-        map(lambda _: tvm.nd.array(_), [a, b, a_add_b, a_sub_b, a_mul_b, a_fp32, a_roundtrip])
+        map(lambda _: tvm.runtime.tensor(_), [a, b, a_add_b, a_sub_b, a_mul_b, a_fp32, a_roundtrip])
     )
     f(*args)
     expected_a_fp32 = a.astype(np.float32)

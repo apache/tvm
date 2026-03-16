@@ -14,19 +14,21 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E741
 import platform
 import re
 
 import pytest
 
 import tvm
-from tvm import te
+from tvm.script import ir as I
+from tvm.script import tir as T
 
 llvm_version = tvm.target.codegen.llvm_version_major()
 machine = platform.machine()
 
-if machine not in ["i386", "x86_64", "AMD64", "amd64"]:
-    pytest.skip(f"Requires x86_64/i386, but machine is {machine}", allow_module_level=True)
+if machine not in ["x86_64", "AMD64", "amd64"]:
+    pytest.skip(f"Requires x86_64, but machine is {machine}", allow_module_level=True)
 
 
 @tvm.testing.requires_llvm
@@ -34,14 +36,26 @@ if machine not in ["i386", "x86_64", "AMD64", "amd64"]:
 def test_fp16_to_fp32():
     def fp16_to_fp32(target, width, match=None, not_match=None):
         elements = 64
-        n = tvm.runtime.convert(elements)
-        A = te.placeholder((n, width), dtype="float16", name="A")
-        B = te.compute(A.shape, lambda *i: A(*i).astype("float32"), name="B")
-        sch = tvm.tir.Schedule(te.create_prim_func([A, B]))
-        sch.vectorize(sch.get_loops("B")[1])
-        f = tvm.tir.build(sch.mod, target=target)
 
-        assembly = f.get_source("asm").splitlines()
+        @I.ir_module
+        class Module:
+            @T.prim_func
+            def main(
+                A: T.Buffer((elements, width), "float16"),
+                B: T.Buffer((elements, width), "float32"),
+            ):
+                T.func_attr({"tir.noalias": True})
+                for i0 in range(elements):
+                    for i1 in T.vectorized(width):
+                        with T.sblock("B"):
+                            v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
+                            T.reads(A[v_i0, v_i1])
+                            T.writes(B[v_i0, v_i1])
+                            B[v_i0, v_i1] = T.Cast("float32", A[v_i0, v_i1])
+
+        f = tvm.tir.build(Module, target=target)
+
+        assembly = f.inspect_source("asm").splitlines()
         if match:
             matches = [l for l in assembly if re.search(match, l)]
             assert matches
@@ -49,14 +63,20 @@ def test_fp16_to_fp32():
             not_matches = [l for l in assembly if re.search(not_match, l)]
             assert not not_matches
 
-    fp16_to_fp32("llvm -mcpu=skylake-avx512", 15, match="vcvtph2ps.*mm")
-    fp16_to_fp32("llvm -mcpu=skylake-avx512", 16, match="vcvtph2ps.*mm")
-    fp16_to_fp32("llvm -mcpu=skylake-avx512", 17, match="vcvtph2ps.*mm")
-    fp16_to_fp32("llvm -mcpu=skylake-avx512", 49, match="vcvtph2ps.*mm")
-    fp16_to_fp32("llvm -mcpu=skylake-avx512 -mattr=-avx512f", 49, match="vcvtph2ps.*mm")
-    fp16_to_fp32("llvm -mcpu=skylake-avx512 -mattr=-f16c,-avx512f", 49, not_match="vcvtph2ps")
-    fp16_to_fp32("llvm -mcpu=core-avx2", 8, match="vcvtph2ps.*mm")
-    fp16_to_fp32("llvm -mcpu=core-avx2", 9, match="vcvtph2ps.*mm")
+    fp16_to_fp32({"kind": "llvm", "mcpu": "skylake-avx512"}, 15, match="vcvtph2ps.*mm")
+    fp16_to_fp32({"kind": "llvm", "mcpu": "skylake-avx512"}, 16, match="vcvtph2ps.*mm")
+    fp16_to_fp32({"kind": "llvm", "mcpu": "skylake-avx512"}, 17, match="vcvtph2ps.*mm")
+    fp16_to_fp32({"kind": "llvm", "mcpu": "skylake-avx512"}, 49, match="vcvtph2ps.*mm")
+    fp16_to_fp32(
+        {"kind": "llvm", "mcpu": "skylake-avx512", "mattr": ["-avx512f"]}, 49, match="vcvtph2ps.*mm"
+    )
+    fp16_to_fp32(
+        {"kind": "llvm", "mcpu": "skylake-avx512", "mattr": ["-f16c", "-avx512f"]},
+        49,
+        not_match="vcvtph2ps",
+    )
+    fp16_to_fp32({"kind": "llvm", "mcpu": "core-avx2"}, 8, match="vcvtph2ps.*mm")
+    fp16_to_fp32({"kind": "llvm", "mcpu": "core-avx2"}, 9, match="vcvtph2ps.*mm")
     fp16_to_fp32("llvm", 9, not_match="vcvtph2ps")
 
 

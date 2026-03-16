@@ -15,10 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-docstring, invalid-name
+# ruff: noqa: E501, F841
 import numpy as np
+
 import tvm
 import tvm.testing
-from tvm import relax, tir
+from tvm import relax, s_tir, tir
 from tvm.relax.frontend.nn import Module, Tensor, op, spec
 from tvm.script import ir as I
 from tvm.script import relax as R
@@ -341,9 +343,7 @@ def test_chunk():
             return chunk
 
     @R.function
-    def test(
-        x: R.Tensor((8,), dtype="float32"), _io: R.Object
-    ) -> R.Tuple(
+    def test(x: R.Tensor((8,), dtype="float32"), _io: R.Object) -> R.Tuple(
         R.Tuple(
             R.Tensor((2,), dtype="float32"),
             R.Tensor((2,), dtype="float32"),
@@ -384,6 +384,8 @@ def test_chunk():
 def test_nn():
     class Model(Module):
         def test(self, x: Tensor, weight: Tensor, bias: Tensor):
+            log_out = op.log(x)
+            floor_out = op.floor(x)
             relu_out = op.relu(x)
             relu6_out = op.relu6(x)
             silu_out = op.silu(x)
@@ -409,6 +411,8 @@ def test_nn():
     ) -> R.Tuple(R.Tensor((2, 3, 4, 5), dtype="float32"), R.Tuple(R.Object)):
         R.func_attr({"num_input": 4})
         with R.dataflow():
+            log: R.Tensor((2, 3, 4, 5), dtype="float32") = R.log(x)
+            floor: R.Tensor((2, 3, 4, 5), dtype="float32") = R.floor(x)
             relu: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.relu(x)
             relu6: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.relu6(x)
             silu: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.silu(x)
@@ -463,6 +467,8 @@ def test_create():
             )
             zeros_out = op.zeros([10, 10])
             zeros_fp16_out = op.zeros([10, 10], dtype="float16")
+
+            arange_out = op.arange(0, 10, 1, "float32")
             return x
 
     # fmt: off
@@ -476,6 +482,7 @@ def test_create():
             full2: R.Tensor((10, 10), dtype="float32") = R.full(R.shape([10, 10]), R.const(10, "float32"), dtype="float32")
             zeros: R.Tensor((10, 10), dtype="float32") = R.zeros(R.shape([10, 10]), dtype="float32")
             zeros1: R.Tensor((10, 10), dtype="float16") = R.zeros(R.shape([10, 10]), dtype="float16")
+            arange: R.Tensor((10,), dtype="float32") = R.arange(T.int64(0), T.int64(10), T.int64(1), dtype="float32")
             gv1: R.Tuple(R.Tensor((10, 10), dtype="float32"), R.Tuple(R.Object)) = x, (_io,)
             R.output(gv1)
         return gv1
@@ -496,15 +503,18 @@ def test_timestep_embedding():
             return get_timestep_out
 
     @R.function
-    def test(
-        x: R.Tensor((3,), dtype="float32"), _io: R.Object
-    ) -> R.Tuple(R.Tensor((3, 10), dtype="float32"), R.Tuple(R.Object)):
+    def test(x: R.Tensor((3,), dtype="float32"), _io: R.Object) -> R.Tuple(
+        R.Tensor((3, 10), dtype="float32"), R.Tuple(R.Object)
+    ):
         R.func_attr({"num_input": 2})
         with R.dataflow():
             lv1: R.Tensor((3,), dtype="float32") = R.astype(x, dtype="float32")
             lv2: R.Tensor((3, 1), dtype="float32") = R.expand_dims(lv1, axis=[1])
             lv3: R.Tensor((5,), dtype="float32") = R.arange(
-                R.prim_value(0), R.prim_value(5), R.prim_value(1), dtype="float32"
+                R.prim_value(T.int64(0)),
+                R.prim_value(T.int64(5)),
+                R.prim_value(T.int64(1)),
+                dtype="float32",
             )
             lv4: R.Tensor((5,), dtype="float32") = R.multiply(
                 R.const(-9.2103404998779297, "float32"), lv3
@@ -546,9 +556,9 @@ def test_scaled_dot_product_attention():
     ) -> R.Tuple(R.Tensor((1, 32, 32, 32), dtype="float32"), R.Tuple(R.Object)):
         R.func_attr({"num_input": 4})
         with R.dataflow():
-            scaled_dot_product_attention: R.Tensor(
-                (1, 32, 32, 32), dtype="float32"
-            ) = R.nn.attention(query, key, value, scale=None, causal_mask=None)
+            scaled_dot_product_attention: R.Tensor((1, 32, 32, 32), dtype="float32") = (
+                R.nn.attention(query, key, value, scale=None, causal_mask=None)
+            )
             gv1: R.Tuple(R.Tensor((1, 32, 32, 32), dtype="float32"), R.Tuple(R.Object)) = (
                 scaled_dot_product_attention,
                 (_io,),
@@ -584,9 +594,9 @@ def test_tensor_expr_op():
         @T.prim_func(private=True)
         def add_one(A: T.Buffer((T.int64(10), T.int64(10)), "float32"), T_add: T.Buffer((T.int64(10), T.int64(10)), "float32")):
             T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0, ax1 in T.grid(T.int64(10), T.int64(10)):
-                with T.block("T_add"):
+                with T.sblock("T_add"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(A[v_ax0, v_ax1])
                     T.writes(T_add[v_ax0, v_ax1])
@@ -723,7 +733,7 @@ def test_tensor_ir_inplace_op():
         pos = T.match_buffer(var_pos, (seq_len,), "int32")
         embeddings = T.match_buffer(var_embeddings, (total_seq_len, hidden_size), dtype)
         for ax0, ax1 in T.grid(seq_len, hidden_size):
-            with T.block("T_take"):
+            with T.sblock("T_take"):
                 v0, v1 = T.axis.remap("SS", [ax0, ax1])
                 T.reads(weight[pos[v0], v1], pos[v0])
                 T.writes(embeddings[v0, v1])
@@ -756,7 +766,7 @@ def test_tensor_ir_inplace_op():
             pos = T.match_buffer(var_pos, (seq_len,), "int32")
             embeddings = T.match_buffer(var_embeddings, (total_seq_len, hidden_size), dtype)
             for ax0, ax1 in T.grid(seq_len, hidden_size):
-                with T.block("T_take"):
+                with T.sblock("T_take"):
                     v0, v1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(weight[pos[v0], v1], pos[v0])
                     T.writes(embeddings[v0, v1])
@@ -899,7 +909,7 @@ def test_extern():
 
 
 def test_empty():
-    @tvm.register_func("test_empty_assert", override=True)
+    @tvm.register_global_func("test_empty_assert", override=True)
     def test_empty_assert(_lineo, x):
         assert x.shape == (10, 10)
         assert x.dtype == "float32"
@@ -966,9 +976,9 @@ def test_multinomial_from_uniform():
     target = tvm.target.Target("cuda", host="llvm")
     with target:
         mod = relax.backend.DispatchSampling()(mod)
-        mod = tir.transform.DefaultGPUSchedule()(mod)
+        mod = s_tir.transform.DefaultGPUSchedule()(mod)
     ex = tvm.compile(mod, target)
-    dev = tvm.device(str(target), 0)
+    dev = tvm.device(target.kind.name, 0)
     vm = relax.VirtualMachine(ex, dev)
 
     effects = vm["_initialize_effect"]()
@@ -976,10 +986,12 @@ def test_multinomial_from_uniform():
     np_rand = np.random.rand(*prob_shape).astype(np.float32)
     # normalize it to get the random prob
     np_prob = np_rand / np_rand.sum(axis=1, keepdims=True)
-    nd_prob = tvm.nd.array(np_prob, dev)
+    nd_prob = tvm.runtime.tensor(np_prob, dev)
     # special sample to get deterministic results
-    nd_sample = tvm.nd.array(np.array([[1], [0], [1], [1], [0], [1]]).astype(np.float32), dev)
-    nd_sample_indices = tvm.nd.array(np.array([[0], [1], [1], [2], [2], [2]]).astype(np.int64), dev)
+    nd_sample = tvm.runtime.tensor(np.array([[1], [0], [1], [1], [0], [1]]).astype(np.float32), dev)
+    nd_sample_indices = tvm.runtime.tensor(
+        np.array([[0], [1], [1], [2], [2], [2]]).astype(np.int64), dev
+    )
     inputs = [nd_prob, nd_sample, nd_sample_indices, effects]
     res = vm["foo"](*inputs)
     tvm.testing.assert_allclose(
@@ -1020,9 +1032,9 @@ def test_sample_top_p_top_k_from_sorted_prob():
             usample = T.match_buffer(D, (out_batch, 1))
             sample_indices = T.match_buffer(E, (out_batch, 1), "int64")
             output_index = T.match_buffer(F, (out_batch, 1), "int64")
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0, ax1 in T.grid(out_batch, vocab_size):
-                with T.block("T_get_index_from_sorted"):
+                with T.sblock("T_get_index_from_sorted"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(usample[v_ax0, T.int64(0)], cumsum_sorted[sample_indices[v_ax0, T.int64(0)], v_ax1 - T.int64(1):v_ax1 - T.int64(1) + T.int64(2)], sample_indices[v_ax0, T.int64(0)], renorm_prob[sample_indices[v_ax0, T.int64(0)], 0], indices[sample_indices[v_ax0, T.int64(0)], T.min(T.int64(0), v_ax1):T.min(T.int64(0), v_ax1) + (T.max(T.int64(0), v_ax1) + T.int64(1) - T.min(T.int64(0), v_ax1))])
                     T.writes(output_index[v_ax0, 0])
@@ -1040,9 +1052,9 @@ def test_sample_top_p_top_k_from_sorted_prob():
             top_p = T.match_buffer(B, (batch, 1))
             top_k = T.match_buffer(C, (batch, 1), "int64")
             renorm_prob = T.match_buffer(D, (batch, 1))
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0, ax1 in T.grid(batch, vocab_size):
-                with T.block("T_get_renorm_prob"):
+                with T.sblock("T_get_renorm_prob"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(cumsum_sorted[v_ax0, T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)):T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)) + (T.max(T.max(T.int64(0), v_ax1), v_ax1 + T.int64(1)) + T.int64(1) - T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)))], top_p[v_ax0, 0], top_k[v_ax0, 0])
                     T.writes(renorm_prob[v_ax0, 0])
@@ -1095,21 +1107,23 @@ def test_sample_top_p_top_k_from_sorted_prob():
 
     tvm.ir.assert_structural_equal(mod, Expected)
 
-    target = tvm.target.Target("cuda -libs=thrust", host="llvm")
+    target = tvm.target.Target({"kind": "cuda", "libs": ["thrust"]}, host="llvm")
     with target:
-        mod = tir.transform.DefaultGPUSchedule()(mod)
+        mod = s_tir.transform.DefaultGPUSchedule()(mod)
 
     ex = tvm.compile(mod, target)
     dev = tvm.cuda(0)
     vm = relax.VirtualMachine(ex, dev)
 
     effects = vm["_initialize_effect"]()
-    sorted_prob = tvm.nd.array(np.array([[0.5, 0.4, 0.1], [0.4, 0.3, 0.3]]).astype(np.float32), dev)
-    indices = tvm.nd.array(np.array([[2, 1, 0], [2, 0, 1]]).astype(np.int64), dev)
-    top_p = tvm.nd.array(np.array([[0.6], [0.9]]).astype(np.float32), dev)
-    top_k = tvm.nd.array(np.array([[3], [2]]).astype(np.int64), dev)
-    usample = tvm.nd.array(np.array([[0.5], [0.6], [0.7]]).astype(np.float32), dev)
-    sample_indices = tvm.nd.array(np.array([[0], [1], [1]]).astype(np.int64), dev)
+    sorted_prob = tvm.runtime.tensor(
+        np.array([[0.5, 0.4, 0.1], [0.4, 0.3, 0.3]]).astype(np.float32), dev
+    )
+    indices = tvm.runtime.tensor(np.array([[2, 1, 0], [2, 0, 1]]).astype(np.int64), dev)
+    top_p = tvm.runtime.tensor(np.array([[0.6], [0.9]]).astype(np.float32), dev)
+    top_k = tvm.runtime.tensor(np.array([[3], [2]]).astype(np.int64), dev)
+    usample = tvm.runtime.tensor(np.array([[0.5], [0.6], [0.7]]).astype(np.float32), dev)
+    sample_indices = tvm.runtime.tensor(np.array([[0], [1], [1]]).astype(np.int64), dev)
 
     inputs = [sorted_prob, indices, top_p, top_k, usample, sample_indices, effects]
 
@@ -1139,9 +1153,9 @@ def test_renormalize_top_p_top_k_prob():
         @T.prim_func(private=True)
         def filter_with_top_p_top_k(A: T.Buffer((T.int64(2), T.int64(3)), "float32"), B: T.Buffer((T.int64(2), T.int64(1)), "float32"), filter_with_top_p_top_k: T.Buffer((T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            # with T.sblock("root"):
             for i, j in T.grid(T.int64(2), T.int64(3)):
-                with T.block("filter_with_top_p_top_k"):
+                with T.sblock("filter_with_top_p_top_k"):
                     v_i, v_j = T.axis.remap("SS", [i, j])
                     T.reads(B[v_i, T.int64(0)], A[v_i, v_j])
                     T.writes(filter_with_top_p_top_k[v_i, v_j])
@@ -1155,9 +1169,9 @@ def test_renormalize_top_p_top_k_prob():
             top_p = T.match_buffer(C, (batch, 1))
             top_k = T.match_buffer(D, (batch, 1), "int64")
             cutoff = T.match_buffer(E, (batch, 1))
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0, ax1 in T.grid(batch, vocab_size):
-                with T.block("T_get_renorm_prob"):
+                with T.sblock("T_get_renorm_prob"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(cumsum_sorted[v_ax0, T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)):T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)) + (T.max(T.max(T.int64(0), v_ax1), v_ax1 + T.int64(1)) + T.int64(1) - T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)))], top_p[v_ax0, 0], top_k[v_ax0, 0], sorted_prob[v_ax0, T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)):T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)) + (T.max(T.max(T.int64(0), v_ax1), v_ax1 + T.int64(1)) + T.int64(1) - T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)))])
                     T.writes(cutoff[v_ax0, 0])
@@ -1210,20 +1224,22 @@ def test_renormalize_top_p_top_k_prob():
 
     tvm.ir.assert_structural_equal(mod, Expected)
 
-    target = tvm.target.Target("cuda -libs=thrust", host="llvm")
+    target = tvm.target.Target({"kind": "cuda", "libs": ["thrust"]}, host="llvm")
     with target:
         mod = relax.transform.LegalizeOps()(mod)
-        mod = tir.transform.DefaultGPUSchedule()(mod)
+        mod = s_tir.transform.DefaultGPUSchedule()(mod)
 
     ex = tvm.compile(mod, target)
     dev = tvm.cuda(0)
     vm = relax.VirtualMachine(ex, dev)
 
     effects = vm["_initialize_effect"]()
-    prob = tvm.nd.array(np.array([[0.2, 0.3, 0.5], [0.3, 0.3, 0.4]]).astype(np.float32), dev)
-    sorted_prob = tvm.nd.array(np.array([[0.5, 0.3, 0.2], [0.4, 0.3, 0.3]]).astype(np.float32), dev)
-    top_p = tvm.nd.array(np.array([[0.6], [0.9]]).astype(np.float32), dev)
-    top_k = tvm.nd.array(np.array([[3], [2]]).astype(np.int64), dev)
+    prob = tvm.runtime.tensor(np.array([[0.2, 0.3, 0.5], [0.3, 0.3, 0.4]]).astype(np.float32), dev)
+    sorted_prob = tvm.runtime.tensor(
+        np.array([[0.5, 0.3, 0.2], [0.4, 0.3, 0.3]]).astype(np.float32), dev
+    )
+    top_p = tvm.runtime.tensor(np.array([[0.6], [0.9]]).astype(np.float32), dev)
+    top_k = tvm.runtime.tensor(np.array([[3], [2]]).astype(np.int64), dev)
 
     inputs = [prob, sorted_prob, top_p, top_k, effects]
 

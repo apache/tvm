@@ -37,11 +37,11 @@ class BcastSessionObj : public SessionObj {
   virtual ~BcastSessionObj() = default;
 
   DRef GetGlobalFunc(const std::string& name) override;
-  void CopyFromWorker0(const NDArray& host_array, const DRef& remote_array) override;
-  void CopyToWorker0(const NDArray& host_array, const DRef& remote_array) override;
+  void CopyFromWorker0(const Tensor& host_array, const DRef& remote_array) override;
+  void CopyToWorker0(const Tensor& host_array, const DRef& remote_array) override;
   void SyncWorker(int worker_id) override;
   void Shutdown() override;
-  void InitCCL(String ccl, IntTuple device_ids) override;
+  void InitCCL(ffi::String ccl, IntTuple device_ids) override;
   ffi::Any DebugGetFromRemote(int64_t reg_id, int worker_id) override = 0;
   void DebugSetRegister(int64_t reg_id, ffi::AnyView value, int worker_id) override = 0;
 
@@ -53,11 +53,11 @@ class BcastSessionObj : public SessionObj {
   /*! \brief Allocate a register id, either from `free_regs_` or by incrementing `reg_count_` */
   virtual int AllocateReg();
   /*!
-   * \brief Append an controler-side NDArray to a special queue used to communicate with
+   * \brief Append an controler-side Tensor to a special queue used to communicate with
    worker-0.
    * \param host_array The array to be appended to worker-0
    */
-  virtual void AppendHostNDArray(const NDArray& host_array);
+  virtual void AppendHostTensor(const Tensor& host_array);
   /*!
    * \brief Broadcast a command to all workers via TVM's ffi::Function calling convention.
    * As part of the calling convention, The first argument in the packed sequence must be
@@ -102,7 +102,7 @@ class BcastSessionObj : public SessionObj {
  */
 class BcastSession : public Session {
  public:
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(BcastSession, Session, BcastSessionObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BcastSession, Session, BcastSessionObj);
 };
 
 }  // namespace runtime

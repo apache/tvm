@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F841
 import pytest
 
 import tvm
@@ -1721,7 +1722,6 @@ def test_nll_loss_infer_struct_info_targets_dtype():
     w = relax.Var("w", R.Tensor((5,), "float32"))
     targets0 = relax.Var("targets", R.Tensor((3, 10, 10), "float32"))
     targets1 = relax.Var("targets", R.Tensor((3, 10, 10), "float64"))
-    targets2 = relax.Var("targets", R.Tensor((3, 10, 10), "bool"))
     targets3 = relax.Var("targets", R.Tensor((3, 10, 10), "int32"))
     targets4 = relax.Var("targets", R.Tensor((3, 10, 10), "int64"))
     targets5 = relax.Var("targets", R.Tensor((3, 10, 10), "uint32"))
@@ -1733,7 +1733,6 @@ def test_nll_loss_infer_struct_info_targets_dtype():
         bb.normalize(relax.op.nn.nll_loss(x, targets1, w))
 
     # correct cases
-    bb.normalize(relax.op.nn.nll_loss(x, targets2, w))  # bool is uint1
     bb.normalize(relax.op.nn.nll_loss(x, targets3, w))
     bb.normalize(relax.op.nn.nll_loss(x, targets4, w))
     bb.normalize(relax.op.nn.nll_loss(x, targets5, w))
@@ -1845,6 +1844,60 @@ def test_pixel_shuffle_infer_struct_info():
         relax.op.nn.pixel_shuffle(x2, upscale_factor2),
         relax.TensorStructInfo((2, 6, 2, 15, 12), dtype="float32"),
     )
+
+
+def test_batch_flatten_op_correctness():
+    x = relax.Var("x", R.Tensor((2, 3, 4, 5), "float32"))
+    assert relax.op.nn.batch_flatten(x).op == Op.get("relax.nn.batch_flatten")
+
+
+def test_batch_flatten_infer_struct_info():
+    bb = relax.BlockBuilder()
+    vdev0 = VDevice("llvm")
+    x0 = relax.Var("x", R.Tensor((2, 3, 4, 5), "float32"))
+    x1 = relax.Var("x", R.Tensor("float32", ndim=4))
+    x2 = relax.Var("x", R.Tensor("float32", ndim=-1))
+    x3 = relax.Var("x", R.Tensor((2, 3, 4, 5)))
+    x4 = relax.Var("x", R.Tensor((10, 20), "float32"))
+    x5 = relax.Var("x", R.Tensor((2, 3, 4, 5), "float32", vdev0))
+
+    _check_inference(bb, relax.op.nn.batch_flatten(x0), relax.TensorStructInfo((2, 60), "float32"))
+    _check_inference(
+        bb, relax.op.nn.batch_flatten(x5), relax.TensorStructInfo((2, 60), "float32", vdev0)
+    )
+    _check_inference(
+        bb, relax.op.nn.batch_flatten(x1), relax.TensorStructInfo(dtype="float32", ndim=2)
+    )
+    _check_inference(
+        bb, relax.op.nn.batch_flatten(x2), relax.TensorStructInfo(dtype="float32", ndim=2)
+    )
+    _check_inference(bb, relax.op.nn.batch_flatten(x3), relax.TensorStructInfo((2, 60), dtype=""))
+    _check_inference(bb, relax.op.nn.batch_flatten(x4), relax.TensorStructInfo((10, 20), "float32"))
+
+
+def test_batch_flatten_infer_struct_info_shape_symbolic():
+    bb = relax.BlockBuilder()
+    m = tir.Var("m", "int64")
+    n = tir.Var("n", "int64")
+    h = tir.Var("h", "int64")
+    w = tir.Var("w", "int64")
+    x0 = relax.Var("x", R.Tensor((m, n, h, w), "float32"))
+    x1 = relax.Var("x", R.Tensor((4, n, 8, 8), "float32"))
+
+    _check_inference(
+        bb, relax.op.nn.batch_flatten(x0), relax.TensorStructInfo((m, n * h * w), "float32")
+    )
+    _check_inference(
+        bb, relax.op.nn.batch_flatten(x1), relax.TensorStructInfo((4, n * 8 * 8), "float32")
+    )
+
+
+def test_batch_flatten_infer_struct_info_wrong_ndim():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", R.Tensor((3,), "float32"))
+
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.batch_flatten(x0))
 
 
 if __name__ == "__main__":

@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401, RUF012
 
 """
 This module serves two purposes:
@@ -42,21 +43,20 @@ Current limitations:
       primfuncs and demonstrate more coding strategies.
 """
 
-from typing import List
 import copy
 import os
 
-import pytest
 import numpy as np
+import pytest
 
 import tvm.testing
-from tvm import te, topi, tir
-from tvm.topi import testing
-from tvm.contrib.hexagon.session import Session
+from tvm import te, tir, topi
 from tvm.contrib.hexagon import allocate_hexagon_array
+from tvm.contrib.hexagon.session import Session
+from tvm.topi import testing
 
-from .infrastructure import get_hexagon_target
 from . import benchmark_util as bu
+from .infrastructure import get_hexagon_target
 
 # Pytest seems to require that fixture names exist in the current module.
 # E.g., it doesn't allow: @pytest.mark.usefixtures("bu.benchmark_group")
@@ -82,7 +82,7 @@ def _int8_nhwc_8h8w32c_map(n_batch, height, width, channel):
     ]
 
 
-def _int8_nhwc_8h8w32c_shape(n_batch, height, width, channel) -> List[int]:
+def _int8_nhwc_8h8w32c_shape(n_batch, height, width, channel) -> list[int]:
     return [
         n_batch,
         _ceil_div(height, 8),
@@ -247,7 +247,7 @@ class TestMaxPool2D:
                 )
                 primfunc = te.create_prim_func([data, output])
 
-                sch = tir.Schedule(primfunc, debug_mask="all")
+                sch = tvm.s_tir.Schedule(primfunc, debug_mask="all")
 
                 sch.transform_layout(
                     block="tensor", buffer="placeholder", index_map=_int8_nhwc_8h8w32c_map
@@ -261,7 +261,7 @@ class TestMaxPool2D:
                 # Save a local copy of the Hexagon object code (in the form of a .so file)
                 # to allow post-mortem inspection.
                 host_dso_binary_path = os.path.join(host_files_dir_path, "test_binary.so")
-                built_module.save(host_dso_binary_path)
+                built_module.write_to_file(host_dso_binary_path)
                 print(f"SAVED BINARY TO HOST PATH: {host_dso_binary_path}")
 
                 hexagon_mod = hexagon_session.load_module(built_module)

@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501, F841
 import numpy as np
 import pytest
 
@@ -22,7 +23,9 @@ import tvm.testing
 from tvm import relax
 from tvm.base import TVMError
 from tvm.ir.base import assert_structural_equal
-from tvm.script.parser import relax as R, tir as T, ir as I
+from tvm.script.parser import ir as I
+from tvm.script.parser import relax as R
+from tvm.script.parser import tir as T
 
 
 def test_simple():
@@ -592,6 +595,7 @@ def test_tuple_nested():
 
 def test_tuple_update():
     """One tensor `x` is used in and out of tuple many times."""
+
     # fmt: off
     @I.ir_module
     class Before:
@@ -1210,7 +1214,7 @@ def test_report_error():
         ):
             T.func_attr({"tir.noalias": True})
             for k0, k1 in T.grid(T.int64(3), T.int64(3)):
-                with T.block("rxplaceholder_red"):
+                with T.sblock("rxplaceholder_red"):
                     v_k0, v_k1 = T.axis.remap("RR", [k0, k1])
                     T.reads(rxplaceholder[v_k0, v_k1])
                     T.writes(rxplaceholder_red[()])
@@ -1263,6 +1267,7 @@ def test_mlp_script():
 
     For n-layer perceptron, see test_transform_gradient_numeric.py.
     """
+
     # fmt: off
     @I.ir_module
     class Before:

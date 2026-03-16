@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E722, F403
 """TVM Script Parser doc AST"""
 
 import ast
@@ -40,8 +41,8 @@ class Entry:
         The callable methods for converting doc AST to python AST node.
     """
 
-    to_doc: typing.Optional[FnToDoc]
-    from_doc: typing.Optional[FnFromDoc]
+    to_doc: FnToDoc | None
+    from_doc: FnFromDoc | None
 
     def __init__(self):
         self.to_doc = None
@@ -63,7 +64,7 @@ class Registry:
     """
 
     _inst: typing.Optional["Registry"] = None
-    table: typing.Dict[str, Entry]
+    table: dict[str, Entry]
 
     def __init__(self):
         self.table = defaultdict(Entry)
@@ -117,14 +118,7 @@ def _is_atomic_type(node):
         or node in [..., True, False]
         or isinstance(
             node,
-            (
-                int,
-                float,
-                str,
-                bool,
-                bytes,
-                complex,
-            ),
+            int | float | str | bool | bytes | complex,
         )
     )
 
@@ -235,7 +229,7 @@ class NodeVisitor:
     """Node visitor for doc AST"""
 
     def visit(self, node: doc.AST) -> None:
-        if isinstance(node, (list, tuple)):
+        if isinstance(node, list | tuple):
             for item in node:
                 self.visit(item)
             return
@@ -252,7 +246,7 @@ class NodeVisitor:
             value = getattr(node, field, None)
             if value is None:
                 pass
-            elif isinstance(value, (doc.AST, list, tuple)):
+            elif isinstance(value, doc.AST | list | tuple):
                 self.visit(value)
 
 
@@ -273,12 +267,12 @@ class NodeTransformer:
         )(node)
 
     def generic_visit(self, node: doc.AST) -> doc.AST:
-        kv: typing.Dict[str, typing.Any] = {}
+        kv: dict[str, typing.Any] = {}
         for field in node.__class__._FIELDS:  # pylint: disable=protected-access
             value = getattr(node, field, None)
             if value is None:
                 pass
-            elif isinstance(value, (doc.AST, list, tuple)):
+            elif isinstance(value, doc.AST | list | tuple):
                 value = self.visit(value)
             kv[field] = value
         return node.__class__(**kv)

@@ -14,16 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import pytest
-import tvm.testing
 import numpy as np
+import pytest
 
 import tvm
-from tvm import relax, TVMError
+import tvm.testing
+from tvm import TVMError, relax
 from tvm.relax.training import SetupTrainer, Trainer
-from tvm.relax.training.optimizer import SGD, Adam
 from tvm.relax.training.loss import MSELoss
-from tvm.script import ir as I, relax as R
+from tvm.relax.training.optimizer import SGD, Adam
+from tvm.script import ir as I
+from tvm.script import relax as R
 
 
 def _get_backbone():

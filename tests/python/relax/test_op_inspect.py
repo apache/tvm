@@ -14,11 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401
 
 import ctypes
 
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm.testing
 from tvm import relax
@@ -56,7 +58,7 @@ def test_tensor_dtype_code(dtype):
     built = tvm.compile(mod)
     vm = relax.VirtualMachine(built, tvm.cpu())
 
-    arg = tvm.nd.empty([16], dtype)
+    arg = tvm.runtime.empty([16], dtype)
     res = vm["main"](arg)
 
     expected_type_code = tvm.runtime.DataType(dtype).type_code
@@ -73,7 +75,7 @@ def test_tensor_dtype_bits(dtype):
     built = tvm.compile(mod)
     vm = relax.VirtualMachine(built, tvm.cpu())
 
-    arg = tvm.nd.empty([16], dtype)
+    arg = tvm.runtime.empty([16], dtype)
     res = vm["main"](arg)
 
     expected_type_bits = tvm.runtime.DataType(dtype).bits
@@ -90,7 +92,7 @@ def test_tensor_dtype_lanes(dtype):
     built = tvm.compile(mod)
     vm = relax.VirtualMachine(built, tvm.cpu())
 
-    arg = tvm.nd.empty([16], dtype)
+    arg = tvm.runtime.empty([16], dtype)
     res = vm["main"](arg)
 
     expected_type_lanes = tvm.runtime.DataType(dtype).lanes
@@ -107,7 +109,7 @@ def test_tensor_ndim(shape):
     built = tvm.compile(mod)
     vm = relax.VirtualMachine(built, tvm.cpu())
 
-    arg = tvm.nd.empty(shape, "int32")
+    arg = tvm.runtime.empty(shape, "int32")
     res = vm["main"](arg)
 
     assert res == len(shape)
@@ -123,7 +125,7 @@ def test_tensor_shape(shape):
     built = tvm.compile(mod)
     vm = relax.VirtualMachine(built, tvm.cpu())
 
-    arg = tvm.nd.empty(shape, "int32")
+    arg = tvm.runtime.empty(shape, "int32")
 
     res = [vm["main"](arg, i) for i, _ in enumerate(shape)]
 
@@ -149,7 +151,7 @@ def test_strides_of_compact_tensor(shape):
     built = tvm.compile(mod)
     vm = relax.VirtualMachine(built, tvm.cpu())
 
-    arg = tvm.nd.empty(shape, "int32")
+    arg = tvm.runtime.empty(shape, "int32")
 
     res = [vm["main"](arg, i) for i, _ in enumerate(shape)]
     expected = _get_compact_striding(shape)
@@ -170,7 +172,7 @@ def test_strides_of_non_compact_tensor():
     expected_strides = [1, 4]
     # use transpose to make strides non-compact
     x = np.zeros([4, 4], "int32").T
-    y = tvm.ffi.from_dlpack(x, required_alignment=4, required_contiguous=False)
+    y = tvm_ffi.from_dlpack(x, require_alignment=4, require_contiguous=False)
     res = [vm["main"](y, i) for i, _ in enumerate(view_shape)]
     tvm.ir.assert_structural_equal(res, expected_strides)
 
@@ -189,8 +191,8 @@ def test_byte_offset(elem_offset):
     built = tvm.compile(mod)
     vm = relax.VirtualMachine(built, tvm.cpu())
     dtype = "int32"
-    backing_ndarray = tvm.nd.empty(backing_shape, dtype)
-    view = backing_ndarray._create_view(view_shape, dtype, relative_byte_offset=byte_offset)
+    backing_tensor = tvm.runtime.empty(backing_shape, dtype)
+    view = backing_tensor._create_view(view_shape, dtype, relative_byte_offset=byte_offset)
     res = vm["main"](view)
     assert res == byte_offset
 
@@ -212,8 +214,8 @@ def test_elem_offset(elem_offset, dtype):
     built = tvm.compile(mod)
     vm = relax.VirtualMachine(built, tvm.cpu())
 
-    backing_ndarray = tvm.nd.empty(backing_shape, dtype)
-    view = backing_ndarray._create_view(view_shape, dtype, relative_byte_offset=byte_offset)
+    backing_tensor = tvm.runtime.empty(backing_shape, dtype)
+    view = backing_tensor._create_view(view_shape, dtype, relative_byte_offset=byte_offset)
     res = vm["main"](view)
 
     assert res == elem_offset

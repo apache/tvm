@@ -30,52 +30,52 @@ namespace tvm {
 namespace te {
 using namespace tir;
 
-TVM_FFI_STATIC_INIT_BLOCK({ ScanOpNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { ScanOpNode::RegisterReflection(); }
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<ScanOpNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const ScanOpNode*>(node.get());
       p->stream << "scan(" << op->name << ", " << op << ")";
     });
-TVM_REGISTER_NODE_TYPE(ScanOpNode);
 
 int ScanOpNode::num_outputs() const { return static_cast<int>(update.size()); }
 
 DataType ScanOpNode::output_dtype(size_t i) const { return update[i]->dtype; }
 
-Array<PrimExpr> ScanOpNode::output_shape(size_t i) const {
-  ICHECK_LT(i, state_placeholder.size());
+ffi::Array<PrimExpr> ScanOpNode::output_shape(size_t i) const {
+  TVM_FFI_ICHECK_LT(i, state_placeholder.size());
   return state_placeholder[i]->shape;
 }
 
-ScanOp::ScanOp(std::string name, std::string tag, Optional<Map<String, ffi::Any>> attrs,
-               IterVar axis, Array<Tensor> init, Array<Tensor> update,
-               Array<Tensor> state_placeholder, Array<Tensor> inputs) {
+ScanOp::ScanOp(std::string name, std::string tag,
+               ffi::Optional<ffi::Map<ffi::String, ffi::Any>> attrs, IterVar axis,
+               ffi::Array<Tensor> init, ffi::Array<Tensor> update,
+               ffi::Array<Tensor> state_placeholder, ffi::Array<Tensor> inputs) {
   if (!attrs.defined()) {
-    attrs = Map<String, ffi::Any>();
+    attrs = ffi::Map<ffi::String, ffi::Any>();
   }
-  auto n = make_object<ScanOpNode>();
-  ICHECK_EQ(init.size(), update.size());
-  ICHECK_EQ(init.size(), state_placeholder.size());
+  auto n = ffi::make_object<ScanOpNode>();
+  TVM_FFI_ICHECK_EQ(init.size(), update.size());
+  TVM_FFI_ICHECK_EQ(init.size(), state_placeholder.size());
   arith::Analyzer analyzer;
   auto prove_equal = [&](PrimExpr lhs, PrimExpr rhs) {
     return is_zero(analyzer.Simplify(lhs - rhs));
   };
 
   for (size_t i = 0; i < init.size(); ++i) {
-    ICHECK_EQ(init[i]->dtype, state_placeholder[i]->dtype);
-    ICHECK_EQ(init[i]->dtype, update[i]->dtype);
-    ICHECK(prove_equal(init[i]->shape[0], axis->dom->min))
+    TVM_FFI_ICHECK_EQ(init[i]->dtype, state_placeholder[i]->dtype);
+    TVM_FFI_ICHECK_EQ(init[i]->dtype, update[i]->dtype);
+    TVM_FFI_ICHECK(prove_equal(init[i]->shape[0], axis->dom->min))
         << "init.shape[0] need to match scan_axis.dom.min";
-    ICHECK(prove_equal(state_placeholder[i]->shape[0], axis->dom->min + axis->dom->extent))
+    TVM_FFI_ICHECK(prove_equal(state_placeholder[i]->shape[0], axis->dom->min + axis->dom->extent))
         << "state_placeholder.shape[0] need to match"
         << " scan_axis.dom.min + scan_axis.dom.extent";
-    ICHECK_EQ(state_placeholder[i].ndim(), init[i].ndim())
+    TVM_FFI_ICHECK_EQ(state_placeholder[i].ndim(), init[i].ndim())
         << "The dimension of init need to match state_placeholder";
-    ICHECK_EQ(update[i].ndim(), state_placeholder[i].ndim())
+    TVM_FFI_ICHECK_EQ(update[i].ndim(), state_placeholder[i].ndim())
         << "The update.ndim need to be state_placeholder.ndim - 1";
     for (size_t k = 0; k < update[i].ndim(); ++k) {
-      ICHECK(prove_equal(update[i]->shape[k], state_placeholder[i]->shape[k]));
+      TVM_FFI_ICHECK(prove_equal(update[i]->shape[k], state_placeholder[i]->shape[k]));
       if (k != 0) {
         // setup spatial axis
         std::ostringstream spatial_name;
@@ -86,7 +86,7 @@ ScanOp::ScanOp(std::string name, std::string tag, Optional<Map<String, ffi::Any>
     }
 
     for (size_t k = 1; k < init[i].ndim(); ++k) {
-      ICHECK(prove_equal(init[i]->shape[k], state_placeholder[i]->shape[k]));
+      TVM_FFI_ICHECK(prove_equal(init[i]->shape[k], state_placeholder[i]->shape[k]));
     }
   }
   n->name = std::move(name);
@@ -100,32 +100,34 @@ ScanOp::ScanOp(std::string name, std::string tag, Optional<Map<String, ffi::Any>
   data_ = std::move(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
-      "te.ScanOp", [](std::string name, std::string tag, Optional<Map<String, ffi::Any>> attrs,
-                      IterVar axis, Array<Tensor> init, Array<Tensor> update,
-                      Array<Tensor> state_placeholder, Array<Tensor> inputs) {
+      "te.ScanOp",
+      [](std::string name, std::string tag, ffi::Optional<ffi::Map<ffi::String, ffi::Any>> attrs,
+         IterVar axis, ffi::Array<Tensor> init, ffi::Array<Tensor> update,
+         ffi::Array<Tensor> state_placeholder, ffi::Array<Tensor> inputs) {
         return ScanOp(name, tag, attrs, axis, init, update, state_placeholder, inputs);
       });
-});
+}
 
-Array<Tensor> scan(Array<Tensor> init, Array<Tensor> update, Array<Tensor> state_placeholder,
-                   Array<Tensor> inputs, std::string name, std::string tag,
-                   Optional<Map<String, ffi::Any>> attrs) {
+ffi::Array<Tensor> scan(ffi::Array<Tensor> init, ffi::Array<Tensor> update,
+                        ffi::Array<Tensor> state_placeholder, ffi::Array<Tensor> inputs,
+                        std::string name, std::string tag,
+                        ffi::Optional<ffi::Map<ffi::String, ffi::Any>> attrs) {
   IterVar scan_axis =
       IterVar(Range::FromMinExtent(init[0]->shape[0], update[0]->shape[0] - init[0]->shape[0]),
               Var(name + ".idx"), kOrdered);
   Operation op = ScanOp(name, tag, attrs, scan_axis, init, update, state_placeholder, inputs);
-  Array<Tensor> res;
+  ffi::Array<Tensor> res;
   for (int i = 0; i < op->num_outputs(); ++i) {
     res.push_back(op.output(i));
   }
   return res;
 }
 
-Array<Tensor> ScanOpNode::InputTensors() const {
-  Array<Tensor> ret;
+ffi::Array<Tensor> ScanOpNode::InputTensors() const {
+  ffi::Array<Tensor> ret;
   for (Tensor t : init) {
     ret.push_back(t);
   }

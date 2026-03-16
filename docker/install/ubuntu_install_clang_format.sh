@@ -20,10 +20,12 @@ set -e
 set -u
 set -o pipefail
 
-echo deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-15 main\
-     >> /etc/apt/sources.list.d/llvm.list
-echo deb-src http://apt.llvm.org/bionic/ llvm-toolchain-bionic-15 main\
-     >> /etc/apt/sources.list.d/llvm.list
+wget -q -O - http://apt.llvm.org/llvm-snapshot.gpg.key \
+    | gpg --dearmor -o /usr/share/keyrings/llvm-archive.gpg
 
-wget -q -O - http://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add -
+cat > /etc/apt/sources.list.d/llvm.list <<'EOF'
+deb [signed-by=/usr/share/keyrings/llvm-archive.gpg] http://apt.llvm.org/jammy/ llvm-toolchain-jammy-15 main
+deb-src [signed-by=/usr/share/keyrings/llvm-archive.gpg] http://apt.llvm.org/jammy/ llvm-toolchain-jammy-15 main
+EOF
+
 apt-get update && apt-install-and-clear -y clang-format-15

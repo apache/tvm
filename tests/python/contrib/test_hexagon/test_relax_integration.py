@@ -14,15 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401, F821
 """Relax hexagon test."""
 
 import numpy as np
 import pytest
+
 import tvm.testing
 from tvm import relax, runtime
+from tvm.contrib.hexagon.session import Session
 from tvm.relax.frontend import onnx
 from tvm.relax.testing import relay_translator
-from tvm.contrib.hexagon.session import Session
 
 
 def get_onnx_mobilenet():
@@ -46,7 +48,7 @@ def test_mobilenet_onnx(hexagon_session: Session):
     shape_dict = {"input": data_np.shape}
     relay_mod, _ = relay.frontend.from_onnx(onnx_model, shape_dict, freeze_params=True)
 
-    target_hexagon = tvm.target.hexagon("v68")
+    target_hexagon = tvm.target.Target("qcom/hexagon-v68")
     target = tvm.target.Target(target_hexagon, host=target_hexagon)
     relax_mod = onnx.from_onnx(onnx_model, shape_dict, freeze_params=True)
     relax_mod = relay_translator.from_relay(relay_mod["main"], target_hexagon)
@@ -57,7 +59,7 @@ def test_mobilenet_onnx(hexagon_session: Session):
 
     vm_mod = hexagon_session.get_executor_from_factory(exe)
     vm_rt = relax.VirtualMachine(vm_mod, dev)
-    data = tvm.nd.array(data_np, dev)
+    data = tvm.runtime.tensor(data_np, dev)
     vm_rt.set_input("main", data)
     vm_rt.invoke_stateful("main")
     hexagon_res = vm_rt.get_outputs("main")
@@ -67,7 +69,7 @@ def test_mobilenet_onnx(hexagon_session: Session):
     exe = tvm.compile(relax_mod, "llvm")
     dev = tvm.cpu()
     vm_rt = relax.VirtualMachine(exe, dev)
-    data = tvm.nd.array(data_np, dev)
+    data = tvm.runtime.tensor(data_np, dev)
     llvm_res = vm_rt["main"](data)
     tvm.testing.assert_allclose(hexagon_res.numpy(), llvm_res.numpy(), rtol=1e-3)
 
@@ -79,7 +81,7 @@ def test_mobilenet(hexagon_session: Session):
     relay_mod, params = testing.mobilenet.get_workload(batch_size=1, dtype="float32")
     data_np = np.random.rand(1, 3, 224, 224).astype("float32")
 
-    target_hexagon = tvm.target.hexagon("v68")
+    target_hexagon = tvm.target.Target("qcom/hexagon-v68")
     target = tvm.target.Target(target_hexagon, host=target_hexagon)
 
     # translate the relay mobilenet and bind params
@@ -91,7 +93,7 @@ def test_mobilenet(hexagon_session: Session):
 
     vm_mod = hexagon_session.get_executor_from_factory(exe)
     vm_rt = relax.VirtualMachine(vm_mod, dev)
-    data = tvm.nd.array(data_np, dev)
+    data = tvm.runtime.tensor(data_np, dev)
     vm_rt.set_input("main", data)
     vm_rt.invoke_stateful("main")
     hexagon_res = vm_rt.get_outputs("main")
@@ -101,7 +103,7 @@ def test_mobilenet(hexagon_session: Session):
     exe = tvm.compile(relax_mod, "llvm")
     dev = tvm.cpu()
     vm_rt = relax.VirtualMachine(exe, dev)
-    data = tvm.nd.array(data_np, dev)
+    data = tvm.runtime.tensor(data_np, dev)
     llvm_res = vm_rt["main"](data)
     tvm.testing.assert_allclose(hexagon_res.numpy(), llvm_res.numpy(), rtol=1e-3)
 

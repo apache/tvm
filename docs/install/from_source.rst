@@ -43,7 +43,18 @@ Apache TVM requires the following dependencies:
 - Python (>= 3.8)
 - (Optional) Conda (Strongly Recommended)
 
-To easiest way to manage dependency is via conda, which maintains a set of toolchains
+System Dependencies (Non-Conda)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+If you are not using Conda, TVM requires several system libraries. On Ubuntu/Debian systems, install them with:
+
+.. code:: bash
+
+   sudo apt update
+   sudo apt install zlib1g-dev libxml2-dev
+
+For other operating systems, please refer to your package manager documentation.
+
+The easiest way to manage dependency is via conda, which maintains a set of toolchains
 including LLVM across platforms. To create the environment of those build dependencies,
 one may simply use:
 
@@ -60,10 +71,9 @@ one may simply use:
     # enter the build environment
     conda activate tvm-build-venv
 
-
-Step 2. Get Source from Github
+Step 2. Get Source from GitHub
 ------------------------------
-You can also choose to clone the source repo from github.
+You can also choose to clone the source repo from GitHub.
 
 .. code:: bash
 
@@ -129,6 +139,14 @@ Once ``config.cmake`` is edited accordingly, kick off build with the commands be
     ``nproc`` may not be available on all systems, please replace it with the number of cores on your system
 
 A success build should produce ``libtvm`` and ``libtvm_runtime`` under ``build/`` directory.
+
+Apache TVM relies on the tvm-ffi package to support its python bindings.
+Therefore, after we finish the build, we need to install the tvm-ffi package.
+
+.. code-block:: bash
+
+    cd 3rdparty/tvm-ffi; pip install .; cd ..
+
 
 Leaving the build environment ``tvm-build-venv``, there are two ways to install the successful build into your environment:
 
@@ -203,13 +221,16 @@ Please note that the commands above verify the presence of an actual device on t
 Step 5. Extra Python Dependencies
 ---------------------------------
 Building from source does not ensure the installation of all necessary Python dependencies.
+
+Python Dependencies
+~~~~~~~~~~~~~~~~~~~
 The following commands can be used to install the extra Python dependencies:
 
 * Necessary dependencies:
 
 .. code:: bash
 
-    pip3 install numpy
+    pip3 install numpy cython
 
 * If you want to use RPC Tracker
 
@@ -223,6 +244,15 @@ The following commands can be used to install the extra Python dependencies:
 
     pip3 install tornado psutil 'xgboost>=1.1.0' cloudpickle
 
+Windows-Specific Build Notes
+----------------------------
+
+If you're building TVM on Windows, note these platform-specific considerations:
+
+Path Conventions
+................
+- Use forward slashes (``/``) in Python/CMake paths, not Windows backslashes
+- Example: ``python cmake/config.cmake`` not ``python cmake\\config.cmake``
 
 Advanced Build Configuration
 ----------------------------
@@ -247,7 +277,7 @@ There are several ways to enable CCache in TVM builds:
 
 Building on Windows
 ~~~~~~~~~~~~~~~~~~~
-TVM support build via MSVC using cmake. You will need to obtain a visual studio compiler.
+TVM support build via MSVC using CMake. You will need to obtain a visual studio compiler.
 The minimum required VS version is **Visual Studio Enterprise 2019** (NOTE: we test
 against GitHub Actions' `Windows 2019 Runner <https://github.com/actions/virtual-environments/blob/main/images/win/Windows2019-Readme.md>`_, so see that page for full details.
 We recommend following :ref:`install-dependencies` to obtain necessary dependencies and
@@ -267,6 +297,21 @@ You can then run the following command to build
 
     cmake --build build --config Release -- /m
 
+CUDA Configuration
+..................
+For CUDA support on Windows:
+
+.. code-block:: batch
+
+   set CUDA_PATH=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8
+   set PATH=%CUDA_PATH%\bin;%PATH%
+   cmake .. -DUSE_CUDA=ON
+
+CMake & Compiler Setup
+......................
+- Specify generator: ``cmake -G "Visual Studio 16 2019" -A x64 ..``
+- Ensure Python is in PATH or specify: ``-DPython_EXECUTABLE=C:\Python39\python.exe``
+
 
 Building ROCm support
 ~~~~~~~~~~~~~~~~~~~~~
@@ -275,7 +320,7 @@ Currently, ROCm is supported only on linux, so all the instructions are written 
 
 - Set ``set(USE_ROCM ON)``, set ROCM_PATH to the correct path.
 - You need to first install HIP runtime from ROCm. Make sure the installation system has ROCm installed in it.
-- Install latest stable version of LLVM (v6.0.1), and LLD, make sure ``ld.lld`` is available via command line.
+- Install LLVM (>= 15), and LLD, make sure ``ld.lld`` is available via command line.
 
 .. _install-from-source-cpp-tests:
 

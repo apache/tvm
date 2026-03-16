@@ -67,7 +67,7 @@ class SSAVerifier final : public StmtExprVisitor {
     StmtExprVisitor::VisitExpr_(op);
   }
 
-  void VisitStmt_(const LetStmtNode* op) final {
+  void VisitStmt_(const BindNode* op) final {
     MarkDef(op->var, op->value);
     StmtExprVisitor::VisitStmt_(op);
   }
@@ -75,13 +75,13 @@ class SSAVerifier final : public StmtExprVisitor {
     MarkDef(op->loop_var, op->loop_var);
     StmtExprVisitor::VisitStmt_(op);
   }
-  void VisitStmt_(const AllocateNode* op) final {
-    MarkDef(op->buffer_var, op->buffer_var);
+  void VisitStmt_(const AllocBufferNode* op) final {
+    MarkDef(op->buffer->data, op->buffer->data);
     StmtExprVisitor::VisitStmt_(op);
   }
 
   void VisitExpr_(const VarNode* node) final {
-    auto var = GetRef<Var>(node);
+    auto var = ffi::GetRef<Var>(node);
     if (match_scope_) {
       MarkDef(var, var, true);
     }
@@ -140,10 +140,10 @@ bool VerifySSA(const PrimFunc& func) {
   return visitor.is_ssa_;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.analysis.verify_ssa", VerifySSA);
-});
+}
 
 namespace transform {
 
@@ -151,7 +151,8 @@ Pass VerifySSA() {
   auto pass_func = [=](IRModule mod, PassContext ctx) {
     for (auto kv : mod->functions) {
       if (auto func = kv.second.as<PrimFunc>()) {
-        ICHECK(VerifySSA(func.value())) << "RuntimeError: IR is not in SSA form" << func.value();
+        TVM_FFI_CHECK(VerifySSA(func.value()), RuntimeError)
+            << "IR is not in SSA form" << func.value();
       }
     }
     return mod;
@@ -159,10 +160,10 @@ Pass VerifySSA() {
   return tvm::transform::CreateModulePass(pass_func, 0, "tir.VerifySSA", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.transform.VerifySSA", VerifySSA);
-});
+}
 
 }  // namespace transform
 

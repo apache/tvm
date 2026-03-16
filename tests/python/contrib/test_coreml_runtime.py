@@ -14,14 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm
-from tvm import te
-import numpy as np
-from tvm import rpc
-from tvm.contrib import utils, xcode, coreml_runtime
-
-import pytest
+# ruff: noqa: F401
 import os
+
+import numpy as np
+import pytest
+
+import tvm
+from tvm import rpc, te
+from tvm.contrib import coreml_runtime, utils, xcode
 
 proxy_host = os.environ.get("TVM_IOS_RPC_PROXY_HOST", "127.0.0.1")
 proxy_port = os.environ.get("TVM_IOS_RPC_PROXY_PORT", 9090)
@@ -73,7 +74,7 @@ def test_coreml_runtime():
         # inference via tvm coreml runtime
         runtime = coreml_runtime.create("main", model_path, dev)
         for name in inputs:
-            runtime.set_input(name, tvm.nd.array(inputs[name], dev))
+            runtime.set_input(name, tvm.runtime.tensor(inputs[name], dev))
         runtime.invoke()
         tvm_outputs = [runtime.get_output(i).numpy() for i in range(runtime.get_num_outputs())]
 

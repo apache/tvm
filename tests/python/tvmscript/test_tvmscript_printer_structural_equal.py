@@ -14,13 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F841
 
 import pytest
+from tvm_ffi.access_path import AccessPath
 
 import tvm
 from tvm.ir import assert_structural_equal
-from tvm.runtime import ObjectPath
-from tvm.script import ir as I, tir as T
+from tvm.script import ir as I
+from tvm.script import tir as T
 
 
 def _error_message(exception):
@@ -53,17 +55,17 @@ def test_prim_func_buffer_map():
     assert _error_message(ve.value) == _expected_result(
         func1,
         func2,
-        ObjectPath.root()
+        AccessPath.root()
         .attr("buffer_map")
-        .map_value(func1.params[1])
+        .map_item(func1.params[1])
         .attr("shape")
-        .array_index(1)
+        .array_item(1)
         .attr("value"),
-        ObjectPath.root()
+        AccessPath.root()
         .attr("buffer_map")
-        .map_value(func2.params[1])
+        .map_item(func2.params[1])
         .attr("shape")
-        .array_index(1)
+        .array_item(1)
         .attr("value"),
     )
 
@@ -86,15 +88,15 @@ def test_evaluate():
     assert _error_message(ve.value) == _expected_result(
         module1,
         module2,
-        ObjectPath.root()
+        AccessPath.root()
         .attr("functions")
-        .map_value(module1.get_global_var("func"))
+        .map_item(module1.get_global_var("func"))
         .attr("body")
         .attr("value")
         .attr("value"),
-        ObjectPath.root()
+        AccessPath.root()
         .attr("functions")
-        .map_value(module2.get_global_var("func"))
+        .map_item(module2.get_global_var("func"))
         .attr("body")
         .attr("value")
         .attr("value"),
@@ -104,13 +106,11 @@ def test_evaluate():
 def test_allocate():
     @T.prim_func
     def func1():
-        a_data = T.allocate((128, 128), dtype="float32")
-        a = T.decl_buffer((128, 128), dtype="float32", data=a_data)
+        a = T.alloc_buffer((128, 128), dtype="float32")
 
     @T.prim_func
     def func2():
-        a_data = T.allocate((256, 128), dtype="float32")
-        a = T.decl_buffer((256, 128), dtype="float32", data=a_data)
+        a = T.alloc_buffer((256, 128), dtype="float32")
 
     func1 = func1.with_attr("global_symbol", "main")
     func2 = func2.with_attr("global_symbol", "main")
@@ -121,8 +121,8 @@ def test_allocate():
     assert _error_message(ve.value) == _expected_result(
         func1,
         func2,
-        ObjectPath.root().attr("body").attr("extents").array_index(0).attr("value"),
-        ObjectPath.root().attr("body").attr("extents").array_index(0).attr("value"),
+        AccessPath.root().attr("body").attr("buffer").attr("shape").array_item(0).attr("value"),
+        AccessPath.root().attr("body").attr("buffer").attr("shape").array_item(0).attr("value"),
     )
 
 
@@ -130,13 +130,13 @@ def test_for():
     @T.prim_func
     def func1():
         for i, j in T.grid(128, 128):
-            with T.block():
+            with T.sblock():
                 pass
 
     @T.prim_func
     def func2():
         for i, j, k in T.grid(128, 128, 128):
-            with T.block():
+            with T.sblock():
                 pass
 
     func1 = func1.with_attr("global_symbol", "main")
@@ -147,8 +147,8 @@ def test_for():
     assert _error_message(ve.value) == _expected_result(
         func1,
         func2,
-        ObjectPath.root().attr("body").attr("block").attr("body").attr("body").attr("body"),
-        ObjectPath.root().attr("body").attr("block").attr("body").attr("body").attr("body"),
+        AccessPath.root().attr("body").attr("block").attr("body").attr("body").attr("body"),
+        AccessPath.root().attr("body").attr("block").attr("body").attr("body").attr("body"),
     )
 
 

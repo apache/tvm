@@ -21,6 +21,7 @@
 
 #include "../src/runtime/hexagon/hexagon_device_api.h"
 
+using namespace tvm;
 using namespace tvm::runtime;
 using namespace tvm::runtime::hexagon;
 using namespace tvm::ffi;
@@ -56,8 +57,8 @@ class HexagonUserDMATest : public ::testing::Test {
   uint32_t length = 0x4000;  // 16KB
   const bool ENABLE_BYPASS = true;
   const bool DISABLE_BYPASS = false;
-  Optional<String> global_scope = String("global");
-  Optional<String> global_vtcm_scope = String("global.vtcm");
+  ffi::Optional<ffi::String> global_scope = ffi::String("global");
+  ffi::Optional<ffi::String> global_vtcm_scope = ffi::String("global.vtcm");
 };
 
 TEST_F(HexagonUserDMATest, wait) {

@@ -14,15 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import pytest
+# ruff: noqa: RUF005
 import numpy as np
+import pytest
+
 import tvm
 import tvm.testing
-
 from tvm import relax
-from tvm.script import relax as R
-from tvm.relax.dpl import make_fused_bias_activation_pattern, is_op, wildcard
 from tvm.contrib.pickle_memoize import memoize
+from tvm.relax.dpl import is_op, make_fused_bias_activation_pattern, wildcard
+from tvm.script import relax as R
 
 
 @tvm.script.ir_module
@@ -67,7 +68,7 @@ def build_and_run(mod, inputs_np, target, legalize=False):
         ex = tvm.compile(mod, target)
     vm = relax.VirtualMachine(ex, dev)
     f = vm["main"]
-    inputs = [tvm.nd.array(inp, dev) for inp in inputs_np]
+    inputs = [tvm.runtime.tensor(inp, dev) for inp in inputs_np]
     return f(*inputs).numpy()
 
 

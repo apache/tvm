@@ -23,8 +23,8 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/int_tuple.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/object.h>
+#include <tvm/runtime/tensor.h>
 
 namespace tvm {
 namespace runtime {
@@ -94,8 +94,9 @@ class KVStateObj : public Object {
    * is the sum of "append_lengths". Nullptr means the token tree of each sequence
    * is a chain.
    */
-  virtual void BeginForward(const IntTuple& seq_ids, const IntTuple& append_lengths,
-                            const Optional<IntTuple>& token_tree_parent_ptr = std::nullopt) = 0;
+  virtual void BeginForward(
+      const IntTuple& seq_ids, const IntTuple& append_lengths,
+      const ffi::Optional<IntTuple>& token_tree_parent_ptr = std::nullopt) = 0;
 
   /*!
    * \brief Mark the start of the forward function.
@@ -104,13 +105,13 @@ class KVStateObj : public Object {
    */
   virtual void EndForward() = 0;
 
-  static constexpr const char* _type_key = "relax.vm.KVState";
-  TVM_DECLARE_BASE_OBJECT_INFO(KVStateObj, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.vm.KVState", KVStateObj, Object);
 };
 
 class KVState : public ObjectRef {
  public:
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(KVState, ObjectRef, KVStateObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(KVState, ObjectRef, KVStateObj);
 };
 
 /*!
@@ -178,8 +179,8 @@ class AttentionKVCacheObj : public KVStateObj {
    * \param sm_scale The additional attention scaling factor.
    * \sa AttentionKVCache::Attention
    */
-  virtual void AttentionWithFusedQKV(int64_t layer_id, NDArray qkv_data, Optional<NDArray> mask,
-                                     NDArray o_data, double sm_scale) = 0;
+  virtual void AttentionWithFusedQKV(int64_t layer_id, Tensor qkv_data, ffi::Optional<Tensor> mask,
+                                     Tensor o_data, double sm_scale) = 0;
 
   /*!
    * \brief Fine-grained API that computes ragged self attention with Q/K/V data.
@@ -191,8 +192,8 @@ class AttentionKVCacheObj : public KVStateObj {
    * \param lse_data The output attention LSE data, in layout `(total_length, num_qo_heads)`.
    * \param sm_scale The additional attention scaling factor.
    */
-  virtual void SelfAttention(int64_t layer_id, NDArray q_data, NDArray k_data, NDArray v_data,
-                             NDArray o_data, NDArray lse_data, double sm_scale) = 0;
+  virtual void SelfAttention(int64_t layer_id, Tensor q_data, Tensor k_data, Tensor v_data,
+                             Tensor o_data, Tensor lse_data, double sm_scale) = 0;
 
   /*!
    * \brief Fine-grained API that computes paged cross attention with Q and in-cache KV data.
@@ -202,7 +203,7 @@ class AttentionKVCacheObj : public KVStateObj {
    * \param lse_data The output attention LSE data, in layout `(total_length, num_qo_heads)`.
    * \param sm_scale The additional attention scaling factor.
    */
-  virtual void CrossAttention(int64_t layer_id, NDArray q_data, NDArray o_data, NDArray lse_data,
+  virtual void CrossAttention(int64_t layer_id, Tensor q_data, Tensor o_data, Tensor lse_data,
                               double sm_scale) = 0;
 
   /*!
@@ -210,7 +211,7 @@ class AttentionKVCacheObj : public KVStateObj {
    * \param layer_id The model layer where the attention compute happens.
    * \param kv_data The input KV data to append, in layout `(total_length, qk_head_dim)`.
    */
-  virtual void AppendMLAKV(int64_t layer_id, NDArray kv_data) = 0;
+  virtual void AppendMLAKV(int64_t layer_id, Tensor kv_data) = 0;
 
   /*!
    * \brief Fine-grained API that merges the attention output from two sources.
@@ -220,8 +221,8 @@ class AttentionKVCacheObj : public KVStateObj {
    * \param lse2_data The second source LSE data.
    * \return The merged O and LSE data.
    */
-  virtual Array<NDArray> MergeAttnOutputInplace(NDArray o_self_attn, NDArray lse_self_attn,
-                                                NDArray o_cross_attn, NDArray lse_cross_attn) = 0;
+  virtual ffi::Array<Tensor> MergeAttnOutputInplace(Tensor o_self_attn, Tensor lse_self_attn,
+                                                    Tensor o_cross_attn, Tensor lse_cross_attn) = 0;
 
   /*!
    * \brief Compute linear attention with Q/K/V data.
@@ -233,7 +234,7 @@ class AttentionKVCacheObj : public KVStateObj {
    * \param sm_scale The additional attention scaling factor.
    * \sa AttentionKVCache::Attention
    */
-  virtual void LinearAttention(int64_t layer_id, NDArray q_data, NDArray k_data, NDArray v_data,
+  virtual void LinearAttention(int64_t layer_id, Tensor q_data, Tensor k_data, Tensor v_data,
                                double sm_scale) = 0;
 
   /************** Positions **************/
@@ -243,7 +244,7 @@ class AttentionKVCacheObj : public KVStateObj {
    * This function is supposed to be invoked after calling BeginForward.
    * \return The in-sequence query positions, in shape `(total_length,)`.
    */
-  virtual NDArray GetQueryPositions() = 0;
+  virtual Tensor GetQueryPositions() = 0;
 
   /************** Debug Helpers **************/
 
@@ -265,7 +266,7 @@ class AttentionKVCacheObj : public KVStateObj {
    * \param V_data The output V data of the given sequence in layout elaborated above.
    */
   virtual void DebugGetKV(int64_t seq_id,  //
-                          int64_t start_pos, int64_t end_pos, NDArray k_data, NDArray v_data) = 0;
+                          int64_t start_pos, int64_t end_pos, Tensor k_data, Tensor v_data) = 0;
 
   /*!
    * \brief Fetch the compact K/V data of the given sequence for MLA cache.
@@ -275,7 +276,7 @@ class AttentionKVCacheObj : public KVStateObj {
    * \param kv_data The output KV data of the given sequence in layout elaborated above.
    */
   virtual void DebugGetKVMLA(int64_t seq_id, int64_t start_pos, int64_t end_pos,
-                             NDArray kv_data) = 0;
+                             Tensor kv_data) = 0;
 
   /*!
    * \brief Set the K/V data of the given sequence from input K/V data.
@@ -291,15 +292,15 @@ class AttentionKVCacheObj : public KVStateObj {
    * \param k_data The K data to set in layout elaborated above.
    * \param v_data The V data to set in layout elaborated above.
    */
-  virtual void DebugSetKV(int64_t seq_id, int64_t start_pos, NDArray k_data, NDArray v_data) = 0;
+  virtual void DebugSetKV(int64_t seq_id, int64_t start_pos, Tensor k_data, Tensor v_data) = 0;
 
-  static constexpr const char* _type_key = "relax.vm.AttentionKVCache";
-  TVM_DECLARE_BASE_OBJECT_INFO(AttentionKVCacheObj, KVStateObj);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.vm.AttentionKVCache", AttentionKVCacheObj, KVStateObj);
 };
 
 class AttentionKVCache : public KVState {
  public:
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(AttentionKVCache, KVState, AttentionKVCacheObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(AttentionKVCache, KVState, AttentionKVCacheObj);
 };
 
 /*!
@@ -317,7 +318,7 @@ class RNNStateObj : public KVStateObj {
    * \return The array of State data, each element corresponds to a state.
    * \throws Error if the given sequence id is not valid.
    */
-  virtual void Get(int64_t layer_id, int64_t state_id, NDArray o_data) = 0;
+  virtual void Get(int64_t layer_id, int64_t state_id, Tensor o_data) = 0;
 
   /*!
    * \brief Set the State data for the specified sequence.
@@ -326,7 +327,7 @@ class RNNStateObj : public KVStateObj {
    * \param data The data to be set.
    * \throws Error if the given sequence id is not valid.
    */
-  virtual void Set(int64_t layer_id, int64_t state_id, NDArray data) = 0;
+  virtual void Set(int64_t layer_id, int64_t state_id, Tensor data) = 0;
 
   /*!
    * \brief Fetch the compact rnn state data of the given sequence.
@@ -334,15 +335,15 @@ class RNNStateObj : public KVStateObj {
    * \param state_id The state id within the layer.
    * \param seq_id The sequence whose state data is to be fetched.
    */
-  virtual NDArray DebugGet(int64_t layer_id, int64_t state_id, int64_t seq_id) = 0;
+  virtual Tensor DebugGet(int64_t layer_id, int64_t state_id, int64_t seq_id) = 0;
 
-  static constexpr const char* _type_key = "relax.vm.RNNState";
-  TVM_DECLARE_BASE_OBJECT_INFO(RNNStateObj, KVStateObj);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.vm.RNNState", RNNStateObj, KVStateObj);
 };
 
 class RNNState : public KVState {
  public:
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(RNNState, KVState, RNNStateObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(RNNState, KVState, RNNStateObj);
 };
 
 }  // namespace vm

@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
@@ -40,8 +41,8 @@ def test_pipeline_compile():
     ex = tvm.compile(mod, target)
     x_np = np.random.rand(3, 4).astype(np.float32)
     y_np = np.random.rand(3, 4).astype(np.float32)
-    x = tvm.nd.array(x_np)
-    y = tvm.nd.array(y_np)
+    x = tvm.runtime.tensor(x_np)
+    y = tvm.runtime.tensor(y_np)
 
     vm = relax.VirtualMachine(ex, tvm.cpu())
     z = vm["main"](x, y)
@@ -106,10 +107,44 @@ def test_pipeline_with_kv_cache():
     for i in range(num_steps):
         x_np = np.random.rand(1, 4).astype(np.float32)
         y_np = np.random.rand(1, 4).astype(np.float32)
-        x = tvm.nd.array(x_np)
-        y = tvm.nd.array(y_np)
+        x = tvm.runtime.tensor(x_np)
+        y = tvm.runtime.tensor(y_np)
         np_shape = (i + 1, 4)
         kv, kv_cache = vm["main"](x, y, tvm.runtime.ShapeTuple(np_shape), kv_cache)
 
         cache_np[i, :] = x_np + y_np
         tvm.testing.assert_allclose(kv.numpy(), cache_np[: np_shape[0], :], rtol=1e-7, atol=1e-7)
+
+
+@pytest.mark.parametrize("target_name", ["vulkan", "webgpu"])
+@pytest.mark.parametrize(
+    "pipeline_func",
+    [
+        relax.pipeline.library_dispatch_passes,
+        relax.pipeline.legalize_passes,
+        relax.pipeline.dataflow_lower_passes,
+        relax.pipeline.finalize_passes,
+        relax.pipeline.get_default_pipeline,
+    ],
+)
+def test_gpu_generic_fallback(target_name, pipeline_func):
+    target = tvm.target.Target(target_name)
+    result = pipeline_func(target)
+    assert result is not None
+
+
+@pytest.mark.parametrize("target_name", ["hexagon", "c"])
+@pytest.mark.parametrize(
+    "pipeline_func",
+    [
+        relax.pipeline.library_dispatch_passes,
+        relax.pipeline.legalize_passes,
+        relax.pipeline.dataflow_lower_passes,
+        relax.pipeline.finalize_passes,
+        relax.pipeline.get_default_pipeline,
+    ],
+)
+def test_non_gpu_target_raises_error(target_name, pipeline_func):
+    target = tvm.target.Target(target_name)
+    with pytest.raises(ValueError, match="not yet supported"):
+        pipeline_func(target)

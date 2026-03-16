@@ -33,6 +33,7 @@
 #include <algorithm>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "../../support/array.h"
@@ -73,7 +74,7 @@ class MemoizedExprTranslator : public ::tvm::relax::ExprFunctor<OutputType(const
    * \return The result of the call
    */
   virtual OutputType VisitExpr(const Expr& n) {
-    ICHECK(n.defined());
+    TVM_FFI_ICHECK(n.defined());
     auto it = memo_.find(n);
     if (it != memo_.end()) {
       return it->second;
@@ -84,12 +85,12 @@ class MemoizedExprTranslator : public ::tvm::relax::ExprFunctor<OutputType(const
   }
 
   virtual OutputType VisitExpr_(const VarNode* vn) {
-    ICHECK(memo_.count(GetRef<Expr>(vn)));
-    return memo_[GetRef<Expr>(vn)];
+    TVM_FFI_ICHECK(memo_.count(ffi::GetRef<Expr>(vn)));
+    return memo_[ffi::GetRef<Expr>(vn)];
   }
 
   virtual OutputType VisitBinding_(const VarBindingNode* binding) {
-    ICHECK_EQ(memo_.count(binding->var), 0);
+    TVM_FFI_ICHECK_EQ(memo_.count(binding->var), 0);
     auto v = VisitExpr(binding->value);
     memo_[binding->var] = v;
     return v;
@@ -115,7 +116,7 @@ class MemoizedExprTranslator : public ::tvm::relax::ExprFunctor<OutputType(const
  * \param entry_functions list of entry functions
  * \return The updated module.
  */
-TVM_DLL IRModule DeadCodeElimination(const IRModule& mod, Array<String> entry_funcs);
+TVM_DLL IRModule DeadCodeElimination(const IRModule& mod, ffi::Array<ffi::String> entry_funcs);
 
 /*!
  * \brief Get the external symbol of the Relax function name.
@@ -124,8 +125,8 @@ TVM_DLL IRModule DeadCodeElimination(const IRModule& mod, Array<String> entry_fu
  * \return An external symbol.
  */
 inline std::string GetExtSymbol(const Function& func) {
-  const auto name_node = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
-  ICHECK(name_node.defined()) << "Fail to retrieve external symbol.";
+  const auto name_node = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
+  TVM_FFI_ICHECK(name_node.has_value()) << "Fail to retrieve external symbol.";
   return std::string(name_node.value());
 }
 
@@ -142,7 +143,7 @@ inline std::string GetExtSymbol(const Function& func) {
  */
 IRModule MakeGroupedFunctions(
     IRModule mod, const std::unordered_map<const Object*, GraphPartitioner::Group*>& partition,
-    bool lift_constants = true, const Array<String>& entry_function_names = {});
+    bool lift_constants = true, const ffi::Array<ffi::String>& entry_function_names = {});
 
 /*!
  * \brief Check if the given StructInfo is a scalar tensor. The sinfo should be an instance of
@@ -172,7 +173,7 @@ bool IsScalarTensor(const Expr& expr);
 template <typename FType>
 bool IsNestedTensorConditioned(const StructInfo& sinfo, FType f_condition) {
   if (const auto* tensor_sinfo = sinfo.as<TensorStructInfoNode>()) {
-    return f_condition(GetRef<TensorStructInfo>(tensor_sinfo));
+    return f_condition(ffi::GetRef<TensorStructInfo>(tensor_sinfo));
   } else if (const auto* tuple_sinfo = sinfo.as<TupleStructInfoNode>()) {
     return !std::any_of(
         tuple_sinfo->fields.begin(), tuple_sinfo->fields.end(),
@@ -209,7 +210,7 @@ class VarReplacer : public ExprMutator {
 
  private:
   Expr VisitExpr_(const VarNode* op) final {
-    Var var = GetRef<Var>(op);
+    Var var = ffi::GetRef<Var>(op);
     auto it = var_remap_.find(var->vid);
     return it == var_remap_.end() ? var : it->second;
   }
@@ -241,19 +242,19 @@ class SymbolicVarRenewMutator : public ExprMutator, tir::ExprMutator {
   // 1. Visit and replace all tir::Vars at the definition point
   // 2. Revisit the function again and update the use side.
   PrimExpr VisitExpr_(const tir::VarNode* op) final {
-    auto it = var_map_.find(GetRef<tir::Var>(op));
+    auto it = var_map_.find(ffi::GetRef<tir::Var>(op));
     if (it != var_map_.end()) {
       return (*it).second;
     } else {
-      auto n = make_object<tir::VarNode>(*op);
+      auto n = ffi::make_object<tir::VarNode>(*op);
       tir::Var v(n);
-      var_map_.Set(GetRef<tir::Var>(op), v);
+      var_map_.Set(ffi::GetRef<tir::Var>(op), v);
       return v;
     }
   }
 
   Expr VisitExpr_(const FunctionNode* op) {
-    tvm::Array<Var> params;
+    tvm::ffi::Array<Var> params;
     bool all_params_unchanged = true;
     for (Var param : op->params) {
       Var new_param = this->VisitVarDef(param);
@@ -267,14 +268,14 @@ class SymbolicVarRenewMutator : public ExprMutator, tir::ExprMutator {
     Expr body = this->VisitWithNewScope(op->body, params);
 
     if (all_params_unchanged && body.same_as(op->body)) {
-      return GetRef<Expr>(op);
+      return ffi::GetRef<Expr>(op);
     } else {
       auto new_ret_sinfo = this->VisitExprDepStructInfoField(op->ret_struct_info);
       return Function(params, body, new_ret_sinfo, op->is_pure, op->attrs);
     }
   }
 
-  Map<tir::Var, tir::Var> var_map_;
+  ffi::Map<tir::Var, tir::Var> var_map_;
 };
 
 /*!
@@ -286,7 +287,7 @@ class FunctionCopier : public SymbolicVarRenewMutator {
  public:
   FunctionCopier() = default;
   Function Copy(Function func) { return Downcast<Function>(VisitExpr(func)); }
-  Map<Var, Var> GetVarMap() { return relax_var_map_; }
+  ffi::Map<Var, Var> GetVarMap() { return relax_var_map_; }
 
  private:
   using relax::ExprMutator::VisitExpr;
@@ -295,7 +296,7 @@ class FunctionCopier : public SymbolicVarRenewMutator {
     Var new_var = SymbolicVarRenewMutator::VisitVarDef_(var);
     Var copied_var = DataflowVar(new_var->name_hint(), GetStructInfo(new_var), new_var->span);
     var_remap_[var->vid] = copied_var;
-    relax_var_map_.Set(GetRef<Var>(var), copied_var);
+    relax_var_map_.Set(ffi::GetRef<Var>(var), copied_var);
     return copied_var;
   }
 
@@ -303,11 +304,11 @@ class FunctionCopier : public SymbolicVarRenewMutator {
     Var new_var = SymbolicVarRenewMutator::VisitVarDef_(var);
     Var copied_var = Var(new_var->name_hint(), GetStructInfo(new_var), new_var->span);
     var_remap_[var->vid] = copied_var;
-    relax_var_map_.Set(GetRef<Var>(var), copied_var);
+    relax_var_map_.Set(ffi::GetRef<Var>(var), copied_var);
     return copied_var;
   }
 
-  Map<Var, Var> relax_var_map_;
+  ffi::Map<Var, Var> relax_var_map_;
 };
 
 /*!
@@ -319,7 +320,7 @@ class FunctionCopier : public SymbolicVarRenewMutator {
  */
 template <typename T>
 inline Constant MakeConstantScalar(T value, DataType dtype) {
-  runtime::NDArray arr = runtime::NDArray::Empty({}, dtype, {kDLCPU, 0});
+  runtime::Tensor arr = runtime::Tensor::Empty({}, dtype, {kDLCPU, 0});
   if (dtype == DataType::Float(32)) {
     *static_cast<float*>(arr->data) = static_cast<float>(value);
   } else if (dtype == DataType::Float(64)) {
@@ -328,7 +329,7 @@ inline Constant MakeConstantScalar(T value, DataType dtype) {
     *static_cast<int32_t*>(arr->data) = static_cast<int32_t>(value);
   } else if (dtype == DataType::Int(64)) {
     *static_cast<int64_t*>(arr->data) = static_cast<int64_t>(value);
-  } else if (dtype == DataType::UInt(1)) {
+  } else if (dtype == DataType::Bool()) {
     *static_cast<bool*>(arr->data) = static_cast<bool>(value);
   } else if (dtype == DataType::UInt(8)) {
     *static_cast<uint8_t*>(arr->data) = static_cast<uint8_t>(value);
@@ -355,12 +356,12 @@ inline Constant MakeConstantScalar(T value, DataType dtype) {
     *static_cast<uint16_t*>(arr->data) =
         __truncXfYf2__<float, uint32_t, 23, uint16_t, uint16_t, 7>(static_cast<float>(value));
   } else {
-    LOG(FATAL) << "Unsupported dtype " << dtype;
+    TVM_FFI_THROW(InternalError) << "Unsupported dtype " << dtype;
   }
   return Constant(arr);
 }
 
-inline Array<Integer> GetOrderedPositiveAxes(const Array<Integer>& axes, int ndim) {
+inline ffi::Array<Integer> GetOrderedPositiveAxes(const ffi::Array<Integer>& axes, int ndim) {
   std::vector<int64_t> ret;
   ret.reserve(axes.size());
   for (const auto& axis : axes) {
@@ -368,30 +369,56 @@ inline Array<Integer> GetOrderedPositiveAxes(const Array<Integer>& axes, int ndi
     if (axis_val < 0) {
       axis_val += ndim;
     }
-    ICHECK(axis_val >= 0 && axis_val < ndim) << "axis " << axis << " is out of bounds for array of "
-                                             << "dimension " << ndim;
+    TVM_FFI_ICHECK(axis_val >= 0 && axis_val < ndim)
+        << "axis " << axis << " is out of bounds for array of "
+        << "dimension " << ndim;
     ret.push_back(axis_val);
   }
   std::sort(ret.begin(), ret.end());
   return support::AsArray<int64_t, Integer>(ret);
 }
 
-inline String GetCodegenName(const std::string& composite_name) {
+inline ffi::String GetCodegenName(const std::string& composite_name) {
   auto delim_pos = composite_name.find(".");
-  ICHECK(delim_pos != std::string::npos) << "The pattern name for a composite function should "
-                                            "start with a compiler name followed by period.";
+  TVM_FFI_ICHECK(delim_pos != std::string::npos)
+      << "The pattern name for a composite function should "
+         "start with a compiler name followed by period.";
   return composite_name.substr(0, delim_pos);
 }
 
-inline int GetDeviceIndex(const IRModule& mod, const VDevice& vdevice) {
-  Array<GlobalInfo> vdevices = mod->global_infos["vdevice"];
+inline int GetDeviceIndexByScope(const IRModule& mod, const ffi::String& scope) {
+  if (mod->global_infos.find("vdevice") == mod->global_infos.end()) {
+    return 0;
+  }
+  ffi::Array<GlobalInfo> vdevices = mod->global_infos["vdevice"];
   for (int i = 0; i < static_cast<int>(vdevices.size()); ++i) {
-    if (vdevices[i] == vdevice) {
+    if (scope == vdevices[i].as<VDevice>().value()->memory_scope) {
       return i;
     }
   }
-  LOG(FATAL) << "The vdevice is not in the ir_module.";
+  return 0;
+}
+
+inline int GetDeviceIndex(const IRModule& mod, const VDevice& vdevice) {
+  ffi::Array<GlobalInfo> vdevices = mod->global_infos["vdevice"];
+  for (int i = 0; i < static_cast<int>(vdevices.size()); ++i) {
+    if (vdevices[i].same_as(vdevice)) {
+      return i;
+    }
+  }
+  TVM_FFI_THROW(InternalError) << "The vdevice is not in the ir_module.";
   return -1;
+}
+
+inline ffi::Optional<VDevice> GetGlobalVDevice(const IRModule& mod, const int index) {
+  ffi::Optional<VDevice> ret;
+  if (mod->global_infos.find("vdevice") != mod->global_infos.end()) {
+    ffi::Array<GlobalInfo> vdevices = mod->global_infos["vdevice"];
+    if (index < static_cast<int>(vdevices.size())) {
+      ret = vdevices[index].as<VDevice>();
+    }
+  }
+  return ret;
 }
 
 /* \brief Eliminate common subexpressions
@@ -434,7 +461,8 @@ Expr CanonicalizeBindings(Expr expr);
  *
  * \ret The updated function.
  */
-Function BundleModelParams(const Function& func, Optional<String> param_tuple_name = std::nullopt);
+Function BundleModelParams(const Function& func,
+                           ffi::Optional<ffi::String> param_tuple_name = std::nullopt);
 
 /*! \brief Compose two functions
  *

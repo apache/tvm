@@ -64,29 +64,28 @@ class DiagnosticNode : public Object {
    */
   ObjectRef loc;
   /*! \brief The diagnostic message. */
-  String message;
+  ffi::String message;
+  /*! \brief The error kind when the diagnostic is used as an error (e.g. "TypeError"). */
+  ffi::String error_kind{"InternalError"};
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<DiagnosticNode>()
         .def_ro("level", &DiagnosticNode::level)
         .def_ro("span", &DiagnosticNode::span)
-        .def_ro("message", &DiagnosticNode::message);
-  }
-
-  bool SEqualReduce(const DiagnosticNode* other, SEqualReducer equal) const {
-    return equal(this->level, other->level) && equal(this->span, other->span) &&
-           equal(this->message, other->message);
+        .def_ro("message", &DiagnosticNode::message)
+        .def_ro("error_kind", &DiagnosticNode::error_kind);
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  static constexpr const char* _type_key = "Diagnostic";
-  TVM_DECLARE_FINAL_OBJECT_INFO(DiagnosticNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("Diagnostic", DiagnosticNode, Object);
 };
 
 class Diagnostic : public ObjectRef {
  public:
   TVM_DLL Diagnostic(DiagnosticLevel level, Span span, const std::string& message);
+  TVM_DLL Diagnostic(DiagnosticLevel level, Span span, const std::string& message,
+                     const std::string& error_kind);
 
   static DiagnosticBuilder Bug(Span span);
   static DiagnosticBuilder Error(Span span);
@@ -105,8 +104,12 @@ class Diagnostic : public ObjectRef {
   static DiagnosticBuilder Warning(const Object* loc);
   static DiagnosticBuilder Note(const Object* loc);
   static DiagnosticBuilder Help(const Object* loc);
+  // variants with error kind
+  static DiagnosticBuilder Error(std::string error_kind, Span span);
+  static DiagnosticBuilder Error(std::string error_kind, ObjectRef loc);
+  static DiagnosticBuilder Error(std::string error_kind, const Object* loc);
 
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Diagnostic, ObjectRef, DiagnosticNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Diagnostic, ObjectRef, DiagnosticNode);
 };
 
 /*!
@@ -128,6 +131,9 @@ class DiagnosticBuilder {
    */
   ObjectRef loc;
 
+  /*! \brief The error kind (e.g. "TypeError", "ValueError"). */
+  std::string error_kind{"InternalError"};
+
   template <typename T>
   DiagnosticBuilder& operator<<(const T& val) {  // NOLINT(*)
     stream_ << val;
@@ -137,13 +143,24 @@ class DiagnosticBuilder {
   DiagnosticBuilder() : level(DiagnosticLevel::kError), source_name(), span(Span()) {}
 
   DiagnosticBuilder(const DiagnosticBuilder& builder)
-      : level(builder.level), source_name(builder.source_name), span(builder.span) {}
+      : level(builder.level),
+        source_name(builder.source_name),
+        span(builder.span),
+        error_kind(builder.error_kind) {}
 
   DiagnosticBuilder(DiagnosticLevel level, Span span) : level(level), span(span) {}
 
   DiagnosticBuilder(DiagnosticLevel level, ObjectRef loc) : level(level), loc(loc) {}
 
-  operator Diagnostic() { return Diagnostic(this->level, this->span, this->stream_.str()); }
+  /*! \brief Set the error kind for this diagnostic. */
+  DiagnosticBuilder& WithErrorKind(std::string kind) {
+    error_kind = std::move(kind);
+    return *this;
+  }
+
+  operator Diagnostic() {
+    return Diagnostic(this->level, this->span, this->stream_.str(), this->error_kind);
+  }
 
  private:
   std::stringstream stream_;
@@ -172,9 +189,7 @@ class DiagnosticRendererNode : public Object {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<DiagnosticRendererNode>().def_ro("renderer", &DiagnosticRendererNode::renderer);
   }
-
-  static constexpr const char* _type_key = "DiagnosticRenderer";
-  TVM_DECLARE_FINAL_OBJECT_INFO(DiagnosticRendererNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("DiagnosticRenderer", DiagnosticRendererNode, Object);
 };
 
 class DiagnosticRenderer : public ObjectRef {
@@ -186,11 +201,12 @@ class DiagnosticRenderer : public ObjectRef {
   void Render(const DiagnosticContext& ctx);
 
   DiagnosticRendererNode* operator->() {
-    ICHECK(get() != nullptr);
+    TVM_FFI_ICHECK(get() != nullptr);
     return static_cast<DiagnosticRendererNode*>(get_mutable());
   }
 
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(DiagnosticRenderer, ObjectRef, DiagnosticRendererNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DiagnosticRenderer, ObjectRef,
+                                                DiagnosticRendererNode);
 };
 
 class DiagnosticContextNode : public Object {
@@ -199,7 +215,7 @@ class DiagnosticContextNode : public Object {
   IRModule module;
 
   /*! \brief The set of diagnostics to report. */
-  Array<Diagnostic> diagnostics;
+  ffi::Array<Diagnostic> diagnostics;
 
   /*! \brief The renderer set for the context. */
   DiagnosticRenderer renderer;
@@ -211,13 +227,8 @@ class DiagnosticContextNode : public Object {
         .def_ro("diagnostics", &DiagnosticContextNode::diagnostics);
   }
 
-  bool SEqualReduce(const DiagnosticContextNode* other, SEqualReducer equal) const {
-    return equal(module, other->module) && equal(diagnostics, other->diagnostics);
-  }
-
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  static constexpr const char* _type_key = "DiagnosticContext";
-  TVM_DECLARE_FINAL_OBJECT_INFO(DiagnosticContextNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("DiagnosticContext", DiagnosticContextNode, Object);
 };
 
 class DiagnosticContext : public ObjectRef {
@@ -243,11 +254,12 @@ class DiagnosticContext : public ObjectRef {
   void Render();
 
   DiagnosticContextNode* operator->() {
-    ICHECK(get() != nullptr);
+    TVM_FFI_ICHECK(get() != nullptr);
     return static_cast<DiagnosticContextNode*>(get_mutable());
   }
 
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(DiagnosticContext, ObjectRef, DiagnosticContextNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DiagnosticContext, ObjectRef,
+                                                DiagnosticContextNode);
 };
 
 DiagnosticRenderer TerminalRenderer(std::ostream& ostream);

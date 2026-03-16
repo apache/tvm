@@ -50,6 +50,14 @@ TVM_DLL const Op& ret();
  */
 TVM_DLL const Op& thread_return();
 /*!
+ * \brief Loop continue.
+ */
+TVM_DLL const Op& continue_loop();
+/*!
+ * \brief Loop break.
+ */
+TVM_DLL const Op& break_loop();
+/*!
  * \brief Reinterpret the value using the target type.
  */
 TVM_DLL const Op& reinterpret();
@@ -225,7 +233,7 @@ TVM_DLL const Op& call_spirv_pure_glsl450();
 // TODO(tvm-team) revisit the builtins below
 // some of them can simply become ops with special codegen attr.
 /*!
- * \brief Prefetch a cacheline
+ * \brief same signature as llvm.prefetch
  */
 TVM_DLL const Op& prefetch();
 
@@ -298,7 +306,7 @@ TVM_DLL const Op& tvm_struct_set();
 
 /*!
  * \brief See pseudo code
- * Type lookup_param(String param_name) {
+ * Type lookup_param(ffi::String param_name) {
  *     return __tvm_param__param_name;
  * }
  */
@@ -337,7 +345,7 @@ TVM_DLL const Op& tvm_stack_alloca();
 TVM_DLL const Op& tvm_stack_make_shape();
 
 /*!
- * \brief Allocate a NDArray(DLTensor) on stack, return the handle.
+ * \brief Allocate a Tensor(DLTensor) on stack, return the handle.
  *
  *  Type tvm_stack_make_array(Expr data,
  *                            Expr shape,
@@ -394,19 +402,6 @@ TVM_DLL const Op& tvm_call_cpacked();
  *  }
  */
 TVM_DLL const Op& tvm_call_trace_packed();
-
-/*!
- * \brief See pesudo code
- *  Mark the content as thread local context, can get optimized
- *  by only call the call once at thread start.
- *
- *  Do not allow nesting(getting a thread context from another).
- *
- *  Handle tvm_thread_context(Expr call) {
- *     return call;
- *  }
- */
-TVM_DLL const Op& tvm_thread_context();
 
 /*!
  * \brief Mark a condition to be thread invariant.
@@ -968,24 +963,27 @@ TVM_DLL const Op& ignore_loop_partition();
 
 /*! \brief The kind of structure field info used in intrinsic */
 enum TVMStructFieldKind : int {
-  // array head address
-  kArrAddr,
-  kArrData,
-  kArrShape,
-  kArrStrides,
-  kArrNDim,
-  kArrTypeCode,
-  kArrTypeBits,
-  kArrTypeLanes,
-  kArrByteOffset,
-  kArrDeviceId,
-  kArrDeviceType,
-  kArrKindBound_,
+  // DLTensor fields
+  kDLTensorAddr,
+  kDLTensorData,
+  kDLTensorShape,
+  kDLTensorStrides,
+  kDLTensorNDim,
+  kDLTensorTypeCode,
+  kDLTensorTypeBits,
+  kDLTensorTypeLanes,
+  kDLTensorByteOffset,
+  kDLTensorDeviceId,
+  kDLTensorDeviceType,
+  kDLTensorKindBound_,
   // TVMValue field
   kTVMValueContent,
   kTVMFFIAnyTypeIndex,
+  kTVMFFIAnyZeroPadding,
   kTVMFFIAnyUnionValue,
-  kTVMValueKindBound_
+  kTVMValueKindBound_,
+  // Generic int64 array element access: ((int64_t*)buf)[index]
+  kInt64ArrayElem,
 };
 }  // namespace builtin
 }  // namespace tir

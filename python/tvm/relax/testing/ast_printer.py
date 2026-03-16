@@ -21,7 +21,9 @@ only intended to show how the AST is put together.
 It is not a pretty-printer and, in fact, is more of an ugly-printer,
 but it can be useful for tutorials and debugging.
 """
-from typing import Iterable
+
+from collections.abc import Iterable
+
 import tvm
 from tvm import relax
 from tvm.ir.expr import PrimExpr
@@ -222,7 +224,7 @@ class ASTPrinter(ExprFunctor):
 
     def visit_prim_expr_(self, prim_expr: PrimExpr) -> str:
         # TODO: We may want to print PrimExpr ASTs, but this is a simplification for now
-        return self.build_ast_node("PrimExpr", value=f"`{str(prim_expr)}`")
+        return self.build_ast_node("PrimExpr", value=f"`{prim_expr!s}`")
 
     def visit_tuple_getitem_(self, op: relax.TupleGetItem) -> str:
         return self.build_expr(
@@ -260,7 +262,6 @@ class ASTPrinter(ExprFunctor):
                 "FuncType",
                 arg_types=self.build_list(map(self.visit_type_, type_node.arg_types)),
                 ret_type=self.visit_type_(type_node.ret_type),
-                # TODO: skipping type params and type constraints
             )
         raise ValueError(f"Invalid Relax Type {type_node} ({type(type_node)})")
 

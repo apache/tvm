@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E402
 
 """
 .. _tir-transform:
@@ -49,17 +50,20 @@ class MyModule:
         C: T.Buffer((128, 128), "float32"),
     ):
         T.func_attr({"tir.noalias": True})
-        Y = T.alloc_buffer((128, 128))
-        for i, j, k in T.grid(128, 128, 128):
-            with T.block("Y"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                with T.init():
-                    Y[vi, vj] = T.float32(0)
-                Y[vi, vj] = Y[vi, vj] + A[vi, vk] * B[vk, vj]
-        for i, j in T.grid(128, 128):
-            with T.block("C"):
-                vi, vj = T.axis.remap("SS", [i, j])
-                C[vi, vj] = T.max(Y[vi, vj], T.float32(0))
+        with T.sblock("root"):
+            T.reads()
+            T.writes()
+            Y = T.sblock_alloc_buffer((128, 128))
+            for i, j, k in T.grid(128, 128, 128):
+                with T.sblock("Y"):
+                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                    with T.init():
+                        Y[vi, vj] = T.float32(0)
+                    Y[vi, vj] = Y[vi, vj] + A[vi, vk] * B[vk, vj]
+            for i, j in T.grid(128, 128):
+                with T.sblock("C"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    C[vi, vj] = T.max(Y[vi, vj], T.float32(0))
 
 
 ######################################################################
@@ -72,9 +76,9 @@ a_np = np.random.uniform(size=(128, 128)).astype("float32")
 b_np = np.random.uniform(size=(128, 128)).astype("float32")
 c_np = a_np @ b_np
 
-a_nd = tvm.nd.array(a_np)
-b_nd = tvm.nd.array(b_np)
-c_nd = tvm.nd.array(np.zeros((128, 128), dtype="float32"))
+a_nd = tvm.runtime.tensor(a_np)
+b_nd = tvm.runtime.tensor(b_np)
+c_nd = tvm.runtime.tensor(np.zeros((128, 128), dtype="float32"))
 
 
 def evaluate(mod: tvm.IRModule):
@@ -95,7 +99,7 @@ evaluate(MyModule)
 # We initiate the process of code transformation by establishing a Schedule helper class,
 # utilizing the provided **MyModule** as input.
 
-sch = tvm.tir.Schedule(MyModule)
+sch = tvm.s_tir.Schedule(MyModule)
 
 ######################################################################
 # Loop Tiling
@@ -103,13 +107,13 @@ sch = tvm.tir.Schedule(MyModule)
 # Subsequently, we execute the requisite operations to acquire a reference to
 # block **Y** and its associated loops.
 
-block_Y = sch.get_block("Y")
+block_Y = sch.get_sblock("Y")
 i, j, k = sch.get_loops(block_Y)
 
 ######################################################################
 # We now proceed to execute the transformations. The initial modification involves
 # splitting loop ``j`` into two separate loops, with the inner loop possessing a
-# length of 4. It is crucial to understand that the transformation process is procedural;
+# length of 8. It is crucial to understand that the transformation process is procedural;
 # thus, inadvertent execution of the block twice will yield an error stating the
 # non-existence of variable ``j``.
 
@@ -122,7 +126,7 @@ sch.mod.show()
 
 ######################################################################
 # Following the initial transformation phase, two supplementary loops, ``j_0`` and ``j_1``,
-# have been generated with respective ranges of 32 and 4. The subsequent
+# have been generated with respective ranges of 16 and 8. The subsequent
 # action involves reordering these two loops.
 
 sch.reorder(j0, k, j1)
@@ -136,7 +140,7 @@ evaluate(sch.mod)
 # variant. First, we employ a primitive known as **reverse_compute_at** to relocate block
 # **C** to an inner loop of **Y**.
 
-block_C = sch.get_block("C")
+block_C = sch.get_sblock("C")
 sch.reverse_compute_at(block_C, j0)
 sch.mod.show()
 

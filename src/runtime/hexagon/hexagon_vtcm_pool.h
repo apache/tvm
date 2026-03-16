@@ -24,7 +24,7 @@
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 
 #include <utility>
 #include <vector>
@@ -75,9 +75,9 @@ class HexagonVtcmPool {
 
   bool IsVtcm(void* ptr, unsigned size) {
     auto char_ptr = static_cast<char*>(ptr);
-    CHECK(char_ptr != nullptr);
+    TVM_FFI_ICHECK(char_ptr != nullptr);
     auto char_vtcm = static_cast<char*>(vtcm_data_);
-    CHECK(vtcm_data_ != nullptr);
+    TVM_FFI_ICHECK(vtcm_data_ != nullptr);
 
     if (char_ptr >= char_vtcm && (char_ptr + size) <= (char_vtcm + vtcm_allocated_size_)) {
       return true;

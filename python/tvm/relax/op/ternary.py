@@ -16,8 +16,9 @@
 # under the License.
 # pylint: disable=redefined-builtin, invalid-name
 """Relax ternary arithmetic operators."""
-from . import _ffi_api
+
 from ..expr import Expr
+from . import _ffi_api
 
 
 def ewise_fma(x1: Expr, x2: Expr, x3: Expr) -> Expr:

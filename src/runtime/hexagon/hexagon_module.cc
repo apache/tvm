@@ -23,31 +23,30 @@
  */
 #include "hexagon_module.h"
 
-#include <dmlc/memory_io.h>
+#include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
-#include <tvm/runtime/module.h>
+#include <tvm/support/io.h>
 
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "../../support/bytes_io.h"
 #include "../file_utils.h"
 
 namespace tvm {
 namespace runtime {
 
 HexagonModuleNode::HexagonModuleNode(std::string data, std::string fmt,
-                                     std::unordered_map<std::string, FunctionInfo> fmap,
-                                     std::string asm_str, std::string obj_str, std::string ir_str,
-                                     std::string bc_str)
+                                     ffi::Map<ffi::String, FunctionInfo> fmap, std::string asm_str,
+                                     std::string obj_str, std::string ir_str, std::string bc_str)
     : data_(data), fmt_(fmt), fmap_(fmap), asm_(asm_str), obj_(obj_str), ir_(ir_str), bc_(bc_str) {}
 
-ffi::Function HexagonModuleNode::GetFunction(const String& name,
-                                             const ObjectPtr<Object>& sptr_to_self) {
-  LOG(FATAL) << "HexagonModuleNode::GetFunction is not implemented.";
+ffi::Optional<ffi::Function> HexagonModuleNode::GetFunction(const ffi::String& name) {
+  TVM_FFI_THROW(InternalError) << "HexagonModuleNode::GetFunction is not implemented.";
 }
 
-String HexagonModuleNode::GetSource(const String& format) {
+ffi::String HexagonModuleNode::InspectSource(const ffi::String& format) const {
   if (format == "s" || format == "asm") {
     return asm_;
   }
@@ -57,40 +56,44 @@ String HexagonModuleNode::GetSource(const String& format) {
   return "";
 }
 
-void HexagonModuleNode::SaveToFile(const String& file_name, const String& format) {
+void HexagonModuleNode::WriteToFile(const ffi::String& file_name, const ffi::String& format) const {
   std::string fmt = runtime::GetFileFormat(file_name, format);
   if (fmt == "so" || fmt == "dll" || fmt == "hexagon") {
     std::string meta_file = GetMetaFilePath(file_name);
     SaveMetaDataToFile(meta_file, fmap_);
     CopyFile(data_, file_name);
   } else if (fmt == "s" || fmt == "asm") {
-    ICHECK(!asm_.empty()) << "Assembler source not available";
+    TVM_FFI_ICHECK(!asm_.empty()) << "Assembler source not available";
     SaveBinaryToFile(file_name, asm_);
   } else if (fmt == "o" || fmt == "obj") {
-    ICHECK(!obj_.empty()) << "Object data not available";
+    TVM_FFI_ICHECK(!obj_.empty()) << "Object data not available";
     SaveBinaryToFile(file_name, obj_);
   } else if (fmt == "ll") {
-    ICHECK(!ir_.empty()) << "LLVM IR source not available";
+    TVM_FFI_ICHECK(!ir_.empty()) << "LLVM IR source not available";
     SaveBinaryToFile(file_name, ir_);
   } else if (fmt == "bc") {
-    ICHECK(!bc_.empty()) << "LLVM IR bitcode not available";
+    TVM_FFI_ICHECK(!bc_.empty()) << "LLVM IR bitcode not available";
     SaveBinaryToFile(file_name, bc_);
   } else {
-    LOG(FATAL) << "HexagonModuleNode::SaveToFile: unhandled format `" << fmt << "'";
+    TVM_FFI_THROW(InternalError) << "HexagonModuleNode::SaveToFile: unhandled format `" << fmt
+                                 << "'";
   }
 }
 
-void HexagonModuleNode::SaveToBinary(dmlc::Stream* stream) {
-  stream->Write(fmt_);
-  stream->Write(fmap_);
-  stream->Write(data_);
+ffi::Bytes HexagonModuleNode::SaveToBytes() const {
+  std::string result;
+  support::BytesOutStream stream(&result);
+  stream.Write(fmt_);
+  stream.Write(fmap_);
+  stream.Write(data_);
+  return ffi::Bytes(std::move(result));
 }
 
-Module HexagonModuleCreate(std::string data, std::string fmt,
-                           std::unordered_map<std::string, FunctionInfo> fmap, std::string asm_str,
-                           std::string obj_str, std::string ir_str, std::string bc_str) {
-  auto n = make_object<HexagonModuleNode>(data, fmt, fmap, asm_str, obj_str, ir_str, bc_str);
-  return Module(n);
+ffi::Module HexagonModuleCreate(std::string data, std::string fmt,
+                                ffi::Map<ffi::String, FunctionInfo> fmap, std::string asm_str,
+                                std::string obj_str, std::string ir_str, std::string bc_str) {
+  auto n = ffi::make_object<HexagonModuleNode>(data, fmt, fmap, asm_str, obj_str, ir_str, bc_str);
+  return ffi::Module(n);
 }
 
 }  // namespace runtime

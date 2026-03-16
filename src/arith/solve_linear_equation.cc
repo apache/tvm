@@ -31,6 +31,8 @@
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
 
+#include <unordered_set>
+
 #include "int_operator.h"
 
 namespace tvm {
@@ -43,8 +45,8 @@ void SmithNormalFormDiag(std::vector<std::vector<int64_t>>* S, std::vector<std::
   if (S->empty() || V->empty()) return;
   size_t m = S->size();
   size_t n = (*S)[0].size();  // n is # of variables
-  ICHECK_EQ(V->size(), n);
-  ICHECK_EQ((*V)[0].size(), n);
+  TVM_FFI_ICHECK_EQ(V->size(), n);
+  TVM_FFI_ICHECK_EQ((*V)[0].size(), n);
 
   for (size_t index = 0; index < std::min(m, n); ++index) {
     // Here A is partially diagonalized, that is A[i, j] is zero for all i, j
@@ -209,10 +211,11 @@ void SmithNormalFormDiag(std::vector<std::vector<int64_t>>* S, std::vector<std::
   }
 }
 
-Map<Var, Range> InferRange(const Map<Var, PrimExpr>& vars_to_infer, const Array<Var>& ori_vars,
-                           const Map<Var, Range>& ori_ranges) {
+ffi::Map<Var, Range> InferRange(const ffi::Map<Var, PrimExpr>& vars_to_infer,
+                                const ffi::Array<Var>& ori_vars,
+                                const ffi::Map<Var, Range>& ori_ranges) {
   // The resulting ranges
-  Map<Var, Range> new_ranges;
+  ffi::Map<Var, Range> new_ranges;
 
   std::unordered_set<const VarNode*> ori_vset;
   for (const Var& v : ori_vars) {
@@ -260,7 +263,7 @@ void DebugPrint(const std::vector<std::vector<int64_t>>& S,
     }
     std::cout << "\n";
   }
-  std::cout << "V_inv x:\n" << Array<PrimExpr>(V_inv_x);
+  std::cout << "V_inv x:\n" << ffi::Array<PrimExpr>(V_inv_x);
   std::cout << "\n" << std::endl;
 }
 
@@ -298,8 +301,8 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints& system_to_sol
   for (const PrimExpr& equation : system_to_solve->relations) {
     if (const tir::EQNode* eq = equation.as<tir::EQNode>()) {
       // a-b = sum_{i=0}^{n-1} variables[i] * coeff[i] + coeff[n]
-      Array<PrimExpr> coeffs = arith::DetectLinearEquation(analyzer_problem.Simplify(eq->a - eq->b),
-                                                           system_to_solve->variables);
+      ffi::Array<PrimExpr> coeffs = arith::DetectLinearEquation(
+          analyzer_problem.Simplify(eq->a - eq->b), system_to_solve->variables);
       if (!coeffs.empty()) {
         std::vector<int64_t> row;
         for (size_t j = 0; j < coeffs.size() - 1; ++j) {
@@ -337,10 +340,10 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints& system_to_sol
   // Uy is U \times y
   SmithNormalFormDiag(&S, &V, &V_inv_x, &Uy);
 
-  Array<Var> new_vars;
-  Array<PrimExpr> new_relations;
-  Map<Var, PrimExpr> new_to_old_map;
-  Map<Var, PrimExpr> old_to_new_map;
+  ffi::Array<Var> new_vars;
+  ffi::Array<PrimExpr> new_relations;
+  ffi::Map<Var, PrimExpr> new_to_old_map;
+  ffi::Map<Var, PrimExpr> old_to_new_map;
 
   // Simplify right hand sides
   for (PrimExpr r : Uy) {
@@ -372,7 +375,7 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints& system_to_sol
     }
   }
 
-  Array<PrimExpr> solution_for_V_inv_x;
+  ffi::Array<PrimExpr> solution_for_V_inv_x;
   // Now create new variables or directly solve the equations
   // suppose the rank of A is r, aka r = # of non-zeros in S
   // the solution of S_{mxn} V^{-1}_{nxn} x_{nx1} = U b
@@ -421,7 +424,7 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints& system_to_sol
   }
 
   // The resulting ranges
-  Map<Var, Range> new_ranges =
+  ffi::Map<Var, Range> new_ranges =
       InferRange(new_to_old_map, system_to_solve->variables, system_to_solve->ranges);
   Analyzer analyzer_solution;
   analyzer_solution.Bind(new_ranges);
@@ -455,24 +458,25 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints& system_to_sol
   return transform;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed(
       "arith.SolveLinearEquations", [](ffi::PackedArgs args, ffi::Any* ret) {
         if (args.size() == 1) {
           *ret = SolveLinearEquations(args[0].cast<IntConstraints>());
         } else if (args.size() == 3) {
-          auto opt_vars = args[0].cast<Optional<Array<Var>>>();
-          auto opt_map = args[1].cast<Optional<Map<Var, Range>>>();
-          auto opt_relations = args[2].cast<Optional<Array<PrimExpr>>>();
+          auto opt_vars = args[0].cast<ffi::Optional<ffi::Array<Var>>>();
+          auto opt_map = args[1].cast<ffi::Optional<ffi::Map<Var, Range>>>();
+          auto opt_relations = args[2].cast<ffi::Optional<ffi::Array<PrimExpr>>>();
           IntConstraints problem(opt_vars.value_or({}), opt_map.value_or({}),
                                  opt_relations.value_or({}));
           *ret = SolveLinearEquations(problem);
         } else {
-          LOG(FATAL) << "arith.SolveLinearEquations expects 1 or 3 arguments, gets " << args.size();
+          TVM_FFI_THROW(InternalError)
+              << "arith.SolveLinearEquations expects 1 or 3 arguments, gets " << args.size();
         }
       });
-});
+}
 
 }  // namespace arith
 }  // namespace tvm

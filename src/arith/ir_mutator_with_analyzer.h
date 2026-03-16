@@ -25,6 +25,8 @@
 #define TVM_ARITH_IR_MUTATOR_WITH_ANALYZER_H_
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ir/scope_stack.h>
+#include <tvm/support/with.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
 
@@ -51,11 +53,12 @@ class IRMutatorWithAnalyzer : public tir::StmtExprMutator {
 
   // override functions that need to populate the context information.
   tir::Stmt VisitStmt_(const tir::ForNode* op) override;
-  tir::Stmt VisitStmt_(const tir::BlockNode* op) override;
-  tir::Stmt VisitStmt_(const tir::LetStmtNode* op) override;
+  tir::Stmt VisitStmt_(const tir::SBlockNode* op) override;
+  tir::Stmt VisitStmt_(const tir::BindNode* op) override;
   tir::Stmt VisitStmt_(const tir::IfThenElseNode* op) override;
   tir::Stmt VisitStmt_(const tir::AttrStmtNode* op) override;
   tir::Stmt VisitStmt_(const tir::AssertStmtNode* op) override;
+  tir::Stmt VisitStmt_(const tir::SeqStmtNode* op) override;
   PrimExpr VisitExpr_(const tir::LetNode* op) override;
   PrimExpr VisitExpr_(const tir::SelectNode* op) override;
   PrimExpr VisitExpr_(const tir::CallNode* op) override;
@@ -74,18 +77,21 @@ class IRMutatorWithAnalyzer : public tir::StmtExprMutator {
    * \brief Use internal bound information to perform inter map simplification of indices.
    * \note Only do this during layout remapping
    */
-  Array<PrimExpr> IterMapSimplifyWithContext(const Array<PrimExpr>& indices, bool non_trivial_only);
+  ffi::Array<PrimExpr> IterMapSimplifyWithContext(const ffi::Array<PrimExpr>& indices,
+                                                  bool non_trivial_only);
 
   /*! \brief internal analyzer field. */
   Analyzer* analyzer_;
+  /*! \brief Scope stack for accumulated assert constraints. */
+  ScopeStack<WithGroup<ConstraintContext>> constraint_scope_;
   // the following two fields are useful in case we want
   // note however that iter map analysis are usually more
   // expensive and we only encourage doing them during
   // necessary cases like layout remapping
   /*! \brief Recorded loop iterators */
-  Map<Var, Range> iter_vars_;
+  ffi::Map<Var, Range> iter_vars_;
   /*! \brief iterator predicates */
-  Array<PrimExpr> iter_predicates_;
+  ffi::Array<PrimExpr> iter_predicates_;
   /*!
    * \brief Run callback while trying to record iter predicate
    * \param conditon Condition to be checked.
@@ -94,7 +100,7 @@ class IRMutatorWithAnalyzer : public tir::StmtExprMutator {
   template <typename FLambda>
   void WithRecordIterPredicate(PrimExpr condition, FLambda callback) {
     auto f_use_itervar = [this](const tir::VarNode* v) {
-      return iter_vars_.count(GetRef<tir::Var>(v));
+      return iter_vars_.count(ffi::GetRef<tir::Var>(v));
     };
     // simple heuristics for detecting predicate
     if (tir::UsesVar(condition, f_use_itervar)) {

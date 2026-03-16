@@ -30,10 +30,10 @@ struct SessionObj::FFI {
   }
 };
 
-TVM_REGISTER_OBJECT_TYPE(DRefObj);
-TVM_REGISTER_OBJECT_TYPE(SessionObj);
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<DRefObj>();
+  refl::ObjectDef<SessionObj>();
   refl::GlobalDef()
       .def("runtime.disco.SessionThreaded", Session::ThreadedSession)
       .def_method("runtime.disco.DRefDebugGetFromRemote", &DRefObj::DebugGetFromRemote)
@@ -50,7 +50,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                     *rv = SessionObj::FFI::CallWithPacked(self, args.Slice(1));
                   })
       .def_method("runtime.disco.SessionShutdown", &SessionObj::Shutdown);
-});
+}
 
 }  // namespace runtime
 }  // namespace tvm

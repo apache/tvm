@@ -51,19 +51,19 @@ using namespace tvm::te;
  * \return The normalized tensor, with the same shape as data.
  */
 inline Tensor instance_norm(const Tensor& data, const Tensor& gamma, const Tensor& beta,
-                            int channel_axis, const Array<Integer>& axis, double epsilon,
+                            int channel_axis, const ffi::Array<Integer>& axis, double epsilon,
                             std::string name = "T_instance_norm", std::string tag = kInjective) {
   const auto& data_type = data->dtype;
   const auto& gamma_type = gamma.defined() ? gamma->dtype : data_type;
   const auto& beta_type = beta.defined() ? beta->dtype : data_type;
-  ICHECK(data_type == gamma_type && data_type == beta_type)
+  TVM_FFI_ICHECK(data_type == gamma_type && data_type == beta_type)
       << "instance_norm: data, gamma and beta must have the same type";
-  ICHECK(data_type == DataType::Float(32) || data_type == DataType::Float(16))
+  TVM_FFI_ICHECK(data_type == DataType::Float(32) || data_type == DataType::Float(16))
       << "instance_norm: only support float32 and float16 for now";
   bool is_float16 = data_type == DataType::Float(16);
   // sum x and x^2
   auto ndim = data->shape.size();
-  ICHECK_NE(ndim, 0) << "Cannot reduce a 0 dim Tensor";
+  TVM_FFI_ICHECK_NE(ndim, 0) << "Cannot reduce a 0 dim Tensor";
   auto real_axis = GetRealAxis(static_cast<int>(ndim), axis);
   auto reduce_axes = MakeReduceAxes(real_axis, data);
   auto target_shape =
@@ -71,8 +71,8 @@ inline Tensor instance_norm(const Tensor& data, const Tensor& gamma, const Tenso
   auto func = MakeTupleSumReducer();
 
   auto compute = [ndim, is_float16, &real_axis, &reduce_axes, &func,
-                  &data](const Array<Var>& indices) {
-    Array<PrimExpr> eval_range;
+                  &data](const ffi::Array<Var>& indices) {
+    ffi::Array<PrimExpr> eval_range;
     int arg_counter = 0;
     int red_counter = 0;
 
@@ -110,8 +110,8 @@ inline Tensor instance_norm(const Tensor& data, const Tensor& gamma, const Tenso
   for (int i : real_axis) {
     reduce_extent *= data->shape[i];
   }
-  auto instance_norm_func = [&](const Array<Var>& indices) {
-    Array<Var> reduce_indices, non_reduce_indices;
+  auto instance_norm_func = [&](const ffi::Array<Var>& indices) {
+    ffi::Array<Var> reduce_indices, non_reduce_indices;
 
     for (int i = 0, n = static_cast<int>(indices.size()); i < n; ++i) {
       if (std::find(real_axis.begin(), real_axis.end(), i) != real_axis.end()) {

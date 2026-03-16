@@ -15,9 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 """A generic IRBuilder across the TVM stack"""
-from typing import Any, Callable, List
 
-from tvm.ffi import register_object as _register_object
+from collections.abc import Callable
+from typing import Any
+
+from tvm_ffi import register_object as _register_object
+
 from tvm.runtime import Object as _Object
 
 from . import _ffi_api
@@ -26,6 +29,7 @@ from . import _ffi_api
 @_register_object("script.ir_builder.IRBuilderFrame")
 class IRBuilderFrame(_Object):
     """A stack frame of the IRBuilder used to keep track of the current scope.
+
     Furthermore, the information stored in each stack frame can be useful for context-dependent
     IR construction.
 
@@ -36,28 +40,29 @@ class IRBuilderFrame(_Object):
 
     .. code-block:: python
 
-    from tvm.script.ir_builder import tir as T
-    from tvm.script.ir_builder import IRBuilder
+        from tvm.script.ir_builder import tir as T
+        from tvm.script.ir_builder import IRBuilder
 
-    with IRBuilder() as builder:
-        with T.prim_func(...):  # pushes a PrimFuncFrame (subclass of IRBuilderFrame)
-                                # to `builder`'s stack of frames
-            buffer = T.match_buffer(...)
+        with IRBuilder() as builder:
+            with T.prim_func(...):  # pushes a PrimFuncFrame (subclass of IRBuilderFrame)
+                                    # to `builder`'s stack of frames
+                buffer = T.match_buffer(...)
 
 
     The `T.match_buffer` below instead generates `MatchBufferRegion` in a TIR block:
 
     .. code-block:: python
 
-    from tvm.script.ir_builder import tir as T
-    from tvm.script.ir_builder import IRBuilder
+        from tvm.script.ir_builder import tir as T
+        from tvm.script.ir_builder import IRBuilder
 
-    with IRBuilder() as builder:
-        with T.prim_func(...):  # pushes a PrimFuncFrame (subclass of IRBuilderFrame)
-                                # to `builder`'s stack of frames
-            with T.block(...):  # pushes a BlockFrame (subclass of IRBuilderFrame)
-                                # to `builder`'s stack of frames
-                buffer = T.match_buffer(...)
+        with IRBuilder() as builder:
+            with T.prim_func(...):  # pushes a PrimFuncFrame (subclass of IRBuilderFrame)
+                                    # to `builder`'s stack of frames
+               with T.sblock(...):  # pushes a BlockFrame (subclass of IRBuilderFrame)
+                                    # to `builder`'s stack of frames
+                    buffer = T.match_buffer(...)
+
     """
 
     def __enter__(self) -> "IRBuilderFrame":
@@ -92,15 +97,16 @@ class IRBuilder(_Object):
     call dialect-specific methods accordingly. Upon exiting the scope.
 
     .. code-block:: python
-    from tvm.script.ir_builder import tir as T
-    from tvm.script.ir_builder import IRBuilder
 
-    with IRBuilder() as builder:
-        with T.prim_func(...):  # pushes a PrimFuncFrame (subclass of IRBuilderFrame)
+        from tvm.script.ir_builder import tir as T
+        from tvm.script.ir_builder import IRBuilder
+
+        with IRBuilder() as builder:
+            with T.prim_func(...):  # pushes a PrimFuncFrame (subclass of IRBuilderFrame)
                                 # to `builder`'s stack of frames
-            buffer = T.match_buffer(...)
+                buffer = T.match_buffer(...)
 
-    return builder.get()        # returns the constructed IR, i.e. tir.PrimFunc
+        return builder.get()        # returns the constructed IR, i.e. tir.PrimFunc
     """
 
     def __init__(self) -> None:
@@ -116,10 +122,12 @@ class IRBuilder(_Object):
         Examples
         --------
         .. code-block:: python
-        from tvm.script.ir_builder import IRBuilder
 
-        with IRBuilder() as builder:
-            assert IRBuilder.current() == builder
+            from tvm.script.ir_builder import IRBuilder
+
+            with IRBuilder() as builder:
+                assert IRBuilder.current() == builder
+
         """
         _ffi_api.IRBuilderEnter(self)  # type: ignore[attr-defined] # pylint: disable=no-member
         return self
@@ -173,9 +181,9 @@ class IRBuilder(_Object):
 
     @staticmethod
     def name_many(  # pylint: disable=invalid-name
-        s: List[str],
-        vs: List[Any],
-    ) -> List[Any]:
+        s: list[str],
+        vs: list[Any],
+    ) -> list[Any]:
         """Set the name of a list of objects.
 
         Parameters

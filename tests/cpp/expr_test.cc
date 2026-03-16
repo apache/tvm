@@ -31,8 +31,8 @@ TEST(Expr, Basic) {
   PrimExpr zz = Downcast<PrimExpr>(tmp);
   std::ostringstream os;
   os << z;
-  ICHECK(zz.same_as(z));
-  ICHECK(os.str() == "T.max(x + 1 + 2, 100)");
+  TVM_FFI_ICHECK(zz.same_as(z));
+  TVM_FFI_ICHECK(os.str() == "T.max(x + 1 + 2, 100)");
 }
 
 TEST(Expr, VarTypeAnnotation) {
@@ -40,9 +40,9 @@ TEST(Expr, VarTypeAnnotation) {
   using namespace tvm::tir;
   Var x("x", DataType::Float(32));
   Var y("y", PrimType(DataType::Float(32)));
-  StructuralEqual checker;
-  ICHECK(checker(x->dtype, y->dtype));
-  ICHECK(checker(x->type_annotation, y->type_annotation));
+  tvm::ffi::StructuralEqual checker;
+  TVM_FFI_ICHECK(checker(x->dtype, y->dtype));
+  TVM_FFI_ICHECK(checker(x->type_annotation, y->type_annotation));
 }
 
 TEST(ExprNodeRef, Basic) {
@@ -51,5 +51,5 @@ TEST(ExprNodeRef, Basic) {
   Var x("x");
   PrimExpr z = max(x + 1 + 2, 100);
   const tir::MaxNode* op = z.as<tir::MaxNode>();
-  ICHECK(GetRef<ObjectRef>(op).same_as(z));
+  TVM_FFI_ICHECK(ffi::GetRef<ObjectRef>(op).same_as(z));
 }

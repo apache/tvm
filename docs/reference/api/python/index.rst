@@ -34,7 +34,6 @@ Python API
     :caption: tvm.runtime
 
     runtime/runtime
-    runtime/ndarray
     runtime/vm
     runtime/disco
     runtime/profiling
@@ -56,9 +55,15 @@ Python API
 
     tir/tir
     tir/analysis
-    tir/schedule
     tir/stmt_functor
     tir/transform
+
+.. toctree::
+    :maxdepth: 1
+    :caption: tvm.s_tir
+
+    s_tir/schedule
+    s_tir/dlight
 
 .. toctree::
     :maxdepth: 1
@@ -69,15 +74,11 @@ Python API
 
 .. toctree::
     :maxdepth: 1
-    :caption: tvm.meta_schedule
+    :caption: tvm.s_tir.meta_schedule
 
     meta_schedule
 
-.. toctree::
-    :maxdepth: 1
-    :caption: tvm.dlight
 
-    dlight
 
 .. toctree::
     :maxdepth: 1

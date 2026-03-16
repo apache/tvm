@@ -15,12 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=no-else-return, unidiomatic-typecheck, invalid-name, arguments-differ
+# ruff: noqa: RUF012
 """The expression and statement functor of TIR."""
-from typing import Callable
 
-import tvm
+from collections.abc import Callable
+
+import tvm_ffi
+
 from tvm.ir import PrimExpr
-from tvm.runtime import Object
 from tvm.runtime.support import derived_object
 
 from . import _ffi_api
@@ -60,19 +62,17 @@ from .expr import (
     Var,
 )
 from .stmt import (
-    Allocate,
-    AllocateConst,
+    AllocBuffer,
     AssertStmt,
     AttrStmt,
-    Block,
-    BlockRealize,
-    BufferRealize,
+    Bind,
     BufferStore,
     DeclBuffer,
     Evaluate,
     For,
     IfThenElse,
-    LetStmt,
+    SBlock,
+    SBlockRealize,
     SeqStmt,
     Stmt,
     While,
@@ -144,8 +144,8 @@ Example
 """
 
 
-@tvm.ffi.register_object("tir.PyStmtExprVisitor")
-class _PyStmtExprVisitor(Object):
+@tvm_ffi.register_object("tir.PyStmtExprVisitor")
+class _PyStmtExprVisitor(tvm_ffi.core.Object):
     """
     An internal wrapper to interface between C++ and Python StmtExprVisitor.
     This is the TVM object that wraps PyStmtExprVisitor.
@@ -157,58 +157,56 @@ class _PyStmtExprVisitor(Object):
 
     def __init__(
         self,
-        f_visit_stmt: Callable = None,
-        f_visit_expr: Callable = None,
+        f_visit_stmt: Callable | None = None,
+        f_visit_expr: Callable | None = None,
         # Stmt
-        f_visit_let_stmt: Callable = None,
-        f_visit_attr_stmt: Callable = None,
-        f_visit_if_then_else: Callable = None,
-        f_visit_for: Callable = None,
-        f_visit_while: Callable = None,
-        f_visit_allocate: Callable = None,
-        f_visit_allocate_const: Callable = None,
-        f_visit_decl_buffer: Callable = None,
-        f_visit_buffer_store: Callable = None,
-        f_visit_buffer_realize: Callable = None,
-        f_visit_assert_stmt: Callable = None,
-        f_visit_seq_stmt: Callable = None,
-        f_visit_evaluate: Callable = None,
-        f_visit_block: Callable = None,
-        f_visit_block_realize: Callable = None,
+        f_visit_bind: Callable | None = None,
+        f_visit_attr_stmt: Callable | None = None,
+        f_visit_if_then_else: Callable | None = None,
+        f_visit_for: Callable | None = None,
+        f_visit_while: Callable | None = None,
+        f_visit_alloc_buffer: Callable | None = None,
+        f_visit_decl_buffer: Callable | None = None,
+        f_visit_buffer_store: Callable | None = None,
+        f_visit_assert_stmt: Callable | None = None,
+        f_visit_seq_stmt: Callable | None = None,
+        f_visit_evaluate: Callable | None = None,
+        f_visit_block: Callable | None = None,
+        f_visit_sblock_realize: Callable | None = None,
         # PrimExpr
-        f_visit_var: Callable = None,
-        f_visit_size_var: Callable = None,
-        f_visit_buffer_load: Callable = None,
-        f_visit_producer_load: Callable = None,
-        f_visit_let: Callable = None,
-        f_visit_call: Callable = None,
-        f_visit_add: Callable = None,
-        f_visit_sub: Callable = None,
-        f_visit_mul: Callable = None,
-        f_visit_div: Callable = None,
-        f_visit_mod: Callable = None,
-        f_visit_floor_div: Callable = None,
-        f_visit_floor_mod: Callable = None,
-        f_visit_min: Callable = None,
-        f_visit_max: Callable = None,
-        f_visit_eq: Callable = None,
-        f_visit_ne: Callable = None,
-        f_visit_lt: Callable = None,
-        f_visit_le: Callable = None,
-        f_visit_gt: Callable = None,
-        f_visit_ge: Callable = None,
-        f_visit_and: Callable = None,
-        f_visit_or: Callable = None,
-        f_visit_reduce: Callable = None,
-        f_visit_cast: Callable = None,
-        f_visit_not: Callable = None,
-        f_visit_select: Callable = None,
-        f_visit_ramp: Callable = None,
-        f_visit_broadcast: Callable = None,
-        f_visit_shuffle: Callable = None,
-        f_visit_int_imm: Callable = None,
-        f_visit_float_imm: Callable = None,
-        f_visit_string_imm: Callable = None,
+        f_visit_var: Callable | None = None,
+        f_visit_size_var: Callable | None = None,
+        f_visit_buffer_load: Callable | None = None,
+        f_visit_producer_load: Callable | None = None,
+        f_visit_let: Callable | None = None,
+        f_visit_call: Callable | None = None,
+        f_visit_add: Callable | None = None,
+        f_visit_sub: Callable | None = None,
+        f_visit_mul: Callable | None = None,
+        f_visit_div: Callable | None = None,
+        f_visit_mod: Callable | None = None,
+        f_visit_floor_div: Callable | None = None,
+        f_visit_floor_mod: Callable | None = None,
+        f_visit_min: Callable | None = None,
+        f_visit_max: Callable | None = None,
+        f_visit_eq: Callable | None = None,
+        f_visit_ne: Callable | None = None,
+        f_visit_lt: Callable | None = None,
+        f_visit_le: Callable | None = None,
+        f_visit_gt: Callable | None = None,
+        f_visit_ge: Callable | None = None,
+        f_visit_and: Callable | None = None,
+        f_visit_or: Callable | None = None,
+        f_visit_reduce: Callable | None = None,
+        f_visit_cast: Callable | None = None,
+        f_visit_not: Callable | None = None,
+        f_visit_select: Callable | None = None,
+        f_visit_ramp: Callable | None = None,
+        f_visit_broadcast: Callable | None = None,
+        f_visit_shuffle: Callable | None = None,
+        f_visit_int_imm: Callable | None = None,
+        f_visit_float_imm: Callable | None = None,
+        f_visit_string_imm: Callable | None = None,
     ) -> None:
         """Constructor."""
         self.__init_handle_by_constructor__(
@@ -216,21 +214,19 @@ class _PyStmtExprVisitor(Object):
             f_visit_stmt,
             f_visit_expr,
             # Stmt
-            f_visit_let_stmt,
+            f_visit_bind,
             f_visit_attr_stmt,
             f_visit_if_then_else,
             f_visit_for,
             f_visit_while,
-            f_visit_allocate,
-            f_visit_allocate_const,
+            f_visit_alloc_buffer,
             f_visit_decl_buffer,
             f_visit_buffer_store,
-            f_visit_buffer_realize,
             f_visit_assert_stmt,
             f_visit_seq_stmt,
             f_visit_evaluate,
             f_visit_block,
-            f_visit_block_realize,
+            f_visit_sblock_realize,
             # PrimExpr
             f_visit_var,
             f_visit_size_var,
@@ -281,21 +277,19 @@ class PyStmtExprVisitor:
             "visit_stmt",
             "visit_expr",
             # Stmt
-            "visit_let_stmt_",
+            "visit_bind_",
             "visit_attr_stmt_",
             "visit_if_then_else_",
             "visit_for_",
             "visit_while_",
-            "visit_allocate_",
-            "visit_allocate_const_",
+            "visit_alloc_buffer_",
             "visit_decl_buffer_",
             "visit_buffer_store_",
-            "visit_buffer_realize_",
             "visit_assert_stmt_",
             "visit_seq_stmt_",
             "visit_evaluate_",
-            "visit_block_",
-            "visit_block_realize_",
+            "visit_sblock_",
+            "visit_sblock_realize_",
             # PrimExpr
             "visit_var_",
             "visit_size_var_",
@@ -379,17 +373,17 @@ class PyStmtExprVisitor:
         print("visit_if_then_else_", op)
         _ffi_api.PyStmtExprVisitorDefaultVisitStmt(self._outer(), op)  # type: ignore
 
-    def visit_let_stmt_(self, op: LetStmt) -> None:
-        """Visit LetStmt.
-        Users can customize this function to overwrite VisitStmt_(const LetStmtNode* op)
+    def visit_bind_(self, op: Bind) -> None:
+        """Visit Bind.
+        Users can customize this function to overwrite VisitStmt_(const BindNode* op)
         on the C++ side.
 
         Parameters
         ----------
-        op : LetStmt
-            The LetStmt to be visited.
+        op : Bind
+            The Bind node to be visited.
         """
-        print("visit_let_stmt_", op)
+        print("visit_bind_", op)
         _ffi_api.PyStmtExprVisitorDefaultVisitStmt(self._outer(), op)  # type: ignore
 
     def visit_for_(self, op: For) -> None:
@@ -418,30 +412,16 @@ class PyStmtExprVisitor:
         print("visit_while_", op)
         _ffi_api.PyStmtExprVisitorDefaultVisitStmt(self._outer(), op)  # type: ignore
 
-    def visit_allocate_(self, op: Allocate) -> None:
-        """Visit Allocate.
-        Users can customize this function to overwrite VisitStmt_(const AllocateNode* op)
+    def visit_alloc_buffer_(self, op: AllocBuffer) -> None:
+        """Visit AllocBuffer.
+        Users can customize this function to overwrite VisitStmt_(const AllocBufferNode* op)
         on the C++ side.
 
         Parameters
         ----------
-        op : Allocate
-            The Allocate to be visited.
+        op : AllocBuffer
+            The AllocBuffer to be visited.
         """
-        print("visit_allocate_", op)
-        _ffi_api.PyStmtExprVisitorDefaultVisitStmt(self._outer(), op)  # type: ignore
-
-    def visit_allocate_const_(self, op: AllocateConst) -> None:
-        """Visit AllocateConst.
-        Users can customize this function to overwrite VisitStmt_(const AllocateConstNode* op)
-        on the C++ side.
-
-        Parameters
-        ----------
-        op : AllocateConst
-            The AllocateConst to be visited.
-        """
-        print("visit_allocate_const_", op)
         _ffi_api.PyStmtExprVisitorDefaultVisitStmt(self._outer(), op)  # type: ignore
 
     def visit_decl_buffer_(self, op: DeclBuffer) -> None:
@@ -468,19 +448,6 @@ class PyStmtExprVisitor:
             The BufferStore to be visited.
         """
         print("visit_buffer_store_", op)
-        _ffi_api.PyStmtExprVisitorDefaultVisitStmt(self._outer(), op)  # type: ignore
-
-    def visit_buffer_realize_(self, op: BufferRealize) -> None:
-        """Visit BufferRealize.
-        Users can customize this function to overwrite VisitStmt_(const BufferRealizeNode* op)
-        on the C++ side.
-
-        Parameters
-        ----------
-        op : BufferRealize
-            The BufferRealize to be visited.
-        """
-        print("visit_buffer_realize_", op)
         _ffi_api.PyStmtExprVisitorDefaultVisitStmt(self._outer(), op)  # type: ignore
 
     def visit_assert_stmt_(self, op: AssertStmt) -> None:
@@ -522,30 +489,30 @@ class PyStmtExprVisitor:
         print("visit_evaluate_", op)
         _ffi_api.PyStmtExprVisitorDefaultVisitStmt(self._outer(), op)  # type: ignore
 
-    def visit_block_(self, op: Block) -> None:
-        """Visit Block.
-        Users can customize this function to overwrite VisitStmt_(const BlockNode* op)
+    def visit_sblock_(self, op: SBlock) -> None:
+        """Visit SBlock.
+        Users can customize this function to overwrite VisitStmt_(const SBlockNode* op)
         on the C++ side.
 
         Parameters
         ----------
-        op : Block
-            The Block to be visited.
+        op : SBlock
+            The SBlock to be visited.
         """
-        print("visit_block_", op)
+        print("visit_sblock_", op)
         _ffi_api.PyStmtExprVisitorDefaultVisitStmt(self._outer(), op)  # type: ignore
 
-    def visit_block_realize_(self, op: BlockRealize) -> None:
+    def visit_sblock_realize_(self, op: SBlockRealize) -> None:
         """Visit BlockRealize.
-        Users can customize this function to overwrite VisitStmt_(const BlockRealizeNode* op)
+        Users can customize this function to overwrite VisitStmt_(const SBlockRealizeNode* op)
         on the C++ side.
 
         Parameters
         ----------
-        op : BlockRealize
+        op : SBlockRealize
             The BlockRealize to be visited.
         """
-        print("visit_block_realize_", op)
+        print("visit_sblock_realize_", op)
         _ffi_api.PyStmtExprVisitorDefaultVisitStmt(self._outer(), op)  # type: ignore
 
     def visit_var_(self, op: Var) -> None:
@@ -978,8 +945,8 @@ class PyStmtExprVisitor:
         _ffi_api.PyStmtExprVisitorDefaultVisitExpr(self._outer(), op)  # type: ignore
 
 
-@tvm.ffi.register_object("tir.PyStmtExprMutator")
-class _PyStmtExprMutator(Object):
+@tvm_ffi.register_object("tir.PyStmtExprMutator")
+class _PyStmtExprMutator(tvm_ffi.core.Object):
     """
     A TVM object to support customization of StmtExprMutator on the python side.
     This is the decorated result returned from stmt_expr_mutator decorator.
@@ -991,58 +958,56 @@ class _PyStmtExprMutator(Object):
 
     def __init__(
         self,
-        f_visit_stmt: Callable = None,
-        f_visit_expr: Callable = None,
+        f_visit_stmt: Callable | None = None,
+        f_visit_expr: Callable | None = None,
         # Stmt
-        f_visit_let_stmt: Callable = None,
-        f_visit_attr_stmt: Callable = None,
-        f_visit_if_then_else: Callable = None,
-        f_visit_for: Callable = None,
-        f_visit_while: Callable = None,
-        f_visit_allocate: Callable = None,
-        f_visit_allocate_const: Callable = None,
-        f_visit_decl_buffer: Callable = None,
-        f_visit_buffer_store: Callable = None,
-        f_visit_buffer_realize: Callable = None,
-        f_visit_assert_stmt: Callable = None,
-        f_visit_seq_stmt: Callable = None,
-        f_visit_evaluate: Callable = None,
-        f_visit_block: Callable = None,
-        f_visit_block_realize: Callable = None,
+        f_visit_bind: Callable | None = None,
+        f_visit_attr_stmt: Callable | None = None,
+        f_visit_if_then_else: Callable | None = None,
+        f_visit_for: Callable | None = None,
+        f_visit_while: Callable | None = None,
+        f_visit_alloc_buffer: Callable | None = None,
+        f_visit_decl_buffer: Callable | None = None,
+        f_visit_buffer_store: Callable | None = None,
+        f_visit_assert_stmt: Callable | None = None,
+        f_visit_seq_stmt: Callable | None = None,
+        f_visit_evaluate: Callable | None = None,
+        f_visit_block: Callable | None = None,
+        f_visit_sblock_realize: Callable | None = None,
         # PrimExpr
-        f_visit_var: Callable = None,
-        f_visit_size_var: Callable = None,
-        f_visit_buffer_load: Callable = None,
-        f_visit_producer_load: Callable = None,
-        f_visit_let: Callable = None,
-        f_visit_call: Callable = None,
-        f_visit_add: Callable = None,
-        f_visit_sub: Callable = None,
-        f_visit_mul: Callable = None,
-        f_visit_div: Callable = None,
-        f_visit_mod: Callable = None,
-        f_visit_floor_div: Callable = None,
-        f_visit_floor_mod: Callable = None,
-        f_visit_min: Callable = None,
-        f_visit_max: Callable = None,
-        f_visit_eq: Callable = None,
-        f_visit_ne: Callable = None,
-        f_visit_lt: Callable = None,
-        f_visit_le: Callable = None,
-        f_visit_gt: Callable = None,
-        f_visit_ge: Callable = None,
-        f_visit_and: Callable = None,
-        f_visit_or: Callable = None,
-        f_visit_reduce: Callable = None,
-        f_visit_cast: Callable = None,
-        f_visit_not: Callable = None,
-        f_visit_select: Callable = None,
-        f_visit_ramp: Callable = None,
-        f_visit_broadcast: Callable = None,
-        f_visit_shuffle: Callable = None,
-        f_visit_int_imm: Callable = None,
-        f_visit_float_imm: Callable = None,
-        f_visit_string_imm: Callable = None,
+        f_visit_var: Callable | None = None,
+        f_visit_size_var: Callable | None = None,
+        f_visit_buffer_load: Callable | None = None,
+        f_visit_producer_load: Callable | None = None,
+        f_visit_let: Callable | None = None,
+        f_visit_call: Callable | None = None,
+        f_visit_add: Callable | None = None,
+        f_visit_sub: Callable | None = None,
+        f_visit_mul: Callable | None = None,
+        f_visit_div: Callable | None = None,
+        f_visit_mod: Callable | None = None,
+        f_visit_floor_div: Callable | None = None,
+        f_visit_floor_mod: Callable | None = None,
+        f_visit_min: Callable | None = None,
+        f_visit_max: Callable | None = None,
+        f_visit_eq: Callable | None = None,
+        f_visit_ne: Callable | None = None,
+        f_visit_lt: Callable | None = None,
+        f_visit_le: Callable | None = None,
+        f_visit_gt: Callable | None = None,
+        f_visit_ge: Callable | None = None,
+        f_visit_and: Callable | None = None,
+        f_visit_or: Callable | None = None,
+        f_visit_reduce: Callable | None = None,
+        f_visit_cast: Callable | None = None,
+        f_visit_not: Callable | None = None,
+        f_visit_select: Callable | None = None,
+        f_visit_ramp: Callable | None = None,
+        f_visit_broadcast: Callable | None = None,
+        f_visit_shuffle: Callable | None = None,
+        f_visit_int_imm: Callable | None = None,
+        f_visit_float_imm: Callable | None = None,
+        f_visit_string_imm: Callable | None = None,
     ) -> None:
         """Constructor."""
         self.__init_handle_by_constructor__(
@@ -1050,21 +1015,19 @@ class _PyStmtExprMutator(Object):
             f_visit_stmt,
             f_visit_expr,
             # Stmt
-            f_visit_let_stmt,
+            f_visit_bind,
             f_visit_attr_stmt,
             f_visit_if_then_else,
             f_visit_for,
             f_visit_while,
-            f_visit_allocate,
-            f_visit_allocate_const,
+            f_visit_alloc_buffer,
             f_visit_decl_buffer,
             f_visit_buffer_store,
-            f_visit_buffer_realize,
             f_visit_assert_stmt,
             f_visit_seq_stmt,
             f_visit_evaluate,
             f_visit_block,
-            f_visit_block_realize,
+            f_visit_sblock_realize,
             # PrimExpr
             f_visit_var,
             f_visit_size_var,
@@ -1115,21 +1078,19 @@ class PyStmtExprMutator:
             "visit_stmt",
             "visit_expr",
             # Stmt
-            "visit_let_stmt_",
+            "visit_bind_",
             "visit_attr_stmt_",
             "visit_if_then_else_",
             "visit_for_",
             "visit_while_",
-            "visit_allocate_",
-            "visit_allocate_const_",
+            "visit_alloc_buffer_",
             "visit_decl_buffer_",
             "visit_buffer_store_",
-            "visit_buffer_realize_",
             "visit_assert_stmt_",
             "visit_seq_stmt_",
             "visit_evaluate_",
-            "visit_block_",
-            "visit_block_realize_",
+            "visit_sblock_",
+            "visit_sblock_realize_",
             # PrimExpr
             "visit_var_",
             "visit_size_var_",
@@ -1235,15 +1196,15 @@ class PyStmtExprMutator:
         """
         return _ffi_api.PyStmtExprMutatorDefaultVisitStmt(self._outer(), op)  # type: ignore
 
-    def visit_let_stmt_(self, op: LetStmt) -> Stmt:
-        """Visit LetStmt.
-        Users can customize this function to overwrite VisitStmt_(const LetStmtNode* op)
+    def visit_bind_(self, op: Bind) -> Stmt:
+        """Visit Bind.
+        Users can customize this function to overwrite VisitStmt_(const BindNode* op)
         on the C++ side.
 
         Parameters
         ----------
-        op : LetStmt
-            The LetStmt to be visited.
+        op : Bind
+            The Bind node to be visited.
 
         Returns
         -------
@@ -1286,32 +1247,15 @@ class PyStmtExprMutator:
         """
         return _ffi_api.PyStmtExprMutatorDefaultVisitStmt(self._outer(), op)  # type: ignore
 
-    def visit_allocate_(self, op: Allocate) -> Stmt:
-        """Visit Allocate.
-        Users can customize this function to overwrite VisitStmt_(const AllocateNode* op)
+    def visit_alloc_buffer_(self, op: AllocBuffer) -> Stmt:
+        """Visit AllocBuffer.
+        Users can customize this function to overwrite VisitStmt_(const AllocBufferNode* op)
         on the C++ side.
 
         Parameters
         ----------
-        op : Allocate
-            The Allocate to be visited.
-
-        Returns
-        -------
-        result : Stmt
-            The mutated Stmt.
-        """
-        return _ffi_api.PyStmtExprMutatorDefaultVisitStmt(self._outer(), op)  # type: ignore
-
-    def visit_allocate_const_(self, op: AllocateConst) -> Stmt:
-        """Visit AllocateConst.
-        Users can customize this function to overwrite VisitStmt_(const AllocateConstNode* op)
-        on the C++ side.
-
-        Parameters
-        ----------
-        op : AllocateConst
-            The AllocateConst to be visited.
+        op : AllocBuffer
+            The AllocBuffer to be visited.
 
         Returns
         -------
@@ -1346,23 +1290,6 @@ class PyStmtExprMutator:
         ----------
         op : BufferStore
             The BufferStore to be visited.
-
-        Returns
-        -------
-        result : Stmt
-            The mutated Stmt.
-        """
-        return _ffi_api.PyStmtExprMutatorDefaultVisitStmt(self._outer(), op)  # type: ignore
-
-    def visit_buffer_realize_(self, op: BufferRealize) -> Stmt:
-        """Visit BufferRealize.
-        Users can customize this function to overwrite VisitStmt_(const BufferRealizeNode* op)
-        on the C++ side.
-
-        Parameters
-        ----------
-        op : BufferRealize
-            The BufferRealize to be visited.
 
         Returns
         -------
@@ -1422,15 +1349,15 @@ class PyStmtExprMutator:
         """
         return _ffi_api.PyStmtExprMutatorDefaultVisitStmt(self._outer(), op)  # type: ignore
 
-    def visit_block_(self, op: Block) -> Stmt:
-        """Visit Block.
-        Users can customize this function to overwrite VisitStmt_(const BlockNode* op)
+    def visit_sblock_(self, op: SBlock) -> Stmt:
+        """Visit SBlock.
+        Users can customize this function to overwrite VisitStmt_(const SBlockNode* op)
         on the C++ side.
 
         Parameters
         ----------
-        op : Block
-            The Block to be visited.
+        op : SBlock
+            The SBlock to be visited.
 
         Returns
         -------
@@ -1439,15 +1366,15 @@ class PyStmtExprMutator:
         """
         return _ffi_api.PyStmtExprMutatorDefaultVisitStmt(self._outer(), op)  # type: ignore
 
-    def visit_block_realize_(self, op: BlockRealize) -> Stmt:
+    def visit_sblock_realize_(self, op: SBlockRealize) -> Stmt:
         """Visit BlockRealize.
-        Users can customize this function to overwrite VisitStmt_(const BlockRealizeNode* op)
+        Users can customize this function to overwrite VisitStmt_(const SBlockRealizeNode* op)
         on the C++ side.
 
         Parameters
         ----------
-        op : BlockRealize
-            The BlockRealize to be visited.
+        op : SBlockRealize
+            The SBlockRealize to be visited.
 
         Returns
         -------

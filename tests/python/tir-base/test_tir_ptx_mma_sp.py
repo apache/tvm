@@ -15,10 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import tvm
-from tvm.script import tir as T
 import numpy as np
+
+import tvm
 import tvm.testing
+from tvm.script import tir as T
 
 
 def gen_2in4_mask(m: int, n: int):
@@ -272,7 +273,7 @@ def test_mma_sp_m16n8k16_f16():
 
     for out_dtype in ["float16", "float32"]:
         func = mma_sp_m16n8k16_f16f16f16 if out_dtype == "float16" else mma_sp_m16n8k16_f16f16f32
-        sch = tvm.tir.Schedule(func)
+        sch = tvm.s_tir.Schedule(func)
         cuda_mod = tvm.compile(sch.mod, target="cuda")
 
         A_np = np.random.uniform(-1, 1, [16, 8]).astype("float16")
@@ -283,10 +284,10 @@ def test_mma_sp_m16n8k16_f16():
         meta = get_meta_m16n8k16_half(mask)
 
         ctx = tvm.cuda()
-        A_tvm = tvm.nd.array(A_np, ctx)
-        B_tvm = tvm.nd.array(B_np, ctx)
-        C_tvm = tvm.nd.array(np.zeros_like(C_np), ctx)
-        meta_tvm = tvm.nd.array(meta, ctx)
+        A_tvm = tvm.runtime.tensor(A_np, ctx)
+        B_tvm = tvm.runtime.tensor(B_np, ctx)
+        C_tvm = tvm.runtime.tensor(np.zeros_like(C_np), ctx)
+        meta_tvm = tvm.runtime.tensor(meta, ctx)
         cuda_mod(A_tvm, B_tvm, C_tvm, meta_tvm)
 
         tvm.testing.assert_allclose(C_tvm.numpy(), C_np, atol=1e-3, rtol=1e-3)
@@ -311,7 +312,7 @@ def test_mma_sp_m16n8k32_f16():
 
     for out_dtype in ["float16", "float32"]:
         func = mma_sp_m16n8k32_f16f16f16 if out_dtype == "float16" else mma_sp_m16n8k32_f16f16f32
-        sch = tvm.tir.Schedule(func)
+        sch = tvm.s_tir.Schedule(func)
         cuda_mod = tvm.compile(sch.mod, target="cuda")
 
         A_np = np.random.uniform(-1, 1, [16, 16]).astype("float16")
@@ -322,10 +323,10 @@ def test_mma_sp_m16n8k32_f16():
         meta = get_meta_m16n8k32_half(mask)
 
         ctx = tvm.cuda()
-        A_tvm = tvm.nd.array(A_np, ctx)
-        B_tvm = tvm.nd.array(B_np, ctx)
-        C_tvm = tvm.nd.array(np.zeros_like(C_np), ctx)
-        meta_tvm = tvm.nd.array(meta, ctx)
+        A_tvm = tvm.runtime.tensor(A_np, ctx)
+        B_tvm = tvm.runtime.tensor(B_np, ctx)
+        C_tvm = tvm.runtime.tensor(np.zeros_like(C_np), ctx)
+        meta_tvm = tvm.runtime.tensor(meta, ctx)
         cuda_mod(A_tvm, B_tvm, C_tvm, meta_tvm)
 
     tvm.testing.assert_allclose(C_tvm.numpy(), C_np, atol=1e-3, rtol=1e-3)

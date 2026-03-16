@@ -20,6 +20,7 @@
 /*!
  * \file Use external cblas library call.
  */
+#include <tvm/ffi/extra/c_env_api.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/data_type.h>
@@ -143,7 +144,7 @@ void CallCublasLt(cublasLtHandle_t hdl, cudaStream_t stream,
                   const DLTensor* C, bool transa, bool transb, void* workspace_ptr,
                   size_t workspace_size, cublasLtEpilogue_t epilogue,
                   std::optional<float> dq_scale) {
-  ICHECK(TypeEqual(A->dtype, B->dtype));
+  TVM_FFI_ICHECK(TypeEqual(A->dtype, B->dtype));
   // Reversed strides indicates an in-place transpose operation.
   transa = IsInPlaceTransposed(A) ? !transa : transa;
   transb = IsInPlaceTransposed(B) ? !transb : transb;
@@ -169,7 +170,7 @@ void CallCublasLt(cublasLtHandle_t hdl, cudaStream_t stream,
   } else if (TypeMatch(A->dtype, kDLInt, 8)) {
     ab_type = CUDA_R_8I;
   } else if (TypeMatch(A->dtype, DataType::TypeCode::kFloat8_e4m3fn, 8)) {
-    ICHECK(TypeMatch(B->dtype, DataType::TypeCode::kFloat8_e4m3fn, 8));
+    TVM_FFI_ICHECK(TypeMatch(B->dtype, DataType::TypeCode::kFloat8_e4m3fn, 8));
     ab_type = CUDA_R_8F_E4M3;
   }
 
@@ -273,7 +274,7 @@ void CallCublasLt(cublasLtHandle_t hdl, cudaStream_t stream,
 
     // cuBLASLt does not seem to support batched GEMM with one of matrices having
     // one batch (with batch_stride 0).
-    ICHECK_EQ(batch_count_A, batch_count_B);
+    TVM_FFI_ICHECK_EQ(batch_count_A, batch_count_B);
 
     set_batch(A_desc, batch_count_A, batch_stride_A);
     set_batch(B_desc, batch_count_B, batch_stride_B);
@@ -326,19 +327,19 @@ inline void CallLtIgemm(ffi::PackedArgs args, ffi::Any* ret, cublasLtHandle_t hd
   int lda = M * K / (roundoff(K, 32) / 32);
   int ldb = K * N / (roundoff(K, 32) / 32);
   int ldc = M * N_out / (roundoff(N_out, 32) / 32);
-  ICHECK_EQ(A->ndim, 2);
-  ICHECK_EQ(B->ndim, 2);
-  ICHECK_EQ(C->ndim, 2);
+  TVM_FFI_ICHECK_EQ(A->ndim, 2);
+  TVM_FFI_ICHECK_EQ(B->ndim, 2);
+  TVM_FFI_ICHECK_EQ(C->ndim, 2);
 
-  ICHECK_EQ(ElementStride(A), 1);
-  ICHECK_EQ(ElementStride(B), 1);
-  ICHECK_EQ(ElementStride(C), 1);
+  TVM_FFI_ICHECK_EQ(ElementStride(A), 1);
+  TVM_FFI_ICHECK_EQ(ElementStride(B), 1);
+  TVM_FFI_ICHECK_EQ(ElementStride(C), 1);
 
-  ICHECK(TypeEqual(A->dtype, B->dtype));
-  ICHECK(TypeMatch(A->dtype, kDLInt, 8));
-  ICHECK(TypeMatch(C->dtype, kDLInt, 32));
+  TVM_FFI_ICHECK(TypeEqual(A->dtype, B->dtype));
+  TVM_FFI_ICHECK(TypeMatch(A->dtype, kDLInt, 8));
+  TVM_FFI_ICHECK(TypeMatch(C->dtype, kDLInt, 32));
 
-  ICHECK(CheckMixPrecisionType(A->dtype, C->dtype)) << "Unsupported data type";
+  TVM_FFI_ICHECK(CheckMixPrecisionType(A->dtype, C->dtype)) << "Unsupported data type";
   int32_t alpha = args.size() > 5 ? args[5].cast<int32_t>() : 1;
   int32_t beta = args.size() > 6 ? args[6].cast<int32_t>() : 0;
   cublasLtMatrixLayout_t Adesc = nullptr, Bdesc = nullptr, Cdesc = nullptr;
@@ -385,27 +386,27 @@ inline void CallGemmEx(ffi::PackedArgs args, ffi::Any* ret, cublasHandle_t hdl) 
   auto C = args[2].cast<DLTensor*>();
   bool transa = args[3].cast<bool>();
   bool transb = args[4].cast<bool>();
-  ICHECK_EQ(A->ndim, 2);
-  ICHECK_EQ(B->ndim, 2);
-  ICHECK_EQ(C->ndim, 2);
+  TVM_FFI_ICHECK_EQ(A->ndim, 2);
+  TVM_FFI_ICHECK_EQ(B->ndim, 2);
+  TVM_FFI_ICHECK_EQ(C->ndim, 2);
 
-  ICHECK_EQ(ElementStride(A), 1);
-  ICHECK_EQ(ElementStride(B), 1);
-  ICHECK_EQ(ElementStride(C), 1);
+  TVM_FFI_ICHECK_EQ(ElementStride(A), 1);
+  TVM_FFI_ICHECK_EQ(ElementStride(B), 1);
+  TVM_FFI_ICHECK_EQ(ElementStride(C), 1);
 
-  ICHECK(TypeEqual(A->dtype, B->dtype));
+  TVM_FFI_ICHECK(TypeEqual(A->dtype, B->dtype));
 
   // C can never be transposed.
-  ICHECK(!IsInPlaceTransposed(C));
+  TVM_FFI_ICHECK(!IsInPlaceTransposed(C));
 
   // Reversed strides indicates an in-place transpose operation.
   transa = IsInPlaceTransposed(A) ? !transa : transa;
   transb = IsInPlaceTransposed(B) ? !transb : transb;
 
-  ICHECK(CheckMixPrecisionType(A->dtype, C->dtype)) << "Unsupported data type";
-  ICHECK(!TypeMatch(A->dtype, kDLInt, 8) || ColumnStride(A) % 4 == 0)
+  TVM_FFI_ICHECK(CheckMixPrecisionType(A->dtype, C->dtype)) << "Unsupported data type";
+  TVM_FFI_ICHECK(!TypeMatch(A->dtype, kDLInt, 8) || ColumnStride(A) % 4 == 0)
       << "leading dimension must divide 4 for int8 gemm";
-  ICHECK(!TypeMatch(B->dtype, kDLInt, 8) || ColumnStride(B) % 4 == 0)
+  TVM_FFI_ICHECK(!TypeMatch(B->dtype, kDLInt, 8) || ColumnStride(B) % 4 == 0)
       << "leading dimension must divide 4 for int8 gemm";
   double alpha = args.size() > 5 ? args[5].cast<double>() : 1.0;
   double beta = args.size() > 6 ? args[6].cast<double>() : 0.0;
@@ -443,28 +444,28 @@ inline void CallBatchGemmEx(ffi::PackedArgs args, ffi::Any* ret, cublasHandle_t 
   auto C = args[2].cast<DLTensor*>();
   bool transa = args[3].cast<bool>();
   bool transb = args[4].cast<bool>();
-  ICHECK_EQ(A->ndim, 3);
-  ICHECK_EQ(B->ndim, 3);
-  ICHECK_EQ(C->ndim, 3);
+  TVM_FFI_ICHECK_EQ(A->ndim, 3);
+  TVM_FFI_ICHECK_EQ(B->ndim, 3);
+  TVM_FFI_ICHECK_EQ(C->ndim, 3);
 
   int batch_size = BatchCount3D(C);
-  ICHECK_EQ(ElementStride3D(A), 1);
-  ICHECK_EQ(ElementStride3D(B), 1);
-  ICHECK_EQ(ElementStride3D(C), 1);
+  TVM_FFI_ICHECK_EQ(ElementStride3D(A), 1);
+  TVM_FFI_ICHECK_EQ(ElementStride3D(B), 1);
+  TVM_FFI_ICHECK_EQ(ElementStride3D(C), 1);
 
-  ICHECK(TypeEqual(A->dtype, B->dtype));
+  TVM_FFI_ICHECK(TypeEqual(A->dtype, B->dtype));
 
   // C can never be transposed.
-  ICHECK(!IsInPlaceTransposed3D(C));
+  TVM_FFI_ICHECK(!IsInPlaceTransposed3D(C));
 
   // Reversed strides indicates an in-place transpose operation.
   transa = IsInPlaceTransposed3D(A) ? !transa : transa;
   transb = IsInPlaceTransposed3D(B) ? !transb : transb;
 
-  ICHECK(CheckMixPrecisionType(A->dtype, C->dtype, true)) << "Unsupported data type";
-  ICHECK(!TypeMatch(A->dtype, kDLInt, 8) || ColumnStride3D(A) % 4 == 0)
+  TVM_FFI_ICHECK(CheckMixPrecisionType(A->dtype, C->dtype, true)) << "Unsupported data type";
+  TVM_FFI_ICHECK(!TypeMatch(A->dtype, kDLInt, 8) || ColumnStride3D(A) % 4 == 0)
       << "leading dimension must divide 4 for int8 gemm";
-  ICHECK(!TypeMatch(B->dtype, kDLInt, 8) || ColumnStride3D(B) % 4 == 0)
+  TVM_FFI_ICHECK(!TypeMatch(B->dtype, kDLInt, 8) || ColumnStride3D(B) % 4 == 0)
       << "leading dimension must divide 4 for int8 gemm";
   double alpha = args.size() > 5 ? args[5].cast<double>() : 1.0;
   double beta = args.size() > 6 ? args[6].cast<double>() : 0.0;
@@ -483,8 +484,8 @@ inline void CallBatchGemmEx(ffi::PackedArgs args, ffi::Any* ret, cublasHandle_t 
       B_stride = 0;
     }
   } else {
-    ICHECK_EQ(batch_size_a, batch_size);
-    ICHECK_EQ(batch_size_b, batch_size);
+    TVM_FFI_ICHECK_EQ(batch_size_a, batch_size);
+    TVM_FFI_ICHECK_EQ(batch_size_b, batch_size);
   }
 
   cudaDataType_t cuda_in_type = GetCudaDataType(A->dtype);
@@ -515,20 +516,20 @@ inline void CallBatchGemmEx(ffi::PackedArgs args, ffi::Any* ret, cublasHandle_t 
 }
 
 // matrix multiplication for row major
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed(
       "tvm.contrib.cublas.matmul", [](ffi::PackedArgs args, ffi::Any* ret) {
         auto A = args[0].cast<DLTensor*>();
         auto C = args[2].cast<DLTensor*>();
 
-        CuBlasThreadEntry* entry_ptr = CuBlasThreadEntry::ThreadLocal();
+        CuBlasThreadEntry* entry_ptr = CuBlasThreadEntry::ThreadLocal(A->device);
 
         CUBLASTryEnableTensorCore(entry_ptr->handle);
 
         if (TypeEqual(A->dtype, C->dtype)) {
-          ICHECK(TypeMatch(A->dtype, kDLFloat, 16) || TypeMatch(A->dtype, kDLFloat, 32) ||
-                 TypeMatch(A->dtype, kDLFloat, 64));
+          TVM_FFI_ICHECK(TypeMatch(A->dtype, kDLFloat, 16) || TypeMatch(A->dtype, kDLFloat, 32) ||
+                         TypeMatch(A->dtype, kDLFloat, 64));
 
           if (TypeMatch(A->dtype, kDLFloat, 16))
             CallGemm(args, ret, CublasHgemmOp(entry_ptr->handle));
@@ -540,43 +541,43 @@ TVM_FFI_STATIC_INIT_BLOCK({
           CallGemmEx(args, ret, entry_ptr->handle);
         }
       });
-});
+}
 
 #if CUDART_VERSION >= 10010
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed(
       "tvm.contrib.cublaslt.matmul", [](ffi::PackedArgs args, ffi::Any* ret) {
         auto A = args[0].cast<DLTensor*>();
 
-        CuBlasThreadEntry* entry_ptr = CuBlasThreadEntry::ThreadLocal();
+        CuBlasThreadEntry* entry_ptr = CuBlasThreadEntry::ThreadLocal(A->device);
 
         CUBLASTryEnableTensorCore(entry_ptr->handle);
 
-        ICHECK(TypeMatch(A->dtype, kDLInt, 8)) << "Expects dtype to be int8\n";
+        TVM_FFI_ICHECK(TypeMatch(A->dtype, kDLInt, 8)) << "Expects dtype to be int8\n";
         cublasLtHandle_t ltHandle;
         CHECK_CUBLAS_ERROR(cublasLtCreate(&ltHandle));
-        auto func = tvm::ffi::Function::GetGlobalRequired("runtime.get_cuda_stream");
-        cudaStream_t stream = static_cast<cudaStream_t>(func().cast<void*>());
+        cudaStream_t stream =
+            static_cast<cudaStream_t>(TVMFFIEnvGetStream(kDLCUDA, A->device.device_id));
         CallLtIgemm(args, ret, ltHandle, stream);
         CHECK_CUBLAS_ERROR(cublasLtDestroy(ltHandle));
       });
-});
+}
 #endif  // CUDART_VERSION >= 10010
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed(
       "tvm.contrib.cublas.batch_matmul", [](ffi::PackedArgs args, ffi::Any* ret) {
         auto A = args[0].cast<DLTensor*>();
         auto C = args[2].cast<DLTensor*>();
 
-        CuBlasThreadEntry* entry_ptr = CuBlasThreadEntry::ThreadLocal();
+        CuBlasThreadEntry* entry_ptr = CuBlasThreadEntry::ThreadLocal(A->device);
 
         CUBLASTryEnableTensorCore(entry_ptr->handle);
         if (TypeEqual(A->dtype, C->dtype)) {
-          ICHECK(TypeMatch(A->dtype, kDLFloat, 16) || TypeMatch(A->dtype, kDLFloat, 32) ||
-                 TypeMatch(A->dtype, kDLFloat, 64));
+          TVM_FFI_ICHECK(TypeMatch(A->dtype, kDLFloat, 16) || TypeMatch(A->dtype, kDLFloat, 32) ||
+                         TypeMatch(A->dtype, kDLFloat, 64));
 
           if (TypeMatch(A->dtype, kDLFloat, 16))
             CallBatchGemm(args, ret, CublasHgemmBatchOp(entry_ptr->handle));
@@ -588,7 +589,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
           CallBatchGemmEx(args, ret, entry_ptr->handle);
         }
       });
-});
+}
 
 }  // namespace contrib
 }  // namespace tvm

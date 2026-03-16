@@ -15,13 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 """PyTorch integration with nn.Module"""
+
 import inspect
-from typing import Any, Callable, List
+from collections.abc import Callable
+from typing import Any
 
 import torch
 
 from tvm.ir import Array
-from tvm.runtime import NDArray, ShapeTuple, ndarray
+from tvm.runtime import ShapeTuple, Tensor, _tensor
 from tvm.runtime.vm import VirtualMachine
 
 from . import core
@@ -34,14 +36,14 @@ class TorchModule:  # pylint: disable=too-few-public-methods
 
     spec: _spec.ModuleSpec
     vm: VirtualMachine  # pylint: disable=invalid-name
-    params: List[NDArray]
-    effects: List[Any]
+    params: list[Tensor]
+    effects: list[Any]
 
     def __init__(  # pylint: disable=invalid-name
         self,
         spec: _spec.ModuleSpec,
         vm: VirtualMachine,
-        params: List[NDArray],
+        params: list[Tensor],
     ):
         try:
             self.effects = vm["_initialize_effect"]()
@@ -85,9 +87,9 @@ class TorchModule:  # pylint: disable=too-few-public-methods
 
 
 def _tvm_to_torch(arg):
-    if isinstance(arg, (list, tuple, Array)):
+    if isinstance(arg, list | tuple | Array):
         return [_tvm_to_torch(i) for i in arg]
-    if isinstance(arg, ndarray.NDArray):
+    if isinstance(arg, _tensor.Tensor):
         return torch.utils.dlpack.from_dlpack(arg)
     if isinstance(arg, ShapeTuple):
         return list(arg)
@@ -98,8 +100,7 @@ def _torch_to_tvm(arg_name, arg_spec, arg_torch):
     if isinstance(arg_spec, _spec.Tensor):
         if not isinstance(arg_torch, torch.Tensor):
             raise TypeError(
-                f"Expected argument `{arg_name}` to be `torch.Tensor`, "
-                f"but got {type(arg_torch)}"
+                f"Expected argument `{arg_name}` to be `torch.Tensor`, but got {type(arg_torch)}"
             )
         return core._from_dlpack(arg_torch)  # pylint: disable=protected-access
     if isinstance(arg_spec, _spec.Int):
@@ -117,7 +118,7 @@ def _torch_to_tvm(arg_name, arg_spec, arg_torch):
 
 
 def _method_spec_from_torch(
-    args_torch: List[Any],
+    args_torch: list[Any],
     method: Callable,
 ):
     def _as_spec(arg_torch):

@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """DataFlow Pattern Language FFI bindings."""
-import tvm.ffi
 
-tvm.ffi._init_api("relax.dpl", __name__)
+import tvm_ffi
+
+tvm_ffi.init_ffi_api("relax.dpl", __name__)

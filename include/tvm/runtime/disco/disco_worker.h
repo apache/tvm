@@ -79,7 +79,7 @@ class DiscoWorker {
   /*! \brief The default device to allocate data if not specified */
   Device default_device;
   /*! \brief The name of the underlying collective communication library. */
-  String ccl;
+  ffi::String ccl;
   /*!
    * \brief The data shared between worker-0 and the controler. It's a nullptr if
    * the worker is not worker-0.

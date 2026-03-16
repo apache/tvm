@@ -63,7 +63,7 @@ using FEventHandler = ffi::Function;
 FEventHandler CreateServerEventHandler(NSOutputStream* outputStream, std::string name,
                                        std::string remote_key) {
   auto event_handler_factory = tvm::ffi::Function::GetGlobal("rpc.CreateEventDrivenServer");
-  ICHECK(event_handler_factory.has_value())
+  TVM_FFI_ICHECK(event_handler_factory.has_value())
       << "You are using tvm_runtime module built without RPC support. "
       << "Please rebuild it with USE_RPC flag.";
 
@@ -152,8 +152,7 @@ static std::string getWiFiAddress() {
       [self open];
       shouldKeepRunning = YES;
       while (shouldKeepRunning && [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode
-                                                           beforeDate:[NSDate distantFuture]])
-        ;
+                                                           beforeDate:[NSDate distantFuture]]);
       [self notifyState:RPCServerStatus_Stopped];
     }
   }];
@@ -249,8 +248,7 @@ static std::string getWiFiAddress() {
   recvBuffer_.resize(nbytes + prev_size);
 
   // feed while it accept or requested particulat buffer size
-  while (!recvBuffer_.empty() && requiredToRecv_ <= recvBuffer_.size() && [self onReadHandler])
-    ;
+  while (!recvBuffer_.empty() && requiredToRecv_ <= recvBuffer_.size() && [self onReadHandler]);
 }
 
 /*!
@@ -262,8 +260,7 @@ static std::string getWiFiAddress() {
     sendBuffer_.erase(0, nbytes);
   }
   // call write handler while it want be called and space is available
-  while (sendBuffer_.empty() && [outputStream_ hasSpaceAvailable] && [self onWriteHandler])
-    ;
+  while (sendBuffer_.empty() && [outputStream_ hasSpaceAvailable] && [self onWriteHandler]);
 }
 
 /*!

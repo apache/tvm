@@ -52,8 +52,10 @@ template <typename FType>
 class ExprFunctor;
 
 // functions to be overriden.
-#define EXPR_FUNCTOR_DEFAULT \
-  { return VisitExprDefault_(op, std::forward<Args>(args)...); }
+#define EXPR_FUNCTOR_DEFAULT                                   \
+  {                                                            \
+    return VisitExprDefault_(op, std::forward<Args>(args)...); \
+  }
 
 #define RELAX_EXPR_FUNCTOR_DISPATCH(OP)                                                    \
   vtable.template set_dispatch<OP>([](const ObjectRef& n, TSelf* self, Args... args) {     \
@@ -126,8 +128,9 @@ class ExprFunctor<R(const Expr& n, Args...)> {
    * \return The result of the call
    */
   virtual R VisitExpr(const Expr& n, Args... args) {
-    ICHECK(n.defined()) << "Found null pointer node while traversing AST. The previous pass may "
-                           "have generated invalid data.";
+    TVM_FFI_ICHECK(n.defined())
+        << "Found null pointer node while traversing AST. The previous pass may "
+           "have generated invalid data.";
     static FType vtable = InitVTable();
     return vtable(n, this, std::forward<Args>(args)...);
   }
@@ -151,7 +154,7 @@ class ExprFunctor<R(const Expr& n, Args...)> {
   virtual R VisitExpr_(const StringImmNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const DataTypeImmNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExprDefault_(const Object* op, Args...) {
-    LOG(FATAL) << "Do not have a default for " << op->GetTypeKey();
+    TVM_FFI_THROW(InternalError) << "Do not have a default for " << op->GetTypeKey();
     throw;
   }
 
@@ -379,7 +382,7 @@ class ExprMutatorBase : public ExprFunctor<Expr(const Expr&)> {
    */
   bool VisitAndCheckStructInfoFieldUnchanged(const ObjectRef& struct_info) {
     if (const StructInfoNode* sinfo = struct_info.as<StructInfoNode>()) {
-      return this->VisitExprDepStructInfoField(GetRef<StructInfo>(sinfo)).same_as(struct_info);
+      return this->VisitExprDepStructInfoField(ffi::GetRef<StructInfo>(sinfo)).same_as(struct_info);
     } else {
       return true;
     }
@@ -421,7 +424,7 @@ class ExprMutator : public ExprMutatorBase {
  public:
   using ExprMutatorBase::VisitExpr_;
 
-  ExprMutator(Optional<IRModule> mod = std::nullopt) { builder_ = BlockBuilder::Create(mod); }
+  ExprMutator(ffi::Optional<IRModule> mod = std::nullopt) { builder_ = BlockBuilder::Create(mod); }
   Expr VisitExpr(const Expr& expr) override;
   Expr VisitExpr_(const VarNode* op) override;
   Expr VisitExpr_(const DataflowVarNode* op) override;
@@ -502,7 +505,8 @@ class ExprMutator : public ExprMutatorBase {
    *
    * \note The body_expr must be an SeqExpr in the normal form.
    */
-  Expr VisitWithNewScope(const Expr& body_expr, Optional<Array<Var>> params = std::nullopt);
+  Expr VisitWithNewScope(const Expr& body_expr,
+                         ffi::Optional<ffi::Array<Var>> params = std::nullopt);
 
   /*!
    * \brief Rewrite the expr with a new scope, used in the branches of If.
@@ -526,7 +530,7 @@ class ExprMutator : public ExprMutatorBase {
    * \return The value bound to the input \p var.
    * \note For function parameters, this function returns std::nullopt.
    */
-  Optional<Expr> LookupBinding(const Var& var);
+  ffi::Optional<Expr> LookupBinding(const Var& var);
 
   /*!
    * \brief Post-order rewrite a node and normalize.

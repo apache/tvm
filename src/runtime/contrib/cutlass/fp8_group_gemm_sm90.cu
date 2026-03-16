@@ -19,9 +19,10 @@
 
 #include <cuda_fp16.h>
 #include <float.h>
+#include <tvm/ffi/extra/c_env_api.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 
 #include "fp16_group_gemm_runner_sm90.cuh"
 
@@ -41,21 +42,20 @@ namespace tvm {
 namespace runtime {
 
 template <typename ElementA, typename ElementB, typename ElementC>
-void tvm_cutlass_fp8_group_gemm(NDArray x, NDArray weight, NDArray indptr, NDArray workspace,
-                                NDArray alpha, NDArray out) {
+void tvm_cutlass_fp8_group_gemm(Tensor x, Tensor weight, Tensor indptr, Tensor workspace,
+                                Tensor alpha, Tensor out) {
   // Workspace is used for storing device-side group gemm arguments and cutlass internal workspace.
   // Recommened size is 4MB.
-  static auto func = tvm::ffi::Function::GetGlobalRequired("runtime.get_cuda_stream");
-  cudaStream_t stream = static_cast<cudaStream_t>(func().cast<void*>());
-  CHECK_EQ(x->ndim, 2);
-  CHECK_EQ(weight->ndim, 3);
-  CHECK_EQ(indptr->ndim, 1);
-  CHECK_EQ(workspace->ndim, 1);
-  CHECK_EQ(out->ndim, 2);
-  CHECK_EQ(alpha->dtype.code, kDLFloat);
-  CHECK_EQ(alpha->dtype.bits, 32);
-  CHECK_EQ(alpha->ndim, 1);
-  CHECK_EQ(alpha->shape[0], 1);
+  cudaStream_t stream = static_cast<cudaStream_t>(TVMFFIEnvGetStream(kDLCUDA, x->device.device_id));
+  TVM_FFI_CHECK_EQ(x->ndim, 2, ValueError);
+  TVM_FFI_CHECK_EQ(weight->ndim, 3, ValueError);
+  TVM_FFI_CHECK_EQ(indptr->ndim, 1, ValueError);
+  TVM_FFI_CHECK_EQ(workspace->ndim, 1, ValueError);
+  TVM_FFI_CHECK_EQ(out->ndim, 2, ValueError);
+  TVM_FFI_CHECK_EQ(alpha->dtype.code, kDLFloat, ValueError);
+  TVM_FFI_CHECK_EQ(alpha->dtype.bits, 32, ValueError);
+  TVM_FFI_CHECK_EQ(alpha->ndim, 1, ValueError);
+  TVM_FFI_CHECK_EQ(alpha->shape[0], 1, ValueError);
   int num_groups = weight->shape[0];
   int n = weight->shape[1];
   int k = x->shape[1];
@@ -67,7 +67,7 @@ void tvm_cutlass_fp8_group_gemm(NDArray x, NDArray weight, NDArray indptr, NDArr
                           static_cast<ElementC*>(out->data), stream);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def(
@@ -79,7 +79,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def("cutlass.group_gemm_e4m3_e4m3_fp16",
            tvm_cutlass_fp8_group_gemm<cutlass::float_e4m3_t, cutlass::float_e4m3_t,
                                       cutlass::half_t>);
-});
+}
 
 }  // namespace runtime
 }  // namespace tvm

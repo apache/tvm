@@ -1,3 +1,4 @@
+# isort: skip_file
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -16,10 +17,9 @@
 # under the License.
 # pylint: disable=invalid-name, wrong-import-position
 """The Relax IR namespace containing the IR, type, operator, builder, vm, etc."""
+
 from tvm.runtime import vm
 from tvm.runtime.vm import VirtualMachine, VMInstrumentReturnKind
-
-from .type_converter import args_converter
 
 # Expr
 from .expr import (
@@ -97,6 +97,9 @@ from .pipeline import register_pipeline
 
 # utils
 from .utils import convert_to_expr
+
+# BasePyModule
+from .base_py_module import BasePyModule
 
 # Import submodules in the last to avoid dependency
 from . import exec_builder

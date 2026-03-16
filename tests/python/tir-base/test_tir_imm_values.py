@@ -14,15 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E741
 import math
 import random
+
 import numpy as np
+import pytest
+
 import tvm
 import tvm.testing
-import pytest
 from tvm import tir
 from tvm.script import tir as T
-import pytest
 
 
 @pytest.mark.parametrize(
@@ -76,7 +78,7 @@ def test_tir_large_py_int_literals(dtype, literals):
     """
     for l in literals:
         x = tir.const(l, dtype)
-        if isinstance(x, (tir.IntImm, tir.FloatImm)):
+        if isinstance(x, tir.IntImm | tir.FloatImm):
             assert x.value == literals[l]
         else:
             # LargeUIntImm(low32, hi32)
@@ -206,7 +208,7 @@ def check_tir_const_fold(
 
     if x_range is None:
         x_range = (ninfo.min, ninfo.max)
-    if isinstance(x_range, (int, float)):
+    if isinstance(x_range, int | float):
         x = x_range
     elif dtype.startswith("int") or dtype.startswith("uint"):
         x = np.random.randint(x_range[0], x_range[1] + 1, dtype=dtype)
@@ -215,7 +217,7 @@ def check_tir_const_fold(
 
     if y_range is None:
         y_range = (ninfo.min, ninfo.max)
-    if isinstance(y_range, (int, float)):
+    if isinstance(y_range, int | float):
         y = y_range
     elif dtype.startswith("int") or dtype.startswith("uint"):
         y = np.random.randint(y_range[0], y_range[1] + 1, dtype=dtype)
@@ -224,7 +226,7 @@ def check_tir_const_fold(
 
     if skip_overflow:
         py_res = foldf(x, y)
-        if isinstance(py_res, (tir.IntImm, tir.FloatImm)):
+        if isinstance(py_res, tir.IntImm | tir.FloatImm):
             py_res = py_res.value
         if not (ninfo.min <= py_res <= ninfo.max):
             # If the result overflow, certain arithmetics is non-defined
@@ -237,7 +239,7 @@ def check_tir_const_fold(
     flaky_msg = (
         f"{dtype} ({x}, {y}, {expect}) const folding check failed.\n"
         + "This test is intentionally non-deterministic, "
-        + f"if it fails please report it in github issue together with this seed {seed}\n"
+        + f"if it fails please report it in GitHub issue together with this seed {seed}\n"
     )
     if dtype.startswith("float"):
         compare_float_value(calc_res, fold_res.value, flaky_msg)
@@ -271,7 +273,7 @@ def test_tir_floatimm_const_fold():
 
     def __wrap_build(f):
         lib = tvm.compile(f, target="llvm")
-        z = tvm.nd.array(np.zeros([]).astype("float32"))
+        z = tvm.runtime.tensor(np.zeros([]).astype("float32"))
 
         def _func(x, y):
             lib(x, y, z)

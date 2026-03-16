@@ -16,9 +16,10 @@
 # under the License.
 # pylint: disable=invalid-name
 """TVM operator depth_to_space compute."""
-from __future__ import absolute_import
+
 import tvm
 from tvm import te
+
 from .. import tag
 
 

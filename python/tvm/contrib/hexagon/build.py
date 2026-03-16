@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=consider-using-with, unnecessary-ellipsis
+# ruff: noqa: RUF005, RUF012
 
 """Defines top-level glue functions for building Hexagon."""
 
@@ -24,18 +25,19 @@ import logging
 import multiprocessing as mp
 import os
 import pathlib
+import random
 import signal
 import socket
 import stat
-import random
 import string
 import subprocess
 import sys
 import tempfile
-from typing import Union
+
+from tvm_ffi import libinfo
 
 from tvm.contrib.hexagon.hexagon_profiler import HexagonProfiler
-from ...ffi import libinfo
+
 from .session import Session
 from .tools import HEXAGON_SIMULATOR_NAME
 
@@ -55,8 +57,7 @@ def _check_call_verbose(cmd, **kwargs) -> None:
             cmd,
             check=True,
             encoding="UTF-8",
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             **kwargs,
         )
     except subprocess.CalledProcessError as err:
@@ -189,7 +190,10 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
     """
 
     def __init__(
-        self, rpc_info: dict, workspace: Union[str, pathlib.Path] = None, serial_number: str = None
+        self,
+        rpc_info: dict,
+        workspace: str | pathlib.Path | None = None,
+        serial_number: str | None = None,
     ):
         self._rpc_info = {
             "rpc_tracker_host": "0.0.0.0",
@@ -217,9 +221,7 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
         ...
 
     @abc.abstractmethod
-    def _copy_to_remote(
-        self, local_path: Union[str, pathlib.Path], remote_path: Union[str, pathlib.Path]
-    ):
+    def _copy_to_remote(self, local_path: str | pathlib.Path, remote_path: str | pathlib.Path):
         """Copy a local file to a remote location.
 
         Parameters
@@ -232,7 +234,7 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
         ...
 
     @abc.abstractmethod
-    def _create_remote_directory(self, remote_path: Union[str, pathlib.Path]) -> pathlib.Path:
+    def _create_remote_directory(self, remote_path: str | pathlib.Path) -> pathlib.Path:
         """Create a directory in the remote location.
 
         Parameters
@@ -247,7 +249,7 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
         """
         ...
 
-    def _create_workspace(self, workspace: Union[str, pathlib.Path]) -> pathlib.Path:
+    def _create_workspace(self, workspace: str | pathlib.Path) -> pathlib.Path:
         """Create a working directory for the server.
 
         Parameters
@@ -329,7 +331,7 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         self,
         serial_number: str,
         rpc_info: dict,
-        workspace: Union[str, pathlib.Path] = None,
+        workspace: str | pathlib.Path | None = None,
         hexagon_debug: bool = False,
         clear_logcat: bool = False,
         sysmon_profile: bool = False,
@@ -374,16 +376,14 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         self._farf_config = farf_config
         rpc_info["device_key"] = HEXAGON_REMOTE_DEVICE_KEY + "." + self._serial_number
 
-        super(HexagonLauncherAndroid, self).__init__(rpc_info, workspace, self._serial_number)
+        super().__init__(rpc_info, workspace, self._serial_number)
 
-    def _copy_to_remote(
-        self, local_path: Union[str, pathlib.Path], remote_path: Union[str, pathlib.Path]
-    ):
+    def _copy_to_remote(self, local_path: str | pathlib.Path, remote_path: str | pathlib.Path):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
 
         _check_call_verbose(self._adb_device_sub_cmd + ["push", str(local_path), str(remote_path)])
 
-    def _create_remote_directory(self, remote_path: Union[str, pathlib.Path]) -> pathlib.Path:
+    def _create_remote_directory(self, remote_path: str | pathlib.Path) -> pathlib.Path:
         """Abstract method implementation. See description in HexagonLauncherRPC."""
         _check_call_verbose(self._adb_device_sub_cmd + ["shell", "mkdir", "-p", str(remote_path)])
         return pathlib.Path(remote_path)
@@ -392,7 +392,7 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         """Upload Android server binaries."""
 
         # Create bash script
-        with open(_get_hexagon_rpc_lib_dir() / f"{ANDROID_BASH_FILE_NAME}.template", "r") as src_f:
+        with open(_get_hexagon_rpc_lib_dir() / f"{ANDROID_BASH_FILE_NAME}.template") as src_f:
             with tempfile.TemporaryDirectory() as temp_dir:
                 android_bash_script_path = pathlib.Path(temp_dir) / ANDROID_BASH_FILE_NAME
                 with open(android_bash_script_path, "w") as dest_f:
@@ -578,7 +578,7 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         context_lines = 0
         print_buffer = ""
         try:
-            with open("./logcat.txt", "r") as f:
+            with open("./logcat.txt") as f:
                 for line in f:
                     if "Process on cDSP CRASHED" in line:
                         if crash_count <= 5:
@@ -654,7 +654,7 @@ class HexagonLauncherSimulator(HexagonLauncherRPC):
 
     SIMULATOR_HEXAGON_RPC_FILES = ["tvm_rpc_x86", "libhexagon_rpc_sim.so"]
 
-    def __init__(self, rpc_info: dict, workspace: Union[str, pathlib.Path] = None):
+    def __init__(self, rpc_info: dict, workspace: str | pathlib.Path | None = None):
         """Configure a new HexagonLauncherSimulator
 
         Parameters are same as for HexagonLauncherRPC.
@@ -665,20 +665,18 @@ class HexagonLauncherSimulator(HexagonLauncherRPC):
             raise RuntimeError("Please set HEXAGON_TOOLCHAIN env variable")
         self._serial_number = HEXAGON_SIMULATOR_NAME
 
-        super(HexagonLauncherSimulator, self).__init__(rpc_info, workspace, self._serial_number)
+        super().__init__(rpc_info, workspace, self._serial_number)
 
-    def _copy_to_remote(
-        self, local_path: Union[str, pathlib.Path], remote_path: Union[str, pathlib.Path]
-    ):
+    def _copy_to_remote(self, local_path: str | pathlib.Path, remote_path: str | pathlib.Path):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
         _check_call_verbose(["cp", str(local_path), str(remote_path)])
 
-    def _create_remote_directory(self, remote_path: Union[str, pathlib.Path]) -> pathlib.Path:
+    def _create_remote_directory(self, remote_path: str | pathlib.Path) -> pathlib.Path:
         """Abstract method implementation. See description in HexagonLauncherRPC."""
         _check_call_verbose(["mkdir", "-p", str(remote_path)])
         return pathlib.Path(os.path.abspath(remote_path))
 
-    def _copy_libcxx(self, dest_dir: Union[str, pathlib.Path]):
+    def _copy_libcxx(self, dest_dir: str | pathlib.Path):
         """Copy libc++ libraries to the remote workspace."""
         # Copy the v68 versions, since we don't have target information.
         # The v68 ones should work everywhere on v68+.
@@ -698,7 +696,7 @@ class HexagonLauncherSimulator(HexagonLauncherRPC):
         # sure that all files are copied over. The preservation of symbolic
         # links is to save disk space.
         tar_in = f"tar -cf - -C {lib_dir} " + " ".join(libcxx_files)
-        tar_out = f"tar -xf - -C {str(dest_dir)}"
+        tar_out = f"tar -xf - -C {dest_dir!s}"
         _check_call_verbose(tar_in + " | " + tar_out, shell=True)
 
     def start_server(self):
@@ -825,7 +823,7 @@ def farf_config_from_python_log_level(level) -> str:
 def HexagonLauncher(
     serial_number: str,
     rpc_info: dict,
-    workspace: Union[str, pathlib.Path] = None,
+    workspace: str | pathlib.Path | None = None,
     hexagon_debug: bool = False,
     clear_logcat: bool = False,
     sysmon_profile: bool = False,

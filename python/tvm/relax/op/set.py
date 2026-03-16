@@ -16,22 +16,22 @@
 # under the License.
 # pylint: disable=import-outside-toplevel, redefined-builtin, unused-argument
 """Set operators."""
-from typing import Optional, Union
 
 import numpy as np  # type: ignore
+
 import tvm
 
-from . import _ffi_api
 from ..expr import Expr, PrimValue
+from . import _ffi_api
 
 
 def unique(
     x: Expr,
-    sorted: Union[bool, Expr] = True,
-    return_index: Union[bool, Expr] = False,
-    return_inverse: Union[bool, Expr] = False,
-    return_counts: Union[bool, Expr] = False,
-    axis: Optional[Union[int, Expr]] = None,
+    sorted: bool | Expr = True,
+    return_index: bool | Expr = False,
+    return_inverse: bool | Expr = False,
+    return_counts: bool | Expr = False,
+    axis: int | Expr | None = None,
 ) -> Expr:
     """Find the unique elements in a given tensor.
     In addition, it optionally returns
@@ -84,32 +84,99 @@ def unique(
     )
 
 
-@tvm.register_func("relax.run.unique")
+@tvm.register_global_func("relax.run.unique")
 def numpy_unique(
-    x: tvm.nd.array,
+    x: tvm.runtime.tensor,
     sorted: int,
     return_index: int,
     return_inverse: int,
     return_counts: int,
-    axis: Optional[int] = None,
-) -> tvm.nd.array:
+    axis: int | None = None,
+) -> tvm.runtime.tensor:
     """Returns the unique elements of the input tensor.
 
     Uses numpy.unique to compute unique elements.
     """
     import builtins
 
-    # TODO(prakalp): add support for returning a tuple when return_inverse or return_counts is True
-    if bool(return_index) or bool(return_inverse) or bool(return_counts):
-        raise NotImplementedError("missing support return_inverse or return_counts set to true")
     x_numpy = x.numpy()
-    # TODO(prakalp): use torch.unique instead of numpy when torch is installed in ci.
-    output_sorted_numpy, indices = np.unique(x_numpy, return_index=True, axis=axis)
 
-    if sorted:
-        return tvm.nd.array(output_sorted_numpy)
-    output_numpy = np.take(x_numpy, builtins.sorted(indices), axis=axis)
-    return tvm.nd.array(output_numpy)
+    # Call numpy.unique with all the requested return flags
+    result = np.unique(
+        x_numpy,
+        return_index=bool(return_index),
+        return_inverse=bool(return_inverse),
+        return_counts=bool(return_counts),
+        axis=axis,
+    )
+
+    # If no optional outputs requested, result is just the unique values
+    if not bool(return_index) and not bool(return_inverse) and not bool(return_counts):
+        unique_values = result
+        if not sorted:
+            indices = np.unique(x_numpy, return_index=True, axis=axis)[1]
+            unique_values = np.take(x_numpy, builtins.sorted(indices), axis=axis)
+        return tvm.runtime.tensor(unique_values)
+
+    # Otherwise, numpy returns a tuple
+    unique_values = result[0]
+    output_list = []
+    result_idx = 1
+
+    # Handle sorting for unique values
+    if not sorted and bool(return_index):
+        # Get the indices from numpy result
+        indices = result[result_idx]
+        result_idx += 1
+        # Sort indices to get original order
+        sort_order = np.argsort(indices)
+        unique_values = np.take(unique_values, sort_order, axis=axis)
+        indices = np.sort(indices)
+        output_list.append(tvm.runtime.tensor(unique_values))
+        output_list.append(tvm.runtime.tensor(indices))
+    elif not sorted:
+        # Need to get indices to reorder
+        _, indices = np.unique(x_numpy, return_index=True, axis=axis)
+        sort_order = np.argsort(indices)
+        unique_values = np.take(unique_values, sort_order, axis=axis)
+        output_list.append(tvm.runtime.tensor(unique_values))
+        if bool(return_index):
+            indices_from_result = result[result_idx]
+            result_idx += 1
+            output_list.append(tvm.runtime.tensor(np.sort(indices_from_result)))
+    else:
+        # Sorted case
+        output_list.append(tvm.runtime.tensor(unique_values))
+        if bool(return_index):
+            output_list.append(tvm.runtime.tensor(result[result_idx]))
+            result_idx += 1
+
+    if bool(return_inverse):
+        inverse_indices = result[result_idx]
+        if not sorted:
+            # Need to remap inverse indices to match reordered unique values
+            _, orig_indices = np.unique(x_numpy, return_index=True, axis=axis)
+            sort_order = np.argsort(orig_indices)
+            inverse_mapping = np.empty_like(sort_order)
+            inverse_mapping[sort_order] = np.arange(len(sort_order))
+            inverse_indices = inverse_mapping[inverse_indices]
+        # ONNX spec: inverse_indices is always 1D
+        # When axis is None, it has length X.size (flattened)
+        # When axis is specified, it has length X.shape[axis]
+        # numpy.unique already returns 1D inverse_indices, so no reshaping needed
+        output_list.append(tvm.runtime.tensor(inverse_indices))
+        result_idx += 1
+
+    if bool(return_counts):
+        counts = result[result_idx]
+        if not sorted:
+            # Reorder counts to match reordered unique values
+            _, orig_indices = np.unique(x_numpy, return_index=True, axis=axis)
+            sort_order = np.argsort(orig_indices)
+            counts = counts[sort_order]
+        output_list.append(tvm.runtime.tensor(counts))
+
+    return tuple(output_list)
 
 
 def nonzero(x: Expr) -> Expr:
@@ -143,7 +210,7 @@ def nonzero(x: Expr) -> Expr:
     return _ffi_api.nonzero(x)  # type: ignore
 
 
-@tvm.register_func("relax.run.nonzero")
-def numpy_nonzero(x: tvm.nd.array) -> tvm.nd.array:
+@tvm.register_global_func("relax.run.nonzero")
+def numpy_nonzero(x: tvm.runtime.tensor) -> tvm.runtime.tensor:
     np_result = np.atleast_1d(x.numpy()).nonzero()
-    return tvm.nd.array(np.stack(np_result, axis=0))
+    return tvm.runtime.tensor(np.stack(np_result, axis=0))

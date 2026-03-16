@@ -15,8 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, missing-function-docstring
+# ruff: noqa: F821
 """Common functions for popen_pool test cases"""
-import tvm
+
+import tvm_ffi
+
 from . import _ffi_api
 
 TEST_GLOBAL_STATE_1 = 0
@@ -36,19 +39,19 @@ def after_initializer():
     return TEST_GLOBAL_STATE_1, TEST_GLOBAL_STATE_2, TEST_GLOBAL_STATE_3
 
 
-@tvm.ffi.register_func("testing.identity_py")
+@tvm_ffi.register_global_func("testing.identity_py")
 def identity_py(arg):
     return arg
 
 
 def register_ffi():
-    @tvm.ffi.register_func("testing.nested_identity_py")
+    @tvm_ffi.register_global_func("testing.nested_identity_py")
     def _identity_py(arg):  # pylint: disable=unused-variable
         return arg
 
 
 def call_py_ffi(arg):
-    _identity_py = tvm.ffi.get_global_func("testing.nested_identity_py")
+    _identity_py = tvm_ffi.get_global_func("testing.nested_identity_py")
     return _identity_py(arg)
 
 

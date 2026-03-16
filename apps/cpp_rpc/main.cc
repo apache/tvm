@@ -143,7 +143,7 @@ string GetCmdOption(int argc, char* argv[], string option, bool key = false) {
         return cmd;
       }
       // We assume "=" is the end of option.
-      ICHECK_EQ(*option.rbegin(), '=');
+      TVM_FFI_ICHECK_EQ(*option.rbegin(), '=');
       cmd = arg.substr(arg.find('=') + 1);
       return cmd;
     }
@@ -177,8 +177,6 @@ void ParseCmdArgs(int argc, char* argv[], struct RpcServerArgs& args) {
   const string silent = GetCmdOption(argc, argv, "--silent", true);
   if (!silent.empty()) {
     args.silent = true;
-    // Only errors and fatal is logged
-    dmlc::InitLogging("--minloglevel=2");
   }
 
   const string host = GetCmdOption(argc, argv, "--host=");
@@ -239,7 +237,6 @@ void ParseCmdArgs(int argc, char* argv[], struct RpcServerArgs& args) {
   const string mmap_path = GetCmdOption(argc, argv, "--child_proc=");
   if (!mmap_path.empty()) {
     args.mmap_path = mmap_path;
-    dmlc::InitLogging("--minloglevel=0");
   }
 #endif
   const string work_dir = GetCmdOption(argc, argv, "--work-dir=");

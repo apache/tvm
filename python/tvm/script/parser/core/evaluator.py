@@ -17,7 +17,10 @@
 """AST Evaluation"""
 
 import ast
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Type, Union
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
+
+import tvm
 
 from . import dispatch, doc
 from .error import ParserError
@@ -25,7 +28,7 @@ from .error import ParserError
 if TYPE_CHECKING:
     from .parser import Parser
 
-DEFAULT_OP: Dict[Type, Callable[..., Any]] = {
+DEFAULT_OP: dict[type, Callable[..., Any]] = {
     doc.Add: lambda a, b: a + b,
     doc.Sub: lambda a, b: a - b,
     doc.Mult: lambda a, b: a * b,
@@ -85,17 +88,17 @@ class ExprEvaluator:
     """
 
     parser: "Parser"
-    value_table: Dict[str, Any]
+    value_table: dict[str, Any]
     new_value_count: int
 
-    def __init__(self, parser: "Parser", value_table: Dict[str, Any]) -> None:
+    def __init__(self, parser: "Parser", value_table: dict[str, Any]) -> None:
         super().__init__()
         self.parser = parser
         self.value_table = value_table
         self.new_value_count = 0
 
     @staticmethod
-    def eval(parser: "Parser", value_table: Dict[str, Any], node: doc.AST) -> Any:
+    def eval(parser: "Parser", value_table: dict[str, Any], node: doc.AST) -> Any:
         """Expression evaluation for TVMScript parser.
 
         Parameters
@@ -172,21 +175,22 @@ class ExprEvaluator:
         if (
             isinstance(node, doc.Call)
             and hasattr(node.func, "attr")
-            and node.func.attr not in ["reads", "writes", "match_buffer", "realize"]
-        ) or isinstance(node, (doc.BinOp, doc.UnaryOp, doc.Compare, doc.BoolOp)):
+            and node.func.attr not in ["reads", "writes", "match_buffer"]
+        ) or isinstance(node, doc.BinOp | doc.UnaryOp | doc.Compare | doc.BoolOp | doc.IfExp):
             if isinstance(node, doc.BinOp):
                 args = [node.left, node.right]
             elif isinstance(node, doc.UnaryOp):
                 args = [node.operand]
             elif isinstance(node, doc.Compare):
                 args = [node.left, *node.comparators]
-            else:
-                if isinstance(node, doc.Call):
-                    args = node.args
-                elif isinstance(node, doc.BoolOp):
-                    args = node.values
+            elif isinstance(node, doc.IfExp):
+                args = [node.test, node.body, node.orelse]
+            elif isinstance(node, doc.Call):
+                args = node.args
+            elif isinstance(node, doc.BoolOp):
+                args = node.values
         for arg in args:
-            if isinstance(arg, doc.Subscript) and isinstance(arg.slice, (doc.Slice, doc.Tuple)):
+            if isinstance(arg, doc.Subscript) and isinstance(arg.slice, doc.Slice | doc.Tuple):
                 if isinstance(arg.slice, doc.Slice):
                     check_slices = [arg.slice]
                 else:
@@ -215,17 +219,10 @@ class ExprEvaluator:
             return node
         if isinstance(
             node,
-            (
-                doc.Constant,
-                doc.expr_context,
-                doc.operator,
-                doc.boolop,
-                doc.unaryop,
-                doc.cmpop,
-            ),
+            doc.Constant | doc.expr_context | doc.operator | doc.boolop | doc.unaryop | doc.cmpop,
         ):
             return node
-        if not isinstance(node, (doc.expr, doc.Slice)):
+        if not isinstance(node, doc.expr | doc.Slice):
             return node
         if isinstance(node, doc.Lambda):
             return self._eval_lambda(node)
@@ -243,7 +240,7 @@ class ExprEvaluator:
         fields = {}
         for field in node.__class__._FIELDS:  # pylint: disable=protected-access
             attr = getattr(node, field)
-            if isinstance(attr, (doc.AST, tuple, list)):
+            if isinstance(attr, doc.AST | tuple | list):
                 fields[field] = self._visit(attr)
             else:
                 fields[field] = attr
@@ -256,6 +253,8 @@ class ExprEvaluator:
                 value = self._eval_unary_op(fields)
             elif isinstance(node, doc.BinOp):
                 value = self._eval_bin_op(fields)
+            elif isinstance(node, doc.IfExp):
+                value = self._eval_if_exp(fields)
             elif isinstance(node, doc.Slice):
                 value = self._eval_slice(fields)
             else:
@@ -283,7 +282,7 @@ class ExprEvaluator:
             self.parser.report_error(node, err)
         return self._add_intermediate_result(value)
 
-    def _eval_bool_op(self, fields: Dict[str, Any]) -> Any:
+    def _eval_bool_op(self, fields: dict[str, Any]) -> Any:
         """The doc AST boolean operator node evaluating method.
 
         Parameters
@@ -298,14 +297,14 @@ class ExprEvaluator:
             The evaluation result.
         """
         op = fields["op"]
-        if not isinstance(op, (doc.And, doc.Or)):
+        if not isinstance(op, doc.And | doc.Or):
             raise TypeError(f"Unexpected operator: {op}")
         value = self._eval_expr(fields["values"][0])
         for rhs in fields["values"][1:]:
             value = _eval_op(op, values=[value, self._eval_expr(rhs)])
         return value
 
-    def _eval_compare(self, fields: Dict[str, Any]) -> Any:
+    def _eval_compare(self, fields: dict[str, Any]) -> Any:
         """The doc AST comparison operation node evaluating method.
 
         Parameters
@@ -319,12 +318,20 @@ class ExprEvaluator:
         res : Any
             The evaluation result.
         """
-        value = self._eval_expr(fields["left"])
-        for op, rhs in zip(fields["ops"], fields["comparators"]):
-            value = _eval_op(op, values=[value, self._eval_expr(rhs)])
-        return value
+        values = [self._eval_expr(fields["left"])]
+        values.extend([self._eval_expr(rhs) for rhs in fields["comparators"]])
+        result = None
+        assert len(fields["ops"]) == len(values) - 1
 
-    def _eval_unary_op(self, fields: Dict[str, Any]) -> Any:
+        for index, op in enumerate(fields["ops"]):
+            sub_result = _eval_op(op, values=[values[index], values[index + 1]])
+            if result is None:
+                result = sub_result
+            else:
+                result = _eval_op(doc.And(), values=[result, sub_result])
+        return result
+
+    def _eval_unary_op(self, fields: dict[str, Any]) -> Any:
         """The doc AST unary operation node evaluating method.
 
         Parameters
@@ -342,7 +349,7 @@ class ExprEvaluator:
         value = _eval_op(fields["op"], values=[value])
         return value
 
-    def _eval_bin_op(self, fields: Dict[str, Any]) -> Any:
+    def _eval_bin_op(self, fields: dict[str, Any]) -> Any:
         """The doc AST binary operation node evaluating method.
 
         Parameters
@@ -364,7 +371,31 @@ class ExprEvaluator:
             ],
         )
 
-    def _eval_slice(self, fields: Dict[str, Any]) -> slice:
+    def _eval_if_exp(self, fields: dict[str, Any]) -> Any:
+        """The doc AST if-else expression node evaluating method.
+
+        Parameters
+        ----------
+        fields : Dict[str, Any]
+            The dictionary of if-else expression information,
+            e.g., test, body, orelse.
+
+        Returns
+        -------
+        res : Any
+            The evaluation result.
+        """
+        test = self._eval_expr(fields["test"])
+        body = self._eval_expr(fields["body"])
+        orelse = self._eval_expr(fields["orelse"])
+        if isinstance(test, bool):
+            return body if test else orelse
+        elif isinstance(test, tvm.tir.PrimExpr) and test.dtype == "bool":
+            return tvm.tir.op.if_then_else(test, body, orelse)
+        else:
+            raise TypeError(f"Expected Python bool or TIR bool, but got {type(test)}")
+
+    def _eval_slice(self, fields: dict[str, Any]) -> slice:
         """The doc AST slice node evaluating method.
 
         Parameters
@@ -404,8 +435,8 @@ class ExprEvaluator:
 
 def eval_expr(
     parser: "Parser",
-    node: Union[doc.expr, doc.Expression],
-    dict_globals: Optional[Dict[str, Any]],
+    node: doc.expr | doc.Expression,
+    dict_globals: dict[str, Any] | None,
 ) -> Any:
     """Expression evaluation for TVMScript parser.
 
@@ -435,7 +466,7 @@ def eval_assign(
     parser: "Parser",
     target: doc.expr,
     source: Any,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Expression assignment evaluation for TVMScript parser.
 
     Parameters
@@ -462,8 +493,8 @@ def eval_assign(
 
 
 def _eval_expr(
-    node: Union[doc.expr, doc.Expression],
-    dict_globals: Optional[Dict[str, Any]],
+    node: doc.expr | doc.Expression,
+    dict_globals: dict[str, Any] | None,
 ) -> Any:
     """Expression evaluation implementation for TVMScript parser.
 
@@ -493,7 +524,7 @@ def _eval_expr(
 
 def _eval_op(
     op: doc.AST,
-    values: List[Any],
+    values: list[Any],
 ):
     """Operation expression evaluation implementation for TVMScript parser.
 
@@ -526,7 +557,7 @@ def _eval_op(
 def _eval_assign(
     target: doc.expr,
     source: Any,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Expression assignment evaluation implementation for TVMScript parser.
 
     Parameters

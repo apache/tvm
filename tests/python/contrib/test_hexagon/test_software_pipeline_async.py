@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401
 """Async software pipeline tests."""
 
 import numpy as np
@@ -35,8 +36,8 @@ def compute(comp_type, outer, inner, dtype):
         ):
             for i in T.serial(outer):
                 for j in T.serial(inner):
-                    with T.block("compute"):
-                        with T.block():
+                    with T.sblock("compute"):
+                        with T.sblock():
                             out[i, j] = a_buffer[i, j] + T.cast(1, dtype)
 
         return a_plus_1_primfunc
@@ -50,8 +51,8 @@ def compute(comp_type, outer, inner, dtype):
         ):
             for i in T.serial(outer):
                 for j in T.serial(inner):
-                    with T.block("compute"):
-                        with T.block():
+                    with T.sblock("compute"):
+                        with T.sblock():
                             out[i, j] = a_buffer[i, j] + b_buffer[i, j] + T.cast(1, dtype)
 
         return a_plus_b_plus_1_primfunc
@@ -89,7 +90,7 @@ class TestAsyncSoftwarePipeline:
             if "int" in dtype:
                 np.testing.assert_equal(out.numpy(), ref)
             else:
-                np.testing.assert_allclose(out.numpy(), ref, rtol=1e-3, atol=1e-3)
+                tvm.testing.assert_allclose(out.numpy(), ref, rtol=1e-3, atol=1e-3)
 
         return check
 
@@ -112,9 +113,9 @@ class TestAsyncSoftwarePipeline:
     @tvm.testing.fixture
     def schedule(self, comp_type, sched_type, outer, inner, dtype, scope):
         """Generate schedule."""
-        sch = tir.Schedule(compute(comp_type, outer, inner, dtype))
+        sch = tvm.s_tir.Schedule(compute(comp_type, outer, inner, dtype))
 
-        compute_block = sch.get_block("compute")
+        compute_block = sch.get_sblock("compute")
         i, _ = sch.get_loops(compute_block)
 
         if "read" in sched_type:
@@ -188,12 +189,12 @@ class TestAsyncSoftwarePipeline:
         with hexagon_launcher.create_session() as hexagon_session:
             dev = hexagon_session.device
             mod = hexagon_session.load_module(func)
-            out = tvm.nd.array(out_np, device=dev)
-            a = tvm.nd.array(a_np, device=dev)
+            out = tvm.runtime.tensor(out_np, device=dev)
+            a = tvm.runtime.tensor(a_np, device=dev)
             if comp_type == "single_input":
                 mod(a, out)
             else:
-                b = tvm.nd.array(b_np, device=dev)
+                b = tvm.runtime.tensor(b_np, device=dev)
                 mod(a, b, out)
 
             verify(out, ref)

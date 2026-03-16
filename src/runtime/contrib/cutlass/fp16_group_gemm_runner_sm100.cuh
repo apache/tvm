@@ -40,11 +40,11 @@
 #include "cutlass/gemm/kernel/gemm_universal.hpp"
 // clang-format on
 
-#define CUTLASS_CHECK(status)                                      \
-  {                                                                \
-    cutlass::Status error = status;                                \
-    CHECK(error == cutlass::Status::kSuccess)                      \
-        << "Got cutlass error: " << cutlassGetStatusString(error); \
+#define CUTLASS_CHECK(status)                                       \
+  {                                                                 \
+    cutlass::Status error = status;                                 \
+    TVM_FFI_CHECK(error == cutlass::Status::kSuccess, RuntimeError) \
+        << "Got cutlass error: " << cutlassGetStatusString(error);  \
   }
 
 using namespace cute;
@@ -132,7 +132,7 @@ struct CutlassGroupGemmRunner {
     typename Gemm::Arguments arguments;
     decltype(arguments.epilogue.thread) fusion_args;
     [&]() {
-      ICHECK(alpha.index() == beta.index()) << "alpha and beta must have the same type";
+      TVM_FFI_ICHECK(alpha.index() == beta.index()) << "alpha and beta must have the same type";
       if (std::holds_alternative<ElementAccumulator>(alpha)) {
         fusion_args.alpha = std::get<ElementAccumulator>(alpha);
         fusion_args.beta = std::get<ElementAccumulator>(beta);
@@ -156,7 +156,7 @@ struct CutlassGroupGemmRunner {
                                          hw_info};
     Gemm gemm_op;
     CUTLASS_CHECK(gemm_op.can_implement(arguments));
-    CHECK_GE(workspace_size, gemm_op.get_workspace_size(arguments));
+    TVM_FFI_CHECK_GE(workspace_size, gemm_op.get_workspace_size(arguments), RuntimeError);
     CUTLASS_CHECK(gemm_op.initialize(arguments, workspace, stream));
     CUTLASS_CHECK(gemm_op.run(stream));
   }

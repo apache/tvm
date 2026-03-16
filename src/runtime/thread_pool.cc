@@ -21,7 +21,6 @@
  * \file thread_pool.cc
  * \brief Threadpool for multi-threading runtime.
  */
-#include <dmlc/thread_local.h>
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -122,7 +121,10 @@ class ParallelLauncher {
   // Signal that one job has finished.
   void SignalJobFinish() { num_pending_.fetch_sub(1); }
   // Get thread local version of the store.
-  static ParallelLauncher* ThreadLocal() { return dmlc::ThreadLocalStore<ParallelLauncher>::Get(); }
+  static ParallelLauncher* ThreadLocal() {
+    static thread_local ParallelLauncher inst;
+    return &inst;
+  }
   // The parallel lambda
   FTVMParallelLambda flambda;
   // The closure data
@@ -141,7 +143,7 @@ class ParallelLauncher {
   // The counter page.
   std::atomic<int32_t>* sync_counter_{nullptr};
   // The error message
-  std::vector<Optional<tvm::ffi::Error>> par_errors_;
+  std::vector<ffi::Optional<tvm::ffi::Error>> par_errors_;
 };
 
 /*! \brief Lock-free single-producer-single-consumer queue for each thread */
@@ -193,7 +195,7 @@ class SpscTaskQueue {
     }
     const uint32_t head = head_.load(std::memory_order_relaxed);
     // sanity check if the queue is empty
-    ICHECK(tail_.load(std::memory_order_acquire) != head);
+    TVM_FFI_ICHECK(tail_.load(std::memory_order_acquire) != head);
     *output = buffer_[head];
     head_.store((head + 1) % kRingSize, std::memory_order_release);
     return true;
@@ -288,13 +290,13 @@ class ThreadPool {
 
   int Launch(FTVMParallelLambda flambda, void* cdata, int num_task, int need_sync) {
     ParallelLauncher* launcher = ParallelLauncher::ThreadLocal();
-    ICHECK(!launcher->is_worker)
+    TVM_FFI_ICHECK(!launcher->is_worker)
         << "Cannot launch parallel job inside worker, consider fuse then parallel";
     if (num_task == 0) {
       num_task = num_workers_used_;
     }
     if (need_sync != 0) {
-      ICHECK_LE(num_task, num_workers_used_)
+      TVM_FFI_ICHECK_LE(num_task, num_workers_used_)
           << "Request parallel sync task larger than number of threads used "
           << " workers=" << num_workers_used_ << " request=" << num_task;
     }
@@ -319,7 +321,10 @@ class ThreadPool {
     return res;
   }
 
-  static ThreadPool* ThreadLocal() { return dmlc::ThreadLocalStore<ThreadPool>::Get(); }
+  static ThreadPool* ThreadLocal() {
+    static thread_local ThreadPool inst;
+    return &inst;
+  }
 
   void UpdateWorkerConfiguration(threading::ThreadGroup::AffinityMode mode, int nthreads,
                                  const std::vector<unsigned int>& cpus) {
@@ -356,7 +361,7 @@ class ThreadPool {
     // TODO(tulloch): should we make this configurable via standard APIs?
     static size_t spin_count = GetSpinCount();
     while (queue->Pop(&task, spin_count)) {
-      ICHECK(task.launcher != nullptr);
+      TVM_FFI_ICHECK(task.launcher != nullptr);
       TVMParallelGroupEnv* penv = &(task.launcher->env);
       void* cdata = task.launcher->cdata;
       if ((*task.launcher->flambda)(task.task_id, penv, cdata) == 0) {
@@ -379,7 +384,7 @@ class ThreadPool {
  * \brief args[0] is the AffinityMode, args[1] is the number of threads.
  *  args2 is a list of CPUs which is used to set the CPU affinity.
  */
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("runtime.config_threadpool",
@@ -389,9 +394,9 @@ TVM_FFI_STATIC_INIT_BLOCK({
                     int nthreads = args[1].cast<int>();
                     std::vector<unsigned int> cpus;
                     if (args.size() >= 3) {
-                      auto cpu_array = args[2].cast<Array<String>>();
+                      auto cpu_array = args[2].cast<ffi::Array<ffi::String>>();
                       for (auto cpu : cpu_array) {
-                        ICHECK(IsNumber(cpu))
+                        TVM_FFI_ICHECK(IsNumber(cpu))
                             << "The CPU core information '" << cpu << "' is not a number.";
                         cpus.push_back(std::stoi(cpu));
                       }
@@ -399,7 +404,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                     threading::Configure(mode, nthreads, cpus);
                   })
       .def("runtime.NumThreads", []() -> int32_t { return threading::NumThreads(); });
-});
+}
 
 namespace threading {
 

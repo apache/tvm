@@ -18,12 +18,9 @@
 package org.apache.tvm;
 
 public class TVMValue {
-  protected TVMValue() {
+  protected TVMValue() {}
 
-  }
-
-  public void release() {
-  }
+  public void release() {}
 
   public long asLong() {
     throw new UnsupportedOperationException();
@@ -45,7 +42,7 @@ public class TVMValue {
     throw new UnsupportedOperationException();
   }
 
-  public NDArrayBase asNDArray() {
+  public TensorBase asTensor() {
     throw new UnsupportedOperationException();
   }
 

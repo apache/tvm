@@ -29,7 +29,6 @@ import java.net.SocketAddress;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
 
-
 /**
  * Server processor with tracker connection (based on standalone).
  * This RPC Server registers itself with an RPC Tracker for a specific queue
@@ -64,8 +63,8 @@ public class ConnectTrackerServerProcessor implements ServerProcessor {
    * @param watchdog watch for timeout, etc.
    * @throws java.io.IOException when socket fails to open.
    */
-  public ConnectTrackerServerProcessor(String trackerHost, int trackerPort, String key,
-      RPCWatchdog watchdog) throws IOException {
+  public ConnectTrackerServerProcessor(
+      String trackerHost, int trackerPort, String key, RPCWatchdog watchdog) throws IOException {
     while (true) {
       try {
         this.server = new ServerSocket(serverPort);
@@ -92,7 +91,8 @@ public class ConnectTrackerServerProcessor implements ServerProcessor {
     return matchKey;
   }
 
-  @Override public void terminate() {
+  @Override
+  public void terminate() {
     try {
       server.close();
     } catch (IOException e) {
@@ -100,7 +100,8 @@ public class ConnectTrackerServerProcessor implements ServerProcessor {
     }
   }
 
-  @Override public void run() {
+  @Override
+  public void run() {
     String recvKey = null;
     try {
       trackerSocket = connectToTracker();
@@ -129,7 +130,7 @@ public class ConnectTrackerServerProcessor implements ServerProcessor {
           // incorrect key
           if (recvKey.indexOf(matchKey) == -1) {
             out.write(Utils.toBytes(RPC.RPC_CODE_MISMATCH));
-            System.err.println("key mismatch, expected: " + matchKey + " got: " +  recvKey);
+            System.err.println("key mismatch, expected: " + matchKey + " got: " + recvKey);
             Utils.closeQuietly(socket);
             continue;
           }
@@ -235,7 +236,7 @@ public class ConnectTrackerServerProcessor implements ServerProcessor {
     String recvJSON = Utils.recvString(trackerIn);
     System.err.println("pending matchkeys: " + recvJSON);
     // fairly expensive string operation...
-    if (recvJSON.indexOf(matchKey) != -1 ) {
+    if (recvJSON.indexOf(matchKey) != -1) {
       return true;
     }
     return false;
@@ -243,19 +244,26 @@ public class ConnectTrackerServerProcessor implements ServerProcessor {
 
   // handcrafted JSON
   private String generateCinfo(String key) {
-    String cinfo = "{\"key\" : " + "\"server:" + key + "\", \"addr\": [null, \""
-        + serverPort + "\"]}";
+    String cinfo = "{\"key\" : "
+        + "\"server:" + key + "\", \"addr\": [null, \"" + serverPort + "\"]}";
     return "[" + RPC.TrackerCode.UPDATE_INFO + ", " + cinfo + "]";
   }
 
   // handcrafted JSON
   private String generatePut(int code, String key, int port, String matchKey) {
-    return "[" + code + ", " + "\"" + key + "\"" + ", " + "[" + port + ", "
-            + "\"" + matchKey +  "\"" + "]" + ", " + "null" + "]";
+    return "[" + code + ", "
+        + "\"" + key + "\""
+        + ", "
+        + "[" + port + ", "
+        + "\"" + matchKey + "\""
+        + "]"
+        + ", "
+        + "null"
+        + "]";
   }
 
   // handcrafted JSON
   private String generateGetPendingMatchKeys(int code) {
-    return "[" + code  + "]";
+    return "[" + code + "]";
   }
 }

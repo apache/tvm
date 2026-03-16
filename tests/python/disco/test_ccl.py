@@ -24,11 +24,11 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import dlight as dl
 from tvm import get_global_func
 from tvm import relax as rx
 from tvm.runtime import disco as di
 from tvm.runtime.vm import VirtualMachine
+from tvm.s_tir import dlight as dl
 from tvm.script import relax as R
 
 _all_session_kinds = [di.ThreadedSession, di.ProcessSession]
@@ -247,9 +247,9 @@ def test_scatter(session_kind, ccl, use_explicit_output, capfd):
     )
 
     captured = capfd.readouterr()
-    assert (
-        not captured.err
-    ), "No warning messages should be generated from disco.Session.scatter_from_worker0"
+    assert not captured.err, (
+        "No warning messages should be generated from disco.Session.scatter_from_worker0"
+    )
 
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
@@ -286,9 +286,9 @@ def test_group_scatter(session_kind, ccl, capfd):
     )
 
     captured = capfd.readouterr()
-    assert (
-        not captured.err
-    ), "No warning messages should be generated from disco.Session.scatter_from_worker0"
+    assert not captured.err, (
+        "No warning messages should be generated from disco.Session.scatter_from_worker0"
+    )
 
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
@@ -331,9 +331,9 @@ def test_scatter_with_implicit_reshape(session_kind, ccl, capfd):
     )
 
     captured = capfd.readouterr()
-    assert (
-        not captured.err
-    ), "No warning messages should be generated from disco.Session.scatter_from_worker0"
+    assert not captured.err, (
+        "No warning messages should be generated from disco.Session.scatter_from_worker0"
+    )
 
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
@@ -355,9 +355,9 @@ def test_gather(session_kind, ccl, capfd):
     )
 
     captured = capfd.readouterr()
-    assert (
-        not captured.err
-    ), "No warning messages should be generated from disco.Session.gather_to_worker0"
+    assert not captured.err, (
+        "No warning messages should be generated from disco.Session.gather_to_worker0"
+    )
 
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
@@ -386,9 +386,9 @@ def test_group_gather(session_kind, ccl, capfd):
     )
 
     captured = capfd.readouterr()
-    assert (
-        not captured.err
-    ), "No warning messages should be generated from disco.Session.gather_to_worker0"
+    assert not captured.err, (
+        "No warning messages should be generated from disco.Session.gather_to_worker0"
+    )
 
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
@@ -491,9 +491,9 @@ def test_mlp(session_kind, ccl):  # pylint: disable=too-many-locals
     W1 = np.random.randn(128, 128).astype("float32")
     W2 = np.random.randn(128, 128).astype("float32")
     Y_expected = VirtualMachine(relax_build(MLP, target), device=dev)["main"](
-        tvm.nd.array(X, device=dev),
-        tvm.nd.array(W1, device=dev),
-        tvm.nd.array(W2, device=dev),
+        tvm.runtime.tensor(X, device=dev),
+        tvm.runtime.tensor(W1, device=dev),
+        tvm.runtime.tensor(W2, device=dev),
     ).numpy()
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -512,12 +512,12 @@ def test_mlp(session_kind, ccl):  # pylint: disable=too-many-locals
         d_W2.debug_copy_from(0, W2[:64, :])
         d_W2.debug_copy_from(1, W2[64:, :])
         d_Y = mod["main"](d_X, d_W1, d_W2)
-        Y_result = tvm.nd.empty((128, 128), "float32", device=dev)
+        Y_result = tvm.runtime.empty((128, 128), "float32", device=dev)
         sess.copy_from_worker_0(Y_result, d_Y)
         sess.sync_worker_0()
         Y_result = Y_result.numpy()
     # pylint: enable=invalid-name
-    np.testing.assert_allclose(Y_result, Y_expected, rtol=1e-4, atol=1e-4)
+    tvm.testing.assert_allclose(Y_result, Y_expected, rtol=1e-4, atol=1e-4)
 
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
@@ -632,11 +632,11 @@ def test_attention(session_kind, ccl):  # pylint: disable=too-many-locals,too-ma
     Wv = np.random.randn(128, 512).astype("float32")
     Wo = np.random.randn(512, 128).astype("float32")
     Y_expected = VirtualMachine(relax_build(Attention, target), device=dev)["main"](
-        tvm.nd.array(X, device=dev),
-        tvm.nd.array(Wq, device=dev),
-        tvm.nd.array(Wk, device=dev),
-        tvm.nd.array(Wv, device=dev),
-        tvm.nd.array(Wo, device=dev),
+        tvm.runtime.tensor(X, device=dev),
+        tvm.runtime.tensor(Wq, device=dev),
+        tvm.runtime.tensor(Wk, device=dev),
+        tvm.runtime.tensor(Wv, device=dev),
+        tvm.runtime.tensor(Wo, device=dev),
     ).numpy()
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -661,12 +661,12 @@ def test_attention(session_kind, ccl):  # pylint: disable=too-many-locals,too-ma
         d_Wo.debug_copy_from(0, Wo[:256, :])
         d_Wo.debug_copy_from(1, Wo[256:, :])
         d_Y = mod["main"](d_X, d_Wq, d_Wk, d_Wv, d_Wo)
-        Y_result = tvm.nd.empty((1, 10, 128), "float32", device=dev)
+        Y_result = tvm.runtime.empty((1, 10, 128), "float32", device=dev)
         sess.copy_from_worker_0(Y_result, d_Y)
         sess.sync_worker_0()
         Y_result = Y_result.numpy()
     # pylint: enable=invalid-name
-    np.testing.assert_allclose(Y_result, Y_expected, rtol=1e-3, atol=1e-3)
+    tvm.testing.assert_allclose(Y_result, Y_expected, rtol=1e-3, atol=1e-3)
 
 
 if __name__ == "__main__":

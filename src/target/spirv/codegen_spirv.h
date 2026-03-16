@@ -109,10 +109,10 @@ class CodeGenSPIRV : public ExprFunctor<spirv::Value(const PrimExpr&)>,
   void VisitStmt_(const WhileNode* op) override;
   void VisitStmt_(const IfThenElseNode* op) override;
   void VisitStmt_(const DeclBufferNode* op) override;
-  void VisitStmt_(const AllocateNode* op) override;
+  void VisitStmt_(const AllocBufferNode* op) override;
   void VisitStmt_(const AttrStmtNode* op) override;
   void VisitStmt_(const AssertStmtNode* op) override;
-  void VisitStmt_(const LetStmtNode* op) override;
+  void VisitStmt_(const BindNode* op) override;
   void VisitStmt_(const SeqStmtNode* op) override;
   void VisitStmt_(const EvaluateNode* op) override;
 
@@ -131,7 +131,7 @@ class CodeGenSPIRV : public ExprFunctor<spirv::Value(const PrimExpr&)>,
     /*! \brief Whether the element type of the buffer is known.
      *
      * This value is determined based on the type_annotation of the
-     * buffer variable (AllocateNode) or of the parameter (shader
+     * buffer variable (AllocBufferNode) or of the parameter (shader
      * arguments).
      */
     bool element_type_known{false};
@@ -139,7 +139,7 @@ class CodeGenSPIRV : public ExprFunctor<spirv::Value(const PrimExpr&)>,
     /*! \brief The known element type of the buffer.
      *
      * This value is determined based on the type_annotation of the
-     * buffer variable (AllocateNode) or of the parameter (shader
+     * buffer variable (AllocBufferNode) or of the parameter (shader
      * arguments).
      */
     DataType element_type{DataType()};
@@ -157,18 +157,19 @@ class CodeGenSPIRV : public ExprFunctor<spirv::Value(const PrimExpr&)>,
      * the number of lanes of the index.
      */
     void CheckContentType(DataType type, int index_lanes = 1) const {
-      ICHECK(element_type_known) << "Cannot check element type of buffer " << name_hint
-                                 << " no previous element type defined";
+      TVM_FFI_ICHECK(element_type_known) << "Cannot check element type of buffer " << name_hint
+                                         << " no previous element type defined";
       DataType expected_type = element_type.with_lanes(index_lanes * element_type.lanes());
-      ICHECK_EQ(type, expected_type) << "Attempted to access buffer " << name_hint
-                                     << " as element type " << type << " using an index of size "
-                                     << index_lanes << " when the element type is " << element_type;
+      TVM_FFI_ICHECK_EQ(type, expected_type)
+          << "Attempted to access buffer " << name_hint << " as element type " << type
+          << " using an index of size " << index_lanes << " when the element type is "
+          << element_type;
     }
 
     // Update content type if it hasn't been updated.
     void SetContentType(DataType type, std::string name_hint) {
-      ICHECK(!element_type_known) << "Cannot set element type of buffer " << name_hint
-                                  << " a second time.";
+      TVM_FFI_ICHECK(!element_type_known)
+          << "Cannot set element type of buffer " << name_hint << " a second time.";
       this->element_type = type;
       this->name_hint = name_hint;
       element_type_known = true;

@@ -84,7 +84,7 @@ class Tanh2TakeReplace(tvm.relax.PyExprMutator):
                 take_node = relax.call_tir(
                     take_func_gv,
                     relax.expr.Tuple(
-                        [call_node.args[1][0], relax.expr.Constant(tvm.nd.array(LUT))]
+                        [call_node.args[1][0], relax.expr.Constant(tvm.runtime.tensor(LUT))]
                     ),
                     call_node.struct_info,
                 )

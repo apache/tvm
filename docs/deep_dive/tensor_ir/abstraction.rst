@@ -38,7 +38,7 @@ the compute statements themselves.
         C: T.Buffer((128,), "float32"),
     ) -> None:
         for i in range(128):
-            with T.block("C"):
+            with T.sblock("C"):
                 vi = T.axis.spatial(128, i)
                 C[vi] = A[vi] + B[vi]
 
@@ -60,7 +60,7 @@ computations rely on the loop's sequence. Fortunately, the majority of primitive
 functions we focus on possess favorable properties, such as independence among loop iterations.
 For instance, the aforementioned program includes block and iteration annotations:
 
-- The **block annotation** ``with T.block("C")`` signifies that the block is the fundamental
+- The **block annotation** ``with T.sblock("C")`` signifies that the block is the fundamental
   computation unit designated for scheduling. A block may encompass a single computation
   statement, multiple computation statements with loops, or opaque intrinsics such as Tensor
   Core instructions.

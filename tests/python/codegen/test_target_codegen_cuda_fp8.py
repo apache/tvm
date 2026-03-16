@@ -14,18 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401, F821, F841
 
 from itertools import product
-from typing import List, Tuple
 
 import numpy as np
 import pytest
 
 import tvm
 import tvm.testing
-from tvm import DataType, DataTypeCode, IRModule
-from tvm import dlight as dl
-from tvm import relax, te, tir, topi
+from tvm import DataType, DataTypeCode, IRModule, relax, te, tir, topi
+from tvm.s_tir import dlight as dl
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tir as T
@@ -47,38 +46,40 @@ except ImportError:
 def test_fp8_conversions(input):
     dtype, nv_dtype = input
 
-    @T.prim_func
-    def add(
-        A: T.Buffer((64,), dtype),
-        B: T.Buffer((64,), dtype),
-        C: T.Buffer((64,), dtype),
-    ):
-        T.func_attr({"tir.noalias": True})
-        for i in range(64):
-            with T.block("C"):
-                v_i = T.axis.spatial(64, i)
-                T.reads(A[v_i], B[v_i])
-                T.writes(C[v_i])
-                C[v_i] = T.Cast(dtype, T.Cast("float16", A[v_i]) + T.Cast("float16", B[v_i]))
+    def _create_mod(dtype):
+        @I.ir_module
+        class Module:
+            @T.prim_func
+            def main(
+                A: T.Buffer((64,), dtype),
+                B: T.Buffer((64,), dtype),
+                C: T.Buffer((64,), dtype),
+            ):
+                T.func_attr({"tir.noalias": True})
+                for i_0 in T.thread_binding(2, thread="blockIdx.x"):
+                    for i_1 in T.thread_binding(32, thread="threadIdx.x"):
+                        with T.sblock("C"):
+                            v_i = T.axis.spatial(64, i_0 * 32 + i_1)
+                            T.reads(A[v_i], B[v_i])
+                            T.writes(C[v_i])
+                            C[v_i] = T.Cast(
+                                dtype, T.Cast("float16", A[v_i]) + T.Cast("float16", B[v_i])
+                            )
 
-    sch = tvm.tir.Schedule(add)
-    block = sch.get_block("C")
-    b = sch.get_loops(block)
-    bx, tx = sch.split(b[0], factors=[None, 32])
-    sch.bind(bx, "blockIdx.x")
-    sch.bind(tx, "threadIdx.x")
+        return Module
 
+    mod = _create_mod(dtype)
     target = "cuda"
-    fadd = tvm.tir.build(sch.mod, target=target)
+    fadd = tvm.tir.build(mod, target=target)
 
-    cuda_src = fadd.imported_modules[0].get_source()
+    cuda_src = fadd.imports[0].inspect_source()
     assert nv_dtype in cuda_src, f"{nv_dtype} datatype not found in generated CUDA"
 
     dev = tvm.device(target, 0)
 
-    a = tvm.nd.array(np.random.uniform(low=0, high=5, size=64).astype(dtype), dev)
-    b = tvm.nd.array(np.random.uniform(low=0, high=5, size=64).astype(dtype), dev)
-    c = tvm.nd.array(np.zeros(64, dtype=dtype), dev)
+    a = tvm.runtime.tensor(np.random.uniform(low=0, high=5, size=64).astype(dtype), dev)
+    b = tvm.runtime.tensor(np.random.uniform(low=0, high=5, size=64).astype(dtype), dev)
+    c = tvm.runtime.tensor(np.zeros(64, dtype=dtype), dev)
     fadd(a, b, c)
 
     tvm.testing.assert_allclose(
@@ -96,48 +97,43 @@ def test_fp8_packing(dtype):
     vector_length = 4
     native_dtype, packed_dtype = (f"{dtype}x{vector_length}", "uint32")
 
-    @T.prim_func
-    def add(
-        A: T.Buffer((length,), native_dtype),
-        R: T.Buffer((length,), packed_dtype),
-        B: T.Buffer((length,), native_dtype),
-    ):
-        T.func_attr({"tir.noalias": True})
-        # with T.block("root"):
-        for i in range(length):
-            with T.block("R"):
-                v_i = T.axis.spatial(length, i)
-                T.reads(A[v_i])
-                T.writes(R[v_i])
-                R[v_i] = T.reinterpret(packed_dtype, A[v_i])
-        for i in range(length):
-            with T.block("B"):
-                v_i = T.axis.spatial(length, i)
-                T.reads(R[v_i])
-                T.writes(B[v_i])
-                B[v_i] = T.reinterpret(native_dtype, R[v_i])
+    def _create_mod(native_dtype, packed_dtype, length):
+        @I.ir_module
+        class Module:
+            @T.prim_func
+            def main(
+                A: T.Buffer((length,), native_dtype),
+                R: T.Buffer((length,), packed_dtype),
+                B: T.Buffer((length,), native_dtype),
+            ):
+                T.func_attr({"tir.noalias": True})
+                for i_0 in T.thread_binding(2, thread="blockIdx.x"):
+                    for i_1 in T.thread_binding(32, thread="threadIdx.x"):
+                        with T.sblock("R"):
+                            v_i = T.axis.spatial(length, i_0 * 32 + i_1)
+                            T.reads(A[v_i])
+                            T.writes(R[v_i])
+                            R[v_i] = T.reinterpret(packed_dtype, A[v_i])
+                for i_0 in T.thread_binding(2, thread="blockIdx.x"):
+                    for i_1 in T.thread_binding(32, thread="threadIdx.x"):
+                        with T.sblock("B"):
+                            v_i = T.axis.spatial(length, i_0 * 32 + i_1)
+                            T.reads(R[v_i])
+                            T.writes(B[v_i])
+                            B[v_i] = T.reinterpret(native_dtype, R[v_i])
 
-    sch = tvm.tir.Schedule(add)
-    block = sch.get_block("R")
-    b = sch.get_loops(block)
-    bx, tx = sch.split(b[0], factors=[None, 32])
-    sch.bind(bx, "blockIdx.x")
-    sch.bind(tx, "threadIdx.x")
-    block = sch.get_block("B")
-    b = sch.get_loops(block)
-    bx, tx = sch.split(b[0], factors=[None, 32])
-    sch.bind(bx, "blockIdx.x")
-    sch.bind(tx, "threadIdx.x")
+        return Module
 
+    mod = _create_mod(native_dtype, packed_dtype, length)
     target = "cuda"
-    f = tvm.compile(sch.mod, target=target)
+    f = tvm.compile(mod, target=target)
     dev = tvm.device(target, 0)
 
     np_shape = (length, vector_length)
     a_np = np.random.uniform(low=0, high=5, size=np_shape).astype(dtype)
-    a = tvm.nd.empty(shape=(length,), dtype=native_dtype, device=dev)
-    r = tvm.nd.empty(shape=(length,), dtype=packed_dtype, device=dev)
-    b = tvm.nd.empty(shape=(length,), dtype=native_dtype, device=dev)
+    a = tvm.runtime.empty(shape=(length,), dtype=native_dtype, device=dev)
+    r = tvm.runtime.empty(shape=(length,), dtype=packed_dtype, device=dev)
+    b = tvm.runtime.empty(shape=(length,), dtype=native_dtype, device=dev)
     a.copyfrom(a_np)
     f(a, r, b)
     tvm.testing.assert_allclose(a.numpy().astype("float16"), b.numpy().astype("float16"))
@@ -164,33 +160,33 @@ native_dtype, promoted_dtype, numpytype = tvm.testing.parameters(
 def test_fp8_vector_conversions(native_dtype, promoted_dtype, numpytype):
     vector_length = 64
 
-    @T.prim_func
-    def add(
-        A: T.Buffer((vector_length,), native_dtype),
-        B: T.Buffer((vector_length,), native_dtype),
-        C: T.Buffer((vector_length,), native_dtype),
-    ):
-        T.func_attr({"tir.noalias": True})
-        # with T.block("root"):
-        for i in range(vector_length):
-            with T.block("C"):
-                v_i = T.axis.spatial(vector_length, i)
-                T.reads(A[v_i], B[v_i])
-                T.writes(C[v_i])
-                C[v_i] = T.Cast(
-                    native_dtype, T.Cast(promoted_dtype, A[v_i]) + T.Cast(promoted_dtype, B[v_i])
-                )
+    def _create_mod(native_dtype, promoted_dtype):
+        @I.ir_module
+        class Module:
+            @T.prim_func
+            def main(
+                A: T.Buffer((64,), native_dtype),
+                B: T.Buffer((64,), native_dtype),
+                C: T.Buffer((64,), native_dtype),
+            ):
+                T.func_attr({"tir.noalias": True})
+                for i_0 in T.thread_binding(2, thread="blockIdx.x"):
+                    for i_1 in T.thread_binding(32, thread="threadIdx.x"):
+                        with T.sblock("C"):
+                            v_i = T.axis.spatial(64, i_0 * 32 + i_1)
+                            T.reads(A[v_i], B[v_i])
+                            T.writes(C[v_i])
+                            C[v_i] = T.Cast(
+                                native_dtype,
+                                T.Cast(promoted_dtype, A[v_i]) + T.Cast(promoted_dtype, B[v_i]),
+                            )
 
-    sch = tvm.tir.Schedule(add)
-    block = sch.get_block("C")
-    b = sch.get_loops(block)
-    bx, tx = sch.split(b[0], factors=[None, 32])
-    sch.bind(bx, "blockIdx.x")
-    sch.bind(tx, "threadIdx.x")
+        return Module
 
+    mod = _create_mod(native_dtype, promoted_dtype)
     target = "cuda"
-    fadd = tvm.tir.build(sch.mod, target=target)
-    cuda_src = fadd.imported_modules[0].get_source()
+    fadd = tvm.tir.build(mod, target=target)
+    cuda_src = fadd.imports[0].inspect_source()
     dev = tvm.device(target, 0)
 
     if "x" in native_dtype:
@@ -205,12 +201,12 @@ def test_fp8_vector_conversions(native_dtype, promoted_dtype, numpytype):
 
     np_shape = (vector_length, lanes) if lanes > 1 else (vector_length,)
     a_np = np.random.uniform(low=0, high=5, size=np_shape).astype(numpytype)
-    a = tvm.nd.empty(shape=(vector_length,), dtype=native_dtype, device=dev)
+    a = tvm.runtime.empty(shape=(vector_length,), dtype=native_dtype, device=dev)
     a.copyfrom(a_np)
     b_np = np.random.uniform(low=0, high=5, size=np_shape).astype(numpytype)
-    b = tvm.nd.empty(shape=(vector_length,), dtype=native_dtype, device=dev)
+    b = tvm.runtime.empty(shape=(vector_length,), dtype=native_dtype, device=dev)
     b.copyfrom(b_np)
-    c = tvm.nd.empty(shape=(vector_length,), dtype=native_dtype, device=dev)
+    c = tvm.runtime.empty(shape=(vector_length,), dtype=native_dtype, device=dev)
     fadd(a, b, c)
 
     tvm.testing.assert_allclose(
@@ -225,26 +221,26 @@ bcast_length = tvm.testing.parameter(2, 4, 6, 8)
 def test_half_broadcast(bcast_length):
     dtype = "float16"
 
-    @T.prim_func
-    def vector_broadcast(a: T.Buffer((), dtype), vec: T.Buffer((bcast_length,), dtype)):
-        for t in range(1):
-            with T.block("broadcast"):
-                vec[0:bcast_length] = T.broadcast(a[()], bcast_length)
+    def _create_mod(bcast_length, dtype):
+        @I.ir_module
+        class Module:
+            @T.prim_func
+            def main(a: T.Buffer((), dtype), vec: T.Buffer((bcast_length,), dtype)):
+                for i_0 in T.thread_binding(1, thread="blockIdx.x"):
+                    for i_1 in T.thread_binding(1, thread="threadIdx.x"):
+                        with T.sblock("broadcast"):
+                            vec[0:bcast_length] = T.broadcast(a[()], bcast_length)
 
-    sch = tvm.tir.Schedule(vector_broadcast)
-    block = sch.get_block("broadcast")
-    b = sch.get_loops(block)
-    bx, tx = sch.split(b[0], factors=[None, 1])
-    sch.bind(bx, "blockIdx.x")
-    sch.bind(tx, "threadIdx.x")
+        return Module
 
+    mod = _create_mod(bcast_length, dtype)
     target = "cuda"
-    func = tvm.compile(sch.mod, target=target)
+    func = tvm.compile(mod, target=target)
     dev = tvm.device(target, 0)
 
     a_np = np.random.uniform(low=0, high=4, size=()).astype(dtype)
-    a = tvm.nd.array(a_np, device=dev)
-    b = tvm.nd.empty((bcast_length,), dtype=dtype, device=dev)
+    a = tvm.runtime.tensor(a_np, device=dev)
+    b = tvm.runtime.empty((bcast_length,), dtype=dtype, device=dev)
 
     func(a, b)
 
@@ -276,9 +272,9 @@ def test_half_misaligned_vector_load(vector_length):
 
     dev = tvm.device(target, 0)
     a_np = np.random.uniform(low=0, high=1, size=(length,)).astype(dtype)
-    a = tvm.nd.array(a_np, device=dev)
+    a = tvm.runtime.tensor(a_np, device=dev)
 
-    b = tvm.nd.empty((length // vector_length,), dtype=vec_dtype, device=dev)
+    b = tvm.runtime.empty((length // vector_length,), dtype=vec_dtype, device=dev)
 
     f(a, b)
 
@@ -298,39 +294,34 @@ def test_half4_vector_add():
     vector_length = 4
     vec_dtype = dtype + "x" + str(vector_length)
 
-    @T.prim_func
-    def add(
-        A: T.Buffer((length,), vec_dtype),
-        B: T.Buffer((length,), vec_dtype),
-        C: T.Buffer((length,), vec_dtype),
-    ):
-        T.func_attr({"tir.noalias": True})
-        # with T.block("root"):
-        for i in range(length):
-            with T.block("C"):
-                v_i = T.axis.spatial(length, i)
-                T.reads(A[v_i], B[v_i])
-                T.writes(C[v_i])
-                C[v_i] = A[v_i] + B[v_i]
-
-    sch = tvm.tir.Schedule(add)
-    block = sch.get_block("C")
-    b = sch.get_loops(block)
-    bx, tx = sch.split(b[0], factors=[None, 32])
-    sch.bind(bx, "blockIdx.x")
-    sch.bind(tx, "threadIdx.x")
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(
+            A: T.Buffer((64,), "float16x4"),
+            B: T.Buffer((64,), "float16x4"),
+            C: T.Buffer((64,), "float16x4"),
+        ):
+            T.func_attr({"tir.noalias": True})
+            for i_0 in T.thread_binding(2, thread="blockIdx.x"):
+                for i_1 in T.thread_binding(32, thread="threadIdx.x"):
+                    with T.sblock("C"):
+                        v_i = T.axis.spatial(64, i_0 * 32 + i_1)
+                        T.reads(A[v_i], B[v_i])
+                        T.writes(C[v_i])
+                        C[v_i] = A[v_i] + B[v_i]
 
     target = "cuda"
-    fadd = tvm.compile(sch.mod, target=target)
+    fadd = tvm.compile(Module, target=target)
     dev = tvm.device(target, 0)
 
     a_np = np.random.uniform(-1, 1, (length, vector_length)).astype(dtype)
-    a = tvm.nd.empty(shape=(length,), dtype=vec_dtype, device=dev)
+    a = tvm.runtime.empty(shape=(length,), dtype=vec_dtype, device=dev)
     a.copyfrom(a_np)
     b_np = np.random.uniform(-1, 1, (length, vector_length)).astype(dtype)
-    b = tvm.nd.empty(shape=(length,), dtype=vec_dtype, device=dev)
+    b = tvm.runtime.empty(shape=(length,), dtype=vec_dtype, device=dev)
     b.copyfrom(b_np)
-    c = tvm.nd.empty(shape=(length,), dtype=vec_dtype, device=dev)
+    c = tvm.runtime.empty(shape=(length,), dtype=vec_dtype, device=dev)
 
     fadd(a, b, c)
     c_expected = a_np + b_np
@@ -426,7 +417,7 @@ class BaseFP8E4M3QuantScaleOnly:
     @classmethod
     def quantize_fp8x4_e4m3(  # pylint: disable=too-many-locals
         cls,
-        weight_shape: List[tir.PrimExpr],
+        weight_shape: list[tir.PrimExpr],
         model_dtype,
         quantize_dtype,
         storage_dtype,
@@ -435,7 +426,7 @@ class BaseFP8E4M3QuantScaleOnly:
         max_int_value,
         axis: int = -1,
         output_transpose: bool = False,
-    ) -> Tuple[te.Tensor, te.Tensor]:
+    ) -> tuple[te.Tensor, te.Tensor]:
         """Group quantization for weight tensor, defined in tensor expression."""
         max_int = tir.const(max_int_value, model_dtype)
         shape = weight_shape  # pylint: disable=invalid-name
@@ -513,7 +504,7 @@ class BaseFP8E4M3QuantScaleOnly:
     @classmethod
     def dequantize_fp8x4_e4m3(  # pylint: disable=too-many-locals
         cls,
-        packed_weight_shape: List[tir.PrimExpr],
+        packed_weight_shape: list[tir.PrimExpr],
         scale_shape,
         dequant_shape,
         model_dtype,
@@ -522,7 +513,7 @@ class BaseFP8E4M3QuantScaleOnly:
         group_size,
         num_elem_per_storage,
         axis: int = -1,
-    ) -> Tuple[te.Tensor, te.Tensor]:
+    ) -> tuple[te.Tensor, te.Tensor]:
         """Group quantization for weight tensor, defined in tensor expression."""
         axis = axis if axis >= 0 else len(shape) + axis
 
@@ -563,9 +554,9 @@ class BaseFP8E4M3QuantScaleOnly:
         vec_model_dtype = f"{model_dtype}x{vector_length}"
         num_elem_per_storage = vector_length
         # TODO(csullivan) assert on storage dtype / quantize type bytes == vector length
-        assert (
-            group_size % vector_length == 0
-        ), f"Number of elements in a group must be divisible by fp8 vector length {vector_length}"
+        assert group_size % vector_length == 0, (
+            f"Number of elements in a group must be divisible by fp8 vector length {vector_length}"
+        )
 
         @T.prim_func(private=True)
         def quant_pack(
@@ -576,12 +567,12 @@ class BaseFP8E4M3QuantScaleOnly:
                 storage_dtype,
             ),
         ):
-            # with T.block("root"):
-            # test = T.alloc_buffer(1, dtype=vec_model_dtype, scope="local")
+            # with T.sblock("root"):
+            # test = T.sblock_alloc_buffer(1, dtype=vec_model_dtype, scope="local")
             for i0, i1 in T.grid(
                 T.int64(weight_shape[0]), T.int64(weight_shape[1] // vector_length)
             ):
-                with T.block("compute"):
+                with T.sblock("compute"):
                     v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
                     T.reads(
                         A[v_i0, v_i1 : v_i1 + vector_length],
@@ -623,9 +614,9 @@ class BaseFP8E4M3QuantScaleOnly:
             dequantize: T.Buffer(out_shape, model_dtype),
         ):
             T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            # with T.sblock("root"):
             for i0, i1 in T.grid(T.int64(packed_weight_shape[0]), T.int64(packed_weight_shape[1])):
-                with T.block("dequantize"):
+                with T.sblock("dequantize"):
                     v_i0 = T.axis.spatial(T.int64(packed_weight_shape[0]), i0)
                     v_i1 = T.axis.spatial(T.int64(packed_weight_shape[1]), i1)
                     T.reads(
@@ -710,7 +701,7 @@ class BaseFP8E4M3QuantScaleOnly:
             if name:
                 mod = mod[name]
             f = tvm.tir.build(mod, target=target)
-            cuda_src = f.imported_modules[0].get_source()
+            cuda_src = f.imports[0].inspect_source()
             print(cuda_src)
 
         print_cuda(target, dequant_mod, name="dequant")
@@ -805,7 +796,7 @@ class TestFP8e4x4QuantDequantScale(BaseFP8E4M3QuantScaleOnly):
         dev = tvm.device(target_str, 0)
 
         weight_np = np.random.uniform(-100, 100, weight_shape).astype(model_dtype)
-        weight = tvm.nd.array(weight_np, device=dev)
+        weight = tvm.runtime.tensor(weight_np, device=dev)
         quant_weight, scales = quant(weight)
         quant_weight_np, scales_np = quant_weight.numpy(), scales.numpy()
 
@@ -819,7 +810,7 @@ class TestFP8e4x4QuantDequantScale(BaseFP8E4M3QuantScaleOnly):
 def test_const(dtype):
     @T.prim_func
     def func(A: T.Buffer((4,), dtype)) -> None:
-        A_local = T.alloc_buffer((4,), dtype=dtype, scope="local")
+        A_local = T.sblock_alloc_buffer((4,), dtype=dtype, scope="local")
         for tx in T.thread_binding(0, 4, "threadIdx.x"):
             for i in T.vectorized(4):
                 A_local[i] = T.float32(1.0).astype(dtype)
@@ -884,7 +875,7 @@ def test_moe_gemv_shfl_down_illegal_instr():
             num_seq = T.int64()
             x = T.match_buffer(x_handle, (num_seq, reduce_size), "float16")
             for expert_id in T.thread_binding(2, thread="blockIdx.y"):
-                with T.block("gemv_o"):
+                with T.sblock("gemv_o"):
                     e = T.axis.spatial(2, expert_id)
                     T.reads(
                         w[indptr[0, e], 0:spatial_size, 0:reduce_size],
@@ -893,15 +884,15 @@ def test_moe_gemv_shfl_down_illegal_instr():
                         x[e, 0:reduce_size],
                     )
                     T.writes(o[e, 0:spatial_size])
-                    y = T.alloc_buffer((spatial_size, reduce_size), "float16")
+                    y = T.sblock_alloc_buffer((spatial_size, reduce_size), "float16")
                     for i1, i2 in T.grid(spatial_size, reduce_size):
-                        with T.block("dequantize"):
+                        with T.sblock("dequantize"):
                             i, j = T.axis.remap("SS", [i1, i2])
                             T.reads(w[indptr[0, e], i, j], indptr[0, e], scale[0])
                             T.writes(y[i, j])
                             y[i, j] = T.Cast("float16", w[indptr[0, e], i, j]) * scale[0]
                     for i1, i2 in T.grid(spatial_size, reduce_size):
-                        with T.block("gemv"):
+                        with T.sblock("gemv"):
                             i, j = T.axis.remap("SR", [i1, i2])
                             T.reads(x[e, j], y[i, j])
                             T.writes(o[e, i])
@@ -934,12 +925,12 @@ def test_moe_gemv_shfl_down_illegal_instr():
         seq = tvm.transform.Sequential(
             [
                 tvm.relax.transform.LegalizeOps(),
-                tvm.dlight.ApplyDefaultSchedule(
-                    tvm.dlight.gpu.Matmul(),
-                    tvm.dlight.gpu.GEMV(),
-                    tvm.dlight.gpu.Reduction(),
-                    tvm.dlight.gpu.GeneralReduction(),
-                    tvm.dlight.gpu.Fallback(),
+                dl.ApplyDefaultSchedule(
+                    dl.gpu.Matmul(),
+                    dl.gpu.GEMV(),
+                    dl.gpu.Reduction(),
+                    dl.gpu.GeneralReduction(),
+                    dl.gpu.Fallback(),
                 ),
             ]
         )
@@ -955,16 +946,16 @@ def test_moe_gemv_shfl_down_illegal_instr():
     dev = tvm.cuda(0)
 
     x_data = np.zeros((1, reduce_size), dtype=np.float16)
-    x = tvm.nd.array(x_data, device=dev)
+    x = tvm.runtime.tensor(x_data, device=dev)
 
     indptr_data = np.zeros((1, 2), dtype=np.int32)
-    indptr = tvm.nd.array(indptr_data, device=dev)
+    indptr = tvm.runtime.tensor(indptr_data, device=dev)
 
     weight_data = np.zeros((num_experts, spatial_size, reduce_size), dtype="float8_e4m3fn")
-    weight = tvm.nd.array(weight_data, device=dev)
+    weight = tvm.runtime.tensor(weight_data, device=dev)
 
     scale_data = np.zeros((1,), dtype=np.float32)
-    scale = tvm.nd.array(scale_data, device=dev)
+    scale = tvm.runtime.tensor(scale_data, device=dev)
 
     vm = relax.VirtualMachine(rt_mod, dev)
     # Ensure this runs without failure. Utilizing dlight thread extents TS, TR = 4, 64
@@ -976,36 +967,39 @@ def test_moe_gemv_shfl_down_illegal_instr():
 @pytest.mark.parametrize("dtype", ["float16", "bfloat16"])
 @tvm.testing.requires_cuda_compute_version(8, 9)
 def test_fp8_fp16_bf16_vectorize_arith(vec_length, dtype):
-    @T.prim_func
-    def func_vectorize(
-        A: T.Buffer((128,), "float8_e4m3fn"),
-        B: T.Buffer((128,), dtype),
-        C: T.Buffer((128,), dtype),
-    ) -> None:
-        for i in T.serial(128):
-            with T.block("compute"):
-                vi = T.axis.remap("S", [i])
-                C[vi] = (A[vi].astype(dtype) * B[vi]) + T.bfloat16(3.0)
+    def _create_mod(vec_length, dtype):
+        num_threads = 128 // vec_length
 
-    sch = tir.Schedule(func_vectorize)
-    (l,) = sch.get_loops(sch.get_block("compute"))
-    lo, li = sch.split(l, [None, vec_length])
-    sch.bind(lo, "threadIdx.x")
-    sch.vectorize(li)
+        @I.ir_module
+        class Module:
+            @T.prim_func
+            def main(
+                A: T.Buffer((128,), "float8_e4m3fn"),
+                B: T.Buffer((128,), dtype),
+                C: T.Buffer((128,), dtype),
+            ) -> None:
+                for i_0 in T.thread_binding(num_threads, thread="threadIdx.x"):
+                    for i_1 in T.vectorized(vec_length):
+                        with T.sblock("compute"):
+                            vi = T.axis.spatial(128, i_0 * vec_length + i_1)
+                            C[vi] = (A[vi].astype(dtype) * B[vi]) + T.bfloat16(3.0)
 
+        return Module
+
+    mod = _create_mod(vec_length, dtype)
     device = tvm.cuda()
     target = tvm.target.Target.from_device(device)
-    f = tir.build(sch.mod, target=target)
+    f = tvm.tir.build(mod, target=target)
 
     a_np = np.random.rand(128).astype("float8_e4m3fn")
     b_np = np.random.rand(128).astype(dtype)
     c_np = (a_np.astype(dtype) * b_np) + 3
-    a_tvm = tvm.nd.array(a_np, device=device)
-    b_tvm = tvm.nd.array(b_np, device=device)
-    c_tvm = tvm.nd.empty((128,), dtype=dtype, device=device)
+    a_tvm = tvm.runtime.tensor(a_np, device=device)
+    b_tvm = tvm.runtime.tensor(b_np, device=device)
+    c_tvm = tvm.runtime.empty((128,), dtype=dtype, device=device)
     f(a_tvm, b_tvm, c_tvm)
     c_tvm = c_tvm.numpy()
-    np.testing.assert_allclose(
+    tvm.testing.assert_allclose(
         c_tvm.astype(np.float32), c_np.astype(np.float32), atol=5e-1, rtol=1e-2
     )
 

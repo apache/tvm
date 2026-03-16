@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401
 import numpy as np
 
 import tvm
@@ -36,7 +37,7 @@ def test_create_nv_fp4_nd_array(np_dtype, dtype_str):
         """Skip test if ml_dtypes is not installed"""
         return
     x = np.random.rand(128, 128).astype(np_dtype)
-    x_nd = tvm.nd.array(x)
+    x_nd = tvm.runtime.tensor(x)
     assert x_nd.dtype == dtype_str
     np.testing.assert_equal(x_nd.numpy(), x)
 

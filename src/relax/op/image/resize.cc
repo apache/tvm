@@ -31,15 +31,15 @@
 namespace tvm {
 namespace relax {
 
-TVM_FFI_STATIC_INIT_BLOCK({ Resize2DAttrs::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { Resize2DAttrs::RegisterReflection(); }
 
 /* relax.resize2d */
-TVM_REGISTER_NODE_TYPE(Resize2DAttrs);
 
-Expr resize2d(Expr data, Expr size, Array<FloatImm> roi, String layout, String method,
-              String coordinate_transformation_mode, String rounding_method, double cubic_alpha,
-              int cubic_exclude, double extrapolation_value, Optional<DataType> out_dtype) {
-  ObjectPtr<Resize2DAttrs> attrs = make_object<Resize2DAttrs>();
+Expr resize2d(Expr data, Expr size, ffi::Array<FloatImm> roi, ffi::String layout,
+              ffi::String method, ffi::String coordinate_transformation_mode,
+              ffi::String rounding_method, double cubic_alpha, int cubic_exclude,
+              double extrapolation_value, ffi::Optional<DataType> out_dtype) {
+  ObjectPtr<Resize2DAttrs> attrs = ffi::make_object<Resize2DAttrs>();
   attrs->roi = std::move(roi);
   attrs->layout = std::move(layout);
   attrs->method = std::move(method);
@@ -54,10 +54,10 @@ Expr resize2d(Expr data, Expr size, Array<FloatImm> roi, String layout, String m
   return Call(op, {std::move(data), std::move(size)}, Attrs(attrs), {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.image.resize2d", resize2d);
-});
+}
 
 StructInfo InferStructInfoResize2D(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 1 && call->args.size() != 2) {
@@ -94,35 +94,36 @@ StructInfo InferStructInfoResize2D(const Call& call, const BlockBuilder& ctx) {
 
   DataType out_dtype = attrs->out_dtype.is_void() ? data_sinfo->dtype : attrs->out_dtype;
 
-  Optional<ShapeExpr> data_shape =
-      CheckNdimPerLayoutAndGetShape(call, ctx, GetRef<TensorStructInfo>(data_sinfo), data_layout);
+  ffi::Optional<ShapeExpr> data_shape = CheckNdimPerLayoutAndGetShape(
+      call, ctx, ffi::GetRef<TensorStructInfo>(data_sinfo), data_layout);
   if (!data_shape.defined() || size_value == nullptr) {
     return TensorStructInfo(out_dtype, data_layout.ndim(), data_sinfo->vdevice);
   }
 
-  Array<PrimExpr> data_NCHW_shape = data2NCHW.ForwardShape(data_shape.value()->values);
-  Array<PrimExpr> out_NCHW_shape(data_NCHW_shape);
+  ffi::Array<PrimExpr> data_NCHW_shape = data2NCHW.ForwardShape(data_shape.value()->values);
+  ffi::Array<PrimExpr> out_NCHW_shape(data_NCHW_shape);
   out_NCHW_shape.Set(2, size_value->values[0]);
   out_NCHW_shape.Set(3, size_value->values[1]);
 
-  Array<PrimExpr> out_shape = data2NCHW.BackwardShape(out_NCHW_shape);
+  ffi::Array<PrimExpr> out_shape = data2NCHW.BackwardShape(out_NCHW_shape);
   return TensorStructInfo(ShapeExpr(out_shape), out_dtype, data_sinfo->vdevice);
 }
 
-InferLayoutOutput InferLayoutResize2d(const Call& call,
-                                      const Map<String, Array<String>>& desired_layouts,
-                                      const VarLayoutMap& var_layout_map) {
+InferLayoutOutput InferLayoutResize2d(
+    const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
+    const VarLayoutMap& var_layout_map) {
   const auto& it = desired_layouts.find("relax.image.resize2d");
   const auto* attrs = call->attrs.as<Resize2DAttrs>();
-  ICHECK(attrs) << "Invalid Call";
+  TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision data_layout;
-  ObjectPtr<Resize2DAttrs> new_attrs = make_object<Resize2DAttrs>(*attrs);
+  ObjectPtr<Resize2DAttrs> new_attrs = ffi::make_object<Resize2DAttrs>(*attrs);
 
   if (it != desired_layouts.end()) {
     // We have a desired layout for resize2d.
     Layout desired_data_layout = (*it).second[0];
-    ICHECK_EQ(desired_data_layout.ndim(), desired_data_layout.ndim_primal()) << "Axis swap only";
+    TVM_FFI_ICHECK_EQ(desired_data_layout.ndim(), desired_data_layout.ndim_primal())
+        << "Axis swap only";
     data_layout = TransposeLike(InitialLayout(4), attrs->layout, desired_data_layout);
     new_attrs->layout = (*it).second[0];
   } else {
@@ -145,6 +146,84 @@ TVM_REGISTER_OP("relax.image.resize2d")
     .add_argument("size", "Shape", "The output image shape.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoResize2D)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutResize2d)
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+    .set_attr<Bool>("FPurity", Bool(true));
+
+/* relax.grid_sample */
+
+TVM_FFI_STATIC_INIT_BLOCK() { GridSampleAttrs::RegisterReflection(); }
+
+Expr grid_sample(Expr data, Expr grid, ffi::String method, ffi::String layout,
+                 ffi::String padding_mode, bool align_corners) {
+  ObjectPtr<GridSampleAttrs> attrs = ffi::make_object<GridSampleAttrs>();
+  attrs->method = std::move(method);
+  attrs->layout = std::move(layout);
+  attrs->padding_mode = std::move(padding_mode);
+  attrs->align_corners = align_corners;
+
+  static const Op& op = Op::Get("relax.image.grid_sample");
+  return Call(op, {std::move(data), std::move(grid)}, Attrs(attrs), {});
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.image.grid_sample", grid_sample);
+}
+
+StructInfo InferStructInfoGridSample(const Call& call, const BlockBuilder& ctx) {
+  if (call->args.size() != 2) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "GridSample expects two arguments, while the given number of arguments is "
+                     << call->args.size());
+  }
+
+  const auto* data_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  const auto* grid_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[1]);
+
+  if (data_sinfo == nullptr) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "GridSample expects the input data to be a Tensor, while the given data is "
+                     << call->args[0]->GetTypeKey());
+  }
+  if (grid_sinfo == nullptr) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "GridSample expects the grid to be a Tensor, while the given grid is "
+                     << call->args[1]->GetTypeKey());
+  }
+
+  const auto* attrs = call->attrs.as<GridSampleAttrs>();
+  auto [data_layout, data2NCHW] = CheckTensorLayout(call, ctx, attrs->layout,
+                                                    /*tgt_layout=*/"NCHW",
+                                                    /*tensor_name=*/"data");
+
+  DataType out_dtype = data_sinfo->dtype;
+
+  // Output shape: [N, C, grid_H, grid_W]
+  // grid shape for NCHW layout input is [N, H_out, W_out, 2]
+  ffi::Optional<ShapeExpr> data_shape = CheckNdimPerLayoutAndGetShape(
+      call, ctx, ffi::GetRef<TensorStructInfo>(data_sinfo), data_layout);
+  const auto* grid_shape = grid_sinfo->shape.as<ShapeExprNode>();
+
+  if (!data_shape.defined() || grid_shape == nullptr) {
+    return TensorStructInfo(out_dtype, data_layout.ndim(), data_sinfo->vdevice);
+  }
+
+  ffi::Array<PrimExpr> data_NCHW_shape = data2NCHW.ForwardShape(data_shape.value()->values);
+  // grid is [N, H_out, W_out, 2], output is [N, C, H_out, W_out]
+  ffi::Array<PrimExpr> out_NCHW_shape(data_NCHW_shape);
+  out_NCHW_shape.Set(2, grid_shape->values[1]);  // H_out
+  out_NCHW_shape.Set(3, grid_shape->values[2]);  // W_out
+
+  ffi::Array<PrimExpr> out_shape = data2NCHW.BackwardShape(out_NCHW_shape);
+  return TensorStructInfo(ShapeExpr(out_shape), out_dtype, data_sinfo->vdevice);
+}
+
+TVM_REGISTER_OP("relax.image.grid_sample")
+    .set_attrs_type<GridSampleAttrs>()
+    .set_num_inputs(2)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("grid", "Tensor", "The grid tensor for sampling.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoGridSample)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<Bool>("FPurity", Bool(true));
 

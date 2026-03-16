@@ -45,7 +45,7 @@ def build_and_run(mod, inputs_np, target, legalize=False):
         ex = tvm.compile(mod, target)
     vm = relax.VirtualMachine(ex, dev)
     f = vm["main"]
-    inputs = [tvm.nd.array(inp, dev) for inp in inputs_np]
+    inputs = [tvm.runtime.tensor(inp, dev) for inp in inputs_np]
     return f(*inputs).numpy()
 
 

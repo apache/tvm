@@ -35,10 +35,10 @@
 namespace tvm {
 namespace contrib {
 
-#define CUDNN_CALL(func)                                                       \
-  {                                                                            \
-    cudnnStatus_t e = (func);                                                  \
-    ICHECK_EQ(e, CUDNN_STATUS_SUCCESS) << "cuDNN: " << cudnnGetErrorString(e); \
+#define CUDNN_CALL(func)                                                               \
+  {                                                                                    \
+    cudnnStatus_t e = (func);                                                          \
+    TVM_FFI_ICHECK_EQ(e, CUDNN_STATUS_SUCCESS) << "cuDNN: " << cudnnGetErrorString(e); \
   }
 
 /*! breif Convert DLTensor type to CuDNN type */
@@ -106,7 +106,7 @@ struct CuDNNThreadEntry {
   ConvEntry conv_entry;
   SoftmaxEntry softmax_entry;
   runtime::DeviceAPI* cuda_api{nullptr};
-  static CuDNNThreadEntry* ThreadLocal(bool check_exists = true);
+  static CuDNNThreadEntry* ThreadLocal(Device curr_device, bool check_exists = true);
 };  // CuDNNThreadEntry
 
 void SetConvDescriptors(CuDNNThreadEntry* entry_ptr, int format, int dims, int groups,

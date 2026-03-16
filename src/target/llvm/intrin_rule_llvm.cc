@@ -119,7 +119,7 @@ TVM_REGISTER_OP("tir.exp10")
       using tir::make_const;
       using tir::make_zero;
       const tir::CallNode* call = e.as<tir::CallNode>();
-      ICHECK(call != nullptr);
+      TVM_FFI_ICHECK(call != nullptr);
       const PrimExpr& x = call->args[0];
       PrimExpr ln10 = make_const(x.dtype(), 2.302585093);
       PrimExpr ret = exp(x * ln10);
@@ -128,7 +128,7 @@ TVM_REGISTER_OP("tir.exp10")
 
 TVM_REGISTER_OP("tir.tan").set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
   const tir::CallNode* call = e.as<tir::CallNode>();
-  ICHECK(call != nullptr);
+  TVM_FFI_ICHECK(call != nullptr);
   const PrimExpr& x = call->args[0];
   PrimExpr tan_x = sin(x) / cos(x);
   return tan_x;
@@ -139,7 +139,7 @@ TVM_REGISTER_OP("tir.cosh")
       using tir::make_const;
       using tir::make_zero;
       const tir::CallNode* call = e.as<tir::CallNode>();
-      ICHECK(call != nullptr);
+      TVM_FFI_ICHECK(call != nullptr);
       const PrimExpr& x = call->args[0];
       PrimExpr two = make_const(x.dtype(), 2);
       PrimExpr neg_one = make_const(x.dtype(), -1);
@@ -154,7 +154,7 @@ TVM_REGISTER_OP("tir.sinh")
       using tir::make_const;
       using tir::make_zero;
       const tir::CallNode* call = e.as<tir::CallNode>();
-      ICHECK(call != nullptr);
+      TVM_FFI_ICHECK(call != nullptr);
       const PrimExpr& x = call->args[0];
       PrimExpr two = make_const(x.dtype(), 2);
       PrimExpr neg_one = make_const(x.dtype(), -1);
@@ -167,9 +167,15 @@ TVM_REGISTER_OP("tir.sinh")
 TVM_REGISTER_OP("tir.asin")
     .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
       using tir::make_const;
+      using namespace intrin;
       const tir::CallNode* call = e.as<tir::CallNode>();
-      ICHECK(call != nullptr);
+      TVM_FFI_ICHECK(call != nullptr);
       const PrimExpr& x = call->args[0];
+
+      PrimExpr threshold = make_const(x.dtype(), 0.5);
+      PrimExpr abs_x = tvm::abs(x);
+      PrimExpr use_lib = abs_x >= threshold;
+
       PrimExpr x2 = x * x;
       PrimExpr term1 = x;
       PrimExpr term3 = term1 * x2 / make_const(x.dtype(), 6);
@@ -178,32 +184,50 @@ TVM_REGISTER_OP("tir.asin")
       PrimExpr term9 = term7 * x2 * make_const(x.dtype(), 1225) / make_const(x.dtype(), 3456);
       PrimExpr term11 = term9 * x2 * make_const(x.dtype(), 3969) / make_const(x.dtype(), 28160);
       PrimExpr series = term1 + term3 + term5 + term7 + term9 + term11;
-      /* --- domain limit check --- */
+
+      PrimExpr lib_result =
+          ::tvm::codegen::intrin::DispatchPureExtern<::tvm::codegen::intrin::FloatSuffix>(e);
+
       PrimExpr lower = make_const(x.dtype(), -1.0);
       PrimExpr upper = make_const(x.dtype(), 1.0);
       PrimExpr out_range = tir::Or(x<lower, x> upper);
-      // Use a quiet NaN constant
       PrimExpr nan_const = make_const(x.dtype(), std::numeric_limits<double>::quiet_NaN());
-      // select: if out of [-1,1] → NaN, else → series
-      return tir::Select(out_range, nan_const, series);
+
+      return tir::Select(out_range, nan_const, tir::Select(use_lib, lib_result, series));
     });
 
 TVM_REGISTER_OP("tir.acos")
     .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
       using tir::make_const;
+      using namespace intrin;
       const tir::CallNode* call = e.as<tir::CallNode>();
-      ICHECK(call != nullptr) << "Invalid call node in acos legalization";
+      TVM_FFI_ICHECK(call != nullptr) << "Invalid call node in acos legalization";
       const PrimExpr& x = call->args[0];
+
+      PrimExpr threshold = make_const(x.dtype(), 0.5);
+      PrimExpr abs_x = tvm::abs(x);
+      PrimExpr use_lib = abs_x >= threshold;
+
       PrimExpr half_pi = make_const(x.dtype(), M_PI / 2);
       PrimExpr asin_x = asin(x);
-      return half_pi - asin_x;
+      PrimExpr formula_result = half_pi - asin_x;
+
+      PrimExpr lib_result =
+          ::tvm::codegen::intrin::DispatchPureExtern<::tvm::codegen::intrin::FloatSuffix>(e);
+
+      PrimExpr lower = make_const(x.dtype(), -1.0);
+      PrimExpr upper = make_const(x.dtype(), 1.0);
+      PrimExpr out_range = tir::Or(x<lower, x> upper);
+      PrimExpr nan_const = make_const(x.dtype(), std::numeric_limits<double>::quiet_NaN());
+
+      return tir::Select(out_range, nan_const, tir::Select(use_lib, lib_result, formula_result));
     });
 
 TVM_REGISTER_OP("tir.atan")
     .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
       using tir::make_const;
       const tir::CallNode* call = e.as<tir::CallNode>();
-      ICHECK(call != nullptr) << "Invalid call node in atan legalization";
+      TVM_FFI_ICHECK(call != nullptr) << "Invalid call node in atan legalization";
       const PrimExpr& x = call->args[0];
       PrimExpr one = make_const(x.dtype(), 1.0);
       PrimExpr denom = sqrt(x * x + one);
@@ -214,7 +238,7 @@ TVM_REGISTER_OP("tir.asinh")
     .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
       using tir::make_const;
       const tir::CallNode* call = e.as<tir::CallNode>();
-      ICHECK(call != nullptr) << "Invalid call node in asinh legalization";
+      TVM_FFI_ICHECK(call != nullptr) << "Invalid call node in asinh legalization";
       const PrimExpr& x = call->args[0];
       PrimExpr one = make_const(x.dtype(), 1.0);
       PrimExpr sqrt_val = sqrt(x * x + one);
@@ -225,7 +249,7 @@ TVM_REGISTER_OP("tir.acosh")
     .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
       using tir::make_const;
       const tir::CallNode* call = e.as<tir::CallNode>();
-      ICHECK(call != nullptr) << "Invalid call node in acosh legalization";
+      TVM_FFI_ICHECK(call != nullptr) << "Invalid call node in acosh legalization";
       const PrimExpr& x = call->args[0];
       PrimExpr one = make_const(x.dtype(), 1.0);
       PrimExpr sqrt_val = sqrt(x * x - one);
@@ -236,7 +260,7 @@ TVM_REGISTER_OP("tir.atanh")
     .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
       using tir::make_const;
       const tir::CallNode* call = e.as<tir::CallNode>();
-      ICHECK(call != nullptr) << "Invalid call node in atanh legalization";
+      TVM_FFI_ICHECK(call != nullptr) << "Invalid call node in atanh legalization";
       const PrimExpr& x = call->args[0];
       PrimExpr one = make_const(x.dtype(), 1.0);
       return (log(one + x) - log(one - x)) * make_const(x.dtype(), 0.5);
@@ -245,7 +269,7 @@ TVM_REGISTER_OP("tir.atanh")
 TVM_REGISTER_OP("tir.erf").set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
   using tir::make_const;
   const tir::CallNode* call = e.as<tir::CallNode>();
-  ICHECK(call != nullptr) << "Invalid call node in erf legalization";
+  TVM_FFI_ICHECK(call != nullptr) << "Invalid call node in erf legalization";
   const PrimExpr& x = call->args[0];
   PrimExpr abs_x = tvm::abs(x);
   PrimExpr t = make_const(x.dtype(), 1.0) /
@@ -262,11 +286,10 @@ TVM_REGISTER_OP("tir.erf").set_attr<FLegalize>("llvm.FLegalize", [](const PrimEx
 
 TVM_REGISTER_OP("tir.clz").set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
   const tir::CallNode* call = e.as<tir::CallNode>();
-  ICHECK(call != nullptr);
-  ICHECK_EQ(call->args.size(), 1);
-  Array<PrimExpr> cargs;
+  TVM_FFI_ICHECK(call != nullptr);
+  TVM_FFI_ICHECK_EQ(call->args.size(), 1);
+  ffi::Array<PrimExpr> cargs;
   cargs.push_back(IntImm(DataType::UInt(32), ::llvm::Intrinsic::ctlz));
-  cargs.push_back(IntImm(DataType::UInt(32), 2));
   cargs.push_back(call->args[0]);
   cargs.push_back(IntImm(DataType::Int(1), 1));  // is_zero_undef
   // LLVM requires that the return type must match the first argument type

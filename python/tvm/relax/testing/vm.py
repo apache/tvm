@@ -16,7 +16,9 @@
 # under the License.
 # pylint: disable=invalid-name
 """Testing utilities for relax VM"""
-from typing import Any, List
+
+from typing import Any
+
 import numpy as np  # type: ignore
 
 import tvm
@@ -24,56 +26,56 @@ from tvm import relax
 from tvm.runtime.object import Object
 
 
-@tvm.register_func("test.vm.move")
+@tvm.register_global_func("test.vm.move")
 def move(src):
     return src
 
 
-@tvm.register_func("test.vm.add")
+@tvm.register_global_func("test.vm.add")
 def add(a, b):
     ret = a.numpy() + b.numpy()
-    return tvm.nd.array(ret)
+    return tvm.runtime.tensor(ret)
 
 
-@tvm.register_func("test.vm.mul")
+@tvm.register_global_func("test.vm.mul")
 def mul(a, b):
     ret = a.numpy() * b.numpy()
-    return tvm.nd.array(ret)
+    return tvm.runtime.tensor(ret)
 
 
-@tvm.register_func("test.vm.equal_zero")
+@tvm.register_global_func("test.vm.equal_zero")
 def equal_zero(a):
-    ret = np.all((a.numpy() == 0))
-    return tvm.nd.array(ret)
+    ret = np.all(a.numpy() == 0)
+    return tvm.runtime.tensor(ret)
 
 
-@tvm.register_func("test.vm.subtract_one")
+@tvm.register_global_func("test.vm.subtract_one")
 def subtract_one(a):
     ret = np.subtract(a.numpy(), 1)
-    return tvm.nd.array(ret)
+    return tvm.runtime.tensor(ret)
 
 
-@tvm.register_func("test.vm.identity")
+@tvm.register_global_func("test.vm.identity")
 def identity_packed(a, b):
-    b[:] = tvm.nd.array(a.numpy())
+    b[:] = tvm.runtime.tensor(a.numpy())
 
 
-@tvm.register_func("test.vm.tile")
+@tvm.register_global_func("test.vm.tile")
 def tile_packed(a, b):
-    b[:] = tvm.nd.array(np.tile(a.numpy(), (1, 2)))
+    b[:] = tvm.runtime.tensor(np.tile(a.numpy(), (1, 2)))
 
 
-@tvm.register_func("test.vm.add_scalar")
+@tvm.register_global_func("test.vm.add_scalar")
 def add_scalar(a, b):
     return a + b
 
 
-@tvm.register_func("test.vm.get_device_id")
+@tvm.register_global_func("test.vm.get_device_id")
 def get_device_id(device):
-    return device.device_id
+    return device.index
 
 
-def check_saved_func(vm: relax.VirtualMachine, func_name: str, *inputs: List[Any]) -> Object:
+def check_saved_func(vm: relax.VirtualMachine, func_name: str, *inputs: list[Any]) -> Object:
     # uses save_function to create a closure with the given inputs
     # and ensure the result is the same
     # (assumes the functions return tensors and that they're idempotent)
@@ -85,6 +87,6 @@ def check_saved_func(vm: relax.VirtualMachine, func_name: str, *inputs: List[Any
     return res1
 
 
-@tvm.register_func("test.vm.check_if_defined")
+@tvm.register_global_func("test.vm.check_if_defined")
 def check_if_defined(obj: tvm.Object) -> tvm.tir.IntImm:
     return tvm.runtime.convert(obj is not None)

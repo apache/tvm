@@ -14,13 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401
 """Unittests for tvm.script.ir_builder.ir"""
+
 import pytest
+
 import tvm.testing
-from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder import ir as I
 from tvm import ir
 from tvm.ir.base import assert_structural_equal
+from tvm.script.ir_builder import IRBuilder
+from tvm.script.ir_builder import ir as I
 
 
 def test_ir_builder_irmodule():

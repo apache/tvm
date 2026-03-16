@@ -14,21 +14,24 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401, F811
 import pytest
 
 pytest.importorskip("torch._dynamo")
 
 
-import tvm
-from tvm import relax, meta_schedule as ms, tir
-import tvm.testing
 import torch
 import torch._dynamo as dynamo
+from packaging import version
+
+import tvm
+import tvm.testing
+from tvm import relax, tir
 from tvm.relax.frontend.torch import relax_dynamo
+from tvm.s_tir import meta_schedule as ms
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tir as T
-from packaging import version
 
 torch_version = torch.__version__
 
@@ -57,11 +60,11 @@ def test_relax_dynamo():
             # function attr dict
             T.func_attr({"tir.noalias": True, "global_symbol": "main"})
             # body
-            # with T.block("root")
-            matmul = T.alloc_buffer([T.int64(10), T.int64(10)], dtype="float32")
-            T_add = T.alloc_buffer([T.int64(10), T.int64(10)], dtype="float32")
+            # with T.sblock("root")
+            matmul = T.sblock_alloc_buffer([T.int64(10), T.int64(10)], dtype="float32")
+            T_add = T.sblock_alloc_buffer([T.int64(10), T.int64(10)], dtype="float32")
             for i0, i1, k in T.grid(T.int64(10), T.int64(10), T.int64(100)):
-                with T.block("matmul"):
+                with T.sblock("matmul"):
                     v_i0, v_i1, v_k = T.axis.remap("SSR", [i0, i1, k])
                     T.reads(inp_0[v_i0, v_k], param_0[v_k, v_i1])
                     T.writes(matmul[v_i0, v_i1])
@@ -69,13 +72,13 @@ def test_relax_dynamo():
                         matmul[v_i0, v_i1] = T.float32(0)
                     matmul[v_i0, v_i1] = matmul[v_i0, v_i1] + inp_0[v_i0, v_k] * param_0[v_k, v_i1]
             for ax0, ax1 in T.grid(T.int64(10), T.int64(10)):
-                with T.block("T_add"):
+                with T.sblock("T_add"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(matmul[v_ax0, v_ax1], param_1[v_ax1])
                     T.writes(T_add[v_ax0, v_ax1])
                     T_add[v_ax0, v_ax1] = matmul[v_ax0, v_ax1] + param_1[v_ax1]
             for i0, i1 in T.grid(T.int64(10), T.int64(10)):
-                with T.block("compute"):
+                with T.sblock("compute"):
                     v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
                     T.reads(T_add[v_i0, v_i1])
                     T.writes(compute[v_i0, v_i1])
@@ -84,10 +87,10 @@ def test_relax_dynamo():
     db = ms.Database.create("memory")
     workload = db.commit_workload(Input1_ir)
 
-    sch = tir.Schedule(Input1_ir, debug_mask="all")
-    b0 = sch.get_block(name="matmul", func_name="main")
-    b1 = sch.get_block(name="T_add", func_name="main")
-    b2 = sch.get_block(name="root", func_name="main")
+    sch = tvm.s_tir.Schedule(Input1_ir, debug_mask="all")
+    b0 = sch.get_sblock(name="matmul", func_name="main")
+    b1 = sch.get_sblock(name="T_add", func_name="main")
+    b2 = sch.get_sblock(name="root", func_name="main")
     sch.compute_inline(block=b1)
     sch.annotate(block_or_loop=b0, ann_key="meta_schedule.tiling_structure", ann_val="SSRSRS")
     l3, l4, l5 = sch.get_loops(block=b0)
@@ -120,6 +123,25 @@ def test_relax_dynamo():
 
     default_output = model(inp).detach().numpy()
     optimized_output = opt_model(inp).detach().numpy()
+    tvm.testing.assert_allclose(optimized_output, default_output, rtol=1e-5, atol=1e-5)
+
+
+def test_relax_dynamo_scalar_params():
+    class ScalarParams(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.x = torch.nn.Parameter(torch.tensor(1.0))
+            self.y = torch.nn.Parameter(torch.tensor(2.0))
+
+        def forward(self):
+            return self.x + self.y
+
+    model = ScalarParams()
+
+    opt_model = torch.compile(model, backend=relax_dynamo())
+
+    default_output = model().detach().numpy()
+    optimized_output = opt_model().detach().numpy()
     tvm.testing.assert_allclose(optimized_output, default_output, rtol=1e-5, atol=1e-5)
 
 
@@ -159,6 +181,7 @@ def test_relax_dynamo_dynamic():
 
 def test_subgraph_capture():
     import torch
+
     from tvm.relax.frontend.torch.dynamo import dynamo_capture_subgraphs
 
     class Input1(torch.nn.Module):
@@ -202,31 +225,31 @@ def test_subgraph_capture():
         @R.function
         def subgraph_0(
             inp_0: R.Tensor((10,), dtype="float32"), inp_1: R.Tensor((10,), dtype="float32")
-        ) -> R.Tuple(R.Tensor((10,), dtype="float32"), R.Tensor((), dtype="bool")):
+        ) -> R.Tuple(R.Tensor((), dtype="bool"), R.Tensor((10,), dtype="float32")):
             # block 0
             with R.dataflow():
                 lv: R.Tensor((10,), dtype="float32") = R.sin(inp_0)
-                lv1: R.Tensor((10,), dtype="float32") = R.add(lv, R.const(1, "float32"))
+                lv1: R.Tensor((10,), dtype="float32") = R.add(lv, R.const(1.0, "float32"))
                 lv2: R.Tensor((10,), dtype="float32") = R.divide(inp_0, lv1)
                 lv3: R.Tensor((), dtype="float32") = R.sum(inp_1, axis=None, keepdims=False)
-                lv4: R.Tensor((), dtype="bool") = R.less(lv3, R.const(1, "float32"))
-                gv: R.Tuple(R.Tensor((10,), dtype="float32"), R.Tensor((), dtype="bool")) = (
-                    lv2,
+                lv4: R.Tensor((), dtype="bool") = R.less(lv3, R.const(1.0, "float32"))
+                gv: R.Tuple(R.Tensor((), dtype="bool"), R.Tensor((10,), dtype="float32")) = (
                     lv4,
+                    lv2,
                 )
                 R.output(gv)
             return gv
 
         @R.function
         def subgraph_1(
-            inp_01: R.Tensor((10,), dtype="float32"), inp_11: R.Tensor((10,), dtype="float32")
+            inp_0: R.Tensor((10,), dtype="float32"), inp_1: R.Tensor((10,), dtype="float32")
         ) -> R.Tensor((10,), dtype="float32"):
             # block 0
             with R.dataflow():
-                lv5: R.Tensor((10,), dtype="float32") = R.multiply(inp_01, inp_11)
-                gv1: R.Tensor((10,), dtype="float32") = lv5
-                R.output(gv1)
-            return gv1
+                lv: R.Tensor((10,), dtype="float32") = R.multiply(inp_0, inp_1)
+                gv: R.Tensor((10,), dtype="float32") = lv
+                R.output(gv)
+            return gv
 
     mod = dynamo_capture_subgraphs(Input2, torch.randn(10), torch.ones(10))
     tvm.ir.assert_structural_equal(mod, Expected2)
@@ -268,6 +291,7 @@ def test_subgraph_capture():
 def verify_dynamo_model(torch_model, input_info, binding, expected):
     import torch
     import torch._dynamo as dynamo
+
     from tvm.relax.frontend.torch import from_fx
 
     args = []
@@ -275,7 +299,7 @@ def verify_dynamo_model(torch_model, input_info, binding, expected):
         args.append(torch.zeros(*info[0], dtype=_convert_data_type(info[1])))
     graph_model = dynamo.export(torch_model)(*args)[0]
     mod = from_fx(graph_model, input_info, unwrap_unit_return_tuple=True)
-    binding = {k: tvm.nd.array(v) for k, v in binding.items()}
+    binding = {k: tvm.runtime.tensor(v) for k, v in binding.items()}
     expected = relax.transform.BindParams("main", binding)(expected)
     tvm.ir.assert_structural_equal(mod, expected)
 
@@ -285,18 +309,38 @@ def _convert_data_type(input_type):
     import torch  # type: ignore
 
     input_type = input_type.lower() if isinstance(input_type, str) else input_type
-    if input_type == "float32":
-        return torch.float32
-    elif input_type == "float16":
+    # Float types
+    if input_type == "float16":
         return torch.float16
-    elif input_type == "int64":
-        return torch.int64
+    elif input_type == "float32":
+        return torch.float32
+    elif input_type == "float64":
+        return torch.float64
+    elif input_type == "bfloat16":
+        return torch.bfloat16
+    # Signed integer types
+    elif input_type == "int8":
+        return torch.int8
+    elif input_type == "int16":
+        return torch.int16
     elif input_type == "int32":
         return torch.int32
+    elif input_type == "int64":
+        return torch.int64
+    # Unsigned integer types
+    elif input_type == "uint8":
+        return torch.uint8
+    elif input_type == "uint16":
+        return torch.uint16
+    elif input_type == "uint32":
+        return torch.uint32
+    elif input_type == "uint64":
+        return torch.uint64
+    # Boolean
     elif input_type == "bool":
         return torch.bool
     else:
-        raise NotImplementedError("input_type {} is not handled yet".format(input_type))
+        raise NotImplementedError(f"input_type {input_type} is not handled yet")
 
 
 @tvm.testing.requires_gpu
@@ -511,9 +555,7 @@ def test_getitem():
 
     class Select2(Module):
         def forward(self, input1):
-            result = input1[
-                torch.arange(1),
-            ]
+            result = input1[torch.arange(1),]
             return result
 
     verify_dynamo_model(

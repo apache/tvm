@@ -15,17 +15,19 @@
 # specific language governing permissions and limitations
 # under the License.
 """TIR specific function pass support."""
-import inspect
-import functools
-from typing import Callable, List, Optional, Union
 
-import tvm.ffi
+import functools
+import inspect
+from collections.abc import Callable
+
+import tvm_ffi
+
 from tvm.ir.transform import Pass, PassInfo
 
 from . import _ffi_api
 
 
-@tvm.ffi.register_object("tir.PrimFuncPass")
+@tvm_ffi.register_object("tir.PrimFuncPass")
 class PrimFuncPass(Pass):
     """A pass that works on each :py:func:`tvm.tir.PrimFunc` in a module. A function
     pass class should be created through py:func:`tvm.tir.transform.function_pass`.
@@ -47,7 +49,9 @@ def _wrap_class_function_pass(pass_cls, pass_info):
                 return inst.transform_function(func, mod, ctx)
 
             self.__init_handle_by_constructor__(
-                _ffi_api.CreatePrimFuncPass, _pass_func, pass_info  # type: ignore
+                _ffi_api.CreatePrimFuncPass,
+                _pass_func,
+                pass_info,  # type: ignore
             )
 
             self._inst = inst
@@ -65,11 +69,11 @@ def _wrap_class_function_pass(pass_cls, pass_info):
 
 def prim_func_pass(
     pass_func=None,
-    opt_level: int = None,
-    name: Optional[str] = None,
-    required: Optional[List[str]] = None,
+    opt_level: int | None = None,
+    name: str | None = None,
+    required: list[str] | None = None,
     traceable=False,
-) -> Union[Callable, PrimFuncPass]:
+) -> Callable | PrimFuncPass:
     """Decorate a function pass.
 
     This function returns a callback when pass_func
@@ -141,7 +145,7 @@ def prim_func_pass(
         raise ValueError("Please provide opt_level for the function pass.")
 
     required = required if required else []
-    if not isinstance(required, (list, tuple)):
+    if not isinstance(required, list | tuple):
         raise TypeError("Required is expected to be the type of " + "list/tuple.")
 
     def create_function_pass(pass_arg):

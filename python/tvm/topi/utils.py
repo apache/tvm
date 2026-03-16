@@ -15,15 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name
+# ruff: noqa: RUF005
 """Common topi utilities"""
-from __future__ import absolute_import as _abs
 
 from numbers import Integral
 
 import numpy as np
+
 import tvm
 from tvm import te
-from tvm.tir import SizeVar, bijective_layout, layout
+from tvm.s_tir import bijective_layout, layout
+from tvm.tir import SizeVar
 
 from . import cpp, tag
 
@@ -189,7 +191,7 @@ def get_const_tuple(in_tuple):
     for elem in in_tuple:
         if isinstance(elem, tvm.tir.Var):
             ret.append(elem)
-        elif not isinstance(elem, (tvm.tir.IntImm, int)):
+        elif not isinstance(elem, tvm.tir.IntImm | int):
             ana = tvm.arith.Analyzer() if ana is None else ana
             elem = ana.simplify(elem)
             if not isinstance(elem, tvm.tir.IntImm):

@@ -56,9 +56,7 @@ enum SignType { kPositive, kNegative, kZero, kUnknown };
  */
 class IntSetNode : public Object {
  public:
-  static constexpr const char* _type_key = "ir.IntSet";
-  static constexpr bool _type_has_method_sequal_reduce = false;
-  TVM_DECLARE_BASE_OBJECT_INFO(IntSetNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("ir.IntSet", IntSetNode, Object);
 };
 
 /*!
@@ -163,19 +161,19 @@ class IntSet : public ObjectRef {
    */
   static IntSet Interval(PrimExpr min, PrimExpr max);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(IntSet, ObjectRef, IntSetNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IntSet, ObjectRef, IntSetNode);
 };
 
 //-----------------------------------------------
 // Integer set legacy API.
 //------------------------------------------------
 /*!
- * \brief Convert std::unordered_map<const VarNode*, IntSet> to Map<Var, IntSet>
+ * \brief Convert std::unordered_map<const VarNode*, IntSet> to ffi::Map<Var, IntSet>
  *
  * \param dom_map The domain map to convert.
  * \return The converted map.
  */
-Map<Var, IntSet> ConvertDomMap(const std::unordered_map<const VarNode*, IntSet>& dom_map);
+ffi::Map<Var, IntSet> ConvertDomMap(const std::unordered_map<const VarNode*, IntSet>& dom_map);
 /*!
  * \brief Find an symbolic integer set that contains all possible values of
  *  e given the domain of each iteration variables.
@@ -184,7 +182,7 @@ Map<Var, IntSet> ConvertDomMap(const std::unordered_map<const VarNode*, IntSet>&
  * \param dom_map The domain of each variable.
  * \return An integer set that can cover all the possible values of e.
  */
-IntSet EvalSet(PrimExpr e, const Map<IterVar, IntSet>& dom_map);
+IntSet EvalSet(PrimExpr e, const ffi::Map<IterVar, IntSet>& dom_map);
 /*!
  * \brief Find an symbolic integer set that contains all possible values of
  *  e given the domain of each variables.
@@ -193,7 +191,7 @@ IntSet EvalSet(PrimExpr e, const Map<IterVar, IntSet>& dom_map);
  * \param dom_map The domain of each variable.
  * \return An integer set that can cover all the possible values of e.
  */
-IntSet EvalSet(PrimExpr e, const Map<Var, IntSet>& dom_map);
+IntSet EvalSet(PrimExpr e, const ffi::Map<Var, IntSet>& dom_map);
 /*!
  * \brief Same as EvalSet, but takes unordered_map
  *
@@ -210,7 +208,7 @@ IntSet EvalSet(PrimExpr e, const std::unordered_map<const tir::VarNode*, IntSet>
  * \param dom_map The domain of each variable.
  * \return An integer set that can cover all the possible values.
  */
-IntSet EvalSet(Range r, const Map<IterVar, IntSet>& dom_map);
+IntSet EvalSet(Range r, const ffi::Map<IterVar, IntSet>& dom_map);
 
 /*!
  * \brief Find an symbolic integer set that contains is union over
@@ -230,13 +228,13 @@ IntSet EvalSet(IntSet s, const std::unordered_map<const VarNode*, IntSet>& dom_m
  */
 IntSet EvalSet(Range r, const std::unordered_map<const VarNode*, IntSet>& dom_map);
 /*!
- * \brief Same as EvalSet, but takes Array<Range>
+ * \brief Same as EvalSet, but takes ffi::Array<Range>
  *
  * \param region The range to be evaluated.
  * \param dom_map The domain of each variable.
  * \return An array of integer sets that can cover all the possible values.
  */
-Array<IntSet> EvalSet(const Array<Range>& region, const Map<Var, IntSet>& dom_map);
+ffi::Array<IntSet> EvalSet(const ffi::Array<Range>& region, const ffi::Map<Var, IntSet>& dom_map);
 /*! \brief Map from Expr to IntSet */
 using ExprIntSetMap = std::unordered_map<PrimExpr, IntSet, ObjectPtrHash, ObjectPtrEqual>;
 /*!
@@ -255,42 +253,42 @@ ExprIntSetMap EvalSetForEachSubExpr(PrimExpr e,
  * \param sets The sets to be combined
  * \return the set after union
  */
-IntSet Union(const Array<IntSet>& sets);
+IntSet Union(const ffi::Array<IntSet>& sets);
 
 /*!
  * \brief The union of N-dimensional integer sets
  * \param nd_int_sets A list of N-dimensional integer sets
  * \return An N-dimensional integer set as the result of union
  */
-Array<IntSet> UnionRegion(const Array<Array<IntSet>>& nd_int_sets);
+ffi::Array<IntSet> UnionRegion(const ffi::Array<ffi::Array<IntSet>>& nd_int_sets);
 
 /*!
  * \brief Create a lower-bound of union set, where some of the segments may be dropped
  * \param sets The sets to be combined
  * \return the set after union
  */
-IntSet UnionLowerBound(const Array<IntSet>& sets);
+IntSet UnionLowerBound(const ffi::Array<IntSet>& sets);
 
 /*!
  * \brief The union of N-dimensional integer sets
  * \param nd_int_sets A list of N-dimensional integer sets
  * \return An N-dimensional integer set as the result of union
  */
-Array<IntSet> UnionRegionLowerBound(const Array<Array<IntSet>>& nd_int_sets);
+ffi::Array<IntSet> UnionRegionLowerBound(const ffi::Array<ffi::Array<IntSet>>& nd_int_sets);
 
 /*!
  * \brief Create an intersected set of all sets
  * \param sets The sets to be intersected
  * \return the set after intersected
  */
-IntSet Intersect(const Array<IntSet>& sets);
+IntSet Intersect(const ffi::Array<IntSet>& sets);
 
 /*!
  * \brief Converts the Ranges to IntSets
  * \param var_dom The ranges of variables
  * \return The integer sets of the variables
  */
-Map<Var, arith::IntSet> AsIntSet(const Map<Var, Range>& var_dom);
+ffi::Map<Var, arith::IntSet> AsIntSet(const ffi::Map<Var, Range>& var_dom);
 
 /*!
  * \brief Analyze the region with affine map, given the domain of variables and their predicate.
@@ -302,10 +300,9 @@ Map<Var, arith::IntSet> AsIntSet(const Map<Var, Range>& var_dom);
  * \return std::nullopt if the detection fails, or an array of arith::IntSet as the result of
  * analysis
  */
-TVM_DLL Optional<Array<IntSet>> EstimateRegionStrictBound(const Array<Range>& region,
-                                                          const Map<Var, Range>& var_dom,
-                                                          const PrimExpr& predicate,
-                                                          arith::Analyzer* analyzer);
+TVM_DLL ffi::Optional<ffi::Array<IntSet>> EstimateRegionStrictBound(
+    const ffi::Array<Range>& region, const ffi::Map<Var, Range>& var_dom, const PrimExpr& predicate,
+    arith::Analyzer* analyzer);
 
 /*!
  * \brief Analyze the region with affine map, given the domain of variables and their predicate.
@@ -317,10 +314,9 @@ TVM_DLL Optional<Array<IntSet>> EstimateRegionStrictBound(const Array<Range>& re
  * \return std::nullopt if the detection fails, or an array of arith::IntSet as the result of
  * analysis
  */
-TVM_DLL Optional<Array<IntSet>> EstimateRegionLowerBound(const Array<Range>& region,
-                                                         const Map<Var, Range>& var_dom,
-                                                         const PrimExpr& predicate,
-                                                         arith::Analyzer* analyzer);
+TVM_DLL ffi::Optional<ffi::Array<IntSet>> EstimateRegionLowerBound(
+    const ffi::Array<Range>& region, const ffi::Map<Var, Range>& var_dom, const PrimExpr& predicate,
+    arith::Analyzer* analyzer);
 
 /*!
  * \brief Analyze the region with affine map, given the domain of variables and their predicate
@@ -332,10 +328,10 @@ TVM_DLL Optional<Array<IntSet>> EstimateRegionLowerBound(const Array<Range>& reg
  * \param analyzer The analyzer used
  * \return an array of arith::IntSet as the result of analysis
  */
-TVM_DLL Array<IntSet> EstimateRegionUpperBound(const Array<Range>& region,
-                                               const Map<Var, Range>& var_dom,
-                                               const PrimExpr& predicate,
-                                               arith::Analyzer* analyzer);
+TVM_DLL ffi::Array<IntSet> EstimateRegionUpperBound(const ffi::Array<Range>& region,
+                                                    const ffi::Map<Var, Range>& var_dom,
+                                                    const PrimExpr& predicate,
+                                                    arith::Analyzer* analyzer);
 
 }  // namespace arith
 }  // namespace tvm

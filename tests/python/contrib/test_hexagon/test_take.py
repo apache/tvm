@@ -21,12 +21,11 @@ from scipy import special
 import tvm
 import tvm.testing
 from tvm import relax
-from tvm.script import tir as T, relax as R
-from tvm.contrib.hexagon import generate_take_op
-from tvm.contrib.hexagon import hexagon_unary_ops
+from tvm.contrib.hexagon import generate_take_op, hexagon_unary_ops
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 from .infrastructure import quantize_np
-
 
 # Testing the structural and value correctness on replacing unary op with take op.
 
@@ -322,7 +321,7 @@ dtype = "uint8"
 
 # Quantizing input : scale is returned as float64 and zp is returned as int32
 inp_quant, inp_scale, inp_zero_point = quantize_np(data, dtype)
-inp_quant = tvm.nd.array(inp_quant.astype(np.uint8))
+inp_quant = tvm.runtime.tensor(inp_quant.astype(np.uint8))
 
 
 # Test the implementations value output with numpy data. First the IR is runn through pass

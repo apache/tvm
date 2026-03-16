@@ -14,15 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401
 
 import tvm
 import tvm.testing
-from tvm import tir
-from tvm import meta_schedule as ms
-from tvm import relax
-from tvm.script import ir as I, tir as T
+from tvm import relax, tir
+from tvm.s_tir import meta_schedule as ms
+from tvm.script import ir as I
+from tvm.script import tir as T
 
-target = tvm.target.Target("llvm --num-cores=16")
+target = tvm.target.Target({"kind": "llvm", "num-cores": 16})
 
 
 def test_apply_to_func_with_different_block_name():
@@ -32,7 +33,7 @@ def test_apply_to_func_with_different_block_name():
         def main(A: T.Buffer((2,), "float32"), B: T.Buffer((2,), "float32")):
             T.func_attr({"global_symbol": "main", "tir.noalias": True})
             for i in T.serial(2):
-                with T.block("block"):
+                with T.sblock("block"):
                     vi = T.axis.spatial(2, i)
                     B[vi] = A[vi]
 
@@ -42,7 +43,7 @@ def test_apply_to_func_with_different_block_name():
         def main(A: T.Buffer((2,), "float32"), B: T.Buffer((2,), "float32")):
             T.func_attr({"global_symbol": "main", "tir.noalias": True})
             for i in T.serial(2):
-                with T.block("renamed_block"):
+                with T.sblock("renamed_block"):
                     vi = T.axis.spatial(2, i)
                     B[vi] = A[vi]
 
@@ -58,13 +59,13 @@ def test_apply_to_func_with_different_block_name():
                 }
             )
             for i in T.serial(2):
-                with T.block("renamed_block"):
+                with T.sblock("renamed_block"):
                     vi = T.axis.spatial(2, i)
                     B[vi] = A[vi]
 
     def create_trace(mod: tvm.IRModule):
-        sch = tir.Schedule(mod)
-        _ = sch.get_block("block")
+        sch = tvm.s_tir.Schedule(mod)
+        _ = sch.get_sblock("block")
         return sch.trace
 
     db = ms.database.create(kind="memory")

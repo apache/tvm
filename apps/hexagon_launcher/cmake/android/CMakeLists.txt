@@ -52,7 +52,6 @@ include_directories(SYSTEM
 
 link_directories(${DSPRPC_LIB_DIRS})
 
-add_definitions(-DDMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
 
 set(STUB_SRCS
   "${LAUNCHER_SRC}/launcher_android.cc"
@@ -79,6 +78,8 @@ ExternalProject_Add(android_tvm_runtime
   "-DUSE_HEXAGON_ARCH=${USE_HEXAGON_ARCH}"
   "-DUSE_HEXAGON_SDK=${USE_HEXAGON_SDK}"
   "-DTVM_FFI_USE_LIBBACKTRACE=OFF"
+  "-DTVM_FFI_USE_THREADS=OFF"
+  "-DTVM_FFI_USE_DL_LIBS=OFF"
   "-DUSE_LLVM=OFF"
   "-DUSE_RPC=OFF"
   INSTALL_COMMAND ""

@@ -161,14 +161,14 @@ class BaseFuncNode : public RelaxExprNode {
    * \endcode
    */
   template <typename TObjectRef>
-  Optional<TObjectRef> GetAttr(const std::string& attr_key,
-                               Optional<TObjectRef> default_value = std::nullopt) const {
+  ffi::Optional<TObjectRef> GetAttr(const std::string& attr_key,
+                                    ffi::Optional<TObjectRef> default_value = std::nullopt) const {
     return attrs.GetAttr(attr_key, default_value);
   }
   // variant that uses TObjectRef to enable implicit conversion to default value.
   template <typename TObjectRef>
-  Optional<TObjectRef> GetAttr(const std::string& attr_key, TObjectRef default_value) const {
-    return GetAttr<TObjectRef>(attr_key, Optional<TObjectRef>(default_value));
+  ffi::Optional<TObjectRef> GetAttr(const std::string& attr_key, TObjectRef default_value) const {
+    return GetAttr<TObjectRef>(attr_key, ffi::Optional<TObjectRef>(default_value));
   }
 
   /*!
@@ -211,7 +211,7 @@ class BaseFuncNode : public RelaxExprNode {
    */
 
   LinkageType GetLinkageType() const {
-    if (GetAttr<String>(attr::kGlobalSymbol))
+    if (GetAttr<ffi::String>(attr::kGlobalSymbol))
       return LinkageType::kExternal;
     else
       return LinkageType::kInternal;
@@ -222,9 +222,8 @@ class BaseFuncNode : public RelaxExprNode {
     refl::ObjectDef<BaseFuncNode>().def_ro("attrs", &BaseFuncNode::attrs);
   }
 
-  static constexpr const char* _type_key = "ir.BaseFunc";
   static constexpr const uint32_t _type_child_slots = 2;
-  TVM_DECLARE_BASE_OBJECT_INFO(BaseFuncNode, RelaxExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("ir.BaseFunc", BaseFuncNode, RelaxExprNode);
 };
 
 /*!
@@ -233,7 +232,7 @@ class BaseFuncNode : public RelaxExprNode {
  */
 class BaseFunc : public RelaxExpr {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(BaseFunc, RelaxExpr, BaseFuncNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BaseFunc, RelaxExpr, BaseFuncNode);
 };
 
 }  // namespace tvm

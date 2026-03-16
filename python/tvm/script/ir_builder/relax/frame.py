@@ -15,7 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """IR Builder Frame for Relax dialect"""
-from tvm.ffi import register_object as _register_object
+
+from tvm_ffi import register_object as _register_object
 
 from ..base import IRBuilderFrame
 
@@ -26,8 +27,7 @@ class RelaxFrame(IRBuilderFrame):
 
 
 @_register_object("script.ir_builder.relax.SeqExprFrame")
-class SeqExprFrame(RelaxFrame):
-    ...
+class SeqExprFrame(RelaxFrame): ...
 
 
 @_register_object("script.ir_builder.relax.FunctionFrame")
@@ -35,21 +35,18 @@ class FunctionFrame(SeqExprFrame):
     """The ir_builder frame for the relax function."""
 
 
-@_register_object("script.ir_builder.relax.BlockFrame")
-class BlockFrame(RelaxFrame):
+@_register_object("script.ir_builder.relax.BindingBlockFrame")
+class BindingBlockFrame(RelaxFrame):
     """The ir_builder frame for relax binding blocks."""
 
 
 @_register_object("script.ir_builder.relax.IfFrame")
-class IfFrame(RelaxFrame):
-    ...
+class IfFrame(RelaxFrame): ...
 
 
 @_register_object("script.ir_builder.relax.ThenFrame")
-class ThenFrame(SeqExprFrame):
-    ...
+class ThenFrame(SeqExprFrame): ...
 
 
 @_register_object("script.ir_builder.relax.ElseFrame")
-class ElseFrame(SeqExprFrame):
-    ...
+class ElseFrame(SeqExprFrame): ...

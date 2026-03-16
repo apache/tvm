@@ -95,7 +95,7 @@ class GradientSimplifier : private ExprMutator {
       return ndim == 2;
     }
     auto axes = call_node->attrs.as<PermuteDimsAttrs>()->axes.value();
-    ICHECK(static_cast<int>(axes.size()) == ndim);
+    TVM_FFI_ICHECK(static_cast<int>(axes.size()) == ndim);
     for (int i = 0; i < ndim - 2; ++i) {
       if (axes[i] != i) {
         return false;
@@ -107,12 +107,12 @@ class GradientSimplifier : private ExprMutator {
   // Return permute_dims(expr). Generate the axes needed.
   static Expr GetTransposeOf(const Expr& expr) {
     auto sinfo = MatchStructInfo<TensorStructInfo>(expr);
-    ICHECK(sinfo);
+    TVM_FFI_ICHECK(sinfo);
     auto ndim = sinfo.value()->ndim;
     if (ndim == 1) {
       return expr;
     }
-    auto axes = Array<Integer>();
+    auto axes = ffi::Array<Integer>();
     for (int i = 0; i < ndim - 2; ++i) {
       axes.push_back(i);
     }
@@ -140,7 +140,7 @@ class GradientSimplifier : private ExprMutator {
   }
 
   void VisitBinding_(const VarBindingNode* binding, const CallNode* call_node) {
-    auto result = ExprMutator::VisitExpr(GetRef<Expr>(call_node));
+    auto result = ExprMutator::VisitExpr(ffi::GetRef<Expr>(call_node));
     auto new_call_node = result.as<CallNode>();
     auto reemit_and_return = [&]() {
       ReEmitBinding(binding, result);

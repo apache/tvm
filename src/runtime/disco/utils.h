@@ -27,7 +27,7 @@
 namespace tvm {
 namespace runtime {
 
-inline Device UseDefaultDeviceIfNone(Optional<Device> device) {
+inline Device UseDefaultDeviceIfNone(ffi::Optional<Device> device) {
   return device.value_or(DiscoWorker::ThreadLocal()->default_device);
 }
 
@@ -37,7 +37,8 @@ inline Device UseDefaultDeviceIfNone(Optional<Device> device) {
  * integers. A common workaround is to use a 1-d shape tuple as an integer.
  */
 inline int64_t IntegerFromShape(const ffi::Shape& shape) {
-  CHECK_EQ(shape.size(), 1) << "ValueError: shape tuple must be 1-d to be converted to integer.";
+  TVM_FFI_CHECK_EQ(shape.size(), 1, ValueError)
+      << "shape tuple must be 1-d to be converted to integer.";
   return shape[0];
 }
 

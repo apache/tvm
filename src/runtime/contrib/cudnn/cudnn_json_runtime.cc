@@ -22,9 +22,10 @@
  * \brief A simple JSON runtime for CUDNN.
  */
 
+#include <tvm/ffi/extra/c_env_api.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 
 #include <cstddef>
 #include <string>
@@ -48,10 +49,10 @@ using namespace tvm::runtime::json;
 class cuDNNJSONRuntime : public JSONRuntimeBase {
  public:
   cuDNNJSONRuntime(const std::string& symbol_name, const std::string& graph_json,
-                   const Array<String> const_names)
+                   const ffi::Array<ffi::String> const_names)
       : JSONRuntimeBase(symbol_name, graph_json, const_names) {}
 
-  void Init(const Array<NDArray>& consts) override {
+  void Init(const ffi::Array<Tensor>& consts) override {
     op_execs_.resize(nodes_.size());
     // get some config from the graph
     for (size_t i = 0; i < nodes_.size(); ++i) {
@@ -63,13 +64,13 @@ class cuDNNJSONRuntime : public JSONRuntimeBase {
         } else if (op_name.find("attention") != std::string::npos) {
           op_execs_[i] = GetAttentionExec(node);
         } else {
-          LOG(FATAL) << "Unsupported op: " << op_name;
+          TVM_FFI_THROW(InternalError) << "Unsupported op: " << op_name;
         }
       }
     }
   }
 
-  const char* type_key() const override { return "cudnn_json"; }  // May be overridden
+  const char* kind() const override { return "cudnn_json"; }  // May be overridden
 
   void Run() override {
     for (const auto& f : op_execs_) {
@@ -81,9 +82,9 @@ class cuDNNJSONRuntime : public JSONRuntimeBase {
 
  private:
   const DLTensor* GetInput(const JSONGraphNode& node, const int idx) {
-    ICHECK_LT(idx, node.GetInputs().size());
+    TVM_FFI_ICHECK_LT(idx, node.GetInputs().size());
     auto eid = EntryID(node.GetInputs()[idx]);
-    ICHECK(eid < data_entry_.size());
+    TVM_FFI_ICHECK(eid < data_entry_.size());
     return data_entry_[eid];
   }
 
@@ -92,15 +93,18 @@ class cuDNNJSONRuntime : public JSONRuntimeBase {
   }
 
   std::vector<int> vstr2vint(const JSONGraphNode& node, const std::string& attrStr) {
-    auto string_to_int = [](const std::string& str) { return std::stoi(str); };
-    auto string_vec = node.GetAttr<std::vector<std::string>>(attrStr);
-    std::vector<int> int_vec(string_vec.size());
-    std::transform(string_vec.begin(), string_vec.end(), int_vec.begin(), string_to_int);
+    auto int_vec_any = node.GetAttr<ffi::Array<int64_t>>(attrStr);
+    std::vector<int> int_vec(int_vec_any.size());
+    for (size_t i = 0; i < int_vec_any.size(); ++i) {
+      int_vec[i] = static_cast<int>(int_vec_any[i]);
+    }
     return int_vec;
   }
 
   std::function<void()> GetConv2DExec(const JSONGraphNode& node) {
-    auto* entry_ptr = tvm::contrib::CuDNNThreadEntry::ThreadLocal();
+    int device_id;
+    CUDA_CALL(cudaGetDevice(&device_id));
+    auto* entry_ptr = tvm::contrib::CuDNNThreadEntry::ThreadLocal(DLDevice{kDLCUDA, device_id});
     auto op_name = node.GetOpName();
 
     std::vector<int> input_dims, kernel_dims, output_dims;
@@ -118,12 +122,12 @@ class cuDNNJSONRuntime : public JSONRuntimeBase {
       output_dims.emplace_back(static_cast<int>(_i));
     }
     bool has_bias = attr_in_name(op_name, "bias");
-    int groups = std::stoi(node.GetAttr<std::vector<std::string>>("groups")[0]);
+    int groups = static_cast<int>(node.GetAttr<int64_t>("groups"));
     std::vector<int> padding = vstr2vint(node, "padding");
     std::vector<int> strides = vstr2vint(node, "strides");
     std::vector<int> dilation = vstr2vint(node, "dilation");
-    auto conv_dtype = node.GetAttr<std::vector<std::string>>("out_dtype")[0];
-    std::string layout = node.GetAttr<std::vector<std::string>>("out_layout")[0];
+    auto conv_dtype = std::string(node.GetAttr<ffi::String>("out_dtype"));
+    std::string layout = std::string(node.GetAttr<ffi::String>("out_layout"));
     int dims = layout.size() - 2;  // remove O and I dims
 
     int format = CUDNN_TENSOR_NHWC;
@@ -132,7 +136,7 @@ class cuDNNJSONRuntime : public JSONRuntimeBase {
     } else if (layout == "NHWC") {
       format = CUDNN_TENSOR_NHWC;
     } else {
-      LOG(FATAL) << "Unsupported layout: " << layout;
+      TVM_FFI_THROW(InternalError) << "Unsupported layout: " << layout;
     }
 
     int act = CUDNN_ACTIVATION_IDENTITY;
@@ -159,7 +163,9 @@ class cuDNNJSONRuntime : public JSONRuntimeBase {
 
     int algo = best_algo.cast<int>();
     std::function<void()> op_exec = [=]() {
-      auto stream = static_cast<cudaStream_t>(GetCUDAStream());
+      int device_id;
+      CUDA_CALL(cudaGetDevice(&device_id));
+      cudaStream_t stream = static_cast<cudaStream_t>(TVMFFIEnvGetStream(kDLCUDA, device_id));
       CUDNN_CALL(cudnnSetStream(entry_ptr->handle, stream));
 
       auto get_inputs = [this](const JSONGraphNode& node, bool has_bias) {
@@ -189,30 +195,29 @@ class cuDNNJSONRuntime : public JSONRuntimeBase {
   std::function<void()> GetAttentionExec(const JSONGraphNode& node) {
 #ifdef TVM_USE_CUDNN_FRONTEND
     auto dtype = node.GetOpDataType()[0];
-    int num_heads = vstr2vint(node, "num_heads")[0];
-    int num_kv_heads = vstr2vint(node, "num_kv_heads")[0];
-    int head_size = vstr2vint(node, "head_size")[0];
-    int head_size_v = vstr2vint(node, "head_size_v")[0];
-    std::string layout = node.GetAttr<std::vector<std::string>>("layout")[0];
+    int num_heads = static_cast<int>(node.GetAttr<int64_t>("num_heads"));
+    int num_kv_heads = static_cast<int>(node.GetAttr<int64_t>("num_kv_heads"));
+    int head_size = static_cast<int>(node.GetAttr<int64_t>("head_size"));
+    int head_size_v = static_cast<int>(node.GetAttr<int64_t>("head_size_v"));
+    std::string layout = std::string(node.GetAttr<ffi::String>("layout"));
     const auto& input_qkv_node = nodes_[EntryID(node.GetInputs()[0])];
     auto qkv_shapes = input_qkv_node.GetOpShape()[0];
 
     int64_t batch, seq_len;
     if (layout == "BS3NH") {
-      ICHECK_EQ(qkv_shapes.size(), 3);
+      TVM_FFI_ICHECK_EQ(qkv_shapes.size(), 3);
       batch = qkv_shapes[0];
       seq_len = qkv_shapes[1];
     } else if (layout == "SBN3H") {
-      ICHECK_EQ(qkv_shapes.size(), 4);
+      TVM_FFI_ICHECK_EQ(qkv_shapes.size(), 4);
       batch = qkv_shapes[1];
       seq_len = qkv_shapes[0];
     } else {
-      LOG(FATAL) << "Unsupported layout: " << layout;
+      TVM_FFI_THROW(InternalError) << "Unsupported layout: " << layout;
     }
     double scale = 1 / std::sqrt(head_size);
-    std::string scale_attr = node.GetAttr<std::vector<std::string>>("scale")[0];
-    if (scale_attr.size()) {
-      scale = std::stod(scale_attr);
+    if (node.HasAttr("scale")) {
+      scale = node.GetAttr<double>("scale");
     }
 
     auto runner = tvm::contrib::CuDNNSDPARunner::Create();
@@ -225,26 +230,27 @@ class cuDNNJSONRuntime : public JSONRuntimeBase {
       runner->Run(qkv, workspace, out);
     };
 #else
-    LOG(FATAL) << "Please build with CUDNN frontend to use attention op";
+    TVM_FFI_THROW(InternalError) << "Please build with CUDNN frontend to use attention op";
+    return nullptr;
 #endif
   }
 
   std::vector<std::function<void()>> op_execs_;
 };
 
-runtime::Module cuDNNJSONRuntimeCreate(String symbol_name, String graph_json,
-                                       const Array<String>& const_names) {
-  auto n = make_object<cuDNNJSONRuntime>(symbol_name, graph_json, const_names);
-  return runtime::Module(n);
+ffi::Module cuDNNJSONRuntimeCreate(ffi::String symbol_name, ffi::String graph_json,
+                                   const ffi::Array<ffi::String>& const_names) {
+  auto n = ffi::make_object<cuDNNJSONRuntime>(symbol_name, graph_json, const_names);
+  return ffi::Module(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.cuDNNJSONRuntimeCreate", cuDNNJSONRuntimeCreate)
-      .def("runtime.module.loadbinary_cudnn_json",
-           JSONRuntimeBase::LoadFromBinary<cuDNNJSONRuntime>);
-});
+      .def("ffi.Module.load_from_bytes.cudnn_json",
+           JSONRuntimeBase::LoadFromBytes<cuDNNJSONRuntime>);
+}
 
 }  // namespace contrib
 }  // namespace runtime

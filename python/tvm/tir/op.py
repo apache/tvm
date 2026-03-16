@@ -16,9 +16,12 @@
 # under the License.
 # pylint: disable=redefined-builtin, invalid-name, too-many-arguments
 """Operators used in TIR expression."""
-from typing import Any, Optional, Union
 
-import tvm.ffi
+from typing import Any
+
+import tvm_ffi
+
+import tvm
 from tvm import tir
 from tvm.ir import Array, Op, PrimExpr
 from tvm.ir.base import Span
@@ -49,8 +52,8 @@ def call_packed_lowered(*args, span=None):
     The argument to packed function can be Expr or Buffer.
     The argument is the corresponding POD type when Expr is presented.
     When the argument is Buffer, the corresponding PackedFunc
-    will recieve an TVMArrayHandle whose content is valid during the callback period.
-    If the PackedFunc is a python callback, then the corresponding argument is NDArray.
+    will receive an TVMArrayHandle whose content is valid during the callback period.
+    If the PackedFunc is a python callback, then the corresponding argument is Tensor.
 
     Parameters
     ----------
@@ -107,7 +110,7 @@ def call_packed(*args, span=None):
 
     When the argument is Buffer, the corresponding PackedFunc
     will receive an TVMArrayHandle whose content is valid during the callback period.
-    If the PackedFunc is a python callback, then the corresponding argument is NDArray.
+    If the PackedFunc is a python callback, then the corresponding argument is Tensor.
 
     Parameters
     ----------
@@ -235,6 +238,13 @@ def call_extern(dtype, func_name, *args, span=None):
     return Call(dtype, Op.get("tir.call_extern"), [func_name, *args], span=span)
 
 
+def _require_float_arg(op_name, x):
+    x = tir.convert(x)
+    if "float" not in x.dtype and "bfloat" not in x.dtype:
+        raise TypeError(f"tir.{op_name} only supports floating-point inputs, but got {x.dtype}")
+    return x
+
+
 def call_llvm_intrin(dtype, name, *args, span=None):
     """Build expression by calling a llvm intrinsic function
 
@@ -355,7 +365,7 @@ def tvm_stack_make_shape(*args):
 
 
 def tvm_stack_make_array(data, shape, strides, ndim, arr_dtype, elem_offset):
-    """Allocate a NDArray(DLTensor) on stack, return the handle
+    """Allocate a Tensor(DLTensor) on stack, return the handle
 
     Parameters
     ----------
@@ -553,7 +563,7 @@ def tvm_struct_set(arr, index, field, value):
     return call_intrin("int32", "tir.tvm_struct_set", arr, index, field, value)
 
 
-def address_of(obj: Union[Buffer, BufferLoad], span: Optional[Span] = None) -> PrimExpr:
+def address_of(obj: Buffer | BufferLoad, span: Span | None = None) -> PrimExpr:
     """Returns the address of an element in the buffer
 
     Parameters
@@ -570,7 +580,6 @@ def address_of(obj: Union[Buffer, BufferLoad], span: Optional[Span] = None) -> P
         The call expression.
     """
     if isinstance(obj, Buffer):
-
         n_dim = len(obj.shape)
         buffer_load = BufferLoad(obj, [0] * n_dim)
         return call_intrin("handle", "tir.address_of", buffer_load, span=span)
@@ -1883,8 +1892,7 @@ def ret(val, span=None):
 
 
 def thread_return(span=None):
-    """Return from a GPU thread.
-
+    """Return from a GPU thread
     Parameters
     ----------
     span : Optional[Span]
@@ -1897,6 +1905,40 @@ def thread_return(span=None):
     """
 
     return _ffi_api.thread_return(span)
+
+
+def continue_loop(span=None):
+    """Create a tir intrinsic call to represent continue expression
+
+    Parameters
+    ----------
+    span : Optional[Span]
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    ret : PrimExpr
+        The continue expression
+    """
+
+    return _ffi_api.continue_loop(span)
+
+
+def break_loop(span=None):
+    """Create a tir intrinsic call to represent break expression
+
+    Parameters
+    ----------
+    span : Optional[Span]
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    ret : PrimExpr
+        The break expression
+    """
+
+    return _ffi_api.break_loop(span)
 
 
 def any(*args, span=None):
@@ -1952,7 +1994,7 @@ def all(*args, span=None):
     return val
 
 
-@tvm.ffi.register_func("tvm.default_trace_action")
+@tvm_ffi.register_global_func("tvm.default_trace_action")
 def _tvm_default_trace_action(*args):
     print(list(args))
 
@@ -2008,7 +2050,7 @@ def min_value(dtype, span=None):
     return _ffi_api.min_value(dtype, span)  # type: ignore
 
 
-def max_value(dtype: str, span: Optional[Span] = None) -> Any:
+def max_value(dtype: str, span: Span | None = None) -> Any:
     """maximum value of dtype
 
     Parameters
@@ -2027,7 +2069,7 @@ def max_value(dtype: str, span: Optional[Span] = None) -> Any:
     return _ffi_api.max_value(dtype, span)  # type: ignore
 
 
-def infinity(dtype: str, span: Optional[Span] = None) -> Any:
+def infinity(dtype: str, span: Span | None = None) -> Any:
     """infinity value of dtype
 
     Parameters
@@ -2046,7 +2088,7 @@ def infinity(dtype: str, span: Optional[Span] = None) -> Any:
     return _ffi_api.infinity(dtype, span)  # type: ignore
 
 
-def reinterpret(dtype, value, span: Optional[Span] = None) -> Any:
+def reinterpret(dtype, value, span: Span | None = None) -> Any:
     """infinity value of dtype
 
     Parameters
@@ -2082,6 +2124,8 @@ def exp(x):
         The result.
     """
     x = tir.convert(x)
+    if "int" in x.dtype:
+        x = tir.Cast("float32", x)
     return call_intrin(x.dtype, "tir.exp", x)
 
 
@@ -2149,7 +2193,7 @@ def tanh(x):
     y : PrimExpr
         The result.
     """
-    x = tir.convert(x)
+    x = _require_float_arg("tanh", x)
     return call_intrin(x.dtype, "tir.tanh", x)
 
 
@@ -2251,7 +2295,7 @@ def tan(x):
     y : PrimExpr
         The result.
     """
-    x = tir.convert(x)
+    x = _require_float_arg("tan", x)
     return call_intrin(x.dtype, "tir.tan", x)
 
 
@@ -2268,7 +2312,7 @@ def cos(x):
     y : PrimExpr
         The result.
     """
-    x = tir.convert(x)
+    x = _require_float_arg("cos", x)
     return call_intrin(x.dtype, "tir.cos", x)
 
 
@@ -2285,7 +2329,7 @@ def cosh(x):
     y : PrimExpr
         The result.
     """
-    x = tir.convert(x)
+    x = _require_float_arg("cosh", x)
     return call_intrin(x.dtype, "tir.cosh", x)
 
 
@@ -2302,7 +2346,7 @@ def acos(x):
     y : PrimExpr
         The result.
     """
-    x = tir.convert(x)
+    x = _require_float_arg("acos", x)
     return call_intrin(x.dtype, "tir.acos", x)
 
 
@@ -2319,7 +2363,7 @@ def acosh(x):
     y : PrimExpr
         The result.
     """
-    x = tir.convert(x)
+    x = _require_float_arg("acosh", x)
     return call_intrin(x.dtype, "tir.acosh", x)
 
 
@@ -2336,7 +2380,7 @@ def sin(x):
     y : PrimExpr
         The result.
     """
-    x = tir.convert(x)
+    x = _require_float_arg("sin", x)
     return call_intrin(x.dtype, "tir.sin", x)
 
 
@@ -2353,7 +2397,7 @@ def sinh(x):
     y : PrimExpr
         The result.
     """
-    x = tir.convert(x)
+    x = _require_float_arg("sinh", x)
     return call_intrin(x.dtype, "tir.sinh", x)
 
 
@@ -2370,7 +2414,7 @@ def asin(x):
     y : PrimExpr
         The result.
     """
-    x = tir.convert(x)
+    x = _require_float_arg("asin", x)
     return call_intrin(x.dtype, "tir.asin", x)
 
 
@@ -2387,7 +2431,7 @@ def asinh(x):
     y : PrimExpr
         The result.
     """
-    x = tir.convert(x)
+    x = _require_float_arg("asinh", x)
     return call_intrin(x.dtype, "tir.asinh", x)
 
 
@@ -2404,7 +2448,7 @@ def atan(x):
     y : PrimExpr
         The result.
     """
-    x = tir.convert(x)
+    x = _require_float_arg("atan", x)
     return call_intrin(x.dtype, "tir.atan", x)
 
 
@@ -2421,7 +2465,7 @@ def atanh(x):
     y : PrimExpr
         The result.
     """
-    x = tir.convert(x)
+    x = _require_float_arg("atanh", x)
     return call_intrin(x.dtype, "tir.atanh", x)
 
 
@@ -3412,7 +3456,7 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
             if init is not None:
                 init = [init]
         combiner = CommReducer(lhs, rhs, result, id_elem)
-        if not isinstance(axis, (list, tuple, tvm.ir.Array)):
+        if not isinstance(axis, list | tuple | tvm.ir.Array):
             axis = [axis]
         if where is None:
             where = tir.convert(True)
@@ -3426,7 +3470,7 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
 
     # pylint: disable=keyword-arg-before-vararg
     def reducer(expr, axis, where=None, init=None, *args):
-        if isinstance(axis, (tvm.tir.IterVar, list, tuple)):
+        if isinstance(axis, tvm.tir.IterVar | list | tuple):
             assert not args
             return _make_reduce(expr, axis, where, init)
 
@@ -3634,7 +3678,7 @@ def get_active_lane_mask(dtype, base, limit):
     return call_intrin(dtype, "tir.get_active_lane_mask", base, limit)
 
 
-def get_vscale_expr(dtype: Union[str, tvm.ffi.dtype], min_size: int = 128) -> PrimExpr:
+def get_vscale_expr(dtype: str | tvm_ffi.dtype, min_size: int = 128) -> PrimExpr:
     """
     Create a datatype dependent scalable expression.
 
@@ -3646,7 +3690,7 @@ def get_vscale_expr(dtype: Union[str, tvm.ffi.dtype], min_size: int = 128) -> Pr
         The minimum size of the scalable vector in bits.
     """
     if isinstance(dtype, str):
-        dtype = tvm.ffi.dtype(dtype)
+        dtype = tvm_ffi.dtype(dtype)
     return min_size // dtype.bits * vscale()
 
 

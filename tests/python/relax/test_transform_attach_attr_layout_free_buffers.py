@@ -14,12 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401
 import numpy as np
-import tvm.testing
 
+import tvm.testing
 from tvm import relax, tir
-from tvm.script import relax as R, tir as T, ir as I
 from tvm.relax.transform import CombineParallelMatmul
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import relax as relax_builder
 
@@ -34,7 +37,7 @@ def test_param():
             C: T.Buffer((T.int64(32), T.int64(32)), "float32"),
         ):
             for i, j, k in T.grid(T.int64(32), T.int64(32), T.int64(32)):
-                with T.block("C"):
+                with T.sblock("C"):
                     with T.init():
                         C[i, j] = T.float32(0)
                     C[i, j] = C[i, j] + A[i, k] * B[k, j]
@@ -58,7 +61,7 @@ def test_param():
         ):
             T.func_attr({"layout_free_buffers": [1]})
             for i, j, k in T.grid(T.int64(32), T.int64(32), T.int64(32)):
-                with T.block("C"):
+                with T.sblock("C"):
                     with T.init():
                         C[i, j] = T.float32(0)
                     C[i, j] = C[i, j] + A[i, k] * B[k, j]
@@ -88,7 +91,7 @@ def test_const():
             C: T.Buffer((T.int64(32), T.int64(32)), "float32"),
         ):
             for i, j, k in T.grid(T.int64(32), T.int64(32), T.int64(32)):
-                with T.block("C"):
+                with T.sblock("C"):
                     with T.init():
                         C[i, j] = T.float32(0)
                     C[i, j] = C[i, j] + A[i, k] * B[k, j]
@@ -116,7 +119,7 @@ def test_const():
         ):
             T.func_attr({"layout_free_buffers": [1]})
             for i, j, k in T.grid(T.int64(32), T.int64(32), T.int64(32)):
-                with T.block("C"):
+                with T.sblock("C"):
                     with T.init():
                         C[i, j] = T.float32(0)
                     C[i, j] = C[i, j] + A[i, k] * B[k, j]
@@ -148,7 +151,7 @@ def test_multiple_same_func():
             C: T.Buffer((T.int64(32), T.int64(32)), "float32"),
         ):
             for i, j, k in T.grid(T.int64(32), T.int64(32), T.int64(32)):
-                with T.block("C"):
+                with T.sblock("C"):
                     with T.init():
                         C[i, j] = T.float32(0)
                     C[i, j] = C[i, j] + A[i, k] * B[k, j]
@@ -185,7 +188,7 @@ def test_multiple_same_func():
         ):
             T.func_attr({"layout_free_buffers": [1]})
             for i, j, k in T.grid(T.int64(32), T.int64(32), T.int64(32)):
-                with T.block("C"):
+                with T.sblock("C"):
                     with T.init():
                         C[i, j] = T.float32(0)
                     C[i, j] = C[i, j] + A[i, k] * B[k, j]
@@ -226,7 +229,7 @@ def test_multiple_same_func_with_different_free_buffers():
             C: T.Buffer((T.int64(32), T.int64(32)), "float32"),
         ):
             for i, j, k in T.grid(T.int64(32), T.int64(32), T.int64(32)):
-                with T.block("C"):
+                with T.sblock("C"):
                     with T.init():
                         C[i, j] = T.float32(0)
                     C[i, j] = C[i, j] + A[i, k] * B[k, j]
@@ -263,7 +266,7 @@ def test_multiple_same_func_with_different_free_buffers():
         ):
             T.func_attr({"layout_free_buffers": [1]})
             for i, j, k in T.grid(T.int64(32), T.int64(32), T.int64(32)):
-                with T.block("C"):
+                with T.sblock("C"):
                     with T.init():
                         C[i, j] = T.float32(0)
                     C[i, j] = C[i, j] + A[i, k] * B[k, j]
@@ -276,7 +279,7 @@ def test_multiple_same_func_with_different_free_buffers():
         ):
             T.func_attr({"layout_free_buffers": [0]})
             for i, j, k in T.grid(T.int64(32), T.int64(32), T.int64(32)):
-                with T.block("C"):
+                with T.sblock("C"):
                     with T.init():
                         C[i, j] = T.float32(0)
                     C[i, j] = C[i, j] + A[i, k] * B[k, j]

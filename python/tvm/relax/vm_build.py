@@ -16,13 +16,12 @@
 # under the License.
 # pylint: disable=invalid-name, no-member
 """VM build logics"""
-from typing import Dict, List, Optional, Union
 
 import tvm
 from tvm import relax
 from tvm.ir.module import IRModule
-from tvm.tir.function import PrimFunc
 from tvm.runtime import Executable
+from tvm.tir.function import PrimFunc
 
 from . import _ffi_api
 
@@ -82,8 +81,8 @@ def _vmcodegen(
 
 def _auto_attach_system_lib_prefix(
     tir_mod: tvm.IRModule,
-    target: Optional[tvm.target.Target] = None,
-    system_lib: Optional[bool] = None,
+    target: tvm.target.Target | None = None,
+    system_lib: bool | None = None,
 ):
     """Automatically detect system lib req and attach prefix attr"""
     if target is not None:
@@ -99,15 +98,19 @@ def _auto_attach_system_lib_prefix(
     return tir_mod
 
 
+def _is_device_module(mod: tvm.runtime.Module) -> bool:
+    return mod.kind in ["cuda", "opencl", "metal", "hip", "vulkan", "webgpu"]
+
+
 def _vmlink(
     builder: "relax.ExecBuilder",
-    target: Optional[Union[str, tvm.target.Target]],
-    tir_mod: Optional[tvm.IRModule] = None,
-    tir_pipeline: Optional[Union[str, tvm.transform.Pass]] = "default",
-    ext_libs: List[tvm.runtime.Module] = None,
-    params: Optional[Dict[str, list]] = None,
+    target: str | tvm.target.Target | None,
+    tir_mod: tvm.IRModule | None = None,
+    tir_pipeline: str | tvm.transform.Pass | None = "default",
+    ext_libs: list[tvm.runtime.Module] | None = None,
+    params: dict[str, list] | None = None,
     *,
-    system_lib: Optional[bool] = None,
+    system_lib: bool | None = None,
 ):
     """
     Internal codegen function to make executable.
@@ -153,7 +156,7 @@ def _vmlink(
         tir_mod = _auto_attach_system_lib_prefix(tir_mod, target, system_lib)
         lib = tvm.tir.build(tir_mod, target=target, pipeline=tir_pipeline)
     for ext_mod in ext_libs:
-        if ext_mod.is_device_module:
+        if _is_device_module(ext_mod):
             tir_ext_libs.append(ext_mod)
         else:
             relax_ext_libs.append(ext_mod)
@@ -168,13 +171,13 @@ def _vmlink(
 
 def build(
     mod: tvm.IRModule,
-    target: Optional[Union[str, tvm.target.Target]] = None,
-    params: Optional[Dict[str, list]] = None,
-    relax_pipeline: Union[None, str, tvm.transform.Pass] = "default",
-    tir_pipeline: Union[None, str, tvm.transform.Pass] = "default",
+    target: str | tvm.target.Target | None = None,
+    params: dict[str, list] | None = None,
+    relax_pipeline: None | str | tvm.transform.Pass = "default",
+    tir_pipeline: None | str | tvm.transform.Pass = "default",
     exec_mode: str = "bytecode",
     *,
-    system_lib: Optional[bool] = None,
+    system_lib: bool | None = None,
 ) -> Executable:
     """
     Build an IRModule to VM executable.
@@ -267,7 +270,7 @@ def build(
     )
 
 
-def _filter_tir(mod: tvm.IRModule) -> Optional[tvm.IRModule]:
+def _filter_tir(mod: tvm.IRModule) -> tvm.IRModule | None:
     tir_mod = {gvar: func for gvar, func in mod.functions.items() if isinstance(func, PrimFunc)}
 
     if tir_mod:

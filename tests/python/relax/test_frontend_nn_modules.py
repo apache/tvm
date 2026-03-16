@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from typing import List, Tuple
+# ruff: noqa: E501, F401, F841
 
 import numpy as np
 import pytest
@@ -26,8 +26,8 @@ from tvm.ir import assert_structural_equal
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import core, modules, spec
 from tvm.script import ir as I
-from tvm.script import tir as T
 from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 def test_relu():
@@ -202,8 +202,9 @@ def test_layer_norm():
             layer_norm: R.Tensor((2, 4, 8), dtype="float32") = R.nn.layer_norm(
                 x, weight, bias, axes=[-1], epsilon=1.0000000000000001e-05, center=True, scale=True
             )
-            gv1: R.Tuple(R.Tensor((2, 4, 8), dtype="float32"), R.Tuple(R.Object)) = layer_norm, (
-                _io,
+            gv1: R.Tuple(R.Tensor((2, 4, 8), dtype="float32"), R.Tuple(R.Object)) = (
+                layer_norm,
+                (_io,),
             )
             R.output(gv1)
         return gv1
@@ -228,8 +229,9 @@ def test_conv2d():
             lv1: R.Tensor((1, 32, 30, 30), dtype="float32") = R.nn.conv2d(x, weight)
             lv2: R.Tensor((1, 32, 1, 1), dtype="float32") = R.reshape(bias, R.shape([1, 32, 1, 1]))
             conv2d: R.Tensor((1, 32, 30, 30), dtype="float32") = R.add(lv1, lv2)
-            gv1: R.Tuple(R.Tensor((1, 32, 30, 30), dtype="float32"), R.Tuple(R.Object)) = conv2d, (
-                _io,
+            gv1: R.Tuple(R.Tensor((1, 32, 30, 30), dtype="float32"), R.Tuple(R.Object)) = (
+                conv2d,
+                (_io,),
             )
             R.output(gv1)
         return gv1
@@ -261,9 +263,10 @@ def test_conv3d():
                 bias, R.shape([1, 32, 1, 1, 1])
             )
             conv3d: R.Tensor((1, 32, 30, 30, 30), dtype="float32") = R.add(lv1, lv2)
-            gv1: R.Tuple(
-                R.Tensor((1, 32, 30, 30, 30), dtype="float32"), R.Tuple(R.Object)
-            ) = conv3d, (_io,)
+            gv1: R.Tuple(R.Tensor((1, 32, 30, 30, 30), dtype="float32"), R.Tuple(R.Object)) = (
+                conv3d,
+                (_io,),
+            )
             R.output(gv1)
         return gv1
 
@@ -352,8 +355,9 @@ def test_group_norm():
             group_norm: R.Tensor((2, 4, 8), dtype="float32") = R.nn.group_norm(
                 x, weight, bias, num_groups=2, channel_axis=1, axes=[2]
             )
-            gv1: R.Tuple(R.Tensor((2, 4, 8), dtype="float32"), R.Tuple(R.Object)) = group_norm, (
-                _io,
+            gv1: R.Tuple(R.Tensor((2, 4, 8), dtype="float32"), R.Tuple(R.Object)) = (
+                group_norm,
+                (_io,),
             )
             R.output(gv1)
         return gv1
@@ -365,7 +369,26 @@ def test_group_norm():
     assert_structural_equal(tvm_mod["forward"], forward, True)
 
 
-def test_embedding():
+def test_embedding_1d():
+    @R.function
+    def forward(
+        x: R.Tensor((4,), dtype="int32"),
+        _io: R.Object,
+        weight: R.Tensor((8, 16), dtype="float32"),
+    ) -> R.Tuple(R.Tensor((4, 16), dtype="float32"), R.Tuple(R.Object)):
+        R.func_attr({"num_input": 2})
+        with R.dataflow():
+            take: R.Tensor((4, 16), dtype="float32") = R.take(weight, x, axis=0)
+            gv1: R.Tuple(R.Tensor((4, 16), dtype="float32"), R.Tuple(R.Object)) = take, (_io,)
+            R.output(gv1)
+        return gv1
+
+    mod = modules.Embedding(8, 16, "float32")
+    tvm_mod, _ = mod.export_tvm(spec={"forward": {"x": spec.Tensor((4,), "int32")}}, debug=True)
+    assert_structural_equal(tvm_mod["forward"], forward, True)
+
+
+def test_embedding_2d():
     @R.function
     def forward(
         x: R.Tensor((1, 4), dtype="int32"),
@@ -441,9 +464,9 @@ def test_timestep_embedding():
 
 def test_timesteps():
     @R.function
-    def forward(
-        x: R.Tensor((3,), dtype="float32"), _io: R.Object
-    ) -> R.Tuple(R.Tensor((3, 10), dtype="float32"), R.Tuple(R.Object)):
+    def forward(x: R.Tensor((3,), dtype="float32"), _io: R.Object) -> R.Tuple(
+        R.Tensor((3, 10), dtype="float32"), R.Tuple(R.Object)
+    ):
         R.func_attr({"num_input": 2})
         with R.dataflow():
             lv1: R.Tensor((3,), dtype="float32") = R.astype(x, dtype="float32")
@@ -592,9 +615,9 @@ def test_attention():
             reshape2: R.Tensor((2, 77, 10, 64), dtype="float32") = R.reshape(
                 matmul2, R.shape([2, 77, 10, 64])
             )
-            scaled_dot_product_attention: R.Tensor(
-                (2, 4096, 10, 64), dtype="float32"
-            ) = R.nn.attention(reshape, reshape1, reshape2, scale=None, causal_mask=None)
+            scaled_dot_product_attention: R.Tensor((2, 4096, 10, 64), dtype="float32") = (
+                R.nn.attention(reshape, reshape1, reshape2, scale=None, causal_mask=None)
+            )
             reshape3: R.Tensor((2, 4096, 640), dtype="float32") = R.reshape(
                 scaled_dot_product_attention, R.shape([2, 4096, 640])
             )
@@ -627,7 +650,7 @@ def test_nn_module_tuple_input():
         def __init__(self):
             pass
 
-        def forward(self, x: Tuple[nn.Tensor, nn.Tensor]):
+        def forward(self, x: tuple[nn.Tensor, nn.Tensor]):
             x0 = x[0]
             x1 = x[1]
             y0 = nn.add(x0, x1)
@@ -666,7 +689,7 @@ def test_nn_module_list_input():
         def __init__(self):
             pass
 
-        def forward(self, x: List[nn.Tensor]):
+        def forward(self, x: list[nn.Tensor]):
             x0 = x[0]
             x1 = x[1]
             y0 = nn.add(x0, x1)
@@ -713,6 +736,23 @@ def test_module_list():
     mod = Module()
     named_params = dict(mod.named_parameters())
     assert ["layers.0.0.weight", "layers.0.1.weight"] == sorted(list(named_params.keys()))
+
+
+def test_module_dict():
+    class Module(nn.Module):
+        def __init__(self):
+            self.layers = nn.ModuleDict(
+                {"linear0": nn.Linear(4, 4, bias=False), "linear1": nn.Linear(4, 4, bias=False)}
+            )
+
+        def forward(self, x: nn.Tensor):
+            x = self.layers["linear0"](x)
+            x = self.layers["linear1"](x)
+            return x
+
+    mod = Module()
+    named_params = dict(mod.named_parameters())
+    assert ["layers.linear0.weight", "layers.linear1.weight"] == sorted(list(named_params.keys()))
 
 
 if __name__ == "__main__":

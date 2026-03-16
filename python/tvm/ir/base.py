@@ -15,9 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 """Common base structures."""
-import tvm.ffi
+
+from tvm_ffi import get_global_func, register_object
+
 import tvm.error
-from tvm.ffi import get_global_func, register_object
 from tvm.runtime import Object, _ffi_node_api
 
 from . import _ffi_api, json_compact
@@ -65,7 +66,12 @@ class Span(Object):
 
     def __init__(self, source_name, line, end_line, column, end_column):
         self.__init_handle_by_constructor__(
-            _ffi_api.Span, source_name, line, end_line, column, end_column  # type: ignore # pylint: disable=no-member
+            _ffi_api.Span,
+            source_name,
+            line,
+            end_line,
+            column,
+            end_column,  # type: ignore # pylint: disable=no-member
         )
 
 
@@ -196,8 +202,8 @@ def structural_equal(lhs, rhs, map_free_vars=False):
     return bool(_ffi_node_api.StructuralEqual(lhs, rhs, False, map_free_vars))  # type: ignore # pylint: disable=no-member
 
 
-def get_first_structural_mismatch(lhs, rhs, map_free_vars=False):
-    """Like structural_equal(), but returns the ObjectPaths of the first detected mismatch.
+def get_first_structural_mismatch(lhs, rhs, map_free_vars=False, skip_tensor_content=False):
+    """Like structural_equal(), but returns the AccessPath pair of the first detected mismatch.
 
     Parameters
     ----------
@@ -211,19 +217,18 @@ def get_first_structural_mismatch(lhs, rhs, map_free_vars=False):
         Whether free variables (i.e. variables without a definition site) should be mapped
         as equal to each other.
 
+    skip_tensor_content : bool
+        Whether to skip the content of ndarray.
+
     Returns
     -------
-    mismatch: Optional[Tuple[ObjectPath, ObjectPath]]
+    mismatch: Optional[Tuple[AccessPath, AccessPath]]
         `None` if `lhs` and `rhs` are structurally equal.
-        Otherwise, a tuple of two ObjectPath objects that point to the first detected mismtach.
+        Otherwise, a tuple of two AccessPath objects that point to the first detected mismtach.
     """
     lhs = tvm.runtime.convert(lhs)
     rhs = tvm.runtime.convert(rhs)
-    mismatch = _ffi_node_api.GetFirstStructuralMismatch(lhs, rhs, map_free_vars)  # type: ignore # pylint: disable=no-member
-    if mismatch is None:
-        return None
-    else:
-        return mismatch.lhs_path, mismatch.rhs_path
+    return _ffi_node_api.GetFirstStructuralMismatch(lhs, rhs, map_free_vars, skip_tensor_content)  # type: ignore # pylint: disable=no-member
 
 
 def assert_structural_equal(lhs, rhs, map_free_vars=False):
@@ -262,7 +267,7 @@ def structural_hash(node, map_free_vars=False):
 
     - Normal node: the hash value is defined by its content and type only.
     - Graph node: each graph node will be assigned a unique index ordered by the
-      first occurence during the visit. The hash value of a graph node is
+      first occurrence during the visit. The hash value of a graph node is
       combined from the hash values of its contents and the index.
 
     structural_hash is made to be concistent with structural_equal.

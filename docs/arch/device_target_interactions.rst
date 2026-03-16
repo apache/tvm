@@ -114,7 +114,7 @@ access to physical device ``0``, accessed through the CUDA API.)
     ``CopyDataFromTo`` completes.
 
 
-* Execution stream management - Utilities for handling
+* Execution stream management - utilities for handling
   ``TVMStreamHandle``, which represents parallel streams of execution
   used to execute commands.
 
@@ -153,10 +153,10 @@ then be registered with the following steps.
 
 #. Register the function to the tvm registry::
 
-     TVM_FFI_STATIC_INIT_BLOCK({
+     TVM_FFI_STATIC_INIT_BLOCK() {
        namespace refl = tvm::ffi::reflection;
        refl::GlobalDef().def("device_api.foo", FooDeviceAPI::Global);
-     });
+     }
 
 .. _base.h: https://github.com/apache/tvm/blob/main/include/tvm/runtime/base.h
 
@@ -169,7 +169,7 @@ then be registered with the following steps.
    enum value to a string representation.  This string representation
    should match the name given to ``GlobalDef().def``.
 
-#. Add entries to the ``DEVICE_TYPE_TO_NAME`` and ``DEVICE_NAME_TO_TYPE`` dictionaries of
+#. Add entries to the ``_DEVICE_TYPE_TO_NAME`` and ``_DEVICE_NAME_TO_TYPE`` dictionaries of
    :py:class:`tvm.runtime.Device` for the new enum value.
 
 
@@ -190,11 +190,11 @@ In `target_kind.cc`_, add a new declaration of
 ``TVM_REGISTER_TARGET_KIND``, passing a string name of the new target,
 and the ``TVMDeviceExtType`` or ``DLDeviceType`` enum value for the
 device on which that target should run.  Typically, the target name
-and the device name will match.  (e.g. The ``"cuda"`` target runs on
-the ``kDLCUDA`` device.)  There are exceptions, such as when multiple
-different code generation targets can run on the same physical device.
-(e.g. The ``"llvm"`` and ``"c"`` targets both run on the ``kDLCPU``
-device type.)
+and the device name will match (e.g., the ``"cuda"`` target runs on
+the ``kDLCUDA`` device). There are exceptions, such as when multiple
+different code generation targets can run on the same physical device
+(e.g., the ``"llvm"`` and ``"c"`` targets both run on the ``kDLCPU``
+device type).
 
 All options for a specific target kind are added with the
 ``add_attr_option`` function, with optional default values.  A `Target`
@@ -228,10 +228,10 @@ the same name as was used in the ``TVM_REGISTER_TARGET_KIND``
 definition above. ::
 
   tvm::runtime::Module GeneratorFooCode(IRModule mod, Target target);
-  TVM_FFI_STATIC_INIT_BLOCK({
+  TVM_FFI_STATIC_INIT_BLOCK() {
     namespace refl = tvm::ffi::reflection;
     refl::GlobalDef().def("target.build.foo", GeneratorFooCode);
-  });
+  }
 
 The code generator takes two arguments.  The first is the ``IRModule``
 to compile, and the second is the ``Target`` that describes the device

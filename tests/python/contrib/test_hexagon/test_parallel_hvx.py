@@ -18,6 +18,7 @@
 """
 Test parallelizing HVX workloads and compare them to single thread examples.
 """
+
 import numpy as np
 
 import tvm
@@ -81,11 +82,10 @@ def get_vmpy_operator(operations):
         b_buffer = T.match_buffer(b, [operations, 128], dtype="uint8")
         c_buffer = T.match_buffer(c, [operations, 128], dtype="int16")
         for n in T.grid(operations):
-            with T.block("c_buffer"):
+            with T.sblock("c_buffer"):
                 vn_ind = T.axis.remap("S", [n])
                 c_buffer[vn_ind, T.ramp(0, 1, 128)] = T.call_llvm_intrin(
                     T.llvm_lookup_intrinsic_id("llvm.hexagon.V6.vmpybusv.128B"),
-                    T.uint32(2),
                     T.reinterpret(a_buffer[vn_ind, T.ramp(0, 1, 128)], dtype="int32x32"),
                     T.reinterpret(b_buffer[vn_ind, T.ramp(0, 1, 128)], dtype="int32x32"),
                     dtype="int16x128",
@@ -104,11 +104,10 @@ def get_vadd_operator(operations):
         b_buffer = T.match_buffer(b, [operations, 128], dtype="uint8")
         c_buffer = T.match_buffer(c, [operations, 128], dtype="int16")
         for n in T.grid(operations):
-            with T.block("c_buffer"):
+            with T.sblock("c_buffer"):
                 vn_ind = T.axis.remap("S", [n])
                 c_buffer[vn_ind, T.ramp(0, 1, 128)] = T.call_llvm_intrin(
                     T.llvm_lookup_intrinsic_id("llvm.hexagon.V6.vaddubh.128B"),
-                    T.uint32(2),
                     T.reinterpret(a_buffer[vn_ind, T.ramp(0, 1, 128)], dtype="int32x32"),
                     T.reinterpret(b_buffer[vn_ind, T.ramp(0, 1, 128)], dtype="int32x32"),
                     dtype="int16x128",
@@ -127,11 +126,10 @@ def get_vrmpy_operator(operations):
         b_buffer = T.match_buffer(b, [operations, 128], dtype="uint8")
         c_buffer = T.match_buffer(c, [operations, 32], dtype="int32")
         for n in T.grid(operations):
-            with T.block("c_buffer"):
+            with T.sblock("c_buffer"):
                 vn_ind = T.axis.remap("S", [n])
                 c_buffer[vn_ind, T.ramp(0, 1, 32)] = T.call_llvm_intrin(
                     T.llvm_lookup_intrinsic_id("llvm.hexagon.V6.vrmpyubv.128B"),
-                    T.uint32(2),
                     T.reinterpret(a_buffer[vn_ind, T.ramp(0, 1, 128)], dtype="int32x32"),
                     T.reinterpret(b_buffer[vn_ind, T.ramp(0, 1, 128)], dtype="int32x32"),
                     dtype="int32x32",
@@ -151,17 +149,15 @@ def evaluate(hexagon_session, shape_dtypes, expected_output_producer, sch):
     b = np.random.randint(0, 16, b_shape, dtype=b_dtype)
     c = np.zeros(c_shape, dtype=c_dtype)
 
-    a_hexagon = tvm.runtime.ndarray.array(a, device=hexagon_session.device)
-    b_hexagon = tvm.runtime.ndarray.array(b, device=hexagon_session.device)
-    c_hexagon = tvm.runtime.ndarray.array(c, device=hexagon_session.device)
+    a_hexagon = tvm.runtime.tensor(a, device=hexagon_session.device)
+    b_hexagon = tvm.runtime.tensor(b, device=hexagon_session.device)
+    c_hexagon = tvm.runtime.tensor(c, device=hexagon_session.device)
 
     # These are reduced for CI but number=100 and repeat=10 does a good job of removing noise.
     number = 1
     repeat = 1
 
-    timer = module.time_evaluator(
-        "__tvm_main__", hexagon_session.device, number=number, repeat=repeat
-    )
+    timer = module.time_evaluator("main", hexagon_session.device, number=number, repeat=repeat)
     runtime = timer(a_hexagon, b_hexagon, c_hexagon)
     tvm.testing.assert_allclose(c_hexagon.numpy(), expected_output_producer(c_shape, a, b))
 
@@ -214,13 +210,13 @@ class TestMatMulVec:
     ):
         """Test function handler."""
 
-        sch = tvm.tir.Schedule(operator_producer(operation_count))
+        sch = tvm.s_tir.Schedule(operator_producer(operation_count))
         single_thread_runtime = evaluate(
             hexagon_session, shape_dtypes_producer(operation_count), expected_output_producer, sch
         )
 
-        sch = tvm.tir.Schedule(operator_producer(operation_count))
-        block = sch.get_block("c_buffer")
+        sch = tvm.s_tir.Schedule(operator_producer(operation_count))
+        block = sch.get_sblock("c_buffer")
         b = sch.get_loops(block)
         b_output, _ = sch.split(b[0], factors=[split_factor, None])
         sch.parallel(b_output)

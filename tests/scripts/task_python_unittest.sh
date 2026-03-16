@@ -23,8 +23,8 @@ source tests/scripts/setup-pytest-env.sh
 # cleanup pycache
 find . -type f -path "*.pyc" | xargs rm -f
 
-# setup cython
-cd python; python3 setup.py build_ext --inplace; cd ..
+# setup tvm-ffi into python folder
+uv pip install -v --target=python ./3rdparty/tvm-ffi/
 
 # NOTE: also set by task_python_unittest_gpuonly.sh.
 if [ -z "${TVM_UNITTEST_TESTSUITE_NAME:-}" ]; then
@@ -47,11 +47,15 @@ TEST_FILES=(
   "target"
   "te"
   "testing"
+  "s_tir/base"
+  "s_tir/schedule"
+  "s_tir/dlight"
+  "s_tir/analysis"
   "tir-analysis"
   "tir-base"
-  "tir-schedule"
   "tir-transform"
   "tvmscript"
+  "relax"
 )
 
 for TEST_FILE in ${TEST_FILES[@]}; do

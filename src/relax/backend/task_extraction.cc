@@ -18,23 +18,23 @@
  */
 
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/meta_schedule/extracted_task.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
+#include <tvm/s_tir/meta_schedule/extracted_task.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/stmt_functor.h>
 
-#include "../../meta_schedule/module_equality.h"
+#include "../../s_tir/meta_schedule/module_equality.h"
 
 namespace tvm {
 namespace relax {
 namespace backend {
 
-using meta_schedule::ExtractedTask;
-using meta_schedule::ModuleEqual;
-using meta_schedule::ModuleEquality;
-using meta_schedule::ModuleHash;
+using s_tir::meta_schedule::ExtractedTask;
+using s_tir::meta_schedule::ModuleEqual;
+using s_tir::meta_schedule::ModuleEquality;
+using s_tir::meta_schedule::ModuleHash;
 
 /*!
  * \brief Extract the Meta-Schedule tuning task from a given IRModule.
@@ -51,14 +51,14 @@ using meta_schedule::ModuleHash;
  */
 class BlockCounter : public tir::StmtVisitor {
  public:
-  static size_t GetBlockCount(const tir::PrimFunc& func) {
+  static size_t GetSBlockCount(const tir::PrimFunc& func) {
     BlockCounter counter;
     counter(func->body);
     return counter.count;
   }
 
  private:
-  void VisitStmt_(const tir::BlockNode* op) final {
+  void VisitStmt_(const tir::SBlockNode* op) final {
     ++count;
     StmtVisitor::VisitStmt_(op);
   }
@@ -67,15 +67,16 @@ class BlockCounter : public tir::StmtVisitor {
 
 class TaskExtractor : public ExprVisitor {
  public:
-  static Array<ExtractedTask> ExtractTask(IRModule mod, Target target, String mod_eq_name) {
+  static ffi::Array<ExtractedTask> ExtractTask(IRModule mod, Target target,
+                                               ffi::String mod_eq_name) {
     TaskExtractor extractor(mod, target, mod_eq_name);
     // We go through each Relax function in the module.
     for (const auto& kv : mod->functions) {
       if (const auto* func = kv.second.as<FunctionNode>()) {
-        extractor(GetRef<Function>(func));
+        extractor(ffi::GetRef<Function>(func));
       }
     }
-    Array<ExtractedTask> tasks;
+    ffi::Array<ExtractedTask> tasks;
     for (const auto& it : extractor.func2task_) {
       tasks.push_back(it.second);
     }
@@ -83,13 +84,13 @@ class TaskExtractor : public ExprVisitor {
   }
 
  private:
-  explicit TaskExtractor(IRModule mod, Target target, String mod_eq_name)
+  explicit TaskExtractor(IRModule mod, Target target, ffi::String mod_eq_name)
       : mod_(std::move(mod)),
         target_(std::move(target)),
         mod_eq_(ModuleEquality::Create(mod_eq_name)),
         func2task_(/*bucket_count*/ 0, ModuleHash(*mod_eq_), ModuleEqual(*mod_eq_)) {
-    normalize_mod_func_ = tvm::ffi::Function::GetGlobal("tvm.meta_schedule.normalize_mod");
-    ICHECK(normalize_mod_func_.has_value()) << "Normalization function is not found.";
+    normalize_mod_func_ = tvm::ffi::Function::GetGlobal("tvm.s_tir.meta_schedule.normalize_mod");
+    TVM_FFI_ICHECK(normalize_mod_func_.has_value()) << "Normalization function is not found.";
   }
 
   void VisitExpr_(const CallNode* call) final {
@@ -119,7 +120,7 @@ class TaskExtractor : public ExprVisitor {
       // count the PrinFunc number of blocks and leave only the function with the smallest number of
       // blocks. This way, "nn_conv2d_add_nn_relu" will have a smaller number of blocks than
       // "nn_conv2d_add_add_nn_relu" and will be selected to tune.
-      if (BlockCounter::GetBlockCount(func) < BlockCounter::GetBlockCount(alt_func)) {
+      if (BlockCounter::GetSBlockCount(func) < BlockCounter::GetSBlockCount(alt_func)) {
         weight += it->second->weight;
         func2task_.erase(it->first);
       }
@@ -140,13 +141,13 @@ class TaskExtractor : public ExprVisitor {
   std::optional<tvm::ffi::Function> normalize_mod_func_;
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.backend.MetaScheduleExtractTask", [](IRModule mod, Target target,
-                                                                    String mod_eq_name) {
+                                                                    ffi::String mod_eq_name) {
     return TaskExtractor::ExtractTask(std::move(mod), std::move(target), std::move(mod_eq_name));
   });
-});
+}
 
 }  // namespace backend
 }  // namespace relax

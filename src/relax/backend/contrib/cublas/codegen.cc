@@ -41,19 +41,19 @@ using backend::contrib::NodeEntries;
 
 class CublasJSONSerializer : public JSONSerializer {
  public:
-  CublasJSONSerializer(Map<Constant, String> constant_names, Map<Var, Expr> bindings)
+  CublasJSONSerializer(ffi::Map<Constant, ffi::String> constant_names, ffi::Map<Var, Expr> bindings)
       : JSONSerializer(constant_names), bindings_(bindings) {}
 
   using JSONSerializer::VisitExpr_;
 
   NodeEntries VisitExpr_(const CallNode* call_node) final {
     const auto* fn_var = call_node->op.as<VarNode>();
-    ICHECK(fn_var);
-    const auto fn = Downcast<Function>(bindings_[GetRef<Var>(fn_var)]);
-    ICHECK(fn.defined()) << "Expects the callee to be a function.";
+    TVM_FFI_ICHECK(fn_var);
+    const auto fn = Downcast<Function>(bindings_[ffi::GetRef<Var>(fn_var)]);
+    TVM_FFI_ICHECK(fn.defined()) << "Expects the callee to be a function.";
 
-    auto composite_opt = fn->GetAttr<String>(attr::kComposite);
-    ICHECK(composite_opt.defined()) << "Only composite functions are supported.";
+    auto composite_opt = fn->GetAttr<ffi::String>(attr::kComposite);
+    TVM_FFI_ICHECK(composite_opt.has_value()) << "Only composite functions are supported.";
 
     std::string composite_name = composite_opt.value();
 
@@ -63,7 +63,7 @@ class CublasJSONSerializer : public JSONSerializer {
       inputs_tmp.insert(inputs_tmp.end(), res.begin(), res.end());
     }
 
-    ICHECK(inputs_tmp.size() <= 4);
+    TVM_FFI_ICHECK(inputs_tmp.size() <= 4);
     NodeEntries inputs(inputs_tmp.size());
 
     auto arg_idx = backend::ExtractArgIdx(composite_name, fn);
@@ -88,30 +88,28 @@ class CublasJSONSerializer : public JSONSerializer {
         if (sinfo->dtype == DataType::Float(16)) {
           alpha = __gnu_h2f_ieee(static_cast<uint16_t*>(const_expr->data->data)[0]);
         } else {
-          ICHECK(sinfo->dtype == DataType::Float(32));
+          TVM_FFI_ICHECK(sinfo->dtype == DataType::Float(32));
           alpha = static_cast<float*>(const_expr->data->data)[0];
         }
 
-        std::vector<std::string> dq_scale = {backend::to_str(alpha)};
-        std::vector<dmlc::any> dq_scale_attr;
-        dq_scale_attr.emplace_back(dq_scale);
-        node->SetAttr("dq_scale", dq_scale_attr);
+        node->SetAttr("dq_scale", static_cast<double>(alpha));
       }
     }
 
     const CallNode* root_call = backend::GetOpInFunction(fn, "relax.matmul");
     SetCallNodeAttribute(node, root_call);
-    return AddNode(node, GetRef<Expr>(call_node));
+    return AddNode(node, ffi::GetRef<Expr>(call_node));
   }
 
  private:
   /*! \brief The bindings to look up composite functions. */
-  Map<Var, Expr> bindings_;
+  ffi::Map<Var, Expr> bindings_;
 };
 
-Array<runtime::Module> CublasCompiler(Array<Function> functions, Map<String, ffi::Any> /*unused*/,
-                                      Map<Constant, String> constant_names) {
-  Array<runtime::Module> compiled_functions;
+ffi::Array<ffi::Module> CublasCompiler(ffi::Array<Function> functions,
+                                       ffi::Map<ffi::String, ffi::Any> /*unused*/,
+                                       ffi::Map<Constant, ffi::String> constant_names) {
+  ffi::Array<ffi::Module> compiled_functions;
 
   for (const auto& func : functions) {
     CublasJSONSerializer serializer(constant_names, AnalyzeVar2Value(func));
@@ -120,16 +118,16 @@ Array<runtime::Module> CublasCompiler(Array<Function> functions, Map<String, ffi
     auto constant_names = serializer.GetConstantNames();
     const auto pf = tvm::ffi::Function::GetGlobalRequired("runtime.CublasJSONRuntimeCreate");
     auto func_name = GetExtSymbol(func);
-    compiled_functions.push_back(pf(func_name, graph_json, constant_names).cast<runtime::Module>());
+    compiled_functions.push_back(pf(func_name, graph_json, constant_names).cast<ffi::Module>());
   }
 
   return compiled_functions;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.ext.cublas", CublasCompiler);
-});
+}
 
 }  // namespace contrib
 }  // namespace relax

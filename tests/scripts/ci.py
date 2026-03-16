@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -17,25 +16,26 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501, RUF005
 
-import sys
+import argparse
+import getpass
+import grp
+import inspect
+import json
 import multiprocessing
 import os
-import getpass
-import inspect
-import argparse
-import json
-import shutil
-import grp
-import string
-import random
-import subprocess
 import platform
+import random
+import shutil
+import string
+import subprocess
+import sys
 import textwrap
 import typing
-
+from collections.abc import Callable
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Tuple, Callable, Union
+from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 SCRIPT_DIR = REPO_ROOT / ".ci-py-scripts"
@@ -61,7 +61,7 @@ def print_color(color: str, msg: str, bold: bool, **kwargs: Any) -> None:
         print(msg, **kwargs)
 
 
-warnings: List[str] = []
+warnings: list[str] = []
 
 
 def clean_exit(msg: str) -> None:
@@ -73,7 +73,7 @@ def clean_exit(msg: str) -> None:
     exit(1)
 
 
-def cmd(commands: List[Any], **kwargs: Any):
+def cmd(commands: list[Any], **kwargs: Any):
     commands = [str(s) for s in commands]
     command_str = " ".join(commands)
     print_color(col.BLUE, command_str, bold=True)
@@ -150,10 +150,10 @@ def gen_name(s: str) -> str:
 def docker(
     name: str,
     image: str,
-    scripts: List[str],
-    env: Dict[str, str],
+    scripts: list[str],
+    env: dict[str, str],
     interactive: bool,
-    additional_flags: Optional[Dict[str, str]] = None,
+    additional_flags: dict[str, str] | None = None,
 ):
     """
     Invoke a set of bash scripts through docker/bash.sh
@@ -171,10 +171,8 @@ def docker(
         "ci_gpu",
         "ci_cpu",
         # "ci_wasm",
-        # "ci_i386",
         "ci_cortexm",
         "ci_arm",
-        "ci_hexagon",
         "ci_riscv",
         "ci_adreno",
     }
@@ -234,12 +232,12 @@ def docker(
 
 
 def docs(
-    tutorial_pattern: Optional[str] = None,
+    tutorial_pattern: str | None = None,
     cpu: bool = False,
     full: bool = False,
     interactive: bool = False,
     skip_build: bool = False,
-    docker_image: Optional[str] = None,
+    docker_image: str | None = None,
 ) -> None:
     """
     Build the documentation from gallery/ and docs/. By default this builds only
@@ -287,7 +285,7 @@ def docs(
         ]
 
         extra_setup = [
-            "python3 -m pip install " + " ".join(requirements),
+            "uv pip install " + " ".join(requirements),
         ]
     else:
         check_gpu()
@@ -335,7 +333,7 @@ def serve_docs(directory: str = "_docs") -> None:
     cmd([sys.executable, "-m", "http.server"], cwd=directory_path)
 
 
-def lint(interactive: bool = False, fix: bool = False, docker_image: Optional[str] = None) -> None:
+def lint(interactive: bool = False, fix: bool = False, docker_image: str | None = None) -> None:
     """
     Run CI's Sanity Check step
 
@@ -350,25 +348,25 @@ def lint(interactive: bool = False, fix: bool = False, docker_image: Optional[st
         env["INPLACE_FORMAT"] = "true"
 
     docker(
-        name=gen_name(f"ci-lint"),
+        name=gen_name("ci-lint"),
         image="ci_lint" if docker_image is None else docker_image,
-        scripts=["./tests/scripts/task_lint.sh"],
+        scripts=["pre-commit run --all-files"],
         env=env,
         interactive=interactive,
     )
 
 
-Option = Tuple[str, List[str]]
+Option = tuple[str, list[str]]
 
 
 def generate_command(
     name: str,
-    options: Dict[str, Option],
+    options: dict[str, Option],
     help: str,
-    precheck: Optional[Callable[[], None]] = None,
-    post_build: Optional[List[str]] = None,
-    additional_flags: Optional[Dict[str, str]] = None,
-    env: Optional[Dict[str, str]] = None,
+    precheck: Callable[[], None] | None = None,
+    post_build: list[str] | None = None,
+    additional_flags: dict[str, str] | None = None,
+    env: dict[str, str] | None = None,
 ):
     """
     Helper to generate CLIs that:
@@ -379,10 +377,10 @@ def generate_command(
     """
 
     def fn(
-        tests: Optional[List[str]],
+        tests: list[str] | None = None,
         skip_build: bool = False,
         interactive: bool = False,
-        docker_image: Optional[str] = None,
+        docker_image: str | None = None,
         verbose: bool = False,
         **kwargs,
     ) -> None:
@@ -497,8 +495,8 @@ def is_optional_type(annotation):
 def add_subparser(
     func: Callable,
     subparsers: Any,
-    options: Optional[Dict[str, Option]] = None,
-    help: Optional[str] = None,
+    options: dict[str, Option] | None = None,
+    help: str | None = None,
 ) -> Any:
     """
     Utility function to make it so subparser commands can be defined locally
@@ -537,7 +535,7 @@ def add_subparser(
             continue
 
         arg_cli_name = cli_name(name)
-        kwargs: Dict[str, Union[str, bool]] = {"help": arg_help_texts[arg_cli_name]}
+        kwargs: dict[str, str | bool] = {"help": arg_help_texts[arg_cli_name]}
 
         is_optional = is_optional_type(value.annotation)
         if is_optional:
@@ -592,12 +590,10 @@ generated = [
                 "run unit tests",
                 [
                     "./tests/scripts/task_java_unittest.sh",
-                    "./tests/scripts/task_opencl_cpp_unittest.sh {build_dir}",
                     "./tests/scripts/task_python_unittest_gpuonly.sh",
                     "./tests/scripts/task_python_integration_gpuonly.sh",
                 ],
             ),
-            "frontend": ("run frontend tests", ["./tests/scripts/task_python_frontend.sh"]),
         },
     ),
     generate_command(
@@ -615,34 +611,6 @@ generated = [
                     "./tests/scripts/task_python_unittest.sh",
                 ],
             ),
-            "frontend": ("run frontend tests", ["./tests/scripts/task_python_frontend_cpu.sh"]),
-        },
-    ),
-    generate_command(
-        name="minimal",
-        help="Run minimal CPU build and test(s)",
-        options={
-            "cpp": CPP_UNITTEST,
-            "unittest": (
-                "run unit tests",
-                [
-                    "./tests/scripts/task_python_unittest.sh",
-                ],
-            ),
-        },
-    ),
-    generate_command(
-        name="i386",
-        help="Run i386 build and test(s)",
-        options={
-            "cpp": CPP_UNITTEST,
-            "integration": (
-                "run integration tests",
-                [
-                    "./tests/scripts/task_python_unittest.sh",
-                    "./tests/scripts/task_python_integration_i386only.sh",
-                ],
-            ),
         },
     ),
     generate_command(
@@ -651,20 +619,6 @@ generated = [
         options={
             "cpp": CPP_UNITTEST,
             "test": ("run WASM tests", ["./tests/scripts/task_web_wasm.sh"]),
-        },
-    ),
-    generate_command(
-        name="hexagon",
-        help="Run Hexagon build and test(s)",
-        post_build=["./tests/scripts/task_build_hexagon_api.sh --output build-hexagon"],
-        options={
-            "cpp": CPP_UNITTEST,
-            "test": (
-                "run Hexagon API/Python tests",
-                [
-                    "./tests/scripts/task_python_hexagon.sh",
-                ],
-            ),
         },
     ),
     generate_command(
@@ -677,48 +631,6 @@ generated = [
                 "run full Python tests",
                 [
                     "./tests/scripts/task_python_unittest.sh",
-                ],
-            ),
-        },
-    ),
-    generate_command(
-        name="adreno",
-        help="Run Adreno build and test(s)",
-        post_build=["./tests/scripts/task_build_adreno_bins.sh"],
-        additional_flags={
-            "--volume": os.environ.get("ADRENO_OPENCL", "/tmp/") + ":/adreno-opencl",
-            "--net": "host",
-        },
-        env={
-            "ADRENO_OPENCL": "/adreno-opencl",
-            "ADRENO_TARGET_CLML_VERSION": os.environ.get("ADRENO_TARGET_CLML_VERSION", "3"),
-        },
-        options={
-            "test": (
-                "run Adreno API/Python tests",
-                [
-                    "./tests/scripts/task_python_adreno.sh " + os.environ.get("ANDROID_SERIAL", ""),
-                ],
-            ),
-            "benchmarks": (
-                "run Adreno Benchmarks (Native OpenCL, CLML SDK)",
-                [
-                    "./apps/benchmark/adreno/bench.sh texture "
-                    + os.environ.get("ANDROID_SERIAL", ""),
-                    "./apps/benchmark/adreno/bench.sh clml " + os.environ.get("ANDROID_SERIAL", ""),
-                ],
-            ),
-            "nativebenchmarks": (
-                "run Adreno Texture Benchmarks",
-                [
-                    "./apps/benchmark/adreno/bench.sh texture "
-                    + os.environ.get("ANDROID_SERIAL", ""),
-                ],
-            ),
-            "clmlbenchmarks": (
-                "run Adreno CLML SDK Benchmarks",
-                [
-                    "./apps/benchmark/adreno/bench.sh clml " + os.environ.get("ANDROID_SERIAL", ""),
                 ],
             ),
         },

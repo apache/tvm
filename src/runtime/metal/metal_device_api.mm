@@ -20,7 +20,6 @@
 /*!
  * \file metal_device_api.mm
  */
-#include <dmlc/thread_local.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/profiling.h>
@@ -49,7 +48,7 @@ void MetalWorkspace::GetAttr(Device dev, DeviceAttrKind kind, ffi::Any* rv) {
       *rv = int(index < devices.size());
       return;
     }
-    ICHECK_LT(index, devices.size()) << "Invalid device id " << index;
+    TVM_FFI_ICHECK_LT(index, devices.size()) << "Invalid device id " << index;
     switch (kind) {
       case kMaxThreadsPerBlock: {
         *rv = static_cast<int>([devices[dev.device_id] maxThreadsPerThreadgroup].width);
@@ -126,11 +125,11 @@ int GetWarpSize(id<MTLDevice> dev) {
   id<MTLLibrary> lib = [dev newLibraryWithSource:[NSString stringWithUTF8String:kDummyKernel]
                                          options:nil
                                            error:&error_msg];
-  ICHECK(lib != nil) << [[error_msg localizedDescription] UTF8String];
+  TVM_FFI_ICHECK(lib != nil) << [[error_msg localizedDescription] UTF8String];
   id<MTLFunction> f = [lib newFunctionWithName:[NSString stringWithUTF8String:"CopyKernel"]];
-  ICHECK(f != nil);
+  TVM_FFI_ICHECK(f != nil);
   id<MTLComputePipelineState> state = [dev newComputePipelineStateWithFunction:f error:&error_msg];
-  ICHECK(state != nil) << [[error_msg localizedDescription] UTF8String];
+  TVM_FFI_ICHECK(state != nil) << [[error_msg localizedDescription] UTF8String];
   int size = static_cast<int>(state.threadExecutionWidth);
   [state release];
   [f release];
@@ -194,29 +193,33 @@ void* MetalWorkspace::AllocDataSpace(Device device, size_t nbytes, size_t alignm
     #endif
     */
     buf = [dev newBufferWithLength:nbytes options:storage_mode];
-    ICHECK(buf != nil);
+    TVM_FFI_ICHECK(buf != nil);
   };
   return (void*)(buf);
 }
 
 void MetalWorkspace::FreeDataSpace(Device dev, void* ptr) {
   AUTORELEASEPOOL {
-    // need to make sure buffer is not in use in command buffer
-    // before set the purgeable state to empty
-    // otherwise can cause issues sometimes
-    this->StreamSync(dev, nullptr);
-    // MTLBuffer PurgeableState should be set to empty before manual
-    // release in order to prevent memory leak
+    Stream* s = CastStreamOrGetDefault(nullptr, dev.device_id);
+    if (s->HasPendingWork()) {
+      s->profile.free_syncs++;
+      // Buffer may be referenced by pending compute/blit encoders.
+      // Must fully sync, setPurgeableState:Empty on a buffer in an
+      // uncommitted or incomplete CB crashes Metal.
+      this->StreamSync(dev, nullptr);
+    }
+    // No pending work, safe to release immediately.
+    // Either nothing was dispatched since last sync, or the GPU→CPU
+    // readback path already flushed+waited.
     [(id<MTLBuffer>)ptr setPurgeableState:MTLPurgeableStateEmpty];
-    // release the ptr.
     CFRelease(ptr);
   };
 }
 
 Stream* MetalWorkspace::CastStreamOrGetDefault(TVMStreamHandle stream, int device_id) {
   if (stream != nullptr) return static_cast<Stream*>(stream);
-  ICHECK_LT(static_cast<size_t>(device_id), default_streams_.size());
-  ICHECK(default_streams_[device_id] != nullptr);
+  TVM_FFI_ICHECK_LT(static_cast<size_t>(device_id), default_streams_.size());
+  TVM_FFI_ICHECK(default_streams_[device_id] != nullptr);
   return default_streams_[device_id];
 }
 
@@ -230,24 +233,30 @@ void MetalWorkspace::CopyDataFromTo(const void* from, size_t from_offset, void* 
     if (s->HasErrorHappened()) {
       LOG(FATAL) << "GPUError: " << s->ErrorDescription();
     }
-    id<MTLCommandBuffer> cb = s->GetCommandBuffer(/*label=*/"TVMCopyDataFromTo");
     int from_dev_type = static_cast<int>(dev_from.device_type);
     int to_dev_type = static_cast<int>(dev_to.device_type);
 
     if (from_dev_type == kDLMetal && to_dev_type == kDLMetal) {
-      ICHECK_EQ(dev_from.device_id, dev_to.device_id) << "Metal disallow cross device copy.";
-      id<MTLBlitCommandEncoder> encoder = [cb blitCommandEncoder];
+      s->profile.gpu_to_gpu++;
+      // GPU→GPU: inline blit into the pending command buffer.
+      // No flush needed, Metal guarantees encoder ordering within a CB.
+      TVM_FFI_ICHECK_EQ(dev_from.device_id, dev_to.device_id)
+          << "Metal disallow cross device copy.";
+      id<MTLBlitCommandEncoder> encoder = s->GetBlitEncoderOnPendingBuffer();
       [encoder copyFromBuffer:(id<MTLBuffer>)(from)
                  sourceOffset:from_offset
                      toBuffer:(id<MTLBuffer>)(to)destinationOffset:to_offset
                          size:size];
       [encoder endEncoding];
-      [cb commit];
+
     } else if (from_dev_type == kDLMetal && to_dev_type == kDLCPU) {
-      // copy to a local buffer before get into global buffer.
+      s->profile.gpu_to_cpu++;
+      // GPU→CPU: must flush and wait, we need data in CPU memory.
+      s->FlushCommandBuffer();
       id<MTLBuffer> from_buf = (id<MTLBuffer>)(from);
       if (from_buf.storageMode != MTLStorageModeShared) {
         id<MTLBuffer> temp = MetalThreadEntry::ThreadLocal()->GetTempBuffer(dev_from, size);
+        id<MTLCommandBuffer> cb = s->GetCommandBuffer("TVMCopyGPUtoCPU");
         id<MTLBlitCommandEncoder> encoder = [cb blitCommandEncoder];
         [encoder copyFromBuffer:from_buf
                    sourceOffset:from_offset
@@ -262,24 +271,36 @@ void MetalWorkspace::CopyDataFromTo(const void* from, size_t from_offset, void* 
         memcpy(static_cast<char*>(to) + to_offset,
                static_cast<char*>([from_buf contents]) + from_offset, size);
       }
+
     } else if (from_dev_type == kDLCPU && to_dev_type == kDLMetal) {
+      s->profile.cpu_to_gpu++;
+      // CPU→GPU: inline blit into the pending command buffer.
+      // We use a staging buffer from the pool (not the single temp_buffer_)
+      // so multiple CPU→GPU copies can be inlined before a flush.
       id<MTLBuffer> to_buf = (id<MTLBuffer>)(to);
       if (to_buf.storageMode != MTLStorageModeShared) {
-        id<MTLBuffer> temp = MetalThreadEntry::ThreadLocal()->GetTempBuffer(dev_to, size);
-        memcpy([temp contents], static_cast<const char*>(from) + from_offset, size);
-        id<MTLBlitCommandEncoder> encoder = [cb blitCommandEncoder];
-        [encoder copyFromBuffer:temp
+        MetalThreadEntry* t = MetalThreadEntry::ThreadLocal();
+        // If the staging pool is full, flush pending work so buffers can be reused.
+        if (t->StagingPoolNeedsFlush(dev_to)) {
+          s->FlushCommandBuffer();
+          t->ResetStagingPool(dev_to);
+        }
+        id<MTLBuffer> staging = t->GetOrCreateStagingBuffer(dev_to, size);
+        memcpy([staging contents], static_cast<const char*>(from) + from_offset, size);
+        id<MTLBlitCommandEncoder> encoder = s->GetBlitEncoderOnPendingBuffer();
+        [encoder copyFromBuffer:staging
                    sourceOffset:0
                        toBuffer:to_buf
               destinationOffset:to_offset
                            size:size];
         [encoder endEncoding];
-        [cb commit];
-        [cb waitUntilCompleted];
+        // No flush, no wait. Metal executes encoders in order within the CB.
+        // The staging buffer stays alive until flush, when the pool resets.
       } else {
         memcpy(static_cast<char*>([to_buf contents]) + to_offset,
                static_cast<const char*>(from) + from_offset, size);
       }
+
     } else {
       LOG(FATAL) << "Expect copy from/to Metal or between Metal"
                  << ", from=" << from_dev_type << ", to=" << to_dev_type;
@@ -288,39 +309,27 @@ void MetalWorkspace::CopyDataFromTo(const void* from, size_t from_offset, void* 
 }
 
 TVMStreamHandle MetalWorkspace::CreateStream(Device dev) {
-  ICHECK_LT(dev.device_id, devices.size()) << "Invalid device id " << dev.device_id;
+  TVM_FFI_ICHECK_LT(dev.device_id, devices.size()) << "Invalid device id " << dev.device_id;
   Stream* stream = new Stream(devices[dev.device_id]);
   return static_cast<TVMStreamHandle>(stream);
 }
 
 void MetalWorkspace::FreeStream(Device dev, TVMStreamHandle stream) {
-  ICHECK(stream != nullptr);
-  ICHECK_LT(dev.device_id, devices.size()) << "Invalid device id " << dev.device_id;
+  TVM_FFI_ICHECK(stream != nullptr);
+  TVM_FFI_ICHECK_LT(dev.device_id, devices.size()) << "Invalid device id " << dev.device_id;
   delete static_cast<Stream*>(stream);
 }
 
 void MetalWorkspace::StreamSync(Device dev, TVMStreamHandle stream) {
   AUTORELEASEPOOL {
     Stream* s = CastStreamOrGetDefault(stream, dev.device_id);
-    // commit an empty command buffer and wait until it completes.
-    id<MTLCommandBuffer> cb = s->GetCommandBuffer(/*label=*/"TVMStreamSync");
-    [cb commit];
-    [cb waitUntilCompleted];
+    s->Synchronize();
+    // After sync, all staging buffers are safe to reuse.
+    MetalThreadEntry::ThreadLocal()->staging_pools_[dev.device_id].ResetIndex();
     if (s->HasErrorHappened()) {
       LOG(FATAL) << "GPUError: " << s->ErrorDescription();
     }
   };
-}
-
-void MetalWorkspace::SetStream(Device dev, TVMStreamHandle stream) {
-  ICHECK_LT(dev.device_id, devices.size()) << "Invalid device id " << dev.device_id;
-  ICHECK(stream != nullptr);
-  MetalThreadEntry::ThreadLocal()->stream[dev.device_id] = stream;
-}
-
-TVMStreamHandle MetalWorkspace::GetCurrentStream(Device dev) {
-  ICHECK_LT(dev.device_id, devices.size()) << "Invalid device id " << dev.device_id;
-  return MetalThreadEntry::ThreadLocal()->stream[dev.device_id];
 }
 
 void* MetalWorkspace::AllocWorkspace(Device dev, size_t size, DLDataType type_hint) {
@@ -347,10 +356,17 @@ id<MTLBuffer> MetalThreadEntry::GetTempBuffer(Device dev, size_t size) {
   if (temp_buffer_[dev.device_id] == nil || temp_buffer_[dev.device_id].length < size) {
     id<MTLDevice> mtl_dev = MetalWorkspace::Global()->GetDevice(dev);
     if (temp_buffer_[dev.device_id] != nil) {
-      // need to make sure buffer is not in use in command buffer
-      // before set the purgeable state to empty
-      // otherwise can cause issues sometimes
-      MetalWorkspace::Global()->StreamSync(dev, nullptr);
+      // The caller (GPU→CPU path in CopyDataFromTo) already called
+      // FlushCommandBuffer() before calling us, so all pending work
+      // using this buffer has been committed. We just need to wait
+      // for completion before releasing.
+      auto* ws = MetalWorkspace::Global();
+      Stream* s = ws->CastStreamOrGetDefault(nullptr, dev.device_id);
+      if (s->HasPendingWork()) {
+        // Only sync if there's actually pending work (shouldn't happen
+        // since caller flushed, but be safe).
+        ws->StreamSync(dev, nullptr);
+      }
       [temp_buffer_[dev.device_id] setPurgeableState:MTLPurgeableStateEmpty];
       [temp_buffer_[dev.device_id] release];
     }
@@ -359,11 +375,23 @@ id<MTLBuffer> MetalThreadEntry::GetTempBuffer(Device dev, size_t size) {
   return temp_buffer_[dev.device_id];
 }
 
-typedef dmlc::ThreadLocalStore<MetalThreadEntry> MetalThreadStore;
+id<MTLBuffer> MetalThreadEntry::GetOrCreateStagingBuffer(Device dev, size_t size) {
+  id<MTLDevice> mtl_dev = MetalWorkspace::Global()->GetDevice(dev);
+  return staging_pools_[dev.device_id].GetOrCreate(mtl_dev, size);
+}
 
-MetalThreadEntry* MetalThreadEntry::ThreadLocal() { return MetalThreadStore::Get(); }
+bool MetalThreadEntry::StagingPoolNeedsFlush(Device dev) {
+  return staging_pools_[dev.device_id].NeedsFlush();
+}
 
-TVM_FFI_STATIC_INIT_BLOCK({
+void MetalThreadEntry::ResetStagingPool(Device dev) { staging_pools_[dev.device_id].ResetIndex(); }
+
+MetalThreadEntry* MetalThreadEntry::ThreadLocal() {
+  static thread_local MetalThreadEntry inst;
+  return &inst;
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("device_api.metal",
@@ -372,8 +400,28 @@ TVM_FFI_STATIC_INIT_BLOCK({
                     *rv = static_cast<void*>(ptr);
                   })
       .def("metal.ResetGlobalState",
-           []() { MetalWorkspace::Global()->ReinitializeDefaultStreams(); });
-});
+           []() { MetalWorkspace::Global()->ReinitializeDefaultStreams(); })
+      .def("metal.GetProfileCounters",
+           [](int device_id) {
+             auto* ws = MetalWorkspace::Global();
+             Stream* s = ws->CastStreamOrGetDefault(nullptr, device_id);
+             const auto& p = s->profile;
+             ffi::Map<ffi::String, int64_t> result;
+             result.Set("dispatches", static_cast<int64_t>(p.dispatches));
+             result.Set("flushes", static_cast<int64_t>(p.flushes));
+             result.Set("syncs", static_cast<int64_t>(p.syncs));
+             result.Set("blits", static_cast<int64_t>(p.blits));
+             result.Set("gpu_to_cpu", static_cast<int64_t>(p.gpu_to_cpu));
+             result.Set("cpu_to_gpu", static_cast<int64_t>(p.cpu_to_gpu));
+             result.Set("gpu_to_gpu", static_cast<int64_t>(p.gpu_to_gpu));
+             result.Set("free_syncs", static_cast<int64_t>(p.free_syncs));
+             return result;
+           })
+      .def("metal.ResetProfileCounters", [](int device_id) {
+        auto* ws = MetalWorkspace::Global();
+        ws->CastStreamOrGetDefault(nullptr, device_id)->profile.Reset();
+      });
+}
 
 class MetalTimerNode : public TimerNode {
  public:
@@ -391,9 +439,7 @@ class MetalTimerNode : public TimerNode {
     [mtl_dev_ sampleTimestamps:&stop_cpu_time_ gpuTimestamp:&stop_gpu_time_];
   }
   virtual int64_t SyncAndGetElapsedNanos() { return stop_gpu_time_ - start_gpu_time_; }
-
-  static constexpr const char* _type_key = "runtime.metal.MetalTimerNode";
-  TVM_DECLARE_FINAL_OBJECT_INFO(MetalTimerNode, TimerNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.metal.MetalTimerNode", MetalTimerNode, TimerNode);
 
  private:
   Device dev_;
@@ -405,13 +451,11 @@ class MetalTimerNode : public TimerNode {
   MTLTimestamp stop_gpu_time_;
 };
 
-TVM_REGISTER_OBJECT_TYPE(MetalTimerNode);
-
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("profiling.timer.metal",
-                        [](Device dev) { return Timer(make_object<MetalTimerNode>(dev)); });
-});
+                        [](Device dev) { return Timer(ffi::make_object<MetalTimerNode>(dev)); });
+}
 
 }  // namespace metal
 }  // namespace runtime

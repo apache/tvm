@@ -30,7 +30,7 @@
 #include <vector>
 
 #include "../tir/analysis/check_contains.h"
-#include "../tir/transforms/replace_selected_expr.h"
+#include "../tir/transform/replace_selected_expr.h"
 #include "./pattern_match.h"
 
 namespace tvm {
@@ -86,14 +86,14 @@ bool CanProveVscaleExpressionFromKnownValues(arith::Analyzer* analyzer, const Pr
   return can_prove_expr;
 }
 
-bool TargetHasVLA(Optional<Target> target) {
+bool TargetHasVLA(ffi::Optional<Target> target) {
   if (!target.defined()) {
     target = Target::Current();
   }
   bool has_vla{false};
   if (target.defined()) {
     // aarch64
-    has_vla = Downcast<Target>(target)->GetFeature<Bool>("has_sve").value_or(Bool(false));
+    has_vla = Downcast<Target>(target)->GetAttr<Bool>("feature.has_sve").value_or(Bool(false));
     // riscv{32,64}
     static auto target_has_feature_fn =
         tvm::ffi::Function::GetGlobalRequired("target.target_has_feature");
@@ -102,7 +102,7 @@ bool TargetHasVLA(Optional<Target> target) {
   return has_vla;
 }
 
-const std::vector<unsigned int> GetVScaleValues(Optional<Target> target) {
+const std::vector<unsigned int> GetVScaleValues(ffi::Optional<Target> target) {
   unsigned int vector_width = 0;
   std::vector<unsigned int> kVScaleValues;
   if (!target.defined()) {

@@ -15,10 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 """Utility for Interacting with SPIRV Tools"""
-import subprocess
+
 import os
-from . import utils
+import subprocess
+
 from ..base import py_str
+from . import utils
 
 
 def optimize(spv_bin):

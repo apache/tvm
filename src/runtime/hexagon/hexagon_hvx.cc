@@ -37,22 +37,23 @@ HexagonHvx::~HexagonHvx() { Release(); }
 
 void HexagonHvx::Acquire() {
   reserved_count_ = qurt_hvx_reserve(QURT_HVX_RESERVE_ALL);
-  CHECK(reserved_count_ == QURT_HVX_RESERVE_ALL) << "error reserving HVX: " << reserved_count_;
+  TVM_FFI_ICHECK(reserved_count_ == QURT_HVX_RESERVE_ALL)
+      << "error reserving HVX: " << reserved_count_;
 }
 
 void HexagonHvx::Release() {
   int rel = qurt_hvx_cancel_reserve();
-  CHECK(rel == 0) << "error releasing HVX: " << rel;
+  TVM_FFI_ICHECK(rel == 0) << "error releasing HVX: " << rel;
 }
 
 void HexagonHvx::Lock() {
   int lck = qurt_hvx_lock(QURT_HVX_MODE_128B);
-  CHECK(lck == 0) << "error locking HVX: " << lck;
+  TVM_FFI_ICHECK(lck == 0) << "error locking HVX: " << lck;
 }
 
 void HexagonHvx::Unlock() {
   int unl = qurt_hvx_unlock();
-  CHECK(unl == 0) << "error unlocking HVX: " << unl;
+  TVM_FFI_ICHECK(unl == 0) << "error unlocking HVX: " << unl;
 }
 
 }  // namespace hexagon

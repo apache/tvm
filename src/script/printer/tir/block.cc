@@ -22,20 +22,22 @@ namespace tvm {
 namespace script {
 namespace printer {
 
-Doc PrintBlock(IRDocsifier d, tir::Block block, ObjectPath block_p,  //
-               Optional<tir::BlockRealize> opt_realize, Optional<ObjectPath> opt_realize_p) {
+Doc PrintBlock(IRDocsifier d, tir::SBlock block, AccessPath block_p,  //
+               ffi::Optional<tir::SBlockRealize> opt_realize,
+               ffi::Optional<AccessPath> opt_realize_p) {
   With<TIRFrame> frame(d, block);
-  ICHECK_EQ(opt_realize.defined(), opt_realize_p.defined());
-  const tir::BlockRealizeNode* realize =
+  TVM_FFI_ICHECK_EQ(opt_realize.defined(), opt_realize_p.defined());
+  const tir::SBlockRealizeNode* realize =
       opt_realize.defined() ? opt_realize.value().get() : nullptr;
-  const ObjectPathNode* realize_p = opt_realize_p.defined() ? opt_realize_p.get() : nullptr;
+  AccessPath realize_p = *opt_realize_p;
   // Step 1. Handle block var and block bindings
   // Step 1.1. Obtain all loop var defined along path
   std::unordered_map<const tir::VarNode*, tir::For> loop_vars;
   for (Frame f : d->frames) {
     if (const auto* tir_f = f.as<TIRFrameNode>()) {
       if (auto for_loop = tir_f->tir.as<tir::For>()) {
-        for (Optional<tir::For> loop = for_loop; loop; loop = loop.value()->body.as<tir::For>()) {
+        for (ffi::Optional<tir::For> loop = for_loop; loop;
+             loop = loop.value()->body.as<tir::For>()) {
           loop_vars.insert(std::make_pair(loop.value()->loop_var.get(), loop.value()));
         }
       }
@@ -67,7 +69,7 @@ Doc PrintBlock(IRDocsifier d, tir::Block block, ObjectPath block_p,  //
 
   auto print_single_iter_var = [&](int i) {
     tir::IterVar iter_var = block->iter_vars[i];
-    ObjectPath iter_var_p = block_p->Attr("iter_var")->ArrayIndex(i);
+    AccessPath iter_var_p = block_p->Attr("iter_var")->ArrayItem(i);
     ExprDoc rhs = TIR(d, "axis");
     if (iter_var->iter_type == tir::IterVarType::kDataPar) {
       rhs = rhs->Attr("spatial");
@@ -78,10 +80,10 @@ Doc PrintBlock(IRDocsifier d, tir::Block block, ObjectPath block_p,  //
     } else if (iter_var->iter_type == tir::IterVarType::kOpaque) {
       rhs = rhs->Attr("opaque");
     } else {
-      LOG(FATAL) << "ValueError: Unknown IterVarType in block signature: "
-                 << tir::IterVarType2String(iter_var->iter_type);
+      TVM_FFI_THROW(ValueError) << "Unknown IterVarType in block signature: "
+                                << tir::IterVarType2String(iter_var->iter_type);
     }
-    ExprDoc dom{nullptr};
+    ExprDoc dom{ffi::UnsafeInit()};
     if (tir::is_zero(iter_var->dom->min)) {
       ExprDoc extent = d->AsDoc<ExprDoc>(iter_var->dom->extent,  //
                                          iter_var_p->Attr("dom")->Attr("extent"));
@@ -94,7 +96,7 @@ Doc PrintBlock(IRDocsifier d, tir::Block block, ObjectPath block_p,  //
     }
     if (realize) {
       ExprDoc binding = d->AsDoc<ExprDoc>(realize->iter_values[i],  //
-                                          realize_p->Attr("iter_values")->ArrayIndex(i));
+                                          realize_p->Attr("iter_values")->ArrayItem(i));
       rhs = rhs->Call({dom, binding});
     } else {
       rhs = rhs->Call({dom});
@@ -113,18 +115,18 @@ Doc PrintBlock(IRDocsifier d, tir::Block block, ObjectPath block_p,  //
         remap_vars_indices.clear();
         return;
       }
-      Array<ExprDoc> lhs;
-      Array<ExprDoc> loop_var_doc;
+      ffi::Array<ExprDoc> lhs;
+      ffi::Array<ExprDoc> loop_var_doc;
       lhs.reserve(m);
       loop_var_doc.reserve(m);
       std::string binding_type = "";
-      Array<ObjectPath> binding_paths;
+      ffi::Array<AccessPath> binding_paths;
       for (int i : remap_vars_indices) {
         tir::IterVar iter_var = block->iter_vars[i];
-        ObjectPath iter_var_p = block_p->Attr("iter_vars")->ArrayIndex(i);
+        AccessPath iter_var_p = block_p->Attr("iter_vars")->ArrayItem(i);
         lhs.push_back(DefineVar(iter_var->var, *frame, d));
         loop_var_doc.push_back(d->AsDoc<ExprDoc>(realize->iter_values[i],
-                                                 realize_p->Attr("iter_values")->ArrayIndex(i)));
+                                                 realize_p->Attr("iter_values")->ArrayItem(i)));
         binding_paths.push_back(iter_var_p->Attr("iter_type"));
         binding_type += iter_var->iter_type == tir::IterVarType::kDataPar ? "S" : "R";
       }
@@ -149,7 +151,7 @@ Doc PrintBlock(IRDocsifier d, tir::Block block, ObjectPath block_p,  //
 
   // Step 2. Handle block predicate
   if (realize) {
-    ICHECK(realize->predicate.defined() && realize->predicate->dtype.is_bool());
+    TVM_FFI_ICHECK(realize->predicate.defined() && realize->predicate->dtype.is_bool());
     if (!tir::is_one(realize->predicate)) {
       (*frame)->stmts.push_back(ExprStmtDoc(
           TIR(d, "where")
@@ -158,36 +160,36 @@ Doc PrintBlock(IRDocsifier d, tir::Block block, ObjectPath block_p,  //
   }
   // Step 3. Handle block read/write regions
   {
-    Array<ExprDoc> reads;
+    ffi::Array<ExprDoc> reads;
     for (int i = 0, n = block->reads.size(); i < n; ++i) {
-      reads.push_back(d->AsDoc<ExprDoc>(block->reads[i], block_p->Attr("reads")->ArrayIndex(i)));
+      reads.push_back(d->AsDoc<ExprDoc>(block->reads[i], block_p->Attr("reads")->ArrayItem(i)));
     }
     (*frame)->stmts.push_back(ExprStmtDoc(TIR(d, "reads")->Call(reads)));
-    Array<ExprDoc> writes;
+    ffi::Array<ExprDoc> writes;
     for (int i = 0, n = block->writes.size(); i < n; ++i) {
-      writes.push_back(d->AsDoc<ExprDoc>(block->writes[i], block_p->Attr("writes")->ArrayIndex(i)));
+      writes.push_back(d->AsDoc<ExprDoc>(block->writes[i], block_p->Attr("writes")->ArrayItem(i)));
     }
     (*frame)->stmts.push_back(ExprStmtDoc(TIR(d, "writes")->Call(writes)));
   }
   // Step 4. Handle block attributes
   if (!block->annotations.empty()) {
     (*frame)->stmts.push_back(ExprStmtDoc(
-        TIR(d, "block_attr")
+        TIR(d, "sblock_attr")
             ->Call({d->AsDoc<ExprDoc>(block->annotations, block_p->Attr("annotations"))})));
   }
   // Step 5. Handle `alloc_buffer`
   for (int i = 0, n = block->alloc_buffers.size(); i < n; ++i) {
     tir::Buffer buffer = block->alloc_buffers[i];
-    ObjectPath buffer_p = block_p->Attr("alloc_buffers")->ArrayIndex(i);
+    AccessPath buffer_p = block_p->Attr("alloc_buffers")->ArrayItem(i);
     IdDoc lhs = DefineBuffer(buffer, *frame, d);
-    ExprDoc rhs = BufferDecl(buffer, "alloc_buffer", {}, buffer_p, *frame, d,
+    ExprDoc rhs = BufferDecl(buffer, "sblock_alloc_buffer", {}, buffer_p, *frame, d,
                              BufferVarDefinition::DataPointer);
     (*frame)->stmts.push_back(AssignDoc(lhs, rhs, std::nullopt));
   }
   // Step 6. Handle `match_buffer`
   for (int i = 0, n = block->match_buffers.size(); i < n; ++i) {
     tir::MatchBufferRegion buffer_region = block->match_buffers[i];
-    ObjectPath buffer_region_p = block_p->Attr("match_buffers")->ArrayIndex(i);
+    AccessPath buffer_region_p = block_p->Attr("match_buffers")->ArrayItem(i);
     StmtDoc doc = d->AsDoc<StmtDoc>(buffer_region, buffer_region_p);
     (*frame)->stmts.push_back(doc);
   }
@@ -201,22 +203,22 @@ Doc PrintBlock(IRDocsifier d, tir::Block block, ObjectPath block_p,  //
   }
   // Step 8. Handle block body
   AsDocBody(block->body, block_p->Attr("body"), frame->get(), d);
-  Array<String> kwargs_keys;
-  Array<ExprDoc> kwargs_values;
+  ffi::Array<ffi::String> kwargs_keys;
+  ffi::Array<ExprDoc> kwargs_values;
   if (!realize) {
     kwargs_keys.push_back("no_realize");
     kwargs_values.push_back(LiteralDoc::Boolean(true, std::nullopt));
   }
   return ScopeDoc(std::nullopt,
-                  TIR(d, "block")  //
+                  TIR(d, "sblock")  //
                       ->Call({LiteralDoc::Str(block->name_hint, block_p->Attr("name_hint"))},
                              kwargs_keys, kwargs_values),
                   (*frame)->stmts);
 }
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tir::BlockRealize>(
-        "", [](tir::BlockRealize realize, ObjectPath p, IRDocsifier d) -> Doc {
+    .set_dispatch<tir::SBlockRealize>(
+        "", [](tir::SBlockRealize realize, AccessPath p, IRDocsifier d) -> Doc {
           Doc doc = PrintBlock(d, realize->block, p->Attr("block"), realize, p);
           // since we do not have d->AsDoc for realize->block,
           // we should add possible doc decoration manually.
@@ -225,12 +227,12 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tir::Block>("", [](tir::Block block, ObjectPath p, IRDocsifier d) -> Doc {
+    .set_dispatch<tir::SBlock>("", [](tir::SBlock block, AccessPath p, IRDocsifier d) -> Doc {
       return PrintBlock(d, block, p, std::nullopt, std::nullopt);
     });
 
-TVM_SCRIPT_REPR(tir::BlockNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tir::BlockRealizeNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::SBlockNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::SBlockRealizeNode, ReprPrintTIR);
 
 }  // namespace printer
 }  // namespace script

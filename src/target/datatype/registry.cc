@@ -28,7 +28,7 @@ namespace datatype {
 using ffi::Any;
 using ffi::PackedArgs;
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("dtype.register_custom_type",
@@ -47,7 +47,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def_packed("runtime._datatype_get_type_registered", [](ffi::PackedArgs args, ffi::Any* ret) {
         *ret = Registry::Global()->GetTypeRegistered(args[0].cast<int>());
       });
-});
+}
 
 Registry* Registry::Global() {
   static Registry inst;
@@ -55,20 +55,20 @@ Registry* Registry::Global() {
 }
 
 void Registry::Register(const std::string& type_name, uint8_t type_code) {
-  ICHECK(type_code >= DataType::kCustomBegin)
+  TVM_FFI_ICHECK(type_code >= DataType::kCustomBegin)
       << "Please choose a type code >= DataType::kCustomBegin for custom types";
   code_to_name_[type_code] = type_name;
   name_to_code_[type_name] = type_code;
 }
 
 uint8_t Registry::GetTypeCode(const std::string& type_name) {
-  ICHECK(name_to_code_.find(type_name) != name_to_code_.end())
+  TVM_FFI_ICHECK(name_to_code_.find(type_name) != name_to_code_.end())
       << "Type name " << type_name << " not registered";
   return name_to_code_[type_name];
 }
 
 std::string Registry::GetTypeName(uint8_t type_code) {
-  ICHECK(code_to_name_.find(type_code) != code_to_name_.end())
+  TVM_FFI_ICHECK(code_to_name_.find(type_code) != code_to_name_.end())
       << "Type code " << static_cast<unsigned>(type_code) << " not registered";
   return code_to_name_[type_code];
 }

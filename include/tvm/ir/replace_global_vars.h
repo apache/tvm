@@ -41,10 +41,10 @@ namespace transform {
  *
  * \return The updated IRModule
  */
-TVM_DLL IRModule ReplaceGlobalVars(IRModule mod, Map<GlobalVar, GlobalVar> replacements);
+TVM_DLL IRModule ReplaceGlobalVars(IRModule mod, ffi::Map<GlobalVar, GlobalVar> replacements);
 
 struct GlobalVarReplacer {
-  using FType = NodeFunctor<BaseFunc(const ObjectRef&, Map<GlobalVar, GlobalVar>)>;
+  using FType = NodeFunctor<BaseFunc(const ObjectRef&, ffi::Map<GlobalVar, GlobalVar>)>;
   TVM_DLL static FType& vtable() {
     static FType inst;
     return inst;

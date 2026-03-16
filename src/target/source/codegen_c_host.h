@@ -44,6 +44,7 @@ class CodeGenCHost : public CodeGenC {
             const std::unordered_set<std::string>& devices);
 
   void InitGlobalContext();
+
   void AddFunction(const GlobalVar& gvar, const PrimFunc& f) override;
   void AddFunction(const GlobalVar& gvar, const PrimFunc& f, bool emit_fwd_func_decl);
   /*!
@@ -69,20 +70,23 @@ class CodeGenCHost : public CodeGenC {
 
   void VisitStmt_(const AssertStmtNode* op) final;  // NOLINT(*)
 
-  void GenerateForwardFunctionDeclarations(String global_symbol, const Array<Type>& arg_types,
+  void GenerateForwardFunctionDeclarations(ffi::String global_symbol,
+                                           const ffi::Array<Type>& arg_types,
                                            const Type& ret_type) override;
-  Array<String> GetFunctionNames() { return function_names_; }
+  ffi::Array<ffi::String> GetFunctionNames() { return function_names_; }
 
  private:
   std::string module_name_;
   /* \brief mapping global packed func to the unique name */
   std::unordered_map<std::string, std::string> declared_globals_;
   /* \brief names of the functions declared in this module */
-  Array<String> function_names_;
+  ffi::Array<ffi::String> function_names_;
   /*! \brief whether to emit asserts in the resulting C code */
   bool emit_asserts_;
   /*! \brief whether to emit forwared function declarations in the resulting C code */
   bool emit_fwd_func_decl_;
+  /*! \brief whether to generate the entry function if encountered */
+  bool has_main_func_ = false;
 
   std::string GetPackedName(const CallNode* op);
   void PrintGetFuncFromBackend(const std::string& func_name, const std::string& packed_func_name);

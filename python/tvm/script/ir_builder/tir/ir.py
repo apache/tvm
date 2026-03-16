@@ -14,32 +14,32 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: RUF005
 """IRBuilder for TIR"""
 
+import contextlib
 import functools
 import inspect
-import sys
+import threading
+from collections.abc import Callable
 from numbers import Integral
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, ParamSpec, TypeVar
 
 # isort: off
-from typing_extensions import Literal
+from typing import Literal
 
 # isort: on
-
-import numpy as np  # type: ignore
 
 from tvm import ir, tir
 from tvm.ir import Type
 from tvm.ir.base import deprecated
-from tvm.runtime import String, convert, ndarray
+from tvm.runtime import String, convert
 from tvm.target import Target
 
 # pylint: disable=unused-import
 from tvm.target.codegen import llvm_lookup_intrinsic_id
-from tvm.tir import Buffer, BufferRegion, IndexMap, PrimExpr
+from tvm.tir import Buffer, BufferRegion, IndexMap, PrimExpr, type_annotation
 from tvm.tir import op as _tir_op
-from tvm.tir import type_annotation
 
 # import tir.expr for direct ir construction to pass structural_equal comparison
 from tvm.tir.expr import (
@@ -87,17 +87,46 @@ from .external_kernel import call_kernel
 # pylint: enable=unused-import
 
 
+_block_name_suffix = threading.local()
+
+
+def _get_sblock_name_suffix() -> str:
+    """Get the current block name suffix for macro expansion."""
+    return getattr(_block_name_suffix, "value", "")
+
+
+@contextlib.contextmanager
+def block_name_suffix_context(block_suffix: str):
+    """Context manager to set block name suffix during macro expansion.
+
+    Parameters
+    ----------
+    block_suffix : str
+        The suffix to append to block names (e.g., "_1", "_2").
+
+    Yields
+    ------
+    None
+    """
+    old_suffix = getattr(_block_name_suffix, "value", "")
+    _block_name_suffix.value = block_suffix
+    try:
+        yield
+    finally:
+        _block_name_suffix.value = old_suffix
+
+
 def buffer(
-    shape: Union[List[PrimExpr], Tuple[PrimExpr], PrimExpr, Integral],
+    shape: list[PrimExpr] | tuple[PrimExpr] | PrimExpr | Integral,
     dtype: str = "float32",
     data: Var = None,
-    strides: List[PrimExpr] = None,
+    strides: list[PrimExpr] | None = None,
     elem_offset: PrimExpr = None,
     scope: str = "global",
     align: int = 0,
     offset_factor: int = 0,
     buffer_type: str = "",
-    axis_separators: List[int] = None,
+    axis_separators: list[int] | None = None,
 ) -> Buffer:
     """The buffer declaration function.
 
@@ -138,7 +167,7 @@ def buffer(
     res : Buffer
         The declared buffer.
     """
-    shape = (shape,) if isinstance(shape, (PrimExpr, Integral)) else shape
+    shape = (shape,) if isinstance(shape, PrimExpr | Integral) else shape
     if strides is not None:
         strides = [Var(s, "int32") if isinstance(s, str) else s for s in strides]
     else:
@@ -181,7 +210,7 @@ def prim_func(is_private: bool = False) -> frame.PrimFuncFrame:
     return _ffi_api.PrimFunc(is_private)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def arg(name: str, obj: Union[Var, Buffer]) -> Union[Var, Buffer]:
+def arg(name: str, obj: Var | Buffer) -> Var | Buffer:
     """The PrimFunc arguments adding function.
 
     Parameters
@@ -211,7 +240,7 @@ def func_name(name: str) -> None:
     _ffi_api.FuncName(name)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def func_attr(attrs: Dict[str, Any]) -> None:
+def func_attr(attrs: dict[str, Any]) -> None:
     """The PrimFunc annotation statement.
 
     Parameters
@@ -239,17 +268,17 @@ def func_ret(ret_type: Type) -> Type:
 
 
 def match_buffer(
-    param: Union[Var, BufferLoad, BufferRegion],
-    shape: Union[List[PrimExpr], Tuple[PrimExpr], PrimExpr, Integral] = None,
+    param: Var | BufferLoad | BufferRegion,
+    shape: list[PrimExpr] | tuple[PrimExpr] | PrimExpr | Integral = None,
     dtype: str = "float32",
     data: Var = None,
-    strides: List[PrimExpr] = None,
+    strides: list[PrimExpr] | None = None,
     elem_offset: PrimExpr = None,
     scope: str = "global",
     align: int = -1,
     offset_factor: int = 0,
     buffer_type: str = "default",
-    axis_separators: List[int] = None,
+    axis_separators: list[int] | None = None,
 ) -> Buffer:
     """The buffer match function.
 
@@ -315,7 +344,7 @@ def match_buffer(
             shape = [region.extent for region in param.region]
         else:
             raise ValueError("Shape must be specified when binding input param")
-    shape = (shape,) if isinstance(shape, (PrimExpr, Integral)) else shape
+    shape = (shape,) if isinstance(shape, PrimExpr | Integral) else shape
     if strides is not None:
         idx_dtype = shape[0].dtype if isinstance(shape[0], PrimExpr) else "int32"
         strides = [Var(s, idx_dtype) if isinstance(s, str) else s for s in strides]
@@ -336,22 +365,25 @@ def match_buffer(
     )
 
 
-def block(name: str = "", no_realize: bool = False) -> frame.BlockFrame:
-    """The block declaration statement.
+def sblock(name: str = "", no_realize: bool = False) -> frame.SBlockFrame:
+    """The sblock declaration statement.
 
     Parameters
     ----------
     name : str
-        The name of the block.
+        The name of the sblock.
 
     no_realize : bool
-        The flag whether to construct BlockRealize or Block.
+        The flag whether to construct SBlockRealize or SBlock.
 
     Returns
     -------
-    res : frame.BlockFrame
-        The BlockFrame.
+    res : frame.SBlockFrame
+        The SBlockFrame.
     """
+    block_suffix = _get_sblock_name_suffix()
+    if block_suffix and name:
+        name = name + block_suffix
     return _ffi_api.Block(name, no_realize)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
@@ -366,7 +398,7 @@ def init() -> frame.BlockInitFrame:
     return _ffi_api.Init()  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def where(predicate: Union[PrimExpr, int]) -> None:
+def where(predicate: PrimExpr | int) -> None:
     """The block predicate statement.
 
     Parameters
@@ -384,7 +416,7 @@ def where(predicate: Union[PrimExpr, int]) -> None:
     _ffi_api.Where(predicate)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def reads(*buffer_slices: List[Union[BufferRegion, BufferLoad]]) -> None:
+def reads(*buffer_slices: list[BufferRegion | BufferLoad]) -> None:
     """The block buffer region reading statement.
 
     Parameters
@@ -404,7 +436,7 @@ def reads(*buffer_slices: List[Union[BufferRegion, BufferLoad]]) -> None:
     _ffi_api.Reads(buffer_slices)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def writes(*buffer_slices: List[Union[BufferRegion, BufferLoad]]) -> None:
+def writes(*buffer_slices: list[BufferRegion | BufferLoad]) -> None:
     """The block buffer region writing statement.
 
     Parameters
@@ -424,7 +456,7 @@ def writes(*buffer_slices: List[Union[BufferRegion, BufferLoad]]) -> None:
     _ffi_api.Writes(buffer_slices)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def block_attr(attrs: Dict[str, Any]) -> None:
+def sblock_attr(attrs: dict[str, Any]) -> None:
     """The block annotation statement.
 
     Parameters
@@ -436,48 +468,81 @@ def block_attr(attrs: Dict[str, Any]) -> None:
 
 
 def alloc_buffer(
-    shape: Union[List[PrimExpr], Tuple[PrimExpr], PrimExpr, Integral],
+    shape: list[PrimExpr] | tuple[PrimExpr] | PrimExpr | Integral,
+    dtype: str = "float32",
+    scope: str = "global",
+    annotations: dict[str, Any] | None = None,
+) -> Buffer:
+    """Statement-level buffer allocation (creates an AllocBuffer IR node).
+
+    Emits an AllocBuffer statement and returns the Buffer directly::
+
+        buf = T.alloc_buffer((128, 128))
+
+    For SBlock-level buffer allocation (added to SBlock.alloc_buffers),
+    use T.sblock_alloc_buffer() instead.
+
+    Parameters
+    ----------
+    shape : Union[List[PrimExpr], Tuple[PrimExpr], PrimExpr, Integral]
+        The shape of the buffer to allocate.
+    dtype : str
+        The data type of the buffer elements.
+    scope : str
+        The storage scope of the buffer (e.g., "global", "shared").
+    annotations : Optional[Dict[str, Any]]
+        Optional annotations for the allocation.
+
+    Returns
+    -------
+    res : Buffer
+        The allocated buffer.
+    """
+    shape = (shape,) if isinstance(shape, PrimExpr | Integral) else shape
+    return _ffi_api.AllocBuffer(  # type: ignore[attr-defined] # pylint: disable=no-member
+        shape,
+        dtype,
+        scope,
+        annotations,
+    )
+
+
+def sblock_alloc_buffer(
+    shape: list[PrimExpr] | tuple[PrimExpr] | PrimExpr | Integral,
     dtype: str = "float32",
     data: Var = None,
-    strides: List[PrimExpr] = None,
+    strides: list[PrimExpr] | None = None,
     elem_offset: PrimExpr = None,
     scope: str = "global",
     align: int = -1,
     offset_factor: int = 0,
     buffer_type: str = "default",
-    axis_separators: List[int] = None,
+    axis_separators: list[int] | None = None,
 ) -> Buffer:
-    """The buffer alllocation function.
+    """SBlock-level buffer allocation function.
+
+    Adds a buffer to the alloc_buffers list of the nearest SBlock or root PrimFunc.
 
     Parameters
     ----------
     shape : Union[List[PrimExpr], Tuple[PrimExpr], PrimExpr, Integral]
         The type of the buffer prior to flattening.
-
     dtype : str
         The data type in the content of the buffer.
-
     data : Var
         The pointer to the head of the data.
-
     strides : List[PrimExpr]
         The strides of each dimension.
-
     elem_offset : PrimExpr
         The offset in terms of number of dtype elements (including lanes).
-
     scope : str
         The optional storage scope of buffer data pointer.
-
     align : int
         The alignment requirement of data pointer in bytes.
-
     offset_factor : int
         The factor of elem_offset field.
-
     buffer_type : str
         The buffer type.
-
     axis_separators : List[int]
         The separators between input axes when generating flattened output axes.
 
@@ -486,12 +551,12 @@ def alloc_buffer(
     res : Buffer
         The allocated buffer.
     """
-    shape = (shape,) if isinstance(shape, (PrimExpr, Integral)) else shape
+    shape = (shape,) if isinstance(shape, PrimExpr | Integral) else shape
     if strides is not None:
         strides = [Var(s, "int32") if isinstance(s, str) else s for s in strides]
     else:
         strides = []
-    return _ffi_api.AllocBuffer(  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.SBlockAllocBuffer(  # type: ignore[attr-defined] # pylint: disable=no-member
         shape,
         dtype,
         data,
@@ -505,7 +570,7 @@ def alloc_buffer(
     )
 
 
-def _as_range(dom: Union[ir.Range, List[PrimExpr]]) -> ir.Range:
+def _as_range(dom: ir.Range | list[PrimExpr]) -> ir.Range:
     """The range constructor.
 
     Parameters
@@ -520,7 +585,7 @@ def _as_range(dom: Union[ir.Range, List[PrimExpr]]) -> ir.Range:
     """
     if isinstance(dom, ir.Range):
         return dom
-    if isinstance(dom, (list, tuple)):
+    if isinstance(dom, list | tuple):
         from tvm.arith import Analyzer  # pylint: disable=import-outside-toplevel
 
         extent = Analyzer().simplify(dom[1] - dom[0])
@@ -537,7 +602,7 @@ class axis:  # pylint: disable=invalid-name
 
     @staticmethod
     def spatial(
-        dom: Union[ir.Range, List[PrimExpr], Tuple[PrimExpr]],
+        dom: ir.Range | list[PrimExpr] | tuple[PrimExpr],
         binding: PrimExpr,
         dtype: str = "int32",
     ) -> Var:
@@ -565,7 +630,7 @@ class axis:  # pylint: disable=invalid-name
 
     @staticmethod
     def reduce(
-        dom: Union[ir.Range, List[PrimExpr], Tuple[PrimExpr]],
+        dom: ir.Range | list[PrimExpr] | tuple[PrimExpr],
         binding: PrimExpr,
         dtype: str = "int32",
     ) -> Var:
@@ -593,7 +658,7 @@ class axis:  # pylint: disable=invalid-name
 
     @staticmethod
     def scan(
-        dom: Union[ir.Range, List[PrimExpr], Tuple[PrimExpr]],
+        dom: ir.Range | list[PrimExpr] | tuple[PrimExpr],
         binding: PrimExpr,
         dtype: str = "int32",
     ) -> Var:
@@ -621,7 +686,7 @@ class axis:  # pylint: disable=invalid-name
 
     @staticmethod
     def opaque(
-        dom: Union[ir.Range, List[PrimExpr], Tuple[PrimExpr]],
+        dom: ir.Range | list[PrimExpr] | tuple[PrimExpr],
         binding: PrimExpr,
         dtype: str = "int32",
     ) -> Var:
@@ -648,7 +713,7 @@ class axis:  # pylint: disable=invalid-name
         )
 
     @staticmethod
-    def remap(kinds: str, bindings: List[PrimExpr], dtype: str = "int32") -> Union[List[Var], Var]:
+    def remap(kinds: str, bindings: list[PrimExpr], dtype: str = "int32") -> list[Var] | Var:
         """The block axis remapping function.
 
         Parameters
@@ -677,7 +742,11 @@ class axis:  # pylint: disable=invalid-name
 
 
 def serial(
-    start: PrimExpr, stop: PrimExpr = None, *, annotations: Dict[str, Any] = None
+    start: PrimExpr,
+    stop: PrimExpr = None,
+    *,
+    annotations: dict[str, Any] | None = None,
+    step: PrimExpr | None = None,
 ) -> frame.ForFrame:
     """The serial For statement.
 
@@ -692,6 +761,9 @@ def serial(
     annotations : Dict[str, Any]
         The optional annotations of the For statement.
 
+    step : PrimExpr
+        The optional step value of iteration.
+
     Returns
     -------
     res : frame.ForFrame
@@ -703,11 +775,15 @@ def serial(
             start = IntImm(start.dtype, 0)
         else:
             start = 0
-    return _ffi_api.Serial(start, stop, annotations)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.Serial(start, stop, annotations, step)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def parallel(
-    start: PrimExpr, stop: PrimExpr = None, *, annotations: Dict[str, Any] = None
+    start: PrimExpr,
+    stop: PrimExpr = None,
+    *,
+    annotations: dict[str, Any] | None = None,
+    step: PrimExpr | None = None,
 ) -> frame.ForFrame:
     """The parallel For statement.
 
@@ -722,6 +798,9 @@ def parallel(
     annotations : Dict[str, Any]
         The optional annotations of the For statement.
 
+    step : PrimExpr
+        The optional step value of iteration.
+
     Returns
     -------
     res : frame.ForFrame
@@ -733,11 +812,15 @@ def parallel(
             start = IntImm(start.dtype, 0)
         else:
             start = 0
-    return _ffi_api.Parallel(start, stop, annotations)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.Parallel(start, stop, annotations, step)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def vectorized(
-    start: PrimExpr, stop: PrimExpr = None, *, annotations: Dict[str, Any] = None
+    start: PrimExpr,
+    stop: PrimExpr = None,
+    *,
+    annotations: dict[str, Any] | None = None,
+    step: PrimExpr | None = None,
 ) -> frame.ForFrame:
     """The vectorized For statement.
 
@@ -752,6 +835,9 @@ def vectorized(
     annotations : Dict[str, Any]
         The optional annotations of the For statement.
 
+    step : PrimExpr
+        The optional step value of iteration.
+
     Returns
     -------
     res : frame.ForFrame
@@ -763,11 +849,15 @@ def vectorized(
             start = IntImm(start.dtype, 0)
         else:
             start = 0
-    return _ffi_api.Vectorized(start, stop, annotations)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.Vectorized(start, stop, annotations, step)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def unroll(
-    start: PrimExpr, stop: PrimExpr = None, *, annotations: Dict[str, Any] = None
+    start: PrimExpr,
+    stop: PrimExpr = None,
+    *,
+    annotations: dict[str, Any] | None = None,
+    step: PrimExpr | None = None,
 ) -> frame.ForFrame:
     """The unrolled For statement.
 
@@ -782,6 +872,9 @@ def unroll(
     annotations : Dict[str, Any]
         The optional annotations of the For statement.
 
+    step : PrimExpr
+        The optional step value of iteration.
+
     Returns
     -------
     res : frame.ForFrame
@@ -793,15 +886,15 @@ def unroll(
             start = IntImm(start.dtype, 0)
         else:
             start = 0
-    return _ffi_api.Unroll(start, stop, annotations)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.Unroll(start, stop, annotations, step)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def thread_binding(
     start: PrimExpr,
     stop: PrimExpr = None,
-    thread: str = None,
+    thread: str | None = None,
     *,
-    annotations: Dict[str, Any] = None,
+    annotations: dict[str, Any] | None = None,
 ) -> frame.ForFrame:
     """The thread-binding For statement.
 
@@ -860,7 +953,7 @@ def grid(*extents: PrimExpr) -> frame.ForFrame:
     return _ffi_api.Grid(extents)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def Assert(condition: PrimExpr, message: str) -> frame.AssertFrame:  # pylint: disable=invalid-name
+def Assert(condition: PrimExpr, message, error_kind: str = "RuntimeError") -> frame.AssertFrame:  # pylint: disable=invalid-name
     """Create an assertion statement.
 
     Parameters
@@ -868,8 +961,13 @@ def Assert(condition: PrimExpr, message: str) -> frame.AssertFrame:  # pylint: d
     condition : PrimExpr
         The PrimExpr to test.
 
-    message : str
-        The output error message when the assertion fails.
+    message : str or list[str]
+        The error message when the assertion fails. Can be a single string
+        or a list of string parts (fragments stored separately in the IR
+        for binary size reduction through string reuse).
+
+    error_kind : str
+        The error kind (e.g. "RuntimeError", "TypeError", "ValueError").
 
     Returns
     -------
@@ -878,47 +976,51 @@ def Assert(condition: PrimExpr, message: str) -> frame.AssertFrame:  # pylint: d
     """
     if isinstance(condition, bool):
         condition = IntImm("bool", condition)
-    return _ffi_api.Assert(condition, message)  # type: ignore[attr-defined] # pylint: disable=no-member
+    if not isinstance(message, list | tuple):
+        message = [message]
+    return _ffi_api.Assert(condition, error_kind, message)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def LetStmt(  # pylint: disable=invalid-name
+def bind(
     value: PrimExpr,
-    type_annotation: Optional[Type] = None,  # pylint: disable=redefined-outer-name
+    type_annotation: Type | None = None,  # pylint: disable=redefined-outer-name
     *,
-    var: Optional[Var] = None,  # pylint: disable=redefined-outer-name
-) -> frame.LetFrame:
-    """Create a LetStmt binding
+    var: Var | None = None,  # pylint: disable=redefined-outer-name
+) -> Var:
+    """Create a Bind (variable binding).
+
+    Emits a flat Bind statement to the current frame and returns the bound variable.
 
     Parameters
     ----------
     value : PrimExpr
         The value to be bound.
     type_annotation : Optional[Type] = None
-        The type annotation of the let binding. Usually it is used for fine-grained var typing,
+        The type annotation of the binding. Usually it is used for fine-grained var typing,
         particularly, PointerType.
     var : Optional[Var] = None
         The variable to bind. If not specified, a new variable will be created.
 
     Returns
     -------
-    let_frame : frame.LetFrame
-        The result LetFrame.
+    var : Var
+        The bound variable.
     """
     if type_annotation is not None:
         if callable(type_annotation):
             type_annotation = type_annotation()
         if isinstance(type_annotation, Var):
             type_annotation = type_annotation.type_annotation
-    return _ffi_api.LetStmt(value, type_annotation, var)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.Bind(value, type_annotation, var)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def Let(  # pylint: disable=invalid-name
     expr: PrimExpr,
-    where: Dict[Var, PrimExpr],  # pylint: disable=redefined-outer-name
+    where: dict[Var, PrimExpr],  # pylint: disable=redefined-outer-name
 ) -> PrimExpr:
     """Create a Let expression binding"""
     assert len(where) == 1, "T.Let only allows `where` to have exactly one element"
-    var, value = list(where.items())[0]  # pylint: disable=redefined-outer-name
+    var, value = next(iter(where.items()))  # pylint: disable=redefined-outer-name
     return tir.Let(var, value, expr)
 
 
@@ -926,7 +1028,7 @@ def let(
     v: Var,
     value: PrimExpr,
     body: PrimExpr = None,
-) -> frame.LetFrame:
+) -> Var:
     """Create a new let binding.
 
     Parameters
@@ -942,17 +1044,17 @@ def let(
 
     Returns
     -------
-    res : frame.LetFrame
-        The result LetFrame.
+    res : Var
+        The bound variable.
     """
 
     @deprecated("T.let", "T.Let")
     def let_expr(v: Var, value: PrimExpr, body: PrimExpr) -> PrimExpr:
         return tir.Let(v, value, body)
 
-    @deprecated("T.let", "T.LetStmt")
-    def let_stmt(v: Var, value: PrimExpr) -> frame.LetFrame:
-        return _ffi_api.LegacyLetStmt(v, value)  # type: ignore[attr-defined] # pylint: disable=no-member
+    @deprecated("T.let", "T.bind")
+    def let_stmt(v: Var, value: PrimExpr) -> Var:
+        return bind(value, var=v)
 
     if body is None:
         return let_stmt(v, value)
@@ -960,105 +1062,7 @@ def let(
         return let_expr(v, value, body)
 
 
-def realize(
-    buffer_slice: BufferRegion,
-    storage_scope: str,
-    condition: PrimExpr = True,
-) -> frame.RealizeFrame:
-    """Create a realization.
-
-    Parameters
-    ----------
-    buffer_slice : BufferRegion
-        The region of buffer access.
-
-    storage_scope : str
-        The storage scope associated with this realization.
-
-    condition: PrimExpr
-        The condition expression, the default is True.
-
-    Returns
-    -------
-    res : frame.RealizeFrame
-        The result RealizeFrame.
-    """
-    return _ffi_api.Realize(  # type: ignore[attr-defined] # pylint: disable=no-member
-        buffer_slice, storage_scope, condition
-    )
-
-
-def allocate(
-    extents: List[PrimExpr],
-    dtype: str,
-    scope: str = "global",
-    condition: PrimExpr = None,
-    annotations=None,
-) -> frame.AllocateFrame:
-    """Allocate node.
-
-    Parameters
-    ----------
-    extents : List[PrimExpr]
-        The extents of the allocate.
-
-    dtype : str
-        The data type of the buffer.
-
-    scope : str
-        The storage scope.
-
-    condition : PrimExpr
-        The condition.
-
-    annotations: Optional[Mapping[str, Object]]
-        Additional annotation hints.
-    """
-    if isinstance(condition, bool):
-        condition = IntImm("bool", condition)
-    return _ffi_api.Allocate(  # type: ignore[attr-defined] # pylint: disable=no-member
-        extents, dtype, scope, condition, annotations
-    )
-
-
-def allocate_const(
-    data: List[PrimExpr],
-    dtype: str,
-    extents: List[PrimExpr],
-    annotations=None,
-) -> frame.AllocateConstFrame:
-    """Allocate constant node.
-
-    Parameters
-    ----------
-    data : List[PrimExpr]
-        The data associated with the constant.
-
-    dtype : str
-        The data type of the buffer.
-
-    extents : List[PrimExpr]
-        The extents of the allocate.
-
-    annotations : Optional[Map]
-        Additional annotations about the allocation.
-    """
-    np_data = np.asarray(data, dtype=dtype)
-    prod_extent = 1
-    for extent in extents:
-        prod_extent *= extent
-    prod_shape = 1
-    for shape in np_data.shape:
-        prod_shape *= shape
-    if prod_extent == prod_shape:
-        np_data = np_data.reshape(extents)
-
-    return _ffi_api.AllocateConst(  # type: ignore[attr-defined] # pylint: disable=no-member
-        ndarray.array(np_data), dtype, extents, annotations
-    )
-
-
-def attr(node: Any, attr_key: str, value: Union[PrimExpr, str]) -> frame.AttrFrame:
+def attr(node: Any, attr_key: str, value: PrimExpr | str) -> frame.AttrFrame:
     """Create an attribute node.
 
     Parameters
@@ -1152,8 +1156,13 @@ def decl_buffer(
     offset_factor=0,
     buffer_type="",
     axis_separators=None,
-) -> frame.DeclBufferFrame:
+) -> Buffer:
     """Create a buffer declaration node.
+
+    When ``data`` is provided, creates a DeclBuffer (alias to existing data).
+    When ``data`` is None, creates an AllocBuffer (new allocation).
+
+    Emits the statement and returns the Buffer directly.
 
     Parameters
     ----------
@@ -1189,10 +1198,10 @@ def decl_buffer(
 
     Returns
     -------
-    res : frame.DeclBufferFrame
-        The result DeclBufferFrame.
+    res : Buffer
+        The declared buffer.
     """
-    shape = (shape,) if isinstance(shape, (PrimExpr, Integral)) else shape
+    shape = (shape,) if isinstance(shape, PrimExpr | Integral) else shape
     if strides is not None:
         strides = [Var(s, "int32") if isinstance(s, str) else s for s in strides]
     else:
@@ -1213,7 +1222,7 @@ def decl_buffer(
 
 
 def launch_thread(
-    thread: Union[IterVar, str],  # pylint: disable=redefined-outer-name
+    thread: IterVar | str,  # pylint: disable=redefined-outer-name
     extent: PrimExpr,
 ) -> frame.LaunchThreadFrame:
     """Launch a thread.
@@ -1270,8 +1279,8 @@ def env_thread(thread_tag: str, dtype: str = "int32") -> IterVar:
 def buffer_store(
     buffer: Buffer,  # pylint: disable=redefined-outer-name
     value: PrimExpr,
-    indices: List[Union[PrimExpr, slice]],
-    predicate: Optional[PrimExpr] = None,
+    indices: list[PrimExpr | slice],
+    predicate: PrimExpr | None = None,
 ) -> None:
     """Buffer store node.
 
@@ -1293,7 +1302,7 @@ def buffer_store(
     """
     from tvm.arith import Analyzer  # pylint: disable=import-outside-toplevel
 
-    if not isinstance(indices, (list, tuple, ir.Array)):
+    if not isinstance(indices, list | tuple | ir.Array):
         indices = [indices]
 
     expr_indices = []
@@ -1341,13 +1350,7 @@ def func_gen(name: str):
     """
 
     def func(
-        expr: Union[
-            None,
-            PrimExpr,
-            Literal["inf", "-inf", "nan"],
-            int,
-            float,
-        ] = None,
+        expr: None | PrimExpr | Literal["inf", "-inf", "nan"] | int | float = None,
         *,
         is_size_var: bool = False,
     ) -> PrimExpr:
@@ -1359,174 +1362,174 @@ def func_gen(name: str):
 
 
 # pylint: disable=invalid-name
-int8 = func_gen(("Int8"))
-int16 = func_gen(("Int16"))
-int32 = func_gen(("Int32"))
-int64 = func_gen(("Int64"))
-int8x4 = func_gen(("Int8x4"))
-int16x4 = func_gen(("Int16x4"))
-int32x4 = func_gen(("Int32x4"))
-int64x4 = func_gen(("Int64x4"))
-int8x8 = func_gen(("Int8x8"))
-int16x8 = func_gen(("Int16x8"))
-int32x8 = func_gen(("Int32x8"))
-int64x8 = func_gen(("Int64x8"))
-int8x16 = func_gen(("Int8x16"))
-int16x16 = func_gen(("Int16x16"))
-int32x16 = func_gen(("Int32x16"))
-int64x16 = func_gen(("Int64x16"))
-int8x32 = func_gen(("Int8x32"))
-int16x32 = func_gen(("Int16x32"))
-int32x32 = func_gen(("Int32x32"))
-int64x32 = func_gen(("Int64x32"))
-int8x64 = func_gen(("Int8x64"))
-int16x64 = func_gen(("Int16x64"))
-int32x64 = func_gen(("Int32x64"))
-int64x64 = func_gen(("Int64x64"))
+int8 = func_gen("Int8")
+int16 = func_gen("Int16")
+int32 = func_gen("Int32")
+int64 = func_gen("Int64")
+int8x4 = func_gen("Int8x4")
+int16x4 = func_gen("Int16x4")
+int32x4 = func_gen("Int32x4")
+int64x4 = func_gen("Int64x4")
+int8x8 = func_gen("Int8x8")
+int16x8 = func_gen("Int16x8")
+int32x8 = func_gen("Int32x8")
+int64x8 = func_gen("Int64x8")
+int8x16 = func_gen("Int8x16")
+int16x16 = func_gen("Int16x16")
+int32x16 = func_gen("Int32x16")
+int64x16 = func_gen("Int64x16")
+int8x32 = func_gen("Int8x32")
+int16x32 = func_gen("Int16x32")
+int32x32 = func_gen("Int32x32")
+int64x32 = func_gen("Int64x32")
+int8x64 = func_gen("Int8x64")
+int16x64 = func_gen("Int16x64")
+int32x64 = func_gen("Int32x64")
+int64x64 = func_gen("Int64x64")
 
-uint8 = func_gen(("UInt8"))
-uint16 = func_gen(("UInt16"))
-uint32 = func_gen(("UInt32"))
-uint64 = func_gen(("UInt64"))
-uint8x4 = func_gen(("UInt8x4"))
-uint16x4 = func_gen(("UInt16x4"))
-uint32x4 = func_gen(("UInt32x4"))
-uint64x4 = func_gen(("UInt64x4"))
-uint8x8 = func_gen(("UInt8x8"))
-uint16x8 = func_gen(("UInt16x8"))
-uint32x8 = func_gen(("UInt32x8"))
-uint64x8 = func_gen(("UInt64x8"))
-uint8x16 = func_gen(("UInt8x16"))
-uint16x16 = func_gen(("UInt16x16"))
-uint32x16 = func_gen(("UInt32x16"))
-uint64x16 = func_gen(("UInt64x16"))
-uint8x32 = func_gen(("UInt8x32"))
-uint16x32 = func_gen(("UInt16x32"))
-uint32x32 = func_gen(("UInt32x32"))
-uint64x32 = func_gen(("UInt64x32"))
-uint8x64 = func_gen(("UInt8x64"))
-uint16x64 = func_gen(("UInt16x64"))
-uint32x64 = func_gen(("UInt32x64"))
-uint64x64 = func_gen(("UInt64x64"))
+uint8 = func_gen("UInt8")
+uint16 = func_gen("UInt16")
+uint32 = func_gen("UInt32")
+uint64 = func_gen("UInt64")
+uint8x4 = func_gen("UInt8x4")
+uint16x4 = func_gen("UInt16x4")
+uint32x4 = func_gen("UInt32x4")
+uint64x4 = func_gen("UInt64x4")
+uint8x8 = func_gen("UInt8x8")
+uint16x8 = func_gen("UInt16x8")
+uint32x8 = func_gen("UInt32x8")
+uint64x8 = func_gen("UInt64x8")
+uint8x16 = func_gen("UInt8x16")
+uint16x16 = func_gen("UInt16x16")
+uint32x16 = func_gen("UInt32x16")
+uint64x16 = func_gen("UInt64x16")
+uint8x32 = func_gen("UInt8x32")
+uint16x32 = func_gen("UInt16x32")
+uint32x32 = func_gen("UInt32x32")
+uint64x32 = func_gen("UInt64x32")
+uint8x64 = func_gen("UInt8x64")
+uint16x64 = func_gen("UInt16x64")
+uint32x64 = func_gen("UInt32x64")
+uint64x64 = func_gen("UInt64x64")
 
-float16 = func_gen(("Float16"))
-float32 = func_gen(("Float32"))
-float64 = func_gen(("Float64"))
-float16x2 = func_gen(("Float16x2"))
-float32x2 = func_gen(("Float32x2"))
-float64x2 = func_gen(("Float64x2"))
-float16x4 = func_gen(("Float16x4"))
-float32x4 = func_gen(("Float32x4"))
-float64x4 = func_gen(("Float64x4"))
-float16x8 = func_gen(("Float16x8"))
-float32x8 = func_gen(("Float32x8"))
-float64x8 = func_gen(("Float64x8"))
-float16x16 = func_gen(("Float16x16"))
-float32x16 = func_gen(("Float32x16"))
-float64x16 = func_gen(("Float64x16"))
-float16x32 = func_gen(("Float16x32"))
-float32x32 = func_gen(("Float32x32"))
-float64x32 = func_gen(("Float64x32"))
-float16x64 = func_gen(("Float16x64"))
-float32x64 = func_gen(("Float32x64"))
-float64x64 = func_gen(("Float64x64"))
+float16 = func_gen("Float16")
+float32 = func_gen("Float32")
+float64 = func_gen("Float64")
+float16x2 = func_gen("Float16x2")
+float32x2 = func_gen("Float32x2")
+float64x2 = func_gen("Float64x2")
+float16x4 = func_gen("Float16x4")
+float32x4 = func_gen("Float32x4")
+float64x4 = func_gen("Float64x4")
+float16x8 = func_gen("Float16x8")
+float32x8 = func_gen("Float32x8")
+float64x8 = func_gen("Float64x8")
+float16x16 = func_gen("Float16x16")
+float32x16 = func_gen("Float32x16")
+float64x16 = func_gen("Float64x16")
+float16x32 = func_gen("Float16x32")
+float32x32 = func_gen("Float32x32")
+float64x32 = func_gen("Float64x32")
+float16x64 = func_gen("Float16x64")
+float32x64 = func_gen("Float32x64")
+float64x64 = func_gen("Float64x64")
 
 # Float8 variants
-float8_e3m4 = func_gen(("Float8E3M4"))
-float8_e3m4x2 = func_gen(("Float8E3M4x2"))
-float8_e3m4x4 = func_gen(("Float8E3M4x4"))
-float8_e3m4x8 = func_gen(("Float8E3M4x8"))
-float8_e3m4x16 = func_gen(("Float8E3M4x16"))
-float8_e3m4x32 = func_gen(("Float8E3M4x32"))
-float8_e3m4x64 = func_gen(("Float8E3M4x64"))
+float8_e3m4 = func_gen("Float8E3M4")
+float8_e3m4x2 = func_gen("Float8E3M4x2")
+float8_e3m4x4 = func_gen("Float8E3M4x4")
+float8_e3m4x8 = func_gen("Float8E3M4x8")
+float8_e3m4x16 = func_gen("Float8E3M4x16")
+float8_e3m4x32 = func_gen("Float8E3M4x32")
+float8_e3m4x64 = func_gen("Float8E3M4x64")
 
-float8_e4m3 = func_gen(("Float8E4M3"))
-float8_e4m3x2 = func_gen(("Float8E4M3x2"))
-float8_e4m3x4 = func_gen(("Float8E4M3x4"))
-float8_e4m3x8 = func_gen(("Float8E4M3x8"))
-float8_e4m3x16 = func_gen(("Float8E4M3x16"))
-float8_e4m3x32 = func_gen(("Float8E4M3x32"))
-float8_e4m3x64 = func_gen(("Float8E4M3x64"))
+float8_e4m3 = func_gen("Float8E4M3")
+float8_e4m3x2 = func_gen("Float8E4M3x2")
+float8_e4m3x4 = func_gen("Float8E4M3x4")
+float8_e4m3x8 = func_gen("Float8E4M3x8")
+float8_e4m3x16 = func_gen("Float8E4M3x16")
+float8_e4m3x32 = func_gen("Float8E4M3x32")
+float8_e4m3x64 = func_gen("Float8E4M3x64")
 
-float8_e4m3b11fnuz = func_gen(("Float8E4M3B11FNUZ"))
-float8_e4m3b11fnuzx2 = func_gen(("Float8E4M3B11FNUZx2"))
-float8_e4m3b11fnuzx4 = func_gen(("Float8E4M3B11FNUZx4"))
-float8_e4m3b11fnuzx8 = func_gen(("Float8E4M3B11FNUZx8"))
-float8_e4m3b11fnuzx16 = func_gen(("Float8E4M3B11FNUZx16"))
-float8_e4m3b11fnuzx32 = func_gen(("Float8E4M3B11FNUZx32"))
-float8_e4m3b11fnuzx64 = func_gen(("Float8E4M3B11FNUZx64"))
+float8_e4m3b11fnuz = func_gen("Float8E4M3B11FNUZ")
+float8_e4m3b11fnuzx2 = func_gen("Float8E4M3B11FNUZx2")
+float8_e4m3b11fnuzx4 = func_gen("Float8E4M3B11FNUZx4")
+float8_e4m3b11fnuzx8 = func_gen("Float8E4M3B11FNUZx8")
+float8_e4m3b11fnuzx16 = func_gen("Float8E4M3B11FNUZx16")
+float8_e4m3b11fnuzx32 = func_gen("Float8E4M3B11FNUZx32")
+float8_e4m3b11fnuzx64 = func_gen("Float8E4M3B11FNUZx64")
 
-float8_e4m3fn = func_gen(("Float8E4M3FN"))
-float8_e4m3fnx2 = func_gen(("Float8E4M3FNx2"))
-float8_e4m3fnx4 = func_gen(("Float8E4M3FNx4"))
-float8_e4m3fnx8 = func_gen(("Float8E4M3FNx8"))
-float8_e4m3fnx16 = func_gen(("Float8E4M3FNx16"))
-float8_e4m3fnx32 = func_gen(("Float8E4M3FNx32"))
-float8_e4m3fnx64 = func_gen(("Float8E4M3FNx64"))
+float8_e4m3fn = func_gen("Float8E4M3FN")
+float8_e4m3fnx2 = func_gen("Float8E4M3FNx2")
+float8_e4m3fnx4 = func_gen("Float8E4M3FNx4")
+float8_e4m3fnx8 = func_gen("Float8E4M3FNx8")
+float8_e4m3fnx16 = func_gen("Float8E4M3FNx16")
+float8_e4m3fnx32 = func_gen("Float8E4M3FNx32")
+float8_e4m3fnx64 = func_gen("Float8E4M3FNx64")
 
-float8_e4m3fnuz = func_gen(("Float8E4M3FNUZ"))
-float8_e4m3fnuzx2 = func_gen(("Float8E4M3FNUZx2"))
-float8_e4m3fnuzx4 = func_gen(("Float8E4M3FNUZx4"))
-float8_e4m3fnuzx8 = func_gen(("Float8E4M3FNUZx8"))
-float8_e4m3fnuzx16 = func_gen(("Float8E4M3FNUZx16"))
-float8_e4m3fnuzx32 = func_gen(("Float8E4M3FNUZx32"))
-float8_e4m3fnuzx64 = func_gen(("Float8E4M3FNUZx64"))
+float8_e4m3fnuz = func_gen("Float8E4M3FNUZ")
+float8_e4m3fnuzx2 = func_gen("Float8E4M3FNUZx2")
+float8_e4m3fnuzx4 = func_gen("Float8E4M3FNUZx4")
+float8_e4m3fnuzx8 = func_gen("Float8E4M3FNUZx8")
+float8_e4m3fnuzx16 = func_gen("Float8E4M3FNUZx16")
+float8_e4m3fnuzx32 = func_gen("Float8E4M3FNUZx32")
+float8_e4m3fnuzx64 = func_gen("Float8E4M3FNUZx64")
 
-float8_e5m2 = func_gen(("Float8E5M2"))
-float8_e5m2x2 = func_gen(("Float8E5M2x2"))
-float8_e5m2x4 = func_gen(("Float8E5M2x4"))
-float8_e5m2x8 = func_gen(("Float8E5M2x8"))
-float8_e5m2x16 = func_gen(("Float8E5M2x16"))
-float8_e5m2x32 = func_gen(("Float8E5M2x32"))
-float8_e5m2x64 = func_gen(("Float8E5M2x64"))
+float8_e5m2 = func_gen("Float8E5M2")
+float8_e5m2x2 = func_gen("Float8E5M2x2")
+float8_e5m2x4 = func_gen("Float8E5M2x4")
+float8_e5m2x8 = func_gen("Float8E5M2x8")
+float8_e5m2x16 = func_gen("Float8E5M2x16")
+float8_e5m2x32 = func_gen("Float8E5M2x32")
+float8_e5m2x64 = func_gen("Float8E5M2x64")
 
-float8_e5m2fnuz = func_gen(("Float8E5M2FNUZ"))
-float8_e5m2fnuzx2 = func_gen(("Float8E5M2FNUZx2"))
-float8_e5m2fnuzx4 = func_gen(("Float8E5M2FNUZx4"))
-float8_e5m2fnuzx8 = func_gen(("Float8E5M2FNUZx8"))
-float8_e5m2fnuzx16 = func_gen(("Float8E5M2FNUZx16"))
-float8_e5m2fnuzx32 = func_gen(("Float8E5M2FNUZx32"))
-float8_e5m2fnuzx64 = func_gen(("Float8E5M2FNUZx64"))
+float8_e5m2fnuz = func_gen("Float8E5M2FNUZ")
+float8_e5m2fnuzx2 = func_gen("Float8E5M2FNUZx2")
+float8_e5m2fnuzx4 = func_gen("Float8E5M2FNUZx4")
+float8_e5m2fnuzx8 = func_gen("Float8E5M2FNUZx8")
+float8_e5m2fnuzx16 = func_gen("Float8E5M2FNUZx16")
+float8_e5m2fnuzx32 = func_gen("Float8E5M2FNUZx32")
+float8_e5m2fnuzx64 = func_gen("Float8E5M2FNUZx64")
 
-float8_e8m0fnu = func_gen(("Float8E8M0FNU"))
-float8_e8m0fnux2 = func_gen(("Float8E8M0FNUx2"))
-float8_e8m0fnux4 = func_gen(("Float8E8M0FNUx4"))
-float8_e8m0fnux8 = func_gen(("Float8E8M0FNUx8"))
-float8_e8m0fnux16 = func_gen(("Float8E8M0FNUx16"))
-float8_e8m0fnux32 = func_gen(("Float8E8M0FNUx32"))
-float8_e8m0fnux64 = func_gen(("Float8E8M0FNUx64"))
+float8_e8m0fnu = func_gen("Float8E8M0FNU")
+float8_e8m0fnux2 = func_gen("Float8E8M0FNUx2")
+float8_e8m0fnux4 = func_gen("Float8E8M0FNUx4")
+float8_e8m0fnux8 = func_gen("Float8E8M0FNUx8")
+float8_e8m0fnux16 = func_gen("Float8E8M0FNUx16")
+float8_e8m0fnux32 = func_gen("Float8E8M0FNUx32")
+float8_e8m0fnux64 = func_gen("Float8E8M0FNUx64")
 
 # Float6 variants
-float6_e2m3fn = func_gen(("Float6E2M3FN"))
-float6_e2m3fnx2 = func_gen(("Float6E2M3FNx2"))
-float6_e2m3fnx4 = func_gen(("Float6E2M3FNx4"))
-float6_e2m3fnx8 = func_gen(("Float6E2M3FNx8"))
-float6_e2m3fnx16 = func_gen(("Float6E2M3FNx16"))
-float6_e2m3fnx32 = func_gen(("Float6E2M3FNx32"))
-float6_e2m3fnx64 = func_gen(("Float6E2M3FNx64"))
+float6_e2m3fn = func_gen("Float6E2M3FN")
+float6_e2m3fnx2 = func_gen("Float6E2M3FNx2")
+float6_e2m3fnx4 = func_gen("Float6E2M3FNx4")
+float6_e2m3fnx8 = func_gen("Float6E2M3FNx8")
+float6_e2m3fnx16 = func_gen("Float6E2M3FNx16")
+float6_e2m3fnx32 = func_gen("Float6E2M3FNx32")
+float6_e2m3fnx64 = func_gen("Float6E2M3FNx64")
 
-float6_e3m2fn = func_gen(("Float6E3M2FN"))
-float6_e3m2fnx2 = func_gen(("Float6E3M2FNx2"))
-float6_e3m2fnx4 = func_gen(("Float6E3M2FNx4"))
-float6_e3m2fnx8 = func_gen(("Float6E3M2FNx8"))
-float6_e3m2fnx16 = func_gen(("Float6E3M2FNx16"))
-float6_e3m2fnx32 = func_gen(("Float6E3M2FNx32"))
-float6_e3m2fnx64 = func_gen(("Float6E3M2FNx64"))
+float6_e3m2fn = func_gen("Float6E3M2FN")
+float6_e3m2fnx2 = func_gen("Float6E3M2FNx2")
+float6_e3m2fnx4 = func_gen("Float6E3M2FNx4")
+float6_e3m2fnx8 = func_gen("Float6E3M2FNx8")
+float6_e3m2fnx16 = func_gen("Float6E3M2FNx16")
+float6_e3m2fnx32 = func_gen("Float6E3M2FNx32")
+float6_e3m2fnx64 = func_gen("Float6E3M2FNx64")
 
 # Float4 variants
-float4_e2m1fn = func_gen(("Float4E2M1FN"))
-float4_e2m1fnx2 = func_gen(("Float4E2M1FNx2"))
-float4_e2m1fnx4 = func_gen(("Float4E2M1FNx4"))
-float4_e2m1fnx8 = func_gen(("Float4E2M1FNx8"))
-float4_e2m1fnx16 = func_gen(("Float4E2M1FNx16"))
-float4_e2m1fnx32 = func_gen(("Float4E2M1FNx32"))
-float4_e2m1fnx64 = func_gen(("Float4E2M1FNx64"))
+float4_e2m1fn = func_gen("Float4E2M1FN")
+float4_e2m1fnx2 = func_gen("Float4E2M1FNx2")
+float4_e2m1fnx4 = func_gen("Float4E2M1FNx4")
+float4_e2m1fnx8 = func_gen("Float4E2M1FNx8")
+float4_e2m1fnx16 = func_gen("Float4E2M1FNx16")
+float4_e2m1fnx32 = func_gen("Float4E2M1FNx32")
+float4_e2m1fnx64 = func_gen("Float4E2M1FNx64")
 
-bfloat16 = func_gen(("BFloat16"))
+bfloat16 = func_gen("BFloat16")
 # pylint: enable=invalid-name
 
 
-def boolean(expr: Optional[PrimExpr] = None, is_size_var: bool = False) -> PrimExpr:
+def boolean(expr: PrimExpr | None = None, is_size_var: bool = False) -> PrimExpr:
     """Construct a new tir.Var with type boolean or cast expression to type boolean.
 
     Parameters
@@ -1546,7 +1549,10 @@ def boolean(expr: Optional[PrimExpr] = None, is_size_var: bool = False) -> PrimE
 
 
 def handle(
-    dtype: Optional[str] = None, storage_scope: str = "global", *, is_size_var: bool = False
+    dtype: str | None = None,
+    storage_scope: str = "global",
+    *,
+    is_size_var: bool = False,
 ) -> Var:
     """Create a TIR var that represents a pointer.
 
@@ -1579,7 +1585,7 @@ def handle(
     )
 
 
-def void(expr: Optional[PrimExpr] = None, *, is_size_var: bool = False) -> PrimExpr:
+def void(expr: PrimExpr | None = None, *, is_size_var: bool = False) -> PrimExpr:
     """Construct a new tir.Var with type void or cast expression to type void.
 
     Parameters
@@ -1695,7 +1701,7 @@ def max(a: PrimExpr, b: PrimExpr) -> PrimExpr:  # pylint: disable=redefined-buil
     return _ffi_api.max(a, b)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def iter_var(v: Union[Var, str], dom: ir.Range, iter_type: str, thread_tag: str) -> IterVar:
+def iter_var(v: Var | str, dom: ir.Range, iter_type: str, thread_tag: str) -> IterVar:
     """The iteration variable.
 
     Parameters
@@ -1721,7 +1727,7 @@ def iter_var(v: Union[Var, str], dom: ir.Range, iter_type: str, thread_tag: str)
     return IterVar(dom, v, iter_type, thread_tag)
 
 
-def comm_reducer(combiner: Callable, identity: List[PrimExpr]) -> CommReducer:
+def comm_reducer(combiner: Callable, identity: list[PrimExpr]) -> CommReducer:
     """
     Create a CommReducer from lambda inputs/outputs and the identities
 
@@ -1755,7 +1761,7 @@ def comm_reducer(combiner: Callable, identity: List[PrimExpr]) -> CommReducer:
 def index_map(
     mapping: Callable,
     *,
-    inverse_index_map: Optional[Callable] = None,
+    inverse_index_map: Callable | None = None,
     index_dtype: str = "int64",
 ) -> IndexMap:
     """Create a TIR Index mapping"""
@@ -1763,8 +1769,8 @@ def index_map(
 
 
 def target(
-    target_config: Union[Dict, str],
-    host: Optional[Union[Dict, str, Target]] = None,
+    target_config: dict | str,
+    host: dict | str | Target | None = None,
 ) -> Target:
     """
     Create a target
@@ -1782,11 +1788,11 @@ def target(
     res : Target
         The target.
     """
-    if not isinstance(target_config, (str, dict)):
+    if not isinstance(target_config, str | dict):
         raise ValueError(
             f"T.target expected a config dict or string, but got {type(target_config)}"
         )
-    if host is not None and not isinstance(host, (str, dict, Target)):
+    if host is not None and not isinstance(host, str | dict | Target):
         raise ValueError(
             "T.target expected the host to be "
             "a config dict, string, or T.target, "
@@ -1840,31 +1846,18 @@ class meta_var:  # pylint: disable=invalid-name
 # pylint: disable=invalid-name
 
 
-if sys.version_info >= (3, 10):
-    from typing import ParamSpec, TypeVar  # pylint: disable=import-error
+T = TypeVar("T")
+P = ParamSpec("P")
 
-    T = TypeVar("T")
-    P = ParamSpec("P")
 
-    def _op_wrapper(func: Callable[P, T]) -> Callable[P, T]:
-        @functools.wraps(func)
-        def wrapped(*args, **kwargs) -> T:
-            if "dtype" in kwargs:
-                kwargs.pop("dtype")
-            return func(*args, **kwargs)
+def _op_wrapper(func: Callable[P, T]) -> Callable[P, T]:
+    @functools.wraps(func)
+    def wrapped(*args, **kwargs) -> T:
+        if "dtype" in kwargs:
+            kwargs.pop("dtype")
+        return func(*args, **kwargs)
 
-        return wrapped
-
-else:
-
-    def _op_wrapper(func):
-        @functools.wraps(func)
-        def wrapped(*args, **kwargs):
-            if "dtype" in kwargs:
-                kwargs.pop("dtype")
-            return func(*args, **kwargs)
-
-        return wrapped
+    return wrapped
 
 
 abs = _op_wrapper(_tir_op.abs)  # pylint: disable=redefined-builtin
@@ -1917,6 +1910,8 @@ pow = _op_wrapper(_tir_op.pow)  # pylint: disable=redefined-builtin
 q_multiply_shift = _op_wrapper(_tir_op.q_multiply_shift)
 q_multiply_shift_per_axis = _op_wrapper(_tir_op.q_multiply_shift_per_axis)
 ret = _op_wrapper(_tir_op.ret)
+continue_loop = _op_wrapper(_tir_op.continue_loop)
+break_loop = _op_wrapper(_tir_op.break_loop)
 round = _op_wrapper(_tir_op.round)  # pylint: disable=redefined-builtin
 rsqrt = _op_wrapper(_tir_op.rsqrt)
 shift_left = _op_wrapper(_tir_op.shift_left)
@@ -2104,13 +2099,15 @@ __all__ = float_types + [
     "func_attr",
     "func_ret",
     "match_buffer",
-    "block",
+    "sblock",
+    "block_name_suffix_context",
     "init",
     "where",
     "reads",
     "writes",
-    "block_attr",
+    "sblock_attr",
     "alloc_buffer",
+    "sblock_alloc_buffer",
     "axis",
     "serial",
     "parallel",
@@ -2119,9 +2116,6 @@ __all__ = float_types + [
     "thread_binding",
     "grid",
     "Assert",
-    "realize",
-    "allocate",
-    "allocate_const",
     "attr",
     "While",
     "If",
@@ -2195,6 +2189,8 @@ __all__ = float_types + [
     "q_multiply_shift",
     "q_multiply_shift_per_axis",
     "ret",
+    "continue_loop",
+    "break_loop",
     "reinterpret",
     "round",
     "rsqrt",
@@ -2318,7 +2314,7 @@ __all__ = float_types + [
     "Call",
     "CallEffectKind",
     "let",
-    "LetStmt",
+    "bind",
     "Let",
     "IterVar",
     "CommReducer",

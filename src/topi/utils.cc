@@ -28,25 +28,25 @@
 
 namespace tvm {
 namespace topi {
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("topi.utils.is_empty_shape",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
-                    *rv = topi::detail::is_empty_shape(args[0].cast<Array<PrimExpr>>());
+                    *rv = topi::detail::is_empty_shape(args[0].cast<ffi::Array<PrimExpr>>());
                   })
       .def_packed("topi.utils.bilinear_sample_nchw",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
                     *rv = detail::bilinear_sample_nchw(
-                        args[0].cast<te::Tensor>(), args[1].cast<Array<PrimExpr>>(),
+                        args[0].cast<te::Tensor>(), args[1].cast<ffi::Array<PrimExpr>>(),
                         args[2].cast<PrimExpr>(), args[3].cast<PrimExpr>());
                   })
       .def_packed("topi.utils.bilinear_sample_nhwc", [](ffi::PackedArgs args, ffi::Any* rv) {
         *rv = detail::bilinear_sample_nhwc(args[0].cast<te::Tensor>(),
-                                           args[1].cast<Array<PrimExpr>>(),
+                                           args[1].cast<ffi::Array<PrimExpr>>(),
                                            args[2].cast<PrimExpr>(), args[3].cast<PrimExpr>());
       });
-});
+}
 
 }  // namespace topi
 }  // namespace tvm

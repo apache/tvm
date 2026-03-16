@@ -15,11 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 """Util to invoke clang in the system."""
+
 # pylint: disable=invalid-name
 import subprocess
 
-from tvm.base import py_str
 import tvm.target
+from tvm.base import py_str
+
 from . import utils
 
 

@@ -14,12 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F841
 
 import pytest
 
 import tvm
 import tvm.testing
-from tvm.script import ir as I, tir as T
+from tvm.script import ir as I
+from tvm.script import tir as T
 
 
 def test_pass_simple():
@@ -28,13 +30,13 @@ def test_pass_simple():
         A: T.Buffer((128, 128), "float32"),
         C: T.Buffer((128, 128), "float32"),
     ):
-        B = T.alloc_buffer((128, 128), "float32")
+        B = T.sblock_alloc_buffer((128, 128), "float32")
         for i, j in T.grid(128, 128):
-            with T.block("B"):
+            with T.sblock("B"):
                 vi, vj = T.axis.remap("SS", [i, j])
                 B[vi, vj] = A[vi, vj] * 2.0
         for i, j in T.grid(128, 128):
-            with T.block("C"):
+            with T.sblock("C"):
                 # It's a opaque block , so it can use outside variables
                 C[i, j] = B[i, j] * 2.0
 
@@ -49,7 +51,7 @@ def test_fail_use_out_loop_var():
         B: T.Buffer((128, 128), "float32"),
     ):
         for i, j in T.grid(128, 128):
-            with T.block("B"):
+            with T.sblock("B"):
                 vi, vj = T.axis.remap("SS", [i, j])
                 # we cannot use `i` since it's defined outside the block
                 B[vi, vj] = A[i, vj] * 2.0
@@ -58,14 +60,25 @@ def test_fail_use_out_loop_var():
 
 
 def test_error_for_out_of_scope_usage():
-    """A variable may not be used after its scope ends"""
+    """A variable may not be used after its scope ends.
 
-    @T.prim_func(check_well_formed=False)
-    def func():
-        i = T.int32()
-        with T.LetStmt(42, var=i):
-            T.evaluate(i)
-        T.evaluate(i)
+    With flat Bind semantics, Bind vars are visible to all subsequent
+    siblings in the same SeqStmt. True out-of-scope usage occurs when
+    the Bind is inside a child scope (e.g., ForNode body) and the
+    variable is used outside that scope.
+    """
+    i = tvm.tir.Var("i", "int32")
+    # Bind i inside a For loop body
+    for_stmt = tvm.tir.For(
+        tvm.tir.Var("j", "int32"),
+        0,
+        1,
+        tvm.tir.ForKind.SERIAL,
+        tvm.tir.SeqStmt([tvm.tir.Bind(i, 42), tvm.tir.Evaluate(i)]),
+    )
+    # Use i outside the For loop — this is out of scope
+    body = tvm.tir.SeqStmt([for_stmt, tvm.tir.Evaluate(i)])
+    func = tvm.tir.PrimFunc([], body)
 
     with pytest.raises(
         ValueError, match="Invalid use of undefined variable i at .* no longer in-scope."
@@ -79,9 +92,9 @@ def test_error_for_nested_rebind_usage():
     @T.prim_func(check_well_formed=False)
     def func():
         i = T.int32()
-        with T.LetStmt(42, var=i):
-            with T.LetStmt(42, var=i):
-                T.evaluate(i)
+        T.bind(42, var=i)
+        T.bind(42, var=i)
+        T.evaluate(i)
 
     with pytest.raises(
         ValueError, match="ill-formed, due to multiple nested definitions of variable i"
@@ -90,17 +103,22 @@ def test_error_for_nested_rebind_usage():
 
 
 def test_error_for_repeated_binding():
-    """A variable may not be re-defined after the scope ends"""
+    """A variable may not be re-defined in the same flat scope.
+
+    With flat Bind semantics, sequential Bind of the same variable in the
+    same SeqStmt is treated as a nested redefinition (since the first Bind's
+    scope extends to all subsequent siblings).
+    """
 
     @T.prim_func(check_well_formed=False)
     def func():
         i = T.int32()
-        with T.LetStmt(42, var=i):
-            T.evaluate(i)
-        with T.LetStmt(17, var=i):
-            T.evaluate(i)
+        T.bind(42, var=i)
+        T.evaluate(i)
+        T.bind(17, var=i)
+        T.evaluate(i)
 
-    with pytest.raises(ValueError, match="multiple definitions of variable i"):
+    with pytest.raises(ValueError, match="multiple nested definitions of variable i"):
         tvm.tir.analysis.verify_well_formed(func)
 
 
@@ -113,13 +131,13 @@ def test_error_for_cross_function_reuse():
     class mod:
         @T.prim_func
         def func1():
-            with T.LetStmt(42, var=i):
-                T.evaluate(i)
+            T.bind(42, var=i)
+            T.evaluate(i)
 
         @T.prim_func
         def func2():
-            with T.LetStmt(42, var=i):
-                T.evaluate(i)
+            T.bind(42, var=i)
+            T.evaluate(i)
 
     with pytest.raises(ValueError, match="multiple definitions of variable i"):
         tvm.tir.analysis.verify_well_formed(mod)
@@ -219,59 +237,6 @@ def test_multiple_buffer_arguments_may_share_allocation():
     tvm.tir.analysis.verify_well_formed(mod)
 
 
-def test_buffer_bind_scope_defines_buffer_obj():
-    """The "buffer_bind_scope" attribute defines a buffer view"""
-
-    @I.ir_module
-    class mod:
-        @T.prim_func
-        def func(A: T.Buffer([256, 256], "float32")):
-            for tile_i, tile_j in T.grid(16, 16):
-                B = T.Buffer([16, 16], "float32")
-                T.attr(
-                    [B, A],
-                    "buffer_bind_scope",
-                    T.tvm_tuple(
-                        tile_i * 16,
-                        16,
-                        tile_j * 16,
-                        16,
-                        dtype="handle",
-                    ),
-                )
-                for i, j in T.grid(16, 16):
-                    B[i, j] = 0.0
-
-    tvm.tir.analysis.verify_well_formed(mod)
-
-
-def test_buffer_bind_scope_defines_symbolic_variables():
-    """The "buffer_bind_scope" attribute may define symbolic variables"""
-
-    @I.ir_module
-    class mod:
-        @T.prim_func
-        def func(A: T.Buffer([256, 256], "int32")):
-            for tile_i, tile_j in T.grid(16, 16):
-                elem_offset = T.int32()
-                B = T.Buffer([16, 16], "int32", elem_offset=elem_offset)
-                T.attr(
-                    [B, A],
-                    "buffer_bind_scope",
-                    T.tvm_tuple(
-                        tile_i * 16,
-                        16,
-                        tile_j * 16,
-                        16,
-                        dtype="handle",
-                    ),
-                )
-                for i, j in T.grid(16, 16):
-                    B[i, j] = elem_offset
-
-    tvm.tir.analysis.verify_well_formed(mod)
-
-
 def test_block_match_buffer_defines_buffer_obj():
     """In a block, T.match_buffer defines a buffer view"""
 
@@ -280,7 +245,7 @@ def test_block_match_buffer_defines_buffer_obj():
         @T.prim_func
         def func(A: T.Buffer([256, 256], "float32")):
             for iters in T.grid(16, 16, 16, 16):
-                with T.block("compute"):
+                with T.sblock("compute"):
                     tile_i, tile_j, i, j = T.axis.remap("SSSS", iters)
                     B = T.match_buffer(
                         A[tile_i * 16 : (tile_i + 1) * 16, tile_j * 16 : (tile_j + 1) * 16],
@@ -299,7 +264,7 @@ def test_block_match_buffer_defines_symbolic_variables():
         @T.prim_func
         def func(A: T.Buffer([256, 256], "int32")):
             for iters in T.grid(16, 16, 16, 16):
-                with T.block("compute"):
+                with T.sblock("compute"):
                     tile_i, tile_j, i, j = T.axis.remap("SSSS", iters)
 
                     elem_offset = T.int32()
@@ -314,35 +279,193 @@ def test_block_match_buffer_defines_symbolic_variables():
     tvm.tir.analysis.verify_well_formed(mod)
 
 
-def test_buffer_realize_on_external_buffer_is_annotation():
-    """A T.realize statement on an existing buffer annotates the region used"""
+def test_error_message_without_previous_definition_location():
+    """Test case 1: Error message without 'It was first defined at'
+
+    This tests the scenario where it == end(), so the error message should contain
+    'TIR is ill-formed, due to multiple definitions of variable' but should NOT
+    contain 'It was first defined at' since the iterator is invalid.
+
+    With flat Bind semantics, sequential redefinitions in the same SeqStmt
+    are treated as nested definitions, and the first definition location
+    IS known, so the message includes location info.
+    """
+
+    @T.prim_func(check_well_formed=False)
+    def func():
+        x = T.int32()
+
+        T.bind(42, var=x)
+        T.evaluate(x)
+
+        T.bind(99, var=x)  # This should trigger the error
+        T.evaluate(x)
+
+    with pytest.raises(ValueError) as exc_info:
+        tvm.tir.analysis.verify_well_formed(func, assert_mode=True)
+
+    error_msg = str(exc_info.value)
+
+    assert "TIR is ill-formed" in error_msg
+    assert "multiple nested definitions of variable" in error_msg
+
+
+def test_error_message_with_previous_definition_location():
+    """Test case 2: Error message with 'It was first defined at'
+
+    This tests the scenario where it != end(), so the error message should contain
+    both 'TIR is ill-formed, due to multiple definitions of variable' and should also
+    contain 'It was first defined at' with the location information.
+    """
+
+    @T.prim_func(check_well_formed=False)
+    def func():
+        x = T.int32()
+
+        T.bind(42, var=x)
+        T.bind(99, var=x)  # This should trigger the error
+        T.evaluate(x)
+
+    with pytest.raises(ValueError) as exc_info:
+        tvm.tir.analysis.verify_well_formed(func, assert_mode=True)
+
+    error_msg = str(exc_info.value)
+
+    assert "TIR is ill-formed" in error_msg
+    assert "multiple nested definitions of variable" in error_msg
+
+    # should contains location information since it != end()
+    assert "It was first defined at" in error_msg
+    assert "was re-defined at" in error_msg
+
+
+def test_sequential_redefinition_with_location():
+    """Test case 2b: Sequential redefinition that includes location info
+
+    This tests the previously_defined_ path where it != end().
+    With flat Bind semantics, sequential redefinitions in the same SeqStmt
+    are treated as nested definitions with location info.
+    """
+
+    @T.prim_func(check_well_formed=False)
+    def func():
+        x = T.int32()
+
+        T.bind(1, var=x)
+        T.evaluate(x)
+
+        T.bind(2, var=x)  # This should trigger the error
+        T.evaluate(x)
+
+    with pytest.raises(ValueError) as exc_info:
+        tvm.tir.analysis.verify_well_formed(func, assert_mode=True)
+
+    error_msg = str(exc_info.value)
+
+    assert "TIR is ill-formed" in error_msg
+    assert "multiple nested definitions of variable" in error_msg
+    assert "It was first defined at" in error_msg
+    assert "was re-defined at" in error_msg
+
+
+def test_buffer_in_buffer_map_is_well_formed():
+    """Buffers defined via function parameter buffer_map are in scope for the body."""
+
+    @T.prim_func
+    def func(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
+        for i in T.grid(128):
+            B[i] = A[i] * 2.0
+
+    tvm.tir.analysis.verify_well_formed(func)
+
+
+def test_decl_buffer_is_well_formed():
+    """A DeclBuffer statement introduces a buffer into scope for its body."""
+
+    @T.prim_func
+    def func(A: T.Buffer((128,), "float32")):
+        B = T.alloc_buffer((128,), "float32")
+        for i in T.grid(128):
+            B[i] = A[i] * 2.0
+
+    tvm.tir.analysis.verify_well_formed(func)
+
+
+def test_alloc_buffer_in_block_is_well_formed():
+    """SBlock::alloc_buffers introduces a buffer into scope for the block body."""
 
     @I.ir_module
     class mod:
         @T.prim_func
-        def func(A: T.Buffer(256, "int32")):
-            T.realize(A[0:16], "global")
-
-            for i in range(16):
-                A[i] = 1
+        def func(A: T.Buffer((128,), "float32")):
+            with T.sblock("root"):
+                B = T.sblock_alloc_buffer([128], "float32")
+                for i in T.grid(128):
+                    with T.sblock("write_B"):
+                        vi = T.axis.remap("S", [i])
+                        B[vi] = A[vi] * 2.0
 
     tvm.tir.analysis.verify_well_formed(mod)
 
 
-def test_buffer_realize_is_allocation():
-    """A T.realize statement on an fresh buffer allocates the buffer"""
+def test_match_buffer_in_block_is_well_formed():
+    """SBlock::match_buffers introduces a buffer into scope for the block body."""
 
     @I.ir_module
     class mod:
         @T.prim_func
-        def func():
-            A = T.Buffer(256, "int32")
-            T.realize(A[0:16], "global")
-
-            for i in range(16):
-                A[i] = 1
+        def func(A: T.Buffer((128, 128), "float32")):
+            for iters in T.grid(8, 8, 16, 16):
+                with T.sblock("compute"):
+                    ti, tj, i, j = T.axis.remap("SSSS", iters)
+                    A_tile = T.match_buffer(
+                        A[ti * 16 : (ti + 1) * 16, tj * 16 : (tj + 1) * 16],
+                        dtype="float32",
+                    )
+                    A_tile[i, j] = A_tile[i, j] * 2.0
 
     tvm.tir.analysis.verify_well_formed(mod)
+
+
+def test_error_undeclared_buffer_in_schedulable_tir():
+    """In schedule-level TIR (with SBlock nodes), all buffers must be declared."""
+    # Manually construct a BufferStore that uses a buffer without any declaration
+    # inside a block context.
+    n = tvm.tir.SizeVar("n", "int32")
+    A = tvm.tir.decl_buffer([n], "float32", name="A")
+    i = tvm.tir.Var("i", "int32")
+
+    # Create an undeclared buffer using an explicit data pointer that is NOT
+    # in the buffer_map and NOT wrapped with DeclBuffer.
+    B_data = tvm.tir.Var("B_data", tvm.ir.PointerType(tvm.ir.PrimType("float32")))
+    B = tvm.tir.decl_buffer([n], "float32", name="B", data=B_data)
+
+    # Build a block that writes to B without any declaration of B.
+    bi = tvm.tir.SizeVar("bi", "int32")
+    block = tvm.tir.SBlock(
+        iter_vars=[tvm.tir.IterVar(tvm.ir.Range(0, n), bi, 0)],  # 0 = kDataPar
+        reads=[tvm.tir.BufferRegion(A, [tvm.ir.Range(bi, bi + 1)])],
+        writes=[tvm.tir.BufferRegion(B, [tvm.ir.Range(bi, bi + 1)])],
+        body=tvm.tir.BufferStore(B, tvm.tir.BufferLoad(A, [bi]), [bi]),
+        name_hint="write_B",
+    )
+    block_realize = tvm.tir.SBlockRealize(
+        iter_values=[i],
+        predicate=tvm.tir.const(True),
+        block=block,
+    )
+
+    prim_func = tvm.tir.PrimFunc(
+        params=[A.data, B_data],
+        body=tvm.tir.For(i, 0, n, tvm.tir.ForKind.SERIAL, block_realize),
+        buffer_map={A.data: A},
+        # Note: B is NOT in buffer_map, so its declaration scope is only
+        # within a DeclBuffer node (which we intentionally omit here).
+    )
+
+    # B is used in the block but was never declared — should fail.
+    with pytest.raises(ValueError, match="buffer B.*without a prior DeclBuffer"):
+        tvm.tir.analysis.verify_well_formed(prim_func)
 
 
 if __name__ == "__main__":

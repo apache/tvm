@@ -40,7 +40,7 @@ using namespace tvm::te;
  *
  * \return The fused iteration variable
  */
-inline IterVar Fuse(Stage stage, const Array<IterVar>& args) {
+inline IterVar Fuse(Stage stage, const ffi::Array<IterVar>& args) {
   IterVar res;
   stage.fuse(args, &res);
   return res;

@@ -26,6 +26,8 @@
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/object.h>
+#include <tvm/support/io.h>
+#include <tvm/support/serializer.h>
 
 #include <string>
 #include <unordered_map>
@@ -75,8 +77,8 @@ struct VMFuncInfo {
   std::vector<std::string> param_names;
 
   // defined customized loader save
-  void Save(dmlc::Stream* writer) const;
-  bool Load(dmlc::Stream* reader);
+  void Save(support::Stream* writer) const;
+  bool Load(support::Stream* reader);
 };
 
 /*!
@@ -85,10 +87,10 @@ struct VMFuncInfo {
  * The executable contains information (e.g. data in different memory regions)
  * to run in a virtual machine.
  */
-class VMExecutable : public runtime::ModuleNode {
+class VMExecutable : public ffi::ModuleObj {
  public:
   /*! \brief Get the property of the runtime module .*/
-  int GetPropertyMask() const final { return ModulePropertyMask::kBinarySerializable; };
+  int GetPropertyMask() const final { return ffi::Module::kBinarySerializable; };
 
   /*!
    * \brief Print the detailed statistics of the given code, i.e. number of
@@ -113,41 +115,41 @@ class VMExecutable : public runtime::ModuleNode {
    * \brief Print the instructions as text format.
    * \return The text format of the instructions.
    */
-  String AsText() const;
+  ffi::String AsText() const;
   /*!
    * \brief Print the instructions as python program.
    * \return The python program of the instructions, represented by a string.
    */
-  String AsPython() const;
+  ffi::String AsPython() const;
   /*!
    * \brief Write the VMExecutable to the binary stream in serialized form.
-   * \param stream The binary stream to save the executable to.
+   * \return The binary bytes that save the executable to.
    */
-  void SaveToBinary(dmlc::Stream* stream) final;
+  ffi::Bytes SaveToBytes() const final;
   /*!
    * \brief Load VMExecutable from the binary stream in serialized form.
-   * \param stream The binary stream that load the executable from.
+   * \param bytes The binary bytes that load the executable from.
    * \return The loaded executable, in the form of a `runtime::Module`.
    */
-  static Module LoadFromBinary(void* stream);
+  static ffi::Module LoadFromBytes(const ffi::Bytes& bytes);
   /*!
    * \brief Write the VMExecutable to the provided path as a file containing its serialized content.
    * \param file_name The name of the file to write the serialized data to.
    * \param format The target format of the saved file.
    */
-  void SaveToFile(const String& file_name, const String& format) final;
+  void WriteToFile(const ffi::String& file_name, const ffi::String& format) const final;
   /*! \brief Create a Relax virtual machine and load `this` as the executable. */
-  Module VMLoadExecutable() const;
+  ffi::Module VMLoadExecutable() const;
   /*! \brief Create a Relax virtual machine with profiler and load `this` as the executable. */
-  Module VMProfilerLoadExecutable() const;
+  ffi::Module VMProfilerLoadExecutable() const;
   /*! \brief Check if the VMExecutable contains a specific function. */
-  bool HasFunction(const String& name) const;
+  bool HasFunction(const ffi::String& name) const;
   /*!
    * \brief Load VMExecutable from the file.
    * \param file_name The path of the file that load the executable from.
    * \return The loaded executable, in the form of a `runtime::Module`.
    */
-  static Module LoadFromFile(const String& file_name);
+  static ffi::Module LoadFromFile(const ffi::String& file_name);
 
   /*! \brief The virtual machine's function table. */
   std::vector<VMFuncInfo> func_table;
@@ -155,6 +157,8 @@ class VMExecutable : public runtime::ModuleNode {
   std::unordered_map<std::string, Index> func_map;
   /*! \brief The global constant pool. */
   std::vector<ffi::Any> constants;
+  /*! \brief The VDevice memory scopes */
+  std::unordered_map<Index, std::string> memory_scopes;
   /*! \brief The offset of instruction. */
   std::vector<Index> instr_offset;
   /*! \brief The byte data of instruction. */
@@ -176,49 +180,66 @@ class VMExecutable : public runtime::ModuleNode {
    * \brief Save the globals.
    * \param strm The input stream.
    */
-  void SaveGlobalSection(dmlc::Stream* strm);
+  void SaveGlobalSection(support::Stream* strm) const;
+  /*!
+   * \brief Save the memory scopes.
+   * \param strm The output stream.
+   */
+  void SaveMemoryScopeSection(support::Stream* strm) const;
   /*!
    * \brief Save the constant pool.
    * \param strm The input stream.
    */
-  void SaveConstantSection(dmlc::Stream* strm);
+  void SaveConstantSection(support::Stream* strm) const;
   /*!
    * \brief Save the instructions.
    * \param strm The input stream.
    */
-  void SaveCodeSection(dmlc::Stream* strm);
+  void SaveCodeSection(support::Stream* strm) const;
   /*!
    * \brief Save the packed functions.
    * \param strm The input stream.
    */
-  void SavePackedFuncNames(dmlc::Stream* strm);
+  void SavePackedFuncNames(support::Stream* strm) const;
   /*!
    * \brief Load the globals.
    * \param strm The input stream.
    */
-  void LoadGlobalSection(dmlc::Stream* strm);
+  void LoadGlobalSection(support::Stream* strm);
+  /*!
+   * \brief Load the memory scopes.
+   * \param strm The input stream.
+   */
+  void LoadMemoryScopeSection(support::Stream* strm);
   /*!
    * \brief Load the constant pool.
    * \param strm The input stream.
    */
-  void LoadConstantSection(dmlc::Stream* strm);
+  void LoadConstantSection(support::Stream* strm);
   /*!
    * \brief Load the instructions.
    * \param strm The input stream.
    */
-  void LoadCodeSection(dmlc::Stream* strm);
+  void LoadCodeSection(support::Stream* strm);
   /*!
    * \brief Save the packed functions.
    * \param strm The input stream.
    */
-  void LoadPackedFuncNames(dmlc::Stream* strm);
+  void LoadPackedFuncNames(support::Stream* strm);
 };
 
 }  // namespace vm
 }  // namespace runtime
 }  // namespace tvm
 
-namespace dmlc {
-DMLC_DECLARE_TRAITS(has_saveload, ::tvm::runtime::vm::VMFuncInfo, true);
-}  // namespace dmlc
+namespace tvm {
+namespace support {
+template <>
+struct Serializer<::tvm::runtime::vm::VMFuncInfo> {
+  static constexpr bool enabled = true;
+  static void Write(Stream* strm, const ::tvm::runtime::vm::VMFuncInfo& data) { data.Save(strm); }
+  static bool Read(Stream* strm, ::tvm::runtime::vm::VMFuncInfo* data) { return data->Load(strm); }
+};
+}  // namespace support
+}  // namespace tvm
 #endif  // TVM_RUNTIME_VM_EXECUTABLE_H_

@@ -14,20 +14,23 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F841
 
-from typing import List, Set, Tuple
-import tvm
-from tvm import relax, testing
-from tvm.relax.transform import DataflowUseInplaceCalls
-from tvm.relax.testing.transform import (
-    dataflow_liveness_analysis,
-    dataflow_alias_analysis,
-    dataflow_inplace_analysis,
-    dataflow_single_inplace_call,
-)
-from tvm.script.parser import ir as I, relax as R, tir as T
 
 import numpy as np
+
+import tvm
+from tvm import relax, testing
+from tvm.relax.testing.transform import (
+    dataflow_alias_analysis,
+    dataflow_inplace_analysis,
+    dataflow_liveness_analysis,
+    dataflow_single_inplace_call,
+)
+from tvm.relax.transform import DataflowUseInplaceCalls
+from tvm.script.parser import ir as I
+from tvm.script.parser import relax as R
+from tvm.script.parser import tir as T
 
 
 def test_liveness_analysis():
@@ -176,7 +179,7 @@ def test_alias_call_tir():
             B = T.match_buffer(y, (m, n), "int32")
 
             for i, j in T.grid(m, n):
-                with T.block("id"):
+                with T.sblock("id"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vi, vj]
 
@@ -190,7 +193,7 @@ def test_alias_call_tir():
             C = T.match_buffer(z, (m, n), "int32")
 
             for i, j in T.grid(m, n):
-                with T.block("id"):
+                with T.sblock("id"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vi, vj]
                     C[vi, vj] = A[vi, vj]
@@ -323,9 +326,9 @@ def test_inplace_simple_case():
     @I.ir_module
     class InplaceBasic:
         @R.function
-        def main(
-            x: R.Tensor((2, 3), "int32"), y: R.Tensor((2, 3), "int32")
-        ) -> R.Tensor((2, 3), "int32"):
+        def main(x: R.Tensor((2, 3), "int32"), y: R.Tensor((2, 3), "int32")) -> R.Tensor(
+            (2, 3), "int32"
+        ):
             with R.dataflow():
                 z = R.add(x, y)  # cannot be done inplace: x and y are live later
                 p = R.add(z, z)  # can be done inplace: z is not used later
@@ -343,7 +346,7 @@ def test_inplace_simple_case():
 
     # order does not matter for the listing of candidates, so we have to implement as sets
     def assert_candidate_list(
-        actual: List[Tuple[int, Set[int]]], expected: List[Tuple[int, Set[int]]]
+        actual: list[tuple[int, set[int]]], expected: list[tuple[int, set[int]]]
     ) -> None:
         assert len(actual) == len(expected)
         for i in range(len(actual)):
@@ -379,7 +382,7 @@ def test_inplace_single_call():
     ):
         T.func_attr({"tir.noalias": True})
         for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
-            with T.block("T_add"):
+            with T.sblock("T_add"):
                 v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                 T.reads(A[v_ax0, v_ax1], B[v_ax0, v_ax1])
                 T.writes(A[v_ax0, v_ax1])
@@ -395,15 +398,15 @@ def test_inplace_single_call():
     @T.prim_func(private=True)
     def expected_silu(A: T.Buffer((T.int64(2), T.int64(3)), "float32")):
         T.func_attr({"tir.noalias": True})
-        compute = T.alloc_buffer((T.int64(2), T.int64(3)))
+        compute = T.sblock_alloc_buffer((T.int64(2), T.int64(3)))
         for i0, i1 in T.grid(T.int64(2), T.int64(3)):
-            with T.block("compute"):
+            with T.sblock("compute"):
                 v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
                 T.reads(A[v_i0, v_i1])
                 T.writes(compute[v_i0, v_i1])
                 compute[v_i0, v_i1] = T.sigmoid(A[v_i0, v_i1])
         for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
-            with T.block("T_multiply"):
+            with T.sblock("T_multiply"):
                 v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                 T.reads(A[v_ax0, v_ax1], compute[v_ax0, v_ax1])
                 T.writes(A[v_ax0, v_ax1])
@@ -447,7 +450,7 @@ def test_insert_inplace_calls():
         ):
             T.func_attr({"tir.noalias": True})
             for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
-                with T.block("T_add"):
+                with T.sblock("T_add"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(A[v_ax0, v_ax1], B[T.int64(0), v_ax1])
                     T.writes(A[v_ax0, v_ax1])
@@ -460,7 +463,7 @@ def test_insert_inplace_calls():
         ):
             T.func_attr({"tir.noalias": True})
             for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
-                with T.block("T_multiply"):
+                with T.sblock("T_multiply"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(A[v_ax0, v_ax1], B[T.int64(0), v_ax1])
                     T.writes(A[v_ax0, v_ax1])
@@ -473,7 +476,7 @@ def test_insert_inplace_calls():
         ):
             T.func_attr({"tir.noalias": True})
             for ax0, ax1 in T.grid(T.int64(1), T.int64(3)):
-                with T.block("T_subtract"):
+                with T.sblock("T_subtract"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(A[v_ax0, v_ax1], B[v_ax0, v_ax1])
                     T.writes(B[v_ax0, v_ax1])
@@ -526,8 +529,8 @@ def test_insert_inplace_calls():
     new_mod = transform_pass(EndToEndTest)
     tvm.ir.assert_structural_equal(new_mod, Expected)
 
-    x = tvm.nd.array(np.random.rand(2, 3).astype("float32"))
-    y = tvm.nd.array(np.random.rand(1, 3).astype("float32"))
+    x = tvm.runtime.tensor(np.random.rand(2, 3).astype("float32"))
+    y = tvm.runtime.tensor(np.random.rand(1, 3).astype("float32"))
     expected = np.zeros((2, 3), dtype="float32")
 
     target = tvm.target.Target("llvm")
@@ -565,7 +568,7 @@ def test_dynamic():
             A = T.match_buffer(var_A, (a, b))
             B = T.match_buffer(var_B, (a, b))
             for ax0, ax1 in T.grid(a, b):
-                with T.block("T_add"):
+                with T.sblock("T_add"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(A[v_ax0, v_ax1], B[v_ax0, v_ax1])
                     T.writes(A[v_ax0, v_ax1])
@@ -578,7 +581,7 @@ def test_dynamic():
             A = T.match_buffer(var_A, (a, b))
             B = T.match_buffer(var_B, (a, b))
             for ax0, ax1 in T.grid(a, b):
-                with T.block("T_subtract"):
+                with T.sblock("T_subtract"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(A[v_ax0, v_ax1], B[v_ax0, v_ax1])
                     T.writes(B[v_ax0, v_ax1])
@@ -609,8 +612,8 @@ def test_dynamic():
             return s
 
     tvm.ir.assert_structural_equal(new_mod, Expected, map_free_vars=True)
-    x = tvm.nd.array(np.random.rand(2, 3).astype("float32"))
-    y = tvm.nd.array(np.random.rand(2, 3).astype("float32"))
+    x = tvm.runtime.tensor(np.random.rand(2, 3).astype("float32"))
+    y = tvm.runtime.tensor(np.random.rand(2, 3).astype("float32"))
     expected = np.zeros((2, 3), dtype="float32")
 
     target = tvm.target.Target("llvm")

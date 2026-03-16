@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F841
 import tvm
 import tvm.testing
 from tvm import relax as rx
@@ -21,9 +22,9 @@ from tvm.script import relax as R
 from tvm.script import tir as T
 
 
-@tvm.register_func("test.op.identity", override=True)
+@tvm.register_global_func("test.op.identity", override=True)
 def identity_packed(a):
-    return tvm.nd.array(a.numpy())
+    return tvm.runtime.tensor(a.numpy())
 
 
 @T.prim_func
@@ -32,7 +33,7 @@ def identity_tir(a: T.handle, b: T.handle) -> None:
     B = T.match_buffer(b, [54, 96])
 
     for i, j in T.grid(54, 96):
-        with T.block("compute"):
+        with T.sblock("compute"):
             vi, vj = T.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj]
 
@@ -58,7 +59,7 @@ def test_call_tir_with_grad():
     )
     assert v2.attrs.te_grad_name == "identity_k_grad"
     assert isinstance(v2.attrs.te_grad_kwargs, tvm.ir.container.Map)
-    val = list(v2.attrs.te_grad_kwargs.items())[0]
+    val = next(iter(v2.attrs.te_grad_kwargs.items()))
     assert val[0] == "k" and float(val[1]) == 1.0
 
 

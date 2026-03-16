@@ -18,6 +18,7 @@
 import pytest
 
 import tvm
+import tvm.ir
 import tvm.testing
 from tvm import tir
 from tvm.script import tir as T
@@ -98,7 +99,7 @@ def test_simplify_symbolic_comparison():
 def test_simplify_vscale_comparison_with_sve_target(expression):
     ana = tvm.arith.Analyzer()
 
-    with tvm.target.Target("llvm -mtriple=aarch64-linux-gnu -mattr=+sve"):
+    with tvm.target.Target({"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}):
         assert ana.can_prove(expression)
 
 
@@ -107,16 +108,18 @@ def test_simplify_vscale_comparison_without_sve_target(capfd):
     vs = tvm.tir.vscale()
 
     with pytest.raises(AssertionError):
-        with tvm.target.Target("llvm -mtriple=aarch64-linux-gnu"):
+        with tvm.target.Target({"kind": "llvm", "mtriple": "aarch64-linux-gnu"}):
             assert ana.can_prove(vs * 32 < vs * 64)
 
-    warning_msg = (
+    warning_prefix = (
         "Warning: The expression contains scalable values. An attempt to prove by substituting "
         "with known values of vscale was not performed. This proof currently only supports "
-        "VLA targets, but the target was llvm -keys=arm_cpu,cpu -mtriple=aarch64-linux-gnu"
+        "VLA targets, but the target was "
     )
     capture = capfd.readouterr().err
-    assert warning_msg in capture
+    assert warning_prefix in capture
+    assert '"kind":"llvm"' in capture
+    assert '"mtriple":"aarch64-linux-gnu"' in capture
 
 
 def test_regression_simplify_inf_recursion():
@@ -142,6 +145,17 @@ def test_simplify_floor_mod_with_linear_offset():
     assert ana.can_prove_equal(tvm.tir.floormod(expr1, divisor1), 0)
     divisor2 = 32 * (past_decoder_sequence_length + 1)
     assert ana.can_prove_equal(tvm.tir.floormod(expr1, divisor2), 0)
+
+
+def test_simplify_float_division():
+    # Test for the discussion:
+    # https://discuss.tvm.apache.org/t/discuss-is-constant-division-to-multiplication-rewrite-in-tvm-necessary/18615
+    ana = tvm.arith.Analyzer()
+    x = tir.Var("x", "float32")
+    ry = x / 27
+    # in old version, the division will be rewritten into x * T.float32(1 / 27)
+    sy = ana.rewrite_simplify(ry)
+    tvm.ir.assert_structural_equal(ry, sy)
 
 
 if __name__ == "__main__":

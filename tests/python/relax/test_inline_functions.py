@@ -14,12 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401
 
 import pytest
 
 import tvm
 import tvm.testing
-from tvm.script import relax as R, ir as I, tir as T
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 @pytest.mark.parametrize("key_type", [tvm.ir.GlobalVar, str])
@@ -52,9 +55,9 @@ def test_inline_simple(key_type):
         return D
 
     gvar = Before.get_global_var("subroutine")
-    if key_type == tvm.ir.GlobalVar:
+    if key_type is tvm.ir.GlobalVar:
         key = gvar
-    elif key_type == str:
+    elif key_type is str:
         key = gvar.name_hint
     else:
         raise TypeError(f"Unknown key_type: {key_type}")

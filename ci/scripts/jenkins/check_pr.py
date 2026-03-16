@@ -15,18 +15,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501
 import argparse
-import re
-import os
 import json
+import os
+import re
 import textwrap
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, List, Callable
+from typing import Any
 
-
-from git_utils import GitHubRepo, parse_remote, git
 from cmd_utils import init_log, tags_from_title
-
+from git_utils import GitHubRepo, git, parse_remote
 
 GITHUB_USERNAME_REGEX = re.compile(r"(@[a-zA-Z0-9-]+)", flags=re.MULTILINE)
 OK = object()
@@ -69,23 +69,21 @@ def trailing_period(s: str):
 title_checks = [
     Check(check=non_empty, error_fn=lambda d: "PR must have a title but title was empty"),
     Check(check=trailing_period, error_fn=lambda d: "PR must not end in a tailing '.'"),
-    # TODO(driazati): enable this check once https://github.com/apache/tvm/issues/12637 is done
-    # Check(
-    #     check=usernames,
-    #     error_fn=lambda d: f"PR title must not tag anyone but found these usernames: {d}",
-    # ),
+    Check(
+        check=usernames,
+        error_fn=lambda d: f"PR title must not tag anyone but found these usernames: {d}",
+    ),
 ]
 body_checks = [
     Check(check=non_empty, error_fn=lambda d: "PR must have a body but body was empty"),
-    # TODO(driazati): enable this check once https://github.com/apache/tvm/issues/12637 is done
-    # Check(
-    #     check=usernames,
-    #     error_fn=lambda d: f"PR body must not tag anyone but found these usernames: {d}",
-    # ),
+    Check(
+        check=usernames,
+        error_fn=lambda d: f"PR body must not tag anyone but found these usernames: {d}",
+    ),
 ]
 
 
-def run_checks(checks: List[Check], s: str, name: str) -> bool:
+def run_checks(checks: list[Check], s: str, name: str) -> bool:
     print(f"Running checks for {name}")
     print(textwrap.indent(s, prefix="    "))
     passed = True
@@ -93,11 +91,11 @@ def run_checks(checks: List[Check], s: str, name: str) -> bool:
     for i, check in enumerate(checks):
         result = check.check(s)
         if result == OK:
-            print(f"        [{i+1}] {check.check.__name__}: PASSED")
+            print(f"        [{i + 1}] {check.check.__name__}: PASSED")
         else:
             passed = False
             msg = check.error_fn(result)
-            print(f"        [{i+1}] {check.check.__name__}: FAILED: {msg}")
+            print(f"        [{i + 1}] {check.check.__name__}: FAILED: {msg}")
 
     return passed
 

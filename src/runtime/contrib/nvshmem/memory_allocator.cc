@@ -57,7 +57,7 @@ class NVSHMEMAllocator final : public PooledAllocator {
     return allocator;
   }
 
-  NDArray Empty(ffi::Shape shape, DataType dtype, Device device) {
+  Tensor Empty(ffi::Shape shape, DataType dtype, Device device) {
     class NVSHMEMAlloc {
      public:
       explicit NVSHMEMAlloc(Buffer buffer) : buffer_(buffer) {}
@@ -68,17 +68,18 @@ class NVSHMEMAllocator final : public PooledAllocator {
       Buffer buffer_;
     };
 
-    Buffer buffer = PooledAllocator::Alloc(device, shape, dtype, String("nvshmem"));
-    return NDArray::FromNDAlloc(NVSHMEMAlloc(buffer), shape, dtype, device);
+    Buffer buffer = PooledAllocator::Alloc(device, shape, dtype, ffi::String("nvshmem"));
+    return Tensor::FromNDAlloc(NVSHMEMAlloc(buffer), shape, dtype, device);
   }
 
  private:
   void* DeviceAllocDataSpace(Device dev, size_t size, size_t alignment,
                              DLDataType type_hint) final {
-    ICHECK_EQ(dev.device_type, DLDeviceType::kDLCUDA)
-        << "nvshmem can only allocate cuda device memory space.";
-    ICHECK(type_hint.code == DLDataTypeCode::kDLInt || type_hint.code == DLDataTypeCode::kDLUInt ||
-           type_hint.code == DLDataTypeCode::kDLFloat)
+    TVM_FFI_ICHECK_EQ(dev.device_type, DLDeviceType::kDLCUDA)
+        << "nvshmem can only allocate CUDA device memory space.";
+    TVM_FFI_ICHECK(type_hint.code == DLDataTypeCode::kDLInt ||
+                   type_hint.code == DLDataTypeCode::kDLUInt ||
+                   type_hint.code == DLDataTypeCode::kDLFloat)
         << "nvshmem can only allocate tensor with int, usingned int or float data types.";
     return nvshmem_align(alignment, size);
   }
@@ -86,24 +87,24 @@ class NVSHMEMAllocator final : public PooledAllocator {
   void DeviceFreeDataSpace(Device dev, void* ptr) final { nvshmem_free(ptr); }
 };
 
-NDArray NVSHMEMEmpty(ffi::Shape shape, DataType dtype, Device device) {
+Tensor NVSHMEMEmpty(ffi::Shape shape, DataType dtype, Device device) {
   return NVSHMEMAllocator::Global()->Empty(shape, dtype, UseDefaultDeviceIfNone(device));
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("runtime.disco.nvshmem.empty", NVSHMEMEmpty);
-});
+}
 
 void NVSHMEMFinalize() {
   NVSHMEMAllocator::Global()->Clear();
   nvshmem_finalize();
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("runtime.disco.nvshmem.finalize_nvshmem", NVSHMEMFinalize);
-});
+}
 
 }  // namespace runtime
 }  // namespace tvm

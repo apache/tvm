@@ -29,11 +29,12 @@ TENSORFLOW_VERSION=$(python3 -c "import tensorflow; print(tensorflow.__version__
 git clone --branch=v24.3.25 --depth=1 --recursive https://github.com/google/flatbuffers.git
 cd flatbuffers
 cmake -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS="-Wno-class-memaccess"
-make install -j8
+cmake --build . --parallel "$(( $(nproc) - 1 ))"
+cmake --install .
 cd ..
 
 # Install flatbuffers python packages.
-pip3 install flatbuffers
+uv pip install flatbuffers==24.3.25
 
 # Build the TFLite static library, necessary for building with TFLite ON.
 # The library is built at:
@@ -46,7 +47,7 @@ cmake \
   -DTFLITE_ENABLE_XNNPACK=OFF \
   /tensorflow/tensorflow/lite
 
-cmake --build .
+cmake --build . --parallel "$(( $(nproc) - 1 ))"
 cd -
 
 

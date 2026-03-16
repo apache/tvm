@@ -23,6 +23,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <map>
 #include <string>
 
 #include "../../../support/str_escape.h"
@@ -127,9 +128,9 @@ ExprPrecedence GetExprPrecedence(const ExprDoc& doc) {
 
   if (const auto* op_doc = doc.as<OperationDocNode>()) {
     size_t kind = static_cast<int>(op_doc->kind);
-    ICHECK_LT(kind, op_kind_precedence.size()) << "ValueError: Invalid operation: " << kind;
+    TVM_FFI_CHECK_LT(kind, op_kind_precedence.size(), ValueError) << "Invalid operation: " << kind;
     ExprPrecedence precedence = op_kind_precedence[kind];
-    ICHECK(precedence != ExprPrecedence::kUnkown)
+    TVM_FFI_ICHECK(precedence != ExprPrecedence::kUnkown)
         << "Precedence for operator " << static_cast<int>(op_doc->kind) << " is unknown";
     return precedence;
   }
@@ -137,7 +138,7 @@ ExprPrecedence GetExprPrecedence(const ExprDoc& doc) {
   if (it != doc_type_precedence.end()) {
     return it->second;
   }
-  ICHECK(false) << "Precedence for doc type " << doc->GetTypeKey() << " is unknown";
+  TVM_FFI_ICHECK(false) << "Precedence for doc type " << doc->GetTypeKey() << " is unknown";
   throw;
 }
 
@@ -182,7 +183,7 @@ class PythonDocPrinter : public DocPrinter {
   }
 
   template <typename DocType>
-  void PrintJoinedDocs(const Array<DocType>& docs, const std::string& separator) {
+  void PrintJoinedDocs(const ffi::Array<DocType>& docs, const std::string& separator) {
     bool is_first = true;
     for (auto& doc : docs) {
       if (is_first) {
@@ -194,7 +195,7 @@ class PythonDocPrinter : public DocPrinter {
     }
   }
 
-  void PrintIndentedBlock(const Array<StmtDoc>& docs) {
+  void PrintIndentedBlock(const ffi::Array<StmtDoc>& docs) {
     IncreaseIndent();
     for (const StmtDoc& d : docs) {
       NewLine();
@@ -207,7 +208,7 @@ class PythonDocPrinter : public DocPrinter {
     DecreaseIndent();
   }
 
-  void PrintDecorators(const Array<ExprDoc>& decorators) {
+  void PrintDecorators(const ffi::Array<ExprDoc>& decorators) {
     for (const ExprDoc& decorator : decorators) {
       output_ << "@";
       PrintDoc(decorator);
@@ -252,11 +253,11 @@ class PythonDocPrinter : public DocPrinter {
   }
 
   void MaybePrintCommentInline(const StmtDoc& stmt) {
-    if (stmt->comment.defined()) {
+    if (stmt->comment.has_value()) {
       const std::string& comment = stmt->comment.value();
       bool has_newline = std::find(comment.begin(), comment.end(), '\n') != comment.end();
-      CHECK(!has_newline) << "ValueError: the comment string of " << stmt->GetTypeKey()
-                          << " cannot have newline.";
+      TVM_FFI_CHECK(!has_newline, ValueError)
+          << "the comment string of " << stmt->GetTypeKey() << " cannot have newline.";
       size_t start_pos = output_.tellp();
       output_ << "  # " << comment;
       size_t end_pos = output_.tellp();
@@ -265,7 +266,7 @@ class PythonDocPrinter : public DocPrinter {
   }
 
   void MaybePrintCommenMultiLines(const StmtDoc& stmt, bool new_line = false) {
-    if (stmt->comment.defined()) {
+    if (stmt->comment.has_value()) {
       std::vector<std::string> comment_lines = support::Split(stmt->comment.value(), '\n');
       bool first_line = true;
       size_t start_pos = output_.tellp();
@@ -285,7 +286,7 @@ class PythonDocPrinter : public DocPrinter {
     }
   }
 
-  void PrintDocString(const String& comment) {
+  void PrintDocString(const ffi::String& comment) {
     size_t start_pos = output_.tellp();
     output_ << "\"\"\"";
 
@@ -304,7 +305,7 @@ class PythonDocPrinter : public DocPrinter {
     underlines_exempted_.push_back({start_pos, end_pos});
   }
 
-  void PrintBlockComment(const String& comment) {
+  void PrintBlockComment(const ffi::String& comment) {
     IncreaseIndent();
     NewLine();
     PrintDocString(comment);
@@ -313,8 +314,8 @@ class PythonDocPrinter : public DocPrinter {
 };
 
 void PythonDocPrinter::PrintTypedDoc(const LiteralDoc& doc) {
-  const ObjectRef& value = doc->value;
-  if (!value.defined()) {
+  const ffi::Any& value = doc->value;
+  if (value == nullptr) {
     output_ << "None";
   } else if (const auto* int_imm = value.as<IntImmNode>()) {
     if (int_imm->dtype.is_bool()) {
@@ -351,10 +352,10 @@ void PythonDocPrinter::PrintTypedDoc(const LiteralDoc& doc) {
       output_ << float_imm->value;
     }
 
-  } else if (const auto* string_obj = value.as<ffi::StringObj>()) {
-    output_ << "\"" << support::StrEscape(string_obj->data, string_obj->size) << "\"";
+  } else if (const auto opt_str = value.as<ffi::String>()) {
+    output_ << "\"" << support::StrEscape((*opt_str).data(), (*opt_str).size()) << "\"";
   } else {
-    LOG(FATAL) << "TypeError: Unsupported literal value type: " << value->GetTypeKey();
+    TVM_FFI_THROW(TypeError) << "Unsupported literal value type: " << value.GetTypeKey();
   }
 }
 
@@ -416,10 +417,10 @@ const std::string OperatorToString(OperationDocNode::Kind operation_kind) {
   }();
 
   auto op_index = static_cast<int>(operation_kind);
-  ICHECK_LT(op_index, op_kind2str.size());
+  TVM_FFI_ICHECK_LT(op_index, op_kind2str.size());
   const std::string str = op_kind2str[op_index];
-  ICHECK(!str.empty()) << "OperationDocNode::Kind " << static_cast<int>(operation_kind)
-                       << " cannot be converted to operator token in Python directly.";
+  TVM_FFI_ICHECK(!str.empty()) << "OperationDocNode::Kind " << static_cast<int>(operation_kind)
+                               << " cannot be converted to operator token in Python directly.";
   return str;
 }
 
@@ -427,7 +428,7 @@ void PythonDocPrinter::PrintTypedDoc(const OperationDoc& doc) {
   using OpKind = OperationDocNode::Kind;
   if (doc->kind < OpKind::kUnaryEnd) {
     // Unary Operators
-    ICHECK_EQ(doc->operands.size(), 1);
+    TVM_FFI_ICHECK_EQ(doc->operands.size(), 1);
     output_ << OperatorToString(doc->kind);
     PrintChildExpr(doc->operands[0], doc);
   } else if (doc->kind == OpKind::kPow) {
@@ -435,26 +436,27 @@ void PythonDocPrinter::PrintTypedDoc(const OperationDoc& doc) {
     // It's right-associative and binds less tightly than unary operator on its right.
     // https://docs.python.org/3/reference/expressions.html#the-power-operator
     // https://docs.python.org/3/reference/expressions.html#operator-precedence
-    ICHECK_EQ(doc->operands.size(), 2);
+    TVM_FFI_ICHECK_EQ(doc->operands.size(), 2);
     PrintChildExprConservatively(doc->operands[0], doc);
     output_ << " ** ";
     PrintChildExpr(doc->operands[1], ExprPrecedence::kUnary);
   } else if (doc->kind < OpKind::kBinaryEnd) {
     // Binary Operator
-    ICHECK_EQ(doc->operands.size(), 2);
+    TVM_FFI_ICHECK_EQ(doc->operands.size(), 2);
     PrintChildExpr(doc->operands[0], doc);
     output_ << " " << OperatorToString(doc->kind) << " ";
     PrintChildExprConservatively(doc->operands[1], doc);
   } else if (doc->kind == OpKind::kIfThenElse) {
-    ICHECK_EQ(doc->operands.size(), 3)
-        << "ValueError: IfThenElse requires 3 operands, but got " << doc->operands.size();
+    TVM_FFI_CHECK_EQ(doc->operands.size(), 3, ValueError)
+        << "IfThenElse requires 3 operands, but got " << doc->operands.size();
     PrintChildExpr(doc->operands[1], doc);
     output_ << " if ";
     PrintChildExprConservatively(doc->operands[0], doc);
     output_ << " else ";
     PrintChildExprConservatively(doc->operands[2], doc);
   } else {
-    LOG(FATAL) << "Unknown OperationDocNode::Kind " << static_cast<int>(doc->kind);
+    TVM_FFI_THROW(InternalError) << "Unknown OperationDocNode::Kind "
+                                 << static_cast<int>(doc->kind);
     throw;
   }
 }
@@ -476,7 +478,7 @@ void PythonDocPrinter::PrintTypedDoc(const CallDoc& doc) {
   }
 
   // Print keyword args
-  ICHECK_EQ(doc->kwargs_keys.size(), doc->kwargs_values.size())
+  TVM_FFI_ICHECK_EQ(doc->kwargs_keys.size(), doc->kwargs_values.size())
       << "CallDoc should have equal number of elements in kwargs_keys and kwargs_values.";
   for (size_t i = 0; i < doc->kwargs_keys.size(); i++) {
     if (is_first) {
@@ -484,7 +486,7 @@ void PythonDocPrinter::PrintTypedDoc(const CallDoc& doc) {
     } else {
       output_ << ", ";
     }
-    const String& keyword = doc->kwargs_keys[i];
+    const ffi::String& keyword = doc->kwargs_keys[i];
     output_ << keyword;
     output_ << "=";
     PrintDoc(doc->kwargs_values[i]);
@@ -518,7 +520,7 @@ void PythonDocPrinter::PrintTypedDoc(const TupleDoc& doc) {
 }
 
 void PythonDocPrinter::PrintTypedDoc(const DictDoc& doc) {
-  ICHECK_EQ(doc->keys.size(), doc->values.size())
+  TVM_FFI_ICHECK_EQ(doc->keys.size(), doc->values.size())
       << "DictDoc should have equal number of elements in keys and values.";
   output_ << "{";
   size_t idx = 0;
@@ -663,7 +665,8 @@ void PythonDocPrinter::PrintTypedDoc(const ReturnDoc& doc) {
 
 void PythonDocPrinter::PrintTypedDoc(const FunctionDoc& doc) {
   for (const AssignDoc& arg_doc : doc->args) {
-    ICHECK(arg_doc->comment == nullptr) << "Function arg cannot have comment attached to them.";
+    TVM_FFI_ICHECK(!arg_doc->comment.has_value())
+        << "Function arg cannot have comment attached to them.";
   }
 
   PrintDecorators(doc->decorators);
@@ -682,7 +685,7 @@ void PythonDocPrinter::PrintTypedDoc(const FunctionDoc& doc) {
 
   output_ << ":";
 
-  if (doc->comment.defined()) {
+  if (doc->comment.has_value()) {
     PrintBlockComment(doc->comment.value());
   }
   PrintIndentedBlock(doc->body);
@@ -696,25 +699,25 @@ void PythonDocPrinter::PrintTypedDoc(const ClassDoc& doc) {
   PrintDoc(doc->name);
   output_ << ":";
 
-  if (doc->comment.defined()) {
+  if (doc->comment.has_value()) {
     PrintBlockComment(doc->comment.value());
   }
   PrintIndentedBlock(doc->body);
 }
 
 void PythonDocPrinter::PrintTypedDoc(const CommentDoc& doc) {
-  if (doc->comment.defined()) {
+  if (doc->comment.has_value()) {
     MaybePrintCommenMultiLines(doc, false);
   }
 }
 
 void PythonDocPrinter::PrintTypedDoc(const DocStringDoc& doc) {
-  if (doc->comment.defined() && !doc->comment.value().empty()) {
+  if (doc->comment.has_value() && !doc->comment.value().empty()) {
     PrintDocString(doc->comment.value());
   }
 }
 
-String DocToPythonScript(Doc doc, const PrinterConfig& cfg) {
+ffi::String DocToPythonScript(Doc doc, const PrinterConfig& cfg) {
   if (cfg->num_context_lines < 0) {
     cfg->num_context_lines = std::numeric_limits<int32_t>::max();
   }
@@ -728,10 +731,10 @@ String DocToPythonScript(Doc doc, const PrinterConfig& cfg) {
   return result.substr(0, last_space);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("script.printer.DocToPythonScript", DocToPythonScript);
-});
+}
 
 }  // namespace printer
 }  // namespace script

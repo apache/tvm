@@ -19,21 +19,23 @@
 
 import collections
 import inspect
-from typing import Callable, List, Mapping, Optional, Tuple, Union
+from collections.abc import Callable, Mapping
+from typing import Optional
+
+import tvm_ffi
 
 import tvm
-import tvm.ffi
 import tvm.runtime
 from tvm.ir import BaseFunc, Range
 from tvm.runtime import Object, Scriptable
 
-from ..runtime.ndarray import NDArray
+from ..runtime._tensor import Tensor
 from . import _ffi_api
 from .buffer import Buffer
 from .expr import PrimExpr, Var
 
 
-@tvm.ffi.register_object("tir.PrimFunc")
+@tvm_ffi.register_object("tir.PrimFunc")
 class PrimFunc(BaseFunc, Scriptable):
     """A function declaration expression.
 
@@ -118,7 +120,7 @@ class PrimFunc(BaseFunc, Scriptable):
             span,
         )
 
-    def specialize(self, param_map: Mapping[Var, Union[PrimExpr, Buffer]]):
+    def specialize(self, param_map: Mapping[Var, PrimExpr | Buffer]):
         """Specialize parameters of PrimFunc
 
         Parameters
@@ -139,7 +141,7 @@ class PrimFunc(BaseFunc, Scriptable):
                 B = T.match_buffer(b, (m, n), "float32")
 
                 for i, j in T.grid(m, n):
-                    with T.block():
+                    with T.sblock():
                         vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj]
 
@@ -162,7 +164,7 @@ class PrimFunc(BaseFunc, Scriptable):
                 B = T.match_buffer(b, (16, 16), "float32")
 
                 for i, j in T.grid(16, 16):
-                    with T.block():
+                    with T.sblock():
                         vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj]
 
@@ -174,7 +176,7 @@ class PrimFunc(BaseFunc, Scriptable):
         return _ffi_api.Specialize(self, param_map)  # type: ignore
 
 
-@tvm.ffi.register_object("tir.TensorIntrin")
+@tvm_ffi.register_object("tir.TensorIntrin")
 class TensorIntrin(Object):
     """A tensor intrinsic.
 
@@ -205,9 +207,7 @@ class TensorIntrin(Object):
         override: bool
             Whether override existing intrinsic.
         """
-        return _ffi_api.TensorIntrinRegister(
-            name, TensorIntrin(desc, impl), override
-        )  # type: ignore
+        return _ffi_api.TensorIntrinRegister(name, TensorIntrin(desc, impl), override)  # type: ignore
 
     @staticmethod
     def get(name: str, allow_missing: bool = False) -> Optional["TensorIntrin"]:
@@ -230,7 +230,7 @@ class TensorIntrin(Object):
         return _ffi_api.TensorIntrinGet(name, allow_missing)  # pylint: type: ignore
 
 
-@tvm.ffi.register_object("tir.IndexMap")
+@tvm_ffi.register_object("tir.IndexMap")
 class IndexMap(Object):
     """A mapping from multi-dimensional indices to another set of multi-dimensional indices
 
@@ -248,8 +248,8 @@ class IndexMap(Object):
         index map.
     """
 
-    initial_indices: List[Var]
-    final_indices: List[PrimExpr]
+    initial_indices: list[Var]
+    final_indices: list[PrimExpr]
 
     # Sentinel value used to indicate which groups of pre-flattening axes
     # should be used to post-flattening axes axes.  See
@@ -266,8 +266,8 @@ class IndexMap(Object):
     @staticmethod
     def from_func(
         mapping_function: Callable,
-        ndim: Optional[int] = None,
-        inverse_index_map: Union[Callable, Optional["IndexMap"]] = None,
+        ndim: int | None = None,
+        inverse_index_map: Callable | Optional["IndexMap"] = None,
         *,
         index_dtype: str = "int64",
     ):
@@ -321,8 +321,8 @@ class IndexMap(Object):
     @staticmethod
     def from_func_with_separators(
         mapping_function: Callable,
-        ndim: Optional[int] = None,
-        inverse_index_map: Union[Callable, Optional["IndexMap"]] = None,
+        ndim: int | None = None,
+        inverse_index_map: Callable | Optional["IndexMap"] = None,
         *,
         index_dtype: str = "int64",
     ):
@@ -459,7 +459,7 @@ class IndexMap(Object):
 
         return True
 
-    def map_indices(self, indices: List[PrimExpr]) -> List[PrimExpr]:
+    def map_indices(self, indices: list[PrimExpr]) -> list[PrimExpr]:
         """Apply the index map to a set of indices
 
         Parameters
@@ -474,7 +474,7 @@ class IndexMap(Object):
         """
         return _ffi_api.IndexMapMapIndices(self, indices)
 
-    def map_shape(self, shape: List[PrimExpr]) -> List[PrimExpr]:
+    def map_shape(self, shape: list[PrimExpr]) -> list[PrimExpr]:
         """Apply the index map to a buffer shape
 
         Parameters
@@ -489,22 +489,22 @@ class IndexMap(Object):
         """
         return _ffi_api.IndexMapMapShape(self, shape)
 
-    def map_ndarray(self, arr_src: NDArray) -> NDArray:
-        """Apply thie index map to transform the layout of the input NDArray
+    def map_tensor(self, arr_src: Tensor) -> Tensor:
+        """Apply thie index map to transform the layout of the input Tensor
 
         Parameters
         ----------
-        arr_src : runtime.NDArray
-            The NDArray to be transformed
+        arr_src : runtime.Tensor
+            The Tensor to be transformed
 
         Returns
         -------
-        arr_dst : runtime.NDArray
-            The transformed NDArray
+        arr_dst : runtime.Tensor
+            The transformed Tensor
         """
-        return _ffi_api.IndexMapMapNDArray(self, arr_src)
+        return _ffi_api.IndexMapMapTensor(self, arr_src)
 
-    def inverse(self, shape: List[Union[Range, PrimExpr]]) -> "IndexMap":
+    def inverse(self, shape: list[Range | PrimExpr]) -> "IndexMap":
         """Return the inverse of the map
 
         Throws an error if the function is not bijective.
@@ -527,9 +527,7 @@ class IndexMap(Object):
         shape = [dim if isinstance(dim, Range) else Range(0, dim) for dim in shape]
         return _ffi_api.IndexMapInverse(self, shape)
 
-    def non_surjective_inverse(
-        self, shape: List[Union[Range, PrimExpr]]
-    ) -> Tuple["IndexMap", PrimExpr]:
+    def non_surjective_inverse(self, shape: list[Range | PrimExpr]) -> tuple["IndexMap", PrimExpr]:
         """Return the inverse of the map
 
         Can be applied to transformations that introduce padding.

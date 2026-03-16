@@ -23,50 +23,42 @@ namespace script {
 namespace printer {
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<String>("", [](String s, ObjectPath p, IRDocsifier d) -> Doc {
-      if (HasMultipleLines(s)) {
-        return d->AddMetadata(s);
-      }
-      return LiteralDoc::Str(s, p);
-    });
-
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<Array<Any>>(  //
-        "", [](Array<Any> array, ObjectPath p, IRDocsifier d) -> Doc {
+    .set_dispatch<ffi::Array<Any>>(  //
+        "", [](ffi::Array<Any> array, AccessPath p, IRDocsifier d) -> Doc {
           int n = array.size();
-          Array<ExprDoc> results;
+          ffi::Array<ExprDoc> results;
           results.reserve(n);
           for (int i = 0; i < n; ++i) {
-            results.push_back(d->AsDoc<ExprDoc>(array[i], p->ArrayIndex(i)));
+            results.push_back(d->AsDoc<ExprDoc>(array[i], p->ArrayItem(i)));
           }
           return ListDoc(results);
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<Map<Any, Any>>(  //
-        "", [](Map<Any, Any> dict, ObjectPath p, IRDocsifier d) -> Doc {
+    .set_dispatch<ffi::Map<Any, Any>>(  //
+        "", [](ffi::Map<Any, Any> dict, AccessPath p, IRDocsifier d) -> Doc {
           using POO = std::pair<Any, Any>;
           std::vector<POO> items{dict.begin(), dict.end()};
           bool is_str_map = true;
           for (const auto& kv : items) {
-            if (!kv.first.as<ffi::StringObj>()) {
+            if (!kv.first.as<ffi::String>()) {
               is_str_map = false;
               break;
             }
           }
           if (is_str_map) {
             std::sort(items.begin(), items.end(), [](const POO& lhs, const POO& rhs) {
-              return Downcast<String>(lhs.first) < Downcast<String>(rhs.first);
+              return Downcast<ffi::String>(lhs.first) < Downcast<ffi::String>(rhs.first);
             });
           }
           int n = dict.size();
-          Array<ExprDoc> ks;
-          Array<ExprDoc> vs;
+          ffi::Array<ExprDoc> ks;
+          ffi::Array<ExprDoc> vs;
           ks.reserve(n);
           vs.reserve(n);
           for (int i = 0; i < n; ++i) {
-            ks.push_back(d->AsDoc<ExprDoc>(items[i].first, p->MissingMapEntry()));
-            vs.push_back(d->AsDoc<ExprDoc>(items[i].second, p->MapValue(items[i].first)));
+            ks.push_back(d->AsDoc<ExprDoc>(items[i].first, p->MapItemMissing(items[i].first)));
+            vs.push_back(d->AsDoc<ExprDoc>(items[i].second, p->MapItem(items[i].first)));
           }
           return DictDoc(ks, vs);
         });

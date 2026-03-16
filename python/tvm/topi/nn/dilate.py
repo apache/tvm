@@ -16,10 +16,11 @@
 # under the License.
 # pylint: disable=invalid-name
 """Dilation operators"""
+
 import tvm
 from tvm import te
-from .. import utils
-from .. import tag
+
+from .. import tag, utils
 
 
 @te.tag_scope(tag=tag.INJECTIVE + ",dilate")

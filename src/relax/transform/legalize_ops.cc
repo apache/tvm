@@ -31,6 +31,8 @@
 #include <tvm/relax/transform.h>
 #include <tvm/tir/transform.h>
 
+#include <set>
+
 namespace tvm {
 namespace relax {
 
@@ -60,11 +62,18 @@ bool KnowAllShapeValues(const StructInfo& sinfo) {
 
 class LegalizeMutator : public ExprMutator {
  public:
-  explicit LegalizeMutator(const IRModule& mod, const Optional<Map<String, ffi::Function>>& cmap,
+  explicit LegalizeMutator(const IRModule& mod,
+                           const ffi::Optional<ffi::Map<ffi::String, ffi::Function>>& cmap,
+                           const ffi::Optional<ffi::Array<ffi::String>> skip_ops,
                            bool enable_warning)
       : ExprMutator(mod), mod_(std::move(mod)), enable_warning_(enable_warning) {
     if (cmap) {
       cmap_ = cmap.value();
+    }
+    if (skip_ops.defined()) {
+      for (const auto name : skip_ops.value()) {
+        skip_ops_.insert(Op::Get(name));
+      }
     }
   }
 
@@ -130,14 +139,14 @@ class LegalizeMutator : public ExprMutator {
 
   Call WrapPureCall(const Call& ret) {
     static const Op& call_pure_packed_op = Op::Get("relax.call_pure_packed");
-    Array<Expr> ret_args = {ret->op};
+    ffi::Array<Expr> ret_args = {ret->op};
     for (auto arg : ret->args) {
       ret_args.push_back(arg);
     }
     return Call(call_pure_packed_op, ret_args, ret->attrs, ret->sinfo_args);
   }
 
-  Optional<Target> GetTarget(const Array<StructInfo>& sinfos) {
+  ffi::Optional<Target> GetTarget(const ffi::Array<StructInfo>& sinfos) {
     for (auto sinfo : sinfos) {
       if (const auto* tinfo = sinfo.as<TensorStructInfoNode>()) {
         if (tinfo->vdevice.defined()) {
@@ -236,7 +245,11 @@ class LegalizeMutator : public ExprMutator {
     if (op_node == nullptr) {
       return visited_call;
     }
-    auto op = GetRef<Op>(op_node);
+    auto op = ffi::GetRef<Op>(op_node);
+
+    if (skip_ops_.find(op) != skip_ops_.end()) {
+      return visited_call;
+    }
 
     bool shapes_are_known_if_required = [&]() -> bool {
       bool requires_arg_shapes = requires_arg_shapes_map.get(op, Bool(true))->value;
@@ -274,8 +287,15 @@ class LegalizeMutator : public ExprMutator {
         return false;
       }
 
-      std::string op_name(op->name);
-      bool is_data_dependent_op = (op_name.find("dynamic") != std::string::npos);
+      bool is_data_dependent_op = [&]() -> bool {
+        if (Op::HasAttrMap("FDataDependent")) {
+          auto op_map = Op::GetAttrMap<Bool>("FDataDependent");
+          if (op_map.count(op)) {
+            return op_map[op]->value;
+          }
+        }
+        return false;
+      }();
       bool ret_shape_defined = KnowAllShapeValues(GetStructInfo(visited_call));
       if (!is_data_dependent_op && !ret_shape_defined) {
         // This operator cannot be legalized, because legalization by
@@ -290,10 +310,6 @@ class LegalizeMutator : public ExprMutator {
         // data-dependent op, and match cast to define symbolic output
         // shapes.  These symbolic output shapes at compile time can
         // be by later operations to refer to the runtime shape.
-        //
-        // TODO(Lunderberg): Make a new operator attribute
-        // `.set_attr<Bool>("DataDependent")`, rather than relying on
-        // the name of the operator.
         return false;
       }
 
@@ -312,7 +328,7 @@ class LegalizeMutator : public ExprMutator {
       legalization_func = legalize_map[op];
     } else if (call_packed_map.count(op)) {
       // Third choice, use an explicit FCallPacked replacement.  This does not require the shape
-      String packed_func_name = call_packed_map[op];
+      ffi::String packed_func_name = call_packed_map[op];
       legalization_func = [packed_func_name](const BlockBuilder& bb, const Call& call) -> Expr {
         return Call(ExternFunc(packed_func_name), call->args, Attrs(), {GetStructInfo(call)});
       };
@@ -378,7 +394,7 @@ class LegalizeMutator : public ExprMutator {
   /*! \brief The context IRModule. */
   IRModule mod_;
   /*! \brief The customized legalization function map. */
-  Map<String, ffi::Function> cmap_;
+  ffi::Map<ffi::String, ffi::Function> cmap_;
   /*! \brief If VDevice annotations produced at least one PrimFunc with a Target attr*/
   bool generated_tir_with_target_attr_{false};
   /*!
@@ -386,16 +402,21 @@ class LegalizeMutator : public ExprMutator {
    * legalization function is not registered.
    */
   bool enable_warning_;
+  /*!
+   * \brief List of ops to be skipped from legalization
+   */
+  std::set<Op> skip_ops_;
 };
 
 namespace transform {
 
-Pass LegalizeOps(Optional<Map<String, ffi::Function>> cmap, bool enable_warning) {
+Pass LegalizeOps(ffi::Optional<ffi::Map<ffi::String, ffi::Function>> cmap,
+                 ffi::Optional<ffi::Array<ffi::String>> skip_ops, bool enable_warning) {
   auto pass_func = [=](IRModule mod, PassContext pc) {
     bool apply_legalize_ops =
         pc->GetConfig<Bool>("relax.transform.apply_legalize_ops").value_or(Bool(true))->value;
     if (apply_legalize_ops) {
-      mod = LegalizeMutator(mod, cmap, enable_warning).Transform();
+      mod = LegalizeMutator(mod, cmap, skip_ops, enable_warning).Transform();
     }
     return mod;
   };
@@ -405,10 +426,10 @@ Pass LegalizeOps(Optional<Map<String, ffi::Function>> cmap, bool enable_warning)
                           /*required=*/{});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.transform.LegalizeOps", LegalizeOps);
-});
+}
 
 }  // namespace transform
 

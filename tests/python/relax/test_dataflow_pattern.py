@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F403, F405, F841
 
 import functools
 import math
@@ -40,7 +41,7 @@ class Module:
         C = T.match_buffer(z, (32, 32))
 
         for i0, j0, k0 in T.grid(32, 32, 32):
-            with T.block():
+            with T.sblock():
                 i, j, k = T.axis.remap("SSR", [i0, j0, k0])
                 with T.init():
                     C[i, j] = 0.0
@@ -52,7 +53,7 @@ class Module:
         A = T.match_buffer(x, (32, 32))
         B = T.match_buffer(y, (32, 32))
         for i, j in T.grid(32, 32):
-            with T.block():
+            with T.sblock():
                 vi, vj = T.axis.remap("SS", [i, j])
                 B[vi, vj] = T.max(A[vi, vj], 0.0)
 
@@ -61,7 +62,7 @@ class Module:
         T.func_attr({"global_symbol": "tir_zeros"})
         A = T.match_buffer(x, [n])
         for i in range(n):
-            with T.block():
+            with T.sblock():
                 vi = T.axis.remap("S", [i])
                 A[vi] = 1.0
 
@@ -277,10 +278,8 @@ def test_op_attr():
     conv2d = rx.op.nn.conv2d(x, y, strides=(3, 3))
     xp = is_var("x")
     yp = is_var("y")
-    # TODO(@yuchen): reenable the assert after figuring out why it fails
-    # assert is_op("nn.conv2d")(xp, yp).has_attr({"strides": [3, 3]}).match(conv2d)
+    assert is_op("relax.nn.conv2d")(xp, yp).has_attr({"strides": [3, 3]}).match(conv2d)
     assert not is_op("relax.nn.conv2d")(xp, yp).has_attr({"strides": [4, 3]}).match(conv2d)
-    assert not is_op("relax.nn.conv2d")(xp, yp).has_attr({"strides": [3, 3]}).match(conv2d)
 
 
 def test_match_call_attr():

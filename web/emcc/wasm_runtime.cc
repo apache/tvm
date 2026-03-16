@@ -28,8 +28,8 @@
 #define TVM_LOG_CUSTOMIZE 1
 #define TVM_FFI_USE_LIBBACKTRACE 0
 #define TVM_FFI_ALWAYS_LOG_BEFORE_THROW 1
-#define DMLC_USE_LOGGING_LIBRARY <tvm/runtime/logging.h>
 
+#include <tvm/ffi/any.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
 
@@ -37,10 +37,7 @@
 #include "src/runtime/cpu_device_api.cc"
 #include "src/runtime/device_api.cc"
 #include "src/runtime/file_utils.cc"
-#include "src/runtime/library_module.cc"
 #include "src/runtime/logging.cc"
-#include "src/runtime/module.cc"
-#include "src/runtime/ndarray.cc"
 #include "src/runtime/profiling.cc"
 #include "src/runtime/rpc/rpc_channel.cc"
 #include "src/runtime/rpc/rpc_endpoint.cc"
@@ -48,17 +45,22 @@
 #include "src/runtime/rpc/rpc_local_session.cc"
 #include "src/runtime/rpc/rpc_module.cc"
 #include "src/runtime/rpc/rpc_session.cc"
-#include "src/runtime/system_library.cc"
+#include "src/runtime/tensor.cc"
 #include "src/runtime/workspace_pool.cc"
 // relax setup
-#include "ffi/src/ffi/container.cc"
-#include "ffi/src/ffi/dtype.cc"
-#include "ffi/src/ffi/error.cc"
-#include "ffi/src/ffi/function.cc"
-#include "ffi/src/ffi/ndarray.cc"
-#include "ffi/src/ffi/object.cc"
-#include "ffi/src/ffi/testing.cc"
-#include "ffi/src/ffi/traceback.cc"
+#include "3rdparty/tvm-ffi/src/ffi/backtrace.cc"
+#include "3rdparty/tvm-ffi/src/ffi/container.cc"
+#include "3rdparty/tvm-ffi/src/ffi/dtype.cc"
+#include "3rdparty/tvm-ffi/src/ffi/error.cc"
+#include "3rdparty/tvm-ffi/src/ffi/extra/env_c_api.cc"
+#include "3rdparty/tvm-ffi/src/ffi/extra/env_context.cc"
+#include "3rdparty/tvm-ffi/src/ffi/extra/library_module.cc"
+#include "3rdparty/tvm-ffi/src/ffi/extra/library_module_system_lib.cc"
+#include "3rdparty/tvm-ffi/src/ffi/extra/module.cc"
+#include "3rdparty/tvm-ffi/src/ffi/function.cc"
+#include "3rdparty/tvm-ffi/src/ffi/object.cc"
+#include "3rdparty/tvm-ffi/src/ffi/tensor.cc"
+#include "3rdparty/tvm-ffi/src/ffi/testing/testing.cc"
 #include "src/runtime/memory/memory_manager.cc"
 #include "src/runtime/nvtx.cc"
 #include "src/runtime/vm/attn_backend.cc"
@@ -67,9 +69,9 @@
 #include "src/runtime/vm/executable.cc"
 #include "src/runtime/vm/kv_state.cc"
 #include "src/runtime/vm/lm_support.cc"
-#include "src/runtime/vm/ndarray_cache_support.cc"
 #include "src/runtime/vm/paged_kv_cache.cc"
 #include "src/runtime/vm/rnn_state.cc"
+#include "src/runtime/vm/tensor_cache_support.cc"
 #include "src/runtime/vm/vm.cc"
 
 // --- Implementations of backend and wasm runtime API. ---
@@ -105,50 +107,59 @@ void LogMessageImpl(const std::string& file, int lineno, int level, const std::s
 
 }  // namespace detail
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("tvmjs.testing.call",
                   [](ffi::PackedArgs args, ffi::Any* ret) {
                     (args[0].cast<ffi::Function>()).CallPacked(args.Slice(1), ret);
                   })
-      .def_packed("tvmjs.testing.log_info_str",
-                  [](ffi::PackedArgs args, ffi::Any* ret) { LOG(INFO) << args[0].cast<String>(); })
+      .def_packed(
+          "tvmjs.testing.log_info_str",
+          [](ffi::PackedArgs args, ffi::Any* ret) { LOG(INFO) << args[0].cast<ffi::String>(); })
       .def("tvmjs.testing.add_one", [](int x) { return x + 1; })
       .def_packed("tvmjs.testing.wrap_callback", [](ffi::PackedArgs args, ffi::Any* ret) {
         ffi::Function pf = args[0].cast<ffi::Function>();
         *ret = ffi::TypedFunction<void()>([pf]() { pf(); });
       });
-});
+}
 
-void ArrayDecodeStorage(NDArray cpu_arr, std::string bytes, std::string format, std::string dtype) {
+void ArrayDecodeStorage(Tensor cpu_arr, TVMFFIByteArray* bytes, const std::string& format,
+                        const std::string& dtype) {
+  TVM_FFI_ICHECK_NE(bytes, nullptr);
+  const char* byte_data = bytes->data;
+  const size_t byte_size = bytes->size;
   if (format == "f32-to-bf16" && dtype == "float32") {
-    std::vector<uint16_t> buffer(bytes.length() / 2);
-    std::memcpy(buffer.data(), bytes.data(), buffer.size() * 2);
-    // decode bf16 to f32
-    const uint16_t* bf16 = reinterpret_cast<const uint16_t*>(buffer.data());
+    const uint16_t* bf16 = reinterpret_cast<const uint16_t*>(byte_data);
     uint32_t* data = static_cast<uint32_t*>(cpu_arr->data);
-    ICHECK(cpu_arr.IsContiguous());
+    TVM_FFI_ICHECK(cpu_arr.IsContiguous());
     size_t size = 1;
     for (int i = 0; i < cpu_arr->ndim; ++i) {
       size *= cpu_arr->shape[i];
     }
-    ICHECK_EQ(size, bytes.length() / 2);
+    TVM_FFI_ICHECK_EQ(size, byte_size / 2);
     for (size_t i = 0; i < size; ++i) {
       data[i] = static_cast<uint32_t>(bf16[i]) << 16;
     }
   } else {
-    cpu_arr.CopyFromBytes(bytes.data(), bytes.length());
+    cpu_arr.CopyFromBytes(byte_data, byte_size);
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tvmjs.array.decode_storage", ArrayDecodeStorage);
-});
+  refl::GlobalDef().def_packed(
+      "tvmjs.array.decode_storage", [](ffi::PackedArgs args, ffi::Any* ret) {
+        Tensor cpu_arr = args[0].cast<Tensor>();
+        TVMFFIByteArray* bytes = args[1].cast<TVMFFIByteArray*>();
+        std::string format = args[2].cast<ffi::String>().operator std::string();
+        std::string dtype = args[3].cast<ffi::String>().operator std::string();
+        ArrayDecodeStorage(cpu_arr, bytes, format, dtype);
+      });
+}
 
 // Concatenate n TVMArrays
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("tvmjs.runtime.ArrayConcat",
                                [](ffi::PackedArgs args, ffi::Any* ret) {
@@ -156,25 +167,25 @@ TVM_FFI_STATIC_INIT_BLOCK({
                                  for (int i = 0; i < args.size(); ++i) {
                                    // Get i-th TVMArray
                                    auto* arr_i = args[i].as<ffi::ArrayObj>();
-                                   ICHECK(arr_i != nullptr);
+                                   TVM_FFI_ICHECK(arr_i != nullptr);
                                    for (size_t j = 0; j < arr_i->size(); ++j) {
                                      // Push back each j-th element of the i-th array
                                      data.push_back(arr_i->at(j));
                                    }
                                  }
-                                 *ret = Array<Any>(data);
+                                 *ret = ffi::Array<Any>(data);
                                });
-});
+}
 
-NDArray ConcatEmbeddings(const std::vector<NDArray>& embeddings) {
+Tensor ConcatEmbeddings(const std::vector<Tensor>& embeddings) {
   // Get output shape
   int64_t hidden_size = embeddings[0]->shape[1];
   DLDataType dtype = embeddings[0]->dtype;
   DLDevice device = embeddings[0]->device;
   int seqLen = 0;
   for (int i = 0; i < embeddings.size(); ++i) {
-    ICHECK_EQ(embeddings[i]->ndim, 2);
-    ICHECK_EQ(embeddings[i]->shape[1], hidden_size);
+    TVM_FFI_ICHECK_EQ(embeddings[i]->ndim, 2);
+    TVM_FFI_ICHECK_EQ(embeddings[i]->shape[1], hidden_size);
     seqLen += embeddings[i]->shape[0];
   }
 
@@ -182,7 +193,7 @@ NDArray ConcatEmbeddings(const std::vector<NDArray>& embeddings) {
   std::vector<int64_t> shape;
   shape.push_back(seqLen);
   shape.push_back(hidden_size);
-  NDArray result = NDArray::Empty(shape, dtype, device);
+  Tensor result = Tensor::Empty(shape, dtype, device);
 
   // Copy
   int offset = 0;
@@ -193,36 +204,36 @@ NDArray ConcatEmbeddings(const std::vector<NDArray>& embeddings) {
     copy_dst.shape = embeddings[i]->shape;
     copy_dst.byte_offset =
         offset * hidden_size * ((embeddings[i]->dtype.bits * embeddings[i]->dtype.lanes + 7) / 8);
-    NDArray::CopyFromTo(&copy_src, &copy_dst);
+    Tensor::CopyFromTo(&copy_src, &copy_dst);
     offset += embeddings[i]->shape[0];
   }
 
   return result;
 }
 
-// Concatenate n NDArrays
-TVM_FFI_STATIC_INIT_BLOCK({
+// Concatenate n Tensors
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("tvmjs.runtime.ConcatEmbeddings",
                   [](ffi::PackedArgs args, ffi::Any* ret) {
-                    std::vector<NDArray> embeddings;
+                    std::vector<Tensor> embeddings;
                     for (int i = 0; i < args.size(); ++i) {
-                      embeddings.push_back(args[i].cast<NDArray>());
+                      embeddings.push_back(args[i].cast<Tensor>());
                     }
-                    NDArray result = ConcatEmbeddings(std::move(embeddings));
+                    Tensor result = ConcatEmbeddings(std::move(embeddings));
                     *ret = result;
                   })
-      .def("tvmjs.runtime.NDArrayCopyFromBytes",
-           [](NDArray nd, TVMFFIByteArray* bytes) { nd.CopyFromBytes(bytes->data, bytes->size); })
-      .def("tvmjs.runtime.NDArrayCopyToBytes", [](NDArray nd) -> ffi::Bytes {
-        size_t size = GetDataSize(*(nd.operator->()));
+      .def("tvmjs.runtime.TensorCopyFromBytes",
+           [](Tensor nd, TVMFFIByteArray* bytes) { nd.CopyFromBytes(bytes->data, bytes->size); })
+      .def("tvmjs.runtime.TensorCopyToBytes", [](Tensor nd) -> ffi::Bytes {
+        size_t size = ffi::GetDataSize(*(nd.operator->()));
         std::string bytes;
         bytes.resize(size);
         nd.CopyToBytes(bytes.data(), size);
         return ffi::Bytes(bytes);
       });
-});
+}
 
 }  // namespace runtime
 }  // namespace tvm

@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from typing import Optional, Union, Callable
+from collections.abc import Callable
 
 import tvm
 import tvm.script
@@ -25,8 +25,8 @@ from tvm.script import relax as R
 
 
 def _check(
-    parsed: Union[relax.Function, IRModule],
-    expect: Optional[Union[relax.Function, IRModule]],
+    parsed: relax.Function | IRModule,
+    expect: relax.Function | IRModule | None,
 ):
     test = parsed.script(show_meta=True)
     roundtrip_mod = tvm.script.from_source(test)
@@ -114,9 +114,9 @@ def test_unary_check(unary_check_op: Callable):
 
 def test_binary_arith(binary_arith_op: Callable):
     @R.function
-    def foo(
-        x: R.Tensor((2, 3), "float32"), y: R.Tensor((2, 1), "float32")
-    ) -> R.Tensor((2, 3), "float32"):
+    def foo(x: R.Tensor((2, 3), "float32"), y: R.Tensor((2, 1), "float32")) -> R.Tensor(
+        (2, 3), "float32"
+    ):
         gv: R.Tensor((2, 3), "float32") = binary_arith_op(x, y)
         return gv
 
@@ -142,9 +142,9 @@ def test_binary_arith(binary_arith_op: Callable):
 
 def test_binary_cmp(binary_cmp_op: Callable):
     @R.function
-    def foo(
-        x: R.Tensor((2, 3), "float32"), y: R.Tensor((2, 1), "float32")
-    ) -> R.Tensor((2, 3), "bool"):
+    def foo(x: R.Tensor((2, 3), "float32"), y: R.Tensor((2, 1), "float32")) -> R.Tensor(
+        (2, 3), "bool"
+    ):
         gv: R.Tensor((2, 3), "bool") = binary_cmp_op(x, y)
         return gv
 

@@ -48,10 +48,10 @@ Expr bucketize(Expr input_tensor, Expr boundaries, bool out_int32, bool right);
 Expr where(Expr condition, Expr x1, Expr x2);
 
 /*! \brief Computes the argmax of tensor elements over given axis. */
-Expr argmax(Expr x, Optional<int64_t> axis, bool keepdims);
+Expr argmax(Expr x, ffi::Optional<int64_t> axis, bool keepdims);
 
 /*! \brief Computes the argmin of tensor elements over given axis. */
-Expr argmin(Expr x, Optional<int64_t> axis, bool keepdims);
+Expr argmin(Expr x, ffi::Optional<int64_t> axis, bool keepdims);
 
 }  // namespace relax
 }  // namespace tvm

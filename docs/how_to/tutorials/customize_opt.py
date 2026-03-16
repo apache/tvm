@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E402, E501, F401
 
 """
 .. _customize_opt:
@@ -50,7 +51,9 @@ tutorial we will
 
 import os
 import tempfile
+
 import numpy as np
+
 import tvm
 from tvm import IRModule, relax
 from tvm.relax.frontend import nn
@@ -73,7 +76,7 @@ from tvm.relax.frontend import nn
 
 class RelaxModel(nn.Module):
     def __init__(self):
-        super(RelaxModel, self).__init__()
+        super().__init__()
         self.fc1 = nn.Linear(784, 256)
         self.relu1 = nn.ReLU()
         self.fc2 = nn.Linear(256, 10, bias=False)
@@ -103,7 +106,16 @@ mod.show()
 
 
 # Import cublas pattern
-import tvm.relax.backend.cuda.cublas as _cublas
+try:
+    import tvm.relax.backend.cuda.cublas as _cublas
+except ImportError as e:
+    raise ImportError(
+        "This tutorial requires TVM built with CUDA support.\n"
+        "If you hit missing 'tvm_ffi', try: pip install apache-tvm-ffi\n"
+        "Otherwise build TVM with CUDA enabled:\n"
+        "  https://tvm.apache.org/docs/install/from_source.html\n"
+        f"Original error: {e}"
+    ) from e
 
 
 # Define a new pass for CUBLAS dispatch
@@ -174,7 +186,7 @@ if os.getenv("CI", "") != "true":
 # e.g. language model, DLight provides excellent performance, while for generic models,
 # it achieves a balance between performance and compilation time.
 
-from tvm import dlight as dl
+from tvm.s_tir import dlight as dl
 
 # Apply DLight rules
 with target:
@@ -209,8 +221,8 @@ ex = tvm.compile(mod, target="cuda")
 dev = tvm.device("cuda", 0)
 vm = relax.VirtualMachine(ex, dev)
 # Need to allocate data and params on GPU device
-data = tvm.nd.array(np.random.rand(*input_shape).astype("float32"), dev)
-gpu_params = [tvm.nd.array(np.random.rand(*p.shape).astype(p.dtype), dev) for _, p in params]
+data = tvm.runtime.tensor(np.random.rand(*input_shape).astype("float32"), dev)
+gpu_params = [tvm.runtime.tensor(np.random.rand(*p.shape).astype(p.dtype), dev) for _, p in params]
 gpu_out = vm["forward"](data, *gpu_params).numpy()
 print(gpu_out)
 

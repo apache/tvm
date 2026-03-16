@@ -15,8 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 """Sortings operators."""
+
+from ..expr import Constant, Expr
 from . import _ffi_api
-from ..expr import Expr, Constant
 
 
 def sort(x: Expr, axis: int = -1, descending: bool = False):

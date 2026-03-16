@@ -19,7 +19,9 @@
 
 import logging
 import os
-from typing import Dict, List, Set, Tuple
+
+import tvm_ffi
+
 import tvm
 from tvm.ir.module import IRModule
 from tvm.relax.expr import Call, DataflowBlock, Var
@@ -32,16 +34,14 @@ def ApplyEmptyCppMutator() -> tvm.ir.transform.Pass:
     return packed_func()
 
 
-def dataflow_liveness_analysis(block: DataflowBlock) -> Dict[Var, Tuple[int, int]]:
+def dataflow_liveness_analysis(block: DataflowBlock) -> dict[Var, tuple[int, int]]:
     """
     Inner function for the dataflow inplace transformation exposed for testing.
     """
     if "PYTEST_CURRENT_TEST" not in os.environ:
         logging.warning("The function dataflow_liveness_analysis is exposed for testing only.")
 
-    live_ranges = tvm.get_global_func("relax.testing.transform.DataflowLivenessAnalysis")(
-        block
-    )  # type: ignore
+    live_ranges = tvm.get_global_func("relax.testing.transform.DataflowLivenessAnalysis")(block)  # type: ignore
     ret = {}
     for var, live_range in live_ranges.items():
         ret[var] = tuple(live_range)
@@ -49,8 +49,8 @@ def dataflow_liveness_analysis(block: DataflowBlock) -> Dict[Var, Tuple[int, int
 
 
 def dataflow_alias_analysis(
-    block: DataflowBlock, inputs: List[Var]
-) -> Tuple[Dict[Var, Set[int]], Dict[int, List[Set[int]]]]:
+    block: DataflowBlock, inputs: list[Var]
+) -> tuple[dict[Var, set[int]], dict[int, list[set[int]]]]:
     """
     Inner function for the dataflow inplace transformation exposed for testing.
     """
@@ -70,7 +70,7 @@ def dataflow_alias_analysis(
     return res_alias_sets, res_tuple_map  # type: ignore
 
 
-@tvm.ffi.register_object("relax.transform.InplaceOpportunity")
+@tvm_ffi.register_object("relax.transform.InplaceOpportunity")
 class InplaceOpportunity(Object):
     """
     Represents an opportunity to make a binding in-place. Exposed only for testing;
@@ -90,8 +90,8 @@ class InplaceOpportunity(Object):
 
 
 def dataflow_inplace_analysis(
-    block: DataflowBlock, inputs: List[Var], mod: IRModule
-) -> Tuple[List[Tuple[int, Set[int]]], List[Tuple[int, Set[int]]]]:
+    block: DataflowBlock, inputs: list[Var], mod: IRModule
+) -> tuple[list[tuple[int, set[int]]], list[tuple[int, set[int]]]]:
     """
     Inner function for the dataflow inplace transformation exposed for testing.
     """
@@ -108,8 +108,8 @@ def dataflow_inplace_analysis(
 
 
 def dataflow_single_inplace_call(
-    mod: IRModule, call: Call, inplace_indices: List[int]
-) -> Tuple[Call, IRModule]:
+    mod: IRModule, call: Call, inplace_indices: list[int]
+) -> tuple[Call, IRModule]:
     """
     Inner function for the dataflow inplace transformation exposed for testing.
     """

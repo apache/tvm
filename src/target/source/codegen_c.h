@@ -39,7 +39,7 @@
 #include <unordered_set>
 #include <vector>
 
-#include "../../tir/transforms/ir_utils.h"
+#include "../../tir/transform/ir_utils.h"
 #include "codegen_source_base.h"
 
 namespace tvm {
@@ -90,7 +90,7 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
    * \param gvar The GlobalVar of the function
    * \returns The string name of the function
    */
-  String GetFunctionName(const GlobalVar& gvar);
+  ffi::String GetFunctionName(const GlobalVar& gvar);
 
   /*!
    * \brief Finalize the compilation and return the code.
@@ -131,7 +131,7 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
    *
    * \param os The output stream
    */
-  virtual void PrintFunctionSignature(const String& function_name, const PrimFunc& func,
+  virtual void PrintFunctionSignature(const ffi::String& function_name, const PrimFunc& func,
                                       std::ostream& os);
 
   /*!
@@ -187,17 +187,16 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   void VisitExpr_(const FloatImmNode* op, std::ostream& os) override;    // NOLINT(*)
   void VisitExpr_(const StringImmNode* op, std::ostream& os) override;   // NOLINT(*)
   // statment
-  void VisitStmt_(const LetStmtNode* op) override;
+  void VisitStmt_(const BindNode* op) override;
   void VisitStmt_(const BufferStoreNode* op) override;
   void VisitStmt_(const ForNode* op) override;
   void VisitStmt_(const WhileNode* op) override;
   void VisitStmt_(const IfThenElseNode* op) override;
-  void VisitStmt_(const AllocateNode* op) override;
+  void VisitStmt_(const AllocBufferNode* op) override;
   void VisitStmt_(const AttrStmtNode* op) override;
   void VisitStmt_(const AssertStmtNode* op) override;
   void VisitStmt_(const EvaluateNode* op) override;
   void VisitStmt_(const SeqStmtNode* op) override;
-  void VisitStmt_(const AllocateConstNode* op) override;
   void VisitStmt_(const DeclBufferNode* op) override;
 
   /*!
@@ -235,6 +234,8 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   }
 
  protected:
+  /*! \brief Print a C string literal with proper escaping of special chars. */
+  void PrintEscapedCString(const std::string& str, std::ostream& os);
   // Print reference to struct location
   std::string GetStructRef(DataType t, const PrimExpr& buffer, const PrimExpr& index, int kind);
   // Print reference to a buffer as type t in index.
@@ -271,8 +272,8 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
    * \param ret_type The return type of the function
    * \param os The output stream.
    */
-  virtual void GenerateForwardFunctionDeclarations(String global_symbol,
-                                                   const Array<Type>& arg_types,
+  virtual void GenerateForwardFunctionDeclarations(ffi::String global_symbol,
+                                                   const ffi::Array<Type>& arg_types,
                                                    const Type& ret_type) {}
 
   /*!
@@ -283,8 +284,9 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
    * \param skip_first_arg Whether to skip the first arguments.
    * \param os The output stream.
    */
-  virtual void PrintCallExtern(Type ret_type, String global_symbol, const Array<PrimExpr>& args,
-                               bool skip_first_arg, std::ostream& os);  // NOLINT(*)
+  virtual void PrintCallExtern(Type ret_type, ffi::String global_symbol,
+                               const ffi::Array<PrimExpr>& args, bool skip_first_arg,
+                               std::ostream& os);  // NOLINT(*)
   /*!
    * \brief If buffer is allocated as type t.
    * \param buf_var The buffer variable.
@@ -304,6 +306,8 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
 
   /*! \brief Check if buf_var is volatile or not. */
   bool IsVolatile(const VarNode* buf_var) const { return volatile_buf_.count(buf_var) != 0; }
+  /*! \brief Mark buf_var as volatile. */
+  void MarkVolatile(const VarNode* buf_var) { volatile_buf_.insert(buf_var); }
 
   /*! \brief restrict keyword */
   std::string restrict_keyword_{""};
@@ -319,6 +323,8 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   Integer constants_byte_alignment_ = 16;
   /*! \brief whether to print in SSA form */
   bool print_ssa_form_{false};
+  /*! \brief whether the module has a main function declared */
+  bool has_tvm_ffi_main_func_{false};
 
  private:
   /*! \brief set of volatile buf access */
@@ -337,7 +343,7 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
    * functions, this is the name of the function's GlobalVar, possibly
    * altered to prevent duplicate names.
    */
-  std::unordered_map<GlobalVar, String> internal_functions_;
+  std::unordered_map<GlobalVar, ffi::String> internal_functions_;
 
   /* \brief Name supply to generate unique function names */
   NameSupply func_name_supply_;

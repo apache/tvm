@@ -22,31 +22,32 @@
 
 #include "../src/runtime/hexagon/hexagon_buffer.h"
 
+using namespace tvm;
 using namespace tvm::runtime;
 using namespace tvm::runtime::hexagon;
 using namespace tvm::ffi;
 
 TEST(HexagonBuffer, default_scope) {
-  Optional<String> scope;
+  ffi::Optional<ffi::String> scope;
   HexagonBuffer hb(8 /* nbytes */, 8 /* alignment */, scope);
   EXPECT_EQ(hb.GetStorageScope(), HexagonBuffer::StorageScope::kDDR);
 }
 
 TEST(HexagonBuffer, ddr_scope) {
-  Optional<String> scope(String("global"));
+  ffi::Optional<ffi::String> scope(ffi::String("global"));
   HexagonBuffer hb(8 /* nbytes */, 8 /* alignment */, scope);
   EXPECT_EQ(hb.GetStorageScope(), HexagonBuffer::StorageScope::kDDR);
 }
 
 TEST(HexagonBuffer, vtcm_scope) {
-  Optional<String> scope(String("global.vtcm"));
+  ffi::Optional<ffi::String> scope(ffi::String("global.vtcm"));
   HexagonBuffer hb(8 /* nbytes */, 8 /* alignment */, scope);
   EXPECT_EQ(hb.GetStorageScope(), HexagonBuffer::StorageScope::kVTCM);
 }
 
 TEST(HexagonBuffer, invalid_scope) {
-  Optional<String> scope(String("invalid"));
-  EXPECT_THROW(HexagonBuffer hb(8 /* nbytes */, 8 /* alignment */, scope), InternalError);
+  ffi::Optional<ffi::String> scope(ffi::String("invalid"));
+  EXPECT_THROW(HexagonBuffer hb(8 /* nbytes */, 8 /* alignment */, scope), tvm::ffi::Error);
 }
 
 TEST(HexagonBuffer, micro_copies_corresponding_regions) {
@@ -198,13 +199,13 @@ TEST(HexagonBuffer, micro_copies_invalid_size) {
   {
     BufferSet src(src_ptr.data(), 1, 16);
     BufferSet dest(dest_ptr.data(), 2, 16);
-    EXPECT_THROW(BufferSet::MemoryCopies(dest, src, 24), InternalError);
+    EXPECT_THROW(BufferSet::MemoryCopies(dest, src, 24), tvm::ffi::Error);
   }
 
   {
     BufferSet src(src_ptr.data(), 2, 16);
     BufferSet dest(dest_ptr.data(), 1, 16);
-    EXPECT_THROW(BufferSet::MemoryCopies(dest, src, 24), InternalError);
+    EXPECT_THROW(BufferSet::MemoryCopies(dest, src, 24), tvm::ffi::Error);
   }
 }
 
@@ -268,7 +269,7 @@ TEST(HexagonBuffer, macro_copies_overlapping_regions_merged) {
 }
 
 TEST(HexagonBuffer, copy_from) {
-  Optional<String> scope(String("global"));
+  ffi::Optional<ffi::String> scope(ffi::String("global"));
   HexagonBuffer hb(8 /* nbytes */, 8 /* alignment */, scope);
 
   std::vector<uint8_t> data{0, 1, 2, 3, 4, 5, 6, 7};
@@ -281,16 +282,16 @@ TEST(HexagonBuffer, copy_from) {
 }
 
 TEST(HexagonBuffer, copy_from_invalid_size) {
-  Optional<String> scope(String("global"));
+  ffi::Optional<ffi::String> scope(ffi::String("global"));
   std::vector<uint8_t> data{0, 1, 2, 3, 4, 5, 6, 7};
 
   // HexagonBuffer too small
   HexagonBuffer toosmall(4 /* nbytes */, 8 /* alignment */, scope);
-  EXPECT_THROW(toosmall.CopyFrom(data.data(), data.size()), InternalError);
+  EXPECT_THROW(toosmall.CopyFrom(data.data(), data.size()), tvm::ffi::Error);
 }
 
 TEST(HexagonBuffer, copy_from_smaller_size) {
-  Optional<String> scope(String("global"));
+  ffi::Optional<ffi::String> scope(ffi::String("global"));
   std::vector<uint8_t> data{0, 1, 2, 3, 4, 5, 6, 7};
 
   // HexagonBuffer is big
@@ -299,25 +300,25 @@ TEST(HexagonBuffer, copy_from_smaller_size) {
 }
 
 TEST(HexagonBuffer, nd) {
-  Optional<String> def;
+  ffi::Optional<ffi::String> def;
   HexagonBuffer hb_default(2 /* ndim */, 4 /* nbytes */, 8 /* alignment */, def);
   EXPECT_EQ(hb_default.GetStorageScope(), HexagonBuffer::StorageScope::kDDR);
 
-  Optional<String> global(String("global"));
+  ffi::Optional<ffi::String> global(ffi::String("global"));
   HexagonBuffer hb_global(2 /* ndim */, 4 /* nbytes */, 8 /* alignment */, global);
   EXPECT_EQ(hb_global.GetStorageScope(), HexagonBuffer::StorageScope::kDDR);
 
-  Optional<String> vtcm(String("global.vtcm"));
+  ffi::Optional<ffi::String> vtcm(ffi::String("global.vtcm"));
   HexagonBuffer hb_vtcm(2 /* ndim */, 4 /* nbytes */, 8 /* alignment */, vtcm);
   EXPECT_EQ(hb_vtcm.GetStorageScope(), HexagonBuffer::StorageScope::kVTCM);
 
-  Optional<String> invalid(String("invalid"));
+  ffi::Optional<ffi::String> invalid(ffi::String("invalid"));
   EXPECT_THROW(HexagonBuffer hb_invalid(2 /* ndim */, 4 /* nbytes */, 8 /* alignment */, invalid),
                InternalError);
 }
 
 TEST(HexagonBuffer, nd_copy_from) {
-  Optional<String> scope(String("global"));
+  ffi::Optional<ffi::String> scope(ffi::String("global"));
   HexagonBuffer hb(2 /* ndim */, 4 /* nbytes */, 8 /* alignment */, scope);
 
   std::vector<uint8_t> data{0, 1, 2, 3, 4, 5, 6, 7};
@@ -335,10 +336,10 @@ TEST(HexagonBuffer, nd_copy_from) {
 }
 
 TEST(HexagonBuffer, 1d_copy_from_1d) {
-  Optional<String> global(String("global"));
+  ffi::Optional<ffi::String> global(ffi::String("global"));
   HexagonBuffer from(8 /* nbytes */, 8 /* alignment */, global);
 
-  Optional<String> vtcm(String("global.vtcm"));
+  ffi::Optional<ffi::String> vtcm(ffi::String("global.vtcm"));
   HexagonBuffer to(8 /* nbytes */, 8 /* alignment */, vtcm);
 
   std::vector<uint8_t> data{0, 1, 2, 3, 4, 5, 6, 7};
@@ -352,10 +353,10 @@ TEST(HexagonBuffer, 1d_copy_from_1d) {
 }
 
 TEST(HexagonBuffer, 2d_copy_from_1d) {
-  Optional<String> vtcm(String("global.vtcm"));
+  ffi::Optional<ffi::String> vtcm(ffi::String("global.vtcm"));
   HexagonBuffer hb1d(8 /* nbytes */, 8 /* alignment */, vtcm);
 
-  Optional<String> global(String("global"));
+  ffi::Optional<ffi::String> global(ffi::String("global"));
   HexagonBuffer hb2d(2 /* ndim */, 4 /* nbytes */, 8 /* alignment */, global);
 
   std::vector<uint8_t> data{0, 1, 2, 3, 4, 5, 6, 7};
@@ -374,10 +375,10 @@ TEST(HexagonBuffer, 2d_copy_from_1d) {
 }
 
 TEST(HexagonBuffer, 1d_copy_from_2d) {
-  Optional<String> vtcm(String("global.vtcm"));
+  ffi::Optional<ffi::String> vtcm(ffi::String("global.vtcm"));
   HexagonBuffer hb2d(2 /* ndim */, 4 /* nbytes */, 8 /* alignment */, vtcm);
 
-  Optional<String> global(String("global.vtcm"));
+  ffi::Optional<ffi::String> global(ffi::String("global.vtcm"));
   HexagonBuffer hb1d(8 /* nbytes */, 8 /* alignment */, global);
 
   std::vector<uint8_t> data{0, 1, 2, 3, 4, 5, 6, 7};
@@ -391,21 +392,21 @@ TEST(HexagonBuffer, 1d_copy_from_2d) {
 }
 
 TEST(HexagonBuffer, nd_copy_from_nd_invalid_size) {
-  Optional<String> scope(String("global"));
+  ffi::Optional<ffi::String> scope(ffi::String("global"));
   HexagonBuffer hb1d(8 /* nbytes */, 8 /* alignment */, scope);
   HexagonBuffer hb2d(2 /* ndim */, 4 /* nbytes */, 8 /* alignment */, scope);
 
   HexagonBuffer toosbig1d(16 /* nbytes */, 16 /* alignment */, scope);
-  EXPECT_THROW(hb1d.CopyFrom(toosbig1d, 16), InternalError);
-  EXPECT_THROW(hb2d.CopyFrom(toosbig1d, 16), InternalError);
+  EXPECT_THROW(hb1d.CopyFrom(toosbig1d, 16), tvm::ffi::Error);
+  EXPECT_THROW(hb2d.CopyFrom(toosbig1d, 16), tvm::ffi::Error);
 
   HexagonBuffer toobig2d(2 /* ndim */, 16 /* nbytes */, 16 /* alignment */, scope);
-  EXPECT_THROW(hb1d.CopyFrom(toobig2d, 32), InternalError);
-  EXPECT_THROW(hb2d.CopyFrom(toobig2d, 32), InternalError);
+  EXPECT_THROW(hb1d.CopyFrom(toobig2d, 32), tvm::ffi::Error);
+  EXPECT_THROW(hb2d.CopyFrom(toobig2d, 32), tvm::ffi::Error);
 }
 
 TEST(HexagonBuffer, nd_copy_from_nd_smaller_size) {
-  Optional<String> scope(String("global"));
+  ffi::Optional<ffi::String> scope(ffi::String("global"));
   HexagonBuffer hb1d(8 /* nbytes */, 8 /* alignment */, scope);
   HexagonBuffer hb2d(2 /* ndim */, 4 /* nbytes */, 8 /* alignment */, scope);
 
@@ -419,7 +420,7 @@ TEST(HexagonBuffer, nd_copy_from_nd_smaller_size) {
 }
 
 TEST(HexagonBuffer, md_copy_from_nd) {
-  Optional<String> scope(String("global"));
+  ffi::Optional<ffi::String> scope(ffi::String("global"));
   HexagonBuffer hb3d(3 /* ndim */, 4 /* nbytes */, 8 /* alignment */, scope);
   HexagonBuffer hb4d(4 /* ndim */, 3 /* nbytes */, 8 /* alignment */, scope);
 
@@ -436,7 +437,7 @@ TEST(HexagonBuffer, md_copy_from_nd) {
 }
 
 TEST(HexagonBuffer, copy_to) {
-  Optional<String> scope(String("global"));
+  ffi::Optional<ffi::String> scope(ffi::String("global"));
   HexagonBuffer hb(8 /* nbytes */, 8 /* alignment */, scope);
 
   std::vector<uint8_t> data_in{0, 1, 2, 3, 4, 5, 6, 7};
@@ -451,7 +452,7 @@ TEST(HexagonBuffer, copy_to) {
 }
 
 TEST(HexagonBuffer, nd_copy_to) {
-  Optional<String> scope(String("global"));
+  ffi::Optional<ffi::String> scope(ffi::String("global"));
   HexagonBuffer hb(2 /* ndim */, 4 /* nbytes */, 8 /* alignment */, scope);
 
   std::vector<uint8_t> data_in{0, 1, 2, 3, 4, 5, 6, 7};

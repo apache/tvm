@@ -14,19 +14,21 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401
 """Provide abstraction for defining optimizers and a set of common optimizers."""
 
 from decimal import Decimal
-from typing import List, Optional, Tuple, Union
+from typing import Optional, Union
 
 import numpy as np  # type: ignore
 
 import tvm
 
 from ..block_builder import BlockBuilder
+from ..expr import Function, TupleGetItem, Var, const
+from ..expr import Tuple as RxTuple
+from ..op import add, divide, multiply, sqrt, subtract
 from ..struct_info import TensorStructInfo, TupleStructInfo
-from ..op import add, subtract, multiply, divide, sqrt
-from ..expr import const, Var, Function, TupleGetItem, Tuple as RxTuple
 
 
 # TODO(chaofan, yixin): Migrate key logics to C++
@@ -99,7 +101,7 @@ class Optimizer:
 
     dtype: str
     name: str
-    param_list: List[Var]
+    param_list: list[Var]
     state: tvm.ir.Array
 
     def __init__(self, name: str) -> None:
@@ -108,7 +110,7 @@ class Optimizer:
         self.state = None
         self.dtype = None
 
-    def init(self, params: Union[Var, List[Var]]) -> "Optimizer":
+    def init(self, params: Var | list[Var]) -> "Optimizer":
         """Set the parameters, determine the dtype, and construct the initial state for the
         optimizer.
 
@@ -133,7 +135,7 @@ class Optimizer:
         self.state = None
         return self
 
-    def _set_params_and_dtype(self, params: List[Var]) -> None:
+    def _set_params_and_dtype(self, params: list[Var]) -> None:
         """Check params is legal and set the param_list and dtype of the optimizer."""
         params_set = set()
         dtype = None
@@ -146,7 +148,7 @@ class Optimizer:
                     f"struct info {x.struct_info}"
                 )
             data_type = tvm.DataType(x.struct_info.dtype)
-            if not data_type.type_code in (tvm.DataTypeCode.BFLOAT, tvm.DataTypeCode.FLOAT):
+            if data_type.type_code not in (tvm.DataTypeCode.BFLOAT, tvm.DataTypeCode.FLOAT):
                 raise ValueError(
                     f"Optimizers only support Tensor parameters of floating point dtype, but dtype "
                     f"of {x.name_hint} is {x.struct_info.dtype}"
@@ -225,7 +227,7 @@ class Optimizer:
 
 
 # TODO(chaofan, yixin): Support symbolic shapes
-def _get_shape_as_int_list(var: Var) -> List[int]:
+def _get_shape_as_int_list(var: Var) -> list[int]:
     return [int(val) for val in var.struct_info.shape]
 
 
@@ -266,7 +268,7 @@ class SGD(Optimizer):
         self.lr = float(lr)
         self.weight_decay = float(weight_decay)
 
-    def init(self, params: Union[Var, List[Var]]) -> "SGD":
+    def init(self, params: Var | list[Var]) -> "SGD":
         """Set the parameters, determine the dtype, and construct the initial state for the
         optimizer.
 
@@ -291,7 +293,7 @@ class SGD(Optimizer):
         self._set_params_and_dtype(params)
         self.state = (
             # num_steps = 0
-            tvm.nd.array(np.zeros((), "int64")),
+            tvm.runtime.tensor(np.zeros((), "int64")),
         )
         return self
 
@@ -407,7 +409,7 @@ class MomentumSGD(Optimizer):
         self.dampening = float(dampening)
         self.nesterov = nesterov
 
-    def init(self, params: Union[Var, List[Var]]) -> "MomentumSGD":
+    def init(self, params: Var | list[Var]) -> "MomentumSGD":
         """Set the parameters, determine the dtype, and construct the initial state for the
         optimizer.
 
@@ -433,10 +435,10 @@ class MomentumSGD(Optimizer):
         self._set_params_and_dtype(params)
         self.state = (
             # num_steps = 0
-            tvm.nd.array(np.zeros((), "int64")),
+            tvm.runtime.tensor(np.zeros((), "int64")),
             # v_{param} is initialized to all zeros
             *(
-                tvm.nd.array(np.zeros(_get_shape_as_int_list(p), p.struct_info.dtype))
+                tvm.runtime.tensor(np.zeros(_get_shape_as_int_list(p), p.struct_info.dtype))
                 for p in self.param_list
             ),
         )
@@ -559,7 +561,7 @@ class Adam(Optimizer):
     def __init__(
         self,
         lr: float,
-        betas: Tuple[float, float] = (0.9, 0.999),
+        betas: tuple[float, float] = (0.9, 0.999),
         eps: float = 1e-08,
         weight_decay: float = 0,
     ) -> None:
@@ -570,7 +572,7 @@ class Adam(Optimizer):
         self.eps = float(eps)
         self.weight_decay = float(weight_decay)
 
-    def init(self, params: Union[Var, List[Var]]) -> "Adam":
+    def init(self, params: Var | list[Var]) -> "Adam":
         """Set the parameters, determine the dtype, and construct the initial state for the
         optimizer.
 
@@ -604,17 +606,17 @@ class Adam(Optimizer):
         self._set_params_and_dtype(params)
         self.state = (
             # num_steps, beta_0_prod, beta_1_prod
-            tvm.nd.array(np.zeros((), "int64")),
-            tvm.nd.array(np.ones((), self.dtype)),
-            tvm.nd.array(np.ones((), self.dtype)),
+            tvm.runtime.tensor(np.zeros((), "int64")),
+            tvm.runtime.tensor(np.ones((), self.dtype)),
+            tvm.runtime.tensor(np.ones((), self.dtype)),
             # first_momentum
             *(
-                tvm.nd.array(np.zeros(_get_shape_as_int_list(p), p.struct_info.dtype))
+                tvm.runtime.tensor(np.zeros(_get_shape_as_int_list(p), p.struct_info.dtype))
                 for p in self.param_list
             ),
             # second_momentum
             *(
-                tvm.nd.array(np.zeros(_get_shape_as_int_list(p), p.struct_info.dtype))
+                tvm.runtime.tensor(np.zeros(_get_shape_as_int_list(p), p.struct_info.dtype))
                 for p in self.param_list
             ),
         )

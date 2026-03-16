@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401
 
 import numpy as np
 import pytest
@@ -21,12 +22,12 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import relax
-from tvm.script import relax as R
-from tvm.script import ir as I
-from tvm.script.ir_builder import IRBuilder
 from tvm.ir.module import IRModule
-from tvm.script.ir_builder import relax as relax_builder
 from tvm.relax.expr_functor import PyExprVisitor, visitor
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script.ir_builder import IRBuilder
+from tvm.script.ir_builder import relax as relax_builder
 
 
 def get_conv2d_batchnorm_sample():
@@ -70,13 +71,13 @@ def test_fold_batchnorm_info_conv2d():
     mod_fold = get_conv2d_batchnorm_sample()
 
     target = tvm.target.Target("llvm", host="llvm")
-    data_in = tvm.nd.array(np.random.rand(1, 3, 224, 224).astype(np.float32))
+    data_in = tvm.runtime.tensor(np.random.rand(1, 3, 224, 224).astype(np.float32))
 
-    weight_data = tvm.nd.array(np.random.rand(32, 3, 3, 3).astype(np.float32))
-    gamma_data = tvm.nd.array(np.random.rand(32).astype(np.float32))
-    beta_data = tvm.nd.array(np.random.rand(32).astype(np.float32))
-    mean_data = tvm.nd.array(np.random.rand(32).astype(np.float32))
-    variance_data = tvm.nd.array(np.random.rand(32).astype(np.float32))
+    weight_data = tvm.runtime.tensor(np.random.rand(32, 3, 3, 3).astype(np.float32))
+    gamma_data = tvm.runtime.tensor(np.random.rand(32).astype(np.float32))
+    beta_data = tvm.runtime.tensor(np.random.rand(32).astype(np.float32))
+    mean_data = tvm.runtime.tensor(np.random.rand(32).astype(np.float32))
+    variance_data = tvm.runtime.tensor(np.random.rand(32).astype(np.float32))
     params_np = {
         "weight": weight_data,
         "gamma": gamma_data,
@@ -113,19 +114,19 @@ class VerifyFolding(PyExprVisitor):  # pylint: disable=abstract-method
                 self.visit_expr(func)
 
     def visit_call_(self, call: relax.Call) -> None:  # pylint: disable=arguments-renamed
-        assert (
-            call.op.name != "relax.nn.batch_norm"
-        ), f"Batchnorm op shouldn't be present after folding to previous conv2d"
+        assert call.op.name != "relax.nn.batch_norm", (
+            "Batchnorm op shouldn't be present after folding to previous conv2d"
+        )
 
 
 def test_fold_batchnorm_info_conv2d_transform():
     mod = get_conv2d_batchnorm_sample()
     mod = relax.transform.FoldBatchnormToConv2D()(mod)
-    weight_data = tvm.nd.array(np.random.rand(32, 3, 3, 3).astype(np.float32))
-    gamma_data = tvm.nd.array(np.random.rand(32).astype(np.float32))
-    beta_data = tvm.nd.array(np.random.rand(32).astype(np.float32))
-    mean_data = tvm.nd.array(np.random.rand(32).astype(np.float32))
-    variance_data = tvm.nd.array(np.random.rand(32).astype(np.float32))
+    weight_data = tvm.runtime.tensor(np.random.rand(32, 3, 3, 3).astype(np.float32))
+    gamma_data = tvm.runtime.tensor(np.random.rand(32).astype(np.float32))
+    beta_data = tvm.runtime.tensor(np.random.rand(32).astype(np.float32))
+    mean_data = tvm.runtime.tensor(np.random.rand(32).astype(np.float32))
+    variance_data = tvm.runtime.tensor(np.random.rand(32).astype(np.float32))
     params_np = {
         "weight": weight_data,
         "gamma": gamma_data,

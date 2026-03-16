@@ -33,7 +33,8 @@ public class Server {
       this.processor = processor;
     }
 
-    @Override public void run() {
+    @Override
+    public void run() {
       while (running) {
         processor.run();
         try {
@@ -68,8 +69,7 @@ public class Server {
    * @param key The key to identify the server.
    */
   public Server(String proxyHost, int proxyPort, String key) {
-    worker = new WorkerThread(
-        new ConnectProxyServerProcessor(proxyHost, proxyPort, key));
+    worker = new WorkerThread(new ConnectProxyServerProcessor(proxyHost, proxyPort, key));
   }
 
   /**

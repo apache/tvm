@@ -64,18 +64,18 @@ inline const char* GetCublasErrorString(int error) {
 }
 
 #ifndef CHECK_CUBLAS_ERROR
-#define CHECK_CUBLAS_ERROR(fn)                                                            \
-  do {                                                                                    \
-    int error = static_cast<int>(fn);                                                     \
-    ICHECK_EQ(error, CUBLAS_STATUS_SUCCESS) << "CUBLAS: " << GetCublasErrorString(error); \
+#define CHECK_CUBLAS_ERROR(fn)                                                                    \
+  do {                                                                                            \
+    int error = static_cast<int>(fn);                                                             \
+    TVM_FFI_ICHECK_EQ(error, CUBLAS_STATUS_SUCCESS) << "CUBLAS: " << GetCublasErrorString(error); \
   } while (0)  // ; intentionally left off.
-#endif         // CHECK_CUBLAS_ERROR
+#endif  // CHECK_CUBLAS_ERROR
 
 struct CuBlasThreadEntry {
   CuBlasThreadEntry();
   ~CuBlasThreadEntry();
   cublasHandle_t handle{nullptr};
-  static CuBlasThreadEntry* ThreadLocal();
+  static CuBlasThreadEntry* ThreadLocal(DLDevice curr_device);
 };  // CuBlasThreadEntry
 
 struct CuBlasLtThreadEntry {
@@ -89,7 +89,7 @@ struct CuBlasLtThreadEntry {
   // https://docs.nvidia.com/cuda/cublas/index.html#cublassetworkspace.
   static constexpr const size_t workspace_size = 33554432;
 
-  static CuBlasLtThreadEntry* ThreadLocal();
+  static CuBlasLtThreadEntry* ThreadLocal(DLDevice curr_device);
 };  // CuBlasLtThreadEntry
 
 inline cudaDataType_t GetCudaDataType(DLDataType type) {
@@ -122,7 +122,7 @@ inline cudaDataType_t GetCudaDataType(DLDataType type) {
         return CUDA_R_16BF;
     }
   }
-  LOG(FATAL) << "Unsupported cuda type";
+  TVM_FFI_THROW(InternalError) << "Unsupported CUDA type";
 }
 
 /*! \brief Execute matrix multiply followed by the specified epilogue, using cuBLASLt. */

@@ -15,17 +15,20 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, unused-variable, too-many-locals, unused-argument
+# ruff: noqa: F841
 """Depthwise convolution operators"""
-from __future__ import absolute_import as _abs
+
 from collections import namedtuple
+
 import numpy as np
+
 import tvm
 from tvm import te
 
+from ..utils import get_const_tuple, simplify
 from .dilate import dilate
 from .pad import pad
 from .utils import get_pad_tuple
-from ..utils import simplify, get_const_tuple
 
 # workload description of depthwise-conv2d
 Workload = namedtuple(
@@ -86,15 +89,15 @@ def _get_workload(data, kernel, stride, padding, dilation, out_dtype, data_layou
 
     out_channel = filter_channel * channel_multiplier
     dilation_h, dilation_w = (
-        dilation if isinstance(dilation, (tuple, list)) else (dilation, dilation)
+        dilation if isinstance(dilation, tuple | list) else (dilation, dilation)
     )
-    if isinstance(stride, (tuple, list)):
+    if isinstance(stride, tuple | list):
         HSTR, WSTR = stride
     else:
         HSTR, WSTR = stride, stride
-    assert (data.dtype == kernel.dtype) or (
-        data.dtype == "uint8" and kernel.dtype == "int8"
-    ), f"Do not support inputs with different data types now. {data.dtype} vs. {kernel.dtype}"
+    assert (data.dtype == kernel.dtype) or (data.dtype == "uint8" and kernel.dtype == "int8"), (
+        f"Do not support inputs with different data types now. {data.dtype} vs. {kernel.dtype}"
+    )
     dilated_kernel_h = (kh - 1) * dilation_h + 1
     dilated_kernel_w = (kw - 1) * dilation_w + 1
     pt, pl, pb, pr = get_pad_tuple(padding, (dilated_kernel_h, dilated_kernel_w))

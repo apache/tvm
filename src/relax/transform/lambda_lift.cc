@@ -40,7 +40,7 @@ namespace {
 /* \brief Collect names of functions to be lifted out */
 class LambdaNameCollector : ExprVisitor {
  public:
-  static std::unordered_map<const FunctionNode*, String> Collect(const IRModule& mod) {
+  static std::unordered_map<const FunctionNode*, ffi::String> Collect(const IRModule& mod) {
     LambdaNameCollector visitor;
 
     for (const auto& [gvar, base_func] : mod->functions) {
@@ -60,8 +60,8 @@ class LambdaNameCollector : ExprVisitor {
 
  private:
   void VisitBinding_(const VarBindingNode* binding, const FunctionNode* func) override {
-    if (auto opt = func->GetAttr<String>(tvm::attr::kGlobalSymbol)) {
-      String public_name = opt.value();
+    if (auto opt = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol)) {
+      ffi::String public_name = opt.value();
 
       // If a kGlobalSymbol exists, we must use the name exactly as it
       // appears, with no modifications.  Because these errors would
@@ -70,7 +70,7 @@ class LambdaNameCollector : ExprVisitor {
       // model definition, they are intentionally verbose to
       // (hopefully) provide sufficient context to a user encountering
       // the error.
-      CHECK(!previous_global_vars_.count(public_name))
+      TVM_FFI_ICHECK(!previous_global_vars_.count(public_name))
           << "Function " << name_stack_.front() << " contains a lambda with kGlobalSymbol (\""
           << tvm::attr::kGlobalSymbol << "\" attribute of \"" << public_name << "\".  "
           << "However, the module already contains a GlobalVar with this name.  "
@@ -80,7 +80,7 @@ class LambdaNameCollector : ExprVisitor {
           << " would require violating one of these two conditions.";
 
       auto it = new_public_names_.find(public_name);
-      CHECK(it == new_public_names_.end())
+      TVM_FFI_ICHECK(it == new_public_names_.end())
           << "Function " << name_stack_.front() << " contains a lambda with kGlobalSymbol (\""
           << tvm::attr::kGlobalSymbol << "\" attribute of \"" << public_name << "\".  "
           << "However, the function " << it->second.front()
@@ -102,21 +102,22 @@ class LambdaNameCollector : ExprVisitor {
   }
 
   // De-duplication of collected names
-  std::unordered_map<const FunctionNode*, String> Finalize() const {
+  std::unordered_map<const FunctionNode*, ffi::String> Finalize() const {
     // The functions which still must be assigned a name
-    std::unordered_map<const FunctionNode*, Array<String>> remaining_to_name = lambda_location_;
+    std::unordered_map<const FunctionNode*, ffi::Array<ffi::String>> remaining_to_name =
+        lambda_location_;
 
     // Collecting the functions that now have a name.
-    std::unordered_map<const FunctionNode*, String> lifted_names;
+    std::unordered_map<const FunctionNode*, ffi::String> lifted_names;
 
     // A lookup for names that are unavailable for use.
-    std::unordered_set<String> unavailable_names = previous_global_vars_;
+    std::unordered_set<ffi::String> unavailable_names = previous_global_vars_;
 
     // A helper function to generate de-duplicated names.  The
     // `proposed_name_generation_func` should be a function with
     // signature:
     //
-    //     Optional<String> func(const FunctionNode*, const Array<String>&)
+    //     ffi::Optional<ffi::String> func(const FunctionNode*, const ffi::Array<ffi::String>&)
     //
     // The first argument will be the lambda function being lifted.
     // The second argument will be the nested location where that
@@ -135,9 +136,10 @@ class LambdaNameCollector : ExprVisitor {
         return;
       }
 
-      std::unordered_map<String, const FunctionNode*> new_names;
+      std::unordered_map<ffi::String, const FunctionNode*> new_names;
       for (const auto& [func, location] : remaining_to_name) {
-        if (Optional<String> opt_proposed_name = proposed_name_generation_func(func, location)) {
+        if (ffi::Optional<ffi::String> opt_proposed_name =
+                proposed_name_generation_func(func, location)) {
           auto proposed_name = opt_proposed_name.value();
 
           if (unavailable_names.count(proposed_name)) {
@@ -163,7 +165,8 @@ class LambdaNameCollector : ExprVisitor {
     };
 
     // 1. Start with any publicly explosed names from kGlobalSymbol
-    attempt_name_generation([&](const FunctionNode* func, const auto&) -> Optional<String> {
+    attempt_name_generation([&](const FunctionNode* func,
+                                const auto&) -> ffi::Optional<ffi::String> {
       if (auto it = lifted_with_global_symbol_.find(func); it != lifted_with_global_symbol_.end()) {
         return it->second;
       } else {
@@ -173,7 +176,7 @@ class LambdaNameCollector : ExprVisitor {
 
     // 2. Try concatenating the name of the relax variable with the
     // name of the function that contains it.
-    attempt_name_generation([&](const FunctionNode*, const auto& location) -> String {
+    attempt_name_generation([&](const FunctionNode*, const auto& location) -> ffi::String {
       std::stringstream stream;
       stream << location.front() << "_" << location.back();
       return stream.str();
@@ -181,26 +184,27 @@ class LambdaNameCollector : ExprVisitor {
 
     // 3. Try concatenating the entire path together.  Don't include
     // paths of length 2, as they would already be attempted earlier.
-    attempt_name_generation([&](const FunctionNode*, const auto& location) -> Optional<String> {
-      if (location.size() == 2) return std::nullopt;
+    attempt_name_generation(
+        [&](const FunctionNode*, const auto& location) -> ffi::Optional<ffi::String> {
+          if (location.size() == 2) return std::nullopt;
 
-      std::stringstream stream;
-      bool is_first = true;
-      for (const auto& loc : location) {
-        if (is_first) {
-          is_first = false;
-        } else {
-          stream << "_";
-        }
-        stream << loc;
-      }
-      return String(stream.str());
-    });
+          std::stringstream stream;
+          bool is_first = true;
+          for (const auto& loc : location) {
+            if (is_first) {
+              is_first = false;
+            } else {
+              stream << "_";
+            }
+            stream << loc;
+          }
+          return ffi::String(stream.str());
+        });
 
     // 4. Fallback.  Count the number of times a relax variable with
     // that name was used.
-    std::unordered_map<String, int> usage_count;
-    attempt_name_generation([&](const FunctionNode*, const auto& location) -> String {
+    std::unordered_map<ffi::String, int> usage_count;
+    attempt_name_generation([&](const FunctionNode*, const auto& location) -> ffi::String {
       std::stringstream stream;
       stream << location.front() << "_" << location.back();
       int usage = usage_count[stream.str()]++;
@@ -209,17 +213,17 @@ class LambdaNameCollector : ExprVisitor {
       return stream.str();
     });
 
-    ICHECK(remaining_to_name.empty())
+    TVM_FFI_ICHECK(remaining_to_name.empty())
         << "Fallback failed to make unique names for all lifted lambda functions";
 
     return lifted_names;
   }
 
-  Array<String> name_stack_;
-  std::unordered_set<String> previous_global_vars_;
-  std::unordered_map<String, Array<String>> new_public_names_;
-  std::unordered_map<const FunctionNode*, String> lifted_with_global_symbol_;
-  std::unordered_map<const FunctionNode*, Array<String>> lambda_location_;
+  ffi::Array<ffi::String> name_stack_;
+  std::unordered_set<ffi::String> previous_global_vars_;
+  std::unordered_map<ffi::String, ffi::Array<ffi::String>> new_public_names_;
+  std::unordered_map<const FunctionNode*, ffi::String> lifted_with_global_symbol_;
+  std::unordered_map<const FunctionNode*, ffi::Array<ffi::String>> lambda_location_;
 };
 
 }  // namespace
@@ -255,18 +259,17 @@ class LambdaLifter : public ExprMutator {
       return ExprMutator::VisitExpr_(func_node);
     }
 
-    auto func = GetRef<Function>(func_node);
+    auto func = ffi::GetRef<Function>(func_node);
 
-    String lift_func_name = [&]() {
+    ffi::String lift_func_name = [&]() {
       auto it = lifted_names_.find(func_node);
-      ICHECK(it != lifted_names_.end())
-          << "InternalError: "
+      TVM_FFI_CHECK(it != lifted_names_.end(), InternalError)
           << "Found lambda function during mutation step, "
           << "but it wasn't found during the earlier name-generation step.";
       return it->second;
     }();
 
-    Array<Var> captured_vars;
+    ffi::Array<Var> captured_vars;
     bool is_recursive = false;
     bool is_closure = false;
     for (const auto& var : FreeVars(func)) {
@@ -278,15 +281,15 @@ class LambdaLifter : public ExprMutator {
       }
     }
 
-    Array<Var> typed_captured_vars;
-    Map<Var, Expr> rebinding_map;
+    ffi::Array<Var> typed_captured_vars;
+    ffi::Map<Var, Expr> rebinding_map;
     for (auto free_var : captured_vars) {
       Var var = Var(free_var->name_hint(), GetStructInfo(free_var), free_var->span);
       typed_captured_vars.push_back(var);
       rebinding_map.Set(free_var, var);
     }
 
-    tvm::Array<Var> lifted_func_params =
+    tvm::ffi::Array<Var> lifted_func_params =
         func_node->params.Map([this](Var var) { return VisitVarDef(var); });
     for (const auto& var : typed_captured_vars) {
       lifted_func_params.push_back(var);
@@ -323,13 +326,13 @@ class LambdaLifter : public ExprMutator {
     Function lifted_func;
     if (lifted_func_params.same_as(func_node->params) && body.same_as(func_node->body) &&
         ret_struct_info.same_as(func_node->ret_struct_info)) {
-      lifted_func = GetRef<Function>(func_node);
+      lifted_func = ffi::GetRef<Function>(func_node);
     } else {
       lifted_func =
           Function(lifted_func_params, body, ret_struct_info, func_node->is_pure, func_node->attrs);
     }
 
-    ICHECK(lifted_func.defined());
+    TVM_FFI_ICHECK(lifted_func.defined());
 
     if (is_closure || IsClosure(lifted_func)) {
       closures_.insert(gvar_lifted_func);
@@ -354,7 +357,7 @@ class LambdaLifter : public ExprMutator {
   }
 
   Expr VisitExpr_(const CallNode* call_node) final {
-    auto call = GetRef<Call>(call_node);
+    auto call = ffi::GetRef<Call>(call_node);
 
     auto orig_sinfo = Downcast<StructInfo>(call->struct_info_);
 
@@ -374,11 +377,12 @@ class LambdaLifter : public ExprMutator {
                          orig_call->op->struct_info_.as<FuncStructInfoNode>()) {
             return func_sinfo->purity;
           } else {
-            LOG(FATAL) << "Could not determine purity of call to " << orig_call->op
-                       << ", as it is neither a tvm::Op (type = \"" << orig_call->op->GetTypeKey()
-                       << "\"), "
-                       << "nor is is annotated with FuncStructInfo (sinfo = "
-                       << orig_call->op->struct_info_ << ")";
+            TVM_FFI_THROW(InternalError)
+                << "Could not determine purity of call to " << orig_call->op
+                << ", as it is neither a tvm::Op (type = \"" << orig_call->op->GetTypeKey()
+                << "\"), "
+                << "nor is is annotated with FuncStructInfo (sinfo = "
+                << orig_call->op->struct_info_ << ")";
           }
         }();
 
@@ -393,7 +397,7 @@ class LambdaLifter : public ExprMutator {
       if (auto it = nested_closure_map_.find(var); it != nested_closure_map_.end()) {
         Call nested_call = it->second;
 
-        Array<Expr> new_args = call->args;
+        ffi::Array<Expr> new_args = call->args;
         for (const auto arg : nested_call->args) {
           new_args.push_back(arg);
         }
@@ -407,7 +411,7 @@ class LambdaLifter : public ExprMutator {
   }
 
   Expr VisitExpr_(const VarNode* op) override {
-    auto var = GetRef<Var>(op);
+    auto var = ffi::GetRef<Var>(op);
     if (auto it = rebind_map_.find(var); it != rebind_map_.end()) {
       return it->second;
     }
@@ -436,12 +440,12 @@ class LambdaLifter : public ExprMutator {
       }
 
     } else if (const auto* global_var = val.as<GlobalVarNode>()) {
-      if (closures_.count(GetRef<GlobalVar>(global_var))) {
+      if (closures_.count(ffi::GetRef<GlobalVar>(global_var))) {
         return true;
       }
       IRModule ctx_mod = builder_->GetContextIRModule();
-      ICHECK(ctx_mod->functions.size() > 0);
-      BaseFunc func = ctx_mod->Lookup(GetRef<GlobalVar>(global_var));
+      TVM_FFI_ICHECK(ctx_mod->functions.size() > 0);
+      BaseFunc func = ctx_mod->Lookup(ffi::GetRef<GlobalVar>(global_var));
       const auto* func_node = func.as<FunctionNode>();
       if (func_node) {
         return IsClosure(func_node->body);
@@ -477,11 +481,11 @@ class LambdaLifter : public ExprMutator {
  private:
   std::unordered_map<Var, Call> nested_closure_map_;
   std::unordered_map<Var, Expr> rebind_map_;
-  std::unordered_set<Variant<GlobalVar, Var>, ObjectPtrHash, ObjectPtrEqual> closures_;
-  Optional<Var> current_lambda_var_ = std::nullopt;
+  std::unordered_set<ffi::Variant<GlobalVar, Var>, ObjectPtrHash, ObjectPtrEqual> closures_;
+  ffi::Optional<Var> current_lambda_var_ = std::nullopt;
   IRModule mod_;
 
-  std::unordered_map<const FunctionNode*, String> lifted_names_;
+  std::unordered_map<const FunctionNode*, ffi::String> lifted_names_;
 
   /*! \brief Cache ops that would be used later to reduce lookup overhead. */
   const Op& make_closure_op_ = Op::Get("relax.make_closure");
@@ -496,10 +500,10 @@ Pass LambdaLift() {
   return tvm::transform::CreateModulePass(pass_func, 1, "LambdaLift", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.transform.LambdaLift", LambdaLift);
-});
+}
 
 }  // namespace transform
 }  // namespace relax

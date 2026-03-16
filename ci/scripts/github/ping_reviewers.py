@@ -15,15 +15,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E402, E501, F821
 
 import argparse
-import re
 import datetime
 import json
+import re
 import sys
 import textwrap
 from pathlib import Path
-from typing import List
 
 # Hackery to enable importing of utils from ci/scripts/jenkins
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
@@ -34,7 +34,7 @@ from git_utils import git, parse_remote
 GIT_DATE_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 
 
-def prs_query(user: str, repo: str, cursor: str = None):
+def prs_query(user: str, repo: str, cursor: str | None = None):
     after = ""
     if cursor is not None:
         after = f', before:"{cursor}"'
@@ -85,7 +85,7 @@ def prs_query(user: str, repo: str, cursor: str = None):
     """
 
 
-def find_reviewers(body: str) -> List[str]:
+def find_reviewers(body: str) -> list[str]:
     matches = re.findall(r"(cc( @[-A-Za-z0-9]+)+)", body, flags=re.MULTILINE)
     matches = [full for full, last in matches]
 
@@ -176,7 +176,7 @@ def check_pr(pr, wait_time, now):
 
 def make_ping_message(pr, reviewers):
     reviewers = [f"@{r}" for r in reviewers]
-    author = f'@{pr["author"]["login"]}'
+    author = f"@{pr['author']['login']}"
     text = (
         "It has been a while since this PR was updated, "
         + " ".join(reviewers)

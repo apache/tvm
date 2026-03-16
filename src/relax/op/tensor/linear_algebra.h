@@ -41,7 +41,7 @@ namespace relax {
  * When it is not specified, the output dtype will be the same as input dtype.
  * \return The computed result.
  */
-Expr matmul(Expr x1, Expr x2, Optional<DataType> out_dtype);
+Expr matmul(Expr x1, Expr x2, ffi::Optional<DataType> out_dtype);
 
 /*!
  * \brief Einstein summation on the operands.
@@ -49,7 +49,7 @@ Expr matmul(Expr x1, Expr x2, Optional<DataType> out_dtype);
  * \param subscripts The einsum expression string.
  * \return The computed result.
  */
-Expr einsum(Expr operands, String subscripts);
+Expr einsum(Expr operands, ffi::String subscripts);
 
 /*!
  * \brief Compute the outer product of two input expressions.

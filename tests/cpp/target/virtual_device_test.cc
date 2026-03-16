@@ -29,37 +29,37 @@ TEST(VirtualDevice, Join_Defined) {
     Target target_a = Target("cuda");
     VirtualDevice lhs = VirtualDevice(kDLCUDA, 3);
     VirtualDevice rhs = VirtualDevice(kDLCUDA, -1, target_a, "global");
-    Optional<VirtualDevice> actual = VirtualDevice::Join(lhs, rhs);
+    ffi::Optional<VirtualDevice> actual = VirtualDevice::Join(lhs, rhs);
     EXPECT_TRUE(actual.operator bool());
     VirtualDevice expected = VirtualDevice(kDLCUDA, 3, target_a, "global");
-    EXPECT_TRUE(StructuralEqual()(actual.value(), expected));
+    EXPECT_TRUE(tvm::ffi::StructuralEqual()(actual.value(), expected));
   }
   {
     Target target_a = Target("cuda");
     VirtualDevice lhs = VirtualDevice(kDLCUDA, -1, target_a, "global");
     VirtualDevice rhs = VirtualDevice(kDLCUDA, 3);
-    Optional<VirtualDevice> actual = VirtualDevice::Join(lhs, rhs);
+    ffi::Optional<VirtualDevice> actual = VirtualDevice::Join(lhs, rhs);
     EXPECT_TRUE(actual.operator bool());
     VirtualDevice expected = VirtualDevice(kDLCUDA, 3, target_a, "global");
-    EXPECT_TRUE(StructuralEqual()(actual.value(), expected));
+    EXPECT_TRUE(tvm::ffi::StructuralEqual()(actual.value(), expected));
   }
   {
     Target target_a = Target("cuda");
     VirtualDevice lhs = VirtualDevice(kDLCUDA);
     VirtualDevice rhs = VirtualDevice(kDLCUDA, 2, target_a);
-    Optional<VirtualDevice> actual = VirtualDevice::Join(lhs, rhs);
+    ffi::Optional<VirtualDevice> actual = VirtualDevice::Join(lhs, rhs);
     EXPECT_TRUE(actual.operator bool());
     VirtualDevice expected = VirtualDevice(kDLCUDA, 2, target_a);
-    EXPECT_TRUE(StructuralEqual()(actual.value(), expected));
+    EXPECT_TRUE(tvm::ffi::StructuralEqual()(actual.value(), expected));
   }
   {
     Target target_a = Target("cuda");
     VirtualDevice lhs = VirtualDevice();
     VirtualDevice rhs = VirtualDevice(kDLCUDA, 3, target_a, "global");
-    Optional<VirtualDevice> actual = VirtualDevice::Join(lhs, rhs);
+    ffi::Optional<VirtualDevice> actual = VirtualDevice::Join(lhs, rhs);
     EXPECT_TRUE(actual.operator bool());
     VirtualDevice expected = rhs;
-    EXPECT_TRUE(StructuralEqual()(actual.value(), expected));
+    EXPECT_TRUE(tvm::ffi::StructuralEqual()(actual.value(), expected));
   }
 }
 
@@ -67,25 +67,25 @@ TEST(VirtualDevice, Join_Undefined) {
   {
     VirtualDevice lhs = VirtualDevice(kDLCUDA);
     VirtualDevice rhs = VirtualDevice(kDLCPU);
-    Optional<VirtualDevice> actual = VirtualDevice::Join(lhs, rhs);
+    ffi::Optional<VirtualDevice> actual = VirtualDevice::Join(lhs, rhs);
     EXPECT_FALSE(actual);
   }
   {
     VirtualDevice lhs = VirtualDevice(kDLCUDA, 3);
     VirtualDevice rhs = VirtualDevice(kDLCUDA, 4);
-    Optional<VirtualDevice> actual = VirtualDevice::Join(lhs, rhs);
+    ffi::Optional<VirtualDevice> actual = VirtualDevice::Join(lhs, rhs);
     EXPECT_FALSE(actual);
   }
   {
     VirtualDevice lhs = VirtualDevice(kDLCUDA, 3, Target("cuda"));
     VirtualDevice rhs = VirtualDevice(kDLCUDA, 3, Target("cuda"));
-    Optional<VirtualDevice> actual = VirtualDevice::Join(lhs, rhs);
+    ffi::Optional<VirtualDevice> actual = VirtualDevice::Join(lhs, rhs);
     EXPECT_FALSE(actual);
   }
   {
     VirtualDevice lhs = VirtualDevice(kDLCUDA, 3, Target("cuda"), "local");
     VirtualDevice rhs = VirtualDevice(kDLCUDA, 3, Target("cuda"), "global");
-    Optional<VirtualDevice> actual = VirtualDevice::Join(lhs, rhs);
+    ffi::Optional<VirtualDevice> actual = VirtualDevice::Join(lhs, rhs);
     EXPECT_FALSE(actual);
   }
 }
@@ -96,7 +96,7 @@ TEST(VirtualDevice, Default) {
   VirtualDevice rhs = VirtualDevice(kDLCUDA, 3, target_a, "local");
   VirtualDevice actual = VirtualDevice::Default(lhs, rhs);
   VirtualDevice expected = VirtualDevice(kDLCUDA, 3, target_a, "global");
-  EXPECT_TRUE(StructuralEqual()(actual, expected));
+  EXPECT_TRUE(tvm::ffi::StructuralEqual()(actual, expected));
 }
 
 TEST(VirtualDevice, Constructor_Invalid) {
@@ -117,8 +117,12 @@ TEST(VirtualDeviceCache, Memoized) {
   EXPECT_NE(cache.Make(kDLCPU, 3, target_b, "local"), virtual_device_a);
   EXPECT_NE(cache.Make(kDLCUDA, 3, target_a, "global"), virtual_device_a);
   EXPECT_EQ(cache.Make(kDLCUDA, 3, Target("cuda"), "local"), virtual_device_a);
-  EXPECT_NE(cache.Make(kDLCUDA, 3, Target("cuda -max_threads_per_block=4096"), "local"),
-            virtual_device_a);
+  EXPECT_NE(
+      cache.Make(kDLCUDA, 3,
+                 Target(ffi::Map<ffi::String, ffi::Any>{{"kind", ffi::String("cuda")},
+                                                        {"max_threads_per_block", int64_t(4096)}}),
+                 "local"),
+      virtual_device_a);
 }
 
 }  // namespace

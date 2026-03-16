@@ -41,7 +41,7 @@ class ElemwiseSumIRModule:
         B = T.match_buffer(b, (n,), dtype="float32")
         C = T.match_buffer(c, (n,), dtype="float32")
         for i in T.serial(n):
-            with T.block("C"):
+            with T.sblock("C"):
                 vi = T.axis.spatial(n, i)
                 C[vi] = A[vi] + B[vi]
 
@@ -52,7 +52,7 @@ class ElemwiseSumIRModule:
         B = T.match_buffer(b, (n,), dtype="float32")
         C = T.match_buffer(c, (n,), dtype="float32")
         for i in T.parallel(n):
-            with T.block("C"):
+            with T.sblock("C"):
                 vi = T.axis.spatial(n, i)
                 C[vi] = A[vi] + B[vi]
 
@@ -60,9 +60,9 @@ class ElemwiseSumIRModule:
 
 
 def generate_add_test_data(hexagon_session: Session, n=128 * 1024):
-    a = tvm.nd.array(np.random.uniform(size=n).astype("float32"), hexagon_session.device)
-    b = tvm.nd.array(np.random.uniform(size=n).astype("float32"), hexagon_session.device)
-    c = tvm.nd.array(np.zeros(n, dtype="float32"), hexagon_session.device)
+    a = tvm.runtime.tensor(np.random.uniform(size=n).astype("float32"), hexagon_session.device)
+    b = tvm.runtime.tensor(np.random.uniform(size=n).astype("float32"), hexagon_session.device)
+    c = tvm.runtime.tensor(np.zeros(n, dtype="float32"), hexagon_session.device)
     return (a, b, c, n)
 
 
@@ -85,7 +85,7 @@ def test_speedup(hexagon_session: Session, capsys):
     serial_mean = benchmark_func(mod, "elemwise_sum_serial", args, hexagon_session)
 
     with capsys.disabled():
-        print("... speedup of {:.2f}".format(serial_mean / parallel_mean), end=" ")
+        print(f"... speedup of {serial_mean / parallel_mean:.2f}", end=" ")
 
 
 @tvm.testing.requires_hexagon

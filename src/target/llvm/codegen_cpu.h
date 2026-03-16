@@ -65,7 +65,7 @@ class CodeGenCPU : public CodeGenLLVM {
   virtual ~CodeGenCPU();
 
   void Init(const std::string& module_name, LLVMTarget* llvm_target,
-            Optional<String> system_lib_prefix, bool dynamic_lookup,
+            ffi::Optional<ffi::String> system_lib_prefix, bool dynamic_lookup,
             bool target_c_runtime) override;
   void AddFunction(const GlobalVar& gvar, const PrimFunc& f) override;
   void AddMainFunction(const std::string& entry_func_name) override;
@@ -74,8 +74,8 @@ class CodeGenCPU : public CodeGenLLVM {
   void VisitStmt_(const AttrStmtNode* op) override;
   void VisitStmt_(const ForNode* op) override;
   llvm::Value* CreateIntrinsic(const CallNode* op) override;
-  llvm::Value* CreateCallExtern(Type ret_type, String global_symbol, const Array<PrimExpr>& args,
-                                bool skip_first_arg) override;
+  llvm::Value* CreateCallExtern(Type ret_type, ffi::String global_symbol,
+                                const ffi::Array<PrimExpr>& args, bool skip_first_arg) override;
 
  protected:
   void AddStartupFunction() final;
@@ -94,6 +94,7 @@ class CodeGenCPU : public CodeGenLLVM {
   llvm::FunctionType* ftype_tvm_ffi_func_call_{nullptr};
   llvm::FunctionType* ftype_tvm_get_func_from_env_{nullptr};
   llvm::FunctionType* ftype_tvm_ffi_error_set_raised_by_c_str_{nullptr};
+  llvm::FunctionType* ftype_tvm_ffi_error_set_raised_from_c_str_parts_{nullptr};
   llvm::FunctionType* ftype_tvm_parallel_launch_{nullptr};
   llvm::FunctionType* ftype_tvm_parallel_barrier_{nullptr};
   llvm::FunctionType* ftype_tvm_register_system_symbol_{nullptr};
@@ -118,14 +119,17 @@ class CodeGenCPU : public CodeGenLLVM {
   llvm::Value* RuntimeTVMFFIFunctionCall();
   llvm::Value* RuntimeTVMGetFuncFromEnv();
   llvm::Value* RuntimeTVMFFIErrorSetRaisedFromCStr();
+  llvm::Value* RuntimeTVMFFIErrorSetRaisedFromCStrParts();
+  // Create a temp function to simplify error raising.
+  llvm::Function* GetOrCreateSetRaisedHelper(int max_n);
   llvm::Value* RuntimeTVMParallelLaunch();
   llvm::Value* RuntimeTVMParallelBarrier();
   llvm::Value* CreateStaticHandle();
   llvm::Value* GetPackedFuncHandle(const std::string& str);
-  TypedPointer PackClosureData(const Array<Var>& fields, uint64_t* num_bytes,
+  TypedPointer PackClosureData(const ffi::Array<Var>& fields, uint64_t* num_bytes,
                                std::string struct_name = "");
   TypedPointer CreateStructRefPtr(DataType t, llvm::Value* buffer, llvm::Value* index, int kind);
-  void UnpackClosureData(TypedPointer cdata, const Array<Var>& fields,
+  void UnpackClosureData(TypedPointer cdata, const ffi::Array<Var>& fields,
                          std::unordered_map<const VarNode*, llvm::Value*>* vmap);
   // Make packed call.
   struct PackedCall {
@@ -133,7 +137,7 @@ class CodeGenCPU : public CodeGenLLVM {
     llvm::Value* ret_type_index;
     llvm::BasicBlock* end_block;
   };
-  PackedCall MakeCallPackedLowered(const Array<PrimExpr>& args, const DataType& r_type,
+  PackedCall MakeCallPackedLowered(const ffi::Array<PrimExpr>& args, const DataType& r_type,
                                    const int64_t begin, const int64_t end, bool use_string_lookup);
   // create call into tvm packed function.
   llvm::Value* CreateCallPacked(const CallNode* op);
@@ -151,7 +155,7 @@ class CodeGenCPU : public CodeGenLLVM {
   llvm::BasicBlock* CheckCallSuccess(llvm::Value* retcode);
 
   llvm::DISubprogram* CreateDebugFunction(const GlobalVar& gvar, const PrimFunc& f);
-  llvm::DISubprogram* CreateDebugFunction(llvm::StringRef name, const Array<Type>& param_types,
+  llvm::DISubprogram* CreateDebugFunction(llvm::StringRef name, const ffi::Array<Type>& param_types,
                                           const Type& return_type);
 
   // Context for injection lookup
@@ -161,16 +165,19 @@ class CodeGenCPU : public CodeGenLLVM {
   llvm::GlobalVariable* gv_tvm_ffi_set_last_error_c_str_{nullptr};
   llvm::GlobalVariable* gv_tvm_parallel_launch_{nullptr};
   llvm::GlobalVariable* gv_tvm_parallel_barrier_{nullptr};
-  std::unordered_map<String, llvm::GlobalVariable*> gv_func_map_;
+  std::unordered_map<ffi::String, llvm::GlobalVariable*> gv_func_map_;
   // context for direct dynamic lookup
   llvm::Function* f_tvm_ffi_func_call_{nullptr};
   llvm::Function* f_tvm_get_func_from_env_{nullptr};
   llvm::Function* f_tvm_ffi_set_raised_by_c_str_{nullptr};
+  llvm::Function* f_tvm_ffi_set_raised_from_c_str_parts_{nullptr};
   llvm::Function* f_tvm_parallel_launch_{nullptr};
   llvm::Function* f_tvm_parallel_barrier_{nullptr};
   llvm::Function* f_tvm_register_system_symbol_{nullptr};
   // Current parallel environment scope.
   ParallelEnv parallel_env_;
+  // cached noinline helper functions for SetRaisedFromCStrParts
+  std::unordered_map<int, llvm::Function*> set_raised_helpers_;
   // global to packed function handle
   std::unordered_map<std::string, llvm::GlobalVariable*> func_handle_map_;
   // List of symbols to be exported to TVM system lib.
@@ -181,7 +188,7 @@ class CodeGenCPU : public CodeGenLLVM {
   bool target_c_runtime_;
   // The system lib prefix if it is not nullopt, then we should do
   // system lib registration with the given prefix. The prefix can be ""
-  Optional<String> system_lib_prefix_;
+  ffi::Optional<ffi::String> system_lib_prefix_;
 };
 
 }  // namespace codegen

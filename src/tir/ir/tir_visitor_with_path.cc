@@ -21,8 +21,10 @@
  * \file tir/ir/tir_visitor_with_path.cc
  * \brief Provide a TIR visitor that tracks the current location
  */
-
 #include "tir_visitor_with_path.h"
+
+#include <tvm/ffi/reflection/access_path.h>
+#include <tvm/s_tir/stmt.h>
 
 #include <algorithm>
 #include <optional>
@@ -33,14 +35,16 @@
 namespace tvm {
 namespace tir {
 
-void TIRVisitorWithPath::Visit(const IRModule& mod, ObjectPath path) {
+using AccessPath = ffi::reflection::AccessPath;
+
+void TIRVisitorWithPath::Visit(const IRModule& mod, AccessPath path) {
   // To ensure deterministic order of visits, sort the GlobalVar first
   // by visibility (public then private), then alphabetically by name.
   std::vector<GlobalVar> gvars;
   std::unordered_set<GlobalVar> externally_exposed;
   for (const auto& [gvar, func] : mod->functions) {
     gvars.push_back(gvar);
-    if (func->GetAttr<String>(tvm::attr::kGlobalSymbol).defined()) {
+    if (func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value()) {
       externally_exposed.insert(gvar);
     }
   }
@@ -59,20 +63,20 @@ void TIRVisitorWithPath::Visit(const IRModule& mod, ObjectPath path) {
   std::vector<DefContext<GlobalVar>> context;
 
   for (const auto& gvar : gvars) {
-    context.push_back(WithDef(gvar, path->Attr("global_var_map_")->MapValue(gvar->name_hint)));
+    context.push_back(WithDef(gvar, path->Attr("global_var_map_")->MapItem(gvar->name_hint)));
   }
 
   for (const auto& gvar : gvars) {
     auto base_func = mod->functions[gvar];
     if (auto prim_func = base_func.as<PrimFunc>()) {
-      Visit(prim_func.value(), path->Attr("functions")->MapValue(gvar));
+      Visit(prim_func.value(), path->Attr("functions")->MapItem(gvar));
     }
   }
 
   while (context.size()) context.pop_back();
 }
 
-void TIRVisitorWithPath::Visit(const PrimFunc& func, ObjectPath path) {
+void TIRVisitorWithPath::Visit(const PrimFunc& func, AccessPath path) {
   // The implicit definitions from a PrimFunc::buffer_map are pretty
   // weird.  They only apply if no previous definition of that
   // variable has occurred.  Therefore, to ensure that we only avoid
@@ -82,14 +86,14 @@ void TIRVisitorWithPath::Visit(const PrimFunc& func, ObjectPath path) {
 
   auto ppath = path->Attr("params");
   for (size_t i = 0; i < func->params.size(); i++) {
-    context.push_back(WithDef(func->params[i], ppath->ArrayIndex(i)));
+    context.push_back(WithDef(func->params[i], ppath->ArrayItem(i)));
   }
 
   auto buffer_map_path = path->Attr("buffer_map");
   for (size_t i = 0; i < func->params.size(); i++) {
     if (auto opt = func->buffer_map.Get(func->params[i])) {
       auto buf = opt.value();
-      auto buf_path = buffer_map_path->MapValue(ppath->ArrayIndex(i));
+      auto buf_path = buffer_map_path->MapItem(ppath->ArrayItem(i));
 
       for (auto& def : WithMatchBufferDefs(buf, buf_path)) {
         context.push_back(std::move(def));
@@ -101,51 +105,54 @@ void TIRVisitorWithPath::Visit(const PrimFunc& func, ObjectPath path) {
   // visit the buffer definition itself.
   for (size_t i = 0; i < func->params.size(); i++) {
     if (auto opt = func->buffer_map.Get(func->params[i])) {
-      auto buf_path = buffer_map_path->MapValue(ppath->ArrayIndex(i));
+      auto buf_path = buffer_map_path->MapItem(ppath->ArrayItem(i));
       context.push_back(WithDef(opt.value(), buf_path));
     }
   }
 
-  Visit(func->body, path->Attr("body"));
+  bind_scope_.WithNewScope([&]() { Visit(func->body, path->Attr("body")); });
 
   while (context.size()) context.pop_back();
 }
 
-void TIRVisitorWithPath::EnterDef(const IterVar& iter_var, ObjectPath path) {
+void TIRVisitorWithPath::EnterDef(const IterVar& iter_var, AccessPath path) {
   if (iter_var->dom.defined()) {
     Visit(iter_var->dom, path->Attr("dom"));
   }
   EnterDef(iter_var->var, path->Attr("var"));
 }
 
-void TIRVisitorWithPath::ExitDef(const IterVar& iter_var, ObjectPath path) {
+void TIRVisitorWithPath::ExitDef(const IterVar& iter_var, AccessPath path) {
   ExitDef(iter_var->var, path->Attr("var"));
 }
 
-void TIRVisitorWithPath::EnterDef(const Buffer& buffer, ObjectPath path) {
+void TIRVisitorWithPath::EnterDef(const Buffer& buffer, AccessPath path) {
   // Defining a buffer counts as using all parameters in the buffer
   // (e.g. shape/strides).
-  Visit(buffer->data, path->Attr("data"));
-  Visit(buffer->shape, path->Attr("shape"));
-  Visit(buffer->strides, path->Attr("strides"));
-  Visit(buffer->elem_offset, path->Attr("elem_offset"));
+  VisitBufferDef(buffer, path);
 }
-void TIRVisitorWithPath::ExitDef(const Buffer& buffer, ObjectPath path) {}
+void TIRVisitorWithPath::ExitDef(const Buffer& buffer, AccessPath path) {}
 
-void TIRVisitorWithPath::Visit(const Buffer& buffer, ObjectPath path) {
-  // Using a buffer *also* counts as using all parameters in the buffer.
+void TIRVisitorWithPath::VisitBufferDef(const Buffer& buffer, AccessPath path) {
   Visit(buffer->data, path->Attr("data"));
   Visit(buffer->shape, path->Attr("shape"));
   Visit(buffer->strides, path->Attr("strides"));
   Visit(buffer->elem_offset, path->Attr("elem_offset"));
 }
 
-void TIRVisitorWithPath::Visit(const BufferRegion& region, ObjectPath path) {
-  Visit(region->buffer, path->Attr("buffer"));
+// Default: buffer use sites do not re-visit buffer fields. Buffer fields
+// (shape, strides, elem_offset) are visited at the definition site via
+// VisitBufferDef/EnterDef. Re-visiting at use sites would require those
+// variables to be in scope at every use, which may not hold when buffers
+// are allocated in a different scope than where they are used.
+void TIRVisitorWithPath::VisitBufferUse(const Buffer& buffer, AccessPath path) {}
+
+void TIRVisitorWithPath::Visit(const BufferRegion& region, AccessPath path) {
+  VisitBufferUse(region->buffer, path->Attr("buffer"));
   Visit(region->region, path->Attr("region"));
 }
 
-void TIRVisitorWithPath::Visit(const MatchBufferRegion& match, ObjectPath path) {
+void TIRVisitorWithPath::Visit(const MatchBufferRegion& match, AccessPath path) {
   Visit(match->source, path->Attr("source"));
 
   // MatchBufferRegion define the match->buffer, but do not own the
@@ -153,148 +160,124 @@ void TIRVisitorWithPath::Visit(const MatchBufferRegion& match, ObjectPath path) 
   // definitions are handled in the BlockNode visitor.
 }
 
-void TIRVisitorWithPath::Visit(const IterVar& iter_var, ObjectPath path) {
+void TIRVisitorWithPath::Visit(const IterVar& iter_var, AccessPath path) {
   if (iter_var->dom.defined()) {
     Visit(iter_var->dom, path->Attr("dom"));
   }
   Visit(iter_var->var, path->Attr("var"));
 }
 
-void TIRVisitorWithPath::Visit(const Range& range, ObjectPath path) {
+void TIRVisitorWithPath::Visit(const Range& range, AccessPath path) {
   Visit(range->min, path->Attr("min"));
   Visit(range->extent, path->Attr("extent"));
 }
 
-void TIRVisitorWithPath::VisitStmt_(const LetStmtNode* op, ObjectPath path) {
+void TIRVisitorWithPath::VisitStmt_(const BindNode* op, AccessPath path) {
   Visit(op->value, path->Attr("value"));
-  auto context = WithDef(op->var, path->Attr("var"));
-  Visit(op->body, path->Attr("body"));
+  // Push the Bind's var definition into the current scope.
+  // The def lives until the enclosing scope (body-carrying stmt) exits.
+  bind_scope_.Current().push_back(WithDef(op->var, path->Attr("var")));
 }
 
-void TIRVisitorWithPath::VisitStmt_(const AttrStmtNode* op, ObjectPath path) {
+void TIRVisitorWithPath::VisitStmt_(const AttrStmtNode* op, AccessPath path) {
   Visit(op->value, path->Attr("value"));
 
-  std::vector<std::variant<DefContext<IterVar>, DefContext<Var>>> context;
+  std::vector<std::variant<DefContext<IterVar>, DefContext<Var>, DefContext<Buffer>>> context;
   if (auto iter_var = op->node.as<IterVar>();
-      iter_var && (op->attr_key == attr::thread_extent || op->attr_key == attr::virtual_thread)) {
+      iter_var &&
+      (op->attr_key == attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread)) {
     // Some attributes serve as a source of definition for the
     // tir::Var they annotate.
     context.push_back(WithDef(iter_var.value(), path->Attr("node")));
 
-  } else if (op->attr_key == attr::buffer_bind_scope) {
-    // The `attr::buffer_bind_scope` attribute defines a view into an
-    // existing buffer, similar to the newer
-    // `BlockNode::match_buffers` field.  It requires the buffer being
-    // viewed to be defined prior to the attribute.  The
-    // `attr::buffer_bind_scope` is the point of definition for the
-    // `tir::Buffer buffer_view`, its `tir::Var` data pointer, and any
-    // symbolic shapes used within `buffer_view that are not already
-    // defined.
-    Array<ObjectRef> arr = Downcast<Array<ObjectRef>>(op->node);
-    ICHECK_EQ(arr.size(), 2U);
-    Buffer buffer_view = Downcast<Buffer>(arr[0]);
-    Buffer orig_buffer = Downcast<Buffer>(arr[1]);
-    Visit(orig_buffer, path->Attr("node")->ArrayIndex(1));
-
-    for (auto& var : WithMatchBufferDefs(buffer_view, path->Attr("node")->ArrayIndex(0))) {
-      context.push_back(std::move(var));
-    }
-
   } else if (auto expr = op->node.as<PrimExpr>()) {
     Visit(expr.value(), path->Attr("node"));
   }
-  Visit(op->body, path->Attr("body"));
+  bind_scope_.WithNewScope([&]() { Visit(op->body, path->Attr("body")); });
 
   while (context.size()) {
     context.pop_back();
   }
 }
 
-void TIRVisitorWithPath::VisitStmt_(const ForNode* op, ObjectPath path) {
+void TIRVisitorWithPath::VisitStmt_(const ForNode* op, AccessPath path) {
   Visit(op->min, path->Attr("min"));
   Visit(op->extent, path->Attr("extent"));
   auto context = WithDef(op->loop_var, path->Attr("loop_var"));
-  Visit(op->body, path->Attr("body"));
+  bind_scope_.WithNewScope([&]() { Visit(op->body, path->Attr("body")); });
 }
 
-void TIRVisitorWithPath::VisitStmt_(const WhileNode* op, ObjectPath path) {
+void TIRVisitorWithPath::VisitStmt_(const WhileNode* op, AccessPath path) {
   Visit(op->condition, path->Attr("condition"));
-  Visit(op->body, path->Attr("body"));
+  bind_scope_.WithNewScope([&]() { Visit(op->body, path->Attr("body")); });
 }
 
-void TIRVisitorWithPath::VisitStmt_(const AllocateNode* op, ObjectPath path) {
-  Visit(op->condition, path->Attr("condition"));
-  Visit(op->extents, path->Attr("extents"));
-  auto context = WithDef(op->buffer_var, path->Attr("buffer_var"));
-  Visit(op->body, path->Attr("body"));
+void TIRVisitorWithPath::VisitStmt_(const AllocBufferNode* op, AccessPath path) {
+  // AllocBuffer both allocates the data variable and declares the buffer.
+  // Push definitions into the current scope so they are visible to subsequent siblings.
+  auto buf_path = path->Attr("buffer");
+  bind_scope_.Current().push_back(WithDef(op->buffer->data, buf_path->Attr("data")));
+  bind_scope_.Current().push_back(WithDef(op->buffer, buf_path));
 }
 
-void TIRVisitorWithPath::VisitStmt_(const AllocateConstNode* op, ObjectPath path) {
-  Visit(op->extents, path->Attr("extents"));
-  auto context = WithDef(op->buffer_var, path->Attr("buffer_var"));
-  Visit(op->body, path->Attr("body"));
+void TIRVisitorWithPath::VisitStmt_(const DeclBufferNode* op, AccessPath path) {
+  // Push buffer definition into the current scope so it is visible to subsequent siblings.
+  bind_scope_.Current().push_back(WithDef(op->buffer, path->Attr("buffer")));
 }
 
-void TIRVisitorWithPath::VisitStmt_(const DeclBufferNode* op, ObjectPath path) {
-  auto context = WithDef(op->buffer, path->Attr("buffer"));
-  Visit(op->body, path->Attr("body"));
-}
-
-void TIRVisitorWithPath::VisitStmt_(const BufferStoreNode* op, ObjectPath path) {
+void TIRVisitorWithPath::VisitStmt_(const BufferStoreNode* op, AccessPath path) {
   Visit(op->value, path->Attr("value"));
-  Visit(op->buffer, path->Attr("buffer"));
+  VisitBufferUse(op->buffer, path->Attr("buffer"));
   Visit(op->indices, path->Attr("indices"));
 }
 
-void TIRVisitorWithPath::VisitStmt_(const BufferRealizeNode* op, ObjectPath path) {
+void TIRVisitorWithPath::VisitStmt_(const IfThenElseNode* op, AccessPath path) {
   Visit(op->condition, path->Attr("condition"));
-  Visit(op->bounds, path->Attr("bounds"));
-  auto context = WithDefIfUndefined(op->buffer->data, path->Attr("buffer")->Attr("data"));
-  Visit(op->buffer, path->Attr("buffer"));
-  Visit(op->body, path->Attr("body"));
+  bind_scope_.WithNewScope([&]() { Visit(op->then_case, path->Attr("then_case")); });
+  bind_scope_.WithNewScope([&]() { Visit(op->else_case, path->Attr("else_case")); });
 }
 
-void TIRVisitorWithPath::VisitStmt_(const IfThenElseNode* op, ObjectPath path) {
+void TIRVisitorWithPath::VisitStmt_(const AssertStmtNode* op, AccessPath path) {
   Visit(op->condition, path->Attr("condition"));
-  Visit(op->then_case, path->Attr("then_case"));
-  Visit(op->else_case, path->Attr("else_case"));
+  Visit(op->error_kind, path->Attr("error_kind"));
+  Visit(op->message_parts, path->Attr("message_parts"));
 }
 
-void TIRVisitorWithPath::VisitStmt_(const AssertStmtNode* op, ObjectPath path) {
-  Visit(op->condition, path->Attr("condition"));
-  Visit(op->message, path->Attr("message"));
-  Visit(op->body, path->Attr("body"));
+void TIRVisitorWithPath::VisitStmt_(const SeqStmtNode* op, AccessPath path) {
+  auto seq_path = path->Attr("seq");
+  for (size_t i = 0; i < op->seq.size(); i++) {
+    Visit(op->seq[i], seq_path->ArrayItem(i));
+  }
 }
 
-void TIRVisitorWithPath::VisitStmt_(const SeqStmtNode* op, ObjectPath path) {
-  Visit(op->seq, path->Attr("seq"));
-}
-
-void TIRVisitorWithPath::VisitStmt_(const EvaluateNode* op, ObjectPath path) {
+void TIRVisitorWithPath::VisitStmt_(const EvaluateNode* op, AccessPath path) {
   Visit(op->value, path->Attr("value"));
 }
 
-void TIRVisitorWithPath::VisitStmt_(const BlockNode* op, ObjectPath path) {
+void TIRVisitorWithPath::VisitStmt_(const SBlockNode* op, AccessPath path) {
   std::vector<std::variant<DefContext<Var>, DefContext<IterVar>, DefContext<Buffer>>> context;
 
   {
     auto iter_path = path->Attr("iter_vars");
     for (size_t i = 0; i < op->iter_vars.size(); i++) {
-      context.push_back(WithDef(op->iter_vars[i], iter_path->ArrayIndex(i)));
+      context.push_back(WithDef(op->iter_vars[i], iter_path->ArrayItem(i)));
     }
   }
-  Visit(op->reads, path->Attr("reads"));
-  Visit(op->writes, path->Attr("writes"));
 
+  // Define alloc_buffers before visiting reads/writes, since reads/writes
+  // may reference buffers from alloc_buffers (e.g. after transform_layout).
   {
     auto alloc_path = path->Attr("alloc_buffers");
     for (size_t i = 0; i < op->alloc_buffers.size(); i++) {
-      auto buffer_path = alloc_path->ArrayIndex(i);
+      auto buffer_path = alloc_path->ArrayItem(i);
       auto buf = op->alloc_buffers[i];
       context.push_back(WithDef(buf->data, buffer_path->Attr("data")));
       context.push_back(WithDef(buf, buffer_path));
     }
   }
+
+  Visit(op->reads, path->Attr("reads"));
+  Visit(op->writes, path->Attr("writes"));
 
   {
     auto match_path = path->Attr("match_buffers");
@@ -302,48 +285,49 @@ void TIRVisitorWithPath::VisitStmt_(const BlockNode* op, ObjectPath path) {
 
     for (size_t i = 0; i < op->match_buffers.size(); i++) {
       auto buf = op->match_buffers[i]->buffer;
-      auto buffer_path = match_path->ArrayIndex(i)->Attr("buffer");
+      auto buffer_path = match_path->ArrayItem(i)->Attr("buffer");
 
       for (auto& def : WithMatchBufferDefs(buf, buffer_path)) {
         context.push_back(std::move(def));
       }
+      context.push_back(WithDef(buf, buffer_path));
     }
   }
 
-  Visit(op->init, path->Attr("init"));
-  Visit(op->body, path->Attr("body"));
+  bind_scope_.WithNewScope([&]() { Visit(op->init, path->Attr("init")); });
+  bind_scope_.WithNewScope([&]() { Visit(op->body, path->Attr("body")); });
 
   while (context.size()) context.pop_back();
 }
 
-void TIRVisitorWithPath::VisitStmt_(const BlockRealizeNode* op, ObjectPath path) {
+void TIRVisitorWithPath::VisitStmt_(const SBlockRealizeNode* op, AccessPath path) {
   Visit(op->iter_values, path->Attr("iter_values"));
   Visit(op->predicate, path->Attr("predicate"));
   Visit(op->block, path->Attr("block"));
 }
 
-void TIRVisitorWithPath::VisitExpr_(const VarNode* op, ObjectPath path) {}
+void TIRVisitorWithPath::VisitExpr_(const VarNode* op, AccessPath path) {}
 
-void TIRVisitorWithPath::VisitExpr_(const SizeVarNode* op, ObjectPath path) {
+void TIRVisitorWithPath::VisitExpr_(const SizeVarNode* op, AccessPath path) {
   VisitExpr_(static_cast<const VarNode*>(op), path);
 }
 
-void TIRVisitorWithPath::VisitExpr_(const BufferLoadNode* op, ObjectPath path) {
-  Visit(op->buffer, path->Attr("buffer"));
+void TIRVisitorWithPath::VisitExpr_(const BufferLoadNode* op, AccessPath path) {
+  VisitBufferUse(op->buffer, path->Attr("buffer"));
   Visit(op->indices, path->Attr("indices"));
 }
 
-void TIRVisitorWithPath::VisitExpr_(const ProducerLoadNode* op, ObjectPath path) {
+void TIRVisitorWithPath::VisitExpr_(const ProducerLoadNode* op, AccessPath path) {
   Visit(op->indices, path->Attr("indices"));
 }
 
-void TIRVisitorWithPath::VisitExpr_(const LetNode* op, ObjectPath path) {
+void TIRVisitorWithPath::VisitExpr_(const LetNode* op, AccessPath path) {
   Visit(op->value, path->Attr("value"));
   auto context = WithDef(op->var, path->Attr("var"));
   Visit(op->body, path->Attr("body"));
 }
 
-void TIRVisitorWithPath::VisitExpr_(const CallNode* op, ObjectPath path) {
+void TIRVisitorWithPath::VisitExpr_(const CallNode* op, AccessPath path) {
   if (auto gvar = op->op.as<GlobalVar>()) {
     Visit(gvar.value(), path->Attr("op"));
   }
@@ -351,7 +335,7 @@ void TIRVisitorWithPath::VisitExpr_(const CallNode* op, ObjectPath path) {
 }
 
 #define DEFINE_BINOP_VISIT_(OP)                                        \
-  void TIRVisitorWithPath::VisitExpr_(const OP* op, ObjectPath path) { \
+  void TIRVisitorWithPath::VisitExpr_(const OP* op, AccessPath path) { \
     Visit(op->a, path->Attr("a"));                                     \
     Visit(op->b, path->Attr("b"));                                     \
   }
@@ -376,43 +360,43 @@ DEFINE_BINOP_VISIT_(OrNode);
 
 #undef DEFINE_BINOP_VISIT_
 
-void TIRVisitorWithPath::VisitExpr_(const IntImmNode* op, ObjectPath path) {}
-void TIRVisitorWithPath::VisitExpr_(const FloatImmNode* op, ObjectPath path) {}
-void TIRVisitorWithPath::VisitExpr_(const StringImmNode* op, ObjectPath path) {}
+void TIRVisitorWithPath::VisitExpr_(const IntImmNode* op, AccessPath path) {}
+void TIRVisitorWithPath::VisitExpr_(const FloatImmNode* op, AccessPath path) {}
+void TIRVisitorWithPath::VisitExpr_(const StringImmNode* op, AccessPath path) {}
 
-void TIRVisitorWithPath::VisitExpr_(const ReduceNode* op, ObjectPath path) {
+void TIRVisitorWithPath::VisitExpr_(const ReduceNode* op, AccessPath path) {
   Visit(op->axis, path->Attr("axis"));
   Visit(op->source, path->Attr("source"));
   Visit(op->init, path->Attr("init"));
   Visit(op->condition, path->Attr("condition"));
 }
 
-void TIRVisitorWithPath::VisitExpr_(const CastNode* op, ObjectPath path) {
+void TIRVisitorWithPath::VisitExpr_(const CastNode* op, AccessPath path) {
   Visit(op->value, path->Attr("value"));
 }
 
-void TIRVisitorWithPath::VisitExpr_(const NotNode* op, ObjectPath path) {
+void TIRVisitorWithPath::VisitExpr_(const NotNode* op, AccessPath path) {
   Visit(op->a, path->Attr("a"));
 }
 
-void TIRVisitorWithPath::VisitExpr_(const SelectNode* op, ObjectPath path) {
+void TIRVisitorWithPath::VisitExpr_(const SelectNode* op, AccessPath path) {
   Visit(op->condition, path->Attr("condition"));
   Visit(op->true_value, path->Attr("true_value"));
   Visit(op->false_value, path->Attr("false_value"));
 }
 
-void TIRVisitorWithPath::VisitExpr_(const RampNode* op, ObjectPath path) {
+void TIRVisitorWithPath::VisitExpr_(const RampNode* op, AccessPath path) {
   Visit(op->base, path->Attr("base"));
   Visit(op->stride, path->Attr("stride"));
   Visit(op->lanes, path->Attr("lanes"));
 }
 
-void TIRVisitorWithPath::VisitExpr_(const ShuffleNode* op, ObjectPath path) {
+void TIRVisitorWithPath::VisitExpr_(const ShuffleNode* op, AccessPath path) {
   Visit(op->indices, path->Attr("indices"));
   Visit(op->vectors, path->Attr("vectors"));
 }
 
-void TIRVisitorWithPath::VisitExpr_(const BroadcastNode* op, ObjectPath path) {
+void TIRVisitorWithPath::VisitExpr_(const BroadcastNode* op, AccessPath path) {
   Visit(op->value, path->Attr("value"));
   Visit(op->lanes, path->Attr("lanes"));
 }

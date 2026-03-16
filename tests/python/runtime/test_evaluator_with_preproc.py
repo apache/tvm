@@ -29,7 +29,7 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
     B = T.match_buffer(b, [128, 128])
     C = T.match_buffer(c, [128, 128])
     for i, j, k in T.grid(128, 128, 128):
-        with T.block("matmul"):
+        with T.sblock("matmul"):
             vi, vj, vk = T.axis.remap("SSR", [i, j, k])
             with T.init():
                 C[vi, vj] = 0.0
@@ -40,8 +40,8 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
 @pytest.mark.parametrize("f_preproc", ["", "l2_cache_flush_cuda"])
 def test_time_evalutor_with_preproc(f_preproc: str):
     mod = tvm.IRModule.from_expr(matmul.with_attr("global_symbol", "main"))
-    sch = tvm.tir.Schedule(mod)
-    blk = sch.get_block("matmul")
+    sch = tvm.s_tir.Schedule(mod)
+    blk = sch.get_sblock("matmul")
     i, j, k = sch.get_loops(blk)
     sch.bind(i, "blockIdx.x")
     sch.bind(j, "threadIdx.x")
@@ -49,11 +49,11 @@ def test_time_evalutor_with_preproc(f_preproc: str):
     dev = tvm.cuda(0)
     evaluator = f.time_evaluator(f.entry_name, dev, repeat=1000, number=1, f_preproc=f_preproc)
 
-    a = tvm.nd.array(np.random.rand(128, 128).astype("float32"), device=dev)
-    b = tvm.nd.array(np.random.rand(128, 128).astype("float32"), device=dev)
-    c = tvm.nd.array(np.zeros((128, 128)).astype("float32"), device=dev)
+    a = tvm.runtime.tensor(np.random.rand(128, 128).astype("float32"), device=dev)
+    b = tvm.runtime.tensor(np.random.rand(128, 128).astype("float32"), device=dev)
+    c = tvm.runtime.tensor(np.zeros((128, 128)).astype("float32"), device=dev)
     args = [a, b, c]
-    print("Evaluator (f_preproc={}):\t{:.5f}ms".format(f_preproc, evaluator(*args).mean * 1000))
+    print(f"Evaluator (f_preproc={f_preproc}):\t{evaluator(*args).mean * 1000:.5f}ms")
 
 
 if __name__ == "__main__":

@@ -119,7 +119,7 @@ under the License.
           </compilerStartOptions>
           <compilerEndOptions>
             <compilerEndOption>-I../../../include</compilerEndOption>
-            <compilerEndOption>-I../../../ffi/include</compilerEndOption>
+            <compilerEndOption>-I../../../3rdparty/tvm-ffi/include</compilerEndOption>
             <compilerEndOption>-I${JAVA_HOME}/include</compilerEndOption>
             <compilerEndOption>-I${JAVA_HOME}/include/darwin</compilerEndOption>
             <compilerEndOption>${cflags}</compilerEndOption>

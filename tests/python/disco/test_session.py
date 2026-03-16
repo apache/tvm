@@ -14,36 +14,38 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401
 """Basic tests for a Disco session"""
+
 # pylint: disable=missing-docstring
+import subprocess
+import sys
 import tempfile
+import threading
 
 import numpy as np
 import pytest
-import subprocess
-import threading
-import sys
 
 import tvm
 import tvm.testing
 from tvm import relax as rx
+from tvm.exec import disco_worker as _  # pylint: disable=unused-import
 from tvm.runtime import ShapeTuple, String
 from tvm.runtime import disco as di
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tir as T
-from tvm.exec import disco_worker as _  # pylint: disable=unused-import
 
 
 def _numpy_to_worker_0(sess: di.Session, np_array: np.array, device):
     x_array = sess.empty(np_array.shape, "float32", device=device)
-    host_array = tvm.nd.array(np_array, device=device)
+    host_array = tvm.runtime.tensor(np_array, device=device)
     sess.copy_to_worker_0(host_array, x_array)
     return x_array
 
 
 def _numpy_from_worker_0(sess: di.Session, remote_array, shape, dtype):
-    host_array = tvm.nd.empty(shape, dtype, device=tvm.cpu())
+    host_array = tvm.runtime.empty(shape, dtype, device=tvm.cpu())
     sess.copy_from_worker_0(host_array, remote_array)
     sess.sync_worker_0()
     return host_array.numpy()
@@ -82,7 +84,7 @@ class SocketSessionTester:
 
         cmd = "tvm.exec.disco_remote_socket_session"
         self.remote_nodes = []
-        for _ in range(num_nodes - 1):
+        for _i in range(num_nodes - 1):
             self.remote_nodes.append(
                 subprocess.Popen(
                     [
@@ -142,14 +144,14 @@ def test_float(session_kind):
 
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
-def test_ndarray(session_kind):
+def test_tensor(session_kind):
     num_workers = 4
     sess = session_kind(num_workers=num_workers)
     device = tvm.cpu(0)
     x_np = np.arange(6).astype("float32").reshape([2, 3])
     y_np = np.arange(6).astype("float32").reshape([2, 3]) + 1
     x_disc = _numpy_to_worker_0(sess, x_np, device=device)
-    y_disc = sess.get_global_func("tests.disco.add_one_ndarray")(x_disc)
+    y_disc = sess.get_global_func("tests.disco.add_one_tensor")(x_disc)
     y_nd = _numpy_from_worker_0(sess, y_disc, shape=y_np.shape, dtype=y_np.dtype)
     np.testing.assert_equal(y_nd, y_np)
 
@@ -174,7 +176,7 @@ def test_string_obj(session_kind):
 
     for i in range(num_workers):
         value = result.debug_get_from_remote(i)
-        assert isinstance(value, String)
+        assert isinstance(value, str)
         assert value == "hello_suffix"
 
 
@@ -201,7 +203,7 @@ def test_vm_module(session_kind):
         @T.prim_func
         def transpose(A: T.Buffer((8, 16), "float32"), B: T.Buffer((16, 8), "float32")):
             for i, j in T.grid(16, 8):
-                with T.block("transpose"):
+                with T.sblock("transpose"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vj, vi]
 
@@ -245,21 +247,21 @@ def test_vm_multi_func(session_kind):
         @T.prim_func
         def t1(A: T.Buffer((8, 16), "float32"), B: T.Buffer((16, 8), "float32")):
             for i, j in T.grid(16, 8):
-                with T.block("t1"):
+                with T.sblock("t1"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vj, vi]
 
         @T.prim_func
         def t2(A: T.Buffer((16, 8), "float32"), B: T.Buffer((8, 16), "float32")):
             for i, j in T.grid(8, 16):
-                with T.block("t2"):
+                with T.sblock("t2"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vj, vi]
 
         @R.function
-        def transpose_1(
-            A: R.Tensor((8, 16), dtype="float32")
-        ) -> R.Tensor((16, 8), dtype="float32"):
+        def transpose_1(A: R.Tensor((8, 16), dtype="float32")) -> R.Tensor(
+            (16, 8), dtype="float32"
+        ):
             R.func_attr({"global_symbol": "transpose_1"})
             cls = TestMod
             with R.dataflow():
@@ -268,9 +270,9 @@ def test_vm_multi_func(session_kind):
             return B
 
         @R.function
-        def transpose_2(
-            A: R.Tensor((16, 8), dtype="float32")
-        ) -> R.Tensor((8, 16), dtype="float32"):
+        def transpose_2(A: R.Tensor((16, 8), dtype="float32")) -> R.Tensor(
+            (8, 16), dtype="float32"
+        ):
             R.func_attr({"global_symbol": "transpose_2"})
             cls = TestMod
             with R.dataflow():

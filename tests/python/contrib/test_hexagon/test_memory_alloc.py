@@ -19,8 +19,8 @@
 import numpy as np
 
 import tvm
-from tvm.script import tir as T
 from tvm.contrib.hexagon import allocate_hexagon_array
+from tvm.script import tir as T
 
 from .infrastructure import get_hexagon_target
 
@@ -35,7 +35,7 @@ def generated_func(shape: tuple, dtype: str, axis_separators: list):
         b_buffer = T.match_buffer(b, shape, dtype=dtype, axis_separators=axis_separators)
 
         for i, j in T.grid(dim0, dim1):
-            with T.block("compute"):
+            with T.sblock("compute"):
                 b_buffer[i, j] = a_buffer[i, j] * T.cast(2, dtype=dtype)
 
     return elwise
@@ -47,7 +47,10 @@ class TestMemoryAlloc:
     dtype = tvm.testing.parameter("int8")
     shape = tvm.testing.parameter((128, 128))
 
-    (scope, axis_separators,) = tvm.testing.parameters(
+    (
+        scope,
+        axis_separators,
+    ) = tvm.testing.parameters(
         ("global", []),
         ("global.vtcm", []),
         ("global.vtcm", [1]),

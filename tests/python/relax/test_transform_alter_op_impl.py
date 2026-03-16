@@ -14,12 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501, E731, F401, F841
 
 import pytest
-import tvm.testing
 
+import tvm.testing
 from tvm import relax
-from tvm.script import tir as T, ir as I, relax as R
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 from tvm.tir import IndexMap
 
 kOperatorName = "operator_name"
@@ -52,7 +55,7 @@ def test_single_output():
         def add(arg0: T.Buffer((16,), "float32"), arg1: T.Buffer((16,), "float32"), output: T.Buffer((16,), "float32")):
             T.func_attr({"operator_name": "relax.add"})
             for ax0 in range(16):
-                with T.block("T_add"):
+                with T.sblock("T_add"):
                     v_ax0 = T.axis.spatial(16, ax0)
                     T.reads(arg0[v_ax0], arg1[v_ax0])
                     T.writes(output[v_ax0])
@@ -71,7 +74,7 @@ def test_single_output():
         def relax_add_replacement(arg0: T.Buffer((4, 4), "float32"), arg1: T.Buffer((4, 4), "float32"), output: T.Buffer((4, 4), "float32")):
             T.func_attr({"operator_name": "relax.add"})
             for ax0, ax1 in T.grid(4, 4):
-                with T.block("T_add"):
+                with T.sblock("T_add"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(arg0[v_ax0, v_ax1], arg1[v_ax0, v_ax1])
                     T.writes(output[v_ax0, v_ax1])
@@ -91,7 +94,7 @@ def test_single_output():
     @T.prim_func(private=True)
     def add_2d(arg0: T.Buffer((4, 4), "float32"), arg1: T.Buffer((4, 4), "float32"), output: T.Buffer((4, 4), "float32")):
         for ax0, ax1 in T.grid(4, 4):
-            with T.block("T_add"):
+            with T.sblock("T_add"):
                 v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                 T.reads(arg0[v_ax0, v_ax1], arg1[v_ax0, v_ax1])
                 T.writes(output[v_ax0, v_ax1])
@@ -115,7 +118,7 @@ def test_empty_layout_changes():
         def mul_by_2(arg0: T.Buffer((16,), "float32"), output: T.Buffer((16,), "float32")):
             T.func_attr({"operator_name": "relax.mul_by_2"})
             for ax0 in range(16):
-                with T.block("T_add"):
+                with T.sblock("T_add"):
                     v_ax0 = T.axis.spatial(16, ax0)
                     T.reads(arg0[v_ax0])
                     T.writes(output[v_ax0])
@@ -134,7 +137,7 @@ def test_empty_layout_changes():
         def relax_mul_by_2_replacement(arg0: T.Buffer((16,), "float32"), output: T.Buffer((16,), "float32")):
             T.func_attr({"operator_name": "relax.mul_by_2"})
             for ax0 in range(16):
-                with T.block("T_add"):
+                with T.sblock("T_add"):
                     v_ax0 = T.axis.spatial(16, ax0)
                     T.reads(arg0[v_ax0])
                     T.writes(output[v_ax0])
@@ -152,7 +155,7 @@ def test_empty_layout_changes():
     def add_x_x(arg0: T.Buffer((16,), "float32"), output: T.Buffer((16,), "float32")):
         T.func_attr({"operator_name": "relax.mul_by_2"})
         for ax0 in range(16):
-            with T.block("T_add"):
+            with T.sblock("T_add"):
                 v_ax0 = T.axis.spatial(16, ax0)
                 T.reads(arg0[v_ax0])
                 T.writes(output[v_ax0])
@@ -175,7 +178,7 @@ def test_multiple_outputs():
         def some_op(arg0: T.Buffer((16,), "float32"), arg1: T.Buffer((16,), "float32"), output0: T.Buffer((16,), "float32"), output1: T.Buffer((16,), "float32")):
             T.func_attr({"operator_name": "relax.some_op"})
             for ax0 in range(16):
-                with T.block("T_add"):
+                with T.sblock("T_add"):
                     v_ax0 = T.axis.spatial(16, ax0)
                     T.reads(arg0[v_ax0], arg1[v_ax0])
                     T.writes(output0[v_ax0], output1[v_ax0])
@@ -195,7 +198,7 @@ def test_multiple_outputs():
         def relax_some_op_replacement(arg0: T.Buffer((4, 4), "float32"), arg1: T.Buffer((4, 4), "float32"), output0: T.Buffer((4, 4), "float32"), output1: T.Buffer((4, 4), "float32")):
             T.func_attr({"operator_name": "relax.some_op"})
             for ax0, ax1 in T.grid(4, 4):
-                with T.block("T_add"):
+                with T.sblock("T_add"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(arg0[v_ax0, v_ax1], arg1[v_ax0, v_ax1])
                     T.writes(output0[v_ax0, v_ax1], output1[v_ax0, v_ax1])
@@ -219,7 +222,7 @@ def test_multiple_outputs():
     @T.prim_func(private=True)
     def some_op_2d(arg0: T.Buffer((4, 4), "float32"), arg1: T.Buffer((4, 4), "float32"), output0: T.Buffer((4, 4), "float32"), output1: T.Buffer((4, 4), "float32")):
         for ax0, ax1 in T.grid(4, 4):
-            with T.block("T_add"):
+            with T.sblock("T_add"):
                 v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                 T.reads(arg0[v_ax0, v_ax1], arg1[v_ax0, v_ax1])
                 T.writes(output0[v_ax0, v_ax1], output1[v_ax0, v_ax1])
@@ -245,7 +248,7 @@ def test_multiple_outputs_with_axis_sep():
         def some_op(arg0: T.Buffer((16,), "float32"), arg1: T.Buffer((16,), "float32"), output0: T.Buffer((16,), "float32"), output1: T.Buffer((16,), "float32")):
             T.func_attr({"operator_name": "relax.some_op"})
             for ax0 in range(16):
-                with T.block("T_add"):
+                with T.sblock("T_add"):
                     v_ax0 = T.axis.spatial(16, ax0)
                     T.reads(arg0[v_ax0], arg1[v_ax0])
                     T.writes(output0[v_ax0], output1[v_ax0])
@@ -265,7 +268,7 @@ def test_multiple_outputs_with_axis_sep():
         def relax_some_op_replacement(arg0: T.Buffer((4, 4), "float32"), arg1: T.Buffer((4, 4), "float32"), output0: T.Buffer((4, 4), "float32"), output1: T.Buffer((4, 4), "float32")):
             T.func_attr({"operator_name": "relax.some_op"})
             for ax0, ax1 in T.grid(4, 4):
-                with T.block("T_add"):
+                with T.sblock("T_add"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(arg0[v_ax0, v_ax1], arg1[v_ax0, v_ax1])
                     T.writes(output0[v_ax0, v_ax1], output1[v_ax0, v_ax1])
@@ -289,7 +292,7 @@ def test_multiple_outputs_with_axis_sep():
     @T.prim_func(private=True)
     def some_op_2d(arg0: T.Buffer((4, 4), "float32"), arg1: T.Buffer((4, 4), "float32"), output0: T.Buffer((4, 4), "float32"), output1: T.Buffer((4, 4), "float32")):
         for ax0, ax1 in T.grid(4, 4):
-            with T.block("T_add"):
+            with T.sblock("T_add"):
                 v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                 T.reads(arg0[v_ax0, v_ax1], arg1[v_ax0, v_ax1])
                 T.writes(output0[v_ax0, v_ax1], output1[v_ax0, v_ax1])
@@ -325,7 +328,7 @@ def test_supported_implicit_padding():
         def relu(arg0: T.Buffer((14,), "float32"), output: T.Buffer((14,), "float32")):
             T.func_attr({"operator_name": "relax.relu"})
             for ax0 in T.grid(14):
-                with T.block("T_add"):
+                with T.sblock("T_add"):
                     v_ax0 = T.axis.remap("S", [ax0])
                     T.reads(arg0[v_ax0])
                     T.writes(output[v_ax0])
@@ -365,9 +368,9 @@ def test_supported_implicit_padding():
             arg0: T.Buffer((16,), "float32"), output: T.Buffer((16,), "float32")
         ):
             T.func_attr({"operator_name": "relax.relu"})
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0 in range(16):
-                with T.block("T_add"):
+                with T.sblock("T_add"):
                     v_ax0 = T.axis.spatial(16, ax0)
                     T.reads(arg0[v_ax0])
                     T.writes(output[v_ax0])
@@ -380,9 +383,9 @@ def test_supported_implicit_padding():
             input = T.match_buffer(var_input, (p0,))
             i0 = T.int64()
             output = T.match_buffer(var_output, (i0,))
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0 in range(i0):
-                with T.block("output"):
+                with T.sblock("output"):
                     v_ax0 = T.axis.spatial(i0, ax0)
                     T.reads(input[v_ax0])
                     T.writes(output[v_ax0])
@@ -391,14 +394,14 @@ def test_supported_implicit_padding():
     @T.prim_func(private=True)
     def relu_pad(arg0: T.Buffer((16,), "float32"), output: T.Buffer((16,), "float32")):
         for ax0 in T.grid(16):
-            with T.block("T_add"):
+            with T.sblock("T_add"):
                 v_ax0 = T.axis.remap("S", [ax0])
                 T.reads(arg0[v_ax0])
                 T.writes(output[v_ax0])
                 output[v_ax0] = T.max(arg0[v_ax0], T.float32(0))
 
     # introduces implicit padding for shape (14,)
-    index_map = lambda i: (i % 16)
+    index_map = lambda i: i % 16
     operator_name = "relax.relu"
     _check(
         Before,
@@ -417,7 +420,7 @@ def test_multiple_call_sites():
         def add(arg0: T.Buffer((16,), "float32"), arg1: T.Buffer((16,), "float32"), output: T.Buffer((16,), "float32")):
             T.func_attr({"operator_name": "relax.add"})
             for ax0 in range(16):
-                with T.block("T_add"):
+                with T.sblock("T_add"):
                     v_ax0 = T.axis.spatial(16, ax0)
                     T.reads(arg0[v_ax0], arg1[v_ax0])
                     T.writes(output[v_ax0])
@@ -437,9 +440,9 @@ def test_multiple_call_sites():
         @T.prim_func(private=True)
         def relax_add_replacement(arg0: T.Buffer((4, 4), "float32"), arg1: T.Buffer((4, 4), "float32"), output: T.Buffer((4, 4), "float32")):
             T.func_attr({"operator_name": "relax.add"})
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0, ax1 in T.grid(4, 4):
-                with T.block("T_add"):
+                with T.sblock("T_add"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(arg0[v_ax0, v_ax1], arg1[v_ax0, v_ax1])
                     T.writes(output[v_ax0, v_ax1])
@@ -463,7 +466,7 @@ def test_multiple_call_sites():
     @T.prim_func(private=True)
     def add_2d(arg0: T.Buffer((4, 4), "float32"), arg1: T.Buffer((4, 4), "float32"), output: T.Buffer((4, 4), "float32")):
         for ax0, ax1 in T.grid(4, 4):
-            with T.block("T_add"):
+            with T.sblock("T_add"):
                 v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                 T.reads(arg0[v_ax0, v_ax1], arg1[v_ax0, v_ax1])
                 T.writes(output[v_ax0, v_ax1])
@@ -489,7 +492,7 @@ def test_reshape():
         ):
             T.func_attr({"operator_name": "relax.reshape"})
             for ax0, ax1, ax2 in T.grid(T.int64(850), T.int64(1), T.int64(2048)):
-                with T.block("T_reshape"):
+                with T.sblock("T_reshape"):
                     v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
                     T.reads(
                         A[
@@ -504,9 +507,9 @@ def test_reshape():
                     ]
 
         @R.function
-        def main(
-            x: R.Tensor((850, 2048), dtype="float16")
-        ) -> R.Tensor((850, 1, 2048), dtype="float16"):
+        def main(x: R.Tensor((850, 2048), dtype="float16")) -> R.Tensor(
+            (850, 1, 2048), dtype="float16"
+        ):
             cls = Before
             with R.dataflow():
                 lv = R.call_tir(
@@ -525,7 +528,7 @@ def test_reshape():
         ):
             T.func_attr({"operator_name": "relax.reshape"})
             for ax0, ax1, ax2 in T.grid(T.int64(850), T.int64(1), T.int64(2048)):
-                with T.block("T_reshape"):
+                with T.sblock("T_reshape"):
                     v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
                     T.reads(A[v_ax0, v_ax2 // T.int64(1024), v_ax2 % T.int64(1024)])
                     T.writes(T_reshape[v_ax0, v_ax1, v_ax2])
@@ -534,9 +537,9 @@ def test_reshape():
                     ]
 
         @R.function
-        def main(
-            x: R.Tensor((850, 2048), dtype="float16")
-        ) -> R.Tensor((850, 1, 2048), dtype="float16"):
+        def main(x: R.Tensor((850, 2048), dtype="float16")) -> R.Tensor(
+            (850, 1, 2048), dtype="float16"
+        ):
             cls = Expected
             with R.dataflow():
                 lv: R.Tensor((850, 2, 1024), dtype="float16") = R.layout_transform(
@@ -560,7 +563,7 @@ def test_reshape():
         T_reshape: T.Buffer((T.int64(850), T.int64(1), T.int64(2048)), "float16"),
     ):
         for ax0, ax1, ax2 in T.grid(T.int64(850), T.int64(1), T.int64(2048)):
-            with T.block("T_reshape"):
+            with T.sblock("T_reshape"):
                 v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
                 T.reads(A[v_ax0, v_ax2 // T.int64(1024), v_ax2 % T.int64(1024)])
                 T.writes(T_reshape[v_ax0, v_ax1, v_ax2])
@@ -587,7 +590,7 @@ def test_input_axis_separator():
         def some_op(arg0: T.Buffer((16,), "float32"), arg1: T.Buffer((16,), "float32"), output0: T.Buffer((16,), "float32"), output1: T.Buffer((16,), "float32")):
             T.func_attr({"operator_name": "relax.some_op"})
             for ax0 in range(16):
-                with T.block("T_add"):
+                with T.sblock("T_add"):
                     v_ax0 = T.axis.spatial(16, ax0)
                     T.reads(arg0[v_ax0], arg1[v_ax0])
                     T.writes(output0[v_ax0], output1[v_ax0])
@@ -607,7 +610,7 @@ def test_input_axis_separator():
         def relax_some_op_replacement(arg0: T.Buffer((4, 4), "float32"), arg1: T.Buffer((4, 4), "float32"), output0: T.Buffer((4, 4), "float32"), output1: T.Buffer((4, 4), "float32")):
             T.func_attr({"operator_name": "relax.some_op"})
             for ax0, ax1 in T.grid(4, 4):
-                with T.block("T_add"):
+                with T.sblock("T_add"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     output0[v_ax0, v_ax1] = arg0[v_ax0, v_ax1] + arg1[v_ax0, v_ax1]
                     output1[v_ax0, v_ax1] = arg0[v_ax0, v_ax1] - arg1[v_ax0, v_ax1]
@@ -629,7 +632,7 @@ def test_input_axis_separator():
     @T.prim_func(private=True)
     def some_op_2d(arg0: T.Buffer((4, 4), "float32"), arg1: T.Buffer((4, 4), "float32"), output0: T.Buffer((4, 4), "float32"), output1: T.Buffer((4, 4), "float32")):
         for ax0, ax1 in T.grid(4, 4):
-            with T.block("T_add"):
+            with T.sblock("T_add"):
                 v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                 output0[v_ax0, v_ax1] = arg0[v_ax0, v_ax1] + arg1[v_ax0, v_ax1]
                 output1[v_ax0, v_ax1] = arg0[v_ax0, v_ax1] - arg1[v_ax0, v_ax1]

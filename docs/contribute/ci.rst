@@ -113,11 +113,11 @@ Dealing with Flakiness
 ^^^^^^^^^^^^^^^^^^^^^^
 
 If you notice a failure on your PR that seems unrelated to your change, you should
-search [recent GitHub issues related to flaky tests](https://github.com/apache/tvm/issues?q=is%3Aissue+%5BCI+Problem%5D+Flaky+>) and
-[file a new issue](https://github.com/apache/tvm/issues/new?assignees=&labels=&template=ci-problem.md&title=%5BCI+Problem%5D+>)
+search `recent GitHub issues related to flaky tests <https://github.com/apache/tvm/issues?q=is%3Aissue+%5BCI+Problem%5D+Flaky>`_ and
+`file a new issue <https://github.com/apache/tvm/issues/new?assignees=&labels=&template=ci-problem.md&title=%5BCI+Problem%5D>`_
 if you don't see any reports of the failure. If a certain test or class of tests affects
-several PRs or commits on `main` with flaky failures, the test should be disabled via
-[pytest's @xfail decorator](https://docs.pytest.org/en/6.2.x/skipping.html#xfail-mark-test-functions-as-expected-to-fail) with [`strict=False`](https://docs.pytest.org/en/6.2.x/skipping.html#strict-parameter) and the relevant issue linked in the
+several PRs or commits on ``main`` with flaky failures, the test should be disabled via
+`pytest's @xfail decorator <https://docs.pytest.org/en/6.2.x/skipping.html#xfail-mark-test-functions-as-expected-to-fail>`_ with `strict=False <https://docs.pytest.org/en/6.2.x/skipping.html#strict-parameter>`_ and the relevant issue linked in the
 disabling PR.
 
 .. code-block:: python

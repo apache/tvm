@@ -25,7 +25,8 @@ namespace relax {
 namespace distributed {
 
 StructInfo InferDistStructInfoStatistical(const Call& call, const BlockBuilder& ctx) {
-  Array<distributed::DTensorStructInfo> input_dtensor_sinfos = GetInputDTensorStructInfo(call, ctx);
+  ffi::Array<distributed::DTensorStructInfo> input_dtensor_sinfos =
+      GetInputDTensorStructInfo(call, ctx);
   TensorStructInfo data_sinfo = input_dtensor_sinfos[0]->tensor_sinfo;
 
   const auto* attrs = call->attrs.as<StatisticalAttrs>();
@@ -44,7 +45,7 @@ StructInfo InferDistStructInfoStatistical(const Call& call, const BlockBuilder& 
     ctx->ReportFatal(Diagnostic::Error(call) << "Input of distributed operator must be known ndim");
   } else {
     out_ndim = data_sinfo->ndim - axes.size();
-    ICHECK_GE(out_ndim, 0);
+    TVM_FFI_ICHECK_GE(out_ndim, 0);
   }
 
   // The inference rule for reduction operator output shapes:
@@ -60,7 +61,7 @@ StructInfo InferDistStructInfoStatistical(const Call& call, const BlockBuilder& 
     ctx->ReportFatal(Diagnostic::Error(call)
                      << "Input of distributed operator must be known shape");
   }
-  Array<PrimExpr> out_shape;
+  ffi::Array<PrimExpr> out_shape;
   out_shape.reserve(out_ndim);
   for (int i = 0; i < data_sinfo->ndim; ++i) {
     if (attrs->axis.defined() && std::find(axes.begin(), axes.end(), i) == axes.end()) {
@@ -69,7 +70,7 @@ StructInfo InferDistStructInfoStatistical(const Call& call, const BlockBuilder& 
       out_shape.push_back(IntImm(DataType::Int(64), /*value=*/1));
     }
   }
-  ICHECK_EQ(static_cast<int>(out_shape.size()), out_ndim);
+  TVM_FFI_ICHECK_EQ(static_cast<int>(out_shape.size()), out_ndim);
   TensorStructInfo output_tensor_sinfo = TensorStructInfo(ShapeExpr(out_shape), data_sinfo->dtype);
 
   return InferShardingSpec(call, ctx, output_tensor_sinfo, distributed::BuildAxisGraphReduce);

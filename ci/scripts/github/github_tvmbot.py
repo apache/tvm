@@ -15,29 +15,30 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E402, E501, F841, RUF012
 
-import os
-import json
 import argparse
-import sys
-import warnings
+import json
 import logging
-import traceback
+import os
 import re
-from typing import Dict, Any, List, Optional, Callable, Union
+import sys
+import traceback
+import warnings
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 # Hackery to enable importing of utils from ci/scripts/jenkins
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.append(str(REPO_ROOT / "ci" / "scripts" / "jenkins"))
 
-from git_utils import git, GitHubRepo, parse_remote, post
 from cmd_utils import init_log
+from git_utils import GitHubRepo, git, parse_remote, post
 
-
-Review = Dict[str, Any]
-CIJob = Dict[str, Any]
-Comment = Dict[str, Any]
+Review = dict[str, Any]
+CIJob = dict[str, Any]
+Comment = dict[str, Any]
 CommentChecker = Callable[[Comment], bool]
 
 EXPECTED_JOBS = ["tvm-ci/pr-head"]
@@ -194,7 +195,7 @@ class PR:
         owner: str,
         repo: str,
         dry_run: bool = False,
-        raw_data: Dict[str, Any] = None,
+        raw_data: dict[str, Any] | None = None,
     ):
         self.owner = owner
         self.number = number
@@ -242,7 +243,7 @@ class PR:
     def __repr__(self):
         return json.dumps(self.raw, indent=2)
 
-    def react(self, comment: Dict[str, Any], content: str):
+    def react(self, comment: dict[str, Any], content: str):
         """
         React with a thumbs up to a comment
         """
@@ -256,7 +257,7 @@ class PR:
     def head_commit(self):
         return self.raw["commits"]["nodes"][0]["commit"]
 
-    def co_authors(self) -> List[str]:
+    def co_authors(self) -> list[str]:
         authors = []
         for commit in self.raw["authorCommits"]["nodes"]:
             # Co-authors always come after the main author according to the
@@ -271,7 +272,7 @@ class PR:
     def head_oid(self):
         return self.head_commit()["oid"]
 
-    def ci_jobs(self) -> List[CIJob]:
+    def ci_jobs(self) -> list[CIJob]:
         """
         Get a list of all CI jobs (GitHub Actions and other) in a unified format
         """
@@ -310,14 +311,14 @@ class PR:
         logging.info(f"Found CI jobs for {self.head_commit()['oid']} {to_json_str(jobs)}")
         return jobs
 
-    def reviews(self) -> List[Review]:
+    def reviews(self) -> list[Review]:
         return self.raw["reviews"]["nodes"]
 
-    def head_commit_reviews(self) -> List[Review]:
+    def head_commit_reviews(self) -> list[Review]:
         """
         Find reviews associated with the head commit
         """
-        commits_to_review_status: Dict[str, List[Review]] = {}
+        commits_to_review_status: dict[str, list[Review]] = {}
 
         for review in self.reviews():
             if not review["authorCanPushToRepository"]:
@@ -347,13 +348,13 @@ class PR:
             },
         )["data"]["repository"]["pullRequest"]
 
-    def search_collaborator(self, user: str) -> List[Dict[str, Any]]:
+    def search_collaborator(self, user: str) -> list[dict[str, Any]]:
         """
         Query GitHub for collaborators matching 'user'
         """
         return self.search_users(user, COLLABORATORS_QUERY)["collaborators"]["nodes"]
 
-    def search_users(self, user: str, query: str) -> List[Dict[str, Any]]:
+    def search_users(self, user: str, query: str) -> list[dict[str, Any]]:
         return self.github.graphql(
             query=query,
             variables={
@@ -363,7 +364,7 @@ class PR:
             },
         )["data"]["repository"]
 
-    def search_mentionable_users(self, user: str) -> List[Dict[str, Any]]:
+    def search_mentionable_users(self, user: str) -> list[dict[str, Any]]:
         return self.search_users(user, MENTIONABLE_QUERY)["mentionableUsers"]["nodes"]
 
     def comment(self, text: str) -> None:
@@ -449,7 +450,7 @@ class PR:
     def author(self) -> str:
         return self.raw["author"]["login"]
 
-    def find_failed_ci_jobs(self) -> List[CIJob]:
+    def find_failed_ci_jobs(self) -> list[CIJob]:
         # NEUTRAL is GitHub Action's way of saying cancelled
         return [
             job
@@ -457,7 +458,7 @@ class PR:
             if job["status"] not in {"SUCCESS", "SUCCESSFUL", "SKIPPED"}
         ]
 
-    def find_missing_expected_jobs(self) -> List[str]:
+    def find_missing_expected_jobs(self) -> list[str]:
         # Map of job name: has seen in completed jobs
         seen_expected_jobs = {name: False for name in EXPECTED_JOBS}
         logging.info(f"Expected to see jobs: {seen_expected_jobs}")
@@ -473,7 +474,7 @@ class PR:
         return missing_expected_jobs
 
     def trigger_gha_ci(self, sha: str) -> None:
-        logging.info(f"POST-ing a workflow_dispatch event to main.yml")
+        logging.info("POST-ing a workflow_dispatch event to main.yml")
         actions_github = GitHubRepo(
             user=self.github.user, repo=self.github.repo, token=GH_ACTIONS_TOKEN
         )
@@ -485,7 +486,7 @@ class PR:
         )
         logging.info(f"Successful workflow_dispatch: {r}")
 
-    def merge_if_passed_checks(self) -> Optional[Dict[str, Any]]:
+    def merge_if_passed_checks(self) -> dict[str, Any] | None:
         failed_ci_jobs = self.find_failed_ci_jobs()
         all_ci_passed = len(failed_ci_jobs) == 0
         has_one_approval = False
@@ -535,11 +536,8 @@ class PR:
             "tvm-cpu",
             "tvm-docker",
             "tvm-gpu",
-            "tvm-hexagon",
-            "tvm-i386",
             "tvm-lint",
             "tvm-wasm",
-            "tvm-unity",
         ]
         for name in job_names:
             url = JENKINS_URL + f"job/{name}/job/PR-{self.number}/buildWithParameters"
@@ -579,7 +577,7 @@ class PR:
                     else:
                         raise e
 
-    def comment_failure(self, msg: str, exceptions: Union[Exception, List[Exception]]):
+    def comment_failure(self, msg: str, exceptions: Exception | list[Exception]):
         if not isinstance(exceptions, list):
             exceptions = [exceptions]
 

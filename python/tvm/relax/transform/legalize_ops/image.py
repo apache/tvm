@@ -16,7 +16,9 @@
 # under the License.
 # pylint: disable=invalid-name
 """Default legalization function for image operators."""
+
 from tvm import topi
+
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr
 from .common import register_legalize
@@ -36,4 +38,17 @@ def _image_resize2d(bb: BlockBuilder, call: Call) -> Expr:
         bicubic_alpha=call.attrs.cubic_alpha,
         bicubic_exclude=call.attrs.cubic_exclude,
         extrapolation_value=call.attrs.extrapolation_value,
+    )
+
+
+@register_legalize("relax.image.grid_sample")
+def _image_grid_sample(bb: BlockBuilder, call: Call) -> Expr:
+    return bb.call_te(
+        topi.image.grid_sample,
+        call.args[0],
+        call.args[1],
+        method=call.attrs.method,
+        layout=call.attrs.layout,
+        padding_mode=call.attrs.padding_mode,
+        align_corners=call.attrs.align_corners,
     )

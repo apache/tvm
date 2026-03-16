@@ -34,24 +34,22 @@
 namespace tvm {
 namespace relax {
 
-TVM_FFI_STATIC_INIT_BLOCK({ QuantizeAttrs::RegisterReflection(); });
-
-TVM_REGISTER_NODE_TYPE(QuantizeAttrs);
+TVM_FFI_STATIC_INIT_BLOCK() { QuantizeAttrs::RegisterReflection(); }
 
 /* relax.quantize */
 
 Expr quantize(Expr data, Expr scale, Expr zero_point, int axis, DataType out_dtype) {
-  ObjectPtr<QuantizeAttrs> attrs = make_object<QuantizeAttrs>();
+  ObjectPtr<QuantizeAttrs> attrs = ffi::make_object<QuantizeAttrs>();
   attrs->axis = axis;
   attrs->out_dtype = out_dtype;
   static const Op& op = Op::Get("relax.quantize");
   return Call(op, {std::move(data), std::move(scale), std::move(zero_point)}, Attrs(attrs));
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.quantize", quantize);
-});
+}
 
 StructInfo InferStructInfoQuantize(const Call& call, const BlockBuilder& ctx) {
   const auto* attrs = call->attrs.as<QuantizeAttrs>();
@@ -95,7 +93,7 @@ StructInfo InferStructInfoQuantize(const Call& call, const BlockBuilder& ctx) {
   }
 
   auto check_param_size = [&](const TensorStructInfo& param_sinfo,
-                              const TensorStructInfo& data_sinfo, String param_name) {
+                              const TensorStructInfo& data_sinfo, ffi::String param_name) {
     const PrimExpr& param_dim = param_sinfo->GetShape().value()[0];
     const PrimExpr& input_dim = data_sinfo->GetShape().value()[axis];
     if (!ctx->GetAnalyzer()->CanProveEqual(param_dim, input_dim)) {
@@ -110,7 +108,7 @@ StructInfo InferStructInfoQuantize(const Call& call, const BlockBuilder& ctx) {
   if (!IsScalarTensor(scale_sinfo)) check_param_size(scale_sinfo, input_sinfo, "scale");
   if (!IsScalarTensor(zp_sinfo)) check_param_size(zp_sinfo, input_sinfo, "zero_point");
 
-  auto output_sinfo = make_object<TensorStructInfoNode>(*input_sinfo.get());
+  auto output_sinfo = ffi::make_object<TensorStructInfoNode>(*input_sinfo.get());
   output_sinfo->dtype = attrs->out_dtype;
   return TensorStructInfo(output_sinfo);
 }
@@ -127,17 +125,17 @@ TVM_REGISTER_OP("relax.quantize")
 /* relax.dequantize */
 
 Expr dequantize(Expr data, Expr scale, Expr zero_point, int axis, DataType out_dtype) {
-  ObjectPtr<QuantizeAttrs> attrs = make_object<QuantizeAttrs>();
+  ObjectPtr<QuantizeAttrs> attrs = ffi::make_object<QuantizeAttrs>();
   attrs->axis = axis;
   attrs->out_dtype = out_dtype;
   static const Op& op = Op::Get("relax.dequantize");
   return Call(op, {std::move(data), std::move(scale), std::move(zero_point)}, Attrs(attrs));
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.dequantize", dequantize);
-});
+}
 
 StructInfo InferStructInfoDequantize(const Call& call, const BlockBuilder& ctx) {
   const auto* attrs = call->attrs.as<QuantizeAttrs>();
@@ -183,7 +181,7 @@ StructInfo InferStructInfoDequantize(const Call& call, const BlockBuilder& ctx) 
   }
 
   auto check_param_size = [&](const TensorStructInfo& param_sinfo,
-                              const TensorStructInfo& data_sinfo, String param_name) {
+                              const TensorStructInfo& data_sinfo, ffi::String param_name) {
     const PrimExpr& param_dim = param_sinfo->GetShape().value()[0];
     const PrimExpr& input_dim = data_sinfo->GetShape().value()[axis];
     if (!ctx->GetAnalyzer()->CanProveEqual(param_dim, input_dim)) {
@@ -198,7 +196,7 @@ StructInfo InferStructInfoDequantize(const Call& call, const BlockBuilder& ctx) 
   if (!IsScalarTensor(scale_sinfo)) check_param_size(scale_sinfo, input_sinfo, "scale");
   if (!IsScalarTensor(zp_sinfo)) check_param_size(zp_sinfo, input_sinfo, "zero_point");
 
-  auto output_sinfo = make_object<TensorStructInfoNode>(*input_sinfo.get());
+  auto output_sinfo = ffi::make_object<TensorStructInfoNode>(*input_sinfo.get());
   output_sinfo->dtype = attrs->out_dtype;
   return TensorStructInfo(output_sinfo);
 }

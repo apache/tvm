@@ -15,12 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name
+# ruff: noqa: E501, RUF005
 """Utility to invoke Xcode compiler toolchain"""
 
-import os
-import sys
-import subprocess
 import json
+import os
+import subprocess
+import sys
+
 from ..base import py_str
 from . import utils
 
@@ -107,12 +109,12 @@ create_dylib.output_format = "dylib"
 
 
 def compile_metal(code, path_target=None, sdk="macosx", min_os_version=None):
-    """Compile metal with CLI tool from env.
+    """Compile Metal with CLI tool from env.
 
     Parameters
     ----------
     code : str
-        The cuda code.
+        The Metal code.
 
     path_target : str, optional
         Output file.

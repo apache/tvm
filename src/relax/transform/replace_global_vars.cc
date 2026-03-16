@@ -37,12 +37,12 @@ namespace {
 using tvm::transform::GlobalVarReplacer;
 
 struct Mutator : ExprMutator {
-  Map<GlobalVar, GlobalVar> replacements;
-  explicit Mutator(Map<GlobalVar, GlobalVar> replacements) : replacements(replacements) {}
+  ffi::Map<GlobalVar, GlobalVar> replacements;
+  explicit Mutator(ffi::Map<GlobalVar, GlobalVar> replacements) : replacements(replacements) {}
 
   using ExprMutator::VisitExpr_;
   Expr VisitExpr_(const GlobalVarNode* node) override {
-    auto gvar = GetRef<GlobalVar>(node);
+    auto gvar = ffi::GetRef<GlobalVar>(node);
     return replacements.Get(gvar).value_or(gvar);
   }
 };
@@ -51,14 +51,14 @@ struct Mutator : ExprMutator {
 
 TVM_STATIC_IR_FUNCTOR(GlobalVarReplacer, vtable)
     .set_dispatch<relax::FunctionNode>([](const ObjectRef& func,
-                                          Map<GlobalVar, GlobalVar> replacements) -> BaseFunc {
+                                          ffi::Map<GlobalVar, GlobalVar> replacements) -> BaseFunc {
       Mutator mutator(replacements);
       auto new_func = Downcast<Function>(mutator(Downcast<Function>(func)));
 
       // If the function is externally exposed, and is being replaced
       // by a GlobalVar with a new name, then the function's
       // kGlobalSymbol must be updated to match.
-      if (auto opt = new_func->GetAttr<String>(tvm::attr::kGlobalSymbol)) {
+      if (auto opt = new_func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol)) {
         auto name = opt.value();
         for (const auto& [before, after] : replacements) {
           if (before->name_hint == name) {
@@ -75,7 +75,7 @@ TVM_STATIC_IR_FUNCTOR(GlobalVarReplacer, vtable)
 
 TVM_STATIC_IR_FUNCTOR(GlobalVarReplacer, vtable)
     .set_dispatch<relax::ExternFuncNode>([](const ObjectRef& func,
-                                            Map<GlobalVar, GlobalVar>) -> BaseFunc {
+                                            ffi::Map<GlobalVar, GlobalVar>) -> BaseFunc {
       return Downcast<ExternFunc>(func);
     });
 

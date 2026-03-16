@@ -14,13 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E722
 """External modules to be linked into the exported IRModule."""
+
 import os
 import shutil
 import sys
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Union
 
 from tvm import tir
 from tvm.contrib import cc as _cc
@@ -36,9 +38,9 @@ class ExternModule:
     incorporate user-provided handcrafted kernels into the exported TVM IRModule.
     """
 
-    _symbols: Dict[str, Callable]
+    _symbols: dict[str, Callable]
 
-    def __init__(self, symbols: Dict[str, Callable]) -> None:
+    def __init__(self, symbols: dict[str, Callable]) -> None:
         self._symbols = symbols
 
     def __getitem__(self, func_name: str) -> Callable:
@@ -58,7 +60,7 @@ class ExternModule:
                     return rx.StringImm(arg)
                 if isinstance(arg, tir.PrimExpr):
                     return rx.PrimValue(arg)
-                if isinstance(arg, (tuple, list)):
+                if isinstance(arg, tuple | list):
                     return rx.Tuple([_convert(e, f"{name}_{i}") for i, e in enumerate(arg)])
                 raise TypeError(f"Unsupported input type: {type(arg)}")
 
@@ -84,13 +86,13 @@ class ObjectModule(ExternModule):  # pylint: disable=too-few-public-methods
 
     def __init__(
         self,
-        symbols: Dict[str, Callable],
+        symbols: dict[str, Callable],
         filepath: Path,
     ) -> None:
         if not isinstance(filepath, Path):
             filepath = Path(filepath)
         if not filepath.is_file():
-            raise ValueError(f"Not a file: {str(filepath)}")
+            raise ValueError(f"Not a file: {filepath!s}")
         self.filepath = filepath
         super().__init__(symbols)
 
@@ -166,11 +168,11 @@ class SourceModule(ExternModule):  # pylint: disable=too-few-public-methods
 
     def __init__(  # pylint: disable=too-many-arguments
         self,
-        symbols: Dict[str, Callable],
-        source_code: Union[str, Path],
+        symbols: dict[str, Callable],
+        source_code: str | Path,
         source_format: str,  # "cpp", "cu"
-        compile_options: Optional[List[str]] = None,
-        compiler: Optional[str] = None,
+        compile_options: list[str] | None = None,
+        compiler: str | None = None,
         output_format: str = "obj",  # "obj", "wasm"
     ):
         """Constructs a `nn.SourceModule` from source code.
@@ -222,7 +224,7 @@ class SourceModule(ExternModule):  # pylint: disable=too-few-public-methods
             if isinstance(source_code, Path):
                 path = source_code
                 if not path.is_file():
-                    raise ValueError(f"Not a file: {str(path)}")
+                    raise ValueError(f"Not a file: {path!s}")
             else:
                 try:
                     path = Path(source_code)
@@ -261,12 +263,10 @@ class SourceModule(ExternModule):  # pylint: disable=too-few-public-methods
         if os.environ.get("TVM_HOME", None):
             tvm_path = Path(os.environ["TVM_HOME"])
             assert tvm_path.exists(), (
-                "Using environment variable `TVM_HOME`, "
-                f"but directory not found: {str(tvm_path)}"
+                f"Using environment variable `TVM_HOME`, but directory not found: {tvm_path!s}"
             )
             assert tvm_path.is_dir(), (
-                "Using environment variable `TVM_HOME`, "
-                f"but it is not a directory: {str(tvm_path)}"
+                f"Using environment variable `TVM_HOME`, but it is not a directory: {tvm_path!s}"
             )
         else:
             import tvm  # pylint: disable=import-outside-toplevel
@@ -290,9 +290,9 @@ class SourceModule(ExternModule):  # pylint: disable=too-few-public-methods
         return tvm_path.resolve()
 
     @staticmethod
-    def get_includes(tvm_pkg: Optional[List[str]] = None) -> List[Path]:
+    def get_includes(tvm_pkg: list[str] | None = None) -> list[Path]:
         """Returns the default include paths according to `tvm_home()`.
-        By default, it includes TVM, DLPack, and DMLC-Core. With `tvm_pkg` provided, it also
+        By default, it includes TVM, DLPack. With `tvm_pkg` provided, it also
         includes the specified package under `tvm_home/3rdparty`.
 
         Parameters
@@ -309,25 +309,24 @@ class SourceModule(ExternModule):  # pylint: disable=too-few-public-methods
         tvm_home = SourceModule.tvm_home()
         results = [
             tvm_home / "include",
-            tvm_home / "3rdparty/dmlc-core/include",
-            tvm_home / "ffi/include",
-            tvm_home / "ffi/3rdparty/dlpack/include",
+            tvm_home / "3rdparty/tvm-ffi/include",
+            tvm_home / "3rdparty/tvm-ffi/3rdparty/dlpack/include",
         ]
         if tvm_pkg:
             for relative in tvm_pkg:
                 results.append(tvm_home / "3rdparty" / relative)
         for path in results:
-            assert path.exists(), f"Not found: {str(path)}"
-            assert path.is_dir(), f"Not a directory: {str(path)}"
+            assert path.exists(), f"Not found: {path!s}"
+            assert path.is_dir(), f"Not a directory: {path!s}"
         return results
 
     @staticmethod
     def get_compile_options(
         source_format: str,
-        tvm_pkg: Optional[List[str]] = None,
-    ) -> List[str]:
+        tvm_pkg: list[str] | None = None,
+    ) -> list[str]:
         """Returns the default compile options depending on `source_format`, including the default
-        inlcude paths w.r.t. `tvm_home()`, default flags to configure DMLC-Core, and by default,
+        inlcude paths w.r.t. `tvm_home()`, and by default,
         it uses "-O3" and "-std=c++17".
 
         Parameters
@@ -352,18 +351,12 @@ class SourceModule(ExternModule):  # pylint: disable=too-few-public-methods
                 "-c",  # generate object file
                 "-O3",
                 "-std=c++17",
-                # DMLC default
-                "-DDMLC_USE_FOPEN64=0",
-                "-DDMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>",
             ]
         elif source_format == "cu":
             host_flags = [
                 "-c",  # generate object file
                 "-O3",
                 "-std=c++17",
-                # DMLC default
-                "-DDMLC_USE_FOPEN64=0",
-                "-DDMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>",
                 # Enable `-fPIC` for the host compiler
                 "-Xcompiler=-fPIC",
             ]
@@ -387,12 +380,14 @@ class SourceModule(ExternModule):  # pylint: disable=too-few-public-methods
                 options=self.compile_options,
                 cc=self.compiler,
                 cwd=temp_dir,
-                ccache_env={
-                    "CCACHE_COMPILERCHECK": "content",
-                    "CCACHE_NOHASHDIR": "1",
-                }
-                if shutil.which("ccache")
-                else None,
+                ccache_env=(
+                    {
+                        "CCACHE_COMPILERCHECK": "content",
+                        "CCACHE_NOHASHDIR": "1",
+                    }
+                    if shutil.which("ccache")
+                    else None
+                ),
             )
             shutil.move(str(object_path), str(output_path))
 

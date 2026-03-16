@@ -25,8 +25,8 @@
 #define TVM_RUNTIME_MEMORY_MEMORY_MANAGER_H_
 
 #include <tvm/runtime/base.h>
-#include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/object.h>
+#include <tvm/runtime/tensor.h>
 
 #include <functional>
 #include <memory>
@@ -59,15 +59,15 @@ class Allocator {
  public:
   explicit Allocator(AllocatorType type) : type_(type) {}
   virtual ~Allocator() = default;
-  /*! \brief Allocate an empty NDArray using from the allocator.
-   *  \param shape The shape of the NDArray.
-   *  \param dtype The datatype of the NDArray.
+  /*! \brief Allocate an empty Tensor using from the allocator.
+   *  \param shape The shape of the Tensor.
+   *  \param dtype The datatype of the Tensor.
    *  \param dev The device where the array is allocated.
    *  \param mem_scope The device memory scope hint.
-   *  \return The empty NDArray.
+   *  \return The empty Tensor.
    */
-  TVM_DLL NDArray Empty(ffi::Shape shape, DLDataType dtype, Device dev,
-                        Optional<String> mem_scope = std::nullopt);
+  TVM_DLL Tensor Empty(ffi::Shape shape, DLDataType dtype, Device dev,
+                       ffi::Optional<ffi::String> mem_scope = std::nullopt);
   /*! \brief Return the allocator type. */
   inline AllocatorType type() const { return type_; }
   /*! \brief Allocate a buffer given a size, alignment and type.
@@ -163,12 +163,12 @@ class StorageObj : public Object {
   /*! \brief The allocator where the storage buffer is allocated from. */
   Allocator* allocator = nullptr;
 
-  /*! \brief Allocate an NDArray from a given piece of storage. */
-  TVM_DLL NDArray AllocNDArray(int64_t offset, ffi::Shape shape, DLDataType dtype);
+  /*! \brief Allocate an Tensor from a given piece of storage. */
+  TVM_DLL Tensor AllocTensor(int64_t offset, ffi::Shape shape, DLDataType dtype);
 
-  /*! \brief Allocate an NDArray with memory scope from a given piece of storage. */
-  TVM_DLL NDArray AllocNDArrayScoped(int64_t offset, ffi::Shape shape, DLDataType dtype,
-                                     String scope = "global");
+  /*! \brief Allocate an Tensor with memory scope from a given piece of storage. */
+  TVM_DLL Tensor AllocTensorScoped(int64_t offset, ffi::Shape shape, DLDataType dtype,
+                                   ffi::String scope = "global");
 
   ~StorageObj() {
     if (allocator) {
@@ -176,8 +176,8 @@ class StorageObj : public Object {
     }
   }
 
-  static constexpr const char* _type_key = "vm.Storage";
-  TVM_DECLARE_FINAL_OBJECT_INFO(StorageObj, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("vm.Storage", StorageObj, Object);
 };
 
 /*! \brief reference to storage. */
@@ -185,7 +185,7 @@ class Storage : public ObjectRef {
  public:
   TVM_DLL explicit Storage(Buffer buffer, Allocator* allocator);
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Storage, ObjectRef, StorageObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Storage, ObjectRef, StorageObj);
 };
 
 }  // namespace memory

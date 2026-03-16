@@ -15,19 +15,20 @@
 # specific language governing permissions and limitations
 # under the License.
 """Manipulation operators."""
-from typing import List, Optional, Tuple, Union, Callable
+
+from collections.abc import Callable
 
 from tvm.ir.expr import PrimExpr
-from tvm.tir import IntImm, FloatImm, IndexMap
+from tvm.tir import FloatImm, IndexMap, IntImm
 
+from ..expr import Expr, PrimValue, ShapeExpr
+from ..expr import Tuple as RxTuple
 from . import _ffi_api
-from ..expr import Expr, PrimValue, ShapeExpr, Tuple as RxTuple
+
+PrimExprLike = int | PrimExpr
 
 
-PrimExprLike = Union[int, PrimExpr]
-
-
-def broadcast_to(x: Expr, shape: Union[Tuple[PrimExprLike], Expr]) -> Expr:
+def broadcast_to(x: Expr, shape: tuple[PrimExprLike] | Expr) -> Expr:
     """Broadcasts a tensor to a specified shape.
 
     Parameters
@@ -43,12 +44,12 @@ def broadcast_to(x: Expr, shape: Union[Tuple[PrimExprLike], Expr]) -> Expr:
     result : relax.Expr
         The broadcasted tensor.
     """
-    if isinstance(shape, (tuple, list)):
+    if isinstance(shape, tuple | list):
         shape = ShapeExpr(shape)
     return _ffi_api.broadcast_to(x, shape)  # type: ignore
 
 
-def concat(tensors: Union[Expr, List[Expr]], axis: Optional[int] = 0) -> Expr:
+def concat(tensors: Expr | list[Expr], axis: int | None = 0) -> Expr:
     """Concatenate the input tensors along the given axis.
 
     Parameters
@@ -66,12 +67,12 @@ def concat(tensors: Union[Expr, List[Expr]], axis: Optional[int] = 0) -> Expr:
     result: relax.Expr
         The concatenated tensor.
     """
-    if isinstance(tensors, (list, tuple)):
+    if isinstance(tensors, list | tuple):
         tensors = RxTuple(tensors)
     return _ffi_api.concat(tensors, axis)  # type: ignore
 
 
-def expand_dims(x: Expr, axis: Union[int, List[int]]) -> Expr:
+def expand_dims(x: Expr, axis: int | list[int]) -> Expr:
     """Insert new axes at the positions given by `axis`.
 
     Parameters
@@ -112,10 +113,10 @@ def flatten(x: Expr) -> Expr:
 
 def layout_transform(
     x: Expr,
-    index_map: Union[Callable, IndexMap],
-    pad_value: Optional[Union[int, float, PrimValue]] = None,
-    axis_separators: Optional[Union[int, IndexMap.AXIS_SEPARATOR]] = None,
-    input_axis_separators: Optional[Union[int, IndexMap.AXIS_SEPARATOR]] = None,
+    index_map: Callable | IndexMap,
+    pad_value: int | float | PrimValue | None = None,
+    axis_separators: int | str | None = None,  # str for IndexMap.AXIS_SEPARATOR
+    input_axis_separators: int | str | None = None,  # str for IndexMap.AXIS_SEPARATOR
 ):
     """Modifies the layout of a tensor.
 
@@ -124,14 +125,14 @@ def layout_transform(
     x : relax.Expr
         The input tensor to the operator.
 
-    index_map : Union[Callable, IndexMap]
+    index_map : Callable | IndexMap
         The transformation to apply.
 
-    pad_value : Optional[Union[int, float, PrimValue]]
+    pad_value : Optional[int | float | PrimValue]
         The value used for padding if the transformation results in implicit padding.
         If not specified, any value can be used.
 
-    axis_separators : Optional[Union[int, IndexMap.AXIS_SEPARATOR]]
+    axis_separators : Optional[int | IndexMap.AXIS_SEPARATOR]
         The axis_separators for index_map to create non flat buffers.
 
     Returns
@@ -152,7 +153,7 @@ def layout_transform(
     elif not isinstance(pad_value, PrimValue):
         if "int" in x_dtype and isinstance(pad_value, int):
             pad_value = IntImm(x_dtype, pad_value)
-        elif "float" in x_dtype and (isinstance(pad_value, (int, float))):
+        elif "float" in x_dtype and (isinstance(pad_value, int | float)):
             pad_value = FloatImm(x_dtype, float(pad_value))
         pad_value = PrimValue(pad_value)
 
@@ -167,7 +168,7 @@ def layout_transform(
     )
 
 
-def permute_dims(x: Expr, axes: Optional[List[int]] = None) -> Expr:
+def permute_dims(x: Expr, axes: list[int] | None = None) -> Expr:
     """Permutes the dimensions of an array.
 
     Parameters
@@ -186,7 +187,7 @@ def permute_dims(x: Expr, axes: Optional[List[int]] = None) -> Expr:
     return _ffi_api.permute_dims(x, axes)  # type: ignore
 
 
-def reshape(x: Expr, shape: Union[Tuple[PrimExprLike], Expr]) -> Expr:
+def reshape(x: Expr, shape: tuple[PrimExprLike] | Expr) -> Expr:
     """Reshape the input array.
 
     ``-1`` infers the dimension of the output shape by using the remainder of
@@ -223,7 +224,7 @@ def reshape(x: Expr, shape: Union[Tuple[PrimExprLike], Expr]) -> Expr:
 
 def split(
     x: Expr,
-    indices_or_sections: Union[int, List[PrimExprLike]],
+    indices_or_sections: int | list[PrimExprLike],
     axis: int = 0,
 ) -> Expr:
     """Split input tensor along axis by sections or indices.
@@ -256,7 +257,7 @@ def split(
     return _ffi_api.split(x, indices_or_sections, axis)  # type: ignore
 
 
-def squeeze(x: Expr, axis: Optional[Union[int, List[int]]] = None) -> Expr:
+def squeeze(x: Expr, axis: int | list[int] | None = None) -> Expr:
     """Squeeze axes in the array.
 
     Parameters
@@ -279,7 +280,7 @@ def squeeze(x: Expr, axis: Optional[Union[int, List[int]]] = None) -> Expr:
     return _ffi_api.squeeze(x, axis)  # type: ignore
 
 
-def stack(tensors: Union[Expr, List[Expr]], axis: int = 0) -> Expr:
+def stack(tensors: Expr | list[Expr], axis: int = 0) -> Expr:
     """Stack the input tensors along a new axis.
 
     Parameters
@@ -298,7 +299,7 @@ def stack(tensors: Union[Expr, List[Expr]], axis: int = 0) -> Expr:
         The stacked tensor with an additional dimension compared to the input tensors.
 
     """
-    if isinstance(tensors, (list, tuple)):
+    if isinstance(tensors, list | tuple):
         tensors = RxTuple(tensors)
     return _ffi_api.stack(tensors, axis)  # type: ignore
 
@@ -324,7 +325,7 @@ def collapse_sum_like(data: Expr, collapse_target: Expr) -> Expr:
     return _ffi_api.collapse_sum_like(data, collapse_target)  # type: ignore
 
 
-def collapse_sum_to(data: Expr, shape: Union[Tuple[PrimExprLike], Expr]) -> Expr:
+def collapse_sum_to(data: Expr, shape: tuple[PrimExprLike] | Expr) -> Expr:
     """Return a summation of data to the given shape.
 
     collapse_sum_to is intended as the backward operator of tvm.relax.op.broadcast_to and
@@ -351,12 +352,12 @@ def collapse_sum_to(data: Expr, shape: Union[Tuple[PrimExprLike], Expr]) -> Expr
     result : relax.Expr
         The result tensor of the given shape after summation.
     """
-    if isinstance(shape, (tuple, list)):
+    if isinstance(shape, tuple | list):
         shape = ShapeExpr(shape)
     return _ffi_api.collapse_sum_to(data, shape)  # type: ignore
 
 
-def repeat(data: Expr, repeats: int, axis: Optional[int] = None) -> Expr:
+def repeat(data: Expr, repeats: int, axis: int | None = None) -> Expr:
     """Repeats elements of an array.
 
     Parameters
@@ -389,7 +390,7 @@ def repeat(data: Expr, repeats: int, axis: Optional[int] = None) -> Expr:
     return _ffi_api.repeat(data, repeats, axis)  # type: ignore
 
 
-def tile(data: Expr, repeats: Union[int, Tuple[int], List[int]]) -> Expr:
+def tile(data: Expr, repeats: int | tuple[int] | list[int]) -> Expr:
     """Construct an array by repeating data the number of times given by repeats.
 
     If repeats has length l, and data has dimension d, the result will have dimension of max(l, d).
@@ -532,12 +533,12 @@ def gather_nd(data: Expr, indices: Expr, batch_dims: int = 0) -> Expr:
     return _ffi_api.gather_nd(data, indices, batch_dims)  # type: ignore
 
 
-def index_tensor(data: Expr, indices: Union[Expr, List[Expr]]) -> Expr:
-    """Advanced‑tensor indexing (NumPy/PyTorch‐style).
+def index_tensor(data: Expr, indices: Expr | list[Expr]) -> Expr:
+    """Advanced-tensor indexing (NumPy/PyTorch-style).
 
-    Given k index tensors ``indices = (I0, I1, …, Ik‑1)`` this
+    Given k index tensors ``indices = (I0, I1, …, Ik-1)`` this
     operator selects elements from ``data`` as if one had written
-    ``data[I0, I1, …, Ik‑1]`` in NumPy/PyTorch:
+    ``data[I0, I1, …, Ik-1]`` in NumPy/PyTorch:
 
     All index tensors must have an integer dtype.
 
@@ -548,9 +549,9 @@ def index_tensor(data: Expr, indices: Union[Expr, List[Expr]]) -> Expr:
     shape followed by the remaining axes of ``data`` that are *not*
     indexed).
 
-    At compile‑time Relax checks that the number of index tensors
+    At compile-time Relax checks that the number of index tensors
     ``k`` does not exceed ``data.ndim``, that the dtypes are integer,
-    and that the shapes are consitent (broadcast‑compatible).
+    and that the shapes are consitent (broadcast-compatible).
 
     Parameters
     ----------
@@ -590,14 +591,14 @@ def index_tensor(data: Expr, indices: Union[Expr, List[Expr]]) -> Expr:
         # z.shape == (2,3)
 
     """
-    if isinstance(indices, (list, tuple)):
+    if isinstance(indices, list | tuple):
         indices = RxTuple(indices)
     return _ffi_api.index_tensor(data, indices)  # type: ignore
 
 
 def index_put(
     data: Expr,
-    indices: Union[Expr, Tuple[Expr]],
+    indices: Expr | tuple[Expr],
     values: Expr,
     accumulate: bool = False,
 ) -> Expr:
@@ -624,6 +625,7 @@ def index_put(
     Examples
     --------
     .. code-block:: python
+
         # inputs
         data = torch.zeros(3, 3)
         indices = (torch.tensor([0, 2]), torch.tensor([1, 1]))
@@ -641,12 +643,12 @@ def index_put(
             [0.0, 3.0, 0.0],
         ]
     """
-    if not isinstance(indices, (list, tuple)):
+    if isinstance(indices, list | tuple):
         indices = RxTuple(indices)
     return _ffi_api.index_put(data, indices, values, accumulate)  # type: ignore
 
 
-def meshgrid(tensors: Union[Expr, List[Expr]], indexing: Optional[str] = "ij") -> Expr:
+def meshgrid(tensors: Expr | list[Expr], indexing: str | None = "ij") -> Expr:
     """Generate coordinate grids from input tensors.
 
     Parameters
@@ -664,7 +666,7 @@ def meshgrid(tensors: Union[Expr, List[Expr]], indexing: Optional[str] = "ij") -
     result : relax.Expr
         A Tuple of tensors representing the coordinate grids.
     """
-    if isinstance(tensors, (list, tuple)):
+    if isinstance(tensors, list | tuple):
         tensors = RxTuple(tensors)
     return _ffi_api.meshgrid(tensors, indexing)
 

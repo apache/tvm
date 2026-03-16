@@ -17,14 +17,12 @@
 
 import tvm
 import tvm.testing
-from tvm.script import ir as I, relax as R, tir as T
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
-class BaseCompare(tvm.testing.CompareBeforeAfter):
-    transform = tvm.relax.transform.RemoveUnusedParameters()
-
-
-class TestRemoveUnusedRelaxParameter(BaseCompare):
+def test_remove_unused_relax_parameter():
     """A relax parameter may be removed
 
     This is only allowed for internal function calls, where all
@@ -52,8 +50,11 @@ class TestRemoveUnusedRelaxParameter(BaseCompare):
         def func(A: R.Tensor) -> R.Tensor:
             return A
 
+    After = tvm.relax.transform.RemoveUnusedParameters()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
-class TestReplaceSymbolicVariables(BaseCompare):
+
+def test_replace_symbolic_variables():
     """If a parameter is only required for its symbolic variables, provide them directly
 
     The relax parameter `A` isn't used by the subroutine.  However,
@@ -84,15 +85,18 @@ class TestReplaceSymbolicVariables(BaseCompare):
             return out
 
         @R.function(private=True)
-        def func(
-            param_n: R.Prim(value="n"), param_m: R.Prim(value="m")
-        ) -> R.Tensor(["m", "n"], "float32"):
+        def func(param_n: R.Prim(value="n"), param_m: R.Prim(value="m")) -> R.Tensor(
+            ["m", "n"], "float32"
+        ):
             m = T.int64()
             n = T.int64()
             return R.zeros(R.shape([m, n]), dtype="float32")
 
+    After = tvm.relax.transform.RemoveUnusedParameters()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
-class TestNoExtraSymbolicVariables(BaseCompare):
+
+def test_no_extra_symbolic_variables():
     """Don't add symbolic variables if they can be inferred.
 
     Even though some cases require adding new parameters to provide
@@ -116,8 +120,11 @@ class TestNoExtraSymbolicVariables(BaseCompare):
 
     Expected = Before
 
+    After = tvm.relax.transform.RemoveUnusedParameters()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
-class TestRemoveExtraPrimVariables(BaseCompare):
+
+def test_remove_extra_prim_variables():
     """Remove parameters that only serve to define existing symbolic variables
 
     If a `R.Prim` parameter provies a definition of a symbolic
@@ -157,8 +164,11 @@ class TestRemoveExtraPrimVariables(BaseCompare):
             out = R.add(A, zeros)
             return out
 
+    After = tvm.relax.transform.RemoveUnusedParameters()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
-class TestRemoveExtraShapeVariables(BaseCompare):
+
+def test_remove_extra_shape_variables():
     """Remove parameters that only serve to define existing symbolic variables
 
     If a `R.Shape` parameter provides a definition of a symbolic
@@ -198,6 +208,9 @@ class TestRemoveExtraShapeVariables(BaseCompare):
             zeros = R.zeros(R.shape([m, n]), dtype="float32")
             out = R.add(A, zeros)
             return out
+
+    After = tvm.relax.transform.RemoveUnusedParameters()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
 if __name__ == "__main__":

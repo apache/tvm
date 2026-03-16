@@ -32,16 +32,16 @@
 namespace tvm {
 namespace codegen {
 
-runtime::Module BuildSPIRV(IRModule mod, Target target) {
+ffi::Module BuildSPIRV(IRModule mod, Target target) {
   auto [smap, spirv_text] = LowerToSPIRV(mod, target);
   return runtime::VulkanModuleCreate(smap, ExtractFuncInfo(mod), spirv_text);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("target.build.vulkan",
                         [](IRModule mod, Target target) { return BuildSPIRV(mod, target); });
-});
+}
 
 }  // namespace codegen
 }  // namespace tvm

@@ -262,15 +262,15 @@ class RPCServer {
       support::TCPSocket conn = listen_sock_.Accept(addr);
 
       int code = kRPCMagic;
-      ICHECK_EQ(conn.RecvAll(&code, sizeof(code)), sizeof(code));
+      TVM_FFI_ICHECK_EQ(conn.RecvAll(&code, sizeof(code)), sizeof(code));
       if (code != kRPCMagic) {
         conn.Close();
-        LOG(FATAL) << "Client connected is not TVM RPC server";
+        TVM_FFI_THROW(InternalError) << "Client connected is not TVM RPC server";
         continue;
       }
 
       int keylen = 0;
-      ICHECK_EQ(conn.RecvAll(&keylen, sizeof(keylen)), sizeof(keylen));
+      TVM_FFI_ICHECK_EQ(conn.RecvAll(&keylen, sizeof(keylen)), sizeof(keylen));
 
       const char* CLIENT_HEADER = "client:";
       const char* SERVER_HEADER = "server:";
@@ -282,10 +282,10 @@ class RPCServer {
         continue;
       }
 
-      ICHECK_NE(keylen, 0);
+      TVM_FFI_ICHECK_NE(keylen, 0);
       std::string remote_key;
       remote_key.resize(keylen);
-      ICHECK_EQ(conn.RecvAll(&remote_key[0], keylen), keylen);
+      TVM_FFI_ICHECK_EQ(conn.RecvAll(&remote_key[0], keylen), keylen);
 
       std::stringstream ssin(remote_key);
       std::string arg0;
@@ -297,16 +297,16 @@ class RPCServer {
 
       if (arg0 != expect_header) {
         code = kRPCMismatch;
-        ICHECK_EQ(conn.SendAll(&code, sizeof(code)), sizeof(code));
+        TVM_FFI_ICHECK_EQ(conn.SendAll(&code, sizeof(code)), sizeof(code));
         conn.Close();
         LOG(WARNING) << "Mismatch key from" << addr->AsString();
         continue;
       } else {
         code = kRPCSuccess;
-        ICHECK_EQ(conn.SendAll(&code, sizeof(code)), sizeof(code));
+        TVM_FFI_ICHECK_EQ(conn.SendAll(&code, sizeof(code)), sizeof(code));
         keylen = int(server_key.length());
-        ICHECK_EQ(conn.SendAll(&keylen, sizeof(keylen)), sizeof(keylen));
-        ICHECK_EQ(conn.SendAll(server_key.c_str(), keylen), keylen);
+        TVM_FFI_ICHECK_EQ(conn.SendAll(&keylen, sizeof(keylen)), sizeof(keylen));
+        TVM_FFI_ICHECK_EQ(conn.SendAll(server_key.c_str(), keylen), keylen);
         LOG(INFO) << "Connection success " << addr->AsString();
 #ifndef __ANDROID__
         ssin >> *opts;
@@ -343,7 +343,7 @@ class RPCServer {
     size_t pos = opts.rfind(option);
     if (pos != std::string::npos) {
       const std::string cmd = opts.substr(pos + option.size());
-      ICHECK(support::IsNumber(cmd)) << "Timeout is not valid";
+      TVM_FFI_ICHECK(support::IsNumber(cmd)) << "Timeout is not valid";
       return std::stoi(cmd);
     }
     return 0;
@@ -390,8 +390,6 @@ void ServerLoopFromChild(SOCKET socket) {
 void RPCServerCreate(std::string host, int port, int port_end, std::string tracker_addr,
                      std::string key, std::string custom_addr, std::string work_dir, bool silent) {
   if (silent) {
-    // Only errors and fatal is logged
-    dmlc::InitLogging("--minloglevel=2");
   }
   // Start the rpc server
   RPCServer rpc(std::move(host), port, port_end, std::move(tracker_addr), std::move(key),
@@ -399,9 +397,9 @@ void RPCServerCreate(std::string host, int port, int port_end, std::string track
   rpc.Start();
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("rpc.ServerCreate", RPCServerCreate);
-});
+}
 }  // namespace runtime
 }  // namespace tvm

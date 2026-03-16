@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401
 
 """
 .. _opt_llm:
@@ -54,21 +55,20 @@ TinyLlama model from Hugging Face and deploy it on various devices.
 # model architecture by ourselves. Apache TVM prepares a PyTorch-liked API to construct the model
 # architecture. We can use the API to construct the model architecture.
 
-
 import dataclasses
 import enum
 import os
 from pathlib import Path
 from pprint import pprint
-from typing import List, Optional
 
 import tvm
-from tvm import dlight, relax, te, tir
+from tvm import relax, te, tir
 from tvm.relax import register_pipeline
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 from tvm.relax.frontend.nn.llm.kv_cache import PagedKVCache, TIRPagedKVCache
 from tvm.runtime import ShapeTuple
+from tvm.s_tir import dlight
 
 ######################################################################
 # First, we need to define the model configuration. The configuration includes the key parameters
@@ -250,7 +250,7 @@ class LlamaForCasualLM(nn.Module):
         self.rope_theta = config.rope_theta
         self.dtype = "float32"
 
-    def to(self, dtype: Optional[str] = None):
+    def to(self, dtype: str | None = None):
         super().to(dtype=dtype)
         if dtype is not None:
             self.dtype = dtype
@@ -377,7 +377,7 @@ pprint(named_params[:5])  # Only show the first 5 parameters for demonstration
 
 @register_pipeline("opt_llm")
 def _pipeline(  # pylint: disable=too-many-arguments
-    ext_mods: List[nn.ExternModule] = None,
+    ext_mods: list[nn.ExternModule] | None = None,
 ):
     ext_mods = ext_mods or []
 
@@ -489,7 +489,7 @@ if not IS_IN_CI:
 
     # Convert params into ndarray
     params = [
-        tvm.nd.array(param_dict[k].astype("float16"), device=dev) for k in named_params.keys()
+        tvm.runtime.tensor(param_dict[k].astype("float16"), device=dev) for k in named_params.keys()
     ]
 
 
@@ -523,7 +523,7 @@ if not IS_IN_CI:
     input_len = len(prompt)
 
     # Load prompt tokens into TVM ndarray on the target device
-    tokens = tvm.nd.array(np.array(prompt).astype("int32"), device=dev)
+    tokens = tvm.runtime.tensor(np.array(prompt).astype("int32"), device=dev)
 
 ######################################################################
 # Create the KVCache
@@ -609,7 +609,7 @@ if not IS_IN_CI:
     print("The generated token:")
 
     while last_token != tokenizer.eos_token_id:
-        tokens = tvm.nd.array(np.array([last_token]).astype("int32"), device=dev)
+        tokens = tvm.runtime.tensor(np.array([last_token]).astype("int32"), device=dev)
         hidden_states = embed(tokens, params)
         begin_forward_func(kv_cache, ShapeTuple([seq_id]), ShapeTuple([1]))
         logits, kv_cache = vm["decode"](hidden_states, kv_cache, params)

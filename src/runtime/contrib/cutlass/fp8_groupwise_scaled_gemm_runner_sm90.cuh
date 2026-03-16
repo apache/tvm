@@ -45,16 +45,16 @@
 #include "cutlass_extensions/gemm/dispatch_policy.hpp"
 // clang-format on
 
-#define CUTLASS_CHECK(status)                                      \
-  {                                                                \
-    cutlass::Status error = status;                                \
-    CHECK(error == cutlass::Status::kSuccess)                      \
-        << "Got cutlass error: " << cutlassGetStatusString(error); \
+#define CUTLASS_CHECK(status)                                       \
+  {                                                                 \
+    cutlass::Status error = status;                                 \
+    TVM_FFI_CHECK(error == cutlass::Status::kSuccess, RuntimeError) \
+        << "Got cutlass error: " << cutlassGetStatusString(error);  \
   }
 
 using namespace cute;
 using ProblemShape = Shape<int, int, int, int>;
-using tvm::runtime::NDArray;
+using tvm::runtime::Tensor;
 
 template <typename TileShape, typename ClusterShape, typename ElementD, typename SchedulerType,
           int ScaleGranularityM = 1>
@@ -141,7 +141,7 @@ struct CutlassFP8GroupwiseScaledGemmRunner {
 
     Gemm gemm_op;
     CUTLASS_CHECK(gemm_op.can_implement(arguments));
-    CHECK_GE(workspace_size, gemm_op.get_workspace_size(arguments));
+    TVM_FFI_CHECK_GE(workspace_size, gemm_op.get_workspace_size(arguments), RuntimeError);
     CUTLASS_CHECK(gemm_op.initialize(arguments, workspace, stream));
     CUTLASS_CHECK(gemm_op.run(stream));
   }

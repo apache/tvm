@@ -16,15 +16,13 @@
 # under the License.
 """NNAPI network tests."""
 
-from typing import List
-
 import numpy as np
 import onnx
 import pytest
-from test_nnapi.conftest import remote
-from test_nnapi.infrastructure import build_and_run  # , build_and_run_vm
 
 import tvm
+from test_nnapi.conftest import remote
+from test_nnapi.infrastructure import build_and_run  # , build_and_run_vm
 from tvm.contrib.download import download_testdata
 from tvm.relax.frontend.onnx import from_onnx
 
@@ -125,7 +123,7 @@ def test_network(name, dtype):
     for _name, (shape, _dtype) in inputs.items():
         input_data[_name] = np.random.uniform(-1.0, 1.0, shape).astype(_dtype)
 
-    inputs_tvm: List[tvm.nd.NDArray] = [tvm.nd.array(v) for k, v in input_data.items()]
+    inputs_tvm: list[tvm.runtime.Tensor] = [tvm.runtime.tensor(v) for k, v in input_data.items()]
     outputs = _build_and_run_network(remote_obj, tracker, mod, inputs_tvm)
     nnapi_out = outputs[0]
     expected_out = outputs[1]

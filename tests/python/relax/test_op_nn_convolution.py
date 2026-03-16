@@ -15,10 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 import pytest
+
 import tvm
 import tvm.testing
-from tvm import relax, tir
-from tvm import TVMError
+from tvm import TVMError, relax, tir
 from tvm.ir import Op, VDevice
 from tvm.script import relax as R
 
@@ -352,10 +352,10 @@ def test_conv1d_stride_padding_dilation_int64():
     w = relax.Var("w", R.Tensor((4, 3, 3), "float32"))
     conv1d = relax.op.nn.conv1d(x, w, strides=(1,), padding=(1, 1), dilation=(1,))
 
-    assert conv1d.attrs.strides[0].dtype == "int64"
-    assert conv1d.attrs.padding[0].dtype == "int64"
-    assert conv1d.attrs.padding[1].dtype == "int64"
-    assert conv1d.attrs.dilation[0].dtype == "int64"
+    assert isinstance(conv1d.attrs.strides[0], int)
+    assert isinstance(conv1d.attrs.padding[0], int)
+    assert isinstance(conv1d.attrs.padding[1], int)
+    assert isinstance(conv1d.attrs.dilation[0], int)
 
 
 def test_conv1d_wrong_strides_padding_dilation_length():
@@ -711,9 +711,9 @@ def test_conv1d_transpose_stride_padding_dilation_int64():
     w = relax.Var("w", R.Tensor((3, 4, 3), "float32"))
     conv1d = relax.op.nn.conv1d_transpose(x, w, strides=1, padding=1, dilation=1)
 
-    assert conv1d.attrs.strides[0].dtype == "int64"
-    assert conv1d.attrs.padding[0].dtype == "int64"
-    assert conv1d.attrs.dilation[0].dtype == "int64"
+    assert isinstance(conv1d.attrs.strides[0], int)
+    assert isinstance(conv1d.attrs.padding[0], int)
+    assert isinstance(conv1d.attrs.dilation[0], int)
 
 
 def test_conv1d_transpose_wrong_strides_padding_dilation_length():
@@ -780,6 +780,25 @@ def test_conv1d_transpose_infer_struct_info_wrong_input_type():
         bb.normalize(relax.op.nn.conv1d_transpose(x0, w1))
     with pytest.raises(TVMError):
         bb.normalize(relax.op.nn.conv1d_transpose(x1, w0))
+
+
+def test_conv1d_transpose_infer_struct_info_mixed_precision():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", R.Tensor((2, 3, 28), "float16"))
+    w0 = relax.Var("w", R.Tensor((3, 4, 3), "float16"))
+    x1 = relax.Var("x", R.Tensor((2, 3, 28), "int8"))
+    w1 = relax.Var("w", R.Tensor((3, 4, 3), "int8"))
+
+    _check_inference(
+        bb,
+        relax.op.nn.conv1d_transpose(x0, w0, out_dtype="float32"),
+        relax.TensorStructInfo((2, 4, 30), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.conv1d_transpose(x1, w1, out_dtype="int32"),
+        relax.TensorStructInfo((2, 4, 30), "int32"),
+    )
 
 
 def test_conv2d_infer_struct_info():
@@ -1103,14 +1122,14 @@ def test_conv2d_stride_padding_dilation_int64():
     w = relax.Var("w", R.Tensor((4, 3, 3, 3), "float32"))
     conv2d = relax.op.nn.conv2d(x, w, strides=(1, 1), padding=(1, 1), dilation=(1, 1))
 
-    assert conv2d.attrs.strides[0].dtype == "int64"
-    assert conv2d.attrs.strides[1].dtype == "int64"
-    assert conv2d.attrs.padding[0].dtype == "int64"
-    assert conv2d.attrs.padding[1].dtype == "int64"
-    assert conv2d.attrs.padding[2].dtype == "int64"
-    assert conv2d.attrs.padding[3].dtype == "int64"
-    assert conv2d.attrs.dilation[0].dtype == "int64"
-    assert conv2d.attrs.dilation[1].dtype == "int64"
+    assert isinstance(conv2d.attrs.strides[0], int)
+    assert isinstance(conv2d.attrs.strides[1], int)
+    assert isinstance(conv2d.attrs.padding[0], int)
+    assert isinstance(conv2d.attrs.padding[1], int)
+    assert isinstance(conv2d.attrs.padding[2], int)
+    assert isinstance(conv2d.attrs.padding[3], int)
+    assert isinstance(conv2d.attrs.dilation[0], int)
+    assert isinstance(conv2d.attrs.dilation[1], int)
 
 
 def test_conv2d_wrong_strides_padding_dilation_length():
@@ -1491,16 +1510,16 @@ def test_conv2d_transpose_stride_padding_dilation_int64():
         x, w, strides=(1, 1), padding=(1, 1), output_padding=(1, 2), dilation=(1, 1)
     )
 
-    assert conv2d_transpose.attrs.strides[0].dtype == "int64"
-    assert conv2d_transpose.attrs.strides[1].dtype == "int64"
-    assert conv2d_transpose.attrs.padding[0].dtype == "int64"
-    assert conv2d_transpose.attrs.padding[1].dtype == "int64"
-    assert conv2d_transpose.attrs.padding[2].dtype == "int64"
-    assert conv2d_transpose.attrs.padding[3].dtype == "int64"
-    assert conv2d_transpose.attrs.output_padding[0].dtype == "int64"
-    assert conv2d_transpose.attrs.output_padding[1].dtype == "int64"
-    assert conv2d_transpose.attrs.dilation[0].dtype == "int64"
-    assert conv2d_transpose.attrs.dilation[1].dtype == "int64"
+    assert isinstance(conv2d_transpose.attrs.strides[0], int)
+    assert isinstance(conv2d_transpose.attrs.strides[1], int)
+    assert isinstance(conv2d_transpose.attrs.padding[0], int)
+    assert isinstance(conv2d_transpose.attrs.padding[1], int)
+    assert isinstance(conv2d_transpose.attrs.padding[2], int)
+    assert isinstance(conv2d_transpose.attrs.padding[3], int)
+    assert isinstance(conv2d_transpose.attrs.output_padding[0], int)
+    assert isinstance(conv2d_transpose.attrs.output_padding[1], int)
+    assert isinstance(conv2d_transpose.attrs.dilation[0], int)
+    assert isinstance(conv2d_transpose.attrs.dilation[1], int)
 
 
 def test_conv2d_transpose_wrong_strides_padding_dilation_length():
@@ -1569,6 +1588,25 @@ def test_conv2d_transpose_infer_struct_info_wrong_input_type():
         bb.normalize(relax.op.nn.conv2d_transpose(x0, w1))
     with pytest.raises(TVMError):
         bb.normalize(relax.op.nn.conv2d_transpose(x1, w0))
+
+
+def test_conv2d_transpose_infer_struct_info_mixed_precision():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", R.Tensor((2, 3, 28, 28), "float16"))
+    w0 = relax.Var("w", R.Tensor((3, 4, 3, 3), "float16"))
+    x1 = relax.Var("x", R.Tensor((2, 3, 28, 28), "int8"))
+    w1 = relax.Var("w", R.Tensor((3, 4, 3, 3), "int8"))
+
+    _check_inference(
+        bb,
+        relax.op.nn.conv2d_transpose(x0, w0, out_dtype="float32"),
+        relax.TensorStructInfo((2, 4, 30, 30), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.conv2d_transpose(x1, w1, out_dtype="int32"),
+        relax.TensorStructInfo((2, 4, 30, 30), "int32"),
+    )
 
 
 def test_conv3d_infer_struct_info():

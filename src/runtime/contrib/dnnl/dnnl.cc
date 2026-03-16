@@ -65,7 +65,7 @@ inline dnnl::memory::desc GenDNNLMemDescByShape(const dnnl::memory::dims& shape,
       data_md = dnnl::memory::desc({shape, dtype, tag::abcde});
       break;
     default:
-      LOG(FATAL) << "Unsupported data shape dimension: " << shape.size();
+      TVM_FFI_THROW(InternalError) << "Unsupported data shape dimension: " << shape.size();
       break;
   }
   return data_md;
@@ -332,7 +332,7 @@ extern "C" void dnnl_binary_op(float* data, float* weight, float* out, int algo_
       algo = algorithm::binary_mul;
       break;
     default:
-      LOG(FATAL) << "Unsupported dnnl algorithm: " << algo_type;
+      TVM_FFI_THROW(InternalError) << "Unsupported dnnl algorithm: " << algo_type;
       break;
   }
 
@@ -349,7 +349,7 @@ extern "C" void dnnl_binary_op(float* data, float* weight, float* out, int algo_
 }
 
 // DNNL Conv2d single OP
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("tvm.contrib.dnnl.conv2d", [](ffi::PackedArgs args, ffi::Any* ret) {
     auto input = args[0].cast<DLTensor*>();
@@ -383,7 +383,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                               p_W_, p_O_, p_G_, p_Ph0_, p_Pw0_, p_Ph1_, p_Pw1_, p_Kh_, p_Kw_, p_Sh_,
                               p_Sw_, attr, channel_last, pre_cast, post_cast);
   });
-});
+}
 
 }  // namespace contrib
 }  // namespace runtime

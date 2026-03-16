@@ -15,12 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name,line-too-long
+# ruff: noqa: E501
 """Various type definitions to help instantiate CUTLASS kernels."""
-import re
+
 import enum
+import re
 from enum import auto as enum_auto
 
-from tvm.tir.expr import IntImm, FloatImm
+from tvm.tir.expr import FloatImm, IntImm
 
 
 class GeneratorTarget(enum.Enum):
@@ -141,9 +143,9 @@ def substitute_template(template, values):
     while changed:
         changed = False
         for key, value in values.items():
-            if isinstance(value, (int, IntImm)):
+            if isinstance(value, int | IntImm):
                 value = str(int(value))
-            if isinstance(value, (float, FloatImm)):
+            if isinstance(value, float | FloatImm):
                 value = str(float(value))
             elif isinstance(value, bool):
                 value = str(value).lower()
@@ -289,12 +291,7 @@ class TileDescription:
         self.maximum_compute_capability = max_compute
 
     def procedural_name(self):
-        return "%dx%d_%dx%d" % (
-            self.threadblock_shape[0],
-            self.threadblock_shape[1],
-            self.threadblock_shape[2],
-            self.stages,
-        )
+        return f"{self.threadblock_shape[0]}x{self.threadblock_shape[1]}_{self.threadblock_shape[2]}x{self.stages}"
 
 
 class TensorDescription:

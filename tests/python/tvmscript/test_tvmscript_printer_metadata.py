@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-docstring
+# ruff: noqa: F841
 import tvm.testing
 from tvm.script.parser import ir as I
 from tvm.script.parser import tir as T

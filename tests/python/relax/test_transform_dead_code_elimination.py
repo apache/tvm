@@ -14,13 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501, F401, F841
 
 import pytest
 
 import tvm
 import tvm.testing
 from tvm.relax.transform import DeadCodeElimination
-from tvm.script.parser import ir as I, relax as R, tir as T
+from tvm.script.parser import ir as I
+from tvm.script.parser import relax as R
+from tvm.script.parser import tir as T
 
 
 def verify(input, expected):
@@ -166,7 +169,7 @@ def test_unused_relax_func():
             z: T.Buffer((16, 16), "float32"),
         ) -> None:
             for i, j in T.grid(16, 16):
-                with T.block("add"):
+                with T.sblock("add"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     z[vi, vj] = x[vi, vj] + y[vi, vj]
 
@@ -176,9 +179,9 @@ def test_unused_relax_func():
             return gv0
 
         @R.function
-        def main(
-            x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")
-        ) -> R.Tensor((16, 16), "float32"):
+        def main(x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")) -> R.Tensor(
+            (16, 16), "float32"
+        ):
             gv0 = R.call_tir(InputModule.tir_add, (x, w), R.Tensor((16, 16), dtype="float32"))
             return gv0
 
@@ -203,7 +206,7 @@ def test_unused_relax_func_custom_entry_func(provide_entry_func_name):
             z: T.Buffer((16, 16), "float32"),
         ) -> None:
             for i, j in T.grid(16, 16):
-                with T.block("add"):
+                with T.sblock("add"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     z[vi, vj] = x[vi, vj] + y[vi, vj]
 
@@ -213,9 +216,9 @@ def test_unused_relax_func_custom_entry_func(provide_entry_func_name):
             return gv0
 
         @R.function
-        def foo(
-            x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")
-        ) -> R.Tensor((16, 16), "float32"):
+        def foo(x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")) -> R.Tensor(
+            (16, 16), "float32"
+        ):
             gv0 = R.call_tir(InputModule.tir_add, (x, w), R.Tensor((16, 16), dtype="float32"))
             return gv0
 
@@ -244,7 +247,7 @@ def test_tracking_through_externally_exposed_func(provide_entry_func_name):
             z: T.Buffer((16, 16), "float32"),
         ) -> None:
             for i, j in T.grid(16, 16):
-                with T.block("add"):
+                with T.sblock("add"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     z[vi, vj] = x[vi, vj] + y[vi, vj]
 
@@ -254,9 +257,9 @@ def test_tracking_through_externally_exposed_func(provide_entry_func_name):
             return gv0
 
         @R.function
-        def foo(
-            x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")
-        ) -> R.Tensor((16, 16), "float32"):
+        def foo(x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")) -> R.Tensor(
+            (16, 16), "float32"
+        ):
             gv0 = R.call_tir(InputModule.tir_add, (x, w), R.Tensor((16, 16), dtype="float32"))
             return gv0
 
@@ -292,7 +295,7 @@ def test_unused_relax_func_symbolic_shape():
             y = T.match_buffer(y_handle, (n, k), "float32")
             z = T.match_buffer(z_handle, (m, k), "float32")
             for i, j, k in T.grid(m, k, n):
-                with T.block("matmul"):
+                with T.sblock("matmul"):
                     vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                     with T.init():
                         z[vi, vj] = 0.0
@@ -329,7 +332,7 @@ def test_unused_prim_func():
         ) -> None:
             T.func_attr({"global_symbol": "tir_unused"})
             for i, j in T.grid(16, 16):
-                with T.block("add"):
+                with T.sblock("add"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     z[vi, vj] = x[vi, vj] + y[vi, vj]
 
@@ -339,9 +342,9 @@ def test_unused_prim_func():
             return gv0
 
         @R.function
-        def main(
-            x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")
-        ) -> R.Tensor((16, 16), "float32"):
+        def main(x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")) -> R.Tensor(
+            (16, 16), "float32"
+        ):
             gv0 = InputModule.relax_add(x, w)
             return gv0
 
@@ -358,9 +361,9 @@ def test_preserve_indirectly_used_prim_func():
     @tvm.script.ir_module
     class InputModule:
         @R.function
-        def main(
-            x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")
-        ) -> R.Tensor((16, 16), "float32"):
+        def main(x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")) -> R.Tensor(
+            (16, 16), "float32"
+        ):
             gv0 = R.call_tir(
                 InputModule.tir_add_tensors,
                 [x, w],
@@ -375,7 +378,7 @@ def test_preserve_indirectly_used_prim_func():
             z: T.Buffer((16, 16), "float32"),
         ):
             for i, j in T.grid(16, 16):
-                with T.block("add"):
+                with T.sblock("add"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     z[vi, vj] = InputModule.tir_add_float32(x[vi, vj], y[vi, vj])
 
@@ -401,7 +404,7 @@ def test_multiple_unused_funcs():
         ) -> None:
             T.func_attr({"global_symbol": "tir_unused"})
             for i, j in T.grid(16, 16):
-                with T.block("add"):
+                with T.sblock("add"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     z[vi, vj] = x[vi, vj] + y[vi, vj]
 
@@ -411,9 +414,9 @@ def test_multiple_unused_funcs():
             return gv0
 
         @R.function
-        def main(
-            x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")
-        ) -> R.Tensor((16, 16), "float32"):
+        def main(x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")) -> R.Tensor(
+            (16, 16), "float32"
+        ):
             gv0 = R.add(x, w)
             return gv0
 
@@ -737,9 +740,9 @@ def test_recursively_defined_lambda():
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor:
             @R.function
-            def while_loop(
-                i: R.Tensor((), "int32"), s: R.Tensor((2, 3), "float32")
-            ) -> R.Tensor((2, 3), "float32"):
+            def while_loop(i: R.Tensor((), "int32"), s: R.Tensor((2, 3), "float32")) -> R.Tensor(
+                (2, 3), "float32"
+            ):
                 cond = R.call_pure_packed(
                     "test.vm.less", i, R.const(10), sinfo_args=R.Tensor((), dtype="bool")
                 )
@@ -776,9 +779,9 @@ def test_recursively_defined_closure():
             threshold = R.const(10)
 
             @R.function
-            def while_loop(
-                i: R.Tensor((), "int32"), s: R.Tensor((2, 3), "float32")
-            ) -> R.Tensor((2, 3), "float32"):
+            def while_loop(i: R.Tensor((), "int32"), s: R.Tensor((2, 3), "float32")) -> R.Tensor(
+                (2, 3), "float32"
+            ):
                 cond = R.call_pure_packed(
                     "test.vm.less", i, threshold, sinfo_args=R.Tensor((), dtype="bool")
                 )

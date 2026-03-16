@@ -16,8 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-/* eslint-disable no-undef */
 module.exports = {
   testEnvironment: "node",
 

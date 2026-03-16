@@ -55,11 +55,11 @@ def bind_with_value(self: Parser, node: doc.expr, var_name: str, value: Any) -> 
     res : Any
         The bound value.
     """
-    if isinstance(value, (list, tuple)):
+    if isinstance(value, list | tuple):
         for i, v in enumerate(value):
             bind_with_value(self, node, f"{var_name}_{i}", v)
         return value
-    elif isinstance(value, (Buffer, Var)):
+    elif isinstance(value, Buffer | Var):
         IRBuilder.name(var_name, value)
         return value
     else:
@@ -91,7 +91,7 @@ def bind_for_value(self: Parser, node: doc.expr, var_name: str, value: Any) -> A
     res : Any
         The bound value.
     """
-    if isinstance(value, (list, tuple, tvm.ir.Array)):
+    if isinstance(value, list | tuple | tvm.ir.Array):
         for i, v in enumerate(value):
             bind_for_value(self, node, f"{var_name}_{i}", v)
         return value
@@ -129,7 +129,7 @@ def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -
     """
     if isinstance(value, T.meta_var):
         return value.value
-    elif isinstance(value, (list, tuple)):
+    elif isinstance(value, list | tuple):
         for i, v in enumerate(value):
             bind_assign_value(self, node, f"{var_name}_{i}", v)
         return value
@@ -138,18 +138,15 @@ def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -
         res = value.__enter__()
         IRBuilder.name(var_name, res)
         return res
-    elif isinstance(value, (Buffer, IterVar)) or (
+    elif isinstance(value, Buffer | IterVar) or (
         isinstance(value, Var) and not self.var_table.exist(value)
     ):
         IRBuilder.name(var_name, value)
         return value
     else:
         value = tvm.runtime.convert(value)
-        frame = T.LetStmt(value)
-        var = frame.var
+        var = T.bind(value)
         IRBuilder.name(var_name, var)
-        frame.add_callback(partial(frame.__exit__, None, None, None))
-        frame.__enter__()
         return var
 
 
@@ -166,6 +163,28 @@ def find_decorator_annotation(node: doc.FunctionDef, annotation: str, default: b
             if keyword.arg == annotation:
                 return keyword.value.value
     return default
+
+
+def range_sugar(
+    start: PrimExpr,
+    stop: PrimExpr = None,
+    step: PrimExpr | None = None,
+    *,
+    annotations: dict[str, Any] | None = None,
+) -> T.frame.ForFrame:
+    """The sugar for python range builtin."""
+
+    # Since `tir.For` do not support reversed iteration semantic,
+    # the step must be checked to be positive integer when use range sugar
+    if step is not None:
+        try:
+            step = int(step)
+            if step <= 0:
+                raise ValueError(f"Only support positive step in range(), get {step}")
+        except TypeError:  # pylint: disable=broad-except
+            raise ValueError(f"Only support literal step in range(), get {step}")
+
+    return T.serial(start, stop, annotations=annotations, step=step)
 
 
 @dispatch.register(token="tir", type_name="For")
@@ -330,9 +349,7 @@ def visit_ann_assign(self: Parser, node: doc.AnnAssign) -> None:
     if not isinstance(ann_var, Var):
         self.report_error(node.annotation, "Annotation should be Var")
     self.eval_assign(target=lhs, source=ann_var, bind_value=bind_assign_value)
-    frame = T.LetStmt(rhs, var=ann_var)
-    frame.add_callback(partial(frame.__exit__, None, None, None))
-    frame.__enter__()
+    T.bind(rhs, var=ann_var)
 
 
 @dispatch.register(token="tir", type_name="With")
@@ -353,7 +370,8 @@ def visit_with(self: Parser, node: doc.With) -> None:
             frame = self.eval_expr(item.context_expr)
             if not isinstance(frame, Frame):
                 self.report_error(
-                    item.context_expr, "Invalid context expression in the with-statement."
+                    item.context_expr,
+                    "Invalid context expression in the with-statement.",
                 )
             rhs = stack.enter_context(frame)
             if item.optional_vars is not None:
@@ -378,7 +396,7 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
     privacy = find_decorator_annotation(node, "private", default=False)
     self.function_annotations = None
     with self.var_table.with_frame():
-        self.var_table.add("range", T.serial)
+        self.var_table.add("range", range_sugar)
         with T.prim_func(is_private=privacy):
             T.func_name(node.name)
             if node.returns is not None:
@@ -448,9 +466,14 @@ def visit_expr_stmt(self: Parser, node: doc.Expr) -> None:
     elif isinstance(res, Frame):
         res.add_callback(partial(res.__exit__, None, None, None))
         res.__enter__()
+    elif isinstance(res, Var):
+        # Standalone Var expression (e.g. from T.bind(value, var=v)) --
+        # the Bind statement was already emitted to the parent frame by the FFI call,
+        # so just discard the returned Var.
+        pass
     elif isinstance(res, PrimExpr):
         T.evaluate(res)
-    elif isinstance(res, (int, bool)):
+    elif isinstance(res, int | bool):
         T.evaluate(tvm.tir.const(res))
     elif isinstance(res, tvm.relax.Call) and not res.args:
         # Using GlobalVar.__call__ with no arguments is ambiguous, as
@@ -480,7 +503,7 @@ def visit_if(self: Parser, node: doc.If) -> None:
     """
     with self.var_table.with_frame():
         predicate = self.eval_expr(node.test)
-        if isinstance(predicate, (PrimExpr, tvm.tir.expr.ExprOp)):
+        if isinstance(predicate, PrimExpr | tvm.tir.expr.ExprOp):
             with T.If(self.eval_expr(node.test)):
                 with T.Then():
                     with self.var_table.with_frame():
@@ -498,7 +521,8 @@ def visit_if(self: Parser, node: doc.If) -> None:
                     self.visit_body(node.orelse)
         else:
             self.report_error(
-                node.test, f"If condition must be a boolean expression, but got {predicate}"
+                node.test,
+                f"If condition must be a boolean expression, but got {predicate}",
             )
 
 
@@ -513,10 +537,40 @@ def visit_assert(self: Parser, node: doc.Assert) -> None:
 
     node : doc.Assert
         The doc AST assert node.
+
+    The assert message can be either:
+    - A plain string: ``assert cond, "message"``
+    - A tuple of (kind, [parts...]): ``assert cond, ("ValueError", ["part0", "part1"])``
     """
     cond = self.eval_expr(node.test)
     msg = self.eval_expr(node.msg)
-    frame = T.Assert(cond, msg)
+
+    kind = "RuntimeError"
+    message = msg
+
+    if isinstance(msg, tuple):
+        if len(msg) != 2:
+            self.report_error(
+                node,
+                f"Assert message tuple must have exactly 2 elements (kind, [parts...]), "
+                f"got {len(msg)} elements",
+            )
+        kind_str, parts = msg
+        if isinstance(kind_str, tvm.tir.StringImm):
+            kind_str = kind_str.value
+        if not isinstance(kind_str, str):
+            self.report_error(
+                node,
+                f"Assert message tuple first element must be a string (error kind like "
+                f'"ValueError"), got {type(kind_str).__name__}',
+            )
+        kind = kind_str
+        message = parts
+
+    if isinstance(message, list | tuple):
+        message = [p.value if isinstance(p, tvm.tir.StringImm) else str(p) for p in message]
+
+    frame = T.Assert(cond, message, error_kind=kind)
     frame.add_callback(partial(frame.__exit__, None, None, None))
     frame.__enter__()
 
@@ -537,6 +591,36 @@ def visit_return(self: Parser, node: doc.Return) -> None:
     if value is None:
         self.report_error(node, "Expression to be returned must be a PrimExpr")
     T.evaluate(tvm.tir.ret(value))
+
+
+@dispatch.register(token="tir", type_name="Continue")
+def visit_continue(self: Parser, node: doc.Continue) -> None:  # pylint:disable=unused-argument
+    """The continue visiting method for tir.
+
+    Parameters
+    ----------
+    self : Parser
+        The visiting parser.
+
+    node : doc.Continue
+        The doc AST continue node.
+    """
+    T.evaluate(tvm.tir.continue_loop())
+
+
+@dispatch.register(token="tir", type_name="Break")
+def visit_break(self: Parser, node: doc.Break) -> None:  # pylint:disable=unused-argument
+    """The continue visiting method for tir.
+
+    Parameters
+    ----------
+    self : Parser
+        The visiting parser.
+
+    node : doc.Break
+        The doc AST break node.
+    """
+    T.evaluate(tvm.tir.break_loop())
 
 
 @dispatch.register(token="tir", type_name="tvm_declare_function")

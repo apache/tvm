@@ -1,3 +1,4 @@
+# isort: skip_file
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -19,7 +20,6 @@
 
 Used to verify the correctness of operators in TOPI .
 """
-from __future__ import absolute_import as _abs
 
 from .conv1d_ncw_python import conv1d_ncw_python, group_conv1d_ncw_python
 from .conv2d_hwcn_python import conv2d_hwcn_python

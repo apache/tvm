@@ -15,16 +15,19 @@
 # specific language governing permissions and limitations
 # under the License.
 """Abstraction for array data structures."""
+
 from numbers import Integral
 
-import tvm.ffi
+import tvm_ffi
+
+import tvm
 from tvm.ir import PointerType, PrimExpr, PrimType, Range
 from tvm.runtime import Object, Scriptable, convert
 
 from . import _ffi_api
 
 
-@tvm.ffi.register_object("tir.Buffer")
+@tvm_ffi.register_object("tir.Buffer")
 class Buffer(Object, Scriptable):
     """Symbolic data buffer in TVM.
 
@@ -97,7 +100,12 @@ class Buffer(Object, Scriptable):
         offset = convert(offset)
         extent = convert(extent)
         return _ffi_api.BufferAccessPtr(
-            self, access_mask, ptr_type, content_lanes, offset, extent  # type: ignore
+            self,
+            access_mask,
+            ptr_type,
+            content_lanes,
+            offset,
+            extent,  # type: ignore
         )
 
     def vload(self, begin, dtype=None, predicate=None):
@@ -121,7 +129,7 @@ class Buffer(Object, Scriptable):
         load : Expr
             The corresponding load expression.
         """
-        begin = (begin,) if isinstance(begin, (int, PrimExpr)) else begin
+        begin = (begin,) if isinstance(begin, int | PrimExpr) else begin
         dtype = dtype if dtype else self.dtype
         return _ffi_api.BufferVLoad(self, begin, dtype, predicate)  # type: ignore
 
@@ -146,7 +154,7 @@ class Buffer(Object, Scriptable):
         store : Stmt
             The corresponding store stmt.
         """
-        begin = (begin,) if isinstance(begin, (int, PrimExpr)) else begin
+        begin = (begin,) if isinstance(begin, int | PrimExpr) else begin
         return _ffi_api.BufferVStore(self, begin, value, predicate)  # type: ignore
 
     def scope(self):
@@ -190,7 +198,7 @@ class Buffer(Object, Scriptable):
         from .expr import BufferLoad, Ramp, const  # pylint: disable=import-outside-toplevel
         from .stmt import BufferRegion  # pylint: disable=import-outside-toplevel
 
-        if not isinstance(indices, (tuple, list)):
+        if not isinstance(indices, tuple | list):
             indices = [indices]
         has_slice = any(isinstance(i, slice) for i in indices)
         has_step = any(isinstance(i, slice) and i.step is not None for i in indices)
@@ -319,7 +327,7 @@ def decl_buffer(
     # pylint: disable=import-outside-toplevel
     from .expr import Var
 
-    shape = (shape,) if isinstance(shape, (PrimExpr, Integral)) else shape
+    shape = (shape,) if isinstance(shape, PrimExpr | Integral) else shape
     dtype = "float32" if dtype is None else dtype
     strides = () if strides is None else strides
 
@@ -349,6 +357,6 @@ def decl_buffer(
     )
 
 
-@tvm.ffi.register_object("tir.DataProducer")
+@tvm_ffi.register_object("tir.DataProducer")
 class DataProducer(Object):
     pass

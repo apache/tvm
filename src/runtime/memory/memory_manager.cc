@@ -36,22 +36,22 @@ namespace runtime {
 namespace memory {
 
 Storage::Storage(Buffer buffer, Allocator* allocator) {
-  auto n = make_object<StorageObj>();
+  auto n = ffi::make_object<StorageObj>();
   n->buffer = std::move(buffer);
   n->allocator = allocator;
   data_ = std::move(n);
 }
 
 inline void VerifyDataType(DLDataType dtype) {
-  ICHECK_GE(dtype.lanes, 1);
+  TVM_FFI_ICHECK_GE(dtype.lanes, 1);
   if (dtype.code == kDLFloat) {
-    ICHECK_EQ(dtype.bits % 8, 0);
+    TVM_FFI_ICHECK_EQ(dtype.bits % 8, 0);
   } else {
     // allow uint1 as a special flag for bool.
     if (dtype.bits == 1 && dtype.code == kDLUInt) return;
-    ICHECK_EQ(dtype.bits % 8, 0);
+    TVM_FFI_ICHECK_EQ(dtype.bits % 8, 0);
   }
-  ICHECK_EQ(dtype.bits & (dtype.bits - 1), 0);
+  TVM_FFI_ICHECK_EQ(dtype.bits & (dtype.bits - 1), 0);
 }
 
 inline size_t GetDataAlignment(const DLDataType& dtype) {
@@ -60,10 +60,10 @@ inline size_t GetDataAlignment(const DLDataType& dtype) {
   return align;
 }
 
-NDArray StorageObj::AllocNDArrayScoped(int64_t offset, ffi::Shape shape, DLDataType dtype,
-                                       String scope) {
+Tensor StorageObj::AllocTensorScoped(int64_t offset, ffi::Shape shape, DLDataType dtype,
+                                     ffi::String scope) {
   if (scope == "global" || scope.empty()) {
-    return AllocNDArray(offset, shape, dtype);
+    return AllocTensor(offset, shape, dtype);
   }
   VerifyDataType(dtype);
 
@@ -71,7 +71,7 @@ NDArray StorageObj::AllocNDArrayScoped(int64_t offset, ffi::Shape shape, DLDataT
    public:
     explicit StorageScopedAlloc(Storage storage) : storage_(storage) {}
 
-    void AllocData(DLTensor* tensor, const ffi::Shape& shape, const String& scope,
+    void AllocData(DLTensor* tensor, const ffi::Shape& shape, const ffi::String& scope,
                    int64_t byte_offset) {
       tensor->data = storage_->allocator->CreateView(storage_->buffer, shape, tensor->dtype, scope);
       tensor->byte_offset = byte_offset;
@@ -83,19 +83,19 @@ NDArray StorageObj::AllocNDArrayScoped(int64_t offset, ffi::Shape shape, DLDataT
   };
 
   size_t needed_size = ffi::GetDataSize(shape.Product(), dtype);
-  ICHECK(offset + needed_size <= this->buffer.size)
+  TVM_FFI_ICHECK(offset + needed_size <= this->buffer.size)
       << "storage allocation failure, attempted to allocate " << needed_size << " at offset "
       << offset << " in region that is " << this->buffer.size << "bytes";
 
-  return NDArray::FromNDAlloc(StorageScopedAlloc(GetRef<Storage>(this)), shape, dtype,
-                              this->buffer.device, shape, scope, offset);
+  return Tensor::FromNDAlloc(StorageScopedAlloc(ffi::GetRef<Storage>(this)), shape, dtype,
+                             this->buffer.device, shape, scope, offset);
 }
 
-NDArray StorageObj::AllocNDArray(int64_t offset, ffi::Shape shape, DLDataType dtype) {
+Tensor StorageObj::AllocTensor(int64_t offset, ffi::Shape shape, DLDataType dtype) {
   VerifyDataType(dtype);
 
   size_t needed_size = ffi::GetDataSize(shape.Product(), dtype);
-  ICHECK(offset + needed_size <= this->buffer.size)
+  TVM_FFI_ICHECK(offset + needed_size <= this->buffer.size)
       << "storage allocation failure, attempted to allocate " << needed_size << " at offset "
       << offset << " in region that is " << this->buffer.size << "bytes";
   class StorageAlloc {
@@ -120,8 +120,8 @@ NDArray StorageObj::AllocNDArray(int64_t offset, ffi::Shape shape, DLDataType dt
     Storage storage_;
   };
 
-  return NDArray::FromNDAlloc(StorageAlloc(GetRef<Storage>(this)), shape, dtype,
-                              this->buffer.device, offset);
+  return Tensor::FromNDAlloc(StorageAlloc(ffi::GetRef<Storage>(this)), shape, dtype,
+                             this->buffer.device, offset);
 }
 
 MemoryManager* MemoryManager::Global() {
@@ -166,7 +166,7 @@ Allocator* GetDeviceSpecificAllocator(Device dev, AllocatorType type) {
         break;
       }
       default:
-        LOG(FATAL) << "Unknown allocator type: " << type;
+        TVM_FFI_THROW(InternalError) << "Unknown allocator type: " << type;
     }
   }
   return allocator;
@@ -195,10 +195,11 @@ Allocator* MemoryManager::GetAllocator(Device dev, AllocatorType type) {
   std::lock_guard<std::mutex> lock(m->mu_);
   auto it = m->allocators_.find(dev);
   if (it == m->allocators_.end()) {
-    LOG(FATAL) << "Allocator for " << dev << " has not been created yet.";
+    TVM_FFI_THROW(InternalError) << "Allocator for " << dev << " has not been created yet.";
   }
   if (it->second.find(type) == it->second.end()) {
-    LOG(FATAL) << "Allocator for " << dev << " of type " << type << " has not been created yet.";
+    TVM_FFI_THROW(InternalError) << "Allocator for " << dev << " of type " << type
+                                 << " has not been created yet.";
   }
   return it->second.at(type).get();
 }
@@ -213,8 +214,8 @@ void MemoryManager::Clear() {
   }
 }
 
-NDArray Allocator::Empty(ffi::Shape shape, DLDataType dtype, DLDevice dev,
-                         Optional<String> mem_scope) {
+Tensor Allocator::Empty(ffi::Shape shape, DLDataType dtype, DLDevice dev,
+                        ffi::Optional<ffi::String> mem_scope) {
   VerifyDataType(dtype);
 
   class BufferAlloc {
@@ -234,12 +235,12 @@ NDArray Allocator::Empty(ffi::Shape shape, DLDataType dtype, DLDevice dev,
   size_t size = ffi::GetDataSize(shape.Product(), dtype);
 
   Buffer buffer;
-  if (!mem_scope.defined() || mem_scope.value().empty() || mem_scope.value() == "global") {
+  if (!mem_scope.has_value() || (*mem_scope).empty() || (*mem_scope) == "global") {
     buffer = this->Alloc(dev, size, alignment, dtype);
   } else {
-    buffer = this->Alloc(dev, shape, dtype, mem_scope.value());
+    buffer = this->Alloc(dev, shape, dtype, *mem_scope);
   }
-  return NDArray::FromNDAlloc(BufferAlloc(buffer), shape, dtype, dev);
+  return Tensor::FromNDAlloc(BufferAlloc(buffer), shape, dtype, dev);
 }
 
 bool Allocator::AllowMemoryScope(const std::string& mem_scope) const {
@@ -254,8 +255,8 @@ Buffer Allocator::Alloc(Device dev, ffi::Shape shape, DLDataType type_hint,
     size_t size = ffi::GetDataSize(shape.Product(), type_hint);
     return Alloc(dev, size, alignment, type_hint);
   }
-  LOG(FATAL) << "Allocator cannot allocate data space with "
-             << "specified memory scope: " << mem_scope;
+  TVM_FFI_THROW(InternalError) << "Allocator cannot allocate data space with "
+                               << "specified memory scope: " << mem_scope;
   return {};
 }
 
@@ -265,10 +266,10 @@ void Allocator::Clear() {
   // Pooled allocator will override this method.
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("vm.builtin.memory_manager.clear", MemoryManager::Clear);
-});
+}
 
 }  // namespace memory
 }  // namespace runtime

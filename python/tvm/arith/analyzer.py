@@ -16,10 +16,11 @@
 # under the License.
 # pylint: disable=invalid-name
 """Arithmetic data structure and utility"""
-import enum
-from typing import Union
 
-import tvm.ffi
+import enum
+
+import tvm_ffi
+
 from tvm import ir, tir
 from tvm.arith import IntSet
 from tvm.runtime import Object
@@ -47,7 +48,7 @@ class Extension(enum.Flag):
     ComparisonOfProductAndSum = 1 << 3
 
 
-@tvm.ffi.register_object("arith.ModularSet")
+@tvm_ffi.register_object("arith.ModularSet")
 class ModularSet(Object):
     """Represent range of (coeff * x + base) for x in Z"""
 
@@ -55,7 +56,7 @@ class ModularSet(Object):
         self.__init_handle_by_constructor__(_ffi_api.ModularSet, coeff, base)
 
 
-@tvm.ffi.register_object("arith.ConstIntBound")
+@tvm_ffi.register_object("arith.ConstIntBound")
 class ConstIntBound(Object):
     """Represent constant integer bound
 
@@ -265,7 +266,7 @@ class Analyzer:
         """
         return self._can_prove(expr, strength)
 
-    def bind(self, var: tir.Var, expr: Union[tir.PrimExpr, ir.Range]) -> None:
+    def bind(self, var: tir.Var, expr: tir.PrimExpr | ir.Range) -> None:
         """Bind a variable to the expression.
 
         Parameters
@@ -326,7 +327,7 @@ class Analyzer:
         if isinstance(info, ConstIntBound):
             self._const_int_bound_update(var, info, override)
         else:
-            raise TypeError("Do not know how to handle type {}".format(type(info)))
+            raise TypeError(f"Do not know how to handle type {type(info)}")
 
     def can_prove_equal(self, lhs: tir.PrimExpr, rhs: tir.PrimExpr) -> bool:
         """Whether we can prove that lhs == rhs
@@ -353,7 +354,7 @@ class Analyzer:
         return Extension(value)
 
     @enabled_extensions.setter
-    def enabled_extensions(self, flags: Union[int, Extension]):
+    def enabled_extensions(self, flags: int | Extension):
         """Enable extensions for the analyzer
 
         Parameters

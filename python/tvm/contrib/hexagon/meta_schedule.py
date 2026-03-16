@@ -15,30 +15,31 @@
 # specific language governing permissions and limitations
 # under the License.
 """Meta schedule tuning utilities for Hexagon."""
+
 import os
 import tempfile
-from typing import Callable, Dict, List, Optional
-import tvm
+from collections.abc import Callable
 
-from tvm.ir.module import IRModule
-from tvm.runtime import Module, NDArray
-from tvm.target import Target
-from tvm.driver import build as tvm_build
-from tvm.tir.transform import RemoveWeightLayoutRewriteBlock
+import tvm
 from tvm.contrib.popen_pool import PopenPoolExecutor
-from tvm.meta_schedule.utils import cpu_count, derived_object
-from tvm.meta_schedule.builder import LocalBuilder
-from tvm.meta_schedule.runner import (
+from tvm.driver import build as tvm_build
+from tvm.ir.module import IRModule
+from tvm.runtime import Module, Tensor
+from tvm.s_tir.meta_schedule.builder import LocalBuilder
+from tvm.s_tir.meta_schedule.runner import (
     EvaluatorConfig,
-    RunnerInput,
-    RunnerFuture,
     PyRunner,
+    RunnerFuture,
+    RunnerInput,
 )
-from tvm.meta_schedule.runner.rpc_runner import (
+from tvm.s_tir.meta_schedule.runner.rpc_runner import (
+    RPCRunnerFuture,
     default_alloc_argument,
     default_run_evaluator,
-    RPCRunnerFuture,
 )
+from tvm.s_tir.meta_schedule.utils import cpu_count, derived_object
+from tvm.s_tir.transform import RemoveWeightLayoutRewriteBlock
+from tvm.target import Target
 
 from .build import HexagonLauncherRPC
 from .tools import export_module
@@ -51,11 +52,11 @@ class HexagonRPCRunner(PyRunner):
     def __init__(
         self,
         hexagon_launcher: HexagonLauncherRPC,
-        evaluator_config: Optional[EvaluatorConfig] = None,
+        evaluator_config: EvaluatorConfig | None = None,
         cooldown_sec: float = 0.0,
         alloc_repeat: int = 1,
-        max_workers: Optional[int] = None,
-        initializer: Optional[Callable[[], None]] = None,
+        max_workers: int | None = None,
+        initializer: Callable[[], None] | None = None,
     ):
         """
         Parameters
@@ -88,7 +89,7 @@ class HexagonRPCRunner(PyRunner):
             initializer=initializer,
         )
 
-    def run(self, runner_inputs: List[RunnerInput]) -> List[RunnerFuture]:
+    def run(self, runner_inputs: list[RunnerInput]) -> list[RunnerFuture]:
         results = []
         for runner_input in runner_inputs:
             future = RPCRunnerFuture(
@@ -130,7 +131,7 @@ def _worker_func(hexagon_launcher, evaluator_config, alloc_repeat, artifact_path
 
 def get_hexagon_local_builder(
     pass_context: tvm.transform.PassContext = None,
-    max_workers: Optional[int] = None,
+    max_workers: int | None = None,
     timeout_sec: float = 30.0,
 ):
     """Return Hexagon-compatible Builder for meta schedule."""
@@ -140,10 +141,10 @@ def get_hexagon_local_builder(
         return str(binary_path)
 
     def default_build_with_context(
-        mod: IRModule, target: Target, _params: Optional[Dict[str, NDArray]]
+        mod: IRModule, target: Target, _params: dict[str, Tensor] | None
     ) -> Module:
         with pass_context:
-            mod = RemoveWeightLayoutRewriteBlock(skip_ndarray_rewrite=True)(mod)
+            mod = RemoveWeightLayoutRewriteBlock(skip_tensor_rewrite=True)(mod)
             return tvm_build(mod, target=target)
 
     if pass_context is not None:
@@ -162,7 +163,7 @@ def get_hexagon_rpc_runner(
     number=3,
     repeat=1,
     min_repeat_ms=100,
-    max_workers: Optional[int] = None,
+    max_workers: int | None = None,
 ):
     """Return Hexagon-compatible RPC Runner for meta schedule.
 

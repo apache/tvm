@@ -20,10 +20,10 @@ Codegen tests for VLA extensions
 """
 
 import re
+
 import pytest
 
 import tvm
-from tvm import te
 from tvm.script import tir as T
 from tvm.target.codegen import llvm_version_major
 
@@ -32,8 +32,14 @@ from tvm.target.codegen import llvm_version_major
     llvm_version_major() < 11, reason="Vscale is not supported in earlier versions of LLVM"
 )
 @tvm.testing.parametrize_targets(
-    "llvm -mtriple=aarch64-linux-gnu -mattr=+sve",
-    "llvm -device=riscv_cpu -mtriple=riscv64-linux-gnu -mcpu=generic-rv64 -mattr=+64bit,+a,+c,+d,+f,+m,+v",
+    {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]},
+    {
+        "kind": "llvm",
+        "device": "riscv_cpu",
+        "mtriple": "riscv64-linux-gnu",
+        "mcpu": "generic-rv64",
+        "mattr": ["+64bit", "+a", "+c", "+d", "+f", "+m", "+v"],
+    },
 )
 def test_codegen_vscale(target):
     vscale = tvm.tir.vscale()
@@ -46,7 +52,7 @@ def test_codegen_vscale(target):
     with tvm.target.Target(target):
         build_mod = tvm.tir.build(main)
 
-    llvm = build_mod.get_source()
+    llvm = build_mod.inspect_source()
     assert re.findall(r"llvm.vscale.i32", llvm), "No vscale in generated LLVM."
 
 
@@ -54,8 +60,14 @@ def test_codegen_vscale(target):
     llvm_version_major() < 11, reason="Vscale is not supported in earlier versions of LLVM"
 )
 @tvm.testing.parametrize_targets(
-    "llvm -mtriple=aarch64-linux-gnu -mattr=+sve",
-    "llvm -device=riscv_cpu -mtriple=riscv64-linux-gnu -mcpu=generic-rv64 -mattr=+64bit,+a,+c,+d,+f,+m,+v",
+    {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]},
+    {
+        "kind": "llvm",
+        "device": "riscv_cpu",
+        "mtriple": "riscv64-linux-gnu",
+        "mcpu": "generic-rv64",
+        "mattr": ["+64bit", "+a", "+c", "+d", "+f", "+m", "+v"],
+    },
 )
 def test_scalable_buffer_load_store(target):
     @T.prim_func
@@ -68,7 +80,7 @@ def test_scalable_buffer_load_store(target):
     with tvm.target.Target(target):
         mod = tvm.tir.build(my_func)
 
-    llvm = mod.get_source("ll")
+    llvm = mod.inspect_source("ll")
     assert re.findall(r"load <vscale x 4 x float>", llvm), "No scalable load in generated LLVM."
     assert re.findall(r" store <vscale x 4 x float>", llvm), "No scalable store in generated LLVM."
 
@@ -77,8 +89,14 @@ def test_scalable_buffer_load_store(target):
     llvm_version_major() < 11, reason="Vscale is not supported in earlier versions of LLVM"
 )
 @tvm.testing.parametrize_targets(
-    "llvm -mtriple=aarch64-linux-gnu -mattr=+sve",
-    "llvm -device=riscv_cpu -mtriple=riscv64-linux-gnu -mcpu=generic-rv64 -mattr=+64bit,+a,+c,+d,+f,+m,+v",
+    {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]},
+    {
+        "kind": "llvm",
+        "device": "riscv_cpu",
+        "mtriple": "riscv64-linux-gnu",
+        "mcpu": "generic-rv64",
+        "mattr": ["+64bit", "+a", "+c", "+d", "+f", "+m", "+v"],
+    },
 )
 def test_scalable_broadcast(target):
     @T.prim_func
@@ -90,7 +108,7 @@ def test_scalable_broadcast(target):
     with tvm.target.Target(target):
         mod = tvm.tir.build(my_func)
 
-    llvm = mod.get_source("ll")
+    llvm = mod.inspect_source("ll")
     assert re.findall(
         r"shufflevector \(<vscale x 4 x float> insertelement \(<vscale x 4 x float>", llvm
     ), "No scalable broadcast in generated LLVM."
@@ -101,8 +119,14 @@ def test_scalable_broadcast(target):
     reason="Vscale and get.active.lane.mask are not supported in earlier versions of LLVM",
 )
 @tvm.testing.parametrize_targets(
-    "llvm -mtriple=aarch64-linux-gnu -mattr=+sve",
-    "llvm -device=riscv_cpu -mtriple=riscv64-linux-gnu -mcpu=generic-rv64 -mattr=+64bit,+a,+c,+d,+f,+m,+v",
+    {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]},
+    {
+        "kind": "llvm",
+        "device": "riscv_cpu",
+        "mtriple": "riscv64-linux-gnu",
+        "mcpu": "generic-rv64",
+        "mattr": ["+64bit", "+a", "+c", "+d", "+f", "+m", "+v"],
+    },
 )
 def test_get_active_lane_mask(target):
     @T.prim_func
@@ -114,7 +138,7 @@ def test_get_active_lane_mask(target):
     with tvm.target.Target(target):
         out = tvm.tir.build(before)
 
-    ll = out.get_source("ll")
+    ll = out.inspect_source("ll")
     assert "get.active.lane.mask" in ll
 
 
@@ -122,8 +146,14 @@ def test_get_active_lane_mask(target):
     reason="Vscale and get.active.lane.mask are not supported in earlier versions of LLVM",
 )
 @tvm.testing.parametrize_targets(
-    "llvm -mtriple=aarch64-linux-gnu -mattr=+sve",
-    "llvm -device=riscv_cpu -mtriple=riscv64-linux-gnu -mcpu=generic-rv64 -mattr=+64bit,+a,+c,+d,+f,+m,+v",
+    {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]},
+    {
+        "kind": "llvm",
+        "device": "riscv_cpu",
+        "mtriple": "riscv64-linux-gnu",
+        "mcpu": "generic-rv64",
+        "mattr": ["+64bit", "+a", "+c", "+d", "+f", "+m", "+v"],
+    },
 )
 def test_predicated_scalable_buffer(target):
     @T.prim_func
@@ -139,7 +169,7 @@ def test_predicated_scalable_buffer(target):
     with tvm.target.Target(target):
         out = tvm.tir.build(before)
 
-    ll = out.get_source("ll")
+    ll = out.inspect_source("ll")
     assert "get.active.lane.mask" in ll
     assert "llvm.masked.load" in ll
     assert "llvm.masked.store" in ll

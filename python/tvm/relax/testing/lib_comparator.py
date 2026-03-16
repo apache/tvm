@@ -16,7 +16,8 @@
 # under the License.
 # pylint: disable=unused-argument
 """Tools to compare libraries."""
-from typing import List, Tuple, Iterable, Union
+
+from collections.abc import Iterable
 
 import tvm
 import tvm.testing
@@ -63,8 +64,8 @@ class LibCompareVMInstrument:
     def compare(
         self,
         name: str,
-        ref_args: Union[List[tvm.nd.NDArray], Tuple[tvm.nd.NDArray, ...]],
-        new_args: Union[List[tvm.nd.NDArray], Tuple[tvm.nd.NDArray, ...]],
+        ref_args: list[tvm.runtime.Tensor] | tuple[tvm.runtime.Tensor, ...],
+        new_args: list[tvm.runtime.Tensor] | tuple[tvm.runtime.Tensor, ...],
         ret_indices: Iterable[int],
     ):
         """Comparison function, can be overloaded.
@@ -103,7 +104,7 @@ class LibCompareVMInstrument:
             return
         if name.startswith("vm.builtin."):
             return
-        if any(not isinstance(x, tvm.nd.NDArray) for x in args):
+        if any(not isinstance(x, tvm.runtime.Tensor) for x in args):
             return
         try:
             self.mod.get_function(name, query_imports=True)
@@ -120,7 +121,7 @@ class LibCompareVMInstrument:
         ret_indices = (len(args) - 1,)
         temp_args = []
         for i, arg in enumerate(args):
-            arr = tvm.nd.empty(arg.shape, arg.dtype, device=self.device)
+            arr = tvm.runtime.empty(arg.shape, arg.dtype, device=self.device)
             # copy from cpu since we look at different device
             if i not in ret_indices:
                 temp_cpu = arg.copyto(tvm.cpu())

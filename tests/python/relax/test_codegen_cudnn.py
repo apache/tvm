@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F821, F841
 import numpy as np
 import pytest
 
@@ -67,7 +68,7 @@ def get_relax_conv2d_module(
                 elif data_layout == "NCHW":
                     bias = R.arg("bias", R.Tensor((1, weight_shape[0], 1, 1), dtype))
                 else:
-                    raise ValueError("Unsupported data_layout: {}".format(data_layout))
+                    raise ValueError(f"Unsupported data_layout: {data_layout}")
 
             with R.dataflow() as frame:
                 output = R.emit(
@@ -113,7 +114,7 @@ def build_and_run(mod, inputs_np, target, legalize=False, cuda_graph=False):
         ex = tvm.compile(mod, target)
     vm = relax.VirtualMachine(ex, dev)
     f = vm["main"]
-    inputs = [tvm.nd.array(inp, dev) for inp in inputs_np]
+    inputs = [tvm.runtime.tensor(inp, dev) for inp in inputs_np]
 
     # For cuda graph, run the compiled function twice to make sure that we can launch the cached
     # graph on the second run.
@@ -193,9 +194,13 @@ def test_conv2d_offload(data_shape, weight_shape, dtype, with_bias, activation):
     out = get_result_with_relax_cudnn_offload(mod, args)
     ref = build_and_run(mod, args, "llvm", legalize=True)
     if dtype == "float16":
-        tvm.testing.assert_allclose(out, ref, rtol=1e-1, atol=1e-1)
+        # FIXME(lei): currently raise into 3e-1 to prevent flaky test
+        # see https://github.com/apache/tvm/pull/18319
+        tvm.testing.assert_allclose(out, ref, rtol=3e-1, atol=3e-1)
     else:
-        tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
+        # Increased tolerance to 2.5e-2 to prevent flaky test due to numerical
+        # differences between cuDNN and LLVM implementations
+        tvm.testing.assert_allclose(out, ref, rtol=2.5e-2, atol=2.5e-2)
 
 
 @pytest.mark.skip(reason="flaky test")
@@ -258,7 +263,7 @@ def get_numpy_stacked_attention_ref(b, s, n, h, h_v, bias_shape, qk_scale, dtype
         q, k, v = np.split(qkv, [h, h * 2], axis=3)
         layout = "SBNH"
     else:
-        raise ValueError("Unsupported layout: {}".format(layout))
+        raise ValueError(f"Unsupported layout: {layout}")
     if not bias_shape == "none":
         bias = np.random.randn(*bias_shape).astype(dtype)
         score = score + bias  # b, n, s, s

@@ -25,8 +25,10 @@
 #define TVM_TIR_STMT_H_
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/node/script_printer.h>
 #include <tvm/tir/expr.h>
 
+#include <optional>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -53,65 +55,51 @@ class StmtNode : public Object {
 
   TVM_OBJECT_ENABLE_SCRIPT_PRINTER();
 
-  static constexpr const char* _type_key = "tir.Stmt";
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
+
   static constexpr const uint32_t _type_child_slots = 15;
-  TVM_DECLARE_BASE_OBJECT_INFO(StmtNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("tir.Stmt", StmtNode, Object);
 };
 
 /*! \brief Container of all statements */
 class Stmt : public ObjectRef {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(Stmt, ObjectRef, StmtNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Stmt, ObjectRef, StmtNode);
 };
 
 /*!
- * \brief Let binding, bind var to value, then run body.
+ * \brief Bind a variable to a value in the enclosing scope.
+ *
+ * BindNode has no body field. The bound variable is visible
+ * in all subsequent statements within the same enclosing scope (SeqStmt,
+ * ForNode.body, etc.). This enables flat (non-nested) IR sequences.
  */
-class LetStmtNode : public StmtNode {
+class BindNode : public StmtNode {
  public:
-  /*! \brief The variable. */
+  /*! \brief The variable being bound. */
   Var var;
-  /*! \brief The value to be bound. */
+  /*! \brief The value to bind to the variable. */
   PrimExpr value;
-  /*! \brief The body block. */
-  Stmt body;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<LetStmtNode>()
-        .def_ro("var", &LetStmtNode::var, refl::AttachFieldFlag::SEqHashDef())
-        .def_ro("value", &LetStmtNode::value)
-        .def_ro("body", &LetStmtNode::body);
+    refl::ObjectDef<BindNode>()
+        .def_ro("var", &BindNode::var, refl::AttachFieldFlag::SEqHashDef())
+        .def_ro("value", &BindNode::value);
   }
-
-  bool SEqualReduce(const LetStmtNode* other, SEqualReducer equal) const {
-    return equal.DefEqual(var, other->var) && equal(value, other->value) &&
-           equal(body, other->body);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce.DefHash(var);
-    hash_reduce(value);
-    hash_reduce(body);
-  }
-
-  static constexpr const char* _type_key = "tir.LetStmt";
-  TVM_DECLARE_FINAL_OBJECT_INFO(LetStmtNode, StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.Bind", BindNode, StmtNode);
 };
 
 /*!
- * \brief Managed reference to LetStmtNode.
- * \sa LetStmtNode
+ * \brief Managed reference to BindNode.
+ * \sa BindNode
  */
-class LetStmt : public Stmt {
+class Bind : public Stmt {
  public:
-  TVM_DLL LetStmt(Var var, PrimExpr value, Stmt body, Span span = Span());
+  TVM_DLL Bind(Var var, PrimExpr value, Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(LetStmt, Stmt, LetStmtNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(LetStmtNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Bind, Stmt, BindNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(BindNode);
 };
 
 /*!
@@ -127,9 +115,9 @@ class LetStmt : public Stmt {
 class AttrStmtNode : public StmtNode {
  public:
   /*! \brief this is attribute about certain node */
-  ObjectRef node;
+  ffi::Any node;
   /*! \brief the type key of the attribute */
-  String attr_key;
+  ffi::String attr_key;
   /*! \brief The attribute value, value is well defined at current scope. */
   PrimExpr value;
   /*! \brief The body statement to be executed */
@@ -143,21 +131,7 @@ class AttrStmtNode : public StmtNode {
         .def_ro("value", &AttrStmtNode::value)
         .def_ro("body", &AttrStmtNode::body);
   }
-
-  bool SEqualReduce(const AttrStmtNode* other, SEqualReducer equal) const {
-    return equal(node, other->node) && equal(attr_key, other->attr_key) &&
-           equal(value, other->value) && equal(body, other->body);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(node);
-    hash_reduce(attr_key);
-    hash_reduce(value);
-    hash_reduce(body);
-  }
-
-  static constexpr const char* _type_key = "tir.AttrStmt";
-  TVM_DECLARE_FINAL_OBJECT_INFO(AttrStmtNode, StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.AttrStmt", AttrStmtNode, StmtNode);
 };
 
 /*!
@@ -166,48 +140,39 @@ class AttrStmtNode : public StmtNode {
  */
 class AttrStmt : public Stmt {
  public:
-  TVM_DLL AttrStmt(ObjectRef node, String attr_key, PrimExpr value, Stmt body, Span span = Span());
+  TVM_DLL AttrStmt(ffi::Any node, ffi::String attr_key, PrimExpr value, Stmt body,
+                   Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(AttrStmt, Stmt, AttrStmtNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(AttrStmt, Stmt, AttrStmtNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(AttrStmtNode);
 };
 
 /*!
  * \brief Assert condition, if an error occurs, return the error message.
+ *
+ * The error is described by:
+ * - \p error_kind: the error kind (e.g. "RuntimeError", "TypeError", "ValueError")
+ * - \p message_parts: an array of string fragments that are concatenated at runtime
+ *   via TVMFFIErrorSetRaisedFromCStrParts. This enables string fragment reuse
+ *   across multiple assertions to reduce binary size.
  */
 class AssertStmtNode : public StmtNode {
  public:
   /*! \brief Condition to be checked. */
   PrimExpr condition;
-  /*! \brief Error message when assertion failed. */
-  PrimExpr message;
-  /*!
-   * \brief Body which this assertion holds true.
-   *  Will be executed after the assertion.
-   */
-  Stmt body;
+  /*! \brief The error kind, e.g. "RuntimeError", "TypeError", "ValueError". */
+  StringImm error_kind;
+  /*! \brief Error message fragments, concatenated at runtime when assertion fails. */
+  ffi::Array<StringImm> message_parts;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<AssertStmtNode>()
         .def_ro("condition", &AssertStmtNode::condition)
-        .def_ro("message", &AssertStmtNode::message)
-        .def_ro("body", &AssertStmtNode::body);
+        .def_ro("error_kind", &AssertStmtNode::error_kind)
+        .def_ro("message_parts", &AssertStmtNode::message_parts);
   }
-
-  bool SEqualReduce(const AssertStmtNode* other, SEqualReducer equal) const {
-    return equal(condition, other->condition) && equal(message, other->message) &&
-           equal(body, other->body);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(condition);
-    hash_reduce(message);
-    hash_reduce(body);
-  }
-
-  static constexpr const char* _type_key = "tir.AssertStmt";
-  TVM_DECLARE_FINAL_OBJECT_INFO(AssertStmtNode, StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.AssertStmt", AssertStmtNode, StmtNode);
 };
 
 /*!
@@ -216,9 +181,10 @@ class AssertStmtNode : public StmtNode {
  */
 class AssertStmt : public Stmt {
  public:
-  TVM_DLL AssertStmt(PrimExpr condition, PrimExpr message, Stmt body, Span span = Span());
+  TVM_DLL AssertStmt(PrimExpr condition, StringImm error_kind, ffi::Array<StringImm> message_parts,
+                     Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(AssertStmt, Stmt, AssertStmtNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(AssertStmt, Stmt, AssertStmtNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(AssertStmtNode);
 };
 
@@ -239,9 +205,9 @@ class BufferStoreNode : public StmtNode {
   /*! \brief The value to be stored. */
   PrimExpr value;
   /*! \brief The indices location to be stored. */
-  Array<PrimExpr> indices;
+  ffi::Array<PrimExpr> indices;
   /*! \brief The predicate mask for storing values. */
-  Optional<PrimExpr> predicate;
+  ffi::Optional<PrimExpr> predicate;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -251,21 +217,7 @@ class BufferStoreNode : public StmtNode {
         .def_ro("indices", &BufferStoreNode::indices)
         .def_ro("predicate", &BufferStoreNode::predicate);
   }
-
-  bool SEqualReduce(const BufferStoreNode* other, SEqualReducer equal) const {
-    return equal(buffer, other->buffer) && equal(value, other->value) &&
-           equal(indices, other->indices);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(buffer);
-    hash_reduce(value);
-    hash_reduce(indices);
-    hash_reduce(predicate);
-  }
-
-  static constexpr const char* _type_key = "tir.BufferStore";
-  TVM_DECLARE_FINAL_OBJECT_INFO(BufferStoreNode, StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.BufferStore", BufferStoreNode, StmtNode);
 };
 
 /*!
@@ -274,253 +226,12 @@ class BufferStoreNode : public StmtNode {
  */
 class BufferStore : public Stmt {
  public:
-  TVM_DLL explicit BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices,
-                               Optional<PrimExpr> predicate = std::nullopt, Span span = Span());
+  TVM_DLL explicit BufferStore(Buffer buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
+                               ffi::Optional<PrimExpr> predicate = std::nullopt,
+                               Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(BufferStore, Stmt, BufferStoreNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BufferStore, Stmt, BufferStoreNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferStoreNode);
-};
-
-/*!
- * \brief Annotate the region where the buffer need to
- *  be read and write in the body.
- *  We only need to allocate the space for the corresponding region.
- *
- * \note There should be at most one BufferRealize for each buffer.
- *       BufferRealize is not necessary for external buffers,
- *       since they are assumed to be fully allocated.
- *
- * \sa BufferLoad, BufferStore
- */
-class BufferRealizeNode : public StmtNode {
- public:
-  /*! \brief The buffer variable. */
-  Buffer buffer;
-  /*! \brief Bounds to be realized */
-  Array<Range> bounds;
-  /*! \brief Only realize if condition holds. */
-  PrimExpr condition;
-  /*! \brief The body of realization. */
-  Stmt body;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<BufferRealizeNode>()
-        .def_ro("buffer", &BufferRealizeNode::buffer)
-        .def_ro("bounds", &BufferRealizeNode::bounds)
-        .def_ro("condition", &BufferRealizeNode::condition)
-        .def_ro("body", &BufferRealizeNode::body);
-  }
-
-  bool SEqualReduce(const BufferRealizeNode* other, SEqualReducer equal) const {
-    return equal(buffer, other->buffer) && equal(bounds, other->bounds) &&
-           equal(condition, other->condition) && equal(body, other->body);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(buffer);
-    hash_reduce(bounds);
-    hash_reduce(condition);
-    hash_reduce(body);
-  }
-
-  BufferRealizeNode() = default;
-  BufferRealizeNode(Buffer buffer, Array<Range> bounds, PrimExpr condition, Stmt body,
-                    Span span = Span())
-      : StmtNode(span), buffer(buffer), bounds(bounds), condition(condition), body(body) {}
-
-  static constexpr const char* _type_key = "tir.BufferRealize";
-  TVM_DECLARE_FINAL_OBJECT_INFO(BufferRealizeNode, StmtNode);
-};
-
-/*!
- * \brief Managed reference to BufferRealizeNode.
- * \sa BufferRealizeNode
- */
-class BufferRealize : public Stmt {
- public:
-  TVM_DLL explicit BufferRealize(Buffer buffer, Array<Range> bounds, PrimExpr condition, Stmt body,
-                                 Span span = Span());
-
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(BufferRealize, Stmt, BufferRealizeNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferRealizeNode);
-};
-
-/*!
- * \brief Allocate a buffer that can be used in body.
- */
-class AllocateNode : public StmtNode {
- public:
-  /*! \brief The buffer variable. */
-  Var buffer_var;
-  /*! \brief The type of the buffer. */
-  DataType dtype;
-  /*! \brief The extents of the buffer. */
-  Array<PrimExpr> extents;
-  /*! \brief Only allocate buffer when condition is satisfied. */
-  PrimExpr condition;
-  /*! \brief The body to be executed. */
-  Stmt body;
-  /*!
-   * \brief Additional annotations about the allocation.
-   *
-   *  These annotations can be used as auxiliary hint
-   *  to future transformations.
-   */
-  Map<String, ffi::Any> annotations;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<AllocateNode>()
-        .def_ro("buffer_var", &AllocateNode::buffer_var, refl::AttachFieldFlag::SEqHashDef())
-        .def_ro("dtype", &AllocateNode::dtype)
-        .def_ro("extents", &AllocateNode::extents)
-        .def_ro("condition", &AllocateNode::condition)
-        .def_ro("body", &AllocateNode::body)
-        .def_ro("annotations", &AllocateNode::annotations);
-  }
-
-  bool SEqualReduce(const AllocateNode* other, SEqualReducer equal) const {
-    return equal.DefEqual(buffer_var, other->buffer_var) && equal(dtype, other->dtype) &&
-           equal(extents, other->extents) && equal(condition, other->condition) &&
-           equal(body, other->body) && equal(annotations, other->annotations);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce.DefHash(buffer_var);
-    hash_reduce(dtype);
-    hash_reduce(extents);
-    hash_reduce(condition);
-    hash_reduce(body);
-    hash_reduce(annotations);
-  }
-
-  /*!
-   * \brief If the buffer size is constant, return the size.
-   *        Otherwise return 0.
-   * \return The result.
-   */
-  int64_t ConstantAllocationSize() const { return ConstantAllocationSize(extents); }
-  /*!
-   * \brief If the buffer size is constant, return the size.
-   *        Otherwise return 0.
-   * \param extents The extents of the buffer.
-   * \return The result.
-   */
-  TVM_DLL static int64_t ConstantAllocationSize(const Array<PrimExpr>& extents);
-
-  static constexpr const char* _type_key = "tir.Allocate";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
-  TVM_DECLARE_FINAL_OBJECT_INFO(AllocateNode, StmtNode);
-};
-
-/*!
- * \brief Managed reference to AllocateNode.
- * \sa AllocateNode
- */
-class Allocate : public Stmt {
- public:
-  TVM_DLL Allocate(Var buffer_var, DataType dtype, Array<PrimExpr> extents, PrimExpr condition,
-                   Stmt body, Map<String, ffi::Any> annotations = Map<String, ffi::Any>(),
-                   Span span = Span());
-
-  TVM_DEFINE_OBJECT_REF_METHODS(Allocate, Stmt, AllocateNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(AllocateNode);
-};
-
-/*!
- * \brief Allocate a buffer that can be used in body.
- */
-class AllocateConstNode : public StmtNode {
- public:
-  /*! \brief The buffer variable. */
-  Var buffer_var;
-  /*! \brief The optional data associated to the constant.
-   */
-  Optional<runtime::NDArray> data;
-  /*!
-   * \brief If the PrimFunc containing the Stmt is added to IRModule, this is an optional index
-   * to indicate the index within "constants" attribute, that is a Array<NDArray> of IRModule.
-   */
-  Optional<Integer> irmod_storage_idx;
-  /*! \brief The type of the buffer. */
-  DataType dtype;
-  /*! \brief The extents of the buffer. */
-  Array<PrimExpr> extents;
-  /*! \brief The body to be executed. */
-  Stmt body;
-  /*!
-   * \brief Additional annotations about the allocation.
-   *
-   *  These annotations can be used as auxiliary hint
-   *  to future transformations.
-   */
-  Map<String, ffi::Any> annotations;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<AllocateConstNode>()
-        .def_ro("buffer_var", &AllocateConstNode::buffer_var, refl::AttachFieldFlag::SEqHashDef())
-        .def_ro("data", &AllocateConstNode::data)
-        .def_ro("irmod_storage_idx", &AllocateConstNode::irmod_storage_idx)
-        .def_ro("dtype", &AllocateConstNode::dtype)
-        .def_ro("extents", &AllocateConstNode::extents)
-        .def_ro("body", &AllocateConstNode::body)
-        .def_ro("annotations", &AllocateConstNode::annotations);
-  }
-
-  bool SEqualReduce(const AllocateConstNode* other, SEqualReducer equal) const {
-    return equal.DefEqual(buffer_var, other->buffer_var) && equal(dtype, other->dtype) &&
-           equal(extents, other->extents) && equal(data, other->data) && equal(body, other->body) &&
-           equal(annotations, other->annotations);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce.DefHash(buffer_var);
-    hash_reduce(dtype);
-    hash_reduce(extents);
-    hash_reduce(body);
-    hash_reduce(annotations);
-    hash_reduce(data);
-  }
-
-  /*!
-   * \brief If the buffer size is constant, return the size.
-   *        Otherwise return 0.
-   * \return The result.
-   */
-  int64_t ConstantAllocationSize() const { return ConstantAllocationSize(extents); }
-  /*!
-   * \brief If the buffer size is constant, return the size.
-   *        Otherwise return 0.
-   * \param extents The extents of the buffer.
-   * \return The result.
-   */
-  TVM_DLL static int64_t ConstantAllocationSize(const Array<PrimExpr>& extents);
-
-  static constexpr const char* _type_key = "tir.AllocateConst";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
-  TVM_DECLARE_FINAL_OBJECT_INFO(AllocateConstNode, StmtNode);
-};
-
-/*!
- * \brief Managed reference to AllocateConstNode.
- * \sa AllocateConstNode
- */
-class AllocateConst : public Stmt {
- public:
-  /* The constructor to create a IRNode with constant data
-   * depending on the type of ObjectRef, it will either
-   * create AllocateConstNode with irmod_storage_idx or data
-   */
-  TVM_DLL AllocateConst(Var buffer_var, DataType dtype, Array<PrimExpr> extents,
-                        ObjectRef data_or_idx, Stmt body,
-                        Map<String, ffi::Any> annotations = Map<String, ffi::Any>(),
-                        Span span = Span());
-  TVM_DEFINE_OBJECT_REF_METHODS(AllocateConst, Stmt, AllocateConstNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(AllocateConstNode);
 };
 
 /*! \brief Declare a buffer that can be used in the body */
@@ -528,35 +239,69 @@ class DeclBufferNode : public StmtNode {
  public:
   /*! \brief The buffer being declared */
   Buffer buffer;
-  /*! \brief The body to be executed */
-  Stmt body;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<DeclBufferNode>()
-        .def_ro("buffer", &DeclBufferNode::buffer)
-        .def_ro("body", &DeclBufferNode::body);
+    refl::ObjectDef<DeclBufferNode>().def_ro("buffer", &DeclBufferNode::buffer);
   }
-
-  bool SEqualReduce(const DeclBufferNode* other, SEqualReducer equal) const {
-    return equal(buffer, other->buffer) && equal(body, other->body);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(buffer);
-    hash_reduce(body);
-  }
-
-  static constexpr const char* _type_key = "tir.DeclBuffer";
-  TVM_DECLARE_FINAL_OBJECT_INFO(DeclBufferNode, StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.DeclBuffer", DeclBufferNode, StmtNode);
 };
 
 /*! \brief Managed reference to DeclBufferNode */
 class DeclBuffer : public Stmt {
  public:
-  TVM_DLL DeclBuffer(Buffer buffer, Stmt body, Span span = Span());
-  TVM_DEFINE_OBJECT_REF_METHODS(DeclBuffer, Stmt, DeclBufferNode);
+  TVM_DLL DeclBuffer(Buffer buffer, Span span = Span());
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DeclBuffer, Stmt, DeclBufferNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(DeclBufferNode);
+};
+
+/*! \brief Allocate a buffer and declare it in scope */
+class AllocBufferNode : public StmtNode {
+ public:
+  /*! \brief The buffer being allocated and declared */
+  Buffer buffer;
+  /*!
+   * \brief Additional annotations about the allocation.
+   *
+   *  These annotations can be used as auxiliary hint
+   *  to future transformations.
+   */
+  ffi::Map<ffi::String, ffi::Any> annotations;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<AllocBufferNode>()
+        .def_ro("buffer", &AllocBufferNode::buffer, refl::AttachFieldFlag::SEqHashDef())
+        .def_ro("annotations", &AllocBufferNode::annotations);
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.AllocBuffer", AllocBufferNode, StmtNode);
+};
+
+/*! \brief Managed reference to AllocBufferNode */
+class AllocBuffer : public Stmt {
+ public:
+  TVM_DLL AllocBuffer(
+      Buffer buffer,
+      ffi::Map<ffi::String, ffi::Any> annotations = ffi::Map<ffi::String, ffi::Any>(),
+      Span span = Span());
+  /*!
+   * \brief If the buffer's shape is constant, return the total number of elements.
+   * \return The product of all shape extents if all are constant, std::nullopt otherwise.
+   */
+  std::optional<int64_t> ConstantAllocationSize() const {
+    int64_t result = 1;
+    for (const PrimExpr& extent : (*this)->buffer->shape) {
+      if (const auto* int_size = extent.as<IntImmNode>()) {
+        result *= int_size->value;
+      } else {
+        return std::nullopt;
+      }
+    }
+    return result;
+  }
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(AllocBuffer, Stmt, AllocBufferNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(AllocBufferNode);
 };
 
 /*!
@@ -566,7 +311,7 @@ class DeclBuffer : public Stmt {
 class SeqStmtNode : public StmtNode {
  public:
   /*! \brief internal sequence content. */
-  Array<Stmt> seq;
+  ffi::Array<Stmt> seq;
 
   /*! \return get the size of the sequence */
   size_t size() const { return seq.size(); }
@@ -579,15 +324,7 @@ class SeqStmtNode : public StmtNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<SeqStmtNode>().def_ro("seq", &SeqStmtNode::seq);
   }
-
-  bool SEqualReduce(const SeqStmtNode* other, SEqualReducer equal) const {
-    return equal(seq, other->seq);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(seq); }
-
-  static constexpr const char* _type_key = "tir.SeqStmt";
-  TVM_DECLARE_FINAL_OBJECT_INFO(SeqStmtNode, StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.SeqStmt", SeqStmtNode, StmtNode);
 };
 
 /*!
@@ -605,15 +342,7 @@ class EvaluateNode : public StmtNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<EvaluateNode>().def_ro("value", &EvaluateNode::value);
   }
-
-  bool SEqualReduce(const EvaluateNode* other, SEqualReducer equal) const {
-    return equal(value, other->value);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(value); }
-
-  static constexpr const char* _type_key = "tir.Evaluate";
-  TVM_DECLARE_FINAL_OBJECT_INFO(EvaluateNode, StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.Evaluate", EvaluateNode, StmtNode);
 };
 
 /*!
@@ -626,7 +355,7 @@ class Evaluate : public Stmt {
 
   explicit Evaluate(int value, Span span = Span()) : Evaluate(PrimExpr(value), span) {}
 
-  TVM_DEFINE_OBJECT_REF_METHODS(Evaluate, Stmt, EvaluateNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Evaluate, Stmt, EvaluateNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(EvaluateNode);
 };
 
@@ -638,7 +367,7 @@ class SeqStmt : public Stmt {
    * \param seq The sequence.
    * \param span The location of this object in the source code.
    */
-  TVM_DLL explicit SeqStmt(Array<Stmt> seq, Span span = Span());
+  TVM_DLL explicit SeqStmt(ffi::Array<Stmt> seq, Span span = Span());
 
   /*! \return get the size of the sequence */
   size_t size() const { return operator->()->size(); }
@@ -668,7 +397,7 @@ class SeqStmt : public Stmt {
    */
   template <typename... Args>
   static Stmt Flatten(Args&&... seq_args) {
-    Array<Stmt> seq;
+    ffi::Array<Stmt> seq;
 
     ffi::details::for_each(Flattener(&seq), std::forward<Args>(seq_args)...);
 
@@ -706,10 +435,10 @@ class SeqStmt : public Stmt {
   /*! \brief Helper class to flatten sequence of arguments into Array. */
   class Flattener {
    public:
-    explicit Flattener(Array<Stmt>* seq) : seq_(seq) {}
+    explicit Flattener(ffi::Array<Stmt>* seq) : seq_(seq) {}
 
     template <typename T>
-    static Optional<SeqStmt> AsSeqStmt(const T& t) {
+    static ffi::Optional<SeqStmt> AsSeqStmt(const T& t) {
       if constexpr (std::is_same_v<T, SeqStmt>) {
         return t;
       }
@@ -718,7 +447,7 @@ class SeqStmt : public Stmt {
       }
       if constexpr (std::is_base_of_v<Stmt, T>) {
         if (const SeqStmtNode* ptr = t.template as<SeqStmtNode>()) {
-          return GetRef<SeqStmt>(ptr);
+          return ffi::GetRef<SeqStmt>(ptr);
         } else {
           return std::nullopt;
         }
@@ -774,10 +503,10 @@ class SeqStmt : public Stmt {
     }
 
    private:
-    Array<Stmt>* seq_;
+    ffi::Array<Stmt>* seq_;
   };
 
-  TVM_DEFINE_OBJECT_REF_METHODS(SeqStmt, Stmt, SeqStmtNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(SeqStmt, Stmt, SeqStmtNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(SeqStmtNode);
 };
 
@@ -791,7 +520,7 @@ class IfThenElseNode : public StmtNode {
   /*! \brief The branch to be executed when condition is true. */
   Stmt then_case;
   /*! \brief The branch to be executed when condition is false, can be null. */
-  Optional<Stmt> else_case;
+  ffi::Optional<Stmt> else_case;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -800,20 +529,7 @@ class IfThenElseNode : public StmtNode {
         .def_ro("then_case", &IfThenElseNode::then_case)
         .def_ro("else_case", &IfThenElseNode::else_case);
   }
-
-  bool SEqualReduce(const IfThenElseNode* other, SEqualReducer equal) const {
-    return equal(condition, other->condition) && equal(then_case, other->then_case) &&
-           equal(else_case, other->else_case);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(condition);
-    hash_reduce(then_case);
-    hash_reduce(else_case);
-  }
-
-  static constexpr const char* _type_key = "tir.IfThenElse";
-  TVM_DECLARE_FINAL_OBJECT_INFO(IfThenElseNode, StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.IfThenElse", IfThenElseNode, StmtNode);
 };
 
 /*!
@@ -822,10 +538,10 @@ class IfThenElseNode : public StmtNode {
  */
 class IfThenElse : public Stmt {
  public:
-  TVM_DLL IfThenElse(PrimExpr condition, Stmt then_case, Optional<Stmt> else_case = std::nullopt,
-                     Span span = Span());
+  TVM_DLL IfThenElse(PrimExpr condition, Stmt then_case,
+                     ffi::Optional<Stmt> else_case = std::nullopt, Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(IfThenElse, Stmt, IfThenElseNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IfThenElse, Stmt, IfThenElseNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(IfThenElseNode);
 };
 
@@ -862,7 +578,7 @@ enum class ForKind : int {
  *
  * \code
  *
- *  for (loop_var = min; loop_var < min + extent; ++loop_var) {
+ *  for (loop_var = min; loop_var < min + extent; loop_var += step) {
  *    // body
  *  }
  * \endcode
@@ -883,7 +599,7 @@ class ForNode : public StmtNode {
    * \brief Only valid when kind == ForKind::kThreadBinding
    * The context thread that this loop variable bounds to.
    */
-  Optional<IterVar> thread_binding;
+  ffi::Optional<IterVar> thread_binding;
   /*!
    * \brief Additional annotations about the loop.
    *
@@ -892,7 +608,11 @@ class ForNode : public StmtNode {
    *  not change the control flow semantics of the loop
    *  and can be ignored in most passes.
    */
-  Map<String, ffi::Any> annotations;
+  ffi::Map<ffi::String, ffi::Any> annotations;
+  /*!
+   * \brief The loop step. It is one if not specified.
+   */
+  ffi::Optional<PrimExpr> step;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -903,27 +623,14 @@ class ForNode : public StmtNode {
         .def_ro("kind", &ForNode::kind)
         .def_ro("body", &ForNode::body)
         .def_ro("thread_binding", &ForNode::thread_binding)
-        .def_ro("annotations", &ForNode::annotations);
+        .def_ro("annotations", &ForNode::annotations)
+        .def_ro("step", &ForNode::step);
   }
 
-  bool SEqualReduce(const ForNode* other, SEqualReducer equal) const {
-    return equal.DefEqual(loop_var, other->loop_var) && equal(min, other->min) &&
-           equal(extent, other->extent) && equal(kind, other->kind) && equal(body, other->body) &&
-           equal(thread_binding, other->thread_binding) && equal(annotations, other->annotations);
-  }
+  /*! \brief Check it is a loop without nontrivial loop step. */
+  bool HasTrivialStep() const;
 
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce.DefHash(loop_var);
-    hash_reduce(min);
-    hash_reduce(extent);
-    hash_reduce(kind);
-    hash_reduce(body);
-    hash_reduce(thread_binding);
-    hash_reduce(annotations);
-  }
-
-  static constexpr const char* _type_key = "tir.For";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ForNode, StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.For", ForNode, StmtNode);
 };
 
 /*!
@@ -933,10 +640,11 @@ class ForNode : public StmtNode {
 class For : public Stmt {
  public:
   TVM_DLL For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
-              Optional<IterVar> thread_binding = std::nullopt,
-              Map<String, ffi::Any> annotations = Map<String, ffi::Any>(), Span span = Span());
+              ffi::Optional<IterVar> thread_binding = std::nullopt,
+              ffi::Map<ffi::String, ffi::Any> annotations = {},
+              ffi::Optional<PrimExpr> step = std::nullopt, Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(For, Stmt, ForNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(For, Stmt, ForNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ForNode);
 };
 
@@ -963,18 +671,7 @@ class WhileNode : public StmtNode {
         .def_ro("condition", &WhileNode::condition)
         .def_ro("body", &WhileNode::body);
   }
-
-  bool SEqualReduce(const WhileNode* other, SEqualReducer equal) const {
-    return equal(condition, other->condition) && equal(body, other->body);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(condition);
-    hash_reduce(body);
-  }
-
-  static constexpr const char* _type_key = "tir.While";
-  TVM_DECLARE_FINAL_OBJECT_INFO(WhileNode, StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.While", WhileNode, StmtNode);
 };
 
 /*!
@@ -985,7 +682,7 @@ class While : public Stmt {
  public:
   TVM_DLL While(PrimExpr condition, Stmt body, Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(While, Stmt, WhileNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(While, Stmt, WhileNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(WhileNode);
 };
 
@@ -997,7 +694,7 @@ class BufferRegionNode : public PrimExprConvertibleNode {
   /*! \brief The buffer of the buffer region. */
   Buffer buffer;
   /*! \brief The region array of the buffer region. */
-  Array<Range> region;
+  ffi::Array<Range> region;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -1006,22 +703,10 @@ class BufferRegionNode : public PrimExprConvertibleNode {
         .def_ro("region", &BufferRegionNode::region);
   }
 
-  bool SEqualReduce(const BufferRegionNode* other, SEqualReducer equal) const {
-    return equal(buffer, other->buffer) && equal(region, other->region);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(buffer);
-    hash_reduce(region);
-  }
-
   TVM_DLL PrimExpr ToPrimExpr() const final;
 
-  static constexpr const char* _type_key = "tir.BufferRegion";
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
-  TVM_DECLARE_FINAL_OBJECT_INFO(BufferRegionNode, PrimExprConvertibleNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.BufferRegion", BufferRegionNode, PrimExprConvertibleNode);
 };
 
 /*!
@@ -1030,7 +715,7 @@ class BufferRegionNode : public PrimExprConvertibleNode {
  */
 class BufferRegion : public PrimExprConvertible {
  public:
-  TVM_DLL explicit BufferRegion(Buffer buffer, Array<Range> region);
+  TVM_DLL explicit BufferRegion(Buffer buffer, ffi::Array<Range> region);
 
   /*!
    * \brief Create a BufferRegion which is full region of the given buffer.
@@ -1045,9 +730,9 @@ class BufferRegion : public PrimExprConvertible {
    * \param indices The access point indices of the buffer
    * \return The BufferRegion which is the single point of the given buffer.
    */
-  TVM_DLL static BufferRegion FromPoint(Buffer buffer, Array<PrimExpr> indices);
+  TVM_DLL static BufferRegion FromPoint(Buffer buffer, ffi::Array<PrimExpr> indices);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(BufferRegion, PrimExprConvertible, BufferRegionNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BufferRegion, PrimExprConvertible, BufferRegionNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferRegionNode);
 };
 
@@ -1074,20 +759,8 @@ class MatchBufferRegionNode : public Object {
         .def_ro("source", &MatchBufferRegionNode::source);
   }
 
-  bool SEqualReduce(const MatchBufferRegionNode* other, SEqualReducer equal) const {
-    return equal(buffer, other->buffer) && equal(source, other->source);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(buffer);
-    hash_reduce(source);
-  }
-
-  static constexpr const char* _type_key = "tir.MatchBufferRegion";
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
-  TVM_DECLARE_FINAL_OBJECT_INFO(MatchBufferRegionNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.MatchBufferRegion", MatchBufferRegionNode, Object);
 };
 
 /*!
@@ -1098,16 +771,16 @@ class MatchBufferRegion : public ObjectRef {
  public:
   TVM_DLL explicit MatchBufferRegion(Buffer buffer, BufferRegion source);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(MatchBufferRegion, ObjectRef, MatchBufferRegionNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(MatchBufferRegion, ObjectRef, MatchBufferRegionNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(MatchBufferRegionNode);
 };
 
 /*!
  * \brief A block is a basic schedule unit in TIR.
- * \note Block's body is parameterized by iter vars.
+ * \note SBlock's body is parameterized by iter vars.
  * \code
  *
- *  with T.block(name):
+ *  with T.sblock(name):
  *      v0 = T.axis.S(domain, value0)
  *      v1 = T.axis.R(domain, value1)
  *      ...
@@ -1123,22 +796,22 @@ class MatchBufferRegion : public ObjectRef {
  *
  * \endcode
  */
-class BlockNode : public StmtNode {
+class SBlockNode : public StmtNode {
  public:
   /*! \brief The variables of the block. */
-  Array<IterVar> iter_vars;
+  ffi::Array<IterVar> iter_vars;
   /*! \brief The read buffer regions of the block. */
-  Array<BufferRegion> reads;
+  ffi::Array<BufferRegion> reads;
   /*! \brief The write buffer regions of the block. */
-  Array<BufferRegion> writes;
+  ffi::Array<BufferRegion> writes;
   /*! \brief The name_hint of the block. */
-  String name_hint;
+  ffi::String name_hint;
   /*! \brief The buffer allocated in the block. */
-  Array<Buffer> alloc_buffers;
+  ffi::Array<Buffer> alloc_buffers;
   /*! \brief The match buffer regions. */
-  Array<MatchBufferRegion> match_buffers;
+  ffi::Array<MatchBufferRegion> match_buffers;
   /*! \brief The annotation of the block. */
-  Map<String, ffi::Any> annotations;
+  ffi::Map<ffi::String, ffi::Any> annotations;
   /*!
    * \brief The init statement is executed during the first iteration of reduction loops in a
    *  reduction block. The optional init field allows us to represent initialization and
@@ -1146,405 +819,122 @@ class BlockNode : public StmtNode {
    *  We also provide primitives to decompose the init into a separate block during scheduling.
    *  Init field is `std::nullopt` if there is no reduction iter_vars
    */
-  Optional<Stmt> init;
+  ffi::Optional<Stmt> init;
   /*! \brief The body of the block. */
   Stmt body;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<BlockNode>()
-        .def_ro("iter_vars", &BlockNode::iter_vars, refl::AttachFieldFlag::SEqHashDef())
-        .def_ro("reads", &BlockNode::reads)
-        .def_ro("writes", &BlockNode::writes)
-        .def_ro("name_hint", &BlockNode::name_hint, refl::AttachFieldFlag::SEqHashIgnore())
-        .def_ro("alloc_buffers", &BlockNode::alloc_buffers)
-        .def_ro("match_buffers", &BlockNode::match_buffers)
-        .def_ro("annotations", &BlockNode::annotations)
-        .def_ro("init", &BlockNode::init)
-        .def_ro("body", &BlockNode::body);
+    refl::ObjectDef<SBlockNode>()
+        .def_ro("iter_vars", &SBlockNode::iter_vars, refl::AttachFieldFlag::SEqHashDef())
+        .def_ro("reads", &SBlockNode::reads)
+        .def_ro("writes", &SBlockNode::writes)
+        .def_ro("name_hint", &SBlockNode::name_hint, refl::AttachFieldFlag::SEqHashIgnore())
+        .def_ro("alloc_buffers", &SBlockNode::alloc_buffers)
+        .def_ro("match_buffers", &SBlockNode::match_buffers)
+        .def_ro("annotations", &SBlockNode::annotations)
+        .def_ro("init", &SBlockNode::init)
+        .def_ro("body", &SBlockNode::body);
   }
-
-  bool SEqualReduce(const BlockNode* other, SEqualReducer equal) const {
-    // Need first reduce iter_vars, alloc_buffers and match_buffers to define new vars
-    return equal.DefEqual(iter_vars, other->iter_vars) &&
-           equal(alloc_buffers, other->alloc_buffers) &&
-           equal(match_buffers, other->match_buffers) && equal(reads, other->reads) &&
-           equal(writes, other->writes) && equal(body, other->body) && equal(init, other->init) &&
-           equal(annotations, other->annotations);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce.DefHash(iter_vars);
-    hash_reduce(alloc_buffers);
-    hash_reduce(match_buffers);
-    hash_reduce(reads);
-    hash_reduce(writes);
-    hash_reduce(body);
-    hash_reduce(init);
-    hash_reduce(annotations);
-  }
-
-  static constexpr const char* _type_key = "tir.Block";
-  TVM_DECLARE_FINAL_OBJECT_INFO(BlockNode, StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.SBlock", SBlockNode, StmtNode);
 };
 
 /*!
- * \brief Managed reference to BlockNode.
- * \sa BlockNode
+ * \brief Managed reference to SBlockNode.
+ * \sa SBlockNode
  */
-class Block : public Stmt {
+class SBlock : public Stmt {
  public:
-  TVM_DLL explicit Block(Array<IterVar> iter_vars, Array<BufferRegion> reads,
-                         Array<BufferRegion> writes, String name_hint, Stmt body,
-                         Optional<Stmt> init = std::nullopt,
-                         Array<Buffer> alloc_buffers = Array<Buffer>(),
-                         Array<MatchBufferRegion> match_buffers = Array<MatchBufferRegion>(),
-                         Map<String, ffi::Any> annotations = Map<String, ffi::Any>(),
-                         Span span = Span());
+  TVM_DLL explicit SBlock(
+      ffi::Array<IterVar> iter_vars, ffi::Array<BufferRegion> reads,
+      ffi::Array<BufferRegion> writes, ffi::String name_hint, Stmt body,
+      ffi::Optional<Stmt> init = std::nullopt,
+      ffi::Array<Buffer> alloc_buffers = ffi::Array<Buffer>(),
+      ffi::Array<MatchBufferRegion> match_buffers = ffi::Array<MatchBufferRegion>(),
+      ffi::Map<ffi::String, ffi::Any> annotations = ffi::Map<ffi::String, ffi::Any>(),
+      Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(Block, Stmt, BlockNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(BlockNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(SBlock, Stmt, SBlockNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(SBlockNode);
 };
 
 /*!
  * \brief A block realization node represents execution of the block at the binding values.
  */
-class BlockRealizeNode : public StmtNode {
+class SBlockRealizeNode : public StmtNode {
  public:
   /*! \brief The corresponding values of the iter vars. */
-  Array<PrimExpr> iter_values;
+  ffi::Array<PrimExpr> iter_values;
   /*!
    * \brief The predicate of the block realization, the block will only be executed when the
    * predicate is true.
    */
   PrimExpr predicate;
   /*! \brief The block to be realized. */
-  Block block;
+  SBlock block;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<BlockRealizeNode>()
-        .def_ro("iter_values", &BlockRealizeNode::iter_values)
-        .def_ro("predicate", &BlockRealizeNode::predicate)
-        .def_ro("block", &BlockRealizeNode::block);
+    refl::ObjectDef<SBlockRealizeNode>()
+        .def_ro("iter_values", &SBlockRealizeNode::iter_values)
+        .def_ro("predicate", &SBlockRealizeNode::predicate)
+        .def_ro("block", &SBlockRealizeNode::block);
   }
-
-  bool SEqualReduce(const BlockRealizeNode* other, SEqualReducer equal) const {
-    return equal(iter_values, other->iter_values) && equal(predicate, other->predicate) &&
-           equal(block, other->block);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(iter_values);
-    hash_reduce(predicate);
-    hash_reduce(block);
-  }
-
-  static constexpr const char* _type_key = "tir.BlockRealize";
-  TVM_DECLARE_FINAL_OBJECT_INFO(BlockRealizeNode, StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.SBlockRealize", SBlockRealizeNode, StmtNode);
 };
 
 /*!
  * \brief Managed reference to BlockRealizeNode
  * \sa BlockRealizeNode
  */
-class BlockRealize : public Stmt {
+class SBlockRealize : public Stmt {
  public:
-  TVM_DLL explicit BlockRealize(Array<PrimExpr> iter_values, PrimExpr predicate, Block block,
-                                Span span = Span());
+  TVM_DLL explicit SBlockRealize(ffi::Array<PrimExpr> iter_values, PrimExpr predicate, SBlock block,
+                                 Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(BlockRealize, Stmt, BlockRealizeNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(BlockRealizeNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(SBlockRealize, Stmt, SBlockRealizeNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(SBlockRealizeNode);
 };
 
 /*! \brief namespace of possible attributes in AttrStmt.attr_key */
 namespace attr {
-// The above attr does not pass to ir stage.
-/*! \brief Mark launching extent of thread, used by device API. */
-constexpr const char* thread_extent = "thread_extent";
-/*! \brief Mark launching of a virtual thread. */
-constexpr const char* virtual_thread = "virtual_thread";
-/*! \brief Mark region is processed by a co-processor */
-constexpr const char* coproc_scope = "coproc_scope";
+/*! \brief Mark stores/loads with their bounds. */
+constexpr const char* buffer_bound = "buffer_bound";
 /*!
- * \brief Mark region creates coprocessor micro ops,
- *  can be reused if corresponding variable is independent.
- */
-constexpr const char* coproc_uop_scope = "coproc_uop_scope";
-/*! \brief Mark the scope as volatile access for certain handle. */
-constexpr const char* volatile_scope = "volatile_scope";
-/*!
- * \brief Mark the scope as generated by extern primitive.
- *  such scope can contain arbitrary ir program and we need to be careful
- *  when make certain assumptions about the structure of the program.
- */
-constexpr const char* extern_scope = "extern_scope";
-/*!
- * \brief Mark the scope as when computation start to happen
+ * \brief Mark the scope as when computation start to happen.
  *  This can hint some code generator to create a new function for compute.
  */
 constexpr const char* compute_scope = "compute_scope";
-/*! \brief Mark storage alignment requirement of buffers */
-constexpr const char* storage_alignment = "storage_alignment";
-/*! \brief Mark storage scope of realization */
-constexpr const char* realize_scope = "realize_scope";
 /*! \brief The allocation device for global malloc in host. */
 constexpr const char* device_id = "device_id";
+/*! \brief Mark that it is in the device scope. */
+constexpr const char* device_scope = "device_scope";
 /*! \brief The device type. */
 constexpr const char* device_type = "device_type";
-/*! \brief Mark of loop scope */
-constexpr const char* loop_scope = "loop_scope";
-/*! \brief Mark of reduce scope */
-constexpr const char* reduce_scope = "reduce_scope";
+/*!
+ * \brief Mark the scope as generated by extern primitive.
+ *  Such scope can contain arbitrary ir program and we need to be careful
+ *  when making certain assumptions about the structure of the program.
+ */
+constexpr const char* extern_scope = "extern_scope";
 /*! \brief Pragma: auto-unroll, max_step */
 constexpr const char* pragma_auto_unroll_max_step = "pragma_auto_unroll_max_step";
-/*! \brief Pragma: unroll explicit */
-constexpr const char* pragma_unroll_explicit = "pragma_unroll_explicit";
-/*! \brief Mark region is guarded by the pragma extension */
-constexpr const char* pragma_scope_prefix = "pragma_";
 /*! \brief Import C source or file into the final code gen module */
 constexpr const char* pragma_import_c = "pragma_import_c";
 /*! \brief Import llvm source or file into the final code gen module */
 constexpr const char* pragma_import_llvm = "pragma_import_llvm";
+/*! \brief Mark region is guarded by the pragma extension */
+constexpr const char* pragma_scope_prefix = "pragma_";
 /*! \brief Try to modify the AST to support Tensor Core */
 constexpr const char* pragma_tensor_core = "pragma_tensor_core";
-/*!
- * \brief Mark of prefetch scope, value=offset,
- *  run prefetch of Tensor on the current loop scope
- */
-constexpr const char* prefetch_scope = "prefetch_scope";
-/*!
- * \brief Marks the layout transforms to be used for a tensor.
- *
- * Only applies to a DataProducer, as it should be made part of the
- * PrimFunc attributes for TIR.
- */
-constexpr const char* layout_transforms = "layout_transforms";
-/*!
- * \brief Marks the physical axis separators
- *
- * Only applies to a DataProducer, as it should be made part of the
- * Buffer definition in a PrimFunc.  See `BufferNode::axis_separators`
- * for more details.
- */
-constexpr const char* axis_separators = "axis_separators";
-/*!
- * \brief Marks production of double buffer data
- */
-constexpr const char* double_buffer_scope = "double_buffer_scope";
-/*!
- * \brief Marks region used by double buffer write
- */
-constexpr const char* double_buffer_write = "double_buffer_write";
-/*! \brief Mark realization for rolling buffer optimization */
-constexpr const char* rolling_buffer_scope = "rolling_buffer_scope";
-/*! \brief Mark of scan update scope */
-constexpr const char* scan_update_scope = "scan_update_scope";
-/*! \brief Mark of scan init scope */
-constexpr const char* scan_init_scope = "scan_init_scope";
-/*!
- * \brief Mark alignment of buffer dimension
- *  stmt.node is Tensor
- *  stmt.value is tvm_tuple(dim, align, offset)
- *  This gives hint to require stride of dim to be k * align + offset.
- */
-constexpr const char* buffer_dim_align = "buffer_dim_align";
-/*! \brief Mark stores/loads with theirs bounds.  */
-constexpr const char* buffer_bound = "buffer_bound";
-/*!
- * \brief Bind the buffer specification to the region of the op
- *  When this scope occurs, the stmt.node is a Array<NodeRef> = [buffer, tensor]
- *  stmt.value is a tvm_tuple(min0, extent0, min1, extent1, ...).
- *  The scope represents that we need to bind the storage region of tensor to buffer.
- *  This will affect replacement of some variables inside the scope that
- *  corresponds to field of buffer to be the actual expressions of tensor during
- *  storage flattening phase.
- */
-constexpr const char* buffer_bind_scope = "buffer_bind_scope";
-// Pipeline related attributes
-/*! \brief channel read scope */
-constexpr const char* channel_read_scope = "channel_read_scope";
-/*! \brief Advance step of channel after end of scope */
-constexpr const char* channel_read_advance = "channel_read_advance";
-/*! \brief channel write scope */
-constexpr const char* channel_write_scope = "channel_write_scope";
-/*! \brief Advance step of channel after end of scope */
-constexpr const char* channel_write_advance = "channel_write_advance";
-/*! \brief pipeline stage scope, implies always execution */
-constexpr const char* pipeline_stage_scope = "pipeline_stage_scope";
-/*! \brief pipeline execution scope, implies the scope can be pipelined. */
-constexpr const char* pipeline_exec_scope = "pipeline_exec_scope";
-
-/*!
- * \brief Mark that it is in the device scope.
- */
-constexpr const char* device_scope = "device_scope";
-
-/*!
- * \brief Mark that the attached statement runs asynchronously.
- */
-constexpr const char* async_scope = "async_scope";
-
-/*!
- * \brief Annotations for invoking and synchronizing asynchronous operations.
-
- * Synchronization is done in terms of "queue": It is an abstract entity associated
- * with each asynchronous unit, and it tracks invocations and completions of asynchronous
- * operations in the FIFO order.
- *
- * Similarly to PTX instructions commit_group and wait_group, these annotations express
- * synchronization by "counting":
- *
- * async_commit_queue(i): Group one or more invocations of async operations in the given scope,
- * and "commit" (or push) them to the queue i. A group of operations committed together is
- * awaited as one chunk. Groups committed to the same queue complete in the FIFO order.
- *
- * async_wait_queue(i, N): Block until only N most recent committed groups are still in-flight at
- * the queue i. N does not have to be a constant, but some backends may require a constant count.
-*/
-constexpr const char* async_commit_queue_scope = "async_commit_queue_scope";
-constexpr const char* async_wait_queue_scope = "async_wait_queue_scope";
-constexpr const char* async_wait_inflight_count = "async_wait_inflight_count";
-
-/*!
- * \brief Mark that the shape of TensorCore fragment
- */
-constexpr const char* fragment_shape = "fragment_shape";
-
-/*!
- * \brief Mark that the layout of TensorCore fragment
- */
-constexpr const char* fragment_layout = "fragment_layout";
-
-/*!
- * \brief Mark that the kernel is hand threaded and doesn't need syncs inserted
- */
-constexpr const char* hand_threaded = "hand_threaded";
-
-/*!
- * \brief Mark whether the script-completer need to fill in missing access region
- *        during script parsing.
- * \note The result should be a integer mask with range [0, 4).
- *       if (mask & 1) the read region should be detected,
- *       if (mask & 2) the write region should be detected.
- */
-constexpr const char* script_parsing_detect_access = "tir.script_parsing_detect_access";
-
-/*!
- * \brief Mark that the loop should be partitioned.
- */
-constexpr const char* pragma_loop_partition_hint = "pragma_loop_partition_hint";
-
-/*! \brief Mark the stage of a statement in the software pipeline */
-constexpr const char* software_pipeline_stage = "software_pipeline_stage";
-
-/*! \brief Mark the order of a statement in the software pipeline */
-constexpr const char* software_pipeline_order = "software_pipeline_order";
-
-/*! \brief List stages in the software pipeline that should run asynchronously
- * \note All statements in the provided stages are assumed to have asynchronous
- *       semantics (e.g. CUDA async global to shared memory copy).
- */
-constexpr const char* software_pipeline_async_stages = "software_pipeline_async_stages";
-
-/*! \brief Mark the buffers which is const access and can be transformed layout. */
-constexpr const char* layout_free_buffers = "layout_free_buffers";
-
-/*! \brief Mark the local stage for the shared memory access should be added. */
-constexpr const char* manifest_shared_memory_local_stage = "tir.manifest_shared_memory_local_stage";
-
-/*! \brief Mark the tiling structure of blocks that are applied by rule Multi-Level-Tiling */
-constexpr const char* meta_schedule_tiling_structure = "meta_schedule.tiling_structure";
-
-/*!
- * \brief Mark that the loop should be further skip and bound to environment threads to enable
- * cooperative fetching.
- */
-constexpr const char* meta_schedule_cooperative_fetch = "meta_schedule.cooperative_fetch";
-
-/*! \brief The allowed range of thread extent in thread bindings */
-constexpr const char* meta_schedule_thread_extent_low_inclusive =
-    "meta_schedule.thread_extent_low_inclusive";
-
-/*! \brief The allowed range of thread extent in thread bindings */
-constexpr const char* meta_schedule_thread_extent_high_inclusive =
-    "meta_schedule.thread_extent_high_inclusive";
-
-/*! \brief Mark the block whose producer needs to be applied by rule Random-Compute-Location */
-constexpr const char* meta_schedule_random_compute_producer =
-    "meta_schedule.random_compute_producer";
-
-/*! \brief Mark auto-parallel setting on the block. */
-constexpr const char* meta_schedule_parallel = "meta_schedule.parallel";
-
-/*! \brief Mark auto-vectorize setting on the block. */
-constexpr const char* meta_schedule_vectorize = "meta_schedule.vectorize";
-
-/*! \brief Mark auto-unroll setting on the block. */
-constexpr const char* meta_schedule_unroll_explicit = "meta_schedule.unroll_explicit";
-
-/*! \brief Mark auto-unroll setting on the block. */
-constexpr const char* meta_schedule_unroll_implicit = "meta_schedule.unroll_implicit";
-
-/*! \brief Mark that a block should be further rewritten using tensorization. */
-constexpr const char* meta_schedule_auto_tensorize = "meta_schedule.auto_tensorize";
-
-/*! \brief Mark that a block is a preprocessor block for layout rewrite. */
-constexpr const char* meta_schedule_layout_rewrite_preproc = "meta_schedule.layout_rewrite_preproc";
-/*!
- * \brief Mark that the init statement of a block should be further rewritten using tensorization.
- */
-constexpr const char* meta_schedule_auto_tensorize_init = "meta_schedule.auto_tensorize_init";
-
-/*!
- * \brief Mark that the block need to add predicate for block var bounds during lowering
- */
-constexpr const char* require_block_var_bound_predicate = "require_bound_predicate";
-
-/*! \brief Mark that tensor core is enabled in the PrimExpr */
-constexpr const char* meta_schedule_tensor_core_enabled = "meta_schedule.tensor_core_enabled";
-
-/*!
- * \brief Mark a block as generated by cache_read or cache_write block.
- * 0 means cache_read; 1 means cache_write.
- * \sa meta_schedule_cache_type_read
- * \sa meta_schedule_cache_type_write
- */
-constexpr const char* meta_schedule_cache_type = "meta_schedule.cache_type";
-
-/*! \sa meta_schedule_cache_type */
-constexpr const int meta_schedule_cache_type_read = 0;
-
-/*! \sa meta_schedule_cache_type */
-constexpr const int meta_schedule_cache_type_write = 1;
-
-/*! \brief Mark auto copy for memhammer */
-constexpr const char* auto_copy = "auto_copy";
-
-/*! \brief Mark local stage constraint on data copy */
-constexpr const char* local_stage = "local_stage";
-
-/*! \brief Mark vectorization length constraint on block */
-constexpr const char* vector_bytes = "vector_bytes";
-
-/*!
- * \brief Mark that a block is executed by a warp. This implies the extend of threadIdx.x is
- * warp size.
- */
-constexpr const char* warp_execution = "warp_execution";
-
-/*! \brief Mark that a block is disallowed in auto inline. */
-constexpr const char* meta_schedule_inline_rule = "meta_schedule.inline_rule";
-
-/*! \brief Mark that a block has an explicitly specified read region.
- * This is used to override the default read region inference in TIR.
- */
-constexpr const char* explicit_read_region = "explicit_read_region";
-
-/*! \brief Mark that a block has an explicitly specified write region.
- * This is used to override the default write region inference in TIR.
- */
-constexpr const char* explicit_write_region = "explicit_write_region";
+/*! \brief Pragma: unroll explicit */
+constexpr const char* pragma_unroll_explicit = "pragma_unroll_explicit";
+/*! \brief Mark storage alignment requirement of buffers */
+constexpr const char* storage_alignment = "storage_alignment";
+/*! \brief Mark launching extent of thread, used by device API. */
+constexpr const char* thread_extent = "thread_extent";
+/*! \brief Annotation key on AllocBuffer marking the allocation as volatile. */
+constexpr const char* kVolatile = "tir.volatile";
 
 /*!
  * \brief Check if attr_key is a pragma key extension
@@ -1581,7 +971,8 @@ inline const char* ForKind2String(ForKind t) {
     case ForKind::kThreadBinding:
       return "thread_binding";
   }
-  LOG(FATAL) << "Unknown ForKind" << t;
+  TVM_FFI_THROW(InternalError) << "Unknown ForKind" << t;
+  TVM_FFI_UNREACHABLE();
 }
 
 }  // namespace tir

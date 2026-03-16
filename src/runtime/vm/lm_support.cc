@@ -42,7 +42,7 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/memory/memory_manager.h>
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 #include <tvm/runtime/vm/vm.h>
 
 #include <cmath>
@@ -66,7 +66,7 @@ class AttentionKVCacheLegacyObj : public Object {
   /*!
    * \brief Underlying support data.
    */
-  NDArray data;
+  Tensor data;
 
   /*!
    * \brief number of slots already filled.
@@ -82,10 +82,10 @@ class AttentionKVCacheLegacyObj : public Object {
    * \brief View all current cached values as one array.
    * \param shape The cached values.
    */
-  NDArray View(const ffi::Shape& shape) {
-    CHECK_EQ(shape[0], fill_count) << "Requested shape do not match the filled count";
+  Tensor View(const ffi::Shape& shape) {
+    TVM_FFI_ICHECK_EQ(shape[0], fill_count) << "Requested shape do not match the filled count";
     for (int i = 1; i < this->data->ndim; ++i) {
-      CHECK_EQ(shape[i], data->shape[i]) << "Dimension " << i << " mismatch";
+      TVM_FFI_ICHECK_EQ(shape[i], data->shape[i]) << "Dimension " << i << " mismatch";
     }
     return data.CreateView(shape, data->dtype);
   }
@@ -98,20 +98,21 @@ class AttentionKVCacheLegacyObj : public Object {
 
   /** pop n entries */
   void PopN(size_t n) {
-    ICHECK_LE(n, fill_count);
+    TVM_FFI_ICHECK_LE(n, fill_count);
     this->fill_count -= n;
   }
 
-  void Update(NDArray value) {
-    CHECK(data.DataType() == value.DataType()) << "dtype mismatch";
-    CHECK_EQ(value->shape[0], fill_count) << "Requested shape do not match the filled count";
-    ICHECK(data.IsContiguous());
-    ICHECK(value.IsContiguous());
+  void Update(Tensor value) {
+    TVM_FFI_ICHECK(data.DataType() == value.DataType()) << "dtype mismatch";
+    TVM_FFI_ICHECK_EQ(value->shape[0], fill_count)
+        << "Requested shape do not match the filled count";
+    TVM_FFI_ICHECK(data.IsContiguous());
+    TVM_FFI_ICHECK(value.IsContiguous());
 
     DLTensor copy_dst = *(data.operator->());
     copy_dst.byte_offset = 0;
     copy_dst.shape = value->shape;
-    NDArray::CopyFromTo(value.operator->(), &copy_dst);
+    Tensor::CopyFromTo(value.operator->(), &copy_dst);
     this->fill_count = value->shape[0];
   }
 
@@ -121,9 +122,10 @@ class AttentionKVCacheLegacyObj : public Object {
    * \param max_cache_size max size of the cache.
    * \param num_attention_sinks number of sinks to store (https://arxiv.org/abs/2309.17453).
    */
-  void WindowOverride(NDArray value, int64_t max_cache_size, int64_t num_attention_sinks = 0) {
-    CHECK(data.DataType() == value.DataType()) << "dtype mismatch";
-    CHECK_LE(value->shape[0], max_cache_size - num_attention_sinks) << "dim 0 of value too large";
+  void WindowOverride(Tensor value, int64_t max_cache_size, int64_t num_attention_sinks = 0) {
+    TVM_FFI_ICHECK(data.DataType() == value.DataType()) << "dtype mismatch";
+    TVM_FFI_ICHECK_LE(value->shape[0], max_cache_size - num_attention_sinks)
+        << "dim 0 of value too large";
     // reallocate cache
     if (fill_count + value->shape[0] <= max_cache_size) {
       int64_t reserved_slots = data->shape[0];
@@ -133,13 +135,13 @@ class AttentionKVCacheLegacyObj : public Object {
       if (reserved_slots != data->shape[0]) {
         std::vector<int64_t> new_shape(data->shape, data->shape + data->ndim);
         new_shape[0] = reserved_slots;
-        NDArray new_data = NDArray::Empty(new_shape, data->dtype, data->device);
+        Tensor new_data = Tensor::Empty(new_shape, data->dtype, data->device);
         new_data.CreateView(data.Shape(), data->dtype).CopyFrom(data);
         this->data = new_data;
       }
     }
     // copy into the current position.
-    ICHECK(data.IsContiguous());
+    TVM_FFI_ICHECK(data.IsContiguous());
 
     int64_t num_elements_to_copy =
         std::min(value->shape[0], max_cache_size - window_attention_current_pos);
@@ -147,7 +149,7 @@ class AttentionKVCacheLegacyObj : public Object {
     std::vector<int64_t> shape;
     shape.push_back(num_elements_to_copy);
     for (int i = 1; i < data->ndim; ++i) {
-      CHECK_EQ(value->shape[i], data->shape[i]) << "Dimension " << i << " mismatch";
+      TVM_FFI_ICHECK_EQ(value->shape[i], data->shape[i]) << "Dimension " << i << " mismatch";
       num_elements_p_entry *= data->shape[i];
       shape.push_back(data->shape[i]);
     }
@@ -165,13 +167,13 @@ class AttentionKVCacheLegacyObj : public Object {
       copy_src.byte_offset = 0;
       copy_src.shape = &shape[0];
 
-      NDArray::CopyFromTo(&copy_src, &copy_dst);
+      Tensor::CopyFromTo(&copy_src, &copy_dst);
     }
 
     // copy the remainder to the beginning of the cache
     if (num_elements_to_copy < value->shape[0]) {
-      ICHECK_EQ(this->fill_count, max_cache_size);
-      ICHECK_EQ(this->fill_count, this->window_attention_current_pos);
+      TVM_FFI_ICHECK_EQ(this->fill_count, max_cache_size);
+      TVM_FFI_ICHECK_EQ(this->fill_count, this->window_attention_current_pos);
 
       shape[0] = value->shape[0] - num_elements_to_copy;
       num_filled_elements = num_elements_to_copy * num_elements_p_entry;
@@ -186,7 +188,7 @@ class AttentionKVCacheLegacyObj : public Object {
           num_filled_elements * ((value->dtype.bits * value->dtype.lanes + 7) / 8);
       copy_src.shape = &shape[0];
 
-      NDArray::CopyFromTo(&copy_src, &copy_dst);
+      Tensor::CopyFromTo(&copy_src, &copy_dst);
       this->window_attention_current_pos =
           value->shape[0] - num_elements_to_copy + num_attention_sinks;
     }
@@ -196,8 +198,8 @@ class AttentionKVCacheLegacyObj : public Object {
    * \brief Append value to the cache.
    * \param value The value to be appended.
    */
-  void Append(NDArray value) {
-    CHECK(data.DataType() == value.DataType()) << "dtype mismatch";
+  void Append(Tensor value) {
+    TVM_FFI_ICHECK(data.DataType() == value.DataType()) << "dtype mismatch";
     // reallocate cache
     int64_t reserved_slots = data->shape[0];
     while (fill_count + value->shape[0] > reserved_slots) {
@@ -206,29 +208,30 @@ class AttentionKVCacheLegacyObj : public Object {
     if (reserved_slots != data->shape[0]) {
       std::vector<int64_t> new_shape(data->shape, data->shape + data->ndim);
       new_shape[0] = reserved_slots;
-      NDArray new_data = NDArray::Empty(new_shape, data->dtype, data->device);
+      Tensor new_data = Tensor::Empty(new_shape, data->dtype, data->device);
       new_data.CreateView(data.Shape(), data->dtype).CopyFrom(data);
       this->data = new_data;
     }
     // copy into the fill count position.
-    ICHECK_LE(fill_count + value->shape[0], data->shape[0]);
-    ICHECK(data.IsContiguous());
+    TVM_FFI_ICHECK_LE(fill_count + value->shape[0], data->shape[0]);
+    TVM_FFI_ICHECK(data.IsContiguous());
 
     int64_t num_filled_elements = fill_count;
     for (int i = 1; i < data->ndim; ++i) {
-      CHECK_EQ(value->shape[i], data->shape[i]) << "Dimension " << i << " mismatch";
+      TVM_FFI_ICHECK_EQ(value->shape[i], data->shape[i]) << "Dimension " << i << " mismatch";
       num_filled_elements *= data->shape[i];
     }
     // create a view of copy dest to copy the value into it.
     DLTensor copy_dst = *(data.operator->());
     copy_dst.byte_offset = num_filled_elements * ((data->dtype.bits * data->dtype.lanes + 7) / 8);
     copy_dst.shape = value->shape;
-    NDArray::CopyFromTo(value.operator->(), &copy_dst);
+    Tensor::CopyFromTo(value.operator->(), &copy_dst);
     this->fill_count += value->shape[0];
   }
 
-  static constexpr const char* _type_key = "relax.vm.AttentionKVCacheLegacy";
-  TVM_DECLARE_FINAL_OBJECT_INFO(AttentionKVCacheLegacyObj, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.vm.AttentionKVCacheLegacy", AttentionKVCacheLegacyObj,
+                                    Object);
 };
 
 /*! \brief reference to closure. */
@@ -238,10 +241,10 @@ class AttentionKVCacheLegacy : public ObjectRef {
    * \brief Create the attention kv cache.
    * \param init_data The initial reserved.
    */
-  static AttentionKVCacheLegacy Create(NDArray init_data, ffi::Shape reserve_shape,
+  static AttentionKVCacheLegacy Create(Tensor init_data, ffi::Shape reserve_shape,
                                        int init_fill_count) {
-    auto n = make_object<AttentionKVCacheLegacyObj>();
-    n->data = NDArray::Empty(reserve_shape, init_data->dtype, init_data->device);
+    auto n = ffi::make_object<AttentionKVCacheLegacyObj>();
+    n->data = Tensor::Empty(reserve_shape, init_data->dtype, init_data->device);
     n->fill_count = 0;
     n->Append(init_data);
     if (init_fill_count >= 0) {
@@ -251,76 +254,73 @@ class AttentionKVCacheLegacy : public ObjectRef {
     return AttentionKVCacheLegacy(n);
   }
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(AttentionKVCacheLegacy, ObjectRef,
-                                        AttentionKVCacheLegacyObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(AttentionKVCacheLegacy, ObjectRef,
+                                             AttentionKVCacheLegacyObj);
 };
-
-TVM_REGISTER_OBJECT_TYPE(AttentionKVCacheLegacyObj);
 
 //-------------------------------------------------
 //  Register runtime functions
 //-------------------------------------------------
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("vm.builtin.attention_kv_cache_create", AttentionKVCacheLegacy::Create);
-});
+}
 
-AttentionKVCacheLegacy AttentionKVCacheUpdate(AttentionKVCacheLegacy cache, NDArray value) {
+AttentionKVCacheLegacy AttentionKVCacheUpdate(AttentionKVCacheLegacy cache, Tensor value) {
   cache->Update(value);
   return cache;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("vm.builtin.attention_kv_cache_update", AttentionKVCacheUpdate);
-});
+}
 
-AttentionKVCacheLegacy AttentionKVCacheAppend(AttentionKVCacheLegacy cache, NDArray value) {
+AttentionKVCacheLegacy AttentionKVCacheAppend(AttentionKVCacheLegacy cache, Tensor value) {
   cache->Append(value);
   return cache;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("vm.builtin.attention_kv_cache_append", AttentionKVCacheAppend);
-});
+}
 
-AttentionKVCacheLegacy AttentionKVCacheWindowOverride(AttentionKVCacheLegacy cache, NDArray value,
+AttentionKVCacheLegacy AttentionKVCacheWindowOverride(AttentionKVCacheLegacy cache, Tensor value,
                                                       int64_t max_cache_size) {
   cache->WindowOverride(value, max_cache_size);
   return cache;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("vm.builtin.attention_kv_cache_window_override",
                         AttentionKVCacheWindowOverride);
-});
+}
 
 AttentionKVCacheLegacy AttentionKVCacheWindowOverrideWithSinks(AttentionKVCacheLegacy cache,
-                                                               NDArray value,
-                                                               int64_t max_cache_size,
+                                                               Tensor value, int64_t max_cache_size,
                                                                int64_t num_attention_sinks) {
   cache->WindowOverride(value, max_cache_size, num_attention_sinks);
   return cache;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("vm.builtin.attention_kv_cache_window_override_with_sinks",
                         AttentionKVCacheWindowOverrideWithSinks);
-});
+}
 
-NDArray AttentionKVCacheView(AttentionKVCacheLegacy cache, ffi::Shape shape) {
+Tensor AttentionKVCacheView(AttentionKVCacheLegacy cache, ffi::Shape shape) {
   return cache->View(shape);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed(
       "vm.builtin.attention_kv_cache_view", [](ffi::PackedArgs args, ffi::Any* rv) {
-        CHECK(args.size() == 1 || args.size() == 2)
-            << "ValueError: `vm.builtin.attention_kv_cache_view` expects 1 or 2 arguments, but got "
+        TVM_FFI_CHECK(args.size() == 1 || args.size() == 2, ValueError)
+            << "`vm.builtin.attention_kv_cache_view` expects 1 or 2 arguments, but got "
             << args.size() << ".";
         AttentionKVCacheLegacy cache = args[0].cast<AttentionKVCacheLegacy>();
         if (args.size() == 2) {
@@ -335,43 +335,43 @@ TVM_FFI_STATIC_INIT_BLOCK({
           *rv = cache->View(ffi::Shape(shape));
         }
       });
-});
+}
 
-void AttentionKVCacheArrayPopN(Array<AttentionKVCacheLegacy> caches, int64_t n) {
+void AttentionKVCacheArrayPopN(ffi::Array<AttentionKVCacheLegacy> caches, int64_t n) {
   for (AttentionKVCacheLegacy cache : caches) {
     cache->PopN(static_cast<size_t>(n));
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("vm.builtin.attention_kv_cache_array_popn", AttentionKVCacheArrayPopN);
-});
+}
 
-void AttentionKVCacheArrayClear(Array<AttentionKVCacheLegacy> caches) {
+void AttentionKVCacheArrayClear(ffi::Array<AttentionKVCacheLegacy> caches) {
   for (AttentionKVCacheLegacy cache : caches) {
     cache->Clear();
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("vm.builtin.attention_kv_cache_array_clear", AttentionKVCacheArrayClear);
-});
+}
 
 // NOTE this is a built-in highly related to LM so we put it here.
-int SampleTopPFromLogits(NDArray logits, double temperature, double top_p, double uniform_sample) {
-  ICHECK(logits.IsContiguous());
-  ICHECK(logits.DataType() == DataType::Float(32));
+int SampleTopPFromLogits(Tensor logits, double temperature, double top_p, double uniform_sample) {
+  TVM_FFI_ICHECK(logits.IsContiguous());
+  TVM_FFI_ICHECK(logits.DataType() == DataType::Float(32));
 
   if (logits->device.device_type != kDLCPU) {
     logits = logits.CopyTo(DLDevice{kDLCPU, 0});
   }
 
-  ICHECK(logits->device.device_type == kDLCPU);
+  TVM_FFI_ICHECK(logits->device.device_type == kDLCPU);
 
   for (int i = 0; i < logits->ndim - 1; ++i) {
-    ICHECK_EQ(logits->shape[i], 1) << "The leading dimensions of logits must be 1";
+    TVM_FFI_ICHECK_EQ(logits->shape[i], 1) << "The leading dimensions of logits must be 1";
   }
 
   std::vector<std::pair<float, int>> data;
@@ -417,27 +417,27 @@ int SampleTopPFromLogits(NDArray logits, double temperature, double top_p, doubl
       return it->second;
     }
   }
-  ICHECK_LE(uniform_sample, data[0].first);
+  TVM_FFI_ICHECK_LE(uniform_sample, data[0].first);
   return data[0].second;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("vm.builtin.sample_top_p_from_logits", SampleTopPFromLogits);
-});
+}
 
-int SampleTopPFromProb(NDArray prob, double top_p, double uniform_sample) {
-  ICHECK(prob.IsContiguous());
-  ICHECK(prob.DataType() == DataType::Float(32));
+int SampleTopPFromProb(Tensor prob, double top_p, double uniform_sample) {
+  TVM_FFI_ICHECK(prob.IsContiguous());
+  TVM_FFI_ICHECK(prob.DataType() == DataType::Float(32));
 
   if (prob->device.device_type != kDLCPU) {
     prob = prob.CopyTo(DLDevice{kDLCPU, 0});
   }
 
-  ICHECK(prob->device.device_type == kDLCPU);
+  TVM_FFI_ICHECK(prob->device.device_type == kDLCPU);
 
   for (int i = 0; i < prob->ndim - 1; ++i) {
-    ICHECK_EQ(prob->shape[i], 1) << "The leading dimensions of logits must be 1";
+    TVM_FFI_ICHECK_EQ(prob->shape[i], 1) << "The leading dimensions of logits must be 1";
   }
 
   // Key observation: when we are doing top_p sampling
@@ -512,21 +512,22 @@ int SampleTopPFromProb(NDArray prob, double top_p, double uniform_sample) {
   data.reserve(ndata);
   int64_t sampled_index = sample_top_p_with_filter(0.0f);
   if (sampled_index < 0 && is_all_nan()) {
-    LOG(FATAL) << "The output probabilities are all NaNs, can not sample from it";
+    TVM_FFI_THROW(InternalError) << "The output probabilities are all NaNs, can not sample from it";
   } else if (sampled_index < 0) {
-    LOG(FATAL) << "Cannot sample from the given probability distribution due to unknown reason";
+    TVM_FFI_THROW(InternalError)
+        << "Cannot sample from the given probability distribution due to unknown reason";
   }
   return sampled_index;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("vm.builtin.sample_top_p_from_prob", SampleTopPFromProb);
-});
+}
 
-NDArray MultinomialFromUniform(NDArray prob, NDArray uniform_sample) {
-  ICHECK(prob.IsContiguous());
-  ICHECK(uniform_sample.IsContiguous());
+Tensor MultinomialFromUniform(Tensor prob, Tensor uniform_sample) {
+  TVM_FFI_ICHECK(prob.IsContiguous());
+  TVM_FFI_ICHECK(uniform_sample.IsContiguous());
 
   if (prob->device.device_type != kDLCPU) {
     prob = prob.CopyTo(DLDevice{kDLCPU, 0});
@@ -535,14 +536,14 @@ NDArray MultinomialFromUniform(NDArray prob, NDArray uniform_sample) {
     uniform_sample = uniform_sample.CopyTo(DLDevice{kDLCPU, 0});
   }
 
-  ICHECK(prob->device.device_type == kDLCPU);
-  ICHECK(uniform_sample->device.device_type == kDLCPU);
+  TVM_FFI_ICHECK(prob->device.device_type == kDLCPU);
+  TVM_FFI_ICHECK(uniform_sample->device.device_type == kDLCPU);
 
   int64_t batch_size = prob->shape[0];
   int64_t vocab_size = prob->shape[prob->ndim - 1];
   const float* pprob = static_cast<float*>(prob->data);
   const float* psample = static_cast<float*>(uniform_sample->data);
-  NDArray new_array = NDArray::Empty({batch_size, 1}, DataType::Int(64), uniform_sample->device);
+  Tensor new_array = Tensor::Empty({batch_size, 1}, DataType::Int(64), uniform_sample->device);
   int64_t* parray = static_cast<int64_t*>(new_array->data);
   for (int64_t i = 0; i < batch_size; ++i) {
     float cum_sum_prob = 0.0f;
@@ -559,19 +560,19 @@ NDArray MultinomialFromUniform(NDArray prob, NDArray uniform_sample) {
   return new_array;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("vm.builtin.multinomial_from_uniform", MultinomialFromUniform);
-});
+}
 
 // This is an inplace operation.
-void ApplyRepetitionPenalty(NDArray logits, NDArray token_ids, double penalty) {
-  ICHECK(logits.IsContiguous());
-  ICHECK(token_ids.IsContiguous());
-  ICHECK(logits.DataType() == DataType::Float(32)) << "Logits data type is not float32!";
-  ICHECK(token_ids.DataType() == DataType::Int(32)) << "token ids must be int32!";
-  ICHECK(logits->device.device_type == kDLCPU) << "logits device must be CPU!";
-  ICHECK(token_ids->device.device_type == kDLCPU) << "token_ids device must be CPU!";
+void ApplyRepetitionPenalty(Tensor logits, Tensor token_ids, double penalty) {
+  TVM_FFI_ICHECK(logits.IsContiguous());
+  TVM_FFI_ICHECK(token_ids.IsContiguous());
+  TVM_FFI_ICHECK(logits.DataType() == DataType::Float(32)) << "Logits data type is not float32!";
+  TVM_FFI_ICHECK(token_ids.DataType() == DataType::Int(32)) << "token ids must be int32!";
+  TVM_FFI_ICHECK(logits->device.device_type == kDLCPU) << "logits device must be CPU!";
+  TVM_FFI_ICHECK(token_ids->device.device_type == kDLCPU) << "token_ids device must be CPU!";
   float* logits_raw_data = static_cast<float*>(logits->data);
   int* token_ids_data = static_cast<int*>(token_ids->data);
   size_t num_token_ids = token_ids->shape[token_ids->ndim - 1];
@@ -585,10 +586,10 @@ void ApplyRepetitionPenalty(NDArray logits, NDArray token_ids, double penalty) {
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("vm.builtin.apply_repetition_penalty", ApplyRepetitionPenalty);
-});
+}
 
 /*!
  * \brief Apply presence and frequency penalty. This is an inplace operation.
@@ -599,18 +600,18 @@ TVM_FFI_STATIC_INIT_BLOCK({
  * \param presence_penalty The penalty factor, applied if a token appeared in an one-off manner.
  * \param frequency_penalty The penalty factor, contributes more the more frequent a token appears.
  */
-void ApplyPresenceAndFrequencyPenalty(NDArray logits, NDArray token_ids, NDArray token_freqs,
+void ApplyPresenceAndFrequencyPenalty(Tensor logits, Tensor token_ids, Tensor token_freqs,
                                       double presence_penalty, double frequency_penalty) {
   // See https://platform.openai.com/docs/guides/text-generation/frequency-and-presence-penalties
-  ICHECK(logits.IsContiguous());
-  ICHECK(token_ids.IsContiguous());
-  ICHECK(token_freqs.IsContiguous());
-  ICHECK(logits.DataType() == DataType::Float(32)) << "Logits data type is not float32!";
-  ICHECK(token_ids.DataType() == DataType::Int(32)) << "token ids must be int32!";
-  ICHECK(token_freqs.DataType() == DataType::Int(32)) << "token freqs must be int32!";
-  ICHECK(logits->device.device_type == kDLCPU) << "logits device must be CPU!";
-  ICHECK(token_ids->device.device_type == kDLCPU) << "token_ids device must be CPU!";
-  ICHECK(token_freqs->device.device_type == kDLCPU) << "token_ids device must be CPU!";
+  TVM_FFI_ICHECK(logits.IsContiguous());
+  TVM_FFI_ICHECK(token_ids.IsContiguous());
+  TVM_FFI_ICHECK(token_freqs.IsContiguous());
+  TVM_FFI_ICHECK(logits.DataType() == DataType::Float(32)) << "Logits data type is not float32!";
+  TVM_FFI_ICHECK(token_ids.DataType() == DataType::Int(32)) << "token ids must be int32!";
+  TVM_FFI_ICHECK(token_freqs.DataType() == DataType::Int(32)) << "token freqs must be int32!";
+  TVM_FFI_ICHECK(logits->device.device_type == kDLCPU) << "logits device must be CPU!";
+  TVM_FFI_ICHECK(token_ids->device.device_type == kDLCPU) << "token_ids device must be CPU!";
+  TVM_FFI_ICHECK(token_freqs->device.device_type == kDLCPU) << "token_ids device must be CPU!";
 
   float* logits_raw_data = static_cast<float*>(logits->data);
   int* token_ids_data = static_cast<int*>(token_ids->data);
@@ -623,17 +624,17 @@ void ApplyPresenceAndFrequencyPenalty(NDArray logits, NDArray token_ids, NDArray
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("vm.builtin.apply_presence_and_frequency_penalty",
                         ApplyPresenceAndFrequencyPenalty);
-});
+}
 
 // This is an inplace operation.
-void ApplySoftmaxWithTemperature(NDArray logits, double temperature) {
-  ICHECK(logits.IsContiguous());
-  ICHECK(logits.DataType() == DataType::Float(32)) << "Logits data type is not float32!";
-  ICHECK(logits->device.device_type == kDLCPU) << "logits device must be CPU!";
+void ApplySoftmaxWithTemperature(Tensor logits, double temperature) {
+  TVM_FFI_ICHECK(logits.IsContiguous());
+  TVM_FFI_ICHECK(logits.DataType() == DataType::Float(32)) << "Logits data type is not float32!";
+  TVM_FFI_ICHECK(logits->device.device_type == kDLCPU) << "logits device must be CPU!";
   int vocab_size = logits->shape[logits->ndim - 1];
   float* logits_raw_data = static_cast<float*>(logits->data);
   float inv_temp = 1.0f / temperature;
@@ -651,10 +652,10 @@ void ApplySoftmaxWithTemperature(NDArray logits, double temperature) {
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("vm.builtin.apply_softmax_with_temperature", ApplySoftmaxWithTemperature);
-});
+}
 
 }  // namespace vm
 }  // namespace runtime

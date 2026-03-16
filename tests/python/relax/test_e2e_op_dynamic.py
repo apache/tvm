@@ -14,14 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501, F401, F841
 import numpy as np
 import pytest
+
 import tvm
-from tvm import relax
-import tvm.topi.testing
-from tvm.relax.transform import LegalizeOps
-from tvm.script import relax as R, tir as T
 import tvm.testing
+import tvm.topi.testing
+from tvm import relax
+from tvm.relax.transform import LegalizeOps
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 # TODO(tvm-team): `tir.transform.DefaultGPUSchedule` does not work.
 target, dev = "llvm", tvm.cpu()
@@ -52,10 +55,10 @@ def test_dynamic_strided_slice(begin, end, strides):
     vm = build(DynamicStridedSlice)
 
     x_np = np.random.rand(8, 9, 10, 10).astype(np.float32)
-    data_nd = tvm.nd.array(x_np, dev)
-    begin_nd = tvm.nd.array(np.array(begin).astype("int64"), dev)
-    end_nd = tvm.nd.array(np.array(end).astype("int64"), dev)
-    strides_nd = tvm.nd.array(np.array(strides).astype("int64"), dev)
+    data_nd = tvm.runtime.tensor(x_np, dev)
+    begin_nd = tvm.runtime.tensor(np.array(begin).astype("int64"), dev)
+    end_nd = tvm.runtime.tensor(np.array(end).astype("int64"), dev)
+    strides_nd = tvm.runtime.tensor(np.array(strides).astype("int64"), dev)
 
     # Reference implementation
     out_npy = tvm.topi.testing.strided_slice_python(x_np, begin, end, strides)
@@ -85,10 +88,10 @@ def test_dynamic_strided_slice_symbolic(begin, end, strides):
     vm = build(DynamicStridedSlice)
 
     x_np = np.random.rand(8, 9, 10, 10).astype(np.float32)
-    data_nd = tvm.nd.array(x_np, dev)
-    begin_nd = tvm.nd.array(np.array(begin).astype("int64"), dev)
-    end_nd = tvm.nd.array(np.array(end).astype("int64"), dev)
-    strides_nd = tvm.nd.array(np.array(strides).astype("int64"), dev)
+    data_nd = tvm.runtime.tensor(x_np, dev)
+    begin_nd = tvm.runtime.tensor(np.array(begin).astype("int64"), dev)
+    end_nd = tvm.runtime.tensor(np.array(end).astype("int64"), dev)
+    strides_nd = tvm.runtime.tensor(np.array(strides).astype("int64"), dev)
 
     # Reference implementation
     out_npy = tvm.topi.testing.strided_slice_python(x_np, begin, end, strides)

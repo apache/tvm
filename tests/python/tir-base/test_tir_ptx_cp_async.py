@@ -14,10 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm
-from tvm.script import tir as T
+# ruff: noqa: F401
 import numpy as np
+import pytest
+
+import tvm
 import tvm.testing
+from tvm.script import tir as T
 
 
 @T.prim_func
@@ -27,8 +30,8 @@ def ptx_cp_async(A: T.Buffer((32, 128), "float16"), B: T.Buffer((32, 128), "floa
     tx = T.env_thread("threadIdx.x")
     T.launch_thread(bx, 1)
     T.launch_thread(tx, 32)
-    with T.block():
-        A_shared = T.alloc_buffer([32, 128], "float16", scope="shared")
+    with T.sblock():
+        A_shared = T.sblock_alloc_buffer([32, 128], "float16", scope="shared")
         T.reads(A[0:32, 0:128])
         T.writes(B[0:32, 0:128])
 
@@ -55,8 +58,8 @@ def test_ptx_cp_async():
     A_np = np.random.rand(32, 128).astype("float16")
     B_np = np.zeros((32, 128)).astype("float16")
     dev = tvm.cuda(0)
-    A_nd = tvm.nd.array(A_np, device=dev)
-    B_nd = tvm.nd.array(B_np, device=dev)
+    A_nd = tvm.runtime.tensor(A_np, device=dev)
+    B_nd = tvm.runtime.tensor(B_np, device=dev)
     mod(A_nd, B_nd)
     tvm.testing.assert_allclose(B_nd.numpy(), A_np)
 
@@ -70,8 +73,8 @@ def ptx_cp_async_barrier(
     tx = T.env_thread("threadIdx.x")
     T.launch_thread(bx, 1)
     T.launch_thread(tx, 32)
-    with T.block():
-        A_shared = T.alloc_buffer([32, 128], "float16", scope="shared")
+    with T.sblock():
+        A_shared = T.sblock_alloc_buffer([32, 128], "float16", scope="shared")
 
         T.reads(A[0:32, 0:128])
         T.writes(B[0:32, 0:128])
@@ -94,7 +97,7 @@ def ptx_cp_async_barrier(
             B[tx, i] = A_shared[tx, i]
 
 
-@tvm.testing.requires_cuda_compute_version(8)
+@tvm.testing.requires_cuda_compute_version(9)
 def test_ptx_cp_async_barrier():
     f = ptx_cp_async_barrier
 
@@ -102,8 +105,8 @@ def test_ptx_cp_async_barrier():
     A_np = np.random.rand(32, 128).astype("float16")
     B_np = np.zeros((32, 128)).astype("float16")
     dev = tvm.cuda(0)
-    A_nd = tvm.nd.array(A_np, device=dev)
-    B_nd = tvm.nd.array(B_np, device=dev)
+    A_nd = tvm.runtime.tensor(A_np, device=dev)
+    B_nd = tvm.runtime.tensor(B_np, device=dev)
     mod(A_nd, B_nd)
     tvm.testing.assert_allclose(B_nd.numpy(), A_np)
 
@@ -115,8 +118,8 @@ def ptx_cp_async_bulk(A: T.Buffer((32, 128), "float16"), B: T.Buffer((32, 128), 
     tx = T.env_thread("threadIdx.x")
     T.launch_thread(bx, 1)
     T.launch_thread(tx, 32)
-    with T.block():
-        A_shared = T.alloc_buffer([32, 128], "float16", scope="shared")
+    with T.sblock():
+        A_shared = T.sblock_alloc_buffer([32, 128], "float16", scope="shared")
 
         T.reads(A[0:32, 0:128])
         T.writes(B[0:32, 0:128])
@@ -143,8 +146,8 @@ def test_ptx_cp_async_bulk():
     A_np = np.random.rand(32, 128).astype("float16")
     B_np = np.zeros((32, 128)).astype("float16")
     dev = tvm.cuda(0)
-    A_nd = tvm.nd.array(A_np, device=dev)
-    B_nd = tvm.nd.array(B_np, device=dev)
+    A_nd = tvm.runtime.tensor(A_np, device=dev)
+    B_nd = tvm.runtime.tensor(B_np, device=dev)
     mod(A_nd, B_nd)
     tvm.testing.assert_allclose(B_nd.numpy(), A_np)
 

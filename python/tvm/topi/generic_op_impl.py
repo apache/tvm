@@ -15,9 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 """Implementation of generic operators in the presence of Tensor"""
+
 # pylint: disable=invalid-name, too-many-arguments
 import tvm
 from tvm import te
+
 from . import broadcast as _broadcast
 from . import math as _math
 

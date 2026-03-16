@@ -14,14 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm
-from tvm import te
-from tvm.contrib import cc, utils, popen_pool
-import sys
-import numpy as np
 import subprocess
-import tvm.testing
+import sys
+
+import numpy as np
 import pytest
+
+import tvm
+import tvm.testing
+from tvm import te
+from tvm.contrib import cc, popen_pool, utils
 
 runtime_py = """
 import os
@@ -34,7 +36,7 @@ import numpy as np
 path_dso = sys.argv[1]
 dtype = sys.argv[2]
 ff = tvm.runtime.load_module(path_dso)
-a = tvm.nd.array(np.zeros(10, dtype=dtype))
+a = tvm.runtime.tensor(np.zeros(10, dtype=dtype))
 ff(a)
 np.testing.assert_equal(a.numpy(), np.arange(a.shape[0]))
 print("Finish runtime checking...")
@@ -42,7 +44,7 @@ print("Finish runtime checking...")
 
 
 @tvm.testing.requires_llvm
-@pytest.mark.parametrize("target", ["llvm", "llvm -jit=mcjit"])
+@pytest.mark.parametrize("target", ["llvm", {"kind": "llvm", "jit": "mcjit"}])
 def test_dso_module_load(target):
     dtype = "int64"
     temp = utils.tempdir()
@@ -64,7 +66,7 @@ def test_dso_module_load(target):
         )
         m = tvm.tir.build(mod, target=target)
         for name in names:
-            m.save(name)
+            m.write_to_file(name)
 
     path_obj = temp.relpath("test.o")
     path_ll = temp.relpath("test.ll")
@@ -75,10 +77,10 @@ def test_dso_module_load(target):
 
     f1 = tvm.runtime.load_module(path_dso)
     f2 = tvm.runtime.load_module(path_ll)
-    a = tvm.nd.array(np.zeros(10, dtype=dtype))
+    a = tvm.runtime.tensor(np.zeros(10, dtype=dtype))
     f1(a)
     np.testing.assert_equal(a.numpy(), np.arange(a.shape[0]))
-    a = tvm.nd.array(np.zeros(10, dtype=dtype))
+    a = tvm.runtime.tensor(np.zeros(10, dtype=dtype))
     f2(a)
     np.testing.assert_equal(a.numpy(), np.arange(a.shape[0]))
 
@@ -101,7 +103,7 @@ def test_device_module_dump():
     A = te.placeholder((n,), name="A")
     B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
 
-    sch = tvm.tir.Schedule(te.create_prim_func([A, B]))
+    sch = tvm.s_tir.Schedule(te.create_prim_func([A, B]))
     # create iter var and assign them tags.
     num_thread = 8
     bx, tx = sch.split(sch.get_loops("B")[0], factors=[None, num_thread])
@@ -111,7 +113,7 @@ def test_device_module_dump():
     def check_device(device):
         dev = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
-            print("Skip because %s is not enabled" % device)
+            print(f"Skip because {device} is not enabled")
             return
         temp = utils.tempdir()
         f = tvm.compile(sch.mod, target=device)
@@ -124,8 +126,8 @@ def test_device_module_dump():
             import tvm
 
             f1 = tvm.runtime.load_module(path_dso)
-            a = tvm.nd.array(np.random.uniform(size=1024).astype(A.dtype), dev)
-            b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), dev)
+            a = tvm.runtime.tensor(np.random.uniform(size=1024).astype(A.dtype), dev)
+            b = tvm.runtime.tensor(np.zeros(1024, dtype=A.dtype), dev)
             f1(a, b)
             np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
@@ -137,11 +139,11 @@ def test_device_module_dump():
     def check_c(device):
         dev = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
-            print("Skip because %s is not enabled" % device)
+            print(f"Skip because {device} is not enabled")
             return
         f = tvm.compile(sch.mod, target=tvm.target.Target(device, host="c"))
-        a = tvm.nd.array(np.random.uniform(size=1024).astype(A.dtype), dev)
-        b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), dev)
+        a = tvm.runtime.tensor(np.random.uniform(size=1024).astype(A.dtype), dev)
+        b = tvm.runtime.tensor(np.zeros(1024, dtype=A.dtype), dev)
         f["main"](a, b)
         np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
@@ -169,15 +171,15 @@ def test_combine_module_llvm():
         path1 = temp.relpath("myadd1.o")
         path2 = temp.relpath("myadd2.o")
         path_dso = temp.relpath("mylib.so")
-        fadd1.save(path1)
-        fadd2.save(path2)
+        fadd1.write_to_file(path1)
+        fadd2.write_to_file(path2)
         # create shared library with multiple functions
         cc.create_shared(path_dso, [path1, path2])
         m = tvm.runtime.load_module(path_dso)
         fadd1 = m["myadd1"]
         fadd2 = m["myadd2"]
-        a = tvm.nd.array(np.random.uniform(size=nn).astype(A.dtype), dev)
-        b = tvm.nd.array(np.zeros(nn, dtype=A.dtype), dev)
+        a = tvm.runtime.tensor(np.random.uniform(size=nn).astype(A.dtype), dev)
+        b = tvm.runtime.tensor(np.zeros(nn, dtype=A.dtype), dev)
         fadd1(a, b)
         np.testing.assert_equal(b.numpy(), a.numpy() + 1)
         fadd2(a, b)
@@ -195,20 +197,21 @@ def test_combine_module_llvm():
         path1 = temp.relpath("myadd1.o")
         path2 = temp.relpath("myadd2.o")
         path_dso = temp.relpath("mylib.so")
-        fadd1.save(path1)
-        fadd2.save(path2)
+        fadd1.write_to_file(path1)
+        fadd2.write_to_file(path2)
         cc.create_shared(path_dso, [path1, path2])
 
         def popen_check():
-            import tvm.runtime
             import ctypes
+
+            import tvm.runtime
 
             # Load dll, will trigger system library registration
             ctypes.CDLL(path_dso)
             # Load the system wide library
             mm = tvm.runtime.system_lib()
-            a = tvm.nd.array(np.random.uniform(size=nn).astype(A.dtype), dev)
-            b = tvm.nd.array(np.zeros(nn, dtype=A.dtype), dev)
+            a = tvm.runtime.tensor(np.random.uniform(size=nn).astype(A.dtype), dev)
+            b = tvm.runtime.tensor(np.zeros(nn, dtype=A.dtype), dev)
             mm["myadd1"](a, b)
             np.testing.assert_equal(b.numpy(), a.numpy() + 1)
             mm["myadd2"](a, b)

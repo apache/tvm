@@ -50,8 +50,8 @@ namespace transform {
  * will be `func_name + "_loss"`.
  * \return The Pass.
  */
-TVM_DLL Pass AppendLoss(String func_name, Function loss_function, int num_backbone_outputs = 1,
-                        Optional<String> new_func_name = std::nullopt);
+TVM_DLL Pass AppendLoss(ffi::String func_name, Function loss_function, int num_backbone_outputs = 1,
+                        ffi::Optional<ffi::String> new_func_name = std::nullopt);
 
 }  // namespace transform
 }  // namespace relax

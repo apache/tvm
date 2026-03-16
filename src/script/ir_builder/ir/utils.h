@@ -26,28 +26,28 @@ namespace script {
 namespace ir_builder {
 namespace ir {
 
-inline IRModuleFrame FindModuleFrame(const String& method) {
+inline IRModuleFrame FindModuleFrame(const ffi::String& method) {
   IRBuilder builder = IRBuilder::Current();
-  if (Optional<IRModuleFrame> frame = builder->FindFrame<IRModuleFrame>()) {
-    const Optional<IRModuleFrame>& last_module_frame = builder->GetLastFrame<IRModuleFrame>();
+  if (ffi::Optional<IRModuleFrame> frame = builder->FindFrame<IRModuleFrame>()) {
+    const ffi::Optional<IRModuleFrame>& last_module_frame = builder->GetLastFrame<IRModuleFrame>();
     if (last_module_frame.defined() && last_module_frame.value() == frame) {
       return frame.value();
     }
   } else {
-    LOG(FATAL) << "ValueError: IRModule frame not find. Please ensure '" << method
-               << "' is called under I.ir_module()";
+    TVM_FFI_THROW(ValueError) << "IRModule frame not find. Please ensure '" << method
+                              << "' is called under I.ir_module()";
   }
-  LOG(FATAL) << "ValueError: '" << method << "' must be called immediately under I.ir_module()";
+  TVM_FFI_THROW(ValueError) << "'" << method << "' must be called immediately under I.ir_module()";
   throw;
 }
 
 inline IRModuleFrame FindModuleFrame() {
   IRBuilder builder = IRBuilder::Current();
-  if (Optional<IRModuleFrame> frame = builder->FindFrame<IRModuleFrame>()) {
+  if (ffi::Optional<IRModuleFrame> frame = builder->FindFrame<IRModuleFrame>()) {
     return frame.value();
   } else {
-    LOG(FATAL) << "ValueError: IRModule frame not find. Please ensure it"
-               << " is called under I.ir_module()";
+    TVM_FFI_THROW(ValueError) << "IRModule frame not find. Please ensure it"
+                              << " is called under I.ir_module()";
   }
   throw;
 }

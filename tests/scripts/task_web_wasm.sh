@@ -20,8 +20,12 @@ set -euxo pipefail
 
 export PYTHONPATH=`pwd`/python
 
+# setup tvm-ffi into python folder
+uv pip install -v --target=python ./3rdparty/tvm-ffi/
+
 rm -rf .emscripten_cache
 cd web
+export EM_CACHE=`pwd`/.emscripten_cache
 make clean
 npm install
 npm run lint

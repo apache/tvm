@@ -27,7 +27,7 @@
 
 namespace tvm {
 
-TVM_FFI_STATIC_INIT_BLOCK({ EnvFuncNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { EnvFuncNode::RegisterReflection(); }
 
 using ffi::Any;
 using ffi::Function;
@@ -41,32 +41,33 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 ObjectPtr<Object> CreateEnvNode(const std::string& name) {
   auto f = tvm::ffi::Function::GetGlobal(name);
-  ICHECK(f.has_value()) << "Cannot find global function \'" << name << '\'';
-  ObjectPtr<EnvFuncNode> n = make_object<EnvFuncNode>();
+  TVM_FFI_ICHECK(f.has_value()) << "Cannot find global function \'" << name << '\'';
+  ObjectPtr<EnvFuncNode> n = ffi::make_object<EnvFuncNode>();
   n->func = *f;
   n->name = name;
   return n;
 }
 
-EnvFunc EnvFunc::Get(const String& name) { return EnvFunc(CreateEnvNode(name)); }
+EnvFunc EnvFunc::Get(const ffi::String& name) { return EnvFunc(CreateEnvNode(name)); }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("ir.EnvFuncGet", EnvFunc::Get)
       .def_packed("ir.EnvFuncCall",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
                     EnvFunc env = args[0].cast<EnvFunc>();
-                    ICHECK_GE(args.size(), 1);
+                    TVM_FFI_ICHECK_GE(args.size(), 1);
                     env->func.CallPacked(args.Slice(1), rv);
                   })
       .def("ir.EnvFuncGetFunction", [](const EnvFunc& n) { return n->func; });
-});
-
-TVM_REGISTER_NODE_TYPE(EnvFuncNode)
-    .set_creator(CreateEnvNode)
-    .set_repr_bytes([](const Object* n) -> std::string {
-      return static_cast<const EnvFuncNode*>(n)->name;
-    });
-
+  // override EnvFuncNode to use name as the repr
+  refl::TypeAttrDef<EnvFuncNode>()
+      .def("__data_to_json__",
+           [](const EnvFuncNode* node) {
+             // simply save as the string
+             return node->name;
+           })
+      .def("__data_from_json__", EnvFunc::Get);
+}
 }  // namespace tvm

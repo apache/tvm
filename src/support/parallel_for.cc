@@ -34,8 +34,8 @@ namespace support {
 
 std::vector<std::vector<int>> rr_partitioner(int begin, int end, int step, int num_threads) {
   int total_task_count = (end - begin) / step;
-  ICHECK_GE(total_task_count, 0) << "Infinite loop condition with begin: " << begin
-                                 << " end: " << end << " step: " << step;
+  TVM_FFI_ICHECK_GE(total_task_count, 0)
+      << "Infinite loop condition with begin: " << begin << " end: " << end << " step: " << step;
   std::vector<std::vector<int>> ret;
   ret.reserve(num_threads);
   for (size_t thread = 0; begin < end; begin += step, thread = (thread + 1) % num_threads) {
@@ -53,8 +53,9 @@ void parallel_for(int begin, int end, const std::function<void(int)>& f, int ste
   static std::mutex M_GLOBAL_PARALLEL_FOR_FLAG;
   {
     std::unique_lock<std::mutex> l(M_GLOBAL_PARALLEL_FOR_FLAG);
-    ICHECK(!GLOBAL_PARALLEL_FOR_FLAG) << "There's another parallel_for running. Maybe you're "
-                                      << "currently inside another parallel_for loop.";
+    TVM_FFI_ICHECK(!GLOBAL_PARALLEL_FOR_FLAG)
+        << "There's another parallel_for running. Maybe you're "
+        << "currently inside another parallel_for loop.";
     GLOBAL_PARALLEL_FOR_FLAG = true;
   }
 
@@ -81,7 +82,7 @@ void parallel_for(int begin, int end, const std::function<void(int)>& f, int ste
   }
   {
     std::unique_lock<std::mutex> l(M_GLOBAL_PARALLEL_FOR_FLAG);
-    ICHECK(GLOBAL_PARALLEL_FOR_FLAG);
+    TVM_FFI_ICHECK(GLOBAL_PARALLEL_FOR_FLAG);
     GLOBAL_PARALLEL_FOR_FLAG = false;
   }
   try {
@@ -89,7 +90,7 @@ void parallel_for(int begin, int end, const std::function<void(int)>& f, int ste
       i.get();
     }
   } catch (const std::exception& e) {
-    LOG(FATAL) << "Parallel_for error with " << e.what();
+    TVM_FFI_THROW(InternalError) << "Parallel_for error with " << e.what();
   }
 }
 
@@ -99,8 +100,8 @@ void parallel_for_dynamic(int begin, int end, int num_threads,
   if (begin == end) {
     return;
   }
-  CHECK_LE(begin, end) << "ValueError: The interval [begin, end) requires `begin <= end`";
-  CHECK_GT(num_threads, 0) << "ValueError: `num_threads` should be positive";
+  TVM_FFI_CHECK_LE(begin, end, ValueError) << "The interval [begin, end) requires `begin <= end`";
+  TVM_FFI_CHECK_GT(num_threads, 0, ValueError) << "`num_threads` should be positive";
   // Step 2. Launch threads
   // Step 2.1. Launch worker 1 to worker `num_threads - 1`
   std::atomic<int> counter{begin};
@@ -125,7 +126,7 @@ void parallel_for_dynamic(int begin, int end, int num_threads,
     for (auto&& thread : threads) {
       thread.join();
     }
-    LOG(FATAL) << "RuntimeError: parallel_for_dynamic error with " << e.what();
+    TVM_FFI_THROW(RuntimeError) << "parallel_for_dynamic error with " << e.what();
   }
   // Step 3. Join threads and check exceptions
   for (auto&& thread : threads) {
@@ -136,7 +137,7 @@ void parallel_for_dynamic(int begin, int end, int num_threads,
       future.get();
     }
   } catch (const std::exception& e) {
-    LOG(FATAL) << "RuntimeError: parallel_for_dynamic error with " << e.what();
+    TVM_FFI_THROW(RuntimeError) << "parallel_for_dynamic error with " << e.what();
   }
 }
 

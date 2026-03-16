@@ -1,3 +1,4 @@
+# isort: skip_file
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,6 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Legalize high-level operator calls in Relax functions to call_tir."""
+
 from . import binary
 from . import ccl
 from . import create
@@ -31,3 +33,7 @@ from . import qdq
 from . import search
 from . import statistical
 from . import unary
+from . import vision
+
+# Device specific legalizations
+from . import adreno

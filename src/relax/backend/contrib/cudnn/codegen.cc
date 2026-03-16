@@ -40,19 +40,19 @@ using backend::contrib::NodeEntries;
 
 class cuDNNJSONSerializer : public JSONSerializer {
  public:
-  cuDNNJSONSerializer(Map<Constant, String> constant_names, Map<Var, Expr> bindings)
+  cuDNNJSONSerializer(ffi::Map<Constant, ffi::String> constant_names, ffi::Map<Var, Expr> bindings)
       : JSONSerializer(constant_names), bindings_(bindings) {}
 
   using JSONSerializer::VisitExpr_;
 
   NodeEntries VisitExpr_(const CallNode* call_node) final {
     const auto* fn_var = call_node->op.as<VarNode>();
-    ICHECK(fn_var);
-    const auto fn = Downcast<Function>(bindings_[GetRef<Var>(fn_var)]);
-    ICHECK(fn.defined()) << "Expects the callee to be a function.";
+    TVM_FFI_ICHECK(fn_var);
+    const auto fn = Downcast<Function>(bindings_[ffi::GetRef<Var>(fn_var)]);
+    TVM_FFI_ICHECK(fn.defined()) << "Expects the callee to be a function.";
 
-    auto composite_opt = fn->GetAttr<String>(attr::kComposite);
-    ICHECK(composite_opt.defined()) << "Only composite functions are supported.";
+    auto composite_opt = fn->GetAttr<ffi::String>(attr::kComposite);
+    TVM_FFI_ICHECK(composite_opt.has_value()) << "Only composite functions are supported.";
 
     std::string composite_name = composite_opt.value();
 
@@ -61,7 +61,7 @@ class cuDNNJSONSerializer : public JSONSerializer {
     } else if (composite_name.find("cudnn.attention") != std::string::npos) {
       return HandleAttention(call_node, fn, composite_name);
     } else {
-      LOG(FATAL) << "Unsupported composite function: " << composite_name;
+      TVM_FFI_THROW(InternalError) << "Unsupported composite function: " << composite_name;
     }
   }
 
@@ -73,7 +73,7 @@ class cuDNNJSONSerializer : public JSONSerializer {
       inputs_tmp.insert(inputs_tmp.end(), res.begin(), res.end());
     }
 
-    ICHECK(inputs_tmp.size() <= 3);
+    TVM_FFI_ICHECK(inputs_tmp.size() <= 3);
     NodeEntries inputs(inputs_tmp.size());
 
     auto arg_idx = backend::ExtractArgIdx(composite_name, fn);
@@ -89,7 +89,7 @@ class cuDNNJSONSerializer : public JSONSerializer {
 
     const CallNode* root_call = backend::GetOpInFunction(fn, "relax.nn.conv2d");
     SetCallNodeAttribute(node, root_call);
-    return AddNode(node, GetRef<Expr>(call_node));
+    return AddNode(node, ffi::GetRef<Expr>(call_node));
   }
 
   NodeEntries HandleAttention(const CallNode* call_node, const Function& fn,
@@ -100,7 +100,7 @@ class cuDNNJSONSerializer : public JSONSerializer {
       auto res = VisitExpr(arg);
       inputs.insert(inputs.end(), res.begin(), res.end());
     }
-    ICHECK_EQ(inputs.size(), 2);
+    TVM_FFI_ICHECK_EQ(inputs.size(), 2);
     auto node = std::make_shared<JSONGraphNode>(composite_name, /* name_ */
                                                 "kernel",       /* op_type_ */
                                                 inputs, 1 /* num_outputs_ */);
@@ -117,25 +117,23 @@ class cuDNNJSONSerializer : public JSONSerializer {
     int head_size_v = v_shape->values[3].as<IntImmNode>()->value;
     SetCallNodeAttribute(node, root_call);
 
-    auto to_str_array = [](int val) {
-      return std::vector<dmlc::any>{std::vector<std::string>{std::to_string(val)}};
-    };
-    node->SetAttr("num_heads", to_str_array(num_heads));
-    node->SetAttr("num_kv_heads", to_str_array(num_kv_heads));
-    node->SetAttr("head_size", to_str_array(head_size));
-    node->SetAttr("head_size_v", to_str_array(head_size_v));
-    node->SetAttr("layout", std::vector<dmlc::any>{std::vector<std::string>{layout}});
-    return AddNode(node, GetRef<Expr>(call_node));
+    node->SetAttr("num_heads", static_cast<int64_t>(num_heads));
+    node->SetAttr("num_kv_heads", static_cast<int64_t>(num_kv_heads));
+    node->SetAttr("head_size", static_cast<int64_t>(head_size));
+    node->SetAttr("head_size_v", static_cast<int64_t>(head_size_v));
+    node->SetAttr("layout", ffi::String(layout));
+    return AddNode(node, ffi::GetRef<Expr>(call_node));
   }
 
  private:
   /*! \brief The bindings to look up composite functions. */
-  Map<Var, Expr> bindings_;
+  ffi::Map<Var, Expr> bindings_;
 };
 
-Array<runtime::Module> cuDNNCompiler(Array<Function> functions, Map<String, ffi::Any> /*unused*/,
-                                     Map<Constant, String> constant_names) {
-  Array<runtime::Module> compiled_functions;
+ffi::Array<ffi::Module> cuDNNCompiler(ffi::Array<Function> functions,
+                                      ffi::Map<ffi::String, ffi::Any> /*unused*/,
+                                      ffi::Map<Constant, ffi::String> constant_names) {
+  ffi::Array<ffi::Module> compiled_functions;
 
   for (const auto& func : functions) {
     cuDNNJSONSerializer serializer(constant_names, AnalyzeVar2Value(func));
@@ -144,16 +142,16 @@ Array<runtime::Module> cuDNNCompiler(Array<Function> functions, Map<String, ffi:
     auto constant_names = serializer.GetConstantNames();
     const auto pf = tvm::ffi::Function::GetGlobalRequired("runtime.cuDNNJSONRuntimeCreate");
     auto func_name = GetExtSymbol(func);
-    compiled_functions.push_back(pf(func_name, graph_json, constant_names).cast<runtime::Module>());
+    compiled_functions.push_back(pf(func_name, graph_json, constant_names).cast<ffi::Module>());
   }
 
   return compiled_functions;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.ext.cudnn", cuDNNCompiler);
-});
+}
 
 }  // namespace contrib
 }  // namespace relax

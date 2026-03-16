@@ -16,11 +16,11 @@
 # under the License.
 # pylint: disable=invalid-name,unused-argument
 """Default legalization function for neural network operators."""
+
 import logging
 import math
-from typing import Optional
 
-from tvm import te, tir, topi
+from tvm import s_tir, te, tir, topi
 
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr
@@ -42,8 +42,8 @@ def _nn_conv1d(bb: BlockBuilder, call: Call) -> Expr:
         )
         return call
     if call.attrs.groups != 1:
-        data_layout = tir.layout(call.attrs.data_layout)
-        kernel_layout = tir.layout(call.attrs.kernel_layout)
+        data_layout = s_tir.layout(call.attrs.data_layout)
+        kernel_layout = s_tir.layout(call.attrs.kernel_layout)
         ic = call.args[0].struct_info.shape.values[data_layout.index_of("C")]
         oc = call.args[1].struct_info.shape.values[kernel_layout.index_of("O")]
         if not isinstance(ic, tir.IntImm) or not isinstance(oc, tir.IntImm):
@@ -83,8 +83,8 @@ def _nn_conv2d(bb: BlockBuilder, call: Call) -> Expr:
         )
         return call
     if call.attrs.groups != 1:
-        data_layout = tir.layout(call.attrs.data_layout)
-        kernel_layout = tir.layout(call.attrs.kernel_layout)
+        data_layout = s_tir.layout(call.attrs.data_layout)
+        kernel_layout = s_tir.layout(call.attrs.kernel_layout)
         ic = call.args[0].struct_info.shape.values[data_layout.index_of("C")]
         oc = call.args[1].struct_info.shape.values[kernel_layout.index_of("O")]
         if not isinstance(ic, tir.IntImm) or not isinstance(oc, tir.IntImm):
@@ -124,8 +124,8 @@ def _nn_conv3d(bb: BlockBuilder, call: Call) -> Expr:
         )
         return call
     if call.attrs.groups != 1:
-        data_layout = tir.layout(call.attrs.data_layout)
-        kernel_layout = tir.layout(call.attrs.kernel_layout)
+        data_layout = s_tir.layout(call.attrs.data_layout)
+        kernel_layout = s_tir.layout(call.attrs.kernel_layout)
         ic = call.args[0].struct_info.shape.values[data_layout.index_of("C")]
         oc = call.args[1].struct_info.shape.values[kernel_layout.index_of("O")]
         if not isinstance(ic, tir.IntImm) or not isinstance(oc, tir.IntImm):
@@ -407,7 +407,7 @@ def _nn_adaptive_avg_pool1d(bb: BlockBuilder, call: Call) -> Expr:
 
     def te_adaptive_avg_pool1d(data, output_size, layout_str):
         if output_size is None:
-            layout = tir.layout(layout_str)
+            layout = s_tir.layout(layout_str)
             idx_W = layout.index_of("W")
             assert idx_W != -1
             output_size = data.shape[idx_W]
@@ -434,7 +434,7 @@ def _nn_adaptive_avg_pool2d(bb: BlockBuilder, call: Call) -> Expr:
 
     def te_adaptive_avg_pool2d(data, output_size, layout_str):
         if output_size is None:
-            layout = tir.layout(layout_str)
+            layout = s_tir.layout(layout_str)
             idx_H = layout.index_of("H")
             idx_W = layout.index_of("W")
             assert idx_H != -1 and idx_W != -1
@@ -462,7 +462,7 @@ def _nn_adaptive_avg_pool3d(bb: BlockBuilder, call: Call) -> Expr:
 
     def te_adaptive_avg_pool3d(data, output_size, layout_str):
         if output_size is None:
-            layout = tir.layout(layout_str)
+            layout = s_tir.layout(layout_str)
             idx_D = layout.index_of("D")
             idx_H = layout.index_of("H")
             idx_W = layout.index_of("W")
@@ -537,7 +537,7 @@ def _nn_selu(bb: BlockBuilder, call: Call) -> Expr:
         scale = tir.const(1.0507009873554804934193349852946, dtype)
 
         # Compute SELU
-        # SELU(x) = scale∗(max(0,x)+min(0,α∗(exp(x)−1)))
+        # SELU(x) = scale*(max(0,x)+min(0,a*(exp(x)-1)))
         positive_part = topi.maximum(x, tir.const(0, dtype))
         negative_part = topi.minimum(
             tir.const(0, dtype), alpha * (topi.exp(x) - tir.const(1, dtype))
@@ -670,7 +670,7 @@ def _te_attention(
     v: te.Tensor,
     bias: te.Tensor,
     scale: tir.FloatImm,
-    causal_mask: Optional[str],
+    causal_mask: str | None,
 ) -> te.Tensor:
     batch_size, seq_len, num_head, head_dim = q.shape
     _, seq_len_kv, _, head_dim_v = v.shape
@@ -711,9 +711,9 @@ def _te_attention(
 
 @register_legalize("relax.nn.attention")
 def _nn_attention(bb: BlockBuilder, call: Call) -> Expr:
-    assert (
-        call.attrs.window_size is None
-    ), "Legalization for sliding-window attention is not supported yet."
+    assert call.attrs.window_size is None, (
+        "Legalization for sliding-window attention is not supported yet."
+    )
     return bb.call_te(
         _te_attention,
         call.args[0],
@@ -728,9 +728,9 @@ def _nn_attention(bb: BlockBuilder, call: Call) -> Expr:
 
 @register_legalize("relax.nn.attention_bias")
 def _nn_attention_bias(bb: BlockBuilder, call: Call) -> Expr:
-    assert (
-        call.attrs.window_size is None
-    ), "Legalization for sliding-window attention is not supported yet."
+    assert call.attrs.window_size is None, (
+        "Legalization for sliding-window attention is not supported yet."
+    )
     return bb.call_te(
         _te_attention,
         call.args[0],
@@ -775,3 +775,10 @@ def _nn_nll_loss(bb: BlockBuilder, call: Call) -> Expr:
         reduction=call.attrs.reduction,
         ignore_index=call.attrs.ignore_index,
     )
+
+
+@register_legalize("relax.nn.batch_flatten")
+def _nn_batch_flatten(bb: BlockBuilder, call: Call) -> Expr:
+    if call.struct_info.shape is None:
+        return call
+    return bb.call_te(topi.reshape, call.args[0], call.struct_info.shape.values)

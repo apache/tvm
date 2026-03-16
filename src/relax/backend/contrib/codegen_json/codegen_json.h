@@ -24,16 +24,12 @@
 #ifndef TVM_RELAX_BACKEND_CONTRIB_CODEGEN_JSON_CODEGEN_JSON_H_
 #define TVM_RELAX_BACKEND_CONTRIB_CODEGEN_JSON_CODEGEN_JSON_H_
 
-#include <dmlc/any.h>
-#include <dmlc/json.h>
 #include <tvm/ffi/reflection/accessor.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/node/reflection.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/tir/op.h>
 
 #include <cstdint>
-#include <limits>
 #include <memory>
 #include <string>
 #include <vector>
@@ -62,83 +58,114 @@ class OpAttrExtractor {
  public:
   explicit OpAttrExtractor(JSONGraphObjectPtr node) : node_(node) {}
 
-  template <typename T = double, typename = std::enable_if_t<std::is_floating_point<T>::value>>
-  std::string Fp2String(const T value) {
-    std::ostringstream out;
-    out.precision(std::numeric_limits<T>::max_digits10);
-    out << value;
-    return out.str();
-  }
+  void SetNodeAttr(const char* key, ffi::Any value) { node_->SetAttr(key, std::move(value)); }
 
-  void SetNodeAttr(const char* key, const std::vector<std::string>& value) {
-    std::vector<dmlc::any> attr;
-    attr.emplace_back(value);
-    node_->SetAttr(key, attr);
-  }
+  void Visit(const char* key, double* value) { SetNodeAttr(key, *value); }
 
-  void Visit(const char* key, double* value) { SetNodeAttr(key, {Fp2String(*value)}); }
+  void Visit(const char* key, int64_t* value) { SetNodeAttr(key, *value); }
 
-  void Visit(const char* key, int64_t* value) { SetNodeAttr(key, {std::to_string(*value)}); }
+  void Visit(const char* key, uint64_t* value) { SetNodeAttr(key, static_cast<int64_t>(*value)); }
 
-  void Visit(const char* key, uint64_t* value) { SetNodeAttr(key, {std::to_string(*value)}); }
+  void Visit(const char* key, int* value) { SetNodeAttr(key, static_cast<int64_t>(*value)); }
 
-  void Visit(const char* key, int* value) { SetNodeAttr(key, {std::to_string(*value)}); }
+  void Visit(const char* key, bool* value) { SetNodeAttr(key, static_cast<int64_t>(*value)); }
 
-  void Visit(const char* key, bool* value) { SetNodeAttr(key, {std::to_string(*value)}); }
+  void Visit(const char* key, std::string* value) { SetNodeAttr(key, ffi::String(*value)); }
 
-  void Visit(const char* key, std::string* value) { SetNodeAttr(key, {*value}); }
-
-  void Visit(const char* key, Optional<double>* value) {
+  void Visit(const char* key, ffi::Optional<double>* value) {
     if (value->has_value()) {
-      SetNodeAttr(key, {Fp2String(value->value())});
+      SetNodeAttr(key, value->value());
     } else {
-      SetNodeAttr(key, {""});
+      SetNodeAttr(key, ffi::String(""));
     }
   }
 
-  void Visit(const char* key, Optional<int64_t>* value) {
+  void Visit(const char* key, ffi::Optional<int64_t>* value) {
     if (value->has_value()) {
-      SetNodeAttr(key, {std::to_string(value->value())});
+      SetNodeAttr(key, value->value());
     } else {
-      SetNodeAttr(key, {""});
+      SetNodeAttr(key, ffi::String(""));
     }
   }
 
   void Visit(const char* key, DataType* value) {
     if (!value->is_void()) {
-      SetNodeAttr(key, {runtime::DLDataTypeToString(*value)});
+      SetNodeAttr(key, ffi::String(runtime::DLDataTypeToString(*value)));
     } else {
-      SetNodeAttr(key, {""});
+      SetNodeAttr(key, ffi::String(""));
     }
   }
 
-  void Visit(const char* key, runtime::ObjectRef* value) {
+  void Visit(const char* key, ffi::Any* value) {
     if (const auto* an = (*value).as<ffi::ArrayObj>()) {
-      std::vector<std::string> attr;
+      // Determine element type from first element and build typed array
+      if (an->size() == 0) {
+        SetNodeAttr(key, ffi::Array<int64_t>{});
+        return;
+      }
+      // Classify elements: check if all are int, or all are numeric (int or float)
+      bool can_be_int = true;
+      bool can_be_double = true;
       for (size_t i = 0; i < an->size(); ++i) {
-        if (const auto* im = (*an)[i].as<IntImmNode>()) {
-          attr.push_back(std::to_string(im->value));
-        } else if (const auto* fm = (*an)[i].as<FloatImmNode>()) {
-          attr.push_back(Fp2String(fm->value));
-        } else if (const auto* str = (*an)[i].as<ffi::StringObj>()) {
-          String s = GetRef<String>(str);
-          attr.push_back(s);
-        } else {
-          LOG(FATAL) << "Not supported type: " << (*an)[i].GetTypeKey();
+        const auto& elem = (*an)[i];
+        bool is_int = elem.try_cast<int64_t>() || elem.as<IntImmNode>();
+        bool is_float = elem.try_cast<double>() || elem.as<FloatImmNode>();
+        if (!is_int) {
+          can_be_int = false;
+        }
+        if (!is_int && !is_float) {
+          can_be_double = false;
+          break;
         }
       }
-      SetNodeAttr(key, attr);
-    } else if (!(*value).defined()) {  // Skip NullValue
-      SetNodeAttr(key, std::vector<std::string>{""});
+      if (can_be_int) {
+        ffi::Array<int64_t> attr;
+        for (size_t i = 0; i < an->size(); ++i) {
+          if (auto opt_int = (*an)[i].try_cast<int64_t>()) {
+            attr.push_back(opt_int.value());
+          } else if (const auto* im = (*an)[i].as<IntImmNode>()) {
+            attr.push_back(im->value);
+          }
+        }
+        SetNodeAttr(key, std::move(attr));
+      } else if (can_be_double) {
+        // Mixed int/float array: promote all to double
+        ffi::Array<double> attr;
+        for (size_t i = 0; i < an->size(); ++i) {
+          const auto& elem = (*an)[i];
+          if (auto opt_float = elem.try_cast<double>()) {
+            attr.push_back(opt_float.value());
+          } else if (const auto* fm = elem.as<FloatImmNode>()) {
+            attr.push_back(fm->value);
+          } else if (auto opt_int = elem.try_cast<int64_t>()) {
+            attr.push_back(static_cast<double>(opt_int.value()));
+          } else if (const auto* im = elem.as<IntImmNode>()) {
+            attr.push_back(static_cast<double>(im->value));
+          }
+        }
+        SetNodeAttr(key, std::move(attr));
+      } else {
+        // Fall back to string array
+        ffi::Array<ffi::String> attr;
+        for (size_t i = 0; i < an->size(); ++i) {
+          if (auto opt_str = (*an)[i].as<ffi::String>()) {
+            attr.push_back(*opt_str);
+          } else {
+            TVM_FFI_THROW(InternalError) << "Not supported type: " << (*an)[i].GetTypeKey();
+          }
+        }
+        SetNodeAttr(key, std::move(attr));
+      }
+    } else if (*value == nullptr) {  // Skip NullValue
+      SetNodeAttr(key, ffi::String(""));
     } else if (const auto* im = (*value).as<IntImmNode>()) {
-      SetNodeAttr(key, std::vector<std::string>{std::to_string(im->value)});
+      SetNodeAttr(key, static_cast<int64_t>(im->value));
     } else if (const auto* fm = (*value).as<FloatImmNode>()) {
-      SetNodeAttr(key, std::vector<std::string>{Fp2String(fm->value)});
-    } else if (const auto* str = (*value).as<ffi::StringObj>()) {
-      String s = GetRef<String>(str);
-      SetNodeAttr(key, std::vector<std::string>{s});
+      SetNodeAttr(key, static_cast<double>(fm->value));
+    } else if (const auto opt_str = (*value).as<ffi::String>()) {
+      SetNodeAttr(key, *opt_str);
     } else {
-      LOG(FATAL) << "Not yet supported type: " << (*value)->GetTypeKey() << ": " << *value;
+      TVM_FFI_THROW(InternalError) << "Not yet supported type: " << (*value).GetTypeKey();
     }
   }
 
@@ -151,14 +178,14 @@ class OpAttrExtractor {
  private:
   void VisitObjectFields(Object* obj) {
     const TVMFFITypeInfo* tinfo = TVMFFIGetTypeInfo(obj->type_index());
-    ICHECK(tinfo->metadata != nullptr)
+    TVM_FFI_ICHECK(tinfo->metadata != nullptr)
         << "Object `" << obj->GetTypeKey()
         << "` misses reflection registration and do not support serialization";
     ffi::reflection::ForEachFieldInfo(tinfo, [&](const TVMFFIFieldInfo* field_info) {
       Any field_value = ffi::reflection::FieldGetter(field_info)(obj);
       switch (field_value.type_index()) {
         case ffi::TypeIndex::kTVMFFINone: {
-          SetNodeAttr(field_info->name.data, {""});
+          SetNodeAttr(field_info->name.data, ffi::String(""));
           break;
         }
         case ffi::TypeIndex::kTVMFFIBool:
@@ -177,25 +204,19 @@ class OpAttrExtractor {
           this->Visit(field_info->name.data, &value);
           break;
         }
-        case ffi::TypeIndex::kTVMFFINDArray: {
-          runtime::NDArray value = field_value.cast<runtime::NDArray>();
-          this->Visit(field_info->name.data, &value);
+        case ffi::TypeIndex::kTVMFFITensor: {
+          this->Visit(field_info->name.data, &field_value);
           break;
         }
         default: {
-          if (field_value.type_index() >= ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
-            ObjectRef obj = field_value.cast<ObjectRef>();
-            this->Visit(field_info->name.data, &obj);
-            break;
-          }
-          LOG(FATAL) << "Unsupported type: " << field_value.GetTypeKey();
+          this->Visit(field_info->name.data, &field_value);
+          break;
         }
       }
     });
   }
 
   JSONGraphObjectPtr node_;
-  ReflectionVTable* reflection_ = ReflectionVTable::Global();
 };
 
 using NodeEntries = std::vector<JSONGraphNodeEntry>;
@@ -210,8 +231,8 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
    * \brief Constructor
    * \param constant_names The names of all constants in the original module.
    */
-  explicit JSONSerializer(const Map<Constant, String>& constant_names)
-      : constant_names_(constant_names) {}
+  explicit JSONSerializer(const ffi::Map<Constant, ffi::String>& constant_names)
+      : constant_names_(std::move(constant_names)) {}
 
   void serialize(Function func) {
     // First we convert all the parameters into input nodes.
@@ -223,14 +244,12 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
   }
 
   /*!\brief Return the required constants. */
-  Array<String> GetConstantNames() const { return constants_used_; }
+  ffi::Array<ffi::String> GetConstantNames() const { return constants_used_; }
 
   /*!\brief Return the generated json. */
   std::string GetJSON() {
-    std::ostringstream os;
-    dmlc::JSONWriter writer(&os);
-    Save(&writer);
-    return os.str();
+    namespace json = ::tvm::ffi::json;
+    return std::string(json::Stringify(SaveToJSON()));
   }
 
  protected:
@@ -256,9 +275,9 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
     if (const auto* tuple_sinfo = struct_info.as<TupleStructInfoNode>()) {
       for (size_t i = 0; i < tuple_sinfo->fields.size(); ++i) {
         const auto* tensor_sinfo = tuple_sinfo->fields[i].as<TensorStructInfoNode>();
-        ICHECK(tensor_sinfo) << "Expect TensorStructInfo, but received: ."
-                             << tuple_sinfo->fields[i]->GetTypeKey();
-        ICHECK(tensor_sinfo->shape.defined()) << "Expect shape to be defined.";
+        TVM_FFI_ICHECK(tensor_sinfo)
+            << "Expect TensorStructInfo, but received: ." << tuple_sinfo->fields[i]->GetTypeKey();
+        TVM_FFI_ICHECK(tensor_sinfo->shape.defined()) << "Expect shape to be defined.";
         ShapeExpr output_shape = Downcast<ShapeExpr>(tensor_sinfo->shape.value());
         ret.push_back(JSONGraphNodeEntry(node_id, i));
         shape.emplace_back(GetIntShape(output_shape->values));
@@ -267,22 +286,23 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
       node->SetNumOutput(tuple_sinfo->fields.size());
     } else {
       const auto* tensor_sinfo = struct_info.as<TensorStructInfoNode>();
-      ICHECK(tensor_sinfo) << "Expect TensorStructInfo, but received: "
-                           << struct_info->GetTypeKey();
-      ICHECK(tensor_sinfo->shape.defined()) << "Expect shape to be defined.";
+      TVM_FFI_ICHECK(tensor_sinfo)
+          << "Expect TensorStructInfo, but received: " << struct_info->GetTypeKey();
+      TVM_FFI_ICHECK(tensor_sinfo->shape.defined()) << "Expect shape to be defined.";
       ShapeExpr output_shape = Downcast<ShapeExpr>(tensor_sinfo->shape.value());
 
       shape.emplace_back(GetIntShape(output_shape->values));
       dtype.emplace_back(DType2String(tensor_sinfo->dtype));
       ret.push_back(JSONGraphNodeEntry(node_id, 0));
     }
-    std::vector<dmlc::any> shape_attrs;
-    shape_attrs.emplace_back(shape);
-    node->SetAttr("shape", shape_attrs);
-
-    std::vector<dmlc::any> type_attrs;
-    type_attrs.emplace_back(dtype);
-    node->SetAttr("dtype", type_attrs);
+    node->SetShape(shape);
+    {
+      std::vector<DLDataType> dl_dtypes;
+      for (const auto& dt : dtype) {
+        dl_dtypes.push_back(ffi::StringToDLDataType(dt));
+      }
+      node->SetDType(dl_dtypes);
+    }
     return ret;
   }
 
@@ -292,19 +312,15 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
       const Object* call_attr = cn->attrs.get();
       extractor.Extract(const_cast<Object*>(call_attr));
     } else if (const auto* fn = cn->op.as<FunctionNode>()) {
-      ICHECK(false);
-      auto pattern = fn->GetAttr<String>(attr::kPartitionedFromPattern);
-      ICHECK(pattern.defined());
-      std::vector<std::string> values;
-      values.push_back(pattern.value());
-      std::vector<dmlc::any> attr;
-      attr.emplace_back(values);
-      node->SetAttr("PartitionedFromPattern", attr);
+      TVM_FFI_ICHECK(false);
+      auto pattern = fn->GetAttr<ffi::String>(attr::kPartitionedFromPattern);
+      TVM_FFI_ICHECK(pattern.has_value());
+      node->SetAttr("PartitionedFromPattern", pattern.value());
     }
   }
 
   NodeEntries VisitBinding_(const MatchCastNode* binding) {
-    LOG(FATAL) << "JSON runtime currently doesn't match cast\n";
+    TVM_FFI_THROW(InternalError) << "JSON runtime currently doesn't match cast\n";
     return {};
   }
 
@@ -317,7 +333,7 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
       auto from_b = VisitBinding_(node);
       nodes.insert(nodes.end(), from_b.begin(), from_b.end());
     } else {
-      LOG(FATAL) << "TypeError: Invalid type: " << binding->GetTypeKey();
+      TVM_FFI_THROW(TypeError) << "Invalid type: " << binding->GetTypeKey();
     }
     return nodes;
   }
@@ -331,7 +347,7 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
       auto from_bb = VisitBindingBlock_(node);
       nodes.insert(nodes.end(), from_bb.begin(), from_bb.end());
     } else {
-      LOG(FATAL) << "TypeError: Invalid type: " << block->GetTypeKey();
+      TVM_FFI_THROW(TypeError) << "Invalid type: " << block->GetTypeKey();
     }
     return nodes;
   }
@@ -365,17 +381,17 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
   }
 
   NodeEntries VisitExprDefault_(const Object* op) {
-    LOG(FATAL) << "JSON runtime currently doesn't support " << op->GetTypeKey();
+    TVM_FFI_THROW(InternalError) << "JSON runtime currently doesn't support " << op->GetTypeKey();
     return {};
   }
 
   NodeEntries VisitExpr_(const ConstantNode* cn) {
-    auto name = constant_names_.find(GetRef<Constant>(cn));
-    ICHECK(name != constant_names_.end())
-        << "Cannot find the name of the constant: " << GetRef<Constant>(cn);
+    auto name = constant_names_.find(ffi::GetRef<Constant>(cn));
+    TVM_FFI_ICHECK(name != constant_names_.end())
+        << "Cannot find the name of the constant: " << ffi::GetRef<Constant>(cn);
     constants_used_.push_back((*name).second);
     auto node = std::make_shared<JSONGraphNode>((*name).second, "const" /* op_type_ */);
-    return AddNode(node, GetRef<Expr>(cn));
+    return AddNode(node, ffi::GetRef<Expr>(cn));
   }
 
   NodeEntries VisitExpr_(const TupleNode* tn) {
@@ -388,16 +404,17 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
   }
 
   NodeEntries VisitExpr_(const CallNode* cn) {
-    Expr expr = GetRef<Expr>(cn);
+    Expr expr = ffi::GetRef<Expr>(cn);
     std::string name;
     if (const auto* op_node = cn->op.as<OpNode>()) {
       name = op_node->name;
     } else if (const auto* fn = cn->op.as<FunctionNode>()) {
-      auto comp = fn->GetAttr<String>(attr::kComposite);
-      ICHECK(comp.defined()) << "JSON runtime only supports composite functions.";
+      auto comp = fn->GetAttr<ffi::String>(attr::kComposite);
+      TVM_FFI_ICHECK(comp.has_value()) << "JSON runtime only supports composite functions.";
       name = comp.value();
     } else {
-      LOG(FATAL) << "JSON runtime does not support calls to " << cn->op->GetTypeKey();
+      TVM_FFI_THROW(InternalError)
+          << "JSON runtime does not support calls to " << cn->op->GetTypeKey();
     }
 
     // TODO(@sunggg): Revisit when we have op naming convention.
@@ -413,7 +430,7 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
                                                 "kernel", /* op_type_ */
                                                 inputs, 1 /* num_outputs_ */);
     SetCallNodeAttribute(node, cn);
-    return AddNode(node, GetRef<Expr>(cn));
+    return AddNode(node, ffi::GetRef<Expr>(cn));
   }
 
   NodeEntries VisitExpr_(const TupleGetItemNode* gtn) {
@@ -422,19 +439,15 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
   }
 
   NodeEntries VisitExpr_(const FunctionNode* fn) {
-    ICHECK(fn->GetAttr<String>(attr::kComposite).defined())
+    TVM_FFI_ICHECK(fn->GetAttr<ffi::String>(attr::kComposite).has_value())
         << "JSON runtime only supports composite functions";
 
     // FunctionNode should be handled by the caller.
     return {};
   }
 
-  /*!
-   * \brief Save to JSON graph
-   *
-   * \param writer A json writer
-   */
-  void Save(dmlc::JSONWriter* writer) {
+  ffi::json::Value SaveToJSON() {
+    namespace json = ::tvm::ffi::json;
     std::vector<size_t> arg_nodes;
     for (size_t i = 0; i < nodes_.size(); ++i) {
       auto node = nodes_[i];
@@ -448,12 +461,28 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
       num_entry += node->GetNumOutput();
       node_row_ptr.push_back(num_entry);
     }
-    writer->BeginObject();
-    writer->WriteObjectKeyValue("nodes", nodes_);
-    writer->WriteObjectKeyValue("arg_nodes", arg_nodes);
-    writer->WriteObjectKeyValue("heads", heads_);
-    writer->WriteObjectKeyValue("node_row_ptr", node_row_ptr);
-    writer->EndObject();
+    json::Object obj;
+    // nodes
+    json::Array nodes_arr;
+    for (auto& n : nodes_) {
+      nodes_arr.push_back(n->SaveToJSON());
+    }
+    obj.Set(ffi::String("nodes"), std::move(nodes_arr));
+    // arg_nodes
+    json::Array arg_arr;
+    for (auto x : arg_nodes) arg_arr.push_back(static_cast<int64_t>(x));
+    obj.Set(ffi::String("arg_nodes"), std::move(arg_arr));
+    // heads
+    json::Array heads_arr;
+    for (const auto& h : heads_) {
+      heads_arr.push_back(h.SaveToJSON());
+    }
+    obj.Set(ffi::String("heads"), std::move(heads_arr));
+    // node_row_ptr
+    json::Array nrp_arr;
+    for (auto x : node_row_ptr) nrp_arr.push_back(static_cast<int64_t>(x));
+    obj.Set(ffi::String("node_row_ptr"), std::move(nrp_arr));
+    return obj;
   }
 
  private:
@@ -462,9 +491,9 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
   /*! \brief Output of the JSON graph. */
   NodeEntries heads_;
   /*! \brief The list of required constants, ordered. */
-  Array<String> constants_used_;
+  ffi::Array<ffi::String> constants_used_;
   /*! \brief The names of all constants in the original module. */
-  const Map<Constant, String>& constant_names_;
+  const ffi::Map<Constant, ffi::String> constant_names_;
 };
 
 }  // namespace contrib

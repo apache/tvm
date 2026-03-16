@@ -32,13 +32,13 @@ namespace relax {
 
 TensorStructInfo MatchTensorStructInfo(Expr data) {
   auto _sinfo = MatchStructInfo<TensorStructInfo>(data);
-  ICHECK(_sinfo.defined()) << "Expect data to be a tensor, but get " << GetStructInfo(data);
+  TVM_FFI_ICHECK(_sinfo.defined()) << "Expect data to be a tensor, but get " << GetStructInfo(data);
   return _sinfo.value();
 }
 
-Expr ExpandToMatchInput(Expr data, int ndim, Array<Integer> axes) {
+Expr ExpandToMatchInput(Expr data, int ndim, ffi::Array<Integer> axes) {
   axes = GetOrderedPositiveAxes(axes, ndim);
-  Array<Integer> expand_axes;
+  ffi::Array<Integer> expand_axes;
   for (int i = 0, j = 0; i < ndim; ++i) {
     if (j < static_cast<int>(axes.size()) && i == axes[j]->value) {
       ++j;
@@ -51,7 +51,7 @@ Expr ExpandToMatchInput(Expr data, int ndim, Array<Integer> axes) {
 
 Tuple DecomposeBatchNorm(const Call& call) {
   auto attrs = call->attrs.as<BatchNormAttrs>();
-  ICHECK_NOTNULL(attrs);
+  TVM_FFI_ICHECK_NOTNULL(attrs);
 
   Expr data = call->args[0];
   TensorStructInfo sinfo = MatchTensorStructInfo(data);
@@ -78,9 +78,9 @@ Tuple DecomposeBatchNorm(const Call& call) {
 
 Expr MutateBatchNormForTraining(Call call) {
   auto attrs = call->attrs.as<BatchNormAttrs>();
-  ICHECK_NOTNULL(attrs);
+  TVM_FFI_ICHECK_NOTNULL(attrs);
 
-  ICHECK_EQ(call->args.size(), 5);
+  TVM_FFI_ICHECK_EQ(call->args.size(), 5);
   Expr data = call->args[0];
   Expr gamma = call->args[1];
   Expr beta = call->args[2];
@@ -89,7 +89,7 @@ Expr MutateBatchNormForTraining(Call call) {
 
   TensorStructInfo sinfo = MatchTensorStructInfo(data);
 
-  Array<Integer> reduce_axes;
+  ffi::Array<Integer> reduce_axes;
   for (int i = 0; i < sinfo->ndim; ++i) {
     if (i != attrs->axis) {
       reduce_axes.push_back(i);
@@ -113,7 +113,7 @@ Expr MutateBatchNormForTraining(Call call) {
 
 Expr DecomposeLayerNorm(const Call& call) {
   auto attrs = call->attrs.as<LayerNormAttrs>();
-  ICHECK_NOTNULL(attrs);
+  TVM_FFI_ICHECK_NOTNULL(attrs);
 
   Expr data = call->args[0];
   TensorStructInfo sinfo = MatchTensorStructInfo(data);
@@ -139,21 +139,21 @@ Expr DecomposeLayerNorm(const Call& call) {
 }
 
 Expr TensorToShape(const Call& call_node, const BlockBuilder& builder) {
-  ICHECK(call_node->struct_info_.defined());
+  TVM_FFI_ICHECK(call_node->struct_info_.defined());
   Expr expr = call_node->args[0];
   const ShapeStructInfoNode* sinfo = GetStructInfoAs<ShapeStructInfoNode>(call_node);
-  ICHECK(sinfo);
+  TVM_FFI_ICHECK(sinfo);
   // call builtin function that converts tensor to shape tuple
   // TODO(@sunggg): Register operator for "vm.builtin.tensor_to_shape"
   static const Op& call_pure_packed_op = Op::Get("relax.call_pure_packed");
   Var call =
       builder->Emit(Call(call_pure_packed_op, {ExternFunc("vm.builtin.tensor_to_shape"), expr}, {},
-                         {GetRef<ShapeStructInfo>(sinfo)}));
+                         {ffi::GetRef<ShapeStructInfo>(sinfo)}));
 
   // Operators like reshape take the output of `TensorToShape` as their output shape.
   // Because TOPI expects to have such output shape in symbolic shape at least (i.e.,
-  // Array<PrimExpr>), we define symbolic variables and returns them as a ShapeExpr.
-  Array<PrimExpr> shape_var;
+  // ffi::Array<PrimExpr>), we define symbolic variables and returns them as a ShapeExpr.
+  ffi::Array<PrimExpr> shape_var;
   for (int i = 0; i < sinfo->ndim; i++) {
     shape_var.push_back(tir::Var("x", DataType::Int(64)));
   }
@@ -233,7 +233,7 @@ Pass DecomposeOps() {
                             /*required=*/{});
 }
 
-Pass DecomposeOpsForInference(Optional<String> func_name) {
+Pass DecomposeOpsForInference(ffi::Optional<ffi::String> func_name) {
   if (func_name) {
     return ApplyPassToFunction(DecomposeOps(), func_name.value());
   } else {
@@ -241,7 +241,7 @@ Pass DecomposeOpsForInference(Optional<String> func_name) {
   }
 }
 
-Pass DecomposeOpsForTraining(Optional<String> func_name) {
+Pass DecomposeOpsForTraining(ffi::Optional<ffi::String> func_name) {
   auto module_pass = tvm::transform::Sequential({MutateOpsForTraining(), DecomposeOps()},
                                                 "DecomposeOpsForTraining");
   if (func_name) {
@@ -251,12 +251,12 @@ Pass DecomposeOpsForTraining(Optional<String> func_name) {
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("relax.transform.DecomposeOpsForInference", DecomposeOpsForInference)
       .def("relax.transform.DecomposeOpsForTraining", DecomposeOpsForTraining);
-});
+}
 
 }  // namespace transform
 }  // namespace relax

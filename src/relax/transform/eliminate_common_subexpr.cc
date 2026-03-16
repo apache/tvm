@@ -24,6 +24,8 @@
  *
  * Currently it removes common subexpressions within a Function.
  */
+#include <tvm/ffi/extra/structural_equal.h>
+#include <tvm/ffi/extra/structural_hash.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
@@ -48,7 +50,7 @@ namespace {
  */
 struct ReplacementKey {
   tvm::relax::Expr bound_value;
-  tvm::Optional<tvm::relax::StructInfo> match_cast = std::nullopt;
+  tvm::ffi::Optional<tvm::relax::StructInfo> match_cast = std::nullopt;
 
   explicit ReplacementKey(const tvm::relax::Binding& binding)
       : bound_value(GetBoundValue(binding)) {
@@ -58,7 +60,7 @@ struct ReplacementKey {
   }
 
   friend bool operator==(const ReplacementKey& a, const ReplacementKey& b) {
-    tvm::StructuralEqual eq;
+    ffi::StructuralEqual eq;
     return eq(a.bound_value, b.bound_value) && eq(a.match_cast, b.match_cast);
   }
 };
@@ -76,7 +78,7 @@ struct ReplacementKey {
 template <>
 struct std::hash<tvm::relax::ReplacementKey> {
   std::size_t operator()(const tvm::relax::ReplacementKey& key) const {
-    tvm::StructuralHash hasher;
+    tvm::ffi::StructuralHash hasher;
     return tvm::support::HashCombine(hasher(key.bound_value), hasher(key.match_cast));
   }
 };
@@ -114,8 +116,8 @@ class CommonSubexprEliminator : public ExprMutator {
       } else if (auto match_cast = binding.as<MatchCastNode>()) {
         return MatchCast(binding->var, bound_value, match_cast->struct_info);
       } else {
-        LOG(FATAL) << "Binding must be either VarBinding or MatchCast, "
-                   << "but was " << binding->GetTypeKey();
+        TVM_FFI_THROW(InternalError) << "Binding must be either VarBinding or MatchCast, "
+                                     << "but was " << binding->GetTypeKey();
       }
     }();
 
@@ -155,7 +157,7 @@ class CommonSubexprEliminator : public ExprMutator {
     // copy of the mutator, to avoid replacing a child-scope
     // expression with a parent-scope binding, or vice versa.
     if (expr_replacements_.size() || var_remap_.size()) {
-      return VisitWithCleanScope(GetRef<Expr>(op));
+      return VisitWithCleanScope(ffi::GetRef<Expr>(op));
     } else {
       return ExprMutator::VisitExpr_(op);
     }
@@ -168,7 +170,7 @@ class CommonSubexprEliminator : public ExprMutator {
     if (op->cond.same_as(cond) && op->true_branch.same_as(true_branch) &&
         op->false_branch.same_as(false_branch) &&
         VisitAndCheckStructInfoFieldUnchanged(op->struct_info_)) {
-      return GetRef<Expr>(op);
+      return ffi::GetRef<Expr>(op);
     } else {
       return If(cond, true_branch, false_branch, op->span);
     }
@@ -193,7 +195,7 @@ class CommonSubexprEliminator : public ExprMutator {
     static const auto& allocator_attr_map = Op::GetAttrMap<Bool>("TAllocator");
     if (const auto* call = expr.as<CallNode>()) {
       if (const auto* op = call->op.as<OpNode>()) {
-        bool is_allocator = allocator_attr_map.get(GetRef<Op>(op), Bool(false))->value;
+        bool is_allocator = allocator_attr_map.get(ffi::GetRef<Op>(op), Bool(false))->value;
         if (is_allocator) {
           return true;
         }
@@ -222,10 +224,10 @@ Pass EliminateCommonSubexpr(bool call_only) {
   return CreateFunctionPass(pass_func, 1, "EliminateCommonSubexpr", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.transform.EliminateCommonSubexpr", EliminateCommonSubexpr);
-});
+}
 
 }  // namespace transform
 

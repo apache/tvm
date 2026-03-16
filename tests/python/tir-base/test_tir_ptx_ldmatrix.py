@@ -15,10 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import tvm
-from tvm.script import tir as T
 import numpy as np
+
+import tvm
 import tvm.testing
+from tvm.script import tir as T
 
 
 @T.prim_func
@@ -30,9 +31,9 @@ def ptx_ldmatrix(
     tx = T.env_thread("threadIdx.x")
     T.launch_thread(bx, 1)
     T.launch_thread(tx, 32)
-    with T.block():
-        A_shared = T.alloc_buffer([16, 16], "float16", scope="shared")
-        A_local = T.alloc_buffer([8], "float16", scope="local")
+    with T.sblock():
+        A_shared = T.sblock_alloc_buffer([16, 16], "float16", scope="shared")
+        A_local = T.sblock_alloc_buffer([8], "float16", scope="local")
 
         for i in range(8):
             A_shared[i * 2 + tx // 16, tx % 16] = A[i * 2 + tx // 16, tx % 16]
@@ -87,8 +88,8 @@ def test_ptx_ldmatrix():
                     A_mask_np[:16, :16] = A_np[:16, :16]
             B_np = np.zeros((16, 16)).astype("float16")
             dev = tvm.cuda(0)
-            A_nd = tvm.nd.array(A_np, device=dev)
-            B_nd = tvm.nd.array(B_np, device=dev)
+            A_nd = tvm.runtime.tensor(A_np, device=dev)
+            B_nd = tvm.runtime.tensor(B_np, device=dev)
             mod(A_nd, B_nd)
             tvm.testing.assert_allclose(B_nd.numpy(), A_mask_np)
 

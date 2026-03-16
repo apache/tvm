@@ -65,7 +65,7 @@ using FInferStructInfo = ffi::TypedFunction<StructInfo(const Call& call, const B
  * \brief Packed function implementation for operators. The relax operator will be lowered to
  * this packed function call during codegen.
  */
-using FCallPacked = String;
+using FCallPacked = ffi::String;
 
 /*!
  * \brief The function type of a normalization function.
@@ -142,7 +142,7 @@ using FLowerBuiltin = ffi::TypedFunction<Expr(const BlockBuilder& bb, const Call
  * \param ctx the current block builder context.
  * \return the gradient for each parameter.
  */
-using FPrimalGradient = ffi::TypedFunction<tvm::Array<Expr>(
+using FPrimalGradient = ffi::TypedFunction<tvm::ffi::Array<Expr>(
     const Var& orig_var, const Call& orig_call, const Var& output_grad, const BlockBuilder& ctx)>;
 
 }  // namespace relax

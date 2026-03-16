@@ -24,8 +24,8 @@ import java.util.Map;
  * Container of compiled functions of TVM.
  */
 public class Module extends TVMObject {
-  private static ThreadLocal<Map<String, Function>> apiFuncs
-      = new ThreadLocal<Map<String, Function>>() {
+  private static ThreadLocal<Map<String, Function>> apiFuncs =
+      new ThreadLocal<Map<String, Function>>() {
         @Override
         protected Map<String, Function> initialValue() {
           return new HashMap<String, Function>();
@@ -35,7 +35,7 @@ public class Module extends TVMObject {
   private static Function getApi(String name) {
     Function func = apiFuncs.get().get(name);
     if (func == null) {
-      func = Function.getFunction("runtime." + name);
+      func = Function.getFunction(name);
       apiFuncs.get().put(name, func);
     }
     return func;
@@ -46,14 +46,14 @@ public class Module extends TVMObject {
   }
 
   private Function entry = null;
-  private final String entryName = "__tvm_main__";
-
+  private final String entryName = "main";
 
   /**
    * Easy for user to get the instance from returned TVMValue.
    * @return this
    */
-  @Override public Module asModule() {
+  @Override
+  public Module asModule() {
     return this;
   }
 
@@ -75,8 +75,11 @@ public class Module extends TVMObject {
    * @return The result function.
    */
   public Function getFunction(String name, boolean queryImports) {
-    TVMValue ret = getApi("ModuleGetFunction")
-        .pushArg(this).pushArg(name).pushArg(queryImports ? 1 : 0).invoke();
+    TVMValue ret = getApi("ffi.ModuleGetFunction")
+                       .pushArg(this)
+                       .pushArg(name)
+                       .pushArg(queryImports ? 1 : 0)
+                       .invoke();
     return ret.asFunction();
   }
 
@@ -89,8 +92,7 @@ public class Module extends TVMObject {
    * @param module The other module.
    */
   public void importModule(Module module) {
-    getApi("ModuleImport")
-        .pushArg(this).pushArg(module).invoke();
+    getApi("ffi.ModuleImportModule").pushArg(this).pushArg(module).invoke();
   }
 
   /**
@@ -98,7 +100,7 @@ public class Module extends TVMObject {
    * @return type key of the module.
    */
   public String typeKey() {
-    return getApi("ModuleGetTypeKey").pushArg(this).invoke().asString();
+    return getApi("ffi.ModuleGetTypeKind").pushArg(this).invoke().asString();
   }
 
   /**
@@ -109,7 +111,7 @@ public class Module extends TVMObject {
    * @return The loaded module
    */
   public static Module load(String path, String fmt) {
-    TVMValue ret = getApi("ModuleLoadFromFile").pushArg(path).pushArg(fmt).invoke();
+    TVMValue ret = getApi("ffi.ModuleLoadFromFile").pushArg(path).pushArg(fmt).invoke();
     return ret.asModule();
   }
 
@@ -125,7 +127,7 @@ public class Module extends TVMObject {
    * @return Whether runtime is enabled.
    */
   public static boolean enabled(String target) {
-    TVMValue ret = getApi("RuntimeEnabled").pushArg(target).invoke();
+    TVMValue ret = getApi("runtime.RuntimeEnabled").pushArg(target).invoke();
     return ret.asLong() != 0;
   }
 }

@@ -26,6 +26,7 @@
 
 #include <tvm/arith/int_set.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/tir/analysis.h>
 
 #include <utility>
@@ -36,19 +37,20 @@ namespace tir {
 /*! \brief Generate surrounding loops automatically */
 class ScriptCompleter : public StmtMutator {
  public:
-  explicit ScriptCompleter(Map<Var, Buffer>* buffer_var_map) : buffer_var_map_(buffer_var_map) {}
+  explicit ScriptCompleter(ffi::Map<Var, Buffer>* buffer_var_map)
+      : buffer_var_map_(buffer_var_map) {}
 
  private:
-  Map<Var, Buffer>* buffer_var_map_;
-  Stmt VisitStmt_(const BlockRealizeNode* op) final {
+  ffi::Map<Var, Buffer>* buffer_var_map_;
+  Stmt VisitStmt_(const SBlockRealizeNode* op) final {
     for (const PrimExpr& value : op->iter_values) {
-      CHECK(value.dtype().is_int())
+      TVM_FFI_ICHECK(value.dtype().is_int())
           << "BlockRealize iter_value expected a IntImm, but got " << value.dtype();
     }
     return StmtMutator::VisitStmt_(op);
   }
 
-  Stmt VisitStmt_(const BlockNode* op) final {
+  Stmt VisitStmt_(const SBlockNode* op) final {
     // Buffers allocated in the block can be accessed by its body.
     for (const auto& alloc_buffer : op->alloc_buffers) {
       buffer_var_map_->Set(alloc_buffer->data, alloc_buffer);
@@ -60,7 +62,7 @@ class ScriptCompleter : public StmtMutator {
 
     bool is_root_block = this->is_root_block_;
     this->is_root_block_ = false;
-    Block block = Downcast<Block>(StmtMutator::VisitStmt_(op));
+    SBlock block = Downcast<SBlock>(StmtMutator::VisitStmt_(op));
     this->is_root_block_ = is_root_block;
 
     // Remove buffers allocated inside block to detect its access region
@@ -74,18 +76,18 @@ class ScriptCompleter : public StmtMutator {
     // Get access detection mask
     // 0 for provided region, 1 and 3 for need detect read, 2 and 3 for need detect write
     int mask = 0;
-    auto it = op->annotations.find(attr::script_parsing_detect_access);
+    auto it = op->annotations.find(s_tir::attr::script_parsing_detect_access);
     if (it != op->annotations.end()) {
       mask = Downcast<IntImm>((*it).second)->value;
     }
     // ignore root block or blocks which already has reads/writes regions
     if (mask != 0) {
-      auto access_region = GetBlockAccessRegion(block, *buffer_var_map_);
-      const Array<BufferRegion>& reads = access_region[0];
-      const Array<BufferRegion>& writes = access_region[1];
-      const Array<BufferRegion>& opaque = access_region[2];
-      CHECK(opaque.empty())
-          << "ValueError: Can not auto detect buffer access region from tir.Load, tir.Store or "
+      auto access_region = GetSBlockAccessRegion(block, *buffer_var_map_);
+      const ffi::Array<BufferRegion>& reads = access_region[0];
+      const ffi::Array<BufferRegion>& writes = access_region[1];
+      const ffi::Array<BufferRegion>& opaque = access_region[2];
+      TVM_FFI_CHECK(opaque.empty(), ValueError)
+          << "Can not auto detect buffer access region from tir.Load, tir.Store or "
              "direct access by buffer data. Please annotation the access region manually";
       auto n = CopyOnWrite(block.operator->());
       if (!is_root_block) {
@@ -93,29 +95,34 @@ class ScriptCompleter : public StmtMutator {
         if (mask & 2) n->writes = writes;
       }
       n->annotations = op->annotations;
-      n->annotations.erase(attr::script_parsing_detect_access);
-      return Block(n);
+      n->annotations.erase(s_tir::attr::script_parsing_detect_access);
+      return SBlock(n);
     } else {
       return block;
     }
   }
 
-  Stmt VisitStmt_(const DeclBufferNode* op) final {
-    if (buffer_var_map_->count(op->buffer->data)) {
-      return StmtMutator::VisitStmt_(op);
-    } else {
+  Stmt VisitStmt_(const AllocBufferNode* op) final {
+    // AllocBuffer is flat: register buffer for subsequent siblings
+    if (!buffer_var_map_->count(op->buffer->data)) {
       buffer_var_map_->Set(op->buffer->data, op->buffer);
-      auto output = StmtMutator::VisitStmt_(op);
-      buffer_var_map_->erase(op->buffer->data);
-      return output;
     }
+    return StmtMutator::VisitStmt_(op);
+  }
+
+  Stmt VisitStmt_(const DeclBufferNode* op) final {
+    // DeclBuffer is flat: register buffer for subsequent siblings
+    if (!buffer_var_map_->count(op->buffer->data)) {
+      buffer_var_map_->Set(op->buffer->data, op->buffer);
+    }
+    return StmtMutator::VisitStmt_(op);
   }
 
   bool is_root_block_ = true;
 };
 
-PrimFunc ScriptComplete(PrimFunc func, const Array<Buffer>& root_allocates) {
-  Map<Var, Buffer> buffer_var_map;
+PrimFunc ScriptComplete(PrimFunc func, const ffi::Array<Buffer>& root_allocates) {
+  ffi::Map<Var, Buffer> buffer_var_map;
   for (const auto& pair : func->buffer_map) {
     const Buffer& buffer = pair.second;
     buffer_var_map.Set(buffer->data, buffer);
@@ -133,19 +140,19 @@ PrimFunc ScriptComplete(PrimFunc func, const Array<Buffer>& root_allocates) {
     if (root_allocates.size()) {
       return true;
     }
-    auto* block_realize = func->body.as<BlockRealizeNode>();
+    auto* block_realize = func->body.as<SBlockRealizeNode>();
     if (block_realize && block_realize->block->iter_vars.size()) {
       return true;
     }
-    if (!block_realize && ContainsNode<BlockRealizeNode>(func->body)) {
+    if (!block_realize && ContainsNode<SBlockRealizeNode>(func->body)) {
       return true;
     }
     return false;
   }();
 
   if (should_insert_root) {
-    Block root_block({}, {}, {}, "root", std::move(res), std::nullopt, root_allocates);
-    res = BlockRealize({}, Bool(true), std::move(root_block));
+    SBlock root_block({}, {}, {}, "root", std::move(res), std::nullopt, root_allocates);
+    res = SBlockRealize({}, Bool(true), std::move(root_block));
   }
 
   // generate surrounding loops automatically
@@ -161,10 +168,10 @@ PrimFunc ScriptComplete(PrimFunc func, const Array<Buffer>& root_allocates) {
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("script.Complete", ScriptComplete);
-});
+}
 
 }  // namespace tir
 }  // namespace tvm

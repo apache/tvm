@@ -32,7 +32,7 @@ namespace relax {
 
 /*! \brief Attributes used in allreduce operators */
 struct AllReduceAttrs : public tvm::AttrsNodeReflAdapter<AllReduceAttrs> {
-  String op_type;
+  ffi::String op_type;
   bool in_group;
 
   static void RegisterReflection() {
@@ -45,9 +45,7 @@ struct AllReduceAttrs : public tvm::AttrsNodeReflAdapter<AllReduceAttrs> {
                 "Whether the reduction operation performs in group or globally or in group as "
                 "default.");
   }
-
-  static constexpr const char* _type_key = "relax.attrs.AllReduceAttrs";
-  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(AllReduceAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.AllReduceAttrs", AllReduceAttrs, BaseAttrsNode);
 };  // struct AllReduceAttrs
 
 /*! \brief Attributes used in allgather operators */
@@ -65,9 +63,7 @@ struct AllGatherAttrs : public tvm::AttrsNodeReflAdapter<AllGatherAttrs> {
                 "Whether the allgather operation performs in group or globally or in group as "
                 "default.");
   }
-
-  static constexpr const char* _type_key = "relax.attrs.AllGatherAttrs";
-  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(AllGatherAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.AllGatherAttrs", AllGatherAttrs, BaseAttrsNode);
 };  // struct AllGatherAttrs
 
 /*! \brief Attributes used in scatter operators */
@@ -85,9 +81,8 @@ struct ScatterCollectiveAttrs : public tvm::AttrsNodeReflAdapter<ScatterCollecti
                 "The axis of the tensor to be scattered. The tensor will be chunked along "
                 "this axis.");
   }
-
-  static constexpr const char* _type_key = "relax.attrs.ScatterCollectiveAttrs";
-  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(ScatterCollectiveAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ScatterCollectiveAttrs", ScatterCollectiveAttrs,
+                                    BaseAttrsNode);
 };  // struct ScatterCollectiveAttrs
 
 }  // namespace relax

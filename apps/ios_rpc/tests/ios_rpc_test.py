@@ -21,11 +21,9 @@ And configure the proxy host field as commented.
 """
 
 import argparse
-import os
-import re
-import sys
 
 import numpy as np
+
 import tvm
 from tvm import rpc, te
 from tvm.contrib import utils, xcode
@@ -33,13 +31,13 @@ from tvm.contrib import utils, xcode
 # Change target configuration, this is setting for iphone6s
 arch = "arm64"
 sdk = "iphoneos"
-target = "llvm -mtriple=%s-apple-darwin" % arch
+target = {"kind": "llvm", "mtriple": f"{arch}-apple-darwin"}
 
 MODES = {"proxy": rpc.connect, "tracker": rpc.connect_tracker, "standalone": rpc.connect}
 
 
 # override metal compiler to compile to iphone
-@tvm.register_func("tvm_callback_metal_compile")
+@tvm.register_global_func("tvm_callback_metal_compile")
 def compile_metal(src, target):
     return xcode.compile_metal(src, sdk=sdk)
 
@@ -51,8 +49,8 @@ def test_rpc_module(host, port, key, mode):
     B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
     temp = utils.tempdir()
     mod = tvm.IRModule.from_expr(te.create_prim_func([A, B]).with_attr("global_symbol", "myadd"))
-    sch = tvm.tir.Schedule(mod)
-    (i,) = sch.get_loops(block=sch.get_block("B"))
+    sch = tvm.s_tir.Schedule(mod)
+    (i,) = sch.get_loops(block=sch.get_sblock("B"))
     i0, i1 = sch.split(i, [None, 32])
     sch.bind(i0, "blockIdx.x")
     sch.bind(i1, "threadIdx.x")
@@ -72,11 +70,11 @@ def test_rpc_module(host, port, key, mode):
     dev = remote.metal(0)
     f1 = remote.load_module("dev_lib.dylib")
     a_np = np.random.uniform(size=1024).astype(A.dtype)
-    a = tvm.nd.array(a_np, dev)
-    b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), dev)
+    a = tvm.runtime.tensor(a_np, dev)
+    b = tvm.runtime.tensor(np.zeros(1024, dtype=A.dtype), dev)
     time_f = f1.time_evaluator(f1.entry_name, dev, number=10)
     cost = time_f(a, b).mean
-    print("Metal: %g secs/op" % cost)
+    print(f"Metal: {cost:g} secs/op")
     np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
 

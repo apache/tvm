@@ -81,14 +81,14 @@ bool CanProveVscaleExpressionFromKnownValues(arith::Analyzer* analyzer, const Pr
  * \param target The target to check.
  * \return Whether VLA is supported
  */
-bool TargetHasVLA(Optional<Target> target = std::nullopt);
+bool TargetHasVLA(ffi::Optional<Target> target = std::nullopt);
 
 /*!
  * \brief Get a list of known vscale values to try for an VLA target.
  * \param target The target to check.
  * \return A list of vscale values as std::vector<usigned int>
  */
-const std::vector<unsigned int> GetVScaleValues(Optional<Target> target = std::nullopt);
+const std::vector<unsigned int> GetVScaleValues(ffi::Optional<Target> target = std::nullopt);
 
 }  // namespace arith
 }  // namespace tvm

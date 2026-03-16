@@ -19,11 +19,10 @@
 import argparse
 import logging
 import re
-from pathlib import Path
-from typing import List
 from enum import Enum
+from pathlib import Path
 
-from cmd_utils import Sh, REPO_ROOT, init_log
+from cmd_utils import REPO_ROOT, Sh, init_log
 
 RETRY_SCRIPT = REPO_ROOT / "ci" / "scripts" / "jenkins" / "retry.sh"
 S3_DOWNLOAD_REGEX = re.compile(r"download: s3://.* to (.*)")
@@ -40,7 +39,7 @@ def show_md5(item: str) -> None:
         sh.run(f"md5sum {item}")
 
 
-def parse_output_files(stdout: str) -> List[str]:
+def parse_output_files(stdout: str) -> list[str]:
     """
     Grab the list of downloaded files from the output of 'aws s3 cp'. Lines look
     like:
@@ -59,7 +58,7 @@ def parse_output_files(stdout: str) -> List[str]:
     return files
 
 
-def chmod(files: List[str]) -> None:
+def chmod(files: list[str]) -> None:
     """
     S3 has no concept of file permissions so add them back in here to every file
     """
@@ -70,7 +69,7 @@ def chmod(files: List[str]) -> None:
         SH.run(f"chmod +x {' '.join(to_chmod)}")
 
 
-def s3(source: str, destination: str, recursive: bool) -> List[str]:
+def s3(source: str, destination: str, recursive: bool) -> list[str]:
     """
     Send or download the source to the destination in S3
     """

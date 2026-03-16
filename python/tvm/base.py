@@ -16,7 +16,9 @@
 # under the License.
 # coding: utf-8
 # pylint: disable=invalid-name, import-outside-toplevel
+# ruff: noqa: F401
 """Base library for TVM."""
+
 import ctypes
 import os
 import sys
@@ -62,7 +64,7 @@ _RUNTIME_ONLY = "runtime" in _LIB_NAME
 
 
 if _RUNTIME_ONLY:
-    from .ffi import registry as _tvm_ffi_registry
+    from tvm_ffi import registry as _tvm_ffi_registry
 
     _tvm_ffi_registry._SKIP_UNKNOWN_OBJECTS = True
 

@@ -38,8 +38,8 @@ TEST(IRF, Basic) {
   NodeFunctor<int(const ObjectRef& n, int b)> f;
   f.set_dispatch<VarNode>([](const ObjectRef& n, int b) { return b; });
   f.set_dispatch<AddNode>([](const ObjectRef& n, int b) { return b + 2; });
-  ICHECK_EQ(f(x, 2), 2);
-  ICHECK_EQ(f(z, 2), 4);
+  TVM_FFI_ICHECK_EQ(f(x, 2), 2);
+  TVM_FFI_ICHECK_EQ(f(z, 2), 4);
 }
 
 TEST(IRF, CountVar) {
@@ -52,7 +52,7 @@ TEST(IRF, CountVar) {
   tir::PostOrderVisit(z, [&n_var](const ObjectRef& n) {
     if (n.as<VarNode>()) ++n_var;
   });
-  ICHECK_EQ(n_var, 2);
+  TVM_FFI_ICHECK_EQ(n_var, 2);
 }
 
 TEST(IRF, PreOrderVisit) {
@@ -60,9 +60,9 @@ TEST(IRF, PreOrderVisit) {
   using namespace tvm::tir;
   Stmt init = IfThenElse(const_true(), Evaluate(Integer(0)), Evaluate(Integer(0)));
   Stmt body = Evaluate(Integer(1));
-  Block block(/*iter_vars=*/{}, /*reads=*/{},
-              /*writes=*/{}, /*name_hint=*/"block", /*body=*/body,
-              /*init=*/init);
+  SBlock block(/*iter_vars=*/{}, /*reads=*/{},
+               /*writes=*/{}, /*name_hint=*/"block", /*body=*/body,
+               /*init=*/init);
   bool init_visited = false;
   bool stopped_at_if = true;
   bool body_visited = false;
@@ -78,7 +78,7 @@ TEST(IRF, PreOrderVisit) {
         } else if (int_imm->value == 1) {
           body_visited = true;
         } else {
-          LOG(FATAL) << "Unreachable";
+          TVM_FFI_THROW(InternalError) << "Unreachable";
         }
       }
     }
@@ -104,11 +104,11 @@ TEST(IRF, ExprTransform) {
     }
   };
   MyExprFunctor f;
-  ICHECK_EQ(f(x, 2), 2);
-  ICHECK_EQ(f(z, 2), 3);
+  TVM_FFI_ICHECK_EQ(f(x, 2), 2);
+  TVM_FFI_ICHECK_EQ(f(z, 2), 3);
   try {
     f(z - 1, 2);
-    LOG(FATAL) << "should fail";
+    TVM_FFI_THROW(InternalError) << "should fail";
   } catch (Error&) {
   }
 }
@@ -134,7 +134,7 @@ TEST(IRF, ExprVisit) {
   };
   MyVisitor v;
   v.VisitStmt(Evaluate(z));
-  ICHECK_EQ(v.count, 1);
+  TVM_FFI_ICHECK_EQ(v.count, 1);
 }
 
 TEST(IRF, StmtVisitor) {
@@ -150,13 +150,17 @@ TEST(IRF, StmtVisitor) {
   MyVisitor v;
   auto fmaketest = [&]() {
     auto z = x + 1;
-    Stmt body = Evaluate(z);
+    Stmt eval_body = Evaluate(z);
     DataType dtype = DataType::Float(32);
-    Var buffer("b", PointerType(PrimType(dtype)));
-    return Allocate(buffer, dtype, {z, z}, const_true(), body);
+    Var data_var("b", PointerType(PrimType(dtype)));
+    Buffer buf(data_var, dtype, {z, z}, {}, PrimExpr(), "b", 0, 0, BufferType::kDefault);
+    // AllocBuffer is flat (no body). Return as SeqStmt with eval.
+    return SeqStmt({AllocBuffer(buf), eval_body});
   };
   v(fmaketest());
-  ICHECK_EQ(v.count, 3);
+  // AllocBuffer visits buffer shape via VisitBufferDef.
+  // shape = {z, z} where z = x + 1, so x is visited twice from shape + once from eval = 3
+  TVM_FFI_ICHECK_EQ(v.count, 3);
 
   {
     // tests for block and block_realize
@@ -164,18 +168,22 @@ TEST(IRF, StmtVisitor) {
     DataType dtype = DataType::Float(32);
     Var buf_var("b", PointerType(PrimType(dtype)));
     Buffer buffer = decl_buffer({16});
-    body = DeclBuffer(buffer, std::move(body));
+    body = SeqStmt({DeclBuffer(buffer), std::move(body)});
     BufferRegion buffer_region(buffer, {Range::FromMinExtent(x + 1, 1)});
     MatchBufferRegion match_buffer_region(decl_buffer({1}), buffer_region);
 
     // construct block and block_realize
-    Block block =
-        Block({}, {buffer_region}, {buffer_region}, "block", body, body, {}, {match_buffer_region});
-    Stmt block_realize = BlockRealize({}, const_true(), block);
+    SBlock block = SBlock({}, {buffer_region}, {buffer_region}, "block", body, body, {},
+                          {match_buffer_region});
+    Stmt block_realize = SBlockRealize({}, const_true(), block);
 
     v.count = 0;
     v(block_realize);
-    ICHECK_EQ(v.count, 9);
+    // x visited in: reads range (1), writes range (1), match_buffers range (1),
+    // init DeclBuffer(0) + AllocBuffer shape(2) + Evaluate(1) = 3,
+    // body DeclBuffer(0) + AllocBuffer shape(2) + Evaluate(1) = 3.
+    // Total: 1 + 1 + 1 + 3 + 3 = 9.
+    TVM_FFI_ICHECK_EQ(v.count, 9);
   }
 }
 
@@ -197,10 +205,10 @@ TEST(IRF, StmtMutator) {
   };
   auto fmakealloc = [&]() {
     auto z = x + 1;
-    Stmt body = Evaluate(z);
     DataType dtype = DataType::Float(32);
-    Var buffer("b", PointerType(PrimType(dtype)));
-    return Allocate(buffer, dtype, {1, z}, const_true(), body);
+    Var data_var("b", PointerType(PrimType(dtype)));
+    Buffer buf(data_var, dtype, {1, z}, {}, PrimExpr(), "b", 0, 0, BufferType::kDefault);
+    return AllocBuffer(buf);
   };
 
   auto fmakeif = [&]() {
@@ -211,102 +219,110 @@ TEST(IRF, StmtMutator) {
 
   MyVisitor v;
   {
-    auto body = fmakealloc();
+    auto alloc = fmakealloc();
     Stmt body2 = Evaluate(1);
-    Stmt bref = body.as<AllocateNode>()->body;
-    auto* extentptr = body.as<AllocateNode>()->extents.get();
-    Array<Stmt> arr{std::move(body), body2, body2};
+    auto* bufptr = alloc.as<AllocBufferNode>()->buffer.get();
+    ffi::Array<Stmt> arr{std::move(alloc), body2, body2};
     auto* arrptr = arr.get();
     arr.MutateByApply([&](Stmt s) { return v(std::move(s)); });
-    ICHECK(arr.get() == arrptr);
-    // inplace update body
-    ICHECK(arr[0].as<AllocateNode>()->extents[1].same_as(x));
-    ICHECK(arr[0].as<AllocateNode>()->extents.get() == extentptr);
-    // copy because there is additional refs
-    ICHECK(!arr[0].as<AllocateNode>()->body.same_as(bref));
-    ICHECK(arr[0].as<AllocateNode>()->body.as<EvaluateNode>()->value.same_as(x));
-    ICHECK(bref.as<EvaluateNode>()->value.as<AddNode>());
+    TVM_FFI_ICHECK(arr.get() == arrptr);
+    // buffer IS mutated now (AllocBuffer mutator visits buffer shape via VisitBufferDef)
+    // shape was {1, x+1}, mutator transforms x+1 -> x, so buffer changes
+    TVM_FFI_ICHECK(arr[0].as<AllocBufferNode>()->buffer.get() != bufptr);
   }
   {
-    Array<Stmt> arr{fmakealloc()};
-    // mutate array get reference by another one, triiger copy.
-    Array<Stmt> arr2 = arr;
+    ffi::Array<Stmt> arr{fmakealloc()};
+    // mutate array get reference by another one, trigger copy.
+    ffi::Array<Stmt> arr2 = arr;
     auto* arrptr = arr.get();
     arr.MutateByApply([&](Stmt s) { return v(std::move(s)); });
-    ICHECK(arr.get() != arrptr);
-    ICHECK(arr[0].as<AllocateNode>()->extents[1].same_as(x));
-    ICHECK(!arr2[0].as<AllocateNode>()->extents[1].same_as(x));
+    TVM_FFI_ICHECK(arr.get() != arrptr);
+    // buffer is mutated in arr but not in arr2
+    TVM_FFI_ICHECK(arr[0].as<AllocBufferNode>()->buffer.get() !=
+                   arr2[0].as<AllocBufferNode>()->buffer.get());
     // mutate but no content change.
     arr2 = arr;
     arr.MutateByApply([&](Stmt s) { return v(std::move(s)); });
-    ICHECK(arr2.get() == arr.get());
+    TVM_FFI_ICHECK(arr2.get() == arr.get());
   }
   {
-    Array<Stmt> arr{fmakeif()};
+    ffi::Array<Stmt> arr{fmakeif()};
     arr.MutateByApply([&](Stmt s) { return v(std::move(s)); });
-    ICHECK(arr[0].as<IfThenElseNode>()->else_case.as<EvaluateNode>()->value.same_as(x));
+    TVM_FFI_ICHECK(arr[0].as<IfThenElseNode>()->else_case.as<EvaluateNode>()->value.same_as(x));
     // mutate but no content change.
     auto arr2 = arr;
     arr.MutateByApply([&](Stmt s) { return v(std::move(s)); });
-    ICHECK(arr2.get() == arr.get());
+    TVM_FFI_ICHECK(arr2.get() == arr.get());
   }
 
   {
     auto body =
         Evaluate(Call(DataType::Int(32), builtin::call_extern(), {StringImm("xyz"), x + 1}));
     auto res = v(std::move(body));
-    ICHECK(res.as<EvaluateNode>()->value.as<CallNode>()->args[1].same_as(x));
+    TVM_FFI_ICHECK(res.as<EvaluateNode>()->value.as<CallNode>()->args[1].same_as(x));
   }
   {
     Stmt body = fmakealloc();
     Stmt body2 = Evaluate(1);
     auto* ref2 = body2.get();
-    auto* extentptr = body.as<AllocateNode>()->extents.get();
+    auto* bufptr = body.as<AllocBufferNode>()->buffer.get();
     // construct a recursive SeqStmt.
     body = SeqStmt({body, body2});
     body = SeqStmt({body, body2});
     body = v(std::move(body));
     // the seq get flattened
-    ICHECK(body.as<SeqStmtNode>()->size() == 3);
-    ICHECK(body.as<SeqStmtNode>()->seq[0].as<AllocateNode>()->extents.get() == extentptr);
-    ICHECK(body.as<SeqStmtNode>()->seq[1].get() == ref2);
+    TVM_FFI_ICHECK(body.as<SeqStmtNode>()->size() == 3);
+    // buffer is now mutated (shape x+1 -> x via VisitBufferDef)
+    TVM_FFI_ICHECK(body.as<SeqStmtNode>()->seq[0].as<AllocBufferNode>()->buffer.get() != bufptr);
+    TVM_FFI_ICHECK(body.as<SeqStmtNode>()->seq[1].get() == ref2);
   }
 
   {
     // Cannot cow because of bref
     Stmt body = fmakealloc();
     Stmt body2 = Evaluate(1);
-    auto* extentptr = body.as<AllocateNode>()->extents.get();
     // construct a recursive SeqStmt.
     body = SeqStmt({body, body2});
     auto bref = body;
     body = SeqStmt({body, body2});
     body = v(std::move(body));
     // the seq get flattened
-    ICHECK(body.as<SeqStmtNode>()->seq[0].as<AllocateNode>()->extents.get() != extentptr);
+    TVM_FFI_ICHECK(body.as<SeqStmtNode>()->size() == 3);
+    // buffer is mutated (shape x+1 -> x via VisitBufferDef)
+    TVM_FFI_ICHECK(body.as<SeqStmtNode>()->seq[0].as<AllocBufferNode>() != nullptr);
+    // bref still holds the old SeqStmt (not shared with new one due to copy)
+    TVM_FFI_ICHECK(!bref.same_as(body));
   }
 
   {
     // tests for block and block_realize
-    Stmt body = fmakealloc();
-    DataType dtype = DataType::Float(32);
-    Var buf_var("b", PointerType(PrimType(dtype)));
+    // AllocBuffer and DeclBuffer are flat (no body), placed as siblings in SeqStmt
+    Stmt eval_body = Evaluate(x + 1);
     Buffer buffer = decl_buffer({16});
-    body = DeclBuffer(buffer, std::move(body));
+    Stmt decl = DeclBuffer(buffer);
+    Stmt alloc = fmakealloc();
+    // body is: DeclBuffer, AllocBuffer, Evaluate
+    Stmt body = SeqStmt({decl, alloc, eval_body});
     BufferRegion buffer_region(buffer, {Range::FromMinExtent(x + 1, 1)});
     MatchBufferRegion match_buffer_region(decl_buffer({1}), buffer_region);
     // construct block and block_realize
-    Block block =
-        Block({}, {buffer_region}, {buffer_region}, "block", body, body, {}, {match_buffer_region});
-    Stmt block_realize = BlockRealize({}, const_true(), block);
+    SBlock block = SBlock({}, {buffer_region}, {buffer_region}, "block", body, body, {},
+                          {match_buffer_region});
+    Stmt block_realize = SBlockRealize({}, const_true(), block);
     body = v(std::move(block_realize));
     // the body should be changed
-    Block new_block = body.as<BlockRealizeNode>()->block;
-    ICHECK(new_block->body.as<DeclBufferNode>()->body.as<AllocateNode>()->extents[1].same_as(x));
-    ICHECK(new_block->init.as<DeclBufferNode>()->body.as<AllocateNode>()->extents[1].same_as(x));
-    ICHECK(new_block->reads[0]->region[0]->min.same_as(x));
-    ICHECK(new_block->writes[0]->region[0]->min.same_as(x));
-    ICHECK(new_block->match_buffers[0]->source->region[0]->min.same_as(x));
+    SBlock new_block = body.as<SBlockRealizeNode>()->block;
+    // body is a SeqStmt; the Evaluate(x+1) -> Evaluate(x)
+    auto* seq = new_block->body.as<SeqStmtNode>();
+    TVM_FFI_ICHECK(seq != nullptr);
+    TVM_FFI_ICHECK(seq->seq[2].as<EvaluateNode>()->value.same_as(x));
+    auto* init_seq = new_block->init.value().as<SeqStmtNode>();
+    TVM_FFI_ICHECK(init_seq != nullptr);
+    TVM_FFI_ICHECK(init_seq->seq[2].as<EvaluateNode>()->value.same_as(x));
+    // buffer region min is mutated: x+1 -> x
+    TVM_FFI_ICHECK(new_block->reads[0]->region[0]->min.same_as(x));
+    TVM_FFI_ICHECK(new_block->writes[0]->region[0]->min.same_as(x));
+    TVM_FFI_ICHECK(new_block->match_buffers[0]->source->region[0]->min.same_as(x));
   }
 }
 
@@ -315,39 +331,48 @@ TEST(IRF, Substitute) {
   using namespace tvm::tir;
   DataType dtype = DataType::Float(32);
   Var x("x", PointerType(PrimType(dtype), ""));
-  auto fmaketest = [&]() {
-    Buffer buffer{/*data=*/x,
+  Var n("n", DataType::Int(32));
+
+  auto fmakebuffer = [&]() {
+    return Buffer{/*data=*/x,
                   /*dtype=*/DataType::Float(32),
-                  /*shape=*/{},
+                  /*shape=*/{n},
                   /*strides=*/{},
                   /*elem_offset=*/NullValue<PrimExpr>(),
                   /*name=*/"buf",
                   /*data_alignment=*/1,
                   /*offset_factor=*/1,
                   /*buffer_type=*/BufferType::kDefault};
-    return BufferLoad(buffer, {});
   };
 
   {
-    // test substitute buffer var
+    // test substitute buffer data var and shape var via DeclBuffer
     Var y = x.copy_with_suffix("subst");
-    BufferLoad buffer_load = fmaketest();
-    auto f_subst = [&](const Var& var) -> Optional<PrimExpr> {
-      if (var.same_as(x)) {
-        return y;
-      }
+    Var m("m", DataType::Int(32));
+    Buffer buffer = fmakebuffer();
+    Stmt store = BufferStore(buffer, FloatImm(dtype, 0), {IntImm(DataType::Int(32), 0)});
+    Stmt decl = SeqStmt({DeclBuffer(buffer), store});
+    auto f_subst = [&](const Var& var) -> ffi::Optional<PrimExpr> {
+      if (var.same_as(x)) return y;
+      if (var.same_as(n)) return m;
       return std::nullopt;
     };
-    BufferLoad new_buffer_load = Downcast<BufferLoad>(Substitute(buffer_load, f_subst));
-    ICHECK(new_buffer_load->buffer->data.same_as(y));
+    Stmt new_decl = Substitute(decl, f_subst);
+    auto* seq_node = new_decl.as<SeqStmtNode>();
+    TVM_FFI_ICHECK(seq_node != nullptr);
+    auto* decl_node = seq_node->seq[0].as<DeclBufferNode>();
+    TVM_FFI_ICHECK(decl_node != nullptr);
+    TVM_FFI_ICHECK(decl_node->buffer->data.same_as(y));
+    TVM_FFI_ICHECK(decl_node->buffer->shape[0].same_as(m));
   }
 
   {
-    // test identity substitution
-    PrimExpr expr = fmaketest();
-    auto f_subst = [&](const Var& var) -> Optional<PrimExpr> { return var; };
+    // test identity substitution on expression
+    Buffer buffer = fmakebuffer();
+    PrimExpr expr = BufferLoad(buffer, {IntImm(DataType::Int(32), 0)});
+    auto f_subst = [&](const Var& var) -> ffi::Optional<PrimExpr> { return var; };
     PrimExpr new_expr = Substitute(expr, f_subst);
     // the expression is not changed
-    ICHECK(new_expr.same_as(expr));
+    TVM_FFI_ICHECK(new_expr.same_as(expr));
   }
 }

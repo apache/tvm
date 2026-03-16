@@ -25,11 +25,7 @@
 #ifdef TVM_LLVM_VERSION
 
 #include <llvm/ADT/ArrayRef.h>
-#if TVM_LLVM_VERSION >= 150
 #include <llvm/IR/FMF.h>
-#else
-#include <llvm/IR/Operator.h>
-#endif
 #include <llvm/Support/CodeGen.h>
 #include <llvm/Target/TargetOptions.h>
 #include <tvm/ffi/container/array.h>
@@ -50,6 +46,9 @@
 #else
 #define llvmGetPointerTo(arg, offset) (arg->getPointerTo(offset))
 #endif
+
+#define llvmGetIntrinName(id) \
+  std::string(llvm::Intrinsic::getBaseName(static_cast<llvm::Intrinsic::ID>(id)))
 
 namespace llvm {
 class LLVMContext;
@@ -169,7 +168,7 @@ class LLVMTargetInfo {
    * \param target TVM JSON Target object for target "llvm"
    */
   // NOLINTNEXTLINE(runtime/references)
-  LLVMTargetInfo(LLVMInstance& instance, const TargetJSON& target);
+  LLVMTargetInfo(LLVMInstance& instance, const ffi::Map<ffi::String, ffi::Any>& target);
 
   /*!
    * \brief Destroys LLVMTargetInfo object
@@ -309,14 +308,21 @@ class LLVMTargetInfo {
    * \brief Get all supported targets from the LLVM backend
    * \return list with all valid targets
    */
-  const Array<String> GetAllLLVMTargets() const;
+  const ffi::Array<ffi::String> GetAllLLVMTargets() const;
 
   /*!
    * \brief Get all CPU arches from target
    * \return list with all valid cpu architectures
    * \note The arches are fetched from the LLVM backend using the target `-mtriple`.
    */
-  const Array<String> GetAllLLVMTargetArches() const;
+  const ffi::Array<ffi::String> GetAllLLVMTargetArches() const;
+
+  /*!
+   * \brief Check if a CPU name is valid for this target triple
+   * \param cpu The CPU name to validate
+   * \return true if the CPU is recognized (including aliases)
+   */
+  bool IsValidCPU(const std::string& cpu) const;
 
   /*!
    * \brief Get all CPU features from target
@@ -325,7 +331,7 @@ class LLVMTargetInfo {
    * \note The features are fetched from the LLVM backend using the target `-mtriple`
    *       and the `-mcpu` architecture, but also consider the `-mattr` attributes.
    */
-  const Map<String, String> GetAllLLVMCpuFeatures() const;
+  const ffi::Map<ffi::String, ffi::String> GetAllLLVMCpuFeatures() const;
 
   /*!
    * \brief Check the target if has a specific cpu feature

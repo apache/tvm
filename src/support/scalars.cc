@@ -19,7 +19,7 @@
 
 /*!
  * \file src/support/scalars.cc
- * \brief Helpers for converting between scalars in native, text, TIR immediate and NDArray forms.
+ * \brief Helpers for converting between scalars in native, text, TIR immediate and Tensor forms.
  */
 
 #include "./scalars.h"
@@ -38,9 +38,9 @@ static const DataType kFloat32 = DataType::Float(32);
 static const DataType kFloat64 = DataType::Float(64);
 static const DataType kBool = DataType::Bool();
 
-runtime::NDArray IntImmToNDArray(const IntImm& int_imm) {
+runtime::Tensor IntImmToTensor(const IntImm& int_imm) {
   DLDevice dev = {DLDeviceType::kDLCPU, 0};
-  auto data = runtime::NDArray::Empty({}, int_imm->dtype, dev);
+  auto data = runtime::Tensor::Empty({}, int_imm->dtype, dev);
   if (int_imm.dtype() == kInt16) {
     auto* array = reinterpret_cast<int16_t*>(data->data);
     array[0] = static_cast<int16_t>(int_imm->value);
@@ -51,14 +51,15 @@ runtime::NDArray IntImmToNDArray(const IntImm& int_imm) {
     auto* array = reinterpret_cast<int64_t*>(data->data);
     array[0] = int_imm->value;
   } else {
-    LOG(FATAL) << "Unrecognized numeric literal dtype: " << DLDataTypeToString(int_imm.dtype());
+    TVM_FFI_THROW(InternalError) << "Unrecognized numeric literal dtype: "
+                                 << DLDataTypeToString(int_imm.dtype());
   }
   return data;
 }
 
-runtime::NDArray FloatImmToNDArray(const FloatImm& float_imm) {
+runtime::Tensor FloatImmToTensor(const FloatImm& float_imm) {
   DLDevice dev = {DLDeviceType::kDLCPU, 0};
-  auto data = runtime::NDArray::Empty({}, float_imm->dtype, dev);
+  auto data = runtime::Tensor::Empty({}, float_imm->dtype, dev);
   if (float_imm.dtype() == kFloat16) {
     auto* array = reinterpret_cast<uint16_t*>(data->data);
     array[0] = __gnu_f2h_ieee(static_cast<float>(float_imm->value));
@@ -69,23 +70,25 @@ runtime::NDArray FloatImmToNDArray(const FloatImm& float_imm) {
     auto* array = reinterpret_cast<double*>(data->data);
     array[0] = float_imm->value;
   } else {
-    LOG(FATAL) << "Unrecognized numeric literal dtype: " << DLDataTypeToString(float_imm.dtype());
+    TVM_FFI_THROW(InternalError) << "Unrecognized numeric literal dtype: "
+                                 << DLDataTypeToString(float_imm.dtype());
   }
   return data;
 }
 
-runtime::NDArray BoolToNDArray(bool value) {
+runtime::Tensor BoolToTensor(bool value) {
   DLDevice dev = {DLDeviceType::kDLCPU, 0};
-  auto data = runtime::NDArray::Empty({}, kBool, dev);
+  auto data = runtime::Tensor::Empty({}, kBool, dev);
   auto array = reinterpret_cast<bool*>(data->data);
   array[0] = value;
   return data;
 }
 
-std::string NDArrayScalarToString(const runtime::NDArray& data) {
+std::string TensorScalarToString(const runtime::Tensor& data) {
   std::ostringstream os;
   DataType dtype(data->dtype);
-  ICHECK_EQ(data->device.device_type, kDLCPU) << "Scalars must reside on the CPU to be printed";
+  TVM_FFI_ICHECK_EQ(data->device.device_type, kDLCPU)
+      << "Scalars must reside on the CPU to be printed";
   if (dtype == kInt16) {
     auto value = static_cast<const int16_t*>(data->data)[0];
     os << value << "i16";
@@ -108,7 +111,8 @@ std::string NDArrayScalarToString(const runtime::NDArray& data) {
     auto value = static_cast<const uint8_t*>(data->data)[0];
     os << (value ? "True" : "False");
   } else {
-    LOG(FATAL) << "Unrecognized NDArray scalar dtype: " << DLDataTypeToString(dtype);
+    TVM_FFI_THROW(InternalError) << "Unrecognized Tensor scalar dtype: "
+                                 << DLDataTypeToString(dtype);
   }
   return os.str();
 }
@@ -124,7 +128,8 @@ std::string IntImmToString(const IntImm& int_imm) {
   } else if (int_imm->dtype == kBool) {
     os << (int_imm->value ? "True" : "False");
   } else {
-    LOG(FATAL) << "Unrecognised IntImm dtype: " << DLDataTypeToString(int_imm->dtype);
+    TVM_FFI_THROW(InternalError) << "Unrecognised IntImm dtype: "
+                                 << DLDataTypeToString(int_imm->dtype);
   }
   return os.str();
 }
@@ -138,7 +143,8 @@ std::string FloatImmToString(const FloatImm& float_imm) {
   } else if (float_imm->dtype == kFloat64) {
     os << float_imm->value << "f64";
   } else {
-    LOG(FATAL) << "Unrecognised FloatImm dtype: " << DLDataTypeToString(float_imm->dtype);
+    TVM_FFI_THROW(InternalError) << "Unrecognised FloatImm dtype: "
+                                 << DLDataTypeToString(float_imm->dtype);
   }
   return os.str();
 }
@@ -159,7 +165,7 @@ IntImm ValueToIntImm(int64_t value, int width) {
   } else if (width == 64) {
     return IntImm(kInt64, value);
   } else {
-    LOG(FATAL) << "Unrecognized int scalar width: " << width;
+    TVM_FFI_THROW(InternalError) << "Unrecognized int scalar width: " << width;
   }
 }
 
@@ -178,7 +184,7 @@ FloatImm ValueToFloatImm(double value, int width) {
   } else if (width == 64) {
     return FloatImm(kFloat64, value);
   } else {
-    LOG(FATAL) << "Unrecognized float scalar width: " << width;
+    TVM_FFI_THROW(InternalError) << "Unrecognized float scalar width: " << width;
   }
 }
 

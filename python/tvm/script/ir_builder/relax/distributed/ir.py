@@ -15,40 +15,45 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=redefined-builtin, wrong-import-order, no-member, invalid-name, unused-import
+# ruff: noqa: F401
 
 """IRBuilder for distributed Relax dialect"""
-from typing import Union, List, Tuple, Optional
+
 from numbers import Number
+from typing import Optional, Union
 
 import numpy as _np  # type: ignore
-import tvm
 
-from tvm.ir import PrimExpr
-from tvm.relax.expr import Expr, ShapeExpr, Call, ExternFunc, Constant
-from tvm.relax.expr import Tuple as RxTuple
-from tvm.relax.distributed import DTensorStructInfo
-from tvm.relax.utils import args_converter
+import tvm
 from tvm import base as _base
-from tvm.runtime import ndarray as _nd
+from tvm.ir import PrimExpr
+from tvm.relax.distributed import DeviceMesh, DTensorStructInfo, Placement
+from tvm.relax.expr import Call, Constant, Expr, ExternFunc, ShapeExpr
+from tvm.relax.expr import Tuple as RxTuple
 from tvm.relax.op.distributed import (
-    redistribute as _redistribute,
     annotate_sharding as _annotate_sharding,
+)
+from tvm.relax.op.distributed import (
     call_tir_local_view,
     redistribute_replica_to_shard,
 )
-from tvm.relax.distributed import DeviceMesh, Placement
-from . import _ffi_api
-from ..ir import py_str
-from ...ir import IRModuleFrame
+from tvm.relax.op.distributed import (
+    redistribute as _redistribute,
+)
+from tvm.relax.utils import convert_to_expr
+from tvm.runtime import _tensor
+
 from ... import IRBuilder
+from ...ir import IRModuleFrame
+from ..ir import py_str
+from . import _ffi_api
 
 
-@args_converter.auto
 def call_tir(
-    func: Union[str, Expr],
+    func: str | Expr,
     args: Expr,
-    out_sinfo: Union[DTensorStructInfo, List[DTensorStructInfo]],
-    tir_vars: Optional[Union[ShapeExpr, Tuple[PrimExpr], List[PrimExpr]]] = None,
+    out_sinfo: DTensorStructInfo | list[DTensorStructInfo],
+    tir_vars: ShapeExpr | tuple[PrimExpr] | list[PrimExpr] | None = None,
 ) -> Call:
     """Distributed version of call_tir
 
@@ -76,27 +81,29 @@ def call_tir(
     if isinstance(func, str):
         func = ExternFunc(func)
 
-    if isinstance(args, Expr) and not isinstance(args, RxTuple):  # type: ignore
+    if isinstance(args, tuple | list):
+        args = RxTuple([convert_to_expr(a) for a in args])
+    elif isinstance(args, Expr) and not isinstance(args, RxTuple):  # type: ignore
         args = RxTuple((args,))
 
     if not isinstance(out_sinfo, list):
         out_sinfo = [out_sinfo]
 
-    if isinstance(tir_vars, (list, tuple)):
+    if isinstance(tir_vars, list | tuple):
         tir_vars = ShapeExpr(tir_vars)
 
     return _ffi_api.call_tir_dist(func, args, out_sinfo, tir_vars)  # type: ignore
 
 
 def const(
-    value: Union[bool, int, float, _np.ndarray, tvm.nd.NDArray],
+    value: bool | int | float | _np.ndarray | tvm.runtime.Tensor,
     struct_info: DTensorStructInfo,
 ) -> Constant:
     """Create a constant value.
 
     Parameters
     ----------
-    value: Union[bool, int, float, numpy.ndarray, tvm.nd.NDArray]
+    value: Union[bool, int, float, numpy.ndarray, tvm.runtime.Tensor]
         The constant value.
 
     dtype: Optional[str]
@@ -115,16 +122,16 @@ def const(
     if not isinstance(struct_info, DTensorStructInfo):
         raise TypeError("struct_info needs to be an instance of DTensorStructInfo. ")
     dtype = str(struct_info.tensor_sinfo.dtype)
-    if isinstance(value, (Number, (bool, list))):
+    if isinstance(value, Number | (bool | list)):
         value = _np.array(value, dtype=dtype)
 
-    if isinstance(value, (_np.ndarray, _np.generic)):
+    if isinstance(value, _np.ndarray | _np.generic):
         if dtype is not None:
             value = value.astype(dtype)
-        value = _nd.array(value)
+        value = _tensor.tensor(value)
 
-    if not isinstance(value, _nd.NDArray):
-        raise ValueError("value has to be scalar or NDArray")
+    if not isinstance(value, _tensor.Tensor):
+        raise ValueError("value has to be scalar or Tensor")
 
     return Constant(value, struct_info)
 
@@ -144,7 +151,7 @@ def _lookup_device_mesh(device_mesh_str: py_str) -> DeviceMesh:
 
 
 def annotate_sharding(
-    value: Expr, device_mesh: Union[py_str, DeviceMesh], placement: Union[py_str, Placement]
+    value: Expr, device_mesh: py_str | DeviceMesh, placement: py_str | Placement
 ) -> Expr:
     if isinstance(device_mesh, py_str):
         device_mesh = _lookup_device_mesh(device_mesh)
@@ -154,7 +161,7 @@ def annotate_sharding(
 
 
 def redistribute(
-    value: Expr, device_mesh: Union[py_str, DeviceMesh], placement: Union[py_str, Placement]
+    value: Expr, device_mesh: py_str | DeviceMesh, placement: py_str | Placement
 ) -> Expr:
     if isinstance(device_mesh, py_str):
         device_mesh = _lookup_device_mesh(device_mesh)

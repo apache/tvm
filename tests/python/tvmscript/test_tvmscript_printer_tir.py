@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-docstring
+# ruff: noqa: E501, F401, F841
 
 import re
 
@@ -111,7 +112,7 @@ def test_block_realize():
     j = tir.Var("j", "int32")
     k = tir.Var("k", "int32")
     with IRBuilder() as ib:
-        with T.block(name="block", no_realize=False):
+        with T.sblock(name="block", no_realize=False):
             vi = ib.name("vi", T.axis.spatial(128, i))
             vj = ib.name("vj", T.axis.spatial(64, j))
             vk = ib.name("vk", T.axis.reduce(32, k))
@@ -125,7 +126,7 @@ def test_block_realize():
 i = T.int32()
 j = T.int32()
 k = T.int32()
-with T.block("block"):
+with T.sblock("block"):
     vi = T.axis.spatial(128, i)
     vj = T.axis.spatial(64, j)
     vk = T.axis.reduce(32, k)
@@ -140,7 +141,7 @@ def test_block():
     j = tir.Var("j", "int32")
     k = tir.Var("k", "int32")
     with IRBuilder() as ib:
-        with T.block(name="block", no_realize=False):
+        with T.sblock(name="block", no_realize=False):
             vi = ib.name("vi", T.axis.spatial(128, i))
             vj = ib.name("vj", T.axis.spatial(64, j))
             vk = ib.name("vk", T.axis.reduce(32, k))
@@ -151,7 +152,7 @@ def test_block():
     _assert_print(
         obj,
         """
-with T.block("block", no_realize=True):
+with T.sblock("block", no_realize=True):
     vi = T.axis.spatial(128)
     vj = T.axis.spatial(64)
     vk = T.axis.reduce(32)
@@ -251,17 +252,22 @@ for i, j, k in T.grid(128, 128, 128):
     )
 
 
-def test_let_stmt():
+def test_bind():
     with IRBuilder() as ib:
-        with T.LetStmt(T.float32(10)) as v:
+        with T.prim_func():
+            v = T.bind(T.float32(10))
             ib.name("v", v)
-            T.evaluate(0)
+            T.evaluate(1)
     obj = ib.get()
     _assert_print(
         obj,
         """
-with T.LetStmt(T.float32(10.0)) as v:
-    T.evaluate(0)
+# from tvm.script import tir as T
+
+@T.prim_func(private=True)
+def main():
+    v: T.float32 = T.float32(10.0)
+    T.evaluate(1)
 """,
     )
 
@@ -288,8 +294,8 @@ def test_assert_stmt():
     _assert_print(
         obj,
         """
-with T.Assert(T.bool(True), "assertion"):
-    T.evaluate(0)
+assert T.bool(True), ("RuntimeError", ["assertion"])
+T.evaluate(0)
 """,
     )
 
@@ -312,75 +318,91 @@ while v < 10:
 
 def test_allocate():
     with IRBuilder() as ib:
-        with T.allocate([128, 128], "float32"):
-            T.evaluate(0)
+        with T.prim_func():
+            T.func_name("test")
+            buf = T.alloc_buffer([128, 128], "float32")
+            T.evaluate(1)
     obj = ib.get()
     _assert_print(
-        obj,
+        obj.body,
         """
-with T.allocate([128, 128], "float32", "global") as v:
-    T.evaluate(0)
+buffer = T.alloc_buffer((128, 128))
+T.evaluate(1)
 """,
     )
 
 
 def test_allocate_with_decl_buffer_sugar():
+    # AllocBuffer and DeclBuffer are flat siblings
     with IRBuilder() as ib:
-        with T.allocate([128, 128], "float32") as buffer_data:
-            with T.decl_buffer([128, 128], "float32", data=buffer_data) as buffer:
-                T.evaluate(0)
+        with T.prim_func():
+            T.func_name("test")
+            buf = T.alloc_buffer([128, 128], "float32")
+            buf2 = T.decl_buffer([128, 128], "float32", data=buf.data)
+            T.evaluate(1)
     obj = ib.get()
     _assert_print(
-        obj,
+        obj.body,
         """
-with T.decl_buffer((128, 128)) as buffer:
-    T.evaluate(0)
+buffer = T.alloc_buffer((128, 128))
+buffer_1 = T.decl_buffer((128, 128), data=buffer.data)
+T.evaluate(1)
 """,
     )
 
 
 def test_allocate_with_decl_buffer_sugar_multi_usage():
+    # AllocBuffer and DeclBuffer are flat siblings
     with IRBuilder() as ib:
-        with T.allocate([128, 128], "float32") as buffer_data:
-            with T.decl_buffer([128, 128], "float32", data=buffer_data) as buffer:
-                T.evaluate(buffer_data)
+        with T.prim_func():
+            T.func_name("test")
+            buf = T.alloc_buffer([128, 128], "float32")
+            buf2 = T.decl_buffer([128, 128], "float32", data=buf.data)
+            T.evaluate(buf.data)
     obj = ib.get()
     _assert_print(
-        obj,
+        obj.body,
         """
-with T.decl_buffer((128, 128)) as buffer:
-    T.evaluate(buffer.data)
+buffer = T.alloc_buffer((128, 128))
+buffer_1 = T.decl_buffer((128, 128), data=buffer.data)
+T.evaluate(buffer.data)
 """,
     )
 
 
 def test_allocate_with_decl_buffer_no_sugar_mismatch():
     with IRBuilder() as ib:
-        with T.allocate([128, 128], "float32") as buffer_data:
-            with T.decl_buffer([256, 256], "float32", data=buffer_data) as buffer:
-                T.evaluate(buffer_data)
+        with T.prim_func():
+            T.func_name("test")
+            buf = T.alloc_buffer([128, 128], "float32")
+            buf2 = T.decl_buffer([256, 256], "float32", data=buf.data)
+            T.evaluate(buf.data)
     obj = ib.get()
     _assert_print(
-        obj,
+        obj.body,
         """
-with T.allocate([128, 128], "float32", "global") as v:
-    buffer = T.decl_buffer((256, 256), data=v)
-    T.evaluate(v)
+buffer = T.alloc_buffer((128, 128))
+buffer_1 = T.decl_buffer((256, 256), data=buffer.data)
+T.evaluate(buffer.data)
 """,
     )
 
 
 def test_decl_buffer():
+    # DeclBuffer is flat: we need a frame to hold multiple stmts
     with IRBuilder() as ib:
-        with T.decl_buffer((10, 10), data=T.ptr("float32")):
-            T.evaluate(0)
+        with T.prim_func():
+            T.func_name("test")
+            buf = T.decl_buffer((10, 10), data=T.ptr("float32"))
+            T.evaluate(1)
     obj = ib.get()
+    # Print only the body (skip PrimFunc wrapper)
     _assert_print(
-        obj,
+        obj.body,
         """
 v = T.handle("float32", "global")
-with T.decl_buffer((10, 10), data=v) as buffer:
-    T.evaluate(0)
+buffer = T.decl_buffer((10, 10), data=v)
+T.evaluate(1)
 """,
     )
 
@@ -425,22 +447,6 @@ def test_evaluate():
         obj,
         """
 T.evaluate(0)
-""",
-    )
-
-
-def test_buffer_realize():
-    with IRBuilder() as ib:
-        a = tir.decl_buffer((128, 128), "float32", name="A")
-        with T.realize(a[0:128, 0:128], "test_storage_scope", True):
-            T.evaluate(0)
-    obj = ib.get()
-    _assert_print(
-        obj,
-        """
-A = T.Buffer((128, 128))
-with T.realize(A[0:128, 0:128], "test_storage_scope"):
-    T.evaluate(0)
 """,
     )
 
@@ -493,10 +499,10 @@ T.Cast("float64", a)
 
 
 def test_llvm_intrin_imm():
-    a = tir.call_llvm_intrin("int32x4", "llvm.donothing", T.uint32(0))
-    _assert_print(a, 'T.call_llvm_intrin("int32x4", "llvm.donothing", T.uint32(0))')
-    a = tir.call_llvm_pure_intrin("int32x4", "llvm.donothing", T.uint32(0))
-    _assert_print(a, 'T.call_llvm_pure_intrin("int32x4", "llvm.donothing", T.uint32(0))')
+    a = tir.call_llvm_intrin("int32x4", "llvm.donothing")
+    _assert_print(a, 'T.call_llvm_intrin("int32x4", "llvm.donothing")')
+    a = tir.call_llvm_pure_intrin("int32x4", "llvm.donothing")
+    _assert_print(a, 'T.call_llvm_pure_intrin("int32x4", "llvm.donothing")')
 
 
 def test_binary_arith():
@@ -518,19 +524,15 @@ def test_binary_arith():
     ]:
         obj = op(a, b)
         if sign.isalpha():
-            expected = """
+            expected = f"""
 a = T.int32()
 b = T.int32()
-T.{}(a, b)""".format(
-                sign
-            )
+T.{sign}(a, b)"""
         else:
-            expected = """
+            expected = f"""
 a = T.int32()
 b = T.int32()
-a {} b""".format(
-                sign
-            )
+a {sign} b"""
         _assert_print(obj, expected)
 
 
@@ -553,10 +555,8 @@ def test_binary_arith_const():
         (tir.GE, "GE"),
     ]:
         obj = op(a, b)
-        expected = """
-T.{}({}, {})""".format(
-            name, str(a), str(b)
-        )
+        expected = f"""
+T.{name}({a!s}, {b!s})"""
         _assert_print(obj, expected)
 
 
@@ -618,12 +618,10 @@ def test_ramp(lanes, scripted_lanes):
     obj = tir.Ramp(a, 1, lanes)
     _assert_print(
         obj,
-        """
+        f"""
 a = T.int32()
-T.Ramp(a, 1, {})
-""".format(
-            scripted_lanes
-        ),
+T.Ramp(a, 1, {scripted_lanes})
+""",
     )
 
 
@@ -634,11 +632,9 @@ def test_broadcast(lanes, scripted_lanes):
     obj = tir.Broadcast(0, lanes)
     _assert_print(
         obj,
-        """
-T.Broadcast(0, {})
-""".format(
-            scripted_lanes
-        ),
+        f"""
+T.Broadcast(0, {scripted_lanes})
+""",
     )
 
 
@@ -725,7 +721,7 @@ def test_remap():
     @T.prim_func
     def block_with_remap_implicitly():
         for i0, i1, i2, i3, i4, i5 in T.grid(128, 128, 128, 128, 128, 128):
-            with T.block("update"):
+            with T.sblock("update"):
                 v0 = T.axis.spatial(128, i0 + 1)
                 v1 = T.axis.spatial(128, i1)
                 v2 = T.axis.reduce(128, i2)
@@ -736,7 +732,7 @@ def test_remap():
     @T.prim_func
     def block_with_remap_explicitly():
         for i0, i1, i2, i3, i4, i5 in T.grid(128, 128, 128, 128, 128, 128):
-            with T.block("update"):
+            with T.sblock("update"):
                 v0 = T.axis.spatial(128, i0 + 1)
                 v1, v2 = T.axis.remap("SR", [i1, i2])
                 v3 = T.axis.spatial(128, i3 - 1)
@@ -747,9 +743,9 @@ def test_remap():
 
 @T.prim_func
 def main():
-    # with T.block("root"):
+    # with T.sblock("root"):
     for i0, i1, i2, i3, i4, i5 in T.grid(128, 128, 128, 128, 128, 128):
-        with T.block("update"):
+        with T.sblock("update"):
             v0 = T.axis.spatial(128, i0 + 1)
             v1, v2 = T.axis.remap("SR", [i1, i2])
             v3 = T.axis.spatial(128, i3 - 1)
@@ -766,17 +762,17 @@ def test_root_block():
 
     @T.prim_func
     def root_block_implicitly():
-        a = T.alloc_buffer([128, 128])
+        a = T.sblock_alloc_buffer([128, 128])
         for i, j in T.grid(128, 128):
-            with T.block():
+            with T.sblock():
                 T.evaluate(0)
 
     @T.prim_func
     def root_block_explicitly():
-        with T.block("root"):
-            a = T.alloc_buffer([128, 128])
+        with T.sblock("root"):
+            a = T.sblock_alloc_buffer([128, 128])
             for i, j in T.grid(128, 128):
-                with T.block():
+                with T.sblock():
                     T.evaluate(0)
 
     expected_output = """
@@ -784,10 +780,10 @@ def test_root_block():
 
 @T.prim_func
 def main():
-    # with T.block("root"):
-    a = T.alloc_buffer((128, 128))
+    # with T.sblock("root"):
+    a = T.sblock_alloc_buffer((128, 128))
     for i, j in T.grid(128, 128):
-        with T.block(""):
+        with T.sblock(""):
             T.reads()
             T.writes()
             T.evaluate(0)
@@ -961,13 +957,13 @@ def test_predicated_buffer_load_store():
     buffer_load = tir.BufferLoad(
         buffer=buffer_map[b],
         indices=[0, tir.Ramp(0, 4, 4)],
-        predicate=tir.Broadcast(tir.IntImm("uint1", 0), 4),
+        predicate=tir.Broadcast(tir.IntImm("bool", 0), 4),
     )
     body = tir.BufferStore(
         buffer=buffer_map[a],
         value=buffer_load,
         indices=[0, tir.Ramp(0, 2, 4)],
-        predicate=tir.Broadcast(tir.IntImm("uint1", 0), 4),
+        predicate=tir.Broadcast(tir.IntImm("bool", 0), 4),
     )
     func = tir.PrimFunc(
         params=[a, b],
@@ -1034,16 +1030,43 @@ def test_vectorize_llvm_pure_intrin():
     def main(a: T.handle, b: T.handle):
         A = T.match_buffer(a, (4,), "float32")
         B = T.match_buffer(b, (4,), "float32")
-        A[T.Ramp(0, 1, 4)] = T.call_llvm_pure_intrin(
-            "float32x4", "llvm.sqrt", 1, B[T.Ramp(0, 1, 4)]
-        )
+        A[T.Ramp(0, 1, 4)] = T.call_llvm_pure_intrin("float32x4", "llvm.sqrt", B[T.Ramp(0, 1, 4)])
 
     expected_output = """
 # from tvm.script import tir as T
 
 @T.prim_func
 def main(A: T.Buffer((4,), "float32"), B: T.Buffer((4,), "float32")):
-    A[0:4] = T.call_llvm_pure_intrin("float32x4", "llvm.sqrt", 1, B[0:4])
+    A[0:4] = T.call_llvm_pure_intrin("float32x4", "llvm.sqrt", B[0:4])
+    """
+    _assert_print(main, expected_output)
+
+
+def test_func_with_loop_jumps():
+    from tvm.script import tir as T
+
+    @T.prim_func
+    def main(a: T.handle, b: T.handle):
+        A = T.match_buffer(a, (4,), "float32")
+        B = T.match_buffer(b, (4,), "float32")
+        for i in range(1000):
+            if i % 13 == 0:
+                A[1] = A[1] + 1
+                continue
+            if A[0] >= B[0]:
+                break
+
+    expected_output = """
+# from tvm.script import tir as T
+
+@T.prim_func
+def main(A: T.Buffer((4,), "float32"), B: T.Buffer((4,), "float32")):
+    for i in range(1000):
+        if i % 13 == 0:
+            A[1] = A[1] + T.float32(1.0)
+            T.continue_loop()
+        if A[0] >= B[0]:
+            T.break_loop()
     """
     _assert_print(main, expected_output)
 

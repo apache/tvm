@@ -14,9 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm
+# ruff: noqa: F841
 import pytest
-import tvm.ir._ffi_api
+
+import tvm
+
+# needed for attrs
+import tvm.testing
 
 
 def test_make_attrs():

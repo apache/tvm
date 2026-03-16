@@ -15,12 +15,16 @@
 # specific language governing permissions and limitations
 # under the License.
 """Suppliers that are used to guarantee uniqueness of names and GlobalVars."""
+
+import tvm_ffi
+
 import tvm
-from tvm import Object, IRModule
+from tvm import IRModule, Object
+
 from . import _ffi_api
 
 
-@tvm.ffi.register_object("ir.NameSupply")
+@tvm_ffi.register_object("ir.NameSupply")
 class NameSupply(Object):
     """NameSupply that can be used to generate unique names.
 
@@ -77,7 +81,7 @@ class NameSupply(Object):
         return _ffi_api.NameSupply_ContainsName(self, name, add_prefix)
 
 
-@tvm.ffi.register_object("ir.GlobalVarSupply")
+@tvm_ffi.register_object("ir.GlobalVarSupply")
 class GlobalVarSupply(Object):
     """GlobalVarSupply that holds a mapping between names and GlobalVars.
 
@@ -96,7 +100,7 @@ class GlobalVarSupply(Object):
             self.__init_handle_by_constructor__(_ffi_api.GlobalVarSupply_NameSupply, name_supply)
         elif isinstance(value, NameSupply):
             self.__init_handle_by_constructor__(_ffi_api.GlobalVarSupply_NameSupply, value)
-        elif isinstance(value, (list, tvm.container.Array)):
+        elif isinstance(value, list | tvm.container.Array):
             self.__init_handle_by_constructor__(_ffi_api.GlobalVarSupply_IRModules, value)
         elif isinstance(value, IRModule):
             self.__init_handle_by_constructor__(_ffi_api.GlobalVarSupply_IRModule, value)

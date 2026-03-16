@@ -18,7 +18,6 @@
 """Backend kernels for cumsum operator."""
 
 import math
-from typing import Optional
 
 from tvm.script import tir as T
 from tvm.tir import PrimFunc
@@ -34,7 +33,7 @@ def gpu_2d_continuous_cumsum(
     tx_len: int = 32,
     thread_elem: int = 4,
     in_dtype: str = "int32",
-    out_dtype: Optional[str] = None,
+    out_dtype: str | None = None,
 ) -> PrimFunc:
     """Generate GPU kernel for 2D continuous cumsum, i.e. The cumsum axis is -1
 
@@ -91,9 +90,9 @@ def gpu_2d_continuous_cumsum(
     ):
         for by in T.thread_binding(batch, thread="blockIdx.y"):
             for bx in T.thread_binding(T.ceildiv(cur_len, block_elem), thread="blockIdx.x"):
-                with T.block():
-                    local_buf = T.alloc_buffer((thread_elem,), out_dtype, scope="local")
-                    shared_buf = T.alloc_buffer((block_elem,), out_dtype, scope="shared")
+                with T.sblock():
+                    local_buf = T.sblock_alloc_buffer((thread_elem,), out_dtype, scope="local")
+                    shared_buf = T.sblock_alloc_buffer((block_elem,), out_dtype, scope="shared")
                     for ty in T.thread_binding(TY, thread="threadIdx.y"):
                         for tx in T.thread_binding(TX, thread="threadIdx.x"):
                             tx_idx = bx * block_elem + ty * warp_elem + tx * thread_elem

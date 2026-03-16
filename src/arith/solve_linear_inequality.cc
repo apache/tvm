@@ -103,7 +103,7 @@ void AddInequality(std::vector<PrimExpr>* inequality_set, const PrimExpr& new_in
                    Analyzer* analyzer) {
   if (analyzer->CanProve(new_ineq) ||
       std::find_if(inequality_set->begin(), inequality_set->end(), [&](const PrimExpr& e) {
-        return StructuralEqual()(e, new_ineq);
+        return ffi::StructuralEqual()(e, new_ineq);
       }) != inequality_set->end()) {
     // redundant: follows from the vranges
     // or has already been added
@@ -133,7 +133,7 @@ void ClassifyByPolarity(const Var& var, const std::vector<PrimExpr>& current_ine
   // and store to coef_pos and coef_neg respectively.
   for (const PrimExpr& ineq : current_ineq_set) {
     if (const LENode* le = ineq.as<LENode>()) {
-      Array<PrimExpr> coef = arith::DetectLinearEquation(le->a, {var});
+      ffi::Array<PrimExpr> coef = arith::DetectLinearEquation(le->a, {var});
       if (!coef.empty() && is_const_int(coef[0])) {
         int64_t coef0 = *as_const_int(coef[0]);
         if (coef0 == 0) {
@@ -147,7 +147,7 @@ void ClassifyByPolarity(const Var& var, const std::vector<PrimExpr>& current_ine
         continue;
       }
     } else if (const EQNode* eq = ineq.as<EQNode>()) {
-      Array<PrimExpr> coef = arith::DetectLinearEquation(eq->a, {var});
+      ffi::Array<PrimExpr> coef = arith::DetectLinearEquation(eq->a, {var});
       if (!coef.empty() && is_const_int(coef[0])) {
         int64_t coef0 = *as_const_int(coef[0]);
         if (coef0 == 0) {
@@ -175,7 +175,7 @@ void MoveEquality(std::vector<PrimExpr>* upper_bounds, std::vector<PrimExpr>* lo
   // those exist in both upper & lower bounds will be moved to equalities
   for (auto ub = upper_bounds->begin(); ub != upper_bounds->end();) {
     auto lb = std::find_if(lower_bounds->begin(), lower_bounds->end(),
-                           [&](const PrimExpr& e) { return StructuralEqual()(e, *ub); });
+                           [&](const PrimExpr& e) { return ffi::StructuralEqual()(e, *ub); });
     if (lb != lower_bounds->end()) {
       equalities->push_back(*lb);
       lower_bounds->erase(lb);
@@ -218,9 +218,9 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
                   &analyzer);
   }
 
-  Map<Var, IntGroupBounds> res_bounds;
+  ffi::Map<Var, IntGroupBounds> res_bounds;
   for (const Var& v : system_to_solve->variables) {
-    ICHECK(!res_bounds.count(v))
+    TVM_FFI_ICHECK(!res_bounds.count(v))
         << "Variable " << v
         << " appears more than one time in the `variables` which might be a bug";
 
@@ -329,16 +329,16 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
 
     // Write it to the result.
     IntGroupBounds bnds(make_const(v.dtype(), coef_lcm),
-                        Array<PrimExpr>(lower_bounds.begin(), lower_bounds.end()),
-                        Array<PrimExpr>(equal_list.begin(), equal_list.end()),
-                        Array<PrimExpr>(upper_bounds.begin(), upper_bounds.end()));
+                        ffi::Array<PrimExpr>(lower_bounds.begin(), lower_bounds.end()),
+                        ffi::Array<PrimExpr>(equal_list.begin(), equal_list.end()),
+                        ffi::Array<PrimExpr>(upper_bounds.begin(), upper_bounds.end()));
     res_bounds.Set(v, bnds);
 
     std::swap(current_ineq_set_to_solve, next_ineq_set_to_solve);
   }
 
   // Everything that is left goes to res.relations
-  Array<PrimExpr> other_conditions;
+  ffi::Array<PrimExpr> other_conditions;
   for (const PrimExpr& e : current_ineq_set_to_solve) {
     PrimExpr e_simp = analyzer.Simplify(e, kSimplifyRewriteCanonicalRewrite);
     if (is_const_int(e_simp, 0)) {
@@ -366,17 +366,17 @@ IntConstraints SolveInequalitiesToRange(const IntConstraints& inequalities) {
   // Resulting ranges will contain ranges for the new variables and for the variables that are
   // not in the inequalities->variables but are in inequalities->ranges
   // It will be useful when solving Jacobian axes jac_xxx)
-  Map<Var, Range> res_ranges;
+  ffi::Map<Var, Range> res_ranges;
   // we get a set of equality, lower, upper bound of each variable.
   auto solved_system = SolveLinearInequalities(inequalities);
 
-  Map<Var, IntGroupBounds> solved_bounds = solved_system.first;
-  Array<PrimExpr> solved_other_relations = solved_system.second;
+  ffi::Map<Var, IntGroupBounds> solved_bounds = solved_system.first;
+  ffi::Array<PrimExpr> solved_other_relations = solved_system.second;
 
-  Array<PrimExpr> res_relations;
+  ffi::Array<PrimExpr> res_relations;
 
   // this keeps being updated during determining the range of each variable.
-  Map<Var, Range> vranges;
+  ffi::Map<Var, Range> vranges;
   for (std::pair<Var, Range> vr : inequalities->ranges) {
     vranges.Set(vr.first, vr.second);
   }
@@ -388,7 +388,7 @@ IntConstraints SolveInequalitiesToRange(const IntConstraints& inequalities) {
     analyzer.Bind(vranges);
 
     const Var& var = *it;
-    ICHECK(solved_bounds.count(var));
+    TVM_FFI_ICHECK(solved_bounds.count(var));
     auto bnd = solved_bounds[var];
     if (is_one(bnd->coef) && !bnd->equal.empty()) {
       // There is an equation of the form `v == expr`, so this variable can be completely removed.
@@ -441,21 +441,21 @@ IntConstraints SolveInequalitiesToRange(const IntConstraints& inequalities) {
 IntConstraintsTransform SolveInequalitiesDeskewRange(const IntConstraints& inequalities) {
   // Resulting ranges will contain ranges for the new variables and for the variables that are
   // not in the inequalities->variables but are in inequalities->ranges (jac_xxx)
-  Map<Var, Range> res_ranges;
+  ffi::Map<Var, Range> res_ranges;
   // we get a set of equality, lower, upper bound of each variable.
   auto solved_system = SolveLinearInequalities(inequalities);
-  Map<Var, IntGroupBounds> solved_bounds = solved_system.first;
-  Array<PrimExpr> solved_other_relations = solved_system.second;
+  ffi::Map<Var, IntGroupBounds> solved_bounds = solved_system.first;
+  ffi::Array<PrimExpr> solved_other_relations = solved_system.second;
 
   arith::Analyzer analyzer;
 
-  Map<Var, PrimExpr> res_src_to_dst;
-  Map<Var, PrimExpr> res_dst_to_src;
-  Array<Var> res_variables;
-  Array<PrimExpr> res_relations;
+  ffi::Map<Var, PrimExpr> res_src_to_dst;
+  ffi::Map<Var, PrimExpr> res_dst_to_src;
+  ffi::Array<Var> res_variables;
+  ffi::Array<PrimExpr> res_relations;
 
   // this keeps being updated during determining the range of each variable.
-  Map<Var, Range> vranges;
+  ffi::Map<Var, Range> vranges;
   for (std::pair<Var, Range> vr : inequalities->ranges) {
     vranges.Set(vr.first, vr.second);
   }
@@ -528,7 +528,7 @@ IntConstraintsTransform SolveInequalitiesDeskewRange(const IntConstraints& inequ
   }
 
   // Reverse the axis so that it matches the order of the original variables
-  res_variables = Array<Var>(res_variables.rbegin(), res_variables.rend());
+  res_variables = ffi::Array<Var>(res_variables.rbegin(), res_variables.rend());
 
   IntConstraints new_inequalities(res_variables, res_ranges, res_relations);
   IntConstraintsTransform transform(inequalities, new_inequalities, res_src_to_dst, res_dst_to_src);
@@ -536,55 +536,58 @@ IntConstraintsTransform SolveInequalitiesDeskewRange(const IntConstraints& inequ
   return transform;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def_packed(
-          "arith.SolveInequalitiesAsCondition",
-          [](ffi::PackedArgs args, ffi::Any* ret) {
-            IntConstraints problem;
-            PartialSolvedInequalities ret_ineq;
-            if (args.size() == 1) {
-              problem = args[0].cast<IntConstraints>();
-              ret_ineq = SolveLinearInequalities(problem);
-            } else if (args.size() == 3) {
-              problem = IntConstraints(args[0].cast<Array<Var>>(), args[1].cast<Map<Var, Range>>(),
-                                       args[2].cast<Array<PrimExpr>>());
-              ret_ineq = SolveLinearInequalities(problem);
-            } else {
-              LOG(FATAL) << "arith.SolveInequalitiesAsCondition expects 1 or 3 arguments, gets "
-                         << args.size();
-            }
-            *ret = AsConditions(problem->variables, ret_ineq.first, ret_ineq.second);
-          })
+      .def_packed("arith.SolveInequalitiesAsCondition",
+                  [](ffi::PackedArgs args, ffi::Any* ret) {
+                    IntConstraints problem;
+                    PartialSolvedInequalities ret_ineq;
+                    if (args.size() == 1) {
+                      problem = args[0].cast<IntConstraints>();
+                      ret_ineq = SolveLinearInequalities(problem);
+                    } else if (args.size() == 3) {
+                      problem = IntConstraints(args[0].cast<ffi::Array<Var>>(),
+                                               args[1].cast<ffi::Map<Var, Range>>(),
+                                               args[2].cast<ffi::Array<PrimExpr>>());
+                      ret_ineq = SolveLinearInequalities(problem);
+                    } else {
+                      TVM_FFI_THROW(InternalError)
+                          << "arith.SolveInequalitiesAsCondition expects 1 or 3 arguments, gets "
+                          << args.size();
+                    }
+                    *ret = AsConditions(problem->variables, ret_ineq.first, ret_ineq.second);
+                  })
       .def_packed("arith.SolveInequalitiesToRange",
                   [](ffi::PackedArgs args, ffi::Any* ret) {
                     if (args.size() == 1) {
                       *ret = SolveInequalitiesToRange(args[0].cast<IntConstraints>());
                     } else if (args.size() == 3) {
-                      auto opt_map = args[1].cast<Optional<Map<Var, Range>>>();
-                      IntConstraints problem(args[0].cast<Array<Var>>(), opt_map.value_or({}),
-                                             args[2].cast<Array<PrimExpr>>());
+                      auto opt_map = args[1].cast<ffi::Optional<ffi::Map<Var, Range>>>();
+                      IntConstraints problem(args[0].cast<ffi::Array<Var>>(), opt_map.value_or({}),
+                                             args[2].cast<ffi::Array<PrimExpr>>());
                       *ret = SolveInequalitiesToRange(problem);
                     } else {
-                      LOG(FATAL) << "arith.SolveInequalitiesToRange expects 1 or 3 arguments, gets "
-                                 << args.size();
+                      TVM_FFI_THROW(InternalError)
+                          << "arith.SolveInequalitiesToRange expects 1 or 3 arguments, gets "
+                          << args.size();
                     }
                   })
       .def_packed("arith.SolveInequalitiesDeskewRange", [](ffi::PackedArgs args, ffi::Any* ret) {
         if (args.size() == 1) {
           *ret = SolveInequalitiesDeskewRange(args[0].cast<IntConstraints>());
         } else if (args.size() == 3) {
-          auto opt_map = args[1].cast<Optional<Map<Var, Range>>>();
-          IntConstraints problem(args[0].cast<Array<Var>>(), opt_map.value_or({}),
-                                 args[2].cast<Array<PrimExpr>>());
+          auto opt_map = args[1].cast<ffi::Optional<ffi::Map<Var, Range>>>();
+          IntConstraints problem(args[0].cast<ffi::Array<Var>>(), opt_map.value_or({}),
+                                 args[2].cast<ffi::Array<PrimExpr>>());
           *ret = SolveInequalitiesDeskewRange(problem);
         } else {
-          LOG(FATAL) << "arith.SolveInequalitiesDeskewRange expects 1 or 3 arguments, gets "
-                     << args.size();
+          TVM_FFI_THROW(InternalError)
+              << "arith.SolveInequalitiesDeskewRange expects 1 or 3 arguments, gets "
+              << args.size();
         }
       });
-});
+}
 
 }  // namespace arith
 }  // namespace tvm

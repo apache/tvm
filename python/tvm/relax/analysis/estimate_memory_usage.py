@@ -16,7 +16,6 @@
 # under the License.
 # pylint: disable=abstract-method,unused-argument
 # pylint: disable=missing-function-docstring,missing-module-docstring
-from typing import Union
 
 import tvm
 from tvm.ir import Op
@@ -26,7 +25,7 @@ from ..expr import Call, Expr, Function, ShapeExpr
 from ..expr_functor import PyExprVisitor, visitor
 
 
-def estimate_memory_usage(mod: Union[IRModule, Function]) -> str:
+def estimate_memory_usage(mod: IRModule | Function) -> str:
     """Analysis function that estimates the memory usage of Relax functions
     in an IRModule. The estimation includes the total memory size needed to
     be allocated before and after memory planning.
@@ -171,8 +170,9 @@ def estimate_memory_usage(mod: Union[IRModule, Function]) -> str:
                 "{0:.4} GB.\n".format(self.planned_alloc_mem / 2**30)
             )
             if self.total_alloc_tensor_mem != 0:
-                est += " * Memory planning reduces constant memory size to " "{0:.1%}.".format(
-                    self.planned_alloc_mem / self.total_alloc_tensor_mem
+                est += (
+                    " * Memory planning reduces constant memory size to "
+                    f"{self.planned_alloc_mem / self.total_alloc_tensor_mem:.1%}."
                 )
             return "- Function " + func_name + ":\n" + est
 

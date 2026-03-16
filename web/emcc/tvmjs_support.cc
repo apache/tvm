@@ -29,11 +29,13 @@
 #define TVM_LOG_DEBUG 0
 #define TVM_LOG_CUSTOMIZE 1
 #define TVM_FFI_ALWAYS_LOG_BEFORE_THROW 1
-#define DMLC_USE_LOGGING_LIBRARY <tvm/runtime/logging.h>
 
+#include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/device_api.h>
+
+#include <unordered_set>
 
 #include "../../src/runtime/rpc/rpc_local_session.h"
 
@@ -154,7 +156,7 @@ class AsyncLocalSession : public LocalSession {
           });
         } else {
           // for exception, we can pass through as since this is just normal encoding.
-          ICHECK_EQ(code, static_cast<int>(RPCCode::kException));
+          TVM_FFI_ICHECK_EQ(code, static_cast<int>(RPCCode::kException));
           callback(RPCCode::kException, args);
         }
       });
@@ -169,14 +171,14 @@ class AsyncLocalSession : public LocalSession {
       // special handle time evaluator.
       try {
         ffi::Function retfunc = this->GetTimeEvaluator(
-            args[0].cast<ffi::Optional<Module>>(), args[1].cast<std::string>(), args[2].cast<int>(),
-            args[3].cast<int>(), args[4].cast<int>(), args[5].cast<int>(), args[6].cast<int>(),
-            args[7].cast<int>(), args[8].cast<int>(), args[9].cast<int>());
+            args[0].cast<ffi::Optional<ffi::Module>>(), args[1].cast<std::string>(),
+            args[2].cast<int>(), args[3].cast<int>(), args[4].cast<int>(), args[5].cast<int>(),
+            args[6].cast<int>(), args[7].cast<int>(), args[8].cast<int>(), args[9].cast<int>());
         ffi::Any rv;
         rv = retfunc;
         this->EncodeReturn(std::move(rv), [&](ffi::PackedArgs encoded_args) {
           const void* pf = encoded_args[0].as<ffi::FunctionObj>();
-          ICHECK(pf != nullptr);
+          TVM_FFI_ICHECK(pf != nullptr);
           // mark as async.
           async_func_set_.insert(const_cast<void*>(pf));
           callback(RPCCode::kReturn, encoded_args);
@@ -231,11 +233,11 @@ class AsyncLocalSession : public LocalSession {
       packed_args[0] = nullptr;
       on_complete(RPCCode::kReturn, ffi::PackedArgs(packed_args, 1));
     } else {
-      CHECK(dev.device_type == static_cast<DLDeviceType>(kDLWebGPU));
+      TVM_FFI_ICHECK(dev.device_type == static_cast<DLDeviceType>(kDLWebGPU));
       if (!async_wait_.has_value()) {
         async_wait_ = tvm::ffi::Function::GetGlobal("__async.wasm.WebGPUWaitForTasks");
       }
-      CHECK(async_wait_.has_value());
+      TVM_FFI_ICHECK(async_wait_.has_value());
       ffi::Function packed_callback([on_complete](ffi::PackedArgs args, ffi::Any*) {
         int code = args[0].cast<int>();
         on_complete(static_cast<RPCCode>(code), args.Slice(1));
@@ -252,23 +254,23 @@ class AsyncLocalSession : public LocalSession {
   std::optional<ffi::Function> async_wait_;
 
   // time evaluator
-  ffi::Function GetTimeEvaluator(Optional<Module> opt_mod, std::string name, int device_type,
-                                 int device_id, int number, int repeat, int min_repeat_ms,
-                                 int limit_zero_time_iterations, int cooldown_interval_ms,
-                                 int repeats_to_cooldown) {
+  ffi::Function GetTimeEvaluator(ffi::Optional<ffi::Module> opt_mod, std::string name,
+                                 int device_type, int device_id, int number, int repeat,
+                                 int min_repeat_ms, int limit_zero_time_iterations,
+                                 int cooldown_interval_ms, int repeats_to_cooldown) {
     Device dev;
     dev.device_type = static_cast<DLDeviceType>(device_type);
     dev.device_id = device_id;
 
     if (opt_mod.defined()) {
-      Module m = opt_mod.value();
-      std::string tkey = m->type_key();
-      return WrapWasmTimeEvaluator(m.GetFunction(name, false), dev, number, repeat, min_repeat_ms,
-                                   limit_zero_time_iterations, cooldown_interval_ms,
+      ffi::Module m = opt_mod.value();
+      std::string tkey = m->kind();
+      return WrapWasmTimeEvaluator(m->GetFunction(name, false).value(), dev, number, repeat,
+                                   min_repeat_ms, limit_zero_time_iterations, cooldown_interval_ms,
                                    repeats_to_cooldown);
     } else {
       auto pf = tvm::ffi::Function::GetGlobal(name);
-      CHECK(pf.has_value()) << "Cannot find " << name << " in the global function";
+      TVM_FFI_ICHECK(pf.has_value()) << "Cannot find " << name << " in the global function";
       return WrapWasmTimeEvaluator(*pf, dev, number, repeat, min_repeat_ms,
                                    limit_zero_time_iterations, cooldown_interval_ms,
                                    repeats_to_cooldown);
@@ -293,7 +295,7 @@ class AsyncLocalSession : public LocalSession {
         }
       };
       auto time_exec = tvm::ffi::Function::GetGlobal("__async.wasm.TimeExecution");
-      CHECK(time_exec.has_value()) << "Cannot find wasm.GetTimer in the global function";
+      TVM_FFI_ICHECK(time_exec.has_value()) << "Cannot find wasm.GetTimer in the global function";
       (*time_exec)(ffi::TypedFunction<void(int)>(finvoke), dev, number, repeat, min_repeat_ms,
                    limit_zero_time_iterations, cooldown_interval_ms, repeats_to_cooldown,
                    /*cache_flush_bytes=*/0, on_complete);
@@ -302,12 +304,12 @@ class AsyncLocalSession : public LocalSession {
   }
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("wasm.LocalSession", []() {
     return CreateRPCSessionModule(std::make_shared<AsyncLocalSession>());
   });
-});
+}
 
 }  // namespace runtime
 }  // namespace tvm

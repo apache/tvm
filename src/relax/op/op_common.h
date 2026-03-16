@@ -27,7 +27,7 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/relax/op_attr_types.h>
-#include <tvm/tir/data_layout.h>
+#include <tvm/s_tir/data_layout.h>
 
 #include <optional>
 #include <tuple>
@@ -71,7 +71,7 @@ TensorStructInfo GetInputTensorStructInfo(const Call& call, size_t i_arg, const 
  * \note This function require every input to be Tensor. The number of call arguments is required
  * to match the number of inputs of the op being called.
  */
-Array<TensorStructInfo> GetInputTensorStructInfo(const Call& call, const BlockBuilder& ctx);
+ffi::Array<TensorStructInfo> GetInputTensorStructInfo(const Call& call, const BlockBuilder& ctx);
 
 /*!
  * \brief Get the tensor struct info of the unary operator input.
@@ -93,8 +93,8 @@ inline TensorStructInfo GetUnaryInputTensorStructInfo(const Call& call, const Bl
  * \return The tensor struct infos of tuple input.
  * \throw Throw exception if input expression is not a tuple.
  */
-Array<TensorStructInfo> GetTensorStructInfoFromTuple(const Call& call, const BlockBuilder& ctx,
-                                                     const Expr& tup);
+ffi::Array<TensorStructInfo> GetTensorStructInfoFromTuple(const Call& call, const BlockBuilder& ctx,
+                                                          const Expr& tup);
 
 namespace detail {
 /*! \brief Implementation helper for GetArgStructInfo */
@@ -146,7 +146,7 @@ std::tuple<ArgTypes...> GetArgStructInfo(const Call& call, const BlockBuilder& c
   // Unfortunately, because the `.add_argument()` calls in
   // TVM_REGISTER_OP occur during initialization of globals and are
   // not available at compile-time, this cannot be a static_assert.
-  ICHECK_EQ(n_input, sizeof...(ArgTypes))
+  TVM_FFI_ICHECK_EQ(n_input, sizeof...(ArgTypes))
       << "Internal error: " << op << " op defines " << n_input
       << " arguments in its TVM_REGISTER_OP() call, "
       << "but GetArgStructInfo was given " << sizeof...(ArgTypes) << " template arguments.";
@@ -176,13 +176,14 @@ std::tuple<ArgTypes...> GetArgStructInfo(const Call& call, const BlockBuilder& c
  * be prepended with a prefix "relax.op." as the FFI identifier string for the make function,
  * \param OpRegName The identifier of the operator in the registry.
  */
-#define RELAX_UNARY_OP_INTERFACE(OpName, OpRegName)    \
-  Expr OpName(Expr x) {                                \
-    static const Op& op = Op::Get("relax." OpRegName); \
-    return Call(op, {std::move(x)}, Attrs(), {});      \
-  }                                                    \
-  TVM_FFI_STATIC_INIT_BLOCK(                           \
-      { tvm::ffi::reflection::GlobalDef().def("relax.op." OpRegName, OpName); })
+#define RELAX_UNARY_OP_INTERFACE(OpName, OpRegName)                       \
+  Expr OpName(Expr x) {                                                   \
+    static const Op& op = Op::Get("relax." OpRegName);                    \
+    return Call(op, {std::move(x)}, Attrs(), {});                         \
+  }                                                                       \
+  TVM_FFI_STATIC_INIT_BLOCK() {                                           \
+    tvm::ffi::reflection::GlobalDef().def("relax.op." OpRegName, OpName); \
+  }
 
 /************ Utilities ************/
 
@@ -208,9 +209,19 @@ inline StructInfo InferStructInfoUnary(const Call& call, const BlockBuilder& ctx
         << " requires the input tensor to have float dtype. However, the given input dtype is "
         << input_sinfo->dtype);
   }
-  auto output_sinfo = make_object<TensorStructInfoNode>(*input_sinfo.get());
+  auto output_sinfo = ffi::make_object<TensorStructInfoNode>(*input_sinfo.get());
   output_sinfo->dtype = f_compute_out_dtype(input_sinfo);
-  return TensorStructInfo(output_sinfo);
+  if (call->sinfo_args.size() > 0) {
+    auto defined_sinfo = call->sinfo_args[0].as<TensorStructInfoNode>();
+    TVM_FFI_ICHECK(defined_sinfo);
+    auto shape = output_sinfo->GetShape();
+    TVM_FFI_ICHECK(shape.defined());
+    TVM_FFI_ICHECK(defined_sinfo->vdevice.has_value());
+    return TensorStructInfo(ShapeExpr(shape.value()), output_sinfo->dtype,
+                            defined_sinfo->vdevice.value());
+  } else {
+    return TensorStructInfo(output_sinfo);
+  }
 }
 
 /*!
@@ -257,9 +268,9 @@ StructInfo InferStructInfoUnaryArith(const Call& call, const BlockBuilder& ctx) 
  * \param var_layout_map The layout of vars.
  * \return The inferred layout result.
  */
-InferLayoutOutput InferLayoutUnaryEwise(const Call& call,
-                                        const Map<String, Array<String>>& desired_layouts,
-                                        const VarLayoutMap& var_layout_map);
+InferLayoutOutput InferLayoutUnaryEwise(
+    const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
+    const VarLayoutMap& var_layout_map);
 
 /*!
  * \brief Get the element dtype from StructInfo
@@ -275,10 +286,9 @@ inline std::optional<DataType> GetElementDType(const StructInfo& sinfo) {
     return tensor->dtype;
   } else {
     return std::nullopt;
-    LOG(FATAL) << "TypeError: "
-               << "Only PrimStructInfo and TensorStructInfo "
-               << "have an associated data type.  "
-               << "Cannot determine element type of " << sinfo;
+    TVM_FFI_THROW(TypeError) << "Only PrimStructInfo and TensorStructInfo "
+                             << "have an associated data type.  "
+                             << "Cannot determine element type of " << sinfo;
   }
 }
 
@@ -296,8 +306,7 @@ inline DataType InferBinaryArithOpOutDtype(const Call& call, const BlockBuilder&
                                            const StructInfo& rhs_sinfo) {
   auto opt_lhs_dtype = GetElementDType(lhs_sinfo);
   if (!opt_lhs_dtype) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "TypeError: "
+    ctx->ReportFatal(Diagnostic::Error("TypeError", call)
                      << "Binary operators must have the same datatype for both operands.  "
                      << "However, " << call << " has argument " << call->args[0]
                      << " on the LHS, with struct info " << lhs_sinfo << ".   This is of type "
@@ -307,8 +316,7 @@ inline DataType InferBinaryArithOpOutDtype(const Call& call, const BlockBuilder&
 
   auto opt_rhs_dtype = GetElementDType(rhs_sinfo);
   if (!opt_rhs_dtype) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "TypeError: "
+    ctx->ReportFatal(Diagnostic::Error("TypeError", call)
                      << "Binary operators must have the same datatype for both operands.  "
                      << "However, " << call << " has argument " << call->args[1]
                      << " on the RHS, with struct info " << rhs_sinfo << ".   This is of type "
@@ -318,9 +326,8 @@ inline DataType InferBinaryArithOpOutDtype(const Call& call, const BlockBuilder&
 
   if (lhs_dtype.is_void() || rhs_dtype.is_void()) {
     return DataType::Void();
-  } else if (lhs_dtype != rhs_dtype) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "TypeError: "
+  } else if (lhs_dtype != rhs_dtype && !lhs_dtype.is_bool() && !rhs_dtype.is_bool()) {
+    ctx->ReportFatal(Diagnostic::Error("TypeError", call)
                      << "Binary operators must have the same datatype for both operands.  "
                      << "However, " << call << " uses datatype " << lhs_dtype
                      << " on the LHS (StructInfo of " << lhs_sinfo << "), and datatype "
@@ -338,16 +345,26 @@ inline DataType InferBinaryArithOpOutDtype(const Call& call, const BlockBuilder&
  * \return The inferred output vdevice.
  * \throw Throw exception if the vdevice of two input TensorStructInfo don’t match
  */
-inline Optional<VDevice> InferBinaryArithOpOutVDevice(const Call& call, const BlockBuilder& ctx,
-                                                      const StructInfo& lhs_sinfo,
-                                                      const StructInfo& rhs_sinfo) {
-  auto get_vdevice = [&](const StructInfo& sinfo) -> Optional<VDevice> {
+inline ffi::Optional<VDevice> InferBinaryArithOpOutVDevice(const Call& call,
+                                                           const BlockBuilder& ctx,
+                                                           const StructInfo& lhs_sinfo,
+                                                           const StructInfo& rhs_sinfo) {
+  auto get_vdevice = [&](const StructInfo& sinfo) -> ffi::Optional<VDevice> {
     if (const auto* tensor = sinfo.as<TensorStructInfoNode>()) {
       return tensor->vdevice;
     } else {
       return std::nullopt;
     }
   };
+
+  /*
+   * This is the case where the output VDevice defined by a customization pass.
+   * Like targets that supports mixed VDevices (like differed by memory_scope for Adreno)
+   * and have specialized derivation for output VDevice.
+   */
+  if (call->sinfo_args.size() > 0) {
+    return get_vdevice(call->sinfo_args[0]);
+  }
 
   auto lhs_vdevice = get_vdevice(lhs_sinfo);
   auto rhs_vdevice = get_vdevice(rhs_sinfo);
@@ -358,9 +375,9 @@ inline Optional<VDevice> InferBinaryArithOpOutVDevice(const Call& call, const Bl
   if (!rhs_vdevice.defined() || !rhs_vdevice.value()->target.defined()) {
     return lhs_vdevice;
   }
+
   if (lhs_vdevice.value() != rhs_vdevice.value()) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "TypeErorr: "
+    ctx->ReportFatal(Diagnostic::Error("TypeError", call)
                      << "Binary operators with Tensor arguments "
                      << "must have the same VDevice for both operands.  "
                      << "However, " << call << " has a LHS on VDevice " << lhs_vdevice
@@ -378,9 +395,10 @@ inline Optional<VDevice> InferBinaryArithOpOutVDevice(const Call& call, const Bl
  * \return The inferred output shape after broadcasting. Or `std::nullopt` if the output shape
  * cannot be determined due to symbolic broadcast.
  */
-Optional<Array<PrimExpr>> InferBinaryBroadcastShape(const Call& call, const BlockBuilder& ctx,
-                                                    const Array<PrimExpr>& x1_shape,
-                                                    const Array<PrimExpr>& x2_shape);
+ffi::Optional<ffi::Array<PrimExpr>> InferBinaryBroadcastShape(const Call& call,
+                                                              const BlockBuilder& ctx,
+                                                              const ffi::Array<PrimExpr>& x1_shape,
+                                                              const ffi::Array<PrimExpr>& x2_shape);
 
 /*!
  * \brief Convert all axes to non-negative indices, and meanwhile check if the given array of axes
@@ -393,7 +411,7 @@ Optional<Array<PrimExpr>> InferBinaryBroadcastShape(const Call& call, const Bloc
  * \throw Throw exception if there exists out-of-range axis index or repetitive indices.
  */
 std::vector<int> NormalizeAxes(const Call& call, const BlockBuilder& ctx, int ndim,
-                               const Array<Integer>& axes);
+                               const ffi::Array<Integer>& axes);
 
 /*!
  * \brief Convert the given axis to non-negative index. Meanwhile check if the axis is in range
@@ -414,7 +432,7 @@ inline int NormalizeAxis(const Call& call, const BlockBuilder& ctx, int ndim, in
  * \param shape_values The given shape values.
  * \return The product of all the given shape values.
  */
-PrimExpr ComputeShapeProduct(const Array<PrimExpr>& shape_values);
+PrimExpr ComputeShapeProduct(const ffi::Array<PrimExpr>& shape_values);
 
 /*!
  * \brief Check if the given permutation is identity permutation.
@@ -428,7 +446,7 @@ bool IsIdentityPermutation(const std::vector<int>& permutation);
  * \param int_imms The input IntImms to be converted.
  * \return The conversion result, where every IntImm has dtype int64
  */
-inline Array<IntImm> ConvertIntImmToInt64(const Array<IntImm>& int_imms) {
+inline ffi::Array<IntImm> ConvertIntImmToInt64(const ffi::Array<IntImm>& int_imms) {
   return int_imms.Map([](const IntImm& i) { return Downcast<IntImm>(cast(DataType::Int(64), i)); });
 }
 
@@ -442,15 +460,16 @@ inline Array<IntImm> ConvertIntImmToInt64(const Array<IntImm>& int_imms) {
  * \return The completed padding.
  * \throws Throws error if the input padding length is neither 1 or 2.
  */
-inline Array<IntImm> GetCompletePadding1D(Array<IntImm> padding) {
+inline ffi::Array<int64_t> GetCompletePadding1D(ffi::Array<int64_t> padding) {
   if (padding.size() == 1) {
     return {padding[0], padding[0]};
   } else if (padding.size() == 2) {
     return padding;
   }
-  LOG(FATAL) << "The input padding length is expected to be either 1 or 2. However, the given "
-                "padding is "
-             << padding;
+  TVM_FFI_THROW(InternalError)
+      << "The input padding length is expected to be either 1 or 2. However, the given "
+         "padding is "
+      << padding;
   throw;
 }
 
@@ -463,7 +482,7 @@ inline Array<IntImm> GetCompletePadding1D(Array<IntImm> padding) {
  * \return The completed padding.
  * \throws Throws error if the input padding length is neither 1, 2 or 4.
  */
-inline Array<IntImm> GetCompletePadding2D(Array<IntImm> padding) {
+inline ffi::Array<int64_t> GetCompletePadding2D(ffi::Array<int64_t> padding) {
   if (padding.size() == 1) {
     return {padding[0], padding[0], padding[0], padding[0]};
   } else if (padding.size() == 2) {
@@ -471,9 +490,10 @@ inline Array<IntImm> GetCompletePadding2D(Array<IntImm> padding) {
   } else if (padding.size() == 4) {
     return padding;
   }
-  LOG(FATAL) << "The input padding length is expected to be either 1, 2 or 4. However, the given "
-                "padding is "
-             << padding;
+  TVM_FFI_THROW(InternalError)
+      << "The input padding length is expected to be either 1, 2 or 4. However, the given "
+         "padding is "
+      << padding;
   throw;
 }
 
@@ -488,7 +508,7 @@ inline Array<IntImm> GetCompletePadding2D(Array<IntImm> padding) {
  * \return The completed padding.
  * \throws Throws error if the input padding length is neither 1, 3 or 6.
  */
-inline Array<IntImm> GetCompletePadding3D(Array<IntImm> padding) {
+inline ffi::Array<int64_t> GetCompletePadding3D(ffi::Array<int64_t> padding) {
   if (padding.size() == 1) {
     return {padding[0], padding[0], padding[0], padding[0], padding[0], padding[0]};
   } else if (padding.size() == 3) {
@@ -496,9 +516,10 @@ inline Array<IntImm> GetCompletePadding3D(Array<IntImm> padding) {
   } else if (padding.size() == 6) {
     return padding;
   }
-  LOG(FATAL) << "The input padding length is expected to be either 1, 3 or 6. However, the given "
-                "padding is "
-             << padding;
+  TVM_FFI_THROW(InternalError)
+      << "The input padding length is expected to be either 1, 3 or 6. However, the given "
+         "padding is "
+      << padding;
   throw;
 }
 
@@ -514,11 +535,9 @@ inline Array<IntImm> GetCompletePadding3D(Array<IntImm> padding) {
  * \return The tensor layout and the bijective conversion in tir::Layout and tir::BijectiveLayout
  * accordingly.
  */
-inline std::pair<tir::Layout, tir::BijectiveLayout> CheckTensorLayout(const Call& call,
-                                                                      const BlockBuilder& ctx,
-                                                                      const String& tensor_layout,
-                                                                      const String& tgt_layout,
-                                                                      const String& tensor_name) {
+inline std::pair<tir::Layout, tir::BijectiveLayout> CheckTensorLayout(
+    const Call& call, const BlockBuilder& ctx, const ffi::String& tensor_layout,
+    const ffi::String& tgt_layout, const ffi::String& tensor_name) {
   tir::Layout _tensor_layout(tensor_layout, DataType::Int(64));
   tir::BijectiveLayout tensor2tgt(_tensor_layout, tir::Layout(tgt_layout, DataType::Int(64)));
   if (!tensor2tgt.defined()) {
@@ -539,9 +558,10 @@ inline std::pair<tir::Layout, tir::BijectiveLayout> CheckTensorLayout(const Call
  * \param layout The layout that the given tensor is expected to have.
  * \return The shape of the input tensor in ShapeExpr, or `std::nullopt` if the shape is unknown.
  */
-inline Optional<ShapeExpr> CheckNdimPerLayoutAndGetShape(const Call& call, const BlockBuilder& ctx,
-                                                         const TensorStructInfo& sinfo,
-                                                         const tir::Layout& layout) {
+inline ffi::Optional<ShapeExpr> CheckNdimPerLayoutAndGetShape(const Call& call,
+                                                              const BlockBuilder& ctx,
+                                                              const TensorStructInfo& sinfo,
+                                                              const tir::Layout& layout) {
   if (!sinfo->IsUnknownNdim() && sinfo->ndim != static_cast<int>(layout.ndim())) {
     ctx->ReportFatal(Diagnostic::Error(call)
                      << "In " << call->op << ", layout " << layout << " requires the input to be "
@@ -549,14 +569,15 @@ inline Optional<ShapeExpr> CheckNdimPerLayoutAndGetShape(const Call& call, const
                      << sinfo->ndim);
   }
   if (const auto* shape_expr = sinfo->shape.as<ShapeExprNode>()) {
-    return GetRef<ShapeExpr>(shape_expr);
+    return ffi::GetRef<ShapeExpr>(shape_expr);
   }
   return std::nullopt;
 }
 
 Expr MakeVMAllocStorage(Expr size, PrimValue runtime_device_index, DataTypeImm dtype,
                         StringImm storage_scope = StringImm("global"));
-Expr MakeVMAllocTensor(Expr storage, PrimValue offset, Expr shape, DataTypeImm dtype);
+Expr MakeVMAllocTensor(Expr storage, PrimValue offset, Expr shape, DataTypeImm dtype,
+                       PrimValue runtime_device_index);
 
 Expr MakeAllocTensor(Expr shape, DataTypeImm dtype, PrimValue runtime_device_index,
                      StringImm storage_scope = StringImm("global"));
@@ -568,7 +589,7 @@ Expr MakeAllocTensor(Expr shape, DataTypeImm dtype, PrimValue runtime_device_ind
  * \param call The call node
  * \return The arguments of the call
  */
-Array<Expr> GetCallArgs(const Call& call);
+ffi::Array<Expr> GetCallArgs(const Call& call);
 
 /**
  * \brief Checks the given shape can be proved from the source layout to dst layout
@@ -578,7 +599,7 @@ Array<Expr> GetCallArgs(const Call& call);
  * \return true or false depending on the compatibility
  */
 bool CanProveLayoutTransform(const Layout& input_layout, const Layout& desired_layout,
-                             Array<PrimExpr> shape);
+                             ffi::Array<PrimExpr> shape);
 
 }  // namespace relax
 }  // namespace tvm

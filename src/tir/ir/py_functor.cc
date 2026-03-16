@@ -170,36 +170,32 @@ class PyStmtExprVisitorNode : public Object, public StmtExprVisitor {
   // Statement functions
   /*! \brief The packed function to the `VisitStmt(const Stmt& stmt)` function. */
   ffi::Function f_visit_stmt{nullptr};
-  /*! \brief The packed function to the `VisitStmt_(const LetStmtNode* op)` function. */
+  /*! \brief The packed function to the `VisitStmt_(const BindNode* op)` function. */
+  ffi::Function f_visit_bind{nullptr};
+  /*! \brief The packed function to the `VisitStmt_(const AttrStmtNode* op)` function. */
   ffi::Function f_visit_attr_stmt{nullptr};
   /*! \brief The packed function to the `VisitStmt_(const IfThenElseNode* op)` function. */
   ffi::Function f_visit_if_then_else{nullptr};  // NOLINT(readability/braces)
   /*! \brief The packed function to the `VisitStmt_(const ForNode* op)` function. */
-  ffi::Function f_visit_let_stmt{nullptr};
-  /*! \brief The packed function to the `VisitStmt_(const AttrStmtNode* op)` function. */
   ffi::Function f_visit_for{nullptr};
   /*! \brief The packed function to the `VisitStmt_(const WhileNode* op)` function. */
   ffi::Function f_visit_while{nullptr};
-  /*! \brief The packed function to the `VisitStmt_(const AllocateNode* op)` function. */
-  ffi::Function f_visit_allocate{nullptr};
-  /*! \brief The packed function to the `VisitStmt_(const AllocateConstNode* op)` function. */
-  ffi::Function f_visit_allocate_const{nullptr};
+  /*! \brief The packed function to the `VisitStmt_(const AllocBufferNode* op)` function. */
+  ffi::Function f_visit_alloc_buffer{nullptr};
   /*! \brief The packed function to the `VisitStmt_(const DeclBufferNode* op)` function. */
   ffi::Function f_visit_decl_buffer{nullptr};
   /*! \brief The packed function to the `VisitStmt_(const BufferStoreNode* op)` function. */
   ffi::Function f_visit_buffer_store{nullptr};
-  /*! \brief The packed function to the `VisitStmt_(const BufferRealizeNode* op)` function. */
-  ffi::Function f_visit_buffer_realize{nullptr};
   /*! \brief The packed function to the `VisitStmt_(const AssertStmtNode* op)` function. */
   ffi::Function f_visit_assert_stmt{nullptr};
   /*! \brief The packed function to the `VisitStmt_(const SeqStmtNode* op)` function. */
   ffi::Function f_visit_seq_stmt{nullptr};
   /*! \brief The packed function to the `VisitStmt_(const EvaluateNode* op)` function. */
   ffi::Function f_visit_evaluate{nullptr};
-  /*! \brief The packed function to the `VisitStmt_(const BlockNode* op)` function. */
+  /*! \brief The packed function to the `VisitStmt_(const SBlockNode* op)` function. */
   ffi::Function f_visit_block{nullptr};
-  /*! \brief The packed function to the `VisitStmt_(const BlockRealizeNode* op)` function. */
-  ffi::Function f_visit_block_realize{nullptr};
+  /*! \brief The packed function to the `VisitStmt_(const SBlockRealizeNode* op)` function. */
+  ffi::Function f_visit_sblock_realize{nullptr};
 
   using StmtExprVisitor::VisitExpr;
   using StmtExprVisitor::VisitStmt;
@@ -215,29 +211,28 @@ class PyStmtExprVisitorNode : public Object, public StmtExprVisitor {
   }
 
   static void RegisterReflection() {
-    // No fields to register as they are not visited
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PyStmtExprVisitorNode>();
   }
 
-  static constexpr const char* _type_key = "tir.PyStmtExprVisitor";
-  TVM_DECLARE_BASE_OBJECT_INFO(PyStmtExprVisitorNode, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("tir.PyStmtExprVisitor", PyStmtExprVisitorNode, Object);
 
  private:
   // Statement functions
-  PY_STMT_VISITOR_DISPATCH(LetStmtNode, f_visit_let_stmt);
+  PY_STMT_VISITOR_DISPATCH(BindNode, f_visit_bind);
   PY_STMT_VISITOR_DISPATCH(AttrStmtNode, f_visit_attr_stmt);
   PY_STMT_VISITOR_DISPATCH(IfThenElseNode, f_visit_if_then_else);
   PY_STMT_VISITOR_DISPATCH(ForNode, f_visit_for);
   PY_STMT_VISITOR_DISPATCH(WhileNode, f_visit_while);
-  PY_STMT_VISITOR_DISPATCH(AllocateNode, f_visit_allocate);
-  PY_STMT_VISITOR_DISPATCH(AllocateConstNode, f_visit_allocate_const);
+  PY_STMT_VISITOR_DISPATCH(AllocBufferNode, f_visit_alloc_buffer);
   PY_STMT_VISITOR_DISPATCH(DeclBufferNode, f_visit_decl_buffer);
   PY_STMT_VISITOR_DISPATCH(BufferStoreNode, f_visit_buffer_store);
-  PY_STMT_VISITOR_DISPATCH(BufferRealizeNode, f_visit_buffer_realize);
   PY_STMT_VISITOR_DISPATCH(AssertStmtNode, f_visit_assert_stmt);
   PY_STMT_VISITOR_DISPATCH(SeqStmtNode, f_visit_seq_stmt);
   PY_STMT_VISITOR_DISPATCH(EvaluateNode, f_visit_evaluate);
-  PY_STMT_VISITOR_DISPATCH(BlockNode, f_visit_block);
-  PY_STMT_VISITOR_DISPATCH(BlockRealizeNode, f_visit_block_realize);
+  PY_STMT_VISITOR_DISPATCH(SBlockNode, f_visit_block);
+  PY_STMT_VISITOR_DISPATCH(SBlockRealizeNode, f_visit_sblock_realize);
   // Expression functions
   PY_EXPR_VISITOR_DISPATCH(VarNode, f_visit_var);
   PY_EXPR_VISITOR_DISPATCH(SizeVarNode, f_visit_size_var);
@@ -316,21 +311,19 @@ class PyStmtExprVisitorNode : public Object, public StmtExprVisitor {
 
   static FStmtType InitStmtVTable() {
     FStmtType vtable;
-    PY_STMT_VISITOR_DEFAULT_DISPATCH(LetStmtNode);
+    PY_STMT_VISITOR_DEFAULT_DISPATCH(BindNode);
     PY_STMT_VISITOR_DEFAULT_DISPATCH(AttrStmtNode);
     PY_STMT_VISITOR_DEFAULT_DISPATCH(IfThenElseNode);
     PY_STMT_VISITOR_DEFAULT_DISPATCH(ForNode);
     PY_STMT_VISITOR_DEFAULT_DISPATCH(WhileNode);
-    PY_STMT_VISITOR_DEFAULT_DISPATCH(AllocateNode);
-    PY_STMT_VISITOR_DEFAULT_DISPATCH(AllocateConstNode);
+    PY_STMT_VISITOR_DEFAULT_DISPATCH(AllocBufferNode);
     PY_STMT_VISITOR_DEFAULT_DISPATCH(DeclBufferNode);
     PY_STMT_VISITOR_DEFAULT_DISPATCH(BufferStoreNode);
-    PY_STMT_VISITOR_DEFAULT_DISPATCH(BufferRealizeNode);
     PY_STMT_VISITOR_DEFAULT_DISPATCH(AssertStmtNode);
     PY_STMT_VISITOR_DEFAULT_DISPATCH(SeqStmtNode);
     PY_STMT_VISITOR_DEFAULT_DISPATCH(EvaluateNode);
-    PY_STMT_VISITOR_DEFAULT_DISPATCH(BlockNode);
-    PY_STMT_VISITOR_DEFAULT_DISPATCH(BlockRealizeNode);
+    PY_STMT_VISITOR_DEFAULT_DISPATCH(SBlockNode);
+    PY_STMT_VISITOR_DEFAULT_DISPATCH(SBlockRealizeNode);
     vtable.Finalize();
     return vtable;
   }
@@ -342,23 +335,24 @@ class PyStmtExprVisitorNode : public Object, public StmtExprVisitor {
  */
 class PyStmtExprVisitor : public ObjectRef {
  public:
+  explicit PyStmtExprVisitor(ObjectPtr<PyStmtExprVisitorNode> data) : ObjectRef(data) {
+    TVM_FFI_ICHECK(data != nullptr);
+  }
   TVM_DLL static PyStmtExprVisitor MakePyStmtExprVisitor(ffi::Function f_visit_stmt,            //
                                                          ffi::Function f_visit_expr,            //
-                                                         ffi::Function f_visit_let_stmt,        //
+                                                         ffi::Function f_visit_bind,            //
                                                          ffi::Function f_visit_attr_stmt,       //
                                                          ffi::Function f_visit_if_then_else,    //
                                                          ffi::Function f_visit_for,             //
                                                          ffi::Function f_visit_while,           //
-                                                         ffi::Function f_visit_allocate,        //
-                                                         ffi::Function f_visit_allocate_const,  //
+                                                         ffi::Function f_visit_alloc_buffer,    //
                                                          ffi::Function f_visit_decl_buffer,     //
                                                          ffi::Function f_visit_buffer_store,    //
-                                                         ffi::Function f_visit_buffer_realize,  //
                                                          ffi::Function f_visit_assert_stmt,     //
                                                          ffi::Function f_visit_seq_stmt,        //
                                                          ffi::Function f_visit_evaluate,        //
                                                          ffi::Function f_visit_block,           //
-                                                         ffi::Function f_visit_block_realize,   //
+                                                         ffi::Function f_visit_sblock_realize,  //
                                                          ffi::Function f_visit_var,             //
                                                          ffi::Function f_visit_size_var,        //
                                                          ffi::Function f_visit_buffer_load,     //
@@ -392,25 +386,23 @@ class PyStmtExprVisitor : public ObjectRef {
                                                          ffi::Function f_visit_int_imm,         //
                                                          ffi::Function f_visit_float_imm,       //
                                                          ffi::Function f_visit_string_imm) {
-    ObjectPtr<PyStmtExprVisitorNode> n = make_object<PyStmtExprVisitorNode>();
+    ObjectPtr<PyStmtExprVisitorNode> n = ffi::make_object<PyStmtExprVisitorNode>();
     n->f_visit_stmt = std::move(f_visit_stmt);
     n->f_visit_expr = std::move(f_visit_expr);
     // Set statement functions
-    n->f_visit_let_stmt = std::move(f_visit_let_stmt);
+    n->f_visit_bind = std::move(f_visit_bind);
     n->f_visit_attr_stmt = std::move(f_visit_attr_stmt);
     n->f_visit_if_then_else = std::move(f_visit_if_then_else);
     n->f_visit_for = std::move(f_visit_for);
     n->f_visit_while = std::move(f_visit_while);
-    n->f_visit_allocate = std::move(f_visit_allocate);
-    n->f_visit_allocate_const = std::move(f_visit_allocate_const);
+    n->f_visit_alloc_buffer = std::move(f_visit_alloc_buffer);
     n->f_visit_decl_buffer = std::move(f_visit_decl_buffer);
     n->f_visit_buffer_store = std::move(f_visit_buffer_store);
-    n->f_visit_buffer_realize = std::move(f_visit_buffer_realize);
     n->f_visit_assert_stmt = std::move(f_visit_assert_stmt);
     n->f_visit_seq_stmt = std::move(f_visit_seq_stmt);
     n->f_visit_evaluate = std::move(f_visit_evaluate);
     n->f_visit_block = std::move(f_visit_block);
-    n->f_visit_block_realize = std::move(f_visit_block_realize);
+    n->f_visit_sblock_realize = std::move(f_visit_sblock_realize);
     // Set expression functions
     n->f_visit_var = std::move(f_visit_var);
     n->f_visit_size_var = std::move(f_visit_size_var);
@@ -448,8 +440,8 @@ class PyStmtExprVisitor : public ObjectRef {
     return PyStmtExprVisitor(n);
   }
 
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(PyStmtExprVisitor, ObjectRef,
-                                                    PyStmtExprVisitorNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PyStmtExprVisitor, ObjectRef,
+                                                PyStmtExprVisitorNode);
 };
 
 /*! \brief The python interface of StmtExprMutator. */
@@ -533,8 +525,8 @@ class PyStmtExprMutatorNode : public Object, public StmtExprMutator {
   // Statement functions
   /*! \brief The packed function to the `VisitStmt(const Stmt& stmt)` function. */
   ffi::Function f_visit_stmt{nullptr};
-  /*! \brief The packed function to the `VisitStmt_(const LetStmtNode* op)` function. */
-  ffi::Function f_visit_let_stmt{nullptr};
+  /*! \brief The packed function to the `VisitStmt_(const BindNode* op)` function. */
+  ffi::Function f_visit_bind{nullptr};
   /*! \brief The packed function to the `VisitStmt_(const AttrStmtNode* op)` function. */
   ffi::Function f_visit_attr_stmt{nullptr};
   /*! \brief The packed function to the `VisitStmt_(const IfThenElseNode* op)` function. */
@@ -543,26 +535,22 @@ class PyStmtExprMutatorNode : public Object, public StmtExprMutator {
   ffi::Function f_visit_for{nullptr};
   /*! \brief The packed function to the `VisitStmt_(const WhileNode* op)` function. */
   ffi::Function f_visit_while{nullptr};
-  /*! \brief The packed function to the `VisitStmt_(const AllocateNode* op)` function. */
-  ffi::Function f_visit_allocate{nullptr};
-  /*! \brief The packed function to the `VisitStmt_(const AllocateConstNode* op)` function. */
-  ffi::Function f_visit_allocate_const{nullptr};
+  /*! \brief The packed function to the `VisitStmt_(const AllocBufferNode* op)` function. */
+  ffi::Function f_visit_alloc_buffer{nullptr};
   /*! \brief The packed function to the `VisitStmt_(const DeclBufferNode* op)` function. */
   ffi::Function f_visit_decl_buffer{nullptr};
   /*! \brief The packed function to the `VisitStmt_(const BufferStoreNode* op)` function. */
   ffi::Function f_visit_buffer_store{nullptr};
-  /*! \brief The packed function to the `VisitStmt_(const BufferRealizeNode* op)` function. */
-  ffi::Function f_visit_buffer_realize{nullptr};
   /*! \brief The packed function to the `VisitStmt_(const AssertStmtNode* op)` function. */
   ffi::Function f_visit_assert_stmt{nullptr};
   /*! \brief The packed function to the `VisitStmt_(const SeqStmtNode* op)` function. */
   ffi::Function f_visit_seq_stmt{nullptr};
   /*! \brief The packed function to the `VisitStmt_(const EvaluateNode* op)` function. */
   ffi::Function f_visit_evaluate{nullptr};
-  /*! \brief The packed function to the `VisitStmt_(const BlockNode* op)` function. */
+  /*! \brief The packed function to the `VisitStmt_(const SBlockNode* op)` function. */
   ffi::Function f_visit_block{nullptr};
-  /*! \brief The packed function to the `VisitStmt_(const BlockRealizeNode* op)` function. */
-  ffi::Function f_visit_block_realize{nullptr};
+  /*! \brief The packed function to the `VisitStmt_(const SBlockRealizeNode* op)` function. */
+  ffi::Function f_visit_sblock_realize{nullptr};
 
   using StmtExprMutator::VisitExpr;
   using StmtExprMutator::VisitStmt;
@@ -578,29 +566,28 @@ class PyStmtExprMutatorNode : public Object, public StmtExprMutator {
   }
 
   static void RegisterReflection() {
-    // No fields to register as they are not visited
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PyStmtExprMutatorNode>();
   }
 
-  static constexpr const char* _type_key = "tir.PyStmtExprMutator";
-  TVM_DECLARE_BASE_OBJECT_INFO(PyStmtExprMutatorNode, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("tir.PyStmtExprMutator", PyStmtExprMutatorNode, Object);
 
  private:
   // Statement functions
-  PY_STMT_MUTATOR_DISPATCH(LetStmtNode, f_visit_let_stmt);
+  PY_STMT_MUTATOR_DISPATCH(BindNode, f_visit_bind);
   PY_STMT_MUTATOR_DISPATCH(AttrStmtNode, f_visit_attr_stmt);
   PY_STMT_MUTATOR_DISPATCH(IfThenElseNode, f_visit_if_then_else);
   PY_STMT_MUTATOR_DISPATCH(ForNode, f_visit_for);
   PY_STMT_MUTATOR_DISPATCH(WhileNode, f_visit_while);
-  PY_STMT_MUTATOR_DISPATCH(AllocateNode, f_visit_allocate);
-  PY_STMT_MUTATOR_DISPATCH(AllocateConstNode, f_visit_allocate_const);
+  PY_STMT_MUTATOR_DISPATCH(AllocBufferNode, f_visit_alloc_buffer);
   PY_STMT_MUTATOR_DISPATCH(DeclBufferNode, f_visit_decl_buffer);
   PY_STMT_MUTATOR_DISPATCH(BufferStoreNode, f_visit_buffer_store);
-  PY_STMT_MUTATOR_DISPATCH(BufferRealizeNode, f_visit_buffer_realize);
   PY_STMT_MUTATOR_DISPATCH(AssertStmtNode, f_visit_assert_stmt);
   PY_STMT_MUTATOR_DISPATCH(SeqStmtNode, f_visit_seq_stmt);
   PY_STMT_MUTATOR_DISPATCH(EvaluateNode, f_visit_evaluate);
-  PY_STMT_MUTATOR_DISPATCH(BlockNode, f_visit_block);
-  PY_STMT_MUTATOR_DISPATCH(BlockRealizeNode, f_visit_block_realize);
+  PY_STMT_MUTATOR_DISPATCH(SBlockNode, f_visit_block);
+  PY_STMT_MUTATOR_DISPATCH(SBlockRealizeNode, f_visit_sblock_realize);
   // Expression functions
   PY_EXPR_MUTATOR_DISPATCH(VarNode, f_visit_var);
   PY_EXPR_MUTATOR_DISPATCH(SizeVarNode, f_visit_size_var);
@@ -679,21 +666,19 @@ class PyStmtExprMutatorNode : public Object, public StmtExprMutator {
 
   static FStmtType InitStmtVTable() {
     FStmtType vtable;
-    PY_STMT_MUTATOR_DEFAULT_DISPATCH(LetStmtNode);
+    PY_STMT_MUTATOR_DEFAULT_DISPATCH(BindNode);
     PY_STMT_MUTATOR_DEFAULT_DISPATCH(AttrStmtNode);
     PY_STMT_MUTATOR_DEFAULT_DISPATCH(IfThenElseNode);
     PY_STMT_MUTATOR_DEFAULT_DISPATCH(ForNode);
     PY_STMT_MUTATOR_DEFAULT_DISPATCH(WhileNode);
-    PY_STMT_MUTATOR_DEFAULT_DISPATCH(AllocateNode);
-    PY_STMT_MUTATOR_DEFAULT_DISPATCH(AllocateConstNode);
+    PY_STMT_MUTATOR_DEFAULT_DISPATCH(AllocBufferNode);
     PY_STMT_MUTATOR_DEFAULT_DISPATCH(DeclBufferNode);
     PY_STMT_MUTATOR_DEFAULT_DISPATCH(BufferStoreNode);
-    PY_STMT_MUTATOR_DEFAULT_DISPATCH(BufferRealizeNode);
     PY_STMT_MUTATOR_DEFAULT_DISPATCH(AssertStmtNode);
     PY_STMT_MUTATOR_DEFAULT_DISPATCH(SeqStmtNode);
     PY_STMT_MUTATOR_DEFAULT_DISPATCH(EvaluateNode);
-    PY_STMT_MUTATOR_DEFAULT_DISPATCH(BlockNode);
-    PY_STMT_MUTATOR_DEFAULT_DISPATCH(BlockRealizeNode);
+    PY_STMT_MUTATOR_DEFAULT_DISPATCH(SBlockNode);
+    PY_STMT_MUTATOR_DEFAULT_DISPATCH(SBlockRealizeNode);
     vtable.Finalize();
     return vtable;
   }
@@ -702,27 +687,28 @@ class PyStmtExprMutatorNode : public Object, public StmtExprMutator {
 /*! \brief Managed reference to PyStmtExprMutatorNode. */
 class PyStmtExprMutator : public ObjectRef {
  public:
+  explicit PyStmtExprMutator(ObjectPtr<PyStmtExprMutatorNode> data) : ObjectRef(data) {
+    TVM_FFI_ICHECK(data != nullptr);
+  }
   /*!
    * \brief Create a PyStmtExprMutator with customized methods on the python-side.
    * \return The PyStmtExprMutator created.
    */
   TVM_DLL static PyStmtExprMutator MakePyStmtExprMutator(ffi::Function f_visit_stmt,            //
                                                          ffi::Function f_visit_expr,            //
-                                                         ffi::Function f_visit_let_stmt,        //
+                                                         ffi::Function f_visit_bind,            //
                                                          ffi::Function f_visit_attr_stmt,       //
                                                          ffi::Function f_visit_if_then_else,    //
                                                          ffi::Function f_visit_for,             //
                                                          ffi::Function f_visit_while,           //
-                                                         ffi::Function f_visit_allocate,        //
-                                                         ffi::Function f_visit_allocate_const,  //
+                                                         ffi::Function f_visit_alloc_buffer,    //
                                                          ffi::Function f_visit_decl_buffer,     //
                                                          ffi::Function f_visit_buffer_store,    //
-                                                         ffi::Function f_visit_buffer_realize,  //
                                                          ffi::Function f_visit_assert_stmt,     //
                                                          ffi::Function f_visit_seq_stmt,        //
                                                          ffi::Function f_visit_evaluate,        //
                                                          ffi::Function f_visit_block,           //
-                                                         ffi::Function f_visit_block_realize,   //
+                                                         ffi::Function f_visit_sblock_realize,  //
                                                          ffi::Function f_visit_var,             //
                                                          ffi::Function f_visit_size_var,        //
                                                          ffi::Function f_visit_buffer_load,     //
@@ -756,25 +742,23 @@ class PyStmtExprMutator : public ObjectRef {
                                                          ffi::Function f_visit_int_imm,         //
                                                          ffi::Function f_visit_float_imm,       //
                                                          ffi::Function f_visit_string_imm) {
-    ObjectPtr<PyStmtExprMutatorNode> n = make_object<PyStmtExprMutatorNode>();
+    ObjectPtr<PyStmtExprMutatorNode> n = ffi::make_object<PyStmtExprMutatorNode>();
     n->f_visit_stmt = std::move(f_visit_stmt);
     n->f_visit_expr = std::move(f_visit_expr);
     // Statement functions
-    n->f_visit_let_stmt = std::move(f_visit_let_stmt);
+    n->f_visit_bind = std::move(f_visit_bind);
     n->f_visit_attr_stmt = std::move(f_visit_attr_stmt);
     n->f_visit_if_then_else = std::move(f_visit_if_then_else);
     n->f_visit_for = std::move(f_visit_for);
     n->f_visit_while = std::move(f_visit_while);
-    n->f_visit_allocate = std::move(f_visit_allocate);
-    n->f_visit_allocate_const = std::move(f_visit_allocate_const);
+    n->f_visit_alloc_buffer = std::move(f_visit_alloc_buffer);
     n->f_visit_decl_buffer = std::move(f_visit_decl_buffer);
     n->f_visit_buffer_store = std::move(f_visit_buffer_store);
-    n->f_visit_buffer_realize = std::move(f_visit_buffer_realize);
     n->f_visit_assert_stmt = std::move(f_visit_assert_stmt);
     n->f_visit_seq_stmt = std::move(f_visit_seq_stmt);
     n->f_visit_evaluate = std::move(f_visit_evaluate);
     n->f_visit_block = std::move(f_visit_block);
-    n->f_visit_block_realize = std::move(f_visit_block_realize);
+    n->f_visit_sblock_realize = std::move(f_visit_sblock_realize);
     // Expression functions
     n->f_visit_var = std::move(f_visit_var);
     n->f_visit_size_var = std::move(f_visit_size_var);
@@ -812,31 +796,28 @@ class PyStmtExprMutator : public ObjectRef {
     return PyStmtExprMutator(n);
   }
 
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(PyStmtExprMutator, ObjectRef,
-                                                    PyStmtExprMutatorNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PyStmtExprMutator, ObjectRef,
+                                                PyStmtExprMutatorNode);
 };
 
 // ================================================
 // TVM Register
 // ================================================
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   PyStmtExprVisitorNode::RegisterReflection();
   PyStmtExprMutatorNode::RegisterReflection();
-});
+}
 
-TVM_REGISTER_NODE_TYPE(PyStmtExprVisitorNode);
-TVM_REGISTER_NODE_TYPE(PyStmtExprMutatorNode);
-
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("tir.MakePyStmtExprVisitor", PyStmtExprVisitor::MakePyStmtExprVisitor)
       .def("tir.MakePyStmtExprMutator", PyStmtExprMutator::MakePyStmtExprMutator);
-});
+}
 
 // StmtExprVisitor
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("tir.PyStmtExprVisitorDefaultVisitExpr",
@@ -847,10 +828,10 @@ TVM_FFI_STATIC_INIT_BLOCK({
            [](PyStmtExprVisitor visitor, const Stmt& stmt) { visitor->VisitStmt(stmt); })
       .def("tir.PyStmtExprVisitorVisitExpr",
            [](PyStmtExprVisitor visitor, const PrimExpr& expr) { visitor->VisitExpr(expr); });
-});
+}
 
 // StmtExprMutator
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("tir.PyStmtExprMutatorDefaultVisitExpr",
@@ -865,7 +846,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
            [](PyStmtExprMutator mutator, const PrimExpr& expr) { return mutator->VisitExpr(expr); })
       .def("tir.PyStmtExprMutatorVisitStmt",
            [](PyStmtExprMutator mutator, const Stmt& stmt) { return mutator->VisitStmt(stmt); });
-});
+}
 
 }  // namespace tir
 }  // namespace tvm

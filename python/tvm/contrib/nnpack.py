@@ -14,10 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F821
 """External function interface to NNPACK libraries."""
+
+import tvm_ffi
+
 import tvm
 from tvm import te
-import tvm.ffi
 
 
 def is_available():
@@ -232,4 +235,4 @@ def convolution_inference_weight_transform(
     )
 
 
-tvm.ffi._init_api("tvm.contrib.nnpack")
+tvm_ffi.init_ffi_api("tvm.contrib.nnpack")

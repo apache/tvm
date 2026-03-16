@@ -14,11 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501
 
 import tvm
-from tvm.relax.transform import LegalizeOps
-from tvm.script import relax as R, tir as T
 import tvm.testing
+from tvm.relax.transform import LegalizeOps
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 def test_image_resize2d():
@@ -41,11 +43,11 @@ def test_image_resize2d():
         def resize2d(rxplaceholder: T.Buffer((T.int64(2), T.int64(8), T.int64(8), T.int64(3)), "float32"), resize: T.Buffer((T.int64(2), T.int64(16), T.int64(16), T.int64(3)), "float32")):
             T.func_attr({"tir.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(2), T.int64(16), T.int64(16), T.int64(3)):
-                with T.block("resize"):
+                with T.sblock("resize"):
                     i0_1, i1_1, i2_1, i3_1 = T.axis.remap("SSSS", [i0, i1, i2, i3])
-                    T.reads(rxplaceholder[i0_1, T.max(T.min(T.Div(i1_1, T.int64(2)), T.int64(7)), T.int64(0)), T.max(T.min(T.Div(i2_1, T.int64(2)), T.int64(7)), T.int64(0)), i3_1])
+                    T.reads(rxplaceholder[i0_1, T.int64(0):T.int64(8), T.int64(0):T.int64(8), i3_1])
                     T.writes(resize[i0_1, i1_1, i2_1, i3_1])
-                    resize[i0_1, i1_1, i2_1, i3_1] = rxplaceholder[i0_1, T.max(T.min(T.Div(i1_1, T.int64(2)), T.int64(7)), T.int64(0)), T.max(T.min(T.Div(i2_1, T.int64(2)), T.int64(7)), T.int64(0)), i3_1]
+                    resize[i0_1, i1_1, i2_1, i3_1] = rxplaceholder[i0_1, T.max(T.min(T.Cast("int64", T.round(T.float32(0.5) * T.Cast("float32", i1_1))), T.int64(7)), T.int64(0)), T.max(T.min(T.Cast("int64", T.round(T.float32(0.5) * T.Cast("float32", i2_1))), T.int64(7)), T.int64(0)), i3_1]
     # fmt: on
 
     mod = LegalizeOps()(Resize2D)
@@ -88,7 +90,7 @@ def test_image_resize2d_symbolic():
             rxplaceholder = T.match_buffer(var_rxplaceholder, [n, c, h, w, T.int64(16)], dtype="float32")
             resize = T.match_buffer(var_resize, [n, c, oh, ow, T.int64(16)], dtype="float32")
             for i0, i1, i2, i3, i4 in T.grid(n, c, oh, ow, T.int64(16)):
-                with T.block("resize"):
+                with T.sblock("resize"):
                     i0_1, i1_1, i2_1, i3_1, i4_1 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                     T.reads(rxplaceholder[i0_1, i1_1, T.int64(0) : T.max(h, T.int64(1)), T.int64(0) : T.max(w, T.int64(1)), i4_1])
                     T.writes(resize[i0_1, i1_1, i2_1, i3_1, i4_1])

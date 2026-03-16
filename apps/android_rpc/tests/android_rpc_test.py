@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F821
 """Testcode for Android RPC.
 
 To use it, start an RPC tracker with "python -m tvm.exec.rpc_tracker".
@@ -21,12 +22,13 @@ Use the tracker's address and port when configuring the RPC app.
 Use "android" as the key if you wish to avoid modifying this script.
 """
 
-import tvm
-from tvm import te
 import os
-from tvm import rpc
-from tvm.contrib import utils, ndk
+
 import numpy as np
+
+import tvm
+from tvm import rpc, te
+from tvm.contrib import ndk, utils
 
 # Set to be address of tvm proxy.
 tracker_host = os.environ["TVM_TRACKER_HOST"]
@@ -36,7 +38,7 @@ key = "android"
 # Change target configuration.
 # Run `adb shell cat /proc/cpuinfo` to find the arch.
 arch = "arm64"
-target = "llvm -mtriple=%s-linux-android" % arch
+target = {"kind": "llvm", "mtriple": f"{arch}-linux-android"}
 
 # whether enable to execute test on OpenCL target
 test_opencl = False
@@ -57,8 +59,8 @@ def test_rpc_module():
     remote = tracker.request(key, priority=0, session_timeout=60)
 
     mod = tvm.IRModule.from_expr(te.create_prim_func([A, B]).with_attr("global_symbol", "myadd"))
-    sch = tvm.tir.Schedule(mod)
-    (x,) = sch.get_loops(block=sch.get_block("B"))
+    sch = tvm.s_tir.Schedule(mod)
+    (x,) = sch.get_loops(block=sch.get_sblock("B"))
     xo, xi = sch.split(i, [None, 32])
     sch.bind(xo, "blockIdx.x")
     sch.bind(xi, "threadIdx.x")
@@ -72,11 +74,11 @@ def test_rpc_module():
         dev = remote.cl(0)
         remote.upload(path_dso_cl)
         f1 = remote.load_module("dev_lib_cl.so")
-        a = tvm.nd.array(a_np, dev)
-        b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), dev)
+        a = tvm.runtime.tensor(a_np, dev)
+        b = tvm.runtime.tensor(np.zeros(1024, dtype=A.dtype), dev)
         time_f = f1.time_evaluator(f1.entry_name, dev, number=10)
         cost = time_f(a, b).mean
-        print("%g secs/op\n" % cost)
+        print(f"{cost:g} secs/op\n")
         np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
 

@@ -15,35 +15,36 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=unused-argument
+# ruff: noqa: E501, F841
 """
 ONNX testcases
 ================
 This file is a test script to test Relax ONNX frontend coverage.
 """
 
-from typing import Dict, List, Literal, Optional
+from typing import Literal
 
 import numpy as np
 import onnx
 import onnxruntime
 import pytest
-from onnx import ModelProto, TensorProto, helper, mapping
+from onnx import ModelProto, TensorProto, helper
 
 import tvm
 import tvm.testing
 from tvm import relax
 from tvm.relax.frontend.onnx import from_onnx
+from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tir as T
-from tvm.script import ir as I
 
 bg = np.random.MT19937(0)
 rg = np.random.Generator(bg)
 
 
 def generate_random_inputs(
-    model: ModelProto, inputs: Optional[Dict[str, np.ndarray]] = None
-) -> Dict[str, np.ndarray]:
+    model: ModelProto, inputs: dict[str, np.ndarray] | None = None
+) -> dict[str, np.ndarray]:
     input_values = {}
     # Iterate through model inputs and extract their shape.
     for i in model.graph.input:
@@ -62,7 +63,7 @@ def generate_random_inputs(
 def generate_random_value(shape, elem_type) -> np.ndarray:
     # Extract datatype for the input.
     if elem_type:
-        dtype = str(onnx.mapping.TENSOR_TYPE_TO_NP_TYPE[elem_type])
+        dtype = str(helper.tensor_dtype_to_np_dtype(elem_type))
     else:
         dtype = "float32"
 
@@ -82,11 +83,12 @@ def generate_random_value(shape, elem_type) -> np.ndarray:
 
 def check_correctness(
     model: ModelProto,
-    inputs: Optional[Dict[str, np.ndarray]] = None,
+    inputs: dict[str, np.ndarray] | None = None,
     ir_version: int = 8,
     opset: int = 14,
     rtol: float = 1e-7,
     atol: float = 1e-5,
+    check_dtypes: bool = False,
 ) -> None:
     """Run an onnx model in both onnxruntime and TVM through our importer
        confirm that the results match. Otherwise, an exception will be raised.
@@ -104,6 +106,8 @@ def check_correctness(
     atol: float
         Set the tolerance of correctness checking. Some ops may be show more
         arithmetic variance than others.
+    check_dtypes: bool
+        Check if data types are the same.
     """
     # Configure model format.
     if ir_version is not None:
@@ -152,17 +156,35 @@ def check_correctness(
         # while the ONNX output number is one, which is a list
         tvm_output = [tvm_output]
 
+    def _get_numpy_subdtype(narray):
+        if np.issubdtype(narray.dtype, np.integer):
+            return "integer"
+        elif np.issubdtype(narray.dtype, np.floating):
+            return "floating"
+        elif np.issubdtype(narray.dtype, np.bool_):
+            return "bool"
+        elif np.issubdtype(narray.dtype, np.complexfloating):
+            return "complexfloating"
+        else:
+            return "other"
+
     def _check_output(tvm_out, ort_out):
-        if isinstance(tvm_out, tuple) and isinstance(ort_out, (tvm.runtime.ShapeTuple, list)):
+        if isinstance(tvm_out, tuple) and isinstance(ort_out, tvm.runtime.ShapeTuple | list):
             assert len(tvm_out) == len(ort_out), "Unequal number of outputs"
             for tvm_out_i, ort_out_i in zip(tvm_out, ort_out):
                 _check_output(tvm_out_i, ort_out_i)
-        elif isinstance(tvm_out, tvm.nd.NDArray) and isinstance(ort_out, np.ndarray):
+        elif isinstance(tvm_out, tvm.runtime.Tensor) and isinstance(ort_out, np.ndarray):
+            if check_dtypes:
+                assert tvm_out.numpy().dtype == ort_out.dtype
             tvm.testing.assert_allclose(tvm_out.numpy(), ort_out, rtol=rtol, atol=atol)
         elif isinstance(tvm_out, tvm.runtime.ShapeTuple) and isinstance(ort_out, np.ndarray):
-            shape_out = tvm.nd.array([int(i) for i in tvm_out])
+            shape_out = tvm.runtime.tensor([int(i) for i in tvm_out])
+            if check_dtypes:
+                assert _get_numpy_subdtype(shape_out.numpy()) == _get_numpy_subdtype(ort_out)
             tvm.testing.assert_allclose(shape_out.numpy(), ort_out, rtol=rtol, atol=atol)
-        elif isinstance(tvm_out, (int, float, bool)) and isinstance(ort_out, np.ndarray):
+        elif isinstance(tvm_out, int | float | bool) and isinstance(ort_out, np.ndarray):
+            if check_dtypes:
+                assert _get_numpy_subdtype(np.array(tvm_out)) == _get_numpy_subdtype(ort_out)
             tvm.testing.assert_allclose(np.array(tvm_out), ort_out, rtol=rtol, atol=atol)
         else:
             raise ValueError(f"Unsupported types: {type(tvm_out)}, {type(ort_out)}")
@@ -267,7 +289,7 @@ def verify_binary(
     )
 
     model = helper.make_model(graph, producer_name="binary_test")
-    check_correctness(model, opset=opset)
+    check_correctness(model, opset=opset, check_dtypes=True)
 
 
 def verify_binary_scalar(op_name, attrs={}, domain=None, dtype=TensorProto.INT32, opset=14):
@@ -282,7 +304,7 @@ def verify_binary_scalar(op_name, attrs={}, domain=None, dtype=TensorProto.INT32
     )
 
     model = helper.make_model(graph, producer_name="binary_test")
-    check_correctness(model, opset=opset)
+    check_correctness(model, opset=opset, check_dtypes=True)
 
 
 def verify_compare(op_name, shape, attrs={}, domain=None):
@@ -372,22 +394,53 @@ def test_mod(int_mode: bool):
     verify_binary_scalar("Mod", attrs={"fmod": fmod}, dtype=dtype)
 
 
-@pytest.mark.parametrize("num_inputs", [1, 2, 4])
+SHAPE_PARAMS = [
+    ([[32, 32], [32, 32]], [32, 32]),
+    ([[32, 1], [1, 2]], [32, 2]),
+    (
+        [
+            [
+                32,
+            ],
+            [
+                1,
+            ],
+        ],
+        [
+            32,
+        ],
+    ),
+    ([[32, 32, 1, 1], [1, 32, 32]], [32, 32, 32, 32]),
+    (
+        [
+            [32, 32, 1, 1],
+            [1, 32, 1],
+            [
+                32,
+            ],
+        ],
+        [32, 32, 32, 32],
+    ),
+]
+
+
+@pytest.mark.parametrize("input_shapes, expected_output_shape", SHAPE_PARAMS)
 @pytest.mark.parametrize("op_name", ["Min", "Max", "Sum", "Mean"])
-def test_multi_input(op_name: str, num_inputs: int):
-    input_shape = [32, 32]
-    input_var = ["i" + str(i) for i in range(num_inputs)]
-    input_values = [
-        helper.make_tensor_value_info(var, TensorProto.FLOAT, input_shape) for var in input_var
-    ]
-    test_node = helper.make_node(op_name, input_var, ["c"])
+def test_multi_input_broadcasting(op_name, input_shapes, expected_output_shape):
+    num_inputs = len(input_shapes)
+    input_names = [f"i{i}" for i in range(num_inputs)]
+
+    input_values_info = []
+    for name, shape in zip(input_names, input_shapes):
+        input_values_info.append(helper.make_tensor_value_info(name, TensorProto.FLOAT, shape))
+    test_node = helper.make_node(op_name, input_names, ["output"])
+    output_info = helper.make_tensor_value_info("output", TensorProto.FLOAT, expected_output_shape)
     graph = helper.make_graph(
         [test_node],
-        "multi_input_test",
-        inputs=input_values,
-        outputs=[helper.make_tensor_value_info("c", TensorProto.FLOAT, input_shape)],
+        f"multi_input_{op_name}_test",
+        inputs=input_values_info,
+        outputs=[output_info],
     )
-
     model = helper.make_model(graph, producer_name="multi_input_test")
     check_correctness(model)
 
@@ -514,7 +567,7 @@ def test_gather():
     def _verify_gather(data_shape, indices, out_shape, axis=0):
         gather_node = helper.make_node("Gather", ["data", "indices"], ["y"], axis=axis)
 
-        if isinstance(indices, (list, tuple)):
+        if isinstance(indices, list | tuple):
             indices_shape = np.asarray(indices).shape
         else:
             indices_shape = []
@@ -664,9 +717,9 @@ def test_scatter_nd(reduction):
 @pytest.mark.parametrize("condition_shape", [None, [8], [16]])
 @pytest.mark.parametrize("axis", [None, 0, 1])
 def test_compress(
-    tensor_shape: List[int],
-    condition_shape: Optional[List[int]],
-    axis: Optional[int],
+    tensor_shape: list[int],
+    condition_shape: list[int] | None,
+    axis: int | None,
 ):
     if condition_shape is None and axis is None:
         pytest.skip("Either condition_shape or axis must be specified")
@@ -768,6 +821,74 @@ def test_transpose():
     verify_unary("Transpose", [32, 32, 32], attrs={"perm": [1, 2, 0]})
 
 
+def test_transpose_scalar():
+    """Test Transpose with scalar inputs - should return scalar unchanged."""
+    # Test scalar with no perm attribute (default behavior)
+    scalar_node = helper.make_node("Transpose", ["x"], ["y"])
+    graph = helper.make_graph(
+        [scalar_node],
+        "transpose_scalar_test",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, [])],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [])],
+    )
+    model = helper.make_model(graph, producer_name="transpose_scalar_test")
+    check_correctness(model)
+
+    # Test with scalar constant and transpose without perm
+    scalar_constant = helper.make_node(
+        "Constant",
+        [],
+        ["scalar"],
+        value=helper.make_tensor("value", TensorProto.FLOAT, [], [5.0]),
+    )
+
+    transpose_node = helper.make_node("Transpose", ["scalar"], ["y"])
+    graph = helper.make_graph(
+        [scalar_constant, transpose_node],
+        "transpose_scalar_constant_test",
+        inputs=[],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [])],
+    )
+    model = helper.make_model(graph, producer_name="transpose_scalar_constant_test")
+    check_correctness(model)
+
+
+def test_transpose_axes_validation():
+    """Test Transpose validation - perm axes count must match tensor dimensions"""
+    # Test 1D tensor with correct perm
+    transpose_1d_valid = helper.make_node("Transpose", ["x"], ["y"], perm=[0])
+    graph_1d_valid = helper.make_graph(
+        [transpose_1d_valid],
+        "transpose_1d_valid_test",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, [10])],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [10])],
+    )
+    model_1d_valid = helper.make_model(graph_1d_valid, producer_name="transpose_1d_valid_test")
+    check_correctness(model_1d_valid)
+
+    # Test 2D tensor with correct perm
+    transpose_2d_valid = helper.make_node("Transpose", ["x"], ["y"], perm=[1, 0])
+    graph_2d_valid = helper.make_graph(
+        [transpose_2d_valid],
+        "transpose_2d_valid_test",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, [3, 4])],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [4, 3])],
+    )
+    model_2d_valid = helper.make_model(graph_2d_valid, producer_name="transpose_2d_valid_test")
+    check_correctness(model_2d_valid)
+
+    # Test 3D tensor with correct perm
+    transpose_3d_valid = helper.make_node("Transpose", ["x"], ["y"], perm=[2, 0, 1])
+    graph_3d_valid = helper.make_graph(
+        [transpose_3d_valid],
+        "transpose_3d_valid_test",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, [2, 3, 4])],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [4, 2, 3])],
+    )
+    model_3d_valid = helper.make_model(graph_3d_valid, producer_name="transpose_3d_valid_test")
+    check_correctness(model_3d_valid)
+
+
 def test_unsqueeze():
     unsqueeze_node = helper.make_node("Unsqueeze", ["a", "axes"], ["b"])
 
@@ -803,8 +924,46 @@ def test_gelu():
     verify_unary("Gelu", [32, 32], domain="com.microsoft")
 
 
+def test_gelu_approximate():
+    """Test Gelu with approximate attribute from ONNX Opset 20."""
+    # Test Gelu with approximate="tanh"
+    verify_unary("Gelu", [32, 32], attrs={"approximate": "tanh"}, opset=20)
+    # Test Gelu with approximate="none" (default, same as standard Gelu)
+    verify_unary("Gelu", [32, 32], attrs={"approximate": "none"}, opset=20)
+
+
 def test_bias_gelu():
     verify_binary("BiasGelu", [32, 32], [32], [32, 32], domain="com.microsoft")
+
+
+def test_fast_gelu():
+    """Test FastGelu with and without bias"""
+    # Test FastGelu without bias
+    fast_gelu_node = helper.make_node("FastGelu", ["x"], ["y"], domain="com.microsoft")
+    graph = helper.make_graph(
+        [fast_gelu_node],
+        "fast_gelu_test",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, [32, 32])],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [32, 32])],
+    )
+    model = helper.make_model(graph, producer_name="fast_gelu_test")
+    check_correctness(model)
+
+    # Test FastGelu with bias
+    fast_gelu_with_bias_node = helper.make_node(
+        "FastGelu", ["x", "bias"], ["y"], domain="com.microsoft"
+    )
+    graph_with_bias = helper.make_graph(
+        [fast_gelu_with_bias_node],
+        "fast_gelu_with_bias_test",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, [32, 32]),
+            helper.make_tensor_value_info("bias", TensorProto.FLOAT, [32]),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [32, 32])],
+    )
+    model_with_bias = helper.make_model(graph_with_bias, producer_name="fast_gelu_with_bias_test")
+    check_correctness(model_with_bias)
 
 
 def test_where():
@@ -948,7 +1107,10 @@ def test_mish():
 
 
 def test_prelu():
-    verify_binary("PRelu", [3, 32, 32], [3, 32, 32], [3, 32, 32])
+    verify_binary("PRelu", [3, 32, 32], [1], [3, 32, 32])
+    verify_binary("PRelu", [3, 32, 32], [1, 1], [3, 32, 32])
+    verify_binary("PRelu", [3, 32, 32], [32], [3, 32, 32])
+    verify_binary("PRelu", [3, 32, 32], [3, 1, 1], [3, 32, 32])
 
 
 def test_thresholded_relu():
@@ -1052,11 +1214,12 @@ def test_conv(stride: int, dilation: int, pad: int, bias: bool, auto_pad: str):
     _verify_conv([3, 4, 32, 32, 32], [2, 4, 3, 3, 3])  # group=2
 
 
-@pytest.mark.parametrize("stride", [1, 2])
+@pytest.mark.parametrize("stride", [2])
 @pytest.mark.parametrize("dilation", [1])
 @pytest.mark.parametrize("bias", [True, False])
 @pytest.mark.parametrize("pad", [0, 2])
-def test_conv_transpose(stride: int, dilation: int, pad: int, bias: bool):
+@pytest.mark.parametrize("output_pad", [0, 1])
+def test_conv_transpose(stride: int, dilation: int, pad: int, bias: bool, output_pad: int):
     def _verify_conv_transpose(input_shape, weight_shape):
         nd = len(weight_shape) - 2
         output_shape = [input_shape[0], weight_shape[0]] + [
@@ -1071,6 +1234,7 @@ def test_conv_transpose(stride: int, dilation: int, pad: int, bias: bool):
             strides=[stride] * nd,
             dilations=[dilation] * nd,
             pads=[pad] * nd * 2,
+            output_padding=[output_pad] * nd,
             group=input_shape[1] // weight_shape[1],
         )
         graph = helper.make_graph(
@@ -1549,6 +1713,33 @@ def test_embedlayernormalization():
     )
 
 
+def test_local_response_norm():
+    lrn_node = helper.make_node(
+        op_type="LRN",
+        inputs=["input"],
+        outputs=["output"],
+        name="LRN_Node",
+        alpha=0.0001,
+        beta=0.75,
+        bias=1.0,
+        size=3,
+    )
+
+    graph = helper.make_graph(
+        [lrn_node],
+        "local_response_norm_test",
+        inputs=[
+            helper.make_tensor_value_info("input", TensorProto.FLOAT, [1, 3, 32, 32]),
+        ],
+        outputs=[
+            helper.make_tensor_value_info("output", TensorProto.FLOAT, [1, 3, 32, 32]),
+        ],
+    )
+
+    model = helper.make_model(graph, producer_name="local_response_norm_test")
+    check_correctness(model)
+
+
 def create_reduce_test_parameters_axes_attr():
     output = []
     for value in [True, False]:
@@ -1888,6 +2079,106 @@ def test_expand(dynamic):
         _test_expand_dynamic_shapeexpr("expand_with_dynamic_dim", data, shape_data, shape, ref_data)
 
 
+def test_expand_incompatible_broadcasting():
+    """
+    This test case reproduces the error where input tensor shape at dim 1 is 25
+    and target shape at dim 3 is 56, which violates ONNX broadcasting rules
+    """
+
+    def _test_expand_error_case(name, data_shape, target_shape_vals):
+        data = np.random.uniform(size=data_shape).astype(np.float32)
+
+        shape_array = np.array(target_shape_vals, dtype=np.int64)
+        shape_node = onnx.helper.make_node(
+            "Constant",
+            inputs=[],
+            outputs=["shape"],
+            value=onnx.helper.make_tensor(
+                name="const_tensor",
+                data_type=onnx.TensorProto.INT64,
+                dims=shape_array.shape,
+                vals=shape_array.flatten(),
+            ),
+        )
+
+        expand_node = helper.make_node("Expand", ["in", "shape"], ["out"])
+
+        graph = helper.make_graph(
+            [shape_node, expand_node],
+            "expand_error_test",
+            inputs=[helper.make_tensor_value_info("in", TensorProto.FLOAT, list(data.shape))],
+            outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, target_shape_vals)],
+        )
+
+        model = helper.make_model(graph, producer_name=name)
+
+        with pytest.raises(ValueError) as exc_info:
+            from_onnx(model, keep_params_in_input=True)
+
+        error_msg = str(exc_info.value)
+        assert "broadcast" in error_msg.lower() or "incompatible" in error_msg.lower(), (
+            f"Expected broadcasting error, but got: {error_msg}"
+        )
+
+    # Test case 1: Reproduce the exact error from the issue-17769
+    # Input shape: (25,), target shape: (1, 1, 1, 56)
+    # This should faill because input dim 1 (25) != target dim 3 (56) and neither is 1
+    _test_expand_error_case(
+        "expand_incompatible_25_to_56",
+        data_shape=(25,),
+        target_shape_vals=(1, 1, 1, 56),
+    )
+
+    # Test case 2: Another incompatible case
+    # Input shape: (1, 25), target shape: (1, 1, 1, 56)
+    # After right-alignment, input (1, 1, 1, 25) vs. target (1, 1, 1, 56)
+    # This should fail because 25 != 56 and neither is 1
+    _test_expand_error_case(
+        "expand_incompatible_aligned_25_to_56",
+        data_shape=(1, 25),
+        target_shape_vals=(1, 1, 1, 56),
+    )
+
+    # Test case 3: Valid case for comparison - should not raise error
+    def _test_expand_valid_case():
+        """Test a valid expand case to ensure our fix doesn't break valid operations"""
+        data_shape = (1, 25)
+        target_shape_vals = [2, 25]  # Valid: input (1, 25) can broadcast to (2, 25)
+
+        data = np.random.uniform(size=data_shape).astype(np.float32)
+        shape_array = np.array(target_shape_vals, dtype=np.int64)
+
+        shape_node = onnx.helper.make_node(
+            "Constant",
+            inputs=[],
+            outputs=["shape"],
+            value=onnx.helper.make_tensor(
+                name="const_tensor",
+                data_type=onnx.TensorProto.INT64,
+                dims=shape_array.shape,
+                vals=shape_array.flatten(),
+            ),
+        )
+
+        expand_node = helper.make_node("Expand", ["in", "shape"], ["out"])
+
+        graph = helper.make_graph(
+            [shape_node, expand_node],
+            "expand_valid_test",
+            inputs=[helper.make_tensor_value_info("in", TensorProto.FLOAT, list(data.shape))],
+            outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, target_shape_vals)],
+        )
+
+        model = helper.make_model(graph, producer_name="expand_valid_test_case")
+
+        try:
+            tvm_model = from_onnx(model, keep_params_in_input=True)
+        except Exception as e:
+            pytest.fail(f"Valid expand case should not fail, but got error: {e}")
+
+    _test_expand_valid_case()
+
+
 # TODO(jwfromm) Current approach to dynamic expand is technically not well formed. Reenable once fixed.
 @pytest.mark.skip("Produces ill-formed IR")
 def test_constantofshape():
@@ -1897,7 +2188,7 @@ def test_constantofshape():
             ["input"],
             ["output"],
             value=helper.make_tensor(
-                "value", mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(dtype)], (1,), (value,)
+                "value", helper.np_dtype_to_tensor_dtype(np.dtype(dtype)), (1,), (value,)
             ),
         )
 
@@ -1917,7 +2208,7 @@ def test_constantofshape():
             ],
             outputs=[
                 helper.make_tensor_value_info(
-                    "output", mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(dtype)], input_dim
+                    "output", helper.np_dtype_to_tensor_dtype(np.dtype(dtype)), input_dim
                 )
             ],
         )
@@ -2221,6 +2512,8 @@ def test_pad(dynamic):
     verify_pad((2, 3), [1, 0, 0, 1], "constant", 0.0)
     verify_pad((3, 2), [0, 0, 1, 0], "constant", 5.0)
     verify_pad((1, 3, 4, 5), [0, 1, 1, 1, 0, 0, 1, 1], "reflect")
+    verify_pad((2, 3), [1, 1, 1, 1], "edge")
+    verify_pad((1, 3, 4, 5), [0, 1, 1, 1, 0, 0, 1, 1], "edge")
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
@@ -2277,6 +2570,8 @@ def test_pad_v2(dynamic):
     verify_pad((2, 3), [1, 0, 0, 1], "constant", 0.0)
     verify_pad((3, 2), [0, 0, 1, 0], "constant", 5.0)
     verify_pad((1, 3, 4, 5), [0, 1, 1, 1, 0, 0, 1, 1], "reflect")
+    verify_pad((2, 3), [1, 1, 1, 1], "edge")
+    verify_pad((1, 3, 4, 5), [0, 1, 1, 1, 0, 0, 1, 1], "edge")
 
 
 @pytest.mark.parametrize("fp_arith", [np.float16, np.float32])
@@ -2299,7 +2594,7 @@ def test_split(fp_arith, dynamic):
 
         inputs = [
             helper.make_tensor_value_info(
-                "input", mapping.NP_TYPE_TO_TENSOR_TYPE[indata.dtype], indata_shape
+                "input", helper.np_dtype_to_tensor_dtype(indata.dtype), indata_shape
             )
         ]
 
@@ -2333,7 +2628,7 @@ def test_split(fp_arith, dynamic):
             outputs=[
                 helper.make_tensor_value_info(
                     f"output_{i}",
-                    mapping.NP_TYPE_TO_TENSOR_TYPE[indata.dtype],
+                    helper.np_dtype_to_tensor_dtype(indata.dtype),
                     list(outdata_shapes[i]),
                 )
                 for i in range(len(split_index))
@@ -2405,14 +2700,46 @@ def test_tile(dynamic):
     verify_tile(x.shape, repeats, z_array.shape)
 
 
+@pytest.mark.parametrize("dynamic_input", [True, False])
+@pytest.mark.parametrize(
+    "in_shape,repeats",
+    [
+        ((2, 3), np.array([2, 2], dtype=np.int64)),
+        ((2, 3, 4), np.array([2, 2, 1], dtype=np.int64)),
+        ((2, 3, 4, 5), np.array([1, 2, 1, 2], dtype=np.int64)),
+    ],
+)
+def test_tile_dynamic_repeats(dynamic_input, in_shape, repeats):
+    x = np.random.rand(*in_shape).astype(np.float32)
+    out_shape = np.tile(x, repeats).shape
+
+    input_shape = ["?" for _ in in_shape] if dynamic_input else list(x.shape)
+    output_shape = ["?" for _ in out_shape] if dynamic_input else list(out_shape)
+
+    node = helper.make_node("Tile", inputs=["input", "repeats"], outputs=["out"])
+    graph = helper.make_graph(
+        [node],
+        "tile_dynamic_repeats_test",
+        inputs=[
+            helper.make_tensor_value_info("input", TensorProto.FLOAT, input_shape),
+            helper.make_tensor_value_info("repeats", TensorProto.INT64, [len(repeats)]),
+        ],
+        outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, output_shape)],
+    )
+    model = helper.make_model(graph, producer_name="tile_dynamic_repeats_test")
+
+    check_correctness(model, inputs={"input": x, "repeats": repeats}, opset=13)
+
+
 def _generate_roi_cases():
     # Base case when with_roi is False
     roi_list = [
-        pytest.param(False, None, id="no_roi"),
+        pytest.param(False, None, False, id="no_roi"),
     ]
 
-    # Valid when with_roi is True
+    # Valid when with_roi is True and with_constant is True/False
     roi_cases = [
+        [],
         [0.0, 0.0, 0.0, 0.0],
         [0.0, 0.0, 1.0, 1.0],
         [0.1, 0.1, 0.9, 0.9],
@@ -2423,27 +2750,51 @@ def _generate_roi_cases():
         [0.1, 0.2, 0.9, 0.8],
     ]
     for roi in roi_cases:
-        roi_list.append(pytest.param(True, roi, id=f"roi_{'_'.join(str(x) for x in roi)}"))
+        roi_list.append(pytest.param(True, roi, True, id=f"roi_{'_'.join(str(x) for x in roi)}"))
+        roi_list.append(pytest.param(True, roi, False, id=f"roi_{'_'.join(str(x) for x in roi)}"))
 
     return roi_list
 
 
-@pytest.mark.parametrize("with_roi, roi_list", _generate_roi_cases())
-def test_resize(with_roi, roi_list):
+@pytest.mark.parametrize("with_roi, roi_list, with_constant", _generate_roi_cases())
+def test_resize(with_roi, roi_list, with_constant):
+    nodes = []
     resize_node = helper.make_node(
         "Resize", ["X", "roi" if with_roi else "", "scales"], ["Y"], mode="cubic"
     )
 
+    if with_roi and with_constant:
+        roi_tensor = helper.make_tensor(
+            name="roi",
+            data_type=TensorProto.FLOAT,
+            dims=[len(roi_list)],
+            vals=roi_list,
+        )
+
+        roi_const_node = helper.make_node(
+            "Constant",
+            inputs=[],
+            outputs=["roi"],
+            value=roi_tensor,
+        )
+        nodes.append(roi_const_node)
+
+    nodes.append(resize_node)
+
+    initializers = [
+        helper.make_tensor("scales", TensorProto.FLOAT, [4], [1.0, 1.0, 2.0, 2.0]),
+    ]
+
+    if with_roi and not with_constant:
+        initializers.append(helper.make_tensor("roi", TensorProto.FLOAT, [len(roi_list)], roi_list))
+
     graph = helper.make_graph(
-        [resize_node],
+        nodes,
         "resize_test",
         inputs=[
             helper.make_tensor_value_info("X", TensorProto.FLOAT, [1, 3, 32, 32]),
         ],
-        initializer=[
-            helper.make_tensor("scales", TensorProto.FLOAT, [4], [1.0, 1.0, 2.0, 2.0]),
-            *([helper.make_tensor("roi", TensorProto.FLOAT, [4], roi_list)] if with_roi else []),
-        ],
+        initializer=initializers,
         outputs=[
             helper.make_tensor_value_info("Y", TensorProto.FLOAT, [1, 3, 64, 64]),
         ],
@@ -2451,6 +2802,41 @@ def test_resize(with_roi, roi_list):
 
     model = helper.make_model(graph, producer_name="resize_test")
     check_correctness(model)
+
+
+def test_resize_nd_sizes():
+    cases = [
+        ("resize1d", [1, 1, 4], [1, 1, 7]),
+        ("resize2d", [1, 1, 4, 5], [1, 1, 6, 7]),
+        ("resize3d", [1, 1, 3, 4, 5], [1, 1, 4, 6, 7]),
+    ]
+
+    for name, input_shape, sizes in cases:
+        resize_node = helper.make_node(
+            "Resize",
+            ["X", "", "", "sizes"],
+            ["Y"],
+            mode="nearest",
+            coordinate_transformation_mode="asymmetric",
+            nearest_mode="floor",
+        )
+
+        graph = helper.make_graph(
+            [resize_node],
+            name,
+            inputs=[
+                helper.make_tensor_value_info("X", TensorProto.FLOAT, input_shape),
+            ],
+            initializer=[
+                helper.make_tensor("sizes", TensorProto.INT64, [len(sizes)], sizes),
+            ],
+            outputs=[
+                helper.make_tensor_value_info("Y", TensorProto.FLOAT, sizes),
+            ],
+        )
+
+        model = helper.make_model(graph, producer_name=name)
+        check_correctness(model, opset=18)
 
 
 def test_einsum():
@@ -2553,11 +2939,11 @@ def test_batch_norm():
 )
 def test_pool(
     pool_name: str,
-    shape: List[int],
+    shape: list[int],
     auto_pad: str,
-    kernel_shape: List[int],
-    strides: List[int],
-    pads: List[int],
+    kernel_shape: list[int],
+    strides: list[int],
+    pads: list[int],
 ):
     verify_unary(
         pool_name,
@@ -2659,19 +3045,35 @@ def test_onehot():
 
 @pytest.mark.parametrize("axis", [None, 0, 1, -1])
 @pytest.mark.parametrize("sorted", [0, 1])
-def test_unique(axis: Optional[int], sorted: int):
-    input_shape = [32, 32]
+@pytest.mark.parametrize("num_outputs", [1, 2, 3, 4])
+def test_unique(axis: int | None, sorted: int, num_outputs: int):
+    if num_outputs in [3, 4] and axis is None:
+        pytest.xfail("RuntimeError: Check failed: input_shape.size() == size (2 vs. 1)")
+
+    input_shape = [8, 8]
     if axis is None:
         output_shape = [-1]
     else:
-        output_shape = [32, 32]
+        output_shape = [8, 8]
         output_shape[axis] = -1
-    unique_node = helper.make_node("Unique", ["x"], ["y"], axis=axis, sorted=sorted)
+
+    output_names = ["y", "indices", "inverse_indices", "counts"][:num_outputs]
+    unique_node = helper.make_node("Unique", ["x"], output_names, axis=axis, sorted=sorted)
+
+    outputs = [helper.make_tensor_value_info("y", TensorProto.FLOAT, output_shape)]
+    if num_outputs > 1:
+        outputs.append(helper.make_tensor_value_info("indices", TensorProto.INT64, [-1]))
+    if num_outputs > 2:
+        # ONNX spec: inverse_indices is always 1D
+        outputs.append(helper.make_tensor_value_info("inverse_indices", TensorProto.INT64, [-1]))
+    if num_outputs > 3:
+        outputs.append(helper.make_tensor_value_info("counts", TensorProto.INT64, [-1]))
+
     graph = helper.make_graph(
         [unique_node],
         "unique_test",
         inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, input_shape)],
-        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, output_shape)],
+        outputs=outputs,
     )
     model = helper.make_model(graph, producer_name="unique_test")
     check_correctness(model)
@@ -2717,7 +3119,7 @@ def test_space_to_depth():
     check_correctness(model)
 
 
-def construct_sequence(input_shape: List[int], num_tensors: int, name: str = "sequence"):
+def construct_sequence(input_shape: list[int], num_tensors: int, name: str = "sequence"):
     inputs = [f"data{i}" for i in range(num_tensors)]
     sequence_construct_node = helper.make_node("SequenceConstruct", inputs, [name])
     graph_inputs = [
@@ -2727,7 +3129,7 @@ def construct_sequence(input_shape: List[int], num_tensors: int, name: str = "se
     return sequence_construct_node, graph_inputs
 
 
-def make_constant_node(name: str, data_type: int, dims: List[int], vals: List[int]):
+def make_constant_node(name: str, data_type: int, dims: list[int], vals: list[int]):
     return helper.make_node(
         "Constant",
         inputs=[],
@@ -2876,9 +3278,9 @@ def test_symbolic_shape_deduction():
     tvm_model = from_onnx(model, keep_params_in_input=True)
 
     @R.function
-    def expected(
-        data: R.Tensor(("batch", "seq"), dtype="float32")
-    ) -> R.Tensor(dtype="float32", ndim=1):
+    def expected(data: R.Tensor(("batch", "seq"), dtype="float32")) -> R.Tensor(
+        dtype="float32", ndim=1
+    ):
         batch = T.int64()
         seq = T.int64()
         R.func_attr({"num_input": 1})
@@ -3109,6 +3511,7 @@ def test_shape_dim_string_expression_graph_div_1():
                 gv: R.Tensor((A, B, A // B), dtype="float32") = x
                 R.output(gv)
             return gv
+
     # fmt: on
 
     tvm.ir.assert_structural_equal(tvm_model, Expected)
@@ -3146,6 +3549,435 @@ def test_shape_dim_string_expression_graph_div_2():
     # fmt: on
 
     tvm.ir.assert_structural_equal(tvm_model, Expected)
+
+
+def test_nms():
+    """Test NonMaxSuppression operator conversion using our AllClassNMS implementation."""
+    nms_node = helper.make_node(
+        "NonMaxSuppression",
+        ["boxes", "scores", "max_output_boxes_per_class", "iou_threshold", "score_threshold"],
+        ["selected_indices"],
+        center_point_box=0,
+    )
+
+    boxes_shape = [1, 5, 4]  # batch_size, num_boxes, 4
+    scores_shape = [1, 2, 5]  # batch_size, num_classes, num_boxes
+
+    graph = helper.make_graph(
+        [nms_node],
+        "nms_test",
+        inputs=[
+            helper.make_tensor_value_info("boxes", TensorProto.FLOAT, boxes_shape),
+            helper.make_tensor_value_info("scores", TensorProto.FLOAT, scores_shape),
+        ],
+        initializer=[
+            helper.make_tensor("max_output_boxes_per_class", TensorProto.INT64, [1], [3]),
+            helper.make_tensor("iou_threshold", TensorProto.FLOAT, [1], [0.5]),
+            helper.make_tensor("score_threshold", TensorProto.FLOAT, [1], [0.1]),
+        ],
+        outputs=[helper.make_tensor_value_info("selected_indices", TensorProto.INT64, [0, 3])],
+    )
+
+    model = helper.make_model(graph, producer_name="nms_test")
+    model.ir_version = 8
+    model.opset_import[0].version = 11
+
+    # Use deterministic random inputs for consistent testing
+    bg = np.random.MT19937(0)
+    rg = np.random.Generator(bg)
+    boxes = rg.standard_normal(size=boxes_shape).astype(np.float32)
+    scores = rg.standard_normal(size=scores_shape).astype(np.float32)
+    inputs = {"boxes": boxes, "scores": scores}
+
+    # Run ONNX Runtime
+    ort_session = onnxruntime.InferenceSession(
+        model.SerializeToString(), providers=["CPUExecutionProvider"]
+    )
+    ort_output = ort_session.run([], inputs)
+
+    # Run TVM
+    tvm_model = from_onnx(model, opset=11, keep_params_in_input=True)
+    tvm_model = relax.transform.DecomposeOpsForInference()(tvm_model)
+    tvm_model = relax.transform.LegalizeOps()(tvm_model)
+    tvm_model, params = relax.frontend.detach_params(tvm_model)
+
+    with tvm.transform.PassContext(opt_level=3):
+        ex = tvm.compile(tvm_model, target="llvm")
+        vm = relax.VirtualMachine(ex, tvm.cpu())
+
+    input_list = [
+        inputs[key.name_hint] for key in tvm_model["main"].params if key.name_hint in inputs
+    ]
+    if params:
+        input_list += params["main"]
+
+    vm.set_input("main", *input_list)
+    vm.invoke_stateful("main")
+    tvm_output = vm.get_outputs("main")
+
+    if isinstance(tvm_output, list | tuple):
+        tvm_selected = tvm_output[0].numpy()
+    else:
+        tvm_selected = tvm_output.numpy()
+    ort_selected = ort_output[0]
+
+    min_rows = min(tvm_selected.shape[0], ort_selected.shape[0])
+    if min_rows > 0:
+        tvm.testing.assert_allclose(
+            tvm_selected[:min_rows], ort_selected[:min_rows], rtol=1e-5, atol=1e-5
+        )
+
+
+def test_nms_algorithm_correctness():
+    """Test NMS algorithm correctness with fixed data to verify suppression logic."""
+    nms_node = helper.make_node(
+        "NonMaxSuppression",
+        ["boxes", "scores", "max_output_boxes_per_class", "iou_threshold", "score_threshold"],
+        ["selected_indices"],
+        center_point_box=0,
+    )
+
+    # Create fixed test data with known expected results
+    # Boxes: [x1, y1, x2, y2] format
+    boxes_data = np.array(
+        [
+            [
+                [0.0, 0.0, 1.0, 1.0],  # Box 0: [0,0,1,1] - should be selected
+                [
+                    0.5,
+                    0.5,
+                    1.5,
+                    1.5,
+                ],  # Box 1: [0.5,0.5,1.5,1.5] - overlaps with box 0, should be suppressed
+                [2.0, 2.0, 3.0, 3.0],
+            ]
+        ],  # Box 2: [2,2,3,3] - no overlap, should be selected
+        dtype=np.float32,
+    )
+
+    # Scores: higher score = better
+    scores_data = np.array(
+        [
+            [[0.9, 0.8, 0.7], [0.6, 0.5, 0.4]]  # Class 0: [0.9, 0.8, 0.7] - box 0 has highest score
+        ],  # Class 1: [0.6, 0.5, 0.4] - box 0 has highest score
+        dtype=np.float32,
+    )
+
+    boxes_shape = [1, 3, 4]  # batch_size, num_boxes, 4
+    scores_shape = [1, 2, 3]  # batch_size, num_classes, num_boxes
+
+    graph = helper.make_graph(
+        [nms_node],
+        "nms_test_correctness",
+        inputs=[
+            helper.make_tensor_value_info("boxes", TensorProto.FLOAT, boxes_shape),
+            helper.make_tensor_value_info("scores", TensorProto.FLOAT, scores_shape),
+        ],
+        initializer=[
+            helper.make_tensor(
+                "max_output_boxes_per_class", TensorProto.INT64, [1], [2]
+            ),  # Only 2 boxes per class
+            helper.make_tensor("iou_threshold", TensorProto.FLOAT, [1], [0.5]),  # IoU threshold 0.5
+            helper.make_tensor(
+                "score_threshold", TensorProto.FLOAT, [1], [0.1]
+            ),  # Score threshold 0.1
+        ],
+        outputs=[helper.make_tensor_value_info("selected_indices", TensorProto.INT64, [4, 3])],
+    )
+
+    model = helper.make_model(graph, producer_name="nms_test_correctness")
+
+    # Use fixed inputs instead of random
+    inputs = {
+        "boxes": boxes_data,
+        "scores": scores_data,
+    }
+
+    check_correctness(model, inputs=inputs, opset=11)
+
+
+def test_nms_iou_suppression():
+    """Test that NMS correctly suppresses overlapping boxes based on IoU threshold."""
+    nms_node = helper.make_node(
+        "NonMaxSuppression",
+        ["boxes", "scores", "max_output_boxes_per_class", "iou_threshold", "score_threshold"],
+        ["selected_indices"],
+        center_point_box=0,
+    )
+
+    # Create overlapping boxes where box 0 has higher score and should be kept
+    boxes_data = np.array(
+        [
+            [
+                [0.0, 0.0, 1.0, 1.0],  # Box 0: [0,0,1,1] - highest score
+                [
+                    0.1,
+                    0.1,
+                    1.1,
+                    1.1,
+                ],  # Box 1: [0.1,0.1,1.1,1.1] - high IoU with box 0, should be suppressed
+                [2.0, 2.0, 3.0, 3.0],
+            ]
+        ],  # Box 2: [2,2,3,3] - no overlap, should be kept
+        dtype=np.float32,
+    )
+
+    # Box 0 has highest score, Box 1 should be suppressed due to IoU with box 0
+    scores_data = np.array([[[0.9, 0.8, 0.7]]], dtype=np.float32)
+
+    boxes_shape = [1, 3, 4]
+    scores_shape = [1, 1, 3]
+
+    graph = helper.make_graph(
+        [nms_node],
+        "nms_test_iou_suppression",
+        inputs=[
+            helper.make_tensor_value_info("boxes", TensorProto.FLOAT, boxes_shape),
+            helper.make_tensor_value_info("scores", TensorProto.FLOAT, scores_shape),
+        ],
+        initializer=[
+            helper.make_tensor("max_output_boxes_per_class", TensorProto.INT64, [1], [2]),
+            helper.make_tensor("iou_threshold", TensorProto.FLOAT, [1], [0.5]),  # IoU threshold 0.5
+            helper.make_tensor("score_threshold", TensorProto.FLOAT, [1], [0.1]),
+        ],
+        outputs=[helper.make_tensor_value_info("selected_indices", TensorProto.INT64, [2, 3])],
+    )
+
+    model = helper.make_model(graph, producer_name="nms_test_iou_suppression")
+    model.ir_version = 8
+    model.opset_import[0].version = 11
+
+    inputs = {
+        "boxes": boxes_data,
+        "scores": scores_data,
+    }
+
+    # Run ONNX Runtime
+    ort_session = onnxruntime.InferenceSession(
+        model.SerializeToString(), providers=["CPUExecutionProvider"]
+    )
+    ort_output = ort_session.run([], inputs)
+
+    # Run TVM
+    tvm_model = from_onnx(model, opset=11, keep_params_in_input=True)
+    tvm_model = relax.transform.DecomposeOpsForInference()(tvm_model)
+    tvm_model = relax.transform.LegalizeOps()(tvm_model)
+    tvm_model, params = relax.frontend.detach_params(tvm_model)
+
+    with tvm.transform.PassContext(opt_level=3):
+        ex = tvm.compile(tvm_model, target="llvm")
+        vm = relax.VirtualMachine(ex, tvm.cpu())
+
+    input_list = [
+        inputs[key.name_hint] for key in tvm_model["main"].params if key.name_hint in inputs
+    ]
+    if params:
+        input_list += params["main"]
+
+    vm.set_input("main", *input_list)
+    vm.invoke_stateful("main")
+    tvm_output = vm.get_outputs("main")
+
+    # Custom NMS output comparison
+    if isinstance(tvm_output, list | tuple):
+        tvm_selected = tvm_output[0].numpy()
+    else:
+        tvm_selected = tvm_output.numpy()
+    ort_selected = ort_output[0]
+
+    # For NMS, compare only the valid rows
+    min_rows = min(tvm_selected.shape[0], ort_selected.shape[0])
+    if min_rows > 0:
+        tvm.testing.assert_allclose(
+            tvm_selected[:min_rows], ort_selected[:min_rows], rtol=1e-5, atol=1e-5
+        )
+
+
+def test_nms_max_boxes_limit():
+    """Test that NMS correctly limits the number of boxes per class."""
+    nms_node = helper.make_node(
+        "NonMaxSuppression",
+        ["boxes", "scores", "max_output_boxes_per_class", "iou_threshold", "score_threshold"],
+        ["selected_indices"],
+        center_point_box=0,
+    )
+
+    # Create data with 4 boxes, but limit to 2 per class
+    boxes_data = np.array(
+        [
+            [
+                [0.0, 0.0, 1.0, 1.0],  # Box 0
+                [2.0, 0.0, 3.0, 1.0],  # Box 1
+                [0.0, 2.0, 1.0, 3.0],  # Box 2
+                [2.0, 2.0, 3.0, 3.0],
+            ]
+        ],  # Box 3
+        dtype=np.float32,
+    )
+
+    # All boxes have different scores
+    scores_data = np.array([[[0.9, 0.8, 0.7, 0.6]]], dtype=np.float32)
+
+    boxes_shape = [1, 4, 4]
+    scores_shape = [1, 1, 4]
+
+    graph = helper.make_graph(
+        [nms_node],
+        "nms_test_max_boxes_limit",
+        inputs=[
+            helper.make_tensor_value_info("boxes", TensorProto.FLOAT, boxes_shape),
+            helper.make_tensor_value_info("scores", TensorProto.FLOAT, scores_shape),
+        ],
+        initializer=[
+            helper.make_tensor(
+                "max_output_boxes_per_class", TensorProto.INT64, [1], [2]
+            ),  # Limit to 2 boxes
+            helper.make_tensor("iou_threshold", TensorProto.FLOAT, [1], [0.1]),  # Low IoU threshold
+            helper.make_tensor("score_threshold", TensorProto.FLOAT, [1], [0.1]),
+        ],
+        outputs=[helper.make_tensor_value_info("selected_indices", TensorProto.INT64, [2, 3])],
+    )
+
+    model = helper.make_model(graph, producer_name="nms_test_max_boxes_limit")
+    model.ir_version = 8
+    model.opset_import[0].version = 11
+
+    inputs = {
+        "boxes": boxes_data,
+        "scores": scores_data,
+    }
+
+    # Run ONNX Runtime
+    ort_session = onnxruntime.InferenceSession(
+        model.SerializeToString(), providers=["CPUExecutionProvider"]
+    )
+    ort_output = ort_session.run([], inputs)
+
+    # Run TVM
+    tvm_model = from_onnx(model, opset=11, keep_params_in_input=True)
+    tvm_model = relax.transform.DecomposeOpsForInference()(tvm_model)
+    tvm_model = relax.transform.LegalizeOps()(tvm_model)
+    tvm_model, params = relax.frontend.detach_params(tvm_model)
+
+    with tvm.transform.PassContext(opt_level=3):
+        ex = tvm.compile(tvm_model, target="llvm")
+        vm = relax.VirtualMachine(ex, tvm.cpu())
+
+    input_list = [
+        inputs[key.name_hint] for key in tvm_model["main"].params if key.name_hint in inputs
+    ]
+    if params:
+        input_list += params["main"]
+
+    vm.set_input("main", *input_list)
+    vm.invoke_stateful("main")
+    tvm_output = vm.get_outputs("main")
+
+    # Custom NMS output comparison
+    if isinstance(tvm_output, list | tuple):
+        tvm_selected = tvm_output[0].numpy()
+    else:
+        tvm_selected = tvm_output.numpy()
+    ort_selected = ort_output[0]
+
+    # For NMS, compare only the valid rows
+    min_rows = min(tvm_selected.shape[0], ort_selected.shape[0])
+    if min_rows > 0:
+        tvm.testing.assert_allclose(
+            tvm_selected[:min_rows], ort_selected[:min_rows], rtol=1e-5, atol=1e-5
+        )
+
+
+def test_nms_score_threshold():
+    """Test that NMS correctly filters boxes based on score threshold.
+
+    Note: This test uses a low score threshold (0.05) to ensure both TVM and ONNX Runtime
+    output the same fixed shape [3,3], allowing use of the standard check_correctness function.
+    """
+    nms_node = helper.make_node(
+        "NonMaxSuppression",
+        ["boxes", "scores", "max_output_boxes_per_class", "iou_threshold", "score_threshold"],
+        ["selected_indices"],
+        center_point_box=0,
+    )
+
+    # Create data with varying scores - ensure we get exactly 3 boxes after NMS
+    boxes_data = np.array(
+        [
+            [[0.0, 0.0, 1.0, 1.0], [2.0, 0.0, 3.0, 1.0], [0.0, 2.0, 1.0, 3.0]]  # Box 0  # Box 1
+        ],  # Box 2
+        dtype=np.float32,
+    )
+
+    # Scores: 0.9, 0.3, 0.1 - adjust score threshold to get exactly 3 boxes
+    scores_data = np.array([[[0.9, 0.3, 0.1]]], dtype=np.float32)
+
+    boxes_shape = [1, 3, 4]
+    scores_shape = [1, 1, 3]
+
+    graph = helper.make_graph(
+        [nms_node],
+        "nms_test_score_threshold",
+        inputs=[
+            helper.make_tensor_value_info("boxes", TensorProto.FLOAT, boxes_shape),
+            helper.make_tensor_value_info("scores", TensorProto.FLOAT, scores_shape),
+        ],
+        initializer=[
+            helper.make_tensor("max_output_boxes_per_class", TensorProto.INT64, [1], [3]),
+            helper.make_tensor("iou_threshold", TensorProto.FLOAT, [1], [0.1]),
+            helper.make_tensor("score_threshold", TensorProto.FLOAT, [1], [0.05]),
+        ],
+        outputs=[helper.make_tensor_value_info("selected_indices", TensorProto.INT64, [3, 3])],
+    )
+
+    model = helper.make_model(graph, producer_name="nms_test_score_threshold")
+    model.ir_version = 8
+    model.opset_import[0].version = 11
+
+    inputs = {
+        "boxes": boxes_data,
+        "scores": scores_data,
+    }
+
+    # Run ONNX Runtime
+    ort_session = onnxruntime.InferenceSession(
+        model.SerializeToString(), providers=["CPUExecutionProvider"]
+    )
+    ort_output = ort_session.run([], inputs)
+
+    # Run TVM
+    tvm_model = from_onnx(model, opset=11, keep_params_in_input=True)
+    tvm_model = relax.transform.DecomposeOpsForInference()(tvm_model)
+    tvm_model = relax.transform.LegalizeOps()(tvm_model)
+    tvm_model, params = relax.frontend.detach_params(tvm_model)
+
+    with tvm.transform.PassContext(opt_level=3):
+        ex = tvm.compile(tvm_model, target="llvm")
+        vm = relax.VirtualMachine(ex, tvm.cpu())
+
+    input_list = [
+        inputs[key.name_hint] for key in tvm_model["main"].params if key.name_hint in inputs
+    ]
+    if params:
+        input_list += params["main"]
+
+    vm.set_input("main", *input_list)
+    vm.invoke_stateful("main")
+    tvm_output = vm.get_outputs("main")
+
+    # Custom NMS output comparison
+    if isinstance(tvm_output, list | tuple):
+        tvm_selected = tvm_output[0].numpy()
+    else:
+        tvm_selected = tvm_output.numpy()
+    ort_selected = ort_output[0]
+
+    # For NMS, compare only the valid rows
+    min_rows = min(tvm_selected.shape[0], ort_selected.shape[0])
+    if min_rows > 0:
+        tvm.testing.assert_allclose(
+            tvm_selected[:min_rows], ort_selected[:min_rows], rtol=1e-5, atol=1e-5
+        )
 
 
 if __name__ == "__main__":

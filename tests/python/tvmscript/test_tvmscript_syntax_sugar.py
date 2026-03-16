@@ -15,14 +15,16 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring,invalid-name,pointless-string-statement
+# ruff: noqa: E741, F401, F841
 import sys
 from typing import Any
 
 import pytest
+
 import tvm.testing
+from tvm.s_tir.schedule.testing import assert_structural_equal_ignore_global_symbol
 from tvm.script import from_source
 from tvm.script import tir as T
-from tvm.tir.schedule.testing import assert_structural_equal_ignore_global_symbol
 
 
 @T.prim_func
@@ -32,7 +34,7 @@ def transformed_matmul_no_syntax_sugar(a: T.handle, b: T.handle, c: T.handle) ->
     C = T.match_buffer(c, [128, 128])
 
     for i0, i1, i2_outer, i2_inner_outer, i2_inner_inner in T.grid(128, 128, 4, 8, 4):
-        with T.block("update"):
+        with T.sblock("update"):
             vi, vj = T.axis.remap("SS", [i0, i1])
             vk = T.axis.R(128, i2_outer * 32 + i2_inner_outer * 4 + i2_inner_inner)
             T.reads([C[vi, vj], A[vi, vk], B[vj, vk]])
@@ -50,7 +52,7 @@ def transformed_matmul_syntax_sugar(a: T.handle, b: T.handle, c: T.handle) -> No
     C = T.match_buffer(c, [128, 128])
 
     for i0, i1, i2_outer, i2_inner_outer, i2_inner_inner in T.grid(128, 128, 4, 8, 4):
-        with T.block("update"):
+        with T.sblock("update"):
             vi, vj = T.axis.remap("SS", [i0, i1])
             vk = T.axis.R(128, i2_outer * 32 + i2_inner_outer * 4 + i2_inner_inner)
             T.reads(C[vi, vj], A[vi, vk], B[vj, vk])
@@ -104,7 +106,7 @@ def elementwise_handle(
     A = T.match_buffer(a, (128, 128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128, 128))
     for i, j, k, l in T.grid(128, 128, 128, 128):
-        with T.block("B"):
+        with T.sblock("B"):
             vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
             B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
 
@@ -116,7 +118,7 @@ def elementwise_buffer_kwargs(
     b: T.Buffer(shape=(128, 128, 128, 128), dtype="float32"),
 ) -> None:
     for i, j, k, l in T.grid(128, 128, 128, 128):
-        with T.block("B"):
+        with T.sblock("B"):
             vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
             b[vi, vj, vk, vl] = a[vi, vj, vk, vl] * 2.0
 
@@ -128,7 +130,7 @@ def elementwise_buffer_no_kwargs(
     b: T.Buffer((128, 128, 128, 128), "float32"),
 ) -> None:
     for i, j, k, l in T.grid(128, 128, 128, 128):
-        with T.block("B"):
+        with T.sblock("B"):
             vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
             b[vi, vj, vk, vl] = a[vi, vj, vk, vl] * 2.0
 
@@ -165,7 +167,7 @@ def gemm_dyn_shape(a: T.handle, b: T.handle, c: T.handle):
     B = T.match_buffer(b, (K, M), "float32")
     C = T.match_buffer(c, (N, M), "float32")
     for i, j, k in T.grid(N, M, K):
-        with T.block("gemm"):
+        with T.sblock("gemm"):
             vi, vj, vk = T.axis.remap("SSR", [i, j, k])
             with T.init():
                 C[vi, vj] = 0.0
@@ -180,14 +182,14 @@ def test_dynamic_shape_gemm():
 @T.prim_func
 def match_buffer_int64(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (T.int64(128), T.int64(128)), dtype="float32")
-    B = T.alloc_buffer((T.int64(128), T.int64(128)), dtype="float32")
+    B = T.sblock_alloc_buffer((T.int64(128), T.int64(128)), dtype="float32")
     C = T.match_buffer(c, (T.int64(128), T.int64(128)), dtype="float32")
     for i, j in T.grid(128, 128):
-        with T.block("B"):
+        with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj] * 2.0
     for i, j in T.grid(T.int64(128), T.int64(128)):
-        with T.block("C"):
+        with T.sblock("C"):
             vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
 
@@ -197,13 +199,13 @@ def match_buffer_int64_after_roundtrip(
     A: T.Buffer((T.int64(128), T.int64(128)), "float32"),
     C: T.Buffer((T.int64(128), T.int64(128)), "float32"),
 ) -> None:
-    B = T.alloc_buffer((T.int64(128), T.int64(128)), dtype="float32")
+    B = T.sblock_alloc_buffer((T.int64(128), T.int64(128)), dtype="float32")
     for i, j in T.grid(128, 128):
-        with T.block("B"):
+        with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj] * 2.0
     for i, j in T.grid(T.int64(128), T.int64(128)):
-        with T.block("C"):
+        with T.sblock("C"):
             vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
 
@@ -217,13 +219,13 @@ def test_match_buffer_int64():
 def test_match_buffer_region_has_implicit_shape_dtype():
     @T.prim_func
     def explicit_shape_dtype(A: T.Buffer((16, 64), "int32")):
-        with T.block():
+        with T.sblock():
             B = T.match_buffer(A[8:16, 32:64], shape=(8, 32), dtype="int32")
             T.evaluate(0)
 
     @T.prim_func
     def implicit_shape_dtype(A: T.Buffer((16, 64), "int32")):
-        with T.block():
+        with T.sblock():
             B = T.match_buffer(A[8:16, 32:64])
             T.evaluate(0)
 
@@ -239,7 +241,7 @@ def test_match_buffer_input_requires_shape_arg():
             T.evaluate(0)
 
 
-def test_letstmt_bufferload_without_type_annotation():
+def test_bind_bufferload_without_type_annotation():
     # Variable assignment of PrimExpr types uses the dtype of the
     # PrimExpr to determine the variable's dtype.  Parsing of
     # buf[indices] is done by generating a BufferSlice object, which
@@ -253,7 +255,7 @@ def test_letstmt_bufferload_without_type_annotation():
         T.evaluate(x)
 
 
-def test_letstmt_bind_with_constant():
+def test_bind_with_constant():
     @T.prim_func
     def constant_binds():
         x = T.meta_var(1)
@@ -280,11 +282,11 @@ def test_func_call():
         B = T.match_buffer(b, (32, 8), "float16", align=64, offset_factor=16, scope="warp")
         C = T.match_buffer(c, (32, 8), "float16", align=64, offset_factor=16, scope="warp")
 
-        with T.block("root"):
+        with T.sblock("root"):
             T.reads(C[0:32, 0:8], A[0:32, 0:8], B[0:32, 0:8])
             T.writes(C[0:32, 0:8])
             for i, j, k in T.grid(16, 16, 16):
-                with T.block("C"):
+                with T.sblock("C"):
                     i, j, k = T.axis.remap("SSR", [i, j, k])
                     thread_id_C, local_id_C = shared_16x16_to_ldmatrix_32x8_layout(i, j)
                     thread_id_A, local_id_A = shared_16x16_to_ldmatrix_32x8_layout(i, k)
@@ -307,11 +309,11 @@ def test_func_call():
         B = T.match_buffer(b, (32, 8), "float16", align=64, offset_factor=16, scope="warp")
         C = T.match_buffer(c, (32, 8), "float16", align=64, offset_factor=16, scope="warp")
 
-        with T.block("root"):
+        with T.sblock("root"):
             T.reads(C[0:32, 0:8], A[0:32, 0:8], B[0:32, 0:8])
             T.writes(C[0:32, 0:8])
             for i, j, k in T.grid(16, 16, 16):
-                with T.block("C"):
+                with T.sblock("C"):
                     i, j, k = T.axis.remap("SSR", [i, j, k])
                     T.reads(
                         C[i % 8 * 4 + j % 8 // 2, j // 8 * 4 + i // 8 * 2 + j % 2],
@@ -359,7 +361,7 @@ def test_int64_loop():
         B: T.Buffer((T.int64(128), T.int64(128)), "float32"),
     ) -> None:
         for i, j in T.grid(T.int64(128), T.int64(128)):
-            with T.block("C"):
+            with T.sblock("C"):
                 vi, vj = T.axis.remap("SS", [i, j])
                 B[vi, vj] = A[vi, vj] + 1.0
 
@@ -370,7 +372,7 @@ def test_int64_loop():
     ) -> None:
         for i in range(T.int64(0), T.int64(128)):
             for j in range(T.int64(0), T.int64(128)):
-                with T.block("C"):
+                with T.sblock("C"):
                     vi = T.axis.spatial(T.int64(128), i)
                     vj = T.axis.spatial(T.int64(128), j)
                     B[vi, vj] = A[vi, vj] + 1.0
@@ -408,7 +410,7 @@ def test_preserve_trivial_let_binding():
     @T.prim_func
     def explicit(i: T.int32):
         j = T.int32()
-        T.LetStmt(i, var=j)
+        T.bind(i, var=j)
         T.evaluate(j)
 
     @T.prim_func
@@ -423,7 +425,7 @@ def test_preserve_trivial_let_binding_of_value():
     @T.prim_func
     def explicit(i: T.int32):
         j = T.int32()
-        T.LetStmt(42, var=j)
+        T.bind(42, var=j)
         T.evaluate(j)
 
     @T.prim_func
@@ -445,7 +447,7 @@ def test_preserve_parameter_name():
 
 
 def test_preserve_variable_name():
-    """Use variable name when generating tir::LetStmt"""
+    """Use variable name when generating tir::Bind"""
 
     @T.prim_func
     def func():
@@ -453,7 +455,8 @@ def test_preserve_variable_name():
             j = i // 4
             T.evaluate(j)
 
-    var_name = func.body.body.var.name
+    # With flat Bind, the for body is SeqStmt([Bind(j, i//4), Evaluate(j)])
+    var_name = func.body.body.seq[0].var.name
     assert var_name == "j"
 
 
@@ -502,6 +505,28 @@ def test_return_statement():
     @T.prim_func
     def implicit():
         return 5
+
+    assert_structural_equal_ignore_global_symbol(implicit, explicit)
+
+
+def test_loop_jump_statement():
+    """`break` and `continue` evaluates to TIR intrinsics"""
+
+    @T.prim_func
+    def explicit():
+        for i in range(16):
+            if i % 2 == 0:
+                T.evaluate(T.continue_loop())
+            if i < 15:
+                T.evaluate(T.break_loop())
+
+    @T.prim_func
+    def implicit():
+        for i in range(16):
+            if i % 2 == 0:
+                continue
+            if i < 15:
+                break
 
     assert_structural_equal_ignore_global_symbol(implicit, explicit)
 

@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name, trailing-whitespace
 """Softmax and log_softmax operation in python"""
+
 import numpy as np
 
 

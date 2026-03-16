@@ -21,6 +21,7 @@ import enum
 
 from tvm.script import tir as T
 
+from ... import op
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr
 from .common import register_legalize
@@ -34,18 +35,18 @@ class TVMStructFieldKind(enum.IntEnum):
     definition which starts from 0.
     """
 
-    kArrAddr = 0
-    kArrData = 1
-    kArrShape = 2
-    kArrStrides = 3
-    kArrNDim = 4
-    kArrTypeCode = 5
-    kArrTypeBits = 6
-    kArrTypeLanes = 7
-    kArrByteOffset = 8
-    kArrDeviceId = 9
-    kArrDeviceType = 10
-    kArrKindBound_ = 11
+    kDLTensorAddr = 0
+    kDLTensorData = 1
+    kDLTensorShape = 2
+    kDLTensorStrides = 3
+    kDLTensorNDim = 4
+    kDLTensorTypeCode = 5
+    kDLTensorTypeBits = 6
+    kDLTensorTypeLanes = 7
+    kDLTensorByteOffset = 8
+    kDLTensorDeviceId = 9
+    kDLTensorDeviceType = 10
+    kDLTensorKindBound_ = 11
     kTVMValueContent = 12
     kTVMValueKindBound_ = 13
 
@@ -57,18 +58,18 @@ def _tensor_stride_i(bb: BlockBuilder, call: Call) -> Expr:
         T.func_attr({"tir.is_host": True, "tir.is_scheduled": True})
         assert T.int64(0) <= axis, "Specified axis may not be negative"
         ndim: T.int32 = T.tvm_struct_get(
-            dlpack_handle, 0, int(TVMStructFieldKind.kArrNDim), "int32"
+            dlpack_handle, 0, int(TVMStructFieldKind.kDLTensorNDim), "int32"
         )
-        assert axis < T.Cast(
-            "int64", ndim
-        ), "Specified axis may not be larger than the tensor's dimensionality"
+        assert axis < T.Cast("int64", ndim), (
+            "Specified axis may not be larger than the tensor's dimensionality"
+        )
         stride_ptr: T.handle("int64") = T.tvm_struct_get(
-            dlpack_handle, 0, int(TVMStructFieldKind.kArrStrides), "handle"
+            dlpack_handle, 0, int(TVMStructFieldKind.kDLTensorStrides), "handle"
         )
 
         if T.isnullptr(stride_ptr):
             shape_ptr: T.handle("int64") = T.tvm_struct_get(
-                dlpack_handle, 0, int(TVMStructFieldKind.kArrShape), "handle"
+                dlpack_handle, 0, int(TVMStructFieldKind.kDLTensorShape), "handle"
             )
             shape = T.decl_buffer(ndim, "int64", data=shape_ptr)
 
@@ -98,7 +99,7 @@ def _tensor_byte_offset(bb: BlockBuilder, call: Call) -> Expr:
     def _get_tensor_byte_offset(dlpack_handle: T.handle) -> T.int64:
         T.func_attr({"tir.is_host": True, "tir.is_scheduled": True})
         byte_offset: T.uint64 = T.tvm_struct_get(
-            dlpack_handle, 0, int(TVMStructFieldKind.kArrByteOffset), "uint64"
+            dlpack_handle, 0, int(TVMStructFieldKind.kDLTensorByteOffset), "uint64"
         )
         return byte_offset
 
@@ -112,13 +113,13 @@ def _tensor_elem_offset(bb: BlockBuilder, call: Call) -> Expr:
     def _get_tensor_elem_offset(dlpack_handle: T.handle) -> T.int64:
         T.func_attr({"tir.is_host": True, "tir.is_scheduled": True})
         byte_offset: T.uint64 = T.tvm_struct_get(
-            dlpack_handle, 0, int(TVMStructFieldKind.kArrByteOffset), "uint64"
+            dlpack_handle, 0, int(TVMStructFieldKind.kDLTensorByteOffset), "uint64"
         )
         scalar_bits: T.uint8 = T.tvm_struct_get(
-            dlpack_handle, 0, int(TVMStructFieldKind.kArrTypeBits), "uint8"
+            dlpack_handle, 0, int(TVMStructFieldKind.kDLTensorTypeBits), "uint8"
         )
         lanes: T.uint16 = T.tvm_struct_get(
-            dlpack_handle, 0, int(TVMStructFieldKind.kArrTypeLanes), "uint16"
+            dlpack_handle, 0, int(TVMStructFieldKind.kDLTensorTypeLanes), "uint16"
         )
         bytes_per_element = T.ceildiv(scalar_bits.astype("uint64") * lanes.astype("uint64"), 8)
         elem_offset = byte_offset // bytes_per_element
@@ -126,3 +127,8 @@ def _tensor_elem_offset(bb: BlockBuilder, call: Call) -> Expr:
 
     gvar = bb.add_func(_get_tensor_elem_offset, "_get_tensor_elem_offset")
     return Call(gvar, call.args)
+
+
+@register_legalize("relax.size")
+def _size(_bb: BlockBuilder, call: Call) -> Expr:
+    return op.prod(op.shape_to_tensor(op.shape_of(call.args[0])))

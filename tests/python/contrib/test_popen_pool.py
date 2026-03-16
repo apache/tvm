@@ -14,23 +14,27 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401, F841
 """Test PopenPoolExecutor."""
-import pytest
+
 import os
-import psutil
 import time
-from tvm.contrib.popen_pool import PopenWorker, PopenPoolExecutor
+
+import psutil
+import pytest
+
+from tvm.contrib.popen_pool import PopenPoolExecutor, PopenWorker
 from tvm.testing import (
-    identity_after,
-    terminate_self,
-    initializer,
     after_initializer,
-    register_ffi,
-    call_py_ffi,
     call_cpp_ffi,
     call_cpp_py_ffi,
+    call_py_ffi,
     fast_summation,
+    identity_after,
+    initializer,
+    register_ffi,
     slow_summation,
+    terminate_self,
     timeout_job,
 )
 
@@ -96,7 +100,6 @@ def test_popen_pool_executor():
 
     assert value3.result() == 3
     value = value4.result()
-    assert isinstance(value, tvm.runtime.String)
     assert value == "xyz"
 
     pool = PopenPoolExecutor(max_workers=4, timeout=None)

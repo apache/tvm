@@ -20,16 +20,18 @@
 import builtins
 import functools
 import inspect
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union, Type
+from collections.abc import Callable
+from typing import Any
 
 import tvm
 from tvm import DataType, relax
-from tvm.ir import PrimExpr, VDevice, IRModule
+from tvm.ir import IRModule, PrimExpr, VDevice
 from tvm.relax import (
     Call,
     Expr,
     ExternFunc,
     ShapeExpr,
+    StringImm,
     TupleGetItem,
     Var,
     VarBinding,
@@ -102,8 +104,8 @@ from tvm.relax.op import (
     greater_equal,
     hamming_window,
     hint_on_device,
-    index_put,
     image,
+    index_put,
     index_tensor,
     invoke_closure,
     invoke_pure_closure,
@@ -126,6 +128,7 @@ from tvm.relax.op import (
     max,
     maximum,
     mean,
+    median,
     memory,
     meshgrid,
     min,
@@ -135,11 +138,12 @@ from tvm.relax.op import (
     multiply,
     negative,
     nn,
+    nonzero,
     not_equal,
     null_value,
+    one_hot,
     ones,
     ones_like,
-    one_hot,
     outer,
     permute_dims,
     power,
@@ -159,6 +163,7 @@ from tvm.relax.op import (
     sign,
     sin,
     sinh,
+    size,
     slice_scatter,
     sort,
     split,
@@ -181,18 +186,22 @@ from tvm.relax.op import (
     trunc,
     unique,
     variance,
+    vision,
     vm,
     where,
     wrap_param,
     zeros,
     zeros_like,
 )
+from tvm.relax.op import (
+    call_py_func as _call_py_func,
+)
 from tvm.relax.op.builtin import stop_lift_params
 from tvm.relax.struct_info import StructInfo
-from tvm.relax.utils import args_converter, gen_call_tir_inputs
+from tvm.relax.utils import convert_to_expr, gen_call_tir_inputs
 from tvm.runtime import Object as tvm_Object
-from tvm.runtime import ObjectGeneric
-from tvm.runtime.ndarray import (
+from tvm.runtime import ObjectConvertible
+from tvm.runtime._tensor import (
     cpu,
     cuda,
     device,
@@ -219,7 +228,7 @@ py_str = str  # pylint: disable=used-before-assignment
 ################################ Device ################################
 
 
-def to_vdevice(data: Expr, dst_vdevice: Union[py_str, VDevice]) -> Expr:
+def to_vdevice(data: Expr, dst_vdevice: py_str | VDevice) -> Expr:
     """Copy data to the destination device.
 
     Parameters
@@ -296,7 +305,7 @@ def func_name(name: py_str) -> None:
     return _ffi_api.FuncName(name)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def func_attr(attrs: Dict[py_str, tvm_Object]) -> None:
+def func_attr(attrs: dict[py_str, tvm_Object]) -> None:
     """Specify the attrs of the last function frame.
     Parameters
     ----------
@@ -326,7 +335,7 @@ def func_ret_value(value: Expr) -> None:
     return _ffi_api.FuncRetValue(value)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def rewriter(rewriter_mod: Union[IRModule, Type]) -> PatternMatchingRewriter:
+def rewriter(rewriter_mod: IRModule | type) -> PatternMatchingRewriter:
     """Define a pattern-rewrite rule
 
     The IRModule must have two publicly-exposed functions, `pattern`
@@ -371,17 +380,17 @@ def rewriter(rewriter_mod: Union[IRModule, Type]) -> PatternMatchingRewriter:
 ############################# BindingBlock ##############################
 
 
-def dataflow() -> frame.BlockFrame:
+def dataflow() -> frame.BindingBlockFrame:
     """Start a dataflow binding block frame.
     Returns
     -------
-    frame: frame.BlockFrame
+    frame: frame.BindingBlockFrame
         The created ir_builder Block frame.
     """
     return _ffi_api.Dataflow()  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def output(*vars: Tuple[Var]) -> None:
+def output(*vars: tuple[Var]) -> None:
     """Expose the dataflow block output variables as global ones.
     Parameters
     ----------
@@ -394,11 +403,10 @@ def output(*vars: Tuple[Var]) -> None:
 ################################## Ops #################################
 
 
-@args_converter.auto
 def call_packed(
     func: py_str,
     *args: Expr,
-    sinfo_args: Optional[Union[StructInfo, List[StructInfo]]] = None,
+    sinfo_args: StructInfo | list[StructInfo] | None = None,
     **kwargs: Any,
 ) -> Call:
     """Create a relax Call, which calls a packed function.
@@ -419,6 +427,7 @@ def call_packed(
         The created Relax Call
     """
     op = ExternFunc(func)
+    args = py_tuple(convert_to_expr(a) for a in args)
     if sinfo_args is None:
         sinfo_args = []
     if isinstance(sinfo_args, py_tuple):  # type: ignore
@@ -431,7 +440,7 @@ def call_packed(
             sinfo()
             if callable(sinfo)
             else sinfo.asobject()
-            if isinstance(sinfo, ObjectGeneric)
+            if isinstance(sinfo, ObjectConvertible)
             else sinfo
         )
         for sinfo in sinfo_args
@@ -451,18 +460,69 @@ def call_packed(
     return Call(op, args, attrs=attrs, sinfo_args=sinfo_args)
 
 
+def call_py_func(
+    py_func_name: py_str,
+    *args: Expr,
+    out_sinfo: StructInfo | list[StructInfo],
+) -> Call:
+    """Create a relax Call, which calls a Python function.
+
+    Parameters
+    ----------
+    py_func_name: str
+        The name of the Python function to call. This should correspond to a function
+        in the IRModule's pyfuncs attribute.
+    *args : Expr
+        The arguments.
+    out_sinfo: Union[StructInfo, List[StructInfo]]
+        The structure info of the call_py_func output.
+        It should be a single or a list of TensorStructInfo. Each one denotes the
+        structure info of a returned tensor.
+
+    Returns
+    -------
+    call: Call
+        The created Relax Call for call_py_func operator.
+    """
+    args = py_tuple(convert_to_expr(a) for a in args)
+    if isinstance(out_sinfo, py_tuple):  # type: ignore
+        out_sinfo = list(out_sinfo)
+    elif not isinstance(out_sinfo, list):
+        out_sinfo = [out_sinfo]
+
+    out_sinfo = [
+        (
+            sinfo()
+            if callable(sinfo)
+            else sinfo.asobject()
+            if isinstance(sinfo, ObjectConvertible)
+            else sinfo
+        )
+        for sinfo in out_sinfo
+    ]
+
+    # Convert string to StringImm
+    try:
+        func_name_imm = (
+            StringImm(py_func_name) if isinstance(py_func_name, py_str) else py_func_name
+        )
+    except (TypeError, ValueError, AttributeError):
+        func_name_imm = StringImm(py_func_name)
+    return _call_py_func(func_name_imm, args, out_sinfo)
+
+
 def _sinfo_arg_wrapper(func):
     """A wrapper to convert StructInfoProxies to StructInfo for builtin operators with sinfo_args"""
 
     def _convert_tensor_type(args):
-        if isinstance(args, (list, py_tuple)):  # type: ignore
+        if isinstance(args, list | py_tuple):  # type: ignore
             new_args = [_convert_tensor_type(x) for x in args]
             return type(args)(new_args)
         if isinstance(args, dict):
             return {_convert_tensor_type(k): _convert_tensor_type(v) for k, v in args.items()}
         if inspect.isfunction(args):
             args = args()
-        if isinstance(args, ObjectGeneric):
+        if isinstance(args, ObjectConvertible):
             args = args.asobject()
         return args
 
@@ -481,7 +541,7 @@ call_builtin_with_ctx = _sinfo_arg_wrapper(call_builtin_with_ctx)  # pylint: dis
 ############################### Emits ###############################
 
 
-def emit(value: Expr, annotate_struct_info: Optional[StructInfo] = None) -> Var:
+def emit(value: Expr, annotate_struct_info: StructInfo | None = None) -> Var:
     """Emit a binding to the last binding block frame.
     Parameters
     ----------
@@ -565,6 +625,30 @@ def emit_var_binding(value: VarBinding) -> Var:
     return _ffi_api.EmitVarBinding(value)  # type: ignore
 
 
+def emit_with_sinfo(
+    op: str,
+    args: Expr,
+    sinfo_args: StructInfo | list[StructInfo] | None = None,
+) -> Call:
+    """Create a relax Call with sinfo_args.
+    Parameters
+    ----------
+    op: Expr
+        The relax op for which sinfo_args to be appended
+    args : Expr
+        The arguments.
+    sinfo_args: Optional[Union[StructInfo, List[StructInfo]]]
+        The list of structure info arguments.
+
+    Returns
+    -------
+    call: Call
+        The created Relax Call
+    """
+    builtin_call = tvm.ir.Op.get(op)
+    return Call(builtin_call, args, attrs=None, sinfo_args=sinfo_args)
+
+
 ############################### SeqExpr ###############################
 
 
@@ -581,7 +665,7 @@ def SeqExpr() -> frame.SeqExprFrame:  # pylint: disable=invalid-name
 ############################# If Then Else #############################
 
 
-def If(condition: Union[Expr, PrimExpr]) -> frame.IfFrame:  # pylint: disable=invalid-name
+def If(condition: Expr | PrimExpr) -> frame.IfFrame:  # pylint: disable=invalid-name
     """Create an if frame.
 
     Parameters
@@ -646,7 +730,7 @@ def tuple(*fields: Expr) -> Expr:
 ############################### R.shape ################################
 
 
-def shape(value: List[PrimExpr]) -> Expr:
+def shape(value: list[PrimExpr]) -> Expr:
     """Create a ShapeExpr.
     Parameters
     ----------
@@ -691,7 +775,7 @@ def str(value: py_str) -> Expr:
     return relax.StringImm(value)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def dtype(value: Union[py_str, DataType]) -> Expr:
+def dtype(value: py_str | DataType) -> Expr:
     """Create a dtype imm expression.
     Parameters
     ----------
@@ -709,26 +793,27 @@ def dtype(value: Union[py_str, DataType]) -> Expr:
 
 __all__ = [
     "Else",
+    "ExternFunc",
     "If",
     "SeqExpr",
+    "ShapeExpr",
     "Then",
     "TupleGetItem",
-    "ExternFunc",
     "abs",
     "acos",
     "acosh",
-    "asin",
-    "asinh",
-    "atan",
-    "atanh",
     "add",
     "arange",
     "arg",
     "argmax",
     "argmin",
     "argsort",
+    "asin",
+    "asinh",
     "assert_op",
     "astype",
+    "atan",
+    "atanh",
     "bitwise_and",
     "bitwise_not",
     "bitwise_or",
@@ -736,38 +821,42 @@ __all__ = [
     "broadcast_to",
     "bucketize",
     "builtin",
+    "call_builtin_with_ctx",
+    "call_dps_packed",
     "call_inplace_packed",
     "call_packed",
     "call_pure_packed",
+    "call_py_func",
     "call_tir",
     "call_tir_inplace",
     "call_tir_with_grad",
-    "call_dps_packed",
-    "call_builtin_with_ctx",
+    "ccl",
     "ceil",
     "clip",
     "collapse_sum_like",
     "collapse_sum_to",
     "concat",
+    "const",
     "cos",
     "cosh",
-    "const",
     "cpu",
     "cuda",
     "cumprod",
     "cumsum",
-    "einsum",
-    "scatter_elements",
-    "scatter_nd",
     "dataflow",
+    "dequantize",
     "device",
     "divide",
     "dtype",
+    "dynamic_strided_slice",
+    "einsum",
     "emit",
+    "emit_match_cast",
     "emit_te",
     "emit_var_binding",
-    "emit_match_cast",
+    "emit_with_sinfo",
     "equal",
+    "erf",
     "ewise_fma",
     "exp",
     "expand_dims",
@@ -794,8 +883,8 @@ __all__ = [
     "hamming_window",
     "hexagon",
     "hint_on_device",
-    "index_put",
     "image",
+    "index_put",
     "index_tensor",
     "invoke_closure",
     "invoke_pure_closure",
@@ -818,6 +907,7 @@ __all__ = [
     "max",
     "maximum",
     "mean",
+    "median",
     "memory",
     "meshgrid",
     "metal",
@@ -827,64 +917,67 @@ __all__ = [
     "multinomial_from_uniform",
     "multiply",
     "negative",
+    "nn",
+    "nonzero",
     "not_equal",
     "null_value",
+    "one_hot",
     "ones",
     "ones_like",
-    "one_hot",
     "opencl",
-    "output",
     "outer",
+    "output",
     "permute_dims",
     "power",
     "prim_value",
     "print",
     "prod",
     "quantize",
-    "dequantize",
     "repeat",
     "reshape",
     "rewriter",
     "right_shift",
-    "tensor_to_shape",
-    "shape_to_tensor",
     "rocm",
     "round",
     "rsqrt",
+    "scatter_elements",
+    "scatter_nd",
     "shape",
     "shape_of",
-    "ShapeExpr",
-    "std",
-    "str",
-    "sum",
+    "shape_to_tensor",
     "sigmoid",
     "sign",
     "sin",
     "sinh",
+    "size",
     "slice_scatter",
     "sort",
     "split",
+    "sqrt",
     "square",
     "squeeze",
-    "sqrt",
     "stack",
+    "std",
     "stop_lift_params",
     "str",
+    "str",
     "strided_slice",
-    "dynamic_strided_slice",
     "subtract",
+    "sum",
     "take",
     "tan",
     "tanh",
+    "tensor_to_shape",
     "tile",
-    "topk",
     "to_vdevice",
+    "topk",
     "tril",
     "triu",
     "trunc",
     "tuple",
     "unique",
     "variance",
+    "vision",
     "vm",
     "vpi",
     "vulkan",
@@ -893,7 +986,4 @@ __all__ = [
     "wrap_param",
     "zeros",
     "zeros_like",
-    "nn",
-    "ccl",
-    "erf",
 ]

@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E402
 
 """
 .. _ir_module:
@@ -30,18 +31,18 @@ computational graph, tensor programs, and potential calls to external libraries.
 """
 
 import numpy as np
-import tvm
-from tvm import relax
 
 ######################################################################
 # Create IRModule
 # ---------------
 # IRModules can be initialized in various ways. We demonstrate a few of them
 # below.
-
 import torch
 from torch import nn
 from torch.export import export
+
+import tvm
+from tvm import relax
 from tvm.relax.frontend.torch import from_exported_program
 
 ######################################################################
@@ -56,7 +57,7 @@ from tvm.relax.frontend.torch import from_exported_program
 # Create a dummy model
 class TorchModel(nn.Module):
     def __init__(self):
-        super(TorchModel, self).__init__()
+        super().__init__()
         self.fc1 = nn.Linear(784, 256)
         self.relu1 = nn.ReLU()
         self.fc2 = nn.Linear(256, 10)
@@ -93,7 +94,7 @@ from tvm.relax.frontend import nn
 
 class RelaxModel(nn.Module):
     def __init__(self):
-        super(RelaxModel, self).__init__()
+        super().__init__()
         self.fc1 = nn.Linear(784, 256)
         self.relu1 = nn.ReLU()
         self.fc2 = nn.Linear(256, 10)
@@ -237,7 +238,7 @@ dev = tvm.cpu()
 vm = relax.VirtualMachine(exec, dev)
 
 raw_data = np.random.rand(1, 784).astype("float32")
-data = tvm.nd.array(raw_data, dev)
+data = tvm.runtime.tensor(raw_data, dev)
 cpu_out = vm["main"](data, *params_from_torch["main"]).numpy()
 print(cpu_out)
 
@@ -252,7 +253,7 @@ print(cpu_out)
 # the details of ``DLight``.
 #
 
-from tvm import dlight as dl
+from tvm.s_tir import dlight as dl
 
 with tvm.target.Target("cuda"):
     gpu_mod = dl.ApplyDefaultSchedule(
@@ -267,8 +268,8 @@ exec = tvm.compile(gpu_mod, target="cuda")
 dev = tvm.device("cuda", 0)
 vm = relax.VirtualMachine(exec, dev)
 # Need to allocate data and params on GPU device
-data = tvm.nd.array(raw_data, dev)
-gpu_params = [tvm.nd.array(p, dev) for p in params_from_torch["main"]]
+data = tvm.runtime.tensor(raw_data, dev)
+gpu_params = [tvm.runtime.tensor(p, dev) for p in params_from_torch["main"]]
 gpu_out = vm["main"](data, *gpu_params).numpy()
 print(gpu_out)
 

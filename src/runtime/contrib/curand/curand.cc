@@ -28,10 +28,10 @@ namespace tvm {
 namespace runtime {
 namespace curand {
 
-#define TVM_CURAND_CALL(func)                                    \
-  {                                                              \
-    curandStatus_t e = (func);                                   \
-    ICHECK(e == CURAND_STATUS_SUCCESS) << "cuRAND error: " << e; \
+#define TVM_CURAND_CALL(func)                                            \
+  {                                                                      \
+    curandStatus_t e = (func);                                           \
+    TVM_FFI_ICHECK(e == CURAND_STATUS_SUCCESS) << "cuRAND error: " << e; \
   }
 
 class CURandGenerator {
@@ -77,8 +77,8 @@ struct DeferredFunc {
 
 void RandomFill(DLTensor* tensor) {
   static DeviceAPI* cuda_api = GetCUDADeviceAPI();
-  CHECK(tensor->device.device_type == DLDeviceType::kDLCUDA)
-      << "ValueError: cuRAND only works on CUDA devices";
+  TVM_FFI_CHECK(tensor->device.device_type == DLDeviceType::kDLCUDA, ValueError)
+      << "cuRAND only works on CUDA devices";
   int64_t tensor_size = GetTensorSize(tensor);
   int64_t actual_size = tensor_size % 2 == 0 ? tensor_size : tensor_size + 1;
   if (tensor->dtype.code == DLDataTypeCode::kDLFloat && tensor->dtype.bits == 16) {
@@ -108,15 +108,15 @@ void RandomFill(DLTensor* tensor) {
       CURandGenerator().Generate64bit(tensor->data, actual_size);
     }
   } else {
-    LOG(FATAL) << "ValueError: Unsupported dtype: " << tensor->dtype;
+    TVM_FFI_THROW(ValueError) << "Unsupported dtype: " << tensor->dtype;
   }
-  TVMSynchronize(tensor->device.device_type, tensor->device.device_type, nullptr);
+  cuda_api->StreamSync(tensor->device, nullptr);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("runtime.contrib.curand.RandomFill", RandomFill);
-});
+}
 
 }  // namespace curand
 }  // namespace runtime

@@ -1,3 +1,4 @@
+# isort: skip_file
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -16,7 +17,8 @@
 # under the License.
 """Registration of profiling objects in python."""
 
-from typing import Dict, Sequence, Optional
+from typing import Optional
+from collections.abc import Sequence
 from ... import ffi as _ffi
 from . import _ffi_api
 from .. import Object, Device
@@ -37,9 +39,9 @@ class Report(Object):
 
     def __init__(
         self,
-        calls: Sequence[Dict[str, Object]],
-        device_metrics: Dict[str, Dict[str, Object]],
-        configuration: Dict[str, Object],
+        calls: Sequence[dict[str, Object]],
+        device_metrics: dict[str, dict[str, Object]],
+        configuration: dict[str, Object],
     ):
         """Construct a profiling report from a list of metrics and per-device metrics.
 
@@ -266,29 +268,5 @@ def profile_function(mod, dev, collectors, func_name=None, warmup_iters=10):
     if func_name is None:
         func_name = mod.entry_name
     return _ffi_api.ProfileFunction(
-        mod, func_name, dev.device_type, dev.device_id, warmup_iters, collectors
+        mod, func_name, dev.dlpack_device_type(), dev.index, warmup_iters, collectors
     )
-
-
-# We only enable this class when TVM is build with PAPI support
-if _ffi.get_global_func("runtime.profiling.PAPIMetricCollector", allow_missing=True) is not None:
-
-    @_ffi.register_object("runtime.profiling.PAPIMetricCollector")
-    class PAPIMetricCollector(MetricCollector):
-        """Collects performance counter information using the Performance
-        Application Programming Interface (PAPI).
-        """
-
-        def __init__(self, metric_names: Optional[Dict[Device, Sequence[str]]] = None):
-            """
-            Parameters
-            ----------
-            metric_names : Optional[Dict[Device, Sequence[str]]]
-                List of per-device metrics to collect. You can find a list of valid
-                metrics by runing `papi_native_avail` from the command line.
-            """
-            metric_names = {} if metric_names is None else metric_names
-            wrapped = dict()
-            for dev, names in metric_names.items():
-                wrapped[DeviceWrapper(dev)] = names
-            self.__init_handle_by_constructor__(_ffi_api.PAPIMetricCollector, wrapped)

@@ -17,21 +17,22 @@
 # specific language governing permissions and limitations
 # under the License.
 
-""" Test 2d physical buffers """
+"""Test 2d physical buffers"""
 
 import contextlib
 
 import numpy as np
 import pytest
+
 import tvm
 
 # Needed to register the link_shared packedfunc.
 import tvm.contrib.hexagon
 import tvm.testing
 from tvm import te
+from tvm.contrib.hexagon import allocate_hexagon_array
 from tvm.contrib.hexagon.pytest_plugin import requires_hexagon_toolchain
 from tvm.tir.stmt_functor import post_order_visit
-from tvm.contrib.hexagon import allocate_hexagon_array
 
 from .infrastructure import get_hexagon_target
 
@@ -170,7 +171,7 @@ def extract_buffers(stmt):
     buffers = []
 
     def visitor(node):
-        if isinstance(node, (tvm.tir.BufferLoad, tvm.tir.BufferStore, tvm.tir.BufferRealize)):
+        if isinstance(node, tvm.tir.BufferLoad | tvm.tir.BufferStore):
             buffers.append(node.buffer)
 
     post_order_visit(stmt, visitor)
@@ -222,7 +223,7 @@ class TestElementWise:
     ):
         tensors = self._te_tensors(input_shape, dtype)
 
-        sch = tvm.tir.Schedule(te.create_prim_func(tensors))
+        sch = tvm.s_tir.Schedule(te.create_prim_func(tensors))
 
         cache_read_block = sch.cache_read("Output", 0, working_scope)
         cache_write_block = sch.cache_write("Output", 0, working_scope)

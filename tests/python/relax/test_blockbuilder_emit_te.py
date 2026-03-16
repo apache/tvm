@@ -14,11 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-""" This file tests advanced emit_te features with help of TVMScript assertion"""
+"""This file tests advanced emit_te features with help of TVMScript assertion"""
+
 # The tests here depend on tvmscript
 import tvm
-from tvm import te, tir
 from tvm import relax as rx
+from tvm import te, tir
 from tvm.ir.base import assert_structural_equal
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
@@ -50,15 +51,15 @@ def test_emit_te_with_symbolic_arg():
         ):
             T.func_attr({"tir.noalias": True})
             for i in range(T.int64(10)):
-                with T.block("B"):
+                with T.sblock("B"):
                     v_i = T.axis.spatial(T.int64(10), i)
                     T.writes(B[v_i])
                     B[v_i] = A[v_i + m]
 
         @R.function
-        def main(
-            x: R.Tensor((10,), dtype="float32"), y: R.Shape(["m"])
-        ) -> R.Tensor((10,), dtype="float32"):
+        def main(x: R.Tensor((10,), dtype="float32"), y: R.Shape(["m"])) -> R.Tensor(
+            (10,), dtype="float32"
+        ):
             m = T.int64()
             cls = Expected
             gv = R.call_tir(
@@ -101,7 +102,7 @@ def test_symbolic_shape_in_prim_value():
             T.func_attr({"tir.noalias": True})
 
             for i in range(A.shape[1]):
-                with T.block("slice"):
+                with T.sblock("slice"):
                     vi = T.axis.remap("S", [i])
                     Output[vi] = A[row_index, vi]
 

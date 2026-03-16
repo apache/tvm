@@ -23,10 +23,11 @@
 #ifndef TVM_RELAX_EXEC_BUILDER_H_
 #define TVM_RELAX_EXEC_BUILDER_H_
 
+#include <tvm/ffi/extra/structural_equal.h>
+#include <tvm/ffi/extra/structural_hash.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
-#include <tvm/node/reflection.h>
 #include <tvm/node/repr_printer.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/vm/bytecode.h>
@@ -63,7 +64,7 @@ class ExecBuilderNode : public Object {
    * \param init_register_size Initial setting of register file size.
    */
   void EmitFunction(const std::string& func, int64_t num_inputs,
-                    Optional<Array<String>> param_names,
+                    ffi::Optional<ffi::Array<ffi::String>> param_names,
                     vm::VMFuncInfo::FuncKind kind = vm::VMFuncInfo::FuncKind::kVMFunc,
                     int64_t init_register_size = 0);
   /*!
@@ -124,6 +125,15 @@ class ExecBuilderNode : public Object {
     return ConvertConstant_(rv);
   }
   /*!
+   * \brief update memory scopes.
+   *
+   * This function builds the memory scopes for constants.
+   *
+   * \param idx Index of the constant
+   * \param scope The memory scope.
+   */
+  void SaveMemoryScope(vm::Instruction::Arg idx, ffi::String scope);
+  /*!
    * \brief Raw access to underlying executable build in progress.
    */
   vm::VMExecutable* exec() const;
@@ -143,8 +153,8 @@ class ExecBuilderNode : public Object {
     refl::ObjectDef<ExecBuilderNode>();
   }
 
-  static constexpr const char* _type_key = "relax.ExecBuilder";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ExecBuilderNode, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.ExecBuilder", ExecBuilderNode, Object);
 
  private:
   /*!
@@ -170,12 +180,13 @@ class ExecBuilderNode : public Object {
   /*! \brief The mutable internal executable. */
   ObjectPtr<vm::VMExecutable> exec_;  // mutable
   /*! \brief internal dedup map when creating index for a new constant */
-  std::unordered_map<ObjectRef, vm::Index, StructuralHash, StructuralEqual> const_dedup_map_;
+  std::unordered_map<ffi::Any, vm::Index, ffi::StructuralHash, ffi::StructuralEqual>
+      const_dedup_map_;
 };
 
 class ExecBuilder : public ObjectRef {
  public:
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(ExecBuilder, ObjectRef, ExecBuilderNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ExecBuilder, ObjectRef, ExecBuilderNode);
 };
 
 }  // namespace relax

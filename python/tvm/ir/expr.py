@@ -15,24 +15,27 @@
 # specific language governing permissions and limitations
 # under the License.
 """Common expressions data structures in the IR."""
+
 from numbers import Number
 from typing import Optional
 
-import tvm.ffi
+import tvm_ffi
+
+import tvm
 
 from ..runtime import Object, Scriptable
 from . import _ffi_api
 from .base import Node, Span
 
 
-@tvm.ffi.register_object("ir.BaseExpr")
+@tvm_ffi.register_object("ir.BaseExpr")
 class BaseExpr(Node):
     """Base class of all the expressions."""
 
-    span: Optional[Span]
+    span: Span | None
 
 
-@tvm.ffi.register_object("ir.PrimExpr")
+@tvm_ffi.register_object("ir.PrimExpr")
 class PrimExpr(BaseExpr):
     """Base class of all primitive expressions.
 
@@ -43,7 +46,7 @@ class PrimExpr(BaseExpr):
     dtype: str
 
 
-@tvm.ffi.register_object("ir.RelaxExpr")
+@tvm_ffi.register_object("ir.RelaxExpr")
 class RelaxExpr(BaseExpr):
     """Base class of all non-primitive expressions."""
 
@@ -59,7 +62,7 @@ class RelaxExpr(BaseExpr):
         return _ffi_api.ExprStructInfo(self)
 
 
-@tvm.ffi.register_object("ir.GlobalVar")
+@tvm_ffi.register_object("ir.GlobalVar")
 class GlobalVar(RelaxExpr):
     """A global variable in the IR.
 
@@ -98,14 +101,14 @@ class GlobalVar(RelaxExpr):
 
             return relax.Call(self, args)
 
-        elif all(isinstance(x, (Number, PrimExpr)) for x in args):
+        elif all(isinstance(x, Number | PrimExpr) for x in args):
             return tvm.tir.call_tir(self, *args)
 
         arg_types = [type(x) for x in args]
         raise RuntimeError(f"Do not know how to handle GlobalVar.__call__ for types {arg_types}")
 
 
-@tvm.ffi.register_object("ir.Range")
+@tvm_ffi.register_object("ir.Range")
 class Range(Node, Scriptable):
     """Represent a range in TVM.
 
@@ -132,17 +135,15 @@ class Range(Node, Scriptable):
 
     min: PrimExpr
     extent: PrimExpr
-    span: Optional[Span]
+    span: Span | None
 
     def __init__(
-        self, begin: PrimExpr, end: Optional[PrimExpr] = None, span: Optional[Span] = None
+        self, begin: PrimExpr, end: PrimExpr | None = None, span: Span | None = None
     ) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Range, begin, end, span)
 
     @staticmethod
-    def from_min_extent(
-        min_value: PrimExpr, extent: PrimExpr, span: Optional[Span] = None
-    ) -> "Range":
+    def from_min_extent(min_value: PrimExpr, extent: PrimExpr, span: Span | None = None) -> "Range":
         """Construct a Range by min and extent.
 
         This constructs a range in [min_value, min_value + extent)

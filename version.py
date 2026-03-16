@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E741
 
 """
 This is the global script that set the version information of TVM.
@@ -21,14 +22,15 @@ This script runs and update all the locations that related to versions
 
 List of affected files:
 - tvm-root/python/tvm/libinfo.py
+- tvm-root/pyproject.toml
 - tvm-root/include/tvm/runtime/base.h
-- tvm-root/conda/recipe/meta.yaml
 - tvm-root/web/package.json
 """
-import os
-import re
+
 import argparse
 import logging
+import os
+import re
 import subprocess
 
 # Modify the following value during release
@@ -44,7 +46,7 @@ import subprocess
 # Two tag formats are supported:
 # - vMAJ.MIN.PATCH (e.g. v0.8.0) or
 # - vMAJ.MIN.devN (e.g. v0.8.dev0)
-__version__ = "0.22.dev0"
+__version__ = "0.24.dev0"
 
 # ---------------------------------------------------
 
@@ -133,8 +135,8 @@ def git_describe_version():
     else:
         dev_version = arr_info[0]
 
-    pub_ver = "%s.dev%s" % (dev_version, arr_info[1])
-    local_ver = "%s+%s" % (pub_ver, arr_info[2])
+    pub_ver = f"{dev_version}.dev{arr_info[1]}"
+    local_ver = f"{pub_ver}+{arr_info[2]}"
     return pub_ver, local_ver
 
 
@@ -152,13 +154,13 @@ def update(file_name, pattern, repl, dry_run=False):
                 if result[0] != repl:
                     l = re.sub(pattern, repl, l)
                     need_update = True
-                    print("%s: %s -> %s" % (file_name, result[0], repl))
+                    print(f"{file_name}: {result[0]} -> {repl}")
                 else:
-                    print("%s: version is already %s" % (file_name, repl))
+                    print(f"{file_name}: version is already {repl}")
 
             update.append(l)
     if hit_counter != 1:
-        raise RuntimeError("Cannot find version in %s" % file_name)
+        raise RuntimeError(f"Cannot find version in {file_name}")
 
     if need_update and not dry_run:
         with open(file_name, "w") as output_file:
@@ -175,6 +177,13 @@ def sync_version(pub_ver, local_ver, dry_run):
         local_ver,
         dry_run,
     )
+    # pyproject.toml
+    update(
+        os.path.join(PROJ_ROOT, "pyproject.toml"),
+        r"(?<=^version = \")[.0-9a-z\+]+",
+        pub_ver,
+        dry_run,
+    )
     # Use public version for other parts for now
     # Note that full git hash is already available in libtvm
     # C++ header
@@ -184,17 +193,10 @@ def sync_version(pub_ver, local_ver, dry_run):
         pub_ver,
         dry_run,
     )
-    # conda
-    update(
-        os.path.join(PROJ_ROOT, "conda", "recipe", "meta.yaml"),
-        r"(?<=version = ')[.0-9a-z\+]+",
-        pub_ver,
-        dry_run,
-    )
     # web
     # change to pre-release convention by npm
     dev_pos = pub_ver.find(".dev")
-    npm_ver = pub_ver if dev_pos == -1 else "%s.0-%s" % (pub_ver[:dev_pos], pub_ver[dev_pos + 1 :])
+    npm_ver = pub_ver if dev_pos == -1 else f"{pub_ver[:dev_pos]}.0-{pub_ver[dev_pos + 1 :]}"
     update(
         os.path.join(PROJ_ROOT, "web", "package.json"),
         r'(?<="version": ")[.0-9a-z\-\+]+',

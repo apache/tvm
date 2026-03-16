@@ -19,28 +19,30 @@
 
 import os
 import shutil
-import tvm.ffi
-from tvm.contrib import coreml_runtime
-from tvm.contrib.xcode import compile_coreml
+
+import tvm_ffi
 
 import tvm
+from tvm.contrib import coreml_runtime
+from tvm.contrib.xcode import compile_coreml
 from tvm.relax import transform
-from tvm.relax.struct_info import TensorStructInfo, PrimStructInfo
+from tvm.relax.dpl.pattern import is_op, wildcard
 from tvm.relax.expr import (
     BindingBlock,
     Call,
+    Constant,
     Function,
     PrimValue,
     SeqExpr,
     Var,
     VarBinding,
-    Constant,
 )
-from tvm.relax.dpl.pattern import is_op, wildcard
+from tvm.relax.struct_info import PrimStructInfo, TensorStructInfo
 from tvm.relax.transform import PatternCheckContext
+
+from ...expr_functor import PyExprVisitor, visitor
 from ..pattern_registry import get_patterns_with_prefix, register_patterns
 from ..patterns import make_matmul_pattern
-from ...expr_functor import PyExprVisitor, visitor
 
 
 def _check_default(context: PatternCheckContext) -> bool:
@@ -142,11 +144,10 @@ register_patterns(
         *default_unary_patterns(op_name="nn.relu"),
         *default_unary_patterns(op_name="expand_dims"),
         *default_unary_patterns(op_name="nn.avg_pool2d"),
+        *default_unary_patterns(op_name="nn.batch_flatten"),
         *conv2d_patterns(),
         *clip_patterns(),
         *matmul_patterns(),
-        # TODO(@tvm-team): enable when relax op is implemented
-        # ("coreml.nn.batch_flatten", is_op("relax.nn.batch_flatten")(wildcard())),
     ]
 )
 
@@ -271,7 +272,7 @@ _convert_map = {
     "clip": _convert_clip,
     "expand_dims": _convert_expand_dims,
     "nn.relu": _convert_relu,
-    # "nn.batch_flatten": _convert_batch_flatten,
+    "nn.batch_flatten": _convert_batch_flatten,
     "nn.softmax": _convert_softmax,
     "nn.conv2d": _convert_conv2d,
     "nn.avg_pool2d": _convert_avg_pool2d,
@@ -407,7 +408,7 @@ class CodegenCoreML(PyExprVisitor):
 
         layer_name = op_name + "_" + str(self.buf_idx_)
 
-        assert op_name in _convert_map, "{} is not supported".format(op_name)
+        assert op_name in _convert_map, f"{op_name} is not supported"
         outputs = ["buf_" + str(self.buf_idx_)]
         _convert_map[op_name](self.builder, layer_name, inputs, outputs, args, attrs[0])
         self.buf_idx_ = self.buf_idx_ + 1
@@ -463,7 +464,7 @@ class CodegenCoreML(PyExprVisitor):
         compile_coreml(model, self.model_name, out_dir)
 
 
-@tvm.ffi.register_func("relax.ext.coreml")
+@tvm_ffi.register_global_func("relax.ext.coreml")
 def coreml_compiler(funcs, options, constant_names):
     """
     Create a CoreML runtime from a Relax module.
@@ -479,7 +480,7 @@ def coreml_compiler(funcs, options, constant_names):
         builder = CodegenCoreML(name, func)
         builder.serialize(func)
 
-        mlmodelc_path = "{}/{}.mlmodelc".format(model_dir, name)
+        mlmodelc_path = f"{model_dir}/{name}.mlmodelc"
 
         if os.path.exists(mlmodelc_path):
             shutil.rmtree(mlmodelc_path)

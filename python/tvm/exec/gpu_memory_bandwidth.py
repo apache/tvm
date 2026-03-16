@@ -14,15 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501, F821
 """A script to measure GPU memory bandwidth"""
+
 import argparse
 import itertools
 
 import numpy as np
 
 import tvm
-from tvm import te, tir
-from tvm.meta_schedule.runner import EvaluatorConfig, RPCConfig
+from tvm import te
+from tvm.s_tir.meta_schedule.runner import EvaluatorConfig, RPCConfig
 from tvm.testing import local_run, rpc_run
 
 
@@ -40,7 +42,7 @@ def _parse_args() -> argparse.Namespace:
         --vec "1,2,4" \
 
     Example for Android GPU: \
-    python -m tvm.exec.gpu_memory_bandwidth "opencl" --target_host "llvm -mtriple=arm64-linux-android" \
+    python -m tvm.exec.gpu_memory_bandwidth "opencl" --target_host '{"kind": "llvm", "mtriple": "arm64-linux-android"}' \
         --rpc_host "127.0.0.1" \
         --rpc_port 9190 \
         --rpc_key "android" \
@@ -152,13 +154,13 @@ def _workload(
 
 
 def _schedule(
-    sch: tir.Schedule,
+    sch: s_tir.Schedule,
     len_bx: int,
     len_tx: int,
     len_vec: int,
 ):
     # pylint: disable=invalid-name
-    block = sch.get_block("B")
+    block = sch.get_sblock("B")
     xo, xi, k = sch.get_loops(block)
     bx, xo = sch.split(xo, factors=[len_bx, None])
     xi, tx, vec = sch.split(xi, factors=[None, len_tx, len_vec])
@@ -215,7 +217,7 @@ def main():  # pylint: disable=too-many-locals
             len_xi=args.xi,
             dtype=dtype,
         )
-        sch = tir.Schedule(func)
+        sch = tvm.s_tir.Schedule(func)
         _schedule(sch, len_bx, len_tx, len_vec)
 
         if rpcConfig is None:

@@ -45,6 +45,7 @@ driving its costs down.
    how_to/tutorials/customize_opt
    how_to/tutorials/optimize_llm
    how_to/tutorials/cross_compilation_and_rpc
+   how_to/tutorials/export_and_load_executable
    how_to/dev/index
 
 .. The Deep Dive content is comprehensive

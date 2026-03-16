@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name
 """TVM operator space_to_batch_nd compute."""
-from __future__ import absolute_import
+
 from . import cpp
 
 

@@ -15,13 +15,20 @@
 # specific language governing permissions and limitations
 # under the License.
 """Elementwise operators"""
+
 # pylint: disable=redefined-builtin,unused-argument
 import tvm
-from tvm import te
+from tvm import DataType, DataTypeCode, te
 from tvm.tir import PrimExpr
 
 from . import cpp, tag
 from .utils import get_const_tuple
+
+
+def _require_float_tensor(op_name, x):
+    if DataType(x.dtype).type_code not in (DataTypeCode.FLOAT, DataTypeCode.BFLOAT):
+        raise TypeError(f"topi.{op_name} only supports floating-point inputs, but got {x.dtype}")
+    return x
 
 
 @tvm.te.tag_scope(tag=tag.ELEMWISE)
@@ -210,6 +217,7 @@ def acos(x):
     y : tvm.te.Tensor
         The result.
     """
+    x = _require_float_tensor("acos", x)
     return te.compute(x.shape, lambda *i: te.acos(x(*i)))
 
 
@@ -227,6 +235,7 @@ def acosh(x):
     y : tvm.te.Tensor
         The result.
     """
+    x = _require_float_tensor("acosh", x)
     return te.compute(x.shape, lambda *i: te.acosh(x(*i)))
 
 
@@ -244,6 +253,7 @@ def asin(x):
     y : tvm.te.Tensor
         The result.
     """
+    x = _require_float_tensor("asin", x)
     return te.compute(x.shape, lambda *i: te.asin(x(*i)))
 
 
@@ -261,6 +271,7 @@ def asinh(x):
     y : tvm.te.Tensor
         The result.
     """
+    x = _require_float_tensor("asinh", x)
     return te.compute(x.shape, lambda *i: te.asinh(x(*i)))
 
 
@@ -295,6 +306,7 @@ def atanh(x):
     y : tvm.te.Tensor
         The result.
     """
+    x = _require_float_tensor("atanh", x)
     return te.compute(x.shape, lambda *i: te.atanh(x(*i)))
 
 
@@ -450,7 +462,6 @@ def round(x):
     return te.compute(x.shape, lambda *i: te.round(x(*i)))
 
 
-@tvm.te.tag_scope(tag=tag.ELEMWISE)
 def log(x):
     """Take logarithm of input x.
 
@@ -464,10 +475,11 @@ def log(x):
     y : tvm.te.Tensor
         The result.
     """
-    return te.compute(x.shape, lambda *i: te.log(x(*i)))
+    if x.dtype.startswith("int"):
+        x = te.compute(x.shape, lambda *i: x(*i).astype("float32"))
+    return te.compute(x.shape, lambda *i: te.log(x(*i)), tag=tag.ELEMWISE)
 
 
-@tvm.te.tag_scope(tag=tag.ELEMWISE)
 def log2(x):
     """Take logarithm to the base 2 of input x.
 
@@ -481,7 +493,9 @@ def log2(x):
     y : tvm.te.Tensor
         The result.
     """
-    return te.compute(x.shape, lambda *i: te.log2(x(*i)))
+    if x.dtype.startswith("int"):
+        x = te.compute(x.shape, lambda *i: x(*i).astype("float32"))
+    return te.compute(x.shape, lambda *i: te.log2(x(*i)), tag=tag.ELEMWISE)
 
 
 def log10(x):
@@ -781,6 +795,8 @@ def fast_exp(x):
     y : tvm.te.Tensor
         The result.
     """
+    if x.dtype.startswith("int") or x.dtype.startswith("uint"):
+        x = cast(x, "float32")
     return cpp.fast_exp(x, x.dtype, tag.ELEMWISE)
 
 
@@ -797,6 +813,8 @@ def fast_tanh(x):
     y : tvm.te.Tensor
         The result.
     """
+    if x.dtype.startswith("int") or x.dtype.startswith("uint"):
+        x = cast(x, "float32")
     return cpp.fast_tanh(x, x.dtype, tag.ELEMWISE)
 
 
@@ -847,7 +865,11 @@ def ceil_log2(x):
             return cast(res, x.dtype)
         return res
 
-    if "adreno" in target.device_name or target.kind.name in ["metal", "rocm", "webgpu"]:
+    if "adreno" in str(target.attrs.get("device", "")) or target.kind.name in [
+        "metal",
+        "rocm",
+        "webgpu",
+    ]:
         return cast(tvm.tir.ceil(tvm.tir.log2(cast(x, "float32"))), x.dtype)
 
     return cast(tvm.tir.ceil(tvm.tir.log2(cast(x, "float64"))), x.dtype)

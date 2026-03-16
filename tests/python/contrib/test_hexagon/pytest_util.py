@@ -15,14 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
-""" Hexagon pytest utility functions """
+"""Hexagon pytest utility functions"""
 
-from typing import List, Optional, Union
 import collections
+
 import numpy as np
 
 
-def get_test_id(*test_params, test_param_descs: List[Optional[str]] = None) -> str:
+def get_test_id(*test_params, test_param_descs: list[str | None] | None = None) -> str:
     """
     An opinionated alternative to pytest's default algorithm for generating a
     test's ID string.  Intended to make it easier for human readers to
@@ -46,7 +46,7 @@ def get_test_id(*test_params, test_param_descs: List[Optional[str]] = None) -> s
     else:
         assert len(test_param_descs) == len(test_params)
 
-    def get_single_param_chunk(param_val, param_desc: Optional[str]):
+    def get_single_param_chunk(param_val, param_desc: str | None):
         if isinstance(param_val, list):
             # Like str(list), but avoid the whitespace padding.
             val_str = "[" + ",".join(str(x) for x in param_val) + "]"
@@ -98,8 +98,8 @@ def get_test_id(*test_params, test_param_descs: List[Optional[str]] = None) -> s
 
 
 def get_multitest_ids(
-    multitest_params_list: List[List], param_descs: Optional[List[Optional[str]]]
-) -> List[str]:
+    multitest_params_list: list[list], param_descs: list[str | None] | None
+) -> list[str]:
     """
     A convenience function for classes that use both 'tvm.testing.parameters' and 'get_test_id'.
 
@@ -113,7 +113,7 @@ def get_multitest_ids(
     ]
 
 
-def get_numpy_dtype_info(dtype) -> Union[np.finfo, np.iinfo]:
+def get_numpy_dtype_info(dtype) -> np.finfo | np.iinfo:
     """
     Return an appropriate 'np.iinfo' or 'np.finfo' object corresponding to
     the specified Numpy dtype.
@@ -140,8 +140,8 @@ TensorContentDtypeMin = collections.namedtuple("TensorContentDtypeMin", [])
 TensorContentDtypeMax = collections.namedtuple("TensorContentDtypeMax", [])
 
 
-def create_populated_numpy_ndarray(
-    input_shape: Union[list, tuple], dtype: str, input_tensor_populator
+def create_populated_numpy_tensor(
+    input_shape: list | tuple, dtype: str, input_tensor_populator
 ) -> np.ndarray:
     """
     Create a numpy tensor with the specified shape, dtype, and content.

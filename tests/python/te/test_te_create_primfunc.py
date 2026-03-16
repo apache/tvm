@@ -15,12 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring
+# ruff: noqa: E501, F841
 import numpy as np
+import pytest
+
 import tvm
 import tvm.testing
-from tvm import te, tir, topi
+from tvm import s_tir, te, tir, topi
 from tvm.script import tir as T
-import pytest
 
 
 def test_unique_name_complete_block():
@@ -28,9 +30,9 @@ def test_unique_name_complete_block():
     B = te.compute((16, 16), lambda x, y: A[x, y] * 2, name="main")
     C = te.compute((16, 16), lambda x, y: B[x, y] + 1, name="main")
     func = te.create_prim_func([A, C])
-    s = tir.Schedule(func, debug_mask="all")
-    assert isinstance(s.get_sref(s.get_block("main")), tir.schedule.StmtSRef)
-    assert isinstance(s.get_sref(s.get_block("main_1")), tir.schedule.StmtSRef)
+    s = tvm.s_tir.Schedule(func, debug_mask="all")
+    assert isinstance(s.get_sref(s.get_sblock("main")), s_tir.schedule.StmtSRef)
+    assert isinstance(s.get_sref(s.get_sblock("main_1")), s_tir.schedule.StmtSRef)
 
 
 def test_unique_name_reduction_block():
@@ -40,9 +42,9 @@ def test_unique_name_reduction_block():
     B = te.compute((16,), lambda i: te.sum(A[i, k1], axis=k1), name="sum")
     C = te.compute((), lambda: te.sum(B[k2], axis=k2), name="sum")
     func = te.create_prim_func([A, C])
-    s = tir.Schedule(func, debug_mask="all")
-    assert isinstance(s.get_sref(s.get_block("sum")), tir.schedule.StmtSRef)
-    assert isinstance(s.get_sref(s.get_block("sum_1")), tir.schedule.StmtSRef)
+    s = tvm.s_tir.Schedule(func, debug_mask="all")
+    assert isinstance(s.get_sref(s.get_sblock("sum")), s_tir.schedule.StmtSRef)
+    assert isinstance(s.get_sref(s.get_sblock("sum_1")), s_tir.schedule.StmtSRef)
 
 
 def _check_workload(te_workload, tir_workload, index_dtype_override=None, do_simplify=False):
@@ -53,7 +55,7 @@ def _check_workload(te_workload, tir_workload, index_dtype_override=None, do_sim
         tir_workload = simplify(tvm.IRModule.from_expr(tir_workload))["main"]
     tvm.ir.assert_structural_equal(func, tir_workload)
     # make sure that we can create schedule from the func
-    s = tir.Schedule(func, debug_mask="all")
+    s = tvm.s_tir.Schedule(func, debug_mask="all")
     assert s
 
 
@@ -73,7 +75,7 @@ def tir_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, (128, 128))
 
     for i0, j0, k0 in T.grid(128, 128, 128):
-        with T.block():
+        with T.sblock():
             i, j, k = T.axis.remap("SSR", [i0, j0, k0])
             with T.init():
                 C[i, j] = 0.0
@@ -88,7 +90,7 @@ def tir_matmul_int64(
 ) -> None:
     T.func_attr({"global_symbol": "main", "tir.noalias": True})
     for i0, j0, k0 in T.grid(T.int64(128), T.int64(128), T.int64(128)):
-        with T.block():
+        with T.sblock():
             i, j, k = T.axis.remap("SSR", [i0, j0, k0])
             with T.init():
                 C[i, j] = 0.0
@@ -115,14 +117,14 @@ def tir_element_wise(a: T.handle, c: T.handle) -> None:
     T.func_attr({"global_symbol": "main", "tir.noalias": True})
     A = T.match_buffer(a, (128, 128))
     C = T.match_buffer(c, (128, 128))
-    B = T.alloc_buffer((128, 128))
+    B = T.sblock_alloc_buffer((128, 128))
 
     for i0, j0 in T.grid(128, 128):
-        with T.block():
+        with T.sblock():
             i, j = T.axis.remap("SS", [i0, j0])
             B[i, j] = A[i, j] * 2.0
     for i0, j0 in T.grid(128, 128):
-        with T.block():
+        with T.sblock():
             i, j = T.axis.remap("SS", [i0, j0])
             C[i, j] = B[i, j] + 1.0
 
@@ -168,10 +170,10 @@ def tir_conv2d(a: T.handle, w: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [16, 16, 14, 14])
     W = T.match_buffer(w, [16, 3, 3, 32])
     B = T.match_buffer(b, [16, 32, 14, 14])
-    Apad = T.alloc_buffer([16, 16, 16, 16])
+    Apad = T.sblock_alloc_buffer([16, 16, 16, 16])
 
     for n, c, y, x in T.grid(16, 16, 16, 16):
-        with T.block("Apad"):
+        with T.sblock("Apad"):
             nn, cc, yy, xx = T.axis.remap("SSSS", [n, c, y, x])
             Apad[nn, cc, yy, xx] = T.if_then_else(
                 1 <= yy and yy < 15 and 1 <= xx and xx < 15,
@@ -180,7 +182,7 @@ def tir_conv2d(a: T.handle, w: T.handle, b: T.handle) -> None:
                 dtype="float32",
             )
     for n, f, y, x, kc, ky, kx in T.grid(16, 32, 14, 14, 16, 3, 3):
-        with T.block("B"):
+        with T.sblock("B"):
             nn, ff, yy, xx, rc, ry, rx = T.axis.remap("SSSSRRR", [n, f, y, x, kc, ky, kx])
             with T.init():
                 B[nn, ff, yy, xx] = 0.0
@@ -211,10 +213,10 @@ def tir_multi_output(a0: T.handle, a1: T.handle, b0: T.handle, b1: T.handle) -> 
     B1 = T.match_buffer(b1, (m, n))
 
     for i0, i1 in T.grid(m, n):
-        with T.block("B.v0"):
+        with T.sblock("B.v0"):
             i, j = T.axis.remap("SS", [i0, i1])
             B0[i, j] = A0[i, j] + 2.0
-        with T.block("B.v1"):
+        with T.sblock("B.v1"):
             i, j = T.axis.remap("SS", [i0, i1])
             B1[i, j] = A1[i, j] * 3.0
 
@@ -247,7 +249,7 @@ def tir_extern(a: T.handle, b: T.handle, c: T.handle) -> None:
     B = T.match_buffer(b, (128, 128), elem_offset=off2)
     C = T.match_buffer(c, (128, 128), elem_offset=off3)
     # body
-    with T.block("C"):
+    with T.sblock("C"):
         T.reads()
         T.writes()
         T.evaluate(
@@ -307,7 +309,7 @@ def tir_reordered_matmul(c: T.handle, a: T.handle, b: T.handle) -> None:
     C = T.match_buffer(c, (128, 128))
 
     for i0, j0, k0 in T.grid(128, 128, 128):
-        with T.block():
+        with T.sblock():
             i, j, k = T.axis.remap("SSR", [i0, j0, k0])
             with T.init():
                 C[i, j] = 0.0
@@ -352,9 +354,35 @@ def test_constant():
     func = te.create_prim_func([C, A])
     func = tvm.compile(func)
     a_np = np.random.uniform(size=(M,)).astype(A.dtype)
-    c = tvm.nd.array(np.zeros(M, dtype=C.dtype))
-    x = func(c, tvm.nd.array(a_np))
+    c = tvm.runtime.tensor(np.zeros(M, dtype=C.dtype))
+    x = func(c, tvm.runtime.tensor(a_np))
     tvm.testing.assert_allclose(a_np + 2, c.numpy())
+
+
+@pytest.mark.parametrize("op_name", ["acos", "acosh", "asin", "asinh", "atanh"])
+def test_topi_float_unary_rejects_integer_input(op_name):
+    x = te.placeholder((1, 8), dtype="int16", name="x")
+    op = getattr(topi, op_name)
+
+    with pytest.raises(
+        TypeError,
+        match=rf"topi\.{op_name} only supports floating-point inputs, but got int16",
+    ):
+        op(x)
+
+
+@pytest.mark.parametrize("op_name", ["acos", "acosh", "asin", "asinh", "atanh"])
+@pytest.mark.parametrize("dtype", ["float32", "bfloat16"])
+def test_topi_float_unary_accepts_float_input(op_name, dtype):
+    x = te.placeholder((1, 8), dtype=dtype, name="x")
+    op = getattr(topi, op_name)
+    out = op(x)
+
+    func = te.create_prim_func([x, out]).with_attr("target", tvm.target.Target("llvm"))
+    mod = tvm.IRModule({"main": func})
+    compiled = tvm.build(mod, target="llvm")
+
+    assert compiled is not None
 
 
 def test_data_dependent_access():
@@ -367,8 +395,8 @@ def test_data_dependent_access():
 
     a_np = np.random.uniform(size=(10,)).astype(A.dtype)
     b_np = np.arange(10, dtype=B.dtype)
-    c = tvm.nd.array(np.zeros(10, dtype=C.dtype))
-    func(c, tvm.nd.array(a_np), tvm.nd.array(b_np))
+    c = tvm.runtime.tensor(np.zeros(10, dtype=C.dtype))
+    func(c, tvm.runtime.tensor(a_np), tvm.runtime.tensor(b_np))
     tvm.testing.assert_allclose(a_np[b_np], c.numpy())
 
 
@@ -405,16 +433,16 @@ def expected_layout_attr(
     D: T.Buffer((128, 128), "float32"),
 ) -> None:
     T.func_attr({"global_symbol": "main", "tir.noalias": True, "layout_free_buffers": [1]})
-    C = T.alloc_buffer([128, 128], dtype="float32")
+    C = T.sblock_alloc_buffer([128, 128], dtype="float32")
     for i0, i1, i2 in T.grid(128, 128, 128):
-        with T.block("C"):
+        with T.sblock("C"):
             x, y, k = T.axis.remap("SSR", [i0, i1, i2])
             with T.init():
                 C[x, y] = T.float32(0)
             C[x, y] = C[x, y] + A[x, k] * B[y, k]
     for i0, i1 in T.grid(128, 128):
-        with T.block("D"):
-            T.block_attr({"layout_free_placeholders": [C]})
+        with T.sblock("D"):
+            T.sblock_attr({"layout_free_placeholders": [C]})
             x, y = T.axis.remap("SS", [i0, i1])
             D[x, y] = C[x, y] + T.float32(1)
 
@@ -426,9 +454,9 @@ def expected_layout_attr_int64(
     D: T.Buffer((T.int64(128), T.int64(128)), "float32"),
 ):
     T.func_attr({"global_symbol": "main", "tir.noalias": True, "layout_free_buffers": [1]})
-    C = T.alloc_buffer([T.int64(128), T.int64(128)], dtype="float32")
+    C = T.sblock_alloc_buffer([T.int64(128), T.int64(128)], dtype="float32")
     for x, y, k in T.grid(T.int64(128), T.int64(128), T.int64(128)):
-        with T.block("C"):
+        with T.sblock("C"):
             v_x, v_y, v_k = T.axis.remap("SSR", [x, y, k])
             T.reads(A[v_x, v_k], B[v_y, v_k])
             T.writes(C[v_x, v_y])
@@ -436,8 +464,8 @@ def expected_layout_attr_int64(
                 C[v_x, v_y] = T.float32(0)
             C[v_x, v_y] = C[v_x, v_y] + A[v_x, v_k] * B[v_y, v_k]
     for x, y in T.grid(T.int64(128), T.int64(128)):
-        with T.block("D"):
-            T.block_attr({"layout_free_placeholders": [C]})
+        with T.sblock("D"):
+            T.sblock_attr({"layout_free_placeholders": [C]})
             v_x, v_y = T.axis.remap("SS", [x, y])
             T.reads(C[v_x, v_y])
             T.writes(D[v_x, v_y])
@@ -502,7 +530,7 @@ def tir_argmax_idx_val(
     argmax_v0 = T.match_buffer(var_argmax_v0, [m], dtype="int32")
     argmax_v1 = T.match_buffer(var_argmax_v1, [m], dtype="float32")
     for i0, i1 in T.grid(m, n):
-        with T.block("argmax"):
+        with T.sblock("argmax"):
             i, k = T.axis.remap("SR", [i0, i1])
             T.reads(val[i, k], idx[i, k])
             T.writes(argmax_v0[i], argmax_v1[i])
@@ -549,7 +577,7 @@ def tir_argmax_val_idx(
     argmax_v0 = T.match_buffer(var_argmax_v0, [m], dtype="float32")
     argmax_v1 = T.match_buffer(var_argmax_v1, [m], dtype="int32")
     for i0, i1 in T.grid(m, n):
-        with T.block("argmax"):
+        with T.sblock("argmax"):
             i, k = T.axis.remap("SR", [i0, i1])
             T.reads(val[i, k], idx[i, k])
             T.writes(argmax_v0[i], argmax_v1[i])
@@ -595,10 +623,10 @@ def test_zero_dim_add():
         c: T.Buffer((), "int32"),
     ) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        with T.block("root"):
+        with T.sblock("root"):
             T.reads()
             T.writes()
-            with T.block("c"):
+            with T.sblock("c"):
                 vi = T.axis.spatial(1, 0)
                 T.reads(a[()], b[()])
                 T.writes(c[()])
@@ -621,7 +649,7 @@ def tir_reshape(
 ):
     T.func_attr({"global_symbol": "main", "tir.noalias": True})
     for i0, i1 in T.grid(T.int64(4), T.int64(2)):
-        with T.block("T_reshape"):
+        with T.sblock("T_reshape"):
             ax0, ax1 = T.axis.remap("SS", [i0, i1])
             T.reads(
                 A[
@@ -666,7 +694,7 @@ def tir_resize2d_symbolic(
     ow = T.int64()
     resize = T.match_buffer(var_resize, [T.int64(2), T.int64(3), oh, ow], dtype="float32")
     for i0, i1, i2, i3 in T.grid(T.int64(2), T.int64(3), oh, ow):
-        with T.block("resize"):
+        with T.sblock("resize"):
             v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
             T.reads(A[v_i0, v_i1, T.int64(0) : T.int64(128), T.int64(0) : T.int64(128)])
             T.writes(resize[v_i0, v_i1, v_i2, v_i3])
@@ -728,7 +756,7 @@ def test_extern_with_explicit_buffer_access():
         B = T.match_buffer(var_B, [128, 128], dtype="float32", offset_factor=1)
         P = T.match_buffer(var_P, [1], dtype="float32", offset_factor=1)
         C = T.match_buffer(var_C, [128, 128], dtype="float32", offset_factor=1)
-        with T.block("C"):
+        with T.sblock("C"):
             T.reads()
             T.writes()
             T.call_extern("myfunc", A.data, B.data, C.data, P[0], dtype="")
@@ -751,9 +779,9 @@ def tir_slice_with_var_input(var_tensor: T.handle, idx: T.int64, var_slice: T.ha
     m, n = T.int64(), T.int64()
     tensor = T.match_buffer(var_tensor, (m, n))
     slice = T.match_buffer(var_slice, (idx, n))
-    # with T.block("root"):
+    # with T.sblock("root"):
     for i, j in T.grid(idx, n):
-        with T.block("slice"):
+        with T.sblock("slice"):
             v_i = T.axis.spatial(idx, i)
             v_j = T.axis.spatial(n, j)
             T.reads(tensor[v_i, v_j])
@@ -775,7 +803,7 @@ def test_loop_aware_initial_value():
         b = T.match_buffer(var_b, (5,))
         sum_red = T.match_buffer(var_sum_red, (5,))
         for i, ax in T.grid(5, 5):
-            with T.block("sum_red"):
+            with T.sblock("sum_red"):
                 v_i, v_ax = T.axis.remap("SR", [i, ax])
                 T.reads(b[v_i], a[v_i, v_ax])
                 T.writes(sum_red[v_i])
@@ -810,7 +838,7 @@ def test_loop_aware_reducer_combiner():
         b = T.match_buffer(var_b, (5,))
         sum_red = T.match_buffer(var_sum_red, (5,))
         for i, ax in T.grid(5, 5):
-            with T.block("sum_red"):
+            with T.sblock("sum_red"):
                 v_i = T.axis.spatial(5, i)
                 v_ax = T.axis.reduce(5, ax)
                 T.reads(a[v_i, 0:5])
@@ -846,14 +874,14 @@ def test_adaptive_pooling_window():
     ):
         T.func_attr({"tir.noalias": True, "global_symbol": "main"})
         # fmt: off
-        adaptive_pool_sum = T.alloc_buffer((1, 1024, 12, 30))
+        adaptive_pool_sum = T.sblock_alloc_buffer((1, 1024, 12, 30))
         for ax0, ax1, ax2, ax3 in T.grid(1, 1024, 12, 30):
-            with T.block("adaptive_pool_sum_1"):
+            with T.sblock("adaptive_pool_sum_1"):
                 v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                 T.reads(x[v_ax0, v_ax1, v_ax2 * 16 // 12:v_ax2 * 16 // 12 + ((v_ax2 % 3 * 4 + 16) // 12 + 1), v_ax3 * 40 // 30:v_ax3 * 40 // 30 + ((v_ax3 % 3 * 10 + 40) // 30 + 1)])
                 T.writes(adaptive_pool_sum[v_ax0, v_ax1, v_ax2, v_ax3])
-                for rv0, rv1 in T.grid(T.Select((v_ax2 * 4 + 4) % 12 == 0, (v_ax2 * 16 + 16) // 12, (v_ax2 * 16 + 16) // 12 + 1) - v_ax2 * 16 // 12, T.Select((v_ax3 * 10 + 10) % 30 == 0, (v_ax3 * 40 + 40) // 30, (v_ax3 * 40 + 40) // 30 + 1) - v_ax3 * 40 // 30):
-                    with T.block("adaptive_pool_sum"):
+                for rv0, rv1 in T.grid((v_ax2 % 3 * 4 + 16) // 12 + 1, (v_ax3 % 3 * 10 + 40) // 30 + 1):
+                    with T.sblock("adaptive_pool_sum"):
                         v_ax0_1 = T.axis.spatial((v_ax0, v_ax0 + 1), v_ax0)
                         v_ax1_1 = T.axis.spatial((v_ax1, v_ax1 + 1), v_ax1)
                         v_ax2_1 = T.axis.spatial((v_ax2, v_ax2 + 1), v_ax2)
@@ -865,12 +893,12 @@ def test_adaptive_pooling_window():
                             adaptive_pool_sum[v_ax0_1, v_ax1_1, v_ax2_1, v_ax3_1] = T.float32(0.0)
                         adaptive_pool_sum[v_ax0_1, v_ax1_1, v_ax2_1, v_ax3_1] = adaptive_pool_sum[v_ax0_1, v_ax1_1, v_ax2_1, v_ax3_1] + x[v_ax0_1, v_ax1_1, v_ax2_1 * 16 // 12 + v_rv0, v_ax3_1 * 40 // 30 + v_rv1]
         for ax0, ax1, ax2, ax3 in T.grid(1, 1024, 12, 30):
-            with T.block("adaptive_pool_avg"):
+            with T.sblock("adaptive_pool_avg"):
                 v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                 T.reads(adaptive_pool_sum[v_ax0, v_ax1, v_ax2, v_ax3])
                 T.writes(adaptive_pool_avg[v_ax0, v_ax1, v_ax2, v_ax3])
-                T.block_attr({"schedule_rule": "meta_schedule.adaptive_pool_avg"})
-                adaptive_pool_avg[v_ax0, v_ax1, v_ax2, v_ax3] = adaptive_pool_sum[v_ax0, v_ax1, v_ax2, v_ax3] / (T.Cast("float32", T.Select((v_ax2 * 4 + 4) % 12 == 0, (v_ax2 * 16 + 16) // 12, (v_ax2 * 16 + 16) // 12 + 1) - v_ax2 * 16 // 12) * T.Cast("float32", T.Select((v_ax3 * 10 + 10) % 30 == 0, (v_ax3 * 40 + 40) // 30, (v_ax3 * 40 + 40) // 30 + 1) - v_ax3 * 40 // 30))
+                T.sblock_attr({"schedule_rule": "meta_schedule.adaptive_pool_avg"})
+                adaptive_pool_avg[v_ax0, v_ax1, v_ax2, v_ax3] = adaptive_pool_sum[v_ax0, v_ax1, v_ax2, v_ax3] / (T.Cast("float32", (v_ax2 % 3 * 4 + 16) // 12 + 1) * T.Cast("float32", (v_ax3 % 3 * 10 + 40) // 30 + 1))
         # fmt: on
 
     def te_workload():
@@ -897,12 +925,12 @@ def test_nested_reduce_domain_dependency():
     ):
         T.func_attr({"tir.noalias": True, "global_symbol": "main"})
         for i0, i1, i2 in T.grid(8, 8, 8):
-            with T.block("compute_2"):
+            with T.sblock("compute_2"):
                 v_i0, v_i1, v_i2 = T.axis.remap("SSS", [i0, i1, i2])
                 T.reads(x[v_i0, v_i1, v_i2, 0:v_i1, 0 : v_i1 - 1])
                 T.writes(compute[v_i0, v_i1, v_i2])
                 for rv in range(v_i1):
-                    with T.block("compute_1"):
+                    with T.sblock("compute_1"):
                         v_i0_1 = T.axis.spatial((v_i0, v_i0 + 1), v_i0)
                         v_i1_1 = T.axis.spatial((v_i1, v_i1 + 1), v_i1)
                         v_i2_1 = T.axis.spatial((v_i2, v_i2 + 1), v_i2)
@@ -912,7 +940,7 @@ def test_nested_reduce_domain_dependency():
                         with T.init():
                             compute[v_i0_1, v_i1_1, v_i2_1] = T.float32(0.0)
                         for rv_1 in range(v_rv):
-                            with T.block("compute"):
+                            with T.sblock("compute"):
                                 v_i0_2 = T.axis.spatial((v_i0_1, v_i0_1 + 1), v_i0_1)
                                 v_i1_2 = T.axis.spatial((v_i1_1, v_i1_1 + 1), v_i1_1)
                                 v_i2_2 = T.axis.spatial((v_i2_1, v_i2_1 + 1), v_i2_1)

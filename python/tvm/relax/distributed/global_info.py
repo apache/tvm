@@ -16,9 +16,9 @@
 # under the License.
 # pylint: disable=redefined-builtin, invalid-name
 """Global Info Data structures for distributed tensor."""
-from typing import List, Union, Tuple
 
-import tvm
+import tvm_ffi
+
 from tvm.ir import Range
 from tvm.ir.global_info import GlobalInfo
 from tvm.runtime import ShapeTuple
@@ -26,7 +26,7 @@ from tvm.runtime import ShapeTuple
 from . import _ffi_api as ffi
 
 
-@tvm.ffi.register_object("relax.distributed.DeviceMesh")
+@tvm_ffi.register_object("relax.distributed.DeviceMesh")
 class DeviceMesh(GlobalInfo):
     """Device mesh express a view of topology of devices,
        represented by an n-d matrix of device ids.
@@ -39,21 +39,17 @@ class DeviceMesh(GlobalInfo):
         Represents the device id in the mesh
     """
 
-    def __init__(
-        self, shape: Union[ShapeTuple, List[int], Tuple[int]], device_ids: Union[List[int], Range]
-    ):
-        if isinstance(shape, (list, tuple)):
+    def __init__(self, shape: ShapeTuple | list[int] | tuple[int], device_ids: list[int] | Range):
+        if isinstance(shape, list | tuple):
             shape = ShapeTuple(shape)
         device_range = None
         if isinstance(device_ids, Range):
             device_range = device_ids
             device_ids = []
-        self.__init_handle_by_constructor__(
-            ffi.DeviceMesh, shape, device_ids, device_range
-        )  # type: ignore
+        self.__init_handle_by_constructor__(ffi.DeviceMesh, shape, device_ids, device_range)  # type: ignore
 
 
-def device_mesh(shape: ShapeTuple, device_ids: Union[List[int], Range]) -> DeviceMesh:
+def device_mesh(shape: ShapeTuple, device_ids: list[int] | Range) -> DeviceMesh:
     """Create a device mesh expression.
     Parameters
     ----------

@@ -15,19 +15,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import jinja2
 import argparse
-import difflib
 import datetime
+import difflib
 import re
 import textwrap
-
-from pathlib import Path
-from typing import List, Optional
 from dataclasses import dataclass
+from pathlib import Path
 
+import jinja2
 from data import data
-
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 JENKINS_DIR = REPO_ROOT / "ci" / "jenkins"
@@ -43,7 +40,7 @@ class Change:
 
 @dataclass
 class ChangeData:
-    diff: Optional[str]
+    diff: str | None
     content: str
     destination: Path
     source: Path
@@ -55,7 +52,7 @@ def lines_without_generated_tag(content):
     ]
 
 
-def change_type(lines: List[str]) -> Change:
+def change_type(lines: list[str]) -> Change:
     """
     Return True if 'line' only edits an image tag or if 'line' is not a changed
     line in a diff
@@ -140,7 +137,7 @@ def update_jenkinsfile(source: Path) -> ChangeData:
         )
     ]
     change = change_type(diff)
-    if not args.force and change == Change.IMAGES_ONLY or change == Change.NONE:
+    if (not args.force and change == Change.IMAGES_ONLY) or change == Change.NONE:
         if change != Change.NONE:
             print("Detected only Docker-image name changes, skipping timestamp update")
         new_content = new_content.replace(data["generated_time"], original_timestamp)

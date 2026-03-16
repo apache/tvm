@@ -16,14 +16,14 @@
 # under the License.
 
 
+import numpy as np
+import pytest
+
 import tvm
 import tvm.script
 import tvm.testing
 from tvm import relax, tir
 from tvm.script import relax as R
-
-import numpy as np
-import pytest
 
 param_specification = tvm.testing.parameter("by_string", "by_var")
 param_shape = tvm.testing.parameter("static_shape", "dynamic_shape", "ndim", "arbitrary")

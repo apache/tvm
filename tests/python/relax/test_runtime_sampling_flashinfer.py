@@ -14,21 +14,23 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501
 
 
 import random
+
 import numpy as np
+import pytest
+
 import tvm
 import tvm.testing
-import pytest
 from tvm import relax
 from tvm.contrib import utils
-from typing import List
 
 
 @pytest.mark.skip(reason="Requires FlashInfer enabled and proper setup")
 def test_sampling():
-    def load_module(name: str, static_modules: List[tvm.runtime.Module]):
+    def load_module(name: str, static_modules: list[tvm.runtime.Module]):
         assert len(static_modules) > 0
         if len(static_modules) == 1:
             return static_modules[0]
@@ -51,8 +53,8 @@ def test_sampling():
     probs_np = np.array([[0.1, 0.2, 0.3, 0.2, 0.2] for _ in range(batch_size)], dtype="float32")
 
     dev = tvm.cuda(0)
-    prob_tvm = tvm.nd.array(probs_np, device=dev)
-    output_tvm = tvm.nd.empty((batch_size,), "int32", device=dev)
+    prob_tvm = tvm.runtime.tensor(probs_np, device=dev)
+    output_tvm = tvm.runtime.empty((batch_size,), "int32", device=dev)
 
     device = tvm.cuda()
     target = tvm.target.Target.from_device(device)

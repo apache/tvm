@@ -36,7 +36,6 @@ extern "C" {
 #include <memory>
 #include <string>
 
-#include "../../../library_module.h"
 #include "../../../minrpc/minrpc_server.h"
 #include "../../hexagon/hexagon_common.h"
 #include "../../hexagon/hexagon_device_api.h"
@@ -235,7 +234,7 @@ tvm::runtime::hexagon::HexagonRPCServer* get_hexagon_rpc_server(
   if (g_hexagon_rpc_server) {
     return g_hexagon_rpc_server;
   }
-  CHECK_GT(rpc_receive_buff_size_bytes, 0) << "RPC receive buffer size is not valid.";
+  TVM_FFI_ICHECK_GT(rpc_receive_buff_size_bytes, 0) << "RPC receive buffer size is not valid.";
   static tvm::runtime::hexagon::HexagonRPCServer hexagon_rpc_server(
       new uint8_t[rpc_receive_buff_size_bytes], rpc_receive_buff_size_bytes);
   g_hexagon_rpc_server = &hexagon_rpc_server;
@@ -329,15 +328,15 @@ __attribute__((weak)) void _Get_eh_data() {}
 __attribute__((weak)) void _Parse_fde_instr() {}
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("tvm.hexagon.load_module",
                   [](tvm::ffi::PackedArgs args, tvm::ffi::Any* rv) {
                     auto soname = args[0].cast<std::string>();
-                    tvm::ObjectPtr<tvm::runtime::Library> n =
-                        tvm::runtime::CreateDSOLibraryObject(soname);
-                    *rv = CreateModuleFromLibrary(n);
+                    auto floader =
+                        tvm::ffi::Function::GetGlobalRequired("ffi.Module.load_from_file.so");
+                    *rv = floader(soname, "so");
                   })
       .def_packed(
           "tvm.hexagon.get_profile_output", [](tvm::ffi::PackedArgs args, tvm::ffi::Any* rv) {
@@ -350,15 +349,15 @@ TVM_FFI_STATIC_INIT_BLOCK({
               *rv = false;
             }
           });
-});
+}
 
 void SaveBinaryToFile(const std::string& file_name, const std::string& data) {
   std::ofstream fs(file_name, std::ios::out | std::ios::binary);
-  ICHECK(!fs.fail()) << "Cannot open " << file_name;
+  TVM_FFI_ICHECK(!fs.fail()) << "Cannot open " << file_name;
   fs.write(&data[0], data.length());
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("tvm.rpc.server.upload",
                                [](tvm::ffi::PackedArgs args, tvm::ffi::Any* rv) {
@@ -366,4 +365,4 @@ TVM_FFI_STATIC_INIT_BLOCK({
                                  auto data = args[1].cast<std::string>();
                                  SaveBinaryToFile(file_name, data);
                                });
-});
+}

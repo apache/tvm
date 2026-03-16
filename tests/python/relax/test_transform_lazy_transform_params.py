@@ -14,15 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F841
 import numpy as np
 
 import tvm
 import tvm.testing
-
 from tvm import relax
-from tvm.script import relax as R, tir as T
-from tvm.script import ir as I
 from tvm.relax.transform import LazyTransformParams
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 def test_lazy_transform_params():
@@ -33,7 +34,7 @@ def test_lazy_transform_params():
             w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
         ):
             for ax0, ax1, ax2, ax3 in T.grid(16, 3, 3, 3):
-                with T.block("layout_transform"):
+                with T.sblock("layout_transform"):
                     o, i, h, w = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     T.reads(w1[i, o, h, w])
                     T.writes(out[o, i, h, w])
@@ -69,9 +70,9 @@ def test_lazy_transform_params():
         def transform_layout_IOHW_to_OIHW(
             w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
         ):
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0, ax1, ax2, ax3 in T.grid(16, 3, 3, 3):
-                with T.block("layout_transform"):
+                with T.sblock("layout_transform"):
                     o, i, h, w = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     T.reads(w1[i, o, h, w])
                     T.writes(out[o, i, h, w])
@@ -114,7 +115,7 @@ def test_get_item_only():
             w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
         ):
             for ax0, ax1, ax2, ax3 in T.grid(16, 3, 3, 3):
-                with T.block("layout_transform"):
+                with T.sblock("layout_transform"):
                     o, i, h, w = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     T.reads(w1[i, o, h, w])
                     T.writes(out[o, i, h, w])
@@ -151,19 +152,17 @@ def test_get_item_only():
         def transform_layout_IOHW_to_OIHW(
             w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
         ):
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0, ax1, ax2, ax3 in T.grid(16, 3, 3, 3):
-                with T.block("layout_transform"):
+                with T.sblock("layout_transform"):
                     o, i, h, w = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     T.reads(w1[i, o, h, w])
                     T.writes(out[o, i, h, w])
                     out[o, i, h, w] = w1[i, o, h, w]
 
         @R.function(pure=False)
-        def main_transform_params() -> (
-            R.Tuple(
-                R.Tensor((16, 16, 3, 3), dtype="float32"), R.Tensor((16, 3, 3, 3), dtype="float32")
-            )
+        def main_transform_params() -> R.Tuple(
+            R.Tensor((16, 16, 3, 3), dtype="float32"), R.Tensor((16, 3, 3, 3), dtype="float32")
         ):
             cls = Expected
             gv: R.Object = R.call_packed("get_item_0", R.prim_value(1), sinfo_args=(R.Object,))
@@ -199,7 +198,7 @@ def test_extra_get_item_params():
             w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
         ):
             for ax0, ax1, ax2, ax3 in T.grid(16, 3, 3, 3):
-                with T.block("layout_transform"):
+                with T.sblock("layout_transform"):
                     o, i, h, w = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     T.reads(w1[i, o, h, w])
                     T.writes(out[o, i, h, w])
@@ -236,9 +235,9 @@ def test_extra_get_item_params():
         def transform_layout_IOHW_to_OIHW(
             w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
         ):
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0, ax1, ax2, ax3 in T.grid(16, 3, 3, 3):
-                with T.block("layout_transform"):
+                with T.sblock("layout_transform"):
                     o, i, h, w = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     T.reads(w1[i, o, h, w])
                     T.writes(out[o, i, h, w])
@@ -288,7 +287,7 @@ def test_extra_set_item_params():
             w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
         ):
             for ax0, ax1, ax2, ax3 in T.grid(16, 3, 3, 3):
-                with T.block("layout_transform"):
+                with T.sblock("layout_transform"):
                     o, i, h, w = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     T.reads(w1[i, o, h, w])
                     T.writes(out[o, i, h, w])
@@ -325,9 +324,9 @@ def test_extra_set_item_params():
         def transform_layout_IOHW_to_OIHW(
             w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
         ):
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0, ax1, ax2, ax3 in T.grid(16, 3, 3, 3):
-                with T.block("layout_transform"):
+                with T.sblock("layout_transform"):
                     o, i, h, w = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     T.reads(w1[i, o, h, w])
                     T.writes(out[o, i, h, w])
@@ -445,7 +444,7 @@ def test_lazy_transform_params_with_symbolic_vars():
             slice_index: T.int64,
         ):
             for i in T.grid(16):
-                with T.block("slice_buffer"):
+                with T.sblock("slice_buffer"):
                     vi = T.axis.remap("S", [i])
                     Output[vi] = Input[slice_index, vi]
 
@@ -483,7 +482,7 @@ def test_lazy_transform_params_with_symbolic_vars():
             slice_index: T.int64,
         ):
             for i in T.grid(16):
-                with T.block("slice_buffer"):
+                with T.sblock("slice_buffer"):
                     vi = T.axis.remap("S", [i])
                     Output[vi] = Input[slice_index, vi]
 
@@ -500,7 +499,7 @@ def test_param_shape_symbolic():
             w1 = T.match_buffer(var_w1, (ic, 16, 3, 3), "float32")
             out = T.match_buffer(var_out, (16, ic, 3, 3), "float32")
             for ax0, ax1, ax2, ax3 in T.grid(16, ic, 3, 3):
-                with T.block("layout_transform"):
+                with T.sblock("layout_transform"):
                     o, i, h, w = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     T.reads(w1[i, o, h, w])
                     T.writes(out[o, i, h, w])
@@ -540,7 +539,7 @@ def test_param_shape_symbolic():
             w1 = T.match_buffer(var_w1, (ic, 16, 3, 3), "float32")
             out = T.match_buffer(var_out, (16, ic, 3, 3), "float32")
             for ax0, ax1, ax2, ax3 in T.grid(16, ic, 3, 3):
-                with T.block("layout_transform"):
+                with T.sblock("layout_transform"):
                     o, i, h, w = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     T.reads(w1[i, o, h, w])
                     T.writes(out[o, i, h, w])
@@ -581,15 +580,15 @@ def test_output_with_use_site():
     class Module:
         @T.prim_func
         def copy(x: T.Buffer((), "float32"), y: T.Buffer((), "float32")):
-            with T.block("block"):
+            with T.sblock("block"):
                 T.reads(x[()])
                 T.writes(y[()])
                 y[()] = x[()]
 
         @R.function
-        def main_transform_params(
-            params: R.Tuple(R.Tensor((), dtype="float32"))
-        ) -> R.Tuple(R.Tensor((), dtype="float32"), R.Tensor((), dtype="float32")):
+        def main_transform_params(params: R.Tuple(R.Tensor((), dtype="float32"))) -> R.Tuple(
+            R.Tensor((), dtype="float32"), R.Tensor((), dtype="float32")
+        ):
             # we expect ToNonDataflow and RemovePurityTracking to be invoked first
             R.func_attr({"relax.force_pure": True})
             cls = Module
@@ -603,7 +602,7 @@ def test_output_with_use_site():
     class Expected:
         @T.prim_func
         def copy(x: T.Buffer((), "float32"), y: T.Buffer((), "float32")):
-            with T.block("block"):
+            with T.sblock("block"):
                 T.reads(x[()])
                 T.writes(y[()])
                 y[()] = x[()]
@@ -660,11 +659,11 @@ def test_output():
     transformed = {}
     expected = [params[0].transpose(1, 0, 2, 3), params[1]]
 
-    @tvm.register_func("get_item", override=True)
+    @tvm.register_global_func("get_item", override=True)
     def get_item(i):
-        return tvm.nd.array(params[i], dev)
+        return tvm.runtime.tensor(params[i], dev)
 
-    @tvm.register_func("set_item", override=True)
+    @tvm.register_global_func("set_item", override=True)
     def set_item(i, value):
         assert i not in transformed, f"Set item called multiple times for index {i}"
         transformed[i] = value.numpy()
@@ -870,8 +869,7 @@ def test_get_item_callback_num_attrs():
                 R.prim_value(16 % world_size == 0),
                 [R.prim_value(16), R.prim_value(world_size)],
                 format=(
-                    "World size must evenly divide A.shape[0] ({}), "
-                    "but received world size of {}."
+                    "World size must evenly divide A.shape[0] ({}), but received world size of {}."
                 ),
             )
             weight_A = R.strided_slice(
@@ -885,8 +883,7 @@ def test_get_item_callback_num_attrs():
                 R.prim_value(2048 % world_size == 0),
                 [R.prim_value(2048), R.prim_value(world_size)],
                 format=(
-                    "World size must evenly divide B.shape[1] ({}), "
-                    "but received world size of {}."
+                    "World size must evenly divide B.shape[1] ({}), but received world size of {}."
                 ),
             )
             weight_B = R.strided_slice(
@@ -915,8 +912,7 @@ def test_get_item_callback_num_attrs():
                 R.prim_value(16 % world_size == 0),
                 [R.prim_value(16), R.prim_value(world_size)],
                 format=(
-                    "World size must evenly divide A.shape[0] ({}), "
-                    "but received world size of {}."
+                    "World size must evenly divide A.shape[0] ({}), but received world size of {}."
                 ),
             )
             weight_A = fget_item(R.prim_value(0), R.str("weight_A"))
@@ -932,8 +928,7 @@ def test_get_item_callback_num_attrs():
                 R.prim_value(2048 % world_size == 0),
                 [R.prim_value(2048), R.prim_value(world_size)],
                 format=(
-                    "World size must evenly divide B.shape[1] ({}), "
-                    "but received world size of {}."
+                    "World size must evenly divide B.shape[1] ({}), but received world size of {}."
                 ),
             )
             weight_B = fget_item(R.prim_value(1), R.str("weight_B"))

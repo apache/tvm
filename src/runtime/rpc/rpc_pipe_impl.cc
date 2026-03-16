@@ -51,7 +51,7 @@ class PipeChannel final : public RPCChannel {
   size_t Send(const void* data, size_t size) final {
     ssize_t n = write(writefd_, data, size);
     if (n == -1) {
-      LOG(FATAL) << "Pipe write error";
+      TVM_FFI_THROW(InternalError) << "Pipe write error";
     }
     return static_cast<size_t>(n);
   }
@@ -59,7 +59,7 @@ class PipeChannel final : public RPCChannel {
   size_t Recv(void* data, size_t size) final {
     ssize_t n = read(readfd_, data, size);
     if (n == -1) {
-      LOG(FATAL) << "Pipe read error";
+      TVM_FFI_THROW(InternalError) << "Pipe read error";
     }
     return static_cast<size_t>(n);
   }
@@ -76,11 +76,11 @@ class PipeChannel final : public RPCChannel {
   pid_t child_pid_;
 };
 
-Module CreatePipeClient(std::vector<std::string> cmd) {
+ffi::Module CreatePipeClient(std::vector<std::string> cmd) {
   int parent2child[2];
   int child2parent[2];
-  ICHECK_EQ(pipe(parent2child), 0);
-  ICHECK_EQ(pipe(child2parent), 0);
+  TVM_FFI_ICHECK_EQ(pipe(parent2child), 0);
+  TVM_FFI_ICHECK_EQ(pipe(child2parent), 0);
 
   int parent_read = child2parent[0];
   int parent_write = parent2child[1];
@@ -96,10 +96,10 @@ Module CreatePipeClient(std::vector<std::string> cmd) {
     std::string swrite_pipe = std::to_string(child_write);
     std::vector<char*> argv;
     for (auto& str : cmd) {
-      argv.push_back(dmlc::BeginPtr(str));
+      argv.push_back(str.data());
     }
-    argv.push_back(dmlc::BeginPtr(sread_pipe));
-    argv.push_back(dmlc::BeginPtr(swrite_pipe));
+    argv.push_back(sread_pipe.data());
+    argv.push_back(swrite_pipe.data());
     argv.push_back(nullptr);
     execvp(argv[0], &argv[0]);
   }
@@ -113,7 +113,7 @@ Module CreatePipeClient(std::vector<std::string> cmd) {
   return CreateRPCSessionModule(CreateClientSession(endpt));
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("rpc.CreatePipeClient", [](ffi::PackedArgs args, ffi::Any* rv) {
     std::vector<std::string> cmd;
@@ -122,7 +122,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
     }
     *rv = CreatePipeClient(cmd);
   });
-});
+}
 
 }  // namespace runtime
 }  // namespace tvm

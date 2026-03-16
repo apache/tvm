@@ -14,11 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F811, F841
 import re
 from functools import partial
-from typing import Dict
 
 import numpy as np
+
 import tvm
 import tvm.testing
 from tvm import relax as rx
@@ -57,7 +58,7 @@ def normalize(func: rx.Function) -> rx.Function:
     return mod["main"]
 
 
-def assert_fields(nodename: str, fields: Dict[str, str], target: str) -> None:
+def assert_fields(nodename: str, fields: dict[str, str], target: str) -> None:
     """
     Given a target string, ensure that the string defines the specified node
     and that the given mappings of fields to values are present in the string.
@@ -254,7 +255,7 @@ def test_shape_expr():
 
 def test_types():
     printer = ASTPrinter()
-    assert strip_whitespace(printer.visit_type_(rx.ShapeType())) == "ShapeType(ndim=-1)"
+    assert strip_whitespace(printer.visit_type_(rx.ShapeType(ndim=-1))) == "ShapeType(ndim=-1)"
     assert strip_whitespace(printer.visit_type_(rx.ShapeType(ndim=1))) == "ShapeType(ndim=1)"
     object_type = rx.ObjectType()
     assert strip_whitespace(printer.visit_type_(object_type)) == "ObjectType()"
@@ -264,7 +265,7 @@ def test_types():
     assert strip_whitespace(printer.visit_type_(tensor_type)) == "TensorType(ndim=2,dtype=int32)"
     unit_type = rx.TupleType([])
     assert strip_whitespace(printer.visit_type_(unit_type)) == "TupleType(fields=[])"
-    tuple_type = rx.TupleType([rx.ShapeType(), object_type])
+    tuple_type = rx.TupleType([rx.ShapeType(ndim=-1), object_type])
     assert_fields(
         "TupleType",
         {"fields": "[ShapeType(ndim=-1),ObjectType()]"},
@@ -414,7 +415,23 @@ def test_call_packed():
         op_call_text,
     )
 
-    # TODO: add testcase for op attrs
+
+def test_op_attrs():
+    x = rx.Var("x", R.Tensor((10,), "float32"))
+    # Manually create a Call with attributes to test printer support for Op attributes
+    op = tvm.ir.Op.get("relax.add")
+    attrs = tvm.ir.make_node("ir.DictAttrs", my_attr="my_value")
+    call_node = rx.Call(op, [x, x], attrs=attrs)
+
+    call_str = dump_ast(call_node, include_call_attrs=True)
+    assert_fields(
+        "Call",
+        {
+            "op": 'Op(name="relax.add")',
+            "attrs": '{"my_attr": "my_value"}',
+        },
+        call_str,
+    )
 
 
 def test_call_tir():
@@ -427,9 +444,9 @@ def test_call_tir():
             n = T.int64()
             A = T.match_buffer(A_handle, (m, n), "float32")
             B = T.match_buffer(B_handle, (m, n), "float32")
-            T.func_attr(({"global_symbol": "addone"}))
+            T.func_attr({"global_symbol": "addone"})
             for i, j in T.grid(m, n):
-                with T.block("addone"):
+                with T.sblock("addone"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vi, vj] + T.int32(1)
 

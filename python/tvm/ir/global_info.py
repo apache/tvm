@@ -15,12 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 """Global Info."""
+
+import tvm_ffi
+
 import tvm
+from tvm.runtime import Device
 from tvm.runtime.object import Object
+
 from . import _ffi_api
 
 
-@tvm.ffi.register_object("ir.GlobalInfo")
+@tvm_ffi.register_object("ir.GlobalInfo")
 class GlobalInfo(Object):
     """Base node for all global info that can appear in the IR"""
 
@@ -36,22 +41,28 @@ class GlobalInfo(Object):
         return super().__eq__(other)
 
 
-@tvm.ffi.register_object("ir.DummyGlobalInfo")
+@tvm_ffi.register_object("ir.DummyGlobalInfo")
 class DummyGlobalInfo(GlobalInfo):
+    """DummyGlobalInfo"""
+
     def __init__(self) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.DummyGlobalInfo,
         )
 
 
-@tvm.ffi.register_object("ir.VDevice")
+@tvm_ffi.register_object("ir.VDevice")
 class VDevice(GlobalInfo):
+    """VDevice"""
+
     def __init__(
         self,
         target=None,
         vdevice_id: int = 0,
         memory_scope: str = "global",
     ) -> None:
-        if isinstance(target, (dict, str)):
+        if isinstance(target, dict | str):
             target = tvm.target.Target(tvm.runtime.convert(target))
+        if isinstance(target, Device):
+            target = tvm.target.Target.from_device(target)
         self.__init_handle_by_constructor__(_ffi_api.VDevice, target, vdevice_id, memory_scope)

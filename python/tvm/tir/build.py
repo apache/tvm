@@ -17,17 +17,15 @@
 
 # pylint: disable=invalid-name
 """The build utils in python."""
-from typing import Union, Optional, Dict, Tuple
 
 import tvm
 from tvm import ir
-from tvm.runtime import ndarray
-from tvm.tir import PrimFunc
 from tvm.ir.module import IRModule
 from tvm.target import Target
+from tvm.tir import PrimFunc
 
 
-def split_host_device_mods(mod: IRModule) -> Tuple[IRModule, Dict[Target, IRModule]]:
+def split_host_device_mods(mod: IRModule) -> tuple[IRModule, dict[Target, IRModule]]:
     """Split an IRModule into host and device modules.
 
     This function takes an IRModule containing functions with different target attributes
@@ -100,14 +98,16 @@ def split_host_device_mods(mod: IRModule) -> Tuple[IRModule, Dict[Target, IRModu
         - Device kernel functions: use `calling_conv: 2` (kDeviceKernelLaunch)
     """
 
-    host_mod = tvm.tir.transform.Filter(lambda f: "cpu" in str(f.attrs.get("target", "cpu")))(mod)
-    device_mod = tvm.tir.transform.Filter(lambda f: "cpu" not in str(f.attrs.get("target", "cpu")))(
-        mod
-    )
+    def is_host_func(f):
+        target = f.attrs.get("target", tvm.target.Target("llvm"))
+        return str(target.kind) in ["llvm", "c"]
+
+    host_mod = tvm.tir.transform.Filter(is_host_func)(mod)
+    device_mod = tvm.tir.transform.Filter(lambda f: not is_host_func(f))(mod)
     # TODO(syfeng): Here we use str as key since target hash is not correct
     target_str2target = {}
     device_func_dict = {}
-    device_mod_dict: Dict[Target, IRModule] = {}
+    device_mod_dict: dict[Target, IRModule] = {}
     for gv, func in device_mod.functions.items():
         target = func.attrs.get("target", None)
         target_str = str(target) if target is not None else ""
@@ -131,7 +131,7 @@ def codegen_build(mod: IRModule, target: Target) -> tvm.runtime.Module:
 
 
 def tir_to_runtime(
-    host_mod: IRModule, device_mod_dict: Dict[Target, IRModule], target_host: Target
+    host_mod: IRModule, device_mod_dict: dict[Target, IRModule], target_host: Target
 ):
     """Convert a collection of TIR IRModules (keyed by Target) into a single runtime Module."""
 
@@ -153,9 +153,9 @@ def tir_to_runtime(
 
 
 def build(
-    mod: Union[PrimFunc, IRModule],
-    target: Optional[Union[str, Target]] = None,
-    pipeline: Union[None, str, tvm.transform.Pass] = "default",
+    mod: PrimFunc | IRModule,
+    target: str | Target | None = None,
+    pipeline: None | str | tvm.transform.Pass = "default",
 ):
     """Build a function with a signature, generating code for devices
     coupled with target information.
@@ -186,7 +186,7 @@ def build(
     if target_to_bind is None:
         target_to_bind = "llvm"
     assert target_to_bind is not None
-    target_to_bind = Target.canon_target(target_to_bind)
+    target_to_bind = Target(target_to_bind)
 
     # Step 1: Determine the target to search for tir pipeline
     target = Target.current() if target is None else target
@@ -197,16 +197,18 @@ def build(
                 target = f_target
                 break
     if target is not None:
-        target = Target.canon_target(target)
+        target = Target(target)
 
     # Step 2: Determine the host target
     target_host = "llvm" if tvm.runtime.enabled("llvm") else "c"
     if target is not None:
         if target.host is not None:
             target_host = target.host
-        elif ndarray.device(target.kind.name, 0).device_type == ndarray.cpu(0).device_type:
+        elif (
+            tvm.device(target.kind.name, 0).dlpack_device_type() == tvm.cpu(0).dlpack_device_type()
+        ):
             target_host = target
-    target_host = Target.canon_target(target_host)
+    target_host = Target(target_host)
     target_to_bind = target_to_bind.with_host(target_host)
 
     # Step 3: Bind the target to the input module
@@ -236,4 +238,4 @@ def build(
     return tir_to_runtime(host_mod, device_mod_dict, target_host)
 
 
-tvm.register_func("tir.build", build)
+tvm.register_global_func("tir.build", build)

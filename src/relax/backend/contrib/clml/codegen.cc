@@ -48,20 +48,18 @@ struct OpenCLMLCompilerConfigNode : public AttrsNodeReflAdapter<OpenCLMLCompiler
         "clml_version", &OpenCLMLCompilerConfigNode::clml_version,
         "OpenCLML version as (major, minor, patch).", refl::DefaultValue(Integer(3)));
   }
-
-  static constexpr const char* _type_key = "relax.ext.attrs.OpenCLMLCompilerConfig";
-  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(OpenCLMLCompilerConfigNode, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.ext.attrs.OpenCLMLCompilerConfig",
+                                    OpenCLMLCompilerConfigNode, BaseAttrsNode);
 };
 
 class OpenCLMLCompilerConfig : public Attrs {
  public:
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(OpenCLMLCompilerConfig, Attrs,
-                                            OpenCLMLCompilerConfigNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(OpenCLMLCompilerConfig, Attrs,
+                                                OpenCLMLCompilerConfigNode);
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({ OpenCLMLCompilerConfigNode::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { OpenCLMLCompilerConfigNode::RegisterReflection(); }
 
-TVM_REGISTER_NODE_TYPE(OpenCLMLCompilerConfigNode);
 TVM_REGISTER_PASS_CONFIG_OPTION("relax.ext.clml.options", OpenCLMLCompilerConfig);
 
 using JSONGraphNode = tvm::runtime::json::JSONGraphNode;
@@ -86,10 +84,7 @@ class CollectCLMLFromCompositeFunctionBody : public ExprVisitor {
 
   void SetGenericAttributes(const CallNode* call_node) {
     if (backend::IsOp(call_node, "relax.nn.relu")) {
-      std::vector<std::string> activation_type = {"relu"};
-      std::vector<dmlc::any> act_attr;
-      act_attr.emplace_back(activation_type);
-      node_->SetAttr("activation_type", act_attr);
+      node_->SetAttr("activation_type", ffi::String("relu"));
     }
 
     OpAttrExtractor extractor(node_);
@@ -114,7 +109,8 @@ class CollectCLMLFromCompositeFunctionBody : public ExprVisitor {
  */
 class OpenCLMLJSONSerializer : public JSONSerializer {
  public:
-  explicit OpenCLMLJSONSerializer(Map<Constant, String> constant_names, Map<Var, Expr> bindings)
+  explicit OpenCLMLJSONSerializer(ffi::Map<Constant, ffi::String> constant_names,
+                                  ffi::Map<Var, Expr> bindings)
       : JSONSerializer(constant_names), bindings_(bindings) {}
 
   /*!
@@ -135,11 +131,11 @@ class OpenCLMLJSONSerializer : public JSONSerializer {
   std::vector<JSONGraphNodeEntry> VisitExpr_(const CallNode* call_node) final {
     // The call must be to an inline "Composite" function
     const auto* fn_var = call_node->op.as<VarNode>();
-    ICHECK(fn_var);
-    const auto fn = Downcast<Function>(bindings_[GetRef<Var>(fn_var)]);
+    TVM_FFI_ICHECK(fn_var);
+    const auto fn = Downcast<Function>(bindings_[ffi::GetRef<Var>(fn_var)]);
 
-    auto opt_composite = fn->GetAttr<String>(attr::kComposite);
-    ICHECK(opt_composite.defined());
+    auto opt_composite = fn->GetAttr<ffi::String>(attr::kComposite);
+    TVM_FFI_ICHECK(opt_composite.has_value());
     std::string name = opt_composite.value();
 
     std::shared_ptr<JSONGraphNode> node;
@@ -172,13 +168,10 @@ class OpenCLMLJSONSerializer : public JSONSerializer {
       // Transfer attributes from the collector's node to the final node.
       node->CaptureAttrs(*collector.node_);
 
-      // Capture global settings on the JSON node.
-      SaveGlobalAttributes(node);
-
       VLOG(1) << name << " has " << node->GetInputs().size() << " inputs";
     }
 
-    return AddNode(node, GetRef<Expr>(call_node));
+    return AddNode(node, ffi::GetRef<Expr>(call_node));
   }
 
   /*!
@@ -191,10 +184,10 @@ class OpenCLMLJSONSerializer : public JSONSerializer {
     CompositeConvNode nodes{};
 
     const auto* fn_var = cn->op.as<VarNode>();
-    ICHECK(fn_var);
-    const auto fn = Downcast<Function>(bindings_[GetRef<Var>(fn_var)]);
-    auto opt_composite = fn->GetAttr<String>(attr::kComposite);
-    ICHECK(opt_composite.defined());
+    TVM_FFI_ICHECK(fn_var);
+    const auto fn = Downcast<Function>(bindings_[ffi::GetRef<Var>(fn_var)]);
+    auto opt_composite = fn->GetAttr<ffi::String>(attr::kComposite);
+    TVM_FFI_ICHECK(opt_composite.has_value());
 
     nodes.pad = backend::TryGetOpInFunction(fn, "relax.nn.pad");
     nodes.conv = backend::TryGetOpInFunction(fn, "relax.nn.conv2d");
@@ -202,7 +195,7 @@ class OpenCLMLJSONSerializer : public JSONSerializer {
     if (!nodes.conv) {
       nodes.conv = backend::TryGetOpInFunction(fn, "relax.nn.conv2d_transpose");
     }
-    ICHECK(nodes.conv) << "No Convolution op found in composite function";
+    TVM_FFI_ICHECK(nodes.conv) << "No Convolution op found in composite function";
     nodes.bn = backend::TryGetOpInFunction(fn, "relax.nn.batch_norm");
     nodes.bias = backend::TryGetOpInFunction(fn, "relax.add");
     nodes.activation = backend::TryGetOpInFunction(fn, "relax.nn.relu");
@@ -220,10 +213,10 @@ class OpenCLMLJSONSerializer : public JSONSerializer {
     CompositeConvNode nodes = UnpackCompositeConvolution(cn);
 
     const auto* fn_var = cn->op.as<VarNode>();
-    ICHECK(fn_var);
-    const auto fn = Downcast<Function>(bindings_[GetRef<Var>(fn_var)]);
-    auto opt_composite = fn->GetAttr<String>(attr::kComposite);
-    ICHECK(opt_composite.defined());
+    TVM_FFI_ICHECK(fn_var);
+    const auto fn = Downcast<Function>(bindings_[ffi::GetRef<Var>(fn_var)]);
+    auto opt_composite = fn->GetAttr<ffi::String>(attr::kComposite);
+    TVM_FFI_ICHECK(opt_composite.has_value());
     std::string name = opt_composite.value();
 
     std::vector<JSONGraphNodeEntry> inputs;
@@ -246,35 +239,27 @@ class OpenCLMLJSONSerializer : public JSONSerializer {
 
     if (nodes.bn) {
       const auto* bn_attr = nodes.bn->attrs.as<BatchNormAttrs>();
-      std::vector<dmlc::any> bn_any_attr;
-      std::vector<std::string> bn_args = {
-          std::to_string(bn_attr->axis), std::to_string(bn_attr->epsilon),
-          std::to_string(bn_attr->center), std::to_string(bn_attr->scale)};
-      bn_any_attr.emplace_back(bn_args);
-      json_node->SetAttr("batchnorm", bn_any_attr);
+      json_node->SetAttr(
+          "batchnorm",
+          ffi::Array<ffi::String>{std::to_string(bn_attr->axis), std::to_string(bn_attr->epsilon),
+                                  std::to_string(bn_attr->center), std::to_string(bn_attr->scale)});
     }
 
     // Override attributes
     if (nodes.pad) {
       const auto* pad_attr = nodes.pad->attrs.as<PadAttrs>();
-      ICHECK(pad_attr);
+      TVM_FFI_ICHECK(pad_attr);
       auto p = pad_attr->pad_width;
       // Pad layout for TVM: dimension wise pre and post padding.
       // CLML takes dimension wise pre-padding followed by dimension wise post-padding for W, H.
-      std::vector<std::string> padding = {std::to_string(p[4].as<IntImmNode>()->value),
-                                          std::to_string(p[6].as<IntImmNode>()->value),
-                                          std::to_string(p[5].as<IntImmNode>()->value),
-                                          std::to_string(p[7].as<IntImmNode>()->value)};
-      std::vector<dmlc::any> padding_attr;
-      padding_attr.emplace_back(padding);
-      json_node->SetAttr("padding", padding_attr);
+      json_node->SetAttr(
+          "padding",
+          ffi::Array<int64_t>{p[4].as<IntImmNode>()->value, p[6].as<IntImmNode>()->value,
+                              p[5].as<IntImmNode>()->value, p[7].as<IntImmNode>()->value});
     }
 
     if (nodes.activation) {
-      std::vector<std::string> activation_type = {nodes.act_type};
-      std::vector<dmlc::any> act_attr;
-      act_attr.emplace_back(activation_type);
-      json_node->SetAttr("activation_type", act_attr);
+      json_node->SetAttr("activation_type", ffi::String(nodes.act_type));
     }
     return json_node;
   }
@@ -285,19 +270,16 @@ class OpenCLMLJSONSerializer : public JSONSerializer {
     if (!cfg.defined()) {
       cfg = AttrsWithDefaultValues<OpenCLMLCompilerConfig>();
     }
-    std::vector<std::string> clml_version = {std::to_string(cfg.value()->clml_version.IntValue())};
-    std::vector<dmlc::any> clml_version_attr;
-    clml_version_attr.emplace_back(clml_version);
-    node->SetAttr("clml_version", clml_version_attr);
+    node->SetAttr("clml_version", static_cast<int64_t>(cfg.value()->clml_version.IntValue()));
   }
 
  private:
   /*! \brief The bindings to look up composite functions. */
-  Map<Var, Expr> bindings_;
+  ffi::Map<Var, Expr> bindings_;
 };
 
 void CollectCLMLFromCompositeFunctionBody::VisitExpr_(const ConstantNode* constant_node) {
-  for (const auto& entry : serializer_->VisitExpr(GetRef<Constant>(constant_node))) {
+  for (const auto& entry : serializer_->VisitExpr(ffi::GetRef<Constant>(constant_node))) {
     args_.emplace_back(entry);
   }
 }
@@ -312,9 +294,10 @@ void CollectCLMLFromCompositeFunctionBody::VisitExpr_(const CallNode* call_node)
  * \param functions The extern functions to be compiled via OpenCLML
  * \return Runtime modules.
  */
-Array<runtime::Module> OpenCLMLCompiler(Array<Function> functions, Map<String, Any> /*unused*/,
-                                        Map<Constant, String> constant_names) {
-  Array<runtime::Module> compiled_functions;
+ffi::Array<ffi::Module> OpenCLMLCompiler(ffi::Array<Function> functions,
+                                         ffi::Map<ffi::String, Any> /*unused*/,
+                                         ffi::Map<Constant, ffi::String> constant_names) {
+  ffi::Array<ffi::Module> compiled_functions;
   for (const auto& func : functions) {
     VLOG(1) << "OpenCLML partition:" << std::endl << func;
     OpenCLMLJSONSerializer serializer(constant_names, AnalyzeVar2Value(func));
@@ -323,16 +306,16 @@ Array<runtime::Module> OpenCLMLCompiler(Array<Function> functions, Map<String, A
     auto constant_names = serializer.GetConstantNames();
     const auto pf = tvm::ffi::Function::GetGlobalRequired("runtime.clml_runtime_create");
     std::string func_name = GetExtSymbol(func);
-    VLOG(1) << "Creating clml runtime::Module for '" << func_name << "'";
-    compiled_functions.push_back(pf(func_name, graph_json, constant_names).cast<runtime::Module>());
+    VLOG(1) << "Creating clml ffi::Module for '" << func_name << "'";
+    compiled_functions.push_back(pf(func_name, graph_json, constant_names).cast<ffi::Module>());
   }
   return compiled_functions;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.ext.openclml", OpenCLMLCompiler);
-});
+}
 
 /*!
  * \brief Check whether OpenCLML graph executor is enabled.
@@ -358,12 +341,12 @@ Integer GetOpenCLMLVersion() {
 #endif  // TVM_GRAPH_EXECUTOR_CLML
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("relax.is_openclml_runtime_enabled", IsOpenCLMLRuntimeEnabled)
       .def("relax.get_openclml_version", GetOpenCLMLVersion);
-});
+}
 
 }  // namespace contrib
 }  // namespace relax

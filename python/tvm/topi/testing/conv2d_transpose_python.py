@@ -16,8 +16,10 @@
 # under the License.
 # pylint: disable=unused-variable
 """Transposed convolution in python"""
+
 import numpy as np
 import scipy
+
 import tvm.topi.testing
 from tvm.topi.nn.utils import get_pad_tuple
 

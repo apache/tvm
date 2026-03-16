@@ -14,27 +14,30 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import pytest
-from typing import Callable, Union, Tuple, List
+# ruff: noqa: F401, F811, RUF005
+from collections.abc import Callable
+from typing import Union
 
 import numpy as np
+import pytest
+
 import tvm
-from tvm.relax.expr import Call
-from tvm.relax.struct_info import TensorStructInfo, TupleStructInfo
 import tvm.testing
 from tvm import relax
+from tvm.ir.op import Op
+from tvm.relax.expr import Call
+from tvm.relax.struct_info import TensorStructInfo, TupleStructInfo
 from tvm.relax.transform import LegalizeOps
 from tvm.testing.utils import check_numerical_grads
-from tvm.ir.op import Op
 
 
 def relax_check_gradients(
     op_func: Callable,
-    inputs_numpy: List[np.array],
-    target: Union[str, tvm.target.Target],
+    inputs_numpy: list[np.array],
+    target: str | tvm.target.Target,
     dev: tvm.runtime.Device,
     tuple_input: bool = False,
-    ignore_grads: List[int] = [],
+    ignore_grads: list[int] = [],
     **kwargs,  # attr for operators
 ):
     """Generate the forward and the gradient module. Then run them and check numeric gradients.
@@ -45,7 +48,7 @@ def relax_check_gradients(
         The forward operator function. Should be a function in package relax.op.
 
     inputs_numpy : List[np.array]
-        The np array inputs for op_func. inputs_numpy will be transformed into TVM NDArray inside
+        The np array inputs for op_func. inputs_numpy will be transformed into TVM Tensor inside
         this function.
 
         If op_func takes a tuple of tensors as input, you can set tuple_input as True, and pass the
@@ -84,12 +87,12 @@ def relax_check_gradients(
     def _numpy_to_tvm(data):
         if isinstance(data, list):
             return [_numpy_to_tvm(d) for d in data]
-        return tvm.nd.array(data)
+        return tvm.runtime.tensor(data)
 
     def _tvm_to_numpy(data, ignore_idx=[]):
         if isinstance(data, tvm.ir.Array):
             return [_tvm_to_numpy(d) for i, d in enumerate(data) if i not in ignore_idx]
-        if isinstance(data, tvm.runtime.ndarray.NDArray):
+        if isinstance(data, tvm.runtime.Tensor):
             return data.numpy()
         return data
 
@@ -189,7 +192,7 @@ def relax_check_gradients(
     grad_ex = tvm.compile(grad_mod, target)
     grad_vm = relax.VirtualMachine(grad_ex, dev)
 
-    # tvm.runtime.NDArray inputs
+    # tvm.runtime.Tensor inputs
     inputs_tvm = [_numpy_to_tvm(i) for i in inputs_numpy]
     weights_tvm = _numpy_to_tvm(weights)
     result_filtered = _tvm_to_numpy(grad_vm[func_name](*inputs_tvm, weights_tvm), ignore_grads)
@@ -781,11 +784,9 @@ def test_nll_loss_no_batch(target, dev, nll_reduction1, nll_weighted1, nll_ignor
 
 @tvm.testing.parametrize_targets("llvm")
 def test_conv2d(target, dev, c2d_shape1, c2d_shape2, c2d_kwargs):
-    # TODO(mlc-team) Update to uniform
-    # We should use float32 to check the correctness of conv2d
-    # to avoid possible precision problems
-    data1_numpy = np.random.uniform(0, 16, c2d_shape1).astype(np.float64)
-    data2_numpy = np.random.uniform(0, 3, c2d_shape2).astype(np.float64)
+    # Use smaller range to reduce numerical errors in gradient check
+    data1_numpy = np.random.uniform(0, 2, c2d_shape1).astype(np.float32)
+    data2_numpy = np.random.uniform(0, 2, c2d_shape2).astype(np.float32)
     relax_check_gradients(
         relax.op.nn.conv2d,
         [data1_numpy, data2_numpy],
@@ -819,7 +820,7 @@ def test_conv2d(target, dev, c2d_shape1, c2d_shape2, c2d_kwargs):
 
 @tvm.testing.parametrize_targets("llvm")
 def test_max_pool2d(target, dev, pool_size, pool_kwargs):
-    data_numpy = np.random.uniform(0, 16, size=(3, 2, 10, 10)).astype(np.float64)
+    data_numpy = np.random.uniform(0, 3, size=(3, 2, 10, 10)).astype(np.float32)
     relax_check_gradients(
         relax.op.nn.max_pool2d,
         [data_numpy],
@@ -832,7 +833,7 @@ def test_max_pool2d(target, dev, pool_size, pool_kwargs):
 
 @tvm.testing.parametrize_targets("llvm")
 def test_avg_pool2d(target, dev, pool_size, pool_kwargs):
-    data_numpy = np.random.uniform(0, 16, size=(3, 2, 10, 10)).astype(np.float64)
+    data_numpy = np.random.uniform(0, 3, size=(3, 2, 10, 10)).astype(np.float32)
     relax_check_gradients(
         relax.op.nn.avg_pool2d,
         [data_numpy],

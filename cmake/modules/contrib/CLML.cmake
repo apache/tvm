@@ -31,13 +31,15 @@ if(USE_CLML)
             string(REGEX MATCH "CL_QCOM_ML_OPS_H_MAJOR_VERSION ([0-9]*)" _ ${ver})
             set(CLML_VERSION_MAJOR ${CMAKE_MATCH_1})
         else()
-            set(CLML_VERSION_MAJOR "2")
+            set(CLML_VERSION_MAJOR "4")
         endif()
     else()
-        set(CLML_VERSION_MAJOR "2")
+        set(CLML_VERSION_MAJOR "4")
     endif()
     add_definitions(-DTVM_CLML_VERSION=${CLML_VERSION_MAJOR})
     message(STATUS "CLML SDK Version :" ${CLML_VERSION_MAJOR})
+else()
+    set(CLML_VERSION_MAJOR "4")
 endif()
 
 if(USE_CLML_GRAPH_EXECUTOR)
@@ -49,7 +51,7 @@ if(USE_CLML_GRAPH_EXECUTOR)
 
     file(GLOB CLML_CONTRIB_SRC src/runtime/contrib/clml/*)
 
-    # Cmake needs to find clml library, include and support directories
+    # CMake needs to find clml library, include and support directories
     # in the path specified by CLML_PATH.
     set(CLML_INCLUDE_DIRS ${CLML_PATH}/include ${CLML_PATH})
     include_directories(${CLML_INCLUDE_DIRS})

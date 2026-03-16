@@ -40,22 +40,22 @@ namespace runtime {
     if (result != CUDA_SUCCESS && result != CUDA_ERROR_DEINITIALIZED) { \
       const char* msg;                                                  \
       cuGetErrorName(result, &msg);                                     \
-      LOG(FATAL) << "CUDAError: " #x " failed with error: " << msg;     \
+      TVM_FFI_THROW(CUDAError) << "" #x " failed with error: " << msg;  \
     }                                                                   \
   }
 
-#define CUDA_CALL(func)                                       \
-  {                                                           \
-    cudaError_t e = (func);                                   \
-    ICHECK(e == cudaSuccess || e == cudaErrorCudartUnloading) \
-        << "CUDA: " << cudaGetErrorString(e);                 \
+#ifndef CUDA_CALL
+#define CUDA_CALL(func)                                               \
+  {                                                                   \
+    cudaError_t e = (func);                                           \
+    TVM_FFI_ICHECK(e == cudaSuccess || e == cudaErrorCudartUnloading) \
+        << "CUDA: " << cudaGetErrorString(e);                         \
   }
+#endif
 
 /*! \brief Thread local workspace */
 class CUDAThreadEntry {
  public:
-  /*! \brief The cuda stream */
-  cudaStream_t stream{nullptr};
   /*! \brief thread local pool*/
   WorkspacePool pool;
   /*! \brief constructor */
@@ -63,8 +63,6 @@ class CUDAThreadEntry {
   // get the threadlocal workspace
   static CUDAThreadEntry* ThreadLocal();
 };
-
-inline cudaStream_t GetCUDAStream() { return CUDAThreadEntry::ThreadLocal()->stream; }
 
 }  // namespace runtime
 }  // namespace tvm

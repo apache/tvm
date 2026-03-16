@@ -20,14 +20,15 @@ Test relax vm builtin to enable DMA copy and wait operations.
 """
 
 import numpy as np
+
 import tvm
+import tvm.contrib.hexagon
 import tvm.script
+import tvm.testing
 from tvm import relax
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
 from tvm.script.parser import tir as T
-import tvm.contrib.hexagon
-import tvm.testing
 
 # pylint: disable=invalid-name, missing-class-docstring, missing-function-docstring, no-self-argument
 
@@ -43,7 +44,7 @@ class Module_1D:
         B = T.match_buffer(b, (m,), data_type, scope="global.vtcm")
         C = T.match_buffer(c, (m,), data_type, scope="global.vtcm")
         for ax0 in T.grid(m):
-            with T.block("T_add"):
+            with T.sblock("T_add"):
                 v_ax0 = T.axis.remap("S", [ax0])
                 T.reads(A[v_ax0], B[v_ax0])
                 T.writes(C[v_ax0])
@@ -65,7 +66,12 @@ class Module_1D:
             dtype=data_type,
             storage_scope="global.vtcm",
         )
-        a: R.Tensor([12800,], dtype=data_type,) = R.vm.alloc_tensor(
+        a: R.Tensor(
+            [
+                12800,
+            ],
+            dtype=data_type,
+        ) = R.vm.alloc_tensor(
             vtcm_obj,
             offset=0,
             shape=R.shape(
@@ -80,7 +86,12 @@ class Module_1D:
             [x, a, 0, True],
             sinfo_args=[],
         )
-        b: R.Tensor([12800,], dtype=data_type,) = R.vm.alloc_tensor(
+        b: R.Tensor(
+            [
+                12800,
+            ],
+            dtype=data_type,
+        ) = R.vm.alloc_tensor(
             vtcm_obj,
             offset=12800 * 4,
             shape=R.shape(
@@ -95,7 +106,12 @@ class Module_1D:
             [y, b, 1, True],
             sinfo_args=[],
         )
-        c: R.Tensor([12800,], dtype=data_type,) = R.vm.alloc_tensor(
+        c: R.Tensor(
+            [
+                12800,
+            ],
+            dtype=data_type,
+        ) = R.vm.alloc_tensor(
             vtcm_obj,
             offset=2 * 12800 * 4,
             shape=R.shape(
@@ -151,7 +167,7 @@ class TestDMACopyWait:
 
     @tvm.testing.requires_hexagon
     def test_vtcm_alloc_compute(self, hexagon_launcher, mode, module):
-        target_hexagon = tvm.target.hexagon("v69")
+        target_hexagon = tvm.target.Target("qcom/hexagon-v69")
         target = tvm.target.Target(target_hexagon, host=target_hexagon)
         with tvm.transform.PassContext(opt_level=3, config=[]):
             ex = tvm.compile(mod=module, target=target, exec_mode=mode)
@@ -164,8 +180,8 @@ class TestDMACopyWait:
             vm_rt = relax.VirtualMachine(
                 vm_mod, dev, "naive"
             )  # Use naive allocator to exercise VTCM allocation in relax
-            data0 = tvm.nd.array(input_arg0_data, dev)
-            data1 = tvm.nd.array(input_arg1_data, dev)
+            data0 = tvm.runtime.tensor(input_arg0_data, dev)
+            data1 = tvm.runtime.tensor(input_arg1_data, dev)
             vm_rt.set_input("main", data0, data1)
             vm_rt.invoke_stateful("main")
             hexagon_output = vm_rt.get_outputs("main").numpy()

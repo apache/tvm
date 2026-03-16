@@ -100,6 +100,20 @@ TVM_DLL PrimExpr ret(PrimExpr value, Span span = Span());
 TVM_DLL PrimExpr thread_return(Span span = Span());
 
 /*!
+ * \brief Continue current loop.
+ * \param span The location of this operation in the source.
+ * \return The continue loop expression.
+ */
+TVM_DLL PrimExpr continue_loop(Span span = Span());
+
+/*!
+ * \brief Break current loop.
+ * \param span The location of this operation in the source.
+ * \return The break loop expression.
+ */
+TVM_DLL PrimExpr break_loop(Span span = Span());
+
+/*!
  * Query the maximum possible value of dtype.
  * \param dtype The data type.
  * \param span The location of this operation in the source.
@@ -566,7 +580,7 @@ TVM_DLL PrimExpr isinf(PrimExpr x, Span span = Span());
  * \param span The location of this operation in the source.
  * \return The result.
  */
-TVM_DLL PrimExpr sum(PrimExpr source, Array<tir::IterVar> axis, Array<PrimExpr> init = {},
+TVM_DLL PrimExpr sum(PrimExpr source, ffi::Array<tir::IterVar> axis, ffi::Array<PrimExpr> init = {},
                      Span span = Span());
 
 /*!
@@ -576,7 +590,7 @@ TVM_DLL PrimExpr sum(PrimExpr source, Array<tir::IterVar> axis, Array<PrimExpr> 
  * \param init The value with which to initialize the output.
  * \param span The location of this operation in the source.
  */
-TVM_DLL PrimExpr all(PrimExpr source, Array<tir::IterVar> axis, Array<PrimExpr> init = {},
+TVM_DLL PrimExpr all(PrimExpr source, ffi::Array<tir::IterVar> axis, ffi::Array<PrimExpr> init = {},
                      Span span = Span());
 
 /*!
@@ -587,7 +601,7 @@ TVM_DLL PrimExpr all(PrimExpr source, Array<tir::IterVar> axis, Array<PrimExpr> 
  * \param span The location of this operation in the source.
  * \return The result.
  */
-TVM_DLL PrimExpr any(PrimExpr source, Array<tir::IterVar> axis, Array<PrimExpr> init = {},
+TVM_DLL PrimExpr any(PrimExpr source, ffi::Array<tir::IterVar> axis, ffi::Array<PrimExpr> init = {},
                      Span span = Span());
 
 /*!
@@ -598,7 +612,7 @@ TVM_DLL PrimExpr any(PrimExpr source, Array<tir::IterVar> axis, Array<PrimExpr> 
  * \param span The location of this operation in the source.
  * \return The result.
  */
-TVM_DLL PrimExpr max(PrimExpr source, Array<tir::IterVar> axis, Array<PrimExpr> init = {},
+TVM_DLL PrimExpr max(PrimExpr source, ffi::Array<tir::IterVar> axis, ffi::Array<PrimExpr> init = {},
                      Span span = Span());
 
 /*!
@@ -609,7 +623,7 @@ TVM_DLL PrimExpr max(PrimExpr source, Array<tir::IterVar> axis, Array<PrimExpr> 
  * \param span The location of this operation in the source.
  * \return The result.
  */
-TVM_DLL PrimExpr min(PrimExpr source, Array<tir::IterVar> axis, Array<PrimExpr> init = {},
+TVM_DLL PrimExpr min(PrimExpr source, ffi::Array<tir::IterVar> axis, ffi::Array<PrimExpr> init = {},
                      Span span = Span());
 
 /*!
@@ -620,8 +634,8 @@ TVM_DLL PrimExpr min(PrimExpr source, Array<tir::IterVar> axis, Array<PrimExpr> 
  * \param span The location of this operation in the source.
  * \return The result.
  */
-TVM_DLL PrimExpr prod(PrimExpr source, Array<tir::IterVar> axis, Array<PrimExpr> init = {},
-                      Span span = Span());
+TVM_DLL PrimExpr prod(PrimExpr source, ffi::Array<tir::IterVar> axis,
+                      ffi::Array<PrimExpr> init = {}, Span span = Span());
 
 /*!
  * \brief Calculate floor(x)
@@ -706,10 +720,16 @@ TVM_DLL PrimExpr q_multiply_shift(PrimExpr x, PrimExpr y, PrimExpr q, PrimExpr s
  */
 TVM_DLL PrimExpr fast_erf_float_expr(PrimExpr arg, int bits);
 
+inline void CheckMathUnaryOpInputDType(const char* op_name, DataType dtype) {
+  TVM_FFI_CHECK(dtype.is_float() || dtype.is_bfloat16(), TypeError)
+      << "tir." << op_name << " only supports floating-point inputs, but got " << dtype;
+}
+
 // Intrinsic operators
-#define TVM_DECLARE_INTRIN_UNARY(OpName)                                \
+#define TVM_DECLARE_INTRIN_UNARY_WITH_CHECK(OpName, CheckInputDType)    \
   inline PrimExpr OpName(PrimExpr x, Span span = Span()) {              \
     static const Op& op = Op::Get("tir." #OpName);                      \
+    CheckInputDType(#OpName, x.dtype());                                \
     if (x.dtype().is_bfloat16()) {                                      \
       DataType bf16_dtype = x.dtype();                                  \
       DataType fp32_dtype(kDLFloat, 32, bf16_dtype.lanes());            \
@@ -721,11 +741,17 @@ TVM_DLL PrimExpr fast_erf_float_expr(PrimExpr arg, int bits);
     }                                                                   \
   }
 
+#define TVM_DECLARE_INTRIN_UNARY(OpName) \
+  TVM_DECLARE_INTRIN_UNARY_WITH_CHECK(OpName, [](const char*, DataType) {})
+
+#define TVM_DECLARE_FLOAT_INTRIN_UNARY(OpName) \
+  TVM_DECLARE_INTRIN_UNARY_WITH_CHECK(OpName, CheckMathUnaryOpInputDType)
+
 TVM_DECLARE_INTRIN_UNARY(exp);
 TVM_DECLARE_INTRIN_UNARY(exp2);
 TVM_DECLARE_INTRIN_UNARY(exp10);
 TVM_DECLARE_INTRIN_UNARY(erf);
-TVM_DECLARE_INTRIN_UNARY(tanh);
+TVM_DECLARE_FLOAT_INTRIN_UNARY(tanh);
 TVM_DECLARE_INTRIN_UNARY(sigmoid);
 TVM_DECLARE_INTRIN_UNARY(sqrt);
 TVM_DECLARE_INTRIN_UNARY(rsqrt);
@@ -734,17 +760,17 @@ TVM_DECLARE_INTRIN_UNARY(log2);
 TVM_DECLARE_INTRIN_UNARY(log10);
 TVM_DECLARE_INTRIN_UNARY(log1p);
 TVM_DECLARE_INTRIN_UNARY(popcount);
-TVM_DECLARE_INTRIN_UNARY(tan);
-TVM_DECLARE_INTRIN_UNARY(cos);
-TVM_DECLARE_INTRIN_UNARY(cosh);
-TVM_DECLARE_INTRIN_UNARY(sin);
-TVM_DECLARE_INTRIN_UNARY(sinh);
-TVM_DECLARE_INTRIN_UNARY(asin);
-TVM_DECLARE_INTRIN_UNARY(acos);
-TVM_DECLARE_INTRIN_UNARY(atan);
-TVM_DECLARE_INTRIN_UNARY(acosh);
-TVM_DECLARE_INTRIN_UNARY(asinh);
-TVM_DECLARE_INTRIN_UNARY(atanh);
+TVM_DECLARE_FLOAT_INTRIN_UNARY(tan);
+TVM_DECLARE_FLOAT_INTRIN_UNARY(cos);
+TVM_DECLARE_FLOAT_INTRIN_UNARY(cosh);
+TVM_DECLARE_FLOAT_INTRIN_UNARY(sin);
+TVM_DECLARE_FLOAT_INTRIN_UNARY(sinh);
+TVM_DECLARE_FLOAT_INTRIN_UNARY(asin);
+TVM_DECLARE_FLOAT_INTRIN_UNARY(acos);
+TVM_DECLARE_FLOAT_INTRIN_UNARY(atan);
+TVM_DECLARE_FLOAT_INTRIN_UNARY(acosh);
+TVM_DECLARE_FLOAT_INTRIN_UNARY(asinh);
+TVM_DECLARE_FLOAT_INTRIN_UNARY(atanh);
 TVM_DECLARE_INTRIN_UNARY(clz);
 
 #define TVM_DECLARE_INTRIN_BINARY(OpName)                              \
@@ -802,7 +828,7 @@ inline PrimExpr make_zero(DataType t, Span span = Span());
  * \return The result expression.
  */
 inline PrimExpr const_true(int lanes = 1, Span span = Span()) {
-  return make_const(DataType::UInt(1, lanes), 1);
+  return make_const(DataType::Bool(lanes), 1);
 }
 /*!
  * \brief Make a constant false expression.
@@ -811,7 +837,7 @@ inline PrimExpr const_true(int lanes = 1, Span span = Span()) {
  * \return The result expression.
  */
 inline PrimExpr const_false(int lanes = 1, Span span = Span()) {
-  return make_const(DataType::UInt(1, lanes), 0);
+  return make_const(DataType::Bool(lanes), 0);
 }
 /*!
  * \brief Get x as constant int expression.
@@ -883,7 +909,7 @@ inline bool is_const_number(const PrimExpr& x);
  * \tparam FReduce The type of the reduction.
  */
 template <typename FReduce>
-inline PrimExpr foldl(FReduce freduce, PrimExpr init_value, const Array<PrimExpr>& values,
+inline PrimExpr foldl(FReduce freduce, PrimExpr init_value, const ffi::Array<PrimExpr>& values,
                       Span span = Span()) {
   for (PrimExpr val : values) {
     init_value = freduce(init_value, val, span);
@@ -943,12 +969,12 @@ inline bool is_no_op(const tir::Stmt& stmt) {
 
 template <typename ValueType>
 inline PrimExpr MakeConstScalar(DataType t, ValueType value, Span span = Span()) {
-  if (t.is_int()) return IntImm(t, static_cast<int64_t>(value), span);
+  if (t.is_int() || t.is_bool()) return IntImm(t, static_cast<int64_t>(value), span);
   if (t.is_uint()) {
     // Use IntImm if it is a small integer
     uint64_t uval = static_cast<uint64_t>(value);
     if (value < static_cast<ValueType>(0)) {
-      LOG(FATAL) << "cannot make uint from negative value " << value;
+      TVM_FFI_THROW(InternalError) << "cannot make uint from negative value " << value;
     } else if (uval <= static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
       return IntImm(t, static_cast<int64_t>(value), span);
     } else {
@@ -967,7 +993,7 @@ inline PrimExpr MakeConstScalar(DataType t, ValueType value, Span span = Span())
   if (static_cast<uint8_t>(t.code()) >= static_cast<uint8_t>(DataType::kCustomBegin)) {
     return FloatImm(t, static_cast<double>(value), span);
   }
-  LOG(FATAL) << "cannot make const for type " << t;
+  TVM_FFI_THROW(InternalError) << "cannot make const for type " << t;
   throw;
 }
 

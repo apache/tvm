@@ -41,7 +41,7 @@ namespace tvm {
 namespace relax {
 
 namespace {
-std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, Map<DFPattern, Expr>)>> CreatePatterns(
+std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>> CreatePatterns(
     const Function& func) {
   auto compile_time_arr = ComputableAtCompileTime(func);
   std::unordered_set<Var> compile_time_lookup(compile_time_arr.begin(), compile_time_arr.end());
@@ -58,7 +58,7 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, Map<DFPattern, Expr>)>> Crea
 
   auto pat_matmul = IsOp("relax.matmul")(pat_lhs, pat_rhs);
 
-  auto rewriter = [=](Expr expr, Map<DFPattern, Expr> matches) -> Expr {
+  auto rewriter = [=](Expr expr, ffi::Map<DFPattern, Expr> matches) -> Expr {
     auto lhs = matches[pat_lhs];
     auto rhs_a = matches[pat_rhs_a];
     auto rhs_b = matches[pat_rhs_b];
@@ -80,8 +80,8 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, Map<DFPattern, Expr>)>> Crea
     if (matches.count(pat_rhs_permute_dims)) {
       auto call_permute = Downcast<Call>(matches[pat_rhs_permute_dims]);
       auto attrs = call_permute->attrs.as<PermuteDimsAttrs>();
-      ICHECK(attrs) << "Operator permute_dims should have PermuteDimsAttrs, "
-                    << "but " << call_permute << " has attributes " << call_permute->attrs;
+      TVM_FFI_ICHECK(attrs) << "Operator permute_dims should have PermuteDimsAttrs, "
+                            << "but " << call_permute << " has attributes " << call_permute->attrs;
       auto axes = attrs->axes;
 
       rhs_a = permute_dims(rhs_a, axes);
@@ -105,10 +105,10 @@ Pass ExpandMatmulOfSum() {
   return CreateFunctionPass(pass_func, 1, "ExpandMatmulOfSum", {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.transform.ExpandMatmulOfSum", ExpandMatmulOfSum);
-});
+}
 
 }  // namespace transform
 }  // namespace relax

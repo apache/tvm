@@ -14,19 +14,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F841
 """NNAPI integration operator tests."""
-
-from typing import List
 
 import numpy as np
 import pytest
-from test_nnapi.conftest import remote
-from test_nnapi.infrastructure import build_and_run
 
 import tvm
 import tvm.script
 import tvm.script.relax as R
 import tvm.script.tir as T
+from test_nnapi.conftest import remote
+from test_nnapi.infrastructure import build_and_run
 
 
 def _build_and_run_network(remote_obj, tracker, mod, input_data):
@@ -255,7 +254,7 @@ def test_astype():
         tracker,
         mod,
         inputs=[
-            tvm.nd.array(np.random.uniform(size=(8, 10, 15)).astype("float32")),
+            tvm.runtime.tensor(np.random.uniform(size=(8, 10, 15)).astype("float32")),
         ],
     )
 
@@ -284,7 +283,7 @@ def test_mean():
         tracker,
         mod,
         inputs=[
-            tvm.nd.array(np.random.uniform(size=(1, 10, 15)).astype("float32")),
+            tvm.runtime.tensor(np.random.uniform(size=(1, 10, 15)).astype("float32")),
         ],
     )
 
@@ -351,7 +350,7 @@ def test_max_pool2d():
 
 
 def verify(remote_obj, tracker, mod, inputs):
-    inputs_tvm: List[tvm.nd.NDArray] = [tvm.nd.array(v) for v in inputs]
+    inputs_tvm: list[tvm.runtime.Tensor] = [tvm.runtime.tensor(v) for v in inputs]
     outputs = _build_and_run_network(remote_obj, tracker, mod, inputs_tvm)
     nnapi_out = outputs[0]
     expected_out = outputs[1]

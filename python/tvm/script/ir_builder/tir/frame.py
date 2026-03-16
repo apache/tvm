@@ -15,102 +15,59 @@
 # specific language governing permissions and limitations
 # under the License.
 """IRBuilder for TIR"""
-from typing import List, Union
 
-from tvm.ffi import register_object as _register_object
-from tvm.tir import Buffer, Var
+from tvm_ffi import register_object as _register_object
+
+from tvm.tir import Var
 
 from ..base import IRBuilderFrame
 
 
 @_register_object("script.ir_builder.tir.TIRFrame")
-class TIRFrame(IRBuilderFrame):
-    ...
+class TIRFrame(IRBuilderFrame): ...
 
 
 @_register_object("script.ir_builder.tir.PrimFuncFrame")
-class PrimFuncFrame(TIRFrame):
-    ...
+class PrimFuncFrame(TIRFrame): ...
 
 
-@_register_object("script.ir_builder.tir.BlockFrame")
-class BlockFrame(TIRFrame):
-    ...
+@_register_object("script.ir_builder.tir.SSBlockFrame")
+class SBlockFrame(TIRFrame): ...
 
 
-@_register_object("script.ir_builder.tir.BlockInitFrame")
-class BlockInitFrame(TIRFrame):
-    ...
+@_register_object("script.ir_builder.tir.SBlockInitFrame")
+class BlockInitFrame(TIRFrame): ...
 
 
 @_register_object("script.ir_builder.tir.ForFrame")
 class ForFrame(TIRFrame):
-    def __enter__(self) -> Union[Var, List[Var]]:  # type: ignore[override]
+    def __enter__(self) -> Var | list[Var]:  # type: ignore[override]
         super().__enter__()
         return self.vars if len(self.vars) > 1 else self.vars[0]
 
 
 @_register_object("script.ir_builder.tir.AssertFrame")
-class AssertFrame(TIRFrame):
-    ...
-
-
-@_register_object("script.ir_builder.tir.LetFrame")
-class LetFrame(TIRFrame):
-    def __enter__(self) -> Var:
-        super().__enter__()
-        return self.var
-
-
-@_register_object("script.ir_builder.tir.RealizeFrame")
-class RealizeFrame(TIRFrame):
-    ...
-
-
-@_register_object("script.ir_builder.tir.AllocateFrame")
-class AllocateFrame(TIRFrame):
-    def __enter__(self) -> Buffer:
-        super().__enter__()
-        return self.buffer_var
-
-
-@_register_object("script.ir_builder.tir.AllocateConstFrame")
-class AllocateConstFrame(TIRFrame):
-    def __enter__(self) -> Buffer:
-        super().__enter__()
-        return self.buffer_var
+class AssertFrame(TIRFrame): ...
 
 
 @_register_object("script.ir_builder.tir.AttrFrame")
-class AttrFrame(TIRFrame):
-    ...
+class AttrFrame(TIRFrame): ...
 
 
 @_register_object("script.ir_builder.tir.WhileFrame")
-class WhileFrame(TIRFrame):
-    ...
+class WhileFrame(TIRFrame): ...
 
 
 @_register_object("script.ir_builder.tir.IfFrame")
-class IfFrame(TIRFrame):
-    ...
+class IfFrame(TIRFrame): ...
 
 
 @_register_object("script.ir_builder.tir.ThenFrame")
-class ThenFrame(TIRFrame):
-    ...
+class ThenFrame(TIRFrame): ...
 
 
 @_register_object("script.ir_builder.tir.ElseFrame")
-class ElseFrame(TIRFrame):
-    ...
-
-
-@_register_object("script.ir_builder.tir.DeclBufferFrame")
-class DeclBufferFrame(TIRFrame):
-    def __enter__(self) -> Buffer:
-        super().__enter__()
-        return self.buffer
+class ElseFrame(TIRFrame): ...
 
 
 @_register_object("script.ir_builder.tir.LaunchThreadFrame")

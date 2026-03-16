@@ -42,7 +42,7 @@ size_t get_file_size(std::ifstream&& in_file) {
 std::string load_text_file(const std::string& file_name) {
   constexpr size_t block_size = 1024 * 1024;  // 1MB
   std::ifstream in_file(file_name);
-  ICHECK(in_file.is_open()) << "cannot open file " << file_name;
+  TVM_FFI_ICHECK(in_file.is_open()) << "cannot open file " << file_name;
   size_t file_size = get_file_size(in_file);
   std::string buffer(file_size + 1, 0);
 
@@ -52,7 +52,7 @@ std::string load_text_file(const std::string& file_name) {
 
 void* load_binary_file(const std::string& file_name, void* buffer, size_t buffer_size) {
   std::ifstream in_file(file_name);
-  ICHECK(in_file.is_open()) << "cannot open file " << file_name;
+  TVM_FFI_ICHECK(in_file.is_open()) << "cannot open file " << file_name;
   size_t file_size = get_file_size(in_file);
 
   in_file.read(reinterpret_cast<std::ifstream::char_type*>(buffer),
@@ -62,7 +62,7 @@ void* load_binary_file(const std::string& file_name, void* buffer, size_t buffer
 
 void write_binary_file(const std::string& file_name, void* buffer, size_t buffer_size) {
   std::ofstream out_file(file_name);
-  ICHECK(out_file.is_open()) << "cannot open file " << file_name;
+  TVM_FFI_ICHECK(out_file.is_open()) << "cannot open file " << file_name;
 
   out_file.write(reinterpret_cast<std::ofstream::char_type*>(buffer), buffer_size);
 }

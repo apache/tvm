@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from typing import Optional, Union
 
 import tvm
 import tvm.script
@@ -25,8 +24,8 @@ from tvm.script import relax as R
 
 
 def _check(
-    parsed: Union[relax.Function, IRModule],
-    expect: Optional[Union[relax.Function, IRModule]],
+    parsed: relax.Function | IRModule,
+    expect: relax.Function | IRModule | None,
 ):
     test = parsed.script(show_meta=True)
     roundtrip_mod = tvm.script.from_source(test)
@@ -37,9 +36,9 @@ def _check(
 
 def test_take():
     @R.function
-    def foo(
-        x: R.Tensor((2, 3, 4), "float32"), indices: R.Tensor((3,), "int64")
-    ) -> R.Tensor((2, 3, 3), "float32"):
+    def foo(x: R.Tensor((2, 3, 4), "float32"), indices: R.Tensor((3,), "int64")) -> R.Tensor(
+        (2, 3, 3), "float32"
+    ):
         gv: R.Tensor((2, 3, 3), "float32") = R.take(x, indices, axis=2)
         return gv
 

@@ -15,9 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 """External function interface to random library."""
+
+import tvm_ffi
+
 import tvm
 from tvm import te
-import tvm.ffi
 
 
 def randint(low, high, size, dtype="int32"):
@@ -112,4 +114,4 @@ def normal(loc, scale, size):
     )
 
 
-tvm.ffi._init_api("tvm.contrib.random")
+tvm_ffi.init_ffi_api("tvm.contrib.random")

@@ -16,8 +16,6 @@
 # under the License.
 """The tir expression operation registration"""
 
-from typing import Type
-
 from tvm import tir
 from tvm.runtime import DataType, DataTypeCode
 from tvm.tir import IntImm
@@ -26,7 +24,7 @@ from tvm.tir.expr import FloatImm
 from .._core import OpMethod, doc, register_op
 
 
-def _register_expr_op(ty: Type):  # pylint: disable=invalid-name
+def _register_expr_op(ty: type):  # pylint: disable=invalid-name
     ty._dispatch_type = ty  # pylint: disable=protected-access
 
     def _and(a, b):
@@ -61,6 +59,7 @@ def _register_expr_op(ty: Type):  # pylint: disable=invalid-name
                 if (
                     DataType(b.dtype).type_code == DataTypeCode.INT
                     or DataType(b.dtype).type_code == DataTypeCode.UINT
+                    or DataType(b.dtype).type_code == DataTypeCode.BOOL
                 ):
                     a = IntImm(_get_type_str(b.dtype), a)
                 elif DataType(b.dtype).type_code == DataTypeCode.FLOAT:
@@ -80,6 +79,7 @@ def _register_expr_op(ty: Type):  # pylint: disable=invalid-name
             if (
                 DataType(a.dtype).type_code == DataTypeCode.INT
                 or DataType(a.dtype).type_code == DataTypeCode.UINT
+                or DataType(a.dtype).type_code == DataTypeCode.BOOL
             ):
                 b = IntImm(_get_type_str(a.dtype), b)
             elif DataType(a.dtype).type_code == DataTypeCode.FLOAT:
@@ -116,7 +116,7 @@ def _register_expr_op(ty: Type):  # pylint: disable=invalid-name
     def _ge(a, b):
         return _auto_broadcast(a, b, tir.GE)
 
-    def r(op: Type, i: int, m: OpMethod):  # pylint: disable=invalid-name
+    def r(op: type, i: int, m: OpMethod):  # pylint: disable=invalid-name
         register_op(ty, op, i)(m)
 
     for i in [0, 1]:

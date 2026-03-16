@@ -43,9 +43,7 @@
 #include <llvm/IR/Module.h>
 #include <llvm/IR/Type.h>
 #include <llvm/IR/Value.h>
-#if TVM_LLVM_VERSION >= 100
 #include <llvm/Support/Alignment.h>
-#endif
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Transforms/Utils/ModuleUtils.h>
 #include <tvm/runtime/module.h>
@@ -69,11 +67,15 @@ std::unique_ptr<llvm::Module> CodeGenBlob(const std::string& data, bool system_l
   llvm::LLVMContext* ctx = llvm_target->GetContext();
   std::string module_name = c_symbol_prefix + "devc";
   auto module = std::make_unique<llvm::Module>(module_name, *ctx);
+#if TVM_LLVM_VERSION >= 210
+  module->setTargetTriple(triple);
+#else
   module->setTargetTriple(triple.str());
+#endif
   llvm_target->SetTargetMetadata(module.get());
   module->setDataLayout(tm->createDataLayout());
   auto* blob_value = llvm::ConstantDataArray::getString(*ctx, data, false);
-  std::string mdev_blob_name = c_symbol_prefix + runtime::symbol::tvm_ffi_library_bin;
+  std::string mdev_blob_name = c_symbol_prefix + ffi::symbol::tvm_ffi_library_bin;
 
   auto* tvm_ffi_library_bin = new llvm::GlobalVariable(
       *module, blob_value->getType(), true, llvm::GlobalValue::ExternalLinkage, blob_value,
@@ -91,11 +93,7 @@ std::unique_ptr<llvm::Module> CodeGenBlob(const std::string& data, bool system_l
     tvm_ffi_library_bin->setSection(".lrodata");
   }
 
-#if TVM_LLVM_VERSION >= 100
   tvm_ffi_library_bin->setAlignment(llvm::Align(1));
-#else
-  tvm_ffi_library_bin->setAlignment(1);
-#endif
 
   if (triple.isOSWindows()) {
     tvm_ffi_library_bin->setDLLStorageClass(llvm::GlobalVariable::DLLExportStorageClass);
@@ -112,17 +110,8 @@ std::unique_ptr<llvm::Module> CodeGenBlob(const std::string& data, bool system_l
     auto* tvm_ffi_library_bin_reg =
         new llvm::GlobalVariable(*module, int32_ty, false, llvm::GlobalValue::InternalLinkage,
                                  constant_zero, mdev_blob_name + "_reg_");
-    auto tvm_ffi_library_bin_reg_alignment =
-#if TVM_LLVM_VERSION >= 110
-        module->getDataLayout().getABITypeAlign(int32_ty);
-#else
-        module->getDataLayout().getABITypeAlignment(int32_ty);
-#endif
-#if TVM_LLVM_VERSION >= 100
+    auto tvm_ffi_library_bin_reg_alignment = module->getDataLayout().getABITypeAlign(int32_ty);
     tvm_ffi_library_bin_reg->setAlignment(llvm::Align(tvm_ffi_library_bin_reg_alignment));
-#else
-    tvm_ffi_library_bin_reg->setAlignment(tvm_ffi_library_bin_reg_alignment);
-#endif
 
     auto* tvm_ffi_library_bin_string_ty =
         llvm::ArrayType::get(int8_ty, mdev_blob_name.length() + 1);
@@ -131,11 +120,7 @@ std::unique_ptr<llvm::Module> CodeGenBlob(const std::string& data, bool system_l
     auto* tvm_ffi_library_bin_string = new llvm::GlobalVariable(
         *module, tvm_ffi_library_bin_string_ty, true, llvm::GlobalValue::PrivateLinkage,
         tvm_ffi_library_bin_string_value, mdev_blob_name + ".str");
-#if TVM_LLVM_VERSION >= 100
     tvm_ffi_library_bin_string->setAlignment(llvm::Align(1));
-#else
-    tvm_ffi_library_bin_string->setAlignment(1);
-#endif
 
     // Global init function
     llvm::Function* init_fn = llvm::Function::Create(
@@ -147,11 +132,11 @@ std::unique_ptr<llvm::Module> CodeGenBlob(const std::string& data, bool system_l
         llvm::FunctionType::get(void_ty, false), llvm::GlobalValue::InternalLinkage,
         llvm::Twine("__cxx_global_var_init"), module.get());
 
-    // Create TVMBackendRegisterSystemLibSymbol function
+    // Create TVMFFIEnvModRegisterSystemLibSymbol function
     llvm::Function* tvm_backend_fn =
         llvm::Function::Create(llvm::FunctionType::get(int32_ty, {int8_ptr_ty, int8_ptr_ty}, false),
                                llvm::GlobalValue::ExternalLinkage,
-                               llvm::Twine("TVMBackendRegisterSystemLibSymbol"), module.get());
+                               llvm::Twine("TVMFFIEnvModRegisterSystemLibSymbol"), module.get());
 
     // Set necessary fn sections
     auto get_static_init_section_specifier = [&triple]() -> std::string {

@@ -37,13 +37,13 @@
 namespace tvm {
 namespace relax {
 
-TVM_FFI_STATIC_INIT_BLOCK({ DistributionAttrs::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK() { DistributionAttrs::RegisterReflection(); }
 
 /* relax.dist.annotate_sharding */
-TVM_REGISTER_NODE_TYPE(DistributionAttrs);
+
 Expr annotate_sharding(Expr input, distributed::DeviceMesh device_mesh,
                        distributed::Placement placement) {
-  ObjectPtr<DistributionAttrs> attrs = make_object<DistributionAttrs>();
+  ObjectPtr<DistributionAttrs> attrs = ffi::make_object<DistributionAttrs>();
   attrs->device_mesh = device_mesh;
   attrs->placement = placement;
 
@@ -51,10 +51,10 @@ Expr annotate_sharding(Expr input, distributed::DeviceMesh device_mesh,
   return Call(op, {std::move(input)}, Attrs(attrs), {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.dist.annotate_sharding", annotate_sharding);
-});
+}
 
 StructInfo InferStructInfoAnnotateSharding(const Call& call, const BlockBuilder& ctx) {
   return GetStructInfo(call->args[0]);
@@ -68,10 +68,10 @@ TVM_REGISTER_OP("relax.dist.annotate_sharding")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.dist.redistribute */
-TVM_REGISTER_NODE_TYPE(DistributionAttrs);
+
 Expr redistribute(Expr input, distributed::DeviceMesh device_mesh,
                   distributed::Placement placement) {
-  ObjectPtr<DistributionAttrs> attrs = make_object<DistributionAttrs>();
+  ObjectPtr<DistributionAttrs> attrs = ffi::make_object<DistributionAttrs>();
   attrs->device_mesh = device_mesh;
   attrs->placement = placement;
 
@@ -79,15 +79,15 @@ Expr redistribute(Expr input, distributed::DeviceMesh device_mesh,
   return Call(op, {std::move(input)}, Attrs(attrs), {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.dist.redistribute", redistribute);
-});
+}
 
 StructInfo InferDistStructInfoRedistribute(const Call& call, const BlockBuilder& ctx) {
   const auto* attrs = call->attrs.as<DistributionAttrs>();
   const auto* sinfo = GetStructInfoAs<distributed::DTensorStructInfoNode>(call->args[0]);
-  ICHECK(sinfo);
+  TVM_FFI_ICHECK(sinfo);
   return distributed::DTensorStructInfo(sinfo->tensor_sinfo, attrs->device_mesh, attrs->placement);
 }
 
@@ -102,7 +102,7 @@ StructInfo InferStructInfoCallTIRLocalView(const Call& call, const BlockBuilder&
     ctx->ReportFatal(Diagnostic::Error(call)
                      << "sinfo_args should have exactly 1 output struct info.");
   }
-  CHECK(call->args[0]->IsInstance<GlobalVarNode>())
+  TVM_FFI_ICHECK(call->args[0]->IsInstance<GlobalVarNode>())
       << "call_tir_local_view expects the first argument to be a GlobalVar referring to a TIR "
          "PrimFunc. "
       << "However, gets " << call->args[0];
@@ -120,11 +120,11 @@ TVM_REGISTER_OP("relax.dist.call_tir_local_view")
     .set_attr<Bool>("FPurity", Bool(true));
 
 Expr MakeCallTIRLocalView(Expr func, Tuple args,
-                          Array<distributed::DTensorStructInfo> out_sinfo_list,
-                          Optional<Expr> packed_ints) {
+                          ffi::Array<distributed::DTensorStructInfo> out_sinfo_list,
+                          ffi::Optional<Expr> packed_ints) {
   for (const distributed::DTensorStructInfo& sinfo : out_sinfo_list) {
     const auto* shape = sinfo->tensor_sinfo->shape.as<ShapeExprNode>();
-    CHECK(shape != nullptr)
+    TVM_FFI_ICHECK(shape != nullptr)
         << "out_sinfo of call_tir_local_view should have defined ShapeExpr as shape. "
            "However, one given structure info is "
         << sinfo;
@@ -148,10 +148,10 @@ Expr MakeCallTIRLocalView(Expr func, Tuple args,
   return call;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.dist.call_tir_local_view", MakeCallTIRLocalView);
-});
+}
 
 StructInfo InferStructInfoRtoS(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo input_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
@@ -162,7 +162,7 @@ StructInfo InferStructInfoRtoS(const Call& call, const BlockBuilder& ctx) {
 
   arith::Analyzer* analyzer = ctx->GetAnalyzer();
   auto input_shape = input_sinfo->GetShape();
-  CHECK(input_shape.defined())
+  TVM_FFI_ICHECK(input_shape.defined())
       << "input tensor of redistribute_replica_to_shard should have defined shape.";
 
   if (analyzer->CanProve(floormod(input_shape.value()[attrs->axis], PrimExpr(num_workers))) != 0) {
@@ -175,22 +175,22 @@ StructInfo InferStructInfoRtoS(const Call& call, const BlockBuilder& ctx) {
                      << " while num_workers is " << num_workers);
   }
 
-  Array<PrimExpr> output_shape = input_shape.value();
+  ffi::Array<PrimExpr> output_shape = input_shape.value();
   output_shape.Set(attrs->axis, div(output_shape[attrs->axis], num_workers));
   return TensorStructInfo(ShapeExpr(output_shape), output_dtype, input_sinfo->vdevice);
 }
 
 StructInfo InferDistStructInfoRtoS(const Call& call, const BlockBuilder& ctx) {
   using namespace distributed;
-  Array<DTensorStructInfo> input_dtensor_sinfos = GetInputDTensorStructInfo(call, ctx);
-  ICHECK(input_dtensor_sinfos.size() == 1);
+  ffi::Array<DTensorStructInfo> input_dtensor_sinfos = GetInputDTensorStructInfo(call, ctx);
+  TVM_FFI_ICHECK(input_dtensor_sinfos.size() == 1);
   DTensorStructInfo input_dtensor_sinfo = input_dtensor_sinfos[0];
   TensorStructInfo tensor_sinfo = input_dtensor_sinfo->tensor_sinfo;
   const auto* attrs = call->attrs.as<ScatterCollectiveAttrs>();
   int num_workers = attrs->num_workers;
   arith::Analyzer* analyzer = ctx->GetAnalyzer();
   auto input_shape = tensor_sinfo->GetShape();
-  CHECK(input_shape.defined())
+  TVM_FFI_ICHECK(input_shape.defined())
       << "input tensor of redistribute_replica_to_shard should have defined shape.";
 
   if (analyzer->CanProve(floormod(input_shape.value()[attrs->axis], PrimExpr(num_workers))) != 0) {
@@ -205,14 +205,14 @@ StructInfo InferDistStructInfoRtoS(const Call& call, const BlockBuilder& ctx) {
 
   DeviceMesh device_mesh = input_dtensor_sinfo->device_mesh;
   // FIXME: this is a hack where there's only 1d mesh
-  ICHECK(device_mesh->shape.size() == 1);
-  ICHECK(input_dtensor_sinfo->placement->dim_specs[0]->kind == PlacementSpecKind::kReplica);
+  TVM_FFI_ICHECK(device_mesh->shape.size() == 1);
+  TVM_FFI_ICHECK(input_dtensor_sinfo->placement->dim_specs[0]->kind == PlacementSpecKind::kReplica);
   return DTensorStructInfo(tensor_sinfo, device_mesh,
                            Placement::FromText("S[" + std::to_string(attrs->axis) + "]"));
 }
 
 Expr redistribute_replica_to_shard(Expr input, int num_workers, int axis) {
-  ObjectPtr<ScatterCollectiveAttrs> attrs = make_object<ScatterCollectiveAttrs>();
+  ObjectPtr<ScatterCollectiveAttrs> attrs = ffi::make_object<ScatterCollectiveAttrs>();
   attrs->num_workers = std::move(num_workers);
   attrs->axis = std::move(axis);
   static const Op& op = Op::Get("relax.dist.redistribute_replica_to_shard");
@@ -220,11 +220,11 @@ Expr redistribute_replica_to_shard(Expr input, int num_workers, int axis) {
   return Call(op, {std::move(input)}, Attrs{attrs}, {});
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.dist.redistribute_replica_to_shard",
                         redistribute_replica_to_shard);
-});
+}
 
 TVM_REGISTER_OP("relax.dist.redistribute_replica_to_shard")
     .set_num_inputs(1)

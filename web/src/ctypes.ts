@@ -41,7 +41,7 @@ export const enum SizeOf {
   TVMFFIAny = 8 * 2,
   DLDataType = I32,
   DLDevice = I32 + I32,
-  ObjectHeader = 8 * 2,
+  ObjectHeader = 8 * 3,
 }
 
 //---------------The new TVM FFI---------------
@@ -51,6 +51,22 @@ export const enum SizeOf {
  * We are keeping the same style as C API here.
  */
 export const enum TypeIndex {
+  /*
+   * \brief The root type of all FFI objects.
+   *
+   * We include it so TypeIndex captures all possible runtime values.
+   * `kTVMFFIAny` code will never appear in Any::type_index.
+   * However, it may appear in field annotations during reflection.
+   */
+  kTVMFFIAny = -1,
+  // [Section] On-stack POD and special types: [0, kTVMFFIStaticObjectBegin)
+  // N.B. `kTVMFFIRawStr` is a string backed by a `\0`-terminated char array,
+  // which is not owned by TVMFFIAny. It is required that the following
+  // invariant holds:
+  // - `Any::type_index` is never `kTVMFFIRawStr`
+  // - `AnyView::type_index` can be `kTVMFFIRawStr`
+  //
+  /*! \brief None/nullptr value */
   kTVMFFINone = 0,
   /*! \brief POD int value */
   kTVMFFIInt = 1,
@@ -66,12 +82,16 @@ export const enum TypeIndex {
   kTVMFFIDevice = 6,
   /*! \brief DLTensor* */
   kTVMFFIDLTensorPtr = 7,
-  /*! \brief const char**/
+  /*! \brief const char* */
   kTVMFFIRawStr = 8,
   /*! \brief TVMFFIByteArray* */
   kTVMFFIByteArrayPtr = 9,
   /*! \brief R-value reference to ObjectRef */
   kTVMFFIObjectRValueRef = 10,
+  /*! \brief Small string on stack */
+  kTVMFFISmallStr = 11,
+  /*! \brief Small bytes on stack */
+  kTVMFFISmallBytes = 12,
   /*! \brief Start of statically defined objects. */
   kTVMFFIStaticObjectBegin = 64,
   /*!
@@ -91,20 +111,39 @@ export const enum TypeIndex {
   kTVMFFIError = 67,
   /*! \brief Function object. */
   kTVMFFIFunction = 68,
-  /*! \brief Array object. */
-  kTVMFFIArray = 69,
-  /*! \brief Map object. */
-  kTVMFFIMap = 70,
   /*!
    * \brief Shape object, layout = { TVMFFIObject, { const int64_t*, size_t }, ... }
    */
-  kTVMFFIShape = 71,
+  kTVMFFIShape = 69,
   /*!
-   * \brief NDArray object, layout = { TVMFFIObject, DLTensor, ... }
+   * \brief Tensor object, layout = { TVMFFIObject, DLTensor, ... }
    */
-  kTVMFFINDArray = 72,
-  /*! \brief Runtime module object. */
+  kTVMFFITensor = 70,
+  /*! \brief Array object. */
+  kTVMFFIArray = 71,
+  //----------------------------------------------------------------
+  // more complex objects
+  //----------------------------------------------------------------
+  /*! \brief Map object. */
+  kTVMFFIMap = 72,
+  /*! \brief Runtime dynamic loaded module object. */
   kTVMFFIModule = 73,
+  /*!
+   * \brief Opaque python object.
+   *
+   * This is a special type index to indicate we are storing an opaque PyObject.
+   * Such object may interact with callback functions that are registered to support
+   * python-related operations.
+   *
+   * We only translate the objects that we do not recognize into this type index.
+   *
+   * \sa TVMFFIObjectCreateOpaque
+   */
+  kTVMFFIOpaquePyObject = 74,
+  kTVMFFIStaticObjectEnd,
+  // [Section] Dynamic Boxed: [kTVMFFIDynObjectBegin, +oo)
+  /*! \brief Start of type indices that are allocated at runtime. */
+  kTVMFFIDynObjectBegin = 128
 }
 
 // -- TVM Wasm Auxiliary C API --
@@ -138,9 +177,9 @@ export type FTVMFFIWasmFunctionCreate = (
 export type FTVMFFIWasmFunctionDeleter = (self: Pointer) => void;
 
 /**
- * int TVMFFIObjectFree(TVMFFIObjectHandle obj);
+ * int TVMFFIObjectDecRef(TVMFFIObjectHandle obj);
  */
-export type FTVMFFIObjectFree = (obj: Pointer) => number;
+export type FTVMFFIObjectDecRef = (obj: Pointer) => number;
 
 /**
  * int TVMFFITypeKeyToIndex(const TVMFFIByteArray* type_key, int32_t* out_tindex);

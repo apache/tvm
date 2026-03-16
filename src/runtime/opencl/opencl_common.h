@@ -29,8 +29,8 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/memory/memory_manager.h>
-#include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/profiling.h>
+#include <tvm/runtime/tensor.h>
 
 /* There are many OpenCL platforms that do not yet support OpenCL 2.0,
  * hence we use 1.2 APIs, some of which are now deprecated.  In order
@@ -71,7 +71,7 @@
 #include <vector>
 
 #include "../file_utils.h"
-#include "../meta_data.h"
+#include "../metadata.h"
 #include "../pack_args.h"
 #include "../texture.h"
 #include "../thread_storage_scope.h"
@@ -187,6 +187,8 @@ inline const char* CLGetErrorString(cl_int error) {
 
 inline cl_channel_type DTypeToOpenCLChannelType(DLDataType data_type) {
   DataType dtype(data_type);
+  dtype = dtype.with_lanes(1);
+
   if (dtype == DataType::Float(32)) {
     return CL_FLOAT;
   } else if (dtype == DataType::Float(16)) {
@@ -204,15 +206,18 @@ inline cl_channel_type DTypeToOpenCLChannelType(DLDataType data_type) {
   } else if (dtype == DataType::UInt(32)) {
     return CL_UNSIGNED_INT32;
   }
-  LOG(FATAL) << "data type is not supported in OpenCL runtime yet: " << dtype;
+  TVM_FFI_THROW(InternalError) << "data type is not supported in OpenCL runtime yet: " << dtype;
 }
 
 /*!
  * \brief Protected OpenCL call
  * \param func Expression to call.
  */
-#define OPENCL_CHECK_ERROR(e) \
-  { ICHECK(e == CL_SUCCESS) << "OpenCL Error, code=" << e << ": " << cl::CLGetErrorString(e); }
+#define OPENCL_CHECK_ERROR(e)                                             \
+  {                                                                       \
+    TVM_FFI_ICHECK(e == CL_SUCCESS)                                       \
+        << "OpenCL Error, code=" << e << ": " << cl::CLGetErrorString(e); \
+  }
 
 #define OPENCL_CALL(func)  \
   {                        \
@@ -279,17 +284,17 @@ class OpenCLWorkspace : public DeviceAPI {
   virtual bool IsOpenCLDevice(Device dev) { return dev.device_type == kDLOpenCL; }
   // get the queue of the device
   cl_command_queue GetQueue(Device dev) {
-    ICHECK(IsOpenCLDevice(dev));
+    TVM_FFI_ICHECK(IsOpenCLDevice(dev));
     this->Init();
-    ICHECK(dev.device_id >= 0 && static_cast<size_t>(dev.device_id) < queues.size())
+    TVM_FFI_ICHECK(dev.device_id >= 0 && static_cast<size_t>(dev.device_id) < queues.size())
         << "Invalid OpenCL device_id=" << dev.device_id << ". " << GetError();
     return queues[dev.device_id];
   }
   // get the event queue of the context
   std::vector<cl_event>& GetEventQueue(Device dev) {
-    ICHECK(IsOpenCLDevice(dev));
+    TVM_FFI_ICHECK(IsOpenCLDevice(dev));
     this->Init();
-    ICHECK(dev.device_id >= 0 && static_cast<size_t>(dev.device_id) < queues.size())
+    TVM_FFI_ICHECK(dev.device_id >= 0 && static_cast<size_t>(dev.device_id) < queues.size())
         << "Invalid OpenCL device_id=" << dev.device_id << ". " << GetError();
     return events[dev.device_id];
   }
@@ -341,31 +346,31 @@ class OpenCLWorkspace : public DeviceAPI {
   }
 
   void* AllocDataSpaceView(Device dev, void* data, ffi::Shape shape, DLDataType dtype,
-                           Optional<String> mem_scope = std::nullopt);
+                           ffi::Optional<ffi::String> mem_scope = std::nullopt);
   void FreeDataSpaceView(Device dev, void* ptr);
-
   cl_device_id GetCLDeviceID(int device_id);
   // override device API
   void SetDevice(Device dev) final;
   void GetAttr(Device dev, DeviceAttrKind kind, ffi::Any* rv) final;
   void* AllocDataSpace(Device dev, size_t size, size_t alignment, DLDataType type_hint) final;
   void* AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
-                       Optional<String> mem_scope = std::nullopt) final;
-  void* AllocDataSpace(Device dev, size_t width, size_t height, DLDataType type_hint,
-                       Optional<String> mem_scope = std::nullopt);
-  void* GetNativePtr(const tvm::runtime::NDArray& narr);
-  void SetNativePtr(const tvm::runtime::NDArray& narr, void* host_ptr, size_t buf_size);
+                       ffi::Optional<ffi::String> mem_scope = std::nullopt) final;
+  void* AllocDataSpace(Device dev, size_t width, size_t height, size_t depth, DLDataType type_hint,
+                       ffi::Optional<ffi::String> mem_scope = std::nullopt);
+  void* GetNativePtr(const tvm::runtime::Tensor& narr);
+  void SetNativePtr(const tvm::runtime::Tensor& narr, void* host_ptr, size_t buf_size);
   void SetPerfHint(Device dev, cl_uint perf_hint);
   void FreeDataSpace(Device dev, void* ptr) final;
   void StreamSync(Device dev, TVMStreamHandle stream) final;
   void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final;
   void FreeWorkspace(Device dev, void* data) final;
-  size_t GetDataSize(const DLTensor& arr, Optional<String> mem_scope = std::nullopt) final;
+  size_t GetDataSize(const DLTensor& arr,
+                     ffi::Optional<ffi::String> mem_scope = std::nullopt) final;
 
   // cl_mem alloc utils
   void* AllocCLBuffer(Device dev, size_t size, size_t alignment, DLDataType type_hint);
-  void* AllocCLImage(Device dev, void* back_buffer, size_t width, size_t height, size_t row_pitch,
-                     DLDataType type_hint, Optional<String> mem_scope);
+  void* AllocCLImage(Device dev, void* back_buffer, size_t width, size_t height, size_t depth,
+                     size_t row_pitch, DLDataType type_hint, ffi::Optional<ffi::String> mem_scope);
 
   /*!
    * \brief Get the thread local ThreadEntry
@@ -436,9 +441,10 @@ struct BufferDescriptor {
     kImage2DNHWC,
   };
   BufferDescriptor() = default;
-  explicit BufferDescriptor(Optional<String> scope) : layout(MemoryLayoutFromScope(scope)) {}
-  static MemoryLayout MemoryLayoutFromScope(Optional<String> mem_scope);
-  static String ScopeFromMemoryLayout(MemoryLayout mem_scope);
+  explicit BufferDescriptor(ffi::Optional<ffi::String> scope)
+      : layout(MemoryLayoutFromScope(scope)) {}
+  static MemoryLayout MemoryLayoutFromScope(ffi::Optional<ffi::String> mem_scope);
+  static ffi::String ScopeFromMemoryLayout(MemoryLayout mem_scope);
 
   /* clBuffer object */
   // buffer should be the first element here
@@ -456,14 +462,14 @@ struct BufferDescriptor {
 // To make the call thread-safe, we create a thread-local kernel table
 // and lazily install new kernels into the kernel table when the kernel is called.
 // The kernels are recycled when the module get destructed.
-class OpenCLModuleNodeBase : public ModuleNode {
+class OpenCLModuleNodeBase : public ffi::ModuleObj {
  public:
   // Kernel table reference entry.
   struct KTRefEntry {
     size_t kernel_id;
     size_t version;
   };
-  explicit OpenCLModuleNodeBase(std::unordered_map<std::string, FunctionInfo> fmap) : fmap_(fmap) {}
+  explicit OpenCLModuleNodeBase(ffi::Map<ffi::String, FunctionInfo> fmap) : fmap_(fmap) {}
   // destructor
   ~OpenCLModuleNodeBase();
 
@@ -472,14 +478,14 @@ class OpenCLModuleNodeBase : public ModuleNode {
    */
   virtual cl::OpenCLWorkspace* GetGlobalWorkspace();
 
-  const char* type_key() const final { return workspace_->type_key.c_str(); }
+  const char* kind() const final { return workspace_->type_key.c_str(); }
 
   /*! \brief Get the property of the runtime module .*/
   int GetPropertyMask() const final {
-    return ModulePropertyMask::kBinarySerializable | ModulePropertyMask::kRunnable;
+    return ffi::Module::kBinarySerializable | ffi::Module::kRunnable;
   }
 
-  ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) override;
+  ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) override;
 
   // Initialize the programs
   virtual void Init() = 0;
@@ -492,7 +498,7 @@ class OpenCLModuleNodeBase : public ModuleNode {
   // In case of static destruction order problem.
   cl::OpenCLWorkspace* workspace_;
   // function information table.
-  std::unordered_map<std::string, FunctionInfo> fmap_;
+  ffi::Map<ffi::String, FunctionInfo> fmap_;
   // Module local mutex
   std::mutex build_lock_;
   // Mapping from primitive name to cl program for each device.
@@ -506,17 +512,17 @@ class OpenCLModuleNodeBase : public ModuleNode {
 class OpenCLModuleNode : public OpenCLModuleNodeBase {
  public:
   explicit OpenCLModuleNode(std::string data, std::string fmt,
-                            std::unordered_map<std::string, FunctionInfo> fmap, std::string source)
+                            ffi::Map<ffi::String, FunctionInfo> fmap, std::string source)
       : OpenCLModuleNodeBase(fmap), data_(data), fmt_(fmt), source_(source) {}
 
-  ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final;
+  ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) final;
   // Return true if OpenCL program for the requested function and device was created
   bool IsProgramCreated(const std::string& func_name, int device_id);
-  void SaveToFile(const String& file_name, const String& format) final;
-  void SaveToBinary(dmlc::Stream* stream) final;
+  void WriteToFile(const ffi::String& file_name, const ffi::String& format) const final;
+  ffi::Bytes SaveToBytes() const final;
   void SetPreCompiledPrograms(const std::string& bytes);
   std::string GetPreCompiledPrograms();
-  String GetSource(const String& format) final;
+  ffi::String InspectSource(const ffi::String& format) const final;
 
   // Initialize the programs
   void Init() override;
@@ -588,10 +594,9 @@ class OpenCLTimerNode : public TimerNode {
   OpenCLTimerNode() {}
   explicit OpenCLTimerNode(Device dev) : dev_(dev) {}
 
-  static constexpr const char* _type_key = "runtime.opencl.OpenCLTimerNode";
   static size_t count_timer_execs;
   static std::vector<size_t> event_start_idxs;
-  TVM_DECLARE_FINAL_OBJECT_INFO(OpenCLTimerNode, TimerNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.opencl.OpenCLTimerNode", OpenCLTimerNode, TimerNode);
 
  private:
   int64_t duration;

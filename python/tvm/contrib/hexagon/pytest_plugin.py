@@ -16,12 +16,11 @@
 # under the License.
 
 # pylint: disable=invalid-name,redefined-outer-name
-""" Hexagon testing fixtures used to deduce testing argument
-    values from testing parameters """
+"""Hexagon testing fixtures used to deduce testing argument
+values from testing parameters"""
 
 import os
 import random
-from typing import Optional, Union
 
 import pytest
 
@@ -39,11 +38,13 @@ ANDROID_SERIAL_NUMBER = "ANDROID_SERIAL_NUMBER"
 ADB_SERVER_SOCKET = "ADB_SERVER_SOCKET"
 RNG_SEEDED = False
 
-HEXAGON_AOT_LLVM_TARGET = (
-    "llvm -keys=hexagon,cpu "
-    "-mattr=+hvxv68,+hvx-length128b,+hvx-qfloat,-hvx-ieee-fp "
-    "-mcpu=hexagonv68 -mtriple=hexagon"
-)
+HEXAGON_AOT_LLVM_TARGET = {
+    "kind": "llvm",
+    "keys": ["hexagon", "cpu"],
+    "mattr": ["+hvxv68", "+hvx-length128b", "+hvx-qfloat", "-hvx-ieee-fp"],
+    "mcpu": "hexagonv68",
+    "mtriple": "hexagon",
+}
 
 
 @tvm.testing.fixture
@@ -64,7 +65,7 @@ def _compose(args, decs):
 requires_hexagon_toolchain = tvm.testing.requires_hexagon(support_required="compile-only")
 
 
-def android_serial_number() -> Optional[str]:
+def android_serial_number() -> str | None:
     """Return the android serial number"""
     serial = os.getenv(ANDROID_SERIAL_NUMBER, default="")
     # Setting ANDROID_SERIAL_NUMBER to an empty string should be
@@ -112,7 +113,7 @@ def get_free_port() -> int:
 
 
 @pytest.fixture(scope="session")
-def _tracker_info() -> Union[str, int]:
+def _tracker_info() -> str | int:
     env_tracker_host = os.getenv(TVM_TRACKER_HOST, default="")
     env_tracker_port = os.getenv(TVM_TRACKER_PORT, default="")
 
@@ -315,8 +316,10 @@ aot_host_target = tvm.testing.parameter(HEXAGON_AOT_LLVM_TARGET)
 @tvm.testing.fixture
 def aot_target(aot_host_target):
     if aot_host_target == "c":
-        yield tvm.target.hexagon("v68")
-    elif aot_host_target.startswith("llvm"):
+        yield tvm.target.Target({"kind": "hexagon", "mtriple": "hexagon", "mcpu": "hexagonv68"})
+    elif isinstance(aot_host_target, dict) and aot_host_target.get("kind") == "llvm":
+        yield aot_host_target
+    elif isinstance(aot_host_target, str) and aot_host_target.startswith("llvm"):
         yield aot_host_target
     else:
         assert False, "Incorrect AoT host target: {aot_host_target}. Options are [c, llvm]."

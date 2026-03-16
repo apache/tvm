@@ -18,8 +18,8 @@
  */
 
 /*!
- *  Build cuda modules from source.
- *  requires cuda to be available.
+ *  Build CUDA modules from source.
+ *  requires CUDA to be available.
  *
  * \file build_cuda.cc
  */
@@ -28,7 +28,6 @@
 #include <tvm/ffi/reflection/registry.h>
 #endif
 #include <cuda_runtime.h>
-#include <nvrtc.h>
 
 #include <cstdlib>
 
@@ -40,105 +39,24 @@
 namespace tvm {
 namespace codegen {
 
-#define NVRTC_CALL(x)                                                                        \
-  {                                                                                          \
-    nvrtcResult result = x;                                                                  \
-    if (result != NVRTC_SUCCESS) {                                                           \
-      LOG(FATAL) << "NvrtcError: " #x " failed with error: " << nvrtcGetErrorString(result); \
-    }                                                                                        \
-  }
+// Note: CUDA include path finding and NVRTC compilation are now handled
+// in Python for better maintainability and to leverage cuda-python bindings.
+// The C++ NVRTC code has been removed as part of the Python-first
+// compilation strategy.
 
-std::string FindCUDAIncludePath() {
-#if defined(_WIN32)
-  const std::string delimiter = "\\";
-#else
-  const std::string delimiter = "/";
-#endif
-  std::string cuda_include_path;
-  const char* cuda_path_env = std::getenv("CUDA_PATH");
-  if (cuda_path_env != nullptr) {
-    cuda_include_path += cuda_path_env;
-    cuda_include_path += delimiter + "include";
-    return cuda_include_path;
-  }
-
-#if defined(__linux__)
-  struct stat st;
-  cuda_include_path = "/usr/local/cuda/include";
-  if (stat(cuda_include_path.c_str(), &st) == 0) {
-    return cuda_include_path;
-  }
-
-  if (stat("/usr/include/cuda.h", &st) == 0) {
-    return "/usr/include";
-  }
-#endif
-  LOG(FATAL) << "Cannot find cuda include path."
-             << "CUDA_PATH is not set or CUDA is not installed in the default installation path."
-             << "In other than linux, it is necessary to set CUDA_PATH.";
-  return cuda_include_path;
-}
-
-std::string NVRTCCompile(const std::string& code, bool include_path = false) {
-  std::vector<std::string> compile_params;
-  std::vector<const char*> param_cstrings{};
-  nvrtcProgram prog;
-  std::string cc = "30";
-  int major, minor;
-  cudaError_t e1 = cudaDeviceGetAttribute(&major, cudaDevAttrComputeCapabilityMajor, 0);
-  cudaError_t e2 = cudaDeviceGetAttribute(&minor, cudaDevAttrComputeCapabilityMinor, 0);
-
-  if (e1 == cudaSuccess && e2 == cudaSuccess) {
-    cc = std::to_string(major) + std::to_string(minor);
-  } else {
-    LOG(WARNING) << "cannot detect compute capability from your device, "
-                 << "fall back to compute_30.";
-  }
-
-  compile_params.push_back("-arch=compute_" + cc);
-
-  if (include_path) {
-    std::string include_option = "--include-path=" + FindCUDAIncludePath();
-
-    compile_params.push_back(include_option);
-  }
-
-  for (const auto& string : compile_params) {
-    param_cstrings.push_back(string.c_str());
-  }
-  NVRTC_CALL(nvrtcCreateProgram(&prog, code.c_str(), nullptr, 0, nullptr, nullptr));
-  nvrtcResult compile_res = nvrtcCompileProgram(prog, param_cstrings.size(), param_cstrings.data());
-
-  size_t log_size;
-  NVRTC_CALL(nvrtcGetProgramLogSize(prog, &log_size));
-  std::string log;
-  log.resize(log_size);
-  NVRTC_CALL(nvrtcGetProgramLog(prog, &log[0]));
-  ICHECK_EQ(compile_res, NVRTC_SUCCESS) << log;
-  size_t ptx_size;
-  NVRTC_CALL(nvrtcGetPTXSize(prog, &ptx_size));
-
-  std::string ptx;
-  ptx.resize(ptx_size);
-  NVRTC_CALL(nvrtcGetPTX(prog, &ptx[0]));
-  NVRTC_CALL(nvrtcDestroyProgram(&prog));
-
-  return ptx;
-}
-
-runtime::Module BuildCUDA(IRModule mod, Target target) {
+ffi::Module BuildCUDA(IRModule mod, Target target) {
   bool output_ssa = false;
   CodeGenCUDA cg;
   cg.Init(output_ssa);
 
-  Map<GlobalVar, PrimFunc> functions;
+  ffi::Map<GlobalVar, PrimFunc> functions;
   for (auto [gvar, base_func] : mod->functions) {
-    ICHECK(base_func->IsInstance<PrimFuncNode>()) << "CodeGenCUDA: Can only take PrimFunc";
+    TVM_FFI_ICHECK(base_func->IsInstance<PrimFuncNode>()) << "CodeGenCUDA: Can only take PrimFunc";
     auto prim_func = Downcast<PrimFunc>(base_func);
     auto calling_conv =
         prim_func->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(tvm::CallingConv::kDefault));
-    ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch ||
-           calling_conv == CallingConv::kDefault)
+    TVM_FFI_ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch ||
+                   calling_conv == CallingConv::kDefault)
         << "CodeGenCUDA: expect calling_conv equals CallingConv::kDeviceKernelLaunch or "
            "CallingConv::kDefault";
     functions.Set(gvar, prim_func);
@@ -157,26 +75,38 @@ runtime::Module BuildCUDA(IRModule mod, Target target) {
     code = (*f)(code, target).cast<std::string>();
   }
   std::string fmt = "ptx";
-  std::string ptx;
+  std::string compiled;
+
+  // Always use Python compilation callback (nvcc or nvrtc)
+  // The C++ NVRTC fallback has been removed in favor of Python-first approach
+  auto f_compile = ffi::Function::GetGlobal("tvm_callback_cuda_compile");
+  TVM_FFI_ICHECK(f_compile != nullptr)
+      << "tvm_callback_cuda_compile not found. "
+      << "Please ensure TVM Python runtime is properly initialized.\n"
+      << "The Python callback (tvm.contrib.nvcc.tvm_callback_cuda_compile) is required "
+      << "for CUDA compilation. The C++ NVRTC fallback has been removed.\n"
+      << "Make sure to import tvm.contrib.nvcc in your Python code.";
+
+  // Enter target scope for compilation
   auto f_enter = ffi::Function::GetGlobal("target.TargetEnterScope");
   (*f_enter)(target);
-  if (auto f = ffi::Function::GetGlobal("tvm_callback_cuda_compile")) {
-    ptx = (*f)(code, target).cast<std::string>();
-    // Dirty matching to check PTX vs cubin.
-    // TODO(tqchen) more reliable checks
-    if (ptx[0] != '/') fmt = "cubin";
-  } else {
-    ptx = NVRTCCompile(code, cg.need_include_path());
-  }
+
+  // Compile CUDA code via Python callback
+  compiled = (*f_compile)(code, target).cast<std::string>();
+  // Dirty matching to check PTX vs cubin.
+  // TODO(tqchen) more reliable checks
+  if (compiled[0] != '/') fmt = "cubin";
+  // Exit target scope
   auto f_exit = ffi::Function::GetGlobal("target.TargetExitScope");
   (*f_exit)(target);
-  return CUDAModuleCreate(ptx, fmt, ExtractFuncInfo(mod), code);
+
+  return CUDAModuleCreate(compiled, fmt, ExtractFuncInfo(mod), code);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("target.build.cuda", BuildCUDA);
-});
-TVM_REGISTER_PASS_CONFIG_OPTION("cuda.kernels_output_dir", String);
+}
+TVM_REGISTER_PASS_CONFIG_OPTION("cuda.kernels_output_dir", ffi::String);
 }  // namespace codegen
 }  // namespace tvm

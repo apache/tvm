@@ -15,18 +15,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501
 import argparse
+import configparser
 import datetime
 import json
 import logging
 import urllib.error
-import configparser
-
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any
 
+from cmd_utils import REPO_ROOT, init_log
 from http_utils import get
-from cmd_utils import init_log, REPO_ROOT
 
 DOCKER_API_BASE = "https://hub.docker.com/v2/"
 PAGE_SIZE = 25
@@ -35,7 +35,7 @@ IMAGE_TAGS_FILE = REPO_ROOT / "ci" / "jenkins" / "docker-images.ini"
 TVM_CI_ECR = "477529581014.dkr.ecr.us-west-2.amazonaws.com"
 
 
-def docker_api(url: str, use_pagination: bool = False) -> Dict[str, Any]:
+def docker_api(url: str, use_pagination: bool = False) -> dict[str, Any]:
     """
     Run a paginated fetch from the public Docker Hub API
     """

@@ -15,28 +15,28 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E402
 
-import os
-import json
 import argparse
+import json
 import logging
+import os
 import re
 import sys
 from pathlib import Path
-from typing import Dict, Any, List, Tuple, Optional
+from typing import Any
 
 # Hackery to enable importing of utils from ci/scripts/jenkins
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.append(str(REPO_ROOT / "ci" / "scripts" / "jenkins"))
 
-from git_utils import git, GitHubRepo, parse_remote, find_ccs, dry_run_token
-from cmd_utils import tags_from_title, init_log
-
+from cmd_utils import init_log, tags_from_title
+from git_utils import GitHubRepo, dry_run_token, find_ccs, git, parse_remote
 
 GITHUB_NAME_REGEX = r"@[a-zA-Z0-9-]+"
 
 
-def parse_line(line: str) -> Tuple[str, List[str]]:
+def parse_line(line: str) -> tuple[str, list[str]]:
     line = line.lstrip(" -")
     line = line.split()
 
@@ -86,7 +86,7 @@ def fetch_issue(github: GitHubRepo, issue_number: int):
     return r
 
 
-def parse_teams(r: Dict[str, Any], issue_number: int) -> Dict[str, str]:
+def parse_teams(r: dict[str, Any], issue_number: int) -> dict[str, str]:
     """
     Fetch an issue and parse out series of tagged people from the issue body
     and comments
@@ -131,11 +131,11 @@ def parse_teams(r: Dict[str, Any], issue_number: int) -> Dict[str, str]:
     return {k.lower(): v for k, v in result.items() if k.strip()}
 
 
-def tags_from_labels(labels: List[Dict[str, Any]]) -> List[str]:
+def tags_from_labels(labels: list[dict[str, Any]]) -> list[str]:
     return [label["name"] for label in labels]
 
 
-def add_ccs_to_body(body: str, to_cc: List[str]) -> str:
+def add_ccs_to_body(body: str, to_cc: list[str]) -> str:
     lines = body.split("\n")
 
     cc_line_idx = None
@@ -174,8 +174,8 @@ def add_ccs_to_body(body: str, to_cc: List[str]) -> str:
 
 
 def determine_users_to_cc(
-    issue: Dict[str, Any], github: GitHubRepo, team_issue: str, issue_data: Optional[Dict[str, Any]]
-) -> List[str]:
+    issue: dict[str, Any], github: GitHubRepo, team_issue: str, issue_data: dict[str, Any] | None
+) -> list[str]:
     if issue_data is None:
         issue_data = fetch_issue(github, issue_number=int(team_issue))
 
@@ -205,7 +205,7 @@ def determine_users_to_cc(
     return to_cc
 
 
-def get_tags(pr_data: Dict[str, Any], github: GitHubRepo, team_issue: int) -> str:
+def get_tags(pr_data: dict[str, Any], github: GitHubRepo, team_issue: int) -> str:
     to_cc = determine_users_to_cc(
         issue=pr_data, github=github, team_issue=team_issue, issue_data=None
     )
@@ -276,7 +276,7 @@ if __name__ == "__main__":
 
     new_body = add_ccs_to_body(body, to_cc)
     if new_body is None:
-        logging.info(f"Everyone to cc is already cc'ed, no update needed")
+        logging.info("Everyone to cc is already cc'ed, no update needed")
         exit(0)
 
     logging.info(f"Changing body from:\n----\n{body}\n----\nto:\n----\n{new_body}\n----")

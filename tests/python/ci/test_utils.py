@@ -14,12 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: RUF005
 """
 Constants used in various CI tests
 """
-import subprocess
+
 import pathlib
-from typing import List, Any
+import subprocess
+from typing import Any
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent.parent
 GITHUB_SCRIPT_ROOT = REPO_ROOT / "ci" / "scripts" / "github"
@@ -52,7 +54,7 @@ class TempGit:
         return proc
 
 
-def run_script(command: List[Any], check: bool = True, **kwargs):
+def run_script(command: list[Any], check: bool = True, **kwargs):
     """
     Wrapper to run a script and print its output if there was an error
     """

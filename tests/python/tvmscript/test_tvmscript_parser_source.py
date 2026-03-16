@@ -14,13 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401
 """Unittests for tvm.script.parser.core"""
-import pytest
+
 import inspect
+
+import pytest
+
 import tvm.testing
-from tvm.script.parser.core.diagnostics import Source
-from tvm.script.parser.core import doc_core as doc
 from tvm.script import tir as T
+from tvm.script.parser.core import doc_core as doc
+from tvm.script.parser.core.diagnostics import Source
 
 
 def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
@@ -28,7 +32,7 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
     B = T.match_buffer(b, [128, 128])
     C = T.match_buffer(c, [128, 128])
     for i, j, k in T.grid(128, 128, 128):
-        with T.block("update"):
+        with T.sblock("update"):
             vi, vj, vk = T.axis.remap("SSR", [i, j, k])
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 

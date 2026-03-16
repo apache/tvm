@@ -21,15 +21,16 @@
  * \file src/runtime/vm/executable.cc
  */
 
-#include <dmlc/memory_io.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/vm/executable.h>
 #include <tvm/runtime/vm/vm.h>
+#include <tvm/support/io.h>
 
 #include <functional>
 #include <sstream>
 
+#include "../../support/bytes_io.h"
 #include "../file_utils.h"
 
 namespace tvm {
@@ -38,21 +39,22 @@ namespace vm {
 
 /*! \brief The magic number for the serialized VM bytecode file  */
 constexpr uint64_t kTVMVMBytecodeMagic = 0xD225DE2F4214151D;
+constexpr uint64_t kTVMVMBytecodeMagicV2 = 0xD225DE2F4214151E;
 
-#define STREAM_CHECK(val, section)                                          \
-  ICHECK(val) << "Invalid VM file format in the " << section << " section." \
-              << "\n";
+#define STREAM_CHECK(val, section)                                                  \
+  TVM_FFI_ICHECK(val) << "Invalid VM file format in the " << section << " section." \
+                      << "\n";
 
 std::string VMExecutable::Stats() const {
   std::ostringstream oss;
   oss << "Relax VM executable statistics:" << std::endl;
 
   // Get the number of constants.
-  // If the constant is an NDArray, get the shape of each of them.
+  // If the constant is an Tensor, get the shape of each of them.
   // If the constant is an DLDataType, get the data type of each of them.
   oss << "  Constant pool (# " << constants.size() << "): [";
   for (const auto& it : constants) {
-    if (auto opt_nd = it.as<runtime::NDArray>()) {
+    if (auto opt_nd = it.as<runtime::Tensor>()) {
       const auto ndarray = opt_nd.value();
       const auto& shape = ndarray.Shape();
       // Scalar
@@ -74,7 +76,7 @@ std::string VMExecutable::Stats() const {
       }
       oss.seekp(-2, oss.cur);
       oss << "], ";
-    } else if (auto opt_str = it.as<String>()) {
+    } else if (auto opt_str = it.as<ffi::String>()) {
       std::string f = opt_str.value();
       oss << "\"";
       oss << f;
@@ -87,7 +89,7 @@ std::string VMExecutable::Stats() const {
       oss << dtype;
       oss << ", ";
     } else {
-      LOG(FATAL) << "Unsupported constant pool type " << it.GetTypeKey();
+      TVM_FFI_THROW(InternalError) << "Unsupported constant pool type " << it.GetTypeKey();
     }
   }
   if (!constants.empty()) oss.seekp(-2, oss.cur);
@@ -105,9 +107,9 @@ std::string VMExecutable::Stats() const {
 }
 
 void VMExecutable::SetInstructionData(Index i, Index j, ExecWord val) {
-  ICHECK_LT(i, instr_offset.size());
+  TVM_FFI_ICHECK_LT(i, instr_offset.size());
   Index instr_idx = instr_offset[i];
-  ICHECK_LT(instr_idx + j, instr_data.size());
+  TVM_FFI_ICHECK_LT(instr_idx + j, instr_data.size());
   instr_data[instr_idx + j] = val;
 }
 
@@ -136,35 +138,36 @@ Instruction VMExecutable::GetInstruction(Index i) const {
       return Instruction::If(cond, false_offset);
     }
     default:
-      LOG(FATAL) << "should never hit this case: " << static_cast<int>(op);
+      TVM_FFI_THROW(InternalError) << "should never hit this case: " << static_cast<int>(op);
       break;
   }
   return Instruction();
 }
 
-void SaveHeader(dmlc::Stream* strm) {
-  uint64_t header = kTVMVMBytecodeMagic;
+void SaveHeader(support::Stream* strm) {
+  uint64_t header = kTVMVMBytecodeMagicV2;
   strm->Write(header);
   std::string version = VM_VERSION;
   strm->Write(version);
 }
 
-void LoadHeader(dmlc::Stream* strm) {
+uint64_t LoadHeader(support::Stream* strm) {
   // Check header.
   uint64_t header;
   STREAM_CHECK(strm->Read(&header), "header");
-  STREAM_CHECK(header == kTVMVMBytecodeMagic, "header");
+  STREAM_CHECK((header == kTVMVMBytecodeMagic) || (header == kTVMVMBytecodeMagicV2), "header");
 
   // Check version.
   std::string version;
   STREAM_CHECK(strm->Read(&version), "version");
   STREAM_CHECK(version == VM_VERSION, "version");
+
+  return header;
 }
 
-void VMExecutable::SaveToBinary(dmlc::Stream* stream) {
-  std::string code;
-  // Initialize the stream object.
-  dmlc::MemoryStringStream strm(&code);
+ffi::Bytes VMExecutable::SaveToBytes() const {
+  std::string result;
+  support::BytesOutStream strm(&result);
 
   // Save header
   SaveHeader(&strm);
@@ -172,35 +175,37 @@ void VMExecutable::SaveToBinary(dmlc::Stream* stream) {
   // Global section.
   SaveGlobalSection(&strm);
 
+  // Memory Scopes
+  SaveMemoryScopeSection(&strm);
+
   // Constant section.
   SaveConstantSection(&strm);
 
   // Code section.
   SaveCodeSection(&strm);
 
-  stream->Write(code);
+  return ffi::Bytes(std::move(result));
 }
 
-void VMExecutable::SaveToFile(const String& file_name, const String& format) {
-  std::string data;
-  dmlc::MemoryStringStream writer(&data);
-  dmlc::SeekStream* strm = &writer;
-  VMExecutable::SaveToBinary(strm);
-  runtime::SaveBinaryToFile(file_name, data);
+void VMExecutable::WriteToFile(const ffi::String& file_name, const ffi::String& format) const {
+  runtime::SaveBinaryToFile(file_name, VMExecutable::SaveToBytes());
 }
 
-Module VMExecutable::LoadFromBinary(void* stream) {
-  std::string code;
-  static_cast<dmlc::Stream*>(stream)->Read(&code);
-  dmlc::MemoryStringStream strm(&code);
+ffi::Module VMExecutable::LoadFromBytes(const ffi::Bytes& bytes) {
+  support::BytesInStream strm(bytes);
 
-  ObjectPtr<VMExecutable> exec = make_object<VMExecutable>();
+  ObjectPtr<VMExecutable> exec = ffi::make_object<VMExecutable>();
 
   // Load header.
-  LoadHeader(&strm);
+  uint64_t header_magic = LoadHeader(&strm);
 
   // Global section.
   exec->LoadGlobalSection(&strm);
+
+  if (kTVMVMBytecodeMagicV2 == header_magic) {
+    // Memory Scopes
+    exec->LoadMemoryScopeSection(&strm);
+  }
 
   // Constant section.
   exec->LoadConstantSection(&strm);
@@ -208,29 +213,23 @@ Module VMExecutable::LoadFromBinary(void* stream) {
   // Code section.
   exec->LoadCodeSection(&strm);
 
-  return Module(exec);
+  return ffi::Module(exec);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("runtime.module.loadbinary_relax.VMExecutable",
-                        VMExecutable::LoadFromBinary);
-});
-
-Module VMExecutable::LoadFromFile(const String& file_name) {
+ffi::Module VMExecutable::LoadFromFile(const ffi::String& file_name) {
   std::string data;
   runtime::LoadBinaryFromFile(file_name, &data);
-  dmlc::MemoryStringStream reader(&data);
-  dmlc::Stream* strm = &reader;
-  return VMExecutable::LoadFromBinary(reinterpret_cast<void*>(strm));
+  return VMExecutable::LoadFromBytes(ffi::Bytes(data));
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("runtime.module.loadfile_relax.VMExecutable", VMExecutable::LoadFromFile);
-});
+  refl::GlobalDef()
+      .def("ffi.Module.load_from_file.relax.VMExecutable", VMExecutable::LoadFromFile)
+      .def("ffi.Module.load_from_bytes.relax.VMExecutable", VMExecutable::LoadFromBytes);
+}
 
-void VMFuncInfo::Save(dmlc::Stream* strm) const {
+void VMFuncInfo::Save(support::Stream* strm) const {
   int32_t temp_kind = static_cast<int32_t>(kind);
   strm->Write(temp_kind);
   strm->Write(name);
@@ -241,7 +240,7 @@ void VMFuncInfo::Save(dmlc::Stream* strm) const {
   strm->Write(param_names);
 }
 
-bool VMFuncInfo::Load(dmlc::Stream* strm) {
+bool VMFuncInfo::Load(support::Stream* strm) {
   int32_t temp_kind;
   if (!strm->Read(&temp_kind)) return false;
   this->kind = static_cast<VMFuncInfo::FuncKind>(temp_kind);
@@ -254,49 +253,56 @@ bool VMFuncInfo::Load(dmlc::Stream* strm) {
   return true;
 }
 
-void VMExecutable::SaveGlobalSection(dmlc::Stream* strm) { strm->Write(func_table); }
+void VMExecutable::SaveGlobalSection(support::Stream* strm) const { strm->Write(func_table); }
 
-void VMExecutable::SaveConstantSection(dmlc::Stream* strm) {
+void VMExecutable::SaveMemoryScopeSection(support::Stream* strm) const {
+  strm->Write(static_cast<uint64_t>(this->memory_scopes.size()));
+  for (auto it = this->memory_scopes.begin(); it != this->memory_scopes.end(); it++) {
+    LOG(WARNING) << "Scope Saving:" << it->second;
+    strm->Write(it->first);
+    strm->Write(it->second);
+  }
+}
+
+void VMExecutable::SaveConstantSection(support::Stream* strm) const {
+  // NOTE: pay close attention to the explicit type in write here
+  // so the load/save is 32/64 bit compatible
   strm->Write(static_cast<uint64_t>(this->constants.size()));
   for (const auto& it : this->constants) {
-    if (auto opt_nd = it.as<runtime::NDArray>()) {
-      strm->Write<int32_t>(ffi::TypeIndex::kTVMFFINDArray);
+    if (auto opt_nd = it.as<runtime::Tensor>()) {
+      strm->Write<int32_t>(ffi::TypeIndex::kTVMFFITensor);
       runtime::SaveDLTensor(strm, opt_nd.value().operator->());
     } else if (auto opt_shape = it.as<ffi::Shape>()) {
       ffi::Shape shape = opt_shape.value();
       strm->Write<int32_t>(ffi::TypeIndex::kTVMFFIShape);
-      strm->Write(shape.size());
-      for (size_t i = 0; i < shape.size(); ++i) {
-        strm->Write(shape.at(i));
-      }
-    } else if (auto opt_str = it.as<String>()) {
-      String str = opt_str.value();
+      strm->Write<uint64_t>(shape.size());
+      strm->WriteArray<int64_t>(shape.data(), shape.size());
+    } else if (auto opt_str = it.as<ffi::String>()) {
+      ffi::String str = opt_str.value();
       strm->Write<int32_t>(ffi::TypeIndex::kTVMFFIStr);
-      strm->Write(str.size());
-      for (size_t i = 0; i < str.size(); ++i) {
-        strm->Write(str.at(i));
-      }
+      strm->Write<uint64_t>(str.size());
+      strm->WriteArray<uint8_t>(reinterpret_cast<const uint8_t*>(str.data()), str.size());
     } else if (auto opt_int = it.as<int64_t>()) {
       strm->Write<int32_t>(ffi::TypeIndex::kTVMFFIInt);
-      strm->Write(opt_int.value());
+      strm->Write<int64_t>(opt_int.value());
     } else if (auto opt_float = it.as<double>()) {
       strm->Write<int32_t>(ffi::TypeIndex::kTVMFFIFloat);
-      strm->Write(opt_float.value());
+      strm->Write<double>(opt_float.value());
     } else if (auto opt_dtype = it.as<DLDataType>()) {
       strm->Write<int32_t>(ffi::TypeIndex::kTVMFFIDataType);
       strm->Write(opt_dtype.value());
     } else {
-      LOG(FATAL) << "Unsupported constant pool type " << it.GetTypeKey();
+      TVM_FFI_THROW(InternalError) << "Unsupported constant pool type " << it.GetTypeKey();
     }
   }
 }
 
-void VMExecutable::SaveCodeSection(dmlc::Stream* strm) {
+void VMExecutable::SaveCodeSection(support::Stream* strm) const {
   strm->Write(instr_offset);
   strm->Write(instr_data);
 }
 
-void VMExecutable::LoadGlobalSection(dmlc::Stream* strm) {
+void VMExecutable::LoadGlobalSection(support::Stream* strm) {
   STREAM_CHECK(strm->Read(&func_table), "Global Section");
   // setup func map
   for (size_t i = 0; i < func_table.size(); ++i) {
@@ -304,19 +310,36 @@ void VMExecutable::LoadGlobalSection(dmlc::Stream* strm) {
   }
 }
 
-void VMExecutable::LoadConstantSection(dmlc::Stream* strm) {
+void VMExecutable::LoadMemoryScopeSection(support::Stream* strm) {
+  uint64_t sz;
+  // Load the number of memory scope entries.
+  STREAM_CHECK(strm->Read(&sz, sizeof(sz)), "memory scopes");
+
+  size_t size = static_cast<size_t>(sz);
+  // Load each of the scopes.
+  for (size_t i = 0; i < size; i++) {
+    Index const_idx;
+    std::string scope;
+    STREAM_CHECK(strm->Read(&const_idx), "memory scopes");
+    STREAM_CHECK(strm->Read(&scope), "memory scopes");
+    LOG(WARNING) << "Scope Loaded:" << scope;
+    this->memory_scopes[const_idx] = scope;
+  }
+}
+
+void VMExecutable::LoadConstantSection(support::Stream* strm) {
   uint64_t sz;
   // Load the number of constants.
   STREAM_CHECK(strm->Read(&sz, sizeof(sz)), "constant");
 
   size_t size = static_cast<size_t>(sz);
-  runtime::NDArray ndarray;
+  runtime::Tensor ndarray;
   DLDataType dtype;
   // Load each of the constants.
   for (size_t i = 0; i < size; i++) {
     int constant_type;
     STREAM_CHECK(strm->Read(&constant_type, sizeof(constant_type)), "constant");
-    if (constant_type == ffi::TypeIndex::kTVMFFINDArray) {
+    if (constant_type == ffi::TypeIndex::kTVMFFITensor) {
       ndarray.Load(strm);
       ffi::Any cell;
       cell = ndarray;
@@ -325,9 +348,7 @@ void VMExecutable::LoadConstantSection(dmlc::Stream* strm) {
       uint64_t size;
       strm->Read(&size);
       std::vector<ffi::Shape::index_type> data(size);
-      for (size_t i = 0; i < size; ++i) {
-        strm->Read(&(data[i]));
-      }
+      strm->ReadArray(data.data(), size);
       ffi::Any cell;
       cell = ffi::Shape(data);
       this->constants.push_back(cell);
@@ -340,11 +361,10 @@ void VMExecutable::LoadConstantSection(dmlc::Stream* strm) {
       uint64_t size;
       strm->Read(&size);
       std::vector<char> data(size);
-      for (size_t i = 0; i < size; ++i) {
-        strm->Read(&(data[i]));
-      }
+      STREAM_CHECK(strm->ReadArray(reinterpret_cast<uint8_t*>(data.data()), size),
+                   "constant string");
       ffi::Any cell;
-      cell = String(std::string(data.begin(), data.end()));
+      cell = ffi::String(std::string(data.begin(), data.end()));
       this->constants.push_back(cell);
     } else if (constant_type == ffi::TypeIndex::kTVMFFIInt) {
       int64_t value;
@@ -359,13 +379,14 @@ void VMExecutable::LoadConstantSection(dmlc::Stream* strm) {
       cell = value;
       this->constants.push_back(cell);
     } else {
-      LOG(FATAL) << "Constant pool can only contain NDArray and DLDataType, but got "
-                 << ffi::TypeIndexToTypeKey(constant_type) << " when loading the VM constant pool.";
+      TVM_FFI_THROW(InternalError)
+          << "Constant pool can only contain Tensor and DLDataType, but got "
+          << ffi::TypeIndexToTypeKey(constant_type) << " when loading the VM constant pool.";
     }
   }
 }
 
-void VMExecutable::LoadCodeSection(dmlc::Stream* strm) {
+void VMExecutable::LoadCodeSection(support::Stream* strm) {
   STREAM_CHECK(strm->Read(&(this->instr_offset)), "instr offset");
   STREAM_CHECK(strm->Read(&(this->instr_data)), "instr data");
 }
@@ -394,21 +415,21 @@ std::string RegNameToStr(RegName reg) {
   return "%" + std::to_string(reg);
 }
 
-Module VMExecutable::VMLoadExecutable() const {
+ffi::Module VMExecutable::VMLoadExecutable() const {
   ObjectPtr<VirtualMachine> vm = VirtualMachine::Create();
   vm->LoadExecutable(GetObjectPtr<VMExecutable>(const_cast<VMExecutable*>(this)));
-  return Module(vm);
+  return ffi::Module(vm);
 }
 
-Module VMExecutable::VMProfilerLoadExecutable() const {
+ffi::Module VMExecutable::VMProfilerLoadExecutable() const {
   ObjectPtr<VirtualMachine> vm = VirtualMachine::CreateProfiler();
   vm->LoadExecutable(GetObjectPtr<VMExecutable>(const_cast<VMExecutable*>(this)));
-  return Module(vm);
+  return ffi::Module(vm);
 }
 
-bool VMExecutable::HasFunction(const String& name) const { return func_map.count(name); }
+bool VMExecutable::HasFunction(const ffi::String& name) const { return func_map.count(name); }
 
-String VMExecutable::AsText() const {
+ffi::String VMExecutable::AsText() const {
   auto get_func_name = [&](Index index) -> std::string {
     if (static_cast<size_t>(index) < func_table.size()) {
       return func_table[index].name;
@@ -429,7 +450,7 @@ String VMExecutable::AsText() const {
       case Instruction::ArgKind::kFuncIdx:
         return "f[" + get_func_name(arg.value()) + "]";
       default:
-        LOG(FATAL) << "Wrong instruction kind: " << static_cast<int>(arg.kind());
+        TVM_FFI_THROW(InternalError) << "Wrong instruction kind: " << static_cast<int>(arg.kind());
         return "";
     }
   };
@@ -446,7 +467,7 @@ String VMExecutable::AsText() const {
       os << "@" << gfunc.name << " num_inputs=" << gfunc.num_args << " vm_tir_func;\n\n";
       continue;
     }
-    ICHECK(gfunc.kind == VMFuncInfo::FuncKind::kVMFunc);
+    TVM_FFI_ICHECK(gfunc.kind == VMFuncInfo::FuncKind::kVMFunc);
     os << "@" << gfunc.name << ":\n";
     size_t start_instr = gfunc.start_instr;
     size_t end_instr = gfunc.end_instr;
@@ -476,16 +497,17 @@ String VMExecutable::AsText() const {
           break;
         }
         default:
-          LOG(FATAL) << "should never hit this case: " << static_cast<int>(instr.op);
+          TVM_FFI_THROW(InternalError)
+              << "should never hit this case: " << static_cast<int>(instr.op);
           break;
       }
     }
     os << "\n";
   }
-  return String(os.str());
+  return ffi::String(os.str());
 }
 
-String VMExecutable::AsPython() const {
+ffi::String VMExecutable::AsPython() const {
   auto get_func_name = [&](Index index) -> std::string {
     if (static_cast<size_t>(index) < func_table.size()) {
       return "\"" + func_table[index].name + "\"";
@@ -509,7 +531,7 @@ String VMExecutable::AsPython() const {
         return "ib.f(" + get_func_name(arg.value()) + ")";
       }
       default:
-        LOG(FATAL) << "Wrong instruction kind: " << static_cast<int>(arg.kind());
+        TVM_FFI_THROW(InternalError) << "Wrong instruction kind: " << static_cast<int>(arg.kind());
         return "";
     }
   };
@@ -525,7 +547,7 @@ String VMExecutable::AsPython() const {
     if (gfunc.kind == VMFuncInfo::FuncKind::kVMTIRFunc) {
       continue;
     }
-    ICHECK(gfunc.kind == VMFuncInfo::FuncKind::kVMFunc);
+    TVM_FFI_ICHECK(gfunc.kind == VMFuncInfo::FuncKind::kVMFunc);
 
     os << "with ib.function(\"" << gfunc.name << "\", num_inputs=" << gfunc.num_args << "):\n";
     size_t start_instr = gfunc.start_instr;
@@ -555,18 +577,19 @@ String VMExecutable::AsPython() const {
           break;
         }
         default:
-          LOG(FATAL) << "should never hit this case: " << static_cast<int>(instr.op);
+          TVM_FFI_THROW(InternalError)
+              << "should never hit this case: " << static_cast<int>(instr.op);
           break;
       }
     }
   }
-  return String(os.str());
+  return ffi::String(os.str());
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.ExecutableLoadFromFile", VMExecutable::LoadFromFile);
-});
+}
 
 }  // namespace vm
 }  // namespace runtime

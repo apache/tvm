@@ -22,16 +22,16 @@ namespace tvm {
 namespace script {
 namespace printer {
 
-IfDoc PrintIfExpr(const relax::If& n, const ObjectPath& n_p, const IRDocsifier& d,  //
-                  const Optional<ExprDoc>& var, const Optional<ExprDoc>& ann) {
+IfDoc PrintIfExpr(const relax::If& n, const AccessPath& n_p, const IRDocsifier& d,  //
+                  const ffi::Optional<ExprDoc>& var, const ffi::Optional<ExprDoc>& ann) {
   using relax::SeqExpr;
   ExprDoc cond = d->AsDoc<ExprDoc>(n->cond, n_p->Attr("cond"));
-  std::vector<Array<StmtDoc>> branches{
+  std::vector<ffi::Array<StmtDoc>> branches{
       PrintSeqExpr(n->true_branch, n_p->Attr("true_branch"), d, false),
       PrintSeqExpr(n->false_branch, n_p->Attr("false_branch"), d, false),
   };
   if (var.defined()) {
-    for (Array<StmtDoc>& stmts : branches) {
+    for (ffi::Array<StmtDoc>& stmts : branches) {
       ExprDoc ret = Downcast<ExprStmtDoc>(stmts.back())->expr;
       stmts.Set(stmts.size() - 1, AssignDoc(var.value(), ret, ann));
     }
@@ -41,10 +41,10 @@ IfDoc PrintIfExpr(const relax::If& n, const ObjectPath& n_p, const IRDocsifier& 
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::MatchCast>(
-        "", [](relax::MatchCast n, ObjectPath n_p, IRDocsifier d) -> Doc {
+        "", [](relax::MatchCast n, AccessPath n_p, IRDocsifier d) -> Doc {
           using relax::StructInfo;
           using relax::MatchStructInfo;
-          Optional<ExprDoc> ann = std::nullopt;
+          ffi::Optional<ExprDoc> ann = std::nullopt;
           if (d->cfg->show_all_struct_info) {
             ann = StructInfoAsAnn(n->var, n_p->Attr("var"), d, n->value);
           }
@@ -57,11 +57,11 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::VarBinding>(  //
-        "", [](relax::VarBinding n, ObjectPath n_p, IRDocsifier d) -> Doc {
+        "", [](relax::VarBinding n, AccessPath n_p, IRDocsifier d) -> Doc {
           if (const auto if_ = n->value.as<relax::IfNode>()) {
-            Optional<ExprDoc> ann = StructInfoAsAnn(n->var, n_p->Attr("var"), d, n->value);
+            ffi::Optional<ExprDoc> ann = StructInfoAsAnn(n->var, n_p->Attr("var"), d, n->value);
             ExprDoc lhs = DefineVar(n->var, d->frames.back(), d);
-            return PrintIfExpr(GetRef<relax::If>(if_), n_p->Attr("value"), d, lhs, ann);
+            return PrintIfExpr(ffi::GetRef<relax::If>(if_), n_p->Attr("value"), d, lhs, ann);
           } else if (n->value->IsInstance<tvm::BaseFuncNode>() &&
                      !n->value->IsInstance<relax::ExternFuncNode>()) {
             IdDoc lhs = DefineVar(n->var, d->frames.back(), d);
@@ -75,14 +75,14 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             return ExprStmtDoc(rhs);
           } else {
             ExprDoc rhs = d->AsDoc<ExprDoc>(n->value, n_p->Attr("value"));
-            Optional<ExprDoc> ann = StructInfoAsAnn(n->var, n_p->Attr("var"), d, n->value);
+            ffi::Optional<ExprDoc> ann = StructInfoAsAnn(n->var, n_p->Attr("var"), d, n->value);
             ExprDoc lhs = DefineVar(n->var, d->frames.back(), d);
             return AssignDoc(lhs, rhs, ann);
           }
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<relax::If>("", [](relax::If n, ObjectPath n_p, IRDocsifier d) -> Doc {
+    .set_dispatch<relax::If>("", [](relax::If n, AccessPath n_p, IRDocsifier d) -> Doc {
       return PrintIfExpr(n, n_p, d, std::nullopt, std::nullopt);
     });
 

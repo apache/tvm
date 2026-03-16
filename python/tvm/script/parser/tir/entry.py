@@ -15,20 +15,21 @@
 # specific language governing permissions and limitations
 # under the License.
 """The entry point of TVM parser for tir."""
+
 import inspect
-from typing import Callable, Optional, Union
+from collections.abc import Callable
 
 from tvm.ir.base import deprecated
 from tvm.tir import Buffer, PrimFunc
 
-from ...ir_builder.tir import buffer, ptr
+from ...ir_builder.tir import block_name_suffix_context, buffer, ptr
 from .._core import parse, scan_macro, utils
 from ..core.parser import Parser, ScriptMacro
 
 
 def prim_func(
-    func: Optional[Callable] = None, private: bool = False, check_well_formed=True
-) -> Union[PrimFunc, Callable]:
+    func: Callable | None = None, private: bool = False, check_well_formed=True
+) -> PrimFunc | Callable:
     """The parsing method for tir prim func, by using `@prim_func` as decorator.
 
     Parameters
@@ -62,7 +63,9 @@ def prim_func(
             raise TypeError(f"Expect a function, but got: {func}")
         if utils.is_defined_in_class(outer_stack, func):
             return func
-        f = parse(func, utils.inspect_function_capture(func), check_well_formed=check_well_formed)
+        extra_vars = utils.inspect_function_capture(func)
+        utils.resolve_closure_vars(func, extra_vars, outer_stack)
+        f = parse(func, extra_vars, check_well_formed=check_well_formed)
         setattr(f, "__name__", func.__name__)
         return f
 
@@ -90,11 +93,25 @@ setattr(prim_func, "dispatch_token", "tir")
 
 
 class TIRMacro(ScriptMacro):
-    """Specialization of the ScriptMacro class for TIR."""
+    """Specialization of the ScriptMacro class for TIR.
+
+    Attributes
+    ----------
+    call_count : int
+        Counter for the number of times this macro has been invoked.
+        Used to generate unique block name suffixes.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.call_count = 0
 
     def parse_macro(self, parser: Parser) -> None:
         macro_def = self.get_macro_def()
-        parser.visit_body(macro_def.body)
+        suffix = f"_{self.call_count}" if self.call_count > 0 else ""
+        self.call_count += 1
+        with block_name_suffix_context(suffix):
+            parser.visit_body(macro_def.body)
 
 
 def macro(*args, hygienic: bool = True) -> Callable:
@@ -158,6 +175,14 @@ def macro(*args, hygienic: bool = True) -> Callable:
 class BufferProxy:
     """Buffer proxy class for constructing tir buffer."""
 
+    def __or__(self, other):
+        """Support ``T.Buffer | None`` union syntax in annotations."""
+        return self
+
+    def __ror__(self, other):
+        """Support ``None | T.Buffer`` union syntax in annotations."""
+        return self
+
     def __call__(
         self,
         shape,
@@ -195,6 +220,14 @@ class BufferProxy:
 
 class PtrProxy:
     """Ptr proxy class for constructing tir pointer."""
+
+    def __or__(self, other):
+        """Support union syntax in annotations."""
+        return self
+
+    def __ror__(self, other):
+        """Support union syntax in annotations."""
+        return self
 
     @deprecated("T.Ptr(...)", "T.handle(...)")
     def __call__(self, dtype, storage_scope="global"):

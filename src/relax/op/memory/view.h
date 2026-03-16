@@ -30,7 +30,8 @@ namespace tvm {
 namespace relax {
 
 /*! \brief View a tensor with different properties. */
-Expr view(Expr x, Optional<Expr> shape, Optional<Expr> dtype, Optional<Expr> relative_byte_offset);
+Expr view(Expr x, ffi::Optional<Expr> shape, ffi::Optional<Expr> dtype,
+          ffi::Optional<Expr> relative_byte_offset);
 
 /*! \brief Ensure the tensor has elem_offset == 0. A copy will be made if necessary. */
 Expr ensure_aligned(const Expr& x);

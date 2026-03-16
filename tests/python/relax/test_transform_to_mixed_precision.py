@@ -16,11 +16,14 @@
 # under the License.
 
 import numpy as np
+
 import tvm
-from tvm import relax
 import tvm.testing
+from tvm import relax
 from tvm.relax.transform import ToMixedPrecision
-from tvm.script.parser import ir as I, relax as R, tir as T
+from tvm.script.parser import ir as I
+from tvm.script.parser import relax as R
+from tvm.script.parser import tir as T
 
 
 def _assert_test(input, expected=None, expected2=None):
@@ -836,7 +839,7 @@ def test_conv2d_bias_conv2d():
         "w2": np.random.uniform(size=(4, 4, 1, 1)).astype("float16"),
         "w3": np.random.uniform(size=(4,)).astype("float16"),
     }
-    binding = {k: tvm.nd.array(v) for k, v in binding.items()}
+    binding = {k: tvm.runtime.tensor(v) for k, v in binding.items()}
     Input = relax.transform.BindParams("main", binding)(Input)
     Expected = relax.transform.BindParams("main", binding)(Expected)
     Expected2 = relax.transform.BindParams("main", binding)(Expected2)
@@ -975,7 +978,7 @@ def test_conv2d_bias_fp32():
         "w": np.random.uniform(size=(512, 4, 3, 3)).astype("float32"),
         "bias": np.random.uniform(size=(512,)).astype("float32"),
     }
-    binding = {k: tvm.nd.array(v) for k, v in binding_np.items()}
+    binding = {k: tvm.runtime.tensor(v) for k, v in binding_np.items()}
 
     Input_bound = relax.transform.BindParams("main", binding)(Input)
     Expected = relax.transform.BindParams("main", binding)(Expected)
@@ -983,7 +986,7 @@ def test_conv2d_bias_fp32():
     _assert_test(Input_bound, expected2=Expected)
 
     binding_np["bias"][0] = 70000  # Out of fp16 range
-    binding = {k: tvm.nd.array(v) for k, v in binding_np.items()}
+    binding = {k: tvm.runtime.tensor(v) for k, v in binding_np.items()}
     Input_bound = relax.transform.BindParams("main", binding)(Input)
     Expected_no_bias_cast = relax.transform.BindParams("main", binding)(Expected_no_bias_cast)
 
@@ -1054,7 +1057,7 @@ def test_call_tir_with_float16_args():
             Output: T.Buffer(64, "float16"),
         ):
             for i in range(64):
-                with T.block("copy"):
+                with T.sblock("copy"):
                     vi = T.axis.remap("S", [i])
                     Output[vi] = Input[vi]
 
@@ -1062,6 +1065,59 @@ def test_call_tir_with_float16_args():
 
     After = ToMixedPrecision()(Before)
     tvm.ir.assert_structural_equal(Expected, After)
+
+
+def test_dynamic_strided_slice():
+    @I.ir_module
+    class Input:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3, 28, 28), "float32"),
+            w: R.Tensor((4, 3, 3, 3), "float32"),
+            begin: R.Tensor((4,), "int64"),
+            end: R.Tensor((4,), "int64"),
+            strides: R.Tensor((4,), "int64"),
+        ) -> R.Tensor(None, "float32", ndim=4):
+            with R.dataflow():
+                lv: R.Tensor((2, 4, 26, 26), "float32") = R.nn.conv2d(x, w, out_dtype="float32")
+                gv = R.dynamic_strided_slice(lv, begin, end, strides)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3, 28, 28), dtype="float32"),
+            w: R.Tensor((4, 3, 3, 3), dtype="float32"),
+            begin: R.Tensor((4,), dtype="int64"),
+            end: R.Tensor((4,), dtype="int64"),
+            strides: R.Tensor((4,), dtype="int64"),
+        ) -> R.Tensor(None, dtype="float32", ndim=4):
+            with R.dataflow():
+                lv: R.Tensor((2, 3, 28, 28), dtype="float16") = R.astype(x, dtype="float16")
+                lv1: R.Tensor((4, 3, 3, 3), dtype="float16") = R.astype(w, dtype="float16")
+                lv2: R.Tensor((2, 4, 26, 26), dtype="float32") = R.nn.conv2d(
+                    lv,
+                    lv1,
+                    strides=[1, 1],
+                    padding=[0, 0, 0, 0],
+                    dilation=[1, 1],
+                    groups=1,
+                    data_layout="NCHW",
+                    kernel_layout="OIHW",
+                    out_layout="NCHW",
+                    out_dtype="float32",
+                )
+                lv3: R.Tensor((2, 4, 26, 26), dtype="float16") = R.astype(lv2, dtype="float16")
+                lv4: R.Tensor((2, 4, 26, 26), dtype="float32") = R.astype(lv3, dtype="float32")
+                gv: R.Tensor(None, dtype="float32", ndim=4) = R.dynamic_strided_slice(
+                    lv4, begin, end, strides
+                )
+                R.output(gv)
+            return gv
+
+    _assert_test(Input, Expected)
 
 
 if __name__ == "__main__":

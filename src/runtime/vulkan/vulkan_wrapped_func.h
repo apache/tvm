@@ -27,7 +27,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "../meta_data.h"
+#include "../metadata.h"
 #include "../pack_args.h"
 #include "../spirv/spirv_shader.h"
 #include "../thread_storage_scope.h"
@@ -58,7 +58,7 @@ class VulkanWrappedFunc {
  public:
   void Init(VulkanModuleNode* m, ObjectPtr<Object> sptr, const std::string& func_name,
             size_t num_buffer_args, size_t num_pack_args,
-            const std::vector<std::string>& launch_param_tags);
+            const ffi::Array<ffi::String>& launch_param_tags);
 
   void operator()(ffi::PackedArgs args, ffi::Any* rv, const ArgUnion64* pack_args) const;
 
@@ -80,35 +80,35 @@ class VulkanWrappedFunc {
   mutable std::array<std::shared_ptr<VulkanPipeline>, kVulkanMaxNumDevice> scache_;
 };
 
-class VulkanModuleNode final : public runtime::ModuleNode {
+class VulkanModuleNode final : public ffi::ModuleObj {
  public:
   explicit VulkanModuleNode(std::unordered_map<std::string, SPIRVShader> smap,
-                            std::unordered_map<std::string, FunctionInfo> fmap, std::string source)
+                            ffi::Map<ffi::String, FunctionInfo> fmap, std::string source)
       : smap_(smap), fmap_(fmap), source_(source) {}
   ~VulkanModuleNode();
 
-  const char* type_key() const final { return "vulkan"; }
+  const char* kind() const final { return "vulkan"; }
 
   /*! \brief Get the property of the runtime module. */
   int GetPropertyMask() const final {
-    return ModulePropertyMask::kBinarySerializable | ModulePropertyMask::kRunnable;
+    return ffi::Module::kBinarySerializable | ffi::Module::kRunnable;
   }
 
-  ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final;
+  ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) final;
 
   std::shared_ptr<VulkanPipeline> GetPipeline(size_t device_id, const std::string& func_name,
                                               size_t num_pack_args);
 
-  void SaveToFile(const String& file_name, const String& format) final;
+  void WriteToFile(const ffi::String& file_name, const ffi::String& format) const final;
 
-  void SaveToBinary(dmlc::Stream* stream) final;
-  String GetSource(const String& format) final;
+  ffi::Bytes SaveToBytes() const final;
+  ffi::String InspectSource(const ffi::String& format) const final;
 
  private:
   // function information table.
   std::unordered_map<std::string, SPIRVShader> smap_;
   // function information table.
-  std::unordered_map<std::string, FunctionInfo> fmap_;
+  ffi::Map<ffi::String, FunctionInfo> fmap_;
   // The format
   std::string fmt_{"vulkan"};
   // The source

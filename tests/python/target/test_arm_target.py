@@ -14,13 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401
 
+import re
 import subprocess
 import tempfile
-import re
 
-import pytest
 import numpy as np
+import pytest
 
 import tvm
 from tvm.script import tir as T
@@ -28,23 +29,59 @@ from tvm.target import codegen
 
 llvm_version, arm_target, input_dtype, kernel_dtype, is_supported = tvm.testing.parameters(
     # Testing mcpu type
-    (8, "c -mcpu=cortex-m4", "int8", "int8", False),
-    (8, "c -mcpu=cortex-m7", "int8", "int8", False),
-    (8, "c -mcpu=cortex-m33", "int8", "int8", False),
-    (8, "c -mcpu=cortex-m55", "int8", "int8", False),
-    (8, "c -mcpu=cortex-m3", "int8", "int8", False),
-    (7, "llvm -mtriple=arm-linux-gnueabi -mattr=+neon", "int8", "int8", False),
-    (8, "llvm -mtriple=arm-linux-gnueabi -mattr=+neon", "int8", "int8", True),
-    (9, "llvm -mtriple=arm-linux-gnueabi -mattr=+neon", "int8", "int8", True),
-    (8, "llvm -mtriple=arm-linux-gnueabi", "int8", "int8", False),
-    (7, "llvm -mtriple=aarch64-linux-gnu -mattr=+v8.4a,+dotprod", "int8", "int8", False),
-    (8, "llvm -mtriple=aarch64-linux-gnu -mattr=+v8.4a,+dotprod", "int8", "int8", True),
-    (9, "llvm -mtriple=arm-linux-gnueabi -mattr=+neon", "int8", "int8", True),
-    (8, "llvm -mtriple=aarch64-linux-gnu", "int8", "int8", True),
+    (8, {"kind": "c", "mcpu": "cortex-m4"}, "int8", "int8", False),
+    (8, {"kind": "c", "mcpu": "cortex-m7"}, "int8", "int8", False),
+    (8, {"kind": "c", "mcpu": "cortex-m33"}, "int8", "int8", False),
+    (8, {"kind": "c", "mcpu": "cortex-m55"}, "int8", "int8", False),
+    (8, {"kind": "c", "mcpu": "cortex-m3"}, "int8", "int8", False),
+    (
+        7,
+        {"kind": "llvm", "mtriple": "arm-linux-gnueabi", "mattr": ["+neon"]},
+        "int8",
+        "int8",
+        False,
+    ),
+    (8, {"kind": "llvm", "mtriple": "arm-linux-gnueabi", "mattr": ["+neon"]}, "int8", "int8", True),
+    (9, {"kind": "llvm", "mtriple": "arm-linux-gnueabi", "mattr": ["+neon"]}, "int8", "int8", True),
+    (8, {"kind": "llvm", "mtriple": "arm-linux-gnueabi"}, "int8", "int8", False),
+    (
+        7,
+        {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+v8.4a", "+dotprod"]},
+        "int8",
+        "int8",
+        False,
+    ),
+    (
+        8,
+        {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+v8.4a", "+dotprod"]},
+        "int8",
+        "int8",
+        True,
+    ),
+    (9, {"kind": "llvm", "mtriple": "arm-linux-gnueabi", "mattr": ["+neon"]}, "int8", "int8", True),
+    (8, {"kind": "llvm", "mtriple": "aarch64-linux-gnu"}, "int8", "int8", True),
     # Testing dtype
-    (8, "llvm -mtriple=aarch64-linux-gnu -mattr=+neon", "int16", "int8", False),
-    (8, "llvm -mtriple=aarch64-linux-gnu -mattr=+neon", "int8", "int16", False),
-    (8, "llvm -mtriple=aarch64-linux-gnu -mattr=+neon", "int16", "int16", False),
+    (
+        8,
+        {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+neon"]},
+        "int16",
+        "int8",
+        False,
+    ),
+    (
+        8,
+        {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+neon"]},
+        "int8",
+        "int16",
+        False,
+    ),
+    (
+        8,
+        {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+neon"]},
+        "int16",
+        "int16",
+        False,
+    ),
 )
 
 
@@ -73,7 +110,7 @@ def sve_device_vector_length():
 @tvm.testing.requires_aarch64_sve
 def test_scalable_div(sve_device_vector_length):
     np.random.seed(0)
-    target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sve"
+    target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
     dev = tvm.cpu(0)
 
     @T.prim_func
@@ -84,7 +121,7 @@ def test_scalable_div(sve_device_vector_length):
 
     mod = tvm.compile(my_func, target=target)
 
-    A_nd = tvm.nd.array(np.empty((1,), dtype="int32"), device=dev)
+    A_nd = tvm.runtime.tensor(np.empty((1,), dtype="int32"), device=dev)
     mod(A_nd)
 
     ref = 10000 // (sve_device_vector_length // 32)
@@ -94,7 +131,7 @@ def test_scalable_div(sve_device_vector_length):
 @tvm.testing.requires_aarch64_sve
 def test_scalable_buffer_load_store(sve_device_vector_length):
     np.random.seed(0)
-    target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sve"
+    target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
     num_elements = sve_device_vector_length // 32
     dev = tvm.cpu(0)
 
@@ -109,8 +146,8 @@ def test_scalable_buffer_load_store(sve_device_vector_length):
 
     A_np = np.random.uniform(size=(num_elements,)).astype("float32")
     B_np = np.zeros((num_elements,)).astype("float32")
-    A_nd = tvm.nd.array(A_np, device=dev)
-    B_nd = tvm.nd.array(B_np, device=dev)
+    A_nd = tvm.runtime.tensor(A_np, device=dev)
+    B_nd = tvm.runtime.tensor(B_np, device=dev)
     mod(A_nd, B_nd)
 
     tvm.testing.assert_allclose(B_nd.numpy(), A_np)
@@ -122,7 +159,7 @@ def test_scalable_loop_bound(sve_device_vector_length):
 
     dtype = "float32"
     num_elements = sve_device_vector_length // 32
-    target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sve"
+    target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
     dev = tvm.cpu(0)
 
     @T.prim_func
@@ -137,8 +174,8 @@ def test_scalable_loop_bound(sve_device_vector_length):
 
     A_np = np.random.uniform(size=(num_elements,)).astype(dtype)
     B_np = np.zeros((num_elements,)).astype(dtype)
-    A_nd = tvm.nd.array(A_np, device=dev)
-    B_nd = tvm.nd.array(B_np, device=dev)
+    A_nd = tvm.runtime.tensor(A_np, device=dev)
+    B_nd = tvm.runtime.tensor(B_np, device=dev)
     mod(A_nd, B_nd)
 
     tvm.testing.assert_allclose(B_nd.numpy(), A_np)
@@ -146,7 +183,7 @@ def test_scalable_loop_bound(sve_device_vector_length):
 
 @tvm.testing.requires_aarch64_sve
 def test_scalable_broadcast(sve_device_vector_length):
-    target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sve"
+    target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
     num_elements = sve_device_vector_length // 32
     dev = tvm.cpu(0)
 
@@ -159,7 +196,7 @@ def test_scalable_broadcast(sve_device_vector_length):
     mod = tvm.compile(my_func, target=target)
 
     A_np = np.zeros((num_elements,)).astype("float32")
-    A_nd = tvm.nd.array(A_np, device=dev)
+    A_nd = tvm.runtime.tensor(A_np, device=dev)
     mod(A_nd)
 
     ref = np.ones((num_elements,))

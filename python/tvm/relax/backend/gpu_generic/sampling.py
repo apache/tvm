@@ -18,7 +18,9 @@
 """Backend kernels for sampling operator."""
 
 import math
-from typing import Callable, Optional
+from collections.abc import Callable
+
+import tvm
 from tvm.script import tir as T
 from tvm.tir import PrimFunc
 
@@ -68,6 +70,9 @@ def gpu_multinomial_from_uniform(
     func : PrimFunc
         The generated function
     """
+
+    target = tvm.target.Target.current()
+    target_dtype = "int32" if "webgpu" in str(target) else "int64"
 
     TX = T.int64(tx_len)  # threadIdx.x
     TY = T.int64(ty_len)  # threadIdx.y
@@ -133,8 +138,8 @@ def gpu_multinomial_from_uniform(
         source_local: T.Buffer,
         output_local: T.Buffer,
     ):
-        with T.block():
-            shared_buf = T.alloc_buffer((TX * TY,), "bool", scope="shared")
+        with T.sblock():
+            shared_buf = T.sblock_alloc_buffer((TX * TY,), "bool", scope="shared")
             tx_idx = ty * TX + tx
             shared_buf[tx_idx] = source_local[thread_elem - 1]
             output_local[0] = T.if_then_else(
@@ -160,11 +165,11 @@ def gpu_multinomial_from_uniform(
         output_local: T.Buffer,
         dtype: str,
         reduce_op: Callable,  # T.macro
-        mask_local: Optional[T.Buffer] = None,
+        mask_local: T.Buffer | None = None,
     ):
-        with T.block():
-            local_sum = T.alloc_buffer((), dtype, scope="local")
-            shared_buf = T.alloc_buffer((TX * TY,), dtype, scope="shared")
+        with T.sblock():
+            local_sum = T.sblock_alloc_buffer((), dtype, scope="local")
+            shared_buf = T.sblock_alloc_buffer((TX * TY,), dtype, scope="shared")
             idx = ty * TX + tx
 
             local_sum[()] = T.Cast(dtype, init_value)
@@ -194,14 +199,14 @@ def gpu_multinomial_from_uniform(
         uniform_sample,
         sample_id_local,
     ):
-        with T.block():
-            prob_gt_threshold = T.alloc_buffer((thread_elem,), prob_dtype, scope="local")
-            cumsum = T.alloc_buffer((block_elem,), prob_dtype, scope="shared")
-            greater_than_u = T.alloc_buffer((thread_elem,), "bool", scope="local")
-            mask = T.alloc_buffer((thread_elem,), "bool", scope="local")
-            valid = T.alloc_buffer((thread_elem,), "bool", scope="local")
-            indices = T.alloc_buffer((thread_elem), dtype, scope="local")
-            step_aggregate = T.alloc_buffer((), prob_dtype, scope="local")
+        with T.sblock():
+            prob_gt_threshold = T.sblock_alloc_buffer((thread_elem,), prob_dtype, scope="local")
+            cumsum = T.sblock_alloc_buffer((block_elem,), prob_dtype, scope="shared")
+            greater_than_u = T.sblock_alloc_buffer((thread_elem,), "bool", scope="local")
+            mask = T.sblock_alloc_buffer((thread_elem,), "bool", scope="local")
+            valid = T.sblock_alloc_buffer((thread_elem,), "bool", scope="local")
+            indices = T.sblock_alloc_buffer((thread_elem), dtype, scope="local")
+            step_aggregate = T.sblock_alloc_buffer((), prob_dtype, scope="local")
             # Load prob data from global memory to local memory
             for v in T.unroll(thread_elem):
                 idx = step_iter * block_elem + ty * warp_elem + tx * thread_elem + v
@@ -268,9 +273,9 @@ def gpu_multinomial_from_uniform(
         row_indices = T.match_buffer(var_row_indices, (batch_size, 1), sample_indices_dtype)
         token_ids = T.match_buffer(var_sampled_token_ids, (batch_size, 1), dtype)
         # local buffers
-        aggregate = T.alloc_buffer((), prob_dtype, scope="local")
-        sample_id_local = T.alloc_buffer((), dtype, scope="local")
-        step_iter = T.alloc_buffer((), "int32", scope="local")
+        aggregate = T.sblock_alloc_buffer((), prob_dtype, scope="local")
+        sample_id_local = T.sblock_alloc_buffer((), dtype, scope="local")
+        step_iter = T.sblock_alloc_buffer((), "int32", scope="local")
 
         for bx in T.thread_binding(batch_size, thread="blockIdx.x"):
             row_idx = row_indices[bx, 0]
@@ -282,7 +287,8 @@ def gpu_multinomial_from_uniform(
                     # at least one iteration
                     while T.tvm_thread_invariant(
                         (step_iter[()] == 0 or aggregate[()] < u - eps)
-                        and T.Cast("int64", step_iter[()]) < T.ceildiv(vocab_size, block_elem)
+                        and T.Cast(target_dtype, step_iter[()])
+                        < T.Cast(target_dtype, T.ceildiv(vocab_size, block_elem))
                     ):
                         single_batch_sampling(
                             prob,
@@ -290,7 +296,7 @@ def gpu_multinomial_from_uniform(
                             vocab_size,
                             ty,
                             tx,
-                            T.Cast("int64", step_iter[()]),
+                            T.Cast(target_dtype, step_iter[()]),
                             0.0,
                             aggregate,
                             u,
@@ -321,7 +327,7 @@ def generic_get_sample_index(
         output_index = T.match_buffer(D, (out_batch, 1), dtype)
 
         for ax0, ax1 in T.grid(out_batch, vocab_size):
-            with T.block("T_get_sample_index"):
+            with T.sblock("T_get_sample_index"):
                 v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                 T.writes(output_index[v_ax0, 0])
                 if (

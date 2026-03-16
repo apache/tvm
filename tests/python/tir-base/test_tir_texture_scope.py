@@ -14,13 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401, F841
 
 import pytest
 
 import tvm
 import tvm.testing
-from tvm.ir.module import IRModule
 from tvm import tir
+from tvm.ir.module import IRModule
 from tvm.script import tir as T
 
 
@@ -31,29 +32,29 @@ def test_texture_scope():
         def main(a: T.handle, b: T.handle) -> None:
             T.func_attr({"tir.noalias": True})
             A = T.match_buffer(a, (128, 128, 4), dtype="float32", scope="global.texture")
-            B = T.alloc_buffer((128, 128, 4), dtype="float32", scope="global.texture")
+            B = T.sblock_alloc_buffer((128, 128, 4), dtype="float32", scope="global.texture")
             C = T.match_buffer(b, (128, 128, 4), dtype="float32", scope="global.texture")
             for block_idx in T.thread_binding(0, 128, thread="blockIdx.x"):
                 for thread_idx in T.thread_binding(0, 128, thread="threadIdx.x"):
                     for k in T.serial(4):
-                        with T.block("B"):
+                        with T.sblock("B"):
                             vb, vt, vk = T.axis.remap("SSS", [block_idx, thread_idx, k])
                             B[vb, vt, vk] = A[vb, vt, vk] + T.float32(1)
             for block_idx in T.thread_binding(0, 128, thread="blockIdx.x"):
                 for thread_idx in T.thread_binding(0, 128, thread="threadIdx.x"):
                     for k in T.serial(4):
-                        with T.block("C"):
+                        with T.sblock("C"):
                             vb, vt, vk = T.axis.remap("SSS", [block_idx, thread_idx, k])
                             C[vb, vt, vk] = B[vb, vt, vk] * T.float32(2)
 
-    sch = tir.Schedule(PlusOneMultTwo, debug_mask="all")
+    sch = tvm.s_tir.Schedule(PlusOneMultTwo, debug_mask="all")
 
     def schedule_block(block):
         _, _, inner = sch.get_loops(block)
         sch.vectorize(inner)
 
-    schedule_block(sch.get_block("B"))
-    schedule_block(sch.get_block("C"))
+    schedule_block(sch.get_sblock("B"))
+    schedule_block(sch.get_sblock("C"))
 
     target = tvm.target.Target("opencl")
     mod = tvm.compile(sch.mod["main"], target=target)
