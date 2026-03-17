@@ -20,3 +20,4 @@ tvm.s_tir.transform
 .. automodule:: tvm.s_tir.transform
     :members:
     :imported-members:
+    :no-index:
