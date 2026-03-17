@@ -302,8 +302,13 @@ class OnnxOpConverter:
             number smaller than or equal to opset belongs to all support versions.
         """
         versions = [int(d.replace("_impl_v", "")) for d in dir(cls) if "_impl_v" in d]
-        versions = sorted(versions + [opset])
-        version = versions[max([i for i, v in enumerate(versions) if v == opset]) - 1]
+        compatible = [v for v in versions if v <= opset]
+        if not compatible:
+            raise NotImplementedError(
+                f"{cls.__name__} is not supported for opset {opset}. "
+                f"Minimum supported opset: {min(versions)}"
+            )
+        version = max(compatible)
         if hasattr(cls, f"_impl_v{version}"):
             return getattr(cls, f"_impl_v{version}")
         raise NotImplementedError(f"opset version {version} of {cls.__name__} not implemented")
