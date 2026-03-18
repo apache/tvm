@@ -27,7 +27,7 @@ serialization format standard and implementation details.
 Serialization
 *************
 
-The entrance API is ``export_library`` of ``tvm.module.Module``.
+The entrance API is ``export_library`` of ``tvm.runtime.Module``.
 Inside this function, we will do the following steps:
 
 1. Collect all DSO modules (LLVM modules and C modules)
@@ -143,7 +143,7 @@ support arbitrary modules to import ideally.
 Deserialization
 ****************
 
-The entrance API is ``tvm.runtime.load``. This function
+The entrance API is ``tvm.runtime.load_module``. This function
 actually calls ``_LoadFromFile``. If we dig it a little deeper, this is
 ``Module::LoadFromFile``. In our example, the file is ``deploy.so``,
 according to the function logic, we will call ``module.loadfile_so`` in

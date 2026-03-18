@@ -189,7 +189,7 @@ Docker (recommended)
 ``tests/scripts/ci.py`` replicates the CI environment locally and provides a user-friendly interface.
 The same Docker images and scripts used in CI are used directly to run tests. It also deposits builds
 in different folders so you can maintain multiple test environments without rebuilding from scratch
-each time (e.g. you can test a change in CPU and i386 while retaining incremental rebuilds).
+each time (e.g. you can test a change in CPU and GPU while retaining incremental rebuilds).
 
 .. code:: bash
 

@@ -45,11 +45,11 @@ will contain hundreds of individual passes. Often external users will want to
 have custom passes correctly scheduled without having to modify a single
 handcrafted pass order.
 
-Similarly, modern deep learning frameworks, such as Pytorch and MXNet
-Gluon, also have the tendency to enable pass-style layer construction
-scheme through `Sequential`_ and `Block`_, respectively. With such constructs,
-these modern frameworks are able to conveniently add modules/layers to their
-containers and build up neural networks easily.
+Similarly, modern deep learning frameworks, such as PyTorch, also have
+the tendency to enable pass-style layer construction scheme through
+`Sequential`_. With such constructs, these modern frameworks are able to
+conveniently add modules/layers to their containers and build up neural
+networks easily.
 
 The design of the TVM pass infra is largely inspired by the hierarchical
 pass manager used in LLVM and the block-style containers used in the popular
@@ -132,7 +132,7 @@ Python APIs to create a compilation pipeline using pass context.
       ffi::Array<instrument::PassInstrument> instruments;
     };
 
-    class PassContext : public NodeRef {
+    class PassContext : public ObjectRef {
      public:
       TVM_DLL static PassContext Create();
       TVM_DLL static PassContext Current();
@@ -158,7 +158,7 @@ Python APIs to create a compilation pipeline using pass context.
       /*! \brief The current pass context. */
       std::stack<PassContext> context_stack;
       PassContextThreadLocalEntry() {
-        default_context = PassContext(make_node<PassContextNode>());
+        default_context = PassContext(ffi::make_object<PassContextNode>());
       }
     };
 
@@ -300,7 +300,6 @@ pass is registered with an API endpoint as we will show later.
 .. code:: c++
 
     Pass GetPass(const std::string& pass_name) {
-      using tvm::runtime::Registry;
       std::string fpass_name = "relax.transform." + pass_name;
       const std::optional<tvm::ffi::Function> f = tvm::ffi::Function::GetGlobal(fpass_name);
       TVM_FFI_ICHECK(f.has_value()) << "Cannot find " << fpass_name
@@ -341,7 +340,7 @@ We've covered the concept of different level of passes and the context used for
 compilation. It would be interesting to see how easily users can register
 a pass.  Let's take const folding as an example. This pass has already been
 implemented to fold constants in a Relax function (found in
-`src/relax/transforms/fold_constant.cc`_).
+`src/relax/transform/fold_constant.cc`_).
 
 An API was provided to perform the ``Expr`` to ``Expr`` transformation.
 
@@ -635,7 +634,7 @@ new ``PassInstrument`` are called.
 
 .. _Sequential: https://pytorch.org/docs/stable/nn.html?highlight=sequential#torch.nn.Sequential
 
-.. _Block: https://mxnet.apache.org/api/python/docs/api/gluon/block.html#gluon-block
+.. _Block: https://pytorch.org/docs/stable/generated/torch.nn.Module.html
 
 .. _include/tvm/ir/transform.h: https://github.com/apache/tvm/blob/main/include/tvm/ir/transform.h
 
@@ -647,7 +646,7 @@ new ``PassInstrument`` are called.
 
 .. _src/ir/instrument.cc: https://github.com/apache/tvm/blob/main/src/ir/instrument.cc
 
-.. _src/relax/transforms/fold_constant.cc: https://github.com/apache/tvm/blob/main/src/relax/transforms/fold_constant.cc
+.. _src/relax/transform/fold_constant.cc: https://github.com/apache/tvm/blob/main/src/relax/transform/fold_constant.cc
 
 .. _python/tvm/relax/transform/transform.py: https://github.com/apache/tvm/blob/main/python/tvm/relax/transform/transform.py
 
@@ -659,6 +658,6 @@ new ``PassInstrument`` are called.
 
 .. _src/tir/transform/unroll_loop.cc: https://github.com/apache/tvm/blob/main/src/tir/transform/unroll_loop.cc
 
-.. _use pass infra: https://github.com/apache/tvm/blob/main/tutorials/dev/use_pass_infra.py
+.. _use pass infra: https://github.com/apache/tvm/blob/main/docs/how_to/tutorials/customize_opt.py
 
-.. _use pass instrument: https://github.com/apache/tvm/blob/main/tutorials/dev/use_pass_instrument.py
+.. _use pass instrument: https://github.com/apache/tvm/blob/main/docs/how_to/dev/index.rst

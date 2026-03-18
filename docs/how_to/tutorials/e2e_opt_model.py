@@ -89,7 +89,7 @@ if not IS_IN_CI:
 ######################################################################
 # IRModule Optimization
 # ---------------------
-# Apache TVM Unity provides a flexible way to optimize the IRModule. Everything centered
+# Apache TVM provides a flexible way to optimize the IRModule. Everything centered
 # around IRModule optimization can be composed with existing pipelines. Note that each
 # transformation can be combined as an optimization pipeline via ``tvm.ir.transform.Sequential``.
 #
@@ -141,7 +141,7 @@ if not IS_IN_CI:
 
 if not IS_IN_CI:
     with target:
-        mod = tvm.tir.transform.DefaultGPUSchedule()(mod)
+        mod = tvm.s_tir.transform.DefaultGPUSchedule()(mod)
     ex = tvm.compile(mod, target=target)
     dev = tvm.device("cuda", 0)
     vm = relax.VirtualMachine(ex, dev)
