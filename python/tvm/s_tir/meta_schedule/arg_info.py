@@ -22,7 +22,7 @@ from tvm_ffi import register_object
 
 from tvm.ir import IRModule
 from tvm.runtime import DataType, Object, ShapeTuple
-from tvm.tir import PrimFunc
+from tvm.tirx import PrimFunc
 
 from . import _ffi_api
 from .utils import _json_de_tvm

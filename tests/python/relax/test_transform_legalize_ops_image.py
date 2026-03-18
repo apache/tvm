@@ -20,7 +20,7 @@ import tvm
 import tvm.testing
 from tvm.relax.transform import LegalizeOps
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def test_image_resize2d():
@@ -41,7 +41,7 @@ def test_image_resize2d():
 
         @T.prim_func(private=True)
         def resize2d(rxplaceholder: T.Buffer((T.int64(2), T.int64(8), T.int64(8), T.int64(3)), "float32"), resize: T.Buffer((T.int64(2), T.int64(16), T.int64(16), T.int64(3)), "float32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(2), T.int64(16), T.int64(16), T.int64(3)):
                 with T.sblock("resize"):
                     i0_1, i1_1, i2_1, i3_1 = T.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -80,7 +80,7 @@ def test_image_resize2d_symbolic():
 
         @T.prim_func(private=True)
         def resize2d(var_rxplaceholder: T.handle, var_resize: T.handle):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             c = T.int64()
             h = T.int64()
             n = T.int64()

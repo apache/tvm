@@ -23,7 +23,7 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 namespace transform {
 /*!
  * \brief A helper function to do default thread binding for a block.
@@ -42,16 +42,16 @@ void ThreadBind(s_tir::Schedule sch, const s_tir::SBlockRV& block, int64_t max_t
       return;
     }
   }
-  ffi::Array<tir::IterVar> iters = sch->Get(block)->iter_vars;
+  ffi::Array<tirx::IterVar> iters = sch->Get(block)->iter_vars;
 
-  // when there is no loops, tir will add a dummy iter var for the block
+  // when there is no loops, tirx will add a dummy iter var for the block
   // so loops.size() == 0 && iters.size() == 1
   TVM_FFI_ICHECK(loops.size() == iters.size() || (loops.size() == 0 && iters.size() == 1));
 
   ffi::Array<s_tir::LoopRV> data_parallel_loops;
   // only fuse data parallel loops
   for (size_t i = 0; i < loops.size(); ++i) {
-    if (iters[i]->iter_type == tir::IterVarType::kDataPar) {
+    if (iters[i]->iter_type == tirx::IterVarType::kDataPar) {
       data_parallel_loops.push_back(loops[i]);
     }
   }
@@ -64,8 +64,8 @@ void ThreadBind(s_tir::Schedule sch, const s_tir::SBlockRV& block, int64_t max_t
   // fuse all data parallel loops
   s_tir::LoopRV fused = sch->Fuse(data_parallel_loops, /*preserve_unit_iters=*/false);
   int64_t product = std::numeric_limits<int64_t>::max();
-  if (sch->Get(fused)->extent->IsInstance<tir::IntImmNode>()) {
-    product = sch->Get(fused)->extent.as<tir::IntImmNode>()->value;
+  if (sch->Get(fused)->extent->IsInstance<tirx::IntImmNode>()) {
+    product = sch->Get(fused)->extent.as<tirx::IntImmNode>()->value;
   }
   // schedule the fused loop
   if (product > max_thread_per_block * max_threadblocks) {
@@ -87,9 +87,9 @@ IRModule MarkScheduled(const IRModule& mod) {
   ffi::Map<GlobalVar, BaseFunc> result;
 
   for (const auto& [gv, base_func] : mod->functions) {
-    if (const auto* prim_func_node = base_func.as<tir::PrimFuncNode>()) {
-      tir::PrimFunc prim_func = ffi::GetRef<tir::PrimFunc>(prim_func_node);
-      tir::PrimFunc new_prim_func = WithAttr(std::move(prim_func), tir::attr::kIsScheduled, true);
+    if (const auto* prim_func_node = base_func.as<tirx::PrimFuncNode>()) {
+      tirx::PrimFunc prim_func = ffi::GetRef<tirx::PrimFunc>(prim_func_node);
+      tirx::PrimFunc new_prim_func = WithAttr(std::move(prim_func), tirx::attr::kIsScheduled, true);
       result.Set(gv, new_prim_func);
     } else {
       result.Set(gv, base_func);
@@ -127,8 +127,8 @@ Pass DefaultGPUSchedule() {
         s_tir::Schedule sch = s_tir::Schedule::Traced(m, /*seed=*/-1, /*debug_mask=*/0,
                                                       s_tir::ScheduleErrorRenderLevel::kDetail);
         for (const auto& [gv, func] : m->functions) {
-          if (func->IsInstance<tir::PrimFuncNode>() &&
-              !func->HasNonzeroAttr(tir::attr::kIsScheduled) && IsScheduledOnGPU(func)) {
+          if (func->IsInstance<tirx::PrimFuncNode>() &&
+              !func->HasNonzeroAttr(tirx::attr::kIsScheduled) && IsScheduledOnGPU(func)) {
             // get the target from context.
             tvm::Target target = tvm::Target::Current();
             // get the target from kTarget attribute

@@ -27,7 +27,7 @@ from tvm.s_tir.meta_schedule.testing.space_generation import (
 from tvm.s_tir.tensor_intrin.arm_cpu import DP4A_S8S8S32_INTRIN
 from tvm.s_tir.tensor_intrin.x86 import AVX512_DOT_16x4_INTRIN as AVX512_INTRIN
 from tvm.s_tir.tensor_intrin.x86 import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
-from tvm.script import tir as T
+from tvm.script import tirx as T
 from tvm.target import Target
 
 
@@ -40,7 +40,7 @@ def test_x86_conv2d_nchwc(
         placeholder_1: T.Buffer((16, 4, 1, 1, 4, 16, 4), "int8"),
         conv2d_NCHWc_int8: T.Buffer((1, 16, 56, 56, 16), "int32"),
     ) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         for i0, i1, i2, i3, i4, i5, i6, i7, i8, i9 in T.grid(1, 16, 56, 56, 16, 1, 1, 4, 4, 4):
             with T.sblock("conv2d_NCHWc_int8"):
                 (
@@ -74,7 +74,7 @@ def test_x86_conv2d_nchwc(
     # fmt: off
     @T.prim_func
     def x86_conv2d_nchwc_0(placeholder: T.Buffer((1, 4, 56, 56, 16), "uint8"), placeholder_1: T.Buffer((16, 4, 1, 1, 4, 16, 4), "int8"), conv2d_NCHWc_int8: T.Buffer((1, 16, 56, 56, 16), "int32")) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # with T.sblock("root"):
         conv2d_NCHWc_int8_global = T.sblock_alloc_buffer((1, 16, 56, 56, 16), "int32")
         for i0_0, i1_0, i2_0, i3_0, i4_0_0, i0_1, i1_1, i2_1, i3_1, i4_0_1 in T.grid(1, 8, 28, 56, 1, 1, 2, 1, 1, 1):
@@ -120,7 +120,7 @@ def test_x86_conv2d_nchwc(
 
     @T.prim_func
     def x86_conv2d_nchwc_1(placeholder: T.Buffer((1, 4, 56, 56, 16), "uint8"), placeholder_1: T.Buffer((16, 4, 1, 1, 4, 16, 4), "int8"), conv2d_NCHWc_int8: T.Buffer((1, 16, 56, 56, 16), "int32")) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # with T.sblock("root"):
         conv2d_NCHWc_int8_global = T.sblock_alloc_buffer((1, 16, 56, 56, 16), "int32")
         for i0_0, i1_0, i2_0, i3_0, i4_0_0 in T.grid(1, 8, 28, 56, 1):
@@ -166,7 +166,7 @@ def test_x86_conv2d_nchwc(
 
     @T.prim_func
     def x86_conv2d_nchwc_2(placeholder: T.Buffer((1, 4, 56, 56, 16), "uint8"), placeholder_1: T.Buffer((16, 4, 1, 1, 4, 16, 4), "int8"), conv2d_NCHWc_int8: T.Buffer((1, 16, 56, 56, 16), "int32")) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # with T.sblock("root"):
         for i0_0, i1_0, i2_0, i3_0, i4_0_0, i0_1, i1_1, i2_1, i3_1, i4_0_1, i5_0, i6_0, i7_0, i8_0, i9_0_0, i0_2, i1_2, i2_2, i3_2, i4_0_2, i5_1, i6_1, i7_1, i8_1, i9_0_1, i0_3, i1_3, i2_3, i3_3, i4_0_3 in T.grid(1, 8, 28, 56, 1, 1, 2, 1, 1, 1, 1, 1, 1, 4, 1, 1, 1, 2, 1, 1, 1, 1, 4, 1, 1, 1, 1, 1, 1, 1):
             with T.sblock("conv2d_NCHWc_int8_o"):
@@ -309,7 +309,7 @@ def test_dp4a_dense():
         W: T.Buffer((128, 128), "int8"),
         compute: T.Buffer((128, 128), "int32"),
     ) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # with T.sblock("root"):
         compute_local = T.sblock_alloc_buffer((128, 128), "int32", scope="local")
         X_shared = T.sblock_alloc_buffer((128, 128), "int8", scope="shared")

@@ -22,7 +22,7 @@ import numpy as np
 import pytest
 
 import tvm
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 VRMPY_SIZE_B = 128
 VRMPY_SIZE_INT32 = 32
@@ -43,7 +43,7 @@ def conv2d_async_non_contig(
     """Non contiguous memory access is used in this conv2d taken from MS."""
     # pylint: disable=no-self-argument
     # function attr dict
-    T.func_attr({"tir.noalias": True, "global_symbol": "main"})
+    T.func_attr({"tirx.noalias": True, "global_symbol": "main"})
     # body
     # with T.sblock("root")
     p0_global_vtcm = T.sblock_alloc_buffer(
@@ -223,7 +223,7 @@ def conv_approximation(size_a, size_w):
 
     @T.prim_func
     def operator(a_input: T.handle, b_input: T.handle, c_output: T.handle) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         a_buffer = T.match_buffer(a_input, a_shape, dtype="uint8")
         w_buffer = T.match_buffer(b_input, w_shape, dtype="uint8")
         c_buffer = T.match_buffer(c_output, out_shape, dtype="int32")
@@ -274,8 +274,8 @@ def evaluate(
     target_hexagon = tvm.target.Target("qcom/hexagon-v68")
     with tvm.transform.PassContext(
         config={
-            "tir.use_async_copy": use_async_copy,
-            "tir.experimental_dma_bypass_cache": 1,
+            "tirx.use_async_copy": use_async_copy,
+            "tirx.experimental_dma_bypass_cache": 1,
         }
     ):
         func_tir = tvm.compile(
@@ -528,7 +528,7 @@ class TestAsyncDMAPipeline:
         )
 
 
-# from tvm.script import tir as T
+# from tvm.script import tirx as T
 @tvm.script.ir_module
 class ModulePipelined:
     """Pipelined module class."""
@@ -542,7 +542,7 @@ class ModulePipelined:
     ) -> None:
         # pylint: disable=missing-function-docstring
         # function attr dict
-        T.func_attr({"tir.noalias": True, "global_symbol": "main"})
+        T.func_attr({"tirx.noalias": True, "global_symbol": "main"})
         # body
         # with T.sblock("root")
         conv2d_nchwc_int8 = T.sblock_alloc_buffer(
@@ -685,7 +685,7 @@ class ModulePipelined:
                     ]
 
 
-# from tvm.script import tir as T
+# from tvm.script import tirx as T
 @tvm.script.ir_module
 class ModuleBase:
     """Base module test class."""
@@ -699,7 +699,7 @@ class ModuleBase:
     ) -> None:
         # pylint: disable=missing-function-docstring
         # function attr dict
-        T.func_attr({"tir.noalias": True, "global_symbol": "main"})
+        T.func_attr({"tirx.noalias": True, "global_symbol": "main"})
         # buffer definition
         # body
         # with T.sblock("root")

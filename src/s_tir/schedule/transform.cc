@@ -19,12 +19,12 @@
 
 #include <tvm/ffi/reflection/registry.h>
 
-#include "../../tir/transform/ir_utils.h"
+#include "../../tirx/transform/ir_utils.h"
 #include "./utils.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 /******** Annotation ********/
 
@@ -310,7 +310,7 @@ ffi::Optional<LoopRV> TileWithTensorIntrin(const s_tir::Schedule& sch,
                                            const ffi::String& intrin_name, bool allow_padding) {
   ffi::Optional<TensorizeInfo> opt_tensorize_info =
       GetTensorizeLoopMapping(sch->state(), sch->GetSRef(block_rv),
-                              tir::TensorIntrin::Get(intrin_name).value()->desc, allow_padding);
+                              tirx::TensorIntrin::Get(intrin_name).value()->desc, allow_padding);
   if (!opt_tensorize_info) return std::nullopt;
   const TensorizeInfoNode* info = opt_tensorize_info.value().get();
   if (info->block_iter_paddings.defined()) {
@@ -372,8 +372,8 @@ ffi::Optional<LoopRV> TileWithTensorIntrin(const s_tir::Schedule& sch,
       sch->ComputeInline(consumer);
     }
   }
-  // Construct a mapping from tir loops back to LoopRVs
-  ffi::Map<tir::StmtSRef, LoopRV> loop2rv;
+  // Construct a mapping from tirx loops back to LoopRVs
+  ffi::Map<tirx::StmtSRef, LoopRV> loop2rv;
   {
     ffi::Array<LoopRV> loop_rvs = sch->GetLoops(block_rv);
     for (const LoopRV& loop_rv : loop_rvs) {
@@ -382,14 +382,14 @@ ffi::Optional<LoopRV> TileWithTensorIntrin(const s_tir::Schedule& sch,
   }
   // Split the loops
   arith::Analyzer analyzer;
-  std::unordered_set<const tir::StmtSRefNode*> inner_loops;
+  std::unordered_set<const tirx::StmtSRefNode*> inner_loops;
   std::vector<LoopRV> reorder_suffix;
   reorder_suffix.resize(info->loop_map.size());
   for (const auto& kv : info->loop_map) {
     // Extract mapping (block_loop => desc_loop)
-    const tir::StmtSRef& block_loop_sref = kv.first;
-    const tir::ForNode* block_loop = block_loop_sref->StmtAs<tir::ForNode>();
-    const tir::ForNode* desc_loop = kv.second.get();
+    const tirx::StmtSRef& block_loop_sref = kv.first;
+    const tirx::ForNode* block_loop = block_loop_sref->StmtAs<tirx::ForNode>();
+    const tirx::ForNode* desc_loop = kv.second.get();
     TVM_FFI_ICHECK(block_loop != nullptr && desc_loop != nullptr);
     // Extract the loop extent
     PrimExpr block_extent = analyzer.Simplify(block_loop->extent);
@@ -408,7 +408,7 @@ ffi::Optional<LoopRV> TileWithTensorIntrin(const s_tir::Schedule& sch,
     TVM_FFI_ICHECK_EQ(split.size(), 2);
     inner_loops.insert(sch->GetSRef(split[1]).operator->());
     // The inner split will be reordered to the loop domain that is tensorized
-    int desc_loop_index = info->desc_loop_indexer.at(ffi::GetRef<tir::For>(desc_loop)).IntValue();
+    int desc_loop_index = info->desc_loop_indexer.at(ffi::GetRef<tirx::For>(desc_loop)).IntValue();
     reorder_suffix[desc_loop_index] = split[1];
   }
   // Reorder the loops
@@ -533,7 +533,7 @@ ffi::Optional<ObjectRef> NormalizePrimFunc(Schedule sch) {
       }
     }
     if (index_map_outputs.empty() || !has_spatial_iter) {
-      index_map_outputs.insert(index_map_outputs.begin(), tir::make_const(DataType::Int(64), 0));
+      index_map_outputs.insert(index_map_outputs.begin(), tirx::make_const(DataType::Int(64), 0));
     }
     try {
       sch->TransformBlockLayout(block, IndexMap(index_map_inputs, index_map_outputs));

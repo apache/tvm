@@ -24,7 +24,7 @@ import pytest
 import tvm.testing
 from tvm.s_tir.schedule.testing import assert_structural_equal_ignore_global_symbol
 from tvm.script import from_source
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 @T.prim_func
@@ -447,7 +447,7 @@ def test_preserve_parameter_name():
 
 
 def test_preserve_variable_name():
-    """Use variable name when generating tir::Bind"""
+    """Use variable name when generating tirx::Bind"""
 
     @T.prim_func
     def func():

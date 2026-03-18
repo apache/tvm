@@ -51,12 +51,12 @@ Python API
 
 .. toctree::
     :maxdepth: 1
-    :caption: tvm.tir
+    :caption: tvm.tirx
 
-    tir/tir
-    tir/analysis
-    tir/stmt_functor
-    tir/transform
+    tirx/tirx
+    tirx/analysis
+    tirx/stmt_functor
+    tirx/transform
 
 .. toctree::
     :maxdepth: 1

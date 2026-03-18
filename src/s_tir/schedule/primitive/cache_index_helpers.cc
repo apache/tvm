@@ -26,11 +26,11 @@
 #include "cache_index_helpers.h"
 
 #include <tvm/arith/analyzer.h>  // For the arith::Analyzer::Simplify() method simplifying terms
-#include <tvm/tir/analysis.h>    // For the ExprDeepEqual analysis
-#include <tvm/tir/expr.h>
-#include <tvm/tir/expr_functor.h>
-#include <tvm/tir/stmt.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/analysis.h>    // For the ExprDeepEqual analysis
+#include <tvm/tirx/expr.h>
+#include <tvm/tirx/expr_functor.h>
+#include <tvm/tirx/stmt.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include <algorithm>      // For std::find_if
 #include <unordered_map>  // For the hashtable datatype
@@ -38,7 +38,7 @@
 #include <vector>
 
 namespace tvm {
-namespace tir {
+namespace tirx {
 
 // cache_ is a static variable of the class ComputationsDoneBy, and C++ requires to define here
 // such static attribute, otherwise it causes a linking error.
@@ -488,5 +488,5 @@ void InsertVectorToSortedSemanticComputations(std::vector<std::pair<PrimExpr, si
   }
 }
 
-}  // namespace tir
+}  // namespace tirx
 }  // namespace tvm

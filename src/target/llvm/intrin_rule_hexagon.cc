@@ -20,14 +20,14 @@
 #ifdef TVM_LLVM_VERSION
 
 #include <llvm/IR/Intrinsics.h>
-#include <tvm/tir/op.h>
-#include <tvm/tir/op_attr_types.h>
+#include <tvm/tirx/op.h>
+#include <tvm/tirx/op_attr_types.h>
 
 #include "intrin_rule_llvm.h"
 
 #define TVM_REGISTER_QHL_OP_FP16(INTRIN_FUNC, WRAPPER_FUNC, NUM_SIGN)                          \
   std::string tvm_qhl_ahf_##INTRIN_FUNC = WRAPPER_FUNC;                                        \
-  TVM_REGISTER_OP("tir." #INTRIN_FUNC)                                                         \
+  TVM_REGISTER_OP("tirx." #INTRIN_FUNC)                                                         \
       .set_attr<FLowerIntrinsic>(                                                              \
           "hexagon.FLowerIntrinsic",                                                           \
           DispatchTVMQHLWrapperFp16<tvm_qhl_ahf_##INTRIN_FUNC, ::llvm::Intrinsic::INTRIN_FUNC, \
@@ -36,19 +36,19 @@
 namespace tvm {
 namespace codegen {
 namespace llvm {
-using tir::FLowerIntrinsic;
+using tirx::FLowerIntrinsic;
 
-inline PrimExpr TVMExternCall(const tir::CallNode* call, const std::string& fname) {
-  ffi::Array<PrimExpr> new_args = {tir::StringImm(fname)};
+inline PrimExpr TVMExternCall(const tirx::CallNode* call, const std::string& fname) {
+  ffi::Array<PrimExpr> new_args = {tirx::StringImm(fname)};
   for (PrimExpr arg : call->args) {
     new_args.push_back(arg);
   }
-  return tir::Call(call->dtype, tir::builtin::call_pure_extern(), new_args);
+  return tirx::Call(call->dtype, tirx::builtin::call_pure_extern(), new_args);
 }
 
 template <std::string& tvm_wrapper, unsigned id, int num_sign>
 inline PrimExpr DispatchTVMQHLWrapperFp16(const PrimExpr& e) {
-  using namespace tir;
+  using namespace tirx;
   const CallNode* call = e.as<CallNode>();
   TVM_FFI_ICHECK(call != nullptr);
   ffi::Array<PrimExpr> new_args;
@@ -72,33 +72,33 @@ inline PrimExpr DispatchTVMQHLWrapperFp16(const PrimExpr& e) {
   new_args.push_back(IntImm(DataType::UInt(32), id));
   new_args.push_back(IntImm(DataType::UInt(32), num_sign));
   new_args.insert(new_args.end(), call->args.begin(), call->args.end());
-  return tir::Call(call->dtype, tir::builtin::call_llvm_pure_intrin(), new_args);
+  return tirx::Call(call->dtype, tirx::builtin::call_llvm_pure_intrin(), new_args);
 }
 
-TVM_REGISTER_OP("tir.fma").set_attr<FLowerIntrinsic>(
+TVM_REGISTER_OP("tirx.fma").set_attr<FLowerIntrinsic>(
     "hexagon.FLowerIntrinsic", DispatchLLVMPureIntrin<::llvm::Intrinsic::fmuladd, 3>);
 
-TVM_REGISTER_OP("tir.log").set_attr<FLowerIntrinsic>(
+TVM_REGISTER_OP("tirx.log").set_attr<FLowerIntrinsic>(
     "hexagon.FLowerIntrinsic", DispatchLLVMPureIntrin<::llvm::Intrinsic::log, 1>);
 
-TVM_REGISTER_OP("tir.trunc")
+TVM_REGISTER_OP("tirx.trunc")
     .set_attr<FLowerIntrinsic>("hexagon.FLowerIntrinsic",
                                DispatchLLVMPureIntrin<::llvm::Intrinsic::trunc, 1>);
 
-TVM_REGISTER_OP("tir.fabs")
+TVM_REGISTER_OP("tirx.fabs")
     .set_attr<FLowerIntrinsic>("hexagon.FLowerIntrinsic",
                                DispatchLLVMPureIntrin<::llvm::Intrinsic::fabs, 1>);
 
-TVM_REGISTER_OP("tir.round")
+TVM_REGISTER_OP("tirx.round")
     .set_attr<FLowerIntrinsic>("hexagon.FLowerIntrinsic",
                                DispatchLLVMPureIntrin<::llvm::Intrinsic::round, 1>);
 
-TVM_REGISTER_OP("tir.ctpop")
+TVM_REGISTER_OP("tirx.ctpop")
     .set_attr<FLowerIntrinsic>("hexagon.FLowerIntrinsic",
                                DispatchLLVMPureIntrin<::llvm::Intrinsic::ctpop, 1>);
-TVM_REGISTER_OP("tir.tanh")
+TVM_REGISTER_OP("tirx.tanh")
     .set_attr<FLowerIntrinsic>("hexagon.FLowerIntrinsic", [](const PrimExpr& e) {
-      const tir::CallNode* call = e.as<tir::CallNode>();
+      const tirx::CallNode* call = e.as<tirx::CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
       const PrimExpr& x = call->args[0];
 
@@ -119,22 +119,22 @@ TVM_REGISTER_OP("tir.tanh")
         return TVMExternCall(call, tvm_wrapper);
       }
 #endif
-      PrimExpr one = tir::make_const(x.dtype(), 1);
-      PrimExpr two = tir::make_const(x.dtype(), 2);
-      PrimExpr neg_two = tir::make_const(x.dtype(), -2);
+      PrimExpr one = tirx::make_const(x.dtype(), 1);
+      PrimExpr two = tirx::make_const(x.dtype(), 2);
+      PrimExpr neg_two = tirx::make_const(x.dtype(), -2);
 
       PrimExpr exp_neg2x = exp(neg_two * x);
       PrimExpr exp_pos2x = exp(two * x);
 
       PrimExpr tanh_pos = (one - exp_neg2x) / (one + exp_neg2x);
       PrimExpr tanh_neg = (exp_pos2x - one) / (exp_pos2x + one);
-      PrimExpr tanh_x = tir::Select(x >= tir::make_zero(x.dtype()), tanh_pos, tanh_neg);
+      PrimExpr tanh_x = tirx::Select(x >= tirx::make_zero(x.dtype()), tanh_pos, tanh_neg);
       return tanh_x;
     });
 
-TVM_REGISTER_OP("tir.tan").set_attr<FLowerIntrinsic>(
+TVM_REGISTER_OP("tirx.tan").set_attr<FLowerIntrinsic>(
     "hexagon.FLowerIntrinsic", [](const PrimExpr& e) {
-      const tir::CallNode* call = e.as<tir::CallNode>();
+      const tirx::CallNode* call = e.as<tirx::CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
       const PrimExpr& x = call->args[0];
 #if ENABLE_QHL
@@ -158,13 +158,13 @@ TVM_REGISTER_OP("tir.tan").set_attr<FLowerIntrinsic>(
       return tan_x;
     });
 
-TVM_REGISTER_OP("tir.nearbyint")
+TVM_REGISTER_OP("tirx.nearbyint")
     .set_attr<FLowerIntrinsic>("hexagon.FLowerIntrinsic",
                                DispatchLLVMPureIntrin<::llvm::Intrinsic::nearbyint, 1>);
 
-TVM_REGISTER_OP("tir.sigmoid")
+TVM_REGISTER_OP("tirx.sigmoid")
     .set_attr<FLowerIntrinsic>("hexagon.FLowerIntrinsic", [](const PrimExpr& e) {
-      const tir::CallNode* call = e.as<tir::CallNode>();
+      const tirx::CallNode* call = e.as<tirx::CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
       const PrimExpr& x = call->args[0];
 #if ENABLE_QHL
@@ -178,13 +178,13 @@ TVM_REGISTER_OP("tir.sigmoid")
         useqhl = tstring.find("+hvx-qfloat") != std::string::npos;
       }
 
-      PrimExpr MinBound = tir::make_const(x.dtype(), -8);
-      PrimExpr MaxBound = tir::make_const(x.dtype(), 8);
-      const PrimExpr v1 = tir::Max(x, MinBound);
-      const PrimExpr v2 = tir::Min(v1, MaxBound);
+      PrimExpr MinBound = tirx::make_const(x.dtype(), -8);
+      PrimExpr MaxBound = tirx::make_const(x.dtype(), 8);
+      const PrimExpr v1 = tirx::Max(x, MinBound);
+      const PrimExpr v2 = tirx::Min(v1, MaxBound);
 
       ffi::Array<tvm::PrimExpr> new_args = {v2};
-      const tir::Call new_call = tir::Call(call->dtype, call->op, new_args);
+      const tirx::Call new_call = tirx::Call(call->dtype, call->op, new_args);
 
       // Enable QHL library for FP16 data type
       if (x->dtype.is_float16() && x->dtype.is_vector() && useqhl) {
@@ -192,7 +192,7 @@ TVM_REGISTER_OP("tir.sigmoid")
         return TVMExternCall(new_call.get(), tvm_wrapper);
       }
 #endif
-      PrimExpr one = tir::make_const(x.dtype(), 1);
+      PrimExpr one = tirx::make_const(x.dtype(), 1);
       return one / (one + exp(-x));
     });
 

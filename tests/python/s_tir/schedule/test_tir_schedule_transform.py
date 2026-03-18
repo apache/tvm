@@ -18,7 +18,7 @@ import tvm
 from tvm.s_tir import Schedule
 from tvm.s_tir.schedule.transform import tile_with_tensor_intrin
 from tvm.s_tir.tensor_intrin.x86 import AVX512_DOT_16x4_INTRIN, VNNI_DOT_16x4_INTRIN
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 @tvm.script.ir_module
@@ -29,7 +29,7 @@ class DenseTIRModule:
         placeholder_1: T.Buffer((64, 256, 16, 4), "int8"),
         compute: T.Buffer((1024, 1024), "int32"),
     ) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with T.sblock("root"):
             T.reads()
             T.writes()
@@ -54,7 +54,7 @@ class DenseTIRModuleTiled:
         compute: T.Buffer((1024, 1024), "int32"),
     ) -> None:
         # function attr dict
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # body
         # with T.sblock("root")
         for i0, i1_0, i2_0, i1_1, i2_1 in T.grid(1024, 64, 256, 16, 4):
@@ -79,7 +79,7 @@ class Conv2dNCHWcTIRModule:
         placeholder_1: T.Buffer((16, 4, 1, 1, 4, 16, 4), "int8"),
         conv2d_NCHWc_int8: T.Buffer((1, 16, 56, 56, 16), "int32"),
     ) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         for i0, i1, i2, i3, i4, i5, i6, i7, i8, i9 in T.grid(1, 16, 56, 56, 16, 1, 1, 4, 4, 4):
             with T.sblock("conv2d_NCHWc_int8"):
                 (
@@ -121,7 +121,7 @@ class Conv2dNCHWcTIRModuleTiled:
         conv2d_NCHWc_int8: T.Buffer((1, 16, 56, 56, 16), "int32"),
     ) -> None:
         # function attr dict
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # body
         # with T.sblock("root")
         for i0, i1, i2, i3, i4_0, i5, i6, i7, i8, i9_0, i4_1, i9_1 in T.grid(

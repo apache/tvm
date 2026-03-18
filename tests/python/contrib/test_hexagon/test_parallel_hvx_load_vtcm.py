@@ -20,7 +20,7 @@
 import numpy as np
 
 import tvm
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 from .infrastructure import get_hexagon_target
 
@@ -79,7 +79,7 @@ def vrmpy(operations):
 
     @T.prim_func
     def operator(a: T.handle, b: T.handle, c: T.handle) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         a_buffer = T.match_buffer(a, [operations, 128], dtype="uint8", align=128)
         b_buffer = T.match_buffer(b, [operations, 128], dtype="uint8", align=128)
         c_buffer = T.match_buffer(c, [operations, 32], dtype="int32", align=128)
@@ -101,7 +101,7 @@ def preloaded_vrmpy(operations):
 
     @T.prim_func
     def operator(a: T.handle, b: T.handle, c: T.handle) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         a_buffer = T.match_buffer(
             a,
             [T.cast(operations, "int32") * 128],
@@ -145,7 +145,7 @@ def preallocated_vrmpy(operations):
     def operator(
         a: T.handle, b: T.handle, c: T.handle, a_v: T.handle, b_v: T.handle, c_v: T.handle
     ) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         a_buffer = T.match_buffer(a, [operations, 128], dtype="uint8", align=128, scope="global")
         b_buffer = T.match_buffer(b, [operations, 128], dtype="uint8", align=128, scope="global")
         c_buffer = T.match_buffer(c, [operations, 32], dtype="int32", align=128, scope="global")
@@ -199,7 +199,7 @@ def preallocated_single_dma_vrmpy(operations):
         b_v: T.handle,
         c_v: T.handle,
     ) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         a_buffer = T.match_buffer(a, [operations, 128], dtype="uint8", align=128, scope="global")
         b_buffer = T.match_buffer(b, [operations, 128], dtype="uint8", align=128, scope="global")
         c_buffer = T.match_buffer(c, [operations, 32], dtype="int32", align=128, scope="global")

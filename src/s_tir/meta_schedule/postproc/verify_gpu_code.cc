@@ -19,13 +19,13 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tir/transform.h>
+#include <tvm/tirx/transform.h>
 
 #include "../utils.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 class ThreadExtentChecker : private StmtVisitor {
  public:
@@ -136,7 +136,7 @@ class VerifyGPUCodeNode : public PostprocNode {
 
   bool Verify(const IRModule& mod) const {
     for (const auto& kv : mod->functions) {
-      if (auto prim_func = kv.second.as<tir::PrimFunc>()) {
+      if (auto prim_func = kv.second.as<tirx::PrimFunc>()) {
         if (!s_tir::VerifyGPUCode(prim_func.value(), this->target_constraints_)) {
           return false;
         }
@@ -150,7 +150,7 @@ class VerifyGPUCodeNode : public PostprocNode {
     for (const auto& kv : mod->functions) {
       const GlobalVar& g_var = kv.first;
       const BaseFunc& base_func = kv.second;
-      if (const auto* prim_func = base_func.as<tir::PrimFuncNode>()) {
+      if (const auto* prim_func = base_func.as<tirx::PrimFuncNode>()) {
         if (!s_tir::ThreadExtentChecker::Check(prim_func->body, thread_warp_size_)) {
           return false;
         }
@@ -165,31 +165,31 @@ class VerifyGPUCodeNode : public PostprocNode {
           pass_list.push_back(s_tir::transform::LiftThreadBinding());
           pass_list.push_back(s_tir::transform::ManifestSharedMemoryLocalStage());
           pass_list.push_back(s_tir::transform::CompactBufferAllocation());
-          pass_list.push_back(tir::transform::Simplify());
+          pass_list.push_back(tirx::transform::Simplify());
           pass_list.push_back(s_tir::transform::LowerAutoCopy());
           pass_list.push_back(s_tir::transform::UnifyThreadBinding());
           pass_list.push_back(s_tir::transform::LowerMatchBuffer());
           pass_list.push_back(s_tir::transform::InjectSoftwarePipeline());
           pass_list.push_back(s_tir::transform::LowerOpaqueBlock());
-          pass_list.push_back(tir::transform::FlattenBuffer());
-          pass_list.push_back(tir::transform::BF16ComputeLegalize());
-          pass_list.push_back(tir::transform::NarrowDataType(32));
-          pass_list.push_back(tir::transform::Simplify());
+          pass_list.push_back(tirx::transform::FlattenBuffer());
+          pass_list.push_back(tirx::transform::BF16ComputeLegalize());
+          pass_list.push_back(tirx::transform::NarrowDataType(32));
+          pass_list.push_back(tirx::transform::Simplify());
           // Phase 2
-          pass_list.push_back(tir::transform::VectorizeLoop(true));
+          pass_list.push_back(tirx::transform::VectorizeLoop(true));
           pass_list.push_back(s_tir::transform::InjectVirtualThread());
           pass_list.push_back(s_tir::transform::InjectDoubleBuffer());
-          pass_list.push_back(tir::transform::StorageRewrite());
+          pass_list.push_back(tirx::transform::StorageRewrite());
           pass_list.push_back(s_tir::transform::MergeSharedMemoryAllocations());
-          pass_list.push_back(tir::transform::LowerIntrin());
+          pass_list.push_back(tirx::transform::LowerIntrin());
           // Convert Function to IRModule
           tvm::transform::PassContext pass_ctx = tvm::transform::PassContext::Current();
-          tir::PrimFunc f = WithAttr(ffi::GetRef<tir::PrimFunc>(prim_func), "global_symbol",
+          tirx::PrimFunc f = WithAttr(ffi::GetRef<tirx::PrimFunc>(prim_func), "global_symbol",
                                      ffi::String(g_var->name_hint));
           f = WithAttr(f, tvm::attr::kTarget, this->target_);  // Required for LowerIntrin
-          bool noalias = pass_ctx->GetConfig<bool>("tir.noalias", true).value();
+          bool noalias = pass_ctx->GetConfig<bool>("tirx.noalias", true).value();
           if (noalias) {
-            f = WithAttr(std::move(f), "tir.noalias", true);
+            f = WithAttr(std::move(f), "tirx.noalias", true);
           }
           IRModule mod =
               IRModule(ffi::Map<GlobalVar, BaseFunc>({{GlobalVar(g_var->name_hint), f}}));

@@ -20,12 +20,12 @@ import numpy as np
 import pytest
 
 import tvm
-from tvm import relax, tir
+from tvm import relax, tirx
 from tvm.ir import IRModule
 from tvm.relax.base_py_module import BasePyModule
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def _make_module():
@@ -36,8 +36,8 @@ def test_infer_concrete_shape_from_numpy_input():
     mod = _make_module()
     bpm = BasePyModule(mod, device=tvm.cpu(0), target="llvm")
 
-    n = tir.Var("n", "int64")
-    m = tir.Var("m", "int64")
+    n = tirx.Var("n", "int64")
+    m = tirx.Var("m", "int64")
     sym_shape = [n, m]
 
     x = np.zeros((3, 4), dtype="float32")
@@ -49,7 +49,7 @@ def test_infer_concrete_shape_all_concrete_dims():
     mod = _make_module()
     bpm = BasePyModule(mod, device=tvm.cpu(0), target="llvm")
 
-    shape = [tir.IntImm("int32", 5), 6]
+    shape = [tirx.IntImm("int32", 5), 6]
     inferred = bpm._infer_concrete_shape_from_args(shape, in_args=[])
     assert inferred == [5, 6]
 
@@ -58,7 +58,7 @@ def test_infer_concrete_shape_error_when_uninferrable():
     mod = _make_module()
     bpm = BasePyModule(mod, device=tvm.cpu(0), target="llvm")
 
-    k = tir.Var("k", "int64")
+    k = tirx.Var("k", "int64")
     with pytest.raises(ValueError):
         bpm._infer_concrete_shape_from_args([k, 8], in_args=[])
 
@@ -106,7 +106,7 @@ def test_base_py_module_tir_symbolic_end_to_end():
     a = np.random.randn(5).astype("float32")
     b = np.random.randn(5).astype("float32")
 
-    n = tir.Var("n", "int64")
+    n = tirx.Var("n", "int64")
     out_sinfo = relax.TensorStructInfo((n,), "float32")
 
     out = bpm.call_tir("add_tir", [a, b], out_sinfo)
@@ -119,9 +119,9 @@ def test_infer_concrete_shape_multiple_symbolic_dims():
     mod = _make_module()
     bpm = BasePyModule(mod, device=tvm.cpu(0), target="llvm")
 
-    n = tir.Var("n", "int64")
-    m = tir.Var("m", "int64")
-    k = tir.Var("k", "int64")
+    n = tirx.Var("n", "int64")
+    m = tirx.Var("m", "int64")
+    k = tirx.Var("k", "int64")
     sym_shape = [n, m, k]
 
     x = np.zeros((2, 3, 4), dtype="float32")
@@ -134,7 +134,7 @@ def test_infer_concrete_shape_mixed_concrete_symbolic():
     mod = _make_module()
     bpm = BasePyModule(mod, device=tvm.cpu(0), target="llvm")
 
-    n = tir.Var("n", "int64")
+    n = tirx.Var("n", "int64")
     sym_shape = [n, 5, 10]  # First dim is symbolic, others are concrete
 
     x = np.zeros((3, 5, 10), dtype="float32")
@@ -152,8 +152,8 @@ def test_infer_concrete_shape_from_tvm_tensors():
         mod = _make_module()
         bpm = BasePyModule(mod, device=tvm.cpu(0), target="llvm")
 
-        n = tir.Var("n", "int64")
-        m = tir.Var("m", "int64")
+        n = tirx.Var("n", "int64")
+        m = tirx.Var("m", "int64")
         sym_shape = [n, m]
 
         inferred = bpm._infer_concrete_shape_from_args(sym_shape, [x_tvm])
@@ -168,8 +168,8 @@ def test_infer_concrete_shape_multiple_inputs():
     mod = _make_module()
     bpm = BasePyModule(mod, device=tvm.cpu(0), target="llvm")
 
-    n = tir.Var("n", "int64")
-    m = tir.Var("m", "int64")
+    n = tirx.Var("n", "int64")
+    m = tirx.Var("m", "int64")
     sym_shape = [n, m]
 
     # Multiple inputs with different shapes - should use first matching one
@@ -184,8 +184,8 @@ def test_infer_concrete_shape_wrong_ndim():
     mod = _make_module()
     bpm = BasePyModule(mod, device=tvm.cpu(0), target="llvm")
 
-    n = tir.Var("n", "int64")
-    m = tir.Var("m", "int64")
+    n = tirx.Var("n", "int64")
+    m = tirx.Var("m", "int64")
     sym_shape = [n, m]  # 2D
 
     x = np.zeros((3,), dtype="float32")  # 1D - wrong ndim
@@ -256,7 +256,7 @@ def test_base_py_module_call_dps_packed_symbolic():
         a = np.random.randn(5).astype("float32")
         b = np.random.randn(5).astype("float32")
 
-        n = tir.Var("n", "int64")
+        n = tirx.Var("n", "int64")
         out_sinfo = relax.TensorStructInfo((n,), "float32")
 
         out = bpm.call_dps_packed("test_add_packed", [a, b], out_sinfo)
@@ -317,7 +317,7 @@ def test_base_py_module_call_dps_packed_scalar_args():
         x = np.random.randn(4).astype("float32")
         scalar = 2.5
 
-        n = tir.Var("n", "int64")
+        n = tirx.Var("n", "int64")
         out_sinfo = relax.TensorStructInfo((n,), "float32")
 
         out = bpm.call_dps_packed("test_add_scalar_packed", [x, scalar], out_sinfo)
@@ -339,8 +339,8 @@ def test_infer_concrete_shape_from_pytorch_tensors():
     mod = _make_module()
     bpm = BasePyModule(mod, device=tvm.cpu(0), target="llvm")
 
-    n = tir.Var("n", "int64")
-    m = tir.Var("m", "int64")
+    n = tirx.Var("n", "int64")
+    m = tirx.Var("m", "int64")
     sym_shape = [n, m]
 
     x_torch = torch.zeros((3, 4), dtype=torch.float32)

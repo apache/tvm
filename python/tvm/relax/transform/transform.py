@@ -33,7 +33,7 @@ from tvm.ir.container import Array
 from tvm.relax import Expr, StructInfo, Var
 from tvm.relax.dpl import DFPattern
 from tvm.runtime import Object, Tensor
-from tvm.tir import IndexMap, PrimFunc
+from tvm.tirx import IndexMap, PrimFunc
 
 from ..expr import Var
 from . import _ffi_api
@@ -672,14 +672,14 @@ def BindParams(
 
 
 def BindSymbolicVars(
-    binding_map: Mapping[str | tvm.tir.Var, tvm.tir.PrimExpr],
+    binding_map: Mapping[str | tvm.tirx.Var, tvm.tirx.PrimExpr],
     func_name: str | None = None,
 ) -> tvm.ir.transform.Pass:
     """Bind params of function of the module to constant tensors.
 
     Parameters
     ----------
-    binding_map : Mapping[Union[str, tvm.tir.Var], tvm.tir.PrimExpr]
+    binding_map : Mapping[Union[str, tvm.tirx.Var], tvm.tirx.PrimExpr]
         The map from symbolic varname to integer.
 
     func_name : Optional[str]
@@ -693,7 +693,7 @@ def BindSymbolicVars(
     # Relax uses int64 for symbolic variables, but the FFI
     # converts python integers into int32.
     binding_map = {
-        key: tvm.tir.const(value, "int64") if isinstance(value, int) else value
+        key: tvm.tirx.const(value, "int64") if isinstance(value, int) else value
         for key, value in binding_map.items()
     }
     return _ffi_api.BindSymbolicVars(binding_map, func_name)  # type: ignore
@@ -819,7 +819,7 @@ def FuseTIR() -> tvm.ir.transform.Pass:
     Returns
     -------
     ret : tvm.transform.Pass
-        The registered pass for tir fusion.
+        The registered pass for tirx fusion.
     """
     return _ffi_api.FuseTIR()  # type: ignore
 
@@ -976,9 +976,9 @@ def MergeCompositeFunctions() -> tvm.ir.transform.Pass:
 
 
 def AttachAttrLayoutFreeBuffers() -> tvm.ir.transform.Pass:
-    """Attach layout free buffers to the tir::PrimFunc.
+    """Attach layout free buffers to the tirx::PrimFunc.
 
-    This pass is used to attach layout free buffers to the tir::PrimFunc according to
+    This pass is used to attach layout free buffers to the tirx::PrimFunc according to
     the function usage in the relax function. Currently, the layout free buffers are the model
     weights and relax constants.
 
@@ -1153,7 +1153,7 @@ def LegalizeOps(
                 B: T.Buffer((2, 3), "float32"),
                 T_add: T.Buffer((2, 3), "float32"),
             ):
-                T.func_attr({"tir.noalias": True})
+                T.func_attr({"tirx.noalias": True})
                 for ax0, ax1 in T.grid(2, 3):
                     with T.sblock("T_add"):
                         v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
@@ -1167,7 +1167,7 @@ def LegalizeOps(
                 B: T.Buffer((2, 3), "float32"),
                 T_multiply: T.Buffer((2, 3), "float32"),
             ):
-                T.func_attr({"tir.noalias": True})
+                T.func_attr({"tirx.noalias": True})
                 for ax0, ax1 in T.grid(2, 3):
                     with T.sblock("T_multiply"):
                         v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
@@ -1839,7 +1839,7 @@ def dataflowblock_pass(
 
             def __init__(self):
                 # create a new VarBinding
-                m, n = tir.Var("m", "int64"), tir.Var("n", "int64")
+                m, n = tirx.Var("m", "int64"), tirx.Var("n", "int64")
                 lv0 = relax.Var("lv1", relax.TensorStructInfo([m, n], "float32"))
                 val = relax.const(np.random.rand(24, 56))
                 self.new_binding = relax.VarBinding(lv0, val)

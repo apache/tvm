@@ -24,7 +24,7 @@ from typing import Any, Optional, Union
 import numpy as np
 
 import tvm
-from tvm import relax, tir
+from tvm import relax, tirx
 from tvm.ir import IRModule
 from tvm.runtime import Device, PackedFunc, Tensor
 from tvm.target import Target
@@ -122,7 +122,7 @@ class BasePyModule:
     def _collect_function_names(self):
         """Collect names of TIR and Relax functions from IRModule."""
         for global_var, func in self.ir_mod.functions_items():
-            if isinstance(func, tir.PrimFunc):
+            if isinstance(func, tirx.PrimFunc):
                 self.tir_func_names.append(global_var.name_hint)
             elif isinstance(func, relax.Function):
                 self.relax_func_names.append(global_var.name_hint)
@@ -134,7 +134,7 @@ class BasePyModule:
             {
                 gv: func
                 for gv, func in self.ir_mod.functions_items()
-                if isinstance(func, tir.PrimFunc)
+                if isinstance(func, tirx.PrimFunc)
             }
         )
         if tir_mod:
@@ -315,7 +315,7 @@ class BasePyModule:
         for idx, dim in enumerate(shape):
             if isinstance(dim, int | np.integer):
                 concrete.append(int(dim))
-            elif isinstance(dim, tir.IntImm):
+            elif isinstance(dim, tirx.IntImm):
                 concrete.append(int(dim.value))
             else:
                 concrete.append(None)
@@ -475,7 +475,7 @@ class BasePyModule:
     def list_functions(self) -> dict[str, list[str]]:
         """List all available functions."""
         return {
-            "tir": self.tir_func_names,
+            "tirx": self.tir_func_names,
             "relax": self.relax_func_names,
             "extern": list(self.extern_funcs.keys()),
         }

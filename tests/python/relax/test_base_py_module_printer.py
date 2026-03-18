@@ -23,7 +23,7 @@ import tvm
 from tvm.relax.base_py_module import BasePyModule
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 @I.ir_module
@@ -129,7 +129,7 @@ class ComplexPyFuncModule(BasePyModule):
 
     @T.prim_func
     def extract_features(data: T.handle, features: T.handle):
-        T.func_attr({"tir.noalias": True})
+        T.func_attr({"tirx.noalias": True})
         Data = T.match_buffer(data, (10,), "float32")
         Features = T.match_buffer(features, (10,), "float32")
 
@@ -138,7 +138,7 @@ class ComplexPyFuncModule(BasePyModule):
 
     @T.prim_func
     def ml_inference(features: T.handle, params: T.handle, output: T.handle):
-        T.func_attr({"tir.noalias": True})
+        T.func_attr({"tirx.noalias": True})
         Features = T.match_buffer(features, (10,), "float32")
         Params = T.match_buffer(params, (10,), "float32")
         Output = T.match_buffer(output, (5,), "float32")
@@ -148,7 +148,7 @@ class ComplexPyFuncModule(BasePyModule):
 
     @T.prim_func
     def post_process(predictions: T.handle, final: T.handle):
-        T.func_attr({"tir.noalias": True})
+        T.func_attr({"tirx.noalias": True})
         Predictions = T.match_buffer(predictions, (5,), "float32")
         Final = T.match_buffer(final, (5,), "float32")
 
@@ -157,7 +157,7 @@ class ComplexPyFuncModule(BasePyModule):
 
     @T.prim_func
     def normalize_data(data: T.handle, normalized: T.handle):
-        T.func_attr({"tir.noalias": True})
+        T.func_attr({"tirx.noalias": True})
         Data = T.match_buffer(data, (10,), "float32")
         Normalized = T.match_buffer(normalized, (10,), "float32")
 
@@ -213,7 +213,7 @@ class EdgeCasePyFuncModule(BasePyModule):
 
     @T.prim_func
     def dummy_tir(data: T.handle, output: T.handle):
-        T.func_attr({"tir.noalias": True})
+        T.func_attr({"tirx.noalias": True})
         Data = T.match_buffer(data, (1,), "float32")
         Output = T.match_buffer(output, (1,), "float32")
         Output[0] = Data[0]
@@ -273,7 +273,7 @@ class PerformancePyFuncModule(BasePyModule):
 
     @T.prim_func
     def vectorized_add(a: T.handle, b: T.handle, c: T.handle):
-        T.func_attr({"tir.noalias": True})
+        T.func_attr({"tirx.noalias": True})
         A = T.match_buffer(a, (10,), "float32")
         B = T.match_buffer(b, (10,), "float32")
         C = T.match_buffer(c, (10,), "float32")
@@ -345,7 +345,7 @@ class IntegrationPyFuncModule(BasePyModule):
 
     @T.prim_func
     def final_transform(data: T.handle, output: T.handle):
-        T.func_attr({"tir.noalias": True})
+        T.func_attr({"tirx.noalias": True})
         Data = T.match_buffer(data, (10, 10), "float32")
         Output = T.match_buffer(output, (10, 10), "float32")
 
@@ -410,7 +410,7 @@ class ErrorHandlingPyFuncModule(BasePyModule):
 
     @T.prim_func
     def safe_transform(data: T.handle, output: T.handle):
-        T.func_attr({"tir.noalias": True})
+        T.func_attr({"tirx.noalias": True})
         Data = T.match_buffer(data, (5,), "float32")
         Output = T.match_buffer(output, (5,), "float32")
 

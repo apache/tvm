@@ -21,7 +21,7 @@ from tvm.s_tir.meta_schedule.testing.space_generation import (
     check_sketches,
     generate_design_space,
 )
-from tvm.script import tir as T
+from tvm.script import tirx as T
 from tvm.target import Target
 
 # fmt: off

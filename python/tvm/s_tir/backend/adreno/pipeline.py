@@ -19,12 +19,12 @@
 """The TIR backend compilation pipeline for Adreno"""
 
 import tvm
-from tvm import s_tir, tir
-from tvm.tir import pipeline as tir_pipeline
+from tvm import s_tir, tirx
+from tvm.tirx import pipeline as tir_pipeline
 
 
 def default_tir_pipeline():
-    """The default tir pipeline used in tvm.tir.build"""
+    """The default tirx pipeline used in tvm.tirx.build"""
 
     @tvm.transform.module_pass(opt_level=0)
     def _pipeline(mod: tvm.ir.IRModule, _ctx: tvm.transform.PassContext) -> tvm.ir.IRModule:
@@ -44,56 +44,56 @@ def default_tir_pipeline():
             s_tir.transform.LowerAutoCopy(),
             s_tir.transform.UnifyThreadBinding(),
             s_tir.transform.LowerMatchBuffer(),
-            tir.transform.Simplify(),
+            tirx.transform.Simplify(),
             s_tir.transform.InjectPermutedLayout(),
             s_tir.transform.AnnotateIrregularLoop(),
             s_tir.transform.InjectSoftwarePipeline(),
             s_tir.transform.TransformMmaBufferLayout(),
             s_tir.transform.LowerOpaqueBlock(),
             s_tir.backend.adreno.transform.InjectTextureAlloc(),
-            tir.transform.FlattenBuffer(),
-            tir.transform.BF16ComputeLegalize(),
-            tir.transform.NarrowDataType(32),
+            tirx.transform.FlattenBuffer(),
+            tirx.transform.BF16ComputeLegalize(),
+            tirx.transform.NarrowDataType(32),
             s_tir.transform.LoopPartition(),
-            tir.transform.VectorizeLoop(not bool(config.get("tir.disable_vectorize", False))),
+            tirx.transform.VectorizeLoop(not bool(config.get("tirx.disable_vectorize", False))),
             s_tir.transform.InjectVirtualThread(),
             s_tir.transform.InjectDoubleBuffer(),
         ]
-        if not bool(config.get("tir.disable_storage_rewrite", False)):
-            passes.append(tir.transform.StorageRewrite())
-        if config.get("tir.use_async_copy", False):
+        if not bool(config.get("tirx.disable_storage_rewrite", False)):
+            passes.append(tirx.transform.StorageRewrite())
+        if config.get("tirx.use_async_copy", False):
             passes.append(s_tir.transform.LowerAsyncDMA())
         passes.extend(
             [
                 s_tir.transform.HoistIfThenElse(),
-                tir.transform.UnrollLoop(),
+                tirx.transform.UnrollLoop(),
                 s_tir.transform.RenormalizeSplitPattern(),
-                tir.transform.Simplify(),
-                tir.transform.RemoveNoOp(),
+                tirx.transform.Simplify(),
+                tirx.transform.RemoveNoOp(),
                 s_tir.transform.RewriteUnsafeSelect(),
             ]
         )
         # Additional passes based on configuration.
-        if bool(config.get("tir.instrument_bound_checkers", False)):
+        if bool(config.get("tirx.instrument_bound_checkers", False)):
             passes.append(s_tir.transform.InstrumentBoundCheckers())
-        if bool(config.get("tir.ptx_ldg32", False)):
+        if bool(config.get("tirx.ptx_ldg32", False)):
             passes.append(s_tir.transform.InjectPTXLDG32(True))
-        if not bool(config.get("tir.disable_cse_tir", False)):
-            passes.append(tir.transform.CommonSubexprElim())
-        if bool(config.get("tir.instrument_lwp", False)):
+        if not bool(config.get("tirx.disable_cse_tir", False)):
+            passes.append(tirx.transform.CommonSubexprElim())
+        if bool(config.get("tirx.instrument_lwp", False)):
             passes.append(s_tir.transform.InstrumentProfileIntrinsics())
         passes.extend(
             [
                 # Bind the target first so that target-specific attributes are available.
-                tir.transform.FP8ComputeLegalize(),
+                tirx.transform.FP8ComputeLegalize(),
                 # VerifyVTCMLimit must occur before LowerVtcmAlloc.
                 s_tir.transform.VerifyVTCMLimit(),
                 s_tir.transform.LowerVtcmAlloc(),
-                tir.transform.VerifyMemory(),
-                tir.transform.AnnotateEntryFunc(),
+                tirx.transform.VerifyMemory(),
+                tirx.transform.AnnotateEntryFunc(),
             ]
         )
-        if bool(config.get("tir.detect_global_barrier", False)):
+        if bool(config.get("tirx.detect_global_barrier", False)):
             passes.append(s_tir.transform.ThreadSync("global"))
         passes.extend(
             [
@@ -104,20 +104,20 @@ def default_tir_pipeline():
                 s_tir.transform.LowerThreadAllreduce(),
             ]
         )
-        if bool(config.get("tir.use_async_copy", False)):
+        if bool(config.get("tirx.use_async_copy", False)):
             passes.append(s_tir.transform.InjectPTXAsyncCopy())
-        if bool(config.get("tir.ptx_ldg32", False)):
+        if bool(config.get("tirx.ptx_ldg32", False)):
             passes.append(s_tir.transform.InjectPTXLDG32())
         passes.extend(
             [
-                tir.transform.AnnotateDeviceRegions(),
-                tir.transform.SplitHostDevice(),
+                tirx.transform.AnnotateDeviceRegions(),
+                tirx.transform.SplitHostDevice(),
                 # MergeSharedMemoryAllocations must follow SplitHostDevice.
                 s_tir.transform.MergeSharedMemoryAllocations(),
-                tir.transform.MakePackedAPI(),
-                tir.transform.FP8StorageLegalize(),
-                tir.transform.BF16StorageLegalize(),
-                tir.transform.LowerDeviceKernelLaunch(),
+                tirx.transform.MakePackedAPI(),
+                tirx.transform.FP8StorageLegalize(),
+                tirx.transform.BF16StorageLegalize(),
+                tirx.transform.LowerDeviceKernelLaunch(),
             ]
         )
         mod = tvm.ir.transform.Sequential(passes)(mod)

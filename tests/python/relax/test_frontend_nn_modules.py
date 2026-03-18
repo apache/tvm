@@ -27,7 +27,7 @@ from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import core, modules, spec
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def test_relu():
@@ -307,7 +307,7 @@ def test_conv2d_dynamic():
             R.output(gv1)
         return gv1
 
-    mod = modules.Conv2D(tvm.tir.Var("in_channels", "int64"), 32, 3, bias=True)
+    mod = modules.Conv2D(tvm.tirx.Var("in_channels", "int64"), 32, 3, bias=True)
     tvm_mod, _ = mod.export_tvm(
         spec={
             "forward": {

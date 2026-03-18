@@ -27,7 +27,7 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 /*!
  * \brief Check if the instruction is annotation with `meta_schedule_parallel`

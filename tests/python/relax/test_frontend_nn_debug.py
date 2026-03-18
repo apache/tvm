@@ -19,7 +19,7 @@ import torch
 
 import tvm
 import tvm.testing
-from tvm import tir
+from tvm import tirx
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import op, spec
 from tvm.runtime import Tensor
@@ -60,7 +60,7 @@ def test_debug_func():
         assert var_int == 8
 
     class Layer(nn.Module):
-        def forward(self, x: nn.Tensor, v: tir.Var):  # pylint: disable=invalid-name
+        def forward(self, x: nn.Tensor, v: tirx.Var):  # pylint: disable=invalid-name
             op.debug_func("testing.relax.frontend.nn.test_debug_func", x, 1, 2.0, "test", v)
             return x
 

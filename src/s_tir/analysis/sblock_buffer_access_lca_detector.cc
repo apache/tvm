@@ -23,14 +23,14 @@
  */
 
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/tir/analysis.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/analysis.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include "../../runtime/thread_storage_scope.h"
 #include "../../support/arena.h"
 
 namespace tvm {
-namespace tir {
+namespace tirx {
 
 /*!
  * \brief Detect the lowest common ancestor(LCA) position of Buffer access.
@@ -345,5 +345,5 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("s_tir.analysis.detect_buffer_access_lca", DetectBufferAccessLCA);
 }
-}  // namespace tir
+}  // namespace tirx
 }  // namespace tvm

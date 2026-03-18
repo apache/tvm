@@ -22,13 +22,13 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import s_tir
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def _check(original, transformed):
     mod = tvm.IRModule.from_expr(original.with_attr("global_symbol", "main"))
     mod = tvm.s_tir.transform.UnifyThreadBinding()(mod)
-    mod = tvm.tir.transform.Simplify()(mod)
+    mod = tvm.tirx.transform.Simplify()(mod)
     tvm.ir.assert_structural_equal(
         mod["main"], transformed.with_attr("global_symbol", "main"), True
     )

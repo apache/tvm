@@ -21,7 +21,7 @@ import numpy as np
 import tvm
 import tvm.testing
 from tvm.script import ir as I
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 @tvm.testing.uses_gpu
@@ -34,7 +34,7 @@ def test_cmp_load_store(target, dev):
             B: T.Buffer((32,), "float32"),
             D: T.Buffer((32,), "float32"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             C = T.sblock_alloc_buffer((32,), "bool")
             for i0_0 in T.thread_binding(8, thread="blockIdx.x"):
                 for i0_1 in T.thread_binding(4, thread="blockIdx.x"):
@@ -59,7 +59,7 @@ def test_cmp_load_store(target, dev):
             B: T.Buffer((32,), "float32"),
             D: T.Buffer((32,), "float32"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             C = T.sblock_alloc_buffer((32,), "bool")
             for i0 in range(32):
                 with T.sblock("C"):

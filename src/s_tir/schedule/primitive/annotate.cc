@@ -20,7 +20,7 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 void Annotate(ScheduleState self, const StmtSRef& sref, const ffi::String& ann_key,
               const Any& ann_val) {

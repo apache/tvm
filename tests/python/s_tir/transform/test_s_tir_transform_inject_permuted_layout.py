@@ -19,8 +19,8 @@ import tvm
 import tvm.s_tir
 import tvm.testing
 from tvm import IRModule
-from tvm.script import tir as T
-from tvm.tir import PrimFunc
+from tvm.script import tirx as T
+from tvm.tirx import PrimFunc
 
 
 def _check_primfunc_transform(before: PrimFunc, expected: PrimFunc):
@@ -79,7 +79,7 @@ def test_backward_compatibility_shared_a():
                             with T.sblock(""):
                                 X_reindex_shared_dyn = T.sblock_alloc_buffer((128, 32), "float16", strides=(32, 1), scope="shared.dyn")
                                 with T.sblock("X_reindex_shared.dyn"):
-                                    # annotate the reads and writes because they cannot be inferred from tir.bitwise_xor
+                                    # annotate the reads and writes because they cannot be inferred from tirx.bitwise_xor
                                     T.reads(X[blockIdx_y // 8 * 128 + threadIdx_y * 8 + threadIdx_x // 4:blockIdx_y // 8 * 128 + threadIdx_y * 8 + threadIdx_x // 4 + 97, ax2_0_0 * 32 + threadIdx_x % 4 * 8:ax2_0_0 * 32 + threadIdx_x % 4 * 8 + 8])
                                     T.writes(X_reindex_shared_dyn[threadIdx_y * 8 + threadIdx_x // 4:threadIdx_y * 8 + threadIdx_x // 4 + 97, threadIdx_x % 4 * 8:threadIdx_x % 4 * 8 + 8])
                                     for ax0_ax1_fused_0 in range(4):

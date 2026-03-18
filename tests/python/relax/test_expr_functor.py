@@ -19,7 +19,7 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import relax, tir
+from tvm import relax, tirx
 from tvm.ir import Op
 from tvm.ir.base import assert_structural_equal
 from tvm.relax import PyExprMutator, PyExprVisitor
@@ -47,7 +47,7 @@ from tvm.relax.expr import (
 )
 from tvm.script import relax as R
 
-m, n = tir.Var("m", "int64"), tir.Var("n", "int64")
+m, n = tirx.Var("m", "int64"), tirx.Var("n", "int64")
 x = relax.Var("x", R.Tensor([n], "float32"))
 y = relax.Var("y", R.Tensor([m, n], "float32"))
 bb = relax.BlockBuilder()

@@ -20,8 +20,8 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <tvm/runtime/data_type.h>
-#include <tvm/tir/builtin.h>
-#include <tvm/tir/expr.h>
+#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/expr.h>
 
 #ifdef TVM_LLVM_VERSION
 #include <llvm/IR/Intrinsics.h>
@@ -186,8 +186,8 @@ TEST(ScalableDataType, TestScalableUInt) {
 // -----------
 TEST(ScalableDataType, TestScalableIntrinCall) {
   tvm::DataType scalable_type = tvm::DataType(kDLInt, 32, 4, true);
-  tvm::tir::Call call =
-      tvm::tir::Call(scalable_type, tvm::tir::builtin::call_llvm_intrin(),
+  tvm::tirx::Call call =
+      tvm::tirx::Call(scalable_type, tvm::tirx::builtin::call_llvm_intrin(),
 #if TVM_LLVM_VERSION >= 200
                      {tvm::IntImm(tvm::DataType::Int(32), ::llvm::Intrinsic::stepvector)});
 #else

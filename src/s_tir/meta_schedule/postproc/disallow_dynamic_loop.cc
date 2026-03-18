@@ -22,7 +22,7 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 /*! \brief Check if an IRModule has any dynamic loop. */
 struct DynamicExtentFinder : private StmtVisitor {

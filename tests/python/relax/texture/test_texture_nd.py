@@ -28,13 +28,13 @@ from tvm import (
     DataType,
     IRModule,
     relax,
-    tir,
+    tirx,
 )
 from tvm.contrib import ndk
 from tvm.relax.transform.legalize_ops import adreno as legalize_adreno
 from tvm.rpc import connect_tracker
 from tvm.script import ir as I
-from tvm.script import tir as T
+from tvm.script import tirx as T
 from tvm.target import Target
 
 
@@ -62,11 +62,11 @@ def preprocess_pipeline(mod: IRModule) -> IRModule:
     desired_layouts = {"relax.nn.conv2d": ["NCHW16c", "OIHW16o", "NCHW16c"]}
     seq = tvm.transform.Sequential(
         [
-            tvm.tir.transform.BindTarget(Target.current(allow_none=False)),
+            tvm.tirx.transform.BindTarget(Target.current(allow_none=False)),
             tvm.relax.transform.FoldConstant(),
             tvm.relax.transform.DecomposeOpsForInference(),
             tvm.relax.transform.FoldConstant(),
-            tvm.tir.transform.BindTarget(tvm.target.Target.current(allow_none=False)),
+            tvm.tirx.transform.BindTarget(tvm.target.Target.current(allow_none=False)),
             tvm.relax.transform.ConvertLayout(desired_layouts),
             tvm.relax.transform.Normalize(),
             tvm.relax.transform.FoldConstant(),

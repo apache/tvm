@@ -26,15 +26,15 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/function.h>
 #include <tvm/s_tir/stmt.h>
-#include <tvm/tir/index_map.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/index_map.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include <cmath>
 #include <string>
 #include <utility>
 #include <vector>
 
-#include "../../tir/transform/ir_utils.h"
+#include "../../tirx/transform/ir_utils.h"
 #include "literal/cuda_half_t.h"
 #include "literal/cuda_int8_t.h"
 #include "ptx.h"
@@ -157,10 +157,10 @@ void CodeGenCUDA::PrintFunctionSignature(const ffi::String& function_name, const
   CodeGenC::PrintFunctionSignature(function_name, func, os);
 }
 
-class ThreadIdxExtractor : public tir::StmtVisitor {
+class ThreadIdxExtractor : public tirx::StmtVisitor {
  private:
   void VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == tir::attr::thread_extent) {
+    if (op->attr_key == tirx::attr::thread_extent) {
       IterVar iv = Downcast<IterVar>(op->node);
       if (iv->var->name_hint == "threadIdx.x" || iv->thread_tag == "threadIdx.x") {
         threadIdx_x_ext = op->value;
@@ -327,8 +327,8 @@ std::string CodeGenCUDA::Finish() {
   return CodeGenC::Finish();
 }
 
-void CodeGenCUDA::VisitStmt_(const tir::ForNode* op) {
-  if (op->kind == tir::ForKind::kUnrolled) {
+void CodeGenCUDA::VisitStmt_(const tirx::ForNode* op) {
+  if (op->kind == tirx::ForKind::kUnrolled) {
     PrintIndent();
     stream << "#pragma unroll\n";
   }
@@ -1120,7 +1120,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     // to determine the output location for each 8 element.
 
     const auto index_map_func =
-        tvm::ffi::Function::GetGlobal("tir.index_map.shared_16x16_to_ldmatrix_32x8_layout");
+        tvm::ffi::Function::GetGlobal("tirx.index_map.shared_16x16_to_ldmatrix_32x8_layout");
     TVM_FFI_ICHECK(index_map_func.has_value());
 
     arith::Analyzer analyzer;
@@ -1134,10 +1134,10 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     class LowerFloorDivMod : public ExprMutator {
      public:
       PrimExpr VisitExpr_(const FloorDivNode* op) {
-        return tir::Div(this->VisitExpr(op->a), this->VisitExpr(op->b));
+        return tirx::Div(this->VisitExpr(op->a), this->VisitExpr(op->b));
       }
       PrimExpr VisitExpr_(const FloorModNode* op) {
-        return tir::Mod(this->VisitExpr(op->a), this->VisitExpr(op->b));
+        return tirx::Mod(this->VisitExpr(op->a), this->VisitExpr(op->b));
       }
     };
 
@@ -1300,44 +1300,44 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
       if (tgt_dtype.is_float4_e2m1fn()) {
         // We view the source as an uint16, and then extract bits of two fp4 numbers,
         // and finally reinterpret the result as fp4x2.
-        value = tir::Call(DataType::UInt(16), tir::builtin::reinterpret(), {value});
-        tir::Var temp_var("temp_var", DataType::UInt(16));
-        value = tir::Let(
+        value = tirx::Call(DataType::UInt(16), tirx::builtin::reinterpret(), {value});
+        tirx::Var temp_var("temp_var", DataType::UInt(16));
+        value = tirx::Let(
             temp_var, value,
-            tir::Cast(DataType::UInt(8), (temp_var & IntImm(DataType::UInt(16), 0xF)) |
+            tirx::Cast(DataType::UInt(8), (temp_var & IntImm(DataType::UInt(16), 0xF)) |
                                              ((temp_var >> 4) & IntImm(DataType::UInt(16), 0xF0))));
       } else {
-        value = tir::Cast(DataType::UInt(16),
-                          tir::Call(DataType::UInt(8), tir::builtin::reinterpret(), {value}));
-        tir::Var temp_var("temp_var", DataType::UInt(16));
-        value = tir::Let(temp_var, value,
+        value = tirx::Cast(DataType::UInt(16),
+                          tirx::Call(DataType::UInt(8), tirx::builtin::reinterpret(), {value}));
+        tirx::Var temp_var("temp_var", DataType::UInt(16));
+        value = tirx::Let(temp_var, value,
                          (temp_var & IntImm(DataType::UInt(16), 0xF)) |
                              ((temp_var & IntImm(DataType::UInt(16), 0xF0)) << 4));
       }
-      os << PrintExpr(tir::Call(tgt_dtype, tir::builtin::reinterpret(), {value}));
+      os << PrintExpr(tirx::Call(tgt_dtype, tirx::builtin::reinterpret(), {value}));
     } else if (lanes == 4) {
       if (tgt_dtype.is_float4_e2m1fn()) {
         // We view the source as an uint32, and then extract bits of four fp4 numbers,
         // and finally reinterpret the result as fp4x4.
-        value = tir::Call(DataType::UInt(32), tir::builtin::reinterpret(), {value});
-        tir::Var temp_var("temp_var", DataType::UInt(32));
-        value = tir::Let(temp_var, value,
-                         tir::Cast(DataType::UInt(16),
+        value = tirx::Call(DataType::UInt(32), tirx::builtin::reinterpret(), {value});
+        tirx::Var temp_var("temp_var", DataType::UInt(32));
+        value = tirx::Let(temp_var, value,
+                         tirx::Cast(DataType::UInt(16),
                                    (temp_var & IntImm(DataType::UInt(32), 0xF)) |
                                        ((temp_var >> 4) & IntImm(DataType::UInt(32), 0xF0)) |
                                        ((temp_var >> 8) & IntImm(DataType::UInt(32), 0xF00)) |
                                        ((temp_var >> 12) & IntImm(DataType::UInt(32), 0xF000))));
       } else {
-        value = tir::Cast(DataType::UInt(32),
-                          tir::Call(DataType::UInt(16), tir::builtin::reinterpret(), {value}));
-        tir::Var temp_var("temp_var", DataType::UInt(32));
-        value = tir::Let(temp_var, value,
+        value = tirx::Cast(DataType::UInt(32),
+                          tirx::Call(DataType::UInt(16), tirx::builtin::reinterpret(), {value}));
+        tirx::Var temp_var("temp_var", DataType::UInt(32));
+        value = tirx::Let(temp_var, value,
                          (temp_var & IntImm(DataType::UInt(32), 0xF)) |
                              ((temp_var & IntImm(DataType::UInt(32), 0xF0)) << 4) |
                              ((temp_var & IntImm(DataType::UInt(32), 0xF00)) << 8) |
                              ((temp_var & IntImm(DataType::UInt(32), 0xF000)) << 12));
       }
-      os << PrintExpr(tir::Call(tgt_dtype, tir::builtin::reinterpret(), {value}));
+      os << PrintExpr(tirx::Call(tgt_dtype, tirx::builtin::reinterpret(), {value}));
     } else {
       TVM_FFI_THROW(InternalError)
           << "Invalid number of lanes for float4_e2m1fn reinterpret: " << lanes;
@@ -1434,7 +1434,7 @@ void CodeGenCUDA::VisitStmt_(const AllocBufferNode* op) {
   }
 
   RegisterHandleType(op->buffer->data.get(), dtype);
-  if (op->annotations.count(tir::attr::kVolatile)) {
+  if (op->annotations.count(tirx::attr::kVolatile)) {
     MarkVolatile(op->buffer->data.get());
   }
 }

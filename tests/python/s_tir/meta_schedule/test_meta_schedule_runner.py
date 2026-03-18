@@ -56,9 +56,9 @@ from tvm.s_tir.meta_schedule.utils import (
     derived_object,
     get_global_func_with_default_on_worker,
 )
-from tvm.script import tir as T
+from tvm.script import tirx as T
 from tvm.target import Target
-from tvm.tir import FloatImm
+from tvm.tirx import FloatImm
 
 MATMUL_N = 16
 MATMUL_M = 32
@@ -70,7 +70,7 @@ MATMUL_M = 32
 class MatmulModule:
     @T.prim_func
     def main(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=no-self-argument
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         A = T.match_buffer(a, (16, 16), "float32")
         B = T.match_buffer(b, (16, 16), "float32")
         C = T.match_buffer(c, (16, 16), "float32")
@@ -86,7 +86,7 @@ class MatmulModule:
 class MatmulReluModule:
     @T.prim_func
     def main(a: T.handle, b: T.handle, d: T.handle) -> None:  # pylint: disable=no-self-argument
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         A = T.match_buffer(a, (16, 16), "float32")
         B = T.match_buffer(b, (16, 16), "float32")
         D = T.match_buffer(d, (16, 16), "float32")
@@ -107,7 +107,7 @@ class MatmulReluModule:
 class BatchMatmulModule:
     @T.prim_func
     def main(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=no-self-argument
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         A = T.match_buffer(a, [16, 32, 32])
         B = T.match_buffer(b, [16, 32, 32])
         C = T.match_buffer(c, [16, 32, 32])
@@ -123,7 +123,7 @@ class BatchMatmulModule:
 class AddModule:
     @T.prim_func
     def main(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=no-self-argument
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         A = T.match_buffer(a, [32], "float32")
         B = T.match_buffer(b, [32], "float32")
         C = T.match_buffer(c, [32], "float32")
@@ -138,7 +138,7 @@ class AddModule:
 class MatmulHugeModule:
     @T.prim_func
     def main(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=no-self-argument
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         A = T.match_buffer(a, (4096, 4096), "float32")
         B = T.match_buffer(b, (4096, 4096), "float32")
         C = T.match_buffer(c, (4096, 4096), "float32")

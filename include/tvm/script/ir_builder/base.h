@@ -43,7 +43,7 @@ namespace ir_builder {
  *
  * \code {.cpp}
  *
- * using T = tvm::script::ir_builder::tir;
+ * using T = tvm::script::ir_builder::tirx;
  * With <PrimFuncFrame> _(...);
  * Buffer buffer = T::MatchBuffer(...);
  *
@@ -53,7 +53,7 @@ namespace ir_builder {
  *
  * \code {.cpp}
  *
- * using T = tvm::script::ir_builder::tir;
+ * using T = tvm::script::ir_builder::tirx;
  * With <PrimFuncFrame> _(...);
  * {
  *   With<SBlockFrame> _2(...);
@@ -141,7 +141,7 @@ class IRBuilderFrame : public runtime::ObjectRef {
  *
  * PrimFunc ConstructPrimFunc() {
  *   using tvm::script::ir_builder::IRBuilder;
- *   using T = tvm::script::ir_builder::tir;
+ *   using T = tvm::script::ir_builder::tirx;
  *   IRBuilder builder;
  *   // Step 1. Place IRBuilder inside the with-scope.
  *   {

@@ -49,7 +49,7 @@
 namespace tvm {
 namespace relax {
 
-using tir::Layout;
+using tirx::Layout;
 
 /*!
  * \brief A layout decision node that holds the layout decision of the tensor.

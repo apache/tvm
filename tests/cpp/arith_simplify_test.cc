@@ -28,11 +28,11 @@ TEST(Simplify, MinMax) {
   auto x = tvm::te::var("x");
   auto e1 = (tvm::max(x, 1) - tvm::max(x, 1));
   auto e1s = ana.canonical_simplify(e1);
-  TVM_FFI_ICHECK(tvm::tir::is_zero(e1s));
+  TVM_FFI_ICHECK(tvm::tirx::is_zero(e1s));
 
   auto e2 = (x * tvm::min(x, 1)) - (x * tvm::min(x, 1));
   auto e2s = ana.canonical_simplify(e2);
-  TVM_FFI_ICHECK(tvm::tir::is_zero(e2s));
+  TVM_FFI_ICHECK(tvm::tirx::is_zero(e2s));
 }
 
 TEST(Simplify, Mul) {
@@ -40,7 +40,7 @@ TEST(Simplify, Mul) {
   auto x = tvm::te::var("x");
   auto e = (x * x) - (x * x);
   auto es = ana.canonical_simplify(e);
-  TVM_FFI_ICHECK(tvm::tir::is_zero(es));
+  TVM_FFI_ICHECK(tvm::tirx::is_zero(es));
 }
 
 TEST(Simplify, Mod) {
@@ -50,29 +50,29 @@ TEST(Simplify, Mod) {
   // Mod::make is used instead of % to avoid constant folding during
   // calling operator%(x,y). Mod::make doesn't try constant folding,
   // and therefore, the constant folding will be attempted in CanonicalSimplify
-  auto mod = ana.canonical_simplify(tvm::tir::Mod(x, y));
+  auto mod = ana.canonical_simplify(tvm::tirx::Mod(x, y));
   auto es = ana.canonical_simplify(mod - x);
-  TVM_FFI_ICHECK(tvm::tir::is_zero(es));
+  TVM_FFI_ICHECK(tvm::tirx::is_zero(es));
 }
 
 TEST(ConstantFold, Broadcast) {
   tvm::ffi::StructuralEqual checker;
-  auto i32x4 = tvm::tir::Broadcast(tvm::IntImm(tvm::DataType::Int(32), 10), 4);
+  auto i32x4 = tvm::tirx::Broadcast(tvm::IntImm(tvm::DataType::Int(32), 10), 4);
   auto i64x4 = tvm::cast(i32x4->dtype.with_bits(64), i32x4);
-  auto i64x4_expected = tvm::tir::Broadcast(tvm::IntImm(tvm::DataType::Int(64), 10), 4);
+  auto i64x4_expected = tvm::tirx::Broadcast(tvm::IntImm(tvm::DataType::Int(64), 10), 4);
   ASSERT_TRUE(checker(i64x4, i64x4_expected));
 }
 
 TEST(ConstantFold, Ramp) {
   tvm::ffi::StructuralEqual checker;
-  auto i32x4 = tvm::tir::Ramp(tvm::IntImm(tvm::DataType::Int(32), 10),
+  auto i32x4 = tvm::tirx::Ramp(tvm::IntImm(tvm::DataType::Int(32), 10),
                               tvm::IntImm(tvm::DataType::Int(32), 1), 4);
   auto i64x4 = tvm::cast(i32x4->dtype.with_bits(64), i32x4);
-  auto i64x4_expected = tvm::tir::Ramp(tvm::IntImm(tvm::DataType::Int(64), 10),
+  auto i64x4_expected = tvm::tirx::Ramp(tvm::IntImm(tvm::DataType::Int(64), 10),
                                        tvm::IntImm(tvm::DataType::Int(64), 1), 4);
   ASSERT_TRUE(checker(i64x4, i64x4_expected));
 
   auto f32x4 = tvm::cast(tvm::DataType::Float(32, 4), i32x4);
-  auto f32x4_expected = tvm::tir::Cast(tvm::DataType::Float(32, 4), i32x4);
+  auto f32x4_expected = tvm::tirx::Cast(tvm::DataType::Float(32, 4), i32x4);
   ASSERT_TRUE(checker(f32x4, f32x4_expected));
 }

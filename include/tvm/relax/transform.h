@@ -28,8 +28,8 @@
 #include <tvm/ir/transform.h>
 #include <tvm/relax/dataflow_pattern.h>
 #include <tvm/relax/expr.h>
-#include <tvm/tir/function.h>
-#include <tvm/tir/index_map.h>
+#include <tvm/tirx/function.h>
+#include <tvm/tirx/index_map.h>
 
 namespace tvm {
 namespace relax {
@@ -205,7 +205,7 @@ TVM_DLL Pass BindParams(ffi::String func_name, ffi::Map<Any, ObjectRef> params);
  *
  * \param binding_map The dictionary of symbolic variables and their
  *      constant shape values.  Dictionary keys may be either a
- *      `tir.Var` or a string name of the variable.  If the variables
+ *      `tirx.Var` or a string name of the variable.  If the variables
  *      are referred to by name, the name must uniquely identify a
  *      symbolic variable in each function where it is used.
  *
@@ -215,7 +215,7 @@ TVM_DLL Pass BindParams(ffi::String func_name, ffi::Map<Any, ObjectRef> params);
  *
  * \return The Pass.
  */
-TVM_DLL Pass BindSymbolicVars(ffi::Map<ffi::Variant<tir::Var, ffi::String>, PrimExpr> binding_map,
+TVM_DLL Pass BindSymbolicVars(ffi::Map<ffi::Variant<tirx::Var, ffi::String>, PrimExpr> binding_map,
                               ffi::Optional<ffi::String> func_name = std::nullopt);
 
 /*!
@@ -262,9 +262,9 @@ TVM_DLL Pass LegalizeOps(ffi::Optional<ffi::Map<ffi::String, ffi::Function>> cma
 TVM_DLL Pass RealizeVDevice();
 
 /*!
- * \brief Attach layout free buffers to the tir::PrimFunc.
+ * \brief Attach layout free buffers to the tirx::PrimFunc.
  *
- * This pass is used to attach layout free buffers to the tir::PrimFunc according to
+ * This pass is used to attach layout free buffers to the tirx::PrimFunc according to
  * the function usage in the relax function. Currently, the layout free buffers are the model
  * weights and relax constants.
  *
@@ -274,7 +274,7 @@ TVM_DLL Pass RealizeVDevice();
 TVM_DLL Pass AttachAttrLayoutFreeBuffers();
 
 /*!
- * \brief Split the layout rewrite preproc block to a separate tir::PrimFunc.
+ * \brief Split the layout rewrite preproc block to a separate tirx::PrimFunc.
  *
  * This pass is used in the prepack weight after meta_schedule tuning.
  *
@@ -598,8 +598,8 @@ TVM_DLL Pass DecomposeOpsForTraining(ffi::Optional<ffi::String> func_name);
  * \return The Pass.
  */
 TVM_DLL Pass AlterOpImpl(
-    const ffi::Map<ffi::String, tir::PrimFunc>& op_impl_map,
-    const ffi::Map<ffi::String, ffi::Array<tir::IndexMap>>& op_buffer_transforms,
+    const ffi::Map<ffi::String, tirx::PrimFunc>& op_impl_map,
+    const ffi::Map<ffi::String, ffi::Array<tirx::IndexMap>>& op_buffer_transforms,
     const ffi::Map<ffi::String, ffi::Optional<ffi::Array<ffi::Array<IntImm>>>>& axis_separators,
     const ffi::Map<ffi::String, ffi::Optional<ffi::Array<ffi::Array<IntImm>>>>&
         input_axis_separators);

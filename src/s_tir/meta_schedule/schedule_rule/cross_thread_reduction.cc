@@ -56,7 +56,7 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
     if (max_threads_per_block == -1 || warp_size == -1) {
       return {sch};
     }
-    const tir::StmtSRef& block_sref = sch->GetSRef(block_rv);
+    const tirx::StmtSRef& block_sref = sch->GetSRef(block_rv);
     if (!NeedsRFactorOrCrossThreadReduction(sch->state(), block_sref, max_threads_per_block,
                                             warp_size)) {
       return {sch};
@@ -136,7 +136,7 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
   bool InThreadScope(const s_tir::Schedule& sch, const s_tir::SBlockRV& block) {
     const ffi::Array<s_tir::LoopRV>& axes = sch->GetLoops(block);
     for (const s_tir::LoopRV& loop_rv : axes) {
-      const tir::For& loop = sch->Get(loop_rv);
+      const tirx::For& loop = sch->Get(loop_rv);
       runtime::ThreadScope thread_scope = s_tir::GetThreadScope(loop.get());
       if (s_tir::IsThreadIdx(thread_scope)) {
         return true;
@@ -222,9 +222,9 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
     //   - if there are multiple consumers, they must not share a common loop, and the case is not
     //     fusible;
     // - If the lowest common ancestor is a loop, the target block is also the first consumer.
-    const tir::StmtSRef& lca_sref =
+    const tirx::StmtSRef& lca_sref =
         s_tir::GetSRefLowestCommonAncestor(s_tir::SBlockRVs2StmtSRefs(sch, consumers));
-    if (consumers.size() > 1 && lca_sref->StmtAs<tir::SBlockNode>() != nullptr) {
+    if (consumers.size() > 1 && lca_sref->StmtAs<tirx::SBlockNode>() != nullptr) {
       return std::make_tuple(false, s_tir::LoopRV{ffi::UnsafeInit()},
                              s_tir::SBlockRV{ffi::UnsafeInit()}, s_tir::LoopRV{ffi::UnsafeInit()});
     }
@@ -255,12 +255,12 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
    */
   int GetComputePosition(const s_tir::Schedule& sch, const ffi::Array<s_tir::LoopRV>& block_loops,
                          const ffi::Array<s_tir::LoopRV>& tgt_block_loops,
-                         const tir::StmtSRef& lca_sref) {
+                         const tirx::StmtSRef& lca_sref) {
     int n_block_loop = static_cast<int>(block_loops.size());
     int n_tgt_block_loop = static_cast<int>(tgt_block_loops.size());
 
     for (int i = 0; i < n_block_loop && i < n_tgt_block_loop; ++i) {
-      if (s_tir::GetLoopIterType(sch->GetSRef(block_loops[i])) != tir::IterVarType::kDataPar) {
+      if (s_tir::GetLoopIterType(sch->GetSRef(block_loops[i])) != tirx::IterVarType::kDataPar) {
         return i - 1;
       } else if (sch->GetSRef(tgt_block_loops[i]).same_as(lca_sref)) {
         // If the lowest common ancestor is a loop, the compute location of the input block should

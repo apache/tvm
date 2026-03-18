@@ -20,7 +20,7 @@ import numpy as np
 
 import tvm
 from tvm.script import ir as I
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def test_static_init():
@@ -38,7 +38,7 @@ def test_static_init():
             Ab = T.match_buffer(A, (n,), "int64")
             T.call_packed(
                 "test_static_callback",
-                T.call_intrin("handle", "tir.tvm_static_handle"),
+                T.call_intrin("handle", "tirx.tvm_static_handle"),
                 Ab.data,
             )
 

@@ -16,7 +16,7 @@
 # under the License.
 """Default legalization function for vision network related operators."""
 
-from tvm import relax, te, tir, topi
+from tvm import relax, te, tirx, topi
 
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr, TupleGetItem
@@ -76,18 +76,18 @@ def _all_class_non_max_suppression(block_builder: BlockBuilder, call: Call) -> E
 
     # Build slicing parameters using TE to avoid high-level Relax ops during legalization
     def build_begin():
-        return te.compute((2,), lambda i: tir.const(0, "int64"), name="begin")
+        return te.compute((2,), lambda i: tirx.const(0, "int64"), name="begin")
 
     def build_strides():
-        return te.compute((2,), lambda i: tir.const(1, "int64"), name="strides")
+        return te.compute((2,), lambda i: tirx.const(1, "int64"), name="strides")
 
     def build_end(count_tensor):
         # end = [count_tensor[0], 3]
         def compute_end(i):
-            return tir.if_then_else(
+            return tirx.if_then_else(
                 i == 0,
-                tir.Cast("int64", count_tensor[0]),
-                tir.const(3, "int64"),
+                tirx.Cast("int64", count_tensor[0]),
+                tirx.const(3, "int64"),
             )
 
         return te.compute((2,), compute_end, name="end")

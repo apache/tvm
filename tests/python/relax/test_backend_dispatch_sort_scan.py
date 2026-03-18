@@ -22,14 +22,14 @@ import pytest
 import tvm
 import tvm.script
 import tvm.testing
-from tvm import relax, tir, topi
+from tvm import relax, tirx, topi
 from tvm.contrib.thrust import can_use_thrust
 from tvm.ir.base import assert_structural_equal
 from tvm.relax.backend import DispatchSortScan
 from tvm.s_tir import dlight
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def test_dispatch_scanop():
@@ -88,7 +88,7 @@ def test_dispatch_scanop_cuda():
     target = tvm.target.Target("cuda", host="llvm")
 
     vdevices = [I.vdevice("cuda", 0)]
-    m = tir.Var("m", "int64")
+    m = tirx.Var("m", "int64")
     x = relax.Var("x", R.Tensor((m, 3), "float32", vdevices[0]))
     bb = relax.BlockBuilder()
     with target:
@@ -132,7 +132,7 @@ def test_dispatch_sort():
             return gv
 
     vdevices = [I.vdevice("llvm", 0)]
-    m = tir.Var("m", "int64")
+    m = tirx.Var("m", "int64")
     x = relax.Var("x", R.Tensor((m, 3), "float32", vdevices[0]))
     bb = relax.BlockBuilder()
 
@@ -229,7 +229,7 @@ def test_dispatch_argsort():
             return gv
 
     vdevices = [I.vdevice("llvm", 0)]
-    m = tir.Var("m", "int64")
+    m = tirx.Var("m", "int64")
     x = relax.Var("x", R.Tensor((m, 3), "float32", vdevices[0]))
     bb = relax.BlockBuilder()
 
@@ -322,7 +322,7 @@ def test_dispatch_topk():
             return gv
 
     vdevices = [I.vdevice("llvm", 0)]
-    m = tir.Var("m", "int64")
+    m = tirx.Var("m", "int64")
     x = relax.Var("x", R.Tensor((m, 3), "float32", vdevices[0]))
     bb = relax.BlockBuilder()
 

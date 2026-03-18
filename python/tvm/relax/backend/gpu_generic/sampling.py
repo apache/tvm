@@ -21,8 +21,8 @@ import math
 from collections.abc import Callable
 
 import tvm
-from tvm.script import tir as T
-from tvm.tir import PrimFunc
+from tvm.script import tirx as T
+from tvm.tirx import PrimFunc
 
 
 def _is_power_of_two(n: int):
@@ -265,7 +265,7 @@ def gpu_multinomial_from_uniform(
         var_row_indices: T.handle,
         var_sampled_token_ids: T.handle,
     ):
-        T.func_attr({"tir.is_scheduled": True})
+        T.func_attr({"tirx.is_scheduled": True})
         n, vocab_size, batch_size = T.int64(), T.int64(), T.int64()
         # match buffers
         prob = T.match_buffer(var_prob, (n, vocab_size), prob_dtype)

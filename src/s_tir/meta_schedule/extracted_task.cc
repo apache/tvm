@@ -20,7 +20,7 @@
 #include <tvm/s_tir/meta_schedule/extracted_task.h>
 #include <tvm/te/operation.h>
 #include <tvm/te/tensor.h>
-#include <tvm/tir/function.h>
+#include <tvm/tirx/function.h>
 
 #include "../../te/operation/create_primfunc.h"
 #include "./utils.h"

@@ -24,13 +24,13 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/stmt_functor.h>
 
-#include "../../tir/transform/ir_utils.h"
+#include "../../tirx/transform/ir_utils.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 /*!
  * \brief Remove SBlock to ensure that the TIR can not be scheduled again.
@@ -144,7 +144,7 @@ class OpaqueBlockLower : public StmtExprMutator {
     ffi::String attr_key = (thread_tag == "vthread" || thread_tag == "vthread.x" ||
                             thread_tag == "vthread.y" || thread_tag == "vthread.z")
                                ? s_tir::attr::virtual_thread
-                               : tir::attr::thread_extent;
+                               : tirx::attr::thread_extent;
     return AttrStmt(/*node=*/std::move(iter_var),
                     /*attr_key=*/std::move(attr_key),
                     /*value=*/std::move(extent),
@@ -181,7 +181,7 @@ class OpaqueBlockLower : public StmtExprMutator {
     pragma_attrs->clear();
     for (const auto& kv : annotations) {
       const ffi::String& key = kv.first;
-      if (tir::attr::IsPragmaKey(key)) {
+      if (tirx::attr::IsPragmaKey(key)) {
         pragma_attrs->emplace_back(key, ConvertAttrValue(key, kv.second));
       } else if (!is_block) {
         // the loop annotation is preserved

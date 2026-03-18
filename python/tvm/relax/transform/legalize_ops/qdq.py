@@ -18,7 +18,7 @@
 """Default legalization function for quantize/dequantize operators."""
 
 import tvm
-from tvm import te, tir
+from tvm import te, tirx
 
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr
@@ -26,13 +26,13 @@ from .common import _try_convert_to_scalar_const, register_legalize
 
 
 def clip_cast(val, dtype):
-    const_min = tvm.tir.min_value(dtype)
-    const_max = tvm.tir.max_value(dtype)
+    const_min = tvm.tirx.min_value(dtype)
+    const_max = tvm.tirx.max_value(dtype)
     return te.max(te.min(val, const_max), const_min).astype(dtype)
 
 
 def is_const_scalar(x):
-    return isinstance(x, tvm.tir.IntImm | tvm.tir.FloatImm)
+    return isinstance(x, tvm.tirx.IntImm | tvm.tirx.FloatImm)
 
 
 @register_legalize("relax.quantize")
@@ -46,8 +46,8 @@ def _quantize(bb: BlockBuilder, call: Call) -> Expr:
 
     def te_quantize(
         data: te.Tensor,
-        scale: te.Tensor | tir.IntImm | tir.FloatImm,
-        zp: te.Tensor | tir.IntImm | tir.FloatImm,
+        scale: te.Tensor | tirx.IntImm | tirx.FloatImm,
+        zp: te.Tensor | tirx.IntImm | tirx.FloatImm,
     ):
         def quantize_compute(*indices):
             scale_value = scale if is_const_scalar(scale) else scale[indices[axis]]
@@ -94,8 +94,8 @@ def _dequantize(bb: BlockBuilder, call: Call) -> Expr:
 
     def te_dequantize(
         data: te.Tensor,
-        scale: te.Tensor | tir.IntImm | tir.FloatImm,
-        zp: te.Tensor | tir.IntImm | tir.FloatImm,
+        scale: te.Tensor | tirx.IntImm | tirx.FloatImm,
+        zp: te.Tensor | tirx.IntImm | tirx.FloatImm,
     ):
         def dequantize_compute(*indices):
             scale_value = scale if is_const_scalar(scale) else scale[indices[axis]]

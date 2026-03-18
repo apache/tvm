@@ -48,15 +48,15 @@ def space_to_depth(data, block_size, layout="NCHW"):
         output_shape = [
             in_n,
             in_c * block_size * block_size,
-            tvm.tir.truncdiv(in_h, block_size),
-            tvm.tir.truncdiv(in_w, block_size),
+            tvm.tirx.truncdiv(in_h, block_size),
+            tvm.tirx.truncdiv(in_w, block_size),
         ]
     elif layout == "NHWC":
         in_n, in_h, in_w, in_c = data.shape
         output_shape = [
             in_n,
-            tvm.tir.truncdiv(in_h, block_size),
-            tvm.tir.truncdiv(in_w, block_size),
+            tvm.tirx.truncdiv(in_h, block_size),
+            tvm.tirx.truncdiv(in_w, block_size),
             in_c * block_size * block_size,
         ]
     else:
@@ -70,10 +70,10 @@ def space_to_depth(data, block_size, layout="NCHW"):
         return n, c, y, x
 
     def _get_pixel(n, c, y, x):
-        block_offset = tvm.tir.truncdiv(c, in_c)
-        channel_idx = tvm.tir.truncmod(c, in_c)
-        x_idx = tvm.tir.truncmod(block_offset, block_size)
-        y_idx = tvm.tir.truncdiv(block_offset, block_size)
+        block_offset = tvm.tirx.truncdiv(c, in_c)
+        channel_idx = tvm.tirx.truncmod(c, in_c)
+        x_idx = tvm.tirx.truncmod(block_offset, block_size)
+        y_idx = tvm.tirx.truncdiv(block_offset, block_size)
 
         if layout == "NCHW":
             output = data(n, channel_idx, y_idx + (y * block_size), x_idx + (x * block_size))

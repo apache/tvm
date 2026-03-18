@@ -18,7 +18,7 @@
  */
 #include <tvm/s_tir/meta_schedule/schedule/cuda/thread_bind.h>
 #include <tvm/s_tir/schedule/schedule.h>
-#include <tvm/tir/op.h>
+#include <tvm/tirx/op.h>
 
 #include <algorithm>
 #include <limits>
@@ -30,7 +30,7 @@ namespace tvm {
 namespace s_tir {
 namespace meta_schedule {
 
-using namespace tvm::tir;
+using namespace tvm::tirx;
 using s_tir::ExprRV;
 using s_tir::GetLoopIterType;
 using s_tir::GetLoops;

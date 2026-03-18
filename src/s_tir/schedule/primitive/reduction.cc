@@ -22,7 +22,7 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 /*!
  * \brief A helper class to create a new scope that contains decomposed init body
@@ -746,7 +746,7 @@ class BaseBlockCreator {
     }
     ffi::Array<Stmt> stmts;
     for (int i = 0; i < n_buffers_; ++i) {
-      stmts.push_back(tir::Bind(let_vars[i], stored_values[i]));
+      stmts.push_back(tirx::Bind(let_vars[i], stored_values[i]));
     }
     for (const auto& store : buf_stores) {
       stmts.push_back(store);

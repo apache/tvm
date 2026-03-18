@@ -27,7 +27,7 @@
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/runtime/vm/bytecode.h>
 #include <tvm/target/target.h>
-#include <tvm/tir/function.h>
+#include <tvm/tirx/function.h>
 
 #include <string>
 #include <unordered_map>

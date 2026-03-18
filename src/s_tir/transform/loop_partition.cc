@@ -26,10 +26,10 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tir/analysis.h>
-#include <tvm/tir/builtin.h>
-#include <tvm/tir/expr.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/analysis.h>
+#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/expr.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include <optional>
 #include <unordered_map>
@@ -37,11 +37,11 @@
 
 #include "../../arith/interval_set.h"
 #include "../../runtime/thread_storage_scope.h"
-#include "../../tir/transform/ir_utils.h"
+#include "../../tirx/transform/ir_utils.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 struct LoopPartitionConfigNode : public AttrsNodeReflAdapter<LoopPartitionConfigNode> {
   bool partition_const_loop;
@@ -133,7 +133,7 @@ class CandidateSelector final : public StmtExprVisitor {
   }
 
   void VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == tir::attr::thread_extent) {
+    if (op->attr_key == tirx::attr::thread_extent) {
       const IterVarNode* iv = op->node.as<IterVarNode>();
       TVM_FFI_ICHECK(iv);
       Var var = iv->var;
@@ -255,7 +255,7 @@ class PartitionFinder : public StmtExprVisitor {
 
   void VisitStmt_(const AttrStmtNode* op) final {
     // handle thread_axis
-    if (op->attr_key == tir::attr::thread_extent) {
+    if (op->attr_key == tirx::attr::thread_extent) {
       const IterVarNode* thread_axis = op->node.as<IterVarNode>();
       TVM_FFI_ICHECK(thread_axis);
       const VarNode* var = thread_axis->var.get();
@@ -383,7 +383,7 @@ class ThreadPartitionInserter : public StmtMutator {
       : ps_(ps), cond_(cond), innermost_thread_scope_(false) {}
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == tir::attr::thread_extent) {
+    if (op->attr_key == tirx::attr::thread_extent) {
       innermost_thread_scope_ = true;
       Stmt stmt = StmtMutator::VisitStmt_(op);
       // add branch code inside the innermost thread scope
@@ -438,7 +438,7 @@ class LoopPartitioner : public StmtMutator {
   }
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key != tir::attr::thread_extent) {
+    if (op->attr_key != tirx::attr::thread_extent) {
       return StmtMutator::VisitStmt_(op);
     }
 

@@ -28,8 +28,8 @@
 #include <tvm/relax/type.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/tensor.h>
-#include <tvm/tir/expr.h>
-#include <tvm/tir/op.h>
+#include <tvm/tirx/expr.h>
+#include <tvm/tirx/op.h>
 
 #include <functional>
 

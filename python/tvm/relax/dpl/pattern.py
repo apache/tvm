@@ -893,7 +893,7 @@ def is_call_tir(
     args : Union[List[DFPattern], Tuple[DFPattern]], optional
         Arguments in expected call_packed, by default None meaning arbitrary (number of) arguments
     tir_vars : Optional[DFPattern]
-        Pattern to match the tuple of integers that are unpacked when calling the tir func.
+        Pattern to match the tuple of integers that are unpacked when calling the tirx func.
     Returns
     -------
     CallPattern

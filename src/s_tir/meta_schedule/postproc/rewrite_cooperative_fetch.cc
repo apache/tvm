@@ -23,7 +23,7 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 /*!
  * \brief Parse instruction: sch.bind(..., axis)
@@ -89,20 +89,20 @@ bool ParseWarpExecutionAnn(const Schedule& sch, const Instruction& inst) {
 
 size_t GetMaxUsedDtypeBytes(SBlock block) {
   size_t max_bytes = 1;
-  static auto q_multiply_shift_per_axis = Op::Get("tir.q_multiply_shift_per_axis");
-  static auto q_multiply_shift = Op::Get("tir.q_multiply_shift");
+  static auto q_multiply_shift_per_axis = Op::Get("tirx.q_multiply_shift_per_axis");
+  static auto q_multiply_shift = Op::Get("tirx.q_multiply_shift");
 
-  tir::PostOrderVisit(block->body, [&](const ObjectRef& obj) {
-    if (const auto* store = obj.as<tir::BufferStoreNode>()) {
+  tirx::PostOrderVisit(block->body, [&](const ObjectRef& obj) {
+    if (const auto* store = obj.as<tirx::BufferStoreNode>()) {
       max_bytes = std::max(max_bytes, static_cast<size_t>(store->value->dtype.bytes()));
-    } else if (const auto* load = obj.as<tir::BufferLoadNode>()) {
+    } else if (const auto* load = obj.as<tirx::BufferLoadNode>()) {
       max_bytes = std::max(max_bytes, static_cast<size_t>(load->dtype.bytes()));
-    } else if (const auto* call = obj.as<tir::CallNode>()) {
+    } else if (const auto* call = obj.as<tirx::CallNode>()) {
       if (call->op.same_as(q_multiply_shift_per_axis) || call->op.same_as(q_multiply_shift)) {
         // q_multiply_shift uses 64 bit multiply
         max_bytes = std::max<size_t>(max_bytes, 8);
       }
-    } else if (const auto* cast = obj.as<tir::CastNode>()) {
+    } else if (const auto* cast = obj.as<tirx::CastNode>()) {
       max_bytes = std::max<size_t>(max_bytes, cast->dtype.bytes());
     }
   });

@@ -27,13 +27,13 @@
 #include <tvm/ir/module.h>
 #include <tvm/ir/transform.h>
 #include <tvm/target/target.h>
-#include <tvm/tir/function.h>
-#include <tvm/tir/stmt.h>
+#include <tvm/tirx/function.h>
+#include <tvm/tirx/stmt.h>
 
 #include <optional>
 
 namespace tvm {
-namespace tir {
+namespace tirx {
 
 /*!
  * \brief Auto detect the block access region according to its body stmt
@@ -85,9 +85,9 @@ TVM_DLL ffi::Map<Buffer, ffi::Optional<Stmt>> DetectBufferAccessLCA(const PrimFu
  * \param mod The input TIR module.
  * \return The anchor block if found, nullptr otherwise.
  */
-const tir::SBlockNode* FindAnchorBlock(const IRModule& mod);
+const tirx::SBlockNode* FindAnchorBlock(const IRModule& mod);
 
-}  // namespace tir
+}  // namespace tirx
 
 namespace arith {
 class Analyzer;
@@ -95,7 +95,7 @@ class Analyzer;
 
 namespace s_tir {
 
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 /*!
  * \brief Estimate the FLOPs of a TIR fragment.

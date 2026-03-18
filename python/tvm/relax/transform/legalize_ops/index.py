@@ -17,7 +17,7 @@
 # pylint: disable=invalid-name
 """Default legalization function for index operators."""
 
-from tvm import te, tir, topi
+from tvm import te, tirx, topi
 
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr
@@ -45,7 +45,7 @@ def _strided_slice(bb: BlockBuilder, call: Call) -> Expr:
 
     if len(call.args) == 4:
         data, axes, begin, end = call.args
-        strides = [tir.IntImm("int64", 1)] * len(axes.struct_info.fields)
+        strides = [tirx.IntImm("int64", 1)] * len(axes.struct_info.fields)
     elif len(call.args) == 5:
         data, axes, begin, end, strides = call.args
         strides = _relax_tuple_to_tir(strides)
@@ -80,21 +80,21 @@ def _dynamic_strided_slice(bb: BlockBuilder, call: Call) -> Expr:
     def shape_func(data, begin, end, strides):
         def _compute(i):
             def canonicalize_index(index, extent, strides):
-                begin_range = tir.Select(strides < 0, tir.const(-1, "int64"), tir.const(0, "int64"))
-                end_range = tir.Select(strides < 0, extent - 1, extent)
-                index = tir.Select(index < 0, index + extent, index)
-                return tir.Min(tir.Max(index, begin_range), end_range)
+                begin_range = tirx.Select(strides < 0, tirx.const(-1, "int64"), tirx.const(0, "int64"))
+                end_range = tirx.Select(strides < 0, extent - 1, extent)
+                index = tirx.Select(index < 0, index + extent, index)
+                return tirx.Min(tirx.Max(index, begin_range), end_range)
 
             def get_length(begin, end, strides, length):
                 begin = canonicalize_index(begin, length, strides)
                 end = canonicalize_index(end, length, strides)
-                len1 = tir.ceildiv(begin - end, -strides)
-                len2 = tir.ceildiv(end - begin, strides)
-                return tir.Select(strides < 0, len1, len2)
+                len1 = tirx.ceildiv(begin - end, -strides)
+                len2 = tirx.ceildiv(end - begin, strides)
+                return tirx.Select(strides < 0, len1, len2)
 
-            length = tir.const(-1, "int64")
+            length = tirx.const(-1, "int64")
             for idx in range(data.ndim):
-                length = tir.Select(i == tir.const(idx, "int64"), data.shape[idx], length)
+                length = tirx.Select(i == tirx.const(idx, "int64"), data.shape[idx], length)
 
             return get_length(begin[i], end[i], strides[i], length)
 
@@ -113,7 +113,7 @@ def _dynamic_strided_slice(bb: BlockBuilder, call: Call) -> Expr:
     # 2. Convert tensor to shape and match cast with new symbolic vars
     ndim = int(output_shape.struct_info.shape[0])
     output_shape = bb.emit(tensor_to_shape(output_shape))
-    output_shape_vars = [tir.Var("s", "int64") for i in range(ndim)]
+    output_shape_vars = [tirx.Var("s", "int64") for i in range(ndim)]
     bb.match_cast(output_shape, ShapeStructInfo(output_shape_vars))
 
     # 3. Pass the output shape vars to TOPI

@@ -34,7 +34,7 @@ from tvm.s_tir.dlight.benchmark import (
 from tvm.s_tir.meta_schedule.testing.local_rpc import LocalRPC
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 # The test function uses an undefined symbolic var in Relax.
@@ -45,7 +45,7 @@ from tvm.script import tir as T
 class Module:
     @T.prim_func
     def full1(var_T_full: T.handle):
-        T.func_attr({"op_pattern": 0, "tir.noalias": True})
+        T.func_attr({"op_pattern": 0, "tirx.noalias": True})
         n = T.int64()
         T_full = T.match_buffer(var_T_full, (T.int64(1), T.int64(32), T.int64(1), n), "float16")
         # with T.sblock("root"):
@@ -58,7 +58,7 @@ class Module:
 
     @T.prim_func
     def full2(var_T_full: T.handle):
-        T.func_attr({"op_pattern": 0, "tir.noalias": True})
+        T.func_attr({"op_pattern": 0, "tirx.noalias": True})
         n = T.int64()
         T_full = T.match_buffer(var_T_full, (T.int64(1), T.int64(32), n, T.int64(128)), "float16")
         # with T.sblock("root"):
@@ -71,7 +71,7 @@ class Module:
 
     @T.prim_func
     def matmul1(var_A: T.handle, var_B: T.handle, matmul: T.Buffer((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16")):
-        T.func_attr({"op_pattern": 4, "tir.noalias": True})
+        T.func_attr({"op_pattern": 4, "tirx.noalias": True})
         n = T.int64()
         A = T.match_buffer(var_A, (T.int64(1), T.int64(32), T.int64(1), n), "float16")
         B = T.match_buffer(var_B, (T.int64(1), T.int64(32), n, T.int64(128)), "float16")
@@ -102,7 +102,7 @@ class Module:
 
 @T.prim_func
 def cuda_workload(var_inp0: T.handle, inp1: T.Buffer((T.int64(4096), T.int64(4096)), "float32"), var_matmul: T.handle):
-    T.func_attr({"tir.is_scheduled": True})
+    T.func_attr({"tirx.is_scheduled": True})
     m = T.int64()
     inp0 = T.match_buffer(var_inp0, (T.int64(1), m, T.int64(4096)))
     matmul = T.match_buffer(var_matmul, (T.int64(1), m, T.int64(4096)))

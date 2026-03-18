@@ -26,8 +26,8 @@ from typing import Any, TypeVar
 import numpy as np
 
 from tvm import te
-from tvm import tir as _tir
-from tvm.script import tir as T
+from tvm import tirx as _tir
+from tvm.script import tirx as T
 
 from ... import expr as rx
 from ... import op as _op

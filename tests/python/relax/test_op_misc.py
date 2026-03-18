@@ -19,7 +19,7 @@ import tvm
 import tvm.testing
 from tvm import relax as rx
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 @tvm.register_global_func("test.op.identity", override=True)
@@ -64,7 +64,7 @@ def test_call_tir_with_grad():
 
 
 def test_implicit_op():
-    m, n = tvm.tir.Var("m", "int64"), tvm.tir.Var("n", "int64")
+    m, n = tvm.tirx.Var("m", "int64"), tvm.tirx.Var("n", "int64")
     x = rx.Var("x", R.Tensor([m, n], "float32"))
     y = rx.Var("y", R.Tensor([m, n], "float32"))
     func = rx.Var(

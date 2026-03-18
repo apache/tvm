@@ -25,9 +25,9 @@
 #include "inspect.h"
 
 #include <tvm/relax/op_attr_types.h>
-#include <tvm/tir/builtin.h>
-#include <tvm/tir/function.h>
-#include <tvm/tir/op.h>
+#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/function.h>
+#include <tvm/tirx/op.h>
 
 #include <tuple>
 
@@ -87,20 +87,20 @@ std::tuple<TensorStructInfo, PrimStructInfo> GetTensorArgInfoWithIndex(const Cal
 
 DataType GetTensorDataType(const Call& call) { return GetTensorArgInfo(call)->dtype; }
 
-tir::PrimFunc GetDLTensorField(tir::builtin::TVMStructFieldKind field, DataType field_dtype) {
-  tir::Var dlpack_handle("dlpack_handle", DataType::Handle());
+tirx::PrimFunc GetDLTensorField(tirx::builtin::TVMStructFieldKind field, DataType field_dtype) {
+  tirx::Var dlpack_handle("dlpack_handle", DataType::Handle());
 
-  tir::Var value("value", field_dtype);
+  tirx::Var value("value", field_dtype);
 
-  tir::Stmt body =
-      tir::SeqStmt({tir::Bind(value, tir::Call(field_dtype, tir::builtin::tvm_struct_get(),
+  tirx::Stmt body =
+      tirx::SeqStmt({tirx::Bind(value, tirx::Call(field_dtype, tirx::builtin::tvm_struct_get(),
                                                {dlpack_handle, IntImm(DataType::Int(32), 0),
                                                 IntImm(DataType::Int(32), field)})),
-                    tir::Evaluate(tvm::ret(value))});
+                    tirx::Evaluate(tvm::ret(value))});
 
-  DictAttrs attrs({{"tir.is_scheduled", true}, {"tir.is_host", true}});
+  DictAttrs attrs({{"tirx.is_scheduled", true}, {"tirx.is_host", true}});
 
-  tir::PrimFunc func(ffi::Array<tir::Var>{dlpack_handle}, body, PrimType(field_dtype), {}, attrs);
+  tirx::PrimFunc func(ffi::Array<tirx::Var>{dlpack_handle}, body, PrimType(field_dtype), {}, attrs);
 
   FuncStructInfo sinfo({TensorStructInfo(DataType::Void(), kUnknownNDim)},
                        PrimStructInfo(field_dtype));
@@ -140,8 +140,8 @@ Expr LegalizeTensorDtypeCode(const BlockBuilder& bb, const Call& call) {
   auto field_dtype = Downcast<PrimStructInfo>(call->struct_info_)->dtype;
 
   Expr arg = call->args[0];
-  tir::PrimFunc getter =
-      GetDLTensorField(tir::builtin::TVMStructFieldKind::kDLTensorTypeCode, field_dtype);
+  tirx::PrimFunc getter =
+      GetDLTensorField(tirx::builtin::TVMStructFieldKind::kDLTensorTypeCode, field_dtype);
 
   GlobalVar gvar_getter = bb->AddFunction(getter, "_get_tensor_dtype_code");
   return Call(gvar_getter, {arg});
@@ -178,8 +178,8 @@ Expr LegalizeTensorDtypeBits(const BlockBuilder& bb, const Call& call) {
   auto field_dtype = Downcast<PrimStructInfo>(call->struct_info_)->dtype;
 
   Expr arg = call->args[0];
-  tir::PrimFunc getter =
-      GetDLTensorField(tir::builtin::TVMStructFieldKind::kDLTensorTypeBits, field_dtype);
+  tirx::PrimFunc getter =
+      GetDLTensorField(tirx::builtin::TVMStructFieldKind::kDLTensorTypeBits, field_dtype);
 
   GlobalVar gvar_getter = bb->AddFunction(getter, "_get_tensor_dtype_bits");
   return Call(gvar_getter, {arg});
@@ -216,8 +216,8 @@ Expr LegalizeTensorDtypeLanes(const BlockBuilder& bb, const Call& call) {
   auto field_dtype = Downcast<PrimStructInfo>(call->struct_info_)->dtype;
 
   Expr arg = call->args[0];
-  tir::PrimFunc getter =
-      GetDLTensorField(tir::builtin::TVMStructFieldKind::kDLTensorTypeLanes, field_dtype);
+  tirx::PrimFunc getter =
+      GetDLTensorField(tirx::builtin::TVMStructFieldKind::kDLTensorTypeLanes, field_dtype);
 
   GlobalVar gvar_getter = bb->AddFunction(getter, "_get_tensor_dtype_lanes");
   return Call(gvar_getter, {arg});
@@ -254,8 +254,8 @@ Expr LegalizeTensorNDim(const BlockBuilder& bb, const Call& call) {
   auto field_dtype = Downcast<PrimStructInfo>(call->struct_info_)->dtype;
 
   Expr arg = call->args[0];
-  tir::PrimFunc getter =
-      GetDLTensorField(tir::builtin::TVMStructFieldKind::kDLTensorNDim, field_dtype);
+  tirx::PrimFunc getter =
+      GetDLTensorField(tirx::builtin::TVMStructFieldKind::kDLTensorNDim, field_dtype);
 
   GlobalVar gvar_getter = bb->AddFunction(getter, "_get_tensor_ndim");
   return Call(gvar_getter, {arg});
@@ -295,37 +295,37 @@ StructInfo InferStructInfoTensorShape(const Call& call, const BlockBuilder&) {
 Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
   auto field_dtype = Downcast<PrimStructInfo>(call->struct_info_)->dtype;
 
-  tir::PrimFunc getter = [&]() -> tir::PrimFunc {
-    tir::Var dlpack_handle("dlpack_handle", DataType::Handle());
-    tir::Var axis("axis", DataType::Int(64));
+  tirx::PrimFunc getter = [&]() -> tirx::PrimFunc {
+    tirx::Var dlpack_handle("dlpack_handle", DataType::Handle());
+    tirx::Var axis("axis", DataType::Int(64));
 
-    tir::Var ndim("ndim", DataType::Int(32));
+    tirx::Var ndim("ndim", DataType::Int(32));
 
-    tir::Buffer shape_buffer = tir::decl_buffer({ndim}, field_dtype, "shape");
+    tirx::Buffer shape_buffer = tirx::decl_buffer({ndim}, field_dtype, "shape");
 
-    tir::Var extent("extent", field_dtype);
+    tirx::Var extent("extent", field_dtype);
 
-    tir::Stmt body = tir::SeqStmt(
-        {tir::AssertStmt(0 <= axis, tir::StringImm("RuntimeError"),
-                         {tir::StringImm("Specified axis may not be negative")}),
-         tir::Bind(ndim, tir::Call(ndim->dtype, tir::builtin::tvm_struct_get(),
+    tirx::Stmt body = tirx::SeqStmt(
+        {tirx::AssertStmt(0 <= axis, tirx::StringImm("RuntimeError"),
+                         {tirx::StringImm("Specified axis may not be negative")}),
+         tirx::Bind(ndim, tirx::Call(ndim->dtype, tirx::builtin::tvm_struct_get(),
                                    {dlpack_handle, IntImm(DataType::Int(32), 0),
                                     IntImm(DataType::Int(32),
-                                           tir::builtin::TVMStructFieldKind::kDLTensorNDim)})),
-         tir::AssertStmt(
-             axis < tvm::cast(axis->dtype, ndim), tir::StringImm("RuntimeError"),
-             {tir::StringImm("Specified axis may not be larger than the tensor's dimensionality")}),
-         tir::Bind(shape_buffer->data,
-                   tir::Call(DataType::Handle(), tir::builtin::tvm_struct_get(),
+                                           tirx::builtin::TVMStructFieldKind::kDLTensorNDim)})),
+         tirx::AssertStmt(
+             axis < tvm::cast(axis->dtype, ndim), tirx::StringImm("RuntimeError"),
+             {tirx::StringImm("Specified axis may not be larger than the tensor's dimensionality")}),
+         tirx::Bind(shape_buffer->data,
+                   tirx::Call(DataType::Handle(), tirx::builtin::tvm_struct_get(),
                              {dlpack_handle, IntImm(DataType::Int(32), 0),
                               IntImm(DataType::Int(32),
-                                     tir::builtin::TVMStructFieldKind::kDLTensorShape)})),
-         tir::DeclBuffer(shape_buffer), tir::Bind(extent, tir::BufferLoad(shape_buffer, {axis})),
-         tir::Evaluate(tvm::ret(extent))});
+                                     tirx::builtin::TVMStructFieldKind::kDLTensorShape)})),
+         tirx::DeclBuffer(shape_buffer), tirx::Bind(extent, tirx::BufferLoad(shape_buffer, {axis})),
+         tirx::Evaluate(tvm::ret(extent))});
 
-    DictAttrs attrs({{"tir.is_scheduled", true}, {"tir.is_host", true}});
+    DictAttrs attrs({{"tirx.is_scheduled", true}, {"tirx.is_host", true}});
 
-    tir::PrimFunc func({dlpack_handle, axis}, body, PrimType(field_dtype), {}, attrs);
+    tirx::PrimFunc func({dlpack_handle, axis}, body, PrimType(field_dtype), {}, attrs);
 
     FuncStructInfo sinfo(
         {TensorStructInfo(DataType::Void(), kUnknownNDim), PrimStructInfo(axis->dtype)},
@@ -367,9 +367,9 @@ StructInfo InferStructInfoTensorStride(const Call& call, const BlockBuilder&) {
     // As of 2024-03-14, Relax does not have an explicit
     // representation for striding in `TensorStructInfo`.  The
     // `FLegalize` function for most operators is implemented in terms
-    // of `topi`, and is then converted from TE to `tir::PrimFunc`
-    // using `tvm::tir::CreatePrimFunc`.  The `te::Tensor` is
-    // converted to a `tir::Buffer` in `RewriteStageToBlock`, and uses
+    // of `topi`, and is then converted from TE to `tirx::PrimFunc`
+    // using `tvm::tirx::CreatePrimFunc`.  The `te::Tensor` is
+    // converted to a `tirx::Buffer` in `RewriteStageToBlock`, and uses
     // the default empty list for the strides.  The empty strides
     // represent a compact data array.
     //

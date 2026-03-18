@@ -24,7 +24,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import te
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 # TODO(csullivan): Additional tests cases needed:
 # - PrimFunc with 1 arg, inplace update

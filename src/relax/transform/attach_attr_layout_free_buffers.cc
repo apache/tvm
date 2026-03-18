@@ -25,7 +25,7 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
 namespace relax {
@@ -80,16 +80,16 @@ class AttrAttacher : public ExprMutator {
         layout_free_buffers.push_back(i);
       }
     }
-    // Attach the layout free buffers to the tir::PrimFunc
-    tir::PrimFunc func = WithAttr(Downcast<tir::PrimFunc>(mod_->Lookup(gv)), "layout_free_buffers",
+    // Attach the layout free buffers to the tirx::PrimFunc
+    tirx::PrimFunc func = WithAttr(Downcast<tirx::PrimFunc>(mod_->Lookup(gv)), "layout_free_buffers",
                                   layout_free_buffers);
     // Renew defs
     func = s_tir::RenewDefs(func);
-    // Add the updated tir::PrimFunc in the IRModule
-    // Note the blockbuilder would automatically combine the same tir function
+    // Add the updated tirx::PrimFunc in the IRModule
+    // Note the blockbuilder would automatically combine the same tirx function
     // So we don't need to worry about the duplicate insertion
     GlobalVar new_gv = builder_->AddFunction(func, gv->name_hint);
-    // Create a new call node with the updated tir::PrimFunc
+    // Create a new call node with the updated tirx::PrimFunc
     auto n = ffi::make_object<CallNode>(*op);
     n->args = {new_gv, Tuple(call_tir_args)};
     return Call(n);
@@ -104,7 +104,7 @@ namespace transform {
 Pass AttachAttrLayoutFreeBuffers() {
   auto pass_func = [=](IRModule mod, PassContext pc) { return AttrAttacher::Transform(mod); };
   auto pass = CreateModulePass(pass_func, 0, "_AttachAttrLayoutFreeBuffers", {});
-  // Apply DeadCodeElimination to remove unused tir::PrimFunc
+  // Apply DeadCodeElimination to remove unused tirx::PrimFunc
   return tvm::transform::Sequential({pass, DeadCodeElimination()}, "AttachAttrLayoutFreeBuffers");
 }
 

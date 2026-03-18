@@ -120,7 +120,7 @@
  * 2: CollectProducerScopeInfo: Visitor does finalizes the scope for each input and output based
  *    on consumer scope information. It does evaluating mutiple consumer cases and conflicts.
  * 3: DefineVDevice: Pass does injects hint_on_device for each argument. It also tries to update
- *    out StructInfo containing VDevice information. This update for tir calls is straight forward
+ *    out StructInfo containing VDevice information. This update for tirx calls is straight forward
  *    as sinfo_args in CallNode is meant for this purpose. This sinfo_args for other calls by
  *    design is invalid as we do this by "FInferStructInfo".
  *    Another issue we have with "FInferStructInfo" per op is they can't decide this
@@ -242,7 +242,7 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/nested_msg.h>
 #include <tvm/relax/op_attr_types.h>
-#include <tvm/tir/index_map.h>
+#include <tvm/tirx/index_map.h>
 
 #include <tuple>
 
@@ -255,7 +255,7 @@ namespace relax {
 namespace backend {
 namespace adreno {
 
-using tvm::tir::Buffer;
+using tvm::tirx::Buffer;
 
 static ffi::Array<PrimExpr> GetShapeFromTensorStructInfo(const TensorStructInfo& tensor_sinfo) {
   auto shape = tensor_sinfo->GetShape();
@@ -342,9 +342,9 @@ class CollectConsumerScopeInfo : public ExprVisitor {
 
     if (call->op == call_tir_op) {
       gv = Downcast<GlobalVar>(call->args[0]);
-      tir::PrimFunc pfunc = Downcast<tir::PrimFunc>(mod_->Lookup(gv));
-      op_attrs = ExtractAttrs<tir::PrimFunc>(pfunc);
-      op_pattern = ExtractPattern<tir::PrimFunc>(pfunc);
+      tirx::PrimFunc pfunc = Downcast<tirx::PrimFunc>(mod_->Lookup(gv));
+      op_attrs = ExtractAttrs<tirx::PrimFunc>(pfunc);
+      op_pattern = ExtractPattern<tirx::PrimFunc>(pfunc);
       func_args = Downcast<Tuple>(call->args[1]);
     } else {
       op_attrs = {call->attrs};
@@ -424,7 +424,7 @@ class CollectConsumerScopeInfo : public ExprVisitor {
   std::string Scope(ffi::Array<PrimExpr> shape) {
     // currently we support only textures been made from 5d tensors
     // 5d requirement is not limitation of textures in general, it is limitation how
-    // we are representing memory scopes/layout and flattening of textures in tir
+    // we are representing memory scopes/layout and flattening of textures in tirx
     if (shape.size() == 5 && shape[4].as<IntImmNode>()->value == 4) {
       for (auto ind : shape) {
         if (!ind.as<IntImmNode>()) {

@@ -81,7 +81,7 @@ void JSONDumps(Any json_obj, std::ostringstream& os) {
       JSONDumps(kv.second, os);
     }
     os << "}";
-  } else if (json_obj.as<tir::IndexMapNode>()) {
+  } else if (json_obj.as<tirx::IndexMapNode>()) {
     JSONDumps(ffi::String(ffi::json::Stringify(
                   ffi::ToJSONGraph(json_obj, ffi::json::Object{{"tvm_version", TVM_VERSION}}),
                   /*indent=*/2)),

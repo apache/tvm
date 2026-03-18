@@ -25,7 +25,7 @@ import tvm.contrib.nvcc
 import tvm.testing
 from tvm.contrib.nvcc import have_bf16, have_fp16, have_int8
 from tvm.script import ir as I
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 @pytest.fixture(autouse=True, params=["nvcc", "nvrtc"])
@@ -66,14 +66,14 @@ def test_cuda_vectorize_add():
             print("skip because gpu does not support int8")
             return
         vec_dtype = f"{dtype}x{lanes}"
-        one = tvm.tir.const(1, vec_dtype)
+        one = tvm.tirx.const(1, vec_dtype)
         num_blocks = (n + num_thread - 1) // num_thread
 
         @I.ir_module
         class Module:
             @T.prim_func
             def main(A: T.Buffer((n,), vec_dtype), B: T.Buffer((n,), vec_dtype)):
-                T.func_attr({"tir.noalias": True})
+                T.func_attr({"tirx.noalias": True})
                 for i_0 in T.thread_binding(num_blocks, thread="blockIdx.x"):
                     for i_1 in T.thread_binding(num_thread, thread="threadIdx.x"):
                         with T.sblock("B"):
@@ -130,13 +130,13 @@ def test_cuda_bf16_vectorize_add():
     def check_cuda(n, lanes):
         vec_dtype = f"bfloat16x{lanes}"
         num_blocks = n // num_thread
-        one = tvm.tir.Broadcast(tvm.tir.const(1, "bfloat16"), lanes)
+        one = tvm.tirx.Broadcast(tvm.tirx.const(1, "bfloat16"), lanes)
 
         @I.ir_module
         class Module:
             @T.prim_func
             def main(A: T.Buffer((n,), vec_dtype), B: T.Buffer((n,), vec_dtype)):
-                T.func_attr({"tir.noalias": True})
+                T.func_attr({"tirx.noalias": True})
                 for i_0 in T.thread_binding(num_blocks, thread="blockIdx.x"):
                     for i_1 in T.thread_binding(num_thread, thread="threadIdx.x"):
                         with T.sblock("B"):
@@ -146,7 +146,7 @@ def test_cuda_bf16_vectorize_add():
                             B[v_i] = A[v_i] + one
 
         with tvm.transform.PassContext(
-            disabled_pass=["tir.BF16Promote", "tir.BF16CastElimination", "tir.BF16TypeLowering"]
+            disabled_pass=["tirx.BF16Promote", "tirx.BF16CastElimination", "tirx.BF16TypeLowering"]
         ):
             fun = tvm.compile(Module, target="cuda")
         dev = tvm.cuda(0)
@@ -185,7 +185,7 @@ def test_cuda_multiply_add():
                 C: T.Buffer((n,), "int32"),
                 D: T.Buffer((n,), "int32"),
             ):
-                T.func_attr({"tir.noalias": True})
+                T.func_attr({"tirx.noalias": True})
                 for i_0 in T.thread_binding(num_blocks, thread="blockIdx.x"):
                     for i_1 in T.thread_binding(num_thread, thread="threadIdx.x"):
                         with T.sblock("D"):
@@ -225,7 +225,7 @@ def test_cuda_vectorize_load():
         class Module:
             @T.prim_func
             def main(A: T.Buffer((n,), vec_dtype), B: T.Buffer((n,), vec_dtype)):
-                T.func_attr({"tir.noalias": True})
+                T.func_attr({"tirx.noalias": True})
                 for i_0 in T.thread_binding(num_blocks, thread="blockIdx.x"):
                     for i_1 in T.thread_binding(num_thread, thread="threadIdx.x"):
                         with T.sblock("B"):
@@ -255,13 +255,13 @@ def test_cuda_make_int8():
     def check_cuda(n, value, lanes):
         dtype = "int8"
         dev = tvm.cuda(0)
-        const_value = tvm.tir.const(value, dtype=dtype)
+        const_value = tvm.tirx.const(value, dtype=dtype)
 
         @I.ir_module
         class Module:
             @T.prim_func
             def main(A: T.Buffer((n, lanes), dtype)):
-                T.func_attr({"tir.noalias": True})
+                T.func_attr({"tirx.noalias": True})
                 for i in T.thread_binding(n, thread="blockIdx.x"):
                     for j in T.vectorized(lanes):
                         with T.sblock("A"):
@@ -294,13 +294,13 @@ def test_cuda_inf_nan():
     target = "cuda"
 
     def check_inf_nan(dev, n, value, dtype):
-        inf_value = tvm.tir.const(value, dtype=dtype)
+        inf_value = tvm.tirx.const(value, dtype=dtype)
 
         @I.ir_module
         class Module:
             @T.prim_func
             def main(A: T.Buffer((n,), dtype), C: T.Buffer((n,), dtype)):
-                T.func_attr({"tir.noalias": True})
+                T.func_attr({"tirx.noalias": True})
                 for i_0 in T.thread_binding(1, thread="blockIdx.x"):
                     for i_1 in T.thread_binding(8, thread="threadIdx.x"):
                         with T.sblock("C"):
@@ -334,7 +334,7 @@ def test_crossthread_reduction1(target, dev):
         class Module:
             @T.prim_func
             def main(var_A: T.handle, var_B: T.handle):
-                T.func_attr({"tir.noalias": True})
+                T.func_attr({"tirx.noalias": True})
                 n, m = T.int32(), T.int32()
                 A = T.match_buffer(var_A, (n, m))
                 B = T.match_buffer(var_B, (n,))
@@ -378,7 +378,7 @@ def test_crossthread_reduction2(target, dev):
         class Module:
             @T.prim_func
             def main(var_A: T.handle, var_B: T.handle):
-                T.func_attr({"tir.noalias": True})
+                T.func_attr({"tirx.noalias": True})
                 n, k0, k1 = T.int32(), T.int32(), T.int32()
                 A = T.match_buffer(var_A, (n, k0, k1))
                 B = T.match_buffer(var_B, (n,))
@@ -434,7 +434,7 @@ def test_cuda_reduction_binding():
     class Module:
         @T.prim_func
         def main(A: T.Buffer((96, 32), "float32"), B: T.Buffer((96,), "float32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for k in range(32):
                 for m_0 in T.thread_binding(3, thread="blockIdx.x"):
                     for m_1 in range(32):
@@ -456,13 +456,13 @@ def test_cuda_const_float_to_half():
     # This import is required to use nvcc to perform code gen;
     # otherwise it is found that the code gen is done by nvrtc.
 
-    half_const = tvm.tir.const(0.5, dtype="float16")
+    half_const = tvm.tirx.const(0.5, dtype="float16")
 
     @I.ir_module
     class Module:
         @T.prim_func
         def main(a: T.Buffer((2, 3, 4), "float16"), C: T.Buffer((2, 3, 4), "bool")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i_j_k_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
                 for i_j_k_fused_1 in T.thread_binding(64, thread="threadIdx.x"):
                     with T.sblock("C"):
@@ -498,7 +498,7 @@ def test_cuda_floordiv_with_vectorization():
         class Module:
             @T.prim_func
             def main(A: T.Buffer((256,), "float32"), B: T.Buffer((256,), "float32")):
-                T.func_attr({"tir.noalias": True})
+                T.func_attr({"tirx.noalias": True})
                 for i_0 in T.thread_binding(1, thread="blockIdx.x"):
                     for i_1_0 in T.thread_binding(64, thread="threadIdx.x"):
                         for i_1_1 in T.vectorized(4):
@@ -531,7 +531,7 @@ def test_cuda_floormod_with_vectorization():
         class Module:
             @T.prim_func
             def main(A: T.Buffer((256,), "float32"), B: T.Buffer((256,), "float32")):
-                T.func_attr({"tir.noalias": True})
+                T.func_attr({"tirx.noalias": True})
                 for i_0 in T.thread_binding(1, thread="blockIdx.x"):
                     for i_1_0 in T.thread_binding(64, thread="threadIdx.x"):
                         for i_1_1 in T.vectorized(4):
@@ -567,7 +567,7 @@ def test_vectorized_casts():
         class Module:
             @T.prim_func
             def main(A: T.Buffer((n,), t0), B: T.Buffer((n,), t1), C: T.Buffer((n,), t0)):
-                T.func_attr({"tir.noalias": True})
+                T.func_attr({"tirx.noalias": True})
                 for i_0 in T.thread_binding(num_thread, thread="threadIdx.x"):
                     for i_1 in T.vectorized(factor):
                         with T.sblock("C"):
@@ -633,7 +633,7 @@ def sched(compute_fn, dtype, n=128):
     class Module:
         @T.prim_func
         def main(A: T.Buffer((n,), dtype), B: T.Buffer((n,), dtype)):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0_0 in T.thread_binding(1, thread="blockIdx.x"):
                 for i0_1_0 in T.thread_binding(32, thread="threadIdx.x"):
                     for i0_1_1_0 in range(1):
@@ -651,25 +651,25 @@ def sched(compute_fn, dtype, n=128):
 @tvm.testing.requires_cuda
 def test_vectorized_intrin1():
     test_funcs = [
-        (tvm.tir.floor, lambda x: np.floor(x)),
-        (tvm.tir.ceil, lambda x: np.ceil(x)),
-        (tvm.tir.trunc, lambda x: np.trunc(x)),
-        (tvm.tir.abs, lambda x: np.fabs(x)),
-        (tvm.tir.round, lambda x: np.round(x)),
-        (tvm.tir.exp, lambda x: np.exp(x)),
-        (tvm.tir.exp2, lambda x: np.exp2(x)),
-        (tvm.tir.exp10, lambda x: np.power(10, x)),
-        (tvm.tir.log, lambda x: np.log(x)),
-        (tvm.tir.log2, lambda x: np.log2(x)),
-        (tvm.tir.log10, lambda x: np.log10(x)),
-        (tvm.tir.tan, lambda x: np.tan(x)),
-        (tvm.tir.cos, lambda x: np.cos(x)),
-        (tvm.tir.cosh, lambda x: np.cosh(x)),
-        (tvm.tir.sin, lambda x: np.sin(x)),
-        (tvm.tir.sinh, lambda x: np.sinh(x)),
-        (tvm.tir.atan, lambda x: np.arctan(x)),
-        (tvm.tir.tanh, lambda x: np.tanh(x)),
-        (tvm.tir.sqrt, lambda x: np.sqrt(x)),
+        (tvm.tirx.floor, lambda x: np.floor(x)),
+        (tvm.tirx.ceil, lambda x: np.ceil(x)),
+        (tvm.tirx.trunc, lambda x: np.trunc(x)),
+        (tvm.tirx.abs, lambda x: np.fabs(x)),
+        (tvm.tirx.round, lambda x: np.round(x)),
+        (tvm.tirx.exp, lambda x: np.exp(x)),
+        (tvm.tirx.exp2, lambda x: np.exp2(x)),
+        (tvm.tirx.exp10, lambda x: np.power(10, x)),
+        (tvm.tirx.log, lambda x: np.log(x)),
+        (tvm.tirx.log2, lambda x: np.log2(x)),
+        (tvm.tirx.log10, lambda x: np.log10(x)),
+        (tvm.tirx.tan, lambda x: np.tan(x)),
+        (tvm.tirx.cos, lambda x: np.cos(x)),
+        (tvm.tirx.cosh, lambda x: np.cosh(x)),
+        (tvm.tirx.sin, lambda x: np.sin(x)),
+        (tvm.tirx.sinh, lambda x: np.sinh(x)),
+        (tvm.tirx.atan, lambda x: np.arctan(x)),
+        (tvm.tirx.tanh, lambda x: np.tanh(x)),
+        (tvm.tirx.sqrt, lambda x: np.sqrt(x)),
     ]
 
     def run_test(tvm_intrin, np_func, dtype):
@@ -678,13 +678,13 @@ def test_vectorized_intrin1():
             return
         # set of intrinsics does not support fp16 yet.
         skip_set = {
-            tvm.tir.abs,
-            tvm.tir.round,
-            tvm.tir.tan,
-            tvm.tir.atan,
-            tvm.tir.tanh,
-            tvm.tir.cosh,
-            tvm.tir.sinh,
+            tvm.tirx.abs,
+            tvm.tirx.round,
+            tvm.tirx.tan,
+            tvm.tirx.atan,
+            tvm.tirx.tanh,
+            tvm.tirx.cosh,
+            tvm.tirx.sinh,
         }
         if dtype == "float16" and tvm_intrin in skip_set:
             print(f"Skip because '{tvm_intrin.__name__}' does not support fp16 yet")
@@ -706,10 +706,10 @@ def test_vectorized_intrin1():
 @tvm.testing.requires_gpu
 @tvm.testing.requires_cuda
 def test_vectorized_intrin2(dtype="float32"):
-    c2 = tvm.tir.const(2, dtype=dtype)
+    c2 = tvm.tirx.const(2, dtype=dtype)
     test_funcs = [
-        (tvm.tir.power, lambda x: np.power(x, 2.0)),
-        (tvm.tir.fmod, lambda x: np.fmod(x, 2.0)),
+        (tvm.tirx.power, lambda x: np.power(x, 2.0)),
+        (tvm.tirx.fmod, lambda x: np.fmod(x, 2.0)),
     ]
 
     def run_test(tvm_intrin, np_func):
@@ -737,7 +737,7 @@ def test_vectorized_popcount():
 
     def run_test(dtype):
         n = 128
-        f = sched(lambda x: tvm.tir.popcount(x), dtype, n)
+        f = sched(lambda x: tvm.tirx.popcount(x), dtype, n)
         dev = tvm.cuda(0)
         a = tvm.runtime.tensor(np.random.randint(0, 100000, size=n).astype(dtype), dev)
         b = tvm.runtime.tensor(np.zeros(shape=(n,)).astype(dtype), dev)
@@ -758,7 +758,7 @@ def test_cuda_vectorize_load_permute_pad():
             return
 
         dev = tvm.cuda(0)
-        zero = tvm.tir.const(0, dtype)
+        zero = tvm.tirx.const(0, dtype)
         dim0 = n // lanes
         dim1 = l + 2 * padding
 
@@ -766,7 +766,7 @@ def test_cuda_vectorize_load_permute_pad():
         class Module:
             @T.prim_func
             def main(A: T.Buffer((n, l), dtype), B: T.Buffer((dim0, dim1, lanes), dtype)):
-                T.func_attr({"tir.noalias": True})
+                T.func_attr({"tirx.noalias": True})
                 for i in T.thread_binding(dim0, thread="blockIdx.x"):
                     for j in T.thread_binding(dim1, thread="threadIdx.x"):
                         for k in T.vectorized(lanes):
@@ -809,7 +809,7 @@ def test_try_unaligned_vector_load():
         class Module:
             @T.prim_func
             def main(A: T.Buffer((N,), "float16"), C: T.Buffer((C_N,), "float16")):
-                T.func_attr({"tir.noalias": True})
+                T.func_attr({"tirx.noalias": True})
                 for i_0 in T.thread_binding(C_N // 2, thread="threadIdx.x"):
                     for i_1 in T.vectorized(2):
                         with T.sblock("C"):
@@ -818,7 +818,7 @@ def test_try_unaligned_vector_load():
                             T.writes(C[v_i])
                             C[v_i] = A[v_i + offset]
 
-        f = tvm.tir.build(Module, target="cuda")
+        f = tvm.tirx.build(Module, target="cuda")
 
         kernel_source = f.imports[0].inspect_source()
         dev = tvm.cuda()
@@ -898,7 +898,7 @@ def test_invalid_reinterpret():
     @T.prim_func
     def func(A: T.Buffer((4,), "uint32"), B: T.Buffer((4,), "uint8")) -> None:
         for tx in T.thread_binding(4, "threadIdx.x"):
-            B[tx] = T.call_intrin("uint8", "tir.reinterpret", A[tx])
+            B[tx] = T.call_intrin("uint8", "tirx.reinterpret", A[tx])
 
     with pytest.raises(tvm.error.TVMError):
         tvm.compile(func, target="cuda")
@@ -997,7 +997,7 @@ def test_device_host_call_same_func():
                     C[bx, tx] = Module.add(A[bx, tx], B[bx, tx])  # Call from device
 
     # 1. If we set host to llvm, it will raise an error of
-    #    "the tir.ret should be transformed to return zero before the llvm code generation."
+    #    "the tirx.ret should be transformed to return zero before the llvm code generation."
     #    Need to revisit this.
     # 2. We set a dummy mcpu value for testing purpose,
     #    in order to avoid checking a function is host or device based on the "cpu" substring.

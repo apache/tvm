@@ -27,8 +27,8 @@
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/struct_info_functor.h>
-#include <tvm/tir/analysis.h>
-#include <tvm/tir/expr_functor.h>
+#include <tvm/tirx/analysis.h>
+#include <tvm/tirx/expr_functor.h>
 
 namespace tvm {
 namespace relax {
@@ -115,9 +115,9 @@ StructInfo StructInfoFromType(const Type& type) {
 //--------------------------
 class WellDefinedEraser : public StructInfoMutator,
                           public ExprMutatorBase,
-                          public tir::ExprMutator {
+                          public tirx::ExprMutator {
  public:
-  WellDefinedEraser(std::function<ffi::Optional<PrimExpr>(const tir::Var& var)> f_shape_var_map,
+  WellDefinedEraser(std::function<ffi::Optional<PrimExpr>(const tirx::Var& var)> f_shape_var_map,
                     std::function<ffi::Optional<Expr>(const Var& var)> f_var_map,
                     arith::Analyzer* ana)
       : f_shape_var_map_(f_shape_var_map), f_var_map_(f_var_map), ana_(ana) {}
@@ -202,12 +202,12 @@ class WellDefinedEraser : public StructInfoMutator,
   }
 
   using relax::ExprMutatorBase::VisitExpr_;
-  using tir::ExprMutator::VisitExpr_;
+  using tirx::ExprMutator::VisitExpr_;
 
   // connect things up
   PrimExpr VisitPrimExpr(const PrimExpr& expr) {
     // apply eager simplification
-    PrimExpr val = tir::ExprMutator::VisitExpr(expr);
+    PrimExpr val = tirx::ExprMutator::VisitExpr(expr);
     if (!val.same_as(expr)) {
       return ana_->Simplify(val);
     } else {
@@ -228,10 +228,10 @@ class WellDefinedEraser : public StructInfoMutator,
     return ret.value_or(ffi::GetRef<Expr>(var));
   }
 
-  PrimExpr VisitExpr_(const tir::VarNode* var) final {
+  PrimExpr VisitExpr_(const tirx::VarNode* var) final {
     ffi::Optional<PrimExpr> ret;
     if (f_shape_var_map_ != nullptr) {
-      ret = f_shape_var_map_(ffi::GetRef<tir::Var>(var));
+      ret = f_shape_var_map_(ffi::GetRef<tirx::Var>(var));
     }
     has_undefined_ = has_undefined_ || !ret.defined();
 
@@ -250,14 +250,14 @@ class WellDefinedEraser : public StructInfoMutator,
 
  private:
   bool has_undefined_ = false;
-  std::function<ffi::Optional<PrimExpr>(const tir::Var& var)> f_shape_var_map_;
+  std::function<ffi::Optional<PrimExpr>(const tirx::Var& var)> f_shape_var_map_;
   std::function<ffi::Optional<Expr>(const Var& var)> f_var_map_;
   arith::Analyzer* ana_;
 };
 
 StructInfo EraseToWellDefined(
     const StructInfo& info,
-    std::function<ffi::Optional<PrimExpr>(const tir::Var& var)> f_shape_var_map,
+    std::function<ffi::Optional<PrimExpr>(const tirx::Var& var)> f_shape_var_map,
     std::function<ffi::Optional<Expr>(const Var& var)> f_var_map, arith::Analyzer* ana) {
   if (ana == nullptr) {
     arith::Analyzer inst;
@@ -267,13 +267,13 @@ StructInfo EraseToWellDefined(
   }
 }
 
-StructInfo EraseToWellDefined(const StructInfo& info, ffi::Map<tir::Var, PrimExpr> shape_var_map,
+StructInfo EraseToWellDefined(const StructInfo& info, ffi::Map<tirx::Var, PrimExpr> shape_var_map,
                               ffi::Map<Var, Expr> var_map, arith::Analyzer* ana) {
-  std::function<ffi::Optional<PrimExpr>(const tir::Var& var)> f_shape_var_map = nullptr;
+  std::function<ffi::Optional<PrimExpr>(const tirx::Var& var)> f_shape_var_map = nullptr;
   std::function<ffi::Optional<Expr>(const Var& var)> f_var_map = nullptr;
 
   if (!shape_var_map.empty()) {
-    f_shape_var_map = [&](const tir::Var& var) -> ffi::Optional<PrimExpr> {
+    f_shape_var_map = [&](const tirx::Var& var) -> ffi::Optional<PrimExpr> {
       auto it = shape_var_map.find(var);
       if (it != shape_var_map.end()) return (*it).second;
       return std::nullopt;
@@ -295,7 +295,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "relax.analysis.EraseToWellDefined",
-      [](const StructInfo& info, ffi::Map<tir::Var, PrimExpr> shape_var_map,
+      [](const StructInfo& info, ffi::Map<tirx::Var, PrimExpr> shape_var_map,
          ffi::Map<Var, Expr> var_map) { return EraseToWellDefined(info, shape_var_map, var_map); });
 }
 
@@ -880,7 +880,7 @@ class CallRetStructInfoDeriver : public StructInfoBaseChecker {
   // Whether to populate map in params.
   bool populate_mapping_{true};
   // for simplicity, we make these fields public so the user can access them.
-  ffi::Map<tir::Var, PrimExpr> shape_var_map_;
+  ffi::Map<tirx::Var, PrimExpr> shape_var_map_;
   ffi::Map<Var, Expr> var_map_;
 
   using StructInfoBaseChecker::ShapeMatchCheck;
@@ -891,8 +891,8 @@ class CallRetStructInfoDeriver : public StructInfoBaseChecker {
       return StructInfoBaseChecker::PrimValueMatchCheck(param, arg);
     }
 
-    if (auto* ptr = param.as<tir::VarNode>()) {
-      auto var = ffi::GetRef<tir::Var>(ptr);
+    if (auto* ptr = param.as<tirx::VarNode>()) {
+      auto var = ffi::GetRef<tirx::Var>(ptr);
       auto it = shape_var_map_.find(var);
       // not populated
       if (it == shape_var_map_.end()) {
@@ -1194,16 +1194,16 @@ class TIRVarsDetector : public StructInfoVisitor {
   };
   explicit TIRVarsDetector(VarType collection_type) : collection_type(collection_type) {}
 
-  ffi::Array<tir::Var> GetTIRVars() const { return tir_vars_; }
+  ffi::Array<tirx::Var> GetTIRVars() const { return tir_vars_; }
 
  private:
   void VisitPrimExpr(PrimExpr expr) {
     if (collection_type == VarType::Definition) {
-      if (auto opt = expr.as<tir::Var>()) {
+      if (auto opt = expr.as<tirx::Var>()) {
         RecordTIRVar(opt.value());
       }
     } else if (collection_type == VarType::Usage) {
-      for (const tir::Var& tir_var : tir::UndefinedVars(expr)) {
+      for (const tirx::Var& tir_var : tirx::UndefinedVars(expr)) {
         RecordTIRVar(tir_var);
       }
     } else {
@@ -1236,26 +1236,26 @@ class TIRVarsDetector : public StructInfoVisitor {
     }
   }
 
-  void RecordTIRVar(const tir::Var& tir_var) {
+  void RecordTIRVar(const tirx::Var& tir_var) {
     auto insert_res = used_tir_vars_dedup_.insert(tir_var.get());
     if (insert_res.second) {
       tir_vars_.push_back(tir_var);
     }
   }
 
-  ffi::Array<tir::Var> tir_vars_;
-  std::unordered_set<const tir::VarNode*> used_tir_vars_dedup_;
+  ffi::Array<tirx::Var> tir_vars_;
+  std::unordered_set<const tirx::VarNode*> used_tir_vars_dedup_;
 
   VarType collection_type;
 };
 
-ffi::Array<tir::Var> TIRVarsInStructInfo(const StructInfo& sinfo) {
+ffi::Array<tirx::Var> TIRVarsInStructInfo(const StructInfo& sinfo) {
   TIRVarsDetector detector(TIRVarsDetector::VarType::Usage);
   detector(sinfo);
   return detector.GetTIRVars();
 }
 
-ffi::Array<tir::Var> DefinableTIRVarsInStructInfo(const StructInfo& sinfo) {
+ffi::Array<tirx::Var> DefinableTIRVarsInStructInfo(const StructInfo& sinfo) {
   TIRVarsDetector detector(TIRVarsDetector::VarType::Definition);
   detector(sinfo);
   return detector.GetTIRVars();
@@ -1318,20 +1318,20 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 class SymbolicVarCollector : public relax::ExprVisitor,
                              public relax::StructInfoVisitor,
-                             public tir::ExprVisitor {
+                             public tirx::ExprVisitor {
  public:
-  static ffi::Array<tir::Var> Free(const Expr& expr) {
+  static ffi::Array<tirx::Var> Free(const Expr& expr) {
     SymbolicVarCollector collector;
     collector.VisitExpr(expr);
-    ffi::Array<tir::Var> ret{collector.free_symbolic_var_.begin(),
+    ffi::Array<tirx::Var> ret{collector.free_symbolic_var_.begin(),
                              collector.free_symbolic_var_.end()};
     return ret;
   }
 
-  static ffi::Array<tir::Var> Defined(const Expr& expr) {
+  static ffi::Array<tirx::Var> Defined(const Expr& expr) {
     SymbolicVarCollector collector;
     collector.VisitExpr(expr);
-    ffi::Array<tir::Var> ret{collector.defined_symbolic_var_.begin(),
+    ffi::Array<tirx::Var> ret{collector.defined_symbolic_var_.begin(),
                              collector.defined_symbolic_var_.end()};
     return ret;
   }
@@ -1339,8 +1339,8 @@ class SymbolicVarCollector : public relax::ExprVisitor,
  private:
   using relax::ExprVisitor::VisitExpr;
   using relax::ExprVisitor::VisitExpr_;
-  using tir::ExprVisitor::VisitExpr;
-  using tir::ExprVisitor::VisitExpr_;
+  using tirx::ExprVisitor::VisitExpr;
+  using tirx::ExprVisitor::VisitExpr_;
 
   // Possible mode of visitor, used as bit-flags
   enum VisitMode {
@@ -1424,17 +1424,17 @@ class SymbolicVarCollector : public relax::ExprVisitor,
 
   void VisitStructInfoExprField(const PrimExpr& expr) final {
     if (mode_ & VisitMode::kProvideDefinition) {
-      if (auto var = expr.as<tir::Var>()) {
+      if (auto var = expr.as<tirx::Var>()) {
         defined_symbolic_var_.insert(var.value());
       }
     }
     if (mode_ & VisitMode::kRequireDefinition) {
-      tir::ExprVisitor::VisitExpr(expr);
+      tirx::ExprVisitor::VisitExpr(expr);
     }
   }
 
-  void VisitExpr_(const tir::VarNode* op) final {
-    tir::Var var = ffi::GetRef<tir::Var>(op);
+  void VisitExpr_(const tirx::VarNode* op) final {
+    tirx::Var var = ffi::GetRef<tirx::Var>(op);
     // default mode, check defined.
     if (defined_symbolic_var_.count(var) == 0) {
       free_symbolic_var_.insert(var);
@@ -1452,15 +1452,15 @@ class SymbolicVarCollector : public relax::ExprVisitor,
   /*! \brief The current visit mode. */
   VisitMode mode_ = VisitMode::kRequireDefinition;
   /*! \brief The set of defined symbolic vars. */
-  std::unordered_set<tir::Var> defined_symbolic_var_;
+  std::unordered_set<tirx::Var> defined_symbolic_var_;
   /*! \brief The set of free/undefined symbolic vars. */
-  std::unordered_set<tir::Var> free_symbolic_var_;
+  std::unordered_set<tirx::Var> free_symbolic_var_;
 };
 
-ffi::Array<tir::Var> DefinedSymbolicVars(const Expr& expr) {
+ffi::Array<tirx::Var> DefinedSymbolicVars(const Expr& expr) {
   return SymbolicVarCollector::Defined(expr);
 }
-ffi::Array<tir::Var> FreeSymbolicVars(const Expr& expr) { return SymbolicVarCollector::Free(expr); }
+ffi::Array<tirx::Var> FreeSymbolicVars(const Expr& expr) { return SymbolicVarCollector::Free(expr); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

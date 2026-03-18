@@ -153,7 +153,7 @@ constexpr const char* meta_schedule_inline_rule = "meta_schedule.inline_rule";
  *       if (mask & 1) the read region should be detected,
  *       if (mask & 2) the write region should be detected.
  */
-constexpr const char* script_parsing_detect_access = "tir.script_parsing_detect_access";
+constexpr const char* script_parsing_detect_access = "tirx.script_parsing_detect_access";
 
 /*!
  * \brief Mark that the block need to add predicate for block var bounds during lowering
@@ -176,7 +176,7 @@ constexpr const char* software_pipeline_async_stages = "software_pipeline_async_
 constexpr const char* layout_free_buffers = "layout_free_buffers";
 
 /*! \brief Mark the local stage for the shared memory access should be added. */
-constexpr const char* manifest_shared_memory_local_stage = "tir.manifest_shared_memory_local_stage";
+constexpr const char* manifest_shared_memory_local_stage = "tirx.manifest_shared_memory_local_stage";
 
 /*!
  * \brief Mark alignment of buffer dimension

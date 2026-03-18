@@ -22,8 +22,8 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/s_tir/meta_schedule/extracted_task.h>
 #include <tvm/target/target.h>
-#include <tvm/tir/function.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/function.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include "../../s_tir/meta_schedule/module_equality.h"
 
@@ -49,16 +49,16 @@ using s_tir::meta_schedule::ModuleHash;
  *   Then we will have a ExtractedTask for all three functions, whose weight
  *   is 5 + 3 + 2 = 10.
  */
-class BlockCounter : public tir::StmtVisitor {
+class BlockCounter : public tirx::StmtVisitor {
  public:
-  static size_t GetSBlockCount(const tir::PrimFunc& func) {
+  static size_t GetSBlockCount(const tirx::PrimFunc& func) {
     BlockCounter counter;
     counter(func->body);
     return counter.count;
   }
 
  private:
-  void VisitStmt_(const tir::SBlockNode* op) final {
+  void VisitStmt_(const tirx::SBlockNode* op) final {
     ++count;
     StmtVisitor::VisitStmt_(op);
   }
@@ -96,7 +96,7 @@ class TaskExtractor : public ExprVisitor {
   void VisitExpr_(const CallNode* call) final {
     static const Op& call_tir_op = Op::Get("relax.call_tir");
 
-    // TODO(@tvm-team): When we differentiate the call for tir function and packed function,
+    // TODO(@tvm-team): When we differentiate the call for tirx function and packed function,
     // this logic should be changed accordingly.
     if (!call->op.same_as(call_tir_op)) {
       // Since the Relax function is of A-normal form, the arguments of this call cannot be another
@@ -105,13 +105,13 @@ class TaskExtractor : public ExprVisitor {
     }
 
     const GlobalVar& global_var = Downcast<GlobalVar>(call->args[0]);
-    const tir::PrimFunc& func = Downcast<tir::PrimFunc>(mod_->Lookup(global_var));
+    const tirx::PrimFunc& func = Downcast<tirx::PrimFunc>(mod_->Lookup(global_var));
     IRModule mod = (*normalize_mod_func_)(func).cast<IRModule>();
     size_t weight = 1;
     auto it = func2task_.find(mod);
     if (it != func2task_.end()) {
       it->second->weight += 1;
-      const tir::PrimFunc& alt_func = Downcast<tir::PrimFunc>(it->first->Lookup("main"));
+      const tirx::PrimFunc& alt_func = Downcast<tirx::PrimFunc>(it->first->Lookup("main"));
       // When anchor-block based equality is used, tuning tasks "nn_conv2d_add_nn_relu" and
       // "nn_conv2d_add_add_nn_relu", for example, can be identified as equal. Thus, one of them
       // will be selected to tune by the code below.

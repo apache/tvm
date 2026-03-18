@@ -22,10 +22,10 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import tir
+from tvm import tirx
 from tvm.runtime import ShapeTuple
 from tvm.s_tir import dlight as dl
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 # pylint: disable=invalid-name
 
@@ -80,7 +80,7 @@ def set_global_func():
         mod = tvm.IRModule({"main": tir_func})
         with target:
             mod = dl.ApplyDefaultSchedule(dl.gpu.Fallback())(mod)  # pylint: disable=not-callable
-        f = tvm.tir.build(mod["main"], target=target)
+        f = tvm.tirx.build(mod["main"], target=target)
         return f.main
 
     _f_tir_gets, _f_tir_sets = [], []
@@ -218,7 +218,7 @@ def rnn_state_get(
 
 
 def rnn_state_set(
-    shape: Sequence[int | tir.Var],
+    shape: Sequence[int | tirx.Var],
     dtype: str,
 ):
     # fmt: off

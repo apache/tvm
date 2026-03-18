@@ -41,7 +41,7 @@ from tvm.s_tir.tensor_intrin.rocm import (
     shared_16x16_to_local_64x4_layout_B,
     shared_16x16_to_local_64x4_layout_C,
 )
-from tvm.testing.tir import mfma_schedule
+from tvm.testing.tirx import mfma_schedule
 
 M = 1024
 N = 1024
@@ -58,7 +58,7 @@ def matmul(m, n, k, in_dtype, out_dtype, b_transposed):
 
     def maybe_cast(v):
         if in_dtype != out_dtype:
-            return tvm.tir.Cast(out_dtype, v)
+            return tvm.tirx.Cast(out_dtype, v)
         return v
 
     def maybe_swap(i, j):

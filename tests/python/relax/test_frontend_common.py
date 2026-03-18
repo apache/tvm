@@ -20,7 +20,7 @@ from tvm import relax
 from tvm.relax.frontend import detach_params
 from tvm.relax.frontend.common import autopad
 from tvm.script import ir as I
-from tvm.script import tir as T
+from tvm.script import tirx as T
 from tvm.script.parser import relax as R
 
 
@@ -73,7 +73,7 @@ class TestAutopad:
                 x: T.Buffer((T.int64(1), T.int64(1), T.int64(4), T.int64(4)), "float32"),
                 PadInput: T.Buffer((T.int64(1), T.int64(1), T.int64(5), T.int64(5)), "float32"),
             ):
-                T.func_attr({"tir.noalias": True})
+                T.func_attr({"tirx.noalias": True})
                 for i0, i1, i2, i3 in T.grid(T.int64(1), T.int64(1), T.int64(5), T.int64(5)):
                     with T.sblock("PadInput"):
                         v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -113,7 +113,7 @@ class TestAutopad:
                     (T.int64(1), T.int64(1), T.int64(5), T.int64(5)), "float32"
                 ),
             ):
-                T.func_attr({"tir.noalias": True})
+                T.func_attr({"tirx.noalias": True})
                 for i0, i1, i2, i3 in T.grid(T.int64(1), T.int64(1), T.int64(5), T.int64(5)):
                     with T.sblock("ReplicatePadInput"):
                         v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -174,7 +174,7 @@ class TestAutopad:
                     (T.int64(1), T.int64(1), T.int64(5), T.int64(5)), "float32"
                 ),
             ):
-                T.func_attr({"tir.noalias": True})
+                T.func_attr({"tirx.noalias": True})
                 for i0, i1, i2, i3 in T.grid(T.int64(1), T.int64(1), T.int64(5), T.int64(5)):
                     with T.sblock("MirrorPadInput"):
                         v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])

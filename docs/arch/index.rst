@@ -64,10 +64,10 @@ contains a collection of functions. Currently, we support two primary variants o
 - **relax::Function** is a high-level functional program representation. A relax.Function represents high-level graph structure,
   usually corresponds to an end-to-end model or a sub-graph of the overall model. You can view a relax.Function as a computational
   graph with additional support for control-flow, and complex data structures.
-- **tir::PrimFunc** is a low-level program representation that contains elements including loop-nest choices, multi-dimensional load/store,
+- **tirx::PrimFunc** is a low-level program representation that contains elements including loop-nest choices, multi-dimensional load/store,
   threading, and vector/tensor instructions. It is usually used to represent an operator program that executes a (possibly-fused) layer in a model.
 
-During the compilation and transformation, all relax operators are lowered to ``tir::PrimFunc`` or ``TVM PackedFunc``, which can be executed directly
+During the compilation and transformation, all relax operators are lowered to ``tirx::PrimFunc`` or ``TVM PackedFunc``, which can be executed directly
 on the target device, while the calls to relax operators are lowered to calls to low-level functions (e.g. ``R.call_tir`` or ``R.call_dps``).
 
 Transformations
@@ -83,13 +83,13 @@ relax transformations
 relax transformations contain a collection of passes that apply to relax functions. The optimizations include common graph-level
 optimizations such as constant folding and dead-code elimination for operators, and backend-specific optimizations such as library dispatch.
 
-tir transformations
+tirx transformations
 ^^^^^^^^^^^^^^^^^^^
-tir transformations contain a collection of passes that apply to tir functions. There are two major types of transformations:
+tirx transformations contain a collection of passes that apply to tirx functions. There are two major types of transformations:
 
 - **TensorIR schedule**: TensorIR schedules are designed to optimize the TensorIR functions for a specific target, with user-guided instructions and control how the target code is generated.
   For CPU targets, TIR PrimFunc can generate valid code and execute on the target device without schedule but with very-low performance. However, for GPU targets, the schedule is essential
-  for generating valid code with thread bindings. For more details, please refer to the :ref:`TensorIR Transformation <tir-transform>` section. Additionally, we provides ``MetaSchedule`` to
+  for generating valid code with thread bindings. For more details, please refer to the :ref:`TensorIR Transformation <tirx-transform>` section. Additionally, we provides ``MetaSchedule`` to
   automate the search of TensorIR schedule.
 - **Lowering Passes**: These passes usually perform after the schedule is applied, transforming a TIR PrimFunc into another functionally equivalent PrimFunc, but closer to the
   target-specific representation. For example, there are passes to flatten multi-dimensional access to one-dimensional pointer access, to expand the intrinsics into target-specific ones,
@@ -102,7 +102,7 @@ focus on optimizations that are not covered by them.
 
 cross-level transformations
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Apache TVM enables cross-level optimization of end-to-end models. As the IRModule includes both relax and tir functions, the cross-level transformations are designed to mutate
+Apache TVM enables cross-level optimization of end-to-end models. As the IRModule includes both relax and tirx functions, the cross-level transformations are designed to mutate
 the IRModule by applying different transformations to these two types of functions.
 
 For example, ``relax.LegalizeOps`` pass mutates the IRModule by lowering relax operators, adding corresponding TIR PrimFunc into the IRModule, and replacing the relax operators
@@ -172,12 +172,12 @@ Summary and Discussions
 
 In summary, the key data structures in the compilation flows are:
 
-- IRModule: contains relax.Function and tir.PrimFunc
+- IRModule: contains relax.Function and tirx.PrimFunc
 - runtime.Module: contains runtime.PackedFunc
 
 Most parts of the compilation are transformations among the key data structures.
 
-- relax/transform and tir/transform are deterministic rule-based transformations
+- relax/transform and tirx/transform are deterministic rule-based transformations
 - meta-schedule contains the search-based transformations
 
 Finally, the compilation flow example is only a typical use-case of the TVM stack.
@@ -237,9 +237,9 @@ Thanks to the node module, we can directly access any field of the TVM's IRNode 
 
 .. code-block:: python
 
-    x = tvm.tir.Var("x", "int32")
-    y = tvm.tir.Add(x, x)
-    # a and b are fields of a tir.Add node
+    x = tvm.tirx.Var("x", "int32")
+    y = tvm.tirx.Add(x, x)
+    # a and b are fields of a tirx.Add node
     # we can directly use the field name to access the IR structures
     assert y.a == x
 
@@ -249,14 +249,14 @@ The ability to save/store, and inspect an IR node provides a foundation for maki
 tvm/ir
 ------
 The `tvm/ir` folder contains the unified data structure and interfaces across all IR function variants.
-The components in `tvm/ir` are shared by `tvm/relax` and `tvm/tir`, notable ones include
+The components in `tvm/ir` are shared by `tvm/relax` and `tvm/tirx`, notable ones include
 
 - IRModule
 - Type
 - PassContext and Pass
 - Op
 
-Different variants of functions(e.g. relax.Function and tir.PrimFunc) can co-exist in an IRModule.
+Different variants of functions(e.g. relax.Function and tirx.PrimFunc) can co-exist in an IRModule.
 While these variants may not have the same content representation, they use the same data structure to represent types.
 As a consequence, we use the same data structure to represent function (type) signatures of these variants.
 The unified type system allows one function variant to call another function
@@ -267,8 +267,8 @@ The following code snippet gives an example of PassContext configuration.
 
 .. code-block:: python
 
-    # configure the behavior of the tir.UnrollLoop pass
-    with tvm.transform.PassContext(config={"tir.UnrollLoop": { "auto_max_step": 10 }}):
+    # configure the behavior of the tirx.UnrollLoop pass
+    with tvm.transform.PassContext(config={"tirx.UnrollLoop": { "auto_max_step": 10 }}):
         # code affected by the pass context
 
 
@@ -304,16 +304,16 @@ Relax is the high-level IR used to represent the computational graph of a model.
 Note that Relax usually works closely with the TensorIR IRModule, most of the transformations are applied on both Relax and TensorIR functions
 in the IRModule. Please refer to the :ref:`Relax Deep Dive <relax-deep-dive>` for more details.
 
-tvm/tir
+tvm/tirx
 -------
 
-TIR contains the definition of the low-level program representations. We use `tir::PrimFunc` to represent functions that can be transformed by TIR passes.
-Besides the IR data structures, the tir module also includes:
+TIR contains the definition of the low-level program representations. We use `tirx::PrimFunc` to represent functions that can be transformed by TIR passes.
+Besides the IR data structures, the tirx module also includes:
 
-- A set of schedule primitives to control the generated code in ``tir/schedule``.
-- A set of builtin intrinsics in ``tir/tensor_intrin``.
-- A set of analysis passes to analyze the TIR functions in ``tir/analysis``.
-- A set of transformation passes to lower or optimize the TIR functions in ``tir/transform``.
+- A set of schedule primitives to control the generated code in ``tirx/schedule``.
+- A set of builtin intrinsics in ``tirx/tensor_intrin``.
+- A set of analysis passes to analyze the TIR functions in ``tirx/analysis``.
+- A set of transformation passes to lower or optimize the TIR functions in ``tirx/transform``.
 
 Please refer to the :ref:`TensorIR Deep Dive <tensor-ir-deep-dive>` for more details.
 
@@ -328,7 +328,7 @@ tvm/te and tvm/topi
 -------------------
 
 TE stands for Tensor Expression. TE is a domain-specific language (DSL) for describing tensor computations. Importantly, a tensor expression
-itself is not a self-contained function that can be stored into IRModule. We can use ``te.create_prim_func`` to convert a tensor expression to a ``tir::PrimFunc``
+itself is not a self-contained function that can be stored into IRModule. We can use ``te.create_prim_func`` to convert a tensor expression to a ``tirx::PrimFunc``
 and then integrate it into the IRModule.
 
 While possible to construct operators directly via TIR or tensor expressions (TE) for each use case, it is tedious to do so.

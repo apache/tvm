@@ -25,16 +25,16 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tir/function.h>
-#include <tvm/tir/op.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/function.h>
+#include <tvm/tirx/op.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include <utility>
 
 namespace tvm {
 namespace s_tir {
 
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 class LoopCanonicalizer : public StmtExprMutator {
  public:

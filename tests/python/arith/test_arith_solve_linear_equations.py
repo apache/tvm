@@ -21,8 +21,8 @@ import sys
 import pytest
 
 import tvm
-from tvm import arith, ir, testing, tir
-from tvm.script import tir as T
+from tvm import arith, ir, testing, tirx
+from tvm.script import tirx as T
 
 
 def test_solution_consistency():
@@ -34,7 +34,7 @@ def test_solution_consistency():
     random.seed(seed)
 
     def _check(num_vars, num_formulas, coef=(-5, 5), bounds=(-20, 20)):
-        variables = [tvm.tir.Var("x" + str(i), "int32") for i in range(num_vars)]
+        variables = [tvm.tirx.Var("x" + str(i), "int32") for i in range(num_vars)]
 
         relations = []
         for i in range(num_formulas):
@@ -43,10 +43,10 @@ def test_solution_consistency():
             s2 = sum([v * random.randint(coef[0], coef[1]) for v in variables])
             s2 += random.randint(coef[0], coef[1])
             if random.random() < 0.7:
-                op = tvm.tir.EQ
+                op = tvm.tirx.EQ
             else:
                 # we also make sure it can correctly handle inequalities
-                op = random.choice([tvm.tir.LE, tvm.tir.LT, tvm.tir.GE, tvm.tir.GT])
+                op = random.choice([tvm.tirx.LE, tvm.tirx.LT, tvm.tirx.GE, tvm.tirx.GT])
             relations.append(op(s1, s2))
 
         vranges = {v: tvm.ir.expr.Range(bounds[0], bounds[1] + 1) for v in variables}
@@ -88,10 +88,10 @@ def test_solution_consistency():
 
 
 def test_empty_var_to_solve():
-    x, y = tvm.tir.Var("x", "int32"), tvm.tir.Var("y", "int32")
+    x, y = tvm.tirx.Var("x", "int32"), tvm.tirx.Var("y", "int32")
     equations = [
-        tvm.tir.EQ(x + y, 20),
-        tvm.tir.EQ(x - y, 10),
+        tvm.tirx.EQ(x + y, 20),
+        tvm.tirx.EQ(x - y, 10),
     ]
     solution = arith.solve_linear_equations(equations)
     assert len(solution.src_to_dst) == 0
@@ -103,12 +103,12 @@ def test_empty_var_to_solve():
 
 
 def test_unique_solution():
-    x, y = tvm.tir.Var("x", "int32"), tvm.tir.Var("y", "int32")
+    x, y = tvm.tirx.Var("x", "int32"), tvm.tirx.Var("y", "int32")
 
     solution = arith.solve_linear_equations(
         [
-            tvm.tir.EQ(x + y, 20),
-            tvm.tir.EQ(x - y, 10),
+            tvm.tirx.EQ(x + y, 20),
+            tvm.tirx.EQ(x - y, 10),
         ],
         [x, y],
     )
@@ -118,13 +118,13 @@ def test_unique_solution():
 
 
 def test_low_rank():
-    x, y, z = tvm.tir.Var("x", "int32"), tvm.tir.Var("y", "int32"), tvm.tir.Var("z", "int32")
+    x, y, z = tvm.tirx.Var("x", "int32"), tvm.tirx.Var("y", "int32"), tvm.tirx.Var("z", "int32")
     ranges = {}
 
     solution = arith.solve_linear_equations(
         [
-            tvm.tir.EQ(x + y + z, 15),
-            tvm.tir.EQ(x + y, 10),
+            tvm.tirx.EQ(x + y + z, 15),
+            tvm.tirx.EQ(x + y, 10),
         ],
         [x, y, z],
         ranges,
@@ -136,7 +136,7 @@ def test_low_rank():
 
 
 def test_infer_range():
-    x, y = tvm.tir.Var("x", "int32"), tvm.tir.Var("y", "int32")
+    x, y = tvm.tirx.Var("x", "int32"), tvm.tirx.Var("y", "int32")
     ranges = {
         x: tvm.ir.Range.from_min_extent(-5, 10),
         y: tvm.ir.Range.from_min_extent(0, 10),
@@ -144,7 +144,7 @@ def test_infer_range():
 
     solution = arith.solve_linear_equations(
         [
-            tvm.tir.EQ(x + y, 0),
+            tvm.tirx.EQ(x + y, 0),
         ],
         [x, y],
         ranges,
@@ -157,26 +157,26 @@ def test_infer_range():
     assert ir.structural_equal(solution.dst.ranges[n0].extent, T.int32(10))
     # additional inequality is added into the system for x
     [ineq] = solution.dst.relations
-    assert isinstance(ineq, tvm.tir.LE)
+    assert isinstance(ineq, tvm.tirx.LE)
     assert ir.structural_equal(ineq.a, T.int32(-5))
     assert ir.structural_equal(ineq.b, n0)
 
 
 def test_ill_formed():
-    x, y = tvm.tir.Var("x", "int32"), tvm.tir.Var("y", "int32")
+    x, y = tvm.tirx.Var("x", "int32"), tvm.tirx.Var("y", "int32")
 
     solution = arith.solve_linear_equations(
         [
-            tvm.tir.EQ(x + y, 0),
-            tvm.tir.EQ(x - y, 0),
-            tvm.tir.EQ(x, 5),
+            tvm.tirx.EQ(x + y, 0),
+            tvm.tirx.EQ(x - y, 0),
+            tvm.tirx.EQ(x, 5),
         ],
         [x, y],
         {},
     )
     assert list(solution.dst.variables) == []
     [rel] = solution.dst.relations
-    ir.assert_structural_equal(rel, tir.const(False))
+    ir.assert_structural_equal(rel, tirx.const(False))
     assert len(solution.src_to_dst) == 0
     assert len(solution.dst_to_src) == 0
 

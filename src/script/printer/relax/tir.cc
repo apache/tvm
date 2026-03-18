@@ -18,7 +18,7 @@
  */
 #include <tvm/ir/expr.h>
 
-#include "../tir/utils.h"
+#include "../tirx/utils.h"
 #include "./utils.h"
 
 namespace tvm {
@@ -41,7 +41,7 @@ RelaxFrameNode* GetRelaxFrame(IRDocsifier d) {
   return f;
 }
 
-Doc PrintTIRVar(tir::Var n, AccessPath n_p, IRDocsifier d) {
+Doc PrintTIRVar(tirx::Var n, AccessPath n_p, IRDocsifier d) {
   TVM_FFI_CHECK(n->dtype.is_scalar(), TypeError)
       << "Relax only uses scalar TIR variables,"
       << "but received TIR variable " << n << " with dtype " << n->dtype;
@@ -69,8 +69,8 @@ Doc PrintTIRVar(tir::Var n, AccessPath n_p, IRDocsifier d) {
   TVM_FFI_UNREACHABLE();
 }
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable).set_dispatch<tir::Var>("relax", PrintTIRVar);
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable).set_dispatch<tir::SizeVar>("relax", PrintTIRVar);
+TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable).set_dispatch<tirx::Var>("relax", PrintTIRVar);
+TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable).set_dispatch<tirx::SizeVar>("relax", PrintTIRVar);
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tvm::IntImm>(                                             //

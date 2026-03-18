@@ -17,7 +17,7 @@
 # pylint: disable=invalid-name
 """Reduction rule for operators including softmax, layer norm, RMS norm, etc"""
 
-from tvm import arith, s_tir, tir
+from tvm import arith, s_tir, tirx
 from tvm.target import Target
 
 from ..analysis import normalize_prim_func
@@ -30,11 +30,11 @@ class GeneralReduction(GPUScheduleRule):
 
     def apply(  # pylint: disable=too-many-locals
         self,
-        func: tir.PrimFunc,
+        func: tirx.PrimFunc,
         target: Target,
         _: bool,
     ) -> None | s_tir.Schedule | list[s_tir.Schedule]:
-        if not isinstance(func, tir.PrimFunc) or not self.is_target_available(target):
+        if not isinstance(func, tirx.PrimFunc) or not self.is_target_available(target):
             return None
 
         if target.kind.name == "cuda":
@@ -92,17 +92,17 @@ class GeneralReduction(GPUScheduleRule):
                         target_layout_iters.append(iters[num_matched])
                         num_matched += 1
                     else:
-                        target_layout_iters.append(tir.const(0, iters[0].dtype))
+                        target_layout_iters.append(tirx.const(0, iters[0].dtype))
 
                 # If all the iters of the last block can match, return the new layout.
                 if num_matched == len(iters):
                     return target_layout_iters
                 # Otherwise, fallback to appending zeros in the beginning.
-                return [tir.const(0, iters[0].dtype)] * (
+                return [tirx.const(0, iters[0].dtype)] * (
                     len(dom_kind) - num_last_block_iter
                 ) + list(iters)
 
-            index_map = tir.IndexMap.from_func(f_layout_mapping, ndim=num_last_block_iter)
+            index_map = tirx.IndexMap.from_func(f_layout_mapping, ndim=num_last_block_iter)
             sch.transform_block_layout(block_infos[-1].block_rv, index_map)
 
         try:
@@ -134,16 +134,16 @@ class GeneralReduction(GPUScheduleRule):
             for block_iter, loop_rv in zip(spatial_block.iter_vars, loops):
                 block_var_to_loop_var[block_iter.var] = sch.get(loop_rv).loop_var
 
-            def _visit_expr(e: tir.PrimExpr):
-                if isinstance(e, tir.Var) and e in block_var_to_loop_var:
+            def _visit_expr(e: tirx.PrimExpr):
+                if isinstance(e, tirx.Var) and e in block_var_to_loop_var:
                     spatial_loops.add(block_var_to_loop_var[e])
 
             for buffer_read in spatial_block.reads:
                 buffer = buffer_read.buffer
                 if buffer in reduced_buffers:
                     for read_range in buffer_read.region:
-                        tir.stmt_functor.post_order_visit(read_range.min, _visit_expr)
-                        tir.stmt_functor.post_order_visit(read_range.extent, _visit_expr)
+                        tirx.stmt_functor.post_order_visit(read_range.min, _visit_expr)
+                        tirx.stmt_functor.post_order_visit(read_range.extent, _visit_expr)
 
             s_loops = []
             other_loops = []

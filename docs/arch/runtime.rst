@@ -241,7 +241,7 @@ For example,  we can access the value field of the IntImmNode.
 
     import tvm
 
-    x = tvm.tir.IntImm("int32", 1)
+    x = tvm.tirx.IntImm("int32", 1)
     # access the value field of IntImmNode
     print(x.value)
 

@@ -20,7 +20,7 @@ import pytest
 from tvm_ffi.access_path import AccessPath
 
 from tvm.script import ir as I
-from tvm.script import tir as T
+from tvm.script import tirx as T
 from tvm.script.printer.doc import (
     ExprStmtDoc,
     IdDoc,
@@ -414,7 +414,7 @@ def test_underline_from_obj():
     result = func.with_attr("global_symbol", "main").script(obj_to_underline=[func.params[0]])
     assert result == format_script(
         """
-        # from tvm.script import tir as T
+        # from tvm.script import tirx as T
 
         @T.prim_func
         def main(a: T.int32, b: T.int32):
@@ -453,7 +453,7 @@ def test_underline_from_multi_obj():
     )
     assert result == format_script(
         """
-        # from tvm.script import tir as T
+        # from tvm.script import tirx as T
 
         @T.prim_func
         def main():
@@ -485,7 +485,7 @@ def test_underline_func():
     )
     assert result == format_script(
         """
-        # from tvm.script import tir as T
+        # from tvm.script import tirx as T
 
         @T.prim_func
         ^^^^^^^^^^^^
@@ -512,7 +512,7 @@ def test_underline_func_in_irmodule():
     assert result == format_script(
         """
         # from tvm.script import ir as I
-        # from tvm.script import tir as T
+        # from tvm.script import tirx as T
 
         @I.ir_module
         class Module:
@@ -541,7 +541,7 @@ def test_underline_irmodule():
     assert result == format_script(
         """
         # from tvm.script import ir as I
-        # from tvm.script import tir as T
+        # from tvm.script import tirx as T
 
         @I.ir_module
         ^^^^^^^^^^^^

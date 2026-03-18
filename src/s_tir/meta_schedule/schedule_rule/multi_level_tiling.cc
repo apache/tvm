@@ -30,7 +30,7 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 std::vector<int> GetReadBufferNDims(const StmtSRef& block_sref) {
   const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
@@ -58,7 +58,7 @@ using s_tir::IsWriteCache;
 using s_tir::LoopRV;
 using s_tir::SBlockRV;
 using s_tir::Schedule;
-using tir::IterVarType;
+using tirx::IterVarType;
 
 TVM_FFI_STATIC_INIT_BLOCK() { MultiLevelTilingNode::RegisterReflection(); }
 
@@ -335,14 +335,14 @@ std::vector<State> MultiLevelTilingNode::AddAsyncPipeline(State state) const {
   // @see src/meta_schedule/schedule_rule/schedule_rule.cc
   // check the reduce loop contains exactly 3 for loops
   // therefore it matches the notation array size in the following code
-  tir::StmtSRef r_loop_sref = state->sch->GetSRef(state->tiles[r_indices_[0]].back());
-  const tir::ForNode* r_for_loop = TVM_SREF_TO_FOR(r_loop_sref);
-  ffi::Array<tir::Stmt> seq = Downcast<tir::SeqStmt>(r_for_loop->body)->seq;
+  tirx::StmtSRef r_loop_sref = state->sch->GetSRef(state->tiles[r_indices_[0]].back());
+  const tirx::ForNode* r_for_loop = TVM_SREF_TO_FOR(r_loop_sref);
+  ffi::Array<tirx::Stmt> seq = Downcast<tirx::SeqStmt>(r_for_loop->body)->seq;
   if (seq.size() != 3) {
     return {state};
   }
   for (auto& stmt : seq) {
-    if (!stmt.as<tir::ForNode>()) {
+    if (!stmt.as<tirx::ForNode>()) {
       return {state};
     }
   }
@@ -366,7 +366,7 @@ std::vector<State> MultiLevelTilingNode::AddAsyncPipeline(State state) const {
 void MultiLevelTilingNode::AnnotateCooperativeFetching(Schedule* sch,
                                                        const s_tir::SBlockRV& block) const {
   // Filter out invalid vector lanes according to the data type.
-  const tir::SBlockNode* block_node = (*sch)->GetSRef(block)->StmtAs<tir::SBlockNode>();
+  const tirx::SBlockNode* block_node = (*sch)->GetSRef(block)->StmtAs<tirx::SBlockNode>();
   TVM_FFI_ICHECK_EQ(block_node->writes.size(), 1);
   const runtime::DataType dtype = block_node->writes[0]->buffer->dtype;
   std::function<bool(int)> f_filter = nullptr;

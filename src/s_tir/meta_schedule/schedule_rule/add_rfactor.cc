@@ -82,7 +82,7 @@ ScheduleRule ScheduleRule::AddRFactor(int max_jobs_per_core,
 
 ffi::Array<s_tir::Schedule> AddRFactorNode::Apply(const s_tir::Schedule& sch,
                                                   const s_tir::SBlockRV& block_rv) {
-  tir::StmtSRef block_sref = sch->GetSRef(block_rv);
+  tirx::StmtSRef block_sref = sch->GetSRef(block_rv);
   if (!NeedsRFactorOrCrossThreadReduction(sch->state(), block_sref, max_parallel_extent_,
                                           max_parallel_basic_)) {
     return {sch};

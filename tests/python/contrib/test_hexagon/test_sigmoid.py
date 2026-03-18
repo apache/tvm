@@ -21,7 +21,7 @@ import numpy as np
 
 import tvm
 import tvm.testing
-from tvm import te, tir, topi
+from tvm import te, tirx, topi
 from tvm.contrib.hexagon import allocate_hexagon_array
 
 from .infrastructure import get_hexagon_target

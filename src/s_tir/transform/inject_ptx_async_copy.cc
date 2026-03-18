@@ -23,20 +23,20 @@
  */
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tir/analysis.h>
-#include <tvm/tir/builtin.h>
-#include <tvm/tir/expr.h>
-#include <tvm/tir/op.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/analysis.h>
+#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/expr.h>
+#include <tvm/tirx/op.h>
+#include <tvm/tirx/stmt_functor.h>
 
-#include "../../tir/ir/buffer_common.h"
+#include "../../tirx/ir/buffer_common.h"
 #include "storage_access.h"
 #include "tvm/s_tir/stmt.h"
-#include "tvm/tir/stmt.h"
+#include "tvm/tirx/stmt.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 class PTXAsyncCopyInjector : public StmtMutator {
  public:
@@ -89,7 +89,7 @@ class PTXAsyncCopyInjector : public StmtMutator {
           if (predicated) {
             args.push_back(predicate_value);
           }
-          return Evaluate(Call(store->buffer->dtype, tvm::tir::builtin::ptx_cp_async(), args));
+          return Evaluate(Call(store->buffer->dtype, tvm::tirx::builtin::ptx_cp_async(), args));
         }
 
         // Predicated load don't support vectorized indexing.
@@ -112,12 +112,12 @@ class PTXAsyncCopyInjector : public StmtMutator {
               auto* add = store->indices[0].as<AddNode>();
               if (!add->a->IsInstance<RampNode>()) return PrimExpr();
               if (!add->b->IsInstance<BroadcastNode>()) return PrimExpr();
-              return tir::Add(add->a.as<RampNode>()->base, add->b.as<BroadcastNode>()->value);
+              return tirx::Add(add->a.as<RampNode>()->base, add->b.as<BroadcastNode>()->value);
             }
             return PrimExpr();
           }();
           if (src_offset.defined() && dst_offset.defined()) {
-            return Evaluate(Call(store->buffer->dtype, tvm::tir::builtin::ptx_cp_async(),
+            return Evaluate(Call(store->buffer->dtype, tvm::tirx::builtin::ptx_cp_async(),
                                  {store->buffer->data, mul(dst_offset, PrimExpr(index_factor)),
                                   load->buffer->data, src_offset, PrimExpr(bytes)}));
           }
@@ -140,14 +140,14 @@ class PTXAsyncCopyInjector : public StmtMutator {
               auto* add = store->indices[0].as<AddNode>();
               if (!add->a->IsInstance<RampNode>()) return PrimExpr();
               if (!add->b->IsInstance<BroadcastNode>()) return PrimExpr();
-              return tir::Add(add->a.as<RampNode>()->base, add->b.as<BroadcastNode>()->value);
+              return tirx::Add(add->a.as<RampNode>()->base, add->b.as<BroadcastNode>()->value);
             }
             return PrimExpr();
           }();
 
           if (src_offset.defined() && dst_offset.defined()) {
             return Evaluate(
-                Call(store->buffer->dtype, tvm::tir::builtin::ptx_cp_async(),
+                Call(store->buffer->dtype, tvm::tirx::builtin::ptx_cp_async(),
                      {store->buffer->data, mul(dst_offset, PrimExpr(index_factor)),
                       load->buffer->data, src_offset, PrimExpr(bytes), predicate_value}));
           }
@@ -162,7 +162,7 @@ class PTXAsyncCopyInjector : public StmtMutator {
       if (auto* load = store->value.as<BufferLoadNode>()) {
         return InjectPTX(load, store);
       } else if (auto* call = store->value.as<CallNode>()) {
-        // tir.if_then_else is a call to tir::builtin::if_then_else()
+        // tirx.if_then_else is a call to tirx::builtin::if_then_else()
         if (call->op.same_as(builtin::if_then_else()) && call->args.size() == 3) {
           if (auto* load = call->args[1].as<BufferLoadNode>()) {
             // Only default value of 0 is supported since 0 is the default value used by cp.async

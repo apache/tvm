@@ -65,9 +65,9 @@ llvm::Value* CodeGenX86_64::VisitExpr_(const CastNode* op) {
           llvm::Intrinsic::x86_avx512_mask_vcvtph2ps_512, 16,
           DTypeToLLVMType(DataType::Float(32, from.lanes())),
           {
-              MakeValue(tir::Call(DataType::Int(16, from.lanes()), tir::builtin::reinterpret(),
+              MakeValue(tirx::Call(DataType::Int(16, from.lanes()), tirx::builtin::reinterpret(),
                                   {op->value})),
-              MakeValue(tir::Broadcast(FloatImm(DataType::Float(32), 0), from.lanes())),
+              MakeValue(tirx::Broadcast(FloatImm(DataType::Float(32), 0), from.lanes())),
               /*mask=*/MakeValue(IntImm(DataType::Int(16), -1)),
               /*rounding-mode=*/MakeValue(IntImm(DataType::Int(32), 4)),
           });

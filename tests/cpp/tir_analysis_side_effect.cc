@@ -20,16 +20,16 @@
 #include <gtest/gtest.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/te/operation.h>
-#include <tvm/tir/analysis.h>
-#include <tvm/tir/builtin.h>
+#include <tvm/tirx/analysis.h>
+#include <tvm/tirx/builtin.h>
 
 TEST(SimplePasses, SideEffect) {
   using namespace tvm;
-  auto buf = tir::decl_buffer({16}, DataType::Float(32));
-  auto i = tir::Var("i", DataType::Int(32));
-  TVM_FFI_ICHECK(tir::SideEffect(tir::BufferLoad(buf, {i})) == tir::CallEffectKind::kReadState);
-  TVM_FFI_ICHECK(tir::SideEffect(exp(tir::Cast(DataType::Float(32), i + 1))) ==
-                 tir::CallEffectKind::kPure);
-  TVM_FFI_ICHECK(tir::SideEffect(tir::Call(DataType::Handle(), tir::builtin::tvm_storage_sync(),
-                                           {})) == tir::CallEffectKind::kUpdateState);
+  auto buf = tirx::decl_buffer({16}, DataType::Float(32));
+  auto i = tirx::Var("i", DataType::Int(32));
+  TVM_FFI_ICHECK(tirx::SideEffect(tirx::BufferLoad(buf, {i})) == tirx::CallEffectKind::kReadState);
+  TVM_FFI_ICHECK(tirx::SideEffect(exp(tirx::Cast(DataType::Float(32), i + 1))) ==
+                 tirx::CallEffectKind::kPure);
+  TVM_FFI_ICHECK(tirx::SideEffect(tirx::Call(DataType::Handle(), tirx::builtin::tvm_storage_sync(),
+                                           {})) == tirx::CallEffectKind::kUpdateState);
 }

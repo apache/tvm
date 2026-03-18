@@ -19,19 +19,19 @@ import numpy as np
 import tvm
 import tvm.testing
 from tvm.script import ir as I
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 @tvm.testing.requires_gpu
 def test_large_uint_imm():
     value = (1 << 63) + 123
-    value_const = tvm.tir.const(value, "uint64")
+    value_const = tvm.tirx.const(value, "uint64")
 
     @I.ir_module
     class Module:
         @T.prim_func
         def main(A: T.Buffer((12,), "uint64")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0_0 in T.thread_binding(6, thread="blockIdx.x"):
                 for i0_1 in T.thread_binding(2, thread="threadIdx.x"):
                     with T.sblock("A"):
@@ -61,7 +61,7 @@ def test_add_pipeline():
     class Module:
         @T.prim_func
         def main(var_A: T.handle, B: T.Buffer((), "float32"), var_D: T.handle):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             n = T.int32(is_size_var=True)
             A = T.match_buffer(var_A, (n,))
             D = T.match_buffer(var_D, (n,))
@@ -88,7 +88,7 @@ def test_add_pipeline():
             return
         dev = tvm.device(device, 0)
         target = tvm.target.Target(device, host)
-        mhost = tvm.tir.build(Module, target=target)
+        mhost = tvm.tirx.build(Module, target=target)
         f = mhost.main
         # launch the kernel.
         n = 1027

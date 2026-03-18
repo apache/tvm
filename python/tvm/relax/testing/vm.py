@@ -88,5 +88,5 @@ def check_saved_func(vm: relax.VirtualMachine, func_name: str, *inputs: list[Any
 
 
 @tvm.register_global_func("test.vm.check_if_defined")
-def check_if_defined(obj: tvm.Object) -> tvm.tir.IntImm:
+def check_if_defined(obj: tvm.Object) -> tvm.tirx.IntImm:
     return tvm.runtime.convert(obj is not None)

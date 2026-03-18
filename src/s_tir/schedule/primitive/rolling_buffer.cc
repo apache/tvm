@@ -23,7 +23,7 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 namespace {
 
@@ -217,7 +217,7 @@ class RollingBufferInfoCollector {
     // to be the rolling axis
     ffi::Optional<Var> roll_iter_var;
     int roll_axis = 0;
-    for (const tir::StmtSRef& loop_sref : loop_srefs) {
+    for (const tirx::StmtSRef& loop_sref : loop_srefs) {
       auto loop_var = loop_sref->StmtAs<ForNode>()->loop_var;
 
       auto it{std::find_if(

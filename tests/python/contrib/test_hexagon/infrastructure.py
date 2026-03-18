@@ -27,7 +27,7 @@ from tvm import te
 def ceildiv(o, d):
     assert o >= 0
     assert d >= 0
-    return tvm.tir.floordiv(o + d - 1, d)
+    return tvm.tirx.floordiv(o + d - 1, d)
 
 
 # defines inner block shape: 8h8w32c

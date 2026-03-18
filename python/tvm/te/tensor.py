@@ -20,8 +20,8 @@
 import tvm_ffi
 
 from tvm.runtime import Object, ObjectConvertible
-from tvm.tir import DataProducer
-from tvm.tir import expr as _expr
+from tvm.tirx import DataProducer
+from tvm.tirx import expr as _expr
 
 from . import _ffi_api
 

@@ -23,7 +23,7 @@ import pytest
 import tvm
 import tvm.s_tir.tensor_intrin.cuda
 import tvm.testing
-from tvm import TVMError, te, tir
+from tvm import TVMError, te, tirx
 from tvm.s_tir.meta_schedule.testing import te_workload
 from tvm.s_tir.tensor_intrin.cuda import (
     LDMATRIX_f16_A_DYN_INTRIN,
@@ -33,15 +33,15 @@ from tvm.s_tir.tensor_intrin.cuda import (
     MMA_store_16x16_f32_global_INTRIN,
     shared_16x16_to_ldmatrix_32x8_layout,
 )
-from tvm.script import tir as T
-from tvm.testing.tir import mma_schedule
+from tvm.script import tirx as T
+from tvm.testing.tirx import mma_schedule
 
 
 def _check(original, transformed):
     func = original
     mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
     mod = tvm.s_tir.transform.InjectSoftwarePipeline()(mod)
-    mod = tvm.tir.transform.Simplify()(mod)
+    mod = tvm.tirx.transform.Simplify()(mod)
     tvm.ir.assert_structural_equal(
         mod["main"], transformed.with_attr("global_symbol", "main"), True
     )
@@ -1533,7 +1533,7 @@ def get_mma_schedule():
 
 def build_and_run(sch):
     if tvm.testing.is_ampere_or_newer():
-        with tvm.transform.PassContext(config={"tir.use_async_copy": 1}):
+        with tvm.transform.PassContext(config={"tirx.use_async_copy": 1}):
             f = tvm.compile(sch.mod["main"], target="cuda")
 
         dev = tvm.device("cuda", 0)

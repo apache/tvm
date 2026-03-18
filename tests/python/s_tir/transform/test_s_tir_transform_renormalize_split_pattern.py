@@ -19,7 +19,7 @@
 import tvm
 import tvm.testing
 from tvm import s_tir
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 # fmt: off
 # pylint: disable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,redundant-keyword-arg
@@ -29,7 +29,7 @@ class Before:
     @T.prim_func
     def main(inputs: T.Buffer((1, 4, 4, 512), "float32"), weight: T.Buffer((4, 4, 512, 256), "float32"), conv2d_transpose_nhwc: T.Buffer((1, 8, 8, 256), "float32")) -> None:
         # function attr dict
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         inputs_flat = T.decl_buffer([8192], dtype="float32", data=inputs.data)
         weight_flat = T.decl_buffer([2097152], dtype="float32", data=weight.data)
         conv2d_transpose_nhwc_flat = T.decl_buffer([16384], dtype="float32", data=conv2d_transpose_nhwc.data)
@@ -60,7 +60,7 @@ class After:
     @T.prim_func
     def main(inputs: T.Buffer((1, 4, 4, 512), "float32"), weight: T.Buffer((4, 4, 512, 256), "float32"), conv2d_transpose_nhwc: T.Buffer((1, 8, 8, 256), "float32")) -> None:
         # function attr dict
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         inputs_flat = T.decl_buffer([8192], dtype="float32", data=inputs.data)
         weight_flat = T.decl_buffer([2097152], dtype="float32", data=weight.data)
         conv2d_transpose_nhwc_flat = T.decl_buffer([16384], dtype="float32", data=conv2d_transpose_nhwc.data)
@@ -91,7 +91,7 @@ class After_simplified:
     @T.prim_func
     def main(inputs: T.Buffer((1, 4, 4, 512), "float32"), weight: T.Buffer((4, 4, 512, 256), "float32"), conv2d_transpose_nhwc: T.Buffer((1, 8, 8, 256), "float32")) -> None:
         # function attr dict
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # var definition
         threadIdx_x = T.env_thread("threadIdx.x")
         blockIdx_x = T.env_thread("blockIdx.x")
@@ -123,7 +123,7 @@ class After_simplified:
 def test_renormalize_split_pattern():
     after = tvm.s_tir.transform.RenormalizeSplitPattern()(Before)
     tvm.ir.assert_structural_equal(after, After)
-    after = tvm.tir.transform.Simplify()(after)
+    after = tvm.tirx.transform.Simplify()(after)
     tvm.ir.assert_structural_equal(after, After_simplified)
 
 
@@ -166,7 +166,7 @@ def test_analyze_inside_integer_conditional(integer_condition):
     """
 
     # Similar issue would occur in most transformations that subclass
-    # IRMutatorWithAnalyzer.  tir.transform.Simplify() is an
+    # IRMutatorWithAnalyzer.  tirx.transform.Simplify() is an
     # exception, as it rewrites the integer conditionals first.  These
     # tests are written using RenormalizeSplitPattern as it is the
     # first case identified.

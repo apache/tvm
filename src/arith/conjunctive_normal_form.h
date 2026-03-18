@@ -26,7 +26,7 @@
 #ifndef TVM_ARITH_CONJUNCTIVE_NORMAL_FORM_H_
 #define TVM_ARITH_CONJUNCTIVE_NORMAL_FORM_H_
 
-#include <tvm/tir/expr.h>
+#include <tvm/tirx/expr.h>
 
 namespace tvm {
 namespace arith {

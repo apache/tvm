@@ -207,7 +207,7 @@ each time (e.g. you can test a change in CPU and GPU while retaining incremental
     python tests/scripts/ci.py cpu --unittest
 
     # quickly iterate by running a specific test and skipping the rebuild each time
-    python tests/scripts/ci.py cpu --skip-build --tests tests/python/tir-transform/test_tir_transform_inject_rolling_buffer.py::test_upscale
+    python tests/scripts/ci.py cpu --skip-build --tests tests/python/tirx-transform/test_tir_transform_inject_rolling_buffer.py::test_upscale
 
     # run the CPU build and drop into a shell in the container
     python tests/scripts/ci.py cpu --interactive
@@ -261,7 +261,7 @@ If you want to run a single test:
   export PYTHONPATH=python
   rm -rf python/tvm/*.pyc python/tvm/*/*.pyc python/tvm/*/*/*.pyc
 
-  python -m pytest -v tests/python/tir-transform/test_tir_transform_storage_rewrite.py
+  python -m pytest -v tests/python/tirx-transform/test_tir_transform_storage_rewrite.py
 
   # Additionally if you want to run a single test, for example test_all_elemwise inside a file.
   python -m pytest -v -k "test_all_elemwise" tests/python/frontend/tflite/test_forward.py

@@ -21,7 +21,7 @@ import tvm.testing
 from tvm.relax.transform import LegalizeOps
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 ##################### Binary arithmetic #####################
 
@@ -45,7 +45,7 @@ def test_add():
 
         @T.prim_func(private=True)
         def add(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_add: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(4), T.int64(3), T.int64(2), T.int64(3)):
                 with T.sblock("T_add"):
                     ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -76,7 +76,7 @@ def test_add_with_arg0_constant_scalar():
 
         @T.prim_func(private=True)
         def add(rxplaceholder: T.Buffer((T.int64(2), T.int64(3)), "float32"), T_add: T.Buffer((T.int64(2), T.int64(3)), "float32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with T.sblock("T_add"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
@@ -107,7 +107,7 @@ def test_add_with_arg1_constant_scalar():
 
         @T.prim_func(private=True)
         def add(rxplaceholder: T.Buffer((T.int64(2), T.int64(3)), "float32"), T_add: T.Buffer((T.int64(2), T.int64(3)), "float32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with T.sblock("T_add"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
@@ -146,7 +146,7 @@ def test_add_symbolic():
 
         @T.prim_func(private=True)
         def add(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_add: T.handle):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             a = T.int64()
             b = T.int64()
             c = T.int64()
@@ -194,7 +194,7 @@ def test_add_primvalue():
             rhs: T.float32,
             output: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i, j, k in T.grid(*lhs.shape):
                 with T.sblock("T_add"):
                     vi, vj, vk = T.axis.remap("SSS", [i, j, k])
@@ -222,7 +222,7 @@ def test_divide():
 
         @T.prim_func(private=True)
         def divide(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_divide: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(4), T.int64(3), T.int64(2), T.int64(3)):
                 with T.sblock("T_divide"):
                     ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -253,7 +253,7 @@ def test_divide_with_arg0_constant_scalar():
 
         @T.prim_func(private=True)
         def divide(rxplaceholder: T.Buffer((T.int64(2), T.int64(3)), "float32"), T_divide: T.Buffer((T.int64(2), T.int64(3)), "float32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with T.sblock("T_divide"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
@@ -284,7 +284,7 @@ def test_divide_with_arg1_constant_scalar():
 
         @T.prim_func(private=True)
         def divide(rxplaceholder: T.Buffer((T.int64(2), T.int64(3)), "float32"), T_divide: T.Buffer((T.int64(2), T.int64(3)), "float32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with T.sblock("T_divide"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
@@ -323,7 +323,7 @@ def test_divide_symbolic():
 
         @T.prim_func(private=True)
         def divide(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_divide: T.handle):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             a = T.int64()
             b = T.int64()
             c = T.int64()
@@ -371,7 +371,7 @@ def test_divide_primvalue():
             rhs: T.float32,
             output: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i, j, k in T.grid(*lhs.shape):
                 with T.sblock("T_add"):
                     vi, vj, vk = T.axis.remap("SSS", [i, j, k])
@@ -399,7 +399,7 @@ def test_floor_divide():
 
         @T.prim_func(private=True)
         def floor_divide(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_floor_divide: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(4), T.int64(3), T.int64(2), T.int64(3)):
                 with T.sblock("T_floor_divide"):
                     ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -430,7 +430,7 @@ def test_floor_divide_with_arg0_constant_scalar():
 
         @T.prim_func(private=True)
         def floor_divide(rxplaceholder: T.Buffer((T.int64(2), T.int64(3)), "float32"), T_floor_divide: T.Buffer((T.int64(2), T.int64(3)), "float32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with T.sblock("T_floor_divide"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
@@ -461,7 +461,7 @@ def test_floor_divide_with_arg1_constant_scalar():
 
         @T.prim_func(private=True)
         def floor_divide(rxplaceholder: T.Buffer((T.int64(2), T.int64(3)), "float32"), T_floor_divide: T.Buffer((T.int64(2), T.int64(3)), "float32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with T.sblock("T_floor_divide"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
@@ -500,7 +500,7 @@ def test_floor_divide_symbolic():
 
         @T.prim_func(private=True)
         def floor_divide(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_floor_divide: T.handle):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             a = T.int64()
             b = T.int64()
             c = T.int64()
@@ -548,7 +548,7 @@ def test_floordiv_primvalue():
             rhs: T.float32,
             output: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i, j, k in T.grid(*lhs.shape):
                 with T.sblock("T_floordiv"):
                     vi, vj, vk = T.axis.remap("SSS", [i, j, k])
@@ -576,7 +576,7 @@ def test_multiply():
 
         @T.prim_func(private=True)
         def multiply(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_multiply: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(4), T.int64(3), T.int64(2), T.int64(3)):
                 with T.sblock("T_multiply"):
                     ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -615,7 +615,7 @@ def test_multiply_symbolic():
 
         @T.prim_func(private=True)
         def multiply(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_multiply: T.handle):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             a = T.int64()
             b = T.int64()
             c = T.int64()
@@ -663,7 +663,7 @@ def test_multiply_primvalue():
             rhs: T.float32,
             output: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i, j, k in T.grid(*lhs.shape):
                 with T.sblock("T_add"):
                     vi, vj, vk = T.axis.remap("SSS", [i, j, k])
@@ -686,7 +686,7 @@ def test_power():
     class Expected:
         @T.prim_func(private=True)
         def power(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_power: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(4), T.int64(3), T.int64(2), T.int64(3)):
                 with T.sblock("T_power"):
@@ -723,7 +723,7 @@ def test_power_symbolic():
     class Expected:
         @T.prim_func(private=True)
         def power(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_power: T.handle):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             c = T.int64()
             d = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, (T.int64(1), c, d))
@@ -781,7 +781,7 @@ def test_power_primvalue():
             rhs: T.float32,
             output: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i, j, k in T.grid(*lhs.shape):
                 with T.sblock("T_power"):
                     vi, vj, vk = T.axis.remap("SSS", [i, j, k])
@@ -809,7 +809,7 @@ def test_subtract():
 
         @T.prim_func(private=True)
         def subtract(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_subtract: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(4), T.int64(3), T.int64(2), T.int64(3)):
                 with T.sblock("T_subtract"):
                     ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -848,7 +848,7 @@ def test_subtract_symbolic():
 
         @T.prim_func(private=True)
         def subtract(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_subtract: T.handle):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             a = T.int64()
             b = T.int64()
             c = T.int64()
@@ -896,7 +896,7 @@ def test_subtract_primvalue():
             rhs: T.float32,
             output: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i, j, k in T.grid(*lhs.shape):
                 with T.sblock("T_add"):
                     vi, vj, vk = T.axis.remap("SSS", [i, j, k])
@@ -927,7 +927,7 @@ def test_equal():
 
         @T.prim_func(private=True)
         def equal(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_equal: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "bool")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(4), T.int64(3), T.int64(2), T.int64(3)):
                 with T.sblock("T_equal"):
                     ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -958,7 +958,7 @@ def test_equal_with_arg0_constant_scalar():
 
         @T.prim_func(private=True)
         def equal(rxplaceholder: T.Buffer((T.int64(2), T.int64(3)), "float32"), T_equal: T.Buffer((T.int64(2), T.int64(3)), "bool")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with T.sblock("T_equal"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
@@ -989,7 +989,7 @@ def test_equal_with_arg1_constant_scalar():
 
         @T.prim_func(private=True)
         def equal(rxplaceholder: T.Buffer((T.int64(2), T.int64(3)), "float32"), T_equal: T.Buffer((T.int64(2), T.int64(3)), "bool")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with T.sblock("T_equal"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
@@ -1028,7 +1028,7 @@ def test_equal_symbolic():
 
         @T.prim_func(private=True)
         def equal(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_equal: T.handle):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             a = T.int64()
             b = T.int64()
             c = T.int64()
@@ -1076,7 +1076,7 @@ def test_equal_primvalue():
             rhs: T.float32,
             output: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "bool"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i, j, k in T.grid(*lhs.shape):
                 with T.sblock("T_add"):
                     vi, vj, vk = T.axis.remap("SSS", [i, j, k])
@@ -1104,7 +1104,7 @@ def test_greater():
 
         @T.prim_func(private=True)
         def greater(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_greater: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "bool")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(4), T.int64(3), T.int64(2), T.int64(3)):
                 with T.sblock("T_greater"):
                     ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -1135,7 +1135,7 @@ def test_greater_with_arg0_constant_scalar():
 
         @T.prim_func(private=True)
         def greater(rxplaceholder: T.Buffer((T.int64(2), T.int64(3)), "float32"), T_greater: T.Buffer((T.int64(2), T.int64(3)), "bool")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with T.sblock("T_greater"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
@@ -1166,7 +1166,7 @@ def test_greater_with_arg1_constant_scalar():
 
         @T.prim_func(private=True)
         def greater(rxplaceholder: T.Buffer((T.int64(2), T.int64(3)), "float32"), T_greater: T.Buffer((T.int64(2), T.int64(3)), "bool")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with T.sblock("T_greater"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
@@ -1205,7 +1205,7 @@ def test_greater_symbolic():
 
         @T.prim_func(private=True)
         def greater(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_greater: T.handle):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             a = T.int64()
             b = T.int64()
             c = T.int64()
@@ -1253,7 +1253,7 @@ def test_greater_primvalue():
             rhs: T.float32,
             output: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "bool"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i, j, k in T.grid(*lhs.shape):
                 with T.sblock("T_add"):
                     vi, vj, vk = T.axis.remap("SSS", [i, j, k])
@@ -1281,7 +1281,7 @@ def test_greater_equal():
 
         @T.prim_func(private=True)
         def greater_equal(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_greater_equal: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "bool")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(4), T.int64(3), T.int64(2), T.int64(3)):
                 with T.sblock("T_greater_equal"):
                     ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -1320,7 +1320,7 @@ def test_greater_equal_symbolic():
 
         @T.prim_func(private=True)
         def greater_equal(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_greater_equal: T.handle):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             a = T.int64()
             b = T.int64()
             c = T.int64()
@@ -1368,7 +1368,7 @@ def test_greater_equal_primvalue():
             rhs: T.float32,
             output: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "bool"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i, j, k in T.grid(*lhs.shape):
                 with T.sblock("T_add"):
                     vi, vj, vk = T.axis.remap("SSS", [i, j, k])
@@ -1396,7 +1396,7 @@ def test_less():
 
         @T.prim_func(private=True)
         def less(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_less: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "bool")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(4), T.int64(3), T.int64(2), T.int64(3)):
                 with T.sblock("T_less"):
                     ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -1435,7 +1435,7 @@ def test_less_symbolic():
 
         @T.prim_func(private=True)
         def less(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_less: T.handle):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             a = T.int64()
             b = T.int64()
             c = T.int64()
@@ -1483,7 +1483,7 @@ def test_less_primvalue():
             rhs: T.float32,
             output: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "bool"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i, j, k in T.grid(*lhs.shape):
                 with T.sblock("T_add"):
                     vi, vj, vk = T.axis.remap("SSS", [i, j, k])
@@ -1511,7 +1511,7 @@ def test_less_equal():
 
         @T.prim_func(private=True)
         def less_equal(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_less_equal: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "bool")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(4), T.int64(3), T.int64(2), T.int64(3)):
                 with T.sblock("T_less_equal"):
                     ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -1542,7 +1542,7 @@ def test_less_equal_with_arg0_constant_scalar():
 
         @T.prim_func(private=True)
         def less_equal(rxplaceholder: T.Buffer((T.int64(2), T.int64(3)), "float32"), T_less_equal: T.Buffer((T.int64(2), T.int64(3)), "bool")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with T.sblock("T_less_equal"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
@@ -1573,7 +1573,7 @@ def test_less_equal_with_arg1_constant_scalar():
 
         @T.prim_func(private=True)
         def less_equal(rxplaceholder: T.Buffer((T.int64(2), T.int64(3)), "float32"), T_less_equal: T.Buffer((T.int64(2), T.int64(3)), "bool")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with T.sblock("T_less_equal"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
@@ -1612,7 +1612,7 @@ def test_less_equal_symbolic():
 
         @T.prim_func(private=True)
         def less_equal(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_less_equal: T.handle):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             a = T.int64()
             b = T.int64()
             c = T.int64()
@@ -1660,7 +1660,7 @@ def test_less_equal_primvalue():
             rhs: T.float32,
             output: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "bool"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i, j, k in T.grid(*lhs.shape):
                 with T.sblock("T_add"):
                     vi, vj, vk = T.axis.remap("SSS", [i, j, k])
@@ -1688,7 +1688,7 @@ def test_not_equal():
 
         @T.prim_func(private=True)
         def not_equal(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_not_equal: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "bool")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(4), T.int64(3), T.int64(2), T.int64(3)):
                 with T.sblock("T_not_equal"):
                     ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -1727,7 +1727,7 @@ def test_not_equal_symbolic():
 
         @T.prim_func(private=True)
         def not_equal(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_not_equal: T.handle):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             a = T.int64()
             b = T.int64()
             c = T.int64()
@@ -1775,7 +1775,7 @@ def test_not_equal_primvalue():
             rhs: T.float32,
             output: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "bool"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i, j, k in T.grid(*lhs.shape):
                 with T.sblock("T_add"):
                     vi, vj, vk = T.axis.remap("SSS", [i, j, k])
@@ -1804,7 +1804,7 @@ def test_maximum():
 
         @T.prim_func(private=True)
         def maximum(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_maximum: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(4), T.int64(3), T.int64(2), T.int64(3)):
                 with T.sblock("T_maximum"):
                     ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -1835,7 +1835,7 @@ def test_maximum_with_arg0_constant_scalar():
 
         @T.prim_func(private=True)
         def maximum(rxplaceholder: T.Buffer((T.int64(2), T.int64(3)), "float32"), T_maximum: T.Buffer((T.int64(2), T.int64(3)), "float32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with T.sblock("T_maximum"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
@@ -1866,7 +1866,7 @@ def test_maximum_with_arg1_constant_scalar():
 
         @T.prim_func(private=True)
         def maximum(rxplaceholder: T.Buffer((T.int64(2), T.int64(3)), "float32"), T_maximum: T.Buffer((T.int64(2), T.int64(3)), "float32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with T.sblock("T_maximum"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
@@ -1905,7 +1905,7 @@ def test_maximum_symbolic():
 
         @T.prim_func(private=True)
         def maximum(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_maximum: T.handle):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             a = T.int64()
             b = T.int64()
             c = T.int64()
@@ -1953,7 +1953,7 @@ def test_max_primvalue():
             rhs: T.float32,
             output: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i, j, k in T.grid(*lhs.shape):
                 with T.sblock("T_add"):
                     vi, vj, vk = T.axis.remap("SSS", [i, j, k])
@@ -1982,7 +1982,7 @@ def test_minimum():
 
         @T.prim_func(private=True)
         def minimum(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_minimum: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(4), T.int64(3), T.int64(2), T.int64(3)):
                 with T.sblock("T_minimum"):
                     ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -2013,7 +2013,7 @@ def test_minimum_with_arg0_constant_scalar():
 
         @T.prim_func(private=True)
         def minimum(rxplaceholder: T.Buffer((T.int64(2), T.int64(3)), "float32"), T_minimum: T.Buffer((T.int64(2), T.int64(3)), "float32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with T.sblock("T_minimum"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
@@ -2044,7 +2044,7 @@ def test_minimum_with_arg1_constant_scalar():
 
         @T.prim_func(private=True)
         def minimum(rxplaceholder: T.Buffer((T.int64(2), T.int64(3)), "float32"), T_minimum: T.Buffer((T.int64(2), T.int64(3)), "float32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with T.sblock("T_minimum"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
@@ -2083,7 +2083,7 @@ def test_minimum_symbolic():
 
         @T.prim_func(private=True)
         def minimum(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_minimum: T.handle):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             a = T.int64()
             b = T.int64()
             c = T.int64()
@@ -2131,7 +2131,7 @@ def test_min_primvalue():
             rhs: T.float32,
             output: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i, j, k in T.grid(*lhs.shape):
                 with T.sblock("T_add"):
                     vi, vj, vk = T.axis.remap("SSS", [i, j, k])

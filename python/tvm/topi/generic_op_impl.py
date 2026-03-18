@@ -66,7 +66,7 @@ def _make_bop(broadcast_bop, orig_bop):
         it performs tensor-scalar {op} operation on an element-wise basis.
 
         Otherwise, it performs default generic.{op} operation, as defined
-        in tvm.tir.generic module.
+        in tvm.tirx.generic module.
 
         Parameters
         ----------
@@ -93,13 +93,13 @@ def _bind_generic_ops():
     """Bind generic operators for Tensor."""
     # Check __op_priority__ to make sure the binding happens only once.
     __op_priority__ = 1
-    if __op_priority__ > tvm.tir.generic.__op_priority__:
-        tvm.tir.generic.__op_priority__ = __op_priority__
-        tvm.tir.generic.add = _make_bop(_broadcast.add, tvm.tir.generic.add)
-        tvm.tir.generic.subtract = _make_bop(_broadcast.subtract, tvm.tir.generic.subtract)
-        tvm.tir.generic.multiply = _make_bop(_broadcast.multiply, tvm.tir.generic.multiply)
-        tvm.tir.generic.divide = _make_bop(_broadcast.divide, tvm.tir.generic.divide)
-        tvm.tir.generic.cast = _math.cast
+    if __op_priority__ > tvm.tirx.generic.__op_priority__:
+        tvm.tirx.generic.__op_priority__ = __op_priority__
+        tvm.tirx.generic.add = _make_bop(_broadcast.add, tvm.tirx.generic.add)
+        tvm.tirx.generic.subtract = _make_bop(_broadcast.subtract, tvm.tirx.generic.subtract)
+        tvm.tirx.generic.multiply = _make_bop(_broadcast.multiply, tvm.tirx.generic.multiply)
+        tvm.tirx.generic.divide = _make_bop(_broadcast.divide, tvm.tirx.generic.divide)
+        tvm.tirx.generic.cast = _math.cast
 
 
 _bind_generic_ops()

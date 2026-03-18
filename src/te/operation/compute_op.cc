@@ -26,10 +26,10 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/te/operation.h>
-#include <tvm/tir/analysis.h>
-#include <tvm/tir/builtin.h>
-#include <tvm/tir/expr.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/analysis.h>
+#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/expr.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include <string>
 #include <unordered_set>
@@ -37,7 +37,7 @@
 
 namespace tvm {
 namespace te {
-using namespace tir;
+using namespace tirx;
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OperationNode::RegisterReflection();
@@ -56,7 +56,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 /// Verify if ComputeOp is valid with respect to Reduce operations.
 static void VerifyComputeOp(const ComputeOpNode* op);
 
-static inline void AssertReduceEqual(const tir::ReduceNode* a, const tir::ReduceNode* b) {
+static inline void AssertReduceEqual(const tirx::ReduceNode* a, const tirx::ReduceNode* b) {
   const char* shared_text =
       "When a TE compute node produces multiple outputs, "
       "each of which is a reduction, "
@@ -147,8 +147,8 @@ ComputeOp::ComputeOp(std::string name, std::string tag, ffi::Map<ffi::String, ff
   n->attrs = std::move(attrs);
   n->axis = std::move(axis);
   n->body = std::move(body);
-  if (n->body[0]->IsInstance<tir::ReduceNode>()) {
-    const tir::ReduceNode* reduce = n->body[0].as<tir::ReduceNode>();
+  if (n->body[0]->IsInstance<tirx::ReduceNode>()) {
+    const tirx::ReduceNode* reduce = n->body[0].as<tirx::ReduceNode>();
     n->reduce_axis = reduce->axis;
   }
   VerifyComputeOp(n.get());
@@ -169,8 +169,8 @@ ffi::Array<Tensor> ComputeOpNode::InputTensors() const {
   ffi::Array<Tensor> ret;
   std::unordered_set<Tensor> visited;
   for (auto& e : body) {
-    tir::PostOrderVisit(e, [&ret, &visited](const ObjectRef& n) {
-      if (auto* pload = n.as<tir::ProducerLoadNode>()) {
+    tirx::PostOrderVisit(e, [&ret, &visited](const ObjectRef& n) {
+      if (auto* pload = n.as<tirx::ProducerLoadNode>()) {
         Tensor t = Downcast<Tensor>(pload->producer);
         if (!visited.count(t)) {
           ret.push_back(t);
@@ -194,12 +194,12 @@ namespace {
  *      must be Reduce as well; and their inputs should have the
  *      same attribute except value_index.
  */
-class ComputeVerifier final : protected tir::ExprVisitor {
+class ComputeVerifier final : protected tirx::ExprVisitor {
  public:
   /// Special member functions
   //@{
   explicit ComputeVerifier(const ComputeOpNode* compute)
-      : compute_(compute), reduce_(compute->body[0].as<tir::ReduceNode>()) {}
+      : compute_(compute), reduce_(compute->body[0].as<tirx::ReduceNode>()) {}
   virtual ~ComputeVerifier() = default;
   ComputeVerifier(const ComputeVerifier&) = delete;
   ComputeVerifier(ComputeVerifier&&) = delete;
@@ -211,7 +211,7 @@ class ComputeVerifier final : protected tir::ExprVisitor {
   void Run() {
     for (const PrimExpr e : compute_->body) {
       // Check for consistency of top level reductions
-      const tir::ReduceNode* reduce = e.as<tir::ReduceNode>();
+      const tirx::ReduceNode* reduce = e.as<tirx::ReduceNode>();
       TVM_FFI_ICHECK((reduce && reduce_) || (!reduce && !reduce_))
           << "All ComputeOp should be consistent "
           << "with being Reduce operation or not.";
@@ -234,7 +234,7 @@ class ComputeVerifier final : protected tir::ExprVisitor {
     --level_;
   }
 
-  void VisitExpr_(const tir::ReduceNode* op) final {
+  void VisitExpr_(const tirx::ReduceNode* op) final {
     // Check for non top level reductions
     TVM_FFI_ICHECK(0 == level_) << "Reductions are only allowed at the top level of compute. "
                                 << "Please create another tensor for further composition.";
@@ -243,7 +243,7 @@ class ComputeVerifier final : protected tir::ExprVisitor {
 
  private:
   const ComputeOpNode* compute_{nullptr};   ///< ComputeOpNode to verify
-  const tir::ReduceNode* reduce_{nullptr};  ///< Top level Reduce operation
+  const tirx::ReduceNode* reduce_{nullptr};  ///< Top level Reduce operation
   int level_{0};                            ///< Level of op being processed
 };
 }  // namespace

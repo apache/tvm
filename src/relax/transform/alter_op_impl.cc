@@ -32,19 +32,19 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
 #include <tvm/te/operation.h>
-#include <tvm/tir/transform.h>
+#include <tvm/tirx/transform.h>
 #include <tvm/topi/tags.h>
 
 #include "../../te/operation/create_primfunc.h"
 namespace tvm {
 namespace relax {
 
-using namespace tir;
+using namespace tirx;
 static constexpr const char* kOperatorName = "operator_name";
 
 /*! \brief Construct ranges from shape dimensions */
 static ffi::Array<Range> ConstructRangeFromShape(const ffi::Array<PrimExpr>& shape) {
-  return shape.Map([](const PrimExpr& dim) { return Range(tir::make_zero(dim.dtype()), dim); });
+  return shape.Map([](const PrimExpr& dim) { return Range(tirx::make_zero(dim.dtype()), dim); });
 }
 
 static ffi::Array<PrimExpr> GetShapeFromTensorStructInfo(const TensorStructInfo& tensor_sinfo) {
@@ -81,7 +81,7 @@ bool IsTransformBijective(const Expr& expr, const IndexMap& transform) {
 class AlterOpImplMutator : public ExprMutator {
  public:
   AlterOpImplMutator(
-      const IRModule& mod, const ffi::Map<ffi::String, tir::PrimFunc>& op_impl_map,
+      const IRModule& mod, const ffi::Map<ffi::String, tirx::PrimFunc>& op_impl_map,
       const ffi::Map<ffi::String, ffi::Array<IndexMap>>& op_buffer_transforms_,
       const ffi::Map<ffi::String, ffi::Optional<ffi::Array<ffi::Array<IntImm>>>>& axis_separators_,
       const ffi::Map<ffi::String, ffi::Optional<ffi::Array<ffi::Array<IntImm>>>>&
@@ -110,7 +110,7 @@ class AlterOpImplMutator : public ExprMutator {
   Expr VisitExpr_(const CallNode* op) final {
     auto call = Downcast<Call>(ExprMutator::VisitExpr_(op));
 
-    // TODO(@tvm-team): When we differentiate the call for tir function and packed function,
+    // TODO(@tvm-team): When we differentiate the call for tirx function and packed function,
     // this logic should be changed accordingly.
     if (!call->op.same_as(call_tir_op_)) return call;
 
@@ -119,8 +119,8 @@ class AlterOpImplMutator : public ExprMutator {
 
     // Get operator name from callee
     TVM_FFI_ICHECK(call->args[0]->IsInstance<GlobalVarNode>());
-    const tir::PrimFunc& old_func =
-        Downcast<tir::PrimFunc>(mod_->Lookup(Downcast<GlobalVar>(call->args[0])));
+    const tirx::PrimFunc& old_func =
+        Downcast<tirx::PrimFunc>(mod_->Lookup(Downcast<GlobalVar>(call->args[0])));
     ffi::Optional<ffi::String> maybe_op_kind = old_func->attrs.GetAttr<ffi::String>(kOperatorName);
 
     // If the callee does not have kOperatorName attribute or no replacement is requested for
@@ -214,8 +214,8 @@ class AlterOpImplMutator : public ExprMutator {
     // Create dynamic shapes for input and output tensors
     ffi::Array<PrimExpr> dyn_padded_shape, dyn_old_shape;
     for (int i = 0; i < t_shape; i++) {
-      tir::Var var1("p" + std::to_string(i), old_shape[i].dtype());
-      tir::Var var2("i" + std::to_string(i), old_shape[i].dtype());
+      tirx::Var var1("p" + std::to_string(i), old_shape[i].dtype());
+      tirx::Var var2("i" + std::to_string(i), old_shape[i].dtype());
       dyn_padded_shape.push_back(var1);
       dyn_old_shape.push_back(var2);
     }
@@ -225,7 +225,7 @@ class AlterOpImplMutator : public ExprMutator {
     // Output tensor of remove_pad op
     te::Tensor output_tensor = te::compute(
         dyn_old_shape,
-        [&placeholder_tensor](const ffi::Array<tir::Var>& indices) {
+        [&placeholder_tensor](const ffi::Array<tirx::Var>& indices) {
           return placeholder_tensor(indices);
         },
         "output", topi::kElementWise);
@@ -257,7 +257,7 @@ class AlterOpImplMutator : public ExprMutator {
     auto [inverse_index_map, padding_predicate] =
         index_map.NonSurjectiveInverse(initial_ranges, &analyzer);
 
-    if (tir::is_zero(padding_predicate)) {
+    if (tirx::is_zero(padding_predicate)) {
       return TransformLayout(expr, inverse_index_map, axis_separator, input_axis_separator);
     } else {
       auto padded_expr = builder_->Normalize(
@@ -433,7 +433,7 @@ class AlterOpImplMutator : public ExprMutator {
 namespace transform {
 
 Pass AlterOpImpl(
-    const ffi::Map<ffi::String, tir::PrimFunc>& op_impl_map,
+    const ffi::Map<ffi::String, tirx::PrimFunc>& op_impl_map,
     const ffi::Map<ffi::String, ffi::Array<IndexMap>>& op_buffer_transforms_,
     const ffi::Map<ffi::String, ffi::Optional<ffi::Array<ffi::Array<IntImm>>>>& axis_separators_,
     const ffi::Map<ffi::String, ffi::Optional<ffi::Array<ffi::Array<IntImm>>>>&

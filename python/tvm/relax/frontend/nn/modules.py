@@ -21,7 +21,7 @@
 from collections.abc import Sequence
 
 from tvm import relax as rx
-from tvm import tir
+from tvm import tirx
 
 from . import op
 from .core import Effect, Module, ModuleList, Parameter, Tensor, get_default_dtype
@@ -101,8 +101,8 @@ class Linear(Module):
 
     def __init__(
         self,
-        in_features: int | str | tir.PrimExpr,
-        out_features: int | str | tir.PrimExpr,
+        in_features: int | str | tirx.PrimExpr,
+        out_features: int | str | tirx.PrimExpr,
         bias: bool = True,
         dtype: str | None = None,
         out_dtype: str | None = None,
@@ -242,7 +242,7 @@ class Conv2D(Module):
         if isinstance(self.in_channels, int):
             in_channels = int(self.in_channels / self.groups)
         else:
-            in_channels = tir.floordiv(self.in_channels, self.groups)
+            in_channels = tirx.floordiv(self.in_channels, self.groups)
 
         # Expand kernel size if provided an integer.
         if isinstance(kernel_size, int):
@@ -316,7 +316,7 @@ class Conv3D(Module):
         if isinstance(self.in_channels, int):
             in_channels = int(self.in_channels / self.groups)
         else:
-            in_channels = tir.floordiv(self.in_channels, self.groups)
+            in_channels = tirx.floordiv(self.in_channels, self.groups)
 
         # Expand kernel size if given an integer.
         if isinstance(kernel_size, int):
@@ -657,13 +657,13 @@ class KVCache(Effect):
         if dtype is not None:
             self.dtype = dtype
 
-    def view(self, seq_len: tir.Var) -> Tensor:
+    def view(self, seq_len: tirx.Var) -> Tensor:
         """
         View the last elements in KVCache.
 
         Parameters
         ----------
-        seq_len : tir.Var
+        seq_len : tirx.Var
             The number of last elements to view.
 
         Returns
@@ -714,8 +714,8 @@ class Embedding(Module):
 
     def __init__(
         self,
-        num: int | str | tir.PrimExpr,
-        dim: int | str | tir.PrimExpr,
+        num: int | str | tirx.PrimExpr,
+        dim: int | str | tirx.PrimExpr,
         dtype: str | None = None,
     ):
         self.num = num

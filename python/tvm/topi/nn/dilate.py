@@ -55,8 +55,8 @@ def dilate(data, strides, dilation_value=0.0, name="DilatedInput"):
     def _dilate(*indices):
         not_zero = []
         index_tuple = []
-        idxdiv = tvm.tir.indexdiv
-        idxmod = tvm.tir.indexmod
+        idxdiv = tvm.tirx.indexdiv
+        idxmod = tvm.tirx.indexmod
         for i in range(n):
             if not utils.equal_const_int(strides[i], 1):
                 index_tuple.append(idxdiv(indices[i], strides[i]))
@@ -64,9 +64,9 @@ def dilate(data, strides, dilation_value=0.0, name="DilatedInput"):
             else:
                 index_tuple.append(indices[i])
         if not_zero:
-            not_zero = tvm.tir.all(*not_zero)
-            return tvm.tir.if_then_else(
-                not_zero, data(*index_tuple), tvm.tir.const(dilation_value, data.dtype)
+            not_zero = tvm.tirx.all(*not_zero)
+            return tvm.tirx.if_then_else(
+                not_zero, data(*index_tuple), tvm.tirx.const(dilation_value, data.dtype)
             )
         return data(*index_tuple)
 

@@ -29,7 +29,7 @@
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/type.h>
 #include <tvm/runtime/data_type.h>
-#include <tvm/tir/op.h>
+#include <tvm/tirx/op.h>
 
 namespace tvm {
 namespace relax {

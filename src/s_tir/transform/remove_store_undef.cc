@@ -19,20 +19,20 @@
 
 /*!
  * \file remove_store_undef.cc
- * \brief Remove stores of tir::builtin::undef
+ * \brief Remove stores of tirx::builtin::undef
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tir/analysis.h>
-#include <tvm/tir/builtin.h>
-#include <tvm/tir/op.h>
-#include <tvm/tir/stmt.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/analysis.h>
+#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/op.h>
+#include <tvm/tirx/stmt.h>
+#include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 struct UndefInfo {
   std::unordered_set<const BufferStoreNode*> undef_stores;
@@ -202,7 +202,7 @@ Pass ValidateAllUndefRemoved() {
 
 Pass RemoveStoreUndef() {
   return tvm::transform::Sequential(
-      {RemoveStoreUndefInternal(), tir::transform::RemoveNoOp(), ValidateAllUndefRemoved()},
+      {RemoveStoreUndefInternal(), tirx::transform::RemoveNoOp(), ValidateAllUndefRemoved()},
       "s_tir.RemoveStoreUndef");
 }
 

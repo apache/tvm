@@ -72,7 +72,7 @@ def create_calculator(backend: str) -> Callable:
     Parameters
     ----------
     backend : str
-        The backend to use, only tir is supported for now.
+        The backend to use, only tirx is supported for now.
 
     Returns
     -------
@@ -97,7 +97,7 @@ def create_calculator(backend: str) -> Callable:
             The input data as a dictionary.
         """
         try:
-            if backend == "tir":
+            if backend == "tirx":
                 data = [v for _, v in sorted(input_data.items(), key=lambda x: x[0])]
                 rt_mod(*data)
                 return data

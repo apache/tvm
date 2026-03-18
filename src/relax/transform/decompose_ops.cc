@@ -155,7 +155,7 @@ Expr TensorToShape(const Call& call_node, const BlockBuilder& builder) {
   // ffi::Array<PrimExpr>), we define symbolic variables and returns them as a ShapeExpr.
   ffi::Array<PrimExpr> shape_var;
   for (int i = 0; i < sinfo->ndim; i++) {
-    shape_var.push_back(tir::Var("x", DataType::Int(64)));
+    shape_var.push_back(tirx::Var("x", DataType::Int(64)));
   }
   // bind symbolic variables to the shape tuple
   relax::Var var("y", ShapeStructInfo(shape_var));

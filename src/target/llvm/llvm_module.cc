@@ -310,7 +310,7 @@ void LLVMModuleNode::Init(const IRModule& mod, const Target& target) {
     }
     auto f = Downcast<PrimFunc>(kv.second);
     auto global_symbol = f->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
-    bool is_entry_func = f->HasNonzeroAttr(tir::attr::kIsEntryFunc);
+    bool is_entry_func = f->HasNonzeroAttr(tirx::attr::kIsEntryFunc);
 
     TVM_FFI_ICHECK(global_symbol || !is_entry_func) << "The entry func must be exposed externally.";
 

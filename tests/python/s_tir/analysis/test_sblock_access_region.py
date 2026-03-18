@@ -20,7 +20,7 @@ import tvm
 import tvm.testing
 from tvm import s_tir
 from tvm.ir import Range
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 @T.prim_func
@@ -216,7 +216,7 @@ def test_block_access_region_detector():
     tvm.ir.assert_structural_equal(block.writes, ret[1])
     D = alloc_buffers[-1]
     tvm.ir.assert_structural_equal(
-        [tvm.tir.BufferRegion(D, [Range(0, 128), Range(0, 128)])], ret[2]
+        [tvm.tirx.BufferRegion(D, [Range(0, 128), Range(0, 128)])], ret[2]
     )
 
 

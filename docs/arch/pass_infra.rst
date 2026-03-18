@@ -31,7 +31,7 @@ transformation using the analysis result collected during and/or before traversa
 However, as TVM evolves quickly, the need for a more systematic and efficient
 way to manage these passes is becoming apparent. In addition, a generic
 framework that manages the passes across different layers of the TVM stack (e.g.
-Relax and tir) paves the way for developers to quickly prototype and plug the
+Relax and tirx) paves the way for developers to quickly prototype and plug the
 implemented passes into the system.
 
 This doc describes the design of such an infra that takes the advantage of the
@@ -166,7 +166,7 @@ Pass Constructs
 ^^^^^^^^^^^^^^^
 
 The pass infra is designed in a hierarchical manner, and it could work at
-different granularities of Relax/tir programs. A pure virtual class ``PassNode`` is
+different granularities of Relax/tirx programs. A pure virtual class ``PassNode`` is
 introduced to serve as the base of the different optimization passes. This class
 contains several virtual methods that must be implemented by the
 subclasses at the level of modules, functions, or sequences of passes.
@@ -222,13 +222,13 @@ Function-Level Passes
 ^^^^^^^^^^^^^^^^^^^^^
 
 Function-level passes are used to implement various intra-function level
-optimizations for a given Relax/tir module. It fetches one function at a time from
+optimizations for a given Relax/tirx module. It fetches one function at a time from
 the function list of a module for optimization and yields a rewritten Relax
-``Function`` or tir ``PrimFunc``. Most of passes can be classified into this category, such as
+``Function`` or tirx ``PrimFunc``. Most of passes can be classified into this category, such as
 common subexpression elimination and inference simplification in Relax as well as vectorization
-and flattening storage in tir, etc.
+and flattening storage in tirx, etc.
 
-Note that the scope of passes at this level is either a Relax function or a tir primitive function.
+Note that the scope of passes at this level is either a Relax function or a tirx primitive function.
 Therefore, we cannot add or delete a function through these passes as they are not aware of
 the global information.
 
@@ -571,9 +571,9 @@ loop unrolling pass
 
 .. code:: c++
 
-    TVM_REGISTER_PASS_CONFIG_OPTION("tir.UnrollLoop", UnrollLoopConfig);
+    TVM_REGISTER_PASS_CONFIG_OPTION("tirx.UnrollLoop", UnrollLoopConfig);
 
-Please refer to `src/tir/transform/unroll_loop.cc`_ for more details.
+Please refer to `src/tirx/transform/unroll_loop.cc`_ for more details.
 
 .. _pass_instrument_py_frontend:
 
@@ -656,7 +656,7 @@ new ``PassInstrument`` are called.
 
 .. _python/tvm/ir/instrument.py: https://github.com/apache/tvm/blob/main/python/tvm/ir/instrument.py
 
-.. _src/tir/transform/unroll_loop.cc: https://github.com/apache/tvm/blob/main/src/tir/transform/unroll_loop.cc
+.. _src/tirx/transform/unroll_loop.cc: https://github.com/apache/tvm/blob/main/src/tirx/transform/unroll_loop.cc
 
 .. _use pass infra: https://github.com/apache/tvm/blob/main/docs/how_to/tutorials/customize_opt.py
 

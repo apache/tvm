@@ -21,9 +21,9 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tir/analysis.h>
-#include <tvm/tir/builtin.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/analysis.h>
+#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
 namespace relax {
@@ -39,21 +39,21 @@ class PrimValueComputeInjector : public ExprMutator {
   Expr VisitExpr_(const PrimValueNode* op) override {
     auto node = Downcast<PrimValue>(ExprMutator::VisitExpr_(op));
 
-    if (node->value->IsInstance<tir::IntImmNode>() || node->value->IsInstance<tir::VarNode>()) {
+    if (node->value->IsInstance<tirx::IntImmNode>() || node->value->IsInstance<tirx::VarNode>()) {
       return node;
     }
 
     auto ret_dtype = node->value->dtype;
-    auto param_vars = tir::UndefinedVars(node->value);
-    tir::Stmt body = tir::Evaluate(tir::Call(ret_dtype, tir::builtin::ret(), {node->value}));
+    auto param_vars = tirx::UndefinedVars(node->value);
+    tirx::Stmt body = tirx::Evaluate(tirx::Call(ret_dtype, tirx::builtin::ret(), {node->value}));
 
-    tir::PrimFunc func(param_vars, body, PrimType(ret_dtype), {},
-                       DictAttrs({{tir::attr::kIsHostFunc, true}}));
+    tirx::PrimFunc func(param_vars, body, PrimType(ret_dtype), {},
+                       DictAttrs({{tirx::attr::kIsHostFunc, true}}));
     func = s_tir::RenewDefs(func);
 
     auto callee = builder_->AddFunction(func, "compute_symbolic_expr");
 
-    return relax::Call(callee, param_vars.Map([](const tir::Var& tir_var) -> relax::Expr {
+    return relax::Call(callee, param_vars.Map([](const tirx::Var& tir_var) -> relax::Expr {
       return relax::PrimValue(tir_var);
     }));
   }

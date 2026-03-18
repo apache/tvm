@@ -23,7 +23,7 @@ from tvm import relax
 from tvm.s_tir import meta_schedule as ms
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 # fmt: off
@@ -59,7 +59,7 @@ def test_extracting_tasks():
     relax_mod = relax.transform.FuseTIR()(relax_mod)
 
     relax_expectation = {
-        "structural": 2,  # The relax constants do not reach the tir at the lowering.
+        "structural": 2,  # The relax constants do not reach the tirx at the lowering.
         "ignore-tensor": 2,
         "anchor-block": 1,
     }

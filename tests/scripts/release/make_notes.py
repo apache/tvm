@@ -53,7 +53,7 @@ TAG_DICT = {
     "byoc": "BYOC",
     "community": "Community",
     "tensorir": "TIR",
-    "tir": "TIR",
+    "tirx": "TIR",
     "tensorflow": "Frontend",
     "tflite": "Frontend",
     "pytorch": "Frontend",

@@ -20,16 +20,16 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import s_tir, tir
+from tvm import s_tir, tirx
 from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def check_rolling_buffer(
-    sch: s_tir.Schedule, origin: tir.PrimFunc, expected: tir.PrimFunc, check_run=False
+    sch: s_tir.Schedule, origin: tirx.PrimFunc, expected: tirx.PrimFunc, check_run=False
 ):
     scheduled = sch.mod["main"]
     assert_structural_equal_ignore_global_symbol(scheduled, expected)

@@ -51,7 +51,7 @@ from tvm.s_tir.tensor_intrin.cuda import (
     shared_16x32_to_ldmatrix_32x16_layout,
     shared_32x16_to_ldmatrix_32x16_layout,
 )
-from tvm.testing.tir import mma_schedule
+from tvm.testing.tirx import mma_schedule
 
 M = 4096
 N = 4096
@@ -68,7 +68,7 @@ def matmul(m, n, k, in_dtype, out_dtype, b_transposed):
 
     def maybe_cast(v):
         if in_dtype != out_dtype:
-            return tvm.tir.Cast(out_dtype, v)
+            return tvm.tirx.Cast(out_dtype, v)
         return v
 
     def maybe_swap(i, j):

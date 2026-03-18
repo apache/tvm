@@ -18,14 +18,14 @@
  */
 #include <tvm/ffi/container/tuple.h>
 #include <tvm/s_tir/stmt.h>
-#include <tvm/tir/expr.h>
+#include <tvm/tirx/expr.h>
 
-#include "../../../tir/transform/ir_utils.h"
+#include "../../../tirx/transform/ir_utils.h"
 #include "../utils.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 class StorageAlignAxisOutOfRangeError : public ScheduleError {
  public:

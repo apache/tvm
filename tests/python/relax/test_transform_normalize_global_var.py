@@ -20,11 +20,11 @@ import pytest
 import tvm
 import tvm.script
 import tvm.testing
-from tvm import relax, tir
+from tvm import relax, tirx
 from tvm.ir.base import assert_structural_equal
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 @pytest.mark.skip_well_formed_check_before_transform

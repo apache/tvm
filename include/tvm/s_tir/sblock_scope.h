@@ -26,16 +26,16 @@
 #define TVM_S_TIR_SBLOCK_SCOPE_H_
 
 #include <tvm/ir/module.h>
-#include <tvm/tir/function.h>
-#include <tvm/tir/stmt.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/function.h>
+#include <tvm/tirx/stmt.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
 namespace tvm {
-namespace tir {
+namespace tirx {
 
 /*!
  * \brief An object that refers to schedulable elements (block/for-loop) in TensorIR, aka "sref".
@@ -86,7 +86,7 @@ class StmtSRefNode : public Object {
    * \brief Get the referenced statement with proper type checking.
    * It serves the same purpose as `ObjectRef::as`, but does not acquire strong reference to `stmt`
    * \tparam StmtType The type that `this->stmt` to be downcasted to. Presumably
-   * tvm::tir::SBlockNode or tvm::tir::ForNode
+   * tvm::tirx::SBlockNode or tvm::tirx::ForNode
    * \return nullptr if type check fails, otherwise the casted result for `this->stmt`
    */
   template <typename StmtType>
@@ -311,7 +311,7 @@ class SBlockScope : public ObjectRef {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SBlockScope, ObjectRef, SBlockScopeNode);
 };
 
-}  // namespace tir
+}  // namespace tirx
 }  // namespace tvm
 
 #endif  // TVM_S_TIR_SBLOCK_SCOPE_H_

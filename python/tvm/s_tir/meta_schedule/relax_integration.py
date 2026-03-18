@@ -30,7 +30,7 @@ from tvm.ir import IRModule
 from tvm.ir.transform import PassContext
 from tvm.runtime import Tensor
 from tvm.target import Target
-from tvm.tir.expr import IntImm
+from tvm.tirx.expr import IntImm
 
 from .builder import Builder
 from .cost_model import CostModel
@@ -80,7 +80,7 @@ def extract_tasks(
           - "anchor-block": Apply equality testing and hashing on the anchor block extracted from a
                             given module. The "ignore-tensor" varint is used for the extracted
                             blocks or in case no anchor block is found.
-                            For the definition of the anchor block, see tir/analysis/analysis.py.
+                            For the definition of the anchor block, see tirx/analysis/analysis.py.
 
     Returns
     -------
@@ -140,7 +140,7 @@ def extracted_tasks_to_tune_contexts(
         get_loggers_from_work_dir(work_dir, [t.task_name for t in extracted_tasks]),
         fork_seed(seed, n=len(extracted_tasks)),
     ):
-        if task.mod.attrs.get("tir.is_scheduled", False):
+        if task.mod.attrs.get("tirx.is_scheduled", False):
             warnings.warn("The task {task.task_name} is already scheduled, skipping it.")
             continue
         tasks.append(
@@ -228,7 +228,7 @@ def tune_relax(
           - "anchor-block": Apply equality testing and hashing on the anchor block extracted from a
                             given module. The "ignore-tensor" variant is used for the extracted
                             blocks or in case no anchor block is found.
-                            For the definition of the anchor block, see tir/analysis/analysis.py.
+                            For the definition of the anchor block, see tirx/analysis/analysis.py.
 
     Returns
     -------
@@ -341,7 +341,7 @@ def _tune_relax(
           - "anchor-block": Apply equality testing and hashing on the anchor block extracted from a
                             given module. The "ignore-tensor" varint is used for the extracted
                             blocks or in case no anchor block is found.
-                            For the definition of the anchor block, see tir/analysis/analysis.py.
+                            For the definition of the anchor block, see tirx/analysis/analysis.py.
 
     Returns
     -------

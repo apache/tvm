@@ -30,7 +30,7 @@
 #include "codegen_spirv.h"
 #endif
 
-#include <tvm/tir/transform.h>
+#include <tvm/tirx/transform.h>
 
 #include <algorithm>
 #include <fstream>
@@ -118,7 +118,7 @@ std::pair<std::unordered_map<std::string, runtime::SPIRVShader>, std::string> Lo
 
   auto postproc = tvm::ffi::Function::GetGlobal("tvm_callback_vulkan_postproc");
 
-  mod = tir::transform::PointerValueTypeRewrite()(std::move(mod));
+  mod = tirx::transform::PointerValueTypeRewrite()(std::move(mod));
 
   CodeGenSPIRV cg(target);
 
@@ -143,7 +143,7 @@ std::pair<std::unordered_map<std::string, runtime::SPIRVShader>, std::string> Lo
         ss << path << "/" << f_name << "_";
         std::string prefix = ss.str();
 
-        std::ofstream(prefix + "tir.txt") << f;
+        std::ofstream(prefix + "tirx.txt") << f;
         std::ofstream(prefix + "spv.txt") << spirv_tools.BinaryToText(shader.data);
         std::ofstream(prefix + "spv.spv", std::ios::binary)
             .write(reinterpret_cast<const char*>(shader.data.data()),

@@ -1,4 +1,3 @@
-# Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
 # regarding copyright ownership.  The ASF licenses this file
@@ -26,7 +25,7 @@ from tvm.ir import transform
 from tvm.ir.module import IRModule
 from tvm.ir.transform import PassContext
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 target = tvm.target.Target({"kind": "llvm", "num-cores": 16})
 
@@ -156,7 +155,7 @@ class DefaultScheduledModule:
         B: T.Buffer((32, 32), "float32"),
         C: T.Buffer((32, 32), "float32"),
     ):
-        T.func_attr({"global_symbol": "tir_matmul", "tir.is_scheduled": True})
+        T.func_attr({"global_symbol": "tir_matmul", "tirx.is_scheduled": True})
         # with T.sblock("root"):
         for i0_j0_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
             for i0_j0_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):
@@ -173,7 +172,7 @@ class DefaultScheduledModule:
 
     @T.prim_func
     def tir_relu(A: T.Buffer((32, 32), "float32"), B: T.Buffer((32, 32), "float32")):
-        T.func_attr({"global_symbol": "tir_relu", "tir.is_scheduled": True})
+        T.func_attr({"global_symbol": "tir_relu", "tirx.is_scheduled": True})
         # with T.sblock("root"):
         for i_j_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
             for i_j_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):

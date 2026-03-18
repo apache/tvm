@@ -24,7 +24,7 @@
 #include "conjunctive_normal_form.h"
 
 #include <tvm/arith/analyzer.h>
-#include <tvm/tir/expr.h>
+#include <tvm/tirx/expr.h>
 
 #include <optional>
 #include <unordered_map>
@@ -138,10 +138,10 @@ class AndOfOrs {
   /*! \brief Mapping from PrimExpr to internal Key */
   std::unordered_map<PrimExpr, Key, ffi::StructuralHash, ffi::StructuralEqual> expr_to_key_;
 
-  /*! \brief Cached key representing tir::Bool(true) */
+  /*! \brief Cached key representing tirx::Bool(true) */
   Key key_true_;
 
-  /*! \brief Cached key representing tir::Bool(false) */
+  /*! \brief Cached key representing tirx::Bool(false) */
   Key key_false_;
 };
 

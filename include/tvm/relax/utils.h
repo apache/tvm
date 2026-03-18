@@ -48,14 +48,14 @@ namespace relax {
  * \return The updated expression.
  */
 TVM_DLL Expr Bind(const Expr& expr, const tvm::ffi::Map<Var, Expr>& binds,
-                  const tvm::ffi::Map<tir::Var, PrimExpr>& symbolic_var_map = {});
+                  const tvm::ffi::Map<tirx::Var, PrimExpr>& symbolic_var_map = {});
 
 /*!
  * \brief Bind the symbolic variables to a StructInfo. This is a helper function usually called by
  * other pass functions to help optimizations.
  */
 TVM_DLL StructInfo Bind(const StructInfo& sinfo,
-                        const tvm::ffi::Map<tir::Var, PrimExpr>& symbolic_var_map);
+                        const tvm::ffi::Map<tirx::Var, PrimExpr>& symbolic_var_map);
 
 /*!
  * \brief Infer a binding map for symbolic variables
@@ -74,7 +74,7 @@ TVM_DLL StructInfo Bind(const StructInfo& sinfo,
  *
  * \return A map of TIR variables to TIR expressions
  */
-TVM_DLL tvm::ffi::Map<tir::Var, PrimExpr> InferSymbolicVarMap(
+TVM_DLL tvm::ffi::Map<tirx::Var, PrimExpr> InferSymbolicVarMap(
     const tvm::ffi::Map<relax::Var, relax::Expr>& binds, arith::Analyzer* analyzer);
 
 /*!

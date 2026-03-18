@@ -353,8 +353,8 @@ def conv2d_NCHWc(data, kernel, stride, padding, dilation, layout, out_layout, ou
     kh = te.reduce_axis((0, kernel_height), name="kh")
     kw = te.reduce_axis((0, kernel_width), name="kw")
 
-    idxdiv = tvm.tir.indexdiv
-    idxmod = tvm.tir.indexmod
+    idxdiv = tvm.tirx.indexdiv
+    idxmod = tvm.tirx.indexmod
 
     if groups == 1:
         ic = te.reduce_axis((0, in_channel), name="ic")
@@ -480,8 +480,8 @@ def conv2d_NCHWc_OIHWo(
     kh = te.reduce_axis((0, kernel_height), name="kh")
     kw = te.reduce_axis((0, kernel_width), name="kw")
 
-    idxdiv = tvm.tir.indexdiv
-    idxmod = tvm.tir.indexmod
+    idxdiv = tvm.tirx.indexdiv
+    idxmod = tvm.tirx.indexmod
 
     def compute_conv2d(*args):
         n, occ, oh, ow, ocb = args
@@ -985,8 +985,8 @@ def unpack_NCHWc_to_nchw(packed_out, out_dtype):
     """
     n, oc_chunk, oh, ow, oc_bn = get_const_tuple(packed_out.shape)
 
-    idxmod = tvm.tir.indexmod
-    idxdiv = tvm.tir.indexdiv
+    idxmod = tvm.tirx.indexmod
+    idxdiv = tvm.tirx.indexdiv
 
     oshape = (n, oc_chunk * oc_bn, oh, ow)
     unpacked_out = te.compute(

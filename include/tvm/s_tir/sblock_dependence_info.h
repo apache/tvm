@@ -37,7 +37,7 @@
 #include <unordered_map>
 
 namespace tvm {
-namespace tir {
+namespace tirx {
 
 /**
  * @brief An object that helps build and query block level dependences using the 2 core objects
@@ -99,6 +99,6 @@ class SBlockDependenceInfo : public ObjectRef {
                                                 SBlockDependenceInfoNode);
 };
 
-}  // namespace tir
+}  // namespace tirx
 }  // namespace tvm
 #endif  // TVM_S_TIR_SBLOCK_DEPENDENCE_INFO_H_

@@ -479,8 +479,8 @@ autodoc_default_options = {
 # Maps the original namespace to list of potential modules
 # that we can import alias from.
 tvm_alias_check_map = {
-    "tvm.te": ["tvm.tir"],
-    "tvm.tir": ["tvm.ir", "tvm.runtime"],
+    "tvm.te": ["tvm.tirx"],
+    "tvm.tirx": ["tvm.ir", "tvm.runtime"],
 }
 
 ## Setup header and other configs
@@ -606,7 +606,7 @@ def update_alias_docstring(name, obj, lines):
 
 
 tvm_class_name_rewrite_map = {
-    "tvm.tir": ["Var", "Call"],
+    "tvm.tirx": ["Var", "Call"],
     "tvm.relax": ["Var", "Call"],
     "tvm.relax.frontend.nn": ["Module"],
 }
@@ -616,7 +616,7 @@ def distinguish_class_name(name: str, lines: list[str]):
     """Distinguish the docstring of type annotations.
 
     In the whole TVM, there are many classes with the same name but in different modules,
-    e.g. ``tir.Var``, ``relax.Var``. This function is used to distinguish them in the docstring,
+    e.g. ``tirx.Var``, ``relax.Var``. This function is used to distinguish them in the docstring,
     by adding the module name as prefix.
 
     To be specific, this function will check the current object name, and if it in the specific

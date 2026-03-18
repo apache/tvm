@@ -31,7 +31,7 @@ from tvm.s_tir.meta_schedule.testing.space_generation import (
     print_sketches,
 )
 from tvm.s_tir.tensor_intrin.cuda import get_wmma_intrin_group
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def multi_level_tiling_tensor_core(
@@ -85,7 +85,7 @@ def test_matmul_relu(shared_scope):
     # fmt: off
     @T.prim_func
     def matmul_relu_0(A: T.Buffer((128, 128), "float16"), B: T.Buffer((128, 128), "float16"), compute: T.Buffer((128, 128), "float32")) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # with T.sblock("root"):
         C_reindex_shared = T.sblock_alloc_buffer((4, 8, 2, 1, 16, 16), scope=shared_scope)
         C_reindex_shared_wmma_accumulator = T.sblock_alloc_buffer((4, 8, 2, 1, 16, 16), scope="wmma.accumulator")
@@ -236,7 +236,7 @@ def test_matmul_relu_with_fallback():
     # fmt: off
     @T.prim_func
     def matmul_relu_fallback_0(A: T.Buffer((128, 128), "float16"), B: T.Buffer((128, 128), "float16"), compute: T.Buffer((128, 128), "float32")) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # with T.sblock("root"):
         C_reindex_shared = T.sblock_alloc_buffer((4, 2, 2, 4, 16, 16), scope="shared")
         C_reindex_shared_wmma_accumulator = T.sblock_alloc_buffer((4, 2, 2, 4, 16, 16), scope="wmma.accumulator")
@@ -394,7 +394,7 @@ def test_conv2d(shared_scope):
     # fmt: off
     @T.prim_func
     def conv2d_0(inputs: T.Buffer((1, 16, 16, 32), "float16"), weight: T.Buffer((3, 3, 32, 32), "float16"), conv2d_nhwc: T.Buffer((1, 16, 16, 32), "float32")):
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # with T.sblock("root"):
         PadInput = T.sblock_alloc_buffer((1, 18, 18, 32), "float16")
         conv2d_nhwc_reindex_shared_dyn = T.sblock_alloc_buffer((16, 2, 1, 1, 16, 16), scope=shared_scope)
@@ -577,7 +577,7 @@ def test_matmul_relu_pipeline(shared_scope):
     @T.prim_func
     def matmul_relu_pipeline_0(A: T.Buffer((128, 128), "float16"), B: T.Buffer((128, 128), "float16"), compute: T.Buffer((128, 128), "float32")) -> None:
         # function attr dict
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # body
         # with T.sblock("root")
         C = T.sblock_alloc_buffer((128, 128))
@@ -597,7 +597,7 @@ def test_matmul_relu_pipeline(shared_scope):
                                 v1 = T.axis.spatial(128, ax2_0_0 * 32 + ax0_ax1_fused % 32)
                                 T.reads(A[v0, v1])
                                 T.writes(A_reindex_shared[v0, v1])
-                                T.sblock_attr({"buffer_dim_align": [[0, 0, 32, 8]], "double_buffer_scope": 0, "meta_schedule.cooperative_fetch": 4, "tir.manifest_shared_memory_local_stage": 1})
+                                T.sblock_attr({"buffer_dim_align": [[0, 0, 32, 8]], "double_buffer_scope": 0, "meta_schedule.cooperative_fetch": 4, "tirx.manifest_shared_memory_local_stage": 1})
                                 A_reindex_shared[v0, v1] = A[v0, v1]
                         for ax0_ax1_fused in range(1024):
                             with T.sblock("B_reindex_shared"):
@@ -605,7 +605,7 @@ def test_matmul_relu_pipeline(shared_scope):
                                 v1 = T.axis.spatial(128, ax0_0_1_ax1_0_1_fused % 4 * 32 + ax0_ax1_fused % 32)
                                 T.reads(B[v0, v1])
                                 T.writes(B_reindex_shared[v0, v1])
-                                T.sblock_attr({"buffer_dim_align": [[0, 0, 32, 8]], "double_buffer_scope": 0, "meta_schedule.cooperative_fetch": 2, "tir.manifest_shared_memory_local_stage": 1})
+                                T.sblock_attr({"buffer_dim_align": [[0, 0, 32, 8]], "double_buffer_scope": 0, "meta_schedule.cooperative_fetch": 2, "tirx.manifest_shared_memory_local_stage": 1})
                                 B_reindex_shared[v0, v1] = B[v0, v1]
                         for ax2_0_1 in T.serial(2, annotations={"software_pipeline_order": [0, 1, 2], "software_pipeline_stage": [0, 0, 1]}):
                             for ax0_0, ax1_0 in T.grid(2, 1):
@@ -757,7 +757,7 @@ def test_padded_matmul_relu():
     # fmt: off
     @T.prim_func
     def padded_matmul_relu_0(A: T.Buffer((127, 127), "float16"), B: T.Buffer((127, 127), "float16"), compute: T.Buffer((127, 127), "float32")) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         C_reindex_shared = T.sblock_alloc_buffer((4, 8, 2, 1, 16, 16), scope="shared")
         C_reindex_shared_wmma_accumulator = T.sblock_alloc_buffer((4, 8, 2, 1, 16, 16), scope="wmma.accumulator")
         A_reindex_shared = T.sblock_alloc_buffer((128, 128), "float16", scope="shared")
@@ -905,7 +905,7 @@ def test_conv_1x1():
     # fmt: off
     @T.prim_func
     def conv2d_1x1_0(inputs: T.Buffer((1, 16, 16, 64), "float16"), weight: T.Buffer((1, 1, 64, 64), "float16"), conv2d_nhwc: T.Buffer((1, 16, 16, 64), "float32")):
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # with T.sblock("root"):
         conv2d_nhwc_reindex_shared = T.sblock_alloc_buffer((2, 1, 8, 4, 16, 16), scope="shared")
         conv2d_nhwc_reindex_shared_wmma_accumulator = T.sblock_alloc_buffer((2, 1, 8, 4, 16, 16), scope="wmma.accumulator")
@@ -1063,7 +1063,7 @@ def test_padded_conv():
     # fmt: off
     @T.prim_func
     def padded_conv2d_0(inputs: T.Buffer((1, 224, 224, 3), "float16"), weight: T.Buffer((7, 7, 3, 64), "float16"), conv2d_nhwc: T.Buffer((1, 112, 112, 64), "float32")):
-        T.func_attr({"tir.noalias": True})
+        T.func_attr({"tirx.noalias": True})
         # with T.sblock("root"):
         conv2d_nhwc_reindex_shared = T.sblock_alloc_buffer((56, 2, 14, 2, 16, 16), scope="shared")
         conv2d_nhwc_reindex_shared_wmma_accumulator = T.sblock_alloc_buffer((56, 2, 14, 2, 16, 16), scope="wmma.accumulator")
@@ -1215,7 +1215,7 @@ def test_padded_matmul_single_padded_input():
     # fmt: off
     @T.prim_func
     def padded_matmul_single_padded_input_0(A: T.Buffer((1023, 4096), "float16"), B: T.Buffer((4096, 1024), "float16"), C: T.Buffer((1023, 1024), "float32")):
-        T.func_attr({"tir.noalias": True})
+        T.func_attr({"tirx.noalias": True})
         # with T.sblock("root"):
         C_reindex_pad_shared = T.sblock_alloc_buffer((8, 32, 8, 2, 16, 16), scope="shared")
         C_reindex_pad_shared_wmma_accumulator = T.sblock_alloc_buffer((8, 32, 8, 2, 16, 16), scope="wmma.accumulator")
@@ -1363,7 +1363,7 @@ def test_padded_matmul_no_padded_output():
     # fmt: off
     @T.prim_func
     def padded_matmul_no_padded_output_0(A: T.Buffer((1024, 4095), "float16"), B: T.Buffer((4095, 1024), "float16"), C: T.Buffer((1024, 1024), "float32")):
-        T.func_attr({"tir.noalias": True})
+        T.func_attr({"tirx.noalias": True})
         # with T.sblock("root"):
         C_reindex_shared = T.sblock_alloc_buffer((32, 16, 2, 4, 16, 16), scope="shared")
         C_reindex_shared_wmma_accumulator = T.sblock_alloc_buffer((32, 16, 2, 4, 16, 16), scope="wmma.accumulator")

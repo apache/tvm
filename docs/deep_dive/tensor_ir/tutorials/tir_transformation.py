@@ -26,7 +26,7 @@ transformations of primitive tensor functions.
 """
 
 ######################################################################
-# In the :ref:`previous section <tir-learning>`, we have given an example of how to write
+# In the :ref:`previous section <tirx-learning>`, we have given an example of how to write
 # ``mm_relu`` using TensorIR. In practice, there can be multiple ways to implement
 # the same functionality, and each implementation can result in different performance.
 #
@@ -38,7 +38,7 @@ transformations of primitive tensor functions.
 
 import tvm
 from tvm.script import ir as I
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 @I.ir_module
@@ -49,7 +49,7 @@ class MyModule:
         B: T.Buffer((128, 128), "float32"),
         C: T.Buffer((128, 128), "float32"),
     ):
-        T.func_attr({"tir.noalias": True})
+        T.func_attr({"tirx.noalias": True})
         with T.sblock("root"):
             T.reads()
             T.writes()
@@ -82,7 +82,7 @@ c_nd = tvm.runtime.tensor(np.zeros((128, 128), dtype="float32"))
 
 
 def evaluate(mod: tvm.IRModule):
-    lib = tvm.tir.build(mod, target="llvm")
+    lib = tvm.tirx.build(mod, target="llvm")
     # check correctness
     lib(a_nd, b_nd, c_nd)
     np.testing.assert_allclose(c_nd.numpy(), c_np, rtol=1e-5)

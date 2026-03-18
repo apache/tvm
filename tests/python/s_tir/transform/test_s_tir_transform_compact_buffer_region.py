@@ -17,8 +17,8 @@
 # ruff: noqa: E501
 import tvm
 import tvm.testing
-from tvm import s_tir, tir
-from tvm.script import tir as T
+from tvm import s_tir, tirx
+from tvm.script import tirx as T
 
 
 class BaseCompactTest:
@@ -36,7 +36,7 @@ class BaseCompactTest:
 
         before = tvm.IRModule.from_expr(self.before.with_attr("global_symbol", "main"))
         expected = tvm.IRModule.from_expr(self.expected.with_attr("global_symbol", "main"))
-        simplify = tvm.transform.Sequential([tir.transform.Simplify(), tir.transform.RemoveNoOp()])
+        simplify = tvm.transform.Sequential([tirx.transform.Simplify(), tirx.transform.RemoveNoOp()])
         after = simplify(s_tir.transform.CompactBufferAllocation(is_strict=is_strict)(before))
         expected = simplify(expected)
         try:

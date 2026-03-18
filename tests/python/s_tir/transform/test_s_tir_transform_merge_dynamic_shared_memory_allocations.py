@@ -21,7 +21,7 @@ import tvm
 import tvm.testing
 from tvm import s_tir
 from tvm.script import ir as I
-from tvm.script import tir as T
+from tvm.script import tirx as T
 from tvm.topi.math import cast
 
 

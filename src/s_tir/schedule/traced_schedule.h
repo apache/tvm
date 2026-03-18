@@ -23,7 +23,7 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 class TracedScheduleNode : public ConcreteScheduleNode {
   friend class Schedule;

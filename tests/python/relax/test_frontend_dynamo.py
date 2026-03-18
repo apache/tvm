@@ -26,12 +26,12 @@ from packaging import version
 
 import tvm
 import tvm.testing
-from tvm import relax, tir
+from tvm import relax, tirx
 from tvm.relax.frontend.torch import relax_dynamo
 from tvm.s_tir import meta_schedule as ms
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 torch_version = torch.__version__
 
@@ -58,7 +58,7 @@ def test_relax_dynamo():
             compute: T.Buffer((T.int64(10), T.int64(10)), "float32"),
         ):
             # function attr dict
-            T.func_attr({"tir.noalias": True, "global_symbol": "main"})
+            T.func_attr({"tirx.noalias": True, "global_symbol": "main"})
             # body
             # with T.sblock("root")
             matmul = T.sblock_alloc_buffer([T.int64(10), T.int64(10)], dtype="float32")

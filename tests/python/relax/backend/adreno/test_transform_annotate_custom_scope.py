@@ -24,7 +24,7 @@ from tvm.relax.expr_functor import PyExprMutator, PyExprVisitor, mutator, visito
 from tvm.relax.transform.legalize_ops import adreno as legalize_adreno
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
-from tvm.script.parser import tir as T
+from tvm.script.parser import tirx as T
 
 
 @visitor
@@ -83,7 +83,7 @@ def verify(mod, expected):
         # "relax.nn.layer_norm",
     ]
     with tgt:
-        mod = tvm.tir.transform.BindTarget(tvm.target.Target.current(allow_none=False))(mod)
+        mod = tvm.tirx.transform.BindTarget(tvm.target.Target.current(allow_none=False))(mod)
         mod = tvm.relax.transform.DecomposeOpsForInference()(mod)
         mod = tvm.relax.transform.FoldConstant()(mod)
         desired_layouts = {"relax.nn.conv2d": ["NCHW4c", "OIHW4o", "NCHW4c"]}

@@ -29,7 +29,7 @@ the compute statements themselves.
 
 .. code:: python
 
-    from tvm.script import tir as T
+    from tvm.script import tirx as T
 
     @T.prim_func
     def main(

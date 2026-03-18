@@ -18,10 +18,10 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import TVMError, relax, tir
+from tvm import TVMError, relax, tirx
 from tvm.ir import Op, VDevice
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def test_op_correctness():
@@ -131,7 +131,7 @@ def test_full_infer_struct_info():
 
 def test_full_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    a = tir.Var("a", "int64")
+    a = tirx.Var("a", "int64")
     v = relax.Var("v", R.Tensor((), "float32"))
     s0 = relax.ShapeExpr((a, 3))
     s1 = relax.Var("s", relax.ShapeStructInfo((a, 3)))
@@ -206,7 +206,7 @@ def test_full_infer_struct_info_fill_value_not_scalar_tensor():
 
 
 def test_full_shape_not_tuple():
-    m = tir.Var("m", "int64")
+    m = tirx.Var("m", "int64")
     v = relax.Var("v", R.Tensor((), "float32"))
 
     with pytest.raises(TypeError):
@@ -291,8 +291,8 @@ def test_full_like_infer_struct_info():
 
 def test_full_like_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    m = tir.Var("m", "int64")
-    n = tir.Var("n", "int64")
+    m = tirx.Var("m", "int64")
+    n = tirx.Var("n", "int64")
     x0 = relax.Var("x", R.Tensor((m, n), "float32"))
     x1 = relax.Var("x", R.Tensor((m, n)))
     v = relax.Var("v", R.Tensor((), "float16"))
@@ -416,8 +416,8 @@ def test_ones_zeros_infer_struct_info():
 
 def test_ones_zeros_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    m = tir.Var("m", "int64")
-    n = tir.Var("n", "int64")
+    m = tirx.Var("m", "int64")
+    n = tirx.Var("n", "int64")
     s0 = relax.ShapeExpr((m, n))
     s1 = relax.Var("s", relax.ShapeStructInfo((m, n)))
 
@@ -447,7 +447,7 @@ def test_ones_zeros_infer_struct_info_more_input_dtype():
 
 
 def test_ones_zeros_shape_not_tuple():
-    m = tir.Var("m", "int64")
+    m = tirx.Var("m", "int64")
 
     with pytest.raises(TypeError):
         relax.op.ones(10, "float32")
@@ -502,8 +502,8 @@ def test_ones_like_zeros_like_infer_struct_info():
 
 def test_ones_like_zeros_like_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    m = tir.Var("m", "int64")
-    n = tir.Var("n", "int64")
+    m = tirx.Var("m", "int64")
+    n = tirx.Var("n", "int64")
     x0 = relax.Var("x", R.Tensor((m, n), "float32"))
     x1 = relax.Var("x", R.Tensor((m, n)))
 
@@ -557,9 +557,9 @@ def test_eye_infer_struct_info():
 
 def test_eye_infer_struct_info_symbolic():
     bb = relax.BlockBuilder()
-    n = tir.Var("n", "int64")
-    m = tir.Var("m", "int64")
-    k = tir.Var("k", "int64")
+    n = tirx.Var("n", "int64")
+    m = tirx.Var("m", "int64")
+    k = tirx.Var("k", "int64")
 
     _check_inference(bb, relax.op.eye(n), relax.TensorStructInfo((n, n), "float32"))
     _check_inference(bb, relax.op.eye(n, m), relax.TensorStructInfo((n, m), "float32"))
@@ -583,10 +583,10 @@ def test_eye_like_infer_struct_info():
 
 def test_eye_like_infer_struct_info_symbolic():
     bb = relax.BlockBuilder()
-    n = tir.Var("n", "int64")
-    m = tir.Var("m", "int64")
+    n = tirx.Var("n", "int64")
+    m = tirx.Var("m", "int64")
     x = relax.Var("x", R.Tensor((n, m), "float32"))
-    k = tir.Var("k", "int64")
+    k = tirx.Var("k", "int64")
 
     _check_inference(bb, relax.op.eye_like(x), relax.TensorStructInfo((n, m), "float32"))
     _check_inference(bb, relax.op.eye_like(x, k=k), relax.TensorStructInfo((n, m), "float32"))
@@ -619,9 +619,9 @@ def test_arange_infer_struct_info():
 
 def test_arange_infer_struct_info_shape_var():
     bb = relax.BlockBuilder()
-    start = tir.Var("start", "int64")
-    stop = tir.Var("stop", "int64")
-    step = tir.Var("step", "int64")
+    start = tirx.Var("start", "int64")
+    stop = tirx.Var("stop", "int64")
+    step = tirx.Var("step", "int64")
 
     _check_inference(bb, relax.op.arange(stop), relax.TensorStructInfo((stop,), "int64"))
     _check_inference(bb, relax.op.arange(1, stop), relax.TensorStructInfo((stop - 1,), "int64"))
@@ -639,9 +639,9 @@ def test_arange_infer_struct_info_shape_var():
         relax.TensorStructInfo(((stop + step - start - 1) // step,), "int64"),
     )
 
-    start = tir.Var("start", "float32")
-    stop = tir.Var("stop", "float32")
-    step = tir.Var("step", "float32")
+    start = tirx.Var("start", "float32")
+    stop = tirx.Var("stop", "float32")
+    step = tirx.Var("step", "float32")
 
     _check_inference(
         bb,
@@ -695,9 +695,9 @@ def test_tril_triu_infer_struct_info():
 def test_tril_triu_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
     vdev0 = VDevice("llvm")
-    a = tir.Var("a", "int64")
-    b = tir.Var("b", "int64")
-    c = tir.Var("c", "int64")
+    a = tirx.Var("a", "int64")
+    b = tirx.Var("b", "int64")
+    c = tirx.Var("c", "int64")
     x0 = relax.Var("x", R.Tensor((a, b, c), "float32"))
     x1 = relax.Var("x", R.Tensor((a, b, c)))
     x2 = relax.Var("x", R.Tensor((a, b, c), "float32", vdev0))

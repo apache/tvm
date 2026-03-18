@@ -51,7 +51,7 @@ namespace arith {
 // Forward declare Analyzer
 class Analyzer;
 
-using tir::Var;
+using tirx::Var;
 
 enum DivMode {
   /*! \brief Truncated division. */

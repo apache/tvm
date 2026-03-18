@@ -20,7 +20,7 @@ import tvm
 from tvm import relax
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 @tvm.script.ir_module
@@ -1140,7 +1140,7 @@ def test_handle_existence_of_call_tir():
             Input: T.Buffer(T.int64(10), "float32"),
             Output: T.Buffer(T.int64(10), "float32"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i in range(T.int64(10)):
                 with T.sblock("compute"):
                     vi = T.axis.remap("S", [i])
@@ -1192,7 +1192,7 @@ def test_handle_existence_of_call_tir():
             Input: T.Buffer(T.int64(10), "float32"),
             Output: T.Buffer(T.int64(10), "float32"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i in range(T.int64(10)):
                 with T.sblock("compute"):
                     vi = T.axis.remap("S", [i])

@@ -20,12 +20,12 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import te, tir, topi
+from tvm import te, tirx, topi
 from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 # pylint: disable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
@@ -1141,7 +1141,7 @@ def argmin_split_rfactor(
 def argmax_topi_rfactor(
     placeholder: T.Buffer((1, 32), "int32"), placeholder_red: T.Buffer(1, "int32")
 ) -> None:
-    T.func_attr({"global_symbol": "main", "tir.noalias": True})
+    T.func_attr({"global_symbol": "main", "tirx.noalias": True})
     placeholder_red_temp_v0 = T.sblock_alloc_buffer([1], dtype="int32")
     placeholder_red_temp_v1 = T.sblock_alloc_buffer([1], dtype="int32")
     placeholder_red_temp_v0_rf = T.sblock_alloc_buffer([1, 8], dtype="int32")
@@ -1206,7 +1206,7 @@ def argmax_topi_rfactor(
 def argmin_topi_rfactor(
     placeholder: T.Buffer((1, 32), "int32"), placeholder_red: T.Buffer(1, "int32")
 ) -> None:
-    T.func_attr({"global_symbol": "main", "tir.noalias": True})
+    T.func_attr({"global_symbol": "main", "tirx.noalias": True})
     placeholder_red_temp_v0 = T.sblock_alloc_buffer([1], dtype="int32")
     placeholder_red_temp_v1 = T.sblock_alloc_buffer([1], dtype="int32")
     placeholder_red_temp_v0_rf = T.sblock_alloc_buffer([1, 8], dtype="int32")

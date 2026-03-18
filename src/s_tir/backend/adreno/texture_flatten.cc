@@ -26,9 +26,9 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/backend/adreno/transform.h>
 #include <tvm/te/operation.h>
-#include <tvm/tir/builtin.h>
-#include <tvm/tir/expr.h>
-#include <tvm/tir/stmt.h>
+#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/expr.h>
+#include <tvm/tirx/stmt.h>
 
 #include <unordered_map>
 
@@ -40,7 +40,7 @@ namespace tvm {
 namespace s_tir {
 namespace backend {
 namespace adreno {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 using arith::IRVisitorWithAnalyzer;
 using runtime::ApplyTexture2DFlattening;
 using runtime::DefaultTextureLayoutSeparator;
@@ -147,7 +147,7 @@ class TextureFlattener : public TextureLoweringBase {
     PrimExpr col_offset = SimplifyOffset(col_dims, col_indices);
     PrimExpr depth_offset = SimplifyOffset(depth_dims, depth_indices);
     PrimExpr channel_size = IntImm(DataType::Int(32, 1),
-                                   *tir::as_const_int(buffer->shape.back()) * buffer->dtype.bits());
+                                   *tirx::as_const_int(buffer->shape.back()) * buffer->dtype.bits());
     args.push_back(row_offset);
     args.push_back(col_offset);
     args.push_back(depth_offset);
@@ -173,7 +173,7 @@ Pass TextureFlatten() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     return TextureFlattenHandler(std::move(f));
   };
-  return tir::transform::CreatePrimFuncPass(pass_func, 0, "s_tir.backend.adreno.TextureFlatten",
+  return tirx::transform::CreatePrimFuncPass(pass_func, 0, "s_tir.backend.adreno.TextureFlatten",
                                             {});
 }
 

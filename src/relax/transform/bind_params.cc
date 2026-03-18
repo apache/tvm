@@ -23,7 +23,7 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
-#include <tvm/tir/op.h>
+#include <tvm/tirx/op.h>
 
 #include <tuple>
 #include <utility>
@@ -32,7 +32,7 @@ namespace tvm {
 namespace relax {
 
 void MatchSymbolicVar(const Expr& arg, const Expr& constant,
-                      ffi::Map<tir::Var, PrimExpr>* symbolic_var_map, arith::Analyzer* analyzer_) {
+                      ffi::Map<tirx::Var, PrimExpr>* symbolic_var_map, arith::Analyzer* analyzer_) {
   auto opt_arg_sinfo = MatchStructInfo<TensorStructInfo>(arg);
   TVM_FFI_ICHECK(opt_arg_sinfo)
       << "The struct info of the bound parameter is expected to be TensorStructInfo, but got: "
@@ -68,11 +68,11 @@ void MatchSymbolicVar(const Expr& arg, const Expr& constant,
 
   for (int i = 0; i < arg_sinfo->ndim; ++i) {
     const PrimExpr& const_dim = const_shape->values[i];
-    TVM_FFI_ICHECK(tir::is_const_int(const_dim));
-    if (const auto* shape_var = arg_shape->values[i].as<tir::VarNode>()) {
-      auto it = symbolic_var_map->find(ffi::GetRef<tir::Var>(shape_var));
+    TVM_FFI_ICHECK(tirx::is_const_int(const_dim));
+    if (const auto* shape_var = arg_shape->values[i].as<tirx::VarNode>()) {
+      auto it = symbolic_var_map->find(ffi::GetRef<tirx::Var>(shape_var));
       if (it == symbolic_var_map->end()) {
-        symbolic_var_map->Set(ffi::GetRef<tir::Var>(shape_var), const_dim);
+        symbolic_var_map->Set(ffi::GetRef<tirx::Var>(shape_var), const_dim);
       } else {
         TVM_FFI_ICHECK(analyzer_->CanProveEqual((*it).second, const_dim))
             << "The shape of the bound parameter is expected to be " << (*it).second
@@ -82,7 +82,7 @@ void MatchSymbolicVar(const Expr& arg, const Expr& constant,
   }
 }
 
-std::tuple<ffi::Map<Var, Expr>, ffi::Map<tir::Var, PrimExpr>> NormalizeBindings(
+std::tuple<ffi::Map<Var, Expr>, ffi::Map<tirx::Var, PrimExpr>> NormalizeBindings(
     const Function& func, const ffi::Map<Any, ObjectRef>& untyped_params) {
   TVM_FFI_ICHECK(func.defined());
   TVM_FFI_ICHECK(untyped_params.defined());
@@ -144,7 +144,7 @@ std::tuple<ffi::Map<Var, Expr>, ffi::Map<tir::Var, PrimExpr>> NormalizeBindings(
   }
 
   arith::Analyzer analyzer;
-  ffi::Map<tir::Var, PrimExpr> symbolic_var_map = InferSymbolicVarMap(relax_var_remap, &analyzer);
+  ffi::Map<tirx::Var, PrimExpr> symbolic_var_map = InferSymbolicVarMap(relax_var_remap, &analyzer);
 
   // for (const auto& [bind_param, bind_expr] : relax_var_remap) {
   //   MatchSymbolicVar(bind_param, bind_expr, &symbolic_var_map, &analyzer);

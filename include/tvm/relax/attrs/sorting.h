@@ -25,7 +25,7 @@
 #define TVM_RELAX_ATTRS_SORTING_H_
 
 #include <tvm/relax/expr.h>
-#include <tvm/tir/index_map.h>
+#include <tvm/tirx/index_map.h>
 
 namespace tvm {
 namespace relax {

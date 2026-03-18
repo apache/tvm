@@ -384,7 +384,7 @@ def test_target_from_device_opencl(input_device):
 def test_module_dict_from_deserialized_targets():
     target = Target("llvm")
 
-    from tvm.script import tir as T
+    from tvm.script import tirx as T
 
     @T.prim_func
     def func():
