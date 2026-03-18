@@ -443,8 +443,7 @@ llvm::TargetMachine* LLVMTargetInfo::GetOrCreateTargetMachine(bool allow_missing
 bool LLVMTargetInfo::IsValidCPU(const std::string& cpu) const {
   auto llvm_instance = CreateLLVMTargetInstance(triple_, true);
   if (!llvm_instance) return false;
-  // Create MCSubtargetInfo directly instead of a full TargetMachine,
-  // since we only need isCPUStringValid which correctly handles CPU aliases
+  // Use isCPUStringValid which correctly handles CPU aliases
   // (e.g. apple-m1 in LLVM 22+) that don't appear in getAllProcessorDescriptions().
 #if TVM_LLVM_VERSION >= 220
   llvm::Triple triple_obj(triple_);
@@ -454,7 +453,22 @@ bool LLVMTargetInfo::IsValidCPU(const std::string& cpu) const {
   std::unique_ptr<llvm::MCSubtargetInfo> mc_info(
       llvm_instance->createMCSubtargetInfo(triple_, "", ""));
 #endif
-  return mc_info && mc_info->isCPUStringValid(cpu);
+  if (mc_info && mc_info->isCPUStringValid(cpu)) {
+    return true;
+  }
+  // Fallback: on older LLVM versions (e.g. 19), isCPUStringValid may not
+  // recognize valid CPUs like apple-m1 that do appear in the processor
+  // enumeration. Check getAllProcessorDescriptions as a fallback.
+  if (mc_info) {
+#if TVM_LLVM_VERSION >= 170
+    for (const auto& desc : mc_info->getAllProcessorDescriptions()) {
+      if (cpu == desc.Key) {
+        return true;
+      }
+    }
+#endif
+  }
+  return false;
 }
 
 std::string LLVMTargetInfo::GetTargetFeatureString() const {  //
