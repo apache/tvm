@@ -104,6 +104,17 @@ class DeviceInfoCollector : public StmtVisitor {
     return extent.value();
   }
 
+  void VisitStmt_(const BindNode* op) final {
+    // Track Bind definitions so that thread_extent values and
+    // dyn_shmem_size expressions that reference locally-bound
+    // variables (e.g. CSE variables) can be inlined back to
+    // expressions over function parameters.  Substitute earlier
+    // bindings into the value to handle chains (cse_v2 = f(cse_v1)).
+    PrimExpr value = bind_map_.size() ? Substitute(op->value, bind_map_) : op->value;
+    bind_map_.Set(op->var, value);
+    StmtVisitor::VisitStmt_(op);
+  }
+
   void VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::thread_extent) {
       IterVar iv = Downcast<IterVar>(op->node);
@@ -113,7 +124,10 @@ class DeviceInfoCollector : public StmtVisitor {
       if (!defined_thread.count(iv.get())) {
         defined_thread.insert(iv.get());
         info_.launch_params.push_back(iv->thread_tag);
-        thread_extent.Set(iv->thread_tag, op->value);
+        // Inline any locally-bound variables (e.g. from CSE) so
+        // that the extent is expressible in terms of function params.
+        PrimExpr value = bind_map_.size() ? Substitute(op->value, bind_map_) : op->value;
+        thread_extent.Set(iv->thread_tag, value);
       }
     }
 
@@ -133,6 +147,10 @@ class DeviceInfoCollector : public StmtVisitor {
       }
       dyn_size *= op->buffer->dtype.bytes();
 
+      // Inline any locally-bound variables (e.g. from CSE).
+      if (bind_map_.size()) {
+        dyn_size = Substitute(dyn_size, bind_map_);
+      }
       dyn_shmem_size = dyn_size;
     }
     StmtVisitor::VisitStmt_(op);
@@ -146,6 +164,8 @@ class DeviceInfoCollector : public StmtVisitor {
   ffi::Map<ffi::String, PrimExpr> thread_extent;
   // The amount of dynamic shared memory used
   ffi::Optional<PrimExpr> dyn_shmem_size{std::nullopt};
+  // Accumulated Bind definitions for inlining into extent/size expressions.
+  ffi::Map<Var, PrimExpr> bind_map_;
 };
 
 class ReturnRemover : public StmtExprMutator {
