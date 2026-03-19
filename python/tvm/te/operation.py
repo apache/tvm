@@ -323,7 +323,9 @@ def extern(
 
         for shp, dt in zip(shape, dtype):
             output_placeholders.append(
-                tvm.tirx.decl_buffer(shp, dt, name, elem_offset=tvm.tirx.Var("elem_offset", "int32"))
+                tvm.tirx.decl_buffer(
+                    shp, dt, name, elem_offset=tvm.tirx.Var("elem_offset", "int32")
+                )
             )
     body = fcompute(input_placeholders, output_placeholders)
     if isinstance(body, tvm.tirx.PrimExpr):

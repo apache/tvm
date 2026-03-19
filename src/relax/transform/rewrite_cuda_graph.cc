@@ -808,7 +808,8 @@ class CUDAGraphRewriter : public ExprMutator {
         ffi::Map<tirx::Var, PrimExpr> tir_var_remap;
         TVM_FFI_ICHECK_EQ(symbolic_params.size(), propogated_tir_vars->values.size());
         for (int i = 0; i < static_cast<int>(symbolic_params.size()); ++i) {
-          tir_var_remap.Set(Downcast<tirx::Var>(symbolic_params[i]), propogated_tir_vars->values[i]);
+          tir_var_remap.Set(Downcast<tirx::Var>(symbolic_params[i]),
+                            propogated_tir_vars->values[i]);
         }
         call_sinfo = Bind(call_sinfo, tir_var_remap);
       }

@@ -366,27 +366,27 @@ ffi::Array<Var> Remap(ffi::String kinds, ffi::Array<PrimExpr> bindings, DataType
 
 }  // namespace axis
 
-#define TVM_TIR_IR_BUILDER_FOR_FRAME(Method, Kind)                                           \
-  ForFrame Method(PrimExpr start, PrimExpr stop,                                             \
-                  ffi::Optional<ffi::Map<ffi::String, Any>> annotations,                     \
-                  ffi::Optional<PrimExpr> step) {                                            \
-    PrimExpr min = start;                                                                    \
-    PrimExpr extent = arith::Analyzer().Simplify(stop - start);                              \
-    ObjectPtr<ForFrameNode> n = ffi::make_object<ForFrameNode>();                            \
-    int bits = std::max(min.dtype().bits(), extent.dtype().bits());                          \
-    n->vars = {Var("v", DataType(min.dtype().code(), bits, 1))};                             \
-    n->doms = {Range::FromMinExtent(min, extent)};                                           \
-    n->steps = {step};                                                                       \
-    n->f_make_for_loop = [annotations](ffi::Array<Var> vars, ffi::Array<Range> doms,         \
-                                       ffi::Array<ffi::Optional<PrimExpr>> steps,            \
+#define TVM_TIR_IR_BUILDER_FOR_FRAME(Method, Kind)                                            \
+  ForFrame Method(PrimExpr start, PrimExpr stop,                                              \
+                  ffi::Optional<ffi::Map<ffi::String, Any>> annotations,                      \
+                  ffi::Optional<PrimExpr> step) {                                             \
+    PrimExpr min = start;                                                                     \
+    PrimExpr extent = arith::Analyzer().Simplify(stop - start);                               \
+    ObjectPtr<ForFrameNode> n = ffi::make_object<ForFrameNode>();                             \
+    int bits = std::max(min.dtype().bits(), extent.dtype().bits());                           \
+    n->vars = {Var("v", DataType(min.dtype().code(), bits, 1))};                              \
+    n->doms = {Range::FromMinExtent(min, extent)};                                            \
+    n->steps = {step};                                                                        \
+    n->f_make_for_loop = [annotations](ffi::Array<Var> vars, ffi::Array<Range> doms,          \
+                                       ffi::Array<ffi::Optional<PrimExpr>> steps,             \
                                        tvm::tirx::Stmt body) {                                \
-      TVM_FFI_ICHECK_EQ(vars.size(), 1);                                                     \
-      TVM_FFI_ICHECK_EQ(doms.size(), 1);                                                     \
-      TVM_FFI_ICHECK_EQ(steps.size(), 1);                                                    \
+      TVM_FFI_ICHECK_EQ(vars.size(), 1);                                                      \
+      TVM_FFI_ICHECK_EQ(doms.size(), 1);                                                      \
+      TVM_FFI_ICHECK_EQ(steps.size(), 1);                                                     \
       return tvm::tirx::For(vars[0], doms[0]->min, doms[0]->extent, Kind, body, std::nullopt, \
-                           annotations.value_or(ffi::Map<ffi::String, Any>()), steps[0]);    \
-    };                                                                                       \
-    return ForFrame(n);                                                                      \
+                            annotations.value_or(ffi::Map<ffi::String, Any>()), steps[0]);    \
+    };                                                                                        \
+    return ForFrame(n);                                                                       \
   }
 
 TVM_TIR_IR_BUILDER_FOR_FRAME(Serial, tvm::tirx::ForKind::kSerial);
@@ -542,7 +542,8 @@ ElseFrame Else() {
 }
 
 Var EnvThread(ffi::String thread_tag, DataType dtype) {
-  IterVar iter_var(Range{nullptr}, Var("", dtype), tvm::tirx::IterVarType::kThreadIndex, thread_tag);
+  IterVar iter_var(Range{nullptr}, Var("", dtype), tvm::tirx::IterVarType::kThreadIndex,
+                   thread_tag);
   Var var = iter_var->var;
   if (ffi::Optional<PrimFuncFrame> opt_frame = IRBuilder::Current()->FindFrame<PrimFuncFrame>()) {
     opt_frame.value()->env_threads.Set(var, iter_var);
@@ -649,7 +650,8 @@ void Evaluate(PrimExpr value) { AddToParent(tvm::tirx::Evaluate(value)); }
 PrimExpr Ptr(runtime::DataType dtype, ffi::String storage_scope = "global",
              bool is_size_var = false) {
   PointerType type_annotation(PrimType(dtype), storage_scope);
-  return is_size_var ? tvm::tirx::SizeVar("", type_annotation) : tvm::tirx::Var("", type_annotation);
+  return is_size_var ? tvm::tirx::SizeVar("", type_annotation)
+                     : tvm::tirx::Var("", type_annotation);
 }
 
 using tvm::script::ir_builder::details::Namer;

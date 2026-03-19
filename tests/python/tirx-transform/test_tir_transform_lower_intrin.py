@@ -28,9 +28,9 @@ def lower_intrin(params, stmt):
     mod = tvm.IRModule.from_expr(
         tvm.tirx.PrimFunc(params, stmt).with_attr("target", tvm.target.Target("llvm"))
     )
-    mod = tvm.transform.Sequential([tvm.tirx.transform.Simplify(), tvm.tirx.transform.LowerIntrin()])(
-        mod
-    )
+    mod = tvm.transform.Sequential(
+        [tvm.tirx.transform.Simplify(), tvm.tirx.transform.LowerIntrin()]
+    )(mod)
     func = mod["main"]
     stmt = func.body
     return stmt.value if lower_expr else stmt.body

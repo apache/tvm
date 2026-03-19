@@ -79,20 +79,20 @@ TVM_REGISTER_OP("tirx.trunc")
 TVM_REGISTER_OP("tirx.fabs")
     .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450FAbs>);
 
-TVM_REGISTER_OP("tirx.exp").set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic",
-                                                     DispatchGLSLPureIntrin<GLSLstd450Exp>);
+TVM_REGISTER_OP("tirx.exp")
+    .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Exp>);
 
 TVM_REGISTER_OP("tirx.exp2")
     .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Exp2>);
 
-TVM_REGISTER_OP("tirx.sin").set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic",
-                                                     DispatchGLSLPureIntrin<GLSLstd450Sin>);
+TVM_REGISTER_OP("tirx.sin")
+    .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Sin>);
 
-TVM_REGISTER_OP("tirx.cos").set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic",
-                                                     DispatchGLSLPureIntrin<GLSLstd450Cos>);
+TVM_REGISTER_OP("tirx.cos")
+    .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Cos>);
 
-TVM_REGISTER_OP("tirx.tan").set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic",
-                                                     DispatchGLSLPureIntrin<GLSLstd450Tan>);
+TVM_REGISTER_OP("tirx.tan")
+    .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Tan>);
 
 TVM_REGISTER_OP("tirx.asin")
     .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Asin>);
@@ -124,8 +124,8 @@ TVM_REGISTER_OP("tirx.atanh")
 TVM_REGISTER_OP("tirx.atan2")
     .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Atan2>);
 
-TVM_REGISTER_OP("tirx.log").set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic",
-                                                     DispatchGLSLPureIntrin<GLSLstd450Log>);
+TVM_REGISTER_OP("tirx.log")
+    .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Log>);
 
 TVM_REGISTER_OP("tirx.log2")
     .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Log2>);
@@ -133,17 +133,17 @@ TVM_REGISTER_OP("tirx.log2")
 TVM_REGISTER_OP("tirx.sqrt")
     .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Sqrt>);
 
-TVM_REGISTER_OP("tirx.pow").set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic",
-                                                     DispatchGLSLPureIntrin<GLSLstd450Pow>);
+TVM_REGISTER_OP("tirx.pow")
+    .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Pow>);
 
-TVM_REGISTER_OP("tirx.erf").set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic",
-                                                     codegen::intrin ::DispatchFastErf);
+TVM_REGISTER_OP("tirx.erf")
+    .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", codegen::intrin ::DispatchFastErf);
 }  // namespace intrin
 
 namespace legalize {
 using tirx::FLegalize;
-TVM_REGISTER_OP("tirx.clz").set_attr<FLegalize>(
-    "vulkan.FLegalize", [](const PrimExpr& e) -> PrimExpr {
+TVM_REGISTER_OP("tirx.clz")
+    .set_attr<FLegalize>("vulkan.FLegalize", [](const PrimExpr& e) -> PrimExpr {
       const tirx::CallNode* call = e.as<tirx::CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
       TVM_FFI_ICHECK_EQ(call->args.size(), 1);

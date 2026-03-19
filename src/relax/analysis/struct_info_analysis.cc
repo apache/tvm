@@ -1324,7 +1324,7 @@ class SymbolicVarCollector : public relax::ExprVisitor,
     SymbolicVarCollector collector;
     collector.VisitExpr(expr);
     ffi::Array<tirx::Var> ret{collector.free_symbolic_var_.begin(),
-                             collector.free_symbolic_var_.end()};
+                              collector.free_symbolic_var_.end()};
     return ret;
   }
 
@@ -1332,7 +1332,7 @@ class SymbolicVarCollector : public relax::ExprVisitor,
     SymbolicVarCollector collector;
     collector.VisitExpr(expr);
     ffi::Array<tirx::Var> ret{collector.defined_symbolic_var_.begin(),
-                             collector.defined_symbolic_var_.end()};
+                              collector.defined_symbolic_var_.end()};
     return ret;
   }
 
@@ -1460,7 +1460,9 @@ class SymbolicVarCollector : public relax::ExprVisitor,
 ffi::Array<tirx::Var> DefinedSymbolicVars(const Expr& expr) {
   return SymbolicVarCollector::Defined(expr);
 }
-ffi::Array<tirx::Var> FreeSymbolicVars(const Expr& expr) { return SymbolicVarCollector::Free(expr); }
+ffi::Array<tirx::Var> FreeSymbolicVars(const Expr& expr) {
+  return SymbolicVarCollector::Free(expr);
+}
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

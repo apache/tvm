@@ -407,7 +407,8 @@ class AttrFrameNode : public TIRFrameNode {
         .def_ro("attr_key", &AttrFrameNode::attr_key)
         .def_ro("value", &AttrFrameNode::value);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.AttrFrame", AttrFrameNode, TIRFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.AttrFrame", AttrFrameNode,
+                                    TIRFrameNode);
 
  public:
   /*!
@@ -525,7 +526,8 @@ class ThenFrameNode : public TIRFrameNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ThenFrameNode>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.ThenFrame", ThenFrameNode, TIRFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.ThenFrame", ThenFrameNode,
+                                    TIRFrameNode);
 
  public:
   /*!
@@ -564,7 +566,8 @@ class ElseFrameNode : public TIRFrameNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ElseFrameNode>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.ElseFrame", ElseFrameNode, TIRFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.ElseFrame", ElseFrameNode,
+                                    TIRFrameNode);
 
  public:
   /*!

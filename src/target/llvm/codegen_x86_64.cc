@@ -66,7 +66,7 @@ llvm::Value* CodeGenX86_64::VisitExpr_(const CastNode* op) {
           DTypeToLLVMType(DataType::Float(32, from.lanes())),
           {
               MakeValue(tirx::Call(DataType::Int(16, from.lanes()), tirx::builtin::reinterpret(),
-                                  {op->value})),
+                                   {op->value})),
               MakeValue(tirx::Broadcast(FloatImm(DataType::Float(32), 0), from.lanes())),
               /*mask=*/MakeValue(IntImm(DataType::Int(16), -1)),
               /*rounding-mode=*/MakeValue(IntImm(DataType::Int(32), 4)),

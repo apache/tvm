@@ -393,8 +393,8 @@ class LocalLiftableBindingCollector : public BaseLiftableBindingCollector {
 
     auto set_union = [&](std::unordered_set<ffi::Variant<relax::Var, tirx::Var>, ObjectPtrHash,
                                             ObjectPtrEqual>& target_set,
-                         const std::unordered_set<ffi::Variant<relax::Var, tirx::Var>, ObjectPtrHash,
-                                                  ObjectPtrEqual>& source_set,
+                         const std::unordered_set<ffi::Variant<relax::Var, tirx::Var>,
+                                                  ObjectPtrHash, ObjectPtrEqual>& source_set,
                          const ffi::Map<relax::Var, Expr>& var_remap,
                          const ffi::Map<tirx::Var, PrimExpr>& tir_var_remap) {
       // In-place update the set in global info by unioning with the local set, variable

@@ -580,8 +580,8 @@ TVM_DLL PrimExpr isinf(PrimExpr x, Span span = Span());
  * \param span The location of this operation in the source.
  * \return The result.
  */
-TVM_DLL PrimExpr sum(PrimExpr source, ffi::Array<tirx::IterVar> axis, ffi::Array<PrimExpr> init = {},
-                     Span span = Span());
+TVM_DLL PrimExpr sum(PrimExpr source, ffi::Array<tirx::IterVar> axis,
+                     ffi::Array<PrimExpr> init = {}, Span span = Span());
 
 /*!
  * \brief logical And of source expression over axis
@@ -590,8 +590,8 @@ TVM_DLL PrimExpr sum(PrimExpr source, ffi::Array<tirx::IterVar> axis, ffi::Array
  * \param init The value with which to initialize the output.
  * \param span The location of this operation in the source.
  */
-TVM_DLL PrimExpr all(PrimExpr source, ffi::Array<tirx::IterVar> axis, ffi::Array<PrimExpr> init = {},
-                     Span span = Span());
+TVM_DLL PrimExpr all(PrimExpr source, ffi::Array<tirx::IterVar> axis,
+                     ffi::Array<PrimExpr> init = {}, Span span = Span());
 
 /*!
  * \brief logical Or of source expression over axis
@@ -601,8 +601,8 @@ TVM_DLL PrimExpr all(PrimExpr source, ffi::Array<tirx::IterVar> axis, ffi::Array
  * \param span The location of this operation in the source.
  * \return The result.
  */
-TVM_DLL PrimExpr any(PrimExpr source, ffi::Array<tirx::IterVar> axis, ffi::Array<PrimExpr> init = {},
-                     Span span = Span());
+TVM_DLL PrimExpr any(PrimExpr source, ffi::Array<tirx::IterVar> axis,
+                     ffi::Array<PrimExpr> init = {}, Span span = Span());
 
 /*!
  * \brief max of source expression over axis
@@ -612,8 +612,8 @@ TVM_DLL PrimExpr any(PrimExpr source, ffi::Array<tirx::IterVar> axis, ffi::Array
  * \param span The location of this operation in the source.
  * \return The result.
  */
-TVM_DLL PrimExpr max(PrimExpr source, ffi::Array<tirx::IterVar> axis, ffi::Array<PrimExpr> init = {},
-                     Span span = Span());
+TVM_DLL PrimExpr max(PrimExpr source, ffi::Array<tirx::IterVar> axis,
+                     ffi::Array<PrimExpr> init = {}, Span span = Span());
 
 /*!
  * \brief max of source expression over axis
@@ -623,8 +623,8 @@ TVM_DLL PrimExpr max(PrimExpr source, ffi::Array<tirx::IterVar> axis, ffi::Array
  * \param span The location of this operation in the source.
  * \return The result.
  */
-TVM_DLL PrimExpr min(PrimExpr source, ffi::Array<tirx::IterVar> axis, ffi::Array<PrimExpr> init = {},
-                     Span span = Span());
+TVM_DLL PrimExpr min(PrimExpr source, ffi::Array<tirx::IterVar> axis,
+                     ffi::Array<PrimExpr> init = {}, Span span = Span());
 
 /*!
  * \brief product of source expression over axis
@@ -726,19 +726,19 @@ inline void CheckMathUnaryOpInputDType(const char* op_name, DataType dtype) {
 }
 
 // Intrinsic operators
-#define TVM_DECLARE_INTRIN_UNARY_WITH_CHECK(OpName, CheckInputDType)    \
-  inline PrimExpr OpName(PrimExpr x, Span span = Span()) {              \
+#define TVM_DECLARE_INTRIN_UNARY_WITH_CHECK(OpName, CheckInputDType)     \
+  inline PrimExpr OpName(PrimExpr x, Span span = Span()) {               \
     static const Op& op = Op::Get("tirx." #OpName);                      \
-    CheckInputDType(#OpName, x.dtype());                                \
-    if (x.dtype().is_bfloat16()) {                                      \
-      DataType bf16_dtype = x.dtype();                                  \
-      DataType fp32_dtype(kDLFloat, 32, bf16_dtype.lanes());            \
+    CheckInputDType(#OpName, x.dtype());                                 \
+    if (x.dtype().is_bfloat16()) {                                       \
+      DataType bf16_dtype = x.dtype();                                   \
+      DataType fp32_dtype(kDLFloat, 32, bf16_dtype.lanes());             \
       PrimExpr x_fp32 = tirx::Cast(fp32_dtype, {x}, span);               \
       PrimExpr result_fp32 = tirx::Call(fp32_dtype, op, {x_fp32}, span); \
       return tirx::Cast(bf16_dtype, {result_fp32}, span);                \
-    } else {                                                            \
+    } else {                                                             \
       return tirx::Call(x.dtype(), op, {x}, span);                       \
-    }                                                                   \
+    }                                                                    \
   }
 
 #define TVM_DECLARE_INTRIN_UNARY(OpName) \
@@ -775,8 +775,8 @@ TVM_DECLARE_INTRIN_UNARY(clz);
 
 #define TVM_DECLARE_INTRIN_BINARY(OpName)                              \
   inline PrimExpr OpName(PrimExpr x, PrimExpr y, Span span = Span()) { \
-    static const Op& op = Op::Get("tirx." #OpName);                     \
-    return tirx::Call(x.dtype(), op, {x, y}, span);                     \
+    static const Op& op = Op::Get("tirx." #OpName);                    \
+    return tirx::Call(x.dtype(), op, {x, y}, span);                    \
   }
 
 TVM_DECLARE_INTRIN_BINARY(atan2);
@@ -936,7 +936,8 @@ inline bool is_const_number(const PrimExpr& x) {
   } else if (x.as<tirx::FloatImmNode>()) {
     return true;
   } else if (const auto* op = x.as<tirx::BroadcastNode>()) {
-    return (op->value->IsInstance<tirx::IntImmNode>() || op->value->IsInstance<tirx::FloatImmNode>());
+    return (op->value->IsInstance<tirx::IntImmNode>() ||
+            op->value->IsInstance<tirx::FloatImmNode>());
   }
   return false;
 }
@@ -1037,13 +1038,13 @@ inline PrimExpr make_zero(DataType t, Span span) {
   inline PrimExpr Name(const PrimExpr& a, float b) { return Name(a, PrimExpr(b)); } \
   inline PrimExpr Name(float a, const PrimExpr& b) { return Name(PrimExpr(a), b); } \
   inline PrimExpr Name(int a, const PrimExpr& b) {                                  \
-    return Name(tirx::make_const(b.dtype(), a), b);                                  \
+    return Name(tirx::make_const(b.dtype(), a), b);                                 \
   }                                                                                 \
   inline PrimExpr Name(const PrimExpr& a, int b) {                                  \
-    return Name(a, tirx::make_const(a.dtype(), b));                                  \
+    return Name(a, tirx::make_const(a.dtype(), b));                                 \
   }                                                                                 \
   inline PrimExpr Name(const PrimExpr& a, double b) {                               \
-    return Name(a, tirx::make_const(DataType::Float(64), b));                        \
+    return Name(a, tirx::make_const(DataType::Float(64), b));                       \
   }
 
 #define TVM_DEFINE_BINOP_CONST_VAL_OVERLOAD_SPANNED(Name)                 \
@@ -1054,13 +1055,13 @@ inline PrimExpr make_zero(DataType t, Span span) {
     return Name(PrimExpr(a), b, span);                                    \
   }                                                                       \
   inline PrimExpr Name(int a, const PrimExpr& b, Span span = Span()) {    \
-    return Name(tirx::make_const(b.dtype(), a), b, span);                  \
+    return Name(tirx::make_const(b.dtype(), a), b, span);                 \
   }                                                                       \
   inline PrimExpr Name(const PrimExpr& a, int b, Span span = Span()) {    \
-    return Name(a, tirx::make_const(a.dtype(), b), span);                  \
+    return Name(a, tirx::make_const(a.dtype(), b), span);                 \
   }                                                                       \
   inline PrimExpr Name(const PrimExpr& a, double b, Span span = Span()) { \
-    return Name(a, tirx::make_const(DataType::Float(64), b), span);        \
+    return Name(a, tirx::make_const(DataType::Float(64), b), span);       \
   }
 
 #define TVM_DEFINE_LOGICAL_OP_CONST_VAL_OVERLOAD(Name)                             \
@@ -1075,18 +1076,18 @@ inline PrimExpr make_zero(DataType t, Span span) {
     return Name(PrimExpr(a), b, span);                                  \
   }
 
-#define TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(Name) \
-  inline PrimExpr Name(const PrimExpr& a, int b) { \
+#define TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(Name)  \
+  inline PrimExpr Name(const PrimExpr& a, int b) {  \
     return Name(a, tirx::make_const(a.dtype(), b)); \
-  }                                                \
+  }                                                 \
   inline PrimExpr Name(int a, const PrimExpr& b) { return Name(tirx::make_const(b.dtype(), a), b); }
 
 #define TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD_SPANNED(Name)             \
   inline PrimExpr Name(const PrimExpr& a, int b, Span span = Span()) { \
-    return Name(a, tirx::make_const(a.dtype(), b), span);               \
+    return Name(a, tirx::make_const(a.dtype(), b), span);              \
   }                                                                    \
   inline PrimExpr Name(int a, const PrimExpr& b, Span span = Span()) { \
-    return Name(tirx::make_const(b.dtype(), a), b, span);               \
+    return Name(tirx::make_const(b.dtype(), a), b, span);              \
   }
 
 TVM_DEFINE_ASSIGN_OP_OVERLOAD(operator+=, operator+);

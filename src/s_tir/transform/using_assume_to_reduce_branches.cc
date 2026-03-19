@@ -122,12 +122,12 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
   using Parent::VisitStmt_;
 
   // This struct stores all the relevant data related to asssume statement
-  struct assume_struct {          // Consider the example : T.assume(i < 14 or A[i] == 0)
-    PrimExpr buffer_context;      // The context of the assume statement (the bound on the axis)
-    PrimExpr buffer_predicate;    // The condition inside assume statement (i < 14) excluding
-                                  // bufferload expression (A[i] == 0)
+  struct assume_struct {           // Consider the example : T.assume(i < 14 or A[i] == 0)
+    PrimExpr buffer_context;       // The context of the assume statement (the bound on the axis)
+    PrimExpr buffer_predicate;     // The condition inside assume statement (i < 14) excluding
+                                   // bufferload expression (A[i] == 0)
     tirx::BufferLoad buffer_load;  // Storing the buffer load Eg: A[i] in A[i] == 0
-    PrimExpr buffer_value;        // Storing the value for the buffer Eg : 0 in A[i] == 0
+    PrimExpr buffer_value;         // Storing the value for the buffer Eg : 0 in A[i] == 0
     ffi::Array<PrimExpr> buffer_indices;  // Storing the indices of the buffer Eg : i
   };
   // List of conditions in a scope

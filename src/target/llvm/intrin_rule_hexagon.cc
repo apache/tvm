@@ -27,7 +27,7 @@
 
 #define TVM_REGISTER_QHL_OP_FP16(INTRIN_FUNC, WRAPPER_FUNC, NUM_SIGN)                          \
   std::string tvm_qhl_ahf_##INTRIN_FUNC = WRAPPER_FUNC;                                        \
-  TVM_REGISTER_OP("tirx." #INTRIN_FUNC)                                                         \
+  TVM_REGISTER_OP("tirx." #INTRIN_FUNC)                                                        \
       .set_attr<FLowerIntrinsic>(                                                              \
           "hexagon.FLowerIntrinsic",                                                           \
           DispatchTVMQHLWrapperFp16<tvm_qhl_ahf_##INTRIN_FUNC, ::llvm::Intrinsic::INTRIN_FUNC, \
@@ -75,11 +75,13 @@ inline PrimExpr DispatchTVMQHLWrapperFp16(const PrimExpr& e) {
   return tirx::Call(call->dtype, tirx::builtin::call_llvm_pure_intrin(), new_args);
 }
 
-TVM_REGISTER_OP("tirx.fma").set_attr<FLowerIntrinsic>(
-    "hexagon.FLowerIntrinsic", DispatchLLVMPureIntrin<::llvm::Intrinsic::fmuladd, 3>);
+TVM_REGISTER_OP("tirx.fma")
+    .set_attr<FLowerIntrinsic>("hexagon.FLowerIntrinsic",
+                               DispatchLLVMPureIntrin<::llvm::Intrinsic::fmuladd, 3>);
 
-TVM_REGISTER_OP("tirx.log").set_attr<FLowerIntrinsic>(
-    "hexagon.FLowerIntrinsic", DispatchLLVMPureIntrin<::llvm::Intrinsic::log, 1>);
+TVM_REGISTER_OP("tirx.log")
+    .set_attr<FLowerIntrinsic>("hexagon.FLowerIntrinsic",
+                               DispatchLLVMPureIntrin<::llvm::Intrinsic::log, 1>);
 
 TVM_REGISTER_OP("tirx.trunc")
     .set_attr<FLowerIntrinsic>("hexagon.FLowerIntrinsic",
@@ -132,8 +134,8 @@ TVM_REGISTER_OP("tirx.tanh")
       return tanh_x;
     });
 
-TVM_REGISTER_OP("tirx.tan").set_attr<FLowerIntrinsic>(
-    "hexagon.FLowerIntrinsic", [](const PrimExpr& e) {
+TVM_REGISTER_OP("tirx.tan")
+    .set_attr<FLowerIntrinsic>("hexagon.FLowerIntrinsic", [](const PrimExpr& e) {
       const tirx::CallNode* call = e.as<tirx::CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
       const PrimExpr& x = call->args[0];

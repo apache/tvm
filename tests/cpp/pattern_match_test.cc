@@ -105,8 +105,9 @@ TEST(Pattern, Basic) {
     TVM_FFI_ICHECK(cast(pt, px).Match(tirx::Cast(DataType::Float(64), x)));
     TVM_FFI_ICHECK(pt.Eval() == DataType::Float(64));
     auto zz = cast(pt, px).Eval();
-    TVM_FFI_ICHECK((cast(pt, px) - cast(pt, py))
-                       .Match(tirx::Cast(DataType::Float(64), x) - tirx::Cast(DataType::Int(64), x)));
+    TVM_FFI_ICHECK(
+        (cast(pt, px) - cast(pt, py))
+            .Match(tirx::Cast(DataType::Float(64), x) - tirx::Cast(DataType::Int(64), x)));
     auto expr = tirx::Cast(DataType::Int(32), tirx::Cast(DataType::Float(64), x));
     TVM_FFI_ICHECK(!(cast(pt, cast(pt, px))).Match(expr));
   }

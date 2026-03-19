@@ -165,7 +165,9 @@ def test_trace_can_change_traced_value_int():
         n = 4
         x = te.placeholder((n,), name="X", dtype=dtype)
         y = te.compute(x.shape, lambda i: tvm.tirx.trace([x[i]], "tvm.tirx.trace_change_int_first"))
-        z = te.compute(x.shape, lambda i: tvm.tirx.trace([y[i]], "tvm.tirx.trace_change_int_second"))
+        z = te.compute(
+            x.shape, lambda i: tvm.tirx.trace([y[i]], "tvm.tirx.trace_change_int_second")
+        )
         f = tvm.compile(te.create_prim_func([x, y, z]))
 
         xnd = tvm.runtime.tensor(np.ones((n,), dtype=x.dtype))
@@ -193,7 +195,9 @@ def test_trace_can_change_traced_value_float():
     def check_assign(dtype):
         n = 4
         x = te.placeholder((n,), name="X", dtype=dtype)
-        y = te.compute(x.shape, lambda i: tvm.tirx.trace([x[i]], "tvm.tirx.trace_change_float_first"))
+        y = te.compute(
+            x.shape, lambda i: tvm.tirx.trace([x[i]], "tvm.tirx.trace_change_float_first")
+        )
         z = te.compute(
             x.shape, lambda i: tvm.tirx.trace([y[i]], "tvm.tirx.trace_change_float_second")
         )

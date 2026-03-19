@@ -53,7 +53,7 @@ struct Mutator : StmtExprMutator {
 
 TVM_STATIC_IR_FUNCTOR(GlobalVarReplacer, vtable)
     .set_dispatch<tirx::PrimFuncNode>([](const ObjectRef& obj,
-                                        ffi::Map<GlobalVar, GlobalVar> replacements) -> BaseFunc {
+                                         ffi::Map<GlobalVar, GlobalVar> replacements) -> BaseFunc {
       Mutator mutator(replacements);
       auto func = Downcast<PrimFunc>(obj);
       auto new_body = mutator(func->body);

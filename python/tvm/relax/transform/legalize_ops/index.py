@@ -80,7 +80,9 @@ def _dynamic_strided_slice(bb: BlockBuilder, call: Call) -> Expr:
     def shape_func(data, begin, end, strides):
         def _compute(i):
             def canonicalize_index(index, extent, strides):
-                begin_range = tirx.Select(strides < 0, tirx.const(-1, "int64"), tirx.const(0, "int64"))
+                begin_range = tirx.Select(
+                    strides < 0, tirx.const(-1, "int64"), tirx.const(0, "int64")
+                )
                 end_range = tirx.Select(strides < 0, extent - 1, extent)
                 index = tirx.Select(index < 0, index + extent, index)
                 return tirx.Min(tirx.Max(index, begin_range), end_range)

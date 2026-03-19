@@ -147,13 +147,14 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tirx::Broadcast>("", [](tirx::Broadcast bc, AccessPath bc_p, IRDocsifier d) -> Doc {
-      return TIR(d, "Broadcast")
-          ->Call({
-              d->AsDoc<ExprDoc>(bc->value, bc_p->Attr("value")),
-              d->AsDoc<ExprDoc>(bc->lanes, bc_p->Attr("lanes")),
-          });
-    });
+    .set_dispatch<tirx::Broadcast>("",
+                                   [](tirx::Broadcast bc, AccessPath bc_p, IRDocsifier d) -> Doc {
+                                     return TIR(d, "Broadcast")
+                                         ->Call({
+                                             d->AsDoc<ExprDoc>(bc->value, bc_p->Attr("value")),
+                                             d->AsDoc<ExprDoc>(bc->lanes, bc_p->Attr("lanes")),
+                                         });
+                                   });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tirx::Shuffle>(  //
@@ -316,14 +317,14 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       TVM_FFI_THROW(ValueError) << "Reduce should never exist in TIR: " << r;
     });
 
-#define TVM_SCRIPT_PRINTER_DEF_BINARY(NodeType, OpString)                                       \
-  TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)                                                    \
-      .set_dispatch<tirx::NodeType>("",                                                          \
-                                   [](tirx::NodeType node, AccessPath p, IRDocsifier d) -> Doc { \
-                                     ExprDoc a = d->AsDoc<ExprDoc>(node->a, p->Attr("a"));      \
-                                     ExprDoc b = d->AsDoc<ExprDoc>(node->b, p->Attr("b"));      \
-                                     return TIR(d, OpString)->Call({a, b});                     \
-                                   });
+#define TVM_SCRIPT_PRINTER_DEF_BINARY(NodeType, OpString)                                         \
+  TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)                                                      \
+      .set_dispatch<tirx::NodeType>("",                                                           \
+                                    [](tirx::NodeType node, AccessPath p, IRDocsifier d) -> Doc { \
+                                      ExprDoc a = d->AsDoc<ExprDoc>(node->a, p->Attr("a"));       \
+                                      ExprDoc b = d->AsDoc<ExprDoc>(node->b, p->Attr("b"));       \
+                                      return TIR(d, OpString)->Call({a, b});                      \
+                                    });
 
 bool IsNumber(const ExprDoc& e) {
   if (const auto* n = e.as<LiteralDocNode>()) {
@@ -351,12 +352,12 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 #define TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(NodeType, NodeObj, NodeFunc, OpString, OpKind) \
   TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)                                                    \
-      .set_dispatch<tirx::NodeType>(                                                             \
-          "", [](tirx::NodeType node, AccessPath p, IRDocsifier d) -> Doc {                      \
+      .set_dispatch<tirx::NodeType>(                                                            \
+          "", [](tirx::NodeType node, AccessPath p, IRDocsifier d) -> Doc {                     \
             ExprDoc a = d->AsDoc<ExprDoc>(node->a, p->Attr("a"));                               \
             ExprDoc b = d->AsDoc<ExprDoc>(node->b, p->Attr("b"));                               \
             PrimExpr ret = tvm::NodeFunc(node->a, node->b);                                     \
-            if (const auto* ret_node = ret.as<tvm::tirx::NodeObj>()) {                           \
+            if (const auto* ret_node = ret.as<tvm::tirx::NodeObj>()) {                          \
               if (ret_node->a.same_as(node->a) && ret_node->b.same_as(node->b)) {               \
                 return OperationDoc(OperationDocNode::Kind::OpKind, {a, b});                    \
               }                                                                                 \

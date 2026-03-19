@@ -232,7 +232,8 @@ class PatternKindAnalyzer : public StmtExprVisitor {
     }
     for (const PrimExpr& load_index : load->indices) {
       // return false if there are vars used in load indices but not in store indices.
-      if (tirx::UsesVar(load_index, [&vars](const tirx::VarNode* var) { return !vars.count(var); })) {
+      if (tirx::UsesVar(load_index,
+                        [&vars](const tirx::VarNode* var) { return !vars.count(var); })) {
         return false;
       }
     }
@@ -309,7 +310,8 @@ class PatternKindAnalyzer : public StmtExprVisitor {
    *      A[i] = sum(B[i, j + k]) is not pure reduce
    *      pooling is not pure reduce
    */
-  static bool IsPureReducePattern(ffi::Array<tirx::Var> reduce_loops, ffi::Array<PrimExpr> indices) {
+  static bool IsPureReducePattern(ffi::Array<tirx::Var> reduce_loops,
+                                  ffi::Array<PrimExpr> indices) {
     for (const PrimExpr& e : indices) {
       int id = -1;
       if (UsesVar(e, [&](const tirx::VarNode* var) {

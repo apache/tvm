@@ -110,7 +110,7 @@ inline double GetFoldResultDoubleRepr(float x) {
 }
 
 #define TVM_ARITH_CONST_PROPAGATION(BODY)        \
-  using tirx::FloatImmNode;                       \
+  using tirx::FloatImmNode;                      \
   const IntImmNode* pa = a.as<IntImmNode>();     \
   const IntImmNode* pb = b.as<IntImmNode>();     \
   const FloatImmNode* fa = a.as<FloatImmNode>(); \

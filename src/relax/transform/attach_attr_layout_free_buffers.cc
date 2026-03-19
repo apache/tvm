@@ -81,8 +81,8 @@ class AttrAttacher : public ExprMutator {
       }
     }
     // Attach the layout free buffers to the tirx::PrimFunc
-    tirx::PrimFunc func = WithAttr(Downcast<tirx::PrimFunc>(mod_->Lookup(gv)), "layout_free_buffers",
-                                  layout_free_buffers);
+    tirx::PrimFunc func = WithAttr(Downcast<tirx::PrimFunc>(mod_->Lookup(gv)),
+                                   "layout_free_buffers", layout_free_buffers);
     // Renew defs
     func = s_tir::RenewDefs(func);
     // Add the updated tirx::PrimFunc in the IRModule

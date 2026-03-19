@@ -31,5 +31,5 @@ TEST(SimplePasses, SideEffect) {
   TVM_FFI_ICHECK(tirx::SideEffect(exp(tirx::Cast(DataType::Float(32), i + 1))) ==
                  tirx::CallEffectKind::kPure);
   TVM_FFI_ICHECK(tirx::SideEffect(tirx::Call(DataType::Handle(), tirx::builtin::tvm_storage_sync(),
-                                           {})) == tirx::CallEffectKind::kUpdateState);
+                                             {})) == tirx::CallEffectKind::kUpdateState);
 }

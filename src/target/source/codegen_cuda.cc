@@ -1302,17 +1302,17 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
         // and finally reinterpret the result as fp4x2.
         value = tirx::Call(DataType::UInt(16), tirx::builtin::reinterpret(), {value});
         tirx::Var temp_var("temp_var", DataType::UInt(16));
-        value = tirx::Let(
-            temp_var, value,
-            tirx::Cast(DataType::UInt(8), (temp_var & IntImm(DataType::UInt(16), 0xF)) |
-                                             ((temp_var >> 4) & IntImm(DataType::UInt(16), 0xF0))));
+        value = tirx::Let(temp_var, value,
+                          tirx::Cast(DataType::UInt(8),
+                                     (temp_var & IntImm(DataType::UInt(16), 0xF)) |
+                                         ((temp_var >> 4) & IntImm(DataType::UInt(16), 0xF0))));
       } else {
         value = tirx::Cast(DataType::UInt(16),
-                          tirx::Call(DataType::UInt(8), tirx::builtin::reinterpret(), {value}));
+                           tirx::Call(DataType::UInt(8), tirx::builtin::reinterpret(), {value}));
         tirx::Var temp_var("temp_var", DataType::UInt(16));
         value = tirx::Let(temp_var, value,
-                         (temp_var & IntImm(DataType::UInt(16), 0xF)) |
-                             ((temp_var & IntImm(DataType::UInt(16), 0xF0)) << 4));
+                          (temp_var & IntImm(DataType::UInt(16), 0xF)) |
+                              ((temp_var & IntImm(DataType::UInt(16), 0xF0)) << 4));
       }
       os << PrintExpr(tirx::Call(tgt_dtype, tirx::builtin::reinterpret(), {value}));
     } else if (lanes == 4) {
@@ -1322,20 +1322,20 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
         value = tirx::Call(DataType::UInt(32), tirx::builtin::reinterpret(), {value});
         tirx::Var temp_var("temp_var", DataType::UInt(32));
         value = tirx::Let(temp_var, value,
-                         tirx::Cast(DataType::UInt(16),
-                                   (temp_var & IntImm(DataType::UInt(32), 0xF)) |
-                                       ((temp_var >> 4) & IntImm(DataType::UInt(32), 0xF0)) |
-                                       ((temp_var >> 8) & IntImm(DataType::UInt(32), 0xF00)) |
-                                       ((temp_var >> 12) & IntImm(DataType::UInt(32), 0xF000))));
+                          tirx::Cast(DataType::UInt(16),
+                                     (temp_var & IntImm(DataType::UInt(32), 0xF)) |
+                                         ((temp_var >> 4) & IntImm(DataType::UInt(32), 0xF0)) |
+                                         ((temp_var >> 8) & IntImm(DataType::UInt(32), 0xF00)) |
+                                         ((temp_var >> 12) & IntImm(DataType::UInt(32), 0xF000))));
       } else {
         value = tirx::Cast(DataType::UInt(32),
-                          tirx::Call(DataType::UInt(16), tirx::builtin::reinterpret(), {value}));
+                           tirx::Call(DataType::UInt(16), tirx::builtin::reinterpret(), {value}));
         tirx::Var temp_var("temp_var", DataType::UInt(32));
         value = tirx::Let(temp_var, value,
-                         (temp_var & IntImm(DataType::UInt(32), 0xF)) |
-                             ((temp_var & IntImm(DataType::UInt(32), 0xF0)) << 4) |
-                             ((temp_var & IntImm(DataType::UInt(32), 0xF00)) << 8) |
-                             ((temp_var & IntImm(DataType::UInt(32), 0xF000)) << 12));
+                          (temp_var & IntImm(DataType::UInt(32), 0xF)) |
+                              ((temp_var & IntImm(DataType::UInt(32), 0xF0)) << 4) |
+                              ((temp_var & IntImm(DataType::UInt(32), 0xF00)) << 8) |
+                              ((temp_var & IntImm(DataType::UInt(32), 0xF000)) << 12));
       }
       os << PrintExpr(tirx::Call(tgt_dtype, tirx::builtin::reinterpret(), {value}));
     } else {

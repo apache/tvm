@@ -302,9 +302,9 @@ class DataProducer : public PrimExprConvertible {
  * \param memory_scope memory scope of the buffer
  */
 TVM_DLL tirx::Buffer BufferWithOffsetAlignment(ffi::Array<PrimExpr> shape, DataType dtype,
-                                              std::string name, int data_alignment,
-                                              int offset_factor, bool compact,
-                                              std::string memory_scope = "");
+                                               std::string name, int data_alignment,
+                                               int offset_factor, bool compact,
+                                               std::string memory_scope = "");
 }  // namespace tirx
 }  // namespace tvm
 #endif  // TVM_TIR_BUFFER_H_

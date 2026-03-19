@@ -144,7 +144,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       }
       // Step 4. Handle `func->body`
       ffi::Optional<tirx::SBlock> implicit_root_block = [&]() -> ffi::Optional<tirx::SBlock> {
-        const tirx::SBlockRealizeNode* root_block_realize = func->body.as<tirx::SBlockRealizeNode>();
+        const tirx::SBlockRealizeNode* root_block_realize =
+            func->body.as<tirx::SBlockRealizeNode>();
         if (root_block_realize && !root_block_realize->iter_values.size() &&
             tirx::is_one(root_block_realize->predicate)) {
           tirx::SBlock root_block = root_block_realize->block;
@@ -206,7 +207,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 TVM_SCRIPT_REPR(tirx::PrimFuncNode, ReprPrintTIR);
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tvm::GlobalVar>(                                           //
+    .set_dispatch<tvm::GlobalVar>(                                            //
         "tirx", [](tvm::GlobalVar n, AccessPath n_p, IRDocsifier d) -> Doc {  //
           if (ffi::Optional<ExprDoc> doc = d->GetVarDoc(n)) {
             return doc.value();
@@ -218,7 +219,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tvm::IRModule>(                                             //
+    .set_dispatch<tvm::IRModule>(                                              //
         "tirx", [](tvm::IRModule mod, AccessPath n_p, IRDocsifier d) -> Doc {  //
           ffi::Optional<ExprDoc> doc = d->GetVarDoc(mod);
           TVM_FFI_ICHECK(doc) << "Unable to print IRModule before definition in TIR.";

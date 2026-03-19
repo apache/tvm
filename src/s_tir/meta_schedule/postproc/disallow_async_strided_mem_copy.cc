@@ -157,7 +157,7 @@ class DisallowAsyncStridedMemCopyNode : public PostprocNode {
           pass_list.push_back(tirx::transform::VectorizeLoop(true));
           pass_list.push_back(tirx::transform::StorageRewrite());
           tirx::PrimFunc f = WithAttr(ffi::GetRef<tirx::PrimFunc>(prim_func), "global_symbol",
-                                     ffi::String(g_var->name_hint));
+                                      ffi::String(g_var->name_hint));
           IRModule mod =
               IRModule(ffi::Map<GlobalVar, BaseFunc>({{GlobalVar(g_var->name_hint), f}}));
           lowered = tvm::transform::Sequential(pass_list)(std::move(mod));

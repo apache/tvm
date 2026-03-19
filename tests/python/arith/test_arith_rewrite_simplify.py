@@ -116,7 +116,8 @@ class TestVector(BaseCompare):
         ),
         # int64 iterators with int32 lanes
         TestCase(
-            tvm.tirx.Broadcast(x64, 4) + tvm.tirx.Ramp(tvm.tirx.IntImm(dtype="int64", value=0), 1, 4),
+            tvm.tirx.Broadcast(x64, 4)
+            + tvm.tirx.Ramp(tvm.tirx.IntImm(dtype="int64", value=0), 1, 4),
             tvm.tirx.Ramp(x64, 1, 4),
         ),
         TestCase(
@@ -146,7 +147,9 @@ class TestVector(BaseCompare):
             tvm.tirx.Ramp(tdiv(x, 2), 2, tirx.vscale() * 5),
         ),
         TestCase(tdiv(tvm.tirx.Ramp(x * 8 + 1, 1, 4), 8), x.astype("int32x4"), x >= 0),
-        TestCase(tdiv(tvm.tirx.Ramp(x * 8 + 15, 1, 4), 8), tdiv(tvm.tirx.Ramp(x * 8 + 15, 1, 4), 8)),
+        TestCase(
+            tdiv(tvm.tirx.Ramp(x * 8 + 15, 1, 4), 8), tdiv(tvm.tirx.Ramp(x * 8 + 15, 1, 4), 8)
+        ),
         # trunc mod
         TestCase(tmod(y.astype("int32x2"), x.astype("int32x2")), tmod(y, x).astype("int32x2")),
         TestCase(tmod(tvm.tirx.Ramp(x, 4, 4), 2), tvm.tirx.Broadcast(tmod(x, 2), 4)),
@@ -156,7 +159,9 @@ class TestVector(BaseCompare):
             tmod(tvm.tirx.Ramp(1, 1, tirx.vscale() * 4), 8),
             x >= 0,
         ),
-        TestCase(tmod(tvm.tirx.Ramp(x * 8 + 1, 15, 4), 8), tmod(tvm.tirx.Ramp(1, 15, 4), 8), x >= 0),
+        TestCase(
+            tmod(tvm.tirx.Ramp(x * 8 + 1, 15, 4), 8), tmod(tvm.tirx.Ramp(1, 15, 4), 8), x >= 0
+        ),
         # floor div
         TestCase(fld(y.astype("int32x2"), x.astype("int32x2")), fld(y, x).astype("int32x2")),
         TestCase(fld(tvm.tirx.Ramp(x, 4, 4), 2), tvm.tirx.Ramp(fld(x, 2), 2, 4)),
@@ -185,8 +190,12 @@ class TestVector(BaseCompare):
             fld(tvm.tirx.Ramp(x * 8, 1, 4), tvm.tirx.Broadcast(4, 4)), tvm.tirx.Broadcast(x * 2, 4)
         ),
         TestCase(
-            fld(tvm.tirx.Ramp(x * 8, 1, tirx.vscale() * 4), tvm.tirx.Broadcast(4, tirx.vscale() * 4)),
-            fld(tvm.tirx.Ramp(x * 8, 1, tirx.vscale() * 4), tvm.tirx.Broadcast(4, tirx.vscale() * 4)),
+            fld(
+                tvm.tirx.Ramp(x * 8, 1, tirx.vscale() * 4), tvm.tirx.Broadcast(4, tirx.vscale() * 4)
+            ),
+            fld(
+                tvm.tirx.Ramp(x * 8, 1, tirx.vscale() * 4), tvm.tirx.Broadcast(4, tirx.vscale() * 4)
+            ),
         ),
         TestCase(
             fld(tvm.tirx.Ramp(x * 8, 3, 4), tvm.tirx.Broadcast(4, 4)),
@@ -361,8 +370,12 @@ class TestCancellation(BaseCompare):
         TestCase(tirx.EQ(var_uint8, var_uint8), tirx.const(True, "bool")),
         TestCase(tirx.EQ(var_uint32, var_uint32), tirx.const(True, "bool")),
         TestCase(tirx.EQ(var_uint64, var_uint64), tirx.const(True, "bool")),
-        TestCase(tirx.NE(tirx.const(5, "int64"), tirx.const(5, "int64")), tirx.const(False, "bool")),
-        TestCase(tirx.NE(tirx.const(5, "uint8"), tirx.const(5, "uint8")), tirx.const(False, "bool")),
+        TestCase(
+            tirx.NE(tirx.const(5, "int64"), tirx.const(5, "int64")), tirx.const(False, "bool")
+        ),
+        TestCase(
+            tirx.NE(tirx.const(5, "uint8"), tirx.const(5, "uint8")), tirx.const(False, "bool")
+        ),
         TestCase(tirx.NE(var_int8, var_int8), tirx.const(False, "bool")),
         TestCase(tirx.NE(var_int32, var_int32), tirx.const(False, "bool")),
         TestCase(tirx.NE(var_int64, var_int64), tirx.const(False, "bool")),
@@ -757,7 +770,8 @@ class TestMinIndex(BaseCompare):
         TestCase(tvm.tirx.min(x, tvm.tirx.min(x, y)), tvm.tirx.min(x, y)),
         TestCase(tvm.tirx.min(y, tvm.tirx.min(x, y)), tvm.tirx.min(x, y)),
         TestCase(
-            tvm.tirx.min(tvm.tirx.min(tvm.tirx.min(x, y), z), y), tvm.tirx.min(tvm.tirx.min(x, y), z)
+            tvm.tirx.min(tvm.tirx.min(tvm.tirx.min(x, y), z), y),
+            tvm.tirx.min(tvm.tirx.min(x, y), z),
         ),
         TestCase(
             tvm.tirx.min(tvm.tirx.min(tvm.tirx.min(tvm.tirx.min(x, y), z), x * 2), y),
@@ -770,16 +784,20 @@ class TestMinIndex(BaseCompare):
             tvm.tirx.min(tvm.tirx.min(tvm.tirx.min(tvm.tirx.min(x, y), z), x * 2), z * 2),
         ),
         TestCase(
-            tvm.tirx.min(tvm.tirx.max(x, y), tvm.tirx.max(x, z)), tvm.tirx.max(tvm.tirx.min(y, z), x)
+            tvm.tirx.min(tvm.tirx.max(x, y), tvm.tirx.max(x, z)),
+            tvm.tirx.max(tvm.tirx.min(y, z), x),
         ),
         TestCase(
-            tvm.tirx.min(tvm.tirx.max(x, y), tvm.tirx.max(z, x)), tvm.tirx.max(tvm.tirx.min(y, z), x)
+            tvm.tirx.min(tvm.tirx.max(x, y), tvm.tirx.max(z, x)),
+            tvm.tirx.max(tvm.tirx.min(y, z), x),
         ),
         TestCase(
-            tvm.tirx.min(tvm.tirx.max(y, x), tvm.tirx.max(x, z)), tvm.tirx.max(tvm.tirx.min(y, z), x)
+            tvm.tirx.min(tvm.tirx.max(y, x), tvm.tirx.max(x, z)),
+            tvm.tirx.max(tvm.tirx.min(y, z), x),
         ),
         TestCase(
-            tvm.tirx.min(tvm.tirx.max(y, x), tvm.tirx.max(z, x)), tvm.tirx.max(tvm.tirx.min(y, z), x)
+            tvm.tirx.min(tvm.tirx.max(y, x), tvm.tirx.max(z, x)),
+            tvm.tirx.max(tvm.tirx.min(y, z), x),
         ),
         TestCase(tvm.tirx.min(y + x, z + x), tvm.tirx.min(y, z) + x),
         TestCase(tvm.tirx.min(y + x, x + z), tvm.tirx.min(y, z) + x),
@@ -840,7 +858,8 @@ class TestMaxIndex(BaseCompare):
         TestCase(tvm.tirx.max(x, tvm.tirx.max(x, y)), tvm.tirx.max(x, y)),
         TestCase(tvm.tirx.max(y, tvm.tirx.max(x, y)), tvm.tirx.max(x, y)),
         TestCase(
-            tvm.tirx.max(tvm.tirx.max(tvm.tirx.max(x, y), z), y), tvm.tirx.max(tvm.tirx.max(x, y), z)
+            tvm.tirx.max(tvm.tirx.max(tvm.tirx.max(x, y), z), y),
+            tvm.tirx.max(tvm.tirx.max(x, y), z),
         ),
         TestCase(
             tvm.tirx.max(tvm.tirx.max(tvm.tirx.max(tvm.tirx.max(x, y), z), x * 2), y),
@@ -853,16 +872,20 @@ class TestMaxIndex(BaseCompare):
             tvm.tirx.max(tvm.tirx.max(tvm.tirx.max(tvm.tirx.max(x, y), z), x * 2), z * 2),
         ),
         TestCase(
-            tvm.tirx.max(tvm.tirx.min(x, y), tvm.tirx.min(x, z)), tvm.tirx.min(tvm.tirx.max(y, z), x)
+            tvm.tirx.max(tvm.tirx.min(x, y), tvm.tirx.min(x, z)),
+            tvm.tirx.min(tvm.tirx.max(y, z), x),
         ),
         TestCase(
-            tvm.tirx.max(tvm.tirx.min(x, y), tvm.tirx.min(z, x)), tvm.tirx.min(tvm.tirx.max(y, z), x)
+            tvm.tirx.max(tvm.tirx.min(x, y), tvm.tirx.min(z, x)),
+            tvm.tirx.min(tvm.tirx.max(y, z), x),
         ),
         TestCase(
-            tvm.tirx.max(tvm.tirx.min(y, x), tvm.tirx.min(x, z)), tvm.tirx.min(tvm.tirx.max(y, z), x)
+            tvm.tirx.max(tvm.tirx.min(y, x), tvm.tirx.min(x, z)),
+            tvm.tirx.min(tvm.tirx.max(y, z), x),
         ),
         TestCase(
-            tvm.tirx.max(tvm.tirx.min(y, x), tvm.tirx.min(z, x)), tvm.tirx.min(tvm.tirx.max(y, z), x)
+            tvm.tirx.max(tvm.tirx.min(y, x), tvm.tirx.min(z, x)),
+            tvm.tirx.min(tvm.tirx.max(y, z), x),
         ),
         TestCase(tvm.tirx.max(y + x, z + x), tvm.tirx.max(y, z) + x),
         TestCase(tvm.tirx.max(y + x, x + z), tvm.tirx.max(y, z) + x),
@@ -1215,7 +1238,8 @@ class TestCast(BaseCompare):
                 for i in [0, 1, 2, 3]:
                     if i <= 1 or (dtype1 != "bool" and dtype2 != "bool"):
                         yield TestCase(
-                            tvm.tirx.Cast(dtype1, tvm.tirx.const(i, dtype2)), tvm.tirx.const(i, dtype1)
+                            tvm.tirx.Cast(dtype1, tvm.tirx.const(i, dtype2)),
+                            tvm.tirx.const(i, dtype1),
                         )
 
     test_case = tvm.testing.parameter(*_generate_tests())
@@ -1270,9 +1294,15 @@ class TestCLZ(BaseCompare):
         TestCase(tvm.tirx.call_intrin("int32", "tirx.clz", 1), T.int32(31)),
         TestCase(tvm.tirx.call_intrin("int32", "tirx.clz", 2), T.int32(30)),
         TestCase(tvm.tirx.call_intrin("int32", "tirx.clz", 128), T.int32(24)),
-        TestCase(tvm.tirx.call_intrin("int32", "tirx.clz", tvm.tirx.IntImm("int64", 0)), T.int32(64)),
-        TestCase(tvm.tirx.call_intrin("int32", "tirx.clz", tvm.tirx.IntImm("int64", 1)), T.int32(63)),
-        TestCase(tvm.tirx.call_intrin("int32", "tirx.clz", tvm.tirx.IntImm("int64", 2)), T.int32(62)),
+        TestCase(
+            tvm.tirx.call_intrin("int32", "tirx.clz", tvm.tirx.IntImm("int64", 0)), T.int32(64)
+        ),
+        TestCase(
+            tvm.tirx.call_intrin("int32", "tirx.clz", tvm.tirx.IntImm("int64", 1)), T.int32(63)
+        ),
+        TestCase(
+            tvm.tirx.call_intrin("int32", "tirx.clz", tvm.tirx.IntImm("int64", 2)), T.int32(62)
+        ),
         TestCase(
             tvm.tirx.call_intrin("int32", "tirx.clz", tvm.tirx.IntImm("int64", 128)), T.int32(56)
         ),

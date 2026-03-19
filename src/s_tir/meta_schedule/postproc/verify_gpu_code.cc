@@ -185,7 +185,7 @@ class VerifyGPUCodeNode : public PostprocNode {
           // Convert Function to IRModule
           tvm::transform::PassContext pass_ctx = tvm::transform::PassContext::Current();
           tirx::PrimFunc f = WithAttr(ffi::GetRef<tirx::PrimFunc>(prim_func), "global_symbol",
-                                     ffi::String(g_var->name_hint));
+                                      ffi::String(g_var->name_hint));
           f = WithAttr(f, tvm::attr::kTarget, this->target_);  // Required for LowerIntrin
           bool noalias = pass_ctx->GetConfig<bool>("tirx.noalias", true).value();
           if (noalias) {

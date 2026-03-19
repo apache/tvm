@@ -2059,7 +2059,8 @@ class Expand(OnnxOpConverter):
                                 f"at possition {i}. Target dimensions must be >= 1."
                             )
                     elif (
-                        isinstance(data_shape[i], tvm.tirx.IntImm) and s.value == data_shape[i].value
+                        isinstance(data_shape[i], tvm.tirx.IntImm)
+                        and s.value == data_shape[i].value
                     ):
                         # Dimensions match, no change needed
                         pass

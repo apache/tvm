@@ -496,7 +496,8 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
     std::string rhs = SSAGetID(ss.str(), op->dtype.with_lanes(data_lanes));
     if (auto ramp = op->args.back().as<RampNode>()) {
       if (ramp->base.as<IntImmNode>() && *tirx::as_const_int(ramp->base) == 0 &&
-          *tirx::as_const_int(ramp->lanes) == data_lanes && *tirx::as_const_int(ramp->stride) == 1) {
+          *tirx::as_const_int(ramp->lanes) == data_lanes &&
+          *tirx::as_const_int(ramp->stride) == 1) {
         os << rhs;
       } else if (*tirx::as_const_int(ramp->stride) == 1) {
         os << "(*(";

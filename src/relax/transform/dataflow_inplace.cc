@@ -694,7 +694,7 @@ FindInplaceOpportunities(const DataflowBlock& block, const ffi::Array<Var>& inpu
 
 // Replace buffers in a PrimFunc according to the mapping.
 tirx::Stmt RemapBuffers(const tirx::Stmt& stmt,
-                       const ffi::Map<tirx::Buffer, tirx::Buffer>& buffer_map) {
+                        const ffi::Map<tirx::Buffer, tirx::Buffer>& buffer_map) {
   class BufferMapper : public tirx::StmtExprMutator {
    public:
     explicit BufferMapper(const ffi::Map<tirx::Buffer, tirx::Buffer>& buffer_map)
@@ -923,10 +923,10 @@ class ModuleInplaceTransformer : public ExprMutator {
     // now get rid of the last num_outputs arguments
     // (couldn't do earlier or else it would have thrown off the indexing)
     ffi::Array<tirx::Var> new_params(old_primfunc->params.begin(),
-                                    old_primfunc->params.begin() + (num_params - num_outs));
+                                     old_primfunc->params.begin() + (num_params - num_outs));
 
     tirx::PrimFunc new_primfunc(new_params, new_body, old_primfunc->ret_type, new_buffer_map,
-                               old_primfunc->attrs, old_primfunc->span);
+                                old_primfunc->attrs, old_primfunc->span);
 
     // note: this might be a good time to get rid of the old legalized function, but we don't do it
     // now because later ops might need the same one. Instead, we will clean up at the end

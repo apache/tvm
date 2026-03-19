@@ -146,18 +146,21 @@ TVM_REGISTER_OP("tirx.fabs")
     .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
                                DispatchLLVMPureIntrin<::llvm::Intrinsic::fabs, 1>);
 
-TVM_REGISTER_OP("tirx.exp").set_attr<FLowerIntrinsic>(
-    "rocm.FLowerIntrinsic", DispatchLLVMPureIntrin<::llvm::Intrinsic::exp, 1>);
+TVM_REGISTER_OP("tirx.exp")
+    .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
+                               DispatchLLVMPureIntrin<::llvm::Intrinsic::exp, 1>);
 
 TVM_REGISTER_OP("tirx.exp2")
     .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
                                DispatchLLVMPureIntrin<::llvm::Intrinsic::exp2, 1>);
 
-TVM_REGISTER_OP("tirx.fma").set_attr<FLowerIntrinsic>(
-    "rocm.FLowerIntrinsic", DispatchLLVMPureIntrin<::llvm::Intrinsic::fmuladd, 3>);
+TVM_REGISTER_OP("tirx.fma")
+    .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
+                               DispatchLLVMPureIntrin<::llvm::Intrinsic::fmuladd, 3>);
 
-TVM_REGISTER_OP("tirx.log").set_attr<FLowerIntrinsic>(
-    "rocm.FLowerIntrinsic", DispatchLLVMPureIntrin<::llvm::Intrinsic::log, 1>);
+TVM_REGISTER_OP("tirx.log")
+    .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
+                               DispatchLLVMPureIntrin<::llvm::Intrinsic::log, 1>);
 
 TVM_REGISTER_OP("tirx.log2")
     .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
@@ -171,21 +174,24 @@ TVM_REGISTER_OP("tirx.sqrt")
     .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
                                DispatchLLVMPureIntrin<::llvm::Intrinsic::sqrt, 1>);
 
-TVM_REGISTER_OP("tirx.pow").set_attr<FLowerIntrinsic>(
-    "rocm.FLowerIntrinsic", DispatchLLVMPureIntrin<::llvm::Intrinsic::pow, 2>);
+TVM_REGISTER_OP("tirx.pow")
+    .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
+                               DispatchLLVMPureIntrin<::llvm::Intrinsic::pow, 2>);
 
-TVM_REGISTER_OP("tirx.cos").set_attr<FLowerIntrinsic>(
-    "rocm.FLowerIntrinsic", DispatchLLVMPureIntrin<::llvm::Intrinsic::cos, 1>);
+TVM_REGISTER_OP("tirx.cos")
+    .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
+                               DispatchLLVMPureIntrin<::llvm::Intrinsic::cos, 1>);
 
-TVM_REGISTER_OP("tirx.sin").set_attr<FLowerIntrinsic>(
-    "rocm.FLowerIntrinsic", DispatchLLVMPureIntrin<::llvm::Intrinsic::sin, 1>);
+TVM_REGISTER_OP("tirx.sin")
+    .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
+                               DispatchLLVMPureIntrin<::llvm::Intrinsic::sin, 1>);
 
 TVM_REGISTER_OP("tirx.tanh")
     .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
                                ::tvm::codegen::intrin::DispatchNumericalStableTanh);
 
-TVM_REGISTER_OP("tirx.erf").set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
-                                                     ::tvm::codegen::intrin::DispatchFastErf);
+TVM_REGISTER_OP("tirx.erf")
+    .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", ::tvm::codegen::intrin::DispatchFastErf);
 
 // TVM_REGISTER_OP("tirx.tan").set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
 //                                                      DispatchPureExternOCML);

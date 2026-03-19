@@ -32,14 +32,14 @@ namespace codegen {
 namespace intrin {
 using tirx::FLowerIntrinsic;
 
-TVM_REGISTER_OP("tirx.exp").set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
-                                                     DispatchPureExtern<FloatSuffix>);
+TVM_REGISTER_OP("tirx.exp")
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_OP("tirx.erf").set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
-                                                     DispatchPureExtern<FloatSuffix>);
+TVM_REGISTER_OP("tirx.erf")
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_OP("tirx.log").set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
-                                                     DispatchPureExtern<FloatSuffix>);
+TVM_REGISTER_OP("tirx.log")
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
 TVM_REGISTER_OP("tirx.log2")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
@@ -53,8 +53,8 @@ TVM_REGISTER_OP("tirx.log1p")
 TVM_REGISTER_OP("tirx.tanh")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_OP("tirx.tan").set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
-                                                     DispatchPureExtern<FloatSuffix>);
+TVM_REGISTER_OP("tirx.tan")
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
 TVM_REGISTER_OP("tirx.trunc")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
@@ -68,8 +68,8 @@ TVM_REGISTER_OP("tirx.atanh")
 TVM_REGISTER_OP("tirx.atan2")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_OP("tirx.cos").set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
-                                                     DispatchPureExtern<FloatSuffix>);
+TVM_REGISTER_OP("tirx.cos")
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
 TVM_REGISTER_OP("tirx.acos")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
@@ -80,8 +80,8 @@ TVM_REGISTER_OP("tirx.cosh")
 TVM_REGISTER_OP("tirx.acosh")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_OP("tirx.sin").set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
-                                                     DispatchPureExtern<FloatSuffix>);
+TVM_REGISTER_OP("tirx.sin")
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
 TVM_REGISTER_OP("tirx.asin")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
@@ -119,8 +119,8 @@ TVM_REGISTER_OP("tirx.round")
 TVM_REGISTER_OP("tirx.nearbyint")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_OP("tirx.pow").set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
-                                                     DispatchPureExtern<FloatSuffix>);
+TVM_REGISTER_OP("tirx.pow")
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
 TVM_REGISTER_OP("tirx.tvm_access_ptr")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", [](const PrimExpr& e) -> PrimExpr {

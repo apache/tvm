@@ -69,26 +69,26 @@ inline tvm::te::Tensor broadcast_to(const tvm::te::Tensor& t,
   return tvm::te::compute(oshape, l, name, tag);
 }
 
-#define TOPI_DEFINE_BCAST_OP(Name, ComputeRule)                                                  \
-  inline tvm::PrimExpr Name(const tvm::PrimExpr& a, const tvm::PrimExpr& b) { ComputeRule; }     \
-  inline tvm::te::Tensor Name(const tvm::te::Tensor& A, const tvm::te::Tensor& B,                \
-                              std::string name = "T_" #Name, std::string tag = kBroadcast) {     \
-    auto l = [](tvm::PrimExpr a, tvm::PrimExpr b) { ComputeRule; };                              \
-    return detail::WithBroadcast(l, A, B, name, tag);                                            \
-  }                                                                                              \
-  inline tvm::te::Tensor Name(const tvm::te::Tensor& A, const tvm::PrimExpr& B,                  \
-                              std::string name = "T_" #Name, std::string tag = kElementWise) {   \
-    auto l = [](tvm::PrimExpr a, tvm::PrimExpr b) { ComputeRule; };                              \
-    return tvm::te::compute(                                                                     \
+#define TOPI_DEFINE_BCAST_OP(Name, ComputeRule)                                                   \
+  inline tvm::PrimExpr Name(const tvm::PrimExpr& a, const tvm::PrimExpr& b) { ComputeRule; }      \
+  inline tvm::te::Tensor Name(const tvm::te::Tensor& A, const tvm::te::Tensor& B,                 \
+                              std::string name = "T_" #Name, std::string tag = kBroadcast) {      \
+    auto l = [](tvm::PrimExpr a, tvm::PrimExpr b) { ComputeRule; };                               \
+    return detail::WithBroadcast(l, A, B, name, tag);                                             \
+  }                                                                                               \
+  inline tvm::te::Tensor Name(const tvm::te::Tensor& A, const tvm::PrimExpr& B,                   \
+                              std::string name = "T_" #Name, std::string tag = kElementWise) {    \
+    auto l = [](tvm::PrimExpr a, tvm::PrimExpr b) { ComputeRule; };                               \
+    return tvm::te::compute(                                                                      \
         A->shape, [&](const ::tvm::ffi::Array<::tvm::tirx::Var>& i) { return l(A(i), B); }, name, \
-        tag);                                                                                    \
-  }                                                                                              \
-  inline tvm::te::Tensor Name(const tvm::PrimExpr& A, const tvm::te::Tensor& B,                  \
-                              std::string name = "T_" #Name, std::string tag = kElementWise) {   \
-    auto l = [&](tvm::PrimExpr a, tvm::PrimExpr b) { ComputeRule; };                             \
-    return tvm::te::compute(                                                                     \
+        tag);                                                                                     \
+  }                                                                                               \
+  inline tvm::te::Tensor Name(const tvm::PrimExpr& A, const tvm::te::Tensor& B,                   \
+                              std::string name = "T_" #Name, std::string tag = kElementWise) {    \
+    auto l = [&](tvm::PrimExpr a, tvm::PrimExpr b) { ComputeRule; };                              \
+    return tvm::te::compute(                                                                      \
         B->shape, [&](const ::tvm::ffi::Array<::tvm::tirx::Var>& i) { return l(A, B(i)); }, name, \
-        tag);                                                                                    \
+        tag);                                                                                     \
   }
 
 #define TOPI_DEFINE_OP_OVERLOAD(Name, OpName)                                       \

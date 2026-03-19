@@ -123,7 +123,7 @@ PrimExpr LargeUIntImm(DataType t, int64_t low, int64_t high, Span span) {
 // Q-multiplication
 PrimExpr q_multiply_shift(PrimExpr x, PrimExpr y, PrimExpr q, PrimExpr s, Span span) {
   return tirx::Call(DataType::Int(32, x.dtype().lanes()), tirx::builtin::q_multiply_shift(),
-                   {x, y, q, s}, span);
+                    {x, y, q, s}, span);
 }
 
 void BroadcastToMatchLanes(PrimExpr& op_a, PrimExpr& op_b) {  // NOLINT(*)
@@ -483,7 +483,7 @@ PrimExpr cast(const DataType& t, PrimExpr value, Span span) {
         if (t.is_int() || t.is_uint()) {
           // only cast to index data type can be folded to ramp
           return tirx::Ramp(cast(vtype, ramp->base, span), cast(vtype, ramp->stride, span),
-                           ramp->lanes, span);
+                            ramp->lanes, span);
         }
       }
       return tirx::Cast(t, value, span);
@@ -642,7 +642,7 @@ PrimExpr if_then_else(PrimExpr cond, PrimExpr true_value, PrimExpr false_value, 
   }
 
   return tirx::Call(true_value.dtype(), tirx::builtin::if_then_else(),
-                   {cond, true_value, false_value}, span);
+                    {cond, true_value, false_value}, span);
 }
 
 // likely
@@ -1193,7 +1193,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   def("tirx." #Node, [](PrimExpr a, PrimExpr b, Span span) { return (Func(a, b, span)); })
 
 #define DEF_MAKE_BIT_OP(Node, Func)                                                            \
-  def_packed("tirx." #Node, [](ffi::PackedArgs args, ffi::Any* ret) {                           \
+  def_packed("tirx." #Node, [](ffi::PackedArgs args, ffi::Any* ret) {                          \
     bool lhs_is_int = args[0].type_index() == ffi::TypeIndex::kTVMFFIInt;                      \
     bool rhs_is_int = args[1].type_index() == ffi::TypeIndex::kTVMFFIInt;                      \
     if (lhs_is_int) {                                                                          \

@@ -669,7 +669,7 @@ inline Tensor nll_loss(const Tensor& predictions, const Tensor& targets, const T
         [&](const tvm::ffi::Array<tvm::tirx::Var>& target_indices) {
           auto c = targets();
           return tvm::tirx::Select(c != ignore_index, -predictions(c) * weights(c),
-                                  tvm::tirx::make_const(predictions->dtype, 0));
+                                   tvm::tirx::make_const(predictions->dtype, 0));
         },
         name, tag);
     if (reduction == "mean") {
@@ -678,7 +678,7 @@ inline Tensor nll_loss(const Tensor& predictions, const Tensor& targets, const T
           [&](const tvm::ffi::Array<tvm::tirx::Var>& target_indices) {
             auto c = targets();
             return tvm::tirx::Select(c != ignore_index, weights(c),
-                                    tvm::tirx::make_const(predictions->dtype, 0));
+                                     tvm::tirx::make_const(predictions->dtype, 0));
           },
           name, tag);
       return topi::divide(T, W);
@@ -697,7 +697,7 @@ inline Tensor nll_loss(const Tensor& predictions, const Tensor& targets, const T
           pred_indices.push_back(target_indices[i]);  // indices for multidimensional loss
         }
         return tvm::tirx::Select(c != ignore_index, -predictions(pred_indices) * weights(c),
-                                tvm::tirx::make_const(predictions->dtype, 0));
+                                 tvm::tirx::make_const(predictions->dtype, 0));
       },
       name, tag);
   TVM_FFI_ICHECK(T->shape.size() != 0);
@@ -707,7 +707,7 @@ inline Tensor nll_loss(const Tensor& predictions, const Tensor& targets, const T
         [&](const tvm::ffi::Array<tvm::tirx::Var>& target_indices) {
           auto c = targets(target_indices);
           return tvm::tirx::Select(c != ignore_index, weights(c),
-                                  tvm::tirx::make_const(predictions->dtype, 0));
+                                   tvm::tirx::make_const(predictions->dtype, 0));
         },
         name, tag);
     return topi::divide(topi::sum(T, tvm::ffi::Array<Integer>(nullptr)),

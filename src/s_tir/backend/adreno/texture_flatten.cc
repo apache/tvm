@@ -146,8 +146,8 @@ class TextureFlattener : public TextureLoweringBase {
     PrimExpr row_offset = SimplifyOffset(row_dims, row_indices);
     PrimExpr col_offset = SimplifyOffset(col_dims, col_indices);
     PrimExpr depth_offset = SimplifyOffset(depth_dims, depth_indices);
-    PrimExpr channel_size = IntImm(DataType::Int(32, 1),
-                                   *tirx::as_const_int(buffer->shape.back()) * buffer->dtype.bits());
+    PrimExpr channel_size = IntImm(
+        DataType::Int(32, 1), *tirx::as_const_int(buffer->shape.back()) * buffer->dtype.bits());
     args.push_back(row_offset);
     args.push_back(col_offset);
     args.push_back(depth_offset);
@@ -174,7 +174,7 @@ Pass TextureFlatten() {
     return TextureFlattenHandler(std::move(f));
   };
   return tirx::transform::CreatePrimFuncPass(pass_func, 0, "s_tir.backend.adreno.TextureFlatten",
-                                            {});
+                                             {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

@@ -532,7 +532,7 @@ class FusedTIRConstructor : public ExprVisitor {
    * \return The fused TIR PrimFunc and the in-place indices (non-empty for an in-place call)
    */
   static std::pair<tirx::PrimFunc, ffi::Array<Integer>> GetFusedTIR(const IRModule& mod,
-                                                                   const GlobalVar& gv) {
+                                                                    const GlobalVar& gv) {
     FusedTIRConstructor visitor(mod, gv->name_hint);
     BaseFunc f = mod->Lookup(gv);
     TVM_FFI_ICHECK(f->IsInstance<relax::FunctionNode>())
@@ -635,7 +635,8 @@ class FusedTIRConstructor : public ExprVisitor {
         continue;
       }
 
-      tirx::Var param = tirx::Var("p_output" + std::to_string(out_idx), PrimType(DataType::Handle()));
+      tirx::Var param =
+          tirx::Var("p_output" + std::to_string(out_idx), PrimType(DataType::Handle()));
       out_idx++;
       func_info_.buffer_map.Set(param, buffers[i]);
       func_info_.params.push_back(param);
@@ -846,7 +847,7 @@ class FusedTIRConstructor : public ExprVisitor {
   }
 
   static ffi::Array<tirx::Var> GetPrimFuncOutputParams(const tirx::PrimFunc& func,
-                                                      const ffi::Array<Integer>& output_indices) {
+                                                       const ffi::Array<Integer>& output_indices) {
     size_t n = func->params.size();
     int symbolic_var_index = -1;
     size_t output_size = output_indices.size();
@@ -971,9 +972,9 @@ class FusedTIRConstructor : public ExprVisitor {
       DataType dtype = tensor->dtype;
       tirx::Buffer buffer;
       if (tir_buffer_param.defined()) {
-        buffer =
-            tirx::decl_buffer(shape_expr->values, dtype, name_hint, tir_buffer_param.value().scope(),
-                             tir_buffer_param.value()->axis_separators);
+        buffer = tirx::decl_buffer(shape_expr->values, dtype, name_hint,
+                                   tir_buffer_param.value().scope(),
+                                   tir_buffer_param.value()->axis_separators);
       } else {
         buffer = tirx::decl_buffer(shape_expr->values, dtype, name_hint);
       }
@@ -1004,7 +1005,8 @@ class FusedTIRConstructor : public ExprVisitor {
   tirx::PrimFunc ConstructFunc() {
     ffi::Map<ffi::String, Any> attr_map;
     attr_map.Set(tirx::attr::kNoAlias, true);
-    tirx::FuseTIRBufferSubstitutor subst(func_info_.buffer_subst_map, func_info_.symbolic_var_remap);
+    tirx::FuseTIRBufferSubstitutor subst(func_info_.buffer_subst_map,
+                                         func_info_.symbolic_var_remap);
     TVM_FFI_ICHECK(func_info_.global_name != "fused");
     // Remove output buffers from func_info_.alloc_buffers
     ffi::Array<tirx::Buffer> alloc_buffers;
@@ -1019,7 +1021,7 @@ class FusedTIRConstructor : public ExprVisitor {
     body = tirx::SBlock({}, {}, {}, "root", std::move(body), std::nullopt, alloc_buffers);
     body = tirx::SBlockRealize({}, Bool(true), Downcast<tirx::SBlock>(body));
     tirx::PrimFunc func(func_info_.params, body, VoidType(), func_info_.buffer_map,
-                       DictAttrs(attr_map));
+                        DictAttrs(attr_map));
     // Renew function defs to prevent using the same symbolic vars in different functions
     return s_tir::RenewDefs(func);
   }

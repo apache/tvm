@@ -3461,7 +3461,9 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
         if where is None:
             where = tirx.convert(True)
         if init is None:
-            outputs = tuple(tvm.tirx.Reduce(combiner, expr, axis, where, i, []) for i in range(size))
+            outputs = tuple(
+                tvm.tirx.Reduce(combiner, expr, axis, where, i, []) for i in range(size)
+            )
         else:
             outputs = tuple(
                 tvm.tirx.Reduce(combiner, expr, axis, where, i, init) for i in range(size)

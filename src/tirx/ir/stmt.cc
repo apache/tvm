@@ -120,7 +120,7 @@ AssertStmt::AssertStmt(PrimExpr condition, StringImm error_kind,
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tirx.AssertStmt", [](PrimExpr condition, StringImm error_kind,
-                                             ffi::Array<StringImm> message_parts, Span span) {
+                                              ffi::Array<StringImm> message_parts, Span span) {
     return AssertStmt(condition, error_kind, message_parts, span);
   });
 }
@@ -190,9 +190,9 @@ bool ForNode::HasTrivialStep() const { return !step.has_value() || is_one(*step)
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tirx.For", [](Var loop_var, PrimExpr min, PrimExpr extent, int kind,
-                                      Stmt body, ffi::Optional<IterVar> thread_binding,
-                                      ffi::Optional<ffi::Map<ffi::String, Any>> annotations,
-                                      ffi::Optional<PrimExpr> step, Span span) {
+                                       Stmt body, ffi::Optional<IterVar> thread_binding,
+                                       ffi::Optional<ffi::Map<ffi::String, Any>> annotations,
+                                       ffi::Optional<PrimExpr> step, Span span) {
     return For(loop_var, min, extent, static_cast<ForKind>(kind), body, thread_binding,
                annotations.value_or(ffi::Map<ffi::String, Any>()), step, span);
   });
@@ -300,8 +300,9 @@ SeqStmt::SeqStmt(ffi::Array<Stmt> seq, Span span) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def(
-      "tirx.SeqStmt", [](ffi::Array<Stmt> seq, Span span) { return SeqStmt(std::move(seq), span); });
+  refl::GlobalDef().def("tirx.SeqStmt", [](ffi::Array<Stmt> seq, Span span) {
+    return SeqStmt(std::move(seq), span);
+  });
 }
 
 // IfThenElse
@@ -592,7 +593,7 @@ SBlockRealize::SBlockRealize(ffi::Array<PrimExpr> values, PrimExpr predicate, SB
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tirx.SBlockRealize", [](ffi::Array<PrimExpr> iter_values,
-                                                PrimExpr predicate, SBlock block, Span span) {
+                                                 PrimExpr predicate, SBlock block, Span span) {
     return SBlockRealize(iter_values, predicate, block, span);
   });
 }

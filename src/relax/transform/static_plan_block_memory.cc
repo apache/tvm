@@ -1047,7 +1047,8 @@ PrimExpr GetTextureMemorySizeFromVDevice(ffi::Array<PrimExpr> pshape, DataType d
   struct Shape {
     const ffi::Array<PrimExpr>& shape;
     int64_t operator[](size_t i) const {
-      TVM_FFI_ICHECK(tirx::as_const_int(shape[i])) << "Dymamic shapes not suported over texture now";
+      TVM_FFI_ICHECK(tirx::as_const_int(shape[i]))
+          << "Dymamic shapes not suported over texture now";
       return *tirx::as_const_int(shape[i]);
     }
     int size() { return this->shape.size(); }

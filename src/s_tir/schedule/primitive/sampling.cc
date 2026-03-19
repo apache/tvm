@@ -419,8 +419,8 @@ std::vector<int64_t> SamplePartitionedTile(
 }
 
 tirx::StmtSRef SampleComputeLocation(s_tir::ScheduleState self,
-                                    support::LinearCongruentialEngine::TRandState* rand_state,
-                                    const StmtSRef& block_sref, ffi::Optional<Integer>* decision) {
+                                     support::LinearCongruentialEngine::TRandState* rand_state,
+                                     const StmtSRef& block_sref, ffi::Optional<Integer>* decision) {
   // Step 1. Collect all possible compute-at locations.
   auto [location_srefs, location_indices] = CollectComputeLocation(self, block_sref);
   TVM_FFI_ICHECK_EQ(location_srefs.size(), location_indices.size());

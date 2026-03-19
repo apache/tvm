@@ -189,10 +189,10 @@ TEST(ScalableDataType, TestScalableIntrinCall) {
   tvm::tirx::Call call =
       tvm::tirx::Call(scalable_type, tvm::tirx::builtin::call_llvm_intrin(),
 #if TVM_LLVM_VERSION >= 200
-                     {tvm::IntImm(tvm::DataType::Int(32), ::llvm::Intrinsic::stepvector)});
+                      {tvm::IntImm(tvm::DataType::Int(32), ::llvm::Intrinsic::stepvector)});
 #else
-                     {tvm::IntImm(tvm::DataType::Int(32),
-                                  ::llvm::Intrinsic::experimental_stepvector)});
+                      {tvm::IntImm(tvm::DataType::Int(32),
+                                   ::llvm::Intrinsic::experimental_stepvector)});
 #endif
   ASSERT_EQ(call->dtype, scalable_type);
   ASSERT_EQ(call->Script(),

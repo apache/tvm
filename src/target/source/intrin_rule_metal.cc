@@ -52,8 +52,8 @@ static PrimExpr DispatchMetalShuffle(const PrimExpr& e) {
   return Call(call->dtype, T()(call->dtype, Downcast<Op>(call->op)), metal_args);
 }
 
-TVM_REGISTER_OP("tirx.clz").set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic",
-                                                     DispatchPureExtern<Direct>);
+TVM_REGISTER_OP("tirx.clz")
+    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tirx.floor")
     .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
@@ -73,8 +73,8 @@ TVM_REGISTER_OP("tirx.round")
 TVM_REGISTER_OP("tirx.nearbyint")
     .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tirx.exp").set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic",
-                                                     DispatchPureExtern<Direct>);
+TVM_REGISTER_OP("tirx.exp")
+    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tirx.exp2")
     .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
@@ -82,8 +82,8 @@ TVM_REGISTER_OP("tirx.exp2")
 TVM_REGISTER_OP("tirx.exp10")
     .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tirx.log").set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic",
-                                                     DispatchPureExtern<Direct>);
+TVM_REGISTER_OP("tirx.log")
+    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tirx.log2")
     .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
@@ -97,8 +97,8 @@ TVM_REGISTER_OP("tirx.tanh")
 TVM_REGISTER_OP("tirx.sqrt")
     .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tirx.pow").set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic",
-                                                     DispatchPureExtern<Direct>);
+TVM_REGISTER_OP("tirx.pow")
+    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tirx.popcount")
     .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
@@ -106,14 +106,14 @@ TVM_REGISTER_OP("tirx.popcount")
 TVM_REGISTER_OP("tirx.fmod")
     .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tirx.sin").set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic",
-                                                     DispatchPureExtern<Direct>);
+TVM_REGISTER_OP("tirx.sin")
+    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tirx.sinh")
     .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tirx.cos").set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic",
-                                                     DispatchPureExtern<Direct>);
+TVM_REGISTER_OP("tirx.cos")
+    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tirx.cosh")
     .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);

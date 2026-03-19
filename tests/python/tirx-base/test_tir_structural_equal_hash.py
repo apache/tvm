@@ -352,7 +352,9 @@ def test_seq_mismatch_different_lengths():
             tvm.tirx.Evaluate(x + 3),
         ]
     )
-    seq_1 = tvm.tirx.SeqStmt([tvm.tirx.Evaluate(x), tvm.tirx.Evaluate(x + 1), tvm.tirx.Evaluate(x + 3)])
+    seq_1 = tvm.tirx.SeqStmt(
+        [tvm.tirx.Evaluate(x), tvm.tirx.Evaluate(x + 1), tvm.tirx.Evaluate(x + 3)]
+    )
     lhs_path, rhs_path = get_sequal_mismatch(seq_0, seq_1)
     expected_path = (
         AccessPath.root().attr("seq").array_item(2).attr("value").attr("b").attr("value")
@@ -371,7 +373,9 @@ def test_seq_length_mismatch():
             tvm.tirx.Evaluate(x + 3),
         ]
     )
-    seq_1 = tvm.tirx.SeqStmt([tvm.tirx.Evaluate(x), tvm.tirx.Evaluate(x + 1), tvm.tirx.Evaluate(x + 2)])
+    seq_1 = tvm.tirx.SeqStmt(
+        [tvm.tirx.Evaluate(x), tvm.tirx.Evaluate(x + 1), tvm.tirx.Evaluate(x + 2)]
+    )
     lhs_path, rhs_path = get_sequal_mismatch(seq_0, seq_1)
     expected_lhs_path = AccessPath.root().attr("seq").array_item(3)
     expected_rhs_path = AccessPath.root().attr("seq").array_item_missing(3)

@@ -616,8 +616,8 @@ Buffer::Buffer(Var data, DataType dtype, ffi::Array<PrimExpr> shape, ffi::Array<
 }
 
 tirx::Buffer BufferWithOffsetAlignment(ffi::Array<PrimExpr> shape, DataType dtype, std::string name,
-                                      int data_alignment, int offset_factor, bool compact,
-                                      std::string memory_scope) {
+                                       int data_alignment, int offset_factor, bool compact,
+                                       std::string memory_scope) {
   DataType storage_dtype = (dtype == DataType::Bool() ? DataType::Int(8) : dtype);
   auto data = tirx::Var(name, PointerType(PrimType(storage_dtype), memory_scope));
   bool has_any = false;
@@ -639,7 +639,7 @@ tirx::Buffer BufferWithOffsetAlignment(ffi::Array<PrimExpr> shape, DataType dtyp
   }
 
   return tirx::Buffer(data, dtype, shape, ffi::Array<PrimExpr>(), elem_offset, name, data_alignment,
-                     offset_factor, buffer_type);
+                      offset_factor, buffer_type);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

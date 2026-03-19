@@ -477,7 +477,7 @@ inline FCommReduce MakeArgminReducer(bool select_last_index = false) {
   auto fidentity = [&](std::vector<DataType> types) {
     ffi::Array<PrimExpr> result;
     result.push_back(tvm::tirx::make_const(types[0], -1));  // idx
-    result.push_back(tvm::max_value(types[1]));            // val
+    result.push_back(tvm::max_value(types[1]));             // val
     return result;
   };
   return MakeCommReducer(fcombine, fidentity, "argmin");
@@ -539,7 +539,7 @@ inline FCommReduce MakeArgmaxReducer(bool select_last_index = false) {
   auto fidentity = [&](std::vector<DataType> types) {
     ffi::Array<PrimExpr> result;
     result.push_back(tvm::tirx::make_const(types[0], -1));  // idx
-    result.push_back(tvm::min_value(types[1]));            // val
+    result.push_back(tvm::min_value(types[1]));             // val
     return result;
   };
   return MakeCommReducer(fcombine, fidentity, "argmax");

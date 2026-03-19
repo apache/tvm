@@ -97,7 +97,9 @@ def rope_freq_llama4(  # pylint: disable=too-many-arguments,too-many-locals
 
     if high_freq_factor == low_freq_factor:
         wavelength = tirx.const(2 * math.pi, "float32") / orig_freq_var
-        threshold_wavelen = tirx.const(original_max_position_embeddings / low_freq_factor, "float32")
+        threshold_wavelen = tirx.const(
+            original_max_position_embeddings / low_freq_factor, "float32"
+        )
 
         scaled_freq = tirx.if_then_else(
             wavelength > threshold_wavelen, orig_freq_var / factor, orig_freq_var

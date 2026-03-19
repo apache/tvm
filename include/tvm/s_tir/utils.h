@@ -48,7 +48,7 @@ namespace tirx {
  */
 #define TVM_SREF_TO_SBLOCK(SRef)                                                        \
   [&]() {                                                                               \
-    auto result = TVM_SREF_AS_OR_ERR(result, (SRef), ::tvm::tirx::SBlockNode)            \
+    auto result = TVM_SREF_AS_OR_ERR(result, (SRef), ::tvm::tirx::SBlockNode)           \
                   << "Expects StmtSRef `" << #SRef << "` points to `Block`, but gets: " \
                   << ((SRef)->stmt ? (SRef)->stmt->GetTypeKey() : "None");              \
     return result;                                                                      \
@@ -64,7 +64,7 @@ namespace tirx {
  */
 #define TVM_SREF_TO_FOR(SRef)                                                          \
   [&]() {                                                                              \
-    auto result = TVM_SREF_AS_OR_ERR(result, (SRef), ::tvm::tirx::ForNode)              \
+    auto result = TVM_SREF_AS_OR_ERR(result, (SRef), ::tvm::tirx::ForNode)             \
                   << "Expects StmtSRef `" << #SRef << "` points to `Loop`, but gets: " \
                   << ((SRef)->stmt ? (SRef)->stmt->GetTypeKey() : "None");             \
     return result;                                                                     \

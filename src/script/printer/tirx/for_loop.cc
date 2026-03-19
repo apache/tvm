@@ -38,7 +38,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           TVM_FFI_ICHECK(l->loop_var->dtype == l->extent->dtype);
           if (l->kind != tirx::ForKind::kSerial ||  //
               !tirx::is_zero(l->min) ||             //
-              !l->annotations.empty() ||           //
+              !l->annotations.empty() ||            //
               !l->HasTrivialStep() || f_var_dep(l->extent)) {
             break;
           }

@@ -391,7 +391,9 @@ def test_max_pool2d_infer_struct_info_ceil_mode_symbolic():
         relax.op.nn.max_pool2d(
             x, pool_size=(3, 3), strides=(2, 2), padding=(1, 1), dilation=(2, 2), ceil_mode=True
         ),
-        relax.TensorStructInfo((n, c, tvm.tirx.floordiv(ih, 2), tvm.tirx.floordiv(iw, 2)), "float32"),
+        relax.TensorStructInfo(
+            (n, c, tvm.tirx.floordiv(ih, 2), tvm.tirx.floordiv(iw, 2)), "float32"
+        ),
     )
 
 
@@ -1080,7 +1082,9 @@ def test_avg_pool2d_infer_struct_info_ceil_mode_symbolic():
         relax.op.nn.avg_pool2d(
             x, pool_size=(3, 3), strides=(2, 2), padding=(1, 1), dilation=(2, 2), ceil_mode=True
         ),
-        relax.TensorStructInfo((n, c, tvm.tirx.floordiv(ih, 2), tvm.tirx.floordiv(iw, 2)), "float32"),
+        relax.TensorStructInfo(
+            (n, c, tvm.tirx.floordiv(ih, 2), tvm.tirx.floordiv(iw, 2)), "float32"
+        ),
     )
 
 

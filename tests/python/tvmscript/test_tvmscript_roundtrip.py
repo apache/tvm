@@ -2682,8 +2682,12 @@ def nested_boolean_expressions():
         "or_rhs_and": lambda i, j, k: tirx.any(i, tirx.all(j, k)),
         "or_lhs_or": lambda i, j, k: tirx.any(tirx.any(i, j), k),
         "or_rhs_or": lambda i, j, k: tirx.any(i, tirx.any(j, k)),
-        "and_of_ors": lambda i, j, k: tirx.all(tirx.any(i, j), tirx.any(j, k), tirx.any(i, k), i, j, k),
-        "or_of_ands": lambda i, j, k: tirx.any(tirx.all(i, j), tirx.all(j, k), tirx.all(i, k), i, j, k),
+        "and_of_ors": lambda i, j, k: tirx.all(
+            tirx.any(i, j), tirx.any(j, k), tirx.any(i, k), i, j, k
+        ),
+        "or_of_ands": lambda i, j, k: tirx.any(
+            tirx.all(i, j), tirx.all(j, k), tirx.all(i, k), i, j, k
+        ),
     }
 
     def make_ir_generator(name, expression):

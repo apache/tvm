@@ -164,7 +164,9 @@ def _odd_even_sort(
                                     [tid + n],
                                 )
                                 T.buffer_store(tmp_values_swap, temp_values[0], [tid + n + 1])
-            T.evaluate(tvm.tirx.Call(None, "tirx.tvm_storage_sync", tvm.runtime.convert(["shared"])))
+            T.evaluate(
+                tvm.tirx.Call(None, "tirx.tvm_storage_sync", tvm.runtime.convert(["shared"]))
+            )
 
         ## Copy sorted data to output
         with T.serial(0, 2) as n:
@@ -555,7 +557,9 @@ def _sort_common(
 
     ## if the final sorted data ended up in the swap, copy it to the real output
     nthread_bx = ceil_div(size, nthread_tx)
-    with T.If(tvm.tirx.all(upper_lim > lower_lim, tvm.tirx.indexmod(upper_lim - lower_lim, 2) == 1)):
+    with T.If(
+        tvm.tirx.all(upper_lim > lower_lim, tvm.tirx.indexmod(upper_lim - lower_lim, 2) == 1)
+    ):
         with T.Then():
             tx2, bx2, by2, _, _, _ = _get_threads(nthread_tx, nthread_bx, nthread_by)
             with T.frame_scope(
@@ -678,7 +682,9 @@ def sort(data, axis=-1, is_ascend=1):
         data = transpose(data, axes)
 
     value_buf = tvm.tirx.decl_buffer(data.shape, data.dtype, "value_buf", data_alignment=8)
-    value_buf_swap = tvm.tirx.decl_buffer(data.shape, data.dtype, "value_buf_swap", data_alignment=8)
+    value_buf_swap = tvm.tirx.decl_buffer(
+        data.shape, data.dtype, "value_buf_swap", data_alignment=8
+    )
 
     out = te.extern(
         [data.shape, data.shape],
@@ -794,7 +800,9 @@ def argsort(data, axis=-1, is_ascend=1, dtype="float32", ret_type="indices"):
         data = transpose(data, axes)
 
     value_buf = tvm.tirx.decl_buffer(data.shape, data.dtype, "value_buf", data_alignment=8)
-    value_swap_buf = tvm.tirx.decl_buffer(data.shape, data.dtype, "value_swap_buf", data_alignment=8)
+    value_swap_buf = tvm.tirx.decl_buffer(
+        data.shape, data.dtype, "value_swap_buf", data_alignment=8
+    )
     indices_buf = tvm.tirx.decl_buffer(data.shape, dtype, "out_buf", data_alignment=8)
     indices_swap_buf = tvm.tirx.decl_buffer(data.shape, dtype, "out_swap_buf", data_alignment=8)
 

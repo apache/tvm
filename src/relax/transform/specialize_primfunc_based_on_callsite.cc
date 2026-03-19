@@ -100,7 +100,7 @@ class SpecializeTIRCallArgs : ExprMutator {
       }
 
       const Buffer& buffer = tirx::decl_buffer(GetShapeFromTensorStructInfo(tensor_sinfo),
-                                              tensor_sinfo->dtype, name, scope);
+                                               tensor_sinfo->dtype, name, scope);
       param_map.Set(pfunc->params[i], buffer);
     }
     ffi::String scope = "global";
@@ -133,7 +133,7 @@ class SpecializeTIRCallArgs : ExprMutator {
         }
 
         const Buffer& buffer = tirx::decl_buffer(GetShapeFromTensorStructInfo(sinfo), sinfo->dtype,
-                                                "ret_val_" + std::to_string(index), scope);
+                                                 "ret_val_" + std::to_string(index), scope);
         param_map.Set(pfunc->params[args.size() + index], buffer);
         index++;
       }

@@ -102,8 +102,8 @@ Pass InjectTextureAlloc() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     return TextureAllocInjector::Inject(std::move(f));
   };
-  return tirx::transform::CreatePrimFuncPass(pass_func, 0, "s_tir.backend.adreno.InjectTextureAlloc",
-                                            {});
+  return tirx::transform::CreatePrimFuncPass(pass_func, 0,
+                                             "s_tir.backend.adreno.InjectTextureAlloc", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

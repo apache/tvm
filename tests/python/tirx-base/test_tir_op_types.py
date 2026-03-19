@@ -133,7 +133,9 @@ def test_tir_op_tvm_bmma_sync():
     buffer_1 = tirx.decl_buffer((16, 16), "float32")
     buffer_2 = tirx.decl_buffer((16, 16), "float32")
     buffer_3 = tirx.decl_buffer((16, 16), "float32")
-    expr = tirx.tvm_bmma_sync(buffer_0.data, 0, buffer_1.data, 0, buffer_2.data, 0, buffer_3.data, 0)
+    expr = tirx.tvm_bmma_sync(
+        buffer_0.data, 0, buffer_1.data, 0, buffer_2.data, 0, buffer_3.data, 0
+    )
     assert expr.op.name == "tirx.tvm_bmma_sync"
 
 

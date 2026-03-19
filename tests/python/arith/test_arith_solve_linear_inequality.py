@@ -42,7 +42,9 @@ def test_solution_consistency():
             s1 += random.randint(coef[0], coef[1])
             s2 = sum([v * random.randint(coef[0], coef[1]) for v in vs])
             s2 += random.randint(coef[0], coef[1])
-            op = random.choice([tirx.expr.EQ, tirx.expr.LE, tirx.expr.LT, tirx.expr.GE, tirx.expr.GT])
+            op = random.choice(
+                [tirx.expr.EQ, tirx.expr.LE, tirx.expr.LT, tirx.expr.GE, tirx.expr.GT]
+            )
             fs.append(op(s1, s2))
 
         vranges = {v: tvm.ir.expr.Range(bounds[0], bounds[1] + 1) for v in vs}
@@ -202,7 +204,9 @@ def test_no_solution():
 def test_unbound_var_range():
     x = tvm.tirx.Var("x0", "int32")
     free_var = tvm.tirx.Var("fv", "int32")
-    vranges = {x: tvm.ir.Range.from_min_extent(0, tvm.tirx.Cast("int32", 1 + tvm.tirx.log(free_var)))}
+    vranges = {
+        x: tvm.ir.Range.from_min_extent(0, tvm.tirx.Cast("int32", 1 + tvm.tirx.log(free_var)))
+    }
     problem = [x > 3]
     solution = arith.solve_linear_inequalities(
         problem,

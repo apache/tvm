@@ -153,8 +153,8 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
 
           return tvm::sum(
               tvm::if_then_else(tirx::And(tirx::And(out_idx[height_axis] >= out_idx_lower_h,
-                                                  out_idx[width_axis] >= out_idx_lower_w),
-                                         mp_inds(out_idx) == idx),
+                                                    out_idx[width_axis] >= out_idx_lower_w),
+                                          mp_inds(out_idx) == idx),
                                 out_grad(out_idx), make_const(x->dtype, 0)),
               {windowh, windoww});
         },
@@ -177,10 +177,10 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
 
           PrimExpr out_idx_lower_h =
               tirx::Select(pad_h_idx < kernel_height, make_const(pad_h_idx.dtype(), 0),
-                          (pad_h_idx - kernel_height) / stride_height + 1);
+                           (pad_h_idx - kernel_height) / stride_height + 1);
           PrimExpr out_idx_lower_w =
               tirx::Select(pad_w_idx < kernel_width, make_const(pad_w_idx.dtype(), 0),
-                          (pad_w_idx - kernel_width) / stride_width + 1);
+                           (pad_w_idx - kernel_width) / stride_width + 1);
 
           PrimExpr divide_factor;  // number of pooled elements
           if (count_include_pad) {
@@ -198,9 +198,9 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
           }
           return tvm::sum(
               tvm::if_then_else(tirx::And(tirx::And(out_idx[height_axis] >= out_idx_lower_h,
-                                                  out_idx[height_axis] < out_height),
-                                         tirx::And(out_idx[width_axis] >= out_idx_lower_w,
-                                                  out_idx[width_axis] < out_width)),
+                                                    out_idx[height_axis] < out_height),
+                                          tirx::And(out_idx[width_axis] >= out_idx_lower_w,
+                                                    out_idx[width_axis] < out_width)),
                                 out_grad(out_idx) / divide_factor, make_const(out_grad->dtype, 0)),
               {windowh, windoww});
         },

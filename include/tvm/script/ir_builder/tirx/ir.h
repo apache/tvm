@@ -443,17 +443,18 @@ inline Var Handle(runtime::DataType dtype = runtime::DataType::Void(),
   } else {
     type_annotation = PointerType(PrimType(dtype), storage_scope);
   }
-  return is_size_var ? tvm::tirx::SizeVar("", type_annotation) : tvm::tirx::Var("", type_annotation);
+  return is_size_var ? tvm::tirx::SizeVar("", type_annotation)
+                     : tvm::tirx::Var("", type_annotation);
 }
 
 inline Var TensormapHandle() { return tvm::tirx::Var("", PointerType(TensorMapType())); }
 
-#define TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST(FuncName, DType)                                \
-  inline PrimExpr FuncName(ffi::Optional<PrimExpr> expr = std::nullopt,                   \
-                           bool is_size_var = false) {                                    \
-    DataType dtype = DType;                                                               \
-    return expr.defined()                                                                 \
-               ? tvm::cast(dtype, expr.value())                                           \
+#define TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST(FuncName, DType)                                  \
+  inline PrimExpr FuncName(ffi::Optional<PrimExpr> expr = std::nullopt,                     \
+                           bool is_size_var = false) {                                      \
+    DataType dtype = DType;                                                                 \
+    return expr.defined()                                                                   \
+               ? tvm::cast(dtype, expr.value())                                             \
                : (is_size_var ? tvm::tirx::SizeVar("", dtype) : tvm::tirx::Var("", dtype)); \
   }
 

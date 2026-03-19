@@ -165,7 +165,7 @@ inline InlineType AutoInlineNode::CheckInline(const s_tir::Schedule& sch,
   }
   // Last cond: Check inline into the consumers or the spatial producer
   tirx::StmtSRef scope_block = s_tir::GetScopeRoot(sch->state(), block_sref,
-                                                  /*require_stage_pipeline=*/false);
+                                                   /*require_stage_pipeline=*/false);
   if (into_consumer) {
     ffi::Array<tirx::StmtSRef> consumer_srefs = GetConsumers(state, block_sref);
     if (!consumer_srefs.empty() && CanComputeInline(state, block_sref)) {

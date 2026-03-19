@@ -176,7 +176,8 @@ constexpr const char* software_pipeline_async_stages = "software_pipeline_async_
 constexpr const char* layout_free_buffers = "layout_free_buffers";
 
 /*! \brief Mark the local stage for the shared memory access should be added. */
-constexpr const char* manifest_shared_memory_local_stage = "tirx.manifest_shared_memory_local_stage";
+constexpr const char* manifest_shared_memory_local_stage =
+    "tirx.manifest_shared_memory_local_stage";
 
 /*!
  * \brief Mark alignment of buffer dimension

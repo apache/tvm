@@ -689,7 +689,7 @@ bool IsSpatialPrimFunc(const PrimFunc& func);
  * \return A boolean indicating whether the operation is beneficial.
  */
 bool NeedsRFactorOrCrossThreadReduction(const s_tir::ScheduleState& self,  //
-                                        const tirx::StmtSRef& block_sref,   //
+                                        const tirx::StmtSRef& block_sref,  //
                                         int64_t max_parallel_extent,       //
                                         int64_t max_parallel_basic);
 

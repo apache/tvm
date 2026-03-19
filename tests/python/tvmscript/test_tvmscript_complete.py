@@ -114,9 +114,15 @@ def test_complete_matmul():
     block = func.body.block.body.body.body.body.block
     assert isinstance(block, tvm.tirx.SBlock)
     vi, vj, vk = [x.var for x in block.iter_vars]
-    access_A = tvm.tirx.BufferRegion(A, [Range.from_min_extent(vi, 1), Range.from_min_extent(vk, 1)])
-    access_B = tvm.tirx.BufferRegion(B, [Range.from_min_extent(vj, 1), Range.from_min_extent(vk, 1)])
-    access_C = tvm.tirx.BufferRegion(C, [Range.from_min_extent(vi, 1), Range.from_min_extent(vj, 1)])
+    access_A = tvm.tirx.BufferRegion(
+        A, [Range.from_min_extent(vi, 1), Range.from_min_extent(vk, 1)]
+    )
+    access_B = tvm.tirx.BufferRegion(
+        B, [Range.from_min_extent(vj, 1), Range.from_min_extent(vk, 1)]
+    )
+    access_C = tvm.tirx.BufferRegion(
+        C, [Range.from_min_extent(vi, 1), Range.from_min_extent(vj, 1)]
+    )
     tvm.ir.assert_structural_equal(block.reads, [access_A, access_B])
     tvm.ir.assert_structural_equal(block.writes, [access_C])
 

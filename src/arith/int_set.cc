@@ -95,7 +95,7 @@ struct is_logical_op {
 
 #define TVM_DECLARE_LOGICAL_OP(OP)  \
   template <>                       \
-  struct is_logical_op<tirx::OP> {   \
+  struct is_logical_op<tirx::OP> {  \
     static const bool value = true; \
   };
 
@@ -141,7 +141,7 @@ inline IntervalSet Combine(Analyzer* analyzer, IntervalSet a, IntervalSet b, con
 
 template <>
 inline IntervalSet Combine<tirx::Add>(Analyzer* analyer, IntervalSet a, IntervalSet b,
-                                     const tirx::AddNode* /* op */) {
+                                      const tirx::AddNode* /* op */) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
     return IntervalSet::SinglePoint(a->min_value + b->min_value);
   }
@@ -156,7 +156,7 @@ inline IntervalSet Combine<tirx::Add>(Analyzer* analyer, IntervalSet a, Interval
 
 template <>
 inline IntervalSet Combine<tirx::Sub>(Analyzer* analyer, IntervalSet a, IntervalSet b,
-                                     const tirx::SubNode* /* op */) {
+                                      const tirx::SubNode* /* op */) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
     return IntervalSet::SinglePoint(a->min_value - b->min_value);
   }
@@ -171,7 +171,7 @@ inline IntervalSet Combine<tirx::Sub>(Analyzer* analyer, IntervalSet a, Interval
 
 template <>
 inline IntervalSet Combine<tirx::Mul>(Analyzer* analyzer, IntervalSet a, IntervalSet b,
-                                     const tirx::MulNode* /* op */) {
+                                      const tirx::MulNode* /* op */) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
     return IntervalSet::SinglePoint(a->min_value * b->min_value);
   }
@@ -205,7 +205,7 @@ inline IntervalSet Combine<tirx::Mul>(Analyzer* analyzer, IntervalSet a, Interva
 
 template <>
 inline IntervalSet Combine<tirx::Div>(Analyzer* analyzer, IntervalSet a, IntervalSet b,
-                                     const tirx::DivNode* /* op */) {
+                                      const tirx::DivNode* /* op */) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
     return IntervalSet::SinglePoint(a->min_value / b->min_value);
   }
@@ -239,7 +239,7 @@ inline IntervalSet Combine<tirx::Div>(Analyzer* analyzer, IntervalSet a, Interva
 
 template <>
 inline IntervalSet Combine<tirx::Mod>(Analyzer* analyzer, IntervalSet a, IntervalSet b,
-                                     const tirx::ModNode* op) {
+                                      const tirx::ModNode* op) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
     return IntervalSet::SinglePoint(truncmod(a->min_value, b->min_value));
   }
@@ -268,7 +268,7 @@ inline IntervalSet Combine<tirx::Mod>(Analyzer* analyzer, IntervalSet a, Interva
 
 template <>
 inline IntervalSet Combine<tirx::FloorDiv>(Analyzer* analyzer, IntervalSet a, IntervalSet b,
-                                          const tirx::FloorDivNode* /* op */) {
+                                           const tirx::FloorDivNode* /* op */) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
     return IntervalSet::SinglePoint(floordiv(a->min_value, b->min_value));
   }
@@ -302,7 +302,7 @@ inline IntervalSet Combine<tirx::FloorDiv>(Analyzer* analyzer, IntervalSet a, In
 
 template <>
 inline IntervalSet Combine<tirx::FloorMod>(Analyzer* analyzer, IntervalSet a, IntervalSet b,
-                                          const tirx::FloorModNode* op) {
+                                           const tirx::FloorModNode* op) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
     return IntervalSet::SinglePoint(floormod(a->min_value, b->min_value));
   }
@@ -363,7 +363,7 @@ inline IntervalSet Combine<tirx::FloorMod>(Analyzer* analyzer, IntervalSet a, In
 
 template <>
 inline IntervalSet Combine<tirx::Max>(Analyzer* analzyer, IntervalSet a, IntervalSet b,
-                                     const tirx::MaxNode* /* op */) {
+                                      const tirx::MaxNode* /* op */) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
     return IntervalSet::SinglePoint(max(a->min_value, b->min_value));
   }
@@ -374,7 +374,7 @@ inline IntervalSet Combine<tirx::Max>(Analyzer* analzyer, IntervalSet a, Interva
 
 template <>
 inline IntervalSet Combine<tirx::Min>(Analyzer* analzyer, IntervalSet a, IntervalSet b,
-                                     const tirx::MinNode* /* op */) {
+                                      const tirx::MinNode* /* op */) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
     return IntervalSet::SinglePoint(min(a->min_value, b->min_value));
   }

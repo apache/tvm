@@ -130,10 +130,10 @@ Pass MetaScheduleApplyDatabase(ffi::Optional<ffi::String> work_dir, bool enable_
           tirx::PrimFunc tuned_prim_func = Downcast<tirx::PrimFunc>(new_base_func);
           // maintain the original attributes
           tirx::PrimFunc new_prim_func = tirx::PrimFunc(/*params=*/tuned_prim_func->params,
-                                                      /*body=*/tuned_prim_func->body,
-                                                      /*ret_type=*/tuned_prim_func->ret_type,
-                                                      /*buffer_map=*/tuned_prim_func->buffer_map,
-                                                      /*attrs=*/prim_func->attrs);
+                                                        /*body=*/tuned_prim_func->body,
+                                                        /*ret_type=*/tuned_prim_func->ret_type,
+                                                        /*buffer_map=*/tuned_prim_func->buffer_map,
+                                                        /*attrs=*/prim_func->attrs);
           new_prim_func = WithAttr(std::move(new_prim_func), tirx::attr::kIsScheduled, true);
           result.Set(gv, new_prim_func);
           continue;
@@ -175,9 +175,9 @@ Pass MetaScheduleTuneTIR(ffi::String work_dir, Integer max_trials_global) {
             .TuneTIR(f, ctx);
       };
   return tirx::transform::CreatePrimFuncPass(/*pass function*/ pass_func, /*opt level*/ 0,
-                                            /*pass name*/ "MetaScheduleTuneTIR",
-                                            /*required*/ {},
-                                            /*traceable*/ true);
+                                             /*pass name*/ "MetaScheduleTuneTIR",
+                                             /*required*/ {},
+                                             /*traceable*/ true);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

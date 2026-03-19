@@ -77,8 +77,8 @@ TVM_REGISTER_OP("tirx.trunc")
 TVM_REGISTER_OP("tirx.fabs")
     .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", DispatchPureExternLibDevice);
 
-TVM_REGISTER_OP("tirx.exp").set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic",
-                                                     DispatchPureExternLibDevice);
+TVM_REGISTER_OP("tirx.exp")
+    .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", DispatchPureExternLibDevice);
 
 TVM_REGISTER_OP("tirx.exp2")
     .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", DispatchPureExternLibDevice);
@@ -86,14 +86,14 @@ TVM_REGISTER_OP("tirx.exp2")
 TVM_REGISTER_OP("tirx.exp10")
     .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", DispatchPureExternLibDevice);
 
-TVM_REGISTER_OP("tirx.erf").set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic",
-                                                     DispatchPureExternLibDevice);
+TVM_REGISTER_OP("tirx.erf")
+    .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", DispatchPureExternLibDevice);
 
-TVM_REGISTER_OP("tirx.fma").set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic",
-                                                     DispatchPureExternLibDevice);
+TVM_REGISTER_OP("tirx.fma")
+    .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", DispatchPureExternLibDevice);
 
-TVM_REGISTER_OP("tirx.log").set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic",
-                                                     DispatchPureExternLibDevice);
+TVM_REGISTER_OP("tirx.log")
+    .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", DispatchPureExternLibDevice);
 
 TVM_REGISTER_OP("tirx.log2")
     .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", DispatchPureExternLibDevice);
@@ -104,23 +104,23 @@ TVM_REGISTER_OP("tirx.log10")
 TVM_REGISTER_OP("tirx.sqrt")
     .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", DispatchPureExternLibDevice);
 
-TVM_REGISTER_OP("tirx.pow").set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic",
-                                                     DispatchPureExternLibDevice);
+TVM_REGISTER_OP("tirx.pow")
+    .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", DispatchPureExternLibDevice);
 
 TVM_REGISTER_OP("tirx.tanh")
     .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", DispatchPureExternLibDevice);
 
-TVM_REGISTER_OP("tirx.tan").set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic",
-                                                     DispatchPureExternLibDevice);
+TVM_REGISTER_OP("tirx.tan")
+    .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", DispatchPureExternLibDevice);
 
-TVM_REGISTER_OP("tirx.cos").set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic",
-                                                     DispatchPureExternLibDevice);
+TVM_REGISTER_OP("tirx.cos")
+    .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", DispatchPureExternLibDevice);
 
 TVM_REGISTER_OP("tirx.cosh")
     .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", DispatchPureExternLibDevice);
 
-TVM_REGISTER_OP("tirx.sin").set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic",
-                                                     DispatchPureExternLibDevice);
+TVM_REGISTER_OP("tirx.sin")
+    .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", DispatchPureExternLibDevice);
 
 TVM_REGISTER_OP("tirx.sinh")
     .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", DispatchPureExternLibDevice);

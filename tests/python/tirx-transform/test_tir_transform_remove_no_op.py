@@ -49,7 +49,9 @@ def test_remove_no_op():
                 0,
                 m,
                 tvm.tirx.ForKind.SERIAL,
-                tvm.tirx.IfThenElse((i * m + j + k < n), tvm.tirx.Evaluate(m), tvm.tirx.Evaluate(n)),
+                tvm.tirx.IfThenElse(
+                    (i * m + j + k < n), tvm.tirx.Evaluate(m), tvm.tirx.Evaluate(n)
+                ),
             ),
         ),
     )
