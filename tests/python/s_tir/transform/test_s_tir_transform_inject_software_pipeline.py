@@ -34,7 +34,7 @@ from tvm.s_tir.tensor_intrin.cuda import (
     shared_16x16_to_ldmatrix_32x8_layout,
 )
 from tvm.script import tirx as T
-from tvm.testing.tirx import mma_schedule
+from tvm.testing.tir import mma_schedule
 
 
 def _check(original, transformed):
