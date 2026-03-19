@@ -23,6 +23,7 @@ import pytest
 
 import tvm
 import tvm.testing
+from tvm import te, tir
 from tvm.script import ir as I
 from tvm.script import tir as T
 from tvm.script.ir_builder import IRBuilder
