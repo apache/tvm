@@ -515,6 +515,28 @@ def test_codegen_decl_buffer():
     vulkan_codegen(Module, target)
 
 
+@tvm.testing.requires_vulkan(support_required="compile-only")
+def test_codegen_static_shared_memory():
+    """The codegen should accept static shared/workgroup allocations."""
+
+    A = te.placeholder((128,), name="A", dtype="float32")
+    B = te.compute((128,), lambda i: A[i], name="B")
+
+    sch = tir.Schedule(te.create_prim_func([A, B]))
+    block = sch.get_block("B")
+    (loop,) = sch.get_loops(block)
+    bx, tx = sch.split(loop, factors=[None, 128])
+    sch.bind(bx, "blockIdx.x")
+    sch.bind(tx, "threadIdx.x")
+
+    block_read = sch.cache_read(block, 0, "shared")
+    sch.compute_at(block_read, bx)
+    _, fetch_tx = sch.get_loops(block_read)
+    sch.bind(fetch_tx, "threadIdx.x")
+
+    tvm.compile(sch.mod, target="vulkan")
+
+
 @tvm.testing.requires_gpu
 @tvm.testing.requires_vulkan
 def test_unary():
