@@ -16,7 +16,7 @@
     under the License.
 
 tvm.tirx
--------
+--------
 .. automodule:: tvm.tirx
    :members:
    :imported-members:

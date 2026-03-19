@@ -17,7 +17,7 @@
 # ruff: noqa: E402
 
 """
-.. _tir-transform:
+.. _tirx-transform:
 
 Transformation
 --------------

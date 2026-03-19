@@ -84,8 +84,7 @@ relax transformations contain a collection of passes that apply to relax functio
 optimizations such as constant folding and dead-code elimination for operators, and backend-specific optimizations such as library dispatch.
 
 tirx transformations
-^^^^^^^^^^^^^^^^^^^
-tirx transformations contain a collection of passes that apply to tirx functions. There are two major types of transformations:
+^^^^^^^^^^^^^^^^^^^^
 
 - **TensorIR schedule**: TensorIR schedules are designed to optimize the TensorIR functions for a specific target, with user-guided instructions and control how the target code is generated.
   For CPU targets, tirx PrimFunc can generate valid code and execute on the target device without schedule but with very-low performance. However, for GPU targets, the schedule is essential
@@ -305,7 +304,7 @@ Note that Relax usually works closely with the TensorIR IRModule, most of the tr
 in the IRModule. Please refer to the :ref:`Relax Deep Dive <relax-deep-dive>` for more details.
 
 tvm/tirx
--------
+--------
 
 tirx contains the definition of the low-level program representations. We use `tirx::PrimFunc` to represent functions that can be transformed by tirx passes.
 Besides the IR data structures, the tirx module also includes:

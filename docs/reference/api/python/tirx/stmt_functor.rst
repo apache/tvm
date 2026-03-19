@@ -16,6 +16,6 @@
     under the License.
 
 tvm.tirx.stmt_functor
---------------------
+---------------------
 .. automodule:: tvm.tirx.stmt_functor
    :members:

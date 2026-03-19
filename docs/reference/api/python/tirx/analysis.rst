@@ -16,6 +16,6 @@
     under the License.
 
 tvm.tirx.analysis
-----------------
+=================
 .. automodule:: tvm.tirx.analysis.analysis
    :members:
