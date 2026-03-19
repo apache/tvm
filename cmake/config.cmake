@@ -258,6 +258,12 @@ set(USE_ARM_COMPUTE_LIB_GRAPH_EXECUTOR OFF)
 set(USE_TENSORRT_CODEGEN OFF)
 set(USE_TENSORRT_RUNTIME OFF)
 
+# Whether to build with RKNPU codegen or runtime for the RK3588 NPU
+# USE_RKNPU_CODEGEN - Support for compiling models for the RK3588 NPU. OFF/ON
+# USE_RKNPU_RUNTIME - Support for running models on the RK3588 NPU. OFF/ON
+set(USE_RKNPU_CODEGEN OFF)
+set(USE_RKNPU_RUNTIME OFF)
+
 # Whether to use the Multi-System Compiler
 set(USE_MSC OFF)
 
