@@ -50,7 +50,7 @@ inline PrimExpr DispatchPureExternOCML(const PrimExpr& e) {
   TVM_FFI_ICHECK_EQ(name.substr(0, 5), "tirx.");
 
   std::ostringstream intrinsic_name;
-  intrinsic_name << "__ocml_" << name.substr(4) << "_f" << call->dtype.bits();
+  intrinsic_name << "__ocml_" << name.substr(5) << "_f" << call->dtype.bits();
 
   ffi::Array<PrimExpr> new_args = {StringImm(intrinsic_name.str())};
   for (auto arg : call->args) {

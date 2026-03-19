@@ -46,7 +46,7 @@ inline PrimExpr DispatchPureExternLibDevice(const PrimExpr& e) {
   TVM_FFI_ICHECK_EQ(name.substr(0, 5), "tirx.");
 
   std::ostringstream intrinsic_name;
-  intrinsic_name << "__nv_" << name.substr(4);
+  intrinsic_name << "__nv_" << name.substr(5);
   if (call->dtype.bits() == 32) intrinsic_name << "f";
 
   ffi::Array<PrimExpr> new_args = {StringImm(intrinsic_name.str())};

@@ -76,7 +76,7 @@ inline PrimExpr DispatchPureExtern(const PrimExpr& e) {
   } else {
     dtype = call->dtype;
   }
-  name = T()(dtype, name.substr(4));
+  name = T()(dtype, name.substr(5));
 
   if (name.length() != 0) {
     ffi::Array<PrimExpr> new_args = {StringImm(name)};
