@@ -1654,7 +1654,57 @@ def test_binary3():
     verify_model(RSub2(), example_args2, {}, expected_rsub2)
 
 
-# IsIn
+def test_dynamic_shape_bare_add_sub():
+    """Test that bare 'add' and 'sub' ops (from operator.add/sub in dynamic shape arithmetic)."""
+
+    class AddModel(torch.nn.Module):
+        def forward(self, x):
+            # With dynamic shapes, torch.export may emit operator.add nodes
+            # for shape arithmetic. We test that the model imports successfully.
+            return x + x
+
+    class SubModel(torch.nn.Module):
+        def forward(self, x):
+            return x - x
+
+    @I.ir_module
+    class ExpectedAdd:
+        @R.function
+        def main(x: R.Tensor(("s0", 4), dtype="float32")) -> R.Tuple(
+            R.Tensor(("s0", 4), dtype="float32")
+        ):
+            s0 = T.int64(is_size_var=True)
+            R.func_attr({"tir_var_lower_bound": {"s77": 2}})
+            with R.dataflow():
+                lv: R.Tensor((s0, 4), dtype="float32") = R.add(x, x)
+                gv: R.Tuple(R.Tensor((s0, 4), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedSub:
+        @R.function
+        def main(x: R.Tensor(("s0", 4), dtype="float32")) -> R.Tuple(
+            R.Tensor(("s0", 4), dtype="float32")
+        ):
+            s0 = T.int64(is_size_var=True)
+            R.func_attr({"tir_var_lower_bound": {"s77": 2}})
+            with R.dataflow():
+                lv: R.Tensor((s0, 4), dtype="float32") = R.subtract(x, x)
+                gv: R.Tuple(R.Tensor((s0, 4), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(8, 4),)
+    batch = torch.export.Dim("batch", min=2)
+    dynamic_shapes = {"x": {0: batch}}
+
+    verify_model(
+        AddModel(), example_args, {}, ExpectedAdd, dynamic_shapes=dynamic_shapes, map_free_vars=True
+    )
+    verify_model(
+        SubModel(), example_args, {}, ExpectedSub, dynamic_shapes=dynamic_shapes, map_free_vars=True
+    )
 
 
 def test_isin():
