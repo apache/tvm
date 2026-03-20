@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name, missing-docstring
 # ruff: noqa: F401, F841
-"""Unittests for tvm.script.ir_builder.tir"""
+"""Unittests for tvm.script.ir_builder.tirx"""
 
 import numpy as np
 import pytest
@@ -24,10 +24,10 @@ import pytest
 import tvm
 import tvm.runtime
 import tvm.testing
-from tvm import tir
+from tvm import tirx
 from tvm.ir.base import assert_structural_equal
 from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder import tir as T
+from tvm.script.ir_builder import tirx as T
 
 
 def test_ir_builder_tir_primfunc_base():
@@ -39,9 +39,9 @@ def test_ir_builder_tir_primfunc_base():
     prim_func_actual = ib.get()
 
     # the expected prim_func
-    prim_func_expected = tir.PrimFunc(
+    prim_func_expected = tirx.PrimFunc(
         params=[],
-        body=tir.Evaluate(0),
+        body=tirx.Evaluate(0),
         ret_type=None,
         buffer_map=None,
         attrs=None,
@@ -69,20 +69,20 @@ def test_ir_builder_tir_primfunc_complete():
 
     # the expected prim_func
     c_handle, c_buffer = (
-        tir.Var("c_handle", "handle"),
-        tir.decl_buffer((128, 128), "float32", name="c"),
+        tirx.Var("c_handle", "handle"),
+        tirx.decl_buffer((128, 128), "float32", name="c"),
     )
-    d_handle, d_buffer = tir.Var("d", "handle"), tir.decl_buffer((64, 64), "int64", name="d")
-    e_handle, e_buffer = tir.Var("e_handle", "handle"), tir.decl_buffer((1024,), "int8", name="e")
-    prim_func_expected = tir.PrimFunc(
+    d_handle, d_buffer = tirx.Var("d", "handle"), tirx.decl_buffer((64, 64), "int64", name="d")
+    e_handle, e_buffer = tirx.Var("e_handle", "handle"), tirx.decl_buffer((1024,), "int8", name="e")
+    prim_func_expected = tirx.PrimFunc(
         params=[
-            tir.Var("a", "handle"),
-            tir.Var("b", "int64"),
+            tirx.Var("a", "handle"),
+            tirx.Var("b", "int64"),
             c_handle,
             d_handle,
             e_handle,
         ],
-        body=tir.Evaluate(0),
+        body=tirx.Evaluate(0),
         ret_type=tvm.ir.PrimType("int64"),
         buffer_map={c_handle: c_buffer, d_handle: d_buffer, e_handle: e_buffer},
         attrs=tvm.ir.make_node("ir.DictAttrs", key="value"),
@@ -101,17 +101,17 @@ def test_ir_builder_tir_block_base():
     block_realize_actual = ib.get()
 
     # the expected block
-    block_expected = tir.SBlock(
+    block_expected = tirx.SBlock(
         iter_vars=[],
         reads=[],
         writes=[],
         name_hint="block",
-        body=tir.Evaluate(0),
+        body=tirx.Evaluate(0),
         alloc_buffers=None,
         match_buffers=None,
-        annotations={"tir.script_parsing_detect_access": tir.IntImm("int64", 3)},
+        annotations={"tirx.script_parsing_detect_access": tirx.IntImm("int64", 3)},
     )
-    block_realize_expected = tir.SBlockRealize(
+    block_realize_expected = tirx.SBlockRealize(
         iter_values=[],
         predicate=True,
         block=block_expected,
@@ -143,25 +143,25 @@ def test_ir_builder_tir_block_complete():
     block_realize_actual = ib.get()
 
     # the expected block
-    var_a = tir.Var("a", "int64")
-    buffer_b = tir.decl_buffer((128, 128), "float32", name="b")
-    buffer_c = tir.decl_buffer((128, 128), "float32", name="c")
-    var_d = tir.Var("d", "int32")
-    buffer_e = tir.decl_buffer((128, 128), "float32", name="c")
-    var_f = tir.Var("f", "int32")
-    block_expected = tir.SBlock(
-        iter_vars=[tir.IterVar((0, 128), tir.Var("", "int32"), iter_type=tir.IterVar.DataPar)],
+    var_a = tirx.Var("a", "int64")
+    buffer_b = tirx.decl_buffer((128, 128), "float32", name="b")
+    buffer_c = tirx.decl_buffer((128, 128), "float32", name="c")
+    var_d = tirx.Var("d", "int32")
+    buffer_e = tirx.decl_buffer((128, 128), "float32", name="c")
+    var_f = tirx.Var("f", "int32")
+    block_expected = tirx.SBlock(
+        iter_vars=[tirx.IterVar((0, 128), tirx.Var("", "int32"), iter_type=tirx.IterVar.DataPar)],
         reads=[buffer_b[0:16, 0:16]],
         writes=[buffer_c[var_d:128, var_d:128]],
         name_hint="block",
-        body=tir.Evaluate(0),
-        alloc_buffers=[tir.decl_buffer((128, 128), "float32")],
+        body=tirx.Evaluate(0),
+        alloc_buffers=[tirx.decl_buffer((128, 128), "float32")],
         match_buffers=[
-            tir.MatchBufferRegion(tir.decl_buffer((32, 32), "float32"), buffer_e[0:32, 0:32])
+            tirx.MatchBufferRegion(tirx.decl_buffer((32, 32), "float32"), buffer_e[0:32, 0:32])
         ],
         annotations={"key": "value"},
     )
-    block_realize_expected = tir.SBlockRealize(
+    block_realize_expected = tirx.SBlockRealize(
         iter_values=[var_f],
         predicate=var_a > 1,
         block=block_expected,
@@ -188,24 +188,24 @@ def test_ir_builder_tir_axis():
     block_realize_actual = ib.get()
 
     # the expected block
-    var_a = tir.Var("a", "int32")
-    var_b = tir.Var("b", "int32")
-    var_c = tir.Var("c", "int32")
-    var_d = tir.Var("d", "int32")
-    block_expected = tir.SBlock(
+    var_a = tirx.Var("a", "int32")
+    var_b = tirx.Var("b", "int32")
+    var_c = tirx.Var("c", "int32")
+    var_d = tirx.Var("d", "int32")
+    block_expected = tirx.SBlock(
         iter_vars=[
-            tir.IterVar((0, 8), tir.Var("", "int32"), iter_type=tir.IterVar.DataPar),
-            tir.IterVar((0, 16), tir.Var("", "int32"), iter_type=tir.IterVar.CommReduce),
-            tir.IterVar((0, 32), tir.Var("", "int32"), iter_type=tir.IterVar.Ordered),
-            tir.IterVar((0, 64), tir.Var("", "int32"), iter_type=tir.IterVar.Opaque),
+            tirx.IterVar((0, 8), tirx.Var("", "int32"), iter_type=tirx.IterVar.DataPar),
+            tirx.IterVar((0, 16), tirx.Var("", "int32"), iter_type=tirx.IterVar.CommReduce),
+            tirx.IterVar((0, 32), tirx.Var("", "int32"), iter_type=tirx.IterVar.Ordered),
+            tirx.IterVar((0, 64), tirx.Var("", "int32"), iter_type=tirx.IterVar.Opaque),
         ],
         reads=[],
         writes=[],
         name_hint="block",
-        body=tir.Evaluate(0),
-        annotations={"tir.script_parsing_detect_access": tir.IntImm("int64", 3)},
+        body=tirx.Evaluate(0),
+        annotations={"tirx.script_parsing_detect_access": tirx.IntImm("int64", 3)},
     )
-    block_realize_expected = tir.SBlockRealize(
+    block_realize_expected = tirx.SBlockRealize(
         iter_values=[var_a, var_b, var_c, var_d],
         predicate=True,
         block=block_expected,
@@ -228,42 +228,42 @@ def test_ir_builder_tir_for():
     for_actual = ib.get()
 
     # the expected for
-    thread_binding_expected = tir.For(
-        loop_var=tir.Var("", "int32"),
+    thread_binding_expected = tirx.For(
+        loop_var=tirx.Var("", "int32"),
         min=0,
         extent=8,
-        kind=tir.ForKind.THREAD_BINDING,
-        body=tir.Evaluate(0),
-        thread_binding=tir.IterVar(
-            None, tir.Var("", "int32"), tir.IterVar.ThreadIndex, "threadIdx.x"
+        kind=tirx.ForKind.THREAD_BINDING,
+        body=tirx.Evaluate(0),
+        thread_binding=tirx.IterVar(
+            None, tirx.Var("", "int32"), tirx.IterVar.ThreadIndex, "threadIdx.x"
         ),
     )
-    unroll_expected = tir.For(
-        loop_var=tir.Var("", "int32"),
+    unroll_expected = tirx.For(
+        loop_var=tirx.Var("", "int32"),
         min=0,
         extent=16,
-        kind=tir.ForKind.UNROLLED,
+        kind=tirx.ForKind.UNROLLED,
         body=thread_binding_expected,
     )
-    vectorized_expected = tir.For(
-        loop_var=tir.Var("", "int32"),
+    vectorized_expected = tirx.For(
+        loop_var=tirx.Var("", "int32"),
         min=0,
         extent=32,
-        kind=tir.ForKind.VECTORIZED,
+        kind=tirx.ForKind.VECTORIZED,
         body=unroll_expected,
     )
-    parallel_expected = tir.For(
-        loop_var=tir.Var("", "int32"),
+    parallel_expected = tirx.For(
+        loop_var=tirx.Var("", "int32"),
         min=0,
         extent=64,
-        kind=tir.ForKind.PARALLEL,
+        kind=tirx.ForKind.PARALLEL,
         body=vectorized_expected,
     )
-    for_expected = tir.For(
-        loop_var=tir.Var("", "int32"),
+    for_expected = tirx.For(
+        loop_var=tirx.Var("", "int32"),
         min=0,
         extent=128,
-        kind=tir.ForKind.SERIAL,
+        kind=tirx.ForKind.SERIAL,
         body=parallel_expected,
     )
 
@@ -273,18 +273,18 @@ def test_ir_builder_tir_for():
 
 def test_ir_builder_tir_for_uint():
     with IRBuilder() as ib:
-        with T.serial(tir.const(128, "uint32")) as a:
+        with T.serial(tirx.const(128, "uint32")) as a:
             T.evaluate(0)
 
     # the for generated by IRBuilder
     for_actual = ib.get()
 
-    for_expected = tir.For(
-        loop_var=tir.Var("", "uint32"),
-        min=tir.const(0, "uint32"),
-        extent=tir.const(128, "uint32"),
-        kind=tir.ForKind.SERIAL,
-        body=tir.Evaluate(0),
+    for_expected = tirx.For(
+        loop_var=tirx.Var("", "uint32"),
+        min=tirx.const(0, "uint32"),
+        extent=tirx.const(128, "uint32"),
+        kind=tirx.ForKind.SERIAL,
+        body=tirx.Evaluate(0),
     )
 
     # Check if the generated ir is expected
@@ -299,14 +299,14 @@ def test_ir_builder_tir_assert():
     assert_actual = ib.get()
 
     # AssertStmt is a leaf. The frame emits the assert and then the body stmts as siblings.
-    assert_expected = tir.SeqStmt(
+    assert_expected = tirx.SeqStmt(
         [
-            tir.AssertStmt(
+            tirx.AssertStmt(
                 T.int32() == 0,
-                tir.StringImm("RuntimeError"),
-                [tir.StringImm("a is 0")],
+                tirx.StringImm("RuntimeError"),
+                [tirx.StringImm("a is 0")],
             ),
-            tir.Evaluate(0),
+            tirx.Evaluate(0),
         ]
     )
 
@@ -317,17 +317,17 @@ def test_ir_builder_tir_assert():
 def test_ir_builder_tir_bind():
     # Test that T.bind emits a flat Bind statement and returns the Var.
     with IRBuilder() as ib:
-        v = T.bind(tir.IntImm("int32", 2))
+        v = T.bind(tirx.IntImm("int32", 2))
     # the let binding generated by IRBuilder
     let_actual = ib.get()
 
     # Bind is now flat (no body), so a single Bind stmt is emitted.
-    let_expected = tir.Bind(T.int32(), tir.IntImm("int32", 2))
+    let_expected = tirx.Bind(T.int32(), tirx.IntImm("int32", 2))
 
     # Check if the generated ir is expected
     assert_structural_equal(let_actual, let_expected, map_free_vars=True)
     # Check that the returned value is a Var
-    assert isinstance(v, tir.Var)
+    assert isinstance(v, tirx.Var)
 
 
 def test_ir_builder_tir_thread():
@@ -341,9 +341,9 @@ def test_ir_builder_tir_thread():
     ir_actual = ib.get()
 
     # the expected prim_func
-    iter_var = tir.IterVar((0, 1), "v", iter_type=1, thread_tag="blockIdx.y")
-    attr_stmt = tir.AttrStmt(iter_var, "thread_extent", 1, tir.Evaluate(0))
-    func = tir.PrimFunc([], attr_stmt)
+    iter_var = tirx.IterVar((0, 1), "v", iter_type=1, thread_tag="blockIdx.y")
+    attr_stmt = tirx.AttrStmt(iter_var, "thread_extent", 1, tirx.Evaluate(0))
+    func = tirx.PrimFunc([], attr_stmt)
 
     # Check if the generated ir is expected
     assert_structural_equal(ir_actual, func, map_free_vars=True)
@@ -361,10 +361,10 @@ def test_ir_builder_tir_allocate():
     body = ir_actual.body
 
     # AllocBuffer is flat: body should be a SeqStmt with [AllocBuffer, Evaluate(1)]
-    assert isinstance(body, tir.SeqStmt), f"Expected SeqStmt but got {type(body)}"
+    assert isinstance(body, tirx.SeqStmt), f"Expected SeqStmt but got {type(body)}"
     assert len(body) == 2
-    assert isinstance(body[0], tir.AllocBuffer)
-    assert isinstance(body[1], tir.Evaluate)
+    assert isinstance(body[0], tirx.AllocBuffer)
+    assert isinstance(body[1], tirx.Evaluate)
     assert body[1].value.value == 1
 
 
@@ -377,7 +377,7 @@ def test_ir_builder_tir_while():
     ir_actual = ib.get()
 
     # the expected while
-    ir_expected = tir.While(tir.Var("x", "int32") > 0, tir.Evaluate(0))
+    ir_expected = tirx.While(tirx.Var("x", "int32") > 0, tirx.Evaluate(0))
 
     # Check if the generated ir is expected
     assert_structural_equal(ir_actual, ir_expected, map_free_vars=True)
@@ -395,10 +395,10 @@ def test_ir_builder_tir_if_then_else():
     ir_actual = ib.get()
 
     # the expected if_then_else
-    ir_expected = tir.IfThenElse(
-        tir.Var("c", "int32") < 12,
-        tir.Evaluate(tir.IntImm("int32", 0)),
-        tir.Evaluate(tir.IntImm("int32", 1)),
+    ir_expected = tirx.IfThenElse(
+        tirx.Var("c", "int32") < 12,
+        tirx.Evaluate(tirx.IntImm("int32", 0)),
+        tirx.Evaluate(tirx.IntImm("int32", 1)),
     )
 
     # Check if the generated ir is expected
@@ -415,7 +415,7 @@ def test_ir_builder_tir_buffer_store():
     ir_actual = ib.get()
 
     # the expected buffer store
-    ir_expected = tir.BufferStore(buffer_a, 0.1, [0, i])
+    ir_expected = tirx.BufferStore(buffer_a, 0.1, [0, i])
 
     # Check if the generated ir is expected
     assert_structural_equal(ir_actual, ir_expected, map_free_vars=True)
@@ -423,8 +423,8 @@ def test_ir_builder_tir_buffer_store():
 
 def test_ir_builder_tir_buffer_store_scalable_vec():
     buffer_a = T.Buffer((30,), "float32")
-    value = T.broadcast(0.11, 4 * tvm.tir.vscale())
-    index = T.ramp(0, 1, 4 * tvm.tir.vscale())
+    value = T.broadcast(0.11, 4 * tvm.tirx.vscale())
+    index = T.ramp(0, 1, 4 * tvm.tirx.vscale())
 
     with IRBuilder() as ib:
         T.buffer_store(buffer_a, value, [index])
@@ -433,7 +433,7 @@ def test_ir_builder_tir_buffer_store_scalable_vec():
     ir_actual = ib.get()
 
     # the expected buffer store
-    ir_expected = tir.BufferStore(buffer_a, value, [index])
+    ir_expected = tirx.BufferStore(buffer_a, value, [index])
 
     # Check if the generated ir is expected
     assert_structural_equal(ir_actual, ir_expected, map_free_vars=True)
@@ -449,7 +449,7 @@ def test_ir_builder_tir_buffer_store_predicate():
         T.buffer_store(buffer_a, value, [index], predicate)
 
     ir_actual = ib.get()
-    ir_expected = tir.BufferStore(buffer_a, value, [index], predicate)
+    ir_expected = tirx.BufferStore(buffer_a, value, [index], predicate)
     assert_structural_equal(ir_actual, ir_expected, map_free_vars=True)
 
 
@@ -460,7 +460,7 @@ def test_ir_builder_tir_evaluate():
     eval_actual = ib.get()
 
     # the expected evaluate
-    eval_expected = tir.Evaluate(0)
+    eval_expected = tirx.Evaluate(0)
 
     # Check if the generated ir is expected
     assert_structural_equal(eval_actual, eval_expected, map_free_vars=True)
@@ -478,10 +478,10 @@ def test_ir_builder_tir_decl_buffer():
     body = ir_actual.body
 
     # decl_buffer without data emits AllocBuffer (flat): body should be SeqStmt
-    assert isinstance(body, tir.SeqStmt), f"Expected SeqStmt but got {type(body)}"
+    assert isinstance(body, tirx.SeqStmt), f"Expected SeqStmt but got {type(body)}"
     assert len(body) == 2
-    assert isinstance(body[0], tir.AllocBuffer)
-    assert isinstance(body[1], tir.Evaluate)
+    assert isinstance(body[0], tirx.AllocBuffer)
+    assert isinstance(body[1], tirx.Evaluate)
     assert body[1].value.value == 1
 
 
@@ -494,7 +494,7 @@ def test_ir_builder_tir_inline():
     eval_actual = ib.get()
 
     # the expected evaluate
-    eval_expected = tir.Evaluate(10)
+    eval_expected = tirx.Evaluate(10)
 
     # Check if the generated ir is expected
     assert_structural_equal(eval_actual, eval_expected, map_free_vars=True)

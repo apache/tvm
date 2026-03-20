@@ -104,7 +104,7 @@ inline ExprDoc IR(const IRDocsifier& d, const ffi::String& attr) {
 
 /*! \brief Creates the TIR common prefix, which is by default `T` */
 inline ExprDoc TIR(const IRDocsifier& d, const ffi::String& attr) {
-  d->ir_usage.insert("tir");
+  d->ir_usage.insert("tirx");
   return IdDoc(d->cfg->tir_prefix)->Attr(attr);
 }
 
@@ -125,8 +125,8 @@ inline Doc HeaderWrapper(const IRDocsifier& d, const Doc& doc) {
     if (d->ir_usage.count("ir")) {
       stmts.push_back(CommentDoc("from tvm.script import ir as " + d->cfg->ir_prefix));
     }
-    if (d->ir_usage.count("tir")) {
-      stmts.push_back(CommentDoc("from tvm.script import tir as " + d->cfg->tir_prefix));
+    if (d->ir_usage.count("tirx")) {
+      stmts.push_back(CommentDoc("from tvm.script import tirx as " + d->cfg->tir_prefix));
     }
     if (d->ir_usage.count("relax")) {
       stmts.push_back(CommentDoc("from tvm.script import relax as " + d->cfg->relax_prefix));

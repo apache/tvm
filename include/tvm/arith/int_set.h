@@ -25,16 +25,16 @@
 #define TVM_ARITH_INT_SET_H_
 
 #include <tvm/ir/expr.h>
-#include <tvm/tir/expr.h>
+#include <tvm/tirx/expr.h>
 
 #include <unordered_map>
 
 namespace tvm {
 namespace arith {
 
-using tir::IterVar;
-using tir::Var;
-using tir::VarNode;
+using tirx::IterVar;
+using tirx::Var;
+using tirx::VarNode;
 
 class Analyzer;
 
@@ -199,7 +199,7 @@ IntSet EvalSet(PrimExpr e, const ffi::Map<Var, IntSet>& dom_map);
  * \param dom_map The domain of each variable.
  * \return An integer set that can cover all the possible values of e.
  */
-IntSet EvalSet(PrimExpr e, const std::unordered_map<const tir::VarNode*, IntSet>& dom_map);
+IntSet EvalSet(PrimExpr e, const std::unordered_map<const tirx::VarNode*, IntSet>& dom_map);
 /*!
  * \brief Find an symbolic integer set that contains is union over
  *  all the possible conditional values in dom_map.

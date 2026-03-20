@@ -25,7 +25,7 @@
 #define TVM_TARGET_SPIRV_IR_BUILDER_H_
 
 #include <tvm/ffi/function.h>
-#include <tvm/tir/expr.h>
+#include <tvm/tirx/expr.h>
 
 // clang-format off
 #include <algorithm>

@@ -23,7 +23,7 @@
 #include "codegen_metal.h"
 
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/tir/transform.h>
+#include <tvm/tirx/transform.h>
 
 #include <algorithm>
 #include <cmath>
@@ -151,7 +151,7 @@ void CodeGenMetal::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
   TVM_FFI_ICHECK_EQ(name_supply_->FreshName("blockIdx"), "blockIdx");
   int work_dim = 0;
   auto launch_params =
-      func->GetAttr<ffi::Array<ffi::String>>(tir::attr::kKernelLaunchParams).value();
+      func->GetAttr<ffi::Array<ffi::String>>(tirx::attr::kKernelLaunchParams).value();
   for (const auto& tag : launch_params) {
     if (tag != runtime::launch_param::kUseDynamicSharedMemoryTag) {
       runtime::ThreadScope scope = runtime::ThreadScope::Create(tag);
@@ -209,7 +209,7 @@ void CodeGenMetal::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
   }
   bool fail = false;
   if (t.is_float()) {
-    // Need to care about sizes and alignment of half3/float3 because tir representation might not
+    // Need to care about sizes and alignment of half3/float3 because tirx representation might not
     // be aware of Metal half3/float3 details and can treat them as just three elements,
     // while sizes and alignmnents of half3/float3 are one element more (half3-8 bytes/
     // float13 - 16bytes).
@@ -345,7 +345,7 @@ void CodeGenMetal::VisitStmt_(const AllocBufferNode* op) {
   }
 
   RegisterHandleType(op->buffer->data.get(), dtype);
-  if (op->annotations.count(tir::attr::kVolatile)) {
+  if (op->annotations.count(tirx::attr::kVolatile)) {
     MarkVolatile(op->buffer->data.get());
   }
 }
@@ -444,7 +444,7 @@ void CodeGenMetal::VisitExpr_(const FloatImmNode* op, std::ostream& os) {  // NO
 
 ffi::Module BuildMetal(IRModule mod, Target target) {
   bool output_ssa = false;
-  mod = tir::transform::PointerValueTypeRewrite()(std::move(mod));
+  mod = tirx::transform::PointerValueTypeRewrite()(std::move(mod));
 
   std::ostringstream source_maker;
   std::unordered_map<std::string, std::string> smap;

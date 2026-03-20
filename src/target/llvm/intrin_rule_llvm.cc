@@ -27,8 +27,8 @@
 #include <llvm/IR/Intrinsics.h>
 #define _USE_MATH_DEFINES
 #include <math.h>
-#include <tvm/tir/op.h>
-#include <tvm/tir/op_attr_types.h>
+#include <tvm/tirx/op.h>
+#include <tvm/tirx/op_attr_types.h>
 
 #include <limits>
 
@@ -38,87 +38,93 @@ namespace tvm {
 namespace codegen {
 namespace llvm {
 namespace intrin {
-using tir::FLowerIntrinsic;
+using tirx::FLowerIntrinsic;
 
-TVM_REGISTER_OP("tir.prefetch")
+TVM_REGISTER_OP("tirx.prefetch")
     .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
                                DispatchLLVMIntrin<::llvm::Intrinsic::prefetch, 4>);
 
-TVM_REGISTER_OP("tir.exp").set_attr<FLowerIntrinsic>(
-    "llvm.FLowerIntrinsic", DispatchLLVMPureIntrin<::llvm::Intrinsic::exp, 1>);
+TVM_REGISTER_OP("tirx.exp")
+    .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
+                               DispatchLLVMPureIntrin<::llvm::Intrinsic::exp, 1>);
 
-TVM_REGISTER_OP("tir.exp2")
+TVM_REGISTER_OP("tirx.exp2")
     .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
                                DispatchLLVMPureIntrin<::llvm::Intrinsic::exp2, 1>);
 
-TVM_REGISTER_OP("tir.fma").set_attr<FLowerIntrinsic>(
-    "llvm.FLowerIntrinsic", DispatchLLVMPureIntrin<::llvm::Intrinsic::fmuladd, 3>);
+TVM_REGISTER_OP("tirx.fma")
+    .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
+                               DispatchLLVMPureIntrin<::llvm::Intrinsic::fmuladd, 3>);
 
-TVM_REGISTER_OP("tir.log").set_attr<FLowerIntrinsic>(
-    "llvm.FLowerIntrinsic", DispatchLLVMPureIntrin<::llvm::Intrinsic::log, 1>);
+TVM_REGISTER_OP("tirx.log")
+    .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
+                               DispatchLLVMPureIntrin<::llvm::Intrinsic::log, 1>);
 
-TVM_REGISTER_OP("tir.log2")
+TVM_REGISTER_OP("tirx.log2")
     .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
                                DispatchLLVMPureIntrin<::llvm::Intrinsic::log2, 1>);
 
-TVM_REGISTER_OP("tir.log10")
+TVM_REGISTER_OP("tirx.log10")
     .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
                                DispatchLLVMPureIntrin<::llvm::Intrinsic::log10, 1>);
 
-TVM_REGISTER_OP("tir.sqrt")
+TVM_REGISTER_OP("tirx.sqrt")
     .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
                                DispatchLLVMPureIntrin<::llvm::Intrinsic::sqrt, 1>);
 
-TVM_REGISTER_OP("tir.floor")
+TVM_REGISTER_OP("tirx.floor")
     .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
                                DispatchLLVMPureIntrin<::llvm::Intrinsic::floor, 1>);
 
-TVM_REGISTER_OP("tir.ceil")
+TVM_REGISTER_OP("tirx.ceil")
     .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
                                DispatchLLVMPureIntrin<::llvm::Intrinsic::ceil, 1>);
 
-TVM_REGISTER_OP("tir.trunc")
+TVM_REGISTER_OP("tirx.trunc")
     .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
                                DispatchLLVMPureIntrin<::llvm::Intrinsic::trunc, 1>);
 
-TVM_REGISTER_OP("tir.fabs")
+TVM_REGISTER_OP("tirx.fabs")
     .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
                                DispatchLLVMPureIntrin<::llvm::Intrinsic::fabs, 1>);
 
-TVM_REGISTER_OP("tir.round")
+TVM_REGISTER_OP("tirx.round")
     .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
                                DispatchLLVMPureIntrin<::llvm::Intrinsic::round, 1>);
 
-TVM_REGISTER_OP("tir.nearbyint")
+TVM_REGISTER_OP("tirx.nearbyint")
     .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
                                DispatchLLVMPureIntrin<::llvm::Intrinsic::nearbyint, 1>);
 
-TVM_REGISTER_OP("tir.pow").set_attr<FLowerIntrinsic>(
-    "llvm.FLowerIntrinsic", DispatchLLVMPureIntrin<::llvm::Intrinsic::pow, 2>);
+TVM_REGISTER_OP("tirx.pow")
+    .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
+                               DispatchLLVMPureIntrin<::llvm::Intrinsic::pow, 2>);
 
-TVM_REGISTER_OP("tir.popcount")
+TVM_REGISTER_OP("tirx.popcount")
     .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
                                DispatchLLVMPureIntrin<::llvm::Intrinsic::ctpop, 1>);
 
-TVM_REGISTER_OP("tir.cos").set_attr<FLowerIntrinsic>(
-    "llvm.FLowerIntrinsic", DispatchLLVMPureIntrin<::llvm::Intrinsic::cos, 1>);
+TVM_REGISTER_OP("tirx.cos")
+    .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
+                               DispatchLLVMPureIntrin<::llvm::Intrinsic::cos, 1>);
 
-TVM_REGISTER_OP("tir.sin").set_attr<FLowerIntrinsic>(
-    "llvm.FLowerIntrinsic", DispatchLLVMPureIntrin<::llvm::Intrinsic::sin, 1>);
+TVM_REGISTER_OP("tirx.sin")
+    .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
+                               DispatchLLVMPureIntrin<::llvm::Intrinsic::sin, 1>);
 
-TVM_REGISTER_OP("tir.tanh")
+TVM_REGISTER_OP("tirx.tanh")
     .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
                                ::tvm::codegen::intrin::DispatchNumericalStableTanh);
 }  // namespace intrin
 
 namespace legalize {
-using tir::FLegalize;
+using tirx::FLegalize;
 
-TVM_REGISTER_OP("tir.exp10")
+TVM_REGISTER_OP("tirx.exp10")
     .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
-      using tir::make_const;
-      using tir::make_zero;
-      const tir::CallNode* call = e.as<tir::CallNode>();
+      using tirx::make_const;
+      using tirx::make_zero;
+      const tirx::CallNode* call = e.as<tirx::CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
       const PrimExpr& x = call->args[0];
       PrimExpr ln10 = make_const(x.dtype(), 2.302585093);
@@ -126,19 +132,20 @@ TVM_REGISTER_OP("tir.exp10")
       return ret;
     });
 
-TVM_REGISTER_OP("tir.tan").set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
-  const tir::CallNode* call = e.as<tir::CallNode>();
-  TVM_FFI_ICHECK(call != nullptr);
-  const PrimExpr& x = call->args[0];
-  PrimExpr tan_x = sin(x) / cos(x);
-  return tan_x;
-});
-
-TVM_REGISTER_OP("tir.cosh")
+TVM_REGISTER_OP("tirx.tan")
     .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
-      using tir::make_const;
-      using tir::make_zero;
-      const tir::CallNode* call = e.as<tir::CallNode>();
+      const tirx::CallNode* call = e.as<tirx::CallNode>();
+      TVM_FFI_ICHECK(call != nullptr);
+      const PrimExpr& x = call->args[0];
+      PrimExpr tan_x = sin(x) / cos(x);
+      return tan_x;
+    });
+
+TVM_REGISTER_OP("tirx.cosh")
+    .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
+      using tirx::make_const;
+      using tirx::make_zero;
+      const tirx::CallNode* call = e.as<tirx::CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
       const PrimExpr& x = call->args[0];
       PrimExpr two = make_const(x.dtype(), 2);
@@ -149,11 +156,11 @@ TVM_REGISTER_OP("tir.cosh")
       return ret;
     });
 
-TVM_REGISTER_OP("tir.sinh")
+TVM_REGISTER_OP("tirx.sinh")
     .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
-      using tir::make_const;
-      using tir::make_zero;
-      const tir::CallNode* call = e.as<tir::CallNode>();
+      using tirx::make_const;
+      using tirx::make_zero;
+      const tirx::CallNode* call = e.as<tirx::CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
       const PrimExpr& x = call->args[0];
       PrimExpr two = make_const(x.dtype(), 2);
@@ -164,11 +171,11 @@ TVM_REGISTER_OP("tir.sinh")
       return ret;
     });
 
-TVM_REGISTER_OP("tir.asin")
+TVM_REGISTER_OP("tirx.asin")
     .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
-      using tir::make_const;
+      using tirx::make_const;
       using namespace intrin;
-      const tir::CallNode* call = e.as<tir::CallNode>();
+      const tirx::CallNode* call = e.as<tirx::CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
       const PrimExpr& x = call->args[0];
 
@@ -190,17 +197,17 @@ TVM_REGISTER_OP("tir.asin")
 
       PrimExpr lower = make_const(x.dtype(), -1.0);
       PrimExpr upper = make_const(x.dtype(), 1.0);
-      PrimExpr out_range = tir::Or(x<lower, x> upper);
+      PrimExpr out_range = tirx::Or(x<lower, x> upper);
       PrimExpr nan_const = make_const(x.dtype(), std::numeric_limits<double>::quiet_NaN());
 
-      return tir::Select(out_range, nan_const, tir::Select(use_lib, lib_result, series));
+      return tirx::Select(out_range, nan_const, tirx::Select(use_lib, lib_result, series));
     });
 
-TVM_REGISTER_OP("tir.acos")
+TVM_REGISTER_OP("tirx.acos")
     .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
-      using tir::make_const;
+      using tirx::make_const;
       using namespace intrin;
-      const tir::CallNode* call = e.as<tir::CallNode>();
+      const tirx::CallNode* call = e.as<tirx::CallNode>();
       TVM_FFI_ICHECK(call != nullptr) << "Invalid call node in acos legalization";
       const PrimExpr& x = call->args[0];
 
@@ -217,16 +224,16 @@ TVM_REGISTER_OP("tir.acos")
 
       PrimExpr lower = make_const(x.dtype(), -1.0);
       PrimExpr upper = make_const(x.dtype(), 1.0);
-      PrimExpr out_range = tir::Or(x<lower, x> upper);
+      PrimExpr out_range = tirx::Or(x<lower, x> upper);
       PrimExpr nan_const = make_const(x.dtype(), std::numeric_limits<double>::quiet_NaN());
 
-      return tir::Select(out_range, nan_const, tir::Select(use_lib, lib_result, formula_result));
+      return tirx::Select(out_range, nan_const, tirx::Select(use_lib, lib_result, formula_result));
     });
 
-TVM_REGISTER_OP("tir.atan")
+TVM_REGISTER_OP("tirx.atan")
     .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
-      using tir::make_const;
-      const tir::CallNode* call = e.as<tir::CallNode>();
+      using tirx::make_const;
+      const tirx::CallNode* call = e.as<tirx::CallNode>();
       TVM_FFI_ICHECK(call != nullptr) << "Invalid call node in atan legalization";
       const PrimExpr& x = call->args[0];
       PrimExpr one = make_const(x.dtype(), 1.0);
@@ -234,10 +241,10 @@ TVM_REGISTER_OP("tir.atan")
       return asin(x / denom);
     });
 
-TVM_REGISTER_OP("tir.asinh")
+TVM_REGISTER_OP("tirx.asinh")
     .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
-      using tir::make_const;
-      const tir::CallNode* call = e.as<tir::CallNode>();
+      using tirx::make_const;
+      const tirx::CallNode* call = e.as<tirx::CallNode>();
       TVM_FFI_ICHECK(call != nullptr) << "Invalid call node in asinh legalization";
       const PrimExpr& x = call->args[0];
       PrimExpr one = make_const(x.dtype(), 1.0);
@@ -245,10 +252,10 @@ TVM_REGISTER_OP("tir.asinh")
       return log(x + sqrt_val);
     });
 
-TVM_REGISTER_OP("tir.acosh")
+TVM_REGISTER_OP("tirx.acosh")
     .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
-      using tir::make_const;
-      const tir::CallNode* call = e.as<tir::CallNode>();
+      using tirx::make_const;
+      const tirx::CallNode* call = e.as<tirx::CallNode>();
       TVM_FFI_ICHECK(call != nullptr) << "Invalid call node in acosh legalization";
       const PrimExpr& x = call->args[0];
       PrimExpr one = make_const(x.dtype(), 1.0);
@@ -256,46 +263,48 @@ TVM_REGISTER_OP("tir.acosh")
       return log(x + sqrt_val);
     });
 
-TVM_REGISTER_OP("tir.atanh")
+TVM_REGISTER_OP("tirx.atanh")
     .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
-      using tir::make_const;
-      const tir::CallNode* call = e.as<tir::CallNode>();
+      using tirx::make_const;
+      const tirx::CallNode* call = e.as<tirx::CallNode>();
       TVM_FFI_ICHECK(call != nullptr) << "Invalid call node in atanh legalization";
       const PrimExpr& x = call->args[0];
       PrimExpr one = make_const(x.dtype(), 1.0);
       return (log(one + x) - log(one - x)) * make_const(x.dtype(), 0.5);
     });
 
-TVM_REGISTER_OP("tir.erf").set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
-  using tir::make_const;
-  const tir::CallNode* call = e.as<tir::CallNode>();
-  TVM_FFI_ICHECK(call != nullptr) << "Invalid call node in erf legalization";
-  const PrimExpr& x = call->args[0];
-  PrimExpr abs_x = tvm::abs(x);
-  PrimExpr t = make_const(x.dtype(), 1.0) /
-               (make_const(x.dtype(), 1.0) + make_const(x.dtype(), 0.3275911) * abs_x);
-  PrimExpr a1 = make_const(x.dtype(), 0.254829592);
-  PrimExpr a2 = make_const(x.dtype(), -0.284496736);
-  PrimExpr a3 = make_const(x.dtype(), 1.421413741);
-  PrimExpr a4 = make_const(x.dtype(), -1.453152027);
-  PrimExpr a5 = make_const(x.dtype(), 1.061405429);
-  PrimExpr poly = (((((a5 * t + a4) * t + a3) * t + a2) * t + a1) * t);
-  PrimExpr approx = make_const(x.dtype(), 1.0) - poly * exp(-abs_x * abs_x);
-  return tvm::tir::Select(x < 0, -approx, approx);
-});
+TVM_REGISTER_OP("tirx.erf")
+    .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
+      using tirx::make_const;
+      const tirx::CallNode* call = e.as<tirx::CallNode>();
+      TVM_FFI_ICHECK(call != nullptr) << "Invalid call node in erf legalization";
+      const PrimExpr& x = call->args[0];
+      PrimExpr abs_x = tvm::abs(x);
+      PrimExpr t = make_const(x.dtype(), 1.0) /
+                   (make_const(x.dtype(), 1.0) + make_const(x.dtype(), 0.3275911) * abs_x);
+      PrimExpr a1 = make_const(x.dtype(), 0.254829592);
+      PrimExpr a2 = make_const(x.dtype(), -0.284496736);
+      PrimExpr a3 = make_const(x.dtype(), 1.421413741);
+      PrimExpr a4 = make_const(x.dtype(), -1.453152027);
+      PrimExpr a5 = make_const(x.dtype(), 1.061405429);
+      PrimExpr poly = (((((a5 * t + a4) * t + a3) * t + a2) * t + a1) * t);
+      PrimExpr approx = make_const(x.dtype(), 1.0) - poly * exp(-abs_x * abs_x);
+      return tvm::tirx::Select(x < 0, -approx, approx);
+    });
 
-TVM_REGISTER_OP("tir.clz").set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
-  const tir::CallNode* call = e.as<tir::CallNode>();
-  TVM_FFI_ICHECK(call != nullptr);
-  TVM_FFI_ICHECK_EQ(call->args.size(), 1);
-  ffi::Array<PrimExpr> cargs;
-  cargs.push_back(IntImm(DataType::UInt(32), ::llvm::Intrinsic::ctlz));
-  cargs.push_back(call->args[0]);
-  cargs.push_back(IntImm(DataType::Int(1), 1));  // is_zero_undef
-  // LLVM requires that the return type must match the first argument type
-  auto clz = tir::Call(call->args[0]->dtype, tir::builtin::call_llvm_intrin(), cargs);
-  return cast(call->dtype, clz);
-});
+TVM_REGISTER_OP("tirx.clz")
+    .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
+      const tirx::CallNode* call = e.as<tirx::CallNode>();
+      TVM_FFI_ICHECK(call != nullptr);
+      TVM_FFI_ICHECK_EQ(call->args.size(), 1);
+      ffi::Array<PrimExpr> cargs;
+      cargs.push_back(IntImm(DataType::UInt(32), ::llvm::Intrinsic::ctlz));
+      cargs.push_back(call->args[0]);
+      cargs.push_back(IntImm(DataType::Int(1), 1));  // is_zero_undef
+      // LLVM requires that the return type must match the first argument type
+      auto clz = tirx::Call(call->args[0]->dtype, tirx::builtin::call_llvm_intrin(), cargs);
+      return cast(call->dtype, clz);
+    });
 
 }  // namespace legalize
 }  // namespace llvm

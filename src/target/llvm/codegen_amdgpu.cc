@@ -140,7 +140,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
         buf, llvmGetPointerTo(DTypeToLLVMType(dtype), buf->getType()->getPointerAddressSpace()));
     TVM_FFI_ICHECK(!var_map_.count(op->buffer->data.get()));
     var_map_[op->buffer->data.get()] = buf;
-    if (op->annotations.count(tir::attr::kVolatile)) {
+    if (op->annotations.count(tirx::attr::kVolatile)) {
       volatile_buf_.insert(op->buffer->data.get());
     }
   }

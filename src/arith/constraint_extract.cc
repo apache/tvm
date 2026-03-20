@@ -24,7 +24,7 @@
 #include "constraint_extract.h"
 
 #include <tvm/arith/analyzer.h>
-#include <tvm/tir/expr.h>
+#include <tvm/tirx/expr.h>
 
 #include "pattern_match.h"
 

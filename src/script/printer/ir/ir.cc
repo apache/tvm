@@ -35,7 +35,7 @@ struct SortableFunction {
       : priority(0), gv(obj.first), func(obj.second) {
     if (gv->name_hint == "main") {
       priority = 1000;
-    } else if (obj.second->GetTypeKey() == "tir.PrimFunc") {
+    } else if (obj.second->GetTypeKey() == "tirx.PrimFunc") {
       priority = 1;
     } else if (obj.second->GetTypeKey() == "relax.expr.ExternFunc") {
       priority = 2;

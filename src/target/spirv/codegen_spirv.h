@@ -26,10 +26,10 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/target/target.h>
-#include <tvm/tir/analysis.h>
-#include <tvm/tir/expr.h>
-#include <tvm/tir/function.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/analysis.h>
+#include <tvm/tirx/expr.h>
+#include <tvm/tirx/function.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include <memory>
 #include <string>
@@ -45,7 +45,7 @@
 namespace tvm {
 namespace codegen {
 
-using namespace tir;
+using namespace tirx;
 
 /*!
  * \brief Code generator into SPIRV
@@ -119,7 +119,7 @@ class CodeGenSPIRV : public ExprFunctor<spirv::Value(const PrimExpr&)>,
  protected:
   /*! \brief Storage information for a buffer */
   struct StorageInfo {
-    /*! \brief The name of the tir::Var for the buffer
+    /*! \brief The name of the tirx::Var for the buffer
      *
      * Used for error messages.
      */

@@ -24,17 +24,17 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tir/analysis.h>
-#include <tvm/tir/op.h>
-#include <tvm/tir/stmt.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/analysis.h>
+#include <tvm/tirx/op.h>
+#include <tvm/tirx/stmt.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include "../../arith/ir_mutator_with_analyzer.h"
 #include "../../arith/pattern_match.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 using namespace arith;
 
@@ -148,7 +148,7 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
   PrimExpr VisitExpr_(const LTNode* op) {
     PrimExpr a = VisitExpr(op->a);
     PrimExpr b = VisitExpr(op->b);
-    PrimExpr ret = tir::LT(a, b);
+    PrimExpr ret = tirx::LT(a, b);
     // Pattern var to match any expression
     PVar<PrimExpr> x;
     // Pattern var match IntImm

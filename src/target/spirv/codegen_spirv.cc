@@ -24,15 +24,15 @@
 #include "codegen_spirv.h"
 
 #include <tvm/s_tir/stmt.h>
-#include <tvm/tir/builtin.h>
-#include <tvm/tir/expr.h>
-#include <tvm/tir/op.h>
+#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/expr.h>
+#include <tvm/tirx/op.h>
 
 #include <string>
 
 #include "../../runtime/pack_args.h"
 #include "../../runtime/vulkan/vulkan_common.h"
-#include "../../tir/transform/ir_utils.h"
+#include "../../tirx/transform/ir_utils.h"
 
 namespace tvm {
 namespace codegen {
@@ -41,7 +41,7 @@ CodeGenSPIRV::CodeGenSPIRV(Target target) : spirv_support_(target) {}
 
 runtime::SPIRVShader CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::string& name) {
   this->InitFuncState();
-  TVM_FFI_ICHECK(f->HasNonzeroAttr(tir::attr::kNoAlias))
+  TVM_FFI_ICHECK(f->HasNonzeroAttr(tirx::attr::kNoAlias))
       << "SPIRV only takes restricted memory model";
   std::vector<Var> pod_args;
   uint32_t i_buffer = 0;
@@ -141,7 +141,7 @@ spirv::Value CodeGenSPIRV::GetThreadIndex(const IterVar& iv, const PrimExpr& ext
   spirv::Value v;
   if (ts.rank == 1) {
     v = builder_->GetLocalID(ts.dim_index);
-    auto* sizeptr = extent.as<tir::IntImmNode>();
+    auto* sizeptr = extent.as<tirx::IntImmNode>();
     TVM_FFI_ICHECK(sizeptr) << "SPIRV only allows constant thread group size "
                             << " get " << extent;
     TVM_FFI_ICHECK_GE(ts.dim_index, 0) << "vthread should have been optimized out by here";
@@ -165,7 +165,7 @@ spirv::Value CodeGenSPIRV::CreateStorageSync(const CallNode* op) {
     // Synchronize control at the Subgroup level, but memory at the
     // Workgroup level.  This is because different invocations in a
     // subgroup may have each modified memory that exists at the
-    // workgroup scope.  This should be changed if/when tir exposes
+    // workgroup scope.  This should be changed if/when tirx exposes
     // more information as to which memory access needs to be
     // synchronized.
     sync_scope = spv::ScopeSubgroup;
@@ -452,7 +452,7 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
     PrimExpr index_d = op->args[1];
     PrimExpr index_a = op->args[3];
     PrimExpr index_b = op->args[5];
-    tvm::tir::ExprDeepEqual expr_equal;
+    tvm::tirx::ExprDeepEqual expr_equal;
     PrimExpr index_c = op->args[7];
     bool is_equal = ((buffer_d == buffer_c) && expr_equal(index_d, index_c));
     spirv::SType& fragment_type_d = fragment_info_[buffer_d].stype;
@@ -857,7 +857,7 @@ void CodeGenSPIRV::VisitStmt_(const AllocBufferNode* op) {
 
   TVM_FFI_ICHECK(!var_map_.count(var_node));
   var_map_[var_node] = buf;
-  if (op->annotations.count(tir::attr::kVolatile)) {
+  if (op->annotations.count(tirx::attr::kVolatile)) {
     storage_info_[var_node].is_volatile = true;
   }
 }
@@ -867,7 +867,7 @@ void CodeGenSPIRV::VisitStmt_(const DeclBufferNode* op) {
 }
 
 void CodeGenSPIRV::VisitStmt_(const AttrStmtNode* op) {
-  if (op->attr_key == tir::attr::thread_extent) {
+  if (op->attr_key == tirx::attr::thread_extent) {
     IterVar iv = Downcast<IterVar>(op->node);
     if (iv->thread_tag.length() != 0) {
       // Will throw error if rebinding same local variable to a different extent.

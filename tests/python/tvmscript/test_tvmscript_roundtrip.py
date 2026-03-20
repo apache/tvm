@@ -23,10 +23,10 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import tir
+from tvm import tirx
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def opt_gemm_lower():
@@ -35,7 +35,7 @@ def opt_gemm_lower():
         @T.prim_func
         def mmult(A: T.handle, B: T.handle, C: T.handle) -> None:
             # function attr dict
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             A_1 = T.match_buffer(A, [16384], elem_offset=0, align=64, offset_factor=1)
             B_1 = T.match_buffer(B, [1024, 1024], elem_offset=0, align=64, offset_factor=1)
             C_1 = T.match_buffer(C, [16384], elem_offset=0, align=64, offset_factor=1)
@@ -129,7 +129,7 @@ def opt_conv_tensorcore_lower():
         Conv: T.Buffer((16, 14, 14, 32, 16, 16), "float32"),
     ) -> None:
         # function attr dict
-        T.func_attr({"global_symbol": "default_function", "tir.noalias": True})
+        T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
         # body
         A_1 = T.decl_buffer([12845056], dtype="float16", data=A.data)
         W_1 = T.decl_buffer([1179648], dtype="float16", data=W.data)
@@ -1414,9 +1414,9 @@ def opt_conv_tensorcore_mod_host():
         # function attr dict
         T.func_attr(
             {
-                "tir.noalias": True,
+                "tirx.noalias": True,
                 "global_symbol": "default_function",
-                "tir.is_entry_func": True,
+                "tirx.is_entry_func": True,
                 "calling_conv": 1,
             }
         )
@@ -1762,13 +1762,13 @@ def test_matmul_original():
     rt_func = tvm.script.from_source(func.script())
     tvm.ir.assert_structural_equal(func, rt_func)
 
-    assert isinstance(rt_func.body.block, tir.stmt.SBlock)
-    assert isinstance(rt_func.body.block.body, tir.stmt.For)
-    assert isinstance(rt_func.body.block.body.body, tir.stmt.For)
-    assert isinstance(rt_func.body.block.body.body.body, tir.stmt.SeqStmt)
-    assert isinstance(rt_func.body.block.body.body.body[0].block, tir.stmt.SBlock)
-    assert isinstance(rt_func.body.block.body.body.body[1], tir.stmt.For)
-    assert isinstance(rt_func.body.block.body.body.body[1].body.block, tir.stmt.SBlock)
+    assert isinstance(rt_func.body.block, tirx.stmt.SBlock)
+    assert isinstance(rt_func.body.block.body, tirx.stmt.For)
+    assert isinstance(rt_func.body.block.body.body, tirx.stmt.For)
+    assert isinstance(rt_func.body.block.body.body.body, tirx.stmt.SeqStmt)
+    assert isinstance(rt_func.body.block.body.body.body[0].block, tirx.stmt.SBlock)
+    assert isinstance(rt_func.body.block.body.body.body[1], tirx.stmt.For)
+    assert isinstance(rt_func.body.block.body.body.body[1].body.block, tirx.stmt.SBlock)
 
 
 def test_element_wise():
@@ -1776,15 +1776,15 @@ def test_element_wise():
     rt_func = tvm.script.from_source(func.script())
     tvm.ir.assert_structural_equal(func, rt_func)
 
-    assert isinstance(rt_func.body.block, tir.stmt.SBlock)
-    assert isinstance(rt_func.body.block.body, tir.stmt.SeqStmt)
-    assert isinstance(rt_func.body.block.body[0], tir.stmt.For)
-    assert isinstance(rt_func.body.block.body[0].body, tir.stmt.For)
-    assert isinstance(rt_func.body.block.body[0].body.body.block, tir.stmt.SBlock)
+    assert isinstance(rt_func.body.block, tirx.stmt.SBlock)
+    assert isinstance(rt_func.body.block.body, tirx.stmt.SeqStmt)
+    assert isinstance(rt_func.body.block.body[0], tirx.stmt.For)
+    assert isinstance(rt_func.body.block.body[0].body, tirx.stmt.For)
+    assert isinstance(rt_func.body.block.body[0].body.body.block, tirx.stmt.SBlock)
 
-    assert isinstance(rt_func.body.block.body[1], tir.stmt.For)
-    assert isinstance(rt_func.body.block.body[1].body, tir.stmt.For)
-    assert isinstance(rt_func.body.block.body[1].body.body.block, tir.stmt.SBlock)
+    assert isinstance(rt_func.body.block.body[1], tirx.stmt.For)
+    assert isinstance(rt_func.body.block.body[1].body, tirx.stmt.For)
+    assert isinstance(rt_func.body.block.body[1].body.body.block, tirx.stmt.SBlock)
 
 
 def test_predicate():
@@ -1792,11 +1792,11 @@ def test_predicate():
     rt_func = tvm.script.from_source(func.script())
     tvm.ir.assert_structural_equal(func, rt_func)
 
-    assert isinstance(rt_func.body.block, tir.stmt.SBlock)
-    assert isinstance(rt_func.body.block.body, tir.stmt.For)
-    assert isinstance(rt_func.body.block.body.body, tir.stmt.For)
-    assert isinstance(rt_func.body.block.body.body.body, tir.stmt.For)
-    assert isinstance(rt_func.body.block.body.body.body.body.block, tir.stmt.SBlock)
+    assert isinstance(rt_func.body.block, tirx.stmt.SBlock)
+    assert isinstance(rt_func.body.block.body, tirx.stmt.For)
+    assert isinstance(rt_func.body.block.body.body, tirx.stmt.For)
+    assert isinstance(rt_func.body.block.body.body.body, tirx.stmt.For)
+    assert isinstance(rt_func.body.block.body.body.body.body.block, tirx.stmt.SBlock)
 
 
 def for_thread_binding():
@@ -1819,10 +1819,10 @@ def test_for_thread_binding():
     rt_func = tvm.script.from_source(func.script())
     tvm.ir.assert_structural_equal(func, rt_func)
 
-    assert isinstance(rt_func.body, tir.stmt.For)
+    assert isinstance(rt_func.body, tirx.stmt.For)
     assert rt_func.body.kind == 4
     assert rt_func.body.thread_binding.thread_tag == "threadIdx.x"
-    assert isinstance(rt_func.body.body, tir.stmt.For)
+    assert isinstance(rt_func.body.body, tirx.stmt.For)
     assert rt_func.body.body.kind == 4
     assert rt_func.body.body.thread_binding.thread_tag == "threadIdx.y"
     assert rt_func.body.body.annotations["attr_key"] == "attr_value"
@@ -1853,19 +1853,19 @@ def test_match_buffer_region():
     rt_func = tvm.script.from_source(func.script())
     tvm.ir.assert_structural_equal(func, rt_func)
 
-    assert isinstance(rt_func.body, tir.stmt.SBlockRealize)
+    assert isinstance(rt_func.body, tirx.stmt.SBlockRealize)
     root = rt_func.body.block
 
-    assert isinstance(root.body, tir.stmt.For)
-    assert isinstance(root.body.body, tir.stmt.For)
-    assert isinstance(root.body.body.body, tir.stmt.SBlockRealize)
+    assert isinstance(root.body, tirx.stmt.For)
+    assert isinstance(root.body.body, tirx.stmt.For)
+    assert isinstance(root.body.body.body, tirx.stmt.SBlockRealize)
     outer_block = root.body.body.body.block
     assert len(outer_block.match_buffers) == 1
     buffer_C = outer_block.match_buffers[0].buffer
     tvm.ir.assert_structural_equal(buffer_C.shape, [T.int32(16), T.int32(1), T.int32(4)])
 
-    assert isinstance(outer_block.body, tir.stmt.For)
-    assert isinstance(outer_block.body.body, tir.stmt.SBlockRealize)
+    assert isinstance(outer_block.body, tirx.stmt.For)
+    assert isinstance(outer_block.body.body, tirx.stmt.SBlockRealize)
     inner_block = outer_block.body.body.block
     assert len(inner_block.match_buffers) == 1
     buffer_D = inner_block.match_buffers[0].buffer
@@ -1898,12 +1898,12 @@ def test_block_elements():
     rt_func = tvm.script.from_source(func.script())
     tvm.ir.assert_structural_equal(func, rt_func)
 
-    assert isinstance(rt_func.body.block, tir.stmt.SBlock)
-    assert isinstance(rt_func.body.block.body, tir.stmt.SBlockRealize)
-    assert isinstance(rt_func.body.block.body.block, tir.stmt.SBlock)
+    assert isinstance(rt_func.body.block, tirx.stmt.SBlock)
+    assert isinstance(rt_func.body.block.body, tirx.stmt.SBlockRealize)
+    assert isinstance(rt_func.body.block.body.block, tirx.stmt.SBlock)
     block = rt_func.body.block.body.block
-    assert isinstance(block.body, tir.stmt.BufferStore)
-    assert isinstance(block.init, tir.stmt.BufferStore)
+    assert isinstance(block.body, tirx.stmt.BufferStore)
+    assert isinstance(block.init, tirx.stmt.BufferStore)
     assert len(block.annotations) == 1
     assert block.annotations["attr_key"] == "attr_value"
 
@@ -1935,14 +1935,14 @@ def test_opaque_block():
     tvm.ir.assert_structural_equal(func, rt_func)
 
     root_block = rt_func.body.block
-    assert isinstance(root_block, tir.stmt.SBlock)
-    assert isinstance(root_block.body, tir.stmt.For)
-    assert isinstance(root_block.body.body[0], tir.stmt.For)
-    assert isinstance(root_block.body.body[0].body, tir.stmt.SBlockRealize)
-    assert isinstance(root_block.body.body[0].body.block, tir.stmt.SBlock)
+    assert isinstance(root_block, tirx.stmt.SBlock)
+    assert isinstance(root_block.body, tirx.stmt.For)
+    assert isinstance(root_block.body.body[0], tirx.stmt.For)
+    assert isinstance(root_block.body.body[0].body, tirx.stmt.SBlockRealize)
+    assert isinstance(root_block.body.body[0].body.block, tirx.stmt.SBlock)
     assert len(root_block.body.body[0].body.block.iter_vars) == 0
-    assert isinstance(root_block.body.body[1], tir.stmt.SBlockRealize)
-    assert isinstance(root_block.body.body[1].block, tir.stmt.SBlock)
+    assert isinstance(root_block.body.body[1], tirx.stmt.SBlockRealize)
+    assert isinstance(root_block.body.body[1].block, tirx.stmt.SBlock)
     assert len(root_block.body.body[1].block.iter_vars) == 0
 
 
@@ -2077,7 +2077,7 @@ def primfunc_with_allocate_annotations():
     @T.prim_func
     def primfunc_with_allocate_annotations(placeholder_28: T.handle, T_cast_6: T.handle) -> None:
         # function attr dict
-        T.func_attr({"global_symbol": "tvmgen_default_fused_nn_max_pool2d_cast", "tir.noalias": True})
+        T.func_attr({"global_symbol": "tvmgen_default_fused_nn_max_pool2d_cast", "tirx.noalias": True})
         placeholder_29 = T.match_buffer(placeholder_28, [802816], dtype="uint8", elem_offset=0, align=64, offset_factor=1)
         T_cast_7 = T.match_buffer(T_cast_6, [200704], dtype="int16", elem_offset=0, align=64, offset_factor=1)
         # body
@@ -2100,7 +2100,7 @@ def primfunc_with_allocate_annotations():
 def comm_reducer_single_reduce_group():
     @T.prim_func
     def comm_reducer_single_reduce_group(a: T.handle, b: T.handle) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         threadIdx_x = T.env_thread("threadIdx.x")
         A = T.match_buffer(a, [16384], dtype="float32")
         for i in T.serial(0, 128):
@@ -2115,7 +2115,7 @@ def comm_reducer_single_reduce_group():
 def comm_reducer_multiple_reduce_groups():
     @T.prim_func
     def comm_reducer_multiple_reduce_groups(a: T.handle, b: T.handle) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         threadIdx_x = T.env_thread("threadIdx.x")
         A = T.match_buffer(a, [16384], dtype="float32")
         for i in T.serial(0, 128):
@@ -2166,9 +2166,9 @@ def test_div_mod():
     rt_func = tvm.script.from_source(func.script(), check_well_formed=False)
     tvm.ir.assert_structural_equal(func, rt_func, True)
 
-    assert isinstance(func.body[0].value, tvm.tir.FloorDiv)
-    assert isinstance(func.body[1].value, tvm.tir.FloorMod)
-    assert isinstance(func.body[2].value, tvm.tir.Mod)
+    assert isinstance(func.body[0].value, tvm.tirx.FloorDiv)
+    assert isinstance(func.body[1].value, tvm.tirx.FloorMod)
+    assert isinstance(func.body[2].value, tvm.tirx.Mod)
 
 
 def loop_extent_dependent():
@@ -2444,7 +2444,7 @@ def scalable_vectors():
     @T.prim_func
     def func(a: T.handle):
         A = T.match_buffer(a, (200,), "float32")
-        A[T.Ramp(11, 2, 4 * tir.vscale())] = T.Broadcast(125, 4 * tir.vscale())
+        A[T.Ramp(11, 2, 4 * tirx.vscale())] = T.Broadcast(125, 4 * tirx.vscale())
 
     return func
 
@@ -2548,7 +2548,7 @@ def float_infinity():
         placeholder: T.Buffer((1, 512, 768), "float32"), T_isinf: T.Buffer((1, 512, 768), "bool")
     ) -> None:
         # function attr dict
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # body
         # with T.sblock("root")
         for i0, i1, i2 in T.grid(1, 512, 768):
@@ -2674,16 +2674,20 @@ def elif_chain_with_else():
 
 def nested_boolean_expressions():
     expressions = {
-        "and_lhs_and": lambda i, j, k: tir.all(tir.all(i, j), k),
-        "and_rhs_and": lambda i, j, k: tir.all(i, tir.all(j, k)),
-        "and_lhs_or": lambda i, j, k: tir.all(tir.any(i, j), k),
-        "and_rhs_or": lambda i, j, k: tir.all(i, tir.any(j, k)),
-        "or_lhs_and": lambda i, j, k: tir.any(tir.all(i, j), k),
-        "or_rhs_and": lambda i, j, k: tir.any(i, tir.all(j, k)),
-        "or_lhs_or": lambda i, j, k: tir.any(tir.any(i, j), k),
-        "or_rhs_or": lambda i, j, k: tir.any(i, tir.any(j, k)),
-        "and_of_ors": lambda i, j, k: tir.all(tir.any(i, j), tir.any(j, k), tir.any(i, k), i, j, k),
-        "or_of_ands": lambda i, j, k: tir.any(tir.all(i, j), tir.all(j, k), tir.all(i, k), i, j, k),
+        "and_lhs_and": lambda i, j, k: tirx.all(tirx.all(i, j), k),
+        "and_rhs_and": lambda i, j, k: tirx.all(i, tirx.all(j, k)),
+        "and_lhs_or": lambda i, j, k: tirx.all(tirx.any(i, j), k),
+        "and_rhs_or": lambda i, j, k: tirx.all(i, tirx.any(j, k)),
+        "or_lhs_and": lambda i, j, k: tirx.any(tirx.all(i, j), k),
+        "or_rhs_and": lambda i, j, k: tirx.any(i, tirx.all(j, k)),
+        "or_lhs_or": lambda i, j, k: tirx.any(tirx.any(i, j), k),
+        "or_rhs_or": lambda i, j, k: tirx.any(i, tirx.any(j, k)),
+        "and_of_ors": lambda i, j, k: tirx.all(
+            tirx.any(i, j), tirx.any(j, k), tirx.any(i, k), i, j, k
+        ),
+        "or_of_ands": lambda i, j, k: tirx.any(
+            tirx.all(i, j), tirx.all(j, k), tirx.all(i, k), i, j, k
+        ),
     }
 
     def make_ir_generator(name, expression):
@@ -2740,7 +2744,7 @@ def bind_var():
 def string_stride():
     @T.prim_func
     def main(a: T.handle, b: T.handle):
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         n = T.int32()
         A = T.match_buffer(a, (n,), strides=("A_s0",), buffer_type="auto")
         B = T.match_buffer(b, (n,), strides=("B_s0",), buffer_type="auto")
@@ -2759,7 +2763,7 @@ def string_stride():
 def string_stride_int64():
     @T.prim_func
     def main(a: T.handle, b: T.handle):
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         n = T.int64()
         A_s0 = T.int64()
         B_s0 = T.int64()
@@ -2776,7 +2780,7 @@ def merge_shape_var_def():
     @T.prim_func(check_well_formed=False)
     def main(A: T.handle, B: T.handle):
         # fmt: off
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         m, n = T.int32(), T.int32()
         A_1 = T.match_buffer(A, (m, n), strides=("A_1_s0", "A_1_s1"), buffer_type="auto")
         B_1 = T.match_buffer(B, (m, n), strides=("B_1_s0", "B_1_s1"), buffer_type="auto")
@@ -2881,7 +2885,7 @@ def make_packed_api_result():
         T.evaluate(A[bx])
 
     mod = tvm.IRModule.from_expr(func)
-    return tvm.tir.transform.MakePackedAPI()(mod)
+    return tvm.tirx.transform.MakePackedAPI()(mod)
 
 
 def tvm_struct_set_generated_in_cpp():
@@ -2914,7 +2918,7 @@ def tvm_struct_set_generated_in_cpp():
                 )
             )
 
-    return tvm.tir.transform.LowerTVMBuiltin()(Module)
+    return tvm.tirx.transform.LowerTVMBuiltin()(Module)
 
 
 def ir_module_with_attrs():
@@ -2938,15 +2942,15 @@ def nested_seqstmt():
     cause failures to round-trip through TVMScript, including
     erroneous use of TVMScript's concise-scoping rules.  This was
     resolved by normalizing nested SeqStmt in TIR, such that the use
-    of `tir.SeqStmt` below results in a single flat `tir.SeqStmt`
-    containing the three `tir.Evaluate` calls.
+    of `tirx.SeqStmt` below results in a single flat `tirx.SeqStmt`
+    containing the three `tirx.Evaluate` calls.
     """
-    func = tvm.tir.PrimFunc(
+    func = tvm.tirx.PrimFunc(
         params=[],
-        body=tvm.tir.SeqStmt(
+        body=tvm.tirx.SeqStmt(
             [
-                tvm.tir.SeqStmt([tvm.tir.Evaluate(0), tvm.tir.Evaluate(1)]),
-                tvm.tir.Evaluate(2),
+                tvm.tirx.SeqStmt([tvm.tirx.Evaluate(0), tvm.tirx.Evaluate(1)]),
+                tvm.tirx.Evaluate(2),
             ]
         ),
     )
@@ -3047,7 +3051,7 @@ def subroutine_call_without_arguments():
             # Should be equivalent to the bare "mod.subroutine()", but
             # that relies on `GlobalVar.__call__` returning the
             # correct IR type.
-            tir.call_tir(mod.subroutine)
+            tirx.call_tir(mod.subroutine)
 
         @T.prim_func
         def subroutine():
@@ -3088,7 +3092,7 @@ def func_attr_with_list():
         B: T.Buffer((128, 128), "float32"),
         D: T.Buffer((128, 128), "float32"),
     ) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": True, "layout_free_buffers": [1]})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True, "layout_free_buffers": [1]})
         C = T.sblock_alloc_buffer([128, 128], dtype="float32")
         for i0, i1, i2 in T.grid(128, 128, 128):
             with T.sblock("C"):
@@ -3249,7 +3253,7 @@ def relax_match_cast_struct_info_proxy():
 
 def relax_symbolic_size_var():
     """Relax symbolic variables may be SizeVar"""
-    N = tvm.tir.SizeVar("N", "int64")
+    N = tvm.tirx.SizeVar("N", "int64")
 
     @R.function
     def func(A: R.Tensor([N], "float16")):

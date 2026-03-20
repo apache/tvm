@@ -23,8 +23,8 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/tir/expr.h>
-#include <tvm/tir/op.h>
+#include <tvm/tirx/expr.h>
+#include <tvm/tirx/op.h>
 
 #include "./scalable_expression.h"
 #include "const_fold.h"
@@ -55,7 +55,7 @@ void Analyzer::Bind(const Var& var, const PrimExpr& expr, bool allow_override) {
 
 void Analyzer::Bind(const Var& var, const Range& range, bool allow_override) {
   TVM_FFI_ICHECK(range.defined());
-  if (tir::is_one(range->extent)) {
+  if (tirx::is_one(range->extent)) {
     this->Bind(var, range->min, allow_override);
   } else {
     this->const_int_bound.Bind(var, range, allow_override);
@@ -69,7 +69,7 @@ void Analyzer::Bind(const Var& var, const Range& range, bool allow_override) {
 void Analyzer::MarkGlobalNonNegValue(const PrimExpr& value) {
   // decompose value as symbol * scale + offset
   int64_t offset = 0;
-  PrimExpr symbol_scale = tir::make_const(value.dtype(), 0);
+  PrimExpr symbol_scale = tirx::make_const(value.dtype(), 0);
 
   auto fcollect_sum = [&](PrimExpr val, int sign) {
     if (const auto* intimm = val.as<IntImmNode>()) {
@@ -86,7 +86,7 @@ void Analyzer::MarkGlobalNonNegValue(const PrimExpr& value) {
 
   // split out the symbol and non-symbolic part
   int64_t cscale = 1;
-  PrimExpr symbol = tir::make_const(value.dtype(), 1);
+  PrimExpr symbol = tirx::make_const(value.dtype(), 1);
   auto fcollect_prod = [&](PrimExpr val) {
     if (const auto* intimm = val.as<IntImmNode>()) {
       cscale *= intimm->value;
@@ -94,7 +94,7 @@ void Analyzer::MarkGlobalNonNegValue(const PrimExpr& value) {
       symbol = symbol * val;
     }
   };
-  UnpackReduction<tir::MulNode>(symbol_scale, fcollect_prod);
+  UnpackReduction<tirx::MulNode>(symbol_scale, fcollect_prod);
   if (cscale <= 0) return;
   // override the constant int bound by marking it as non-negative
   // NOTE: there might be future opportunities of more bound hint
@@ -143,7 +143,7 @@ void ConstraintContext::ExitWithScope() {
 }
 
 bool Analyzer::CanProveGreaterEqual(const PrimExpr& expr, int64_t lower_bound) {
-  if (const auto* ptr = expr.as<tir::IntImmNode>()) {
+  if (const auto* ptr = expr.as<tirx::IntImmNode>()) {
     return ptr->value >= lower_bound;
   }
   auto bd = this->const_int_bound(this->rewrite_simplify(expr));
@@ -152,7 +152,7 @@ bool Analyzer::CanProveGreaterEqual(const PrimExpr& expr, int64_t lower_bound) {
 }
 
 bool Analyzer::CanProveLess(const PrimExpr& expr, int64_t upper_bound) {
-  if (const auto* ptr = expr.as<tir::IntImmNode>()) {
+  if (const auto* ptr = expr.as<tirx::IntImmNode>()) {
     return ptr->value < upper_bound;
   }
   auto bd = this->const_int_bound(this->rewrite_simplify(expr));
@@ -173,7 +173,7 @@ bool Analyzer::CanProveEqual(const PrimExpr& lhs, const PrimExpr& rhs) {
 bool Analyzer::CanProveLessEqualThanSymbolicShapeValue(const PrimExpr& lhs, const PrimExpr& shape) {
   if (this->CanProve(lhs <= shape, ProofStrength::kSymbolicBound)) return true;
   // no need to do further attempt if shape is already a constant.
-  if (tir::is_const_int(shape)) return false;
+  if (tirx::is_const_int(shape)) return false;
   // collect constant scale and ignore symbolic part
   // so 32 * n => cscale = 32
   int64_t cscale = 1;
@@ -182,7 +182,7 @@ bool Analyzer::CanProveLessEqualThanSymbolicShapeValue(const PrimExpr& lhs, cons
       cscale *= ptr->value;
     }
   };
-  UnpackReduction<tir::MulNode>(shape, fcollect);
+  UnpackReduction<tirx::MulNode>(shape, fcollect);
   PrimExpr const_shape_bound = IntImm(shape.dtype(), std::abs(cscale));
   if (this->CanProve(lhs <= const_shape_bound, ProofStrength::kSymbolicBound)) return true;
   return false;
@@ -194,7 +194,7 @@ bool Analyzer::CanProve(const PrimExpr& expr, ProofStrength strength) {
     return ptr->value != 0;
   }
   PrimExpr simplified = Simplify(expr);
-  const int64_t* as_int = tir::as_const_int(simplified);
+  const int64_t* as_int = tirx::as_const_int(simplified);
   if (as_int && *as_int) return true;
   if (strength >= ProofStrength::kSymbolicBound) {
     // NOTE: we intentionally only pattern match common bound predicate i < bound
@@ -204,19 +204,19 @@ bool Analyzer::CanProve(const PrimExpr& expr, ProofStrength strength) {
     // This strategy can only be called from top-level and not from sub-analyzers.
     ffi::Optional<PrimExpr> pos_diff;
     int lower_bound = 0;
-    if (const auto* ptr_lt = expr.as<tir::LTNode>()) {
+    if (const auto* ptr_lt = expr.as<tirx::LTNode>()) {
       pos_diff = ptr_lt->b - ptr_lt->a;
       lower_bound = 1;
     }
-    if (const auto* ptr_le = expr.as<tir::LENode>()) {
+    if (const auto* ptr_le = expr.as<tirx::LENode>()) {
       pos_diff = ptr_le->b - ptr_le->a;
       lower_bound = 0;
     }
-    if (const auto* ptr_gt = expr.as<tir::GTNode>()) {
+    if (const auto* ptr_gt = expr.as<tirx::GTNode>()) {
       pos_diff = ptr_gt->a - ptr_gt->b;
       lower_bound = 1;
     }
-    if (const auto* ptr_ge = expr.as<tir::GENode>()) {
+    if (const auto* ptr_ge = expr.as<tirx::GENode>()) {
       pos_diff = ptr_ge->a - ptr_ge->b;
       lower_bound = 0;
     }
@@ -257,7 +257,7 @@ PrimExpr Analyzer::Simplify(const PrimExpr& expr, int steps) {
   res = this->canonical_simplify(res);
 
   for (int i = 0; i < steps; ++i) {
-    if (tir::is_const_int(res)) {
+    if (tirx::is_const_int(res)) {
       return res;
     }
     if (i % 2 == 0) {

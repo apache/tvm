@@ -19,7 +19,7 @@ import numpy as np
 
 import tvm
 import tvm.testing
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 @T.prim_func
@@ -109,7 +109,7 @@ def alloc_zero_dim_buffer(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [], dtype="float32")
     B = T.match_buffer(b, [], dtype="float32")
     # body
-    # tir.with block("root")
+    # tirx.with block("root")
     C = T.sblock_alloc_buffer([], dtype="float32")
     A[()] = T.float32(2)
     C[()] = A[()] + B[()]

@@ -27,7 +27,7 @@ import tvm.testing
 from tvm import rpc
 from tvm.contrib import cc, utils
 from tvm.script import ir as I
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 @I.ir_module
@@ -38,7 +38,7 @@ class AddModule:
         B: T.Buffer((1024,), "float32"),
         C: T.Buffer((1024,), "float32"),
     ):
-        T.func_attr({"tir.noalias": True})
+        T.func_attr({"tirx.noalias": True})
         for i0_0 in T.parallel(256):
             for i0_1 in T.vectorized(4):
                 with T.sblock("C"):
@@ -66,7 +66,7 @@ def test_llvm_add_pipeline():
             print(f"Skip because {target} is not enabled..")
             return
         temp = utils.tempdir()
-        f = tvm.tir.build(AddModule, target=target)
+        f = tvm.tirx.build(AddModule, target=target)
         path = temp.relpath("myadd.o")
         f.write_to_file(path)
         verify_elf(path, 0x28)

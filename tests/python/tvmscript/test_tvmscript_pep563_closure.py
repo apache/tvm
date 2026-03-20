@@ -25,7 +25,7 @@ from __future__ import annotations
 import tvm
 import tvm.testing
 from tvm.script import ir as I
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def _normalize(func):

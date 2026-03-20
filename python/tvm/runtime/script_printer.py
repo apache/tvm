@@ -155,7 +155,7 @@ class Scriptable:
         ir_prefix : str = "I"
             The prefix of AST nodes from tvm.ir
         tir_prefix : str = "T"
-            The prefix of AST nodes from tvm.tir
+            The prefix of AST nodes from tvm.tirx
         relax_prefix : str = "R"
             The prefix of AST nodes from tvm.relax
         module_alias : str = "cls"
@@ -332,7 +332,7 @@ class Scriptable:
         ir_prefix : str = "I"
             The prefix of AST nodes from tvm.ir
         tir_prefix : str = "T"
-            The prefix of AST nodes from tvm.tir
+            The prefix of AST nodes from tvm.tirx
         relax_prefix : str = "R"
             The prefix of AST nodes from tvm.relax
         module_alias : str = "cls"

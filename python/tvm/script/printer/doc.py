@@ -24,7 +24,7 @@ from tvm_ffi import register_object
 from tvm_ffi.access_path import AccessPath
 
 from tvm.runtime import Object
-from tvm.tir import FloatImm, IntImm
+from tvm.tirx import FloatImm, IntImm
 
 from . import _ffi_api
 

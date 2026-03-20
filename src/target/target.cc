@@ -29,7 +29,7 @@
 #include <tvm/target/tag.h>
 #include <tvm/target/target.h>
 #include <tvm/target/target_kind.h>
-#include <tvm/tir/expr.h>
+#include <tvm/tirx/expr.h>
 
 #include <algorithm>
 #include <sstream>

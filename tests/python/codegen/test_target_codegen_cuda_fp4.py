@@ -23,7 +23,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm.script import ir as I
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 try:
     from ml_dtypes import float4_e2m1fn
@@ -47,7 +47,7 @@ def test_e2m1_vector_conversions(promoted_dtype):
             B: T.Buffer((vector_length,), native_dtype),
             C: T.Buffer((vector_length,), native_dtype),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i_0 in T.thread_binding(vector_length // 32, thread="blockIdx.x"):
                 for i_1 in T.thread_binding(32, thread="threadIdx.x"):
                     with T.sblock("C"):
@@ -117,7 +117,7 @@ def _shuffle_reinterpret_module(n, num_blocks, vector_length, num_elem_per_stora
             A: T.Buffer((n // num_elem_per_storage,), "uint32"),
             B: T.Buffer((n,), "float16"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i_0 in T.thread_binding(num_blocks, thread="blockIdx.x"):
                 for i_1 in T.thread_binding(32, thread="threadIdx.x"):
                     for i_2 in T.vectorized(vector_length):
@@ -156,7 +156,7 @@ def _scalar_reinterpret_module(n, num_blocks, vector_length, num_elem_per_storag
             A: T.Buffer((n // num_elem_per_storage,), "uint32"),
             B: T.Buffer((n,), "float16"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i_0 in T.thread_binding(num_blocks, thread="blockIdx.x"):
                 for i_1 in T.thread_binding(32, thread="threadIdx.x"):
                     for i_2 in T.vectorized(vector_length):

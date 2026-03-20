@@ -19,7 +19,7 @@ import numpy as np
 import tvm
 import tvm.testing
 from tvm.script import ir as I
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 @tvm.testing.requires_gpu
@@ -35,7 +35,7 @@ def test_metal_inf_nan():
                 A: T.Buffer((1,), dtype),
                 C: T.Buffer((1,), dtype),
             ):
-                T.func_attr({"tir.noalias": True})
+                T.func_attr({"tirx.noalias": True})
                 for i in T.thread_binding(1, thread="threadIdx.x"):
                     with T.sblock("C"):
                         v_i = T.axis.spatial(1, i)
@@ -97,7 +97,7 @@ def test_metal_erf():
                 A: T.Buffer((1,), dtype),
                 C: T.Buffer((1,), dtype),
             ):
-                T.func_attr({"tir.noalias": True})
+                T.func_attr({"tirx.noalias": True})
                 for i0 in T.thread_binding(1, thread="threadIdx.x"):
                     with T.sblock("C"):
                         v_i0 = T.axis.spatial(1, i0)
@@ -202,7 +202,7 @@ def test_func_with_trailing_pod_params():
 
     mod = tvm.IRModule({"main": func})
 
-    f = tvm.tir.build(mod, target="metal")
+    f = tvm.tirx.build(mod, target="metal")
     src: str = f.imports[0].inspect_source()
     occurrences = src.count("struct func_kernel_args_t")
     assert occurrences == 1, occurrences

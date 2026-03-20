@@ -22,82 +22,82 @@
  * \brief OpenCL intrinsic rules.
  */
 #include <tvm/arith/analyzer.h>
-#include <tvm/tir/op_attr_types.h>
+#include <tvm/tirx/op_attr_types.h>
 
 #include "../intrin_rule.h"
 
 namespace tvm {
 namespace codegen {
 namespace intrin {
-using tir::FLowerIntrinsic;
+using tirx::FLowerIntrinsic;
 
-TVM_REGISTER_OP("tir.clz").set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic",
-                                                     DispatchPureExtern<Direct>);
-
-TVM_REGISTER_OP("tir.floor")
+TVM_REGISTER_OP("tirx.clz")
     .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tir.ceil")
+TVM_REGISTER_OP("tirx.floor")
     .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tir.trunc")
+TVM_REGISTER_OP("tirx.ceil")
     .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tir.fabs")
+TVM_REGISTER_OP("tirx.trunc")
     .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tir.round")
+TVM_REGISTER_OP("tirx.fabs")
     .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tir.nearbyint")
+TVM_REGISTER_OP("tirx.round")
     .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tir.exp").set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic",
-                                                     DispatchPureExtern<Direct>);
-
-TVM_REGISTER_OP("tir.erf").set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic",
-                                                     DispatchPureExtern<Direct>);
-
-TVM_REGISTER_OP("tir.exp2")
+TVM_REGISTER_OP("tirx.nearbyint")
     .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tir.exp10")
+TVM_REGISTER_OP("tirx.exp")
     .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tir.log").set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic",
-                                                     DispatchPureExtern<Direct>);
-
-TVM_REGISTER_OP("tir.log2")
+TVM_REGISTER_OP("tirx.erf")
     .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tir.log10")
+TVM_REGISTER_OP("tirx.exp2")
     .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tir.tanh")
+TVM_REGISTER_OP("tirx.exp10")
     .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tir.sqrt")
+TVM_REGISTER_OP("tirx.log")
     .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tir.pow").set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic",
-                                                     DispatchPureExtern<Direct>);
-
-TVM_REGISTER_OP("tir.popcount")
+TVM_REGISTER_OP("tirx.log2")
     .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tir.fmod")
+TVM_REGISTER_OP("tirx.log10")
     .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tir.sin").set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic",
-                                                     DispatchPureExtern<Direct>);
-
-TVM_REGISTER_OP("tir.sinh")
+TVM_REGISTER_OP("tirx.tanh")
     .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tir.cos").set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic",
-                                                     DispatchPureExtern<Direct>);
+TVM_REGISTER_OP("tirx.sqrt")
+    .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tir.cosh")
+TVM_REGISTER_OP("tirx.pow")
+    .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", DispatchPureExtern<Direct>);
+
+TVM_REGISTER_OP("tirx.popcount")
+    .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", DispatchPureExtern<Direct>);
+
+TVM_REGISTER_OP("tirx.fmod")
+    .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", DispatchPureExtern<Direct>);
+
+TVM_REGISTER_OP("tirx.sin")
+    .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", DispatchPureExtern<Direct>);
+
+TVM_REGISTER_OP("tirx.sinh")
+    .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", DispatchPureExtern<Direct>);
+
+TVM_REGISTER_OP("tirx.cos")
+    .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", DispatchPureExtern<Direct>);
+
+TVM_REGISTER_OP("tirx.cosh")
     .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 // There is no warp shuffle instruction in standard OpenCL
@@ -114,7 +114,7 @@ static PrimExpr DispatchIntelShuffle(const PrimExpr& e) {
   return Call(call->dtype, builtin::call_pure_extern(), opencl_args);
 }
 
-TVM_REGISTER_OP("tir.tvm_warp_shuffle")
+TVM_REGISTER_OP("tirx.tvm_warp_shuffle")
     .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", DispatchIntelShuffle);
 
 }  // namespace intrin

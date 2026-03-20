@@ -52,7 +52,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/diagnostic.h>
 #include <tvm/ir/expr.h>
-#include <tvm/tir/var.h>
+#include <tvm/tirx/var.h>
 
 namespace tvm {
 namespace arith {

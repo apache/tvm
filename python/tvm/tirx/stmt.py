@@ -1,0 +1,673 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+"""Statement AST Node in TVM.
+
+Each statement node have subfields that can be visited from python side.
+
+.. code-block:: python
+
+    x = tvm.tirx.Var("n", "int32")
+    buffer = tvm.tirx.decl_buffer((16,), "float32")
+    st = tvm.tirx.stmt.BufferStore(buffer, 1, (x,))
+    assert isinstance(st, tvm.tirx.stmt.BufferStore)
+    assert(st.buffer == buffer)
+"""
+
+from collections.abc import Mapping
+from enum import IntEnum
+
+import tvm_ffi
+
+from tvm.ir import PrimExpr, Range, Span
+from tvm.runtime import Object, Scriptable, const
+
+from . import _ffi_api
+from .buffer import Buffer
+from .expr import IterVar, StringImm, Var
+
+
+class Stmt(Object, Scriptable):
+    """Base class of all the statements."""
+
+
+@tvm_ffi.register_object("tirx.Bind")
+class Bind(Stmt):
+    """Bind node.
+
+    Bind a variable to a value in the enclosing scope.
+    Bind has no body field.
+    The bound variable is visible in all subsequent statements
+    within the same enclosing scope (SeqStmt, ForNode.body, etc.).
+
+    Parameters
+    ----------
+    var : Var
+        The variable in the binding.
+
+    value : PrimExpr
+        The value to be bound.
+
+    span : Optional[Span]
+        The location of the stmt in the source code.
+    """
+
+    var: Var
+    value: PrimExpr
+    span: Span | None
+
+    def __init__(self, var: Var, value: PrimExpr, span: Span | None = None) -> None:
+        self.__init_handle_by_constructor__(
+            _ffi_api.Bind,
+            var,
+            value,
+            span,  # type: ignore
+        )
+
+
+@tvm_ffi.register_object("tirx.AssertStmt")
+class AssertStmt(Stmt):
+    """AssertStmt node.
+
+    Parameters
+    ----------
+    kind : StringImm
+        The error kind, e.g. "RuntimeError", "TypeError", "ValueError".
+
+    condition : PrimExpr
+        The assert condition.
+
+    message_parts : list[StringImm]
+        Error message fragments, concatenated at runtime when assertion fails.
+
+    span : Span | None
+        The location of the stmt in the source code.
+    """
+
+    kind: StringImm
+    condition: PrimExpr
+    message_parts: list
+    span: Span | None
+
+    def __init__(
+        self,
+        kind: StringImm,
+        condition: PrimExpr,
+        message_parts: list | None = None,
+        span: Span | None = None,
+    ) -> None:
+        if message_parts is None:
+            message_parts = []
+        self.__init_handle_by_constructor__(
+            _ffi_api.AssertStmt,
+            kind,
+            condition,
+            message_parts,
+            span,  # type: ignore
+        )
+
+
+class ForKind(IntEnum):
+    """The kind of the for loop.
+
+    note
+    ----
+    ForKind can change the control flow semantics
+    of the loop and need to be considered in all TIR passes.
+    """
+
+    SERIAL = 0
+    PARALLEL = 1
+    VECTORIZED = 2
+    UNROLLED = 3
+    THREAD_BINDING = 4  # pylint: disable=invalid-name
+
+
+@tvm_ffi.register_object("tirx.For")
+class For(Stmt):
+    """For node.
+
+    Parameters
+    ----------
+    loop_var : Var
+        The loop variable.
+
+    min : PrimExpr
+        The beginning value.
+
+    extent : PrimExpr
+        The length of the loop.
+
+    kind : ForKind
+        The type of the for.
+
+    body : Stmt
+        The body statement.
+
+    thread_binding: Optional[tirx.IterVar]
+        The thread this loop binds to. Only valid
+        if kind is ThreadBinding
+
+    step : PrimExpr
+        The loop step. Default to none which
+        represent one.
+
+    annotations: Optional[Mapping[str, Object]]
+        Additional annotation hints.
+
+    span : Optional[Span]
+        The location of the stmt in the source code.
+    """
+
+    loop_var: Var
+    min: PrimExpr
+    extent: PrimExpr
+    kind: ForKind
+    body: Stmt
+    thread_binding: IterVar | None
+    annotations: Mapping[str, Object]
+    step: PrimExpr | None
+    span: Span | None
+
+    def __init__(
+        self,
+        loop_var: Var,
+        min: PrimExpr,  # pylint: disable=redefined-builtin
+        extent: PrimExpr,
+        kind: ForKind,
+        body: Stmt,
+        thread_binding: IterVar | None = None,
+        annotations: Mapping[str, Object] | None = None,
+        step: PrimExpr | None = None,
+        span: Span | None = None,
+    ) -> None:
+        self.__init_handle_by_constructor__(
+            _ffi_api.For,  # type: ignore
+            loop_var,
+            min,
+            extent,
+            kind,
+            body,
+            thread_binding,
+            annotations,
+            step,
+            span,
+        )
+
+
+@tvm_ffi.register_object("tirx.While")
+class While(Stmt):
+    """While node.
+
+    Parameters
+    ----------
+    condition : PrimExpr
+        The termination condition.
+
+    body : Stmt
+        The body statement.
+
+    span : Optional[Span]
+        The location of the stmt in the source code.
+    """
+
+    condition: PrimExpr
+    body: Stmt
+    span: Span | None
+
+    def __init__(self, condition: PrimExpr, body: Stmt, span: Span | None = None) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.While, condition, body, span)  # type: ignore
+
+
+@tvm_ffi.register_object("tirx.BufferStore")
+class BufferStore(Stmt):
+    """Buffer store node.
+
+    Parameters
+    ----------
+    buffer : Buffer
+        The buffer.
+
+    value : PrimExpr
+        The value we to be stored.
+
+    indices : List[PrimExpr]
+        The indices location to be stored.
+
+    predicate : Optional[PrimExpr]
+        A vector mask of boolean values indicating which lanes of a vector are to be
+        stored. The number lanes of the mask must be equal to the number of lanes in
+        value.
+
+    span : Optional[Span]
+        The location of the stmt in the source code.
+    """
+
+    buffer: Buffer
+    value: PrimExpr
+    indices: list[PrimExpr]
+    predicate: PrimExpr | None
+    span: Span | None
+
+    def __init__(
+        self,
+        buffer: Buffer,
+        value: PrimExpr,
+        indices: list[PrimExpr],
+        predicate: PrimExpr | None = None,
+        span: Span | None = None,
+    ) -> None:
+        self.__init_handle_by_constructor__(
+            _ffi_api.BufferStore,
+            buffer,
+            value,
+            indices,
+            predicate,
+            span,  # type: ignore
+        )
+
+
+@tvm_ffi.register_object("tirx.AllocBuffer")
+class AllocBuffer(Stmt):
+    """AllocBuffer node.
+
+    Allocates a buffer and declares it in scope.
+
+    Parameters
+    ----------
+    buffer: Buffer
+        The buffer being allocated and declared.
+
+    annotations: Optional[dict]
+        Additional annotations about the allocation.
+
+    span: Optional[Span]
+        The location of this AllocBuffer in the source code.
+    """
+
+    buffer: Buffer
+    span: Span | None
+
+    def __init__(
+        self,
+        buffer: Buffer,
+        annotations: dict | None = None,
+        span: Span | None = None,
+    ) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.AllocBuffer, buffer, annotations, span)
+
+
+@tvm_ffi.register_object("tirx.DeclBuffer")
+class DeclBuffer(Stmt):
+    """DeclBuffer node.
+
+    Parameters
+    ----------
+    buffer: Buffer
+        The buffer being declared.
+
+    span: Optional[Span]
+        The location of this DeclBuffer in the source code.
+    """
+
+    buffer: Buffer
+    span: Span | None
+
+    def __init__(self, buffer: Buffer, span: Span | None = None) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.DeclBuffer, buffer, span)
+
+
+@tvm_ffi.register_object("tirx.AttrStmt")
+class AttrStmt(Stmt):
+    """AttrStmt node.
+
+    Parameters
+    ----------
+    node : Object
+        The node to annotate the attribute
+
+    attr_key : str
+        Attribute type key.
+
+    value : PrimExpr
+        The value of the attribute
+
+    body : Stmt
+        The body statement.
+
+    span : Optional[Span]
+        The location of the stmt in the source code.
+    """
+
+    node: Object
+    attr_key: str
+    value: PrimExpr
+    body: Stmt
+    span: Span | None
+
+    def __init__(
+        self,
+        node: Object,
+        attr_key: str,
+        value: PrimExpr,
+        body: Stmt,
+        span: Span | None = None,
+    ) -> None:
+        self.__init_handle_by_constructor__(
+            _ffi_api.AttrStmt,
+            node,
+            attr_key,
+            value,
+            body,
+            span,  # type: ignore
+        )
+
+
+@tvm_ffi.register_object("tirx.SeqStmt")
+class SeqStmt(Stmt):
+    """Sequence of statements.
+
+    Parameters
+    ----------
+    seq : List[Stmt]
+        The statements
+
+    span : Optional[Span]
+        The location of the stmt in the source code.
+    """
+
+    seq: list[Stmt]
+    span: Span | None
+
+    def __init__(self, seq: list[Stmt], span: Span | None = None) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.SeqStmt, seq, span)  # type: ignore
+
+    def __getitem__(self, i: int):
+        return self.seq[i]
+
+    def __len__(self):
+        return len(self.seq)
+
+
+@tvm_ffi.register_object("tirx.IfThenElse")
+class IfThenElse(Stmt):
+    """IfThenElse node.
+
+    Parameters
+    ----------
+    condition : PrimExpr
+        The expression
+
+    then_case : Stmt
+        The statement to execute if condition is true.
+
+    else_case : Optional[Stmt]
+        The statement to execute if condition is false.
+
+    span : Optional[Span]
+        The location of the stmt in the source code.
+    """
+
+    condition: PrimExpr
+    then_case: Stmt
+    else_case: Stmt | None
+
+    def __init__(
+        self,
+        condition: PrimExpr,
+        then_case: Stmt,
+        else_case: Stmt | None,
+        span: Span | None = None,
+    ) -> None:
+        self.__init_handle_by_constructor__(
+            _ffi_api.IfThenElse,
+            condition,
+            then_case,
+            else_case,
+            span,  # type: ignore
+        )
+
+
+@tvm_ffi.register_object("tirx.Evaluate")
+class Evaluate(Stmt):
+    """Evaluate node.
+
+    Parameters
+    ----------
+    value : PrimExpr
+        The expression to be evaluated.
+
+    span : Optional[Span]
+        The location of the stmt in the source code.
+    """
+
+    value: PrimExpr
+    span: Span | None
+
+    def __init__(self, value: PrimExpr, span: Span | None = None) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.Evaluate, value, span)  # type: ignore
+
+
+@tvm_ffi.register_object("tirx.BufferRegion")
+class BufferRegion(Object, Scriptable):
+    """BufferRegion node.
+
+    Parameters
+    ----------
+    buffer : Buffer
+        The buffer of the buffer region
+
+    region : List[Range]
+        The region array of the buffer region
+    """
+
+    buffer: Buffer
+    region: list[Range]
+
+    def __init__(self, buffer: Buffer, region: list[Range]) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.BufferRegion, buffer, region)  # type: ignore
+
+
+@tvm_ffi.register_object("tirx.MatchBufferRegion")
+class MatchBufferRegion(Object, Scriptable):
+    """MatchBufferRegion node.
+
+    Parameters
+    ----------
+    buffer : Buffer
+        The target buffer
+
+    source : BufferRegion
+        The region of source buffer
+    """
+
+    buffer: Buffer
+    source: BufferRegion
+
+    def __init__(self, buffer: Buffer, source: BufferRegion) -> None:
+        self.__init_handle_by_constructor__(
+            _ffi_api.MatchBufferRegion,
+            buffer,
+            source,  # type: ignore
+        )
+
+
+@tvm_ffi.register_object("tirx.SBlock")
+class SBlock(Stmt):
+    """SBlock node.
+
+    Parameters
+    ----------
+    iter_vars : List[IterVar]
+        The block Variable.
+
+    reads : List[BufferRegion]
+        The read buffer regions of the block.
+
+    writes: List[BufferRegion]
+        The write buffer regions of the block.
+
+    name_hint: str
+        the name_hint of the block.
+
+    body: Stmt
+        The body of the block.
+
+    init: Optional[Stmt]
+        The init block of the reduction block
+
+    alloc_buffers: Optional[list[Buffer]]
+        The buffer allocations
+
+    match_buffers: Optional[List[MatchBufferRegion]]
+        The subregion buffer match
+
+    annotations: Optional[Mapping[str, Object]]
+        Additional annotation hints.
+
+    span : Optional[Span]
+        The location of this block in the source code.
+    """
+
+    iter_vars: list[IterVar]
+    reads: list[BufferRegion]
+    writes: list[BufferRegion]
+    name_hint: str
+    body: Stmt
+    init: Stmt | None
+    alloc_buffers: list[Buffer]
+    match_buffers: list[MatchBufferRegion]
+    annotations: Mapping[str, Object]
+    span: Span | None
+
+    def __init__(
+        self,
+        iter_vars: list[IterVar],
+        reads: list[BufferRegion],
+        writes: list[BufferRegion],
+        name_hint: str,
+        body: Stmt,
+        init: Stmt | None = None,
+        alloc_buffers: list[Buffer] | None = None,
+        match_buffers: list[MatchBufferRegion] | None = None,
+        annotations: Mapping[str, Object] | None = None,
+        span: Span | None = None,
+    ) -> None:
+        if alloc_buffers is None:
+            alloc_buffers = []
+        if match_buffers is None:
+            match_buffers = []
+        if annotations is None:
+            annotations = {}
+        self.__init_handle_by_constructor__(
+            _ffi_api.SBlock,  # type: ignore
+            iter_vars,
+            reads,
+            writes,
+            name_hint,
+            body,
+            init,
+            alloc_buffers,
+            match_buffers,
+            annotations,
+            span,
+        )  # type: ignore
+
+
+@tvm_ffi.register_object("tirx.SBlockRealize")
+class SBlockRealize(Stmt):
+    """SBlockRealize node.
+
+    Parameters
+    ----------
+    iter_values : List[PrimExpr]
+        The binding values of the block var.
+
+    predicate : Union[PrimExpr, bool]
+        The predicate of the block.
+
+    block : SBlock
+        The block to realize
+
+    span : Optional[Span]
+        The location of this block_realize in the source code.
+    """
+
+    iter_values: list[PrimExpr]
+    predicate: PrimExpr
+    block: SBlock
+    span: Span | None
+
+    def __init__(
+        self,
+        iter_values: list[PrimExpr],
+        predicate: PrimExpr | bool,
+        block: SBlock,
+        span: Span | None = None,
+    ) -> None:
+        if isinstance(predicate, bool):
+            predicate = const(predicate, "bool")
+        self.__init_handle_by_constructor__(
+            _ffi_api.SBlockRealize,  # type: ignore
+            iter_values,
+            predicate,
+            block,
+            span,
+        )  # type: ignore
+
+
+def stmt_seq(*args: PrimExpr | Stmt) -> SeqStmt:
+    """Make sequence of statements
+
+    Parameters
+    ----------
+    *args : Union[PrimExpr, Stmt]
+        List of statements to be combined as sequence.
+
+    Returns
+    -------
+    stmt : Stmt
+        The combined statement.
+    """
+    ret = []
+    for value in args:
+        if not isinstance(value, Stmt):
+            value = Evaluate(value)
+        ret.append(value)
+    if len(ret) == 1:
+        return ret[0]
+    return SeqStmt(ret)
+
+
+def stmt_list(stmt: Stmt) -> list[Stmt]:
+    """Make list of stmt from blocks.
+
+    Parameters
+    ----------
+    stmt : Stmt
+        The input statement.
+
+    Returns
+    -------
+    stmt_list : List[Stmt]
+        The unpacked list of statements
+    """
+    if isinstance(stmt, SeqStmt):
+        res = []
+        for x in stmt:
+            res += stmt_list(x)
+        return res
+    return [stmt]

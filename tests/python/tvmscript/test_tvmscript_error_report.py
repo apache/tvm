@@ -22,10 +22,10 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import tir
+from tvm import tirx
 from tvm.ir.diagnostics import override_renderer
 from tvm.script import from_source
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def check_error(func, rel_lineno):
@@ -451,7 +451,7 @@ def test_reorder_fail_block():
     with pytest.raises(tvm.s_tir.ScheduleError) as execinfo:
         sch.reorder(l, i)
     expected_sub_error_message = (
-        "                            # tir.SBlock#0\n"
+        "                            # tirx.SBlock#0\n"
         '                            with T.sblock("B"):\n'
         "                            ^^^^^^^^^^^^^^^^^^^\n"
     )
@@ -466,7 +466,7 @@ def test_reorder_fail_nested_loop_inner():
         sch.reorder(k, i)
     expected_sub_error_message = (
         "            for i in range(128):\n"
-        "                # tir.For#0\n"
+        "                # tirx.For#0\n"
         "                for j in range(128):\n"
         "                ^^^^^^^^^^^^^^^^^^^^\n"
     )
@@ -480,7 +480,7 @@ def test_fuse_fail_nested_loop_outer():
     with pytest.raises(tvm.s_tir.ScheduleError) as execinfo:
         sch.fuse(k, i)
     expected_sub_error_message = (
-        "            # tir.For#1\n"
+        "            # tirx.For#1\n"
         "            for i in range(128):\n"
         "            ^^^^^^^^^^^^^^^^^^^^\n"
         "                for j in range(128):\n"
@@ -494,7 +494,7 @@ def test_report_error_root_block():
     with pytest.raises(tvm.s_tir.ScheduleError) as execinfo:
         sch.compute_inline(root)
     expected_sub_error_message = (
-        '        # tir.SBlock#0\n        with T.sblock("root"):\n        ^^^^^^^^^^^^^^^^^^^^^^\n'
+        '        # tirx.SBlock#0\n        with T.sblock("root"):\n        ^^^^^^^^^^^^^^^^^^^^^^\n'
     )
     assert expected_sub_error_message in str(execinfo.value)
 

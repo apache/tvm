@@ -89,7 +89,7 @@ import tvm.arith
 import tvm.contrib.hexagon._ci_env_check as hexagon
 import tvm.contrib.utils
 import tvm.te
-import tvm.tir
+import tvm.tirx
 from tvm.contrib import cudnn, nvcc, rocm
 from tvm.error import TVMError
 from tvm.target import codegen
@@ -266,10 +266,10 @@ def assert_prim_expr_equal(lhs, rhs):
 
     Parameters
     ----------
-    lhs : tvm.tir.PrimExpr
+    lhs : tvm.tirx.PrimExpr
         The left operand.
 
-    rhs : tvm.tir.PrimExpr
+    rhs : tvm.tirx.PrimExpr
         The left operand.
     """
     ana = tvm.arith.Analyzer()
@@ -292,13 +292,13 @@ def check_bool_expr_is_true(bool_expr, vranges, cond=None):
     ----------
     bool_expr : tvm.ir.PrimExpr
         Boolean expression to check
-    vranges: Dict[tvm.tir.expr.Var, tvm.ir.Range]
+    vranges: Dict[tvm.tirx.expr.Var, tvm.ir.Range]
         Free variables and their ranges
     cond: tvm.ir.PrimExpr
         extra conditions needs to be satisfied.
     """
     if cond is not None:
-        bool_expr = tvm.te.any(tvm.tir.Not(cond), bool_expr)
+        bool_expr = tvm.te.any(tvm.tirx.Not(cond), bool_expr)
 
     def _run_expr(expr, vranges):
         """Evaluate expr for every value of free variables
@@ -307,7 +307,7 @@ def check_bool_expr_is_true(bool_expr, vranges, cond=None):
 
         def _compute_body(*us):
             vmap = {v: u + r.min for (v, r), u in zip(vranges.items(), us)}
-            return tvm.tir.stmt_functor.substitute(expr, vmap)
+            return tvm.tirx.stmt_functor.substitute(expr, vmap)
 
         A = tvm.te.compute([r.extent.value for v, r in vranges.items()], _compute_body)
         args = [tvm.runtime.empty(A.shape, A.dtype)]
@@ -335,7 +335,7 @@ def check_int_constraints_trans_consistency(constraints_trans, vranges=None):
     ----------
     constraints_trans : arith.IntConstraintsTransform
         Integer constraints transformation
-    vranges: Dict[tvm.tir.Var, tvm.ir.Range]
+    vranges: Dict[tvm.tirx.Var, tvm.ir.Range]
         Free variables and their ranges
     """
     if vranges is None:
@@ -347,28 +347,28 @@ def check_int_constraints_trans_consistency(constraints_trans, vranges=None):
         all_vranges.update({v: r for v, r in constraints1.ranges.items()})
 
         # Check that the transformation is injective
-        cond_on_vars = tvm.tir.const(1, "bool")
+        cond_on_vars = tvm.tirx.const(1, "bool")
         for v in constraints1.variables:
             if v in varmap:
                 # variable mapping is consistent
-                v_back = ana.simplify(tvm.tir.stmt_functor.substitute(varmap[v], backvarmap))
+                v_back = ana.simplify(tvm.tirx.stmt_functor.substitute(varmap[v], backvarmap))
                 cond_on_vars = tvm.te.all(cond_on_vars, v == v_back)
         # Also we have to check that the new relations are true when old relations are true
-        cond_subst = tvm.tir.stmt_functor.substitute(
-            tvm.te.all(tvm.tir.const(1, "bool"), *constraints2.relations), backvarmap
+        cond_subst = tvm.tirx.stmt_functor.substitute(
+            tvm.te.all(tvm.tirx.const(1, "bool"), *constraints2.relations), backvarmap
         )
         # We have to include relations from vranges too
         for v in constraints2.variables:
             if v in constraints2.ranges:
                 r = constraints2.ranges[v]
                 range_cond = tvm.te.all(v >= r.min, v < r.min + r.extent)
-                range_cond = tvm.tir.stmt_functor.substitute(range_cond, backvarmap)
+                range_cond = tvm.tirx.stmt_functor.substitute(range_cond, backvarmap)
                 cond_subst = tvm.te.all(cond_subst, range_cond)
         cond_subst = ana.simplify(cond_subst)
         check_bool_expr_is_true(
             tvm.te.all(cond_subst, cond_on_vars),
             all_vranges,
-            cond=tvm.te.all(tvm.tir.const(1, "bool"), *constraints1.relations),
+            cond=tvm.te.all(tvm.tirx.const(1, "bool"), *constraints1.relations),
         )
 
     _check_forward(

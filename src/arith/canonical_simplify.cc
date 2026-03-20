@@ -22,8 +22,8 @@
  * \brief Canonical form based simplification.
  */
 #include <tvm/arith/analyzer.h>
-#include <tvm/tir/analysis.h>
-#include <tvm/tir/op.h>
+#include <tvm/tirx/analysis.h>
+#include <tvm/tirx/op.h>
 
 #include "const_fold.h"
 #include "pattern_match.h"
@@ -33,7 +33,7 @@
 namespace tvm {
 namespace arith {
 
-using namespace tir;
+using namespace tirx;
 
 class SumExpr;
 class SplitExpr;
@@ -216,7 +216,7 @@ class SplitExpr : public PrimExpr {
 
 inline bool SplitExprNode::IndexEqual(const SplitExpr& other) const {
   if (index.same_as(other->index)) return true;
-  return tir::ExprDeepEqual()(index, other->index);
+  return tirx::ExprDeepEqual()(index, other->index);
 }
 
 inline bool SplitExprNode::DivModeCompatibleTo(DivMode mode) const {
@@ -900,18 +900,18 @@ bool CanonicalSimplifier::Impl::ProdDivSimplify(PrimExpr* plhs, PrimExpr* prhs,
 
   // collect lhs product and constant scale.
   auto fcollect_lhs = [&](PrimExpr value) {
-    if (auto* intimm = value.as<tir::IntImmNode>()) {
+    if (auto* intimm = value.as<tirx::IntImmNode>()) {
       lhs_cscale *= intimm->value;
     } else {
       lhs_prods.push_back(value);
     }
   };
-  UnpackReduction<tir::MulNode>(*plhs, fcollect_lhs);
+  UnpackReduction<tirx::MulNode>(*plhs, fcollect_lhs);
 
   // collect rhs product and try to eliminate when possible
   PEqualChecker<PrimExpr> deep_equal;
   auto fcollect_rhs = [&](PrimExpr value) {
-    if (auto* intimm = value.as<tir::IntImmNode>()) {
+    if (auto* intimm = value.as<tirx::IntImmNode>()) {
       rhs_cscale *= intimm->value;
     } else {
       // try eliminate from lhs
@@ -927,7 +927,7 @@ bool CanonicalSimplifier::Impl::ProdDivSimplify(PrimExpr* plhs, PrimExpr* prhs,
       new_rhs = new_rhs * value;
     }
   };
-  UnpackReduction<tir::MulNode>(*prhs, fcollect_rhs);
+  UnpackReduction<tirx::MulNode>(*prhs, fcollect_rhs);
   // find gcd of const scales.
   int64_t cscale_gcd = ZeroAwareGCD(lhs_cscale, rhs_cscale);
   lhs_cscale /= cscale_gcd;

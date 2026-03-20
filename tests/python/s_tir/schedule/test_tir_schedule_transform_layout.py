@@ -22,13 +22,13 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import tir
+from tvm import tirx
 from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
 from tvm.script import ir as I
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 # fmt: off
 # pylint: disable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks
@@ -190,7 +190,7 @@ def test_transform_layout_with_cache_write_and_axis_separators():
             p1: T.Buffer((T.int64(33), T.int64(128)), "float32"),
             T_add: T.Buffer((T.int64(33), T.int64(128)), "float32"),
         ):
-            T.func_attr({"global_symbol": "main", "tir.noalias": True})
+            T.func_attr({"global_symbol": "main", "tirx.noalias": True})
             # with T.sblock("root"):
             for ax0, ax1 in T.grid(T.int64(33), T.int64(128)):
                 with T.sblock("T_add"):
@@ -203,7 +203,7 @@ def test_transform_layout_with_cache_write_and_axis_separators():
     class Expected:
         @T.prim_func
         def main(p0: T.Buffer((T.int64(33), T.int64(128)), "float32"), p1: T.Buffer((T.int64(33), T.int64(128)), "float32"), T_add: T.Buffer((T.int64(33), T.int64(128)), "float32")):
-            T.func_attr({"global_symbol": "main", "tir.noalias": True})
+            T.func_attr({"global_symbol": "main", "tirx.noalias": True})
             # with T.sblock("root"):
             T_add_global = T.sblock_alloc_buffer((T.int64(2), T.int64(128), T.int64(32)), axis_separators=[2])
             for axis0, axis1, axis2 in T.grid(T.int64(2), T.int64(128), T.int64(32)):
@@ -683,7 +683,7 @@ def test_error_on_wrong_padding_type():
             "block",
             "A",
             lambda i: [i // 4, i % 4],
-            pad_value=tir.IntImm("int8", 0),
+            pad_value=tirx.IntImm("int8", 0),
         )
 
 
@@ -730,7 +730,7 @@ def test_padded_transform_if_then_else(dtype):
                 vi = T.axis.remap("S", [i])
                 B[vi] = A[vi]
 
-    pad_value_imm = tir.IntImm(dtype, 0)
+    pad_value_imm = tirx.IntImm(dtype, 0)
 
     @T.prim_func(private=True)
     def expected_func(A: T.Buffer(14, dtype)):
@@ -1071,7 +1071,7 @@ def test_pad_value_may_not_reference_other_buffer():
 
     sch = tvm.s_tir.Schedule(Before)
     A = sch.get(sch.get_sblock("block")).reads[0].buffer
-    other = tir.decl_buffer(1, A.dtype, name="other")
+    other = tirx.decl_buffer(1, A.dtype, name="other")
     with pytest.raises(tvm.s_tir.schedule.schedule.ScheduleError):
         sch.transform_layout(
             "block",
@@ -1154,7 +1154,7 @@ def test_transform_with_axis_separators():
     sch.transform_layout(
         "block",
         "A",
-        lambda i: [i // 4, tvm.tir.IndexMap.AXIS_SEPARATOR, i % 4],
+        lambda i: [i // 4, tvm.tirx.IndexMap.AXIS_SEPARATOR, i % 4],
         pad_value=0,
     )
     After = sch.mod
@@ -1186,7 +1186,7 @@ def test_transform_with_axis_separators_opaque_block():
     sch.transform_layout(
         "block",
         "A",
-        lambda i: [i // 4, tvm.tir.IndexMap.AXIS_SEPARATOR, i % 4],
+        lambda i: [i // 4, tvm.tirx.IndexMap.AXIS_SEPARATOR, i % 4],
         pad_value=0,
     )
     After = sch.mod
@@ -1232,7 +1232,7 @@ def test_index_map_dtype_legalize_with_constant():
     # Triggering the error requires an IndexMap that introduces padding
     func = lambda i: [
         # And a constant to be one of the output indices.
-        tir.const(0, i.dtype),
+        tirx.const(0, i.dtype),
         (i + 1) // 8,
         (i + 1) % 8,
     ]
@@ -1255,7 +1255,7 @@ def test_transform_layout_with_symbolic_bound():
     # pylint: disable=invalid-name,line-too-long,too-many-locals
     @T.prim_func
     def before(a: T.handle, b: T.handle, c: T.handle):
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         n = T.int64()
         A = T.match_buffer(a, (T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16")
         B = T.match_buffer(b, (T.int64(1), T.int64(32), n, T.int64(128)), "float16")
@@ -1271,7 +1271,7 @@ def test_transform_layout_with_symbolic_bound():
 
     @T.prim_func
     def after(a: T.handle, b: T.handle, c: T.handle):
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         n = T.int64()
         A = T.match_buffer(a, (T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16")
         B = T.match_buffer(b, (T.int64(1), T.int64(32), n, T.int64(128)), "float16")
@@ -1305,7 +1305,7 @@ def test_transform_block_layout_with_symbolic_bound():
     # pylint: disable=invalid-name,line-too-long,too-many-locals
     @T.prim_func
     def before(a: T.handle, b: T.handle, c: T.handle):
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         n = T.int64()
         A = T.match_buffer(a, (T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16")
         B = T.match_buffer(b, (T.int64(1), T.int64(32), n, T.int64(128)), "float16")
@@ -1321,7 +1321,7 @@ def test_transform_block_layout_with_symbolic_bound():
 
     @T.prim_func
     def after(a: T.handle, b: T.handle, c: T.handle):
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         n = T.int64()
         A = T.match_buffer(a, (T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16")
         B = T.match_buffer(b, (T.int64(1), T.int64(32), n, T.int64(128)), "float16")

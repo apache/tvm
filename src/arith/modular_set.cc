@@ -24,9 +24,9 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/tir/builtin.h>
-#include <tvm/tir/expr_functor.h>
-#include <tvm/tir/op.h>
+#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/expr_functor.h>
+#include <tvm/tirx/op.h>
 
 #include <limits>
 #include <unordered_map>
@@ -37,7 +37,7 @@
 namespace tvm {
 namespace arith {
 
-using namespace tir;
+using namespace tirx;
 
 TVM_FFI_STATIC_INIT_BLOCK() { ModularSetNode::RegisterReflection(); }
 
@@ -263,9 +263,9 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
   Entry VisitExpr_(const CallNode* op) final {
     // only special handle >> which can be
     // used for index calculation.
-    if (op->op.same_as(tir::builtin::shift_right())) {
+    if (op->op.same_as(tirx::builtin::shift_right())) {
       return VisitRightShift(op);
-    } else if (op->op.same_as(tir::builtin::bitwise_and())) {
+    } else if (op->op.same_as(tirx::builtin::bitwise_and())) {
       return VisitBitwiseAnd(op);
     } else {
       return Everything();

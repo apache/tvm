@@ -21,7 +21,7 @@ from typing import Optional
 import pytest
 from tvm_ffi.access_path import AccessPath
 
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 @T.prim_func
@@ -47,7 +47,7 @@ def test_annotation_multi_access_paths():
     )
     assert (
         result
-        == """# from tvm.script import tir as T
+        == """# from tvm.script import tirx as T
 
 @T.prim_func
 def main():
@@ -73,7 +73,7 @@ def test_annotate_from_multi_obj():
     )
     assert (
         result
-        == """# from tvm.script import tir as T
+        == """# from tvm.script import tirx as T
 
 @T.prim_func
 def main():
@@ -104,7 +104,7 @@ def test_disable_concise_scoping_when_scope_annotated():
     )
     assert (
         result
-        == """# from tvm.script import tir as T
+        == """# from tvm.script import tirx as T
 
 @T.prim_func
 def main():
