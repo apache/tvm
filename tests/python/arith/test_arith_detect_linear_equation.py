@@ -19,8 +19,8 @@ import tvm.testing
 
 
 def test_basic():
-    a = tvm.tir.Var("a", "int32")
-    b = tvm.tir.Var("b", "int32")
+    a = tvm.tirx.Var("a", "int32")
+    b = tvm.tirx.Var("b", "int32")
     m = tvm.arith.detect_linear_equation(a * 4 + b * 6 + 7, [a])
     assert m[0].value == 4
     tvm.testing.assert_prim_expr_equal(m[1], b * 6 + 7)
@@ -42,14 +42,14 @@ def test_basic():
     assert len(m) == 1
     tvm.testing.assert_prim_expr_equal(m[0], b * 7)
 
-    c = tvm.tir.Var("c", "uint32")
+    c = tvm.tirx.Var("c", "uint32")
     m = tvm.arith.detect_linear_equation(128 - c, [c])
     assert m[0].value == -1
 
 
 def test_multivariate():
-    v = [tvm.tir.Var(f"v{i}", "int32") for i in range(4)]
-    b = tvm.tir.Var("b", "int32")
+    v = [tvm.tirx.Var(f"v{i}", "int32") for i in range(4)]
+    b = tvm.tirx.Var("b", "int32")
     m = tvm.arith.detect_linear_equation(v[0] * (b + 4) + v[0] + v[1] * 8, v)
 
     tvm.testing.assert_prim_expr_equal(m[0], b + 5)

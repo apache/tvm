@@ -19,7 +19,7 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm.script import tir as T
+from tvm.script import tirx as T
 from tvm.target.codegen import target_has_features
 
 
@@ -61,7 +61,7 @@ def test_rvv(target):
             for j in T.vectorized(0, extent):
                 A[j] = 1
 
-        f = tvm.tir.build(load_vec, target)
+        f = tvm.tirx.build(load_vec, target)
         # Check RVV `vsetvli` prensence
         assembly = f.inspect_source("asm")
         if target_has_features("v"):
@@ -108,7 +108,7 @@ def test_rvv_vscale_llvm_dbginfo(target):
 
     # tvm.error.InternalError: Can't fetch the lanes of a scalable vector at a compile time.
     with tvm.target.Target(target):
-        f = tvm.tir.build(rvv_with_vscale, target)
+        f = tvm.tirx.build(rvv_with_vscale, target)
 
 
 if __name__ == "__main__":

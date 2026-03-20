@@ -20,7 +20,7 @@ import numpy as np
 import pytest
 
 import tvm
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 @tvm.testing.parametrize_targets("c")

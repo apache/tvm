@@ -74,7 +74,7 @@ void CodeGenAArch64::SetTargetAttributes(llvm::Function* func) {
 void CodeGenAArch64::VisitStmt_(const AttrStmtNode* op) {
   std::string attr_key = op->attr_key;
 
-  if (!tir::attr::IsPragmaKey(attr_key)) {
+  if (!tirx::attr::IsPragmaKey(attr_key)) {
     CodeGenCPU::VisitStmt_(op);
     return;
   }

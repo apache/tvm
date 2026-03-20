@@ -25,7 +25,7 @@ import pytest
 
 import tvm
 from tvm.script import ir as I
-from tvm.script import tir as T
+from tvm.script import tirx as T
 from tvm.target.codegen import llvm_version_major
 
 
@@ -43,7 +43,7 @@ def test_mul(dtype):
     class Module:
         @T.prim_func
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             m = T.int32()
             A = T.match_buffer(var_A, (m,), dtype=dtype)
             B = T.match_buffer(var_B, (m,), dtype=dtype)
@@ -56,7 +56,7 @@ def test_mul(dtype):
                     C[v_i] = A[v_i] * B[v_i]
 
     with tvm.target.Target(target):
-        f = tvm.tir.build(Module)
+        f = tvm.tirx.build(Module)
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -82,7 +82,7 @@ def test_add(dtype):
     class Module:
         @T.prim_func
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             m = T.int32()
             A = T.match_buffer(var_A, (m,), dtype=dtype)
             B = T.match_buffer(var_B, (m,), dtype=dtype)
@@ -95,7 +95,7 @@ def test_add(dtype):
                     C[v_i] = A[v_i] + B[v_i]
 
     with tvm.target.Target(target):
-        f = tvm.tir.build(Module)
+        f = tvm.tirx.build(Module)
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -121,7 +121,7 @@ def test_sub(dtype):
     class Module:
         @T.prim_func
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             m = T.int32()
             A = T.match_buffer(var_A, (m,), dtype=dtype)
             B = T.match_buffer(var_B, (m,), dtype=dtype)
@@ -134,7 +134,7 @@ def test_sub(dtype):
                     C[v_i] = A[v_i] - B[v_i]
 
     with tvm.target.Target(target):
-        f = tvm.tir.build(Module)
+        f = tvm.tirx.build(Module)
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -160,7 +160,7 @@ def test_muladd(dtype):
     class Module:
         @T.prim_func
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle, var_D: T.handle):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             m = T.int32()
             A = T.match_buffer(var_A, (m,), dtype=dtype)
             B = T.match_buffer(var_B, (m,), dtype=dtype)
@@ -174,7 +174,7 @@ def test_muladd(dtype):
                     D[v_i] = A[v_i] * B[v_i] + C[v_i]
 
     with tvm.target.Target(target):
-        f = tvm.tir.build(Module)
+        f = tvm.tirx.build(Module)
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -200,7 +200,7 @@ def test_max(dtype):
     class Module:
         @T.prim_func
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             m = T.int32()
             A = T.match_buffer(var_A, (m,), dtype=dtype)
             B = T.match_buffer(var_B, (m,), dtype=dtype)
@@ -213,7 +213,7 @@ def test_max(dtype):
                     C[v_i] = T.max(A[v_i], B[v_i])
 
     with tvm.target.Target(target):
-        f = tvm.tir.build(Module)
+        f = tvm.tirx.build(Module)
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -243,7 +243,7 @@ def test_min(dtype):
     class Module:
         @T.prim_func
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             m = T.int32()
             A = T.match_buffer(var_A, (m,), dtype=dtype)
             B = T.match_buffer(var_B, (m,), dtype=dtype)
@@ -256,7 +256,7 @@ def test_min(dtype):
                     C[v_i] = T.min(A[v_i], B[v_i])
 
     with tvm.target.Target(target):
-        f = tvm.tir.build(Module)
+        f = tvm.tirx.build(Module)
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -286,7 +286,7 @@ def test_div(dtype):
     class Module:
         @T.prim_func
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             m = T.int32()
             A = T.match_buffer(var_A, (m,), dtype=dtype)
             B = T.match_buffer(var_B, (m,), dtype=dtype)
@@ -296,10 +296,10 @@ def test_div(dtype):
                     v_i = T.axis.spatial(m, i)
                     T.reads(A[v_i], B[v_i])
                     T.writes(C[v_i])
-                    C[v_i] = tvm.tir.div(A[v_i], B[v_i])
+                    C[v_i] = tvm.tirx.div(A[v_i], B[v_i])
 
     with tvm.target.Target(target):
-        f = tvm.tir.build(Module)
+        f = tvm.tirx.build(Module)
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -324,7 +324,7 @@ def test_mod(dtype):
     class Module:
         @T.prim_func
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             m = T.int32()
             A = T.match_buffer(var_A, (m,), dtype=dtype)
             B = T.match_buffer(var_B, (m,), dtype=dtype)
@@ -337,7 +337,7 @@ def test_mod(dtype):
                     C[v_i] = T.floormod(A[v_i], B[v_i])
 
     with tvm.target.Target(target):
-        f = tvm.tir.build(Module)
+        f = tvm.tirx.build(Module)
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -363,7 +363,7 @@ def test_eq(dtype):
     class Module:
         @T.prim_func
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             m = T.int32()
             A = T.match_buffer(var_A, (m,), dtype=dtype)
             B = T.match_buffer(var_B, (m,), dtype=dtype)
@@ -376,7 +376,7 @@ def test_eq(dtype):
                     C[v_i] = A[v_i] == B[v_i]
 
     with tvm.target.Target(target):
-        f = tvm.tir.build(Module)
+        f = tvm.tirx.build(Module)
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -402,7 +402,7 @@ def test_neq(dtype):
     class Module:
         @T.prim_func
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             m = T.int32()
             A = T.match_buffer(var_A, (m,), dtype=dtype)
             B = T.match_buffer(var_B, (m,), dtype=dtype)
@@ -415,7 +415,7 @@ def test_neq(dtype):
                     C[v_i] = A[v_i] != B[v_i]
 
     with tvm.target.Target(target):
-        f = tvm.tir.build(Module)
+        f = tvm.tirx.build(Module)
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -440,7 +440,7 @@ def test_or(dtype):
     class Module:
         @T.prim_func
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             m = T.int32()
             A = T.match_buffer(var_A, (m,), dtype=dtype)
             B = T.match_buffer(var_B, (m,), dtype=dtype)
@@ -453,7 +453,7 @@ def test_or(dtype):
                     C[v_i] = A[v_i] | B[v_i]
 
     with tvm.target.Target(target):
-        f = tvm.tir.build(Module)
+        f = tvm.tirx.build(Module)
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -478,7 +478,7 @@ def test_and(dtype):
     class Module:
         @T.prim_func
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             m = T.int32()
             A = T.match_buffer(var_A, (m,), dtype=dtype)
             B = T.match_buffer(var_B, (m,), dtype=dtype)
@@ -491,7 +491,7 @@ def test_and(dtype):
                     C[v_i] = A[v_i] & B[v_i]
 
     with tvm.target.Target(target):
-        f = tvm.tir.build(Module)
+        f = tvm.tirx.build(Module)
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -516,7 +516,7 @@ def test_not(dtype):
     class Module:
         @T.prim_func
         def main(var_A: T.handle, var_C: T.handle):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             m = T.int32()
             A = T.match_buffer(var_A, (m,), dtype=dtype)
             C = T.match_buffer(var_C, (m,), dtype=dtype)
@@ -528,7 +528,7 @@ def test_not(dtype):
                     C[v_i] = ~A[v_i]
 
     with tvm.target.Target(target):
-        f = tvm.tir.build(Module)
+        f = tvm.tirx.build(Module)
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -557,7 +557,7 @@ def test_memcpy(dtype):
     class Module:
         @T.prim_func
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             m = T.int32()
             A = T.match_buffer(var_A, (m,), dtype=dtype)
             B = T.match_buffer(var_B, (m,), "int32")
@@ -570,7 +570,7 @@ def test_memcpy(dtype):
                     C[v_i] = A[B[v_i]]
 
     with tvm.target.Target(target):
-        f = tvm.tir.build(Module)
+        f = tvm.tirx.build(Module)
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -598,7 +598,7 @@ def test_vscale_range_function_attribute(mattr, expect_attr):
     class Module:
         @T.prim_func
         def main(var_A: T.handle, var_C: T.handle):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             m = T.int32()
             A = T.match_buffer(var_A, (m,))
             C = T.match_buffer(var_C, (m,))
@@ -610,7 +610,7 @@ def test_vscale_range_function_attribute(mattr, expect_attr):
                     C[v_i] = A[v_i] + T.float32(1)
 
     with tvm.target.Target(target):
-        f = tvm.tir.build(Module)
+        f = tvm.tirx.build(Module)
 
     # Check if the vscale_range() attribute exists
     ll = f.inspect_source("ll")

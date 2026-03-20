@@ -23,7 +23,7 @@ import tvm
 import tvm.contrib.hexagon as hexagon
 import tvm.testing
 from tvm.script import ir as I
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 @pytest.fixture(autouse=True)
@@ -48,7 +48,7 @@ def test_basic():
             A: T.Buffer((128,), "uint8"),
             A_1: T.Buffer((128,), "uint8"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i in range(128):
                 with T.sblock("C"):
                     v_i = T.axis.spatial(128, i)
@@ -70,7 +70,7 @@ def test_llvm_target_features():
     class Module:
         @T.prim_func
         def add_one(C: T.Buffer((128,), "int32"), A: T.Buffer((128,), "uint8")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i in range(128):
                 with T.sblock("C"):
                     v_i = T.axis.spatial(128, i)
@@ -103,7 +103,7 @@ def test_llvm_options():
     class Module:
         @T.prim_func
         def main(compute: T.Buffer((10,), "int32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for _ in range(10):
                 with T.sblock("compute"):
                     v__ = T.axis.spatial(10, _)

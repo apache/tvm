@@ -27,8 +27,8 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/ir/scope_stack.h>
 #include <tvm/support/with.h>
-#include <tvm/tir/analysis.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/analysis.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include <utility>
 
@@ -44,7 +44,7 @@ namespace arith {
  *
  * \sa src/arithmetic/ir_mutator_with_analyzer.cc
  */
-class IRMutatorWithAnalyzer : public tir::StmtExprMutator {
+class IRMutatorWithAnalyzer : public tirx::StmtExprMutator {
  public:
   explicit IRMutatorWithAnalyzer(Analyzer* analyzer) : analyzer_(analyzer) {}
 
@@ -52,17 +52,17 @@ class IRMutatorWithAnalyzer : public tir::StmtExprMutator {
   using StmtExprMutator::VisitStmt_;
 
   // override functions that need to populate the context information.
-  tir::Stmt VisitStmt_(const tir::ForNode* op) override;
-  tir::Stmt VisitStmt_(const tir::SBlockNode* op) override;
-  tir::Stmt VisitStmt_(const tir::BindNode* op) override;
-  tir::Stmt VisitStmt_(const tir::IfThenElseNode* op) override;
-  tir::Stmt VisitStmt_(const tir::AttrStmtNode* op) override;
-  tir::Stmt VisitStmt_(const tir::AssertStmtNode* op) override;
-  tir::Stmt VisitStmt_(const tir::SeqStmtNode* op) override;
-  PrimExpr VisitExpr_(const tir::LetNode* op) override;
-  PrimExpr VisitExpr_(const tir::SelectNode* op) override;
-  PrimExpr VisitExpr_(const tir::CallNode* op) override;
-  PrimExpr VisitExpr_(const tir::ReduceNode* op) override;
+  tirx::Stmt VisitStmt_(const tirx::ForNode* op) override;
+  tirx::Stmt VisitStmt_(const tirx::SBlockNode* op) override;
+  tirx::Stmt VisitStmt_(const tirx::BindNode* op) override;
+  tirx::Stmt VisitStmt_(const tirx::IfThenElseNode* op) override;
+  tirx::Stmt VisitStmt_(const tirx::AttrStmtNode* op) override;
+  tirx::Stmt VisitStmt_(const tirx::AssertStmtNode* op) override;
+  tirx::Stmt VisitStmt_(const tirx::SeqStmtNode* op) override;
+  PrimExpr VisitExpr_(const tirx::LetNode* op) override;
+  PrimExpr VisitExpr_(const tirx::SelectNode* op) override;
+  PrimExpr VisitExpr_(const tirx::CallNode* op) override;
+  PrimExpr VisitExpr_(const tirx::ReduceNode* op) override;
 
  protected:
   /*!
@@ -71,7 +71,7 @@ class IRMutatorWithAnalyzer : public tir::StmtExprMutator {
    * \note call this function before Visit function's body to maximize
    *       simplification efficiency
    */
-  void MarkBufferMapShapes(const tir::PrimFunc& func);
+  void MarkBufferMapShapes(const tirx::PrimFunc& func);
 
   /*!
    * \brief Use internal bound information to perform inter map simplification of indices.
@@ -99,11 +99,11 @@ class IRMutatorWithAnalyzer : public tir::StmtExprMutator {
    */
   template <typename FLambda>
   void WithRecordIterPredicate(PrimExpr condition, FLambda callback) {
-    auto f_use_itervar = [this](const tir::VarNode* v) {
-      return iter_vars_.count(ffi::GetRef<tir::Var>(v));
+    auto f_use_itervar = [this](const tirx::VarNode* v) {
+      return iter_vars_.count(ffi::GetRef<tirx::Var>(v));
     };
     // simple heuristics for detecting predicate
-    if (tir::UsesVar(condition, f_use_itervar)) {
+    if (tirx::UsesVar(condition, f_use_itervar)) {
       iter_predicates_.push_back(condition);
       callback();
       iter_predicates_.pop_back();

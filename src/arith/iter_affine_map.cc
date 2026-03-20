@@ -23,11 +23,11 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/arith/iter_affine_map.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/tir/analysis.h>
-#include <tvm/tir/expr.h>
-#include <tvm/tir/expr_functor.h>
-#include <tvm/tir/op.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/analysis.h>
+#include <tvm/tirx/expr.h>
+#include <tvm/tirx/expr_functor.h>
+#include <tvm/tirx/op.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include <utility>
 
@@ -39,7 +39,7 @@
 namespace tvm {
 namespace arith {
 
-using namespace tir;
+using namespace tirx;
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   IterMarkNode::RegisterReflection();
@@ -422,7 +422,7 @@ class IterMapRewriter : public ExprMutator {
 
   static bool IterSplitEqual(const IterSplitExpr& lhs, const IterSplitExpr& rhs,
                              bool check_scale = true) {
-    tir::ExprDeepEqual equal;
+    tirx::ExprDeepEqual equal;
     if (!lhs->source.same_as(rhs->source)) return false;
     if (!equal(lhs->lower_factor, rhs->lower_factor)) return false;
     if (check_scale && !equal(lhs->scale, rhs->scale)) return false;
@@ -432,7 +432,7 @@ class IterMapRewriter : public ExprMutator {
 
   struct IterSumEqual {
     bool operator()(const IterSumExpr& lhs, const IterSumExpr& rhs) const {
-      tir::ExprDeepEqual equal;
+      tirx::ExprDeepEqual equal;
       if (lhs->args.size() != rhs->args.size()) return false;
       if (!equal(lhs->base, rhs->base)) return false;
       for (size_t i = 0; i < lhs->args.size(); ++i) {
@@ -800,7 +800,7 @@ class IterMapRewriter : public ExprMutator {
     for (IterSplitExpr split : expr->args) {
       int64_t symbol_prod_count = 0;
       int64_t cscale = 1;
-      PrimExpr res = tir::make_const(split.dtype(), 1);
+      PrimExpr res = tirx::make_const(split.dtype(), 1);
       auto fcollect = [&](PrimExpr val) {
         if (const auto* intimm = val.as<IntImmNode>()) {
           cscale *= intimm->value;
@@ -809,9 +809,9 @@ class IterMapRewriter : public ExprMutator {
           ++symbol_prod_count;
         }
       };
-      UnpackReduction<tir::MulNode>(split->scale, fcollect);
+      UnpackReduction<tirx::MulNode>(split->scale, fcollect);
       if (cscale != 1) {
-        res = res * tir::make_const(res.dtype(), cscale);
+        res = res * tirx::make_const(res.dtype(), cscale);
       }
       split.CopyOnWrite()->scale = res;
       items.emplace_back(Item{cscale, symbol_prod_count, split});
@@ -894,7 +894,7 @@ class IterMapRewriter : public ExprMutator {
       if (match_source.defined() && !match_source.same_as(expr->args[i]->source)) continue;
       int reduce_size = 0;
       auto fcollect = [&](const PrimExpr&) { ++reduce_size; };
-      UnpackReduction<tir::MulNode>(expr->args[i]->scale, fcollect);
+      UnpackReduction<tirx::MulNode>(expr->args[i]->scale, fcollect);
       if (base_index == -1 || reduce_size < min_reduce_size) {
         min_reduce_size = reduce_size;
         base_index = static_cast<int>(i);
@@ -1240,7 +1240,7 @@ class IterMapRewriter : public ExprMutator {
   PrimExpr SplitFloorModConst(IterSplitExpr lhs, PrimExpr base, PrimExpr rhs);
 
   static void AddToLhs(IterSumExprNode* lhs, IterSplitExpr rhs, int sign) {
-    tir::ExprDeepEqual equal;
+    tirx::ExprDeepEqual equal;
     for (size_t i = 0; i < lhs->args.size(); ++i) {
       IterSplitExpr lvalue = lhs->args[i];
       if (lvalue->source.same_as(rhs->source) && equal(lvalue->lower_factor, rhs->lower_factor) &&
