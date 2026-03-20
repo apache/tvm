@@ -29,7 +29,7 @@ import torch
 from torch import fx
 
 import tvm
-from tvm import relax
+from tvm import relax, tir
 
 from .base_fx_graph_translator import BaseFXGraphImporter
 
@@ -937,6 +937,14 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         end_val = node.args[3] if len(node.args) > 3 else None
         step = node.args[4] if len(node.args) > 4 else 1
 
+        # Resolve fx.Node references (e.g. symbolic sizes from dynamic shapes)
+        if isinstance(start, fx.Node):
+            start = self.env[start]
+        if isinstance(end_val, fx.Node):
+            end_val = self.env[end_val]
+        if isinstance(step, fx.Node):
+            step = self.env[step]
+
         if start is None:
             start = 0
         if end_val is None:
@@ -955,6 +963,17 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             and step == 1
         ):
             return x
+
+        # Skip identity slice where end_val is a symbolic expression equal to the
+        # tensor's own dimension size (common with dynamic shapes).
+        if isinstance(start, int) and start == 0 and isinstance(step, int) and step == 1:
+            in_shape = self.shape_of(x)
+            if in_shape is not None and isinstance(end_val, tir.PrimExpr):
+                actual_dim = dim if dim >= 0 else len(in_shape) + dim
+                dim_expr = in_shape[actual_dim]
+                if isinstance(dim_expr, tir.PrimExpr):
+                    if tir.analysis.expr_deep_equal(end_val, dim_expr):
+                        return x
 
         axes = [dim]
         begin = [start]
