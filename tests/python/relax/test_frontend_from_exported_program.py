@@ -5634,6 +5634,73 @@ def test_slice_scatter():
     verify_model(SliceScatterNegative(), example_args, {}, expected_slice_scatter)
 
 
+def test_slice_with_symbolic_end():
+    """_slice correctly handles symbolic end values from dynamic shapes."""
+
+    class SliceIdentityModel(torch.nn.Module):
+        def forward(self, x):
+            # x[:, :x.size(1)] is an identity slice that torch.export emits
+            # as slice(x, 1, 0, sym_size_int(x, 1), 1) with dynamic shapes.
+            seq_len = x.size(1)
+            return x[:, :seq_len] + 0.0  # +0.0 to ensure output is a new tensor
+
+    # The identity slice is elided; only x + 0.0 remains.
+    @I.ir_module
+    class ExpectedIdentity:
+        @R.function
+        def main(x: R.Tensor(("s0", "s1", 4), dtype="float32")) -> R.Tuple(
+            R.Tensor(("s0", "s1", 4), dtype="float32")
+        ):
+            s0 = T.int64(is_size_var=True)
+            s1 = T.int64(is_size_var=True)
+            R.func_attr({"tir_var_lower_bound": {"s27": 2, "s77": 2}})
+            with R.dataflow():
+                lv: R.Tensor((s0, s1, 4), dtype="float32") = R.add(x, R.const(0.0, "float32"))
+                gv: R.Tuple(R.Tensor((s0, s1, 4), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(2, 8, 4, dtype=torch.float32),)
+    batch = torch.export.Dim("batch", min=2)
+    seq = torch.export.Dim("seq", min=2)
+    dynamic_shapes = {"x": {0: batch, 1: seq}}
+
+    verify_model(
+        SliceIdentityModel(),
+        example_args,
+        {},
+        ExpectedIdentity,
+        dynamic_shapes=dynamic_shapes,
+        map_free_vars=True,
+    )
+
+    class SliceStaticModel(torch.nn.Module):
+        def forward(self, x):
+            # A non-identity static slice
+            return x[:, :3]
+
+    @tvm.script.ir_module
+    class ExpectedStatic:
+        @R.function
+        def main(x: R.Tensor((2, 8, 4), dtype="float32")) -> R.Tuple(
+            R.Tensor((2, 3, 4), dtype="float32")
+        ):
+            with R.dataflow():
+                lv: R.Tensor((2, 3, 4), dtype="float32") = R.strided_slice(
+                    x,
+                    axes=[1],
+                    begin=[0],
+                    end=[3],
+                    strides=[1],
+                )
+                gv: R.Tuple(R.Tensor((2, 3, 4), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args_static = (torch.randn(2, 8, 4, dtype=torch.float32),)
+    verify_model(SliceStaticModel(), example_args_static, {}, ExpectedStatic)
+
+
 def test_split():
     class Chunk(Module):
         def forward(self, input):
