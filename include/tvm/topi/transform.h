@@ -904,28 +904,41 @@ inline Tensor strided_slice_with_axes(const Tensor& x, const ffi::Array<Integer>
                                       std::string slice_mode = "end",
                                       std::string name = "T_strided_slice_with_axes",
                                       std::string tag = kInjective) {
-  const size_t src_tensor_dim = x->shape.size();
-  TVM_FFI_ICHECK(axes.size() <= src_tensor_dim);
+  const int64_t src_tensor_dim = static_cast<int64_t>(x->shape.size());
+  TVM_FFI_ICHECK(static_cast<int64_t>(axes.size()) <= src_tensor_dim);
   TVM_FFI_ICHECK(axes.size() == begin.size() && axes.size() == end.size() &&
                  axes.size() == strides.size());
+
+  // Normalize negative axes
+  ffi::Array<Integer> normalized_axes;
+  for (size_t i = 0; i < axes.size(); ++i) {
+    int64_t axis = axes[i].IntValue();
+    if (axis < 0) {
+      axis += src_tensor_dim;
+    }
+    TVM_FFI_ICHECK(axis >= 0 && axis < src_tensor_dim)
+        << "Axis " << axes[i].IntValue() << " is out of bounds for tensor with " << src_tensor_dim
+        << " dimensions";
+    normalized_axes.push_back(Integer(axis));
+  }
 
   std::vector<int64_t> begin_vec, end_vec, strides_vec;
   std::tie(begin_vec, end_vec, strides_vec) = ConvertToVec(begin, end, strides, slice_mode);
 
-  auto begin_expr = StridedSliceCanonicalizeBegin(x->shape, begin_vec, strides_vec, axes,
+  auto begin_expr = StridedSliceCanonicalizeBegin(x->shape, begin_vec, strides_vec, normalized_axes,
                                                   begin[0]->dtype, slice_mode);
-  auto out_shape = StridedSliceOutputShape(x->shape, begin_vec, end_vec, strides_vec, axes,
-                                           slice_mode, begin_expr);
+  auto out_shape = StridedSliceOutputShape(x->shape, begin_vec, end_vec, strides_vec,
+                                           normalized_axes, slice_mode, begin_expr);
 
   return te::compute(
       out_shape,
       [&](const ffi::Array<tir::Var>& indices) {
         ffi::Array<PrimExpr> real_indices;
         for (size_t i = 0; i < out_shape.size(); ++i) real_indices.push_back(indices[i]);
-        for (size_t i = 0; i < axes.size(); ++i) {
+        for (size_t i = 0; i < normalized_axes.size(); ++i) {
           auto stride = make_const(strides[i].dtype(), strides_vec[i]);
-          PrimExpr ind = indices[axes[i].IntValue()] * stride + begin_expr[i];
-          real_indices.Set(axes[i].IntValue(), ind);
+          PrimExpr ind = indices[normalized_axes[i].IntValue()] * stride + begin_expr[i];
+          real_indices.Set(normalized_axes[i].IntValue(), ind);
         }
         return x(real_indices);
       },
