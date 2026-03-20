@@ -24,7 +24,7 @@ import tvm.testing
 from tvm.ir import IRModule
 from tvm.s_tir.analysis import estimate_tir_flops
 from tvm.s_tir.meta_schedule.testing.te_workload import create_te_workload
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 @pytest.mark.parametrize(

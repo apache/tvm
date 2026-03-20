@@ -15,7 +15,7 @@
     specific language governing permissions and limitations
     under the License.
 
-.. _tir-learning:
+.. _tirx-learning:
 
 Understand TensorIR Abstraction
 ===============================

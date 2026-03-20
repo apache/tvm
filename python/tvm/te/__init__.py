@@ -18,16 +18,16 @@
 # pylint: disable=unused-import, redefined-builtin, wildcard-import
 """Namespace for Tensor Expression Language"""
 
-# expose all operators in tvm tir.op
-from tvm.tir import any, all, min_value, max_value, trace
-from tvm.tir import exp, erf, tanh, sigmoid, log, tan, cos, sin, sqrt, rsqrt, floor, ceil
-from tvm.tir import sinh, cosh, log2, log10
-from tvm.tir import asin, asinh, acos, acosh, atan, atanh
-from tvm.tir import trunc, abs, round, nearbyint, power, popcount, fmod, if_then_else
-from tvm.tir import isnan, isfinite, isinf
-from tvm.tir import div, indexdiv, indexmod, truncdiv, truncmod, floordiv, floormod, logaddexp
-from tvm.tir import comm_reducer, min, max, sum
-from tvm.tir import add, subtract, multiply
+# expose all operators in tvm tirx.op
+from tvm.tirx import any, all, min_value, max_value, trace
+from tvm.tirx import exp, erf, tanh, sigmoid, log, tan, cos, sin, sqrt, rsqrt, floor, ceil
+from tvm.tirx import sinh, cosh, log2, log10
+from tvm.tirx import asin, asinh, acos, acosh, atan, atanh
+from tvm.tirx import trunc, abs, round, nearbyint, power, popcount, fmod, if_then_else
+from tvm.tirx import isnan, isfinite, isinf
+from tvm.tirx import div, indexdiv, indexmod, truncdiv, truncmod, floordiv, floormod, logaddexp
+from tvm.tirx import comm_reducer, min, max, sum
+from tvm.tirx import add, subtract, multiply
 
 from .tensor import TensorSlice, Tensor
 from .tag import tag_scope

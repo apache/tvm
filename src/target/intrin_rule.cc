@@ -23,106 +23,106 @@
  */
 #include "intrin_rule.h"
 
-#include <tvm/tir/buffer.h>
-#include <tvm/tir/op.h>
-#include <tvm/tir/op_attr_types.h>
+#include <tvm/tirx/buffer.h>
+#include <tvm/tirx/op.h>
+#include <tvm/tirx/op_attr_types.h>
 
 namespace tvm {
 namespace codegen {
 namespace intrin {
-using tir::FLowerIntrinsic;
+using tirx::FLowerIntrinsic;
 
-TVM_REGISTER_OP("tir.exp").set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
-                                                     DispatchPureExtern<FloatSuffix>);
-
-TVM_REGISTER_OP("tir.erf").set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
-                                                     DispatchPureExtern<FloatSuffix>);
-
-TVM_REGISTER_OP("tir.log").set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
-                                                     DispatchPureExtern<FloatSuffix>);
-
-TVM_REGISTER_OP("tir.log2")
+TVM_REGISTER_OP("tirx.exp")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_OP("tir.log10")
+TVM_REGISTER_OP("tirx.erf")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_OP("tir.log1p")
+TVM_REGISTER_OP("tirx.log")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_OP("tir.tanh")
+TVM_REGISTER_OP("tirx.log2")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_OP("tir.tan").set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
-                                                     DispatchPureExtern<FloatSuffix>);
-
-TVM_REGISTER_OP("tir.trunc")
+TVM_REGISTER_OP("tirx.log10")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_OP("tir.atan")
+TVM_REGISTER_OP("tirx.log1p")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_OP("tir.atanh")
+TVM_REGISTER_OP("tirx.tanh")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_OP("tir.atan2")
+TVM_REGISTER_OP("tirx.tan")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_OP("tir.cos").set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
-                                                     DispatchPureExtern<FloatSuffix>);
-
-TVM_REGISTER_OP("tir.acos")
+TVM_REGISTER_OP("tirx.trunc")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_OP("tir.cosh")
+TVM_REGISTER_OP("tirx.atan")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_OP("tir.acosh")
+TVM_REGISTER_OP("tirx.atanh")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_OP("tir.sin").set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
-                                                     DispatchPureExtern<FloatSuffix>);
-
-TVM_REGISTER_OP("tir.asin")
+TVM_REGISTER_OP("tirx.atan2")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_OP("tir.sinh")
+TVM_REGISTER_OP("tirx.cos")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_OP("tir.asinh")
+TVM_REGISTER_OP("tirx.acos")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_OP("tir.hypot")
+TVM_REGISTER_OP("tirx.cosh")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_OP("tir.nextafter")
+TVM_REGISTER_OP("tirx.acosh")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_OP("tir.copysign")
+TVM_REGISTER_OP("tirx.sin")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_OP("tir.ldexp")
+TVM_REGISTER_OP("tirx.asin")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_OP("tir.sqrt")
+TVM_REGISTER_OP("tirx.sinh")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_OP("tir.floor")
+TVM_REGISTER_OP("tirx.asinh")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_OP("tir.ceil")
+TVM_REGISTER_OP("tirx.hypot")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_OP("tir.round")
+TVM_REGISTER_OP("tirx.nextafter")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_OP("tir.nearbyint")
+TVM_REGISTER_OP("tirx.copysign")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_OP("tir.pow").set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
-                                                     DispatchPureExtern<FloatSuffix>);
+TVM_REGISTER_OP("tirx.ldexp")
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_OP("tir.tvm_access_ptr")
+TVM_REGISTER_OP("tirx.sqrt")
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
+
+TVM_REGISTER_OP("tirx.floor")
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
+
+TVM_REGISTER_OP("tirx.ceil")
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
+
+TVM_REGISTER_OP("tirx.round")
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
+
+TVM_REGISTER_OP("tirx.nearbyint")
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
+
+TVM_REGISTER_OP("tirx.pow")
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
+
+TVM_REGISTER_OP("tirx.tvm_access_ptr")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", [](const PrimExpr& e) -> PrimExpr {
       const CallNode* call = e.as<CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
@@ -158,9 +158,9 @@ PrimExpr DispatchFastErf(const PrimExpr& e) {
 }
 
 PrimExpr DispatchNumericalStableTanh(const PrimExpr& e) {
-  using tir::make_const;
-  using tir::make_zero;
-  const tir::CallNode* call = e.as<tir::CallNode>();
+  using tirx::make_const;
+  using tirx::make_zero;
+  const tirx::CallNode* call = e.as<tirx::CallNode>();
   TVM_FFI_ICHECK(call != nullptr);
   const PrimExpr& x = call->args[0];
   PrimExpr one = make_const(x.dtype(), 1);
@@ -172,16 +172,16 @@ PrimExpr DispatchNumericalStableTanh(const PrimExpr& e) {
 
   PrimExpr tanh_pos = (one - exp_neg2x) / (one + exp_neg2x);
   PrimExpr tanh_neg = (exp_pos2x - one) / (exp_pos2x + one);
-  return tir::Select(x >= make_zero(x.dtype()), tanh_pos, tanh_neg);
+  return tirx::Select(x >= make_zero(x.dtype()), tanh_pos, tanh_neg);
 }
 
 }  // namespace intrin
 
 namespace legalize {
 
-using namespace tir;
+using namespace tirx;
 
-TVM_REGISTER_OP("tir.rsqrt")
+TVM_REGISTER_OP("tirx.rsqrt")
     .set_attr<FLegalize>("default.FLegalize", [](const PrimExpr& e) -> PrimExpr {
       const CallNode* call = e.as<CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
@@ -189,7 +189,7 @@ TVM_REGISTER_OP("tir.rsqrt")
       return one / sqrt(call->args[0]);
     });
 
-TVM_REGISTER_OP("tir.sigmoid")
+TVM_REGISTER_OP("tirx.sigmoid")
     .set_attr<FLegalize>("default.FLegalize", [](const PrimExpr& e) -> PrimExpr {
       const CallNode* call = e.as<CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
@@ -197,14 +197,14 @@ TVM_REGISTER_OP("tir.sigmoid")
       return one / (one + exp(-call->args[0]));
     });
 
-TVM_REGISTER_OP("tir.isfinite")
+TVM_REGISTER_OP("tirx.isfinite")
     .set_attr<FLegalize>("default.FLegalize", [](const PrimExpr& e) -> PrimExpr {
       const CallNode* call = e.as<CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
       return isfinite(call->args[0]);
     });
 
-TVM_REGISTER_OP("tir.isinf")
+TVM_REGISTER_OP("tirx.isinf")
     .set_attr<FLegalize>("default.FLegalize", [](const PrimExpr& e) -> PrimExpr {
       const CallNode* call = e.as<CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
@@ -236,7 +236,7 @@ static PrimExpr QMultiplyShift(PrimExpr x, PrimExpr y, PrimExpr q, PrimExpr left
   PrimExpr one = make_const(hp_dtype, 1);
   x = cast(hp_dtype, x);
   y = cast(hp_dtype, y);
-  x = tir::Select(is_left_shift_required, x << left_shift, x);
+  x = tirx::Select(is_left_shift_required, x << left_shift, x);
 
   // 2) Perform the multiplication in higher precision.
   x = x * y;
@@ -253,11 +253,11 @@ static PrimExpr QMultiplyShift(PrimExpr x, PrimExpr y, PrimExpr q, PrimExpr left
   return cast(lp_dtype, x);
 }
 
-TVM_REGISTER_OP("tir.q_multiply_shift")
+TVM_REGISTER_OP("tirx.q_multiply_shift")
     .set_attr<FLegalize>("default.FLegalize", [](const PrimExpr& e) -> PrimExpr {
-      using tir::make_const;
+      using tirx::make_const;
 
-      const tir::CallNode* call = e.as<tir::CallNode>();
+      const tirx::CallNode* call = e.as<tirx::CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
 
       PrimExpr x = call->args[0];
@@ -300,17 +300,17 @@ TVM_REGISTER_OP("tir.q_multiply_shift")
 
         // Calculating integer shifts
         PrimExpr zero = make_const(s.dtype(), 0);
-        PrimExpr left_shift = tir::Select(s > zero, s, zero);
-        PrimExpr right_shift = tir::Select(s > zero, zero, -s);
+        PrimExpr left_shift = tirx::Select(s > zero, s, zero);
+        PrimExpr right_shift = tirx::Select(s > zero, zero, -s);
         PrimExpr is_left_shift_required = (left_shift != zero);
 
         return QMultiplyShift(x, y, q, left_shift, right_shift, is_left_shift_required);
       }
     });
 
-TVM_REGISTER_OP("tir.q_multiply_shift_per_axis")
+TVM_REGISTER_OP("tirx.q_multiply_shift_per_axis")
     .set_attr<FLegalize>("default.FLegalize", [](const PrimExpr& e) -> PrimExpr {
-      const tir::CallNode* call = e.as<tir::CallNode>();
+      const tirx::CallNode* call = e.as<tirx::CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
 
       PrimExpr x = call->args[0];

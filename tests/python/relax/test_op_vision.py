@@ -20,7 +20,7 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import TVMError, relax, tir
+from tvm import TVMError, relax, tirx
 from tvm.relax.transform import LegalizeOps
 from tvm.script import relax as R
 
@@ -63,9 +63,9 @@ def test_all_class_non_max_suppression_wrong_input_number():
 
 def test_all_class_non_max_suppression_infer_struct_info_shape_var():
     bb = relax.BlockBuilder()
-    batch_size = tir.Var("batch_size", "int64")
-    num_classes = tir.Var("num_classes", "int64")
-    num_boxes = tir.Var("num_boxes", "int64")
+    batch_size = tirx.Var("batch_size", "int64")
+    num_classes = tirx.Var("num_classes", "int64")
+    num_boxes = tirx.Var("num_boxes", "int64")
     boxes = relax.Var("boxes", R.Tensor((batch_size, num_boxes, 4), "float32"))
     scores = relax.Var("scores", R.Tensor((batch_size, num_classes, num_boxes), "float32"))
     max_output_boxes_per_class = relax.const(10, "int64")

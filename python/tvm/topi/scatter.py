@@ -18,11 +18,11 @@
 # ruff: noqa: E741
 """ScatterND operator"""
 
-from tvm import te, tir  # hide redefinition of min and max
+from tvm import te, tirx  # hide redefinition of min and max
 from tvm.arith.analyzer import Analyzer
 from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder import tir as T
-from tvm.tir import expr
+from tvm.script.ir_builder import tirx as T
+from tvm.tirx import expr
 
 
 def _verify_scatter_nd_inputs(data, indices, updates):
@@ -139,11 +139,11 @@ def scatter_nd(data, indices, updates, mode):
                         elif mode == "mul":
                             out[index] *= updates[i * fused_updates_dimension + j]
                         elif mode == "min":
-                            out[index] = tir.min(
+                            out[index] = tirx.min(
                                 out[index], updates[i * fused_updates_dimension + j]
                             )
                         elif mode == "max":
-                            out[index] = tir.max(
+                            out[index] = tirx.max(
                                 out[index], updates[i * fused_updates_dimension + j]
                             )
                         else:
@@ -153,7 +153,7 @@ def scatter_nd(data, indices, updates, mode):
 
             return ib.get()
 
-    out_buf = tir.decl_buffer(data.shape, data.dtype, "out_buf")
+    out_buf = tirx.decl_buffer(data.shape, data.dtype, "out_buf")
     return te.extern(
         [data.shape],
         [data, indices, updates],

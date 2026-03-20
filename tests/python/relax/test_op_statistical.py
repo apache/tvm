@@ -20,7 +20,7 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import TVMError, relax, tir
+from tvm import TVMError, relax, tirx
 from tvm.ir import Op, VDevice
 from tvm.script import relax as R
 
@@ -124,10 +124,10 @@ def test_statistical_infer_struct_info():
 
 def test_statistical_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    a = tir.Var("a", "int64")
-    b = tir.Var("b", "int64")
-    c = tir.Var("c", "int64")
-    d = tir.Var("d", "int64")
+    a = tirx.Var("a", "int64")
+    b = tirx.Var("b", "int64")
+    c = tirx.Var("c", "int64")
+    d = tirx.Var("d", "int64")
     x = relax.Var("x", R.Tensor((a, b, c, d), "float32"))
 
     _check_inference(bb, relax.op.min(x, axis=[1, 2]), relax.TensorStructInfo((a, d), "float32"))
@@ -240,9 +240,9 @@ def test_scan_op_infer_struct_info(scan_op: Callable):
 
 def test_scan_op_infer_struct_info_shape_symbolic(scan_op: Callable):
     bb = relax.BlockBuilder()
-    a = tir.Var("a", "int64")
-    b = tir.Var("b", "int64")
-    c = tir.Var("c", "int64")
+    a = tirx.Var("a", "int64")
+    b = tirx.Var("b", "int64")
+    c = tirx.Var("c", "int64")
     x = relax.Var("x", R.Tensor((a, b, c), "float32"))
 
     _check_inference(bb, scan_op(x, axis=1), relax.TensorStructInfo((a, b, c), "float32"))
@@ -382,10 +382,10 @@ def test_statistical_ext_infer_struct_info():
 
 def test_statistical_ext_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    a = tir.Var("a", "int64")
-    b = tir.Var("b", "int64")
-    c = tir.Var("c", "int64")
-    d = tir.Var("d", "int64")
+    a = tirx.Var("a", "int64")
+    b = tirx.Var("b", "int64")
+    c = tirx.Var("c", "int64")
+    d = tirx.Var("d", "int64")
     x = relax.Var("x", R.Tensor((a, b, c, d), "float32"))
 
     _check_inference(

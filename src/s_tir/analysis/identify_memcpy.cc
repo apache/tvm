@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file tir/analysis/identify_memcpy.cc
+ * \file tirx/analysis/identify_memcpy.cc
  * \brief Check if a loop nest is equivalent to memcpy
  */
 
@@ -26,9 +26,9 @@
 #include <tvm/arith/iter_affine_map.h>
 #include <tvm/ffi/optional.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/tir/analysis.h>
-#include <tvm/tir/buffer.h>
-#include <tvm/tir/stmt.h>
+#include <tvm/tirx/analysis.h>
+#include <tvm/tirx/buffer.h>
+#include <tvm/tirx/stmt.h>
 
 #include <optional>
 #include <sstream>
@@ -39,7 +39,7 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
                                                             arith::Analyzer* analyzer) {

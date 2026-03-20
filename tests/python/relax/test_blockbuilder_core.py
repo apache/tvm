@@ -24,13 +24,13 @@ import tvm
 import tvm.contrib.cblas
 import tvm.testing
 from tvm import relax as rx
-from tvm import te, tir, topi
+from tvm import te, tirx, topi
 from tvm.ir.base import assert_structural_equal
 from tvm.relax import ExternFunc
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
-from tvm.tir.function import PrimFunc
+from tvm.script import tirx as T
+from tvm.tirx.function import PrimFunc
 
 
 @pytest.fixture(scope="module")
@@ -41,8 +41,8 @@ def register_nop():
 
 
 def test_block_builder():
-    m = tir.Var("m", "int64")
-    n = tir.Var("n", "int64")
+    m = tirx.Var("m", "int64")
+    n = tirx.Var("n", "int64")
     x = rx.Var("x", rx.TensorStructInfo([m, n], "float16"))
     y = rx.Var("y", rx.TensorStructInfo([n], "float16"))
     bb = rx.BlockBuilder()
@@ -66,8 +66,8 @@ def test_block_builder():
 
 
 def test_emit_with_name():
-    m = tir.Var("m", "int64")
-    n = tir.Var("n", "int64")
+    m = tirx.Var("m", "int64")
+    n = tirx.Var("n", "int64")
     x = rx.Var("x", rx.TensorStructInfo([m, n], "float16"))
     y = rx.Var("y", rx.TensorStructInfo([n], "float16"))
     bb = rx.BlockBuilder()
@@ -82,8 +82,8 @@ def test_emit_with_name():
 
 
 def test_function_single_block():
-    m = tir.Var("m", "int64")
-    n = tir.Var("n", "int64")
+    m = tirx.Var("m", "int64")
+    n = tirx.Var("n", "int64")
     x = rx.Var("x", rx.TensorStructInfo([m, n], "float16"))
     y = rx.Var("y", rx.TensorStructInfo([n], "float16"))
     bb = rx.BlockBuilder()
@@ -108,8 +108,8 @@ def test_function_single_block():
 
 
 def test_function_multi_blocks():
-    m = tir.Var("m", "int64")
-    n = tir.Var("n", "int64")
+    m = tirx.Var("m", "int64")
+    n = tirx.Var("n", "int64")
     x = rx.Var("x", rx.TensorStructInfo([m, n], "float16"))
     y = rx.Var("y", rx.TensorStructInfo([n], "float16"))
     bb = rx.BlockBuilder()
@@ -143,8 +143,8 @@ def test_function_multi_blocks():
 def test_multi_functions():
     bb = rx.BlockBuilder()
 
-    m_1 = tir.Var("m", "int64")
-    n_1 = tir.Var("n", "int64")
+    m_1 = tirx.Var("m", "int64")
+    n_1 = tirx.Var("n", "int64")
     x_1 = rx.Var("x", rx.TensorStructInfo([m_1, n_1], "float16"))
     y_1 = rx.Var("y", rx.TensorStructInfo([n_1], "float16"))
 
@@ -155,8 +155,8 @@ def test_multi_functions():
             gv0 = bb.emit_output(lv0)
         bb.emit_func_output(gv0)
 
-    m_2 = tir.Var("m", "int64")
-    n_2 = tir.Var("n", "int64")
+    m_2 = tirx.Var("m", "int64")
+    n_2 = tirx.Var("n", "int64")
     x_2 = rx.Var("x", rx.TensorStructInfo([m_2, n_2], "float16"))
     y_2 = rx.Var("y", rx.TensorStructInfo([n_2], "float16"))
 
@@ -180,9 +180,9 @@ def test_multi_functions():
 
 
 def test_binary_shape_type_deduction():
-    m = tir.Var("m", "int64")
-    n = tir.Var("n", "int64")
-    k = tir.Var("k", "int64")
+    m = tirx.Var("m", "int64")
+    n = tirx.Var("n", "int64")
+    k = tirx.Var("k", "int64")
     x = rx.Var("x", rx.TensorStructInfo([m, 1], "float16"))
     y = rx.Var("y", rx.TensorStructInfo([n], "float16"))
     z = rx.Var("z", rx.TensorStructInfo([5], "float16"))
@@ -216,8 +216,8 @@ def test_binary_shape_type_deduction():
 
 
 def test_emit_match_cast():
-    m = tir.Var("m", dtype="int64")
-    n = tir.Var("n", dtype="int64")
+    m = tirx.Var("m", dtype="int64")
+    n = tirx.Var("n", dtype="int64")
     x = rx.Var("tensor_value", rx.TensorStructInfo(dtype="float32", ndim=-1))
     y = rx.Var("shape_value", rx.ShapeStructInfo([16, 8]))
     bb = rx.BlockBuilder()
@@ -256,7 +256,7 @@ def test_emit_match_cast_binding_in_dataflow_block():
     bb = rx.BlockBuilder()
 
     x = rx.Var("x", rx.TensorStructInfo(dtype="float32", ndim=-1))
-    m = tir.Var("m", dtype="int64")
+    m = tirx.Var("m", dtype="int64")
     gv = rx.Var("gv", rx.TensorStructInfo(dtype="float32", ndim=-1))
     match_cast = rx.MatchCast(gv, x, rx.TensorStructInfo((m,), "float32"))
 
@@ -278,8 +278,8 @@ def test_emit_match_cast_binding_in_dataflow_block():
 
 
 def test_normalize():
-    m = tir.Var("m", "int64")
-    n = tir.Var("n", "int64")
+    m = tirx.Var("m", "int64")
+    n = tirx.Var("n", "int64")
 
     x = rx.Var("x", rx.TensorStructInfo([m, n], "float16"))
     y = rx.Var("y", rx.TensorStructInfo([n], "float16"))
@@ -314,8 +314,8 @@ def test_normalize():
 
 
 def test_tuple_indexing():
-    m = tir.Var("m", "int64")
-    n = tir.Var("n", "int64")
+    m = tirx.Var("m", "int64")
+    n = tirx.Var("n", "int64")
 
     shape_x = rx.TensorStructInfo([m, n], "float16")
     shape_y = rx.TensorStructInfo([n], "float16")
@@ -346,7 +346,7 @@ def test_tuple_indexing():
 
 def test_call_te():
     bb = rx.BlockBuilder()
-    n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+    n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
     x = rx.Var("x", rx.TensorStructInfo([n, m], "float32"))
     y = rx.Var("y", rx.TensorStructInfo([n, m], "float32"))
     z = rx.Var("z", rx.TensorStructInfo([n, m], "float32"))
@@ -405,7 +405,7 @@ def test_call_te_with_unsupported_shape_arg():
 
 def test_emit_te():
     bb = rx.BlockBuilder()
-    n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+    n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
     x = rx.Var("x", rx.TensorStructInfo([n, m], "float32"))
     y = rx.Var("y", rx.TensorStructInfo([n, m], "float32"))
     z = rx.Var("z", rx.TensorStructInfo([n, m], "float32"))
@@ -453,7 +453,7 @@ def test_emit_te():
 
 def test_emit_te_multiple():
     bb = rx.BlockBuilder()
-    n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+    n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
     x = rx.Var("x", rx.TensorStructInfo([n, m], "float32"))
     y = rx.Var("y", rx.TensorStructInfo([n, m], "float32"))
     z = rx.Var("z", rx.TensorStructInfo([128, m], "float32"))
@@ -485,7 +485,7 @@ def test_emit_te_multiple():
 
 def test_emit_te_multiple_output():
     bb = rx.BlockBuilder()
-    n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+    n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
     x = rx.Var("x", rx.TensorStructInfo([n, m], "float32"))
 
     def te_func(A):
@@ -499,7 +499,7 @@ def test_emit_te_multiple_output():
 
     rx_func = bb.finalize()["rx_func"]
 
-    # check call tir output shape is a Tuple of ShapeExpr
+    # check call tirx output shape is a Tuple of ShapeExpr
     assert rx_func.params[0] == x
     call_node = rx_func.body.blocks[0].bindings[0].value
     assert call_node.args[0].name_hint == "te_func"
@@ -511,7 +511,7 @@ def test_emit_te_multiple_output():
 
 def test_emit_te_extern():
     bb = rx.BlockBuilder()
-    n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+    n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
     x = rx.Var("x", rx.TensorStructInfo([n, m], "float32"))
     y = rx.Var("y", rx.TensorStructInfo([m, n], "float32"))
 
@@ -538,7 +538,7 @@ def test_emit_te_extern():
 
 def test_emit_te_prim_value():
     bb = rx.BlockBuilder()
-    n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+    n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
     x = rx.Var("x", R.Tensor([n, m], "float32"))
     a_min = rx.PrimValue(0)
     a_max = rx.PrimValue(6)
@@ -559,8 +559,8 @@ def test_emit_te_prim_value():
 
 
 def test_nested_function_fail():
-    m = tir.Var("m", "int64")
-    n = tir.Var("n", "int64")
+    m = tirx.Var("m", "int64")
+    n = tirx.Var("n", "int64")
     x = rx.Var("x", rx.TensorStructInfo([m, n], "float16"))
     y = rx.Var("y", rx.TensorStructInfo([n], "float16"))
     bb = rx.BlockBuilder()
@@ -574,8 +574,8 @@ def test_nested_function_fail():
 
 
 def test_emit_func_output_twice_fail():
-    m = tir.Var("m", "int64")
-    n = tir.Var("n", "int64")
+    m = tirx.Var("m", "int64")
+    n = tirx.Var("n", "int64")
     x = rx.Var("x", rx.TensorStructInfo([m, n], "float16"))
     y = rx.Var("y", rx.TensorStructInfo([n], "float16"))
     bb = rx.BlockBuilder()
@@ -588,8 +588,8 @@ def test_emit_func_output_twice_fail():
 
 
 def test_func_params_twice_fail():
-    m = tir.Var("m", "int64")
-    n = tir.Var("n", "int64")
+    m = tirx.Var("m", "int64")
+    n = tirx.Var("n", "int64")
     x = rx.Var("x", rx.TensorStructInfo([m, n], "float16"))
     y = rx.Var("y", rx.TensorStructInfo([n], "float16"))
     bb = rx.BlockBuilder()
@@ -601,8 +601,8 @@ def test_func_params_twice_fail():
 
 
 def test_no_func_params_fail():
-    m = tir.Var("m", "int64")
-    n = tir.Var("n", "int64")
+    m = tirx.Var("m", "int64")
+    n = tirx.Var("n", "int64")
     x = rx.Var("x", rx.TensorStructInfo([m, n], "float16"))
     y = rx.Var("y", rx.TensorStructInfo([n], "float16"))
     bb = rx.BlockBuilder()
@@ -616,7 +616,7 @@ def test_no_func_params_fail():
 def test_block_builder_scope_recovery():
     bb = rx.BlockBuilder()
 
-    n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+    n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
     x = rx.Var("x", rx.TensorStructInfo([n, m], "float32"))
     y = rx.Var("y", rx.TensorStructInfo([m, n], "float32"))
 
@@ -641,8 +641,8 @@ def test_emit_nested_tuple(emit_nested_tuple):
     def make_function(emit_nested_tuple: bool):
         bb = rx.BlockBuilder()
 
-        n_sym = tir.Var("n", "int64")
-        m_sym = tir.Var("m", "int64")
+        n_sym = tirx.Var("n", "int64")
+        m_sym = tirx.Var("m", "int64")
         n = rx.Var("n", rx.PrimStructInfo(value=n_sym))
         m = rx.Var("m", rx.PrimStructInfo(value=m_sym))
         x = rx.Var("x", rx.TensorStructInfo([n_sym, m_sym], "float32"))
@@ -691,14 +691,14 @@ def test_emit_nested_tuple(emit_nested_tuple):
 
 @pytest.mark.skip_well_formed_check_before_transform
 def test_finalize_public_private_name_conflict():
-    # tir call
+    # tirx call
     bb = rx.BlockBuilder()
 
     def te_zero():
-        return topi.full((), "int64", tir.IntImm("int64", 0))
+        return topi.full((), "int64", tirx.IntImm("int64", 0))
 
     def te_one():
-        return topi.full((), "int64", tir.IntImm("int64", 1))
+        return topi.full((), "int64", tirx.IntImm("int64", 1))
 
     with bb.function("func", []):
         gv0 = bb.emit_te(te_zero, primfunc_name_hint="func")

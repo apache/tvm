@@ -19,8 +19,8 @@ import sys
 
 import tvm
 from tvm.ir.module import IRModule
-from tvm.script import tir as T
-from tvm.tir.function import PrimFunc
+from tvm.script import tirx as T
+from tvm.tirx.function import PrimFunc
 
 
 def _check(before, expect):

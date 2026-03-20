@@ -22,7 +22,7 @@ import tvm
 import tvm.script
 import tvm.testing
 from tvm import relax
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 class OpPatternKind(enum.IntEnum):
@@ -203,7 +203,7 @@ def test_annotate_opkind_bias_add():
             C: T.Buffer((1, 1000), "float32"),
         ) -> None:
             # function attr dict
-            T.func_attr({"global_symbol": "tir_bias_add", "tir.noalias": True})
+            T.func_attr({"global_symbol": "tir_bias_add", "tirx.noalias": True})
             # body
             # with T.sblock("root")
             for i0, i1 in T.grid(1, 1000):
@@ -227,7 +227,7 @@ def test_annotate_opkind_add_broadcast_with_unit_shape():
             B: T.Buffer((64, 1, 1), "float32"),
             C: T.Buffer((1, 64, 112, 112), "float32"),
         ) -> None:
-            T.func_attr({"global_symbol": "add5", "tir.noalias": True})
+            T.func_attr({"global_symbol": "add5", "tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(1, 64, 112, 112):
                 with T.sblock("T_add"):
                     ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -249,7 +249,7 @@ def test_annotate_opkind_add_zero_dim_element_wise():
             B: T.Buffer((), "float32"),
             C: T.Buffer((128,), "float32"),
         ) -> None:
-            T.func_attr({"global_symbol": "add8", "tir.noalias": True})
+            T.func_attr({"global_symbol": "add8", "tirx.noalias": True})
             for i0 in T.serial(128):
                 with T.sblock("T_add"):
                     ax0 = T.axis.spatial(128, i0)

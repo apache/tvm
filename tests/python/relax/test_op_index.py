@@ -20,11 +20,11 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import TVMError, relax, tir
+from tvm import TVMError, relax, tirx
 from tvm.ir import Op, VDevice
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def test_op_correctness():
@@ -218,11 +218,11 @@ def test_take_infer_struct_info_prim_value_index():
 
 def test_take_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    m = tir.Var("m", "int64")
-    n = tir.Var("n", "int64")
-    i = tir.Var("i", "int64")
-    j = tir.Var("j", "int64")
-    k = tir.Var("k", "int64")
+    m = tirx.Var("m", "int64")
+    n = tirx.Var("n", "int64")
+    i = tirx.Var("i", "int64")
+    j = tirx.Var("j", "int64")
+    k = tirx.Var("k", "int64")
     x0 = relax.Var("x", R.Tensor((m, n), "float32"))
     x1 = relax.Var("x", R.Tensor((m, n)))
     y0 = relax.Var("y", R.Tensor((n,), "float32"))
@@ -490,30 +490,30 @@ def test_strided_slice_infer_struct_info_shape_out_of_range():
 
 def test_strided_slice_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    m = tir.Var("m", "int64")
-    n = tir.Var("n", "int64")
+    m = tirx.Var("m", "int64")
+    n = tirx.Var("n", "int64")
     x0 = relax.Var("x", R.Tensor((m, n), "float32"))
     x1 = relax.Var("x", R.Tensor((m, n)))
 
     _check_inference(
         bb,
         relax.op.strided_slice(x0, axes=[0], begin=[1], end=[3]),
-        relax.TensorStructInfo((tir.min(3, m) - tir.min(1, m), n), "float32"),
+        relax.TensorStructInfo((tirx.min(3, m) - tirx.min(1, m), n), "float32"),
     )
     _check_inference(
         bb,
         relax.op.strided_slice(x0, axes=[0], begin=[1], end=[8], strides=[3]),
-        relax.TensorStructInfo(((tir.min(8, m) + 2 - tir.min(1, m)) // 3, n), "float32"),
+        relax.TensorStructInfo(((tirx.min(8, m) + 2 - tirx.min(1, m)) // 3, n), "float32"),
     )
     _check_inference(
         bb,
         relax.op.strided_slice(x1, axes=[0], begin=[1], end=[3]),
-        relax.TensorStructInfo((tir.min(3, m) - tir.min(1, m), n), dtype=""),
+        relax.TensorStructInfo((tirx.min(3, m) - tirx.min(1, m), n), dtype=""),
     )
     _check_inference(
         bb,
         relax.op.strided_slice(x1, axes=[0], begin=[1], end=[8], strides=[3]),
-        relax.TensorStructInfo(((tir.min(8, m) + 2 - tir.min(1, m)) // 3, n), dtype=""),
+        relax.TensorStructInfo(((tirx.min(8, m) + 2 - tirx.min(1, m)) // 3, n), dtype=""),
     )
 
 
@@ -586,40 +586,40 @@ def test_strided_slice_infer_struct_info_more_input_dtype():
 
 def test_strided_slice_infer_struct_info_symbolic_begin_end_strides():
     bb = relax.BlockBuilder()
-    var = tir.Var("var", "int64")
-    size_var = tir.SizeVar("size_var", "int64")
+    var = tirx.Var("var", "int64")
+    size_var = tirx.SizeVar("size_var", "int64")
     x = relax.Var("x", R.Tensor((8, 9), "float32"))
 
     _check_inference(
         bb,
         relax.op.strided_slice(x, axes=[0], begin=[var], end=[8]),
         relax.TensorStructInfo(
-            (tir.max(8 - tir.max(tir.if_then_else(var < 0, var + 8, var), 0), 0), 9),
+            (tirx.max(8 - tirx.max(tirx.if_then_else(var < 0, var + 8, var), 0), 0), 9),
             dtype="float32",
         ),
     )
     _check_inference(
         bb,
         relax.op.strided_slice(x, axes=[0], begin=[size_var], end=[8]),
-        relax.TensorStructInfo((tir.max(8 - size_var, 0), 9), dtype="float32"),
+        relax.TensorStructInfo((tirx.max(8 - size_var, 0), 9), dtype="float32"),
     )
     _check_inference(
         bb,
         relax.op.strided_slice(x, axes=[0], begin=[0], end=[var]),
         relax.TensorStructInfo(
-            (tir.min(tir.max(tir.if_then_else(var < 0, var + 8, var), 0), 8), 9), dtype="float32"
+            (tirx.min(tirx.max(tirx.if_then_else(var < 0, var + 8, var), 0), 8), 9), dtype="float32"
         ),
     )
     _check_inference(
         bb,
         relax.op.strided_slice(x, axes=[0], begin=[0], end=[size_var]),
-        relax.TensorStructInfo((tir.min(size_var, 8), 9), dtype="float32"),
+        relax.TensorStructInfo((tirx.min(size_var, 8), 9), dtype="float32"),
     )
     _check_inference(
         bb,
         relax.op.strided_slice(x, axes=[0], begin=[0], end=[8], strides=[var]),
         relax.TensorStructInfo(
-            [tir.if_then_else(var < 0, -8 // (0 - var) + 1, (var + 7) // var), 9],
+            [tirx.if_then_else(var < 0, -8 // (0 - var) + 1, (var + 7) // var), 9],
             dtype="float32",
         ),
     )
@@ -632,8 +632,8 @@ def test_strided_slice_infer_struct_info_symbolic_begin_end_strides():
 
 def test_strided_slice_infer_struct_info_symbolic_begin_end_strides_inbound():
     bb = relax.BlockBuilder()
-    var = tir.Var("var", "int64")
-    size_var = tir.SizeVar("size_var", "int64")
+    var = tirx.Var("var", "int64")
+    size_var = tirx.SizeVar("size_var", "int64")
     x = relax.Var("x", R.Tensor((8, 9), "float32"))
 
     _check_inference(
@@ -673,8 +673,8 @@ def test_strided_slice_infer_struct_info_symbolic_begin_end_strides_inbound():
 
 def test_strided_slice_infer_struct_info_no_axis():
     bb = relax.BlockBuilder()
-    m = tir.Var("m", "int64")
-    n = tir.Var("n", "int64")
+    m = tirx.Var("m", "int64")
+    n = tirx.Var("n", "int64")
     s0 = relax.Var("s", relax.ShapeStructInfo((m, n)))
     s1 = relax.Var("s", relax.ShapeStructInfo(ndim=2))
     s2 = relax.Var("s", relax.ShapeStructInfo())
@@ -861,10 +861,10 @@ def test_dynamic_strided_slice_infer_struct_info():
 
 def test_dynamic_strided_slice_infer_struct_info_symbolic():
     bb = relax.BlockBuilder()
-    i = tir.Var("i", "int64")
-    j = tir.Var("j", "int64")
-    k = tir.Var("k", "int64")
-    l = tir.Var("l", "int64")
+    i = tirx.Var("i", "int64")
+    j = tirx.Var("j", "int64")
+    k = tirx.Var("k", "int64")
+    l = tirx.Var("l", "int64")
     x0 = relax.Var("x", R.Tensor((i, j, k, l), "float32"))
     x1 = relax.Var("x", R.Tensor("float32", ndim=4))
     x2 = relax.Var("x", R.Tensor("float32"))
@@ -956,7 +956,7 @@ def test_dynamic_strided_slice_infer_struct_info_arg_wrong_dtype():
 def test_dynamic_strided_slice_infer_struct_info_arg_wrong_shape_info():
     bb = relax.BlockBuilder()
     x0 = relax.Var("x", R.Tensor((8, 9, 10, 10), "float32"))
-    m = tir.Var("m", "int64")
+    m = tirx.Var("m", "int64")
     # invalid arg
     b0 = relax.Var("begin", R.Tensor("int64", ndim=2))
     b1 = relax.Var("begin", R.Tensor((1,), "int64"))
@@ -1004,7 +1004,7 @@ def test_legalize_dynamic_begin_end():
             B: T.Buffer((T.int64(1), T.int64(16))),
             index: T.int64,
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for iters in T.grid(*B.shape):
                 with T.sblock("T_dynamic_strided_slice"):
                     i, j = T.axis.remap("SS", iters)
@@ -1031,7 +1031,7 @@ def test_legalize_dynamic_begin_inf_end():
     class expected:
         @T.prim_func(private=True)
         def strided_slice(A: T.Buffer((T.int64(16), T.int64(16)), "float32"), var_T_dynamic_strided_slice_with_axes: T.handle, index: T.int64):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             T_dynamic_strided_slice_with_axes = T.match_buffer(var_T_dynamic_strided_slice_with_axes, (T.max(T.int64(16) - T.max(T.if_then_else(index < T.int64(0), index + T.int64(16), index), T.int64(0)), T.int64(0)), T.int64(16)))
             # with T.sblock("root"):
             for ax0, ax1 in T.grid(T.max(T.int64(16) - T.max(T.if_then_else(index < T.int64(0), index + T.int64(16), index), T.int64(0)), T.int64(0)), T.int64(16)):

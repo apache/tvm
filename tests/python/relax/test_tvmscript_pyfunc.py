@@ -34,7 +34,7 @@ from tvm import relax
 from tvm.relax import BasePyModule
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 @I.ir_module
@@ -63,7 +63,7 @@ class TestPyFuncModule(BasePyModule):
         var_A: T.handle,
         var_B: T.handle,
     ):
-        T.func_attr({"tir.noalias": True})
+        T.func_attr({"tirx.noalias": True})
         n = T.int32()
         A = T.match_buffer(var_A, (n,), "float32")
         B = T.match_buffer(var_B, (n,), "float32")

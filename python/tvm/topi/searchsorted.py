@@ -18,7 +18,7 @@
 """searchsorted operator"""
 
 from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder import tir as T
+from tvm.script.ir_builder import tirx as T
 
 from . import te, utils
 from .math import cast

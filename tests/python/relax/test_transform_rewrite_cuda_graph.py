@@ -23,7 +23,7 @@ import tvm.testing
 from tvm import relax
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 @pytest.fixture(autouse=True)
@@ -40,7 +40,7 @@ def test_rewrite_cuda_graph():
         @T.prim_func
         def exp(rxplaceholder: T.Buffer((T.int64(2), T.int64(4)), "float32"), compute: T.Buffer((T.int64(2), T.int64(4)), "float32")):
             # function attr dict
-            T.func_attr({"tir.noalias": True, "global_symbol": "exp"})
+            T.func_attr({"tirx.noalias": True, "global_symbol": "exp"})
             for i0_i1_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
                 for i0_i1_fused_1 in T.thread_binding(T.int64(8), thread="threadIdx.x"):
                     with T.sblock("compute"):
@@ -82,7 +82,7 @@ def test_rewrite_cuda_graph():
         @T.prim_func
         def exp(rxplaceholder: T.Buffer((T.int64(2), T.int64(4)), "float32"), compute: T.Buffer((T.int64(2), T.int64(4)), "float32")):
             # function attr dict
-            T.func_attr({"tir.noalias": True, "global_symbol": "exp"})
+            T.func_attr({"tirx.noalias": True, "global_symbol": "exp"})
             # body
             # with T.sblock("root")
             for i0_i1_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
@@ -152,7 +152,7 @@ def test_tuple():
         @T.prim_func
         def exp(rxplaceholder: T.Buffer((T.int64(2), T.int64(4)), "float32"), compute: T.Buffer((T.int64(2), T.int64(4)), "float32")):
             # function attr dict
-            T.func_attr({"tir.noalias": True, "global_symbol": "exp"})
+            T.func_attr({"tirx.noalias": True, "global_symbol": "exp"})
             # body
             # with T.sblock("root")
             for i0_i1_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
@@ -194,7 +194,7 @@ def test_tuple():
     class Expected:
         @T.prim_func
         def exp(rxplaceholder: T.Buffer((T.int64(2), T.int64(4)), "float32"), compute: T.Buffer((T.int64(2), T.int64(4)), "float32")):
-            T.func_attr({"global_symbol": "exp", "tir.noalias": True})
+            T.func_attr({"global_symbol": "exp", "tirx.noalias": True})
             # with T.sblock("root"):
             for i0_i1_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
                 for i0_i1_fused_1 in T.thread_binding(T.int64(8), thread="threadIdx.x"):
@@ -260,7 +260,7 @@ def test_vm_builtin():
         @T.prim_func
         def exp(rxplaceholder: T.Buffer((T.int64(2), T.int64(4)), "float32"), compute: T.Buffer((T.int64(2), T.int64(4)), "float32")):
             # function attr dict
-            T.func_attr({"tir.noalias": True, "global_symbol": "exp"})
+            T.func_attr({"tirx.noalias": True, "global_symbol": "exp"})
             for i0_i1_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
                 for i0_i1_fused_1 in T.thread_binding(T.int64(8), thread="threadIdx.x"):
                     with T.sblock("compute"):
@@ -295,7 +295,7 @@ def test_vm_builtin():
     class Expected:
         @T.prim_func
         def exp(rxplaceholder: T.Buffer((T.int64(2), T.int64(4)), "float32"), compute: T.Buffer((T.int64(2), T.int64(4)), "float32")):
-            T.func_attr({"global_symbol": "exp", "tir.noalias": True})
+            T.func_attr({"global_symbol": "exp", "tirx.noalias": True})
             # with T.sblock("root"):
             for i0_i1_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
                 for i0_i1_fused_1 in T.thread_binding(T.int64(8), thread="threadIdx.x"):
@@ -400,7 +400,7 @@ def test_capture_fixed_inputs():
                 (T.int64(16), T.int64(32), T.int64(32), T.int64(16)), "float16"
             ),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
             pad_temp = T.sblock_alloc_buffer(
                 (T.int64(16), T.int64(34), T.int64(34), T.int64(16)), "float16"
@@ -462,7 +462,7 @@ def test_capture_fixed_inputs():
             C: T.Buffer((T.int64(16),), "float16"),
             T_layer_norm: T.Buffer((T.int64(16), T.int64(32), T.int64(32), T.int64(16)), "float16"),
         ):
-            T.func_attr({"op_pattern": 4, "tir.noalias": True})
+            T.func_attr({"op_pattern": 4, "tirx.noalias": True})
             # with T.sblock("root"):
             A_red_temp_v0 = T.sblock_alloc_buffer((T.int64(16), T.int64(32), T.int64(32)))
             A_red_temp_v1 = T.sblock_alloc_buffer((T.int64(16), T.int64(32), T.int64(32)))

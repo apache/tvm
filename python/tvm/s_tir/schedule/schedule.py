@@ -25,8 +25,8 @@ from tvm_ffi import register_object as _register_object
 from tvm.error import TVMError, register_error
 from tvm.ir import GlobalVar, IRModule, PrimExpr
 from tvm.runtime import Object
-from tvm.tir import Buffer, FloatImm, For, IntImm, PrimFunc, SBlock
-from tvm.tir.function import IndexMap
+from tvm.tirx import Buffer, FloatImm, For, IntImm, PrimFunc, SBlock
+from tvm.tirx.function import IndexMap
 
 from . import _ffi_api
 from ._type_checker import type_checked
@@ -2434,12 +2434,12 @@ class Schedule(Object):
 
             @T.prim_func
             def before_decompose(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
-                A = tir.match_buffer(a, [128, 128])
-                B = tir.match_buffer(b, [128, 128])
-                C = tir.match_buffer(c, [128, 128])
-                for i, j, k in tir.grid(128, 128, 128):
-                    with tir.block([128, 128, tir.reduce_axis(0, 128)], "C") as [vi, vj, vk]:
-                        with tir.init():
+                A = tirx.match_buffer(a, [128, 128])
+                B = tirx.match_buffer(b, [128, 128])
+                C = tirx.match_buffer(c, [128, 128])
+                for i, j, k in tirx.grid(128, 128, 128):
+                    with tirx.block([128, 128, tirx.reduce_axis(0, 128)], "C") as [vi, vj, vk]:
+                        with tirx.init():
                             C[vi, vj] = 0.0
                         C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
@@ -2459,15 +2459,15 @@ class Schedule(Object):
 
             @T.prim_func
             def after_decompose(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
-                A = tir.match_buffer(a, [128, 128])
-                B = tir.match_buffer(b, [128, 128])
-                C = tir.match_buffer(c, [128, 128])
-                for i in tir.serial(128):
-                    for j in tir.serial(128):
-                        with tir.block([128, 128]) as [vi, vj]:
+                A = tirx.match_buffer(a, [128, 128])
+                B = tirx.match_buffer(b, [128, 128])
+                C = tirx.match_buffer(c, [128, 128])
+                for i in tirx.serial(128):
+                    for j in tirx.serial(128):
+                        with tirx.block([128, 128]) as [vi, vj]:
                             C[vi, vj] = 0.0
-                for i, j, k in tir.grid(128, 128, 128):
-                    with tir.block([128, 128, tir.reduce_axis(0, 128)], "C") as [vi, vj, vk]:
+                for i, j, k in tirx.grid(128, 128, 128):
+                    with tirx.block([128, 128, tirx.reduce_axis(0, 128)], "C") as [vi, vj, vk]:
                         C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
         """
@@ -3027,7 +3027,7 @@ class Schedule(Object):
                         )
                     )
 
-            tir.TensorIntrin.register("test_mma_intrin", mma_desc, mma_intrin)
+            tirx.TensorIntrin.register("test_mma_intrin", mma_desc, mma_intrin)
 
         Create the schedule and do tensorize:
 

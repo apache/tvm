@@ -22,7 +22,7 @@ from tvm.s_tir.meta_schedule.testing.space_generation import (
     check_sketches,
     generate_design_space,
 )
-from tvm.script import tir as T
+from tvm.script import tirx as T
 from tvm.target import Target
 
 # fmt: off
@@ -64,12 +64,12 @@ class ParallelizeVectorizeUnroll:
                     C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
 
-# from tvm.script import tir as T
+# from tvm.script import tirx as T
 @tvm.script.ir_module
 class PureSpatial:
     @T.prim_func
     def main(placeholder: T.Buffer((1, 13, 13, 3, 85), "float32"), placeholder_1: T.Buffer((1, 26, 26, 3, 85), "float32"), placeholder_2: T.Buffer((1, 52, 52, 3, 85), "float32"), T_expand_dims: T.Buffer((1, 80, 10647), "float32")) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         T_strided_slice_with_axes = T.sblock_alloc_buffer([1, 52, 52, 3, 1], dtype="float32")
         T_sigmoid = T.sblock_alloc_buffer([1, 52, 52, 3, 1], dtype="float32")
         T_strided_slice_with_axes_1 = T.sblock_alloc_buffer([1, 52, 52, 3, 80], dtype="float32")

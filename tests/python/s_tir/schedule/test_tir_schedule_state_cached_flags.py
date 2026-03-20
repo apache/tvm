@@ -22,10 +22,10 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import s_tir, tir
+from tvm import s_tir, tirx
 from tvm.s_tir.schedule.state import CachedFlags
-from tvm.script import tir as T
-from tvm.tir.stmt_functor import post_order_visit
+from tvm.script import tirx as T
+from tvm.tirx.stmt_functor import post_order_visit
 
 # pylint: disable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 # fmt: off
@@ -371,7 +371,7 @@ def uncovered_producer_region(A: T.Buffer((128,), "float32"), B: T.Buffer((128,)
 @T.prim_func
 def matmul_relu_padding(A: T.Buffer((127, 127), "float16"), B: T.Buffer((127, 127), "float16"), compute: T.Buffer((127, 127), "float32")) -> None:
     # function attr dict
-    T.func_attr({"global_symbol": "main", "tir.noalias": True})
+    T.func_attr({"global_symbol": "main", "tirx.noalias": True})
     # body
     # with T.sblock("root")
     C = T.sblock_alloc_buffer([127, 127], dtype="float32")
@@ -468,12 +468,12 @@ def _get_sblock(s: s_tir.ScheduleState, name_hint: str) -> s_tir.StmtSRef:
 
     def f_visit(node):
         nonlocal result
-        if isinstance(node, tvm.tir.SBlock) and node.name_hint == name_hint:
+        if isinstance(node, tvm.tirx.SBlock) and node.name_hint == name_hint:
             result = node
 
     func = s.mod["main"]
     post_order_visit(func.body, f_visit)
-    assert result is not None and isinstance(result, tvm.tir.SBlock)
+    assert result is not None and isinstance(result, tvm.tirx.SBlock)
     return s.get_sref(result)
 
 

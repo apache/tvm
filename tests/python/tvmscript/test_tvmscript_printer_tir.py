@@ -22,10 +22,10 @@ import re
 import pytest
 
 import tvm.testing
-from tvm import ir, tir
+from tvm import ir, tirx
 from tvm.ir import Range
 from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder import tir as T
+from tvm.script.ir_builder import tirx as T
 
 
 def _assert_print(obj, expected):
@@ -33,21 +33,21 @@ def _assert_print(obj, expected):
 
 
 def test_prim_func():
-    a = tir.Var("a", "handle")
-    b = tir.Var("b", "handle")
-    func = tir.PrimFunc(
+    a = tirx.Var("a", "handle")
+    b = tirx.Var("b", "handle")
+    func = tirx.PrimFunc(
         params=[a, b],
         ret_type=None,
         buffer_map={
-            a: tir.decl_buffer(shape=[128, 128], dtype="float32", name="A"),
-            b: tir.decl_buffer(shape=[256, 256], dtype="float32", name="B"),
+            a: tirx.decl_buffer(shape=[128, 128], dtype="float32", name="A"),
+            b: tirx.decl_buffer(shape=[256, 256], dtype="float32", name="B"),
         },
-        body=tir.Evaluate(0),
+        body=tirx.Evaluate(0),
     ).with_attr("global_symbol", "main")
     _assert_print(
         func,
         expected="""
-# from tvm.script import tir as T
+# from tvm.script import tirx as T
 
 @T.prim_func
 def main(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
@@ -56,21 +56,21 @@ def main(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32"))
 
 
 def test_prim_func_no_sugar_inlined_buffer():
-    a = tir.Var("a", "handle")
-    b = tir.Var("b", "handle")
-    func = tir.PrimFunc(
+    a = tirx.Var("a", "handle")
+    b = tirx.Var("b", "handle")
+    func = tirx.PrimFunc(
         params=[a, b],
         ret_type=None,
         buffer_map={
-            a: tir.decl_buffer(shape=[128, 128], dtype="float32", name="A"),
-            b: tir.decl_buffer(shape=[256, 256], dtype="float32", name="B"),
+            a: tirx.decl_buffer(shape=[128, 128], dtype="float32", name="A"),
+            b: tirx.decl_buffer(shape=[256, 256], dtype="float32", name="B"),
         },
-        body=tir.Evaluate(a),
+        body=tirx.Evaluate(a),
     ).with_attr("global_symbol", "main")
     _assert_print(
         func,
         expected="""
-# from tvm.script import tir as T
+# from tvm.script import tirx as T
 
 @T.prim_func
 def main(a: T.handle, B: T.Buffer((256, 256), "float32")):
@@ -81,22 +81,22 @@ def main(a: T.handle, B: T.Buffer((256, 256), "float32")):
 
 
 def test_prim_func_no_sugar_shared_buffer_data():
-    a = tir.Var("a", "handle")
-    b = tir.Var("b", "handle")
-    buffer_data = tir.decl_buffer(shape=[128, 128], dtype="float32", name="A").data
-    func = tir.PrimFunc(
+    a = tirx.Var("a", "handle")
+    b = tirx.Var("b", "handle")
+    buffer_data = tirx.decl_buffer(shape=[128, 128], dtype="float32", name="A").data
+    func = tirx.PrimFunc(
         params=[a, b],
         ret_type=None,
         buffer_map={
-            a: tir.decl_buffer(shape=[128, 128], dtype="float32", name="A", data=buffer_data),
-            b: tir.decl_buffer(shape=[256, 256], dtype="float32", name="B", data=buffer_data),
+            a: tirx.decl_buffer(shape=[128, 128], dtype="float32", name="A", data=buffer_data),
+            b: tirx.decl_buffer(shape=[256, 256], dtype="float32", name="B", data=buffer_data),
         },
-        body=tir.Evaluate(0),
+        body=tirx.Evaluate(0),
     ).with_attr("global_symbol", "main")
     _assert_print(
         func,
         expected="""
-# from tvm.script import tir as T
+# from tvm.script import tirx as T
 
 @T.prim_func
 def main(a: T.handle, b: T.handle):
@@ -108,9 +108,9 @@ def main(a: T.handle, b: T.handle):
 
 
 def test_block_realize():
-    i = tir.Var("i", "int32")
-    j = tir.Var("j", "int32")
-    k = tir.Var("k", "int32")
+    i = tirx.Var("i", "int32")
+    j = tirx.Var("j", "int32")
+    k = tirx.Var("k", "int32")
     with IRBuilder() as ib:
         with T.sblock(name="block", no_realize=False):
             vi = ib.name("vi", T.axis.spatial(128, i))
@@ -137,9 +137,9 @@ with T.sblock("block"):
 
 
 def test_block():
-    i = tir.Var("i", "int32")
-    j = tir.Var("j", "int32")
-    k = tir.Var("k", "int32")
+    i = tirx.Var("i", "int32")
+    j = tirx.Var("j", "int32")
+    k = tirx.Var("k", "int32")
     with IRBuilder() as ib:
         with T.sblock(name="block", no_realize=False):
             vi = ib.name("vi", T.axis.spatial(128, i))
@@ -163,11 +163,11 @@ with T.sblock("block", no_realize=True):
 
 
 def test_match_buffer_region():
-    src = tir.decl_buffer((128, 128), "float32", name="src")
-    tgt = tir.decl_buffer((64, 64), "float32", name="tgt")
-    obj = tir.MatchBufferRegion(
+    src = tirx.decl_buffer((128, 128), "float32", name="src")
+    tgt = tirx.decl_buffer((64, 64), "float32", name="tgt")
+    obj = tirx.MatchBufferRegion(
         tgt,
-        tir.BufferRegion(
+        tirx.BufferRegion(
             src,
             [
                 Range(64, 128),
@@ -185,7 +185,7 @@ tgt = T.match_buffer(src[64:128, 64:128], (64, 64))
 
 
 def test_buffer():
-    a = tir.decl_buffer((128, 128), "float16", name="A")
+    a = tirx.decl_buffer((128, 128), "float16", name="A")
     _assert_print(
         a,
         """A = T.Buffer((128, 128), "float16")
@@ -194,8 +194,8 @@ A""",
 
 
 def test_buffer_region():
-    src = tir.decl_buffer((128, 128), "float32", name="src")
-    obj = tir.BufferRegion(
+    src = tirx.decl_buffer((128, 128), "float32", name="src")
+    obj = tirx.BufferRegion(
         src,
         [
             Range(64, 128),
@@ -212,8 +212,8 @@ src[64:128, 64:128]
 
 
 def test_buffer_load():
-    a = tir.decl_buffer((128, 128), "float16", name="A")
-    obj = tir.BufferLoad(a, [128, 128])
+    a = tirx.decl_buffer((128, 128), "float16", name="A")
+    obj = tirx.BufferLoad(a, [128, 128])
     _assert_print(
         obj,
         """
@@ -224,7 +224,7 @@ A[128, 128]
 
 
 def test_buffer_store():
-    a = tir.decl_buffer((128, 128), "float16", name="A")
+    a = tirx.decl_buffer((128, 128), "float16", name="A")
     with IRBuilder() as ib:
         T.buffer_store(a, a[128, 128] + 1, [128, 128])
     obj = ib.get()
@@ -262,7 +262,7 @@ def test_bind():
     _assert_print(
         obj,
         """
-# from tvm.script import tir as T
+# from tvm.script import tirx as T
 
 @T.prim_func(private=True)
 def main():
@@ -452,7 +452,7 @@ T.evaluate(0)
 
 
 def test_var():
-    a = tir.Var("a", "float32")
+    a = tirx.Var("a", "float32")
     _assert_print(
         a,
         """
@@ -462,7 +462,7 @@ a""",
 
 
 def test_size_var():
-    a = tir.SizeVar("a", "float32")
+    a = tirx.SizeVar("a", "float32")
     _assert_print(
         a,
         """
@@ -472,7 +472,7 @@ a""",
 
 
 def test_iter_var():
-    a = tir.IterVar((0, 8), "a", iter_type=tir.IterVar.DataPar)
+    a = tirx.IterVar((0, 8), "a", iter_type=tirx.IterVar.DataPar)
     _assert_print(
         a,
         """
@@ -483,12 +483,12 @@ T.iter_var(a, T.Range(0, 8), "DataPar", "")
 
 
 def test_string_imm():
-    s = tir.StringImm("str")
+    s = tirx.StringImm("str")
     _assert_print(s, '"str"')
 
 
 def test_cast():
-    obj = tir.Cast("float64", tir.Var("a", "float32"))
+    obj = tirx.Cast("float64", tirx.Var("a", "float32"))
     _assert_print(
         obj,
         """
@@ -499,28 +499,28 @@ T.Cast("float64", a)
 
 
 def test_llvm_intrin_imm():
-    a = tir.call_llvm_intrin("int32x4", "llvm.donothing")
+    a = tirx.call_llvm_intrin("int32x4", "llvm.donothing")
     _assert_print(a, 'T.call_llvm_intrin("int32x4", "llvm.donothing")')
-    a = tir.call_llvm_pure_intrin("int32x4", "llvm.donothing")
+    a = tirx.call_llvm_pure_intrin("int32x4", "llvm.donothing")
     _assert_print(a, 'T.call_llvm_pure_intrin("int32x4", "llvm.donothing")')
 
 
 def test_binary_arith():
-    a = tir.Var("a", "int32")
-    b = tir.Var("b", "int32")
+    a = tirx.Var("a", "int32")
+    b = tirx.Var("b", "int32")
     for op, sign in [
-        (tir.Add, "+"),
-        (tir.Sub, "-"),
-        (tir.Mul, "*"),
-        (tir.Mod, "truncmod"),
-        (tir.FloorDiv, "//"),
-        (tir.FloorMod, "%"),
-        (tir.LT, "<"),
-        (tir.LE, "<="),
-        (tir.EQ, "=="),
-        (tir.NE, "!="),
-        (tir.GT, ">"),
-        (tir.GE, ">="),
+        (tirx.Add, "+"),
+        (tirx.Sub, "-"),
+        (tirx.Mul, "*"),
+        (tirx.Mod, "truncmod"),
+        (tirx.FloorDiv, "//"),
+        (tirx.FloorMod, "%"),
+        (tirx.LT, "<"),
+        (tirx.LE, "<="),
+        (tirx.EQ, "=="),
+        (tirx.NE, "!="),
+        (tirx.GT, ">"),
+        (tirx.GE, ">="),
     ]:
         obj = op(a, b)
         if sign.isalpha():
@@ -537,22 +537,22 @@ a {sign} b"""
 
 
 def test_binary_arith_const():
-    a = tir.IntImm("int64", 3)
-    b = tir.IntImm("int64", 4)
+    a = tirx.IntImm("int64", 3)
+    b = tirx.IntImm("int64", 4)
     for op, name in [
-        (tir.Add, "Add"),
-        (tir.Sub, "Sub"),
-        (tir.Mul, "Mul"),
-        (tir.Div, "Div"),
-        (tir.Mod, "truncmod"),
-        (tir.FloorDiv, "FloorDiv"),
-        (tir.FloorMod, "FloorMod"),
-        (tir.LT, "LT"),
-        (tir.LE, "LE"),
-        (tir.EQ, "EQ"),
-        (tir.NE, "NE"),
-        (tir.GT, "GT"),
-        (tir.GE, "GE"),
+        (tirx.Add, "Add"),
+        (tirx.Sub, "Sub"),
+        (tirx.Mul, "Mul"),
+        (tirx.Div, "Div"),
+        (tirx.Mod, "truncmod"),
+        (tirx.FloorDiv, "FloorDiv"),
+        (tirx.FloorMod, "FloorMod"),
+        (tirx.LT, "LT"),
+        (tirx.LE, "LE"),
+        (tirx.EQ, "EQ"),
+        (tirx.NE, "NE"),
+        (tirx.GT, "GT"),
+        (tirx.GE, "GE"),
     ]:
         obj = op(a, b)
         expected = f"""
@@ -561,10 +561,10 @@ T.{name}({a!s}, {b!s})"""
 
 
 def test_int_div():
-    a = tir.Var("a", "int32")
-    b = tir.Var("b", "int32")
+    a = tirx.Var("a", "int32")
+    b = tirx.Var("b", "int32")
     _assert_print(
-        tir.Div(a, b),
+        tirx.Div(a, b),
         """
 a = T.int32()
 b = T.int32()
@@ -574,10 +574,10 @@ T.Div(a, b)
 
 
 def test_logical():
-    a = tir.Var("a", "bool")
-    b = tir.Var("b", "bool")
+    a = tirx.Var("a", "bool")
+    b = tirx.Var("b", "bool")
     _assert_print(
-        tir.And(a, b),
+        tirx.And(a, b),
         """
 a = T.bool()
 b = T.bool()
@@ -585,7 +585,7 @@ a and b
 """,
     )
     _assert_print(
-        tir.Or(a, b),
+        tirx.Or(a, b),
         """
 a = T.bool()
 b = T.bool()
@@ -593,7 +593,7 @@ a or b
 """,
     )
     _assert_print(
-        tir.Not(a),
+        tirx.Not(a),
         """
 a = T.bool()
 not a
@@ -602,7 +602,7 @@ not a
 
 
 def test_select():
-    obj = tir.Select(True, 0, 2)
+    obj = tirx.Select(True, 0, 2)
     _assert_print(
         obj,
         """T.Select(T.bool(True), 0, 2)
@@ -611,11 +611,11 @@ def test_select():
 
 
 @pytest.mark.parametrize(
-    "lanes, scripted_lanes", [(32, "32"), (tvm.tir.vscale() * 8, "T.vscale() * 8")]
+    "lanes, scripted_lanes", [(32, "32"), (tvm.tirx.vscale() * 8, "T.vscale() * 8")]
 )
 def test_ramp(lanes, scripted_lanes):
-    a = tir.Var("a", "int32")
-    obj = tir.Ramp(a, 1, lanes)
+    a = tirx.Var("a", "int32")
+    obj = tirx.Ramp(a, 1, lanes)
     _assert_print(
         obj,
         f"""
@@ -626,10 +626,10 @@ T.Ramp(a, 1, {scripted_lanes})
 
 
 @pytest.mark.parametrize(
-    "lanes, scripted_lanes", [(4, "4"), (tvm.tir.vscale() * 4, "T.vscale() * 4")]
+    "lanes, scripted_lanes", [(4, "4"), (tvm.tirx.vscale() * 4, "T.vscale() * 4")]
 )
 def test_broadcast(lanes, scripted_lanes):
-    obj = tir.Broadcast(0, lanes)
+    obj = tirx.Broadcast(0, lanes)
     _assert_print(
         obj,
         f"""
@@ -639,8 +639,8 @@ T.Broadcast(0, {scripted_lanes})
 
 
 def test_let_expr():
-    x = tir.Var("x", "int32")
-    obj = tir.Let(x, 1, x + 1)
+    x = tirx.Var("x", "int32")
+    obj = tirx.Let(x, 1, x + 1)
     _assert_print(
         obj,
         """
@@ -651,7 +651,7 @@ T.Let(x + 1, where={x: 1})
 
 
 def test_call():
-    obj = tir.atan(T.float32(1.0))
+    obj = tirx.atan(T.float32(1.0))
     _assert_print(
         obj,
         """
@@ -716,7 +716,7 @@ def test_tuple_type():
 
 
 def test_remap():
-    from tvm.script import tir as T
+    from tvm.script import tirx as T
 
     @T.prim_func
     def block_with_remap_implicitly():
@@ -739,7 +739,7 @@ def test_remap():
                 v4, v5 = T.axis.remap("RS", [i4, i5])
 
     expected_output = """
-# from tvm.script import tir as T
+# from tvm.script import tirx as T
 
 @T.prim_func
 def main():
@@ -758,7 +758,7 @@ def main():
 
 
 def test_root_block():
-    from tvm.script import tir as T
+    from tvm.script import tirx as T
 
     @T.prim_func
     def root_block_implicitly():
@@ -776,7 +776,7 @@ def test_root_block():
                     T.evaluate(0)
 
     expected_output = """
-# from tvm.script import tir as T
+# from tvm.script import tirx as T
 
 @T.prim_func
 def main():
@@ -793,23 +793,23 @@ def main():
 
 
 def test_private_primfunc():
-    from tvm.script import tir as T
+    from tvm.script import tirx as T
 
-    a = tir.Var("a", "handle")
-    b = tir.Var("b", "handle")
-    func = tir.PrimFunc(
+    a = tirx.Var("a", "handle")
+    b = tirx.Var("b", "handle")
+    func = tirx.PrimFunc(
         params=[a, b],
         ret_type=None,
         buffer_map={
-            a: tir.decl_buffer(shape=[128, 128], dtype="float32", name="A"),
-            b: tir.decl_buffer(shape=[256, 256], dtype="float32", name="B"),
+            a: tirx.decl_buffer(shape=[128, 128], dtype="float32", name="A"),
+            b: tirx.decl_buffer(shape=[256, 256], dtype="float32", name="B"),
         },
-        body=tir.Evaluate(0),
+        body=tirx.Evaluate(0),
     )
     _assert_print(
         func,
         expected="""
-# from tvm.script import tir as T
+# from tvm.script import tirx as T
 
 @T.prim_func(private=True)
 def main(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
@@ -818,7 +818,7 @@ def main(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32"))
 
 
 def test_prim_func_different_symbol():
-    from tvm.script import tir as T
+    from tvm.script import tirx as T
 
     @T.prim_func
     def main(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
@@ -826,7 +826,7 @@ def test_prim_func_different_symbol():
         T.evaluate(0)
 
     expected_output = """
-# from tvm.script import tir as T
+# from tvm.script import tirx as T
 
 @T.prim_func
 def func(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
@@ -846,7 +846,7 @@ def test_variable_with_cpp_address():
     with "_0x" followed by a hexadecimal number, and that the address
     is the same for each variable.
     """
-    from tvm.script import tir as T
+    from tvm.script import tirx as T
 
     # The test function has all named objects suffixed with "_name",
     # to avoid spurious replacement when generating the expected
@@ -874,14 +874,14 @@ def test_variable_with_cpp_address():
 
 
 def test_return_statement():
-    from tvm.script import tir as T
+    from tvm.script import tirx as T
 
     @T.prim_func
     def func():
         T.evaluate(T.ret(5))
 
     expected_output = """
-# from tvm.script import tir as T
+# from tvm.script import tirx as T
 
 @T.prim_func
 def func():
@@ -910,14 +910,14 @@ CUSTOM_FLOAT_DTYPES = [
 
 @pytest.mark.parametrize("dtype", CUSTOM_FLOAT_DTYPES)
 def test_custom_float_types(dtype):
-    from tvm.script import tir as T
+    from tvm.script import tirx as T
 
     @T.prim_func()
     def func():
         T.evaluate(getattr(T, dtype)(0.0))
 
     expected_output = f"""
-# from tvm.script import tir as T
+# from tvm.script import tirx as T
 
 @T.prim_func
 def func():
@@ -927,7 +927,7 @@ def func():
 
 
 def test_predicated_load_store():
-    from tvm.script import tir as T
+    from tvm.script import tirx as T
 
     @T.prim_func
     def main(a: T.handle, b: T.handle):
@@ -938,7 +938,7 @@ def test_predicated_load_store():
         A.vstore([0, T.Ramp(0, 2, 4)], a_load, predicate=T.Broadcast(T.bool(False), 4))
 
     expected_output = """
-# from tvm.script import tir as T
+# from tvm.script import tirx as T
 
 @T.prim_func
 def func(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
@@ -948,24 +948,24 @@ def func(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32"))
 
 
 def test_predicated_buffer_load_store():
-    a = tir.Var("a", "handle")
-    b = tir.Var("b", "handle")
+    a = tirx.Var("a", "handle")
+    b = tirx.Var("b", "handle")
     buffer_map = {
-        a: tir.decl_buffer(shape=[128, 128], dtype="float32", name="A"),
-        b: tir.decl_buffer(shape=[256, 256], dtype="float32", name="B"),
+        a: tirx.decl_buffer(shape=[128, 128], dtype="float32", name="A"),
+        b: tirx.decl_buffer(shape=[256, 256], dtype="float32", name="B"),
     }
-    buffer_load = tir.BufferLoad(
+    buffer_load = tirx.BufferLoad(
         buffer=buffer_map[b],
-        indices=[0, tir.Ramp(0, 4, 4)],
-        predicate=tir.Broadcast(tir.IntImm("bool", 0), 4),
+        indices=[0, tirx.Ramp(0, 4, 4)],
+        predicate=tirx.Broadcast(tirx.IntImm("bool", 0), 4),
     )
-    body = tir.BufferStore(
+    body = tirx.BufferStore(
         buffer=buffer_map[a],
         value=buffer_load,
-        indices=[0, tir.Ramp(0, 2, 4)],
-        predicate=tir.Broadcast(tir.IntImm("bool", 0), 4),
+        indices=[0, tirx.Ramp(0, 2, 4)],
+        predicate=tirx.Broadcast(tirx.IntImm("bool", 0), 4),
     )
-    func = tir.PrimFunc(
+    func = tirx.PrimFunc(
         params=[a, b],
         ret_type=None,
         buffer_map=buffer_map,
@@ -973,7 +973,7 @@ def test_predicated_buffer_load_store():
     )
 
     expected_output = """
-# from tvm.script import tir as T
+# from tvm.script import tirx as T
 
 @T.prim_func(private=True)
 def main(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
@@ -983,7 +983,7 @@ def main(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32"))
 
 
 def test_predicated_scalable_load_store():
-    from tvm.script import tir as T
+    from tvm.script import tirx as T
 
     @T.prim_func
     def main(a: T.handle, b: T.handle):
@@ -995,7 +995,7 @@ def test_predicated_scalable_load_store():
         A.vstore([0, T.Ramp(0, 2, T.vscale() * 4)], a_load, predicate=mask)
 
     expected_output = """
-# from tvm.script import tir as T
+# from tvm.script import tirx as T
 
 @T.prim_func
 def func(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
@@ -1005,7 +1005,7 @@ def func(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32"))
 
 
 def test_vload_with_explicit_scalable_data_type():
-    from tvm.script import tir as T
+    from tvm.script import tirx as T
 
     @T.prim_func
     def main(a: T.handle, b: T.handle):
@@ -1014,7 +1014,7 @@ def test_vload_with_explicit_scalable_data_type():
         B[0 : T.vscale() * 4] = A.vload([T.Ramp(0, 1, T.vscale() * 4)], dtype="float32xvscalex4")
 
     expected_output = """
-# from tvm.script import tir as T
+# from tvm.script import tirx as T
 
 @T.prim_func
 def main(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
@@ -1024,7 +1024,7 @@ def main(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
 
 
 def test_vectorize_llvm_pure_intrin():
-    from tvm.script import tir as T
+    from tvm.script import tirx as T
 
     @T.prim_func
     def main(a: T.handle, b: T.handle):
@@ -1033,7 +1033,7 @@ def test_vectorize_llvm_pure_intrin():
         A[T.Ramp(0, 1, 4)] = T.call_llvm_pure_intrin("float32x4", "llvm.sqrt", B[T.Ramp(0, 1, 4)])
 
     expected_output = """
-# from tvm.script import tir as T
+# from tvm.script import tirx as T
 
 @T.prim_func
 def main(A: T.Buffer((4,), "float32"), B: T.Buffer((4,), "float32")):
@@ -1043,7 +1043,7 @@ def main(A: T.Buffer((4,), "float32"), B: T.Buffer((4,), "float32")):
 
 
 def test_func_with_loop_jumps():
-    from tvm.script import tir as T
+    from tvm.script import tirx as T
 
     @T.prim_func
     def main(a: T.handle, b: T.handle):
@@ -1057,7 +1057,7 @@ def test_func_with_loop_jumps():
                 break
 
     expected_output = """
-# from tvm.script import tir as T
+# from tvm.script import tirx as T
 
 @T.prim_func
 def main(A: T.Buffer((4,), "float32"), B: T.Buffer((4,), "float32")):

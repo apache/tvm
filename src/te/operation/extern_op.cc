@@ -25,11 +25,11 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/te/operation.h>
-#include <tvm/tir/expr.h>
+#include <tvm/tirx/expr.h>
 
 namespace tvm {
 namespace te {
-using namespace tir;
+using namespace tirx;
 
 TVM_FFI_STATIC_INIT_BLOCK() { ExternOpNode::RegisterReflection(); }
 

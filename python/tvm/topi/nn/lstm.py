@@ -18,7 +18,7 @@
 # ruff: noqa: E731
 """General LSTM implementation using TE scan."""
 
-from tvm import te, tir
+from tvm import te, tirx
 from tvm.topi import tag
 
 
@@ -34,9 +34,9 @@ def lstm(
     p_i=None,
     p_f=None,
     p_o=None,
-    f_act=tir.sigmoid,
-    g_act=tir.tanh,
-    h_act=tir.tanh,
+    f_act=tirx.sigmoid,
+    g_act=tirx.tanh,
+    h_act=tirx.tanh,
     reverse=False,
     weight_layout: str = "IFGO",
 ):

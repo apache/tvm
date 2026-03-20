@@ -22,17 +22,17 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tir/analysis.h>
-#include <tvm/tir/op.h>
-#include <tvm/tir/stmt.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/analysis.h>
+#include <tvm/tirx/op.h>
+#include <tvm/tirx/stmt.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include "../../arith/const_fold.h"
 #include "../../arith/pattern_match.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 class PTXRewriter : public StmtMutator {
  public:
@@ -65,7 +65,7 @@ class PTXRewriter : public StmtMutator {
     const CallNode* call = load_value.as<CallNode>();
     if (call != nullptr) {
       const OpNode* op = call->op.as<OpNode>();
-      if (op != nullptr && op->name == "tir.if_then_else") {
+      if (op != nullptr && op->name == "tirx.if_then_else") {
         const PrimExpr& predicate = call->args[0];
         const PrimExpr& lhs = call->args[1];
         const PrimExpr& rhs = call->args[2];
@@ -97,7 +97,7 @@ class PTXRewriter : public StmtMutator {
         new_predicate = BufferLoad(predicate_buffer, {IntImm(DataType::Int(32), 0)});
         new_indice = BufferLoad(addr_buffer, {IntImm(DataType::Int(32), 1)});
         BufferStore value_store(store->buffer, imm_value, {new_indice});
-        Evaluate ptx_load(Call(store->buffer->dtype, tvm::tir::builtin::ptx_ldg32(),
+        Evaluate ptx_load(Call(store->buffer->dtype, tvm::tirx::builtin::ptx_ldg32(),
                                {store->buffer->data, new_predicate, new_lhs, new_indice}));
         ffi::Array<Stmt> tmp_seq = {addr_store, local_addr_store, predicate_store, value_store,
                                     ptx_load};

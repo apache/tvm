@@ -23,8 +23,8 @@ import pytest
 import tvm
 import tvm.testing
 from tvm.script import ir as I
-from tvm.script import tir as T
-from tvm.tir import BufferRegion, StringImm
+from tvm.script import tirx as T
+from tvm.tirx import BufferRegion, StringImm
 
 identify_memcpy = tvm.s_tir.analysis._ffi_api._identify_memcpy
 

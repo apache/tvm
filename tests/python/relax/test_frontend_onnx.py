@@ -36,7 +36,7 @@ from tvm import relax
 from tvm.relax.frontend.onnx import from_onnx
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 bg = np.random.MT19937(0)
 rg = np.random.Generator(bg)

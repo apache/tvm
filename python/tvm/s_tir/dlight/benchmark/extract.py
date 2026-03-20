@@ -29,7 +29,7 @@ SKETCH = """import pickle
 
 import tvm
 from tvm import relax
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 from tvm.s_tir.dlight.benchmark import benchmark_prim_func
 
@@ -128,11 +128,11 @@ def extract_dynamic_var(
                 for arg in flattened_arg_list:
                     if isinstance(arg, relax.TensorStructInfo):
                         for val in arg.shape.values:
-                            if isinstance(val, tvm.tir.Var):
+                            if isinstance(val, tvm.tirx.Var):
                                 dym_var_dict[gv][str(val)] = val.dtype
                     elif isinstance(arg, relax.ShapeStructInfo):
                         for val in arg.values:
-                            if isinstance(val, tvm.tir.Var):
+                            if isinstance(val, tvm.tirx.Var):
                                 dym_var_dict[gv][str(val)] = val.dtype
                     else:
                         raise NotImplementedError
@@ -159,19 +159,19 @@ def update_records(
 
 
 def extract_func_info_from_prim_func(
-    func: tvm.tir.PrimFunc,
-) -> tuple[list[tuple[tuple[tvm.tir.Var | int, ...], str]], dict[str, str]]:
+    func: tvm.tirx.PrimFunc,
+) -> tuple[list[tuple[tuple[tvm.tirx.Var | int, ...], str]], dict[str, str]]:
     """Extract function input information from a PrimFunc.
 
     Parameters
     ----------
-    func : tvm.tir.PrimFunc
+    func : tvm.tirx.PrimFunc
         The PrimFunc to be analyzed.
 
     Returns
     -------
     result : Tuple[
-        List[Tuple[Tuple[Union[tvm.tir.Var, int], ...], str]],
+        List[Tuple[Tuple[Union[tvm.tirx.Var, int], ...], str]],
         Dict[str, str],
     ]
         The function input information and dynamic shape variable dictionary.
@@ -182,9 +182,9 @@ def extract_func_info_from_prim_func(
         buffer = func.buffer_map[param]
         shape = []
         for dim in buffer.shape:
-            if isinstance(dim, tvm.tir.IntImm):
+            if isinstance(dim, tvm.tirx.IntImm):
                 shape.append(dim.value)
-            elif isinstance(dim, tvm.tir.Var):
+            elif isinstance(dim, tvm.tirx.Var):
                 dym_var[str(dim)] = str(dim.dtype)
                 shape.append(dim)
             else:
@@ -223,7 +223,7 @@ def extract_all_func_info_from_relax(
                         raw_args = binding.value.args
                         functor = raw_args[0]
                         if isinstance(functor, tvm.ir.GlobalVar) and isinstance(
-                            mod.functions[functor], tvm.tir.PrimFunc
+                            mod.functions[functor], tvm.tirx.PrimFunc
                         ):
                             args = extract_shape(raw_args[1:]) + extract_shape(binding.value)
                             if isinstance(functor, tvm.ir.GlobalVar):
@@ -240,7 +240,7 @@ def extract_prim_func(  # pylint: disable=too-many-arguments
     model_name: str,
     relax_func_name: str,
     prim_func_name: str,
-    func: tvm.tir.PrimFunc,
+    func: tvm.tirx.PrimFunc,
     *,
     func_args: list[tuple[tuple[tvm.relax.expr.Call | int, ...], str]] | None = None,
     dym_var_dict: dict[str, str] | None = None,
@@ -258,7 +258,7 @@ def extract_prim_func(  # pylint: disable=too-many-arguments
         The name of the Relax function.
     prim_func_name: str
         The name of the prim function.
-    func: tvm.tir.PrimFunc
+    func: tvm.tirx.PrimFunc
         The PrimFunc to be extracted.
     func_args: Optional[List[Tuple[Tuple[Union[tvm.relax.expr.Call, int], ...], str]]]
         The arguments of the prim function, including both static and dynamic shape arguments.

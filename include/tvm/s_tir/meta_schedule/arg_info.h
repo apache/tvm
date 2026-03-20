@@ -24,7 +24,7 @@
 #include <tvm/ir/module.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/object.h>
-#include <tvm/tir/function.h>
+#include <tvm/tirx/function.h>
 
 namespace tvm {
 namespace s_tir {
@@ -59,7 +59,7 @@ class ArgInfo : public runtime::ObjectRef {
    * \param func The PrimFunc to get argument information from.
    * \return An array of the argument information derived.
    */
-  TVM_DLL static ffi::Array<ArgInfo, void> FromPrimFunc(const tir::PrimFunc& func);
+  TVM_DLL static ffi::Array<ArgInfo, void> FromPrimFunc(const tirx::PrimFunc& func);
   /*!
    * \brief Extract a list of the argument information from the entry func of an IRModule
    * \param mod The IRModule to extract argument information from.

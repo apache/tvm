@@ -24,7 +24,7 @@ import tvm.testing
 from tvm import relax
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def test_to_non_dataflow():
@@ -281,7 +281,7 @@ def test_call_tir_inplace_simple():
         @T.prim_func
         def zeros(A: T.Buffer((2, 3), "int32")):
             # just overwrites A with 0s
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with T.sblock("T_zeros"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
@@ -299,7 +299,7 @@ def test_call_tir_inplace_simple():
     class Expected:
         @T.prim_func
         def zeros(A: T.Buffer((2, 3), "int32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with T.sblock("T_zeros"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
@@ -325,7 +325,7 @@ def test_call_tir_inplace_multiple_args():
             A: T.Buffer((2, 3), "int32"), B: T.Buffer((2, 3), "int32"), C: T.Buffer((2, 3), "int32")
         ):
             # copies the contents of C into A and B
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with T.sblock("T_zeros"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
@@ -354,7 +354,7 @@ def test_call_tir_inplace_multiple_args():
             A: T.Buffer((2, 3), "int32"), B: T.Buffer((2, 3), "int32"), C: T.Buffer((2, 3), "int32")
         ):
             # copies the contents of C into A and B
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with T.sblock("T_zeros"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
@@ -388,7 +388,7 @@ def test_call_tir_inplace_some_new():
             out2: T.Buffer((2, 3), "int32"),
         ):
             # copies the contents of C into A, out1, and out2
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with T.sblock("T_zeros"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
@@ -427,7 +427,7 @@ def test_call_tir_inplace_some_new():
             out1: T.Buffer((2, 3), "int32"),
             out2: T.Buffer((2, 3), "int32"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with T.sblock("T_zeros"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])

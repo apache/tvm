@@ -26,10 +26,10 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tir/builtin.h>
-#include <tvm/tir/expr.h>
-#include <tvm/tir/op.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/expr.h>
+#include <tvm/tirx/op.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include <unordered_map>
 #include <utility>
@@ -39,7 +39,7 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 // TODO(Lunderberg): Move this pass to be before
 // FlattenBuffer.  That will simplify this pass,
@@ -49,7 +49,7 @@ class BoundCollector : public StmtVisitor {
   BoundCollector() {}
 
   void VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == tir::attr::buffer_bound) {
+    if (op->attr_key == tirx::attr::buffer_bound) {
       const VarNode* key = op->node.as<VarNode>();
       const CallNode* container = op->value.as<CallNode>();
       if (key && container) {

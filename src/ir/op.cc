@@ -26,7 +26,7 @@
 #include <tvm/ir/op.h>
 #include <tvm/ir/type.h>
 #include <tvm/runtime/module.h>
-#include <tvm/tir/op_attr_types.h>
+#include <tvm/tirx/op_attr_types.h>
 
 #include <memory>
 
@@ -39,7 +39,7 @@ TVM_FFI_STATIC_INIT_BLOCK() { OpNode::RegisterReflection(); }
 using ffi::Any;
 using ffi::Function;
 using ffi::PackedArgs;
-using tir::FLowerIntrinsic;
+using tirx::FLowerIntrinsic;
 
 using OpRegistry = AttrRegistry<OpRegEntry, Op>;
 

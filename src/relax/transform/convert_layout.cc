@@ -27,7 +27,7 @@
 #include <tvm/relax/nested_msg.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/transform.h>
-#include <tvm/tir/index_map.h>
+#include <tvm/tirx/index_map.h>
 
 #include "../op/tensor/manipulate.h"
 #include "infer_layout_utils.h"
@@ -36,8 +36,8 @@
 namespace tvm {
 namespace relax {
 
-using tir::IndexMap;
-using tir::Layout;
+using tirx::IndexMap;
+using tirx::Layout;
 using LayoutCb = tvm::relax::transform::LayoutCb;
 
 /*!
@@ -94,14 +94,14 @@ class LayoutConvertMutator : public ExprMutator {
   }
 
   IndexMap LayoutIndexMap(int ndim, const Layout& src_layout, const Layout& desired_layout) {
-    tir::BijectiveLayout todesired(src_layout, desired_layout);
+    tirx::BijectiveLayout todesired(src_layout, desired_layout);
     ffi::Optional<IndexMap> inverse_index_map;
 
-    ffi::Array<tvm::tir::Var> initial_indices;
+    ffi::Array<tvm::tirx::Var> initial_indices;
     ffi::Array<PrimExpr> initial_indices_expr;
     initial_indices.reserve(ndim);
     for (int i = 0; i < ndim; ++i) {
-      auto var = tvm::tir::Var("i" + std::to_string(i), DataType::Int(32));
+      auto var = tvm::tirx::Var("i" + std::to_string(i), DataType::Int(32));
       initial_indices.push_back(var);
       initial_indices_expr.push_back(var);
     }

@@ -22,8 +22,8 @@ import inspect
 from numbers import Integral as _Integral
 
 import tvm.arith._ffi_api
-import tvm.tir
-import tvm.tir._ffi_api
+import tvm.tirx
+import tvm.tirx._ffi_api
 from tvm.ir import Array
 from tvm.runtime import convert
 
@@ -90,7 +90,7 @@ def compute(shape, fcompute, name="compute", tag="", attrs=None, varargs_names=N
         if tag != "":
             raise ValueError("nested tag is not allowed for now")
         tag = _tag.TagScope.get_current().tag
-    shape = (shape,) if isinstance(shape, tvm.tir.PrimExpr) else shape
+    shape = (shape,) if isinstance(shape, tvm.tirx.PrimExpr) else shape
     # for python3
     shape = tuple([int(s) if isinstance(s, float) else s for s in shape])
     out_ndim = len(shape)
@@ -125,7 +125,7 @@ def compute(shape, fcompute, name="compute", tag="", attrs=None, varargs_names=N
             f"args={len(arg_names)}, dimension={out_ndim}"
         )
 
-    dim_var = [tvm.tir.IterVar((0, s), x, 0) for x, s in zip(arg_names, shape[:out_ndim])]
+    dim_var = [tvm.tirx.IterVar((0, s), x, 0) for x, s in zip(arg_names, shape[:out_ndim])]
     body = fcompute(*[v.var for v in dim_var])
 
     if not isinstance(body, list | tuple):
@@ -199,7 +199,7 @@ def scan(init, update, state_placeholder, inputs=None, name="scan", tag="", attr
         inputs = []
     if len(init) != len(update) or len(init) != len(state_placeholder):
         raise ValueError("init, update, state_placeholder must have same length")
-    axis = tvm.tir.IterVar((init[0].shape[0], update[0].shape[0]), f"{name}.idx", 3)
+    axis = tvm.tirx.IterVar((init[0].shape[0], update[0].shape[0]), f"{name}.idx", 3)
     op = _ffi_api.ScanOp(name, tag, attrs, axis, init, update, state_placeholder, inputs)
     res = [op.output(i) for i in range(len(update))]
     return res[0] if len(res) == 1 else res
@@ -233,12 +233,12 @@ def extern(
         .. note::
              **Parameters**
 
-             - **ins** (list of :any:`tvm.tir.Buffer`) - Placeholder for each inputs
-             - **outs** (list of :any:`tvm.tir.Buffer`) - Placeholder for each outputs
+             - **ins** (list of :any:`tvm.tirx.Buffer`) - Placeholder for each inputs
+             - **outs** (list of :any:`tvm.tirx.Buffer`) - Placeholder for each outputs
 
              **Returns**
 
-             - **stmt** (:any:`tvm.tir.Stmt`) - The statement that carries out array computation.
+             - **stmt** (:any:`tvm.tirx.Stmt`) - The statement that carries out array computation.
 
     name: str, optional
         The name hint of the tensor
@@ -247,10 +247,10 @@ def extern(
         The data types of outputs,
         by default dtype will be same as inputs.
 
-    in_buffers: tvm.tir.Buffer or list of tvm.tir.Buffer, optional
+    in_buffers: tvm.tirx.Buffer or list of tvm.tirx.Buffer, optional
         Input buffers.
 
-    out_buffers: tvm.tir.Buffer or list of tvm.tir.Buffer, optional
+    out_buffers: tvm.tirx.Buffer or list of tvm.tirx.Buffer, optional
         Output buffers.
 
 
@@ -275,7 +275,7 @@ def extern(
         A = te.placeholder((n, l), name="A")
         B = te.placeholder((l, m), name="B")
         C = te.extern((n, m), [A, B],
-                       lambda ins, outs: tvm.tir.call_packed(
+                       lambda ins, outs: tvm.tirx.call_packed(
                           "tvm.contrib.cblas.matmul",
                             ins[0], ins[1], outs[0], 0, 0), name="C")
     """
@@ -283,8 +283,8 @@ def extern(
         if tag != "":
             raise ValueError("nested tag is not allowed for now")
         tag = _tag.TagScope.get_current().tag
-    shape = (shape,) if isinstance(shape, tvm.tir.PrimExpr | _Integral) else shape
-    if shape == () or isinstance(shape[0], tvm.tir.PrimExpr | _Integral):
+    shape = (shape,) if isinstance(shape, tvm.tirx.PrimExpr | _Integral) else shape
+    if shape == () or isinstance(shape[0], tvm.tirx.PrimExpr | _Integral):
         shape = [shape]
     if in_buffers is not None:
         in_buffers = [in_buffers] if not isinstance(in_buffers, list) else in_buffers
@@ -306,8 +306,8 @@ def extern(
             raise ValueError("expect inputs to be tensor")
         if in_buffers is None:
             input_placeholders.append(
-                tvm.tir.decl_buffer(
-                    t.shape, t.dtype, t.op.name, elem_offset=tvm.tir.Var("elem_offset", "int32")
+                tvm.tirx.decl_buffer(
+                    t.shape, t.dtype, t.op.name, elem_offset=tvm.tirx.Var("elem_offset", "int32")
                 )
             )
         types.add(t.dtype)
@@ -323,12 +323,14 @@ def extern(
 
         for shp, dt in zip(shape, dtype):
             output_placeholders.append(
-                tvm.tir.decl_buffer(shp, dt, name, elem_offset=tvm.tir.Var("elem_offset", "int32"))
+                tvm.tirx.decl_buffer(
+                    shp, dt, name, elem_offset=tvm.tirx.Var("elem_offset", "int32")
+                )
             )
     body = fcompute(input_placeholders, output_placeholders)
-    if isinstance(body, tvm.tir.PrimExpr):
-        body = tvm.tir.Evaluate(body)
-    if not isinstance(body, tvm.tir.Stmt):
+    if isinstance(body, tvm.tirx.PrimExpr):
+        body = tvm.tirx.Evaluate(body)
+    if not isinstance(body, tvm.tirx.Stmt):
         raise ValueError(
             f"Function '{fcompute.__name__}' should return PrimExpr or Stmt, but it returned "
             f"'{type(body)}'"
@@ -339,7 +341,7 @@ def extern(
     return res[0] if len(res) == 1 else res
 
 
-def extern_primfunc(input_tensors: list[_tensor.Tensor], primfunc: tvm.tir.PrimFunc, **kwargs):
+def extern_primfunc(input_tensors: list[_tensor.Tensor], primfunc: tvm.tirx.PrimFunc, **kwargs):
     """Compute tensors via a schedulable TIR PrimFunc
 
     Parameters
@@ -439,10 +441,10 @@ def var(name="tindex", dtype="int32", span=None):
 
     Returns
     -------
-    var : tir.Var
+    var : tirx.Var
         The result symbolic variable.
     """
-    return tvm.tir.Var(name, dtype, span)
+    return tvm.tirx.Var(name, dtype, span)
 
 
 def const(value, dtype="int32", span=None):
@@ -464,7 +466,7 @@ def const(value, dtype="int32", span=None):
     const : PrimExpr
         The result constant expr.
     """
-    return tvm.tir.const(value, dtype, span)
+    return tvm.tirx.const(value, dtype, span)
 
 
 def size_var(name="size", dtype="int32", span=None):
@@ -486,7 +488,7 @@ def size_var(name="size", dtype="int32", span=None):
     var : SizeVar
         The result symbolic shape variable.
     """
-    return tvm.tir.SizeVar(name, dtype, span)
+    return tvm.tirx.SizeVar(name, dtype, span)
 
 
 def thread_axis(dom=None, tag="", name="", span=None):
@@ -517,7 +519,7 @@ def thread_axis(dom=None, tag="", name="", span=None):
     if not tag:
         raise ValueError("tag must be given as Positional or keyword argument")
     name = name if name else tag
-    return tvm.tir.IterVar(dom, name, 1, tag, span)
+    return tvm.tirx.IterVar(dom, name, 1, tag, span)
 
 
 def reduce_axis(dom, name="rv", thread_tag="", span=None):
@@ -542,17 +544,17 @@ def reduce_axis(dom, name="rv", thread_tag="", span=None):
     axis : IterVar
         An iteration variable representing the value.
     """
-    return tvm.tir.IterVar(dom, name, 2, thread_tag, span)
+    return tvm.tirx.IterVar(dom, name, 2, thread_tag, span)
 
 
 def create_prim_func(
-    ops: list[_tensor.Tensor | tvm.tir.Var], index_dtype_override: str | None = None
-) -> tvm.tir.PrimFunc:
+    ops: list[_tensor.Tensor | tvm.tirx.Var], index_dtype_override: str | None = None
+) -> tvm.tirx.PrimFunc:
     """Create a TensorIR PrimFunc from tensor expression
 
     Parameters
     ----------
-    ops : List[Union[_tensor.Tensor, tvm.tir.Var]]
+    ops : List[Union[_tensor.Tensor, tvm.tirx.Var]]
         The source expression.
 
     Example
@@ -594,7 +596,7 @@ def create_prim_func(
 
     Returns
     -------
-    func : tir.PrimFunc
+    func : tirx.PrimFunc
         The created function.
     """
     if not isinstance(ops, list | tuple | Array):
@@ -602,4 +604,4 @@ def create_prim_func(
     return _ffi_api.CreatePrimFunc(ops, index_dtype_override)
 
 
-AXIS_SEPARATOR = tvm.tir.IndexMap.AXIS_SEPARATOR
+AXIS_SEPARATOR = tvm.tirx.IndexMap.AXIS_SEPARATOR

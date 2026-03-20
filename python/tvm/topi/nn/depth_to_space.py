@@ -49,11 +49,11 @@ def depth_to_space(data, block_size, layout="NCHW", mode="DCR"):
     """
     if layout == "NCHW":
         in_n, in_c, in_h, in_w = data.shape
-        channel_factor = tvm.tir.truncdiv(in_c, (block_size * block_size))
+        channel_factor = tvm.tirx.truncdiv(in_c, (block_size * block_size))
         output_shape = [in_n, channel_factor, in_h * block_size, in_w * block_size]
     elif layout == "NHWC":
         in_n, in_h, in_w, in_c = data.shape
-        channel_factor = tvm.tir.truncdiv(in_c, (block_size * block_size))
+        channel_factor = tvm.tirx.truncdiv(in_c, (block_size * block_size))
         output_shape = [in_n, in_h * block_size, in_w * block_size, channel_factor]
     else:
         raise ValueError("Only NCHW and NHWC layouts are currently supported.")
@@ -66,10 +66,10 @@ def depth_to_space(data, block_size, layout="NCHW", mode="DCR"):
         return n, c, y, x
 
     def _get_pixel(n, c, y, x):
-        block_x = tvm.tir.truncdiv(x, block_size)
-        block_y = tvm.tir.truncdiv(y, block_size)
-        idx_x = tvm.tir.truncmod(x, block_size)
-        idx_y = tvm.tir.truncmod(y, block_size)
+        block_x = tvm.tirx.truncdiv(x, block_size)
+        block_y = tvm.tirx.truncdiv(y, block_size)
+        idx_x = tvm.tirx.truncmod(x, block_size)
+        idx_y = tvm.tirx.truncmod(y, block_size)
         if mode == "DCR":
             channel_idx = channel_factor * ((block_size * idx_y) + idx_x) + c
         else:

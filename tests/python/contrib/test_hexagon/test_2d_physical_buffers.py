@@ -32,7 +32,7 @@ import tvm.testing
 from tvm import te
 from tvm.contrib.hexagon import allocate_hexagon_array
 from tvm.contrib.hexagon.pytest_plugin import requires_hexagon_toolchain
-from tvm.tir.stmt_functor import post_order_visit
+from tvm.tirx.stmt_functor import post_order_visit
 
 from .infrastructure import get_hexagon_target
 
@@ -171,7 +171,7 @@ def extract_buffers(stmt):
     buffers = []
 
     def visitor(node):
-        if isinstance(node, tvm.tir.BufferLoad | tvm.tir.BufferStore):
+        if isinstance(node, tvm.tirx.BufferLoad | tvm.tirx.BufferStore):
             buffers.append(node.buffer)
 
     post_order_visit(stmt, visitor)

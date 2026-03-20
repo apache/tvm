@@ -29,7 +29,7 @@ def detect_linear_equation(expr, var_list):
     expr : PrimExpr
         The expression to be matched.
 
-    var_list : List[tvm.tir.Var]
+    var_list : List[tvm.tirx.Var]
         A list of variables.
 
     Returns
@@ -49,7 +49,7 @@ def detect_clip_bound(expr, var_list):
     expr : PrimExpr
         The expression to be matched.
 
-    var_list : List[tvm.tir.Var]
+    var_list : List[tvm.tirx.Var]
         A list of variables.
 
     Returns

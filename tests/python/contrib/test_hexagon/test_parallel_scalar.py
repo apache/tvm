@@ -20,7 +20,7 @@
 import numpy as np
 
 import tvm
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 from .infrastructure import get_hexagon_target
 
@@ -36,7 +36,7 @@ def get_add_operator(operations):
 
     @T.prim_func
     def operator(a: T.handle, b: T.handle, c: T.handle) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         a_buffer = T.match_buffer(a, [operations], dtype="float64")
         b_buffer = T.match_buffer(b, [operations], dtype="float64")
         c_buffer = T.match_buffer(c, [operations], dtype="float64")
@@ -53,7 +53,7 @@ def get_multiply_operator(operations):
 
     @T.prim_func
     def operator(a: T.handle, b: T.handle, c: T.handle) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         a_buffer = T.match_buffer(a, [operations], dtype="float64")
         b_buffer = T.match_buffer(b, [operations], dtype="float64")
         c_buffer = T.match_buffer(c, [operations], dtype="float64")
@@ -70,7 +70,7 @@ def get_sub_operator(operations):
 
     @T.prim_func
     def operator(a: T.handle, b: T.handle, c: T.handle) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         a_buffer = T.match_buffer(a, [operations], dtype="float64")
         b_buffer = T.match_buffer(b, [operations], dtype="float64")
         c_buffer = T.match_buffer(c, [operations], dtype="float64")

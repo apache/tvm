@@ -22,7 +22,7 @@ import inspect
 import pytest
 
 import tvm.testing
-from tvm.script import tir as T
+from tvm.script import tirx as T
 from tvm.script.parser.core import doc_core as doc
 from tvm.script.parser.core.diagnostics import Source
 

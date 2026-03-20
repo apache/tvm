@@ -29,7 +29,7 @@
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
-#include <tvm/tir/transform.h>
+#include <tvm/tirx/transform.h>
 
 #include <set>
 
@@ -97,7 +97,7 @@ class LegalizeMutator : public ExprMutator {
       // Avoid accidental sharing of TIR variables in the legalized
       // PrimFuncs, when kernels for multiple devices are generated
       // from the same PrimFunc.
-      output = tir::transform::ConvertSSA()(output);
+      output = tirx::transform::ConvertSSA()(output);
     }
 
     return output;
@@ -194,7 +194,7 @@ class LegalizeMutator : public ExprMutator {
     }
 
     auto base_func = builder_->GetContextIRModule()->Lookup(gvar.value());
-    auto opt_prim_func = base_func.as<tir::PrimFunc>();
+    auto opt_prim_func = base_func.as<tirx::PrimFunc>();
     if (!opt_prim_func) {
       // The call is to something other than a PrimFunc.  It may be
       // another Relax function, in which case the legalization of its

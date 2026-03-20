@@ -20,7 +20,7 @@ import tvm.testing
 from tvm.ir import assert_structural_equal
 from tvm.s_tir import dlight as dl
 from tvm.script import ir as I
-from tvm.script import tir as T
+from tvm.script import tirx as T
 from tvm.target import Target
 
 
@@ -49,7 +49,7 @@ def test_fallback():
             A: T.Buffer((1, 32, 1, 128), "float16"),
             C: T.Buffer((1, 1, 4096), "float16"),
         ):
-            T.func_attr({"tir.is_scheduled": True})
+            T.func_attr({"tirx.is_scheduled": True})
             for ax0_fused_0 in T.thread_binding(4, thread="blockIdx.x"):
                 for ax0_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):
                     with T.sblock("T_reshape"):
@@ -85,7 +85,7 @@ def test_fallback_reduction():
     class Expected:
         @T.prim_func
         def main(A: T.Buffer((1, 6144), "float32"), B: T.Buffer((1,), "float32")):
-            T.func_attr({"tir.is_scheduled": True})
+            T.func_attr({"tirx.is_scheduled": True})
             for ax0_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
                 for ax0_fused_1 in T.thread_binding(T.int64(1024), thread="threadIdx.x"):
                     with T.sblock("block_init"):
@@ -145,7 +145,7 @@ def test_fallback_irregular_spatial():
     # fmt: off
     @T.prim_func(private=True)
     def expected(var_pages: T.handle, var_page_table_indptr: T.handle, var_page_table_values: T.handle, var_values: T.handle, seq_id: T.int32):
-        T.func_attr({"tir.is_scheduled": True})
+        T.func_attr({"tirx.is_scheduled": True})
         nhead = T.int32()
         nlayer = T.int32()
         seqlen = T.int32()
@@ -226,7 +226,7 @@ def test_gpu_fallback_ignores_non_gpu_functions():
             A: T.Buffer((1, 32, 1, 128), "float16"),
             C: T.Buffer((1, 1, 4096), "float16"),
         ):
-            T.func_attr({"tir.is_scheduled": True})
+            T.func_attr({"tirx.is_scheduled": True})
             for ax0_fused_0 in T.thread_binding(4, thread="blockIdx.x"):
                 for ax0_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):
                     with T.sblock("T_reshape"):

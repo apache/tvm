@@ -175,7 +175,7 @@ class ASTPrinter(ExprFunctor):
                     # we want to wrap strings in quotes
                     # (__repr__ would work but it uses single quotes)
                     attr_val = wrap_quotes(attr_val)
-                elif isinstance(attr_val, tvm.tir.IntImm):
+                elif isinstance(attr_val, tvm.tirx.IntImm):
                     if attr_val.dtype == "bool":
                         attr_val = bool(attr_val.value)
                     else:

@@ -19,8 +19,8 @@
 import pytest
 
 import tvm.testing
-from tvm import relax, tir
-from tvm.script import tir as T
+from tvm import relax, tirx
+from tvm.script import tirx as T
 
 
 def apply_transformations(func, suggested_transfoms, print_transformation=False):
@@ -28,13 +28,13 @@ def apply_transformations(func, suggested_transfoms, print_transformation=False)
     for block, per_block_transformations in suggested_transfoms.items():
         blockrv = sch.get_sblock(block.name_hint)
         for obj, index_map in per_block_transformations.items():
-            if isinstance(obj, tir.SBlock):
+            if isinstance(obj, tirx.SBlock):
                 block_name = obj.name_hint
                 if print_transformation:
                     print("Block transformation: ", block_name, " :: ", index_map)
                 sch.transform_block_layout(block_name, index_map)
             else:
-                assert isinstance(obj, tir.Buffer)
+                assert isinstance(obj, tirx.Buffer)
                 buffer = obj
                 if print_transformation:
                     print("Buffer transformation: ", buffer, " :: ", index_map)
@@ -622,7 +622,7 @@ def test_op_binary_broadcast():
         arg1: T.Buffer((64, 224, 224), "float32"),
         T_add: T.Buffer((32, 64, 224, 224), "float32"),
     ):
-        T.func_attr({"tir.noalias": True})
+        T.func_attr({"tirx.noalias": True})
         # with T.sblock("root"):
         for ax0, ax1, ax2, ax3 in T.grid(32, 64, 224, 224):
             with T.sblock("T_add"):
@@ -642,7 +642,7 @@ def test_op_binary_broadcast():
         arg1: T.Buffer((224, 224, 16, 4), "float32"),
         T_add: T.Buffer((32, 224, 224, 16, 4), "float32"),
     ):
-        T.func_attr({"tir.noalias": True})
+        T.func_attr({"tirx.noalias": True})
         # with T.sblock("root"):
         for ax0, ax1, ax2, ax3, ax4 in T.grid(32, 224, 224, 16, 4):
             with T.sblock("T_add"):

@@ -25,11 +25,11 @@ from collections.abc import Callable
 from enum import IntEnum
 
 import tvm
-from tvm import IRModule, tir
+from tvm import IRModule, tirx
 from tvm.relax.expr import Binding, Call, DataflowBlock, Expr, Function, GlobalVar, Var
 from tvm.relax.struct_info import FuncStructInfo, StructInfo
 from tvm.relax.ty import Type
-from tvm.tir import Buffer, IndexMap, PrimFunc, SBlock
+from tvm.tirx import Buffer, IndexMap, PrimFunc, SBlock
 
 from . import _ffi_api
 
@@ -52,7 +52,7 @@ def get_static_type(sinfo: StructInfo) -> Type:
 
 def erase_to_well_defined(
     sinfo: StructInfo,
-    shape_var_map: dict[tir.Var, tir.PrimExpr] | None = None,
+    shape_var_map: dict[tirx.Var, tirx.PrimExpr] | None = None,
     var_map: dict[Var, Expr] | None = None,
 ) -> StructInfo:
     """Erase sinfo into a well defined form.
@@ -65,7 +65,7 @@ def erase_to_well_defined(
     sinfo : StructInfo
         The input struct info.
 
-    shape_var_map : Dict[tir.Var, tir.PrimExpr]
+    shape_var_map : Dict[tirx.Var, tirx.PrimExpr]
         Specifies the defined shape vars and the values they should map to.
 
     var_map : Dict[Var, Expr]
@@ -167,7 +167,7 @@ def struct_info_lca(lhs: StructInfo, rhs: StructInfo) -> StructInfo:
     return _ffi_api.StructInfoLCA(lhs, rhs)  # type: ignore
 
 
-def tir_vars_in_struct_info(sinfo: StructInfo) -> list[tir.Var]:
+def tir_vars_in_struct_info(sinfo: StructInfo) -> list[tirx.Var]:
     """Get the TIR variables that appear in the input struct info.
     The returned list is deduplicated - each TIR variable will appear at most once.
 
@@ -178,13 +178,13 @@ def tir_vars_in_struct_info(sinfo: StructInfo) -> list[tir.Var]:
 
     Returns
     -------
-    ret : List[tir.Var]
+    ret : List[tirx.Var]
         The list of TIR variables that appear in the input struct info.
     """
     return _ffi_api.TIRVarsInStructInfo(sinfo)  # type: ignore
 
 
-def definable_tir_vars_in_struct_info(sinfo: StructInfo) -> list[tir.Var]:
+def definable_tir_vars_in_struct_info(sinfo: StructInfo) -> list[tirx.Var]:
     """Get the TIR variables that may be defined from input struct info.
     The returned list is deduplicated - each TIR variable will appear at most once.
 
@@ -195,14 +195,14 @@ def definable_tir_vars_in_struct_info(sinfo: StructInfo) -> list[tir.Var]:
 
     Returns
     -------
-    ret : List[tir.Var]
+    ret : List[tirx.Var]
 
         The list of TIR variables that can be defined from the StructInfo
     """
     return _ffi_api.DefinableTIRVarsInStructInfo(sinfo)  # type: ignore
 
 
-def collect_non_negative_expressions(sinfo: StructInfo) -> list[tir.PrimExpr]:
+def collect_non_negative_expressions(sinfo: StructInfo) -> list[tirx.PrimExpr]:
     """Collect TIR expressions used in non-negative contexts
 
     Get TIR variables that are non-negative within the context where
@@ -220,7 +220,7 @@ def collect_non_negative_expressions(sinfo: StructInfo) -> list[tir.PrimExpr]:
 
     Returns
     -------
-    ret : List[tir.Var]
+    ret : List[tirx.Var]
 
         The list of TIR variables that can be defined from the StructInfo
 
@@ -363,7 +363,7 @@ def post_order_visit(expr, fvisit):
     return _ffi_api.post_order_visit(expr, fvisit)  # type: ignore
 
 
-def has_reshape_pattern(func: tir.PrimFunc) -> bool:
+def has_reshape_pattern(func: tirx.PrimFunc) -> bool:
     """Check if the given PrimFunc is essentially doing a reshape operation.
     The reshape operation also includes expand_dims, squeeze, flatten, etc.
 
@@ -374,7 +374,7 @@ def has_reshape_pattern(func: tir.PrimFunc) -> bool:
 
     Parameters
     ----------
-    func : tir.PrimFunc
+    func : tirx.PrimFunc
         The function to be examined.
 
     Returns

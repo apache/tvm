@@ -20,7 +20,7 @@ import numpy as np
 
 import tvm
 from tvm.contrib.hexagon import allocate_hexagon_array
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 from .infrastructure import get_hexagon_target
 

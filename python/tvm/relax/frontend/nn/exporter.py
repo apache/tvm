@@ -21,7 +21,7 @@ import operator
 import threading
 import typing
 
-from tvm import tir
+from tvm import tirx
 from tvm.ir import IRModule
 
 from .... import relax as rx
@@ -164,8 +164,8 @@ def _emit_method(  # pylint: disable=too-many-locals,too-many-branches,too-many-
     effects: list[tuple[str, core.Effect]] | None,
 ):
     # pylint: disable=protected-access
-    # symbolic shape's name mapping to its tir.Var for reuse
-    str2var_params: dict[str, tir.Var] = {}
+    # symbolic shape's name mapping to its tirx.Var for reuse
+    str2var_params: dict[str, tirx.Var] = {}
 
     def _unwrap_ret(expr: typing.Any) -> typing.Any:
         if isinstance(expr, core.Tensor | core.Object):
@@ -177,7 +177,7 @@ def _emit_method(  # pylint: disable=too-many-locals,too-many-branches,too-many-
         raise TypeError(f"Unsupported return type: {type(expr)}")
 
     def _convert_input(arg):
-        if isinstance(arg, tir.Var):
+        if isinstance(arg, tirx.Var):
             return rx.Var(arg.name, struct_info=ShapeStructInfo(values=[arg]))
         if isinstance(arg, core.Tensor | core.Object):
             return arg._expr  # pylint: disable=protected-access
@@ -193,18 +193,18 @@ def _emit_method(  # pylint: disable=too-many-locals,too-many-branches,too-many-
     def _params(mode: str) -> list[rx.Var]:
         inputs: list[rx.Var] = []
 
-        def _get_var(shape_var: tir.Var) -> tir.Var:
+        def _get_var(shape_var: tirx.Var) -> tirx.Var:
             name = shape_var.name
             if name in str2var_params:
                 return str2var_params[name]
-            var = tir.Var(name, "int64")
+            var = tirx.Var(name, "int64")
             str2var_params[name] = var
             return var
 
         for name, param in params:
             # Make sure the a symbolic shape is not re-registered (same as _method_spec_to_inputs)
             # e.g. we do not see `vocab_size` for `lm_head` and `vocab_size_1` for `embed_tokens`
-            new_shape = [_get_var(x) if isinstance(x, tir.Var) else x for x in param.shape]
+            new_shape = [_get_var(x) if isinstance(x, tirx.Var) else x for x in param.shape]
             var = core.Tensor.placeholder(new_shape, param.dtype, name)._expr
             inputs.append(var)
             param._expr = var
@@ -265,7 +265,7 @@ def _emit_method(  # pylint: disable=too-many-locals,too-many-branches,too-many-
             return type(arg.elements)(ret)
         if isinstance(arg, core.Tensor):
             return core.Tensor(_expr=var)
-        if isinstance(arg, tir.Var):
+        if isinstance(arg, tirx.Var):
             return arg
         raise TypeError(f"Unsupported input type: {type(arg)}")
 
@@ -292,14 +292,14 @@ def _emit_method(  # pylint: disable=too-many-locals,too-many-branches,too-many-
 
 def _method_spec_to_inputs(
     spec: _spec.MethodSpec,
-) -> list[tir.Var | core.Tensor]:
+) -> list[tirx.Var | core.Tensor]:
     """Convert the MethodSpec to a list of inputs to Module's method."""
-    str2var: dict[str, tir.Var] = {}
+    str2var: dict[str, tirx.Var] = {}
 
-    def _get_var(name: str) -> tir.Var:
+    def _get_var(name: str) -> tirx.Var:
         if name in str2var:
             return str2var[name]
-        var = tir.Var(name, "int64")
+        var = tirx.Var(name, "int64")
         str2var[name] = var
         return var
 

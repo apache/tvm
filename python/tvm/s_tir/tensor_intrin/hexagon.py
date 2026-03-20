@@ -17,7 +17,7 @@
 # pylint: disable=invalid-name,missing-function-docstring
 """Intrinsics for Hexagon tensorization."""
 
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 from .. import TensorIntrin
 

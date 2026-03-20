@@ -28,7 +28,7 @@ import tvm_ffi
 
 import tvm
 import tvm.testing
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 # Parameterize over both LLVM and C backends
 codegen_target = tvm.testing.parameter("llvm", "c")

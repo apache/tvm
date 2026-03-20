@@ -21,7 +21,7 @@ import tvm.testing
 from tvm.relax.transform import LegalizeOps
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 ##################### Search #####################
 
@@ -44,7 +44,7 @@ def test_where():
 
         @T.prim_func(private=True)
         def where(rxplaceholder: T.Buffer((T.int64(3), T.int64(2), T.int64(1)), "bool"), rxplaceholder_1: T.Buffer((T.int64(2), T.int64(3)), "float32"), rxplaceholder_2: T.Buffer((T.int64(2), T.int64(1)), "float32"), T_where: T.Buffer((T.int64(3), T.int64(2), T.int64(3)), "float32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1, i2 in T.grid(T.int64(3), T.int64(2), T.int64(3)):
                 with T.sblock("T_where"):
                     ax0, ax1, ax2 = T.axis.remap("SSS", [i0, i1, i2])
@@ -81,7 +81,7 @@ def test_where_symbolic():
 
         @T.prim_func(private=True)
         def where(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_rxplaceholder_2: T.handle, var_T_where: T.handle):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             a = T.int64()
             b = T.int64()
             c = T.int64()
@@ -119,7 +119,7 @@ def test_argmax():
 
         @T.prim_func(private=True)
         def argmax(rxplaceholder: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"), rxplaceholder_red: T.Buffer((T.int64(2), T.int64(4), T.int64(5)), "int64")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             rxplaceholder_red_temp_v0 = T.sblock_alloc_buffer((T.int64(2), T.int64(4), T.int64(5)), "int64")
             rxplaceholder_red_temp_v1 = T.sblock_alloc_buffer((T.int64(2), T.int64(4), T.int64(5)))
             for ax0, ax1, ax2, k1 in T.grid(T.int64(2), T.int64(4), T.int64(5), T.int64(3)):
@@ -170,7 +170,7 @@ def test_argmax_symbolic():
 
         @T.prim_func(private=True)
         def argmax(var_rxplaceholder: T.handle, var_rxplaceholder_red: T.handle):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             a = T.int64()
             b = T.int64()
             c = T.int64()
@@ -217,7 +217,7 @@ def test_argmin():
     class Expected:
         @T.prim_func(private=True)
         def argmin(rxplaceholder: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"), rxplaceholder_red: T.Buffer((), "int64")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             rxplaceholder_red_temp_v0 = T.sblock_alloc_buffer((), "int64")
             rxplaceholder_red_temp_v1 = T.sblock_alloc_buffer(())
             for k0, k1, k2, k3 in T.grid(T.int64(2), T.int64(3), T.int64(4), T.int64(5)):
@@ -261,7 +261,7 @@ def test_argmin_symbolic():
     class Expected:
         @T.prim_func(private=True)
         def argmin(var_rxplaceholder: T.handle, rxplaceholder_red: T.Buffer((T.int64(1), T.int64(1), T.int64(1), T.int64(1)), "int64")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             a = T.int64()
             b = T.int64()
             c = T.int64()
@@ -319,7 +319,7 @@ def test_max():
 
         @T.prim_func(private=True)
         def max(rxplaceholder: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"), rxplaceholder_red: T.Buffer((T.int64(2), T.int64(5)), "float32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(2), T.int64(5), T.int64(3), T.int64(4)):
                 with T.sblock("rxplaceholder_red"):
                     ax0, ax1, k1, k2 = T.axis.remap("SSRR", [i0, i1, i2, i3])
@@ -356,7 +356,7 @@ def test_max_symbolic():
 
         @T.prim_func(private=True)
         def max(var_rxplaceholder: T.handle, var_rxplaceholder_red: T.handle):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             a = T.int64()
             b = T.int64()
             c = T.int64()
@@ -395,7 +395,7 @@ def test_min():
 
         @T.prim_func(private=True)
         def min(rxplaceholder: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"), rxplaceholder_red: T.Buffer((T.int64(2), T.int64(1), T.int64(1), T.int64(5)), "float32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3, i4, i5 in T.grid(T.int64(2), T.int64(1), T.int64(1), T.int64(5), T.int64(3), T.int64(4)):
                 with T.sblock("rxplaceholder_red"):
                     ax0, ax1, ax2, ax3, k1, k2 = T.axis.remap("SSSSRR", [i0, i1, i2, i3, i4, i5])
@@ -432,7 +432,7 @@ def test_min_symbolic():
 
         @T.prim_func(private=True)
         def min(var_rxplaceholder: T.handle, var_rxplaceholder_red: T.handle):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             a = T.int64()
             b = T.int64()
             c = T.int64()
@@ -471,7 +471,7 @@ def test_sum():
 
         @T.prim_func(private=True)
         def sum(rxplaceholder: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"), rxplaceholder_red: T.Buffer((), "float32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(2), T.int64(3), T.int64(4), T.int64(5)):
                 with T.sblock("rxplaceholder_red"):
                     k0, k1, k2, k3 = T.axis.remap("RRRR", [i0, i1, i2, i3])
@@ -504,7 +504,7 @@ def test_sum_symbolic():
 
         @T.prim_func(private=True)
         def sum(var_rxplaceholder: T.handle, rxplaceholder_red: T.Buffer((), "float32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             a = T.int64()
             b = T.int64()
             c = T.int64()
@@ -542,7 +542,7 @@ def test_prod():
 
         @T.prim_func(private=True)
         def prod(rxplaceholder: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"), rxplaceholder_red: T.Buffer((T.int64(1), T.int64(1), T.int64(1), T.int64(1)), "float32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3, i4, i5, i6, i7 in T.grid(T.int64(1), T.int64(1), T.int64(1), T.int64(1), T.int64(2), T.int64(3), T.int64(4), T.int64(5)):
                 with T.sblock("rxplaceholder_red"):
                     ax0, ax1, ax2, ax3, k0, k1, k2, k3 = T.axis.remap("SSSSRRRR", [i0, i1, i2, i3, i4, i5, i6, i7])
@@ -575,7 +575,7 @@ def test_prod_symbolic():
 
         @T.prim_func(private=True)
         def prod(var_rxplaceholder: T.handle, rxplaceholder_red: T.Buffer((T.int64(1), T.int64(1), T.int64(1), T.int64(1)), "float32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             a = T.int64()
             b = T.int64()
             c = T.int64()
@@ -613,7 +613,7 @@ def test_mean():
 
         @T.prim_func(private=True)
         def mean(rxplaceholder: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"), T_divide: T.Buffer((T.int64(3), T.int64(4)), "float32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             rxplaceholder_red = T.sblock_alloc_buffer([T.int64(3), T.int64(4)], dtype="float32")
             for i0, i1, i2, i3 in T.grid(T.int64(3), T.int64(4), T.int64(2), T.int64(5)):
                 with T.sblock("rxplaceholder_red"):
@@ -657,7 +657,7 @@ def test_mean_symbolic():
 
         @T.prim_func(private=True)
         def mean(var_rxplaceholder: T.handle, var_T_divide: T.handle):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             a = T.int64()
             b = T.int64()
             c = T.int64()
@@ -703,7 +703,7 @@ def test_median():
 
         @T.prim_func(private=True)
         def median(var_x: T.handle, T_squeeze: T.Buffer((T.int64(3), T.int64(4), T.int64(5)), "float32"), T_squeeze_1: T.Buffer((T.int64(3), T.int64(4), T.int64(5)), "int64")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             data_buf = T.match_buffer(var_x, (T.int64(2), T.int64(3), T.int64(4), T.int64(5)), align=8)
             # with T.sblock("root"):
             T_full = T.sblock_alloc_buffer((T.int64(1), T.int64(3), T.int64(4), T.int64(5)), "int64")
@@ -776,7 +776,7 @@ def test_std():
     class Expected:
         @T.prim_func(private=True)
         def std(rxplaceholder: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"), compute: T.Buffer((), "float32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
             rxplaceholder_red = T.sblock_alloc_buffer((T.int64(1), T.int64(1), T.int64(1), T.int64(1)))
             T_divide = T.sblock_alloc_buffer((T.int64(1), T.int64(1), T.int64(1), T.int64(1)))
@@ -853,7 +853,7 @@ def test_std_symbolic():
     class Expected:
         @T.prim_func(private=True)
         def std(var_rxplaceholder: T.handle, compute: T.Buffer((), "float32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             a, b, c, d = T.int64(), T.int64(), T.int64(), T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, (a, b, c, d))
             # with T.sblock("root"):
@@ -941,7 +941,7 @@ def test_variance():
 
         @T.prim_func(private=True)
         def variance(rxplaceholder: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"), T_divide: T.Buffer((T.int64(1), T.int64(3), T.int64(4), T.int64(1)), "float32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             rxplaceholder_red = T.sblock_alloc_buffer([T.int64(1), T.int64(3), T.int64(4), T.int64(1)], dtype="float32")
             T_divide_1 = T.sblock_alloc_buffer([T.int64(1), T.int64(3), T.int64(4), T.int64(1)], dtype="float32")
             T_subtract = T.sblock_alloc_buffer([T.int64(2), T.int64(3), T.int64(4), T.int64(5)], dtype="float32")
@@ -1015,7 +1015,7 @@ def test_variance_symbolic():
 
         @T.prim_func(private=True)
         def variance(var_rxplaceholder: T.handle, var_T_divide: T.handle):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             a = T.int64()
             b = T.int64()
             c = T.int64()
@@ -1086,7 +1086,7 @@ def test_variance_no_keepdims():
     class Expected:
         @T.prim_func(private=True)
         def variance(rxplaceholder: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"), T_divide: T.Buffer((T.int64(3), T.int64(4)), "float32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
             rxplaceholder_red = T.sblock_alloc_buffer((T.int64(1), T.int64(3), T.int64(4), T.int64(1)))
             T_divide_1 = T.sblock_alloc_buffer((T.int64(1), T.int64(3), T.int64(4), T.int64(1)))

@@ -23,7 +23,7 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 /*!
  * \brief Check whether the loop has any annotation
@@ -402,8 +402,8 @@ void RewriteUnroll(const Schedule& sch, int unroll_explicit, int max_step, const
     return;
   }
 
-  sch->Annotate(loop, tir::attr::pragma_auto_unroll_max_step, IntImm(DataType::Int(32), max_step));
-  sch->Annotate(loop, tir::attr::pragma_unroll_explicit,
+  sch->Annotate(loop, tirx::attr::pragma_auto_unroll_max_step, IntImm(DataType::Int(32), max_step));
+  sch->Annotate(loop, tirx::attr::pragma_unroll_explicit,
                 IntImm(DataType::Int(32), unroll_explicit));
 }
 

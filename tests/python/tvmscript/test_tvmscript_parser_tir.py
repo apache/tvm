@@ -14,27 +14,27 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Unittests for tvm.script.parser.tir"""
+"""Unittests for tvm.script.parser.tirx"""
 
 import pytest
 import tvm_ffi
 
 import tvm.testing
-from tvm import ir, tir
-from tvm.script.parser import tir as T
+from tvm import ir, tirx
+from tvm.script.parser import tirx as T
 
 
 def test_tir_buffer_proxy():
     buffer_0 = T.Buffer((128, 128), "float32")
     assert (
-        isinstance(buffer_0, tir.Buffer)
+        isinstance(buffer_0, tirx.Buffer)
         and list(buffer_0.shape) == [128, 128]
         and buffer_0.dtype == "float32"
     )
 
     buffer_1 = T.Buffer((64, 64, 64), "int32")
     assert (
-        isinstance(buffer_1, tir.Buffer)
+        isinstance(buffer_1, tirx.Buffer)
         and list(buffer_1.shape) == [64, 64, 64]
         and buffer_1.dtype == "int32"
     )
@@ -43,7 +43,7 @@ def test_tir_buffer_proxy():
 def test_tir_ptr_proxy():
     ptr_0 = T.handle("int32", "global")
     assert (
-        isinstance(ptr_0, tir.Var)
+        isinstance(ptr_0, tirx.Var)
         and ptr_0.dtype == "handle"
         and isinstance(ptr_0.type_annotation, ir.PointerType)
         and ptr_0.type_annotation.element_type == ir.PrimType("int32")
@@ -52,7 +52,7 @@ def test_tir_ptr_proxy():
 
     ptr_1 = T.handle("float32", "shared")
     assert (
-        isinstance(ptr_1, tir.Var)
+        isinstance(ptr_1, tirx.Var)
         and ptr_1.dtype == "handle"
         and isinstance(ptr_1.type_annotation, ir.PointerType)
         and ptr_1.type_annotation.element_type == ir.PrimType("float32")
@@ -498,8 +498,8 @@ def test_inferred_sinfo_with_dynamic_buffer():
         for i, j in T.grid(M, N):
             B[i * N + j] = A[i, j]
 
-    M = tvm.tir.Var("M", "int64")
-    N = tvm.tir.Var("N", "int64")
+    M = tvm.tirx.Var("M", "int64")
+    N = tvm.tirx.Var("N", "int64")
     expected = tvm.relax.FuncStructInfo(
         [
             tvm.relax.TensorStructInfo([M, N], "float32"),

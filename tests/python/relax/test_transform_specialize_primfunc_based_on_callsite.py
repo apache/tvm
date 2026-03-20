@@ -24,7 +24,7 @@ from tvm.relax.expr_functor import PyExprMutator, PyExprVisitor, mutator, visito
 from tvm.relax.transform.legalize_ops import adreno as legalize_adreno
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
-from tvm.script.parser import tir as T
+from tvm.script.parser import tirx as T
 
 
 @visitor

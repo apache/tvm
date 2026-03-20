@@ -146,7 +146,7 @@ def make_node(type_key, **kwargs):
     .. code-block:: python
 
        x = tvm.ir.make_node("ir.IntImm", dtype="int32", value=10, span=None)
-       assert isinstance(x, tvm.tir.IntImm)
+       assert isinstance(x, tvm.tirx.IntImm)
        assert x.value == 10
     """
     if type_key == "ir.DictAttrs":

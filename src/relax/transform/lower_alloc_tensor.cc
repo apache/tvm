@@ -71,7 +71,7 @@ class Mutator : public ExprMutator {
       }();
 
       PrimExpr nbytes = [&]() -> PrimExpr {
-        PrimExpr nbytes = tir::make_const(DataType::Int(64), dtype->value.bytes());
+        PrimExpr nbytes = tirx::make_const(DataType::Int(64), dtype->value.bytes());
         for (const auto& dim : shape) {
           nbytes *= dim;
         }
@@ -88,7 +88,7 @@ class Mutator : public ExprMutator {
 
       if (vdevice.defined()) {
         std::string dev_kind = vdevice.value()->target->kind->name;
-        PrimExpr dev_size = tir::make_const(DataType::Int(64), 1);
+        PrimExpr dev_size = tirx::make_const(DataType::Int(64), 1);
         if (vdevice.value()->memory_scope != "global") {
           auto device_size_handler =
               tvm::ffi::Function::GetGlobal(std::string("DeviceGetMemSize.") + dev_kind);

@@ -19,7 +19,7 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import TVMError, relax, tir
+from tvm import TVMError, relax, tirx
 from tvm.ir import Op
 from tvm.script import relax as R
 
@@ -59,8 +59,8 @@ def test_astype_infer_struct_info():
 
 def test_astype_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    m = tir.Var("m", "int64")
-    n = tir.Var("n", "int64")
+    m = tirx.Var("m", "int64")
+    n = tirx.Var("n", "int64")
     x0 = relax.Var("x", R.Tensor((m, n), "float32"))
     x1 = relax.Var("x", R.Tensor((m, n)))
 

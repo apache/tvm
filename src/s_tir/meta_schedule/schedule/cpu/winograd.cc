@@ -25,7 +25,7 @@ namespace tvm {
 namespace s_tir {
 namespace meta_schedule {
 
-using namespace tvm::tir;
+using namespace tvm::tirx;
 using s_tir::ExprRV;
 using s_tir::LoopRV;
 using s_tir::SBlockRV;
@@ -34,7 +34,7 @@ using s_tir::Schedule;
 static ffi::Array<s_tir::LoopRV> ScheduleDataPack(s_tir::Schedule sch, s_tir::SBlockRV block,
                                                   std::vector<int> tiled,
                                                   std::vector<int> unrolled) {
-  using namespace tvm::tir;
+  using namespace tvm::tirx;
   TVM_FFI_ICHECK_EQ(tiled.size(), 2);
   TVM_FFI_ICHECK_EQ(unrolled.size(), 4);
   ffi::Array<ExprRV> factors{ffi::UnsafeInit()};

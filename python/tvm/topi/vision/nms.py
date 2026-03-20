@@ -20,8 +20,8 @@
 import tvm
 from tvm import te
 from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder import tir as T
-from tvm.tir import if_then_else
+from tvm.script.ir_builder import tirx as T
+from tvm.tirx import if_then_else
 
 from .. import reduction
 from ..math import cast
@@ -60,9 +60,9 @@ def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):  # pyl
         Related index in input data.
     """
     if isinstance(score_threshold, float | int):
-        score_threshold = tvm.tir.const(score_threshold, dtype=data.dtype)
-    # id_index_const = tvm.tir.const(id_index, "int32")  # Unused
-    # score_index_const = tvm.tir.const(score_index, "int32")  # Unused
+        score_threshold = tvm.tirx.const(score_threshold, dtype=data.dtype)
+    # id_index_const = tvm.tirx.const(id_index, "int32")  # Unused
+    # score_index_const = tvm.tirx.const(score_index, "int32")  # Unused
     return (
         te.compute((data.shape[0],), lambda i: data.shape[1], name="valid_count"),
         data,
@@ -98,7 +98,7 @@ def _nms_loop(
             k = j + 1 + _k
 
             with T.If(
-                tvm.tir.all(
+                tvm.tirx.all(
                     k < nkeep,
                     out_scores[i, k] > 0,  # is the box k still valid?
                     needs_bbox_check_func(i, j, k),
@@ -113,9 +113,9 @@ def _nms_loop(
                             on_new_invalidated_box_func(i, k)
 
     with T.serial(0, batch_size) as i:
-        nkeep = if_then_else(tvm.tir.all(top_k > 0, top_k < valid_count[i]), top_k, valid_count[i])
+        nkeep = if_then_else(tvm.tirx.all(top_k > 0, top_k < valid_count[i]), top_k, valid_count[i])
 
-        with T.If(tvm.tir.all(iou_threshold > te.const(0), valid_count[i] > te.const(0))):
+        with T.If(tvm.tirx.all(iou_threshold > te.const(0), valid_count[i] > te.const(0))):
             with T.Then():
                 num_valid_boxes_local_buf = T.alloc_buffer((1,), "int32", scope="local")
                 num_valid_boxes_local = T.buffer_proxy(num_valid_boxes_local_buf)
@@ -123,7 +123,7 @@ def _nms_loop(
 
                 with T.serial(0, nkeep) as j:
                     with T.If(
-                        tvm.tir.all(
+                        tvm.tirx.all(
                             out_scores[i, j] > -1.0,  # box is still valid
                             num_valid_boxes_local[0] < max_output_size,  # haven't reached max limit
                         )
@@ -154,20 +154,20 @@ def _get_valid_box_count(scores, score_threshold):
                     elif len(score_threshold.shape) == 1 and score_threshold.shape[0] > 0:
                         score_thresh_scalar = score_thresh_buf[0]
                     else:
-                        score_thresh_scalar = tvm.tir.FloatImm("float32", 0.0)
+                        score_thresh_scalar = tvm.tirx.FloatImm("float32", 0.0)
                 else:
                     score_thresh_scalar = score_threshold
                 binary_search(i, num_boxes, scores_buf, score_thresh_scalar, valid_count_buf)
 
             return ib.get()
 
-    scores_buf = tvm.tir.decl_buffer(scores.shape, scores.dtype, "scores_buf", data_alignment=8)
-    searchsorted_buf = tvm.tir.decl_buffer(
+    scores_buf = tvm.tirx.decl_buffer(scores.shape, scores.dtype, "scores_buf", data_alignment=8)
+    searchsorted_buf = tvm.tirx.decl_buffer(
         (batch_classes,), "int32", "searchsorted", data_alignment=8
     )
 
     if hasattr(score_threshold, "shape"):
-        score_thresh_buf = tvm.tir.decl_buffer(
+        score_thresh_buf = tvm.tirx.decl_buffer(
             score_threshold.shape, score_threshold.dtype, "score_thresh_buf", data_alignment=8
         )
         return te.extern(
@@ -191,9 +191,9 @@ def _get_valid_box_count(scores, score_threshold):
                         elif len(score_threshold.shape) == 1 and score_threshold.shape[0] == 1:
                             score_thresh_tir = score_threshold[0]
                         else:
-                            score_thresh_tir = tvm.tir.FloatImm("float32", 0.0)
+                            score_thresh_tir = tvm.tirx.FloatImm("float32", 0.0)
                     else:
-                        score_thresh_tir = tvm.tir.FloatImm("float32", float(score_threshold))
+                        score_thresh_tir = tvm.tirx.FloatImm("float32", float(score_threshold))
                     binary_search(i, num_boxes, scores_buf, score_thresh_tir, valid_count_buf)
 
                 return ib.get()
@@ -236,15 +236,15 @@ def _collect_selected_indices_ir(
                 class_id = i_64 % num_class
 
                 if isinstance(max_output_boxes_per_class, int):
-                    limit = tvm.tir.min(
-                        num_detections[i], tvm.tir.IntImm("int32", max_output_boxes_per_class)
+                    limit = tvm.tirx.min(
+                        num_detections[i], tvm.tirx.IntImm("int32", max_output_boxes_per_class)
                     )
                 elif isinstance(max_output_boxes_per_class, te.Tensor):
                     if len(max_output_boxes_per_class.shape) == 0:
                         max_boxes_val = max_output_boxes_per_class[()]
                     else:
                         max_boxes_val = max_output_boxes_per_class[0]
-                    limit = tvm.tir.min(num_detections[i], max_boxes_val)
+                    limit = tvm.tirx.min(num_detections[i], max_boxes_val)
                 else:
                     limit = num_detections[i]
 
@@ -392,18 +392,18 @@ def all_class_non_max_suppression(
 
         def _sum_clamped_total():
             if isinstance(max_output_boxes_per_class, int):
-                k_expr = tvm.tir.IntImm("int32", int(max_output_boxes_per_class))
+                k_expr = tvm.tirx.IntImm("int32", int(max_output_boxes_per_class))
                 clamped = te.compute(
                     num_detections.shape,
-                    lambda i: tvm.tir.min(num_detections[i], k_expr),
+                    lambda i: tvm.tirx.min(num_detections[i], k_expr),
                     name="clamped_num",
                 )
                 return reduction.sum(cast(clamped, "int64"), axis=0)
-            if isinstance(max_output_boxes_per_class, tvm.tir.IntImm):
-                k_expr = tvm.tir.Cast("int32", max_output_boxes_per_class)
+            if isinstance(max_output_boxes_per_class, tvm.tirx.IntImm):
+                k_expr = tvm.tirx.Cast("int32", max_output_boxes_per_class)
                 clamped = te.compute(
                     num_detections.shape,
-                    lambda i: tvm.tir.min(num_detections[i], k_expr),
+                    lambda i: tvm.tirx.min(num_detections[i], k_expr),
                     name="clamped_num",
                 )
                 return reduction.sum(cast(clamped, "int64"), axis=0)
@@ -428,7 +428,7 @@ def all_class_non_max_suppression(
 
                 clamped = te.compute(
                     num_detections.shape,
-                    lambda i: tvm.tir.min(num_detections[i], kb[i]),
+                    lambda i: tvm.tirx.min(num_detections[i], kb[i]),
                     name="clamped_num",
                 )
                 return reduction.sum(cast(clamped, "int64"), axis=0)

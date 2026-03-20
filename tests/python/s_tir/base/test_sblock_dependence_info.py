@@ -23,13 +23,13 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import tir
+from tvm import tirx
 from tvm.ir import IRModule
 from tvm.s_tir import SBlockDependenceInfo
 from tvm.s_tir.sblock_scope import DepKind
-from tvm.script import tir as T
-from tvm.tir import PrimFunc
-from tvm.tir.stmt_functor import post_order_visit
+from tvm.script import tirx as T
+from tvm.tirx import PrimFunc
+from tvm.tirx.stmt_functor import post_order_visit
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
@@ -90,10 +90,10 @@ def get_sblocks(func: PrimFunc):
     blocks = {}
 
     def update_blocks(node):
-        if isinstance(node, tvm.tir.SBlock):
+        if isinstance(node, tvm.tirx.SBlock):
             blocks[node.name_hint] = node
 
-    # post_order_visit(func.body, lambda node: blocks[node.name_hint] = node if isinstance(node, tvm.tir.SBlock) else None)
+    # post_order_visit(func.body, lambda node: blocks[node.name_hint] = node if isinstance(node, tvm.tirx.SBlock) else None)
     post_order_visit(func.body, update_blocks)
     return blocks
 

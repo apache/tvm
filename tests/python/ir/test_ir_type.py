@@ -18,7 +18,7 @@
 """Test type nodes in the IR"""
 
 import tvm
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def check_json_roundtrip(node):

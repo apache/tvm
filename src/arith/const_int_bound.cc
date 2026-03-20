@@ -23,8 +23,8 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/tir/builtin.h>
-#include <tvm/tir/expr_functor.h>
+#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/expr_functor.h>
 
 #include <algorithm>
 #include <optional>
@@ -37,7 +37,7 @@
 namespace tvm {
 namespace arith {
 
-using namespace tir;
+using namespace tirx;
 
 TVM_FFI_STATIC_INIT_BLOCK() { ConstIntBoundNode::RegisterReflection(); }
 
@@ -163,7 +163,7 @@ class ConstIntBoundAnalyzer::Impl
 
   Entry VisitExpr(const PrimExpr& expr) final {
     Entry res = ExprFunctor::VisitExpr(expr);
-    tir::ExprDeepEqual equal;
+    tirx::ExprDeepEqual equal;
     // a linear search over additional info
     // assume we won't have a lot of conditions
     for (const BoundInfo& info : additional_info_) {
@@ -425,13 +425,13 @@ class ConstIntBoundAnalyzer::Impl
     // used for index calculation.
 
     auto curr_target = Target::Current();
-    if (op->op.same_as(tir::builtin::shift_right())) {
+    if (op->op.same_as(tirx::builtin::shift_right())) {
       return VisitRightShift(op);
-    } else if (op->op.same_as(tir::builtin::shift_left())) {
+    } else if (op->op.same_as(tirx::builtin::shift_left())) {
       return VisitLeftShift(op);
-    } else if (op->op.same_as(tir::builtin::bitwise_and())) {
+    } else if (op->op.same_as(tirx::builtin::bitwise_and())) {
       return VisitBitwiseAnd(op);
-    } else if (op->op.same_as(tir::builtin::vscale()) && TargetHasVLA(curr_target)) {
+    } else if (op->op.same_as(tirx::builtin::vscale()) && TargetHasVLA(curr_target)) {
       auto kVScaleValues = GetVScaleValues(curr_target);
       unsigned int max_val = *std::max_element(kVScaleValues.begin(), kVScaleValues.end());
       return MakeBound(1, max_val);
@@ -807,10 +807,10 @@ class ConstIntBoundAnalyzer::Impl
   static ffi::Optional<PrimExpr> FindCeilLog2Arg(const CastNode* op) {
     if (op->dtype.is_int()) {
       if (auto as_call = op->value.as<CallNode>()) {
-        if (as_call->op.same_as(Op::Get("tir.ceil"))) {
+        if (as_call->op.same_as(Op::Get("tirx.ceil"))) {
           PrimExpr ceil_arg = as_call->args[0];
           if (auto arg_call = ceil_arg.as<CallNode>()) {
-            if (arg_call->op.same_as(Op::Get("tir.log2"))) {
+            if (arg_call->op.same_as(Op::Get("tirx.log2"))) {
               PrimExpr log_arg = arg_call->args[0];
               return log_arg;
             }

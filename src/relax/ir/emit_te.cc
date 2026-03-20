@@ -24,7 +24,7 @@
 
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/struct_info.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
 namespace relax {
@@ -38,7 +38,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 TVM_FFI_STATIC_INIT_BLOCK() { RXPlaceholderOpNode::RegisterReflection(); }
 
-te::Tensor TETensor(Expr value, ffi::Map<tir::Var, PrimExpr> tir_var_map, std::string name) {
+te::Tensor TETensor(Expr value, ffi::Map<tirx::Var, PrimExpr> tir_var_map, std::string name) {
   auto n = ffi::make_object<RXPlaceholderOpNode>();
   n->name = name;
   n->value = value;
@@ -69,7 +69,7 @@ te::Tensor TETensor(Expr value, ffi::Map<tir::Var, PrimExpr> tir_var_map, std::s
          "match_cast "
       << "to constrain the shape before passing into te_tensor";
   n->shape = shape_expr->values.Map(
-      [&tir_var_map](const PrimExpr& e) { return tir::Substitute(e, tir_var_map); });
+      [&tir_var_map](const PrimExpr& e) { return tirx::Substitute(e, tir_var_map); });
   n->dtype = tensor_sinfo->dtype;
   return te::PlaceholderOp(n).output(0);
 }

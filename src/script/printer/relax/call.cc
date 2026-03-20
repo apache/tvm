@@ -144,7 +144,7 @@ ffi::Optional<ExprDoc> PrintCallTIRDPSPacked(const relax::Call& n, const AccessP
   if (n->op.same_as(call_dps_packed_op)) {
     return Relax(d, "call_dps_packed")->Call(args, kwargs_keys, kwargs_values);
   }
-  // Step 4. Print n->args[2], the tir variables
+  // Step 4. Print n->args[2], the tirx variables
   if (n->args.size() == 3) {
     kwargs_keys.push_back("tir_vars");
     kwargs_values.push_back(d->AsDoc<ExprDoc>(n->args[2], n_p->Attr("args")->ArrayItem(2)));

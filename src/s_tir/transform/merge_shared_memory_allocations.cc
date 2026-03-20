@@ -27,9 +27,9 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tir/expr.h>
-#include <tvm/tir/op.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/expr.h>
+#include <tvm/tirx/op.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include <list>
 #include <map>
@@ -38,11 +38,11 @@
 
 #include "../../runtime/thread_storage_scope.h"
 #include "../../support/arena.h"
-#include "../../tir/transform/ir_utils.h"
+#include "../../tirx/transform/ir_utils.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 using runtime::StorageRank;
 using runtime::StorageScope;
@@ -231,11 +231,11 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
 
   void VisitStmt_(const AttrStmtNode* op) final {
     // Only record the outer most thread extent.
-    if (op->attr_key == tir::attr::thread_extent && !in_thread_env_) {
+    if (op->attr_key == tirx::attr::thread_extent && !in_thread_env_) {
       in_thread_env_ = true;
       VisitNewScope(op);
       in_thread_env_ = false;
-    } else if (op->attr_key == tir::attr::extern_scope) {
+    } else if (op->attr_key == tirx::attr::extern_scope) {
       VisitNewScope(op);
     } else if (op->attr_key == s_tir::attr::virtual_thread) {
       VisitNewScope(op);
@@ -296,7 +296,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
 
  private:
   Stmt VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == tir::attr::thread_extent && !allocated_) {
+    if (op->attr_key == tirx::attr::thread_extent && !allocated_) {
       // Allocate one dynamic shared memory allocation at the beginning of thread scope
       int max_layer_num = 0;
       std::vector<const StorageEntry*> all_entry;
@@ -342,7 +342,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
       Stmt visited_body = StmtExprMutator::VisitStmt(op->body);
       ffi::Map<ffi::String, ffi::Any> annotations;
       if (has_volatile_alloc_) {
-        annotations.Set(tir::attr::kVolatile, Bool(true));
+        annotations.Set(tirx::attr::kVolatile, Bool(true));
       }
       Stmt alloc_stmt = AllocBuffer(merged_buf, annotations);
       Stmt new_body = SeqStmt::Flatten(alloc_stmt, visited_body);
@@ -353,7 +353,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
 
   Stmt VisitStmt_(const AllocBufferNode* op) final {
     if (IsAppropriateSharedMemory(op->buffer->data)) {
-      if (op->annotations.count(tir::attr::kVolatile)) {
+      if (op->annotations.count(tirx::attr::kVolatile)) {
         has_volatile_alloc_ = true;
       }
       return Evaluate(0);
@@ -723,7 +723,7 @@ namespace transform {
 
 Pass MergeSharedMemoryAllocations() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
-    bool merge_static_smem = ctx->GetConfig<Bool>("tir.merge_static_smem", Bool(false)).value();
+    bool merge_static_smem = ctx->GetConfig<Bool>("tirx.merge_static_smem", Bool(false)).value();
     auto* n = f.CopyOnWrite();
     n->body = s_tir::MergeSharedMemoryAllocations(std::move(n->body), merge_static_smem);
     return f;

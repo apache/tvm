@@ -703,7 +703,7 @@ TVM_REGISTER_OP("relax.index_tensor")
 
 /* relax.layout_transform */
 
-Expr layout_transform(Expr x, tir::IndexMap index_map, ffi::Optional<PrimValue> pad_value,
+Expr layout_transform(Expr x, tirx::IndexMap index_map, ffi::Optional<PrimValue> pad_value,
                       ffi::Optional<ffi::Array<IntImm>> axis_separators,
                       ffi::Optional<ffi::Array<IntImm>> input_axis_separators) {
   ObjectPtr<LayoutTransformAttrs> attrs = ffi::make_object<LayoutTransformAttrs>();
@@ -724,7 +724,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 StructInfo InferStructInfoLayoutTransform(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
   const auto* attrs = call->attrs.as<LayoutTransformAttrs>();
-  tir::IndexMap index_map = attrs->index_map;
+  tirx::IndexMap index_map = attrs->index_map;
   ffi::Optional<PrimValue> optional_pad_value = attrs->pad_value;
 
   // Check pad_value has same dtype as input.
@@ -1350,7 +1350,7 @@ InferLayoutOutput InferLayoutSqueeze(
   } else {
     axis.reserve(ndim);
     for (int i = 0; i < ndim; ++i) {
-      if (tir::is_one(shape->values[i])) {
+      if (tirx::is_one(shape->values[i])) {
         axis.push_back(Integer(i));
       }
     }
@@ -1974,7 +1974,7 @@ InferLayoutOutput InferLayoutTile(
     // Same dimension: reorder repeats according to layout transformation.
     // If len(repeats) < ndim, it's padded with 1s at the beginning.
     for (int i = 0; i < ndim; ++i) {
-      const tir::LayoutAxis& axis = existing_layout_obj[i];
+      const tirx::LayoutAxis& axis = existing_layout_obj[i];
       int pos_in_initial = initial_layout.IndexOf(axis);
       TVM_FFI_ICHECK_NE(pos_in_initial, -1) << "Axis not found in initial layout";
       // If len(repeats) < ndim, repeats are right-aligned.
@@ -1996,7 +1996,7 @@ InferLayoutOutput InferLayoutTile(
     }
     // Repeats for existing dimensions need to be permuted.
     for (int i = 0; i < ndim; ++i) {
-      const tir::LayoutAxis& axis = existing_layout_obj[i];
+      const tirx::LayoutAxis& axis = existing_layout_obj[i];
       int pos_in_initial = initial_layout.IndexOf(axis);
       TVM_FFI_ICHECK_NE(pos_in_initial, -1) << "Axis not found in initial layout";
       new_repeats.push_back(attrs->repeats[pos_in_initial + num_new_dims]);

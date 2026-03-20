@@ -20,13 +20,13 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import te, tir
+from tvm import te, tirx
 from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
-from tvm.script import tir as T
-from tvm.tir.expr import IntImm
+from tvm.script import tirx as T
+from tvm.tirx.expr import IntImm
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
@@ -705,7 +705,7 @@ def test_sve_scalable_split_predicated(num_elements):
         @T.prim_func
         def before(a: T.handle):
             A = T.match_buffer(a, (num_elements,), "float32")
-            T.func_attr({"global_symbol": "my_module", "tir.noalias": True})
+            T.func_attr({"global_symbol": "my_module", "tirx.noalias": True})
             for i in T.serial(num_elements):
                 with T.sblock("A"):
                     v_i = T.axis.remap("S", [i])
@@ -714,7 +714,7 @@ def test_sve_scalable_split_predicated(num_elements):
         @T.prim_func
         def after(a: T.handle):
             A = T.match_buffer(a, (num_elements,), "float32")
-            T.func_attr({"global_symbol": "my_module", "tir.noalias": True})
+            T.func_attr({"global_symbol": "my_module", "tirx.noalias": True})
             for i_0, i_1 in T.grid(outer_extent, T.vscale() * 4):
                 with T.sblock("A"):
                     v_i = T.axis.spatial(num_elements, i_0 * (T.vscale() * 4) + i_1)
@@ -741,7 +741,7 @@ def test_sve_scalable_split_assume_exact_multiple():
         @T.prim_func
         def before(a: T.handle):
             A = T.match_buffer(a, (128,), "float32")
-            T.func_attr({"global_symbol": "my_module", "tir.noalias": True})
+            T.func_attr({"global_symbol": "my_module", "tirx.noalias": True})
             for i in T.serial(128):
                 with T.sblock("A"):
                     v_i = T.axis.remap("S", [i])
@@ -750,7 +750,7 @@ def test_sve_scalable_split_assume_exact_multiple():
         @T.prim_func
         def after(a: T.handle):
             A = T.match_buffer(a, (128,), "float32")
-            T.func_attr({"global_symbol": "my_module", "tir.noalias": True})
+            T.func_attr({"global_symbol": "my_module", "tirx.noalias": True})
             for i_0, i_1 in T.grid(outer_extent, T.vscale() * 4):
                 with T.sblock("A"):
                     v_i = T.axis.spatial(128, i_0 * (T.vscale() * 4) + i_1)
@@ -771,7 +771,7 @@ def test_sve_split_over_scalable_loop():
     @T.prim_func
     def before(a: T.handle):
         A = T.match_buffer(a, (128,), "float32")
-        T.func_attr({"global_symbol": "my_module", "tir.noalias": True})
+        T.func_attr({"global_symbol": "my_module", "tirx.noalias": True})
         for i in T.serial(4 * T.vscale()):
             with T.sblock("A"):
                 v_i = T.axis.remap("S", [i])
@@ -780,7 +780,7 @@ def test_sve_split_over_scalable_loop():
     @T.prim_func
     def after(a: T.handle):
         A = T.match_buffer(a, (128,), "float32")
-        T.func_attr({"global_symbol": "my_module", "tir.noalias": True})
+        T.func_attr({"global_symbol": "my_module", "tirx.noalias": True})
         for i_0, i_1 in T.grid(T.vscale() * 2, T.vscale() * 2):
             with T.sblock("A"):
                 v_i = T.axis.spatial(T.vscale() * 4, i_0 * (T.vscale() * 2) + i_1)
@@ -802,7 +802,7 @@ def test_unsupported_target_scalable_split(capfd):
     @T.prim_func
     def before(a: T.handle):
         A = T.match_buffer(a, (128,), "float32")
-        T.func_attr({"global_symbol": "my_module", "tir.noalias": True})
+        T.func_attr({"global_symbol": "my_module", "tirx.noalias": True})
         for i in T.serial(128):
             with T.sblock("A"):
                 v_i = T.axis.remap("S", [i])
@@ -811,7 +811,7 @@ def test_unsupported_target_scalable_split(capfd):
     sch = tvm.s_tir.Schedule(before)
     (a,) = sch.get_loops("A")
 
-    err_msg = "The product of factors is not larger than or equal to the extent of loop tir.For#0"
+    err_msg = "The product of factors is not larger than or equal to the extent of loop tirx.For#0"
     with pytest.raises(tvm.s_tir.schedule.ScheduleError, match=err_msg):
         sch.split(a, factors=[T.ceildiv(128, 4 * T.vscale()), 4 * T.vscale()])
 

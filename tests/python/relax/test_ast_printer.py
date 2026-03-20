@@ -23,11 +23,11 @@ import numpy as np
 import tvm
 import tvm.testing
 from tvm import relax as rx
-from tvm import tir
+from tvm import tirx
 from tvm.relax.testing import dump_ast
 from tvm.relax.testing.ast_printer import ASTPrinter
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 # Overload dump_ast to test both struct info and type annotations
 dump_ast = partial(dump_ast, include_struct_info_annotations=True)
@@ -104,8 +104,8 @@ def test_dataflow_var() -> None:
 
 def test_match_cast() -> None:
     # match_cast([16, 8], [m, n])
-    m = tir.Var("m", dtype="int64")
-    n = tir.Var("n", dtype="int64")
+    m = tirx.Var("m", dtype="int64")
+    n = tirx.Var("n", dtype="int64")
     shape = rx.const([16, 8], "int32")
     var = rx.Var("v0", R.Shape())
     b0 = rx.MatchCast(var, shape, R.Tensor([m, n], "int32"))
@@ -141,8 +141,8 @@ def test_var_binding() -> None:
 
 
 def test_binding_block() -> None:
-    m = tir.Var("m", dtype="int64")
-    n = tir.Var("n", dtype="int64")
+    m = tirx.Var("m", dtype="int64")
+    n = tirx.Var("n", dtype="int64")
     shape = rx.const([16, 8], "int32")
     b0 = rx.MatchCast(rx.Var("v0"), shape, R.Tensor([m, n], "int32"))
 
@@ -160,8 +160,8 @@ def test_binding_block() -> None:
 
 
 def test_dataflow_block() -> None:
-    m = tir.Var("m", dtype="int64")
-    n = tir.Var("n", dtype="int64")
+    m = tirx.Var("m", dtype="int64")
+    n = tirx.Var("n", dtype="int64")
     shape = rx.const([16, 8], "int32")
     b0 = rx.MatchCast(rx.Var("v0"), shape, R.Tensor([m, n], "int32"))
 
@@ -195,8 +195,8 @@ def test_seq_expr() -> None:
 
 
 def test_shape_expr() -> None:
-    m = tir.Var("m", dtype="int32")
-    n = tir.Var("n", dtype="int32")
+    m = tirx.Var("m", dtype="int32")
+    n = tirx.Var("n", dtype="int32")
     s = rx.ShapeExpr([m, n])
     s_str = dump_ast(s)
     assert s_str.startswith("ShapeExpr(")
@@ -292,7 +292,7 @@ def test_struct_info():
     assert printer.visit_struct_info_(empty_ssi) == "ShapeStructInfo(ndim=-1)"
 
     # include some dimensions
-    shape_info = rx.ShapeStructInfo([tir.IntImm("int64", 1), tir.IntImm("int64", 2)])
+    shape_info = rx.ShapeStructInfo([tirx.IntImm("int64", 1), tirx.IntImm("int64", 2)])
     assert strip_whitespace(printer.visit_struct_info_(shape_info)) == strip_whitespace(
         """
         ShapeStructInfo(
@@ -650,7 +650,7 @@ def test_tuple_get_item():
 
 
 def test_prim_value():
-    prim_value = rx.PrimValue(tir.IntImm("int64", 1))
+    prim_value = rx.PrimValue(tirx.IntImm("int64", 1))
     prim_str = strip_whitespace(dump_ast(prim_value))
     assert prim_str == strip_whitespace(
         """

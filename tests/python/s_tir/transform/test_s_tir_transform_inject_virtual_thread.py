@@ -18,7 +18,7 @@
 import tvm
 import tvm.testing
 from tvm.script import ir as I
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def test_vthread():
@@ -43,7 +43,7 @@ def test_vthread():
                         "int32",
                         "Run",
                         B.access_ptr("r"),
-                        T.call_intrin("int32", "tir.tvm_context_id"),
+                        T.call_intrin("int32", "tirx.tvm_context_id"),
                     )
                 )
                 C_buf[i * nthread + vt_x] = B[i] + T.float32(1)
@@ -57,10 +57,10 @@ def test_vthread():
     allocates = []
 
     def find_allocates(node):
-        if isinstance(node, tvm.tir.AllocBuffer):
+        if isinstance(node, tvm.tirx.AllocBuffer):
             allocates.append(node)
 
-    tvm.tir.stmt_functor.post_order_visit(stmt.body, find_allocates)
+    tvm.tirx.stmt_functor.post_order_visit(stmt.body, find_allocates)
     assert len(allocates) == 1
     assert list(allocates[0].buffer.shape) == [B_expected_alloc]
 
@@ -106,10 +106,10 @@ def test_vthread_extern():
     allocates = []
 
     def find_allocates(node):
-        if isinstance(node, tvm.tir.AllocBuffer):
+        if isinstance(node, tvm.tirx.AllocBuffer):
             allocates.append(node)
 
-    tvm.tir.stmt_functor.post_order_visit(stmt.body, find_allocates)
+    tvm.tirx.stmt_functor.post_order_visit(stmt.body, find_allocates)
     assert len(allocates) == 3
     # Check that we have the expected extents (order may vary)
     extents = sorted([int(a.buffer.shape[0]) for a in allocates])
@@ -142,10 +142,10 @@ def test_vthread_if_then_else():
     if_nodes = []
 
     def find_ifs(node):
-        if isinstance(node, tvm.tir.IfThenElse):
+        if isinstance(node, tvm.tirx.IfThenElse):
             if_nodes.append(node)
 
-    tvm.tir.stmt_functor.post_order_visit(stmt.body, find_ifs)
+    tvm.tirx.stmt_functor.post_order_visit(stmt.body, find_ifs)
 
     assert len(if_nodes) == 2
     # First if has else_case, second does not
@@ -197,7 +197,7 @@ def test_vthread_vectorized():
 
     before_mod = tvm.IRModule.from_expr(before_func.with_attr("global_symbol", "main"))
     intermediate_mod = tvm.s_tir.transform.InjectVirtualThread()(before_mod)
-    after_mod = tvm.tir.transform.StorageRewrite()(intermediate_mod)
+    after_mod = tvm.tirx.transform.StorageRewrite()(intermediate_mod)
     after_func = after_mod["main"]
 
     # Verify the vectorized allocation has the expected shape and dtype
@@ -205,10 +205,10 @@ def test_vthread_vectorized():
 
     def visitor(op):
         nonlocal allocate_node
-        if isinstance(op, tvm.tir.AllocBuffer) and "shared" in str(op.buffer.data.type_annotation):
+        if isinstance(op, tvm.tirx.AllocBuffer) and "shared" in str(op.buffer.data.type_annotation):
             allocate_node = op
 
-    tvm.tir.stmt_functor.post_order_visit(after_func.body, visitor)
+    tvm.tirx.stmt_functor.post_order_visit(after_func.body, visitor)
     assert allocate_node is not None
     assert list(allocate_node.buffer.shape) == [4]
     assert allocate_node.buffer.dtype == "int32x4"

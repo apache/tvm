@@ -19,13 +19,13 @@
 
 #include <unordered_set>
 
-#include "../../../tir/analysis/var_use_def_analysis.h"
-#include "../../../tir/transform/ir_utils.h"
+#include "../../../tirx/analysis/var_use_def_analysis.h"
+#include "../../../tirx/transform/ir_utils.h"
 #include "../utils.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 /******** Error Classes ********/
 

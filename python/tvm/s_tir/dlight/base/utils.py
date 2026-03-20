@@ -17,7 +17,7 @@
 # pylint: disable=missing-docstring
 """Utility methods for generic GPU."""
 
-from tvm import DataType, s_tir, tir
+from tvm import DataType, s_tir, tirx
 from tvm.target import Target
 
 
@@ -28,8 +28,8 @@ def get_bytes(dtype: DataType | str) -> int:
 
 
 def get_extent(sch: s_tir.Schedule, loop_rv: s_tir.schedule.LoopRV):
-    loop: tir.For = sch.get(loop_rv)
-    return loop.extent.value if isinstance(loop.extent, tir.IntImm) else loop.extent
+    loop: tirx.For = sch.get(loop_rv)
+    return loop.extent.value if isinstance(loop.extent, tirx.IntImm) else loop.extent
 
 
 def auto_vectorize(sch: s_tir.Schedule, loop: s_tir.schedule.LoopRV, max_vec: int):
@@ -65,7 +65,7 @@ def max_threads_per_block(target: Target) -> int:
 
 def suggest_threads_per_block(
     target: Target,
-    loops: list[tir.For],
+    loops: list[tirx.For],
     max_threads_for_dynamic_loop: int = 32,
 ) -> list[int]:
     if target.kind.name == "cuda":
@@ -82,7 +82,7 @@ def suggest_threads_per_block(
     dynamic: list[int] = []
     for i, loop in enumerate(loops):
         loop_extent = loop.extent
-        if isinstance(loop_extent, tir.IntImm):
+        if isinstance(loop_extent, tirx.IntImm):
             loop_extent = loop_extent.value
             extent = 1
             while extent <= loop_extent and extent <= threads:

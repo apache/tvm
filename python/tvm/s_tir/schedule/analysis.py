@@ -19,10 +19,10 @@
 import tvm_ffi
 
 from tvm.runtime import Object
-from tvm.tir.buffer import Buffer
-from tvm.tir.expr import PrimExpr
-from tvm.tir.function import IndexMap, PrimFunc
-from tvm.tir.stmt import For
+from tvm.tirx.buffer import Buffer
+from tvm.tirx.expr import PrimExpr
+from tvm.tirx.function import IndexMap, PrimFunc
+from tvm.tirx.stmt import For
 
 from . import _ffi_api
 from .schedule import SBlockRV, Schedule

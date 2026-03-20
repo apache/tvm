@@ -25,7 +25,7 @@ import tvm_ffi
 
 import tvm
 from tvm import relax as rx
-from tvm import tir
+from tvm import tirx
 from tvm.ir.module import IRModule
 from tvm.runtime import Object
 
@@ -87,10 +87,10 @@ class TestingScope:
         self._bb = block_builder
         shape_vars = []
         for var in def_vars:
-            if isinstance(var, tvm.tir.Var):
+            if isinstance(var, tvm.tirx.Var):
                 shape_vars.append(var)
             else:
-                raise ValueError("def_vars only can take tir.Var")
+                raise ValueError("def_vars only can take tirx.Var")
         # setup a dummy var so shape is in scope.
         sparam = rx.Var("sparam", rx.ShapeStructInfo(shape_vars))
         self._scope_params = [sparam]
@@ -112,8 +112,8 @@ class BlockBuilder(Object):
     --------
     .. code-block:: python
 
-        m = tir.Var("m", "int32")
-        n = tir.Var("n", "int32")
+        m = tirx.Var("m", "int32")
+        n = tirx.Var("n", "int32")
         x = rx.Var("x", rx.TensorStructInfo([m, n], "float16"))
         y = rx.Var("y", rx.TensorStructInfo([n], "float16")
         bb = rx.BlockBuilder()
@@ -131,7 +131,7 @@ class BlockBuilder(Object):
 
         from tvm.relax.testing import nn
 
-        n = tir.Var("n", "int64")
+        n = tirx.Var("n", "int64")
         input_size = 784
         hidden_sizes = [128, 32]
         output_size = 10
@@ -263,12 +263,12 @@ class BlockBuilder(Object):
 
         return FunctionScope(self, name, params, attrs, is_pure=pure)
 
-    def testing_scope(self, def_vars: list[tir.Var]) -> TestingScope:
+    def testing_scope(self, def_vars: list[tirx.Var]) -> TestingScope:
         """Start a scope for unit-testing purposes.
 
         Parameters
         ----------
-        def_vars: List[tir.Var]
+        def_vars: List[tirx.Var]
             List of symbolic variables that are marked as defined in scope.
 
         Returns
@@ -453,7 +453,7 @@ class BlockBuilder(Object):
         .. code-block:: python
 
             bb = rx.BlockBuilder()
-            n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+            n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
             x = rx.Var("x", rx.TensorStructInfo([n, m], "float32"))
             y = rx.Var("y", rx.TensorStructInfo([n, m], "float32"))
 
@@ -476,7 +476,7 @@ class BlockBuilder(Object):
                 def te_func(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle,
                             var_compute: T.handle) -> None:
                     # function attr dict
-                    T.func_attr({"tir.noalias": True})
+                    T.func_attr({"tirx.noalias": True})
                     m = T.int64()
                     n = T.int64()
                     rxplaceholder = T.match_buffer(var_rxplaceholder, [n, m], dtype="float32")
@@ -503,7 +503,7 @@ class BlockBuilder(Object):
         .. code-block:: python
 
             bb = relax.BlockBuilder()
-            n = tir.Var("n", "int64")
+            n = tirx.Var("n", "int64")
             x = relax.Var("x", relax.TensorStructInfo([n], "float32"))
             y = relax.Var("y", relax.TensorStructInfo([n + 1], "float32"))
 

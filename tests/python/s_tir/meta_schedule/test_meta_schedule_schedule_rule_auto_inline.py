@@ -24,7 +24,7 @@ from tvm.ir.base import assert_structural_equal
 from tvm.s_tir import Schedule
 from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.meta_schedule.testing.space_generation import generate_design_space
-from tvm.script import tir as T
+from tvm.script import tirx as T
 from tvm.target import Target
 
 # fmt: off
@@ -254,7 +254,7 @@ class BeforePureSpatial:
         placeholder_2: T.Buffer((1, 384, 768), "float32"),
         T_add: T.Buffer((1, 384, 768), "float32"),
     ) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         compile_engine_const = T.sblock_alloc_buffer([], dtype="int64")
         T_less = T.sblock_alloc_buffer([1, 384], dtype="bool")
         compile_engine_const_1 = T.sblock_alloc_buffer([], dtype="int64")
@@ -315,7 +315,7 @@ class AfterPureSpatial:
     @T.prim_func
     def main(placeholder: T.Buffer((1, 384), "int64"), placeholder_1: T.Buffer((30522, 768), "float32"), placeholder_2: T.Buffer((1, 384, 768), "float32"), T_add: T.Buffer((1, 384, 768), "float32")) -> None:
         # function attr dict
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # body
         # with T.sblock("root")
         for i0, i1, i2 in T.grid(1, 384, 768):
@@ -330,7 +330,7 @@ class ConstConsumer:
     @T.prim_func
     def main(T_full: T.Buffer((1, 12, 4096), "int64")) -> None:
         # function attr dict
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # body
         # with T.sblock("root")
         for i0, i1, i2 in T.grid(1, 12, 4096):
@@ -346,7 +346,7 @@ class Conv2dInt8:
     @T.prim_func
     def main(p0: T.Buffer((16, 14, 14, 256), "int8"), p1: T.Buffer((1024, 1, 1, 256), "int8"), p2: T.Buffer((1, 1, 1, 1024), "int32"), p3: T.Buffer((1, 1, 1, 1024), "int32"), p4: T.Buffer(1024, "int32"), p5: T.Buffer(1024, "int32"), p6: T.Buffer(1024, "int32"), p7: T.Buffer(1, "int32"), p8: T.Buffer((16, 14, 14, 1024), "int32"), compute: T.Buffer((16, 14, 14, 1024), "int32")) -> None:
         # function attr dict
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # body
         # with T.sblock("root")
         compile_engine_const = T.sblock_alloc_buffer([], dtype="int32")

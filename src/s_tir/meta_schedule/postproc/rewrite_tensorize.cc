@@ -32,13 +32,13 @@ using s_tir::LoopRV;
 using s_tir::SBlockRV;
 
 void CollectTensorizationJobs(
-    const s_tir::Schedule& sch, const ffi::String& func_name, const tir::PrimFuncNode* func,
+    const s_tir::Schedule& sch, const ffi::String& func_name, const tirx::PrimFuncNode* func,
     bool vectorize_init_loop,
     std::vector<std::tuple<ffi::String, ffi::String, std::function<void(s_tir::SBlockRV)>>>* jobs) {
-  tir::PostOrderVisit(func->body, [=, &jobs](const ObjectRef& obj) {
-    if (const auto* block = obj.as<tir::SBlockNode>()) {
-      tir::StmtSRef block_sref = sch->GetSRef(block);
-      std::string block_name = block_sref->StmtAs<tir::SBlockNode>()->name_hint;
+  tirx::PostOrderVisit(func->body, [=, &jobs](const ObjectRef& obj) {
+    if (const auto* block = obj.as<tirx::SBlockNode>()) {
+      tirx::StmtSRef block_sref = sch->GetSRef(block);
+      std::string block_name = block_sref->StmtAs<tirx::SBlockNode>()->name_hint;
       if (ffi::Optional<ffi::String> intrin_name =
               s_tir::GetAnn<ffi::String>(block_sref, s_tir::attr::meta_schedule_auto_tensorize)) {
         if (intrin_name.value() != "") {
@@ -91,7 +91,7 @@ bool RewriteTensorizeNode::Apply(const s_tir::Schedule& sch) {
   for (const auto& kv : sch->mod()->functions) {
     GlobalVar g_var = kv.first;
     BaseFunc base_func = kv.second;
-    if (const tir::PrimFuncNode* prim_func = base_func.as<tir::PrimFuncNode>()) {
+    if (const tirx::PrimFuncNode* prim_func = base_func.as<tirx::PrimFuncNode>()) {
       CollectTensorizationJobs(sch, g_var->name_hint, prim_func, vectorize_init_loop, &jobs);
     }
   }

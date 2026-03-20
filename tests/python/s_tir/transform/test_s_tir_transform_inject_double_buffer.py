@@ -19,7 +19,7 @@
 import tvm
 import tvm.testing
 from tvm.script import ir as I
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def test_double_buffer():
@@ -44,7 +44,7 @@ def test_double_buffer():
     mod = Module
 
     opt = tvm.transform.Sequential(
-        [tvm.s_tir.transform.InjectDoubleBuffer(), tvm.tir.transform.Simplify()]
+        [tvm.s_tir.transform.InjectDoubleBuffer(), tvm.tirx.transform.Simplify()]
     )
 
     with tvm.transform.PassContext(config={"s_tir.InjectDoubleBuffer": {"split_loop": 2}}):
@@ -56,10 +56,10 @@ def test_double_buffer():
 
     def visitor(op):
         nonlocal allocate_node
-        if isinstance(op, tvm.tir.AllocBuffer) and "B" in str(op.buffer.data):
+        if isinstance(op, tvm.tirx.AllocBuffer) and "B" in str(op.buffer.data):
             allocate_node = op
 
-    tvm.tir.stmt_functor.post_order_visit(stmt, visitor)
+    tvm.tirx.stmt_functor.post_order_visit(stmt, visitor)
     assert allocate_node is not None
     assert list(allocate_node.buffer.shape) == [m * 2]
 
@@ -67,10 +67,10 @@ def test_double_buffer():
     count = [0]
 
     def count_sync(op):
-        if isinstance(op, tvm.tir.Call) and op.op.same_as(tvm.ir.Op.get("tir.tvm_storage_sync")):
+        if isinstance(op, tvm.tirx.Call) and op.op.same_as(tvm.ir.Op.get("tirx.tvm_storage_sync")):
             count[0] += 1
 
-    tvm.tir.stmt_functor.post_order_visit(f.body, count_sync)
+    tvm.tirx.stmt_functor.post_order_visit(f.body, count_sync)
     assert count[0] == 4
 
 
@@ -78,7 +78,7 @@ def test_double_buffer_transform():
     transform = tvm.ir.transform.Sequential(
         [
             tvm.s_tir.transform.InjectDoubleBuffer(),
-            tvm.tir.transform.Simplify(),
+            tvm.tirx.transform.Simplify(),
         ]
     )
 
@@ -104,10 +104,10 @@ def test_double_buffer_transform():
 
     def visitor(op):
         nonlocal allocate_node
-        if isinstance(op, tvm.tir.AllocBuffer):
+        if isinstance(op, tvm.tirx.AllocBuffer):
             allocate_node = op
 
-    tvm.tir.stmt_functor.post_order_visit(After["main"].body, visitor)
+    tvm.tirx.stmt_functor.post_order_visit(After["main"].body, visitor)
     assert allocate_node is not None
     assert list(allocate_node.buffer.shape) == [64]
 
@@ -118,7 +118,7 @@ def test_double_buffer_with_decl_buffer():
     transform = tvm.ir.transform.Sequential(
         [
             tvm.s_tir.transform.InjectDoubleBuffer(),
-            tvm.tir.transform.Simplify(),
+            tvm.tirx.transform.Simplify(),
         ]
     )
 

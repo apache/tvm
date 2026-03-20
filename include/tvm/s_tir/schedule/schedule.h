@@ -22,11 +22,11 @@
 #include <tvm/s_tir/schedule/state.h>
 #include <tvm/s_tir/schedule/trace.h>
 #include <tvm/support/random_engine.h>
-#include <tvm/tir/index_map.h>
+#include <tvm/tirx/index_map.h>
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 /*! \brief The level of detailed error message rendering */
 enum class ScheduleErrorRenderLevel : int32_t {

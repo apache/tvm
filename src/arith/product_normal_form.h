@@ -24,8 +24,8 @@
 #ifndef TVM_ARITH_PRODUCT_NORMAL_FORM_H_
 #define TVM_ARITH_PRODUCT_NORMAL_FORM_H_
 
-#include <tvm/tir/expr.h>
-#include <tvm/tir/op.h>
+#include <tvm/tirx/expr.h>
+#include <tvm/tirx/op.h>
 
 namespace tvm {
 namespace arith {
@@ -54,10 +54,10 @@ inline void UnpackReduction(const PrimExpr& value, FLeaf fleaf) {
  */
 template <typename FLeaf>
 inline void UnpackSum(const PrimExpr& value, FLeaf fleaf, int sign = 1) {
-  if (const tir::AddNode* node = value.as<tir::AddNode>()) {
+  if (const tirx::AddNode* node = value.as<tirx::AddNode>()) {
     UnpackSum(node->a, fleaf, sign);
     UnpackSum(node->b, fleaf, sign);
-  } else if (const tir::SubNode* node = value.as<tir::SubNode>()) {
+  } else if (const tirx::SubNode* node = value.as<tirx::SubNode>()) {
     UnpackSum(node->a, fleaf, sign);
     UnpackSum(node->b, fleaf, -sign);
   } else {
@@ -79,7 +79,7 @@ inline void UnpackSum(const PrimExpr& value, FLeaf fleaf, int sign = 1) {
  */
 inline PrimExpr MulAndNormalize(const PrimExpr& lhs, const PrimExpr& rhs) {
   int64_t cscale = 1;
-  PrimExpr res = tir::make_const(lhs.dtype(), 1);
+  PrimExpr res = tirx::make_const(lhs.dtype(), 1);
   auto fcollect = [&](PrimExpr val) {
     if (const auto* intimm = val.as<IntImmNode>()) {
       cscale *= intimm->value;
@@ -87,10 +87,10 @@ inline PrimExpr MulAndNormalize(const PrimExpr& lhs, const PrimExpr& rhs) {
       res = res * val;
     }
   };
-  UnpackReduction<tir::MulNode>(lhs, fcollect);
-  UnpackReduction<tir::MulNode>(rhs, fcollect);
+  UnpackReduction<tirx::MulNode>(lhs, fcollect);
+  UnpackReduction<tirx::MulNode>(rhs, fcollect);
   if (cscale != 1) {
-    res = res * tir::make_const(res.dtype(), cscale);
+    res = res * tirx::make_const(res.dtype(), cscale);
   }
   return res;
 }

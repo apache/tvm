@@ -25,16 +25,16 @@
 #include <tvm/arith/int_solver.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/tir/expr.h>
-#include <tvm/tir/expr_functor.h>
-#include <tvm/tir/op.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/expr.h>
+#include <tvm/tirx/expr_functor.h>
+#include <tvm/tirx/op.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include <algorithm>
 #include <unordered_map>
 #include <utility>
 
-#include "../tir/transform/ir_utils.h"
+#include "../tirx/transform/ir_utils.h"
 
 namespace tvm {
 namespace arith {
@@ -86,11 +86,11 @@ IntGroupBounds::IntGroupBounds(PrimExpr coef, ffi::Array<PrimExpr> lower,
 
 IntGroupBounds IntGroupBounds::FromRange(const Range& r) {
   Analyzer analyzer;
-  PrimExpr coef = tir::make_const(r->min.dtype(), 1);
+  PrimExpr coef = tirx::make_const(r->min.dtype(), 1);
   ffi::Array<PrimExpr> equal;
   ffi::Array<PrimExpr> lower;
   ffi::Array<PrimExpr> upper;
-  if (tir::is_one(r->extent)) {
+  if (tirx::is_one(r->extent)) {
     equal.push_back(r->min);
   } else {
     lower.push_back(r->min);
@@ -105,7 +105,7 @@ IntGroupBounds IntGroupBounds::operator+(const Range& r) {
   ffi::Array<PrimExpr> lower;
   ffi::Array<PrimExpr> upper;
   const PrimExpr& coef = operator->()->coef;
-  if (tir::is_one(r->extent)) {
+  if (tirx::is_one(r->extent)) {
     equal.push_back(analyzer.Simplify(r->min * coef));
   } else {
     lower.push_back(analyzer.Simplify(r->min * coef));
@@ -118,11 +118,11 @@ IntGroupBounds IntGroupBounds::operator+(const Range& r) {
 }
 
 IntGroupBounds IntGroupBounds::Substitute(const ffi::Map<Var, PrimExpr>& subst) const {
-  auto apply_fun = [&subst](const PrimExpr& e) { return tir::Substitute(e, subst); };
-  return IntGroupBounds(tir::Substitute(operator->()->coef, subst),
-                        tir::UpdateArray(operator->()->lower, apply_fun),
-                        tir::UpdateArray(operator->()->equal, apply_fun),
-                        tir::UpdateArray(operator->()->upper, apply_fun));
+  auto apply_fun = [&subst](const PrimExpr& e) { return tirx::Substitute(e, subst); };
+  return IntGroupBounds(tirx::Substitute(operator->()->coef, subst),
+                        tirx::UpdateArray(operator->()->lower, apply_fun),
+                        tirx::UpdateArray(operator->()->equal, apply_fun),
+                        tirx::UpdateArray(operator->()->upper, apply_fun));
 }
 
 Range IntGroupBounds::FindBestRange(const ffi::Map<Var, Range>& vranges_addl) const {
@@ -146,7 +146,7 @@ Range IntGroupBounds::FindBestRange(const ffi::Map<Var, Range>& vranges_addl) co
     uppers.push_back(expr);
   }
 
-  if (lowers.size() == 1 && uppers.size() == 1 && tir::is_one(coef)) {
+  if (lowers.size() == 1 && uppers.size() == 1 && tirx::is_one(coef)) {
     return Range(analyzer.Simplify(lowers[0]), analyzer.Simplify(uppers[0] + 1));
   }
 

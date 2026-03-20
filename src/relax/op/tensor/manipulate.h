@@ -72,7 +72,7 @@ Expr flatten(Expr x);
  * \param input axis_separators Array of values for input buffer.
  * \return The transformed result.
  */
-Expr layout_transform(Expr x, tir::IndexMap index_map, ffi::Optional<PrimValue> pad_value,
+Expr layout_transform(Expr x, tirx::IndexMap index_map, ffi::Optional<PrimValue> pad_value,
                       ffi::Optional<ffi::Array<IntImm>> axis_separators,
                       ffi::Optional<ffi::Array<IntImm>> input_axis_separators = std::nullopt);
 

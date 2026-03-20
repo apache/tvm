@@ -16,9 +16,9 @@
 # under the License.
 """ScatterElements operator"""
 
-from tvm import te, tir
+from tvm import te, tirx
 from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder import tir as T
+from tvm.script.ir_builder import tirx as T
 
 from . import utils
 from .math import cast
@@ -139,10 +139,10 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
         dst_ptr[dst_index] = (dst_ptr[dst_index] + update) / 2
 
     def min_func(dst_ptr, dst_index, update):
-        dst_ptr[dst_index] = tir.min(dst_ptr[dst_index], update)
+        dst_ptr[dst_index] = tirx.min(dst_ptr[dst_index], update)
 
     def max_func(dst_ptr, dst_index, update):
-        dst_ptr[dst_index] = tir.max(dst_ptr[dst_index], update)
+        dst_ptr[dst_index] = tirx.max(dst_ptr[dst_index], update)
 
     reduce_func = None
     if reduction == "update":
@@ -162,7 +162,7 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
             "scatter_elements reduction not in [update, add, mul, mean, min, max]:", reduction
         )
 
-    out_buf = tir.decl_buffer(data.shape, data.dtype, "out_buf")
+    out_buf = tirx.decl_buffer(data.shape, data.dtype, "out_buf")
     return te.extern(
         [data.shape],
         [data, indices, updates],

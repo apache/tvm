@@ -22,7 +22,7 @@ namespace tvm {
 namespace s_tir {
 namespace meta_schedule {
 
-using namespace tvm::tir;
+using namespace tvm::tirx;
 using s_tir::ExprRV;
 using s_tir::LoopRV;
 using s_tir::SBlockRV;

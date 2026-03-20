@@ -23,11 +23,11 @@ import pytest
 
 import tvm.testing
 from tvm import relax as rx
-from tvm import tir
+from tvm import tirx
 from tvm.relax.analysis import get_var2val
 from tvm.relax.dpl import *
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 @tvm.script.ir_module
@@ -242,7 +242,7 @@ def test_shape_pattern():
     tvm.ir.structural_equal(pattern.shape, shape)
     assert pattern.match(bindings[0].var)
     assert wildcard().has_shape([32, 32]).match(bindings[0].var)
-    n, m = tir.Var("n", dtype="int64"), tir.Var("m", dtype="int64")
+    n, m = tirx.Var("n", dtype="int64"), tirx.Var("m", dtype="int64")
     symsh_var = rx.Var("x", R.Tensor([n, m, n + m], "float32"))
     assert wildcard().has_shape([n, m, n + m]).match(symsh_var)
     assert wildcard().has_shape([n, m, m + n]).match(symsh_var)  # + is commutative.
@@ -261,7 +261,7 @@ def test_prim_arr_pattern():
     assert pattern[1] == 32
     assert isinstance(pattern, PrimArrPattern)
     assert pattern.match(rx.get_shape_of(bindings[0].var))
-    n, m = tir.Var("n", dtype="int64"), tir.Var("m", dtype="int64")
+    n, m = tirx.Var("n", dtype="int64"), tirx.Var("m", dtype="int64")
     symbolic_shape = rx.ShapeExpr([n, m, n + m])
     assert is_shape([n, m, n + m]).match(symbolic_shape)
     assert not is_shape([n, m, n * m]).match(symbolic_shape)
@@ -1629,9 +1629,9 @@ def test_iterative_rewrite_without_trivial_binding():
 
         size = arg.struct_info.shape[0]
         if (
-            isinstance(size, tir.IntImm)
-            and isinstance(begin, tir.IntImm)
-            and isinstance(end, tir.IntImm)
+            isinstance(size, tirx.IntImm)
+            and isinstance(begin, tirx.IntImm)
+            and isinstance(end, tirx.IntImm)
         ):
             size = size.value
             begin = begin.value
@@ -1891,8 +1891,8 @@ def test_wildcard_struct_info_with_symbolic_vars():
     broadcasted `R.add`.
     """
 
-    m = tir.Var("m", "int64")
-    n = tir.Var("n", "int64")
+    m = tirx.Var("m", "int64")
+    n = tirx.Var("n", "int64")
 
     pat_lhs = wildcard().has_struct_info(R.Tensor([m, n]))
     pat_rhs = wildcard().has_struct_info(R.Tensor([m, n]))

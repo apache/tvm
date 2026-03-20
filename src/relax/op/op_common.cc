@@ -189,12 +189,12 @@ bool CanProveLayoutTransform(const Layout& input_layout, const Layout& desired_l
                              ffi::Array<PrimExpr> shape) {
   bool can_prove = true;
   try {
-    tir::BijectiveLayout todesired(input_layout, desired_layout);
+    tirx::BijectiveLayout todesired(input_layout, desired_layout);
     ffi::Array<PrimExpr> desired_shape = todesired.ForwardShape(shape);
     ffi::Array<PrimExpr> back_shape = todesired.BackwardShape(desired_shape);
     arith::Analyzer analyzer;
     for (size_t i = 0; i < shape.size(); ++i) {
-      if (tir::is_const_int(shape[i])) {
+      if (tirx::is_const_int(shape[i])) {
         if (!analyzer.CanProveEqual(shape[i], back_shape[i])) {
           can_prove = false;
           break;

@@ -22,7 +22,7 @@
 #include "./utils.h"
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 TVM_FFI_STATIC_INIT_BLOCK() { ScheduleStateNode::RegisterReflection(); }
 
@@ -817,7 +817,7 @@ class ChildReplacer : private StmtMutator {
   int seq_index_;
 };
 
-void ScheduleStateNode::Replace(const tir::StmtSRef& _src_sref, const Stmt& tgt_stmt,
+void ScheduleStateNode::Replace(const tirx::StmtSRef& _src_sref, const Stmt& tgt_stmt,
                                 const ffi::Map<SBlock, SBlock>& _block_sref_reuse) {
   if (this->debug_mask != 0) {
     const StmtNode* src_stmt = _src_sref->stmt;

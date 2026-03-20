@@ -29,8 +29,8 @@
 #include <llvm/IR/Intrinsics.h>
 #include <tvm/ffi/function.h>
 #include <tvm/target/codegen.h>
-#include <tvm/tir/builtin.h>
-#include <tvm/tir/expr.h>
+#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/expr.h>
 
 #include "llvm_instance.h"
 
@@ -39,7 +39,7 @@ namespace codegen {
 // num_signature means number of arguments used to query signature
 template <unsigned id, int num_signature>
 inline PrimExpr DispatchLLVMPureIntrin(const PrimExpr& e) {
-  const tir::CallNode* call = e.as<tir::CallNode>();
+  const tirx::CallNode* call = e.as<tirx::CallNode>();
   TVM_FFI_ICHECK(call != nullptr);
   ffi::Array<PrimExpr> cargs;
   // intrin id.
@@ -51,12 +51,12 @@ inline PrimExpr DispatchLLVMPureIntrin(const PrimExpr& e) {
   for (PrimExpr arg : call->args) {
     cargs.push_back(arg);
   }
-  return tir::Call(call->dtype, tir::builtin::call_llvm_pure_intrin(), cargs);
+  return tirx::Call(call->dtype, tirx::builtin::call_llvm_pure_intrin(), cargs);
 }
 
 template <unsigned id, int num_signature>
 inline PrimExpr DispatchLLVMIntrin(const PrimExpr& e) {
-  const tir::CallNode* call = e.as<tir::CallNode>();
+  const tirx::CallNode* call = e.as<tirx::CallNode>();
   TVM_FFI_ICHECK(call != nullptr);
   ffi::Array<PrimExpr> cargs;
   // intrin id.
@@ -67,7 +67,7 @@ inline PrimExpr DispatchLLVMIntrin(const PrimExpr& e) {
   for (PrimExpr arg : call->args) {
     cargs.push_back(arg);
   }
-  return tir::Call(call->dtype, tir::builtin::call_llvm_intrin(), cargs);
+  return tirx::Call(call->dtype, tirx::builtin::call_llvm_intrin(), cargs);
 }
 
 }  // namespace codegen

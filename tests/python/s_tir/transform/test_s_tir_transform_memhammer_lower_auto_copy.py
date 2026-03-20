@@ -22,7 +22,7 @@ import pytest
 
 import tvm
 from tvm import s_tir
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 @tvm.script.ir_module
@@ -1138,7 +1138,7 @@ def verify_single_allocation(stmt, alloc_size=None):
 
     def verify(n):
         if (
-            isinstance(n, tvm.tir.SBlock)
+            isinstance(n, tvm.tirx.SBlock)
             and n.alloc_buffers is not None
             and (True in ((buf.scope() == "shared.dyn") for buf in n.alloc_buffers))
         ):
@@ -1146,7 +1146,7 @@ def verify_single_allocation(stmt, alloc_size=None):
             for buf in n.alloc_buffers:
                 alloc_extents.append(buf.shape)
 
-    tvm.tir.stmt_functor.post_order_visit(stmt, verify)
+    tvm.tirx.stmt_functor.post_order_visit(stmt, verify)
     assert num_alloc[0] == 1
 
     if alloc_size:
@@ -1162,7 +1162,7 @@ def verify_single_allocation(stmt, alloc_size=None):
 
 def test_auto_padding():
     mod = tvm.s_tir.transform.LowerAutoCopy()(Transpose)
-    mod = tvm.tir.transform.FlattenBuffer()(mod)
+    mod = tvm.tirx.transform.FlattenBuffer()(mod)
     verify_single_allocation(mod["main"].body, 16 * 130)
 
 

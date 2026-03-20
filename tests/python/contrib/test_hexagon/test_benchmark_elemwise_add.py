@@ -27,7 +27,7 @@ import pytest
 import tvm.script
 import tvm.testing
 from tvm.contrib.hexagon.session import Session
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 from . import benchmark_util as bu
 from .infrastructure import get_hexagon_target
@@ -144,7 +144,7 @@ def _get_irmod_elemwise_add(shape: list, dtype: str, mem_scope: str) -> tvm.ir.m
         @T.prim_func
         def main(a: T.handle, b: T.handle, c: T.handle):
             # We exchange data between function by handles, which are similar to pointer.
-            T.func_attr({"global_symbol": "main", "tir.noalias": True})
+            T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 
             A = T.match_buffer(a, shape, dtype=dtype)
             B = T.match_buffer(b, shape, dtype=dtype)

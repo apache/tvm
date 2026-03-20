@@ -102,7 +102,7 @@ class GlobalVar(RelaxExpr):
             return relax.Call(self, args)
 
         elif all(isinstance(x, Number | PrimExpr) for x in args):
-            return tvm.tir.call_tir(self, *args)
+            return tvm.tirx.call_tir(self, *args)
 
         arg_types = [type(x) for x in args]
         raise RuntimeError(f"Do not know how to handle GlobalVar.__call__ for types {arg_types}")

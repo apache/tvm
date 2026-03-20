@@ -43,13 +43,13 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/ir/module.h>
 #include <tvm/target/codegen.h>
-#include <tvm/tir/analysis.h>
-#include <tvm/tir/expr.h>
-#include <tvm/tir/function.h>
-#include <tvm/tir/op.h>
-#include <tvm/tir/op_attr_types.h>
-#include <tvm/tir/stmt.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/analysis.h>
+#include <tvm/tirx/expr.h>
+#include <tvm/tirx/function.h>
+#include <tvm/tirx/op.h>
+#include <tvm/tirx/op_attr_types.h>
+#include <tvm/tirx/stmt.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include <algorithm>
 #include <memory>
@@ -61,7 +61,7 @@
 #include <vector>
 
 #include "../../runtime/thread_storage_scope.h"
-#include "../../tir/transform/ir_utils.h"
+#include "../../tirx/transform/ir_utils.h"
 #include "codegen_params.h"
 #include "llvm_instance.h"
 
@@ -86,7 +86,7 @@ class MDBuilder;
 namespace tvm {
 namespace codegen {
 
-using namespace tir;
+using namespace tirx;
 
 /*!
  * \brief A base class to generate a LLVM.

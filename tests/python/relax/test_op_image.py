@@ -18,7 +18,7 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import TVMError, relax, tir
+from tvm import TVMError, relax, tirx
 from tvm.ir import Op, VDevice
 from tvm.script import relax as R
 
@@ -105,12 +105,12 @@ def test_resize2d_infer_struct_info():
 
 def test_resize2d_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    n = tir.Var("n", "int64")
-    c = tir.Var("c", "int64")
-    ih = tir.Var("ih", "int64")
-    iw = tir.Var("iw", "int64")
-    oh = tir.Var("oh", "int64")
-    ow = tir.Var("ow", "int64")
+    n = tirx.Var("n", "int64")
+    c = tirx.Var("c", "int64")
+    ih = tirx.Var("ih", "int64")
+    iw = tirx.Var("iw", "int64")
+    oh = tirx.Var("oh", "int64")
+    ow = tirx.Var("ow", "int64")
     x0 = relax.Var("x", R.Tensor((n, c, ih, iw), "float32"))
     x1 = relax.Var("x", R.Tensor((n, c, ih, iw, 16), "float32"))
 

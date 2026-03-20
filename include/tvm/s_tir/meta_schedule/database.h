@@ -196,7 +196,7 @@ class DatabaseNode : public runtime::Object {
    *    - "anchor-block": Apply equality testing and hashing on the anchor block extracted from a
    *                      given module. The "ignore-tensor" varint is used for the extracted blocks
    *                      or in case no anchor block is found.
-   *                      For the definition of the anchor block, see tvm/tir/analysis.h.
+   *                      For the definition of the anchor block, see tvm/tirx/analysis.h.
    */
   explicit DatabaseNode(ffi::String mod_eq_name = "structural");
 
@@ -295,7 +295,7 @@ class PyDatabaseNode : public DatabaseNode {
    *    - "anchor-block": Apply equality testing and hashing on the anchor block extracted from a
    *                      given module. The "ignore-tensor" varint is used for the extracted blocks
    *                      or in case no anchor block is found.
-   *                      For the definition of the anchor block, see tvm/tir/analysis.h.
+   *                      For the definition of the anchor block, see tvm/tirx/analysis.h.
    */
   explicit PyDatabaseNode(ffi::String mod_eq_name = "structural");
 

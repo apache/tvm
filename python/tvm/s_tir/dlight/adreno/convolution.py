@@ -17,7 +17,7 @@
 # pylint: disable=missing-docstring, invalid-name
 """A Conv2d schedule rule for Adreno GPU operators."""
 
-from tvm import s_tir, tir
+from tvm import s_tir, tirx
 from tvm.target import Target
 
 from .. import analysis
@@ -62,16 +62,16 @@ class Conv2d(AdrenoScheduleRule):
 
     def apply(  # pylint: disable=too-many-locals,missing-docstring
         self,
-        func: tir.PrimFunc | s_tir.Schedule,
+        func: tirx.PrimFunc | s_tir.Schedule,
         target: Target,
         _: bool,
     ) -> s_tir.Schedule | None:
-        if not (isinstance(func, tir.PrimFunc | s_tir.Schedule)) or not self.is_target_available(
+        if not (isinstance(func, tirx.PrimFunc | s_tir.Schedule)) or not self.is_target_available(
             target
         ):
             return None
 
-        if isinstance(func, tir.PrimFunc):
+        if isinstance(func, tirx.PrimFunc):
             sch = s_tir.Schedule(func)
             sch.work_on("main")
         elif isinstance(func, s_tir.Schedule):

@@ -24,27 +24,27 @@
 
 #include "scalable_expression.h"
 
-#include <tvm/tir/expr.h>
-#include <tvm/tir/op.h>
+#include <tvm/tirx/expr.h>
+#include <tvm/tirx/op.h>
 
 #include <vector>
 
-#include "../tir/analysis/check_contains.h"
-#include "../tir/transform/replace_selected_expr.h"
+#include "../tirx/analysis/check_contains.h"
+#include "../tirx/transform/replace_selected_expr.h"
 #include "./pattern_match.h"
 
 namespace tvm {
 namespace arith {
 
 bool IsVScaleCall(const PrimExpr& expr) {
-  if (auto call = expr.as<tir::CallNode>()) {
-    return call->op.same_as(tir::builtin::vscale());
+  if (auto call = expr.as<tirx::CallNode>()) {
+    return call->op.same_as(tirx::builtin::vscale());
   }
   return false;
 }
 
 bool ContainsVscaleCall(const PrimExpr& expr) {
-  return tir::CheckContains::ExprContains(expr, IsVScaleCall);
+  return tirx::CheckContains::ExprContains(expr, IsVScaleCall);
 }
 
 PrimExpr SubstituteVScaleWithKnownValue(const PrimExpr& expr, unsigned int vscale_value) {
@@ -55,8 +55,8 @@ PrimExpr SubstituteVScaleWithKnownValue(const PrimExpr& expr, unsigned int vscal
     return true;
   };
 
-  return tir::ReplaceSelectedExpr::ReplaceSelectedExprInExpr(
-      expr, predicate_selector, tir::MakeConstScalar(DataType::Int(32), vscale_value),
+  return tirx::ReplaceSelectedExpr::ReplaceSelectedExprInExpr(
+      expr, predicate_selector, tirx::MakeConstScalar(DataType::Int(32), vscale_value),
       can_replace_inside);
 }
 
@@ -77,7 +77,7 @@ bool CanProveVscaleExpressionFromKnownValues(arith::Analyzer* analyzer, const Pr
   for (const unsigned int vscale_value : vscale_values) {
     PrimExpr result = SubstituteVScaleWithKnownValue(expr, vscale_value);
     result = analyzer->Simplify(result);
-    const int64_t* as_int = tir::as_const_int(result);
+    const int64_t* as_int = tirx::as_const_int(result);
     if (!as_int || *as_int == 0) {
       can_prove_expr = false;
       break;

@@ -18,20 +18,20 @@
 import tvm
 import tvm.testing
 from tvm import s_tir
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
-def run_passes(func: tvm.tir.PrimFunc):
+def run_passes(func: tvm.tirx.PrimFunc):
     mod = tvm.IRModule.from_expr(func)
 
     cuda_target = tvm.target.Target("cuda", host="llvm")
 
-    mod = tvm.tir.transform.Apply(
+    mod = tvm.tirx.transform.Apply(
         lambda f: f.with_attr({"global_symbol": "test", "target": cuda_target})
     )(mod)
 
-    mod = tvm.tir.transform.AnnotateDeviceRegions()(mod)
-    mod = tvm.tir.transform.SplitHostDevice()(mod)
+    mod = tvm.tirx.transform.AnnotateDeviceRegions()(mod)
+    mod = tvm.tirx.transform.SplitHostDevice()(mod)
     return tvm.s_tir.transform.ThreadSync("shared")(mod)
 
 

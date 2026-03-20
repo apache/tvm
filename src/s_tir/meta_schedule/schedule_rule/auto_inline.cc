@@ -48,8 +48,8 @@ enum class InlineType : int32_t {
   kInlineIntoProducer = 2,
 };
 
-bool IsInSpatialPrimFunc(const s_tir::Schedule& sch, const tir::StmtSRef& block_sref) {
-  using namespace tvm::tir;
+bool IsInSpatialPrimFunc(const s_tir::Schedule& sch, const tirx::StmtSRef& block_sref) {
+  using namespace tvm::tirx;
   const StmtSRefNode* sref = block_sref.get();
   for (; sref->parent != nullptr; sref = sref->parent) {
   }
@@ -117,7 +117,7 @@ class AutoInlineNode : public ScheduleRuleNode {
 
 inline InlineType AutoInlineNode::CheckInline(const s_tir::Schedule& sch,
                                               const s_tir::SBlockRV& block_rv) {
-  using namespace tvm::tir;
+  using namespace tvm::tirx;
   StmtSRef block_sref = sch->GetSRef(block_rv);
   bool is_pure_sptial = IsInSpatialPrimFunc(sch, block_sref);
   ScheduleState state = sch->state();
@@ -129,7 +129,7 @@ inline InlineType AutoInlineNode::CheckInline(const s_tir::Schedule& sch,
   }
   // Cond 2. For a block that generates a constant tensor, ignore all other conditions
   if (inline_const_tensor && block->reads.empty()) {
-    ffi::Array<tir::StmtSRef> consumer_srefs = GetConsumers(state, block_sref);
+    ffi::Array<tirx::StmtSRef> consumer_srefs = GetConsumers(state, block_sref);
     if (!consumer_srefs.empty() && CanComputeInline(state, block_sref)) {
       return InlineType::kInlineIntoConsumer;
     }
@@ -164,16 +164,16 @@ inline InlineType AutoInlineNode::CheckInline(const s_tir::Schedule& sch,
     if (ann.value() == "disable") return InlineType::kNoInline;
   }
   // Last cond: Check inline into the consumers or the spatial producer
-  tir::StmtSRef scope_block = s_tir::GetScopeRoot(sch->state(), block_sref,
-                                                  /*require_stage_pipeline=*/false);
+  tirx::StmtSRef scope_block = s_tir::GetScopeRoot(sch->state(), block_sref,
+                                                   /*require_stage_pipeline=*/false);
   if (into_consumer) {
-    ffi::Array<tir::StmtSRef> consumer_srefs = GetConsumers(state, block_sref);
+    ffi::Array<tirx::StmtSRef> consumer_srefs = GetConsumers(state, block_sref);
     if (!consumer_srefs.empty() && CanComputeInline(state, block_sref)) {
       return InlineType::kInlineIntoConsumer;
     }
   }
   if (into_producer) {
-    ffi::Array<tir::StmtSRef> producer_srefs = GetProducers(state, block_sref);
+    ffi::Array<tirx::StmtSRef> producer_srefs = GetProducers(state, block_sref);
     if (producer_srefs.size() == 1 &&
         s_tir::IsCompleteBlock(sch->state(), producer_srefs[0], scope_block) &&
         CanReverseComputeInline(state, block_sref) &&

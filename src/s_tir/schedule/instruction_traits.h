@@ -30,7 +30,7 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 /*!
  * \brief Register an InstructionKind using a trait class

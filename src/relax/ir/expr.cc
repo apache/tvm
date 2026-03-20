@@ -584,8 +584,8 @@ Function::Function(ffi::Array<Var> params, Expr body, ffi::Optional<StructInfo> 
     // used if they were defined by the function's parameters.
     auto f_shape_var_map = [&] {
       auto tir_vars = DefinableTIRVarsInStructInfo(TupleStructInfo(params.Map(GetStructInfo)));
-      std::unordered_set<tir::Var> lookup(tir_vars.begin(), tir_vars.end());
-      return [lookup = std::move(lookup)](const tir::Var& var) -> ffi::Optional<PrimExpr> {
+      std::unordered_set<tirx::Var> lookup(tir_vars.begin(), tir_vars.end());
+      return [lookup = std::move(lookup)](const tirx::Var& var) -> ffi::Optional<PrimExpr> {
         if (lookup.count(var)) {
           return var;
         } else {

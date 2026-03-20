@@ -25,7 +25,7 @@ import tvm
 import tvm.testing
 from tvm.contrib import clang, utils
 from tvm.script import ir as I
-from tvm.script import tir as T
+from tvm.script import tirx as T
 from tvm.target.codegen import llvm_get_intrinsic_name, llvm_lookup_intrinsic_id
 
 
@@ -36,7 +36,7 @@ def test_llvm_intrin():
         @T.prim_func
         def main(A: T.handle("float32")):
             A_buf = T.decl_buffer((4,), "float32", data=A)
-            T.evaluate(T.Call("void", "tir.prefetch", [T.address_of(A_buf[0]), 0, 3, 1]))
+            T.evaluate(T.Call("void", "tirx.prefetch", [T.address_of(A_buf[0]), 0, 3, 1]))
 
     fcode = tvm.compile(Module)
 
@@ -69,7 +69,7 @@ def test_llvm_overloaded_intrin():
         return
 
     # int1 is the type for the is_zero_undef parameter
-    int1_zero = tvm.tir.const(0, "int1")
+    int1_zero = tvm.tirx.const(0, "int1")
 
     @I.ir_module
     class Module:
@@ -98,13 +98,13 @@ def test_llvm_lookup_intrin():
 @tvm.testing.requires_llvm
 def test_llvm_large_uintimm():
     value = (1 << 63) + 123
-    large_val = tvm.tir.const(value, "uint64")
+    large_val = tvm.tirx.const(value, "uint64")
 
     @I.ir_module
     class Module:
         @T.prim_func
         def main(A: T.Buffer((), "uint64")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             with T.sblock("A"):
                 vi = T.axis.spatial(1, 0)
                 T.reads()
@@ -124,7 +124,7 @@ def test_llvm_multi_parallel():
     class Module:
         @T.prim_func
         def main(A: T.Buffer((128,), "float32"), C: T.Buffer((128,), "float32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             B = T.sblock_alloc_buffer((128,))
             for i0_0_0 in T.parallel(1):
                 for ax0 in range(128):
@@ -157,7 +157,7 @@ def test_llvm_flip_pipeline():
         class Module:
             @T.prim_func
             def main(A: T.Buffer((nn + base,), "float32"), C: T.Buffer((nn,), "float32")):
-                T.func_attr({"tir.noalias": True})
+                T.func_attr({"tirx.noalias": True})
                 for i_0 in T.parallel((nn + 3) // 4):
                     for i_1 in T.vectorized(4):
                         with T.sblock("C"):
@@ -186,7 +186,7 @@ def test_llvm_vadd_pipeline():
     class Module:
         @T.prim_func
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             n = T.int32(is_size_var=True)
             A = T.match_buffer(var_A, (n,))
             B = T.match_buffer(var_B, (n,))
@@ -220,7 +220,7 @@ def test_llvm_madd_pipeline():
                 A: T.Buffer((nn + base, stride), "float32"),
                 C: T.Buffer((nn, stride), "float32"),
             ):
-                T.func_attr({"tir.noalias": True})
+                T.func_attr({"tirx.noalias": True})
                 for i_0 in T.parallel((nn + 3) // 4):
                     for i_1 in T.vectorized(4):
                         for j in range(stride):
@@ -242,7 +242,7 @@ def test_llvm_madd_pipeline():
     check_llvm(64, 0, 2)
     check_llvm(4, 0, 1)
 
-    with tvm.transform.PassContext(config={"tir.noalias": False}):
+    with tvm.transform.PassContext(config={"tirx.noalias": False}):
         check_llvm(4, 0, 3)
 
 
@@ -252,7 +252,7 @@ def test_llvm_temp_space():
     class Module:
         @T.prim_func
         def main(A: T.Buffer((1024,), "float32"), C: T.Buffer((1024,), "float32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             B = T.sblock_alloc_buffer((1024,))
             for i in range(1024):
                 with T.sblock("B"):
@@ -282,7 +282,7 @@ def test_multiple_func():
     class Module:
         @T.prim_func
         def fadd1(var_A: T.handle, var_B: T.handle, var_C: T.handle):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             n = T.int32(is_size_var=True)
             A = T.match_buffer(var_A, (n,))
             B = T.match_buffer(var_B, (n,))
@@ -296,7 +296,7 @@ def test_multiple_func():
 
         @T.prim_func
         def fadd2(var_A: T.handle, var_B: T.handle, var_C: T.handle):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             n = T.int32(is_size_var=True)
             A = T.match_buffer(var_A, (n,))
             B = T.match_buffer(var_B, (n,))
@@ -327,7 +327,7 @@ def test_llvm_condition():
     class Module:
         @T.prim_func
         def main(A: T.Buffer((64,), "float32"), C: T.Buffer((64,), "float32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i in range(64):
                 with T.sblock("C"):
                     v_i = T.axis.spatial(64, i)
@@ -353,7 +353,7 @@ def test_llvm_bool():
     class Module:
         @T.prim_func
         def main(A: T.Buffer((64,), "int32"), C: T.Buffer((64,), "float32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i in range(64):
                 with T.sblock("C"):
                     v_i = T.axis.spatial(64, i)
@@ -377,7 +377,7 @@ def test_llvm_cast_float_to_bool():
     class Module:
         @T.prim_func
         def main(A: T.Buffer((4,), "float32"), C: T.Buffer((4,), "bool")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i in range(4):
                 with T.sblock("C"):
                     v_i = T.axis.spatial(4, i)
@@ -405,7 +405,7 @@ def test_rank_zero():
             scale: T.Buffer((), "float32"),
             compute: T.Buffer((), "float32"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             C = T.sblock_alloc_buffer(())
             for k in range(64):
                 with T.sblock("C"):
@@ -442,7 +442,7 @@ def test_rank_zero_bound_checkers():
             scale: T.Buffer((), "float32"),
             compute: T.Buffer((), "float32"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             C = T.sblock_alloc_buffer(())
             for k in range(64):
                 with T.sblock("C"):
@@ -459,7 +459,7 @@ def test_rank_zero_bound_checkers():
                 compute[()] = C[()] + T.float32(1.0)
 
     n = 64
-    with tvm.transform.PassContext(config={"tir.instrument_bound_checkers": True}):
+    with tvm.transform.PassContext(config={"tirx.instrument_bound_checkers": True}):
         f = tvm.compile(Module, target="llvm")
         dev = tvm.cpu(0)
         a = tvm.runtime.tensor(np.random.randint(0, 2, size=(n,)).astype("float32"), dev)
@@ -476,7 +476,7 @@ def test_alignment():
     class Module:
         @T.prim_func
         def test_alignment(A: T.Buffer((1024,), "float32"), B: T.Buffer((1024,), "float32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i_0 in range(128):
                 for i_1 in T.vectorized(8):
                     with T.sblock("B"):
@@ -485,7 +485,7 @@ def test_alignment():
                         T.writes(B[v_i])
                         B[v_i] = A[v_i] * T.float32(3.0)
 
-    f = tvm.tir.build(Module, target="llvm")
+    f = tvm.tirx.build(Module, target="llvm")
 
     lines = f.inspect_source().split("\n")
 
@@ -526,14 +526,14 @@ def test_llvm_div():
         a_size = end - start + 1
         b_size = dend - dstart + 1
 
-        div_fn = tvm.tir.floordiv if floor_div else tvm.tir.truncdiv
-        mod_fn = tvm.tir.floormod if floor_div else tvm.tir.truncmod
+        div_fn = tvm.tirx.floordiv if floor_div else tvm.tirx.truncdiv
+        mod_fn = tvm.tirx.floormod if floor_div else tvm.tirx.truncmod
 
         # Build clipping helpers — capture TIR const values from env
-        _start = tvm.tir.const(start, dtype)
-        _end = tvm.tir.const(end, dtype)
-        _dstart = tvm.tir.const(dstart, dtype)
-        _dend = tvm.tir.const(dend, dtype)
+        _start = tvm.tirx.const(start, dtype)
+        _end = tvm.tirx.const(end, dtype)
+        _dstart = tvm.tirx.const(dstart, dtype)
+        _dend = tvm.tirx.const(dend, dtype)
 
         if start == end:
             clipa = lambda x: _start
@@ -554,7 +554,7 @@ def test_llvm_div():
                 D: T.Buffer((a_size, b_size), dtype),
                 M: T.Buffer((a_size, b_size), dtype),
             ):
-                T.func_attr({"tir.noalias": True})
+                T.func_attr({"tirx.noalias": True})
                 for i, j in T.grid(a_size, b_size):
                     with T.sblock("D"):
                         v_i, v_j = T.axis.remap("SS", [i, j])
@@ -664,7 +664,7 @@ def test_llvm_fp_math():
     class RecipModule:
         @T.prim_func
         def main(var_A: T.handle, var_B: T.handle):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             n = T.int32(is_size_var=True)
             A = T.match_buffer(var_A, (n,))
             B = T.match_buffer(var_B, (n,))
@@ -689,7 +689,7 @@ def test_llvm_fp_math():
     class SigmoidModule:
         @T.prim_func
         def main(var_A: T.handle, var_B: T.handle):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             n = T.int32(is_size_var=True)
             A = T.match_buffer(var_A, (n,))
             B = T.match_buffer(var_B, (n,))
@@ -719,7 +719,7 @@ def test_dwarf_debug_information():
             B: T.Buffer((1024,), "float32"),
             C: T.Buffer((1024,), "float32"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0_0 in T.parallel(256):
                 for i0_1 in T.vectorized(4):
                     with T.sblock("C"):
@@ -778,7 +778,7 @@ def test_dwarf_debug_information():
                 "fadd2": Module["main"].with_attr("global_symbol", "fadd2"),
             }
         )
-        m = tvm.tir.build(mod, target={"kind": "llvm", "mtriple": "aarch64-linux-gnu"})
+        m = tvm.tirx.build(mod, target={"kind": "llvm", "mtriple": "aarch64-linux-gnu"})
         ll = m.inspect_source("ll")
 
         # On non-Darwin OS, don't explicitly specify DWARF version.
@@ -788,7 +788,7 @@ def test_dwarf_debug_information():
         assert re.search(r"""llvm.dbg.value""", ll)
 
         # Try Darwin, require DWARF-2
-        m = tvm.tir.build(mod, target={"kind": "llvm", "mtriple": "x86_64-apple-darwin-macho"})
+        m = tvm.tirx.build(mod, target={"kind": "llvm", "mtriple": "x86_64-apple-darwin-macho"})
         ll = m.inspect_source("ll")
         assert re.search(r"""i32 4, !"Dwarf Version", i32 2""", ll)
         assert re.search(r"""llvm.dbg.value""", ll)
@@ -810,7 +810,7 @@ def test_llvm_bf16():
                 B: T.Buffer((32,), "bfloat16"),
                 D: T.Buffer((32,), "bfloat16"),
             ):
-                T.func_attr({"tir.noalias": True})
+                T.func_attr({"tirx.noalias": True})
                 for x in loop_kind(32):
                     with T.sblock("D"):
                         v_x = T.axis.spatial(32, x)
@@ -845,7 +845,7 @@ def test_llvm_crt_static_lib():
             B: T.Buffer((32,), "bfloat16"),
             C: T.Buffer((32,), "bfloat16"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for x in range(32):
                 with T.sblock("compute"):
                     v_x = T.axis.spatial(32, x)
@@ -853,7 +853,7 @@ def test_llvm_crt_static_lib():
                     T.writes(C[v_x])
                     C[v_x] = A[v_x] + B[v_x]
 
-    module = tvm.tir.build(
+    module = tvm.tirx.build(
         Module.with_attr("system_lib_prefix", ""),
         target=tvm.target.Target("llvm"),
     )
@@ -882,7 +882,7 @@ def test_llvm_order_functions():
         def Kirby(v: T.float32) -> T.float32:
             T.ret(T.call_extern("float32", "Fred", v))
 
-    ir_text = tvm.tir.build(Module, target="llvm").inspect_source("ll")
+    ir_text = tvm.tirx.build(Module, target="llvm").inspect_source("ll")
     # Skip functions whose names start with _.
     matches = re.findall(r"^define[^@]*@([a-zA-Z][a-zA-Z0-9_]*)", ir_text, re.MULTILINE)
     assert matches == sorted(matches)
@@ -912,7 +912,7 @@ def test_llvm_import():
         class Module:
             @T.prim_func
             def main(A: T.Buffer((10,), "float32"), B: T.Buffer((10,), "float32")):
-                T.func_attr({"tir.noalias": True})
+                T.func_attr({"tirx.noalias": True})
                 for i in T.serial(10, annotations={"pragma_import_llvm": import_val}):
                     with T.sblock("B"):
                         v_i = T.axis.spatial(10, i)
@@ -941,7 +941,7 @@ def test_llvm_scalar_concat():
 
     # This will crash in LLVM codegen if CodeGenLLVM::CreateVecConcat doesn't convert
     # scalars to single-lane LLVM vectors.
-    with tvm.transform.PassContext(config={"tir.disable_assert": True}):
+    with tvm.transform.PassContext(config={"tirx.disable_assert": True}):
         m = tvm.compile(Module, target="llvm")
 
 
@@ -951,7 +951,7 @@ def test_raise_exception_during_codegen():
     class Module:
         @T.prim_func
         def main(A: T.Buffer((4, 4), "float32"), B: T.Buffer((4, 4), "float32")) -> None:
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i in T.parallel(4):
                 for j in T.parallel(4):
                     B[i, j] = A[i, j] * 2.0
@@ -972,7 +972,7 @@ def test_llvm_target_attributes():
     class Module:
         @T.prim_func
         def test_func(var_A: T.handle, var_B: T.handle, var_C: T.handle, tindex: T.int32):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             A = T.match_buffer(var_A, (tindex,))
             B = T.match_buffer(var_B, (tindex,))
             C = T.match_buffer(var_C, (tindex,))
@@ -998,7 +998,7 @@ def test_llvm_target_attributes():
         "mattr": ["+avx512f"],
     }
     target = tvm.target.Target(target_llvm, host=target_llvm)
-    module = tvm.tir.build(Module, target=target)
+    module = tvm.tirx.build(Module, target=target)
 
     llvm_ir = module.inspect_source()
     llvm_ir_lines = llvm_ir.split("\n")
@@ -1031,7 +1031,7 @@ def test_llvm_target_attributes():
 @tvm.testing.requires_llvm
 def test_llvm_assume():
     """
-    Check that LLVM does not error out when generating code with tir.assume.
+    Check that LLVM does not error out when generating code with tirx.assume.
     Verifying for llvm.assume being generated is not easy as the intrinsic and its
     related instructions get removed during optimizations
     """
@@ -1040,7 +1040,7 @@ def test_llvm_assume():
     class Module:
         @T.prim_func
         def main(A: T.Buffer((4, 4), "int32"), B: T.Buffer((14,), "int32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             A_1 = T.decl_buffer((16,), "int32", data=A.data)
             for axis0, axis1 in T.grid(4, 4):
                 T.assume(axis0 < 3 or axis1 < 2 or A_1[axis0 * 4 + axis1] == 0)
@@ -1121,7 +1121,7 @@ def test_call_packed_returning_void():
         def main():
             T.Call(
                 "void",
-                tvm.ir.Op.get("tir.tvm_call_packed"),
+                tvm.ir.Op.get("tirx.tvm_call_packed"),
                 ["dummy_function_name"],
             )
 
@@ -1144,7 +1144,7 @@ def test_call_packed_without_string_arg():
     class Module:
         @T.prim_func
         def main(A: T.Buffer(1, "float32")):
-            T.Call("int32", tvm.ir.Op.get("tir.tvm_call_packed"), [A.data])
+            T.Call("int32", tvm.ir.Op.get("tirx.tvm_call_packed"), [A.data])
 
     with pytest.raises(tvm.TVMError):
         built = tvm.compile(Module, target="llvm")
@@ -1158,7 +1158,7 @@ def test_call_extern_returning_void():
     class Module:
         @T.prim_func
         def main():
-            T.Call("void", tvm.ir.Op.get("tir.call_extern"), ["dummy_function_name"])
+            T.Call("void", tvm.ir.Op.get("tirx.call_extern"), ["dummy_function_name"])
 
     built = tvm.compile(Module, target="llvm")
 
@@ -1169,7 +1169,7 @@ def test_invalid_volatile_masked_buffer_load():
         @T.prim_func
         def main(b: T.handle):
             B = T.match_buffer(b, [4])
-            A = T.alloc_buffer((4,), annotations={"tir.volatile": True})
+            A = T.alloc_buffer((4,), annotations={"tirx.volatile": True})
             B[0:4] = A.vload([T.Ramp(0, 1, 4)], predicate=T.Broadcast(T.bool(True), 4))
 
     err_msg = "The masked load intrinsic does not support declaring load as volatile."
@@ -1183,7 +1183,7 @@ def test_invalid_volatile_masked_buffer_store():
     class Module:
         @T.prim_func
         def main():
-            A = T.alloc_buffer((4,), annotations={"tir.volatile": True})
+            A = T.alloc_buffer((4,), annotations={"tirx.volatile": True})
             A.vstore(
                 [T.Ramp(0, 1, 4)],
                 T.Broadcast(0.0, 4),

@@ -17,14 +17,14 @@
  * under the License.
  */
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/tir/analysis.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/analysis.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include "tvm/arith/analyzer.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 int32_t DataType2Int(const tvm::DataType& dtype) {
   static_assert(sizeof(DLDataType) == sizeof(int32_t), "Incorrect size of DLDataType");

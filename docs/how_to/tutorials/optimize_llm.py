@@ -62,7 +62,7 @@ from pathlib import Path
 from pprint import pprint
 
 import tvm
-from tvm import relax, te, tir
+from tvm import relax, te, tirx
 from tvm.relax import register_pipeline
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
@@ -281,10 +281,10 @@ class LlamaForCasualLM(nn.Module):
 
     def create_tir_paged_kv_cache(
         self,
-        max_batch_size: tir.Var,
-        max_total_seq_len: tir.Var,
-        prefill_chunk_size: tir.Var,
-        page_size: tir.Var,
+        max_batch_size: tirx.Var,
+        max_total_seq_len: tirx.Var,
+        prefill_chunk_size: tirx.Var,
+        page_size: tirx.Var,
     ) -> PagedKVCache:
         return TIRPagedKVCache(
             attn_kind="mha",

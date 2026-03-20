@@ -25,8 +25,8 @@
 namespace tvm {
 namespace relax {
 
-using tir::IterVar;
-using tir::Layout;
+using tirx::IterVar;
+using tirx::Layout;
 
 std::string TransposeSubLayoutStrLike(const std::string ref_str, const std::string& src_str,
                                       const std::string& desired_str) {

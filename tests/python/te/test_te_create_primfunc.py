@@ -21,8 +21,8 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import s_tir, te, tir, topi
-from tvm.script import tir as T
+from tvm import s_tir, te, tirx, topi
+from tvm.script import tirx as T
 
 
 def test_unique_name_complete_block():
@@ -50,7 +50,7 @@ def test_unique_name_reduction_block():
 def _check_workload(te_workload, tir_workload, index_dtype_override=None, do_simplify=False):
     func = te.create_prim_func(te_workload(), index_dtype_override)
     if do_simplify:
-        simplify = tir.transform.Simplify()
+        simplify = tirx.transform.Simplify()
         func = simplify(tvm.IRModule.from_expr(func))["main"]
         tir_workload = simplify(tvm.IRModule.from_expr(tir_workload))["main"]
     tvm.ir.assert_structural_equal(func, tir_workload)
@@ -69,7 +69,7 @@ def te_matmul():
 
 @T.prim_func
 def tir_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
-    T.func_attr({"global_symbol": "main", "tir.noalias": True})
+    T.func_attr({"global_symbol": "main", "tirx.noalias": True})
     A = T.match_buffer(a, (128, 128))
     B = T.match_buffer(b, (128, 128))
     C = T.match_buffer(c, (128, 128))
@@ -88,7 +88,7 @@ def tir_matmul_int64(
     B: T.Buffer((T.int64(128), T.int64(128)), "float32"),
     C: T.Buffer((T.int64(128), T.int64(128)), "float32"),
 ) -> None:
-    T.func_attr({"global_symbol": "main", "tir.noalias": True})
+    T.func_attr({"global_symbol": "main", "tirx.noalias": True})
     for i0, j0, k0 in T.grid(T.int64(128), T.int64(128), T.int64(128)):
         with T.sblock():
             i, j, k = T.axis.remap("SSR", [i0, j0, k0])
@@ -114,7 +114,7 @@ def te_element_wise():
 
 @T.prim_func
 def tir_element_wise(a: T.handle, c: T.handle) -> None:
-    T.func_attr({"global_symbol": "main", "tir.noalias": True})
+    T.func_attr({"global_symbol": "main", "tirx.noalias": True})
     A = T.match_buffer(a, (128, 128))
     C = T.match_buffer(c, (128, 128))
     B = T.sblock_alloc_buffer((128, 128))
@@ -144,8 +144,8 @@ def te_conv2d():
     W = te.placeholder((in_channel, kernel, kernel, out_channel), name="W")
     Apad = te.compute(
         (batch, in_channel, size + 2, size + 2),
-        lambda nn, cc, yy, xx: tvm.tir.if_then_else(
-            tvm.tir.all(yy >= 1, yy - 1 < size, xx >= 1, xx - 1 < size),
+        lambda nn, cc, yy, xx: tvm.tirx.if_then_else(
+            tvm.tirx.all(yy >= 1, yy - 1 < size, xx >= 1, xx - 1 < size),
             A[nn, cc, yy - 1, xx - 1],
             0.0,
         ),
@@ -166,7 +166,7 @@ def te_conv2d():
 
 @T.prim_func
 def tir_conv2d(a: T.handle, w: T.handle, b: T.handle) -> None:
-    T.func_attr({"global_symbol": "main", "tir.noalias": True})
+    T.func_attr({"global_symbol": "main", "tirx.noalias": True})
     A = T.match_buffer(a, [16, 16, 14, 14])
     W = T.match_buffer(w, [16, 3, 3, 32])
     B = T.match_buffer(b, [16, 32, 14, 14])
@@ -204,7 +204,7 @@ def te_multi_output():
 
 @T.prim_func
 def tir_multi_output(a0: T.handle, a1: T.handle, b0: T.handle, b1: T.handle) -> None:
-    T.func_attr({"global_symbol": "main", "tir.noalias": True})
+    T.func_attr({"global_symbol": "main", "tirx.noalias": True})
     m = T.int32()
     n = T.int32()
     A0 = T.match_buffer(a0, (m, n))
@@ -231,7 +231,7 @@ def te_extern():
     C = te.extern(
         (128, 128),
         [A, B],
-        lambda ins, outs: tvm.tir.call_packed(
+        lambda ins, outs: tvm.tirx.call_packed(
             "tvm.contrib.cblas.matmul", ins[0], ins[1], outs[0], 0, 0
         ),
         name="C",
@@ -241,7 +241,7 @@ def te_extern():
 
 @T.prim_func
 def tir_extern(a: T.handle, b: T.handle, c: T.handle) -> None:
-    T.func_attr({"global_symbol": "main", "tir.noalias": True})
+    T.func_attr({"global_symbol": "main", "tirx.noalias": True})
     off1 = te.var("elem_offset")
     off2 = te.var("elem_offset_1")
     off3 = te.var("elem_offset_2")
@@ -303,7 +303,7 @@ def te_reordered_matmul():
 
 @T.prim_func
 def tir_reordered_matmul(c: T.handle, a: T.handle, b: T.handle) -> None:
-    T.func_attr({"global_symbol": "main", "tir.noalias": True})
+    T.func_attr({"global_symbol": "main", "tirx.noalias": True})
     A = T.match_buffer(a, (128, 128))
     B = T.match_buffer(b, (128, 128))
     C = T.match_buffer(c, (128, 128))
@@ -348,7 +348,7 @@ def test_constant():
     B = te.compute(tuple(), lambda: 2, name="B")
     # Manually craft ProducerLoad because `B[]` is not allowed.
     C = te.compute(
-        (M,), lambda x: A[x] + tvm.tir.expr.ProducerLoad(B, []), name="C", tag="broadcast"
+        (M,), lambda x: A[x] + tvm.tirx.expr.ProducerLoad(B, []), name="C", tag="broadcast"
     )
 
     func = te.create_prim_func([C, A])
@@ -432,7 +432,7 @@ def expected_layout_attr(
     B: T.Buffer((128, 128), "float32"),
     D: T.Buffer((128, 128), "float32"),
 ) -> None:
-    T.func_attr({"global_symbol": "main", "tir.noalias": True, "layout_free_buffers": [1]})
+    T.func_attr({"global_symbol": "main", "tirx.noalias": True, "layout_free_buffers": [1]})
     C = T.sblock_alloc_buffer([128, 128], dtype="float32")
     for i0, i1, i2 in T.grid(128, 128, 128):
         with T.sblock("C"):
@@ -453,7 +453,7 @@ def expected_layout_attr_int64(
     B: T.Buffer((T.int64(128), T.int64(128)), "float32"),
     D: T.Buffer((T.int64(128), T.int64(128)), "float32"),
 ):
-    T.func_attr({"global_symbol": "main", "tir.noalias": True, "layout_free_buffers": [1]})
+    T.func_attr({"global_symbol": "main", "tirx.noalias": True, "layout_free_buffers": [1]})
     C = T.sblock_alloc_buffer([T.int64(128), T.int64(128)], dtype="float32")
     for x, y, k in T.grid(T.int64(128), T.int64(128), T.int64(128)):
         with T.sblock("C"):
@@ -498,12 +498,12 @@ def test_tensor_layout_attr(index_dtype_override, expected):
 
 def te_argmax_idx_val():
     def f_combine(x, y):
-        lhs = tvm.tir.Select((x[1] >= y[1]), x[0], y[0])
-        rhs = tvm.tir.Select((x[1] >= y[1]), x[1], y[1])
+        lhs = tvm.tirx.Select((x[1] >= y[1]), x[0], y[0])
+        rhs = tvm.tirx.Select((x[1] >= y[1]), x[1], y[1])
         return lhs, rhs
 
     def f_identity(dtype0: tvm.DataType, dtype1: tvm.DataType):
-        return tvm.tir.const(-1, dtype0), tvm.te.min_value(dtype1)
+        return tvm.tirx.const(-1, dtype0), tvm.te.min_value(dtype1)
 
     argmax = te.comm_reducer(f_combine, f_identity, name="argmax")
 
@@ -522,7 +522,7 @@ def te_argmax_idx_val():
 def tir_argmax_idx_val(
     var_idx: T.handle, var_val: T.handle, var_argmax_v0: T.handle, var_argmax_v1: T.handle
 ) -> None:
-    T.func_attr({"global_symbol": "main", "tir.noalias": True})
+    T.func_attr({"global_symbol": "main", "tirx.noalias": True})
     m = T.int32()
     n = T.int32()
     idx = T.match_buffer(var_idx, [m, n], dtype="int32")
@@ -545,12 +545,12 @@ def tir_argmax_idx_val(
 
 def te_argmax_val_idx():
     def f_combine(x, y):
-        lhs = tvm.tir.Select((x[0] >= y[0]), x[0], y[0])
-        rhs = tvm.tir.Select((x[0] >= y[0]), x[1], y[1])
+        lhs = tvm.tirx.Select((x[0] >= y[0]), x[0], y[0])
+        rhs = tvm.tirx.Select((x[0] >= y[0]), x[1], y[1])
         return lhs, rhs
 
     def f_identity(dtype0: tvm.DataType, dtype1: tvm.DataType):
-        return tvm.te.min_value(dtype0), tvm.tir.const(-1, dtype1)
+        return tvm.te.min_value(dtype0), tvm.tirx.const(-1, dtype1)
 
     argmax = te.comm_reducer(f_combine, f_identity, name="argmax")
 
@@ -569,7 +569,7 @@ def te_argmax_val_idx():
 def tir_argmax_val_idx(
     var_val: T.handle, var_idx: T.handle, var_argmax_v0: T.handle, var_argmax_v1: T.handle
 ) -> None:
-    T.func_attr({"global_symbol": "main", "tir.noalias": True})
+    T.func_attr({"global_symbol": "main", "tirx.noalias": True})
     m = T.int32()
     n = T.int32()
     val = T.match_buffer(var_val, [m, n], dtype="float32")
@@ -622,7 +622,7 @@ def test_zero_dim_add():
         b: T.Buffer((), "int32"),
         c: T.Buffer((), "int32"),
     ) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with T.sblock("root"):
             T.reads()
             T.writes()
@@ -637,7 +637,7 @@ def test_zero_dim_add():
 
 def te_reshape():
     # The following is possible to be generated by TOPI. So we test this case.
-    A = te.placeholder((tvm.tir.IntImm("int64", 2), tvm.tir.IntImm("int64", 4)), name="A")
+    A = te.placeholder((tvm.tirx.IntImm("int64", 2), tvm.tirx.IntImm("int64", 4)), name="A")
     B = topi.reshape(A, (4, 2))
     return [A, B]
 
@@ -647,7 +647,7 @@ def tir_reshape(
     A: T.Buffer((T.int64(2), T.int64(4)), "float32"),
     T_reshape: T.Buffer((T.int64(4), T.int64(2)), "float32"),
 ):
-    T.func_attr({"global_symbol": "main", "tir.noalias": True})
+    T.func_attr({"global_symbol": "main", "tirx.noalias": True})
     for i0, i1 in T.grid(T.int64(4), T.int64(2)):
         with T.sblock("T_reshape"):
             ax0, ax1 = T.axis.remap("SS", [i0, i1])
@@ -669,8 +669,8 @@ def test_reshape():
 
 
 def te_resize2d_symbolic():
-    oh = tir.Var("oh", "int64")
-    ow = tir.Var("ow", "int64")
+    oh = tirx.Var("oh", "int64")
+    ow = tirx.Var("ow", "int64")
     roi = (0.0, 0.0, 0.0, 0.0)
     A = te.placeholder((2, 3, 128, 128), "float32", name="A")
     B = topi.image.resize2d(
@@ -689,7 +689,7 @@ def tir_resize2d_symbolic(
     A: T.Buffer((T.int64(2), T.int64(3), T.int64(128), T.int64(128)), "float32"),
     var_resize: T.handle,
 ):
-    T.func_attr({"global_symbol": "main", "tir.noalias": True})
+    T.func_attr({"global_symbol": "main", "tirx.noalias": True})
     oh = T.int64()
     ow = T.int64()
     resize = T.match_buffer(var_resize, [T.int64(2), T.int64(3), oh, ow], dtype="float32")
@@ -742,7 +742,7 @@ def test_extern_with_explicit_buffer_access():
         C = te.extern(
             (128, 128),
             [A, B, P],
-            lambda ins, outs: tvm.tir.call_extern(
+            lambda ins, outs: tvm.tirx.call_extern(
                 "", "myfunc", ins[0].data, ins[1].data, outs[0].data, ins[2][0]
             ),
             name="C",
@@ -751,7 +751,7 @@ def test_extern_with_explicit_buffer_access():
 
     @T.prim_func
     def tir_extern(var_A: T.handle, var_B: T.handle, var_P: T.handle, var_C: T.handle):
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         A = T.match_buffer(var_A, [128, 128], dtype="float32", offset_factor=1)
         B = T.match_buffer(var_B, [128, 128], dtype="float32", offset_factor=1)
         P = T.match_buffer(var_P, [1], dtype="float32", offset_factor=1)
@@ -775,7 +775,7 @@ def te_slice_with_var_input():
 
 @T.prim_func
 def tir_slice_with_var_input(var_tensor: T.handle, idx: T.int64, var_slice: T.handle):
-    T.func_attr({"tir.noalias": True, "global_symbol": "main"})
+    T.func_attr({"tirx.noalias": True, "global_symbol": "main"})
     m, n = T.int64(), T.int64()
     tensor = T.match_buffer(var_tensor, (m, n))
     slice = T.match_buffer(var_slice, (idx, n))
@@ -798,7 +798,7 @@ def test_loop_aware_initial_value():
 
     @T.prim_func
     def tir_workload(var_a: T.handle, var_b: T.handle, var_sum_red: T.handle):
-        T.func_attr({"tir.noalias": True, "global_symbol": "main"})
+        T.func_attr({"tirx.noalias": True, "global_symbol": "main"})
         a = T.match_buffer(var_a, (5, 5))
         b = T.match_buffer(var_b, (5,))
         sum_red = T.match_buffer(var_sum_red, (5,))
@@ -833,7 +833,7 @@ def test_loop_aware_reducer_combiner():
 
     @T.prim_func
     def tir_workload(var_a: T.handle, var_b: T.handle, var_sum_red: T.handle):
-        T.func_attr({"tir.noalias": True, "global_symbol": "main"})
+        T.func_attr({"tirx.noalias": True, "global_symbol": "main"})
         a = T.match_buffer(var_a, (5, 5))
         b = T.match_buffer(var_b, (5,))
         sum_red = T.match_buffer(var_sum_red, (5,))
@@ -872,7 +872,7 @@ def test_adaptive_pooling_window():
         x: T.Buffer((1, 1024, 16, 40), "float32"),
         adaptive_pool_avg: T.Buffer((1, 1024, 12, 30), "float32"),
     ):
-        T.func_attr({"tir.noalias": True, "global_symbol": "main"})
+        T.func_attr({"tirx.noalias": True, "global_symbol": "main"})
         # fmt: off
         adaptive_pool_sum = T.sblock_alloc_buffer((1, 1024, 12, 30))
         for ax0, ax1, ax2, ax3 in T.grid(1, 1024, 12, 30):
@@ -923,7 +923,7 @@ def test_nested_reduce_domain_dependency():
     def tir_workload(
         x: T.Buffer((8, 8, 8, 8, 8), "float32"), compute: T.Buffer((8, 8, 8), "float32")
     ):
-        T.func_attr({"tir.noalias": True, "global_symbol": "main"})
+        T.func_attr({"tirx.noalias": True, "global_symbol": "main"})
         for i0, i1, i2 in T.grid(8, 8, 8):
             with T.sblock("compute_2"):
                 v_i0, v_i1, v_i2 = T.axis.remap("SSS", [i0, i1, i2])

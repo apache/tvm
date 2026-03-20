@@ -25,7 +25,7 @@ from tvm.arith import Analyzer
 from tvm.base import TVMError
 from tvm.relax.struct_info import ShapeStructInfo
 
-from ...tir import PrimExpr
+from ...tirx import PrimExpr
 from ..block_builder import BlockBuilder
 from ..expr import Call, Expr, ShapeExpr, Var
 from .base import register_gradient

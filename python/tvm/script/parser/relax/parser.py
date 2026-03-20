@@ -20,7 +20,7 @@ import functools
 import numbers
 from typing import Any
 
-from tvm import relax, tir
+from tvm import relax, tirx
 from tvm.ir import GlobalVar, structural_equal
 from tvm.relax import Expr, StructInfo
 from tvm.relax.utils import convert_to_expr
@@ -47,7 +47,7 @@ def bind_assign_value(
 ) -> Any:
     var_table = self.var_table.get()
 
-    if isinstance(value, tir.Var):
+    if isinstance(value, tirx.Var):
         if value.name and var_name != value.name:
             self.report_error(
                 node,
@@ -56,7 +56,7 @@ def bind_assign_value(
             )
         if var_name in var_table:
             prev_value = var_table[var_name]
-            if not isinstance(prev_value, tir.Var):
+            if not isinstance(prev_value, tirx.Var):
                 self.report_error(
                     node,
                     "Cannot redefine a non-TIR-variable object to a TIR variable. Please "
@@ -152,8 +152,8 @@ def is_recursive(node: doc.FunctionDef) -> bool:
 
 
 def collect_symbolic_var_from_prelude(
-    self: Parser, node: doc.FunctionDef, symbolic_vars: dict[str, tir.Var]
-) -> dict[str, tir.Var]:
+    self: Parser, node: doc.FunctionDef, symbolic_vars: dict[str, tirx.Var]
+) -> dict[str, tirx.Var]:
     prelude_vars = {}
     for stmt in node.body:
         if isinstance(stmt, doc.Assign) and all(
@@ -184,7 +184,7 @@ def collect_symbolic_var_from_params(self: Parser, node: doc.FunctionDef) -> Non
 
         for var_name in param_sinfo_proxy.get_symbolic_vars():
             if var_name not in symbolic_vars:
-                symbolic_vars[var_name] = tir.Var(var_name, "int64")
+                symbolic_vars[var_name] = tirx.Var(var_name, "int64")
 
     # Update symbolic vars based on
     symbolic_vars = collect_symbolic_var_from_prelude(self, node, symbolic_vars)
@@ -240,7 +240,7 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
                             self.report_error(stmt, "Function must be decorated")
                         dec = self.eval_expr(stmt.decorator_list[-1])
                         # inline prim_func was found
-                        if dec.dispatch_token == "tir":
+                        if dec.dispatch_token == "tirx":
                             self.report_error(stmt, "inline prim_func is disallowed in Relax IR")
 
                 self.visit_body(node.body)

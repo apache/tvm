@@ -71,7 +71,7 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/nested_msg.h>
 #include <tvm/relax/transform.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include <map>
 #include <set>
@@ -116,7 +116,7 @@ class StorageTokenNode : public Object {
   /*! \brief Get the constant number of bytes that this token requires, or -1 if the number of bytes
    * is symbolic */
   int64_t const_bytes() const {
-    const int64_t* const_val = tir::as_const_int(bytes);
+    const int64_t* const_val = tirx::as_const_int(bytes);
     if (const_val) {
       return *const_val;
     } else {
@@ -138,7 +138,7 @@ class StorageToken : public ObjectRef {
                         ffi::Optional<VDevice> vdevice = std::nullopt) {
     // Compute the tensor size from the shape.
     int64_t const_coeff = dtype.bytes() * dtype.lanes();
-    PrimExpr size = tir::make_const(DataType::Int(64), 1);
+    PrimExpr size = tirx::make_const(DataType::Int(64), 1);
     bool size_computed = false;
 
     if (vdevice.defined()) {
@@ -172,7 +172,7 @@ class StorageToken : public ObjectRef {
       }
     }
 
-    size = tir::make_const(DataType::Int(64), const_coeff) * size;
+    size = tirx::make_const(DataType::Int(64), const_coeff) * size;
 
     ObjectPtr<StorageTokenNode> n = ffi::make_object<StorageTokenNode>();
     n->bytes = size;
@@ -258,7 +258,7 @@ class TokenAllocatorMixed {
       TVM_FFI_ICHECK_GE(available_size, 0);
       TVM_FFI_ICHECK_GE(size, available_size);
       // Enlarge the token size.
-      available_token->bytes = tir::make_const(DataType::Int(64), size);
+      available_token->bytes = tirx::make_const(DataType::Int(64), size);
       available_token->ref_counter = prototype->ref_counter;
       pool.erase(mid);
       return available_token;
@@ -408,7 +408,7 @@ class StorageAllocatorBaseVisitor : public ExprVisitor {
  * \param dom_map The domain map of the TIR variables.
  */
 void SetTIRVarRangeConstraints(Function func, arith::Analyzer* ana,
-                               ffi::Map<tir::Var, arith::IntSet>* dom_map) {
+                               ffi::Map<tirx::Var, arith::IntSet>* dom_map) {
   // Use the attribute-annotated TIR var bounds as the TIR var values for
   // memory planning.
   // NOTE: we only apply the annotated bounds to the TIR variables that
@@ -435,8 +435,8 @@ void SetTIRVarRangeConstraints(Function func, arith::Analyzer* ana,
   for (const ffi::String& var_name : non_negative_var_attr_raw) {
     non_negative_var_attr.insert(var_name);
   }
-  ffi::Array<tir::Var> var_in_signature = TIRVarsInStructInfo(GetStructInfo(func));
-  for (const tir::Var& tir_var : var_in_signature) {
+  ffi::Array<tirx::Var> var_in_signature = TIRVarsInStructInfo(GetStructInfo(func));
+  for (const tirx::Var& tir_var : var_in_signature) {
     auto it_upper = var_upper_bound_attr.find(tir_var->name_hint);
     auto it_lower = var_lower_bound_attr.find(tir_var->name_hint);
 
@@ -468,7 +468,7 @@ void SetTIRVarRangeConstraints(Function func, arith::Analyzer* ana,
  * cannot be determined, we keep the dimension unchanged.
  */
 ffi::Array<PrimExpr> GetUpperBoundShape(ffi::Array<PrimExpr> shape, arith::Analyzer* ana,
-                                        const ffi::Map<tir::Var, arith::IntSet>& dom_map) {
+                                        const ffi::Map<tirx::Var, arith::IntSet>& dom_map) {
   // Use the upper bounds of TIR vars as their values.
   ffi::Array<PrimExpr> upper_bounded_shape;
   upper_bounded_shape.reserve(shape.size());
@@ -616,7 +616,7 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
     if (func_it == ctx_mod_->functions.end()) {
       return false;
     }
-    return (*func_it).second->IsInstance<tir::PrimFuncNode>();
+    return (*func_it).second->IsInstance<tirx::PrimFuncNode>();
   }
 
   /*!
@@ -725,7 +725,7 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
   /*! \brief The arithmetic analyzer. */
   arith::Analyzer* analyzer_;
   /*! \brief The domain map of dynamic TIR variables for analysis. */
-  ffi::Map<tir::Var, arith::IntSet> dom_map_;
+  ffi::Map<tirx::Var, arith::IntSet> dom_map_;
   /*! \brief The mapping from each token to the binding block where it is created. */
   std::unordered_map<const StorageTokenNode*, const BindingBlockNode*> token2block_;
   /*! \brief The mapping from each token to the Exprs that are using this token. */
@@ -994,7 +994,7 @@ class StorageAllocationRewriter : public ExprMutator {
   /*! \brief The arithmetic analyzer. */
   arith::Analyzer ana_;
   /*! \brief The domain map of dynamic TIR variables for analysis. */
-  ffi::Map<tir::Var, arith::IntSet> dom_map_;
+  ffi::Map<tirx::Var, arith::IntSet> dom_map_;
   /*! \brief A boolean indicating whether to plan dynamic-shape function output tensors. */
   bool plan_dynamic_output_;
   /*!
@@ -1047,8 +1047,9 @@ PrimExpr GetTextureMemorySizeFromVDevice(ffi::Array<PrimExpr> pshape, DataType d
   struct Shape {
     const ffi::Array<PrimExpr>& shape;
     int64_t operator[](size_t i) const {
-      TVM_FFI_ICHECK(tir::as_const_int(shape[i])) << "Dymamic shapes not suported over texture now";
-      return *tir::as_const_int(shape[i]);
+      TVM_FFI_ICHECK(tirx::as_const_int(shape[i]))
+          << "Dymamic shapes not suported over texture now";
+      return *tirx::as_const_int(shape[i]);
     }
     int size() { return this->shape.size(); }
   };
@@ -1056,7 +1057,7 @@ PrimExpr GetTextureMemorySizeFromVDevice(ffi::Array<PrimExpr> pshape, DataType d
 
   size_t size = runtime::GetTextureMemorySize<Shape>(shape, dtype.bytes() * 8, dtype.lanes(),
                                                      vdevice->memory_scope, image_row_align);
-  return tir::make_const(DataType::Int(64), size);
+  return tirx::make_const(DataType::Int(64), size);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

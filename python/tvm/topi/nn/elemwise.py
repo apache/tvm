@@ -37,7 +37,7 @@ def relu(x):
     y : tvm.te.Tensor
         The result.
     """
-    return te.compute(x.shape, lambda *i: tvm.te.max(x(*i), tvm.tir.const(0, x.dtype)))
+    return te.compute(x.shape, lambda *i: tvm.te.max(x(*i), tvm.tirx.const(0, x.dtype)))
 
 
 @tvm.te.tag_scope(tag=tag.ELEMWISE)
@@ -60,8 +60,8 @@ def leaky_relu(x, alpha):
 
     def _compute(*indices):
         value = x(*indices)
-        calpha = tvm.tir.const(alpha, value.dtype)
-        return tvm.tir.Select(value > 0, value, value * calpha)
+        calpha = tvm.tirx.const(alpha, value.dtype)
+        return tvm.tirx.Select(value > 0, value, value * calpha)
 
     return te.compute(x.shape, _compute)
 
@@ -89,11 +89,11 @@ def softplus(x, beta=1.0, threshold=20.0):
 
     def _compute(*indices):
         value = x(*indices)
-        b = tvm.tir.const(beta, value.dtype)
-        t = tvm.tir.const(threshold, value.dtype)
+        b = tvm.tirx.const(beta, value.dtype)
+        t = tvm.tirx.const(threshold, value.dtype)
 
-        return tvm.tir.Select(
-            b * value > t, value, (1 / b) * tvm.tir.log(1 + tvm.tir.exp(b * value))
+        return tvm.tirx.Select(
+            b * value > t, value, (1 / b) * tvm.tirx.log(1 + tvm.tirx.exp(b * value))
         )
 
     return te.compute(x.shape, _compute)
@@ -138,6 +138,6 @@ def prelu(x, slope, axis=1):
 
     def _compute_channelwise(*indices):
         xval = x(*indices)
-        return tvm.tir.Select(xval > 0, xval, xval * slope(indices[axis]))
+        return tvm.tirx.Select(xval > 0, xval, xval * slope(indices[axis]))
 
     return te.compute(x.shape, _compute_channelwise)

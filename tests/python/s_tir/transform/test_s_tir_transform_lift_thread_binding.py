@@ -16,8 +16,8 @@
 # under the License.
 # ruff: noqa: E501, F401
 import tvm
-from tvm import s_tir, tir
-from tvm.script import tir as T
+from tvm import s_tir, tirx
+from tvm.script import tirx as T
 
 
 def test_lift_tx_beyond_local():

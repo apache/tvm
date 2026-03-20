@@ -29,10 +29,10 @@
 #include <tvm/s_tir/schedule/state.h>
 #include <tvm/s_tir/schedule/trace.h>
 #include <tvm/s_tir/utils.h>
-#include <tvm/tir/analysis.h>
-#include <tvm/tir/function.h>
-#include <tvm/tir/op.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/analysis.h>
+#include <tvm/tirx/function.h>
+#include <tvm/tirx/op.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include <string>
 #include <unordered_map>
@@ -52,7 +52,7 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 /*!
  * \brief Convert an array of loop StmtSRefs to an array of loops
  * \param loop_srefs The loop StmtSRefs to be converted
@@ -325,7 +325,7 @@ inline void ReorderAndFuseReductionLoops(const s_tir::Schedule& sch,
                                          s_tir::LoopRV* fused_reduce_loop,
                                          size_t* num_spatial_loops) {
   ffi::Array<s_tir::LoopRV> loops = sch->GetLoops(block_rv);
-  ffi::Array<tir::StmtSRef> loop_srefs;
+  ffi::Array<tirx::StmtSRef> loop_srefs;
   for (const s_tir::LoopRV& loop_rv : loops) {
     loop_srefs.push_back(sch->GetSRef(loop_rv));
   }
@@ -334,7 +334,7 @@ inline void ReorderAndFuseReductionLoops(const s_tir::Schedule& sch,
   // Step 1. Add spatial loops.
   *num_spatial_loops = 0;
   for (size_t i = 0; i < loops.size(); ++i) {
-    if (GetLoopIterType(loop_srefs[i]) == tir::kDataPar) {
+    if (GetLoopIterType(loop_srefs[i]) == tirx::kDataPar) {
       new_order.push_back(loops[i]);
       (*num_spatial_loops)++;
     }
@@ -342,7 +342,7 @@ inline void ReorderAndFuseReductionLoops(const s_tir::Schedule& sch,
   // Step 2. Add reduction loops.
   ffi::Array<s_tir::LoopRV> reduction_loops;
   for (size_t i = 0; i < loops.size(); ++i) {
-    if (GetLoopIterType(loop_srefs[i]) == tir::kCommReduce) {
+    if (GetLoopIterType(loop_srefs[i]) == tirx::kCommReduce) {
       new_order.push_back(loops[i]);
       reduction_loops.push_back(loops[i]);
     }
@@ -385,15 +385,15 @@ inline ffi::String BufferIndexType2Str(BufferIndexType buffer_index_type) {
 
 /*! \brief Returns the names of the blocks in the provided module. */
 inline std::unordered_set<std::string> GetSBlockNames(const IRModule& mod) {
-  struct BlockNameCollector : public tir::StmtVisitor {
-    void VisitStmt_(const tir::SBlockNode* block) override {
+  struct BlockNameCollector : public tirx::StmtVisitor {
+    void VisitStmt_(const tirx::SBlockNode* block) override {
       block_names.insert(block->name_hint);
       StmtVisitor::VisitStmt(block->body);
     }
     std::unordered_set<std::string> block_names;
   };
 
-  if (auto prim_func = tir::FindEntryFunc(mod, nullptr)) {
+  if (auto prim_func = tirx::FindEntryFunc(mod, nullptr)) {
     BlockNameCollector collector;
     collector(prim_func->body);
     return collector.block_names;

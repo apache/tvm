@@ -128,9 +128,9 @@ def link_shared(so_name, objs, extra_args=None):
     """
 
     # The list of object files can be passed as built-in Python strings,
-    # or as tvm.tir.StringImm's.
+    # or as tvm.tirx.StringImm's.
     def to_str(s):
-        if isinstance(s, tvm.tir.StringImm):
+        if isinstance(s, tvm.tirx.StringImm):
             return s.value
         assert isinstance(s, str), 'argument "' + str(s) + '" should be a string or StrImm'
         return s
@@ -199,9 +199,9 @@ def link_shared_macos(so_name, objs, extra_args=None):
     """
 
     # The list of object files can be passed as built-in Python strings,
-    # or as tvm.tir.StringImm's.
+    # or as tvm.tirx.StringImm's.
     def to_str(s):
-        if isinstance(s, tvm.tir.StringImm):
+        if isinstance(s, tvm.tirx.StringImm):
             return s.value
         assert isinstance(s, str), 'argument "' + str(s) + '" should be a string or StrImm'
         return s

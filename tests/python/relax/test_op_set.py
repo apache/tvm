@@ -18,7 +18,7 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import TVMError, relax, tir
+from tvm import TVMError, relax, tirx
 from tvm.ir import Op, VDevice
 from tvm.script import relax as R
 
@@ -498,9 +498,9 @@ def test_unique_infer_struct_info():
 
 def test_unique_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    a = tir.Var("a", "int64")
-    b = tir.Var("b", "int64")
-    c = tir.Var("c", "int64")
+    a = tirx.Var("a", "int64")
+    b = tirx.Var("b", "int64")
+    c = tirx.Var("c", "int64")
     x = relax.Var("x", R.Tensor((a, b, c), "float32"))
 
     _check_inference(

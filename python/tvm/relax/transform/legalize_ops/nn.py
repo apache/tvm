@@ -20,7 +20,7 @@
 import logging
 import math
 
-from tvm import s_tir, te, tir, topi
+from tvm import s_tir, te, tirx, topi
 
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr
@@ -46,7 +46,7 @@ def _nn_conv1d(bb: BlockBuilder, call: Call) -> Expr:
         kernel_layout = s_tir.layout(call.attrs.kernel_layout)
         ic = call.args[0].struct_info.shape.values[data_layout.index_of("C")]
         oc = call.args[1].struct_info.shape.values[kernel_layout.index_of("O")]
-        if not isinstance(ic, tir.IntImm) or not isinstance(oc, tir.IntImm):
+        if not isinstance(ic, tirx.IntImm) or not isinstance(oc, tirx.IntImm):
             logging.info(
                 "Conv1D where number of groups is more than one and input or output "
                 "channel size is symbolic cannot be legalized by TOPI at this moment."
@@ -87,7 +87,7 @@ def _nn_conv2d(bb: BlockBuilder, call: Call) -> Expr:
         kernel_layout = s_tir.layout(call.attrs.kernel_layout)
         ic = call.args[0].struct_info.shape.values[data_layout.index_of("C")]
         oc = call.args[1].struct_info.shape.values[kernel_layout.index_of("O")]
-        if not isinstance(ic, tir.IntImm) or not isinstance(oc, tir.IntImm):
+        if not isinstance(ic, tirx.IntImm) or not isinstance(oc, tirx.IntImm):
             logging.info(
                 "Conv2D where number of groups is more than one and input or output "
                 "channel size is symbolic cannot be legalized by TOPI at this moment."
@@ -128,7 +128,7 @@ def _nn_conv3d(bb: BlockBuilder, call: Call) -> Expr:
         kernel_layout = s_tir.layout(call.attrs.kernel_layout)
         ic = call.args[0].struct_info.shape.values[data_layout.index_of("C")]
         oc = call.args[1].struct_info.shape.values[kernel_layout.index_of("O")]
-        if not isinstance(ic, tir.IntImm) or not isinstance(oc, tir.IntImm):
+        if not isinstance(ic, tirx.IntImm) or not isinstance(oc, tirx.IntImm):
             logging.info(
                 "Conv3D where number of groups is more than one and input or output "
                 "channel size is symbolic cannot be legalized by TOPI at this moment."
@@ -497,14 +497,14 @@ def _nn_prelu(bb: BlockBuilder, call: Call) -> Expr:
 def _nn_gelu(bb: BlockBuilder, call: Call) -> Expr:
     def te_gelu(x: te.Tensor):
         dtype = x.dtype
-        erf_inp = x * tir.const(0.5**0.5, dtype)
+        erf_inp = x * tirx.const(0.5**0.5, dtype)
 
         if dtype == "float16":
             erf = topi.math.cast(topi.erf(topi.math.cast(erf_inp, "float32")), "float16")
         else:
             erf = topi.erf(erf_inp)
 
-        return x * (tir.const(0.5, dtype) + erf * tir.const(0.5, dtype))
+        return x * (tirx.const(0.5, dtype) + erf * tirx.const(0.5, dtype))
 
     return bb.call_te(te_gelu, call.args[0], primfunc_name_hint="gelu")
 
@@ -514,14 +514,14 @@ def _nn_gelu_tanh(bb: BlockBuilder, call: Call) -> Expr:
     def te_gelu_tanh(x: te.Tensor):
         dtype = x.dtype
         return (
-            tir.const(0.5, dtype)
+            tirx.const(0.5, dtype)
             * x
             * (
-                tir.const(1.0, dtype)
+                tirx.const(1.0, dtype)
                 + topi.tanh(
-                    tir.const(math.sqrt(2.0 / math.pi), dtype)
+                    tirx.const(math.sqrt(2.0 / math.pi), dtype)
                     * x
-                    * (1 + tir.const(0.044715, dtype) * x * x)
+                    * (1 + tirx.const(0.044715, dtype) * x * x)
                 )
             )
         )
@@ -533,14 +533,14 @@ def _nn_gelu_tanh(bb: BlockBuilder, call: Call) -> Expr:
 def _nn_selu(bb: BlockBuilder, call: Call) -> Expr:
     def te_selu(x: te.Tensor):
         dtype = x.dtype
-        alpha = tir.const(1.6732632423543772848170429916717, dtype)
-        scale = tir.const(1.0507009873554804934193349852946, dtype)
+        alpha = tirx.const(1.6732632423543772848170429916717, dtype)
+        scale = tirx.const(1.0507009873554804934193349852946, dtype)
 
         # Compute SELU
         # SELU(x) = scale*(max(0,x)+min(0,a*(exp(x)-1)))
-        positive_part = topi.maximum(x, tir.const(0, dtype))
+        positive_part = topi.maximum(x, tirx.const(0, dtype))
         negative_part = topi.minimum(
-            tir.const(0, dtype), alpha * (topi.exp(x) - tir.const(1, dtype))
+            tirx.const(0, dtype), alpha * (topi.exp(x) - tirx.const(1, dtype))
         )
         return scale * (positive_part + negative_part)
 
@@ -669,7 +669,7 @@ def _te_attention(
     k: te.Tensor,
     v: te.Tensor,
     bias: te.Tensor,
-    scale: tir.FloatImm,
+    scale: tirx.FloatImm,
     causal_mask: str | None,
 ) -> te.Tensor:
     batch_size, seq_len, num_head, head_dim = q.shape
@@ -684,7 +684,7 @@ def _te_attention(
     if scale is not None:
         p = topi.multiply(p, scale)
     else:
-        p = topi.divide(p, tir.sqrt(tir.Cast(p.dtype, head_dim)))
+        p = topi.divide(p, tirx.sqrt(tirx.Cast(p.dtype, head_dim)))
     if bias is not None:
         p = topi.reshape(p, [batch_size, num_head, seq_len, seq_len_kv])
         p = topi.add(p, bias)
@@ -693,9 +693,9 @@ def _te_attention(
         s = topi.nn.softmax(p)
     else:
         if causal_mask == "TopLeft":
-            offset = tir.IntImm("int32", 0)
+            offset = tirx.IntImm("int32", 0)
         elif causal_mask == "BottomRight":
-            offset = tir.abs(seq_len - seq_len_kv).astype("int32")
+            offset = tirx.abs(seq_len - seq_len_kv).astype("int32")
         else:
             raise NotImplementedError()
         p_masked = topi.trilu(p, k=offset, upper=False)

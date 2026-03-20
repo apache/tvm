@@ -23,7 +23,7 @@ from tvm import relax, te
 from tvm.runtime import Executable
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def test_compile_tir():
@@ -109,7 +109,7 @@ def test_compile_mixed_module():
     dev = tvm.cpu(0)
     x = tvm.runtime.tensor(np.array([1, 2, 3, 4], dtype=np.float32), dev)
     y = tvm.runtime.tensor(np.zeros(4, dtype=np.float32), dev)
-    # For tir function, we can directly call the function
+    # For tirx function, we can directly call the function
     ex["add_one"](x, y)
     tvm.testing.assert_allclose(y.numpy(), x.numpy() + 1)
     # For relax function, we need to use the vm to call the function

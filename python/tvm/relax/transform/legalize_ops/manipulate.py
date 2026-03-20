@@ -19,11 +19,11 @@
 """Default legalization function for manipulate operators."""
 
 import tvm
-from tvm import relax, s_tir, te, tir, topi
+from tvm import relax, s_tir, te, tirx, topi
 from tvm.relax.op.base import call_tir
 from tvm.relax.struct_info import TensorStructInfo
 from tvm.relax.utils import gen_call_tir_inputs
-from tvm.tir.expr import IntImm
+from tvm.tirx.expr import IntImm
 
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr, ShapeExpr, Tuple, TupleGetItem, Var
@@ -108,7 +108,7 @@ def _permute_dims(bb: BlockBuilder, call: Call) -> Expr:
 
 @register_legalize("relax.split")
 def _split(bb: BlockBuilder, call: Call) -> Expr:
-    if isinstance(call.attrs.indices_or_sections, tir.IntImm):
+    if isinstance(call.attrs.indices_or_sections, tirx.IntImm):
         indices_or_sections = call.attrs.indices_or_sections.value
     else:
         indices_or_sections = call.attrs.indices_or_sections
@@ -312,7 +312,7 @@ def _layout_transform(bb: BlockBuilder, call: Call) -> Expr:
     def set_axis_sep(axis_sep: list, sch: s_tir.schedule, buffer_type: str):
         sch.set_axis_separator(primfunc_name, (buffer_type, 0), axis_separators=axis_sep)
 
-    index_map: tvm.tir.IndexMap = call.attrs.index_map
+    index_map: tvm.tirx.IndexMap = call.attrs.index_map
     pad_value = call.attrs.pad_value
     if pad_value is not None:
         pad_value = pad_value.value
@@ -322,14 +322,14 @@ def _layout_transform(bb: BlockBuilder, call: Call) -> Expr:
         else:
             pad_value = 0.0
 
-    axis_separators: tvm.tir.IndexMap.AXIS_SEPARATOR = call.attrs.axis_separators
-    input_axis_separators: tvm.tir.IndexMap.AXIS_SEPARATOR = call.attrs.input_axis_separators
+    axis_separators: tvm.tirx.IndexMap.AXIS_SEPARATOR = call.attrs.axis_separators
+    input_axis_separators: tvm.tirx.IndexMap.AXIS_SEPARATOR = call.attrs.input_axis_separators
 
     # Convert to list from array
     axis_separators = [int(sep) for sep in axis_separators]
     primfunc_name = "te_layout_transform"
     _, padding_predicate = index_map.non_surjective_inverse(call.args[0].struct_info.shape)
-    if not isinstance(padding_predicate, tvm.tir.expr.IntImm):
+    if not isinstance(padding_predicate, tvm.tirx.expr.IntImm):
         primfunc_name += "_with_pad"
     if len(axis_separators) != 0:
         primfunc_name += "_axis_separator"

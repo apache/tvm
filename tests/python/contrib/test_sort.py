@@ -37,7 +37,7 @@ def test_sort():
     out = te.extern(
         data.shape,
         [data, sort_num],
-        lambda ins, outs: tvm.tir.call_packed(
+        lambda ins, outs: tvm.tirx.call_packed(
             "tvm.contrib.sort.argsort_nms", ins[0], ins[1], outs[0], axis, is_ascend
         ),
         dtype="int32",
@@ -74,7 +74,7 @@ def test_sort_np():
     out = te.extern(
         data.shape,
         [data, sort_num],
-        lambda ins, outs: tvm.tir.call_packed(
+        lambda ins, outs: tvm.tirx.call_packed(
             "tvm.contrib.sort.argsort_nms", ins[0], ins[1], outs[0], axis, is_ascend
         ),
         dtype="int32",

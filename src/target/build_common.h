@@ -28,9 +28,9 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ir/module.h>
 #include <tvm/target/codegen.h>
-#include <tvm/tir/expr.h>
-#include <tvm/tir/function.h>
-#include <tvm/tir/stmt.h>
+#include <tvm/tirx/expr.h>
+#include <tvm/tirx/function.h>
+#include <tvm/tirx/stmt.h>
 
 #include <string>
 
@@ -43,15 +43,15 @@ inline ffi::Map<ffi::String, runtime::FunctionInfo> ExtractFuncInfo(const IRModu
   ffi::Map<ffi::String, runtime::FunctionInfo> fmap;
 
   for (auto kv : mod->functions) {
-    TVM_FFI_ICHECK(kv.second->IsInstance<tir::PrimFuncNode>())
+    TVM_FFI_ICHECK(kv.second->IsInstance<tirx::PrimFuncNode>())
         << "Can only lower IR Module with PrimFuncs";
-    auto f = Downcast<tir::PrimFunc>(kv.second);
+    auto f = Downcast<tirx::PrimFunc>(kv.second);
 
     ffi::Array<DLDataType> arg_types;
     ffi::Array<runtime::ArgExtraTags> arg_extra_tags;
     for (size_t i = 0; i < f->params.size(); ++i) {
       arg_types.push_back(f->params[i].dtype());
-      auto is_tensormap = [](const tir::Var& var) -> bool {
+      auto is_tensormap = [](const tirx::Var& var) -> bool {
         const auto* type = var->type_annotation.as<PointerTypeNode>();
         if (type == nullptr) {
           return false;
@@ -62,7 +62,7 @@ inline ffi::Map<ffi::String, runtime::FunctionInfo> ExtractFuncInfo(const IRModu
                                                           : runtime::ArgExtraTags::kNone);
     }
     ffi::Array<ffi::String> launch_param_tags;
-    if (auto opt = f->GetAttr<ffi::Array<ffi::String>>(tir::attr::kKernelLaunchParams)) {
+    if (auto opt = f->GetAttr<ffi::Array<ffi::String>>(tirx::attr::kKernelLaunchParams)) {
       for (const auto& tag : opt.value()) {
         launch_param_tags.push_back(tag);
       }

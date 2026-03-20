@@ -18,7 +18,7 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import TVMError, relax, tir
+from tvm import TVMError, relax, tirx
 from tvm.ir import Op, VDevice
 from tvm.script import relax as R
 
@@ -141,13 +141,13 @@ def test_conv1d_infer_struct_info():
 
 def test_conv1d_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    n = tir.Var("n", "int64")
-    c = tir.Var("c", "int64")
-    c16 = tir.Var("c16", "int64")
-    iw = tir.Var("iw", "int64")
-    ki = tir.Var("ki", "int64")
-    ko = tir.Var("ko", "int64")
-    kw = tir.Var("kw", "int64")
+    n = tirx.Var("n", "int64")
+    c = tirx.Var("c", "int64")
+    c16 = tirx.Var("c16", "int64")
+    iw = tirx.Var("iw", "int64")
+    ki = tirx.Var("ki", "int64")
+    ko = tirx.Var("ko", "int64")
+    kw = tirx.Var("kw", "int64")
     x0 = relax.Var("x", R.Tensor((n, c, iw), "float32"))
     x1 = relax.Var("x", R.Tensor((n, c, iw, c16), "float32"))
     w0 = relax.Var("w", R.Tensor((ko, ki, kw), "float32"))
@@ -173,7 +173,7 @@ def test_conv1d_infer_struct_info_shape_symbolic():
         bb,
         relax.op.nn.conv1d(x0, w0, strides=2, padding=1, dilation=2),
         relax.TensorStructInfo(
-            (n, ko, tvm.tir.floordiv(iw + 3, 2) + 1 - kw),
+            (n, ko, tvm.tirx.floordiv(iw + 3, 2) + 1 - kw),
             "float32",
         ),
     )
@@ -232,9 +232,9 @@ def test_conv1d_infer_struct_info_groups():
 
 def test_conv1d_infer_struct_info_symbolic_groups():
     bb = relax.BlockBuilder()
-    n = tir.Var("n", "int64")
-    ic = tir.Var("c", "int64")
-    oc = tir.Var("oc", "int64")
+    n = tirx.Var("n", "int64")
+    ic = tirx.Var("c", "int64")
+    oc = tirx.Var("oc", "int64")
     x = relax.Var("x", R.Tensor((n, ic * 4, 28), "float32"))
     w0 = relax.Var("w", R.Tensor((oc * 4, ic, 3), "float32"))
     w1 = relax.Var("w", R.Tensor((oc, ic, 3), "float32"))
@@ -251,9 +251,9 @@ def test_conv1d_infer_struct_info_symbolic_groups():
 
 def test_conv1d_infer_struct_info_input_channel_group_incompatible():
     bb = relax.BlockBuilder()
-    n = tir.Var("n", "int64")
-    ic = tir.Var("c", "int64")
-    oc = tir.Var("oc", "int64")
+    n = tirx.Var("n", "int64")
+    ic = tirx.Var("c", "int64")
+    oc = tirx.Var("oc", "int64")
     x0 = relax.Var("x", R.Tensor((2, 128, 28), "float32"))
     w0 = relax.Var("w", R.Tensor((48, 20, 3), "float32"))
     x1 = relax.Var("x", R.Tensor((n, ic * 6, 28), "float32"))
@@ -267,9 +267,9 @@ def test_conv1d_infer_struct_info_input_channel_group_incompatible():
 
 def test_conv1d_infer_struct_info_output_channel_group_incompatible():
     bb = relax.BlockBuilder()
-    n = tir.Var("n", "int64")
-    ic = tir.Var("c", "int64")
-    oc = tir.Var("oc", "int64")
+    n = tirx.Var("n", "int64")
+    ic = tirx.Var("c", "int64")
+    oc = tirx.Var("oc", "int64")
     x0 = relax.Var("x", R.Tensor((2, 120, 28), "float32"))
     w0 = relax.Var("w", R.Tensor((128, 20, 3), "float32"))
     x1 = relax.Var("x", R.Tensor((n, ic * 6, 28), "float32"))
@@ -336,7 +336,7 @@ def test_conv1d_infer_struct_info_mixed_precision():
 
 def test_conv1d_unequal_input_channel():
     bb = relax.BlockBuilder()
-    ic = tir.Var("ic", "int64")
+    ic = tirx.Var("ic", "int64")
     x0 = relax.Var("x", R.Tensor([2, 3, 28], "float32"))
     w0 = relax.Var("w", R.Tensor([3, 4, 3], "float32"))
     x1 = relax.Var("x", R.Tensor([2, ic, 28], "float32"))
@@ -525,13 +525,13 @@ def test_conv1d_transpose_infer_struct_info():
 
 def test_conv1d_transpose_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    n = tir.Var("n", "int64")
-    c = tir.Var("c", "int64")
-    c16 = tir.Var("c16", "int64")
-    iw = tir.Var("iw", "int64")
-    ki = tir.Var("ki", "int64")
-    ko = tir.Var("ko", "int64")
-    kw = tir.Var("kw", "int64")
+    n = tirx.Var("n", "int64")
+    c = tirx.Var("c", "int64")
+    c16 = tirx.Var("c16", "int64")
+    iw = tirx.Var("iw", "int64")
+    ki = tirx.Var("ki", "int64")
+    ko = tirx.Var("ko", "int64")
+    kw = tirx.Var("kw", "int64")
     x0 = relax.Var("x", R.Tensor((n, c, iw), "float32"))
     x1 = relax.Var("x", R.Tensor((n, c, iw, c16), "float32"))
     w0 = relax.Var("w", R.Tensor((ki, ko, kw), "float32"))
@@ -620,9 +620,9 @@ def test_conv1d_transpose_infer_struct_info_groups():
 
 def test_conv1d_transpose_infer_struct_info_symbolic_groups():
     bb = relax.BlockBuilder()
-    n = tir.Var("n", "int64")
-    ic = tir.Var("c", "int64")
-    oc = tir.Var("oc", "int64")
+    n = tirx.Var("n", "int64")
+    ic = tirx.Var("c", "int64")
+    oc = tirx.Var("oc", "int64")
     x = relax.Var("x", R.Tensor((n, ic * 4, 28), "float32"))
     w0 = relax.Var("w", R.Tensor((ic, oc, 3), "float32"))
 
@@ -635,9 +635,9 @@ def test_conv1d_transpose_infer_struct_info_symbolic_groups():
 
 def test_conv1d_transpose_infer_struct_info_input_channel_group_incompatible():
     bb = relax.BlockBuilder()
-    n = tir.Var("n", "int64")
-    ic = tir.Var("c", "int64")
-    oc = tir.Var("oc", "int64")
+    n = tirx.Var("n", "int64")
+    ic = tirx.Var("c", "int64")
+    oc = tirx.Var("oc", "int64")
     x0 = relax.Var("x", R.Tensor((2, 128, 28), "float32"))
     w0 = relax.Var("w", R.Tensor((128, 20, 3), "float32"))
     x1 = relax.Var("x", R.Tensor((n, ic, 28), "float32"))
@@ -686,7 +686,7 @@ def test_conv1d_transpose_infer_struct_info_more_input_dtype():
 
 def test_conv1d_transpose_unequal_input_channel():
     bb = relax.BlockBuilder()
-    ic = tir.Var("ic", "int64")
+    ic = tirx.Var("ic", "int64")
     x0 = relax.Var("x", R.Tensor([2, 3, 28], "float32"))
     w0 = relax.Var("w", R.Tensor([4, 3, 3], "float32"))
     x1 = relax.Var("x", R.Tensor([2, ic, 28], "float32"))
@@ -901,15 +901,15 @@ def test_conv2d_infer_struct_info():
 
 def test_conv2d_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    n = tir.Var("n", "int64")
-    c = tir.Var("c", "int64")
-    c16 = tir.Var("c16", "int64")
-    ih = tir.Var("ih", "int64")
-    iw = tir.Var("iw", "int64")
-    ki = tir.Var("ki", "int64")
-    ko = tir.Var("ko", "int64")
-    kh = tir.Var("kh", "int64")
-    kw = tir.Var("kw", "int64")
+    n = tirx.Var("n", "int64")
+    c = tirx.Var("c", "int64")
+    c16 = tirx.Var("c16", "int64")
+    ih = tirx.Var("ih", "int64")
+    iw = tirx.Var("iw", "int64")
+    ki = tirx.Var("ki", "int64")
+    ko = tirx.Var("ko", "int64")
+    kh = tirx.Var("kh", "int64")
+    kw = tirx.Var("kw", "int64")
     x0 = relax.Var("x", R.Tensor((n, c, ih, iw), "float32"))
     x1 = relax.Var("x", R.Tensor((n, c, ih, iw, c16), "float32"))
     w0 = relax.Var("w", R.Tensor((ko, ki, kh, kw), "float32"))
@@ -937,7 +937,7 @@ def test_conv2d_infer_struct_info_shape_symbolic():
         bb,
         relax.op.nn.conv2d(x0, w0, strides=(2, 2), padding=(1, 1), dilation=(2, 2)),
         relax.TensorStructInfo(
-            (n, ko, tvm.tir.floordiv(ih + 3, 2) + 1 - kh, tvm.tir.floordiv(iw + 3, 2) + 1 - kw),
+            (n, ko, tvm.tirx.floordiv(ih + 3, 2) + 1 - kh, tvm.tirx.floordiv(iw + 3, 2) + 1 - kw),
             "float32",
         ),
     )
@@ -996,9 +996,9 @@ def test_conv2d_infer_struct_info_groups():
 
 def test_conv2d_infer_struct_info_symbolic_groups():
     bb = relax.BlockBuilder()
-    n = tir.Var("n", "int64")
-    ic = tir.Var("c", "int64")
-    oc = tir.Var("oc", "int64")
+    n = tirx.Var("n", "int64")
+    ic = tirx.Var("c", "int64")
+    oc = tirx.Var("oc", "int64")
     x = relax.Var("x", R.Tensor((n, ic * 4, 28, 28), "float32"))
     w0 = relax.Var("w", R.Tensor((oc * 4, ic, 3, 3), "float32"))
     w1 = relax.Var("w", R.Tensor((oc, ic, 3, 3), "float32"))
@@ -1015,9 +1015,9 @@ def test_conv2d_infer_struct_info_symbolic_groups():
 
 def test_conv2d_infer_struct_info_input_channel_group_incompatible():
     bb = relax.BlockBuilder()
-    n = tir.Var("n", "int64")
-    ic = tir.Var("c", "int64")
-    oc = tir.Var("oc", "int64")
+    n = tirx.Var("n", "int64")
+    ic = tirx.Var("c", "int64")
+    oc = tirx.Var("oc", "int64")
     x0 = relax.Var("x", R.Tensor((2, 128, 28, 28), "float32"))
     w0 = relax.Var("w", R.Tensor((48, 20, 3, 3), "float32"))
     x1 = relax.Var("x", R.Tensor((n, ic * 6, 28, 28), "float32"))
@@ -1031,9 +1031,9 @@ def test_conv2d_infer_struct_info_input_channel_group_incompatible():
 
 def test_conv2d_infer_struct_info_output_channel_group_incompatible():
     bb = relax.BlockBuilder()
-    n = tir.Var("n", "int64")
-    ic = tir.Var("c", "int64")
-    oc = tir.Var("oc", "int64")
+    n = tirx.Var("n", "int64")
+    ic = tirx.Var("c", "int64")
+    oc = tirx.Var("oc", "int64")
     x0 = relax.Var("x", R.Tensor((2, 120, 28, 28), "float32"))
     w0 = relax.Var("w", R.Tensor((128, 20, 3, 3), "float32"))
     x1 = relax.Var("x", R.Tensor((n, ic * 6, 28, 28), "float32"))
@@ -1106,7 +1106,7 @@ def test_conv2d_infer_struct_info_mixed_precision():
 
 def test_conv2d_unequal_input_channel():
     bb = relax.BlockBuilder()
-    ic = tir.Var("ic", "int64")
+    ic = tirx.Var("ic", "int64")
     x0 = relax.Var("x", R.Tensor([2, 3, 28, 28], "float32"))
     w0 = relax.Var("w", R.Tensor([3, 4, 3, 3], "float32"))
     x1 = relax.Var("x", R.Tensor([2, ic, 28, 28], "float32"))
@@ -1314,15 +1314,15 @@ def test_conv2d_transpose_infer_struct_info():
 
 def test_conv2d_transpose_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    n = tir.Var("n", "int64")
-    c = tir.Var("c", "int64")
-    c16 = tir.Var("c16", "int64")
-    ih = tir.Var("ih", "int64")
-    iw = tir.Var("iw", "int64")
-    ki = tir.Var("ki", "int64")
-    ko = tir.Var("ko", "int64")
-    kh = tir.Var("kh", "int64")
-    kw = tir.Var("kw", "int64")
+    n = tirx.Var("n", "int64")
+    c = tirx.Var("c", "int64")
+    c16 = tirx.Var("c16", "int64")
+    ih = tirx.Var("ih", "int64")
+    iw = tirx.Var("iw", "int64")
+    ki = tirx.Var("ki", "int64")
+    ko = tirx.Var("ko", "int64")
+    kh = tirx.Var("kh", "int64")
+    kw = tirx.Var("kw", "int64")
     x0 = relax.Var("x", R.Tensor((n, c, ih, iw), "float32"))
     x1 = relax.Var("x", R.Tensor((n, c, ih, iw, c16), "float32"))
     w0 = relax.Var("w", R.Tensor((ki, ko, kh, kw), "float32"))
@@ -1415,9 +1415,9 @@ def test_conv2d_transpose_infer_struct_info_groups():
 
 def test_conv2d_transpose_infer_struct_info_symbolic_groups():
     bb = relax.BlockBuilder()
-    n = tir.Var("n", "int64")
-    ic = tir.Var("c", "int64")
-    oc = tir.Var("oc", "int64")
+    n = tirx.Var("n", "int64")
+    ic = tirx.Var("c", "int64")
+    oc = tirx.Var("oc", "int64")
     x = relax.Var("x", R.Tensor((n, ic * 4, 28, 28), "float32"))
     w0 = relax.Var("w", R.Tensor((ic, oc, 3, 3), "float32"))
 
@@ -1430,9 +1430,9 @@ def test_conv2d_transpose_infer_struct_info_symbolic_groups():
 
 def test_conv2d_transpose_infer_struct_info_input_channel_group_incompatible():
     bb = relax.BlockBuilder()
-    n = tir.Var("n", "int64")
-    ic = tir.Var("c", "int64")
-    oc = tir.Var("oc", "int64")
+    n = tirx.Var("n", "int64")
+    ic = tirx.Var("c", "int64")
+    oc = tirx.Var("oc", "int64")
     x0 = relax.Var("x", R.Tensor((2, 128, 28, 28), "float32"))
     w0 = relax.Var("w", R.Tensor((128, 20, 3, 3), "float32"))
     x1 = relax.Var("x", R.Tensor((n, ic, 28, 28), "float32"))
@@ -1481,7 +1481,7 @@ def test_conv2d_transpose_infer_struct_info_more_input_dtype():
 
 def test_conv2d_transpose_unequal_input_channel():
     bb = relax.BlockBuilder()
-    ic = tir.Var("ic", "int64")
+    ic = tirx.Var("ic", "int64")
     x0 = relax.Var("x", R.Tensor([2, 3, 28, 28], "float32"))
     w0 = relax.Var("w", R.Tensor([4, 3, 3, 3], "float32"))
     x1 = relax.Var("x", R.Tensor([2, ic, 28, 28], "float32"))
@@ -1711,17 +1711,17 @@ def test_conv3d_infer_struct_info():
 
 def test_conv3d_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    n = tir.Var("n", "int64")
-    c = tir.Var("c", "int64")
-    c16 = tir.Var("c16", "int64")
-    id = tir.Var("id", "int64")
-    ih = tir.Var("ih", "int64")
-    iw = tir.Var("iw", "int64")
-    ki = tir.Var("ki", "int64")
-    ko = tir.Var("ko", "int64")
-    kd = tir.Var("kd", "int64")
-    kh = tir.Var("kh", "int64")
-    kw = tir.Var("kw", "int64")
+    n = tirx.Var("n", "int64")
+    c = tirx.Var("c", "int64")
+    c16 = tirx.Var("c16", "int64")
+    id = tirx.Var("id", "int64")
+    ih = tirx.Var("ih", "int64")
+    iw = tirx.Var("iw", "int64")
+    ki = tirx.Var("ki", "int64")
+    ko = tirx.Var("ko", "int64")
+    kd = tirx.Var("kd", "int64")
+    kh = tirx.Var("kh", "int64")
+    kw = tirx.Var("kw", "int64")
     x0 = relax.Var("x", R.Tensor((n, c, id, ih, iw), "float32"))
     x1 = relax.Var("x", R.Tensor((n, c, id, ih, iw, c16), "float32"))
     w0 = relax.Var("w", R.Tensor((ko, ki, kd, kh, kw), "float32"))
@@ -1752,9 +1752,9 @@ def test_conv3d_infer_struct_info_shape_symbolic():
             (
                 n,
                 ko,
-                tvm.tir.floordiv(id + 3, 2) + 1 - kd,
-                tvm.tir.floordiv(ih + 3, 2) + 1 - kh,
-                tvm.tir.floordiv(iw + 3, 2) + 1 - kw,
+                tvm.tirx.floordiv(id + 3, 2) + 1 - kd,
+                tvm.tirx.floordiv(ih + 3, 2) + 1 - kh,
+                tvm.tirx.floordiv(iw + 3, 2) + 1 - kw,
             ),
             "float32",
         ),

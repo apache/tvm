@@ -23,7 +23,7 @@ import tvm.script
 import tvm.testing
 from tvm import relax
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 use_np_array = tvm.testing.parameter(False, True)
 

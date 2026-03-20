@@ -22,11 +22,11 @@ from typing import Optional, Union
 
 import tvm
 from tvm.ir import IRModule
-from tvm.tir.expr import Var
-from tvm.tir.stmt import SBlock, BufferRegion
+from tvm.tirx.expr import Var
+from tvm.tirx.stmt import SBlock, BufferRegion
 
-from tvm.tir import Buffer, Stmt
-from tvm.tir.function import PrimFunc
+from tvm.tirx import Buffer, Stmt
+from tvm.tirx.function import PrimFunc
 from . import _ffi_api
 
 
@@ -38,7 +38,7 @@ def get_sblock_access_region(
 
     Parameters
     ----------
-    block: tvm.tir.SBlock
+    block: tvm.tirx.SBlock
         The block in which we are detecting read/write regions.
 
     buffer_var_map : Dict[Var, Buffer]
@@ -63,7 +63,7 @@ def get_sblock_read_write_region(
 
     Parameters
     ----------
-    block: tvm.tir.SBlock
+    block: tvm.tirx.SBlock
         The block in which we are detecting read/write regions.
 
     buffer_var_map : Dict[Var, Buffer]
@@ -85,7 +85,7 @@ def detect_buffer_access_lca(func: PrimFunc) -> dict[Buffer, Stmt]:
 
     Parameters
     ----------
-    func: tvm.tir.PrimFunc
+    func: tvm.tirx.PrimFunc
         The function to be detected.
 
     Returns
@@ -128,7 +128,7 @@ def verify_gpu_code(func: PrimFunc, constraints: dict[str, int]) -> bool:
 
     Parameters
     ----------
-    func: tvm.tir.PrimFunc
+    func: tvm.tirx.PrimFunc
         The module to be verified.
 
     constraints : Dict[str, int]

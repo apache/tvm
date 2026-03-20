@@ -28,7 +28,7 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 using ExprComparator = ExprFunctor<bool(const PrimExpr& n, const PrimExpr& other)>;
 using StmtComparator = StmtFunctor<bool(const Stmt& n, const Stmt& other)>;

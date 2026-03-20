@@ -29,19 +29,19 @@
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/object.h>
 #include <tvm/s_tir/data_layout.h>
-#include <tvm/tir/analysis.h>
-#include <tvm/tir/expr.h>
-#include <tvm/tir/stmt_functor.h>
-#include <tvm/tir/var.h>
+#include <tvm/tirx/analysis.h>
+#include <tvm/tirx/expr.h>
+#include <tvm/tirx/stmt_functor.h>
+#include <tvm/tirx/var.h>
 
 #include <algorithm>
 #include <cctype>
 
 namespace tvm {
-namespace tir {
-using tir::IterVar;
-using tir::IterVarNode;
-using tir::Var;
+namespace tirx {
+using tirx::IterVar;
+using tirx::IterVarNode;
+using tirx::Var;
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   LayoutNode::RegisterReflection();
@@ -133,7 +133,7 @@ Layout::Layout(const std::string& name, DataType dtype) {  // NOLINT(*)
       TVM_FFI_ICHECK_EQ(factor, 0) << "Invalid layout " << name << ": invalid factor size "
                                    << factor << " before dimension " << c;
       IterVar axis(Range(IntImm(dtype, 0), Var(std::string(1, c), dtype)),
-                   Var(std::string(1, c), dtype), tir::kDataPar);
+                   Var(std::string(1, c), dtype), tirx::kDataPar);
       if (!in_packing) {
         node->axes.push_back(axis);
       } else {
@@ -145,7 +145,7 @@ Layout::Layout(const std::string& name, DataType dtype) {  // NOLINT(*)
       std::stringstream name;
       name << factor << c;
       IterVar axis(Range(IntImm(dtype, 0), IntImm(dtype, factor)), Var(name.str(), dtype),
-                   tir::kDataPar);
+                   tirx::kDataPar);
       if (!in_packing) {
         node->axes.push_back(axis);
       } else {
@@ -176,7 +176,7 @@ Layout::Layout(const std::string& name, DataType dtype) {  // NOLINT(*)
       }
       std::string grouped_name = ss.str();
       IterVar grouped_axis(Range(IntImm(dtype, 0), IntImm(dtype, extent)), Var(grouped_name, dtype),
-                           tir::kDataPar);
+                           tirx::kDataPar);
       node->axes.push_back(grouped_axis);
 
       in_packing = false;
@@ -240,13 +240,13 @@ ffi::Array<IterVar> Layout::UnpackIterVar(IterVar packed_iter) {
     } else if (ch >= 'a' && ch <= 'z') {
       TVM_FFI_ICHECK(factor != 0) << "Invalid Factor Size";
       result.push_back(IterVar(Range(IntImm(dtype, 0), IntImm(dtype, factor)),
-                               Var(std::string(1, ch), dtype), tir::kDataPar));
+                               Var(std::string(1, ch), dtype), tirx::kDataPar));
       final_factor *= factor;
       factor = 0;
     } else if (ch >= 'A' && ch <= 'Z') {
       TVM_FFI_ICHECK(factor == 0) << "Can't have non-zero factors for primal axis";
       result.push_back(IterVar(Range(IntImm(dtype, 0), Var(std::string(1, ch), dtype)),
-                               Var(std::string(1, ch), dtype), tir::kDataPar));
+                               Var(std::string(1, ch), dtype), tirx::kDataPar));
     }
   }
 
@@ -266,7 +266,7 @@ IterVar Layout::PackIterVar(ffi::Array<IterVar> iter_vars) {
   }
 
   return IterVar(Range(IntImm(dtype, 0), IntImm(dtype, extent)), Var(name.str(), dtype),
-                 tir::kDataPar);
+                 tirx::kDataPar);
 }
 
 int32_t Layout::FactorOf(const LayoutAxis& axis) const {
@@ -444,12 +444,12 @@ inline ffi::Array<PrimExpr> TransformIndex(const ffi::Array<PrimExpr>& src_index
                                            const ffi::Array<PrimExpr>& transform_rule) {
   arith::Analyzer ana;
   ffi::Array<PrimExpr> result;
-  std::unordered_map<const tir::VarNode*, PrimExpr> bind_map;
+  std::unordered_map<const tirx::VarNode*, PrimExpr> bind_map;
   for (size_t i = 0; i < src_index.size(); ++i) {
     bind_map[src_axis[i]->var.get()] = src_index[i];
   }
   for (PrimExpr rule : transform_rule) {
-    result.push_back(ana.Simplify(tir::Substitute(rule, bind_map)));
+    result.push_back(ana.Simplify(tirx::Substitute(rule, bind_map)));
   }
   return result;
 }
@@ -482,7 +482,7 @@ inline ffi::Array<PrimExpr> TransformShape(const ffi::Array<PrimExpr>& src_shape
   // for major-axis, bind the corresponding size
   // for minor-axis, simply bind it as 0, so that we can reuse forward/backward_rule,
   // e.g., (C * 16 + c) / 32
-  std::unordered_map<const tir::VarNode*, PrimExpr> bind_map;
+  std::unordered_map<const tirx::VarNode*, PrimExpr> bind_map;
   for (size_t i = 0; i < src_shape.size(); ++i) {
     PrimExpr orig_shape = src_shape[i];
     IterVar orig_axis = src_axis[i];
@@ -516,7 +516,7 @@ inline ffi::Array<PrimExpr> TransformShape(const ffi::Array<PrimExpr>& src_shape
     if (layout.size() != 1 || !LayoutAxis::Get(layout[0]).IsPrimal()) {
       result.push_back(axis->dom->extent);
     } else {
-      result.push_back(ana.Simplify(tir::Substitute(rule, bind_map)));
+      result.push_back(ana.Simplify(tirx::Substitute(rule, bind_map)));
     }
   }
 
@@ -602,5 +602,5 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def_method("s_tir.BijectiveLayoutForwardShape", &BijectiveLayout::ForwardShape)
       .def_method("s_tir.BijectiveLayoutBackwardShape", &BijectiveLayout::BackwardShape);
 }
-}  // namespace tir
+}  // namespace tirx
 }  // namespace tvm

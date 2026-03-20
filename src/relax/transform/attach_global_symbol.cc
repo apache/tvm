@@ -26,7 +26,7 @@
 #include <tvm/ir/replace_global_vars.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
-#include <tvm/tir/function.h>
+#include <tvm/tirx/function.h>
 
 namespace tvm {
 namespace relax {
@@ -47,10 +47,10 @@ Pass AttachGlobalSymbol() {
       ffi::Optional<ffi::String> new_name;
       BaseFunc new_func;
 
-      if (auto* prim_func = func.as<tir::PrimFuncNode>()) {
+      if (auto* prim_func = func.as<tirx::PrimFuncNode>()) {
         new_name = c_prefix + gvar->name_hint;
         new_func =
-            WithAttr(ffi::GetRef<tir::PrimFunc>(prim_func), tvm::attr::kGlobalSymbol, new_name);
+            WithAttr(ffi::GetRef<tirx::PrimFunc>(prim_func), tvm::attr::kGlobalSymbol, new_name);
       } else if (auto* relax_func = func.as<FunctionNode>()) {
         new_name = gvar->name_hint;
         new_func = WithAttr(ffi::GetRef<Function>(relax_func), tvm::attr::kGlobalSymbol, new_name);

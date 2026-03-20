@@ -19,7 +19,7 @@ import tvm
 import tvm.testing
 from tvm.relax.transform import LegalizeOps
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def test_quantize_fp32_to_int8():
@@ -43,7 +43,7 @@ def test_quantize_fp32_to_int8():
             C: T.Buffer((T.int64(2),), "int8"),
             quantized: T.Buffer((T.int64(2), T.int64(4)), "int8"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
             for i0, i1 in T.grid(T.int64(2), T.int64(4)):
                 with T.sblock("quantized"):
@@ -97,7 +97,7 @@ def test_quantize_fp16_to_uint8():
             C: T.Buffer((T.int64(2),), "int8"),
             quantized: T.Buffer((T.int64(2), T.int64(4)), "uint8"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
             for i0, i1 in T.grid(T.int64(2), T.int64(4)):
                 with T.sblock("quantized"):
@@ -146,7 +146,7 @@ def test_quantize_fp32_to_int8_symbolic():
     class Expected:
         @T.prim_func(private=True)
         def quantize(var_A: T.handle, var_B: T.handle, var_C: T.handle, var_quantized: T.handle):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             n = T.int64()
             A = T.match_buffer(var_A, (T.int64(4), n))
             B = T.match_buffer(var_B, (n,))
@@ -202,7 +202,7 @@ def test_quantize_fp32_to_int8_scalar_param():
             A: T.Buffer((T.int64(2), T.int64(4)), "float32"),
             quantized: T.Buffer((T.int64(2), T.int64(4)), "int8"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
             for i0, i1 in T.grid(T.int64(2), T.int64(4)):
                 with T.sblock("quantized"):
@@ -252,7 +252,7 @@ def test_quantize_fp32_to_int8_scalar_1d_param():
             C: T.Buffer((T.int64(2),), "int8"),
             quantized: T.Buffer((T.int64(2), T.int64(4)), "int8"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
             for i0, i1 in T.grid(T.int64(2), T.int64(4)):
                 with T.sblock("quantized"):
@@ -301,7 +301,7 @@ def test_quantize_fp16_to_int8_scalar_param():
             A: T.Buffer((T.int64(2), T.int64(4)), "float16"),
             quantized: T.Buffer((T.int64(2), T.int64(4)), "int8"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
             for i0, i1 in T.grid(T.int64(2), T.int64(4)):
                 with T.sblock("quantized"):
@@ -349,7 +349,7 @@ def test_dequantize_int8_to_fp32():
             C: T.Buffer((T.int64(2),), "int8"),
             dequantized: T.Buffer((T.int64(2), T.int64(4)), "float32"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
             for i0, i1 in T.grid(T.int64(2), T.int64(4)):
                 with T.sblock("dequantized"):
@@ -393,7 +393,7 @@ def test_dequantize_int8_to_fp32_scalar_param():
             A: T.Buffer((T.int64(2), T.int64(4)), "int8"),
             dequantized: T.Buffer((T.int64(2), T.int64(4)), "float32"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
             for i0, i1 in T.grid(T.int64(2), T.int64(4)):
                 with T.sblock("dequantized"):
@@ -432,7 +432,7 @@ def test_dequantize_int8_to_fp32_symbolic():
         def dequantize(
             var_A: T.handle, var_B: T.handle, var_C: T.handle, var_dequantized: T.handle
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             n = T.int64()
             A = T.match_buffer(var_A, (T.int64(2), n), "int8")
             B = T.match_buffer(var_B, (n,))
@@ -486,7 +486,7 @@ def test_dequantize_int8_to_fp16():
             C: T.Buffer((T.int64(2),), "int8"),
             dequantized: T.Buffer((T.int64(2), T.int64(4)), "float16"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
             for i0, i1 in T.grid(T.int64(2), T.int64(4)):
                 with T.sblock("dequantized"):
@@ -540,7 +540,7 @@ def test_dequantize_int8_to_fp16_scalar_param():
             A: T.Buffer((T.int64(2), T.int64(4)), "int8"),
             dequantized: T.Buffer((T.int64(2), T.int64(4)), "float16"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
             for i0, i1 in T.grid(T.int64(2), T.int64(4)):
                 with T.sblock("dequantized"):

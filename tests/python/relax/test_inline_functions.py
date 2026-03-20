@@ -22,7 +22,7 @@ import tvm
 import tvm.testing
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 @pytest.mark.parametrize("key_type", [tvm.ir.GlobalVar, str])
@@ -171,8 +171,8 @@ def test_subroutine_with_symbolic_vars():
     """Inlined subroutines should use the caller's symbolic variables
 
     Before inlining, the subroutine and the caller have distinct
-    `tir::Var` for each symbolic variables.  After inlining, only the
-    caller's `tir::Var` symbolic variables should remain.
+    `tirx::Var` for each symbolic variables.  After inlining, only the
+    caller's `tirx::Var` symbolic variables should remain.
     """
 
     @I.ir_module

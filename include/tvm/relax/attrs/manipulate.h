@@ -25,7 +25,7 @@
 #define TVM_RELAX_ATTRS_MANIPULATE_H_
 
 #include <tvm/relax/expr.h>
-#include <tvm/tir/index_map.h>
+#include <tvm/tirx/index_map.h>
 
 namespace tvm {
 namespace relax {
@@ -60,7 +60,7 @@ struct ExpandDimsAttrs : public AttrsNodeReflAdapter<ExpandDimsAttrs> {
 
 /*! \brief Attributes used in layout_transform operator */
 struct LayoutTransformAttrs : public AttrsNodeReflAdapter<LayoutTransformAttrs> {
-  tir::IndexMap index_map;
+  tirx::IndexMap index_map;
   // pad_value is chosen to be of PrimValue type, as it represents constant TIR POD expression. This
   // needs to be revisited in case PrimValue is evolved to represent symbolic expression in future.
   ffi::Optional<PrimValue> pad_value;

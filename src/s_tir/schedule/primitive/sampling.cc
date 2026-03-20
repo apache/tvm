@@ -23,7 +23,7 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 struct PrimeTable {
   /*! \brief The table contains prime numbers in [2, kMaxPrime) */
@@ -309,7 +309,7 @@ std::vector<int64_t> SamplePerfectTile(support::LinearCongruentialEngine::TRandS
 
 std::vector<int64_t> SamplePerfectTile(
     support::LinearCongruentialEngine::TRandState* rand_state,  //
-    const tir::StmtSRef& loop_sref, int32_t n_splits, int32_t max_innermost_factor,
+    const tirx::StmtSRef& loop_sref, int32_t n_splits, int32_t max_innermost_factor,
     ffi::Optional<ffi::Array<Integer>>* decision) {
   const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
   const int64_t* extent = GetLoopIntExtent(loop);
@@ -370,7 +370,7 @@ TVM_DLL std::vector<int64_t> SamplePartitionedTile(
 
 std::vector<int64_t> SamplePartitionedTile(
     support::LinearCongruentialEngine::TRandState* rand_state,  //
-    const tir::StmtSRef& loop_sref, int32_t n_splits, int32_t partition_pos,
+    const tirx::StmtSRef& loop_sref, int32_t n_splits, int32_t partition_pos,
     int32_t innerpart_factor, ffi::Optional<ffi::Array<Integer>>* decision) {
   const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
   const int64_t* extent = GetLoopIntExtent(loop);
@@ -418,9 +418,9 @@ std::vector<int64_t> SamplePartitionedTile(
   return result;
 }
 
-tir::StmtSRef SampleComputeLocation(s_tir::ScheduleState self,
-                                    support::LinearCongruentialEngine::TRandState* rand_state,
-                                    const StmtSRef& block_sref, ffi::Optional<Integer>* decision) {
+tirx::StmtSRef SampleComputeLocation(s_tir::ScheduleState self,
+                                     support::LinearCongruentialEngine::TRandState* rand_state,
+                                     const StmtSRef& block_sref, ffi::Optional<Integer>* decision) {
   // Step 1. Collect all possible compute-at locations.
   auto [location_srefs, location_indices] = CollectComputeLocation(self, block_sref);
   TVM_FFI_ICHECK_EQ(location_srefs.size(), location_indices.size());

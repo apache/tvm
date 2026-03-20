@@ -19,7 +19,7 @@ Apply ScheduleRules onto an IRModule to generate default schedules without tunin
 or a space for MetaSchedule tuning
 """
 
-from tvm import s_tir, tir
+from tvm import s_tir, tirx
 from tvm.ir import IRModule
 from tvm.ir.transform import PassContext, module_pass
 from tvm.target import Target
@@ -27,15 +27,15 @@ from tvm.target import Target
 from .schedule_rule import ScheduleRule
 
 
-def _is_scheduled(func: tir.PrimFunc) -> bool:
-    if not isinstance(func, tir.PrimFunc):
+def _is_scheduled(func: tirx.PrimFunc) -> bool:
+    if not isinstance(func, tirx.PrimFunc):
         return False
-    if "tir.is_scheduled" not in func.attrs:
+    if "tirx.is_scheduled" not in func.attrs:
         return False
-    return func.attrs["tir.is_scheduled"] == 1
+    return func.attrs["tirx.is_scheduled"] == 1
 
 
-def _get_target(func: tir.PrimFunc) -> Target:
+def _get_target(func: tirx.PrimFunc) -> Target:
     target = func.attrs.get("target")
     if target is None:
         return Target.current(allow_none=False)
@@ -64,14 +64,14 @@ class ApplyDefaultSchedule:  # pylint: disable=too-few-public-methods
     ) -> IRModule:
         updated_functions = {}
         for g_var, func in mod.functions_items():
-            if isinstance(func, tir.PrimFunc) and not _is_scheduled(func):
+            if isinstance(func, tirx.PrimFunc) and not _is_scheduled(func):
                 target = _get_target(func)
 
                 sch = _apply_rules(func, target, self.rules, tunable=False)
                 if sch is not None:
                     assert len(sch) == 1
                     updated_functions[g_var] = (
-                        sch[0].mod["main"].with_attr("tir.is_scheduled", True)
+                        sch[0].mod["main"].with_attr("tirx.is_scheduled", True)
                     )
         for g_var, func in updated_functions.items():
             mod[g_var] = func
@@ -79,7 +79,7 @@ class ApplyDefaultSchedule:  # pylint: disable=too-few-public-methods
 
 
 def _apply_rules(
-    func: tir.PrimFunc,
+    func: tirx.PrimFunc,
     target: Target,
     rules: list[ScheduleRule],
     tunable: bool,

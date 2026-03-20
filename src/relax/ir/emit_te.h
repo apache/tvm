@@ -67,7 +67,7 @@ class RXPlaceholderOpNode : public te::PlaceholderOpNode {
  * shape of the input Expr.
  * \param name The name of the created tensor.
  */
-te::Tensor TETensor(Expr value, ffi::Map<tir::Var, PrimExpr> tir_var_map, std::string name);
+te::Tensor TETensor(Expr value, ffi::Map<tirx::Var, PrimExpr> tir_var_map, std::string name);
 
 }  // namespace relax
 }  // namespace tvm

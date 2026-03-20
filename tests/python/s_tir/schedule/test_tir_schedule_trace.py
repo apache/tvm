@@ -23,10 +23,10 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import s_tir, tir
+from tvm import s_tir, tirx
 from tvm.s_tir.schedule import Instruction, InstructionKind, LoopRV, SBlockRV, Trace
 from tvm.s_tir.schedule.testing import assert_structural_equal_ignore_global_symbol
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
@@ -322,13 +322,13 @@ def test_apply_json_to_schedule_1():
 
 
 def test_apply_json_to_schedule_sample_categorical():
-    var = tir.Var("v", "int32")
+    var = tirx.Var("v", "int32")
     trace1 = Trace(
         insts=[
             Instruction(
                 kind=InstructionKind.get("SampleCategorical"),
                 inputs=[],
-                attrs=[[tvm.tir.IntImm("int32", 3)], [tvm.tir.FloatImm("float32", 1.0)]],
+                attrs=[[tvm.tirx.IntImm("int32", 3)], [tvm.tirx.FloatImm("float32", 1.0)]],
                 outputs=[var],
             )
         ],

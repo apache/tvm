@@ -18,7 +18,7 @@ import numpy as np
 
 import tvm
 from tvm.script import ir as I
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def test_dltensor_compatible():

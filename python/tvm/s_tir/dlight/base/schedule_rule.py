@@ -18,7 +18,7 @@
 
 from collections.abc import Callable
 
-from tvm import s_tir, tir
+from tvm import s_tir, tirx
 from tvm.target import Target
 
 
@@ -35,7 +35,7 @@ class ScheduleRule:  # pylint: disable=too-few-public-methods
 
     def apply(
         self,
-        func: tir.PrimFunc,
+        func: tirx.PrimFunc,
         target: Target,
         tunable: bool,
     ) -> None | s_tir.Schedule | list[s_tir.Schedule]:
@@ -43,7 +43,7 @@ class ScheduleRule:  # pylint: disable=too-few-public-methods
 
         Parameters
         ----------
-        func : tir.PrimFunc
+        func : tirx.PrimFunc
             The PrimFunc to apply the ScheduleRule to.
         target : Target
             The compilation target the schedule is supposed to be built for.
@@ -64,7 +64,7 @@ class ScheduleRule:  # pylint: disable=too-few-public-methods
     ) -> Callable[
         [
             Callable[
-                [tir.PrimFunc, Target, bool],
+                [tirx.PrimFunc, Target, bool],
                 None | s_tir.Schedule | list[s_tir.Schedule],
             ],
         ],
@@ -86,7 +86,7 @@ class ScheduleRule:  # pylint: disable=too-few-public-methods
         .. code-block:: python
 
             @ScheduleRule.from_callable("MyRule")
-            def my_rule(func: tir.PrimFunc, target: Target, tunable: bool) -> Union[None, Schedule]
+            def my_rule(func: tirx.PrimFunc, target: Target, tunable: bool) -> Union[None, Schedule]
                 # Do something with func and target
         """
 
@@ -94,7 +94,7 @@ class ScheduleRule:  # pylint: disable=too-few-public-methods
             class _Rule(ScheduleRule):
                 def apply(
                     self,
-                    func: tir.PrimFunc,
+                    func: tirx.PrimFunc,
                     target: Target,
                     tunable: bool,
                 ) -> None | s_tir.Schedule | list[s_tir.Schedule]:

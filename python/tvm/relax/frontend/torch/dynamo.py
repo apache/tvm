@@ -92,7 +92,7 @@ def relax_dynamo(pipeline: tvm.transform.Pass | None = None):
             for s in tensor.shape:
                 if isinstance(s, torch.SymInt):
                     if str(s) not in shape_vars:
-                        shape_vars[str(s)] = tvm.tir.Var(str(s), "int64")
+                        shape_vars[str(s)] = tvm.tirx.Var(str(s), "int64")
                     shape.append(shape_vars[str(s)])
                 else:
                     shape.append(s)

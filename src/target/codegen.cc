@@ -30,8 +30,8 @@
 #include <tvm/support/serializer.h>
 #include <tvm/target/codegen.h>
 #include <tvm/target/target.h>
-#include <tvm/tir/function.h>
-#include <tvm/tir/transform.h>
+#include <tvm/tirx/function.h>
+#include <tvm/tirx/transform.h>
 
 #include <cstdint>
 #include <cstring>
@@ -46,9 +46,9 @@ namespace codegen {
 
 ffi::Module Build(IRModule mod, Target target) {
   if (transform::PassContext::Current()
-          ->GetConfig<Bool>("tir.disable_assert", Bool(false))
+          ->GetConfig<Bool>("tirx.disable_assert", Bool(false))
           .value()) {
-    mod = tir::transform::SkipAssert()(mod);
+    mod = tirx::transform::SkipAssert()(mod);
   }
 
   // the build function.

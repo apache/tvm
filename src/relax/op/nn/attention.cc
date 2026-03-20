@@ -125,7 +125,7 @@ StructInfo InferStructInfoAttention(const Call& call, const BlockBuilder& ctx) {
     }
     auto diag_equal_or_broadcast = [&](PrimExpr v1, PrimExpr v2, ffi::String m1, ffi::String m2,
                                        ffi::String dim) {
-      if (analyzer->CanProve(v1 != v2) && !tir::is_one(v2)) {
+      if (analyzer->CanProve(v1 != v2) && !tirx::is_one(v2)) {
         ctx->ReportFatal(Diagnostic::Error(call)
                          << "The " << m1 << " " << dim << " and the " << m2 << " " << dim
                          << " should be the same or broadcastable. However, the " << dim << " of "

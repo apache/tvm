@@ -27,7 +27,7 @@
 #include <tvm/ir/expr.h>
 #include <tvm/ir/function.h>
 #include <tvm/te/tensor.h>
-#include <tvm/tir/expr.h>
+#include <tvm/tirx/expr.h>
 
 #include "../support/scalars.h"
 
@@ -48,7 +48,7 @@ PrimExpr::PrimExpr(int32_t value) : PrimExpr(IntImm(DataType::Int(32), value)) {
 
 PrimExpr::PrimExpr(float value) : PrimExpr(FloatImm(DataType::Float(32), value)) {}
 
-PrimExpr PrimExpr::ConvertFallbackValue(ffi::String value) { return tir::StringImm(value); }
+PrimExpr PrimExpr::ConvertFallbackValue(ffi::String value) { return tirx::StringImm(value); }
 
 IntImm::IntImm(DataType dtype, int64_t value, Span span) {
   TVM_FFI_CHECK(dtype.is_scalar(), ValueError)
@@ -190,7 +190,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 Range::Range(PrimExpr begin, PrimExpr end, Span span)
-    : Range(ffi::make_object<RangeNode>(begin, tir::is_zero(begin) ? end : (end - begin), span)) {}
+    : Range(ffi::make_object<RangeNode>(begin, tirx::is_zero(begin) ? end : (end - begin), span)) {}
 
 Range Range::FromMinExtent(PrimExpr min, PrimExpr extent, Span span) {
   return Range(ffi::make_object<RangeNode>(min, extent, span));

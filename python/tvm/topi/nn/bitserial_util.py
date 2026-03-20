@@ -69,7 +69,7 @@ def bitpack(data, bits, pack_axis, bit_axis, pack_type, name="QuantizeInput"):
         pack_axis += 1
 
     def _bitpack(*indices):
-        packed_data = [tvm.tir.const(0, pack_type)] * bits
+        packed_data = [tvm.tirx.const(0, pack_type)] * bits
         for k in range(data_width):
             # Translate indices for packed data back to original
             idx = [0] * n
@@ -85,7 +85,7 @@ def bitpack(data, bits, pack_axis, bit_axis, pack_type, name="QuantizeInput"):
 
             element = data(*idx)
             for b in range(bits):
-                extracted_bit = ((element & tvm.tir.const(masks[b], "int32")) >> b).astype(
+                extracted_bit = ((element & tvm.tirx.const(masks[b], "int32")) >> b).astype(
                     pack_type
                 )
                 packed_data[b] = packed_data[b] | extracted_bit

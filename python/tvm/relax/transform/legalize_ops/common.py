@@ -20,7 +20,7 @@ from collections.abc import Callable
 
 import tvm
 from tvm import te
-from tvm.tir import FloatImm, IntImm
+from tvm.tirx import FloatImm, IntImm
 
 from ...block_builder import BlockBuilder
 from ...expr import Call, Constant, Expr
@@ -73,9 +73,9 @@ def _try_convert_to_scalar_const(
             return value
         # preserve the data type of the constant
         if dtype.startswith("float"):
-            return tvm.tir.FloatImm(dtype, value)
+            return tvm.tirx.FloatImm(dtype, value)
         elif dtype.startswith("int") or dtype.startswith("uint") or dtype.startswith("bool"):
-            return tvm.tir.IntImm(dtype, value)
+            return tvm.tirx.IntImm(dtype, value)
     return expr
 
 

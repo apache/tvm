@@ -26,7 +26,7 @@ from collections.abc import Callable
 from functools import reduce
 
 import tvm
-from tvm import relax, tir
+from tvm import relax, tirx
 
 
 class BaseFXGraphImporter(metaclass=abc.ABCMeta):
@@ -1870,7 +1870,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 for d in shape:
                     if isinstance(d, int) and d == 1:
                         return True
-                    # Check for tir.IntImm
+                    # Check for tirx.IntImm
                     if hasattr(d, "value") and d.value == 1:
                         return True
             return False
@@ -1942,13 +1942,13 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             max_index_val = 9223372036854775807
 
             def _adjust(val):
-                if isinstance(val, int | tir.IntImm):
+                if isinstance(val, int | tirx.IntImm):
                     int_val = int(val)
                     if int_val >= max_index_val:
                         return input_shape[axis]
                     if int_val < 0:
                         return input_shape[axis] + int_val
-                    if isinstance(input_shape[axis], int | tir.IntImm) and int_val > int(
+                    if isinstance(input_shape[axis], int | tirx.IntImm) and int_val > int(
                         input_shape[axis]
                     ):
                         return input_shape[axis]
@@ -1998,7 +1998,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         original_shape = self.shape_of(input_tensor)
 
         def to_int(val):
-            if isinstance(val, tir.IntImm):
+            if isinstance(val, tirx.IntImm):
                 return int(val.value)
             elif isinstance(val, int):
                 return val

@@ -19,17 +19,17 @@
 import tvm
 import tvm.testing
 from tvm import s_tir
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def _count_alloc(stmt):
     num_alloc = [0]
 
     def visit(n):
-        if isinstance(n, tvm.tir.AllocBuffer):
+        if isinstance(n, tvm.tirx.AllocBuffer):
             num_alloc[0] += 1
 
-    tvm.tir.stmt_functor.post_order_visit(stmt, visit)
+    tvm.tirx.stmt_functor.post_order_visit(stmt, visit)
     return num_alloc[0]
 
 
@@ -37,23 +37,23 @@ def _count_ptx_ldg32(stmt):
     num_call = [0]
 
     def visit(n):
-        if isinstance(n, tvm.tir.Call) and n.op.name == "tir.ptx_ldg32":
+        if isinstance(n, tvm.tirx.Call) and n.op.name == "tirx.ptx_ldg32":
             num_call[0] += 1
 
-    tvm.tir.stmt_functor.post_order_visit(stmt, visit)
+    tvm.tirx.stmt_functor.post_order_visit(stmt, visit)
     return num_call[0]
 
 
 @T.prim_func
 def where_no_alloc(A: T.Buffer((4,), "float32"), C: T.Buffer((4,), "float32")) -> None:
-    T.func_attr({"global_symbol": "main", "tir.noalias": True, "target": T.target("cuda")})
+    T.func_attr({"global_symbol": "main", "tirx.noalias": True, "target": T.target("cuda")})
     for i in range(4):
         C[i] = T.if_then_else(A[i] > T.float32(0), A[i], T.float32(0))
 
 
 @T.prim_func
 def where_no_alloc_cpu(A: T.Buffer((4,), "float32"), C: T.Buffer((4,), "float32")) -> None:
-    T.func_attr({"global_symbol": "main", "tir.noalias": True, "target": T.target("llvm")})
+    T.func_attr({"global_symbol": "main", "tirx.noalias": True, "target": T.target("llvm")})
     for i in range(4):
         C[i] = T.if_then_else(A[i] > T.float32(0), A[i], T.float32(0))
 

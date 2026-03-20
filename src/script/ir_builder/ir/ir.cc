@@ -21,8 +21,8 @@
 #include <tvm/ir/module.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/script/ir_builder/ir/ir.h>
-#include <tvm/tir/function.h>
-#include <tvm/tir/op.h>
+#include <tvm/tirx/function.h>
+#include <tvm/tirx/op.h>
 
 #include "./utils.h"
 
@@ -41,7 +41,7 @@ IRModuleFrame IRModule() {
 inline relax::StructInfo GetGlobalVarStructInfo(const BaseFunc& func) {
   if (func->struct_info_.defined()) {
     return tvm::relax::GetStructInfo(func);
-  } else if (const auto* prim_func = func.as<tvm::tir::PrimFuncNode>()) {
+  } else if (const auto* prim_func = func.as<tvm::tirx::PrimFuncNode>()) {
     return tvm::relax::FuncStructInfo::OpaqueFunc(
         tvm::relax::StructInfoFromType(prim_func->ret_type));
   } else {
@@ -55,7 +55,7 @@ GlobalVar DeclFunction(const ffi::String& func_name, const BaseFunc& func_signat
       << "function " << func_name << " already exists";
 
   auto gvar_type = [&]() -> Type {
-    if (auto prim_func = func_signature.as<tir::PrimFuncNode>()) {
+    if (auto prim_func = func_signature.as<tirx::PrimFuncNode>()) {
       ffi::Array<Type> arg_types =
           prim_func->params.Map([](const auto& var) { return GetType(var); });
       return FuncType(arg_types, prim_func->ret_type);

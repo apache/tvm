@@ -96,7 +96,7 @@ def register_op(operand_type: type, op_node_type: AST, operand_index: int):
     Parameters
     ----------
     operand_type : Type
-        The type of operands, e.g., tir.PrimExpr, tir.IterVar.
+        The type of operands, e.g., tirx.PrimExpr, tirx.IterVar.
 
     op_node_type : AST
         The doc AST operator node type, e.g., doc.Add, doc.Eq.
@@ -135,7 +135,7 @@ def get_op(
     Parameters
     ----------
     operand_type : Type
-        The type of operands, e.g., tir.PrimExpr, tir.IterVar.
+        The type of operands, e.g., tirx.PrimExpr, tirx.IterVar.
 
     op_node_type : AST
         The doc AST operator node type, e.g., doc.Add, doc.Eq.

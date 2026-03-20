@@ -22,7 +22,7 @@ from collections.abc import Callable
 from typing import Any
 
 import tvm
-from tvm import relax, tir
+from tvm import relax, tirx
 
 
 class StableHLOImporter:
@@ -130,7 +130,7 @@ class StableHLOImporter:
         for i in range(shape_type.rank):
             # get_dim_size
             if shape_type.is_dynamic_dim(i):
-                n = tir.Var("n", "int64")
+                n = tirx.Var("n", "int64")
                 ret.append(n)
             else:
                 ret.append(shape_type.get_dim_size(i))

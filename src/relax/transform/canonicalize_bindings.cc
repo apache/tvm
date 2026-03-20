@@ -30,7 +30,7 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
 namespace relax {
@@ -118,13 +118,14 @@ class SymbolicVarCanonicalizer : public ExprMutator {
     if (known_values_.empty()) {
       return expr;
     }
-    PrimExpr output = tir::Substitute(expr, [this](const tir::Var& var) -> ffi::Optional<PrimExpr> {
-      if (auto it = known_values_.find(var); it != known_values_.end()) {
-        return it->second.expr;
-      } else {
-        return std::nullopt;
-      }
-    });
+    PrimExpr output =
+        tirx::Substitute(expr, [this](const tirx::Var& var) -> ffi::Optional<PrimExpr> {
+          if (auto it = known_values_.find(var); it != known_values_.end()) {
+            return it->second.expr;
+          } else {
+            return std::nullopt;
+          }
+        });
     if (output.same_as(expr)) {
       return expr;
     }
@@ -139,7 +140,7 @@ class SymbolicVarCanonicalizer : public ExprMutator {
     MatchCast source;
   };
 
-  std::unordered_map<tir::Var, KnownValue> known_values_;
+  std::unordered_map<tirx::Var, KnownValue> known_values_;
 };
 
 struct CanonicalizationPlan {

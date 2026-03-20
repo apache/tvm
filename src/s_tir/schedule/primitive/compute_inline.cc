@@ -22,7 +22,7 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 static const char kErrBodyInline[] = R"(The body of the inlined block should be in form of
     'A[f(i, j, k, ...)] = g(i, j, k, ...)',
@@ -679,7 +679,7 @@ class ReverseComputeInliner : public BaseInliner {
     }
 
     const BufferStoreNode* producer_store = nullptr;
-    if (const auto* producer_if = producer_block_->body.as<tir::IfThenElseNode>()) {
+    if (const auto* producer_if = producer_block_->body.as<tirx::IfThenElseNode>()) {
       if (producer_if->else_case.defined()) {
         return false;
       }
@@ -1287,7 +1287,7 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
   };
 
   // Identity element for reduction (assumed to be 0 for addition-based reductions)
-  PrimExpr identity_elem = tir::make_zero(epilogue_output_buffer_->dtype);
+  PrimExpr identity_elem = tirx::make_zero(epilogue_output_buffer_->dtype);
 
   // Substitute reduction buffer load with identity element
   InitSubstituter init_subst(inlined_buffer_, identity_elem);

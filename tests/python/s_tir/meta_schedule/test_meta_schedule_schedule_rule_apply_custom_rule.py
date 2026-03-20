@@ -22,7 +22,7 @@ import pytest
 import tvm
 from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.meta_schedule.schedule_rule import ApplyCustomRule
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 @tvm.script.ir_module
@@ -43,7 +43,7 @@ class Matmul:
 
 
 @tvm.register_global_func("s_tir.meta_schedule.cpu.test_apply_custom_rule")
-def sch_fn(sch: tvm.s_tir.Schedule, block: tvm.tir.SBlock) -> list[tvm.s_tir.Schedule]:
+def sch_fn(sch: tvm.s_tir.Schedule, block: tvm.tirx.SBlock) -> list[tvm.s_tir.Schedule]:
     raise ValueError("Intended for s_tir.meta_schedule.cpu.test_apply_custom_rule")
 
 

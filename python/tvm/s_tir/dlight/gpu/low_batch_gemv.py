@@ -20,7 +20,7 @@
 from functools import reduce
 from typing import Literal
 
-from tvm import arith, ir, s_tir, tir
+from tvm import arith, ir, s_tir, tirx
 from tvm.target import Target
 
 from ..analysis import (
@@ -34,23 +34,23 @@ from ..base import auto_vectorize, get_bytes, get_extent, try_inline_contiguous_
 from .base import GPUScheduleRule
 
 
-def _get_reduction_expr(block: tir.SBlock) -> tir.PrimExpr | None:
+def _get_reduction_expr(block: tirx.SBlock) -> tirx.PrimExpr | None:
     # Detect and return `Y` in `X[...] = X[...] + Y`
     buffer_store = block.body
-    if not isinstance(buffer_store, tir.BufferStore):
+    if not isinstance(buffer_store, tirx.BufferStore):
         return None
-    if not isinstance(buffer_store.value, tir.Add):
+    if not isinstance(buffer_store.value, tirx.Add):
         return None
     if not ir.structural_equal(
         buffer_store.value.a,
-        tir.BufferLoad(buffer_store.buffer, block.body.indices),
+        tirx.BufferLoad(buffer_store.buffer, block.body.indices),
         map_free_vars=True,
     ):
         return None
     return buffer_store.value.b
 
 
-def is_gemv(sch: s_tir.Schedule, block_info: SBlockInfo) -> list[tir.Buffer] | None:
+def is_gemv(sch: s_tir.Schedule, block_info: SBlockInfo) -> list[tirx.Buffer] | None:
     """Check if the block is a low batch GEMM.
 
     Parameters
@@ -65,7 +65,7 @@ def is_gemv(sch: s_tir.Schedule, block_info: SBlockInfo) -> list[tir.Buffer] | N
 
     Returns
     -------
-    ret : Optional[List[tir.Buffer]]
+    ret : Optional[List[tirx.Buffer]]
         The vector-like buffers used in the low batch GEMM if it is a low batch GEMM,
         otherwise None.
     """
@@ -85,16 +85,16 @@ def is_gemv(sch: s_tir.Schedule, block_info: SBlockInfo) -> list[tir.Buffer] | N
     const_iter_vars = set(
         iter_var.var
         for iter_var in block_stmt.iter_vars
-        if isinstance(iter_var.dom.extent, tir.IntImm)
+        if isinstance(iter_var.dom.extent, tirx.IntImm)
     )
     if len(block_stmt.iter_vars) - len(const_iter_vars) != 1:
         return None
     symbolic_iter_var = next(
         iter_var
         for iter_var in block_stmt.iter_vars
-        if not isinstance(iter_var.dom.extent, tir.IntImm)
+        if not isinstance(iter_var.dom.extent, tirx.IntImm)
     )
-    if symbolic_iter_var.iter_type != tir.stmt.IterVar.DataPar:
+    if symbolic_iter_var.iter_type != tirx.stmt.IterVar.DataPar:
         return None
     ret = [
         read.buffer
@@ -111,7 +111,7 @@ def is_gemv(sch: s_tir.Schedule, block_info: SBlockInfo) -> list[tir.Buffer] | N
     return ret if 0 < len(ret) < len(block_stmt.reads) else None
 
 
-def detect_dominant_read(block: tir.SBlock, const_iter_vars: set[tir.Var]) -> tir.PrimExpr:
+def detect_dominant_read(block: tirx.SBlock, const_iter_vars: set[tirx.Var]) -> tirx.PrimExpr:
     """Detect the dominant read indices in the block."""
     dominant_read = None
     num_read_iters = -1
@@ -133,11 +133,11 @@ def normalize(
     block_info: SBlockInfo,
 ) -> bool | None:
     """Normalize the main block."""
-    block_stmt: tir.SBlock = sch.get(block_info.block_rv)
+    block_stmt: tirx.SBlock = sch.get(block_info.block_rv)
     const_iter_vars = set(
         iter_var.var
         for iter_var in block_stmt.iter_vars
-        if isinstance(iter_var.dom.extent, tir.IntImm)
+        if isinstance(iter_var.dom.extent, tirx.IntImm)
     )
     dynamic_iter_vars = set(
         iter_var.var for iter_var in block_stmt.iter_vars if iter_var.var not in const_iter_vars
@@ -196,11 +196,11 @@ class LowBatchGEMV(GPUScheduleRule):
 
     def apply(  # pylint: disable=too-many-locals,too-many-branches,too-many-return-statements
         self,
-        func: tir.PrimFunc,
+        func: tirx.PrimFunc,
         target: Target,
         _: bool,
     ) -> None | s_tir.Schedule | list[s_tir.Schedule]:
-        if not isinstance(func, tir.PrimFunc) or not self.is_target_available(target):
+        if not isinstance(func, tirx.PrimFunc) or not self.is_target_available(target):
             return None
         sch = s_tir.Schedule(func)
         block_infos = normalize_prim_func(sch)
@@ -293,7 +293,7 @@ class LowBatchGEMV(GPUScheduleRule):
         block: s_tir.schedule.SBlockRV,
         dequantize_block: s_tir.schedule.SBlockRV | None,
         pad_input_block: s_tir.schedule.SBlockRV | None,
-        vector_input_buffers: list[tir.Buffer],
+        vector_input_buffers: list[tirx.Buffer],
         epilogue_info: SBlockInfo | None,
         batch_pad: int,
     ):
@@ -351,12 +351,12 @@ class LowBatchGEMV(GPUScheduleRule):
             shared_mem_usage = 0
             for buf in vector_input_buffers:
                 buf_size = reduce(
-                    lambda x, y: x * y, buf.shape, tir.IntImm(buf.shape[0].dtype, 1)
+                    lambda x, y: x * y, buf.shape, tirx.IntImm(buf.shape[0].dtype, 1)
                 ) * get_bytes(buf.dtype)
                 shared_mem_usage += buf_size
             LOAD_V_SHARED = (
                 LOAD_V_SHARED
-                and isinstance(shared_mem_usage, tir.IntImm)
+                and isinstance(shared_mem_usage, tirx.IntImm)
                 and shared_mem_usage.value <= int(target.attrs["max_shared_memory_per_block"])
             )
 
@@ -380,8 +380,8 @@ class LowBatchGEMV(GPUScheduleRule):
                 V_shared = sch.cache_read(rf, read_buffer_index=0, storage_scope="shared")
                 sch.compute_at(V_shared, tr, preserve_unit_loops=True)
                 l = sch.get_loops(block=V_shared)[-1]
-                loop: tir.For = sch.get(l)
-                if isinstance(loop.extent, tir.IntImm):
+                loop: tirx.For = sch.get(l)
+                if isinstance(loop.extent, tirx.IntImm):
                     # avoid introducing predicates when vector length is too large
                     vec_length = max(
                         min(
@@ -605,7 +605,7 @@ class LowBatchGEMV(GPUScheduleRule):
         block: s_tir.schedule.SBlockRV,
         dequantize_block: s_tir.schedule.SBlockRV | None,
         pad_input_block: s_tir.schedule.SBlockRV | None,
-        vector_input_buffers: list[tir.Buffer],
+        vector_input_buffers: list[tirx.Buffer],
         epilogue_info: SBlockInfo | None,
         batch_pad: int,
     ):

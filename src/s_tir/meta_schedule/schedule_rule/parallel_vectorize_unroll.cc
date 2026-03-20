@@ -23,7 +23,7 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 bool IsRootBlock(const Schedule& sch, const SBlockRV& block_rv) {
   StmtSRef block_sref = sch->GetSRef(block_rv);

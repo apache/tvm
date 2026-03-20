@@ -603,7 +603,7 @@ def conv_forward(
 
     x_shape = list(x.shape)
 
-    if isinstance(x.shape[0], tvm.tir.expr.IntImm):
+    if isinstance(x.shape[0], tvm.tirx.expr.IntImm):
         oshape = conv_output_shape(
             tensor_format,
             pad,
@@ -658,7 +658,7 @@ def conv_forward(
         return te.extern(
             oshape,
             [x, w],
-            lambda ins, outs: tvm.tir.call_packed(
+            lambda ins, outs: tvm.tirx.call_packed(
                 "tvm.contrib.cudnn.conv2d.forward",
                 conv_mode,
                 tensor_format,
@@ -681,7 +681,7 @@ def conv_forward(
     return te.extern(
         oshape,
         [x, w],
-        lambda ins, outs: tvm.tir.call_packed(
+        lambda ins, outs: tvm.tirx.call_packed(
             "tvm.contrib.cudnn.conv3d.forward",
             conv_mode,
             tensor_format,
@@ -753,7 +753,7 @@ def conv_backward_data(
     conv_dtype = dy.dtype if conv_dtype is None else conv_dtype
     pad, stride, dilation, _, _ = _prepare_global_func_params(dims - 2, pad, stride, dilation)
 
-    assert isinstance(dy.shape[0], tvm.tir.expr.IntImm), (
+    assert isinstance(dy.shape[0], tvm.tirx.expr.IntImm), (
         "Dynamic batch is not supported for cudnn conv2d backwad data yet."
     )
 
@@ -782,7 +782,7 @@ def conv_backward_data(
     return te.extern(
         dx_shape,
         [dy, w],
-        lambda ins, outs: tvm.tir.call_packed(
+        lambda ins, outs: tvm.tirx.call_packed(
             "tvm.contrib.cudnn.conv2d.backward_data",
             conv_mode,
             tensor_format,
@@ -847,7 +847,7 @@ def conv_backward_filter(
 
     x_shape = list(x.shape)
 
-    assert isinstance(x.shape[0], tvm.tir.expr.IntImm), (
+    assert isinstance(x.shape[0], tvm.tirx.expr.IntImm), (
         "Dynamic batch is not supported for cudnn conv2d backwad filter yet."
     )
 
@@ -883,7 +883,7 @@ def conv_backward_filter(
     return te.extern(
         dw_shape,
         [dy, x],
-        lambda ins, outs: tvm.tir.call_packed(
+        lambda ins, outs: tvm.tirx.call_packed(
             "tvm.contrib.cudnn.conv2d.backward_filter",
             conv_mode,
             tensor_format,
@@ -923,7 +923,7 @@ def softmax(x, axis=-1):
     return te.extern(
         x.shape,
         [x],
-        lambda ins, outs: tvm.tir.call_packed(
+        lambda ins, outs: tvm.tirx.call_packed(
             "tvm.contrib.cudnn.softmax.forward", ins[0], outs[0], axis
         ),
         name="y",
@@ -949,7 +949,7 @@ def log_softmax(x, axis=-1):
     return te.extern(
         x.shape,
         [x],
-        lambda ins, outs: tvm.tir.call_packed(
+        lambda ins, outs: tvm.tirx.call_packed(
             "tvm.contrib.cudnn.log_softmax.forward", ins[0], outs[0], axis
         ),
         name="y",

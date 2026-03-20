@@ -18,7 +18,7 @@
 """Pattern table for CLML backend"""
 
 import tvm
-from tvm import IRModule, relax, tir
+from tvm import IRModule, relax, tirx
 from tvm.ir.transform import PassContext, module_pass
 from tvm.relax import transform
 from tvm.relax.dpl.pattern import (
@@ -631,7 +631,7 @@ def _check_dequantize_matmul(ctx: relax.transform.PatternCheckContext) -> bool:
 
     if not (
         (len(root.struct_info.shape) == 3)
-        and isinstance(root.struct_info.shape[0], tir.IntImm)
+        and isinstance(root.struct_info.shape[0], tirx.IntImm)
         and (root.struct_info.dtype == "float16")
         and (root.struct_info.shape[0] == 1)
     ):

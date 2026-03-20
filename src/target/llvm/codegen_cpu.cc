@@ -50,7 +50,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/module.h>
-#include <tvm/tir/analysis.h>
+#include <tvm/tirx/analysis.h>
 
 #include <algorithm>
 #include <memory>
@@ -526,7 +526,7 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
   // - Make sure the generated compute function is clearly separately(though it can get inlined)
   // - Set noalias on all the pointer arguments, some of them are loaded from ffi::PackedArgs.
   //   This is easier than set the alias scope manually.
-  ffi::Array<Var> vargs = tir::UndefinedVars(op->body, {});
+  ffi::Array<Var> vargs = tirx::UndefinedVars(op->body, {});
   std::vector<llvm::Value*> arg_values;
   std::vector<llvm::Type*> arg_types;
   for (Var v : vargs) {
@@ -633,7 +633,7 @@ void CodeGenCPU::CreateParallelLaunch(const Stmt& body, int num_task, std::strin
   SetTargetAttributes(f);
 
   // allocate and setup the closure, call the closure.
-  ffi::Array<Var> vfields = tir::UndefinedVars(body, {});
+  ffi::Array<Var> vfields = tirx::UndefinedVars(body, {});
   uint64_t nbytes;
   TypedPointer cdata = PackClosureData(vfields, &nbytes, "closure_" + name);
   auto launch_callee = llvm::FunctionCallee(ftype_tvm_parallel_launch_, RuntimeTVMParallelLaunch());
@@ -702,7 +702,7 @@ void CodeGenCPU::CreateStaticInit(const std::string& init_fname, const Stmt& bod
   }
   // allocate and setup the closure, call the closure.
   uint64_t nbytes;
-  ffi::Array<Var> vfields = tir::UndefinedVars(body, {});
+  ffi::Array<Var> vfields = tirx::UndefinedVars(body, {});
   TypedPointer cdata = PackClosureData(vfields, &nbytes);
   llvm::BasicBlock* init_end = CheckCallSuccess(builder_->CreateCall(
       finit, {gv, f, builder_->CreatePointerCast(cdata.addr, t_void_p_), ConstInt32(nbytes)}));
@@ -791,7 +791,7 @@ CodeGenCPU::PackedCall CodeGenCPU::MakeCallPackedLowered(const ffi::Array<PrimEx
                                                          bool use_env_lookup) {
   std::string func_name = [&]() {
     auto ptr = args[0].as<StringImmNode>();
-    TVM_FFI_ICHECK(ptr) << "Expected first argument of tir::Call to be "
+    TVM_FFI_ICHECK(ptr) << "Expected first argument of tirx::Call to be "
                         << "a string containing the callee's name, "
                         << "but instead contained " << args[0];
     return ptr->value;
@@ -836,7 +836,7 @@ CodeGenCPU::PackedCall CodeGenCPU::MakeCallPackedLowered(const ffi::Array<PrimEx
 
   if (!r_type.is_void()) {
     // Load the return value and cast it to the designated type (r_type).
-    DataType r_api_type = tir::APIType(r_type);
+    DataType r_api_type = tirx::APIType(r_type);
     llvm::Type* llvm_r_api_type = DTypeToLLVMType(r_api_type);
     llvm::Value* result_value =
         builder_->CreateInBoundsGEP(t_tvm_ffi_any_, result, {ConstInt32(0), ConstInt32(2)});
@@ -1127,9 +1127,9 @@ void CodeGenCPU::VisitStmt_(const AssertStmtNode* op) {
 
 void CodeGenCPU::VisitStmt_(const AttrStmtNode* op) {
   EmitDebugLocation(op);
-  if (op->attr_key == tir::attr::compute_scope) {
+  if (op->attr_key == tirx::attr::compute_scope) {
     this->CreateComputeScope(op);
-  } else if (tir::attr::IsPragmaKey(op->attr_key)) {
+  } else if (tirx::attr::IsPragmaKey(op->attr_key)) {
     if (op->attr_key == "pragma_parallel_stride_pattern") {
       TVM_FFI_ICHECK(parallel_env_.penv != nullptr)
           << "Pragma parallel_stride_pattern only valid in parallel launch";
@@ -1147,7 +1147,7 @@ void CodeGenCPU::VisitStmt_(const AttrStmtNode* op) {
       auto bar_callee =
           llvm::FunctionCallee(ftype_tvm_parallel_barrier_, RuntimeTVMParallelBarrier());
       builder_->CreateCall(bar_callee, {MakeValue(parallel_env_.task_id), parallel_env_.penv});
-    } else if (op->attr_key == tir::attr::pragma_import_llvm) {
+    } else if (op->attr_key == tirx::attr::pragma_import_llvm) {
       const StringImmNode* value = op->value.as<StringImmNode>();
       TVM_FFI_ICHECK(value != nullptr);
       this->HandleImport(value->value);

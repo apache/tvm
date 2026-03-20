@@ -91,13 +91,13 @@ def batch_matmul(
     else:
         YB, YK, YJ = get_const_tuple(tensor_b.shape)
 
-    assert XK == YK or isinstance(YK, tvm.tir.expr.Var), "shapes of x and y are inconsistent"
+    assert XK == YK or isinstance(YK, tvm.tirx.expr.Var), "shapes of x and y are inconsistent"
     k = te.reduce_axis((0, XK), name="k")
     if oshape is None:
         assert XB == YB or XB == 1 or YB == 1, "batch dimension doesn't match"
         batch = (
-            tvm.tir.expr.SizeVar("batch", "int32")
-            if isinstance(XB, tvm.tir.expr.Var) or isinstance(YB, tvm.tir.expr.Var)
+            tvm.tirx.expr.SizeVar("batch", "int32")
+            if isinstance(XB, tvm.tirx.expr.Var) or isinstance(YB, tvm.tirx.expr.Var)
             else te.max(XB, YB)
         )
         oshape = (batch, XI, YJ)

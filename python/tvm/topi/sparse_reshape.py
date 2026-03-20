@@ -18,9 +18,9 @@
 """Sparse_Reshape operator"""
 
 from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder import tir as T
+from tvm.script.ir_builder import tirx as T
 from tvm.te import div, extern, floordiv, floormod
-from tvm.tir import Cast, decl_buffer
+from tvm.tirx import Cast, decl_buffer
 
 
 def sparse_reshape(

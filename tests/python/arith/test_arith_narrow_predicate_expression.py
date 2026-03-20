@@ -18,19 +18,19 @@
 
 import tvm
 import tvm.testing
-from tvm import tir
+from tvm import tirx
 from tvm.runtime import convert
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
-i = tir.Var("i", "int32")
-j = tir.Var("j", "int32")
-n = tir.Var("n", "int32")
-m = tir.Var("m", "int32")
-b = tir.Var("b", "bool")
-buf = tir.decl_buffer(16, "int32", "buf")
+i = tirx.Var("i", "int32")
+j = tirx.Var("j", "int32")
+n = tirx.Var("n", "int32")
+m = tirx.Var("m", "int32")
+b = tirx.Var("b", "bool")
+buf = tirx.decl_buffer(16, "int32", "buf")
 
-tir_false = tir.IntImm("bool", False)
-tir_true = tir.IntImm("bool", True)
+tir_false = tirx.IntImm("bool", False)
+tir_true = tirx.IntImm("bool", True)
 
 before, expected = tvm.testing.parameters(
     # General arithmatic
@@ -46,17 +46,17 @@ before, expected = tvm.testing.parameters(
     [n < i, T.int32(7) < i],
     [n <= i, T.int32(7) <= i],
     [n >= i, T.int32(0) >= i],
-    [i == n, tir.all(i <= 0, T.int32(7) <= i)],
-    [n == i, tir.all(T.int32(7) <= i, i <= 0)],
-    [i != n, tir.any(i < 0, T.int32(7) < i)],
-    [n != i, tir.any(T.int32(7) < i, i < 0)],
+    [i == n, tirx.all(i <= 0, T.int32(7) <= i)],
+    [n == i, tirx.all(T.int32(7) <= i, i <= 0)],
+    [i != n, tirx.any(i < 0, T.int32(7) < i)],
+    [n != i, tirx.any(T.int32(7) < i, i < 0)],
     [i // 4 > n, i // 4 > 7],
     [n < i // 4, T.int32(7) < i // 4],
-    [(i + n) // 4 > 0, tir.Add(i, 0) // 4 > 0],
-    [(i + n) // 4 == 0, tir.all(tir.Add(i, 7) // 4 <= 0, T.int32(0) <= tir.Add(i, 0) // 4)],
+    [(i + n) // 4 > 0, tirx.Add(i, 0) // 4 > 0],
+    [(i + n) // 4 == 0, tirx.all(tirx.Add(i, 7) // 4 <= 0, T.int32(0) <= tirx.Add(i, 0) // 4)],
     [i + n < 10, i + 7 < 10],
-    [i - n < 10, tir.Sub(i, 0) < 10],
-    [tir.Not(i < n), tir.Not(i < 7)],
+    [i - n < 10, tirx.Sub(i, 0) < 10],
+    [tirx.Not(i < n), tirx.Not(i < 7)],
     # Use of FloorMod should make the narrowing strategy bail out, as
     # it is non-monotonic.
     [i % 8 == n, tir_false],
@@ -67,9 +67,9 @@ before, expected = tvm.testing.parameters(
     [buf.vload(0) > 0, tir_false],
     [buf.vload(0) > i, tir_false],
     [buf.vload(i) > 0, tir_false],
-    [tir.And(buf.vload(i) > 0, i <= 0), tir.And(tir_false, i <= 0)],
-    [tir.Or(buf.vload(i) > 0, i <= n), tir.Or(tir_false, i <= 0)],
-    [tir.Or(tir.Not(buf.vload(i) > 0), i <= n), tir.Or(tir_false, i <= 0)],
+    [tirx.And(buf.vload(i) > 0, i <= 0), tirx.And(tir_false, i <= 0)],
+    [tirx.Or(buf.vload(i) > 0, i <= n), tirx.Or(tir_false, i <= 0)],
+    [tirx.Or(tirx.Not(buf.vload(i) > 0), i <= n), tirx.Or(tir_false, i <= 0)],
 )
 
 

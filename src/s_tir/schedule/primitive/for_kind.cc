@@ -20,7 +20,7 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 class WrongBlockIterTypeError : public ScheduleError {
  public:
@@ -124,7 +124,7 @@ void CheckParallelizability(const ScheduleState& self, const For& loop, ForKind 
   PreOrderVisit(loop, [&](const ObjectRef& node) {
     if (const auto* realize = node.as<SBlockRealizeNode>()) {
       // If this block doesn't have corresponding StmtSRef in the schedule state, it must be a block
-      // inside `tir.init()`. We don't check the condition for such blocks.
+      // inside `tirx.init()`. We don't check the condition for such blocks.
       if (!self->stmt2ref.count(realize->block.get())) {
         return false;
       }

@@ -168,7 +168,7 @@ class SubroutineMixin:
             gvar = block_builder.emit_func_output(out)
 
         # The relax.Var instances in model_params, along with any
-        # tir.Var instances in the struct info, appear in both the
+        # tirx.Var instances in the struct info, appear in both the
         # calling scope and as parameters for the subroutine.  To
         # maintain SSA, replace all relax and TIR variables in the
         # subroutine.

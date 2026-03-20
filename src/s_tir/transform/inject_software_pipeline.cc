@@ -26,18 +26,18 @@
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/target/target.h>
-#include <tvm/tir/builtin.h>
+#include <tvm/tirx/builtin.h>
 
 #include <map>
 #include <unordered_set>
 
 #include "../../support/utils.h"
-#include "../../tir/transform/ir_utils.h"
+#include "../../tirx/transform/ir_utils.h"
 #include "../schedule/utils.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 namespace software_pipeline {
 

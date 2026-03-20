@@ -24,7 +24,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm.s_tir.meta_schedule import TuneContext
-from tvm.script import tir as T
+from tvm.script import tirx as T
 from tvm.target import Target
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,missing-docstring
@@ -34,7 +34,7 @@ from tvm.target import Target
 class Matmul:
     @T.prim_func
     def main(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=no-self-argument
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         A = T.match_buffer(a, (1024, 1024), "float32")
         B = T.match_buffer(b, (1024, 1024), "float32")
         C = T.match_buffer(c, (1024, 1024), "float32")

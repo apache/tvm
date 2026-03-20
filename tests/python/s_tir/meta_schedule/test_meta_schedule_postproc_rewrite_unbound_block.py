@@ -18,9 +18,9 @@
 # ruff: noqa: F401
 
 import tvm
-from tvm import tir
+from tvm import tirx
 from tvm.s_tir import meta_schedule as ms
-from tvm.script import tir as T
+from tvm.script import tirx as T
 from tvm.target import Target
 
 
@@ -235,7 +235,7 @@ def before_unrolled_loop(
     placeholder: T.Buffer((1, 56, 56, 64), "float32"),
 ) -> None:
     # function attr dict
-    T.func_attr({"global_symbol": "main", "tir.noalias": True})
+    T.func_attr({"global_symbol": "main", "tirx.noalias": True})
     bgemm = T.sblock_alloc_buffer([6, 6, 196, 64], dtype="float32")
     inverse = T.sblock_alloc_buffer([4, 4, 196, 64], dtype="float32")
     for i2_0, i3_0, i2_1, i3_1 in T.grid(98, 4, 2, 16):
@@ -259,7 +259,7 @@ def before_unrolled_loop(
 def after_unrolled_loop(
     placeholder: T.Buffer((1, 56, 56, 64), "float32"),
 ) -> None:
-    T.func_attr({"global_symbol": "main", "tir.noalias": True})
+    T.func_attr({"global_symbol": "main", "tirx.noalias": True})
     # body
     # with T.sblock("root")
     bgemm = T.sblock_alloc_buffer([6, 6, 196, 64], dtype="float32")

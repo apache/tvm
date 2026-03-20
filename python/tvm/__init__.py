@@ -45,8 +45,8 @@ from .ir import instrument
 from .ir import container
 from . import ir
 
-# tvm.tir
-from . import tir
+# tvm.tirx
+from . import tirx
 
 # tvm.s_tir
 from . import s_tir

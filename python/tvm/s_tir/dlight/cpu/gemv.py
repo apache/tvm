@@ -16,7 +16,7 @@
 # under the License.
 """A rule for GEMV and DecodeGEMV."""
 
-from tvm import s_tir, tir
+from tvm import s_tir, tirx
 from tvm.target import Target
 
 from ..analysis import SBlockInfo, normalize_prim_func
@@ -30,11 +30,11 @@ class GEMV(CPUScheduleRule):
 
     def apply(  # pylint: disable=too-many-locals,too-many-branches,too-many-return-statements, no-else-return
         self,
-        func: tir.PrimFunc,
+        func: tirx.PrimFunc,
         target: Target,
         _: bool,
     ) -> None | s_tir.Schedule | list[s_tir.Schedule]:
-        if not isinstance(func, tir.PrimFunc) or not self.is_target_available(target):
+        if not isinstance(func, tirx.PrimFunc) or not self.is_target_available(target):
             return None
         sch = s_tir.Schedule(func)
         block_infos = normalize_prim_func(sch)
@@ -77,7 +77,7 @@ class GEMV(CPUScheduleRule):
         sch: s_tir.Schedule,
         target: Target,
         block: s_tir.schedule.SBlockRV,
-        vector_input_buffers: list[tir.Buffer],
+        vector_input_buffers: list[tirx.Buffer],
         epilogue_info: SBlockInfo | None,
     ):
         """Schedule the inner reduction block."""

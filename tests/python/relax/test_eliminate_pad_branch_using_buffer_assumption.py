@@ -24,7 +24,7 @@ import tvm
 import tvm.script
 import tvm.testing
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 @tvm.script.ir_module
@@ -49,7 +49,7 @@ class AddBefore:
                 "op_attrs": {"lhs_axis": 0, "op_name": "qnn.add", "rhs_axis": 0},
                 "op_pattern": 0,
                 "operator_name": "add",
-                "tir.noalias": True,
+                "tirx.noalias": True,
             }
         )
         # with T.sblock("root"):
@@ -146,7 +146,7 @@ class AddExpected:
                 "op_attrs": {"lhs_axis": 0, "op_name": "qnn.add", "rhs_axis": 0},
                 "op_pattern": 0,
                 "operator_name": "add",
-                "tir.noalias": True,
+                "tirx.noalias": True,
             }
         )
         # with T.sblock("root"):
@@ -248,7 +248,7 @@ class SubBefore:
                 "op_attrs": {"lhs_axis": 0, "op_name": "qnn.subtract", "rhs_axis": 0},
                 "op_pattern": 0,
                 "operator_name": "sub",
-                "tir.noalias": True,
+                "tirx.noalias": True,
             }
         )
         # with T.sblock("root"):
@@ -345,7 +345,7 @@ class SubExpected:
                 "op_attrs": {"lhs_axis": 0, "op_name": "qnn.subtract", "rhs_axis": 0},
                 "op_pattern": 0,
                 "operator_name": "sub",
-                "tir.noalias": True,
+                "tirx.noalias": True,
             }
         )
         # with T.sblock("root"):
@@ -447,7 +447,7 @@ class MulBefore:
                 "op_attrs": {"lhs_axis": 0, "op_name": "qnn.mul", "rhs_axis": 0},
                 "op_pattern": 0,
                 "operator_name": "mul",
-                "tir.noalias": True,
+                "tirx.noalias": True,
             }
         )
         # with T.sblock("root"):
@@ -544,7 +544,7 @@ class MulExpected:
                 "op_attrs": {"lhs_axis": 0, "op_name": "qnn.mul", "rhs_axis": 0},
                 "op_pattern": 0,
                 "operator_name": "mul",
-                "tir.noalias": True,
+                "tirx.noalias": True,
             }
         )
         # with T.sblock("root"):

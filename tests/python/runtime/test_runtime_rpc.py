@@ -33,7 +33,7 @@ from tvm.contrib import cc, utils
 from tvm.rpc.proxy import Proxy
 from tvm.rpc.tracker import Tracker
 from tvm.script import ir as I
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 if __name__ == "__main__":
     # NOTE: must live here to avoid registering PackedFunc with libtvm.so twice.
@@ -71,7 +71,7 @@ def test_bigendian_rpc():
 
     def verify_rpc(remote, target, shape, dtype):
         A = te.placeholder(shape, dtype=dtype)
-        B = te.compute(A.shape, lambda i: A[i] + tvm.tir.const(1, A.dtype))
+        B = te.compute(A.shape, lambda i: A[i] + tvm.tirx.const(1, A.dtype))
         f = tvm.compile(te.create_prim_func([A, B]), target=target)
 
         dev = remote.cpu(0)

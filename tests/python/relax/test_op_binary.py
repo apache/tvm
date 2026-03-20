@@ -21,7 +21,7 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import TVMError, relax, tir
+from tvm import TVMError, relax, tirx
 from tvm.ir import Op, VDevice
 from tvm.script import relax as R
 
@@ -66,16 +66,16 @@ def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_sinfo: r
 
 
 (binary_arith_op, tir_arith_op) = tvm.testing.parameters(
-    (relax.op.add, tir.Add),
-    (relax.op.divide, tir.Div),
-    (relax.op.floor_divide, tir.FloorDiv),
-    (relax.op.multiply, tir.Mul),
-    (relax.op.power, tir.pow),
-    (relax.op.subtract, tir.Sub),
-    (relax.op.maximum, tir.Max),
-    (relax.op.minimum, tir.Min),
-    (relax.op.mod, tir.Mod),
-    (relax.op.floor_mod, tir.FloorMod),
+    (relax.op.add, tirx.Add),
+    (relax.op.divide, tirx.Div),
+    (relax.op.floor_divide, tirx.FloorDiv),
+    (relax.op.multiply, tirx.Mul),
+    (relax.op.power, tirx.pow),
+    (relax.op.subtract, tirx.Sub),
+    (relax.op.maximum, tirx.Max),
+    (relax.op.minimum, tirx.Min),
+    (relax.op.mod, tirx.Mod),
+    (relax.op.floor_mod, tirx.FloorMod),
 )
 
 
@@ -147,8 +147,8 @@ def test_infer_struct_info_binary_arith_known_prim_value_with_prim_value(
 ):
     bb = relax.BlockBuilder()
 
-    tir_x = tir.Var("tir_x", "float32")
-    tir_y = tir.Var("tir_y", "float32")
+    tir_x = tirx.Var("tir_x", "float32")
+    tir_y = tirx.Var("tir_y", "float32")
 
     x = relax.Var("x", R.Prim(value=tir_x))
     y = relax.Var("y", R.Prim(value=tir_y))
@@ -158,12 +158,12 @@ def test_infer_struct_info_binary_arith_known_prim_value_with_prim_value(
 
 
 (binary_cmp_op, tir_cmp_op) = tvm.testing.parameters(
-    (relax.op.equal, tir.EQ),
-    (relax.op.greater, tir.GT),
-    (relax.op.greater_equal, tir.GE),
-    (relax.op.less, tir.LT),
-    (relax.op.less_equal, tir.LE),
-    (relax.op.not_equal, tir.NE),
+    (relax.op.equal, tirx.EQ),
+    (relax.op.greater, tirx.GT),
+    (relax.op.greater_equal, tirx.GE),
+    (relax.op.less, tirx.LT),
+    (relax.op.less_equal, tirx.LE),
+    (relax.op.not_equal, tirx.NE),
 )
 
 
@@ -205,8 +205,8 @@ def test_infer_struct_info_binary_cmp_known_prim_value_to_prim_value(
 ):
     bb = relax.BlockBuilder()
 
-    tir_x = tir.Var("tir_x", "float32")
-    tir_y = tir.Var("tir_y", "float32")
+    tir_x = tirx.Var("tir_x", "float32")
+    tir_y = tirx.Var("tir_y", "float32")
 
     x = relax.Var("x", R.Prim(value=tir_x))
     y = relax.Var("y", R.Prim(value=tir_y))
@@ -217,9 +217,9 @@ def test_infer_struct_info_binary_cmp_known_prim_value_to_prim_value(
 
 def test_binary_infer_struct_info_shape_symbolic(binary_arith_op: Callable):
     bb = relax.BlockBuilder()
-    m = tir.Var("m", "int64")
-    n = tir.Var("n", "int64")
-    k = tir.Var("k", "int64")
+    m = tirx.Var("m", "int64")
+    n = tirx.Var("n", "int64")
+    k = tirx.Var("k", "int64")
     x0 = relax.Var("x", R.Tensor((m, n), "float32"))
     x1 = relax.Var("x", R.Tensor((1, n), "float32"))
     x2 = relax.Var("x", R.Tensor((k, n, m), "float32"))

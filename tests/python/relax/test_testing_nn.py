@@ -21,7 +21,7 @@ from tvm import relax
 from tvm.relax.testing import nn
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def test_emit():
@@ -108,7 +108,7 @@ def test_define_subroutine():
             return state
 
     model = Layer(64, 32)
-    batch_size = tvm.tir.Var("batch_size", "int64")
+    batch_size = tvm.tirx.Var("batch_size", "int64")
     input = nn.Placeholder((batch_size, 64), dtype="float32", name="input")
 
     bb = relax.BlockBuilder()

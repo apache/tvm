@@ -21,7 +21,7 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 /*!
  * \brief Tile the 2 innermost loops to extent=16. This helps further tensor core rewrite.

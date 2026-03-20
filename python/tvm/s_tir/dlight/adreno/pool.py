@@ -18,7 +18,7 @@
 # ruff: noqa: F841
 """Pool schedule rule for Adreno operators."""
 
-from tvm import s_tir, tir
+from tvm import s_tir, tirx
 from tvm.target import Target
 
 from .. import analysis
@@ -29,7 +29,7 @@ from .base import AdrenoScheduleRule
 class Pool2D(AdrenoScheduleRule):
     def apply(  # pylint: disable=too-many-locals,missing-docstring
         self,
-        func: tir.PrimFunc,
+        func: tirx.PrimFunc,
         target: Target,
         _: bool,
     ) -> s_tir.Schedule:

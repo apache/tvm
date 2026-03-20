@@ -26,8 +26,8 @@
 #define TVM_S_TIR_DATA_LAYOUT_H_
 
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/tir/expr.h>
-#include <tvm/tir/op.h>
+#include <tvm/tirx/expr.h>
+#include <tvm/tirx/op.h>
 
 #include <algorithm>
 #include <sstream>
@@ -35,10 +35,10 @@
 #include <utility>
 #include <vector>
 
-#include "tvm/tir/var.h"
+#include "tvm/tirx/var.h"
 
 namespace tvm {
-namespace tir {
+namespace tirx {
 
 class Layout;
 
@@ -47,7 +47,7 @@ class LayoutAxis {
   static const LayoutAxis& Get(const char name);
 
   // Get the singleton LayoutAxis using itvar->var->name_hint
-  static const LayoutAxis& Get(const tir::IterVar& itvar);
+  static const LayoutAxis& Get(const tirx::IterVar& itvar);
 
   // Get the singleton LayoutAxis using name[0] (size of name must be 1).
   static const LayoutAxis& Get(const std::string& name);
@@ -108,7 +108,7 @@ class LayoutNode : public Object {
    *   it is a variable for a primal axis, but a constant for a subordinate axis.
    *   Empty for scalar's layout.
    */
-  ffi::Array<tir::IterVar> axes;
+  ffi::Array<tirx::IterVar> axes;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -125,7 +125,7 @@ class LayoutNode : public Object {
  */
 class Layout : public ObjectRef {
  public:
-  explicit Layout(const ffi::Array<tir::IterVar>& axes);
+  explicit Layout(const ffi::Array<tirx::IterVar>& axes);
 
   /*! \brief construct from a string */
   Layout(const tvm::ffi::String& name) : Layout(name.operator std::string()) {}  // NOLINT(*)
@@ -273,7 +273,7 @@ class Layout : public ObjectRef {
    * \param iter the input iter var.
    * \return the index or -1 if not found.
    */
-  inline int32_t IndexOf(const tir::IterVar& iter) const { return IndexOf(iter->var->name_hint); }
+  inline int32_t IndexOf(const tirx::IterVar& iter) const { return IndexOf(iter->var->name_hint); }
 
   /*!
    * \brief Get the factor size of the subordinate axis.
@@ -291,7 +291,7 @@ class Layout : public ObjectRef {
    */
   bool Contains(const LayoutAxis& axis) const {
     if (!defined()) return false;
-    for (const tir::IterVar packed_var : operator->()->axes) {
+    for (const tirx::IterVar packed_var : operator->()->axes) {
       auto iter_vars = UnpackIterVar(packed_var);
       for (auto var : iter_vars) {
         if (var->var->name_hint == axis.name()) {
@@ -306,7 +306,7 @@ class Layout : public ObjectRef {
     TVM_FFI_ICHECK(defined()) << "Try to access axis from an undefined layout.";
     int32_t index = i < 0 ? static_cast<int32_t>(ndim() + i) : i;
     TVM_FFI_ICHECK(index >= 0 && static_cast<size_t>(index) < ndim()) << "Invalid index " << i;
-    const tir::IterVar axis = operator->()->axes[index];
+    const tirx::IterVar axis = operator->()->axes[index];
     return LayoutAxis::Get(axis);
   }
 
@@ -314,7 +314,7 @@ class Layout : public ObjectRef {
     TVM_FFI_ICHECK(defined()) << "Try to access axis from an undefined layout.";
     int32_t index = i < 0 ? static_cast<int32_t>(ndim() + i) : i;
     TVM_FFI_ICHECK(index >= 0 && static_cast<size_t>(index) < ndim()) << "Invalid index " << i;
-    const tir::IterVar axis = operator->()->axes[index];
+    const tirx::IterVar axis = operator->()->axes[index];
     return axis;
   }
 
@@ -404,7 +404,7 @@ class BijectiveLayout : public ObjectRef {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BijectiveLayout, ObjectRef, BijectiveLayoutNode);
 };
 
-}  // namespace tir
+}  // namespace tirx
 }  // namespace tvm
 
 #endif  // TVM_S_TIR_DATA_LAYOUT_H_

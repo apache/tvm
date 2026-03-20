@@ -27,7 +27,7 @@
 #include <tvm/ir/module.h>
 #include <tvm/runtime/module.h>
 #include <tvm/target/target.h>
-#include <tvm/tir/expr.h>
+#include <tvm/tirx/expr.h>
 
 #include <string>
 

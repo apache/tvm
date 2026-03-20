@@ -22,10 +22,10 @@ import tvm
 import tvm.testing
 from tvm import s_tir
 from tvm.ir.module import IRModule
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 default_lwp_test_config = {
-    "tir.instrument_lwp": True,
+    "tirx.instrument_lwp": True,
     "s_tir.lwp_disable_func_prof": True,
     "s_tir.reset_start_id": True,
 }
