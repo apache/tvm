@@ -29,7 +29,7 @@ import torch
 from torch import fx
 
 import tvm
-from tvm import relax, tir
+from tvm import relax
 
 from .base_fx_graph_translator import BaseFXGraphImporter
 
@@ -968,11 +968,11 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         # tensor's own dimension size (common with dynamic shapes).
         if isinstance(start, int) and start == 0 and isinstance(step, int) and step == 1:
             in_shape = self.shape_of(x)
-            if in_shape is not None and isinstance(end_val, tir.PrimExpr):
+            if in_shape is not None and isinstance(end_val, tvm.tirx.PrimExpr):
                 actual_dim = dim if dim >= 0 else len(in_shape) + dim
                 dim_expr = in_shape[actual_dim]
-                if isinstance(dim_expr, tir.PrimExpr):
-                    if tir.analysis.expr_deep_equal(end_val, dim_expr):
+                if isinstance(dim_expr, tvm.tirx.PrimExpr):
+                    if tvm.tirx.analysis.expr_deep_equal(end_val, dim_expr):
                         return x
 
         axes = [dim]

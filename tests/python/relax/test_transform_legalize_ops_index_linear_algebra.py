@@ -277,7 +277,7 @@ def test_strided_slice_negative_axes():
 
         @T.prim_func(private=True)
         def strided_slice(rxplaceholder: T.Buffer((T.int64(8), T.int64(9), T.int64(10)), "float32"), T_strided_slice_with_axes: T.Buffer((T.int64(8), T.int64(9), T.int64(3)), "float32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for ax0, ax1, ax2 in T.grid(T.int64(8), T.int64(9), T.int64(3)):
                 with T.sblock("T_strided_slice_with_axes"):
                     v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
