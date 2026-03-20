@@ -23,7 +23,6 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import te, tir
 from tvm.script import ir as I
 from tvm.script import tir as T
 from tvm.script.ir_builder import IRBuilder
@@ -520,22 +519,18 @@ def test_codegen_decl_buffer():
 def test_codegen_static_shared_memory():
     """The codegen should accept static shared/workgroup allocations."""
 
-    A = te.placeholder((128,), name="A", dtype="float32")
-    B = te.compute((128,), lambda i: A[i], name="B")
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
+            A_shared = T.alloc_buffer((128,), dtype="float32", scope="shared")
 
-    sch = tir.Schedule(te.create_prim_func([A, B]))
-    block = sch.get_block("B")
-    (loop,) = sch.get_loops(block)
-    bx, tx = sch.split(loop, factors=[None, 128])
-    sch.bind(bx, "blockIdx.x")
-    sch.bind(tx, "threadIdx.x")
+            for bx in T.thread_binding(1, thread="blockIdx.x"):
+                for tx in T.thread_binding(128, thread="threadIdx.x"):
+                    A_shared[tx] = A[tx]
+                    B[tx] = A_shared[tx]
 
-    block_read = sch.cache_read(block, 0, "shared")
-    sch.compute_at(block_read, bx)
-    _, fetch_tx = sch.get_loops(block_read)
-    sch.bind(fetch_tx, "threadIdx.x")
-
-    tvm.compile(sch.mod, target="vulkan")
+    tvm.compile(Module, target="vulkan")
 
 
 @tvm.testing.requires_gpu
