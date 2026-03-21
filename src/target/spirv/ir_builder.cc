@@ -178,23 +178,24 @@ SType IRBuilder::GetStructArrayType(const SType& value_type, uint32_t num_elems,
   } else {
     ib_.Begin(spv::OpTypeRuntimeArray).AddSeq(arr_type, value_type).Commit(&global_);
   }
-  int nbits = value_type.type.bits() * value_type.type.lanes();
-  TVM_FFI_ICHECK_EQ(nbits % 8, 0);
-  uint32_t nbytes = static_cast<uint32_t>(nbits) / 8;
-  // decorate the array type.
-  this->Decorate(spv::OpDecorate, arr_type, spv::DecorationArrayStride, nbytes);
+  if (interface_block) {
+    int nbits = value_type.type.bits() * value_type.type.lanes();
+    TVM_FFI_ICHECK_EQ(nbits % 8, 0);
+    uint32_t nbytes = static_cast<uint32_t>(nbits) / 8;
+    // Explicit layout is required for descriptor-backed interface blocks.
+    this->Decorate(spv::OpDecorate, arr_type, spv::DecorationArrayStride, nbytes);
+  }
   // declare struct of array
   SType struct_type;
   struct_type.id = id_counter_++;
   struct_type.type = DataType::Handle();
   struct_type.element_type_id = value_type.id;
   ib_.Begin(spv::OpTypeStruct).AddSeq(struct_type, arr_type).Commit(&global_);
-  // decorate the array type.
-  ib_.Begin(spv::OpMemberDecorate)
-      .AddSeq(struct_type, 0, spv::DecorationOffset, 0)
-      .Commit(&decorate_);
 
   if (interface_block) {
+    ib_.Begin(spv::OpMemberDecorate)
+        .AddSeq(struct_type, 0, spv::DecorationOffset, 0)
+        .Commit(&decorate_);
     // Runtime array are always decorated as Block or BufferBlock
     // (shader storage buffer)
     if (spirv_support_.supports_storage_buffer_storage_class) {
