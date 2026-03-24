@@ -23,6 +23,7 @@ import functools
 import os
 import pathlib
 import sys
+import warnings
 
 try:
     import cPickle as pickle
@@ -71,6 +72,13 @@ class Cache:
         if self.path.exists():
             with self.path.open("rb") as cache_file:
                 try:
+                    warnings.warn(
+                        f"Loading cached pickle file from {self.path}. "
+                        "Pickle files can execute arbitrary code. "
+                        "Only load cache files you trust.",
+                        UserWarning,
+                        stacklevel=2,
+                    )
                     cache = pickle.load(cache_file)
                 except pickle.UnpicklingError:
                     cache = {}
