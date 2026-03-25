@@ -1123,6 +1123,29 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             )
         )
 
+    def _affine_grid_generator(self, node: fx.Node) -> relax.Var:
+        """Convert torch.nn.functional.affine_grid to relax.op.image.affine_grid."""
+        args = self.retrieve_args(node)
+        theta = args[0]  # [N, 2, 3]
+        size = args[1]  # [N, C, H, W]
+        align_corners = args[2] if len(args) > 2 else False
+
+        if not align_corners:
+            raise NotImplementedError(
+                "affine_grid with align_corners=False is not yet supported in TVM"
+            )
+
+        # Extract spatial dimensions (H, W) from PyTorch's [N, C, H, W] size
+        target_h = size[2]
+        target_w = size[3]
+
+        # Relax affine_grid outputs [N, 2, H, W]
+        grid = self.block_builder.emit(
+            relax.op.image.affine_grid(theta, (target_h, target_w))
+        )
+        # Permute to PyTorch convention [N, H, W, 2]
+        return self.block_builder.emit(relax.op.permute_dims(grid, axes=[0, 2, 3, 1]))
+
     def _scalar_tensor(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         scalar_value = args[0]
@@ -1732,6 +1755,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "zeros.default": self._zeros,
             "zeros_like.default": self._zeros_like,
             "grid_sampler_2d.default": self._grid_sampler_2d,
+            "affine_grid_generator.default": self._affine_grid_generator,
             # datatype
             "to.dtype": self._to,
             "to.dtype_layout": self._to,
