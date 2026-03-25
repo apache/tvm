@@ -2412,6 +2412,38 @@ class Resize(OnnxOpConverter):
             )
 
 
+class AffineGrid(OnnxOpConverter):
+    """Converts an onnx AffineGrid node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v20(cls, bb, inputs, attr, params):
+        theta = inputs[0]  # [N, 2, 3] for 2D
+        size = get_constant(inputs[1], params)  # [N, C, H, W] for 2D
+        align_corners = attr.get("align_corners", 0)
+
+        if align_corners != 1:
+            raise NotImplementedError(
+                "AffineGrid with align_corners=0 is not yet supported in TVM"
+            )
+
+        # Extract size values
+        if isinstance(size, relax.Constant):
+            size_vals = size.data.numpy().astype("int64").tolist()
+        elif isinstance(size, relax.expr.ShapeExpr):
+            size_vals = [int(v.value) for v in size.values]
+        else:
+            raise NotImplementedError(f"Dynamic size of type {type(size)} is not supported")
+
+        # Only 2D is supported: size = [N, C, H, W]
+        assert len(size_vals) == 4, "Only 2D AffineGrid (size=[N,C,H,W]) is supported"
+        target_h, target_w = size_vals[2], size_vals[3]
+
+        # Relax affine_grid outputs [N, 2, H, W]
+        grid = bb.emit(relax.op.image.affine_grid(theta, (target_h, target_w)))
+        # Permute to ONNX convention [N, H, W, 2]
+        return bb.emit(relax.op.permute_dims(grid, axes=[0, 2, 3, 1]))
+
+
 class Einsum(OnnxOpConverter):
     """Converts an onnx Einsum node into an equivalent Relax expression."""
 
@@ -4049,6 +4081,7 @@ def _get_convert_map():
         "NonMaxSuppression": NonMaxSuppression,
         "AllClassNMS": AllClassNMS,
         # "GridSample": GridSample,
+        "AffineGrid": AffineGrid,
         "Upsample": Upsample,
         # others
         "DepthToSpace": DepthToSpace,
