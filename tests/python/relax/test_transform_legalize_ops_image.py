@@ -101,5 +101,24 @@ def test_image_resize2d_symbolic():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_image_affine_grid():
+    # fmt: off
+    @tvm.script.ir_module
+    class AffineGrid:
+        @R.function
+        def main(theta: R.Tensor((2, 2, 3), "float32")) -> R.Tensor((2, 2, 16, 16), "float32"):
+            gv: R.Tensor((2, 2, 16, 16), "float32") = R.image.affine_grid(theta, size=(16, 16))
+            return gv
+    # fmt: on
+
+    mod = LegalizeOps()(AffineGrid)
+    # Verify legalization produces a call_tir with the correct output shape
+    func = mod["main"]
+    assert func.body.body.struct_info.shape[0] == 2
+    assert func.body.body.struct_info.shape[1] == 2
+    assert func.body.body.struct_info.shape[2] == 16
+    assert func.body.body.struct_info.shape[3] == 16
+
+
 if __name__ == "__main__":
     tvm.testing.main()

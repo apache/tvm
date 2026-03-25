@@ -52,3 +52,13 @@ def _image_grid_sample(bb: BlockBuilder, call: Call) -> Expr:
         padding_mode=call.attrs.padding_mode,
         align_corners=call.attrs.align_corners,
     )
+
+
+@register_legalize("relax.image.affine_grid")
+def _image_affine_grid(bb: BlockBuilder, call: Call) -> Expr:
+    target_shape = [int(v) for v in call.args[1].values]
+    return bb.call_te(
+        topi.image.affine_grid,
+        call.args[0],
+        target_shape=target_shape,
+    )

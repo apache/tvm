@@ -23,6 +23,7 @@ from ...expr import Expr, ShapeExpr
 from . import _ffi_api
 
 PrimExprLike = int | PrimExpr
+SizeLike = PrimExprLike | tuple[PrimExprLike, ...]
 
 
 def resize2d(
@@ -177,3 +178,34 @@ def grid_sample(
         padding_mode,
         align_corners,
     )
+
+
+def affine_grid(
+    data: Expr,
+    size: Expr | SizeLike,
+) -> Expr:
+    """Generate a 2D sampling grid using an affine transformation matrix.
+
+    This operation is described in https://arxiv.org/pdf/1506.02025.pdf.
+    It generates a uniform sampling grid within the target shape, normalizes it
+    to [-1, 1], and applies the provided affine transformation.
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input affine matrix tensor with shape [batch, 2, 3].
+
+    size : Union[Expr, PrimExprLike, Tuple[PrimExprLike, PrimExprLike]]
+        The target output spatial shape (H, W). Must have exactly 2 elements.
+
+    Returns
+    -------
+    result : relax.Expr
+        The output grid tensor with shape [batch, 2, H, W].
+    """
+    if isinstance(size, int | PrimExpr):
+        size = (size, size)
+    if isinstance(size, tuple | list):
+        size = ShapeExpr(size)
+
+    return _ffi_api.affine_grid(data, size)  # type: ignore

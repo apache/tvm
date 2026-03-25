@@ -227,5 +227,79 @@ TVM_REGISTER_OP("relax.image.grid_sample")
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<Bool>("FPurity", Bool(true));
 
+/* relax.affine_grid */
+
+Expr affine_grid(Expr data, Expr size) {
+  static const Op& op = Op::Get("relax.image.affine_grid");
+  return Call(op, {std::move(data), std::move(size)}, Attrs(), {});
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.image.affine_grid", affine_grid);
+}
+
+StructInfo InferStructInfoAffineGrid(const Call& call, const BlockBuilder& ctx) {
+  if (call->args.size() != 2) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "AffineGrid expects two arguments, while the given number of arguments is "
+                     << call->args.size());
+  }
+
+  const auto* data_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  const auto* size_sinfo = GetStructInfoAs<ShapeStructInfoNode>(call->args[1]);
+  const auto* size_value = call->args[1].as<ShapeExprNode>();
+
+  if (data_sinfo == nullptr) {
+    ctx->ReportFatal(
+        Diagnostic::Error(call)
+        << "AffineGrid expects the input data to be a Tensor, while the given data is "
+        << call->args[0]->GetTypeKey());
+  }
+  if (size_sinfo == nullptr) {
+    ctx->ReportFatal(
+        Diagnostic::Error(call)
+        << "AffineGrid expects the target size to be a Shape, while the given one is "
+        << call->args[1]->GetTypeKey());
+  }
+  if (size_sinfo->ndim != 2) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "AffineGrid expects the target size to be a 2-dim shape, while the given "
+                        "one has ndim "
+                     << size_sinfo->ndim);
+  }
+
+  // data should be 3-D: [batch, 2, 3]
+  if (data_sinfo->ndim != -1 && data_sinfo->ndim != 3) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "AffineGrid expects the input data to be 3-D (batch, 2, 3), but got ndim "
+                     << data_sinfo->ndim);
+  }
+
+  DataType out_dtype = data_sinfo->dtype;
+
+  const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
+  if (data_shape == nullptr || size_value == nullptr) {
+    return TensorStructInfo(out_dtype, /*ndim=*/4, data_sinfo->vdevice);
+  }
+
+  // Output shape: [batch, 2, target_height, target_width]
+  ffi::Array<PrimExpr> out_shape;
+  out_shape.push_back(data_shape->values[0]);  // batch
+  out_shape.push_back(IntImm(DataType::Int(64), 2));  // 2 (spatial dimensions)
+  out_shape.push_back(size_value->values[0]);  // target_height
+  out_shape.push_back(size_value->values[1]);  // target_width
+
+  return TensorStructInfo(ShapeExpr(out_shape), out_dtype, data_sinfo->vdevice);
+}
+
+TVM_REGISTER_OP("relax.image.affine_grid")
+    .set_num_inputs(2)
+    .add_argument("data", "Tensor", "The input affine matrix tensor.")
+    .add_argument("size", "Shape", "The target output shape (H, W).")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAffineGrid)
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+    .set_attr<Bool>("FPurity", Bool(true));
+
 }  // namespace relax
 }  // namespace tvm
