@@ -3979,6 +3979,89 @@ def test_nms_score_threshold():
             tvm_selected[:min_rows], ort_selected[:min_rows], rtol=1e-5, atol=1e-5
         )
 
+@pytest.mark.parametrize("mode", ["bilinear", "nearest"])
+@pytest.mark.parametrize("padding_mode", ["zeros", "border", "reflection"])
+@pytest.mark.parametrize("align_corners", [0, 1])
+def test_grid_sample(mode, padding_mode, align_corners):
+    # Only testing 2D (NCHW) as that's what TVM currently supports
+    x_shape = [1, 3, 4, 4]
+    grid_shape = [1, 2, 2, 2]
+    out_shape = [x_shape[0], x_shape[1], grid_shape[1], grid_shape[2]]
+
+    node = helper.make_node(
+        "GridSample",
+        inputs=["X", "grid"],
+        outputs=["Y"],
+        mode=mode,
+        padding_mode=padding_mode,
+        align_corners=align_corners,
+    )
+
+    graph = helper.make_graph(
+        [node],
+        "grid_sample_test",
+        inputs=[
+            helper.make_tensor_value_info("X", TensorProto.FLOAT, x_shape),
+            helper.make_tensor_value_info("grid", TensorProto.FLOAT, grid_shape),
+        ],
+        outputs=[
+            helper.make_tensor_value_info("Y", TensorProto.FLOAT, out_shape),
+        ],
+    )
+
+    # Grid values must be in [-1, 1]: -1 is far left/top, 1 is far right/bottom
+    grid_data = np.random.uniform(-1, 1, grid_shape).astype("float32")
+    # Use controlled X input to avoid extreme values affecting nearest mode boundaries
+    x_data = np.random.uniform(-1, 1, x_shape).astype("float32")
+
+    model = helper.make_model(graph, producer_name="grid_sample_test")
+    check_correctness(
+        model,
+        inputs={"grid": grid_data, "X": x_data},
+        opset=16,
+    )
+
+def test_grid_sample_defaults():
+    """Test GridSample with explicit default attributes to verify correct handling:
+    mode defaults to 'bilinear', padding_mode defaults to 'zeros',
+    align_corners defaults to 0.
+    """
+    # Only testing 2D (NCHW) as that's what TVM currently supports
+    x_shape = [1, 3, 4, 4]
+    grid_shape = [1, 2, 2, 2]
+    out_shape = [x_shape[0], x_shape[1], grid_shape[1], grid_shape[2]]
+
+    node = helper.make_node(
+        "GridSample",
+        inputs=["X", "grid"],
+        outputs=["Y"],
+        mode="bilinear",
+        padding_mode="zeros",
+        align_corners=0,
+    )
+
+    graph = helper.make_graph(
+        [node],
+        "grid_sample_defaults_test",
+        inputs=[
+            helper.make_tensor_value_info("X", TensorProto.FLOAT, x_shape),
+            helper.make_tensor_value_info("grid", TensorProto.FLOAT, grid_shape),
+        ],
+        outputs=[
+            helper.make_tensor_value_info("Y", TensorProto.FLOAT, out_shape),
+        ],
+    )
+
+    grid_data = np.random.uniform(-1, 1, grid_shape).astype("float32")
+    x_data = np.random.uniform(-1, 1, x_shape).astype("float32")
+
+    model = helper.make_model(graph, producer_name="grid_sample_defaults_test")
+    check_correctness(
+        model,
+        inputs={"grid": grid_data, "X": x_data},
+        opset=16,
+    )
 
 if __name__ == "__main__":
     tvm.testing.main()
+
