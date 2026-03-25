@@ -34,9 +34,16 @@ transform::Pass AnnotateEntryFunc() {
     // If only a single function exists, that function must be the entry
     if (mod->functions.size() == 1) {
       auto [gvar, base_func] = *mod->functions.begin();
-      if (!base_func->HasNonzeroAttr(tirx::attr::kIsEntryFunc)) {
-        if (auto ptr = base_func.as<PrimFuncNode>()) {
-          mod->Update(gvar, WithAttr(ffi::GetRef<PrimFunc>(ptr), tirx::attr::kIsEntryFunc, true));
+      if (auto ptr = base_func.as<PrimFuncNode>()) {
+        PrimFunc func = ffi::GetRef<PrimFunc>(ptr);
+        if (!func->HasNonzeroAttr(tirx::attr::kIsEntryFunc)) {
+          func = WithAttr(std::move(func), tirx::attr::kIsEntryFunc, true);
+        }
+        if (!func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value()) {
+          func = WithAttr(std::move(func), tvm::attr::kGlobalSymbol, gvar->name_hint);
+        }
+        if (!func.same_as(base_func)) {
+          mod->Update(gvar, func);
         }
       }
       return mod;
