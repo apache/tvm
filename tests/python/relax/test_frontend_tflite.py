@@ -825,5 +825,33 @@ def test_networks(net, shape):
     verify(concrete_func)
 
 
+def test_batch_matmul():
+    class BatchMatMul(tf.Module):
+        @tf.function(
+            input_signature=[
+                tf.TensorSpec(shape=(2, 3, 4), dtype=tf.float32),
+                tf.TensorSpec(shape=(2, 4, 5), dtype=tf.float32),
+            ]
+        )
+        def func(self, x, y):
+            return tf.matmul(x, y)
+
+    verify(BatchMatMul)
+
+
+def test_batch_matmul_adj():
+    class BatchMatMulAdj(tf.Module):
+        @tf.function(
+            input_signature=[
+                tf.TensorSpec(shape=(2, 4, 3), dtype=tf.float32),
+                tf.TensorSpec(shape=(2, 5, 4), dtype=tf.float32),
+            ]
+        )
+        def func(self, x, y):
+            return tf.matmul(x, y, transpose_a=True, transpose_b=True)
+
+    verify(BatchMatMulAdj)
+
+
 if __name__ == "__main__":
     pytest.main(["-s", __file__])
