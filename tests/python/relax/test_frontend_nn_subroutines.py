@@ -130,13 +130,15 @@ def test_different_shapes_produce_distinct_subroutines():
     )
 
     # Collect all private functions (subroutines) in the module
-    subroutine_funcs = []
-    for gvar, func in tvm_mod.functions.items():
-        if isinstance(func, relax.Function) and gvar.name_hint not in (
+    subroutine_funcs = [
+        func
+        for gvar, func in tvm_mod.functions.items()
+        if isinstance(func, relax.Function)
+        and gvar.name_hint not in (
             "forward",
             "_initialize_effect",
-        ):
-            subroutine_funcs.append(func)
+        )
+    ]
 
     # There must be two distinct activation subroutines (one for dim=32, one for dim=64),
     # not a single cached one reused for both.

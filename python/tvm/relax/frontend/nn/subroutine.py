@@ -177,7 +177,7 @@ class SubroutineMixin:
         mod = block_builder.get()
         mod.update_func(gvar, relax.utils.copy_with_new_vars(mod[gvar]))
 
-        cls._gvar.setdefault(lookup_key, []).append(
-            (arg_sinfo, (gvar, is_nn_tensor_output))
-        )
-        return (gvar, is_nn_tensor_output)
+        result = (gvar, is_nn_tensor_output)
+        bucket = cls._gvar.setdefault(lookup_key, [])
+        bucket.append((arg_sinfo, result))
+        return result
