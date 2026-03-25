@@ -49,5 +49,22 @@ def test_resize2d():
     _check(foo, bb.get()["foo"])
 
 
+def test_resize3d():
+    @R.function
+    def foo(x: R.Tensor((2, 3, 8, 8, 8), "float32")) -> R.Tensor((2, 3, 4, 6, 7), "float32"):
+        gv: R.Tensor((2, 3, 4, 6, 7), "float32") = R.image.resize3d(
+            x, size=(4, 6, 7), layout="NCDHW"
+        )
+        return gv
+
+    bb = relax.BlockBuilder()
+    x = relax.Var("x", R.Tensor((2, 3, 8, 8, 8), "float32"))
+    with bb.function("foo", [x]):
+        gv = bb.emit(relax.op.image.resize3d(x, (4, 6, 7), layout="NCDHW"))
+        bb.emit_func_output(gv)
+
+    _check(foo, bb.get()["foo"])
+
+
 if __name__ == "__main__":
     tvm.testing.main()

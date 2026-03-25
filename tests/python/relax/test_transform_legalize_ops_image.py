@@ -18,6 +18,7 @@
 
 import tvm
 import tvm.testing
+from tvm import relax
 from tvm.relax.transform import LegalizeOps
 from tvm.script import relax as R
 from tvm.script import tirx as T
@@ -99,6 +100,42 @@ def test_image_resize2d_symbolic():
 
     mod = LegalizeOps()(Resize2D)
     tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_image_resize3d():
+    # fmt: off
+    @tvm.script.ir_module
+    class Resize3D:
+        @R.function
+        def main(x: R.Tensor((2, 3, 8, 8, 8), "float32")) -> R.Tensor((2, 3, 4, 6, 7), "float32"):
+            gv: R.Tensor((2, 3, 4, 6, 7), "float32") = R.image.resize3d(
+                x,
+                size=(4, 6, 7),
+                layout="NCDHW",
+                method="nearest_neighbor",
+                coordinate_transformation_mode="asymmetric",
+                rounding_method="floor",
+            )
+            return gv
+    # fmt: on
+
+    mod = LegalizeOps()(Resize3D)
+
+    seen_call_tir = False
+    seen_resize3d_relax_op = False
+
+    def _visit(expr):
+        nonlocal seen_call_tir, seen_resize3d_relax_op
+        if isinstance(expr, relax.Call):
+            if isinstance(expr.op, tvm.ir.Op):
+                if expr.op.name == "relax.call_tir":
+                    seen_call_tir = True
+                if expr.op.name == "relax.image.resize3d":
+                    seen_resize3d_relax_op = True
+
+    relax.analysis.post_order_visit(mod["main"].body, _visit)
+    assert seen_call_tir
+    assert not seen_resize3d_relax_op
 
 
 if __name__ == "__main__":

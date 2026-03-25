@@ -2397,18 +2397,17 @@ class Resize(OnnxOpConverter):
                 extrapolation_value=extrapolation_value,
             )
         else:  # ndims == 5
-            return bb.emit_te(
-                topi.image.resize3d,
+            return relax.op.image.resize3d(
                 x,
-                roi,
-                sizes,
-                "NCDHW",
-                topi_mode,
-                coord_mode,
-                rounding_method,
-                cubic_coeff_a,
-                exclude_outside,
-                extrapolation_value,
+                size=relax.ShapeExpr(sizes),
+                roi=roi,
+                layout="NCDHW",
+                method=relax_mode,
+                coordinate_transformation_mode=coord_mode,
+                rounding_method=rounding_method,
+                cubic_alpha=cubic_coeff_a,
+                cubic_exclude=exclude_outside,
+                extrapolation_value=extrapolation_value,
             )
 
 
