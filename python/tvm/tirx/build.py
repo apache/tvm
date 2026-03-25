@@ -211,10 +211,6 @@ def build(
     target_host = Target(target_host)
     target_to_bind = target_to_bind.with_host(target_host)
 
-    # Step 2.5: Annotate entry function before BindTarget, so that BindTarget
-    # knows the entry function is externally exposed (has kGlobalSymbol).
-    mod = tvm.tirx.transform.AnnotateEntryFunc()(mod)
-
     # Step 3: Bind the target to the input module
     mod = tvm.tirx.transform.BindTarget(target_to_bind)(mod)
 

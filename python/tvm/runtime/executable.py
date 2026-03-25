@@ -41,7 +41,18 @@ class Executable:
 
     def __call__(self, *args, **kwargs) -> Any:
         """Call the executable."""
-        return self.jit().main(*args, **kwargs)
+        mod = self.jit()
+        try:
+            func = mod.get_function(mod.entry_name)
+        except AttributeError:
+            # Fallback: get function names and try to find one that matches
+            get_func_names = mod.get_function("get_func_names")
+            func_names = get_func_names() if get_func_names else []
+            raise AttributeError(
+                f"Module(kind={mod.kind}) has no function '{mod.entry_name}'. "
+                f"Available: {list(func_names)}"
+            )
+        return func(*args, **kwargs)
 
     def jit(
         self,
