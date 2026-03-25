@@ -3979,7 +3979,7 @@ def test_nms_score_threshold():
             tvm_selected[:min_rows], ort_selected[:min_rows], rtol=1e-5, atol=1e-5
         )
 
-@pytest.mark.parametrize("mode", ["bilinear", "nearest"])
+@pytest.mark.parametrize("mode", ["bilinear", "nearest", "bicubic"])
 @pytest.mark.parametrize("padding_mode", ["zeros", "border", "reflection"])
 @pytest.mark.parametrize("align_corners", [0, 1])
 def test_grid_sample(mode, padding_mode, align_corners):
@@ -4021,46 +4021,75 @@ def test_grid_sample(mode, padding_mode, align_corners):
         opset=16,
     )
 
-def test_grid_sample_defaults():
-    """Test GridSample with explicit default attributes to verify correct handling:
-    mode defaults to 'bilinear', padding_mode defaults to 'zeros',
-    align_corners defaults to 0.
+def test_grid_sample_linear_mode_translation():
+    """Test that ONNX mode='linear' is correctly translated to 'bilinear'.
+
+    The ONNX spec defines 'linear' as a valid mode for GridSample, but
+    onnxruntime rejects it in practice. Real ONNX models exported from
+    frameworks like PyTorch may still use 'linear'. We verify the translation
+    by inspecting the Relax IR directly rather than running check_correctness.
     """
-    # Only testing 2D (NCHW) as that's what TVM currently supports
     x_shape = [1, 3, 4, 4]
     grid_shape = [1, 2, 2, 2]
-    out_shape = [x_shape[0], x_shape[1], grid_shape[1], grid_shape[2]]
 
     node = helper.make_node(
         "GridSample",
         inputs=["X", "grid"],
         outputs=["Y"],
-        mode="bilinear",
-        padding_mode="zeros",
-        align_corners=0,
+        mode="linear",
     )
 
     graph = helper.make_graph(
         [node],
-        "grid_sample_defaults_test",
+        "grid_sample_linear_test",
         inputs=[
             helper.make_tensor_value_info("X", TensorProto.FLOAT, x_shape),
             helper.make_tensor_value_info("grid", TensorProto.FLOAT, grid_shape),
         ],
         outputs=[
-            helper.make_tensor_value_info("Y", TensorProto.FLOAT, out_shape),
+            helper.make_tensor_value_info("Y", TensorProto.FLOAT, [x_shape[0], x_shape[1], grid_shape[1], grid_shape[2]]),
         ],
     )
 
-    grid_data = np.random.uniform(-1, 1, grid_shape).astype("float32")
-    x_data = np.random.uniform(-1, 1, x_shape).astype("float32")
+    model = helper.make_model(graph, producer_name="grid_sample_linear_test")
+    tvm_model = from_onnx(model, opset=16, keep_params_in_input=True)
+    # Verify 'linear' was translated to 'bilinear' in the Relax IR
+    assert 'method="bilinear"' in str(tvm_model)
 
-    model = helper.make_model(graph, producer_name="grid_sample_defaults_test")
-    check_correctness(
-        model,
-        inputs={"grid": grid_data, "X": x_data},
-        opset=16,
+
+def test_grid_sample_cubic_mode_translation():
+    """Test that ONNX mode='cubic' is correctly translated to 'bicubic'.
+
+    The ONNX spec defines 'cubic' as a valid mode for GridSample, but
+    TVM uses 'bicubic'. We verify the translation by inspecting the
+    Relax IR directly rather than running check_correctness.
+    """
+    x_shape = [1, 3, 4, 4]
+    grid_shape = [1, 2, 2, 2]
+
+    node = helper.make_node(
+        "GridSample",
+        inputs=["X", "grid"],
+        outputs=["Y"],
+        mode="cubic",
     )
+
+    graph = helper.make_graph(
+        [node],
+        "grid_sample_cubic_test",
+        inputs=[
+            helper.make_tensor_value_info("X", TensorProto.FLOAT, x_shape),
+            helper.make_tensor_value_info("grid", TensorProto.FLOAT, grid_shape),
+        ],
+        outputs=[
+            helper.make_tensor_value_info("Y", TensorProto.FLOAT, [x_shape[0], x_shape[1], grid_shape[1], grid_shape[2]]),
+        ],
+    )
+
+    model = helper.make_model(graph, producer_name="grid_sample_cubic_test")
+    tvm_model = from_onnx(model, opset=16, keep_params_in_input=True)
+    # Verify 'cubic' was translated to 'bicubic' in the Relax IR
+    assert 'method="bicubic"' in str(tvm_model)
 
 if __name__ == "__main__":
     tvm.testing.main()

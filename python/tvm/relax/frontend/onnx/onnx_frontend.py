@@ -3895,6 +3895,7 @@ class AllClassNMS(OnnxOpConverter):
 
         return nms_out
 
+
 class GridSample(OnnxOpConverter):
     """Converts an onnx GridSample node into an equivalent Relax expression."""
 
@@ -3906,6 +3907,12 @@ class GridSample(OnnxOpConverter):
         method = attr.get("mode", b"bilinear")
         if isinstance(method, bytes):
             method = method.decode("ascii")
+
+        # Translate ONNX mode names to TVM method names
+        if method == "linear":
+            method = "bilinear"
+        elif method == "cubic":
+            method = "bicubic"
 
         padding_mode = attr.get("padding_mode", b"zeros")
         if isinstance(padding_mode, bytes):
@@ -3925,6 +3932,7 @@ class GridSample(OnnxOpConverter):
             padding_mode=padding_mode,
             align_corners=align_corners,
         )
+
 
 def _get_convert_map():
     return {
@@ -4519,5 +4527,3 @@ def from_onnx(
 
     # Use the graph proto as a scope so that ops can access other nodes if needed.
     return g.from_onnx(graph, opset)
-
-
