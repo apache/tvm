@@ -3896,6 +3896,44 @@ class AllClassNMS(OnnxOpConverter):
         return nms_out
 
 
+class GridSample(OnnxOpConverter):
+    """Converts an onnx GridSample node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v16(cls, bb, inputs, attr, params):
+        data = inputs[0]
+        grid = inputs[1]
+
+        method = attr.get("mode", b"bilinear")
+        if isinstance(method, bytes):
+            method = method.decode("ascii")
+
+        # Translate ONNX mode names to TVM method names
+        if method == "linear":
+            method = "bilinear"
+        elif method == "cubic":
+            method = "bicubic"
+
+        padding_mode = attr.get("padding_mode", b"zeros")
+        if isinstance(padding_mode, bytes):
+            padding_mode = padding_mode.decode("ascii")
+
+        align_corners = bool(attr.get("align_corners", 0))
+
+        # ONNX grid shape: [N, H_out, W_out, 2]
+        # TVM grid shape:  [N, 2, H_out, W_out]
+        grid = relax.op.permute_dims(grid, [0, 3, 1, 2])
+
+        return relax.op.image.grid_sample(
+            data,
+            grid,
+            method=method,
+            layout="NCHW",
+            padding_mode=padding_mode,
+            align_corners=align_corners,
+        )
+
+
 def _get_convert_map():
     return {
         # defs/experimental
@@ -4048,7 +4086,7 @@ def _get_convert_map():
         # "RoiAlign": RoiAlign,
         "NonMaxSuppression": NonMaxSuppression,
         "AllClassNMS": AllClassNMS,
-        # "GridSample": GridSample,
+        "GridSample": GridSample,
         "Upsample": Upsample,
         # others
         "DepthToSpace": DepthToSpace,
