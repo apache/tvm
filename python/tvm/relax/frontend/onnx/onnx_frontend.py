@@ -2420,6 +2420,71 @@ class Einsum(OnnxOpConverter):
         return bb.emit_te(topi.einsum, equation, *inputs)
 
 
+class RoiAlign(OnnxOpConverter):
+    """Converts an onnx RoiAlign node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl(cls, bb, inputs, attr, params, default_coordinate_transformation_mode):
+        if len(inputs) != 3:
+            raise ValueError("RoiAlign expects exactly 3 inputs")
+
+        data = inputs[0]
+        rois = inputs[1]
+        batch_indices = inputs[2]
+        rois_dtype = rois.struct_info.dtype
+
+        mode = attr.get("mode", b"avg")
+        if isinstance(mode, bytes):
+            mode = mode.decode("ascii")
+        if mode not in ("avg", "max"):
+            raise NotImplementedError("RoiAlign in Relax only supports avg and max modes")
+
+        output_height = attr.get("output_height", 1)
+        output_width = attr.get("output_width", 1)
+        sampling_ratio = attr.get("sampling_ratio", 0)
+        spatial_scale = attr.get("spatial_scale", 1.0)
+        coordinate_transformation_mode = attr.get(
+            "coordinate_transformation_mode", default_coordinate_transformation_mode
+        )
+        if isinstance(coordinate_transformation_mode, bytes):
+            coordinate_transformation_mode = coordinate_transformation_mode.decode("ascii")
+
+        if coordinate_transformation_mode == "half_pixel":
+            offset = relax.const([-0.5, -0.5, -0.5, -0.5], rois_dtype)
+            rois = relax.op.add(rois, offset)
+            aligned = True
+        elif coordinate_transformation_mode != "output_half_pixel":
+            raise NotImplementedError(
+                "RoiAlign only supports coordinate_transformation_mode "
+                "'half_pixel' and 'output_half_pixel'"
+            )
+        else:
+            aligned = False
+
+        batch_indices = relax.op.expand_dims(batch_indices, axis=1)
+        batch_indices = relax.op.astype(batch_indices, rois_dtype)
+        rois = relax.op.concat([batch_indices, rois], axis=1)
+
+        return relax.op.vision.roi_align(
+            data,
+            rois,
+            pooled_size=(output_height, output_width),
+            spatial_scale=spatial_scale,
+            sample_ratio=sampling_ratio,
+            aligned=aligned,
+            layout="NCHW",
+            mode=mode,
+        )
+
+    @classmethod
+    def _impl_v10(cls, bb, inputs, attr, params):
+        return cls._impl(bb, inputs, attr, params, b"output_half_pixel")
+
+    @classmethod
+    def _impl_v16(cls, bb, inputs, attr, params):
+        return cls._impl(bb, inputs, attr, params, b"half_pixel")
+
+
 class Range(OnnxOpConverter):
     """Converts an onnx Range node into an equivalent Relax expression."""
 
@@ -4082,7 +4147,7 @@ def _get_convert_map():
         "NonZero": NonZero,
         # "If": If,
         # "MaxRoiPool": MaxRoiPool,
-        # "RoiAlign": RoiAlign,
+        "RoiAlign": RoiAlign,
         "NonMaxSuppression": NonMaxSuppression,
         "AllClassNMS": AllClassNMS,
         "GridSample": GridSample,
