@@ -73,6 +73,65 @@ struct ROIAlignAttrs : public AttrsNodeReflAdapter<ROIAlignAttrs> {
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ROIAlignAttrs", ROIAlignAttrs, BaseAttrsNode);
 };  // struct ROIAlignAttrs
 
+/*! \brief Attributes used in GetValidCounts operator */
+struct GetValidCountsAttrs : public AttrsNodeReflAdapter<GetValidCountsAttrs> {
+  double score_threshold;
+  int id_index;
+  int score_index;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<GetValidCountsAttrs>()
+        .def_ro("score_threshold", &GetValidCountsAttrs::score_threshold,
+                "Lower limit of score for valid bounding boxes.")
+        .def_ro("id_index", &GetValidCountsAttrs::id_index,
+                "Index of the class categories, -1 to disable.")
+        .def_ro("score_index", &GetValidCountsAttrs::score_index,
+                "Index of the scores/confidence of boxes.");
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.GetValidCountsAttrs", GetValidCountsAttrs,
+                                    BaseAttrsNode);
+};  // struct GetValidCountsAttrs
+
+/*! \brief Attributes used in NonMaximumSuppression operator */
+struct NonMaximumSuppressionAttrs
+    : public AttrsNodeReflAdapter<NonMaximumSuppressionAttrs> {
+  int max_output_size;
+  double iou_threshold;
+  bool force_suppress;
+  int top_k;
+  int coord_start;
+  int score_index;
+  int id_index;
+  bool return_indices;
+  bool invalid_to_bottom;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<NonMaximumSuppressionAttrs>()
+        .def_ro("max_output_size", &NonMaximumSuppressionAttrs::max_output_size,
+                "Max number of output valid boxes, -1 for no limit.")
+        .def_ro("iou_threshold", &NonMaximumSuppressionAttrs::iou_threshold,
+                "Non-maximum suppression IoU threshold.")
+        .def_ro("force_suppress", &NonMaximumSuppressionAttrs::force_suppress,
+                "Whether to suppress all detections regardless of class_id.")
+        .def_ro("top_k", &NonMaximumSuppressionAttrs::top_k,
+                "Keep maximum top k detections before nms, -1 for no limit.")
+        .def_ro("coord_start", &NonMaximumSuppressionAttrs::coord_start,
+                "Start index of the consecutive 4 coordinates.")
+        .def_ro("score_index", &NonMaximumSuppressionAttrs::score_index,
+                "Index of the scores/confidence of boxes.")
+        .def_ro("id_index", &NonMaximumSuppressionAttrs::id_index,
+                "Index of the class categories, -1 to disable.")
+        .def_ro("return_indices", &NonMaximumSuppressionAttrs::return_indices,
+                "Whether to return box indices in input data.")
+        .def_ro("invalid_to_bottom", &NonMaximumSuppressionAttrs::invalid_to_bottom,
+                "Whether to move all valid bounding boxes to the top.");
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.NonMaximumSuppressionAttrs",
+                                    NonMaximumSuppressionAttrs, BaseAttrsNode);
+};  // struct NonMaximumSuppressionAttrs
+
 }  // namespace relax
 }  // namespace tvm
 

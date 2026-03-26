@@ -72,3 +72,108 @@ def all_class_non_max_suppression(
     return _ffi_api.all_class_non_max_suppression(
         boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold, output_format
     )
+
+
+def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
+    """Get valid count of bounding boxes given a score threshold.
+    Also moves valid boxes to the top of input data.
+
+    Parameters
+    ----------
+    data : relax.Expr
+        3-D tensor with shape [batch_size, num_anchors, elem_length].
+
+    score_threshold : float, optional
+        Lower limit of score for valid bounding boxes.
+
+    id_index : int, optional
+        Index of the class categories, -1 to disable.
+
+    score_index : int, optional
+        Index of the scores/confidence of boxes.
+
+    Returns
+    -------
+    out : relax.Expr
+        A tuple of three tensors:
+        - valid_count: 1-D tensor [batch_size]
+        - out_tensor: 3-D tensor [batch_size, num_anchors, elem_length]
+        - out_indices: 2-D tensor [batch_size, num_anchors]
+    """
+    return _ffi_api.get_valid_counts(data, score_threshold, id_index, score_index)
+
+
+def non_max_suppression(
+    data,
+    valid_count,
+    indices,
+    max_output_size=-1,
+    iou_threshold=0.5,
+    force_suppress=False,
+    top_k=-1,
+    coord_start=2,
+    score_index=1,
+    id_index=0,
+    return_indices=True,
+    invalid_to_bottom=False,
+):
+    """Non-maximum suppression operator for object detection.
+
+    Parameters
+    ----------
+    data : relax.Expr
+        3-D tensor with shape [batch_size, num_anchors, elem_length].
+
+    valid_count : relax.Expr
+        1-D tensor for valid number of boxes.
+
+    indices : relax.Expr
+        2-D tensor with shape [batch_size, num_anchors].
+
+    max_output_size : int, optional
+        Max number of output valid boxes, -1 for no limit.
+
+    iou_threshold : float, optional
+        Non-maximum suppression IoU threshold.
+
+    force_suppress : bool, optional
+        Whether to suppress all detections regardless of class_id.
+
+    top_k : int, optional
+        Keep maximum top k detections before nms, -1 for no limit.
+
+    coord_start : int, optional
+        Start index of the consecutive 4 coordinates.
+
+    score_index : int, optional
+        Index of the scores/confidence of boxes.
+
+    id_index : int, optional
+        Index of the class categories, -1 to disable.
+
+    return_indices : bool, optional
+        Whether to return box indices in input data.
+
+    invalid_to_bottom : bool, optional
+        Whether to move all valid bounding boxes to the top.
+
+    Returns
+    -------
+    out : relax.Expr
+        If return_indices is True, returns a tuple of (box_indices, valid_box_count).
+        Otherwise returns the modified data tensor.
+    """
+    return _ffi_api.non_max_suppression(
+        data,
+        valid_count,
+        indices,
+        max_output_size,
+        iou_threshold,
+        force_suppress,
+        top_k,
+        coord_start,
+        score_index,
+        id_index,
+        return_indices,
+        invalid_to_bottom,
+    )

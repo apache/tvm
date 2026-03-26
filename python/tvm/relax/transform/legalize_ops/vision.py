@@ -118,3 +118,33 @@ def _roi_align(bb: BlockBuilder, call: Call) -> Expr:
         aligned=call.attrs.aligned,
         layout=call.attrs.layout,
     )
+
+
+@register_legalize("relax.vision.get_valid_counts")
+def _get_valid_counts(block_builder: BlockBuilder, call: Call) -> Expr:
+    return block_builder.call_te(
+        topi.vision.get_valid_counts,
+        call.args[0],
+        score_threshold=call.attrs.score_threshold,
+        id_index=call.attrs.id_index,
+        score_index=call.attrs.score_index,
+    )
+
+
+@register_legalize("relax.vision.non_max_suppression")
+def _non_max_suppression(block_builder: BlockBuilder, call: Call) -> Expr:
+    return block_builder.call_te(
+        topi.vision.non_max_suppression,
+        call.args[0],
+        call.args[1],
+        call.args[2],
+        max_output_size=call.attrs.max_output_size,
+        iou_threshold=call.attrs.iou_threshold,
+        force_suppress=call.attrs.force_suppress,
+        top_k=call.attrs.top_k,
+        coord_start=call.attrs.coord_start,
+        score_index=call.attrs.score_index,
+        id_index=call.attrs.id_index,
+        return_indices=call.attrs.return_indices,
+        invalid_to_bottom=call.attrs.invalid_to_bottom,
+    )
