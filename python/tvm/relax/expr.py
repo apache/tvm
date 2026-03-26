@@ -1203,9 +1203,6 @@ def const(
 class TEPlaceholderOp(tvm.te.tensor.Operation):
     """The placeholder op that represents a relax expression."""
 
-    def __init__(self):
-        pass
-
 
 def te_tensor(
     value: Expr, tir_var_map: dict[tvm.tirx.Var, tvm.tirx.PrimExpr], name: str = "rxplaceholder"

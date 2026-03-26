@@ -125,9 +125,8 @@ class FunctionFrameNode : public SeqExprFrameNode {
         .def_ro("params", &FunctionFrameNode::params)
         .def_ro("ret_struct_info", &FunctionFrameNode::ret_struct_info)
         .def_ro("is_pure", &FunctionFrameNode::is_pure)
-        .def_ro("attrs", &FunctionFrameNode::attrs)
-        .def_ro("binding_blocks", &FunctionFrameNode::binding_blocks)
-        .def_ro("output", &FunctionFrameNode::output);
+        .def_ro("attrs", &FunctionFrameNode::attrs);
+    // `binding_blocks` and `output` are inherited from SeqExprFrameNode.
     // `block_builder` is not registered as it's not visited.
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.relax.FunctionFrame", FunctionFrameNode,
