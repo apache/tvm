@@ -131,6 +131,58 @@ def resize2d(
     )
 
 
+def resize3d(
+    data: Expr,
+    size: Expr | PrimExprLike | tuple[PrimExprLike],
+    roi: float | tuple[float] | None = None,
+    layout: str = "NCDHW",
+    method: str = "linear",
+    coordinate_transformation_mode: str = "half_pixel",
+    rounding_method: str = "",
+    cubic_alpha: float = -0.75,
+    cubic_exclude: int = 0,
+    extrapolation_value: float = 0.0,
+    out_dtype: str | DataType | None = None,
+) -> Expr:
+    """Image resize3d operator.
+
+    This operator takes data as input and does 3D scaling to the given output size.
+    In the default case, where data layout is `NCDHW`
+    with data of shape (n, c, d, h, w),
+    the output has shape (n, c, size[0], size[1], size[2]).
+    """
+    if roi is None:
+        roi = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)  # type: ignore
+    elif isinstance(roi, float):
+        roi = (roi, roi, roi, roi, roi, roi)  # type: ignore
+    elif isinstance(roi, tuple | list):
+        roi = tuple(val if isinstance(val, float) else float(val) for val in roi)
+    else:
+        raise NotImplementedError(f"Unsupported roi type {type(roi)}")
+
+    if isinstance(size, int | PrimExpr):
+        size = (size, size, size)
+    if isinstance(size, tuple | list):
+        if len(size) == 1:
+            size = ShapeExpr([size[0], size[0], size[0]])
+        else:
+            size = ShapeExpr(size)
+
+    return _ffi_api.resize3d(  # type: ignore
+        data,
+        size,
+        roi,
+        layout,
+        method,
+        coordinate_transformation_mode,
+        rounding_method,
+        cubic_alpha,
+        cubic_exclude,
+        extrapolation_value,
+        out_dtype,
+    )
+
+
 def grid_sample(
     data: Expr,
     grid: Expr,

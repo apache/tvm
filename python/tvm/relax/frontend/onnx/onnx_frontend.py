@@ -2397,18 +2397,17 @@ class Resize(OnnxOpConverter):
                 extrapolation_value=extrapolation_value,
             )
         else:  # ndims == 5
-            return bb.emit_te(
-                topi.image.resize3d,
+            return relax.op.image.resize3d(
                 x,
-                roi,
-                sizes,
-                "NCDHW",
-                topi_mode,
-                coord_mode,
-                rounding_method,
-                cubic_coeff_a,
-                exclude_outside,
-                extrapolation_value,
+                size=relax.ShapeExpr(sizes),
+                roi=roi,
+                layout="NCDHW",
+                method=relax_mode,
+                coordinate_transformation_mode=coord_mode,
+                rounding_method=rounding_method,
+                cubic_alpha=cubic_coeff_a,
+                cubic_exclude=exclude_outside,
+                extrapolation_value=extrapolation_value,
             )
 
 
@@ -2451,6 +2450,71 @@ class Einsum(OnnxOpConverter):
     def _impl_v12(cls, bb, inputs, attr, params):
         equation = attr["equation"].decode("utf-8")
         return bb.emit_te(topi.einsum, equation, *inputs)
+
+
+class RoiAlign(OnnxOpConverter):
+    """Converts an onnx RoiAlign node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl(cls, bb, inputs, attr, params, default_coordinate_transformation_mode):
+        if len(inputs) != 3:
+            raise ValueError("RoiAlign expects exactly 3 inputs")
+
+        data = inputs[0]
+        rois = inputs[1]
+        batch_indices = inputs[2]
+        rois_dtype = rois.struct_info.dtype
+
+        mode = attr.get("mode", b"avg")
+        if isinstance(mode, bytes):
+            mode = mode.decode("ascii")
+        if mode not in ("avg", "max"):
+            raise NotImplementedError("RoiAlign in Relax only supports avg and max modes")
+
+        output_height = attr.get("output_height", 1)
+        output_width = attr.get("output_width", 1)
+        sampling_ratio = attr.get("sampling_ratio", 0)
+        spatial_scale = attr.get("spatial_scale", 1.0)
+        coordinate_transformation_mode = attr.get(
+            "coordinate_transformation_mode", default_coordinate_transformation_mode
+        )
+        if isinstance(coordinate_transformation_mode, bytes):
+            coordinate_transformation_mode = coordinate_transformation_mode.decode("ascii")
+
+        if coordinate_transformation_mode == "half_pixel":
+            offset = relax.const([-0.5, -0.5, -0.5, -0.5], rois_dtype)
+            rois = relax.op.add(rois, offset)
+            aligned = True
+        elif coordinate_transformation_mode != "output_half_pixel":
+            raise NotImplementedError(
+                "RoiAlign only supports coordinate_transformation_mode "
+                "'half_pixel' and 'output_half_pixel'"
+            )
+        else:
+            aligned = False
+
+        batch_indices = relax.op.expand_dims(batch_indices, axis=1)
+        batch_indices = relax.op.astype(batch_indices, rois_dtype)
+        rois = relax.op.concat([batch_indices, rois], axis=1)
+
+        return relax.op.vision.roi_align(
+            data,
+            rois,
+            pooled_size=(output_height, output_width),
+            spatial_scale=spatial_scale,
+            sample_ratio=sampling_ratio,
+            aligned=aligned,
+            layout="NCHW",
+            mode=mode,
+        )
+
+    @classmethod
+    def _impl_v10(cls, bb, inputs, attr, params):
+        return cls._impl(bb, inputs, attr, params, b"output_half_pixel")
+
+    @classmethod
+    def _impl_v16(cls, bb, inputs, attr, params):
+        return cls._impl(bb, inputs, attr, params, b"half_pixel")
 
 
 class Range(OnnxOpConverter):
@@ -3928,6 +3992,44 @@ class AllClassNMS(OnnxOpConverter):
         return nms_out
 
 
+class GridSample(OnnxOpConverter):
+    """Converts an onnx GridSample node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v16(cls, bb, inputs, attr, params):
+        data = inputs[0]
+        grid = inputs[1]
+
+        method = attr.get("mode", b"bilinear")
+        if isinstance(method, bytes):
+            method = method.decode("ascii")
+
+        # Translate ONNX mode names to TVM method names
+        if method == "linear":
+            method = "bilinear"
+        elif method == "cubic":
+            method = "bicubic"
+
+        padding_mode = attr.get("padding_mode", b"zeros")
+        if isinstance(padding_mode, bytes):
+            padding_mode = padding_mode.decode("ascii")
+
+        align_corners = bool(attr.get("align_corners", 0))
+
+        # ONNX grid shape: [N, H_out, W_out, 2]
+        # TVM grid shape:  [N, 2, H_out, W_out]
+        grid = relax.op.permute_dims(grid, [0, 3, 1, 2])
+
+        return relax.op.image.grid_sample(
+            data,
+            grid,
+            method=method,
+            layout="NCHW",
+            padding_mode=padding_mode,
+            align_corners=align_corners,
+        )
+
+
 def _get_convert_map():
     return {
         # defs/experimental
@@ -4077,10 +4179,10 @@ def _get_convert_map():
         "NonZero": NonZero,
         # "If": If,
         # "MaxRoiPool": MaxRoiPool,
-        # "RoiAlign": RoiAlign,
+        "RoiAlign": RoiAlign,
         "NonMaxSuppression": NonMaxSuppression,
         "AllClassNMS": AllClassNMS,
-        # "GridSample": GridSample,
+        "GridSample": GridSample,
         "AffineGrid": AffineGrid,
         "Upsample": Upsample,
         # others

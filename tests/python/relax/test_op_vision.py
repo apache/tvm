@@ -21,6 +21,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import TVMError, relax, tirx
+from tvm.ir import Op
 from tvm.relax.transform import LegalizeOps
 from tvm.script import relax as R
 
@@ -28,6 +29,173 @@ from tvm.script import relax as R
 def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_sinfo: relax.StructInfo):
     ret = bb.normalize(call)
     tvm.ir.assert_structural_equal(ret.struct_info, expected_sinfo)
+
+
+def test_roi_align_op_correctness():
+    x = relax.Var("x", R.Tensor((2, 3, 32, 32), "float32"))
+    rois = relax.Var("rois", R.Tensor((4, 5), "float32"))
+    assert relax.op.vision.roi_align(x, rois, (7, 7), 1.0).op == Op.get("relax.vision.roi_align")
+
+
+def test_roi_align_infer_struct_info():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", R.Tensor((2, 3, 32, 32), "float32"))
+    x1 = relax.Var("x", R.Tensor((2, 32, 32, 3), "float32"))
+    rois = relax.Var("rois", R.Tensor((5, 5), "float32"))
+
+    _check_inference(
+        bb,
+        relax.op.vision.roi_align(x0, rois, (7, 7), 0.25),
+        relax.TensorStructInfo((5, 3, 7, 7), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.vision.roi_align(x1, rois, (5, 7), 1.0, layout="NHWC"),
+        relax.TensorStructInfo((5, 5, 7, 3), "float32"),
+    )
+
+
+def test_roi_align_infer_struct_info_aligned():
+    bb = relax.BlockBuilder()
+    x = relax.Var("x", R.Tensor((2, 3, 32, 32), "float32"))
+    rois = relax.Var("rois", R.Tensor((5, 5), "float32"))
+
+    _check_inference(
+        bb,
+        relax.op.vision.roi_align(x, rois, (7, 7), 1.0, aligned=True),
+        relax.TensorStructInfo((5, 3, 7, 7), "float32"),
+    )
+
+
+def test_roi_align_infer_struct_info_shape_var():
+    bb = relax.BlockBuilder()
+    n = tirx.Var("n", "int64")
+    c = tirx.Var("c", "int64")
+    h = tirx.Var("h", "int64")
+    w = tirx.Var("w", "int64")
+    num_roi = tirx.Var("num_roi", "int64")
+
+    x = relax.Var("x", R.Tensor((n, c, h, w), "float32"))
+    rois = relax.Var("rois", R.Tensor((num_roi, 5), "float32"))
+
+    _check_inference(
+        bb,
+        relax.op.vision.roi_align(x, rois, (7, 7), 0.5),
+        relax.TensorStructInfo((num_roi, c, 7, 7), "float32"),
+    )
+
+
+def test_roi_align_wrong_input_ndim():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", R.Tensor((2, 3, 32), "float32"))
+    x1 = relax.Var("x", R.Tensor((2, 3, 32, 32), "float32"))
+    rois0 = relax.Var("rois", R.Tensor((4,), "float32"))
+    rois1 = relax.Var("rois", R.Tensor((4, 5), "float32"))
+
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.vision.roi_align(x0, rois1, (7, 7), 1.0))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.vision.roi_align(x1, rois0, (7, 7), 1.0))
+
+
+def test_roi_align_wrong_rois_last_dim():
+    bb = relax.BlockBuilder()
+    x = relax.Var("x", R.Tensor((2, 3, 32, 32), "float32"))
+    rois = relax.Var("rois", R.Tensor((4, 4), "float32"))
+
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.vision.roi_align(x, rois, (7, 7), 1.0))
+
+
+def test_roi_align_wrong_layout():
+    bb = relax.BlockBuilder()
+    x = relax.Var("x", R.Tensor((2, 3, 32, 32), "float32"))
+    rois = relax.Var("rois", R.Tensor((4, 5), "float32"))
+
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.vision.roi_align(x, rois, (7, 7), 1.0, layout="HWCN"))
+
+
+def test_roi_align_legalize():
+    @tvm.script.ir_module
+    class ROIAlign:
+        @R.function
+        def main(
+            x: R.Tensor((1, 2, 8, 8), "float32"),
+            rois: R.Tensor((2, 5), "float32"),
+        ) -> R.Tensor((2, 2, 3, 3), "float32"):
+            gv: R.Tensor((2, 2, 3, 3), "float32") = R.vision.roi_align(
+                x,
+                rois,
+                pooled_size=(3, 3),
+                spatial_scale=1.0,
+                sample_ratio=2,
+                layout="NCHW",
+                mode="avg",
+            )
+            return gv
+
+    mod = LegalizeOps()(ROIAlign)
+    assert "call_tir" in str(mod)
+    tvm.ir.assert_structural_equal(
+        mod["main"].ret_struct_info,
+        relax.TensorStructInfo((2, 2, 3, 3), "float32"),
+    )
+
+
+def test_roi_align_legalize_aligned():
+    @tvm.script.ir_module
+    class ROIAlign:
+        @R.function
+        def main(
+            x: R.Tensor((1, 1, 4, 4), "float32"),
+            rois: R.Tensor((1, 5), "float32"),
+        ) -> R.Tensor((1, 1, 1, 1), "float32"):
+            gv: R.Tensor((1, 1, 1, 1), "float32") = R.vision.roi_align(
+                x,
+                rois,
+                pooled_size=(1, 1),
+                spatial_scale=1.0,
+                sample_ratio=2,
+                aligned=True,
+                layout="NCHW",
+                mode="avg",
+            )
+            return gv
+
+    mod = LegalizeOps()(ROIAlign)
+    assert "call_tir" in str(mod)
+    tvm.ir.assert_structural_equal(
+        mod["main"].ret_struct_info,
+        relax.TensorStructInfo((1, 1, 1, 1), "float32"),
+    )
+
+
+def test_roi_align_legalize_sample_ratio_zero():
+    @tvm.script.ir_module
+    class ROIAlign:
+        @R.function
+        def main(
+            x: R.Tensor((1, 2, 8, 8), "float32"),
+            rois: R.Tensor((1, 5), "float32"),
+        ) -> R.Tensor((1, 2, 2, 2), "float32"):
+            gv: R.Tensor((1, 2, 2, 2), "float32") = R.vision.roi_align(
+                x,
+                rois,
+                pooled_size=(2, 2),
+                spatial_scale=1.0,
+                sample_ratio=0,
+                layout="NCHW",
+                mode="avg",
+            )
+            return gv
+
+    mod = LegalizeOps()(ROIAlign)
+    assert "call_tir" in str(mod)
+    tvm.ir.assert_structural_equal(
+        mod["main"].ret_struct_info,
+        relax.TensorStructInfo((1, 2, 2, 2), "float32"),
+    )
 
 
 def test_all_class_non_max_suppression_infer_struct_info():

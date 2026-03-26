@@ -103,3 +103,18 @@ def _all_class_non_max_suppression(block_builder: BlockBuilder, call: Call) -> E
 
     # Return trimmed indices along with num_total_detections for compatibility
     return relax.Tuple([trimmed_indices, num_total_detections])
+
+
+@register_legalize("relax.vision.roi_align")
+def _roi_align(bb: BlockBuilder, call: Call) -> Expr:
+    return bb.call_te(
+        topi.vision.roi_align,
+        call.args[0],
+        call.args[1],
+        pooled_size=call.attrs.pooled_size,
+        spatial_scale=call.attrs.spatial_scale,
+        mode=call.attrs.mode,
+        sample_ratio=call.attrs.sample_ratio,
+        aligned=call.attrs.aligned,
+        layout=call.attrs.layout,
+    )

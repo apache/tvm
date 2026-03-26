@@ -2839,6 +2839,37 @@ def test_resize_nd_sizes():
         check_correctness(model, opset=18)
 
 
+def test_resize_5d_emits_relax_resize3d():
+    resize_node = helper.make_node(
+        "Resize",
+        ["X", "", "", "sizes"],
+        ["Y"],
+        mode="nearest",
+        coordinate_transformation_mode="asymmetric",
+        nearest_mode="floor",
+    )
+    graph = helper.make_graph(
+        [resize_node],
+        "resize3d_ir_check",
+        inputs=[helper.make_tensor_value_info("X", TensorProto.FLOAT, [1, 1, 3, 4, 5])],
+        initializer=[helper.make_tensor("sizes", TensorProto.INT64, [5], [1, 1, 4, 6, 7])],
+        outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, [1, 1, 4, 6, 7])],
+    )
+    model = helper.make_model(graph, producer_name="resize3d_ir_check")
+    tvm_model = from_onnx(model, opset=18, keep_params_in_input=True)
+
+    seen_resize3d = False
+
+    def _visit(expr):
+        nonlocal seen_resize3d
+        if isinstance(expr, relax.Call) and isinstance(expr.op, tvm.ir.Op):
+            if expr.op.name == "relax.image.resize3d":
+                seen_resize3d = True
+
+    relax.analysis.post_order_visit(tvm_model["main"].body, _visit)
+    assert seen_resize3d
+
+
 def test_einsum():
     eqn = "ij->i"
     einsum_node = helper.make_node("Einsum", ["x"], ["y"], equation=eqn)
@@ -4004,6 +4035,172 @@ def test_affine_grid():
 
     model = helper.make_model(graph, producer_name="affine_grid_test")
     check_correctness(model, opset=20)
+
+
+@pytest.mark.parametrize("mode", ["bilinear", "nearest", "bicubic"])
+@pytest.mark.parametrize("padding_mode", ["zeros", "border", "reflection"])
+@pytest.mark.parametrize("align_corners", [0, 1])
+def test_grid_sample(mode, padding_mode, align_corners):
+    # Only testing 2D (NCHW) as that's what TVM currently supports
+    x_shape = [1, 3, 4, 4]
+    grid_shape = [1, 2, 2, 2]
+    out_shape = [x_shape[0], x_shape[1], grid_shape[1], grid_shape[2]]
+
+    node = helper.make_node(
+        "GridSample",
+        inputs=["X", "grid"],
+        outputs=["Y"],
+        mode=mode,
+        padding_mode=padding_mode,
+        align_corners=align_corners,
+    )
+
+    graph = helper.make_graph(
+        [node],
+        "grid_sample_test",
+        inputs=[
+            helper.make_tensor_value_info("X", TensorProto.FLOAT, x_shape),
+            helper.make_tensor_value_info("grid", TensorProto.FLOAT, grid_shape),
+        ],
+        outputs=[
+            helper.make_tensor_value_info("Y", TensorProto.FLOAT, out_shape),
+        ],
+    )
+
+    # Grid values must be in [-1, 1]: -1 is far left/top, 1 is far right/bottom
+    grid_data = np.random.uniform(-1, 1, grid_shape).astype("float32")
+    # Use controlled X input to avoid extreme values affecting nearest mode boundaries
+    x_data = np.random.uniform(-1, 1, x_shape).astype("float32")
+
+    model = helper.make_model(graph, producer_name="grid_sample_test")
+    check_correctness(
+        model,
+        inputs={"grid": grid_data, "X": x_data},
+        opset=16,
+    )
+
+
+def test_grid_sample_linear_mode_translation():
+    """Test that ONNX mode='linear' is correctly translated to 'bilinear'.
+
+    The ONNX spec defines 'linear' as a valid mode for GridSample, but
+    onnxruntime rejects it in practice. Real ONNX models exported from
+    frameworks like PyTorch may still use 'linear'. We verify the translation
+    by inspecting the Relax IR directly rather than running check_correctness.
+    """
+    x_shape = [1, 3, 4, 4]
+    grid_shape = [1, 2, 2, 2]
+
+    node = helper.make_node(
+        "GridSample",
+        inputs=["X", "grid"],
+        outputs=["Y"],
+        mode="linear",
+    )
+
+    graph = helper.make_graph(
+        [node],
+        "grid_sample_linear_test",
+        inputs=[
+            helper.make_tensor_value_info("X", TensorProto.FLOAT, x_shape),
+            helper.make_tensor_value_info("grid", TensorProto.FLOAT, grid_shape),
+        ],
+        outputs=[
+            helper.make_tensor_value_info(
+                "Y", TensorProto.FLOAT, [x_shape[0], x_shape[1], grid_shape[1], grid_shape[2]]
+            ),
+        ],
+    )
+
+    model = helper.make_model(graph, producer_name="grid_sample_linear_test")
+    tvm_model = from_onnx(model, opset=16, keep_params_in_input=True)
+    # Verify 'linear' was translated to 'bilinear' in the Relax IR
+    assert 'method="bilinear"' in str(tvm_model)
+
+
+def test_grid_sample_cubic_mode_translation():
+    """Test that ONNX mode='cubic' is correctly translated to 'bicubic'.
+
+    The ONNX spec defines 'cubic' as a valid mode for GridSample, but
+    TVM uses 'bicubic'. We verify the translation by inspecting the
+    Relax IR directly rather than running check_correctness.
+    """
+    x_shape = [1, 3, 4, 4]
+    grid_shape = [1, 2, 2, 2]
+
+    node = helper.make_node(
+        "GridSample",
+        inputs=["X", "grid"],
+        outputs=["Y"],
+        mode="cubic",
+    )
+
+    graph = helper.make_graph(
+        [node],
+        "grid_sample_cubic_test",
+        inputs=[
+            helper.make_tensor_value_info("X", TensorProto.FLOAT, x_shape),
+            helper.make_tensor_value_info("grid", TensorProto.FLOAT, grid_shape),
+        ],
+        outputs=[
+            helper.make_tensor_value_info(
+                "Y", TensorProto.FLOAT, [x_shape[0], x_shape[1], grid_shape[1], grid_shape[2]]
+            ),
+        ],
+    )
+
+    model = helper.make_model(graph, producer_name="grid_sample_cubic_test")
+    tvm_model = from_onnx(model, opset=16, keep_params_in_input=True)
+    # Verify 'cubic' was translated to 'bicubic' in the Relax IR
+    assert 'method="bicubic"' in str(tvm_model)
+
+
+@pytest.mark.parametrize(
+    ("coordinate_transformation_mode", "rois"),
+    [
+        (
+            "output_half_pixel",
+            np.array([[1.0, 1.0, 6.0, 6.0], [2.0, 0.5, 7.0, 7.0]], dtype="float32"),
+        ),
+        ("half_pixel", np.array([[1.0, 1.0, 1.2, 1.2], [2.0, 0.5, 1.1, 1.1]], dtype="float32")),
+    ],
+)
+def test_roi_align(coordinate_transformation_mode, rois):
+    x_shape = [1, 4, 8, 8]
+    rois_shape = [2, 4]
+    batch_indices_shape = [2]
+    out_shape = [2, 4, 3, 3]
+
+    node = helper.make_node(
+        "RoiAlign",
+        inputs=["X", "rois", "batch_indices"],
+        outputs=["Y"],
+        output_height=3,
+        output_width=3,
+        sampling_ratio=2,
+        spatial_scale=1.0,
+        mode="avg",
+        coordinate_transformation_mode=coordinate_transformation_mode,
+    )
+
+    graph = helper.make_graph(
+        [node],
+        "roi_align_test",
+        inputs=[
+            helper.make_tensor_value_info("X", TensorProto.FLOAT, x_shape),
+            helper.make_tensor_value_info("rois", TensorProto.FLOAT, rois_shape),
+            helper.make_tensor_value_info("batch_indices", TensorProto.INT64, batch_indices_shape),
+        ],
+        outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, out_shape)],
+    )
+
+    model = helper.make_model(graph, producer_name="roi_align_test")
+    inputs = {
+        "X": rg.standard_normal(size=x_shape).astype("float32"),
+        "rois": rois,
+        "batch_indices": np.array([0, 0], dtype="int64"),
+    }
+    check_correctness(model, inputs=inputs, opset=16, rtol=1e-5, atol=1e-5)
 
 
 if __name__ == "__main__":

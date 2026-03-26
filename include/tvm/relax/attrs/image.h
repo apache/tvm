@@ -78,6 +78,55 @@ struct Resize2DAttrs : public AttrsNodeReflAdapter<Resize2DAttrs> {
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Resize2DAttrs", Resize2DAttrs, BaseAttrsNode);
 };  // struct Resize2dAttrs
 
+/*! \brief Attributes used in image resize3d operator */
+struct Resize3DAttrs : public AttrsNodeReflAdapter<Resize3DAttrs> {
+  ffi::Array<FloatImm> roi;
+  ffi::String layout;
+  ffi::String method;
+  ffi::String coordinate_transformation_mode;
+  ffi::String rounding_method;
+  double cubic_alpha;
+  int cubic_exclude;
+  double extrapolation_value;
+  DataType out_dtype;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<Resize3DAttrs>()
+        .def_ro("roi", &Resize3DAttrs::roi,
+                "Region of Interest for coordinate transformation mode 'tf_crop_and_resize'")
+        .def_ro("layout", &Resize3DAttrs::layout,
+                "Dimension ordering of input data. Can be 'NCDHW', 'NDHWC', etc."
+                "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
+                "dimensions respectively. Resize is applied on the 'D', 'H' and"
+                "'W' dimensions.")
+        .def_ro("method", &Resize3DAttrs::method,
+                "Specify the mode to use for scaling."
+                "nearest_neighbor -  Nearest Neighbor"
+                "linear - Trilinear Interpolation"
+                "cubic - Tricubic Interpolation")
+        .def_ro("coordinate_transformation_mode", &Resize3DAttrs::coordinate_transformation_mode,
+                "Describes how to transform the coordinate in the resized tensor"
+                "to the coordinate in the original tensor."
+                "Refer to the ONNX Resize operator specification for details"
+                "Available options are half_pixel, align_corners and asymmetric")
+        .def_ro("rounding_method", &Resize3DAttrs::rounding_method,
+                "indicates how to find the \"nearest\" pixel in nearest_neighbor method"
+                "Available options are round, floor, and ceil.")
+        .def_ro("cubic_alpha", &Resize3DAttrs::cubic_alpha,
+                "Spline Coefficient for Tricubic Interpolation")
+        .def_ro("cubic_exclude", &Resize3DAttrs::cubic_exclude,
+                "Flag to exclude exterior of the image during tricubic interpolation")
+        .def_ro("extrapolation_value", &Resize3DAttrs::extrapolation_value,
+                "Value to return when roi is outside of the image")
+        .def_ro(
+            "out_dtype", &Resize3DAttrs::out_dtype,
+            "The dtype of the output tensor. It it is not specified, the output will have the same "
+            "dtype as input if not specified.");
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Resize3DAttrs", Resize3DAttrs, BaseAttrsNode);
+};  // struct Resize3DAttrs
+
 /*! \brief Attributes used in image grid_sample operator */
 struct GridSampleAttrs : public AttrsNodeReflAdapter<GridSampleAttrs> {
   ffi::String method;
