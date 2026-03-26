@@ -340,7 +340,7 @@ TVM_REGISTER_OP("relax.image.grid_sample")
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<Bool>("FPurity", Bool(true));
 
-/* relax.affine_grid */
+/* relax.image.affine_grid */
 
 Expr affine_grid(Expr data, Expr size) {
   static const Op& op = Op::Get("relax.image.affine_grid");
@@ -389,9 +389,29 @@ StructInfo InferStructInfoAffineGrid(const Call& call, const BlockBuilder& ctx) 
                      << data_sinfo->ndim);
   }
 
+  const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
+  if (data_shape != nullptr) {
+    // Check that the affine matrix has shape [batch, 2, 3]
+    if (data_shape->values.size() >= 2) {
+      auto* dim1 = data_shape->values[1].as<IntImmNode>();
+      if (dim1 != nullptr && dim1->value != 2) {
+        ctx->ReportFatal(Diagnostic::Error(call)
+                         << "AffineGrid expects the second dimension of input to be 2, but got "
+                         << dim1->value);
+      }
+    }
+    if (data_shape->values.size() >= 3) {
+      auto* dim2 = data_shape->values[2].as<IntImmNode>();
+      if (dim2 != nullptr && dim2->value != 3) {
+        ctx->ReportFatal(Diagnostic::Error(call)
+                         << "AffineGrid expects the third dimension of input to be 3, but got "
+                         << dim2->value);
+      }
+    }
+  }
+
   DataType out_dtype = data_sinfo->dtype;
 
-  const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
   if (data_shape == nullptr || size_value == nullptr) {
     return TensorStructInfo(out_dtype, /*ndim=*/4, data_sinfo->vdevice);
   }

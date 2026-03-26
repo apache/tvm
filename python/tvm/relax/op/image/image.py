@@ -16,6 +16,8 @@
 # under the License.
 """Image operators."""
 
+from typing import cast
+
 from tvm import DataType
 from tvm.ir.expr import PrimExpr
 
@@ -248,16 +250,23 @@ def affine_grid(
         The input affine matrix tensor with shape [batch, 2, 3].
 
     size : Union[Expr, PrimExprLike, Tuple[PrimExprLike, PrimExprLike]]
-        The target output spatial shape (H, W). Must have exactly 2 elements.
+        The target output spatial shape (H, W). If a single integer or PrimExpr
+        is provided, it is interpreted as a square output shape (size, size).
 
     Returns
     -------
     result : relax.Expr
         The output grid tensor with shape [batch, 2, H, W].
+
+    Note
+    ----
+    Only `align_corners=True` is supported by this operator, matching the
+    behavior of the underlying TOPI implementation. When using this operator
+    via PyTorch or ONNX frontends, `align_corners=False` will be rejected.
     """
     if isinstance(size, int | PrimExpr):
         size = (size, size)
     if isinstance(size, tuple | list):
         size = ShapeExpr(size)
 
-    return _ffi_api.affine_grid(data, size)  # type: ignore
+    return cast(Expr, _ffi_api.affine_grid(data, size))
