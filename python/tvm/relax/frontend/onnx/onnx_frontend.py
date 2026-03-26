@@ -2435,7 +2435,8 @@ class AffineGrid(OnnxOpConverter):
             raise NotImplementedError(f"Dynamic size of type {type(size)} is not supported")
 
         # Only 2D is supported: size = [N, C, H, W]
-        assert len(size_vals) == 4, "Only 2D AffineGrid (size=[N,C,H,W]) is supported"
+        if len(size_vals) != 4:
+            raise ValueError("Only 2D AffineGrid (size=[N,C,H,W]) is supported")
         target_h, target_w = size_vals[2], size_vals[3]
 
         # Relax affine_grid outputs [N, 2, H, W]

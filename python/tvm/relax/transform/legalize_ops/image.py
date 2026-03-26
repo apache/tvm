@@ -17,7 +17,7 @@
 # pylint: disable=invalid-name
 """Default legalization function for image operators."""
 
-from tvm import topi
+from tvm import tirx, topi
 
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr
@@ -56,6 +56,12 @@ def _image_grid_sample(bb: BlockBuilder, call: Call) -> Expr:
 
 @register_legalize("relax.image.affine_grid")
 def _image_affine_grid(bb: BlockBuilder, call: Call) -> Expr:
+    for v in call.args[1].values:
+        if not isinstance(v, (int, tirx.IntImm)):
+            raise ValueError(
+                "affine_grid legalization requires static target_shape, "
+                f"got symbolic value: {v}"
+            )
     target_shape = [int(v) for v in call.args[1].values]
     return bb.call_te(
         topi.image.affine_grid,

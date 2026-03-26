@@ -109,15 +109,32 @@ def test_image_affine_grid():
         def main(theta: R.Tensor((2, 2, 3), "float32")) -> R.Tensor((2, 2, 16, 16), "float32"):
             gv: R.Tensor((2, 2, 16, 16), "float32") = R.image.affine_grid(theta, size=(16, 16))
             return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(theta: R.Tensor((2, 2, 3), "float32")) -> R.Tensor((2, 2, 16, 16), "float32"):
+            gv = R.call_tir(Expected.affine_grid, (theta,), R.Tensor((2, 2, 16, 16), dtype="float32"))
+            return gv
+
+        @T.prim_func(private=True)
+        def affine_grid(var_theta: T.handle, var_compute: T.handle):
+            T.func_attr({"tirx.noalias": True})
+            theta = T.match_buffer(var_theta, (T.int64(2), T.int64(2), T.int64(3)))
+            compute = T.match_buffer(var_compute, (T.int64(2), T.int64(2), T.int64(16), T.int64(16)))
+            with T.sblock("root"):
+                T.reads()
+                T.writes()
+                for n, dim, i, j in T.grid(T.int64(2), T.int64(2), T.int64(16), T.int64(16)):
+                    with T.sblock("compute"):
+                        v_n, v_dim, v_i, v_j = T.axis.remap("SSSS", [n, dim, i, j])
+                        T.reads(theta[v_n, v_dim, T.int64(0):T.int64(3)])
+                        T.writes(compute[v_n, v_dim, v_i, v_j])
+                        compute[v_n, v_dim, v_i, v_j] = theta[v_n, v_dim, T.int64(0)] * (T.float32(-1.0) + T.Cast("float32", v_j) * T.float32(0.13333332666666667)) + theta[v_n, v_dim, T.int64(1)] * (T.float32(-1.0) + T.Cast("float32", v_i) * T.float32(0.13333332666666667)) + theta[v_n, v_dim, T.int64(2)]
     # fmt: on
 
     mod = LegalizeOps()(AffineGrid)
-    # Verify legalization produces a call_tir with the correct output shape
-    func = mod["main"]
-    assert func.body.body.struct_info.shape[0] == 2
-    assert func.body.body.struct_info.shape[1] == 2
-    assert func.body.body.struct_info.shape[2] == 16
-    assert func.body.body.struct_info.shape[3] == 16
+    tvm.ir.assert_structural_equal(mod, Expected)
 
 
 if __name__ == "__main__":
