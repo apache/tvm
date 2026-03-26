@@ -8799,42 +8799,11 @@ def test_torchvision_roi_align_aligned():
                 aligned=True,
             )
 
-    @tvm.script.ir_module
-    class expected:
-        @R.function
-        def main(
-            input_1: R.Tensor((1, 1, 4, 4), dtype="float32"),
-            rois: R.Tensor((1, 5), dtype="float32"),
-        ) -> R.Tuple(R.Tensor((1, 1, 1, 1), dtype="float32")):
-            R.func_attr({"tir_var_lower_bound": {"s86": 2}})
-            with R.dataflow():
-                lv1: R.Tensor((1, 1), dtype="float32") = R.strided_slice(
-                    rois, axes=[1], begin=[0], end=[1]
-                )
-                lv2: R.Tensor((1, 4), dtype="float32") = R.strided_slice(
-                    rois, axes=[1], begin=[1], end=[5]
-                )
-                lv3: R.Tensor((1, 4), dtype="float32") = R.subtract(lv2, R.const(0.5, "float32"))
-                lv4: R.Tensor((1, 5), dtype="float32") = R.concat((lv1, lv3), axis=1)
-                lv: R.Tensor((1, 1, 1, 1), dtype="float32") = R.vision.roi_align(
-                    input_1,
-                    lv4,
-                    pooled_size=(1, 1),
-                    spatial_scale=1.0,
-                    sample_ratio=2,
-                    aligned=True,
-                    layout="NCHW",
-                    mode="avg",
-                )
-                gv: R.Tuple(R.Tensor((1, 1, 1, 1), dtype="float32")) = (lv,)
-                R.output(gv)
-            return gv
-
     example_args = (
         torch.arange(16, dtype=torch.float32).reshape(1, 1, 4, 4),
         torch.tensor([[0.0, 1.0, 1.0, 1.2, 1.2]], dtype=torch.float32),
     )
-    verify_model(ROIAlign(), example_args, {}, expected)
+    verify_model_numerically(ROIAlign(), example_args, rtol=1e-5, atol=1e-5)
 
 
 def test_upsample_nearest2d():
