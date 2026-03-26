@@ -38,6 +38,8 @@ class DataflowBlockRewrite(Object):
     use mutate_irmodule which rewrites the old function that registered in the constructor.
     """
 
+    __slots__ = ("__dict__",)
+
     def __init__(self, dfb: DataflowBlock, root_fn: Function):
         """
         Construct a rewriter with the DataflowBlock to rewrite and its root function.
