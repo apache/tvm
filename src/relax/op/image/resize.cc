@@ -61,11 +61,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 StructInfo InferStructInfoResize2D(const Call& call, const BlockBuilder& ctx) {
-  if (call->args.size() != 1 && call->args.size() != 2) {
-    ctx->ReportFatal(
-        Diagnostic::Error(call)
-        << "Resize2D expects either one or two arguments, while the given number of arguments is "
-        << call->args.size());
+  if (call->args.size() != 2) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "Resize2D expects 2 arguments, while the given number of arguments is "
+                     << call->args.size());
   }
 
   const auto* data_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
@@ -177,11 +176,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 StructInfo InferStructInfoResize3D(const Call& call, const BlockBuilder& ctx) {
-  if (call->args.size() != 1 && call->args.size() != 2) {
-    ctx->ReportFatal(
-        Diagnostic::Error(call)
-        << "Resize3D expects either one or two arguments, while the given number of arguments is "
-        << call->args.size());
+  if (call->args.size() != 2) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "Resize3D expects 2 arguments, while the given number of arguments is "
+                     << call->args.size());
   }
 
   const auto* data_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
