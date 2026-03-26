@@ -3979,6 +3979,7 @@ def test_nms_score_threshold():
             tvm_selected[:min_rows], ort_selected[:min_rows], rtol=1e-5, atol=1e-5
         )
 
+
 @pytest.mark.parametrize("mode", ["bilinear", "nearest", "bicubic"])
 @pytest.mark.parametrize("padding_mode", ["zeros", "border", "reflection"])
 @pytest.mark.parametrize("align_corners", [0, 1])
@@ -4021,6 +4022,7 @@ def test_grid_sample(mode, padding_mode, align_corners):
         opset=16,
     )
 
+
 def test_grid_sample_linear_mode_translation():
     """Test that ONNX mode='linear' is correctly translated to 'bilinear'.
 
@@ -4047,7 +4049,9 @@ def test_grid_sample_linear_mode_translation():
             helper.make_tensor_value_info("grid", TensorProto.FLOAT, grid_shape),
         ],
         outputs=[
-            helper.make_tensor_value_info("Y", TensorProto.FLOAT, [x_shape[0], x_shape[1], grid_shape[1], grid_shape[2]]),
+            helper.make_tensor_value_info(
+                "Y", TensorProto.FLOAT, [x_shape[0], x_shape[1], grid_shape[1], grid_shape[2]]
+            ),
         ],
     )
 
@@ -4082,7 +4086,9 @@ def test_grid_sample_cubic_mode_translation():
             helper.make_tensor_value_info("grid", TensorProto.FLOAT, grid_shape),
         ],
         outputs=[
-            helper.make_tensor_value_info("Y", TensorProto.FLOAT, [x_shape[0], x_shape[1], grid_shape[1], grid_shape[2]]),
+            helper.make_tensor_value_info(
+                "Y", TensorProto.FLOAT, [x_shape[0], x_shape[1], grid_shape[1], grid_shape[2]]
+            ),
         ],
     )
 
@@ -4091,6 +4097,54 @@ def test_grid_sample_cubic_mode_translation():
     # Verify 'cubic' was translated to 'bicubic' in the Relax IR
     assert 'method="bicubic"' in str(tvm_model)
 
+
+@pytest.mark.parametrize(
+    ("coordinate_transformation_mode", "rois"),
+    [
+        (
+            "output_half_pixel",
+            np.array([[1.0, 1.0, 6.0, 6.0], [2.0, 0.5, 7.0, 7.0]], dtype="float32"),
+        ),
+        ("half_pixel", np.array([[1.0, 1.0, 1.2, 1.2], [2.0, 0.5, 1.1, 1.1]], dtype="float32")),
+    ],
+)
+def test_roi_align(coordinate_transformation_mode, rois):
+    x_shape = [1, 4, 8, 8]
+    rois_shape = [2, 4]
+    batch_indices_shape = [2]
+    out_shape = [2, 4, 3, 3]
+
+    node = helper.make_node(
+        "RoiAlign",
+        inputs=["X", "rois", "batch_indices"],
+        outputs=["Y"],
+        output_height=3,
+        output_width=3,
+        sampling_ratio=2,
+        spatial_scale=1.0,
+        mode="avg",
+        coordinate_transformation_mode=coordinate_transformation_mode,
+    )
+
+    graph = helper.make_graph(
+        [node],
+        "roi_align_test",
+        inputs=[
+            helper.make_tensor_value_info("X", TensorProto.FLOAT, x_shape),
+            helper.make_tensor_value_info("rois", TensorProto.FLOAT, rois_shape),
+            helper.make_tensor_value_info("batch_indices", TensorProto.INT64, batch_indices_shape),
+        ],
+        outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, out_shape)],
+    )
+
+    model = helper.make_model(graph, producer_name="roi_align_test")
+    inputs = {
+        "X": rg.standard_normal(size=x_shape).astype("float32"),
+        "rois": rois,
+        "batch_indices": np.array([0, 0], dtype="int64"),
+    }
+    check_correctness(model, inputs=inputs, opset=16, rtol=1e-5, atol=1e-5)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
-

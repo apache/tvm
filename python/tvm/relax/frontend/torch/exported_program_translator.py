@@ -1123,6 +1123,42 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             )
         )
 
+    def _torchvision_roi_align(self, node: fx.Node) -> relax.Var:
+        """Convert torchvision.ops.roi_align to relax.op.vision.roi_align."""
+        args = self.retrieve_args(node)
+        data = args[0]
+        rois = args[1]
+        spatial_scale = args[2] if len(args) > 2 else 1.0
+        pooled_height = args[3] if len(args) > 3 else 1
+        pooled_width = args[4] if len(args) > 4 else pooled_height
+        sampling_ratio = args[5] if len(args) > 5 else -1
+        aligned = args[6] if len(args) > 6 else False
+
+        if aligned:
+            batch_indices = self.block_builder.emit(
+                relax.op.strided_slice(rois, axes=[1], begin=[0], end=[1])
+            )
+            boxes = self.block_builder.emit(
+                relax.op.strided_slice(rois, axes=[1], begin=[1], end=[5])
+            )
+            boxes = self.block_builder.emit(
+                relax.op.subtract(boxes, relax.const(0.5, rois.struct_info.dtype))
+            )
+            rois = self.block_builder.emit(relax.op.concat([batch_indices, boxes], axis=1))
+
+        return self.block_builder.emit(
+            relax.op.vision.roi_align(
+                data,
+                rois,
+                pooled_size=(pooled_height, pooled_width),
+                spatial_scale=spatial_scale,
+                sample_ratio=sampling_ratio,
+                aligned=aligned,
+                layout="NCHW",
+                mode="avg",
+            )
+        )
+
     def _scalar_tensor(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         scalar_value = args[0]
@@ -1732,6 +1768,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "zeros.default": self._zeros,
             "zeros_like.default": self._zeros_like,
             "grid_sampler_2d.default": self._grid_sampler_2d,
+            "roi_align.default": self._torchvision_roi_align,
             # datatype
             "to.dtype": self._to,
             "to.dtype_layout": self._to,
