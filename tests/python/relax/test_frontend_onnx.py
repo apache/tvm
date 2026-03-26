@@ -4091,6 +4091,36 @@ def test_grid_sample_cubic_mode_translation():
     # Verify 'cubic' was translated to 'bicubic' in the Relax IR
     assert 'method="bicubic"' in str(tvm_model)
 
+def test_reduce_mean():
+    # opset 13: axes passed as attribute
+    node = helper.make_node("ReduceMean", inputs=["x"], outputs=["y"], axes=[2], keepdims=1)
+    graph = helper.make_graph(
+        [node],
+        "reduce_mean_test",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, [1, 68, 4, 18])],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [1, 68, 1, 18])],
+    )
+    model = helper.make_model(graph, producer_name="reduce_mean_test")
+    check_correctness(model, opset=13)
+
+
+def test_reduce_mean_unsupported_opset():
+    # Regression test for https://github.com/apache/tvm/issues/18698.
+    # When opset < minimum available impl version, get_converter previously
+    # wrapped to -1 and silently picked the newest impl instead of raising.
+    node = helper.make_node("ReduceMean", inputs=["x"], outputs=["y"], axes=[2], keepdims=1)
+    graph = helper.make_graph(
+        [node],
+        "reduce_mean_test",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, [1, 68, 4, 18])],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [1, 68, 1, 18])],
+    )
+    model = helper.make_model(graph, producer_name="reduce_mean_test")
+    model.opset_import[0].version = 9
+    with pytest.raises(NotImplementedError, match="not supported for opset 9"):
+        from_onnx(model, opset=9, keep_params_in_input=True)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
 
