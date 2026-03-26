@@ -108,6 +108,15 @@ class BenchmarkResult:
 class Module(_Module):
     """Runtime Module."""
 
+    def __getattr__(self, name: str):
+        """Get function from the module, searching imported modules."""
+        try:
+            func = self.get_function(name, query_imports=True)
+        except AttributeError as exc:
+            raise AttributeError(f"Module has no function '{name}'") from exc
+        setattr(self, name, func)
+        return func
+
     def _collect_from_import_tree(self, filter_func):
         """Helper function to collect modules from the tree matching a filter_func, then return it.
 
