@@ -41,7 +41,7 @@ class Executable:
 
     def __call__(self, *args, **kwargs) -> Any:
         """Call the executable."""
-        return self.jit().main(*args, **kwargs)
+        return self.jit().get_function("main", query_imports=True)(*args, **kwargs)
 
     def jit(
         self,
