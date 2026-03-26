@@ -2839,6 +2839,37 @@ def test_resize_nd_sizes():
         check_correctness(model, opset=18)
 
 
+def test_resize_5d_emits_relax_resize3d():
+    resize_node = helper.make_node(
+        "Resize",
+        ["X", "", "", "sizes"],
+        ["Y"],
+        mode="nearest",
+        coordinate_transformation_mode="asymmetric",
+        nearest_mode="floor",
+    )
+    graph = helper.make_graph(
+        [resize_node],
+        "resize3d_ir_check",
+        inputs=[helper.make_tensor_value_info("X", TensorProto.FLOAT, [1, 1, 3, 4, 5])],
+        initializer=[helper.make_tensor("sizes", TensorProto.INT64, [5], [1, 1, 4, 6, 7])],
+        outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, [1, 1, 4, 6, 7])],
+    )
+    model = helper.make_model(graph, producer_name="resize3d_ir_check")
+    tvm_model = from_onnx(model, opset=18, keep_params_in_input=True)
+
+    seen_resize3d = False
+
+    def _visit(expr):
+        nonlocal seen_resize3d
+        if isinstance(expr, relax.Call) and isinstance(expr.op, tvm.ir.Op):
+            if expr.op.name == "relax.image.resize3d":
+                seen_resize3d = True
+
+    relax.analysis.post_order_visit(tvm_model["main"].body, _visit)
+    assert seen_resize3d
+
+
 def test_einsum():
     eqn = "ij->i"
     einsum_node = helper.make_node("Einsum", ["x"], ["y"], equation=eqn)

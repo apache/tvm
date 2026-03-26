@@ -52,3 +52,20 @@ def _image_grid_sample(bb: BlockBuilder, call: Call) -> Expr:
         padding_mode=call.attrs.padding_mode,
         align_corners=call.attrs.align_corners,
     )
+
+
+@register_legalize("relax.image.resize3d")
+def _image_resize3d(bb: BlockBuilder, call: Call) -> Expr:
+    return bb.call_te(
+        topi.image.resize3d,
+        call.args[0],
+        roi=call.attrs.roi,
+        size=call.args[1],
+        layout=call.attrs.layout,
+        method=call.attrs.method,
+        coordinate_transformation_mode=call.attrs.coordinate_transformation_mode,
+        rounding_method=call.attrs.rounding_method,
+        bicubic_alpha=call.attrs.cubic_alpha,
+        bicubic_exclude=call.attrs.cubic_exclude,
+        extrapolation_value=call.attrs.extrapolation_value,
+    )
