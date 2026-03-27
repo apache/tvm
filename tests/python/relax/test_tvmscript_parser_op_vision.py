@@ -75,6 +75,48 @@ def test_all_class_non_max_suppression():
     _check(foo, bb.get()["foo"])
 
 
+def test_multibox_transform_loc():
+    @R.function
+    def foo(
+        cls: R.Tensor((1, 3, 5), "float32"),
+        loc: R.Tensor((1, 20), "float32"),
+        anc: R.Tensor((1, 5, 4), "float32"),
+    ) -> R.Tuple(R.Tensor((1, 5, 4), "float32"), R.Tensor((1, 3, 5), "float32")):
+        gv: R.Tuple(R.Tensor((1, 5, 4), "float32"), R.Tensor((1, 3, 5), "float32")) = (
+            R.vision.multibox_transform_loc(
+                cls,
+                loc,
+                anc,
+                clip=False,
+                threshold=0.0,
+                variances=(1.0, 1.0, 1.0, 1.0),
+                keep_background=True,
+            )
+        )
+        return gv
+
+    cls = relax.Var("cls", R.Tensor((1, 3, 5), "float32"))
+    loc = relax.Var("loc", R.Tensor((1, 20), "float32"))
+    anc = relax.Var("anc", R.Tensor((1, 5, 4), "float32"))
+
+    bb = relax.BlockBuilder()
+    with bb.function("foo", [cls, loc, anc]):
+        gv = bb.emit(
+            relax.op.vision.multibox_transform_loc(
+                cls,
+                loc,
+                anc,
+                clip=False,
+                threshold=0.0,
+                variances=(1.0, 1.0, 1.0, 1.0),
+                keep_background=True,
+            )
+        )
+        bb.emit_func_output(gv)
+
+    _check(foo, bb.get()["foo"])
+
+
 def test_roi_align():
     @R.function
     def foo(
