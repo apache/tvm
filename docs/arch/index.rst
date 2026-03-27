@@ -306,13 +306,13 @@ in the IRModule. Please refer to the :ref:`Relax Deep Dive <relax-deep-dive>` fo
 tvm/tirx
 --------
 
-tirx contains the definition of the low-level program representations. We use `tirx::PrimFunc` to represent functions that can be transformed by tirx passes.
+tirx contains the definition of the low-level program representations. We use ``tirx::PrimFunc`` to represent functions that can be transformed by tirx passes.
 Besides the IR data structures, the tirx module also includes:
 
-- A set of schedule primitives to control the generated code in ``tirx/schedule``.
-- A set of builtin intrinsics in ``tirx/tensor_intrin``.
 - A set of analysis passes to analyze the tirx functions in ``tirx/analysis``.
 - A set of transformation passes to lower or optimize the tirx functions in ``tirx/transform``.
+
+The schedule primitives and tensor intrinsics are in ``s_tir/schedule`` and ``s_tir/tensor_intrin`` respectively.
 
 Please refer to the :ref:`TensorIR Deep Dive <tensor-ir-deep-dive>` for more details.
 
