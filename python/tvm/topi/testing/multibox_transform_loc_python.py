@@ -64,9 +64,9 @@ def multibox_transform_loc_python(
             ymax = ycenter + half_h
             xmax = xcenter + half_w
             if clip:
-                ymin = float(np.clip(ymin, 0.0, 1.0))
-                xmin = float(np.clip(xmin, 0.0, 1.0))
-                ymax = float(np.clip(ymax, 0.0, 1.0))
-                xmax = float(np.clip(xmax, 0.0, 1.0))
+                ymin = np.clip(ymin, 0.0, 1.0)
+                xmin = np.clip(xmin, 0.0, 1.0)
+                ymax = np.clip(ymax, 0.0, 1.0)
+                xmax = np.clip(xmax, 0.0, 1.0)
             boxes[b, a, :] = (ymin, xmin, ymax, xmax)
     return boxes, scores

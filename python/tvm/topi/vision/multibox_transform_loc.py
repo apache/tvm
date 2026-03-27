@@ -99,14 +99,10 @@ def multibox_transform_loc(
             xmin = te.max(zero, te.min(one, xmin))
             ymax = te.max(zero, te.min(one, ymax))
             xmax = te.max(zero, te.min(one, xmax))
-        return te.if_then_else(
+        return tvm.tirx.Select(
             k == 0,
             ymin,
-            te.if_then_else(
-                k == 1,
-                xmin,
-                te.if_then_else(k == 2, ymax, xmax),
-            ),
+            tvm.tirx.Select(k == 1, xmin, tvm.tirx.Select(k == 2, ymax, xmax)),
         )
 
     boxes = te.compute((B, num_anchors, 4), decode_bbox, name="multibox_boxes")
