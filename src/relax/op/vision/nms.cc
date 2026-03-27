@@ -148,6 +148,8 @@ StructInfo InferStructInfoGetValidCounts(const Call& call, const BlockBuilder& c
                      << "get_valid_counts expects 3-D input, got ndim " << data_sinfo->ndim);
   }
 
+  const auto* attrs = call->attrs.as<GetValidCountsAttrs>();
+  TVM_FFI_ICHECK(attrs != nullptr) << "Invalid get_valid_counts attrs";
   auto vdev = data_sinfo->vdevice;
   const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
   if (data_shape == nullptr) {
@@ -161,6 +163,19 @@ StructInfo InferStructInfoGetValidCounts(const Call& call, const BlockBuilder& c
   auto batch = data_shape->values[0];
   auto num_anchors = data_shape->values[1];
   auto elem_length = data_shape->values[2];
+  const auto* elem_length_imm = elem_length.as<IntImmNode>();
+  if (elem_length_imm != nullptr) {
+    if (attrs->score_index < 0 || attrs->score_index >= elem_length_imm->value) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "get_valid_counts expects score_index to be in range [0, "
+                       << elem_length_imm->value << "), but got " << attrs->score_index);
+    }
+    if (attrs->id_index >= elem_length_imm->value) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "get_valid_counts expects id_index to be smaller than elem_length "
+                       << elem_length_imm->value << ", but got " << attrs->id_index);
+    }
+  }
 
   tvm::ffi::Array<StructInfo> fields = {
       TensorStructInfo(ShapeExpr({batch}), DataType::Int(32), vdev),
@@ -278,7 +293,31 @@ StructInfo InferStructInfoNMS(const Call& call, const BlockBuilder& ctx) {
   }
 
   const auto* attrs = call->attrs.as<NonMaximumSuppressionAttrs>();
+  TVM_FFI_ICHECK(attrs != nullptr) << "Invalid non_max_suppression attrs";
   auto vdev = data_sinfo->vdevice;
+  if (data_shape != nullptr) {
+    const auto* elem_length_imm = data_shape->values[2].as<IntImmNode>();
+    if (elem_length_imm != nullptr) {
+      int64_t elem_length = elem_length_imm->value;
+      if (attrs->score_index < 0 || attrs->score_index >= elem_length) {
+        ctx->ReportFatal(Diagnostic::Error(call)
+                         << "non_max_suppression expects score_index to be in range [0, "
+                         << elem_length << "), but got " << attrs->score_index);
+      }
+      if (attrs->coord_start < 0 || attrs->coord_start + 3 >= elem_length) {
+        ctx->ReportFatal(Diagnostic::Error(call)
+                         << "non_max_suppression expects coord_start to reference four "
+                            "consecutive box coordinates within elem_length "
+                         << elem_length << ", but got " << attrs->coord_start);
+      }
+      if (attrs->id_index >= elem_length) {
+        ctx->ReportFatal(Diagnostic::Error(call)
+                         << "non_max_suppression expects id_index to be smaller than "
+                            "elem_length "
+                         << elem_length << ", but got " << attrs->id_index);
+      }
+    }
+  }
 
   if (attrs->return_indices) {
     // Returns (box_indices[batch, num_anchors], valid_box_count[batch, 1])

@@ -14,9 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Non-maximum suppression operator"""
+"""Non-maximum suppression operators."""
 
-# from tvm import relax  # Unused import
 from . import _ffi_api
 
 
@@ -87,7 +86,7 @@ def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
         Lower limit of score for valid bounding boxes.
 
     id_index : int, optional
-        Index of the class categories, -1 to disable.
+        Index of the class categories. Set to ``-1`` to disable the class-id check.
 
     score_index : int, optional
         Index of the scores/confidence of boxes.
@@ -95,10 +94,10 @@ def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
     Returns
     -------
     out : relax.Expr
-        A tuple of three tensors:
-        - valid_count: 1-D tensor [batch_size]
-        - out_tensor: 3-D tensor [batch_size, num_anchors, elem_length]
-        - out_indices: 2-D tensor [batch_size, num_anchors]
+        A tuple ``(valid_count, out_tensor, out_indices)`` where ``valid_count``
+        has shape ``[batch_size]``, ``out_tensor`` has shape
+        ``[batch_size, num_anchors, elem_length]``, and ``out_indices`` has shape
+        ``[batch_size, num_anchors]``.
     """
     return _ffi_api.get_valid_counts(data, score_threshold, id_index, score_index)
 
@@ -149,18 +148,22 @@ def non_max_suppression(
         Index of the scores/confidence of boxes.
 
     id_index : int, optional
-        Index of the class categories, -1 to disable.
+        Index of the class categories. Set to ``-1`` to suppress boxes across
+        all classes.
 
     return_indices : bool, optional
         Whether to return box indices in input data.
 
     invalid_to_bottom : bool, optional
-        Whether to move all valid bounding boxes to the top.
+        Whether to move valid bounding boxes to the top of the returned tensor.
+        This option only affects the ``return_indices=False`` path.
 
     Returns
     -------
     out : relax.Expr
-        If return_indices is True, returns a tuple of (box_indices, valid_box_count).
+        If ``return_indices`` is ``True``, returns
+        ``(box_indices, valid_box_count)`` with shapes
+        ``[batch_size, num_anchors]`` and ``[batch_size, 1]``.
         Otherwise returns the modified data tensor.
     """
     return _ffi_api.non_max_suppression(

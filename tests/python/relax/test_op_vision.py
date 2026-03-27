@@ -32,6 +32,23 @@ def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_sinfo: r
     tvm.ir.assert_structural_equal(ret.struct_info, expected_sinfo)
 
 
+def _assert_relax_op_legalized(mod: tvm.IRModule, op_name: str) -> None:
+    seen_call_tir = False
+    seen_original_op = False
+
+    def _visit(expr):
+        nonlocal seen_call_tir, seen_original_op
+        if isinstance(expr, relax.Call) and isinstance(expr.op, tvm.ir.Op):
+            if expr.op.name == "relax.call_tir":
+                seen_call_tir = True
+            if expr.op.name == op_name:
+                seen_original_op = True
+
+    relax.analysis.post_order_visit(mod["main"].body, _visit)
+    assert seen_call_tir
+    assert not seen_original_op
+
+
 def test_roi_align_op_correctness():
     x = relax.Var("x", R.Tensor((2, 3, 32, 32), "float32"))
     rois = relax.Var("rois", R.Tensor((4, 5), "float32"))
@@ -246,6 +263,15 @@ def test_get_valid_counts_wrong_ndim():
         bb.normalize(relax.op.vision.get_valid_counts(data))
 
 
+def test_get_valid_counts_invalid_indices():
+    bb = relax.BlockBuilder()
+    data = relax.Var("data", R.Tensor((2, 10, 6), "float32"))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.vision.get_valid_counts(data, score_index=6))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.vision.get_valid_counts(data, id_index=6))
+
+
 def test_nms_op_correctness():
     data = relax.Var("data", R.Tensor((2, 10, 6), "float32"))
     valid_count = relax.Var("valid_count", R.Tensor((2,), "int32"))
@@ -364,6 +390,19 @@ def test_nms_wrong_aux_input_shape():
         bb.normalize(relax.op.vision.non_max_suppression(data, valid_count, indices_bad_anchors))
 
 
+def test_nms_invalid_indices():
+    bb = relax.BlockBuilder()
+    data = relax.Var("data", R.Tensor((2, 10, 6), "float32"))
+    valid_count = relax.Var("valid_count", R.Tensor((2,), "int32"))
+    indices = relax.Var("indices", R.Tensor((2, 10), "int32"))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.vision.non_max_suppression(data, valid_count, indices, score_index=6))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.vision.non_max_suppression(data, valid_count, indices, id_index=6))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.vision.non_max_suppression(data, valid_count, indices, coord_start=3))
+
+
 def test_get_valid_counts_legalize():
     @tvm.script.ir_module
     class GVC:
@@ -379,7 +418,7 @@ def test_get_valid_counts_legalize():
             return gv
 
     mod = LegalizeOps()(GVC)
-    assert "call_tir" in str(mod)
+    _assert_relax_op_legalized(mod, "relax.vision.get_valid_counts")
     tvm.ir.assert_structural_equal(
         mod["main"].ret_struct_info,
         relax.TupleStructInfo(
@@ -418,7 +457,7 @@ def test_nms_legalize():
             return gv
 
     mod = LegalizeOps()(NMS)
-    assert "call_tir" in str(mod)
+    _assert_relax_op_legalized(mod, "relax.vision.non_max_suppression")
     tvm.ir.assert_structural_equal(
         mod["main"].ret_struct_info,
         relax.TupleStructInfo(
@@ -456,7 +495,7 @@ def test_nms_legalize_return_data():
             return gv
 
     mod = LegalizeOps()(NMS)
-    assert "call_tir" in str(mod)
+    _assert_relax_op_legalized(mod, "relax.vision.non_max_suppression")
     tvm.ir.assert_structural_equal(
         mod["main"].ret_struct_info,
         relax.TensorStructInfo((1, 5, 6), "float32"),
