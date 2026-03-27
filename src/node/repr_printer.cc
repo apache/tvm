@@ -121,22 +121,15 @@ void Dump(const runtime::ObjectRef& n) { std::cerr << n << "\n"; }
 
 void Dump(const runtime::Object* n) { Dump(runtime::GetRef<runtime::ObjectRef>(n)); }
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<ffi::reflection::AccessPathObj>([](const ObjectRef& node, ReprPrinter* p) {
-      p->stream << Downcast<ffi::reflection::AccessPath>(node);
-    });
-
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<ffi::reflection::AccessStepObj>([](const ObjectRef& node, ReprPrinter* p) {
-      p->stream << Downcast<ffi::reflection::AccessStep>(node);
-    });
-
 namespace {
 /*!
  * \brief Format an AccessStep as a concise string fragment.
+ *
+ * For map keys, uses ffi.ReprPrint which dispatches to __ffi_repr__.
  */
 void FormatAccessStep(std::ostringstream& os, const ffi::reflection::AccessStep& step) {
   using ffi::reflection::AccessKind;
+  static const ffi::Function repr_fn = ffi::Function::GetGlobal("ffi.ReprPrint").value();
   switch (step->kind) {
     case AccessKind::kAttr:
       os << "." << step->key.cast<ffi::String>();
@@ -145,7 +138,7 @@ void FormatAccessStep(std::ostringstream& os, const ffi::reflection::AccessStep&
       os << "[" << step->key.cast<int64_t>() << "]";
       break;
     case AccessKind::kMapItem:
-      os << "{" << step->key.cast<ffi::String>() << "}";
+      os << "[" << repr_fn(step->key).cast<ffi::String>() << "]";
       break;
     case AccessKind::kAttrMissing:
       os << "." << step->key.cast<ffi::String>() << "?";
@@ -154,7 +147,7 @@ void FormatAccessStep(std::ostringstream& os, const ffi::reflection::AccessStep&
       os << "[" << step->key.cast<int64_t>() << "]?";
       break;
     case AccessKind::kMapItemMissing:
-      os << "{" << step->key.cast<ffi::String>() << "}?";
+      os << "[" << repr_fn(step->key).cast<ffi::String>() << "]?";
       break;
   }
 }
@@ -177,6 +170,18 @@ ffi::String FormatAccessPath(const ffi::reflection::AccessPath& path) {
   return os.str();
 }
 }  // namespace
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<ffi::reflection::AccessPathObj>([](const ObjectRef& node, ReprPrinter* p) {
+      p->stream << FormatAccessPath(Downcast<ffi::reflection::AccessPath>(node));
+    });
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<ffi::reflection::AccessStepObj>([](const ObjectRef& node, ReprPrinter* p) {
+      std::ostringstream os;
+      FormatAccessStep(os, Downcast<ffi::reflection::AccessStep>(node));
+      p->stream << os.str();
+    });
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
