@@ -597,8 +597,8 @@ class OperatorConverter:
 
         # Get min/max of the output dtype. This will be used to ensure that clip a_min/a_max are not
         # beyond the dtype range.
-        qmin = float(tvm.tir.op.min_value(dtype).value)
-        qmax = float(tvm.tir.op.max_value(dtype).value)
+        qmin = float(tvm.tirx.min_value(dtype).value)
+        qmax = float(tvm.tirx.max_value(dtype).value)
 
         # The input expr is a quantized tensor with its scale and zero point. We calculate the
         # suitable clip off points based on these scale and zero point.
@@ -1117,8 +1117,8 @@ class OperatorConverter:
             # Get min/max of the input dtype. This will be used to ensure that
             # clip a_min/a_max are not beyond the dtype range.
             input_tensor_type_str = self.get_tensor_type_str(input_tensor.tensor.Type())
-            qmin = float(tvm.tir.op.min_value(input_tensor_type_str).value)
-            qmax = float(tvm.tir.op.max_value(input_tensor_type_str).value)
+            qmin = float(tvm.tirx.min_value(input_tensor_type_str).value)
+            qmax = float(tvm.tirx.max_value(input_tensor_type_str).value)
 
             out = relax.op.clip(
                 in_expr, min=max(qmin, quantize(-1.0)), max=min(qmax, quantize(1.0))
