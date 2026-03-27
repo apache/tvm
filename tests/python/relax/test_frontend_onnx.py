@@ -4011,6 +4011,32 @@ def test_nms_score_threshold():
         )
 
 
+def test_affine_grid():
+    affine_grid_node = helper.make_node(
+        "AffineGrid",
+        ["theta", "size"],
+        ["grid"],
+        align_corners=1,
+    )
+
+    graph = helper.make_graph(
+        [affine_grid_node],
+        "affine_grid_test",
+        inputs=[
+            helper.make_tensor_value_info("theta", TensorProto.FLOAT, [2, 2, 3]),
+        ],
+        initializer=[
+            helper.make_tensor("size", TensorProto.INT64, [4], [2, 3, 16, 16]),
+        ],
+        outputs=[
+            helper.make_tensor_value_info("grid", TensorProto.FLOAT, [2, 16, 16, 2]),
+        ],
+    )
+
+    model = helper.make_model(graph, producer_name="affine_grid_test")
+    check_correctness(model, opset=20)
+
+
 @pytest.mark.parametrize("mode", ["bilinear", "nearest", "bicubic"])
 @pytest.mark.parametrize("padding_mode", ["zeros", "border", "reflection"])
 @pytest.mark.parametrize("align_corners", [0, 1])
