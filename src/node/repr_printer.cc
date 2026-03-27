@@ -22,10 +22,14 @@
  * \file node/repr_printer.cc
  */
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/access_path.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/node/cast.h>
 #include <tvm/node/repr_printer.h>
 #include <tvm/runtime/device_api.h>
+
+#include <sstream>
+#include <vector>
 
 #include "../support/str_escape.h"
 
@@ -127,6 +131,53 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << Downcast<ffi::reflection::AccessStep>(node);
     });
 
+namespace {
+/*!
+ * \brief Format an AccessStep as a concise string fragment.
+ */
+void FormatAccessStep(std::ostringstream& os, const ffi::reflection::AccessStep& step) {
+  using ffi::reflection::AccessKind;
+  switch (step->kind) {
+    case AccessKind::kAttr:
+      os << "." << step->key.cast<ffi::String>();
+      break;
+    case AccessKind::kArrayItem:
+      os << "[" << step->key.cast<int64_t>() << "]";
+      break;
+    case AccessKind::kMapItem:
+      os << "{" << step->key.cast<ffi::String>() << "}";
+      break;
+    case AccessKind::kAttrMissing:
+      os << "." << step->key.cast<ffi::String>() << "?";
+      break;
+    case AccessKind::kArrayItemMissing:
+      os << "[" << step->key.cast<int64_t>() << "]?";
+      break;
+    case AccessKind::kMapItemMissing:
+      os << "{" << step->key.cast<ffi::String>() << "}?";
+      break;
+  }
+}
+
+/*!
+ * \brief Format an AccessPath as "<root>.field[idx]".
+ */
+ffi::String FormatAccessPath(const ffi::reflection::AccessPath& path) {
+  std::vector<ffi::reflection::AccessStep> steps;
+  const ffi::reflection::AccessPathObj* cur = path.get();
+  while (cur->step.defined()) {
+    steps.push_back(cur->step.value());
+    cur = static_cast<const ffi::reflection::AccessPathObj*>(cur->parent.get());
+  }
+  std::ostringstream os;
+  os << "<root>";
+  for (auto it = steps.rbegin(); it != steps.rend(); ++it) {
+    FormatAccessStep(os, *it);
+  }
+  return os.str();
+}
+}  // namespace
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("node.AsRepr", [](ffi::Any obj) {
@@ -134,5 +185,19 @@ TVM_FFI_STATIC_INIT_BLOCK() {
     os << obj;
     return os.str();
   });
+  // Register __ffi_repr__ for AccessPath/AccessStep so that ffi.ReprPrint
+  // uses the concise "<root>.field[idx]" format instead of the dataclass repr.
+  refl::TypeAttrDef<ffi::reflection::AccessPathObj>().def(
+      refl::type_attr::kRepr,
+      [](ffi::reflection::AccessPath path, ffi::Function) -> ffi::String {
+        return FormatAccessPath(path);
+      });
+  refl::TypeAttrDef<ffi::reflection::AccessStepObj>().def(
+      refl::type_attr::kRepr,
+      [](ffi::reflection::AccessStep step, ffi::Function) -> ffi::String {
+        std::ostringstream os;
+        FormatAccessStep(os, step);
+        return os.str();
+      });
 }
 }  // namespace tvm
