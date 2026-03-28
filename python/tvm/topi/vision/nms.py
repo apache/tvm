@@ -199,7 +199,7 @@ def _classic_nms_ir(
         if out_valid_box_count is not None:
             out_valid_box_count = T.buffer_proxy(out_valid_box_count)
 
-        with T.serial(0, batch_size) as i:
+        with T.parallel(0, batch_size) as i:
             # Step 1: Reorder data by sorted score
             nkeep_buf = T.alloc_buffer((1,), "int32", scope="local")
             nkeep_local = T.buffer_proxy(nkeep_buf)
@@ -393,7 +393,9 @@ def non_max_suppression(
         Non-maximum suppression IoU threshold.
 
     force_suppress : optional, boolean
-        Whether to suppress all detections regardless of class_id.
+        Whether to suppress all detections regardless of class_id. When
+        ``id_index`` is ``-1``, all valid boxes are treated as belonging to the
+        same class, so this flag has the same effect as ``True``.
 
     top_k : optional, int
         Keep maximum top k detections before nms, -1 for no limit.
@@ -425,7 +427,7 @@ def non_max_suppression(
 
     if isinstance(max_output_size, int):
         max_output_size = tvm.tirx.const(max_output_size, dtype="int32")
-    if isinstance(iou_threshold, float):
+    if isinstance(iou_threshold, (float, int)):
         iou_threshold = tvm.tirx.const(iou_threshold, dtype=data.dtype)
 
     # Sort by score

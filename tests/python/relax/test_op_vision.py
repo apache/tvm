@@ -704,6 +704,150 @@ def test_nms_e2e_top_k():
 
 
 @tvm.testing.requires_llvm
+def test_nms_e2e_force_suppress():
+    """Validate that force_suppress ignores class ids when suppressing overlaps."""
+
+    raw_data = np.array(
+        [
+            [
+                [0.0, 0.95, 0.0, 0.0, 1.0, 1.0],
+                [1.0, 0.90, 0.05, 0.05, 1.05, 1.05],
+                [1.0, 0.80, 2.0, 2.0, 3.0, 3.0],
+                [-1.0, 0.99, 8.0, 8.0, 9.0, 9.0],
+            ]
+        ],
+        dtype="float32",
+    )
+    valid_count_np, filtered_data_np, filtered_indices_np = _prepare_nms_inputs(raw_data)
+    ref_indices, ref_valid_box_count = tvm.topi.testing.non_max_suppression_python(
+        filtered_data_np,
+        valid_count_np,
+        filtered_indices_np,
+        max_output_size=-1,
+        iou_threshold=0.5,
+        force_suppress=True,
+        top_k=-1,
+        coord_start=2,
+        score_index=1,
+        id_index=0,
+        return_indices=True,
+        invalid_to_bottom=False,
+    )
+    result = _run_nms_e2e(
+        filtered_data_np,
+        valid_count_np,
+        filtered_indices_np,
+        force_suppress=True,
+        return_indices=True,
+        invalid_to_bottom=False,
+    )
+
+    tvm.testing.assert_allclose(result[0].numpy(), ref_indices)
+    tvm.testing.assert_allclose(result[1].numpy(), ref_valid_box_count)
+    np.testing.assert_array_equal(ref_indices, np.array([[0, 2, -1, -1]], dtype="int32"))
+    np.testing.assert_array_equal(ref_valid_box_count, np.array([[2]], dtype="int32"))
+
+
+@tvm.testing.requires_llvm
+def test_nms_e2e_max_output_size():
+    """Validate that max_output_size truncates the kept boxes after score sorting."""
+
+    raw_data = np.array(
+        [
+            [
+                [0.0, 0.97, 0.0, 0.0, 1.0, 1.0],
+                [0.0, 0.95, 2.0, 2.0, 3.0, 3.0],
+                [0.0, 0.93, 4.0, 4.0, 5.0, 5.0],
+                [0.0, 0.91, 6.0, 6.0, 7.0, 7.0],
+            ]
+        ],
+        dtype="float32",
+    )
+    valid_count_np, filtered_data_np, filtered_indices_np = _prepare_nms_inputs(raw_data)
+    ref_indices, ref_valid_box_count = tvm.topi.testing.non_max_suppression_python(
+        filtered_data_np,
+        valid_count_np,
+        filtered_indices_np,
+        max_output_size=2,
+        iou_threshold=1,
+        force_suppress=False,
+        top_k=-1,
+        coord_start=2,
+        score_index=1,
+        id_index=0,
+        return_indices=True,
+        invalid_to_bottom=False,
+    )
+    result = _run_nms_e2e(
+        filtered_data_np,
+        valid_count_np,
+        filtered_indices_np,
+        max_output_size=2,
+        iou_threshold=1,
+        return_indices=True,
+        invalid_to_bottom=False,
+    )
+
+    tvm.testing.assert_allclose(result[0].numpy(), ref_indices)
+    tvm.testing.assert_allclose(result[1].numpy(), ref_valid_box_count)
+    np.testing.assert_array_equal(ref_indices, np.array([[0, 1, -1, -1]], dtype="int32"))
+    np.testing.assert_array_equal(ref_valid_box_count, np.array([[2]], dtype="int32"))
+
+
+@tvm.testing.requires_llvm
+def test_nms_e2e_multi_batch():
+    """Validate that classic NMS processes each batch independently."""
+
+    raw_data = np.array(
+        [
+            [
+                [0.0, 0.95, 0.0, 0.0, 1.0, 1.0],
+                [0.0, 0.90, 0.05, 0.05, 1.05, 1.05],
+                [1.0, 0.80, 2.0, 2.0, 3.0, 3.0],
+                [-1.0, 0.99, 8.0, 8.0, 9.0, 9.0],
+            ],
+            [
+                [1.0, 0.96, 0.0, 0.0, 1.0, 1.0],
+                [2.0, 0.94, 0.04, 0.04, 1.04, 1.04],
+                [2.0, 0.88, 3.0, 3.0, 4.0, 4.0],
+                [2.0, 0.30, 6.0, 6.0, 7.0, 7.0],
+            ],
+        ],
+        dtype="float32",
+    )
+    valid_count_np, filtered_data_np, filtered_indices_np = _prepare_nms_inputs(raw_data)
+    ref_indices, ref_valid_box_count = tvm.topi.testing.non_max_suppression_python(
+        filtered_data_np,
+        valid_count_np,
+        filtered_indices_np,
+        max_output_size=-1,
+        iou_threshold=0.5,
+        force_suppress=False,
+        top_k=-1,
+        coord_start=2,
+        score_index=1,
+        id_index=0,
+        return_indices=True,
+        invalid_to_bottom=False,
+    )
+    result = _run_nms_e2e(
+        filtered_data_np,
+        valid_count_np,
+        filtered_indices_np,
+        return_indices=True,
+        invalid_to_bottom=False,
+    )
+
+    tvm.testing.assert_allclose(result[0].numpy(), ref_indices)
+    tvm.testing.assert_allclose(result[1].numpy(), ref_valid_box_count)
+    np.testing.assert_array_equal(
+        ref_indices,
+        np.array([[0, 2, -1, -1], [0, 1, 2, -1]], dtype="int32"),
+    )
+    np.testing.assert_array_equal(ref_valid_box_count, np.array([[2], [3]], dtype="int32"))
+
+
+@tvm.testing.requires_llvm
 def test_nms_e2e_invalid_to_bottom():
     """Validate that invalid_to_bottom compacts only boxes that remain valid after NMS."""
 
@@ -748,6 +892,61 @@ def test_nms_e2e_invalid_to_bottom():
                 [1.0, 0.85, 0.0, 0.0, 1.0, 1.0],
                 [0.0, 0.60, 2.0, 2.0, 3.0, 3.0],
                 [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0],
+                [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0],
+            ]
+        ],
+        dtype="float32",
+    )
+
+    tvm.testing.assert_allclose(result.numpy(), ref_out_data)
+    tvm.testing.assert_allclose(result.numpy(), expected_out_data)
+
+
+@tvm.testing.requires_llvm
+def test_nms_e2e_return_data_without_compaction():
+    """Validate the return_indices=False path when invalid boxes stay in-place."""
+
+    raw_data = np.array(
+        [
+            [
+                [0.0, 0.95, 0.0, 0.0, 1.0, 1.0],
+                [0.0, 0.90, 0.05, 0.05, 1.05, 1.05],
+                [1.0, 0.85, 0.0, 0.0, 1.0, 1.0],
+                [0.0, 0.60, 2.0, 2.0, 3.0, 3.0],
+                [-1.0, 0.99, 8.0, 8.0, 9.0, 9.0],
+            ]
+        ],
+        dtype="float32",
+    )
+    valid_count_np, filtered_data_np, filtered_indices_np = _prepare_nms_inputs(raw_data)
+    ref_out_data = tvm.topi.testing.non_max_suppression_python(
+        filtered_data_np,
+        valid_count_np,
+        filtered_indices_np,
+        max_output_size=-1,
+        iou_threshold=0.5,
+        force_suppress=False,
+        top_k=-1,
+        coord_start=2,
+        score_index=1,
+        id_index=0,
+        return_indices=False,
+        invalid_to_bottom=False,
+    )
+    result = _run_nms_e2e(
+        filtered_data_np,
+        valid_count_np,
+        filtered_indices_np,
+        return_indices=False,
+        invalid_to_bottom=False,
+    )
+    expected_out_data = np.array(
+        [
+            [
+                [0.0, 0.95, 0.0, 0.0, 1.0, 1.0],
+                [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0],
+                [1.0, 0.85, 0.0, 0.0, 1.0, 1.0],
+                [0.0, 0.60, 2.0, 2.0, 3.0, 3.0],
                 [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0],
             ]
         ],

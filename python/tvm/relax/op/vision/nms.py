@@ -136,7 +136,9 @@ def non_max_suppression(
         Non-maximum suppression IoU threshold.
 
     force_suppress : bool, optional
-        Whether to suppress all detections regardless of class_id.
+        Whether to suppress all detections regardless of class_id. When
+        ``id_index`` is ``-1``, all valid boxes are treated as belonging to the
+        same class, so this flag has the same effect as ``True``.
 
     top_k : int, optional
         Keep maximum top k detections before nms, -1 for no limit.
