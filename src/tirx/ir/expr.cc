@@ -84,6 +84,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tirx.convert",
                         [](ffi::Variant<PrimExpr, ffi::Array<PrimExpr>> expr) { return expr; });
+  // Register __ffi_repr__ for Var/SizeVar so repr shows just the name
+  refl::TypeAttrDef<VarNode>().def(refl::type_attr::kRepr,
+                                   [](Var var, ffi::Function) -> ffi::String {
+                                     return std::string(var->name_hint);
+                                   });
+  refl::TypeAttrDef<SizeVarNode>().def(refl::type_attr::kRepr,
+                                       [](SizeVar var, ffi::Function) -> ffi::String {
+                                         return std::string(var->name_hint);
+                                       });
 }
 
 #define TVM_DEFINE_BINOP_CONSTRUCTOR(Name)                                    \

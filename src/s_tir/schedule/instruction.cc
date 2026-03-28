@@ -63,46 +63,49 @@ InstructionKindRegEntry& InstructionKindRegEntry::RegisterOrGet(const ffi::Strin
 
 /**************** Repr ****************/
 
+namespace {
+ffi::String InstructionAsPythonRepr(const InstructionNode* self) {
+  ffi::Array<Any> inputs;
+  inputs.reserve(self->inputs.size());
+  for (const Any& obj : self->inputs) {
+    if (obj == nullptr) {
+      inputs.push_back(ffi::String("None"));
+    } else if (auto opt_str = obj.as<ffi::String>()) {
+      inputs.push_back(ffi::String('"' + (*opt_str).operator std::string() + '"'));
+    } else if (obj.as<SBlockRVNode>() || obj.as<LoopRVNode>()) {
+      inputs.push_back(ffi::String("_"));
+    } else if (obj.type_index() < ffi::TypeIndex::kTVMFFISmallStr) {
+      inputs.push_back(obj);
+    } else if (obj.as<IntImmNode>() || obj.as<FloatImmNode>()) {
+      inputs.push_back(obj);
+    } else if (const auto* expr = obj.as<PrimExprNode>()) {
+      PrimExpr new_expr = Substitute(
+          ffi::GetRef<PrimExpr>(expr), [](const Var& var) -> ffi::Optional<PrimExpr> {
+            ObjectPtr<VarNode> new_var = ffi::make_object<VarNode>(*var.get());
+            new_var->name_hint = "_";
+            return Var(new_var);
+          });
+      std::ostringstream os;
+      os << new_expr;
+      inputs.push_back(ffi::String(os.str()));
+    } else if (obj.as<IndexMapNode>()) {
+      inputs.push_back(obj);
+    } else {
+      TVM_FFI_THROW(TypeError) << "Stringifying is not supported for type: " << obj.GetTypeKey();
+      throw;
+    }
+  }
+  return self->kind->f_as_python(
+      /*inputs=*/inputs,
+      /*attrs=*/self->attrs,
+      /*decision=*/Any(nullptr),
+      /*outputs=*/ffi::Array<ffi::String>(self->outputs.size(), ffi::String("_")));
+}
+}  // namespace
+
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<InstructionNode>([](const ObjectRef& obj, ReprPrinter* p) {
-      const auto* self = obj.as<InstructionNode>();
-      TVM_FFI_ICHECK_NOTNULL(self);
-      ffi::Array<Any> inputs;
-      inputs.reserve(self->inputs.size());
-      for (const Any& obj : self->inputs) {
-        if (obj == nullptr) {
-          inputs.push_back(ffi::String("None"));
-        } else if (auto opt_str = obj.as<ffi::String>()) {
-          inputs.push_back(ffi::String('"' + (*opt_str).operator std::string() + '"'));
-        } else if (obj.as<SBlockRVNode>() || obj.as<LoopRVNode>()) {
-          inputs.push_back(ffi::String("_"));
-        } else if (obj.type_index() < ffi::TypeIndex::kTVMFFISmallStr) {
-          inputs.push_back(obj);
-        } else if (obj.as<IntImmNode>() || obj.as<FloatImmNode>()) {
-          inputs.push_back(obj);
-        } else if (const auto* expr = obj.as<PrimExprNode>()) {
-          PrimExpr new_expr = Substitute(
-              ffi::GetRef<PrimExpr>(expr), [](const Var& var) -> ffi::Optional<PrimExpr> {
-                ObjectPtr<VarNode> new_var = ffi::make_object<VarNode>(*var.get());
-                new_var->name_hint = "_";
-                return Var(new_var);
-              });
-          std::ostringstream os;
-          os << new_expr;
-          inputs.push_back(ffi::String(os.str()));
-        } else if (obj.as<IndexMapNode>()) {
-          inputs.push_back(obj);
-        } else {
-          TVM_FFI_THROW(TypeError)
-              << "Stringifying is not supported for type: " << obj.GetTypeKey();
-          throw;
-        }
-      }
-      p->stream << self->kind->f_as_python(
-          /*inputs=*/inputs,
-          /*attrs=*/self->attrs,
-          /*decision=*/Any(nullptr),
-          /*outputs=*/ffi::Array<ffi::String>(self->outputs.size(), ffi::String("_")));
+      p->stream << InstructionAsPythonRepr(obj.as<InstructionNode>());
     });
 
 /**************** FFI ****************/
@@ -116,6 +119,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
               ffi::Array<Any> outputs) -> Instruction {
              return Instruction(kind, inputs, attrs, outputs);
            });
+  refl::TypeAttrDef<InstructionNode>().def(
+      refl::type_attr::kRepr, [](Instruction inst, ffi::Function) -> ffi::String {
+        return InstructionAsPythonRepr(inst.get());
+      });
 }
 
 }  // namespace s_tir

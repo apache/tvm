@@ -42,7 +42,7 @@ def test_tir_print_all_passes(capsys):
     all_passes_output = capsys.readouterr().out
     assert "Before Running Pass:" in all_passes_output
     assert "After Running Pass:" in all_passes_output
-    assert "pass name: tirx." in all_passes_output
+    assert 'name="tirx.' in all_passes_output
 
 
 def test_relax_print_all_passes(capsys):
@@ -60,4 +60,4 @@ def test_relax_print_all_passes(capsys):
     all_passes_output = capsys.readouterr().out
     assert "Before Running Pass:" in all_passes_output
     assert "After Running Pass:" in all_passes_output
-    assert "pass name: _pipeline" in all_passes_output
+    assert 'name="_pipeline"' in all_passes_output
