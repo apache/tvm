@@ -270,32 +270,44 @@ if RUN_EXAMPLE:
 # .. note::
 #    ``R.call_py_func`` adds runtime overhead due to the Python-TVM boundary crossing.
 #    Use it for prototyping or for ops that are not performance-critical.
-#
-# Here is an example using ``call_py_func`` inside a Relax function:
-#
-# .. code-block:: python
-#
-#    @I.ir_module
-#    class CallPyFuncModule(BasePyModule):
-#        @I.pyfunc
-#        def my_custom_op(self, x):
-#            """Python fallback for a custom op."""
-#            return torch.sigmoid(x) * x  # SiLU / Swish activation
-#
-#        @R.function
-#        def main(x: R.Tensor((4,), "float32")) -> R.Tensor((4,), "float32"):
-#            # Call the Python function from within Relax IR
-#            result = R.call_py_func(
-#                "my_custom_op", (x,), out_sinfo=R.Tensor((4,), "float32")
-#            )
-#            return result
-#
-#    mod = CallPyFuncModule(device=tvm.cpu(0))
-#    x = torch.tensor([1.0, -1.0, 2.0, -2.0])
-#    result = mod.main(x)
-#
-# The VM executes the compiled Relax bytecode, and when it hits ``call_py_func``, it looks up
-# the registered Python function by name and calls it with DLPack-converted tensors.
+
+if RUN_EXAMPLE:
+
+    @I.ir_module
+    class CallPyFuncModule(BasePyModule):
+        @I.pyfunc
+        def torch_relu(self, x):
+            """Python fallback: PyTorch ReLU."""
+            return torch.relu(x)
+
+        @I.pyfunc
+        def torch_softmax(self, x, dim=0):
+            """Python fallback: PyTorch softmax."""
+            return torch.softmax(x, dim=dim)
+
+        @R.function
+        def main(x: R.Tensor((10,), "float32")) -> R.Tensor((10,), "float32"):
+            # The VM calls back into Python for these ops at runtime
+            relu_result = R.call_py_func(
+                "torch_relu", (x,), out_sinfo=R.Tensor((10,), "float32")
+            )
+            result = R.call_py_func(
+                "torch_softmax", (relu_result,), out_sinfo=R.Tensor((10,), "float32")
+            )
+            return result
+
+    mod = CallPyFuncModule(device=tvm.cpu(0))
+
+    x = torch.randn(10, dtype=torch.float32)
+
+    # call_py_func can be called directly from Python as well
+    relu_result = mod.call_py_func("torch_relu", [x])
+    result = mod.call_py_func("torch_softmax", [relu_result])
+
+    expected = torch.softmax(torch.relu(x), dim=0)
+    print("R.call_py_func result:", result)
+    print("PyTorch expected:     ", expected)
+    assert torch.allclose(torch.tensor(result.numpy()), expected, atol=1e-5)
 
 
 ######################################################################
