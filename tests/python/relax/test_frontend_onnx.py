@@ -232,6 +232,30 @@ def run_in_tvm(
     return vm.get_outputs("main")
 
 
+def collect_relax_call_ops(func: relax.Function) -> list[str]:
+    op_names = []
+
+    def fvisit(expr):
+        if isinstance(expr, relax.Call) and isinstance(expr.op, tvm.ir.Op):
+            op_names.append(expr.op.name)
+
+    relax.analysis.post_order_visit(func.body, fvisit)
+    return op_names
+
+
+def collect_scalar_constants(func: relax.Function) -> list[bool | int | float]:
+    values = []
+
+    def fvisit(expr):
+        if isinstance(expr, relax.Constant):
+            value = expr.data.numpy()
+            if value.shape == ():
+                values.append(value.item())
+
+    relax.analysis.post_order_visit(func.body, fvisit)
+    return values
+
+
 @pytest.mark.parametrize(
     "input_names, expected_names",
     [
@@ -476,11 +500,10 @@ def test_matmulinteger16_ir():
     model.ir_version = 11
 
     tvm_model = from_onnx(model, opset=18, keep_params_in_input=True)
-    tvm_model_str = str(tvm_model)
-    assert "MatMulInteger16" not in tvm_model_str
-    assert tvm_model_str.count('R.astype(') >= 2
-    assert "R.matmul" in tvm_model_str
-    assert 'dtype="uint32"' in tvm_model_str
+    call_ops = collect_relax_call_ops(tvm_model["main"])
+    assert call_ops.count("relax.astype") == 2
+    assert "relax.matmul" in call_ops
+    assert tvm_model["main"].ret_struct_info.dtype == "uint32"
 
 
 def test_matmulinteger16_invalid_dtype_raises():
@@ -3491,7 +3514,8 @@ def test_optional_has_element_empty_ir():
     model.opset_import[0].version = 18
     tvm_model = from_onnx(model, opset=18, keep_params_in_input=True)
 
-    assert 'R.const(False, "bool")' in str(tvm_model)
+    assert collect_relax_call_ops(tvm_model["main"]) == []
+    assert False in collect_scalar_constants(tvm_model["main"])
 
 
 def test_optional_get_element_tensor_ir():
@@ -3510,9 +3534,8 @@ def test_optional_get_element_tensor_ir():
     model.opset_import[0].version = 18
     tvm_model = from_onnx(model, opset=18, keep_params_in_input=True)
 
-    tvm_model_str = str(tvm_model)
-    assert "Optional" not in tvm_model_str
-    assert "OptionalGetElement" not in tvm_model_str
+    assert collect_relax_call_ops(tvm_model["main"]) == []
+    assert tvm_model["main"].ret_struct_info.dtype == "float32"
 
 
 def test_optional_get_element_sequence():
@@ -3546,6 +3569,21 @@ def test_optional_without_input_requires_type_attr():
     model.opset_import[0].version = 18
 
     with pytest.raises(ValueError, match="type attribute"):
+        from_onnx(model, opset=18, keep_params_in_input=True)
+
+
+def test_optional_has_element_requires_one_input():
+    has_element_node = helper.make_node("OptionalHasElement", [], ["output"])
+    graph = helper.make_graph(
+        [has_element_node],
+        "test_optional_has_element_requires_one_input",
+        inputs=[],
+        outputs=[helper.make_tensor_value_info("output", TensorProto.BOOL, [])],
+    )
+    model = helper.make_model(graph, producer_name="test_optional_has_element_requires_one_input")
+    model.opset_import[0].version = 18
+
+    with pytest.raises(ValueError, match="expects one input"):
         from_onnx(model, opset=18, keep_params_in_input=True)
 
 

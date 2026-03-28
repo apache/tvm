@@ -3728,9 +3728,9 @@ class OptionalHasElement(OnnxOpConverter):
 
     @classmethod
     def _impl_v15(cls, bb, inputs, attr, params):
-        if len(inputs) > 1:
-            raise ValueError(f"OptionalHasElement accepts at most one input, but got {len(inputs)}")
-        if len(inputs) == 0 or inputs[0] is None or _is_empty_optional(inputs[0]):
+        if len(inputs) != 1:
+            raise ValueError(f"OptionalHasElement expects one input, but got {len(inputs)}")
+        if inputs[0] is None or _is_empty_optional(inputs[0]):
             return relax.const(False, dtype="bool")
         return relax.const(True, dtype="bool")
 
