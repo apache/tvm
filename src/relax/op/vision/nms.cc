@@ -170,10 +170,10 @@ StructInfo InferStructInfoGetValidCounts(const Call& call, const BlockBuilder& c
                        << "get_valid_counts expects score_index to be in range [0, "
                        << elem_length_imm->value << "), but got " << attrs->score_index);
     }
-    if (attrs->id_index >= elem_length_imm->value) {
+    if (attrs->id_index < -1 || attrs->id_index >= elem_length_imm->value) {
       ctx->ReportFatal(Diagnostic::Error(call)
-                       << "get_valid_counts expects id_index to be smaller than elem_length "
-                       << elem_length_imm->value << ", but got " << attrs->id_index);
+                       << "get_valid_counts expects id_index to be in range [-1, "
+                       << elem_length_imm->value << "), but got " << attrs->id_index);
     }
   }
 
@@ -310,11 +310,10 @@ StructInfo InferStructInfoNMS(const Call& call, const BlockBuilder& ctx) {
                             "consecutive box coordinates within elem_length "
                          << elem_length << ", but got " << attrs->coord_start);
       }
-      if (attrs->id_index >= elem_length) {
+      if (attrs->id_index < -1 || attrs->id_index >= elem_length) {
         ctx->ReportFatal(Diagnostic::Error(call)
-                         << "non_max_suppression expects id_index to be smaller than "
-                            "elem_length "
-                         << elem_length << ", but got " << attrs->id_index);
+                         << "non_max_suppression expects id_index to be in range [-1, "
+                         << elem_length << "), but got " << attrs->id_index);
       }
     }
   }

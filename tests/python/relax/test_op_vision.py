@@ -270,6 +270,8 @@ def test_get_valid_counts_invalid_indices():
         bb.normalize(relax.op.vision.get_valid_counts(data, score_index=6))
     with pytest.raises(TVMError):
         bb.normalize(relax.op.vision.get_valid_counts(data, id_index=6))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.vision.get_valid_counts(data, id_index=-2))
 
 
 def test_nms_op_correctness():
@@ -399,6 +401,8 @@ def test_nms_invalid_indices():
         bb.normalize(relax.op.vision.non_max_suppression(data, valid_count, indices, score_index=6))
     with pytest.raises(TVMError):
         bb.normalize(relax.op.vision.non_max_suppression(data, valid_count, indices, id_index=6))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.vision.non_max_suppression(data, valid_count, indices, id_index=-2))
     with pytest.raises(TVMError):
         bb.normalize(relax.op.vision.non_max_suppression(data, valid_count, indices, coord_start=3))
 
@@ -650,6 +654,49 @@ def test_nms_e2e_return_indices():
         filtered_indices_np,
         return_indices=True,
         invalid_to_bottom=False,
+    )
+
+    tvm.testing.assert_allclose(result[0].numpy(), ref_indices)
+    tvm.testing.assert_allclose(result[1].numpy(), ref_valid_box_count)
+
+
+@tvm.testing.requires_llvm
+def test_nms_e2e_return_indices_with_invalid_to_bottom():
+    """Validate that invalid_to_bottom is a no-op when returning indices."""
+
+    raw_data = np.array(
+        [
+            [
+                [0.0, 0.95, 0.0, 0.0, 1.0, 1.0],
+                [0.0, 0.90, 0.05, 0.05, 1.05, 1.05],
+                [1.0, 0.85, 0.0, 0.0, 1.0, 1.0],
+                [0.0, 0.60, 2.0, 2.0, 3.0, 3.0],
+                [-1.0, 0.99, 0.0, 0.0, 1.0, 1.0],
+            ]
+        ],
+        dtype="float32",
+    )
+    valid_count_np, filtered_data_np, filtered_indices_np = _prepare_nms_inputs(raw_data)
+    ref_indices, ref_valid_box_count = tvm.topi.testing.non_max_suppression_python(
+        filtered_data_np,
+        valid_count_np,
+        filtered_indices_np,
+        max_output_size=-1,
+        iou_threshold=0.5,
+        force_suppress=False,
+        top_k=-1,
+        coord_start=2,
+        score_index=1,
+        id_index=0,
+        return_indices=True,
+        invalid_to_bottom=False,
+    )
+    result = _run_nms_e2e(
+        filtered_data_np,
+        valid_count_np,
+        filtered_indices_np,
+        return_indices=True,
+        invalid_to_bottom=True,
     )
 
     tvm.testing.assert_allclose(result[0].numpy(), ref_indices)
@@ -1255,11 +1302,11 @@ def _multibox_ref_numpy(
     boxes = np.zeros((B, N, 4), dtype=np.float32)
     for b in range(B):
         for a in range(N):
-            l, t, r, br = anchor[0, a, :]
-            ay = (t + br) * 0.5
-            ax = (l + r) * 0.5
-            ah = br - t
-            aw = r - l
+            left, top, right, bottom = anchor[0, a, :]
+            ay = (top + bottom) * 0.5
+            ax = (left + right) * 0.5
+            ah = bottom - top
+            aw = right - left
             ex, ey, ew, eh = loc[b, a, :]
             ycenter = ey * vy * ah + ay
             xcenter = ex * vx * aw + ax

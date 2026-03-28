@@ -112,7 +112,8 @@ def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
     num_anchors = data.shape[1]
     box_data_length = data.shape[2]
 
-    if isinstance(score_threshold, (float, int)):
+    is_score_threshold_tensor = isinstance(score_threshold, te.Tensor)
+    if not is_score_threshold_tensor:
         score_threshold = tvm.tirx.const(score_threshold, dtype=data.dtype)
 
     id_index_const = tvm.tirx.const(id_index, "int32")
@@ -126,7 +127,7 @@ def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
         (batch_size, num_anchors), "int32", "out_indices"
     )
 
-    if isinstance(score_threshold, te.Tensor):
+    if is_score_threshold_tensor:
         score_thresh_buf = tvm.tirx.decl_buffer(
             score_threshold.shape, score_threshold.dtype, "score_threshold"
         )
@@ -509,7 +510,7 @@ def _rearrange_out(data, batch_size, num_anchors, box_data_length, score_index):
             data = T.buffer_proxy(ins[0])
             out = T.buffer_proxy(outs[0])
 
-            with T.serial(0, batch_size) as i:
+            with T.parallel(0, batch_size) as i:
                 valid_idx_buf = T.alloc_buffer((1,), "int32", scope="local")
                 valid_idx = T.buffer_proxy(valid_idx_buf)
                 valid_idx[0] = T.int32(0)
