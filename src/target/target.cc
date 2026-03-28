@@ -479,7 +479,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                return (*it).second;
              }
              return Any();
-           });
+           })
+      .def("target.TargetAsJSON",
+           [](const Target& target) -> ffi::String { return target->str(); });
+  // Register __ffi_repr__ so that ffi.ReprPrint uses JSON format for Target
+  refl::TypeAttrDef<TargetNode>().def(
+      refl::type_attr::kRepr,
+      [](Target target, ffi::Function) -> ffi::String { return target->str(); });
 }
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
