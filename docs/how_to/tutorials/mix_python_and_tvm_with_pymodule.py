@@ -26,18 +26,19 @@ into a ``VirtualMachine`` to run. This means **you cannot test or debug anything
 module compiles successfully**. If a single op is unsupported, the whole pipeline is blocked.
 
 ``BasePyModule`` solves this by letting Python functions, TIR kernels, and Relax functions coexist
-in one module. TIR and Relax functions are JIT-compiled, Python functions run as-is, and tensors
-move between TVM and PyTorch via zero-copy DLPack. This enables:
+in one module. TIR and Relax functions are JIT-compiled on instantiation, Python functions run
+as-is, and tensors move between TVM and PyTorch via zero-copy DLPack. This enables:
 
 - **Incremental development**: get a model running with Python fallbacks first, then replace them
   with TVM ops one by one.
-- **Debugging at any stage**: convert Relax functions back to PyTorch to verify numerical
-  correctness after applying optimization passes.
+- **Easy debugging**: insert ``print`` in Python functions to inspect intermediate tensors — no
+  need to compile the whole module first.
+- **Verification at any compilation stage**: convert Relax IR back to PyTorch to check numerical
+  correctness before and after optimization passes.
 - **Hybrid execution**: let the compiled VM call back into Python for ops that are hard to
   express in TIR or Relax.
 
-This tutorial walks through a concrete example: building a small model where Python, TIR, and
-Relax functions work together, then using the converter and ``call_py_func`` to debug and extend it.
+This tutorial walks through the full workflow step by step.
 
 .. contents:: Table of Contents
     :local:
@@ -74,13 +75,12 @@ RUN_EXAMPLE = HAS_TORCH and not IS_IN_CI
 # The core idea: decorate a class with ``@I.ir_module``, inherit from ``BasePyModule``, and use
 # three decorators for three kinds of functions:
 #
-# - ``@T.prim_func`` — low-level TIR kernel (compiled)
-# - ``@R.function`` — high-level Relax graph (compiled)
-# - ``@I.pyfunc`` — plain Python (runs as-is, can call PyTorch)
+# - ``@T.prim_func`` — low-level TIR kernel (JIT-compiled on instantiation)
+# - ``@R.function`` — high-level Relax graph (JIT-compiled on instantiation)
+# - ``@I.pyfunc`` — plain Python (runs as-is, can use any Python library)
 #
-# On instantiation, TIR and Relax functions are JIT-compiled. Python functions stay in Python.
-# ``call_tir`` bridges them: it converts PyTorch tensors to TVM via DLPack, allocates the output,
-# calls the compiled kernel, and converts back.
+# ``call_tir`` bridges Python and TIR: it converts PyTorch tensors to TVM NDArrays via DLPack
+# (zero-copy), allocates the output buffer, calls the compiled kernel, and converts back.
 
 if RUN_EXAMPLE:
 
@@ -105,7 +105,7 @@ if RUN_EXAMPLE:
             )
             return self._convert_tvm_to_pytorch(result)
 
-    # TIR functions are JIT-compiled here
+    # TIR functions are JIT-compiled at instantiation
     mod = MyFirstModule(device=tvm.cpu(0))
 
     x = torch.tensor([1.0, 2.0, 3.0, 4.0])
@@ -115,33 +115,29 @@ if RUN_EXAMPLE:
     print("forward(x, y) =", result)
     assert torch.allclose(result, x + y)
 
-    # show() prints the TVMScript representation, including Python functions as ExternFunc
+    # show() prints TVMScript including Python functions (shown as ExternFunc)
     mod.show()
 
 
 ######################################################################
-# Step 2: A Realistic Pipeline — Python, TIR, and Relax Together
-# -----------------------------------------------------------------
-# Real models are not just one op. Here we build a mini inference pipeline:
-#
-# 1. **Python** preprocesses the input (normalization — easy in PyTorch, verbose in TIR)
-# 2. **TIR** runs a hand-written matmul kernel
-# 3. **Python** applies softmax via PyTorch (a temporary fallback)
-#
-# The key point: you do not need every op to be a TIR kernel to get the module running.
-# Write what you can in TIR, fall back to Python for the rest, and iterate.
+# Step 2: Debugging — The Main Selling Point
+# ---------------------------------------------
+# Traditional ML compilers treat computation graphs as monolithic blobs. You cannot inspect
+# intermediate tensor values without compiling the entire module. With ``@I.pyfunc``, debugging
+# is as simple as adding a ``print`` statement. You can also make quick edits and re-run
+# immediately — no recompilation needed.
 
 if RUN_EXAMPLE:
 
     @I.ir_module
-    class InferenceModule(BasePyModule):
+    class DebugModule(BasePyModule):
         @T.prim_func
         def matmul_tir(var_A: T.handle, var_B: T.handle, var_C: T.handle):
             n = T.int32()
-            A = T.match_buffer(var_A, (n, 8), "float32")
-            B = T.match_buffer(var_B, (8, 4), "float32")
-            C = T.match_buffer(var_C, (n, 4), "float32")
-            for i, j, k in T.grid(n, 4, 8):
+            A = T.match_buffer(var_A, (n, 4), "float32")
+            B = T.match_buffer(var_B, (4, 3), "float32")
+            C = T.match_buffer(var_C, (n, 3), "float32")
+            for i, j, k in T.grid(n, 3, 4):
                 with T.sblock("matmul"):
                     vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                     with T.init():
@@ -149,46 +145,121 @@ if RUN_EXAMPLE:
                     C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
         @I.pyfunc
-        def preprocess(self, x):
-            """Normalize input — trivial in PyTorch, annoying in TIR."""
-            return (x - x.mean()) / (x.std() + 1e-5)
-
-        @I.pyfunc
         def forward(self, x, weights):
-            # Step 1: Python preprocessing
-            x_norm = self.preprocess(x)
+            # Inspect input
+            print(f"  [DEBUG] input shape: {x.shape}, mean: {x.mean():.4f}")
 
-            # Step 2: TIR matmul
-            x_tvm = self._convert_pytorch_to_tvm(x_norm)
+            # Run TIR matmul
+            x_tvm = self._convert_pytorch_to_tvm(x)
             w_tvm = self._convert_pytorch_to_tvm(weights)
             out = self.call_tir(
                 self.matmul_tir,
                 [x_tvm, w_tvm],
-                out_sinfo=R.Tensor((x.shape[0], 4), "float32"),
+                out_sinfo=R.Tensor((x.shape[0], 3), "float32"),
             )
             logits = self._convert_tvm_to_pytorch(out)
 
-            # Step 3: Python softmax (fallback — could be replaced with TIR later)
-            return F.softmax(logits, dim=-1)
+            # Inspect intermediate value — impossible with a compiled-only workflow
+            print(f"  [DEBUG] logits shape: {logits.shape}, "
+                  f"min: {logits.min():.4f}, max: {logits.max():.4f}")
 
-    mod = InferenceModule(device=tvm.cpu(0))
+            result = F.softmax(logits, dim=-1)
 
-    batch = torch.randn(2, 8)
-    weights = torch.randn(8, 4)
-    probs = mod.forward(batch, weights)
+            # Verify output
+            print(f"  [DEBUG] probs sum: {result.sum(dim=-1)}")
+            return result
 
-    print("Input shape:", batch.shape)
-    print("Output probs:", probs)
-    print("Probs sum per row:", probs.sum(dim=-1))  # should be ~1.0
+    mod = DebugModule(device=tvm.cpu(0))
+
+    print("Running with debug prints:")
+    probs = mod.forward(torch.randn(2, 4), torch.randn(4, 3))
     assert torch.allclose(probs.sum(dim=-1), torch.ones(2), atol=1e-5)
+
+######################################################################
+# This is the workflow the RFC describes: "debugging is as simple as inserting a print statement.
+# Users can also make quick, manual edits to Python functions and immediately observe the
+# results." No compilation cycle, no VM loading — just Python.
 
 
 ######################################################################
-# Step 3: Dynamic Function Registration
+# Step 3: A Realistic Pipeline — Python, TIR, and Packed Functions
+# -------------------------------------------------------------------
+# Real models combine many kinds of operations. This step builds a mini inference pipeline using
+# three different calling conventions:
+#
+# - ``call_tir``: call a compiled TIR kernel
+# - ``call_dps_packed``: call a TVM packed function (e.g., a third-party library binding)
+# - Direct Python: call any PyTorch function
+#
+# ``call_dps_packed`` is useful for calling functions registered via ``tvm.register_global_func``
+# — for example, CUBLAS or cuDNN bindings that TVM wraps as packed functions.
+
+if RUN_EXAMPLE:
+
+    # Register a packed function (simulating an external library binding)
+    @tvm.register_global_func("my_bias_add", override=True)
+    def my_bias_add(x, bias, out):
+        """Packed function: adds bias to each row of x."""
+        import numpy as np
+
+        x_np = x.numpy()
+        b_np = bias.numpy()
+        out_np = x_np + b_np
+        out[:] = out_np
+
+    @I.ir_module
+    class PipelineModule(BasePyModule):
+        @T.prim_func
+        def matmul_tir(var_A: T.handle, var_B: T.handle, var_C: T.handle):
+            A = T.match_buffer(var_A, (2, 4), "float32")
+            B = T.match_buffer(var_B, (4, 3), "float32")
+            C = T.match_buffer(var_C, (2, 3), "float32")
+            for i, j, k in T.grid(2, 3, 4):
+                with T.sblock("matmul"):
+                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                    with T.init():
+                        C[vi, vj] = T.float32(0)
+                    C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
+
+        @I.pyfunc
+        def forward(self, x, weights, bias):
+            # 1. TIR matmul
+            x_tvm = self._convert_pytorch_to_tvm(x)
+            w_tvm = self._convert_pytorch_to_tvm(weights)
+            h = self.call_tir(
+                self.matmul_tir, [x_tvm, w_tvm],
+                out_sinfo=R.Tensor((2, 3), "float32"),
+            )
+            h_pt = self._convert_tvm_to_pytorch(h)
+
+            # 2. Packed function for bias add (simulating an external library)
+            h_biased = self.call_dps_packed(
+                "my_bias_add", [h_pt, bias],
+                out_sinfo=R.Tensor((2, 3), "float32"),
+            )
+
+            # 3. Python/PyTorch activation
+            return F.relu(h_biased)
+
+    mod = PipelineModule(device=tvm.cpu(0))
+
+    x = torch.randn(2, 4)
+    w = torch.randn(4, 3)
+    b = torch.randn(3)
+    result = mod.forward(x, w, b)
+
+    expected = F.relu(x @ w + b)
+    print("Pipeline result:", result)
+    print("Expected:       ", expected)
+    assert torch.allclose(result, expected, atol=1e-4)
+
+
+######################################################################
+# Step 4: Dynamic Function Registration
 # ----------------------------------------
-# Sometimes you want to add a Python function after the module is created — for example, to
-# swap in a different activation function or to register a custom op at runtime. Use
-# ``add_python_function`` for this.
+# You can register Python functions after the module is created using ``add_python_function``.
+# This is useful for swapping implementations at runtime — for example, testing different
+# activation functions or registering a custom op.
 
 if RUN_EXAMPLE:
     mod.add_python_function("gelu", lambda x: F.gelu(x))
@@ -200,20 +271,22 @@ if RUN_EXAMPLE:
 
 
 ######################################################################
-# Step 4: Relax-to-Python Converter for Debugging
-# --------------------------------------------------
-# After importing a model or applying passes, you end up with Relax IR. How do you know the IR
-# is numerically correct? The ``RelaxToPyFuncConverter`` translates Relax functions into equivalent
-# PyTorch code so you can compare outputs directly.
+# Step 5: Relax-to-Python Converter — Verify at Any Compilation Stage
+# ----------------------------------------------------------------------
+# Both Relax functions and Python functions describe computational graphs. The
+# ``RelaxToPyFuncConverter`` converts Relax IR into equivalent PyTorch code by mapping
+# Relax operators to their PyTorch counterparts (e.g., ``R.nn.relu`` → ``F.relu``).
 #
-# This is especially useful after running optimization passes: convert the optimized Relax
-# function back to PyTorch and compare against the original model's output.
+# The key insight from the RFC: **this conversion can happen at any stage of compilation**.
+# You can convert early (right after import) or late (after optimization passes have
+# transformed the IR), and compare the output against a PyTorch reference to catch bugs.
 
 if RUN_EXAMPLE:
     from tvm.relax.relax_to_pyfunc_converter import RelaxToPyFuncConverter
 
+    # A simple Relax module: matmul + bias + relu (a dense layer)
     @I.ir_module
-    class RelaxModel:
+    class DenseLayer:
         @T.prim_func
         def bias_add_tir(var_x: T.handle, var_b: T.handle, var_out: T.handle):
             x = T.match_buffer(var_x, (2, 4), "float32")
@@ -228,42 +301,61 @@ if RUN_EXAMPLE:
             w: R.Tensor((4, 4), "float32"),
             b: R.Tensor((4,), "float32"),
         ) -> R.Tensor((2, 4), "float32"):
-            # matmul + bias + relu — a typical dense layer
             h = R.matmul(x, w)
-            cls = RelaxModel
+            cls = DenseLayer
             h_bias = R.call_tir(
-                cls.bias_add_tir, (h, b), out_sinfo=R.Tensor((2, 4), "float32")
+                cls.bias_add_tir, (h, b),
+                out_sinfo=R.Tensor((2, 4), "float32"),
             )
             return R.nn.relu(h_bias)
 
-    # Convert "main" to a Python/PyTorch function
-    converter = RelaxToPyFuncConverter(RelaxModel)
-    converted = converter.convert(["main"])
+    # --- Stage 1: Convert BEFORE optimization ---
+    converter = RelaxToPyFuncConverter(DenseLayer)
+    converted_early = converter.convert(["main"])
 
-    # Run through the converted Python function
     x = torch.randn(2, 4)
     w = torch.randn(4, 4)
     b = torch.randn(4)
 
-    py_result = converted.pyfuncs["main"](x, w, b)
-
-    # Compare with manual PyTorch computation
+    py_result_early = converted_early.pyfuncs["main"](x, w, b)
     expected = F.relu(x @ w + b)
 
-    print("Converted Python result:", py_result)
-    print("PyTorch expected:       ", expected)
-    assert torch.allclose(py_result, expected, atol=1e-5)
+    print("Before optimization:")
+    print("  Converted result:", py_result_early)
+    print("  PyTorch expected:", expected)
+    assert torch.allclose(py_result_early, expected, atol=1e-5)
+
+    # --- Stage 2: Apply a pass, then convert AFTER optimization ---
+    # Run CanonicalizeBindings to clean up the IR, then convert again
+    # to verify the pass did not break numerical correctness.
+    optimized_mod = relax.transform.CanonicalizeBindings()(DenseLayer)
+
+    converter_late = RelaxToPyFuncConverter(optimized_mod)
+    converted_late = converter_late.convert(["main"])
+
+    py_result_late = converted_late.pyfuncs["main"](x, w, b)
+
+    print("\nAfter CanonicalizeBindings pass:")
+    print("  Converted result:", py_result_late)
+    print("  Still matches:   ",
+          torch.allclose(py_result_late, expected, atol=1e-5))
+    assert torch.allclose(py_result_late, expected, atol=1e-5)
 
 
 ######################################################################
-# Step 5: R.call_py_func — Python Callbacks in Compiled IR
+# Step 6: R.call_py_func — Python Callbacks in Compiled IR
 # -----------------------------------------------------------
-# What if you want the compiled Relax VM (not just Python-side code) to call a Python function?
-# ``R.call_py_func`` embeds a Python callback directly in Relax IR. The VM compiles and
-# optimizes everything else, but calls back into Python for the specified op.
+# ``R.call_py_func`` embeds a Python function call directly inside Relax IR. When the module
+# is compiled and run in the VM, everything else is optimized native code, but the VM calls
+# back into Python for the specified ops.
 #
-# Use case: your model has one custom op that is complex to implement in TIR. Compile
-# everything else for performance, and let that one op run in Python.
+# This is the "cross-level call" design from the RFC: Relax functions can invoke Python
+# functions, and Python functions can invoke TIR/Relax functions. Data flows between them
+# via DLPack with minimal overhead.
+#
+# Use case: your model has a custom op (e.g., a special normalization or a sampling step)
+# that is complex to implement in TIR. Compile everything else, and let that one op stay
+# in Python.
 
 if RUN_EXAMPLE:
 
@@ -271,7 +363,7 @@ if RUN_EXAMPLE:
     class HybridVMModule(BasePyModule):
         @I.pyfunc
         def silu(self, x):
-            """SiLU activation — not yet a native Relax op, so we use Python."""
+            """SiLU/Swish activation — using Python as fallback."""
             return torch.sigmoid(x) * x
 
         @I.pyfunc
@@ -280,7 +372,10 @@ if RUN_EXAMPLE:
             return F.layer_norm(x, x.shape[-1:])
 
         @R.function
-        def main(x: R.Tensor((4, 8), "float32")) -> R.Tensor((4, 8), "float32"):
+        def main(
+            x: R.Tensor((4, 8), "float32"),
+        ) -> R.Tensor((4, 8), "float32"):
+            # The VM calls back into Python for these two ops
             h = R.call_py_func(
                 "layer_norm", (x,), out_sinfo=R.Tensor((4, 8), "float32")
             )
@@ -290,26 +385,24 @@ if RUN_EXAMPLE:
             return out
 
     mod = HybridVMModule(device=tvm.cpu(0))
-
     x = torch.randn(4, 8)
 
-    # call_py_func is callable from Python too
+    # call_py_func is also callable from Python directly
     result = mod.call_py_func("layer_norm", [x])
     result = mod.call_py_func("silu", [result])
 
-    expected = torch.sigmoid(F.layer_norm(x, x.shape[-1:])) * F.layer_norm(
-        x, x.shape[-1:]
-    )
+    ln = F.layer_norm(x, x.shape[-1:])
+    expected = torch.sigmoid(ln) * ln
     print("call_py_func result:", result)
     assert torch.allclose(torch.tensor(result.numpy()), expected, atol=1e-5)
 
 
 ######################################################################
-# Step 6: Symbolic Shapes — Dynamic Batch Sizes
+# Step 7: Symbolic Shapes — Dynamic Batch Sizes
 # ------------------------------------------------
-# Real models have dynamic shapes (e.g., variable batch size). TIR and Relax functions can
-# declare symbolic dimensions. ``BasePyModule`` automatically infers concrete shapes from the
-# input tensors at call time.
+# Real models have dynamic shapes (e.g., variable batch size or sequence length). TIR and Relax
+# functions can declare symbolic dimensions using string names like ``"n"``. ``BasePyModule``
+# automatically infers concrete shapes from the actual input tensors at call time.
 
 if RUN_EXAMPLE:
 
@@ -325,7 +418,8 @@ if RUN_EXAMPLE:
 
         @R.function
         def add_relax(
-            x: R.Tensor(("n",), "float32"), y: R.Tensor(("n",), "float32")
+            x: R.Tensor(("n",), "float32"),
+            y: R.Tensor(("n",), "float32"),
         ) -> R.Tensor(("n",), "float32"):
             return R.add(x, y)
 
@@ -337,20 +431,20 @@ if RUN_EXAMPLE:
     out5 = mod.add_relax(a5, b5)
     print("add_relax(len=5):", out5)
 
-    # Same module, now length 10 — no recompilation needed
+    # Same module, length 10 — no recompilation needed
     a10 = torch.randn(10)
     b10 = torch.randn(10)
     out10 = mod.add_relax(a10, b10)
     print("add_relax(len=10):", out10)
 
-    # call_tir with symbolic output shape
+    # call_tir also supports symbolic output shapes
     n = T.int64()
     x7 = torch.randn(7)
-    scaled = mod.call_tir("scale_tir", [x7], relax.TensorStructInfo((n,), "float32"))
-    print("scale_tir(len=7):", scaled)
-    assert torch.allclose(
-        torch.tensor(scaled.numpy()), x7 * 2.0, atol=1e-5
+    scaled = mod.call_tir(
+        "scale_tir", [x7], relax.TensorStructInfo((n,), "float32")
     )
+    print("scale_tir(len=7):", scaled)
+    assert torch.allclose(torch.tensor(scaled.numpy()), x7 * 2.0, atol=1e-5)
 
 
 ######################################################################
@@ -358,31 +452,35 @@ if RUN_EXAMPLE:
 # -------
 # Here is what each step demonstrated and which PRs implement it:
 #
-# +--------+----------------------------------------+---------------------+
-# | Step   | What you learned                       | Key PRs             |
-# +========+========================================+=====================+
-# | 1      | ``@I.pyfunc`` + ``call_tir`` basics,   | #18229, #18331      |
-# |        | DLPack conversion, ``show()``          | #18253              |
-# +--------+----------------------------------------+---------------------+
-# | 2      | Realistic pipeline: Python preprocess  | #18229              |
-# |        | → TIR kernel → Python fallback         |                     |
-# +--------+----------------------------------------+---------------------+
-# | 3      | ``add_python_function`` for runtime     | #18229              |
-# |        | registration                           |                     |
-# +--------+----------------------------------------+---------------------+
-# | 4      | ``RelaxToPyFuncConverter``: verify      | #18269, #18301      |
-# |        | Relax IR numerically against PyTorch   |                     |
-# +--------+----------------------------------------+---------------------+
-# | 5      | ``R.call_py_func``: Python callbacks   | #18313, #18326      |
-# |        | inside compiled Relax VM               |                     |
-# +--------+----------------------------------------+---------------------+
-# | 6      | Symbolic shapes for dynamic inputs     | #18288              |
-# +--------+----------------------------------------+---------------------+
+# +--------+-------------------------------------------+---------------------+
+# | Step   | What you learned                          | Key PRs             |
+# +========+===========================================+=====================+
+# | 1      | ``@I.pyfunc`` + ``call_tir`` basics,      | #18229, #18331      |
+# |        | DLPack conversion, ``show()``             | #18253              |
+# +--------+-------------------------------------------+---------------------+
+# | 2      | Debugging with ``print`` in pyfuncs —     | #18229              |
+# |        | no compilation needed                     |                     |
+# +--------+-------------------------------------------+---------------------+
+# | 3      | ``call_tir`` + ``call_dps_packed`` +      | #18229              |
+# |        | Python in one pipeline                    |                     |
+# +--------+-------------------------------------------+---------------------+
+# | 4      | ``add_python_function`` for runtime       | #18229              |
+# |        | registration                              |                     |
+# +--------+-------------------------------------------+---------------------+
+# | 5      | ``RelaxToPyFuncConverter``: verify Relax  | #18269, #18301      |
+# |        | IR at different compilation stages        |                     |
+# +--------+-------------------------------------------+---------------------+
+# | 6      | ``R.call_py_func``: cross-level calls     | #18313, #18326      |
+# |        | between compiled VM and Python            |                     |
+# +--------+-------------------------------------------+---------------------+
+# | 7      | Symbolic shapes for dynamic inputs        | #18288              |
+# +--------+-------------------------------------------+---------------------+
 #
 # The workflow in practice:
 #
 # 1. Import a model → some ops unsupported → use ``@I.pyfunc`` as Python fallbacks
 # 2. Get it running end-to-end with ``BasePyModule``
-# 3. Use ``RelaxToPyFuncConverter`` to verify correctness after optimization passes
-# 4. Gradually replace Python fallbacks with TIR/Relax implementations
-# 5. Use ``R.call_py_func`` for ops that must stay in Python even after compilation
+# 3. Debug by inserting ``print`` in pyfuncs — inspect intermediate tensors instantly
+# 4. Use ``RelaxToPyFuncConverter`` to verify correctness after each optimization pass
+# 5. Gradually replace Python fallbacks with TIR/Relax implementations
+# 6. Use ``R.call_py_func`` for ops that must stay in Python even after compilation
