@@ -4202,6 +4202,171 @@ def test_roi_align(coordinate_transformation_mode, rois):
     }
     check_correctness(model, inputs=inputs, opset=16, rtol=1e-5, atol=1e-5)
 
+def test_if():
+    """Test ONNX If operator with scalar bool condition."""
+    import numpy as np
+    from onnx import TensorProto, helper
+
+    x_info = helper.make_tensor_value_info("x", TensorProto.FLOAT, [3])
+    cond_info = helper.make_tensor_value_info("cond", TensorProto.BOOL, [])
+    result_info = helper.make_tensor_value_info("result", TensorProto.FLOAT, [3])
+
+    # then branch: x * 2.0
+    two = helper.make_tensor("two", TensorProto.FLOAT, [1], [2.0])
+    then_mul = helper.make_node("Mul", ["x", "two"], ["then_out"])
+    then_out_info = helper.make_tensor_value_info("then_out", TensorProto.FLOAT, [3])
+    then_graph = helper.make_graph(
+        [then_mul], "then_graph", [], [then_out_info], initializer=[two]
+    )
+
+    # else branch: x * 3.0
+    three = helper.make_tensor("three", TensorProto.FLOAT, [1], [3.0])
+    else_mul = helper.make_node("Mul", ["x", "three"], ["else_out"])
+    else_out_info = helper.make_tensor_value_info("else_out", TensorProto.FLOAT, [3])
+    else_graph = helper.make_graph(
+        [else_mul], "else_graph", [], [else_out_info], initializer=[three]
+    )
+
+    if_node = helper.make_node(
+        "If",
+        inputs=["cond"],
+        outputs=["result"],
+        then_branch=then_graph,
+        else_branch=else_graph,
+    )
+    main_graph = helper.make_graph([if_node], "if_test", [cond_info, x_info], [result_info])
+    model = helper.make_model(main_graph, opset_imports=[helper.make_opsetid("", 13)])
+
+    x_data = np.array([1.0, 2.0, 3.0], dtype=np.float32)
+
+    check_correctness(model, inputs={"cond": np.array(True), "x": x_data})
+    check_correctness(model, inputs={"cond": np.array(False), "x": x_data})
+
+
+def test_if_tensor_condition():
+    """Test If operator where condition is a 1-element tensor, not a scalar."""
+    import numpy as np
+    from onnx import TensorProto, helper
+
+    cond_info = helper.make_tensor_value_info("cond", TensorProto.BOOL, [1])
+    x_info = helper.make_tensor_value_info("x", TensorProto.FLOAT, [3])
+    result_info = helper.make_tensor_value_info("result", TensorProto.FLOAT, [3])
+
+    two = helper.make_tensor("two", TensorProto.FLOAT, [1], [2.0])
+    then_mul = helper.make_node("Mul", ["x", "two"], ["then_out"])
+    then_out_info = helper.make_tensor_value_info("then_out", TensorProto.FLOAT, [3])
+    then_graph = helper.make_graph(
+        [then_mul], "then_graph", [], [then_out_info], initializer=[two]
+    )
+
+    three = helper.make_tensor("three", TensorProto.FLOAT, [1], [3.0])
+    else_mul = helper.make_node("Mul", ["x", "three"], ["else_out"])
+    else_out_info = helper.make_tensor_value_info("else_out", TensorProto.FLOAT, [3])
+    else_graph = helper.make_graph(
+        [else_mul], "else_graph", [], [else_out_info], initializer=[three]
+    )
+
+    if_node = helper.make_node(
+        "If", inputs=["cond"], outputs=["result"], then_branch=then_graph, else_branch=else_graph
+    )
+    main_graph = helper.make_graph([if_node], "if_test", [cond_info, x_info], [result_info])
+    model = helper.make_model(main_graph, opset_imports=[helper.make_opsetid("", 13)])
+
+    x_data = np.array([1.0, 2.0, 3.0], dtype=np.float32)
+    check_correctness(model, inputs={"cond": np.array([True]), "x": x_data})
+    check_correctness(model, inputs={"cond": np.array([False]), "x": x_data})
+
+
+def test_if_computed_condition():
+    """Test If where condition is computed from another op in the main graph."""
+    import numpy as np
+    from onnx import TensorProto, helper
+
+    x_info = helper.make_tensor_value_info("x", TensorProto.FLOAT, [3])
+    result_info = helper.make_tensor_value_info("result", TensorProto.FLOAT, [3])
+
+    zero = helper.make_tensor("zero", TensorProto.FLOAT, [], [0.0])
+    reduce_node = helper.make_node(
+        "ReduceSum", ["x"], ["x_sum"], keepdims=0, noop_with_empty_axes=0
+    )
+    greater_node = helper.make_node("Greater", ["x_sum", "zero"], ["cond"])
+
+    two = helper.make_tensor("two", TensorProto.FLOAT, [1], [2.0])
+    then_mul = helper.make_node("Mul", ["x", "two"], ["then_out"])
+    then_out_info = helper.make_tensor_value_info("then_out", TensorProto.FLOAT, [3])
+    then_graph = helper.make_graph(
+        [then_mul], "then_graph", [], [then_out_info], initializer=[two]
+    )
+
+    three = helper.make_tensor("three", TensorProto.FLOAT, [1], [3.0])
+    else_mul = helper.make_node("Mul", ["x", "three"], ["else_out"])
+    else_out_info = helper.make_tensor_value_info("else_out", TensorProto.FLOAT, [3])
+    else_graph = helper.make_graph(
+        [else_mul], "else_graph", [], [else_out_info], initializer=[three]
+    )
+
+    if_node = helper.make_node(
+        "If", inputs=["cond"], outputs=["result"], then_branch=then_graph, else_branch=else_graph
+    )
+
+    main_graph = helper.make_graph(
+        [reduce_node, greater_node, if_node],
+        "if_computed_cond",
+        [x_info],
+        [result_info],
+        initializer=[zero],
+    )
+    model = helper.make_model(main_graph, opset_imports=[helper.make_opsetid("", 13)])
+
+    check_correctness(model, inputs={"x": np.array([1.0, 2.0, 3.0], dtype=np.float32)})
+    check_correctness(model, inputs={"x": np.array([-1.0, -2.0, -3.0], dtype=np.float32)})
+
+def test_if_multiple_outputs():
+    """Test If operator where branches return multiple outputs."""
+    import numpy as np
+    from onnx import TensorProto, helper
+
+    cond_info = helper.make_tensor_value_info("cond", TensorProto.BOOL, [])
+    x_info = helper.make_tensor_value_info("x", TensorProto.FLOAT, [3])
+    out1_info = helper.make_tensor_value_info("out1", TensorProto.FLOAT, [3])
+    out2_info = helper.make_tensor_value_info("out2", TensorProto.FLOAT, [3])
+
+    two = helper.make_tensor("two", TensorProto.FLOAT, [1], [2.0])
+    three = helper.make_tensor("three", TensorProto.FLOAT, [1], [3.0])
+
+    then_mul1 = helper.make_node("Mul", ["x", "two"], ["then_out1"])
+    then_mul2 = helper.make_node("Mul", ["x", "three"], ["then_out2"])
+    then_o1 = helper.make_tensor_value_info("then_out1", TensorProto.FLOAT, [3])
+    then_o2 = helper.make_tensor_value_info("then_out2", TensorProto.FLOAT, [3])
+    then_graph = helper.make_graph(
+        [then_mul1, then_mul2], "then_graph", [], [then_o1, then_o2], initializer=[two, three]
+    )
+
+    four = helper.make_tensor("four", TensorProto.FLOAT, [1], [4.0])
+    five = helper.make_tensor("five", TensorProto.FLOAT, [1], [5.0])
+    else_mul1 = helper.make_node("Mul", ["x", "four"], ["else_out1"])
+    else_mul2 = helper.make_node("Mul", ["x", "five"], ["else_out2"])
+    else_o1 = helper.make_tensor_value_info("else_out1", TensorProto.FLOAT, [3])
+    else_o2 = helper.make_tensor_value_info("else_out2", TensorProto.FLOAT, [3])
+    else_graph = helper.make_graph(
+        [else_mul1, else_mul2], "else_graph", [], [else_o1, else_o2], initializer=[four, five]
+    )
+
+    if_node = helper.make_node(
+        "If",
+        inputs=["cond"],
+        outputs=["out1", "out2"],
+        then_branch=then_graph,
+        else_branch=else_graph,
+    )
+    main_graph = helper.make_graph(
+        [if_node], "if_multi_out", [cond_info, x_info], [out1_info, out2_info]
+    )
+    model = helper.make_model(main_graph, opset_imports=[helper.make_opsetid("", 13)])
+
+    x_data = np.array([1.0, 2.0, 3.0], dtype=np.float32)
+    check_correctness(model, inputs={"cond": np.array(True), "x": x_data})
+    check_correctness(model, inputs={"cond": np.array(False), "x": x_data})
 
 if __name__ == "__main__":
     tvm.testing.main()
