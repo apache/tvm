@@ -251,6 +251,11 @@ class ROIAlignAttrs(Attrs):
     """Attributes for vision.roi_align"""
 
 
+@tvm_ffi.register_object("relax.attrs.MultiboxTransformLocAttrs")
+class MultiboxTransformLocAttrs(Attrs):
+    """Attributes for vision.multibox_transform_loc"""
+
+
 @tvm_ffi.register_object("relax.attrs.Conv1DAttrs")
 class Conv1DAttrs(Attrs):
     """Attributes for nn.conv1d"""
