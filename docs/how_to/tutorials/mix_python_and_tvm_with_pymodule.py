@@ -118,6 +118,9 @@ if RUN_EXAMPLE:
     # show() prints TVMScript including Python functions (shown as ExternFunc)
     mod.show()
 
+    # list_functions() shows what is available in the module
+    print("Available functions:", mod.list_functions())
+
 
 ######################################################################
 # Step 2: Debugging — The Main Selling Point
@@ -398,11 +401,22 @@ if RUN_EXAMPLE:
 
 
 ######################################################################
-# Step 7: Symbolic Shapes — Dynamic Batch Sizes
+# Step 7: Cross-Level Calls and Symbolic Shapes
 # ------------------------------------------------
-# Real models have dynamic shapes (e.g., variable batch size or sequence length). TIR and Relax
-# functions can declare symbolic dimensions using string names like ``"n"``. ``BasePyModule``
-# automatically infers concrete shapes from the actual input tensors at call time.
+# The RFC's core design is **cross-level interoperability**: Python functions can call TIR
+# and Relax functions, and Relax functions can call Python functions. We have already seen:
+#
+# - Python → TIR via ``call_tir`` (Steps 1–3)
+# - Python → packed function via ``call_dps_packed`` (Step 3)
+# - Relax → Python via ``R.call_py_func`` (Step 6)
+#
+# The missing piece: **Python calling a compiled Relax function directly**. When a module
+# contains ``@R.function``, it is JIT-compiled into a Relax VM. You can call it from Python
+# just like any other method — the module auto-converts PyTorch tensors to TVM and back.
+#
+# This step also shows **symbolic shapes**: TIR and Relax functions can declare dynamic
+# dimensions (e.g., ``"n"``). ``BasePyModule`` infers concrete shapes from the actual input
+# tensors at call time, so the same module handles different sizes without recompilation.
 
 if RUN_EXAMPLE:
 
@@ -425,19 +439,22 @@ if RUN_EXAMPLE:
 
     mod = DynamicModule(device=tvm.cpu(0), target="llvm")
 
-    # Works with length 5
+    # Inspect what the module contains
+    print("Functions:", mod.list_functions())
+
+    # Python → Relax: call the compiled Relax function directly with PyTorch tensors
     a5 = torch.randn(5)
     b5 = torch.randn(5)
     out5 = mod.add_relax(a5, b5)
     print("add_relax(len=5):", out5)
 
-    # Same module, length 10 — no recompilation needed
+    # Same module, different size — symbolic shapes handle this automatically
     a10 = torch.randn(10)
     b10 = torch.randn(10)
     out10 = mod.add_relax(a10, b10)
     print("add_relax(len=10):", out10)
 
-    # call_tir also supports symbolic output shapes
+    # Python → TIR with symbolic output shape
     n = T.int64()
     x7 = torch.randn(7)
     scaled = mod.call_tir(
@@ -450,31 +467,12 @@ if RUN_EXAMPLE:
 ######################################################################
 # Summary
 # -------
-# Here is what each step demonstrated and which PRs implement it:
+# Cross-level call summary (the RFC's core design):
 #
-# +--------+-------------------------------------------+---------------------+
-# | Step   | What you learned                          | Key PRs             |
-# +========+===========================================+=====================+
-# | 1      | ``@I.pyfunc`` + ``call_tir`` basics,      | #18229, #18331      |
-# |        | DLPack conversion, ``show()``             | #18253              |
-# +--------+-------------------------------------------+---------------------+
-# | 2      | Debugging with ``print`` in pyfuncs —     | #18229              |
-# |        | no compilation needed                     |                     |
-# +--------+-------------------------------------------+---------------------+
-# | 3      | ``call_tir`` + ``call_dps_packed`` +      | #18229              |
-# |        | Python in one pipeline                    |                     |
-# +--------+-------------------------------------------+---------------------+
-# | 4      | ``add_python_function`` for runtime       | #18229              |
-# |        | registration                              |                     |
-# +--------+-------------------------------------------+---------------------+
-# | 5      | ``RelaxToPyFuncConverter``: verify Relax  | #18269, #18301      |
-# |        | IR at different compilation stages        |                     |
-# +--------+-------------------------------------------+---------------------+
-# | 6      | ``R.call_py_func``: cross-level calls     | #18313, #18326      |
-# |        | between compiled VM and Python            |                     |
-# +--------+-------------------------------------------+---------------------+
-# | 7      | Symbolic shapes for dynamic inputs        | #18288              |
-# +--------+-------------------------------------------+---------------------+
+# - **Python → TIR**: ``call_tir()`` (Steps 1, 2, 3, 7)
+# - **Python → packed function**: ``call_dps_packed()`` (Step 3)
+# - **Python → Relax**: call ``@R.function`` as a method (Step 7)
+# - **Relax → Python**: ``R.call_py_func()`` in compiled VM (Step 6)
 #
 # The workflow in practice:
 #
