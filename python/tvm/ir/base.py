@@ -27,6 +27,14 @@ from . import _ffi_api, json_compact
 class Node(Object):
     """Base class of all IR Nodes."""
 
+    def __repr__(self) -> str:
+        from tvm.runtime.script_printer import _script  # noqa: PLC0415
+
+        try:
+            return _script(self, None)
+        except Exception:  # noqa: BLE001
+            return super().__repr__()
+
 
 @register_object("ir.SourceMap")
 class SourceMap(Object):

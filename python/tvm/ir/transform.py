@@ -147,6 +147,8 @@ class Pass(tvm.runtime.Object):
     conveniently interact with the base class.
     """
 
+    __slots__ = ("__dict__",)
+
     @property
     def info(self):
         """Get the pass meta."""
