@@ -47,6 +47,8 @@ def multibox_transform_loc(
         After softmax, multiply scores by mask ``(score >= threshold)``.
     variances : tuple of 4 floats
         ``(x,y,w,h)`` = TFLite ``1/x_scale, 1/y_scale, 1/w_scale, 1/h_scale``.
+        Use magnitudes consistent with the model: very large ``w``/``h`` entries scale the
+        encoded height/width terms inside ``exp(...)`` and can overflow in float32/float16.
     keep_background : bool
         If False, set output scores at class index 0 to zero.
 
@@ -65,6 +67,12 @@ def multibox_transform_loc(
     - ``N = cls_pred.shape[2]``; ``loc_pred.shape[1] == 4*N``; ``anchor.shape == [1,N,4]``.
     - ``loc_pred.shape[1]`` must be divisible by 4.
     - ``cls_pred.shape[0]`` must equal ``loc_pred.shape[0]`` (batch).
+
+    If ``cls_pred`` has **unknown** shape, inference only returns generic rank-3 tensor
+    struct info for the two outputs; it does **not** verify ``4*N`` vs ``loc_pred`` or
+    ``anchor.shape[1]`` vs ``N``, because ``N`` is not available statically. Other checks
+    (ranks, dtypes, ``loc_pred.shape[1] % 4 == 0`` when known, batch match when both batch
+    axes are known, etc.) still run where applicable.
     """
     return _ffi_api.multibox_transform_loc(
         cls_pred,

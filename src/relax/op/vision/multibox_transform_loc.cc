@@ -54,6 +54,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.vision.multibox_transform_loc", multibox_transform_loc);
 }
 
+/*!
+ * \brief Infer struct info for relax.vision.multibox_transform_loc.
+ *
+ * \note Shape cross-checks that need the anchor count N (e.g. loc_pred.shape[1] == 4*N,
+ * anchor.shape[1] == N with N = cls_pred.shape[2]) run only when cls_pred has a known
+ * static shape. If cls_pred shape is unknown, inference returns generic rank-3 outputs and
+ * skips those N-based relations; other checks (ndim, dtype, loc dim divisible by 4, etc.)
+ * still apply when their inputs are known.
+ */
 StructInfo InferStructInfoMultiboxTransformLoc(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 3) {
     ctx->ReportFatal(Diagnostic::Error(call)
@@ -179,6 +188,9 @@ StructInfo InferStructInfoMultiboxTransformLoc(const Call& call, const BlockBuil
 }
 
 TVM_REGISTER_OP("relax.vision.multibox_transform_loc")
+    .describe("Decode SSD/TFLite-style priors and offsets into boxes and softmax scores. If "
+              "cls_pred shape is unknown, N-based loc/anchor shape checks are skipped in "
+              "inference. Very large variances (w,h) can overflow exp in half box sizes.")
     .set_attrs_type<MultiboxTransformLocAttrs>()
     .set_num_inputs(3)
     .add_argument("cls_pred", "Tensor", "[B,C,N] class logits (pre-softmax).")
