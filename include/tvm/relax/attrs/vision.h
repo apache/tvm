@@ -131,6 +131,8 @@ struct NonMaximumSuppressionAttrs
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.NonMaximumSuppressionAttrs",
                                     NonMaximumSuppressionAttrs, BaseAttrsNode);
 };  // struct NonMaximumSuppressionAttrs
+
+
 /*! \brief Attributes for multibox_transform_loc (SSD / TFLite-style box decode). */
 struct MultiboxTransformLocAttrs : public AttrsNodeReflAdapter<MultiboxTransformLocAttrs> {
   bool clip;
