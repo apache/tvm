@@ -38,6 +38,15 @@ Expr all_class_non_max_suppression(Expr boxes, Expr scores, Expr max_output_boxe
                                    Expr iou_threshold, Expr score_threshold,
                                    ffi::String output_format);
 
+/*! \brief Get valid count of bounding boxes given a score threshold. */
+Expr get_valid_counts(Expr data, double score_threshold, int id_index, int score_index);
+
+/*! \brief Non-maximum suppression for object detection. */
+Expr non_max_suppression(Expr data, Expr valid_count, Expr indices, int max_output_size,
+                         double iou_threshold, bool force_suppress, int top_k, int coord_start,
+                         int score_index, int id_index, bool return_indices,
+                         bool invalid_to_bottom);
+
 }  // namespace relax
 }  // namespace tvm
 

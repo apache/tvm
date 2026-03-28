@@ -157,7 +157,13 @@ from .unary import (
     tanh,
     trunc,
 )
-from .vision import all_class_non_max_suppression, multibox_transform_loc, roi_align
+from .vision import (
+    all_class_non_max_suppression,
+    get_valid_counts,
+    multibox_transform_loc,
+    non_max_suppression,
+    roi_align,
+)
 
 
 def _register_op_make():
