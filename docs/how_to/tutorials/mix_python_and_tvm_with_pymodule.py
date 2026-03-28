@@ -179,7 +179,7 @@ if RUN_EXAMPLE:
     assert torch.allclose(probs.sum(dim=-1), torch.ones(2), atol=1e-5)
 
 ######################################################################
-# This is the workflow the RFC describes: "debugging is as simple as inserting a print statement.
+# This is the key benefit: "debugging is as simple as inserting a print statement.
 # Users can also make quick, manual edits to Python functions and immediately observe the
 # results." No compilation cycle, no VM loading — just Python.
 
@@ -258,29 +258,13 @@ if RUN_EXAMPLE:
 
 
 ######################################################################
-# Step 4: Dynamic Function Registration
-# ----------------------------------------
-# You can register Python functions after the module is created using ``add_python_function``.
-# This is useful for swapping implementations at runtime — for example, testing different
-# activation functions or registering a custom op.
-
-if RUN_EXAMPLE:
-    mod.add_python_function("gelu", lambda x: F.gelu(x))
-
-    x = torch.randn(4)
-    result = mod.gelu(x)
-    print("Dynamically registered gelu:", result)
-    assert torch.allclose(result, F.gelu(x))
-
-
-######################################################################
-# Step 5: Relax-to-Python Converter — Verify at Any Compilation Stage
+# Step 4: Relax-to-Python Converter — Verify at Any Compilation Stage
 # ----------------------------------------------------------------------
 # Both Relax functions and Python functions describe computational graphs. The
 # ``RelaxToPyFuncConverter`` converts Relax IR into equivalent PyTorch code by mapping
 # Relax operators to their PyTorch counterparts (e.g., ``R.nn.relu`` → ``F.relu``).
 #
-# The key insight from the RFC: **this conversion can happen at any stage of compilation**.
+# A key feature: **this conversion can happen at any stage of compilation**.
 # You can convert early (right after import) or late (after optimization passes have
 # transformed the IR), and compare the output against a PyTorch reference to catch bugs.
 
@@ -346,15 +330,15 @@ if RUN_EXAMPLE:
 
 
 ######################################################################
-# Step 6: R.call_py_func — Python Callbacks in Compiled IR
+# Step 5: R.call_py_func — Python Callbacks in Compiled IR
 # -----------------------------------------------------------
 # ``R.call_py_func`` embeds a Python function call directly inside Relax IR. When the module
 # is compiled and run in the VM, everything else is optimized native code, but the VM calls
 # back into Python for the specified ops.
 #
-# This is the "cross-level call" design from the RFC: Relax functions can invoke Python
-# functions, and Python functions can invoke TIR/Relax functions. Data flows between them
-# via DLPack with minimal overhead.
+# ``BasePyModule`` supports cross-level calls in both directions: Relax functions can invoke
+# Python functions, and Python functions can invoke TIR/Relax functions. Data flows between
+# them via DLPack with minimal overhead.
 #
 # Use case: your model has a custom op (e.g., a special normalization or a sampling step)
 # that is complex to implement in TIR. Compile everything else, and let that one op stay
@@ -401,14 +385,14 @@ if RUN_EXAMPLE:
 
 
 ######################################################################
-# Step 7: Cross-Level Calls and Symbolic Shapes
+# Step 6: Cross-Level Calls and Symbolic Shapes
 # ------------------------------------------------
-# The RFC's core design is **cross-level interoperability**: Python functions can call TIR
-# and Relax functions, and Relax functions can call Python functions. We have already seen:
+# ``BasePyModule`` is designed for **cross-level interoperability**: Python functions can call
+# TIR and Relax functions, and Relax functions can call Python functions. We have already seen:
 #
 # - Python → TIR via ``call_tir`` (Steps 1–3)
 # - Python → packed function via ``call_dps_packed`` (Step 3)
-# - Relax → Python via ``R.call_py_func`` (Step 6)
+# - Relax → Python via ``R.call_py_func`` (Step 5)
 #
 # The missing piece: **Python calling a compiled Relax function directly**. When a module
 # contains ``@R.function``, it is JIT-compiled into a Relax VM. You can call it from Python
@@ -467,12 +451,12 @@ if RUN_EXAMPLE:
 ######################################################################
 # Summary
 # -------
-# Cross-level call summary (the RFC's core design):
+# Cross-level call summary:
 #
-# - **Python → TIR**: ``call_tir()`` (Steps 1, 2, 3, 7)
+# - **Python → TIR**: ``call_tir()`` (Steps 1, 2, 3, 6)
 # - **Python → packed function**: ``call_dps_packed()`` (Step 3)
-# - **Python → Relax**: call ``@R.function`` as a method (Step 7)
-# - **Relax → Python**: ``R.call_py_func()`` in compiled VM (Step 6)
+# - **Python → Relax**: call ``@R.function`` as a method (Step 6)
+# - **Relax → Python**: ``R.call_py_func()`` in compiled VM (Step 5)
 #
 # The workflow in practice:
 #
