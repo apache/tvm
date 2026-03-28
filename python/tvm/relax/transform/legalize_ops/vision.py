@@ -147,6 +147,9 @@ def _non_max_suppression(block_builder: BlockBuilder, call: Call) -> Expr:
         id_index=call.attrs.id_index,
         return_indices=call.attrs.return_indices,
         invalid_to_bottom=call.attrs.invalid_to_bottom,
+    )
+
+
 @register_legalize("relax.vision.multibox_transform_loc")
 def _multibox_transform_loc(bb: BlockBuilder, call: Call) -> Expr:
     variances = tuple(float(x) for x in call.attrs.variances)

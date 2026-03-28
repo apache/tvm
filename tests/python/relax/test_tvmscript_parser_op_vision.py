@@ -200,6 +200,13 @@ def test_non_max_suppression_return_data():
                 id_index=0,
                 return_indices=False,
                 invalid_to_bottom=True,
+            )
+        )
+        bb.emit_func_output(gv)
+
+    _check(foo, bb.get()["foo"])
+
+
 def test_multibox_transform_loc():
     @R.function
     def foo(
