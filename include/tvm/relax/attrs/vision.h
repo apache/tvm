@@ -131,6 +131,29 @@ struct NonMaximumSuppressionAttrs
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.NonMaximumSuppressionAttrs",
                                     NonMaximumSuppressionAttrs, BaseAttrsNode);
 };  // struct NonMaximumSuppressionAttrs
+/*! \brief Attributes for multibox_transform_loc (SSD / TFLite-style box decode). */
+struct MultiboxTransformLocAttrs : public AttrsNodeReflAdapter<MultiboxTransformLocAttrs> {
+  bool clip;
+  double threshold;
+  ffi::Array<double> variances;
+  bool keep_background;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<MultiboxTransformLocAttrs>()
+        .def_ro("clip", &MultiboxTransformLocAttrs::clip,
+                "Clip decoded ymin,xmin,ymax,xmax to [0,1].")
+        .def_ro("threshold", &MultiboxTransformLocAttrs::threshold,
+                "After softmax, zero scores strictly below this value.")
+        .def_ro("variances", &MultiboxTransformLocAttrs::variances,
+                "(x,y,w,h) scales = TFLite 1/x_scale,1/y_scale,1/w_scale,1/h_scale on "
+                "encodings. Very large w/h scales can overflow exp in decode.")
+        .def_ro("keep_background", &MultiboxTransformLocAttrs::keep_background,
+                "If false, force output scores[:,0,:] to 0 (background class).");
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.MultiboxTransformLocAttrs",
+                                    MultiboxTransformLocAttrs, BaseAttrsNode);
+};  // struct MultiboxTransformLocAttrs
 
 }  // namespace relax
 }  // namespace tvm

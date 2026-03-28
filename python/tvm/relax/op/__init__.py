@@ -160,6 +160,7 @@ from .unary import (
 from .vision import (
     all_class_non_max_suppression,
     get_valid_counts,
+    multibox_transform_loc,
     non_max_suppression,
     roi_align,
 )

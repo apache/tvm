@@ -1091,6 +1091,7 @@ def test_all_class_non_max_suppression_legalize_dynamic_trim():
     )
 
 
+@tvm.testing.requires_llvm
 def test_all_class_non_max_suppression_legalize_e2e():
     @tvm.script.ir_module
     class NMSModule:
@@ -1147,6 +1148,288 @@ def test_all_class_non_max_suppression_legalize_e2e():
     selected_indices = result[0].numpy()
     num_total_detections = int(result[1].numpy()[0])
     tvm.testing.assert_allclose(selected_indices.shape, (num_total_detections, 3))
+
+
+def test_multibox_transform_loc_op_correctness():
+    cls = relax.Var("cls", R.Tensor((1, 5, 10), "float32"))
+    loc = relax.Var("loc", R.Tensor((1, 40), "float32"))
+    anc = relax.Var("anc", R.Tensor((1, 10, 4), "float32"))
+    assert (
+        relax.op.vision.multibox_transform_loc(
+            cls, loc, anc, False, 0.0, (1.0, 1.0, 1.0, 1.0), True
+        ).op
+        == Op.get("relax.vision.multibox_transform_loc")
+    )
+
+
+def test_multibox_transform_loc_infer_struct_info():
+    bb = relax.BlockBuilder()
+    cls = relax.Var("cls", R.Tensor((2, 3, 5), "float32"))
+    loc = relax.Var("loc", R.Tensor((2, 20), "float32"))
+    anc = relax.Var("anc", R.Tensor((1, 5, 4), "float32"))
+    _check_inference(
+        bb,
+        relax.op.vision.multibox_transform_loc(
+            cls, loc, anc, False, 0.0, (0.1, 0.1, 0.2, 0.2), True
+        ),
+        relax.TupleStructInfo(
+            [
+                relax.TensorStructInfo((2, 5, 4), "float32"),
+                relax.TensorStructInfo((2, 3, 5), "float32"),
+            ]
+        ),
+    )
+
+
+def test_multibox_transform_loc_wrong_cls_ndim():
+    bb = relax.BlockBuilder()
+    cls = relax.Var("cls", R.Tensor((2, 3), "float32"))
+    loc = relax.Var("loc", R.Tensor((2, 20), "float32"))
+    anc = relax.Var("anc", R.Tensor((1, 5, 4), "float32"))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.vision.multibox_transform_loc(cls, loc, anc))
+
+
+def test_multibox_transform_loc_wrong_shape_relation():
+    bb = relax.BlockBuilder()
+    cls = relax.Var("cls", R.Tensor((2, 3, 5), "float32"))
+    anc = relax.Var("anc", R.Tensor((1, 5, 4), "float32"))
+    loc_bad_div = relax.Var("loc_bad_div", R.Tensor((2, 19), "float32"))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.vision.multibox_transform_loc(cls, loc_bad_div, anc))
+    # Divisible by 4 but loc_dim != 4*N (N=5 -> expect 20, not 24)
+    loc_bad_n = relax.Var("loc_bad_n", R.Tensor((2, 24), "float32"))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.vision.multibox_transform_loc(cls, loc_bad_n, anc))
+
+
+def test_multibox_transform_loc_wrong_anchor_shape():
+    bb = relax.BlockBuilder()
+    cls = relax.Var("cls", R.Tensor((2, 3, 5), "float32"))
+    loc = relax.Var("loc", R.Tensor((2, 20), "float32"))
+    anc_bad_batch = relax.Var("anc_bad_batch", R.Tensor((2, 5, 4), "float32"))
+    anc_bad_last = relax.Var("anc_bad_last", R.Tensor((1, 5, 5), "float32"))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.vision.multibox_transform_loc(cls, loc, anc_bad_batch))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.vision.multibox_transform_loc(cls, loc, anc_bad_last))
+
+
+def test_multibox_transform_loc_wrong_dtype():
+    bb = relax.BlockBuilder()
+    cls = relax.Var("cls", R.Tensor((2, 3, 5), "float32"))
+    loc = relax.Var("loc", R.Tensor((2, 20), "float16"))
+    anc = relax.Var("anc", R.Tensor((1, 5, 4), "float32"))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.vision.multibox_transform_loc(cls, loc, anc))
+
+
+def test_multibox_transform_loc_wrong_batch():
+    bb = relax.BlockBuilder()
+    cls = relax.Var("cls", R.Tensor((2, 3, 5), "float32"))
+    loc = relax.Var("loc", R.Tensor((1, 20), "float32"))
+    anc = relax.Var("anc", R.Tensor((1, 5, 4), "float32"))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.vision.multibox_transform_loc(cls, loc, anc))
+
+
+def _multibox_ref_numpy(
+    cls_pred, loc_pred, anchor, variances, clip=False, threshold=0.0, keep_background=True
+):
+    """Numpy reference aligned with ``topi.vision.multibox_transform_loc``."""
+
+    def _softmax(x, axis):
+        x_max = np.max(x, axis=axis, keepdims=True)
+        exp = np.exp(x - x_max)
+        return exp / np.sum(exp, axis=axis, keepdims=True)
+
+    B, C, N = cls_pred.shape
+    loc = loc_pred.reshape(B, N, 4)
+    scores = _softmax(cls_pred.astype("float64"), axis=1).astype(np.float32)
+    if threshold > 0.0:
+        scores = np.where(scores >= threshold, scores, 0.0).astype(np.float32)
+    if not keep_background:
+        scores = scores.copy()
+        scores[:, 0, :] = 0.0
+    vx, vy, vw, vh = variances
+    boxes = np.zeros((B, N, 4), dtype=np.float32)
+    for b in range(B):
+        for a in range(N):
+            l, t, r, br = anchor[0, a, :]
+            ay = (t + br) * 0.5
+            ax = (l + r) * 0.5
+            ah = br - t
+            aw = r - l
+            ex, ey, ew, eh = loc[b, a, :]
+            ycenter = ey * vy * ah + ay
+            xcenter = ex * vx * aw + ax
+            half_h = 0.5 * np.exp(eh * vh) * ah
+            half_w = 0.5 * np.exp(ew * vw) * aw
+            ymin = ycenter - half_h
+            xmin = xcenter - half_w
+            ymax = ycenter + half_h
+            xmax = xcenter + half_w
+            if clip:
+                ymin = np.clip(ymin, 0.0, 1.0)
+                xmin = np.clip(xmin, 0.0, 1.0)
+                ymax = np.clip(ymax, 0.0, 1.0)
+                xmax = np.clip(xmax, 0.0, 1.0)
+            boxes[b, a, :] = (ymin, xmin, ymax, xmax)
+    return boxes, scores
+
+
+@tvm.testing.requires_llvm
+def test_multibox_transform_loc_legalize_e2e():
+    @tvm.script.ir_module
+    class Mod:
+        @R.function
+        def main(
+            cls: R.Tensor((1, 3, 5), "float32"),
+            loc: R.Tensor((1, 20), "float32"),
+            anc: R.Tensor((1, 5, 4), "float32"),
+        ) -> R.Tuple(R.Tensor((1, 5, 4), "float32"), R.Tensor((1, 3, 5), "float32")):
+            return R.vision.multibox_transform_loc(
+                cls,
+                loc,
+                anc,
+                clip=False,
+                threshold=0.0,
+                variances=(1.0, 1.0, 1.0, 1.0),
+                keep_background=True,
+            )
+
+    cls_data = np.random.randn(1, 3, 5).astype(np.float32)
+    loc_data = np.random.randn(1, 20).astype(np.float32) * 0.05
+    anc_data = np.array(
+        [
+            [
+                [0.1, 0.1, 0.5, 0.5],
+                [0.2, 0.2, 0.6, 0.6],
+                [0.0, 0.0, 1.0, 1.0],
+                [0.3, 0.3, 0.7, 0.7],
+                [0.05, 0.05, 0.45, 0.45],
+            ]
+        ],
+        dtype=np.float32,
+    )
+
+    mod = LegalizeOps()(Mod)
+    exe = tvm.compile(mod, target="llvm")
+    vm = relax.VirtualMachine(exe, tvm.cpu())
+    ref_b, ref_s = _multibox_ref_numpy(cls_data, loc_data, anc_data, (1.0, 1.0, 1.0, 1.0))
+    out = vm["main"](
+        tvm.runtime.tensor(cls_data, tvm.cpu()),
+        tvm.runtime.tensor(loc_data, tvm.cpu()),
+        tvm.runtime.tensor(anc_data, tvm.cpu()),
+    )
+    tvm.testing.assert_allclose(out[0].numpy(), ref_b, rtol=1e-4, atol=1e-5)
+    tvm.testing.assert_allclose(out[1].numpy(), ref_s, rtol=1e-4, atol=1e-5)
+
+
+@tvm.testing.requires_llvm
+def test_multibox_transform_loc_legalize_e2e_nonunity_variances():
+    @tvm.script.ir_module
+    class Mod:
+        @R.function
+        def main(
+            cls: R.Tensor((1, 3, 5), "float32"),
+            loc: R.Tensor((1, 20), "float32"),
+            anc: R.Tensor((1, 5, 4), "float32"),
+        ) -> R.Tuple(R.Tensor((1, 5, 4), "float32"), R.Tensor((1, 3, 5), "float32")):
+            return R.vision.multibox_transform_loc(
+                cls,
+                loc,
+                anc,
+                clip=False,
+                threshold=0.0,
+                variances=(0.1, 0.1, 0.2, 0.2),
+                keep_background=True,
+            )
+
+    cls_data = np.random.randn(1, 3, 5).astype(np.float32)
+    loc_data = np.random.randn(1, 20).astype(np.float32) * 0.05
+    anc_data = np.array(
+        [
+            [
+                [0.1, 0.1, 0.5, 0.5],
+                [0.2, 0.2, 0.6, 0.6],
+                [0.0, 0.0, 1.0, 1.0],
+                [0.3, 0.3, 0.7, 0.7],
+                [0.05, 0.05, 0.45, 0.45],
+            ]
+        ],
+        dtype=np.float32,
+    )
+
+    mod = LegalizeOps()(Mod)
+    exe = tvm.compile(mod, target="llvm")
+    vm = relax.VirtualMachine(exe, tvm.cpu())
+    ref_b, ref_s = _multibox_ref_numpy(cls_data, loc_data, anc_data, (0.1, 0.1, 0.2, 0.2))
+    out = vm["main"](
+        tvm.runtime.tensor(cls_data, tvm.cpu()),
+        tvm.runtime.tensor(loc_data, tvm.cpu()),
+        tvm.runtime.tensor(anc_data, tvm.cpu()),
+    )
+    tvm.testing.assert_allclose(out[0].numpy(), ref_b, rtol=1e-4, atol=1e-5)
+    tvm.testing.assert_allclose(out[1].numpy(), ref_s, rtol=1e-4, atol=1e-5)
+
+
+@tvm.testing.requires_llvm
+def test_multibox_transform_loc_legalize_attr_branches():
+    @tvm.script.ir_module
+    class Mod:
+        @R.function
+        def main(
+            cls: R.Tensor((1, 3, 4), "float32"),
+            loc: R.Tensor((1, 16), "float32"),
+            anc: R.Tensor((1, 4, 4), "float32"),
+        ) -> R.Tuple(R.Tensor((1, 4, 4), "float32"), R.Tensor((1, 3, 4), "float32")):
+            return R.vision.multibox_transform_loc(
+                cls,
+                loc,
+                anc,
+                clip=True,
+                threshold=0.4,
+                variances=(1.0, 1.0, 1.0, 1.0),
+                keep_background=False,
+            )
+
+    cls_data = np.array(
+        [[[2.0, 0.1, -0.5, 0.0], [0.2, 2.2, 0.3, -1.0], [0.1, 0.4, 2.0, 0.5]]],
+        dtype=np.float32,
+    )
+    loc_data = np.array(
+        [[0.1, -0.2, 0.0, 0.0, -0.2, 0.1, 0.3, -0.1, 0.0, 0.0, 0.8, 0.8, 0.2, 0.2, -0.6, -0.6]],
+        dtype=np.float32,
+    )
+    anc_data = np.array(
+        [[[0.1, 0.1, 0.5, 0.5], [0.2, 0.2, 0.6, 0.6], [0.0, 0.0, 1.0, 1.0], [0.4, 0.4, 1.2, 1.2]]],
+        dtype=np.float32,
+    )
+
+    mod = LegalizeOps()(Mod)
+    exe = tvm.compile(mod, target="llvm")
+    vm = relax.VirtualMachine(exe, tvm.cpu())
+    ref_b, ref_s = _multibox_ref_numpy(
+        cls_data,
+        loc_data,
+        anc_data,
+        (1.0, 1.0, 1.0, 1.0),
+        clip=True,
+        threshold=0.4,
+        keep_background=False,
+    )
+    out = vm["main"](
+        tvm.runtime.tensor(cls_data, tvm.cpu()),
+        tvm.runtime.tensor(loc_data, tvm.cpu()),
+        tvm.runtime.tensor(anc_data, tvm.cpu()),
+    )
+    boxes = out[0].numpy()
+    scores = out[1].numpy()
+    tvm.testing.assert_allclose(boxes, ref_b, rtol=1e-4, atol=1e-5)
+    tvm.testing.assert_allclose(scores, ref_s, rtol=1e-4, atol=1e-5)
+    assert np.all(boxes >= 0.0) and np.all(boxes <= 1.0)
+    tvm.testing.assert_allclose(scores[:, 0, :], np.zeros_like(scores[:, 0, :]))
 
 
 if __name__ == "__main__":

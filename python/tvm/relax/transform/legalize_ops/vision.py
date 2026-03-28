@@ -147,4 +147,25 @@ def _non_max_suppression(block_builder: BlockBuilder, call: Call) -> Expr:
         id_index=call.attrs.id_index,
         return_indices=call.attrs.return_indices,
         invalid_to_bottom=call.attrs.invalid_to_bottom,
+@register_legalize("relax.vision.multibox_transform_loc")
+def _multibox_transform_loc(bb: BlockBuilder, call: Call) -> Expr:
+    variances = tuple(float(x) for x in call.attrs.variances)
+
+    def _te(cls_pred, loc_pred, anchor):
+        return topi.vision.multibox_transform_loc(
+            cls_pred,
+            loc_pred,
+            anchor,
+            variances,
+            clip=call.attrs.clip,
+            threshold=call.attrs.threshold,
+            keep_background=call.attrs.keep_background,
+        )
+
+    return bb.call_te(
+        _te,
+        call.args[0],
+        call.args[1],
+        call.args[2],
+        primfunc_name_hint="multibox_transform_loc",
     )
