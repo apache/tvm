@@ -27,13 +27,13 @@
 #include <tvm/relax/transform.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include <algorithm>
 #include <cstddef>
 
 namespace tvm {
-namespace tir {
+namespace tirx {
 class SplitPrimFuncLayoutRewrite : public StmtMutator {
  public:
   explicit SplitPrimFuncLayoutRewrite(const PrimFunc& func) : original_func_(func) {}
@@ -236,7 +236,7 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
   /*! \brief The original primfunc*/
   PrimFunc original_func_;
 };
-}  // namespace tir
+}  // namespace tirx
 
 namespace relax {
 class SplitLayoutRewritePreproc : public ExprMutator {
@@ -246,9 +246,9 @@ class SplitLayoutRewritePreproc : public ExprMutator {
 
     // Step 1: Split the primfunc into preproc and compute
     for (auto [gv, func] : mod->functions) {
-      if (func->IsInstance<tir::PrimFuncNode>()) {
-        tir::SplitPrimFuncLayoutRewrite tir_rewriter(Downcast<tir::PrimFunc>(func));
-        auto [preproc_func, compute_func] = tir_rewriter.Transform(Downcast<tir::PrimFunc>(func));
+      if (func->IsInstance<tirx::PrimFuncNode>()) {
+        tirx::SplitPrimFuncLayoutRewrite tir_rewriter(Downcast<tirx::PrimFunc>(func));
+        auto [preproc_func, compute_func] = tir_rewriter.Transform(Downcast<tirx::PrimFunc>(func));
         if (preproc_func.defined()) {
           mutator.split_funcs_.emplace(gv.get(),
                                        std::make_tuple(preproc_func.value(), compute_func));
@@ -274,7 +274,7 @@ class SplitLayoutRewritePreproc : public ExprMutator {
     static const Op& call_tir_op = Op::Get("relax.call_tir");
     Call call = Downcast<Call>(ExprMutator::VisitExpr_(op));
 
-    // Step 1: Skip call to other than `tir.call_tir`
+    // Step 1: Skip call to other than `tirx.call_tir`
     if (!call->op.same_as(call_tir_op)) {
       return call;
     }
@@ -302,9 +302,9 @@ class SplitLayoutRewritePreproc : public ExprMutator {
     ffi::Array<StructInfo> preproc_sinfo_list;
     for (const auto& info : rewrite_infos) {
       preproc_args.push_back(call_tir_args[info.buffer_index]);
-      tir::Buffer rewritten_buffer = info.post_rewrite_buffer;
+      tirx::Buffer rewritten_buffer = info.post_rewrite_buffer;
       for (const auto& shape_expr : rewritten_buffer->shape) {
-        TVM_FFI_ICHECK(shape_expr.as<tir::IntImmNode>())
+        TVM_FFI_ICHECK(shape_expr.as<tirx::IntImmNode>())
             << "Currently does not support rewrite buffer with "
                "dynamic shape.";
       }
@@ -332,9 +332,9 @@ class SplitLayoutRewritePreproc : public ExprMutator {
   }
 
  private:
-  std::unordered_map<const GlobalVarNode*, std::tuple<tir::PrimFunc, tir::PrimFunc>> split_funcs_;
+  std::unordered_map<const GlobalVarNode*, std::tuple<tirx::PrimFunc, tirx::PrimFunc>> split_funcs_;
   std::unordered_map<const GlobalVarNode*,
-                     std::vector<tir::SplitPrimFuncLayoutRewrite::RewriteInfo>>
+                     std::vector<tirx::SplitPrimFuncLayoutRewrite::RewriteInfo>>
       rewrite_infos_;
 };
 

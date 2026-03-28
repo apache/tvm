@@ -25,7 +25,7 @@ from tvm.base import TVMError
 from tvm.ir.base import assert_structural_equal
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
-from tvm.script.parser import tir as T
+from tvm.script.parser import tirx as T
 
 
 def test_simple():
@@ -1212,7 +1212,7 @@ def test_report_error():
             rxplaceholder: T.Buffer((T.int64(3), T.int64(3)), "float32"),
             rxplaceholder_red: T.Buffer((), "float32"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for k0, k1 in T.grid(T.int64(3), T.int64(3)):
                 with T.sblock("rxplaceholder_red"):
                     v_k0, v_k1 = T.axis.remap("RR", [k0, k1])

@@ -24,9 +24,9 @@ import tvm.topi.testing
 from tvm import relax
 from tvm.relax.transform import LegalizeOps
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
-# TODO(tvm-team): `tir.transform.DefaultGPUSchedule` does not work.
+# TODO(tvm-team): `tirx.transform.DefaultGPUSchedule` does not work.
 target, dev = "llvm", tvm.cpu()
 
 

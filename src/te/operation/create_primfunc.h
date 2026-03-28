@@ -22,12 +22,12 @@
 
 #include <tvm/ffi/container/array.h>
 #include <tvm/te/tensor.h>
-#include <tvm/tir/function.h>
+#include <tvm/tirx/function.h>
 
 #include <optional>
 
 namespace tvm {
-namespace tir {
+namespace tirx {
 
 /*! \brief Use Tensor Expression to create a schedulable TensorIR func. */
 PrimFunc CreatePrimFunc(const ffi::Array<te::Tensor>& arg_list,
@@ -37,7 +37,7 @@ PrimFunc CreatePrimFunc(const ffi::Array<te::Tensor>& arg_list,
 PrimFunc CreatePrimFunc(const ffi::Array<ObjectRef>& arg_list,
                         std::optional<DataType> index_dtype_override);
 
-}  // namespace tir
+}  // namespace tirx
 }  // namespace tvm
 
 #endif  // TVM_TE_OPERATION_CREATE_PRIMFUNC_H_

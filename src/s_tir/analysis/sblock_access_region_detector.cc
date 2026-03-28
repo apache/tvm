@@ -24,15 +24,15 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/tir/op.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/op.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include <unordered_map>
 #include <unordered_set>
 
-#include "../../tir/transform/ir_utils.h"
+#include "../../tirx/transform/ir_utils.h"
 namespace tvm {
-namespace tir {
+namespace tirx {
 
 /*!
  * \brief Detect which regions of tensors in this block are read or written to. Regions are sorted
@@ -419,5 +419,5 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("s_tir.analysis.GetSBlockReadWriteRegion", GetSBlockReadWriteRegion);
 }
 
-}  // namespace tir
+}  // namespace tirx
 }  // namespace tvm

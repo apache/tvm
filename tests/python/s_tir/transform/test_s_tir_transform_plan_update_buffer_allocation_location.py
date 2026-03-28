@@ -19,9 +19,9 @@ import numpy as np
 
 import tvm
 import tvm.testing
-from tvm import s_tir, tir
+from tvm import s_tir, tirx
 from tvm.s_tir.tensor_intrin.hexagon import VRMPY_u8u8i32_INTRIN
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def _check(original, transformed):
@@ -356,14 +356,14 @@ def test_1D_cascade_op_rolling_buffer():
 def test_buffer_conditional_lowering():
     """Buffers passed as pointer arguments are unmodified
 
-    Confirm that the `tir.PlanAndUpdateBufferAllocationLocation` pass
+    Confirm that the `tirx.PlanAndUpdateBufferAllocationLocation` pass
     leaves (Buffer nodes corresponding to pointer-typed PrimFunc arguments)
     unchanged, rather than lowering them to `reads`, `writes`, and `alloc_buffer` nodes.
     """
 
     @T.prim_func
     def before(A: T.handle("float32")):
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         for i in range(1):
             A_1 = T.decl_buffer((1,), data=A)
             A_1[i] = 0
@@ -375,7 +375,7 @@ def test_buffer_conditional_lowering():
 def test_dltensor_buffer_is_unlowered():
     """Buffers allocated with a Bind are unmodified
 
-    Confirm that the `tir.PlanAndUpdateBufferAllocationLocation` pass
+    Confirm that the `tirx.PlanAndUpdateBufferAllocationLocation` pass
     leaves (Buffer nodes corresponding to PrimFunc DLTensor arguments)
     unchanged, rather than lowering them to `reads`, `writes`, and
     `alloc_buffer` nodes.

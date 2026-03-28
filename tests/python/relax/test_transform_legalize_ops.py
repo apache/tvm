@@ -25,7 +25,7 @@ from tvm.relax.transform import LegalizeOps
 from tvm.relax.transform.legalize_ops.common import register_legalize
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def test_customize_legalize():
@@ -48,7 +48,7 @@ def test_customize_legalize():
 
         @T.prim_func(private=True)
         def add(rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), T_add: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(4), T.int64(3), T.int64(2), T.int64(3)):
                 with T.sblock("T_add"):
                     ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -111,7 +111,7 @@ def test_legalize_multiple_types_of_call():
 
         @T.prim_func(private=True)
         def multiply(rxplaceholder: T.Buffer((T.int64(3), T.int64(3)), "float32"), T_multiply: T.Buffer((T.int64(3), T.int64(3)), "float32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for ax0, ax1 in T.grid(T.int64(3), T.int64(3)):
                 with T.sblock("T_multiply"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
@@ -195,7 +195,7 @@ def test_legalize_scalar_data_type_preserve():
             rxplaceholder: T.Buffer((T.int64(3), T.int64(3)), "float16"),
             T_multiply: T.Buffer((T.int64(3), T.int64(3)), "float16"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
             for ax0, ax1 in T.grid(T.int64(3), T.int64(3)):
                 with T.sblock("T_multiply"):
@@ -219,7 +219,7 @@ def test_legalize_scalar_data_type_preserve():
             rxplaceholder: T.Buffer((T.int64(3), T.int64(3)), "uint8"),
             T_multiply: T.Buffer((T.int64(3), T.int64(3)), "uint8"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
             for ax0, ax1 in T.grid(T.int64(3), T.int64(3)):
                 with T.sblock("T_multiply"):
@@ -241,14 +241,14 @@ def test_legalize_scalar_data_type_preserve():
             rxplaceholder: T.Buffer((T.int64(3), T.int64(3)), "bool"),
             T_equal: T.Buffer((T.int64(3), T.int64(3)), "bool"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
             for ax0, ax1 in T.grid(T.int64(3), T.int64(3)):
                 with T.sblock("T_equal"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(rxplaceholder[v_ax0, v_ax1])
                     T.writes(T_equal[v_ax0, v_ax1])
-                    T_equal[v_ax0, v_ax1] = rxplaceholder[v_ax0, v_ax1] == tvm.tir.const(True, "bool")
+                    T_equal[v_ax0, v_ax1] = rxplaceholder[v_ax0, v_ax1] == tvm.tirx.const(True, "bool")
 
         @R.function
         def main(x: R.Tensor((3, 3), dtype="bool")) -> R.Tensor((3, 3), dtype="bool"):
@@ -401,7 +401,7 @@ def test_legalize_with_vdevice():
             B: T.Buffer((T.int64(32), T.int64(32)), "float32"),
             C: T.Buffer((T.int64(32), T.int64(32)), "float32"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for iters in T.grid(T.int64(32), T.int64(32)):
                 with T.sblock("T_add"):
                     ax0, ax1 = T.axis.remap("SS", iters)
@@ -426,7 +426,7 @@ def test_legalize_with_vdevice():
             B: T.Buffer((T.int64(32), T.int64(32)), "float32"),
             C: T.Buffer((T.int64(32), T.int64(32)), "float32"),
         ):
-            T.func_attr({"target": T.target("llvm"), "tir.noalias": True})
+            T.func_attr({"target": T.target("llvm"), "tirx.noalias": True})
             for iters in T.grid(T.int64(32), T.int64(32)):
                 with T.sblock("T_add"):
                     ax0, ax1 = T.axis.remap("SS", iters)

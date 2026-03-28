@@ -21,17 +21,17 @@
 
 #include <tvm/s_tir/schedule/schedule.h>
 #include <tvm/s_tir/schedule/state.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include <unordered_map>
 #include <utility>
 
 #include "../../arith/ir_mutator_with_analyzer.h"
-#include "../../tir/ir/functor_common.h"
+#include "../../tirx/ir/functor_common.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 /******** Annotation ********/
 

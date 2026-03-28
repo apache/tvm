@@ -45,7 +45,7 @@ def matmul(lhs, rhs, transa=False, transb=False, **kwargs):
     return te.extern(
         (n, m),
         [lhs, rhs],
-        lambda ins, outs: tvm.tir.call_packed(
+        lambda ins, outs: tvm.tirx.call_packed(
             "tvm.contrib.cblas.matmul", ins[0], ins[1], outs[0], transa, transb
         ),
         name="C",
@@ -79,7 +79,7 @@ def batch_matmul(lhs, rhs, transa=False, transb=False, iterative=False, **kwargs
     return te.extern(
         (b, n, m),
         [lhs, rhs],
-        lambda ins, outs: tvm.tir.call_packed(
+        lambda ins, outs: tvm.tirx.call_packed(
             "tvm.contrib.cblas.batch_matmul"
             if not iterative
             else "tvm.contrib.cblas.batch_matmul_iterative",

@@ -27,19 +27,19 @@
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/target/target.h>
-#include <tvm/tir/builtin.h>
-#include <tvm/tir/expr.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/expr.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include <unordered_set>
 
 #include "../../runtime/thread_storage_scope.h"
-#include "../../tir/transform/ir_utils.h"
-#include "../../tir/transform/update_pointer_storage_scope.h"
+#include "../../tirx/transform/ir_utils.h"
+#include "../../tirx/transform/update_pointer_storage_scope.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 class ThreadAllreduceBuilder final : public StmtExprMutator {
  public:
@@ -49,7 +49,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
         max_num_threads_(target->GetAttr<Integer>("max_num_threads", -1).value().IntValue()) {}
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == tir::attr::thread_extent) {
+    if (op->attr_key == tirx::attr::thread_extent) {
       thread_extents_.push_back(op);
       Stmt ret = StmtExprMutator::VisitStmt_(op);
       thread_extents_.pop_back();
@@ -102,7 +102,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     cow->buffer = replacement;
     if (replacement.scope() == "shared") {
       auto annotations = cow->annotations;
-      annotations.Set(tir::attr::kVolatile, Bool(true));
+      annotations.Set(tirx::attr::kVolatile, Bool(true));
       cow->annotations = annotations;
     }
     return node;
@@ -868,7 +868,7 @@ class DeferredRemapper : public StmtExprMutator {
         cow->buffer = replacement;
         if (replacement.scope() == "shared") {
           auto annotations = cow->annotations;
-          annotations.Set(tir::attr::kVolatile, Bool(true));
+          annotations.Set(tirx::attr::kVolatile, Bool(true));
           cow->annotations = annotations;
         }
       }

@@ -27,10 +27,10 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/data_type.h>
-#include <tvm/tir/analysis.h>
-#include <tvm/tir/expr.h>
-#include <tvm/tir/op.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/analysis.h>
+#include <tvm/tirx/expr.h>
+#include <tvm/tirx/op.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include "int_operator.h"
 
@@ -38,7 +38,7 @@ namespace tvm {
 namespace arith {
 
 using namespace tvm::runtime;
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 struct ExprLess {
   bool operator()(const PrimExpr& l, const PrimExpr& r) const {
@@ -411,7 +411,7 @@ IntConstraints SolveInequalitiesToRange(const IntConstraints& inequalities) {
         if (analyzer.CanProveGreaterEqual(-best_range->extent, 0)) {
           // range.extent <= 0 implies the input inequality system is unsolvable
           return IntConstraints(/*variables=*/{}, /*ranges=*/{},
-                                /*relations=*/{tir::make_zero(DataType::Bool())});
+                                /*relations=*/{tirx::make_zero(DataType::Bool())});
         }
         res_ranges.Set(var, best_range);
         vranges.Set(var, best_range);
@@ -496,7 +496,7 @@ IntConstraintsTransform SolveInequalitiesDeskewRange(const IntConstraints& inequ
                                        IntConstraints(
                                            /*variables=*/{},
                                            /*ranges=*/{},
-                                           /*relations=*/{tir::make_zero(DataType::Bool())}),
+                                           /*relations=*/{tirx::make_zero(DataType::Bool())}),
                                        {}, {});
       } else {
         // created new_var starts from 0

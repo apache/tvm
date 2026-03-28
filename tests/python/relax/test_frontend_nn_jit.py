@@ -20,7 +20,7 @@ import torch
 
 import tvm
 import tvm.testing
-from tvm import tir
+from tvm import tirx
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import spec
 
@@ -52,7 +52,7 @@ def test_jit_int_input(debug):
         def __init__(self):
             pass
 
-        def forward(self, x: nn.Tensor, i: tir.Var):
+        def forward(self, x: nn.Tensor, i: tirx.Var):
             y = nn.add(x, x)
             y = nn.reshape(y, (i, 5, 5))
             return y
@@ -74,7 +74,7 @@ def test_jit_with_effect(debug):
         def __init__(self):
             self.cache = nn.KVCache(10, [10, 5])
 
-        def forward(self, x: nn.Tensor, total_seq_len: tir.Var):
+        def forward(self, x: nn.Tensor, total_seq_len: tirx.Var):
             self.cache.append(x)
             y = self.cache.view(total_seq_len)
             return y

@@ -26,8 +26,8 @@
 #include "../src/arith/presburger_set.h"
 
 TEST(PresburgerSet, eval) {
-  auto x = tvm::tir::Var("x");
-  auto y = tvm::tir::Var("y");
+  auto x = tvm::tirx::Var("x");
+  auto y = tvm::tirx::Var("y");
   auto sub_constraint0 = (x + y < 20) && (x - y <= 0);
   auto sub_constraint1 = x >= 0 && x < 20 && y >= 0 && y < 20;
   auto constraint = sub_constraint0 && sub_constraint1;
@@ -35,7 +35,7 @@ TEST(PresburgerSet, eval) {
 
   auto target = x + 2 * y;
   auto result = EvalSet(target, set);
-  ASSERT_TRUE(tvm::tir::is_zero(result.min()));
-  ASSERT_TRUE(tvm::tir::is_const_int(result.max(), 38));
+  ASSERT_TRUE(tvm::tirx::is_zero(result.min()));
+  ASSERT_TRUE(tvm::tirx::is_const_int(result.max(), 38));
 }
 #endif  // TVM_MLIR_VERSION

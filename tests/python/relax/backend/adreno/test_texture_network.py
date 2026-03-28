@@ -31,7 +31,7 @@ from tvm.relax.frontend.onnx import from_onnx
 from tvm.relax.transform.legalize_ops import adreno as legalize_adreno
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import relax as relax_builder
 

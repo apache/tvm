@@ -25,14 +25,14 @@ import pytest
 import tvm
 import tvm.script
 import tvm.testing
-from tvm import relax, rpc, te, tir, topi
+from tvm import relax, rpc, te, tirx, topi
 from tvm.contrib import cc, popen_pool, utils
 from tvm.relax.testing import nn
 from tvm.relax.testing.vm import check_saved_func
 from tvm.runtime import ShapeTuple
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 EXEC_MODE = ["bytecode", "compiled"]
 
@@ -238,7 +238,7 @@ def test_call_tir_inplace_e2e_simple(exec_mode):
             out1: T.Buffer((2, 3), "int32"),
         ):
             # copies the contents of C into A, B, and out1
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with T.sblock("T_zeros"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
@@ -292,7 +292,7 @@ def test_call_tir_inplace_e2e_rw(exec_mode):
         @T.prim_func
         def inplace_add(A: T.Buffer((2, 3), "int32"), B: T.Buffer((2, 3), "int32")):
             # sums A and B, storing the result in A
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with T.sblock("T_add"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
@@ -331,7 +331,7 @@ def test_vm_emit_te_extern(exec_mode):
         print("skip because extern function is not available")
         return
     bb = relax.BlockBuilder()
-    n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+    n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
     x = relax.Var("x", R.Tensor([n, m], "float32"))
     y = relax.Var("y", R.Tensor([m, n], "float32"))
 
@@ -355,12 +355,12 @@ def test_vm_emit_te_extern(exec_mode):
 def test_vm_emit_te_concat(exec_mode):
     # concatenate of two vectors of size (n,) and (m,)
     bb = relax.BlockBuilder()
-    n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+    n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
     x = relax.Var("x", R.Tensor([n], "float32"))
     y = relax.Var("y", R.Tensor([m], "float32"))
 
     def te_func(A, B):
-        C = te.compute((n + m), lambda i: tvm.tir.if_then_else(i < n, A[i], B[i - n]))
+        C = te.compute((n + m), lambda i: tvm.tirx.if_then_else(i < n, A[i], B[i - n]))
         return C
 
     with bb.function("rx_func", [x, y]):
@@ -391,7 +391,7 @@ def test_vm_emit_te_concat(exec_mode):
 
 def test_vm_emit_te_dtype_change(exec_mode):
     bb = relax.BlockBuilder()
-    n = tir.Var("n", "int64")
+    n = tirx.Var("n", "int64")
     x = relax.Var("x", R.Tensor([n], "float32"))
 
     # convert a tensor with dtype of float32 to int16
@@ -420,11 +420,11 @@ def test_vm_emit_te_dtype_change(exec_mode):
 
 def test_vm_emit_te_floor_symbolic_shape(exec_mode):
     bb = relax.BlockBuilder()
-    n = tir.Var("n", "int64")
+    n = tirx.Var("n", "int64")
     x = relax.Var("x", R.Tensor([n], "float32"))
 
     def te_func(A):
-        C = te.compute((tir.floordiv(n, 2),), lambda i: A[i] + 1)
+        C = te.compute((tirx.floordiv(n, 2),), lambda i: A[i] + 1)
         return C
 
     with bb.function("rx_func", [x]):
@@ -499,7 +499,7 @@ def test_vm_emit_te_constant_param_gpu(exec_mode):
 
 def test_vm_relax_symbolic_shape(exec_mode):
     bb = relax.BlockBuilder()
-    n = tir.Var("n", "int64")
+    n = tirx.Var("n", "int64")
     x = relax.Var("x", R.Tensor([n], "float32"))
     y = relax.Var("y", R.Tensor([(n // 2) + 1], "float32"))
 
@@ -648,7 +648,7 @@ def test_vm_relax_prim_value_fp32(exec_mode):
 def test_vm_relax_dyn_tir_shape(exec_mode):
     # case where TIR variables are unbound in generated PrimFunc
     bb = relax.BlockBuilder()
-    n = tir.Var("n", "int64")
+    n = tirx.Var("n", "int64")
 
     def te_func(A):
         C = te.compute((n + 1), lambda i: A[i])
@@ -680,7 +680,7 @@ def test_vm_relax_dyn_tir_shape(exec_mode):
 
 def test_vm_tuple(exec_mode):
     bb = relax.BlockBuilder()
-    n = tir.Var("n", "int64")
+    n = tirx.Var("n", "int64")
 
     with bb.function("rx_func"):
         x = nn.Placeholder((n,), dtype="float32", name="x")

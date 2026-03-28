@@ -28,7 +28,7 @@ from .. import tag
 def can_convert_multiply_to_intdiv(origin_size, scaled_size):
     """Check whether can convert multiplication to division"""
     # Only support IntImm type
-    if not isinstance(scaled_size, tvm.tir.expr.IntImm):
+    if not isinstance(scaled_size, tvm.tirx.expr.IntImm):
         return False
 
     div = scaled_size / origin_size.astype("float")
@@ -362,10 +362,10 @@ def _resize_1d(
 
     if coordinate_transformation_mode == "tf_crop_and_resize":
         # use extrapolation_value if in_x is out of boundary
-        value = tvm.tir.if_then_else(
+        value = tvm.tirx.if_then_else(
             in_x < 0,
             extrapolation_value,
-            tvm.tir.if_then_else(in_x > image_width - 1, extrapolation_value, value),
+            tvm.tirx.if_then_else(in_x > image_width - 1, extrapolation_value, value),
         )
     return _cast_output(value, data.dtype, out_dtype=out_dtype)
 
@@ -434,7 +434,7 @@ def resize1d(
     out_dtype: string, optional
         Type to return. If left None will be same as input type.
 
-    output_shape: tvm.tir.container.Array, optional
+    output_shape: tvm.tirx.container.Array, optional
         Shape to return. If left None will be inferred
         (If shape is determined dynamically, pass out_dtype.shape as output_shape)
 
@@ -470,7 +470,7 @@ def resize1d(
 
     for i in range(1):
         if isinstance(size[i], int):
-            size[i] = tvm.tir.IntImm("int32", size[i])
+            size[i] = tvm.tirx.IntImm("int32", size[i])
 
     def compute_func(*indices):
         return _resize_1d(
@@ -729,16 +729,16 @@ def _resize_2d(
         raise ValueError("Unknown resize method:", method)
 
     if coordinate_transformation_mode == "tf_crop_and_resize":
-        out = tvm.tir.if_then_else(
+        out = tvm.tirx.if_then_else(
             in_y < 0,
             extrapolation_value,
-            tvm.tir.if_then_else(in_y > image_height - 1, extrapolation_value, value),
+            tvm.tirx.if_then_else(in_y > image_height - 1, extrapolation_value, value),
         )
         # use extrapolation_value if in_x is out of boundary
-        value = tvm.tir.if_then_else(
+        value = tvm.tirx.if_then_else(
             in_x < 0,
             extrapolation_value,
-            tvm.tir.if_then_else(in_x > image_width - 1, extrapolation_value, out),
+            tvm.tirx.if_then_else(in_x > image_width - 1, extrapolation_value, out),
         )
     return _cast_output(value, data.dtype, out_dtype=out_dtype)
 
@@ -801,7 +801,7 @@ def resize2d(
     out_dtype: string, optional
         Type to return. If left None will be same as input type.
 
-    output_shape: tvm.tir.container.Array, optional
+    output_shape: tvm.tirx.container.Array, optional
         Shape to return. If left None will be inferred
         (If shape is determined dynamically, pass out_dtype.shape as output_shape)
 
@@ -837,7 +837,7 @@ def resize2d(
 
     for i in range(2):
         if isinstance(size[i], int):
-            size[i] = tvm.tir.IntImm("int32", size[i])
+            size[i] = tvm.tirx.IntImm("int32", size[i])
 
     def compute_func(*indices):
         return _resize_2d(
@@ -1193,21 +1193,21 @@ def _resize_3d(
         raise ValueError("Unknown resize method:", method)
 
     if coordinate_transformation_mode == "tf_crop_and_resize":
-        out = tvm.tir.if_then_else(
+        out = tvm.tirx.if_then_else(
             in_z < 0,
             extrapolation_value,
-            tvm.tir.if_then_else(in_z > image_depth - 1, extrapolation_value, value),
+            tvm.tirx.if_then_else(in_z > image_depth - 1, extrapolation_value, value),
         )
-        out = tvm.tir.if_then_else(
+        out = tvm.tirx.if_then_else(
             in_y < 0,
             extrapolation_value,
-            tvm.tir.if_then_else(in_y > image_height - 1, extrapolation_value, value),
+            tvm.tirx.if_then_else(in_y > image_height - 1, extrapolation_value, value),
         )
         # use extrapolation_value if in_x is out of boundary
-        value = tvm.tir.if_then_else(
+        value = tvm.tirx.if_then_else(
             in_x < 0,
             extrapolation_value,
-            tvm.tir.if_then_else(in_x > image_width - 1, extrapolation_value, out),
+            tvm.tirx.if_then_else(in_x > image_width - 1, extrapolation_value, out),
         )
     return _cast_output(value, data.dtype, out_dtype=out_dtype)
 
@@ -1270,7 +1270,7 @@ def resize3d(
     out_dtype: string, optional
         Type to return. If left None will be same as input type.
 
-    output_shape: tvm.tir.container.Array, optional
+    output_shape: tvm.tirx.container.Array, optional
         Shape to return. If left None will be inferred
         (If shape is determined dynamically, pass out_dtype.shape as output_shape)
 
@@ -1300,7 +1300,7 @@ def resize3d(
 
     for i in range(3):
         if isinstance(size[i], int):
-            size[i] = tvm.tir.IntImm("int32", size[i])
+            size[i] = tvm.tirx.IntImm("int32", size[i])
 
     def compute_func(*indices):
         return _resize_3d(

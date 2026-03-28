@@ -28,7 +28,7 @@
 #include <tvm/ir/module.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/tir/expr_functor.h>
+#include <tvm/tirx/expr_functor.h>
 
 #include <algorithm>
 #include <string>
@@ -223,7 +223,7 @@ class VarReplacer : public ExprMutator {
  * \details This mutator is used to prevent the same symbolic var from being used in different
  *          functions, which is malformed.
  */
-class SymbolicVarRenewMutator : public ExprMutator, tir::ExprMutator {
+class SymbolicVarRenewMutator : public ExprMutator, tirx::ExprMutator {
  public:
   static Function Renew(const Function& function) {
     SymbolicVarRenewMutator mutator;
@@ -234,21 +234,21 @@ class SymbolicVarRenewMutator : public ExprMutator, tir::ExprMutator {
  protected:
   using relax::ExprMutator::VisitExpr;
   using relax::ExprMutator::VisitExpr_;
-  using tir::ExprMutator::VisitExpr_;
+  using tirx::ExprMutator::VisitExpr_;
 
-  PrimExpr VisitPrimExpr(const PrimExpr& expr) final { return tir::ExprMutator::VisitExpr(expr); }
+  PrimExpr VisitPrimExpr(const PrimExpr& expr) final { return tirx::ExprMutator::VisitExpr(expr); }
 
   // TODO(Siyuan): enhance the method to the following steps:
-  // 1. Visit and replace all tir::Vars at the definition point
+  // 1. Visit and replace all tirx::Vars at the definition point
   // 2. Revisit the function again and update the use side.
-  PrimExpr VisitExpr_(const tir::VarNode* op) final {
-    auto it = var_map_.find(ffi::GetRef<tir::Var>(op));
+  PrimExpr VisitExpr_(const tirx::VarNode* op) final {
+    auto it = var_map_.find(ffi::GetRef<tirx::Var>(op));
     if (it != var_map_.end()) {
       return (*it).second;
     } else {
-      auto n = ffi::make_object<tir::VarNode>(*op);
-      tir::Var v(n);
-      var_map_.Set(ffi::GetRef<tir::Var>(op), v);
+      auto n = ffi::make_object<tirx::VarNode>(*op);
+      tirx::Var v(n);
+      var_map_.Set(ffi::GetRef<tirx::Var>(op), v);
       return v;
     }
   }
@@ -275,11 +275,11 @@ class SymbolicVarRenewMutator : public ExprMutator, tir::ExprMutator {
     }
   }
 
-  ffi::Map<tir::Var, tir::Var> var_map_;
+  ffi::Map<tirx::Var, tirx::Var> var_map_;
 };
 
 /*!
- * \brief Copy a function while renewing the relax Vars and the tir Vars.
+ * \brief Copy a function while renewing the relax Vars and the tirx Vars.
  * \details All variables that are bound inside the original function would be copied to satisfy
  * the restriction in the well-formed check: Variables in Relax must be bound exactly once.
  */

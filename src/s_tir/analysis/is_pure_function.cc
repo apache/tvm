@@ -23,14 +23,14 @@
  */
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
-#include <tvm/tir/analysis.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/analysis.h>
+#include <tvm/tirx/stmt_functor.h>
 
-#include "../../tir/ir/tir_visitor_with_path.h"
+#include "../../tirx/ir/tir_visitor_with_path.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 using AccessPath = ffi::reflection::AccessPath;
 

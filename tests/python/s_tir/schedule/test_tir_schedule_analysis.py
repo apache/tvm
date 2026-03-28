@@ -35,9 +35,9 @@ from tvm.s_tir.tensor_intrin.cuda import (
     WMMA_SYNC_16x16x16_f16f16f32_INTRIN,
 )
 from tvm.s_tir.tensor_intrin.x86 import dot_product_16x4_u8i8i32_desc
-from tvm.script import tir as T
+from tvm.script import tirx as T
 from tvm.te import create_prim_func
-from tvm.tir import (
+from tvm.tirx import (
     Evaluate,
     For,
     ForKind,
@@ -47,9 +47,9 @@ from tvm.tir import (
     floordiv,
     floormod,
 )
-from tvm.tir.analysis import expr_deep_equal
-from tvm.tir.function import TensorIntrin
-from tvm.tir.stmt_functor import pre_order_visit
+from tvm.tirx.analysis import expr_deep_equal
+from tvm.tirx.function import TensorIntrin
+from tvm.tirx.stmt_functor import pre_order_visit
 
 
 def _make_vars(*args: str) -> list[Var]:
@@ -164,7 +164,7 @@ class DenseTIRModule:
         placeholder_1: T.Buffer((64, 256, 16, 4), "int8"),
         compute: T.Buffer((1024, 1024), "int32"),
     ) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with T.sblock("root"):
             T.reads()
             T.writes()
@@ -188,7 +188,7 @@ class Conv2dNCHWcTIRModule:
         placeholder_1: T.Buffer((16, 4, 1, 1, 4, 16, 4), "int8"),
         conv2d_NCHWc_int8: T.Buffer((1, 16, 56, 56, 16), "int32"),
     ) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         for i0, i1, i2, i3, i4, i5, i6, i7, i8, i9 in T.grid(1, 16, 56, 56, 16, 1, 1, 4, 4, 4):
             with T.sblock("conv2d_NCHWc_int8"):
                 (
@@ -225,7 +225,7 @@ def collect_loops(prim_func):
     loops = []
 
     def callback(node):
-        if isinstance(node, tvm.tir.For):
+        if isinstance(node, tvm.tirx.For):
             loops.append(node)
         return True
 

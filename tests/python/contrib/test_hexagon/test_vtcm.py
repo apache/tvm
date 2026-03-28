@@ -20,8 +20,8 @@
 import pytest
 
 import tvm.testing
-from tvm import tir
-from tvm.script import tir as T
+from tvm import tirx
+from tvm.script import tirx as T
 
 from .infrastructure import get_hexagon_target
 
@@ -80,7 +80,7 @@ def test_vtcm_limit(vtcm_capacity, limited):
             "Case 2 - with.VTCM memory allocation limiter does not work correctly "
         )
 
-    with tvm.transform.PassContext(config={"tir.vtcm_capacity": vtcm_capacity}):
+    with tvm.transform.PassContext(config={"tirx.vtcm_capacity": vtcm_capacity}):
         assert (
             _raises_exception(
                 lambda: tvm.compile(sch.mod, target=get_hexagon_target("v68", vtcm_capacity=0))

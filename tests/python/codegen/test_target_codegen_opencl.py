@@ -20,7 +20,7 @@ import re
 import tvm
 import tvm.testing
 from tvm.script import ir as I
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 target = "opencl"
 
@@ -33,7 +33,7 @@ def test_opencl_ternary_expression():
         class Module:
             @T.prim_func
             def main(A: T.Buffer((1,), dtype), C: T.Buffer((1,), dtype)):
-                T.func_attr({"tir.noalias": True})
+                T.func_attr({"tirx.noalias": True})
                 for i in T.thread_binding(1, thread="threadIdx.x"):
                     with T.sblock("C"):
                         v_i = T.axis.spatial(1, i)
@@ -48,7 +48,7 @@ def test_opencl_ternary_expression():
                             ),
                         )
 
-        fun = tvm.tir.build(Module, target=target)
+        fun = tvm.tirx.build(Module, target=target)
         a = tvm.runtime.empty((n,), dtype, dev)
         c = tvm.runtime.empty((n,), dtype, dev)
         # Only need to test compiling here
@@ -59,7 +59,7 @@ def test_opencl_ternary_expression():
         class Module:
             @T.prim_func
             def main(A: T.Buffer((1,), dtype), C: T.Buffer((1,), dtype)):
-                T.func_attr({"tir.noalias": True})
+                T.func_attr({"tirx.noalias": True})
                 for i in T.thread_binding(1, thread="threadIdx.x"):
                     with T.sblock("C"):
                         v_i = T.axis.spatial(1, i)
@@ -74,7 +74,7 @@ def test_opencl_ternary_expression():
                             ),
                         )
 
-        fun = tvm.tir.build(Module, target=target)
+        fun = tvm.tirx.build(Module, target=target)
         a = tvm.runtime.empty((n,), dtype, dev)
         c = tvm.runtime.empty((n,), dtype, dev)
         # Only need to test compiling here
@@ -100,7 +100,7 @@ def test_opencl_inf_nan():
         class Module:
             @T.prim_func
             def main(A: T.Buffer((1,), dtype), C: T.Buffer((1,), dtype)):
-                T.func_attr({"tir.noalias": True})
+                T.func_attr({"tirx.noalias": True})
                 for i in T.thread_binding(1, thread="threadIdx.x"):
                     with T.sblock("C"):
                         v_i = T.axis.spatial(1, i)
@@ -108,7 +108,7 @@ def test_opencl_inf_nan():
                         T.writes(C[v_i])
                         C[v_i] = T.Cast(dtype, value)
 
-        fun = tvm.tir.build(Module, target=target)
+        fun = tvm.tirx.build(Module, target=target)
         a = tvm.runtime.empty((n,), dtype, dev)
         c = tvm.runtime.empty((n,), dtype, dev)
         # Only need to test compiling here
@@ -132,7 +132,7 @@ def test_opencl_max():
         class Module:
             @T.prim_func
             def main(A: T.Buffer((1,), dtype), C: T.Buffer((1,), dtype)):
-                T.func_attr({"tir.noalias": True})
+                T.func_attr({"tirx.noalias": True})
                 for i in T.thread_binding(1, thread="threadIdx.x"):
                     with T.sblock("C"):
                         v_i = T.axis.spatial(1, i)
@@ -140,7 +140,7 @@ def test_opencl_max():
                         T.writes(C[v_i])
                         C[v_i] = T.max(A[0] + T.Cast(dtype, 1), T.Cast(dtype, 0))
 
-        fun = tvm.tir.build(Module, target=target)
+        fun = tvm.tirx.build(Module, target=target)
         a = tvm.runtime.empty((n,), dtype, dev)
         c = tvm.runtime.empty((n,), dtype, dev)
         # Only need to test compiling here
@@ -162,7 +162,7 @@ def test_opencl_erf():
         class Module:
             @T.prim_func
             def main(A: T.Buffer((1,), dtype), C: T.Buffer((1,), dtype)):
-                T.func_attr({"tir.noalias": True})
+                T.func_attr({"tirx.noalias": True})
                 for i0 in T.thread_binding(1, thread="threadIdx.x"):
                     with T.sblock("C"):
                         v_i0 = T.axis.spatial(1, i0)
@@ -170,7 +170,7 @@ def test_opencl_erf():
                         T.writes(C[v_i0])
                         C[v_i0] = T.erf(A[v_i0])
 
-        fun = tvm.tir.build(Module, target=target)
+        fun = tvm.tirx.build(Module, target=target)
 
         source_str = fun.imports[0].inspect_source()
         matches = re.findall("erf", source_str)
@@ -190,7 +190,7 @@ def test_opencl_type_casting():
     class Module:
         @T.prim_func
         def main(C: T.Buffer((32,), "float32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i_0 in T.thread_binding(8, thread="threadIdx.x"):
                 for i_1 in T.vectorized(4):
                     with T.sblock("C"):
@@ -202,7 +202,7 @@ def test_opencl_type_casting():
                         )
 
     def check_type_casting(ctx, n, dtype):
-        fun = tvm.tir.build(Module, target=target)
+        fun = tvm.tirx.build(Module, target=target)
         c = tvm.runtime.empty((n,), dtype, ctx)
         assembly = fun.imports[0].inspect_source()
         lcond = "convert_int4(((convert_uint4(((uint4)(((convert_int(get_local_id(0))) == 3), ((convert_int(get_local_id(0))) == 3), ((convert_int(get_local_id(0))) == 3), ((convert_int(get_local_id(0))) == 3)))))"
@@ -231,7 +231,7 @@ def test_opencl_ceil_log2(target):
         class Module:
             @T.prim_func
             def main(C: T.Buffer((n,), "int32")):
-                T.func_attr({"tir.noalias": True})
+                T.func_attr({"tirx.noalias": True})
                 for i in T.thread_binding(n, thread="threadIdx.x"):
                     with T.sblock("C"):
                         v_i = T.axis.spatial(n, i)
@@ -239,7 +239,7 @@ def test_opencl_ceil_log2(target):
                         T.writes(C[v_i])
                         C[v_i] = T.Cast("int32", T.ceil(T.log2(T.Cast(inter_dtype, v_i))))
 
-        fun = tvm.tir.build(Module, target=target)
+        fun = tvm.tirx.build(Module, target=target)
         assembly = fun.imports[0].inspect_source()
         if is_adreno:
             pattern = "convert_float"
@@ -254,7 +254,7 @@ def _get_maximum_kernel_args(source):
     def get_kernel_args(source):
         import re
 
-        p = re.tir.build(r"__kernel void .+\((.*)\)")
+        p = re.tirx.build(r"__kernel void .+\((.*)\)")
         args = p.findall(source)
         return args
 

@@ -23,7 +23,7 @@
 #include <tvm/relax/struct_info.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/tir/expr.h>
+#include <tvm/tirx/expr.h>
 
 #include <algorithm>
 #include <array>

@@ -17,7 +17,7 @@
 # pylint: disable=invalid-name
 """Default legalization function for distir-related operators."""
 
-from tvm import relax, tir
+from tvm import relax, tirx
 
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr
@@ -30,7 +30,7 @@ from .common import register_legalize
 def _redistribute_replica_to_shard(_bb: BlockBuilder, call: Call) -> Expr:
     num_workers = call.attrs.num_workers
     axis = call.attrs.axis
-    worker_id_symbol = tir.Var("worker_id", "int64")
+    worker_id_symbol = tirx.Var("worker_id", "int64")
     worker_id_var = _bb.emit(
         call_pure_packed("runtime.disco.worker_id", sinfo_args=[ShapeStructInfo(None)])
     )

@@ -26,7 +26,7 @@
 
 #include <tvm/ir/transform.h>
 #include <tvm/target/target.h>
-#include <tvm/tir/transform.h>
+#include <tvm/tirx/transform.h>
 
 #include <string>
 #include <vector>
@@ -41,11 +41,11 @@ namespace s_tir {
  * \param func The input PrimFunc.
  * \return The renewed func.
  */
-TVM_DLL tir::PrimFunc RenewDefs(const tir::PrimFunc& func);
+TVM_DLL tirx::PrimFunc RenewDefs(const tirx::PrimFunc& func);
 
 namespace transform {
 
-using tir::transform::CreatePrimFuncPass;
+using tirx::transform::CreatePrimFuncPass;
 using tvm::transform::Pass;
 using tvm::transform::PassContext;
 
@@ -350,7 +350,7 @@ TVM_DLL Pass DefaultGPUSchedule();
 TVM_DLL Pass RemoveWeightLayoutRewriteBlock(bool skip_tensor_rewrite = false);
 
 /*!
- * \brief Remove stores of tir::builtin::undef.
+ * \brief Remove stores of tirx::builtin::undef.
  * \return The pass.
  */
 TVM_DLL Pass RemoveStoreUndef();

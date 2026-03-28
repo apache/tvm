@@ -17,8 +17,8 @@
 # ruff: noqa: F841
 import tvm
 import tvm.testing
-from tvm.script import tir as T
-from tvm.tir import floordiv, floormod
+from tvm.script import tirx as T
+from tvm.tirx import floordiv, floormod
 
 
 def ifuse(inputs, pred_extent=None):
@@ -32,8 +32,8 @@ def ifuse(inputs, pred_extent=None):
 
 def isplit(axis, factor):
     """Split iterators"""
-    fld = tvm.tir.floordiv
-    flm = tvm.tir.floormod
+    fld = tvm.tirx.floordiv
+    flm = tvm.tirx.floormod
     return [
         (fld(axis[0], factor), fld(axis[1] + (factor - 1), factor)),
         (flm(axis[0], factor), factor),
@@ -116,9 +116,9 @@ def assert_iter_sum_failure(iters, dom_map, predicate=True, check_level="surject
 
 
 def test_trivial():
-    x = tvm.tir.Var("x", "int32")
-    y = tvm.tir.Var("y", "int32")
-    z = tvm.tir.Var("z", "int32")
+    x = tvm.tirx.Var("x", "int32")
+    y = tvm.tirx.Var("y", "int32")
+    z = tvm.tirx.Var("z", "int32")
     dom_map = var_dom([(x, 3), (y, 4), (z, 1)])
 
     assert_iter_sum_pattern({x: (3, 0), y: (4, 0), 3: (1, 3)}, dom_map)
@@ -137,10 +137,10 @@ def test_trivial():
 
 
 def test_fuse():
-    x = tvm.tir.Var("x", "int32")
-    y = tvm.tir.Var("y", "int32")
-    c = tvm.tir.SizeVar("c", "int32")
-    c0 = tvm.tir.SizeVar("c0", "int32")
+    x = tvm.tirx.Var("x", "int32")
+    y = tvm.tirx.Var("y", "int32")
+    c = tvm.tirx.SizeVar("c", "int32")
+    c0 = tvm.tirx.SizeVar("c0", "int32")
 
     assert_iter_sum_pattern({y * 3 + 1 + c + x: (12, 1 + c)}, var_dom([(x, 3), (y, 4)]))
 
@@ -166,12 +166,12 @@ def test_fuse():
 
 
 def test_split():
-    x = tvm.tir.Var("x", "int32")
-    y = tvm.tir.Var("y", "int32")
-    c0 = tvm.tir.SizeVar("c0", "int32")
-    c1 = tvm.tir.SizeVar("c1", "int32")
-    fld = tvm.tir.floordiv
-    flm = tvm.tir.floormod
+    x = tvm.tirx.Var("x", "int32")
+    y = tvm.tirx.Var("y", "int32")
+    c0 = tvm.tirx.SizeVar("c0", "int32")
+    c1 = tvm.tirx.SizeVar("c1", "int32")
+    fld = tvm.tirx.floordiv
+    flm = tvm.tirx.floormod
 
     assert_iter_sum_pattern({fld(x, 3): (8, 0), flm(x, 3) * 2 + c1: (3, c1, 2)}, var_dom([(x, 24)]))
 
@@ -202,8 +202,8 @@ def test_split():
 
 
 def test_compound():
-    x = tvm.tir.Var("x", "int32")
-    y = tvm.tir.Var("y", "int32")
+    x = tvm.tirx.Var("x", "int32")
+    y = tvm.tirx.Var("y", "int32")
 
     xo, xi = isplit((x, 10), 5)
     yo, yi = isplit((y, 9), 3)
@@ -224,9 +224,9 @@ def test_compound():
 
 
 def test_compound_floormod_two_regression():
-    x = tvm.tir.Var("x", "int32")
-    fld = tvm.tir.floordiv
-    flm = tvm.tir.floormod
+    x = tvm.tirx.Var("x", "int32")
+    fld = tvm.tirx.floordiv
+    flm = tvm.tirx.floormod
     # regression
     # extent of 2 of negative scale cannot be normalized
     assert_iter_sum_failure(
@@ -236,9 +236,9 @@ def test_compound_floormod_two_regression():
 
 
 def test_predicate():
-    x = tvm.tir.Var("x", "int32")
-    y = tvm.tir.Var("y", "int32")
-    z = tvm.tir.Var("z", "int32")
+    x = tvm.tirx.Var("x", "int32")
+    y = tvm.tirx.Var("y", "int32")
+    z = tvm.tirx.Var("z", "int32")
 
     # available contraints
     # upper bound only
@@ -263,29 +263,29 @@ def test_predicate():
     assert_iter_sum_pattern(
         {x * 10 + y: (122, 6)},
         var_dom([(x, 13), (y, 10)]),
-        predicate=tvm.tir.And(x * 10 + y > 5, x * 10 + y < 128),
+        predicate=tvm.tirx.And(x * 10 + y > 5, x * 10 + y < 128),
     )
 
     assert_iter_sum_pattern(
         {x * 10 + y: (122, 6)},
         var_dom([(x, 13), (y, 10)]),
-        predicate=tvm.tir.And(x * 10 + y >= 6, x * 10 + y <= 127),
+        predicate=tvm.tirx.And(x * 10 + y >= 6, x * 10 + y <= 127),
     )
 
     assert_iter_sum_pattern(
         {x * 64 + y * 4 + z: (16, 16)},
         var_dom([(x, 16), (y, 16), (z, 4)]),
-        predicate=tvm.tir.And(x * 64 + y * 4 + z < 32, 4 <= x * 16 + y),
+        predicate=tvm.tirx.And(x * 64 + y * 4 + z < 32, 4 <= x * 16 + y),
     )
 
     # constraint on one fused iter
-    i = tvm.tir.Var("i", "int32")
-    j = tvm.tir.Var("j", "int32")
-    k = tvm.tir.Var("k", "int32")
+    i = tvm.tirx.Var("i", "int32")
+    j = tvm.tirx.Var("j", "int32")
+    k = tvm.tirx.Var("k", "int32")
     assert_iter_sum_pattern(
         {i * 8 + j * 2 + k: (88, 1)},
         var_dom([(i, 11), (j, 5), (k, 2)]),
-        predicate=tvm.tir.all(1 <= j * 2 + k, j * 2 + k < 9),
+        predicate=tvm.tirx.all(1 <= j * 2 + k, j * 2 + k < 9),
     )
 
     # constraint on single var
@@ -295,7 +295,7 @@ def test_predicate():
     assert_iter_sum_failure(
         [i, j, k],
         var_dom([(i, 128), (j, 128), (k, 128)]),
-        predicate=tvm.tir.all(i * 16384 + j * 128 + k < 100),
+        predicate=tvm.tirx.all(i * 16384 + j * 128 + k < 100),
     )
 
     # iterations are subparts of constraint, invalid case 2
@@ -312,7 +312,7 @@ def test_predicate():
     assert_iter_sum_pattern(
         {i * 8 + j * 2 + k: (22, 3)},
         var_dom([(i, 11), (j, 5), (k, 2)]),
-        predicate=tvm.tir.all(
+        predicate=tvm.tirx.all(
             1 <= j * 2 + k, j * 2 + k < 9, 3 <= i * 8 + j * 2 + k, i * 8 + j * 2 + k < 25
         ),
     )
@@ -321,14 +321,14 @@ def test_predicate():
     assert_iter_sum_pattern(
         {i * 6 + j * 2 + k: (66, 2)},
         var_dom([(i, 11), (j, 5), (k, 2)]),
-        predicate=tvm.tir.all(1 <= j * 2 + k, 2 <= j * 2 + k, j * 2 + k < 8, j * 2 + k < 9),
+        predicate=tvm.tirx.all(1 <= j * 2 + k, 2 <= j * 2 + k, j * 2 + k < 8, j * 2 + k < 9),
     )
 
     # duplicate constraint on nested fused iters
     assert_iter_sum_pattern(
         {i * 6 + j * 2 + k: (15, 3)},
         var_dom([(i, 11), (j, 5), (k, 2)]),
-        predicate=tvm.tir.all(
+        predicate=tvm.tirx.all(
             1 <= j * 2 + k,
             2 <= j * 2 + k,
             j * 2 + k < 8,
@@ -344,7 +344,7 @@ def test_predicate():
     assert_iter_sum_failure(
         [i * 8 + j * 2 + k],
         var_dom([(i, 11), (j, 5), (k, 2)]),
-        predicate=tvm.tir.all(2 <= j * 2 + k, 0 <= i * 4 + j),
+        predicate=tvm.tirx.all(2 <= j * 2 + k, 0 <= i * 4 + j),
     )
 
     # constraint with differnent lower bound
@@ -354,15 +354,15 @@ def test_predicate():
                 64,
                 0,
                 1,
-                (i * 16 + j) // 23 * 8 + ((i * 16 + j) % 23 + tvm.tir.IntImm("int32", -15)),
+                (i * 16 + j) // 23 * 8 + ((i * 16 + j) % 23 + tvm.tirx.IntImm("int32", -15)),
             )
         },
         var_dom([(i, 12), (j, 16)]),
-        predicate=tvm.tir.And(
-            tvm.tir.And(
-                i * 16 + j < 184, tvm.tir.LE(tvm.tir.IntImm("int32", 8), (i * 16 + j) % 23)
+        predicate=tvm.tirx.And(
+            tvm.tirx.And(
+                i * 16 + j < 184, tvm.tirx.LE(tvm.tirx.IntImm("int32", 8), (i * 16 + j) % 23)
             ),
-            tvm.tir.LE(tvm.tir.IntImm("int32", 15), (i * 16 + j) % 23),
+            tvm.tirx.LE(tvm.tirx.IntImm("int32", 15), (i * 16 + j) % 23),
         ),
     )
 
@@ -370,23 +370,23 @@ def test_predicate():
     # i4 * 6 + i5 in [3, 9), extent=6 (= scale of i2)
     # i2 * 30 + i3 * 15 in [30, 90), extent=60 (= scale of i1)
     # i1 * 60 in [60, 240), extent=180 (= scale of i0)
-    i0 = tvm.tir.Var("i0", "int32")
-    i1 = tvm.tir.Var("i1", "int32")
-    i2 = tvm.tir.Var("i2", "int32")
-    i3 = tvm.tir.Var("i3", "int32")
-    i4 = tvm.tir.Var("i4", "int32")
-    i5 = tvm.tir.Var("i5", "int32")
+    i0 = tvm.tirx.Var("i0", "int32")
+    i1 = tvm.tirx.Var("i1", "int32")
+    i2 = tvm.tirx.Var("i2", "int32")
+    i3 = tvm.tirx.Var("i3", "int32")
+    i4 = tvm.tirx.Var("i4", "int32")
+    i5 = tvm.tirx.Var("i5", "int32")
     assert_iter_sum_pattern(
         {i0 * 180 + i1 * 60 + i2 * 30 + i3 * 15 + i4 * 6 + i5: (540, 93)},
         var_dom([(i0, 3), (i1, 4), (i2, 3), (i3, 2), (i4, 3), (i5, 6)]),
-        predicate=tvm.tir.all(1 <= i1, 2 <= i2 * 2 + i3, 3 <= i4 * 6 + i5),
+        predicate=tvm.tirx.all(1 <= i1, 2 <= i2 * 2 + i3, 3 <= i4 * 6 + i5),
     )
 
     # constraint on many disjoint fused iters, case 2
     assert_iter_sum_pattern(
         {i0 * 45 + i1 * 45 + i2 * 9 + i3 * 4 + i4: (135, 28)},
         var_dom([(i0, 3), (i1, 2), (i2, 5), (i3, 3), (i4, 4)]),
-        predicate=tvm.tir.all(
+        predicate=tvm.tirx.all(
             3 <= i1 * 5 + i2, i1 * 5 + i2 < 8, 1 <= i3 * 4 + i4, i3 * 4 + i4 < 10
         ),
     )
@@ -395,7 +395,7 @@ def test_predicate():
     assert_iter_sum_pattern(
         {i % 16: (7, 3), i // 16: (8, 4)},
         var_dom([(i, 1024)]),
-        predicate=tvm.tir.all(3 <= i % 16, i % 16 < 10, 4 <= i // 16, i // 16 < 12),
+        predicate=tvm.tirx.all(3 <= i % 16, i % 16 < 10, 4 <= i // 16, i // 16 < 12),
         check_level="bijective",
     )
 
@@ -403,7 +403,7 @@ def test_predicate():
     assert_iter_sum_pattern(
         {(i * 32 + j) % 16: (7, 3)},
         var_dom([(i, 5), (j, 32)]),
-        predicate=tvm.tir.all(3 <= (i * 32 + j) % 16, (i * 32 + j) % 16 < 10),
+        predicate=tvm.tirx.all(3 <= (i * 32 + j) % 16, (i * 32 + j) % 16 < 10),
     )
 
     # constraint on split iters, nested case 2
@@ -412,18 +412,18 @@ def test_predicate():
             (i * 32 + j) % 16,
         ],
         var_dom([(i, 5), (j, 32)]),
-        predicate=tvm.tir.all(1 <= i * 32 + j, i * 32 + j <= 32),
+        predicate=tvm.tirx.all(1 <= i * 32 + j, i * 32 + j <= 32),
         check_level="bijective",
     )
     assert_iter_sum_pattern(
         {(i * 32 + j) % 16: (16, 0)},
         var_dom([(i, 5), (j, 32)]),
-        predicate=tvm.tir.all(1 <= i * 32 + j, i * 32 + j <= 32),
+        predicate=tvm.tirx.all(1 <= i * 32 + j, i * 32 + j <= 32),
     )
     assert_iter_sum_pattern(
         {(i * 32 + j - 1) % 16: (16, 0), (i * 32 + j - 1) // 16: (4, 0)},
         var_dom([(i, 5), (j, 32)]),
-        predicate=tvm.tir.all(1 <= i * 32 + j, i * 32 + j <= 64),
+        predicate=tvm.tirx.all(1 <= i * 32 + j, i * 32 + j <= 64),
     )
 
     # non-standard form of predicate
@@ -435,7 +435,7 @@ def test_predicate():
     assert_iter_sum_pattern(
         {x * 10 + y: (64, 0)},
         var_dom([(x, 13), (y, 10)]),
-        predicate=tvm.tir.all(x * 10 + y < 128, x * 10 + y < 64),
+        predicate=tvm.tirx.all(x * 10 + y < 128, x * 10 + y < 64),
     )
 
     # useless constraint
@@ -443,15 +443,15 @@ def test_predicate():
         {x * 10 + y: (130, 0)}, var_dom([(x, 13), (y, 10)]), predicate=x * 10 + y < 140
     )
 
-    i1 = tvm.tir.Var("i1", "int32")
-    i2 = tvm.tir.Var("i2", "int32")
-    i3 = tvm.tir.Var("i3", "int32")
-    i4 = tvm.tir.Var("i4", "int32")
+    i1 = tvm.tirx.Var("i1", "int32")
+    i2 = tvm.tirx.Var("i2", "int32")
+    i3 = tvm.tirx.Var("i3", "int32")
+    i4 = tvm.tirx.Var("i4", "int32")
     assert_iter_sum_pattern(
         {i1 * 20 + i2 * 10 + i3 * 3 + i4: (128, 0)},
         var_dom([(i1, 7), (i2, 2), (i3, 4), (i4, 3)]),
         predicate=(
-            tvm.tir.all(
+            tvm.tirx.all(
                 i1 * 2 + i2 < 13,
                 i1 * 20 + i2 * 10 + i3 * 3 + i4 < 128,
                 i3 * 3 + i4 < 10,
@@ -464,7 +464,7 @@ def test_predicate():
         [i1 * 20 + i2 * 10 + i3 * 3 + i4],
         var_dom([(i1, 7), (i2, 2), (i3, 4), (i4, 3)]),
         predicate=(
-            tvm.tir.all(
+            tvm.tirx.all(
                 i1 * 2 + i2 < 13,
                 i1 * 20 + i2 * 10 + i3 * 3 + i4 < 128,
                 i3 * 3 + i4 < 7,
@@ -477,7 +477,7 @@ def test_predicate():
         [i1 * 20 + i2 * 10 + i3 * 3 + i4],
         var_dom([(i1, 7), (i2, 2), (i3, 4), (i4, 3)]),
         predicate=(
-            tvm.tir.all(
+            tvm.tirx.all(
                 i1 * 2 + i2 < 13,
                 i1 * 20 + i2 * 10 + i3 * 3 + i4 < 128,
                 i3 * 3 + i4 < 10,
@@ -489,7 +489,7 @@ def test_predicate():
         [i1 * 20 + i2 * 10 + i3 * 3 + i4],
         var_dom([(i1, 7), (i2, 2), (i3, 4), (i4, 3)]),
         predicate=(
-            tvm.tir.all(
+            tvm.tirx.all(
                 i1 * 2 + i2 < 13,
                 i1 * 20 + i2 * 10 + i3 * 3 + i4 < 128,
                 i1 * 4 + i3 < 20,
@@ -498,9 +498,9 @@ def test_predicate():
     )
 
     # zero iter
-    xo = tvm.tir.Var("xo", "int32")
-    xi = tvm.tir.Var("xi", "int32")
-    y = tvm.tir.Var("y", "int32")
+    xo = tvm.tirx.Var("xo", "int32")
+    xi = tvm.tirx.Var("xi", "int32")
+    y = tvm.tirx.Var("y", "int32")
     assert_iter_sum_pattern(
         {xo * 129 + xi: (128, 0), y: (128, 0)},
         var_dom([(xo, 1), (xi, 129), (y, 128)]),
@@ -531,14 +531,14 @@ def convert_division(divisions):
 
 
 def create_iter(name, extent):
-    return tvm.tir.Var(name, "int32"), extent
+    return tvm.tirx.Var(name, "int32"), extent
 
 
 def test_subspace_division():
-    x = tvm.tir.Var("x", "int32")
-    y = tvm.tir.Var("y", "int32")
-    z = tvm.tir.Var("z", "int32")
-    c = tvm.tir.SizeVar("c", "int32")
+    x = tvm.tirx.Var("x", "int32")
+    y = tvm.tirx.Var("y", "int32")
+    z = tvm.tirx.Var("z", "int32")
+    c = tvm.tirx.SizeVar("c", "int32")
 
     # simple 1.1
     res = tvm.arith.subspace_divide(
@@ -639,7 +639,7 @@ def test_subspace_division():
 
     # compound 1.6
     res = tvm.arith.subspace_divide(
-        [k0[0], k1[0]], var_dom([i0, j0, i3]), [i3[0]], tvm.tir.all(k0[0] < 7, k1[0] < 7)
+        [k0[0], k1[0]], var_dom([i0, j0, i3]), [i3[0]], tvm.tirx.all(k0[0] < 7, k1[0] < 7)
     )
     res = convert_division(res)
     assert len(res) == 0
@@ -706,7 +706,7 @@ def test_subspace_division():
         [i0[0], i1[0], i2[0]],
         var_dom([j0, l0, l1, j3]),
         [l1[0], j3[0]],
-        tvm.tir.all(i0[0] < 7, i2[0] < 8),
+        tvm.tirx.all(i0[0] < 7, i2[0] < 8),
     )
     res = convert_division(res)
     assert len(res) == 4
@@ -733,9 +733,9 @@ def test_subspace_division():
 
 
 def test_subspace_divide_trivial_iters():
-    x = tvm.tir.Var("x", "int32")
-    y = tvm.tir.Var("y", "int32")
-    z = tvm.tir.Var("z", "int32")
+    x = tvm.tirx.Var("x", "int32")
+    y = tvm.tirx.Var("y", "int32")
+    z = tvm.tirx.Var("z", "int32")
 
     # trivial 1.1
     res = tvm.arith.subspace_divide(
@@ -836,7 +836,7 @@ def test_complex():
     assert_iter_sum_pattern(
         {i0[0]: (200, 0, 1, i0_final), i1[0]: (50, 0, 1, i1_final)},
         var_dom([l0, l1, n0, n1, m1, l3]),
-        predicate=tvm.tir.all(
+        predicate=tvm.tirx.all(
             i0[0] < 200, i1[0] < 50, m0[0] < 6, l2[0] < 16, j0[0] < 7, j3[0] < 15
         ),
     )
@@ -845,7 +845,7 @@ def test_complex():
     assert_iter_sum_failure(
         [i0[0], i1[0]],
         var_dom([l0, l1, n0, n1, m1, l3]),
-        tvm.tir.all(i0[0] < 200, i1[0] < 50, m0[0] < 9, l2[0] < 16, j0[0] < 7, j3[0] < 14),
+        tvm.tirx.all(i0[0] < 200, i1[0] < 50, m0[0] < 9, l2[0] < 16, j0[0] < 7, j3[0] < 14),
     )
 
     # subspace_division
@@ -853,7 +853,7 @@ def test_complex():
         [i0[0], i1[0]],
         var_dom([l0, l1, n0, n1, m1, l3]),
         [n0[0], n1[0], m1[0], l3[0]],
-        tvm.tir.all(m0[0] < 6, l2[0] < 16, j0[0] < 7, j3[0] < 15),
+        tvm.tirx.all(m0[0] < 6, l2[0] < 16, j0[0] < 7, j3[0] < 15),
     )
     res = convert_division(res)
     assert len(res) == 3
@@ -868,7 +868,7 @@ def test_complex():
     tvm.ir.assert_structural_equal(res[2][0], (floordiv(l0[0], 2) * 4) + floordiv(l1[0], 2) < 7)
     tvm.ir.assert_structural_equal(
         res[2][1],
-        tvm.tir.all(
+        tvm.tirx.all(
             n0[0] * 4 + n1[0] < 6,
             (n0[0] * 4 + n1[0]) * 3 + m1[0] < 16,
             floormod(((n0[0] * 4 + n1[0]) * 3 + m1[0]), 4) * 4 + floormod(l3[0], 4) < 15,
@@ -882,11 +882,11 @@ def test_complex():
 
 
 def test_normalize_iter_map_to_expr():
-    fld = tvm.tir.floordiv
-    flm = tvm.tir.floormod
+    fld = tvm.tirx.floordiv
+    flm = tvm.tirx.floormod
 
-    x = tvm.tir.Var("x", "int32")
-    y = tvm.tir.Var("y", "int32")
+    x = tvm.tirx.Var("x", "int32")
+    y = tvm.tirx.Var("y", "int32")
 
     xo, xi = isplit((x, 10), 5)
     yo, yi = isplit((y, 9), 3)
@@ -918,7 +918,7 @@ def test_inverse_affine_iter_map():
     iter_map = tvm.arith.detect_iter_map(
         [l0_1_l1_1_fused[0], l0_0[0], l1_0[0]], var_dom([l0, l1])
     ).indices
-    outputs = [tvm.tir.Var(f"output_{i}", "int32") for i in range(len(iter_map))]
+    outputs = [tvm.tirx.Var(f"output_{i}", "int32") for i in range(len(iter_map))]
     res = tvm.arith.inverse_affine_iter_map(iter_map, outputs)
     assert len(res) == 2
     l0_inverse = floordiv(outputs[0], 4) + outputs[1] * 16
@@ -937,7 +937,7 @@ def test_inverse_affine_iter_map():
     iter_map = tvm.arith.detect_iter_map(
         [l0_1_l2_1_l1_1_l2_0_fused[0], l0_0[0], l2_2[0], l1_0[0]], var_dom([l0, l1, l2])
     ).indices
-    outputs = [tvm.tir.Var(f"output_{i}", "int32") for i in range(len(iter_map))]
+    outputs = [tvm.tirx.Var(f"output_{i}", "int32") for i in range(len(iter_map))]
     res = tvm.arith.inverse_affine_iter_map(iter_map, outputs)
     assert len(res) == 3
     l0_inverse = floordiv(outputs[0], 64) + outputs[1] * 16
@@ -957,7 +957,7 @@ def test_inverse_affine_iter_map():
     l2 = ifuse([l1_1, l1_0])
 
     iter_map = tvm.arith.detect_iter_map([l2[0]], var_dom([l0])).indices
-    outputs = [tvm.tir.Var(f"output_{i}", "int32") for i in range(len(iter_map))]
+    outputs = [tvm.tirx.Var(f"output_{i}", "int32") for i in range(len(iter_map))]
     res = tvm.arith.inverse_affine_iter_map(iter_map, outputs)
     assert len(res) == 1
     l1_inverse = floormod(outputs[0], 8) * 8 + floordiv(outputs[0], 8)
@@ -971,7 +971,7 @@ def test_inverse_affine_map_trivial_iter():
     l0 = create_iter("l0", 64)
     l1 = create_iter("l1", 64)
     iter_map = tvm.arith.detect_iter_map([0, l0[0], l1[0]], var_dom([l0, l1])).indices
-    outputs = [tvm.tir.Var(f"output_{i}", "int32") for i in range(len(iter_map))]
+    outputs = [tvm.tirx.Var(f"output_{i}", "int32") for i in range(len(iter_map))]
     res = tvm.arith.inverse_affine_iter_map(iter_map, outputs)
     # output_0 is expected to be constant and it is not included in the inverse map
     assert len(res) == 2
@@ -980,9 +980,9 @@ def test_inverse_affine_map_trivial_iter():
 
 
 def test_free_variables():
-    x = tvm.tir.Var("x", "int32")
-    y = tvm.tir.Var("y", "int32")
-    z = tvm.tir.Var("z", "int32")
+    x = tvm.tirx.Var("x", "int32")
+    y = tvm.tirx.Var("y", "int32")
+    z = tvm.tirx.Var("z", "int32")
 
     # illegal iter if z is within dom
     assert_iter_sum_failure([z * 19 + y * 3 + x], var_dom([(x, 3), (y, 3), (z, 3)]))
@@ -1009,10 +1009,10 @@ def test_free_variables():
 
 
 class TestPadding:
-    x = tvm.tir.Var("x", "int32")
-    y = tvm.tir.Var("y", "int32")
-    fld = tvm.tir.floordiv
-    flm = tvm.tir.floormod
+    x = tvm.tirx.Var("x", "int32")
+    y = tvm.tirx.Var("y", "int32")
+    fld = tvm.tirx.floordiv
+    flm = tvm.tirx.floormod
 
     positive_test_case = tvm.testing.parameter(
         # left padding only, offset divisible
@@ -1090,11 +1090,11 @@ class TestPadding:
 
 
 def test_overlapped_fuse():
-    x = tvm.tir.Var("x", "int32")
-    y = tvm.tir.Var("y", "int32")
-    z = tvm.tir.Var("z", "int32")
-    a = tvm.tir.Var("x", "int32")
-    b = tvm.tir.Var("y", "int32")
+    x = tvm.tirx.Var("x", "int32")
+    y = tvm.tirx.Var("y", "int32")
+    z = tvm.tirx.Var("z", "int32")
+    a = tvm.tirx.Var("x", "int32")
+    b = tvm.tirx.Var("y", "int32")
 
     # non-bijective fuse of two
     assert_iter_sum_pattern(
@@ -1126,7 +1126,7 @@ def test_overlapped_fuse():
             a * 40 + b * 20 + x * 18 + y * 3 + z: (125, 6, 1),
         },
         var_dom([(a, 3), (b, 2), (x, 2), (y, 6), (z, 8)]),
-        predicate=tvm.tir.all(z < 4, 1 < x * 6 + y, x * 6 + y < 10),
+        predicate=tvm.tirx.all(z < 4, 1 < x * 6 + y, x * 6 + y < 10),
         check_level="surjective",
     )
 
@@ -1141,11 +1141,11 @@ def test_overlapped_fuse():
 
 def test_iter_map_simplify_symbolic_case():
     """Test itermap simplify"""
-    x = tvm.tir.Var("x", "int64")
-    y = tvm.tir.Var("y", "int64")
+    x = tvm.tirx.Var("x", "int64")
+    y = tvm.tirx.Var("y", "int64")
     z = x * 32 + y
 
-    n = tvm.tir.SizeVar("n", "int64")
+    n = tvm.tirx.SizeVar("n", "int64")
 
     def simple_fuse0(x):
         return (x // n) * n + x % n
@@ -1176,10 +1176,10 @@ def test_iter_map_simplify_symbolic_case():
 
 def test_iter_map_simplify_symbolic_predicate():
     """Test itermap simplify"""
-    x = tvm.tir.Var("x", "int64")
-    y = tvm.tir.Var("y", "int64")
+    x = tvm.tirx.Var("x", "int64")
+    y = tvm.tirx.Var("y", "int64")
 
-    n = tvm.tir.SizeVar("n", "int64")
+    n = tvm.tirx.SizeVar("n", "int64")
 
     def simple_fuse0(x):
         return (x // n) * n + x % n
@@ -1201,8 +1201,8 @@ def test_iter_map_simplify_symbolic_predicate():
 
 
 def test_iter_map_simplify_symbolic_reshape():
-    n = tvm.tir.Var("n", "int64")
-    fused = tvm.tir.Var("fused", "int64")
+    n = tvm.tirx.Var("n", "int64")
+    fused = tvm.tirx.Var("fused", "int64")
 
     ax0 = (fused // 4096) // n
     ax1 = (fused // 4096) % n
@@ -1215,9 +1215,9 @@ def test_iter_map_simplify_symbolic_reshape():
 
 def test_iter_map_simplify_unit_loop_order():
     """Test itermap simplify"""
-    x = tvm.tir.Var("x", "int64")
-    y = tvm.tir.Var("y", "int64")
-    z = tvm.tir.Var("z", "int64")
+    x = tvm.tirx.Var("x", "int64")
+    y = tvm.tirx.Var("y", "int64")
+    z = tvm.tirx.Var("z", "int64")
 
     # trivial iterators can be found at any when comparing via scale
     # ensure order unchange
@@ -1252,7 +1252,7 @@ def assert_normalize_to_iter_sum(index, input_iters, args, base):
 
     Parameters
     ----------
-    index : tvm.tir.PrimExpr
+    index : tvm.tirx.PrimExpr
         The index to be normalized
     input_iters : Mapping[Var, Range]
         The input iterators
@@ -1260,7 +1260,7 @@ def assert_normalize_to_iter_sum(index, input_iters, args, base):
         The expected result. Ordered list of args of the expected IterSumExpr. Each arg can be
         either IterSplitExpr or a tuple of (PrimExpr, PrimExpr) where the first element is the
         iterator normalized to PrimExpr and the second element is the scale.
-    base : tvm.tir.PrimExpr
+    base : tvm.tirx.PrimExpr
         The expected base
     """
     res = tvm.arith.normalize_to_iter_sum(index, input_iters)
@@ -1279,12 +1279,12 @@ def assert_normalize_to_iter_sum(index, input_iters, args, base):
 
 
 def test_normalize_to_iter_sum():
-    x = tvm.tir.Var("x", "int64")
-    y = tvm.tir.Var("y", "int64")
-    z = tvm.tir.Var("z", "int64")
-    a = tvm.tir.Var("a", "int64")
-    n = tvm.tir.Var("n", "int64")
-    flm = tvm.tir.floormod
+    x = tvm.tirx.Var("x", "int64")
+    y = tvm.tirx.Var("y", "int64")
+    z = tvm.tirx.Var("z", "int64")
+    a = tvm.tirx.Var("a", "int64")
+    n = tvm.tirx.Var("n", "int64")
+    flm = tvm.tirx.floormod
 
     assert_normalize_to_iter_sum(
         z + ((y + x * 4 + 2) * n) + 3,
@@ -1295,10 +1295,10 @@ def test_normalize_to_iter_sum():
 
     # max cannot detected so it goes into base
     assert_normalize_to_iter_sum(
-        tvm.tir.max(z, a) + ((y + x * 4 + 2) * n) + 3,
+        tvm.tirx.max(z, a) + ((y + x * 4 + 2) * n) + 3,
         var_dom([(x, 9), (y, 4), (z, 3)]),
         [(x, n * 4), (y, n)],
-        tvm.tir.max(z, a) + 2 * n + 3,
+        tvm.tirx.max(z, a) + 2 * n + 3,
     )
 
     # order by symbolc prod
@@ -1332,9 +1332,9 @@ def test_normalize_to_iter_sum():
         [
             tvm.arith.IterSplitExpr(
                 tvm.arith.IterMark(x, 4096),
-                lower_factor=tvm.tir.const(5, "int64"),
-                extent=tvm.tir.const(820, "int64"),
-                scale=tvm.tir.const(1, "int64"),
+                lower_factor=tvm.tirx.const(5, "int64"),
+                extent=tvm.tirx.const(820, "int64"),
+                scale=tvm.tirx.const(1, "int64"),
             )
         ],
         0,
@@ -1350,19 +1350,19 @@ def test_normalize_to_iter_sum():
 
 
 def test_detect_iter_map_with_bufferload_recursion():
-    n = tvm.tir.Var("n", "int32")
-    m = tvm.tir.Var("m", "int32")
-    divisor = tvm.tir.Var("divisor", "int32")
+    n = tvm.tirx.Var("n", "int32")
+    m = tvm.tirx.Var("m", "int32")
+    divisor = tvm.tirx.Var("divisor", "int32")
 
-    i = tvm.tir.Var("i", "int32")
-    j = tvm.tir.Var("j", "int32")
+    i = tvm.tirx.Var("i", "int32")
+    j = tvm.tirx.Var("j", "int32")
 
-    buffer = tvm.tir.decl_buffer((n,), "int32", name="seqlen")
+    buffer = tvm.tirx.decl_buffer((n,), "int32", name="seqlen")
 
     indices = [(buffer[i] + j) // divisor]
     iter_vars = {
-        i: tvm.ir.Range(tvm.tir.const(0, "int32"), n),
-        j: tvm.ir.Range(tvm.tir.const(0, "int32"), m),
+        i: tvm.ir.Range(tvm.tirx.const(0, "int32"), n),
+        j: tvm.ir.Range(tvm.tirx.const(0, "int32"), m),
     }
 
     result = tvm.arith.detect_iter_map(indices, iter_vars)

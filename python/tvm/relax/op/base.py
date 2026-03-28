@@ -98,12 +98,12 @@ def call_tir(
     tir_vars: ShapeExpr | tuple[PrimExpr] | list[PrimExpr] | None = None,
 ) -> Call:
     """
-    Call a tir.prim_func and return the output.
+    Call a tirx.prim_func and return the output.
 
     Parameters
     ----------
     gvar : GlobalVar
-        The GlobalVar referring to a tir PrimFunc.
+        The GlobalVar referring to a tirx PrimFunc.
 
     args : Expr
         The input arguments.
@@ -141,14 +141,14 @@ def call_tir_with_grad(
     tir_vars: ShapeExpr | tuple[PrimExpr] | list[PrimExpr] | None = None,
 ) -> Call:
     """
-    Call a tir.prim_func and return the output. This intrinsic will bind a te gradient function
+    Call a tirx.prim_func and return the output. This intrinsic will bind a te gradient function
     (refered by te_grad_name) to the call_tir_with_grad node. The te gradient function will be
     called by the Gradient pass.
 
     Parameters
     ----------
     gvar : GlobalVar
-        The GlobalVar referring to a tir PrimFunc.
+        The GlobalVar referring to a tirx PrimFunc.
 
     args : Expr
         The input arguments.

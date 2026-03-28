@@ -25,15 +25,15 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tir/index_map.h>
-#include <tvm/tir/op.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/index_map.h>
+#include <tvm/tirx/op.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include <unordered_set>
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 class RemoveLayoutRewriteBlock : public StmtMutator {
  public:
@@ -126,7 +126,7 @@ class WeightLayoutRewriteBlockRemover : public StmtMutator {
 
     PrimFuncNode* n = f_.CopyOnWrite();
 
-    ffi::Map<tir::Var, Buffer> buffer_map;
+    ffi::Map<tirx::Var, Buffer> buffer_map;
     for (const auto& [param, buffer] : f_->buffer_map) {
       auto it = buf_map.find(buffer);
       if (it != buf_map.end()) {

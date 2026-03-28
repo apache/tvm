@@ -24,7 +24,7 @@ from tvm import relax
 from tvm.ir import IRModule
 from tvm.s_tir.meta_schedule.runner import EvaluatorConfig
 from tvm.s_tir.meta_schedule.testing.tune_utils import generate_input_data
-from tvm.tir import PrimFunc
+from tvm.tirx import PrimFunc
 
 from .extract import extract_all_func_info_from_relax, extract_func_info_from_prim_func
 from .utils import (
@@ -121,7 +121,7 @@ def benchmark(
     # append scalar input tensors for rotary embedding
     input_tensors.extend(scalar_input_tensors)
     # build locally
-    rt_mod = tvm.tir.build(mod, target=target)
+    rt_mod = tvm.tirx.build(mod, target=target)
     # set up evaluator config
     evaluator_config = EvaluatorConfig._normalized(  # pylint: disable=protected-access
         evaluator_config

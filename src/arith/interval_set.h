@@ -26,7 +26,7 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/tir/op.h>
+#include <tvm/tirx/op.h>
 
 #include <limits>
 

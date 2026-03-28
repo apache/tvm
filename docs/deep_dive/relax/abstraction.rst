@@ -52,7 +52,7 @@ relationships between different parts of the model.
 
 Key Features of Relax
 ~~~~~~~~~~~~~~~~~~~~~
-Relax, the graph representation utilized in Apache TVM's Unity strategy,
+Relax, the graph representation utilized in Apache TVM,
 facilitates end-to-end optimization of ML models through several crucial
 features:
 

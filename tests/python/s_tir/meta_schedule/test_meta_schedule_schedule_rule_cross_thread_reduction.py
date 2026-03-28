@@ -23,7 +23,7 @@ from tvm.s_tir.meta_schedule.testing.space_generation import (
     check_sketches,
     generate_design_space,
 )
-from tvm.script import tir as T
+from tvm.script import tirx as T
 from tvm.target import Target
 from tvm.te import create_prim_func
 
@@ -67,7 +67,7 @@ def test_gpu_softmax_mn():
         T_softmax_norm: T.Buffer((256, 256), "float32"),
     ) -> None:
         # function attr dict
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # body
         # with T.sblock("root")
         T_softmax_maxelem = T.sblock_alloc_buffer([256], dtype="float32")
@@ -110,7 +110,7 @@ def test_gpu_softmax_mn():
         A: T.Buffer((256, 256), "float32"), T_softmax_norm: T.Buffer((256, 256), "float32")
     ) -> None:
         # function attr dict
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # body
         # with T.sblock("root")
         T_softmax_maxelem_shared = T.sblock_alloc_buffer([256], dtype="float32", scope="shared")
@@ -162,7 +162,7 @@ def test_gpu_softmax_mn():
         A: T.Buffer((256, 256), "float32"), T_softmax_norm: T.Buffer((256, 256), "float32")
     ) -> None:
         # function attr dict
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # body
         # with T.sblock("root")
         T_softmax_maxelem = T.sblock_alloc_buffer([256], dtype="float32")
@@ -214,7 +214,7 @@ def test_gpu_softmax_mn():
         A: T.Buffer((256, 256), "float32"), T_softmax_norm: T.Buffer((256, 256), "float32")
     ) -> None:
         # function attr dict
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # body
         # with T.sblock("root")
         T_softmax_maxelem_shared = T.sblock_alloc_buffer([256], dtype="float32", scope="shared")
@@ -500,7 +500,7 @@ def test_gpu_batch_norm_bmn():
     @T.prim_func
     def batch_norm_bmn_0(A: T.Buffer((1, 512, 512), "float32"), D: T.Buffer(1, "float32")) -> None:
         # function attr dict
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # body
         # with T.sblock("root")
         C = T.sblock_alloc_buffer([1], dtype="float32")
@@ -522,7 +522,7 @@ def test_gpu_batch_norm_bmn():
     @T.prim_func
     def batch_norm_bmn_1(A: T.Buffer((1, 512, 512), "float32"), D: T.Buffer(1, "float32")) -> None:
         # function attr dict
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # body
         # with T.sblock("root")
         C_shared = T.sblock_alloc_buffer([1], dtype="float32", scope="shared")

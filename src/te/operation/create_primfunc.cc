@@ -25,9 +25,9 @@
 #include <tvm/ir/name_supply.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/te/operation.h>
-#include <tvm/tir/analysis.h>
-#include <tvm/tir/function.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/analysis.h>
+#include <tvm/tirx/function.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include <algorithm>
 #include <set>
@@ -37,12 +37,12 @@
 #include <vector>
 
 #include "../../support/array.h"
-#include "../../tir/ir/data_type_rewriter.h"
-#include "../../tir/ir/functor_common.h"
+#include "../../tirx/ir/data_type_rewriter.h"
+#include "../../tirx/ir/functor_common.h"
 #include "graph.h"
 
 namespace tvm {
-namespace tir {
+namespace tirx {
 
 /*! \brief The helper mutator that transforms ProducerLoad to BufferLoad */
 class ProducerToBufferTransformer : public StmtExprMutator {
@@ -177,7 +177,7 @@ class LayoutFreePlaceholdersNormalizer : public StmtMutator {
     return block;
   }
 
-  std::unordered_map<tir::Buffer, int, ObjectPtrHash, ObjectPtrEqual> buffer2index_;
+  std::unordered_map<tirx::Buffer, int, ObjectPtrHash, ObjectPtrEqual> buffer2index_;
   std::set<int> layout_free_buffer_indices_;
   ffi::String topi_attr = "layout_free_placeholders";
   std::vector<ffi::String> blocklist = {"const_matrix",
@@ -259,10 +259,10 @@ ffi::Array<Buffer> GenerateOutputBuffers(const te::ComputeOp& compute_op, Create
     };
     PrimExpr expr_body = compute_op->body[0];
     tensors.push_back(compute_op.output(0));
-    const tir::ReduceNode* reduce = expr_body.as<tir::ReduceNode>();
+    const tirx::ReduceNode* reduce = expr_body.as<tirx::ReduceNode>();
     // specially handle reduction inline for multiplre reductions.
     for (size_t k = 1; k < compute_op->body.size(); ++k) {
-      const tir::ReduceNode* reduce_ = compute_op->body[k].as<tir::ReduceNode>();
+      const tirx::ReduceNode* reduce_ = compute_op->body[k].as<tirx::ReduceNode>();
       TVM_FFI_ICHECK(reduce_);
       TVM_FFI_ICHECK(f_reducer_equal(reduce_, reduce))
           << "The Reduce inputs of ComputeOp should have the same attribute except value_index, "
@@ -750,7 +750,7 @@ PrimFunc GenerateAndCompletePrimFunc(const ffi::Array<te::Tensor>& arg_list,
                                      /*body=*/SeqStmt::Flatten(root_stmts),
                                      /*ret_type=*/VoidType(),
                                      /*buffer_map=*/std::move(buffer_map)),
-                            {{"global_symbol", ffi::String("main")}, {"tir.noalias", true}});
+                            {{"global_symbol", ffi::String("main")}, {"tirx.noalias", true}});
   const auto fcomplete = tvm::ffi::Function::GetGlobal("script.Complete");
   TVM_FFI_ICHECK(fcomplete.has_value());
   func = (*fcomplete)(std::move(func), info->root_alloc).cast<PrimFunc>();
@@ -812,7 +812,7 @@ PrimFunc GenerateAndCompletePrimFunc(const ffi::Array<ObjectRef>& arg_tir_var_li
       auto it = info->tensor2buffers.find(tensor);
       TVM_FFI_ICHECK(it != info->tensor2buffers.end());
       buffer_map.Set(arg, it->second);
-    } else if (auto var = arg.as<tir::Var>()) {
+    } else if (auto var = arg.as<tirx::Var>()) {
       parameters.push_back(var.value());
     }
   }
@@ -820,7 +820,7 @@ PrimFunc GenerateAndCompletePrimFunc(const ffi::Array<ObjectRef>& arg_tir_var_li
                                      /*body=*/SeqStmt::Flatten(root_stmts),
                                      /*ret_type=*/VoidType(),
                                      /*buffer_map=*/std::move(buffer_map)),
-                            {{"global_symbol", ffi::String("main")}, {"tir.noalias", true}});
+                            {{"global_symbol", ffi::String("main")}, {"tirx.noalias", true}});
   const auto fcomplete = tvm::ffi::Function::GetGlobal("script.Complete");
   TVM_FFI_ICHECK(fcomplete.has_value());
   func = (*fcomplete)(std::move(func), info->root_alloc).cast<PrimFunc>();
@@ -861,5 +861,5 @@ PrimFunc CreatePrimFunc(const ffi::Array<ObjectRef>& arg_list,
   return result;
 }
 
-}  // namespace tir
+}  // namespace tirx
 }  // namespace tvm

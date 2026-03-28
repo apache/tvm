@@ -35,7 +35,7 @@ from tvm.s_tir.meta_schedule.search_strategy import MeasureCandidate
 from tvm.s_tir.meta_schedule.tune_context import TuneContext
 from tvm.s_tir.meta_schedule.utils import derived_object
 from tvm.s_tir.schedule.schedule import Schedule
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,missing-docstring
@@ -43,7 +43,7 @@ from tvm.script import tir as T
 class Matmul:
     @T.prim_func
     def main(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=no-self-argument
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         A = T.match_buffer(a, (1024, 1024), "float32")
         B = T.match_buffer(b, (1024, 1024), "float32")
         C = T.match_buffer(c, (1024, 1024), "float32")
@@ -59,7 +59,7 @@ class Matmul:
 class FullModule:
     @T.prim_func
     def main(T_full: T.Buffer((T.int64(2), T.int64(3)), "float32")):
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
             with T.sblock("T_full"):
                 v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])

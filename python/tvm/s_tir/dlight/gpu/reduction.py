@@ -19,7 +19,7 @@
 # TODO: combine reduction rule and general reduction rule into one file.
 from collections.abc import Mapping
 
-from tvm import arith, ir, s_tir, tir
+from tvm import arith, ir, s_tir, tirx
 from tvm.target import Target
 
 from ..analysis import (
@@ -32,16 +32,16 @@ from ..base import suggest_threads_per_block, try_inline_contiguous_spatial
 from .base import GPUScheduleRule
 
 
-def _get_reduction_expr(block: tir.SBlock) -> tir.PrimExpr | None:
+def _get_reduction_expr(block: tirx.SBlock) -> tirx.PrimExpr | None:
     # Detect and return `Y` in `X[...] = X[...] + Y`
     buffer_store = block.body
-    if not isinstance(buffer_store, tir.BufferStore):
+    if not isinstance(buffer_store, tirx.BufferStore):
         return None
-    if not isinstance(buffer_store.value, tir.Add):
+    if not isinstance(buffer_store.value, tirx.Add):
         return None
     if not ir.structural_equal(
         buffer_store.value.a,
-        tir.BufferLoad(buffer_store.buffer, block.body.indices),
+        tirx.BufferLoad(buffer_store.buffer, block.body.indices),
         map_free_vars=True,
     ):
         return None
@@ -57,11 +57,11 @@ class Reduction(GPUScheduleRule):
 
     def apply(  # pylint: disable=too-many-locals,too-many-branches,too-many-return-statements
         self,
-        func: tir.PrimFunc,
+        func: tirx.PrimFunc,
         target: Target,
         _: bool,
     ) -> None | s_tir.Schedule | list[s_tir.Schedule]:
-        if not isinstance(func, tir.PrimFunc) or not self.is_target_available(target):
+        if not isinstance(func, tirx.PrimFunc) or not self.is_target_available(target):
             return None
         sch = s_tir.Schedule(func)
         block_infos = normalize_prim_func(sch)

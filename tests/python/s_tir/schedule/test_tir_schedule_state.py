@@ -23,9 +23,9 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import tir
+from tvm import tirx
 from tvm.ir import IRModule
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
@@ -94,7 +94,7 @@ def block_in_opaque_block(a: T.handle, b: T.handle) -> None:
 def replace_ir_builder(deep_copy=False, realize=False):
     new_func = tvm.script.from_source(elementwise.script())
     s = tvm.s_tir.ScheduleState(new_func, debug_mask="all")
-    target = tvm.tir.SBlock(
+    target = tvm.tirx.SBlock(
         iter_vars=[],
         reads=[],
         writes=[],
@@ -106,7 +106,7 @@ def replace_ir_builder(deep_copy=False, realize=False):
         annotations=None,
     )
     if realize:
-        target = tvm.tir.SBlockRealize(
+        target = tvm.tirx.SBlockRealize(
             iter_values=[],
             predicate=True,
             block=target,
@@ -122,7 +122,7 @@ def replace_ir_builder_module(deep_copy=False, realize=False):
     other_func = tvm.script.from_source(elementwise.script())
     mod = IRModule(functions={"main": new_func, "other": other_func})
     s = tvm.s_tir.ScheduleState(mod, debug_mask="all")
-    target = tvm.tir.SBlock(
+    target = tvm.tirx.SBlock(
         iter_vars=[],
         reads=[],
         writes=[],
@@ -134,7 +134,7 @@ def replace_ir_builder_module(deep_copy=False, realize=False):
         annotations=None,
     )
     if realize:
-        target = tvm.tir.SBlockRealize(
+        target = tvm.tirx.SBlockRealize(
             iter_values=[],
             predicate=True,
             block=target,
@@ -323,12 +323,12 @@ def test_replace_block_in_opaque_block():
     root_hash = s.mod["main"].__hash__()
     for_loop = s.mod["main"].body.block.body.body.block.body[1].then_case.block.body
     sref = s.get_sref(for_loop)
-    new_for_loop = tir.For(
+    new_for_loop = tirx.For(
         loop_var=for_loop.loop_var,
         min=0,
         extent=128,
-        kind=tir.ForKind.SERIAL,
-        body=tir.Evaluate(0),
+        kind=tirx.ForKind.SERIAL,
+        body=tirx.Evaluate(0),
         thread_binding=None,
         annotations=None,
     )

@@ -16,7 +16,7 @@
 # under the License.
 """Analysis for GEMV."""
 
-from tvm import arith, ir, s_tir, tir
+from tvm import arith, ir, s_tir, tirx
 
 from .common_analysis import (
     SBlockInfo,
@@ -26,7 +26,7 @@ from .common_analysis import (
 )
 
 
-def get_reduction_expr(block: tir.SBlock) -> tir.PrimExpr | None:
+def get_reduction_expr(block: tirx.SBlock) -> tirx.PrimExpr | None:
     """Extracts the reduction expression from a TIR block.
 
     This function checks whether the given TIR block follows a reduction pattern
@@ -34,30 +34,30 @@ def get_reduction_expr(block: tir.SBlock) -> tir.PrimExpr | None:
 
     Parameters:
     ----------
-    block : tir.SBlock
+    block : tirx.SBlock
         The TIR block to analyze.
 
     Returns:
     -------
-    Optional[tir.PrimExpr]
+    Optional[tirx.PrimExpr]
         The reduction expression (`Y`) if detected, otherwise None.
     """
 
     buffer_store = block.body
-    if not isinstance(buffer_store, tir.BufferStore):
+    if not isinstance(buffer_store, tirx.BufferStore):
         return None
-    if not isinstance(buffer_store.value, tir.Add):
+    if not isinstance(buffer_store.value, tirx.Add):
         return None
     if not ir.structural_equal(
         buffer_store.value.a,
-        tir.BufferLoad(buffer_store.buffer, block.body.indices),
+        tirx.BufferLoad(buffer_store.buffer, block.body.indices),
         map_free_vars=True,
     ):
         return None
     return buffer_store.value.b
 
 
-def is_gemv(sch: s_tir.Schedule, block_info: SBlockInfo) -> list[tir.Buffer] | None:
+def is_gemv(sch: s_tir.Schedule, block_info: SBlockInfo) -> list[tirx.Buffer] | None:
     """Check if the block is a GEMV.
 
     Parameters
@@ -72,7 +72,7 @@ def is_gemv(sch: s_tir.Schedule, block_info: SBlockInfo) -> list[tir.Buffer] | N
 
     Returns
     -------
-    ret : Optional[List[tir.Buffer]]
+    ret : Optional[List[tirx.Buffer]]
         The vector buffers used in the GEMV if it is a GEMV, otherwise None.
     """
     block = block_info.block_rv
@@ -104,7 +104,7 @@ def normalize(
     block_info: SBlockInfo,
 ) -> bool | None:
     """Normalize the main block."""
-    block_stmt: tir.SBlock = sch.get(block_info.block_rv)
+    block_stmt: tirx.SBlock = sch.get(block_info.block_rv)
     access = arith.normalize_to_iter_sum(
         detect_dominant_read(block_stmt),
         input_iters={i.var: i.dom for i in block_stmt.iter_vars},

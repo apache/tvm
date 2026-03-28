@@ -197,7 +197,7 @@ def build_and_run(mod, inputs, tgt):
         tgt = tvm.target.Target(tgt, host={"kind": "llvm"})
 
     relax_pipeline = relax.pipeline.get_default_pipeline(tgt)
-    tir_pipeline = tvm.tir.get_default_tir_pipeline(tgt)
+    tir_pipeline = tvm.tirx.get_default_tir_pipeline(tgt)
     mod = relax_pipeline(mod)
 
     ex = tvm.compile(mod, tgt, tir_pipeline=tir_pipeline)

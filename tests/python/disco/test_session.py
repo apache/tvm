@@ -34,7 +34,7 @@ from tvm.runtime import ShapeTuple, String
 from tvm.runtime import disco as di
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def _numpy_to_worker_0(sess: di.Session, np_array: np.array, device):

@@ -19,7 +19,7 @@
 from collections.abc import Callable
 
 from tvm.ir.expr import PrimExpr
-from tvm.tir import FloatImm, IndexMap, IntImm
+from tvm.tirx import FloatImm, IndexMap, IntImm
 
 from ..expr import Expr, PrimValue, ShapeExpr
 from ..expr import Tuple as RxTuple

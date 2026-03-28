@@ -27,8 +27,8 @@
 #include <tvm/ir/transform.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/target/target.h>
-#include <tvm/tir/expr.h>
-#include <tvm/tir/function.h>
+#include <tvm/tirx/expr.h>
+#include <tvm/tirx/function.h>
 
 #include <string>
 #include <vector>
@@ -39,7 +39,7 @@ namespace backend {
 namespace adreno {
 namespace transform {
 
-using tir::transform::CreatePrimFuncPass;
+using tirx::transform::CreatePrimFuncPass;
 using tvm::transform::Pass;
 using tvm::transform::PassContext;
 

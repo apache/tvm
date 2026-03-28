@@ -19,18 +19,18 @@
 
 #include <functional>
 
-#include "../../../tir/ir/data_type_rewriter.h"
-#include "../../../tir/transform/simplify.h"
+#include "../../../tirx/ir/data_type_rewriter.h"
+#include "../../../tirx/transform/simplify.h"
 #include "../ir_comparator.h"
 #include "../utils.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 template <class T>
 bool UsesVar(const T& x, const Var& var) {
-  return tir::UsesVar(x, [tgt = var.get()](const VarNode* v) { return v == tgt; });
+  return tirx::UsesVar(x, [tgt = var.get()](const VarNode* v) { return v == tgt; });
 }
 
 Range RangeFromExtent(const PrimExpr& extent) {
@@ -104,7 +104,7 @@ ffi::Array<ffi::Array<arith::IterMark>> TrivialSubspaceDivision(
       var_set.insert(var.get());
     }
     return [var_set = std::move(var_set)](const PrimExpr& expr) -> bool {
-      return tir::UsesVar(expr, [&var_set](const VarNode* var) {
+      return tirx::UsesVar(expr, [&var_set](const VarNode* var) {
         return var_set.count(var);  //
       });
     };

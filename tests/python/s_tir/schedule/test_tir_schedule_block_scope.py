@@ -22,10 +22,10 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import s_tir, tir
+from tvm import s_tir, tirx
 from tvm.s_tir.schedule import DepKind
-from tvm.script import tir as T
-from tvm.tir.stmt_functor import post_order_visit
+from tvm.script import tirx as T
+from tvm.tirx.stmt_functor import post_order_visit
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
@@ -85,12 +85,12 @@ def _get_sblock(s: s_tir.ScheduleState, name_hint: str) -> s_tir.StmtSRef:
 
     def f_visit(node):
         nonlocal result
-        if isinstance(node, tvm.tir.SBlock) and node.name_hint == name_hint:
+        if isinstance(node, tvm.tirx.SBlock) and node.name_hint == name_hint:
             result = node
 
     func = s.mod["main"]
     post_order_visit(func.body, f_visit)
-    assert result is not None and isinstance(result, tvm.tir.SBlock)
+    assert result is not None and isinstance(result, tvm.tirx.SBlock)
     return s.get_sref(result)
 
 

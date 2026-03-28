@@ -25,8 +25,8 @@
 #define TVM_TARGET_SOURCE_CODEGEN_CUDA_H_
 
 #include <tvm/target/codegen.h>
-#include <tvm/tir/expr.h>
-#include <tvm/tir/op.h>
+#include <tvm/tirx/expr.h>
+#include <tvm/tirx/op.h>
 
 #include <string>
 #include <unordered_map>

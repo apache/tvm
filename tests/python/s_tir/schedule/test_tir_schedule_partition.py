@@ -20,13 +20,13 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import te, tir
+from tvm import te, tirx
 from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
-from tvm.script import tir as T
-from tvm.tir.expr import IntImm
+from tvm.script import tirx as T
+from tvm.tirx.expr import IntImm
 
 # pylint: disable=no-member,invalid-name,unused-variable
 

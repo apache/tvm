@@ -31,10 +31,10 @@ import pytest
 import torch
 
 import tvm
-from tvm import relax, tir
+from tvm import relax, tirx
 from tvm.relax import BasePyModule
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 class TestDLPackIntegration:

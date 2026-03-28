@@ -17,7 +17,7 @@
 """Relax Neural Network (NN) operators"""
 
 from tvm import DataType, relax
-from tvm.tir import FloatImm
+from tvm.tirx import FloatImm
 
 from ...expr import Expr
 from . import _ffi_api

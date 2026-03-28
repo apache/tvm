@@ -20,7 +20,7 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import TVMError, relax, tir
+from tvm import TVMError, relax, tirx
 from tvm.ir import Op, VDevice
 from tvm.script import relax as R
 
@@ -116,8 +116,8 @@ def test_unary_arith_infer_struct_info(unary_arith_op: Callable):
 
 def test_unary_arith_infer_struct_info_shape_symbolic(unary_arith_op: Callable):
     bb = relax.BlockBuilder()
-    m = tir.Var("m", "int64")
-    n = tir.Var("n", "int64")
+    m = tirx.Var("m", "int64")
+    n = tirx.Var("n", "int64")
     x0 = relax.Var("x", R.Tensor((m, n), "float32"))
     x1 = relax.Var("x", R.Tensor((4, n), "float32"))
 
@@ -206,8 +206,8 @@ def test_clip_infer_struct_info():
     _check_inference(bb, relax.op.clip(x4, 0, 6), relax.TensorStructInfo(dtype=""))
 
     # Symbolic
-    m = tir.Var("m", "int64")
-    n = tir.Var("n", "int64")
+    m = tirx.Var("m", "int64")
+    n = tirx.Var("n", "int64")
     x5 = relax.Var("x", R.Tensor((m, n), "float32"))
     x6 = relax.Var("x", R.Tensor((4, n), "float32"))
 

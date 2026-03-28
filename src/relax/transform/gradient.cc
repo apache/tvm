@@ -365,7 +365,7 @@ class BackwardBindingGenerator : private ExprVisitor {
           << "Differentiation of call_tir op without registering corresponding gradient "
              "function is not supported yet.";
     } else if (call_op == Op::Get("relax.call_tir_with_grad")) {
-      // tir gradient registering
+      // tirx gradient registering
       auto te_grad_name = call->attrs.as<CallTIRWithGradAttrs>()->te_grad_name;
       const auto grad_func =
           tvm::ffi::Function::GetGlobalRequired(te_grad_func_prefix + te_grad_name);

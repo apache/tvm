@@ -16,7 +16,7 @@
 # under the License.
 """Reduction rule for operators including softmax, layer norm, RMS norm, etc"""
 
-from tvm import arith, s_tir, tir
+from tvm import arith, s_tir, tirx
 from tvm.s_tir import Schedule
 from tvm.s_tir.schedule import SBlockRV
 from tvm.target import Target
@@ -31,9 +31,9 @@ class Transpose(GPUScheduleRule):
 
     def is_transpose(self, sch: Schedule, block_rv: SBlockRV):
         block = sch.get(block_rv)
-        if isinstance(block.body, tir.BufferStore):
+        if isinstance(block.body, tirx.BufferStore):
             rhs = block.body.value
-            if isinstance(rhs, tir.BufferLoad):
+            if isinstance(rhs, tirx.BufferLoad):
                 lhs_indices = block.body.indices
                 rhs_indices = rhs.indices
                 if list(lhs_indices) != list(rhs_indices) and set(lhs_indices) == set(rhs_indices):
@@ -42,12 +42,12 @@ class Transpose(GPUScheduleRule):
 
     def apply(  # pylint: disable=too-many-locals
         self,
-        func: tir.PrimFunc,
+        func: tirx.PrimFunc,
         target: Target,
         _: bool,
     ) -> None | s_tir.Schedule | list[s_tir.Schedule]:
         # pylint: disable=invalid-name
-        if not isinstance(func, tir.PrimFunc) or not self.is_target_available(target):
+        if not isinstance(func, tirx.PrimFunc) or not self.is_target_available(target):
             return None
         if target.kind.name == "cuda":
             len_tx = 16

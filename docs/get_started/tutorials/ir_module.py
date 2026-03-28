@@ -21,7 +21,7 @@
 
 IRModule
 ========
-This tutorial presents the core abstraction of Apache TVM Unity, the IRModule.
+This tutorial presents the core abstraction of Apache TVM, the IRModule.
 The IRModule encompasses the **entirety** of the ML models, incorporating the
 computational graph, tensor programs, and potential calls to external libraries.
 
@@ -49,7 +49,7 @@ from tvm.relax.frontend.torch import from_exported_program
 # Import from existing models
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # The most common way to initialize an IRModule is to import from an existing
-# model. Apache TVM Unity accommodates imports from a range of frameworks,
+# model. Apache TVM accommodates imports from a range of frameworks,
 # such as PyTorch and ONNX. This tutorial solely demonstrates the import process
 # from PyTorch.
 
@@ -86,7 +86,7 @@ mod_from_torch.show()
 ######################################################################
 # Write with Relax NN Module
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Apache TVM Unity also provides a set of PyTorch-liked APIs, to help users
+# Apache TVM also provides a set of PyTorch-liked APIs, to help users
 # write the IRModule directly.
 
 from tvm.relax.frontend import nn
@@ -170,7 +170,7 @@ assert mod[gv] == mod["main"]
 ######################################################################
 # Transformations on IRModules
 # ----------------------------
-# Transformations are the import component of Apache TVM Unity. One transformation
+# Transformations are the import component of Apache TVM. One transformation
 # takes in an IRModule and outputs another IRModule. We can apply a sequence of
 # transformations to an IRModule to obtain a new IRModule. That is the common way to
 # optimize a model.
@@ -195,7 +195,7 @@ mod.show()
 print(mod.get_global_vars())
 
 ######################################################################
-# Next, Apache TVM Unity provides a set of default transformation pipelines for users,
+# Next, Apache TVM provides a set of default transformation pipelines for users,
 # to simplify the transformation process. We can then apply the default pipeline to the module.
 # The default **zero** pipeline contains very fundamental transformations, including:
 #
@@ -225,7 +225,7 @@ mod.show()
 # Deploy the IRModule Universally
 # -------------------------------
 # After the optimization, we can compile the model into a TVM runtime module.
-# Notably, Apache TVM Unity provides the ability of universal deployment, which means
+# Notably, Apache TVM provides the ability of universal deployment, which means
 # we can deploy the same IRModule on different backends, including CPU, GPU, and other emerging
 # backends.
 #
@@ -279,7 +279,7 @@ assert np.allclose(cpu_out, gpu_out, atol=1e-3)
 ######################################################################
 # Deploy on Other Backends
 # ~~~~~~~~~~~~~~~~~~~~~~~~
-# Apache TVM Unity also supports other backends, such as different kinds of GPUs
+# Apache TVM also supports other backends, such as different kinds of GPUs
 # (Metal, ROCm, Vulkan and OpenCL), different kinds of CPUs (x86, ARM), and other
 # emerging backends (e.g., WebAssembly). The deployment process is similar to the
 # GPU backend.

@@ -25,8 +25,8 @@
 #define TVM_ARITH_INT_SOLVER_H_
 
 #include <tvm/ir/expr.h>
-#include <tvm/tir/expr.h>
-#include <tvm/tir/op.h>
+#include <tvm/tirx/expr.h>
+#include <tvm/tirx/op.h>
 
 #include <unordered_map>
 #include <utility>
@@ -37,9 +37,9 @@
 namespace tvm {
 namespace arith {
 
-using tir::IterVar;
-using tir::Var;
-using tir::VarNode;
+using tirx::IterVar;
+using tirx::Var;
+using tirx::VarNode;
 
 // According to experiments two best simplifications orders were can->rw and rw->can->rw,
 // but rw->can->rw is better for a couple of cases.

@@ -46,7 +46,7 @@ namespace backend {
 inline std::vector<int64_t> GetIntShape(const ffi::Array<PrimExpr>& shape) {
   std::vector<int64_t> ret;
   for (const auto& dim : shape) {
-    const int64_t* pval = tir::as_const_int(dim);
+    const int64_t* pval = tirx::as_const_int(dim);
     ret.push_back(pval ? *pval : -1);
   }
   return ret;

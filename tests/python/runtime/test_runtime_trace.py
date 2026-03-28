@@ -24,7 +24,7 @@ from tvm import te
 def test_trace_default_action():
     n = 2
     x = te.placeholder((n, n, n), name="X", dtype="float32")
-    y = te.compute(x.shape, lambda i, j, k: tvm.tir.trace([i, j, k, x[i][j][k]]))
+    y = te.compute(x.shape, lambda i, j, k: tvm.tirx.trace([i, j, k, x[i][j][k]]))
     f = tvm.compile(te.create_prim_func([x, y]), target="llvm")
     xnd = tvm.runtime.tensor(np.ones((n, n, n), dtype=x.dtype))
     ynd = tvm.runtime.tensor(np.zeros((n, n, n), dtype=y.dtype))
@@ -32,7 +32,7 @@ def test_trace_default_action():
 
 
 def test_trace_expr_assign():
-    @tvm.register_global_func("tvm.tir.trace_callback2")
+    @tvm.register_global_func("tvm.tirx.trace_callback2")
     def trace_buffer(x):
         return
 
@@ -40,10 +40,10 @@ def test_trace_expr_assign():
         n = 4
         x = te.placeholder((n, n, n), name="X", dtype=dtype)
         y = te.compute(
-            x.shape, lambda i, j, k: tvm.tir.trace([x[i][j][k]], "tvm.tir.trace_callback2")
+            x.shape, lambda i, j, k: tvm.tirx.trace([x[i][j][k]], "tvm.tirx.trace_callback2")
         )
         z = te.compute(
-            x.shape, lambda i, j, k: tvm.tir.trace([y[i][j][k]], "tvm.tir.trace_callback2")
+            x.shape, lambda i, j, k: tvm.tirx.trace([y[i][j][k]], "tvm.tirx.trace_callback2")
         )
         f = tvm.compile(te.create_prim_func([x, y, z]), "llvm")
 
@@ -61,7 +61,7 @@ def test_trace_expr_assign():
 
 
 def test_trace_expr_sum_generated():
-    @tvm.register_global_func("tvm.tir.trace_callback3")
+    @tvm.register_global_func("tvm.tirx.trace_callback3")
     def trace_buffer(x):
         return
 
@@ -72,8 +72,8 @@ def test_trace_expr_sum_generated():
         c = te.compute(
             a.shape,
             lambda i, j, k: (
-                tvm.tir.trace([a[i][j][k]], "tvm.tir.trace_callback3")
-                + tvm.tir.trace([b[i][j][k]], "tvm.tir.trace_callback3")
+                tvm.tirx.trace([a[i][j][k]], "tvm.tirx.trace_callback3")
+                + tvm.tirx.trace([b[i][j][k]], "tvm.tirx.trace_callback3")
             ),
         )
         f = tvm.compile(te.create_prim_func([a, b, c]))
@@ -88,7 +88,7 @@ def test_trace_expr_sum_generated():
 
 
 def test_trace_expr_sum_args():
-    @tvm.register_global_func("tvm.tir.trace_silent")
+    @tvm.register_global_func("tvm.tirx.trace_silent")
     def silent(*args):
         return
 
@@ -102,10 +102,10 @@ def test_trace_expr_sum_args():
         c = te.compute(
             a.shape,
             lambda i, j, k: (
-                tvm.tir.trace([i, j, k, a[i][j][k]], "tvm.tir.trace_silent")
-                + tvm.tir.trace([i, j, k, b[i][j][k]], "tvm.tir.trace_silent")
-                + tvm.tir.trace([i, j, k, d[i][j][k]], "tvm.tir.trace_silent")
-                + tvm.tir.trace([i, j, k, e[i][j][k]], "tvm.tir.trace_silent")
+                tvm.tirx.trace([i, j, k, a[i][j][k]], "tvm.tirx.trace_silent")
+                + tvm.tirx.trace([i, j, k, b[i][j][k]], "tvm.tirx.trace_silent")
+                + tvm.tirx.trace([i, j, k, d[i][j][k]], "tvm.tirx.trace_silent")
+                + tvm.tirx.trace([i, j, k, e[i][j][k]], "tvm.tirx.trace_silent")
             ),
         )
         f = tvm.compile(te.create_prim_func([a, b, d, e, c]))
@@ -124,7 +124,7 @@ def test_trace_expr_sum_args():
 
 
 def test_trace_expr_sum_custom():
-    @tvm.register_global_func("tvm.tir.trace_callback4")
+    @tvm.register_global_func("tvm.tirx.trace_callback4")
     def trace_buffer(x):
         return
 
@@ -135,8 +135,8 @@ def test_trace_expr_sum_custom():
         c = te.compute(
             a.shape,
             lambda i, j: (
-                tvm.tir.trace([a[i][j]], "tvm.tir.trace_callback4")
-                + tvm.tir.trace([b[i][j]], "tvm.tir.trace_callback4")
+                tvm.tirx.trace([a[i][j]], "tvm.tirx.trace_callback4")
+                + tvm.tirx.trace([b[i][j]], "tvm.tirx.trace_callback4")
             ),
         )
         f = tvm.compile(te.create_prim_func([a, b, c]))
@@ -153,19 +153,21 @@ def test_trace_expr_sum_custom():
 
 
 def test_trace_can_change_traced_value_int():
-    @tvm.register_global_func("tvm.tir.trace_change_int_first")
+    @tvm.register_global_func("tvm.tirx.trace_change_int_first")
     def trace_buffer(x):
         return 13
 
-    @tvm.register_global_func("tvm.tir.trace_change_int_second")
+    @tvm.register_global_func("tvm.tirx.trace_change_int_second")
     def trace_buffer(x):
         return 14
 
     def check_assign(dtype):
         n = 4
         x = te.placeholder((n,), name="X", dtype=dtype)
-        y = te.compute(x.shape, lambda i: tvm.tir.trace([x[i]], "tvm.tir.trace_change_int_first"))
-        z = te.compute(x.shape, lambda i: tvm.tir.trace([y[i]], "tvm.tir.trace_change_int_second"))
+        y = te.compute(x.shape, lambda i: tvm.tirx.trace([x[i]], "tvm.tirx.trace_change_int_first"))
+        z = te.compute(
+            x.shape, lambda i: tvm.tirx.trace([y[i]], "tvm.tirx.trace_change_int_second")
+        )
         f = tvm.compile(te.create_prim_func([x, y, z]))
 
         xnd = tvm.runtime.tensor(np.ones((n,), dtype=x.dtype))
@@ -182,20 +184,22 @@ def test_trace_can_change_traced_value_int():
 
 
 def test_trace_can_change_traced_value_float():
-    @tvm.register_global_func("tvm.tir.trace_change_float_first")
+    @tvm.register_global_func("tvm.tirx.trace_change_float_first")
     def trace_buffer(x):
         return 13.0
 
-    @tvm.register_global_func("tvm.tir.trace_change_float_second")
+    @tvm.register_global_func("tvm.tirx.trace_change_float_second")
     def trace_buffer(x):
         return 14.0
 
     def check_assign(dtype):
         n = 4
         x = te.placeholder((n,), name="X", dtype=dtype)
-        y = te.compute(x.shape, lambda i: tvm.tir.trace([x[i]], "tvm.tir.trace_change_float_first"))
+        y = te.compute(
+            x.shape, lambda i: tvm.tirx.trace([x[i]], "tvm.tirx.trace_change_float_first")
+        )
         z = te.compute(
-            x.shape, lambda i: tvm.tir.trace([y[i]], "tvm.tir.trace_change_float_second")
+            x.shape, lambda i: tvm.tirx.trace([y[i]], "tvm.tirx.trace_change_float_second")
         )
         f = tvm.compile(te.create_prim_func([x, y, z]), target="llvm")
 

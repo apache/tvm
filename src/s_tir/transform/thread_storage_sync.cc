@@ -24,21 +24,21 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tir/analysis.h>
-#include <tvm/tir/builtin.h>
-#include <tvm/tir/expr.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/analysis.h>
+#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/expr.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include <unordered_map>
 #include <unordered_set>
 
 #include "../../runtime/thread_storage_scope.h"
-#include "../../tir/transform/ir_utils.h"
+#include "../../tirx/transform/ir_utils.h"
 #include "storage_access.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 class ThreadSyncPlanner : public StorageAccessVisitor {
  public:
@@ -233,7 +233,7 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
         PrimExpr curr_index = curr_intset.PointValue();
         has_same_index = ExprDeepEqual()(prev_index, curr_index);
         if (thread_index_var != nullptr) {
-          auto f_uses_thread_index = [=](const tvm::tir::VarNode* parameter) {
+          auto f_uses_thread_index = [=](const tvm::tirx::VarNode* parameter) {
             return parameter == thread_index_var;
           };
           depends_on_thread_index = depends_on_thread_index &&
@@ -349,7 +349,7 @@ class ThreadSyncInserter : public StmtExprMutator {
     return StmtExprMutator::VisitStmt_(op);
   }
   Stmt VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == tir::attr::thread_extent) {
+    if (op->attr_key == tirx::attr::thread_extent) {
       bool temp = true;
       std::swap(temp, in_thread_env_);
       thread_extents_.push_back(op);
@@ -373,7 +373,7 @@ class ThreadSyncInserter : public StmtExprMutator {
     if (volatile_vars_.count(op->buffer->data.get())) {
       auto* cow = node.CopyOnWrite();
       auto annotations = cow->annotations;
-      annotations.Set(tir::attr::kVolatile, Bool(true));
+      annotations.Set(tirx::attr::kVolatile, Bool(true));
       cow->annotations = annotations;
     }
     return node;

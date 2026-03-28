@@ -19,12 +19,12 @@
 
 import tvm
 import tvm.testing
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 @T.prim_func
 def main(p0: T.Buffer((), "int32"), T_stack: T.Buffer((T.int64(3),), "int32")):
-    T.func_attr({"tir.noalias": True})
+    T.func_attr({"tirx.noalias": True})
     # with T.sblock("root"):
     compile_engine_const = T.sblock_alloc_buffer((), "int32")
     compile_engine_const_1 = T.sblock_alloc_buffer((), "int32")

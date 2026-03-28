@@ -18,10 +18,10 @@
 # ruff: noqa: E501, F401
 """Intrinsics for ARM tensorization."""
 
-from tvm import tir
-from tvm.script import tir as T
+from tvm import tirx
+from tvm.script import tirx as T
 from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder.tir import prim_func as build_prim_func
+from tvm.script.ir_builder.tirx import prim_func as build_prim_func
 from tvm.target.codegen import llvm_version_major
 
 from .. import TensorIntrin
@@ -167,7 +167,7 @@ def _create_ptrue_mask(dtype):
     """
     Creates a mask that enables all lanes of a scalable vector.
     """
-    return T.broadcast(T.bool(True), tir.get_vscale_expr(dtype))
+    return T.broadcast(T.bool(True), tirx.get_vscale_expr(dtype))
 
 
 def _create_active_lane_mask(tensor, relative_offsets, vertical_limit):
@@ -176,7 +176,7 @@ def _create_active_lane_mask(tensor, relative_offsets, vertical_limit):
 
     Parameters
     ----------
-    tensor : tvm.tir.Buffer
+    tensor : tvm.tirx.Buffer
         The tensor the buffer access will be performed on.
     relative_offsets : Tuple[PrimExpr, PrimExpr]
         The vertical and horizontal offsets into the accumulator tile.
@@ -251,7 +251,7 @@ def get_sme_transpose_interleave_2svlx2svl_fp32_intrin(cols, rows):
         The SME TensorIntrin that can be used in tensorizing a schedule.
 
     """
-    SVF = tir.get_vscale_expr("float32")
+    SVF = tirx.get_vscale_expr("float32")
     SVF2 = 2 * SVF
 
     @T.prim_func
@@ -386,7 +386,7 @@ def get_sme_transpose_interleave_block2_2svl_fp16_intrin():
 
     """
     # pylint: enable=line-too-long
-    SVF = tir.get_vscale_expr("float16")
+    SVF = tirx.get_vscale_expr("float16")
     SVF2 = 2 * SVF
 
     @T.prim_func
@@ -485,7 +485,7 @@ def get_transpose_interleave_intrin_name(in_dtype, out_dtype, extent_cols, exten
         sme_transpose_interleave_intrin_name = (
             ARM_SME_2SVLx2SVL_FP32_TRANSPOSE_INTERLEAVE + f"_{extent_cols}_{extent_rows}"
         )
-        tir.TensorIntrin.register(
+        tirx.TensorIntrin.register(
             sme_transpose_interleave_intrin_name,
             *get_sme_transpose_interleave_2svlx2svl_fp32_intrin(extent_cols, extent_rows),
             override=True,
@@ -584,7 +584,7 @@ def get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(M, K, in_dtype):
         The SME TensorIntrin that can be used in tensorizing a schedule.
 
     """
-    SVF = tir.get_vscale_expr("float32")
+    SVF = tirx.get_vscale_expr("float32")
     SVF2 = 2 * SVF
     fmopa_intrin = (
         "llvm.aarch64.sme.mopa" if in_dtype == "float32" else "llvm.aarch64.sme.mopa.wide"
@@ -629,7 +629,7 @@ def get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(M, K, in_dtype):
                     rows_per_iter = 1 if in_dtype == "float32" else 2
                     with T.serial(T.ceildiv(K, rows_per_iter)) as k:
                         k_row = k * rows_per_iter
-                        in_dtype_svf = tir.get_vscale_expr(in_dtype)
+                        in_dtype_svf = tirx.get_vscale_expr(in_dtype)
 
                         # Ideally we'd rely on predicating the loads and use the same predicate
                         # for the outer product operation. However, support for predicated

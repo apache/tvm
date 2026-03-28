@@ -23,11 +23,11 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import DataType, DataTypeCode, IRModule, relax, te, tir, topi
+from tvm import DataType, DataTypeCode, IRModule, relax, te, tirx, topi
 from tvm.s_tir import dlight as dl
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 try:
     import ml_dtypes
@@ -55,7 +55,7 @@ def test_fp8_conversions(input):
                 B: T.Buffer((64,), dtype),
                 C: T.Buffer((64,), dtype),
             ):
-                T.func_attr({"tir.noalias": True})
+                T.func_attr({"tirx.noalias": True})
                 for i_0 in T.thread_binding(2, thread="blockIdx.x"):
                     for i_1 in T.thread_binding(32, thread="threadIdx.x"):
                         with T.sblock("C"):
@@ -70,7 +70,7 @@ def test_fp8_conversions(input):
 
     mod = _create_mod(dtype)
     target = "cuda"
-    fadd = tvm.tir.build(mod, target=target)
+    fadd = tvm.tirx.build(mod, target=target)
 
     cuda_src = fadd.imports[0].inspect_source()
     assert nv_dtype in cuda_src, f"{nv_dtype} datatype not found in generated CUDA"
@@ -106,7 +106,7 @@ def test_fp8_packing(dtype):
                 R: T.Buffer((length,), packed_dtype),
                 B: T.Buffer((length,), native_dtype),
             ):
-                T.func_attr({"tir.noalias": True})
+                T.func_attr({"tirx.noalias": True})
                 for i_0 in T.thread_binding(2, thread="blockIdx.x"):
                     for i_1 in T.thread_binding(32, thread="threadIdx.x"):
                         with T.sblock("R"):
@@ -169,7 +169,7 @@ def test_fp8_vector_conversions(native_dtype, promoted_dtype, numpytype):
                 B: T.Buffer((64,), native_dtype),
                 C: T.Buffer((64,), native_dtype),
             ):
-                T.func_attr({"tir.noalias": True})
+                T.func_attr({"tirx.noalias": True})
                 for i_0 in T.thread_binding(2, thread="blockIdx.x"):
                     for i_1 in T.thread_binding(32, thread="threadIdx.x"):
                         with T.sblock("C"):
@@ -185,7 +185,7 @@ def test_fp8_vector_conversions(native_dtype, promoted_dtype, numpytype):
 
     mod = _create_mod(native_dtype, promoted_dtype)
     target = "cuda"
-    fadd = tvm.tir.build(mod, target=target)
+    fadd = tvm.tirx.build(mod, target=target)
     cuda_src = fadd.imports[0].inspect_source()
     dev = tvm.device(target, 0)
 
@@ -302,7 +302,7 @@ def test_half4_vector_add():
             B: T.Buffer((64,), "float16x4"),
             C: T.Buffer((64,), "float16x4"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i_0 in T.thread_binding(2, thread="blockIdx.x"):
                 for i_1 in T.thread_binding(32, thread="threadIdx.x"):
                     with T.sblock("C"):
@@ -417,7 +417,7 @@ class BaseFP8E4M3QuantScaleOnly:
     @classmethod
     def quantize_fp8x4_e4m3(  # pylint: disable=too-many-locals
         cls,
-        weight_shape: list[tir.PrimExpr],
+        weight_shape: list[tirx.PrimExpr],
         model_dtype,
         quantize_dtype,
         storage_dtype,
@@ -428,24 +428,24 @@ class BaseFP8E4M3QuantScaleOnly:
         output_transpose: bool = False,
     ) -> tuple[te.Tensor, te.Tensor]:
         """Group quantization for weight tensor, defined in tensor expression."""
-        max_int = tir.const(max_int_value, model_dtype)
+        max_int = tirx.const(max_int_value, model_dtype)
         shape = weight_shape  # pylint: disable=invalid-name
         axis = axis if axis >= 0 else len(shape) + axis
         k = shape[axis]
         quantize_dtype = DataType(quantize_dtype)
         # compute scale per group
         r = te.reduce_axis((0, group_size), name="r")  # pylint: disable=invalid-name
-        num_group = tir.ceildiv(k, group_size)
+        num_group = tirx.ceildiv(k, group_size)
         # (4096, 4096) -> quantize axis = 0, group size = 32 -> (128, 4096)
         # for channel quant group_size = 4096 -> (1, 4096)
         scale_shape = (*shape[:axis], num_group, *shape[axis + 1 :])
 
         def compute_scale(weight: te.Tensor):
-            min_scaling_factor = tir.const(1.0 / (max_int_value * 512.0), model_dtype)
+            min_scaling_factor = tirx.const(1.0 / (max_int_value * 512.0), model_dtype)
             max_abs = te.compute(
                 shape=scale_shape,
                 fcompute=lambda *idx: te.max(
-                    tir.if_then_else(
+                    tirx.if_then_else(
                         idx[axis] * group_size + r < k,
                         te.abs(weight(*idx[:axis], idx[axis] * group_size + r, *idx[axis + 1 :])),
                         te.min_value(model_dtype),
@@ -504,7 +504,7 @@ class BaseFP8E4M3QuantScaleOnly:
     @classmethod
     def dequantize_fp8x4_e4m3(  # pylint: disable=too-many-locals
         cls,
-        packed_weight_shape: list[tir.PrimExpr],
+        packed_weight_shape: list[tirx.PrimExpr],
         scale_shape,
         dequant_shape,
         model_dtype,
@@ -613,7 +613,7 @@ class BaseFP8E4M3QuantScaleOnly:
             scale: T.Buffer(scale_shape, model_dtype),
             dequantize: T.Buffer(out_shape, model_dtype),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
             for i0, i1 in T.grid(T.int64(packed_weight_shape[0]), T.int64(packed_weight_shape[1])):
                 with T.sblock("dequantize"):
@@ -700,7 +700,7 @@ class BaseFP8E4M3QuantScaleOnly:
         def print_cuda(target, mod, name=None):
             if name:
                 mod = mod[name]
-            f = tvm.tir.build(mod, target=target)
+            f = tvm.tirx.build(mod, target=target)
             cuda_src = f.imports[0].inspect_source()
             print(cuda_src)
 
@@ -871,7 +871,7 @@ def test_moe_gemv_shfl_down_illegal_instr():
             indptr: T.Buffer((1, 2), "int32"),
             o: T.Buffer((2, spatial_size), "float16"),
         ):
-            T.func_attr({"op_pattern": 4, "tir.noalias": True})
+            T.func_attr({"op_pattern": 4, "tirx.noalias": True})
             num_seq = T.int64()
             x = T.match_buffer(x_handle, (num_seq, reduce_size), "float16")
             for expert_id in T.thread_binding(2, thread="blockIdx.y"):
@@ -989,7 +989,7 @@ def test_fp8_fp16_bf16_vectorize_arith(vec_length, dtype):
     mod = _create_mod(vec_length, dtype)
     device = tvm.cuda()
     target = tvm.target.Target.from_device(device)
-    f = tvm.tir.build(mod, target=target)
+    f = tvm.tirx.build(mod, target=target)
 
     a_np = np.random.rand(128).astype("float8_e4m3fn")
     b_np = np.random.rand(128).astype(dtype)

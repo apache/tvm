@@ -19,7 +19,7 @@
 import tvm
 import tvm.testing
 from tvm.s_tir.transform import DefaultGPUSchedule
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def test_broadcast_to_symbolic():
@@ -32,7 +32,7 @@ def test_broadcast_to_symbolic():
             rxplaceholder: T.Buffer((T.int64(3), T.int64(1)), "float32"),
             var_T_broadcast_to: T.handle,
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             x_0 = T.int64()
             x_1 = T.int64()
             T_broadcast_to = T.match_buffer(var_T_broadcast_to, (x_0, x_1))
@@ -48,7 +48,7 @@ def test_broadcast_to_symbolic():
     class Expected:
         @T.prim_func
         def broadcast_to(rxplaceholder: T.Buffer((T.int64(3), T.int64(1)), "float32"), var_T_broadcast_to: T.handle):
-            T.func_attr({"tir.is_scheduled": True, "tir.noalias": True})
+            T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             x_0, x_1 = T.int64(), T.int64()
             T_broadcast_to = T.match_buffer(var_T_broadcast_to, (x_0, x_1))
             for ax0_ax1_fused_1 in T.thread_binding(T.int64(256), thread="blockIdx.x"):
@@ -78,7 +78,7 @@ def test_matmul():
             B: T.Buffer((32, 32), "float16"),
             C: T.Buffer((32, 32), "float16"),
         ):
-            T.func_attr({"global_symbol": "main", "tir.noalias": True})
+            T.func_attr({"global_symbol": "main", "tirx.noalias": True})
             # with T.sblock("root"):
             for i, j, k in T.grid(32, 32, 32):
                 with T.sblock("C"):
@@ -102,7 +102,7 @@ def test_matmul():
                                              "max_num_threads": 1024,
                                              "tag": "",
                                              "thread_warp_size": 32}),
-                         "tir.noalias": True})
+                         "tirx.noalias": True})
             # with T.sblock("root"):
             for i, j, k in T.grid(32, 32, 32):
                 with T.sblock("C"):
@@ -121,7 +121,7 @@ def test_matmul():
         ):
             T.func_attr({"global_symbol": "main",
                          "target": T.target({"keys": ["cpu"], "kind": "llvm", "tag": ""}),
-                        "tir.noalias": True})
+                        "tirx.noalias": True})
             # with T.sblock("root"):
             for i, j, k in T.grid(32, 32, 32):
                 with T.sblock("C"):
@@ -140,7 +140,7 @@ def test_matmul():
             B: T.Buffer((32, 32), "float16"),
             C: T.Buffer((32, 32), "float16"),
         ):
-            T.func_attr({"tir.is_scheduled": True, "global_symbol": "main", "tir.noalias": True})
+            T.func_attr({"tirx.is_scheduled": True, "global_symbol": "main", "tirx.noalias": True})
             # with T.sblock("root"):
             for i_j_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
                 for i_j_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):
@@ -161,7 +161,7 @@ def test_matmul():
 
         @T.prim_func
         def matmul_cpu(A: T.Buffer((32, 32), "float16"), B: T.Buffer((32, 32), "float16"), C: T.Buffer((32, 32), "float16")):
-            T.func_attr({"global_symbol": "main", "target": T.target({"keys": ["cpu"], "kind": "llvm", "tag": ""}), "tir.is_scheduled": True, "tir.noalias": True})
+            T.func_attr({"global_symbol": "main", "target": T.target({"keys": ["cpu"], "kind": "llvm", "tag": ""}), "tirx.is_scheduled": True, "tirx.noalias": True})
             # with T.sblock("root"):
             for i, j, k in T.grid(32, 32, 32):
                 with T.sblock("C"):
@@ -174,7 +174,7 @@ def test_matmul():
 
         @T.prim_func
         def matmul_gpu(A: T.Buffer((32, 32), "float16"), B: T.Buffer((32, 32), "float16"), C: T.Buffer((32, 32), "float16")):
-            T.func_attr({"global_symbol": "main", "target": T.target({"arch": "sm_86", "keys": ["cuda", "gpu"], "kind": "cuda", "max_num_threads": 1024, "tag": "", "thread_warp_size": 32}), "tir.is_scheduled": True, "tir.noalias": True})
+            T.func_attr({"global_symbol": "main", "target": T.target({"arch": "sm_86", "keys": ["cuda", "gpu"], "kind": "cuda", "max_num_threads": 1024, "tag": "", "thread_warp_size": 32}), "tirx.is_scheduled": True, "tirx.noalias": True})
             # with T.sblock("root"):
             for i_j_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
                 for i_j_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):
@@ -203,7 +203,7 @@ def test_add():
     class Before:
         @T.prim_func
         def add(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_add: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(4), T.int64(3), T.int64(2), T.int64(3)):
                 with T.sblock("T_add"):
                     ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -221,7 +221,7 @@ def test_add():
             ),
             T_add: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32"),
         ):
-            T.func_attr({"tir.is_scheduled": True,  "tir.noalias": True})
+            T.func_attr({"tirx.is_scheduled": True,  "tirx.noalias": True})
             # with T.sblock("root"):
             for i0_i1_i2_i3_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
                 for i0_i1_i2_i3_fused_1 in T.thread_binding(
@@ -275,7 +275,7 @@ def test_full():
     class Before:
         @T.prim_func
         def full(rxplaceholder: T.Buffer((), "int32"), T_full: T.Buffer((T.int64(2), T.int64(3)), "int32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with T.sblock("T_full"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
@@ -290,7 +290,7 @@ def test_full():
             rxplaceholder: T.Buffer((), "int32"),
             T_full: T.Buffer((T.int64(2), T.int64(3)), "int32"),
         ):
-            T.func_attr({"tir.is_scheduled": True, "tir.noalias": True})
+            T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             # with T.sblock("root"):
             for i0_i1_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
                 for i0_i1_fused_1 in T.thread_binding(T.int64(6), thread="threadIdx.x"):
@@ -326,7 +326,7 @@ def test_scheduled():
             rxplaceholder: T.Buffer((), "int32"),
             T_full: T.Buffer((T.int64(2), T.int64(3)), "int32"),
         ):
-            T.func_attr({"tir.is_scheduled": True, "tir.noalias": True})
+            T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             # with T.sblock("root"):
             for i0_i1_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
                 for i0_i1_fused_1 in T.thread_binding(T.int64(6), thread="threadIdx.x"):
@@ -359,7 +359,7 @@ def test_multiple():
     class Before:
         @T.prim_func
         def add(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_add: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(4), T.int64(3), T.int64(2), T.int64(3)):
                 with T.sblock("T_add"):
                     ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -369,7 +369,7 @@ def test_multiple():
 
         @T.prim_func
         def full(rxplaceholder: T.Buffer((), "int32"), T_full: T.Buffer((T.int64(2), T.int64(3)), "int32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with T.sblock("T_full"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
@@ -387,7 +387,7 @@ def test_multiple():
             ),
             T_add: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32"),
         ):
-            T.func_attr({"tir.is_scheduled": True, "tir.noalias": True})
+            T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             # with T.sblock("root"):
             for i0_i1_i2_i3_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
                 for i0_i1_i2_i3_fused_1 in T.thread_binding(
@@ -431,7 +431,7 @@ def test_multiple():
             rxplaceholder: T.Buffer((), "int32"),
             T_full: T.Buffer((T.int64(2), T.int64(3)), "int32"),
         ):
-            T.func_attr({"tir.is_scheduled": True, "tir.noalias": True})
+            T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             # with T.sblock("root"):
             for i0_i1_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
                 for i0_i1_fused_1 in T.thread_binding(T.int64(6), thread="threadIdx.x"):
@@ -462,7 +462,7 @@ def test_add_on_metal():
     class Before:
         @T.prim_func
         def add(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_add: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(4), T.int64(3), T.int64(2), T.int64(3)):
                 with T.sblock("T_add"):
                     ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -474,7 +474,7 @@ def test_add_on_metal():
     class Expected:
         @T.prim_func
         def add(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_add: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
-            T.func_attr({"tir.is_scheduled": True, "tir.noalias": True})
+            T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             for i0_i1_i2_i3_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
                 for i0_i1_i2_i3_fused_1 in T.thread_binding(T.int64(72), thread="threadIdx.x"):
                     with T.sblock("T_add"):
@@ -500,7 +500,7 @@ def test_scalar_add():
     class Before:
         @T.prim_func
         def add(rxplaceholder: T.Buffer((), "int64"), T_add: T.Buffer((), "int64")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             with T.sblock("T_add"):
                 vi = T.axis.spatial(1, T.int64(0))
                 T.reads(rxplaceholder[()])
@@ -511,7 +511,7 @@ def test_scalar_add():
     class Expected:
         @T.prim_func
         def add(rxplaceholder: T.Buffer((), "int64"), T_add: T.Buffer((), "int64")):
-            T.func_attr({"tir.is_scheduled": True, "tir.noalias": True})
+            T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             # with T.sblock("root"):
             for u_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
                 for u_fused_1 in T.thread_binding(1, thread="threadIdx.x"):
@@ -547,7 +547,7 @@ def test_sum():
     class Expected:
         @T.prim_func
         def sum(A: T.Buffer((T.int64(2), T.int64(2)), "float64"), A_red: T.Buffer((), "float64")):
-            T.func_attr({"tir.is_scheduled": True})
+            T.func_attr({"tirx.is_scheduled": True})
             # with T.sblock("root"):
             for u_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
                 for u_fused_1 in T.thread_binding(1, thread="threadIdx.x"):

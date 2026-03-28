@@ -48,12 +48,12 @@ def sort(data, axis=-1, is_ascend=1):
         Sorted index tensor.
 
     """
-    data_buf = tvm.tir.decl_buffer(data.shape, data.dtype, "data_buf", data_alignment=8)
-    out_buf = tvm.tir.decl_buffer(data.shape, data.dtype, "out_buf", data_alignment=8)
+    data_buf = tvm.tirx.decl_buffer(data.shape, data.dtype, "data_buf", data_alignment=8)
+    out_buf = tvm.tirx.decl_buffer(data.shape, data.dtype, "out_buf", data_alignment=8)
     out = te.extern(
         data.shape,
         [data],
-        lambda ins, outs: tvm.tir.call_packed(
+        lambda ins, outs: tvm.tirx.call_packed(
             "tvm.contrib.sort.sort", ins[0], outs[0], axis, is_ascend
         ),
         dtype=data.dtype,
@@ -111,16 +111,16 @@ def argsort(data, valid_count=None, axis=-1, is_ascend=1, dtype="float32"):
         tvm_out = tvm.runtime.tensor(np.zeros(dshape, dtype=data.dtype), dev)
         f(tvm_data, tvm_out)
     """
-    data_buf = tvm.tir.decl_buffer(data.shape, data.dtype, "data_buf", data_alignment=8)
+    data_buf = tvm.tirx.decl_buffer(data.shape, data.dtype, "data_buf", data_alignment=8)
     if valid_count is not None:
-        valid_count_buf = tvm.tir.decl_buffer(
+        valid_count_buf = tvm.tirx.decl_buffer(
             valid_count.shape, valid_count.dtype, "valid_count_buf", data_alignment=4
         )
-        out_buf = tvm.tir.decl_buffer(data.shape, "int32", "out_buf", data_alignment=8)
+        out_buf = tvm.tirx.decl_buffer(data.shape, "int32", "out_buf", data_alignment=8)
         out = te.extern(
             data.shape,
             [data, valid_count],
-            lambda ins, outs: tvm.tir.call_packed(
+            lambda ins, outs: tvm.tirx.call_packed(
                 "tvm.contrib.sort.argsort_nms", ins[0], ins[1], outs[0], axis, is_ascend
             ),
             dtype="int32",
@@ -130,11 +130,11 @@ def argsort(data, valid_count=None, axis=-1, is_ascend=1, dtype="float32"):
             tag="argsort_nms_cpu",
         )
     else:
-        out_buf = tvm.tir.decl_buffer(data.shape, dtype, "out_buf", data_alignment=8)
+        out_buf = tvm.tirx.decl_buffer(data.shape, dtype, "out_buf", data_alignment=8)
         out = te.extern(
             data.shape,
             [data],
-            lambda ins, outs: tvm.tir.call_packed(
+            lambda ins, outs: tvm.tirx.call_packed(
                 "tvm.contrib.sort.argsort", ins[0], outs[0], axis, is_ascend
             ),
             dtype=dtype,
@@ -178,7 +178,7 @@ def topk(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int64"):
         The computed result.
     """
     assert ret_type in ["both", "values", "indices"]
-    data_buf = tvm.tir.decl_buffer(data.shape, data.dtype, "data_buf", data_alignment=8)
+    data_buf = tvm.tirx.decl_buffer(data.shape, data.dtype, "data_buf", data_alignment=8)
     out_shape = list(get_const_tuple(data.shape))
     kvar = tvm.te.size_var("k")
     if not isinstance(k, int):
@@ -187,16 +187,16 @@ def topk(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int64"):
         out_shape[axis] = k
     out_bufs = []
     if ret_type in ["both", "values"]:
-        out_bufs.append(tvm.tir.decl_buffer(out_shape, data.dtype, "value_buf", data_alignment=8))
+        out_bufs.append(tvm.tirx.decl_buffer(out_shape, data.dtype, "value_buf", data_alignment=8))
     if ret_type in ["both", "indices"]:
-        out_bufs.append(tvm.tir.decl_buffer(out_shape, dtype, "indices_buf", data_alignment=8))
+        out_bufs.append(tvm.tirx.decl_buffer(out_shape, dtype, "indices_buf", data_alignment=8))
     out_shapes = [out_shape] * len(out_bufs)
 
     kv = kvar if not isinstance(k, int) else k
     out = te.extern(
         out_shapes,
         [data],
-        lambda ins, outs: tvm.tir.call_packed(
+        lambda ins, outs: tvm.tirx.call_packed(
             "tvm.contrib.sort.topk", ins[0], *outs, kv, axis, ret_type, is_ascend
         ),
         in_buffers=[data_buf],

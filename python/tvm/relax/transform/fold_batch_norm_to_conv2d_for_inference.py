@@ -17,7 +17,7 @@
 # pylint: disable=invalid-name, unused-argument, redefined-argument-from-local
 """Relax Fold Batchnorm into Conv2D."""
 
-from tvm import relax, tir
+from tvm import relax, tirx
 from tvm.ir.module import IRModule
 from tvm.ir.transform import PassContext
 from tvm.relax import Expr
@@ -81,7 +81,7 @@ class FoldBatchnormToConv2D:
             bn_attrs = bn_op.attrs
 
             bn_variance = relax.op.add(
-                bn_variance, relax.PrimValue(tir.FloatImm("float32", bn_attrs["epsilon"]))
+                bn_variance, relax.PrimValue(tirx.FloatImm("float32", bn_attrs["epsilon"]))
             )
             dino = relax.op.sqrt(bn_variance)
             wt = relax.op.divide(bn_weight, dino)

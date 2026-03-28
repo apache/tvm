@@ -19,9 +19,9 @@
 
 from math import pi
 
-from tvm import te, tir
+from tvm import te, tirx
 from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder import tir as T
+from tvm.script.ir_builder import tirx as T
 
 
 def stft(
@@ -88,31 +88,31 @@ def stft(
             # https://librosa.org/doc/0.7.2/_modules/librosa/core/spectrum.html#stft
             with T.parallel(0, output_ptr.shape[0] * output_ptr.shape[1]) as batch_row:
                 with col_loop(0, output_ptr.shape[2]) as col:
-                    batch = tir.floordiv(batch_row, output_ptr.shape[1])
-                    row = tir.floormod(batch_row, output_ptr.shape[1])
-                    output[batch, row, col, 0] = tir.Cast(data_ptr.dtype, 0)
-                    output[batch, row, col, 1] = tir.Cast(data_ptr.dtype, 0)
+                    batch = tirx.floordiv(batch_row, output_ptr.shape[1])
+                    row = tirx.floormod(batch_row, output_ptr.shape[1])
+                    output[batch, row, col, 0] = tirx.Cast(data_ptr.dtype, 0)
+                    output[batch, row, col, 1] = tirx.Cast(data_ptr.dtype, 0)
                     with T.serial(0, win_length) as wlen:
                         output[batch, row, col, 0] += (
                             window[wlen]
                             * data[batch, col * hop_length + wlen]
-                            * tir.cos(2 * pi * row * wlen / win_length)
+                            * tirx.cos(2 * pi * row * wlen / win_length)
                         )
                         output[batch, row, col, 1] -= (
                             window[wlen]
                             * data[batch, col * hop_length + wlen]
-                            * tir.sin(2 * pi * row * wlen / win_length)
+                            * tirx.sin(2 * pi * row * wlen / win_length)
                         )
                     with T.If(normalized):
                         with T.Then():
-                            output[batch, row, col, 0] /= tir.sqrt(tir.const(n_fft, "float32"))
-                            output[batch, row, col, 1] /= tir.sqrt(tir.const(n_fft, "float32"))
+                            output[batch, row, col, 0] /= tirx.sqrt(tirx.const(n_fft, "float32"))
+                            output[batch, row, col, 1] /= tirx.sqrt(tirx.const(n_fft, "float32"))
 
             return ib.get()
 
-    output_buf = tir.decl_buffer(output_shape, data.dtype, "output_buf")
+    output_buf = tirx.decl_buffer(output_shape, data.dtype, "output_buf")
     loop_kind = "vectorize"
-    if isinstance(output_shape[2], tir.expr.SizeVar):  # any_dim
+    if isinstance(output_shape[2], tirx.expr.SizeVar):  # any_dim
         loop_kind = "serial"
 
     return te.extern(
@@ -131,7 +131,7 @@ def stft(
 def dft(
     re_data: te.Tensor,
     im_data: te.Tensor,
-    inverse: tir.IntImm,
+    inverse: tirx.IntImm,
 ):
     """
     Computes the discrete Fourier transform of input (calculation along the last axis).
@@ -182,14 +182,14 @@ def dft(
                 base_idx = i * n_fft
                 with T.serial(0, n_fft) as n:
                     n_idx = base_idx + n
-                    re_output_ptr[n_idx] = tir.Cast(re_output_ptr.dtype, 0)
-                    im_output_ptr[n_idx] = tir.Cast(im_output_ptr.dtype, 0)
+                    re_output_ptr[n_idx] = tirx.Cast(re_output_ptr.dtype, 0)
+                    im_output_ptr[n_idx] = tirx.Cast(im_output_ptr.dtype, 0)
                     _w = sign * -2 * pi * n / n_fft
                     with T.serial(0, n_fft) as k:
                         k_idx = base_idx + k
                         w = _w * k
-                        cos_w = tir.Cast(re_output_ptr.dtype, tir.cos(w))
-                        sin_w = tir.Cast(re_output_ptr.dtype, tir.sin(w))
+                        cos_w = tirx.Cast(re_output_ptr.dtype, tirx.cos(w))
+                        sin_w = tirx.Cast(re_output_ptr.dtype, tirx.sin(w))
                         re_output_ptr[n_idx] += (
                             re_data_ptr[k_idx] * cos_w - im_data_ptr[k_idx] * sin_w
                         )
@@ -197,8 +197,8 @@ def dft(
                             re_data_ptr[k_idx] * sin_w + im_data_ptr[k_idx] * cos_w
                         )
 
-                    re_output_ptr[n_idx] *= tir.Cast(re_output_ptr.dtype, factor)
-                    im_output_ptr[n_idx] *= tir.Cast(im_output_ptr.dtype, factor)
+                    re_output_ptr[n_idx] *= tirx.Cast(re_output_ptr.dtype, factor)
+                    im_output_ptr[n_idx] *= tirx.Cast(im_output_ptr.dtype, factor)
 
             return ib.get()
 

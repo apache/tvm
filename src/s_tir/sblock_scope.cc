@@ -21,7 +21,7 @@
 #include <tvm/s_tir/utils.h>
 
 namespace tvm {
-namespace tir {
+namespace tirx {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   StmtSRefNode::RegisterReflection();
@@ -210,5 +210,5 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def_method("s_tir.SBlockScopeGetDepsByDst", &SBlockScopeNode::GetDepsByDst);
 }
 
-}  // namespace tir
+}  // namespace tirx
 }  // namespace tvm

@@ -24,13 +24,13 @@
 
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/stmt_functor.h>
 
-#include "../../tir/ir/functor_common.h"
+#include "../../tirx/ir/functor_common.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 #define STMT_REGENERATE_VAR_DEF(NODE, FIELD)     \
   Stmt VisitStmt_(const NODE* op) final {        \
@@ -66,7 +66,7 @@ class RenewDefMutator : public StmtExprMutator {
     }
     // Redefine buffers in order
     // TODO(Siyuan Feng): checking var is used after define
-    ffi::Map<tir::Var, Buffer> buffer_map;
+    ffi::Map<tirx::Var, Buffer> buffer_map;
     for (const auto& param : func->params) {
       if (param->dtype.is_handle()) {
         const Buffer& buffer = func->buffer_map.at(param);

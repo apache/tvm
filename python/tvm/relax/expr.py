@@ -33,7 +33,7 @@ from tvm.runtime import Object
 
 from ..ir import BaseFunc, Node, Span
 from ..runtime import Scriptable, String
-from ..tir import PrimExpr
+from ..tirx import PrimExpr
 from . import _ffi_api
 
 # It is a workaround for mypy: https://github.com/python/mypy/issues/7866#issuecomment-549454370
@@ -301,7 +301,7 @@ class ExprWithOp(Expr, Scriptable):
         This parameter is not stored in the DLTensor, but is instead
         derived from the DLTensor's byte offset and datatype.  This is
         exposed in Relax for ease of use, and for translation into the
-        `tir::BufferNode::elem_offset` field when interacting with TIR
+        `tirx::BufferNode::elem_offset` field when interacting with TIR
         buffers.
         """
         self._check_for_tensor_struct_info()
@@ -714,7 +714,10 @@ class ShapeExpr(ExprWithOp):
 def make_shape(shape: list[Any] | tuple[Any, ...]) -> ShapeExpr:
     if isinstance(shape, list | tuple):
         return ShapeExpr(shape)
-    raise ValueError("Wrong type")
+    raise TypeError(
+        "make_shape expects a list or tuple of shape values, "
+        f"but received type {type(shape).__name__}"
+    )
 
 
 @tvm_ffi.register_object("relax.expr.Constant")
@@ -858,7 +861,7 @@ class PrimValue(Expr, Scriptable):
 
     def __init__(self, value: PrimExpr | int, span: Span | None = None) -> None:
         if isinstance(value, int):
-            value = tvm.tir.IntImm("int64", value)
+            value = tvm.tirx.IntImm("int64", value)
         self.__init_handle_by_constructor__(_ffi_api.PrimValue, value, span)  # type: ignore
 
 
@@ -1037,15 +1040,15 @@ class Function(BaseFunc, Scriptable):
         """
         return Call(self, args, None, None)
 
-    def bind_symbolic_vars(self, binding_map: Mapping[str | tvm.tir.Var, PrimExpr]) -> "Function":
+    def bind_symbolic_vars(self, binding_map: Mapping[str | tvm.tirx.Var, PrimExpr]) -> "Function":
         """Return a new function with updated symbolic variable
 
         Parameters
         ----------
-        binding_map: Mapping[str | tvm.tir.Var, PrimExpr]
+        binding_map: Mapping[str | tvm.tirx.Var, PrimExpr]
 
             The mapping of values to be replaced.  Keys may be either
-            a `tir.Var` or a string name of the variable.  If the
+            a `tirx.Var` or a string name of the variable.  If the
             variables are referred to by name, the name must uniquely
             identify a symbolic variable in the function.
 
@@ -1059,7 +1062,7 @@ class Function(BaseFunc, Scriptable):
         # Relax uses int64 for symbolic variables, but the FFI
         # converts python integers into int32.
         binding_map = {
-            key: tvm.tir.const(value, "int64") if isinstance(value, int) else value
+            key: tvm.tirx.const(value, "int64") if isinstance(value, int) else value
             for key, value in binding_map.items()
         }
 
@@ -1105,7 +1108,7 @@ class Function(BaseFunc, Scriptable):
             if isinstance(value, int):
                 # Relax uses int64 for symbolic variables, but the FFI
                 # converts python integers into int32.
-                return tvm.tir.const(value, "int64")
+                return tvm.tirx.const(value, "int64")
             elif isinstance(value, _np.ndarray | tvm.runtime.Tensor):
                 return tvm.relax.const(value)
             else:
@@ -1202,7 +1205,7 @@ class TEPlaceholderOp(tvm.te.tensor.Operation):
 
 
 def te_tensor(
-    value: Expr, tir_var_map: dict[tvm.tir.Var, tvm.tir.PrimExpr], name: str = "rxplaceholder"
+    value: Expr, tir_var_map: dict[tvm.tirx.Var, tvm.tirx.PrimExpr], name: str = "rxplaceholder"
 ):
     """Create a TE tensor from relax expression, with TIR variables in the
     tensor shape substituted by the given mapping
@@ -1212,7 +1215,7 @@ def te_tensor(
     value : Expr
         The relax expression, which is required to have TensorStructInfo.
 
-    tir_var_map : Dict[tvm.tir.Var, tvm.tir.PrimExpr]
+    tir_var_map : Dict[tvm.tirx.Var, tvm.tirx.PrimExpr]
         The mapping to substitute the TIR variables appeared in the
         shape of the input Expr.
 

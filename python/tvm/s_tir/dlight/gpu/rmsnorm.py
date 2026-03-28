@@ -18,10 +18,10 @@
 """A RMS norm schedule rule for GPU operators."""
 
 import tvm
-from tvm import tir
+from tvm import tirx
 from tvm.target import Target
-from tvm.tir import BufferStore, SBlock
-from tvm.tir.expr import BufferLoad, Call, Cast
+from tvm.tirx import BufferStore, SBlock
+from tvm.tirx.expr import BufferLoad, Call, Cast
 
 from ..base import ScheduleRule
 
@@ -68,7 +68,7 @@ def identify_rsqrt_block(block: SBlock) -> bool:
     call = store.value
     op = call.op
 
-    return op == tvm.ir.op.Op.get("tir.rsqrt")
+    return op == tvm.ir.op.Op.get("tirx.rsqrt")
 
 
 class RMSNorm(ScheduleRule):
@@ -76,7 +76,7 @@ class RMSNorm(ScheduleRule):
 
     def apply(  # pylint: disable=too-many-locals,missing-docstring
         self,
-        func: tir.PrimFunc,
+        func: tirx.PrimFunc,
         target: Target,
         _: bool,
     ) -> "tvm.s_tir.Schedule":

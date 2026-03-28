@@ -50,7 +50,7 @@ import numpy as np
 import pytest
 
 import tvm.testing
-from tvm import te, tir, topi
+from tvm import te, tirx, topi
 from tvm.contrib.hexagon import allocate_hexagon_array
 from tvm.contrib.hexagon.session import Session
 from tvm.topi import testing

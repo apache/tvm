@@ -90,7 +90,7 @@ def test_linear():
             return dataflow_output
 
     mod = Layer(64, 32)
-    batch_size = tvm.tir.Var("batch_size", "int64")
+    batch_size = tvm.tirx.Var("batch_size", "int64")
     tvm_mod, _ = mod.export_tvm(
         spec={"forward": {"input": nn.spec.Tensor((batch_size, 64), "float32")}}, debug=True
     )

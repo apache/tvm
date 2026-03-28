@@ -24,17 +24,17 @@ import tvm
 import tvm.testing
 from tvm import s_tir
 from tvm.script import ir as I
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def count_cp_async(stmt):
     num_alloc = [0]
 
     def verify(n):
-        if isinstance(n, tvm.tir.Call) and n.op.name == "tir.ptx_cp_async":
+        if isinstance(n, tvm.tirx.Call) and n.op.name == "tirx.ptx_cp_async":
             num_alloc[0] += 1
 
-    tvm.tir.stmt_functor.post_order_visit(stmt, verify)
+    tvm.tirx.stmt_functor.post_order_visit(stmt, verify)
     return num_alloc[0]
 
 
@@ -46,7 +46,7 @@ def generate_global_to_shared_vectorized_copy(dtype, vector_size):
     def ptx_global_to_shared_copy(
         A: T.Buffer((32, 128), dtype), B: T.Buffer((32, 128), dtype)
     ) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         bx = T.env_thread("blockIdx.x")
         tx = T.env_thread("threadIdx.x")
         T.launch_thread(bx, 1)
@@ -74,7 +74,7 @@ def generate_global_to_shared_vectorized_copy(dtype, vector_size):
 def ptx_global_to_shared_copy_fp32x1(
     A: T.Buffer((32, 128), "float32"), B: T.Buffer((32, 128), "float32")
 ) -> None:
-    T.func_attr({"global_symbol": "main", "tir.noalias": True})
+    T.func_attr({"global_symbol": "main", "tirx.noalias": True})
     bx = T.env_thread("blockIdx.x")
     tx = T.env_thread("threadIdx.x")
     T.launch_thread(bx, 1)
@@ -101,7 +101,7 @@ def ptx_global_to_shared_dyn_copy_fp16x8(
     B: T.Buffer((32, 128), "float16"),
     C: T.Buffer((32, 128), "float16"),
 ) -> None:
-    T.func_attr({"global_symbol": "main", "tir.noalias": True})
+    T.func_attr({"global_symbol": "main", "tirx.noalias": True})
     bx = T.env_thread("blockIdx.x")
     tx = T.env_thread("threadIdx.x")
     T.launch_thread(bx, 1)
@@ -135,9 +135,9 @@ def test_inject_async_copy():
 
         mod = tvm.IRModule.from_expr(f)
         mod = tvm.s_tir.transform.LowerOpaqueBlock()(mod)
-        mod = tvm.tir.transform.FlattenBuffer()(mod)
+        mod = tvm.tirx.transform.FlattenBuffer()(mod)
         if vec_size > 1:
-            mod = tvm.tir.transform.VectorizeLoop()(mod)
+            mod = tvm.tirx.transform.VectorizeLoop()(mod)
         mod = tvm.s_tir.transform.InjectPTXAsyncCopy()(mod)
 
         assert count_cp_async(mod["main"].body) == 1
@@ -145,7 +145,7 @@ def test_inject_async_copy():
         if not tvm.testing.is_ampere_or_newer():
             continue
 
-        with tvm.transform.PassContext(config={"tir.use_async_copy": 1}):
+        with tvm.transform.PassContext(config={"tirx.use_async_copy": 1}):
             mod = tvm.compile(tvm.IRModule.from_expr(f), target="cuda")
 
         A_np = np.random.rand(32, 128).astype(dtype)
@@ -163,8 +163,8 @@ def test_inject_async_copy_shared_dyn():
 
     mod = tvm.IRModule.from_expr(f)
     mod = tvm.s_tir.transform.LowerOpaqueBlock()(mod)
-    mod = tvm.tir.transform.FlattenBuffer()(mod)
-    mod = tvm.tir.transform.VectorizeLoop()(mod)
+    mod = tvm.tirx.transform.FlattenBuffer()(mod)
+    mod = tvm.tirx.transform.VectorizeLoop()(mod)
     mod = tvm.s_tir.transform.MergeSharedMemoryAllocations()(mod)
     mod = tvm.s_tir.transform.InjectPTXAsyncCopy()(mod)
 
@@ -173,7 +173,7 @@ def test_inject_async_copy_shared_dyn():
     if not tvm.testing.is_ampere_or_newer():
         return
 
-    with tvm.transform.PassContext(config={"tir.use_async_copy": 1}):
+    with tvm.transform.PassContext(config={"tirx.use_async_copy": 1}):
         mod = tvm.compile(tvm.IRModule.from_expr(f), target="cuda")
 
     A_np = np.random.rand(32, 128).astype("float16")
@@ -191,7 +191,7 @@ def test_inject_async_copy_shared_dyn():
 def ptx_global_to_shared_copy_fp32x1_barrier(
     A: T.Buffer((32, 128), "float32"), B: T.Buffer((32, 128), "float32")
 ) -> None:
-    T.func_attr({"global_symbol": "main", "tir.noalias": True})
+    T.func_attr({"global_symbol": "main", "tirx.noalias": True})
     bx = T.env_thread("blockIdx.x")
     tx = T.env_thread("threadIdx.x")
     T.launch_thread(bx, 1)
@@ -225,13 +225,13 @@ def test_inject_async_copy_barrier():
 
     mod = tvm.IRModule.from_expr(f)
     mod = tvm.s_tir.transform.LowerOpaqueBlock()(mod)
-    mod = tvm.tir.transform.FlattenBuffer()(mod)
+    mod = tvm.tirx.transform.FlattenBuffer()(mod)
     mod = tvm.s_tir.transform.InjectPTXAsyncCopy()(mod)
 
     assert count_cp_async(mod["main"].body) == 1
 
     if tvm.testing.is_ampere_or_newer():
-        with tvm.transform.PassContext(config={"tir.use_async_copy": 1}):
+        with tvm.transform.PassContext(config={"tirx.use_async_copy": 1}):
             mod = tvm.compile(tvm.IRModule.from_expr(f), target="cuda")
 
         A_np = np.random.rand(32, 128).astype(dtype)
@@ -449,7 +449,7 @@ def test_cp_async_in_if_then_else(postproc_if_missing_async_support):
         B: T.Buffer((16, 14), "float32"),
         C: T.Buffer((16, 16), "float32"),
     ):
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
             for i in T.serial(
                 16,
@@ -482,7 +482,7 @@ def test_cp_async_in_if_then_else(postproc_if_missing_async_support):
                         C[tx, i] = A_shared[tx, 0] + B_shared[tx, 0]
 
     mod = tvm.IRModule.from_expr(simple_compute)
-    with tvm.transform.PassContext(config={"tir.use_async_copy": 1}):
+    with tvm.transform.PassContext(config={"tirx.use_async_copy": 1}):
         tvm.compile(mod, target="cuda")
     generated_code = postproc_if_missing_async_support()
     print(generated_code)
@@ -503,7 +503,7 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
         W: T.Buffer((1280, 3, 3, 1280), "float16"),
         Conv: T.Buffer((512, 1280), "float16"),
     ):
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # with T.sblock("root"):
         data_im2col_reindex_shared_dyn = T.sblock_alloc_buffer(
             (512, 11520), "float16", scope="shared.dyn"
@@ -946,7 +946,7 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                 )
 
     mod = tvm.IRModule.from_expr(complex_compute)
-    with tvm.transform.PassContext(config={"tir.use_async_copy": 1}):
+    with tvm.transform.PassContext(config={"tirx.use_async_copy": 1}):
         tvm.compile(mod, target="cuda")
     generated_code = postproc_if_missing_async_support()
     # generated_code must contain "  setp.ne.b32 p, %0, 0;"

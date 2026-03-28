@@ -23,13 +23,13 @@ import pytest
 import tvm
 import tvm.script
 import tvm.testing
-from tvm import IRModule, relax, tir, topi
+from tvm import IRModule, relax, tirx, topi
 from tvm.ir import Range
 from tvm.relax import Call, SeqExpr, VarBinding
 from tvm.relax.distributed import DeviceMesh
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
-from tvm.script.parser import tir as T
+from tvm.script.parser import tirx as T
 
 
 def _check(
@@ -61,7 +61,7 @@ def test_call_tir_dtensor():
             x: T.Buffer((T.int64(128), T.int64(128)), "float32"),
             y: T.Buffer((T.int64(128), T.int64(128)), "float32"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i, j in T.grid(T.int64(128), T.int64(128)):
                 with T.sblock():
                     vi, vj = T.axis.remap("SS", [i, j])
@@ -124,7 +124,7 @@ def test_explicit_device_id():
             x: T.Buffer((T.int64(128), T.int64(128)), "float32"),
             y: T.Buffer((T.int64(128), T.int64(128)), "float32"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i, j in T.grid(T.int64(128), T.int64(128)):
                 with T.sblock():
                     vi, vj = T.axis.remap("SS", [i, j])
@@ -164,7 +164,7 @@ def test_constant():
             x: T.Buffer((T.int64(128), T.int64(128)), "float32"),
             y: T.Buffer((T.int64(128), T.int64(128)), "float32"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i, j in T.grid(T.int64(128), T.int64(128)):
                 with T.sblock():
                     vi, vj = T.axis.remap("SS", [i, j])

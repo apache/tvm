@@ -28,7 +28,7 @@ from tvm import relax, rpc
 from tvm.relax.backend.adreno import clml
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import relax as relax_builder
 
@@ -750,7 +750,7 @@ def get_dequant_matmul_module(K, N):
 
         @T.prim_func
         def dequantize(weight: T.handle, scale: T.handle, var_dequantize: T.handle):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tirx.noalias": T.bool(True)})
             lm_head_q_weight1 = T.match_buffer(weight, (T.int64(K // 8), T.int64(N)), "uint32")
             lm_head_q_scale1 = T.match_buffer(scale, (T.int64(K // 32), T.int64(N)), "float16")
             dequantize = T.match_buffer(var_dequantize, (T.int64(K), T.int64(N)), "float16")
@@ -808,7 +808,7 @@ def get_dequant_vec_matmul_module(K, N):
 
         @T.prim_func
         def dequantize(weight: T.handle, scale: T.handle, var_dequantize: T.handle):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tirx.noalias": T.bool(True)})
             vocab_size = T.int64()
             lm_head_q_weight1 = T.match_buffer(weight, (T.int64(K // 8), vocab_size), "uint32")
             lm_head_q_scale1 = T.match_buffer(scale, (T.int64(K // 32), vocab_size), "float16")

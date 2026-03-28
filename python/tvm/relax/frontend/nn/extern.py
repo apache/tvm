@@ -24,7 +24,7 @@ import tempfile
 from collections.abc import Callable
 from pathlib import Path
 
-from tvm import tir
+from tvm import tirx
 from tvm.contrib import cc as _cc
 from tvm.runtime import Module, load_static_library
 
@@ -53,12 +53,12 @@ class ExternModule:
                 if isinstance(arg, core.Tensor):
                     return arg._expr  # pylint: disable=protected-access
                 if isinstance(arg, int):
-                    return rx.PrimValue(tir.IntImm("int64", arg))
+                    return rx.PrimValue(tirx.IntImm("int64", arg))
                 if isinstance(arg, float):
-                    return rx.PrimValue(tir.FloatImm("float64", arg))
+                    return rx.PrimValue(tirx.FloatImm("float64", arg))
                 if isinstance(arg, str):
                     return rx.StringImm(arg)
-                if isinstance(arg, tir.PrimExpr):
+                if isinstance(arg, tirx.PrimExpr):
                     return rx.PrimValue(arg)
                 if isinstance(arg, tuple | list):
                     return rx.Tuple([_convert(e, f"{name}_{i}") for i, e in enumerate(arg)])

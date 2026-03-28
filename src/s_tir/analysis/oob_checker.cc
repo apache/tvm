@@ -22,14 +22,14 @@
  */
 
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/tir/transform.h>
+#include <tvm/tirx/transform.h>
 
 #include "../../arith/ir_visitor_with_analyzer.h"
 #include "../schedule/error.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 namespace transform {
 struct OOBLocation {
   Buffer buf;
@@ -112,7 +112,7 @@ class OOBCheckerVisitor final : public arith::IRVisitorWithAnalyzer {
 };
 
 tvm::transform::Pass OOBChecker() {
-  auto pass_func = [=](tir::PrimFunc func, IRModule mod, tvm::transform::PassContext ctx) {
+  auto pass_func = [=](tirx::PrimFunc func, IRModule mod, tvm::transform::PassContext ctx) {
     OOBCheckerVisitor checker;
     checker(func->body);
     if (checker.errors.size() > 0) {
@@ -123,7 +123,7 @@ tvm::transform::Pass OOBChecker() {
     }
     return func;
   };
-  return tir::transform::CreatePrimFuncPass(pass_func, 0, "s_tir.analysis.OOBChecker", {});
+  return tirx::transform::CreatePrimFuncPass(pass_func, 0, "s_tir.analysis.OOBChecker", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

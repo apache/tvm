@@ -19,7 +19,7 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import TVMError, relax, tir
+from tvm import TVMError, relax, tirx
 from tvm.ir import Op
 from tvm.script import relax as R
 
@@ -57,8 +57,8 @@ def test_allreduce_infer_struct_info():
 
 def test_allreduce_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    m = tir.Var("m", "int64")
-    n = tir.Var("n", "int64")
+    m = tirx.Var("m", "int64")
+    n = tirx.Var("n", "int64")
     x0 = relax.Var("x", R.Tensor((m, n), "float32"))
     x1 = relax.Var("x", R.Tensor((4, n), "float32"))
 
@@ -109,8 +109,8 @@ def test_allgather_infer_struct_info():
 
 def test_allgather_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    m = tir.Var("m", "int64")
-    n = tir.Var("n", "int64")
+    m = tirx.Var("m", "int64")
+    n = tirx.Var("n", "int64")
     x0 = relax.Var("x", R.Tensor((m, n), "float32"))
     x1 = relax.Var("x", R.Tensor((4, n), "float32"))
 
@@ -171,8 +171,8 @@ def test_broadcast_from_worker0_infer_struct_info():
 
 def test_broadcast_from_worker0_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    m = tir.Var("m", "int64")
-    n = tir.Var("n", "int64")
+    m = tirx.Var("m", "int64")
+    n = tirx.Var("n", "int64")
     x0 = relax.Var("x", R.Tensor((m, n), "float32"))
     x1 = relax.Var("x", R.Tensor((4, n), "float32"))
 
@@ -231,15 +231,15 @@ def test_scatter_from_worker0_infer_struct_info():
 
 def test_scatter_from_worker0_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    m = tir.Var("m", "int64")
-    n = tir.Var("n", "int64")
+    m = tirx.Var("m", "int64")
+    n = tirx.Var("n", "int64")
     x0 = relax.Var("x", R.Tensor((m, n), "float32"))
     x1 = relax.Var("x", R.Tensor((4, n), "float32"))
 
     _check_inference(
         bb,
         relax.op.ccl.scatter_from_worker0(x0, 2),
-        relax.TensorStructInfo((tir.div(m, 2), n), "float32"),
+        relax.TensorStructInfo((tirx.div(m, 2), n), "float32"),
     )
     _check_inference(
         bb, relax.op.ccl.scatter_from_worker0(x1, 2), relax.TensorStructInfo((2, n), "float32")

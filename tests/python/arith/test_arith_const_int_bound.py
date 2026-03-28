@@ -68,16 +68,16 @@ class BaseCompare:
 
 class TestDataType(BaseCompare):
     test_case = tvm.testing.parameter(
-        TestCase(tvm.tir.Var("x", "int64"), (NEG_INF, POS_INF)),
-        TestCase(tvm.tir.Var("x", "int8"), (-128, 127)),
-        TestCase(tvm.tir.Var("x", "uint8"), (0, 255)),
-        TestCase(tvm.tir.SizeVar("x", "int32"), (0, POS_INF)),
+        TestCase(tvm.tirx.Var("x", "int64"), (NEG_INF, POS_INF)),
+        TestCase(tvm.tirx.Var("x", "int8"), (-128, 127)),
+        TestCase(tvm.tirx.Var("x", "uint8"), (0, 255)),
+        TestCase(tvm.tirx.SizeVar("x", "int32"), (0, POS_INF)),
     )
 
 
 class TestCastBound(BaseCompare):
-    x = tvm.tir.Var("x", "int8")
-    tmod = tvm.tir.truncmod
+    x = tvm.tirx.Var("x", "int8")
+    tmod = tvm.tirx.truncmod
 
     test_case = tvm.testing.parameter(
         TestCase(tmod(x, 3).astype("uint32"), (0, 2)),
@@ -86,8 +86,8 @@ class TestCastBound(BaseCompare):
 
 
 class TestAddSubBound(BaseCompare):
-    x = tvm.tir.Var("x", "int64")
-    y = tvm.tir.Var("y", "int64")
+    x = tvm.tirx.Var("x", "int64")
+    y = tvm.tirx.Var("y", "int64")
 
     test_case = tvm.testing.parameter(
         TestCase(x + y, (NEG_INF, POS_INF)),
@@ -118,7 +118,7 @@ class TestBoundsUsingReciprocals(BaseCompare):
     achieve its minimum while `A*B` simultaneously achieves its maximum.
     """
 
-    A, B, C = [tvm.tir.Var(letter, "int64") for letter in "ABC"]
+    A, B, C = [tvm.tirx.Var(letter, "int64") for letter in "ABC"]
 
     symmetric_bounds = {A: (1, 4095), B: (1, 4095), C: (2048, 2048)}
     asymmetric_bounds = {A: (1, 1024), B: (1, POS_INF), C: (2048, 2048)}
@@ -136,7 +136,7 @@ class TestBoundsUsingReciprocals(BaseCompare):
 
 
 class TestMulBound(BaseCompare):
-    x, y = tvm.tir.Var("x", "int32"), tvm.tir.Var("y", "int32")
+    x, y = tvm.tirx.Var("x", "int32"), tvm.tirx.Var("y", "int32")
 
     test_case = tvm.testing.parameter(
         TestCase(x * y + 20, (0, 60), {x: (-2, 4), y: (4, 10)}),
@@ -146,9 +146,9 @@ class TestMulBound(BaseCompare):
 
 
 class TestTruncDivBound(BaseCompare):
-    x, y = tvm.tir.Var("x", "int32"), tvm.tir.Var("y", "int32")
+    x, y = tvm.tirx.Var("x", "int32"), tvm.tirx.Var("y", "int32")
 
-    expr = tvm.tir.truncdiv(x, y)
+    expr = tvm.tirx.truncdiv(x, y)
 
     test_case = tvm.testing.parameter(
         TestCase(expr, (-2, None), {x: (-9, 4), y: (4, 10)}),
@@ -159,9 +159,9 @@ class TestTruncDivBound(BaseCompare):
 
 
 class TestTruncModBound(BaseCompare):
-    x, y = tvm.tir.Var("x", "int32"), tvm.tir.Var("y", "int32")
+    x, y = tvm.tirx.Var("x", "int32"), tvm.tirx.Var("y", "int32")
 
-    expr = tvm.tir.truncmod(x, y)
+    expr = tvm.tirx.truncmod(x, y)
 
     test_case = tvm.testing.parameter(
         TestCase(expr, (-9, 4), {x: (-9, 4), y: (4, 10)}),
@@ -171,9 +171,9 @@ class TestTruncModBound(BaseCompare):
 
 
 class TestFloorDivBound(BaseCompare):
-    x, y = tvm.tir.Var("x", "int32"), tvm.tir.Var("y", "int32")
-    ux = tvm.tir.Var("x", "uint32")
-    uy = tvm.tir.Var("y", "uint32")
+    x, y = tvm.tirx.Var("x", "int32"), tvm.tirx.Var("y", "int32")
+    ux = tvm.tirx.Var("x", "uint32")
+    uy = tvm.tirx.Var("y", "uint32")
 
     test_case = tvm.testing.parameter(
         TestCase(x // y, (-9 // 4, None), {x: (-9, 4), y: (4, 10)}),
@@ -185,7 +185,7 @@ class TestFloorDivBound(BaseCompare):
 
 
 class TestFloorModBound(BaseCompare):
-    x, y = tvm.tir.Var("x", "int32"), tvm.tir.Var("y", "int32")
+    x, y = tvm.tirx.Var("x", "int32"), tvm.tirx.Var("y", "int32")
 
     test_case = tvm.testing.parameter(
         TestCase(x % y, (0, 9), {x: (-9, 4), y: (4, 10)}),
@@ -195,22 +195,22 @@ class TestFloorModBound(BaseCompare):
 
 
 class TestMinMaxBound(BaseCompare):
-    x, y = tvm.tir.Var("x", "int32"), tvm.tir.Var("y", "int32")
+    x, y = tvm.tirx.Var("x", "int32"), tvm.tirx.Var("y", "int32")
 
     test_case = tvm.testing.parameter(
-        TestCase(tvm.tir.min(x, y), (-9, 10), {x: (-9, 11), y: (4, 10)}),
-        TestCase(tvm.tir.min(x, y), (NEG_INF, 10), {x: (NEG_INF, POS_INF), y: (4, 10)}),
-        TestCase(tvm.tir.max(x, y), (4, POS_INF), {x: (NEG_INF, POS_INF), y: (4, 10)}),
-        TestCase(tvm.tir.max(x, y), (4, POS_INF), {x: (1, POS_INF), y: (4, 10)}),
+        TestCase(tvm.tirx.min(x, y), (-9, 10), {x: (-9, 11), y: (4, 10)}),
+        TestCase(tvm.tirx.min(x, y), (NEG_INF, 10), {x: (NEG_INF, POS_INF), y: (4, 10)}),
+        TestCase(tvm.tirx.max(x, y), (4, POS_INF), {x: (NEG_INF, POS_INF), y: (4, 10)}),
+        TestCase(tvm.tirx.max(x, y), (4, POS_INF), {x: (1, POS_INF), y: (4, 10)}),
     )
 
 
 class TestSelectBound(BaseCompare):
-    x, y = tvm.tir.Var("x", "int32"), tvm.tir.Var("y", "int32")
+    x, y = tvm.tirx.Var("x", "int32"), tvm.tirx.Var("y", "int32")
 
     test_case = tvm.testing.parameter(
         TestCase(
-            tvm.tir.Select(x > 1, (y < 0).astype("int32"), y + 1),
+            tvm.tirx.Select(x > 1, (y < 0).astype("int32"), y + 1),
             (0, 11),
             {x: (-9, 11), y: (4, 10)},
         ),
@@ -218,7 +218,7 @@ class TestSelectBound(BaseCompare):
 
 
 class TestShiftAndBound(BaseCompare):
-    x, y = tvm.tir.Var("x", "int32"), tvm.tir.Var("y", "int32")
+    x, y = tvm.tirx.Var("x", "int32"), tvm.tirx.Var("y", "int32")
 
     test_case = tvm.testing.parameter(
         TestCase(x >> y, (-3, 2), {x: (-9, 11), y: (2, 10)}),
@@ -228,9 +228,9 @@ class TestShiftAndBound(BaseCompare):
 
 
 class TestMixIndexBound(BaseCompare):
-    x, y = tvm.tir.Var("x", "int32"), tvm.tir.Var("y", "int32")
-    tdiv = tvm.tir.truncdiv
-    tmod = tvm.tir.truncmod
+    x, y = tvm.tirx.Var("x", "int32"), tvm.tirx.Var("y", "int32")
+    tdiv = tvm.tirx.truncdiv
+    tmod = tvm.tirx.truncmod
 
     test_case = tvm.testing.parameter(
         TestCase(tmod(x, 8) + tdiv(x, 8) * 8, (0, 24 - 1), {x: (0, 24 - 1), y: (0, 3 - 1)}),
@@ -242,15 +242,15 @@ class TestMixIndexBound(BaseCompare):
 
 
 class TestLetBound(BaseCompare):
-    x = tvm.tir.Var("x", "int32")
+    x = tvm.tirx.Var("x", "int32")
     test_case = tvm.testing.parameter(
-        TestCase(tvm.tir.Let(x, 1, x + 1), (2, 2)),
+        TestCase(tvm.tirx.Let(x, 1, x + 1), (2, 2)),
     )
 
 
 class TestFloorModNegativeDivisor(BaseCompare):
-    flm, fld = tvm.tir.floormod, tvm.tir.floordiv
-    a, b = tvm.tir.Var("a", "int32"), tvm.tir.Var("b", "int32")
+    flm, fld = tvm.tirx.floormod, tvm.tirx.floordiv
+    a, b = tvm.tirx.Var("a", "int32"), tvm.tirx.Var("b", "int32")
 
     test_case = tvm.testing.parameter(
         TestCase(a % b, (-4, 6), {a: (0, 6), b: (-5, 7)}),
@@ -263,7 +263,7 @@ class TestDivModAssumeNoZeroDivisor(BaseCompare):
     from symbolic shape programs
     """
 
-    a, b = tvm.tir.Var("a", "int32"), tvm.tir.Var("b", "int32")
+    a, b = tvm.tirx.Var("a", "int32"), tvm.tirx.Var("b", "int32")
 
     test_case = tvm.testing.parameter(
         TestCase(a // b, (0, 6), {a: (0, 6), b: (0, POS_INF)}),
@@ -272,35 +272,35 @@ class TestDivModAssumeNoZeroDivisor(BaseCompare):
 
 
 class TestMultipleCondition(BaseCompare):
-    a = tvm.tir.Var("a", "int32")
+    a = tvm.tirx.Var("a", "int32")
     test_case = tvm.testing.parameter(
         TestCase(
             a % 58 - 1,
             (0, None),
             known_bounds={a: (0, 128)},
-            constraint=tvm.tir.all(1 <= a % 58, a % 58 < 57),
+            constraint=tvm.tirx.all(1 <= a % 58, a % 58 < 57),
         ),
     )
 
 
 class TestBroadcastBound(BaseCompare):
-    a = tvm.tir.Var("a", "int32")
+    a = tvm.tirx.Var("a", "int32")
     test_case = tvm.testing.parameter(
-        TestCase(tvm.tir.Broadcast(a, 4), (0, 128), {a: (0, 128)}),
+        TestCase(tvm.tirx.Broadcast(a, 4), (0, 128), {a: (0, 128)}),
     )
 
 
 class TestRampBound(BaseCompare):
-    a = tvm.tir.Var("a", "int32")
+    a = tvm.tirx.Var("a", "int32")
     test_case = tvm.testing.parameter(
-        TestCase(tvm.tir.Ramp(a, 2, 4) + 2, (2, 128 + 2 * 3 + 2), {a: (0, 128)}),
+        TestCase(tvm.tirx.Ramp(a, 2, 4) + 2, (2, 128 + 2 * 3 + 2), {a: (0, 128)}),
     )
 
 
 class TestModularSetBound(BaseCompare):
     analyzer = tvm.arith.Analyzer()
-    tx = tvm.tir.Var("tx", "int32")
-    bx = tvm.tir.Var("bx", "int32")
+    tx = tvm.tirx.Var("tx", "int32")
+    bx = tvm.tirx.Var("bx", "int32")
 
     expr = (bx * 2048 + tx * 16) % 7168
 

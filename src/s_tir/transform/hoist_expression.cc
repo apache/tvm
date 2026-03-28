@@ -24,9 +24,9 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tir/analysis.h>
-#include <tvm/tir/expr.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/analysis.h>
+#include <tvm/tirx/expr.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include <queue>
 #include <unordered_map>
@@ -36,11 +36,11 @@
 #include "../../arith/interval_set.h"
 #include "../../arith/ir_mutator_with_analyzer.h"
 #include "../../runtime/thread_storage_scope.h"
-#include "../../tir/transform/ir_utils.h"
+#include "../../tirx/transform/ir_utils.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 enum class HoistedConditionals : int {
   kNone = 0,
@@ -577,8 +577,8 @@ Pass HoistExpression() {
   return tvm::transform::Sequential(
       {
           insertion_pass,
-          tir::transform::Simplify(),
-          tir::transform::RemoveNoOp(),
+          tirx::transform::Simplify(),
+          tirx::transform::RemoveNoOp(),
       },
       "s_tir.HoistExpression");
 }
@@ -592,7 +592,7 @@ static Pass HoistIfThenElseImpl() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     auto cfg = ctx->GetConfig<HoistIfThenElseConfig>("s_tir.HoistIfThenElse");
-    auto flag = f->GetAttr<Integer>("tir.HoistIfThenElseExprWithBlock");
+    auto flag = f->GetAttr<Integer>("tirx.HoistIfThenElseExprWithBlock");
     if (flag && flag.value().IntValue() == 1) {
       HoistExpressionConfig config(static_cast<int>(HoistedConditionals::kUsingBlockVar) |
                                        static_cast<int>(HoistedConditionals::kIfElseExpr),
@@ -615,8 +615,8 @@ static Pass HoistIfThenElseImpl() {
   return tvm::transform::Sequential(
       {
           insertion_pass,
-          tir::transform::Simplify(),
-          tir::transform::RemoveNoOp(),
+          tirx::transform::Simplify(),
+          tirx::transform::RemoveNoOp(),
       },
       "s_tir.HoistIfThenElse");
 }
@@ -633,8 +633,8 @@ static Pass HoistIfThenElseBasicImpl() {
   return tvm::transform::Sequential(
       {
           insertion_pass,
-          tir::transform::Simplify(),
-          tir::transform::RemoveNoOp(),
+          tirx::transform::Simplify(),
+          tirx::transform::RemoveNoOp(),
       },
       "s_tir.HoistIfThenElseBasic");
 }

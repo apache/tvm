@@ -20,7 +20,7 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import TVMError, tir
+from tvm import TVMError, tirx
 from tvm import relax as rx
 from tvm.ir import Range, structural_equal
 
@@ -42,7 +42,7 @@ def _check_json_roundtrip(x):
 
 
 def test_dtensor_struct_info():
-    n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+    n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
 
     tensor_s0 = rx.TensorStructInfo([1, n + 1, m], "float32")
     tensor_s1 = rx.TensorStructInfo([1, n + 1, m], "float32")

@@ -20,7 +20,7 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 Stmt CopyLoopChain(const std::vector<const ForNode*> loops, const Stmt& inner_body, int ith = -1,
                    Stmt* ith_loop = nullptr) {
@@ -279,7 +279,7 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
   arith::Analyzer analyzer;
   const BufferLoadNode* target_buffer_load = nullptr;
   if (is_write_cache) {
-    tir::PreOrderVisit(stmt, [&](const ObjectRef& obj) {
+    tirx::PreOrderVisit(stmt, [&](const ObjectRef& obj) {
       if (const auto* buffer_load = obj.as<BufferLoadNode>()) {
         if (buffer_load->buffer.scope() == "wmma.accumulator" ||
             buffer_load->buffer.scope() == "m16n8k8.matrixC") {

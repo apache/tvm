@@ -35,7 +35,7 @@ from tvm.relax import (
 )
 from tvm.relax.expr import Var
 from tvm.runtime import ObjectConvertible
-from tvm.tir import PrimExpr
+from tvm.tirx import PrimExpr
 
 from ...ir_builder import relax as R
 from .._core import doc, parse, utils

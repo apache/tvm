@@ -23,16 +23,16 @@
 #include "storage_access.h"
 
 #include <tvm/s_tir/stmt.h>
-#include <tvm/tir/op.h>
+#include <tvm/tirx/op.h>
 
 #include <string>
 #include <utility>
 
-#include "../../tir/transform/ir_utils.h"
+#include "../../tirx/transform/ir_utils.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 void StorageAccessVisitor::VisitExpr_(const BufferLoadNode* op) {
   Var buf = op->buffer->data;
@@ -126,7 +126,7 @@ void StorageAccessVisitor::VisitStmt_(const AttrStmtNode* op) {
       scope_.back().emplace_back(std::move(s));
     }
     double_buffer_write_ = nullptr;
-  } else if (op->attr_key == tir::attr::thread_extent) {
+  } else if (op->attr_key == tirx::attr::thread_extent) {
     IterVar iv = Downcast<IterVar>(op->node);
     env_threads_.push_back(iv);
     if (!in_device_env_) {

@@ -22,7 +22,7 @@ from tvm import relax
 from tvm.relax.transform import LegalizeOps
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def test_redistribute_replica_to_shard():
@@ -38,7 +38,7 @@ def test_redistribute_replica_to_shard():
     class Expected:
         @T.prim_func(private=True)
         def strided_slice(A: T.Buffer((T.int64(10), T.int64(10)), "float32"), redistribute_replica_to_shard: T.Buffer((T.int64(10), T.int64(5)), "float32"), worker_id: T.int64):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
             for i0, i1 in T.grid(T.int64(10), T.int64(5)):
                 with T.sblock("redistribute_replica_to_shard"):

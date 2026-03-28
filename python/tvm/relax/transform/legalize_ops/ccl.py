@@ -18,7 +18,7 @@
 # ruff: noqa: RUF005
 """Default legalization function for ccl operators."""
 
-from tvm import arith, tir, topi
+from tvm import arith, tirx, topi
 
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr, ShapeExpr
@@ -101,7 +101,7 @@ def _transpose_for_ccl(_bb: BlockBuilder, expr: Expr, axis: int, num_workers: in
                 f"is {shape_value} while num_workers is {num_workers}"
             )
             new_shape.append(num_workers)
-            new_shape.append(tir.div(shape_value, num_workers))
+            new_shape.append(tirx.div(shape_value, num_workers))
         else:
             new_shape.append(shape_value)
     reshape_var = _bb.emit_te(topi.reshape, expr, new_shape)

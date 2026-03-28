@@ -30,7 +30,7 @@ from tvm import relax
 from tvm.relax.frontend.torch import from_exported_program
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def verify_model(
@@ -5634,6 +5634,73 @@ def test_slice_scatter():
     verify_model(SliceScatterNegative(), example_args, {}, expected_slice_scatter)
 
 
+def test_slice_with_symbolic_end():
+    """_slice correctly handles symbolic end values from dynamic shapes."""
+
+    class SliceIdentityModel(torch.nn.Module):
+        def forward(self, x):
+            # x[:, :x.size(1)] is an identity slice that torch.export emits
+            # as slice(x, 1, 0, sym_size_int(x, 1), 1) with dynamic shapes.
+            seq_len = x.size(1)
+            return x[:, :seq_len] + 0.0  # +0.0 to ensure output is a new tensor
+
+    # The identity slice is elided; only x + 0.0 remains.
+    @I.ir_module
+    class ExpectedIdentity:
+        @R.function
+        def main(x: R.Tensor(("s0", "s1", 4), dtype="float32")) -> R.Tuple(
+            R.Tensor(("s0", "s1", 4), dtype="float32")
+        ):
+            s0 = T.int64(is_size_var=True)
+            s1 = T.int64(is_size_var=True)
+            R.func_attr({"tir_var_lower_bound": {"s27": 2, "s77": 2}})
+            with R.dataflow():
+                lv: R.Tensor((s0, s1, 4), dtype="float32") = R.add(x, R.const(0.0, "float32"))
+                gv: R.Tuple(R.Tensor((s0, s1, 4), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(2, 8, 4, dtype=torch.float32),)
+    batch = torch.export.Dim("batch", min=2)
+    seq = torch.export.Dim("seq", min=2)
+    dynamic_shapes = {"x": {0: batch, 1: seq}}
+
+    verify_model(
+        SliceIdentityModel(),
+        example_args,
+        {},
+        ExpectedIdentity,
+        dynamic_shapes=dynamic_shapes,
+        map_free_vars=True,
+    )
+
+    class SliceStaticModel(torch.nn.Module):
+        def forward(self, x):
+            # A non-identity static slice
+            return x[:, :3]
+
+    @tvm.script.ir_module
+    class ExpectedStatic:
+        @R.function
+        def main(x: R.Tensor((2, 8, 4), dtype="float32")) -> R.Tuple(
+            R.Tensor((2, 3, 4), dtype="float32")
+        ):
+            with R.dataflow():
+                lv: R.Tensor((2, 3, 4), dtype="float32") = R.strided_slice(
+                    x,
+                    axes=[1],
+                    begin=[0],
+                    end=[3],
+                    strides=[1],
+                )
+                gv: R.Tuple(R.Tensor((2, 3, 4), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args_static = (torch.randn(2, 8, 4, dtype=torch.float32),)
+    verify_model(SliceStaticModel(), example_args_static, {}, ExpectedStatic)
+
+
 def test_split():
     class Chunk(Module):
         def forward(self, input):
@@ -8753,6 +8820,219 @@ def test_from_exported_program_sparse_csr_buffer():
     exported_program = export(model, (x,))
     mod = from_exported_program(exported_program)
     assert isinstance(mod, tvm.IRModule)
+
+
+def test_cond_basic():
+    """Basic data-dependent cond with runtime predicate."""
+
+    class CondModel(Module):
+        def forward(self, x):
+            def true_fn(x):
+                return x.cos()
+
+            def false_fn(x):
+                return x.sin()
+
+            return torch.cond(x.sum() > 0, true_fn, false_fn, (x,))
+
+    @tvm.script.ir_module
+    class expected:
+        @R.function
+        def cond_true_branch_0(
+            x: R.Tensor((3, 4), dtype="float32"),
+        ) -> R.Tensor((3, 4), dtype="float32"):
+            gv: R.Tensor((3, 4), dtype="float32") = R.cos(x)
+            gv1: R.Tensor((3, 4), dtype="float32") = gv
+            return gv1
+
+        @R.function
+        def cond_false_branch_1(
+            x: R.Tensor((3, 4), dtype="float32"),
+        ) -> R.Tensor((3, 4), dtype="float32"):
+            gv: R.Tensor((3, 4), dtype="float32") = R.sin(x)
+            gv1: R.Tensor((3, 4), dtype="float32") = gv
+            return gv1
+
+        @R.function
+        def main(
+            x: R.Tensor((3, 4), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((3, 4), dtype="float32")):
+            cls = expected
+            gv: R.Tensor((), dtype="float32") = R.sum(x, axis=None, keepdims=False)
+            gv1: R.Tensor((), dtype="bool") = R.greater(gv, R.const(0.0, "float32"))
+            if gv1:
+                gv2: R.Tensor((3, 4), dtype="float32") = cls.cond_true_branch_0(x)
+                cond_result: R.Tensor((3, 4), dtype="float32") = gv2
+            else:
+                gv3: R.Tensor((3, 4), dtype="float32") = cls.cond_false_branch_1(x)
+                cond_result: R.Tensor((3, 4), dtype="float32") = gv3
+            return (cond_result,)
+
+    verify_model(CondModel(), (torch.randn(3, 4),), {}, expected, map_free_vars=True)
+
+
+def test_cond_shape_predicate():
+    """Cond with a shape-derived predicate and dynamic shapes."""
+
+    class CondShapeModel(Module):
+        def forward(self, x):
+            def true_fn(x):
+                return x + 1.0
+
+            def false_fn(x):
+                return x - 1.0
+
+            return torch.cond(x.shape[0] > 4, true_fn, false_fn, (x,))
+
+    @tvm.script.ir_module
+    class expected:
+        @R.function
+        def cond_true_branch_0(
+            x: R.Tensor(("s77", 4), dtype="float32"),
+        ) -> R.Tensor(("s77", 4), dtype="float32"):
+            s77 = T.int64(is_size_var=True)
+            gv: R.Tensor((s77, 4), dtype="float32") = R.add(x, R.const(1.0, "float32"))
+            gv1: R.Tensor((s77, 4), dtype="float32") = gv
+            return gv1
+
+        @R.function
+        def cond_false_branch_1(
+            x: R.Tensor(("s77", 4), dtype="float32"),
+        ) -> R.Tensor(("s77", 4), dtype="float32"):
+            s77 = T.int64(is_size_var=True)
+            gv: R.Tensor((s77, 4), dtype="float32") = R.subtract(x, R.const(1.0, "float32"))
+            gv1: R.Tensor((s77, 4), dtype="float32") = gv
+            return gv1
+
+        @R.function
+        def main(
+            x: R.Tensor(("s77", 4), dtype="float32"),
+        ) -> R.Tuple(R.Tensor(("s77", 4), dtype="float32")):
+            s77 = T.int64(is_size_var=True)
+            R.func_attr({"tir_var_lower_bound": {"s77": 1}})
+            cls = expected
+            gv: R.Tensor((), dtype="bool") = R.const(True, "bool")
+            if gv:
+                gv1: R.Tensor((s77, 4), dtype="float32") = cls.cond_true_branch_0(x)
+                cond_result: R.Tensor((s77, 4), dtype="float32") = gv1
+            else:
+                gv2: R.Tensor((s77, 4), dtype="float32") = cls.cond_false_branch_1(x)
+                cond_result: R.Tensor((s77, 4), dtype="float32") = gv2
+            return (cond_result,)
+
+    batch = torch.export.Dim("batch", min=1)
+    verify_model(
+        CondShapeModel(),
+        (torch.randn(3, 4),),
+        {},
+        expected,
+        dynamic_shapes={"x": {0: batch}},
+        map_free_vars=True,
+    )
+
+
+def test_cond_tuple_output():
+    """Cond where both branches return a tuple."""
+
+    class CondTupleModel(Module):
+        def forward(self, x):
+            def true_fn(x):
+                return (x.cos(), x.sin())
+
+            def false_fn(x):
+                return (x.sin(), x.cos())
+
+            return torch.cond(x.sum() > 0, true_fn, false_fn, (x,))
+
+    @tvm.script.ir_module
+    class expected:
+        @R.function
+        def cond_true_branch_0(
+            x: R.Tensor((3, 4), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((3, 4), dtype="float32"), R.Tensor((3, 4), dtype="float32")):
+            gv: R.Tensor((3, 4), dtype="float32") = R.cos(x)
+            gv1: R.Tensor((3, 4), dtype="float32") = R.sin(x)
+            gv2: R.Tensor((3, 4), dtype="float32") = gv
+            gv3: R.Tensor((3, 4), dtype="float32") = gv1
+            return (gv2, gv3)
+
+        @R.function
+        def cond_false_branch_1(
+            x: R.Tensor((3, 4), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((3, 4), dtype="float32"), R.Tensor((3, 4), dtype="float32")):
+            gv: R.Tensor((3, 4), dtype="float32") = R.sin(x)
+            gv1: R.Tensor((3, 4), dtype="float32") = R.cos(x)
+            gv2: R.Tensor((3, 4), dtype="float32") = gv
+            gv3: R.Tensor((3, 4), dtype="float32") = gv1
+            return (gv2, gv3)
+
+        @R.function
+        def main(
+            x: R.Tensor((3, 4), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((3, 4), dtype="float32"), R.Tensor((3, 4), dtype="float32")):
+            cls = expected
+            gv: R.Tensor((), dtype="float32") = R.sum(x, axis=None, keepdims=False)
+            gv1: R.Tensor((), dtype="bool") = R.greater(gv, R.const(0.0, "float32"))
+            if gv1:
+                gv2: R.Tuple(
+                    R.Tensor((3, 4), dtype="float32"),
+                    R.Tensor((3, 4), dtype="float32"),
+                ) = cls.cond_true_branch_0(x)
+                cond_result: R.Tuple(
+                    R.Tensor((3, 4), dtype="float32"),
+                    R.Tensor((3, 4), dtype="float32"),
+                ) = gv2
+            else:
+                gv3: R.Tuple(
+                    R.Tensor((3, 4), dtype="float32"),
+                    R.Tensor((3, 4), dtype="float32"),
+                ) = cls.cond_false_branch_1(x)
+                cond_result: R.Tuple(
+                    R.Tensor((3, 4), dtype="float32"),
+                    R.Tensor((3, 4), dtype="float32"),
+                ) = gv3
+            gv4: R.Tensor((3, 4), dtype="float32") = cond_result[0]
+            gv5: R.Tensor((3, 4), dtype="float32") = cond_result[1]
+            return (gv4, gv5)
+
+    verify_model(CondTupleModel(), (torch.randn(3, 4),), {}, expected, map_free_vars=True)
+
+
+def test_cond_nested():
+    """Nested cond: a cond inside one of the branches."""
+
+    class CondNestedModel(Module):
+        def forward(self, x):
+            def true_fn(x):
+                def inner_true(x):
+                    return x * 2.0
+
+                def inner_false(x):
+                    return x * 3.0
+
+                return torch.cond(x.sum() > 1, inner_true, inner_false, (x,))
+
+            def false_fn(x):
+                return x - 1.0
+
+            return torch.cond(x.sum() > 0, true_fn, false_fn, (x,))
+
+    example_args = (torch.randn(3, 4),)
+    exported_program = export(CondNestedModel(), args=example_args)
+    mod = from_exported_program(exported_program)
+
+    assert isinstance(mod, tvm.IRModule)
+
+    # Should have at least 4 branch functions (2 outer + 2 inner) plus main
+    func_names = [gv.name_hint for gv in mod.get_global_vars()]
+    branch_funcs = [n for n in func_names if n != "main"]
+    assert len(branch_funcs) >= 4, (
+        f"Expected at least 4 branch functions for nested cond, got {branch_funcs}"
+    )
+    # Verify no duplicate function names
+    assert len(set(branch_funcs)) == len(branch_funcs), (
+        f"Duplicate branch function names: {branch_funcs}"
+    )
 
 
 if __name__ == "__main__":

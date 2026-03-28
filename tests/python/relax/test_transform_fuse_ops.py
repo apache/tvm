@@ -21,7 +21,7 @@ import tvm.testing
 from tvm import relax, topi
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def _check(mod_actual, mod_expected):
@@ -1010,7 +1010,7 @@ def test_multiple_paths():
     class Expected:
         @T.prim_func(private=True)
         def add(rxplaceholder: T.Buffer((T.int64(2), T.int64(320), T.int64(64), T.int64(64)), "float32"), rxplaceholder_1: T.Buffer((T.int64(1), T.int64(320), T.int64(1), T.int64(1)), "float32"), T_add: T.Buffer((T.int64(2), T.int64(320), T.int64(64), T.int64(64)), "float32")):
-            T.func_attr({"op_pattern": 0, "tir.noalias": True})
+            T.func_attr({"op_pattern": 0, "tirx.noalias": True})
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(2), T.int64(320), T.int64(64), T.int64(64)):
                 with T.sblock("T_add"):
                     v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
@@ -1020,7 +1020,7 @@ def test_multiple_paths():
 
         @T.prim_func(private=True)
         def add1(rxplaceholder: T.Buffer((T.int64(2), T.int64(320)), "float32"), rxplaceholder_1: T.Buffer((T.int64(320),), "float32"), T_add: T.Buffer((T.int64(2), T.int64(320)), "float32")):
-            T.func_attr({"op_pattern": 0, "tir.noalias": True})
+            T.func_attr({"op_pattern": 0, "tirx.noalias": True})
             for ax0, ax1 in T.grid(T.int64(2), T.int64(320)):
                 with T.sblock("T_add"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
@@ -1030,7 +1030,7 @@ def test_multiple_paths():
 
         @T.prim_func(private=True)
         def add2(rxplaceholder: T.Buffer((T.int64(2), T.int64(320), T.int64(64), T.int64(64)), "float32"), rxplaceholder_1: T.Buffer((T.int64(2), T.int64(320), T.int64(1), T.int64(1)), "float32"), T_add: T.Buffer((T.int64(2), T.int64(320), T.int64(64), T.int64(64)), "float32")):
-            T.func_attr({"op_pattern": 0, "tir.noalias": True})
+            T.func_attr({"op_pattern": 0, "tirx.noalias": True})
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(2), T.int64(320), T.int64(64), T.int64(64)):
                 with T.sblock("T_add"):
                     v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
@@ -1040,7 +1040,7 @@ def test_multiple_paths():
 
         @T.prim_func(private=True)
         def conv2d(rxplaceholder: T.Buffer((T.int64(2), T.int64(320), T.int64(64), T.int64(64)), "float32"), rxplaceholder_1: T.Buffer((T.int64(320), T.int64(320), T.int64(3), T.int64(3)), "float32"), conv2d_nchw: T.Buffer((T.int64(2), T.int64(320), T.int64(64), T.int64(64)), "float32")):
-            T.func_attr({"op_pattern": 4, "tir.noalias": True})
+            T.func_attr({"op_pattern": 4, "tirx.noalias": True})
             pad_temp = T.sblock_alloc_buffer((T.int64(2), T.int64(320), T.int64(66), T.int64(66)))
             for i0, i1, i2, i3 in T.grid(T.int64(2), T.int64(320), T.int64(66), T.int64(66)):
                 with T.sblock("pad_temp"):
@@ -1059,7 +1059,7 @@ def test_multiple_paths():
 
         @T.prim_func(private=True)
         def matmul(rxplaceholder: T.Buffer((T.int64(2), T.int64(1280)), "float32"), rxplaceholder_1: T.Buffer((T.int64(1280), T.int64(320)), "float32"), matmul: T.Buffer((T.int64(2), T.int64(320)), "float32")):
-            T.func_attr({"op_pattern": 4, "tir.noalias": True})
+            T.func_attr({"op_pattern": 4, "tirx.noalias": True})
             for i0, i1, k in T.grid(T.int64(2), T.int64(320), T.int64(1280)):
                 with T.sblock("matmul"):
                     v_i0, v_i1, v_k = T.axis.remap("SSR", [i0, i1, k])
@@ -1071,7 +1071,7 @@ def test_multiple_paths():
 
         @T.prim_func(private=True)
         def reshape(rxplaceholder: T.Buffer((T.int64(320),), "float32"), T_reshape: T.Buffer((T.int64(1), T.int64(320), T.int64(1), T.int64(1)), "float32")):
-            T.func_attr({"op_pattern": 2, "tir.noalias": True})
+            T.func_attr({"op_pattern": 2, "tirx.noalias": True})
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(1), T.int64(320), T.int64(1), T.int64(1)):
                 with T.sblock("T_reshape"):
                     v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
@@ -1081,7 +1081,7 @@ def test_multiple_paths():
 
         @T.prim_func(private=True)
         def reshape1(rxplaceholder: T.Buffer((T.int64(2), T.int64(320)), "float32"), T_reshape: T.Buffer((T.int64(2), T.int64(320), T.int64(1), T.int64(1)), "float32")):
-            T.func_attr({"op_pattern": 2, "tir.noalias": True})
+            T.func_attr({"op_pattern": 2, "tirx.noalias": True})
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(2), T.int64(320), T.int64(1), T.int64(1)):
                 with T.sblock("T_reshape"):
                     v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
@@ -1091,7 +1091,7 @@ def test_multiple_paths():
 
         @T.prim_func(private=True)
         def transpose(rxplaceholder: T.Buffer((T.int64(320), T.int64(1280)), "float32"), T_transpose: T.Buffer((T.int64(1280), T.int64(320)), "float32")):
-            T.func_attr({"op_pattern": 2, "tir.noalias": True})
+            T.func_attr({"op_pattern": 2, "tirx.noalias": True})
             for ax0, ax1 in T.grid(T.int64(1280), T.int64(320)):
                 with T.sblock("T_transpose"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
@@ -1165,7 +1165,7 @@ def test_dead_group():
     class Expected:
         @T.prim_func(private=True)
         def add(rxplaceholder: T.Buffer((T.int64(1), T.int64(128)), "float32"), rxplaceholder_1: T.Buffer((T.int64(128),), "float32"), T_add: T.Buffer((T.int64(1), T.int64(128)), "float32")):
-            T.func_attr({"op_pattern": 0, "tir.noalias": True})
+            T.func_attr({"op_pattern": 0, "tirx.noalias": True})
             # with T.sblock("root"):
             for ax0, ax1 in T.grid(T.int64(1), T.int64(128)):
                 with T.sblock("T_add"):
@@ -1176,7 +1176,7 @@ def test_dead_group():
 
         @T.prim_func(private=True)
         def add1(rxplaceholder: T.Buffer((T.int64(1), T.int64(10)), "float32"), rxplaceholder_1: T.Buffer((T.int64(10),), "float32"), T_add: T.Buffer((T.int64(1), T.int64(10)), "float32")):
-            T.func_attr({"op_pattern": 0, "tir.noalias": True})
+            T.func_attr({"op_pattern": 0, "tirx.noalias": True})
             # with T.sblock("root"):
             for ax0, ax1 in T.grid(T.int64(1), T.int64(10)):
                 with T.sblock("T_add"):
@@ -1187,7 +1187,7 @@ def test_dead_group():
 
         @T.prim_func(private=True)
         def matmul(rxplaceholder: T.Buffer((T.int64(1), T.int64(784)), "float32"), rxplaceholder_1: T.Buffer((T.int64(784), T.int64(128)), "float32"), matmul_1: T.Buffer((T.int64(1), T.int64(128)), "float32")):
-            T.func_attr({"op_pattern": 4, "tir.noalias": True})
+            T.func_attr({"op_pattern": 4, "tirx.noalias": True})
             # with T.sblock("root"):
             for i0, i1, k in T.grid(T.int64(1), T.int64(128), T.int64(784)):
                 with T.sblock("matmul"):
@@ -1200,7 +1200,7 @@ def test_dead_group():
 
         @T.prim_func(private=True)
         def matmul1(rxplaceholder: T.Buffer((T.int64(1), T.int64(128)), "float32"), rxplaceholder_1: T.Buffer((T.int64(128), T.int64(10)), "float32"), matmul: T.Buffer((T.int64(1), T.int64(10)), "float32")):
-            T.func_attr({"op_pattern": 4, "tir.noalias": True})
+            T.func_attr({"op_pattern": 4, "tirx.noalias": True})
             # with T.sblock("root"):
             for i0, i1, k in T.grid(T.int64(1), T.int64(10), T.int64(128)):
                 with T.sblock("matmul"):
@@ -1213,7 +1213,7 @@ def test_dead_group():
 
         @T.prim_func(private=True)
         def relu(rxplaceholder: T.Buffer((T.int64(1), T.int64(128)), "float32"), compute: T.Buffer((T.int64(1), T.int64(128)), "float32")):
-            T.func_attr({"op_pattern": 0, "tir.noalias": True})
+            T.func_attr({"op_pattern": 0, "tirx.noalias": True})
             # with T.sblock("root"):
             for i0, i1 in T.grid(T.int64(1), T.int64(128)):
                 with T.sblock("compute"):
@@ -1224,7 +1224,7 @@ def test_dead_group():
 
         @T.prim_func(private=True)
         def transpose(rxplaceholder: T.Buffer((T.int64(128), T.int64(784)), "float32"), T_transpose: T.Buffer((T.int64(784), T.int64(128)), "float32")):
-            T.func_attr({"op_pattern": 2, "tir.noalias": True})
+            T.func_attr({"op_pattern": 2, "tirx.noalias": True})
             # with T.sblock("root"):
             for ax0, ax1 in T.grid(T.int64(784), T.int64(128)):
                 with T.sblock("T_transpose"):
@@ -1235,7 +1235,7 @@ def test_dead_group():
 
         @T.prim_func(private=True)
         def transpose1(rxplaceholder: T.Buffer((T.int64(10), T.int64(128)), "float32"), T_transpose: T.Buffer((T.int64(128), T.int64(10)), "float32")):
-            T.func_attr({"op_pattern": 2, "tir.noalias": True})
+            T.func_attr({"op_pattern": 2, "tirx.noalias": True})
             # with T.sblock("root"):
             for ax0, ax1 in T.grid(T.int64(128), T.int64(10)):
                 with T.sblock("T_transpose"):
@@ -1317,7 +1317,7 @@ def test_symbolic_shape_aware_fuse_2():
             n = T.int64()
             with R.dataflow():
                 lv0 = R.emit_te(topi.full, [n, n], "float32", 0)
-                lv1 = R.emit_te(topi.trilu, lv0, tvm.tir.const(1, "int32"), upper=True)
+                lv1 = R.emit_te(topi.trilu, lv0, tvm.tirx.const(1, "int32"), upper=True)
                 gv = R.emit_te(topi.broadcast_to, lv1, [1, 1, n, n])
                 R.output(gv)
             return gv
@@ -1332,7 +1332,7 @@ def test_symbolic_shape_aware_fuse_2():
             n = T.int64()
             with R.dataflow():
                 lv0 = R.emit_te(topi.full, [n, n], "float32", 0)
-                lv1 = R.emit_te(topi.trilu, lv0, tvm.tir.const(1, "int32"), upper=True)
+                lv1 = R.emit_te(topi.trilu, lv0, tvm.tirx.const(1, "int32"), upper=True)
                 gv = R.emit_te(topi.broadcast_to, lv1, [1, 1, n, n])
                 R.output(gv)
             return gv
@@ -1359,7 +1359,7 @@ def test_shape_expr_arg():
             n = T.int64()
             with R.dataflow():
                 lv0 = R.emit_te(topi.full, [n, n], "float32", 0)
-                lv1 = R.emit_te(topi.trilu, lv0, tvm.tir.const(1, "int32"), upper=True)
+                lv1 = R.emit_te(topi.trilu, lv0, tvm.tirx.const(1, "int32"), upper=True)
                 lv2 = R.emit_te(topi.broadcast_to, lv1, [1, 1, n, n])
                 gv = R.call_pure_packed(
                     "vm.builtin.attention_kv_cache_view",
@@ -1380,7 +1380,7 @@ def test_shape_expr_arg():
             n = T.int64()
             with R.dataflow():
                 lv0 = R.emit_te(topi.full, [n, n], "float32", 0)
-                lv1 = R.emit_te(topi.trilu, lv0, tvm.tir.const(1, "int32"), upper=True)
+                lv1 = R.emit_te(topi.trilu, lv0, tvm.tirx.const(1, "int32"), upper=True)
                 gv = R.emit_te(topi.broadcast_to, lv1, [1, 1, n, n])
                 R.output(gv)
             return gv
@@ -1517,7 +1517,7 @@ def test_call_tir_inplace():
             B: T.Buffer((), "float32"),
             Out: T.Buffer((T.int64(10), T.int64(20)), "float32"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for ax0, ax1 in T.grid(T.int64(10), T.int64(20)):
                 with T.sblock("T_add"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
@@ -1527,7 +1527,7 @@ def test_call_tir_inplace():
 
         @T.prim_func(private=True)
         def exp_inplace(A: T.Buffer((T.int64(10), T.int64(20)), "float32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(10), T.int64(20)):
                 with T.sblock("compute"):
                     v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
@@ -1537,7 +1537,7 @@ def test_call_tir_inplace():
 
         @T.prim_func(private=True)
         def squeeze_inplace(A: T.Buffer((T.int64(10), T.int64(20)), "float32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for ax0, ax1 in T.grid(T.int64(10), T.int64(20)):
                 with T.sblock("T_squeeze"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
@@ -1579,7 +1579,7 @@ def test_call_tir_inplace():
             B: T.Buffer((), "float32"),
             Out: T.Buffer((T.int64(10), T.int64(20)), "float32"),
         ):
-            T.func_attr({"tir.noalias": True, "op_pattern": 0})
+            T.func_attr({"tirx.noalias": True, "op_pattern": 0})
             for ax0, ax1 in T.grid(T.int64(10), T.int64(20)):
                 with T.sblock("T_add"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
@@ -1589,7 +1589,7 @@ def test_call_tir_inplace():
 
         @T.prim_func(private=True)
         def exp_inplace(A: T.Buffer((T.int64(10), T.int64(20)), "float32")):
-            T.func_attr({"tir.noalias": True, "op_pattern": 0})
+            T.func_attr({"tirx.noalias": True, "op_pattern": 0})
             for i0, i1 in T.grid(T.int64(10), T.int64(20)):
                 with T.sblock("compute"):
                     v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
@@ -1599,7 +1599,7 @@ def test_call_tir_inplace():
 
         @T.prim_func(private=True)
         def squeeze_inplace(A: T.Buffer((T.int64(10), T.int64(20)), "float32")):
-            T.func_attr({"tir.noalias": True, "op_pattern": 0})
+            T.func_attr({"tirx.noalias": True, "op_pattern": 0})
             for ax0, ax1 in T.grid(T.int64(10), T.int64(20)):
                 with T.sblock("T_squeeze"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
@@ -1655,7 +1655,7 @@ def test_packed_params():
     class Before:
         @T.prim_func(private=True)
         def cast(lv: T.Buffer((T.int64(16), T.int64(16)), "float16"), compute: T.Buffer((T.int64(16), T.int64(16)), "float32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
             for i0, i1 in T.grid(T.int64(16), T.int64(16)):
                 with T.sblock("compute"):
@@ -1666,7 +1666,7 @@ def test_packed_params():
 
         @T.prim_func(private=True)
         def matmul(x: T.Buffer((T.int64(16), T.int64(16)), "float32"), lv2: T.Buffer((T.int64(16), T.int64(16)), "float32"), T_matmul: T.Buffer((T.int64(16), T.int64(16)), "float32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
             for ax0, ax1, k in T.grid(T.int64(16), T.int64(16), T.int64(16)):
                 with T.sblock("T_matmul"):

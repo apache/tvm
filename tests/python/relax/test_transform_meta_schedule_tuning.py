@@ -14,6 +14,22 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 # ruff: noqa: F401
 
 import tempfile
@@ -26,7 +42,7 @@ from tvm.ir import transform
 from tvm.ir.module import IRModule
 from tvm.ir.transform import PassContext
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 target = tvm.target.Target({"kind": "llvm", "num-cores": 16})
 
@@ -156,7 +172,7 @@ class DefaultScheduledModule:
         B: T.Buffer((32, 32), "float32"),
         C: T.Buffer((32, 32), "float32"),
     ):
-        T.func_attr({"global_symbol": "tir_matmul", "tir.is_scheduled": True})
+        T.func_attr({"global_symbol": "tir_matmul", "tirx.is_scheduled": True})
         # with T.sblock("root"):
         for i0_j0_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
             for i0_j0_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):
@@ -173,7 +189,7 @@ class DefaultScheduledModule:
 
     @T.prim_func
     def tir_relu(A: T.Buffer((32, 32), "float32"), B: T.Buffer((32, 32), "float32")):
-        T.func_attr({"global_symbol": "tir_relu", "tir.is_scheduled": True})
+        T.func_attr({"global_symbol": "tir_relu", "tirx.is_scheduled": True})
         # with T.sblock("root"):
         for i_j_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
             for i_j_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):

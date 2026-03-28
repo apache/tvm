@@ -22,7 +22,7 @@ from tvm import relax
 from tvm.ir.module import IRModule
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
-from tvm.script.parser import tir as T
+from tvm.script.parser import tirx as T
 
 
 def verify(input, expected):

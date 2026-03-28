@@ -71,7 +71,7 @@
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/struct_info_functor.h>
 #include <tvm/relax/utils.h>
-#include <tvm/tir/expr_functor.h>
+#include <tvm/tirx/expr_functor.h>
 
 #include <string>
 #include <unordered_map>
@@ -86,7 +86,7 @@ namespace relax {
 /*! \brief Helper to implement well formed check.*/
 class WellFormedChecker : public relax::ExprVisitor,
                           public relax::StructInfoVisitor,
-                          public tir::ExprVisitor {
+                          public tirx::ExprVisitor {
  public:
   static bool Check(ffi::Variant<IRModule, Function> obj, bool check_struct_info) {
     WellFormedChecker well_formed_checker =
@@ -116,8 +116,8 @@ class WellFormedChecker : public relax::ExprVisitor,
       : mod_(std::move(mod)), check_struct_info_(check_struct_info), cur_visited_func_(nullptr) {}
 
   using relax::ExprVisitor::VisitExpr_;
-  using tir::ExprVisitor::VisitExpr;
-  using tir::ExprVisitor::VisitExpr_;
+  using tirx::ExprVisitor::VisitExpr;
+  using tirx::ExprVisitor::VisitExpr_;
 
   // Possible mode of visitor
   enum class VisitMode {
@@ -435,7 +435,7 @@ class WellFormedChecker : public relax::ExprVisitor,
     }
 
     std::unordered_set<Var> previous_var_set = var_set_;
-    std::unordered_set<tir::Var> previous_symbolic_var_set = symbolic_var_set_;
+    std::unordered_set<tirx::Var> previous_symbolic_var_set = symbolic_var_set_;
     this->VisitSeqExpr(op->true_branch.get());
     var_set_ = previous_var_set;
     symbolic_var_set_ = previous_symbolic_var_set;
@@ -449,7 +449,7 @@ class WellFormedChecker : public relax::ExprVisitor,
   void VisitExpr_(const ShapeExprNode* op) final {
     for (PrimExpr expr : op->values) {
       // check if the symbolic vars in the expr are defined, e.g, 2 * m
-      tir::ExprVisitor::VisitExpr(expr);
+      tirx::ExprVisitor::VisitExpr(expr);
       if (!expr.dtype().is_int()) {
         Malformed(Diagnostic::Error(expr)
                   << "Shape expressions must be of integer type, but got " << expr.dtype());
@@ -482,7 +482,7 @@ class WellFormedChecker : public relax::ExprVisitor,
       is_lambda = true;
       recur_vars_.insert(binding->var);
     }
-    if (binding->value->IsInstance<tir::PrimFuncNode>()) {
+    if (binding->value->IsInstance<tirx::PrimFuncNode>()) {
       Malformed(Diagnostic::Error(binding->value) << "Inline PrimFunc is disallowed in Relax IR.");
     } else {
       this->VisitExpr(binding->value);
@@ -549,8 +549,8 @@ class WellFormedChecker : public relax::ExprVisitor,
     CheckStructInfo(var);
   }
 
-  void VisitExpr_(const tir::VarNode* op) final {
-    tir::Var var = ffi::GetRef<tir::Var>(op);
+  void VisitExpr_(const tirx::VarNode* op) final {
+    tirx::Var var = ffi::GetRef<tirx::Var>(op);
     // default mode, check defined.
     if (symbolic_var_set_.count(var) == 0) {
       this->Malformed(Diagnostic::Error(var) << "Symbolic Var " << var << " is not defined.");
@@ -605,14 +605,14 @@ class WellFormedChecker : public relax::ExprVisitor,
   void VisitStructInfoExprField(const PrimExpr& expr) final {
     if (mode_ == VisitMode::kMatchVarDef) {
       // populate symbolic var in first occurrence
-      if (auto* op = expr.as<tir::VarNode>()) {
-        auto var = ffi::GetRef<tir::Var>(op);
+      if (auto* op = expr.as<tirx::VarNode>()) {
+        auto var = ffi::GetRef<tirx::Var>(op);
         if (symbolic_var_set_.count(var) == 0) {
           symbolic_var_set_.insert(var);
         }
       }
     } else {
-      tir::ExprVisitor::VisitExpr(expr);
+      tirx::ExprVisitor::VisitExpr(expr);
     }
   }
 
@@ -652,9 +652,9 @@ class WellFormedChecker : public relax::ExprVisitor,
   std::unordered_set<Var> var_set_;
   std::unordered_set<Var> recur_vars_;
   std::unordered_set<DataflowVar, ObjectPtrHash, ObjectPtrEqual> dataflow_var_set_;
-  std::unordered_set<tir::Var> symbolic_var_set_;
+  std::unordered_set<tirx::Var> symbolic_var_set_;
   std::unordered_map<Var, const FunctionNode*> param_var_func_map_;
-  std::unordered_map<tir::Var, const FunctionNode*> symbolic_var_func_map_;
+  std::unordered_map<tirx::Var, const FunctionNode*> symbolic_var_func_map_;
 
   tvm::OpAttrMap<FNormalize> op_map_normalize_ = Op::GetAttrMap<FNormalize>("FNormalize");
   tvm::OpAttrMap<FValidate> op_map_validate_ = Op::GetAttrMap<FValidate>("FValidate");

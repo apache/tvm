@@ -20,7 +20,7 @@ import tvm.testing
 from tvm import relax as rx
 from tvm.relax.analysis import detect_recursion
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def assert_groups(groups: list[list[rx.GlobalVar]], expected: list[list[str]]) -> None:

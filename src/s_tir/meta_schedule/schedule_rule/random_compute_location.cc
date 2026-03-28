@@ -70,7 +70,7 @@ class RandomComputeLocationNode : public ScheduleRuleNode {
 
  private:
   bool CheckConditions(const s_tir::Schedule sch, const s_tir::SBlockRV& block_rv) const {
-    tir::StmtSRef block_sref = sch->GetSRef(block_rv);
+    tirx::StmtSRef block_sref = sch->GetSRef(block_rv);
     TVM_SREF_TO_SBLOCK(block_sref);
 
     // Cond 1. The block is not the root block.
@@ -85,7 +85,7 @@ class RandomComputeLocationNode : public ScheduleRuleNode {
     }
     // Cond 3 & 4. The block has at least one outer loop, and the outermost loop has only one child
     // block.
-    ffi::Array<tir::StmtSRef> loop_srefs = s_tir::GetLoops(block_sref);
+    ffi::Array<tirx::StmtSRef> loop_srefs = s_tir::GetLoops(block_sref);
     if (loop_srefs.empty()) {
       return false;
     }

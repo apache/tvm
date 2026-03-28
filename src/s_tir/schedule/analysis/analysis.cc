@@ -24,7 +24,7 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   TensorizeInfoNode::RegisterReflection();
@@ -1355,7 +1355,7 @@ bool HasIfThenElse(const Stmt& stmt) {
       has_branch = true;
     } else if (const auto* call = obj.as<CallNode>()) {
       // Case 3: Call the `if_then_else` operator
-      static const Op& op_if_then_else = Op::Get("tir.if_then_else");
+      static const Op& op_if_then_else = Op::Get("tirx.if_then_else");
       if (call->op.same_as(op_if_then_else)) {
         has_branch = true;
       }
@@ -1593,24 +1593,24 @@ bool IsSpatialPrimFunc(const PrimFunc& func) {
 }
 
 std::pair<int64_t, int64_t> GetCumulativeSpaceAndReductionLength(const s_tir::ScheduleState& self,
-                                                                 const tir::StmtSRef& block_sref) {
-  ffi::Array<tir::StmtSRef> loops = GetLoops(block_sref);
+                                                                 const tirx::StmtSRef& block_sref) {
+  ffi::Array<tirx::StmtSRef> loops = GetLoops(block_sref);
   int64_t cum_space_len = 1, cum_reduce_len = 1;
   /*
    * Return (-1, -1) if
    *   1. there is some loop with type other than kDataPar and kCommReduce;
    *   2. there is some loop which is dynamic.
    */
-  for (const tir::StmtSRef& loop_sref : loops) {
-    tir::IterVarType type = GetLoopIterType(loop_sref);
-    if (type == tir::kDataPar) {
+  for (const tirx::StmtSRef& loop_sref : loops) {
+    tirx::IterVarType type = GetLoopIterType(loop_sref);
+    if (type == tirx::kDataPar) {
       const int64_t* extent = GetLoopIntExtent(loop_sref);
       if (extent && *extent != -1) {
         cum_space_len *= *extent;
       } else {
         return std::make_pair(-1, -1);
       }
-    } else if (type == tir::kCommReduce) {
+    } else if (type == tirx::kCommReduce) {
       const int64_t* extent = GetLoopIntExtent(loop_sref);
       if (extent && *extent != -1) {
         cum_reduce_len *= *extent;
@@ -1625,11 +1625,11 @@ std::pair<int64_t, int64_t> GetCumulativeSpaceAndReductionLength(const s_tir::Sc
 }
 
 bool NeedsRFactorOrCrossThreadReduction(const s_tir::ScheduleState& self,  //
-                                        const tir::StmtSRef& block_sref,   //
+                                        const tirx::StmtSRef& block_sref,  //
                                         int64_t max_parallel_extent,       //
                                         int64_t max_parallel_basic) {
   const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
-  ffi::Array<tir::StmtSRef> loops = GetLoops(block_sref);
+  ffi::Array<tirx::StmtSRef> loops = GetLoops(block_sref);
 
   // Cond 1. The block must have at lease one write buffer
   if (block->writes.size() == 0) {
@@ -1646,9 +1646,9 @@ bool NeedsRFactorOrCrossThreadReduction(const s_tir::ScheduleState& self,  //
   }
 
   // Cond 3. Every the loop axis must be either spatial axis or reduction axis.
-  for (const tir::StmtSRef& loop_sref : loops) {
-    const tir::IterVarType& type = GetLoopIterType(loop_sref);
-    if (type != tir::kDataPar && type != tir::kCommReduce) {
+  for (const tirx::StmtSRef& loop_sref : loops) {
+    const tirx::IterVarType& type = GetLoopIterType(loop_sref);
+    if (type != tirx::kDataPar && type != tirx::kCommReduce) {
       return false;
     }
   }
@@ -1658,7 +1658,7 @@ bool NeedsRFactorOrCrossThreadReduction(const s_tir::ScheduleState& self,  //
   bool has_reduction_loop = false;
   for (size_t i = 0; i < loops.size(); ++i) {
     // Cond 4.
-    if (GetLoopIterType(loops[i]) == tir::kCommReduce) {
+    if (GetLoopIterType(loops[i]) == tirx::kCommReduce) {
       has_reduction_loop = true;
     }
 
@@ -1670,7 +1670,7 @@ bool NeedsRFactorOrCrossThreadReduction(const s_tir::ScheduleState& self,  //
         return false;
       }
     } else {
-      const auto* block_realize = loop_i->body.as<tir::SBlockRealizeNode>();
+      const auto* block_realize = loop_i->body.as<tirx::SBlockRealizeNode>();
       if (!block_realize || block_realize->block.get() != block) {
         return false;
       }
@@ -1712,9 +1712,9 @@ struct TensorIntrinDescInfo {
    */
   const SBlockRealizeNode* desc_block = nullptr;
   /*! \brief The loops of the description function, in the order from outer loops to inner ones. */
-  std::vector<const tir::ForNode*> desc_loops;
+  std::vector<const tirx::ForNode*> desc_loops;
   /*! \brief The loop variables. */
-  std::unordered_set<const tir::VarNode*> desc_loop_vars;
+  std::unordered_set<const tirx::VarNode*> desc_loop_vars;
 };
 
 /*!
@@ -1745,7 +1745,7 @@ TensorIntrinDescInfo ExtractTensorIntrinDescInfo(arith::Analyzer* analyzer,
       }
       return true;
     };
-    tir::PostOrderVisit(desc_scope_realize->block->body, f_visit);
+    tirx::PostOrderVisit(desc_scope_realize->block->body, f_visit);
     std::reverse(info.desc_loops.begin(), info.desc_loops.end());
     TVM_FFI_ICHECK(info.desc_block);
   }
@@ -1753,22 +1753,22 @@ TensorIntrinDescInfo ExtractTensorIntrinDescInfo(arith::Analyzer* analyzer,
 }
 
 ffi::Optional<TensorizeInfo> GetTensorizeLoopMapping(const s_tir::ScheduleState& self,
-                                                     const tir::StmtSRef& block_sref,
-                                                     const tir::PrimFunc& desc_func,
+                                                     const tirx::StmtSRef& block_sref,
+                                                     const tirx::PrimFunc& desc_func,
                                                      bool allow_padding) {
   arith::Analyzer analyzer;
-  const tir::SBlockRealize& block = GetSBlockRealize(self, block_sref);
+  const tirx::SBlockRealize& block = GetSBlockRealize(self, block_sref);
   // Step 1. Analyze desc_func, extract its block, loops and loop vars
   TensorIntrinDescInfo desc_info = ExtractTensorIntrinDescInfo(&analyzer, desc_func);
   // Step 2. Collect loops from block_sref
-  const tir::StmtSRef& scope_sref = GetScopeRoot(self, block_sref, false);
+  const tirx::StmtSRef& scope_sref = GetScopeRoot(self, block_sref, false);
   TVM_SREF_TO_SBLOCK(scope_sref);
-  std::vector<const tir::ForNode*> block_loops;
-  std::unordered_set<const tir::VarNode*> block_loop_vars;
+  std::vector<const tirx::ForNode*> block_loops;
+  std::unordered_set<const tirx::VarNode*> block_loop_vars;
   {
-    for (const tir::StmtSRefNode* loop_sref = block_sref->parent;; loop_sref = loop_sref->parent) {
-      const auto* loop = loop_sref->StmtAs<tir::ForNode>();
-      if (loop == nullptr || loop->body->IsInstance<tir::SeqStmtNode>()) {
+    for (const tirx::StmtSRefNode* loop_sref = block_sref->parent;; loop_sref = loop_sref->parent) {
+      const auto* loop = loop_sref->StmtAs<tirx::ForNode>();
+      if (loop == nullptr || loop->body->IsInstance<tirx::SeqStmtNode>()) {
         break;
       }
       block_loops.push_back(loop);
@@ -1820,7 +1820,7 @@ ffi::Optional<TensorizeInfo> GetTensorizeLoopMapping(const s_tir::ScheduleState&
   for (int i_desc = n_desc_vars - 1; i_desc >= 0; --i_desc) {
     // Step 3.1. Find the corresponding loop of the i_desc-th block var of desc
     const PrimExpr& desc_bind = desc_block->iter_values[i_desc];
-    const tir::ForNode* desc_loop = nullptr;
+    const tirx::ForNode* desc_loop = nullptr;
     IterVarType iter_type_desc = iter_types_desc[i_desc];
     for (int i = 0, n = desc_loops.size(); i < n; ++i) {
       // Check if desc_bind = loops[i]->loop_var + stuff-irrelevant-of-loop-vars
@@ -1854,8 +1854,8 @@ ffi::Optional<TensorizeInfo> GetTensorizeLoopMapping(const s_tir::ScheduleState&
     // Step 3.3. Find the corresponding loop of the target block
     for (int i = 0, n = block_loops.size(); i < n; ++i) {
       // Check if block_bind = block_loops[i]->loop_var + stuff-irrelevant-of-loop-vars
-      const tir::ForNode* block_loop = block_loops[i];
-      const tir::StmtSRef& block_loop_sref = self->stmt2ref[block_loop];
+      const tirx::ForNode* block_loop = block_loops[i];
+      const tirx::StmtSRef& block_loop_sref = self->stmt2ref[block_loop];
       // Skip i-th loop if it has already been mapped
       if (ret->loop_map.find(block_loop_sref) != ret->loop_map.end()) continue;
 
@@ -1886,13 +1886,13 @@ ffi::Optional<TensorizeInfo> GetTensorizeLoopMapping(const s_tir::ScheduleState&
         }
       }
 
-      ret->loop_map.Set(block_loop_sref, ffi::GetRef<tir::For>(desc_loop));
+      ret->loop_map.Set(block_loop_sref, ffi::GetRef<tirx::For>(desc_loop));
       break;
     }
   }
 
   for (int i = 0, n = desc_loops.size(); i < n; ++i) {
-    ret->desc_loop_indexer.Set(ffi::GetRef<tir::For>(desc_loops[i]), Integer(i));
+    ret->desc_loop_indexer.Set(ffi::GetRef<tirx::For>(desc_loops[i]), Integer(i));
   }
   if (!block_index_to_padding.empty()) {
     if (!allow_padding) {
@@ -2106,8 +2106,8 @@ class AutoTensorizeMappingProposer {
   std::unordered_map<Var, VarSet> lhs_feasible_vars_;
 };
 
-bool CheckAutoTensorizeApplicable(const ScheduleState& state, const tir::StmtSRef& block_sref,
-                                  const tir::PrimFunc& desc_func,
+bool CheckAutoTensorizeApplicable(const ScheduleState& state, const tirx::StmtSRef& block_sref,
+                                  const tirx::PrimFunc& desc_func,
                                   AutoTensorizeComparator* extractor) {
   // Step 1. Analyze desc_func, extract its block, loops and loop vars
   // Step 2. Check if `desc_block` matches `block`
@@ -2120,14 +2120,14 @@ bool CheckAutoTensorizeApplicable(const ScheduleState& state, const tir::StmtSRe
 }
 
 bool CheckAutoTensorizeApplicable(const s_tir::Schedule& sch, const s_tir::SBlockRV& block_rv,
-                                  const tir::PrimFunc& desc_func) {
+                                  const tirx::PrimFunc& desc_func) {
   AutoTensorizeComparator extractor(sch->state()->mod);
   return CheckAutoTensorizeApplicable(sch->state(), sch->GetSRef(block_rv), desc_func, &extractor);
 }
 
 ffi::Optional<AutoTensorizeMappingInfo> GetAutoTensorizeMappingInfo(
-    const s_tir::ScheduleState& self, const tir::StmtSRef& block_sref,
-    const tir::PrimFunc& desc_func) {
+    const s_tir::ScheduleState& self, const tirx::StmtSRef& block_sref,
+    const tirx::PrimFunc& desc_func) {
   AutoTensorizeComparator extractor(self->mod);
   if (!CheckAutoTensorizeApplicable(self, block_sref, desc_func, &extractor)) {
     return std::nullopt;

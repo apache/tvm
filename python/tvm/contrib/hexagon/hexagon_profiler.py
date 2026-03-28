@@ -52,7 +52,7 @@ class HexagonProfiler:
         if self._android_serial_number is None:
             raise RuntimeError("ANDROID_SERIAL_NUMBER must be set for profiling")
 
-        if ("tir.instrument_lwp", True) in config.items():
+        if ("tirx.instrument_lwp", True) in config.items():
             # Set profiling mode
             self._profiling_mode = "lwp"
 

@@ -20,7 +20,7 @@
 
 import numpy as np
 
-from tvm import tir, topi
+from tvm import tirx, topi
 
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr, PrimValue, const
@@ -108,7 +108,7 @@ def _arange(bb: BlockBuilder, call: Call) -> Expr:
     dtype = call.attrs.dtype
 
     def is_const_scalar(x: PrimValue):
-        return isinstance(x.value, tir.IntImm | tir.FloatImm)
+        return isinstance(x.value, tirx.IntImm | tirx.FloatImm)
 
     if all([is_const_scalar(x) for x in call.args]):
         return const(np.arange(start.value, end.value, step.value, dtype=dtype), dtype=dtype)

@@ -23,10 +23,10 @@ import tvm.testing
 from tvm.s_tir import Schedule
 from tvm.s_tir.tensor_intrin.cuda import *
 from tvm.s_tir.tensor_intrin.x86 import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
-from tvm.script import tir as T
+from tvm.script import tirx as T
 from tvm.target import Target
 from tvm.target.codegen import llvm_lookup_intrinsic_id
-from tvm.tir import floordiv, floormod
+from tvm.tirx import floordiv, floormod
 
 
 # fmt: off
@@ -39,7 +39,7 @@ class Dense:
         T_matmul_NT: T.Buffer((128, 128), "float32"),
     ) -> None:
         # function attr dict
-        T.func_attr({"layout_free_buffers": [1], "tir.noalias": True, "global_symbol": "main"})
+        T.func_attr({"layout_free_buffers": [1], "tirx.noalias": True, "global_symbol": "main"})
         # body
         # with T.sblock("root")
         for i0, i1, i2 in T.grid(128, 128, 128):
@@ -62,7 +62,7 @@ class DenseAdd:
         T_add: T.Buffer((128, 128), "float32"),
     ) -> None:
         # function attr dict
-        T.func_attr({"global_symbol": "main", "tir.noalias": True, "layout_free_buffers": [1]})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True, "layout_free_buffers": [1]})
         # body
         # with T.sblock("root")
         T_matmul_NT = T.sblock_alloc_buffer([128, 128], dtype="float32")
@@ -98,7 +98,7 @@ class DenseAdd_scheduled_cpu:
         T_add: T.Buffer((128, 128), "float32"),
     ) -> None:
         # function attr dict
-        T.func_attr({"global_symbol": "main", "tir.noalias": True, "layout_free_buffers": [1]})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True, "layout_free_buffers": [1]})
         # body
         # with T.sblock("root")
         T_matmul_NT_global = T.sblock_alloc_buffer([128, 128], dtype="float32")
@@ -177,7 +177,7 @@ class DenseAdd_cpu_no_write_cache:
     @T.prim_func
     def main(p0: T.Buffer((128, 128), "float32"), p1: T.Buffer((128, 128), "float32"), T_add: T.Buffer((128, 128), "float32")) -> None:
         # function attr dict
-        T.func_attr({"global_symbol": "main", "tir.noalias": True, "layout_free_buffers": [1]})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True, "layout_free_buffers": [1]})
         # body
         # with T.sblock("root")
         T_matmul_NT = T.sblock_alloc_buffer([128, 128], dtype="float32")
@@ -227,7 +227,7 @@ class DenseAdd_scheduled_gpu:
         T_add: T.Buffer((128, 128), "float32"),
     ) -> None:
         # function attr dict
-        T.func_attr({"global_symbol": "main", "tir.noalias": True, "layout_free_buffers": [1]})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True, "layout_free_buffers": [1]})
         # body
         # with T.sblock("root")
         T_matmul_NT_local = T.sblock_alloc_buffer([128, 128], dtype="float32", scope="local")
@@ -377,7 +377,7 @@ class Conv2dInt8:
     @T.prim_func
     def main(p0: T.Buffer((16, 56, 56, 64), "int8"), p1: T.Buffer((256, 1, 1, 64), "int8"), p2: T.Buffer((1, 1, 1, 256), "int32"), p3: T.Buffer((1, 1, 1, 256), "int32"), p4: T.Buffer((1, 1, 1, 256), "int64"), p5: T.Buffer((1, 1, 1, 256), "int64"), p6: T.Buffer((1, 1, 1, 256), "int64"), p7: T.Buffer((), "int32"), p8: T.Buffer(1, "int32"), compute: T.Buffer((16, 56, 56, 256), "int32")) -> None:
         # function attr dict
-        T.func_attr({"tir.noalias": True, "global_symbol": "main"})
+        T.func_attr({"tirx.noalias": True, "global_symbol": "main"})
         # body
         # with T.sblock("root")
         pad_temp = T.sblock_alloc_buffer([16, 56, 56, 64], dtype="int8")
@@ -493,7 +493,7 @@ class Conv2dInt8_target:
     @T.prim_func
     def main(p0: T.Buffer((16, 56, 56, 64), "int8"), p1: T.Buffer((256, 1, 1, 64), "int8"), p2: T.Buffer((1, 1, 1, 256), "int32"), p3: T.Buffer((1, 1, 1, 256), "int32"), p4: T.Buffer((1, 1, 1, 256), "int64"), p5: T.Buffer((1, 1, 1, 256), "int64"), p6: T.Buffer((1, 1, 1, 256), "int64"), p7: T.Buffer((), "int32"), p8: T.Buffer(1, "int32"), p9: T.Buffer((16, 56, 56, 256), "int32"), compute: T.Buffer((16, 56, 56, 256), "uint8")) -> None:
         # function attr dict
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # body
         # with T.sblock("root")
         pad_temp = T.sblock_alloc_buffer([16, 56, 56, 64], dtype="int8")
@@ -636,7 +636,7 @@ class Conv2dInt8_target:
 class Conv2dInt8_tensorcore_scheduled:
     @T.prim_func
     def main(p0: T.Buffer((16, 56, 56, 64), "int8"), p1: T.Buffer((256, 1, 1, 64), "int8"), p2: T.Buffer((1, 1, 1, 256), "int32"), p3: T.Buffer((1, 1, 1, 256), "int32"), p4: T.Buffer((1, 1, 1, 256), "int64"), p5: T.Buffer((1, 1, 1, 256), "int64"), p6: T.Buffer((1, 1, 1, 256), "int64"), p7: T.Buffer((), "int32"), p8: T.Buffer((1,), "int32"), p9: T.Buffer((16, 56, 56, 256), "int32"), compute: T.Buffer((16, 56, 56, 256), "uint8")):
-        T.func_attr({"tir.noalias": True})
+        T.func_attr({"tirx.noalias": True})
         # with T.sblock("root"):
         conv2d_nhwc_reindex_shared = T.sblock_alloc_buffer((50176, 256), "int32", scope="shared")
         conv2d_nhwc_reindex_shared_wmma_accumulator = T.sblock_alloc_buffer((50176, 256), "int32", scope="wmma.accumulator")
@@ -738,7 +738,7 @@ class Conv2dInt8_NCHWc:
     @T.prim_func
     def main(p0: T.Buffer((1, 32, 7, 7, 16), "uint8"), p1: T.Buffer((128, 32, 1, 1, 4, 16, 4), "int8"), p2: T.Buffer((1, 128, 1, 1, 16), "int32"), p3: T.Buffer((1, 128, 1, 1, 16), "float32"), p4: T.Buffer(1, "float32"), p5: T.Buffer((1, 128, 7, 7, 16), "int32"), compute: T.Buffer((1, 128, 7, 7, 16), "uint8")) -> None:
         # function attr dict
-        T.func_attr({"tir.noalias": True, "global_symbol": "main"})
+        T.func_attr({"tirx.noalias": True, "global_symbol": "main"})
         # body
         # with T.sblock("root")
         compile_engine_const = T.sblock_alloc_buffer([], dtype="float32")
@@ -901,7 +901,7 @@ class Conv2dInt8_NCHWc_target:
     @T.prim_func
     def main(p0: T.Buffer((1, 32, 7, 7, 16), "uint8"), p1: T.Buffer((128, 32, 1, 1, 4, 16, 4), "int8"), p2: T.Buffer((1, 128, 1, 1, 16), "int32"), p3: T.Buffer((1, 128, 1, 1, 16), "float32"), p4: T.Buffer(1, "float32"), p5: T.Buffer((1, 128, 7, 7, 16), "uint8"), T_cast: T.Buffer((1, 128, 7, 7, 16), "int32")) -> None:
         # function attr dict
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # body
         # with T.sblock("root")
         compile_engine_const = T.sblock_alloc_buffer([], dtype="float32")
@@ -1119,7 +1119,7 @@ def get_conv2d_vnni_mod(intrin_id):
         @T.prim_func
         def main(p0: T.Buffer((1, 32, 7, 7, 16), "uint8"), p1: T.Buffer((128, 32, 1, 1, 4, 16, 4), "int8"), p2: T.Buffer((1, 128, 1, 1, 16), "int32"), p3: T.Buffer((1, 128, 1, 1, 16), "float32"), p4: T.Buffer(1, "float32"), p5: T.Buffer((1, 128, 7, 7, 16), "uint8"), T_cast: T.Buffer((1, 128, 7, 7, 16), "int32")) -> None:
             # function attr dict
-            T.func_attr({"global_symbol": "main", "tir.noalias": True})
+            T.func_attr({"global_symbol": "main", "tirx.noalias": True})
             # body
             # with T.sblock("root")
             conv2d_NCHWc_int8 = T.sblock_alloc_buffer([1, 128, 7, 7, 16], dtype="int32")
@@ -1182,7 +1182,7 @@ class Conv2dWinogradAddRelu:
     @T.prim_func
     def main(p0: T.Buffer((1, 56, 56, 64), "float32"), p1: T.Buffer((6, 6, 64, 64), "float32"), p2: T.Buffer((1, 1, 1, 64), "float32"), T_relu: T.Buffer((1, 56, 56, 64), "float32")) -> None:
         # function attr dict
-        T.func_attr({"layout_free_buffers": [1], "tir.noalias": True, "global_symbol": "main"})
+        T.func_attr({"layout_free_buffers": [1], "tirx.noalias": True, "global_symbol": "main"})
         # body
         # with T.sblock("root")
         data_pad = T.sblock_alloc_buffer([1, 58, 58, 64], dtype="float32")
@@ -1274,7 +1274,7 @@ class Conv2dWinogradAddResidualRelu:
     @T.prim_func
     def main(p0: T.Buffer((1, 56, 56, 64), "float32"), p1: T.Buffer((6, 6, 64, 64), "float32"), p2: T.Buffer((1, 1, 1, 64), "float32"), p3: T.Buffer((1, 56, 56, 64), "float32"), T_relu: T.Buffer((1, 56, 56, 64), "float32")) -> None:
         # function attr dict
-        T.func_attr({"global_symbol": "main", "tir.noalias": True, "layout_free_buffers": [1]})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True, "layout_free_buffers": [1]})
         # body
         # with T.sblock("root")
         data_pad = T.sblock_alloc_buffer([1, 58, 58, 64], dtype="float32")
@@ -1373,7 +1373,7 @@ class Conv2dWinogradAddResidualRelu_scheduled:
     @T.prim_func
     def main(p0: T.Buffer((1, 56, 56, 64), "float32"), p1: T.Buffer((6, 6, 64, 64), "float32"), p2: T.Buffer((1, 1, 1, 64), "float32"), p3: T.Buffer((1, 56, 56, 64), "float32"), T_relu: T.Buffer((1, 56, 56, 64), "float32")) -> None:
         # function attr dict
-        T.func_attr({"global_symbol": "main", "tir.noalias": True, "layout_free_buffers": [1]})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True, "layout_free_buffers": [1]})
         # body
         # with T.sblock("root")
         input_tile_local = T.sblock_alloc_buffer([6, 6, 196, 64], dtype="float32", scope="local")
@@ -1513,7 +1513,7 @@ class Conv2dInt8_with_predicate:
     @T.prim_func
     def main(p0: T.Buffer((16, 56, 56, 64), "int8"), p1: T.Buffer((256, 1, 1, 64), "int8"), p2: T.Buffer((1, 1, 1, 256), "int32"), p3: T.Buffer((1, 1, 1, 256), "int32"), p4: T.Buffer(256, "int32"), p5: T.Buffer(256, "int32"), p6: T.Buffer(256, "int32"), p7: T.Buffer((), "int32"), p8: T.Buffer(1, "int32"), compute: T.Buffer((16, 56, 56, 256), "int32")) -> None:
         # function attr dict
-        T.func_attr({"tir.noalias": True, "global_symbol": "main"})
+        T.func_attr({"tirx.noalias": True, "global_symbol": "main"})
         # body
         # with T.sblock("root")
         pad_temp = T.sblock_alloc_buffer([16, 56, 56, 64], dtype="int8")
@@ -1587,7 +1587,7 @@ class Conv2dInt8_with_predicate_target:
     @T.prim_func
     def main(p0: T.Buffer((16, 56, 56, 64), "int8"), p1: T.Buffer((256, 1, 1, 64), "int8"), p2: T.Buffer((1, 1, 1, 256), "int32"), p3: T.Buffer((1, 1, 1, 256), "int32"), p4: T.Buffer(256, "int32"), p5: T.Buffer(256, "int32"), p6: T.Buffer(256, "int32"), p7: T.Buffer((), "int32"), p8: T.Buffer(1, "int32"), p9: T.Buffer((16, 56, 56, 256), "int32"), compute: T.Buffer((16, 56, 56, 256), "int32")) -> None:
         # function attr dict
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # body
         # with T.sblock("root")
         pad_temp = T.sblock_alloc_buffer([16, 56, 56, 64], dtype="int8")
@@ -1681,7 +1681,7 @@ class Conv2dInt8_with_predicate_target:
 class Conv2dInt8_with_predicate_scheduled:
     @T.prim_func
     def main(p0: T.Buffer((16, 56, 56, 64), "int8"), p1: T.Buffer((256, 1, 1, 64), "int8"), p2: T.Buffer((1, 1, 1, 256), "int32"), p3: T.Buffer((1, 1, 1, 256), "int32"), p4: T.Buffer((256,), "int32"), p5: T.Buffer((256,), "int32"), p6: T.Buffer((256,), "int32"), p7: T.Buffer((), "int32"), p8: T.Buffer((1,), "int32"), p9: T.Buffer((16, 56, 56, 256), "int32"), compute: T.Buffer((16, 56, 56, 256), "int32")):
-        T.func_attr({"tir.noalias": True})
+        T.func_attr({"tirx.noalias": True})
         with T.sblock("root"):
             T.reads()
             T.writes()
@@ -1853,7 +1853,7 @@ def test_dense_add_cpu():
         sch.transform_layout(
             block=b58,
             buffer=("read", 2),
-            index_map=tvm.tir.IndexMap.from_func(
+            index_map=tvm.tirx.IndexMap.from_func(
                 lambda i0, i1: (
                     floordiv(i0, 64),
                     i1,
@@ -1920,7 +1920,7 @@ def test_dense_add_cpu_no_write_cache():
         sch.transform_layout(
             block=b49,
             buffer=("read", 2),
-            index_map=tvm.tir.IndexMap.from_func(
+            index_map=tvm.tirx.IndexMap.from_func(
                 lambda i0, i1: (
                     floordiv(i1, 16),
                     floordiv(i0, 32),

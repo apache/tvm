@@ -19,9 +19,9 @@ import numpy as np
 
 import tvm
 import tvm.testing
-import tvm.tir as tir
+import tvm.tirx as tirx
 from tvm import te
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 try:
     from ml_dtypes import float4_e2m1fn
@@ -45,7 +45,7 @@ def test_create_nv_fp4_nd_array(np_dtype, dtype_str):
 def test_nv_fp4_buffer(np_dtype, dtype_str):
     m = te.size_var("m")
     n = te.size_var("n")
-    A = tvm.tir.decl_buffer((m, n), dtype_str)
+    A = tvm.tirx.decl_buffer((m, n), dtype_str)
     assert A.dtype == dtype_str
 
 

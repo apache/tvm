@@ -83,6 +83,203 @@ export interface ArtifactCacheTemplate {
   deleteInCache(url: string): Promise<void>;
 }
 
+export type ArtifactCacheType = "cache" | "indexeddb" | "cross-origin";
+
+export interface TensorCacheAccessOptions {
+  cacheScope?: string;
+  cacheType?: ArtifactCacheType;
+  artifactCache?: ArtifactCacheTemplate;
+}
+
+type StoreType = string | undefined;
+type RequestLike = string | URL | Request | { url?: string };
+
+interface CrossOriginHashDescriptor {
+  algorithm: string;
+  value: string;
+}
+
+interface CrossOriginStorageHandle {
+  getFile(): Promise<Blob>;
+  createWritable(): Promise<CrossOriginStorageWritable>;
+}
+
+interface CrossOriginStorageRequestFileHandleOptions {
+  create?: boolean;
+}
+
+interface CrossOriginStorageWritable {
+  write(data: Blob): Promise<void>;
+  close(): Promise<void>;
+}
+
+interface CrossOriginStorageAPI {
+  requestFileHandles(
+    descriptors: CrossOriginHashDescriptor[],
+    options?: CrossOriginStorageRequestFileHandleOptions,
+  ): Promise<CrossOriginStorageHandle[]>;
+}
+
+declare global {
+  interface Navigator {
+    crossOriginStorage?: CrossOriginStorageAPI;
+  }
+  interface WorkerNavigator {
+    crossOriginStorage?: CrossOriginStorageAPI;
+  }
+}
+
+const HASH_ALGORITHM = "SHA-256";
+const DEFAULT_FETCH_OPTIONS: RequestInit = { method: "GET" };
+let crossOriginFallbackWarningLogged = false;
+
+const GLOBAL_HASH_CACHE = new Map<
+  string,
+  CrossOriginHashDescriptor
+>();
+
+class CrossOriginStorage {
+  private hashCache: Map<string, CrossOriginHashDescriptor>;
+
+  constructor() {
+    this.hashCache = GLOBAL_HASH_CACHE;
+  }
+
+  static isAvailable(): boolean {
+    if (typeof navigator === "undefined") {
+      return false;
+    }
+    return navigator.crossOriginStorage !== undefined;
+  }
+
+  async match(request: RequestLike): Promise<Response | undefined> {
+    const url = this.normalizeRequest(request);
+    const hash = await this.resolveHashDescriptor(url);
+    if (!hash) {
+      return undefined;
+    }
+    try {
+      const api = this.getApi();
+      if (!api) {
+        return undefined;
+      }
+      const handles = await api.requestFileHandles([hash]);
+      const handle = handles[0];
+      if (!handle) {
+        return undefined;
+      }
+      const blob = await handle.getFile();
+      return new Response(blob);
+    } catch {
+      return undefined;
+    }
+  }
+
+  async put(request: RequestLike, response: Response): Promise<void> {
+    const url = this.normalizeRequest(request);
+    const blob = await response.blob();
+    const hash = await this.getBlobHash(blob);
+    const api = this.getApi();
+    if (!api) {
+      throw new Error("Cross-origin storage API unavailable.");
+    }
+    const handles = await api.requestFileHandles([hash], { create: true });
+    const handle = handles[0];
+    if (!handle) {
+      throw new Error("Cross-origin storage API returned no handles.");
+    }
+    const writableStream = await handle.createWritable();
+    await writableStream.write(blob);
+    await writableStream.close();
+    this.hashCache.set(url, hash);
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async delete(_request: RequestLike): Promise<void> {
+    // Cross-origin storage extension currently has no delete API.
+    return;
+  }
+
+  private getApi(): CrossOriginStorageAPI | undefined {
+    if (!CrossOriginStorage.isAvailable()) {
+      return undefined;
+    }
+    return navigator.crossOriginStorage;
+  }
+
+  private normalizeRequest(request: RequestLike): string {
+    if (typeof request === "string") {
+      return request;
+    }
+    if (request instanceof URL) {
+      return request.href;
+    }
+    if (request instanceof Request) {
+      return request.url;
+    }
+    if (request && typeof request.url === "string") {
+      return request.url;
+    }
+    throw new Error("CrossOriginStorage: Unsupported request type.");
+  }
+
+  private async resolveHashDescriptor(
+    url: string,
+  ): Promise<CrossOriginHashDescriptor | null> {
+    const cached = this.hashCache.get(url);
+    if (cached) {
+      return cached;
+    }
+    const hashValue = await this.getFileHash(url);
+    if (!hashValue) {
+      return null;
+    }
+    const descriptor: CrossOriginHashDescriptor = {
+      algorithm: HASH_ALGORITHM,
+      value: hashValue,
+    };
+    this.hashCache.set(url, descriptor);
+    return descriptor;
+  }
+
+  private async getFileHash(url: string): Promise<string | null> {
+    if (/\/resolve\//.test(url)) {
+      const pointerHash = await this.extractHashFromPointer(url);
+      if (pointerHash) {
+        return pointerHash;
+      }
+    }
+    return null;
+  }
+
+  private async extractHashFromPointer(url: string): Promise<string | null> {
+    const rawUrl = url.replace(/\/resolve\//, "/raw/");
+    try {
+      const text = await fetch(rawUrl).then((res) => res.text());
+      if (!text.includes("oid sha256:")) {
+        return null;
+      }
+      const match = text.match(/oid sha256:([A-Fa-f0-9]+)/);
+      return match ? match[1] : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private async getBlobHash(blob: Blob): Promise<CrossOriginHashDescriptor> {
+    const arrayBuffer = await blob.arrayBuffer();
+    const hashBuffer = await crypto.subtle.digest(HASH_ALGORITHM, arrayBuffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray
+      .map((byte) => byte.toString(16).padStart(2, "0"))
+      .join("");
+    return {
+      algorithm: HASH_ALGORITHM,
+      value: hashHex,
+    };
+  }
+}
+
 
 /**
  * Cache to store model related data, implemented with the Cache API.
@@ -352,36 +549,187 @@ export class ArtifactIndexedDBCache implements ArtifactCacheTemplate {
   }
 }
 
+/**
+ * Cache by cross-origin storage extension.
+ */
+export class ArtifactCrossOriginStorageCache implements ArtifactCacheTemplate {
+  private storage: CrossOriginStorage;
+
+  constructor(
+    _scope: string,
+    storage: CrossOriginStorage = new CrossOriginStorage(),
+  ) {
+    this.storage = storage;
+  }
+
+  async fetchWithCache(
+    url: string,
+    storetype?: StoreType,
+    signal?: AbortSignal,
+  ): Promise<any> {
+    const cachedResponse = await this.storage.match(url);
+    if (cachedResponse !== undefined) {
+      return this.responseToStoreType(cachedResponse, storetype);
+    }
+    await this.addToCache(url, storetype, signal);
+    const hydrated = await this.storage.match(url);
+    if (hydrated === undefined) {
+      throw new Error(`ArtifactCrossOriginStorageCache: failed to hydrate ${url}`);
+    }
+    return this.responseToStoreType(hydrated, storetype);
+  }
+
+  async addToCache(
+    url: string,
+    _storetype?: StoreType,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    const existing = await this.storage.match(url);
+    if (existing !== undefined) {
+      return;
+    }
+    const request = new Request(
+      url,
+      signal ? { ...DEFAULT_FETCH_OPTIONS, signal } : DEFAULT_FETCH_OPTIONS,
+    );
+    const response = await fetch(request);
+    if (!response.ok) {
+      throw new Error(
+        `ArtifactCrossOriginStorageCache: Unable to fetch ${url}, received status ${response.status}`,
+      );
+    }
+    await this.storage.put(url, response.clone());
+  }
+
+  async hasAllKeys(keys: string[]): Promise<boolean> {
+    const results = await Promise.all(
+      keys.map(async (key) => {
+        const cached = await this.storage.match(key);
+        return cached !== undefined;
+      }),
+    );
+    return results.every((result) => result);
+  }
+
+  async deleteInCache(url: string): Promise<void> {
+    await this.storage.delete(url);
+  }
+
+  private async responseToStoreType(
+    response: Response,
+    storetype?: StoreType,
+  ): Promise<any> {
+    if (storetype === undefined) {
+      return response;
+    }
+    const format = storetype.toLowerCase();
+    if (format === "json") {
+      return response.json();
+    }
+    if (format === "arraybuffer") {
+      return response.arrayBuffer();
+    }
+    return response;
+  }
+}
+
+function normalizeCacheType(cacheType?: string): ArtifactCacheType {
+  if (cacheType === undefined) {
+    return "cache";
+  }
+  const normalized = cacheType.toLowerCase();
+  if (normalized === "cache") {
+    return "cache";
+  }
+  if (normalized === "indexeddb") {
+    return "indexeddb";
+  }
+  if (normalized === "cross-origin") {
+    return "cross-origin";
+  }
+  console.error("Unsupported cacheType: " + cacheType + ", using default ArtifactCache.");
+  return "cache";
+}
+
+function isTensorCacheAccessOptions(
+  value: string | TensorCacheAccessOptions | undefined,
+): value is TensorCacheAccessOptions {
+  return typeof value === "object" && value !== null;
+}
+
+function normalizeCacheAccessOptions(
+  cacheScopeOrOptions: string | TensorCacheAccessOptions | undefined,
+  cacheType?: string,
+): TensorCacheAccessOptions {
+  if (isTensorCacheAccessOptions(cacheScopeOrOptions)) {
+    return cacheScopeOrOptions;
+  }
+  return {
+    cacheScope: cacheScopeOrOptions,
+    cacheType: normalizeCacheType(cacheType),
+  };
+}
+
+export function createArtifactCache(
+  scope: string,
+  options: TensorCacheAccessOptions = {},
+): ArtifactCacheTemplate {
+  if (options.artifactCache !== undefined) {
+    return options.artifactCache;
+  }
+  const cacheType = normalizeCacheType(options.cacheType);
+  if (cacheType === "indexeddb") {
+    return new ArtifactIndexedDBCache(scope);
+  }
+  if (cacheType === "cross-origin") {
+    if (CrossOriginStorage.isAvailable()) {
+      return new ArtifactCrossOriginStorageCache(scope);
+    }
+    if (!crossOriginFallbackWarningLogged) {
+      console.warn(
+        "Cross-origin storage backend is unavailable; falling back to ArtifactCache.",
+      );
+      crossOriginFallbackWarningLogged = true;
+    }
+  }
+  return new ArtifactCache(scope);
+}
+
 
 /**
  * Function to check if NDarray is in Cache or not
  *
  * @param tensorCacheUrl The cache url which links to the Tensor
  * @param cacheScope The scope identifier of the cache
- * @param cacheType The type of the cache: "cache" or "indexedDB"
+ * @param cacheType The type of the cache: "cache", "indexedDB", or "cross-origin"
  * @returns the result if the cache has Tensor
  */
 export async function hasTensorInCache(
   tensorCacheUrl: string,
-  cacheScope = "tvmjs",
-  cacheType = "cache"
+  options?: TensorCacheAccessOptions,
+): Promise<boolean>;
+export async function hasTensorInCache(
+  tensorCacheUrl: string,
+  cacheScope?: string,
+  cacheType?: string,
+): Promise<boolean>;
+export async function hasTensorInCache(
+  tensorCacheUrl: string,
+  cacheScopeOrOptions: string | TensorCacheAccessOptions = "tvmjs",
+  cacheType = "cache",
 ): Promise<boolean> {
-  let artifactCache: ArtifactCacheTemplate;
-  if (cacheType.toLowerCase() === "cache") {
-    artifactCache = new ArtifactCache(cacheScope);
-  } else if (cacheType.toLowerCase() == "indexeddb") {
-    artifactCache = new ArtifactIndexedDBCache(cacheScope);
-  } else {
-    console.error("Unsupported cacheType: " + cacheType + ", using default ArtifactCache.");
-    artifactCache = new ArtifactCache(cacheScope);
-  }
+  const options = normalizeCacheAccessOptions(cacheScopeOrOptions, cacheType);
+  const cacheScope = options.cacheScope ?? "tvmjs";
+  const artifactCache = createArtifactCache(cacheScope, options);
   const jsonUrl = new URL("tensor-cache.json", tensorCacheUrl).href;
   const hasJsonUrlInCache = await artifactCache.hasAllKeys([jsonUrl]);
   if (!hasJsonUrlInCache) {
     return false;
   }
-  let list = await artifactCache.fetchWithCache(jsonUrl, "json");
-  list = list["records"] as Array<TensorShardEntry>;
+  const list = (await artifactCache.fetchWithCache(
+    jsonUrl,
+    "json",
+  ))["records"] as Array<TensorShardEntry>;
   return await artifactCache.hasAllKeys(list.map(key => new URL(key.dataPath, tensorCacheUrl).href));
 }
 
@@ -391,21 +739,28 @@ export async function hasTensorInCache(
  *
  * @param cacheUrl The cacheUrl for the items
  * @param cacheScope The scope identifier of the cache
- * @param cacheType The type of the cache: "cache" or "indexedDB"
+ * @param cacheType The type of the cache: "cache", "indexedDB", or "cross-origin"
  */
 export async function deleteTensorCache(
   cacheUrl: string,
-  cacheScope = "tvmjs",
-  cacheType = "cache"
-) {
-  let artifactCache: ArtifactCacheTemplate;
-  if (cacheType.toLowerCase() === "cache") {
-    artifactCache = new ArtifactCache(cacheScope);
-  } else if (cacheType.toLowerCase() == "indexeddb") {
-    artifactCache = new ArtifactIndexedDBCache(cacheScope);
-  } else {
-    console.error("Unsupported cacheType: " + cacheType + ", using default ArtifactCache.");
-    artifactCache = new ArtifactCache(cacheScope);
+  options?: TensorCacheAccessOptions,
+): Promise<void>;
+export async function deleteTensorCache(
+  cacheUrl: string,
+  cacheScope?: string,
+  cacheType?: string,
+): Promise<void>;
+export async function deleteTensorCache(
+  cacheUrl: string,
+  cacheScopeOrOptions: string | TensorCacheAccessOptions = "tvmjs",
+  cacheType = "cache",
+): Promise<void> {
+  const options = normalizeCacheAccessOptions(cacheScopeOrOptions, cacheType);
+  const cacheScope = options.cacheScope ?? "tvmjs";
+  const artifactCache = createArtifactCache(cacheScope, options);
+  if (artifactCache instanceof ArtifactCrossOriginStorageCache) {
+    // Cross-origin storage extension does not currently support programmatic deletion.
+    return;
   }
   const jsonUrl = new URL("tensor-cache.json", cacheUrl).href;
   const list = await artifactCache.fetchWithCache(jsonUrl, "json");

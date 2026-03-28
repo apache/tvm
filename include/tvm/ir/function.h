@@ -83,7 +83,7 @@ enum class LinkageType : int {
 /*!
  * \brief Generic attribute names that can be attached to any function.
  *
- * \sa tvm::tir::attr, tvm::relax::attr
+ * \sa tvm::tirx::attr, tvm::relax::attr
  */
 namespace attr {
 /*!

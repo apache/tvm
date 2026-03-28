@@ -22,10 +22,10 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import TVMError, ir, tir
+from tvm import TVMError, ir, tirx
 from tvm import relax as rx
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def test_get_static_type_basic():
@@ -40,7 +40,7 @@ def test_get_static_type_basic():
 
 def test_get_static_type_shape():
     # shape
-    n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+    n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
 
     s2 = rx.ShapeStructInfo([1, n + 1, m])
     s3 = rx.ShapeStructInfo(ndim=2)
@@ -51,7 +51,7 @@ def test_get_static_type_shape():
 
 
 def test_get_static_type_tensor():
-    n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+    n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
     s4 = rx.TensorStructInfo([1, n + 1, m], "int64")
 
     tvm.ir.assert_structural_equal(
@@ -61,7 +61,7 @@ def test_get_static_type_tensor():
 
 def test_get_static_type_tuple():
     # tuple
-    n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+    n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
     s0 = rx.ObjectStructInfo()
     s2 = rx.ShapeStructInfo([1, n + 1, m])
     s4 = rx.TensorStructInfo([1, n + 1, m], "int64")
@@ -82,7 +82,7 @@ def test_get_static_type_tuple():
 def test_get_static_type_func():
     # tuple
     def fn_info(c):
-        n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+        n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
         x = rx.TensorStructInfo([c, n, m], "float32")
         y = rx.TensorStructInfo([c, n, 1], "float32")
         z = rx.TensorStructInfo([c, n], "float32")
@@ -109,7 +109,7 @@ def test_erase_to_well_defined_basic():
 
 
 def test_erase_to_well_defined_shape():
-    n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+    n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
 
     s2 = rx.ShapeStructInfo([1, n + 1, m])
     s3 = rx.ShapeStructInfo(ndim=2)
@@ -132,7 +132,7 @@ def test_erase_to_well_defined_shape():
 
 
 def test_erase_to_well_defined_tensor():
-    n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+    n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
     rshape = rx.Var("shape", rx.ShapeStructInfo(ndim=2))
     s0 = rx.TensorStructInfo(rshape, dtype="int32")
 
@@ -172,7 +172,7 @@ def test_erase_to_well_defined_tensor():
 
 
 def test_erase_to_well_defined_tuple():
-    n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+    n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
     s0 = rx.ObjectStructInfo()
     s2 = rx.ShapeStructInfo([1, m])
     s4 = rx.TensorStructInfo([1, n + 1, m], "int64")
@@ -194,7 +194,7 @@ def test_erase_to_well_defined_tuple():
 
 def test_erase_to_well_defined_func():
     def fn_info(c):
-        n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+        n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
         x = rx.TensorStructInfo([c, n, m], "float32")
         y = rx.TensorStructInfo([c, n, 1], "float32")
         z = rx.TensorStructInfo([c, n], "float32")
@@ -209,7 +209,7 @@ def test_base_check():
     BR = rx.analysis.BaseCheckResult
     bcheck = rx.analysis.struct_info_base_check
 
-    n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+    n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
     obj0 = rx.ObjectStructInfo()
     prim0 = rx.PrimStructInfo("int32")
     prim1 = rx.PrimStructInfo("float32")
@@ -331,7 +331,7 @@ def test_base_check():
     assert bcheck(rx.TupleStructInfo([t0, t1]), rx.TupleStructInfo([t1, t0])) == BR.FAIL_L1
 
     def fn_info_shape(c):
-        n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+        n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
         x = rx.TensorStructInfo([c, n, m], "float32")
         y = rx.TensorStructInfo([c, n, 1], "float32")
         z = rx.TensorStructInfo([c, n], "float32")
@@ -367,13 +367,13 @@ def test_derive_call_ret_struct_info():
     obj0 = rx.ObjectStructInfo()
     prim0 = rx.PrimStructInfo("float32")
 
-    n, m = tir.Var("n0", "int64"), tir.Var("m0", "int64")
+    n, m = tirx.Var("n0", "int64"), tirx.Var("m0", "int64")
     bb = rx.BlockBuilder()
     # derivation cases
     with bb.testing_scope(def_vars=[n, m]):
 
         def func0(c):
-            n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+            n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
             x = rx.TensorStructInfo([n, m], "float32")
             z = rx.TensorStructInfo([m + c, n], "float32")
             return rx.FuncStructInfo([x], z)
@@ -420,7 +420,7 @@ def test_derive_call_ret_struct_info():
         vdev = ir.VDevice("llvm")
 
         def func1(c):
-            n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+            n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
             x = rx.TensorStructInfo([n, m], "float32", vdev)
             z = rx.TensorStructInfo([m + c, n], "float32", vdev)
             return rx.FuncStructInfo([x], z)
@@ -440,7 +440,7 @@ def test_derive_call_ret_struct_info():
 
         # recursive tuple derivation
         def func_tuple0(c):
-            n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+            n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
             x0 = rx.TensorStructInfo([n, c], "float32")
             x1 = rx.TensorStructInfo([n + c, m], "float32")
             z = rx.TupleStructInfo([rx.TensorStructInfo([m, n], "float32")])
@@ -461,7 +461,7 @@ def test_derive_call_ret_struct_info():
         )
 
         def func_tuple1(c):
-            n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+            n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
             x0 = rx.TensorStructInfo([n, m], "float32")
             x1 = rx.TensorStructInfo([n + c, c], "float32")
             z = rx.TupleStructInfo([rx.TensorStructInfo([m, n], "float32")])
@@ -493,7 +493,7 @@ def test_derive_call_ret_struct_info():
 
         # mixed shape types
         def func_shape_mixed(c):
-            n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+            n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
             x0 = rx.ShapeStructInfo([n, m])
             f0 = func_tuple0(c)
             z = rx.ShapeStructInfo([m + n, c])
@@ -518,7 +518,7 @@ def _check_lca(lhs, rhs, target):
 
 
 def test_struct_info_lca():
-    n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+    n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
     obj0 = rx.ObjectStructInfo()
     prim0 = rx.PrimStructInfo("int32")
     prim1 = rx.PrimStructInfo("float32")
@@ -595,7 +595,7 @@ def test_struct_info_lca():
     _check_lca(t7, rx.TupleStructInfo([]), t7)
 
     def fn_info_shape(c):
-        n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+        n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
         x = rx.TensorStructInfo([c, n, m], "float32")
         y = rx.TensorStructInfo([c, n, 1], "float32")
         z = rx.TensorStructInfo([c, n], "float32")
@@ -644,29 +644,29 @@ def _generate_prim_test_cases():
         # The LCA of two values, each statically known to be the same
         # value, is known to have that value.
         yield (
-            R.Prim(value=tir.const(0, dtype)),
-            R.Prim(value=tir.const(0, dtype)),
-            R.Prim(value=tir.const(0, dtype)),
+            R.Prim(value=tirx.const(0, dtype)),
+            R.Prim(value=tirx.const(0, dtype)),
+            R.Prim(value=tirx.const(0, dtype)),
         )
 
         # The LCA of two values, each of which is statically known to
         # have a different value, no longer knows the contained value.
         yield (
-            R.Prim(value=tir.const(0, dtype)),
-            R.Prim(value=tir.const(1, dtype)),
+            R.Prim(value=tirx.const(0, dtype)),
+            R.Prim(value=tirx.const(1, dtype)),
             R.Prim(dtype=dtype),
         )
 
         # LCA of a known variable with itself yields itself
-        var_N = tir.Var("N", dtype)
+        var_N = tirx.Var("N", dtype)
         yield (R.Prim(value=var_N), R.Prim(value=var_N), R.Prim(value=var_N))
 
         # LCA of a known variable with a known static value is no
         # longer known to have a specific value.
-        yield (R.Prim(value=var_N), R.Prim(value=tir.const(0, dtype)), R.Prim(dtype=dtype))
-        yield (R.Prim(value=tir.const(0, dtype)), R.Prim(value=var_N), R.Prim(dtype=dtype))
+        yield (R.Prim(value=var_N), R.Prim(value=tirx.const(0, dtype)), R.Prim(dtype=dtype))
+        yield (R.Prim(value=tirx.const(0, dtype)), R.Prim(value=var_N), R.Prim(dtype=dtype))
 
-        var_M = tir.Var("M", dtype)
+        var_M = tirx.Var("M", dtype)
         yield (R.Prim(value=var_N), R.Prim(value=var_M), R.Prim(dtype=dtype))
 
     for dtype_a in dtypes:
@@ -682,14 +682,14 @@ def _generate_prim_test_cases():
                 # the same value in different representations (e.g.
                 # `T.float32(0)` vs `T.float16(0)`) fall back to `R.Object`.
                 yield (
-                    R.Prim(value=tir.const(0, dtype_a)),
-                    R.Prim(value=tir.const(0, dtype_b)),
+                    R.Prim(value=tirx.const(0, dtype_a)),
+                    R.Prim(value=tirx.const(0, dtype_b)),
                     R.Object,
                 )
 
                 # And the same is true for known variable values
-                var_N = tir.Var("N", dtype_a)
-                var_M = tir.Var("M", dtype_b)
+                var_N = tirx.Var("N", dtype_a)
+                var_M = tirx.Var("M", dtype_b)
                 yield (R.Prim(value=var_N), R.Prim(value=var_M), R.Object)
 
 
@@ -714,7 +714,7 @@ def test_prim_struct_info_lca(test_case):
 
 
 def _generate_tir_var_test_cases():
-    n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+    n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
     shape0 = rx.ShapeStructInfo([1, n, 3])
     shape1 = rx.ShapeStructInfo([1, 2 * n, n, m])
     shape2 = rx.ShapeStructInfo([1, 2 * n, m])
@@ -751,11 +751,11 @@ def test_definable_tir_vars_in_struct_info(tir_var_test_case):
 
 def test_collect_symbolic_var_from_tensor_shape():
     n, m, k, q, p = (
-        tir.Var("n", "int64"),
-        tir.Var("m", "int64"),
-        tir.Var("k", "int64"),
-        tir.Var("q", "int64"),
-        tir.Var("p", "int64"),
+        tirx.Var("n", "int64"),
+        tirx.Var("m", "int64"),
+        tirx.Var("k", "int64"),
+        tirx.Var("q", "int64"),
+        tirx.Var("p", "int64"),
     )
     bb = rx.BlockBuilder()
     x = rx.Var("x", rx.TensorStructInfo([m, m + n], "float32"))
@@ -776,8 +776,8 @@ param_order = tvm.testing.parameter("definition_first", "usage_first")
 
 
 def test_collect_symbolic_var_from_non_tensor_params(param_type, param_order):
-    tir_n = tir.Var("n", "int64")
-    tir_m = tir.Var("m", "int64")
+    tir_n = tirx.Var("n", "int64")
+    tir_m = tirx.Var("m", "int64")
 
     bb = rx.BlockBuilder()
     arg = rx.Var("arg", rx.TensorStructInfo([tir_n * tir_m]))

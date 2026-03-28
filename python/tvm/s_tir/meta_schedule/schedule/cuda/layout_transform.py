@@ -430,7 +430,7 @@ def create_cached_read(
     block_read = sch.reindex_cache_read(
         block_write,
         read_buffer_index=0,
-        index_map=tvm.tir.IndexMap.from_func(
+        index_map=tvm.tirx.IndexMap.from_func(
             lambda *loops: [loops[dst_to_src_map[i]] for i, _ in enumerate(loops)],
             ndim=len(new_src_layout_str),
         ),

@@ -28,9 +28,9 @@
 #include <tvm/arith/pattern.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/tir/expr.h>
-#include <tvm/tir/expr_functor.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/expr.h>
+#include <tvm/tirx/expr_functor.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include <algorithm>
 #include <unordered_map>
@@ -46,7 +46,7 @@ namespace arith {
 #if defined(TVM_MLIR_VERSION) && TVM_MLIR_VERSION >= 150
 
 TVM_FFI_STATIC_INIT_BLOCK() { PresburgerSetNode::RegisterReflection(); }
-using namespace tir;
+using namespace tirx;
 
 static void Update(const PrimExpr& constraint, PresburgerSetNode* intset) {
   auto& space = intset->space;

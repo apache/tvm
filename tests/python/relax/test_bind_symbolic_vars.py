@@ -21,10 +21,10 @@ import pytest
 import tvm
 import tvm.testing
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 replace_by_tir_var = tvm.testing.parameter(
-    by_dict={"replace-by-string": False, "replace-by-tir-var": True}
+    by_dict={"replace-by-string": False, "replace-by-tirx-var": True}
 )
 
 
@@ -60,8 +60,8 @@ def test_error_with_duplicate_var_names():
     variables share the same name, the replacement map may not refer
     to that variable by string.
     """
-    N1 = tvm.tir.Var("N", "int64")
-    N2 = tvm.tir.Var("N", "int64")
+    N1 = tvm.tirx.Var("N", "int64")
+    N2 = tvm.tirx.Var("N", "int64")
 
     @R.function(private=True)
     def func(A: R.Tensor((N1, N1)), B: R.Tensor((N1, N2))) -> R.Tensor((N1, N2)):
@@ -79,9 +79,9 @@ def test_string_var_when_other_var_has_duplicate_var_names():
     replacing variables by name only applies to those duplicate names.
     Other variables may still be replaced by name.
     """
-    N1 = tvm.tir.Var("N", "int64")
-    N2 = tvm.tir.Var("N", "int64")
-    BatchSize = tvm.tir.Var("BatchSize", "int64")
+    N1 = tvm.tirx.Var("N", "int64")
+    N2 = tvm.tirx.Var("N", "int64")
+    BatchSize = tvm.tirx.Var("BatchSize", "int64")
 
     @R.function(private=True)
     def before(A: R.Tensor((BatchSize, N1, N1)), B: R.Tensor((N1, N2))) -> R.Tensor(
@@ -118,7 +118,7 @@ def test_error_with_nonexisting_tir_var():
         return A
 
     with pytest.raises(tvm.TVMError):
-        func.bind_symbolic_vars({tvm.tir.Var("M", "int64"): 64})
+        func.bind_symbolic_vars({tvm.tirx.Var("M", "int64"): 64})
 
 
 def test_error_with_multiple_definitions():
@@ -142,7 +142,7 @@ def test_error_if_output_has_undefined():
     def func(A: R.Tensor(["M", "N"])):
         return A
 
-    outside_var = tvm.tir.Var("outside_var", "int64")
+    outside_var = tvm.tirx.Var("outside_var", "int64")
 
     with pytest.raises(tvm.TVMError):
         func.bind_symbolic_vars({"M": outside_var * 2})
@@ -159,7 +159,7 @@ def test_replacements_may_produce_new_symbolic_vars():
     def expected(A: R.Tensor(["outside_var * 2", "outside_var"])):
         return A
 
-    outside_var = tvm.tir.Var("outside_var", "int64")
+    outside_var = tvm.tirx.Var("outside_var", "int64")
 
     after = before.bind_symbolic_vars({"M": outside_var * 2, "N": outside_var})
     tvm.ir.assert_structural_equal(expected, after)

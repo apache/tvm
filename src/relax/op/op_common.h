@@ -525,21 +525,21 @@ inline ffi::Array<int64_t> GetCompletePadding3D(ffi::Array<int64_t> padding) {
 
 /*!
  * \brief Check if the given tensor layout can be converted to the given target layout.
- * If convertible, return the tensor layout and the bijective conversion in tir::Layout and
- * tir::BijectiveLayout accordingly.
+ * If convertible, return the tensor layout and the bijective conversion in tirx::Layout and
+ * tirx::BijectiveLayout accordingly.
  * \param call The context Call to the operator.
  * \param ctx The error reporting context.
  * \param tensor_layout The tensor layout to be checked
  * \param tgt_layout The target layout to be matched
  * \param tensor_name The name of the input tensor
- * \return The tensor layout and the bijective conversion in tir::Layout and tir::BijectiveLayout
+ * \return The tensor layout and the bijective conversion in tirx::Layout and tirx::BijectiveLayout
  * accordingly.
  */
-inline std::pair<tir::Layout, tir::BijectiveLayout> CheckTensorLayout(
+inline std::pair<tirx::Layout, tirx::BijectiveLayout> CheckTensorLayout(
     const Call& call, const BlockBuilder& ctx, const ffi::String& tensor_layout,
     const ffi::String& tgt_layout, const ffi::String& tensor_name) {
-  tir::Layout _tensor_layout(tensor_layout, DataType::Int(64));
-  tir::BijectiveLayout tensor2tgt(_tensor_layout, tir::Layout(tgt_layout, DataType::Int(64)));
+  tirx::Layout _tensor_layout(tensor_layout, DataType::Int(64));
+  tirx::BijectiveLayout tensor2tgt(_tensor_layout, tirx::Layout(tgt_layout, DataType::Int(64)));
   if (!tensor2tgt.defined()) {
     ctx->ReportFatal(Diagnostic::Error(call) << call->op << " requires the given " << tensor_name
                                              << " layout to be convertible from " << tgt_layout
@@ -561,7 +561,7 @@ inline std::pair<tir::Layout, tir::BijectiveLayout> CheckTensorLayout(
 inline ffi::Optional<ShapeExpr> CheckNdimPerLayoutAndGetShape(const Call& call,
                                                               const BlockBuilder& ctx,
                                                               const TensorStructInfo& sinfo,
-                                                              const tir::Layout& layout) {
+                                                              const tirx::Layout& layout) {
   if (!sinfo->IsUnknownNdim() && sinfo->ndim != static_cast<int>(layout.ndim())) {
     ctx->ReportFatal(Diagnostic::Error(call)
                      << "In " << call->op << ", layout " << layout << " requires the input to be "

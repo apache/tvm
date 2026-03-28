@@ -22,7 +22,7 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 Schedule Schedule::Concrete(IRModule mod, support::LinearCongruentialEngine::TRandState seed,
                             int debug_mask, ScheduleErrorRenderLevel error_render_level,
@@ -912,7 +912,7 @@ SBlockRV ConcreteScheduleNode::Blockize(const ffi::Array<SBlockRV>& blocks,
 void ConcreteScheduleNode::Tensorize(const LoopRV& loop_rv, const ffi::String& intrin,
                                      bool preserve_unit_iters) {
   TVM_TIR_SCHEDULE_BEGIN();
-  s_tir::Tensorize(state_, this->GetSRef(loop_rv), tir::TensorIntrin::Get(intrin).value(),
+  s_tir::Tensorize(state_, this->GetSRef(loop_rv), tirx::TensorIntrin::Get(intrin).value(),
                    preserve_unit_iters);
   this->state_->DebugVerify();
   TVM_TIR_SCHEDULE_END("tensorize", this->error_render_level_);
@@ -921,7 +921,7 @@ void ConcreteScheduleNode::Tensorize(const LoopRV& loop_rv, const ffi::String& i
 void ConcreteScheduleNode::Tensorize(const SBlockRV& block_rv, const ffi::String& intrin,
                                      bool preserve_unit_iters) {
   TVM_TIR_SCHEDULE_BEGIN();
-  s_tir::Tensorize(state_, this->GetSRef(block_rv), tir::TensorIntrin::Get(intrin).value(),
+  s_tir::Tensorize(state_, this->GetSRef(block_rv), tirx::TensorIntrin::Get(intrin).value(),
                    preserve_unit_iters);
   this->state_->DebugVerify();
   TVM_TIR_SCHEDULE_END("tensorize", this->error_render_level_);

@@ -18,7 +18,7 @@
  */
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tir/transform.h>
+#include <tvm/tirx/transform.h>
 
 #include <cmath>
 #include <memory>
@@ -32,7 +32,7 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 using support::NDIntSet;
 
@@ -87,7 +87,7 @@ std::vector<int64_t> GetBufferShape(const Buffer& buffer, arith::Analyzer* analy
  */
 int64_t GetPragmaAutoUnroll(const ForNode* loop) {
   if (ffi::Optional<IntImm> auto_unroll =
-          GetAnn<IntImm>(loop, tir::attr::pragma_auto_unroll_max_step)) {
+          GetAnn<IntImm>(loop, tirx::attr::pragma_auto_unroll_max_step)) {
     return auto_unroll.value()->value;
   }
   return -1;
@@ -302,7 +302,7 @@ Pass SimplifyForFeatureExtraction() {
     n->body = Simplifier::Run(std::move(n->body));
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "tir.SimplifyForFeatureExtraction", {});
+  return CreatePrimFuncPass(pass_func, 0, "tirx.SimplifyForFeatureExtraction", {});
 }
 
 /*!
@@ -318,11 +318,11 @@ tvm::transform::Sequential PassListForPerStoreFeature() {
       s_tir::transform::PlanAndUpdateBufferAllocationLocation(),
       s_tir::transform::ConvertBlocksToOpaque(),
       s_tir::transform::CompactBufferAllocation(),
-      tir::transform::Simplify(),
+      tirx::transform::Simplify(),
       s_tir::transform::LowerAutoCopy(),
       s_tir::transform::UnifyThreadBinding(),
       s_tir::transform::LowerMatchBuffer(),
-      tir::transform::Simplify(),
+      tirx::transform::Simplify(),
   });
 }
 

@@ -22,7 +22,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm.script import ir as I
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 @tvm.testing.requires_gpu
@@ -45,7 +45,7 @@ def test_int_intrin(target, dev, dtype):
                 A: T.Buffer((n,), dtype),
                 B: T.Buffer((n,), dtype),
             ):
-                T.func_attr({"tir.noalias": True})
+                T.func_attr({"tirx.noalias": True})
                 for i0 in T.thread_binding(n, thread="threadIdx.x"):
                     with T.sblock("B"):
                         v_i0 = T.axis.spatial(n, i0)

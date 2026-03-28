@@ -19,14 +19,14 @@
 
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tir/builtin.h>
-#include <tvm/tir/stmt.h>
+#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/stmt.h>
 
 #include "../../arith/ir_visitor_with_analyzer.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 inline bool IsVtcmStorage(std::string scope) {
   return scope.find("global.vtcm") != std::string::npos;

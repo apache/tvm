@@ -18,8 +18,8 @@
 """Intrinsics for AMDGPU tensorization."""
 
 from tvm.runtime import convert
-from tvm.script import tir as T
-from tvm.tir.expr import Cast, IntImm
+from tvm.script import tirx as T
+from tvm.tirx.expr import Cast, IntImm
 
 from .. import TensorIntrin
 from .dot_product_common import get_dp4a_intrin
@@ -363,8 +363,8 @@ def get_mfma_intrin(k_dim, in_dtype="float32", out_dtype="float32", b_transposed
 
             C[tx, 0:local_size_out] = T.call_llvm_pure_intrin(
                 T.llvm_lookup_intrinsic_id(mfma_intrin),
-                T.call_intrin("int32", "tir.reinterpret", A[tx, 0:local_size]),
-                T.call_intrin("int32", "tir.reinterpret", A[tx, 0:local_size]),
+                T.call_intrin("int32", "tirx.reinterpret", A[tx, 0:local_size]),
+                T.call_intrin("int32", "tirx.reinterpret", A[tx, 0:local_size]),
                 C[tx, 0:local_size_out],
                 T.int32(0),
                 T.int32(0),

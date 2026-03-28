@@ -24,7 +24,7 @@ import tvm
 from tvm import relax
 from tvm.ir.base import assert_structural_equal
 from tvm.script.parser import relax as R
-from tvm.script.parser import tir as T
+from tvm.script.parser import tirx as T
 
 
 def test_copy_with_new_vars():

@@ -23,11 +23,11 @@ import pytest
 import tvm
 import tvm.script
 import tvm.testing
-from tvm import IRModule, relax, tir, topi
+from tvm import IRModule, relax, tirx, topi
 from tvm.ir import DummyGlobalInfo, VDevice
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
-from tvm.script.parser import tir as T
+from tvm.script.parser import tirx as T
 
 
 def _check(
@@ -115,7 +115,7 @@ def test_unexpected_tir_cast_args():
         @R.function
         def f(x: R.Tensor(("m",), "float32")):
             m = T.int64()
-            # tir.cast expects 2 arguments, but got 3
+            # tirx.cast expects 2 arguments, but got 3
             return R.call_tir("foo", (x,), R.Tensor((T.cast("int32", m, 1),), dtype="float32"))
 
 
@@ -135,7 +135,7 @@ def test_unexpected_tir_args():
             @R.function
             def foo(x: R.Tensor(("m", "m"), "float32")):
                 m = T.int64()
-                # tir.max expects 2 arguments, but got 1
+                # tirx.max expects 2 arguments, but got 1
                 gv = R.call_tir(tir_addone, (x,), R.Tensor((T.max(16),), dtype="float32"))
                 return gv
 
@@ -144,7 +144,7 @@ def test_unexpected_tir_args():
         @R.function
         def f(x: R.Tensor(("m", "n"), "float32")):
             m = T.int64()
-            # call_tir expected a tir prim_func
+            # call_tir expected a tirx prim_func
             return relax.call_tir("extern_func", (x,), R.Tensor((T.max(m),), dtype="float32"))
 
 
@@ -198,7 +198,7 @@ def test_simple_module():
             x: T.Buffer((T.int64(128), T.int64(128)), "float32"),
             y: T.Buffer((T.int64(128), T.int64(128)), "float32"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i, j in T.grid(T.int64(128), T.int64(128)):
                 with T.sblock():
                     vi, vj = T.axis.remap("SS", [i, j])
@@ -227,7 +227,7 @@ def test_emit_te_primfunc_attrs():
             x: T.Buffer((T.int64(128), T.int64(128)), "float32"),
             y: T.Buffer((T.int64(128), T.int64(128)), "float32"),
         ):
-            T.func_attr({"some_attr": "foo", "another_attr": True, "tir.noalias": True})
+            T.func_attr({"some_attr": "foo", "another_attr": True, "tirx.noalias": True})
             for i, j in T.grid(T.int64(128), T.int64(128)):
                 with T.sblock():
                     vi, vj = T.axis.remap("SS", [i, j])
@@ -289,7 +289,7 @@ def test_module_with_attr_and_global_info():
             x: T.Buffer((T.int64(128), T.int64(128)), "float32"),
             y: T.Buffer((T.int64(128), T.int64(128)), "float32"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i, j in T.grid(T.int64(128), T.int64(128)):
                 with T.sblock():
                     vi, vj = T.axis.remap("SS", [i, j])
@@ -339,7 +339,7 @@ def test_global_info_vdevice():
             x: T.Buffer((T.int64(128), T.int64(128)), "float32"),
             y: T.Buffer((T.int64(128), T.int64(128)), "float32"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i, j in T.grid(T.int64(128), T.int64(128)):
                 with T.sblock():
                     vi, vj = T.axis.remap("SS", [i, j])
@@ -436,7 +436,7 @@ def test_symbolic_shape():
             return gv0
 
     def _expected(name: str):
-        n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+        n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
         x = relax.Var("x", R.Tensor([m, n], "float32"))
         bb = relax.BlockBuilder()
         with bb.function(name, (x,)):
@@ -489,8 +489,8 @@ def test_match_cast():
 
     x = relax.Var("x", R.Tensor("float32"))
     y = relax.Var("y", R.Tensor("float32"))
-    m = tir.Var("m", dtype="int64")
-    n = tir.Var("n", dtype="int64")
+    m = tirx.Var("m", dtype="int64")
+    n = tirx.Var("n", dtype="int64")
     y2 = relax.Var("y", R.Tensor([n], "float32"))
     bb = relax.BlockBuilder()
     with bb.function("foo", (x, y)):
@@ -528,7 +528,7 @@ def test_tuple_return_2():
         return (x0, R.shape([n + 1, m, 1]))
 
     x = relax.Var("x", R.Tensor("float32", ndim=2))
-    n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+    n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
     bb = relax.BlockBuilder()
     with bb.function("foo", (x,)):
         x0 = bb.match_cast(x, R.Tensor((n, m), "float32"))
@@ -547,7 +547,7 @@ def test_tuple_binding():
         return t1
 
     x = relax.Var("x", R.Tensor("float32", ndim=2))
-    n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+    n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
     bb = relax.BlockBuilder()
     with bb.function("foo", (x,)):
         x0 = bb.match_cast(x, R.Tensor((n, m), "float32"))
@@ -631,8 +631,8 @@ def test_dataflow_block_advanced():
 
     x = relax.Var("x", R.Tensor((128, 128), "float32"))
     bb = relax.BlockBuilder()
-    m = tir.Var("m", dtype="int64")
-    n = tir.Var("n", dtype="int64")
+    m = tirx.Var("m", dtype="int64")
+    n = tirx.Var("n", dtype="int64")
     with bb.function("foo", (x,)):
         gv0 = bb.emit(
             relax.call_dps_packed("extern_func", x, R.Tensor((128, 128), dtype="float32"))
@@ -1027,7 +1027,7 @@ def test_call_tir_inplace():
             out1: T.Buffer((2, 3), "int32"),
         ):
             # copies the contents of B into A and out1
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with T.sblock("T_zeros"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
@@ -1078,7 +1078,7 @@ def test_call_tir_inplace_with_tuple_var_raises_error():
                 out1: T.Buffer((2, 3), "int32"),
             ):
                 # copies the contents of B into A and out1
-                T.func_attr({"tir.noalias": True})
+                T.func_attr({"tirx.noalias": True})
                 for iters in T.grid(T.int64(2), T.int64(3)):
                     with T.sblock("T_zeros"):
                         i, j = T.axis.remap("SS", iters)
@@ -1560,7 +1560,7 @@ def test_symbolic_vars_in_tensor_shape_with_usage_first():
         z = R.add(x, y)
         return z
 
-    m = tir.Var("m", "int64")
+    m = tirx.Var("m", "int64")
     x = relax.Var("x", relax.TensorStructInfo([m + 1], "float32"))
     y = relax.Var("y", relax.TensorStructInfo([m, 1], "float32"))
     bb = relax.BlockBuilder()
@@ -1582,14 +1582,14 @@ def test_symbolic_vars_in_tensor_shape_with_definition_first():
         z = R.call_dps_packed("test_intrin", (x, y), R.Tensor((T.max(m, 20) + 1,), dtype="float32"))
         return z
 
-    m = tir.Var("m", "int64")
+    m = tirx.Var("m", "int64")
     x = relax.Var("x", relax.TensorStructInfo([m], "float32"))
-    y = relax.Var("y", relax.TensorStructInfo([tir.max(m, 20)], "float32"))
+    y = relax.Var("y", relax.TensorStructInfo([tirx.max(m, 20)], "float32"))
     bb = relax.BlockBuilder()
     with bb.function("bar", (x, y)):
         z = bb.emit(
             relax.call_dps_packed(
-                "test_intrin", (x, y), R.Tensor((tir.max(m, 20) + 1,), dtype="float32")
+                "test_intrin", (x, y), R.Tensor((tirx.max(m, 20) + 1,), dtype="float32")
             )
         )
         bb.emit_func_output(z)
@@ -1606,7 +1606,7 @@ def test_symbolic_vars_in_shape():
         z = R.call_dps_packed("test_intrin", y, R.Tensor((m * 2,), dtype="float32"))
         return z
 
-    m = tir.Var("m", "int64")
+    m = tirx.Var("m", "int64")
     x = relax.Var("x", relax.ShapeStructInfo([m]))
     y = relax.Var("y", relax.TensorStructInfo([m * 2], "float32"))
     bb = relax.BlockBuilder()
@@ -1626,7 +1626,7 @@ def test_symbolic_vars_in_prim_value():
         z = R.call_dps_packed("test_intrin", y, R.Tensor((m * 2,), dtype="float32"))
         return z
 
-    m = tir.Var("m", "int64")
+    m = tirx.Var("m", "int64")
     x = relax.Var("x", relax.PrimStructInfo(value=m))
     y = relax.Var("y", relax.TensorStructInfo([m * 2], "float32"))
     bb = relax.BlockBuilder()
@@ -1676,8 +1676,8 @@ def test_arith_operators():
         t2 = tuple_expr[0][0]  # <= Will normalize to two bindings
         return (a0, a1, a2, a3, a4, a5, a6, c0, c1, c2, c3, t0, t1, t2)
 
-    m = tir.Var("m", "int64")
-    n = tir.Var("n", "int64")
+    m = tirx.Var("m", "int64")
+    n = tirx.Var("n", "int64")
     x = relax.Var("x", relax.TensorStructInfo([m, n], "float32"))
     y = relax.Var("y", relax.TensorStructInfo([m, n], "float32"))
     bb = relax.BlockBuilder()

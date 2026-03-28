@@ -23,12 +23,16 @@ Using TVM's CI
 .. contents::
   :local:
 
-TVM primarily uses Jenkins for running Linux continuous integration (CI) tests on
-`branches <https://ci.tlcpack.ai/job/tvm/>`_
-`pull requests <https://ci.tlcpack.ai/job/tvm/view/change-requests/>`_ through a
-build configuration specified in a `Jenkinsfile <https://github.com/apache/tvm/blob/main/ci/jenkins/templates/>`_.
-Jenkins is the only CI step that is codified to block merging. TVM is also tested minimally
-against Windows and MacOS using GitHub Actions.
+TVM uses a combination of Jenkins and GitHub Actions for continuous integration (CI).
+
+- **Jenkins** runs Linux CI tests on
+  `branches <https://ci.tlcpack.ai/job/tvm/>`_ and
+  `pull requests <https://ci.tlcpack.ai/job/tvm/view/change-requests/>`_ through a
+  build configuration specified in `Jenkinsfile templates <https://github.com/apache/tvm/blob/main/ci/jenkins/templates/>`_.
+  Jenkins is the primary CI step that is codified to block merging.
+- **GitHub Actions** runs `linting <https://github.com/apache/tvm/blob/main/.github/workflows/lint.yml>`_
+  (via pre-commit hooks) on pushes and pull requests, as well as minimal
+  Windows and macOS build-and-test jobs.
 
 This page describes how contributors and committers can use TVM's CI to verify their code. You can
 read more about the design of TVM CI in the `tlc-pack/ci <https://github.com/tlc-pack/ci>`_ repo.
@@ -36,10 +40,11 @@ read more about the design of TVM CI in the `tlc-pack/ci <https://github.com/tlc
 For Contributors
 ----------------
 
-A standard CI run looks something like this viewed in `Jenkins' BlueOcean viewer <https://ci.tlcpack.ai/blue/organizations/jenkins/tvm/activity>`_.
+A standard Jenkins CI run looks something like this viewed in `Jenkins' BlueOcean viewer <https://ci.tlcpack.ai/blue/organizations/jenkins/tvm/activity>`_.
 CI runs usually take a couple hours to complete and pull requests (PRs) cannot be merged before CI
 has successfully completed. To diagnose failing steps, click through to the failing
-pipeline stage then to the failing step to see the output logs.
+pipeline stage then to the failing step to see the output logs. For GitHub Actions jobs (lint,
+Windows, macOS), check the "Actions" tab on the pull request or repository page.
 
 .. image:: https://github.com/tlc-pack/web-data/raw/main/images/contribute/ci.png
   :width: 800
@@ -142,12 +147,13 @@ Skipping CI
 ^^^^^^^^^^^
 
 For reverts and trivial forward fixes, adding ``[skip ci]`` to the revert's
-PR title will cause CI to shortcut and only run lint. Committers should
+PR title will cause Jenkins CI to shortcut and only run lint. Committers should
 take care that they only merge CI-skipped PRs to fix a failure on ``main`` and
 not in cases where the submitter wants to shortcut CI to merge a change faster.
-The PR title is checked when the build is first run (specifically during the lint
+The PR title is checked when the build is first run (specifically during the Jenkins lint
 step, so changes after that has run do not affect CI and will require the job to
-be re-triggered by another ``git push``).
+be re-triggered by another ``git push``). Note that GitHub Actions lint always
+runs independently via pre-commit hooks.
 
 .. code-block:: bash
 

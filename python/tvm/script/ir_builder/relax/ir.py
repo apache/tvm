@@ -584,7 +584,7 @@ def emit_te(func: Callable, *args: Any, **kwargs: Any) -> Call:
     Returns
     -------
     call : Call
-        A newly created call that calls into a tir function.
+        A newly created call that calls into a tirx function.
     """
     primfunc_name_hint = kwargs.pop("primfunc_name_hint", None)
     tir_func, call_args, out_sinfo, tir_vars = gen_call_tir_inputs(func, *args, **kwargs)

@@ -43,7 +43,7 @@ class JSONDatabase(Database):
           - "anchor-block": Apply equality testing and hashing on the anchor block extracted from a
                             given module. The "ignore-tensor" varint is used for the extracted
                             blocks or in case no anchor block is found.
-                            For the definition of the anchor block, see tir/analysis/analysis.py.
+                            For the definition of the anchor block, see tirx/analysis/analysis.py.
     """
 
     path_workload: str

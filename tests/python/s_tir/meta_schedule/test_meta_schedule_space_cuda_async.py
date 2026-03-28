@@ -24,7 +24,7 @@ from tvm.s_tir.meta_schedule.testing.space_generation import (
     print_sketches,
 )
 from tvm.s_tir.meta_schedule.testing.te_workload import create_te_workload
-from tvm.script import tir as T
+from tvm.script import tirx as T
 from tvm.target import Target
 
 
@@ -46,7 +46,7 @@ def get_c2d_prim_func(stage: int):
         # fmt: off
         @T.prim_func
         def c2d(inputs: T.Buffer((1, 224, 224, 3), "float32"), weight: T.Buffer((7, 7, 3, 64), "float32"), conv2d_nhwc: T.Buffer((1, 112, 112, 64), "float32")):
-            T.func_attr({"global_symbol": "main", "tir.noalias": True})
+            T.func_attr({"global_symbol": "main", "tirx.noalias": True})
             with T.sblock("root"):
                 T.reads()
                 T.writes()
@@ -107,7 +107,7 @@ def get_c2d_prim_func(stage: int):
         # fmt: off
         @T.prim_func
         def c2d(inputs: T.Buffer((1, 224, 224, 3), "float32"), weight: T.Buffer((7, 7, 3, 64), "float32"), conv2d_nhwc: T.Buffer((1, 112, 112, 64), "float32")):
-            T.func_attr({"global_symbol": "main", "tir.noalias": True})
+            T.func_attr({"global_symbol": "main", "tirx.noalias": True})
             with T.sblock("root"):
                 T.reads()
                 T.writes()
@@ -200,7 +200,7 @@ def get_gmm_prim_func(stage: int):
         # fmt: off
         @T.prim_func
         def gmm(X: T.Buffer((1, 1024, 1024), "float32"), Y: T.Buffer((1, 1024, 1024), "float32"), Z: T.Buffer((1, 1024, 1024), "float32")):
-            T.func_attr({"global_symbol": "main", "tir.noalias": True})
+            T.func_attr({"global_symbol": "main", "tirx.noalias": True})
             with T.sblock("root"):
                 T.reads()
                 T.writes()
@@ -255,7 +255,7 @@ def get_gmm_prim_func(stage: int):
         # fmt: off
         @T.prim_func
         def gmm(X: T.Buffer((1, 1024, 1024), "float32"), Y: T.Buffer((1, 1024, 1024), "float32"), Z: T.Buffer((1, 1024, 1024), "float32")):
-            T.func_attr({"global_symbol": "main", "tir.noalias": True})
+            T.func_attr({"global_symbol": "main", "tirx.noalias": True})
             with T.sblock("root"):
                 T.reads()
                 T.writes()

@@ -27,9 +27,9 @@
 #include <tvm/target/target.h>
 
 namespace tvm {
-namespace tir {
+namespace tirx {
 class PrimFunc;
-}  // namespace tir
+}  // namespace tirx
 namespace te {
 class Tensor;
 }  // namespace te

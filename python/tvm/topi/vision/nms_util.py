@@ -21,7 +21,7 @@
 import tvm
 from tvm import te
 from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder import tir as T
+from tvm.script.ir_builder import tirx as T
 
 
 def _get_boundaries(output, box_idx):
@@ -59,7 +59,7 @@ def calculate_overlap(out_tensor, box_a_idx, box_b_idx):
     # total area of the figure formed by box a and box b
     # except for overlapping area
     u = (a_r - a_l) * (a_b - a_t) + (b_r - b_l) * (b_b - b_t) - area
-    return tvm.tir.Select(u <= 0.0, 0.0, area / u)
+    return tvm.tirx.Select(u <= 0.0, 0.0, area / u)
 
 
 def binary_search(y, num_boxes, scores, score_threshold, out):
@@ -73,7 +73,7 @@ def binary_search(y, num_boxes, scores, score_threshold, out):
     lo = T.buffer_proxy(lo_buf)
     hi = T.buffer_proxy(hi_buf)
     lo[0] = T.int32(0)
-    hi[0] = tvm.tir.Cast("int32", num_boxes)
+    hi[0] = tvm.tirx.Cast("int32", num_boxes)
     with T.While(lo[0] < hi[0]):
         mid = (hi[0] + lo[0]) >> 1
         with T.If(scores[y, mid] > score_threshold):
@@ -304,17 +304,17 @@ def _all_class_nms_ir(
             selected_scores = T.buffer_proxy(selected_scores)
 
         if isinstance(iou_threshold, float):
-            iou_threshold = tvm.tir.FloatImm("float32", iou_threshold)
+            iou_threshold = tvm.tirx.FloatImm("float32", iou_threshold)
         elif isinstance(iou_threshold, te.Tensor):
             if len(iou_threshold.shape) == 0:
                 iou_threshold = iou_threshold()
             elif len(iou_threshold.shape) == 1 and iou_threshold.shape[0] == 1:
                 iou_threshold = iou_threshold[0]
             else:
-                iou_threshold = tvm.tir.FloatImm("float32", 0.5)
+                iou_threshold = tvm.tirx.FloatImm("float32", 0.5)
 
         if isinstance(max_output_size_per_class, int):
-            max_output_size_per_class = tvm.tir.const(max_output_size_per_class)
+            max_output_size_per_class = tvm.tirx.const(max_output_size_per_class)
         elif isinstance(max_output_size_per_class, te.Tensor):
             if len(max_output_size_per_class.shape) == 0:
                 max_output_size_per_class = max_output_size_per_class()
@@ -324,7 +324,7 @@ def _all_class_nms_ir(
             ):
                 max_output_size_per_class = max_output_size_per_class[0]
             else:
-                max_output_size_per_class = tvm.tir.const(1000)
+                max_output_size_per_class = tvm.tirx.const(1000)
 
         def calc_overlap(i, j, k):
             offset_j = sorted_indices[i, j] * 4
@@ -348,11 +348,11 @@ def _all_class_nms_ir(
             pass
 
         def needs_bbox_check(*_):
-            return tvm.tir.const(True)
+            return tvm.tirx.const(True)
 
         nms_loop(
             batch_class,
-            tvm.tir.IntImm("int32", -1),  # top_k
+            tvm.tirx.IntImm("int32", -1),  # top_k
             iou_threshold,
             max_output_size_per_class,
             valid_count,
@@ -415,10 +415,10 @@ def run_all_class_nms(
     num_class = batch_class // batch
 
     if return_scores is False:
-        all_class_num0_buf = tvm.tir.decl_buffer(
+        all_class_num0_buf = tvm.tirx.decl_buffer(
             (batch_class, num_boxes), "int32", "all_class_nms0", data_alignment=8
         )
-        all_class_num1_buf = tvm.tir.decl_buffer(
+        all_class_num1_buf = tvm.tirx.decl_buffer(
             (batch_class,), "int32", "all_class_nms1", data_alignment=8
         )
         extern_inputs = [boxes, sorted_scores, sorted_indices, valid_count]

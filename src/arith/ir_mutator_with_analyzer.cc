@@ -24,15 +24,15 @@
 
 #include <tvm/arith/iter_affine_map.h>
 #include <tvm/s_tir/stmt.h>
-#include <tvm/tir/analysis.h>
-#include <tvm/tir/op.h>
+#include <tvm/tirx/analysis.h>
+#include <tvm/tirx/op.h>
 
 namespace tvm {
 namespace arith {
 
-using namespace tir;
+using namespace tirx;
 
-void IRMutatorWithAnalyzer::MarkBufferMapShapes(const tir::PrimFunc& func) {
+void IRMutatorWithAnalyzer::MarkBufferMapShapes(const tirx::PrimFunc& func) {
   // Mark the all the symbolic buffer shape values in the buffer map as positive value.
   for (auto kv : func->buffer_map) {
     for (PrimExpr shape : kv.second->shape) {
@@ -98,7 +98,7 @@ Stmt IRMutatorWithAnalyzer::VisitStmt_(const IfThenElseNode* op) {
   return constraint_scope_.WithNewScope([&]() -> Stmt {
     PrimExpr condition = this->VisitExpr(op->condition);
     PrimExpr real_condition = condition;
-    static auto op_likely = Op::Get("tir.likely");
+    static auto op_likely = Op::Get("tirx.likely");
 
     if (auto call = condition.as<CallNode>()) {
       if (call->op.same_as(op_likely)) {
@@ -139,7 +139,7 @@ Stmt IRMutatorWithAnalyzer::VisitStmt_(const IfThenElseNode* op) {
 
 Stmt IRMutatorWithAnalyzer::VisitStmt_(const AttrStmtNode* op) {
   return constraint_scope_.WithNewScope([&]() -> Stmt {
-    if (op->attr_key == tir::attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread) {
+    if (op->attr_key == tirx::attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread) {
       IterVar iv = Downcast<IterVar>(op->node);
       TVM_FFI_ICHECK_NE(iv->thread_tag.length(), 0U);
       Range dom = Range::FromMinExtent(make_zero(op->value.dtype()), op->value);
@@ -170,7 +170,7 @@ Stmt IRMutatorWithAnalyzer::VisitStmt_(const SeqStmtNode* op) {
 
 PrimExpr IRMutatorWithAnalyzer::VisitExpr_(const CallNode* op) {
   // add condition context to if_then_else
-  static auto op_if_then_else = Op::Get("tir.if_then_else");
+  static auto op_if_then_else = Op::Get("tirx.if_then_else");
   if (op->op.same_as(op_if_then_else)) {
     PrimExpr cond = this->VisitExpr(op->args[0]);
     PrimExpr true_value, false_value;

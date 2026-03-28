@@ -35,8 +35,8 @@ from tvm.s_tir.meta_schedule.arg_info import TensorInfo
 from tvm.s_tir.meta_schedule.builder import BuilderInput
 from tvm.s_tir.meta_schedule.runner import RunnerInput
 from tvm.s_tir.tensor_intrin.hexagon import VRMPY_u8u8i32_INTRIN
-from tvm.script import tir as T
-from tvm.tir import FloatImm
+from tvm.script import tirx as T
+from tvm.tirx import FloatImm
 
 from .infrastructure import get_hexagon_target
 
@@ -52,7 +52,7 @@ class MatmulModule:
     @T.prim_func
     def main(a: T.handle, b: T.handle, c: T.handle) -> None:  # type: ignore
         # pylint: disable=missing-function-docstring
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         a_buffer = T.match_buffer(a, (16, 16), "float32")
         b_buffer = T.match_buffer(b, (16, 16), "float32")
         c_buffer = T.match_buffer(c, (16, 16), "float32")
@@ -118,7 +118,7 @@ def dense_compute(m, n, k):
         lambda i, j: te.sum(
             X[i, axis_k].astype("int32")
             * packed_width[
-                tvm.tir.indexdiv(j, 32), tvm.tir.indexdiv(axis_k, 4), j % 32, axis_k % 4
+                tvm.tirx.indexdiv(j, 32), tvm.tirx.indexdiv(axis_k, 4), j % 32, axis_k % 4
             ].astype("int32"),
             axis=axis_k,
         ),
@@ -248,7 +248,7 @@ class ModuleVRMPYAutoTensorize:
         compute: T.Buffer((128, 768), "int32"),  # type: ignore
     ) -> None:
         # pylint: disable=missing-function-docstring
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         for i0_0_i1_0_0_fused in T.parallel(
             512, annotations={"pragma_auto_unroll_max_step": 64, "pragma_unroll_explicit": 1}
         ):

@@ -26,8 +26,8 @@
 #include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/support/io.h>
-#include <tvm/tir/builtin.h>
-#include <tvm/tir/transform.h>
+#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/transform.h>
 
 #include <algorithm>
 #include <string>
@@ -78,14 +78,14 @@ class WebGPUWorkgroupInfoCollector : public StmtExprVisitor {
 
   void VisitStmt_(const AttrStmtNode* op) final {
     // record workgroup size
-    if (op->attr_key == tir::attr::thread_extent) {
+    if (op->attr_key == tirx::attr::thread_extent) {
       IterVar iv = Downcast<IterVar>(op->node);
       if (iv->thread_tag.length() != 0) {
         runtime::ThreadScope ts = runtime::ThreadScope::Create(iv->thread_tag);
         if (ts.rank == 1) {
           TVM_FFI_ICHECK_GE(ts.dim_index, 0) << "vthread should have been optimized out by here";
           TVM_FFI_ICHECK_LT(ts.dim_index, 3);
-          auto* sizeptr = op->value.as<tir::IntImmNode>();
+          auto* sizeptr = op->value.as<tirx::IntImmNode>();
           TVM_FFI_ICHECK(sizeptr) << "CodeGenWebGPU: only allows constant thread group size "
                                   << " get " << op->value;
           info_.workgroup_size[ts.dim_index] = static_cast<uint32_t>(sizeptr->value);
@@ -243,7 +243,7 @@ runtime::FunctionInfo CodeGenWebGPU::AddFunction(const PrimFunc& f, bool skip_re
                     << "var<uniform> " << val_pod_args << " : " << type_pod_args << ";\n\n";
 
   // setup thread tags and param access in launch param tags;
-  if (auto opt = f->GetAttr<ffi::Array<ffi::String>>(tir::attr::kKernelLaunchParams)) {
+  if (auto opt = f->GetAttr<ffi::Array<ffi::String>>(tirx::attr::kKernelLaunchParams)) {
     for (const auto& thread_tag : opt.value()) {
       func_launch_param_tags.push_back(thread_tag);
     }
@@ -772,14 +772,14 @@ class WebGPUSourceModuleNode final : public ffi::ModuleObj {
 // Build logic.
 //-------------------------------------------------
 ffi::Module BuildWebGPU(IRModule mod, Target target) {
-  mod = tir::transform::PointerValueTypeRewrite()(std::move(mod));
+  mod = tirx::transform::PointerValueTypeRewrite()(std::move(mod));
   bool output_ssa = false;
   bool skip_readonly_decl = false;
   std::unordered_map<std::string, std::string> smap;
   ffi::Map<ffi::String, runtime::FunctionInfo> fmap;
 
   // narrow all i64 to i32
-  mod = tir::transform::ForceNarrowIndexToInt32()(std::move(mod));
+  mod = tirx::transform::ForceNarrowIndexToInt32()(std::move(mod));
 
   for (auto kv : mod->functions) {
     CodeGenWebGPU cg(target);

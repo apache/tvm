@@ -22,7 +22,7 @@
 #include <tvm/s_tir/utils.h>
 
 namespace tvm {
-namespace tir {
+namespace tirx {
 
 TVM_FFI_STATIC_INIT_BLOCK() { SBlockDependenceInfoNode::RegisterReflection(); }
 
@@ -103,5 +103,5 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            });
 }
 
-}  // namespace tir
+}  // namespace tirx
 }  // namespace tvm

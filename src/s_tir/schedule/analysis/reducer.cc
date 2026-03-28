@@ -20,7 +20,7 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 /******** Pattern Matcher ********/
 
@@ -606,7 +606,7 @@ class NoMatchedReducerError : public ScheduleError {
   ffi::String DetailRenderTemplate() const final {
     std::ostringstream os;
     os << "No matched reducer for identity " << identities_ << " and combiner " << combiners_
-       << "In this case rfactor cannot be applied. You can check tvm::tir::ReducerRegistry for "
+       << "In this case rfactor cannot be applied. You can check tvm::tirx::ReducerRegistry for "
           "default reducers or registering new reducers.";
     return os.str();
   }

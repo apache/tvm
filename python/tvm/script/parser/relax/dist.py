@@ -32,7 +32,7 @@ from tvm.script.ir_builder.relax.distributed import (
     redistribute,
     redistribute_replica_to_shard,
 )
-from tvm.tir import PrimExpr
+from tvm.tirx import PrimExpr
 
 from .entry import StructInfoProxy, TensorProxy
 

@@ -17,7 +17,7 @@
 # ruff: noqa: F401
 import tvm
 import tvm.testing
-from tvm import relax, tir, topi
+from tvm import relax, tirx, topi
 from tvm.script.ir_builder import relax as R
 from tvm.script.ir_builder.base import IRBuilder
 
@@ -90,8 +90,8 @@ def test_emits():
             R.func_name("foo")
             x = R.arg("x", relax.TensorStructInfo(ndim=-1, dtype="float32"))
             y = R.arg("y", relax.TensorStructInfo(ndim=-1, dtype="float32"))
-            m = tir.Var("m", dtype="int64")
-            n = tir.Var("n", dtype="int64")
+            m = tirx.Var("m", dtype="int64")
+            n = tirx.Var("n", dtype="int64")
             _ = R.emit_match_cast(x, relax.TensorStructInfo((m,), "float32"))
             y1 = R.emit_match_cast(y, relax.TensorStructInfo((n,), "float32"))
             v = relax.Var("v", relax.TensorStructInfo((n,), "float32"))
@@ -104,8 +104,8 @@ def test_emits():
     func = ir_builder.get()
 
     # create with BlockBuilder
-    m = tir.Var("m", dtype="int64")
-    n = tir.Var("n", dtype="int64")
+    m = tirx.Var("m", dtype="int64")
+    n = tirx.Var("n", dtype="int64")
     x = relax.Var("x", relax.TensorStructInfo(dtype="float32", ndim=-1))
     y = relax.Var("y", relax.TensorStructInfo(dtype="float32", ndim=-1))
     v = relax.Var("v", relax.TensorStructInfo((n,), "float32"))

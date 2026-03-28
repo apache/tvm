@@ -43,7 +43,7 @@
 #include <tvm/support/io.h>
 #include <tvm/support/parallel_for.h>
 #include <tvm/support/serializer.h>
-#include <tvm/tir/transform.h>
+#include <tvm/tirx/transform.h>
 
 #include <algorithm>
 #include <sstream>
@@ -298,9 +298,9 @@ inline std::string Concat(const ffi::Array<ffi::String>& strs, const std::string
  * \param global_var_name The global variable name
  * \return The SBlockRV
  */
-inline s_tir::SBlockRV GetRVFromSRef(const s_tir::Schedule& sch, const tir::StmtSRef& block_sref,
+inline s_tir::SBlockRV GetRVFromSRef(const s_tir::Schedule& sch, const tirx::StmtSRef& block_sref,
                                      const ffi::String& global_var_name) {
-  const tir::SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
+  const tirx::SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
   return sch->GetSBlock(block->name_hint, global_var_name);
 }
 
@@ -586,7 +586,7 @@ inline double Sum(const ffi::Array<FloatImm>& arr) {
 }
 
 /*! \brief Collecting all the blocks */
-class SBlockCollector : public tir::StmtVisitor {
+class SBlockCollector : public tirx::StmtVisitor {
  public:
   static ffi::Array<s_tir::SBlockRV> Collect(const s_tir::Schedule& sch,
                                              const ffi::Function f_block_filter = nullptr) {  //
@@ -597,7 +597,7 @@ class SBlockCollector : public tir::StmtVisitor {
   /*! \brief Entry point */
   ffi::Array<s_tir::SBlockRV> Run() {
     std::vector<s_tir::SBlockRV> results;
-    auto f_collect = [this, &results](tir::PrimFunc func, ffi::String func_name) {
+    auto f_collect = [this, &results](tirx::PrimFunc func, ffi::String func_name) {
       func_name_ = func_name;
       block_names_.clear();
       blocks_to_collect_.clear();
@@ -609,14 +609,14 @@ class SBlockCollector : public tir::StmtVisitor {
 
     if (sch_->func_working_on().defined()) {
       GlobalVar gv = sch_->func_working_on().value();
-      tir::PrimFunc func = Downcast<tir::PrimFunc>(sch_->mod()->functions[gv]);
+      tirx::PrimFunc func = Downcast<tirx::PrimFunc>(sch_->mod()->functions[gv]);
       f_collect(func, gv->name_hint);
     } else {
       for (const auto& [gv, base_func] : sch_->mod()->functions) {
         // `gv->name_hint` is the name of the function
         // `base_func` can be PrimFunc or relax::Function
-        if (const auto* func = base_func.as<tir::PrimFuncNode>()) {
-          f_collect(ffi::GetRef<tir::PrimFunc>(func), gv->name_hint);
+        if (const auto* func = base_func.as<tirx::PrimFuncNode>()) {
+          f_collect(ffi::GetRef<tirx::PrimFunc>(func), gv->name_hint);
         }
       }
     }
@@ -626,8 +626,8 @@ class SBlockCollector : public tir::StmtVisitor {
   explicit SBlockCollector(const s_tir::Schedule& sch, const ffi::Function f_block_filter = nullptr)
       : sch_(sch), f_block_filter_(f_block_filter) {}
   /*! \brief Override the Stmt visiting behaviour */
-  void VisitStmt_(const tir::SBlockNode* block) override {
-    tir::StmtVisitor::VisitStmt_(block);
+  void VisitStmt_(const tirx::SBlockNode* block) override {
+    tirx::StmtVisitor::VisitStmt_(block);
     TVM_FFI_ICHECK(block_names_.count(block->name_hint) == 0)
         << "Duplicated block name " << block->name_hint << " in function " << func_name_
         << " not supported!";
@@ -637,7 +637,7 @@ class SBlockCollector : public tir::StmtVisitor {
     // Otherwise collect all blocks.
     Bool collect_block = Bool(true);
     if (f_block_filter_ != nullptr) {
-      collect_block = f_block_filter_(ffi::GetRef<tir::SBlock>(block)).cast<Bool>();
+      collect_block = f_block_filter_(ffi::GetRef<tirx::SBlock>(block)).cast<Bool>();
     }
     if (collect_block) {
       blocks_to_collect_.push_back(block->name_hint);

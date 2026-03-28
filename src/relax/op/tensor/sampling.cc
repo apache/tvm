@@ -122,8 +122,8 @@ StructInfo InferStructInfoMultinomialFromUniform(const Call& call, const BlockBu
                      << n << "` and the given sample_indices tensor has batch size `"
                      << sample_indices_shape->values[0] << "`");
   }
-  if (!tir::is_one(uniform_sample_shape->values[1]) ||
-      !tir::is_one(sample_indices_shape->values[1])) {
+  if (!tirx::is_one(uniform_sample_shape->values[1]) ||
+      !tirx::is_one(sample_indices_shape->values[1])) {
     ctx->ReportFatal(Diagnostic::Error(call)
                      << "Multinomial_from_uniform op requires the input uniform_sample and "
                         "sample_indices to be 2D tensors with the second dimension being 1. "

@@ -30,19 +30,19 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tir/expr.h>
-#include <tvm/tir/op.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/expr.h>
+#include <tvm/tirx/op.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include <unordered_set>
 
 #include "../../runtime/thread_storage_scope.h"
 #include "../schedule/transform.h"
-#include "tvm/tir/stmt.h"
+#include "tvm/tirx/stmt.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 /*! \brief Rewriter for the block storing to the target buffer. Create an intermediate cache stage
  * to store the result. Rewrite the original block to load from the intermediate buffer.

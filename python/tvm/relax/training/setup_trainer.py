@@ -20,7 +20,7 @@
 import tvm
 from tvm import TVMError
 from tvm.ir.module import IRModule
-from tvm.tir.expr import IntImm
+from tvm.tirx.expr import IntImm
 
 from ..analysis import well_formed
 from ..expr import Tuple

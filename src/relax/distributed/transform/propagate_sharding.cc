@@ -158,7 +158,7 @@ class AxisGroupGraphBuilder : public ExprVisitor {
     CollectAxisGraphReshape(binding, val, axis_group_graph_);
     static const Op& call_tir_op = Op::Get("relax.call_tir");
     if (val->op.same_as(call_tir_op)) {
-      if (ffi::Optional<tir::PrimFunc> func = MatchPrimFunc(mod_, val->args[0])) {
+      if (ffi::Optional<tirx::PrimFunc> func = MatchPrimFunc(mod_, val->args[0])) {
         BuildAxisGraphCallTIR(binding->var, ffi::GetRef<Call>(val), func.value(),
                               axis_group_graph_);
       }
@@ -439,7 +439,7 @@ class DistributedIRBuilder : public ExprMutator {
   Expr VisitExpr_(const CallNode* call) final {
     static const Op& call_tir_op = Op::Get("relax.call_tir");
     FBuildAxisGraph f = [&](const Var& var, const Call& call, AxisGroupGraph* axis_group_graph) {
-      ffi::Optional<tir::PrimFunc> prim_func =
+      ffi::Optional<tirx::PrimFunc> prim_func =
           MatchPrimFunc(this->builder_->GetContextIRModule(), call->args[0]);
       TVM_FFI_ICHECK(prim_func);
       return BuildAxisGraphCallTIR(var, call, prim_func.value(), axis_group_graph);

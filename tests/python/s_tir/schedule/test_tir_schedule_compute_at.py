@@ -20,12 +20,12 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import te, tir
+from tvm import te, tirx
 from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 # fmt: off
 # pylint: disable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks
@@ -1003,7 +1003,7 @@ def floordiv_and_floormod_indices_after_reverse_compute_at(a: T.handle, b: T.han
 @T.prim_func
 def recursive_floordiv_floormod(A: T.Buffer((16, 64, 1, 8, 8, 32), "float32"),
                                 C: T.Buffer((3, 512, 512), "float32")) -> None:
-    T.func_attr({"tir.noalias": True})
+    T.func_attr({"tirx.noalias": True})
     # with T.sblock("root"):
     B = T.sblock_alloc_buffer((1, 128, 16, 8, 2, 32, 2), "float32")
     for axis1, axis2, axis3, axis4, axis5, axis6, axis7 in T.grid(1, 128, 16, 8, 2, 32, 2):
@@ -1022,7 +1022,7 @@ def recursive_floordiv_floormod(A: T.Buffer((16, 64, 1, 8, 8, 32), "float32"),
 
 @T.prim_func
 def recursive_floordiv_floormod_after_reverse_compute_at(A: T.Buffer((16, 64, 1, 8, 8, 32), "float32"), C: T.Buffer((3, 512, 512), "float32")) -> None:
-    T.func_attr({"tir.noalias": True})
+    T.func_attr({"tirx.noalias": True})
     # with T.sblock("root"):
     B = T.sblock_alloc_buffer((1, 128, 16, 8, 2, 32, 2))
     for axis1, axis2, axis3 in T.grid(1, 128, 16):

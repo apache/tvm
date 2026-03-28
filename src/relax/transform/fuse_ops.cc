@@ -34,9 +34,9 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
-#include <tvm/tir/analysis.h>
-#include <tvm/tir/expr_functor.h>
-#include <tvm/tir/function.h>
+#include <tvm/tirx/analysis.h>
+#include <tvm/tirx/expr_functor.h>
+#include <tvm/tirx/function.h>
 
 #include <optional>
 
@@ -204,7 +204,7 @@ class GraphCreator : public ExprVisitor {
     const auto* op = call->op.as<OpNode>();
     if (op == call_tir_op_.get() || op == call_tir_inplace_op_.get()) {
       const GlobalVar& global_var = Downcast<GlobalVar>(call->args[0]);
-      tir::PrimFunc func = Downcast<tir::PrimFunc>(mod_->Lookup(global_var));
+      tirx::PrimFunc func = Downcast<tirx::PrimFunc>(mod_->Lookup(global_var));
 
       // Override args for call_tir
       args = Downcast<Tuple>(call->args[1])->fields;
@@ -562,7 +562,7 @@ class FunctionCreator : public ExprMutator {
                                    /*is_pure=*/true,                  //
                                    /*attrs=*/DictAttrs(group_attrs));
       ffi::Array<PrimExpr> free_vars =
-          FreeSymbolicVars(function).Map([](const tir::Var& var) -> PrimExpr { return var; });
+          FreeSymbolicVars(function).Map([](const tirx::Var& var) -> PrimExpr { return var; });
       if (!free_vars.empty()) {
         params_.push_back(Var("tir_vars", ShapeStructInfo(free_vars)));
         arguments_.push_back(ShapeExpr(free_vars));
@@ -648,10 +648,10 @@ class FunctionCreator : public ExprMutator {
       return std::all_of(tuple->fields.begin(), tuple->fields.end(),
                          [this](const Expr& e) { return IsInlinableConstants(e); });
     } else if (const auto* prim_value = expr.as<PrimValueNode>()) {
-      return tvm::tir::UndefinedVars(prim_value->value).empty();
+      return tvm::tirx::UndefinedVars(prim_value->value).empty();
     } else if (const auto* shape_expr = expr.as<ShapeExprNode>()) {
       return std::all_of(shape_expr->values.begin(), shape_expr->values.end(),
-                         [](const PrimExpr& e) { return tvm::tir::UndefinedVars(e).empty(); });
+                         [](const PrimExpr& e) { return tvm::tirx::UndefinedVars(e).empty(); });
     }
     return false;
   }
@@ -1362,7 +1362,7 @@ IRModule FuseOpsByPattern(const tvm::ffi::Array<transform::FusionPattern>& patte
     } else {
       for (const auto& gv : mod->GetGlobalVars()) {
         const auto& base_func = mod->Lookup(gv);
-        if (base_func->IsInstance<tir::PrimFuncNode>()) {
+        if (base_func->IsInstance<tirx::PrimFuncNode>()) {
           continue;
         }
         const FunctionNode* function = base_func.as<FunctionNode>();

@@ -331,9 +331,9 @@ InferLayoutOutput InferLayoutConv2d(
     Layout desired_data_layout = (*it).second[0];
     Layout desired_weight_layout = (*it).second[1];
     Layout desired_output_layout = (*it).second.size() == 3 ? (*it).second[2] : (*it).second[0];
-    tir::Layout input_layout(attrs->data_layout, DataType::Int(64));
-    tir::Layout kernel_layout(attrs->kernel_layout, DataType::Int(64));
-    tir::Layout out_layout(attrs->out_layout, DataType::Int(64));
+    tirx::Layout input_layout(attrs->data_layout, DataType::Int(64));
+    tirx::Layout kernel_layout(attrs->kernel_layout, DataType::Int(64));
+    tirx::Layout out_layout(attrs->out_layout, DataType::Int(64));
 
     if ((desired_data_layout.ndim() == input_layout.ndim()) &&
         (desired_weight_layout.ndim() == kernel_layout.ndim()) &&

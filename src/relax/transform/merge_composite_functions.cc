@@ -58,7 +58,7 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
-#include <tvm/tir/function.h>
+#include <tvm/tirx/function.h>
 
 #include "../../support/arena.h"
 #include "utils.h"

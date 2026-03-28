@@ -18,7 +18,7 @@
 import tvm
 import tvm.testing
 from tvm import s_tir
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 # fmt: off
 # pylint: disable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks
@@ -29,7 +29,7 @@ class MatmulBefore:
     @T.prim_func
     def main(A: T.Buffer((1024, 1024), "float32"), B: T.Buffer((1024, 1024), "float32"), C: T.Buffer((1024, 1024), "float32")) -> None:
         # function attr dict
-        T.func_attr({"global_symbol": "default_function", "tir.noalias": True})
+        T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
         # body
         # with T.sblock("root")
         for blockIdx_y in T.thread_binding(32, thread="blockIdx.y"):
@@ -47,14 +47,14 @@ class MatmulBefore:
                                         with T.sblock("A_shared"):
                                             T.reads(A[blockIdx_y * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) // 32, k_0 * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) % 32])
                                             T.writes(A_shared[blockIdx_y * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) // 32, k_0 * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) % 32])
-                                            T.sblock_attr({"tir.manifest_shared_memory_local_stage":1})
+                                            T.sblock_attr({"tirx.manifest_shared_memory_local_stage":1})
                                             A_shared[blockIdx_y * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) // 32, k_0 * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) % 32] = A[blockIdx_y * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) // 32, k_0 * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) % 32]
                                 for ax0_ax1_fused_0 in T.serial(64):
                                     for ax0_ax1_fused_3 in T.vectorized(4):
                                         with T.sblock("B_shared"):
                                             T.reads(B[k_0 * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) // 32, blockIdx_x * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) % 32])
                                             T.writes(B_shared[k_0 * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) // 32, blockIdx_x * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) % 32])
-                                            T.sblock_attr({"tir.manifest_shared_memory_local_stage":1})
+                                            T.sblock_attr({"tirx.manifest_shared_memory_local_stage":1})
                                             B_shared[k_0 * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) // 32, blockIdx_x * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) % 32] = B[k_0 * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) // 32, blockIdx_x * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) % 32]
                                 for k_1, i_2, j_2, k_2 in T.grid(2, 16, 16, 16):
                                     with T.sblock("C"):
@@ -70,7 +70,7 @@ class MatmulAfter:
     @T.prim_func
     def main(A: T.Buffer((1024, 1024), "float32"), B: T.Buffer((1024, 1024), "float32"), C: T.Buffer((1024, 1024), "float32")) -> None:
         # function attr dict
-        T.func_attr({"global_symbol": "default_function", "tir.noalias": True})
+        T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
         # body
         # with T.sblock("root")
         for blockIdx_y in T.thread_binding(32, thread="blockIdx.y"):

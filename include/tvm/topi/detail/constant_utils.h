@@ -26,8 +26,8 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/te/operation.h>
-#include <tvm/tir/analysis.h>
-#include <tvm/tir/expr.h>
+#include <tvm/tirx/analysis.h>
+#include <tvm/tirx/expr.h>
 
 #include <string>
 #include <vector>
@@ -45,7 +45,7 @@ using namespace tvm::te;
  *
  * \return true if the given expr is a constant int or uint, false otherwise.
  */
-inline bool IsConstInt(PrimExpr expr) { return expr->IsInstance<tvm::tir::IntImmNode>(); }
+inline bool IsConstInt(PrimExpr expr) { return expr->IsInstance<tvm::tirx::IntImmNode>(); }
 
 /*!
  * \brief Test whether the given Array has every element as constant integer.
@@ -58,7 +58,7 @@ inline bool IsConstInt(PrimExpr expr) { return expr->IsInstance<tvm::tir::IntImm
 inline bool IsConstIntArray(ffi::Array<PrimExpr> array) {
   bool is_const_int = true;
   for (auto const& elem : array) {
-    is_const_int &= !elem.defined() || elem->IsInstance<tvm::tir::IntImmNode>();
+    is_const_int &= !elem.defined() || elem->IsInstance<tvm::tirx::IntImmNode>();
   }
   return is_const_int;
 }
@@ -123,13 +123,13 @@ inline std::vector<int64_t> GetConstInt64Values(ffi::Array<PrimExpr> exprs,
 /*!
  * \brief Check whether the two expressions are equal or not, if not simplify the expressions and
  * check again
- * \note This is stronger equality check than tvm::tir::Equal
+ * \note This is stronger equality check than tvm::tirx::Equal
  * \param lhs First expression
  * \param rhs Second expression
  * \return result True if both expressions are equal, else false
  */
 inline bool EqualCheck(PrimExpr lhs, PrimExpr rhs) {
-  tvm::tir::ExprDeepEqual expr_equal;
+  tvm::tirx::ExprDeepEqual expr_equal;
   bool result = expr_equal(lhs, rhs);
   if (!result) {
     PrimExpr t = tvm::arith::Analyzer().Simplify(lhs - rhs);

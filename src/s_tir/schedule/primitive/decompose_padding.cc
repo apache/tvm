@@ -18,12 +18,12 @@
  */
 #include <tvm/ffi/reflection/registry.h>
 
-#include "../../../tir/transform/ir_utils.h"
+#include "../../../tirx/transform/ir_utils.h"
 #include "../utils.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 /*! \brief Information used to create new padding block */
 struct PaddingSBlockInfo {
@@ -97,7 +97,7 @@ class PaddingInfoAnalyzer {
       return false;
     }
     const CallNode* if_then_else = store->value.as<CallNode>();
-    if (!if_then_else || !if_then_else->op.same_as(tir::builtin::if_then_else())) {
+    if (!if_then_else || !if_then_else->op.same_as(tirx::builtin::if_then_else())) {
       SetError("Value of BufferStore expect to be constrained by a padding predicate");
       return false;
     }

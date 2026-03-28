@@ -48,7 +48,7 @@ function call whose caller and callee may be in different languages.
 
 The following code block provides an example in C++
 
-.. _PackedFunc: https://github.com/apache/tvm/blob/main/include/tvm/runtime/packed_func.h
+.. _PackedFunc: https://github.com/apache/tvm/blob/main/3rdparty/tvm-ffi/include/tvm/ffi/function.h
 
 .. code:: c
 
@@ -128,7 +128,7 @@ we can pass functions from python (as PackedFunc) to C++.
       print(msg)
 
     # convert to PackedFunc
-    f = tvm.convert(callback)
+    f = tvm.runtime.convert(callback)
     callhello = tvm.get_global_func("callhello")
     # prints hello world
     callhello(f)
@@ -138,7 +138,7 @@ which allows us to embed the PackedFunc into any languages. Besides python, so f
 `java`_ and `javascript`_.
 This philosophy of embedded API is very like Lua, except that we don't have a new language but use C++.
 
-.. _minimum C API: https://github.com/apache/tvm/blob/main/include/tvm/runtime/base.h
+.. _minimum C API: https://github.com/apache/tvm/blob/main/3rdparty/tvm-ffi/include/tvm/ffi/c_api.h
 .. _java: https://github.com/apache/tvm/tree/main/jvm
 .. _javascript: https://github.com/apache/tvm/tree/main/web
 
@@ -241,7 +241,7 @@ For example,  we can access the value field of the IntImmNode.
 
     import tvm
 
-    x = tvm.tir.IntImm("int32", 1)
+    x = tvm.tirx.IntImm("int32", 1)
     # access the value field of IntImmNode
     print(x.value)
 
@@ -257,20 +257,18 @@ Each argument in PackedFunc contains a union value `TVMValue`_
 and a type code. This design allows the dynamically typed language to convert to the corresponding type directly, and statically typed language to
 do runtime type checking during conversion.
 
-.. _TVMValue: https://github.com/apache/tvm/blob/main/include/tvm/runtime/base.h#L135
+.. _TVMValue: https://github.com/apache/tvm/blob/main/3rdparty/tvm-ffi/include/tvm/ffi/c_api.h
 
 The relevant files are
 
-- `packed_func.h`_ for C++ API
-- `c_runtime_api.cc`_ for C API and how to provide callback.
+- `function.h`_ for C++ PackedFunc API
+- `c_api.h`_ for C API.
 
-.. _packed_func.h: https://github.com/apache/tvm/blob/main/include/tvm/runtime/packed_func.h
-.. _c_runtime_api.cc: https://github.com/apache/tvm/blob/main/src/runtime/c_runtime_api.cc#L262
+.. _function.h: https://github.com/apache/tvm/blob/main/3rdparty/tvm-ffi/include/tvm/ffi/function.h
+.. _c_api.h: https://github.com/apache/tvm/blob/main/3rdparty/tvm-ffi/include/tvm/ffi/c_api.h
 
 To support extension types, we used a registry system to register type related information, like support of any
-in C++, see `Extension types`_ for more details.
-
-.. _Extension types: https://github.com/apache/tvm/tree/main/apps/extension
+in C++. See the ``tvm-ffi`` subproject under ``3rdparty/tvm-ffi/`` for more details on the FFI type system.
 
 
 Runtime-Specific Information

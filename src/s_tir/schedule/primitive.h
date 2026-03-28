@@ -26,7 +26,7 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 /******** Schedule: Sampling ********/
 /*!
@@ -99,7 +99,7 @@ TVM_DLL std::vector<int64_t> SamplePerfectTile(
  */
 TVM_DLL std::vector<int64_t> SamplePerfectTile(
     support::LinearCongruentialEngine::TRandState* rand_state,  //
-    const tir::StmtSRef& loop_sref, int32_t n_split, int32_t max_innermost_factor,
+    const tirx::StmtSRef& loop_sref, int32_t n_split, int32_t max_innermost_factor,
     ffi::Optional<ffi::Array<Integer>>* decision);
 /*!
  * \brief Sample the factors to a partitioned tile for a specific loop
@@ -137,7 +137,7 @@ TVM_DLL std::vector<int64_t> SamplePartitionedTile(
  */
 TVM_DLL std::vector<int64_t> SamplePartitionedTile(
     support::LinearCongruentialEngine::TRandState* rand_state,  //
-    const tir::StmtSRef& loop_sref, int32_t n_split, int32_t partition_pos,
+    const tirx::StmtSRef& loop_sref, int32_t n_split, int32_t partition_pos,
     int32_t innerpart_factor, ffi::Optional<ffi::Array<Integer>>* decision);
 /*!
  * \brief Sample a compute-at location of the given block
@@ -147,9 +147,9 @@ TVM_DLL std::vector<int64_t> SamplePartitionedTile(
  * \param decision The sampling decision
  * \return The sampled loop where the input block is to be computed at
  */
-TVM_DLL tir::StmtSRef SampleComputeLocation(
+TVM_DLL tirx::StmtSRef SampleComputeLocation(
     s_tir::ScheduleState self, support::LinearCongruentialEngine::TRandState* rand_state,
-    const tir::StmtSRef& block_sref, ffi::Optional<Integer>* decision);
+    const tirx::StmtSRef& block_sref, ffi::Optional<Integer>* decision);
 
 /******** Schedule: Get blocks & loops ********/
 /*!

@@ -235,13 +235,13 @@ class DataflowBlockMutator : public ExprMutator {
   BindingBlock VisitBindingBlock_(const DataflowBlockNode* n) final {
     // collect Global Scope Vars and Symbolic Vars inside the DataflowBlock
     ffi::Map<ffi::String, Var> global_scope_vars;
-    ffi::Map<ffi::String, tir::Var> symbolic_vars;
+    ffi::Map<ffi::String, tirx::Var> symbolic_vars;
     for (const Binding& binding : n->bindings) {
       Var var = binding->var;
       if (const auto* match_cast = binding.as<MatchCastNode>()) {
         auto collected_vars = SymbolicVarCollector::Collect(match_cast->struct_info);
-        for (const tir::VarNode* var : collected_vars) {
-          symbolic_vars.Set(var->name_hint, ffi::GetRef<tir::Var>(var));
+        for (const tirx::VarNode* var : collected_vars) {
+          symbolic_vars.Set(var->name_hint, ffi::GetRef<tirx::Var>(var));
         }
       }
       if (!var.as<DataflowVarNode>()) {
@@ -258,9 +258,9 @@ class DataflowBlockMutator : public ExprMutator {
       Var var = binding->var;
       if (const auto* match_cast = binding.as<MatchCastNode>()) {
         auto collected_vars = SymbolicVarCollector::Collect(match_cast->struct_info);
-        for (const tir::VarNode* var : collected_vars) {
+        for (const tirx::VarNode* var : collected_vars) {
           if (symbolic_vars.count(var->name_hint) > 0) {
-            tir::Var old_var = symbolic_vars[var->name_hint];
+            tirx::Var old_var = symbolic_vars[var->name_hint];
             TVM_FFI_ICHECK(var == old_var.get())
                 << "Error: DataflowBlock Pass should not rewrite any Symbolic Var.";
             symbolic_vars.erase(var->name_hint);
@@ -282,7 +282,7 @@ class DataflowBlockMutator : public ExprMutator {
  private:
   class SymbolicVarCollector : public StructInfoVisitor {
    public:
-    static std::unordered_set<const tir::VarNode*> Collect(const StructInfo& info) {
+    static std::unordered_set<const tirx::VarNode*> Collect(const StructInfo& info) {
       SymbolicVarCollector collector;
       collector.VisitStructInfo(info);
       return std::move(collector.symbolic_vars_);
@@ -290,13 +290,13 @@ class DataflowBlockMutator : public ExprMutator {
 
    private:
     void VisitStructInfoExprField(const PrimExpr& expr) final {
-      if (const tir::VarNode* sym_var = expr.as<tir::VarNode>()) {
+      if (const tirx::VarNode* sym_var = expr.as<tirx::VarNode>()) {
         symbolic_vars_.insert(sym_var);
       }
     }
 
    private:
-    std::unordered_set<const tir::VarNode*> symbolic_vars_;
+    std::unordered_set<const tirx::VarNode*> symbolic_vars_;
   };
 
   std::function<DataflowBlock(DataflowBlock, IRModule, PassContext)> pass_func_;

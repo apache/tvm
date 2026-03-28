@@ -18,7 +18,7 @@
 
 from tvm.s_tir import Schedule
 from tvm.s_tir import meta_schedule as ms
-from tvm.script import tir as T
+from tvm.script import tirx as T
 from tvm.target import Target
 
 # pylint: disable=invalid-name, no-member
