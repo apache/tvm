@@ -21,15 +21,23 @@
 
 Mix Python/PyTorch with TVM Using BasePyModule
 ===============================================
-This tutorial shows how to mix Python functions, TIR kernels, and Relax graph-level functions
-in a single ``IRModule`` using the ``BasePyModule`` system. The key benefits are:
+In a typical TVM workflow, you write an ``IRModule``, compile it, and load the compiled artifact
+into a ``VirtualMachine`` to run. This means **you cannot test or debug anything until the entire
+module compiles successfully**. If a single op is unsupported, the whole pipeline is blocked.
 
-- **Debug without compiling**: Run IRModules directly in Python, calling TIR and Relax functions
-  through JIT compilation while keeping Python functions as-is.
-- **PyTorch interop**: Use PyTorch operators as fallbacks for ops TVM does not yet support,
-  with zero-copy DLPack tensor conversion.
-- **Relax-to-Python conversion**: Automatically translate compiled Relax functions into equivalent
-  PyTorch code for numerical verification at any compilation stage.
+``BasePyModule`` solves this by letting Python functions, TIR kernels, and Relax functions coexist
+in one module. TIR and Relax functions are JIT-compiled, Python functions run as-is, and tensors
+move between TVM and PyTorch via zero-copy DLPack. This enables:
+
+- **Incremental development**: get a model running with Python fallbacks first, then replace them
+  with TVM ops one by one.
+- **Debugging at any stage**: convert Relax functions back to PyTorch to verify numerical
+  correctness after applying optimization passes.
+- **Hybrid execution**: let the compiled VM call back into Python for ops that are hard to
+  express in TIR or Relax.
+
+This tutorial walks through a concrete example: building a small model where Python, TIR, and
+Relax functions work together, then using the converter and ``call_py_func`` to debug and extend it.
 
 .. contents:: Table of Contents
     :local:
@@ -39,18 +47,17 @@ in a single ``IRModule`` using the ``BasePyModule`` system. The key benefits are
 ######################################################################
 # Preparation
 # -----------
-# We import the necessary modules. ``BasePyModule`` is the base class that enables Python function
-# integration with TVM's IRModule. The ``I``, ``T``, ``R`` namespaces provide TVMScript decorators
-# for IR modules, TIR functions, and Relax functions respectively.
 
 import os
 
 try:
     import torch
+    import torch.nn.functional as F
 except ImportError:
     torch = None
 
 import tvm
+from tvm import relax
 from tvm.relax.base_py_module import BasePyModule
 from tvm.script import ir as I
 from tvm.script import relax as R
@@ -62,36 +69,23 @@ RUN_EXAMPLE = HAS_TORCH and not IS_IN_CI
 
 
 ######################################################################
-# Part 1: BasePyModule Basics
-# ----------------------------
-# A ``BasePyModule`` wraps an ``IRModule`` and provides:
+# Step 1: Your First Hybrid Module
+# ----------------------------------
+# The core idea: decorate a class with ``@I.ir_module``, inherit from ``BasePyModule``, and use
+# three decorators for three kinds of functions:
 #
-# - Automatic JIT compilation of TIR and Relax functions
-# - DLPack-based zero-copy conversion between PyTorch tensors and TVM NDArrays
-# - A unified interface where Python, TIR, and Relax functions coexist
+# - ``@T.prim_func`` — low-level TIR kernel (compiled)
+# - ``@R.function`` — high-level Relax graph (compiled)
+# - ``@I.pyfunc`` — plain Python (runs as-is, can call PyTorch)
 #
-# Let us start with a simple example: a module that contains one TIR function (element-wise add)
-# and one Python function that orchestrates the computation using PyTorch tensors.
+# On instantiation, TIR and Relax functions are JIT-compiled. Python functions stay in Python.
+# ``call_tir`` bridges them: it converts PyTorch tensors to TVM via DLPack, allocates the output,
+# calls the compiled kernel, and converts back.
 
 if RUN_EXAMPLE:
 
     @I.ir_module
-    class MyModule(BasePyModule):
-        @I.pyfunc
-        def forward(self, x, y):
-            """Python function: receives PyTorch tensors, calls TIR, returns PyTorch tensors."""
-            # Convert PyTorch tensors to TVM NDArrays (zero-copy via DLPack)
-            x_tvm = self._convert_pytorch_to_tvm(x)
-            y_tvm = self._convert_pytorch_to_tvm(y)
-
-            # Call the TIR function below
-            result = self.call_tir(
-                self.add_tir, [x_tvm, y_tvm], out_sinfo=R.Tensor((4,), "float32")
-            )
-
-            # Convert back to PyTorch (zero-copy via DLPack)
-            return self._convert_tvm_to_pytorch(result)
-
+    class MyFirstModule(BasePyModule):
         @T.prim_func
         def add_tir(
             A: T.Buffer((4,), "float32"),
@@ -101,116 +95,119 @@ if RUN_EXAMPLE:
             for i in range(4):
                 C[i] = A[i] + B[i]
 
-    # Instantiate the module on CPU. TIR functions are JIT-compiled at this point.
-    mod = MyModule(device=tvm.cpu(0))
+        @I.pyfunc
+        def forward(self, x, y):
+            """Takes PyTorch tensors, calls TIR, returns PyTorch tensors."""
+            x_tvm = self._convert_pytorch_to_tvm(x)
+            y_tvm = self._convert_pytorch_to_tvm(y)
+            result = self.call_tir(
+                self.add_tir, [x_tvm, y_tvm], out_sinfo=R.Tensor((4,), "float32")
+            )
+            return self._convert_tvm_to_pytorch(result)
 
-    # Call the Python function with PyTorch tensors
+    # TIR functions are JIT-compiled here
+    mod = MyFirstModule(device=tvm.cpu(0))
+
     x = torch.tensor([1.0, 2.0, 3.0, 4.0])
     y = torch.tensor([10.0, 20.0, 30.0, 40.0])
     result = mod.forward(x, y)
 
-    print("Input x:", x)
-    print("Input y:", y)
-    print("Result (x + y via TIR):", result)
+    print("forward(x, y) =", result)
     assert torch.allclose(result, x + y)
 
-    # BasePyModule also supports pretty-printing via show(), including Python functions
-    print("\n=== Module TVMScript ===")
+    # show() prints the TVMScript representation, including Python functions as ExternFunc
     mod.show()
 
 
 ######################################################################
-# How it Works
-# ~~~~~~~~~~~~
-# When the class is decorated with ``@I.ir_module`` and inherits from ``BasePyModule``:
+# Step 2: A Realistic Pipeline — Python, TIR, and Relax Together
+# -----------------------------------------------------------------
+# Real models are not just one op. Here we build a mini inference pipeline:
 #
-# 1. Methods decorated with ``@T.prim_func`` and ``@R.function`` are parsed into TIR/Relax IR
-#    and stored in the underlying ``IRModule``.
-# 2. Methods decorated with ``@I.pyfunc`` are registered as Python functions.
-# 3. On instantiation (``MyModule(device=...)``), TIR functions are compiled via ``tvm.compile``
-#    and Relax functions are loaded into a ``VirtualMachine``. Python functions remain as-is.
-# 4. ``call_tir`` handles DLPack conversion, output allocation, and calling the compiled kernel.
+# 1. **Python** preprocesses the input (normalization — easy in PyTorch, verbose in TIR)
+# 2. **TIR** runs a hand-written matmul kernel
+# 3. **Python** applies softmax via PyTorch (a temporary fallback)
 #
-
-
-######################################################################
-# Part 2: Mixing TIR, Relax, and Python
-# ----------------------------------------
-# A single module can contain all three kinds of functions. This is useful when some operations
-# are best expressed as low-level TIR kernels, others as high-level Relax graphs, and some
-# require Python-level logic (e.g., dynamic control flow, calling external libraries).
+# The key point: you do not need every op to be a TIR kernel to get the module running.
+# Write what you can in TIR, fall back to Python for the rest, and iterate.
 
 if RUN_EXAMPLE:
 
     @I.ir_module
-    class HybridModule(BasePyModule):
+    class InferenceModule(BasePyModule):
+        @T.prim_func
+        def matmul_tir(var_A: T.handle, var_B: T.handle, var_C: T.handle):
+            n = T.int32()
+            A = T.match_buffer(var_A, (n, 8), "float32")
+            B = T.match_buffer(var_B, (8, 4), "float32")
+            C = T.match_buffer(var_C, (n, 4), "float32")
+            for i, j, k in T.grid(n, 4, 8):
+                with T.sblock("matmul"):
+                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                    with T.init():
+                        C[vi, vj] = T.float32(0)
+                    C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
+
         @I.pyfunc
         def preprocess(self, x):
-            """Use PyTorch for preprocessing — e.g., normalization."""
-            mean = x.mean()
-            std = x.std()
-            return (x - mean) / (std + 1e-5)
+            """Normalize input — trivial in PyTorch, annoying in TIR."""
+            return (x - x.mean()) / (x.std() + 1e-5)
 
         @I.pyfunc
-        def run_pipeline(self, x):
-            """Orchestrate: Python preprocessing -> TIR computation -> result."""
-            # Step 1: Python-based preprocessing
-            normalized = self.preprocess(x)
+        def forward(self, x, weights):
+            # Step 1: Python preprocessing
+            x_norm = self.preprocess(x)
 
-            # Step 2: Convert and run TIR kernel
-            tvm_input = self._convert_pytorch_to_tvm(normalized)
-            tvm_result = self.call_tir(
-                self.scale_tir, [tvm_input], out_sinfo=R.Tensor((4,), "float32")
+            # Step 2: TIR matmul
+            x_tvm = self._convert_pytorch_to_tvm(x_norm)
+            w_tvm = self._convert_pytorch_to_tvm(weights)
+            out = self.call_tir(
+                self.matmul_tir,
+                [x_tvm, w_tvm],
+                out_sinfo=R.Tensor((x.shape[0], 4), "float32"),
             )
-            return self._convert_tvm_to_pytorch(tvm_result)
+            logits = self._convert_tvm_to_pytorch(out)
 
-        @T.prim_func
-        def scale_tir(A: T.Buffer((4,), "float32"), B: T.Buffer((4,), "float32")):
-            for i in range(4):
-                B[i] = A[i] * T.float32(2.0)
+            # Step 3: Python softmax (fallback — could be replaced with TIR later)
+            return F.softmax(logits, dim=-1)
 
-    mod = HybridModule(device=tvm.cpu(0))
+    mod = InferenceModule(device=tvm.cpu(0))
 
-    x = torch.tensor([1.0, 3.0, 5.0, 7.0])
-    result = mod.run_pipeline(x)
-    print("Pipeline result:", result)
+    batch = torch.randn(2, 8)
+    weights = torch.randn(8, 4)
+    probs = mod.forward(batch, weights)
+
+    print("Input shape:", batch.shape)
+    print("Output probs:", probs)
+    print("Probs sum per row:", probs.sum(dim=-1))  # should be ~1.0
+    assert torch.allclose(probs.sum(dim=-1), torch.ones(2), atol=1e-5)
 
 
 ######################################################################
-# Part 3: Adding Python Functions Dynamically
-# ---------------------------------------------
-# You can also register Python functions after module creation using ``add_python_function``.
-# This is useful for attaching PyTorch-based fallback operators or custom post-processing.
+# Step 3: Dynamic Function Registration
+# ----------------------------------------
+# Sometimes you want to add a Python function after the module is created — for example, to
+# swap in a different activation function or to register a custom op at runtime. Use
+# ``add_python_function`` for this.
 
 if RUN_EXAMPLE:
-    py_mod = BasePyModule(tvm.IRModule({}), device=tvm.cpu(0))
+    mod.add_python_function("gelu", lambda x: F.gelu(x))
 
-    # Dynamically add a Python function
-    def my_activation(x):
-        """Custom activation using PyTorch."""
-        return torch.relu(x) + torch.tanh(x)
-
-    py_mod.add_python_function("my_activation", my_activation)
-
-    # Now we can call it as a method
-    x = torch.tensor([-2.0, -1.0, 0.0, 1.0, 2.0])
-    result = py_mod.my_activation(x)
-    print("Custom activation:", result)
-    expected = torch.relu(x) + torch.tanh(x)
-    assert torch.allclose(result, expected)
+    x = torch.randn(4)
+    result = mod.gelu(x)
+    print("Dynamically registered gelu:", result)
+    assert torch.allclose(result, F.gelu(x))
 
 
 ######################################################################
-# Part 4: Relax-to-Python Function Converter
-# --------------------------------------------
-# One powerful feature is the ability to automatically convert Relax functions into equivalent
-# PyTorch code. This is useful for:
+# Step 4: Relax-to-Python Converter for Debugging
+# --------------------------------------------------
+# After importing a model or applying passes, you end up with Relax IR. How do you know the IR
+# is numerically correct? The ``RelaxToPyFuncConverter`` translates Relax functions into equivalent
+# PyTorch code so you can compare outputs directly.
 #
-# - Numerically verifying Relax IR against PyTorch after applying optimization passes
-# - Debugging: inspect what a Relax function actually computes by running it in Python
-# - Prototyping: test Relax graph transformations without a full compilation cycle
-#
-# The ``RelaxToPyFuncConverter`` maps 300+ Relax operators to their PyTorch equivalents.
+# This is especially useful after running optimization passes: convert the optimized Relax
+# function back to PyTorch and compare against the original model's output.
 
 if RUN_EXAMPLE:
     from tvm.relax.relax_to_pyfunc_converter import RelaxToPyFuncConverter
@@ -218,112 +215,174 @@ if RUN_EXAMPLE:
     @I.ir_module
     class RelaxModel:
         @T.prim_func
-        def custom_add(var_x: T.handle, var_y: T.handle, var_out: T.handle):
-            x = T.match_buffer(var_x, (5,), "float32")
-            y = T.match_buffer(var_y, (5,), "float32")
-            out = T.match_buffer(var_out, (5,), "float32")
-            for i in range(5):
-                out[i] = x[i] + y[i]
+        def bias_add_tir(var_x: T.handle, var_b: T.handle, var_out: T.handle):
+            x = T.match_buffer(var_x, (2, 4), "float32")
+            b = T.match_buffer(var_b, (4,), "float32")
+            out = T.match_buffer(var_out, (2, 4), "float32")
+            for i, j in T.grid(2, 4):
+                out[i, j] = x[i, j] + b[j]
 
         @R.function
         def main(
-            x: R.Tensor((5,), "float32"), y: R.Tensor((5,), "float32")
-        ) -> R.Tensor((5,), "float32"):
-            # Mix of Relax ops and TIR calls
-            added = R.add(x, y)
-            activated = R.nn.relu(added)
+            x: R.Tensor((2, 4), "float32"),
+            w: R.Tensor((4, 4), "float32"),
+            b: R.Tensor((4,), "float32"),
+        ) -> R.Tensor((2, 4), "float32"):
+            # matmul + bias + relu — a typical dense layer
+            h = R.matmul(x, w)
             cls = RelaxModel
-            result = R.call_tir(cls.custom_add, (activated, y), out_sinfo=R.Tensor((5,), "float32"))
-            return result
+            h_bias = R.call_tir(
+                cls.bias_add_tir, (h, b), out_sinfo=R.Tensor((2, 4), "float32")
+            )
+            return R.nn.relu(h_bias)
 
-    # Convert the Relax function "main" to an equivalent Python/PyTorch function
+    # Convert "main" to a Python/PyTorch function
     converter = RelaxToPyFuncConverter(RelaxModel)
-    converted_mod = converter.convert(["main"])
+    converted = converter.convert(["main"])
 
-    # The converted function lives in ir_mod.pyfuncs and accepts PyTorch tensors directly
-    x = torch.tensor([1.0, -2.0, 3.0, -4.0, 5.0])
-    y = torch.tensor([0.5, 0.5, 0.5, 0.5, 0.5])
+    # Run through the converted Python function
+    x = torch.randn(2, 4)
+    w = torch.randn(4, 4)
+    b = torch.randn(4)
 
-    py_result = converted_mod.pyfuncs["main"](x, y)
+    py_result = converted.pyfuncs["main"](x, w, b)
 
-    # Manually compute the expected result for verification
-    step1 = torch.add(x, y)  # [1.5, -1.5, 3.5, -3.5, 5.5]
-    step2 = torch.relu(step1)  # [1.5, 0.0, 3.5, 0.0, 5.5]
-    expected = step2 + y  # [2.0, 0.5, 4.0, 0.5, 6.0]
+    # Compare with manual PyTorch computation
+    expected = F.relu(x @ w + b)
 
-    print("Relax function converted to Python:")
-    print("  Input x:", x)
-    print("  Input y:", y)
-    print("  Python result:", py_result)
-    print("  Expected:     ", expected)
-    assert torch.allclose(py_result, expected)
+    print("Converted Python result:", py_result)
+    print("PyTorch expected:       ", expected)
+    assert torch.allclose(py_result, expected, atol=1e-5)
 
 
 ######################################################################
-# Part 5: Using R.call_py_func in Relax IR
-# ------------------------------------------
-# ``R.call_py_func`` lets you embed Python function calls directly inside Relax IR. This means
-# the compiled Relax VM can call back into Python at runtime. This is the bridge for ops that
-# TVM cannot compile natively — the rest of the graph is compiled and optimized, while specific
-# ops fall back to Python/PyTorch.
+# Step 5: R.call_py_func — Python Callbacks in Compiled IR
+# -----------------------------------------------------------
+# What if you want the compiled Relax VM (not just Python-side code) to call a Python function?
+# ``R.call_py_func`` embeds a Python callback directly in Relax IR. The VM compiles and
+# optimizes everything else, but calls back into Python for the specified op.
 #
-# .. note::
-#    ``R.call_py_func`` adds runtime overhead due to the Python-TVM boundary crossing.
-#    Use it for prototyping or for ops that are not performance-critical.
+# Use case: your model has one custom op that is complex to implement in TIR. Compile
+# everything else for performance, and let that one op run in Python.
 
 if RUN_EXAMPLE:
 
     @I.ir_module
-    class CallPyFuncModule(BasePyModule):
+    class HybridVMModule(BasePyModule):
         @I.pyfunc
-        def torch_relu(self, x):
-            """Python fallback: PyTorch ReLU."""
-            return torch.relu(x)
+        def silu(self, x):
+            """SiLU activation — not yet a native Relax op, so we use Python."""
+            return torch.sigmoid(x) * x
 
         @I.pyfunc
-        def torch_softmax(self, x, dim=0):
-            """Python fallback: PyTorch softmax."""
-            return torch.softmax(x, dim=dim)
+        def layer_norm(self, x):
+            """LayerNorm — another Python fallback."""
+            return F.layer_norm(x, x.shape[-1:])
 
         @R.function
-        def main(x: R.Tensor((10,), "float32")) -> R.Tensor((10,), "float32"):
-            # The VM calls back into Python for these ops at runtime
-            relu_result = R.call_py_func(
-                "torch_relu", (x,), out_sinfo=R.Tensor((10,), "float32")
+        def main(x: R.Tensor((4, 8), "float32")) -> R.Tensor((4, 8), "float32"):
+            h = R.call_py_func(
+                "layer_norm", (x,), out_sinfo=R.Tensor((4, 8), "float32")
             )
-            result = R.call_py_func(
-                "torch_softmax", (relu_result,), out_sinfo=R.Tensor((10,), "float32")
+            out = R.call_py_func(
+                "silu", (h,), out_sinfo=R.Tensor((4, 8), "float32")
             )
-            return result
+            return out
 
-    mod = CallPyFuncModule(device=tvm.cpu(0))
+    mod = HybridVMModule(device=tvm.cpu(0))
 
-    x = torch.randn(10, dtype=torch.float32)
+    x = torch.randn(4, 8)
 
-    # call_py_func can be called directly from Python as well
-    relu_result = mod.call_py_func("torch_relu", [x])
-    result = mod.call_py_func("torch_softmax", [relu_result])
+    # call_py_func is callable from Python too
+    result = mod.call_py_func("layer_norm", [x])
+    result = mod.call_py_func("silu", [result])
 
-    expected = torch.softmax(torch.relu(x), dim=0)
-    print("R.call_py_func result:", result)
-    print("PyTorch expected:     ", expected)
+    expected = torch.sigmoid(F.layer_norm(x, x.shape[-1:])) * F.layer_norm(
+        x, x.shape[-1:]
+    )
+    print("call_py_func result:", result)
     assert torch.allclose(torch.tensor(result.numpy()), expected, atol=1e-5)
+
+
+######################################################################
+# Step 6: Symbolic Shapes — Dynamic Batch Sizes
+# ------------------------------------------------
+# Real models have dynamic shapes (e.g., variable batch size). TIR and Relax functions can
+# declare symbolic dimensions. ``BasePyModule`` automatically infers concrete shapes from the
+# input tensors at call time.
+
+if RUN_EXAMPLE:
+
+    @I.ir_module
+    class DynamicModule(BasePyModule):
+        @T.prim_func
+        def scale_tir(var_x: T.handle, var_out: T.handle):
+            n = T.int64()
+            x = T.match_buffer(var_x, (n,), "float32")
+            out = T.match_buffer(var_out, (n,), "float32")
+            for i in T.serial(n):
+                out[i] = x[i] * T.float32(2.0)
+
+        @R.function
+        def add_relax(
+            x: R.Tensor(("n",), "float32"), y: R.Tensor(("n",), "float32")
+        ) -> R.Tensor(("n",), "float32"):
+            return R.add(x, y)
+
+    mod = DynamicModule(device=tvm.cpu(0), target="llvm")
+
+    # Works with length 5
+    a5 = torch.randn(5)
+    b5 = torch.randn(5)
+    out5 = mod.add_relax(a5, b5)
+    print("add_relax(len=5):", out5)
+
+    # Same module, now length 10 — no recompilation needed
+    a10 = torch.randn(10)
+    b10 = torch.randn(10)
+    out10 = mod.add_relax(a10, b10)
+    print("add_relax(len=10):", out10)
+
+    # call_tir with symbolic output shape
+    n = T.int64()
+    x7 = torch.randn(7)
+    scaled = mod.call_tir("scale_tir", [x7], relax.TensorStructInfo((n,), "float32"))
+    print("scale_tir(len=7):", scaled)
+    assert torch.allclose(
+        torch.tensor(scaled.numpy()), x7 * 2.0, atol=1e-5
+    )
 
 
 ######################################################################
 # Summary
 # -------
-# This tutorial covered the Relax Python Module system:
+# Here is what each step demonstrated and which PRs implement it:
 #
-# - **BasePyModule**: A base class that unifies Python, TIR, and Relax functions in one module,
-#   with JIT compilation and DLPack-based tensor conversion.
-# - **@I.pyfunc**: Decorator to mark Python functions inside an ``@I.ir_module`` class.
-# - **Dynamic registration**: ``add_python_function()`` to attach Python functions after creation.
-# - **RelaxToPyFuncConverter**: Automatically converts Relax functions to PyTorch for debugging
-#   and numerical verification.
-# - **R.call_py_func**: Embeds Python function calls in Relax IR, enabling fallback to PyTorch
-#   for unsupported ops while keeping the rest of the graph compiled.
+# +--------+----------------------------------------+---------------------+
+# | Step   | What you learned                       | Key PRs             |
+# +========+========================================+=====================+
+# | 1      | ``@I.pyfunc`` + ``call_tir`` basics,   | #18229, #18331      |
+# |        | DLPack conversion, ``show()``          | #18253              |
+# +--------+----------------------------------------+---------------------+
+# | 2      | Realistic pipeline: Python preprocess  | #18229              |
+# |        | → TIR kernel → Python fallback         |                     |
+# +--------+----------------------------------------+---------------------+
+# | 3      | ``add_python_function`` for runtime     | #18229              |
+# |        | registration                           |                     |
+# +--------+----------------------------------------+---------------------+
+# | 4      | ``RelaxToPyFuncConverter``: verify      | #18269, #18301      |
+# |        | Relax IR numerically against PyTorch   |                     |
+# +--------+----------------------------------------+---------------------+
+# | 5      | ``R.call_py_func``: Python callbacks   | #18313, #18326      |
+# |        | inside compiled Relax VM               |                     |
+# +--------+----------------------------------------+---------------------+
+# | 6      | Symbolic shapes for dynamic inputs     | #18288              |
+# +--------+----------------------------------------+---------------------+
 #
-# Together, these features make TVM a hybrid execution framework where you can freely mix
-# compiled TVM code and Python/PyTorch, enabling faster iteration during development
-# and gradual migration of ops from Python fallbacks to optimized TVM kernels.
+# The workflow in practice:
+#
+# 1. Import a model → some ops unsupported → use ``@I.pyfunc`` as Python fallbacks
+# 2. Get it running end-to-end with ``BasePyModule``
+# 3. Use ``RelaxToPyFuncConverter`` to verify correctness after optimization passes
+# 4. Gradually replace Python fallbacks with TIR/Relax implementations
+# 5. Use ``R.call_py_func`` for ops that must stay in Python even after compilation
