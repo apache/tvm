@@ -223,5 +223,57 @@ def test_same_device_different_target():
     tvm.ir.assert_structural_equal(After, Expected)
 
 
+def test_bind_before_thread_extent():
+    """DeviceInfoCollector inlines Bind-defined variables in thread extents.
+
+    When CSE (or another pass) inserts Bind statements before
+    thread_extent AttrStmts, the extent value may reference a
+    locally-bound variable instead of function parameters.
+    LowerDeviceKernelLaunch must inline these bindings so that the
+    launch argument is expressible in terms of the caller's arguments.
+    """
+
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main(A: T.Buffer(16, "float32"), n: T.int32):
+            T.func_attr({"target": T.target("llvm")})
+            Before.kernel(A.data, n)
+
+        @T.prim_func
+        def kernel(A_data: T.handle("float32"), n: T.int32):
+            T.func_attr({"target": T.target("cuda"), "global_symbol": "kernel"})
+            A = T.decl_buffer(16, dtype="float32", data=A_data)
+            v: T.int32 = n + 1
+            i = T.launch_thread("threadIdx.x", v)
+            A[i] = 0.0
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main(A: T.Buffer(16, "float32"), n: T.int32):
+            T.func_attr({"target": T.target("llvm")})
+            T.call_packed("kernel", A.data, n, n + 1)
+
+        @T.prim_func
+        def kernel(A_data: T.handle("float32"), n: T.int32):
+            T.func_attr(
+                {
+                    "target": T.target("cuda"),
+                    "calling_conv": 2,
+                    "tirx.kernel_launch_params": ["threadIdx.x"],
+                    "global_symbol": "kernel",
+                    "tirx.is_global_func": True,
+                }
+            )
+            A = T.decl_buffer(16, dtype="float32", data=A_data)
+            v: T.int32 = n + 1
+            i = T.launch_thread("threadIdx.x", v)
+            A[i] = 0.0
+
+    After = tvm.tirx.transform.LowerDeviceKernelLaunch()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

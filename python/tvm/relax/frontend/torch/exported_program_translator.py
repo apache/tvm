@@ -1123,6 +1123,65 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             )
         )
 
+    def _affine_grid_generator(self, node: fx.Node) -> relax.Var:
+        """Convert torch.nn.functional.affine_grid to relax.op.image.affine_grid."""
+        args = self.retrieve_args(node)
+        theta = args[0]  # [N, 2, 3]
+        size = args[1]  # [N, C, H, W]
+        align_corners = args[2] if len(args) > 2 else False
+
+        if not align_corners:
+            raise NotImplementedError(
+                "affine_grid with align_corners=False is not yet supported in TVM"
+            )
+
+        # Extract spatial dimensions (H, W) from PyTorch's [N, C, H, W] size
+        target_h = size[2]
+        target_w = size[3]
+
+        # Relax affine_grid outputs [N, 2, H, W]
+        grid = self.block_builder.emit(
+            relax.op.image.affine_grid(theta, (target_h, target_w))
+        )
+        # Permute to PyTorch convention [N, H, W, 2]
+        return self.block_builder.emit(relax.op.permute_dims(grid, axes=[0, 2, 3, 1]))
+
+    def _torchvision_roi_align(self, node: fx.Node) -> relax.Var:
+        """Convert torchvision.ops.roi_align to relax.op.vision.roi_align."""
+        args = self.retrieve_args(node)
+        data = args[0]
+        rois = args[1]
+        spatial_scale = args[2] if len(args) > 2 else 1.0
+        pooled_height = args[3] if len(args) > 3 else 1
+        pooled_width = args[4] if len(args) > 4 else pooled_height
+        sampling_ratio = args[5] if len(args) > 5 else -1
+        aligned = args[6] if len(args) > 6 else False
+
+        if aligned:
+            batch_indices = self.block_builder.emit(
+                relax.op.strided_slice(rois, axes=[1], begin=[0], end=[1])
+            )
+            boxes = self.block_builder.emit(
+                relax.op.strided_slice(rois, axes=[1], begin=[1], end=[5])
+            )
+            boxes = self.block_builder.emit(
+                relax.op.subtract(boxes, relax.const(0.5, rois.struct_info.dtype))
+            )
+            rois = self.block_builder.emit(relax.op.concat([batch_indices, boxes], axis=1))
+
+        return self.block_builder.emit(
+            relax.op.vision.roi_align(
+                data,
+                rois,
+                pooled_size=(pooled_height, pooled_width),
+                spatial_scale=spatial_scale,
+                sample_ratio=sampling_ratio,
+                aligned=aligned,
+                layout="NCHW",
+                mode="avg",
+            )
+        )
+
     def _scalar_tensor(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         scalar_value = args[0]
@@ -1732,6 +1791,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "zeros.default": self._zeros,
             "zeros_like.default": self._zeros_like,
             "grid_sampler_2d.default": self._grid_sampler_2d,
+            "affine_grid_generator.default": self._affine_grid_generator,
+            "roi_align.default": self._torchvision_roi_align,
             # datatype
             "to.dtype": self._to,
             "to.dtype_layout": self._to,
