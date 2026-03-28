@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: E501, E731, E741, F841, RUF005
+# ruff: noqa: E501, E731, E741, RUF005
 """ONNX: Open Neural Network Exchange importer for Relax.
 
 This module implements the required functionality to read ONNX models
@@ -36,6 +36,7 @@ Not all TVM kernels currently support dynamic shapes, please file an issue on
 github.com/apache/tvm/issues if you hit an error with dynamic kernels.
 """
 
+import contextlib
 import functools
 import math
 import operator
@@ -97,7 +98,7 @@ def get_constant(
         isn't found in params, the input variable is returned unmodified.
     """
     # Params is actually both the graph nodes and param dictionary, unpack them.
-    graph_nodes, params = params[0], params[1]
+    graph_nodes, params = params
     # Convert if possible
     if isinstance(var, relax.Var) and var.name_hint in params:
         # When converting a parameter to a constant, update references to it as well.
@@ -2421,9 +2422,7 @@ class AffineGrid(OnnxOpConverter):
         align_corners = attr.get("align_corners", 0)
 
         if align_corners != 1:
-            raise NotImplementedError(
-                "AffineGrid with align_corners=0 is not yet supported in TVM"
-            )
+            raise NotImplementedError("AffineGrid with align_corners=0 is not yet supported in TVM")
 
         # Extract size values
         if isinstance(size, relax.Constant):
@@ -4030,15 +4029,7 @@ class GridSample(OnnxOpConverter):
             align_corners=align_corners,
         )
 
-class If(OnnxOpConverter):
-    """Operator converter for the ONNX If operator (conditional branching)."""
-    
-    @classmethod
-    def _impl_v1(cls, bb, inputs, attr, params):
-        raise NotImplementedError(
-            "If is handled directly in _construct_nodes, not via the converter map."
-        )
-    
+
 def _get_convert_map():
     return {
         # defs/experimental
@@ -4186,7 +4177,6 @@ def _get_convert_map():
         "OneHot": OneHot,
         "Unique": Unique,
         "NonZero": NonZero,
-        "If": If,
         # "MaxRoiPool": MaxRoiPool,
         "RoiAlign": RoiAlign,
         "NonMaxSuppression": NonMaxSuppression,
@@ -4262,8 +4252,6 @@ class ONNXGraphImporter:
         mod : tvm.IRModule
             The returned relax module
         """
-        import contextlib
-
         has_if = any(node.op_type == "If" for node in graph.node)
 
         with self.bb.function("main"):
@@ -4285,6 +4273,7 @@ class ONNXGraphImporter:
                 else:
                     output_var = self.bb.emit_output(outputs)
 
+            # ExitStack closes here — dataflow block is now closed
             func_attrs = {"num_input": self._num_input}
             input_list = [value for value in self._inputs.values() if isinstance(value, relax.Var)]
             if self._keep_params_in_input and self._params:
@@ -4382,12 +4371,15 @@ class ONNXGraphImporter:
 
     def _check_for_unsupported_ops(self, graph: onnx.onnx_ml_pb2.GraphProto):
         convert_map = _get_convert_map()
+        # Ops handled directly in _construct_nodes rather than via the converter map.
+        directly_handled_ops = {"If"}
         unsupported_ops = set()
         for node in graph.node:
             op_name = node.op_type
             if (
-                op_name not in convert_map and op_name != "Constant"
-                # and op_name not in _identity_list
+                op_name not in convert_map
+                and op_name not in directly_handled_ops
+                and op_name != "Constant"
             ):
                 unsupported_ops.add(op_name)
         if unsupported_ops:
@@ -4420,15 +4412,13 @@ class ONNXGraphImporter:
                 then_seq = relax.SeqExpr(blocks=[], body=then_expr)
                 else_seq = relax.SeqExpr(blocks=[], body=else_expr)
                 if_result = self.bb.emit(relax.If(cond, then_seq, else_seq))
-
-                # Handle single and multiple outputs
                 if len(outputs) == 1:
                     self._nodes[outputs[0]] = if_result
                 else:
-                    for k, i in zip(outputs, range(len(outputs))):
+                    for i, k in enumerate(outputs):
                         self._nodes[k] = self.bb.emit(relax.TupleGetItem(if_result, i))
                 continue
-                           
+
             # Perform special handling for shape expressions. If an input is a
             # shape expr, make sure the current op can handle it, otherwise
             # convert it to a tensor.
@@ -4491,7 +4481,7 @@ class ONNXGraphImporter:
             if outputs_num == 1:
                 self._nodes[outputs[0]] = op
             else:
-                for k, i in zip(list(outputs), range(len(outputs))):
+                for i, k in enumerate(outputs):
                     self._nodes[k] = op[i]
 
     def _parse_value_proto(self, value_proto: onnx.onnx_ml_pb2.GraphProto):
@@ -4562,11 +4552,11 @@ class ONNXGraphImporter:
         if op_name in convert_map:
             convert_class = convert_map[op_name]
             op_function = convert_class.get_converter(opset)
-            sym = op_function(self.bb, inputs, attrs, [self._nodes, self._params, self])
+            sym = op_function(self.bb, inputs, attrs, [self._nodes, self._params])
         else:
             raise NotImplementedError(f"Operator {op_name} not implemented.")
         return sym
-    
+
     def _convert_subgraph(self, bb, graph):
         """
         Walk an ONNX GraphProto (a branch body) and return a Relax SeqExpr.
@@ -4575,51 +4565,74 @@ class ONNXGraphImporter:
         """
         outer_nodes = dict(self._nodes)
 
-        for init_tensor in graph.initializer:
-            array = self._parse_array(init_tensor)
-            self._nodes[init_tensor.name] = relax.const(array)
+        try:
+            for init_tensor in graph.initializer:
+                array = self._parse_array(init_tensor)
+                self._nodes[init_tensor.name] = relax.const(array)
 
-        for node in graph.node:
-            op_name = node.op_type
-            attr = self._parse_attr(node.attribute)
+            for node in graph.node:
+                op_name = node.op_type
+                attr = self._parse_attr(node.attribute)
 
-            inputs = onnx_input()
-            for i in node.input:
-                if i != "":
-                    inputs.append(self._nodes.get(i, outer_nodes.get(i)))
+                inputs = onnx_input()
+                for i in node.input:
+                    if i != "":
+                        inputs.append(self._nodes.get(i, outer_nodes.get(i)))
+                    else:
+                        inputs.append(None)
+
+                attr["tvm_custom"] = {}
+                attr["tvm_custom"]["name"] = node.name
+                attr["tvm_custom"]["num_outputs"] = len(node.output)
+
+                # Handle nested If recursively.
+                if op_name == "If":
+                    cond = inputs[0]
+                    then_expr = self._convert_subgraph(bb, attr["then_branch"])
+                    else_expr = self._convert_subgraph(bb, attr["else_branch"])
+                    then_seq = relax.SeqExpr(blocks=[], body=then_expr)
+                    else_seq = relax.SeqExpr(blocks=[], body=else_expr)
+                    op = bb.emit(relax.If(cond, then_seq, else_seq))
+                    outputs = node.output
+                    if len(outputs) == 1:
+                        self._nodes[outputs[0]] = op
+                    else:
+                        for i, k in enumerate(outputs):
+                            self._nodes[k] = bb.emit(relax.TupleGetItem(op, i))
+                    continue
+
+                op = self._convert_operator(op_name, inputs, attr, self.opset)
+                try:
+                    _ = op.struct_info
+                    has_struct_info = True
+                except tvm.error.InternalError:
+                    has_struct_info = False
+
+                if not has_struct_info:
+                    op = bb.normalize(op)
+
+                if not isinstance(op, relax.Tuple):
+                    if isinstance(op.struct_info, relax.TupleStructInfo):
+                        tuple_items = [
+                            relax.TupleGetItem(op, i) for i in range(len(op.struct_info.fields))
+                        ]
+                        op = relax.Tuple(tuple_items)
+
+                outputs = node.output
+                if len(outputs) == 1:
+                    self._nodes[outputs[0]] = op
                 else:
-                    inputs.append(None)
+                    for i, k in enumerate(outputs):
+                        self._nodes[k] = op[i]
 
-            attr["tvm_custom"] = {}
-            attr["tvm_custom"]["name"] = node.name
-            attr["tvm_custom"]["num_outputs"] = len(node.output)
+            branch_outputs = [self._nodes[o.name] for o in graph.output]
+            result = branch_outputs[0] if len(branch_outputs) == 1 else relax.Tuple(branch_outputs)
 
-            op = self._convert_operator(op_name, inputs, attr, self.opset)
-            try:
-                _ = op.struct_info
-            except Exception:
-                op = bb.normalize(op)
+            self._nodes = outer_nodes
+            return result
+        finally:
+            self._nodes = outer_nodes
 
-            if not isinstance(op, relax.Tuple):
-                if isinstance(op.struct_info, relax.TupleStructInfo):
-                    tuple_items = [
-                        relax.TupleGetItem(op, i)
-                        for i in range(len(op.struct_info.fields))
-                    ]
-                    op = relax.Tuple(tuple_items)
-
-            outputs = node.output
-            if len(outputs) == 1:
-                self._nodes[outputs[0]] = op
-            else:
-                for k, i in zip(outputs, range(len(outputs))):
-                    self._nodes[k] = op[i]
-
-        branch_outputs = [self._nodes[o.name] for o in graph.output]
-        result = branch_outputs[0] if len(branch_outputs) == 1 else relax.Tuple(branch_outputs)
-
-        self._nodes = outer_nodes
-        return result
 
 def from_onnx(
     model: onnx.onnx_ml_pb2.GraphProto,
