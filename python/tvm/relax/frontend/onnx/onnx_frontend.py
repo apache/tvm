@@ -359,7 +359,7 @@ def _to_numpy(x):
 
 
 class _EmptyOptional:
-    """Sentinel object used to represent an empty ONNX Optional value."""
+    """Sentinel object that preserves an empty ONNX Optional during import."""
 
     def __init__(self, type_proto: onnx.onnx_ml_pb2.TypeProto):
         self.type_proto = type_proto
@@ -3610,7 +3610,7 @@ class SpaceToDepth(OnnxOpConverter):
 
 
 class Optional_(OnnxOpConverter):
-    """Operator converter for Optional."""
+    """Converts an ONNX Optional node into an erased or empty Optional representation."""
 
     @classmethod
     def _impl_v15(cls, bb, inputs, attr, params):
@@ -3626,7 +3626,7 @@ class Optional_(OnnxOpConverter):
 
 
 class OptionalHasElement(OnnxOpConverter):
-    """Operator converter for OptionalHasElement."""
+    """Converts an ONNX OptionalHasElement node into a boolean constant."""
 
     @classmethod
     def _impl_v15(cls, bb, inputs, attr, params):
@@ -3640,7 +3640,7 @@ class OptionalHasElement(OnnxOpConverter):
 
 
 class OptionalGetElement(OnnxOpConverter):
-    """Operator converter for OptionalGetElement."""
+    """Converts an ONNX OptionalGetElement node by unwrapping a non-empty Optional."""
 
     @classmethod
     def _impl_v15(cls, bb, inputs, attr, params):

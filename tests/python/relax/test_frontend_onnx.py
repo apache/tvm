@@ -483,6 +483,28 @@ def test_matmulinteger16_ir():
     assert 'dtype="uint32"' in tvm_model_str
 
 
+def test_matmulinteger16_invalid_dtype_raises():
+    node = helper.make_node("MatMulInteger16", ["a", "b"], ["y"], domain="com.microsoft")
+    graph = helper.make_graph(
+        [node],
+        "matmulinteger16_invalid_dtype_test",
+        inputs=[
+            helper.make_tensor_value_info("a", TensorProto.INT8, [2, 3]),
+            helper.make_tensor_value_info("b", TensorProto.UINT16, [3, 4]),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.INT32, [2, 4])],
+    )
+    model = helper.make_model(
+        graph,
+        producer_name="matmulinteger16_invalid_dtype_test",
+        opset_imports=[helper.make_opsetid("", 18), helper.make_opsetid("com.microsoft", 1)],
+    )
+    model.ir_version = 11
+
+    with pytest.raises(ValueError, match="input A"):
+        from_onnx(model, opset=18, keep_params_in_input=True)
+
+
 def test_concat():
     verify_binary("Concat", [1, 32], [1, 32], [2, 32], attrs={"axis": 0})
 
@@ -3441,6 +3463,27 @@ def test_optional_has_element_empty_ir():
     assert 'R.const(False, "bool")' in str(tvm_model)
 
 
+def test_optional_get_element_tensor_ir():
+    x_shape = [2, 3]
+    optional_node = helper.make_node("Optional", ["x"], ["optional"])
+    get_element_node = helper.make_node("OptionalGetElement", ["optional"], ["output"])
+    graph = helper.make_graph(
+        [optional_node, get_element_node],
+        "test_optional_get_element_tensor_ir",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, x_shape)],
+        outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, x_shape)],
+        value_info=[make_optional_tensor_value_info("optional", TensorProto.FLOAT, x_shape)],
+    )
+    model = helper.make_model(graph, producer_name="test_optional_get_element_tensor_ir")
+    model.ir_version = 11
+    model.opset_import[0].version = 18
+    tvm_model = from_onnx(model, opset=18, keep_params_in_input=True)
+
+    tvm_model_str = str(tvm_model)
+    assert "Optional" not in tvm_model_str
+    assert "OptionalGetElement" not in tvm_model_str
+
+
 def test_optional_get_element_sequence():
     seq_node, graph_inputs = construct_sequence(input_shape=[32, 32], num_tensors=4)
     index = make_constant_node("index", TensorProto.INT64, (), [1])
@@ -3456,6 +3499,23 @@ def test_optional_get_element_sequence():
     )
     model = helper.make_model(graph, producer_name="test_optional_get_element_sequence")
     check_correctness(model, opset=18, ir_version=11)
+
+
+def test_optional_without_input_requires_type_attr():
+    tensor_type = helper.make_tensor_type_proto(TensorProto.FLOAT, [2, 3])
+    optional_type = helper.make_optional_type_proto(tensor_type)
+    optional_node = helper.make_node("Optional", [], ["optional"])
+    graph = helper.make_graph(
+        [optional_node],
+        "test_optional_without_input_requires_type_attr",
+        inputs=[],
+        outputs=[helper.make_value_info("optional", optional_type)],
+    )
+    model = helper.make_model(graph, producer_name="test_optional_without_input_requires_type_attr")
+    model.opset_import[0].version = 18
+
+    with pytest.raises(ValueError, match="type attribute"):
+        from_onnx(model, opset=18, keep_params_in_input=True)
 
 
 def test_optional_get_element_empty_raises():
