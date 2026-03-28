@@ -29,7 +29,7 @@ while keeping the same underlying data.
 from collections.abc import Sequence
 
 from tvm.relax import DataTypeImm, Expr, PrimValue, ShapeExpr
-from tvm.tir import PrimExpr
+from tvm.tirx import PrimExpr
 
 from . import _ffi_api
 

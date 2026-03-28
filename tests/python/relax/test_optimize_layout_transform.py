@@ -26,7 +26,7 @@ from tvm.ir.base import assert_structural_equal
 from tvm.relax.transform import DeadCodeElimination, FuseTIR, OptimizeLayoutTransform
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def _run_pass_compare_output(Before, Expected):
@@ -286,7 +286,7 @@ def test_tranform_layout_tir_remove_pad_transform_layout():
 
         @T.prim_func(private=True)
         def remove_pad(var_input: T.handle, var_output: T.handle):
-            T.func_attr({"operator_name": "remove_pad", "tir.noalias": True})
+            T.func_attr({"operator_name": "remove_pad", "tirx.noalias": True})
             p0 = T.int64()
             input = T.match_buffer(var_input, (p0,))
             i0 = T.int64()
@@ -363,7 +363,7 @@ def test_tranform_layout_tir_remove_pad_transform_layout():
 
         @T.prim_func(private=True)
         def remove_pad(var_input: T.handle, var_output: T.handle):
-            T.func_attr({"operator_name": "remove_pad", "tir.noalias": True})
+            T.func_attr({"operator_name": "remove_pad", "tirx.noalias": True})
             p0 = T.int64()
             input = T.match_buffer(var_input, (p0,))
             i0 = T.int64()

@@ -51,20 +51,20 @@ def test_dso_module_load(target):
 
     def save_object(names):
         n = te.size_var("n")
-        Ab = tvm.tir.decl_buffer((n,), dtype)
+        Ab = tvm.tirx.decl_buffer((n,), dtype)
         i = te.var("i")
         # for i in 0 to n-1:
-        stmt = tvm.tir.For(
+        stmt = tvm.tirx.For(
             i,
             0,
             n - 1,
-            tvm.tir.ForKind.SERIAL,
-            tvm.tir.BufferStore(Ab, tvm.tir.BufferLoad(Ab, [i]) + 1, [i + 1]),
+            tvm.tirx.ForKind.SERIAL,
+            tvm.tirx.BufferStore(Ab, tvm.tirx.BufferLoad(Ab, [i]) + 1, [i + 1]),
         )
         mod = tvm.IRModule.from_expr(
-            tvm.tir.PrimFunc([Ab], stmt).with_attr("global_symbol", "main")
+            tvm.tirx.PrimFunc([Ab], stmt).with_attr("global_symbol", "main")
         )
-        m = tvm.tir.build(mod, target=target)
+        m = tvm.tirx.build(mod, target=target)
         for name in names:
             m.write_to_file(name)
 
@@ -166,8 +166,8 @@ def test_combine_module_llvm():
     def check_llvm():
         dev = tvm.cpu(0)
         temp = utils.tempdir()
-        fadd1 = tvm.tir.build(mod1, "llvm")
-        fadd2 = tvm.tir.build(mod2, "llvm")
+        fadd1 = tvm.tirx.build(mod1, "llvm")
+        fadd2 = tvm.tirx.build(mod2, "llvm")
         path1 = temp.relpath("myadd1.o")
         path2 = temp.relpath("myadd2.o")
         path_dso = temp.relpath("mylib.so")
@@ -192,8 +192,8 @@ def test_combine_module_llvm():
             return
         temp = utils.tempdir()
         print("Running popen check")
-        fadd1 = tvm.tir.build(mod1.with_attr("system_lib_prefix", ""), "llvm")
-        fadd2 = tvm.tir.build(mod2.with_attr("system_lib_prefix", ""), "llvm")
+        fadd1 = tvm.tirx.build(mod1.with_attr("system_lib_prefix", ""), "llvm")
+        fadd2 = tvm.tirx.build(mod2.with_attr("system_lib_prefix", ""), "llvm")
         path1 = temp.relpath("myadd1.o")
         path2 = temp.relpath("myadd2.o")
         path_dso = temp.relpath("mylib.so")

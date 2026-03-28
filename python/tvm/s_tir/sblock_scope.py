@@ -22,7 +22,7 @@ from typing import Optional
 from tvm_ffi import register_object
 
 from tvm.runtime import Object
-from tvm.tir import For, SBlock
+from tvm.tirx import For, SBlock
 
 from . import _ffi_api
 

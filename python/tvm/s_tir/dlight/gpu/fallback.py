@@ -17,7 +17,7 @@
 # pylint: disable=missing-docstring
 """A fallback schedule rule for GPU operators."""
 
-from tvm import s_tir, tir
+from tvm import s_tir, tirx
 from tvm.target import Target
 
 from .. import base
@@ -34,11 +34,11 @@ class Fallback(GPUScheduleRule):
 
     def apply(  # pylint: disable=too-many-locals,missing-docstring
         self,
-        func: tir.PrimFunc,
+        func: tirx.PrimFunc,
         target: Target,
         _: bool,
     ) -> s_tir.Schedule:
-        if not isinstance(func, tir.PrimFunc) or not self.is_target_available(target):
+        if not isinstance(func, tirx.PrimFunc) or not self.is_target_available(target):
             return None
         max_threads_per_block = base.max_threads_per_block(target)
 

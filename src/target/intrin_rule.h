@@ -25,15 +25,15 @@
 #define TVM_TARGET_INTRIN_RULE_H_
 
 #include <tvm/ffi/function.h>
-#include <tvm/tir/builtin.h>
-#include <tvm/tir/expr.h>
+#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/expr.h>
 
 #include <string>
 
 namespace tvm {
 namespace codegen {
 namespace intrin {
-using namespace tir;
+using namespace tirx;
 
 // Add float suffix to the intrinsics
 struct FloatSuffix {
@@ -68,7 +68,7 @@ inline PrimExpr DispatchPureExtern(const PrimExpr& e) {
   const OpNode* op = call->op.as<OpNode>();
   TVM_FFI_ICHECK(op != nullptr);
   std::string name = op->name;
-  TVM_FFI_ICHECK_EQ(name.substr(0, 4), "tir.");
+  TVM_FFI_ICHECK_EQ(name.substr(0, 5), "tirx.");
   DataType dtype;
   if (dtype_from_arg) {
     TVM_FFI_ICHECK_EQ(call->args.size(), 1U);
@@ -76,7 +76,7 @@ inline PrimExpr DispatchPureExtern(const PrimExpr& e) {
   } else {
     dtype = call->dtype;
   }
-  name = T()(dtype, name.substr(4));
+  name = T()(dtype, name.substr(5));
 
   if (name.length() != 0) {
     ffi::Array<PrimExpr> new_args = {StringImm(name)};

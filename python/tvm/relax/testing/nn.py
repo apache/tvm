@@ -24,7 +24,7 @@ from typing import Any
 import numpy as np  # type: ignore
 
 import tvm
-from tvm import relax, tir, topi
+from tvm import relax, tirx, topi
 from tvm.relax.op.grad.grad import end_checkpoint, start_checkpoint
 
 
@@ -287,7 +287,7 @@ def init_params(mod: tvm.IRModule) -> list[tvm.runtime.Tensor]:
         if isinstance(v, relax.ShapeExpr):
             shape = []
             for i in v:
-                if isinstance(i, tir.IntImm):
+                if isinstance(i, tirx.IntImm):
                     shape.append(int(i))
                 else:
                     raise TypeError("cannot initialize for unknown-shape parameters.")

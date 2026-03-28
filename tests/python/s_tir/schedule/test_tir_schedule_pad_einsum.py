@@ -20,12 +20,12 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import tir
+from tvm import tirx
 from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 # pylint: disable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
@@ -167,7 +167,7 @@ def test_pad_matmul_2():
         m: T.handle,
         d: T.handle,
     ):
-        T.func_attr({"tir.noalias": True})
+        T.func_attr({"tirx.noalias": True})
         n = T.int32()
         A = T.match_buffer(a, (1, n, 4096))
         B = T.match_buffer(b, (11008, 4096))
@@ -189,7 +189,7 @@ def test_pad_matmul_2():
 
     @T.prim_func
     def after(a: T.handle, b: T.handle, m: T.handle, d: T.handle):
-        T.func_attr({"tir.noalias": True})
+        T.func_attr({"tirx.noalias": True})
         n = T.int32()
         A = T.match_buffer(a, (1, n, 4096))
         B = T.match_buffer(b, (11008, 4096))
@@ -236,7 +236,7 @@ def test_pad_rms():
         w: T.handle,
         r: T.handle,
     ):
-        T.func_attr({"tir.noalias": True})
+        T.func_attr({"tirx.noalias": True})
         n = T.int32()
         A = T.match_buffer(a, (1, n, 4096))
         W = T.match_buffer(w, (4096,), "float32")
@@ -260,7 +260,7 @@ def test_pad_rms():
 
     @T.prim_func
     def after(a: T.handle, w: T.handle, r: T.handle):
-        T.func_attr({"tir.noalias": True})
+        T.func_attr({"tirx.noalias": True})
         n = T.int32()
         A = T.match_buffer(a, (1, n, 4096))
         W = T.match_buffer(w, (4096,), "float32")

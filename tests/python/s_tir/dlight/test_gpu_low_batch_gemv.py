@@ -19,7 +19,7 @@
 
 import tvm.testing
 from tvm.s_tir import dlight as dl
-from tvm.script import tir as T
+from tvm.script import tirx as T
 from tvm.target import Target
 
 
@@ -28,7 +28,7 @@ def test_batch_decode_gemv():
 
     @T.prim_func(private=True)
     def before(lv429: T.Buffer((T.int64(4096), T.int64(3584)), "uint32"), lv430: T.Buffer((T.int64(4096), T.int64(896)), "float16"), p_lv807: T.handle, p_output0: T.handle):
-        T.func_attr({"tir.noalias": True, "tir.HoistIfThenElseExprWithBlock": 1})
+        T.func_attr({"tirx.noalias": True, "tirx.HoistIfThenElseExprWithBlock": 1})
         batch_size = T.int64()
         lv807 = T.match_buffer(p_lv807, (batch_size, T.int64(1), T.int64(28672)), "float16")
         NT_matmul_intermediate = T.match_buffer(p_output0, (batch_size, T.int64(1), T.int64(4096)), "float16")
@@ -58,7 +58,7 @@ def test_batch_decode_gemv():
 
     @T.prim_func(private=True)
     def expected(lv429: T.Buffer((T.int64(4096), T.int64(3584)), "uint32"), lv430: T.Buffer((T.int64(4096), T.int64(896)), "float16"), p_lv807: T.handle, p_output0: T.handle):
-        T.func_attr({"tir.HoistIfThenElseExprWithBlock": 1, "tir.is_scheduled": True, "tir.noalias": True})
+        T.func_attr({"tirx.HoistIfThenElseExprWithBlock": 1, "tirx.is_scheduled": True, "tirx.noalias": True})
         batch_size = T.int64()
         lv807 = T.match_buffer(p_lv807, (batch_size, T.int64(1), T.int64(28672)), "float16")
         NT_matmul_intermediate = T.match_buffer(p_output0, (batch_size, T.int64(1), T.int64(4096)), "float16")
@@ -156,7 +156,7 @@ def test_batch_gemv():
     # fmt: off
     @T.prim_func(private=True)
     def before(var_A: T.handle, B: T.Buffer((T.int64(N), T.int64(K)), "float16"), var_NT_matmul: T.handle):
-        T.func_attr({"tir.noalias": True, "tir.HoistIfThenElseExprWithBlock": 1})
+        T.func_attr({"tirx.noalias": True, "tirx.HoistIfThenElseExprWithBlock": 1})
         batch_size = T.int64()
         A = T.match_buffer(var_A, (batch_size, T.int64(1), T.int64(K)), "float16")
         NT_matmul = T.match_buffer(var_NT_matmul, (batch_size, T.int64(1), T.int64(N)), "float16")
@@ -172,7 +172,7 @@ def test_batch_gemv():
 
     @T.prim_func(private=True)
     def expected(var_A: T.handle, B: T.Buffer((T.int64(4096), T.int64(4096)), "float16"), var_NT_matmul: T.handle):
-        T.func_attr({"tir.HoistIfThenElseExprWithBlock": 1, "tir.is_scheduled": True, "tir.noalias": True})
+        T.func_attr({"tirx.HoistIfThenElseExprWithBlock": 1, "tirx.is_scheduled": True, "tirx.noalias": True})
         batch_size = T.int64()
         A = T.match_buffer(var_A, (batch_size, T.int64(1), T.int64(4096)), "float16")
         NT_matmul = T.match_buffer(var_NT_matmul, (batch_size, T.int64(1), T.int64(4096)), "float16")
@@ -257,7 +257,7 @@ def test_reduction_symbolic_var():
     # fmt: off
     @T.prim_func(private=True)
     def before(var_A: T.handle, var_B: T.handle, matmul: T.Buffer((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float32")):
-        T.func_attr({"tir.noalias": True})
+        T.func_attr({"tirx.noalias": True})
         kv_seq_len = T.int64()
         A = T.match_buffer(var_A, (T.int64(1), T.int64(32), T.int64(1), kv_seq_len))
         B = T.match_buffer(var_B, (T.int64(1), T.int64(32), kv_seq_len, T.int64(128)))
@@ -280,7 +280,7 @@ def test_reduction_symbolic_var():
 def test_small_spatial_axis():
     @T.prim_func(private=True)
     def func(var_A: T.handle, B: T.Buffer((T.int64(8), T.int64(4096)), "float16"), var_C: T.handle):
-        T.func_attr({"tir.noalias": True})
+        T.func_attr({"tirx.noalias": True})
         batch_size = T.int64()
         A = T.match_buffer(var_A, (batch_size, T.int64(4096)), "float16")
         C = T.match_buffer(var_C, (batch_size, T.int64(8)), "float16")
@@ -296,7 +296,7 @@ def test_small_spatial_axis():
     # fmt: off
     @T.prim_func(private=True)
     def expected(var_A: T.handle, B: T.Buffer((T.int64(8), T.int64(4096)), "float16"), var_C: T.handle):
-        T.func_attr({"tir.is_scheduled": True, "tir.noalias": True})
+        T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
         batch_size = T.int64()
         A = T.match_buffer(var_A, (batch_size, T.int64(4096)), "float16")
         C = T.match_buffer(var_C, (batch_size, T.int64(8)), "float16")
@@ -414,7 +414,7 @@ def test_outer_reduction():
 
     @T.prim_func(private=True)
     def expected(B0: T.Buffer((512, 6144), "uint32"), B1: T.Buffer((128, 6144), "float16"), var_A: T.handle, var_C: T.handle):
-        T.func_attr({"tir.is_scheduled": True})
+        T.func_attr({"tirx.is_scheduled": True})
         batch_size = T.int32()
         A = T.match_buffer(var_A, (batch_size, 1, 4096), "float16")
         C = T.match_buffer(var_C, (batch_size, 1, 6144), "float16")

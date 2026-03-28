@@ -24,8 +24,8 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/te/tensor.h>
-#include <tvm/tir/expr.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/expr.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include <tuple>
 #include <unordered_map>
@@ -36,7 +36,7 @@
 namespace tvm {
 namespace arith {
 
-using namespace tir;
+using namespace tirx;
 
 namespace {
 

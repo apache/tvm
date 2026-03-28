@@ -23,15 +23,15 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tir/op.h>
-#include <tvm/tir/stmt.h>
+#include <tvm/tirx/op.h>
+#include <tvm/tirx/stmt.h>
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 Stmt DecorateDeviceScopeImpl(Stmt&& stmt) {
-  Stmt body = AttrStmt(make_zero(DataType::Int(32)), tir::attr::device_scope, 0, stmt);
+  Stmt body = AttrStmt(make_zero(DataType::Int(32)), tirx::attr::device_scope, 0, stmt);
   return body;
 }
 

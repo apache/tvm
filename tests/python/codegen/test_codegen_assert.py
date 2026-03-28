@@ -20,7 +20,7 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 codegen_target = tvm.testing.parameter("llvm", "c")
 

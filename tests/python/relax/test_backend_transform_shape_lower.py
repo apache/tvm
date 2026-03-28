@@ -23,7 +23,7 @@ from tvm.ir import assert_structural_equal
 from tvm.relax.testing.runtime_builtin import MakeShapeCode, MatchShapeCode
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 # note: we expected RemovePurityChecking to be run first, so we force purity in most test cases
 
@@ -194,7 +194,7 @@ def test_symbolic_compute():
         @T.prim_func(private=True)
         def shape_func(H: T.Buffer(T.int64(4), "int64")):
             # generated compute function
-            T.func_attr({"tir.is_host_func": True})
+            T.func_attr({"tirx.is_host_func": True})
             H[T.int64(sindex["k+1"])] = H[T.int64(sindex["k"])] + T.int64(1)
 
         @R.function
@@ -528,7 +528,7 @@ def test_return_match_check_with_new_expr():
         @T.prim_func(private=True)
         def shape_func(H: T.Buffer(T.int64(2), "int64")):
             # generated compute function
-            T.func_attr({"tir.is_host_func": True})
+            T.func_attr({"tirx.is_host_func": True})
             H[T.int64(sindex["n * n"])] = H[T.int64(sindex["n"])] * H[T.int64(sindex["n"])]
 
     before = Before

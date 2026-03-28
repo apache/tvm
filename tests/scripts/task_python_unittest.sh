@@ -51,9 +51,9 @@ TEST_FILES=(
   "s_tir/schedule"
   "s_tir/dlight"
   "s_tir/analysis"
-  "tir-analysis"
-  "tir-base"
-  "tir-transform"
+  "tirx-analysis"
+  "tirx-base"
+  "tirx-transform"
   "tvmscript"
   "relax"
 )

@@ -23,7 +23,7 @@ import logging
 import tvm_ffi
 
 from tvm.runtime import DataType
-from tvm.script import tir as T
+from tvm.script import tirx as T
 from tvm.target.codegen import Target, llvm_get_vector_width, target_has_features
 
 from .. import TensorIntrin
@@ -169,7 +169,7 @@ def rvv_vec_dot_product_kernels(
     return rvv_vec_dot_prod_desc, rvv_vec_dot_prod_impl
 
 
-@tvm_ffi.register_global_func("tir.tensor_intrin.register_rvv_isa_intrinsics")
+@tvm_ffi.register_global_func("tirx.tensor_intrin.register_rvv_isa_intrinsics")
 def register_rvv_isa_intrinsics(target: Target, inventory_only=False) -> dict():
     """Register RISCV V (vector) intrinsics
     [x] Implementation follows version 1.0 vector specifications:

@@ -21,17 +21,17 @@
 #include <tvm/ir/module.h>
 #include <tvm/node/functor.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/tir/analysis.h>
-#include <tvm/tir/builtin.h>
-#include <tvm/tir/expr.h>
-#include <tvm/tir/expr_functor.h>
-#include <tvm/tir/function.h>
-#include <tvm/tir/op.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/analysis.h>
+#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/expr.h>
+#include <tvm/tirx/expr_functor.h>
+#include <tvm/tirx/function.h>
+#include <tvm/tirx/op.h>
+#include <tvm/tirx/stmt_functor.h>
 
 TEST(IRF, Basic) {
   using namespace tvm;
-  using namespace tvm::tir;
+  using namespace tvm::tirx;
   Var x("x");
   auto z = x + 1;
 
@@ -44,12 +44,12 @@ TEST(IRF, Basic) {
 
 TEST(IRF, CountVar) {
   using namespace tvm;
-  using namespace tvm::tir;
+  using namespace tvm::tirx;
   int n_var = 0;
   Var x("x"), y;
 
   auto z = x + 1 + y + y;
-  tir::PostOrderVisit(z, [&n_var](const ObjectRef& n) {
+  tirx::PostOrderVisit(z, [&n_var](const ObjectRef& n) {
     if (n.as<VarNode>()) ++n_var;
   });
   TVM_FFI_ICHECK_EQ(n_var, 2);
@@ -57,7 +57,7 @@ TEST(IRF, CountVar) {
 
 TEST(IRF, PreOrderVisit) {
   using namespace tvm;
-  using namespace tvm::tir;
+  using namespace tvm::tirx;
   Stmt init = IfThenElse(const_true(), Evaluate(Integer(0)), Evaluate(Integer(0)));
   Stmt body = Evaluate(Integer(1));
   SBlock block(/*iter_vars=*/{}, /*reads=*/{},
@@ -91,11 +91,11 @@ TEST(IRF, PreOrderVisit) {
 
 TEST(IRF, ExprTransform) {
   using namespace tvm;
-  using namespace tvm::tir;
+  using namespace tvm::tirx;
   Var x("x");
   auto z = x + 1;
 
-  class MyExprFunctor : public tir::ExprFunctor<int(const PrimExpr&, int)> {
+  class MyExprFunctor : public tirx::ExprFunctor<int(const PrimExpr&, int)> {
    public:
     int VisitExpr_(const VarNode* op, int b) final { return b; }
     int VisitExpr_(const IntImmNode* op, int b) final { return op->value; }
@@ -115,12 +115,12 @@ TEST(IRF, ExprTransform) {
 
 TEST(IRF, ExprVisit) {
   using namespace tvm;
-  using namespace tvm::tir;
+  using namespace tvm::tirx;
   Var x("x");
   auto z = x + 1;
 
-  class MyVisitor : public tir::ExprFunctor<void(const PrimExpr&)>,
-                    public tir::StmtFunctor<void(const Stmt&)> {
+  class MyVisitor : public tirx::ExprFunctor<void(const PrimExpr&)>,
+                    public tirx::StmtFunctor<void(const Stmt&)> {
    public:
     int count = 0;
     // implementation
@@ -139,7 +139,7 @@ TEST(IRF, ExprVisit) {
 
 TEST(IRF, StmtVisitor) {
   using namespace tvm;
-  using namespace tvm::tir;
+  using namespace tvm::tirx;
   Var x("x");
   class MyVisitor : public StmtExprVisitor {
    public:
@@ -189,10 +189,10 @@ TEST(IRF, StmtVisitor) {
 
 TEST(IRF, StmtMutator) {
   using namespace tvm;
-  using namespace tvm::tir;
+  using namespace tvm::tirx;
   Var x("x");
 
-  class MyVisitor : public tir::StmtMutator, public tir::ExprMutator {
+  class MyVisitor : public tirx::StmtMutator, public tirx::ExprMutator {
    public:
     using StmtMutator::operator();
     using ExprMutator::operator();
@@ -328,7 +328,7 @@ TEST(IRF, StmtMutator) {
 
 TEST(IRF, Substitute) {
   using namespace tvm;
-  using namespace tvm::tir;
+  using namespace tvm::tirx;
   DataType dtype = DataType::Float(32);
   Var x("x", PointerType(PrimType(dtype), ""));
   Var n("n", DataType::Int(32));

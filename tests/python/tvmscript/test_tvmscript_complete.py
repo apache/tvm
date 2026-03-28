@@ -17,7 +17,7 @@
 
 import tvm.testing
 from tvm.ir import Range
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 @T.prim_func
@@ -112,11 +112,17 @@ def test_complete_matmul():
     A, B, C = [func.buffer_map[x] for x in func.params]
 
     block = func.body.block.body.body.body.body.block
-    assert isinstance(block, tvm.tir.SBlock)
+    assert isinstance(block, tvm.tirx.SBlock)
     vi, vj, vk = [x.var for x in block.iter_vars]
-    access_A = tvm.tir.BufferRegion(A, [Range.from_min_extent(vi, 1), Range.from_min_extent(vk, 1)])
-    access_B = tvm.tir.BufferRegion(B, [Range.from_min_extent(vj, 1), Range.from_min_extent(vk, 1)])
-    access_C = tvm.tir.BufferRegion(C, [Range.from_min_extent(vi, 1), Range.from_min_extent(vj, 1)])
+    access_A = tvm.tirx.BufferRegion(
+        A, [Range.from_min_extent(vi, 1), Range.from_min_extent(vk, 1)]
+    )
+    access_B = tvm.tirx.BufferRegion(
+        B, [Range.from_min_extent(vj, 1), Range.from_min_extent(vk, 1)]
+    )
+    access_C = tvm.tirx.BufferRegion(
+        C, [Range.from_min_extent(vi, 1), Range.from_min_extent(vj, 1)]
+    )
     tvm.ir.assert_structural_equal(block.reads, [access_A, access_B])
     tvm.ir.assert_structural_equal(block.writes, [access_C])
 
@@ -126,24 +132,24 @@ def test_complete_matmul_original():
     A, B, C = [func.buffer_map[x] for x in func.params]
 
     block1 = func.body.block.body.body.body[0].block
-    assert isinstance(block1, tvm.tir.SBlock)
+    assert isinstance(block1, tvm.tirx.SBlock)
     vi, vj = [x.var for x in block1.iter_vars]
-    access_C = tvm.tir.BufferRegion(
+    access_C = tvm.tirx.BufferRegion(
         C, [Range.from_min_extent(vi * 4, 4), Range.from_min_extent(vj * 4, 4)]
     )
     tvm.ir.assert_structural_equal(block1.reads, [])
     tvm.ir.assert_structural_equal(block1.writes, [access_C])
 
     block2 = func.body.block.body.body.body[1].body.block
-    assert isinstance(block2, tvm.tir.SBlock)
+    assert isinstance(block2, tvm.tirx.SBlock)
     vi, vj, vk = [x.var for x in block2.iter_vars]
-    access_A = tvm.tir.BufferRegion(
+    access_A = tvm.tirx.BufferRegion(
         A, [Range.from_min_extent(vi * 4, 4), Range.from_min_extent(vk * 4, 4)]
     )
-    access_B = tvm.tir.BufferRegion(
+    access_B = tvm.tirx.BufferRegion(
         B, [Range.from_min_extent(vj * 4, 4), Range.from_min_extent(vk * 4, 4)]
     )
-    access_C = tvm.tir.BufferRegion(
+    access_C = tvm.tirx.BufferRegion(
         C, [Range.from_min_extent(vi * 4, 4), Range.from_min_extent(vj * 4, 4)]
     )
     tvm.ir.assert_structural_equal(block2.reads, [access_C, access_A, access_B])
@@ -158,28 +164,28 @@ def _check_elementwise(func):
     assert len(root_block.writes) == 0
 
     block1 = func.body.block.body[0].body.body.block
-    assert isinstance(block1, tvm.tir.SBlock)
+    assert isinstance(block1, tvm.tirx.SBlock)
     vi, vj = [x.var for x in block1.iter_vars]
 
     tvm.ir.assert_structural_equal(
         block1.reads,
-        [tvm.tir.BufferRegion(A, [Range.from_min_extent(vi, 1), Range.from_min_extent(vj, 1)])],
+        [tvm.tirx.BufferRegion(A, [Range.from_min_extent(vi, 1), Range.from_min_extent(vj, 1)])],
     )
     tvm.ir.assert_structural_equal(
         block1.writes,
-        [tvm.tir.BufferRegion(B, [Range.from_min_extent(vi, 1), Range.from_min_extent(vj, 1)])],
+        [tvm.tirx.BufferRegion(B, [Range.from_min_extent(vi, 1), Range.from_min_extent(vj, 1)])],
     )
 
     block2 = func.body.block.body[1].body.body.block
-    assert isinstance(block2, tvm.tir.SBlock)
+    assert isinstance(block2, tvm.tirx.SBlock)
     vi, vj = [x.var for x in block2.iter_vars]
     tvm.ir.assert_structural_equal(
         block2.reads,
-        [tvm.tir.BufferRegion(B, [Range.from_min_extent(vi, 1), Range.from_min_extent(vj, 1)])],
+        [tvm.tirx.BufferRegion(B, [Range.from_min_extent(vi, 1), Range.from_min_extent(vj, 1)])],
     )
     tvm.ir.assert_structural_equal(
         block2.writes,
-        [tvm.tir.BufferRegion(C, [Range.from_min_extent(vi, 1), Range.from_min_extent(vj, 1)])],
+        [tvm.tirx.BufferRegion(C, [Range.from_min_extent(vi, 1), Range.from_min_extent(vj, 1)])],
     )
 
 

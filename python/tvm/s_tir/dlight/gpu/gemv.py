@@ -19,7 +19,7 @@
 
 from functools import reduce
 
-from tvm import s_tir, tir
+from tvm import s_tir, tirx
 from tvm.target import Target
 
 from ..analysis import (
@@ -38,11 +38,11 @@ class GEMV(GPUScheduleRule):
 
     def apply(  # pylint: disable=too-many-locals,too-many-branches,too-many-return-statements
         self,
-        func: tir.PrimFunc,
+        func: tirx.PrimFunc,
         target: Target,
         _: bool,
     ) -> None | s_tir.Schedule | list[s_tir.Schedule]:
-        if not isinstance(func, tir.PrimFunc) or not self.is_target_available(target):
+        if not isinstance(func, tirx.PrimFunc) or not self.is_target_available(target):
             return None
         sch = s_tir.Schedule(func)
         block_infos = normalize_prim_func(sch)
@@ -89,7 +89,7 @@ class GEMV(GPUScheduleRule):
         sch: s_tir.Schedule,
         target: Target,
         block: s_tir.schedule.SBlockRV,
-        vector_input_buffers: list[tir.Buffer],
+        vector_input_buffers: list[tirx.Buffer],
         epilogue_info: SBlockInfo | None,
     ):
         """Schedule the inner reduction block."""
@@ -147,7 +147,7 @@ class GEMV(GPUScheduleRule):
             for buf in vector_input_buffers:
                 dtype_bytes = get_bytes(buf.dtype)
                 buf_size = (
-                    reduce(lambda x, y: x * y, buf.shape, tir.IntImm(buf.shape[0].dtype, 1))
+                    reduce(lambda x, y: x * y, buf.shape, tirx.IntImm(buf.shape[0].dtype, 1))
                     * dtype_bytes
                 )
                 shared_mem_usage += buf_size
@@ -158,7 +158,7 @@ class GEMV(GPUScheduleRule):
 
             LOAD_V_SHARED = (
                 LOAD_V_SHARED
-                and isinstance(shared_mem_usage, tir.IntImm)
+                and isinstance(shared_mem_usage, tirx.IntImm)
                 and shared_mem_usage.value <= int(target.attrs["max_shared_memory_per_block"])
             )
 
@@ -182,8 +182,8 @@ class GEMV(GPUScheduleRule):
                 V_shared = sch.cache_read(rf, read_buffer_index=0, storage_scope="shared")
                 sch.compute_at(V_shared, tr, preserve_unit_loops=True)
                 l = sch.get_loops(block=V_shared)[-1]
-                loop: tir.For = sch.get(l)
-                if isinstance(loop.extent, tir.IntImm):
+                loop: tirx.For = sch.get(l)
+                if isinstance(loop.extent, tirx.IntImm):
                     # avoid introducing predicates when vector length is too large
                     vec_length = max(
                         min(
@@ -429,7 +429,7 @@ class GEMV(GPUScheduleRule):
         sch: s_tir.Schedule,
         target: Target,
         block: s_tir.schedule.SBlockRV,
-        vector_input_buffers: list[tir.Buffer],
+        vector_input_buffers: list[tirx.Buffer],
         epilogue_info: SBlockInfo | None,
     ):
         """Schedule the outer reduction block."""
@@ -634,7 +634,7 @@ class GEMV(GPUScheduleRule):
         sch: s_tir.Schedule,
         target: Target,
         block: s_tir.schedule.SBlockRV,
-        vector_input_buffers: list[tir.Buffer],
+        vector_input_buffers: list[tirx.Buffer],
         epilogue_info: SBlockInfo | None,
     ):
         """Schedule the outer reduction block."""

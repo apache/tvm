@@ -19,10 +19,10 @@
 
 import logging
 
-from tvm import te, tir, topi
+from tvm import te, tirx, topi
 from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder import tir as T
-from tvm.script.ir_builder.tir.utils import buffer_proxy
+from tvm.script.ir_builder import tirx as T
+from tvm.script.ir_builder.tirx.utils import buffer_proxy
 
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr
@@ -56,7 +56,7 @@ def _grad_nll_loss_backward(bb: BlockBuilder, call: Call) -> Expr:
         if ignore_index >= 0:
             weights = te.compute(
                 weights.shape,
-                lambda i: tir.Select(i == ignore_index, tir.const(0, weights.dtype), weights(i)),
+                lambda i: tirx.Select(i == ignore_index, tirx.const(0, weights.dtype), weights(i)),
                 "weights_new",
             )
 
@@ -73,18 +73,18 @@ def _grad_nll_loss_backward(bb: BlockBuilder, call: Call) -> Expr:
         if predictions.ndim == 1:
             return te.compute(
                 predictions.shape,
-                lambda i: tir.Select(
-                    i == targets(), -all_weights() * output_grad(), tir.const(0, predictions.dtype)
+                lambda i: tirx.Select(
+                    i == targets(), -all_weights() * output_grad(), tirx.const(0, predictions.dtype)
                 ),
                 "pred_grad",
             )
 
         return te.compute(
             predictions.shape,
-            lambda *i: tir.Select(
+            lambda *i: tirx.Select(
                 i[1] == targets(*i[:1], *i[2:]),
                 -all_weights(*i[:1], *i[2:]) * output_grad(*i[:1], *i[2:]),
-                tir.const(0, predictions.dtype),
+                tirx.const(0, predictions.dtype),
             ),
             "pred_grad",
         )
@@ -181,7 +181,7 @@ def _grad_take_backward(bb: BlockBuilder, call: Call) -> Expr:
                 with T.seq_scope():
                     # Init loop (zero-fill output buffer)
                     with T.serial(fused_shape) as i:
-                        out[i] = tir.const(0, dtype=x_ptr.dtype)
+                        out[i] = tirx.const(0, dtype=x_ptr.dtype)
 
                     # Accumulation loop
                     if axis is not None:
@@ -219,7 +219,7 @@ def _grad_take_backward(bb: BlockBuilder, call: Call) -> Expr:
                 return ib.get()
 
         shape = x.shape
-        out_buf = tir.decl_buffer(shape, x.dtype, "out_buf")
+        out_buf = tirx.decl_buffer(shape, x.dtype, "out_buf")
 
         return te.extern(
             [shape],

@@ -56,7 +56,7 @@ def _check_matmul(context: PatternCheckContext) -> bool:
     lhs_shape = lhs.struct_info.shape.values
     rhs_shape = rhs.struct_info.shape.values
 
-    if not isinstance(lhs_shape[-1], tvm.tir.expr.IntImm | int):
+    if not isinstance(lhs_shape[-1], tvm.tirx.expr.IntImm | int):
         # Reduction axis must be constant
         return False
 
@@ -75,7 +75,7 @@ def _check_matmul(context: PatternCheckContext) -> bool:
         bias = context.annotated_expr["bias"]
         bias_shape = bias.struct_info.shape.values
         bias_batches = reduce(operator.mul, bias_shape[:-1], 1)
-        if not isinstance(bias_batches, tvm.tir.expr.IntImm | int) or int(bias_batches) > 1:
+        if not isinstance(bias_batches, tvm.tirx.expr.IntImm | int) or int(bias_batches) > 1:
             # hipblas only supports bias vector
             return False
 
@@ -84,8 +84,8 @@ def _check_matmul(context: PatternCheckContext) -> bool:
     # must be equal. If lhs is batched but rhs is not, we can use the regular GEMM by
     # flattening all batch axes into the M axis.
     return (
-        isinstance(lhs_batches, tvm.tir.Var)
-        or isinstance(rhs_batches, tvm.tir.Var)
+        isinstance(lhs_batches, tvm.tirx.Var)
+        or isinstance(rhs_batches, tvm.tirx.Var)
         or (int(lhs_batches) == int(rhs_batches))
         or (lhs_batches >= 1 and rhs_batches == 1)
     )

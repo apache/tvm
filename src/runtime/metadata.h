@@ -49,11 +49,11 @@ inline ffi::String get_name_mangled(const ffi::String& module_name, const ffi::S
 namespace launch_param {
 
 /*! \brief A tag to specify whether or not dynamic shared memory is used */
-constexpr const char* kUseDynamicSharedMemoryTag = "tir.use_dyn_shared_memory";
+constexpr const char* kUseDynamicSharedMemoryTag = "tirx.use_dyn_shared_memory";
 /*! \brief A tag to specify whether or not use programatic dependent launch */
-constexpr const char* kUseProgramaticDependentLaunch = "tir.use_programtic_dependent_launch";
+constexpr const char* kUseProgramaticDependentLaunch = "tirx.use_programtic_dependent_launch";
 /*! \brief A tag to specify whether or not use cooperative launch */
-constexpr const char* kUseCooperativeLaunch = "tir.use_cooperative_launch";
+constexpr const char* kUseCooperativeLaunch = "tirx.use_cooperative_launch";
 
 }  // namespace launch_param
 

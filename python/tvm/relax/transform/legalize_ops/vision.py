@@ -16,7 +16,7 @@
 # under the License.
 """Default legalization function for vision network related operators."""
 
-from tvm import relax, te, tir, topi
+from tvm import relax, te, tirx, topi
 
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr, TupleGetItem
@@ -76,18 +76,18 @@ def _all_class_non_max_suppression(block_builder: BlockBuilder, call: Call) -> E
 
     # Build slicing parameters using TE to avoid high-level Relax ops during legalization
     def build_begin():
-        return te.compute((2,), lambda i: tir.const(0, "int64"), name="begin")
+        return te.compute((2,), lambda i: tirx.const(0, "int64"), name="begin")
 
     def build_strides():
-        return te.compute((2,), lambda i: tir.const(1, "int64"), name="strides")
+        return te.compute((2,), lambda i: tirx.const(1, "int64"), name="strides")
 
     def build_end(count_tensor):
         # end = [count_tensor[0], 3]
         def compute_end(i):
-            return tir.if_then_else(
+            return tirx.if_then_else(
                 i == 0,
-                tir.Cast("int64", count_tensor[0]),
-                tir.const(3, "int64"),
+                tirx.Cast("int64", count_tensor[0]),
+                tirx.const(3, "int64"),
             )
 
         return te.compute((2,), compute_end, name="end")
@@ -103,3 +103,42 @@ def _all_class_non_max_suppression(block_builder: BlockBuilder, call: Call) -> E
 
     # Return trimmed indices along with num_total_detections for compatibility
     return relax.Tuple([trimmed_indices, num_total_detections])
+
+
+@register_legalize("relax.vision.roi_align")
+def _roi_align(bb: BlockBuilder, call: Call) -> Expr:
+    return bb.call_te(
+        topi.vision.roi_align,
+        call.args[0],
+        call.args[1],
+        pooled_size=call.attrs.pooled_size,
+        spatial_scale=call.attrs.spatial_scale,
+        mode=call.attrs.mode,
+        sample_ratio=call.attrs.sample_ratio,
+        aligned=call.attrs.aligned,
+        layout=call.attrs.layout,
+    )
+
+
+@register_legalize("relax.vision.multibox_transform_loc")
+def _multibox_transform_loc(bb: BlockBuilder, call: Call) -> Expr:
+    variances = tuple(float(x) for x in call.attrs.variances)
+
+    def _te(cls_pred, loc_pred, anchor):
+        return topi.vision.multibox_transform_loc(
+            cls_pred,
+            loc_pred,
+            anchor,
+            variances,
+            clip=call.attrs.clip,
+            threshold=call.attrs.threshold,
+            keep_background=call.attrs.keep_background,
+        )
+
+    return bb.call_te(
+        _te,
+        call.args[0],
+        call.args[1],
+        call.args[2],
+        primfunc_name_hint="multibox_transform_loc",
+    )

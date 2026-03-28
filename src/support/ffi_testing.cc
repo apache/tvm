@@ -29,7 +29,7 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/module.h>
 #include <tvm/te/tensor.h>
-#include <tvm/tir/expr.h>
+#include <tvm/tirx/expr.h>
 
 #include <chrono>
 #include <thread>

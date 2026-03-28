@@ -28,9 +28,9 @@
 #include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tir/builtin.h>
-#include <tvm/tir/op.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/op.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include "../../s_tir/schedule/ir_comparator.h"
 
@@ -41,7 +41,7 @@ static const constexpr char* kCSource = "c_source";
 static const constexpr char* kCSourceFmt = "c_source_fmt";
 static const constexpr char* kCSourceFmtCuda = "cu";
 
-namespace tir {
+namespace tirx {
 
 using relax::FCodegen;
 using relax::MatchResult;
@@ -53,7 +53,7 @@ using s_tir::TensorizeComparator;
 class ForMatcher : public TensorizeComparator {
  public:
   using SymbolMap = std::unordered_map<Var, PrimExpr>;
-  explicit ForMatcher(const tir::PrimFunc& pattern, const ffi::Array<Var>& pattern_vars)
+  explicit ForMatcher(const tirx::PrimFunc& pattern, const ffi::Array<Var>& pattern_vars)
       : TensorizeComparator(IRModule({{GlobalVar(""), pattern}}), false), pattern_(pattern) {
     for (const auto& pattern_var : pattern_vars) {
       this->pattern_vars_.insert(pattern_var);
@@ -101,7 +101,7 @@ class ForMatcher : public TensorizeComparator {
         // special case for pattern vars
         const auto* lhs_ptr = lhs.as<VarNode>();
         if (lhs_ptr == nullptr) {
-          if (lhs->IsInstance<tir::IntImmNode>() || lhs->IsInstance<tir::FloatImmNode>()) {
+          if (lhs->IsInstance<tirx::IntImmNode>() || lhs->IsInstance<tirx::FloatImmNode>()) {
             ffi::Optional<PrimExpr> value = QueryEvaluatedSymbols(ffi::GetRef<Var>(op));
             if (value.defined()) {
               if (!analyzer_.CanProveEqual(lhs, value.value())) return false;
@@ -180,7 +180,7 @@ class ForMatcher : public TensorizeComparator {
     return TensorizeComparator::VisitExpr(lhs, rhs);
   }
 
-  bool VisitExpr_(const tir::AddNode* add, const PrimExpr& other) final {
+  bool VisitExpr_(const tirx::AddNode* add, const PrimExpr& other) final {
     const auto* rhs = other.as<AddNode>();
     if (rhs == nullptr) return false;
     {
@@ -206,7 +206,7 @@ class ForMatcher : public TensorizeComparator {
     return false;
   }
 
-  bool VisitExpr_(const tir::MulNode* mul, const PrimExpr& other) final {
+  bool VisitExpr_(const tirx::MulNode* mul, const PrimExpr& other) final {
     const auto* rhs = other.as<MulNode>();
     if (rhs == nullptr) return false;
     {
@@ -232,7 +232,7 @@ class ForMatcher : public TensorizeComparator {
     return false;
   }
 
-  bool VisitExpr_(const tir::CallNode* call, const PrimExpr& other) final {
+  bool VisitExpr_(const tirx::CallNode* call, const PrimExpr& other) final {
     const auto* rhs = other.as<CallNode>();
     if (rhs == nullptr) return false;
     const auto* lhs_op = call->op.as<OpNode>();
@@ -246,7 +246,7 @@ class ForMatcher : public TensorizeComparator {
     return true;
   }
 
-  bool VisitStmt_(const tir::ForNode* op, const Stmt& other) final {
+  bool VisitStmt_(const tirx::ForNode* op, const Stmt& other) final {
     const auto* rhs = other.as<ForNode>();
     loop_stack_lhs_.push_back(ffi::GetRef<For>(op));
     loop_stack_rhs_.push_back(ffi::GetRef<For>(rhs));
@@ -269,7 +269,7 @@ class ForMatcher : public TensorizeComparator {
     return VisitStmt(op->body, rhs->body);
   }
 
-  bool VisitStmt_(const tir::SBlockNode* op, const Stmt& other) final {
+  bool VisitStmt_(const tirx::SBlockNode* op, const Stmt& other) final {
     const auto* rhs = other.as<SBlockNode>();
     // Check block equality.
     // All iter vars and buffer regions including the order should match.
@@ -369,7 +369,7 @@ class ForMatcher : public TensorizeComparator {
 
   arith::Analyzer analyzer_;
   std::vector<For> loop_stack_lhs_, loop_stack_rhs_;
-  tir::PrimFunc pattern_;
+  tirx::PrimFunc pattern_;
   std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> pattern_vars_;
 };
 
@@ -389,7 +389,7 @@ class TIRPatternMatcher {
   // Find an op that matches this block
   bool BlockPatternMatch(const For& top) {
     for (const TIRPattern& pattern : patterns_) {
-      tir::PrimFunc pattern_func = pattern;
+      tirx::PrimFunc pattern_func = pattern;
       ffi::Array<Var> pattern_symbolic_vars;
       int buffer_count = pattern_func->buffer_map.size();
       for (int i = buffer_count; i < static_cast<int>(pattern_func->params.size()); i++) {
@@ -655,7 +655,7 @@ std::pair<PrimFunc, ffi::Optional<PrimFunc>> SplitFunctions(
   PrimFunc func2 = PrimFunc(new_params2, body2, func->ret_type, new_buffer_map2, func->attrs);
   return {func1, func2};
 }
-}  // namespace tir
+}  // namespace tirx
 
 namespace relax {
 void StringReplace(std::string* subject, const std::string& search, const std::string& replace) {
@@ -665,11 +665,11 @@ void StringReplace(std::string* subject, const std::string& search, const std::s
   }
 }
 
-tvm::BaseFunc CodegenWithLibrary(const tir::PrimFuncNode* pf, ffi::String global_symbol) {
-  using namespace tvm::tir;
+tvm::BaseFunc CodegenWithLibrary(const tirx::PrimFuncNode* pf, ffi::String global_symbol) {
+  using namespace tvm::tirx;
   ffi::Optional<ffi::String> library_code = pf->attrs.GetAttr<ffi::String>(kLibraryKernel);
   if (!library_code.has_value()) {
-    return ffi::GetRef<tir::PrimFunc>(pf);
+    return ffi::GetRef<tirx::PrimFunc>(pf);
   }
   std::string source = library_code.value();
   StringReplace(&source, "{global_symbol}", global_symbol);
@@ -719,15 +719,15 @@ class SplitMutator : public ExprMutator {
     if (gv_ptr == nullptr) return call;
     GlobalVar gv = ffi::GetRef<GlobalVar>(gv_ptr);
     // retrieve the function from the module and split it
-    tir::PrimFunc func = Downcast<tir::PrimFunc>(mod_->Lookup(gv));
+    tirx::PrimFunc func = Downcast<tirx::PrimFunc>(mod_->Lookup(gv));
     std::vector<std::vector<int>> arg_partition;
     // split the function into two functions, one for the library kernel and one for the rest.
-    std::pair<tir::PrimFunc, ffi::Optional<tir::PrimFunc>> split_funcs =
-        tir::SplitFunctions(func, &arg_partition, patterns_, fcodegen_);
+    std::pair<tirx::PrimFunc, ffi::Optional<tirx::PrimFunc>> split_funcs =
+        tirx::SplitFunctions(func, &arg_partition, patterns_, fcodegen_);
     if (!split_funcs.second.defined()) {
       // no need to split, the function itself a library kernel
       tvm::BaseFunc lib_func = CodegenWithLibrary(split_funcs.first.get(), gv->name_hint);
-      if (lib_func->IsInstance<tir::PrimFuncNode>()) return ffi::GetRef<Call>(op);
+      if (lib_func->IsInstance<tirx::PrimFuncNode>()) return ffi::GetRef<Call>(op);
       // Update the function in the module with the library kernel
       TVM_FFI_ICHECK(lib_func->IsInstance<ExternFuncNode>());
       builder_->UpdateFunction(gv, lib_func);
@@ -737,8 +737,8 @@ class SplitMutator : public ExprMutator {
       new_call->args = {lib_func, call->args[1]};
       return Call(new_call);
     }
-    tir::PrimFunc func1 = s_tir::RenewDefs(split_funcs.first);
-    tir::PrimFunc func2 = s_tir::RenewDefs(split_funcs.second.value());
+    tirx::PrimFunc func1 = s_tir::RenewDefs(split_funcs.first);
+    tirx::PrimFunc func2 = s_tir::RenewDefs(split_funcs.second.value());
     TVM_FFI_ICHECK(arg_partition.size() == 2);
     // emit the first call to the library kernel
     ffi::Array<Expr> args1;
@@ -747,10 +747,10 @@ class SplitMutator : public ExprMutator {
     }
     // replace the function in the module with the library kernel
     tvm::BaseFunc lib_func = CodegenWithLibrary(func1.get(), gv->name_hint);
-    if (lib_func->IsInstance<tir::PrimFuncNode>()) return ffi::GetRef<Call>(op);
+    if (lib_func->IsInstance<tirx::PrimFuncNode>()) return ffi::GetRef<Call>(op);
     TVM_FFI_ICHECK(lib_func->IsInstance<ExternFuncNode>());
     builder_->UpdateFunction(gv, lib_func);
-    tir::Buffer intermediate_buffer = func1->buffer_map.at(func1->params.back());
+    tirx::Buffer intermediate_buffer = func1->buffer_map.at(func1->params.back());
     DataType dtype = intermediate_buffer->dtype;
     Call call1(call_dps_packed_, {lib_func, Tuple(args1)}, call->attrs,
                {TensorStructInfo(ShapeExpr(intermediate_buffer->shape), dtype)});

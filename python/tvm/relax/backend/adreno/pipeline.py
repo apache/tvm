@@ -44,7 +44,7 @@ def legalize_passes(target: tvm.target.Target):  # pylint: disable=unused-argume
 
     pass_list.extend(
         [
-            tvm.tir.transform.BindTarget(tvm.target.Target.current(allow_none=False)),
+            tvm.tirx.transform.BindTarget(tvm.target.Target.current(allow_none=False)),
             relax.transform.DecomposeOpsForInference(),
         ]
     )

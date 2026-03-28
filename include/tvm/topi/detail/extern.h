@@ -25,7 +25,7 @@
 #define TVM_TOPI_DETAIL_EXTERN_H_
 
 #include <tvm/te/operation.h>
-#include <tvm/tir/builtin.h>
+#include <tvm/tirx/builtin.h>
 
 #include <string>
 #include <vector>
@@ -70,15 +70,15 @@ inline ffi::Array<Tensor> make_extern(const ffi::Array<ffi::Array<PrimExpr>>& ou
 
   ffi::Array<Buffer> input_placeholders;
   for (auto t : inputs) {
-    input_placeholders.push_back(tvm::tir::decl_buffer(t->shape, t->dtype, t->op->name));
+    input_placeholders.push_back(tvm::tirx::decl_buffer(t->shape, t->dtype, t->op->name));
   }
   ffi::Array<Buffer> output_placeholders;
   for (size_t i = 0; i < out_shapes.size(); ++i) {
-    output_placeholders.push_back(tvm::tir::decl_buffer(out_shapes[i], out_types[i], name));
+    output_placeholders.push_back(tvm::tirx::decl_buffer(out_shapes[i], out_types[i], name));
   }
 
   auto body = fextern(input_placeholders, output_placeholders);
-  auto body_stmt = tvm::tir::Evaluate(body);
+  auto body_stmt = tvm::tirx::Evaluate(body);
 
   auto op = ExternOp(name, tag, attrs, inputs, input_placeholders, output_placeholders, body_stmt);
 
@@ -100,11 +100,11 @@ inline ffi::Array<Tensor> make_extern(const ffi::Array<ffi::Array<PrimExpr>>& ou
 inline PrimExpr pack_buffer(Buffer buf) {
   TVM_FFI_ICHECK_GT(buf->shape.size(), 0) << "buf shape must have at least one element";
   auto shape =
-      tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_stack_make_shape(), buf->shape);
+      tvm::tirx::Call(DataType::Handle(), tvm::tirx::builtin::tvm_stack_make_shape(), buf->shape);
   PrimExpr strides;
   if (buf->strides.size() > 0) {
-    strides =
-        tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_stack_make_shape(), buf->strides);
+    strides = tvm::tirx::Call(DataType::Handle(), tvm::tirx::builtin::tvm_stack_make_shape(),
+                              buf->strides);
   } else {
     strides = 0;
   }
@@ -115,7 +115,7 @@ inline PrimExpr pack_buffer(Buffer buf) {
       make_const(DataType::Int(32), static_cast<int64_t>(buf->shape.size())),
       make_const(buf->dtype, 0),
       buf->elem_offset};
-  return tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_stack_make_array(), pack_args);
+  return tvm::tirx::Call(DataType::Handle(), tvm::tirx::builtin::tvm_stack_make_array(), pack_args);
 }
 
 /*!
@@ -128,7 +128,7 @@ inline PrimExpr pack_buffer(Buffer buf) {
  * \return An expression representing the invocation
  */
 inline PrimExpr call_packed(ffi::Array<PrimExpr> args) {
-  return tvm::tir::Call(DataType::Int(32), tvm::tir::builtin::tvm_call_packed(), args);
+  return tvm::tirx::Call(DataType::Int(32), tvm::tirx::builtin::tvm_call_packed(), args);
 }
 
 }  // namespace detail

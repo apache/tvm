@@ -17,9 +17,9 @@
 # pylint: disable=invalid-name
 """IndexPut operator"""
 
-from tvm import te, tir
+from tvm import te, tirx
 from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder import tir as T
+from tvm.script.ir_builder import tirx as T
 
 from . import utils
 
@@ -153,7 +153,7 @@ def index_put(data, indices, values, accumulate=False):
     in_buffers.extend(indices)
     in_buffers.append(values)
 
-    out_buf = tir.decl_buffer(data.shape, data.dtype, "out_buf")
+    out_buf = tirx.decl_buffer(data.shape, data.dtype, "out_buf")
     return te.extern(
         [data.shape],
         in_buffers,

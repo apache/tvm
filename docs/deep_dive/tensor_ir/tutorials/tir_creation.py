@@ -22,8 +22,8 @@
 TensorIR Creation
 -----------------
 In this section, we will introduce the methods to write a TensorIR function
-in Apache TVM Unity. This tutorial presumes familiarity with the fundamental concepts of TensorIR.
-If not already acquainted, please refer to :ref:`tir-learning` initially.
+in Apache TVM. This tutorial presumes familiarity with the fundamental concepts of TensorIR.
+If not already acquainted, please refer to :ref:`tirx-learning` initially.
 
 .. note::
 
@@ -49,14 +49,14 @@ If not already acquainted, please refer to :ref:`tir-learning` initially.
 #
 # Standard Format
 # ***************
-# Let's take an example of ``mm_relu`` from :ref:`tir-learning`. Here is the complete
+# Let's take an example of ``mm_relu`` from :ref:`tirx-learning`. Here is the complete
 # format of the ir_module and in TVMScript:
 
 import numpy as np
 
 import tvm
 from tvm.script import ir as I
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 @I.ir_module
@@ -233,7 +233,7 @@ print(evaluate_dynamic_shape(dyn_shape_lib, m=64, n=64, k=128))
 #   Tensor Expression comprises two components within the TVM stack: the expression and the
 #   schedule. The expression is the domain-specific language embodying the computation pattern,
 #   precisely what we're addressing in this section. Conversely, the TE schedule is the legacy
-#   scheduling method, has been superseded by the TensorIR schedule in the TVM Unity stack.
+#   scheduling method, has been superseded by the TensorIR schedule in the current TVM stack.
 #
 # Create Static-Shape Functions
 # *****************************

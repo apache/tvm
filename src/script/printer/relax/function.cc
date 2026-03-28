@@ -41,7 +41,7 @@ TVM_FFI_STATIC_INIT_BLOCK() { RelaxFrameNode::RegisterReflection(); }
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::Function>("", [](relax::Function n, AccessPath n_p, IRDocsifier d) -> Doc {
-      std::unordered_set<const tir::VarNode*> func_vars;
+      std::unordered_set<const tirx::VarNode*> func_vars;
       With<RelaxFrame> f(d);
 
       IdDoc func_name("");

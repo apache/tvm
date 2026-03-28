@@ -17,7 +17,7 @@
 """Quantized Neural Network (QNN) Operators"""
 
 import tvm
-from tvm import te, tir, topi
+from tvm import te, tirx, topi
 
 SQNN_DISABLE = 0
 SQNN_INT8 = 1
@@ -74,11 +74,11 @@ def simulated_quantize(data, out_dtype, output_scale=None, output_zero_point=Non
     #                 out_dtype::max)
     def _compute_intn(dtype, value, *indices):
         assert output_scale is not None and output_zero_point is not None
-        const_min = tvm.tir.min_value(dtype)
-        const_max = tvm.tir.max_value(dtype)
+        const_min = tvm.tirx.min_value(dtype)
+        const_max = tvm.tirx.max_value(dtype)
         # Use indexmod to handle both scalar and per-channel QNN parameters.
-        scale_idx = tir.indexmod(indices[axis], topi.shape(output_scale)[0])
-        zp_idx = tir.indexmod(indices[axis], topi.shape(output_zero_point)[0])
+        scale_idx = tirx.indexmod(indices[axis], topi.shape(output_scale)[0])
+        zp_idx = tirx.indexmod(indices[axis], topi.shape(output_zero_point)[0])
         return te.max(
             te.min(
                 te.round(value[indices] / output_scale[scale_idx]) + output_zero_point[zp_idx],
@@ -96,7 +96,7 @@ def simulated_quantize(data, out_dtype, output_scale=None, output_zero_point=Non
         )
         int8_value = te.compute(
             data.shape,
-            lambda *indices: tir.if_then_else(
+            lambda *indices: tirx.if_then_else(
                 out_dtype.equal(SQNN_DTYPE_TO_CODE["int8"]),
                 _compute_intn("int8", value, *indices),
                 pass_through_value[indices],
@@ -104,7 +104,7 @@ def simulated_quantize(data, out_dtype, output_scale=None, output_zero_point=Non
         )
         uint8_value = te.compute(
             data.shape,
-            lambda *indices: tir.if_then_else(
+            lambda *indices: tirx.if_then_else(
                 out_dtype.equal(SQNN_DTYPE_TO_CODE["uint8"]),
                 _compute_intn("uint8", value, *indices),
                 int8_value[indices],
@@ -112,7 +112,7 @@ def simulated_quantize(data, out_dtype, output_scale=None, output_zero_point=Non
         )
         int32_value = te.compute(
             data.shape,
-            lambda *indices: tir.if_then_else(
+            lambda *indices: tirx.if_then_else(
                 out_dtype.equal(SQNN_DTYPE_TO_CODE["int32"]),
                 _compute_intn("int32", value, *indices),
                 uint8_value[indices],
@@ -163,8 +163,8 @@ def simulated_dequantize(data, in_dtype, input_scale=None, input_zero_point=None
     def _compute_intn(value, *indices):
         assert input_scale is not None and input_zero_point is not None
         # Use indexmod to handle both scalar and per-channel QNN parameters.
-        scale_idx = tir.indexmod(indices[axis], topi.shape(input_scale)[0])
-        zp_idx = tir.indexmod(indices[axis], topi.shape(input_zero_point)[0])
+        scale_idx = tirx.indexmod(indices[axis], topi.shape(input_scale)[0])
+        zp_idx = tirx.indexmod(indices[axis], topi.shape(input_zero_point)[0])
         return (value[indices] - input_zero_point[zp_idx]) * input_scale[scale_idx]
 
     # Use an if chain to dynamically return the proper dequantization based on the input datatype.
@@ -181,7 +181,7 @@ def simulated_dequantize(data, in_dtype, input_scale=None, input_zero_point=None
         )
         intn_value = te.compute(
             data.shape,
-            lambda *indices: tir.if_then_else(
+            lambda *indices: tirx.if_then_else(
                 intn_condition,
                 _compute_intn(value, *indices),
                 pass_through_value[indices],

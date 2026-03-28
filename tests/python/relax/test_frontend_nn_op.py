@@ -20,11 +20,11 @@ import numpy as np
 
 import tvm
 import tvm.testing
-from tvm import relax, s_tir, tir
+from tvm import relax, s_tir, tirx
 from tvm.relax.frontend.nn import Module, Tensor, op, spec
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 # mypy: disable-error-code="attr-defined,valid-type,name-defined"
 
@@ -460,7 +460,7 @@ def test_create():
             triu_out = op.triu(x)
             full_with_scalar_out = op.full([10, 10], fill_value=10)  # type: ignore
             full_with_FloatImm_out = op.full(
-                [10, 10], fill_value=tir.FloatImm(dtype="float32", value=10)
+                [10, 10], fill_value=tirx.FloatImm(dtype="float32", value=10)
             )
             full_with_Tensor_out = op.full(
                 [10, 10], fill_value=Tensor.from_scalar(10, dtype="float32")
@@ -593,7 +593,7 @@ def test_tensor_expr_op():
     class Expected:
         @T.prim_func(private=True)
         def add_one(A: T.Buffer((T.int64(10), T.int64(10)), "float32"), T_add: T.Buffer((T.int64(10), T.int64(10)), "float32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
             for ax0, ax1 in T.grid(T.int64(10), T.int64(10)):
                 with T.sblock("T_add"):
@@ -658,7 +658,7 @@ def test_tensor_ir_op():
         T.evaluate(offset)
 
     class Model(Module):
-        def test(self, qkv: Tensor, offset: tir.Var):
+        def test(self, qkv: Tensor, offset: tirx.Var):
             tensor_expr_op_out = op.tensor_ir_op(
                 fused_rope,
                 "llama_fused_rope",
@@ -725,7 +725,7 @@ def test_tensor_ir_inplace_op():
     def inplace_take(
         var_weight: T.handle, var_pos: T.handle, var_embeddings: T.handle, offset: T.int64
     ):
-        T.func_attr({"tir.noalias": True})
+        T.func_attr({"tirx.noalias": True})
         vocab_size = T.int64()
         weight = T.match_buffer(var_weight, (vocab_size, hidden_size), dtype)
         seq_len = T.int64()
@@ -758,7 +758,7 @@ def test_tensor_ir_inplace_op():
         def inplace_take(
             var_weight: T.handle, var_pos: T.handle, var_embeddings: T.handle, offset: T.int64
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             vocab_size = T.int64()
             weight = T.match_buffer(var_weight, (vocab_size, hidden_size), dtype)
             seq_len = T.int64()
@@ -1152,7 +1152,7 @@ def test_renormalize_top_p_top_k_prob():
     class Expected:
         @T.prim_func(private=True)
         def filter_with_top_p_top_k(A: T.Buffer((T.int64(2), T.int64(3)), "float32"), B: T.Buffer((T.int64(2), T.int64(1)), "float32"), filter_with_top_p_top_k: T.Buffer((T.int64(2), T.int64(3)), "float32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
             for i, j in T.grid(T.int64(2), T.int64(3)):
                 with T.sblock("filter_with_top_p_top_k"):

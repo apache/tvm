@@ -21,10 +21,10 @@ from collections.abc import Callable
 
 import tvm
 from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder import tir as T
+from tvm.script.ir_builder import tirx as T
 
 from ..te import extern
-from ..tir import decl_buffer, generic
+from ..tirx import decl_buffer, generic
 from . import utils
 from .math import cast
 

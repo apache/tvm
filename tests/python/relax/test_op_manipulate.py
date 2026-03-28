@@ -19,10 +19,10 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import TVMError, relax, tir
+from tvm import TVMError, relax, tirx
 from tvm.ir import Op, VDevice
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def test_op_correctness():
@@ -130,10 +130,10 @@ def test_reshape_infer_struct_info():
 
 def test_reshape_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    a = tir.Var("a", "int64")
-    b = tir.Var("b", "int64")
-    c = tir.Var("c", "int64")
-    d = tir.Var("d", "int64")
+    a = tirx.Var("a", "int64")
+    b = tirx.Var("b", "int64")
+    c = tirx.Var("c", "int64")
+    d = tirx.Var("d", "int64")
     x = relax.Var("x", R.Tensor((a, b, c, d), "float32"))
     s0 = relax.Var("s", R.Shape((c, a, d, b)))
     s1 = relax.Var("s", R.Shape())
@@ -155,7 +155,7 @@ def test_reshape_infer_struct_info_shape_symbolic():
     _check_inference(
         bb,
         relax.op.reshape(x, (2, -1, a)),
-        relax.TensorStructInfo((2, tir.floordiv(b * c * d, 2), a), "float32"),
+        relax.TensorStructInfo((2, tirx.floordiv(b * c * d, 2), a), "float32"),
     )
     _check_inference(
         bb,
@@ -268,7 +268,7 @@ def test_reshape_infer_struct_info_inference_not_deducible():
 
 
 def test_reshape_new_shape_not_tuple():
-    m = tir.Var("m", "int64")
+    m = tirx.Var("m", "int64")
     x = relax.Var("x", R.Tensor((2, 3, 4, 5), "float32"))
 
     with pytest.raises(TypeError):
@@ -391,10 +391,10 @@ def test_permute_dims_infer_struct_info():
 
 def test_permute_dims_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    a = tir.Var("a", "int64")
-    b = tir.Var("b", "int64")
-    c = tir.Var("c", "int64")
-    d = tir.Var("d", "int64")
+    a = tirx.Var("a", "int64")
+    b = tirx.Var("b", "int64")
+    c = tirx.Var("c", "int64")
+    d = tirx.Var("d", "int64")
     x = relax.Var("x", R.Tensor((a, b, c, d), "float32"))
 
     _check_inference(
@@ -592,8 +592,8 @@ def test_expand_dims_infer_struct_info():
 
 def test_expand_dims_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    a = tir.Var("a", "int64")
-    b = tir.Var("b", "int64")
+    a = tirx.Var("a", "int64")
+    b = tirx.Var("b", "int64")
     x = relax.Var("x", R.Tensor((a, 4, b), "float32"))
 
     _check_inference(
@@ -780,8 +780,8 @@ def test_layout_transform_infer_struct_info_unknown_shape():
 
 def test_layout_transform_infer_struct_info_symbolic_shape():
     bb = relax.BlockBuilder()
-    a = tir.Var("a", "int64")
-    b = tir.Var("b", "int64")
+    a = tirx.Var("a", "int64")
+    b = tirx.Var("b", "int64")
     x0 = relax.Var("x", R.Tensor((a, b), "float32"))
 
     tiling_transform = lambda a, b: (a, b // 3, b % 3)
@@ -820,8 +820,8 @@ def test_layout_transform_infer_struct_info_shape_var():
         relax.TensorStructInfo(dtype="float32", ndim=3),
     )
 
-    a = tir.Var("a", "int64")
-    b = tir.Var("b", "int64")
+    a = tirx.Var("a", "int64")
+    b = tirx.Var("b", "int64")
     s_symbolic_shape = relax.Var("s", relax.ShapeStructInfo((a, b)))
     x_symbolic_shape = relax.Var("x", relax.TensorStructInfo(s_symbolic_shape, "float32"))
     _check_inference(
@@ -875,8 +875,8 @@ def test_squeeze_infer_struct_info():
 
 def test_squeeze_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    a = tir.Var("a", "int64")
-    b = tir.Var("b", "int64")
+    a = tirx.Var("a", "int64")
+    b = tirx.Var("b", "int64")
     x0 = relax.Var("x", R.Tensor((a, 1, b), "float32"))
     x1 = relax.Var("x", R.Tensor((a, 1, b)))
 
@@ -888,8 +888,8 @@ def test_squeeze_infer_struct_info_shape_symbolic():
 
 def test_squeeze_infer_struct_info_shape_var():
     bb = relax.BlockBuilder()
-    a = tir.Var("a", "int64")
-    b = tir.Var("b", "int64")
+    a = tirx.Var("a", "int64")
+    b = tirx.Var("b", "int64")
     s0 = relax.Var("s", relax.ShapeStructInfo((2, 1, 3, 1, 1, 4)))
     s1 = relax.Var("s", relax.ShapeStructInfo((2, 3, 4)))
     s2 = relax.Var("s", relax.ShapeStructInfo((a, 1, b)))
@@ -988,7 +988,7 @@ def test_squeeze_infer_struct_info_repetitive_axes():
 
 def test_squeeze_infer_struct_info_axis_length_not_one():
     bb = relax.BlockBuilder()
-    a = tir.Var("a", "int64")
+    a = tirx.Var("a", "int64")
     s0 = relax.Var("s", relax.ShapeStructInfo((2, 3, 4)))
     s1 = relax.Var("s", relax.ShapeStructInfo((a, 3, 4)))
     x0 = relax.Var("x", R.Tensor((2, 3, 4), "float32"))
@@ -1061,8 +1061,8 @@ def test_flatten_infer_struct_info():
 
 def test_flatten_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    a = tir.Var("a", "int64")
-    b = tir.Var("b", "int64")
+    a = tirx.Var("a", "int64")
+    b = tirx.Var("b", "int64")
     x0 = relax.Var("x", R.Tensor((a, b), "float32"))
     x1 = relax.Var("x", R.Tensor((a, b)))
 
@@ -1255,12 +1255,12 @@ def test_concat_infer_struct_info_with_axis():
 
 def test_concat_infer_struct_info_with_axis_shape_symbolic():
     bb = relax.BlockBuilder()
-    a0 = tir.Var("a0", "int64")
-    a1 = tir.Var("a1", "int64")
-    b0 = tir.Var("b0", "int64")
-    b1 = tir.Var("b1", "int64")
-    b2 = tir.Var("b2", "int64")
-    c = tir.Var("c", "int64")
+    a0 = tirx.Var("a0", "int64")
+    a1 = tirx.Var("a1", "int64")
+    b0 = tirx.Var("b0", "int64")
+    b1 = tirx.Var("b1", "int64")
+    b2 = tirx.Var("b2", "int64")
+    c = tirx.Var("c", "int64")
     x0 = relax.Var("x", R.Tensor((a0, b0, c), "float32"))
     x1 = relax.Var("x", R.Tensor((a1, b0, c), "float32"))
     x2 = relax.Var("x", R.Tensor((a0, b0, c), "float32"))
@@ -1294,12 +1294,12 @@ def test_concat_infer_struct_info_with_axis_shape_symbolic():
 
 def test_concat_infer_struct_info_with_axis_shape_var():
     bb = relax.BlockBuilder()
-    a0 = tir.Var("a0", "int64")
-    a1 = tir.Var("a1", "int64")
-    b0 = tir.Var("b0", "int64")
-    b1 = tir.Var("b1", "int64")
-    b2 = tir.Var("b2", "int64")
-    c = tir.Var("c", "int64")
+    a0 = tirx.Var("a0", "int64")
+    a1 = tirx.Var("a1", "int64")
+    b0 = tirx.Var("b0", "int64")
+    b1 = tirx.Var("b1", "int64")
+    b2 = tirx.Var("b2", "int64")
+    c = tirx.Var("c", "int64")
     sx0 = relax.Var("sx", relax.ShapeStructInfo((2, 3, 4)))
     sx1 = relax.Var("sx", relax.ShapeStructInfo((a0, b0, c)))
     sx2 = relax.Var("sx", relax.ShapeStructInfo((a1, b0, c)))
@@ -1384,8 +1384,8 @@ def test_concat_infer_struct_info_without_axis():
 
 def test_concat_infer_struct_info_without_axis_shape_symbolic():
     bb = relax.BlockBuilder()
-    a0 = tir.Var("a0", "int64")
-    a1 = tir.Var("a1", "int64")
+    a0 = tirx.Var("a0", "int64")
+    a1 = tirx.Var("a1", "int64")
     x0 = relax.Var("x", R.Tensor((a0,), "float32"))
     x1 = relax.Var("x", R.Tensor((a0,), ""))
     y0 = relax.Var("y", R.Tensor((a1,), "float32"))
@@ -1452,9 +1452,9 @@ def test_concat_infer_struct_info_more_input_dtype():
 
 def test_concat_infer_struct_info_tuple_var():
     bb = relax.BlockBuilder()
-    a = tir.Var("a0", "int64")
-    b0 = tir.Var("b0", "int64")
-    b1 = tir.Var("b1", "int64")
+    a = tirx.Var("a0", "int64")
+    b0 = tirx.Var("b0", "int64")
+    b1 = tirx.Var("b1", "int64")
     t0 = relax.Var(
         "t",
         relax.TupleStructInfo(
@@ -1530,7 +1530,7 @@ def test_concat_infer_struct_info_tuple_var():
 
 def test_concat_infer_struct_info_single_input_tensor():
     bb = relax.BlockBuilder()
-    a = tir.Var("a", "int64")
+    a = tirx.Var("a", "int64")
     s0 = relax.Var("s", relax.ShapeStructInfo((3, a)))
     s1 = relax.Var("s", relax.ShapeStructInfo((a,)))
     s2 = relax.Var("s", relax.ShapeStructInfo(ndim=3))
@@ -1676,7 +1676,7 @@ def test_concat_infer_struct_info_axis_out_of_range():
 
 def test_concat_infer_struct_info_unequal_shape():
     bb = relax.BlockBuilder()
-    a = tir.Var("a", "int64")
+    a = tirx.Var("a", "int64")
     s0 = relax.Var("s", relax.ShapeStructInfo((3, 4)))
     s1 = relax.Var("s", relax.ShapeStructInfo((3, a + 2)))
     x0 = relax.Var("x", R.Tensor((3, 4), "float32"))
@@ -1834,8 +1834,8 @@ def test_split_infer_struct_info_by_indices():
 
 def test_split_infer_struct_info_by_indices_shape_symbolic():
     bb = relax.BlockBuilder()
-    a = tir.Var("a", "int64")
-    b = tir.Var("b", "int64")
+    a = tirx.Var("a", "int64")
+    b = tirx.Var("b", "int64")
     x = relax.Var("x", R.Tensor((a, b), "float32"))
 
     _check_inference(
@@ -1989,8 +1989,8 @@ def test_split_infer_struct_info_by_n_section():
 
 def test_split_infer_struct_info_by_n_section_shape_symbolic():
     bb = relax.BlockBuilder()
-    a = tir.Var("a", "int64")
-    b = tir.Var("b", "int64")
+    a = tirx.Var("a", "int64")
+    b = tirx.Var("b", "int64")
     x = relax.Var("x", R.Tensor((a, b), "float32"))
 
     _check_inference(
@@ -2103,8 +2103,8 @@ def test_split_infer_struct_info_more_input_dtype():
 
 def test_split_infer_struct_info_single_output():
     bb = relax.BlockBuilder()
-    a = tir.Var("a", "int64")
-    b = tir.Var("b", "int64")
+    a = tirx.Var("a", "int64")
+    b = tirx.Var("b", "int64")
     s0 = relax.Var("s", relax.ShapeStructInfo((a, b)))
     s1 = relax.Var("s", relax.ShapeStructInfo(ndim=2))
     s2 = relax.Var("s", relax.ShapeStructInfo())
@@ -2189,7 +2189,7 @@ def test_split_indices_or_sections_int64():
 
 def test_split_infer_struct_info():
     bb = relax.BlockBuilder()
-    n = tir.Var("n", "int64")
+    n = tirx.Var("n", "int64")
     x = relax.Var("x", R.Tensor((16, 4)))
     y = relax.Var("y", R.Tensor((16, 4), "float32"))
     z = relax.Var("z", R.Tensor((n, 16)))
@@ -2298,8 +2298,8 @@ def test_split_infer_struct_info():
 
 def test_split_infer_struct_info_non_integer_indices():
     bb = relax.BlockBuilder()
-    a = tir.Var("c", "int64")
-    b = tir.Var("d", "int64")
+    a = tirx.Var("c", "int64")
+    b = tirx.Var("d", "int64")
     x = relax.Var("x", R.Tensor((3, 4), "float32"))
 
     with pytest.raises(TypeError):
@@ -2307,7 +2307,7 @@ def test_split_infer_struct_info_non_integer_indices():
 
 
 def test_split_invalid_n_section():
-    n = tir.Var("n", "int64")
+    n = tirx.Var("n", "int64")
     x = relax.Var("x", R.Tensor((3, 4), "float32"))
 
     with pytest.raises((TVMError, TypeError)):
@@ -2393,10 +2393,10 @@ def test_broadcast_to_infer_struct_info():
 
 def test_broadcast_to_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    a = tir.Var("a", "int64")
-    b = tir.Var("b", "int64")
-    c = tir.Var("c", "int64")
-    d = tir.Var("d", "int64")
+    a = tirx.Var("a", "int64")
+    b = tirx.Var("b", "int64")
+    c = tirx.Var("c", "int64")
+    d = tirx.Var("d", "int64")
     x0 = relax.Var("x", R.Tensor((b, 1, 1, d), "float32"))
     x1 = relax.Var("x", R.Tensor((b, 1, 1, d)))
 
@@ -2434,10 +2434,10 @@ def test_broadcast_to_infer_struct_info_shape_var():
 
 def test_broadcast_to_infer_struct_info_tgt_shape_var():
     bb = relax.BlockBuilder()
-    a = tir.Var("a", "int64")
-    b = tir.Var("b", "int64")
-    c = tir.Var("c", "int64")
-    d = tir.Var("d", "int64")
+    a = tirx.Var("a", "int64")
+    b = tirx.Var("b", "int64")
+    c = tirx.Var("c", "int64")
+    d = tirx.Var("d", "int64")
     s0 = relax.Var("s", relax.ShapeStructInfo((b, 1, 1, d)))
     s1 = relax.Var("s", relax.ShapeStructInfo(ndim=4))
     s2 = relax.Var("s", relax.ShapeStructInfo())
@@ -2544,8 +2544,8 @@ def test_broadcast_to_infer_struct_info_not_broadcastable_static():
 
 def test_broadcast_to_infer_struct_info_not_broadcastable_symbolic():
     bb = relax.BlockBuilder()
-    a = tir.Var("a", "int64")
-    b = tir.Var("b", "int64")
+    a = tirx.Var("a", "int64")
+    b = tirx.Var("b", "int64")
     s = relax.Var("s", relax.ShapeStructInfo((2, a)))
     x0 = relax.Var("x", R.Tensor((2, a), "float32"))
     x1 = relax.Var("x", relax.TensorStructInfo(s, "float32"))
@@ -2645,8 +2645,8 @@ def test_collapse_sum_like_infer_struct_info():
 
 def test_collapse_sum_like_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    a = tir.Var("a", "int64")
-    b = tir.Var("b", "int64")
+    a = tirx.Var("a", "int64")
+    b = tirx.Var("b", "int64")
     x0 = relax.Var("x", R.Tensor((3, 4, a), "float32"))
     y0 = relax.Var("y", R.Tensor((4, a), "float32"))
     x1 = relax.Var("x", R.Tensor((3, 4, b + a), "float32"))
@@ -2710,8 +2710,8 @@ def test_collapse_sum_like_infer_struct_info_shape_mismatch():
     bb = relax.BlockBuilder()
     x0 = relax.Var("x", R.Tensor((3, 4, 5), "float32"))
     y0 = relax.Var("y", R.Tensor((3, 6, 5), "float32"))
-    a = tir.Var("a", "int64")
-    b = tir.Var("b", "int64")
+    a = tirx.Var("a", "int64")
+    b = tirx.Var("b", "int64")
     x1 = relax.Var("z", R.Tensor((3, a, 5), "float32"))
     y1 = relax.Var("w", R.Tensor((3, b, 5), "float32"))
 
@@ -2763,8 +2763,8 @@ def test_collapse_sum_to_infer_struct_info():
 
 def test_collapse_sum_to_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    a = tir.Var("a", "int64")
-    b = tir.Var("b", "int64")
+    a = tirx.Var("a", "int64")
+    b = tirx.Var("b", "int64")
     x0 = relax.Var("x", R.Tensor((3, 4, a), "float32"))
     x1 = relax.Var("x", R.Tensor((3, 4, b + a), "float32"))
 
@@ -2827,8 +2827,8 @@ def test_collapse_sum_to_infer_struct_info_wrong_input_type():
 def test_collapse_sum_to_infer_struct_info_shape_mismatch():
     bb = relax.BlockBuilder()
     x0 = relax.Var("x", R.Tensor((3, 4, 5), "float32"))
-    a = tir.Var("a", "int64")
-    b = tir.Var("b", "int64")
+    a = tirx.Var("a", "int64")
+    b = tirx.Var("b", "int64")
     x1 = relax.Var("x", R.Tensor((3, a, 5), "float32"))
 
     s0 = relax.Var("s0", relax.ShapeStructInfo((3, 4, 5)))
@@ -2852,10 +2852,10 @@ def test_collapse_sum_to_infer_struct_info_shape_mismatch():
 
 def test_collapse_sum_to_infer_struct_info_struct_info_tgt_shape_var():
     bb = relax.BlockBuilder()
-    a = tir.Var("a", "int64")
-    b = tir.Var("b", "int64")
-    c = tir.Var("c", "int64")
-    d = tir.Var("d", "int64")
+    a = tirx.Var("a", "int64")
+    b = tirx.Var("b", "int64")
+    c = tirx.Var("c", "int64")
+    d = tirx.Var("d", "int64")
     s0 = relax.Var("s0", relax.ShapeStructInfo((3, a, b)))
     s1 = relax.Var("s1", relax.ShapeStructInfo(ndim=3))
     s2 = relax.Var("s2", relax.ShapeStructInfo())
@@ -2973,9 +2973,9 @@ def test_repeat_infer_struct_info():
 
 def test_repeat_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    a = tir.Var("a", "int64")
-    b = tir.Var("b", "int64")
-    c = tir.Var("c", "int64")
+    a = tirx.Var("a", "int64")
+    b = tirx.Var("b", "int64")
+    c = tirx.Var("c", "int64")
     x = relax.Var("x", R.Tensor((a, b, c), "float32"))
 
     _check_inference(bb, relax.op.repeat(x, 2, 0), relax.TensorStructInfo((a * 2, b, c), "float32"))
@@ -3036,8 +3036,8 @@ def test_repeat_infer_struct_info_wrong_input_type():
     x0 = relax.Var("x", relax.ShapeStructInfo((2, 3, 4, 5)))
     x1 = relax.Var("x", relax.FuncStructInfo([], R.Tensor((2, 3, 4, 5), "float32")))
     x2 = relax.Var("x", R.Tensor((2, 3, 4, 5), "float32"))
-    r1 = tir.Var("r", "float32")
-    r2 = tir.StringImm("abc")
+    r1 = tirx.Var("r", "float32")
+    r2 = tirx.StringImm("abc")
 
     with pytest.raises((TypeError, TVMError)):
         bb.normalize(relax.op.repeat(x0, 2))
@@ -3115,9 +3115,9 @@ def test_tile_infer_struct_info():
 
 def test_tile_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    a = tir.Var("a", "int64")
-    b = tir.Var("b", "int64")
-    c = tir.Var("c", "int64")
+    a = tirx.Var("a", "int64")
+    b = tirx.Var("b", "int64")
+    c = tirx.Var("c", "int64")
     x = relax.Var("x", R.Tensor((a, b, c), "float32"))
 
     _check_inference(bb, relax.op.tile(x, 2), relax.TensorStructInfo((a, b, c * 2), "float32"))
@@ -3161,8 +3161,8 @@ def test_tile_infer_struct_info_wrong_input_type():
     x0 = relax.Var("x", relax.ShapeStructInfo((2, 3, 4, 5)))
     x1 = relax.Var("x", relax.FuncStructInfo([], R.Tensor((2, 3, 4, 5), "float32")))
     x2 = relax.Var("x", R.Tensor((2, 3, 4, 5), "float32"))
-    r1 = tir.Var("a", "float32")
-    r2 = tir.StringImm("abc")
+    r1 = tirx.Var("a", "float32")
+    r2 = tirx.StringImm("abc")
 
     with pytest.raises((TypeError, TVMError)):
         bb.normalize(relax.op.tile(x0, 2))
@@ -3198,8 +3198,8 @@ def test_flip_infer_struct_info():
 
 def test_flip_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    a = tir.Var("a", "int64")
-    b = tir.Var("b", "int64")
+    a = tirx.Var("a", "int64")
+    b = tirx.Var("b", "int64")
     x = relax.Var("x", R.Tensor((a, b), "float32"))
 
     _check_inference(bb, relax.op.flip(x, axis=0), relax.TensorStructInfo((a, b), "float32"))
@@ -3261,8 +3261,8 @@ def test_gather_elements_infer_struct_info():
 
 def test_gather_elements_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    a = tir.Var("a", "int64")
-    b = tir.Var("b", "int64")
+    a = tirx.Var("a", "int64")
+    b = tirx.Var("b", "int64")
     x = relax.Var("x", R.Tensor((a, b), "float32"))
     i = relax.Var("i", R.Tensor((a, b), "int64"))
 
@@ -3319,9 +3319,9 @@ def test_gather_nd_infer_struct_info():
 
 def test_gather_nd_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    a = tir.Var("a", "int64")
-    b = tir.Var("b", "int64")
-    c = tir.Var("c", "int64")
+    a = tirx.Var("a", "int64")
+    b = tirx.Var("b", "int64")
+    c = tirx.Var("c", "int64")
     x = relax.Var("x", R.Tensor((a, b, c), "float32"))
     i = relax.Var("i", R.Tensor((2, 2), "int64"))
 
@@ -3437,12 +3437,12 @@ def test_scatter_elements_infer_struct_info():
 
 def test_scatter_elements_infer_struct_info_symbolic_shape():
     bb = relax.BlockBuilder()
-    a = tir.Var("a", "int64")
-    b = tir.Var("b", "int64")
-    c = tir.Var("c", "int64")
-    d = tir.Var("d", "int64")
-    e = tir.Var("e", "int64")
-    f = tir.Var("f", "int64")
+    a = tirx.Var("a", "int64")
+    b = tirx.Var("b", "int64")
+    c = tirx.Var("c", "int64")
+    d = tirx.Var("d", "int64")
+    e = tirx.Var("e", "int64")
+    f = tirx.Var("f", "int64")
 
     d0 = relax.Var("data", R.Tensor((a, b), "float32"))
     i0 = relax.Var("indices", R.Tensor((c, d), "int64"))
@@ -3472,8 +3472,8 @@ def test_scatter_elements_infer_struct_info_wrong_indices_type():
 
 
 def test_scatter_elements_infer_struct_info_rank_shape_mismatch():
-    a = tir.Var("a", "int64")
-    b = tir.Var("b", "int64")
+    a = tirx.Var("a", "int64")
+    b = tirx.Var("b", "int64")
 
     bb = relax.BlockBuilder()
     d0 = relax.Var("data", R.Tensor((4, 4), "float32"))
@@ -3591,7 +3591,7 @@ def test_one_hot_infer_struct_info():
     )
 
     # Test case 3: With symbolic shape
-    n = tir.Var("n", "int64")
+    n = tirx.Var("n", "int64")
     i2 = relax.Var("indices", R.Tensor((n,), "int32"))
     _check_inference(
         bb,

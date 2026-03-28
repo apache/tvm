@@ -23,7 +23,7 @@ import pytest
 import tvm
 import tvm.script
 import tvm.script.relax as R
-import tvm.script.tir as T
+import tvm.script.tirx as T
 from test_nnapi.conftest import remote
 from test_nnapi.infrastructure import build_and_run
 

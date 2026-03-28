@@ -26,7 +26,7 @@
 #include <tvm/relax/nested_msg.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/transform.h>
-#include <tvm/tir/index_map.h>
+#include <tvm/tirx/index_map.h>
 
 #include <tuple>
 
@@ -37,7 +37,7 @@
 namespace tvm {
 namespace relax {
 
-using tvm::tir::Buffer;
+using tvm::tirx::Buffer;
 
 static ffi::Array<PrimExpr> GetShapeFromTensorStructInfo(const TensorStructInfo& tensor_sinfo) {
   auto shape = tensor_sinfo->GetShape();
@@ -78,9 +78,9 @@ class SpecializeTIRCallArgs : ExprMutator {
  private:
   Expr SpecializeTirPrimFunc(Call call) {
     auto gv = Downcast<GlobalVar>(call->args[0]);
-    auto pfunc = Downcast<tir::PrimFunc>(mod_->Lookup(gv));
+    auto pfunc = Downcast<tirx::PrimFunc>(mod_->Lookup(gv));
     auto args = Downcast<Tuple>(call->args[1])->fields;
-    ffi::Map<tir::Var, ffi::Variant<Buffer, PrimExpr>> param_map;
+    ffi::Map<tirx::Var, ffi::Variant<Buffer, PrimExpr>> param_map;
 
     for (size_t i = 0; i < args.size(); ++i) {
       auto sinfo = GetStructInfo(args[i]);
@@ -99,8 +99,8 @@ class SpecializeTIRCallArgs : ExprMutator {
         name = std::string({static_cast<char>('A' + i)});
       }
 
-      const Buffer& buffer = tir::decl_buffer(GetShapeFromTensorStructInfo(tensor_sinfo),
-                                              tensor_sinfo->dtype, name, scope);
+      const Buffer& buffer = tirx::decl_buffer(GetShapeFromTensorStructInfo(tensor_sinfo),
+                                               tensor_sinfo->dtype, name, scope);
       param_map.Set(pfunc->params[i], buffer);
     }
     ffi::String scope = "global";
@@ -111,7 +111,7 @@ class SpecializeTIRCallArgs : ExprMutator {
         scope = sinfo->vdevice.value()->memory_scope;
       }
       const Buffer& buffer =
-          tir::decl_buffer(GetShapeFromTensorStructInfo(sinfo), sinfo->dtype, "ret_val", scope);
+          tirx::decl_buffer(GetShapeFromTensorStructInfo(sinfo), sinfo->dtype, "ret_val", scope);
       param_map.Set(pfunc->params[pfunc->params.size() - 1], buffer);
     } else {
       TVM_FFI_ICHECK(out_sinfo->IsInstance<TupleStructInfoNode>())
@@ -132,8 +132,8 @@ class SpecializeTIRCallArgs : ExprMutator {
           scope = sinfo->vdevice.value()->memory_scope;
         }
 
-        const Buffer& buffer = tir::decl_buffer(GetShapeFromTensorStructInfo(sinfo), sinfo->dtype,
-                                                "ret_val_" + std::to_string(index), scope);
+        const Buffer& buffer = tirx::decl_buffer(GetShapeFromTensorStructInfo(sinfo), sinfo->dtype,
+                                                 "ret_val_" + std::to_string(index), scope);
         param_map.Set(pfunc->params[args.size() + index], buffer);
         index++;
       }

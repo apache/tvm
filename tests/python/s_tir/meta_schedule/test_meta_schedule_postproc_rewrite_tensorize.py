@@ -19,7 +19,7 @@
 import tvm
 from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.tensor_intrin import cuda, rocm, x86
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 @tvm.script.ir_module
@@ -30,7 +30,7 @@ class Conv2dNCHWcVNNIModuleTiled:
         placeholder_1: T.Buffer((16, 4, 1, 1, 4, 16, 4), "int8"),
         conv2d_NCHWc_int8: T.Buffer((1, 16, 56, 56, 16), "int32"),
     ) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         for (
             i0_0,
             i1_0,
@@ -151,7 +151,7 @@ class Conv2dNCHWcVNNIModuleTensorized:
         conv2d_NCHWc_int8: T.Buffer((1, 16, 56, 56, 16), "int32"),
     ) -> None:
         # function attr dict
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # body
         # with T.sblock("root")
         for i0_0, i1_0, i2_0, i3_0, i4_0_0, i0_1, i1_1, i2_1, i3_1, i4_0_1, i5_0, i6_0 in T.grid(
@@ -252,7 +252,7 @@ class DenseDP4ATiled:
         W: T.Buffer((128, 128), "int8"),
         compute: T.Buffer((128, 128), "int32"),
     ) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         compute_local = T.sblock_alloc_buffer([128, 128], dtype="int32", scope="local")
         X_shared = T.sblock_alloc_buffer([128, 128], dtype="int8", scope="shared")
         W_shared = T.sblock_alloc_buffer([128, 128], dtype="int8", scope="shared")
@@ -341,7 +341,7 @@ class DenseDP4ATensorized:
         compute: T.Buffer((128, 128), "int32"),
     ) -> None:
         # function attr dict
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # body
         # with T.sblock("root")
         compute_local = T.sblock_alloc_buffer([128, 128], dtype="int32", scope="local")

@@ -28,29 +28,29 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/ir/scope_stack.h>
 #include <tvm/support/with.h>
-#include <tvm/tir/expr.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/expr.h>
+#include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
 namespace arith {
 
-class IRVisitorWithAnalyzer : public tir::StmtExprVisitor {
+class IRVisitorWithAnalyzer : public tirx::StmtExprVisitor {
  public:
   PrimExpr Simplify(const PrimExpr& expr) { return analyzer_.Simplify(expr); }
 
   using StmtExprVisitor::VisitExpr_;
   using StmtExprVisitor::VisitStmt_;
 
-  void VisitStmt_(const tir::ForNode* op);
-  void VisitStmt_(const tir::SBlockNode* op);
-  void VisitStmt_(const tir::BindNode* op);
-  void VisitStmt_(const tir::IfThenElseNode* op);
-  void VisitStmt_(const tir::AttrStmtNode* op);
-  void VisitStmt_(const tir::AssertStmtNode* op);
-  void VisitStmt_(const tir::SeqStmtNode* op);
-  void VisitExpr_(const tir::CallNode* op);
-  void VisitExpr_(const tir::LetNode* op);
-  void VisitExpr_(const tir::ReduceNode* op);
+  void VisitStmt_(const tirx::ForNode* op);
+  void VisitStmt_(const tirx::SBlockNode* op);
+  void VisitStmt_(const tirx::BindNode* op);
+  void VisitStmt_(const tirx::IfThenElseNode* op);
+  void VisitStmt_(const tirx::AttrStmtNode* op);
+  void VisitStmt_(const tirx::AssertStmtNode* op);
+  void VisitStmt_(const tirx::SeqStmtNode* op);
+  void VisitExpr_(const tirx::CallNode* op);
+  void VisitExpr_(const tirx::LetNode* op);
+  void VisitExpr_(const tirx::ReduceNode* op);
 
   // IRVisitorWithAnalyzer deliberately does not handle Select nodes,
   // because both sides of a Select node are visited regardless of the

@@ -28,7 +28,7 @@
 #include <numeric>
 
 namespace tvm {
-namespace tir {
+namespace tirx {
 Var GetShardingVarFromIndex(PrimExpr index, ffi::Map<Var, Range> var_range,
                             arith::Analyzer* analyzer) {
   if (index.as<VarNode>()) {
@@ -55,7 +55,7 @@ Var GetShardingVarFromIndex(PrimExpr index, ffi::Map<Var, Range> var_range,
   }
   return ffi::GetRef<Var>(source_var);
 }
-}  // namespace tir
+}  // namespace tirx
 }  // namespace tvm
 
 namespace tvm {
@@ -347,10 +347,10 @@ inline int GetNumOutput(Call call) {
   }
 }
 
-void BuildAxisGraphCallTIR(const Var& output_var, const Call& call, const tir::PrimFunc& func,
+void BuildAxisGraphCallTIR(const Var& output_var, const Call& call, const tirx::PrimFunc& func,
                            distributed::AxisGroupGraph* axis_group_graph) {
-  auto tir_var_axis_group_list = tir::BufferAxisGraphExtractor::GetTIRVarAxisGraph(func);
-  ffi::Map<tir::Var, Expr> input_var_to_relax_expr;
+  auto tir_var_axis_group_list = tirx::BufferAxisGraphExtractor::GetTIRVarAxisGraph(func);
+  ffi::Map<tirx::Var, Expr> input_var_to_relax_expr;
   ffi::Array<Expr> input_list = Downcast<Tuple>(call->args[1])->fields;
   input_list.push_back(output_var);
   for (int i = 0; i < static_cast<int>(input_list.size()); i++) {

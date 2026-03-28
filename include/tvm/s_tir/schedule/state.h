@@ -26,14 +26,14 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 #include <tvm/s_tir/sblock_scope.h>
-#include <tvm/tir/function.h>
+#include <tvm/tirx/function.h>
 
 #include <unordered_map>
 #include <utility>
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 /*!
  * \brief The information about a TensorIR block, it contains two categories of information
@@ -147,7 +147,7 @@ class ScheduleStateNode : public Object {
    * that points to the old block will point to the new one
    * \note The reuse of loop srefs are detected automatically according to the reuse of loop vars.
    */
-  TVM_DLL void Replace(const tir::StmtSRef& src_sref, const Stmt& tgt_stmt,
+  TVM_DLL void Replace(const tirx::StmtSRef& src_sref, const Stmt& tgt_stmt,
                        const ffi::Map<SBlock, SBlock>& block_sref_reuse);
   /*!
    * \brief Trigger the verification according to the `debug_mask` bitmask.

@@ -17,12 +17,12 @@
 # pylint: disable=invalid-name
 """Unique operator"""
 
-from tvm import te, tir
+from tvm import te, tirx
 from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder import tir as T
+from tvm.script.ir_builder import tirx as T
 
 
-def _calc_adjacent_diff_ir(data, output, binop=tir.Sub):
+def _calc_adjacent_diff_ir(data, output, binop=tirx.Sub):
     """Low level IR to calculate adjacent difference in an 1-D array.
 
     Parameters
@@ -37,7 +37,7 @@ def _calc_adjacent_diff_ir(data, output, binop=tir.Sub):
 
     binop: function, optional
         A binary associative op to use for calculating adjacent difference. The function takes two
-        TIR expressions and produce a new TIR expression. By default it uses tvm.tir.Sub to
+        TIR expressions and produce a new TIR expression. By default it uses tvm.tirx.Sub to
         compute the adjacent difference.
     """
     with IRBuilder() as ib:
@@ -48,11 +48,11 @@ def _calc_adjacent_diff_ir(data, output, binop=tir.Sub):
                 with T.Then():
                     output_ptr[0] = 0
                 with T.Else():
-                    output_ptr[i] = tir.Cast(output.dtype, binop(data_ptr[i], data_ptr[i - 1]))
+                    output_ptr[i] = tirx.Cast(output.dtype, binop(data_ptr[i], data_ptr[i - 1]))
         return ib.get()
 
 
-def _calc_adjacent_diff(data, out_dtype="int32", binop=tir.Sub):
+def _calc_adjacent_diff(data, out_dtype="int32", binop=tirx.Sub):
     """Function calculate adjacent difference in an 1-D array.
 
     Parameters
@@ -65,7 +65,7 @@ def _calc_adjacent_diff(data, out_dtype="int32", binop=tir.Sub):
 
     binop: function, optional
         A binary associative op to use for calculating difference. The function takes two
-        TIR expressions and produce a new TIR expression. By default it uses tvm.tir.Sub to
+        TIR expressions and produce a new TIR expression. By default it uses tvm.tirx.Sub to
         compute the adjacent difference.
 
     Returns

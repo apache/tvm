@@ -36,7 +36,7 @@ using NDIntSet = std::vector<arith::IntSet>;
  * \param region The region.
  * \return The constructed set.
  */
-inline NDIntSet NDIntSetFromRegion(const tir::Region& region) {
+inline NDIntSet NDIntSetFromRegion(const tirx::Region& region) {
   NDIntSet result;
   result.reserve(region.size());
   for (const Range& range : region) {
@@ -135,7 +135,7 @@ inline NDIntSet NDIntSetEmpty(int ndim) {
  */
 inline NDIntSet NDIntSetEval(
     const NDIntSet& nd_int_set,
-    const std::unordered_map<const tir::VarNode*, arith::IntSet>& dom_map) {
+    const std::unordered_map<const tirx::VarNode*, arith::IntSet>& dom_map) {
   NDIntSet ret;
   ret.reserve(nd_int_set.size());
   for (const arith::IntSet& s : nd_int_set) {

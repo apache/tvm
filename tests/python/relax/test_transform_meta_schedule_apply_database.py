@@ -18,10 +18,10 @@
 
 import tvm
 import tvm.testing
-from tvm import relax, tir
+from tvm import relax, tirx
 from tvm.s_tir import meta_schedule as ms
 from tvm.script import ir as I
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 target = tvm.target.Target({"kind": "llvm", "num-cores": 16})
 
@@ -31,7 +31,7 @@ def test_apply_to_func_with_different_block_name():
     class RecordModule:
         @T.prim_func
         def main(A: T.Buffer((2,), "float32"), B: T.Buffer((2,), "float32")):
-            T.func_attr({"global_symbol": "main", "tir.noalias": True})
+            T.func_attr({"global_symbol": "main", "tirx.noalias": True})
             for i in T.serial(2):
                 with T.sblock("block"):
                     vi = T.axis.spatial(2, i)
@@ -41,7 +41,7 @@ def test_apply_to_func_with_different_block_name():
     class BlockRenamedModule:
         @T.prim_func
         def main(A: T.Buffer((2,), "float32"), B: T.Buffer((2,), "float32")):
-            T.func_attr({"global_symbol": "main", "tir.noalias": True})
+            T.func_attr({"global_symbol": "main", "tirx.noalias": True})
             for i in T.serial(2):
                 with T.sblock("renamed_block"):
                     vi = T.axis.spatial(2, i)
@@ -53,9 +53,9 @@ def test_apply_to_func_with_different_block_name():
         def main(A: T.Buffer((2,), "float32"), B: T.Buffer((2,), "float32")):
             T.func_attr(
                 {
-                    "tir.is_scheduled": True,
+                    "tirx.is_scheduled": True,
                     "global_symbol": "main",
-                    "tir.noalias": True,
+                    "tirx.noalias": True,
                 }
             )
             for i in T.serial(2):

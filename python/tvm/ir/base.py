@@ -163,9 +163,9 @@ def structural_equal(lhs, rhs, map_free_vars=False):
     - Normal node: equality is recursively defined without the restriction
       of graph nodes.
 
-    Vars(tir::Var, relax::Var) are graph nodes.
+    Vars(tirx::Var, relax::Var) are graph nodes.
 
-    A var-type node(e.g. tir::Var) can be mapped as equal to another var
+    A var-type node(e.g. tirx::Var) can be mapped as equal to another var
     with the same type if one of the following condition holds:
 
     - They appear in a same definition point(e.g. function argument).

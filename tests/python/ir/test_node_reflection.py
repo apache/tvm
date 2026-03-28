@@ -27,8 +27,8 @@ from tvm import te
 
 def test_const_saveload_json():
     # save load json
-    x = tvm.tir.const(1, "int32")
-    y = tvm.tir.const(10, "int32")
+    x = tvm.tirx.const(1, "int32")
+    y = tvm.tirx.const(10, "int32")
     z = x + y
     z = z + z
     json_str = tvm.ir.save_json(z)
@@ -37,7 +37,7 @@ def test_const_saveload_json():
 
 
 def _test_infinity_value(value, dtype):
-    x = tvm.tir.const(value, dtype)
+    x = tvm.tirx.const(value, dtype)
     json_str = tvm.ir.save_json(x)
     tvm.ir.assert_structural_equal(x, tvm.ir.load_json(json_str))
 
@@ -55,15 +55,15 @@ def _test_minmax_value(value):
 
 
 def test_minmax_value():
-    _test_minmax_value(tvm.tir.min_value("float32"))
-    _test_minmax_value(tvm.tir.max_value("float32"))
+    _test_minmax_value(tvm.tirx.min_value("float32"))
+    _test_minmax_value(tvm.tirx.max_value("float32"))
 
 
 def test_make_smap():
     # save load json
-    x = tvm.tir.const(1, "int32")
-    y = tvm.tir.const(10, "int32")
-    z = tvm.tir.Add(x, y)
+    x = tvm.tirx.const(1, "int32")
+    y = tvm.tirx.const(10, "int32")
+    z = tvm.tirx.Add(x, y)
     smap = tvm.runtime.convert({"z": z, "x": x})
     json_str = tvm.ir.save_json(tvm.runtime.convert([smap]))
     arr = tvm.ir.load_json(json_str)
@@ -74,7 +74,7 @@ def test_make_smap():
 
 def test_make_node():
     x = tvm.ir.make_node("ir.IntImm", dtype="int32", value=10, span=None)
-    assert isinstance(x, tvm.tir.IntImm)
+    assert isinstance(x, tvm.tirx.IntImm)
     assert x.value == 10
     A = te.placeholder((10,), name="A")
     AA = tvm.ir.make_node(
@@ -136,20 +136,20 @@ def test_pass_config():
     cfg = tvm.transform.PassContext(
         opt_level=1,
         config={
-            "tir.UnrollLoop": {
+            "tirx.UnrollLoop": {
                 "auto_max_step": 10,
             }
         },
     )
     cfg.opt_level == 1
 
-    assert cfg.config["tir.UnrollLoop"].auto_max_step == 10
+    assert cfg.config["tirx.UnrollLoop"].auto_max_step == 10
     # default option
-    assert cfg.config["tir.UnrollLoop"].explicit_unroll == True
+    assert cfg.config["tirx.UnrollLoop"].explicit_unroll == True
 
     # schema checking for specific config key
     with pytest.raises(TypeError):
-        cfg = tvm.transform.PassContext(config={"tir.UnrollLoop": {"invalid": 1}})
+        cfg = tvm.transform.PassContext(config={"tirx.UnrollLoop": {"invalid": 1}})
 
     # schema check for un-registered config
     with pytest.raises(AttributeError):
@@ -157,11 +157,11 @@ def test_pass_config():
 
     # schema check for wrong type
     with pytest.raises(AttributeError):
-        cfg = tvm.transform.PassContext(config={"tir.UnrollLoop": 1})
+        cfg = tvm.transform.PassContext(config={"tirx.UnrollLoop": 1})
 
 
 def test_dict():
-    x = tvm.tir.const(1)  # a class that has Python-defined methods
+    x = tvm.tirx.const(1)  # a class that has Python-defined methods
     # instances should see the full class dict
     assert set(dir(x.__class__)) <= set(dir(x))
 
@@ -185,9 +185,9 @@ def test_tensor_dict():
 
 
 def test_free_var_equal():
-    x = tvm.tir.Var("x", dtype="int32")
-    y = tvm.tir.Var("y", dtype="int32")
-    z = tvm.tir.Var("z", dtype="int32")
+    x = tvm.tirx.Var("x", dtype="int32")
+    y = tvm.tirx.Var("y", dtype="int32")
+    z = tvm.tirx.Var("z", dtype="int32")
     v1 = x + y
     v1 = y + z
     tvm.ir.assert_structural_equal(x, z, map_free_vars=True)

@@ -49,7 +49,7 @@ The release manager role in TVM means you are responsible for a few different th
 Prepare the Release Notes
 -------------------------
 
-Release note contains new features, improvement, bug fixes, known issues and deprecation, etc. TVM provides `monthly dev report <https://discuss.tvm.ai/search?q=TVM%20Monthly%20%23Announcement>`_ collects developing progress each month. It could be helpful to who writes the release notes.
+Release note contains new features, improvement, bug fixes, known issues and deprecation, etc. TVM provides `monthly dev report <https://discuss.tvm.apache.org/search?q=TVM%20Monthly%20%23Announcement>`_ collects developing progress each month. It could be helpful to who writes the release notes.
 
 It is recommended to open a GitHub issue to collect feedbacks for the release note draft before cutting the release branch. See the scripts in ``tests/scripts/release`` for some starting points.
 

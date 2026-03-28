@@ -20,9 +20,9 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import tir
+from tvm import tirx
 from tvm.s_tir import meta_schedule as ms
-from tvm.script import tir as T
+from tvm.script import tirx as T
 from tvm.target import Target
 
 
@@ -400,7 +400,7 @@ def GMMCUDATensorCore(
     Z: T.Buffer((1024, 1024), "float32"),
 ) -> None:
     # function attr dict
-    T.func_attr({"global_symbol": "main", "tir.noalias": True})
+    T.func_attr({"global_symbol": "main", "tirx.noalias": True})
     s0 = T.int32()
     s0_1 = T.int32()
     s0_2 = T.int32()

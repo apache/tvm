@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include "./utils.h"
 
@@ -45,8 +45,8 @@ ExprDoc PrintShapeVar(const PrimExpr& e, const AccessPath& e_p, const IRDocsifie
   // Step 2. Figure out if the PrimExpr contains at least a func var
   bool func_var_mode = false;
   if (f != nullptr) {
-    tir::PostOrderVisit(e, [f, &func_var_mode](const ObjectRef& obj) -> void {
-      if (const auto* var = obj.as<tir::VarNode>()) {
+    tirx::PostOrderVisit(e, [f, &func_var_mode](const ObjectRef& obj) -> void {
+      if (const auto* var = obj.as<tirx::VarNode>()) {
         if (f->func_vars->count(var)) {
           func_var_mode = true;
         }

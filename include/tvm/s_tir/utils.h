@@ -20,12 +20,12 @@
 #define TVM_S_TIR_UTILS_H_
 
 #include <tvm/s_tir/sblock_scope.h>
-#include <tvm/tir/stmt.h>
+#include <tvm/tirx/stmt.h>
 
 #include <unordered_map>
 
 namespace tvm {
-namespace tir {
+namespace tirx {
 
 /*!
  * \brief A helper macro to convert an sref to the statement it points to,
@@ -48,7 +48,7 @@ namespace tir {
  */
 #define TVM_SREF_TO_SBLOCK(SRef)                                                        \
   [&]() {                                                                               \
-    auto result = TVM_SREF_AS_OR_ERR(result, (SRef), ::tvm::tir::SBlockNode)            \
+    auto result = TVM_SREF_AS_OR_ERR(result, (SRef), ::tvm::tirx::SBlockNode)           \
                   << "Expects StmtSRef `" << #SRef << "` points to `Block`, but gets: " \
                   << ((SRef)->stmt ? (SRef)->stmt->GetTypeKey() : "None");              \
     return result;                                                                      \
@@ -64,7 +64,7 @@ namespace tir {
  */
 #define TVM_SREF_TO_FOR(SRef)                                                          \
   [&]() {                                                                              \
-    auto result = TVM_SREF_AS_OR_ERR(result, (SRef), ::tvm::tir::ForNode)              \
+    auto result = TVM_SREF_AS_OR_ERR(result, (SRef), ::tvm::tirx::ForNode)             \
                   << "Expects StmtSRef `" << #SRef << "` points to `Loop`, but gets: " \
                   << ((SRef)->stmt ? (SRef)->stmt->GetTypeKey() : "None");             \
     return result;                                                                     \
@@ -135,7 +135,7 @@ inline void SetSeqIndexInChildren(
   }
 }
 
-}  // namespace tir
+}  // namespace tirx
 }  // namespace tvm
 
 #endif  // TVM_S_TIR_UTILS_H_

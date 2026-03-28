@@ -25,15 +25,15 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tir/analysis.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/analysis.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include "../../support/utils.h"
-#include "../../tir/transform/ir_utils.h"
+#include "../../tirx/transform/ir_utils.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 using support::StartsWith;
 
@@ -49,7 +49,7 @@ class ThreadBindingUnifier : public StmtExprMutator {
  private:
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     // If this AttrStmt is not thread binding attribute, return as usual.
-    if (op->attr_key != tir::attr::thread_extent && op->attr_key != s_tir::attr::virtual_thread) {
+    if (op->attr_key != tirx::attr::thread_extent && op->attr_key != s_tir::attr::virtual_thread) {
       return StmtMutator::VisitStmt_(op);
     }
     IterVar old_iter_var = Downcast<IterVar>(op->node);

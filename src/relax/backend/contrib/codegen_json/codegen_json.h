@@ -27,7 +27,7 @@
 #include <tvm/ffi/reflection/accessor.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/struct_info.h>
-#include <tvm/tir/op.h>
+#include <tvm/tirx/op.h>
 
 #include <cstdint>
 #include <memory>

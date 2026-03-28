@@ -40,7 +40,7 @@ and relax NNModule API.
 from tvm import relax, topi
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 @I.ir_module

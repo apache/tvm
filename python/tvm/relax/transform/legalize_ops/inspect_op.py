@@ -19,7 +19,7 @@
 
 import enum
 
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 from ... import op
 from ...block_builder import BlockBuilder
@@ -28,7 +28,7 @@ from .common import register_legalize
 
 
 class TVMStructFieldKind(enum.IntEnum):
-    """Equivalent to tvm::tir::builtin::TVMStructFieldKind
+    """Equivalent to tvm::tirx::builtin::TVMStructFieldKind
 
     This does not use `enum.auto()` to define the values, because
     `enum.auto()` starts from 1, and this must match the C++
@@ -55,7 +55,7 @@ class TVMStructFieldKind(enum.IntEnum):
 def _tensor_stride_i(bb: BlockBuilder, call: Call) -> Expr:
     @T.prim_func(private=True)
     def _get_tensor_stride_i(dlpack_handle: T.handle, axis: T.int64) -> T.int64:
-        T.func_attr({"tir.is_host": True, "tir.is_scheduled": True})
+        T.func_attr({"tirx.is_host": True, "tirx.is_scheduled": True})
         assert T.int64(0) <= axis, "Specified axis may not be negative"
         ndim: T.int32 = T.tvm_struct_get(
             dlpack_handle, 0, int(TVMStructFieldKind.kDLTensorNDim), "int32"
@@ -97,7 +97,7 @@ def _tensor_stride_i(bb: BlockBuilder, call: Call) -> Expr:
 def _tensor_byte_offset(bb: BlockBuilder, call: Call) -> Expr:
     @T.prim_func(private=True)
     def _get_tensor_byte_offset(dlpack_handle: T.handle) -> T.int64:
-        T.func_attr({"tir.is_host": True, "tir.is_scheduled": True})
+        T.func_attr({"tirx.is_host": True, "tirx.is_scheduled": True})
         byte_offset: T.uint64 = T.tvm_struct_get(
             dlpack_handle, 0, int(TVMStructFieldKind.kDLTensorByteOffset), "uint64"
         )
@@ -111,7 +111,7 @@ def _tensor_byte_offset(bb: BlockBuilder, call: Call) -> Expr:
 def _tensor_elem_offset(bb: BlockBuilder, call: Call) -> Expr:
     @T.prim_func(private=True)
     def _get_tensor_elem_offset(dlpack_handle: T.handle) -> T.int64:
-        T.func_attr({"tir.is_host": True, "tir.is_scheduled": True})
+        T.func_attr({"tirx.is_host": True, "tirx.is_scheduled": True})
         byte_offset: T.uint64 = T.tvm_struct_get(
             dlpack_handle, 0, int(TVMStructFieldKind.kDLTensorByteOffset), "uint64"
         )

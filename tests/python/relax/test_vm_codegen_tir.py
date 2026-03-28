@@ -24,7 +24,7 @@ import tvm.testing
 from tvm import relax
 from tvm.ir import assert_structural_equal
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def get_tir_mod(mod):
@@ -119,7 +119,7 @@ def test_if_cond():
             T.func_attr({"global_symbol": "__vmtir__ife"})
             if T.Call(
                 "bool",
-                tvm.ir.Op.get("tir.tvm_call_packed"),
+                tvm.ir.Op.get("tirx.tvm_call_packed"),
                 ["vm.builtin.read_if_cond", T.anylist_getitem(r, T.int32(0))],
             ):
                 T.anylist_setitem_call_packed(

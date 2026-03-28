@@ -24,7 +24,7 @@ from tvm import relax
 from tvm.ir import assert_structural_equal
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
-from tvm.script.parser import tir as T
+from tvm.script.parser import tirx as T
 
 
 def test_mlp():
@@ -93,7 +93,7 @@ def test_mlp_with_tuple():
 
         @T.prim_func(private=True)
         def split1(var_A: T.handle, var_T_split: T.handle, var_T_split_1: T.handle):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             A = T.match_buffer(var_A, (128, 128), "float32")
             T_split = T.match_buffer(var_T_split, (64, 128), "float32")
             T_split_1 = T.match_buffer(var_T_split_1, (64, 128), "float32")
@@ -142,7 +142,7 @@ def test_mlp_with_tuple():
             T_split: T.Buffer((64, 128), "float32"),
             T_split_1: T.Buffer((64, 128), "float32"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
             for ax1, ax2 in T.grid(64, 128):
                 with T.sblock("T_split"):
@@ -390,7 +390,7 @@ def test_decoder_layer():
         def rms_norm(
             var_A: T.handle, B: T.Buffer((T.int64(4096),), "float16"), var_rms_norm: T.handle
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
 
             A = T.match_buffer(var_A, (T.int64(1), 256, T.int64(4096)), "float16")
             rms_norm_1 = T.match_buffer(var_rms_norm, (T.int64(1), 256, T.int64(4096)), "float16")
@@ -430,7 +430,7 @@ def test_decoder_layer():
             C: T.Buffer((T.int64(2048), T.int64(128)), "float16"),
             var_rotary: T.handle,
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
 
             A = T.match_buffer(var_A, (T.int64(1), 256, T.int64(32), T.int64(128)), "float16")
             rotary = T.match_buffer(
@@ -603,7 +603,7 @@ def test_decoder_layer():
             B: T.Buffer((T.int64(4096),), "float16"),
             rms_norm_1: T.Buffer((T.int64(1), 256, T.int64(4096)), "float16"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
             Ared_temp = T.sblock_alloc_buffer((T.int64(1), 256))
             for bsz, i, k in T.grid(T.int64(1), 256, T.int64(4096)):
@@ -640,7 +640,7 @@ def test_decoder_layer():
             C: T.Buffer((T.int64(2048), T.int64(128)), "float16"),
             rotary: T.Buffer((T.int64(1), 256, T.int64(32), T.int64(128)), "float16"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
             for i0, i1, i2, i3 in T.grid(T.int64(1), 256, T.int64(32), T.int64(128)):
                 with T.sblock("rotary"):
@@ -819,7 +819,7 @@ def test_decoder_layer_tir():
             B: T.Buffer((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
             T_add: T.Buffer((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
             for ax0, ax1, ax2 in T.grid(T.int64(1), T.int64(256), T.int64(4096)):
                 with T.sblock("T_add"):
@@ -837,7 +837,7 @@ def test_decoder_layer_tir():
             B: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
             T_divide: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(1), T.int64(32), T.int64(256), T.int64(256)):
                 with T.sblock("T_divide"):
@@ -855,7 +855,7 @@ def test_decoder_layer_tir():
             B: T.Buffer((T.int64(4096), T.int64(4096)), "float16"),
             matmul: T.Buffer((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
             for i0, i1, i2, k in T.grid(T.int64(1), T.int64(256), T.int64(4096), T.int64(4096)):
                 with T.sblock("matmul"):
@@ -875,7 +875,7 @@ def test_decoder_layer_tir():
             B: T.Buffer((T.int64(1), T.int64(32), T.int64(128), T.int64(256)), "float16"),
             matmul: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
             for i0, i1, i2, i3, k in T.grid(
                 T.int64(1), T.int64(32), T.int64(256), T.int64(256), T.int64(128)
@@ -898,7 +898,7 @@ def test_decoder_layer_tir():
             B: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(128)), "float16"),
             matmul: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(128)), "float16"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
             for i0, i1, i2, i3, k in T.grid(
                 T.int64(1), T.int64(32), T.int64(256), T.int64(128), T.int64(256)
@@ -921,7 +921,7 @@ def test_decoder_layer_tir():
             B: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
             T_maximum: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(1), T.int64(32), T.int64(256), T.int64(256)):
                 with T.sblock("T_maximum"):
@@ -939,7 +939,7 @@ def test_decoder_layer_tir():
             B: T.Buffer((T.int64(1), T.int64(1), T.int64(256), T.int64(256)), "float16"),
             T_minimum: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(1), T.int64(32), T.int64(256), T.int64(256)):
                 with T.sblock("T_minimum"):
@@ -958,7 +958,7 @@ def test_decoder_layer_tir():
             A: T.Buffer((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
             T_reshape: T.Buffer((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(1), T.int64(256), T.int64(32), T.int64(128)):
                 with T.sblock("T_reshape"):
@@ -975,7 +975,7 @@ def test_decoder_layer_tir():
             A: T.Buffer((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
             T_reshape: T.Buffer((T.int64(256), T.int64(32), T.int64(128)), "float16"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
             for ax0, ax1, ax2 in T.grid(T.int64(256), T.int64(32), T.int64(128)):
                 with T.sblock("T_reshape"):
@@ -989,7 +989,7 @@ def test_decoder_layer_tir():
             A: T.Buffer((T.int64(256), T.int64(32), T.int64(128)), "float16"),
             T_reshape: T.Buffer((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(1), T.int64(256), T.int64(32), T.int64(128)):
                 with T.sblock("T_reshape"):
@@ -1004,7 +1004,7 @@ def test_decoder_layer_tir():
             A: T.Buffer((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
             T_reshape: T.Buffer((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
             for ax0, ax1, ax2 in T.grid(T.int64(1), T.int64(256), T.int64(4096)):
                 with T.sblock("T_reshape"):
@@ -1022,7 +1022,7 @@ def test_decoder_layer_tir():
             B: T.Buffer((T.int64(4096),), "float16"),
             rms_norm_1: T.Buffer((T.int64(1), 256, T.int64(4096)), "float16"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
             Ared_temp = T.sblock_alloc_buffer((T.int64(1), 256))
             for bsz, i, k in T.grid(T.int64(1), 256, T.int64(4096)):
@@ -1061,7 +1061,7 @@ def test_decoder_layer_tir():
             C: T.Buffer((T.int64(2048), T.int64(128)), "float16"),
             rotary: T.Buffer((T.int64(1), 256, T.int64(32), T.int64(128)), "float16"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
             for i0, i1, i2, i3 in T.grid(T.int64(1), 256, T.int64(32), T.int64(128)):
                 with T.sblock("rotary"):
@@ -1093,7 +1093,7 @@ def test_decoder_layer_tir():
                 (T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"
             ),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
             T_softmax_maxelem = T.sblock_alloc_buffer(
                 (T.int64(1), T.int64(32), T.int64(256)), "float16"
@@ -1158,7 +1158,7 @@ def test_decoder_layer_tir():
             A: T.Buffer((T.int64(4096), T.int64(4096)), "float16"),
             T_transpose: T.Buffer((T.int64(4096), T.int64(4096)), "float16"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
             for ax0, ax1 in T.grid(T.int64(4096), T.int64(4096)):
                 with T.sblock("T_transpose"):
@@ -1172,7 +1172,7 @@ def test_decoder_layer_tir():
             A: T.Buffer((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
             T_transpose: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(128)), "float16"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(1), T.int64(32), T.int64(256), T.int64(128)):
                 with T.sblock("T_transpose"):
@@ -1189,7 +1189,7 @@ def test_decoder_layer_tir():
             A: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(128)), "float16"),
             T_transpose: T.Buffer((T.int64(1), T.int64(32), T.int64(128), T.int64(256)), "float16"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(1), T.int64(32), T.int64(128), T.int64(256)):
                 with T.sblock("T_transpose"):
@@ -1206,7 +1206,7 @@ def test_decoder_layer_tir():
             A: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(128)), "float16"),
             T_transpose: T.Buffer((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(1), T.int64(256), T.int64(32), T.int64(128)):
                 with T.sblock("T_transpose"):
@@ -1603,7 +1603,7 @@ def test_decoder_layer_dynamic_shape():
         def rms_norm(
             var_A: T.handle, B: T.Buffer((T.int64(4096),), "float16"), var_rms_norm: T.handle
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             n = T.int64()
             A = T.match_buffer(var_A, (T.int64(1), n, T.int64(4096)), "float16")
             rms_norm_1 = T.match_buffer(var_rms_norm, (T.int64(1), n, T.int64(4096)), "float16")
@@ -1644,7 +1644,7 @@ def test_decoder_layer_dynamic_shape():
             var_rotary: T.handle,
             m: T.int64,
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             n = T.int64()
             A = T.match_buffer(var_A, (T.int64(1), n, T.int64(32), T.int64(128)), "float16")
             rotary = T.match_buffer(
@@ -1811,7 +1811,7 @@ def test_decoder_layer_dynamic_shape():
         def rms_norm(
             var_A: T.handle, B: T.Buffer((T.int64(4096),), "float16"), var_rms_norm: T.handle
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             n = T.int64()
             A = T.match_buffer(var_A, (T.int64(1), n, T.int64(4096)), "float16")
             rms_norm_1 = T.match_buffer(var_rms_norm, (T.int64(1), n, T.int64(4096)), "float16")
@@ -1852,7 +1852,7 @@ def test_decoder_layer_dynamic_shape():
             var_rotary: T.handle,
             m: T.int64,
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             n = T.int64()
             A = T.match_buffer(var_A, (T.int64(1), n, T.int64(32), T.int64(128)), "float16")
             rotary = T.match_buffer(

@@ -22,7 +22,7 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 TVM_FFI_STATIC_INIT_BLOCK() { TraceNode::RegisterReflection(); }
 
@@ -67,7 +67,7 @@ ffi::Array<Any> TranslateInputRVs(const ffi::Array<Any>& inputs,
     }
     const Object* dst = it->second;
     TVM_FFI_CHECK(dst->IsInstance<VarNode>(), TypeError)
-        << "Expect 'tir.Var', but gets: " << dst->GetTypeKey();
+        << "Expect 'tirx.Var', but gets: " << dst->GetTypeKey();
     return ffi::GetRef<Var>(static_cast<const VarNode*>(dst));
   };
 

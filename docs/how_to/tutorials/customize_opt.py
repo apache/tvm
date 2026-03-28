@@ -61,11 +61,11 @@ from tvm.relax.frontend import nn
 ######################################################################
 # Composable IRModule Optimization
 # --------------------------------
-# Apache TVM Unity provides a flexible way to optimize the IRModule. Everything centered
+# Apache TVM provides a flexible way to optimize the IRModule. Everything centered
 # around IRModule optimization can be composed with existing pipelines. Note that each optimization
 # can focus on **part of the computation graph**, enabling partial lowering or partial optimization.
 #
-# In this tutorial, we will demonstrate how to optimize a model with Apache TVM Unity.
+# In this tutorial, we will demonstrate how to optimize a model with Apache TVM.
 
 ######################################################################
 # Prepare a Relax Module

@@ -22,13 +22,13 @@
 #include <tvm/ir/transform.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tir/builtin.h>
-#include <tvm/tir/expr.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/expr.h>
+#include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 class IrregularLoopAnnotator : public StmtMutator {
  public:
@@ -45,7 +45,7 @@ class IrregularLoopAnnotator : public StmtMutator {
       TVM_FFI_ICHECK(op->kind == ForKind::kSerial)
           << "Loop kind " << op->kind << " is invalid for irregular loop " << op->loop_var;
       for (const char* key :
-           {tir::attr::pragma_auto_unroll_max_step, tir::attr::pragma_unroll_explicit,
+           {tirx::attr::pragma_auto_unroll_max_step, tirx::attr::pragma_unroll_explicit,
             s_tir::attr::pragma_loop_partition_hint, s_tir::attr::software_pipeline_stage}) {
         TVM_FFI_ICHECK(!res->annotations.count(key))
             << "Annotation `" << key << "` is invalid for irregular loop " << op->loop_var;

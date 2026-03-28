@@ -21,7 +21,7 @@ from tvm.s_tir.meta_schedule.testing.space_generation import (
     check_sketches,
     generate_design_space,
 )
-from tvm.script import tir as T
+from tvm.script import tirx as T
 from tvm.target import Target
 from tvm.te import create_prim_func
 
@@ -33,7 +33,7 @@ def test_cpu_matmul():
         B: T.Buffer((512, 4), "float32"),
         C: T.Buffer((4, 4), "float32"),
     ) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         for i0, i1, i2 in T.grid(4, 4, 512):
             with T.sblock("C"):
                 i, j, k = T.axis.remap("SSR", [i0, i1, i2])
@@ -49,7 +49,7 @@ def test_cpu_matmul():
         B: T.Buffer((512, 4), "float32"),
         C: T.Buffer((4, 4), "float32"),
     ) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         C_rf = T.sblock_alloc_buffer([4, 4, 128], dtype="float32")
         for i0, i1, i2_0, i2_1 in T.grid(4, 4, 4, 128):
             with T.sblock("C_rf"):
@@ -77,7 +77,7 @@ def test_cpu_matmul():
         B: T.Buffer((512, 4), "float32"),
         C: T.Buffer((4, 4), "float32"),
     ) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         C_rf = T.sblock_alloc_buffer([4, 4, 4], dtype="float32")
         for i0, i1, i2_0, i2_1 in T.grid(4, 4, 4, 128):
             with T.sblock("C_rf"):

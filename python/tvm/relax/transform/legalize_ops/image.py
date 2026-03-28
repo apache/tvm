@@ -17,7 +17,7 @@
 # pylint: disable=invalid-name
 """Default legalization function for image operators."""
 
-from tvm import topi
+from tvm import tirx, topi
 
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr
@@ -51,4 +51,37 @@ def _image_grid_sample(bb: BlockBuilder, call: Call) -> Expr:
         layout=call.attrs.layout,
         padding_mode=call.attrs.padding_mode,
         align_corners=call.attrs.align_corners,
+    )
+
+
+@register_legalize("relax.image.affine_grid")
+def _image_affine_grid(bb: BlockBuilder, call: Call) -> Expr:
+    for v in call.args[1].values:
+        if not isinstance(v, (int, tirx.IntImm)):
+            raise ValueError(
+                "affine_grid legalization requires static target_shape, "
+                f"got symbolic value: {v}"
+            )
+    target_shape = [int(v) for v in call.args[1].values]
+    return bb.call_te(
+        topi.image.affine_grid,
+        call.args[0],
+        target_shape=target_shape,
+    )
+
+
+@register_legalize("relax.image.resize3d")
+def _image_resize3d(bb: BlockBuilder, call: Call) -> Expr:
+    return bb.call_te(
+        topi.image.resize3d,
+        call.args[0],
+        roi=call.attrs.roi,
+        size=call.args[1],
+        layout=call.attrs.layout,
+        method=call.attrs.method,
+        coordinate_transformation_mode=call.attrs.coordinate_transformation_mode,
+        rounding_method=call.attrs.rounding_method,
+        bicubic_alpha=call.attrs.cubic_alpha,
+        bicubic_exclude=call.attrs.cubic_exclude,
+        extrapolation_value=call.attrs.extrapolation_value,
     )

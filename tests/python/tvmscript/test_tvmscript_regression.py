@@ -19,10 +19,10 @@ import numpy
 
 import tvm
 import tvm.testing
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 # This numpy array is used to test the comparison between the global objects and the
-# `tvm.script.tir` submodule.
+# `tvm.script.tirx` submodule.
 np_array = numpy.array([0, 1, 2, 3])
 
 

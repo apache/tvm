@@ -77,10 +77,10 @@ This will cause failure in some cases when certain machines do not have necessar
 environment. You can set `TVM_TUTORIAL_EXEC_PATTERN` to only execute
 the path that matches the regular expression pattern.
 
-For example, to only build tutorials under `/vta/tutorials`, run
+For example, to only build tutorials under `/get_started/tutorials`, run
 
 ```bash
-python tests/scripts/ci.py docs --tutorial-pattern=/vta/tutorials
+python tests/scripts/ci.py docs --tutorial-pattern=/get_started/tutorials
 ```
 
 To only build one specific file, do

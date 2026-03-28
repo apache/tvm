@@ -25,10 +25,10 @@ from typing import Any, Literal
 
 import tvm
 from tvm import relax as rx
-from tvm import s_tir, tir
+from tvm import s_tir, tirx
 from tvm.relax.frontend.nn import Object, Tensor
 from tvm.runtime import DataType
-from tvm.script import tir as T
+from tvm.script import tirx as T
 from tvm.target import Target
 
 from .position_embedding import llama_rope_with_position_map, switch_rope_freq_func
@@ -270,13 +270,13 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
         lse_self_attn = Tensor(_expr=bb.emit(rx.TupleGetItem(merge_results, 1))).reshape(b, s, h_qo)
         return o_self_attn, lse_self_attn
 
-    def get_query_positions(self, total_length: tir.PrimExpr) -> Tensor:
+    def get_query_positions(self, total_length: tirx.PrimExpr) -> Tensor:
         """Get the in-sequence positions of each slot in the query,
         which are needed for applying positional embeddings in some models.
 
         Parameters
         ----------
-        total_length : tir.PrimExpr
+        total_length : tirx.PrimExpr
             The summed-up total sequence length of queries in
             the batch being forwarded.
 
@@ -321,11 +321,11 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
     def __init__(  # pylint: disable=too-many-locals
         self,
         attn_kind: Literal["mha", "mla"] | list[Literal["mha", "mla", "mha_sliding"]],
-        max_batch_size: tir.Var,
-        max_total_seq_len: tir.Var,
-        prefill_chunk_size: tir.Var,
-        page_size: tir.Var,
-        support_sliding_window: tir.Var,
+        max_batch_size: tirx.Var,
+        max_total_seq_len: tirx.Var,
+        prefill_chunk_size: tirx.Var,
+        page_size: tirx.Var,
+        support_sliding_window: tirx.Var,
         layer_partition: rx.ShapeExpr,
         num_hidden_layers: int,
         num_attention_heads: int,
@@ -349,23 +349,23 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
 
         Parameters
         ----------
-        max_batch_size : tir.Var
+        max_batch_size : tirx.Var
             The maximum allowed batch size of the KV cache.
             It is a symbolic variable whose concrete value is specified
             at runtime.
-        max_total_seq_len : tir.Var
+        max_total_seq_len : tirx.Var
             The maximum allowed total sequence length of the KV cache.
             It is a symbolic variable whose concrete value is specified
             at runtime.
-        prefill_chunk_size : tir.Var
+        prefill_chunk_size : tirx.Var
             The maximum total sequence length in a prefill.
             It is a symbolic variable whose concrete value is specified
             at runtime.
-        page_size : tir.Var
+        page_size : tirx.Var
             The size (a.k.a. number of tokens) of each page.
             It is a symbolic variable whose concrete value is specified
             at runtime.
-        support_sliding_window : tir.Var
+        support_sliding_window : tirx.Var
             0 or 1, denoting whether the KV cache supports sliding window.
             It is a symbolic variable whose concrete value is specified
             at runtime.
@@ -438,10 +438,10 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
             [
                 rx.Tuple([rx.StringImm("flashinfer"), rx.ExternFunc("batch_prefill_paged_run"), rx.ExternFunc("batch_prefill_plan")]),
                 rx.Tuple([rx.StringImm("flashinfer"), rx.ExternFunc("batch_decode_run"), rx.ExternFunc("batch_decode_plan")]),
-                rx.Tuple([rx.StringImm("tir"), bb.add_func(_attention_prefill(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, True, rope_scaling, target), "tir_attention_prefill_sliding_window")]),
-                rx.Tuple([rx.StringImm("tir"), bb.add_func(_attention_decode(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, True, rope_scaling, target), "tir_attention_decode_sliding_window")]),
-                rx.Tuple([rx.StringImm("tir"), bb.add_func(tree_attn_with_paged_kv_cache(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, rope_scaling, target), "tir_attention_prefill_with_tree_mask_with_paged_kv_cache")]),
-                rx.Tuple([rx.StringImm("tir"), bb.add_func(tree_attn(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, rope_scaling, target), "tir_attention_prefill_with_tree_mask")]),
+                rx.Tuple([rx.StringImm("tirx"), bb.add_func(_attention_prefill(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, True, rope_scaling, target), "tir_attention_prefill_sliding_window")]),
+                rx.Tuple([rx.StringImm("tirx"), bb.add_func(_attention_decode(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, True, rope_scaling, target), "tir_attention_decode_sliding_window")]),
+                rx.Tuple([rx.StringImm("tirx"), bb.add_func(tree_attn_with_paged_kv_cache(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, rope_scaling, target), "tir_attention_prefill_with_tree_mask_with_paged_kv_cache")]),
+                rx.Tuple([rx.StringImm("tirx"), bb.add_func(tree_attn(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, rope_scaling, target), "tir_attention_prefill_with_tree_mask")]),
             ]
             if attn_kind_single == "mha"
             else [rx.Tuple([]) for _ in range(6)]
@@ -509,11 +509,11 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
     def __init__(  # pylint: disable=too-many-locals
         self,
         attn_kind: Literal["mha", "mla"] | list[Literal["mha", "mla", "mha_sliding"]],
-        max_batch_size: tir.Var,
-        max_total_seq_len: tir.Var,
-        prefill_chunk_size: tir.Var,
-        page_size: tir.Var,
-        support_sliding_window: tir.Var,
+        max_batch_size: tirx.Var,
+        max_total_seq_len: tirx.Var,
+        prefill_chunk_size: tirx.Var,
+        page_size: tirx.Var,
+        support_sliding_window: tirx.Var,
         layer_partition: rx.ShapeExpr,
         num_hidden_layers: int,
         num_attention_heads: int,
@@ -537,23 +537,23 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
 
         Parameters
         ----------
-        max_batch_size : tir.Var
+        max_batch_size : tirx.Var
             The maximum allowed batch size of the KV cache.
             It is a symbolic variable whose concrete value is specified
             at runtime.
-        max_total_seq_len : tir.Var
+        max_total_seq_len : tirx.Var
             The maximum allowed total sequence length of the KV cache.
             It is a symbolic variable whose concrete value is specified
             at runtime.
-        prefill_chunk_size : tir.Var
+        prefill_chunk_size : tirx.Var
             The maximum total sequence length in a prefill.
             It is a symbolic variable whose concrete value is specified
             at runtime.
-        page_size : tir.Var
+        page_size : tirx.Var
             The size (a.k.a. number of tokens) of each page.
             It is a symbolic variable whose concrete value is specified
             at runtime.
-        support_sliding_window : tir.Var
+        support_sliding_window : tirx.Var
             0 or 1, denoting whether the KV cache supports sliding window.
             It is a symbolic variable whose concrete value is specified
             at runtime.
@@ -630,13 +630,13 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
             # fmt: off
             args.extend(
                 [
-                    rx.Tuple([rx.StringImm("tir"), bb.add_func(_attention_prefill_ragged_cpu(num_key_value_heads, num_attention_heads, qk_head_dim, v_head_dim, dtype, rope_scaling), "tir_attention_prefill_ragged_cpu")]),
-                    rx.Tuple([rx.StringImm("tir"), bb.add_func(_attention_prefill_cpu(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, False, rope_scaling), "tir_attention_prefill_cpu")]),
-                    rx.Tuple([rx.StringImm("tir"), bb.add_func(_attention_decode_cpu(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, False, rope_scaling), "tir_attention_decode_cpu")]),
-                    rx.Tuple([rx.StringImm("tir"), bb.add_func(_attention_prefill_cpu(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, True, rope_scaling), "tir_attention_prefill_cpu_sliding_window")]),
-                    rx.Tuple([rx.StringImm("tir"), bb.add_func(_attention_decode_cpu(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, True, rope_scaling), "tir_attention_decode_cpu_sliding_window")]),
-                    rx.Tuple([rx.StringImm("tir"), bb.add_func(tree_attn_cpu(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, rope_scaling), "tir_attention_prefill_with_tree_mask_cpu")]),
-                    rx.Tuple([rx.StringImm("tir"), bb.add_func(tree_attn_with_paged_kv_cache_cpu(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, rope_scaling), "tir_attention_prefill_with_tree_mask_with_paged_kv_cache_cpu")]),
+                    rx.Tuple([rx.StringImm("tirx"), bb.add_func(_attention_prefill_ragged_cpu(num_key_value_heads, num_attention_heads, qk_head_dim, v_head_dim, dtype, rope_scaling), "tir_attention_prefill_ragged_cpu")]),
+                    rx.Tuple([rx.StringImm("tirx"), bb.add_func(_attention_prefill_cpu(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, False, rope_scaling), "tir_attention_prefill_cpu")]),
+                    rx.Tuple([rx.StringImm("tirx"), bb.add_func(_attention_decode_cpu(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, False, rope_scaling), "tir_attention_decode_cpu")]),
+                    rx.Tuple([rx.StringImm("tirx"), bb.add_func(_attention_prefill_cpu(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, True, rope_scaling), "tir_attention_prefill_cpu_sliding_window")]),
+                    rx.Tuple([rx.StringImm("tirx"), bb.add_func(_attention_decode_cpu(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, True, rope_scaling), "tir_attention_decode_cpu_sliding_window")]),
+                    rx.Tuple([rx.StringImm("tirx"), bb.add_func(tree_attn_cpu(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, rope_scaling), "tir_attention_prefill_with_tree_mask_cpu")]),
+                    rx.Tuple([rx.StringImm("tirx"), bb.add_func(tree_attn_with_paged_kv_cache_cpu(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, rope_scaling), "tir_attention_prefill_with_tree_mask_with_paged_kv_cache_cpu")]),
                     rx.Tuple([]),  # f_mla_prefill
                     rx.Tuple([bb.add_func(_merge_state_inplace_cpu(dtype), "tir_attention_merge_state_cpu")]),
                     bb.add_func(llama_rope_with_position_map(rope_theta, rope_scale, qk_head_dim, num_attention_heads, num_key_value_heads, dtype, rope_scaling, rotary_dim), "tir_split_rotary"),
@@ -652,20 +652,20 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
             # fmt: off
             ragged_qk_head_dim = qk_head_dim if attn_kind_single == "mha" else mla_original_qk_head_dim
             ragged_v_head_dim = v_head_dim if attn_kind_single == "mha" else mla_original_v_head_dim
-            args.append(rx.Tuple([rx.StringImm("tir"), bb.add_func(_attention_prefill_ragged(num_key_value_heads if attn_kind_single == "mha" else num_attention_heads, num_attention_heads, ragged_qk_head_dim, ragged_v_head_dim, dtype, rope_scaling, target), "tir_attention_prefill_ragged")]))
+            args.append(rx.Tuple([rx.StringImm("tirx"), bb.add_func(_attention_prefill_ragged(num_key_value_heads if attn_kind_single == "mha" else num_attention_heads, num_attention_heads, ragged_qk_head_dim, ragged_v_head_dim, dtype, rope_scaling, target), "tir_attention_prefill_ragged")]))
             mha_functions = (
                 [
-                    rx.Tuple([rx.StringImm("tir"), bb.add_func(_attention_prefill(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, False, rope_scaling, target), "tir_attention_prefill")]),
-                    rx.Tuple([rx.StringImm("tir"), bb.add_func(_attention_decode(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, False, rope_scaling, target), "tir_attention_decode")]),
-                    rx.Tuple([rx.StringImm("tir"), bb.add_func(_attention_prefill(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, True, rope_scaling, target), "tir_attention_prefill_sliding_window")]),
-                    rx.Tuple([rx.StringImm("tir"), bb.add_func(_attention_decode(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, True, rope_scaling, target), "tir_attention_decode_sliding_window")]),
-                    rx.Tuple([rx.StringImm("tir"), bb.add_func(tree_attn_with_paged_kv_cache(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, rope_scaling, target), "tir_attention_prefill_with_tree_mask_with_paged_kv_cache")]),
-                    rx.Tuple([rx.StringImm("tir"), bb.add_func(tree_attn(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, rope_scaling, target), "tir_attention_prefill_with_tree_mask")]),
+                    rx.Tuple([rx.StringImm("tirx"), bb.add_func(_attention_prefill(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, False, rope_scaling, target), "tir_attention_prefill")]),
+                    rx.Tuple([rx.StringImm("tirx"), bb.add_func(_attention_decode(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, False, rope_scaling, target), "tir_attention_decode")]),
+                    rx.Tuple([rx.StringImm("tirx"), bb.add_func(_attention_prefill(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, True, rope_scaling, target), "tir_attention_prefill_sliding_window")]),
+                    rx.Tuple([rx.StringImm("tirx"), bb.add_func(_attention_decode(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, True, rope_scaling, target), "tir_attention_decode_sliding_window")]),
+                    rx.Tuple([rx.StringImm("tirx"), bb.add_func(tree_attn_with_paged_kv_cache(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, rope_scaling, target), "tir_attention_prefill_with_tree_mask_with_paged_kv_cache")]),
+                    rx.Tuple([rx.StringImm("tirx"), bb.add_func(tree_attn(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, rope_scaling, target), "tir_attention_prefill_with_tree_mask")]),
                 ]
                 if attn_kind_single == "mha"
                 else [rx.Tuple([]) for _ in range(6)]
             )
-            mla_function = rx.Tuple([rx.StringImm("tir"), bb.add_func(_attention_prefill_mla(num_attention_heads, v_head_dim, qk_head_dim - v_head_dim, dtype, False, target), "tir_attention_prefill_mla")] if attn_kind_single == "mla" else [])
+            mla_function = rx.Tuple([rx.StringImm("tirx"), bb.add_func(_attention_prefill_mla(num_attention_heads, v_head_dim, qk_head_dim - v_head_dim, dtype, False, target), "tir_attention_prefill_mla")] if attn_kind_single == "mla" else [])
             attn_merge_functions = [
                 bb.add_func(_merge_state_inplace(num_attention_heads, v_head_dim, dtype, target, "tir_attention_merge_state"), "tir_attention_merge_state"),
             ]
@@ -711,7 +711,7 @@ def _kv_cache_transpose_append(num_key_value_heads, head_dim, dtype, page_size: 
         var_v_data: T.handle,
         var_position_map: T.handle,
     ):
-        T.func_attr({"tir.noalias": True})
+        T.func_attr({"tirx.noalias": True})
         ntoken = T.SizeVar("num_tokens_excluding_cache", "int64")
         num_pages = T.int64()
         pages_elem_offset = T.int64()
@@ -753,7 +753,7 @@ def _kv_cache_transpose_append_mla(d_qk: int, dtype, page_size: int = 16):
         var_kv_data: T.handle,
         var_position_map: T.handle,
     ):
-        T.func_attr({"tir.noalias": True})
+        T.func_attr({"tirx.noalias": True})
         ntoken = T.SizeVar("num_tokens_excluding_cache", "int64")
         num_pages = T.int64()
         pages_elem_offset = T.int64()
@@ -790,7 +790,7 @@ def _kv_cache_debug_get_kv(num_hidden_layers, num_key_value_heads, head_dim, dty
         var_v_data: T.handle,
         layer_id: T.int64,
     ):
-        T.func_attr({"tir.noalias": True})
+        T.func_attr({"tirx.noalias": True})
         seqlen = T.SizeVar("num_tokens_including_cache", "int64")
         page_size = T.SizeVar("page_size", "int64")
         num_pages = T.int64()
@@ -828,7 +828,7 @@ def _kv_cache_debug_get_kv_mla(num_hidden_layers, d_qk, dtype):
         var_compressed_kv_with_k_pe_data: T.handle,
         layer_id: T.int64,
     ):
-        T.func_attr({"tir.noalias": True})
+        T.func_attr({"tirx.noalias": True})
         seqlen = T.SizeVar("num_tokens_including_cache", "int64")
         page_size = T.SizeVar("page_size", "int64")
         num_pages = T.int64()
@@ -854,11 +854,11 @@ def _kv_cache_debug_get_kv_mla(num_hidden_layers, d_qk, dtype):
 
 def _rope(
     buffer: T.Buffer,
-    offset: tir.Var,
+    offset: tirx.Var,
     rotary_dim: int,
-    theta: tir.Var,
-    scale: tir.Var,
-    indices: tuple[tir.Var, ...],
+    theta: tirx.Var,
+    scale: tirx.Var,
+    indices: tuple[tirx.Var, ...],
     qkv_dtype: str,
     rope_scaling: dict[str, Any],
 ):
@@ -867,14 +867,14 @@ def _rope(
         offset * scale, d, rotary_dim, theta, "float32"
     )
     cos = cos_freq * buffer[indices].astype("float32")
-    sin = sin_freq * tir.if_then_else(
+    sin = sin_freq * tirx.if_then_else(
         d < rotary_dim // 2,
         -buffer[indices[:-1] + (d + rotary_dim // 2,)],
         buffer[indices[:-1] + (d - rotary_dim // 2,)],
     ).astype("float32")
     expr = (cos + sin).astype(qkv_dtype)
     for var, value in var_map.items():
-        expr = tir.Let(var, value, expr)
+        expr = tirx.Let(var, value, expr)
     return expr
 
 
@@ -1520,7 +1520,7 @@ def _attention_prefill(
     sch = _schedule_prefill_kernel(
         sch, LOAD_VEC, bdx, num_warps, tile_x, tile_y, tile_z, False, False
     )
-    return sch.mod["main"].with_attr("tir.is_scheduled", True)
+    return sch.mod["main"].with_attr("tirx.is_scheduled", True)
 
 
 def _attention_decode_cpu(
@@ -1559,7 +1559,7 @@ def _attention_decode_cpu(
         rope_theta: T.float32,
         sm_scale: T.float32,
     ):
-        T.func_attr({"tir.is_scheduled": True, "global_symbol": global_symbol})
+        T.func_attr({"tirx.is_scheduled": True, "global_symbol": global_symbol})
         B = T.int32(is_size_var=True)
         nnz_pages = T.int32(is_size_var=True)
         max_num_pages = T.int32(is_size_var=True)
@@ -1740,7 +1740,7 @@ def _attention_decode(
         rope_theta: T.float32,
         sm_scale: T.float32,
     ):
-        T.func_attr({"tir.is_scheduled": True, "global_symbol": global_symbol})
+        T.func_attr({"tirx.is_scheduled": True, "global_symbol": global_symbol})
         B = T.int32(is_size_var=True)
         nnz_pages = T.int32(is_size_var=True)
         max_num_pages = T.int32(is_size_var=True)
@@ -1943,7 +1943,7 @@ def _merge_state_inplace_cpu(v_dtype):
         v_other: T.handle,
         s_other: T.handle,
     ):
-        T.func_attr({"tir.is_scheduled": True})
+        T.func_attr({"tirx.is_scheduled": True})
         N = T.int32(is_size_var=True)
         H = T.int32(is_size_var=True)
         D = T.int32(is_size_var=True)
@@ -1996,7 +1996,7 @@ def _merge_state_inplace(
         v_other: T.handle,
         s_other: T.handle,
     ):
-        T.func_attr({"tir.is_scheduled": True})
+        T.func_attr({"tirx.is_scheduled": True})
         N = T.int32(is_size_var=True)
         H = T.int32(is_size_var=True)
         D = T.int32(is_size_var=True)
@@ -2302,7 +2302,7 @@ def _attention_sequence_prefill(h_kv, h_q, d, dtype, target: Target, causal=0, s
     sch = _schedule_prefill_kernel(
         sch, LOAD_VEC, bdx, num_warps, tile_x, tile_y, tile_z, False, False
     )
-    return sch.mod["main"].with_attr("tir.is_scheduled", True)
+    return sch.mod["main"].with_attr("tirx.is_scheduled", True)
 
 
 def _attention_prefill_ragged_cpu(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dict[str, Any]):
@@ -2694,7 +2694,7 @@ def _attention_prefill_ragged(
     # pylint: enable=line-too-long,too-many-branches
     sch = tvm.s_tir.Schedule(batch_prefill_ragged_kv)
     sch = _schedule_prefill_kernel(sch, LOAD_VEC, bdx, num_warps, tile_x, d_v, tile_z, True, False)
-    return sch.mod["main"].with_attr("tir.is_scheduled", True)
+    return sch.mod["main"].with_attr("tirx.is_scheduled", True)
 
 
 def _attention_prefill_mla(
@@ -2963,7 +2963,7 @@ def _attention_prefill_mla(
     sch = _schedule_prefill_kernel(
         sch, LOAD_VEC, bdx, num_warps, tile_x, d_latent, tile_z, False, True
     )
-    return sch.mod["main"].with_attr("tir.is_scheduled", True)
+    return sch.mod["main"].with_attr("tirx.is_scheduled", True)
 
 
 def _copy_single_page(num_heads, page_size, head_dim, dtype, target: Target):
@@ -2976,7 +2976,7 @@ def _copy_single_page(num_heads, page_size, head_dim, dtype, target: Target):
         tgt_page_id: T.int64,
         copy_length: T.int64,
     ):
-        T.func_attr({"tir.is_scheduled": True})
+        T.func_attr({"tirx.is_scheduled": True})
         num_pages = T.int32()
         pages_elem_offset = T.int64()
         pages = T.match_buffer(
@@ -3023,7 +3023,7 @@ def _copy_single_page_mla(page_size, head_dim, dtype, target: Target):
         tgt_page_id: T.int64,
         copy_length: T.int64,
     ):
-        T.func_attr({"tir.is_scheduled": True})
+        T.func_attr({"tirx.is_scheduled": True})
         num_pages = T.int32()
         pages_elem_offset = T.int64()
         pages = T.match_buffer(
@@ -3051,7 +3051,7 @@ def _copy_single_page_cpu(num_heads, page_size, head_dim, dtype):
         tgt_page_id: T.int64,
         copy_length: T.int64,
     ):
-        T.func_attr({"tir.is_scheduled": True})
+        T.func_attr({"tirx.is_scheduled": True})
         num_pages = T.int32()
         pages = T.match_buffer(var_pages, (num_pages, 2, num_heads, page_size, head_dim), dtype)
 
@@ -3090,7 +3090,7 @@ def _compact_kv_copy(num_heads, head_dim, dtype, target: Target, page_size: int 
         var_copy_src_dst_pos: T.handle,
         batch_size: T.int32,
     ):
-        T.func_attr({"tir.is_scheduled": True})
+        T.func_attr({"tirx.is_scheduled": True})
         num_pages = T.int32()
         total_copy_length = T.int32()
         copy_length_indptr_elem_offset = T.int32()
@@ -3147,7 +3147,7 @@ def _compact_kv_copy_cpu(num_heads, head_dim, dtype, page_size: int = 16):
         var_copy_src_dst_pos: T.handle,
         batch_size: T.int32,
     ):
-        T.func_attr({"tir.is_scheduled": True})
+        T.func_attr({"tirx.is_scheduled": True})
         num_pages = T.int32()
         total_copy_length = T.int32()
         copy_length_indptr_elem_offset = T.int32()

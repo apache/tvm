@@ -37,9 +37,9 @@ namespace detail {
 
 struct BroadcastHelper {
   std::deque<tvm::PrimExpr> common_shape;
-  std::deque<tvm::tir::Var> all_vars;
-  std::deque<tvm::tir::Var> vars1;
-  std::deque<tvm::tir::Var> vars2;
+  std::deque<tvm::tirx::Var> all_vars;
+  std::deque<tvm::tirx::Var> vars1;
+  std::deque<tvm::tirx::Var> vars2;
 };
 
 static inline DataType CommonType(DataType type1, DataType type2) {
@@ -66,7 +66,7 @@ inline BroadcastHelper BroadcastShape(const tvm::ffi::Array<tvm::PrimExpr>& shap
     const IntImmNode* static_size2 = shape2[s2_size - i].as<IntImmNode>();
     DataType common_type = CommonType(shape1[s1_size - i].dtype(), shape2[s2_size - i].dtype());
 
-    bh.all_vars.push_front(tvm::tir::Var("dim", common_type));
+    bh.all_vars.push_front(tvm::tirx::Var("dim", common_type));
     if (topi::detail::EqualCheck(shape1[s1_size - i], shape2[s2_size - i])) {
       bh.common_shape.push_front(cast_if_needed(common_type, shape1[s1_size - i]));
       bh.vars1.push_front(bh.all_vars[0]);
@@ -104,7 +104,7 @@ inline BroadcastHelper BroadcastShape(const tvm::ffi::Array<tvm::PrimExpr>& shap
   auto& shape = (s1_size > s2_size) ? shape1 : shape2;
   auto& vars = (s1_size > s2_size) ? bh.vars1 : bh.vars2;
   for (; i <= max_size; ++i) {
-    bh.all_vars.push_front(tvm::tir::Var("v", shape[max_size - 1].dtype()));
+    bh.all_vars.push_front(tvm::tirx::Var("v", shape[max_size - 1].dtype()));
     bh.common_shape.push_front(shape[max_size - i]);
     vars.push_front(bh.all_vars[0]);
   }
@@ -112,8 +112,8 @@ inline BroadcastHelper BroadcastShape(const tvm::ffi::Array<tvm::PrimExpr>& shap
 }
 
 inline tvm::ffi::Array<tvm::PrimExpr> InputIndexFromBroadcast(
-    const tvm::ffi::Array<tvm::tir::Var>& ovars, const tvm::te::Tensor& T,
-    const std::deque<tvm::tir::Var>& my_vars, const std::deque<tvm::tir::Var>& all_vars) {
+    const tvm::ffi::Array<tvm::tirx::Var>& ovars, const tvm::te::Tensor& T,
+    const std::deque<tvm::tirx::Var>& my_vars, const std::deque<tvm::tirx::Var>& all_vars) {
   tvm::ffi::Array<tvm::PrimExpr> ivars;
   TVM_FFI_ICHECK_EQ(ovars.size(), all_vars.size());
   // N^2, could use a map but NBD.
@@ -130,7 +130,7 @@ inline tvm::ffi::Array<tvm::PrimExpr> InputIndexFromBroadcast(
     // Only inject 0 here if we have not yet reached the dimension of I
     // (i.e. this must be a 1)
     if (!found && (ovars.size() - i) <= expected_dims) {
-      ivars.push_back(tvm::tir::make_zero(ovars[i].dtype()));
+      ivars.push_back(tvm::tirx::make_zero(ovars[i].dtype()));
     }
   }
   TVM_FFI_ICHECK(expected_dims == ivars.size());
@@ -142,7 +142,7 @@ inline tvm::te::Tensor WithBroadcast(FBinaryExpr op, const tvm::te::Tensor& A,
                                      const tvm::te::Tensor& B, const std::string& name = "tensor",
                                      const std::string& tag = "") {
   auto bh = BroadcastShape(A->shape, B->shape);
-  auto l = [&](tvm::ffi::Array<tvm::tir::Var> ovars) {
+  auto l = [&](tvm::ffi::Array<tvm::tirx::Var> ovars) {
     return op(A(InputIndexFromBroadcast(ovars, A, bh.vars1, bh.all_vars)),
               B(InputIndexFromBroadcast(ovars, B, bh.vars2, bh.all_vars)));
   };

@@ -22,7 +22,7 @@ import pytest
 
 import tvm
 from tvm.s_tir.tensor_intrin.hexagon import DMA_READ_128_i8
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 from .infrastructure import get_hexagon_target
 

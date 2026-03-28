@@ -22,7 +22,7 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 /*!
  * \brief Calculate the strides of the buffer
@@ -100,7 +100,7 @@ class SplitExprCollector {
 
  private:
   void Visit(const arith::IterSplitExpr& expr) {
-    if (const auto* var = expr->source->source.as<tir::VarNode>()) {
+    if (const auto* var = expr->source->source.as<tirx::VarNode>()) {
       const int64_t* lower_factor = as_const_int(expr->lower_factor);
       const int64_t* extent = as_const_int(expr->extent);
       if (lower_factor == nullptr || extent == nullptr) {

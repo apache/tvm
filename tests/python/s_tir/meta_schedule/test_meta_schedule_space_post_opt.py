@@ -26,7 +26,7 @@ import tvm
 import tvm.testing
 from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.meta_schedule.runner.config import EvaluatorConfig
-from tvm.script import tir as T
+from tvm.script import tirx as T
 from tvm.target import Target
 
 logging.basicConfig()

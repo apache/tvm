@@ -30,7 +30,7 @@ from tvm import IRModule
 from tvm.runtime import Object
 from tvm.s_tir import Schedule
 from tvm.target import Target
-from tvm.tir import PrimFunc
+from tvm.tirx import PrimFunc
 
 from . import _ffi_api
 from .logging import Logger, get_logger, get_logging_func
@@ -50,7 +50,7 @@ def _normalize_mod(mod: PrimFunc | IRModule) -> IRModule:
     if isinstance(mod, PrimFunc):
         if not (mod.attrs and "global_symbol" in mod.attrs):
             mod = mod.with_attr("global_symbol", "main")
-        mod = mod.with_attr("tir.noalias", True)
+        mod = mod.with_attr("tirx.noalias", True)
         mod = IRModule({"main": mod})
     if not isinstance(mod, IRModule):
         raise TypeError(f"Expected `mod` to be PrimFunc or IRModule, but gets: {mod}")

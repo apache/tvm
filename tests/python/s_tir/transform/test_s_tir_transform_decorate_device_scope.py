@@ -18,8 +18,8 @@ import tvm
 
 
 def test_decorate_device():
-    x = tvm.tir.Var("x", "int32")
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([x], tvm.tir.Evaluate(x)))
+    x = tvm.tirx.Var("x", "int32")
+    mod = tvm.IRModule.from_expr(tvm.tirx.PrimFunc([x], tvm.tirx.Evaluate(x)))
 
     stmt = tvm.s_tir.transform.DecorateDeviceScope()(mod)["main"].body
     assert stmt.attr_key == "device_scope"

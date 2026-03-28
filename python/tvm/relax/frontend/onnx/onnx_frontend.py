@@ -48,10 +48,10 @@ import numpy as _np
 import onnx.onnx_ml_pb2
 
 import tvm
-from tvm import TVMError, relax, tir, topi
+from tvm import TVMError, relax, tirx, topi
 from tvm.ir import IRModule
 from tvm.ir.supply import NameSupply
-from tvm.tir.generic import cast
+from tvm.tirx.generic import cast
 from tvm.topi.utils import get_const_tuple
 
 from ..common import autopad
@@ -110,7 +110,7 @@ def get_constant(
         return var
 
 
-def get_value(token, value_dict: dict[str, tvm.tir.SizeVar]) -> int | tvm.tir.SizeVar:
+def get_value(token, value_dict: dict[str, tvm.tirx.SizeVar]) -> int | tvm.tirx.SizeVar:
     """Converts to token to an integer value if it a constant, otherwise it generates a SizeVar
 
     Parameters
@@ -123,7 +123,7 @@ def get_value(token, value_dict: dict[str, tvm.tir.SizeVar]) -> int | tvm.tir.Si
 
     Returns
     -------
-    Union[int, tvm.tir.SizeVar]
+    Union[int, tvm.tirx.SizeVar]
         The decoded token
     """
 
@@ -131,14 +131,14 @@ def get_value(token, value_dict: dict[str, tvm.tir.SizeVar]) -> int | tvm.tir.Si
         return int(token)
     except ValueError:
         if token not in value_dict or token == "?":
-            value_dict[token] = tvm.tir.SizeVar(token, "int64")
+            value_dict[token] = tvm.tirx.SizeVar(token, "int64")
         value = value_dict[token]
         return value
 
 
 def parse_shape_name(
-    name: str, value_dict: dict[str, tvm.tir.SizeVar]
-) -> tir.PrimExpr | tvm.tir.SizeVar:
+    name: str, value_dict: dict[str, tvm.tirx.SizeVar]
+) -> tirx.PrimExpr | tvm.tirx.SizeVar:
     """Converts expressions in the shape dimension name to prim expressions.
 
     Parameters
@@ -151,7 +151,7 @@ def parse_shape_name(
 
     Returns
     -------
-    Union[tir.PrimExpr, tvm.tir.SizeVar]
+    Union[tirx.PrimExpr, tvm.tirx.SizeVar]
         The expression of the shape dimension.
     """
 
@@ -188,7 +188,7 @@ def parse_shape_name(
 
 
 def get_info(
-    info_proto: onnx.onnx_ml_pb2.ValueInfoProto, value_dict: dict[str, tvm.tir.SizeVar]
+    info_proto: onnx.onnx_ml_pb2.ValueInfoProto, value_dict: dict[str, tvm.tirx.SizeVar]
 ) -> tuple[str, list, str, list, dict]:
     """Extract the shape from a ValueInfoProto.
 
@@ -237,7 +237,7 @@ def get_numpy(tensor_proto: onnx.onnx_ml_pb2.TensorProto) -> _np.ndarray:
 
 def get_prim_expr_list(
     inputs: relax.Constant | relax.ShapeExpr,
-) -> list[int | tir.PrimExpr]:
+) -> list[int | tirx.PrimExpr]:
     """Attempt to convert a variable to list of PrimExpr if possible.
 
     Parameters
@@ -247,7 +247,7 @@ def get_prim_expr_list(
 
     Returns
     -------
-    ret : List[Union[int, tir.PrimExpr]]
+    ret : List[Union[int, tirx.PrimExpr]]
         The input value converted to a list of PrimExpr if possible.
     """
     if isinstance(inputs, relax.Constant):
@@ -351,7 +351,7 @@ class MatMulInteger16(OnnxOpConverter):
 def _to_numpy(x):
     if isinstance(x, relax.PrimValue):
         x = x.value
-        if isinstance(x, tir.IntImm | tir.FloatImm):
+        if isinstance(x, tirx.IntImm | tirx.FloatImm):
             x = x.value
         return _np.array(x)
     else:
@@ -679,8 +679,8 @@ class Hardmax(OnnxOpConverter):
         dtype = indices.struct_info.dtype
         axis_len = int(inputs[0].struct_info.shape[axis])
         argmax = relax.op.argmax(indices, axis=axis)
-        on_value = relax.PrimValue(tvm.tir.const(1.0, dtype))
-        off_value = relax.PrimValue(tvm.tir.const(0.0, dtype))
+        on_value = relax.PrimValue(tvm.tirx.const(1.0, dtype))
+        off_value = relax.PrimValue(tvm.tirx.const(0.0, dtype))
 
         one_hot = relax.op.one_hot(argmax, on_value, off_value, axis_len, axis)
         return one_hot
@@ -815,7 +815,7 @@ class Cast(OnnxOpConverter):
         to_type = get_type(attr["to"])
         if isinstance(inputs[0], relax.ShapeExpr):
             shape = inputs[0]
-            if all([isinstance(x, tir.IntImm) for x in shape]):
+            if all([isinstance(x, tirx.IntImm) for x in shape]):
                 shape = [int(x) for x in shape]
                 return relax.const(shape, to_type)
         if isinstance(inputs[0], relax.Constant):
@@ -940,7 +940,7 @@ class Compress(OnnxOpConverter):
         if condition.struct_info.ndim != 1:
             raise ValueError("Condition tensor is expected to be a 1D boolean tensor")
         indices = relax.op.nonzero(condition)
-        num_nonzero = tir.Var("num_nonzero", "int64")
+        num_nonzero = tirx.Var("num_nonzero", "int64")
         indices = bb.match_cast(indices, relax.TensorStructInfo([1, num_nonzero], "int64"))
         indices = relax.op.reshape(indices, [-1])
 
@@ -1530,7 +1530,7 @@ class ConstantOfShape(OnnxOpConverter):
             shape = relax.ShapeExpr(list(shape.data.numpy()))
 
         # Special case where requested shape are constant
-        if len(shape) == 1 and all([isinstance(x, tir.IntImm) for x in shape]):
+        if len(shape) == 1 and all([isinstance(x, tirx.IntImm) for x in shape]):
             shape = [int(x) for x in shape]
             return relax.const(_np.full(shape, value, dtype), dtype)
 
@@ -1931,7 +1931,7 @@ class Slice(OnnxOpConverter):
             assert all(len(i) == 1 for i in [starts, ends, steps])
             sliced_values = shape_data[starts[0] : ends[0] : steps[0]]
 
-            if all([isinstance(val, tir.IntImm | int) for val in sliced_values]):
+            if all([isinstance(val, tirx.IntImm | int) for val in sliced_values]):
                 return relax.const([x.value for x in sliced_values], "int64")
             else:
                 return relax.ShapeExpr(sliced_values)
@@ -1939,7 +1939,7 @@ class Slice(OnnxOpConverter):
         # If all `starts`, `ends`, and `steps` are constant, use strict mode
         # Otherwise, we assume the slice is inbound.
         assume_inbound = not all(
-            [isinstance(param, tir.IntImm | int) for param in [*starts, *ends, *steps]]
+            [isinstance(param, tirx.IntImm | int) for param in [*starts, *ends, *steps]]
         )
 
         # Converting PrimExpr to PrimValue since relax.op.strided_slice does not accept PrimExpr
@@ -2025,7 +2025,7 @@ class Tile(OnnxOpConverter):
             return None
 
         length = shape.values[0]
-        if not isinstance(length, tir.IntImm):
+        if not isinstance(length, tirx.IntImm):
             return None
         return length.value
 
@@ -2065,7 +2065,7 @@ class Tile(OnnxOpConverter):
         )
         output_shape = bb.normalize(relax.op.tensor_to_shape(output_shape_tensor))
         output_shape_vars = [
-            tir.Var(f"tile_dim_{i}", "int64") for i in range(max(data_ndim, reps_len))
+            tirx.Var(f"tile_dim_{i}", "int64") for i in range(max(data_ndim, reps_len))
         ]
         bb.match_cast(output_shape, relax.ShapeStructInfo(output_shape_vars))
         return bb.emit_te(topi.dyn_tile, data, output_shape_vars, reps_len)
@@ -2091,11 +2091,11 @@ class Expand(OnnxOpConverter):
             assert len(data_shape) == len(target_shape)
             # Apply ONNX v13 Expand broadcasting rules
             for i, s in enumerate(target_shape):
-                if isinstance(s, tvm.tir.IntImm):
+                if isinstance(s, tvm.tirx.IntImm):
                     if s.value == -1:
                         # -1 means preserve the input dimension
                         target_shape[i] = data_shape[i]
-                    elif isinstance(data_shape[i], tvm.tir.IntImm) and data_shape[i].value == 1:
+                    elif isinstance(data_shape[i], tvm.tirx.IntImm) and data_shape[i].value == 1:
                         # Input dimension is 1, can broadcast to any target dimension >= 1
                         if s.value < 1:
                             raise ValueError(
@@ -2103,7 +2103,8 @@ class Expand(OnnxOpConverter):
                                 f"at possition {i}. Target dimensions must be >= 1."
                             )
                     elif (
-                        isinstance(data_shape[i], tvm.tir.IntImm) and s.value == data_shape[i].value
+                        isinstance(data_shape[i], tvm.tirx.IntImm)
+                        and s.value == data_shape[i].value
                     ):
                         # Dimensions match, no change needed
                         pass
@@ -2112,7 +2113,7 @@ class Expand(OnnxOpConverter):
                         # This would "squeeze" the dimension - preserve input for safety
                         target_shape[i] = data_shape[i]
                     else:
-                        if isinstance(data_shape[i], tvm.tir.IntImm):
+                        if isinstance(data_shape[i], tvm.tirx.IntImm):
                             raise ValueError(
                                 f"ONNX Expand: Cannot broadcast input shape {original_data_shape} "
                                 f"to target shape {original_target_shape}. "
@@ -2183,7 +2184,7 @@ class Expand(OnnxOpConverter):
 
         shape_vars = []
         for i in range(shape_ndim):
-            shape_vars.append(tvm.tir.Var(f"x_{i}", "int64"))
+            shape_vars.append(tvm.tirx.Var(f"x_{i}", "int64"))
         bb.match_cast(shape_dataflow_var, relax.ShapeStructInfo(shape_vars))
 
         # Applying broadcasting rules for dynamic shapes
@@ -2193,7 +2194,7 @@ class Expand(OnnxOpConverter):
         padded_data = data
 
         if target_ndim > data_ndim:
-            padded_data_shape = [tir.IntImm("int64", 1)] * (target_ndim - data_ndim) + data_shape
+            padded_data_shape = [tirx.IntImm("int64", 1)] * (target_ndim - data_ndim) + data_shape
             padded_data = bb.normalize(relax.op.reshape(data, relax.ShapeExpr(padded_data_shape)))
 
         return bb.normalize(relax.op.broadcast_to(padded_data, relax.ShapeExpr(shape_vars)))
@@ -2440,19 +2441,51 @@ class Resize(OnnxOpConverter):
                 extrapolation_value=extrapolation_value,
             )
         else:  # ndims == 5
-            return bb.emit_te(
-                topi.image.resize3d,
+            return relax.op.image.resize3d(
                 x,
-                roi,
-                sizes,
-                "NCDHW",
-                topi_mode,
-                coord_mode,
-                rounding_method,
-                cubic_coeff_a,
-                exclude_outside,
-                extrapolation_value,
+                size=relax.ShapeExpr(sizes),
+                roi=roi,
+                layout="NCDHW",
+                method=relax_mode,
+                coordinate_transformation_mode=coord_mode,
+                rounding_method=rounding_method,
+                cubic_alpha=cubic_coeff_a,
+                cubic_exclude=exclude_outside,
+                extrapolation_value=extrapolation_value,
             )
+
+
+class AffineGrid(OnnxOpConverter):
+    """Converts an onnx AffineGrid node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v20(cls, bb, inputs, attr, params):
+        theta = inputs[0]  # [N, 2, 3] for 2D
+        size = get_constant(inputs[1], params)  # [N, C, H, W] for 2D
+        align_corners = attr.get("align_corners", 0)
+
+        if align_corners != 1:
+            raise NotImplementedError(
+                "AffineGrid with align_corners=0 is not yet supported in TVM"
+            )
+
+        # Extract size values
+        if isinstance(size, relax.Constant):
+            size_vals = size.data.numpy().astype("int64").tolist()
+        elif isinstance(size, relax.expr.ShapeExpr):
+            size_vals = [int(v.value) for v in size.values]
+        else:
+            raise NotImplementedError(f"Dynamic size of type {type(size)} is not supported")
+
+        # Only 2D is supported: size = [N, C, H, W]
+        if len(size_vals) != 4:
+            raise ValueError("Only 2D AffineGrid (size=[N,C,H,W]) is supported")
+        target_h, target_w = size_vals[2], size_vals[3]
+
+        # Relax affine_grid outputs [N, 2, H, W]
+        grid = bb.emit(relax.op.image.affine_grid(theta, (target_h, target_w)))
+        # Permute to ONNX convention [N, H, W, 2]
+        return bb.emit(relax.op.permute_dims(grid, axes=[0, 2, 3, 1]))
 
 
 class Einsum(OnnxOpConverter):
@@ -2462,6 +2495,71 @@ class Einsum(OnnxOpConverter):
     def _impl_v12(cls, bb, inputs, attr, params):
         equation = attr["equation"].decode("utf-8")
         return bb.emit_te(topi.einsum, equation, *inputs)
+
+
+class RoiAlign(OnnxOpConverter):
+    """Converts an onnx RoiAlign node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl(cls, bb, inputs, attr, params, default_coordinate_transformation_mode):
+        if len(inputs) != 3:
+            raise ValueError("RoiAlign expects exactly 3 inputs")
+
+        data = inputs[0]
+        rois = inputs[1]
+        batch_indices = inputs[2]
+        rois_dtype = rois.struct_info.dtype
+
+        mode = attr.get("mode", b"avg")
+        if isinstance(mode, bytes):
+            mode = mode.decode("ascii")
+        if mode not in ("avg", "max"):
+            raise NotImplementedError("RoiAlign in Relax only supports avg and max modes")
+
+        output_height = attr.get("output_height", 1)
+        output_width = attr.get("output_width", 1)
+        sampling_ratio = attr.get("sampling_ratio", 0)
+        spatial_scale = attr.get("spatial_scale", 1.0)
+        coordinate_transformation_mode = attr.get(
+            "coordinate_transformation_mode", default_coordinate_transformation_mode
+        )
+        if isinstance(coordinate_transformation_mode, bytes):
+            coordinate_transformation_mode = coordinate_transformation_mode.decode("ascii")
+
+        if coordinate_transformation_mode == "half_pixel":
+            offset = relax.const([-0.5, -0.5, -0.5, -0.5], rois_dtype)
+            rois = relax.op.add(rois, offset)
+            aligned = True
+        elif coordinate_transformation_mode != "output_half_pixel":
+            raise NotImplementedError(
+                "RoiAlign only supports coordinate_transformation_mode "
+                "'half_pixel' and 'output_half_pixel'"
+            )
+        else:
+            aligned = False
+
+        batch_indices = relax.op.expand_dims(batch_indices, axis=1)
+        batch_indices = relax.op.astype(batch_indices, rois_dtype)
+        rois = relax.op.concat([batch_indices, rois], axis=1)
+
+        return relax.op.vision.roi_align(
+            data,
+            rois,
+            pooled_size=(output_height, output_width),
+            spatial_scale=spatial_scale,
+            sample_ratio=sampling_ratio,
+            aligned=aligned,
+            layout="NCHW",
+            mode=mode,
+        )
+
+    @classmethod
+    def _impl_v10(cls, bb, inputs, attr, params):
+        return cls._impl(bb, inputs, attr, params, b"output_half_pixel")
+
+    @classmethod
+    def _impl_v16(cls, bb, inputs, attr, params):
+        return cls._impl(bb, inputs, attr, params, b"half_pixel")
 
 
 class Range(OnnxOpConverter):
@@ -2825,7 +2923,7 @@ class Flatten(OnnxOpConverter):
         if axis == 0:
             new_shape = (1, -1)
         else:
-            shape_flags = [isinstance(x, tvm.script.tir.IntImm) for x in data_shape[0:axis]]
+            shape_flags = [isinstance(x, tvm.script.tirx.IntImm) for x in data_shape[0:axis]]
 
             if all(shape_flags):
                 data_shape = [x.value for x in data_shape[0:axis]]
@@ -3442,7 +3540,7 @@ class Unique(OnnxOpConverter):
             axis=axis,
         )
 
-        unique_numbers = tir.Var("unique_numbers", "int64")
+        unique_numbers = tirx.Var("unique_numbers", "int64")
         input_shape = data.struct_info.shape
         dtype = data.struct_info.dtype
 
@@ -3472,7 +3570,7 @@ class Unique(OnnxOpConverter):
             # ONNX spec: inverse_indices is always 1D
             # When axis is None: shape is [X.size]
             # When axis is specified: shape is [X.shape[axis]]
-            inverse_shape = (tir.Var("inverse_numbers", "int64"),)
+            inverse_shape = (tirx.Var("inverse_numbers", "int64"),)
             inverse_sinfo = relax.TensorStructInfo(inverse_shape, "int64")
             outputs.append(bb.match_cast(unique[tuple_idx], inverse_sinfo))
             tuple_idx += 1
@@ -3492,7 +3590,7 @@ class NonZero(OnnxOpConverter):
     def _impl_v9(cls, bb, inputs, attr, params):
         ndim = inputs[0].struct_info.ndim
         ndim = 1 if ndim == 0 else ndim
-        nonzero_numbers = tir.Var("nonzero_numbers", "int64")
+        nonzero_numbers = tirx.Var("nonzero_numbers", "int64")
         return bb.match_cast(
             relax.op.nonzero(inputs[0]), relax.TensorStructInfo((ndim, nonzero_numbers), "int64")
         )
@@ -3983,6 +4081,44 @@ class AllClassNMS(OnnxOpConverter):
         return nms_out
 
 
+class GridSample(OnnxOpConverter):
+    """Converts an onnx GridSample node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v16(cls, bb, inputs, attr, params):
+        data = inputs[0]
+        grid = inputs[1]
+
+        method = attr.get("mode", b"bilinear")
+        if isinstance(method, bytes):
+            method = method.decode("ascii")
+
+        # Translate ONNX mode names to TVM method names
+        if method == "linear":
+            method = "bilinear"
+        elif method == "cubic":
+            method = "bicubic"
+
+        padding_mode = attr.get("padding_mode", b"zeros")
+        if isinstance(padding_mode, bytes):
+            padding_mode = padding_mode.decode("ascii")
+
+        align_corners = bool(attr.get("align_corners", 0))
+
+        # ONNX grid shape: [N, H_out, W_out, 2]
+        # TVM grid shape:  [N, 2, H_out, W_out]
+        grid = relax.op.permute_dims(grid, [0, 3, 1, 2])
+
+        return relax.op.image.grid_sample(
+            data,
+            grid,
+            method=method,
+            layout="NCHW",
+            padding_mode=padding_mode,
+            align_corners=align_corners,
+        )
+
+
 def _get_convert_map():
     return {
         # defs/experimental
@@ -4132,10 +4268,11 @@ def _get_convert_map():
         "NonZero": NonZero,
         # "If": If,
         # "MaxRoiPool": MaxRoiPool,
-        # "RoiAlign": RoiAlign,
+        "RoiAlign": RoiAlign,
         "NonMaxSuppression": NonMaxSuppression,
         "AllClassNMS": AllClassNMS,
-        # "GridSample": GridSample,
+        "GridSample": GridSample,
+        "AffineGrid": AffineGrid,
         "Upsample": Upsample,
         # others
         "DepthToSpace": DepthToSpace,

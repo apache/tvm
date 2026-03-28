@@ -59,7 +59,7 @@ def get_result_with_relax_cublas_offload(mod, np_inputs):
 def _to_concrete_shape(symbolic_shape, var_table):
     result = []
     for dim in symbolic_shape:
-        if not isinstance(dim, tvm.tir.expr.Var):
+        if not isinstance(dim, tvm.tirx.expr.Var):
             result.append(dim)
             continue
 
@@ -71,8 +71,8 @@ def _to_concrete_shape(symbolic_shape, var_table):
 
 
 _vars = {
-    "a": tvm.tir.expr.Var("a", "int64"),
-    "b": tvm.tir.expr.Var("b", "int64"),
+    "a": tvm.tirx.expr.Var("a", "int64"),
+    "b": tvm.tirx.expr.Var("b", "int64"),
 }
 
 

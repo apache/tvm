@@ -29,7 +29,7 @@
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/env_func.h>
 #include <tvm/ir/type.h>
-#include <tvm/tir/expr.h>
+#include <tvm/tirx/expr.h>
 
 #include <string>
 

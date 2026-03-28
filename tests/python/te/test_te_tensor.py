@@ -85,14 +85,14 @@ def test_tensor_comm_reducer():
     n = te.size_var("n")
     A = te.placeholder((m, n), name="A")
     k = te.reduce_axis((0, n), "k")
-    mysum = te.comm_reducer(lambda x, y: x + y, lambda t: tvm.tir.const(0, dtype=t))
+    mysum = te.comm_reducer(lambda x, y: x + y, lambda t: tvm.tirx.const(0, dtype=t))
     C = te.compute((m,), lambda i: mysum(A[i, k], axis=k))
 
 
 def test_tensor_comm_reducer_overload():
     m = te.size_var("m")
     n = te.size_var("n")
-    mysum = te.comm_reducer(lambda x, y: x + y, lambda t: tvm.tir.const(0, dtype=t))
+    mysum = te.comm_reducer(lambda x, y: x + y, lambda t: tvm.tirx.const(0, dtype=t))
     sum_res = mysum(m, n)
 
 
@@ -117,7 +117,7 @@ def test_tensor_reduce_multiout_with_cond():
         return x[0] + y[0], x[1] + y[1]
 
     def fidentity(t0, t1):
-        return tvm.tir.const(0, t0), tvm.tir.const(1, t1)
+        return tvm.tirx.const(0, t0), tvm.tirx.const(1, t1)
 
     mysum = te.comm_reducer(fcombine, fidentity, name="mysum")
 
@@ -168,8 +168,8 @@ def test_extern():
     A = te.placeholder((m,), name="A")
 
     def extern_func(ins, outs):
-        assert isinstance(ins[0], tvm.tir.Buffer)
-        return tvm.tir.call_packed("myadd", ins[0].data, outs[0].data, m)
+        assert isinstance(ins[0], tvm.tirx.Buffer)
+        return tvm.tirx.call_packed("myadd", ins[0].data, outs[0].data, m)
 
     B = te.extern((m,), [A], extern_func)
     assert tuple(B.shape) == (m,)
@@ -181,8 +181,8 @@ def test_extern_multi_out():
     B = te.compute((m,), lambda i: A[i] * 10)
 
     def extern_func(ins, outs):
-        assert isinstance(ins[0], tvm.tir.Buffer)
-        return tvm.tir.call_packed("myadd", ins[0].data, outs[0].data, outs[1].data, m)
+        assert isinstance(ins[0], tvm.tirx.Buffer)
+        return tvm.tirx.call_packed("myadd", ins[0].data, outs[0].data, outs[1].data, m)
 
     res = te.extern([A.shape, A.shape], [A, B], extern_func)
     assert len(res) == 2

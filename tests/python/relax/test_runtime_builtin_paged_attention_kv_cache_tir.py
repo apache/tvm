@@ -144,7 +144,7 @@ def set_global_func(head_dim, dtype):
         mod = tvm.IRModule({"main": tir_func})
         with target:
             mod = dl.ApplyDefaultSchedule(dl.gpu.Fallback())(mod)
-        f = tvm.tir.build(mod["main"], target=target)
+        f = tvm.tirx.build(mod["main"], target=target)
         builts.append(f.main)
 
     (
@@ -190,13 +190,13 @@ def create_kv_cache(head_dim, dtype, rope_mode, support_sliding_window):
         tvm.runtime.empty((), dtype, device=device),
         ftranspose_append,
         None,  # f_transpose_append_mla
-        ["tir", fattn_prefill_ragged],
-        ["tir", fattn_prefill],
-        ["tir", fattn_decode],
-        ["tir", fattn_prefill_sliding_window],
-        ["tir", fattn_decode_sliding_window],
-        ["tir", fattn_prefill_with_tree_mask_paged_kv_cache],
-        ["tir", fattn_prefill_with_tree_mask],
+        ["tirx", fattn_prefill_ragged],
+        ["tirx", fattn_prefill],
+        ["tirx", fattn_decode],
+        ["tirx", fattn_prefill_sliding_window],
+        ["tirx", fattn_decode_sliding_window],
+        ["tirx", fattn_prefill_with_tree_mask_paged_kv_cache],
+        ["tirx", fattn_prefill_with_tree_mask],
         [],  # f_mla_prefill
         [fmerge_state],
         fsplit_rotary,

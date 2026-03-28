@@ -21,7 +21,7 @@ import tvm
 from tvm import relax
 from tvm.ir.module import IRModule
 from tvm.runtime import Executable
-from tvm.tir.function import PrimFunc
+from tvm.tirx.function import PrimFunc
 
 from . import _ffi_api
 
@@ -154,7 +154,7 @@ def _vmlink(
     tir_ext_libs = []
     if tir_mod is not None and len(tir_mod.get_global_vars()) > 0:
         tir_mod = _auto_attach_system_lib_prefix(tir_mod, target, system_lib)
-        lib = tvm.tir.build(tir_mod, target=target, pipeline=tir_pipeline)
+        lib = tvm.tirx.build(tir_mod, target=target, pipeline=tir_pipeline)
     for ext_mod in ext_libs:
         if _is_device_module(ext_mod):
             tir_ext_libs.append(ext_mod)

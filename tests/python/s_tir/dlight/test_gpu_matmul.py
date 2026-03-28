@@ -19,7 +19,7 @@
 import tvm
 import tvm.testing
 from tvm.s_tir import dlight as dl
-from tvm.script import tir as T
+from tvm.script import tirx as T
 from tvm.target import Target
 
 
@@ -39,7 +39,7 @@ def test_matmul():
 
     @T.prim_func(private=True)
     def expected(var_inp0: T.handle, inp1: T.Buffer((T.int64(4096), T.int64(4096)), "float32"), var_matmul: T.handle):
-        T.func_attr({"tir.is_scheduled": True})
+        T.func_attr({"tirx.is_scheduled": True})
         m = T.int64()
         inp0 = T.match_buffer(var_inp0, (T.int64(1), m, T.int64(4096)))
         matmul = T.match_buffer(var_matmul, (T.int64(1), m, T.int64(4096)))
@@ -131,7 +131,7 @@ def test_matmul_int32():
 
     @T.prim_func(private=True)
     def expected(var_inp0: T.handle, inp1: T.Buffer((4096, 4096), "float32"), var_matmul: T.handle):
-        T.func_attr({"tir.is_scheduled": True})
+        T.func_attr({"tirx.is_scheduled": True})
         m = T.int32()
         inp0 = T.match_buffer(var_inp0, (1, m, 4096))
         matmul = T.match_buffer(var_matmul, (1, m, 4096))
@@ -236,7 +236,7 @@ def test_fused_matmul():
 
     @T.prim_func(private=True)
     def expected(W: T.Buffer((T.int64(512), T.int64(4096)), "uint32"), S: T.Buffer((T.int64(128), T.int64(4096)), "uint32"), A: T.Buffer((T.int64(1), T.int64(32), T.int64(4096)), "float32"), C: T.Buffer((T.int64(1), T.int64(32), T.int64(4096)), "float32"), Out: T.Buffer((T.int64(1), T.int64(32), T.int64(4096)), "float32")):
-        T.func_attr({"tir.is_scheduled": True})
+        T.func_attr({"tirx.is_scheduled": True})
         # with T.sblock("root"):
         var_matmul_intermediate_reindex_local = T.sblock_alloc_buffer((T.int64(1), T.int64(32), T.int64(4096)), scope="local")
         A_reindex_shared = T.sblock_alloc_buffer((T.int64(1), T.int64(32), T.int64(4096)), scope="shared")
@@ -313,7 +313,7 @@ def test_skip_gemv():
     # fmt: off
     @T.prim_func(private=True)
     def before(W: T.Buffer((T.int64(512), T.int64(4096)), "uint32"), S: T.Buffer((T.int64(128), T.int64(4096)), "uint32"), A: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float32"), C: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float32"), Out: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float32")):
-        T.func_attr({"tir.noalias": True})
+        T.func_attr({"tirx.noalias": True})
         var_decode_intermediate = T.sblock_alloc_buffer((T.int64(4096), T.int64(4096)))
         var_matmul_intermediate = T.sblock_alloc_buffer((T.int64(1), T.int64(1), T.int64(4096)))
         for i, j in T.grid(T.int64(4096), T.int64(4096)):
@@ -351,7 +351,7 @@ def test_output_fp32():
     # fmt: off
     @T.prim_func(private=True)
     def before(lv13: T.Buffer((T.int64(4096), T.int64(512)), "uint32"), lv14: T.Buffer((T.int64(4096), T.int64(128)), "float16"), p_lv48: T.handle, lv13_1: T.Buffer((T.int64(4096),), "float16"), p_lv3: T.handle, p_output0: T.handle):
-        T.func_attr({"tir.noalias": True})
+        T.func_attr({"tirx.noalias": True})
         n = T.int64()
         lv48 = T.match_buffer(p_lv48, (T.int64(1), n, T.int64(4096)), "float16")
         lv3 = T.match_buffer(p_lv3, (T.int64(1), n, T.int64(4096)), "float16")
@@ -403,7 +403,7 @@ def test_output_fp32():
 
     @T.prim_func(private=True)
     def expected(lv13: T.Buffer((T.int64(4096), T.int64(512)), "uint32"), lv14: T.Buffer((T.int64(4096), T.int64(128)), "float16"), p_lv48: T.handle, lv13_1: T.Buffer((T.int64(4096),), "float16"), p_lv3: T.handle, p_output0: T.handle):
-        T.func_attr({"tir.is_scheduled": True, "tir.noalias": True})
+        T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
         n = T.int64()
         lv48 = T.match_buffer(p_lv48, (T.int64(1), n, T.int64(4096)), "float16")
         lv3 = T.match_buffer(p_lv3, (T.int64(1), n, T.int64(4096)), "float16")
@@ -485,7 +485,7 @@ def test_inline_consumer_chain():
     # fmt: off
     @T.prim_func(private=True)
     def before(p_lv26: T.handle, lv9: T.Buffer((T.int64(2048), T.int64(2048)), "float16"), p_lv52: T.handle, p_output0: T.handle):
-        T.func_attr({"tir.noalias": True})
+        T.func_attr({"tirx.noalias": True})
         n = T.int64()
         lv26 = T.match_buffer(p_lv26, (n, T.int64(2048)), "float16")
         lv52 = T.match_buffer(p_lv52, (T.int64(1), n, T.int64(2048)))
@@ -537,7 +537,7 @@ def test_inline_consumer_chain():
 
     @T.prim_func(private=True)
     def expected(p_lv26: T.handle, lv9: T.Buffer((T.int64(2048), T.int64(2048)), "float16"), p_lv52: T.handle, p_output0: T.handle):
-        T.func_attr({"tir.is_scheduled": True, "tir.noalias": True})
+        T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
         n = T.int64()
         lv26 = T.match_buffer(p_lv26, (n, T.int64(2048)), "float16")
         lv52 = T.match_buffer(p_lv52, (T.int64(1), n, T.int64(2048)))
@@ -631,7 +631,7 @@ def test_matmul_android():
 
     @T.prim_func(private=True)
     def expected(var_inp0: T.handle, inp1: T.Buffer((T.int64(4096), T.int64(4096)), "float32"), var_matmul: T.handle):
-        T.func_attr({"tir.is_scheduled": True})
+        T.func_attr({"tirx.is_scheduled": True})
         m = T.int64()
         inp0 = T.match_buffer(var_inp0, (T.int64(1), m, T.int64(4096)))
         matmul = T.match_buffer(var_matmul, (T.int64(1), m, T.int64(4096)))
@@ -712,7 +712,7 @@ def test_fused_dequant_matmul_android():
     # fmt: off
     @T.prim_func(private=True)
     def before(lv452: T.Buffer((T.int64(512), T.int64(12288)), "uint32"), lv453: T.Buffer((T.int64(128), T.int64(12288)), "float16"), p_rms_norm130: T.handle, transformer_h_0_attn_c_attn_bias3: T.Buffer((T.int64(12288),), "float16"), p_output0: T.handle):
-        T.func_attr({"tir.noalias": True})
+        T.func_attr({"tirx.noalias": True})
         seq_len = T.int64()
         rms_norm130 = T.match_buffer(p_rms_norm130, (T.int64(1), seq_len, T.int64(4096)), "float16")
         T_add_intermediate_intermediate = T.match_buffer(p_output0, (T.int64(1), seq_len, T.int64(12288)), "float16")
@@ -749,7 +749,7 @@ def test_fused_dequant_matmul_android():
 
     @T.prim_func(private=True)
     def expected(lv452: T.Buffer((T.int64(512), T.int64(12288)), "uint32"), lv453: T.Buffer((T.int64(128), T.int64(12288)), "float16"), p_rms_norm130: T.handle, transformer_h_0_attn_c_attn_bias3: T.Buffer((T.int64(12288),), "float16"), p_output0: T.handle):
-        T.func_attr({"tir.is_scheduled": True, "tir.noalias": True})
+        T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
         seq_len = T.int64()
         rms_norm130 = T.match_buffer(p_rms_norm130, (T.int64(1), seq_len, T.int64(4096)), "float16")
         T_add_intermediate_intermediate = T.match_buffer(p_output0, (T.int64(1), seq_len, T.int64(12288)), "float16")

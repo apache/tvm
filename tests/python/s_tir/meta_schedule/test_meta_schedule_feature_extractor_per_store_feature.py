@@ -24,9 +24,9 @@ from numpy.testing import assert_allclose
 
 import tvm
 import tvm.testing
-from tvm import s_tir, te, tir
+from tvm import s_tir, te, tirx
 from tvm.s_tir import meta_schedule as ms
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 N_FEATURES = 164
 
@@ -38,7 +38,7 @@ def matmul(
     C: T.Buffer((512, 512), "float32"),
 ) -> None:
     # function attr dict
-    T.func_attr({"global_symbol": "main", "tir.noalias": True})
+    T.func_attr({"global_symbol": "main", "tirx.noalias": True})
     # body
     # with T.sblock("root")
     for i0, i1, i2 in T.grid(512, 512, 512):
@@ -54,13 +54,13 @@ def matmul(
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument
 # fmt: off
 
-# from tvm.script import tir as T
+# from tvm.script import tirx as T
 @tvm.script.ir_module
 class LayoutTransform:
     @T.prim_func
     def main(placeholder: T.Buffer((1, 16, 7, 7, 32), "float32"), placeholder_1: T.Buffer((25088,), "float32"), T_layout_trans: T.Buffer((1, 1, 7, 7, 512), "float32")) -> None:
         # function attr dict
-        T.func_attr({"tir.noalias": True, "global_symbol": "main"})
+        T.func_attr({"tirx.noalias": True, "global_symbol": "main"})
         # body
         # with T.sblock("root")
         for i0_i1_i2_i3_i4_fused in T.parallel(25088, annotations={"pragma_auto_unroll_max_step":64, "pragma_unroll_explicit":1}):
@@ -783,8 +783,8 @@ def test_gpu():
         _, b_j = sch.split(b_ij, factors=[None, 16])  # outer: 8
         sch.bind(b_j, "threadIdx.x")
         # auto unroll
-        sch.annotate(i0_j0, "pragma_auto_unroll_max_step", tir.IntImm("int32", 1024))
-        sch.annotate(i0_j0, "pragma_unroll_explicit", tir.IntImm("int32", 1))
+        sch.annotate(i0_j0, "pragma_auto_unroll_max_step", tirx.IntImm("int32", 1024))
+        sch.annotate(i0_j0, "pragma_unroll_explicit", tirx.IntImm("int32", 1))
         return sch
 
     extractor = ms.feature_extractor.PerStoreFeature()

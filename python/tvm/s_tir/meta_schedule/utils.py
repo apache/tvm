@@ -30,7 +30,7 @@ from tvm.error import TVMError
 from tvm.ir import Array, IRModule, Map
 from tvm.rpc import RPCSession
 from tvm.runtime import PackedFunc
-from tvm.tir import FloatImm, IntImm
+from tvm.tirx import FloatImm, IntImm
 
 
 def derived_object(cls: type) -> type:

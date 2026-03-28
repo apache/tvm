@@ -23,7 +23,7 @@
  */
 
 #include <tvm/ir/expr.h>
-#include <tvm/tir/var.h>
+#include <tvm/tirx/var.h>
 
 #ifndef TVM_ARITH_NARROW_PREDICATE_EXPRESSION_H_
 #define TVM_ARITH_NARROW_PREDICATE_EXPRESSION_H_
@@ -50,7 +50,7 @@ namespace arith {
  * \returns An expression that, if true, implies that the original
  * expression is also true.
  */
-PrimExpr NarrowPredicateExpression(PrimExpr expr, ffi::Map<tir::Var, Range> free_parameters);
+PrimExpr NarrowPredicateExpression(PrimExpr expr, ffi::Map<tirx::Var, Range> free_parameters);
 
 }  // namespace arith
 }  // namespace tvm

@@ -18,7 +18,7 @@
 import tvm
 from tvm import s_tir
 from tvm.script import ir as I
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def test_rewrite_Select():
@@ -63,11 +63,11 @@ def test_rewrite_Select():
             )
 
     aa = tvm.s_tir.transform.RewriteUnsafeSelect()(ModuleA)["main"].body.seq[-1].value
-    builtin_if_then_else = tvm.ir.Op.get("tir.if_then_else")
+    builtin_if_then_else = tvm.ir.Op.get("tirx.if_then_else")
 
     assert yy.op.same_as(builtin_if_then_else)
     assert yy.op.same_as(builtin_if_then_else)
-    assert isinstance(aa, tvm.tir.Select)
+    assert isinstance(aa, tvm.tirx.Select)
 
 
 if __name__ == "__main__":

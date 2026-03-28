@@ -17,13 +17,13 @@
  * under the License.
  */
 
-#include <tvm/tir/op.h>
+#include <tvm/tirx/op.h>
 
 #include "../utils.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 /*!
  * \brief Check if buffer indices are all Vars and expr
@@ -50,7 +50,7 @@ ffi::Optional<ffi::Array<Var>> CheckTrivialBufferAccess(const BufferRegion& buff
   ffi::Array<Var> indices;
   indices.reserve(buffer_region->region.size());
   for (const Range& range : buffer_region->region) {
-    if (!tir::is_one(range->extent)) {
+    if (!tirx::is_one(range->extent)) {
       return std::nullopt;
     }
     if (range->min->IsInstance<IntImmNode>()) {

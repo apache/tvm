@@ -19,7 +19,7 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import TVMError, relax, tir
+from tvm import TVMError, relax, tirx
 from tvm.ir import Op, VDevice
 from tvm.script import relax as R
 
@@ -90,8 +90,8 @@ def test_linear_unit_infer_struct_info():
 
 def test_linear_unit_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    m = tir.Var("m", "int64")
-    n = tir.Var("n", "int64")
+    m = tirx.Var("m", "int64")
+    n = tirx.Var("n", "int64")
     x0 = relax.Var("x", R.Tensor((m, n), "float32"))
     x1 = relax.Var("x", R.Tensor((4, n), "float32"))
 
@@ -188,8 +188,8 @@ def test_softmax_log_softmax_infer_struct_info():
 
 def test_softmax_log_softmax_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    m = tir.Var("m", "int64")
-    n = tir.Var("n", "int64")
+    m = tirx.Var("m", "int64")
+    n = tirx.Var("n", "int64")
     x0 = relax.Var("x", R.Tensor((m, n), "float32"))
     x1 = relax.Var("x", R.Tensor((4, n), "float32"))
 
@@ -406,11 +406,11 @@ def test_batch_norm_infer_struct_info():
 
 def test_batch_norm_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    n = tir.Var("n", "int64")
-    c0 = tir.Var("c", "int64")
-    c1 = tir.Var("c", "int64")
-    h = tir.Var("h", "int64")
-    w = tir.Var("w", "int64")
+    n = tirx.Var("n", "int64")
+    c0 = tirx.Var("c", "int64")
+    c1 = tirx.Var("c", "int64")
+    h = tirx.Var("h", "int64")
+    w = tirx.Var("w", "int64")
     x0 = relax.Var("x", R.Tensor((n, c0, h, w), "float32"))
     x1 = relax.Var("x", R.Tensor((n, c1, h, w), "float32"))
     x2 = relax.Var("x", R.Tensor("float32", ndim=4))
@@ -630,7 +630,7 @@ def test_batch_norm_infer_struct_info_ndim_mismatch():
 
 def test_batch_norm_infer_struct_info_shape_mismatch():
     bb = relax.BlockBuilder()
-    c = tir.Var("c", "int64")
+    c = tirx.Var("c", "int64")
     x0 = relax.Var("x", R.Tensor((2, 3, 28, 28), "float32"))
     x1 = relax.Var("x", R.Tensor((2, c, 28, 28), "float32"))
     gamma0 = relax.Var("gamma", R.Tensor((3,), "float32"))
@@ -714,11 +714,11 @@ def test_layer_norm_infer_struct_info():
 
 def test_layer_norm_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    n = tir.Var("n", "int64")
-    a = tir.Var("a", "int64")
-    b = tir.Var("b", "int64")
-    c0 = tir.Var("c", "int64")
-    c1 = tir.Var("c", "int64")
+    n = tirx.Var("n", "int64")
+    a = tirx.Var("a", "int64")
+    b = tirx.Var("b", "int64")
+    c0 = tirx.Var("c", "int64")
+    c1 = tirx.Var("c", "int64")
     x0 = relax.Var("x", R.Tensor((n, a, b, c0), "float32"))
     x1 = relax.Var("x", R.Tensor((n, a, b, c1), "float32"))
     x2 = relax.Var("x", R.Tensor("float32", ndim=4))
@@ -854,7 +854,7 @@ def test_layer_norm_infer_struct_info_ndim_mismatch():
 
 def test_layer_norm_infer_struct_info_shape_mismatch():
     bb = relax.BlockBuilder()
-    c0 = tir.Var("c", "int64")
+    c0 = tirx.Var("c", "int64")
     x0 = relax.Var("x", R.Tensor((2, 3, 4, 5), "float32"))
     x1 = relax.Var("x", R.Tensor((2, 3, 4, c0), "float32"))
     gamma0 = relax.Var("gamma", R.Tensor((4, 6), "float32"))
@@ -928,11 +928,11 @@ def test_group_norm_infer_struct_info():
 
 def test_group_norm_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    n = tir.Var("n", "int64")
-    a = tir.Var("a", "int64")
-    b = tir.Var("b", "int64")
-    c0 = tir.Var("c", "int64")
-    c1 = tir.Var("c", "int64")
+    n = tirx.Var("n", "int64")
+    a = tirx.Var("a", "int64")
+    b = tirx.Var("b", "int64")
+    c0 = tirx.Var("c", "int64")
+    c1 = tirx.Var("c", "int64")
     x0 = relax.Var("x", R.Tensor((n, a, b, c0), "float32"))
     x1 = relax.Var("x", R.Tensor((n, a, b, c1), "float32"))
     x2 = relax.Var("x", R.Tensor("float32", ndim=4))
@@ -1084,7 +1084,7 @@ def test_group_norm_infer_struct_info_ndim_mismatch():
 
 def test_group_norm_infer_struct_info_shape_mismatch():
     bb = relax.BlockBuilder()
-    c0 = tir.Var("c", "int64")
+    c0 = tirx.Var("c", "int64")
     x0 = relax.Var("x", R.Tensor((2, 3, 4, 5), "float32"))
     x1 = relax.Var("x", R.Tensor((2, 3, 4, c0), "float32"))
     gamma0 = relax.Var("gamma", R.Tensor((4, 6), "float32"))
@@ -1180,8 +1180,8 @@ def test_dropout_infer_struct_info():
 
 def test_dropout_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    m = tir.Var("m", "int64")
-    n = tir.Var("n", "int64")
+    m = tirx.Var("m", "int64")
+    n = tirx.Var("n", "int64")
     x = relax.Var("x", R.Tensor((m, n), "float32"))
 
     _check_inference(
@@ -1283,9 +1283,9 @@ def test_cross_entropy_infer_struct_info():
 
 def test_cross_entropy_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    m0 = tir.Var("m", "int64")
-    m1 = tir.Var("m", "int64")
-    n = tir.Var("n", "int64")
+    m0 = tirx.Var("m", "int64")
+    m1 = tirx.Var("m", "int64")
+    n = tirx.Var("n", "int64")
     x0 = relax.Var("x", R.Tensor((m0, n), "float32"))
     x1 = relax.Var("x", R.Tensor((m1, n), "float32"))
     y = relax.Var("y", R.Tensor((m0, n), "float32"))
@@ -1346,7 +1346,7 @@ def test_cross_entropy_infer_struct_info_wrong_ndim():
 
 def test_cross_entropy_infer_struct_info_shape_mismatch():
     bb = relax.BlockBuilder()
-    m = tir.Var("m", "int64")
+    m = tirx.Var("m", "int64")
     x0 = relax.Var("x", R.Tensor((2, 3), "float32"))
     y0 = relax.Var("y", R.Tensor((2, 4), "float32"))
 
@@ -1520,10 +1520,10 @@ def test_nll_loss_infer_struct_info():
 
 def test_nll_loss_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    N = tir.Var("N", "int64")
-    C = tir.Var("C", "int64")
-    d1 = tir.Var("d", "int64")
-    d2 = tir.Var("d", "int64")
+    N = tirx.Var("N", "int64")
+    C = tirx.Var("C", "int64")
+    d1 = tirx.Var("d", "int64")
+    d2 = tirx.Var("d", "int64")
     x0 = relax.Var("x", R.Tensor((N, C, d1, d2), "float32"))
     x1 = relax.Var("x", R.Tensor((N, C), "float32"))
     x2 = relax.Var("x", R.Tensor((C,), "float32"))
@@ -1636,10 +1636,10 @@ def test_nll_loss_infer_struct_info_no_weights():
 
 
 def test_nll_loss_infer_struct_info_no_weights_symbolic():
-    N = tir.Var("N", "int64")
-    C = tir.Var("C", "int64")
-    d1 = tir.Var("d", "int64")
-    d2 = tir.Var("d", "int64")
+    N = tirx.Var("N", "int64")
+    C = tirx.Var("C", "int64")
+    d1 = tirx.Var("d", "int64")
+    d2 = tirx.Var("d", "int64")
     bb = relax.BlockBuilder()
     x = relax.Var("x", R.Tensor((N, C, d1, d2), "float32"))
     y = relax.Var("y", R.Tensor((N, d1, d2), "int64"))
@@ -1877,10 +1877,10 @@ def test_batch_flatten_infer_struct_info():
 
 def test_batch_flatten_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    m = tir.Var("m", "int64")
-    n = tir.Var("n", "int64")
-    h = tir.Var("h", "int64")
-    w = tir.Var("w", "int64")
+    m = tirx.Var("m", "int64")
+    n = tirx.Var("n", "int64")
+    h = tirx.Var("h", "int64")
+    w = tirx.Var("w", "int64")
     x0 = relax.Var("x", R.Tensor((m, n, h, w), "float32"))
     x1 = relax.Var("x", R.Tensor((4, n, 8, 8), "float32"))
 

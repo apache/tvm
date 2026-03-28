@@ -23,7 +23,7 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 /*! \brief Find all the blocks that are not bound */
 class UnboundBlockFinder : private StmtVisitor {
@@ -129,10 +129,10 @@ bool RewriteUnboundBlockNode::Apply(const s_tir::Schedule& sch) {
   auto get_factor = [t = this->max_threads_per_block_](int max_extent) -> ExprRV {
     return Integer(std::min(t, max_extent));
   };
-  std::vector<std::pair<tir::StmtSRef, ffi::String>> unbound_blocks =
+  std::vector<std::pair<tirx::StmtSRef, ffi::String>> unbound_blocks =
       s_tir::UnboundBlockFinder::Find(sch->state());
   for (const auto& kv : unbound_blocks) {
-    tir::StmtSRef block_sref = kv.first;
+    tirx::StmtSRef block_sref = kv.first;
     ffi::String global_var_name = kv.second;
     SBlockRV block_rv = GetRVFromSRef(sch, block_sref, global_var_name);
     BindBlockThreadIdx(sch, block_rv, max_threadblocks_, max_threads_per_block_, get_factor);

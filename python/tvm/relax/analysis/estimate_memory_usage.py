@@ -124,7 +124,7 @@ def estimate_memory_usage(mod: IRModule | Function) -> str:
                 )
             size: int = 1
             for dim_len in shape.values:
-                if not isinstance(dim_len, tvm.tir.IntImm):
+                if not isinstance(dim_len, tvm.tirx.IntImm):
                     self.total_dyn_size_tensor_num += 1
                     return -1
                 size *= dim_len.value

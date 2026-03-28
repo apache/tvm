@@ -627,7 +627,7 @@ ffi::Optional<VMClosure> VirtualMachineImpl::GetClosureInternal(const ffi::Strin
         << "Cannot support closure with function kind " << static_cast<int>(finfo.kind);
     ffi::Optional<ffi::Function> tir_func = GetFuncFromImports("__vmtir__" + finfo.name);
     TVM_FFI_ICHECK(tir_func.has_value())
-        << "Cannot find underlying compiled tir function of VMTIRFunc " << finfo.name;
+        << "Cannot find underlying compiled tirx function of VMTIRFunc " << finfo.name;
     auto impl = ffi::Function([this, finfo, tir_func](ffi::PackedArgs args, ffi::Any* rv) {
       // Per convention, ctx ptr is a VirtualMachine*
       VirtualMachine* ctx_ptr = static_cast<VirtualMachine*>(args[0].cast<void*>());

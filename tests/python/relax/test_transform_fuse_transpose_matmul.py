@@ -23,7 +23,7 @@ import tvm.testing
 from tvm import relax
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def test_transform_fuse_transpose_matmul():
@@ -48,7 +48,7 @@ def test_transform_fuse_transpose_matmul():
             w: T.Buffer((T.int64(128), T.int64(256)), "float32"),
             NT_matmul: T.Buffer((T.int64(128), T.int64(128)), "float32"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
             for i0, i1, k in T.grid(T.int64(128), T.int64(128), T.int64(256)):
                 with T.sblock("NT_matmul"):
@@ -103,7 +103,7 @@ def test_transform_fuse_transpose_matmul_const():
             w: T.Buffer((T.int64(128), T.int64(256)), "float32"),
             NT_matmul: T.Buffer((T.int64(128), T.int64(128)), "float32"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
             for i0, i1, k in T.grid(T.int64(128), T.int64(128), T.int64(256)):
                 with T.sblock("NT_matmul"):

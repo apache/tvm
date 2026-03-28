@@ -18,7 +18,7 @@ import re
 
 import tvm
 from tvm.script import ir as I
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def test_popcount():
@@ -34,7 +34,7 @@ def test_popcount():
         class Module:
             @T.prim_func
             def main(A: T.Buffer((elements,), type), B: T.Buffer((elements,), type)):
-                T.func_attr({"tir.noalias": True})
+                T.func_attr({"tirx.noalias": True})
                 for i in T.vectorized(elements):
                     with T.sblock("B"):
                         v_i = T.axis.spatial(elements, i)
@@ -42,7 +42,7 @@ def test_popcount():
                         T.writes(B[v_i])
                         B[v_i] = T.popcount(A[v_i])
 
-        f = tvm.tir.build(Module, target=target)
+        f = tvm.tirx.build(Module, target=target)
         # Verify we see the correct number of vpaddl and vcnt instructions in the assembly
         assembly = f.inspect_source("asm")
         matches = re.findall("vpaddl", assembly)
@@ -70,7 +70,7 @@ def test_vmlal_s16():
         class Module:
             @T.prim_func
             def main(var_A: T.handle, var_B: T.handle, C: T.Buffer((N,), "int32")):
-                T.func_attr({"tir.noalias": True})
+                T.func_attr({"tirx.noalias": True})
                 K = T.int32(is_size_var=True)
                 A = T.match_buffer(var_A, (K, N), "int8")
                 B = T.match_buffer(var_B, (K, N), "int8")
@@ -86,7 +86,7 @@ def test_vmlal_s16():
                                 "int32", B[v_rv, v_n]
                             )
 
-        f = tvm.tir.build(Module, target=target)
+        f = tvm.tirx.build(Module, target=target)
 
         # Verify we see the correct number of vmlal.s16 instructions
         assembly = f.inspect_source("asm")
@@ -103,7 +103,7 @@ def test_vmlal_s16():
         class Module:
             @T.prim_func
             def main(var_A: T.handle, var_B: T.handle, C: T.Buffer((N,), "int32")):
-                T.func_attr({"tir.noalias": True})
+                T.func_attr({"tirx.noalias": True})
                 K = T.int32(is_size_var=True)
                 A = T.match_buffer(var_A, (K, N), "int8")
                 B = T.match_buffer(var_B, (K,), "int8")
@@ -119,7 +119,7 @@ def test_vmlal_s16():
                                 "int32", B[v_rv]
                             )
 
-        f = tvm.tir.build(Module, target=target)
+        f = tvm.tirx.build(Module, target=target)
 
         # Verify we see the correct number of vmlal.s16 instructions
         assembly = f.inspect_source("asm")

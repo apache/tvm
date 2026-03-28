@@ -22,7 +22,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import relax as rx
-from tvm import tir
+from tvm import tirx
 from tvm.relax.analysis import (
     all_global_vars,
     all_vars,
@@ -36,7 +36,7 @@ from tvm.relax.analysis import (
 )
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def var_name_set(vars: list[rx.Var | rx.GlobalVar]) -> set[str]:
@@ -44,8 +44,8 @@ def var_name_set(vars: list[rx.Var | rx.GlobalVar]) -> set[str]:
 
 
 def test_use_def():
-    m = tir.Var("m", "int64")
-    n = tir.Var("n", "int64")
+    m = tirx.Var("m", "int64")
+    n = tirx.Var("n", "int64")
     x = rx.Var("x", R.Tensor([m, n], "float16"))
     y = rx.Var("y", R.Tensor([n], "float16"))
     ib = rx.BlockBuilder()
@@ -74,8 +74,8 @@ def test_use_def():
     ids=["binary_op", "self_reference", "tuple"],
 )
 def test_used_vars(expr_fn, expected_var_names):
-    m = tir.Var("m", "int64")
-    n = tir.Var("n", "int64")
+    m = tirx.Var("m", "int64")
+    n = tirx.Var("n", "int64")
     x = rx.Var("x", R.Tensor([m, n], "float16"))
     y = rx.Var("y", R.Tensor([n], "float16"))
     z = rx.Var("z", R.Tensor([m], "float16"))
@@ -597,7 +597,7 @@ def test_reshape_pattern_expand_dims():
         rxplaceholder: T.Buffer((2, 3, 4), "float32"),
         expand_dims: T.Buffer((2, 1, 1, 1, 3, 1, 4, 1), "float32"),
     ):
-        T.func_attr({"tir.noalias": True})
+        T.func_attr({"tirx.noalias": True})
         for i0, i1, i2, i3, i4, i5, i6, i7 in T.grid(2, 1, 1, 1, 3, 1, 4, 1):
             with T.sblock("expand_dims"):
                 i0_1, i1_1, i2_1, i3_1, i4_1, i5_1, i6_1, i7_1 = T.axis.remap(
@@ -659,7 +659,7 @@ def test_reshape_pattern_dyn_2():
 def test_reshape_pattern_dyn_3():
     @T.prim_func
     def reshape(var_A: T.handle, var_T_reshape: T.handle):
-        T.func_attr({"op_pattern": 8, "tir.noalias": True})
+        T.func_attr({"op_pattern": 8, "tirx.noalias": True})
         n = T.int64()
         A = T.match_buffer(var_A, (n, T.int64(4096)), "float16")
         T_reshape = T.match_buffer(var_T_reshape, (T.int64(1), n, T.int64(4096)), "float16")
@@ -678,7 +678,7 @@ def test_reshape_pattern_dyn_3():
 def test_reshape_pattern_dyn_4():
     @T.prim_func
     def reshape(var_A: T.handle, var_T_reshape: T.handle):
-        T.func_attr({"op_pattern": 8, "tir.noalias": True})
+        T.func_attr({"op_pattern": 8, "tirx.noalias": True})
         n = T.int64()
         A = T.match_buffer(var_A, (T.int64(1), n, T.int64(4096)), "float16")
         T_reshape = T.match_buffer(
@@ -707,7 +707,7 @@ def test_reshape_pattern_dyn_4():
 def test_reshape_pattern_dyn_5():
     @T.prim_func
     def reshape(var_A: T.handle, var_T_reshape: T.handle):
-        T.func_attr({"op_pattern": 8, "tir.noalias": True})
+        T.func_attr({"op_pattern": 8, "tirx.noalias": True})
         n = T.int64()
         A = T.match_buffer(var_A, (T.int64(1), n, T.int64(32), T.int64(128)), "float16")
         T_reshape = T.match_buffer(var_T_reshape, (T.int64(1), n, T.int64(4096)), "float16")

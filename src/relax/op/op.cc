@@ -38,7 +38,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 bool EqualConstInt(const PrimExpr& lhs, int64_t value) {
-  if (const int64_t* pvalue = tir::as_const_int(lhs)) {
+  if (const int64_t* pvalue = tirx::as_const_int(lhs)) {
     return pvalue[0] == value;
   }
   return false;
@@ -46,12 +46,12 @@ bool EqualConstInt(const PrimExpr& lhs, int64_t value) {
 
 bool EqualCheck(const PrimExpr& lhs, const PrimExpr& rhs) {
   PrimExpr diff = lhs - rhs;
-  if (const int64_t* pdiff = tir::as_const_int(diff)) {
+  if (const int64_t* pdiff = tirx::as_const_int(diff)) {
     return pdiff[0] == 0;
   }
   tvm::arith::Analyzer ana;
   diff = ana.Simplify(diff);
-  if (const int64_t* pdiff = tir::as_const_int(diff)) {
+  if (const int64_t* pdiff = tirx::as_const_int(diff)) {
     return pdiff[0] == 0;
   }
   return false;

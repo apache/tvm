@@ -32,7 +32,7 @@
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/struct_info.h>
-#include <tvm/tir/op.h>
+#include <tvm/tirx/op.h>
 
 #include <array>
 #include <cstddef>
@@ -458,8 +458,8 @@ PrimExpr DFPatternMatcher::SimplifyCondition(PrimExpr condition) {
   }
 
   auto sort_key = [](PrimExpr expr) -> ffi::String {
-    if (const auto* equal = expr.as<tir::EQNode>()) {
-      if (const auto* var = equal->a.as<tir::VarNode>()) {
+    if (const auto* equal = expr.as<tirx::EQNode>()) {
+      if (const auto* var = equal->a.as<tirx::VarNode>()) {
         return var->name_hint;
       }
     }
@@ -481,7 +481,7 @@ static bool ShapeEqual(Analyzer* analyzer, const ffi::Array<PrimExpr>& lhs,
                        const ffi::Array<PrimExpr>& rhs) {
   if (lhs.size() != rhs.size()) return false;
   for (size_t i = 0; i < lhs.size(); ++i)
-    if (!tir::is_one(analyzer->Simplify(lhs[i] == rhs[i]))) return false;
+    if (!tirx::is_one(analyzer->Simplify(lhs[i] == rhs[i]))) return false;
   return true;
 }
 

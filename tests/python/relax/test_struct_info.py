@@ -19,7 +19,7 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import TVMError, tir
+from tvm import TVMError, tirx
 from tvm import relax as rx
 
 
@@ -91,7 +91,7 @@ def test_prim_struct_info():
 
 
 def test_prim_struct_info_with_expr():
-    n = tir.Var("n", "int64")
+    n = tirx.Var("n", "int64")
     sinfo = rx.PrimStructInfo(value=n + 1)
 
     _check_equal(sinfo, rx.PrimStructInfo(value=n + 1))
@@ -107,7 +107,7 @@ def test_prim_struct_info_with_expr():
 
 
 def test_shape_struct_info():
-    n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+    n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
 
     s0 = rx.ShapeStructInfo([1, n + 1, m])
     s1 = rx.ShapeStructInfo([1, n + 1, m])
@@ -148,7 +148,7 @@ def test_shape_struct_info():
 
 
 def test_tensor_struct_info():
-    n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+    n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
 
     s0 = rx.TensorStructInfo([1, n + 1, m], "float32")
     s1 = rx.TensorStructInfo(rx.ShapeExpr([1, n + 1, m]), "float32")
@@ -193,7 +193,7 @@ def test_tensor_struct_info():
 
 
 def test_tuple_struct_info():
-    n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+    n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
 
     s0 = rx.TensorStructInfo([1, 2, m + n], "float32")
     s1 = rx.ObjectStructInfo()
@@ -221,7 +221,7 @@ def test_tuple_struct_info():
 
 def test_func_struct_info():
     def fn_info(c):
-        n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+        n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
         x = rx.TensorStructInfo([c, n, m], "float32")
         y = rx.TensorStructInfo([c, n, 1], "float32")
         z = rx.TensorStructInfo([c, n, m], "float32")

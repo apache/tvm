@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 @T.prim_func
@@ -51,7 +51,7 @@ def test_domain_touched():
     assert a_domain_rw[0].min.value == -1
     assert a_domain_rw[0].extent.value == 101
     assert a_domain_rw[1].min.value == -1
-    assert isinstance(a_domain_rw[1].extent, tvm.tir.Add)
+    assert isinstance(a_domain_rw[1].extent, tvm.tirx.Add)
     assert a_domain_rw[1].extent.a.name == "m"
     assert a_domain_rw[1].extent.b.value == 1
 

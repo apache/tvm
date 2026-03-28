@@ -22,7 +22,7 @@ import pytest
 
 import tvm
 from tvm.script import ir as I
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 llvm_version = tvm.target.codegen.llvm_version_major()
 machine = platform.machine()
@@ -44,7 +44,7 @@ def test_fp16_to_fp32():
                 A: T.Buffer((elements, width), "float16"),
                 B: T.Buffer((elements, width), "float32"),
             ):
-                T.func_attr({"tir.noalias": True})
+                T.func_attr({"tirx.noalias": True})
                 for i0 in range(elements):
                     for i1 in T.vectorized(width):
                         with T.sblock("B"):
@@ -53,7 +53,7 @@ def test_fp16_to_fp32():
                             T.writes(B[v_i0, v_i1])
                             B[v_i0, v_i1] = T.Cast("float32", A[v_i0, v_i1])
 
-        f = tvm.tir.build(Module, target=target)
+        f = tvm.tirx.build(Module, target=target)
 
         assembly = f.inspect_source("asm").splitlines()
         if match:

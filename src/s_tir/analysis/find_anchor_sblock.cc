@@ -24,11 +24,11 @@
 
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/analysis.h>
-#include <tvm/tir/analysis.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/analysis.h>
+#include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
-namespace tir {
+namespace tirx {
 
 Stmt GetEnclosingLoop(const SBlockNode* block, Stmt func_body) {
   struct GetRootSeqStmt : public StmtVisitor {
@@ -118,5 +118,5 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   });
 }
 
-}  // namespace tir
+}  // namespace tirx
 }  // namespace tvm

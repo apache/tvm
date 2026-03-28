@@ -28,7 +28,7 @@
 #include <tvm/ir/replace_global_vars.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/tir/expr_functor.h>
+#include <tvm/tirx/expr_functor.h>
 
 namespace tvm {
 namespace relax {

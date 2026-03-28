@@ -211,7 +211,7 @@ static std::optional<MatchState> TryValidate(
       auto [necessary_condition, is_sufficient] = constraint->AsPrimExpr(query_match_state);
 
       necessary_condition = analyzer->Simplify(necessary_condition);
-      const auto* known = tir::as_const_int(necessary_condition);
+      const auto* known = tirx::as_const_int(necessary_condition);
 
       if (known && *known && is_sufficient) {
         // The condition passes, and the expression provided is both

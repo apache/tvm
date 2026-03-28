@@ -44,7 +44,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/module.h>
 #include <tvm/target/codegen.h>
-#include <tvm/tir/analysis.h>
+#include <tvm/tirx/analysis.h>
 
 #include <cstdio>
 #include <cstdlib>
@@ -476,7 +476,7 @@ ffi::Module BuildHexagon(IRModule mod, Target target) {
       continue;
     }
     auto f = Downcast<PrimFunc>(kv.second);
-    if (f->HasNonzeroAttr(tir::attr::kIsEntryFunc)) {
+    if (f->HasNonzeroAttr(tirx::attr::kIsEntryFunc)) {
       auto global_symbol = f->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
       TVM_FFI_ICHECK(global_symbol.has_value());
       entry_func = global_symbol.value();

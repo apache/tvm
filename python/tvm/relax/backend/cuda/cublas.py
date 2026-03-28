@@ -74,7 +74,7 @@ def _check_matmul(context: PatternCheckContext) -> bool:
     lhs_shape = lhs.struct_info.shape.values
     rhs_shape = rhs.struct_info.shape.values
 
-    if not isinstance(lhs_shape[-1], tvm.tir.expr.IntImm | int):
+    if not isinstance(lhs_shape[-1], tvm.tirx.expr.IntImm | int):
         # Reduction axis must be constant
         return False
 
@@ -82,7 +82,7 @@ def _check_matmul(context: PatternCheckContext) -> bool:
         if lhs_shape[-1] % 4 != 0:
             # Reduction axis must be multiples of 4 for IGEMM
             return False
-        if not isinstance(rhs_shape[-1], tvm.tir.expr.IntImm | int) or rhs_shape[-1] % 4 != 0:
+        if not isinstance(rhs_shape[-1], tvm.tirx.expr.IntImm | int) or rhs_shape[-1] % 4 != 0:
             # Rows number must be multiples of 4 for IGEMM
             return False
     elif lhs_dtype == "float8_e4m3fn" and rhs_dtype == "float8_e4m3fn":
@@ -102,12 +102,12 @@ def _check_matmul(context: PatternCheckContext) -> bool:
 
         # cuBLAS FP8 operations require all tensors being aligned to 16 bytes.
         if (
-            not isinstance(rhs_shape[-1], tvm.tir.expr.IntImm | int)
+            not isinstance(rhs_shape[-1], tvm.tirx.expr.IntImm | int)
             or rhs_shape[-1] % (16 // DataType(lhs_dtype).itemsize) != 0
         ):
             return False
         if (
-            not isinstance(rhs_shape[-2], tvm.tir.expr.IntImm | int)
+            not isinstance(rhs_shape[-2], tvm.tirx.expr.IntImm | int)
             or rhs_shape[-2] % (16 // DataType(out_dtype).itemsize) != 0
         ):
             return False
@@ -122,7 +122,7 @@ def _check_matmul(context: PatternCheckContext) -> bool:
         bias = context.annotated_expr["bias"]
         bias_shape = bias.struct_info.shape.values
         bias_batches = reduce(operator.mul, bias_shape[:-1], 1)
-        if not isinstance(bias_batches, tvm.tir.expr.IntImm | int) or int(bias_batches) > 1:
+        if not isinstance(bias_batches, tvm.tirx.expr.IntImm | int) or int(bias_batches) > 1:
             # cuBLAS only supports bias vector
             return False
 
@@ -133,8 +133,8 @@ def _check_matmul(context: PatternCheckContext) -> bool:
     # must be equal. If lhs is batched but rhs is not, we can use the regular GEMM by
     # flattening all batch axes into the M axis.
     return (
-        isinstance(lhs_batches, tvm.tir.Var)
-        or isinstance(rhs_batches, tvm.tir.Var)
+        isinstance(lhs_batches, tvm.tirx.Var)
+        or isinstance(rhs_batches, tvm.tirx.Var)
         or (analyzer.can_prove_equal(lhs_batches, rhs_batches))
         or (analyzer.can_prove(lhs_batches >= 1) and analyzer.can_prove(rhs_batches == 1))
     )

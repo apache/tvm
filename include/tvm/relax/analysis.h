@@ -30,8 +30,8 @@
 #include <tvm/relax/expr.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/struct_info.h>
-#include <tvm/tir/function.h>
-#include <tvm/tir/index_map.h>
+#include <tvm/tirx/function.h>
+#include <tvm/tirx/index_map.h>
 
 #include <functional>
 #include <set>
@@ -118,7 +118,7 @@ TVM_DLL StructInfo DeriveCallRetStructInfo(const FuncStructInfo& finfo, const Ca
  *
  * @R.function
  * def f(x: R.Tensor[(n, m)]):
- *     k = tir.Var("k", "int64")
+ *     k = tirx.Var("k", "int64")
  *     v0 = opaque_fn(x)
  *     v1 = match_cast(v0, R.Tensor[(n, k)])
  *     v2 : R.Tensor[(n + 1, k + 2)] = pad(v1)
@@ -158,7 +158,7 @@ TVM_DLL StructInfo DeriveCallRetStructInfo(const FuncStructInfo& finfo, const Ca
  */
 TVM_DLL StructInfo EraseToWellDefined(
     const StructInfo& info,
-    std::function<ffi::Optional<PrimExpr>(const tir::Var& var)> f_shape_var_map = nullptr,
+    std::function<ffi::Optional<PrimExpr>(const tirx::Var& var)> f_shape_var_map = nullptr,
     std::function<ffi::Optional<Expr>(const Var& var)> f_var_map = nullptr,
     arith::Analyzer* ana = nullptr);
 
@@ -176,7 +176,7 @@ TVM_DLL StructInfo EraseToWellDefined(
  * \return the corresponding erased struct info.
  */
 TVM_DLL StructInfo EraseToWellDefined(const StructInfo& info,
-                                      ffi::Map<tir::Var, PrimExpr> shape_var_map,
+                                      ffi::Map<tirx::Var, PrimExpr> shape_var_map,
                                       ffi::Map<Var, Expr> var_map, arith::Analyzer* ana = nullptr);
 
 /*!
@@ -291,7 +291,7 @@ TVM_DLL StructInfo StructInfoLCA(const StructInfo& lhs, const StructInfo& rhs,
  * \param sinfo The struct info object to be analyzed.
  * \return The list of TIR variables that appear in the input struct info.
  */
-TVM_DLL ffi::Array<tir::Var> TIRVarsInStructInfo(const StructInfo& sinfo);
+TVM_DLL ffi::Array<tirx::Var> TIRVarsInStructInfo(const StructInfo& sinfo);
 
 /*!
  * \brief Get the TIR variables that appear in the input struct info.
@@ -305,7 +305,7 @@ TVM_DLL ffi::Array<tir::Var> TIRVarsInStructInfo(const StructInfo& sinfo);
  *   deduplicated, each TIR variable will appear at most once, and in
  *   order of occurrence.
  */
-TVM_DLL ffi::Array<tir::Var> DefinableTIRVarsInStructInfo(const StructInfo& sinfo);
+TVM_DLL ffi::Array<tirx::Var> DefinableTIRVarsInStructInfo(const StructInfo& sinfo);
 
 /*! \brief Collect expressions whose usage requires them to be non-negative
  *
@@ -326,7 +326,7 @@ TVM_DLL ffi::Array<PrimExpr> CollectNonNegativeExpressions(const StructInfo& sin
  * \param expr The relax expression (e.g. a Function) to be analyzed.
  * \return The list of TIR variables that are defined in the input function.
  */
-TVM_DLL ffi::Array<tir::Var> DefinedSymbolicVars(const Expr& expr);
+TVM_DLL ffi::Array<tirx::Var> DefinedSymbolicVars(const Expr& expr);
 
 /*!
  * \brief Get the TIR variables that are used but not defined in the input function.
@@ -334,7 +334,7 @@ TVM_DLL ffi::Array<tir::Var> DefinedSymbolicVars(const Expr& expr);
  * \param expr The relax expression (e.g. a Function) to be analyzed.
  * \return The list of TIR variables that are used but not defined in the input function.
  */
-TVM_DLL ffi::Array<tir::Var> FreeSymbolicVars(const Expr& expr);
+TVM_DLL ffi::Array<tirx::Var> FreeSymbolicVars(const Expr& expr);
 //-----------------------------------
 // General IR analysis
 //-----------------------------------
@@ -525,7 +525,7 @@ TVM_DLL Expr RemoveAllUnused(Expr expr);
  * \note This analysis applies on TIR function but is primarily used by relax passes.
  *       As a result we place it under the relax namespace.
  */
-TVM_DLL OpPatternKind AnalyzeOpPatternKind(const tir::PrimFunc& func);
+TVM_DLL OpPatternKind AnalyzeOpPatternKind(const tirx::PrimFunc& func);
 
 /*!
  * \brief Check if the given PrimFunc is essentially doing a reshape operation.
@@ -540,7 +540,7 @@ TVM_DLL OpPatternKind AnalyzeOpPatternKind(const tir::PrimFunc& func);
  * cannot be false-positive, since whenever we cannot prove the equality, we return false. This
  * property guarantees the safety of this function.
  */
-TVM_DLL bool HasReshapePattern(const tir::PrimFunc& func);
+TVM_DLL bool HasReshapePattern(const tirx::PrimFunc& func);
 
 /*!
  * \brief Check if the given expression (likely a function body) contains any impure calls.
@@ -594,8 +594,8 @@ TVM_DLL bool WellFormed(ffi::Variant<IRModule, Function> obj, bool check_struct_
  * from the object (block or buffer) to it's index map transformation.
  */
 
-TVM_DLL ffi::Map<tir::SBlock, ffi::Map<ObjectRef, tir::IndexMap>> SuggestLayoutTransforms(
-    const Function& fn, ffi::Array<tir::IndexMap> write_buffer_transformations);
+TVM_DLL ffi::Map<tirx::SBlock, ffi::Map<ObjectRef, tirx::IndexMap>> SuggestLayoutTransforms(
+    const Function& fn, ffi::Array<tirx::IndexMap> write_buffer_transformations);
 
 /* \brief Collect variables whose value can be computed at compile-time
  *

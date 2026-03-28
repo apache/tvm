@@ -17,7 +17,7 @@
 # ruff: noqa: F401, F821
 import tvm
 from tvm import s_tir
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 # pylint: disable=no-self-argument
 

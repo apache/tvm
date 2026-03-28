@@ -480,9 +480,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         else:
             seq_len, batch_size, input_size = input_shape
 
-        seq_len = int(seq_len) if isinstance(seq_len, tvm.tir.IntImm) else seq_len
-        batch_size = int(batch_size) if isinstance(batch_size, tvm.tir.IntImm) else batch_size
-        input_size = int(input_size) if isinstance(input_size, tvm.tir.IntImm) else input_size
+        seq_len = int(seq_len) if isinstance(seq_len, tvm.tirx.IntImm) else seq_len
+        batch_size = int(batch_size) if isinstance(batch_size, tvm.tirx.IntImm) else batch_size
+        input_size = int(input_size) if isinstance(input_size, tvm.tirx.IntImm) else input_size
         # Extract hidden size from the LSTM parameters
         # The parameters are: [weight_ih, weight_hh, bias_ih, bias_hh]
         # weight_ih shape: (4 * hidden_size, input_size)
@@ -784,9 +784,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         else:
             seq_len, batch_size, input_size = input_shape
 
-        seq_len = int(seq_len) if isinstance(seq_len, tvm.tir.IntImm) else seq_len
-        batch_size = int(batch_size) if isinstance(batch_size, tvm.tir.IntImm) else batch_size
-        input_size = int(input_size) if isinstance(input_size, tvm.tir.IntImm) else input_size
+        seq_len = int(seq_len) if isinstance(seq_len, tvm.tirx.IntImm) else seq_len
+        batch_size = int(batch_size) if isinstance(batch_size, tvm.tirx.IntImm) else batch_size
+        input_size = int(input_size) if isinstance(input_size, tvm.tirx.IntImm) else input_size
 
         # Extract hidden size from parameters
         # For bidirectional: params has weights for both directions
@@ -937,6 +937,14 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         end_val = node.args[3] if len(node.args) > 3 else None
         step = node.args[4] if len(node.args) > 4 else 1
 
+        # Resolve fx.Node references (e.g. symbolic sizes from dynamic shapes)
+        if isinstance(start, fx.Node):
+            start = self.env[start]
+        if isinstance(end_val, fx.Node):
+            end_val = self.env[end_val]
+        if isinstance(step, fx.Node):
+            step = self.env[step]
+
         if start is None:
             start = 0
         if end_val is None:
@@ -955,6 +963,17 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             and step == 1
         ):
             return x
+
+        # Skip identity slice where end_val is a symbolic expression equal to the
+        # tensor's own dimension size (common with dynamic shapes).
+        if isinstance(start, int) and start == 0 and isinstance(step, int) and step == 1:
+            in_shape = self.shape_of(x)
+            if in_shape is not None and isinstance(end_val, tvm.tirx.PrimExpr):
+                actual_dim = dim if dim >= 0 else len(in_shape) + dim
+                dim_expr = in_shape[actual_dim]
+                if isinstance(dim_expr, tvm.tirx.PrimExpr):
+                    if tvm.tirx.analysis.expr_deep_equal(end_val, dim_expr):
+                        return x
 
         axes = [dim]
         begin = [start]
@@ -1104,6 +1123,65 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             )
         )
 
+    def _affine_grid_generator(self, node: fx.Node) -> relax.Var:
+        """Convert torch.nn.functional.affine_grid to relax.op.image.affine_grid."""
+        args = self.retrieve_args(node)
+        theta = args[0]  # [N, 2, 3]
+        size = args[1]  # [N, C, H, W]
+        align_corners = args[2] if len(args) > 2 else False
+
+        if not align_corners:
+            raise NotImplementedError(
+                "affine_grid with align_corners=False is not yet supported in TVM"
+            )
+
+        # Extract spatial dimensions (H, W) from PyTorch's [N, C, H, W] size
+        target_h = size[2]
+        target_w = size[3]
+
+        # Relax affine_grid outputs [N, 2, H, W]
+        grid = self.block_builder.emit(
+            relax.op.image.affine_grid(theta, (target_h, target_w))
+        )
+        # Permute to PyTorch convention [N, H, W, 2]
+        return self.block_builder.emit(relax.op.permute_dims(grid, axes=[0, 2, 3, 1]))
+
+    def _torchvision_roi_align(self, node: fx.Node) -> relax.Var:
+        """Convert torchvision.ops.roi_align to relax.op.vision.roi_align."""
+        args = self.retrieve_args(node)
+        data = args[0]
+        rois = args[1]
+        spatial_scale = args[2] if len(args) > 2 else 1.0
+        pooled_height = args[3] if len(args) > 3 else 1
+        pooled_width = args[4] if len(args) > 4 else pooled_height
+        sampling_ratio = args[5] if len(args) > 5 else -1
+        aligned = args[6] if len(args) > 6 else False
+
+        if aligned:
+            batch_indices = self.block_builder.emit(
+                relax.op.strided_slice(rois, axes=[1], begin=[0], end=[1])
+            )
+            boxes = self.block_builder.emit(
+                relax.op.strided_slice(rois, axes=[1], begin=[1], end=[5])
+            )
+            boxes = self.block_builder.emit(
+                relax.op.subtract(boxes, relax.const(0.5, rois.struct_info.dtype))
+            )
+            rois = self.block_builder.emit(relax.op.concat([batch_indices, boxes], axis=1))
+
+        return self.block_builder.emit(
+            relax.op.vision.roi_align(
+                data,
+                rois,
+                pooled_size=(pooled_height, pooled_width),
+                spatial_scale=spatial_scale,
+                sample_ratio=sampling_ratio,
+                aligned=aligned,
+                layout="NCHW",
+                mode="avg",
+            )
+        )
+
     def _scalar_tensor(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         scalar_value = args[0]
@@ -1181,8 +1259,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         assert storage_offset == 0, "as_strided with non-zero storage_offset is not supported yet"
 
         # Only handle view-like cases where the provided strides align with a contiguous layout.
-        can_check = all(isinstance(dim, int | tvm.tir.IntImm) for dim in size) and all(
-            isinstance(st, int | tvm.tir.IntImm) for st in stride
+        can_check = all(isinstance(dim, int | tvm.tirx.IntImm) for dim in size) and all(
+            isinstance(st, int | tvm.tirx.IntImm) for st in stride
         )
         if can_check:
             expected_stride = []
@@ -1313,8 +1391,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                     # Create fresh SizeVars to avoid sharing with the caller function.
                     if orig_si.shape is not None:
                         new_shape = [
-                            tvm.tir.SizeVar(s.name, s.dtype)
-                            if isinstance(s, tvm.tir.SizeVar)
+                            tvm.tirx.SizeVar(s.name, s.dtype)
+                            if isinstance(s, tvm.tirx.SizeVar)
                             else s
                             for s in orig_si.shape
                         ]
@@ -1713,6 +1791,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "zeros.default": self._zeros,
             "zeros_like.default": self._zeros_like,
             "grid_sampler_2d.default": self._grid_sampler_2d,
+            "affine_grid_generator.default": self._affine_grid_generator,
+            "roi_align.default": self._torchvision_roi_align,
             # datatype
             "to.dtype": self._to,
             "to.dtype_layout": self._to,
@@ -1734,8 +1814,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         }
 
     def _process_derived_symbol(
-        self, symbol, torch_symbol_to_relax_var: dict[str, tvm.tir.Var]
-    ) -> tuple[str, tvm.tir.PrimExpr | None]:
+        self, symbol, torch_symbol_to_relax_var: dict[str, tvm.tirx.Var]
+    ) -> tuple[str, tvm.tirx.PrimExpr | None]:
         """Process a sympy symbol to generate a descriptive name and TIR expression."""
         import sympy
 
@@ -1748,10 +1828,10 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         tir_expr = None
         for arg in symbol.args:
             if isinstance(arg, sympy.Integer):
-                term = tvm.tir.IntImm("int64", int(arg))
+                term = tvm.tirx.IntImm("int64", int(arg))
             elif isinstance(arg, sympy.Symbol):
                 term = torch_symbol_to_relax_var.setdefault(
-                    str(arg), tvm.tir.SizeVar(str(arg), "int64")
+                    str(arg), tvm.tirx.SizeVar(str(arg), "int64")
                 )
             else:
                 _, term = self._process_derived_symbol(arg, torch_symbol_to_relax_var)
@@ -1766,14 +1846,14 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             elif isinstance(symbol, sympy.Add):
                 tir_expr = tir_expr + term
 
-        if isinstance(tir_expr, tvm.tir.Add):
+        if isinstance(tir_expr, tvm.tirx.Add):
             for const, var in [(tir_expr.a, tir_expr.b), (tir_expr.b, tir_expr.a)]:
-                if isinstance(const, tvm.tir.IntImm) and isinstance(var, tvm.tir.Var):
+                if isinstance(const, tvm.tirx.IntImm) and isinstance(var, tvm.tirx.Var):
                     return f"{var.name}___{const.value}", tir_expr
 
-        if isinstance(tir_expr, tvm.tir.Mul):
+        if isinstance(tir_expr, tvm.tirx.Mul):
             for const, var in [(tir_expr.a, tir_expr.b), (tir_expr.b, tir_expr.a)]:
-                if isinstance(const, tvm.tir.IntImm) and isinstance(var, tvm.tir.Var):
+                if isinstance(const, tvm.tirx.IntImm) and isinstance(var, tvm.tirx.Var):
                     return f"{var.name}_{const.value}", tir_expr
 
         return str(symbol), tir_expr
@@ -1784,7 +1864,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         """Create relax input vars."""
         parameters_buffers_constants = OrderedDict()
         user_inputs = OrderedDict()
-        torch_symbol_to_relax_var: dict[str, tvm.tir.Var] = {}
+        torch_symbol_to_relax_var: dict[str, tvm.tirx.Var] = {}
         range_constraints = {}
 
         if hasattr(exported_program, "range_constraints"):
@@ -1837,7 +1917,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                     )
 
                     size_var = torch_symbol_to_relax_var.setdefault(
-                        symbol_name, tvm.tir.SizeVar(symbol_name, "int64")
+                        symbol_name, tvm.tirx.SizeVar(symbol_name, "int64")
                     )
                     relax_shape.append(size_var)
                 else:

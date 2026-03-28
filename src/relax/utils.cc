@@ -23,7 +23,7 @@
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/index.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
 namespace relax {
@@ -32,7 +32,7 @@ namespace relax {
 class ExprBinder : public ExprMutator {
  public:
   explicit ExprBinder(const tvm::ffi::Map<Var, Expr>& args_map,
-                      const tvm::ffi::Map<tir::Var, PrimExpr>& symbolic_var_map)
+                      const tvm::ffi::Map<tirx::Var, PrimExpr>& symbolic_var_map)
       : args_map_(args_map), symbolic_var_map_(symbolic_var_map) {}
 
  private:
@@ -77,7 +77,7 @@ class ExprBinder : public ExprMutator {
   }
 
   PrimExpr VisitPrimExpr(const PrimExpr& expr) final {
-    auto new_expr = tir::Substitute(expr, symbolic_var_map_);
+    auto new_expr = tirx::Substitute(expr, symbolic_var_map_);
     if (!expr.same_as(new_expr)) {
       arith::Analyzer analyzer;
       new_expr = analyzer.Simplify(new_expr);
@@ -87,7 +87,7 @@ class ExprBinder : public ExprMutator {
 
  private:
   const tvm::ffi::Map<Var, Expr>& args_map_;
-  const tvm::ffi::Map<tir::Var, PrimExpr>& symbolic_var_map_;
+  const tvm::ffi::Map<tirx::Var, PrimExpr>& symbolic_var_map_;
 };
 
 /*!
@@ -98,22 +98,22 @@ class ExprBinder : public ExprMutator {
  * \return The result expr after bind params
  */
 Expr Bind(const Expr& expr, const tvm::ffi::Map<Var, Expr>& binds,
-          const tvm::ffi::Map<tir::Var, PrimExpr>& symbolic_var_map) {
+          const tvm::ffi::Map<tirx::Var, PrimExpr>& symbolic_var_map) {
   return ExprBinder(binds, symbolic_var_map).VisitExpr(expr);
 }
 
 StructInfo Bind(const StructInfo& sinfo,
-                const tvm::ffi::Map<tir::Var, PrimExpr>& symbolic_var_map) {
+                const tvm::ffi::Map<tirx::Var, PrimExpr>& symbolic_var_map) {
   return ExprBinder({}, symbolic_var_map).VisitExprDepStructInfoField(sinfo);
 }
 
-tvm::ffi::Map<tir::Var, PrimExpr> InferSymbolicVarMap(
+tvm::ffi::Map<tirx::Var, PrimExpr> InferSymbolicVarMap(
     const tvm::ffi::Map<relax::Var, relax::Expr>& relax_var_remap, arith::Analyzer* analyzer) {
-  tvm::ffi::Map<tir::Var, PrimExpr> tir_var_remap;
+  tvm::ffi::Map<tirx::Var, PrimExpr> tir_var_remap;
 
   auto bind_from_prim_expr = [&tir_var_remap](const PrimExpr& var_shape,
                                               const PrimExpr& expr_shape) {
-    if (auto var = var_shape.as<tir::Var>()) {
+    if (auto var = var_shape.as<tirx::Var>()) {
       tir_var_remap.Set(var.value(), expr_shape);
     }
   };

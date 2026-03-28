@@ -20,6 +20,7 @@ import operator
 import numpy as np
 import pytest
 import torch
+import torchvision
 from torch import nn
 from torch.export import export
 from torch.nn import Module
@@ -30,7 +31,7 @@ from tvm import relax
 from tvm.relax.frontend.torch import from_exported_program
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def verify_model(
@@ -5634,6 +5635,73 @@ def test_slice_scatter():
     verify_model(SliceScatterNegative(), example_args, {}, expected_slice_scatter)
 
 
+def test_slice_with_symbolic_end():
+    """_slice correctly handles symbolic end values from dynamic shapes."""
+
+    class SliceIdentityModel(torch.nn.Module):
+        def forward(self, x):
+            # x[:, :x.size(1)] is an identity slice that torch.export emits
+            # as slice(x, 1, 0, sym_size_int(x, 1), 1) with dynamic shapes.
+            seq_len = x.size(1)
+            return x[:, :seq_len] + 0.0  # +0.0 to ensure output is a new tensor
+
+    # The identity slice is elided; only x + 0.0 remains.
+    @I.ir_module
+    class ExpectedIdentity:
+        @R.function
+        def main(x: R.Tensor(("s0", "s1", 4), dtype="float32")) -> R.Tuple(
+            R.Tensor(("s0", "s1", 4), dtype="float32")
+        ):
+            s0 = T.int64(is_size_var=True)
+            s1 = T.int64(is_size_var=True)
+            R.func_attr({"tir_var_lower_bound": {"s27": 2, "s77": 2}})
+            with R.dataflow():
+                lv: R.Tensor((s0, s1, 4), dtype="float32") = R.add(x, R.const(0.0, "float32"))
+                gv: R.Tuple(R.Tensor((s0, s1, 4), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(2, 8, 4, dtype=torch.float32),)
+    batch = torch.export.Dim("batch", min=2)
+    seq = torch.export.Dim("seq", min=2)
+    dynamic_shapes = {"x": {0: batch, 1: seq}}
+
+    verify_model(
+        SliceIdentityModel(),
+        example_args,
+        {},
+        ExpectedIdentity,
+        dynamic_shapes=dynamic_shapes,
+        map_free_vars=True,
+    )
+
+    class SliceStaticModel(torch.nn.Module):
+        def forward(self, x):
+            # A non-identity static slice
+            return x[:, :3]
+
+    @tvm.script.ir_module
+    class ExpectedStatic:
+        @R.function
+        def main(x: R.Tensor((2, 8, 4), dtype="float32")) -> R.Tuple(
+            R.Tensor((2, 3, 4), dtype="float32")
+        ):
+            with R.dataflow():
+                lv: R.Tensor((2, 3, 4), dtype="float32") = R.strided_slice(
+                    x,
+                    axes=[1],
+                    begin=[0],
+                    end=[3],
+                    strides=[1],
+                )
+                gv: R.Tuple(R.Tensor((2, 3, 4), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args_static = (torch.randn(2, 8, 4, dtype=torch.float32),)
+    verify_model(SliceStaticModel(), example_args_static, {}, ExpectedStatic)
+
+
 def test_split():
     class Chunk(Module):
         def forward(self, input):
@@ -8679,6 +8747,65 @@ def test_grid_sample():
     verify_model(GridSample(), example_args, {}, expected)
 
 
+def test_torchvision_roi_align():
+    class ROIAlign(Module):
+        def forward(self, input, rois):
+            return torchvision.ops.roi_align(
+                input,
+                rois,
+                output_size=(3, 3),
+                spatial_scale=1.0,
+                sampling_ratio=2,
+                aligned=False,
+            )
+
+    @tvm.script.ir_module
+    class expected:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 8, 8), dtype="float32"),
+            rois: R.Tensor((2, 5), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((2, 3, 3, 3), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((2, 3, 3, 3), dtype="float32") = R.vision.roi_align(
+                    input_1,
+                    rois,
+                    pooled_size=(3, 3),
+                    spatial_scale=1.0,
+                    sample_ratio=2,
+                    layout="NCHW",
+                    mode="avg",
+                )
+                gv: R.Tuple(R.Tensor((2, 3, 3, 3), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (
+        torch.randn(1, 3, 8, 8, dtype=torch.float32),
+        torch.tensor([[0.0, 1.0, 1.0, 6.0, 6.0], [0.0, 0.5, 0.5, 7.0, 7.0]], dtype=torch.float32),
+    )
+    verify_model(ROIAlign(), example_args, {}, expected)
+
+
+def test_torchvision_roi_align_aligned():
+    class ROIAlign(Module):
+        def forward(self, input, rois):
+            return torchvision.ops.roi_align(
+                input,
+                rois,
+                output_size=(1, 1),
+                spatial_scale=1.0,
+                sampling_ratio=2,
+                aligned=True,
+            )
+
+    example_args = (
+        torch.arange(16, dtype=torch.float32).reshape(1, 1, 4, 4),
+        torch.tensor([[0.0, 1.0, 1.0, 1.2, 1.2]], dtype=torch.float32),
+    )
+    verify_model_numerically(ROIAlign(), example_args, rtol=1e-5, atol=1e-5)
+
+
 def test_upsample_nearest2d():
     class UpsampleNearest2dScale(Module):
         def forward(self, input):
@@ -8966,6 +9093,63 @@ def test_cond_nested():
     assert len(set(branch_funcs)) == len(branch_funcs), (
         f"Duplicate branch function names: {branch_funcs}"
     )
+
+
+def test_affine_grid():
+    class AffineGrid(Module):
+        def forward(self, theta):
+            return torch.nn.functional.affine_grid(
+                theta, [1, 3, 16, 16], align_corners=True
+            )
+
+    @tvm.script.ir_module
+    class expected:
+        @R.function
+        def main(
+            theta: R.Tensor((1, 2, 3), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((1, 16, 16, 2), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((1, 2, 16, 16), dtype="float32") = R.image.affine_grid(
+                    theta, size=(16, 16)
+                )
+                lv1: R.Tensor((1, 16, 16, 2), dtype="float32") = R.permute_dims(
+                    lv, axes=[0, 2, 3, 1]
+                )
+                gv: R.Tuple(R.Tensor((1, 16, 16, 2), dtype="float32")) = (lv1,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(1, 2, 3, dtype=torch.float32),)
+    # Disable decomposition to keep aten.affine_grid_generator as a single op
+    verify_model(AffineGrid(), example_args, {}, expected, run_ep_decomposition=False)
+
+
+def test_affine_grid_numerically():
+    """Verify affine_grid numerical correctness: PyTorch vs TVM via our converter."""
+
+    class AffineGrid(Module):
+        def forward(self, theta):
+            return torch.nn.functional.affine_grid(
+                theta, [2, 3, 8, 12], align_corners=True
+            )
+
+    model = AffineGrid()
+    example_args = (torch.randn(2, 2, 3, dtype=torch.float32),)
+
+    with torch.no_grad():
+        pytorch_output = model(*example_args)
+
+    exported_program = export(model, args=example_args)
+    mod = from_exported_program(exported_program, run_ep_decomposition=False)
+
+    exe = tvm.compile(mod, target="llvm")
+    vm = relax.VirtualMachine(exe, tvm.cpu())
+
+    tvm_args = [tvm.runtime.tensor(arg.numpy()) for arg in example_args]
+    tvm_output = vm["main"](*tvm_args)
+    tvm_output_np = tvm_output[0].numpy()
+
+    tvm.testing.assert_allclose(tvm_output_np, pytorch_output.numpy(), rtol=1e-5, atol=1e-5)
 
 
 if __name__ == "__main__":

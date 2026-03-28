@@ -16,7 +16,7 @@
 # under the License.
 
 import tvm
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def test_meta_programming_matmul():

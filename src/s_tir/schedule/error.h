@@ -25,7 +25,7 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 /*! \brief Error that happens during TensorIR scheduling */
 class ScheduleError : public tvm::runtime::Error {

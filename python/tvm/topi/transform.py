@@ -99,7 +99,7 @@ def expand_like(a, shape_like, axis):
         axis_index = 0
         for i in range(0, len(idxs)):
             if i not in real_axis:
-                dim = tvm.tir.if_then_else(a.shape[len(indices)] != 1, idxs[i], 0)
+                dim = tvm.tirx.if_then_else(a.shape[len(indices)] != 1, idxs[i], 0)
                 indices.append(dim)
                 axis_index += 1
         return a(*indices)
@@ -311,37 +311,37 @@ def strided_set(a, v, begin, end, strides=None):
             raise TypeError("strides should be int32")
 
     def _max(a, b):
-        return tvm.tir.Select(a > b, a, b)
+        return tvm.tirx.Select(a > b, a, b)
 
     if strides is None:
-        strides = [tvm.tir.const(1, "int32")] * n
+        strides = [tvm.tirx.const(1, "int32")] * n
     else:
         strides = [
-            tvm.tir.if_then_else(strides.shape[0] > i, strides[i], tvm.tir.const(1, "int32"))
+            tvm.tirx.if_then_else(strides.shape[0] > i, strides[i], tvm.tirx.const(1, "int32"))
             for i in range(n)
         ]
 
     begin = [
-        tvm.tir.if_then_else(
+        tvm.tirx.if_then_else(
             begin.shape[0] > i,
             begin[i],
-            tvm.tir.Select(strides[i] > 0, tvm.tir.const(0, "int32"), a.shape[i]),
+            tvm.tirx.Select(strides[i] > 0, tvm.tirx.const(0, "int32"), a.shape[i]),
         )
         for i in range(n)
     ]
     end = [
-        tvm.tir.if_then_else(
+        tvm.tirx.if_then_else(
             end.shape[0] > i,
             end[i],
-            tvm.tir.Select(strides[i] > 0, a.shape[i] + 1, -(a.shape[i] + 1)),
+            tvm.tirx.Select(strides[i] > 0, a.shape[i] + 1, -(a.shape[i] + 1)),
         )
         for i in range(n)
     ]
 
     # Convert negative indexes
     for i in range(n):
-        begin[i] = tvm.tir.if_then_else(begin[i] < 0, begin[i] + a.shape[i], begin[i])
-        end[i] = tvm.tir.if_then_else(end[i] < 0, end[i] + a.shape[i], end[i])
+        begin[i] = tvm.tirx.if_then_else(begin[i] < 0, begin[i] + a.shape[i], begin[i])
+        end[i] = tvm.tirx.if_then_else(end[i] < 0, end[i] + a.shape[i], end[i])
 
     def _select(*indices):
         from_val = []
@@ -349,7 +349,7 @@ def strided_set(a, v, begin, end, strides=None):
         for i in range(n):
             from_val.append(within_index(begin[i], end[i], strides[i], indices[i]))
             index_tuple.append(make_idx(begin[i], end[i], strides[i], a.shape[i], indices[i]))
-        return tvm.tir.if_then_else(tvm.tir.all(*from_val), v(*index_tuple), a(*indices))
+        return tvm.tirx.if_then_else(tvm.tirx.all(*from_val), v(*index_tuple), a(*indices))
 
     return te.compute(a.shape, _select, name="strided_set")
 
@@ -1058,12 +1058,12 @@ def trilu(data, k, upper):
     """
     # Make sure datatype is consistent.
     if k.dtype != "int32":
-        k = tvm.tir.Cast("int32", k)
+        k = tvm.tirx.Cast("int32", k)
 
     # Check either above or below diagonal depending on upper.
-    check_op = tvm.tir.GE
+    check_op = tvm.tirx.GE
     if upper:
-        check_op = tvm.tir.LE
+        check_op = tvm.tirx.LE
 
     def _apply_trilu(*indices):
         row_index = indices[-2]
@@ -1072,13 +1072,13 @@ def trilu(data, k, upper):
         if row_index.dtype != col_index.dtype:
             target_type = (col_index + row_index).dtype
             if row_index.dtype != target_type:
-                row_index = tvm.tir.Cast(target_type, row_index)
+                row_index = tvm.tirx.Cast(target_type, row_index)
             else:
-                col_index = tvm.tir.Cast(target_type, col_index)
+                col_index = tvm.tirx.Cast(target_type, col_index)
         other_indices = indices[:-2]
         check_position = check_op(row_index, col_index - k)
         value = data(*other_indices, row_index, col_index)
-        return tvm.tir.Select(check_position, value, tvm.tir.const(0, data.dtype))
+        return tvm.tirx.Select(check_position, value, tvm.tirx.const(0, data.dtype))
 
     return te.compute(data.shape, _apply_trilu, name="trilu", tag=topi.tag.ELEMWISE)
 

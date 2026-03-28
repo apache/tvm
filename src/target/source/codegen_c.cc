@@ -34,7 +34,7 @@
 namespace tvm {
 namespace codegen {
 
-using namespace tir;
+using namespace tirx;
 
 void CodeGenC::Init(bool output_ssa) { print_ssa_form_ = output_ssa; }
 
@@ -83,7 +83,7 @@ void CodeGenC::PrintFunctionSignature(const ffi::String& function_name, const Pr
   PrintExtraAttrs(func, os);
   os << " " << function_name << "(";
   for (size_t i = 0; i < func->params.size(); ++i) {
-    tir::Var v = func->params[i];
+    tirx::Var v = func->params[i];
 
     if (i > 0) {
       os << ", ";
@@ -105,7 +105,7 @@ void CodeGenC::PrintFunctionSignature(const ffi::String& function_name, const Pr
       PrintType(GetType(v), os);
     }
 
-    bool no_alias = func->HasNonzeroAttr(tir::attr::kNoAlias);
+    bool no_alias = func->HasNonzeroAttr(tirx::attr::kNoAlias);
     bool is_handle = v.dtype().is_handle();
     auto* ptr = v->type_annotation.as<PointerTypeNode>();
     if (ptr && ptr->element_type.as<TensorMapTypeNode>()) {
@@ -1072,20 +1072,20 @@ void CodeGenC::VisitStmt_(const AllocBufferNode* op) {
   stream << ' ' << vid << '[' << constant_size << "];\n";
 
   RegisterHandleType(op->buffer->data.get(), op->buffer->dtype);
-  if (op->annotations.count(tir::attr::kVolatile)) {
+  if (op->annotations.count(tirx::attr::kVolatile)) {
     MarkVolatile(op->buffer->data.get());
   }
 }
 
 void CodeGenC::VisitStmt_(const AttrStmtNode* op) {
-  if (op->attr_key == tir::attr::thread_extent) {
+  if (op->attr_key == tirx::attr::thread_extent) {
     IterVar iv = Downcast<IterVar>(op->node);
     if (iv->thread_tag.length() != 0) {
       if (!var_idmap_.count(iv->var.get())) {
         BindThreadIndex(iv);
       }
     }
-  } else if (op->attr_key == tir::attr::pragma_import_c) {
+  } else if (op->attr_key == tirx::attr::pragma_import_c) {
     const StringImmNode* value = op->value.as<StringImmNode>();
     TVM_FFI_ICHECK(value != nullptr);
     decl_stream << value->value;

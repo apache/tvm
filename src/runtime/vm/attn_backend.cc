@@ -31,7 +31,7 @@ std::unique_ptr<PagedPrefillFunc> ConvertPagedPrefillFunc(ffi::Array<ffi::Any> a
     return nullptr;
   }
   ffi::String backend_name = args[0].cast<ffi::String>();
-  if (backend_name == "tir") {
+  if (backend_name == "tirx") {
     TVM_FFI_ICHECK_EQ(args.size(), 2);
     ffi::Function attn_func = args[1].cast<ffi::Function>();
     return std::make_unique<TIRPagedPrefillFunc>(std::move(attn_func), attn_kind);
@@ -53,7 +53,7 @@ std::unique_ptr<RaggedPrefillFunc> ConvertRaggedPrefillFunc(ffi::Array<ffi::Any>
     return nullptr;
   }
   ffi::String backend_name = args[0].cast<ffi::String>();
-  if (backend_name == "tir") {
+  if (backend_name == "tirx") {
     TVM_FFI_ICHECK_EQ(args.size(), 2);
     ffi::Function attn_func = args[1].cast<ffi::Function>();
     return std::make_unique<TIRRaggedPrefillFunc>(std::move(attn_func), attn_kind);
@@ -82,7 +82,7 @@ std::unique_ptr<PagedDecodeFunc> ConvertPagedDecodeFunc(ffi::Array<ffi::Any> arg
     return nullptr;
   }
   ffi::String backend_name = args[0].cast<ffi::String>();
-  if (backend_name == "tir") {
+  if (backend_name == "tirx") {
     TVM_FFI_ICHECK_EQ(args.size(), 2);
     ffi::Function attn_func = args[1].cast<ffi::Function>();
     return std::make_unique<TIRPagedDecodeFunc>(std::move(attn_func), attn_kind);
@@ -104,7 +104,7 @@ std::unique_ptr<PagedPrefillTreeMaskFunc> ConvertPagedPrefillTreeMaskFunc(ffi::A
     return nullptr;
   }
   ffi::String backend_name = args[0].cast<ffi::String>();
-  if (backend_name == "tir") {
+  if (backend_name == "tirx") {
     TVM_FFI_ICHECK_EQ(args.size(), 2);
     ffi::Function attn_func = args[1].cast<ffi::Function>();
     return std::make_unique<TIRPagedPrefillTreeMaskFunc>(std::move(attn_func), attn_kind);
@@ -119,7 +119,7 @@ std::unique_ptr<RaggedPrefillTreeMaskFunc> ConvertRaggedPrefillTreeMaskFunc(
     return nullptr;
   }
   ffi::String backend_name = args[0].cast<ffi::String>();
-  if (backend_name == "tir") {
+  if (backend_name == "tirx") {
     TVM_FFI_ICHECK_EQ(args.size(), 2);
     ffi::Function attn_func = args[1].cast<ffi::Function>();
     return std::make_unique<TIRRaggedPrefillTreeMaskFunc>(std::move(attn_func), attn_kind);

@@ -24,7 +24,7 @@ import tvm
 import tvm.testing
 from tvm.contrib import cc, popen_pool, tar, utils
 from tvm.script import ir as I
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 @tvm.testing.uses_gpu

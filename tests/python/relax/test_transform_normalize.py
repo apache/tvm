@@ -20,15 +20,15 @@ import pytest
 import tvm
 import tvm.script
 import tvm.testing
-from tvm import relax, tir
+from tvm import relax, tirx
 from tvm.ir.base import assert_structural_equal
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def test_normalize_function():
-    m = tir.Var("m", "int64")
-    n = tir.Var("n", "int64")
+    m = tirx.Var("m", "int64")
+    n = tirx.Var("n", "int64")
     x = relax.Var("x", R.Tensor([m, n], "float16"))
 
     # Note: the parser automatically normalize the IR written in TVMScript,

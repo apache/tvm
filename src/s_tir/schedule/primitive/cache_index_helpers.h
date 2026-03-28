@@ -28,11 +28,11 @@
 
 #include <tvm/ffi/extra/structural_hash.h>
 #include <tvm/ffi/string.h>
-#include <tvm/tir/analysis.h>  // For the ExprDeepEqual analysis
-#include <tvm/tir/expr.h>
-#include <tvm/tir/expr_functor.h>
-#include <tvm/tir/stmt.h>
-#include <tvm/tir/stmt_functor.h>  // For the class StmtExprVisitor
+#include <tvm/tirx/analysis.h>  // For the ExprDeepEqual analysis
+#include <tvm/tirx/expr.h>
+#include <tvm/tirx/expr_functor.h>
+#include <tvm/tirx/stmt.h>
+#include <tvm/tirx/stmt_functor.h>  // For the class StmtExprVisitor
 
 #include <unordered_map>
 #include <utility>  // For pairs datatype
@@ -41,7 +41,7 @@
 #include "../../../support/ordered_map.h"
 
 namespace tvm {
-namespace tir {
+namespace tirx {
 
 /*!
  * \brief A computation table is a hashtable which associates to each expression being computed
@@ -163,7 +163,7 @@ void InsertVectorToSortedSemanticComputations(std::vector<std::pair<PrimExpr, si
                                               const std::vector<PrimExpr>& vec_to_add,
                                               bool identify_equiv_terms, size_t increase_count = 1);
 
-}  // namespace tir
+}  // namespace tirx
 }  // namespace tvm
 
 #endif  // TVM_S_TIR_SCHEDULE_PRIMITIVE_CACHE_INDEX_HELPERS_H_

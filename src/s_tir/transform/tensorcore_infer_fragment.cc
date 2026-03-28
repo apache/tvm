@@ -25,19 +25,19 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tir/expr.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/expr.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include <unordered_map>
 #include <unordered_set>
 
 #include "../../runtime/thread_storage_scope.h"
-#include "../../tir/transform/ir_utils.h"
+#include "../../tirx/transform/ir_utils.h"
 #include "storage_access.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 // Get fragment information from tensor intrinsics
 class FragmentGetter : public StmtExprVisitor {
@@ -117,13 +117,13 @@ class FragmentGetter : public StmtExprVisitor {
 
 }  // namespace s_tir
 
-namespace tir {
+namespace tirx {
 std::unordered_map<const VarNode*, FragmentInfo> GetTensorCoreFragmentInfo(const Stmt& stmt) {
   s_tir::FragmentGetter getter;
   getter(stmt);
   return std::move(getter.fragments);
 }
-}  // namespace tir
+}  // namespace tirx
 
 namespace s_tir {
 

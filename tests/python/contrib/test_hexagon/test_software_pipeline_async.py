@@ -20,8 +20,8 @@
 import numpy as np
 
 import tvm
-from tvm import tir
-from tvm.script import tir as T
+from tvm import tirx
+from tvm.script import tirx as T
 
 from .infrastructure import get_hexagon_target
 
@@ -180,8 +180,8 @@ class TestAsyncSoftwarePipeline:
 
         with tvm.transform.PassContext(
             config={
-                "tir.use_async_copy": 1,
-                "tir.experimental_dma_bypass_cache": 1,
+                "tirx.use_async_copy": 1,
+                "tirx.experimental_dma_bypass_cache": 1,
             }
         ):
             func = tvm.compile(schedule.mod["main"], target=get_hexagon_target("v68"))

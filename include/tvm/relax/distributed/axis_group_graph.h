@@ -23,8 +23,8 @@
 #include <tvm/arith/iter_affine_map.h>
 #include <tvm/relax/distributed/struct_info.h>
 #include <tvm/relax/expr.h>
-#include <tvm/tir/function.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/function.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include <algorithm>
 #include <limits>
@@ -36,7 +36,7 @@
 #include <vector>
 
 namespace tvm {
-namespace tir {
+namespace tirx {
 // (var, axis)
 using TIRVarAxis = std::pair<Var, int>;
 // (buffer, axis)
@@ -198,7 +198,7 @@ class BufferAxisGraphExtractor : public StmtExprVisitor {
   ffi::Map<Var, Range> iter_var_range_;
   std::string func_name;
 };
-}  // namespace tir
+}  // namespace tirx
 }  // namespace tvm
 
 namespace tvm {
@@ -470,7 +470,7 @@ void BuildAxisGraphPermuteDims(const Var& output_var, const Call& call,
                                distributed::AxisGroupGraph* axis_group_graph);
 void BuildAxisGraphReshape(const Var& output_var, const Call& call,
                            distributed::AxisGroupGraph* axis_group_graph);
-void BuildAxisGraphCallTIR(const Var& output_var, const Call& call, const tir::PrimFunc& func,
+void BuildAxisGraphCallTIR(const Var& output_var, const Call& call, const tirx::PrimFunc& func,
                            distributed::AxisGroupGraph* axis_group_graph);
 
 }  // namespace distributed

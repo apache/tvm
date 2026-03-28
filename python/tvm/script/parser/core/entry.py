@@ -41,15 +41,15 @@ def _default_globals() -> dict[str, Any]:
     from tvm.script.parser import (
         ir,  # pylint: disable=import-outside-toplevel
         relax,  # pylint: disable=import-outside-toplevel
-        tir,  # pylint: disable=import-outside-toplevel
+        tirx,  # pylint: disable=import-outside-toplevel
     )
 
     extra_vars = {
         "tvm": tvm,
         "I": ir,
         "ir": ir,
-        "T": tir,
-        "tir": tir,
+        "T": tirx,
+        "tirx": tirx,
         "R": relax,
         "relax": relax,
     }
@@ -126,7 +126,7 @@ def parse(
             parser.report_error(source_ast, err=WELL_FORMED_ERROR_MESSAGE)
 
         try:
-            tvm.tir.analysis.verify_well_formed(check_ret)
+            tvm.tirx.analysis.verify_well_formed(check_ret)
         except Exception as err:  # pylint: disable=broad-exception-caught
             parser.report_error(
                 source_ast,

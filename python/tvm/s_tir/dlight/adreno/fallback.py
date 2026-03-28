@@ -33,7 +33,7 @@
 # under the License.
 """Dlight Adreno Fallback Schedules"""
 
-from tvm import s_tir, tir
+from tvm import s_tir, tirx
 from tvm.target import Target
 
 from .. import analysis
@@ -168,13 +168,13 @@ class Fallback(AdrenoScheduleRule):
 
     def apply(  # pylint: disable=too-many-locals
         self,
-        func: tir.PrimFunc,
+        func: tirx.PrimFunc,
         target: Target,
         _: bool,
     ) -> None | s_tir.Schedule | list[s_tir.Schedule]:
         # pylint: disable=invalid-name
 
-        if not isinstance(func, tir.PrimFunc) or not self.is_target_available(target):
+        if not isinstance(func, tirx.PrimFunc) or not self.is_target_available(target):
             return None
 
         sch = s_tir.Schedule(func)

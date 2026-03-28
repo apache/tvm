@@ -17,14 +17,14 @@
 import tvm
 import tvm.s_tir
 import tvm.testing
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def _check(original, transformed):
     func = original
     mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
     mod = tvm.s_tir.transform.LowerOpaqueBlock()(mod)
-    mod = tvm.tir.transform.Simplify()(mod)
+    mod = tvm.tirx.transform.Simplify()(mod)
     tvm.ir.assert_structural_equal(
         mod["main"], transformed.with_attr("global_symbol", "main"), True
     )
@@ -352,9 +352,9 @@ def test_annotated_loops():
     attr3 = attr2.body
     assert attr1.attr_key == "pragma_1" and attr1.value == "str_value"
     assert attr2.attr_key == "pragma_2"
-    tvm.ir.assert_structural_equal(attr2.value, tvm.tir.IntImm("int32", 1))
+    tvm.ir.assert_structural_equal(attr2.value, tvm.tirx.IntImm("int32", 1))
     assert attr3.attr_key == "pragma_3"
-    tvm.ir.assert_structural_equal(attr3.value, tvm.tir.FloatImm("float32", 0.0))
+    tvm.ir.assert_structural_equal(attr3.value, tvm.tirx.FloatImm("float32", 0.0))
 
 
 def test_annotated_block():
@@ -371,9 +371,9 @@ def test_annotated_block():
     attr3 = attr2.body
     assert attr1.attr_key == "pragma_1" and attr1.value == "str_value"
     assert attr2.attr_key == "pragma_2"
-    tvm.ir.assert_structural_equal(attr2.value, tvm.tir.IntImm("int32", 1))
+    tvm.ir.assert_structural_equal(attr2.value, tvm.tirx.IntImm("int32", 1))
     assert attr3.attr_key == "pragma_3"
-    tvm.ir.assert_structural_equal(attr3.value, tvm.tir.FloatImm("float32", 0.0))
+    tvm.ir.assert_structural_equal(attr3.value, tvm.tirx.FloatImm("float32", 0.0))
 
 
 def test_preserved_annotations():

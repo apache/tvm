@@ -19,7 +19,7 @@ import tvm.testing
 from tvm import relax
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def test_single_buffer():
@@ -225,7 +225,7 @@ def test_attr_inheritance():
             W: T.Buffer((224, 224), "float32"),
             Out: T.Buffer((224, 224), "float32"),
         ):
-            T.func_attr({"layout_free_buffers": [1], "tir.noalias": True})
+            T.func_attr({"layout_free_buffers": [1], "tirx.noalias": True})
             W_rewrite = T.sblock_alloc_buffer((4, 4, 56, 56))
             for i, j in T.grid(224, 224):
                 with T.sblock("W_rewrite"):
@@ -260,7 +260,7 @@ def test_attr_inheritance():
             W_rewrite: T.Buffer((4, 4, 56, 56), "float32"),
             Out: T.Buffer((224, 224), "float32"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, j0, i1, j1 in T.grid(4, 4, 56, 56):
                 with T.sblock("Out"):
                     vi = T.axis.spatial(224, i0 * 56 + i1)
@@ -272,7 +272,7 @@ def test_attr_inheritance():
             W: T.Buffer((224, 224), "float32"),
             W_rewrite: T.Buffer((4, 4, 56, 56), "float32"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i, j in T.grid(224, 224):
                 with T.sblock("W_rewrite"):
                     vi, vj = T.axis.remap("SS", [i, j])

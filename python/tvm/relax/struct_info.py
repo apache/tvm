@@ -25,7 +25,7 @@ import tvm_ffi
 import tvm
 from tvm.ir import Array, EnvFunc, Span, VDevice
 from tvm.runtime import DataType
-from tvm.tir import PrimExpr
+from tvm.tirx import PrimExpr
 
 from . import _ffi_api, expr, ty
 from .expr import Expr, ShapeExpr, StructInfo
@@ -93,11 +93,11 @@ class PrimStructInfo(StructInfo):
                     "but the specified dtype was {dtype}."
                 )
             elif isinstance(value, int | float):
-                value = tvm.tir.const(value, dtype)
+                value = tvm.tirx.const(value, dtype)
 
         # Use relax's default integer type if not otherwise specified.
         if isinstance(value, int):
-            value = tvm.tir.IntImm("int64", value)
+            value = tvm.tirx.IntImm("int64", value)
 
         if value is None:
             self.__init_handle_by_constructor__(_ffi_api.PrimStructInfoFromDtype, dtype, span)  # type: ignore

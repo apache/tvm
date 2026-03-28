@@ -33,7 +33,7 @@ from tvm.relax.frontend import detach_params
 from tvm.relax.frontend.torch import from_fx
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def verify_model(torch_model, input_info, binding, expected):
@@ -3671,6 +3671,149 @@ def test_interpolate():
 
     verify_model(Interpolate4(), input_info, {}, expected4)
 
+    input_info_5d = [([1, 3, 4, 10, 10], "float32")]
+    class Interpolate5(Module):
+        def forward(self, input):
+            return torch.nn.functional.interpolate(
+                input,
+                size=None,
+                scale_factor=(2.0, 2.0, 2.0),
+                mode="trilinear",
+                align_corners=False,
+            )
+    @tvm.script.ir_module
+    class expected5:
+        @R.function
+        def main(input_5: R.Tensor((1, 3, 4, 10, 10), dtype="float32")) -> R.Tensor(
+            (1, 3, 8, 20, 20), dtype="float32"
+        ):
+
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 8, 20, 20), dtype="float32") = R.image.resize3d(
+                    input_5,
+                    (8, 20, 20),
+                    roi=[0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000],
+                    layout="NCDHW",
+                    method="linear",
+                    coordinate_transformation_mode="half_pixel",
+                    rounding_method="",
+                    cubic_alpha=-0.75,
+                    cubic_exclude=0,
+                    extrapolation_value=0,
+                    out_dtype="",
+                )
+                gv: R.Tensor((1, 3, 8, 20, 20), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(Interpolate5(), input_info_5d, {}, expected5)
+
+    class Interpolate6(Module):
+        def forward(self, input):
+            return torch.nn.functional.interpolate(
+                input,
+                size=None,
+                scale_factor=(2.0,4.0,4.0),
+                mode="trilinear",
+                align_corners=False,
+            )
+    @tvm.script.ir_module
+    class expected6:
+        @R.function
+        def main(input_5: R.Tensor((1, 3, 4, 10, 10), dtype="float32")) -> R.Tensor(
+            (1, 3, 8, 40, 40), dtype="float32"
+        ):
+
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 8, 40, 40), dtype="float32") = R.image.resize3d(
+                    input_5,
+                    (8, 40, 40),
+                    roi=[0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000],
+                    layout="NCDHW",
+                    method="linear",
+                    coordinate_transformation_mode="half_pixel",
+                    rounding_method="",
+                    cubic_alpha=-0.75,
+                    cubic_exclude=0,
+                    extrapolation_value=0,
+                    out_dtype="",
+                )
+                gv: R.Tensor((1, 3, 8, 40, 40), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(Interpolate6(), input_info_5d, {}, expected6)
+
+    class Interpolate7(Module):
+        def forward(self, input):
+            return torch.nn.functional.interpolate(
+                input,
+                size=(8,40,40),
+                mode="trilinear",
+                align_corners=False,
+            )
+    @tvm.script.ir_module
+    class expected7:
+        @R.function
+        def main(input_5: R.Tensor((1, 3, 4, 10, 10), dtype="float32")) -> R.Tensor(
+            (1, 3, 8, 40, 40), dtype="float32"
+        ):
+
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 8, 40, 40), dtype="float32") = R.image.resize3d(
+                    input_5,
+                    (8, 40, 40),
+                    roi=[0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000],
+                    layout="NCDHW",
+                    method="linear",
+                    coordinate_transformation_mode="half_pixel",
+                    rounding_method="",
+                    cubic_alpha=-0.75,
+                    cubic_exclude=0,
+                    extrapolation_value=0,
+                    out_dtype="",
+                )
+                gv: R.Tensor((1, 3, 8, 40, 40), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(Interpolate7(), input_info_5d, {}, expected7)
+
+    class Interpolate8(Module):
+        def forward(self, input):
+            return torch.nn.functional.interpolate(
+                input,
+                size=(8,40,40),
+                mode="trilinear",
+                align_corners=True,
+            )
+    @tvm.script.ir_module
+    class expected8:
+        @R.function
+        def main(input_5: R.Tensor((1, 3, 4, 10, 10), dtype="float32")) -> R.Tensor(
+            (1, 3, 8, 40, 40), dtype="float32"
+        ):
+
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 8, 40, 40), dtype="float32") = R.image.resize3d(
+                    input_5,
+                    (8, 40, 40),
+                    roi=[0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000],
+                    layout="NCDHW",
+                    method="linear",
+                    coordinate_transformation_mode="align_corners",
+                    rounding_method="",
+                    cubic_alpha=-0.75,
+                    cubic_exclude=0,
+                    extrapolation_value=0,
+                    out_dtype="",
+                )
+                gv: R.Tensor((1, 3, 8, 40, 40), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(Interpolate8(), input_info_5d, {}, expected8)
+
 
 def test_interpolate_nhwc_layout():
     # First verify backward compatibility - default should still be NCHW
@@ -3786,6 +3929,85 @@ def test_interpolate_nhwc_layout():
         mod2 = from_fx(graph_model2, input_info, default_image_layout="NHWC")
     tvm.ir.assert_structural_equal(mod2, expected_nhwc2)
 
+    input_info_5d = [([1, 4, 10, 10, 3], "float32")]
+
+    class InterpolateNHWC3(Module):
+        def forward(self, input):
+            return torch.nn.functional.interpolate(
+                input,
+                size=None,
+                scale_factor=(2.0,4.0,4.0),
+                mode="trilinear",
+                align_corners=False,
+            )
+    @tvm.script.ir_module
+    class expected_nhwc3:
+        @R.function
+        def main(input_5: R.Tensor((1, 4, 10, 10, 3), dtype="float32")) -> R.Tensor(
+            (1, 8, 40, 40, 3), dtype="float32"
+        ):
+
+            with R.dataflow():
+                lv: R.Tensor((1, 8, 40, 40, 3), dtype="float32") = R.image.resize3d(
+                    input_5,
+                    (8, 40, 40),
+                    roi=[0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000],
+                    layout="NDHWC",
+                    method="linear",
+                    coordinate_transformation_mode="half_pixel",
+                    rounding_method="",
+                    cubic_alpha=-0.75,
+                    cubic_exclude=0,
+                    extrapolation_value=0,
+                    out_dtype="",
+                )
+                gv: R.Tensor((1, 8, 40, 40, 3), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    graph_model3 = fx.symbolic_trace(InterpolateNHWC3())
+    with torch.no_grad():
+        mod3 = from_fx(graph_model3, input_info_5d, default_image_layout="NDHWC")
+    tvm.ir.assert_structural_equal(mod3, expected_nhwc3)
+
+    class InterpolateNHWC4(Module):
+        def forward(self, input):
+            return torch.nn.functional.interpolate(
+                input,
+                size=None,
+                scale_factor=(2.0,4.0,4.0),
+                mode="trilinear",
+                align_corners=True,
+            )
+    @tvm.script.ir_module
+    class expected_nhwc4:
+        @R.function
+        def main(input_5: R.Tensor((1, 4, 10, 10, 3), dtype="float32")) -> R.Tensor(
+            (1, 8, 40, 40, 3), dtype="float32"
+        ):
+
+            with R.dataflow():
+                lv: R.Tensor((1, 8, 40, 40, 3), dtype="float32") = R.image.resize3d(
+                    input_5,
+                    (8, 40, 40),
+                    roi=[0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000],
+                    layout="NDHWC",
+                    method="linear",
+                    coordinate_transformation_mode="align_corners",
+                    rounding_method="",
+                    cubic_alpha=-0.75,
+                    cubic_exclude=0,
+                    extrapolation_value=0,
+                    out_dtype="",
+                )
+                gv: R.Tensor((1, 8, 40, 40, 3), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    graph_model4 = fx.symbolic_trace(InterpolateNHWC4())
+    with torch.no_grad():
+        mod4 = from_fx(graph_model4, input_info_5d, default_image_layout="NDHWC")
+    tvm.ir.assert_structural_equal(mod4, expected_nhwc4)
 
 def test_addmm():
     input_info = [

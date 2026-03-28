@@ -73,14 +73,14 @@ def call_tir_local_view(
     tir_vars: ShapeExpr | tuple[PrimExpr] | list[PrimExpr] | None = None,
 ) -> Call:
     """
-    Call a tir.prim_func and return the output. The prim_func should be a worker-local function
+    Call a tirx.prim_func and return the output. The prim_func should be a worker-local function
     that is actually executed on each worker, instead of the unpartitioned function.
     The output of this operator is DTensor or a tuple of DTensors.
 
     Parameters
     ----------
     gvar : GlobalVar
-        The GlobalVar referring to a tir PrimFunc.
+        The GlobalVar referring to a tirx PrimFunc.
 
     args : Expr
         The input arguments.

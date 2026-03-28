@@ -85,7 +85,7 @@ class CompileTimeCollector : ExprVisitor {
   }
 
   support::OrderedSet<Var, ObjectPtrHash, ObjectPtrEqual> known_relax_vars_;
-  std::unordered_set<tir::Var> known_tir_vars_;
+  std::unordered_set<tirx::Var> known_tir_vars_;
 };
 }  // namespace
 

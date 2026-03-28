@@ -40,7 +40,7 @@ class IRBuilderFrame(_Object):
 
     .. code-block:: python
 
-        from tvm.script.ir_builder import tir as T
+        from tvm.script.ir_builder import tirx as T
         from tvm.script.ir_builder import IRBuilder
 
         with IRBuilder() as builder:
@@ -53,7 +53,7 @@ class IRBuilderFrame(_Object):
 
     .. code-block:: python
 
-        from tvm.script.ir_builder import tir as T
+        from tvm.script.ir_builder import tirx as T
         from tvm.script.ir_builder import IRBuilder
 
         with IRBuilder() as builder:
@@ -98,7 +98,7 @@ class IRBuilder(_Object):
 
     .. code-block:: python
 
-        from tvm.script.ir_builder import tir as T
+        from tvm.script.ir_builder import tirx as T
         from tvm.script.ir_builder import IRBuilder
 
         with IRBuilder() as builder:
@@ -106,7 +106,7 @@ class IRBuilder(_Object):
                                 # to `builder`'s stack of frames
                 buffer = T.match_buffer(...)
 
-        return builder.get()        # returns the constructed IR, i.e. tir.PrimFunc
+        return builder.get()        # returns the constructed IR, i.e. tirx.PrimFunc
     """
 
     def __init__(self) -> None:

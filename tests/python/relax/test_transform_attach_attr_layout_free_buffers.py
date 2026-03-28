@@ -18,11 +18,11 @@
 import numpy as np
 
 import tvm.testing
-from tvm import relax, tir
+from tvm import relax, tirx
 from tvm.relax.transform import CombineParallelMatmul
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import relax as relax_builder
 

@@ -21,7 +21,7 @@ import tvm
 import tvm.testing
 from tvm.contrib import utils
 from tvm.script import ir as I
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def test_add():
@@ -35,7 +35,7 @@ def test_add():
             B: T.Buffer((1024,), "float32"),
             C: T.Buffer((1024,), "float32"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0 in range(1024):
                 with T.sblock("C"):
                     v_i0 = T.axis.spatial(1024, i0)
@@ -71,7 +71,7 @@ def test_reinterpret():
             A: T.Buffer((1024,), "int32"),
             B: T.Buffer((1024,), "float32"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0 in range(1024):
                 with T.sblock("B"):
                     v_i0 = T.axis.spatial(1024, i0)
@@ -106,7 +106,7 @@ def test_ceil():
             A: T.Buffer((1024,), "float32"),
             B: T.Buffer((1024,), "float32"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0 in range(1024):
                 with T.sblock("B"):
                     v_i0 = T.axis.spatial(1024, i0)
@@ -141,7 +141,7 @@ def test_floor():
             A: T.Buffer((1024,), "float32"),
             B: T.Buffer((1024,), "float32"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0 in range(1024):
                 with T.sblock("B"):
                     v_i0 = T.axis.spatial(1024, i0)
@@ -176,7 +176,7 @@ def test_round():
             A: T.Buffer((1024,), "float32"),
             B: T.Buffer((1024,), "float32"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0 in range(1024):
                 with T.sblock("B"):
                     v_i0 = T.axis.spatial(1024, i0)
@@ -213,7 +213,7 @@ def test_subroutine_call():
             A = T.decl_buffer(1, dtype="float32", data=A_data)
             A[0] = 42.0
 
-    built = tvm.tir.build(Module, target="c")
+    built = tvm.tirx.build(Module, target="c")
 
     source = built.inspect_source()
     assert source.count("__tvm_ffi_main(void*") == 2, (

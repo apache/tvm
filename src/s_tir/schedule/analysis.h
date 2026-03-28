@@ -23,7 +23,7 @@
 #include <tvm/ir/op.h>
 #include <tvm/s_tir/schedule/schedule.h>
 #include <tvm/s_tir/schedule/state.h>
-#include <tvm/tir/index_map.h>
+#include <tvm/tirx/index_map.h>
 
 #include <tuple>
 #include <unordered_map>
@@ -35,7 +35,7 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 /******** Verification ********/
 /*!
@@ -616,7 +616,7 @@ bool HasOp(const Stmt& stmt, const ffi::Array<Op>& ops);
  * \brief Checks if the given AST statement contains if-then-else, including
  * 1) IfThenElse statement
  * 2) Select expression
- * 3) The operator `tir.if_then_else`
+ * 3) The operator `tirx.if_then_else`
  * 4) non-constant-true SBlock predicates
  * \param stmt The AST statement to be checked
  * \return A boolean indicating whether the statement contains the if-then-else pattern
@@ -689,7 +689,7 @@ bool IsSpatialPrimFunc(const PrimFunc& func);
  * \return A boolean indicating whether the operation is beneficial.
  */
 bool NeedsRFactorOrCrossThreadReduction(const s_tir::ScheduleState& self,  //
-                                        const tir::StmtSRef& block_sref,   //
+                                        const tirx::StmtSRef& block_sref,  //
                                         int64_t max_parallel_extent,       //
                                         int64_t max_parallel_basic);
 
@@ -740,9 +740,9 @@ PrimExpr SimplifyNonTrivialExpr(const PrimExpr& expr, arith::Analyzer* analyzer)
 class TensorizeInfoNode : public Object {
  public:
   /*! \brief Maps loops in a target block to the ones in an intrinsic description */
-  ffi::Map<tir::StmtSRef, tir::For> loop_map;
+  ffi::Map<tirx::StmtSRef, tirx::For> loop_map;
   /*! \brief Maps loops in an intrinsic description to its index, outer to inner */
-  ffi::Map<tir::For, Integer> desc_loop_indexer;
+  ffi::Map<tirx::For, Integer> desc_loop_indexer;
   /*! \brief Optional padded extents of the block iters when padding is needed to match the
    * intrinsic description
    */
@@ -775,8 +775,8 @@ class TensorizeInfo : public ObjectRef {
  * \return TensorizeInfo structure if a valid mapping is found, std::nullopt otherwise
  */
 ffi::Optional<TensorizeInfo> GetTensorizeLoopMapping(const s_tir::ScheduleState& self,
-                                                     const tir::StmtSRef& block_sref,
-                                                     const tir::PrimFunc& desc_func,
+                                                     const tirx::StmtSRef& block_sref,
+                                                     const tirx::PrimFunc& desc_func,
                                                      bool allow_padding);
 
 /*！\brief Necessary information used to perform transformations for tensorization */
@@ -843,7 +843,7 @@ ffi::Optional<AutoTensorizeMappingInfo> GetAutoTensorizeMappingInfo(const Schedu
  * \return true if basic conditions are met.
  */
 bool CheckAutoTensorizeApplicable(const s_tir::Schedule& sch, const s_tir::SBlockRV& block_rv,
-                                  const tir::PrimFunc& desc_func);
+                                  const tirx::PrimFunc& desc_func);
 }  // namespace s_tir
 }  // namespace tvm
 

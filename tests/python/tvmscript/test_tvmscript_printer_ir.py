@@ -21,7 +21,7 @@ import pytest
 from tvm import IRModule, TVMError
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import ir as I
-from tvm.script.ir_builder import tir as T
+from tvm.script.ir_builder import tirx as T
 
 
 def _assert_print(obj, expected):
@@ -41,7 +41,7 @@ def test_ir_module():
         mod,
         """
 # from tvm.script import ir as I
-# from tvm.script import tir as T
+# from tvm.script import tirx as T
 
 @I.ir_module
 class Module:

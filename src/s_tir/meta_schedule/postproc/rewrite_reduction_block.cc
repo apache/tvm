@@ -23,7 +23,7 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 /*! \brief The visitor that finds all the reduction block to be decomposed */
 struct ReductionBlockFinder : private StmtVisitor {
@@ -72,7 +72,7 @@ struct ReductionBlockFinder : private StmtVisitor {
     for (int i = 0; i < n; ++i) {
       IterVar iter_var = block->iter_vars[i];
       PrimExpr binding = realize->iter_values[i];
-      if (iter_var->iter_type == tir::kCommReduce) {
+      if (iter_var->iter_type == tirx::kCommReduce) {
         if (UsesVar(binding, f_find)) {
           return false;
         }
@@ -135,11 +135,11 @@ class RewriteReductionBlockNode : public PostprocNode {
 
 bool RewriteReductionBlockNode::Apply(const s_tir::Schedule& sch) {
   for (;;) {
-    std::vector<std::pair<tir::StmtSRef, ffi::String>> results =
+    std::vector<std::pair<tirx::StmtSRef, ffi::String>> results =
         s_tir::ReductionBlockFinder::Find(sch->state());
     int rewritten = 0;
     for (const auto& kv : results) {
-      const tir::StmtSRef& block_sref = kv.first;
+      const tirx::StmtSRef& block_sref = kv.first;
       const ffi::String& global_var_name = kv.second;
       int decompose_point = s_tir::FindDecomposePoint(block_sref);
       if (decompose_point == -1) {

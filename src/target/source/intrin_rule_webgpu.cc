@@ -22,7 +22,7 @@
  * \brief WebGPU intrinsic rules.
  */
 #include <tvm/arith/analyzer.h>
-#include <tvm/tir/op_attr_types.h>
+#include <tvm/tirx/op_attr_types.h>
 
 #include "../intrin_rule.h"
 
@@ -30,7 +30,7 @@ namespace tvm {
 namespace codegen {
 namespace intrin {
 
-using tir::FLowerIntrinsic;
+using tirx::FLowerIntrinsic;
 
 // See full list of builtin: https://www.w3.org/TR/WGSL/#builtin-functions
 
@@ -38,80 +38,80 @@ struct ReturnAbs {
   std::string operator()(DataType t, std::string name) const { return "abs"; }
 };
 
-TVM_REGISTER_OP("tir.fabs")
+TVM_REGISTER_OP("tirx.fabs")
     .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<ReturnAbs>);
 
-TVM_REGISTER_OP("tir.acos")
+TVM_REGISTER_OP("tirx.acos")
     .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tir.acosh")
+TVM_REGISTER_OP("tirx.acosh")
     .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tir.asin")
+TVM_REGISTER_OP("tirx.asin")
     .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tir.asinh")
+TVM_REGISTER_OP("tirx.asinh")
     .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tir.atan")
+TVM_REGISTER_OP("tirx.atan")
     .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tir.atan2")
+TVM_REGISTER_OP("tirx.atan2")
     .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tir.ceil")
+TVM_REGISTER_OP("tirx.ceil")
     .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tir.cos").set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic",
-                                                     DispatchPureExtern<Direct>);
-
-TVM_REGISTER_OP("tir.cosh")
+TVM_REGISTER_OP("tirx.cos")
     .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tir.exp").set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic",
-                                                     DispatchPureExtern<Direct>);
-
-TVM_REGISTER_OP("tir.exp2")
+TVM_REGISTER_OP("tirx.cosh")
     .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tir.floor")
+TVM_REGISTER_OP("tirx.exp")
     .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tir.fma").set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic",
-                                                     DispatchPureExtern<Direct>);
-
-TVM_REGISTER_OP("tir.log").set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic",
-                                                     DispatchPureExtern<Direct>);
-
-TVM_REGISTER_OP("tir.log2")
+TVM_REGISTER_OP("tirx.exp2")
     .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tir.pow").set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic",
-                                                     DispatchPureExtern<Direct>);
-
-TVM_REGISTER_OP("tir.round")
+TVM_REGISTER_OP("tirx.floor")
     .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tir.sin").set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic",
-                                                     DispatchPureExtern<Direct>);
-
-TVM_REGISTER_OP("tir.sinh")
+TVM_REGISTER_OP("tirx.fma")
     .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tir.sqrt")
+TVM_REGISTER_OP("tirx.log")
     .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tir.tan").set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic",
-                                                     DispatchPureExtern<Direct>);
+TVM_REGISTER_OP("tirx.log2")
+    .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tir.tanh")
+TVM_REGISTER_OP("tirx.pow")
+    .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
+
+TVM_REGISTER_OP("tirx.round")
+    .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
+
+TVM_REGISTER_OP("tirx.sin")
+    .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
+
+TVM_REGISTER_OP("tirx.sinh")
+    .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
+
+TVM_REGISTER_OP("tirx.sqrt")
+    .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
+
+TVM_REGISTER_OP("tirx.tan")
+    .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
+
+TVM_REGISTER_OP("tirx.tanh")
     .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchNumericalStableTanh);
 
-TVM_REGISTER_OP("tir.trunc")
+TVM_REGISTER_OP("tirx.trunc")
     .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 // extra dispatch
-TVM_REGISTER_OP("tir.erf").set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchFastErf);
+TVM_REGISTER_OP("tirx.erf").set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchFastErf);
 
 }  // namespace intrin
 }  // namespace codegen

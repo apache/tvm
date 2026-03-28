@@ -27,7 +27,7 @@ import tvm.testing
 import tvm.topi.testing
 from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.meta_schedule.builder import LocalBuilder
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 from .infrastructure import get_android_gpu_target, get_rpc_runner
 

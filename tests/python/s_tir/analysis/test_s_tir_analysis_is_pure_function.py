@@ -19,7 +19,7 @@ import pytest
 
 import tvm.testing
 from tvm.s_tir.analysis import assert_pure_function, is_pure_function
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 class CheckPureFunction:

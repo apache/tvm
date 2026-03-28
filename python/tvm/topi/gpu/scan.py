@@ -23,7 +23,7 @@ import tvm
 from tvm import te
 from tvm.contrib.thrust import can_use_rocthrust, can_use_thrust
 from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder import tir as T
+from tvm.script.ir_builder import tirx as T
 
 from ..math import cast, ceil_log2
 from ..transform import expand_dims, reshape, squeeze, transpose
@@ -31,7 +31,7 @@ from ..utils import ceil_div, get_const_int, prod, swap
 
 
 def _get_thrust_func_name(tvmop):
-    tvmop_to_thrust_func_name = {tvm.tir.generic.add: "tvm.contrib.thrust.sum_scan"}
+    tvmop_to_thrust_func_name = {tvm.tirx.generic.add: "tvm.contrib.thrust.sum_scan"}
     assert tvmop in tvmop_to_thrust_func_name, f"{tvmop} not supported by thrust"
     return tvmop_to_thrust_func_name[tvmop]
 
@@ -44,7 +44,7 @@ def _can_use_scan_thrust(binop):
     if target is None:
         return False
     # pylint: disable=comparison-with-callable
-    return binop == tvm.tir.generic.add and any(
+    return binop == tvm.tirx.generic.add and any(
         [
             can_use_thrust(target, "tvm.contrib.thrust.sum_scan"),
             can_use_rocthrust(target, "tvm.contrib.thrust.sum_scan"),
@@ -52,7 +52,7 @@ def _can_use_scan_thrust(binop):
     )
 
 
-def exclusive_scan_ir(data, output, reduction=None, binop=tvm.tir.generic.add, identity_value=0):
+def exclusive_scan_ir(data, output, reduction=None, binop=tvm.tirx.generic.add, identity_value=0):
     """Low level IR to do exclusive sum scan along rows of 2D input.
 
     Parameters
@@ -68,7 +68,7 @@ def exclusive_scan_ir(data, output, reduction=None, binop=tvm.tir.generic.add, i
 
     binop: function, optional
         A binary associative op to use for scan. The function takes two TIR expressions
-        and produce a new TIR expression. By default it uses tvm.tir.generic.add to compute
+        and produce a new TIR expression. By default it uses tvm.tirx.generic.add to compute
         prefix sum.
 
     identity_value: int or float
@@ -140,7 +140,7 @@ def exclusive_scan_ir(data, output, reduction=None, binop=tvm.tir.generic.add, i
                             T.attr(
                                 bx,
                                 "thread_extent",
-                                tvm.tir.generic.cast(
+                                tvm.tirx.generic.cast(
                                     ceil_div(scan_axis_size, max_threads * width), "int32"
                                 ),
                             ),
@@ -154,7 +154,7 @@ def exclusive_scan_ir(data, output, reduction=None, binop=tvm.tir.generic.add, i
                         start[0] = width * tid
                         with T.If(start[0] < scan_axis_size):
                             with T.Then():
-                                middle[0] = start[0] + tvm.tir.indexdiv(width, 2)
+                                middle[0] = start[0] + tvm.tirx.indexdiv(width, 2)
                                 end[0] = tvm.te.min(start[0] + width, scan_axis_size)
                                 with T.If(middle[0] < scan_axis_size):
                                     with T.Then():
@@ -188,7 +188,7 @@ def exclusive_scan_ir(data, output, reduction=None, binop=tvm.tir.generic.add, i
                             T.attr(
                                 bx,
                                 "thread_extent",
-                                tvm.tir.generic.cast(
+                                tvm.tirx.generic.cast(
                                     ceil_div(scan_axis_size, max_threads * width), "int32"
                                 ),
                             ),
@@ -201,10 +201,10 @@ def exclusive_scan_ir(data, output, reduction=None, binop=tvm.tir.generic.add, i
                         end = T.buffer_proxy(end_buf)
                         tmp = T.buffer_proxy(tmp_buf)
                         start[0] = width * tid
-                        with T.If(tvm.tir.all(start[0] < scan_axis_size)):
+                        with T.If(tvm.tirx.all(start[0] < scan_axis_size)):
                             with T.Then():
-                                middle[0] = start[0] + tvm.tir.indexdiv(width, 2)
-                                end[0] = tvm.tir.min(start[0] + width, scan_axis_size)
+                                middle[0] = start[0] + tvm.tirx.indexdiv(width, 2)
+                                end[0] = tvm.tirx.min(start[0] + width, scan_axis_size)
                                 with T.If(middle[0] < scan_axis_size):
                                     with T.Then():
                                         tmp[0] = output[by * scan_axis_size + middle[0] - 1]
@@ -218,7 +218,7 @@ def exclusive_scan_ir(data, output, reduction=None, binop=tvm.tir.generic.add, i
         return ib.get()
 
 
-def get_reduction_from_exclusive_scan(data, ex_scan_output, binop=tvm.tir.generic.add):
+def get_reduction_from_exclusive_scan(data, ex_scan_output, binop=tvm.tirx.generic.add):
     """Return the sum of the last element of data and the exclusive scan output.
     The is the reduction of data along each row (for 2-D case).
 
@@ -232,7 +232,7 @@ def get_reduction_from_exclusive_scan(data, ex_scan_output, binop=tvm.tir.generi
 
     binop: function, optional
         A binary associative op to use for scan. The function takes two TIR expressions
-        and produce a new TIR expression. By default it uses tvm.tir.generic.add to compute
+        and produce a new TIR expression. By default it uses tvm.tirx.generic.add to compute
         prefix sum.
 
     Returns
@@ -280,8 +280,8 @@ def get_reduction_from_exclusive_scan(data, ex_scan_output, binop=tvm.tir.generi
 
             return ib.get()
 
-    data_buf = tvm.tir.decl_buffer(data.shape, data.dtype, "valid_indices_buf", data_alignment=8)
-    ex_scan_output_buf = tvm.tir.decl_buffer(
+    data_buf = tvm.tirx.decl_buffer(data.shape, data.dtype, "valid_indices_buf", data_alignment=8)
+    ex_scan_output_buf = tvm.tirx.decl_buffer(
         ex_scan_output.shape, ex_scan_output.dtype, "ex_scan_output_buf", data_alignment=8
     )
 
@@ -306,7 +306,7 @@ def scan_thrust(
     output_dtype,
     exclusive=True,
     return_reduction=False,
-    binop=tvm.tir.generic.add,
+    binop=tvm.tirx.generic.add,
     workspace=None,
 ):
     """Do exclusive or inclusive scan on 1D or multidimensional input, using thrust.
@@ -330,7 +330,7 @@ def scan_thrust(
     binop: function, optional
         A binary associative op to use for scan. Since we need to lookup the corresponding
         thrust function, arbitrariy callables are not supported. Currently only
-        tvm.tir.generic.add can be passed in.
+        tvm.tirx.generic.add can be passed in.
 
     workspace: Optional[tvm.te.Tensor]
         A buffer to store intermediate results. The size of the workspace should be sufficiently
@@ -346,11 +346,11 @@ def scan_thrust(
         (N-1)-D tensor storing the reduction of each scan axis.
         Returned if return_reduction is True.
     """
-    data_buf = tvm.tir.decl_buffer(data.shape, data.dtype, "data_buf", data_alignment=8)
-    output_buf = tvm.tir.decl_buffer(data.shape, output_dtype, "output_buf", data_alignment=8)
+    data_buf = tvm.tirx.decl_buffer(data.shape, data.dtype, "data_buf", data_alignment=8)
+    output_buf = tvm.tirx.decl_buffer(data.shape, output_dtype, "output_buf", data_alignment=8)
 
     workspace_buf = (
-        tvm.tir.decl_buffer(workspace.shape, workspace.dtype, "workspace_buf", data_alignment=8)
+        tvm.tirx.decl_buffer(workspace.shape, workspace.dtype, "workspace_buf", data_alignment=8)
         if workspace is not None
         else None
     )
@@ -359,7 +359,7 @@ def scan_thrust(
         args = [_get_thrust_func_name(binop), ins[0], outs[0], exclusive]
         if workspace is not None:
             args.append(ins[1])
-        return tvm.tir.call_packed(*args)
+        return tvm.tirx.call_packed(*args)
 
     output = te.extern(
         [data.shape],
@@ -385,7 +385,7 @@ def exclusive_scan(
     axis=-1,
     return_reduction=False,
     output_dtype=None,
-    binop=tvm.tir.generic.add,
+    binop=tvm.tirx.generic.add,
     identity_value=0,
     workspace=None,
 ):
@@ -410,7 +410,7 @@ def exclusive_scan(
 
     binop: function, optional
         A binary associative op to use for scan. The function takes two TIR expressions
-        and produce a new TIR expression. By default it uses tvm.tir.generic.add to compute
+        and produce a new TIR expression. By default it uses tvm.tirx.generic.add to compute
         prefix sum.
 
     identity_value: int or float
@@ -449,8 +449,8 @@ def exclusive_scan(
             # TIR exclusive scan accepts only 2D or higher-rank inputs.
             data = expand_dims(data, axis=0)
 
-        data_buf = tvm.tir.decl_buffer(data.shape, data.dtype, "data_buf", data_alignment=8)
-        output_buf = tvm.tir.decl_buffer(data.shape, output_dtype, "output_buf", data_alignment=8)
+        data_buf = tvm.tirx.decl_buffer(data.shape, data.dtype, "data_buf", data_alignment=8)
+        output_buf = tvm.tirx.decl_buffer(data.shape, output_dtype, "output_buf", data_alignment=8)
 
         if return_reduction:
             output, reduction = te.extern(
@@ -518,7 +518,7 @@ def exclusive_scan(
 
 
 def inclusive_scan(
-    data, axis=-1, output_dtype=None, binop=tvm.tir.generic.add, identity_value=0, workspace=None
+    data, axis=-1, output_dtype=None, binop=tvm.tirx.generic.add, identity_value=0, workspace=None
 ):
     """Do inclusive scan on 1D or multidimensional input.
 
@@ -535,7 +535,7 @@ def inclusive_scan(
 
     binop: function, optional
         A binary associative op to use for scan. The function takes two TIR expressions
-        and produce a new TIR expression. By default it uses tvm.tir.generic.add to compute
+        and produce a new TIR expression. By default it uses tvm.tirx.generic.add to compute
         prefix sum.
 
     identity_value: int or float
@@ -701,7 +701,7 @@ def cumsum(
     """
     return scanop(
         data=data,
-        binop=tvm.tir.generic.add,
+        binop=tvm.tirx.generic.add,
         identity_value=0,
         axis=axis,
         dtype=dtype,
@@ -751,7 +751,7 @@ def cumprod(
     """
     return scanop(
         data=data,
-        binop=tvm.tir.generic.multiply,
+        binop=tvm.tirx.generic.multiply,
         identity_value=1,
         axis=axis,
         dtype=dtype,

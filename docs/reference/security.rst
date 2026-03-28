@@ -47,5 +47,5 @@ All of the TVM APIs are designed to be used by trusted users, for APIs that invo
 we expect users to put in only trusted URLs.
 
 
-AutoTVM data exchange between the tracker, server and client are in plain-text.
+RPC data exchange between the tracker, server and client are in plain-text.
 It is recommended to use them under trusted networking environment or encrypted channels.

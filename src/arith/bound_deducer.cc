@@ -24,8 +24,8 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/tir/expr.h>
-#include <tvm/tir/expr_functor.h>
+#include <tvm/tirx/expr.h>
+#include <tvm/tirx/expr_functor.h>
 
 #include <unordered_map>
 #include <unordered_set>
@@ -35,7 +35,7 @@
 namespace tvm {
 namespace arith {
 
-using namespace tir;
+using namespace tirx;
 
 // a visitor to find the path to the target variable
 // from a expression.

@@ -26,8 +26,8 @@
 
 #include <tvm/arith/int_set.h>
 #include <tvm/ir/attrs.h>
-#include <tvm/tir/expr.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/expr.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include <unordered_map>
 #include <vector>
@@ -36,7 +36,7 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tir;
+using namespace tirx;
 
 using runtime::StorageRank;
 using runtime::StorageScope;

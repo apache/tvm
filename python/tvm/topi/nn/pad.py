@@ -18,7 +18,7 @@
 
 import tvm
 from tvm import te
-from tvm.tir import if_then_else
+from tvm.tirx import if_then_else
 
 from .. import tag
 from ..utils import equal_const_int
@@ -94,8 +94,8 @@ def pad(data, pad_before, pad_after=None, pad_value=0.0, name="PadInput", attrs=
     out_shape = tuple(ana.simplify(dshape[i] + pad_before[i] + pad_after[i]) for i in range(n))
     pad_value = (
         pad_value
-        if isinstance(pad_value, tvm.tir.PrimExpr)
-        else tvm.tir.const(pad_value, data.dtype)
+        if isinstance(pad_value, tvm.tirx.PrimExpr)
+        else tvm.tirx.const(pad_value, data.dtype)
     )
 
     def _pad(*indices):
@@ -109,8 +109,8 @@ def pad(data, pad_before, pad_after=None, pad_value=0.0, name="PadInput", attrs=
                 not_zero.append(indices[i] >= pad_before[i])
                 not_zero.append(indices[i] < data.shape[i] + pad_before[i])
         if not_zero:
-            not_zero = tvm.tir.all(*not_zero)
-            return tvm.tir.if_then_else(not_zero, data(*index_tuple), pad_value)
+            not_zero = tvm.tirx.all(*not_zero)
+            return tvm.tirx.if_then_else(not_zero, data(*index_tuple), pad_value)
         return data(*index_tuple)
 
     return te.compute(out_shape, _pad, name=name, attrs=attrs)
@@ -168,8 +168,8 @@ def mirror_pad(data, pad_before, pad_after=None, mode="SYMMETRIC", name="MirrorP
                 below.append(indices[i] < pad_before[i])
         mapped_tuple = []
         for i, axis in enumerate(index_tuple):
-            mapped_axis = tvm.tir.if_then_else(below[i], -axis - mode, axis)
-            mapped_axis = tvm.tir.if_then_else(
+            mapped_axis = tvm.tirx.if_then_else(below[i], -axis - mode, axis)
+            mapped_axis = tvm.tirx.if_then_else(
                 above[i], (2 * (data.shape[i] - 1)) - axis + mode, mapped_axis
             )
             mapped_tuple.append(mapped_axis)
@@ -264,7 +264,7 @@ def replicate_pad(data, pad_before, pad_after=None, name="ReplicatePadInput"):
             orig_idx = idx - before
             clamped_idx = if_then_else(
                 orig_idx < 0,
-                tvm.tir.const(0, "int32"),  # replicate first element
+                tvm.tirx.const(0, "int32"),  # replicate first element
                 if_then_else(
                     orig_idx >= size,
                     size - 1,  # replicate last element
@@ -311,7 +311,7 @@ def circular_pad(data, pad_before, pad_after=None, name="CircularPadInput"):
             before = pad_before[i]
 
             orig_idx = idx - before
-            wrapped_idx = tvm.tir.indexmod(orig_idx + size, size)
+            wrapped_idx = tvm.tirx.indexmod(orig_idx + size, size)
             index_tuple.append(wrapped_idx)
         return data(*index_tuple)
 

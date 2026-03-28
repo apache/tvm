@@ -27,12 +27,12 @@
 #include <tvm/relax/distributed/transform.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include "../../../s_tir/schedule/transform.h"
 #include "utils.h"
 namespace tvm {
-namespace tir {
+namespace tirx {
 using namespace tvm::relax::distributed;
 using s_tir::ReplaceBuffer;
 
@@ -349,7 +349,7 @@ class DistributedBufferCompactor : StmtExprMutator {
   std::string add_allreduce_kind_;
 };
 
-}  // namespace tir
+}  // namespace tirx
 }  // namespace tvm
 
 namespace tvm {
@@ -410,11 +410,11 @@ class LowerTIRToLocalView : public ExprMutator {
       sharding_specs.push_back(ShardingSpec(sinfo->device_mesh, sinfo->placement));
     }
     GlobalVar gvar = Downcast<GlobalVar>(val->args[0]);
-    tir::PrimFunc prim_func = MatchPrimFunc(builder_->GetContextIRModule(), gvar).value();
-    tir::PrimFunc new_prim_func;
+    tirx::PrimFunc prim_func = MatchPrimFunc(builder_->GetContextIRModule(), gvar).value();
+    tirx::PrimFunc new_prim_func;
     std::string allreduce_kind;
     std::tie(new_prim_func, allreduce_kind) =
-        tir::DistributedBufferCompactor::DistBufferCompact(sharding_specs, prim_func);
+        tirx::DistributedBufferCompactor::DistBufferCompact(sharding_specs, prim_func);
     auto new_gvar = builder_->AddFunction(new_prim_func, gvar->name_hint);
     Call call = Downcast<Call>(this->VisitExpr(binding->value));
     ObjectPtr<CallNode> new_call_node = ffi::make_object<CallNode>(*call.get());

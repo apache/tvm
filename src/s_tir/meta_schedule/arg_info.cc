@@ -27,22 +27,22 @@ namespace meta_schedule {
 
 /*!
  * \brief Find the entry function of the given IRModule, i.e, functions marked by
- * `tir::attr::kIsEntryFunc`, whose name is `main` or being the only PrimeFunc.
+ * `tirx::attr::kIsEntryFunc`, whose name is `main` or being the only PrimeFunc.
  * \param mod The IRModule to find the entry function.
  * \return The entry function.
  */
-inline tir::PrimFunc FindEntryFunc(const IRModule& mod) {
-  // Priority 1: PrimFunc marked as `tir::attr::kIsEntryFunc`
+inline tirx::PrimFunc FindEntryFunc(const IRModule& mod) {
+  // Priority 1: PrimFunc marked as `tirx::attr::kIsEntryFunc`
   int num_prim_func = 0;
-  const tir::PrimFuncNode* main_func = nullptr;
-  const tir::PrimFuncNode* last_func = nullptr;
+  const tirx::PrimFuncNode* main_func = nullptr;
+  const tirx::PrimFuncNode* last_func = nullptr;
   for (const auto& kv : mod->functions) {
     GlobalVar gv = kv.first;
     BaseFunc base_func = kv.second;
-    if (const auto* func = base_func.as<tir::PrimFuncNode>()) {
+    if (const auto* func = base_func.as<tirx::PrimFuncNode>()) {
       last_func = func;
-      if (func->HasNonzeroAttr(tir::attr::kIsEntryFunc)) {
-        return ffi::GetRef<tir::PrimFunc>(func);
+      if (func->HasNonzeroAttr(tirx::attr::kIsEntryFunc)) {
+        return ffi::GetRef<tirx::PrimFunc>(func);
       }
       if (gv->name_hint == "main") {
         main_func = func;
@@ -52,7 +52,7 @@ inline tir::PrimFunc FindEntryFunc(const IRModule& mod) {
   }
   // Priority 2: PrimFunc whose name is `main`
   if (main_func != nullptr) {
-    return ffi::GetRef<tir::PrimFunc>(main_func);
+    return ffi::GetRef<tirx::PrimFunc>(main_func);
   }
   // Priority 3: The only PrimFunc in the IRModule
   if (num_prim_func == 0) {
@@ -60,10 +60,10 @@ inline tir::PrimFunc FindEntryFunc(const IRModule& mod) {
   }
   if (num_prim_func > 1) {
     TVM_FFI_THROW(ValueError) << "Multiple PrimFuncs exist in the IRModule, but none of them are "
-                                 "annotated with `kIsEntryFunc`, i.e. `tir.is_entry_func`"
+                                 "annotated with `kIsEntryFunc`, i.e. `tirx.is_entry_func`"
                               << mod;
   }
-  return ffi::GetRef<tir::PrimFunc>(last_func);
+  return ffi::GetRef<tirx::PrimFunc>(last_func);
 }
 /******** ArgInfo ********/
 
@@ -88,13 +88,13 @@ ArgInfo ArgInfo::FromJSON(const ObjectRef& json_obj) {
   throw;
 }
 
-ffi::Array<ArgInfo> ArgInfo::FromPrimFunc(const tir::PrimFunc& func) {
+ffi::Array<ArgInfo> ArgInfo::FromPrimFunc(const tirx::PrimFunc& func) {
   using support::AsVector;
   ffi::Array<ArgInfo> result;
   result.reserve(func->params.size());
-  for (const tir::Var& arg : func->params) {
-    if (ffi::Optional<tir::Buffer> _buffer = func->buffer_map.Get(arg)) {
-      tir::Buffer buffer = _buffer.value();
+  for (const tirx::Var& arg : func->params) {
+    if (ffi::Optional<tirx::Buffer> _buffer = func->buffer_map.Get(arg)) {
+      tirx::Buffer buffer = _buffer.value();
       result.push_back(TensorInfo(/*dtype=*/buffer->dtype,
                                   /*shape=*/AsVector<PrimExpr, int64_t>(buffer->shape)));
     } else {

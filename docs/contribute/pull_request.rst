@@ -39,25 +39,13 @@ Guidelines
 
     .. code:: bash
 
-      # While the lint commands used should be identical to those run in CI, this command reproduces
-      # the CI lint procedure exactly (typically helpful for debugging lint script errors or
-      # to avoid installing tools manually)
-      python tests/scripts/ci.py lint
+      # Run all lint checks via pre-commit hooks
+      pre-commit run --all-files
 
-      # Run all lint steps.
-      docker/lint.sh
-
-      # To run steps individually, specify their step names on the command-line. An incorrectly
-      # spelled step name causes the tool to print all available steps.
-      docker/lint.sh <step_name> ...
-
-    If the clang-format lint check fails, run git-clang-format as follows to automatically reformat
-    your code:
-
-    .. code:: bash
-
-      # Run clang-format check for all the files that changed since upstream/main
-      docker/bash.sh ci_lint ./tests/lint/git-clang-format.sh --rev upstream/main
+      # Run specific linters individually
+      pre-commit run ruff-check --all-files    # Python lint
+      pre-commit run ruff-format --all-files   # Python format
+      pre-commit run clang-format --all-files  # C++ format
 
 - Add test-cases to cover the new features or bugfix the patch introduces.
 - Document the code you wrote, see more at :ref:`doc_guide`
@@ -201,7 +189,7 @@ Docker (recommended)
 ``tests/scripts/ci.py`` replicates the CI environment locally and provides a user-friendly interface.
 The same Docker images and scripts used in CI are used directly to run tests. It also deposits builds
 in different folders so you can maintain multiple test environments without rebuilding from scratch
-each time (e.g. you can test a change in CPU and i386 while retaining incremental rebuilds).
+each time (e.g. you can test a change in CPU and GPU while retaining incremental rebuilds).
 
 .. code:: bash
 
@@ -219,7 +207,7 @@ each time (e.g. you can test a change in CPU and i386 while retaining incrementa
     python tests/scripts/ci.py cpu --unittest
 
     # quickly iterate by running a specific test and skipping the rebuild each time
-    python tests/scripts/ci.py cpu --skip-build --tests tests/python/tir-transform/test_tir_transform_inject_rolling_buffer.py::test_upscale
+    python tests/scripts/ci.py cpu --skip-build --tests tests/python/tirx-transform/test_tir_transform_inject_rolling_buffer.py::test_upscale
 
     # run the CPU build and drop into a shell in the container
     python tests/scripts/ci.py cpu --interactive
@@ -260,8 +248,8 @@ If you want to run all tests:
 
 .. code:: bash
 
-  # build tvm
-  make
+  # build tvm (see install-from-source for CMake build instructions)
+  cd build && cmake .. && cmake --build . --parallel $(nproc) && cd ..
 
   ./tests/scripts/task_python_unittest.sh
 
@@ -269,14 +257,11 @@ If you want to run a single test:
 
 .. code:: bash
 
-  # build tvm
-  make
-
   # let python know where to find tvm related libraries
   export PYTHONPATH=python
   rm -rf python/tvm/*.pyc python/tvm/*/*.pyc python/tvm/*/*/*.pyc
 
-  TVM_FFI=ctypes python -m pytest -v tests/python/unittest/test_pass_storage_rewrite.py
+  python -m pytest -v tests/python/tirx-transform/test_tir_transform_storage_rewrite.py
 
   # Additionally if you want to run a single test, for example test_all_elemwise inside a file.
-  TVM_FFI=ctypes python -m pytest -v -k "test_all_elemwise" tests/python/frontend/tflite/test_forward.py
+  python -m pytest -v -k "test_all_elemwise" tests/python/frontend/tflite/test_forward.py

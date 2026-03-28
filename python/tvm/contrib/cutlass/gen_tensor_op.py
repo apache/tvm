@@ -29,7 +29,7 @@ import tempfile
 import tvm_ffi
 
 from tvm.runtime import Object
-from tvm.tir import IntImm
+from tvm.tirx import IntImm
 
 from . import _ffi_api as ffi
 from .attention_operation import (
@@ -539,7 +539,7 @@ def instantiate_template(func_name, annotations, func_args):
         attrs["M"] = annotations["M"]
         attrs["group_size"] = annotations["group_size"]
 
-        if not isinstance(attrs["M"], tvm.tir.IntImm):
+        if not isinstance(attrs["M"], tvm.tirx.IntImm):
             attrs["M"] = get_flattened_batch_dim(
                 func_args[lhs_arg_idx], int(annotations["batch_rank"])
             )
@@ -888,7 +888,7 @@ def instantiate_template(func_name, annotations, func_args):
         attrs = {"input": func_args[0], "gamma": func_args[1], "beta": func_args[2]}
         attrs.update(dict(annotations))
 
-        if not isinstance(attrs["M"], tvm.tir.IntImm):
+        if not isinstance(attrs["M"], tvm.tirx.IntImm):
             attrs["M"] = get_flattened_batch_dim(func_args[0], int(attrs["batch_rank"]))
 
         code = instantiate_layer_norm_template(attrs)
@@ -899,7 +899,7 @@ def instantiate_template(func_name, annotations, func_args):
         attrs = {"input": func_args[0], "weight": func_args[1]}
         attrs.update(dict(annotations))
 
-        if not isinstance(attrs["M"], tvm.tir.IntImm):
+        if not isinstance(attrs["M"], tvm.tirx.IntImm):
             attrs["M"] = get_flattened_batch_dim(func_args[0], int(attrs["batch_rank"]))
 
         code = instantiate_rms_norm_template(attrs)

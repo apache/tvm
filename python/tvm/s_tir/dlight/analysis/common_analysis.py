@@ -24,7 +24,7 @@ from typing import Literal
 
 from tvm_ffi import get_global_func
 
-from tvm import ir, s_tir, tir
+from tvm import ir, s_tir, tirx
 from tvm.runtime import DataType
 from tvm.s_tir import Schedule
 from tvm.s_tir.schedule import SBlockRV
@@ -35,15 +35,15 @@ class IterInfo:
     """Information about a loop/iter var."""
 
     kind: Literal["S", "R", "O"]
-    var: tir.Var
-    _dom: tir.PrimExpr
+    var: tirx.Var
+    _dom: tirx.PrimExpr
     loop_rv: s_tir.schedule.LoopRV
 
     def __init__(
         self,
         kind: Literal["S", "R", "O"],
-        var: tir.Var,
-        dom: tir.PrimExpr,
+        var: tirx.Var,
+        dom: tirx.PrimExpr,
         loop_rv: s_tir.schedule.LoopRV,
     ):
         """Construct an IterInfo object."""
@@ -53,9 +53,9 @@ class IterInfo:
         self.loop_rv = loop_rv
 
     @property
-    def dom(self) -> int | tir.PrimExpr:
+    def dom(self) -> int | tirx.PrimExpr:
         """The iteration domain of the loop."""
-        return int(self._dom) if isinstance(self._dom, tir.IntImm) else self._dom
+        return int(self._dom) if isinstance(self._dom, tirx.IntImm) else self._dom
 
     def __str__(self) -> str:
         return f'Iter("{self.kind}", {self.dom})'
@@ -76,16 +76,16 @@ BufIndex = list[Index | RemIndex | DivIndex | MergeIndex | None]
 class BufferInfo:
     "Information about Buffer. Provides useful analysis"
 
-    buf_region: tir.BufferRegion
+    buf_region: tirx.BufferRegion
     shape: tuple[int]
     assoc_lps: list[s_tir.schedule.LoopRV | None]
-    assoc_lps_info: list[tir.For | None]
+    assoc_lps_info: list[tirx.For | None]
 
     def __init__(
         self,
         sch: s_tir.Schedule,
         block_rv: s_tir.schedule.SBlockRV,
-        buf_region: tir.BufferRegion,
+        buf_region: tirx.BufferRegion,
         lps: list[s_tir.schedule.LoopRV] | None,
     ):
         block = sch.get(block_rv)
@@ -97,34 +97,34 @@ class BufferInfo:
         lpvar_lp = dict([loop.loop_var, lp] for loop, lp in zip(loops, lps))
         var_lp = dict(zip(iter_vars, [lpvar_lp.get(val, None) for val in iter_values]))
 
-        def extract_index_types(buf: tir.BufferRegion) -> BufIndex:
+        def extract_index_types(buf: tirx.BufferRegion) -> BufIndex:
             buf_index = []
             for expr in buf.region:
                 expr = expr.min
                 dim = None
-                if isinstance(expr, tir.expr.Add) and isinstance(expr.b, tir.expr.Var):
+                if isinstance(expr, tirx.expr.Add) and isinstance(expr.b, tirx.expr.Var):
                     var_add = expr.b
                     if (
-                        isinstance(expr, tir.expr.Mul)
-                        and isinstance(expr.a, tir.expr.Var)
-                        and isinstance(expr.b, tir.expr.IntImm)
+                        isinstance(expr, tirx.expr.Mul)
+                        and isinstance(expr.a, tirx.expr.Var)
+                        and isinstance(expr.b, tirx.expr.IntImm)
                     ):
                         mul = expr.b
                         var_mul = expr.a
                         dim = MergeIndex(var_mul, mul, var_add)
                 elif (
-                    isinstance(expr, tir.expr.FloorMod)
-                    and isinstance(expr.a, tir.expr.Var)
-                    and isinstance(expr.b, tir.expr.IntImm)
+                    isinstance(expr, tirx.expr.FloorMod)
+                    and isinstance(expr.a, tirx.expr.Var)
+                    and isinstance(expr.b, tirx.expr.IntImm)
                 ):
                     dim = RemIndex(expr.a, expr.b)
                 elif (
-                    isinstance(expr, tir.expr.FloorDiv)
-                    and isinstance(expr.a, tir.expr.Var)
-                    and isinstance(expr.b, tir.expr.IntImm)
+                    isinstance(expr, tirx.expr.FloorDiv)
+                    and isinstance(expr.a, tirx.expr.Var)
+                    and isinstance(expr.b, tirx.expr.IntImm)
                 ):
                     dim = DivIndex(expr.a, expr.b)
-                elif isinstance(expr, tir.expr.Var):
+                elif isinstance(expr, tirx.expr.Var):
                     dim = Index(expr)
                 buf_index.append(dim)
             return buf_index
@@ -186,7 +186,7 @@ class SBlockInfo:
         self.iters = iters
         self._reduction_block = reduction_block
 
-    def dom(self) -> list[int | tir.PrimExpr]:
+    def dom(self) -> list[int | tirx.PrimExpr]:
         """The iteration domain of the block."""
         return [i.dom for i in self.iters]
 
@@ -211,7 +211,7 @@ class SBlockInfo:
     def is_elementwise(self, sch: s_tir.Schedule) -> bool:
         """Whether the SBlock is elementwise, i.e. trivial mapping between read/write region"""
 
-        def _check_unit_var_range(dom: ir.Range, var: tir.Var) -> bool:
+        def _check_unit_var_range(dom: ir.Range, var: tirx.Var) -> bool:
             return dom.min.same_as(var) and dom.extent == 1
 
         if not self.is_injective():
@@ -293,10 +293,10 @@ def normalize_prim_func(sch: s_tir.Schedule) -> list[SBlockInfo] | None:
     except Exception:  # pylint: disable=broad-except
         return None
 
-    def _iter_kind(i: tir.IterVar) -> str:
+    def _iter_kind(i: tirx.IterVar) -> str:
         return {
-            tir.IterVar.DataPar: "S",
-            tir.IterVar.CommReduce: "R",
+            tirx.IterVar.DataPar: "S",
+            tirx.IterVar.CommReduce: "R",
         }.get(i.iter_type, "O")
 
     blocks: list[SBlockInfo] = []
@@ -321,8 +321,8 @@ def normalize_prim_func(sch: s_tir.Schedule) -> list[SBlockInfo] | None:
 
 
 def get_sblock_info(sch: s_tir.Schedule, block: s_tir.schedule.SBlockRV) -> SBlockInfo:
-    def _iter_kind(loop: tir.IterVar) -> str:
-        return {tir.IterVar.DataPar: "S", tir.IterVar.CommReduce: "R"}.get(loop.iter_type, "O")
+    def _iter_kind(loop: tirx.IterVar) -> str:
+        return {tirx.IterVar.DataPar: "S", tirx.IterVar.CommReduce: "R"}.get(loop.iter_type, "O")
 
     def _is_reduction_block(block: s_tir.schedule.SBlockRV):
         for iter_var in sch.get(block).iter_vars:
@@ -384,8 +384,8 @@ def get_root_block(sch: Schedule, func_name: str = "main") -> SBlockRV:
 
 
 def collect_block_iter_vars_used_in_access_region(
-    block: tir.SBlock, region: list[ir.Range]
-) -> set[tir.Var]:
+    block: tirx.SBlock, region: list[ir.Range]
+) -> set[tirx.Var]:
     """Collect the block iter variables used in the access region of a buffer region."""
     tir_vars = set()
     for expr in region:
@@ -395,19 +395,19 @@ def collect_block_iter_vars_used_in_access_region(
     return tir_vars
 
 
-def collect_vars_used_in_prim_expr(expr: tir.PrimExpr) -> set[tir.Var]:
+def collect_vars_used_in_prim_expr(expr: tirx.PrimExpr) -> set[tirx.Var]:
     """Collect the variables used in the PrimExpr."""
     tir_vars = set()
 
     def _collect_tir_var(expr):
-        if isinstance(expr, tir.Var):
+        if isinstance(expr, tirx.Var):
             tir_vars.add(expr)
 
-    tir.stmt_functor.post_order_visit(expr, _collect_tir_var)
+    tirx.stmt_functor.post_order_visit(expr, _collect_tir_var)
     return tir_vars
 
 
-def detect_dominant_read(block: tir.SBlock) -> tir.PrimExpr:
+def detect_dominant_read(block: tirx.SBlock) -> tirx.PrimExpr:
     """Detect the dominant read indices in the block."""
     dominant_read = None
     num_read_iters = -1

@@ -527,7 +527,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             # Determine spatial dimension indices based on layout
             # NCHW: spatial dims are [2, 3, ...] (skip batch and channel)
             # NHWC: spatial dims are [1, 2, ...] (skip batch, before channel)
-            if self.default_image_layout == "NHWC":
+            if self.default_image_layout in ("NHWC", "NDHWC"):
                 spatial_start = 1
                 spatial_end = len(shape) - 1
             else:  # NCHW or other layouts
@@ -547,25 +547,43 @@ class TorchFXImporter(BaseFXGraphImporter):
 
         if method.startswith("nearest"):
             method = "nearest_neighbor"
-        elif method[0:2] == "bi":
+        elif method.startswith("bi"):
             method = method[2:]
+        elif method.startswith("tri"):
+            method = method[3:]
 
         if method == "nearest_neighbor":
             coord_trans = "asymmetric"
-        elif align_corners:
+        elif align_corners is True:
             coord_trans = "align_corners"
         else:
             coord_trans = "half_pixel"
 
-        return self.block_builder.emit(
-            relax.op.image.resize2d(
-                data,
-                size,
-                layout=self.default_image_layout,
-                method=method,
-                coordinate_transformation_mode=coord_trans,
+        if data.struct_info.ndim == 5:
+            if self.default_image_layout == "NDHWC":
+                layout_3d = "NDHWC"
+            else:
+                layout_3d = "NCDHW"
+                
+            return self.block_builder.emit(
+                relax.op.image.resize3d(
+                    data,
+                    size,
+                    layout=layout_3d,
+                    method=method,
+                    coordinate_transformation_mode=coord_trans,
+                )
             )
-        )
+        else:
+            return self.block_builder.emit(
+                relax.op.image.resize2d(
+                    data,
+                    size,
+                    layout=self.default_image_layout,
+                    method=method,
+                    coordinate_transformation_mode=coord_trans,
+                )
+            )
 
     def _linear_module(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]

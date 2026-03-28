@@ -17,4 +17,6 @@
 # under the License.
 """Vision operators."""
 
+from .multibox_transform_loc import *
 from .nms import *
+from .roi_align import *

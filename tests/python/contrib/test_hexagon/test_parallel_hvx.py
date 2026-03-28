@@ -22,7 +22,7 @@ Test parallelizing HVX workloads and compare them to single thread examples.
 import numpy as np
 
 import tvm
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 from .infrastructure import get_hexagon_target
 
@@ -77,7 +77,7 @@ def get_vmpy_operator(operations):
 
     @T.prim_func
     def operator(a: T.handle, b: T.handle, c: T.handle) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         a_buffer = T.match_buffer(a, [operations, 128], dtype="uint8")
         b_buffer = T.match_buffer(b, [operations, 128], dtype="uint8")
         c_buffer = T.match_buffer(c, [operations, 128], dtype="int16")
@@ -99,7 +99,7 @@ def get_vadd_operator(operations):
 
     @T.prim_func
     def operator(a: T.handle, b: T.handle, c: T.handle) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         a_buffer = T.match_buffer(a, [operations, 128], dtype="uint8")
         b_buffer = T.match_buffer(b, [operations, 128], dtype="uint8")
         c_buffer = T.match_buffer(c, [operations, 128], dtype="int16")
@@ -121,7 +121,7 @@ def get_vrmpy_operator(operations):
 
     @T.prim_func
     def operator(a: T.handle, b: T.handle, c: T.handle) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         a_buffer = T.match_buffer(a, [operations, 128], dtype="uint8")
         b_buffer = T.match_buffer(b, [operations, 128], dtype="uint8")
         c_buffer = T.match_buffer(c, [operations, 32], dtype="int32")

@@ -65,10 +65,10 @@ class MultiLevelTilingWideVectorNode : public MultiLevelTilingNode {
 std::pair<ffi::Array<s_tir::ExprRV>, ffi::Array<s_tir::LoopRV>>
 MultiLevelTilingWideVectorNode::SplitLoop(const Schedule& sch, SBlockRV block_rv, LoopRV loop_rv,
                                           int n_tiles) const {
-  const tir::ForNode* loop = TVM_SREF_TO_FOR(sch->GetSRef(loop_rv));
-  const tir::StmtSRef block_sref = sch->GetSRef(block_rv);
-  const tir::SBlockNode* block_node = block_sref->StmtAs<tir::SBlockNode>();
-  const tir::SBlockRealize block_realize = s_tir::GetSBlockRealize(sch->state(), block_sref);
+  const tirx::ForNode* loop = TVM_SREF_TO_FOR(sch->GetSRef(loop_rv));
+  const tirx::StmtSRef block_sref = sch->GetSRef(block_rv);
+  const tirx::SBlockNode* block_node = block_sref->StmtAs<tirx::SBlockNode>();
+  const tirx::SBlockRealize block_realize = s_tir::GetSBlockRealize(sch->state(), block_sref);
   TVM_FFI_ICHECK(block_node && block_node->writes.size() == 1);
 
   const auto out_dtype = block_node->writes[0]->buffer->dtype;

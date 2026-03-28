@@ -19,7 +19,7 @@
 
 # pylint: disable=missing-docstring
 
-from tvm import te, tir, topi
+from tvm import te, tirx, topi
 from tvm.target import Target
 
 
@@ -298,7 +298,7 @@ def conv2d_transpose_nhwc(  # pylint: disable=invalid-name,missing-docstring
                 index_tuple.append(indices[i])
         if not_zero:
             not_zero = te.all(*not_zero)
-            return te.if_then_else(not_zero, padded(*index_tuple), tir.const(0.0, padded.dtype))
+            return te.if_then_else(not_zero, padded(*index_tuple), tirx.const(0.0, padded.dtype))
         return padded(*index_tuple)
 
     # convolution stage
@@ -655,7 +655,7 @@ def softmax_mn(m, n) -> tuple[te.Tensor, te.Tensor]:  # pylint: disable=invalid-
     return (a, b)
 
 
-def create_te_workload(name: str, idx: int) -> tir.PrimFunc:
+def create_te_workload(name: str, idx: int) -> tirx.PrimFunc:
     workload_func, params = CONFIGS[name]
     return te.create_prim_func(workload_func(*params[idx]))  # type: ignore
 

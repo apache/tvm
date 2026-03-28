@@ -25,7 +25,7 @@ import tvm
 from tvm.ir.module import IRModule
 from tvm.runtime import Executable
 from tvm.target import Target
-from tvm.tir import PrimFunc
+from tvm.tirx import PrimFunc
 
 
 def build(
@@ -37,7 +37,7 @@ def build(
     Build a function with a signature, generating code for devices
     coupled with target information.
 
-    This function is deprecated. Use `tvm.compile` or `tvm.tir.build` instead.
+    This function is deprecated. Use `tvm.compile` or `tvm.tirx.build` instead.
 
     Parameters
     ----------
@@ -54,10 +54,10 @@ def build(
         A module combining both host and device code.
     """
     warnings.warn(
-        "build is deprecated. Use `tvm.compile` or `tvm.tir.build` instead.",
+        "build is deprecated. Use `tvm.compile` or `tvm.tirx.build` instead.",
         DeprecationWarning,
     )
-    return tvm.tir.build(mod, target, pipeline)
+    return tvm.tirx.build(mod, target, pipeline)
 
 
 def _contains_relax(mod: PrimFunc | IRModule) -> bool:
@@ -108,5 +108,5 @@ def compile(  # pylint: disable=redefined-builtin
             relax_pipeline=relax_pipeline,
             tir_pipeline=tir_pipeline,
         )
-    lib = tvm.tir.build(mod, target, pipeline=tir_pipeline)
+    lib = tvm.tirx.build(mod, target, pipeline=tir_pipeline)
     return Executable(lib)

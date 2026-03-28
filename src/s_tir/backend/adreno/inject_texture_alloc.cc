@@ -23,18 +23,18 @@
 
 #include <tvm/arith/iter_affine_map.h>
 #include <tvm/s_tir/backend/adreno/transform.h>
-#include <tvm/tir/analysis.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/analysis.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include "../../../arith/ir_mutator_with_analyzer.h"
 #include "../../../runtime/texture.h"
-#include "../../../tir/transform/ir_utils.h"
+#include "../../../tirx/transform/ir_utils.h"
 
 namespace tvm {
 namespace s_tir {
 namespace backend {
 namespace adreno {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 using runtime::ApplyTexture2DFlattening;
 using runtime::DefaultTextureLayoutSeparator;
 using runtime::IsTextureStorage;
@@ -102,8 +102,8 @@ Pass InjectTextureAlloc() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     return TextureAllocInjector::Inject(std::move(f));
   };
-  return tir::transform::CreatePrimFuncPass(pass_func, 0, "s_tir.backend.adreno.InjectTextureAlloc",
-                                            {});
+  return tirx::transform::CreatePrimFuncPass(pass_func, 0,
+                                             "s_tir.backend.adreno.InjectTextureAlloc", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

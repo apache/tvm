@@ -32,7 +32,7 @@ from tvm.relax.dpl.pattern import (
 from tvm.relax.transform import PatternCheckContext
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 @tvm.script.ir_module

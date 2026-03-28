@@ -39,10 +39,10 @@
 #include <tvm/relax/expr.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tir/builtin.h>
-#include <tvm/tir/function.h>
-#include <tvm/tir/op.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/function.h>
+#include <tvm/tirx/op.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include <map>
 
@@ -51,7 +51,7 @@
 #include "tvm/ir/expr.h"
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 using namespace arith;
 
@@ -122,20 +122,20 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
   using Parent::VisitStmt_;
 
   // This struct stores all the relevant data related to asssume statement
-  struct assume_struct {          // Consider the example : T.assume(i < 14 or A[i] == 0)
-    PrimExpr buffer_context;      // The context of the assume statement (the bound on the axis)
-    PrimExpr buffer_predicate;    // The condition inside assume statement (i < 14) excluding
-                                  // bufferload expression (A[i] == 0)
-    tir::BufferLoad buffer_load;  // Storing the buffer load Eg: A[i] in A[i] == 0
-    PrimExpr buffer_value;        // Storing the value for the buffer Eg : 0 in A[i] == 0
+  struct assume_struct {           // Consider the example : T.assume(i < 14 or A[i] == 0)
+    PrimExpr buffer_context;       // The context of the assume statement (the bound on the axis)
+    PrimExpr buffer_predicate;     // The condition inside assume statement (i < 14) excluding
+                                   // bufferload expression (A[i] == 0)
+    tirx::BufferLoad buffer_load;  // Storing the buffer load Eg: A[i] in A[i] == 0
+    PrimExpr buffer_value;         // Storing the value for the buffer Eg : 0 in A[i] == 0
     ffi::Array<PrimExpr> buffer_indices;  // Storing the indices of the buffer Eg : i
   };
   // List of conditions in a scope
   std::vector<PrimExpr> conditions_;
 
   // Storing all the buffer assumptions data in map
-  std::map<tir::Buffer, assume_struct> map_buffer_assumption;
-  tir::Buffer current_bufferstorenode_name;
+  std::map<tirx::Buffer, assume_struct> map_buffer_assumption;
+  tirx::Buffer current_bufferstorenode_name;
 
   struct InternalConstraintContext {
     /* This stuct appends the constraint passed to it in the conditions list.
@@ -144,10 +144,10 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
         : self(self), analyzer_context(self->analyzer_, constraint) {
       old_num_constraints = self->conditions_.size();
 
-      auto side_effect = tir::SideEffect(constraint);
-      if (side_effect <= tir::CallEffectKind::kPure) {
+      auto side_effect = tirx::SideEffect(constraint);
+      if (side_effect <= tirx::CallEffectKind::kPure) {
         self->conditions_.push_back(constraint);
-      } else if (side_effect <= tir::CallEffectKind::kReadState) {
+      } else if (side_effect <= tirx::CallEffectKind::kReadState) {
         assume = constraint;
       }
 
@@ -285,8 +285,8 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
 
     std::vector<PrimExpr> buffer_exprs;
     for (const auto& expr : arith::ExtractComponents(assumption)) {
-      auto side_effect = tir::SideEffect(expr);
-      if (side_effect <= tir::CallEffectKind::kPure) {
+      auto side_effect = tirx::SideEffect(expr);
+      if (side_effect <= tirx::CallEffectKind::kPure) {
         // Pulling out portions of the assumption that do not depend
         // on a buffer value allows the following two forms to be
         // treated identically.
@@ -294,7 +294,7 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
         // Option 1: if i < 3: T.assume(buf[i] == value)
         // Option 2: T.assume(i>=3 or buf[i] == value)
         additional_predicate = additional_predicate && logical_not(expr);
-      } else if (side_effect == tir::CallEffectKind::kReadState) {
+      } else if (side_effect == tirx::CallEffectKind::kReadState) {
         buffer_exprs.push_back(expr);
       } else {
         TVM_FFI_THROW(InternalError)
@@ -307,7 +307,7 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
     TVM_FFI_ICHECK_EQ(buffer_exprs.size(), 1)
         << "T.assume must contain only a single buffer expression";
 
-    auto* as_equal_node = buffer_exprs[0].as<tir::EQNode>();
+    auto* as_equal_node = buffer_exprs[0].as<tirx::EQNode>();
     TVM_FFI_ICHECK(as_equal_node)
         << "T.assume buffer constraint must be of the form 'buffer[indices] == "
            "value', but received "
@@ -321,12 +321,12 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
 
     // Parse the statement and store the desired values
     // Ex: A[i]==0, load = A[i], value = 0
-    tir::BufferLoad load;
+    tirx::BufferLoad load;
     PrimExpr value;
-    if (auto opt = as_equal_node->a.as<tir::BufferLoad>()) {
+    if (auto opt = as_equal_node->a.as<tirx::BufferLoad>()) {
       load = opt.value();
       value = as_equal_node->b;
-    } else if (auto opt = as_equal_node->b.as<tir::BufferLoad>()) {
+    } else if (auto opt = as_equal_node->b.as<tirx::BufferLoad>()) {
       load = opt.value();
       value = as_equal_node->a;
     } else {
@@ -346,7 +346,7 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
     }
     map_buffer_assumption[buf_data.buffer_load->buffer] = buf_data;
 
-    auto has_side_effect = tir::SideEffect(value) > tir::CallEffectKind::kPure;
+    auto has_side_effect = tirx::SideEffect(value) > tirx::CallEffectKind::kPure;
     TVM_FFI_ICHECK(!has_side_effect)
         << "Buffer value in constraint must be pure expression, but was " << value;
     if (has_side_effect) {

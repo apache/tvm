@@ -19,7 +19,7 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import TVMError, relax, tir
+from tvm import TVMError, relax, tirx
 from tvm.ir import Op, VDevice
 from tvm.script import relax as R
 
@@ -87,10 +87,10 @@ def test_max_pool1d_infer_struct_info():
 
 def test_max_pool1d_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    n = tir.Var("n", "int64")
-    c = tir.Var("c", "int64")
-    w = tir.Var("w", "int64")
-    c16 = tir.Var("c16", "int64")
+    n = tirx.Var("n", "int64")
+    c = tirx.Var("c", "int64")
+    w = tirx.Var("w", "int64")
+    c16 = tirx.Var("c16", "int64")
 
     x0 = relax.Var("x", R.Tensor((n, c, w), "float32"))
     x1 = relax.Var("x", R.Tensor((n, c, w, c16), "float32"))
@@ -102,7 +102,7 @@ def test_max_pool1d_infer_struct_info_shape_symbolic():
             (
                 n,
                 c,
-                tvm.tir.floordiv(w - 1, 3) + 1,
+                tvm.tirx.floordiv(w - 1, 3) + 1,
             ),
             "float32",
         ),
@@ -157,15 +157,15 @@ def test_max_pool1d_infer_struct_info_ceil_mode():
 
 def test_max_pool1d_infer_struct_info_ceil_mode_symbolic():
     bb = relax.BlockBuilder()
-    n = tir.Var("n", "int64")
-    c = tir.Var("c", "int64")
-    w = tir.Var("w", "int64")
+    n = tirx.Var("n", "int64")
+    c = tirx.Var("c", "int64")
+    w = tirx.Var("w", "int64")
     x = relax.Var("x", R.Tensor((n, c, w), "float32"))
 
     _check_inference(
         bb,
         relax.op.nn.max_pool1d(x, pool_size=3, strides=2, padding=1, dilation=2, ceil_mode=True),
-        relax.TensorStructInfo((n, c, tvm.tir.floordiv(w, 2)), "float32"),
+        relax.TensorStructInfo((n, c, tvm.tirx.floordiv(w, 2)), "float32"),
     )
 
 
@@ -308,11 +308,11 @@ def test_max_pool2d_infer_struct_info():
 
 def test_max_pool2d_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    n = tir.Var("n", "int64")
-    c = tir.Var("c", "int64")
-    c16 = tir.Var("c16", "int64")
-    ih = tir.Var("ih", "int64")
-    iw = tir.Var("iw", "int64")
+    n = tirx.Var("n", "int64")
+    c = tirx.Var("c", "int64")
+    c16 = tirx.Var("c16", "int64")
+    ih = tirx.Var("ih", "int64")
+    iw = tirx.Var("iw", "int64")
     x0 = relax.Var("x", R.Tensor((n, c, ih, iw), "float32"))
     x1 = relax.Var("x", R.Tensor((n, c, ih, iw, c16), "float32"))
 
@@ -325,8 +325,8 @@ def test_max_pool2d_infer_struct_info_shape_symbolic():
             (
                 n,
                 c,
-                tvm.tir.floordiv(ih - 1, 3) + 1,
-                tvm.tir.floordiv(iw - 1, 3) + 1,
+                tvm.tirx.floordiv(ih - 1, 3) + 1,
+                tvm.tirx.floordiv(iw - 1, 3) + 1,
             ),
             "float32",
         ),
@@ -380,10 +380,10 @@ def test_max_pool2d_infer_struct_info_ceil_mode():
 
 def test_max_pool2d_infer_struct_info_ceil_mode_symbolic():
     bb = relax.BlockBuilder()
-    n = tir.Var("n", "int64")
-    c = tir.Var("c", "int64")
-    ih = tir.Var("ih", "int64")
-    iw = tir.Var("iw", "int64")
+    n = tirx.Var("n", "int64")
+    c = tirx.Var("c", "int64")
+    ih = tirx.Var("ih", "int64")
+    iw = tirx.Var("iw", "int64")
     x = relax.Var("x", R.Tensor((n, c, ih, iw), "float32"))
 
     _check_inference(
@@ -391,7 +391,9 @@ def test_max_pool2d_infer_struct_info_ceil_mode_symbolic():
         relax.op.nn.max_pool2d(
             x, pool_size=(3, 3), strides=(2, 2), padding=(1, 1), dilation=(2, 2), ceil_mode=True
         ),
-        relax.TensorStructInfo((n, c, tvm.tir.floordiv(ih, 2), tvm.tir.floordiv(iw, 2)), "float32"),
+        relax.TensorStructInfo(
+            (n, c, tvm.tirx.floordiv(ih, 2), tvm.tirx.floordiv(iw, 2)), "float32"
+        ),
     )
 
 
@@ -540,12 +542,12 @@ def test_max_pool3d_infer_struct_info():
 
 def test_max_pool3d_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    n = tir.Var("n", "int64")
-    c = tir.Var("c", "int64")
-    c16 = tir.Var("c16", "int64")
-    id = tir.Var("id", "int64")
-    ih = tir.Var("ih", "int64")
-    iw = tir.Var("iw", "int64")
+    n = tirx.Var("n", "int64")
+    c = tirx.Var("c", "int64")
+    c16 = tirx.Var("c16", "int64")
+    id = tirx.Var("id", "int64")
+    ih = tirx.Var("ih", "int64")
+    iw = tirx.Var("iw", "int64")
     x0 = relax.Var("x", R.Tensor((n, c, id, ih, iw), "float32"))
     x1 = relax.Var("x", R.Tensor((n, c, id, ih, iw, c16), "float32"))
 
@@ -558,9 +560,9 @@ def test_max_pool3d_infer_struct_info_shape_symbolic():
             (
                 n,
                 c,
-                tvm.tir.floordiv(id - 1, 3) + 1,
-                tvm.tir.floordiv(ih - 1, 3) + 1,
-                tvm.tir.floordiv(iw - 1, 3) + 1,
+                tvm.tirx.floordiv(id - 1, 3) + 1,
+                tvm.tirx.floordiv(ih - 1, 3) + 1,
+                tvm.tirx.floordiv(iw - 1, 3) + 1,
             ),
             "float32",
         ),
@@ -615,11 +617,11 @@ def test_max_pool3d_infer_struct_info_ceil_mode():
 
 def test_max_pool3d_infer_struct_info_ceil_mode_symbolic():
     bb = relax.BlockBuilder()
-    n = tir.Var("n", "int64")
-    c = tir.Var("c", "int64")
-    id_ = tir.Var("id", "int64")
-    ih = tir.Var("ih", "int64")
-    iw = tir.Var("iw", "int64")
+    n = tirx.Var("n", "int64")
+    c = tirx.Var("c", "int64")
+    id_ = tirx.Var("id", "int64")
+    ih = tirx.Var("ih", "int64")
+    iw = tirx.Var("iw", "int64")
     x = relax.Var("x", R.Tensor((n, c, id_, ih, iw), "float32"))
 
     _check_inference(
@@ -633,7 +635,7 @@ def test_max_pool3d_infer_struct_info_ceil_mode_symbolic():
             ceil_mode=True,
         ),
         relax.TensorStructInfo(
-            (n, c, tvm.tir.floordiv(id_, 2), tvm.tir.floordiv(ih, 2), tvm.tir.floordiv(iw, 2)),
+            (n, c, tvm.tirx.floordiv(id_, 2), tvm.tirx.floordiv(ih, 2), tvm.tirx.floordiv(iw, 2)),
             "float32",
         ),
     )
@@ -779,10 +781,10 @@ def test_avg_pool1d_infer_struct_info():
 
 def test_avg_pool1d_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    n = tir.Var("n", "int64")
-    c = tir.Var("c", "int64")
-    c16 = tir.Var("c16", "int64")
-    iw = tir.Var("iw", "int64")
+    n = tirx.Var("n", "int64")
+    c = tirx.Var("c", "int64")
+    c16 = tirx.Var("c16", "int64")
+    iw = tirx.Var("iw", "int64")
     x0 = relax.Var("x", R.Tensor((n, c, iw), "float32"))
     x1 = relax.Var("x", R.Tensor((n, c, iw, c16), "float32"))
 
@@ -793,7 +795,7 @@ def test_avg_pool1d_infer_struct_info_shape_symbolic():
             (
                 n,
                 c,
-                tvm.tir.floordiv(iw - 1, 3) + 1,
+                tvm.tirx.floordiv(iw - 1, 3) + 1,
             ),
             "float32",
         ),
@@ -847,16 +849,16 @@ def test_avg_pool1d_infer_struct_info_ceil_mode():
 
 def test_avg_pool1d_infer_struct_info_ceil_mode_symbolic():
     bb = relax.BlockBuilder()
-    n = tir.Var("n", "int64")
-    c = tir.Var("c", "int64")
-    iw = tir.Var("iw", "int64")
+    n = tirx.Var("n", "int64")
+    c = tirx.Var("c", "int64")
+    iw = tirx.Var("iw", "int64")
     x = relax.Var("x", R.Tensor((n, c, iw), "float32"))
 
     _check_inference(
         bb,
         relax.op.nn.avg_pool1d(x, pool_size=3, strides=2, padding=1, dilation=2, ceil_mode=True),
         relax.TensorStructInfo(
-            (n, c, tvm.tir.floordiv(iw, 2)),
+            (n, c, tvm.tirx.floordiv(iw, 2)),
             "float32",
         ),
     )
@@ -997,11 +999,11 @@ def test_avg_pool2d_infer_struct_info():
 
 def test_avg_pool2d_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    n = tir.Var("n", "int64")
-    c = tir.Var("c", "int64")
-    c16 = tir.Var("c16", "int64")
-    ih = tir.Var("ih", "int64")
-    iw = tir.Var("iw", "int64")
+    n = tirx.Var("n", "int64")
+    c = tirx.Var("c", "int64")
+    c16 = tirx.Var("c16", "int64")
+    ih = tirx.Var("ih", "int64")
+    iw = tirx.Var("iw", "int64")
     x0 = relax.Var("x", R.Tensor((n, c, ih, iw), "float32"))
     x1 = relax.Var("x", R.Tensor((n, c, ih, iw, c16), "float32"))
 
@@ -1014,8 +1016,8 @@ def test_avg_pool2d_infer_struct_info_shape_symbolic():
             (
                 n,
                 c,
-                tvm.tir.floordiv(ih - 1, 3) + 1,
-                tvm.tir.floordiv(iw - 1, 3) + 1,
+                tvm.tirx.floordiv(ih - 1, 3) + 1,
+                tvm.tirx.floordiv(iw - 1, 3) + 1,
             ),
             "float32",
         ),
@@ -1069,10 +1071,10 @@ def test_avg_pool2d_infer_struct_info_ceil_mode():
 
 def test_avg_pool2d_infer_struct_info_ceil_mode_symbolic():
     bb = relax.BlockBuilder()
-    n = tir.Var("n", "int64")
-    c = tir.Var("c", "int64")
-    ih = tir.Var("ih", "int64")
-    iw = tir.Var("iw", "int64")
+    n = tirx.Var("n", "int64")
+    c = tirx.Var("c", "int64")
+    ih = tirx.Var("ih", "int64")
+    iw = tirx.Var("iw", "int64")
     x = relax.Var("x", R.Tensor((n, c, ih, iw), "float32"))
 
     _check_inference(
@@ -1080,7 +1082,9 @@ def test_avg_pool2d_infer_struct_info_ceil_mode_symbolic():
         relax.op.nn.avg_pool2d(
             x, pool_size=(3, 3), strides=(2, 2), padding=(1, 1), dilation=(2, 2), ceil_mode=True
         ),
-        relax.TensorStructInfo((n, c, tvm.tir.floordiv(ih, 2), tvm.tir.floordiv(iw, 2)), "float32"),
+        relax.TensorStructInfo(
+            (n, c, tvm.tirx.floordiv(ih, 2), tvm.tirx.floordiv(iw, 2)), "float32"
+        ),
     )
 
 
@@ -1230,12 +1234,12 @@ def test_avg_pool3d_infer_struct_info():
 
 def test_avg_pool3d_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    n = tir.Var("n", "int64")
-    c = tir.Var("c", "int64")
-    c16 = tir.Var("c16", "int64")
-    id_ = tir.Var("id", "int64")
-    ih = tir.Var("ih", "int64")
-    iw = tir.Var("iw", "int64")
+    n = tirx.Var("n", "int64")
+    c = tirx.Var("c", "int64")
+    c16 = tirx.Var("c16", "int64")
+    id_ = tirx.Var("id", "int64")
+    ih = tirx.Var("ih", "int64")
+    iw = tirx.Var("iw", "int64")
     x0 = relax.Var("x", R.Tensor((n, c, id_, ih, iw), "float32"))
     x1 = relax.Var("x", R.Tensor((n, c, id_, ih, iw, c16), "float32"))
 
@@ -1248,9 +1252,9 @@ def test_avg_pool3d_infer_struct_info_shape_symbolic():
             (
                 n,
                 c,
-                tvm.tir.floordiv(id_ - 1, 3) + 1,
-                tvm.tir.floordiv(ih - 1, 3) + 1,
-                tvm.tir.floordiv(iw - 1, 3) + 1,
+                tvm.tirx.floordiv(id_ - 1, 3) + 1,
+                tvm.tirx.floordiv(ih - 1, 3) + 1,
+                tvm.tirx.floordiv(iw - 1, 3) + 1,
             ),
             "float32",
         ),
@@ -1304,11 +1308,11 @@ def test_avg_pool3d_infer_struct_info_ceil_mode():
 
 def test_avg_pool3d_infer_struct_info_ceil_mode_symbolic():
     bb = relax.BlockBuilder()
-    n = tir.Var("n", "int64")
-    c = tir.Var("c", "int64")
-    id_ = tir.Var("id", "int64")
-    ih = tir.Var("ih", "int64")
-    iw = tir.Var("iw", "int64")
+    n = tirx.Var("n", "int64")
+    c = tirx.Var("c", "int64")
+    id_ = tirx.Var("id", "int64")
+    ih = tirx.Var("ih", "int64")
+    iw = tirx.Var("iw", "int64")
     x = relax.Var("x", R.Tensor((n, c, id_, ih, iw), "float32"))
 
     _check_inference(
@@ -1325,9 +1329,9 @@ def test_avg_pool3d_infer_struct_info_ceil_mode_symbolic():
             (
                 n,
                 c,
-                tvm.tir.floordiv(id_, 2),
-                tvm.tir.floordiv(ih, 2),
-                tvm.tir.floordiv(iw, 2),
+                tvm.tirx.floordiv(id_, 2),
+                tvm.tirx.floordiv(ih, 2),
+                tvm.tirx.floordiv(iw, 2),
             ),
             "float32",
         ),
@@ -1461,9 +1465,9 @@ def test_adaptive_avg_pool1d_infer_struct_info():
 
 def test_adaptive_avg_pool1d_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    n = tir.Var("n", "int64")
-    c = tir.Var("c", "int64")
-    l = tir.Var("l", "int64")
+    n = tirx.Var("n", "int64")
+    c = tirx.Var("c", "int64")
+    l = tirx.Var("l", "int64")
 
     x0 = relax.Var("x", R.Tensor((n, c, l), "float32"))
 
@@ -1619,11 +1623,11 @@ def test_adaptive_avg_pool2d_infer_struct_info():
 
 def test_adaptive_avg_pool2d_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    n = tir.Var("n", "int64")
-    c = tir.Var("c", "int64")
-    c16 = tir.Var("c16", "int64")
-    ih = tir.Var("ih", "int64")
-    iw = tir.Var("iw", "int64")
+    n = tirx.Var("n", "int64")
+    c = tirx.Var("c", "int64")
+    c16 = tirx.Var("c16", "int64")
+    ih = tirx.Var("ih", "int64")
+    iw = tirx.Var("iw", "int64")
     x0 = relax.Var("x", R.Tensor((n, c, ih, iw), "float32"))
     x1 = relax.Var("x", R.Tensor((n, c, ih, iw, c16), "float32"))
 
@@ -1798,12 +1802,12 @@ def test_adaptive_avg_pool3d_infer_struct_info():
 def test_adaptive_avg_pool3d_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
 
-    n = tir.Var("n", "int64")
-    c = tir.Var("c", "int64")
-    c16 = tir.Var("c16", "int64")
-    d = tir.Var("d", "int64")
-    ih = tir.Var("ih", "int64")
-    iw = tir.Var("iw", "int64")
+    n = tirx.Var("n", "int64")
+    c = tirx.Var("c", "int64")
+    c16 = tirx.Var("c16", "int64")
+    d = tirx.Var("d", "int64")
+    ih = tirx.Var("ih", "int64")
+    iw = tirx.Var("iw", "int64")
 
     x0 = relax.Var("x", R.Tensor((n, c, d, ih, iw), "float32"))
     x1 = relax.Var("x", R.Tensor((n, c, d, ih, iw, c16), "float32"))

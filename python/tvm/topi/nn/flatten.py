@@ -41,8 +41,8 @@ def flatten(data):
     for i in range(1, len(ishape)):
         dim = dim * ishape[i]
     oshape = [ishape[0], dim]
-    idxdiv = tvm.tir.indexdiv
-    idxmod = tvm.tir.indexmod
+    idxdiv = tvm.tirx.indexdiv
+    idxmod = tvm.tirx.indexmod
 
     def unwrap(idx, shape):
         index = []

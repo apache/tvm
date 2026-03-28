@@ -24,18 +24,18 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tir/analysis.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/analysis.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include "../../runtime/thread_storage_scope.h"
 #include "../../support/utils.h"
-#include "../../tir/transform/ir_utils.h"
+#include "../../tirx/transform/ir_utils.h"
 #include "../schedule/analysis.h"
 
 namespace tvm {
 namespace s_tir {
 
-using namespace tvm::tir;
+using namespace tvm::tirx;
 using runtime::ThreadScope;
 using support::StartsWith;
 
@@ -104,7 +104,7 @@ bool IsDominantBlock(const SBlock& scope_block, const SBlock& block) {
  * \param analyzer The analyzer
  * \return A boolean indicating whether the input block is a reduction block.
  * \note A similar check has been implemented in "src/s_tir/schedule/analysis.h", but that check is
- * based on `tir.Schedule`. Here we have no schedule information, and thus we must implement the
+ * based on `tirx.Schedule`. Here we have no schedule information, and thus we must implement the
  * check again.
  */
 bool IsReductionBlock(const SBlockRealize& realize, const ffi::Map<Var, Range>& loop_range_map,
@@ -423,7 +423,7 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
                         /*value=*/make_zero(DataType::Handle()),
                         /*body=*/
                         Evaluate(Call(/*dtype=*/DataType::Handle(),
-                                      /*op=*/tir::builtin::tvm_thread_allreduce(),
+                                      /*op=*/tirx::builtin::tvm_thread_allreduce(),
                                       /*args=*/std::move(parameters)))))));
   }
   // Stmt 4: write cross-thread reduction result to the original buffer

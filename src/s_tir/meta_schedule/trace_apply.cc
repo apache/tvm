@@ -19,8 +19,8 @@
 #include "trace_apply.h"
 
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/tir/analysis.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/analysis.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include <optional>
 #include <string>
@@ -36,7 +36,7 @@ namespace tvm {
 namespace s_tir {
 namespace meta_schedule {
 
-using namespace tir;
+using namespace tirx;
 using s_tir::GetSBlockNames;
 using s_tir::Instruction;
 using s_tir::InstructionKind;

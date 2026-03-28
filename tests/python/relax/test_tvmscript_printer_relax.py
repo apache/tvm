@@ -19,10 +19,10 @@
 
 import tvm
 import tvm.testing
-from tvm import IRModule, relax, tir
+from tvm import IRModule, relax, tirx
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def _assert_print(obj, expected):
@@ -156,7 +156,7 @@ def test_shape_struct_info_1():
 
 
 def test_shape_struct_info_2():
-    obj = relax.ShapeStructInfo([1, tir.Var("a", "int64"), 3])
+    obj = relax.ShapeStructInfo([1, tirx.Var("a", "int64"), 3])
     _assert_print(
         obj,
         """
@@ -167,7 +167,7 @@ R.Shape([1, a, 3])""",
 
 def test_tensor_struct_info():
     obj = relax.TensorStructInfo(
-        shape=relax.ShapeExpr([1, tir.Var("a", "int64"), 3]),
+        shape=relax.ShapeExpr([1, tirx.Var("a", "int64"), 3]),
         dtype="float32",
     )
     _assert_print(
@@ -189,7 +189,7 @@ def test_tuple_struct_info():
         [
             relax.PrimStructInfo("float32"),
             relax.ObjectStructInfo(),
-            relax.ShapeStructInfo([1, tir.Var("a", "int64"), 3]),
+            relax.ShapeStructInfo([1, tirx.Var("a", "int64"), 3]),
         ]
     )
     _assert_print(
@@ -206,8 +206,8 @@ def test_func_struct_info():
         params=[
             relax.PrimStructInfo("float32"),
             relax.ObjectStructInfo(),
-            relax.ShapeStructInfo([1, tir.Var("a", "int64"), 3]),
-            relax.PrimStructInfo(value=tir.Var("b", "int64")),
+            relax.ShapeStructInfo([1, tirx.Var("a", "int64"), 3]),
+            relax.PrimStructInfo(value=tirx.Var("b", "int64")),
         ],
         ret=relax.TensorStructInfo(
             shape=relax.ShapeExpr([1, 2, 3]),
@@ -284,7 +284,7 @@ def test_data_type_imm():
 
 
 def test_var():
-    obj = relax.Var("a", relax.TensorStructInfo([1, tir.Var("x", "int64"), 3], "float32"))
+    obj = relax.Var("a", relax.TensorStructInfo([1, tirx.Var("x", "int64"), 3], "float32"))
     _assert_print(
         obj,
         """
@@ -295,7 +295,7 @@ a""",
 
 
 def test_dataflow_var():
-    obj = relax.DataflowVar("a", relax.TensorStructInfo([1, tir.Var("x", "int64"), 3], "float32"))
+    obj = relax.DataflowVar("a", relax.TensorStructInfo([1, tirx.Var("x", "int64"), 3], "float32"))
     _assert_print(
         obj,
         """
@@ -308,9 +308,9 @@ a""",
 def test_tuple():
     obj = relax.Tuple(
         [
-            relax.Var("a", relax.TensorStructInfo([1, tir.Var("x", "int64"), 3], "float32")),
-            relax.Var("b", relax.TensorStructInfo([1, tir.Var("y", "int64"), 3], "float32")),
-            relax.Var("c", relax.TensorStructInfo([1, tir.Var("z", "int64"), 3], "float32")),
+            relax.Var("a", relax.TensorStructInfo([1, tirx.Var("x", "int64"), 3], "float32")),
+            relax.Var("b", relax.TensorStructInfo([1, tirx.Var("y", "int64"), 3], "float32")),
+            relax.Var("c", relax.TensorStructInfo([1, tirx.Var("z", "int64"), 3], "float32")),
         ]
     )
     _assert_print(
@@ -331,9 +331,9 @@ def test_tuple_get_item():
     obj = relax.TupleGetItem(
         relax.Tuple(
             [
-                relax.Var("a", relax.TensorStructInfo([1, tir.Var("x", "int64"), 3], "float32")),
-                relax.Var("b", relax.TensorStructInfo([1, tir.Var("y", "int64"), 3], "float32")),
-                relax.Var("c", relax.TensorStructInfo([1, tir.Var("z", "int64"), 3], "float32")),
+                relax.Var("a", relax.TensorStructInfo([1, tirx.Var("x", "int64"), 3], "float32")),
+                relax.Var("b", relax.TensorStructInfo([1, tirx.Var("y", "int64"), 3], "float32")),
+                relax.Var("c", relax.TensorStructInfo([1, tirx.Var("z", "int64"), 3], "float32")),
             ]
         ),
         0,
@@ -358,7 +358,7 @@ def test_shape_expr():
 
 
 def test_call():
-    x = tir.Var("x", "int64")
+    x = tirx.Var("x", "int64")
     a = relax.Var("a", relax.TensorStructInfo([1, x, 3], "float32"))
     o0 = relax.call_tir(relax.GlobalVar("tir_func"), args=a, out_sinfo=a.struct_info, tir_vars=[x])
     o1 = relax.call_dps_packed("my_dps_func", args=a, out_sinfo=a.struct_info)
@@ -381,7 +381,7 @@ R.call_dps_packed("my_dps_func", (a,), out_sinfo=R.Tensor((1, x, 3), dtype="floa
 
 
 def test_call_tir_with_grad():
-    x = tir.Var("x", "int64")
+    x = tirx.Var("x", "int64")
     v0 = relax.Var("v0", R.Tensor([54, 96], "float32"))
     v1 = relax.call_tir_with_grad(
         relax.GlobalVar("tir_func"),
@@ -404,7 +404,7 @@ R.call_tir_with_grad(tir_func, (v0,), out_sinfo=R.Tensor((54, 96), dtype="float3
 def test_call_tir_inplace():
     x = relax.Var("x", R.Tensor((32, 32), dtype="int32"))
     y = relax.Var("y", R.Tensor((32, 32), dtype="int32"))
-    t = tir.Var("t", dtype="int64")
+    t = tirx.Var("t", dtype="int64")
     call = relax.call_tir_inplace(
         relax.GlobalVar("tir_func"),
         (
@@ -427,7 +427,7 @@ R.call_tir_inplace(tir_func, (x, y), out_sinfo=[R.Tensor((32, 32), dtype="int32"
 
 
 def test_seq_expr():
-    x = tir.Var("x", "int64")
+    x = tirx.Var("x", "int64")
     a = relax.Var("a", relax.TensorStructInfo([1, x, 3], "float32"))
     b = relax.DataflowVar("b", relax.TensorStructInfo([1, x, 3], "float32"))
     c = relax.Var("c", relax.TensorStructInfo([1, x, 3], "float32"))
@@ -458,7 +458,7 @@ c
 
 
 def test_binding_block():
-    x = tir.Var("x", "int64")
+    x = tirx.Var("x", "int64")
     a = relax.Var("a", relax.TensorStructInfo([1, x, 3], "float32"))
     b = relax.Var("b", relax.TensorStructInfo([1, x, 3], "float32"))
     c = relax.Var("c", relax.TensorStructInfo([1, x, 3], "float32"))
@@ -480,7 +480,7 @@ c: R.Tensor((1, x, 3), dtype="float32") = R.sin(b)
 
 
 def test_dataflow_block():
-    x = tir.Var("x", "int64")
+    x = tirx.Var("x", "int64")
     a = relax.Var("a", relax.TensorStructInfo([1, x, 3], "float32"))
     b = relax.DataflowVar("b", relax.TensorStructInfo([1, x, 3], "float32"))
     c = relax.Var("c", relax.TensorStructInfo([1, x, 3], "float32"))
@@ -504,7 +504,7 @@ with R.dataflow():
 
 
 def test_match_cast():
-    x = tir.Var("x", "int64")
+    x = tirx.Var("x", "int64")
     a = relax.Var("a", relax.TensorStructInfo([1, x, 3]))
     b = relax.Var("b", relax.TensorStructInfo([1, 5, 3]))
     obj = relax.MatchCast(
@@ -523,7 +523,7 @@ b: R.Tensor((1, 5, 3), dtype="float32") = R.match_cast(a, R.Tensor((1, 5, 3), dt
 
 
 def test_var_binding():
-    x = tir.Var("x", "int64")
+    x = tirx.Var("x", "int64")
     a = relax.Var("a", relax.TensorStructInfo([1, x, 3], "float32"))
     b = relax.Var("b", relax.TensorStructInfo([1, x, 3], "float32"))
     obj = relax.VarBinding(b, relax.op.sin(a))
@@ -561,7 +561,7 @@ else:
 
 
 def test_builtin_keywords():
-    x = tir.Var("x", "int64")
+    x = tirx.Var("x", "int64")
     a = relax.Var("R", relax.TensorStructInfo([1, x, 3], "float32"))
     b = relax.Var("T", relax.TensorStructInfo([1, x, 3], "float32"))
     obj = relax.VarBinding(b, relax.op.sin(a))
@@ -595,7 +595,7 @@ def test_module_cross_func_call():
         TestModule,
         """
 # from tvm.script import ir as I
-# from tvm.script import tir as T
+# from tvm.script import tirx as T
 # from tvm.script import relax as R
 
 @I.ir_module
@@ -618,7 +618,7 @@ class Module:
         module_str,
         """
 # from tvm.script import ir as I
-# from tvm.script import tir as T
+# from tvm.script import tirx as T
 # from tvm.script import relax as R
 
 @I.ir_module

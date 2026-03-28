@@ -20,7 +20,7 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::tir;
+using namespace tvm::tirx;
 
 /*! \brief Append a new predicate to the each child of type BlockRealize (not recursively) */
 class BlockPredicateAppender : public StmtMutator {
@@ -600,7 +600,7 @@ class BlockMutator : public StmtExprMutator {
     }
 
     // Update all instances of old iter_vars in the block with new iter_vars
-    auto block_stmt = tir::Substitute(new_block, var_map);
+    auto block_stmt = tirx::Substitute(new_block, var_map);
     return block_stmt;
   }
 
@@ -623,7 +623,7 @@ class BlockMutator : public StmtExprMutator {
 
     if (!op->loop_var.same_as(new_var)) {
       // If the partioned loop contains nested for loop, then create new iteration variable instance
-      res.CopyOnWrite()->body = tir::Substitute(res->body, {{op->loop_var, new_var}});
+      res.CopyOnWrite()->body = tirx::Substitute(res->body, {{op->loop_var, new_var}});
       res.CopyOnWrite()->loop_var = new_var;
     }
     return res;
@@ -672,7 +672,7 @@ ffi::Array<StmtSRef> LoopPartition(ScheduleState self, const StmtSRef& loop_sref
   for (int i = 0; i < n; i++) {
     extent_value = analyzer.Simplify(factors[i]);
     Var new_loop_var = loop->loop_var.copy_with_suffix(std::to_string(i)).copy_with_dtype(dtype);
-    Stmt loop_body = tir::Substitute(loop->body, {{loop->loop_var, new_loop_var}});
+    Stmt loop_body = tirx::Substitute(loop->body, {{loop->loop_var, new_loop_var}});
 
     // Create new block with new reference to each variable/stmt/expr in the existing block
     loop_body = BlockMutator(new_loop_var, min_value, extent_value)(std::move(loop_body));
@@ -691,7 +691,7 @@ ffi::Array<StmtSRef> LoopPartition(ScheduleState self, const StmtSRef& loop_sref
 
   // Create common block with all the partitioned blocks as its children blocks
   SBlockRealize common({}, make_const(DataType::Bool(), 1),
-                       SBlock({}, {}, {}, block_name + "_common", tir::SeqStmt(block_partitions)));
+                       SBlock({}, {}, {}, block_name + "_common", tirx::SeqStmt(block_partitions)));
 
   // Replace existing loop with the newly created common block
   self->Replace(loop_sref, common, {});

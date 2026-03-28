@@ -319,7 +319,7 @@ class FuncStructInfo : public StructInfo {
    * \param purity The purity of the function (true by default).
    * \param span The span of the AST.
    *
-   * \note If the ret contains variables(tir::Var and relax::Var), they must be deducible from
+   * \note If the ret contains variables(tirx::Var and relax::Var), they must be deducible from
    * params. If you are unsure, you can always erase ret to static.
    */
   TVM_DLL FuncStructInfo(ffi::Array<StructInfo> params, StructInfo ret, bool purity = true,

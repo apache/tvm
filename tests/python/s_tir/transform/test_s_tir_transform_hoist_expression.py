@@ -19,7 +19,7 @@ import tvm
 import tvm.testing
 from tvm import s_tir
 from tvm.s_tir.transform import HoistedConditionals, HoistedLetBindings
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def _run_transform(before, hoisted_conditionals, hoisted_let_bindings):

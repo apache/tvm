@@ -24,10 +24,10 @@ import pytest
 import tvm
 import tvm.testing
 from tvm.script import ir as I
-from tvm.script import tir as T
+from tvm.script import tirx as T
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import ir as I_builder
-from tvm.script.ir_builder import tir as T_builder
+from tvm.script.ir_builder import tirx as T_builder
 
 dtype = tvm.testing.parameter("float32", "int32", "float16", "int8")
 fuzz_seed = tvm.testing.parameter(range(25))
@@ -47,8 +47,8 @@ fuzz_seed = tvm.testing.parameter(range(25))
 )
 def test_vector_comparison(target, dev, dtype):
     target = tvm.target.Target(target)
-    zero = tvm.tir.const(0, dtype)
-    one = tvm.tir.const(1, dtype)
+    zero = tvm.tirx.const(0, dtype)
+    one = tvm.tirx.const(1, dtype)
 
     @I.ir_module
     class Module:
@@ -62,7 +62,7 @@ def test_vector_comparison(target, dev, dtype):
                             B[v_i] = T.Select(A[v_i] >= zero, A[v_i] + one, zero)
 
     # Build
-    f = tvm.tir.build(Module, target=target)
+    f = tvm.tirx.build(Module, target=target)
 
     # Verify we generate the boolx4 type declaration and the OpSelect
     # v4{float,half,int} instruction
@@ -95,7 +95,7 @@ def test_array_vectorize_add(target, dev, dtype):
         pytest.xfail("Opencl target does not support float16")
 
     vec_dtype = f"{dtype}x{lanes}"
-    one = tvm.tir.const(1, vec_dtype)
+    one = tvm.tirx.const(1, vec_dtype)
 
     @I.ir_module
     class Module:
@@ -178,11 +178,11 @@ def test_vulkan_constant_passing(target, dev, vulkan_parameter_impl, vulkan_para
                 T_builder.func_name("main")
                 scalar_vars = []
                 for i in range(num_int_params):
-                    v = T_builder.arg(f"scale{i}", tvm.tir.Var("", dtype))
+                    v = T_builder.arg(f"scale{i}", tvm.tirx.Var("", dtype))
                     scalar_vars.append(v)
                 var_A = T_builder.arg("var_A", T_builder.handle())
                 var_B = T_builder.arg("var_B", T_builder.handle())
-                T_builder.func_attr({"tir.noalias": True})
+                T_builder.func_attr({"tirx.noalias": True})
                 n_var = T_builder.int32(is_size_var=True)
                 A = T_builder.match_buffer(var_A, (n_var,), dtype)
                 B = T_builder.match_buffer(var_B, (n_var,), dtype)
@@ -190,7 +190,7 @@ def test_vulkan_constant_passing(target, dev, vulkan_parameter_impl, vulkan_para
                 for s in scalar_vars[1:]:
                     scalar_sum = scalar_sum + s
                 with T_builder.thread_binding(
-                    tvm.tir.ceildiv(n_var, 64), thread="blockIdx.x"
+                    tvm.tirx.ceildiv(n_var, 64), thread="blockIdx.x"
                 ) as i_0:
                     with T_builder.thread_binding(64, thread="threadIdx.x") as i_1:
                         with T_builder.sblock("B"):
@@ -288,13 +288,13 @@ def test_vulkan_local_threadidx(target, dev):
 def test_vectorized_index_ramp(target, dev):
     """Test vectorized copy with ramp indices (load N values, write to N locations)"""
     n = 4
-    ramp_index = tvm.tir.Ramp(0, 1, 4)
+    ramp_index = tvm.tirx.Ramp(0, 1, 4)
 
     @I.ir_module
     class Module:
         @T.prim_func
         def main(var_A: T.handle, var_B: T.handle):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             A = T.match_buffer(var_A, (n,), "int32", offset_factor=1)
             B = T.match_buffer(var_B, (n,), "int32", offset_factor=1)
             with T.sblock("compute"):
@@ -318,14 +318,14 @@ def test_vectorized_index_ramp(target, dev):
 def test_vectorized_index_broadcast(target, dev):
     """Test broadcast index (load 1 value, write to N locations)"""
     n = 4
-    broadcast_index = tvm.tir.Broadcast(0, 4)
-    ramp_index = tvm.tir.Ramp(0, 1, 4)
+    broadcast_index = tvm.tirx.Broadcast(0, 4)
+    ramp_index = tvm.tirx.Ramp(0, 1, 4)
 
     @I.ir_module
     class Module:
         @T.prim_func
         def main(var_A: T.handle, var_B: T.handle):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             A = T.match_buffer(var_A, (n,), "int32", offset_factor=1)
             B = T.match_buffer(var_B, (n,), "int32", offset_factor=1)
             with T.sblock("compute"):
@@ -404,7 +404,7 @@ def test_cooperative_matrix(out_dtype):
     class Module:
         @T.prim_func
         def main(X: T.Buffer((16, 32), "float16"), W: T.Buffer((32, 16), "float16"), compute: T.Buffer((16, 16), out_dtype)):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             X_shared = T.sblock_alloc_buffer((16, 32), "float16", scope="shared")
             W_shared = T.sblock_alloc_buffer((32, 16), "float16", scope="shared")
             X_shared_wmma_matrix_a = T.sblock_alloc_buffer((16, 32), "float16", scope="wmma.matrix_a")
@@ -506,7 +506,7 @@ def test_codegen_decl_buffer():
     class Module:
         @T.prim_func
         def kernel():
-            T.func_attr({"calling_conv": 2, "global_symbol": "kernel", "tir.noalias": True})
+            T.func_attr({"calling_conv": 2, "global_symbol": "kernel", "tirx.noalias": True})
             A = T.alloc_buffer((256,), dtype="float32", scope="local")
             A_buf = T.decl_buffer([256], dtype="float32", scope="local", data=A.data)
 
@@ -515,22 +515,40 @@ def test_codegen_decl_buffer():
     vulkan_codegen(Module, target)
 
 
+@tvm.testing.requires_vulkan(support_required="compile-only")
+def test_codegen_static_shared_memory():
+    """The codegen should accept static shared/workgroup allocations."""
+
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
+            A_shared = T.alloc_buffer((128,), dtype="float32", scope="shared")
+
+            for bx in T.thread_binding(1, thread="blockIdx.x"):
+                for tx in T.thread_binding(128, thread="threadIdx.x"):
+                    A_shared[tx] = A[tx]
+                    B[tx] = A_shared[tx]
+
+    tvm.compile(Module, target="vulkan")
+
+
 @tvm.testing.requires_gpu
 @tvm.testing.requires_vulkan
 def test_unary():
     test_funcs = [
-        (tvm.tir.sin, lambda x: np.sin(x)),
-        (tvm.tir.cos, lambda x: np.cos(x)),
-        (tvm.tir.tan, lambda x: np.tan(x)),
-        (tvm.tir.sinh, lambda x: np.sinh(x)),
-        (tvm.tir.cosh, lambda x: np.cosh(x)),
-        (tvm.tir.tanh, lambda x: np.tanh(x)),
-        (tvm.tir.asin, lambda x: np.arcsin(x)),
-        (tvm.tir.acos, lambda x: np.arccos(x)),
-        (tvm.tir.atan, lambda x: np.arctan(x)),
-        (tvm.tir.asinh, lambda x: np.arcsinh(x)),
-        (tvm.tir.acosh, lambda x: np.arccosh(x)),
-        (tvm.tir.atanh, lambda x: np.arctanh(x)),
+        (tvm.tirx.sin, lambda x: np.sin(x)),
+        (tvm.tirx.cos, lambda x: np.cos(x)),
+        (tvm.tirx.tan, lambda x: np.tan(x)),
+        (tvm.tirx.sinh, lambda x: np.sinh(x)),
+        (tvm.tirx.cosh, lambda x: np.cosh(x)),
+        (tvm.tirx.tanh, lambda x: np.tanh(x)),
+        (tvm.tirx.asin, lambda x: np.arcsin(x)),
+        (tvm.tirx.acos, lambda x: np.arccos(x)),
+        (tvm.tirx.atan, lambda x: np.arctan(x)),
+        (tvm.tirx.asinh, lambda x: np.arcsinh(x)),
+        (tvm.tirx.acosh, lambda x: np.arccosh(x)),
+        (tvm.tirx.atanh, lambda x: np.arctanh(x)),
     ]
 
     def run_test(tvm_intrin, np_func):
@@ -556,11 +574,11 @@ def test_unary():
         dev = tvm.device(target.kind.name, 0)
         func = tvm.compile(Module, target=target)
 
-        if tvm_intrin in [tvm.tir.asin, tvm.tir.acos]:
+        if tvm_intrin in [tvm.tirx.asin, tvm.tirx.acos]:
             data = np.random.uniform(-1.0, 1.0, size=n)
-        elif tvm_intrin == tvm.tir.atanh:
+        elif tvm_intrin == tvm.tirx.atanh:
             data = np.random.uniform(-0.999, 0.999, size=n)
-        elif tvm_intrin == tvm.tir.acosh:
+        elif tvm_intrin == tvm.tirx.acosh:
             data = np.random.uniform(1.0, 5.0, size=n)
         else:
             data = np.random.uniform(0.1, 0.9, size=n)
