@@ -286,6 +286,7 @@ def test_all_class_non_max_suppression_legalize_dynamic_trim():
     )
 
 
+@tvm.testing.requires_llvm
 def test_all_class_non_max_suppression_legalize_e2e():
     @tvm.script.ir_module
     class NMSModule:
@@ -387,10 +388,14 @@ def test_multibox_transform_loc_wrong_cls_ndim():
 def test_multibox_transform_loc_wrong_shape_relation():
     bb = relax.BlockBuilder()
     cls = relax.Var("cls", R.Tensor((2, 3, 5), "float32"))
-    loc = relax.Var("loc", R.Tensor((2, 19), "float32"))
     anc = relax.Var("anc", R.Tensor((1, 5, 4), "float32"))
+    loc_bad_div = relax.Var("loc_bad_div", R.Tensor((2, 19), "float32"))
     with pytest.raises(TVMError):
-        bb.normalize(relax.op.vision.multibox_transform_loc(cls, loc, anc))
+        bb.normalize(relax.op.vision.multibox_transform_loc(cls, loc_bad_div, anc))
+    # Divisible by 4 but loc_dim != 4*N (N=5 -> expect 20, not 24)
+    loc_bad_n = relax.Var("loc_bad_n", R.Tensor((2, 24), "float32"))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.vision.multibox_transform_loc(cls, loc_bad_n, anc))
 
 
 def test_multibox_transform_loc_wrong_anchor_shape():
@@ -426,7 +431,7 @@ def test_multibox_transform_loc_wrong_batch():
 def _multibox_ref_numpy(
     cls_pred, loc_pred, anchor, variances, clip=False, threshold=0.0, keep_background=True
 ):
-    """Minimal numpy reference (avoids importing tvm.topi.testing which pulls scipy)."""
+    """Numpy reference aligned with ``topi.vision.multibox_transform_loc``."""
 
     def _softmax(x, axis):
         x_max = np.max(x, axis=axis, keepdims=True)
@@ -468,6 +473,7 @@ def _multibox_ref_numpy(
     return boxes, scores
 
 
+@tvm.testing.requires_llvm
 def test_multibox_transform_loc_legalize_e2e():
     @tvm.script.ir_module
     class Mod:
@@ -515,6 +521,55 @@ def test_multibox_transform_loc_legalize_e2e():
     tvm.testing.assert_allclose(out[1].numpy(), ref_s, rtol=1e-4, atol=1e-5)
 
 
+@tvm.testing.requires_llvm
+def test_multibox_transform_loc_legalize_e2e_nonunity_variances():
+    @tvm.script.ir_module
+    class Mod:
+        @R.function
+        def main(
+            cls: R.Tensor((1, 3, 5), "float32"),
+            loc: R.Tensor((1, 20), "float32"),
+            anc: R.Tensor((1, 5, 4), "float32"),
+        ) -> R.Tuple(R.Tensor((1, 5, 4), "float32"), R.Tensor((1, 3, 5), "float32")):
+            return R.vision.multibox_transform_loc(
+                cls,
+                loc,
+                anc,
+                clip=False,
+                threshold=0.0,
+                variances=(0.1, 0.1, 0.2, 0.2),
+                keep_background=True,
+            )
+
+    cls_data = np.random.randn(1, 3, 5).astype(np.float32)
+    loc_data = np.random.randn(1, 20).astype(np.float32) * 0.05
+    anc_data = np.array(
+        [
+            [
+                [0.1, 0.1, 0.5, 0.5],
+                [0.2, 0.2, 0.6, 0.6],
+                [0.0, 0.0, 1.0, 1.0],
+                [0.3, 0.3, 0.7, 0.7],
+                [0.05, 0.05, 0.45, 0.45],
+            ]
+        ],
+        dtype=np.float32,
+    )
+
+    mod = LegalizeOps()(Mod)
+    exe = tvm.compile(mod, target="llvm")
+    vm = relax.VirtualMachine(exe, tvm.cpu())
+    ref_b, ref_s = _multibox_ref_numpy(cls_data, loc_data, anc_data, (0.1, 0.1, 0.2, 0.2))
+    out = vm["main"](
+        tvm.runtime.tensor(cls_data, tvm.cpu()),
+        tvm.runtime.tensor(loc_data, tvm.cpu()),
+        tvm.runtime.tensor(anc_data, tvm.cpu()),
+    )
+    tvm.testing.assert_allclose(out[0].numpy(), ref_b, rtol=1e-4, atol=1e-5)
+    tvm.testing.assert_allclose(out[1].numpy(), ref_s, rtol=1e-4, atol=1e-5)
+
+
+@tvm.testing.requires_llvm
 def test_multibox_transform_loc_legalize_attr_branches():
     @tvm.script.ir_module
     class Mod:

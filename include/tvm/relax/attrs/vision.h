@@ -83,7 +83,8 @@ struct MultiboxTransformLocAttrs : public AttrsNodeReflAdapter<MultiboxTransform
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<MultiboxTransformLocAttrs>()
-        .def_ro("clip", &MultiboxTransformLocAttrs::clip, "Clip decoded ymin,xmin,ymax,xmax to [0,1].")
+        .def_ro("clip", &MultiboxTransformLocAttrs::clip,
+                "Clip decoded ymin,xmin,ymax,xmax to [0,1].")
         .def_ro("threshold", &MultiboxTransformLocAttrs::threshold,
                 "After softmax, zero scores strictly below this value.")
         .def_ro("variances", &MultiboxTransformLocAttrs::variances,

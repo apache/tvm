@@ -57,7 +57,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 StructInfo InferStructInfoMultiboxTransformLoc(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 3) {
     ctx->ReportFatal(Diagnostic::Error(call)
-                     << "multibox_transform_loc: expected 3 inputs (cls_pred, loc_pred, anchor), got "
+                     << "multibox_transform_loc: expected 3 inputs (cls_pred, loc_pred, anchor), "
+                        "got "
                      << call->args.size());
   }
 
@@ -83,7 +84,8 @@ StructInfo InferStructInfoMultiboxTransformLoc(const Call& call, const BlockBuil
                      << anchor_sinfo->ndim);
   }
 
-  if (!cls_sinfo->IsUnknownDtype() && !loc_sinfo->IsUnknownDtype() && cls_sinfo->dtype != loc_sinfo->dtype) {
+  if (!cls_sinfo->IsUnknownDtype() && !loc_sinfo->IsUnknownDtype() &&
+      cls_sinfo->dtype != loc_sinfo->dtype) {
     ctx->ReportFatal(Diagnostic::Error(call)
                      << "multibox_transform_loc: cls_pred and loc_pred dtype must match, got "
                      << cls_sinfo->dtype << " vs " << loc_sinfo->dtype);
@@ -180,7 +182,8 @@ TVM_REGISTER_OP("relax.vision.multibox_transform_loc")
     .set_attrs_type<MultiboxTransformLocAttrs>()
     .set_num_inputs(3)
     .add_argument("cls_pred", "Tensor", "[B,C,N] class logits (pre-softmax).")
-    .add_argument("loc_pred", "Tensor", "[B,4*N] box encodings per anchor as (x,y,w,h) after yxhw→xywh.")
+    .add_argument("loc_pred", "Tensor",
+                  "[B,4*N] box encodings (x,y,w,h); TFLite yxhw order remapped to xywh.")
     .add_argument("anchor", "Tensor", "[1,N,4] priors as ltrb (left,top,right,bottom).")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoMultiboxTransformLoc)
     .set_attr<Bool>("FPurity", Bool(true));
