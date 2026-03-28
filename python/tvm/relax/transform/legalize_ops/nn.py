@@ -220,6 +220,42 @@ def _nn_conv2d_transpose(bb: BlockBuilder, call: Call) -> Expr:
     )
 
 
+@register_legalize("relax.nn.conv3d_transpose")
+def _nn_conv3d_transpose(bb: BlockBuilder, call: Call) -> Expr:
+    # Keep policy in sync with _nn_conv2d_transpose: only lower when TOPI supports the layout/dilation.
+    if call.attrs.out_layout != call.attrs.data_layout:
+        logging.info(
+            "TOPI conv3d_transpose does not support different input-output "
+            "layouts, and thus cannot be legalized by TOPI"
+        )
+        return call
+    if call.attrs.data_layout != "NCDHW" or call.attrs.kernel_layout != "IODHW":
+        logging.info(
+            "TOPI conv3d_transpose does not support input layout other than NCDHW, "
+            "and kernel layout other than IODHW, so cannot be legalized by TOPI"
+        )
+        return call
+    dilation = call.attrs.dilation
+    if len(dilation) != 3 or dilation[0] != 1 or dilation[1] != 1 or dilation[2] != 1:
+        logging.info(
+            "TOPI conv3d_transpose does not support dilations other than 1, "
+            "and thus cannot be legalized by TOPI"
+        )
+        return call
+
+    return bb.call_te(
+        topi.nn.group_conv3d_transpose_ncdhw,
+        call.args[0],
+        call.args[1],
+        strides=call.attrs.strides,
+        padding=call.attrs.padding,
+        out_dtype=call.struct_info.dtype,
+        output_padding=call.attrs.output_padding,
+        groups=call.attrs.groups,
+        primfunc_name_hint="conv3d_transpose",
+    )
+
+
 @register_legalize("relax.nn.pad")
 def _nn_pad(bb: BlockBuilder, call: Call) -> Expr:
     pad_mode = call.attrs.pad_mode

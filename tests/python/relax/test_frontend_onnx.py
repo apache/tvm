@@ -1223,7 +1223,11 @@ def test_conv_transpose(stride: int, dilation: int, pad: int, bias: bool, output
     def _verify_conv_transpose(input_shape, weight_shape):
         nd = len(weight_shape) - 2
         output_shape = [input_shape[0], weight_shape[0]] + [
-            (input_shape[i] - 1) * stride - 2 * pad + dilation * (weight_shape[i] - 1) + 1
+            (input_shape[i] - 1) * stride
+            - 2 * pad
+            + dilation * (weight_shape[i] - 1)
+            + output_pad
+            + 1
             for i in range(2, len(input_shape))
         ]
         bias_shape = [output_shape[1]]
@@ -1257,6 +1261,9 @@ def test_conv_transpose(stride: int, dilation: int, pad: int, bias: bool, output
     # ConvTranspose2D
     _verify_conv_transpose([3, 4, 32, 32], [4, 4, 3, 3])
     _verify_conv_transpose([3, 4, 32, 32], [4, 2, 3, 3])  # group=2
+    # ConvTranspose3D
+    _verify_conv_transpose([3, 4, 12, 12, 12], [4, 4, 3, 3, 3])
+    _verify_conv_transpose([3, 4, 12, 12, 12], [4, 2, 3, 3, 3])  # group=2
 
 
 def test_pow():

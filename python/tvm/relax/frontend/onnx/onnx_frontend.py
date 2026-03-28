@@ -1363,7 +1363,9 @@ class ConvTranspose(OnnxOpConverter):
             data_layout = "NCHW"
             kernel_layout = "IOHW"
         elif ndim == 5:
-            raise NotImplementedError("Relax ConvTranspose3d not supported yet")
+            op = relax.op.nn.conv3d_transpose
+            data_layout = "NCDHW"
+            kernel_layout = "IODHW"
         else:
             raise NotImplementedError("Ndim > 5 not supported for convolution.")
 

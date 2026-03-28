@@ -489,6 +489,114 @@ def test_conv2d_transpose():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_conv3d_transpose():
+    # fmt: off
+    @tvm.script.ir_module
+    class Conv3dTranspose:
+        @R.function
+        def main(x: R.Tensor((2, 3, 4, 4, 4), "float32"), w: R.Tensor((3, 4, 3, 3, 3), "float32")):
+            gv = R.nn.conv3d_transpose(x, w)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 3, 4, 4, 4), dtype="float32"), w: R.Tensor((3, 4, 3, 3, 3), dtype="float32")) -> R.Tensor((2, 4, 6, 6, 6), dtype="float32"):
+            gv = R.call_tir(Expected.conv3d_transpose, (x, w), out_sinfo=R.Tensor((2, 4, 6, 6, 6), dtype="float32"))
+            return gv
+
+        @T.prim_func(private=True)
+        def conv3d_transpose(x: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(4), T.int64(4)), "float32"), w: T.Buffer((T.int64(3), T.int64(4), T.int64(3), T.int64(3), T.int64(3)), "float32"), compute: T.Buffer((T.int64(2), T.int64(4), T.int64(6), T.int64(6), T.int64(6)), "float32")):
+            T.func_attr({"tirx.noalias": True})
+            data_dilate = T.sblock_alloc_buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(4), T.int64(4)))
+            data_pad = T.sblock_alloc_buffer((T.int64(2), T.int64(3), T.int64(8), T.int64(8), T.int64(8)))
+            kernel_transform = T.sblock_alloc_buffer((T.int64(4), T.int64(3), T.int64(3), T.int64(3), T.int64(3)))
+            for i0, i1, i2, i3, i4 in T.grid(T.int64(2), T.int64(3), T.int64(4), T.int64(4), T.int64(4)):
+                with T.sblock("data_dilate"):
+                    v_i0, v_i1, v_i2, v_i3, v_i4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
+                    T.reads(x[v_i0, v_i1, v_i2, v_i3, v_i4])
+                    T.writes(data_dilate[v_i0, v_i1, v_i2, v_i3, v_i4])
+                    data_dilate[v_i0, v_i1, v_i2, v_i3, v_i4] = x[v_i0, v_i1, v_i2, v_i3, v_i4]
+            for i0, i1, i2, i3, i4 in T.grid(T.int64(2), T.int64(3), T.int64(8), T.int64(8), T.int64(8)):
+                with T.sblock("data_pad"):
+                    v_i0, v_i1, v_i2, v_i3, v_i4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
+                    T.reads(data_dilate[v_i0, v_i1, v_i2 - T.int64(2), v_i3 - T.int64(2), v_i4 - T.int64(2)])
+                    T.writes(data_pad[v_i0, v_i1, v_i2, v_i3, v_i4])
+                    data_pad[v_i0, v_i1, v_i2, v_i3, v_i4] = T.if_then_else(T.int64(2) <= v_i2 and v_i2 < T.int64(6) and T.int64(2) <= v_i3 and v_i3 < T.int64(6) and T.int64(2) <= v_i4 and v_i4 < T.int64(6), data_dilate[v_i0, v_i1, v_i2 - T.int64(2), v_i3 - T.int64(2), v_i4 - T.int64(2)], T.float32(0.0))
+            for o, i, d, h, w_1 in T.grid(T.int64(4), T.int64(3), T.int64(3), T.int64(3), T.int64(3)):
+                with T.sblock("kernel_transform"):
+                    v_o, v_i, v_d, v_h, v_w = T.axis.remap("SSSSS", [o, i, d, h, w_1])
+                    T.reads(w[v_i, v_o, T.int64(2) - v_d, T.int64(2) - v_h, T.int64(2) - v_w])
+                    T.writes(kernel_transform[v_o, v_i, v_d, v_h, v_w])
+                    kernel_transform[v_o, v_i, v_d, v_h, v_w] = w[v_i, v_o, T.int64(2) - v_d, T.int64(2) - v_h, T.int64(2) - v_w]
+            for b, c, d, h, w_1, dc, dd, dh, dw in T.grid(T.int64(2), T.int64(4), T.int64(6), T.int64(6), T.int64(6), T.int64(3), T.int64(3), T.int64(3), T.int64(3)):
+                with T.sblock("compute"):
+                    v_b, v_c, v_d, v_h, v_w, v_dc, v_dd, v_dh, v_dw = T.axis.remap("SSSSSRRRR", [b, c, d, h, w_1, dc, dd, dh, dw])
+                    T.reads(data_pad[v_b, v_dc, v_d + v_dd, v_h + v_dh, v_w + v_dw], kernel_transform[v_c, v_dc, v_dd, v_dh, v_dw])
+                    T.writes(compute[v_b, v_c, v_d, v_h, v_w])
+                    with T.init():
+                        compute[v_b, v_c, v_d, v_h, v_w] = T.float32(0.0)
+                    compute[v_b, v_c, v_d, v_h, v_w] = compute[v_b, v_c, v_d, v_h, v_w] + data_pad[v_b, v_dc, v_d + v_dd, v_h + v_dh, v_w + v_dw] * kernel_transform[v_c, v_dc, v_dd, v_dh, v_dw]
+    # fmt: on
+
+    mod = LegalizeOps()(Conv3dTranspose)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_conv3d_transpose_with_out_dtype():
+    # fmt: off
+    @tvm.script.ir_module
+    class Conv3dTranspose:
+        @R.function
+        def main(x: R.Tensor((2, 3, 4, 4, 4), "float32"), w: R.Tensor((3, 4, 3, 3, 3), "float32")):
+            gv = R.nn.conv3d_transpose(x, w, out_dtype="float16")
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 3, 4, 4, 4), dtype="float32"), w: R.Tensor((3, 4, 3, 3, 3), dtype="float32")) -> R.Tensor((2, 4, 6, 6, 6), dtype="float16"):
+            gv = R.call_tir(Expected.conv3d_transpose, (x, w), out_sinfo=R.Tensor((2, 4, 6, 6, 6), dtype="float16"))
+            return gv
+
+        @T.prim_func(private=True)
+        def conv3d_transpose(x: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(4), T.int64(4)), "float32"), w: T.Buffer((T.int64(3), T.int64(4), T.int64(3), T.int64(3), T.int64(3)), "float32"), compute: T.Buffer((T.int64(2), T.int64(4), T.int64(6), T.int64(6), T.int64(6)), "float16")):
+            T.func_attr({"tirx.noalias": True})
+            data_dilate = T.sblock_alloc_buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(4), T.int64(4)))
+            data_pad = T.sblock_alloc_buffer((T.int64(2), T.int64(3), T.int64(8), T.int64(8), T.int64(8)))
+            kernel_transform = T.sblock_alloc_buffer((T.int64(4), T.int64(3), T.int64(3), T.int64(3), T.int64(3)))
+            for i0, i1, i2, i3, i4 in T.grid(T.int64(2), T.int64(3), T.int64(4), T.int64(4), T.int64(4)):
+                with T.sblock("data_dilate"):
+                    v_i0, v_i1, v_i2, v_i3, v_i4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
+                    T.reads(x[v_i0, v_i1, v_i2, v_i3, v_i4])
+                    T.writes(data_dilate[v_i0, v_i1, v_i2, v_i3, v_i4])
+                    data_dilate[v_i0, v_i1, v_i2, v_i3, v_i4] = x[v_i0, v_i1, v_i2, v_i3, v_i4]
+            for i0, i1, i2, i3, i4 in T.grid(T.int64(2), T.int64(3), T.int64(8), T.int64(8), T.int64(8)):
+                with T.sblock("data_pad"):
+                    v_i0, v_i1, v_i2, v_i3, v_i4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
+                    T.reads(data_dilate[v_i0, v_i1, v_i2 - T.int64(2), v_i3 - T.int64(2), v_i4 - T.int64(2)])
+                    T.writes(data_pad[v_i0, v_i1, v_i2, v_i3, v_i4])
+                    data_pad[v_i0, v_i1, v_i2, v_i3, v_i4] = T.if_then_else(T.int64(2) <= v_i2 and v_i2 < T.int64(6) and T.int64(2) <= v_i3 and v_i3 < T.int64(6) and T.int64(2) <= v_i4 and v_i4 < T.int64(6), data_dilate[v_i0, v_i1, v_i2 - T.int64(2), v_i3 - T.int64(2), v_i4 - T.int64(2)], T.float32(0.0))
+            for o, i, d, h, w_1 in T.grid(T.int64(4), T.int64(3), T.int64(3), T.int64(3), T.int64(3)):
+                with T.sblock("kernel_transform"):
+                    v_o, v_i, v_d, v_h, v_w = T.axis.remap("SSSSS", [o, i, d, h, w_1])
+                    T.reads(w[v_i, v_o, T.int64(2) - v_d, T.int64(2) - v_h, T.int64(2) - v_w])
+                    T.writes(kernel_transform[v_o, v_i, v_d, v_h, v_w])
+                    kernel_transform[v_o, v_i, v_d, v_h, v_w] = w[v_i, v_o, T.int64(2) - v_d, T.int64(2) - v_h, T.int64(2) - v_w]
+            for b, c, d, h, w_1, dc, dd, dh, dw in T.grid(T.int64(2), T.int64(4), T.int64(6), T.int64(6), T.int64(6), T.int64(3), T.int64(3), T.int64(3), T.int64(3)):
+                with T.sblock("compute"):
+                    v_b, v_c, v_d, v_h, v_w, v_dc, v_dd, v_dh, v_dw = T.axis.remap("SSSSSRRRR", [b, c, d, h, w_1, dc, dd, dh, dw])
+                    T.reads(data_pad[v_b, v_dc, v_d + v_dd, v_h + v_dh, v_w + v_dw], kernel_transform[v_c, v_dc, v_dd, v_dh, v_dw])
+                    T.writes(compute[v_b, v_c, v_d, v_h, v_w])
+                    with T.init():
+                        compute[v_b, v_c, v_d, v_h, v_w] = T.float16(0.0)
+                    compute[v_b, v_c, v_d, v_h, v_w] = compute[v_b, v_c, v_d, v_h, v_w] + T.Cast("float16", data_pad[v_b, v_dc, v_d + v_dd, v_h + v_dh, v_w + v_dw]) * T.Cast("float16", kernel_transform[v_c, v_dc, v_dd, v_dh, v_dw])
+    # fmt: on
+
+    mod = LegalizeOps()(Conv3dTranspose)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
 def test_conv2d_transpose_with_out_dtype():
     # fmt: off
     @tvm.script.ir_module

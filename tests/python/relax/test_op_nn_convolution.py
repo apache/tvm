@@ -41,6 +41,8 @@ def test_conv3d_op_correctness():
     x = relax.Var("x", R.Tensor((2, 3, 28, 28, 28), "float32"))
     w = relax.Var("w", R.Tensor((4, 3, 3, 3, 3), "float32"))
     assert relax.op.nn.conv3d(x, w).op == Op.get("relax.nn.conv3d")
+    wt = relax.Var("wt", R.Tensor((3, 4, 3, 3, 3), "float32"))
+    assert relax.op.nn.conv3d_transpose(x, wt).op == Op.get("relax.nn.conv3d_transpose")
 
 
 def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_sinfo: relax.StructInfo):
@@ -1607,6 +1609,78 @@ def test_conv2d_transpose_infer_struct_info_mixed_precision():
         relax.op.nn.conv2d_transpose(x1, w1, out_dtype="int32"),
         relax.TensorStructInfo((2, 4, 30, 30), "int32"),
     )
+
+
+def test_conv3d_transpose_infer_struct_info():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", R.Tensor((2, 3, 28, 28, 28), "float32"))
+    w0 = relax.Var("w", R.Tensor((3, 4, 3, 3, 3), "float32"))
+    _check_inference(
+        bb,
+        relax.op.nn.conv3d_transpose(x0, w0),
+        relax.TensorStructInfo((2, 4, 30, 30, 30), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.conv3d_transpose(x0, w0, padding=1),
+        relax.TensorStructInfo((2, 4, 28, 28, 28), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.conv3d_transpose(x0, w0, strides=2, output_padding=1),
+        relax.TensorStructInfo((2, 4, 58, 58, 58), "float32"),
+    )
+
+
+def test_conv3d_transpose_infer_struct_info_ndhwc_out_layout():
+    bb = relax.BlockBuilder()
+    x_ndhwc = relax.Var("x_nd", R.Tensor((2, 28, 28, 28, 3), "float32"))
+    x_ncdhw = relax.Var("x_nc", R.Tensor((2, 3, 28, 28, 28), "float32"))
+    w0 = relax.Var("w", R.Tensor((3, 4, 3, 3, 3), "float32"))
+    _check_inference(
+        bb,
+        relax.op.nn.conv3d_transpose(x_ndhwc, w0, data_layout="NDHWC"),
+        relax.TensorStructInfo((2, 30, 30, 30, 4), "float32"),
+    )
+    # Default data_layout is NCDHW; use NCDHW-shaped input when only out_layout is NDHWC.
+    _check_inference(
+        bb,
+        relax.op.nn.conv3d_transpose(x_ncdhw, w0, out_layout="NDHWC"),
+        relax.TensorStructInfo((2, 30, 30, 30, 4), "float32"),
+    )
+
+
+def test_conv3d_transpose_infer_struct_info_groups():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", R.Tensor((2, 128, 28, 28, 28), "float32"))
+    w0 = relax.Var("w", R.Tensor((128, 16, 3, 3, 3), "float32"))
+    _check_inference(
+        bb,
+        relax.op.nn.conv3d_transpose(x0, w0, groups=8),
+        relax.TensorStructInfo((2, 128, 30, 30, 30), "float32"),
+    )
+
+
+def test_conv3d_transpose_wrong_output_padding():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", R.Tensor((2, 3, 28, 28, 28), "float32"))
+    w0 = relax.Var("w", R.Tensor((3, 4, 3, 3, 3), "float32"))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.conv3d_transpose(x0, w0, strides=2, output_padding=2))
+    with pytest.raises(TVMError):
+        bb.normalize(
+            relax.op.nn.conv3d_transpose(
+                x0, w0, strides=(2, 2, 2), output_padding=(2, 2, 2)
+            )
+        )
+
+
+def test_conv3d_transpose_unequal_input_channel():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", R.Tensor((2, 3, 28, 28, 28), "float32"))
+    w0 = relax.Var("w", R.Tensor((4, 4, 3, 3, 3), "float32"))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.conv3d_transpose(x0, w0))
 
 
 def test_conv3d_infer_struct_info():
