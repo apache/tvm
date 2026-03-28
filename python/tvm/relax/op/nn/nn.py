@@ -582,7 +582,7 @@ def conv3d_transpose(
         Layout of the output. If not specified, it is the same as data_layout
 
     out_dtype : Optional[Union[str, DataType]]
-        Specifies the output data type for mixed precision conv3d.
+        Specifies the output data type for mixed precision conv3d_transpose.
 
     See Also
     --------

@@ -200,7 +200,7 @@ def _nn_conv2d_transpose(bb: BlockBuilder, call: Call) -> Expr:
         )
         return call
     dilation = call.attrs.dilation
-    if len(dilation) != 2 or dilation[0] != 1 or dilation[1] != 1:
+    if len(dilation) != 2 or any(d != 1 for d in dilation):
         logging.info(
             "TOPI conv2d_transpose does not support dilations other than 1, "
             "and thus cannot be legalized by TOPI"
@@ -236,7 +236,7 @@ def _nn_conv3d_transpose(bb: BlockBuilder, call: Call) -> Expr:
         )
         return call
     dilation = call.attrs.dilation
-    if len(dilation) != 3 or dilation[0] != 1 or dilation[1] != 1 or dilation[2] != 1:
+    if len(dilation) != 3 or any(d != 1 for d in dilation):
         logging.info(
             "TOPI conv3d_transpose does not support dilations other than 1, "
             "and thus cannot be legalized by TOPI"

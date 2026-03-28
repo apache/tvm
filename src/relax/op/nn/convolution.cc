@@ -888,10 +888,6 @@ StructInfo InferStructInfoConv2dTranspose(const Call& call, const BlockBuilder& 
                      << "Conv2dTranspose expects the output padding less than the strides, but the "
                         "output padding is"
                      << attrs->output_padding << " while the strides are" << attrs->strides);
-  } else if (!(attrs->output_padding[0] < attrs->strides[0] &&
-               attrs->output_padding[1] < attrs->strides[1])) {
-    // Todo(relax-team): Trust the input padding at this moment, and revisit
-    // this condition with runtime shape check
   }
 
   PrimExpr input_h = data_NCHW_shape[2];
@@ -1127,11 +1123,6 @@ StructInfo InferStructInfoConv3dTranspose(const Call& call, const BlockBuilder& 
                      << "Conv3dTranspose expects the output padding less than the strides, but the "
                         "output padding is"
                      << attrs->output_padding << " while the strides are" << attrs->strides);
-  } else if (!(attrs->output_padding[0] < attrs->strides[0] &&
-               attrs->output_padding[1] < attrs->strides[1] &&
-               attrs->output_padding[2] < attrs->strides[2])) {
-    // Todo(relax-team): Trust the input padding at this moment, and revisit
-    // this condition with runtime shape check
   }
 
   PrimExpr input_d = data_NCDHW_shape[2];
