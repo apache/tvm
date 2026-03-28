@@ -36,12 +36,12 @@ using tirx::FLowerIntrinsic;
 struct WebGPUWarpIntrinsic {
   const Op operator()(DataType t, const Op& orig_op) const {
     if (orig_op.same_as(builtin::tvm_warp_shuffle())) {
-      return Op::Get("tir.webgpu.subgroup_shuffle");
+      return Op::Get("tirx.webgpu.subgroup_shuffle");
     } else if (orig_op.same_as(builtin::tvm_warp_shuffle_up())) {
-      return Op::Get("tir.webgpu.subgroup_shuffle_up");
+      return Op::Get("tirx.webgpu.subgroup_shuffle_up");
     } else {
       TVM_FFI_ICHECK(orig_op.same_as(builtin::tvm_warp_shuffle_down()));
-      return Op::Get("tir.webgpu.subgroup_shuffle_down");
+      return Op::Get("tirx.webgpu.subgroup_shuffle_down");
     }
   }
 };
@@ -51,7 +51,8 @@ static PrimExpr DispatchWebGPUShuffle(const PrimExpr& e) {
   const CallNode* call = e.as<CallNode>();
   TVM_FFI_ICHECK(call != nullptr);
   TVM_FFI_ICHECK_EQ(call->args.size(), 5);  // mask, value, warp_id, width, warp_size
-  ffi::Array<PrimExpr> webgpu_args{{call->args[1], call->args[2]}};
+  PrimExpr lane_or_delta = Cast(DataType::UInt(32, call->args[2].dtype().lanes()), call->args[2]);
+  ffi::Array<PrimExpr> webgpu_args{{call->args[1], lane_or_delta}};
   return Call(call->dtype, T()(call->dtype, Downcast<Op>(call->op)), webgpu_args);
 }
 
@@ -137,34 +138,34 @@ TVM_REGISTER_OP("tirx.trunc")
 TVM_REGISTER_OP("tirx.erf").set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchFastErf);
 
 // warp-level primitives. Follows implementation in intrin_rule_metal.cc
-TVM_REGISTER_OP("tir.tvm_warp_shuffle")
+TVM_REGISTER_OP("tirx.tvm_warp_shuffle")
     .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic",
                                DispatchWebGPUShuffle<WebGPUWarpIntrinsic>);
 
-TVM_REGISTER_OP("tir.tvm_warp_shuffle_up")
+TVM_REGISTER_OP("tirx.tvm_warp_shuffle_up")
     .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic",
                                DispatchWebGPUShuffle<WebGPUWarpIntrinsic>);
 
-TVM_REGISTER_OP("tir.tvm_warp_shuffle_down")
+TVM_REGISTER_OP("tirx.tvm_warp_shuffle_down")
     .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic",
                                DispatchWebGPUShuffle<WebGPUWarpIntrinsic>);
 
 // Register low-level builtin ops.
-TVM_REGISTER_OP("tir.webgpu.subgroup_shuffle")
+TVM_REGISTER_OP("tirx.webgpu.subgroup_shuffle")
     .set_num_inputs(2)
     .add_argument("var", "Expr", "The variable to sync.")
     .add_argument("lane", "Expr", "The source thread id.")
     .set_attr<TGlobalSymbol>("TGlobalSymbol", "subgroupShuffle")
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
-TVM_REGISTER_OP("tir.webgpu.subgroup_shuffle_up")
+TVM_REGISTER_OP("tirx.webgpu.subgroup_shuffle_up")
     .set_num_inputs(2)
     .add_argument("var", "Expr", "The variable to sync.")
     .add_argument("delta", "Expr", "The source lane id offset to be added.")
     .set_attr<TGlobalSymbol>("TGlobalSymbol", "subgroupShuffleUp")
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
-TVM_REGISTER_OP("tir.webgpu.subgroup_shuffle_down")
+TVM_REGISTER_OP("tirx.webgpu.subgroup_shuffle_down")
     .set_num_inputs(2)
     .add_argument("var", "Expr", "The variable to sync.")
     .add_argument("delta", "Expr", "The source lane id offset to be subtracted.")

@@ -723,10 +723,6 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
   // Emit warp shuffle  calls.
   PrimExpr WarpShuffle(const Op& op, ffi::Optional<Buffer> mask_buffer, PrimExpr val,
                        PrimExpr delta_or_lane) {
-    // WebGPU's WGSL requires u32 for subgroupShuffle lane/delta arguments.
-    if (target_->kind->name == "webgpu") {
-      delta_or_lane = cast(DataType::UInt(32, delta_or_lane.dtype().lanes()), delta_or_lane);
-    }
     ffi::Array<PrimExpr> indices = {0};
     PrimExpr mask;
     if (mask_buffer.defined()) {

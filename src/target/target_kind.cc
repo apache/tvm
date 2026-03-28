@@ -428,16 +428,29 @@ TVM_REGISTER_TARGET_KIND("vulkan", kDLVulkan)
     .set_default_keys({"vulkan", "gpu"});
 
 /*!
- * \brief Update WebGPU target attributes based on subgroup support.
- * When supports_subgroups is true, set thread_warp_size to 32 so that
- * TIR lowering uses warp-level shuffle reductions instead of shared memory.
+ * \brief Update WebGPU target attributes for subgroup-enabled lowering.
+ * Runtime routing on the WebLLM side guarantees subgroup size == 32.
+ * Runtime routing on the WebLLM side guarantees
+ * maxComputeInvocationsPerWorkgroup >= 1024.
+ * This is intentionally constrained for the subgroup-enabled WASM variant.
+ * When supports_subgroups is true, canonicalize thread_warp_size to 32 so
+ * TIR lowering can emit subgroup shuffle reductions.
  */
 ffi::Map<ffi::String, ffi::Any> UpdateWebGPUAttrs(ffi::Map<ffi::String, ffi::Any> target) {
+  bool subgroups = false;
   if (target.count("supports_subgroups")) {
-    bool subgroups = Downcast<Bool>(target.at("supports_subgroups"));
-    if (subgroups) {
-      target.Set("thread_warp_size", int64_t(32));
-    }
+    subgroups = Downcast<Bool>(target.at("supports_subgroups"));
+  }
+
+  if (target.count("thread_warp_size")) {
+    int64_t thread_warp_size = Downcast<Integer>(target.at("thread_warp_size"))->value;
+    TVM_FFI_ICHECK(subgroups || thread_warp_size <= 1)
+        << "WebGPU target with thread_warp_size=" << thread_warp_size
+        << " requires supports_subgroups=true";
+  }
+
+  if (subgroups) {
+    target.Set("thread_warp_size", int64_t(32));
   }
   return target;
 }

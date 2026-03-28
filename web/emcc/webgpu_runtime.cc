@@ -36,12 +36,12 @@
 #include <iostream>
 #include <string>
 
-#include "3rdparty/tvm-ffi/src/ffi/extra/json_parser.cc"
-#include "3rdparty/tvm-ffi/src/ffi/extra/json_writer.cc"
 #include "../../src/runtime/file_utils.h"
 #include "../../src/runtime/metadata.h"
 #include "../../src/runtime/workspace_pool.h"
 #include "../../src/support/bytes_io.h"
+#include "3rdparty/tvm-ffi/src/ffi/extra/json_parser.cc"
+#include "3rdparty/tvm-ffi/src/ffi/extra/json_writer.cc"
 
 namespace tvm {
 namespace runtime {
