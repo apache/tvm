@@ -4054,6 +4054,60 @@ class GridSample(OnnxOpConverter):
         )
 
 
+class MatMulInteger(OnnxOpConverter):
+    """
+    Converts ONNX MatMulInteger (INT8/UINT8 quantized matrix multiply).
+
+    Computes: output = (A - a_zero_point) * (B - b_zero_point)
+    in int32 accumulation, per ONNX spec v10.
+
+    Zero-point shapes per spec:
+      a_zero_point: scalar | [M] (per-row) | [D1, D2, M, 1] (N-D per-row)
+      b_zero_point: scalar | [N] (per-col) | [D1, D2, 1, N] (N-D per-col)
+    """
+
+    @classmethod
+    def _impl_v10(cls, bb, inputs, attr, params):
+        a = inputs[0]
+        b = inputs[1]
+
+        # Optional zero points with default of None (treated as 0)
+        a_zero_point = inputs[2] if len(inputs) > 2 and inputs[2] is not None else None
+        b_zero_point = inputs[3] if len(inputs) > 3 and inputs[3] is not None else None
+
+        # Widen to int32 before any arithmetic to prevent overflow
+        a = relax.op.astype(a, "int32")
+        b = relax.op.astype(b, "int32")
+
+        if a_zero_point is not None:
+            a_zp = relax.op.astype(
+                a_zero_point, "int32"
+            )  # Ensure zero point is int32 for subtraction
+            a_zp = bb.normalize(a_zp)  # Normalize the expr so struct_info gets populated
+            a_zp_ndim = len(a_zp.struct_info.shape)
+
+            # Per-row case: [M] -> [M, 1] so it broadcasts over [M, K] row-wise
+            # N-D case: spec says shape is [D1, D2, M, 1], which already broadcasts correctly (no need to reshape)
+            if a_zp_ndim == 1:
+                a_zp = relax.op.expand_dims(a_zp, axis=-1)
+
+            a = relax.op.subtract(a, a_zp)
+
+        if b_zero_point is not None:
+            b_zp = relax.op.astype(b_zero_point, "int32")
+            b_zp = bb.normalize(b_zp)
+            b_zp_ndim = len(b_zp.struct_info.shape)
+
+            # Per-col case: [N] -> [1, N] so it broadcasts over [K, N] column-wise
+            # N-D case: [D1, D2, 1, N] already broadcasts correctly
+            if b_zp_ndim == 1:
+                b_zp = relax.op.expand_dims(b_zp, axis=0)
+
+            b = relax.op.subtract(b, b_zp)
+
+        return relax.op.matmul(a, b, out_dtype="int32")  # Output is int32 per ONNX spec
+
+
 def _get_convert_map():
     return {
         # defs/experimental
@@ -4129,7 +4183,7 @@ def _get_convert_map():
         "Cast": Cast,
         "Gemm": Gemm,
         "MatMul": MatMul,
-        # "MatMulInteger": MatMulInteger,
+        "MatMulInteger": MatMulInteger,
         # "MatMulInteger16": MatMulInteger16,
         "Reshape": Reshape,
         "Sigmoid": Sigmoid,

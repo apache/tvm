@@ -4423,6 +4423,176 @@ def test_if_nested():
     )
 
 
+# Helper that builds the ONNX graph for MatMulInteger so the tests don't repeat boilerplate code every time
+def _make_matmulinteger_model(A_shape, B_shape, A_dtype, B_dtype, a_zp_array=None, b_zp_array=None):
+    """Build a minimal single-node ONNX graph for MatMulInteger."""
+
+    def np_dtype_to_onnx(dt):
+        return {np.int8: TensorProto.INT8, np.uint8: TensorProto.UINT8}[dt]
+
+    A_info = helper.make_tensor_value_info("A", np_dtype_to_onnx(A_dtype), A_shape)
+    B_info = helper.make_tensor_value_info("B", np_dtype_to_onnx(B_dtype), B_shape)
+    graph_inputs = [A_info, B_info]
+    node_inputs = ["A", "B"]
+    initializers = []
+
+    def _add_zp(name, arr, dtype):
+        onnx_dtype = np_dtype_to_onnx(dtype)
+        shape = list(arr.shape)
+        initializers.append(helper.make_tensor(name, onnx_dtype, shape, arr.flatten().tolist()))
+        node_inputs.append(name)
+
+    if a_zp_array is not None:
+        _add_zp("a_zero_point", a_zp_array, A_dtype)
+    elif b_zp_array is not None:
+        node_inputs.append("")  # placeholder only needed if b_zp is present
+
+    if b_zp_array is not None:
+        _add_zp("b_zero_point", b_zp_array, B_dtype)
+
+    out_info = helper.make_tensor_value_info("output", TensorProto.INT32, None)
+    node = helper.make_node("MatMulInteger", inputs=node_inputs, outputs=["output"])
+    graph = helper.make_graph(
+        [node], "matmulinteger", graph_inputs, [out_info], initializer=initializers
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 10)])
+    model.ir_version = 8
+    return model
+
+
+@pytest.mark.parametrize(
+    "A_dtype,B_dtype,a_zp,b_zp",
+    [
+        (np.int8, np.int8, None, None),
+        (np.uint8, np.uint8, None, None),
+        (np.uint8, np.int8, None, None),
+        pytest.param(
+            np.int8,
+            np.uint8,
+            None,
+            None,
+            marks=pytest.mark.xfail(
+                reason="Some older ORT versions doesn't support mixed int8/uint8 dtype combination for MatMulInteger",
+                strict=False,  # not strict - may pass on newer ORT versions
+            ),
+        ),
+        (np.uint8, np.uint8, np.uint8(128), np.uint8(128)),
+        (np.int8, np.int8, np.int8(1), np.int8(2)),
+    ],
+)
+def test_matmulinteger(A_dtype, B_dtype, a_zp, b_zp):
+    """2-D matmul across all dtype combos and zero-point configurations."""
+    np.random.seed(0)
+    A = np.random.randint(-5, 5, (4, 8)).astype(A_dtype)
+    B = np.random.randint(-5, 5, (8, 6)).astype(B_dtype)
+    model = _make_matmulinteger_model(
+        [4, 8],
+        [8, 6],
+        A_dtype,
+        B_dtype,
+        a_zp_array=np.array(a_zp, dtype=A_dtype) if a_zp is not None else None,
+        b_zp_array=np.array(b_zp, dtype=B_dtype) if b_zp is not None else None,
+    )
+    check_correctness(model, inputs={"A": A, "B": B}, opset=10)
+
+
+@pytest.mark.parametrize(
+    "A_shape,B_shape,a_zp,b_zp",
+    [
+        ((2, 4, 8), (2, 8, 6), np.int8(1), np.int8(2)),  # 3-D batched
+        ((2, 3, 4, 8), (2, 3, 8, 6), np.int8(1), np.int8(2)),  # 4-D batched
+    ],
+)
+def test_matmulinteger_batched(A_shape, B_shape, a_zp, b_zp):
+    """Batched matmul — verifies the op generalizes beyond 2-D."""
+    np.random.seed(1)
+    A = np.random.randint(-5, 5, A_shape).astype(np.int8)
+    B = np.random.randint(-5, 5, B_shape).astype(np.int8)
+    model = _make_matmulinteger_model(
+        list(A_shape),
+        list(B_shape),
+        np.int8,
+        np.int8,
+        a_zp_array=np.array(a_zp, dtype=np.int8),
+        b_zp_array=np.array(b_zp, dtype=np.int8),
+    )
+    check_correctness(model, inputs={"A": A, "B": B}, opset=10)
+
+
+def test_matmulinteger_per_channel_zp():
+    """
+    1-D zero points: per-row for A ([M]) and per-col for B ([N]).
+    Exercises the expand_dims path in the converter.
+    Note: ORT CPU does not support per-row a_zero_point despite the ONNX spec
+    allowing it, so we verify TVM output against a NumPy reference instead.
+    """
+    np.random.seed(2)
+    A = np.random.randint(-5, 5, (4, 8)).astype(np.int8)
+    B = np.random.randint(-5, 5, (8, 6)).astype(np.int8)
+    a_zp = np.arange(4, dtype=np.int8)  # shape [M=4], per-row
+    b_zp = np.arange(6, dtype=np.int8)  # shape [N=6], per-col
+
+    # NumPy reference: mirrors the converter's expand_dims logic
+    expected = np.matmul(
+        A.astype(np.int32) - a_zp.astype(np.int32)[:, np.newaxis],
+        B.astype(np.int32) - b_zp.astype(np.int32)[np.newaxis, :],
+    ).astype(np.int32)
+
+    model = _make_matmulinteger_model(
+        [4, 8], [8, 6], np.int8, np.int8, a_zp_array=a_zp, b_zp_array=b_zp
+    )
+
+    # Run TVM only — ORT doesn't support per-row a_zero_point
+    tvm_model = from_onnx(model, opset=10, keep_params_in_input=True)
+    tvm_model = relax.transform.DecomposeOpsForInference()(tvm_model)
+    tvm_model = relax.transform.LegalizeOps()(tvm_model)
+    tvm_model, params = relax.frontend.detach_params(tvm_model)
+
+    with tvm.transform.PassContext(opt_level=3):
+        ex = tvm.compile(tvm_model, target="llvm")
+        vm = relax.VirtualMachine(ex, tvm.cpu())
+
+    input_list = [
+        {"A": A, "B": B}[k.name_hint] for k in tvm_model["main"].params if k.name_hint in {"A", "B"}
+    ]
+    if params:
+        input_list += params["main"]
+
+    vm.set_input("main", *input_list)
+    vm.invoke_stateful("main")
+    tvm_output = vm.get_outputs("main").numpy()
+
+    tvm.testing.assert_allclose(tvm_output, expected)
+
+
+@pytest.mark.xfail(
+    reason=(
+        "ORT doesn't support per-row a_zero_point of shape [M] "
+        "despite the ONNX spec explicitly allowing it. "
+        "See: matmul_integer.cc:63 IsScalarOr1ElementVector(a_zero_point)"
+    ),
+    strict=True,  # must fail, if ORT ever fixes this, the test will alert us
+)
+def test_matmulinteger_per_channel_zp_ort_limitation():
+    """
+    Documents that ORT CPU rejects per-row a_zero_point of shape [M].
+    Marked xfail because this is a valid ONNX spec case that ORT simply
+    hasn't implemented. If this test starts passing, ORT has fixed the
+    limitation and test_matmulinteger_per_channel_zp can be simplified
+    to use check_correctness instead of a manual TVM-only reference.
+    """
+    np.random.seed(2)
+    A = np.random.randint(-5, 5, (4, 8)).astype(np.int8)
+    B = np.random.randint(-5, 5, (8, 6)).astype(np.int8)
+    a_zp = np.arange(4, dtype=np.int8)  # shape [M=4], per-row
+    b_zp = np.arange(6, dtype=np.int8)  # shape [N=6], per-col
+
+    model = _make_matmulinteger_model(
+        [4, 8], [8, 6], np.int8, np.int8, a_zp_array=a_zp, b_zp_array=b_zp
+    )
+    check_correctness(model, inputs={"A": A, "B": B}, opset=10)
+
+
 @pytest.mark.parametrize(
     ("pooled_shape", "rois"),
     [
