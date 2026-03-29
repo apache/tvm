@@ -1223,7 +1223,11 @@ def test_conv_transpose(stride: int, dilation: int, pad: int, bias: bool, output
     def _verify_conv_transpose(input_shape, weight_shape):
         nd = len(weight_shape) - 2
         output_shape = [input_shape[0], weight_shape[0]] + [
-            (input_shape[i] - 1) * stride - 2 * pad + dilation * (weight_shape[i] - 1) + 1
+            (input_shape[i] - 1) * stride
+            - 2 * pad
+            + dilation * (weight_shape[i] - 1)
+            + output_pad
+            + 1
             for i in range(2, len(input_shape))
         ]
         bias_shape = [output_shape[1]]
@@ -1257,6 +1261,9 @@ def test_conv_transpose(stride: int, dilation: int, pad: int, bias: bool, output
     # ConvTranspose2D
     _verify_conv_transpose([3, 4, 32, 32], [4, 4, 3, 3])
     _verify_conv_transpose([3, 4, 32, 32], [4, 2, 3, 3])  # group=2
+    # ConvTranspose3D
+    _verify_conv_transpose([3, 4, 12, 12, 12], [4, 4, 3, 3, 3])
+    _verify_conv_transpose([3, 4, 12, 12, 12], [4, 2, 3, 3, 3])  # group=2
 
 
 def test_pow():
@@ -4584,6 +4591,52 @@ def test_matmulinteger_per_channel_zp_ort_limitation():
         [4, 8], [8, 6], np.int8, np.int8, a_zp_array=a_zp, b_zp_array=b_zp
     )
     check_correctness(model, inputs={"A": A, "B": B}, opset=10)
+
+
+@pytest.mark.parametrize(
+    ("pooled_shape", "rois"),
+    [
+        ((1, 1), np.array([[0.0, 1.0, 1.0, 6.0, 6.0], [0.0, 0.0, 0.0, 7.0, 7.0]], dtype="float32")),
+        (
+            (2, 3),
+            np.array([[0.0, 1.2, 0.5, 6.8, 7.0], [0.0, -1.0, 2.0, 3.5, 5.2]], dtype="float32"),
+        ),
+        (
+            (2, 2),
+            np.array(
+                [[0.0, 100.0, 100.0, 110.0, 110.0], [0.0, 1.0, 1.0, 6.0, 6.0]], dtype="float32"
+            ),
+        ),
+    ],
+)
+def test_max_roi_pool(pooled_shape, rois):
+    x_shape = [1, 4, 8, 8]
+    out_shape = [2, 4, pooled_shape[0], pooled_shape[1]]
+
+    node = helper.make_node(
+        "MaxRoiPool",
+        inputs=["X", "rois"],
+        outputs=["Y"],
+        pooled_shape=pooled_shape,
+        spatial_scale=1.0,
+    )
+
+    graph = helper.make_graph(
+        [node],
+        "max_roi_pool_test",
+        inputs=[
+            helper.make_tensor_value_info("X", TensorProto.FLOAT, x_shape),
+            helper.make_tensor_value_info("rois", TensorProto.FLOAT, [2, 5]),
+        ],
+        outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, out_shape)],
+    )
+
+    model = helper.make_model(graph, producer_name="max_roi_pool_test")
+    inputs = {
+        "X": rg.standard_normal(size=x_shape).astype("float32"),
+        "rois": rois,
+    }
+    check_correctness(model, inputs=inputs, opset=16, rtol=1e-5, atol=1e-5)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,128 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+/*!
+ * \file roi_pool.cc
+ * \brief ROI Pool operators.
+ */
+
+#include "roi_pool.h"
+
+#include <tvm/ffi/reflection/registry.h>
+
+#include <utility>
+
+namespace tvm {
+namespace relax {
+
+TVM_FFI_STATIC_INIT_BLOCK() { ROIPoolAttrs::RegisterReflection(); }
+
+Expr roi_pool(Expr data, Expr rois, ffi::Array<int64_t> pooled_size, double spatial_scale,
+              ffi::String layout) {
+  if (pooled_size.size() == 1) {
+    pooled_size.push_back(pooled_size[0]);
+  }
+  TVM_FFI_ICHECK_EQ(pooled_size.size(), 2)
+      << "The input pooled_size length is expected to be 2. However, the given pooled_size is "
+      << pooled_size;
+
+  auto attrs = ffi::make_object<ROIPoolAttrs>();
+  attrs->pooled_size = std::move(pooled_size);
+  attrs->spatial_scale = spatial_scale;
+  attrs->layout = layout;
+
+  static const Op& op = Op::Get("relax.vision.roi_pool");
+  return Call(op, {std::move(data), std::move(rois)}, Attrs(attrs), {});
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.vision.roi_pool", roi_pool);
+}
+
+StructInfo InferStructInfoROIPool(const Call& call, const BlockBuilder& ctx) {
+  if (call->args.size() != 2) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "ROIPool expects two arguments, while the given number of arguments is "
+                     << call->args.size());
+  }
+
+  const auto* data_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  const auto* rois_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[1]);
+  if (data_sinfo == nullptr) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "ROIPool expects the input data to be a Tensor, while the given data is "
+                     << call->args[0]->GetTypeKey());
+  }
+  if (rois_sinfo == nullptr) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "ROIPool expects the rois to be a Tensor, while the given rois is "
+                     << call->args[1]->GetTypeKey());
+  }
+  if (!data_sinfo->IsUnknownNdim() && data_sinfo->ndim != 4) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "ROIPool expects the input data to be 4-D, while the given data has ndim "
+                     << data_sinfo->ndim);
+  }
+  if (!rois_sinfo->IsUnknownNdim() && rois_sinfo->ndim != 2) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "ROIPool expects the rois tensor to be 2-D, while the given rois has ndim "
+                     << rois_sinfo->ndim);
+  }
+
+  const auto* attrs = call->attrs.as<ROIPoolAttrs>();
+  TVM_FFI_ICHECK(attrs != nullptr) << "Invalid ROIPool attrs";
+  if (attrs->layout != "NCHW") {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "ROIPool only supports NCHW layout, but got " << attrs->layout);
+  }
+
+  const auto* rois_shape = rois_sinfo->shape.as<ShapeExprNode>();
+  if (rois_shape != nullptr) {
+    const auto* last_dim = rois_shape->values[1].as<IntImmNode>();
+    if (last_dim != nullptr && last_dim->value != 5) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "ROIPool expects rois to have shape (num_roi, 5), but got last "
+                          "dimension "
+                       << last_dim->value);
+    }
+  }
+
+  if (data_sinfo->shape.as<ShapeExprNode>() == nullptr || rois_shape == nullptr) {
+    return TensorStructInfo(data_sinfo->dtype, 4, data_sinfo->vdevice);
+  }
+
+  ffi::Array<PrimExpr> data_shape = data_sinfo->shape.as<ShapeExprNode>()->values;
+  ffi::Array<PrimExpr> out_shape = {rois_shape->values[0], data_shape[1],
+                                    Integer(attrs->pooled_size[0]), Integer(attrs->pooled_size[1])};
+  return TensorStructInfo(ShapeExpr(out_shape), data_sinfo->dtype, data_sinfo->vdevice);
+}
+
+TVM_REGISTER_OP("relax.vision.roi_pool")
+    .set_attrs_type<ROIPoolAttrs>()
+    .set_num_inputs(2)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("rois", "Tensor",
+                  "The input rois with shape (num_roi, 5) in [batch_idx, x1, y1, x2, y2] format.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoROIPool)
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+    .set_attr<Bool>("FPurity", Bool(true));
+
+}  // namespace relax
+}  // namespace tvm

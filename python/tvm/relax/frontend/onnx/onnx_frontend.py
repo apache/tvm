@@ -1364,7 +1364,9 @@ class ConvTranspose(OnnxOpConverter):
             data_layout = "NCHW"
             kernel_layout = "IOHW"
         elif ndim == 5:
-            raise NotImplementedError("Relax ConvTranspose3d not supported yet")
+            op = relax.op.nn.conv3d_transpose
+            data_layout = "NCDHW"
+            kernel_layout = "IODHW"
         else:
             raise NotImplementedError("Ndim > 5 not supported for convolution.")
 
@@ -2515,6 +2517,28 @@ class RoiAlign(OnnxOpConverter):
     @classmethod
     def _impl_v16(cls, bb, inputs, attr, params):
         return cls._impl(bb, inputs, attr, params, b"half_pixel")
+
+
+class MaxRoiPool(OnnxOpConverter):
+    """Converts an onnx MaxRoiPool node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        if len(inputs) != 2:
+            raise ValueError("MaxRoiPool expects exactly 2 inputs")
+
+        pooled_shape = attr.get("pooled_shape")
+        if pooled_shape is None:
+            raise ValueError("MaxRoiPool requires pooled_shape attribute")
+
+        spatial_scale = attr.get("spatial_scale", 1.0)
+        return relax.op.vision.roi_pool(
+            inputs[0],
+            inputs[1],
+            pooled_size=tuple(pooled_shape),
+            spatial_scale=spatial_scale,
+            layout="NCHW",
+        )
 
 
 class Range(OnnxOpConverter):
@@ -4231,7 +4255,7 @@ def _get_convert_map():
         "OneHot": OneHot,
         "Unique": Unique,
         "NonZero": NonZero,
-        # "MaxRoiPool": MaxRoiPool,
+        "MaxRoiPool": MaxRoiPool,
         "RoiAlign": RoiAlign,
         "NonMaxSuppression": NonMaxSuppression,
         "AllClassNMS": AllClassNMS,

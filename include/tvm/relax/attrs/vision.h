@@ -73,6 +73,23 @@ struct ROIAlignAttrs : public AttrsNodeReflAdapter<ROIAlignAttrs> {
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ROIAlignAttrs", ROIAlignAttrs, BaseAttrsNode);
 };  // struct ROIAlignAttrs
 
+/*! \brief Attributes used in ROIPool operator */
+struct ROIPoolAttrs : public AttrsNodeReflAdapter<ROIPoolAttrs> {
+  ffi::Array<int64_t> pooled_size;
+  double spatial_scale;
+  ffi::String layout;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ROIPoolAttrs>()
+        .def_ro("pooled_size", &ROIPoolAttrs::pooled_size, "Output size of roi pool.")
+        .def_ro("spatial_scale", &ROIPoolAttrs::spatial_scale,
+                "Ratio of input feature map height (or width) to raw image height (or width).")
+        .def_ro("layout", &ROIPoolAttrs::layout, "Dimension ordering of the input data.");
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ROIPoolAttrs", ROIPoolAttrs, BaseAttrsNode);
+};  // struct ROIPoolAttrs
+
 /*! \brief Attributes used in GetValidCounts operator */
 struct GetValidCountsAttrs : public AttrsNodeReflAdapter<GetValidCountsAttrs> {
   double score_threshold;
@@ -131,7 +148,6 @@ struct NonMaximumSuppressionAttrs
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.NonMaximumSuppressionAttrs",
                                     NonMaximumSuppressionAttrs, BaseAttrsNode);
 };  // struct NonMaximumSuppressionAttrs
-
 
 /*! \brief Attributes for multibox_transform_loc (SSD / TFLite-style box decode). */
 struct MultiboxTransformLocAttrs : public AttrsNodeReflAdapter<MultiboxTransformLocAttrs> {

@@ -71,6 +71,11 @@ class Conv2DTransposeAttrs(Attrs):
     """Attributes for nn.conv2d_transpose"""
 
 
+@tvm_ffi.register_object("relax.attrs.Conv3DTransposeAttrs")
+class Conv3DTransposeAttrs(Attrs):
+    """Attributes for nn.conv3d_transpose"""
+
+
 @tvm_ffi.register_object("relax.attrs.Pool2DAttrs")
 class Pool2DAttrs(Attrs):
     """Attributes for nn.max_pool2d"""
@@ -259,6 +264,11 @@ class NonMaximumSuppressionAttrs(Attrs):
 @tvm_ffi.register_object("relax.attrs.ROIAlignAttrs")
 class ROIAlignAttrs(Attrs):
     """Attributes for vision.roi_align"""
+
+
+@tvm_ffi.register_object("relax.attrs.ROIPoolAttrs")
+class ROIPoolAttrs(Attrs):
+    """Attributes for vision.roi_pool"""
 
 
 @tvm_ffi.register_object("relax.attrs.MultiboxTransformLocAttrs")

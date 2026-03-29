@@ -95,6 +95,18 @@ Expr conv2d_transpose(Expr data, Expr weight, ffi::Array<int64_t> strides,
                       ffi::String kernel_layout, ffi::Optional<ffi::String> out_layout,
                       ffi::Optional<DataType> out_dtype);
 
+/*!
+ * \brief Three dimensional transposed convolution operator.
+ *
+ * This operator is intended to be the backward operator of conv3d. It can be used to calculate the
+ * gradient of the result of conv3d w.r.t. the input of conv3d.
+ */
+Expr conv3d_transpose(Expr data, Expr weight, ffi::Array<int64_t> strides,
+                      ffi::Array<int64_t> padding, ffi::Array<int64_t> output_padding,
+                      ffi::Array<int64_t> dilation, int groups, ffi::String data_layout,
+                      ffi::String kernel_layout, ffi::Optional<ffi::String> out_layout,
+                      ffi::Optional<DataType> out_dtype);
+
 }  // namespace relax
 }  // namespace tvm
 
