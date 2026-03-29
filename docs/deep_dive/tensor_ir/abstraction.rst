@@ -15,7 +15,7 @@
     specific language governing permissions and limitations
     under the License.
 
-.. _tirx-abstraction-basics:
+.. _tir-abstraction:
 
 Tensor Program Abstraction
 --------------------------
