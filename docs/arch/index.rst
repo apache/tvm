@@ -306,8 +306,9 @@ in the IRModule. Please refer to the :ref:`Relax Deep Dive <relax-deep-dive>` fo
 tvm/tirx
 --------
 
-``tirx`` contains the core IR definitions and lowering infrastructure for
-TensorIR. ``tirx::PrimFunc`` represents low-level tensor functions that can be
+``tirx`` is the renamed low-level portion of the former ``tir`` module.
+It contains the core IR definitions and lowering infrastructure for TensorIR.
+``tirx::PrimFunc`` represents low-level tensor functions that can be
 transformed by tirx passes.
 
 The tirx module includes:
@@ -315,24 +316,19 @@ The tirx module includes:
 - IR data structures (PrimFunc, Buffer, SBlock, expressions, statements).
 - Analysis passes in ``tirx/analysis``.
 - Transformation and lowering passes in ``tirx/transform``.
-- Hardware-aware layout abstractions (TileLayout, SwizzleLayout, ComposeLayout).
-- Operator dispatch framework for mapping high-level operators to hardware-specific
-  implementations.
-- Async pipeline primitives (MBarrier, TMABar, TCGen05Bar) for Hopper/Blackwell.
 
 tvm/s_tir
 ---------
 
-``s_tir`` (Schedulable TIR) contains schedule primitives and auto-tuning tools
-that operate on ``tirx::PrimFunc``:
+``s_tir`` (Schedulable TIR) is the renamed scheduling portion of the former
+``tir`` module. It contains schedule primitives and auto-tuning tools that
+operate on ``tirx::PrimFunc``:
 
 - Schedule primitives to control code generation (tiling, vectorization, thread
   binding) in ``s_tir/schedule``.
 - Builtin tensor intrinsics in ``s_tir/tensor_intrin``.
 - MetaSchedule for automated performance tuning.
 - DLight for pre-defined, high-performance schedules.
-
-``s_tir`` depends on ``tirx``; ``tirx`` does not depend on ``s_tir``.
 
 Please refer to the :ref:`TensorIR Deep Dive <tensor-ir-deep-dive>` for more details.
 

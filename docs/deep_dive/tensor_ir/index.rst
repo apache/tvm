@@ -22,16 +22,15 @@ TensorIR
 TensorIR is one of the core abstractions in the Apache TVM stack, used to
 represent and optimize primitive tensor functions.
 
-The TensorIR codebase is organized into two modules:
+The former ``tir`` module has been split into two modules:
 
-- **tirx** — Core IR definitions and lowering (PrimFunc, Buffer, SBlock,
-  expressions, statements, lowering passes).
-- **s_tir** (Schedulable TIR) — Schedule primitives, MetaSchedule, DLight, and
-  tensor intrinsics. These tools operate on tirx IR to apply performance
-  optimizations.
+- **tirx** — The renamed low-level portion: core IR definitions and lowering
+  (PrimFunc, Buffer, SBlock, expressions, statements, lowering passes).
+- **s_tir** (Schedulable TIR) — The renamed scheduling portion: schedule
+  primitives, MetaSchedule, DLight, and tensor intrinsics. These tools operate
+  on tirx IR to apply performance optimizations.
 
-In TVMScript, the recommended alias for new tirx code is
-``from tvm.script import tirx as Tx``. Existing code uses
+In TVMScript, both modules are accessed via
 ``from tvm.script import tirx as T``.
 
 .. toctree::
