@@ -1050,6 +1050,96 @@ def test_nms_e2e_index_remap():
     np.testing.assert_array_equal(ref_valid_box_count, np.array([[3]], dtype="int32"))
 
 
+def test_roi_pool_op_correctness():
+    x = relax.Var("x", R.Tensor((2, 3, 32, 32), "float32"))
+    rois = relax.Var("rois", R.Tensor((4, 5), "float32"))
+    assert relax.op.vision.roi_pool(x, rois, (7, 7), 1.0).op == Op.get("relax.vision.roi_pool")
+
+
+def test_roi_pool_infer_struct_info():
+    bb = relax.BlockBuilder()
+    x = relax.Var("x", R.Tensor((2, 3, 32, 32), "float32"))
+    rois = relax.Var("rois", R.Tensor((5, 5), "float32"))
+
+    _check_inference(
+        bb,
+        relax.op.vision.roi_pool(x, rois, (7, 5), 0.25),
+        relax.TensorStructInfo((5, 3, 7, 5), "float32"),
+    )
+
+
+def test_roi_pool_infer_struct_info_shape_var():
+    bb = relax.BlockBuilder()
+    n = tirx.Var("n", "int64")
+    c = tirx.Var("c", "int64")
+    h = tirx.Var("h", "int64")
+    w = tirx.Var("w", "int64")
+    num_roi = tirx.Var("num_roi", "int64")
+
+    x = relax.Var("x", R.Tensor((n, c, h, w), "float32"))
+    rois = relax.Var("rois", R.Tensor((num_roi, 5), "float32"))
+
+    _check_inference(
+        bb,
+        relax.op.vision.roi_pool(x, rois, (7, 7), 0.5),
+        relax.TensorStructInfo((num_roi, c, 7, 7), "float32"),
+    )
+
+
+def test_roi_pool_wrong_input_ndim():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", R.Tensor((2, 3, 32), "float32"))
+    x1 = relax.Var("x", R.Tensor((2, 3, 32, 32), "float32"))
+    rois0 = relax.Var("rois", R.Tensor((4,), "float32"))
+    rois1 = relax.Var("rois", R.Tensor((4, 5), "float32"))
+
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.vision.roi_pool(x0, rois1, (7, 7), 1.0))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.vision.roi_pool(x1, rois0, (7, 7), 1.0))
+
+
+def test_roi_pool_wrong_rois_last_dim():
+    bb = relax.BlockBuilder()
+    x = relax.Var("x", R.Tensor((2, 3, 32, 32), "float32"))
+    rois = relax.Var("rois", R.Tensor((4, 4), "float32"))
+
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.vision.roi_pool(x, rois, (7, 7), 1.0))
+
+
+def test_roi_pool_wrong_layout():
+    bb = relax.BlockBuilder()
+    x = relax.Var("x", R.Tensor((2, 3, 32, 32), "float32"))
+    rois = relax.Var("rois", R.Tensor((4, 5), "float32"))
+
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.vision.roi_pool(x, rois, (7, 7), 1.0, layout="NHWC"))
+
+
+def test_roi_pool_legalize():
+    @tvm.script.ir_module
+    class ROIPool:
+        @R.function
+        def main(
+            x: R.Tensor((1, 2, 8, 8), "float32"),
+            rois: R.Tensor((2, 5), "float32"),
+        ) -> R.Tensor((2, 2, 3, 2), "float32"):
+            gv: R.Tensor((2, 2, 3, 2), "float32") = R.vision.roi_pool(
+                x,
+                rois,
+                pooled_size=(3, 2),
+                spatial_scale=1.0,
+                layout="NCHW",
+            )
+            return gv
+
+    mod = LegalizeOps()(ROIPool)
+    assert "call_tir" in str(mod)
+    tvm.ir.assert_structural_equal(
+        mod["main"].ret_struct_info,
+        relax.TensorStructInfo((2, 2, 3, 2), "float32"),
+    )
 def test_all_class_non_max_suppression_infer_struct_info():
     bb = relax.BlockBuilder()
     batch_size, num_classes, num_boxes = 10, 8, 5
@@ -1201,12 +1291,9 @@ def test_multibox_transform_loc_op_correctness():
     cls = relax.Var("cls", R.Tensor((1, 5, 10), "float32"))
     loc = relax.Var("loc", R.Tensor((1, 40), "float32"))
     anc = relax.Var("anc", R.Tensor((1, 10, 4), "float32"))
-    assert (
-        relax.op.vision.multibox_transform_loc(
-            cls, loc, anc, False, 0.0, (1.0, 1.0, 1.0, 1.0), True
-        ).op
-        == Op.get("relax.vision.multibox_transform_loc")
-    )
+    assert relax.op.vision.multibox_transform_loc(
+        cls, loc, anc, False, 0.0, (1.0, 1.0, 1.0, 1.0), True
+    ).op == Op.get("relax.vision.multibox_transform_loc")
 
 
 def test_multibox_transform_loc_infer_struct_info():
