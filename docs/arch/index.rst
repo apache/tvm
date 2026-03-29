@@ -319,8 +319,8 @@ The tirx module includes:
 tvm/s_tir
 ---------
 
-``s_tir`` (Schedulable TIR) contains schedule primitives and auto-tuning
-tools that operate on ``tirx::PrimFunc`` (split from the former ``tir`` module):
+``s_tir`` (Schedulable TIR, split from the former ``tir`` module) contains
+schedule primitives and auto-tuning tools that operate on ``tirx::PrimFunc``:
 
 - Schedule primitives to control code generation (tiling, vectorization, thread
   binding) in ``s_tir/schedule``.
