@@ -17,7 +17,7 @@
 # ruff: noqa: E402
 
 """
-.. _tir-creation:
+.. _tirx-creation:
 
 TensorIR Creation
 -----------------

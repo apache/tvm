@@ -254,6 +254,6 @@ string are all false boolean flags.
   validated with `spvValidate`_.
 
 * ``TVM_VULKAN_DEBUG_SHADER_SAVEPATH`` - A path to a directory.  If
-  set to a non-empty string, the Vulkan codegen will save tirx, binary
+  set to a non-empty string, the Vulkan codegen will save TIR, binary
   SPIR-V, and disassembled SPIR-V shaders to this directory, to be
   used for debugging purposes.

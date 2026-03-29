@@ -20,4 +20,4 @@ tvm.tirx
 .. automodule:: tvm.tirx
    :members:
    :imported-members:
-   :exclude-members: PrimExpr, const, StmtSRef, SBlockScope, ScheduleState, Schedule, ScheduleError
+   :exclude-members: PrimExpr, const

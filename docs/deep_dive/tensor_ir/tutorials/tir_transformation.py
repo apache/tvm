@@ -19,10 +19,10 @@
 """
 .. _tirx-transform:
 
-Transformation
---------------
-In this section, we will get to the main ingredients of the compilation flows -
-transformations of primitive tensor functions.
+Transformation (s_tir)
+----------------------
+This section covers **s_tir** (Schedulable TIR) schedule primitives — the main
+tools for transforming primitive tensor functions for performance optimization.
 """
 
 ######################################################################
