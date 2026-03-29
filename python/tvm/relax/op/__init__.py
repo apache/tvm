@@ -163,6 +163,7 @@ from .vision import (
     multibox_transform_loc,
     non_max_suppression,
     roi_align,
+    roi_pool,
 )
 
 

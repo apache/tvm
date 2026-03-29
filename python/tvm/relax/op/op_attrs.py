@@ -266,6 +266,11 @@ class ROIAlignAttrs(Attrs):
     """Attributes for vision.roi_align"""
 
 
+@tvm_ffi.register_object("relax.attrs.ROIPoolAttrs")
+class ROIPoolAttrs(Attrs):
+    """Attributes for vision.roi_pool"""
+
+
 @tvm_ffi.register_object("relax.attrs.MultiboxTransformLocAttrs")
 class MultiboxTransformLocAttrs(Attrs):
     """Attributes for vision.multibox_transform_loc"""

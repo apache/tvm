@@ -150,6 +150,18 @@ def _non_max_suppression(block_builder: BlockBuilder, call: Call) -> Expr:
     )
 
 
+@register_legalize("relax.vision.roi_pool")
+def _roi_pool(bb: BlockBuilder, call: Call) -> Expr:
+    return bb.call_te(
+        topi.vision.roi_pool,
+        call.args[0],
+        call.args[1],
+        pooled_size=call.attrs.pooled_size,
+        spatial_scale=call.attrs.spatial_scale,
+        layout=call.attrs.layout,
+    )
+
+
 @register_legalize("relax.vision.multibox_transform_loc")
 def _multibox_transform_loc(bb: BlockBuilder, call: Call) -> Expr:
     variances = tuple(float(x) for x in call.attrs.variances)

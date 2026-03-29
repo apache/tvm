@@ -4423,5 +4423,51 @@ def test_if_nested():
     )
 
 
+@pytest.mark.parametrize(
+    ("pooled_shape", "rois"),
+    [
+        ((1, 1), np.array([[0.0, 1.0, 1.0, 6.0, 6.0], [0.0, 0.0, 0.0, 7.0, 7.0]], dtype="float32")),
+        (
+            (2, 3),
+            np.array([[0.0, 1.2, 0.5, 6.8, 7.0], [0.0, -1.0, 2.0, 3.5, 5.2]], dtype="float32"),
+        ),
+        (
+            (2, 2),
+            np.array(
+                [[0.0, 100.0, 100.0, 110.0, 110.0], [0.0, 1.0, 1.0, 6.0, 6.0]], dtype="float32"
+            ),
+        ),
+    ],
+)
+def test_max_roi_pool(pooled_shape, rois):
+    x_shape = [1, 4, 8, 8]
+    out_shape = [2, 4, pooled_shape[0], pooled_shape[1]]
+
+    node = helper.make_node(
+        "MaxRoiPool",
+        inputs=["X", "rois"],
+        outputs=["Y"],
+        pooled_shape=pooled_shape,
+        spatial_scale=1.0,
+    )
+
+    graph = helper.make_graph(
+        [node],
+        "max_roi_pool_test",
+        inputs=[
+            helper.make_tensor_value_info("X", TensorProto.FLOAT, x_shape),
+            helper.make_tensor_value_info("rois", TensorProto.FLOAT, [2, 5]),
+        ],
+        outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, out_shape)],
+    )
+
+    model = helper.make_model(graph, producer_name="max_roi_pool_test")
+    inputs = {
+        "X": rg.standard_normal(size=x_shape).astype("float32"),
+        "rois": rois,
+    }
+    check_correctness(model, inputs=inputs, opset=16, rtol=1e-5, atol=1e-5)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
