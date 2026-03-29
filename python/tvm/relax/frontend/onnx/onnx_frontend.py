@@ -4060,19 +4060,25 @@ class MatMulInteger(OnnxOpConverter):
                 a_zero_point, "int32"
             )  # Ensure zero point is int32 for subtraction
             a_zp = bb.normalize(a_zp)  # Normalize the expr so struct_info gets populated
-            a_zp_shape = [dim.value for dim in a_zp.struct_info.shape]
+            a_zp_ndim = len(a_zp.struct_info.shape)
 
             # Per-row case: [M] -> [M, 1] so it broadcasts over [M, K] row-wise
             # N-D case: spec says shape is [D1, D2, M, 1], which already broadcasts correctly (no need to reshape)
-            if len(a_zp_shape) == 1:
-                a_zp = relax.op.reshape(a_zp, [a_zp_shape[0], 1])
+            if a_zp_ndim == 1:
+                a_zp = relax.op.expand_dims(a_zp, axis=-1)
 
             a = relax.op.subtract(a, a_zp)
 
-        # Per-column zero point handling is analogous to per-row, but we reshape to [1, N] for broadcasting over columns of [K, N]
-        # N-D case: spec says shape is [D1, D2, 1, N], which already broadcasts correctly (no need to reshape)
         if b_zero_point is not None:
             b_zp = relax.op.astype(b_zero_point, "int32")
+            b_zp = bb.normalize(b_zp)
+            b_zp_ndim = len(b_zp.struct_info.shape)
+
+            # Per-col case: [N] -> [1, N] so it broadcasts over [K, N] column-wise
+            # N-D case: [D1, D2, 1, N] already broadcasts correctly
+            if b_zp_ndim == 1:
+                b_zp = relax.op.expand_dims(b_zp, axis=0)
+
             b = relax.op.subtract(b, b_zp)
 
         return relax.op.matmul(a, b, out_dtype="int32")  # Output is int32 per ONNX spec
