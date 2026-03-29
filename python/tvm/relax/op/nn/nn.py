@@ -293,6 +293,10 @@ def conv3d(
     out_dtype : Optional[Union[str, DataType]]
         Specifies the output data type for mixed precision conv2d.
 
+    See Also
+    --------
+    conv3d_transpose : Transposed 3D convolution; paired layouts default to ``NCDHW`` / ``IODHW``.
+
     Returns
     -------
     result : relax.Expr
@@ -498,6 +502,108 @@ def conv2d_transpose(
         output_padding = (output_padding, output_padding)
 
     return _ffi_api.conv2d_transpose(  # type: ignore
+        data,
+        weight,
+        strides,
+        padding,
+        output_padding,
+        dilation,
+        groups,
+        data_layout,
+        kernel_layout,
+        out_layout,
+        out_dtype,
+    )
+
+
+def conv3d_transpose(
+    data: Expr,
+    weight: Expr,
+    strides: int | tuple[int, int, int] = (1, 1, 1),
+    padding: int | tuple[int, ...] = (0, 0, 0),
+    output_padding: int | tuple[int, int, int] = (0, 0, 0),
+    dilation: int | tuple[int, int, int] = (1, 1, 1),
+    groups: int = 1,
+    data_layout: str = "NCDHW",
+    kernel_layout: str = "IODHW",
+    out_layout: str | None = None,
+    out_dtype: str | DataType | None = None,
+) -> Expr:
+    r"""Three dimensional transposed convolution operator.
+
+    This operator is intended to be the gradient operator of conv3d. That means, if
+
+    `out = conv3d(data, weight, strides, padding, dilation)`,
+
+    The gradient w.r.t. data can be calculated as follows:
+
+    `data_grad = conv3d_transpose(out_grad, weight, strides, padding, output_padding, dilation)`,
+
+    where `output_padding` is a parameter used to determine the output shape.
+
+    In the default case, where `data_layout == "NCDHW"` and `kernel_layout == "IODHW"`, `data` has
+    shape `(N, in_channel, in_d, in_h, in_w)`, `weight` has shape
+    `(in_channel, out_channel, weight_d, weight_h, weight_w)`, with `in_channel % groups == 0`.
+    The output shape is `(N, out_channel * groups, out_d, out_h, out_w)`.
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input data to the operator.
+
+    weight : relax.Expr
+        The weight expressions.
+
+    strides : Union[int, Tuple[int, int, int]]
+        The strides of convolution. It is required to have length either 1 or 3.
+
+    padding : Union[int, Tuple[int, ...]]
+        The padding of convolution on both sides of inputs before convolution.
+        It is required to have length either 1, 3 or 6.
+
+    output_padding : Union[int, Tuple[int, ...]], optional
+        Used to disambiguate the output shape.
+
+    dilation : Union[int, Tuple[int, int, int]]
+        Specifies the dilation rate to be used for dilated convolution.
+        It is required to have length either 1 or 3.
+
+    groups : int
+        Number of groups to split the input into for grouped convolution.
+        The number of input and output channels should be divisible by the number of groups.
+
+    data_layout : str
+        Layout of the input.
+
+    kernel_layout : str
+        Layout of the weight.
+
+    out_layout : Optional[str]
+        Layout of the output. If not specified, it is the same as data_layout
+
+    out_dtype : Optional[Union[str, DataType]]
+        Specifies the output data type for mixed precision conv3d_transpose.
+
+    See Also
+    --------
+    conv3d : Forward 3D convolution (default ``OIDHW`` weights vs. ``IODHW`` here).
+    conv2d_transpose : 2D analogue; legalization supports the same TOPI subset (canonical layout, dilation 1).
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    if isinstance(strides, int):
+        strides = (strides, strides, strides)
+    if isinstance(dilation, int):
+        dilation = (dilation, dilation, dilation)
+    if isinstance(padding, int):
+        padding = (padding, padding, padding, padding, padding, padding)
+    if isinstance(output_padding, int):
+        output_padding = (output_padding, output_padding, output_padding)
+
+    return _ffi_api.conv3d_transpose(  # type: ignore
         data,
         weight,
         strides,
