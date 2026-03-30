@@ -146,14 +146,7 @@ class BasePyModule:
             except Exception as error:
                 print(f"Warning: Failed to compile one or more TIR functions: {error}")
 
-        relax_mod = tvm.IRModule(
-            {
-                gv: func
-                for gv, func in self.ir_mod.functions_items()
-                if isinstance(func, relax.Function)
-            }
-        )
-        if relax_mod:
+        if self.relax_func_names:
             try:
                 exec_mod = tvm.compile(self.ir_mod, target=self.target)
                 self.relax_vm = relax.VirtualMachine(exec_mod, self.device)

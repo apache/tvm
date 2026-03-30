@@ -54,6 +54,8 @@
 #include "3rdparty/tvm-ffi/src/ffi/error.cc"
 #include "3rdparty/tvm-ffi/src/ffi/extra/env_c_api.cc"
 #include "3rdparty/tvm-ffi/src/ffi/extra/env_context.cc"
+#include "3rdparty/tvm-ffi/src/ffi/extra/json_parser.cc"
+#include "3rdparty/tvm-ffi/src/ffi/extra/json_writer.cc"
 #include "3rdparty/tvm-ffi/src/ffi/extra/library_module.cc"
 #include "3rdparty/tvm-ffi/src/ffi/extra/library_module_system_lib.cc"
 #include "3rdparty/tvm-ffi/src/ffi/extra/module.cc"

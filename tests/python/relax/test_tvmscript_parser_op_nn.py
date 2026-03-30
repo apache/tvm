@@ -108,6 +108,44 @@ def test_conv2d_transpose():
     _check(foo, bb.get()["foo"])
 
 
+def test_conv3d():
+    @R.function
+    def foo(
+        x: R.Tensor((2, 3, 8, 8, 8), "float16"), w: R.Tensor((6, 3, 3, 3, 3), "float16")
+    ) -> R.Tensor((2, 6, 6, 6, 6), "float16"):
+        gv: R.Tensor((2, 6, 6, 6, 6), "float16") = R.nn.conv3d(x, w, out_dtype="float16")
+        return gv
+
+    x = relax.Var("x", R.Tensor([2, 3, 8, 8, 8], "float16"))
+    w = relax.Var("w", R.Tensor([6, 3, 3, 3, 3], "float16"))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", [x, w]):
+        gv = bb.emit(relax.op.nn.conv3d(x, w, out_dtype="float16"))
+        bb.emit_func_output(gv)
+
+    _check(foo, bb.get()["foo"])
+
+
+def test_conv3d_transpose():
+    @R.function
+    def foo(
+        x: R.Tensor((2, 3, 8, 8, 8), "float16"), w: R.Tensor((3, 6, 3, 3, 3), "float16")
+    ) -> R.Tensor((2, 6, 10, 10, 10), "float16"):
+        gv: R.Tensor((2, 6, 10, 10, 10), "float16") = R.nn.conv3d_transpose(
+            x, w, out_dtype="float16"
+        )
+        return gv
+
+    x = relax.Var("x", R.Tensor([2, 3, 8, 8, 8], "float16"))
+    w = relax.Var("w", R.Tensor([3, 6, 3, 3, 3], "float16"))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", [x, w]):
+        gv = bb.emit(relax.op.nn.conv3d_transpose(x, w, out_dtype="float16"))
+        bb.emit_func_output(gv)
+
+    _check(foo, bb.get()["foo"])
+
+
 def test_max_pool2d():
     @R.function
     def foo(x: R.Tensor((1, 1, 32, 32), dtype="float32")) -> R.Tensor(

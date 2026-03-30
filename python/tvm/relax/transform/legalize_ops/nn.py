@@ -200,7 +200,7 @@ def _nn_conv2d_transpose(bb: BlockBuilder, call: Call) -> Expr:
         )
         return call
     dilation = call.attrs.dilation
-    if len(dilation) != 2 or dilation[0] != 1 or dilation[1] != 1:
+    if len(dilation) != 2 or any(d != 1 for d in dilation):
         logging.info(
             "TOPI conv2d_transpose does not support dilations other than 1, "
             "and thus cannot be legalized by TOPI"
@@ -217,6 +217,42 @@ def _nn_conv2d_transpose(bb: BlockBuilder, call: Call) -> Expr:
         output_padding=call.attrs.output_padding,
         groups=call.attrs.groups,
         primfunc_name_hint="conv2d_transpose",
+    )
+
+
+@register_legalize("relax.nn.conv3d_transpose")
+def _nn_conv3d_transpose(bb: BlockBuilder, call: Call) -> Expr:
+    # Keep policy in sync with _nn_conv2d_transpose: only lower when TOPI supports the layout/dilation.
+    if call.attrs.out_layout != call.attrs.data_layout:
+        logging.info(
+            "TOPI conv3d_transpose does not support different input-output "
+            "layouts, and thus cannot be legalized by TOPI"
+        )
+        return call
+    if call.attrs.data_layout != "NCDHW" or call.attrs.kernel_layout != "IODHW":
+        logging.info(
+            "TOPI conv3d_transpose does not support input layout other than NCDHW, "
+            "and kernel layout other than IODHW, so cannot be legalized by TOPI"
+        )
+        return call
+    dilation = call.attrs.dilation
+    if len(dilation) != 3 or any(d != 1 for d in dilation):
+        logging.info(
+            "TOPI conv3d_transpose does not support dilations other than 1, "
+            "and thus cannot be legalized by TOPI"
+        )
+        return call
+
+    return bb.call_te(
+        topi.nn.group_conv3d_transpose_ncdhw,
+        call.args[0],
+        call.args[1],
+        strides=call.attrs.strides,
+        padding=call.attrs.padding,
+        out_dtype=call.struct_info.dtype,
+        output_padding=call.attrs.output_padding,
+        groups=call.attrs.groups,
+        primfunc_name_hint="conv3d_transpose",
     )
 
 

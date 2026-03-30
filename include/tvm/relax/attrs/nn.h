@@ -267,6 +267,58 @@ struct Conv2DTransposeAttrs : public AttrsNodeReflAdapter<Conv2DTransposeAttrs> 
                                     BaseAttrsNode);
 };  // struct Conv2DTransposeAttrs
 
+/*! \brief Attributes used in Conv3dTranspose operator */
+struct Conv3DTransposeAttrs : public AttrsNodeReflAdapter<Conv3DTransposeAttrs> {
+  ffi::Array<int64_t> strides;
+  ffi::Array<int64_t> padding;
+  ffi::Array<int64_t> output_padding;
+  ffi::Array<int64_t> dilation;
+  int groups;
+  ffi::String data_layout;
+  ffi::String kernel_layout;
+  ffi::String out_layout;
+  DataType out_dtype;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<Conv3DTransposeAttrs>()
+        .def_ro("strides", &Conv3DTransposeAttrs::strides,
+                "Specifies the strides of the convolution.")
+        .def_ro("padding", &Conv3DTransposeAttrs::padding,
+                "If padding is non-zero, then the input is implicitly zero-padded"
+                "Padding support both symmetric and asymmetric as"
+                "one int : same padding used on all sides"
+                "three int : back/bottom/right will use same padding as front/top/left"
+                "six int : padding width in the order of (front, top, left, back, bottom, right)")
+        .def_ro("output_padding", &Conv3DTransposeAttrs::output_padding,
+                "Used to disambiguate the output shape.")
+        .def_ro("dilation", &Conv3DTransposeAttrs::dilation,
+                "Specifies the dilation rate to use for dilated convolution.")
+        .def_ro("groups", &Conv3DTransposeAttrs::groups,
+                "Number of groups to split the input into for grouped convolution. The number of "
+                "input and "
+                "output channels should be divisible by the number of groups.")
+        .def_ro("data_layout", &Conv3DTransposeAttrs::data_layout,
+                "Dimension ordering of input data. Can be 'NCDHW', 'NDHWC', etc."
+                "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
+                "dimensions respectively. Convolution is applied on the 'D', 'H', and"
+                "'W' dimensions.")
+        .def_ro("kernel_layout", &Conv3DTransposeAttrs::kernel_layout,
+                "Dimension ordering of weight. Can be 'IODHW', etc."
+                "'I', 'O', 'D', 'H', 'W' stands for input_channel, output_channel, depth, height, and "
+                "width"
+                "dimensions respectively.")
+        .def_ro("out_layout", &Conv3DTransposeAttrs::out_layout,
+                "Dimension ordering of output. Can be 'NCDHW', 'NDHWC', etc."
+                "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
+                "dimensions respectively. Default to be same as input layout.")
+        .def_ro("out_dtype", &Conv3DTransposeAttrs::out_dtype,
+                "Output data type, set to explicit type under mixed precision setting");
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Conv3DTransposeAttrs", Conv3DTransposeAttrs,
+                                    BaseAttrsNode);
+};  // struct Conv3DTransposeAttrs
+
 /*! \brief Attributes used in max_pool1d and avg_pool1d operator */
 struct Pool1DAttrs : public AttrsNodeReflAdapter<Pool1DAttrs> {
   ffi::Array<int64_t> pool_size;

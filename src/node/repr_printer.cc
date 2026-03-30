@@ -22,10 +22,14 @@
  * \file node/repr_printer.cc
  */
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/access_path.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/node/cast.h>
 #include <tvm/node/repr_printer.h>
 #include <tvm/runtime/device_api.h>
+
+#include <sstream>
+#include <vector>
 
 #include "../support/str_escape.h"
 
@@ -117,14 +121,66 @@ void Dump(const runtime::ObjectRef& n) { std::cerr << n << "\n"; }
 
 void Dump(const runtime::Object* n) { Dump(runtime::GetRef<runtime::ObjectRef>(n)); }
 
+namespace {
+/*!
+ * \brief Format an AccessStep as a concise string fragment.
+ *
+ * For map keys, uses ffi.ReprPrint which dispatches to __ffi_repr__.
+ */
+void FormatAccessStep(std::ostringstream& os, const ffi::reflection::AccessStep& step) {
+  using ffi::reflection::AccessKind;
+  static const ffi::Function repr_fn = ffi::Function::GetGlobal("ffi.ReprPrint").value();
+  switch (step->kind) {
+    case AccessKind::kAttr:
+      os << "." << step->key.cast<ffi::String>();
+      break;
+    case AccessKind::kArrayItem:
+      os << "[" << step->key.cast<int64_t>() << "]";
+      break;
+    case AccessKind::kMapItem:
+      os << "[" << repr_fn(step->key).cast<ffi::String>() << "]";
+      break;
+    case AccessKind::kAttrMissing:
+      os << "." << step->key.cast<ffi::String>() << "?";
+      break;
+    case AccessKind::kArrayItemMissing:
+      os << "[" << step->key.cast<int64_t>() << "]?";
+      break;
+    case AccessKind::kMapItemMissing:
+      os << "[" << repr_fn(step->key).cast<ffi::String>() << "]?";
+      break;
+  }
+}
+
+/*!
+ * \brief Format an AccessPath as "<root>.field[idx]".
+ */
+ffi::String FormatAccessPath(const ffi::reflection::AccessPath& path) {
+  std::vector<ffi::reflection::AccessStep> steps;
+  const ffi::reflection::AccessPathObj* cur = path.get();
+  while (cur->step.defined()) {
+    steps.push_back(cur->step.value());
+    cur = static_cast<const ffi::reflection::AccessPathObj*>(cur->parent.get());
+  }
+  std::ostringstream os;
+  os << "<root>";
+  for (auto it = steps.rbegin(); it != steps.rend(); ++it) {
+    FormatAccessStep(os, *it);
+  }
+  return os.str();
+}
+}  // namespace
+
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<ffi::reflection::AccessPathObj>([](const ObjectRef& node, ReprPrinter* p) {
-      p->stream << Downcast<ffi::reflection::AccessPath>(node);
+      p->stream << FormatAccessPath(Downcast<ffi::reflection::AccessPath>(node));
     });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<ffi::reflection::AccessStepObj>([](const ObjectRef& node, ReprPrinter* p) {
-      p->stream << Downcast<ffi::reflection::AccessStep>(node);
+      std::ostringstream os;
+      FormatAccessStep(os, Downcast<ffi::reflection::AccessStep>(node));
+      p->stream << os.str();
     });
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -134,5 +190,19 @@ TVM_FFI_STATIC_INIT_BLOCK() {
     os << obj;
     return os.str();
   });
+  // Register __ffi_repr__ for AccessPath/AccessStep so that ffi.ReprPrint
+  // uses the concise "<root>.field[idx]" format instead of the dataclass repr.
+  refl::TypeAttrDef<ffi::reflection::AccessPathObj>().def(
+      refl::type_attr::kRepr,
+      [](ffi::reflection::AccessPath path, ffi::Function) -> ffi::String {
+        return FormatAccessPath(path);
+      });
+  refl::TypeAttrDef<ffi::reflection::AccessStepObj>().def(
+      refl::type_attr::kRepr,
+      [](ffi::reflection::AccessStep step, ffi::Function) -> ffi::String {
+        std::ostringstream os;
+        FormatAccessStep(os, step);
+        return os.str();
+      });
 }
 }  // namespace tvm
