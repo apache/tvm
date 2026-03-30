@@ -698,9 +698,7 @@ class Unsqueeze(OnnxOpConverter):
             )
             if constant_axes == [0]:
                 return relax.ShapeExpr([data.value])
-            raise NotImplementedError(
-                "Unsqueeze with symbolic scalar inputs only supports axis 0."
-            )
+            raise NotImplementedError("Unsqueeze with symbolic scalar inputs only supports axis 0.")
         if isinstance(data, relax.Constant) and isinstance(axes, relax.Constant):
             constant_axes = _normalize_constant_axes(
                 list(map(int, axes.data.numpy().tolist())),
@@ -737,7 +735,9 @@ class Unsqueeze(OnnxOpConverter):
         data_shape = bb.normalize(relax.op.shape_of(data))
         data_shape_tensor = bb.normalize(relax.op.shape_to_tensor(data_shape))
         output_shape_tensor = _build_unsqueezed_shape_tensor(bb, data_shape_tensor, axes, data_ndim)
-        output_shape = _tensor_to_shape_expr(bb, output_shape_tensor, data_ndim + axes_len, "unsqueeze_dim")
+        output_shape = _tensor_to_shape_expr(
+            bb, output_shape_tensor, data_ndim + axes_len, "unsqueeze_dim"
+        )
         return relax.op.reshape(data, output_shape)
 
 
@@ -2036,9 +2036,7 @@ def _build_squeezed_shape_tensor(
     remove_mask = bb.normalize(
         relax.op.sum(relax.op.astype(relax.op.equal(positions, axes), "int64"), axis=1)
     )
-    keep_mask = bb.normalize(
-        relax.op.equal(remove_mask, relax.const(0, "int64"))
-    )
+    keep_mask = bb.normalize(relax.op.equal(remove_mask, relax.const(0, "int64")))
     keep_indices = bb.normalize(relax.op.nonzero(keep_mask))
     num_keep_dims = tirx.Var("squeeze_num_keep_dims", "int64")
     keep_indices = bb.match_cast(keep_indices, relax.TensorStructInfo([1, num_keep_dims], "int64"))
@@ -2047,7 +2045,7 @@ def _build_squeezed_shape_tensor(
 
 
 class Slice(OnnxOpConverter):
-    """Converts an onnx Splice node into an equivalent Relax expression."""
+    """Converts an onnx Slice node into an equivalent Relax expression."""
 
     @classmethod
     def _impl_v13(cls, bb, inputs, attr, params):
@@ -2091,6 +2089,12 @@ class Slice(OnnxOpConverter):
                     )
             else:
                 steps = [1] * len(axes)
+            if any(
+                (isinstance(step, int) and step == 0)
+                or (isinstance(step, tirx.IntImm) and int(step) == 0)
+                for step in steps
+            ):
+                raise ValueError("Slice step values must be non-zero.")
             if isinstance(data, relax.ShapeExpr):
                 shape_data = list(data)
                 assert all(len(i) == 1 for i in [starts, ends, steps])
@@ -2113,7 +2117,9 @@ class Slice(OnnxOpConverter):
 
         data_ndim = _get_known_tensor_rank(data)
         if data_ndim is None:
-            raise ValueError("Slice with dynamic parameters requires a statically known input rank.")
+            raise ValueError(
+                "Slice with dynamic parameters requires a statically known input rank."
+            )
 
         data_expr = data
         if isinstance(data, relax.ShapeExpr):
@@ -2157,6 +2163,8 @@ class Slice(OnnxOpConverter):
                     f"Slice expects steps and starts to have the same length, but got "
                     f"{steps_len} and {axes_len}."
                 )
+            if isinstance(steps_tensor, relax.Constant) and _np.any(steps_tensor.data.numpy() == 0):
+                raise ValueError("Slice step values must be non-zero.")
 
         axes_tensor = bb.normalize(
             relax.op.where(
@@ -2170,7 +2178,9 @@ class Slice(OnnxOpConverter):
         data_shape_tensor = bb.normalize(relax.op.shape_to_tensor(data_shape))
         full_starts = relax.const(_np.zeros((data_ndim,), dtype="int64"), "int64")
         full_steps = relax.const(_np.ones((data_ndim,), dtype="int64"), "int64")
-        full_starts = bb.normalize(relax.op.scatter_elements(full_starts, axes_tensor, starts_tensor))
+        full_starts = bb.normalize(
+            relax.op.scatter_elements(full_starts, axes_tensor, starts_tensor)
+        )
         full_ends = bb.normalize(
             relax.op.scatter_elements(data_shape_tensor, axes_tensor, ends_tensor)
         )
@@ -2691,9 +2701,7 @@ class AffineGrid(OnnxOpConverter):
         align_corners = attr.get("align_corners", 0)
 
         if align_corners != 1:
-            raise NotImplementedError(
-                "AffineGrid with align_corners=0 is not yet supported in TVM"
-            )
+            raise NotImplementedError("AffineGrid with align_corners=0 is not yet supported in TVM")
 
         # Extract size values
         if isinstance(size, relax.Constant):

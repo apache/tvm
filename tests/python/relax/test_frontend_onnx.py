@@ -964,6 +964,22 @@ def test_unsqueeze_dynamic_axes_rank_validation():
         from_onnx(model, opset=13, keep_params_in_input=True)
 
 
+def test_unsqueeze_duplicate_axes_validation():
+    unsqueeze_node = helper.make_node("Unsqueeze", ["a", "axes"], ["b"])
+
+    graph = helper.make_graph(
+        [unsqueeze_node],
+        "unsqueeze_duplicate_axes_validation",
+        inputs=[helper.make_tensor_value_info("a", TensorProto.FLOAT, [32, 32])],
+        initializer=[helper.make_tensor("axes", TensorProto.INT64, [2], vals=[0, 0])],
+        outputs=[helper.make_tensor_value_info("b", TensorProto.FLOAT, [1, 1, 32, 32])],
+    )
+
+    model = helper.make_model(graph, producer_name="unsqueeze_duplicate_axes_validation_test")
+    with pytest.raises(ValueError, match="axes must be unique"):
+        from_onnx(model, opset=13)
+
+
 def test_unsqueeze_v1():
     # https://github.com/onnx/onnx/blob/main/docs/Changelog.md#Unsqueeze-1
     unsqueeze_node = helper.make_node("Unsqueeze", ["a"], ["b"], axes=[0, 2, 3])
@@ -2456,8 +2472,10 @@ def test_slice_dynamic_inputs_ir():
 
     model = helper.make_model(graph, producer_name="slice_dynamic_inputs_ir_test")
     tvm_model = from_onnx(model, opset=13, keep_params_in_input=True)
+    call_ops = collect_relax_call_ops(tvm_model["main"])
 
-    assert "relax.dynamic_strided_slice" in collect_relax_call_ops(tvm_model["main"])
+    assert "relax.dynamic_strided_slice" in call_ops
+    assert "relax.strided_slice" not in call_ops
 
 
 def test_slice_dynamic_inputs_length_validation():
@@ -2476,11 +2494,30 @@ def test_slice_dynamic_inputs_length_validation():
         outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [3, 10, 5])],
     )
 
-    model = helper.make_model(
-        graph, producer_name="slice_dynamic_inputs_length_validation_test"
-    )
+    model = helper.make_model(graph, producer_name="slice_dynamic_inputs_length_validation_test")
     with pytest.raises(ValueError, match="starts and ends to have the same length"):
         from_onnx(model, opset=13, keep_params_in_input=True)
+
+
+def test_slice_zero_step_validation():
+    slice_node = helper.make_node("Slice", ["x", "starts", "ends", "axes", "steps"], ["y"])
+
+    graph = helper.make_graph(
+        [slice_node],
+        "slice_zero_step_validation",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, [20, 10, 5])],
+        initializer=[
+            helper.make_tensor("starts", TensorProto.INT64, [2], vals=[0, 0]),
+            helper.make_tensor("ends", TensorProto.INT64, [2], vals=[3, 10]),
+            helper.make_tensor("axes", TensorProto.INT64, [2], vals=[0, 1]),
+            helper.make_tensor("steps", TensorProto.INT64, [2], vals=[1, 0]),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [3, 10, 5])],
+    )
+
+    model = helper.make_model(graph, producer_name="slice_zero_step_validation_test")
+    with pytest.raises(ValueError, match="step values must be non-zero"):
+        from_onnx(model, opset=13)
 
 
 def test_slice_dynamic_shape():
