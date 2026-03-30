@@ -225,6 +225,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         ss << ref;
         return ss.str();
       });
+  refl::TypeAttrDef<GlobalVarNode>().def(
+      refl::type_attr::kRepr, [](GlobalVar gvar, ffi::Function) -> ffi::String {
+        return "I.GlobalVar(\"" + std::string(gvar->name_hint) + "\")";
+      });
 }
 
 }  // namespace tvm

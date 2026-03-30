@@ -153,6 +153,8 @@ class BlockBuilder(Object):
         mod = bb.get()
     """
 
+    __slots__ = ("__dict__",)
+
     _stack = []
 
     @staticmethod

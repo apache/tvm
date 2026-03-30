@@ -44,12 +44,7 @@ class RXPlaceholderOpNode : public te::PlaceholderOpNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<RXPlaceholderOpNode>()
-        .def_ro("name", &RXPlaceholderOpNode::name)
-        .def_ro("tag", &RXPlaceholderOpNode::tag)
-        .def_ro("attrs", &RXPlaceholderOpNode::attrs)
-        .def_ro("value", &RXPlaceholderOpNode::value)
-        .def_ro("shape", &RXPlaceholderOpNode::shape)
-        .def_ro("dtype", &RXPlaceholderOpNode::dtype);
+        .def_ro("value", &RXPlaceholderOpNode::value);
   }
 
   // FFI system configuration for structural equality and hashing
