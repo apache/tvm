@@ -3579,6 +3579,23 @@ def test_optional_without_input_requires_type_attr():
         from_onnx(model, opset=18, keep_params_in_input=True)
 
 
+def test_empty_optional_graph_output_raises():
+    tensor_type = helper.make_tensor_type_proto(TensorProto.FLOAT, [2, 3])
+    optional_type = helper.make_optional_type_proto(tensor_type)
+    optional_node = helper.make_node("Optional", [], ["optional"], type=tensor_type)
+    graph = helper.make_graph(
+        [optional_node],
+        "test_empty_optional_graph_output_raises",
+        inputs=[],
+        outputs=[helper.make_value_info("optional", optional_type)],
+    )
+    model = helper.make_model(graph, producer_name="test_empty_optional_graph_output_raises")
+    model.opset_import[0].version = 18
+
+    with pytest.raises(ValueError, match="Empty optional graph outputs are not supported"):
+        from_onnx(model, opset=18, keep_params_in_input=True)
+
+
 def test_optional_has_element_requires_one_input():
     has_element_node = helper.make_node("OptionalHasElement", [], ["output"])
     graph = helper.make_graph(

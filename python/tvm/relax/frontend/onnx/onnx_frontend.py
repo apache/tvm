@@ -4431,7 +4431,18 @@ class ONNXGraphImporter:
                 self._check_for_unsupported_ops(graph)
                 self._construct_nodes(graph)
 
-                outputs = [self._nodes[self._parse_value_proto(i)] for i in graph.output]
+                # now return the outputs
+                output_names = [self._parse_value_proto(output) for output in graph.output]
+                outputs = []
+                for output_name in output_names:
+                    output_value = self._nodes[output_name]
+                    if _is_empty_optional(output_value):
+                        raise ValueError(
+                            "ONNX graph output "
+                            f"{output_name} is an empty optional. Empty optional graph outputs "
+                            "are not supported by the Relax ONNX frontend."
+                        )
+                    outputs.append(output_value)
                 outputs = outputs[0] if len(outputs) == 1 else relax.Tuple(outputs)
 
                 if has_if:
@@ -4630,8 +4641,6 @@ class ONNXGraphImporter:
                 raise err
 
             if op_name in return_tuple_ops:
-                outputs_num = 1
-            elif _is_empty_optional(op):
                 outputs_num = 1
             elif not isinstance(op, relax.Tuple):
                 if isinstance(op.struct_info, relax.TupleStructInfo):
