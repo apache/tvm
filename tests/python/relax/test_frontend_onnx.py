@@ -197,6 +197,65 @@ def check_correctness(
             _check_output(tvm_out, ort_out)
 
 
+def run_in_tvm(
+    model: ModelProto,
+    inputs: dict[str, np.ndarray] | None = None,
+    ir_version: int = 8,
+    opset: int = 14,
+):
+    if ir_version is not None:
+        model.ir_version = ir_version
+    if opset is not None:
+        for opset_import in model.opset_import:
+            if opset_import.domain in ["", "ai.onnx"]:
+                opset_import.version = opset
+                break
+
+    inputs = generate_random_inputs(model, inputs)
+    tvm_model = from_onnx(model, opset=opset, keep_params_in_input=True)
+    tvm_model = relax.transform.DecomposeOpsForInference()(tvm_model)
+    tvm_model = relax.transform.LegalizeOps()(tvm_model)
+    tvm_model, params = relax.frontend.detach_params(tvm_model)
+
+    with tvm.transform.PassContext(opt_level=3):
+        ex = tvm.compile(tvm_model, target="llvm")
+        vm = relax.VirtualMachine(ex, tvm.cpu())
+
+    input_list = [
+        inputs[key.name_hint] for key in tvm_model["main"].params if key.name_hint in inputs
+    ]
+    if params:
+        input_list += params["main"]
+
+    vm.set_input("main", *input_list)
+    vm.invoke_stateful("main")
+    return vm.get_outputs("main")
+
+
+def collect_relax_call_ops(func: relax.Function) -> list[str]:
+    op_names = []
+
+    def fvisit(expr):
+        if isinstance(expr, relax.Call) and isinstance(expr.op, tvm.ir.Op):
+            op_names.append(expr.op.name)
+
+    relax.analysis.post_order_visit(func.body, fvisit)
+    return op_names
+
+
+def collect_scalar_constants(func: relax.Function) -> list[bool | int | float]:
+    values = []
+
+    def fvisit(expr):
+        if isinstance(expr, relax.Constant):
+            value = expr.data.numpy()
+            if value.shape == ():
+                values.append(value.item())
+
+    relax.analysis.post_order_visit(func.body, fvisit)
+    return values
+
+
 @pytest.mark.parametrize(
     "input_names, expected_names",
     [
@@ -372,6 +431,101 @@ def test_matmul(dynamic):
             "a": np.random.normal(size=[32, 48]).astype("float32"),
         }
     check_correctness(model, inputs)
+
+
+@pytest.mark.parametrize(
+    ("a_dtype", "b_dtype", "a_shape", "b_shape"),
+    [
+        (np.int16, np.int16, [2, 3], [3, 4]),
+        (np.uint16, np.uint16, [2, 3], [3, 4]),
+        (np.int16, np.uint16, [2, 1, 3, 5], [1, 2, 5, 4]),
+    ],
+)
+def test_matmulinteger16(a_dtype, b_dtype, a_shape, b_shape):
+    a = np.arange(np.prod(a_shape), dtype=np.int64).reshape(a_shape)
+    b = np.arange(np.prod(b_shape), dtype=np.int64).reshape(b_shape)
+    if np.issubdtype(a_dtype, np.signedinteger):
+        a -= a.size // 2
+    if np.issubdtype(b_dtype, np.signedinteger):
+        b -= b.size // 2
+    a = a.astype(a_dtype)
+    b = b.astype(b_dtype)
+
+    out_dtype = np.uint32 if a_dtype == np.uint16 and b_dtype == np.uint16 else np.int32
+    expected = np.matmul(a.astype(out_dtype), b.astype(out_dtype))
+
+    node = helper.make_node("MatMulInteger16", ["a", "b"], ["y"], domain="com.microsoft")
+    graph = helper.make_graph(
+        [node],
+        "matmulinteger16_test",
+        inputs=[
+            helper.make_tensor_value_info("a", helper.np_dtype_to_tensor_dtype(a.dtype), a_shape),
+            helper.make_tensor_value_info("b", helper.np_dtype_to_tensor_dtype(b.dtype), b_shape),
+        ],
+        outputs=[
+            helper.make_tensor_value_info(
+                "y", helper.np_dtype_to_tensor_dtype(np.dtype(out_dtype)), expected.shape
+            )
+        ],
+    )
+    model = helper.make_model(
+        graph,
+        producer_name="matmulinteger16_test",
+        opset_imports=[helper.make_opsetid("", 18), helper.make_opsetid("com.microsoft", 1)],
+    )
+    model.ir_version = 11
+
+    tvm_output = run_in_tvm(model, inputs={"a": a, "b": b}, ir_version=11, opset=18)
+    assert isinstance(tvm_output, tvm.runtime.Tensor)
+    assert tvm_output.numpy().dtype == out_dtype
+    tvm.testing.assert_allclose(tvm_output.numpy(), expected)
+
+
+def test_matmulinteger16_ir():
+    node = helper.make_node("MatMulInteger16", ["a", "b"], ["y"], domain="com.microsoft")
+    graph = helper.make_graph(
+        [node],
+        "matmulinteger16_ir_test",
+        inputs=[
+            helper.make_tensor_value_info("a", TensorProto.UINT16, [2, 3]),
+            helper.make_tensor_value_info("b", TensorProto.UINT16, [3, 4]),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.UINT32, [2, 4])],
+    )
+    model = helper.make_model(
+        graph,
+        producer_name="matmulinteger16_ir_test",
+        opset_imports=[helper.make_opsetid("", 18), helper.make_opsetid("com.microsoft", 1)],
+    )
+    model.ir_version = 11
+
+    tvm_model = from_onnx(model, opset=18, keep_params_in_input=True)
+    call_ops = collect_relax_call_ops(tvm_model["main"])
+    assert call_ops.count("relax.astype") == 2
+    assert "relax.matmul" in call_ops
+    assert tvm_model["main"].ret_struct_info.dtype == "uint32"
+
+
+def test_matmulinteger16_invalid_dtype_raises():
+    node = helper.make_node("MatMulInteger16", ["a", "b"], ["y"], domain="com.microsoft")
+    graph = helper.make_graph(
+        [node],
+        "matmulinteger16_invalid_dtype_test",
+        inputs=[
+            helper.make_tensor_value_info("a", TensorProto.INT8, [2, 3]),
+            helper.make_tensor_value_info("b", TensorProto.UINT16, [3, 4]),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.INT32, [2, 4])],
+    )
+    model = helper.make_model(
+        graph,
+        producer_name="matmulinteger16_invalid_dtype_test",
+        opset_imports=[helper.make_opsetid("", 18), helper.make_opsetid("com.microsoft", 1)],
+    )
+    model.ir_version = 11
+
+    with pytest.raises(ValueError, match="input A"):
+        from_onnx(model, opset=18, keep_params_in_input=True)
 
 
 def test_concat():
@@ -3176,6 +3330,21 @@ def make_constant_node(name: str, data_type: int, dims: list[int], vals: list[in
     )
 
 
+def make_optional_tensor_value_info(name: str, elem_type: int, shape: list[int]):
+    return helper.make_value_info(
+        name, helper.make_optional_type_proto(helper.make_tensor_type_proto(elem_type, shape))
+    )
+
+
+def make_optional_sequence_value_info(name: str, elem_type: int, shape: list[int]):
+    return helper.make_value_info(
+        name,
+        helper.make_optional_type_proto(
+            helper.make_sequence_type_proto(helper.make_tensor_type_proto(elem_type, shape))
+        ),
+    )
+
+
 def test_sequence_construct():
     node, graph_inputs = construct_sequence(input_shape=[32, 32], num_tensors=2)
     graph = helper.make_graph(
@@ -3285,6 +3454,180 @@ def test_sequence_at():
     )
     model = helper.make_model(graph, producer_name="test_sequence_at")
     check_correctness(model)
+
+
+def test_optional_get_element_tensor():
+    x_shape = [2, 3]
+    optional_node = helper.make_node("Optional", ["x"], ["optional"])
+    get_element_node = helper.make_node("OptionalGetElement", ["optional"], ["output"])
+    graph = helper.make_graph(
+        [optional_node, get_element_node],
+        "test_optional_get_element_tensor",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, x_shape)],
+        outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, x_shape)],
+        value_info=[make_optional_tensor_value_info("optional", TensorProto.FLOAT, x_shape)],
+    )
+    model = helper.make_model(graph, producer_name="test_optional_get_element_tensor")
+    check_correctness(model, opset=18, ir_version=11)
+
+
+def test_optional_has_element_tensor():
+    x_shape = [2, 3]
+    optional_node = helper.make_node("Optional", ["x"], ["optional"])
+    has_element_node = helper.make_node("OptionalHasElement", ["optional"], ["output"])
+    graph = helper.make_graph(
+        [optional_node, has_element_node],
+        "test_optional_has_element_tensor",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, x_shape)],
+        outputs=[helper.make_tensor_value_info("output", TensorProto.BOOL, [])],
+        value_info=[make_optional_tensor_value_info("optional", TensorProto.FLOAT, x_shape)],
+    )
+    model = helper.make_model(graph, producer_name="test_optional_has_element_tensor")
+    check_correctness(model, opset=18, ir_version=11)
+
+
+def test_optional_has_element_empty():
+    x_shape = [2, 3]
+    tensor_type = helper.make_tensor_type_proto(TensorProto.FLOAT, x_shape)
+    optional_type = helper.make_optional_type_proto(tensor_type)
+    optional_node = helper.make_node("Optional", [], ["optional"], type=tensor_type)
+    has_element_node = helper.make_node("OptionalHasElement", ["optional"], ["output"])
+    graph = helper.make_graph(
+        [optional_node, has_element_node],
+        "test_optional_has_element_empty",
+        inputs=[],
+        outputs=[helper.make_tensor_value_info("output", TensorProto.BOOL, [])],
+        value_info=[helper.make_value_info("optional", optional_type)],
+    )
+    model = helper.make_model(graph, producer_name="test_optional_has_element_empty")
+    check_correctness(model, opset=18, ir_version=11)
+
+
+def test_optional_has_element_empty_ir():
+    x_shape = [2, 3]
+    tensor_type = helper.make_tensor_type_proto(TensorProto.FLOAT, x_shape)
+    optional_type = helper.make_optional_type_proto(tensor_type)
+    optional_node = helper.make_node("Optional", [], ["optional"], type=tensor_type)
+    has_element_node = helper.make_node("OptionalHasElement", ["optional"], ["output"])
+    graph = helper.make_graph(
+        [optional_node, has_element_node],
+        "test_optional_has_element_empty_ir",
+        inputs=[],
+        outputs=[helper.make_tensor_value_info("output", TensorProto.BOOL, [])],
+        value_info=[helper.make_value_info("optional", optional_type)],
+    )
+    model = helper.make_model(graph, producer_name="test_optional_has_element_empty_ir")
+    model.ir_version = 11
+    model.opset_import[0].version = 18
+    tvm_model = from_onnx(model, opset=18, keep_params_in_input=True)
+
+    assert collect_relax_call_ops(tvm_model["main"]) == []
+    assert False in collect_scalar_constants(tvm_model["main"])
+
+
+def test_optional_get_element_tensor_ir():
+    x_shape = [2, 3]
+    optional_node = helper.make_node("Optional", ["x"], ["optional"])
+    get_element_node = helper.make_node("OptionalGetElement", ["optional"], ["output"])
+    graph = helper.make_graph(
+        [optional_node, get_element_node],
+        "test_optional_get_element_tensor_ir",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, x_shape)],
+        outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, x_shape)],
+        value_info=[make_optional_tensor_value_info("optional", TensorProto.FLOAT, x_shape)],
+    )
+    model = helper.make_model(graph, producer_name="test_optional_get_element_tensor_ir")
+    model.ir_version = 11
+    model.opset_import[0].version = 18
+    tvm_model = from_onnx(model, opset=18, keep_params_in_input=True)
+
+    assert collect_relax_call_ops(tvm_model["main"]) == []
+    assert tvm_model["main"].ret_struct_info.dtype == "float32"
+
+
+def test_optional_get_element_sequence():
+    seq_node, graph_inputs = construct_sequence(input_shape=[32, 32], num_tensors=4)
+    index = make_constant_node("index", TensorProto.INT64, (), [1])
+    optional_node = helper.make_node("Optional", ["sequence"], ["optional"])
+    get_element_node = helper.make_node("OptionalGetElement", ["optional"], ["unwrapped"])
+    sequence_at_node = helper.make_node("SequenceAt", ["unwrapped", "index"], ["output"])
+    graph = helper.make_graph(
+        [index, seq_node, optional_node, get_element_node, sequence_at_node],
+        "test_optional_get_element_sequence",
+        inputs=graph_inputs,
+        outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, [32, 32])],
+        value_info=[make_optional_sequence_value_info("optional", TensorProto.FLOAT, [32, 32])],
+    )
+    model = helper.make_model(graph, producer_name="test_optional_get_element_sequence")
+    check_correctness(model, opset=18, ir_version=11)
+
+
+def test_optional_without_input_requires_type_attr():
+    tensor_type = helper.make_tensor_type_proto(TensorProto.FLOAT, [2, 3])
+    optional_type = helper.make_optional_type_proto(tensor_type)
+    optional_node = helper.make_node("Optional", [], ["optional"])
+    graph = helper.make_graph(
+        [optional_node],
+        "test_optional_without_input_requires_type_attr",
+        inputs=[],
+        outputs=[helper.make_value_info("optional", optional_type)],
+    )
+    model = helper.make_model(graph, producer_name="test_optional_without_input_requires_type_attr")
+    model.opset_import[0].version = 18
+
+    with pytest.raises(ValueError, match="type attribute"):
+        from_onnx(model, opset=18, keep_params_in_input=True)
+
+
+def test_empty_optional_graph_output_raises():
+    tensor_type = helper.make_tensor_type_proto(TensorProto.FLOAT, [2, 3])
+    optional_type = helper.make_optional_type_proto(tensor_type)
+    optional_node = helper.make_node("Optional", [], ["optional"], type=tensor_type)
+    graph = helper.make_graph(
+        [optional_node],
+        "test_empty_optional_graph_output_raises",
+        inputs=[],
+        outputs=[helper.make_value_info("optional", optional_type)],
+    )
+    model = helper.make_model(graph, producer_name="test_empty_optional_graph_output_raises")
+    model.opset_import[0].version = 18
+
+    with pytest.raises(ValueError, match="Empty optional graph outputs are not supported"):
+        from_onnx(model, opset=18, keep_params_in_input=True)
+
+
+def test_optional_has_element_requires_one_input():
+    has_element_node = helper.make_node("OptionalHasElement", [], ["output"])
+    graph = helper.make_graph(
+        [has_element_node],
+        "test_optional_has_element_requires_one_input",
+        inputs=[],
+        outputs=[helper.make_tensor_value_info("output", TensorProto.BOOL, [])],
+    )
+    model = helper.make_model(graph, producer_name="test_optional_has_element_requires_one_input")
+    model.opset_import[0].version = 18
+
+    with pytest.raises(ValueError, match="expects one input"):
+        from_onnx(model, opset=18, keep_params_in_input=True)
+
+
+def test_optional_get_element_empty_raises():
+    x_shape = [2, 3]
+    tensor_type = helper.make_tensor_type_proto(TensorProto.FLOAT, x_shape)
+    optional_type = helper.make_optional_type_proto(tensor_type)
+    optional_node = helper.make_node("Optional", [], ["optional"], type=tensor_type)
+    get_element_node = helper.make_node("OptionalGetElement", ["optional"], ["output"])
+    graph = helper.make_graph(
+        [optional_node, get_element_node],
+        "test_optional_get_element_empty_raises",
+        inputs=[],
+        outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, x_shape)],
+        value_info=[helper.make_value_info("optional", optional_type)],
+    )
+    model = helper.make_model(graph, producer_name="test_optional_get_element_empty_raises")
+    model.opset_import[0].version = 18
+    with pytest.raises(ValueError, match="empty optional"):
+        from_onnx(model, opset=18, keep_params_in_input=True)
 
 
 def test_symbolic_shape_deduction():
