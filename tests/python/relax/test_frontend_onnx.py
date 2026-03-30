@@ -197,6 +197,17 @@ def check_correctness(
             _check_output(tvm_out, ort_out)
 
 
+def collect_relax_call_ops(relax_func: relax.Function) -> set[str]:
+    call_ops = set()
+
+    def _visit(expr):
+        if isinstance(expr, relax.Call) and isinstance(expr.op, tvm.ir.Op):
+            call_ops.add(expr.op.name)
+
+    relax.analysis.post_order_visit(relax_func.body, _visit)
+    return call_ops
+
+
 @pytest.mark.parametrize(
     "input_names, expected_names",
     [
@@ -902,6 +913,22 @@ def test_unsqueeze():
 
     model = helper.make_model(graph, producer_name="unsqueeze_test")
     check_correctness(model)
+
+
+def test_unsqueeze_scalar_input():
+    unsqueeze_node = helper.make_node("Unsqueeze", ["a", "axes"], ["b"])
+
+    graph = helper.make_graph(
+        [unsqueeze_node],
+        "unsqueeze_scalar_input",
+        inputs=[helper.make_tensor_value_info("a", TensorProto.FLOAT, [])],
+        initializer=[helper.make_tensor("axes", TensorProto.INT64, [2], vals=[0, 1])],
+        outputs=[helper.make_tensor_value_info("b", TensorProto.FLOAT, [1, 1])],
+    )
+
+    model = helper.make_model(graph, producer_name="unsqueeze_scalar_input_test")
+    inputs = {"a": np.array(3.0, dtype="float32")}
+    check_correctness(model, inputs, opset=13)
 
 
 def test_unsqueeze_dynamic_axes():

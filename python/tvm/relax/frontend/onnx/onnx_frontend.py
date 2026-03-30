@@ -707,11 +707,15 @@ class Unsqueeze(OnnxOpConverter):
             )
             constant_axes = sorted(constant_axes)
             expanded = data.data.numpy()
-            if len(expanded.shape) == 0:
-                expanded = [expanded]
-                constant_axes = [axis - 1 for axis in constant_axes if axis != 0]
-            for axis in constant_axes:
-                expanded = _np.expand_dims(expanded, axis=axis)
+            output_rank = expanded.ndim + len(constant_axes)
+            new_shape = []
+            input_dims_iter = iter(expanded.shape)
+            for i in range(output_rank):
+                if i in constant_axes:
+                    new_shape.append(1)
+                else:
+                    new_shape.append(next(input_dims_iter))
+            expanded = expanded.reshape(new_shape)
             return relax.const(expanded, data.struct_info.dtype)
 
         if isinstance(axes, relax.Constant):
