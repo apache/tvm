@@ -2526,6 +2526,28 @@ def test_slice_dynamic_inputs_length_validation():
         from_onnx(model, opset=13, keep_params_in_input=True)
 
 
+def test_slice_dynamic_shape_expr_input_validation():
+    shape_node = helper.make_node("Shape", ["x"], ["y"])
+    slice_node = helper.make_node("Slice", ["y", "starts", "ends", "axes", "steps"], ["z"])
+
+    graph = helper.make_graph(
+        [shape_node, slice_node],
+        "slice_dynamic_shape_expr_input_validation",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, [20, 10, 5]),
+            helper.make_tensor_value_info("starts", TensorProto.INT64, [1]),
+            helper.make_tensor_value_info("ends", TensorProto.INT64, [1]),
+            helper.make_tensor_value_info("axes", TensorProto.INT64, [1]),
+            helper.make_tensor_value_info("steps", TensorProto.INT64, [1]),
+        ],
+        outputs=[helper.make_tensor_value_info("z", TensorProto.INT64, [1])],
+    )
+
+    model = helper.make_model(graph, producer_name="slice_dynamic_shape_expr_input_validation_test")
+    with pytest.raises(ValueError, match="does not support ShapeExpr input"):
+        from_onnx(model, opset=13, keep_params_in_input=True)
+
+
 def test_slice_zero_step_validation():
     slice_node = helper.make_node("Slice", ["x", "starts", "ends", "axes", "steps"], ["y"])
 

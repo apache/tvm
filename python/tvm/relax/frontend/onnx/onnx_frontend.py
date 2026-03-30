@@ -1920,10 +1920,10 @@ def _get_known_tensor_length(expr: relax.Expr | None) -> int | None:
     struct_info = expr.struct_info
     if not isinstance(struct_info, relax.TensorStructInfo):
         return None
-    if struct_info.ndim != -1 and struct_info.ndim != 1:
-        raise ValueError(f"Expected a 1-D tensor, but got ndim={struct_info.ndim}.")
-    if struct_info.ndim != 1:
+    if struct_info.ndim == -1:
         return None
+    if struct_info.ndim != 1:
+        raise ValueError(f"Expected a 1-D tensor, but got ndim={struct_info.ndim}.")
     if isinstance(struct_info.shape, relax.ShapeExpr):
         dim = struct_info.shape.values[0]
         if isinstance(dim, tirx.IntImm):
@@ -1938,10 +1938,11 @@ def _normalize_constant_axes(axes: list[int], rank: int, op_name: str) -> list[i
 
     normalized_axes = []
     for axis in axes:
+        original_axis = axis
         if axis < 0:
             axis += rank
         if axis < 0 or axis >= rank:
-            raise ValueError(f"{op_name} axis {axis} is out of range for rank {rank}.")
+            raise ValueError(f"{op_name} axis {original_axis} is out of range for rank {rank}.")
         normalized_axes.append(axis)
     if len(normalized_axes) != len(set(normalized_axes)):
         raise ValueError(f"{op_name} axes must be unique.")
@@ -2125,9 +2126,9 @@ class Slice(OnnxOpConverter):
                 "Slice with dynamic parameters requires a statically known input rank."
             )
 
-        data_expr = data
         if isinstance(data, relax.ShapeExpr):
-            data_expr = bb.normalize(relax.op.shape_to_tensor(data))
+            raise ValueError("Slice with dynamic parameters does not support ShapeExpr input.")
+        data_expr = data
 
         starts_tensor = _as_int64_tensor(bb, starts)
         ends_tensor = _as_int64_tensor(bb, ends)
