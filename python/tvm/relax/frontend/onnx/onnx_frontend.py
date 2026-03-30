@@ -1016,11 +1016,16 @@ class Reshape(OnnxOpConverter):
         data = inputs[0]
         new_shape = get_constant(inputs[1], params)
 
-        if isinstance(data, relax.ShapeExpr) and isinstance(new_shape, relax.Constant):
-            new_shape = new_shape.data.numpy().tolist()
-            if new_shape != [-1]:
-                raise NotImplementedError("Need to fix this case")
-            return data
+        if isinstance(data, relax.ShapeExpr):
+            # Preserve identity flatten for shape values to keep shape-specialized
+            # handling in downstream shape-construction patterns.
+            if isinstance(new_shape, relax.Constant):
+                new_shape_values = new_shape.data.numpy().tolist()
+                if new_shape_values == [-1]:
+                    return data
+
+            # Other reshape targets follow regular int64 tensor reshape semantics.
+            data = bb.normalize(relax.op.shape_to_tensor(data))
 
         if isinstance(data, relax.Constant) and isinstance(new_shape, relax.Constant):
             out = _np.reshape(data.data.numpy(), new_shape.data.numpy().tolist())
