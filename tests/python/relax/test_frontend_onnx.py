@@ -971,6 +971,38 @@ def test_reshape(in_shape, shape, out_shape):
     check_correctness(model, inputs=input_values)
 
 
+@pytest.mark.parametrize(
+    "target_shape, output_shape",
+    [
+        ([-1], [3]),
+        ([1, 3], [1, 3]),
+        ([3, 1], [3, 1]),
+    ],
+)
+def test_reshape_shape_output(target_shape, output_shape):
+    shape_node = helper.make_node("Shape", ["data"], ["shape_out"])
+    reshape_node = helper.make_node("Reshape", ["shape_out", "target_shape"], ["reshaped"])
+
+    data_shape = [2, 3, 4]
+
+    graph = helper.make_graph(
+        [shape_node, reshape_node],
+        "reshape_shape_output",
+        inputs=[
+            helper.make_tensor_value_info("data", TensorProto.FLOAT, data_shape),
+        ],
+        initializer=[
+            helper.make_tensor("target_shape", TensorProto.INT64, [len(target_shape)], target_shape)
+        ],
+        outputs=[helper.make_tensor_value_info("reshaped", TensorProto.INT64, output_shape)],
+    )
+    input_values = {
+        "data": np.random.randn(*data_shape).astype("float32"),
+    }
+    model = helper.make_model(graph, producer_name="reshape_shape_output")
+    check_correctness(model, inputs=input_values)
+
+
 def test_transpose():
     verify_unary("Transpose", [32, 32, 32], attrs={"perm": [1, 2, 0]})
 
@@ -3630,7 +3662,8 @@ def test_optional_get_element_empty_raises():
         from_onnx(model, opset=18, keep_params_in_input=True)
 
 
-def test_symbolic_shape_deduction():
+@pytest.mark.parametrize("with_reshape_flatten", [False, True])
+def test_symbolic_shape_deduction(with_reshape_flatten):
     index_node = helper.make_node(
         "Constant",
         inputs=[],
@@ -3638,7 +3671,17 @@ def test_symbolic_shape_deduction():
         value=helper.make_tensor("indices", TensorProto.INT64, [], [0]),
     )
     shape_node = helper.make_node("Shape", ["data"], ["shape_output"])
-    gather_node = helper.make_node("Gather", ["shape_output", "indices"], ["gather_output"])
+    nodes = [index_node, shape_node]
+    gather_input = "shape_output"
+
+    if with_reshape_flatten:
+        reshape_node = helper.make_node(
+            "Reshape", ["shape_output", "target_shape"], ["reshaped_shape"]
+        )
+        nodes.append(reshape_node)
+        gather_input = "reshaped_shape"
+
+    gather_node = helper.make_node("Gather", [gather_input, "indices"], ["gather_output"])
     unsqueeze_node = helper.make_node("Unsqueeze", ["gather_output", "axes"], ["unsqueeze_output"])
     constant_of_shape_node = helper.make_node(
         "ConstantOfShape",
@@ -3646,13 +3689,19 @@ def test_symbolic_shape_deduction():
         ["output"],
         value=helper.make_tensor("value", TensorProto.FLOAT, [], [1]),
     )
+    nodes.extend([gather_node, unsqueeze_node, constant_of_shape_node])
+
+    initializers = [helper.make_tensor("axes", TensorProto.INT64, [1], vals=[0])]
+    if with_reshape_flatten:
+        initializers.append(helper.make_tensor("target_shape", TensorProto.INT64, [1], vals=[-1]))
+
     graph = helper.make_graph(
-        [index_node, shape_node, gather_node, unsqueeze_node, constant_of_shape_node],
+        nodes,
         "test_shape_deduction",
         inputs=[
             helper.make_tensor_value_info("data", TensorProto.FLOAT, ["batch", "seq"]),
         ],
-        initializer=[helper.make_tensor("axes", TensorProto.INT64, [1], vals=[0])],
+        initializer=initializers,
         outputs=[helper.make_tensor_value_info("output", TensorProto.INT64, [1])],
     )
     model = helper.make_model(graph, producer_name="test_shape_deduction")
