@@ -19,7 +19,7 @@
 import commonjs from '@rollup/plugin-commonjs';
 import ignore from "rollup-plugin-ignore";
 import resolve from '@rollup/plugin-node-resolve';
-import typescript from 'rollup-plugin-typescript2';
+import typescript from '@rollup/plugin-typescript';
 
 export default {
   input: 'src/index.ts',
@@ -36,9 +36,8 @@ export default {
     resolve({ browser: true }),
     commonjs(),
     typescript({
-      rollupCommonJSResolveHack: false,
-      clean: true
-    })
+      tsconfig: "./tsconfig.json",
+    }),
   ],
   external: ['ws', 'perf_hooks']
 };
