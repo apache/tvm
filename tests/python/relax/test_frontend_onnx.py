@@ -232,15 +232,15 @@ def run_in_tvm(
     return vm.get_outputs("main")
 
 
-def collect_relax_call_ops(relax_func: relax.Function) -> set[str]:
-    call_ops = set()
+def collect_relax_call_ops(func: relax.Function) -> list[str]:
+    op_names: list[str] = []
 
-    def _visit(expr):
+    def fvisit(expr: relax.Expr) -> None:
         if isinstance(expr, relax.Call) and isinstance(expr.op, tvm.ir.Op):
-            call_ops.add(expr.op.name)
+            op_names.append(expr.op.name)
 
-    relax.analysis.post_order_visit(relax_func.body, _visit)
-    return call_ops
+    relax.analysis.post_order_visit(func.body, fvisit)
+    return list(op_names)
 
 
 def collect_scalar_constants(func: relax.Function) -> list[bool | int | float]:
