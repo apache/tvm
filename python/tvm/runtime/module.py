@@ -473,7 +473,7 @@ def enabled(target):
 
     Parameters
     ----------
-    target : str
+    target : str or Dict[str, Any] or tvm.target.Target
         The target device type.
 
     Returns
@@ -490,7 +490,7 @@ def enabled(target):
     if isinstance(target, dict):
         target = target.get("kind", "")
     elif hasattr(target, "kind"):
-        target = str(target.kind)
+        target = target.kind.name
     return _ffi_api.RuntimeEnabled(target)
 
 
