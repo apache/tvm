@@ -233,14 +233,14 @@ def run_in_tvm(
 
 
 def collect_relax_call_ops(func: relax.Function) -> list[str]:
-    op_names = []
+    op_names: list[str] = []
 
-    def fvisit(expr):
+    def fvisit(expr: relax.Expr) -> None:
         if isinstance(expr, relax.Call) and isinstance(expr.op, tvm.ir.Op):
             op_names.append(expr.op.name)
 
     relax.analysis.post_order_visit(func.body, fvisit)
-    return op_names
+    return list(op_names)
 
 
 def collect_scalar_constants(func: relax.Function) -> list[bool | int | float]:
@@ -1090,6 +1090,98 @@ def test_unsqueeze():
     check_correctness(model)
 
 
+def test_unsqueeze_scalar_input():
+    unsqueeze_node = helper.make_node("Unsqueeze", ["a", "axes"], ["b"])
+
+    graph = helper.make_graph(
+        [unsqueeze_node],
+        "unsqueeze_scalar_input",
+        inputs=[helper.make_tensor_value_info("a", TensorProto.FLOAT, [])],
+        initializer=[helper.make_tensor("axes", TensorProto.INT64, [2], vals=[0, 1])],
+        outputs=[helper.make_tensor_value_info("b", TensorProto.FLOAT, [1, 1])],
+    )
+
+    model = helper.make_model(graph, producer_name="unsqueeze_scalar_input_test")
+    inputs = {"a": np.array(3.0, dtype="float32")}
+    check_correctness(model, inputs, opset=13)
+
+
+def test_unsqueeze_dynamic_axes():
+    unsqueeze_node = helper.make_node("Unsqueeze", ["a", "axes"], ["b"])
+
+    graph = helper.make_graph(
+        [unsqueeze_node],
+        "unsqueeze_dynamic_axes",
+        inputs=[
+            helper.make_tensor_value_info("a", TensorProto.FLOAT, [32, 32]),
+            helper.make_tensor_value_info("axes", TensorProto.INT64, [2]),
+        ],
+        outputs=[helper.make_tensor_value_info("b", TensorProto.FLOAT, [1, 32, 32, 1])],
+    )
+
+    model = helper.make_model(graph, producer_name="unsqueeze_dynamic_axes_test")
+    inputs = {
+        "a": rg.standard_normal(size=[32, 32]).astype("float32"),
+        "axes": np.array([-1, 0], dtype="int64"),
+    }
+    check_correctness(model, inputs, opset=13)
+
+
+def test_unsqueeze_dynamic_axes_ir():
+    unsqueeze_node = helper.make_node("Unsqueeze", ["a", "axes"], ["b"])
+
+    graph = helper.make_graph(
+        [unsqueeze_node],
+        "unsqueeze_dynamic_axes_ir",
+        inputs=[
+            helper.make_tensor_value_info("a", TensorProto.FLOAT, [32, 32]),
+            helper.make_tensor_value_info("axes", TensorProto.INT64, [2]),
+        ],
+        outputs=[helper.make_tensor_value_info("b", TensorProto.FLOAT, [1, 32, 32, 1])],
+    )
+
+    model = helper.make_model(graph, producer_name="unsqueeze_dynamic_axes_ir_test")
+    tvm_model = from_onnx(model, opset=13, keep_params_in_input=True)
+    call_ops = collect_relax_call_ops(tvm_model["main"])
+
+    assert "relax.tensor_to_shape" in call_ops
+    assert "relax.reshape" in call_ops
+
+
+def test_unsqueeze_dynamic_axes_rank_validation():
+    unsqueeze_node = helper.make_node("Unsqueeze", ["a", "axes"], ["b"])
+
+    graph = helper.make_graph(
+        [unsqueeze_node],
+        "unsqueeze_dynamic_axes_rank_validation",
+        inputs=[
+            helper.make_tensor_value_info("a", TensorProto.FLOAT, [32, 32]),
+            helper.make_tensor_value_info("axes", TensorProto.INT64, [1, 2]),
+        ],
+        outputs=[helper.make_tensor_value_info("b", TensorProto.FLOAT, [1, 32, 32, 1])],
+    )
+
+    model = helper.make_model(graph, producer_name="unsqueeze_dynamic_axes_rank_validation_test")
+    with pytest.raises(ValueError, match="Expected a 1-D tensor"):
+        from_onnx(model, opset=13, keep_params_in_input=True)
+
+
+def test_unsqueeze_duplicate_axes_validation():
+    unsqueeze_node = helper.make_node("Unsqueeze", ["a", "axes"], ["b"])
+
+    graph = helper.make_graph(
+        [unsqueeze_node],
+        "unsqueeze_duplicate_axes_validation",
+        inputs=[helper.make_tensor_value_info("a", TensorProto.FLOAT, [32, 32])],
+        initializer=[helper.make_tensor("axes", TensorProto.INT64, [2], vals=[0, 0])],
+        outputs=[helper.make_tensor_value_info("b", TensorProto.FLOAT, [1, 1, 32, 32])],
+    )
+
+    model = helper.make_model(graph, producer_name="unsqueeze_duplicate_axes_validation_test")
+    with pytest.raises(ValueError, match="axes must be unique"):
+        from_onnx(model, opset=13)
+
+
 def test_unsqueeze_v1():
     # https://github.com/onnx/onnx/blob/main/docs/Changelog.md#Unsqueeze-1
     unsqueeze_node = helper.make_node("Unsqueeze", ["a"], ["b"], axes=[0, 2, 3])
@@ -1575,6 +1667,70 @@ def test_dynamic_squeeze(axis, A, B):
     model = helper.make_model(graph, producer_name="squeeze_test")
     inputs = {"x": rg.standard_normal(size=[1, A, B]).astype("float32")}
     check_correctness(model, inputs, opset=13)
+
+
+def test_squeeze_dynamic_axes():
+    squeeze_node = helper.make_node("Squeeze", ["x", "axes"], ["y"])
+    shape = [1, 32, 1, 32]
+
+    graph = helper.make_graph(
+        [squeeze_node],
+        "squeeze_dynamic_axes_test",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, shape),
+            helper.make_tensor_value_info("axes", TensorProto.INT64, [2]),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [32, 32])],
+    )
+
+    model = helper.make_model(graph, producer_name="squeeze_dynamic_axes_test")
+    inputs = {
+        "x": rg.standard_normal(size=shape).astype("float32"),
+        "axes": np.array([-4, 2], dtype="int64"),
+    }
+    check_correctness(model, inputs, opset=13)
+
+
+def test_squeeze_dynamic_axes_ir():
+    squeeze_node = helper.make_node("Squeeze", ["x", "axes"], ["y"])
+    shape = [1, 32, 1, 32]
+
+    graph = helper.make_graph(
+        [squeeze_node],
+        "squeeze_dynamic_axes_ir",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, shape),
+            helper.make_tensor_value_info("axes", TensorProto.INT64, [2]),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [32, 32])],
+    )
+
+    model = helper.make_model(graph, producer_name="squeeze_dynamic_axes_ir_test")
+    tvm_model = from_onnx(model, opset=13, keep_params_in_input=True)
+    call_ops = collect_relax_call_ops(tvm_model["main"])
+
+    assert "relax.tensor_to_shape" in call_ops
+    assert "relax.reshape" in call_ops
+    assert "relax.squeeze" not in call_ops
+
+
+def test_squeeze_dynamic_axes_rank_validation():
+    squeeze_node = helper.make_node("Squeeze", ["x", "axes"], ["y"])
+    shape = [1, 32, 1, 32]
+
+    graph = helper.make_graph(
+        [squeeze_node],
+        "squeeze_dynamic_axes_rank_validation",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, shape),
+            helper.make_tensor_value_info("axes", TensorProto.INT64, [1, 2]),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [32, 32])],
+    )
+
+    model = helper.make_model(graph, producer_name="squeeze_dynamic_axes_rank_validation_test")
+    with pytest.raises(ValueError, match="Expected a 1-D tensor"):
+        from_onnx(model, opset=13, keep_params_in_input=True)
 
 
 @pytest.mark.parametrize("axis", [[0]])
@@ -2478,6 +2634,121 @@ def test_slice():
     #     ends=[0, 0, 1],
     #     steps=[-1, -3, -2],
     # )
+
+
+def test_slice_dynamic_inputs():
+    slice_node = helper.make_node("Slice", ["x", "starts", "ends", "axes", "steps"], ["y"])
+
+    graph = helper.make_graph(
+        [slice_node],
+        "slice_dynamic_inputs_test",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, [20, 10, 5]),
+            helper.make_tensor_value_info("starts", TensorProto.INT64, [2]),
+            helper.make_tensor_value_info("ends", TensorProto.INT64, [2]),
+            helper.make_tensor_value_info("axes", TensorProto.INT64, [2]),
+            helper.make_tensor_value_info("steps", TensorProto.INT64, [2]),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [3, 10, 5])],
+    )
+
+    model = helper.make_model(graph, producer_name="slice_dynamic_inputs_test")
+    inputs = {
+        "x": rg.standard_normal(size=[20, 10, 5]).astype("float32"),
+        "starts": np.array([0, 0], dtype="int64"),
+        "ends": np.array([3, 10], dtype="int64"),
+        "axes": np.array([0, 1], dtype="int64"),
+        "steps": np.array([1, 1], dtype="int64"),
+    }
+    check_correctness(model, inputs, opset=13)
+
+
+def test_slice_dynamic_inputs_ir():
+    slice_node = helper.make_node("Slice", ["x", "starts", "ends", "axes", "steps"], ["y"])
+
+    graph = helper.make_graph(
+        [slice_node],
+        "slice_dynamic_inputs_ir",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, [20, 10, 5]),
+            helper.make_tensor_value_info("starts", TensorProto.INT64, [2]),
+            helper.make_tensor_value_info("ends", TensorProto.INT64, [2]),
+            helper.make_tensor_value_info("axes", TensorProto.INT64, [2]),
+            helper.make_tensor_value_info("steps", TensorProto.INT64, [2]),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [3, 10, 5])],
+    )
+
+    model = helper.make_model(graph, producer_name="slice_dynamic_inputs_ir_test")
+    tvm_model = from_onnx(model, opset=13, keep_params_in_input=True)
+    call_ops = collect_relax_call_ops(tvm_model["main"])
+
+    assert "relax.dynamic_strided_slice" in call_ops
+    assert "relax.strided_slice" not in call_ops
+
+
+def test_slice_dynamic_inputs_length_validation():
+    slice_node = helper.make_node("Slice", ["x", "starts", "ends", "axes", "steps"], ["y"])
+
+    graph = helper.make_graph(
+        [slice_node],
+        "slice_dynamic_inputs_length_validation",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, [20, 10, 5]),
+            helper.make_tensor_value_info("starts", TensorProto.INT64, [2]),
+            helper.make_tensor_value_info("ends", TensorProto.INT64, [1]),
+            helper.make_tensor_value_info("axes", TensorProto.INT64, [2]),
+            helper.make_tensor_value_info("steps", TensorProto.INT64, [2]),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [3, 10, 5])],
+    )
+
+    model = helper.make_model(graph, producer_name="slice_dynamic_inputs_length_validation_test")
+    with pytest.raises(ValueError, match="starts and ends to have the same length"):
+        from_onnx(model, opset=13, keep_params_in_input=True)
+
+
+def test_slice_dynamic_shape_expr_input_validation():
+    shape_node = helper.make_node("Shape", ["x"], ["y"])
+    slice_node = helper.make_node("Slice", ["y", "starts", "ends", "axes", "steps"], ["z"])
+
+    graph = helper.make_graph(
+        [shape_node, slice_node],
+        "slice_dynamic_shape_expr_input_validation",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, [20, 10, 5]),
+            helper.make_tensor_value_info("starts", TensorProto.INT64, [1]),
+            helper.make_tensor_value_info("ends", TensorProto.INT64, [1]),
+            helper.make_tensor_value_info("axes", TensorProto.INT64, [1]),
+            helper.make_tensor_value_info("steps", TensorProto.INT64, [1]),
+        ],
+        outputs=[helper.make_tensor_value_info("z", TensorProto.INT64, [1])],
+    )
+
+    model = helper.make_model(graph, producer_name="slice_dynamic_shape_expr_input_validation_test")
+    with pytest.raises(ValueError, match="does not support ShapeExpr input"):
+        from_onnx(model, opset=13, keep_params_in_input=True)
+
+
+def test_slice_zero_step_validation():
+    slice_node = helper.make_node("Slice", ["x", "starts", "ends", "axes", "steps"], ["y"])
+
+    graph = helper.make_graph(
+        [slice_node],
+        "slice_zero_step_validation",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, [20, 10, 5])],
+        initializer=[
+            helper.make_tensor("starts", TensorProto.INT64, [2], vals=[0, 0]),
+            helper.make_tensor("ends", TensorProto.INT64, [2], vals=[3, 10]),
+            helper.make_tensor("axes", TensorProto.INT64, [2], vals=[0, 1]),
+            helper.make_tensor("steps", TensorProto.INT64, [2], vals=[1, 0]),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [3, 10, 5])],
+    )
+
+    model = helper.make_model(graph, producer_name="slice_zero_step_validation_test")
+    with pytest.raises(ValueError, match="step values must be non-zero"):
+        from_onnx(model, opset=13)
 
 
 def test_slice_dynamic_shape():
