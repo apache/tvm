@@ -159,8 +159,7 @@ def gpu_2d_continuous_cumsum(
         A = T.match_buffer(var_a, [m, n], dtype=in_dtype)
         Out = T.match_buffer(var_out, [m, n], dtype=out_dtype)
         Tmp = T.alloc_buffer([m, n], dtype=out_dtype)
-        ceil_log2 = T.Cast("int64", T.ceil(T.log2(T.Cast("float32", n))))
-        total_rounds = ceil_log2 // LOG_BLOCK_N
+        total_rounds = T.Cast("int64", T.ceil(T.log2(T.Cast("float32", n)))) // LOG_BLOCK_N
 
         block_inclusive_inside_block(
             m, n, A, Out, Tmp, src_offset=T.int64(0), tmp_offset=T.int64(0)
