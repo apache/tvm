@@ -142,7 +142,7 @@ class SubroutineMixin:
 
         arg_sinfo = _get_struct_info([*func_args.values(), *model_params])
         is_dataflow = block_builder.current_block_is_dataflow()
-        lookup_key = (ir.structural_hash(arg_sinfo, map_free_vars=True), is_dataflow)
+        lookup_key = (old_forward, ir.structural_hash(arg_sinfo, map_free_vars=True), is_dataflow)
 
         for cached_sinfo, cached_result in cls._gvar.get(lookup_key, []):
             if structural_equal(cached_sinfo, arg_sinfo, map_free_vars=True):
