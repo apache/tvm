@@ -97,5 +97,55 @@ def test_linear():
     assert_structural_equal(Expected, tvm_mod, True)
 
 
+def test_different_shapes_produce_distinct_subroutines():
+    """Regression test: same Module class with different input shapes
+    must generate distinct subroutines, not reuse a cached one."""
+
+    class Activation(nn.Module):
+        define_subroutine = True
+
+        def forward(self, state: relax.Expr) -> relax.Var:
+            return nn.op.silu(state)
+
+    class Model(nn.Module):
+        def __init__(self):
+            self.act_a = Activation()
+            self.act_b = Activation()
+
+        def forward(self, x: relax.Expr, y: relax.Expr) -> relax.Var:
+            a = self.act_a(x)
+            b = self.act_b(y)
+            return nn.op.add(a, b)
+
+    mod = Model()
+    batch_size = tvm.tirx.Var("batch_size", "int64")
+    tvm_mod, _ = mod.export_tvm(
+        spec={
+            "forward": {
+                "x": nn.spec.Tensor((batch_size, 32), "float32"),
+                "y": nn.spec.Tensor((batch_size, 64), "float32"),
+            }
+        },
+        debug=True,
+    )
+
+    # Collect all private functions (subroutines) in the module
+    subroutine_funcs = [
+        func
+        for gvar, func in tvm_mod.functions.items()
+        if isinstance(func, relax.Function)
+        and gvar.name_hint not in (
+            "forward",
+            "_initialize_effect",
+        )
+    ]
+
+    # There must be two distinct activation subroutines (one for dim=32, one for dim=64),
+    # not a single cached one reused for both.
+    assert len(subroutine_funcs) == 2, (
+        f"Expected 2 distinct subroutines for different input shapes, got {len(subroutine_funcs)}"
+    )
+
+
 if __name__ == "__main__":
     tvm.testing.main()
