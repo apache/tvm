@@ -262,4 +262,4 @@ def find_include_path(name=None, search_path=None, optional=False):
 # We use the version of the incoming release for code
 # that is under development.
 # The following line is set by version.py
-__version__ = "0.24.dev0"
+__version__ = "0.24.0"
