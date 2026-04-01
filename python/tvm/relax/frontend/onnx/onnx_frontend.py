@@ -2632,6 +2632,91 @@ class Identity(OnnxOpConverter):
         return inputs[0]
 
 
+def _onnx_resize_spatial_roi_vector(roi_full: relax.Expr, rank: int) -> relax.Expr:
+    """Map ONNX ROI [starts..., ends...] to TOPI spatial ROI (drop N/C axes)."""
+    return relax.op.concat(
+        [
+            relax.op.strided_slice(roi_full, axes=[0], begin=[2], end=[rank]),
+            relax.op.strided_slice(roi_full, axes=[0], begin=[rank + 2], end=[2 * rank]),
+        ],
+        axis=0,
+    )
+
+
+def _emit_resize_topi_dynamic_roi(
+    bb: relax.BlockBuilder,
+    data: relax.Expr,
+    roi_spatial_vec: relax.Expr,
+    sizes_spatial: list,
+    rank: int,
+    topi_mode: str,
+    coord_mode: str,
+    rounding_method: str,
+    cubic_coeff_a: float,
+    exclude_outside: int,
+    extrapolation_value: float,
+) -> relax.Expr:
+    """Lower Resize with runtime ROI via TOPI, which supports Expr ROI."""
+    if rank == 3:
+
+        def resize1d_dyn(d, r, s0):
+            return topi.image.resize1d(
+                d,
+                (r[0], r[1]),
+                [s0],
+                "NCW",
+                topi_mode,
+                coord_mode,
+                rounding_method,
+                cubic_coeff_a,
+                exclude_outside,
+                extrapolation_value,
+            )
+
+        return bb.emit_te(resize1d_dyn, data, roi_spatial_vec, sizes_spatial[0])
+
+    if rank == 4:
+
+        def resize2d_dyn(d, r, s0, s1):
+            return topi.image.resize2d(
+                d,
+                (r[0], r[1], r[2], r[3]),
+                (s0, s1),
+                layout="NCHW",
+                method=topi_mode,
+                coordinate_transformation_mode=coord_mode,
+                rounding_method=rounding_method,
+                bicubic_alpha=cubic_coeff_a,
+                bicubic_exclude=exclude_outside,
+                extrapolation_value=extrapolation_value,
+            )
+
+        return bb.emit_te(resize2d_dyn, data, roi_spatial_vec, sizes_spatial[0], sizes_spatial[1])
+
+    def resize3d_dyn(d, r, s0, s1, s2):
+        return topi.image.resize3d(
+            d,
+            (r[0], r[1], r[2], r[3], r[4], r[5]),
+            (s0, s1, s2),
+            layout="NCDHW",
+            method=topi_mode,
+            coordinate_transformation_mode=coord_mode,
+            rounding_method=rounding_method,
+            bicubic_alpha=cubic_coeff_a,
+            bicubic_exclude=exclude_outside,
+            extrapolation_value=extrapolation_value,
+        )
+
+    return bb.emit_te(
+        resize3d_dyn,
+        data,
+        roi_spatial_vec,
+        sizes_spatial[0],
+        sizes_spatial[1],
+        sizes_spatial[2],
+    )
+
+
 class Resize(OnnxOpConverter):
     """Converts an onnx Resize node into an equivalent Relax expression."""
 
@@ -2654,9 +2739,9 @@ class Resize(OnnxOpConverter):
 
         # Unpack inputs.
         x = inputs[0]
-        roi = get_constant(inputs[1], params)
-        scales = get_constant(inputs[2], params)
-        sizes = get_constant(inputs[3], params)
+        roi = get_constant(inputs[1], params) if len(inputs) > 1 and inputs[1] is not None else None
+        scales = get_constant(inputs[2], params) if len(inputs) > 2 else None
+        sizes = get_constant(inputs[3], params) if len(inputs) > 3 else None
         ndims = len(x.struct_info.shape)
         assert ndims in (3, 4, 5), "Only resize1d/resize2d/resize3d are supported."
 
@@ -2664,26 +2749,29 @@ class Resize(OnnxOpConverter):
             "Only one of scales and sizes can be provided in Resize."
         )
 
-        # Define relax implementation.
+        # ROI can be a static list (for relax.image.resize*) or dynamic tensor (TOPI path).
+        roi_static: list[float] | None = None
+        roi_dynamic_vec: relax.Expr | None = None
         if roi is not None:
             if isinstance(roi, relax.Constant):
-                roi = roi.data.numpy().tolist()
-                if len(roi) == 2 * ndims:
-                    roi = roi[2:ndims] + roi[ndims + 2 : 2 * ndims]
-                elif len(roi) == 0:
-                    roi = [0.0] * (2 * (ndims - 2))
+                roi_np = roi.data.numpy().tolist()
+                if len(roi_np) == 2 * ndims:
+                    roi_static = roi_np[2:ndims] + roi_np[ndims + 2 : 2 * ndims]
+                elif len(roi_np) == 0:
+                    roi_static = [0.0] * (2 * (ndims - 2))
+                elif len(roi_np) == 2 * (ndims - 2):
+                    # Some exporters already provide spatial-only ROI.
+                    roi_static = roi_np
+                else:
+                    roi_static = roi_np
             else:
-                roi = relax.op.concat(
-                    [
-                        relax.op.strided_slice(roi, axes=[0], begin=[2], end=[ndims]),
-                        relax.op.strided_slice(roi, axes=[0], begin=[ndims + 2], end=[2 * ndims]),
-                    ],
-                    axis=0,
+                roi_dynamic_vec = bb.normalize(
+                    _onnx_resize_spatial_roi_vector(roi, ndims)
                 )
-                # TODO The backend C++ func resize2d does not support dynamic ROI for now.
-                raise NotImplementedError("Dynamic ROI is not supported in resize for now.")
         else:
-            roi = [0.0] * (2 * (ndims - 2))
+            roi_static = [0.0] * (2 * (ndims - 2))
+
+        use_dynamic_roi = roi_dynamic_vec is not None
 
         # Convert scales to sizes if needed.
         if scales is not None:
@@ -2706,11 +2794,26 @@ class Resize(OnnxOpConverter):
             else:
                 assert f"Type {type(sizes)} for size is currently unsupported."
 
+        if use_dynamic_roi:
+            return _emit_resize_topi_dynamic_roi(
+                bb,
+                x,
+                roi_dynamic_vec,
+                sizes,
+                ndims,
+                topi_mode,
+                coord_mode,
+                rounding_method,
+                cubic_coeff_a,
+                exclude_outside,
+                extrapolation_value,
+            )
+
         if ndims == 3:
             return bb.emit_te(
                 topi.image.resize1d,
                 x,
-                roi,
+                roi_static,
                 sizes,
                 "NCW",
                 topi_mode,
@@ -2724,7 +2827,7 @@ class Resize(OnnxOpConverter):
             return relax.op.image.resize2d(
                 x,
                 size=relax.ShapeExpr(sizes),
-                roi=roi,
+                roi=roi_static,
                 layout="NCHW",
                 method=relax_mode,
                 coordinate_transformation_mode=coord_mode,
@@ -2737,7 +2840,7 @@ class Resize(OnnxOpConverter):
             return relax.op.image.resize3d(
                 x,
                 size=relax.ShapeExpr(sizes),
-                roi=roi,
+                roi=roi_static,
                 layout="NCDHW",
                 method=relax_mode,
                 coordinate_transformation_mode=coord_mode,

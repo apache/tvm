@@ -3268,6 +3268,33 @@ def test_resize(with_roi, roi_list, with_constant):
     check_correctness(model)
 
 
+def test_resize_dynamic_roi_tf_crop_and_resize():
+    """ROI is a graph input (not initializer), lowered through TOPI dynamic-ROI path."""
+    resize_node = helper.make_node(
+        "Resize",
+        ["X", "roi", "scales"],
+        ["Y"],
+        mode="linear",
+        coordinate_transformation_mode="tf_crop_and_resize",
+    )
+    graph = helper.make_graph(
+        [resize_node],
+        "resize_dynamic_roi",
+        inputs=[
+            helper.make_tensor_value_info("X", TensorProto.FLOAT, [1, 3, 32, 32]),
+            helper.make_tensor_value_info("roi", TensorProto.FLOAT, [8]),
+        ],
+        initializer=[
+            helper.make_tensor("scales", TensorProto.FLOAT, [4], [1.0, 1.0, 2.0, 2.0]),
+        ],
+        outputs=[
+            helper.make_tensor_value_info("Y", TensorProto.FLOAT, [1, 3, 64, 64]),
+        ],
+    )
+    model = helper.make_model(graph, producer_name="resize_dynamic_roi")
+    check_correctness(model, atol=1e-5)
+
+
 def test_resize_nd_sizes():
     cases = [
         ("resize1d", [1, 1, 4], [1, 1, 7]),
