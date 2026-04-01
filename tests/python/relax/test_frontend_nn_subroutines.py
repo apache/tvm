@@ -101,20 +101,23 @@ def test_different_shapes_produce_distinct_subroutines():
     """Regression test: same Module class with different input shapes
     must generate distinct subroutines, not reuse a cached one."""
 
-    class Activation(nn.Module):
+    class Linear(nn.Module):
         define_subroutine = True
 
-        def forward(self, state: relax.Expr) -> relax.Var:
-            return nn.op.silu(state)
+        def __init__(self, in_features, out_features):
+            self.weights = nn.Parameter((in_features, out_features), dtype="float32")
+
+        def forward(self, input: relax.Expr) -> relax.Var:
+            return nn.op.matmul(input, self.weights)
 
     class Model(nn.Module):
         def __init__(self):
-            self.act_a = Activation()
-            self.act_b = Activation()
+            self.linear_a = Linear(32, 16)
+            self.linear_b = Linear(64, 16)
 
         def forward(self, x: relax.Expr, y: relax.Expr) -> relax.Var:
-            a = self.act_a(x)
-            b = self.act_b(y)
+            a = self.linear_a(x)
+            b = self.linear_b(y)
             return nn.op.add(a, b)
 
     mod = Model()
@@ -140,8 +143,8 @@ def test_different_shapes_produce_distinct_subroutines():
         )
     ]
 
-    # There must be two distinct activation subroutines (one for dim=32, one for dim=64),
-    # not a single cached one reused for both.
+    # There must be two distinct Linear subroutines (one for in_features=32,
+    # one for in_features=64), not a single cached one reused for both.
     assert len(subroutine_funcs) == 2, (
         f"Expected 2 distinct subroutines for different input shapes, got {len(subroutine_funcs)}"
     )
