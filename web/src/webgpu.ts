@@ -698,8 +698,9 @@ export class WebGPUContext {
     });
 
     // Pre-allocate typed array views for pod args (reused across dispatches)
-    const maxPodArgs = podArgIndices.length + 1; // +1 for packGridDimX
-    const podArgsArrayBuffer = new ArrayBuffer(maxPodArgs * 4);
+    const maxPodArgs = podArgIndices.length + 1; // +1 for packDimX
+    const podArgBytes = maxPodArgs * Int32Array.BYTES_PER_ELEMENT;
+    const podArgsArrayBuffer = new ArrayBuffer(podArgBytes);
     const i32ViewCached = new Int32Array(podArgsArrayBuffer);
     const u32ViewCached = new Uint32Array(podArgsArrayBuffer);
     const f32ViewCached = new Float32Array(podArgsArrayBuffer);
@@ -763,9 +764,7 @@ export class WebGPUContext {
           });
         }
 
-        const sizeOfI32 = 4;
-        const bufBytes = (podArgIndices.length + 1) * sizeOfI32;
-        const podArgBuffer = this.getUniformFromPool(bufBytes);
+        const podArgBuffer = this.getUniformFromPool(podArgBytes);
 
         for (let i = 0; i < podArgIndices.length; ++i) {
           const value = args[podArgIndices[i]];
