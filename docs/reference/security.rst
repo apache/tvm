@@ -49,3 +49,32 @@ we expect users to put in only trusted URLs.
 
 RPC data exchange between the tracker, server and client are in plain-text.
 It is recommended to use them under trusted networking environment or encrypted channels.
+
+
+Security Advisories
+-------------------
+
+Subroutine Cache Hash Collision
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+``SubroutineMixin._get_subroutine()`` in ``python/tvm/relax/frontend/nn/subroutine.py``
+used ``ir.structural_hash`` as the sole cache lookup key without a subsequent
+``structural_equal`` verification. If two different ``arg_sinfo`` values produced the
+same 64-bit hash, the cache would return a previously compiled function with
+mismatched parameter shapes, leading to silently incorrect compiled output.
+
+**Severity**: Low. The ``structural_hash`` function returns a 64-bit integer.
+A natural hash collision requires approximately 2^32 distinct inputs (birthday bound),
+making accidental collision extremely unlikely in normal compilation workflows.
+The issue is primarily a correctness defect rather than a practically exploitable
+security vulnerability.
+
+**Root Cause**: The subroutine cache (``cls._gvar``) was keyed by
+``(structural_hash(arg_sinfo, map_free_vars=True), is_dataflow)``.
+A hash match was treated as proof of structural equality, skipping the necessary
+``structural_equal`` check.
+
+**Fix**: The cache now stores a list of ``(arg_sinfo, result)`` pairs per hash bucket.
+On lookup, each candidate is verified with ``structural_equal`` before returning.
+This follows the standard hash-table pattern: hash for bucket selection, equality
+for final verification.
