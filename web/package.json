@@ -3,7 +3,7 @@
   "description": "TVM WASM/WebGPU runtime for JS/TS",
   "license": "Apache-2.0",
   "homepage": "https://github.com/apache/tvm/tree/main/web",
-  "version": "0.24.0-dev2",
+  "version": "0.24.0-dev3",
   "files": [
     "lib"
   ],
@@ -32,6 +32,7 @@
   "devDependencies": {
     "@rollup/plugin-commonjs": "^29.0.0",
     "@rollup/plugin-node-resolve": "^16.0.3",
+    "@rollup/plugin-typescript": "^12.3.0",
     "@types/node": "^25.3.0",
     "@typescript-eslint/eslint-plugin": "^8.56.0",
     "@typescript-eslint/parser": "^8.56.0",
@@ -40,7 +41,6 @@
     "jest": "^30.2.0",
     "rollup": "^4.57.1",
     "rollup-plugin-ignore": "^1.0.10",
-    "rollup-plugin-typescript2": "^0.36.0",
     "typedoc": "^0.28.17",
     "typedoc-plugin-missing-exports": "4.1.2",
     "typescript": "^5.9.3",
