@@ -1043,7 +1043,7 @@ def LiftTransformParams(shared_transform: bool | list[str] = False) -> tvm.ir.tr
 
 
 def BundleModelParams(param_tuple_name: str | None = None) -> tvm.ir.transform.Pass:
-    """Bundle several model parameters into a single tuple paramters
+    """Bundle several model parameters into a single parameter tuple
 
     For each function, if the function has the attribute "num_input",
     separate between run-time parameters and compile-time weights.
