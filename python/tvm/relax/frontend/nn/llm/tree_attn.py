@@ -331,7 +331,7 @@ def tree_attn(h_kv, h_q, d, dtype, rope_scaling: dict[str, Any], target: Target)
 
     # Otherwise we would exceed maxComputeWorkgroupStorageSize
     if (
-        str(target.kind) == "webgpu"
+        target.kind.name == "webgpu"
         and ((d + 127) // 128) * ((DataType(dtype).bits + 15) // 16) >= 4
     ):
         tile_z = 8
@@ -898,7 +898,7 @@ def tree_attn_with_paged_kv_cache(
 
     # Otherwise we would exceed maxComputeWorkgroupStorageSize
     if (
-        str(target.kind) == "webgpu"
+        target.kind.name == "webgpu"
         and ((d + 127) // 128) * ((DataType(dtype).bits + 15) // 16) >= 4
     ):
         tile_z = 8
