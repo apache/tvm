@@ -3755,6 +3755,30 @@ class ReduceL2(OnnxOpConverter):
             return relax.op.sqrt(relax.op.sum(relax.op.multiply(data, data), axes, keepdims))
 
 
+def _argreduce_select_last_index(bb, data, axis, keepdims, op):
+    """Helper for ArgMax/ArgMin with select_last_index=1.
+
+    Reverses the tensor along the reduction axis, runs the reduction op,
+    then remaps the index back: last_idx = (axis_size - 1) - flipped_idx.
+    Handles both static and dynamic axis sizes.
+    """
+    data_flipped = relax.op.flip(data, axis=axis)
+    flipped_idx = bb.normalize(op(data_flipped, axis, keepdims))
+    axis_size = data.struct_info.shape[axis]
+    if isinstance(axis_size, tirx.IntImm):
+        offset = relax.const(int(axis_size) - 1, "int64")
+    else:
+        # dynamic: get axis size at runtime and subtract 1
+        shape_tensor = bb.normalize(relax.op.shape_to_tensor(
+            bb.normalize(relax.op.shape_of(data))
+        ))
+        offset = bb.normalize(relax.op.subtract(
+            bb.normalize(relax.op.take(shape_tensor, relax.const(axis, "int64"), axis=0)),
+            relax.const(1, "int64"),
+        ))
+    return relax.op.subtract(offset, flipped_idx)
+
+
 class ArgMax(OnnxOpConverter):
     """Converts an onnx ArgMax node into an equivalent Relax expression."""
 
@@ -3786,17 +3810,7 @@ class ArgMax(OnnxOpConverter):
         axis, keepdims = cls._check_attrs(data, attr)
         select_last_index = attr.get("select_last_index", False)
         if select_last_index:
-            data_flipped = relax.op.flip(data, axis=axis)
-            flipped_idx = bb.normalize(relax.op.argmax(data_flipped, axis, keepdims))
-            axis_size = int(inputs[0].struct_info.shape[axis])
-            offset = bb.normalize(
-                relax.op.full(
-                    flipped_idx.struct_info.shape,
-                    relax.const(axis_size - 1, "int64"),
-                    dtype="int64",
-                )
-            )
-            return relax.op.subtract(offset, flipped_idx)
+            return _argreduce_select_last_index(bb, data, axis, keepdims, relax.op.argmax)
         return relax.op.argmax(data, axis, keepdims)
 
 
@@ -3831,17 +3845,7 @@ class ArgMin(OnnxOpConverter):
         axis, keepdims = cls._check_attrs(data, attr)
         select_last_index = attr.get("select_last_index", False)
         if select_last_index:
-            data_flipped = relax.op.flip(data, axis=axis)
-            flipped_idx = bb.normalize(relax.op.argmin(data_flipped, axis, keepdims))
-            axis_size = int(inputs[0].struct_info.shape[axis])
-            offset = bb.normalize(
-                relax.op.full(
-                    flipped_idx.struct_info.shape,
-                    relax.const(axis_size - 1, "int64"),
-                    dtype="int64",
-                )
-            )
-            return relax.op.subtract(offset, flipped_idx)
+            return _argreduce_select_last_index(bb, data, axis, keepdims, relax.op.argmin)
         return relax.op.argmin(data, axis, keepdims)
 
 
