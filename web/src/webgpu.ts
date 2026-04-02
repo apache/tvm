@@ -698,8 +698,8 @@ export class WebGPUContext {
     });
 
     // Pre-allocate typed array views for pod args (reused across dispatches)
-    const maxPodArgs = podArgIndices.length + 1; // +1 for packDimX
-    const podArgBytes = maxPodArgs * Int32Array.BYTES_PER_ELEMENT;
+    const numPodSlots = podArgIndices.length + 1; // +1 for packDimX
+    const podArgBytes = numPodSlots * Int32Array.BYTES_PER_ELEMENT;
     const podArgsArrayBuffer = new ArrayBuffer(podArgBytes);
     const i32ViewCached = new Int32Array(podArgsArrayBuffer);
     const u32ViewCached = new Uint32Array(podArgsArrayBuffer);
@@ -779,6 +779,7 @@ export class WebGPUContext {
             throw Error("Unknown pod dtype " + dtype);
           }
         }
+        // Pass the original grid X dimension so the shader can recover blockIdx.x from the z-split
         u32ViewCached[podArgIndices.length] = packDimX;
         this.device.queue.writeBuffer(podArgBuffer, 0, podArgsArrayBuffer);
 
