@@ -59,6 +59,8 @@ language called TVMScript, which is a domain-specific dialect embedded in python
 
 .. code:: python
 
+    from tvm.script import tirx as T
+
     @tvm.script.ir_module
     class MyModule:
         @T.prim_func
