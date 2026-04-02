@@ -2643,6 +2643,19 @@ def _onnx_resize_spatial_roi_vector(roi_full: relax.Expr, rank: int) -> relax.Ex
     )
 
 
+def _topi_resize3d_roi_from_onnx_ncdhw_spatial(roi_spatial: list[float]) -> list[float]:
+    """Reorder spatial ROI for NCDHW ONNX layout to TOPI resize3d convention.
+
+    ONNX spatial slice after dropping N/C is ordered (D, H, W) for starts then ends.
+    TOPI ``resize3d`` with layout NCDHW expects
+    ``(start_w, start_h, start_d, end_w, end_h, end_d)`` (see topi/image/resize.py).
+    """
+    if len(roi_spatial) != 6:
+        return roi_spatial
+    d0, h0, w0, d1, h1, w1 = roi_spatial
+    return [w0, h0, d0, w1, h1, d1]
+
+
 def _emit_resize_topi_dynamic_roi(
     bb: relax.BlockBuilder,
     data: relax.Expr,
@@ -2694,9 +2707,10 @@ def _emit_resize_topi_dynamic_roi(
         return bb.emit_te(resize2d_dyn, data, roi_spatial_vec, sizes_spatial[0], sizes_spatial[1])
 
     def resize3d_dyn(d, r, s0, s1, s2):
+        # r is ONNX order (D,H,W) x2; TOPI expects (W,H,D) x2.
         return topi.image.resize3d(
             d,
-            (r[0], r[1], r[2], r[3], r[4], r[5]),
+            (r[2], r[1], r[0], r[5], r[4], r[3]),
             (s0, s1, s2),
             layout="NCDHW",
             method=topi_mode,
@@ -2780,7 +2794,7 @@ class Resize(OnnxOpConverter):
             elif isinstance(scales, relax.expr.ShapeExpr):
                 scales = [int(val.value) for val in scales.values]
             else:
-                assert f"Type {type(scales)} for scale is currently unsupported."
+                raise ValueError(f"Type {type(scales)} for scale is currently unsupported.")
             sizes = []
 
             for i, dim in enumerate(x.struct_info.shape):
@@ -2792,7 +2806,7 @@ class Resize(OnnxOpConverter):
             elif isinstance(sizes, relax.expr.ShapeExpr):
                 sizes = [int(val.value) for val in sizes.values][2:]
             else:
-                assert f"Type {type(sizes)} for size is currently unsupported."
+                raise ValueError(f"Type {type(sizes)} for size is currently unsupported.")
 
         if use_dynamic_roi:
             return _emit_resize_topi_dynamic_roi(
@@ -2837,10 +2851,11 @@ class Resize(OnnxOpConverter):
                 extrapolation_value=extrapolation_value,
             )
         else:  # ndims == 5
+            roi3d = _topi_resize3d_roi_from_onnx_ncdhw_spatial(roi_static)
             return relax.op.image.resize3d(
                 x,
                 size=relax.ShapeExpr(sizes),
-                roi=roi_static,
+                roi=roi3d,
                 layout="NCDHW",
                 method=relax_mode,
                 coordinate_transformation_mode=coord_mode,

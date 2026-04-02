@@ -3295,6 +3295,37 @@ def test_resize_dynamic_roi_tf_crop_and_resize():
     check_correctness(model, atol=1e-5)
 
 
+def test_resize_dynamic_roi_3d_tf_crop_and_resize():
+    """5-D NCDHW: ROI is a graph input; covers dynamic-ROI TOPI resize3d path."""
+    resize_node = helper.make_node(
+        "Resize",
+        ["X", "roi", "scales"],
+        ["Y"],
+        mode="linear",
+        coordinate_transformation_mode="tf_crop_and_resize",
+    )
+    graph = helper.make_graph(
+        [resize_node],
+        "resize_dynamic_roi_3d",
+        inputs=[
+            helper.make_tensor_value_info("X", TensorProto.FLOAT, [1, 1, 3, 4, 5]),
+            helper.make_tensor_value_info("roi", TensorProto.FLOAT, [10]),
+        ],
+        initializer=[
+            helper.make_tensor("scales", TensorProto.FLOAT, [5], [1.0, 1.0, 2.0, 2.0, 2.0]),
+        ],
+        outputs=[
+            helper.make_tensor_value_info("Y", TensorProto.FLOAT, [1, 1, 6, 8, 10]),
+        ],
+    )
+    model = helper.make_model(graph, producer_name="resize_dynamic_roi_3d")
+    # Use a valid full-tensor ROI so ORT and TOPI agree on tf_crop_and_resize (random ROI
+    # can hit extrapolation / numerical differences across runtimes).
+    x_np = rg.standard_normal((1, 1, 3, 4, 5)).astype(np.float32)
+    roi_np = np.array([0, 0, 0, 0, 0, 1, 1, 1, 1, 1], dtype=np.float32)
+    check_correctness(model, opset=18, atol=1e-5, inputs={"X": x_np, "roi": roi_np})
+
+
 def test_resize_nd_sizes():
     cases = [
         ("resize1d", [1, 1, 4], [1, 1, 7]),
