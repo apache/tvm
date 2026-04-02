@@ -463,7 +463,7 @@ def device_enabled(target):
 
     Parameters
     ----------
-    target : str
+    target : str or Dict[str, Any] or tvm.target.Target
         Target string to check against
 
     Returns
@@ -485,7 +485,7 @@ def device_enabled(target):
     if isinstance(target, dict):
         target_kind = target["kind"]
     elif hasattr(target, "kind"):
-        target_kind = str(target.kind)
+        target_kind = target.kind.name
     else:
         target_kind = target
     return any(target_kind == t["target_kind"] for t in _get_targets() if t["is_runnable"])
