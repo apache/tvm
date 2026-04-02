@@ -29,11 +29,11 @@ The supported Snapdragon architectures are 855, 865, and 888.
 2. Hexagon SDK version 4.0.0 or later.
 
 Android NDK can be downloaded from https://developer.android.com/ndk.
-Hexagon SDK is available at //developer.qualcomm.com/software/hexagon-dsp-sdk.
+Hexagon SDK is available at https://developer.qualcomm.com/software/hexagon-dsp-sdk.
 
 ### Manual compilation
 
-Since some source files are shared between the Hexagon and android builds,
+Since some source files are shared between the Hexagon and Android builds,
 make sure to delete all object files between compilations. Compile the Hexagon
 code first.
 
