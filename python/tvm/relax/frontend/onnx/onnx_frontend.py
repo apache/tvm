@@ -2779,9 +2779,7 @@ class Resize(OnnxOpConverter):
                 else:
                     roi_static = roi_np
             else:
-                roi_dynamic_vec = bb.normalize(
-                    _onnx_resize_spatial_roi_vector(roi, ndims)
-                )
+                roi_dynamic_vec = bb.normalize(_onnx_resize_spatial_roi_vector(roi, ndims))
         else:
             roi_static = [0.0] * (2 * (ndims - 2))
 
@@ -3788,10 +3786,17 @@ class ArgMax(OnnxOpConverter):
         axis, keepdims = cls._check_attrs(data, attr)
         select_last_index = attr.get("select_last_index", False)
         if select_last_index:
-            # TODO(vvchernov): support attr
-            raise tvm.error.OpAttributeUnImplemented(
-                "'select_last_index' attribute has not been supported yet"
+            data_flipped = relax.op.flip(data, axis=axis)
+            flipped_idx = bb.normalize(relax.op.argmax(data_flipped, axis, keepdims))
+            axis_size = int(inputs[0].struct_info.shape[axis])
+            offset = bb.normalize(
+                relax.op.full(
+                    flipped_idx.struct_info.shape,
+                    relax.const(axis_size - 1, "int64"),
+                    dtype="int64",
+                )
             )
+            return relax.op.subtract(offset, flipped_idx)
         return relax.op.argmax(data, axis, keepdims)
 
 
@@ -3826,10 +3831,17 @@ class ArgMin(OnnxOpConverter):
         axis, keepdims = cls._check_attrs(data, attr)
         select_last_index = attr.get("select_last_index", False)
         if select_last_index:
-            # TODO(vvchernov): support attr
-            raise tvm.error.OpAttributeUnImplemented(
-                "'select_last_index' attribute has not been supported yet"
+            data_flipped = relax.op.flip(data, axis=axis)
+            flipped_idx = bb.normalize(relax.op.argmin(data_flipped, axis, keepdims))
+            axis_size = int(inputs[0].struct_info.shape[axis])
+            offset = bb.normalize(
+                relax.op.full(
+                    flipped_idx.struct_info.shape,
+                    relax.const(axis_size - 1, "int64"),
+                    dtype="int64",
+                )
             )
+            return relax.op.subtract(offset, flipped_idx)
         return relax.op.argmin(data, axis, keepdims)
 
 
