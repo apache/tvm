@@ -4329,8 +4329,7 @@ class SplitToSequence(OnnxOpConverter):
 
             if isinstance(dim_size, (int, tirx.IntImm)):
                 dim_size_int = int(dim_size)
-                indices = list(range(chunk_size, dim_size_int, chunk_size))
-                split = indices if indices else 1
+                split = math.ceil(dim_size_int / chunk_size)
             else:
                 raise NotImplementedError(
                     "SplitToSequence with dynamic dim size and scalar split is not supported."
