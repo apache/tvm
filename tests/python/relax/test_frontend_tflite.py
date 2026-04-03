@@ -730,7 +730,7 @@ def test_conv2d(data, kernel, data_format, strides, padding):
     if padding == "SAME":
 
         @I.ir_module
-        class Expected:
+        class ExpectedSame:
             @R.function
             def main(
                 data: R.Tensor((1, 128, 128, 32), dtype="float32"),
@@ -762,10 +762,12 @@ def test_conv2d(data, kernel, data_format, strides, padding):
                     R.output(gv)
                 return gv
 
+        verify(Conv2DModule, ExpectedSame)
+
     else:
 
         @I.ir_module
-        class Expected:
+        class ExpectedValid:
             @R.function
             def main(
                 data: R.Tensor((1, 128, 128, 32), dtype="float32"),
@@ -797,7 +799,7 @@ def test_conv2d(data, kernel, data_format, strides, padding):
                     R.output(gv)
                 return gv
 
-    verify(Conv2DModule, Expected)
+        verify(Conv2DModule, ExpectedValid)
 
 
 @pytest.mark.parametrize(
@@ -834,7 +836,7 @@ def test_pool_2d(pool, data, kernel, data_format, strides, padding):
     if is_avg and padding == "SAME":
 
         @I.ir_module
-        class Expected:
+        class ExpectedAvgSame:
             @R.function
             def main(
                 data: R.Tensor((1, 128, 128, 32), dtype="float32"),
@@ -855,10 +857,12 @@ def test_pool_2d(pool, data, kernel, data_format, strides, padding):
                     R.output(gv)
                 return gv
 
+        verify(Pool2DModule, ExpectedAvgSame)
+
     elif is_avg and padding == "VALID":
 
         @I.ir_module
-        class Expected:
+        class ExpectedAvgValid:
             @R.function
             def main(
                 data: R.Tensor((1, 127, 127, 32), dtype="float32"),
@@ -879,10 +883,12 @@ def test_pool_2d(pool, data, kernel, data_format, strides, padding):
                     R.output(gv)
                 return gv
 
+        verify(Pool2DModule, ExpectedAvgValid)
+
     elif not is_avg and padding == "SAME":
 
         @I.ir_module
-        class Expected:
+        class ExpectedMaxSame:
             @R.function
             def main(
                 data: R.Tensor((1, 128, 128, 32), dtype="float32"),
@@ -902,10 +908,12 @@ def test_pool_2d(pool, data, kernel, data_format, strides, padding):
                     R.output(gv)
                 return gv
 
+        verify(Pool2DModule, ExpectedMaxSame)
+
     else:
 
         @I.ir_module
-        class Expected:
+        class ExpectedMaxValid:
             @R.function
             def main(
                 data: R.Tensor((1, 127, 127, 32), dtype="float32"),
@@ -925,7 +933,7 @@ def test_pool_2d(pool, data, kernel, data_format, strides, padding):
                     R.output(gv)
                 return gv
 
-    verify(Pool2DModule, Expected)
+        verify(Pool2DModule, ExpectedMaxValid)
 
 
 @pytest.mark.parametrize(
