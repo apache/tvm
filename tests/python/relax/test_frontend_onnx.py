@@ -5360,5 +5360,103 @@ def test_max_roi_pool(pooled_shape, rois):
     check_correctness(model, inputs=inputs, opset=16, rtol=1e-5, atol=1e-5)
 
 
+@pytest.mark.parametrize("op_name", ["ArgMax", "ArgMin"])
+@pytest.mark.parametrize("axis", [0, 1, 2])
+@pytest.mark.parametrize("keepdims", [True, False])
+def test_arg_min_max_select_last_index(op_name, axis, keepdims):
+    """select_last_index=1 must return the LAST occurrence of the extreme value."""
+    shape = [3, 4, 5]
+
+    # Force a tie: place the extreme value at both index 0 and index (axis_size-1)
+    # so that select_last_index=0 and =1 give observably different results.
+    data = np.random.uniform(-10, 10, shape).astype(np.float32)
+    slices_first = [slice(None)] * len(shape)
+    slices_last = [slice(None)] * len(shape)
+    slices_first[axis] = 0
+    slices_last[axis] = shape[axis] - 1
+    extreme = data.max() + 1.0 if op_name == "ArgMax" else data.min() - 1.0
+    data[tuple(slices_first)] = extreme
+    data[tuple(slices_last)] = extreme
+
+    node = helper.make_node(
+        op_name,
+        inputs=["data"],
+        outputs=["out"],
+        axis=axis,
+        keepdims=int(keepdims),
+        select_last_index=1,
+    )
+
+    out_shape = list(shape)
+    if keepdims:
+        out_shape[axis] = 1
+    else:
+        out_shape.pop(axis)
+
+    graph = helper.make_graph(
+        [node],
+        "arg_select_last_index_test",
+        inputs=[helper.make_tensor_value_info("data", TensorProto.FLOAT, shape)],
+        outputs=[helper.make_tensor_value_info("out", TensorProto.INT64, out_shape)],
+    )
+    model = helper.make_model(graph, producer_name="arg_select_last_index_test")
+    check_correctness(model, inputs={"data": data}, opset=12)
+
+
+@pytest.mark.parametrize("op_name", ["ArgMax", "ArgMin"])
+def test_arg_min_max_select_last_index_no_tie(op_name):
+    """With all-unique values, select_last_index=1 must agree with select_last_index=0."""
+    shape = [4, 5]
+    # arange guarantees uniqueness so first == last for every row
+    data = np.arange(20, dtype=np.float32).reshape(shape)
+
+    for select_last in [0, 1]:
+        node = helper.make_node(
+            op_name,
+            inputs=["data"],
+            outputs=["out"],
+            axis=1,
+            keepdims=1,
+            select_last_index=select_last,
+        )
+        graph = helper.make_graph(
+            [node],
+            "arg_no_tie_test",
+            inputs=[helper.make_tensor_value_info("data", TensorProto.FLOAT, shape)],
+            outputs=[helper.make_tensor_value_info("out", TensorProto.INT64, [4, 1])],
+        )
+        model = helper.make_model(graph, producer_name="arg_no_tie_test")
+        check_correctness(model, inputs={"data": data}, opset=12)
+
+
+@pytest.mark.parametrize("op_name", ["ArgMax", "ArgMin"])
+def test_arg_min_max_select_last_index_ir(op_name):
+    """select_last_index=1 must lower to flip + argmax/argmin + subtract in the Relax IR."""
+    shape = [3, 4, 5]
+    relax_op = "relax.argmax" if op_name == "ArgMax" else "relax.argmin"
+
+    node = helper.make_node(
+        op_name,
+        inputs=["data"],
+        outputs=["out"],
+        axis=1,
+        keepdims=1,
+        select_last_index=1,
+    )
+    graph = helper.make_graph(
+        [node],
+        "arg_select_last_index_ir_test",
+        inputs=[helper.make_tensor_value_info("data", TensorProto.FLOAT, shape)],
+        outputs=[helper.make_tensor_value_info("out", TensorProto.INT64, [3, 1, 5])],
+    )
+    model = helper.make_model(graph, producer_name="arg_select_last_index_ir_test")
+    tvm_model = from_onnx(model, opset=12, keep_params_in_input=True)
+
+    call_ops = collect_relax_call_ops(tvm_model["main"])
+    assert relax_op in call_ops, f"Expected {relax_op} in IR, got {call_ops}"
+    assert "relax.flip" in call_ops, f"Expected relax.flip in IR, got {call_ops}"
+    assert "relax.subtract" in call_ops, f"Expected relax.subtract in IR, got {call_ops}"
+
+
 if __name__ == "__main__":
     tvm.testing.main()
