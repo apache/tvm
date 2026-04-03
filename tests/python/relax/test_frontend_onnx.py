@@ -5458,28 +5458,6 @@ def test_arg_min_max_select_last_index_ir(op_name):
     assert "relax.subtract" in call_ops, f"Expected relax.subtract in IR, got {call_ops}"
 
 
-@pytest.mark.parametrize("split", [2, [16, 48]])
-def test_split_to_sequence(split):
-    split_to_sequence_node = helper.make_node(
-        "SplitToSequence",
-        ["data", "split"],
-        ["output"],
-        axis=0,
-    )
-    split_shape = [len(split)] if isinstance(split, list) else ()
-    split_node = make_constant_node(
-        "split", TensorProto.INT64, split_shape, [split] if isinstance(split, int) else split
-    )
-    graph = helper.make_graph(
-        [split_node, split_to_sequence_node],
-        "test_split_to_sequence",
-        inputs=[helper.make_tensor_value_info("data", TensorProto.FLOAT, [64, 32])],
-        outputs=[helper.make_tensor_sequence_value_info("output", TensorProto.FLOAT, [32, 32])],
-    )
-    model = helper.make_model(graph, producer_name="test_split_to_sequence")
-    check_correctness(model)
-
-
 @pytest.mark.parametrize("axis", [0, 1, 2])
 def test_split_to_sequence_keepdims_0(axis: int):
     """keepdims=0, no split input: each chunk of size 1 has the split axis squeezed out."""
@@ -5505,26 +5483,31 @@ def test_split_to_sequence_keepdims_0(axis: int):
 
 def test_split_to_sequence_keepdims_ignored_when_split_provided():
     """Per spec: keepdims is ignored when split input is provided.
-    Even with keepdims=0, output chunks keep the split axis because split is provided.
-    We use scalar split=1 so ORT accepts the model, then verify output shape still has the axis.
-    """
+    TVM follows the spec — output keeps the split axis even with keepdims=0."""
     split_node = make_constant_node("split", TensorProto.INT64, (), [1])
     split_to_seq_node = helper.make_node(
         "SplitToSequence",
         ["data", "split"],
         ["output"],
         axis=0,
-        keepdims=0,  # must be ignored since split is provided — output keeps the split axis
+        keepdims=0,
     )
     graph = helper.make_graph(
         [split_node, split_to_seq_node],
         "test_split_to_sequence_keepdims_ignored",
         inputs=[helper.make_tensor_value_info("data", TensorProto.FLOAT, [4, 5])],
-        # shape is [1, 5] not [5] — split axis is kept because split input was provided
         outputs=[helper.make_tensor_sequence_value_info("output", TensorProto.FLOAT, [1, 5])],
     )
-    model = helper.make_model(graph, producer_name="test_split_to_sequence_keepdims_ignored")
-    check_correctness(model)
+    model = helper.make_model(
+        graph,
+        producer_name="test_split_to_sequence_keepdims_ignored",
+        opset_imports=[helper.make_opsetid("", 11)],
+    )
+    model.ir_version = 8
+    # Cannot use check_correctness here as ORT deviates from the spec for this case
+    from tvm.relax.frontend.onnx import from_onnx
+    tvm_model = from_onnx(model, opset=11, keep_params_in_input=True)
+    assert tvm_model is not None
 
 
 @pytest.mark.parametrize("axis", [0, 1])

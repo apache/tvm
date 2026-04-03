@@ -4314,13 +4314,11 @@ class SplitToSequence(OnnxOpConverter):
 
         if len(inputs) == 1:
             split = _np.array(1)
-            split_is_scalar = True
         else:
             split = inputs[1]
             if not isinstance(split, relax.Constant):
                 raise ValueError("Only constant split supported for SplitToSequence")
             split = split.data.numpy()
-            split_is_scalar = split.ndim == 0  # scalar = tensor of empty shape
 
         if len(split.shape) == 1 and split.shape[0] > 1:
             split = _np.cumsum(split)
@@ -4332,15 +4330,18 @@ class SplitToSequence(OnnxOpConverter):
             if isinstance(dim_size, (int, tirx.IntImm)):
                 dim_size_int = int(dim_size)
                 indices = list(range(chunk_size, dim_size_int, chunk_size))
-                split = indices if indices else dim_size_int // chunk_size
+                split = indices if indices else 1
             else:
-                split = chunk_size
+                raise NotImplementedError(
+                    "SplitToSequence with dynamic dim size and scalar split is not supported."
+                )
 
         output = relax.op.split(input_tensor, split, axis=axis)
 
         # keepdims=0 applies when split is a scalar (whether provided or defaulted to 1)
-        if not keepdims and split_is_scalar:
-            output = bb.normalize(output)
+        # Per ONNX spec: "If input 'split' is specified, this attribute is ignored."
+        if not keepdims and len(inputs) == 1:
+            output = bb.emit(output)
             n = len(output.struct_info.fields)
             squeezed = [
                 relax.op.squeeze(bb.emit(relax.TupleGetItem(output, i)), axis=[axis])
