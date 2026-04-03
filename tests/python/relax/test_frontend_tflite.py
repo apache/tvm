@@ -831,31 +831,71 @@ def test_pool_2d(pool, data, kernel, data_format, strides, padding):
             )
 
     is_avg = pool == tf.nn.avg_pool2d
-    if padding == "SAME":
-        out_shape = (1, 128, 128, 32)
-        pad = [0, 0, 1, 1]
-    else:
-        out_shape = (1, 127, 127, 32)
-        pad = [0, 0, 0, 0]
-
-    if is_avg:
+    if is_avg and padding == "SAME":
 
         @I.ir_module
         class Expected:
             @R.function
             def main(
-                data: R.Tensor(out_shape, dtype="float32"),
-            ) -> R.Tensor(out_shape, dtype="float32"):
+                data: R.Tensor((1, 128, 128, 32), dtype="float32"),
+            ) -> R.Tensor((1, 128, 128, 32), dtype="float32"):
                 R.func_attr({"num_input": 1})
                 with R.dataflow():
-                    gv: R.Tensor(out_shape, dtype="float32") = R.nn.avg_pool2d(
+                    gv: R.Tensor((1, 128, 128, 32), dtype="float32") = R.nn.avg_pool2d(
                         data,
                         pool_size=[2, 2],
                         strides=[1, 1],
                         dilation=[1, 1],
-                        padding=pad,
+                        padding=[0, 0, 1, 1],
                         ceil_mode=False,
                         count_include_pad=False,
+                        layout="NHWC",
+                        out_layout="NHWC",
+                    )
+                    R.output(gv)
+                return gv
+
+    elif is_avg and padding == "VALID":
+
+        @I.ir_module
+        class Expected:
+            @R.function
+            def main(
+                data: R.Tensor((1, 127, 127, 32), dtype="float32"),
+            ) -> R.Tensor((1, 127, 127, 32), dtype="float32"):
+                R.func_attr({"num_input": 1})
+                with R.dataflow():
+                    gv: R.Tensor((1, 127, 127, 32), dtype="float32") = R.nn.avg_pool2d(
+                        data,
+                        pool_size=[2, 2],
+                        strides=[1, 1],
+                        dilation=[1, 1],
+                        padding=[0, 0, 0, 0],
+                        ceil_mode=False,
+                        count_include_pad=False,
+                        layout="NHWC",
+                        out_layout="NHWC",
+                    )
+                    R.output(gv)
+                return gv
+
+    elif not is_avg and padding == "SAME":
+
+        @I.ir_module
+        class Expected:
+            @R.function
+            def main(
+                data: R.Tensor((1, 128, 128, 32), dtype="float32"),
+            ) -> R.Tensor((1, 128, 128, 32), dtype="float32"):
+                R.func_attr({"num_input": 1})
+                with R.dataflow():
+                    gv: R.Tensor((1, 128, 128, 32), dtype="float32") = R.nn.max_pool2d(
+                        data,
+                        pool_size=[2, 2],
+                        strides=[1, 1],
+                        dilation=[1, 1],
+                        padding=[0, 0, 1, 1],
+                        ceil_mode=False,
                         layout="NHWC",
                         out_layout="NHWC",
                     )
@@ -868,16 +908,16 @@ def test_pool_2d(pool, data, kernel, data_format, strides, padding):
         class Expected:
             @R.function
             def main(
-                data: R.Tensor(out_shape, dtype="float32"),
-            ) -> R.Tensor(out_shape, dtype="float32"):
+                data: R.Tensor((1, 127, 127, 32), dtype="float32"),
+            ) -> R.Tensor((1, 127, 127, 32), dtype="float32"):
                 R.func_attr({"num_input": 1})
                 with R.dataflow():
-                    gv: R.Tensor(out_shape, dtype="float32") = R.nn.max_pool2d(
+                    gv: R.Tensor((1, 127, 127, 32), dtype="float32") = R.nn.max_pool2d(
                         data,
                         pool_size=[2, 2],
                         strides=[1, 1],
                         dilation=[1, 1],
-                        padding=pad,
+                        padding=[0, 0, 0, 0],
                         ceil_mode=False,
                         layout="NHWC",
                         out_layout="NHWC",
