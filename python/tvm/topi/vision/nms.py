@@ -36,37 +36,510 @@ from .nms_util import (
 )
 
 
-def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):  # pylint: disable=unused-argument
+def _get_valid_counts_ir(
+    data, score_threshold, id_index, score_index, valid_count, out_tensor, out_indices
+):
+    """IR for get_valid_counts. Filters boxes by score and compacts valid ones to the top."""
+    batch_size = data.shape[0]
+    num_anchors = data.shape[1]
+    box_data_length = data.shape[2]
+
+    with IRBuilder() as ib:
+        data = T.buffer_proxy(data)
+        valid_count = T.buffer_proxy(valid_count)
+        out_tensor = T.buffer_proxy(out_tensor)
+        out_indices = T.buffer_proxy(out_indices)
+
+        with T.parallel(0, batch_size) as i:
+            valid_count[i] = T.int32(0)
+
+            with T.serial(0, num_anchors) as j:
+                score = data[i, j, score_index]
+                if id_index < 0:
+                    is_valid = score > score_threshold
+                else:
+                    is_valid = tvm.tirx.all(score > score_threshold, data[i, j, id_index] >= 0)
+
+                with T.If(is_valid):
+                    with T.Then():
+                        cur = valid_count[i]
+                        with T.serial(0, box_data_length) as k:
+                            out_tensor[i, cur, k] = data[i, j, k]
+                        out_indices[i, cur] = j
+                        valid_count[i] = cur + 1
+
+            # Fill remaining slots with -1
+            with T.serial(0, num_anchors) as j:
+                with T.If(j >= valid_count[i]):
+                    with T.Then():
+                        with T.serial(0, box_data_length) as k:
+                            out_tensor[i, j, k] = tvm.tirx.Cast(data.dtype, T.float32(-1.0))
+                        out_indices[i, j] = T.int32(-1)
+
+        return ib.get()
+
+
+def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
     """Get valid count of bounding boxes given a score threshold.
     Also moves valid boxes to the top of input data.
+
     Parameters
     ----------
     data : tvm.te.Tensor
-        Input data. 3-D tensor with shape [batch_size, num_anchors, 6]
-        or [batch_size, num_anchors, 5].
+        Input data. 3-D tensor with shape [batch_size, num_anchors, elem_length].
+
     score_threshold : optional, float
         Lower limit of score for valid bounding boxes.
+
     id_index : optional, int
-        index of the class categories, -1 to disable.
+        Index of the class categories, -1 to disable.
+
     score_index: optional, int
         Index of the scores/confidence of boxes.
+
     Returns
     -------
     valid_count : tvm.te.Tensor
-        1-D tensor for valid number of boxes.
+        1-D tensor for valid number of boxes, shape [batch_size].
+
     out_tensor : tvm.te.Tensor
-        Rearranged data tensor.
-    out_indices: tvm.te.Tensor or numpy NDArray
-        Related index in input data.
+        Rearranged data tensor, shape [batch_size, num_anchors, elem_length].
+
+    out_indices: tvm.te.Tensor
+        Related index in input data, shape [batch_size, num_anchors].
     """
-    if isinstance(score_threshold, float | int):
+    batch_size = data.shape[0]
+    num_anchors = data.shape[1]
+    box_data_length = data.shape[2]
+
+    is_score_threshold_tensor = isinstance(score_threshold, te.Tensor)
+    if not is_score_threshold_tensor:
         score_threshold = tvm.tirx.const(score_threshold, dtype=data.dtype)
-    # id_index_const = tvm.tirx.const(id_index, "int32")  # Unused
-    # score_index_const = tvm.tirx.const(score_index, "int32")  # Unused
-    return (
-        te.compute((data.shape[0],), lambda i: data.shape[1], name="valid_count"),
-        data,
-        te.compute((data.shape[0], data.shape[1]), lambda i, j: j, name="out_indices"),
+
+    id_index_const = tvm.tirx.const(id_index, "int32")
+    score_index_const = tvm.tirx.const(score_index, "int32")
+
+    valid_count_buf = tvm.tirx.decl_buffer((batch_size,), "int32", "valid_count")
+    out_tensor_buf = tvm.tirx.decl_buffer(
+        (batch_size, num_anchors, box_data_length), data.dtype, "out_tensor"
+    )
+    out_indices_buf = tvm.tirx.decl_buffer(
+        (batch_size, num_anchors), "int32", "out_indices"
+    )
+
+    if is_score_threshold_tensor:
+        score_thresh_buf = tvm.tirx.decl_buffer(
+            score_threshold.shape, score_threshold.dtype, "score_threshold"
+        )
+        valid_count, out_tensor, out_indices = te.extern(
+            [(batch_size,), (batch_size, num_anchors, box_data_length), (batch_size, num_anchors)],
+            [data, score_threshold],
+            lambda ins, outs: _get_valid_counts_ir(
+                ins[0], ins[1], id_index_const, score_index_const,
+                outs[0], outs[1], outs[2],
+            ),
+            dtype=["int32", data.dtype, "int32"],
+            out_buffers=[valid_count_buf, out_tensor_buf, out_indices_buf],
+            in_buffers=[
+                tvm.tirx.decl_buffer(data.shape, data.dtype, "data"),
+                score_thresh_buf,
+            ],
+            name="get_valid_counts",
+            tag="get_valid_counts",
+        )
+    else:
+        # score_threshold is a TIR constant, not a tensor
+        def _ir_with_const_threshold(ins, outs):
+            return _get_valid_counts_ir(
+                ins[0], score_threshold, id_index_const, score_index_const,
+                outs[0], outs[1], outs[2],
+            )
+
+        valid_count, out_tensor, out_indices = te.extern(
+            [(batch_size,), (batch_size, num_anchors, box_data_length), (batch_size, num_anchors)],
+            [data],
+            _ir_with_const_threshold,
+            dtype=["int32", data.dtype, "int32"],
+            out_buffers=[valid_count_buf, out_tensor_buf, out_indices_buf],
+            in_buffers=[tvm.tirx.decl_buffer(data.shape, data.dtype, "data")],
+            name="get_valid_counts",
+            tag="get_valid_counts",
+        )
+
+    return valid_count, out_tensor, out_indices
+
+
+def _classic_nms_ir(
+    data,
+    sorted_index,
+    valid_count,
+    indices,
+    batch_size,
+    num_anchors,
+    box_data_length,
+    max_output_size,
+    iou_threshold,
+    force_suppress,
+    top_k,
+    coord_start,
+    score_index,
+    id_index,
+    return_indices,
+    out_data,
+    out_box_indices,
+    out_valid_box_count,
+):
+    """IR for classic single-class non-maximum suppression."""
+    with IRBuilder() as ib:
+        data = T.buffer_proxy(data)
+        sorted_index = T.buffer_proxy(sorted_index)
+        valid_count = T.buffer_proxy(valid_count)
+        indices = T.buffer_proxy(indices)
+        out_data = T.buffer_proxy(out_data)
+        out_box_indices = T.buffer_proxy(out_box_indices)
+        if out_valid_box_count is not None:
+            out_valid_box_count = T.buffer_proxy(out_valid_box_count)
+
+        with T.parallel(0, batch_size) as i:
+            # Step 1: Reorder data by sorted score
+            nkeep_buf = T.alloc_buffer((1,), "int32", scope="local")
+            nkeep_local = T.buffer_proxy(nkeep_buf)
+            nkeep_local[0] = valid_count[i]
+            with T.If(tvm.tirx.all(top_k > 0, top_k < nkeep_local[0])):
+                with T.Then():
+                    nkeep_local[0] = top_k
+
+            # Copy sorted boxes to output
+            with T.serial(0, num_anchors) as j:
+                with T.If(j < nkeep_local[0]):
+                    with T.Then():
+                        src_idx = sorted_index[i, j]
+                        with T.serial(0, box_data_length) as k:
+                            out_data[i, j, k] = data[i, src_idx, k]
+                        out_box_indices[i, j] = sorted_index[i, j]
+                    with T.Else():
+                        with T.serial(0, box_data_length) as k:
+                            out_data[i, j, k] = tvm.tirx.Cast(data.dtype, T.float32(-1.0))
+                        out_box_indices[i, j] = T.int32(-1)
+
+            # Step 2: Apply NMS - greedy suppression
+            num_valid_boxes_buf = T.alloc_buffer((1,), "int32", scope="local")
+            num_valid_boxes = T.buffer_proxy(num_valid_boxes_buf)
+            num_valid_boxes[0] = T.int32(0)
+
+            with T.serial(0, nkeep_local[0]) as j:
+                # Check if box j is still valid (score > 0) and within max_output_size
+                with T.If(
+                    tvm.tirx.all(
+                        out_data[i, j, score_index] > tvm.tirx.Cast(data.dtype, T.float32(0.0)),
+                        tvm.tirx.Select(
+                            max_output_size > 0,
+                            num_valid_boxes[0] < max_output_size,
+                            tvm.tirx.const(True),
+                        ),
+                    )
+                ):
+                    with T.Then():
+                        num_valid_boxes[0] = num_valid_boxes[0] + 1
+
+                        # Suppress overlapping boxes
+                        with T.serial(0, nkeep_local[0]) as k:
+                            with T.If(
+                                tvm.tirx.all(
+                                    k > j,
+                                    out_data[i, k, score_index]
+                                    > tvm.tirx.Cast(data.dtype, T.float32(0.0)),
+                                )
+                            ):
+                                with T.Then():
+                                    # Check class ID match (or force_suppress)
+                                    do_suppress = tvm.tirx.const(False)
+                                    if force_suppress:
+                                        do_suppress = tvm.tirx.const(True)
+                                    elif id_index >= 0:
+                                        do_suppress = (
+                                            out_data[i, j, id_index] == out_data[i, k, id_index]
+                                        )
+                                    else:
+                                        do_suppress = tvm.tirx.const(True)
+
+                                    with T.If(do_suppress):
+                                        with T.Then():
+                                            # Calculate IoU
+                                            a_l = tvm.te.min(
+                                                out_data[i, j, coord_start],
+                                                out_data[i, j, coord_start + 2],
+                                            )
+                                            a_t = tvm.te.min(
+                                                out_data[i, j, coord_start + 1],
+                                                out_data[i, j, coord_start + 3],
+                                            )
+                                            a_r = tvm.te.max(
+                                                out_data[i, j, coord_start],
+                                                out_data[i, j, coord_start + 2],
+                                            )
+                                            a_b = tvm.te.max(
+                                                out_data[i, j, coord_start + 1],
+                                                out_data[i, j, coord_start + 3],
+                                            )
+
+                                            b_l = tvm.te.min(
+                                                out_data[i, k, coord_start],
+                                                out_data[i, k, coord_start + 2],
+                                            )
+                                            b_t = tvm.te.min(
+                                                out_data[i, k, coord_start + 1],
+                                                out_data[i, k, coord_start + 3],
+                                            )
+                                            b_r = tvm.te.max(
+                                                out_data[i, k, coord_start],
+                                                out_data[i, k, coord_start + 2],
+                                            )
+                                            b_b = tvm.te.max(
+                                                out_data[i, k, coord_start + 1],
+                                                out_data[i, k, coord_start + 3],
+                                            )
+
+                                            w = tvm.te.max(
+                                                tvm.tirx.Cast(data.dtype, T.float32(0.0)),
+                                                tvm.te.min(a_r, b_r) - tvm.te.max(a_l, b_l),
+                                            )
+                                            h = tvm.te.max(
+                                                tvm.tirx.Cast(data.dtype, T.float32(0.0)),
+                                                tvm.te.min(a_b, b_b) - tvm.te.max(a_t, b_t),
+                                            )
+                                            area = h * w
+                                            u = (
+                                                (a_r - a_l) * (a_b - a_t)
+                                                + (b_r - b_l) * (b_b - b_t)
+                                                - area
+                                            )
+                                            iou = tvm.tirx.Select(
+                                                u <= tvm.tirx.Cast(data.dtype, T.float32(0.0)),
+                                                tvm.tirx.Cast(data.dtype, T.float32(0.0)),
+                                                area / u,
+                                            )
+
+                                            with T.If(iou >= iou_threshold):
+                                                with T.Then():
+                                                    out_data[i, k, score_index] = tvm.tirx.Cast(
+                                                        data.dtype, T.float32(-1.0)
+                                                    )
+                                                    out_box_indices[i, k] = T.int32(-1)
+
+                    with T.Else():
+                        # Box suppressed or beyond max_output_size
+                        with T.serial(0, box_data_length) as k:
+                            out_data[i, j, k] = tvm.tirx.Cast(data.dtype, T.float32(-1.0))
+                        out_box_indices[i, j] = T.int32(-1)
+
+            # Step 3: If return_indices, remap to original indices
+            if return_indices:
+                if out_valid_box_count is not None:
+                    # Count valid boxes and remap indices
+                    valid_idx_buf = T.alloc_buffer((1,), "int32", scope="local")
+                    valid_idx = T.buffer_proxy(valid_idx_buf)
+                    valid_idx[0] = T.int32(0)
+
+                    with T.serial(0, num_anchors) as j:
+                        with T.If(out_box_indices[i, j] >= 0):
+                            with T.Then():
+                                orig_idx = out_box_indices[i, j]
+                                out_box_indices[i, valid_idx[0]] = indices[i, orig_idx]
+                                valid_idx[0] = valid_idx[0] + 1
+
+                    out_valid_box_count[i, 0] = valid_idx[0]
+
+                    # Fill remaining with -1
+                    with T.serial(0, num_anchors) as j:
+                        with T.If(j >= valid_idx[0]):
+                            with T.Then():
+                                out_box_indices[i, j] = T.int32(-1)
+
+        return ib.get()
+
+
+def non_max_suppression(
+    data,
+    valid_count,
+    indices,
+    max_output_size=-1,
+    iou_threshold=0.5,
+    force_suppress=False,
+    top_k=-1,
+    coord_start=2,
+    score_index=1,
+    id_index=0,
+    return_indices=True,
+    invalid_to_bottom=False,
+):
+    """Non-maximum suppression operator for object detection.
+
+    Parameters
+    ----------
+    data : tvm.te.Tensor
+        3-D tensor with shape [batch_size, num_anchors, elem_length].
+
+    valid_count : tvm.te.Tensor
+        1-D tensor for valid number of boxes, shape [batch_size].
+
+    indices : tvm.te.Tensor
+        2-D tensor with shape [batch_size, num_anchors].
+
+    max_output_size : optional, int
+        Max number of output valid boxes for each instance.
+        Return all valid boxes if the value is less than 0.
+
+    iou_threshold : optional, float
+        Non-maximum suppression IoU threshold.
+
+    force_suppress : optional, boolean
+        Whether to suppress all detections regardless of class_id. When
+        ``id_index`` is ``-1``, all valid boxes are treated as belonging to the
+        same class, so this flag has the same effect as ``True``.
+
+    top_k : optional, int
+        Keep maximum top k detections before nms, -1 for no limit.
+
+    coord_start : required, int
+        Start index of the consecutive 4 coordinates.
+
+    score_index: optional, int
+        Index of the scores/confidence of boxes.
+
+    id_index : optional, int
+        Index of the class categories, -1 to disable.
+
+    return_indices : optional, boolean
+        Whether to return box indices in input data.
+
+    invalid_to_bottom : optional, boolean
+        Whether to move all valid bounding boxes to the top.
+
+    Returns
+    -------
+    out : tvm.te.Tensor or tuple of tvm.te.Tensor
+        If return_indices is True, returns a tuple of (box_indices, valid_box_count).
+        Otherwise returns the modified data tensor.
+    """
+    batch_size = data.shape[0]
+    num_anchors = data.shape[1]
+    box_data_length = data.shape[2]
+
+    if isinstance(max_output_size, int):
+        max_output_size = tvm.tirx.const(max_output_size, dtype="int32")
+    if isinstance(iou_threshold, (float, int)):
+        iou_threshold = tvm.tirx.const(iou_threshold, dtype=data.dtype)
+
+    # Sort by score
+    score_shape = (batch_size, num_anchors)
+    score_tensor = te.compute(
+        score_shape, lambda i, j: data[i, j, score_index], name="score_tensor"
+    )
+    sort_tensor = argsort(score_tensor, valid_count=valid_count, axis=1, is_ascend=False)
+
+    data_buf = tvm.tirx.decl_buffer(data.shape, data.dtype, "data")
+    sort_buf = tvm.tirx.decl_buffer(sort_tensor.shape, sort_tensor.dtype, "sorted_index")
+    valid_count_buf = tvm.tirx.decl_buffer(valid_count.shape, valid_count.dtype, "valid_count")
+    indices_buf = tvm.tirx.decl_buffer(indices.shape, indices.dtype, "indices")
+
+    out_data_buf = tvm.tirx.decl_buffer(data.shape, data.dtype, "out_data")
+    out_box_indices_buf = tvm.tirx.decl_buffer(
+        (batch_size, num_anchors), "int32", "out_box_indices"
+    )
+
+    if return_indices:
+        out_valid_box_count_buf = tvm.tirx.decl_buffer(
+            (batch_size, 1), "int32", "out_valid_box_count"
+        )
+
+        out_data, out_box_indices, out_valid_box_count = te.extern(
+            [data.shape, (batch_size, num_anchors), (batch_size, 1)],
+            [data, sort_tensor, valid_count, indices],
+            lambda ins, outs: _classic_nms_ir(
+                ins[0], ins[1], ins[2], ins[3],
+                batch_size, num_anchors, box_data_length,
+                max_output_size, iou_threshold,
+                force_suppress, top_k,
+                coord_start, score_index, id_index,
+                return_indices,
+                outs[0], outs[1], outs[2],
+            ),
+            dtype=[data.dtype, "int32", "int32"],
+            out_buffers=[out_data_buf, out_box_indices_buf, out_valid_box_count_buf],
+            in_buffers=[data_buf, sort_buf, valid_count_buf, indices_buf],
+            name="non_max_suppression",
+            tag="non_max_suppression",
+        )
+        return [out_box_indices, out_valid_box_count]
+
+    out_data, out_box_indices = te.extern(
+        [data.shape, (batch_size, num_anchors)],
+        [data, sort_tensor, valid_count, indices],
+        lambda ins, outs: _classic_nms_ir(
+            ins[0], ins[1], ins[2], ins[3],
+            batch_size, num_anchors, box_data_length,
+            max_output_size, iou_threshold,
+            force_suppress, top_k,
+            coord_start, score_index, id_index,
+            return_indices,
+            outs[0], outs[1], None,
+        ),
+        dtype=[data.dtype, "int32"],
+        out_buffers=[out_data_buf, out_box_indices_buf],
+        in_buffers=[data_buf, sort_buf, valid_count_buf, indices_buf],
+        name="non_max_suppression",
+        tag="non_max_suppression",
+    )
+
+    if invalid_to_bottom:
+        # Rearrange to move valid boxes to top
+        return _rearrange_out(out_data, batch_size, num_anchors, box_data_length, score_index)
+
+    return out_data
+
+
+def _rearrange_out(data, batch_size, num_anchors, box_data_length, score_index):
+    """Move valid boxes (score >= 0) to the top of output."""
+    out_buf = tvm.tirx.decl_buffer(
+        (batch_size, num_anchors, box_data_length), data.dtype, "rearranged"
+    )
+
+    def _rearrange_ir(ins, outs):
+        with IRBuilder() as ib:
+            data = T.buffer_proxy(ins[0])
+            out = T.buffer_proxy(outs[0])
+
+            with T.parallel(0, batch_size) as i:
+                valid_idx_buf = T.alloc_buffer((1,), "int32", scope="local")
+                valid_idx = T.buffer_proxy(valid_idx_buf)
+                valid_idx[0] = T.int32(0)
+
+                with T.serial(0, num_anchors) as j:
+                    with T.If(
+                        data[i, j, score_index] >= tvm.tirx.Cast(data.dtype, T.float32(0.0))
+                    ):
+                        with T.Then():
+                            with T.serial(0, box_data_length) as k:
+                                out[i, valid_idx[0], k] = data[i, j, k]
+                            valid_idx[0] = valid_idx[0] + 1
+
+                with T.serial(0, num_anchors) as j:
+                    with T.If(j >= valid_idx[0]):
+                        with T.Then():
+                            with T.serial(0, box_data_length) as k:
+                                out[i, j, k] = tvm.tirx.Cast(data.dtype, T.float32(-1.0))
+
+            return ib.get()
+
+    return te.extern(
+        [(batch_size, num_anchors, box_data_length)],
+        [data],
+        _rearrange_ir,
+        dtype=[data.dtype],
+        out_buffers=[out_buf],
+        name="rearrange_out",
+        tag="rearrange_out",
     )
 
 

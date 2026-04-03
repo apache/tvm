@@ -83,14 +83,14 @@ relax transformations
 relax transformations contain a collection of passes that apply to relax functions. The optimizations include common graph-level
 optimizations such as constant folding and dead-code elimination for operators, and backend-specific optimizations such as library dispatch.
 
-tirx transformations
-^^^^^^^^^^^^^^^^^^^^
+TensorIR transformations
+^^^^^^^^^^^^^^^^^^^^^^^^
 
 - **TensorIR schedule**: TensorIR schedules are designed to optimize the TensorIR functions for a specific target, with user-guided instructions and control how the target code is generated.
-  For CPU targets, tirx PrimFunc can generate valid code and execute on the target device without schedule but with very-low performance. However, for GPU targets, the schedule is essential
+  For CPU targets, a TensorIR PrimFunc can generate valid code and execute on the target device without schedule but with very-low performance. However, for GPU targets, the schedule is essential
   for generating valid code with thread bindings. For more details, please refer to the :ref:`TensorIR Transformation <tirx-transform>` section. Additionally, we provides ``MetaSchedule`` to
   automate the search of TensorIR schedule.
-- **Lowering Passes**: These passes usually perform after the schedule is applied, transforming a tirx PrimFunc into another functionally equivalent PrimFunc, but closer to the
+- **Lowering Passes**: These passes usually perform after the schedule is applied, transforming a TensorIR PrimFunc into another functionally equivalent PrimFunc, but closer to the
   target-specific representation. For example, there are passes to flatten multi-dimensional access to one-dimensional pointer access, to expand the intrinsics into target-specific ones,
   and to decorate the function entry to meet the runtime calling convention.
 
@@ -101,12 +101,12 @@ focus on optimizations that are not covered by them.
 
 cross-level transformations
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Apache TVM enables cross-level optimization of end-to-end models. As the IRModule includes both relax and tirx functions, the cross-level transformations are designed to mutate
+Apache TVM enables cross-level optimization of end-to-end models. As the IRModule includes both Relax and TensorIR functions, the cross-level transformations are designed to mutate
 the IRModule by applying different transformations to these two types of functions.
 
-For example, ``relax.LegalizeOps`` pass mutates the IRModule by lowering relax operators, adding corresponding tirx PrimFunc into the IRModule, and replacing the relax operators
-with calls to the lowered tirx PrimFunc. Another example is operator fusion pipeline in relax (including ``relax.FuseOps`` and ``relax.FuseTIR``), which fuses multiple consecutive tensor operations
-into one. Different from the previous implementations, relax fusion pipeline analyzes the pattern of tirx functions and detects the best fusion rules automatically rather
+For example, ``relax.LegalizeOps`` pass mutates the IRModule by lowering relax operators, adding corresponding TensorIR PrimFunc into the IRModule, and replacing the relax operators
+with calls to the lowered TensorIR PrimFunc. Another example is operator fusion pipeline in relax (including ``relax.FuseOps`` and ``relax.FuseTIR``), which fuses multiple consecutive tensor operations
+into one. Different from the previous implementations, relax fusion pipeline analyzes the pattern of TensorIR functions and detects the best fusion rules automatically rather
 than human-defined operator fusion patterns.
 
 Target Translation
@@ -306,22 +306,36 @@ in the IRModule. Please refer to the :ref:`Relax Deep Dive <relax-deep-dive>` fo
 tvm/tirx
 --------
 
-tirx contains the definition of the low-level program representations. We use ``tirx::PrimFunc`` to represent functions that can be transformed by tirx passes.
-Besides the IR data structures, the tirx module also includes:
+``tirx`` contains the core IR definitions and lowering infrastructure
+for TensorIR (split from the former ``tir`` module). ``tirx::PrimFunc``
+represents low-level tensor functions that can be transformed by tirx passes.
 
-- A set of analysis passes to analyze the tirx functions in ``tirx/analysis``.
-- A set of transformation passes to lower or optimize the tirx functions in ``tirx/transform``.
+The tirx module includes:
 
-The schedule primitives and tensor intrinsics are in ``s_tir/schedule`` and ``s_tir/tensor_intrin`` respectively.
+- IR data structures (PrimFunc, Buffer, SBlock, expressions, statements).
+- Analysis passes in ``tirx/analysis``.
+- Transformation and lowering passes in ``tirx/transform``.
+
+tvm/s_tir
+---------
+
+``s_tir`` (Schedulable TIR, split from the former ``tir`` module) contains
+schedule primitives and auto-tuning tools that operate on ``tirx::PrimFunc``:
+
+- Schedule primitives to control code generation (tiling, vectorization, thread
+  binding) in ``s_tir/schedule``.
+- Builtin tensor intrinsics in ``s_tir/tensor_intrin``.
+- MetaSchedule for automated performance tuning.
+- DLight for pre-defined, high-performance schedules.
 
 Please refer to the :ref:`TensorIR Deep Dive <tensor-ir-deep-dive>` for more details.
 
 tvm/arith
 ---------
 
-This module is closely tied to tirx. One of the key problems in the low-level code generation is the analysis of the indices'
+This module is closely tied to TensorIR. One of the key problems in the low-level code generation is the analysis of the indices'
 arithmetic properties — the positiveness, variable bound, and the integer set that describes the iterator space. arith module provides
-a collection of tools that do (primarily integer) analysis. A tirx pass can use these analyses to simplify and optimize the code.
+a collection of tools that do (primarily integer) analysis. A TensorIR pass can use these analyses to simplify and optimize the code.
 
 tvm/te and tvm/topi
 -------------------
@@ -330,7 +344,7 @@ TE stands for Tensor Expression. TE is a domain-specific language (DSL) for desc
 itself is not a self-contained function that can be stored into IRModule. We can use ``te.create_prim_func`` to convert a tensor expression to a ``tirx::PrimFunc``
 and then integrate it into the IRModule.
 
-While possible to construct operators directly via tirx or tensor expressions (TE) for each use case, it is tedious to do so.
+While possible to construct operators directly via TensorIR or tensor expressions (TE) for each use case, it is tedious to do so.
 `topi` (Tensor operator inventory) provides a set of pre-defined operators defined by numpy and found in common deep learning workloads.
 
 tvm/s_tir/meta_schedule
@@ -339,10 +353,10 @@ tvm/s_tir/meta_schedule
 MetaSchedule is a system for automated search-based program optimization,
 and can be used to optimize TensorIR schedules. Note that MetaSchedule only works with static-shape workloads.
 
-tvm/dlight
-----------
+tvm/s_tir/dlight
+----------------
 
-DLight is a set of pre-defined, easy-to-use, and performant tirx schedules. DLight aims:
+DLight is a set of pre-defined, easy-to-use, and performant s_tir schedules. DLight aims:
 
 - Fully support **dynamic shape workloads**.
 - **Light weight**. DLight schedules provides tuning-free schedule with reasonable performance.

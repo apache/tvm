@@ -16,28 +16,27 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-import commonjs from '@rollup/plugin-commonjs';
-import ignore from "rollup-plugin-ignore";
-import resolve from '@rollup/plugin-node-resolve';
-import typescript from '@rollup/plugin-typescript';
 
-export default {
-  input: 'src/index.ts',
-  output: {
-    file: 'lib/index.js',
-    format: 'umd',
-    name: 'tvmjs',
-    exports: 'named',
-    globals: {'ws': 'ws',
-              'perf_hooks': 'perf_hooks'}
-  },
-  plugins: [
-    ignore(["fs", "path", "crypto"]),
-    resolve({ browser: true }),
-    commonjs(),
-    typescript({
-      tsconfig: "./tsconfig.json",
-    }),
-  ],
-  external: ['ws', 'perf_hooks']
-};
+/*!
+ * \file multibox_transform_loc.h
+ * \brief The functions to make Relax multibox_transform_loc operator calls.
+ */
+
+#ifndef TVM_RELAX_OP_VISION_MULTIBOX_TRANSFORM_LOC_H_
+#define TVM_RELAX_OP_VISION_MULTIBOX_TRANSFORM_LOC_H_
+
+#include <tvm/relax/attrs/vision.h>
+
+#include "../op_common.h"
+
+namespace tvm {
+namespace relax {
+
+/*! \brief Decode SSD box encodings and prepare class scores (TFLite-compatible). */
+Expr multibox_transform_loc(Expr cls_pred, Expr loc_pred, Expr anchor, bool clip, double threshold,
+                            ffi::Array<double> variances, bool keep_background);
+
+}  // namespace relax
+}  // namespace tvm
+
+#endif  // TVM_RELAX_OP_VISION_MULTIBOX_TRANSFORM_LOC_H_

@@ -135,6 +135,13 @@ runtime::FunctionInfo CodeGenWebGPU::AddFunction(const PrimFunc& f, bool skip_re
   name_supply_->ReserveName("let");
   name_supply_->ReserveName("const");
   name_supply_->ReserveName("std");
+  name_supply_->ReserveName("storage");
+  name_supply_->ReserveName("uniform");
+  name_supply_->ReserveName("workgroup");
+  name_supply_->ReserveName("private");
+  name_supply_->ReserveName("function");
+  name_supply_->ReserveName("read");
+  name_supply_->ReserveName("read_write");
 
   // skip the first underscore, so SSA variable starts from
   name_supply_->FreshName("v_");

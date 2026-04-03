@@ -16,28 +16,27 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-import commonjs from '@rollup/plugin-commonjs';
-import ignore from "rollup-plugin-ignore";
-import resolve from '@rollup/plugin-node-resolve';
-import typescript from '@rollup/plugin-typescript';
 
-export default {
-  input: 'src/index.ts',
-  output: {
-    file: 'lib/index.js',
-    format: 'umd',
-    name: 'tvmjs',
-    exports: 'named',
-    globals: {'ws': 'ws',
-              'perf_hooks': 'perf_hooks'}
-  },
-  plugins: [
-    ignore(["fs", "path", "crypto"]),
-    resolve({ browser: true }),
-    commonjs(),
-    typescript({
-      tsconfig: "./tsconfig.json",
-    }),
-  ],
-  external: ['ws', 'perf_hooks']
-};
+/*!
+ * \file roi_pool.h
+ * \brief The functions to make Relax ROI Pool operator calls.
+ */
+
+#ifndef TVM_RELAX_OP_VISION_ROI_POOL_H_
+#define TVM_RELAX_OP_VISION_ROI_POOL_H_
+
+#include <tvm/relax/attrs/vision.h>
+
+#include "../op_common.h"
+
+namespace tvm {
+namespace relax {
+
+/*! \brief ROI Pool operator. */
+Expr roi_pool(Expr data, Expr rois, ffi::Array<int64_t> pooled_size, double spatial_scale,
+              ffi::String layout);
+
+}  // namespace relax
+}  // namespace tvm
+
+#endif  // TVM_RELAX_OP_VISION_ROI_POOL_H_

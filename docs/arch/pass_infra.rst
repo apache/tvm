@@ -31,7 +31,7 @@ transformation using the analysis result collected during and/or before traversa
 However, as TVM evolves quickly, the need for a more systematic and efficient
 way to manage these passes is becoming apparent. In addition, a generic
 framework that manages the passes across different layers of the TVM stack (e.g.
-Relax and tirx) paves the way for developers to quickly prototype and plug the
+Relax and TensorIR) paves the way for developers to quickly prototype and plug the
 implemented passes into the system.
 
 This doc describes the design of such an infra that takes the advantage of the
@@ -166,7 +166,7 @@ Pass Constructs
 ^^^^^^^^^^^^^^^
 
 The pass infra is designed in a hierarchical manner, and it could work at
-different granularities of Relax/tirx programs. A pure virtual class ``PassNode`` is
+different granularities of Relax/TensorIR programs. A pure virtual class ``PassNode`` is
 introduced to serve as the base of the different optimization passes. This class
 contains several virtual methods that must be implemented by the
 subclasses at the level of modules, functions, or sequences of passes.
@@ -222,13 +222,13 @@ Function-Level Passes
 ^^^^^^^^^^^^^^^^^^^^^
 
 Function-level passes are used to implement various intra-function level
-optimizations for a given Relax/tirx module. It fetches one function at a time from
+optimizations for a given Relax/TensorIR module. It fetches one function at a time from
 the function list of a module for optimization and yields a rewritten Relax
-``Function`` or tirx ``PrimFunc``. Most of passes can be classified into this category, such as
+``Function`` or TensorIR ``PrimFunc``. Most of passes can be classified into this category, such as
 common subexpression elimination and inference simplification in Relax as well as vectorization
-and flattening storage in tirx, etc.
+and flattening storage in TensorIR, etc.
 
-Note that the scope of passes at this level is either a Relax function or a tirx primitive function.
+Note that the scope of passes at this level is either a Relax function or a TensorIR primitive function.
 Therefore, we cannot add or delete a function through these passes as they are not aware of
 the global information.
 

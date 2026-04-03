@@ -18,6 +18,8 @@
  */
 #include <tvm/ffi/reflection/registry.h>
 
+#include <sstream>
+
 #include "./utils.h"
 
 namespace tvm {
@@ -522,25 +524,31 @@ Trace TraceNode::Simplified(bool remove_postproc) const {
 
 /**************** Repr ****************/
 
+namespace {
+ffi::String TraceAsPythonRepr(const TraceNode* self) {
+  std::ostringstream os;
+  os << "# from tvm import s_tir\n";
+  os << "def apply_trace(sch: s_tir.Schedule) -> None:\n";
+  ffi::Array<ffi::String> repr = self->AsPython(/*remove_postproc=*/false);
+  bool is_first = true;
+  for (const ffi::String& line : repr) {
+    if (is_first) {
+      is_first = false;
+    } else {
+      os << '\n';
+    }
+    os << "  " << std::string(line);
+  }
+  if (is_first) {
+    os << "  pass";
+  }
+  return os.str();
+}
+}  // namespace
+
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<TraceNode>([](const ObjectRef& obj, ReprPrinter* p) {
-      const auto* self = obj.as<TraceNode>();
-      TVM_FFI_ICHECK_NOTNULL(self);
-      p->stream << "# from tvm import s_tir\n";
-      p->stream << "def apply_trace(sch: s_tir.Schedule) -> None:\n";
-      ffi::Array<ffi::String> repr = self->AsPython(/*remove_postproc=*/false);
-      bool is_first = true;
-      for (const ffi::String& line : repr) {
-        if (is_first) {
-          is_first = false;
-        } else {
-          p->stream << '\n';
-        }
-        p->stream << "  " << line;
-      }
-      if (is_first) {
-        p->stream << "  pass";
-      }
+      p->stream << TraceAsPythonRepr(obj.as<TraceNode>());
       p->stream << std::flush;
     });
 
@@ -594,6 +602,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def_method("s_tir.schedule.TraceWithDecision", &TraceNode::WithDecision)
       .def_method("s_tir.schedule.TraceSimplified", &TraceNode::Simplified)
       .def("s_tir.schedule.TraceApplyJSONToSchedule", Trace::ApplyJSONToSchedule);
+  // Register __ffi_repr__ so str(trace) returns the Python script format
+  refl::TypeAttrDef<TraceNode>().def(
+      refl::type_attr::kRepr,
+      [](Trace trace, ffi::Function) -> ffi::String { return TraceAsPythonRepr(trace.get()); });
 }
 
 }  // namespace s_tir

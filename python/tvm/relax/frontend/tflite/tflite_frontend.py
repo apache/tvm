@@ -3205,9 +3205,10 @@ class OperatorConverter:
     def convert_detection_postprocess(self, op):
         """Convert TFLite_Detection_PostProcess"""
         raise NotImplementedError(
-            "DETECTION_POSTPROCESS requires vision ops (multibox_transform_loc, "
-            "non_max_suppression, get_valid_counts) not yet available in Relax. "
-            "See https://github.com/apache/tvm/issues/XXXX"
+            "DETECTION_POSTPROCESS is not wired in this frontend yet: it still needs "
+            "Relax NMS / get_valid_counts / related vision helpers (see dead code below). "
+            "relax.vision.multibox_transform_loc exists; tracking: "
+            "https://github.com/apache/tvm/issues/18928"
         )
         flexbuffer = op.CustomOptionsAsNumpy().tobytes()
         custom_options = FlexBufferDecoder(flexbuffer).decode()
@@ -3340,9 +3341,8 @@ class OperatorConverter:
         """Convert TFLite NonMaxSuppressionV5"""
         # https://www.tensorflow.org/api_docs/cc/class/tensorflow/ops/non-max-suppression-v5
         raise NotImplementedError(
-            "NON_MAX_SUPPRESSION_V5 requires vision ops (get_valid_counts, "
-            "non_max_suppression) not yet available in Relax. "
-            "See https://github.com/apache/tvm/issues/XXXX"
+            "NON_MAX_SUPPRESSION_V5 is not wired in this frontend yet (needs get_valid_counts, "
+            "non_max_suppression, etc.). Tracking: https://github.com/apache/tvm/issues/18928"
         )
 
         input_tensors = self.get_input_tensors(op)

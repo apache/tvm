@@ -73,7 +73,7 @@ def check_thread_limits(target: Target, bdx: int, bdy: int, bdz: int, gdz: int):
         f"{target.kind} max num threads exceeded: {bdx}*{bdy}*{bdz}>{max_num_threads_per_block}"
     )
 
-    if str(target.kind) == "webgpu":
+    if target.kind.name == "webgpu":
         # https://gpuweb.github.io/gpuweb/#dom-supported-limits-maxcomputeworkgroupsizez
         assert bdz <= 64, f"webgpu's threadIdx.z cannot exceed 64, but got bdz={bdz}"
         assert gdz == 1, f"webgpu's blockIdx.z should be 1, but got gdz={gdz}"
@@ -623,7 +623,7 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
             # pylint: enable=line-too-long
         ]
 
-        if str(target.kind) == "llvm":
+        if target.kind.name == "llvm":
             if attn_kind_single == "mla":
                 raise ValueError("MLA is not supported in TIR kernels for now.")
             # pylint: disable=line-too-long
@@ -1098,7 +1098,7 @@ def _get_prefill_kernel_config(h_kv, h_q, d, dtype, target: Target):
 
     # Otherwise we would exceed maxComputeWorkgroupStorageSize
     if (
-        str(target.kind) == "webgpu"
+        target.kind.name == "webgpu"
         and ((d + 127) // 128) * ((DataType(dtype).bits + 15) // 16) >= 4
     ):
         tile_z = 8
