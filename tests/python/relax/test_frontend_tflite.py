@@ -727,7 +727,77 @@ def test_conv2d(data, kernel, data_format, strides, padding):
                 padding=padding,
             )
 
-    verify(Conv2DModule)
+    if padding == "SAME":
+
+        @I.ir_module
+        class Expected:
+            @R.function
+            def main(
+                data: R.Tensor((1, 128, 128, 32), dtype="float32"),
+                kernel: R.Tensor((3, 3, 32, 32), dtype="float32"),
+            ) -> R.Tensor((1, 128, 128, 32), dtype="float32"):
+                R.func_attr({"num_input": 2})
+                with R.dataflow():
+                    lv: R.Tensor((32, 3, 3, 32), dtype="float32") = R.permute_dims(
+                        kernel, axes=[3, 0, 1, 2]
+                    )
+                    lv1: R.Tensor((3, 3, 32, 32), dtype="float32") = R.permute_dims(
+                        lv, axes=[1, 2, 3, 0]
+                    )
+                    lv2: R.Tensor((1, 128, 128, 32), dtype="float32") = R.nn.conv2d(
+                        data,
+                        lv1,
+                        strides=[1, 1],
+                        padding=[1, 1, 1, 1],
+                        dilation=[1, 1],
+                        groups=1,
+                        data_layout="NHWC",
+                        kernel_layout="HWIO",
+                        out_layout="NHWC",
+                        out_dtype="void",
+                    )
+                    gv: R.Tensor((1, 128, 128, 32), dtype="float32") = R.add(
+                        lv2, R.const(np.zeros((32,), dtype="float32"))
+                    )
+                    R.output(gv)
+                return gv
+
+    else:
+
+        @I.ir_module
+        class Expected:
+            @R.function
+            def main(
+                data: R.Tensor((1, 128, 128, 32), dtype="float32"),
+                kernel: R.Tensor((3, 3, 32, 32), dtype="float32"),
+            ) -> R.Tensor((1, 126, 126, 32), dtype="float32"):
+                R.func_attr({"num_input": 2})
+                with R.dataflow():
+                    lv: R.Tensor((32, 3, 3, 32), dtype="float32") = R.permute_dims(
+                        kernel, axes=[3, 0, 1, 2]
+                    )
+                    lv1: R.Tensor((3, 3, 32, 32), dtype="float32") = R.permute_dims(
+                        lv, axes=[1, 2, 3, 0]
+                    )
+                    lv2: R.Tensor((1, 126, 126, 32), dtype="float32") = R.nn.conv2d(
+                        data,
+                        lv1,
+                        strides=[1, 1],
+                        padding=[0, 0, 0, 0],
+                        dilation=[1, 1],
+                        groups=1,
+                        data_layout="NHWC",
+                        kernel_layout="HWIO",
+                        out_layout="NHWC",
+                        out_dtype="void",
+                    )
+                    gv: R.Tensor((1, 126, 126, 32), dtype="float32") = R.add(
+                        lv2, R.const(np.zeros((32,), dtype="float32"))
+                    )
+                    R.output(gv)
+                return gv
+
+    verify(Conv2DModule, Expected)
 
 
 @pytest.mark.parametrize(
@@ -760,7 +830,62 @@ def test_pool_2d(pool, data, kernel, data_format, strides, padding):
                 padding=padding,
             )
 
-    verify(Pool2DModule)
+    is_avg = pool == tf.nn.avg_pool2d
+    if padding == "SAME":
+        out_shape = (1, 128, 128, 32)
+        pad = [0, 0, 1, 1]
+    else:
+        out_shape = (1, 127, 127, 32)
+        pad = [0, 0, 0, 0]
+
+    if is_avg:
+
+        @I.ir_module
+        class Expected:
+            @R.function
+            def main(
+                data: R.Tensor(out_shape, dtype="float32"),
+            ) -> R.Tensor(out_shape, dtype="float32"):
+                R.func_attr({"num_input": 1})
+                with R.dataflow():
+                    gv: R.Tensor(out_shape, dtype="float32") = R.nn.avg_pool2d(
+                        data,
+                        pool_size=[2, 2],
+                        strides=[1, 1],
+                        dilation=[1, 1],
+                        padding=pad,
+                        ceil_mode=False,
+                        count_include_pad=False,
+                        layout="NHWC",
+                        out_layout="NHWC",
+                    )
+                    R.output(gv)
+                return gv
+
+    else:
+
+        @I.ir_module
+        class Expected:
+            @R.function
+            def main(
+                data: R.Tensor(out_shape, dtype="float32"),
+            ) -> R.Tensor(out_shape, dtype="float32"):
+                R.func_attr({"num_input": 1})
+                with R.dataflow():
+                    gv: R.Tensor(out_shape, dtype="float32") = R.nn.max_pool2d(
+                        data,
+                        pool_size=[2, 2],
+                        strides=[1, 1],
+                        dilation=[1, 1],
+                        padding=pad,
+                        ceil_mode=False,
+                        layout="NHWC",
+                        out_layout="NHWC",
+                    )
+                    R.output(gv)
+                return gv
+
+    verify(Pool2DModule, Expected)
 
 
 @pytest.mark.parametrize(
@@ -836,7 +961,21 @@ def test_batch_matmul():
         def func(self, x, y):
             return tf.matmul(x, y)
 
-    verify(BatchMatMul)
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3, 4), dtype="float32"),
+            y: R.Tensor((2, 4, 5), dtype="float32"),
+        ) -> R.Tensor((2, 3, 5), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((2, 3, 5), dtype="float32") = R.matmul(x, y, out_dtype="void")
+                gv: R.Tensor((2, 3, 5), dtype="float32") = R.reshape(lv, R.shape([2, 3, 5]))
+                R.output(gv)
+            return gv
+
+    verify(BatchMatMul, Expected)
 
 
 def test_batch_matmul_adj():
@@ -850,7 +989,23 @@ def test_batch_matmul_adj():
         def func(self, x, y):
             return tf.matmul(x, y, transpose_a=True, transpose_b=True)
 
-    verify(BatchMatMulAdj)
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((2, 4, 3), dtype="float32"),
+            y: R.Tensor((2, 5, 4), dtype="float32"),
+        ) -> R.Tensor((2, 3, 5), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((2, 3, 4), dtype="float32") = R.permute_dims(x, axes=[0, 2, 1])
+                lv1: R.Tensor((2, 4, 5), dtype="float32") = R.permute_dims(y, axes=[0, 2, 1])
+                lv2: R.Tensor((2, 3, 5), dtype="float32") = R.matmul(lv, lv1, out_dtype="void")
+                gv: R.Tensor((2, 3, 5), dtype="float32") = R.reshape(lv2, R.shape([2, 3, 5]))
+                R.output(gv)
+            return gv
+
+    verify(BatchMatMulAdj, Expected)
 
 
 if __name__ == "__main__":
