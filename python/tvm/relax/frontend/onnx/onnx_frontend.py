@@ -4310,12 +4310,10 @@ class SplitToSequence(OnnxOpConverter):
 
         input_tensor = inputs[0]
         input_shape = input_tensor.struct_info.shape
+        split_is_scalar = False
 
-        # If split is not provided, we split all values along axis.
         if len(inputs) == 1:
             split = _np.array(1)
-            if not keepdims:
-                raise NotImplementedError("Only keepdims=1 is supported for now")
         else:
             split = inputs[1]
             if not isinstance(split, relax.Constant):
@@ -4326,15 +4324,30 @@ class SplitToSequence(OnnxOpConverter):
             split = _np.cumsum(split)
             split = list(split[:-1])
         else:
-            chunk_size, dim_size = int(split), input_shape[axis]
-            if dim_size % chunk_size != 0:
-                raise ValueError(
-                    f"Dimension of size {dim_size} along axis {axis} must be "
-                    f"evenly divisible by chunk size {chunk_size}"
+            chunk_size = int(split)
+            dim_size = input_shape[axis]
+
+            if isinstance(dim_size, (int, tirx.IntImm)):
+                dim_size_int = int(dim_size)
+                split = math.ceil(dim_size_int / chunk_size)
+            else:
+                raise NotImplementedError(
+                    "SplitToSequence with dynamic dim size and scalar split is not supported."
                 )
-            split = dim_size // chunk_size
 
         output = relax.op.split(input_tensor, split, axis=axis)
+
+        # keepdims=0 applies when split is a scalar (whether provided or defaulted to 1)
+        # Per ONNX spec: "If input 'split' is specified, this attribute is ignored."
+        if not keepdims and len(inputs) == 1:
+            output = bb.emit(output)
+            n = len(output.struct_info.fields)
+            squeezed = [
+                relax.op.squeeze(bb.emit(relax.TupleGetItem(output, i)), axis=[axis])
+                for i in range(n)
+            ]
+            return relax.Tuple(squeezed)
+        
         return output
 
 
