@@ -40,7 +40,12 @@ def _get_mod_from_cfunc(cfunc):
         tf.lite.OpsSet.SELECT_TF_OPS,
     ]
 
-    tflite_model = tflite.Model.Model.GetRootAsModel(converter.convert(), 0)
+    tflite_model_buf = converter.convert()
+    try:
+        tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_buf, 0)
+    except AttributeError:
+        tflite_model = tflite.Model.GetRootAsModel(tflite_model_buf, 0)
+        
     mod = from_tflite(tflite_model)
     mod["main"] = mod["main"].without_attr("params")
     return mod
