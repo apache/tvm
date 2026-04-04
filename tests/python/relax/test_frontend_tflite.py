@@ -41,11 +41,10 @@ def _get_mod_from_cfunc(cfunc):
     ]
 
     tflite_model_buf = converter.convert()
-    try:
+    if hasattr(tflite.Model, "Model"):
         tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_buf, 0)
-    except AttributeError:
+    else:
         tflite_model = tflite.Model.GetRootAsModel(tflite_model_buf, 0)
-        
     mod = from_tflite(tflite_model)
     mod["main"] = mod["main"].without_attr("params")
     return mod
