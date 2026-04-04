@@ -239,8 +239,8 @@ Another important element in a relax function is the R.dataflow() scope annotati
 
     with R.dataflow():
         lv = R.call_tir(cls.linear, (x, w0, b0), out_sinfo=R.Tensor((n, 256), dtype="float32"))
-        lv1 = R.call_tir(cls.relu, (lv0,), out_sinfo=R.Tensor((n, 256), dtype="float32"))
-        lv2 = R.call_tir(cls.linear, (lv1, w1, b1), out_sinfo=R.Tensor((b, 10), dtype="float32"))
+        lv1 = R.call_tir(cls.relu, (lv,), out_sinfo=R.Tensor((n, 256), dtype="float32"))
+        lv2 = R.call_tir(cls.linear, (lv1, w1, b1), out_sinfo=R.Tensor((n, 10), dtype="float32"))
         R.output(lv2)
 
 Before we talk about the dataflow block, let us first introduce the concept of **pure** and

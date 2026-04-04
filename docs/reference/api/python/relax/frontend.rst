@@ -41,6 +41,12 @@ tvm.relax.frontend.stablehlo
    :members:
    :imported-members:
 
+tvm.relax.frontend.tflite
+*************************
+.. automodule:: tvm.relax.frontend.tflite
+   :members:
+   :imported-members:
+
 tvm.relax.frontend.torch
 ************************
 .. automodule:: tvm.relax.frontend.torch

@@ -196,7 +196,7 @@ np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 # function over number times, measures the cost per run on the remote
 # device and returns the measured cost. Network overhead is excluded.
 
-time_f = func.time_evaluator(func.entry_name, dev, number=10)
+time_f = func.time_evaluator("add_one", dev, number=10)
 cost = time_f(a, b).mean
 print(f"{cost:g} secs/op")
 

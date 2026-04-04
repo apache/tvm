@@ -144,7 +144,7 @@ marks are as follows.
   and additionally marks that the test should be skipped
   (``@pytest.mark.skipif``) entirely if no GPU is present.
 
-- ``@tvfm.testing.requires_RUNTIME`` - Several decorators
+- ``@tvm.testing.requires_RUNTIME`` - Several decorators
   (e.g. ``@tvm.testing.requires_cuda``), each of which skips a test if
   the specified runtime cannot be used. A runtime cannot be used if it
   is disabled in the ``config.cmake``, or if a compatible device is
