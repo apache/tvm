@@ -20,7 +20,7 @@ tvm.topi
 .. automodule:: tvm.topi
    :members:
    :imported-members:
-   :noindex: AssertStmt
+   :noindex:
    :autosummary:
 
 tvm.topi.nn

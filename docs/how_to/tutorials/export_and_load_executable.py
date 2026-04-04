@@ -263,13 +263,13 @@ if RUN_EXAMPLE:
 #
 #    # Step 6: Extract result (output may be tuple or single Tensor)
 #    # PyTorch models typically return tuples, ONNX models may return a single Tensor
-#    if isinstance(tvm_output, tvm.ir.Array) and len(tvm_output) > 0:
-#        result_tensor = tvm_output[0]
+#    if isinstance(output, tvm.ir.Array) and len(output) > 0:
+#        result_tensor = output[0]
 #    else:
-#        result_tensor = tvm_output
+#        result_tensor = output
 #
-#    print("Prediction shape:", result.shape)
-#    print("Predicted class:", np.argmax(result.numpy()))
+#    print("Prediction shape:", result_tensor.shape)
+#    print("Predicted class:", np.argmax(result_tensor.numpy()))
 #
 # **Running on GPU:**
 # To run on GPU instead of CPU, make the following changes:
