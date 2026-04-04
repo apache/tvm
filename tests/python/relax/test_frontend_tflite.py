@@ -1181,7 +1181,7 @@ def test_nms_v5_ir():
     # Valid output shape must be () statically
     assert 'R.Tensor((), dtype="int32")' in ir
     # Bounding boxes / scores tensor bounds checks
-    assert f"R.Tensor(({num_boxes},)" in ir
+    assert f"R.Tensor(({max_output_size},)" in ir
 
 if __name__ == "__main__":
     pytest.main(["-s", __file__])

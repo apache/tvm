@@ -3397,10 +3397,12 @@ class OperatorConverter:
         )
 
         selected_indices = relax.op.squeeze(nms_ret[0], axis=[0])
+        selected_indices = relax.op.strided_slice(selected_indices, axes=[0], begin=[0], end=[max_output_size])
         num_valid = relax.op.reshape(nms_ret[1], [])   
 
         # Clamp out-of-bound padded indices to prevent take() crash.
-        safe_indices    = relax.op.clip(selected_indices, min=0, max=2**31 - 1)
+        num_boxes = int(self.get_tensor_shape(input_tensors[0])[0])
+        safe_indices = relax.op.clip(selected_indices, min=0, max=num_boxes - 1)
         selected_scores = relax.op.take(scores, safe_indices, axis=0)
         
         out = relax.Tuple([selected_indices, selected_scores, num_valid])
