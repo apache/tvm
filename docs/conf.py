@@ -607,10 +607,9 @@ def update_alias_docstring(name, obj, lines):
 
 tvm_class_name_rewrite_map = {
     "tvm.tirx": ["Var", "Call"],
-    "tvm.relax": ["Var", "Call"],
+    "tvm.relax": ["Var", "Call", "StringImm"],
     "tvm.relax.frontend.nn": ["Module"],
 }
-
 
 def distinguish_class_name(name: str, lines: list[str]):
     """Distinguish the docstring of type annotations.
@@ -658,6 +657,77 @@ def strip_ipython_magic(app, docname, source):
     """
     for i in range(len(source)):
         source[i] = re.sub(r"%%.*\n\s*", "", source[i])
+
+
+def _patch_python_domain_find_obj():
+    """Patch PythonDomain.find_obj to resolve ambiguous cross-references.
+
+    Sphinx's ``warn-missing-reference`` event is only fired for unresolved
+    references. Ambiguous short names such as ``StringImm`` already have
+    multiple matches at ``PythonDomain.find_obj`` time, so the disambiguation
+    needs to happen here instead.
+    """
+    from sphinx.domains.python import PythonDomain
+
+    if getattr(PythonDomain.find_obj, "_tvm_patched", False):
+        return
+
+    _original_find_obj = PythonDomain.find_obj
+
+    def _common_prefix_len(lhs: str, rhs: str) -> int:
+        count = 0
+        for lpart, rpart in zip(lhs.split("."), rhs.split(".")):
+            if lpart != rpart:
+                break
+            count += 1
+        return count
+
+    def _dedup_find_obj(self, env, modname, classname, name, objtype, searchmode=0):
+        matches = _original_find_obj(self, env, modname, classname, name, objtype, searchmode)
+        if len(matches) <= 1:
+            return matches
+
+        short_name = name.rsplit(".", 1)[-1]
+
+        # Prefer a single canonical (non-aliased) entry if Sphinx already found one.
+        canonical_matches = [match for match in matches if not match[1].aliased]
+        if len(canonical_matches) == 1:
+            return canonical_matches
+
+        # Use TVM's module context for the known short names we rewrite in docstrings.
+        if modname:
+            candidate_modules = sorted(
+                (
+                    module_name
+                    for module_name, class_names in tvm_class_name_rewrite_map.items()
+                    if short_name in class_names and modname.startswith(module_name)
+                ),
+                key=len,
+                reverse=True,
+            )
+            for module_name in candidate_modules:
+                target_name = f"{module_name}.{short_name}"
+                context_matches = [match for match in matches if match[0] == target_name]
+                if len(context_matches) == 1:
+                    return context_matches
+
+            # Fall back to the unique match that best shares the current module prefix.
+            match_scores = {
+                match[0]: _common_prefix_len(modname, match[0]) for match in matches
+            }
+            best_score = max(match_scores.values())
+            if best_score > 1:
+                best_matches = [match for match in matches if match_scores[match[0]] == best_score]
+                if len(best_matches) == 1:
+                    return best_matches
+
+        return matches
+
+    _dedup_find_obj._tvm_patched = True
+    PythonDomain.find_obj = _dedup_find_obj
+
+
+_patch_python_domain_find_obj()
 
 
 def setup(app):

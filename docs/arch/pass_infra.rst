@@ -93,8 +93,9 @@ needs to be executed when running under a user-provided optimization level. The
 .. code:: c++
 
     class PassInfoNode : public Object {
-      ffi::String name;
       int opt_level;
+      ffi::String name;
+      bool traceable;
       ffi::Array<ffi::String> required;
     };
 
@@ -125,8 +126,8 @@ Python APIs to create a compilation pipeline using pass context.
     class PassContextNode : public Object {
      public:
       int opt_level{2};
-      tvm::ffi::Array<tvm::Expr> required_pass;
-      tvm::ffi::Array<tvm::Expr> disabled_pass;
+      ffi::Array<ffi::String> required_pass;
+      ffi::Array<ffi::String> disabled_pass;
       mutable ffi::Optional<DiagnosticContext> diag_ctx;
       ffi::Map<ffi::String, Any> config;
       ffi::Array<instrument::PassInstrument> instruments;
@@ -277,9 +278,7 @@ order that they were appended to the pass list.
         const PassInfo& pass_info = pass->Info();
         if (!PassEnabled(pass_info))  continue;
         for (const auto& it : pass_info->required) {
-          const auto* name = it.as<tvm::ir::StringImm>();
-          TVM_FFI_ICHECK(name);
-          mod = GetPass(name->value)(mod, pass_ctx);
+          mod = GetPass(it)(std::move(mod), pass_ctx);
         }
         mod = pass(mod, pass_ctx);
       }
@@ -317,19 +316,22 @@ favorably use Python APIs to create a specific pass object.
         std::function<Function(Function, IRModule, PassContext)> pass_func,
         int opt_level,
         ffi::String name,
-        ffi::Array<ffi::String> required);
+        ffi::Array<ffi::String> required,
+        bool traceable = false);
 
     Pass CreatePrimFuncPass(
         std::function<PrimFunc(PrimFunc, IRModule, PassContext)> pass_func,
         int opt_level,
         ffi::String name,
-        ffi::Array<ffi::String> required);
+        ffi::Array<ffi::String> required,
+        bool traceable = false);
 
     Pass CreateModulePass(
         std::function<IRModule(IRModule, PassContext)> pass_func,
         int opt_level,
         ffi::String name,
-        ffi::Array<ffi::String> required);
+        ffi::Array<ffi::String> required,
+        bool traceable = false);
 
     Pass Sequential(tvm::ffi::Array<Pass> passes, PassInfo pass_info);
 
@@ -511,21 +513,27 @@ and ``PassContext`` methods. See (`src/ir/transform.cc`_) for more details.
 Built-in Instrument
 ^^^^^^^^^^^^^^^^^^^
 
-There are several built-in instruments. Those marked with *TODO* are not implemented yet.
+There are several built-in instruments.
 
 - PassTimingInstrument (see `src/ir/instrument.cc`_)
 
   * Profile the execution time of passes.
 
-- PrintIRBefore(TODO)
+- PrintBeforeAll (see `python/tvm/ir/instrument.py`_)
 
-  * Print the IR module before the pass transforms it. :py:func:`tvm.transform.PrintIR`
-    can also serve this purpose if we insert it around passes. However,
-    with the ``PassInstrument``, we don't need to modify the sequence of passes.
+  * Print the IR module and pass info before each pass executes.
 
-- PrintAfter(TODO)
+- PrintAfterAll (see `python/tvm/ir/instrument.py`_)
 
-  * Print the IR module after the pass transforms it.
+  * Print the IR module and pass info after each pass executes.
+
+- PassPrintingInstrument (see `python/tvm/ir/instrument.py`_)
+
+  * Selectively print the IR module before or after specific named passes.
+
+- DumpIR (see `python/tvm/ir/instrument.py`_)
+
+  * Dump the IR module to files after each pass executes.
 
 Python Frontend
 ~~~~~~~~~~~~~~~

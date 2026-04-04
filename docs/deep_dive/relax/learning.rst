@@ -110,19 +110,23 @@ The code block below shows a low-level numpy implementation of the same model.
     def lnumpy_mlp(data, w0, b0, w1, b1):
         n = data.shape[0]
         lv0 = np.empty((n, 128), dtype="float32")
-        lnumpy_matmul(data, w0, b0, lv0)
+        lnumpy_linear(data, w0, b0, lv0)
 
         lv1 = np.empty((n, 128), dtype="float32")
-        lnumpy_relu(lv0, lv1)
+        lnumpy_relu0(lv0, lv1)
 
         out = np.empty((n, 10), dtype="float32")
-        lnumpy_matmul(lv1, w1, b1, out)
+        lnumpy_linear(lv1, w1, b1, out)
         return out
 
 With the low-level NumPy example in mind, now we are ready to introduce an Relax abstraction
 for the end-to-end model execution. The code block below shows a TVMScript implementation of the model.
 
 .. code:: python
+
+    from tvm.script import ir as I
+    from tvm.script import tirx as T
+    from tvm.script import relax as R
 
     @I.ir_module
     class Module:
@@ -167,8 +171,8 @@ for the end-to-end model execution. The code block below shows a TVMScript imple
             n = T.int64()
             with R.dataflow():
                 lv = R.call_tir(cls.linear, (x, w0, b0), out_sinfo=R.Tensor((n, 256), dtype="float32"))
-                lv1 = R.call_tir(cls.relu, (lv0,), out_sinfo=R.Tensor((n, 256), dtype="float32"))
-                lv2 = R.call_tir(cls.linear, (lv1, w1, b1), out_sinfo=R.Tensor((b, 10), dtype="float32"))
+                lv1 = R.call_tir(cls.relu, (lv,), out_sinfo=R.Tensor((n, 256), dtype="float32"))
+                lv2 = R.call_tir(cls.linear, (lv1, w1, b1), out_sinfo=R.Tensor((n, 10), dtype="float32"))
                 R.output(lv2)
             return lv2
 

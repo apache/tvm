@@ -66,6 +66,18 @@ tvm.relax.op.memory
    :members:
    :imported-members:
 
+tvm.relax.op.vision
+*******************
+.. automodule:: tvm.relax.op.vision
+   :members:
+   :imported-members:
+
+tvm.relax.op.vm
+***************
+.. automodule:: tvm.relax.op.vm
+   :members:
+   :imported-members:
+
 tvm.relax.op.op_attrs
 *********************
 .. automodule:: tvm.relax.op.op_attrs
