@@ -511,6 +511,7 @@ def test_square():
         (tf.math.cos, R.cos),
         (tf.math.sin, R.sin),
         (tf.math.exp, R.exp),
+        (tf.math.log, R.log),
         (tf.math.negative, R.negative),
         (tf.round, R.round),
         (tf.math.rsqrt, R.rsqrt),
@@ -542,6 +543,8 @@ def test_element_wise(tf_op, relax_op):
     [
         (tf.math.less, R.less),
         (tf.math.less_equal, R.less_equal),
+        (tf.math.greater, R.greater),
+        (tf.math.greater_equal, R.greater_equal),
         (tf.math.equal, R.equal),
         (tf.math.not_equal, R.not_equal),
     ],
