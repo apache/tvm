@@ -3339,16 +3339,12 @@ class OperatorConverter:
 
     def convert_nms_v5(self, op):
         """Convert TFLite NonMaxSuppressionV5"""
-        # https://www.tensorflow.org/api_docs/cc/class/tensorflow/ops/non-max-suppression-v5
-        raise NotImplementedError(
-            "NON_MAX_SUPPRESSION_V5 is not wired in this frontend yet (needs get_valid_counts, "
-            "non_max_suppression, etc.). Tracking: https://github.com/apache/tvm/issues/18928"
-        )
-
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 6, "input tensor length should be 6"
-        boxes = self.get_expr(input_tensors[0].tensor_idx)
-        scores = self.get_expr(input_tensors[1].tensor_idx)
+
+        boxes = self.get_tensor_expr(input_tensors[0]) 
+        scores = self.get_tensor_expr(input_tensors[1]) 
+
         max_output_size = self.get_tensor_value(input_tensors[2])
         iou_threshold = self.get_tensor_value(input_tensors[3])
         score_threshold = self.get_tensor_value(input_tensors[4])
@@ -3374,13 +3370,16 @@ class OperatorConverter:
                 "It is soft_nms when soft_nms_sigma != 0, which is not supported!"
             )
 
-        scores_expand = relax.op.expand_dims(scores, axis=-1, num_newaxis=1)
-        data = relax.op.concat([scores_expand, boxes], -1)
-        data = relax.op.expand_dims(data, axis=0, num_newaxis=1)
+        scores_expand = relax.op.expand_dims(scores, axis=-1)
+        data = relax.op.concat([scores_expand, boxes], axis=-1)
+        data = relax.op.expand_dims(data, axis=0)
 
-        count, data, indices = relax.op.vision.get_valid_counts(
+        valid_counts_ret = relax.op.vision.get_valid_counts(
             data, score_threshold=score_threshold, id_index=-1, score_index=0
         )
+        count = valid_counts_ret[0]
+        data = valid_counts_ret[1]
+        indices = valid_counts_ret[2]
 
         nms_ret = relax.op.vision.non_max_suppression(
             data=data,
@@ -3398,10 +3397,15 @@ class OperatorConverter:
         )
 
         selected_indices = relax.op.squeeze(nms_ret[0], axis=[0])
-        selected_indices = relax.op.strided_slice(selected_indices, [0], [max_output_size])
-        valide_num = relax.op.squeeze(nms_ret[1], axis=[1])
-        selected_scores = relax.op.take(scores, selected_indices, axis=0)
-        out = _expr.TupleWrapper(_expr.Tuple([selected_indices, selected_scores, valide_num]), 3)
+        selected_indices = relax.op.strided_slice(selected_indices, axes=[0], begin=[0], end=[max_output_size])
+        num_valid = relax.op.reshape(nms_ret[1], [])   
+
+        # Clamp out-of-bound padded indices to prevent take() crash.
+        num_boxes = int(self.get_tensor_shape(input_tensors[0])[0])
+        safe_indices = relax.op.clip(selected_indices, min=0, max=num_boxes - 1)
+        selected_scores = relax.op.take(scores, safe_indices, axis=0)
+        
+        out = relax.Tuple([selected_indices, selected_scores, num_valid])
         return out
 
     def convert_expand_dims(self, op):
