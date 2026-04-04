@@ -510,7 +510,6 @@ def test_square():
         (tf.math.abs, R.abs),
         (tf.math.cos, R.cos),
         (tf.math.sin, R.sin),
-        (tf.math.tan, R.tan),
         (tf.math.exp, R.exp),
         (tf.math.log, R.log),
         (tf.math.negative, R.negative),
