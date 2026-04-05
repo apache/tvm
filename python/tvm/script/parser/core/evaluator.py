@@ -223,10 +223,7 @@ class ExprEvaluator:
         ):
             return node
         if isinstance(node, doc.keyword):
-            return doc.keyword(
-                arg=node.arg,
-                value=self._visit(node.value)
-            )
+            return doc.keyword(arg=node.arg, value=self._visit(node.value))
         if not isinstance(node, doc.expr | doc.Slice):
             return node
         if isinstance(node, doc.Lambda):
