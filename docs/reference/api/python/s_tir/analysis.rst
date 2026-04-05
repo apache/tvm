@@ -19,4 +19,3 @@ tvm.s_tir.analysis
 ------------------
 .. automodule:: tvm.s_tir.analysis
    :members:
-   :imported-members:
