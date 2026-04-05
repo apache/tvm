@@ -309,7 +309,7 @@ For CUDA support on Windows:
 
 CMake & Compiler Setup
 ......................
-- Specify generator: ``cmake -G "Visual Studio 17 2022" -A x64 ..``
+- Specify generator: ``cmake -G "Visual Studio 16 2019" -A x64 ..``
 - Ensure Python is in PATH or specify: ``-DPython_EXECUTABLE=C:\Python311\python.exe``
 
 
