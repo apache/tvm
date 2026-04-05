@@ -239,16 +239,42 @@ if HAS_ONNX:
     mod_onnx.show()
 
 ######################################################################
+# If you already have an ``.onnx`` file on disk, the workflow is even simpler:
+#
+# .. code-block:: python
+#
+#    import onnx
+#    from tvm.relax.frontend.onnx import from_onnx
+#
+#    onnx_model = onnx.load("my_model.onnx")
+#    mod = from_onnx(onnx_model)
+#
+
+######################################################################
 # Key parameters
 # ~~~~~~~~~~~~~~
 # - **shape_dict** (dict, optional): Maps input names to shapes. Auto-inferred from the
-#   model if not provided. Useful when the ONNX model has dynamic dimensions.
+#   model if not provided. Useful when the ONNX model has dynamic dimensions that you
+#   want to fix to concrete sizes:
+#
+#   .. code-block:: python
+#
+#      mod = from_onnx(onnx_model, shape_dict={"input": [1, 3, 224, 224]})
 #
 # - **dtype_dict** (str or dict, default ``"float32"``): Input dtypes. A single string
-#   applies to all inputs, or use a dict to set per-input dtypes.
+#   applies to all inputs, or use a dict to set per-input dtypes:
+#
+#   .. code-block:: python
+#
+#      mod = from_onnx(onnx_model, dtype_dict={"input": "float16"})
 #
 # - **keep_params_in_input** (bool, default ``False``): Same semantics as PyTorch — whether
 #   model weights are function parameters or embedded constants.
+#
+# - **opset** (int, optional): Override the opset version auto-detected from the model.
+#   Each ONNX op may have different semantics across opset versions; TVM's converter
+#   selects the appropriate implementation automatically. You rarely need to set this
+#   unless the model metadata is incorrect.
 
 ######################################################################
 # Importing from TensorFlow Lite
@@ -304,14 +330,48 @@ if HAS_TFLITE:
     mod_tflite.show()
 
 ######################################################################
+# Loading from a ``.tflite`` file
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# If you already have a ``.tflite`` file on disk, load the raw bytes and parse them:
+#
+# .. code-block:: python
+#
+#    import tflite
+#    from tvm.relax.frontend.tflite import from_tflite
+#
+#    with open("my_model.tflite", "rb") as f:
+#        tflite_buf = f.read()
+#
+#    if hasattr(tflite.Model, "Model"):
+#        tflite_model = tflite.Model.Model.GetRootAsModel(tflite_buf, 0)
+#    else:
+#        tflite_model = tflite.Model.GetRootAsModel(tflite_buf, 0)
+#    mod = from_tflite(tflite_model)
+
+######################################################################
 # Key parameters
 # ~~~~~~~~~~~~~~
 # - **shape_dict** / **dtype_dict** (optional): Override input shapes and dtypes. If not
 #   provided, they are inferred from the TFLite model metadata.
 #
 # - **op_converter** (class, optional): A custom operator converter class. Subclass
-#   ``OperatorConverter`` and override the ``convert_map`` dictionary to extend or modify
-#   conversion behavior.
+#   ``OperatorConverter`` and override its ``convert_map`` dictionary to add or replace
+#   operator conversions. For example, to add a hypothetical ``CUSTOM_RELU`` op:
+#
+#   .. code-block:: python
+#
+#      from tvm.relax.frontend.tflite.tflite_frontend import OperatorConverter
+#
+#      class MyConverter(OperatorConverter):
+#          def __init__(self, model, subgraph, exp_tab, ctx):
+#              super().__init__(model, subgraph, exp_tab, ctx)
+#              self.convert_map["CUSTOM_RELU"] = self._convert_custom_relu
+#
+#          def _convert_custom_relu(self, op):
+#              # implement your conversion logic here
+#              ...
+#
+#      mod = from_tflite(tflite_model, op_converter=MyConverter)
 
 ######################################################################
 # Summary
