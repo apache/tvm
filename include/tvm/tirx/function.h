@@ -26,6 +26,7 @@
 
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/container/variant.h>
+#include <tvm/ffi/ir/traits.h>
 #include <tvm/ir/function.h>
 #include <tvm/node/script_printer.h>
 #include <tvm/runtime/tensor.h>
@@ -167,9 +168,11 @@ class TensorIntrinNode : public Object {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
+    namespace tr = tvm::ffi::ir::traits;
     refl::ObjectDef<TensorIntrinNode>()
         .def_ro("desc", &TensorIntrinNode::desc)
-        .def_ro("impl", &TensorIntrinNode::impl);
+        .def_ro("impl", &TensorIntrinNode::impl)
+        .def_ir_traits<tr::CallObj>("TensorIntrin", "$field:desc");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.TensorIntrin", TensorIntrinNode, Object);
 };

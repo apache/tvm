@@ -23,6 +23,9 @@
  */
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/ir/text/ast.h>
+#include <tvm/ffi/ir/text/printer.h>
+#include <tvm/ffi/ir/traits.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/function.h>
@@ -34,6 +37,7 @@
 namespace tvm {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = ::tvm::ffi::reflection;
   BaseExprNode::RegisterReflection();
   PrimExprNode::RegisterReflection();
   RelaxExprNode::RegisterReflection();
@@ -42,6 +46,27 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   IntImmNode::RegisterReflection();
   FloatImmNode::RegisterReflection();
   RangeNode::RegisterReflection();
+  refl::GlobalDef().def("ir._range_args", [](Range node) -> ffi::Array<PrimExpr> {
+    return {node->min, node->min + node->extent};
+  });
+}
+
+// GlobalVar: check printer var table first for module-bound references.
+// Falls through to I.GlobalVar("name") for unbound.
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace text = ::tvm::ffi::ir::text;
+  namespace refl = ::tvm::ffi::reflection;
+  refl::TypeAttrDef<GlobalVarNode>().def(
+      "__ffi_text_print__",
+      [](GlobalVar gv, text::IRPrinter printer, refl::AccessPath path) -> text::NodeAST {
+        if (auto doc = printer->VarGet(gv)) {
+          return doc.value();
+        }
+        text::ExprAST callee = text::ExprAttr(text::IdAST("I"), "GlobalVar");
+        ffi::List<text::ExprAST> args;
+        args.push_back(text::LiteralAST::Str(gv->name_hint));
+        return text::CallAST(callee, std::move(args), {}, {});
+      });
 }
 
 PrimExpr::PrimExpr(int32_t value) : PrimExpr(IntImm(DataType::Int(32), value)) {}
@@ -230,5 +255,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         return "I.GlobalVar(\"" + std::string(gvar->name_hint) + "\")";
       });
 }
+
+// range_args method is now registered via ObjectDef<RangeNode>().def() above.
 
 }  // namespace tvm

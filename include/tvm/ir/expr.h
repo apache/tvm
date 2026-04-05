@@ -24,6 +24,7 @@
 #ifndef TVM_IR_EXPR_H_
 #define TVM_IR_EXPR_H_
 
+#include <tvm/ffi/ir/traits.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/source_map.h>
@@ -459,7 +460,10 @@ class GlobalVarNode : public RelaxExprNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<GlobalVarNode>().def_ro("name_hint", &GlobalVarNode::name_hint);
+    namespace tr = tvm::ffi::ir::traits;
+    refl::ObjectDef<GlobalVarNode>()
+        .def_ro("name_hint", &GlobalVarNode::name_hint)
+        .def_ir_traits<tr::CallObj>("I.GlobalVar", "$field:name_hint");
   }
 
   bool SEqual(const GlobalVarNode* other,
@@ -498,7 +502,10 @@ class IntImmNode : public PrimExprNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<IntImmNode>().def_ro("value", &IntImmNode::value);
+    namespace tr = tvm::ffi::ir::traits;
+    refl::ObjectDef<IntImmNode>()
+        .def_ro("value", &IntImmNode::value)
+        .def_ir_traits<tr::LiteralObj>("$field:value", "int");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.IntImm", IntImmNode, PrimExprNode);
 };
@@ -533,7 +540,10 @@ class FloatImmNode : public PrimExprNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<FloatImmNode>().def_ro("value", &FloatImmNode::value);
+    namespace tr = tvm::ffi::ir::traits;
+    refl::ObjectDef<FloatImmNode>()
+        .def_ro("value", &FloatImmNode::value)
+        .def_ir_traits<tr::LiteralObj>("$field:value", "float");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.FloatImm", FloatImmNode, PrimExprNode);
 };
@@ -675,10 +685,12 @@ class RangeNode : public Object {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
+    namespace tr = tvm::ffi::ir::traits;
     refl::ObjectDef<RangeNode>()
         .def_ro("min", &RangeNode::min)
         .def_ro("extent", &RangeNode::extent)
-        .def_ro("span", &RangeNode::span, refl::AttachFieldFlag::SEqHashIgnore());
+        .def_ro("span", &RangeNode::span, refl::AttachFieldFlag::SEqHashIgnore())
+        .def_ir_traits<tr::CallObj>("I.Range", "$global:ir._range_args");
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;

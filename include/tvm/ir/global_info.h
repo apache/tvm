@@ -25,6 +25,7 @@
 #ifndef TVM_IR_GLOBAL_INFO_H_
 #define TVM_IR_GLOBAL_INFO_H_
 
+#include <tvm/ffi/ir/traits.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
 #include <tvm/target/target.h>
@@ -71,10 +72,12 @@ class VDeviceNode : public GlobalInfoNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
+    namespace tr = tvm::ffi::ir::traits;
     refl::ObjectDef<VDeviceNode>()
         .def_ro("target", &VDeviceNode::target)
         .def_ro("vdevice_id", &VDeviceNode::vdevice_id)
-        .def_ro("memory_scope", &VDeviceNode::memory_scope);
+        .def_ro("memory_scope", &VDeviceNode::memory_scope)
+        .def_ir_traits<tr::CallObj>("I.vdevice", "$global:ir._vdevice_args");
   }
 
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.VDevice", VDeviceNode, GlobalInfoNode);
@@ -97,7 +100,9 @@ class DummyGlobalInfoNode : public GlobalInfoNode {
  public:
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<DummyGlobalInfoNode>();
+    namespace tr = tvm::ffi::ir::traits;
+    refl::ObjectDef<DummyGlobalInfoNode>()
+        .def_ir_traits<tr::CallObj>("I.dummy_global_info", "$global:ir._dummy_args");
   }
 
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.DummyGlobalInfo", DummyGlobalInfoNode, GlobalInfoNode);

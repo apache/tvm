@@ -27,6 +27,7 @@
 
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
+#include <tvm/ffi/ir/traits.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/expr.h>
 #include <tvm/node/functor.h>
@@ -56,7 +57,10 @@ class StringImmNode : public PrimExprNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<StringImmNode>().def_ro("value", &StringImmNode::value);
+    namespace tr = tvm::ffi::ir::traits;
+    refl::ObjectDef<StringImmNode>()
+        .def_ro("value", &StringImmNode::value)
+        .def_ir_traits<tr::LiteralObj>("$field:value", "string");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.StringImm", StringImmNode, PrimExprNode);
 };
@@ -83,7 +87,10 @@ class CastNode : public PrimExprNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<CastNode>().def_ro("value", &CastNode::value);
+    namespace tr = tvm::ffi::ir::traits;
+    refl::ObjectDef<CastNode>()
+        .def_ro("value", &CastNode::value)
+        .def_ir_traits<tr::CallObj>("T.Cast", "$global:tirx._cast_args");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.Cast", CastNode, PrimExprNode);
 };
@@ -125,6 +132,15 @@ class BinaryOpNode : public PrimExprNode {
 class AddNode : public BinaryOpNode<AddNode> {
  public:
   static constexpr const char* _type_key = "tirx.Add";
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    namespace tr = tvm::ffi::ir::traits;
+    refl::ObjectDef<AddNode>()
+        .def_ro("a", &AddNode::a)
+        .def_ro("b", &AddNode::b)
+        .def_ir_traits<tr::BinOpObj>("$field:a", "$field:b", "+",
+                                      "$global:tirx._add_sugar", "Add");
+  }
 };
 
 /*!
@@ -142,6 +158,15 @@ class Add : public PrimExpr {
 class SubNode : public BinaryOpNode<SubNode> {
  public:
   static constexpr const char* _type_key = "tirx.Sub";
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    namespace tr = tvm::ffi::ir::traits;
+    refl::ObjectDef<SubNode>()
+        .def_ro("a", &SubNode::a)
+        .def_ro("b", &SubNode::b)
+        .def_ir_traits<tr::BinOpObj>("$field:a", "$field:b", "-",
+                                      "$global:tirx._sub_sugar", "Sub");
+  }
 };
 
 /*!
@@ -160,6 +185,15 @@ class Sub : public PrimExpr {
 class MulNode : public BinaryOpNode<MulNode> {
  public:
   static constexpr const char* _type_key = "tirx.Mul";
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    namespace tr = tvm::ffi::ir::traits;
+    refl::ObjectDef<MulNode>()
+        .def_ro("a", &MulNode::a)
+        .def_ro("b", &MulNode::b)
+        .def_ir_traits<tr::BinOpObj>("$field:a", "$field:b", "*",
+                                      "$global:tirx._mul_sugar", "Mul");
+  }
 };
 
 /*!
@@ -180,6 +214,15 @@ class Mul : public PrimExpr {
 class DivNode : public BinaryOpNode<DivNode> {
  public:
   static constexpr const char* _type_key = "tirx.Div";
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    namespace tr = tvm::ffi::ir::traits;
+    refl::ObjectDef<DivNode>()
+        .def_ro("a", &DivNode::a)
+        .def_ro("b", &DivNode::b)
+        .def_ir_traits<tr::BinOpObj>("$field:a", "$field:b", "/",
+                                      "$global:tirx._div_sugar", "Div");
+  }
 };
 
 /*!
@@ -200,6 +243,14 @@ class Div : public PrimExpr {
 class ModNode : public BinaryOpNode<ModNode> {
  public:
   static constexpr const char* _type_key = "tirx.Mod";
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    namespace tr = tvm::ffi::ir::traits;
+    refl::ObjectDef<ModNode>()
+        .def_ro("a", &ModNode::a)
+        .def_ro("b", &ModNode::b)
+        .def_ir_traits<tr::BinOpObj>("$field:a", "$field:b", "truncmod");
+  }
 };
 
 /*!
@@ -217,6 +268,15 @@ class Mod : public PrimExpr {
 class FloorDivNode : public BinaryOpNode<FloorDivNode> {
  public:
   static constexpr const char* _type_key = "tirx.FloorDiv";
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    namespace tr = tvm::ffi::ir::traits;
+    refl::ObjectDef<FloorDivNode>()
+        .def_ro("a", &FloorDivNode::a)
+        .def_ro("b", &FloorDivNode::b)
+        .def_ir_traits<tr::BinOpObj>("$field:a", "$field:b", "//",
+                                      "$global:tirx._floordiv_sugar", "FloorDiv");
+  }
 };
 
 /*!
@@ -234,6 +294,15 @@ class FloorDiv : public PrimExpr {
 class FloorModNode : public BinaryOpNode<FloorModNode> {
  public:
   static constexpr const char* _type_key = "tirx.FloorMod";
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    namespace tr = tvm::ffi::ir::traits;
+    refl::ObjectDef<FloorModNode>()
+        .def_ro("a", &FloorModNode::a)
+        .def_ro("b", &FloorModNode::b)
+        .def_ir_traits<tr::BinOpObj>("$field:a", "$field:b", "%",
+                                      "$global:tirx._floormod_sugar", "FloorMod");
+  }
 };
 
 /*!
@@ -251,6 +320,14 @@ class FloorMod : public PrimExpr {
 class MinNode : public BinaryOpNode<MinNode> {
  public:
   static constexpr const char* _type_key = "tirx.Min";
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    namespace tr = tvm::ffi::ir::traits;
+    refl::ObjectDef<MinNode>()
+        .def_ro("a", &MinNode::a)
+        .def_ro("b", &MinNode::b)
+        .def_ir_traits<tr::BinOpObj>("$field:a", "$field:b", "min");
+  }
 };
 
 /*!
@@ -268,6 +345,14 @@ class Min : public PrimExpr {
 class MaxNode : public BinaryOpNode<MaxNode> {
  public:
   static constexpr const char* _type_key = "tirx.Max";
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    namespace tr = tvm::ffi::ir::traits;
+    refl::ObjectDef<MaxNode>()
+        .def_ro("a", &MaxNode::a)
+        .def_ro("b", &MaxNode::b)
+        .def_ir_traits<tr::BinOpObj>("$field:a", "$field:b", "max");
+  }
 };
 
 /*!
@@ -307,6 +392,15 @@ class CmpOpNode : public PrimExprNode {
 class EQNode : public CmpOpNode<EQNode> {
  public:
   static constexpr const char* _type_key = "tirx.EQ";
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    namespace tr = tvm::ffi::ir::traits;
+    refl::ObjectDef<EQNode>()
+        .def_ro("a", &EQNode::a)
+        .def_ro("b", &EQNode::b)
+        .def_ir_traits<tr::BinOpObj>("$field:a", "$field:b", "==",
+                                      "$global:tirx._eq_sugar", "EQ");
+  }
 };
 
 /*!
@@ -324,6 +418,15 @@ class EQ : public PrimExpr {
 class NENode : public CmpOpNode<NENode> {
  public:
   static constexpr const char* _type_key = "tirx.NE";
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    namespace tr = tvm::ffi::ir::traits;
+    refl::ObjectDef<NENode>()
+        .def_ro("a", &NENode::a)
+        .def_ro("b", &NENode::b)
+        .def_ir_traits<tr::BinOpObj>("$field:a", "$field:b", "!=",
+                                      "$global:tirx._ne_sugar", "NE");
+  }
 };
 
 /*!
@@ -341,6 +444,15 @@ class NE : public PrimExpr {
 class LTNode : public CmpOpNode<LTNode> {
  public:
   static constexpr const char* _type_key = "tirx.LT";
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    namespace tr = tvm::ffi::ir::traits;
+    refl::ObjectDef<LTNode>()
+        .def_ro("a", &LTNode::a)
+        .def_ro("b", &LTNode::b)
+        .def_ir_traits<tr::BinOpObj>("$field:a", "$field:b", "<",
+                                      "$global:tirx._lt_sugar", "LT");
+  }
 };
 
 /*!
@@ -358,6 +470,15 @@ class LT : public PrimExpr {
 struct LENode : public CmpOpNode<LENode> {
  public:
   static constexpr const char* _type_key = "tirx.LE";
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    namespace tr = tvm::ffi::ir::traits;
+    refl::ObjectDef<LENode>()
+        .def_ro("a", &LENode::a)
+        .def_ro("b", &LENode::b)
+        .def_ir_traits<tr::BinOpObj>("$field:a", "$field:b", "<=",
+                                      "$global:tirx._le_sugar", "LE");
+  }
 };
 
 /*!
@@ -375,6 +496,15 @@ class LE : public PrimExpr {
 class GTNode : public CmpOpNode<GTNode> {
  public:
   static constexpr const char* _type_key = "tirx.GT";
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    namespace tr = tvm::ffi::ir::traits;
+    refl::ObjectDef<GTNode>()
+        .def_ro("a", &GTNode::a)
+        .def_ro("b", &GTNode::b)
+        .def_ir_traits<tr::BinOpObj>("$field:a", "$field:b", ">",
+                                      "$global:tirx._gt_sugar", "GT");
+  }
 };
 
 /*!
@@ -392,6 +522,15 @@ class GT : public PrimExpr {
 class GENode : public CmpOpNode<GENode> {
  public:
   static constexpr const char* _type_key = "tirx.GE";
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    namespace tr = tvm::ffi::ir::traits;
+    refl::ObjectDef<GENode>()
+        .def_ro("a", &GENode::a)
+        .def_ro("b", &GENode::b)
+        .def_ir_traits<tr::BinOpObj>("$field:a", "$field:b", ">=",
+                                      "$global:tirx._ge_sugar", "GE");
+  }
 };
 
 /*!
@@ -415,7 +554,12 @@ class AndNode : public PrimExprNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<AndNode>().def_ro("a", &AndNode::a).def_ro("b", &AndNode::b);
+    namespace tr = tvm::ffi::ir::traits;
+    refl::ObjectDef<AndNode>()
+        .def_ro("a", &AndNode::a)
+        .def_ro("b", &AndNode::b)
+        .def_ir_traits<tr::BinOpObj>("$field:a", "$field:b", "and",
+                                      "$global:tirx._and_sugar", "And");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.And", AndNode, PrimExprNode);
 };
@@ -441,7 +585,12 @@ class OrNode : public PrimExprNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<OrNode>().def_ro("a", &OrNode::a).def_ro("b", &OrNode::b);
+    namespace tr = tvm::ffi::ir::traits;
+    refl::ObjectDef<OrNode>()
+        .def_ro("a", &OrNode::a)
+        .def_ro("b", &OrNode::b)
+        .def_ir_traits<tr::BinOpObj>("$field:a", "$field:b", "or",
+                                      "$global:tirx._or_sugar", "Or");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.Or", OrNode, PrimExprNode);
 };
@@ -465,7 +614,10 @@ class NotNode : public PrimExprNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<NotNode>().def_ro("a", &NotNode::a);
+    namespace tr = tvm::ffi::ir::traits;
+    refl::ObjectDef<NotNode>()
+        .def_ro("a", &NotNode::a)
+        .def_ir_traits<tr::UnaryOpObj>("$field:a", "not");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.Not", NotNode, PrimExprNode);
 };
@@ -499,10 +651,12 @@ class SelectNode : public PrimExprNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
+    namespace tr = tvm::ffi::ir::traits;
     refl::ObjectDef<SelectNode>()
         .def_ro("condition", &SelectNode::condition)
         .def_ro("true_value", &SelectNode::true_value)
-        .def_ro("false_value", &SelectNode::false_value);
+        .def_ro("false_value", &SelectNode::false_value)
+        .def_ir_traits<tr::CallObj>("T.Select", "$global:tirx._select_args");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.Select", SelectNode, PrimExprNode);
 };
@@ -540,10 +694,13 @@ class BufferLoadNode : public PrimExprNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
+    namespace tr = tvm::ffi::ir::traits;
     refl::ObjectDef<BufferLoadNode>()
         .def_ro("buffer", &BufferLoadNode::buffer)
         .def_ro("indices", &BufferLoadNode::indices)
-        .def_ro("predicate", &BufferLoadNode::predicate);
+        .def_ro("predicate", &BufferLoadNode::predicate)
+        .def_ir_traits<tr::LoadObj>("$field:buffer", "$global:tirx._load_indices",
+                                   "$field:predicate");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.BufferLoad", BufferLoadNode, PrimExprNode);
 
@@ -594,9 +751,11 @@ class ProducerLoadNode : public PrimExprNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
+    namespace tr = tvm::ffi::ir::traits;
     refl::ObjectDef<ProducerLoadNode>()
         .def_ro("producer", &ProducerLoadNode::producer)
-        .def_ro("indices", &ProducerLoadNode::indices);
+        .def_ro("indices", &ProducerLoadNode::indices)
+        .def_ir_traits<tr::LoadObj>("$field:producer", "$field:indices");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.ProducerLoad", ProducerLoadNode, PrimExprNode);
 };
@@ -634,10 +793,12 @@ class RampNode : public PrimExprNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
+    namespace tr = tvm::ffi::ir::traits;
     refl::ObjectDef<RampNode>()
         .def_ro("base", &RampNode::base)
         .def_ro("stride", &RampNode::stride)
-        .def_ro("lanes", &RampNode::lanes);
+        .def_ro("lanes", &RampNode::lanes)
+        .def_ir_traits<tr::CallObj>("T.Ramp", "$global:tirx._ramp_args");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.Ramp", RampNode, PrimExprNode);
 };
@@ -663,9 +824,11 @@ class BroadcastNode : public PrimExprNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
+    namespace tr = tvm::ffi::ir::traits;
     refl::ObjectDef<BroadcastNode>()
         .def_ro("value", &BroadcastNode::value)
-        .def_ro("lanes", &BroadcastNode::lanes);
+        .def_ro("lanes", &BroadcastNode::lanes)
+        .def_ir_traits<tr::CallObj>("T.Broadcast", "$global:tirx._broadcast_args");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.Broadcast", BroadcastNode, PrimExprNode);
 };
@@ -732,7 +895,12 @@ class CallNode : public PrimExprNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<CallNode>().def_ro("op", &CallNode::op).def_ro("args", &CallNode::args);
+    namespace tr = tvm::ffi::ir::traits;
+    refl::ObjectDef<CallNode>()
+        .def_ro("op", &CallNode::op)
+        .def_ro("args", &CallNode::args)
+        .def_ir_traits<tr::CallObj>("$global:tirx._call_callee", "$global:tirx._call_args",
+                                     nullptr, nullptr, "$printer:tirx._tir_call_callee");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.Call", CallNode, PrimExprNode);
 };
@@ -762,9 +930,11 @@ class ShuffleNode : public PrimExprNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
+    namespace tr = tvm::ffi::ir::traits;
     refl::ObjectDef<ShuffleNode>()
         .def_ro("vectors", &ShuffleNode::vectors)
-        .def_ro("indices", &ShuffleNode::indices);
+        .def_ro("indices", &ShuffleNode::indices)
+        .def_ir_traits<tr::CallObj>("T.Shuffle", "$global:tirx._shuffle_args");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.Shuffle", ShuffleNode, PrimExprNode);
 };
@@ -812,12 +982,14 @@ class CommReducerNode : public Object {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
+    namespace tr = tvm::ffi::ir::traits;
     refl::ObjectDef<CommReducerNode>()
         .def_ro("lhs", &CommReducerNode::lhs, refl::AttachFieldFlag::SEqHashDef())
         .def_ro("rhs", &CommReducerNode::rhs, refl::AttachFieldFlag::SEqHashDef())
         .def_ro("result", &CommReducerNode::result)
         .def_ro("identity_element", &CommReducerNode::identity_element)
-        .def_ro("span", &CommReducerNode::span, refl::AttachFieldFlag::SEqHashIgnore());
+        .def_ro("span", &CommReducerNode::span, refl::AttachFieldFlag::SEqHashIgnore())
+        .def_ir_traits<tr::CallObj>("comm_reducer", "$field:lhs");
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
@@ -857,13 +1029,16 @@ class ReduceNode : public PrimExprNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
+    namespace tr = tvm::ffi::ir::traits;
     refl::ObjectDef<ReduceNode>()
         .def_ro("combiner", &ReduceNode::combiner)
         .def_ro("source", &ReduceNode::source)
         .def_ro("init", &ReduceNode::init)
         .def_ro("axis", &ReduceNode::axis)
         .def_ro("condition", &ReduceNode::condition)
-        .def_ro("value_index", &ReduceNode::value_index);
+        .def_ro("value_index", &ReduceNode::value_index)
+        .def_ir_traits<tr::CallObj>("T.reduce", "$global:tirx._reduce_positional",
+                                     nullptr, "$global:tirx._reduce_kwargs");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.Reduce", ReduceNode, PrimExprNode);
 };

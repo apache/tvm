@@ -50,6 +50,7 @@
 #define TVM_IR_TYPE_H_
 
 #include <tvm/ffi/container/array.h>
+#include <tvm/ffi/ir/traits.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/source_map.h>
 #include <tvm/runtime/data_type.h>
@@ -118,7 +119,10 @@ class PrimTypeNode : public TypeNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<PrimTypeNode>().def_ro("dtype", &PrimTypeNode::dtype);
+    namespace tr = tvm::ffi::ir::traits;
+    refl::ObjectDef<PrimTypeNode>()
+        .def_ro("dtype", &PrimTypeNode::dtype)
+        .def_ir_traits<tr::PrimTyObj>("$field:dtype");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.PrimType", PrimTypeNode, TypeNode);
 };
@@ -162,9 +166,11 @@ class PointerTypeNode : public TypeNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
+    namespace tr = tvm::ffi::ir::traits;
     refl::ObjectDef<PointerTypeNode>()
         .def_ro("element_type", &PointerTypeNode::element_type)
-        .def_ro("storage_scope", &PointerTypeNode::storage_scope);
+        .def_ro("storage_scope", &PointerTypeNode::storage_scope)
+        .def_ir_traits<tr::CallObj>("T.handle", "$global:ir._handle_args");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.PointerType", PointerTypeNode, TypeNode);
 };
@@ -198,9 +204,11 @@ class TupleTypeNode : public TypeNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
+    namespace tr = tvm::ffi::ir::traits;
     refl::ObjectDef<TupleTypeNode>()
         .def_ro("fields", &TupleTypeNode::fields)
-        .def_ro("span", &TupleTypeNode::span);
+        .def_ro("span", &TupleTypeNode::span)
+        .def_ir_traits<tr::TupleTyObj>("$field:fields");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.TupleType", TupleTypeNode, TypeNode);
 };
@@ -258,10 +266,12 @@ class FuncTypeNode : public TypeNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
+    namespace tr = tvm::ffi::ir::traits;
     refl::ObjectDef<FuncTypeNode>()
         .def_ro("arg_types", &FuncTypeNode::arg_types)
         .def_ro("ret_type", &FuncTypeNode::ret_type)
-        .def_ro("span", &FuncTypeNode::span);
+        .def_ro("span", &FuncTypeNode::span)
+        .def_ir_traits<tr::FuncTyObj>("$field:arg_types", "$field:ret_type");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.FuncType", FuncTypeNode, TypeNode);
 };

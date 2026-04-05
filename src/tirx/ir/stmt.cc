@@ -22,12 +22,18 @@
  */
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/ir/traits.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/stmt.h>
 
+#include <unordered_set>
+#include <vector>
+
 #include "buffer_common.h"
+#include "script_print_utils.h"
 
 namespace tvm {
 namespace tirx {
@@ -35,7 +41,6 @@ namespace tirx {
 TVM_FFI_STATIC_INIT_BLOCK() {
   StmtNode::RegisterReflection();
   BindNode::RegisterReflection();
-
   AttrStmtNode::RegisterReflection();
   AssertStmtNode::RegisterReflection();
   BufferStoreNode::RegisterReflection();
@@ -50,6 +55,42 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   MatchBufferRegionNode::RegisterReflection();
   SBlockNode::RegisterReflection();
   SBlockRealizeNode::RegisterReflection();
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = ::tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("tirx._structured_msg", [](AssertStmt node) -> ffi::Array<ObjectRef> {
+        ffi::Array<ObjectRef> parts_arr;
+        for (const StringImm& part : node->message_parts) {
+          parts_arr.push_back(part);
+        }
+        return {node->error_kind, parts_arr};
+      })
+      .def("tirx._evaluate_is_return", [](Evaluate self) -> bool {
+        if (auto* call = self->value.as<tirx::CallNode>()) {
+          return call->op.same_as(tirx::builtin::ret()) && call->args.size() == 1;
+        }
+        return false;
+      })
+      .def("tirx._evaluate_expr", [](Evaluate self) -> PrimExpr {
+        if (auto* call = self->value.as<tirx::CallNode>()) {
+          if (call->op.same_as(tirx::builtin::ret()) && call->args.size() == 1) {
+            return call->args[0];
+          }
+        }
+        return self->value;
+      })
+      .def("tirx._evaluate_kind", [](Evaluate self) -> ffi::Optional<ffi::String> {
+        // For ret() calls, the return check handles it, so kind doesn't matter
+        if (auto* call = self->value.as<tirx::CallNode>()) {
+          if (call->op.same_as(tirx::builtin::ret())) return {};
+        }
+        // For other calls, no wrapper needed
+        if (self->value->IsInstance<tirx::CallNode>()) return {};
+        // Non-call: wrap with T.evaluate
+        return ffi::String("T.evaluate");
+      });
 }
 
 // Bind
@@ -607,6 +648,382 @@ TVM_TIR_REGISTER_OP("type_annotation")
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure))
     .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
                                          Integer(ScriptDtypePrintLocation::kFirst));
+
+
+// ---------------------------------------------------------------------------
+// __ffi_text_print__ overrides
+// ---------------------------------------------------------------------------
+
+// Static helper for SBlockRealize/SBlock printing
+static ::tvm::ffi::ir::text::NodeAST PrintSBlockRealize(
+    SBlockRealize realize, ::tvm::ffi::ir::text::IRPrinter printer,
+    ::tvm::ffi::ir::text::AccessPath path) {
+  using namespace printer;
+  SBlock block = realize->block;
+  text::AccessPath block_p = path->Attr("block");
+
+  text::DefaultFrame frame;
+  printer->FramePush(frame);
+
+  // Build context expr: T.sblock("name")
+  text::ExprAST ctx = text::ExprCall(TIR("sblock"), {text::LiteralAST::Str(block->name_hint)});
+
+  // Define iter_vars and build as_var
+  for (int i = 0; i < static_cast<int>(block->iter_vars.size()); ++i) {
+    IterVar iv = block->iter_vars[i];
+    text::AccessPath iv_p = block_p->Attr("iter_vars")->ArrayItem(i);
+
+    text::ExprAST var_id = DefineVar(iv->var, printer, iv_p->Attr("var"));
+
+    std::string axis_type;
+    switch (static_cast<int>(iv->iter_type)) {
+      case kDataPar: axis_type = "spatial"; break;
+      case kCommReduce: axis_type = "reduce"; break;
+      case kOrdered: axis_type = "scan"; break;
+      default: axis_type = "opaque"; break;
+    }
+
+    text::ExprAST dom(ffi::UnsafeInit{});
+    if (iv->dom.defined()) {
+      if (is_zero(iv->dom->min)) {
+        dom = Print(printer, iv->dom->extent, iv_p->Attr("dom")->Attr("extent"));
+      } else {
+        dom = text::TupleAST({}, {Print(printer, iv->dom->min, iv_p->Attr("dom")->Attr("min")),
+                            Print(printer, iv->dom->min + iv->dom->extent,
+                                  iv_p->Attr("dom")->Attr("extent"))});
+      }
+    } else {
+      dom = text::LiteralAST::Null();
+    }
+
+    text::ExprAST val(ffi::UnsafeInit{});
+    if (i < static_cast<int>(realize->iter_values.size())) {
+      val = Print(printer, realize->iter_values[i], path->Attr("iter_values")->ArrayItem(i));
+    } else {
+      val = text::LiteralAST::Null();
+    }
+
+    text::ExprAST rhs = text::ExprCall(text::ExprAttr(text::ExprAttr(text::IdAST("T"), "axis"), axis_type), {dom, val});
+    frame->stmts.push_back(
+        text::AssignAST(var_id, rhs, ffi::Optional<text::ExprAST>()));
+  }
+
+  // Predicate
+  if (!is_one(realize->predicate)) {
+    text::ExprAST pred = Print(printer, realize->predicate, path->Attr("predicate"));
+    frame->stmts.push_back(
+        text::ExprStmtAST(text::ExprCall(TIR("where"), {pred})));
+  }
+
+  // Reads
+  {
+    ffi::List<text::ExprAST> reads;
+    for (int i = 0; i < static_cast<int>(block->reads.size()); ++i) {
+      reads.push_back(
+          Print(printer, block->reads[i], block_p->Attr("reads")->ArrayItem(i)));
+    }
+    frame->stmts.push_back(
+        text::ExprStmtAST(text::ExprCall(TIR("reads"), std::move(reads))));
+  }
+
+  // Writes
+  {
+    ffi::List<text::ExprAST> writes;
+    for (int i = 0; i < static_cast<int>(block->writes.size()); ++i) {
+      writes.push_back(
+          Print(printer, block->writes[i], block_p->Attr("writes")->ArrayItem(i)));
+    }
+    frame->stmts.push_back(
+        text::ExprStmtAST(text::ExprCall(TIR("writes"), std::move(writes))));
+  }
+
+  // Annotations
+  if (!block->annotations.empty()) {
+    text::ExprAST annot = Print(printer, block->annotations, block_p->Attr("annotations"));
+    frame->stmts.push_back(
+        text::ExprStmtAST(text::ExprCall(TIR("sblock_attr"), {annot})));
+  }
+
+  // Alloc buffers
+  for (int i = 0; i < static_cast<int>(block->alloc_buffers.size()); ++i) {
+    Buffer buf = block->alloc_buffers[i];
+    text::AccessPath buffer_p = block_p->Attr("alloc_buffers")->ArrayItem(i);
+    std::string buf_name = buf->name;
+    if (buf_name.empty()) buf_name = "buffer";
+    printer->VarDef(buf_name, buf, frame);
+    text::ExprAST buf_id = printer->VarGet(buf).value();
+    ffi::List<text::ExprAST> no_extra;
+    text::ExprAST rhs = PrintBufferDecl(buf, "sblock_alloc_buffer", std::move(no_extra),
+                                   printer, buffer_p);
+    DefineBufferDataVar(buf, printer);
+    frame->stmts.push_back(
+        text::AssignAST(buf_id, rhs, ffi::Optional<text::ExprAST>()));
+  }
+
+  // Match buffers
+  for (int i = 0; i < static_cast<int>(block->match_buffers.size()); ++i) {
+    text::NodeAST s = printer->operator()(ffi::Any(block->match_buffers[i]),
+                                     block_p->Attr("match_buffers")->ArrayItem(i))
+                    .cast<text::NodeAST>();
+    if (s->IsInstance<text::StmtASTObj>()) {
+      frame->stmts.push_back(Downcast<text::StmtAST>(s));
+    }
+  }
+
+  // Init
+  if (block->init.defined()) {
+    ffi::List<text::StmtAST> init_body = PrintBodyStmts(block->init.value(), printer,
+                                              block_p->Attr("init"));
+    text::ExprAST init_ctx = text::ExprCall(TIR("init"), {});
+    frame->stmts.push_back(
+        text::WithAST(ffi::Optional<text::ExprAST>(), init_ctx, init_body));
+  }
+
+  // Body
+  ffi::List<text::StmtAST> body = PrintBodyStmts(block->body, printer, block_p->Attr("body"));
+
+  // Merge
+  ffi::List<text::StmtAST> all_body;
+  for (const auto& s : frame->stmts) all_body.push_back(s);
+  for (const auto& s : body) all_body.push_back(s);
+
+  printer->FramePop();
+  return text::WithAST(ffi::Optional<text::ExprAST>(), ctx, all_body);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  using namespace printer;
+
+  // AllocBuffer, DeclBuffer, MatchBufferRegion
+  refl::TypeAttrDef<AllocBufferNode>().def(
+      "__ffi_text_print__",
+      [](AllocBuffer node, text::IRPrinter printer, text::AccessPath path) -> text::NodeAST {
+        using namespace printer;
+        Buffer buf = node->buffer;
+        text::DefaultFrame frame = printer->frames.back().cast<text::DefaultFrame>();
+        printer->VarDef(buf->name, buf, frame);
+        text::ExprAST buf_id = printer->VarGet(buf).value();
+        text::AccessPath buffer_p = path->Attr("buffer");
+        ffi::List<text::ExprAST> no_extra;
+        text::ExprAST rhs = PrintBufferDecl(buf, "alloc_buffer", std::move(no_extra),
+                                       printer, buffer_p,
+                                       node->annotations, path->Attr("annotations"));
+        DefineBufferDataVar(buf, printer);
+        return text::AssignAST(buf_id, rhs, ffi::Optional<text::ExprAST>());
+      });
+
+  refl::TypeAttrDef<DeclBufferNode>().def(
+      "__ffi_text_print__",
+      [](DeclBuffer node, text::IRPrinter printer, text::AccessPath path) -> text::NodeAST {
+        using namespace printer;
+        Buffer buf = node->buffer;
+        text::DefaultFrame frame = printer->frames.back().cast<text::DefaultFrame>();
+        DefineBufferVars(buf, printer, frame);
+        printer->VarDef(buf->name, buf, frame);
+        text::ExprAST buf_id = printer->VarGet(buf).value();
+        ffi::List<text::ExprAST> no_extra;
+        text::ExprAST rhs = PrintBufferDecl(buf, "decl_buffer", std::move(no_extra),
+                                       printer, path->Attr("buffer"));
+        DefineBufferDataVar(buf, printer);
+        return text::AssignAST(buf_id, rhs, ffi::Optional<text::ExprAST>());
+      });
+
+  refl::TypeAttrDef<MatchBufferRegionNode>().def(
+      "__ffi_text_print__",
+      [](MatchBufferRegion node, text::IRPrinter printer, text::AccessPath path) -> text::NodeAST {
+        using namespace printer;
+        Buffer buf = node->buffer;
+        text::DefaultFrame frame = printer->frames.back().cast<text::DefaultFrame>();
+        DefineBufferVars(buf, printer, frame);
+        printer->VarDef(buf->name, buf, frame);
+        text::ExprAST buf_id = printer->VarGet(buf).value();
+        text::ExprAST source = Print(printer, node->source, path->Attr("source"));
+        ffi::List<text::ExprAST> extra_args;
+        extra_args.push_back(source);
+        text::ExprAST rhs = PrintBufferDecl(buf, "match_buffer", std::move(extra_args),
+                                       printer, path->Attr("buffer"));
+        DefineBufferDataVar(buf, printer);
+        return text::AssignAST(buf_id, rhs, ffi::Optional<text::ExprAST>());
+      });
+
+  // AttrStmt
+  refl::TypeAttrDef<AttrStmtNode>().def(
+      "__ffi_text_print__",
+      [](AttrStmt node, text::IRPrinter printer, text::AccessPath path) -> text::NodeAST {
+        using namespace printer;
+        bool is_iter_var = (node->node.type_index() >= ffi::TypeIndex::kTVMFFIStaticObjectBegin) &&
+                           node->node.cast<ffi::ObjectRef>()->IsInstance<IterVarNode>();
+        if ((node->attr_key == "thread_extent" || node->attr_key == "virtual_thread") &&
+            is_iter_var) {
+          IterVar iv = node->node.cast<IterVar>();
+          bool was_defined = printer->VarGet(iv->var).has_value();
+          if (was_defined) {
+            ffi::List<text::StmtAST> body = PrintBodyStmts(node->body, printer, path->Attr("body"));
+            text::ExprAST var = printer->VarGet(iv->var).value();
+            text::ExprAST ctx = text::ExprCall(TIR("launch_thread"),
+                                   {var, Print(printer, node->value, path->Attr("value"))});
+            return text::WithAST(ffi::Optional<text::ExprAST>(), ctx, body);
+          } else {
+            text::DefaultFrame inner_frame;
+            printer->FramePush(inner_frame);
+            DefineVar(iv->var, printer, path->Attr("node")->Attr("var"));
+            ffi::List<text::StmtAST> body = PrintBodyStmts(node->body, printer, path->Attr("body"));
+            text::ExprAST var = printer->VarGet(iv->var).value();
+            printer->FramePop();
+            text::ExprAST ctx = text::ExprCall(TIR("launch_thread"),
+                                   {text::LiteralAST::Str(iv->thread_tag),
+                                    Print(printer, node->value, path->Attr("value"))});
+            return text::WithAST(ffi::Optional<text::ExprAST>(var), ctx, body);
+          }
+        }
+        ffi::List<text::StmtAST> body = PrintBodyStmts(node->body, printer, path->Attr("body"));
+        text::ExprAST ctx = text::ExprCall(TIR("attr"),
+                               {Print(printer, node->node, path->Attr("node")),
+                                text::LiteralAST::Str(node->attr_key, {path->Attr("attr_key")}),
+                                Print(printer, node->value, path->Attr("value"))});
+        return text::WithAST(ffi::Optional<text::ExprAST>(), ctx, body);
+      });
+
+  // ForNode
+  refl::TypeAttrDef<ForNode>().def(
+      "__ffi_text_print__",
+      [](tirx::For loop, text::IRPrinter printer, text::AccessPath path) -> text::NodeAST {
+        using namespace printer;
+        // Step 1. Check syntactic sugar: T.grid
+        std::vector<const ForNode*> grid;
+        std::unordered_set<const tirx::VarNode*> grid_loop_vars;
+        {
+          for (const ForNode* l = loop.get(); l != nullptr;
+               l = l->body.as<ForNode>()) {
+            if (l->kind != ForKind::kSerial ||
+                !is_zero(l->min) ||
+                !l->annotations.empty() ||
+                !l->HasTrivialStep() ||
+                tirx::UsesVar(l->extent, [&grid_loop_vars](const tirx::VarNode* v) {
+                  return grid_loop_vars.count(v) > 0;
+                })) {
+              break;
+            }
+            grid.push_back(l);
+            grid_loop_vars.insert(l->loop_var.get());
+          }
+        }
+
+        // Step 2. If grid.size() > 1, print as T.grid
+        if (grid.size() > 1) {
+          text::DefaultFrame frame;
+          printer->FramePush(frame);
+          int n = grid.size();
+          ffi::List<text::ExprAST> lhs_vars;
+          ffi::List<text::ExprAST> extents;
+          text::AccessPath cur_p = path;
+          for (int i = 0; i < n; ++i) {
+            const ForNode* g = grid[i];
+            lhs_vars.push_back(
+                DefineVar(ffi::GetRef<Var>(static_cast<const VarNode*>(g->loop_var.get())),
+                          printer, cur_p->Attr("loop_var")));
+            extents.push_back(Print(printer, g->extent, cur_p->Attr("extent")));
+            cur_p = cur_p->Attr("body");
+          }
+          text::ExprAST lhs = text::TupleAST({}, std::move(lhs_vars));
+          text::ExprAST rhs = text::ExprCall(TIR("grid"), std::move(extents));
+          ffi::List<text::StmtAST> body = PrintBodyStmts(
+              ffi::GetRef<Stmt>(static_cast<const StmtNode*>(grid.back()->body.get())),
+              printer, cur_p);
+          ffi::List<text::StmtAST> all_body;
+          for (const auto& s : frame->stmts) all_body.push_back(s);
+          for (const auto& s : body) all_body.push_back(s);
+          printer->FramePop();
+          return text::ForAST(lhs, rhs, all_body);
+        }
+
+        // Step 3. Single for loop (no grid sugar)
+        text::DefaultFrame frame;
+        printer->FramePush(frame);
+        text::ExprAST lhs = DefineVar(loop->loop_var, printer, path->Attr("loop_var"));
+
+        text::ExprAST rhs(ffi::UnsafeInit{});
+        bool is_zero_min = is_zero(loop->min);
+        bool has_trivial_step = loop->HasTrivialStep();
+
+        if (loop->kind == ForKind::kSerial && loop->annotations.empty()) {
+          ffi::List<text::ExprAST> range_args;
+          if (is_zero_min && has_trivial_step) {
+            range_args.push_back(Print(printer, loop->extent, path->Attr("extent")));
+          } else {
+            PrimExpr end = loop->min + loop->extent;
+            range_args.push_back(Print(printer, loop->min, path->Attr("min")));
+            range_args.push_back(Print(printer, end, path->Attr("extent")));
+          }
+          if (!has_trivial_step) {
+            range_args.push_back(Print(printer, *loop->step, path->Attr("step")));
+          }
+          rhs = text::ExprCall(text::IdAST("range"), std::move(range_args));
+        } else {
+          std::string prefix;
+          switch (loop->kind) {
+            case ForKind::kSerial: prefix = "serial"; break;
+            case ForKind::kParallel: prefix = "parallel"; break;
+            case ForKind::kUnrolled: prefix = "unroll"; break;
+            case ForKind::kVectorized: prefix = "vectorized"; break;
+            case ForKind::kThreadBinding: prefix = "thread_binding"; break;
+            default: prefix = "serial"; break;
+          }
+          ffi::List<text::ExprAST> args;
+          if (is_zero_min && has_trivial_step) {
+            args.push_back(Print(printer, loop->extent, path->Attr("extent")));
+          } else {
+            PrimExpr end = loop->min + loop->extent;
+            args.push_back(Print(printer, loop->min, path->Attr("min")));
+            args.push_back(Print(printer, end, path->Attr("extent")));
+          }
+          ffi::List<ffi::String> kw_keys;
+          ffi::List<text::ExprAST> kw_vals;
+          if (!loop->annotations.empty()) {
+            kw_keys.push_back(ffi::String("annotations"));
+            kw_vals.push_back(Print(printer, loop->annotations, path->Attr("annotations")));
+          }
+          if (loop->kind == ForKind::kThreadBinding && loop->thread_binding.defined()) {
+            kw_keys.push_back(ffi::String("thread"));
+            kw_vals.push_back(
+                text::LiteralAST::Str(loop->thread_binding.value()->thread_tag,
+                                {path->Attr("thread_binding")}));
+          }
+          if (!has_trivial_step) {
+            kw_keys.push_back(ffi::String("step"));
+            kw_vals.push_back(Print(printer, *loop->step, path->Attr("step")));
+          }
+          rhs = !kw_keys.empty()
+              ? text::ExprCallKw(TIR(prefix), std::move(args), std::move(kw_keys), std::move(kw_vals))
+              : text::ExprCall(TIR(prefix), std::move(args));
+        }
+
+        ffi::List<text::StmtAST> body = PrintBodyStmts(loop->body, printer, path->Attr("body"));
+        ffi::List<text::StmtAST> all_body;
+        for (const auto& s : frame->stmts) all_body.push_back(s);
+        for (const auto& s : body) all_body.push_back(s);
+        printer->FramePop();
+        return text::ForAST(lhs, rhs, all_body);
+      });
+
+  // SBlockRealize + SBlock
+  refl::TypeAttrDef<SBlockRealizeNode>().def(
+      "__ffi_text_print__",
+      [](SBlockRealize node, text::IRPrinter printer, text::AccessPath path) -> text::NodeAST {
+        return PrintSBlockRealize(node, printer, path);
+      });
+
+  refl::TypeAttrDef<SBlockNode>().def(
+      "__ffi_text_print__",
+      [](SBlock block, text::IRPrinter printer, text::AccessPath path) -> text::NodeAST {
+        ffi::Array<PrimExpr> iter_values;
+        for (const auto& iv : block->iter_vars) {
+          iter_values.push_back(iv->var);
+        }
+        SBlockRealize realize(iter_values, Bool(true), block);
+        return PrintSBlockRealize(realize, printer, path);
+      });
+}
 
 }  // namespace tirx
 }  // namespace tvm

@@ -25,6 +25,7 @@
 #ifndef TVM_RELAX_DISTRIBUTED_STRUCT_INFO_H_
 #define TVM_RELAX_DISTRIBUTED_STRUCT_INFO_H_
 
+#include <tvm/ffi/ir/traits.h>
 #include <tvm/relax/distributed/global_info.h>
 #include <tvm/relax/struct_info.h>
 namespace tvm {
@@ -91,7 +92,10 @@ class PlacementNode : public Object {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<PlacementNode>().def_ro("dim_specs", &PlacementNode::dim_specs);
+    namespace tr = tvm::ffi::ir::traits;
+    refl::ObjectDef<PlacementNode>()
+        .def_ro("dim_specs", &PlacementNode::dim_specs)
+        .def_ir_traits<tr::LiteralObj>("$global:relax._placement_str");
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindConstTreeNode;

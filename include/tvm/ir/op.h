@@ -26,6 +26,7 @@
 #define TVM_IR_OP_H_
 
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/ir/traits.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/env_func.h>
@@ -93,6 +94,7 @@ class OpNode : public RelaxExprNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
+    namespace tr = tvm::ffi::ir::traits;
     refl::ObjectDef<OpNode>()
         .def_ro("name", &OpNode::name)
         .def_ro("op_type", &OpNode::op_type, refl::AttachFieldFlag::SEqHashIgnore())
@@ -100,7 +102,8 @@ class OpNode : public RelaxExprNode {
         .def_ro("arguments", &OpNode::arguments, refl::AttachFieldFlag::SEqHashIgnore())
         .def_ro("attrs_type_key", &OpNode::attrs_type_key, refl::AttachFieldFlag::SEqHashIgnore())
         .def_ro("num_inputs", &OpNode::num_inputs, refl::AttachFieldFlag::SEqHashIgnore())
-        .def_ro("support_level", &OpNode::support_level, refl::AttachFieldFlag::SEqHashIgnore());
+        .def_ro("support_level", &OpNode::support_level, refl::AttachFieldFlag::SEqHashIgnore())
+        .def_ir_traits<tr::CallObj>("I.Op", "$field:name");
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindUniqueInstance;

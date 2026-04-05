@@ -22,16 +22,24 @@
  * \brief Relax dtensor struct info.
  */
 
+#include <tvm/ffi/ir/traits.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/distributed/struct_info.h>
+
+#include "../ir/script_print_utils.h"
+
 namespace tvm {
 namespace relax {
 namespace distributed {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = ::tvm::ffi::reflection;
   DTensorStructInfoNode::RegisterReflection();
   PlacementNode::RegisterReflection();
   PlacementSpecNode::RegisterReflection();
+  refl::GlobalDef().def("relax._placement_str", [](Placement node) -> ffi::String {
+    return node->ToString();
+  });
 }
 
 PlacementSpec PlacementSpec::Sharding(int axis) {
@@ -141,6 +149,106 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       "relax.distributed.DTensorStructInfo",
       [](TensorStructInfo tensor_sinfo, DeviceMesh device_mesh, Placement placement, Span span) {
         return DTensorStructInfo(tensor_sinfo, device_mesh, placement, span);
+      });
+}
+
+// ---- __ffi_text_print__ overrides ----
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  using namespace printer;
+  namespace refl = ::tvm::ffi::reflection;
+  namespace text = ::tvm::ffi::ir::text;
+  // DeviceMesh: R.device_mesh((dim0, dim1, ...), I.Range(start, end))
+  refl::TypeAttrDef<DeviceMeshNode>().def(
+      "__ffi_text_print__",
+      [](DeviceMesh node, text::IRPrinter printer, text::AccessPath path) -> text::NodeAST {
+        // Build shape tuple from ffi::Shape
+        ffi::List<text::ExprAST> shape_elts;
+        for (size_t i = 0; i < node->shape.size(); ++i) {
+          shape_elts.push_back(text::LiteralAST::Int(node->shape[i]));
+        }
+        text::ExprAST shape_doc = text::TupleAST({}, std::move(shape_elts));
+        // Build second arg: I.Range(start, end) or device_ids list
+        ffi::List<text::ExprAST> args;
+        args.push_back(shape_doc);
+        if (node->device_range.defined()) {
+          Range r = node->device_range.value();
+          text::ExprAST range_begin = Print(printer, r->min, path->Attr("device_range")->Attr("min"));
+          // Range stores (min, extent); V1 prints I.Range(min, min + extent)
+          PrimExpr end_expr = r->min + r->extent;
+          text::ExprAST range_end = Print(printer, end_expr, path->Attr("device_range")->Attr("extent"));
+          args.push_back(text::ExprCall(IR("Range"), {range_begin, range_end}));
+        } else {
+          args.push_back(Print(printer, node->device_ids, path->Attr("device_ids")));
+        }
+        return text::ExprCall(Relax("device_mesh"), std::move(args));
+      });
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  using namespace printer;
+  namespace refl = ::tvm::ffi::reflection;
+  namespace text = ::tvm::ffi::ir::text;
+  // DTensorStructInfo: R.DTensor(shape, dtype, "mesh[i]", "placement_str")
+  refl::TypeAttrDef<DTensorStructInfoNode>().def(
+      "__ffi_text_print__",
+      [](DTensorStructInfo n, text::IRPrinter printer,
+         text::AccessPath path) -> text::NodeAST {
+        ffi::List<text::ExprAST> args;
+        ffi::List<ffi::String> kwargs_keys;
+        ffi::List<text::ExprAST> kwargs_values;
+        bool require_kwargs = false;
+        // Shape from tensor_sinfo
+        if (n->tensor_sinfo->shape.defined()) {
+          if (const auto* shape = n->tensor_sinfo->shape.value().as<relax::ShapeExprNode>()) {
+            auto shape_expr = ffi::GetRef<relax::ShapeExpr>(shape);
+            text::AccessPath shape_p = path->Attr("tensor_sinfo")->Attr("shape")->Attr("values");
+            ffi::List<text::ExprAST> shape_docs;
+            for (int i = 0, ndim = shape_expr->values.size(); i < ndim; ++i) {
+              shape_docs.push_back(PrintShapeValue(shape_expr->values[i],
+                                                    shape_p->ArrayItem(i), printer,
+                                                    /*stringify_vars=*/false));
+            }
+            args.push_back(text::TupleAST({}, std::move(shape_docs)));
+          } else {
+            args.push_back(Print(printer, n->tensor_sinfo->shape.value(),
+                                  path->Attr("tensor_sinfo")->Attr("shape")));
+          }
+        } else {
+          require_kwargs = true;
+        }
+        // dtype
+        if (!n->tensor_sinfo->IsUnknownDtype()) {
+          if (!require_kwargs) {
+            args.push_back(text::LiteralAST::Str(DType2Str(n->tensor_sinfo->dtype)));
+          } else {
+            kwargs_keys.push_back(ffi::String("dtype"));
+            kwargs_values.push_back(text::LiteralAST::Str(DType2Str(n->tensor_sinfo->dtype)));
+          }
+        } else {
+          require_kwargs = true;
+        }
+        // device_mesh: print as string reference "mesh[i]" or inline
+        if (!require_kwargs) {
+          args.push_back(Print(printer, n->device_mesh, path->Attr("device_mesh")));
+        } else {
+          kwargs_keys.push_back(ffi::String("device_mesh"));
+          kwargs_values.push_back(Print(printer, n->device_mesh, path->Attr("device_mesh")));
+        }
+        // placement
+        if (!require_kwargs) {
+          args.push_back(Print(printer, n->placement, path->Attr("placement")));
+        } else {
+          kwargs_keys.push_back(ffi::String("placement"));
+          kwargs_values.push_back(Print(printer, n->placement, path->Attr("placement")));
+        }
+        // ndim when shape is not defined
+        if (!n->tensor_sinfo->shape.defined() && !n->tensor_sinfo->IsUnknownNdim()) {
+          kwargs_keys.push_back(ffi::String("ndim"));
+          kwargs_values.push_back(text::LiteralAST::Int(n->tensor_sinfo->ndim));
+        }
+        return text::ExprCallKw(Relax("DTensor"), std::move(args),
+                          std::move(kwargs_keys), std::move(kwargs_values));
       });
 }
 
