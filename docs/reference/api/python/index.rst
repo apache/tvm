@@ -45,8 +45,10 @@ Python API
     relax/relax
     relax/analysis
     relax/block_builder
+    relax/distributed
     relax/frontend
     relax/op
+    relax/training
     relax/transform
 
 .. toctree::
@@ -62,6 +64,7 @@ Python API
     :maxdepth: 1
     :caption: tvm.s_tir
 
+    s_tir/analysis
     s_tir/schedule
     s_tir/transform
     s_tir/dlight

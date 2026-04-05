@@ -207,7 +207,7 @@ each time (e.g. you can test a change in CPU and GPU while retaining incremental
     python tests/scripts/ci.py cpu --unittest
 
     # quickly iterate by running a specific test and skipping the rebuild each time
-    python tests/scripts/ci.py cpu --skip-build --tests tests/python/tirx-transform/test_tir_transform_inject_rolling_buffer.py::test_upscale
+    python tests/scripts/ci.py cpu --skip-build --tests tests/python/s_tir/schedule/test_tir_schedule_rolling_buffer.py::test_upscale
 
     # run the CPU build and drop into a shell in the container
     python tests/scripts/ci.py cpu --interactive
@@ -264,4 +264,4 @@ If you want to run a single test:
   python -m pytest -v tests/python/tirx-transform/test_tir_transform_storage_rewrite.py
 
   # Additionally if you want to run a single test, for example test_all_elemwise inside a file.
-  python -m pytest -v -k "test_all_elemwise" tests/python/frontend/tflite/test_forward.py
+  python -m pytest -v -k "test_add_one_2d" tests/python/relax/test_frontend_tflite.py
