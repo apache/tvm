@@ -225,7 +225,28 @@ for learning-based optimizations.
    introduction_to_module_serialization
    device_target_interactions
 
-..  TODO(tvm-team) add a section about relax vm here
+Relax Virtual Machine
+^^^^^^^^^^^^^^^^^^^^^
+
+Relax defines *what* to compute — it is a graph-level IR that describes the operators and dataflow
+of a model. The Relax Virtual Machine (VM) handles *how* to run it — it is the runtime component
+that executes the compiled result. During compilation, ``tvm.compile()`` invokes ``VMCodeGen`` to
+translate Relax functions into a compact bytecode representation. The resulting ``VMExecutable``
+bundles the bytecode together with a constant pool and per-function metadata, and can be serialized
+to disk for deployment.
+
+The VM uses a register-based interpreter with an intentionally minimal instruction set — only four
+opcodes: ``Call``, ``Ret``, ``Goto``, and ``If``. The VM itself performs no mathematical computation;
+it only orchestrates control flow (function calls, conditional branches, loops). The actual
+compute-intensive work — matrix multiplications, convolutions, and other operators — is carried out
+by TIR functions that have been compiled down to native GPU/CPU kernels, or by external libraries
+such as cuBLAS and cuDNN. The VM dispatches to them through the PackedFunc mechanism. Internally the
+VM recognizes three function kinds: *PackedFunc* for external C/C++ functions, *VMFunc* for
+bytecode-interpreted Relax functions, and *VMTIRFunc* for compiled TIR kernels.
+
+On the Python side, users interact with the VM through ``relax.VirtualMachine(executable, device)``,
+which provides both a direct invocation interface and a stateful set-input / invoke / get-output
+interface suitable for RPC-based remote execution.
 
 tvm/node
 --------
