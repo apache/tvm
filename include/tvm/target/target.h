@@ -24,6 +24,7 @@
 #ifndef TVM_TARGET_TARGET_H_
 #define TVM_TARGET_TARGET_H_
 
+#include <tvm/ffi/extra/ir_traits.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/function.h>
@@ -80,12 +81,14 @@ class TargetNode : public Object {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
+    namespace tr = tvm::ffi::ir_traits;
     refl::ObjectDef<TargetNode>()
         .def_ro("kind", &TargetNode::kind)
         .def_ro("tag", &TargetNode::tag)
         .def_ro("keys", &TargetNode::keys)
         .def_ro("attrs", &TargetNode::attrs)
-        .def_ro("host", &TargetNode::host);
+        .def_ro("host", &TargetNode::host)
+        .def_ir_traits<tr::CallTraitsObj>("T.target", "$global:target._config");
   }
 
   /*!

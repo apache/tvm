@@ -62,9 +62,12 @@ class VarNode : public PrimExprNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
+    namespace tr = tvm::ffi::ir_traits;
     refl::ObjectDef<VarNode>()
         .def_ro("name", &VarNode::name_hint, refl::AttachFieldFlag::SEqHashIgnore())
-        .def_ro("type_annotation", &VarNode::type_annotation);
+        .def_ro("type_annotation", &VarNode::type_annotation)
+        .def_ir_traits<tr::ValueTraitsObj>("$field:name", "$field:type_annotation",
+                                      "$global:tirx._var_type_or_null");
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindFreeVar;
@@ -133,7 +136,10 @@ class SizeVarNode : public VarNode {
  public:
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<SizeVarNode>();
+    namespace tr = tvm::ffi::ir_traits;
+    refl::ObjectDef<SizeVarNode>()
+        .def_ir_traits<tr::ValueTraitsObj>("$field:name", "$field:type_annotation",
+                                      "$global:tirx._sizevar_type_or_null");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.SizeVar", SizeVarNode, VarNode);
 };
@@ -276,11 +282,13 @@ class IterVarNode : public PrimExprConvertibleNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
+    namespace tr = tvm::ffi::ir_traits;
     refl::ObjectDef<IterVarNode>()
         .def_ro("dom", &IterVarNode::dom)
         .def_ro("var", &IterVarNode::var, refl::AttachFieldFlag::SEqHashDef())
         .def_ro("iter_type", &IterVarNode::iter_type)
-        .def_ro("thread_tag", &IterVarNode::thread_tag);
+        .def_ro("thread_tag", &IterVarNode::thread_tag)
+        .def_ir_traits<tr::CallTraitsObj>("T.iter_var", "$global:tirx._iter_var_args");
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;

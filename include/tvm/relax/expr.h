@@ -21,6 +21,7 @@
 
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
+#include <tvm/ffi/extra/ir_traits.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/function.h>
@@ -214,7 +215,10 @@ class TupleNode : public ExprNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<TupleNode>().def_ro("fields", &TupleNode::fields);
+    namespace tr = tvm::ffi::ir_traits;
+    refl::ObjectDef<TupleNode>()
+        .def_ro("fields", &TupleNode::fields)
+        .def_ir_traits<tr::CallTraitsObj>("Tuple", "$field:fields");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.Tuple", TupleNode, ExprNode);
 };
@@ -269,9 +273,11 @@ class TupleGetItemNode : public ExprNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
+    namespace tr = tvm::ffi::ir_traits;
     refl::ObjectDef<TupleGetItemNode>()
         .def_ro("tuple_value", &TupleGetItemNode::tuple)
-        .def_ro("index", &TupleGetItemNode::index);
+        .def_ro("index", &TupleGetItemNode::index)
+        .def_ir_traits<tr::LoadTraitsObj>("$field:tuple_value", "$field:index");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.TupleGetItem", TupleGetItemNode, ExprNode);
 };
@@ -328,7 +334,10 @@ class ShapeExprNode : public LeafExprNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<ShapeExprNode>().def_ro("values", &ShapeExprNode::values);
+    namespace tr = tvm::ffi::ir_traits;
+    refl::ObjectDef<ShapeExprNode>()
+        .def_ro("values", &ShapeExprNode::values)
+        .def_ir_traits<tr::CallTraitsObj>("R.shape", "$global:relax._shape_args");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.ShapeExpr", ShapeExprNode, LeafExprNode);
 };
@@ -352,7 +361,10 @@ class VarNode : public LeafExprNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<VarNode>().def_ro("vid", &VarNode::vid);
+    namespace tr = tvm::ffi::ir_traits;
+    refl::ObjectDef<VarNode>()
+        .def_ro("vid", &VarNode::vid)
+        .def_ir_traits<tr::ValueTraitsObj>("$field:vid");
     // customize structural equal and hash to include struct_info_
     refl::TypeAttrDef<VarNode>()
         .def("__s_equal__", &VarNode::SEqual)
@@ -397,7 +409,9 @@ class DataflowVarNode : public VarNode {
  public:
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<DataflowVarNode>();
+    namespace tr = tvm::ffi::ir_traits;
+    refl::ObjectDef<DataflowVarNode>()
+        .def_ir_traits<tr::ValueTraitsObj>("$field:vid");
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindDAGNode;
@@ -435,7 +449,10 @@ class ConstantNode : public LeafExprNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<ConstantNode>().def_ro("data", &ConstantNode::data);
+    namespace tr = tvm::ffi::ir_traits;
+    refl::ObjectDef<ConstantNode>()
+        .def_ro("data", &ConstantNode::data)
+        .def_ir_traits<tr::LiteralTraitsObj>("$field:data", "constant");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.Constant", ConstantNode, LeafExprNode);
 };
@@ -469,7 +486,10 @@ class PrimValueNode : public LeafExprNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<PrimValueNode>().def_ro("value", &PrimValueNode::value);
+    namespace tr = tvm::ffi::ir_traits;
+    refl::ObjectDef<PrimValueNode>()
+        .def_ro("value", &PrimValueNode::value)
+        .def_ir_traits<tr::CallTraitsObj>("R.prim_value", "$field:value");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.PrimValue", PrimValueNode, LeafExprNode);
 };
@@ -509,7 +529,10 @@ class StringImmNode : public LeafExprNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<StringImmNode>().def_ro("value", &StringImmNode::value);
+    namespace tr = tvm::ffi::ir_traits;
+    refl::ObjectDef<StringImmNode>()
+        .def_ro("value", &StringImmNode::value)
+        .def_ir_traits<tr::CallTraitsObj>("R.str", "$field:value");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.StringImm", StringImmNode, LeafExprNode);
 };
@@ -541,7 +564,10 @@ class DataTypeImmNode : public LeafExprNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<DataTypeImmNode>().def_ro("value", &DataTypeImmNode::value);
+    namespace tr = tvm::ffi::ir_traits;
+    refl::ObjectDef<DataTypeImmNode>()
+        .def_ro("value", &DataTypeImmNode::value)
+        .def_ir_traits<tr::CallTraitsObj>("R.dtype", "$global:relax._dtype_str");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.DataTypeImm", DataTypeImmNode, LeafExprNode);
 };
@@ -611,9 +637,11 @@ class MatchCastNode : public BindingNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
+    namespace tr = tvm::ffi::ir_traits;
     refl::ObjectDef<MatchCastNode>()
         .def_ro("value", &MatchCastNode::value)
-        .def_ro("struct_info", &MatchCastNode::struct_info, refl::AttachFieldFlag::SEqHashDef());
+        .def_ro("struct_info", &MatchCastNode::struct_info, refl::AttachFieldFlag::SEqHashDef())
+        .def_ir_traits<tr::AssignTraitsObj>("$field:var", "$field:value");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.MatchCast", MatchCastNode, BindingNode);
 };
@@ -637,7 +665,8 @@ class VarBindingNode : public BindingNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<VarBindingNode>().def_ro("value", &VarBindingNode::value);
+    refl::ObjectDef<VarBindingNode>()
+        .def_ro("value", &VarBindingNode::value);
     // customize the SEqual and SHash methods for better error messages
     refl::TypeAttrDef<VarBindingNode>()
         .def("__s_equal__", &VarBindingNode::SEqual)
@@ -664,10 +693,14 @@ class BindingBlockNode : public Object {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
+    namespace tr = tvm::ffi::ir_traits;
     refl::ObjectDef<BindingBlockNode>()
         .def_ro("bindings", &BindingBlockNode::bindings)
         .def_ro("span", &BindingBlockNode::span, refl::AttachFieldFlag::SEqHashIgnore(),
-                refl::DefaultValue(Span()));
+                refl::DefaultValue(Span()))
+        .def_ir_traits<tr::WithTraitsObj>(tr::RegionTraits("$field:bindings"),
+                                    nullptr, nullptr, nullptr, nullptr, nullptr,
+                                    ffi::Optional<bool>(true));
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
@@ -686,7 +719,11 @@ class DataflowBlockNode : public BindingBlockNode {
  public:
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<DataflowBlockNode>();
+    namespace tr = tvm::ffi::ir_traits;
+    refl::ObjectDef<DataflowBlockNode>()
+        .def_ir_traits<tr::WithTraitsObj>(tr::RegionTraits("$field:bindings"),
+                                    nullptr, nullptr, "R.dataflow", nullptr,
+                                    "$global:relax._dataflow_outputs");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.DataflowBlock", DataflowBlockNode,
                                     BindingBlockNode);
@@ -710,9 +747,14 @@ class SeqExprNode : public ExprNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
+    namespace tr = tvm::ffi::ir_traits;
     refl::ObjectDef<SeqExprNode>()
         .def_ro("blocks", &SeqExprNode::blocks)
-        .def_ro("body", &SeqExprNode::body);
+        .def_ro("body", &SeqExprNode::body)
+        .def_ir_traits<tr::WithTraitsObj>(tr::RegionTraits("$field:blocks", nullptr, nullptr,
+                                                          "$field:body"),
+                                    nullptr, nullptr, nullptr, nullptr, nullptr,
+                                    ffi::Optional<bool>(true));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.SeqExpr", SeqExprNode, ExprNode);
 };
@@ -907,7 +949,10 @@ class ExternFuncNode : public BaseFuncNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<ExternFuncNode>().def_ro("global_symbol", &ExternFuncNode::global_symbol);
+    namespace tr = tvm::ffi::ir_traits;
+    refl::ObjectDef<ExternFuncNode>()
+        .def_ro("global_symbol", &ExternFuncNode::global_symbol)
+        .def_ir_traits<tr::CallTraitsObj>("R.ExternFunc", "$field:global_symbol");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.ExternFunc", ExternFuncNode, BaseFuncNode);
 };

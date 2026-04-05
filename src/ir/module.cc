@@ -25,6 +25,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/rvalue_ref.h>
+#include <tvm/ir/global_info.h>
 #include <tvm/ir/global_var_supply.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/type_functor.h>
@@ -33,6 +34,8 @@
 #include <fstream>
 #include <sstream>
 #include <unordered_set>
+
+#include "printer_utils.h"
 
 namespace tvm {
 
@@ -313,6 +316,159 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            })
       .def("ir.Module_GetAttr",
            [](IRModule mod, ffi::String key) -> ObjectRef { return mod->GetAttr<ObjectRef>(key); });
+}
+
+// ---------------------------------------------------------------------------
+// __ffi_text_print__ override
+// ---------------------------------------------------------------------------
+
+namespace {
+
+struct SortableFunction {
+  int priority;
+  GlobalVar gv;
+  BaseFunc func;
+
+  explicit SortableFunction(const std::pair<GlobalVar, BaseFunc>& obj)
+      : priority(0), gv(obj.first), func(obj.second) {
+    if (gv->name_hint == "main") {
+      priority = 1000;
+    } else if (obj.second->GetTypeKey() == "tirx.PrimFunc") {
+      priority = 1;
+    } else if (obj.second->GetTypeKey() == "relax.expr.ExternFunc") {
+      priority = 2;
+    } else if (obj.second->GetTypeKey() == "relax.expr.Function") {
+      priority = 3;
+    } else {
+      priority = 0;
+    }
+  }
+
+  bool operator<(const SortableFunction& other) const {
+    if (this->priority != other.priority) {
+      return this->priority < other.priority;
+    }
+    return this->gv->name_hint < other.gv->name_hint;
+  }
+};
+
+}  // namespace
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  using namespace printer;
+
+  refl::TypeAttrDef<IRModuleNode>().def(
+      "__ffi_text_print__",
+      [](IRModule mod, text::IRPrinter printer, text::AccessPath path) -> text::NodeAST {
+        using namespace printer;
+        // Sort functions by priority
+        std::vector<SortableFunction> functions;
+        for (const auto& kv : mod->functions) {
+          functions.push_back(SortableFunction(kv));
+        }
+        std::sort(functions.begin(), functions.end());
+
+        text::IdAST module_doc = text::IdAST("Module");
+        ffi::List<text::ExprAST> decorators;
+        decorators.push_back(IR("ir_module"));
+
+        text::DefaultFrame frame;
+        printer->FramePush(frame);
+
+        // Define GlobalVars
+        for (const auto& entry : functions) {
+          const GlobalVar& gv = entry.gv;
+          ffi::String name = gv->name_hint;
+          ffi::Function creator = ffi::Function::FromTyped(
+              [name]() -> text::ExprAST { return text::ExprAttr(text::IdAST("Module"), std::string(name)); });
+          printer->VarDefNoName(creator, gv, ffi::Optional<ffi::ObjectRef>(frame));
+        }
+
+        // Print attrs prologue
+        if (mod->attrs.defined() && !mod->attrs->dict.empty()) {
+          frame->stmts.push_back(
+              text::ExprStmtAST(text::ExprCall(IR("module_attrs"),
+                                   {Print(printer, mod->attrs, path->Attr("attrs"))})));
+        }
+
+        // Print global_infos prologue
+        if (mod->global_infos.defined() && !mod->global_infos.empty()) {
+          frame->stmts.push_back(
+              text::ExprStmtAST(text::ExprCall(IR("module_global_infos"),
+                                   {Print(printer, mod->global_infos,
+                                          path->Attr("global_infos"))})));
+          if (auto opt_vdevices = mod->global_infos.Get("vdevice")) {
+            ffi::Array<GlobalInfo> vdevices = opt_vdevices.value();
+            for (int i = 0; i < static_cast<int>(vdevices.size()); ++i) {
+              if (const auto* vd = vdevices[i].as<VDeviceNode>()) {
+                VDevice vdev = ffi::GetRef<VDevice>(vd);
+                if (!vdev->target.defined()) continue;
+                std::string dev_kind = vdev->target->kind->name;
+                int kind_index = 0;
+                for (int j = 0; j < i; ++j) {
+                  if (const auto* prev = vdevices[j].as<VDeviceNode>()) {
+                    if (prev->target.defined() && prev->target->kind->name == dev_kind) {
+                      kind_index++;
+                    }
+                  }
+                }
+                std::string vdev_str = dev_kind + ":" + std::to_string(kind_index) + ":" +
+                                       std::string(vdev->memory_scope);
+                ffi::Function creator = ffi::Function::FromTyped(
+                    [vdev_str]() -> text::ExprAST { return text::LiteralAST::Str(vdev_str); });
+                printer->VarDefNoName(creator, vdev, ffi::Optional<ffi::ObjectRef>(frame));
+              }
+            }
+          }
+        }
+
+        // Print each function
+        ffi::List<text::StmtAST> body;
+        for (const auto& s : frame->stmts) body.push_back(s);
+
+        for (const auto& entry : functions) {
+          const GlobalVar& gv = entry.gv;
+          const BaseFunc& base_func = entry.func;
+          text::AccessPath func_path = path->Attr("functions")->MapItem(gv);
+          printer->VarDef(gv->name_hint, base_func, frame);
+          text::NodeAST doc = printer->operator()(ffi::Any(base_func), func_path).cast<text::NodeAST>();
+          if (auto* block = doc.as<text::StmtBlockASTObj>()) {
+            body.push_back(block->stmts.back());
+          } else if (doc->IsInstance<text::StmtASTObj>()) {
+            body.push_back(Downcast<text::StmtAST>(doc));
+          } else if (doc->IsInstance<text::ExprASTObj>()) {
+            text::ExprAST lhs = text::IdAST(gv->name_hint);
+            body.push_back(text::AssignAST(lhs, Downcast<text::ExprAST>(doc),
+                                     ffi::Optional<text::ExprAST>()));
+          }
+        }
+
+        printer->FramePop();
+
+        text::ClassAST class_ast(module_doc, {}, decorators, body);
+
+        // Add import header comments
+        bool has_relax = false;
+        for (const auto& entry : functions) {
+          std::string type_key = entry.func->GetTypeKey();
+          if (type_key == "relax.expr.Function" || type_key == "relax.expr.ExternFunc") {
+            has_relax = true;
+            break;
+          }
+        }
+        ffi::List<text::StmtAST> result;
+        result.push_back(text::CommentAST(
+            ffi::Optional<ffi::String>(ffi::String("from tvm.script import ir as I"))));
+        result.push_back(text::CommentAST(
+            ffi::Optional<ffi::String>(ffi::String("from tvm.script import tirx as T"))));
+        if (has_relax) {
+          result.push_back(text::CommentAST(
+              ffi::Optional<ffi::String>(ffi::String("from tvm.script import relax as R"))));
+        }
+        result.push_back(text::CommentAST(ffi::Optional<ffi::String>()));
+        result.push_back(class_ast);
+        return text::StmtBlockAST(result);
+      });
 }
 
 }  // namespace tvm

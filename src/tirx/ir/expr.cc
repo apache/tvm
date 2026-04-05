@@ -21,22 +21,31 @@
  * \file expr.cc
  */
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/extra/ir_traits.h>
+#include <tvm/ffi/extra/pyast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/type.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/expr.h>
+#include <tvm/tirx/index_map.h>
 #include <tvm/tirx/op.h>
+#include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/stmt_functor.h>
 
 #include <optional>
 
 #include "../../arith/scalable_expression.h"
+#include "../../ir/printer_utils.h"
 #include "../../support/str_escape.h"
 #include "buffer_common.h"
+#include "script_print_utils.h"
 
 namespace tvm {
 namespace tirx {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = ::tvm::ffi::reflection;
+
   VarNode::RegisterReflection();
   SizeVarNode::RegisterReflection();
   IterVarNode::RegisterReflection();
@@ -70,7 +79,263 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   ShuffleNode::RegisterReflection();
   CommReducerNode::RegisterReflection();
   ReduceNode::RegisterReflection();
+
+  refl::GlobalDef()
+      .def("tirx._tir_call_callee",
+          [](ffi::pyast::IRPrinter printer, tirx::Call call) -> ffi::Any {
+            if (!call->op->IsInstance<GlobalVarNode>()) {
+              return ffi::Any();
+            }
+            namespace text = ::tvm::ffi::pyast;
+            if (auto gv_doc = printer->VarGet(call->op)) {
+              return ffi::Any(gv_doc.value());
+            }
+            GlobalVar op_gv = Downcast<GlobalVar>(call->op);
+            for (const auto& kv : printer->obj2info) {
+              if (const auto* gv_node = kv.first.as<GlobalVarNode>()) {
+                if (gv_node->name_hint == op_gv->name_hint) {
+                  return ffi::Any(kv.second->creator().cast<text::ExprAST>());
+                }
+              }
+            }
+            return printer->operator()(ffi::Any(call->op),
+                                       text::AccessPath::Root()->Attr("op"));
+          });
+
+  // Global function definitions for all computed methods
+  refl::GlobalDef()
+      // VarNode / SizeVarNode type annotation helpers
+      .def("tirx._var_type_or_null", [](ffi::AnyView /*ctx*/, Var node) -> ffi::Optional<Type> {
+        if (!node->type_annotation.defined()) return ffi::Optional<Type>();
+        if (const auto* tt = node->type_annotation.as<TupleTypeNode>()) {
+          if (tt->fields.empty()) return ffi::Optional<Type>();
+        }
+        return ffi::Optional<Type>(node->type_annotation);
+      })
+      .def("tirx._sizevar_type_or_null", [](ffi::AnyView /*ctx*/, SizeVar node) -> ffi::Optional<Type> {
+        if (!node->type_annotation.defined()) return ffi::Optional<Type>();
+        if (const auto* tt = node->type_annotation.as<TupleTypeNode>()) {
+          if (tt->fields.empty()) return ffi::Optional<Type>();
+        }
+        return ffi::Optional<Type>(node->type_annotation);
+      })
+      // IterVar args
+      .def("tirx._iter_var_args", [](ffi::AnyView /*ctx*/, IterVar node) -> ffi::Array<ObjectRef> {
+        const char* type_str;
+        switch (static_cast<int>(node->iter_type)) {
+          case kDataPar: type_str = "DataPar"; break;
+          case kThreadIndex: type_str = "ThreadIndex"; break;
+          case kCommReduce: type_str = "CommReduce"; break;
+          case kOrdered: type_str = "Ordered"; break;
+          case kOpaque: type_str = "DimInfo"; break;
+          default: type_str = "Unrolled"; break;
+        }
+        ffi::Array<ObjectRef> result;
+        result.push_back(node->var);
+        result.push_back(node->dom);
+        result.push_back(StringImm(ffi::String(type_str)));
+        if (!node->thread_tag.empty()) {
+          result.push_back(StringImm(ffi::String(std::string(node->thread_tag))));
+        }
+        return result;
+      })
+      // Cast args
+      .def("tirx._cast_args", [](ffi::AnyView /*ctx*/, Cast node) -> ffi::Array<ObjectRef> {
+        StringImm dtype_str(ffi::DLDataTypeToString(node->dtype));
+        return {dtype_str, node->value};
+      })
+      // BinOp sugar checks: verify that re-constructing via the sugar function
+      // produces the same node (i.e. the sugar round-trips).
+#define TVM_TIRX_BINOP_SUGAR(lower, NodeTy, sugar_fn)                         \
+      .def("tirx._" #lower "_sugar", [](ffi::AnyView /*ctx*/, tirx::NodeTy node) -> bool {  \
+        PrimExpr ret = sugar_fn(node->a, node->b);                             \
+        if (const auto* p = ret.as<NodeTy##Node>()) {                          \
+          return p->a.same_as(node->a) && p->b.same_as(node->b);              \
+        }                                                                      \
+        return false;                                                          \
+      })
+      TVM_TIRX_BINOP_SUGAR(add, Add, tvm::add)
+      TVM_TIRX_BINOP_SUGAR(sub, Sub, tvm::sub)
+      TVM_TIRX_BINOP_SUGAR(mul, Mul, tvm::mul)
+      TVM_TIRX_BINOP_SUGAR(floordiv, FloorDiv, tvm::floordiv)
+      TVM_TIRX_BINOP_SUGAR(floormod, FloorMod, tvm::floormod)
+      TVM_TIRX_BINOP_SUGAR(eq, EQ, tvm::equal)
+      TVM_TIRX_BINOP_SUGAR(ne, NE, tvm::not_equal)
+      TVM_TIRX_BINOP_SUGAR(lt, LT, tvm::less)
+      TVM_TIRX_BINOP_SUGAR(le, LE, tvm::less_equal)
+      TVM_TIRX_BINOP_SUGAR(gt, GT, tvm::greater)
+      TVM_TIRX_BINOP_SUGAR(ge, GE, tvm::greater_equal)
+      TVM_TIRX_BINOP_SUGAR(and, And, tvm::logical_and)
+      TVM_TIRX_BINOP_SUGAR(or, Or, tvm::logical_or)
+#undef TVM_TIRX_BINOP_SUGAR
+      // Div sugar is special: also rejects integer-typed operands
+      .def("tirx._div_sugar", [](ffi::AnyView /*ctx*/, tirx::Div node) -> bool {
+        PrimExpr ret = tvm::div(node->a, node->b);
+        if (!ret->IsInstance<DivNode>()) return false;
+        if ((node->a->dtype.is_int() || node->a->dtype.is_uint()) &&
+            (node->b->dtype.is_int() || node->b->dtype.is_uint())) {
+          return false;
+        }
+        return true;
+      })
+      // Select args
+      .def("tirx._select_args", [](ffi::AnyView /*ctx*/, Select node) -> ffi::Array<PrimExpr> {
+        return {node->condition, node->true_value, node->false_value};
+      })
+      // Ramp args
+      .def("tirx._ramp_args", [](ffi::AnyView /*ctx*/, Ramp node) -> ffi::Array<PrimExpr> {
+        return {node->base, node->stride, node->lanes};
+      })
+      // Broadcast args
+      .def("tirx._broadcast_args", [](ffi::AnyView /*ctx*/, Broadcast node) -> ffi::Array<PrimExpr> {
+        return {node->value, node->lanes};
+      })
+      // Call callee and args
+      .def("tirx._call_callee", [](ffi::AnyView /*ctx*/, tirx::Call node) -> ffi::String {
+        if (auto* op = node->op.as<OpNode>()) {
+          static const OpAttrMap<ffi::String> op_names =
+              Op::GetAttrMap<ffi::String>("TScriptPrinterName");
+          Op op_ref = ffi::GetRef<Op>(op);
+          if (op_names.count(op_ref)) {
+            return ffi::String("T." + std::string(op_names[op_ref]));
+          }
+          std::string full(op->name);
+          auto pos = full.rfind('.');
+          return ffi::String("T." + ((pos != std::string::npos) ? full.substr(pos + 1) : full));
+        }
+        return ffi::String("T.call");
+      })
+      .def("tirx._call_args", [](ffi::AnyView /*ctx*/, tirx::Call node) -> ffi::Array<ObjectRef> {
+        ffi::Array<ObjectRef> result;
+        int print_location = static_cast<int>(ScriptDtypePrintLocation::kNone);
+        if (auto* op = node->op.as<OpNode>()) {
+          static const OpAttrMap<TScriptDtypePrintLocation> dtype_locations =
+              Op::GetAttrMap<TScriptDtypePrintLocation>("TScriptDtypePrintLocation");
+          Op op_ref = ffi::GetRef<Op>(op);
+          if (dtype_locations.count(op_ref)) {
+            print_location = dtype_locations[op_ref].IntValue();
+          }
+        }
+        std::string dtype_str = node->dtype.is_void() ? "void"
+                                                      : ffi::DLDataTypeToString(node->dtype);
+        bool is_llvm_intrin = false;
+        if (auto* op = node->op.as<OpNode>()) {
+          static const OpAttrMap<ffi::String> op_names =
+              Op::GetAttrMap<ffi::String>("TScriptPrinterName");
+          Op op_ref = ffi::GetRef<Op>(op);
+          if (op_names.count(op_ref)) {
+            std::string name(op_names[op_ref]);
+            is_llvm_intrin = (name == "call_llvm_pure_intrin" || name == "call_llvm_intrin");
+          }
+        }
+        if (print_location == static_cast<int>(ScriptDtypePrintLocation::kFirst)) {
+          result.push_back(StringImm(ffi::String(dtype_str)));
+        }
+        for (int i = 0; i < static_cast<int>(node->args.size()); ++i) {
+          if (i == 0 && is_llvm_intrin) {
+            auto f_lookup = ffi::Function::GetGlobal("target.llvm_get_intrinsic_name");
+            if (f_lookup.has_value() && node->args[0].as<IntImmNode>()) {
+              int64_t id = node->args[0].as<IntImmNode>()->value;
+              ffi::Any ret;
+              ffi::AnyView args_view[1] = {ffi::AnyView(id)};
+              f_lookup.value().CallPacked(args_view, 1, &ret);
+              ffi::String name = ret.cast<ffi::String>();
+              result.push_back(StringImm(name));
+            } else {
+              result.push_back(node->args[i]);
+            }
+          } else {
+            result.push_back(node->args[i]);
+          }
+        }
+        if (print_location == static_cast<int>(ScriptDtypePrintLocation::kLast)) {
+          result.push_back(StringImm(ffi::String(dtype_str)));
+        }
+        return result;
+      })
+      // Shuffle args
+      .def("tirx._shuffle_args", [](ffi::AnyView /*ctx*/, Shuffle node) -> ffi::Array<ObjectRef> {
+        ffi::Array<ObjectRef> result;
+        result.push_back(node->vectors);
+        result.push_back(node->indices);
+        return result;
+      })
+      // Reduce positional and kwargs
+      .def("tirx._reduce_positional", [](ffi::AnyView /*ctx*/, Reduce node) -> ffi::Array<ObjectRef> {
+        return {node->combiner};
+      })
+      .def("tirx._reduce_kwargs", [](ffi::AnyView /*ctx*/, Reduce node) -> ffi::Map<ffi::String, ObjectRef> {
+        ffi::Map<ffi::String, ObjectRef> result;
+        result.Set(ffi::String("source"), node->source);
+        result.Set(ffi::String("init"), node->init);
+        result.Set(ffi::String("axis"), node->axis);
+        result.Set(ffi::String("condition"), node->condition);
+        result.Set(ffi::String("value_index"), IntImm(DataType::Int(32), node->value_index));
+        return result;
+      })
+      // BufferLoad indices: convert Ramp(base, stride, lanes) → [start, stop, step?]
+      // Skip conversion when predicate is set (vload fallback needs raw indices)
+      .def("tirx._load_indices", [](ffi::AnyView /*ctx*/, BufferLoad node) -> ffi::Array<ObjectRef> {
+        if (node->predicate.defined()) return node->indices;
+        ffi::Array<ObjectRef> result;
+        for (const auto& idx : node->indices) {
+          if (const auto* ramp = idx.as<RampNode>()) {
+            if (ramp->stride.as<IntImmNode>()) {
+              ffi::Array<PrimExpr> slice;
+              slice.push_back(ramp->base);
+              slice.push_back(ramp->base + ramp->lanes * ramp->stride);
+              if (!is_one(ramp->stride)) {
+                slice.push_back(ramp->stride);
+              }
+              result.push_back(slice);
+              continue;
+            }
+          }
+          result.push_back(idx);
+        }
+        return result;
+      })
+      // BufferStore indices: same Ramp→slice conversion
+      // Skip conversion when predicate is set (vstore fallback needs raw indices)
+      .def("tirx._store_indices", [](ffi::AnyView /*ctx*/, BufferStore node) -> ffi::Array<ObjectRef> {
+        if (node->predicate.defined()) return node->indices;
+        ffi::Array<ObjectRef> result;
+        for (const auto& idx : node->indices) {
+          if (const auto* ramp = idx.as<RampNode>()) {
+            if (ramp->stride.as<IntImmNode>()) {
+              ffi::Array<PrimExpr> slice;
+              slice.push_back(ramp->base);
+              slice.push_back(ramp->base + ramp->lanes * ramp->stride);
+              if (!is_one(ramp->stride)) {
+                slice.push_back(ramp->stride);
+              }
+              result.push_back(slice);
+              continue;
+            }
+          }
+          result.push_back(idx);
+        }
+        return result;
+      })
+      // BufferRegion indices
+      .def("tirx._buf_region_indices", [](ffi::AnyView /*ctx*/, BufferRegion node) -> ffi::Array<ObjectRef> {
+        ffi::Array<ObjectRef> result;
+        for (const auto& r : node->region) {
+          if (is_one(r->extent)) {
+            // Single-point access: plain index instead of slice
+            result.push_back(r->min);
+          } else {
+            // Range access: [min, min + extent] → slice
+            ffi::Array<PrimExpr> pair;
+            pair.push_back(r->min);
+            pair.push_back(r->min + r->extent);
+            result.push_back(pair);
+          }
+        }
+        return result;
+      });
 }
+
 
 /* \brief Convert an object to a PrimExpr
  *
@@ -897,6 +1162,95 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                         [](DataProducer producer, ffi::Array<PrimExpr> indices, Span span) {
                           return ProducerLoad(producer, indices, span);
                         });
+}
+
+// ---------------------------------------------------------------------------
+// __ffi_text_print__ overrides
+// ---------------------------------------------------------------------------
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  using namespace printer;
+
+  // CommReducer: lambda construction -- genuinely irreducible
+  refl::TypeAttrDef<CommReducerNode>().def(
+      "__ffi_text_print__",
+      [](CommReducer node, text::IRPrinter printer, text::AccessPath path) -> text::NodeAST {
+        using namespace printer;
+        ffi::List<text::ExprAST> lhs_vars, rhs_vars, results;
+        for (int i = 0; i < static_cast<int>(node->lhs.size()); ++i)
+          lhs_vars.push_back(Print(printer, node->lhs[i], path->Attr("lhs")->ArrayItem(i)));
+        for (int i = 0; i < static_cast<int>(node->rhs.size()); ++i)
+          rhs_vars.push_back(Print(printer, node->rhs[i], path->Attr("rhs")->ArrayItem(i)));
+        for (int i = 0; i < static_cast<int>(node->result.size()); ++i)
+          results.push_back(Print(printer, node->result[i], path->Attr("result")->ArrayItem(i)));
+        ffi::List<text::ExprAST> params;
+        params.insert(params.end(), lhs_vars.begin(), lhs_vars.end());
+        params.insert(params.end(), rhs_vars.begin(), rhs_vars.end());
+        text::ExprAST lambda_body = (results.size() == 1) ? results[0] : text::TupleAST({}, results);
+        text::LambdaAST lambda_ast({}, params, lambda_body);
+        return text::ExprCall(TIR("comm_reducer"),
+                        {lambda_ast, printer->PrintList(node->identity_element,
+                                                        path->Attr("identity_element"))});
+      });
+
+  // IndexMap: T.index_map(lambda vars: (exprs...), [inverse_index_map=...])
+  refl::TypeAttrDef<IndexMapNode>().def(
+      "__ffi_text_print__",
+      [](IndexMap node, text::IRPrinter printer, text::AccessPath path) -> text::NodeAST {
+        using namespace printer;
+        ffi::List<text::ExprAST> params;
+        for (int i = 0; i < static_cast<int>(node->initial_indices.size()); ++i) {
+          params.push_back(
+              Print(printer, node->initial_indices[i],
+                    path->Attr("initial_indices")->ArrayItem(i)));
+        }
+        ffi::List<text::ExprAST> exprs;
+        for (int i = 0; i < static_cast<int>(node->final_indices.size()); ++i) {
+          exprs.push_back(
+              Print(printer, node->final_indices[i],
+                    path->Attr("final_indices")->ArrayItem(i)));
+        }
+        text::ExprAST body = (exprs.size() == 1) ? exprs[0] : text::TupleAST({}, std::move(exprs));
+        text::LambdaAST lambda_ast({}, std::move(params), body);
+        if (node->inverse_index_map.defined()) {
+          IndexMap inv = Downcast<IndexMap>(node->inverse_index_map);
+          ffi::List<text::ExprAST> inv_params;
+          for (int i = 0; i < static_cast<int>(inv->initial_indices.size()); ++i) {
+            inv_params.push_back(
+                Print(printer, inv->initial_indices[i],
+                      path->Attr("inverse_index_map")->Attr("initial_indices")->ArrayItem(i)));
+          }
+          ffi::List<text::ExprAST> inv_exprs;
+          for (int i = 0; i < static_cast<int>(inv->final_indices.size()); ++i) {
+            inv_exprs.push_back(
+                Print(printer, inv->final_indices[i],
+                      path->Attr("inverse_index_map")->Attr("final_indices")->ArrayItem(i)));
+          }
+          text::ExprAST inv_body = (inv_exprs.size() == 1) ? inv_exprs[0]
+                              : text::TupleAST({}, std::move(inv_exprs));
+          text::LambdaAST inv_lambda({}, std::move(inv_params), inv_body);
+          return text::ExprCallKw(TIR("index_map"), {lambda_ast},
+                            {ffi::String("inverse_index_map")}, {inv_lambda});
+        }
+        return text::ExprCall(TIR("index_map"), {lambda_ast});
+      });
+
+  // Let: T.Let(body, where={var: value})
+  refl::TypeAttrDef<LetNode>().def(
+      "__ffi_text_print__",
+      [](Let node, text::IRPrinter printer, text::AccessPath path) -> text::NodeAST {
+        using namespace printer;
+        if (!printer->VarGet(node->var).has_value() && !printer->frames.empty()) {
+          text::DefaultFrame frame = printer->frames.back().cast<text::DefaultFrame>();
+          DefineNewTIRVar(node->var, printer, frame);
+        }
+        text::ExprAST body_doc = Print(printer, node->body, path->Attr("body"));
+        text::ExprAST var_doc = Print(printer, node->var, path->Attr("var"));
+        text::ExprAST val_doc = Print(printer, node->value, path->Attr("value"));
+        text::DictAST where_dict({var_doc}, {val_doc});
+        return text::ExprCallKw(TIR("Let"), {body_doc},
+                          {ffi::String("where")}, {where_dict});
+      });
 }
 
 }  // namespace tirx

@@ -801,6 +801,19 @@ def tvm_throw_last_error():
     return call_intrin("handle", "tirx.tvm_throw_last_error")
 
 
+def tvm_static_handle():
+    """Create a function-local static handle initialized to nullptr.
+
+    Can be used to cache function-local static resources.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("handle", "tirx.tvm_static_handle")
+
+
 def tvm_load_matrix_sync(fragment, m, n, k, index, buffer_ptr, stride, layout):
     """TVM intrinsic for tensor core load operators
 

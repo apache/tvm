@@ -21,6 +21,7 @@
  * \file attrs.cc
  */
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/extra/ir_traits.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/attrs.h>
 
@@ -29,6 +30,7 @@
 namespace tvm {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = ::tvm::ffi::reflection;
   AttrFieldInfoNode::RegisterReflection();
   DictAttrsNode::RegisterReflection();
 }

@@ -40,7 +40,14 @@
 
 namespace tvm {
 
-TVM_FFI_STATIC_INIT_BLOCK() { TargetNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = ::tvm::ffi::reflection;
+  TargetNode::RegisterReflection();
+  refl::GlobalDef().def("target._config", [](ffi::AnyView /*ctx*/, Target node) -> ffi::Array<ffi::ObjectRef> {
+    ffi::Map<ffi::String, ffi::Any> config = node->ToConfig();
+    return {config};
+  });
+}
 
 class TargetInternal {
  public:
