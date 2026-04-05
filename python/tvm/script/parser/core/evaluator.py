@@ -222,6 +222,8 @@ class ExprEvaluator:
             doc.Constant | doc.expr_context | doc.operator | doc.boolop | doc.unaryop | doc.cmpop,
         ):
             return node
+        if isinstance(node, doc.keyword):
+            return doc.keyword(arg=node.arg, value=self._visit(node.value))
         if not isinstance(node, doc.expr | doc.Slice):
             return node
         if isinstance(node, doc.Lambda):
