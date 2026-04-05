@@ -218,6 +218,7 @@ print("PyTorch vs TVM outputs match!")
 
 try:
     import onnx
+    import onnxscript  # noqa: F401  # required by torch.onnx.export
 
     HAS_ONNX = True
 except ImportError:
