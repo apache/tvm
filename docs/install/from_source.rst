@@ -310,7 +310,7 @@ For CUDA support on Windows:
 CMake & Compiler Setup
 ......................
 - Specify generator: ``cmake -G "Visual Studio 17 2022" -A x64 ..``
-- Ensure Python is in PATH or specify: ``-DPython_EXECUTABLE=C:\Python310\python.exe``
+- Ensure Python is in PATH or specify: ``-DPython_EXECUTABLE=C:\Python311\python.exe``
 
 
 Building ROCm support

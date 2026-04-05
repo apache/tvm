@@ -202,8 +202,8 @@ the ``${TVM_HOME}`` directory.
 
     - Passing a path to a folder or file will run only the unit tests
       in that folder or file. This can be useful, for example, to
-      avoid running tests located in ``tests/python/relax`` on a
-      system without a specific frontend installed.
+      avoid running tests located in ``tests/python/contrib`` on a
+      system without a specific backend installed.
 
     - The ``-m`` argument only runs unit tests that are tagged with a
       specific pytest marker. The most frequent usage is to use ``m
