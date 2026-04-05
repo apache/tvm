@@ -237,7 +237,7 @@ class LlamaModel(nn.Module):
         return hidden_states
 
 
-class LlamaForCasualLM(nn.Module):
+class LlamaForCausalLM(nn.Module):
     def __init__(self, config: LlamaConfig):
         self.model = LlamaModel(config)
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
@@ -358,7 +358,7 @@ class LlamaForCasualLM(nn.Module):
 # For demonstration, we only show the part of the model architecture. and parameters.
 
 model_config = LlamaConfig()
-model = LlamaForCasualLM(model_config)
+model = LlamaForCausalLM(model_config)
 model.to("float16")
 mod, named_params = model.export_tvm(spec=model.get_default_spec())
 prefill_str = mod["prefill"].script()
