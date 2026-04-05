@@ -611,6 +611,13 @@ tvm_class_name_rewrite_map = {
     "tvm.relax.frontend.nn": ["Module"],
 }
 
+# When documenting modules under these prefixes, prefer types from the mapped module
+# to resolve ambiguous cross-references (e.g. Var exists in both tvm.tirx and tvm.relax).
+tvm_module_type_preference = {
+    "tvm.s_tir": "tvm.tirx",
+}
+
+
 def distinguish_class_name(name: str, lines: list[str]):
     """Distinguish the docstring of type annotations.
 
@@ -720,6 +727,14 @@ def _patch_python_domain_find_obj():
                 best_matches = [match for match in matches if match_scores[match[0]] == best_score]
                 if len(best_matches) == 1:
                     return best_matches
+
+            # Check module type preference for cross-module resolution
+            # (e.g. tvm.s_tir.analysis uses types from tvm.tirx).
+            for prefix, preferred_mod in tvm_module_type_preference.items():
+                if modname.startswith(prefix):
+                    preferred = [m for m in matches if m[0].startswith(preferred_mod + ".")]
+                    if len(preferred) >= 1:
+                        return preferred[:1]
 
         return matches
 
