@@ -45,8 +45,10 @@ Python API
     relax/relax
     relax/analysis
     relax/block_builder
+    relax/distributed
     relax/frontend
     relax/op
+    relax/training
     relax/transform
 
 .. toctree::

@@ -60,7 +60,7 @@ Jenkins Logs
 """"""""""""
 
 .. |pytest| replace:: ``pytest``
-.. _pytest: https://docs.pytest.org/en/6.2.x/
+.. _pytest: https://docs.pytest.org/en/stable/
 
 The first place to look for a failure is in the CI logs, follow the red Xs on
 the failing job to view the logs. Note:
@@ -122,7 +122,7 @@ search `recent GitHub issues related to flaky tests <https://github.com/apache/t
 `file a new issue <https://github.com/apache/tvm/issues/new?assignees=&labels=&template=ci-problem.md&title=%5BCI+Problem%5D>`_
 if you don't see any reports of the failure. If a certain test or class of tests affects
 several PRs or commits on ``main`` with flaky failures, the test should be disabled via
-`pytest's @xfail decorator <https://docs.pytest.org/en/6.2.x/skipping.html#xfail-mark-test-functions-as-expected-to-fail>`_ with `strict=False <https://docs.pytest.org/en/6.2.x/skipping.html#strict-parameter>`_ and the relevant issue linked in the
+`pytest's @xfail decorator <https://docs.pytest.org/en/stable/how-to/skipping.html#xfail-mark-test-functions-as-expected-to-fail>`_ with `strict=False <https://docs.pytest.org/en/stable/how-to/skipping.html#strict-parameter>`_ and the relevant issue linked in the
 disabling PR.
 
 .. code-block:: python

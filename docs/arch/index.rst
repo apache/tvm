@@ -306,8 +306,23 @@ tvm/target
 The target module contains all the code generators that translate an IRModule to a target runtime.Module.
 It also provides a common `Target` class that describes the target.
 
-.. TODO(tvm-team) add a target json description example once the new target API stablizes.
+Targets can be constructed from a registered tag, a configuration dictionary, or a tag with attribute overrides:
 
+.. code-block:: python
+
+    from tvm.target import Target
+
+    # From a registered tag
+    target = Target("nvidia/nvidia-a100")
+
+    # From a config dictionary
+    target = Target({"kind": "cuda", "arch": "sm_80"})
+
+    # From a tag with attribute overrides
+    target = Target({"tag": "nvidia/nvidia-a100", "l2_cache_size_bytes": 12345})
+
+Use ``Target.list_kinds()`` to see all available target kinds, and ``target.attrs`` to inspect
+target attributes.
 
 The compilation pipeline can be customized according to the target by querying the attribute information
 in the target and builtin information registered to each target id(cuda, opencl).

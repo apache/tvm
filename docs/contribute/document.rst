@@ -127,7 +127,7 @@ documents will be produced.
 Technical Details
 *****************
 
-We use the `Sphinx <http://sphinx-doc.org>`_ for the main documentation.
+We use the `Sphinx <https://www.sphinx-doc.org>`_ for the main documentation.
 Sphinx supports both reStructuredText and markdown. When possible, we
 encourage reStructuredText as it has richer features. Note that the
 Python doc-string and tutorials allow you to embed reStructuredText syntax.
@@ -179,7 +179,7 @@ Be careful to leave blank lines between sections of your documents. In the
 above case, there has to be a blank line before ``Parameters``, ``Returns`` and
 ``Examples`` in order for the doc to be built correctly. To add a new function to
 the docs, we need to add the `sphinx.autodoc
-<http://www.sphinx-doc.org/en/master/ext/autodoc.html>`_ rules to
+<https://www.sphinx-doc.org/en/master/usage/extensions/autodoc.html>`_ rules to
 `docs/reference/api/python <https://github.com/apache/tvm/tree/main/docs/reference/api/python>`_.
 You can refer to the existing files under this folder on how to add the
 functions.

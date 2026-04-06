@@ -49,7 +49,7 @@ In order for a test to be run, all of the following must be true.
 Unit-Test File Contents
 -----------------------
 
-.. _pytest-marks: https://docs.pytest.org/en/6.2.x/mark.html
+.. _pytest-marks: https://docs.pytest.org/en/stable/how-to/mark.html
 
 The recommended method to run a test on multiple targets is by
 parametrizing the test.  This can be done explicitly for a fixed list
@@ -64,7 +64,7 @@ hardware is present, then that target will be reported as skipped.
 .. code-block:: python
 
     # Explicit listing of targets to use.
-    @tvm.testing.parametrize_target('llvm', 'cuda')
+    @tvm.testing.parametrize_targets('llvm', 'cuda')
     def test_function(target, dev):
         # Test code goes here
 
@@ -202,8 +202,8 @@ the ``${TVM_HOME}`` directory.
 
     - Passing a path to a folder or file will run only the unit tests
       in that folder or file. This can be useful, for example, to
-      avoid running tests located in ``tests/python/frontend`` on a
-      system without a specific frontend installed.
+      avoid running tests located in ``tests/python/contrib`` on a
+      system without a specific backend installed.
 
     - The ``-m`` argument only runs unit tests that are tagged with a
       specific pytest marker. The most frequent usage is to use ``m
@@ -225,8 +225,8 @@ Running in local docker container
 The ``docker/bash.sh`` script can be used to run unit tests inside the
 same docker image as is used by the CI.  The first argument should
 specify which docker image to run (e.g. ``docker/bash.sh ci_gpu``).
-Allowed image names are defined at the top of the Jenkinsfile located
-in the TVM source directory, and map to images at `tlcpack`_.
+Allowed image names are defined in ``ci/jenkins/data.py`` in the TVM source directory,
+and map to images at `tlcpack`_.
 
 If no additional arguments are given, the docker image will be loaded
 with an interactive bash session.  If a script is passed as an
@@ -274,7 +274,7 @@ in which stages.
   determine how ``pytest`` is called.  Each task starts by unpacking a
   compiled library that was previous compiled in the ``BUILD`` stage,
   then runs a test script
-  (e.g. ``tests/script/task_python_unittest.sh``).  These scripts set
+  (e.g. ``tests/scripts/task_python_unittest.sh``).  These scripts set
   the files/folders and command-line options that are passed to
   ``pytest``.
 
