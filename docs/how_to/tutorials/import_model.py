@@ -295,6 +295,7 @@ if HAS_ONNX:
 try:
     import tensorflow as tf
     import tflite
+    import tflite.Model
 
     HAS_TFLITE = True
 except ImportError:
@@ -338,6 +339,7 @@ if HAS_TFLITE:
 # .. code-block:: python
 #
 #    import tflite
+#    import tflite.Model
 #    from tvm.relax.frontend.tflite import from_tflite
 #
 #    with open("my_model.tflite", "rb") as f:
