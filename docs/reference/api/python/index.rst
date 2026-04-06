@@ -62,6 +62,7 @@ Python API
     :maxdepth: 1
     :caption: tvm.s_tir
 
+    s_tir/analysis
     s_tir/schedule
     s_tir/transform
     s_tir/dlight
