@@ -15,21 +15,7 @@
     specific language governing permissions and limitations
     under the License.
 
-.. _relax-deep-dive:
-
-Relax
-=====
-Relax is a high-level abstraction for graph optimization and transformation in Apache TVM stack.
-Additionally, Apache TVM combines Relax and TensorIR together for cross-level
-optimization. Hence, Relax is usually working closely with TensorIR for representing and optimizing
-the whole IRModule
-
-
-.. toctree::
-    :maxdepth: 2
-
-    abstraction
-    learning
-    dpl
-    tutorials/relax_creation
-    tutorials/relax_transformation
+tvm.relax.dpl
+-------------
+.. automodule:: tvm.relax.dpl
+   :members:

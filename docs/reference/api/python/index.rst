@@ -50,6 +50,7 @@ Python API
     relax/op
     relax/training
     relax/transform
+    relax/dpl
 
 .. toctree::
     :maxdepth: 1
