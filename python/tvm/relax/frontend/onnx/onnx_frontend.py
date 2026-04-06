@@ -4198,19 +4198,6 @@ class OptionalGetElement(OnnxOpConverter):
     _impl_v18 = _impl_v15
 
 
-def _onnx_sequence_tuple_as_tensor_list(sequence: relax.Expr) -> list[relax.Expr]:
-    """Expand an ONNX tensor sequence carried as a Relax tuple into a Python list.
-
-    ONNX sequence ops are represented as ``relax.Tuple`` of tensor expressions during
-    import. Several converters need to copy or transform the sequence; this helper
-    centralizes the indexing pattern.
-
-    Uses ``list(sequence)`` so tuple-typed ``Var`` inputs unpack correctly (they support
-    iteration but not necessarily ``len`` in Python).
-    """
-    return list(sequence)
-
-
 class SequenceConstruct(OnnxOpConverter):
     """Operator converter for sequence construction op."""
 
@@ -4255,8 +4242,8 @@ class SequenceErase(OnnxOpConverter):
 
         if position < 0:
             position = seq_len + position
-        items = _onnx_sequence_tuple_as_tensor_list(input_sequence)
-        del items[position]
+        seq_list = list(input_sequence)
+        items = [t for i, t in enumerate(seq_list) if i != position]
         return relax.Tuple(items)
 
 
@@ -4282,11 +4269,12 @@ class SequenceInsert(OnnxOpConverter):
         seq_len = len(input_sequence)
         if position < 0:
             position = seq_len + position + 1
+        # Upper bound is inclusive: position == seq_len appends at the end.
         if not 0 <= position <= seq_len:
             raise ValueError(
                 f"SequenceInsert position out of bounds for length {seq_len}, got {position}"
             )
-        tensor_list = _onnx_sequence_tuple_as_tensor_list(input_sequence)
+        tensor_list = list(input_sequence)
         tensor_list.insert(position, tensor_to_insert)
         return relax.Tuple(tensor_list)
 
@@ -4310,7 +4298,7 @@ class ConcatFromSequence(OnnxOpConverter):
         if new_axis not in (0, 1):
             raise ValueError(f"ConcatFromSequence: new_axis must be 0 or 1, got {new_axis}")
 
-        tensors = _onnx_sequence_tuple_as_tensor_list(inputs[0])
+        tensors = list(inputs[0])
         if new_axis == 1:
             tensors = [relax.op.expand_dims(t, axis=axis) for t in tensors]
         return relax.op.concat(tensors, axis=axis)

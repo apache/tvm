@@ -3762,10 +3762,29 @@ def test_sequence_insert(explicit_position: bool):
     check_correctness(model)
 
 
+def test_concat_from_sequence_axis0_new_axis0():
+    """Basic ConcatFromSequence: axis=0, new_axis=0 (plain concat along first dim).
+
+    ONNX Runtime requires an explicit ``axis`` on the node; it cannot be omitted
+    even though the ONNX spec defaults axis/new_axis to 0.
+    """
+    seq_node, graph_inputs = construct_sequence(input_shape=[32, 32], num_tensors=2)
+    concat_from_sequence_node = helper.make_node(
+        "ConcatFromSequence", ["sequence"], ["output"], axis=0, new_axis=0
+    )
+    graph = helper.make_graph(
+        [seq_node, concat_from_sequence_node],
+        "test_concat_from_sequence_axis0_new_axis0",
+        inputs=graph_inputs,
+        outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, [64, 32])],
+    )
+    model = helper.make_model(graph, producer_name="test_concat_from_sequence_axis0_new_axis0")
+    check_correctness(model)
+
+
 @pytest.mark.parametrize(
     "new_axis,axis,expected_shape",
     [
-        (0, 0, [64, 32]),
         (0, 1, [32, 64]),
         (1, 0, [2, 32, 32]),
         (1, 1, [32, 2, 32]),
