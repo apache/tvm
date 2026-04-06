@@ -426,5 +426,25 @@ def test_cli_string_rejected():
         Target("llvm -mcpu=cortex-a53")
 
 
+def test_webgpu_target_subgroup_attrs():
+    """Test WebGPU target defaults and supports_subgroups canonicalization."""
+    # Default: thread_warp_size=1, supports_subgroups=False
+    tgt_default = Target({"kind": "webgpu"})
+    assert tgt_default.attrs["thread_warp_size"] == 1
+    assert tgt_default.attrs["supports_subgroups"] == 0
+
+    # With supports_subgroups=True: thread_warp_size is set to 32
+    tgt_subgroups = Target({"kind": "webgpu", "supports_subgroups": True})
+    assert tgt_subgroups.attrs["thread_warp_size"] == 32
+    assert tgt_subgroups.attrs["supports_subgroups"] == 1
+
+    for config in [
+        {"kind": "webgpu", "thread_warp_size": 32},
+        {"kind": "webgpu", "thread_warp_size": 32, "supports_subgroups": False},
+    ]:
+        with pytest.raises(tvm.TVMError, match="requires supports_subgroups=true"):
+            Target(config)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
