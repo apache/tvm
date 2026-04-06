@@ -31,7 +31,6 @@ from tvm import relax
 from tvm.relax.frontend.tflite import from_tflite
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
-from tvm.script.parser import tirx as T
 
 
 def _get_mod_from_cfunc(cfunc):
@@ -1187,7 +1186,6 @@ def test_nms_v5_ir():
 
 def _make_resize_expected(input_shape, output_size, method, coordinate_transformation_mode, rounding_method):
     """Build an Expected IRModule programmatically to avoid TVMScript variable scope limitations."""
-    out_shape = (input_shape[0], output_size[0], output_size[1], input_shape[3])
     bb = relax.BlockBuilder()
     x = relax.Var("x", relax.TensorStructInfo(input_shape, "float32"))
     with bb.function("main", [x]):
