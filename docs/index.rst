@@ -43,7 +43,6 @@ driving its costs down.
 
    how_to/tutorials/e2e_opt_model
    how_to/tutorials/customize_opt
-   how_to/tutorials/dlight_gpu_scheduling
    how_to/tutorials/optimize_llm
    how_to/tutorials/cross_compilation_and_rpc
    how_to/tutorials/export_and_load_executable

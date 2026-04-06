@@ -39,3 +39,4 @@ In TVMScript, both modules are accessed via
     learning
     tutorials/tir_creation
     tutorials/tir_transformation
+    dlight
