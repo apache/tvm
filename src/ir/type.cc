@@ -21,15 +21,34 @@
  * \file src/ir/type.cc
  * \brief Common type system AST nodes throughout the IR.
  */
+#include <tvm/ffi/dtype.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/ir/traits.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/type.h>
+#include <tvm/tirx/expr.h>
 namespace tvm {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = ::tvm::ffi::reflection;
   TypeNode::RegisterReflection();
   PrimTypeNode::RegisterReflection();
   PointerTypeNode::RegisterReflection();
+  refl::GlobalDef().def("ir._handle_args", [](PointerType node) -> ffi::Array<ObjectRef> {
+    ffi::Array<ObjectRef> args;
+    if (const auto* prim = node->element_type.as<PrimTypeNode>()) {
+      runtime::DataType dt = prim->dtype;
+      ffi::String dtype_str = dt.is_void() ? ffi::String("void")
+                                           : ffi::DLDataTypeToString(static_cast<DLDataType>(dt));
+      args.push_back(tirx::StringImm(dtype_str));
+    } else {
+      args.push_back(node->element_type);
+    }
+    if (!node->storage_scope.empty()) {
+      args.push_back(tirx::StringImm(node->storage_scope));
+    }
+    return args;
+  });
   TupleTypeNode::RegisterReflection();
   FuncTypeNode::RegisterReflection();
   TensorMapTypeNode::RegisterReflection();

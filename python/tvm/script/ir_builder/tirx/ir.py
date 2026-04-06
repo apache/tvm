@@ -1928,6 +1928,7 @@ truncdiv = _op_wrapper(_tir_op.truncdiv)
 truncmod = _op_wrapper(_tir_op.truncmod)
 tvm_access_ptr = _op_wrapper(_tir_op.tvm_access_ptr)
 tvm_throw_last_error = _op_wrapper(_tir_op.tvm_throw_last_error)
+tvm_static_handle = _op_wrapper(_tir_op.tvm_static_handle)
 tvm_stack_alloca = _op_wrapper(_tir_op.tvm_stack_alloca)
 tvm_stack_make_shape = _op_wrapper(_tir_op.tvm_stack_make_shape)
 tvm_stack_make_array = _op_wrapper(_tir_op.tvm_stack_make_array)
@@ -2208,6 +2209,7 @@ __all__ = float_types + [
     "truncmod",
     "tvm_access_ptr",
     "tvm_throw_last_error",
+    "tvm_static_handle",
     "tvm_stack_alloca",
     "tvm_stack_make_shape",
     "tvm_stack_make_array",

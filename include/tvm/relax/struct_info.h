@@ -19,6 +19,7 @@
 #ifndef TVM_RELAX_STRUCT_INFO_H_
 #define TVM_RELAX_STRUCT_INFO_H_
 
+#include <tvm/ffi/ir/traits.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/env_func.h>
 #include <tvm/ir/source_map.h>
@@ -40,7 +41,9 @@ class ObjectStructInfoNode : public StructInfoNode {
  public:
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<ObjectStructInfoNode>();
+    namespace tr = tvm::ffi::ir::traits;
+    refl::ObjectDef<ObjectStructInfoNode>()
+        .def_ir_traits<tr::CallObj>("R.Object", "$global:relax._empty_array");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.ObjectStructInfo", ObjectStructInfoNode, StructInfoNode);
 };
@@ -175,11 +178,13 @@ class TensorStructInfoNode : public StructInfoNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
+    namespace tr = tvm::ffi::ir::traits;
     refl::ObjectDef<TensorStructInfoNode>()
         .def_ro("shape", &TensorStructInfoNode::shape)
         .def_ro("dtype", &TensorStructInfoNode::dtype)
         .def_ro("vdevice", &TensorStructInfoNode::vdevice)
-        .def_ro("ndim", &TensorStructInfoNode::ndim);
+        .def_ro("ndim", &TensorStructInfoNode::ndim)
+        .def_ir_traits<tr::TensorTyObj>("$field:shape", "$field:dtype", "$field:vdevice");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.TensorStructInfo", TensorStructInfoNode, StructInfoNode);
 };
@@ -225,7 +230,10 @@ class TupleStructInfoNode : public StructInfoNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<TupleStructInfoNode>().def_ro("fields", &TupleStructInfoNode::fields);
+    namespace tr = tvm::ffi::ir::traits;
+    refl::ObjectDef<TupleStructInfoNode>()
+        .def_ro("fields", &TupleStructInfoNode::fields)
+        .def_ir_traits<tr::CallObj>("R.Tuple", "$field:fields");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.TupleStructInfo", TupleStructInfoNode, StructInfoNode);
 };
@@ -293,11 +301,14 @@ class FuncStructInfoNode : public StructInfoNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
+    namespace tr = tvm::ffi::ir::traits;
     refl::ObjectDef<FuncStructInfoNode>()
         .def_ro("params", &FuncStructInfoNode::params, refl::AttachFieldFlag::SEqHashDef())
         .def_ro("ret", &FuncStructInfoNode::ret)
         .def_ro("derive_func", &FuncStructInfoNode::derive_func)
-        .def_ro("purity", &FuncStructInfoNode::purity);
+        .def_ro("purity", &FuncStructInfoNode::purity)
+        .def_ir_traits<tr::CallObj>("R.Callable", "$global:relax._func_si_args",
+                                     nullptr, "$global:relax._func_si_kwargs");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.FuncStructInfo", FuncStructInfoNode, StructInfoNode);
 };

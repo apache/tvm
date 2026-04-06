@@ -269,5 +269,8 @@ ignore_errors = true
 module = ["python.tvm.runtime.*"]
 ignore_errors = true
 
+[tool.uv.sources]
+apache-tvm-ffi = { path = "3rdparty/tvm-ffi", editable = true }
+
 [dependency-groups]
 lint = ["pre-commit"]

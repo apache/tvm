@@ -1,3 +1,14 @@
+.claude/
+ir_testsuite.jsonl
+ir_testsuite_filtered.jsonl
+main.py
+main2.py
+plan-changed.md
+plan.md
+testsuite/
+tmp.md
+traits-printer-parser-v4.md
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

@@ -25,6 +25,7 @@
 #define TVM_RELAX_TYPE_H_
 
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/ir/traits.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/env_func.h>
@@ -46,7 +47,10 @@ class ShapeTypeNode : public TypeNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<ShapeTypeNode>().def_ro("ndim", &ShapeTypeNode::ndim);
+    namespace tr = tvm::ffi::ir::traits;
+    refl::ObjectDef<ShapeTypeNode>()
+        .def_ro("ndim", &ShapeTypeNode::ndim)
+        .def_ir_traits<tr::ShapeTyObj>(nullptr, "$field:ndim");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.ShapeType", ShapeTypeNode, TypeNode);
 };
@@ -75,9 +79,11 @@ class TensorTypeNode : public TypeNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
+    namespace tr = tvm::ffi::ir::traits;
     refl::ObjectDef<TensorTypeNode>()
         .def_ro("ndim", &TensorTypeNode::ndim)
-        .def_ro("dtype", &TensorTypeNode::dtype);
+        .def_ro("dtype", &TensorTypeNode::dtype)
+        .def_ir_traits<tr::TensorTyObj>(nullptr, "$field:dtype");
   }
 
   inline bool IsUnknownNdim() const { return ndim == kUnknownNDim; }
@@ -115,7 +121,9 @@ class ObjectTypeNode : public TypeNode {
  public:
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<ObjectTypeNode>();
+    namespace tr = tvm::ffi::ir::traits;
+    refl::ObjectDef<ObjectTypeNode>()
+        .def_ir_traits<tr::TyObj>();
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.ObjectType", ObjectTypeNode, TypeNode);
 };
@@ -131,7 +139,9 @@ class PackedFuncTypeNode : public TypeNode {
  public:
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<PackedFuncTypeNode>();
+    namespace tr = tvm::ffi::ir::traits;
+    refl::ObjectDef<PackedFuncTypeNode>()
+        .def_ir_traits<tr::FuncTyObj>();
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.PackedFuncType", PackedFuncTypeNode, TypeNode);
 };

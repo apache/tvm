@@ -24,6 +24,7 @@
 #ifndef TVM_TIR_STMT_H_
 #define TVM_TIR_STMT_H_
 
+#include <tvm/ffi/ir/traits.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/node/script_printer.h>
 #include <tvm/tirx/expr.h>
@@ -83,9 +84,11 @@ class BindNode : public StmtNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
+    namespace tr = tvm::ffi::ir::traits;
     refl::ObjectDef<BindNode>()
         .def_ro("var", &BindNode::var, refl::AttachFieldFlag::SEqHashDef())
-        .def_ro("value", &BindNode::value);
+        .def_ro("value", &BindNode::value)
+        .def_ir_traits<tr::AssignObj>("$field:var", "$field:value");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.Bind", BindNode, StmtNode);
 };
@@ -167,10 +170,12 @@ class AssertStmtNode : public StmtNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
+    namespace tr = tvm::ffi::ir::traits;
     refl::ObjectDef<AssertStmtNode>()
         .def_ro("condition", &AssertStmtNode::condition)
         .def_ro("error_kind", &AssertStmtNode::error_kind)
-        .def_ro("message_parts", &AssertStmtNode::message_parts);
+        .def_ro("message_parts", &AssertStmtNode::message_parts)
+        .def_ir_traits<tr::AssertObj>("$field:condition", "$global:tirx._structured_msg");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.AssertStmt", AssertStmtNode, StmtNode);
 };
@@ -211,11 +216,14 @@ class BufferStoreNode : public StmtNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
+    namespace tr = tvm::ffi::ir::traits;
     refl::ObjectDef<BufferStoreNode>()
         .def_ro("buffer", &BufferStoreNode::buffer)
         .def_ro("value", &BufferStoreNode::value)
         .def_ro("indices", &BufferStoreNode::indices)
-        .def_ro("predicate", &BufferStoreNode::predicate);
+        .def_ro("predicate", &BufferStoreNode::predicate)
+        .def_ir_traits<tr::StoreObj>("$field:buffer", "$field:value",
+                                    "$global:tirx._store_indices", "$field:predicate");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.BufferStore", BufferStoreNode, StmtNode);
 };
@@ -242,7 +250,8 @@ class DeclBufferNode : public StmtNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<DeclBufferNode>().def_ro("buffer", &DeclBufferNode::buffer);
+    refl::ObjectDef<DeclBufferNode>()
+        .def_ro("buffer", &DeclBufferNode::buffer);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.DeclBuffer", DeclBufferNode, StmtNode);
 };
@@ -322,7 +331,10 @@ class SeqStmtNode : public StmtNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<SeqStmtNode>().def_ro("seq", &SeqStmtNode::seq);
+    namespace tr = tvm::ffi::ir::traits;
+    refl::ObjectDef<SeqStmtNode>()
+        .def_ro("seq", &SeqStmtNode::seq)
+        .def_ir_traits<tr::SeqObj>("$field:seq");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.SeqStmt", SeqStmtNode, StmtNode);
 };
@@ -340,7 +352,12 @@ class EvaluateNode : public StmtNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<EvaluateNode>().def_ro("value", &EvaluateNode::value);
+    namespace tr = tvm::ffi::ir::traits;
+    refl::ObjectDef<EvaluateNode>()
+        .def_ro("value", &EvaluateNode::value)
+        .def_ir_traits<tr::ExprStmtObj>("$global:tirx._evaluate_expr",
+                                         "$global:tirx._evaluate_kind",
+                                         "$global:tirx._evaluate_is_return");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.Evaluate", EvaluateNode, StmtNode);
 };
@@ -524,10 +541,14 @@ class IfThenElseNode : public StmtNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
+    namespace tr = tvm::ffi::ir::traits;
     refl::ObjectDef<IfThenElseNode>()
         .def_ro("condition", &IfThenElseNode::condition)
         .def_ro("then_case", &IfThenElseNode::then_case)
-        .def_ro("else_case", &IfThenElseNode::else_case);
+        .def_ro("else_case", &IfThenElseNode::else_case)
+        .def_ir_traits<tr::IfObj>("$field:condition",
+                                  tr::Region("$field:then_case"),
+                                  ffi::Optional<tr::Region>(tr::Region("$field:else_case")));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.IfThenElse", IfThenElseNode, StmtNode);
 };
@@ -667,9 +688,11 @@ class WhileNode : public StmtNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
+    namespace tr = tvm::ffi::ir::traits;
     refl::ObjectDef<WhileNode>()
         .def_ro("condition", &WhileNode::condition)
-        .def_ro("body", &WhileNode::body);
+        .def_ro("body", &WhileNode::body)
+        .def_ir_traits<tr::WhileObj>("$field:condition", tr::Region("$field:body"));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.While", WhileNode, StmtNode);
 };
@@ -698,9 +721,11 @@ class BufferRegionNode : public PrimExprConvertibleNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
+    namespace tr = tvm::ffi::ir::traits;
     refl::ObjectDef<BufferRegionNode>()
         .def_ro("buffer", &BufferRegionNode::buffer)
-        .def_ro("region", &BufferRegionNode::region);
+        .def_ro("region", &BufferRegionNode::region)
+        .def_ir_traits<tr::LoadObj>("$field:buffer", "$global:tirx._buf_region_indices");
   }
 
   TVM_DLL PrimExpr ToPrimExpr() const final;
@@ -825,6 +850,7 @@ class SBlockNode : public StmtNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
+    namespace tr = tvm::ffi::ir::traits;
     refl::ObjectDef<SBlockNode>()
         .def_ro("iter_vars", &SBlockNode::iter_vars, refl::AttachFieldFlag::SEqHashDef())
         .def_ro("reads", &SBlockNode::reads)
@@ -834,7 +860,8 @@ class SBlockNode : public StmtNode {
         .def_ro("match_buffers", &SBlockNode::match_buffers)
         .def_ro("annotations", &SBlockNode::annotations)
         .def_ro("init", &SBlockNode::init)
-        .def_ro("body", &SBlockNode::body);
+        .def_ro("body", &SBlockNode::body)
+        .def_ir_traits<tr::WithObj>(tr::Region("$field:body", "$field:iter_vars"));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.SBlock", SBlockNode, StmtNode);
 };
@@ -875,10 +902,12 @@ class SBlockRealizeNode : public StmtNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
+    namespace tr = tvm::ffi::ir::traits;
     refl::ObjectDef<SBlockRealizeNode>()
         .def_ro("iter_values", &SBlockRealizeNode::iter_values)
         .def_ro("predicate", &SBlockRealizeNode::predicate)
-        .def_ro("block", &SBlockRealizeNode::block);
+        .def_ro("block", &SBlockRealizeNode::block)
+        .def_ir_traits<tr::WithObj>(tr::Region("$field:block"));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.SBlockRealize", SBlockRealizeNode, StmtNode);
 };

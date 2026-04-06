@@ -25,6 +25,7 @@
 #define TVM_TIR_BUFFER_H_
 
 #include <tvm/ffi/container/array.h>
+#include <tvm/ffi/ir/traits.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/expr.h>
@@ -114,6 +115,7 @@ class BufferNode : public Object {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
+    namespace tr = tvm::ffi::ir::traits;
     refl::ObjectDef<BufferNode>()
         .def_ro("data", &BufferNode::data, refl::AttachFieldFlag::SEqHashDef())
         .def_ro("dtype", &BufferNode::dtype)
@@ -126,7 +128,9 @@ class BufferNode : public Object {
         .def_ro("data_alignment", &BufferNode::data_alignment)
         .def_ro("offset_factor", &BufferNode::offset_factor)
         .def_ro("buffer_type", &BufferNode::buffer_type)
-        .def_ro("span", &BufferNode::span, refl::AttachFieldFlag::SEqHashIgnore());
+        .def_ro("span", &BufferNode::span, refl::AttachFieldFlag::SEqHashIgnore())
+        .def_ir_traits<tr::BufferTyObj>("$field:shape", "$field:dtype",
+                                        "$field:strides", "$field:elem_offset", "$field:name");
   }
 
   /*! \return preferred index type for this buffer node */

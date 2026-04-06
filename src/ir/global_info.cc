@@ -22,13 +22,27 @@
  * \brief Module global info.
  */
 
+#include <tvm/ffi/container/list.h>
+#include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/global_info.h>
+#include <tvm/tirx/expr.h>
+
 namespace tvm {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = ::tvm::ffi::reflection;
   VDeviceNode::RegisterReflection();
   DummyGlobalInfoNode::RegisterReflection();
+  refl::GlobalDef()
+      .def("ir._vdevice_args", [](VDevice node) -> ffi::List<ffi::Any> {
+        ffi::List<ffi::Any> result;
+        result.push_back(node->target->ToConfig());
+        result.push_back(static_cast<int64_t>(node->vdevice_id));
+        result.push_back(node->memory_scope);
+        return result;
+      })
+      .def("ir._dummy_args", [](DummyGlobalInfo) -> ffi::Array<ObjectRef> { return {}; });
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -53,4 +67,5 @@ TVM_FFI_STATIC_INIT_BLOCK() {
     return VDevice(tgt, dev_id, mem_scope);
   });
 }
+
 }  // namespace tvm

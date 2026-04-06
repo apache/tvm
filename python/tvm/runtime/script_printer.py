@@ -224,6 +224,19 @@ class Scriptable:
             ),
         )
 
+    def script_v2(self, *, indent_spaces: int = 4) -> str:
+        """Print using the traits-based V2 printer.
+
+        Returns
+        -------
+        script : str
+            The V2 TVM Script of the given TVM IR
+        """
+        from tvm_ffi.ir.text import to_python, PrinterConfig
+
+        cfg = PrinterConfig(indent_spaces=indent_spaces)
+        return to_python(self, cfg)
+
     def _relax_script(
         self,
         *,

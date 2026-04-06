@@ -32,6 +32,7 @@
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/extra/structural_hash.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/ir/traits.h>
 #include <tvm/ffi/reflection/accessor.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
@@ -145,7 +146,10 @@ class DictAttrsNode : public BaseAttrsNode {
 
   static void RegisterReflection() {
     namespace rfl = ffi::reflection;
-    rfl::ObjectDef<DictAttrsNode>().def_ro("__dict__", &DictAttrsNode::dict);
+    namespace tr = tvm::ffi::ir::traits;
+    rfl::ObjectDef<DictAttrsNode>()
+        .def_ro("__dict__", &DictAttrsNode::dict)
+        .def_ir_traits<tr::LiteralObj>("$field:__dict__");
   }
 
   void InitByPackedArgs(const ffi::PackedArgs& args, bool allow_unknown) final;
