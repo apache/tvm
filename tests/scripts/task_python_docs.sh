@@ -91,6 +91,9 @@ IGNORED_WARNINGS=(
     # Warning is thrown during TFLite quantization for micro_train tutorial
     'absl:For model inputs containing unsupported operations which cannot be quantized, the `inference_input_type` attribute will default to the original type.'
     'absl:Found untraced functions such as _jit_compiled_convolution_op'
+    # TF C++ runtime prints this before absl logging is initialized
+    'absl::InitializeLog'
+    'absl:Please consider providing the trackable_obj argument'
     'You are using pip version'
     # Tutorial READMEs can be ignored, but other docs should be included
     "tutorials/README.rst: WARNING: document isn't included in any toctree"
