@@ -4204,8 +4204,11 @@ def _onnx_sequence_tuple_as_tensor_list(sequence: relax.Expr) -> list[relax.Expr
     ONNX sequence ops are represented as ``relax.Tuple`` of tensor expressions during
     import. Several converters need to copy or transform the sequence; this helper
     centralizes the indexing pattern.
+
+    Uses ``list(sequence)`` so tuple-typed ``Var`` inputs unpack correctly (they support
+    iteration but not necessarily ``len`` in Python).
     """
-    return [sequence[i] for i in range(len(sequence))]
+    return list(sequence)
 
 
 class SequenceConstruct(OnnxOpConverter):
@@ -4253,8 +4256,8 @@ class SequenceErase(OnnxOpConverter):
         if position < 0:
             position = seq_len + position
         items = _onnx_sequence_tuple_as_tensor_list(input_sequence)
-        tensor_list = [t for i, t in enumerate(items) if i != position]
-        return relax.Tuple(tensor_list)
+        del items[position]
+        return relax.Tuple(items)
 
 
 class SequenceInsert(OnnxOpConverter):
