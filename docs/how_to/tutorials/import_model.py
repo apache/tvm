@@ -304,22 +304,22 @@ except ImportError:
 if HAS_TFLITE:
     from tvm.relax.frontend.tflite import from_tflite
 
-    # Define a simple TF module and convert to TFLite
+    # Define a simple TF module and convert to TFLite.
+    # We use plain TF ops (not keras layers) to avoid variable-handling ops
+    # that some TFLite converter versions do not support cleanly.
     class TFModule(tf.Module):
-        def __init__(self):
-            super().__init__()
-            self.dense = tf.keras.layers.Dense(10)
-
-        @tf.function(input_signature=[tf.TensorSpec(shape=(1, 784), dtype=tf.float32)])
-        def forward(self, x):
-            return self.dense(x)
+        @tf.function(
+            input_signature=[
+                tf.TensorSpec(shape=(1, 784), dtype=tf.float32),
+                tf.TensorSpec(shape=(784, 10), dtype=tf.float32),
+            ]
+        )
+        def forward(self, x, weight):
+            return tf.matmul(x, weight) + 0.1
 
     tf_module = TFModule()
-    # Trace the function to initialize weights
-    tf_module.forward(tf.zeros((1, 784)))
-
     converter = tf.lite.TFLiteConverter.from_concrete_functions(
-        [tf_module.forward.get_concrete_function()]
+        [tf_module.forward.get_concrete_function()], tf_module
     )
     tflite_buf = converter.convert()
 
