@@ -3762,19 +3762,23 @@ def test_sequence_insert(explicit_position: bool):
     check_correctness(model)
 
 
-@pytest.mark.parametrize("new_axis", [0, 1])
-def test_concat_from_sequence(new_axis: Literal[0, 1]):
-    if new_axis == 1:
-        pytest.skip("ConcatFromSequence with new_axis=1 is not supported yet")
+@pytest.mark.parametrize(
+    "new_axis,axis,expected_shape",
+    [
+        (0, 0, [64, 32]),
+        (1, 1, [32, 2, 32]),
+    ],
+)
+def test_concat_from_sequence(new_axis, axis, expected_shape):
     seq_node, graph_inputs = construct_sequence(input_shape=[32, 32], num_tensors=2)
     concat_from_sequence_node = helper.make_node(
-        "ConcatFromSequence", ["sequence"], ["output"], axis=1
+        "ConcatFromSequence", ["sequence"], ["output"], axis=axis, new_axis=new_axis
     )
     graph = helper.make_graph(
         [seq_node, concat_from_sequence_node],
         "test_concat_from_sequence",
         inputs=graph_inputs,
-        outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, [64, 32])],
+        outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, expected_shape)],
     )
     model = helper.make_model(graph, producer_name="test_concat_from_sequence")
     check_correctness(model)

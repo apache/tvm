@@ -4295,7 +4295,7 @@ class ConcatFromSequence(OnnxOpConverter):
         new_axis = attr.get("new_axis", 0)
 
         if new_axis == 1:
-            raise NotImplementedError("Insert new axis is not supported yet.")
+            return relax.op.stack(inputs[0], axis=axis)
 
         return relax.op.concat(inputs[0], axis=axis)
 
