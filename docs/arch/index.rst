@@ -261,7 +261,7 @@ broadcast, and scatter.
 The central abstraction is the ``Session``, which owns the workers and exposes a SPMD-style
 programming interface. Every object that lives on workers is represented by a ``DRef`` — a
 distributed reference that maps to a concrete value on each worker. When the controller invokes a
-``DPackedFunc`` through the session, all workers execute the same PackedFunc call in lockstep, each
+``DPackedFunc`` through the session, all workers execute the same PackedFunc call synchronously, each
 operating on its own local shard. Compiled VM modules can be loaded into a session as ``DModule``
 objects and called in the same fashion. The session also provides collective primitives backed by
 NCCL or RCCL, so that workers can exchange partial results without routing data through the
