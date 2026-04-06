@@ -3766,6 +3766,7 @@ def test_sequence_insert(explicit_position: bool):
     "new_axis,axis,expected_shape",
     [
         (0, 0, [64, 32]),
+        (0, 1, [32, 64]),
         (1, 1, [32, 2, 32]),
     ],
 )
