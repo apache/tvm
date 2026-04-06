@@ -4242,10 +4242,9 @@ class SequenceErase(OnnxOpConverter):
 
         if position < 0:
             position = seq_len + position
-        # Convert sequence to a list, insert tensors before erased, and repackage as Tuple.
-        tensor_list = [input_sequence[i] for i in range(seq_len) if i != position]
-        # Create new tuple and return.
-        return relax.Tuple(tensor_list)
+        seq_list = list(input_sequence)
+        items = [t for i, t in enumerate(seq_list) if i != position]
+        return relax.Tuple(items)
 
 
 class SequenceInsert(OnnxOpConverter):
@@ -4261,19 +4260,22 @@ class SequenceInsert(OnnxOpConverter):
             position = inputs[2]
             # Non constant position is not supported.
             if isinstance(position, relax.Constant):
-                position = position.data.numpy()
+                position = int(position.data.numpy())
             else:
                 raise NotImplementedError("Position must be a constant.")
         else:
             position = -1
 
+        seq_len = len(input_sequence)
         if position < 0:
-            position = len(input_sequence) + position + 1
-        # Convert sequence to a list, insert new tensor, and repackage as Tuple.
-        tensor_list = [input_sequence[i] for i in range(len(input_sequence))]
-        # Insert new tensor.
+            position = seq_len + position + 1
+        # Upper bound is inclusive: position == seq_len appends at the end.
+        if not 0 <= position <= seq_len:
+            raise ValueError(
+                f"SequenceInsert position out of bounds for length {seq_len}, got {position}"
+            )
+        tensor_list = list(input_sequence)
         tensor_list.insert(position, tensor_to_insert)
-        # Create new tuple and return.
         return relax.Tuple(tensor_list)
 
 
@@ -4294,12 +4296,14 @@ class ConcatFromSequence(OnnxOpConverter):
         axis = attr.get("axis", 0)
         new_axis = attr.get("new_axis", 0)
 
-        if new_axis == 1:
-            return relax.op.stack(inputs[0], axis=axis)
-        elif new_axis != 0:
+        if new_axis not in (0, 1):
             raise ValueError(f"ConcatFromSequence only supports new_axis in (0, 1), got {new_axis}")
 
-        return relax.op.concat(inputs[0], axis=axis)
+        tensors = list(inputs[0])
+        if new_axis == 1:
+            tensors = [relax.op.expand_dims(t, axis=axis) for t in tensors]
+
+        return relax.op.concat(tensors, axis=axis)
 
 
 class SplitToSequence(OnnxOpConverter):
