@@ -23,6 +23,7 @@
  */
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt.h>
@@ -44,15 +45,24 @@ class ParallelLoopToThreadBindingMutator : public StmtExprMutator {
       : max_threads_per_block_(max_threads_per_block) {}
 
  private:
-  Stmt VisitStmt_(const ForNode* op) final {
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    const auto* for_node = stmt.as<ForNode>();
-    TVM_FFI_ICHECK(for_node != nullptr);
-    if (for_node->kind != ForKind::kParallel) {
-      return stmt;
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
+    if (op->attr_key == tirx::attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread) {
+      bool prev = in_thread_env_;
+      in_thread_env_ = true;
+      Stmt ret = StmtExprMutator::VisitStmt_(op);
+      in_thread_env_ = prev;
+      return ret;
+    }
+    return StmtExprMutator::VisitStmt_(op);
+  }
+
+  Stmt TransformParallelFor(const ForNode* for_node) {
+    if (in_thread_env_) {
+      return ffi::GetRef<Stmt>(for_node);
     }
 
     DataType dtype = for_node->loop_var.dtype();
+    PrimExpr min = cast(dtype, for_node->min);
     PrimExpr extent = cast(dtype, for_node->extent);
     PrimExpr max_threads = IntImm(dtype, max_threads_per_block_);
     PrimExpr num_blocks = ceildiv(extent, max_threads);
@@ -65,7 +75,8 @@ class ParallelLoopToThreadBindingMutator : public StmtExprMutator {
                     IterVarType::kThreadIndex, "blockIdx.x");
 
     PrimExpr global_idx = cast(dtype, bx_var * max_threads + tx_var);
-    Stmt mapped_body = Substitute(for_node->body, {{Var(for_node->loop_var), global_idx}});
+    PrimExpr mapped_idx = cast(dtype, min + global_idx);
+    Stmt mapped_body = Substitute(for_node->body, {{Var(for_node->loop_var), mapped_idx}});
     mapped_body = IfThenElse(global_idx < extent, mapped_body, Evaluate(IntImm(DataType::Int(32), 0)));
 
     Stmt body_with_tx = AttrStmt(tx_iter, tirx::attr::thread_extent, max_threads, mapped_body);
@@ -73,7 +84,24 @@ class ParallelLoopToThreadBindingMutator : public StmtExprMutator {
     return body_with_bx;
   }
 
+  Stmt VisitStmt_(const ForNode* op) final {
+    if (op->kind == ForKind::kThreadBinding) {
+      bool prev = in_thread_env_;
+      in_thread_env_ = true;
+      Stmt ret = StmtExprMutator::VisitStmt_(op);
+      in_thread_env_ = prev;
+      return ret;
+    }
+    if (op->kind != ForKind::kParallel) {
+      return StmtExprMutator::VisitStmt_(op);
+    }
+    // First mutate inside this loop, then rewrite the current parallel loop.
+    For updated = Downcast<For>(StmtExprMutator::VisitStmt_(op));
+    return TransformParallelFor(updated.get());
+  }
+
   int64_t max_threads_per_block_;
+  bool in_thread_env_{false};
 };
 
 }  // namespace
@@ -83,12 +111,13 @@ namespace transform {
 Pass BindParallelLoopsToThreads() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     auto opt_target = f->GetAttr<Target>(tvm::attr::kTarget);
-    if (!opt_target || !IsGpuDeviceType(opt_target.value()->GetTargetDeviceType())) {
+    Target target = opt_target.value_or(Target::Current(/*allow_none=*/true));
+    if (!target.defined() || !IsGpuDeviceType(target->GetTargetDeviceType())) {
       return f;
     }
 
     int64_t max_threads_per_block = 1024;
-    if (auto opt_max_threads = opt_target.value()->GetAttr<Integer>("max_num_threads")) {
+    if (auto opt_max_threads = target->GetAttr<Integer>("max_num_threads")) {
       max_threads_per_block = opt_max_threads.value()->value;
     }
 
