@@ -127,6 +127,9 @@ export async function detectGPUDevice(powerPreference: "low-power" | "high-perfo
     if (adapter.features.has("shader-f16")) {
       requiredFeatures.push("shader-f16");
     }
+    if (adapter.features.has("subgroups")) {
+      requiredFeatures.push("subgroups");
+    }
     // requestAdapterInfo() is deprecated, causing requestAdapterInfo to raise
     // issue when building. However, it is still needed for older browsers, hence `as any`.
     const adapterInfo = adapter.info || await (adapter as any).requestAdapterInfo();

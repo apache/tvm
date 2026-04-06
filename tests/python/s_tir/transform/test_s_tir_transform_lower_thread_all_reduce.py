@@ -406,5 +406,106 @@ def test_metal_no_mask():
     assert "tvm_storage_sync" in After_script
 
 
+def test_webgpu_warp_reduce():
+    transform = tvm.s_tir.transform.LowerThreadAllreduce()
+
+    @I.ir_module
+    class Before:
+        @T.prim_func(private=True)
+        def main(A: T.Buffer((128, 32), "float32"), B: T.Buffer(128, "float32")):
+            T.func_attr(
+                {
+                    "target": T.target(
+                        {
+                            "kind": "webgpu",
+                            "supports_subgroups": True,
+                            "host": "llvm",
+                        }
+                    ),
+                }
+            )
+            A_flat = T.decl_buffer(4096, data=A.data)
+
+            for i in range(128):
+                threadIdx_x = T.launch_thread("threadIdx.x", 32)
+
+                reduce_data = T.alloc_buffer((1,), "float32", scope="local")
+                reduce = T.decl_buffer(1, data=reduce_data.data, scope="local")
+
+                with T.attr(
+                    T.comm_reducer(lambda x, y: x + y, [T.float32(0)]),
+                    "reduce_scope",
+                    T.reinterpret("handle", T.uint64(0)),
+                ):
+                    T.tvm_thread_allreduce(
+                        T.uint32(1),
+                        A_flat[0],
+                        T.bool(True),
+                        reduce[0],
+                        threadIdx_x,
+                    )
+                if threadIdx_x == 0:
+                    B[i] = reduce[0]
+
+    After = transform(Before)
+    assert After is not None
+    After_script = After.script()
+    assert "tvm_warp_shuffle_down" in After_script
+    assert "tvm_warp_shuffle(" in After_script
+    assert "tvm_storage_sync" not in After_script
+    assert "T.uint32(" not in After_script
+
+
+def test_webgpu_multi_warp_reduce():
+    transform = tvm.s_tir.transform.LowerThreadAllreduce()
+
+    @I.ir_module
+    class Before:
+        @T.prim_func(private=True)
+        def main(A: T.Buffer((1, 1, 2, 128), "float32"), B: T.Buffer((1, 1, 2), "float32")):
+            T.func_attr(
+                {
+                    "target": T.target(
+                        {
+                            "kind": "webgpu",
+                            "max_num_threads": 1024,
+                            "supports_subgroups": True,
+                            "host": "llvm",
+                        }
+                    ),
+                }
+            )
+            blockIdx_x = T.launch_thread("blockIdx.x", 1)
+            cross_thread_B = T.alloc_buffer((1,), "float32", scope="local")
+            threadIdx_z = T.launch_thread("threadIdx.z", 1)
+            threadIdx_y = T.launch_thread("threadIdx.y", 2)
+            threadIdx_x = T.launch_thread("threadIdx.x", 128)
+            cross_thread_B_1 = T.decl_buffer((1,), data=cross_thread_B.data, scope="local")
+            with T.attr(
+                T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
+                "reduce_scope",
+                T.reinterpret("handle", T.uint64(0)),
+            ):
+                A_1 = T.decl_buffer((256,), data=A.data)
+                T.tvm_thread_allreduce(
+                    T.uint32(1),
+                    A_1[threadIdx_y * 128 + threadIdx_x],
+                    T.bool(True),
+                    cross_thread_B_1[0],
+                    threadIdx_x,
+                )
+            if threadIdx_x == 0:
+                B_1 = T.decl_buffer((2,), data=B.data)
+                B_1[threadIdx_y] = cross_thread_B_1[0]
+
+    After = transform(Before)
+    assert After is not None
+    After_script = After.script()
+    assert "tvm_warp_shuffle_down" in After_script
+    assert "tvm_storage_sync" in After_script
+    assert "\"tirx.volatile\": T.bool(True)" in After_script
+    assert "T.uint32(" not in After_script
+
+
 if __name__ == "__main__":
     tvm.testing.main()
