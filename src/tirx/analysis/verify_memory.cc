@@ -60,7 +60,7 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
   void Run() {
     if (!IsGPUDevice(dev_type_)) return;
     StmtExprVisitor::VisitStmt(func_->body);
-  }
+   }
 
   /// Verification result
   std::vector<ffi::String> Errors() const { return errs_; }

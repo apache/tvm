@@ -428,6 +428,17 @@ def VerifyMemory():
     return _ffi_api.VerifyMemory()  # type: ignore
 
 
+def BindParallelLoopsToThreads():
+    """Convert T.parallel loops to block/thread bindings for GPU PrimFuncs.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.BindParallelLoopsToThreads()  # type: ignore
+
+
 @_ffi.register_object("s_tir.transform.HoistIfThenElseConfig")
 class HoistIfThenElseConfig(_ir.Attrs):
     """Config for hoist if then else pass"""

@@ -87,6 +87,7 @@ def default_s_tir_pipeline():
                 # VerifyVTCMLimit must occur before LowerVtcmAlloc.
                 s_tir.transform.VerifyVTCMLimit(),
                 s_tir.transform.LowerVtcmAlloc(),
+                tirx.transform.BindParallelLoopsToThreads(),
                 tirx.transform.VerifyMemory(),
                 tirx.transform.AnnotateEntryFunc(),
             ]

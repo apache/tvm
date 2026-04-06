@@ -177,6 +177,27 @@ def _compile_cuda_nvcc(
         else:
             raise ValueError("options must be str or list of str")
 
+    # Optional workaround for NVCC host compiler version checks on Windows.
+    # Priority:
+    # 1) PassContext config: cuda.nvcc_allow_unsupported_compiler (bool)
+    # 2) Environment variable: TVM_CUDA_ALLOW_UNSUPPORTED_COMPILER in {"1","true","on","yes"}
+    # 3) Default: False
+    allow_unsupported_compiler = False
+    if "cuda.nvcc_allow_unsupported_compiler" in pass_context.config:
+        allow_unsupported_compiler = bool(
+            pass_context.config["cuda.nvcc_allow_unsupported_compiler"]
+        )
+    else:
+        env_val = os.environ.get("TVM_CUDA_ALLOW_UNSUPPORTED_COMPILER", "").strip().lower()
+        allow_unsupported_compiler = env_val in {"1", "true", "on", "yes"}
+
+    if (
+        platform.system() == "Windows"
+        and allow_unsupported_compiler
+        and "-allow-unsupported-compiler" not in cmd
+    ):
+        cmd += ["-allow-unsupported-compiler"]
+
     cmd += ["-o", file_target]
     if not use_nvshmem:
         cmd += [temp_code]
