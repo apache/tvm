@@ -71,6 +71,14 @@ one may simply use:
     # enter the build environment
     conda activate tvm-build-venv
 
+.. note::
+   **For Frontend Contributors (TFLite):** If you plan to run or contribute to the frontend tests (e.g., ``test_frontend_tflite.py``), you must strictly use **Python 3.10**.
+   
+   The TFLite tests currently require ``tensorflow==2.9.0`` and ``numpy==1.26.4`` to prevent ``_ARRAY_API`` core dumps.
+   Because TensorFlow 2.9.0 does not provide pre-compiled binaries for Python 3.11 or newer,
+   setting up your environment with Python 3.11+ will force incompatible pip upgrades
+   and cause C++ ABI crashes during testing.
+
 Step 2. Get Source from GitHub
 ------------------------------
 You can also choose to clone the source repo from GitHub.
