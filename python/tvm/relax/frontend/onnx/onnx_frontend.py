@@ -4198,6 +4198,16 @@ class OptionalGetElement(OnnxOpConverter):
     _impl_v18 = _impl_v15
 
 
+def _onnx_sequence_tuple_as_tensor_list(sequence: relax.Expr) -> list[relax.Expr]:
+    """Expand an ONNX tensor sequence carried as a Relax tuple into a Python list.
+
+    ONNX sequence ops are represented as ``relax.Tuple`` of tensor expressions during
+    import. Several converters need to copy or transform the sequence; this helper
+    centralizes the indexing pattern.
+    """
+    return [sequence[i] for i in range(len(sequence))]
+
+
 class SequenceConstruct(OnnxOpConverter):
     """Operator converter for sequence construction op."""
 
@@ -4242,9 +4252,8 @@ class SequenceErase(OnnxOpConverter):
 
         if position < 0:
             position = seq_len + position
-        # Convert sequence to a list, insert tensors before erased, and repackage as Tuple.
-        tensor_list = [input_sequence[i] for i in range(seq_len) if i != position]
-        # Create new tuple and return.
+        items = _onnx_sequence_tuple_as_tensor_list(input_sequence)
+        tensor_list = [t for i, t in enumerate(items) if i != position]
         return relax.Tuple(tensor_list)
 
 
@@ -4261,19 +4270,21 @@ class SequenceInsert(OnnxOpConverter):
             position = inputs[2]
             # Non constant position is not supported.
             if isinstance(position, relax.Constant):
-                position = position.data.numpy()
+                position = int(position.data.numpy())
             else:
                 raise NotImplementedError("Position must be a constant.")
         else:
             position = -1
 
+        seq_len = len(input_sequence)
         if position < 0:
-            position = len(input_sequence) + position + 1
-        # Convert sequence to a list, insert new tensor, and repackage as Tuple.
-        tensor_list = [input_sequence[i] for i in range(len(input_sequence))]
-        # Insert new tensor.
+            position = seq_len + position + 1
+        if not 0 <= position <= seq_len:
+            raise ValueError(
+                f"SequenceInsert position out of bounds for length {seq_len}, got {position}"
+            )
+        tensor_list = _onnx_sequence_tuple_as_tensor_list(input_sequence)
         tensor_list.insert(position, tensor_to_insert)
-        # Create new tuple and return.
         return relax.Tuple(tensor_list)
 
 
@@ -4293,11 +4304,13 @@ class ConcatFromSequence(OnnxOpConverter):
     def _impl_v11(cls, bb, inputs, attr, params):
         axis = attr.get("axis", 0)
         new_axis = attr.get("new_axis", 0)
+        if new_axis not in (0, 1):
+            raise ValueError(f"ConcatFromSequence: new_axis must be 0 or 1, got {new_axis}")
 
+        tensors = _onnx_sequence_tuple_as_tensor_list(inputs[0])
         if new_axis == 1:
-            raise NotImplementedError("Insert new axis is not supported yet.")
-
-        return relax.op.concat(inputs[0], axis=axis)
+            tensors = [relax.op.expand_dims(t, axis=axis) for t in tensors]
+        return relax.op.concat(tensors, axis=axis)
 
 
 class SplitToSequence(OnnxOpConverter):
