@@ -185,6 +185,9 @@ if os.getenv("CI", "") != "true":
 # DLight rules are designed for fast compilation and **fair** performance. In some cases,
 # e.g. language model, DLight provides excellent performance, while for generic models,
 # it achieves a balance between performance and compilation time.
+#
+# See :ref:`dlight_gpu_scheduling` for a detailed tutorial on DLight's rule system,
+# diagnostics, and custom rule authoring.
 
 from tvm.s_tir import dlight as dl
 

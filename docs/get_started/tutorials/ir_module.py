@@ -250,7 +250,7 @@ print(cpu_out)
 # allocations. We need a further transformation to generate the GPU programs.
 #
 # We use ``DLight`` to generate the GPU programs. In this tutorial, we won't go into
-# the details of ``DLight``.
+# the details of ``DLight``. See :ref:`dlight_gpu_scheduling` for a dedicated tutorial.
 #
 
 from tvm.s_tir import dlight as dl
