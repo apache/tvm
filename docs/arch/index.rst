@@ -248,6 +248,31 @@ On the Python side, users interact with the VM through ``relax.VirtualMachine(ex
 which provides both a direct invocation interface and a stateful set-input / invoke / get-output
 interface suitable for RPC-based remote execution.
 
+Disco: Distributed Runtime
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Disco is TVM's distributed runtime for executing models across multiple devices. When a model is
+too large to fit on a single GPU, the ``relax.distributed`` module annotates how tensors should be
+partitioned and placed across a mesh of devices at compile time. Disco then takes over at runtime:
+it manages a group of workers, dispatches the compiled program to all of them simultaneously, and
+coordinates inter-device communication through collective operations such as allreduce, allgather,
+broadcast, and scatter.
+
+The central abstraction is the ``Session``, which owns the workers and exposes a SPMD-style
+programming interface. Every object that lives on workers is represented by a ``DRef`` — a
+distributed reference that maps to a concrete value on each worker. When the controller invokes a
+``DPackedFunc`` through the session, all workers execute the same PackedFunc call synchronously, each
+operating on its own local shard. Compiled VM modules can be loaded into a session as ``DModule``
+objects and called in the same fashion. The session also provides collective primitives backed by
+NCCL or RCCL, so that workers can exchange partial results without routing data through the
+controller.
+
+Three session backends cover different deployment topologies. ``ThreadedSession`` spawns workers as
+threads within a single process — this is the most common choice for multi-GPU inference on a
+single machine. ``ProcessSession`` launches workers as separate OS processes connected by pipes,
+providing stronger isolation. ``SocketSession`` extends the model to multi-node clusters by
+connecting workers across machines via TCP sockets.
+
 tvm/node
 --------
 The node module adds additional features on top of the `runtime::Object` for IR data structures.
