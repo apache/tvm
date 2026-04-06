@@ -1185,257 +1185,76 @@ def test_nms_v5_ir():
     assert f"R.Tensor(({max_output_size},)" in ir
 
 
-def test_resize_bilinear_upsample():
-    """RESIZE_BILINEAR: 4x4 -> 8x8, default flags (half_pixel)."""
+def _make_resize_expected(input_shape, output_size, method, coordinate_transformation_mode, rounding_method):
+    """Build an Expected IRModule programmatically to avoid TVMScript variable scope limitations."""
+    out_shape = (input_shape[0], output_size[0], output_size[1], input_shape[3])
+    bb = relax.BlockBuilder()
+    x = relax.Var("x", relax.TensorStructInfo(input_shape, "float32"))
+    with bb.function("main", [x]):
+        with bb.dataflow():
+            gv = bb.emit_output(
+                relax.op.image.resize2d(
+                    x,
+                    size=relax.ShapeExpr([output_size[0], output_size[1]]),
+                    roi=[0.0, 0.0, 0.0, 0.0],
+                    layout="NHWC",
+                    method=method,
+                    coordinate_transformation_mode=coordinate_transformation_mode,
+                    rounding_method=rounding_method,
+                    cubic_alpha=-0.75,
+                    cubic_exclude=0,
+                    extrapolation_value=0.0,
+                    out_dtype="void",
+                )
+            )
+        bb.emit_func_output(gv)
+    mod = bb.get()
+    mod["main"] = mod["main"].with_attr("num_input", 1)
+    return mod
 
+
+@pytest.mark.parametrize(
+    "input_shape, output_size, tf_op, coordinate_transformation_mode",
+    [
+        ((1, 4, 4, 1), [8, 8],   lambda x: tf.image.resize(x, [8, 8],   method="bilinear"),                                          "half_pixel"),
+        ((1, 8, 8, 3), [4, 4],   lambda x: tf.image.resize(x, [4, 4],   method="bilinear"),                                          "half_pixel"),
+        ((1, 4, 4, 1), [7, 7],   lambda x: tf.compat.v1.image.resize_bilinear(x, [7, 7], align_corners=True),                        "align_corners"),
+        ((1, 4, 4, 2), [8, 8],   lambda x: tf.compat.v1.image.resize_bilinear(x, [8, 8], half_pixel_centers=True),                   "half_pixel"),
+        ((2, 6, 6, 16), [12, 12], lambda x: tf.image.resize(x, [12, 12], method="bilinear"),                                         "half_pixel"),
+        ((1, 5, 5, 3), [5, 5],   lambda x: tf.image.resize(x, [5, 5],   method="bilinear"),                                          "half_pixel"),
+        ((1, 4, 8, 1), [8, 16],  lambda x: tf.image.resize(x, [8, 16],  method="bilinear"),                                          "half_pixel"),
+    ],
+)
+def test_resize_bilinear(input_shape, output_size, tf_op, coordinate_transformation_mode):
     class ResizeBilinear(tf.Module):
-        @tf.function(input_signature=[tf.TensorSpec(shape=(1, 4, 4, 1), dtype=tf.float32)])
+        @tf.function(input_signature=[tf.TensorSpec(shape=input_shape, dtype=tf.float32)])
         def func(self, x):
-            return tf.image.resize(x, [8, 8], method="bilinear")
+            return tf_op(x)
 
-    @I.ir_module
-    class Expected:
-        @R.function
-        def main(x: R.Tensor((1, 4, 4, 1), dtype="float32")) -> R.Tensor((1, 8, 8, 1), dtype="float32"):
-            R.func_attr({"num_input": 1})
-            with R.dataflow():
-                gv: R.Tensor((1, 8, 8, 1), dtype="float32") = R.image.resize2d(
-                    x,
-                    R.shape([8, 8]),
-                    roi=[T.float32(0.0), T.float32(0.0), T.float32(0.0), T.float32(0.0)],
-                    layout="NHWC",
-                    method="linear",
-                    coordinate_transformation_mode="half_pixel",
-                    rounding_method="",
-                    cubic_alpha=-0.75,
-                    cubic_exclude=0,
-                    extrapolation_value=0.0,
-                    out_dtype="void",
-                )
-                R.output(gv)
-            return gv
-
-    verify(ResizeBilinear, Expected)
+    expected = _make_resize_expected(input_shape, output_size, "linear", coordinate_transformation_mode, "")
+    verify(ResizeBilinear, expected)
 
 
-def test_resize_bilinear_downsample():
-    """RESIZE_BILINEAR: 8x8 -> 4x4, default flags."""
-
-    class ResizeBilinearDown(tf.Module):
-        @tf.function(input_signature=[tf.TensorSpec(shape=(1, 8, 8, 3), dtype=tf.float32)])
-        def func(self, x):
-            return tf.image.resize(x, [4, 4], method="bilinear")
-
-    verify(ResizeBilinearDown)
-
-
-def test_resize_bilinear_align_corners():
-    """RESIZE_BILINEAR with align_corners=True."""
-
-    class ResizeBilinearAlignCorners(tf.Module):
-        @tf.function(input_signature=[tf.TensorSpec(shape=(1, 4, 4, 1), dtype=tf.float32)])
-        def func(self, x):
-            return tf.compat.v1.image.resize_bilinear(x, [7, 7], align_corners=True)
-
-    @I.ir_module
-    class Expected:
-        @R.function
-        def main(x: R.Tensor((1, 4, 4, 1), dtype="float32")) -> R.Tensor((1, 7, 7, 1), dtype="float32"):
-            R.func_attr({"num_input": 1})
-            with R.dataflow():
-                gv: R.Tensor((1, 7, 7, 1), dtype="float32") = R.image.resize2d(
-                    x,
-                    R.shape([7, 7]),
-                    roi=[T.float32(0.0), T.float32(0.0), T.float32(0.0), T.float32(0.0)],
-                    layout="NHWC",
-                    method="linear",
-                    coordinate_transformation_mode="align_corners",
-                    rounding_method="",
-                    cubic_alpha=-0.75,
-                    cubic_exclude=0,
-                    extrapolation_value=0.0,
-                    out_dtype="void",
-                )
-                R.output(gv)
-            return gv
-
-    verify(ResizeBilinearAlignCorners, Expected)
-
-
-def test_resize_bilinear_half_pixel_centers():
-    """RESIZE_BILINEAR with half_pixel_centers=True."""
-
-    class ResizeBilinearHalfPixel(tf.Module):
-        @tf.function(input_signature=[tf.TensorSpec(shape=(1, 4, 4, 2), dtype=tf.float32)])
-        def func(self, x):
-            return tf.compat.v1.image.resize_bilinear(x, [8, 8], half_pixel_centers=True)
-
-    @I.ir_module
-    class Expected:
-        @R.function
-        def main(x: R.Tensor((1, 4, 4, 2), dtype="float32")) -> R.Tensor((1, 8, 8, 2), dtype="float32"):
-            R.func_attr({"num_input": 1})
-            with R.dataflow():
-                gv: R.Tensor((1, 8, 8, 2), dtype="float32") = R.image.resize2d(
-                    x,
-                    R.shape([8, 8]),
-                    roi=[T.float32(0.0), T.float32(0.0), T.float32(0.0), T.float32(0.0)],
-                    layout="NHWC",
-                    method="linear",
-                    coordinate_transformation_mode="half_pixel",
-                    rounding_method="",
-                    cubic_alpha=-0.75,
-                    cubic_exclude=0,
-                    extrapolation_value=0.0,
-                    out_dtype="void",
-                )
-                R.output(gv)
-            return gv
-
-    verify(ResizeBilinearHalfPixel, Expected)
-
-
-def test_resize_bilinear_multichannel():
-    """RESIZE_BILINEAR: batch=2, channels=16."""
-
-    class ResizeBilinearMulti(tf.Module):
-        @tf.function(input_signature=[tf.TensorSpec(shape=(2, 6, 6, 16), dtype=tf.float32)])
-        def func(self, x):
-            return tf.image.resize(x, [12, 12], method="bilinear")
-
-    verify(ResizeBilinearMulti)
-
-
-def test_resize_bilinear_identity():
-    """RESIZE_BILINEAR with output_size == input spatial dims."""
-
-    class ResizeBilinearIdentity(tf.Module):
-        @tf.function(input_signature=[tf.TensorSpec(shape=(1, 5, 5, 3), dtype=tf.float32)])
-        def func(self, x):
-            return tf.image.resize(x, [5, 5], method="bilinear")
-
-    verify(ResizeBilinearIdentity)
-
-
-def test_resize_bilinear_non_square():
-    """RESIZE_BILINEAR with different H and W output sizes."""
-
-    class ResizeBilinearNonSquare(tf.Module):
-        @tf.function(input_signature=[tf.TensorSpec(shape=(1, 4, 8, 1), dtype=tf.float32)])
-        def func(self, x):
-            return tf.image.resize(x, [8, 16], method="bilinear")
-
-    verify(ResizeBilinearNonSquare)
-
-
-def test_resize_nearest_upsample():
-    """RESIZE_NEAREST_NEIGHBOR: 2x2 -> 4x4, default flags."""
-
+@pytest.mark.parametrize(
+    "input_shape, output_size, tf_op, coordinate_transformation_mode, rounding_method",
+    [
+        ((1, 2, 2, 1), [4, 4],   lambda x: tf.image.resize(x, [4, 4],   method="nearest"),                                "half_pixel",   "round_prefer_ceil"),
+        ((1, 8, 8, 3), [4, 4],   lambda x: tf.image.resize(x, [4, 4],   method="nearest"),                                "half_pixel",   "round_prefer_ceil"),
+        ((1, 4, 4, 1), [7, 7],   lambda x: tf.compat.v1.image.resize_nearest_neighbor(x, [7, 7], align_corners=True),     "align_corners", ""),
+        ((4, 3, 3, 8), [6, 6],   lambda x: tf.image.resize(x, [6, 6],   method="nearest"),                                "half_pixel",   "round_prefer_ceil"),
+        ((1, 4, 8, 1), [8, 16],  lambda x: tf.image.resize(x, [8, 16],  method="nearest"),                                "half_pixel",   "round_prefer_ceil"),
+        ((1, 3, 3, 2), [3, 3],   lambda x: tf.image.resize(x, [3, 3],   method="nearest"),                                "half_pixel",   "round_prefer_ceil"),
+    ],
+)
+def test_resize_nearest_neighbor(input_shape, output_size, tf_op, coordinate_transformation_mode, rounding_method):
     class ResizeNearest(tf.Module):
-        @tf.function(input_signature=[tf.TensorSpec(shape=(1, 2, 2, 1), dtype=tf.float32)])
+        @tf.function(input_signature=[tf.TensorSpec(shape=input_shape, dtype=tf.float32)])
         def func(self, x):
-            return tf.image.resize(x, [4, 4], method="nearest")
+            return tf_op(x)
 
-    @I.ir_module
-    class Expected:
-        @R.function
-        def main(x: R.Tensor((1, 2, 2, 1), dtype="float32")) -> R.Tensor((1, 4, 4, 1), dtype="float32"):
-            R.func_attr({"num_input": 1})
-            with R.dataflow():
-                gv: R.Tensor((1, 4, 4, 1), dtype="float32") = R.image.resize2d(
-                    x,
-                    R.shape([4, 4]),
-                    roi=[T.float32(0.0), T.float32(0.0), T.float32(0.0), T.float32(0.0)],
-                    layout="NHWC",
-                    method="nearest_neighbor",
-                    coordinate_transformation_mode="half_pixel",
-                    rounding_method="round_prefer_ceil",
-                    cubic_alpha=-0.75,
-                    cubic_exclude=0,
-                    extrapolation_value=0.0,
-                    out_dtype="void",
-                )
-                R.output(gv)
-            return gv
+    expected = _make_resize_expected(input_shape, output_size, "nearest_neighbor", coordinate_transformation_mode, rounding_method)
+    verify(ResizeNearest, expected)
 
-    verify(ResizeNearest, Expected)
-
-
-def test_resize_nearest_downsample():
-    """RESIZE_NEAREST_NEIGHBOR: 8x8 -> 4x4, default flags."""
-
-    class ResizeNearestDown(tf.Module):
-        @tf.function(input_signature=[tf.TensorSpec(shape=(1, 8, 8, 3), dtype=tf.float32)])
-        def func(self, x):
-            return tf.image.resize(x, [4, 4], method="nearest")
-
-    verify(ResizeNearestDown)
-
-
-def test_resize_nearest_align_corners():
-    """RESIZE_NEAREST_NEIGHBOR with align_corners=True."""
-
-    class ResizeNearestAlignCorners(tf.Module):
-        @tf.function(input_signature=[tf.TensorSpec(shape=(1, 4, 4, 1), dtype=tf.float32)])
-        def func(self, x):
-            return tf.compat.v1.image.resize_nearest_neighbor(x, [7, 7], align_corners=True)
-
-    @I.ir_module
-    class Expected:
-        @R.function
-        def main(x: R.Tensor((1, 4, 4, 1), dtype="float32")) -> R.Tensor((1, 7, 7, 1), dtype="float32"):
-            R.func_attr({"num_input": 1})
-            with R.dataflow():
-                gv: R.Tensor((1, 7, 7, 1), dtype="float32") = R.image.resize2d(
-                    x,
-                    R.shape([7, 7]),
-                    roi=[T.float32(0.0), T.float32(0.0), T.float32(0.0), T.float32(0.0)],
-                    layout="NHWC",
-                    method="nearest_neighbor",
-                    coordinate_transformation_mode="align_corners",
-                    rounding_method="",
-                    cubic_alpha=-0.75,
-                    cubic_exclude=0,
-                    extrapolation_value=0.0,
-                    out_dtype="void",
-                )
-                R.output(gv)
-            return gv
-
-    verify(ResizeNearestAlignCorners, Expected)
-
-
-def test_resize_nearest_multichannel():
-    """RESIZE_NEAREST_NEIGHBOR: batch=4, channels=8."""
-
-    class ResizeNearestMulti(tf.Module):
-        @tf.function(input_signature=[tf.TensorSpec(shape=(4, 3, 3, 8), dtype=tf.float32)])
-        def func(self, x):
-            return tf.image.resize(x, [6, 6], method="nearest")
-
-    verify(ResizeNearestMulti)
-
-
-def test_resize_nearest_non_square():
-    """RESIZE_NEAREST_NEIGHBOR with different H and W output sizes."""
-
-    class ResizeNearestNonSquare(tf.Module):
-        @tf.function(input_signature=[tf.TensorSpec(shape=(1, 4, 8, 1), dtype=tf.float32)])
-        def func(self, x):
-            return tf.image.resize(x, [8, 16], method="nearest")
-
-    verify(ResizeNearestNonSquare)
-
-
-def test_resize_nearest_identity():
-    """RESIZE_NEAREST_NEIGHBOR with output_size == input spatial dims."""
-
-    class ResizeNearestIdentity(tf.Module):
-        @tf.function(input_signature=[tf.TensorSpec(shape=(1, 3, 3, 2), dtype=tf.float32)])
-        def func(self, x):
-            return tf.image.resize(x, [3, 3], method="nearest")
-
-    verify(ResizeNearestIdentity)
 
 if __name__ == "__main__":
     pytest.main(["-s", __file__])
