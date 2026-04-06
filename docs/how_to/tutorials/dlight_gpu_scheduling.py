@@ -47,7 +47,7 @@ quality, and how to write custom rules.
 # produces a general-reduction kernel, and ``ReLU`` is a simple elementwise op.
 
 import tvm
-from tvm import relax
+from tvm import relax, tirx
 from tvm.relax.frontend import nn
 from tvm.s_tir import dlight as dl
 
@@ -79,7 +79,7 @@ with target:
 # At this point every TIR function in ``mod`` is **unscheduled** — it has no thread bindings
 # and would not run efficiently on a GPU. Let's see what functions we have:
 for gv, func in mod.functions_items():
-    if isinstance(func, tvm.tirx.PrimFunc):
+    if isinstance(func, tirx.PrimFunc):
         print(f"  {gv.name_hint}")
 
 ######################################################################
@@ -187,7 +187,7 @@ for rule_name, rule in rules.items():
     with target:
         test_mod = dl.ApplyDefaultSchedule(rule)(mod)
     for gv, func in test_mod.functions_items():
-        if isinstance(func, tvm.tirx.PrimFunc) and gv.name_hint not in rule_assignment:
+        if isinstance(func, tirx.PrimFunc) and gv.name_hint not in rule_assignment:
             if "tirx.is_scheduled" in func.attrs and func.attrs["tirx.is_scheduled"] == 1:
                 rule_assignment[gv.name_hint] = rule_name
 
@@ -195,7 +195,7 @@ for rule_name, rule in rules.items():
 # **Step 2**: Functions not claimed by any specialized rule will fall through to ``Fallback``.
 
 all_tir_funcs = [
-    gv.name_hint for gv, func in mod.functions_items() if isinstance(func, tvm.tirx.PrimFunc)
+    gv.name_hint for gv, func in mod.functions_items() if isinstance(func, tirx.PrimFunc)
 ]
 fallback_funcs = [name for name in all_tir_funcs if name not in rule_assignment]
 
@@ -257,7 +257,7 @@ if fallback_funcs:
 # You can extend DLight by writing your own ``ScheduleRule``. The simplest way is
 # ``ScheduleRule.from_callable``, which wraps a plain function into a rule **instance**.
 
-from tvm import s_tir, tirx
+from tvm import s_tir
 from tvm.s_tir.dlight.analysis import normalize_prim_func
 from tvm.s_tir.dlight.base.schedule_rule import ScheduleRule
 
