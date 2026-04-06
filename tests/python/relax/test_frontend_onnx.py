@@ -3767,7 +3767,9 @@ def test_sequence_insert(explicit_position: bool):
     [
         (0, 0, [64, 32]),
         (0, 1, [32, 64]),
+        (1, 0, [2, 32, 32]),
         (1, 1, [32, 2, 32]),
+        (1, -1, [32, 32, 2]),
     ],
 )
 def test_concat_from_sequence(new_axis, axis, expected_shape):

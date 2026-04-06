@@ -4296,6 +4296,8 @@ class ConcatFromSequence(OnnxOpConverter):
 
         if new_axis == 1:
             return relax.op.stack(inputs[0], axis=axis)
+        elif new_axis != 0:
+            raise ValueError(f"ConcatFromSequence only supports new_axis in (0, 1), got {new_axis}")
 
         return relax.op.concat(inputs[0], axis=axis)
 
