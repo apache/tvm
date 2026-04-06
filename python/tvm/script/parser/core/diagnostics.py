@@ -117,7 +117,7 @@ def _patched_inspect_getfile(obj):
         if inspect.isfunction(member):
             if obj.__qualname__ + "." + member.__name__ == member.__qualname__:
                 return inspect.getfile(member)
-    raise TypeError(f"Source for {obj:!r} not found")
+    raise TypeError(f"Source for {obj!r} not found")
 
 
 def findsource(obj):
