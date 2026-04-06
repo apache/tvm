@@ -19,4 +19,3 @@ tvm.relax.dpl
 -------------
 .. automodule:: tvm.relax.dpl
    :members:
-   :imported-members:
