@@ -57,6 +57,7 @@ The most common leaf patterns are:
 - ``is_op("relax.add")`` -- matches a specific Relax operator.
 - ``is_const()`` -- matches any constant value.
 - ``is_var(name)`` -- matches a ``Var`` node (optionally with a given name).
+- ``is_dfv(name)`` -- matches a ``DataflowVar`` node.
 - ``is_gv(name)`` -- matches a ``GlobalVar``.
 
 .. code:: python
@@ -122,6 +123,7 @@ Any pattern can be further narrowed by attaching constraints:
 - ``.has_dtype(dtype)`` -- the matched expression must have the given data type.
 - ``.has_shape(shape)`` -- the matched expression must have the given shape.
 - ``.has_attr(attrs)`` -- the matched call must carry the given attributes.
+- ``.has_struct_info(struct_info)`` -- the matched expression must have the given struct info.
 
 .. code:: python
 
@@ -499,8 +501,8 @@ Quick Reference
      - Match a Relax operator by name
    * - ``is_const()``
      - Match any constant
-   * - ``is_var(name)`` / ``is_gv(name)``
-     - Match ``Var`` / ``GlobalVar``
+   * - ``is_var(name)`` / ``is_dfv(name)`` / ``is_gv(name)``
+     - Match ``Var`` / ``DataflowVar`` / ``GlobalVar``
    * - ``is_tuple(fields)``
      - Match a tuple with given field patterns
    * - ``is_call_tir(name, args)``
@@ -511,7 +513,7 @@ Quick Reference
      - Match ``R.call_packed``
    * - ``make_fused_bias_activation_pattern(...)``
      - Build ``op + bias + activation`` chain
-   * - ``.has_dtype()`` / ``.has_shape()`` / ``.has_attr()``
+   * - ``.has_dtype()`` / ``.has_shape()`` / ``.has_attr()`` / ``.has_struct_info()``
      - Attach constraints
    * - ``|`` / ``&`` / ``~``
      - Or / And / Not combinators
