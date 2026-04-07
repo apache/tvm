@@ -35,15 +35,18 @@ tvm.script.ir_builder.relax
 .. automodule:: tvm.script.ir_builder.relax
    :members:
    :imported-members:
+   :exclude-members: PrimExpr, Var
 
 tvm.script.ir_builder.relax.distributed
 ***************************************
 .. automodule:: tvm.script.ir_builder.relax.distributed
    :members:
    :imported-members:
+   :exclude-members: PrimExpr, IRBuilder, IRModuleFrame
 
 tvm.script.ir_builder.tirx
 **************************
 .. automodule:: tvm.script.ir_builder.tirx
    :members:
    :imported-members:
+   :exclude-members: PrimExpr, Var, Buffer, IndexMap, BufferRegion, Type

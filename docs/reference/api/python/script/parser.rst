@@ -29,15 +29,18 @@ tvm.script.parser.ir
 .. automodule:: tvm.script.parser.ir
    :members:
    :imported-members:
+   :exclude-members: Range
 
 tvm.script.parser.relax
 ***********************
 .. automodule:: tvm.script.parser.relax
    :members:
    :imported-members:
+   :exclude-members: PrimExpr, Var
 
 tvm.script.parser.tirx
 **********************
 .. automodule:: tvm.script.parser.tirx
    :members:
    :imported-members:
+   :exclude-members: PrimExpr, Var, Buffer, IndexMap, BufferRegion, Type
