@@ -27,14 +27,11 @@ tvm.script.parser
 tvm.script.parser.ir
 ********************
 .. automodule:: tvm.script.parser.ir
-   :members:
 
 tvm.script.parser.relax
 ***********************
 .. automodule:: tvm.script.parser.relax
-   :members:
 
 tvm.script.parser.tirx
 **********************
 .. automodule:: tvm.script.parser.tirx
-   :members:
