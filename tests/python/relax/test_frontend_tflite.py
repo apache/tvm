@@ -1159,7 +1159,6 @@ def test_nms_v5(num_boxes, max_output_size, iou_threshold, score_threshold, boxe
     mod, tf_func = _build_nms_v5_mod(num_boxes, max_output_size, iou_threshold, score_threshold)
     _verify_nms_v5(mod, tf_func, boxes, scores)
 
-
 def test_nms_v5_ir():
     """Verify the emitted Relax IR has correct structure for NON_MAX_SUPPRESSION_V5."""
     num_boxes = 6
