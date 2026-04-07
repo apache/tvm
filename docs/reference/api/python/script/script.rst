@@ -28,12 +28,8 @@ tvm.script.relax
 ****************
 .. automodule:: tvm.script.relax
    :members:
-   :imported-members:
-   :exclude-members: PrimExpr, Var
 
 tvm.script.tirx
 ***************
 .. automodule:: tvm.script.tirx
    :members:
-   :imported-members:
-   :exclude-members: PrimExpr, Var, Buffer, IndexMap, BufferRegion, Type
