@@ -113,6 +113,14 @@ TVM_REGISTER_OP("tirx.log2")
 TVM_REGISTER_OP("tirx.pow")
     .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
+struct ReturnRound {
+  std::string operator()(DataType t, std::string name) const { return "round"; }
+};
+
+// WGSL round() uses ties-to-even (banker's rounding), matching IEEE 754 and ONNX Round spec.
+TVM_REGISTER_OP("tirx.nearbyint")
+    .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<ReturnRound>);
+
 TVM_REGISTER_OP("tirx.round")
     .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 

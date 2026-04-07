@@ -699,6 +699,27 @@ def test_unary(op_name: str):
     verify_unary(op_name, [8, 8, 8], input_dtype=input_dtype, output_dtype=output_dtype)
 
 
+def test_round_ties_to_even():
+    """ONNX Round must use ties-to-even (banker's rounding), not ties-away-from-zero.
+
+    Per the ONNX spec: "For cases where number is exactly halfway between two
+    integers, it rounds to the nearest even integer."
+    https://onnx.ai/onnx/operators/onnx__Round.html
+    """
+    round_node = helper.make_node("Round", ["x"], ["y"])
+    graph = helper.make_graph(
+        [round_node],
+        "round_ties_to_even_test",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, [6])],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [6])],
+    )
+    model = helper.make_model(graph, producer_name="round_ties_to_even_test")
+    # Midpoint values: 0.5->0, 1.5->2, 2.5->2, -0.5->0, -1.5->-2, -2.5->-2 (ties-to-even)
+    # Ties-away would give: 0.5->1, 1.5->2, 2.5->3, -0.5->-1, -1.5->-2, -2.5->-3
+    inputs = {"x": np.array([0.5, 1.5, 2.5, -0.5, -1.5, -2.5], dtype="float32")}
+    check_correctness(model, inputs=inputs, opset=11)
+
+
 @pytest.mark.parametrize("from_type", [TensorProto.INT32, TensorProto.FLOAT, TensorProto.FLOAT16])
 @pytest.mark.parametrize("to_type", [TensorProto.INT32, TensorProto.FLOAT, TensorProto.FLOAT16])
 def test_cast(from_type, to_type):
