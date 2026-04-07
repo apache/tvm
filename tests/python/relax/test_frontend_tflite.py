@@ -1183,5 +1183,76 @@ def test_nms_v5_ir():
     # Bounding boxes / scores tensor bounds checks
     assert f"R.Tensor(({max_output_size},)" in ir
 
+
+def _make_resize_expected(input_shape, output_size, method, coordinate_transformation_mode, rounding_method):
+    """Build an Expected IRModule programmatically to avoid TVMScript variable scope limitations."""
+    bb = relax.BlockBuilder()
+    x = relax.Var("x", relax.TensorStructInfo(input_shape, "float32"))
+    with bb.function("main", [x]):
+        with bb.dataflow():
+            gv = bb.emit_output(
+                relax.op.image.resize2d(
+                    x,
+                    size=relax.ShapeExpr([output_size[0], output_size[1]]),
+                    roi=[0.0, 0.0, 0.0, 0.0],
+                    layout="NHWC",
+                    method=method,
+                    coordinate_transformation_mode=coordinate_transformation_mode,
+                    rounding_method=rounding_method,
+                    cubic_alpha=-0.75,
+                    cubic_exclude=0,
+                    extrapolation_value=0.0,
+                    out_dtype="void",
+                )
+            )
+        bb.emit_func_output(gv)
+    mod = bb.get()
+    mod["main"] = mod["main"].with_attr("num_input", 1)
+    return mod
+
+
+@pytest.mark.parametrize(
+    "input_shape, output_size, tf_op, coordinate_transformation_mode",
+    [
+        ((1, 4, 4, 1), [8, 8],   lambda x: tf.image.resize(x, [8, 8],   method="bilinear"),                                          "half_pixel"),
+        ((1, 8, 8, 3), [4, 4],   lambda x: tf.image.resize(x, [4, 4],   method="bilinear"),                                          "half_pixel"),
+        ((1, 4, 4, 1), [7, 7],   lambda x: tf.compat.v1.image.resize_bilinear(x, [7, 7], align_corners=True),                        "align_corners"),
+        ((1, 4, 4, 2), [8, 8],   lambda x: tf.compat.v1.image.resize_bilinear(x, [8, 8], half_pixel_centers=True),                   "half_pixel"),
+        ((2, 6, 6, 16), [12, 12], lambda x: tf.image.resize(x, [12, 12], method="bilinear"),                                         "half_pixel"),
+        ((1, 5, 5, 3), [5, 5],   lambda x: tf.image.resize(x, [5, 5],   method="bilinear"),                                          "half_pixel"),
+        ((1, 4, 8, 1), [8, 16],  lambda x: tf.image.resize(x, [8, 16],  method="bilinear"),                                          "half_pixel"),
+    ],
+)
+def test_resize_bilinear(input_shape, output_size, tf_op, coordinate_transformation_mode):
+    class ResizeBilinear(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=input_shape, dtype=tf.float32)])
+        def func(self, x):
+            return tf_op(x)
+
+    expected = _make_resize_expected(input_shape, output_size, "linear", coordinate_transformation_mode, "")
+    verify(ResizeBilinear, expected)
+
+
+@pytest.mark.parametrize(
+    "input_shape, output_size, tf_op, coordinate_transformation_mode, rounding_method",
+    [
+        ((1, 2, 2, 1), [4, 4],   lambda x: tf.image.resize(x, [4, 4],   method="nearest"),                                "half_pixel",   "round_prefer_ceil"),
+        ((1, 8, 8, 3), [4, 4],   lambda x: tf.image.resize(x, [4, 4],   method="nearest"),                                "half_pixel",   "round_prefer_ceil"),
+        ((1, 4, 4, 1), [7, 7],   lambda x: tf.compat.v1.image.resize_nearest_neighbor(x, [7, 7], align_corners=True),     "align_corners", ""),
+        ((4, 3, 3, 8), [6, 6],   lambda x: tf.image.resize(x, [6, 6],   method="nearest"),                                "half_pixel",   "round_prefer_ceil"),
+        ((1, 4, 8, 1), [8, 16],  lambda x: tf.image.resize(x, [8, 16],  method="nearest"),                                "half_pixel",   "round_prefer_ceil"),
+        ((1, 3, 3, 2), [3, 3],   lambda x: tf.image.resize(x, [3, 3],   method="nearest"),                                "half_pixel",   "round_prefer_ceil"),
+    ],
+)
+def test_resize_nearest_neighbor(input_shape, output_size, tf_op, coordinate_transformation_mode, rounding_method):
+    class ResizeNearest(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=input_shape, dtype=tf.float32)])
+        def func(self, x):
+            return tf_op(x)
+
+    expected = _make_resize_expected(input_shape, output_size, "nearest_neighbor", coordinate_transformation_mode, rounding_method)
+    verify(ResizeNearest, expected)
+
+
 if __name__ == "__main__":
     pytest.main(["-s", __file__])
