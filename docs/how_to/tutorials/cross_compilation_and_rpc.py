@@ -31,7 +31,6 @@ the remote device resource are limited, like Raspberry Pi and mobile
 platforms. In this tutorial, we will use the Raspberry Pi for a CPU example
 and the Firefly-RK3399 for an OpenCL example.
 """
-
 ######################################################################
 # Build TVM Runtime on Device
 # ---------------------------
