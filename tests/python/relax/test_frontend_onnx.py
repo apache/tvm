@@ -3762,22 +3762,63 @@ def test_sequence_insert(explicit_position: bool):
     check_correctness(model)
 
 
-@pytest.mark.parametrize("new_axis", [0, 1])
-def test_concat_from_sequence(new_axis: Literal[0, 1]):
-    if new_axis == 1:
-        pytest.skip("ConcatFromSequence with new_axis=1 is not supported yet")
+@pytest.mark.parametrize(
+    "new_axis,axis,expected_shape",
+    [
+        (0, 0, [64, 32]),
+        (0, 1, [32, 64]),
+        (1, 0, [2, 32, 32]),
+        (1, 1, [32, 2, 32]),
+        (1, -1, [32, 32, 2]),
+    ],
+)
+def test_concat_from_sequence(new_axis: int, axis: int, expected_shape: list[int]):
     seq_node, graph_inputs = construct_sequence(input_shape=[32, 32], num_tensors=2)
     concat_from_sequence_node = helper.make_node(
-        "ConcatFromSequence", ["sequence"], ["output"], axis=1
+        "ConcatFromSequence", ["sequence"], ["output"], axis=axis, new_axis=new_axis
     )
     graph = helper.make_graph(
         [seq_node, concat_from_sequence_node],
         "test_concat_from_sequence",
         inputs=graph_inputs,
-        outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, [64, 32])],
+        outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, expected_shape)],
     )
     model = helper.make_model(graph, producer_name="test_concat_from_sequence")
     check_correctness(model)
+
+
+def test_concat_from_sequence_new_axis_three_tensors():
+    """new_axis=1 with three sequence elements (stack then concat along axis)."""
+    seq_node, graph_inputs = construct_sequence(input_shape=[16, 8], num_tensors=3)
+    concat_node = helper.make_node(
+        "ConcatFromSequence", ["sequence"], ["output"], axis=0, new_axis=1
+    )
+    graph = helper.make_graph(
+        [seq_node, concat_node],
+        "test_concat_from_sequence_new_axis_three",
+        inputs=graph_inputs,
+        outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, [3, 16, 8])],
+    )
+    model = helper.make_model(graph, producer_name="test_concat_from_sequence_new_axis_three")
+    check_correctness(model)
+
+
+def test_concat_from_sequence_invalid_new_axis():
+    """Verify that new_axis values other than 0 or 1 raise a ValueError."""
+    seq_node, graph_inputs = construct_sequence(input_shape=[16, 8], num_tensors=2)
+    concat_node = helper.make_node(
+        "ConcatFromSequence", ["sequence"], ["output"], axis=0, new_axis=2
+    )
+    graph = helper.make_graph(
+        [seq_node, concat_node],
+        "test_concat_from_sequence_invalid_new_axis",
+        inputs=graph_inputs,
+        outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, [32, 8])],
+    )
+    model = helper.make_model(graph, producer_name="test_concat_from_sequence_invalid_new_axis")
+    
+    with pytest.raises(ValueError, match="ConcatFromSequence only supports new_axis in"):
+        from_onnx(model, opset=11)
 
 
 @pytest.mark.parametrize("split", [2, [16, 48]])
