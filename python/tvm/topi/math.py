@@ -447,7 +447,10 @@ def isinf(x):
 
 @tvm.te.tag_scope(tag=tag.ELEMWISE)
 def round(x):
-    """Round elements of x to nearest integer.
+    """Round elements of x to nearest integer using ties-to-even (banker's rounding).
+
+    Ties are broken by rounding to the nearest even integer, matching the ONNX Round
+    specification and IEEE 754 default rounding mode.
 
     Parameters
     ----------
@@ -459,7 +462,7 @@ def round(x):
     y : tvm.te.Tensor
         The result.
     """
-    return te.compute(x.shape, lambda *i: te.round(x(*i)))
+    return te.compute(x.shape, lambda *i: te.nearbyint(x(*i)))
 
 
 def log(x):
