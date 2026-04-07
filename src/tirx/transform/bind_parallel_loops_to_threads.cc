@@ -95,13 +95,19 @@ class ParallelLoopToThreadBindingMutator : public StmtExprMutator {
     if (op->kind != ForKind::kParallel) {
       return StmtExprMutator::VisitStmt_(op);
     }
-    // First mutate inside this loop, then rewrite the current parallel loop.
+    if (in_parallel_loop_) {
+      return StmtExprMutator::VisitStmt_(op);
+    }
+    bool prev_in_parallel = in_parallel_loop_;
+    in_parallel_loop_ = true;
     For updated = Downcast<For>(StmtExprMutator::VisitStmt_(op));
+    in_parallel_loop_ = prev_in_parallel;
     return TransformParallelFor(updated.get());
   }
 
   int64_t max_threads_per_block_;
   bool in_thread_env_{false};
+  bool in_parallel_loop_{false};
 };
 
 }  // namespace

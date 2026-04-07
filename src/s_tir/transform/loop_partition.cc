@@ -766,7 +766,7 @@ inline Stmt LoopPartitioner::MakeFor(const Object* node, PrimExpr extent, Stmt b
   if (analyzer_.CanProve(extent == make_const(DataType::Int(32), 1)) &&
       !no_unroll_loop_with_extent_one_ && for_node->annotations.empty()) {
     // If the loop extent is 1, do not create the loop anymore
-    return Substitute(body, {{Var{for_node->loop_var}, make_const(DataType::Int(32), 0)}});
+    return Substitute(body, {{for_node->loop_var, make_const(DataType::Int(32), 0)}});
   } else {
     TVM_FFI_ICHECK(for_node->kind != ForKind::kThreadBinding);
     auto new_loop = ffi::make_object<ForNode>(*for_node);
