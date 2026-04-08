@@ -47,7 +47,16 @@ TVM_REGISTER_OP("tirx.fabs")
     .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tirx.round")
-    .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", DispatchPureExtern<Direct>);
+    .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", [](const PrimExpr& e) -> PrimExpr {
+      // OpenCL's rint() uses ties-to-even, matching constant-folding semantics.
+      const tirx::CallNode* call = e.as<tirx::CallNode>();
+      TVM_FFI_ICHECK(call != nullptr);
+      ffi::Array<PrimExpr> new_args = {tirx::StringImm("rint")};
+      for (auto arg : call->args) {
+        new_args.push_back(arg);
+      }
+      return tirx::Call(call->dtype, tirx::builtin::call_pure_extern(), new_args);
+    });
 
 TVM_REGISTER_OP("tirx.nearbyint")
     .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", DispatchPureExtern<Direct>);

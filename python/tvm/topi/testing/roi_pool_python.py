@@ -36,10 +36,12 @@ def roi_pool_nchw_python(a_np, rois_np, pooled_size, spatial_scale):
     for i in range(num_roi):
         roi = rois_np[i]
         batch_index = int(roi[0])
-        roi_start_w = round(roi[1] * spatial_scale)
-        roi_start_h = round(roi[2] * spatial_scale)
-        roi_end_w = round(roi[3] * spatial_scale)
-        roi_end_h = round(roi[4] * spatial_scale)
+        # Use ties-away-from-zero rounding to match ONNX runtime (std::round semantics).
+        # Python's built-in round() uses ties-to-even, so use floor(x + 0.5) explicitly.
+        roi_start_w = math.floor(roi[1] * spatial_scale + 0.5)
+        roi_start_h = math.floor(roi[2] * spatial_scale + 0.5)
+        roi_end_w = math.floor(roi[3] * spatial_scale + 0.5)
+        roi_end_h = math.floor(roi[4] * spatial_scale + 0.5)
         roi_h = max(roi_end_h - roi_start_h + 1, 1)
         roi_w = max(roi_end_w - roi_start_w + 1, 1)
 

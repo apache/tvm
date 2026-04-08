@@ -36,12 +36,19 @@ def roi_pool_nchw(data, rois, pooled_size, spatial_scale):
 
     neg_inf = tvm.tirx.const(float("-inf"), data.dtype)
 
+    def _round_away(x):
+        # ONNX MaxRoiPool spec uses ties-away-from-zero rounding for coordinate
+        # mapping (matching std::round semantics in the reference implementation).
+        # Use floor(x + 0.5) to be explicit and independent of tir.round semantics.
+        half = tvm.tirx.const(0.5, roi_dtype)
+        return te.floor(x + half)
+
     def _bin_bounds(i, ph, pw):
         roi = rois[i]
-        roi_start_w = te.round(roi[1] * spatial_scale).astype("int32")
-        roi_start_h = te.round(roi[2] * spatial_scale).astype("int32")
-        roi_end_w = te.round(roi[3] * spatial_scale).astype("int32")
-        roi_end_h = te.round(roi[4] * spatial_scale).astype("int32")
+        roi_start_w = _round_away(roi[1] * spatial_scale).astype("int32")
+        roi_start_h = _round_away(roi[2] * spatial_scale).astype("int32")
+        roi_end_w = _round_away(roi[3] * spatial_scale).astype("int32")
+        roi_end_h = _round_away(roi[4] * spatial_scale).astype("int32")
 
         roi_h = te.max(roi_end_h - roi_start_h + 1, tvm.tirx.const(1, "int32"))
         roi_w = te.max(roi_end_w - roi_start_w + 1, tvm.tirx.const(1, "int32"))

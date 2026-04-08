@@ -68,10 +68,12 @@ TVM_REGISTER_OP("tirx.ceil")
     .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Ceil>);
 
 TVM_REGISTER_OP("tirx.round")
-    .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Round>);
+    .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic",
+                               DispatchGLSLPureIntrin<GLSLstd450RoundEven>);
 
 TVM_REGISTER_OP("tirx.nearbyint")
-    .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Round>);
+    .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic",
+                               DispatchGLSLPureIntrin<GLSLstd450RoundEven>);
 
 TVM_REGISTER_OP("tirx.trunc")
     .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Trunc>);
