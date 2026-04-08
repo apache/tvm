@@ -66,7 +66,21 @@ TVM_REGISTER_OP("tirx.ceil")
     .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", DispatchPureExternLibDevice);
 
 TVM_REGISTER_OP("tirx.round")
-    .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", DispatchPureExternLibDevice);
+    .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", [](const PrimExpr& e) -> PrimExpr {
+      // Use nearbyint (ties-to-even) instead of round (ties-away-from-zero)
+      // to match constant-folding semantics.
+      using namespace tirx;
+      const CallNode* call = e.as<CallNode>();
+      TVM_FFI_ICHECK(call != nullptr);
+      TVM_FFI_ICHECK(call->dtype.bits() == 32 || call->dtype.bits() == 64)
+          << "Only support float32 or float64.";
+      std::string name = call->dtype.bits() == 32 ? "__nv_nearbyintf" : "__nv_nearbyint";
+      ffi::Array<PrimExpr> new_args = {StringImm(name)};
+      for (auto arg : call->args) {
+        new_args.push_back(arg);
+      }
+      return Call(call->dtype, builtin::call_pure_extern(), new_args);
+    });
 
 TVM_REGISTER_OP("tirx.nearbyint")
     .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", DispatchPureExternLibDevice);

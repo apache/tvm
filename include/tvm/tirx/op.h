@@ -654,7 +654,11 @@ TVM_DLL PrimExpr floor(PrimExpr x, Span span = Span());
 TVM_DLL PrimExpr ceil(PrimExpr x, Span span = Span());
 
 /*!
- * \brief Calculate round(x)
+ * \brief Round x to the nearest integer, ties to even.
+ *
+ * Uses IEEE 754 default rounding mode (ties-to-even / banker's rounding).
+ * Constant-folding and all backends consistently use std::nearbyint semantics.
+ *
  * \param x The input expression.
  * \param span The location of this operation in the source.
  * \return The result expression.
@@ -662,11 +666,13 @@ TVM_DLL PrimExpr ceil(PrimExpr x, Span span = Span());
 TVM_DLL PrimExpr round(PrimExpr x, Span span = Span());
 
 /*!
- * \brief Calculates std::nearbyint(x)
+ * \brief Round x to the nearest integer, ties to even.
+ *
+ * Equivalent to round(). Both use IEEE 754 default rounding mode (ties-to-even).
+ *
  * \param x The input expression.
  * \param span The location of this operation in the source.
  * \return The result expression.
- * This is a faster alternate to round.
  */
 TVM_DLL PrimExpr nearbyint(PrimExpr x, Span span = Span());
 

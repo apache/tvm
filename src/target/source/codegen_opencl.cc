@@ -526,7 +526,7 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
       this->PrintCallExtern(GetType(ffi::GetRef<PrimExpr>(op)), "atomic_add_float_emu", op->args,
                             true, os);
     } else if (func->value == "nearbyint") {
-      this->PrintCallExtern(GetType(ffi::GetRef<PrimExpr>(op)), "round", op->args, true, os);
+      this->PrintCallExtern(GetType(ffi::GetRef<PrimExpr>(op)), "rint", op->args, true, os);
     } else {
       if (func->value == "atomic_add") {
         enable_atomics_ = true;
