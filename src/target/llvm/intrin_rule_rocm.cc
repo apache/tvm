@@ -132,7 +132,7 @@ TVM_REGISTER_OP("tirx.ceil")
 
 TVM_REGISTER_OP("tirx.round")
     .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
-                               DispatchLLVMPureIntrin<::llvm::Intrinsic::round, 1>);
+                               DispatchLLVMPureIntrin<::llvm::Intrinsic::nearbyint, 1>);
 
 TVM_REGISTER_OP("tirx.nearbyint")
     .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
