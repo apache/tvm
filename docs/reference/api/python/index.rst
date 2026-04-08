@@ -72,6 +72,15 @@ Python API
 
 .. toctree::
     :maxdepth: 1
+    :caption: tvm.script
+
+    script/script
+    script/parser
+    script/ir_builder
+    script/printer
+
+.. toctree::
+    :maxdepth: 1
     :caption: tvm.te
 
     te
