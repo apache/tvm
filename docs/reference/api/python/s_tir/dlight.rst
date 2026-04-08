@@ -56,7 +56,6 @@ tvm.s_tir.dlight.base
 *********************
 .. automodule:: tvm.s_tir.dlight.base
    :members:
-   :imported-members:
    :noindex:
 
 tvm.s_tir.dlight.benchmark

@@ -91,7 +91,6 @@ tvm.s_tir.meta_schedule.schedule_rule
 *************************************
 .. automodule:: tvm.s_tir.meta_schedule.schedule_rule
    :members:
-   :imported-members:
    :noindex:
 
 tvm.s_tir.meta_schedule.search_strategy
@@ -105,7 +104,6 @@ tvm.s_tir.meta_schedule.space_generator
 ***************************************
 .. automodule:: tvm.s_tir.meta_schedule.space_generator
    :members:
-   :imported-members:
    :noindex:
 
 tvm.s_tir.meta_schedule.task_scheduler
