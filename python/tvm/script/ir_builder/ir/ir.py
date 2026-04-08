@@ -35,6 +35,7 @@ def ir_module() -> IRModuleFrame:
 
 def decl_function(func_name: str, func_signature: BaseFunc) -> GlobalVar:
     """Declare a Function without given the specific function implementation.
+
     Parameters
     ----------
     func_name : str
@@ -47,6 +48,7 @@ def decl_function(func_name: str, func_signature: BaseFunc) -> GlobalVar:
     Note
     ----
     It is usually used in cross-function call. And we can specify the function by `DefFunction`
+
     Returns
     -------
     gv : GlobalVar
