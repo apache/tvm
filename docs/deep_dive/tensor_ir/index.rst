@@ -39,3 +39,5 @@ In TVMScript, both modules are accessed via
     learning
     tutorials/tir_creation
     tutorials/tir_transformation
+    tutorials/dlight_gpu_scheduling
+    tutorials/meta_schedule
