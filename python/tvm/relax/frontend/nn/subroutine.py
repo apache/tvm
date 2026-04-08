@@ -25,6 +25,7 @@ import re
 import typing
 
 from tvm import ir, relax
+from tvm.ir import structural_equal
 from tvm.relax.frontend import nn
 
 
@@ -141,10 +142,11 @@ class SubroutineMixin:
 
         arg_sinfo = _get_struct_info([*func_args.values(), *model_params])
         is_dataflow = block_builder.current_block_is_dataflow()
-        lookup_key = (ir.structural_hash(arg_sinfo, map_free_vars=True), is_dataflow)
+        lookup_key = (old_forward, ir.structural_hash(arg_sinfo, map_free_vars=True), is_dataflow)
 
-        if lookup_key in cls._gvar:
-            return cls._gvar[lookup_key]
+        for cached_sinfo, cached_result in cls._gvar.get(lookup_key, []):
+            if structural_equal(cached_sinfo, arg_sinfo, map_free_vars=True):
+                return cached_result
 
         func_name = _camel_to_snake(cls.__name__)
         func_params = [relax.Var(name, sinfo) for name, sinfo in zip(func_args, arg_sinfo.fields)]
@@ -175,5 +177,7 @@ class SubroutineMixin:
         mod = block_builder.get()
         mod.update_func(gvar, relax.utils.copy_with_new_vars(mod[gvar]))
 
-        cls._gvar[lookup_key] = (gvar, is_nn_tensor_output)
-        return cls._gvar[lookup_key]
+        result = (gvar, is_nn_tensor_output)
+        bucket = cls._gvar.setdefault(lookup_key, [])
+        bucket.append((arg_sinfo, result))
+        return result
