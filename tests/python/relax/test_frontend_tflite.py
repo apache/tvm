@@ -1254,5 +1254,53 @@ def test_resize_nearest_neighbor(input_shape, output_size, tf_op, coordinate_tra
     verify(ResizeNearest, expected)
 
 
+def _make_reduce_expected(relax_op, input_shape, axes, keepdims, dtype):
+    if axes is None:
+        axes = list(range(len(input_shape)))
+    bb = relax.BlockBuilder()
+    x = relax.Var("x", relax.TensorStructInfo(input_shape, dtype))
+    with bb.function("main", [x]):
+        with bb.dataflow():
+            gv = bb.emit_output(relax_op(x, axis=axes, keepdims=keepdims))
+        bb.emit_func_output(gv)
+    mod = bb.get()
+    mod["main"] = mod["main"].with_attr("num_input", 1)
+    return mod
+
+
+@pytest.mark.parametrize(
+    "tf_op, relax_op",
+    [
+        (tf.reduce_sum, relax.op.sum),
+        (tf.reduce_mean, relax.op.mean),
+        (tf.reduce_max, relax.op.max),
+        (tf.reduce_min, relax.op.min),
+        (tf.reduce_prod, relax.op.prod),
+    ],
+)
+@pytest.mark.parametrize(
+    "input_shape, axes",
+    [
+        ((1, 8, 8, 3), 1),
+        ((1, 8, 8, 3), [1, 2]),
+        ((1, 8, 8, 3), -1),
+        ((1, 8, 8, 3), None),
+        ((30,), 0),
+        ((2, 5, 2), [0, 2]),
+    ],
+)
+@pytest.mark.parametrize("keepdims", [True, False])
+@pytest.mark.parametrize("dtype", [tf.float32, tf.int32])
+def test_reduction_ops(tf_op, relax_op, input_shape, axes, keepdims, dtype):
+    class ReduceModule(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=input_shape, dtype=dtype)])
+        def func(self, x):
+            return tf_op(x, axis=axes, keepdims=keepdims)
+
+    relax_dtype = "float32" if dtype == tf.float32 else "int32"
+    expected = _make_reduce_expected(relax_op, input_shape, axes, keepdims, relax_dtype)
+    verify(ReduceModule, expected)
+
+
 if __name__ == "__main__":
     pytest.main(["-s", __file__])
