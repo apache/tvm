@@ -69,6 +69,7 @@ Python API
     s_tir/schedule
     s_tir/transform
     s_tir/dlight
+    s_tir/backend
 
 .. toctree::
     :maxdepth: 1
