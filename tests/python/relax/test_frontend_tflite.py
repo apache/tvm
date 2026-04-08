@@ -27,6 +27,7 @@ import tflite.Model
 from tensorflow.keras import applications as keras_app
 
 import tvm
+import tvm.relax.frontend.tflite.tflite_frontend as tflite_frontend
 from tvm import relax
 from tvm.relax.frontend.tflite import from_tflite
 from tvm.script.parser import ir as I
@@ -1082,6 +1083,142 @@ def _build_nms_v5_mod(num_boxes, max_output_size, iou_threshold, score_threshold
     return mod, instance.func
 
 
+class _StubDetectionPostprocessTensor:
+    def __init__(self, shape, name):
+        self._shape = list(shape)
+        self._name = name
+
+    def Shape(self, index):
+        return self._shape[index]
+
+    def Name(self):
+        return self._name
+
+    def Type(self):
+        return 0
+
+
+class _StubDetectionPostprocessOp:
+    def __init__(self, custom_options):
+        self._custom_options = _encode_detection_postprocess_custom_options(custom_options)
+
+    def CustomOptionsAsNumpy(self):
+        return np.frombuffer(self._custom_options, dtype="uint8")
+
+
+_DETECTION_POSTPROCESS_ANCHORS = np.array(
+    [
+        [0.5, 0.5, 1.0, 1.0],
+        [0.5, 0.2, 1.0, 1.0],
+        [0.1, 0.1, 0.5, 0.5],
+        [0.8, 0.8, 0.2, 0.2],
+    ],
+    dtype="float32",
+)
+
+
+def _encode_detection_postprocess_custom_options(custom_options):
+    from flatbuffers import flexbuffers
+
+    builder = flexbuffers.Builder()
+    with builder.Map():
+        for key, value in custom_options.items():
+            if isinstance(value, bool):
+                builder.Bool(key, value)
+            elif isinstance(value, int):
+                builder.Int(key, value)
+            else:
+                builder.Float(key, float(value))
+    return bytes(builder.Finish())
+
+
+def _make_detection_postprocess_tensor_wrapper(tensor_idx, shape, name):
+    return tflite_frontend.TensorWrapper(
+        tensor_idx,
+        _StubDetectionPostprocessTensor(shape, name),
+        None,
+    )
+
+
+def _build_detection_postprocess_mod(
+    *,
+    num_classes=1,
+    max_detections=4,
+    detections_per_class=4,
+    use_regular_nms=False,
+    nms_iou_threshold=0.5,
+    nms_score_threshold=0.3,
+    x_scale=10.0,
+    y_scale=10.0,
+    w_scale=5.0,
+    h_scale=5.0,
+    batch_size=2,
+    num_anchors=4,
+    input_num_classes=None,
+):
+    custom_options = {
+        "num_classes": num_classes,
+        "max_detections": max_detections,
+        "detections_per_class": detections_per_class,
+        "nms_iou_threshold": nms_iou_threshold,
+        "nms_score_threshold": nms_score_threshold,
+        "x_scale": x_scale,
+        "y_scale": y_scale,
+        "w_scale": w_scale,
+        "h_scale": h_scale,
+        "use_regular_nms": use_regular_nms,
+    }
+    return _convert_detection_postprocess_with_options(
+        custom_options,
+        batch_size=batch_size,
+        num_anchors=num_anchors,
+        num_classes=num_classes,
+        input_num_classes=input_num_classes,
+    )
+
+
+def _convert_detection_postprocess_with_options(
+    custom_options,
+    *,
+    batch_size=2,
+    num_anchors=4,
+    num_classes=1,
+    input_num_classes=None,
+    build_module=True,
+):
+    input_num_classes = num_classes if input_num_classes is None else input_num_classes
+    loc = relax.Var("loc", relax.TensorStructInfo((batch_size, num_anchors, 4), "float32"))
+    cls = relax.Var(
+        "cls", relax.TensorStructInfo((batch_size, num_anchors, input_num_classes), "float32")
+    )
+    inputs = [
+        _make_detection_postprocess_tensor_wrapper(0, (batch_size, num_anchors, 4), "loc"),
+        _make_detection_postprocess_tensor_wrapper(
+            1, (batch_size, num_anchors, input_num_classes), "cls"
+        ),
+        _make_detection_postprocess_tensor_wrapper(2, (num_anchors, 4), "anchors"),
+    ]
+    converter = tflite_frontend.OperatorConverter.__new__(tflite_frontend.OperatorConverter)
+    converter.bb = relax.BlockBuilder()
+    converter.exp_tab = tflite_frontend.ExprTable()
+    converter.get_input_tensors = lambda op: inputs
+    converter.get_expr = lambda tensor_idx: {0: loc, 1: cls}[tensor_idx]
+    converter.get_tensor_value = (
+        lambda tensor: _DETECTION_POSTPROCESS_ANCHORS if tensor.tensor_idx == 2 else None
+    )
+    converter.get_tensor_type_str = lambda tensor_type: "float32"
+    op = _StubDetectionPostprocessOp(custom_options)
+    if not build_module:
+        return converter.convert_detection_postprocess(op)
+    bb = converter.bb
+    with bb.function("main", [loc, cls]):
+        with bb.dataflow():
+            output = converter.convert_detection_postprocess(op)
+            gv = bb.emit_output(output)
+        bb.emit_func_output(gv)
+    return bb.get()
+
+
 def _make_valid_boxes(rng, n):
     """Generate n random boxes with y1<=y2, x1<=x2 using the given RNG."""
     raw = rng.random((n, 4), dtype=np.float32)
@@ -1206,6 +1343,137 @@ def test_nms_v5_ir():
     # Bounding boxes / scores tensor bounds checks
     assert f"R.Tensor(({max_output_size},)" in ir
 
+
+_DETECTION_POSTPROCESS_SMOKE_CASES = [
+    pytest.param(
+        {
+            "num_classes": 2,
+            "input_num_classes": 3,
+            "max_detections": 2,
+            "detections_per_class": 2,
+            "use_regular_nms": False,
+            "nms_iou_threshold": 0.5,
+            "nms_score_threshold": 0.5,
+            "batch_size": 1,
+            "num_anchors": 4,
+        },
+        2,
+        False,
+        id="basic_fast_nms",
+    ),
+    pytest.param(
+        {
+            "num_classes": 2,
+            "input_num_classes": 3,
+            "max_detections": 3,
+            "detections_per_class": 2,
+            "use_regular_nms": True,
+            "nms_iou_threshold": 0.45,
+            "nms_score_threshold": 0.25,
+            "batch_size": 2,
+            "num_anchors": 4,
+        },
+        1,
+        True,
+        id="regular_nms_multi_batch",
+    ),
+]
+
+
+_DETECTION_POSTPROCESS_SHAPE_CASES = [
+    pytest.param(
+        {
+            "num_classes": 2,
+            "input_num_classes": 5,
+            "max_detections": 2,
+            "detections_per_class": 2,
+            "use_regular_nms": False,
+            "nms_iou_threshold": 0.5,
+            "nms_score_threshold": 0.5,
+            "batch_size": 1,
+            "num_anchors": 4,
+        },
+        id="wider_input_classes",
+    ),
+    pytest.param(
+        {
+            "num_classes": 2,
+            "input_num_classes": 3,
+            "max_detections": 4,
+            "detections_per_class": 4,
+            "use_regular_nms": False,
+            "nms_iou_threshold": 0.5,
+            "nms_score_threshold": 0.5,
+            "batch_size": 1,
+            "num_anchors": 4,
+        },
+        id="larger_max_detections",
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    "build_kwargs,expected_topk_count,expected_keep_background",
+    _DETECTION_POSTPROCESS_SMOKE_CASES,
+)
+def test_detection_postprocess_smoke(
+    build_kwargs, expected_topk_count, expected_keep_background
+):
+    mod = _build_detection_postprocess_mod(**build_kwargs)
+    ir = mod.script()
+
+    assert "R.vision.multibox_transform_loc" in ir
+    assert "R.vision.all_class_non_max_suppression" in ir
+    assert 'output_format="tensorflow"' in ir
+    assert "R.where" in ir
+    assert "R.gather_elements" in ir
+    assert "R.gather_nd" in ir
+    assert ir.count("R.topk(") == expected_topk_count
+    assert f"keep_background={expected_keep_background}" in ir
+    expected_batch = build_kwargs["batch_size"]
+    expected_max_detections = build_kwargs["max_detections"]
+    tvm.ir.assert_structural_equal(
+        mod["main"].ret_struct_info,
+        relax.TupleStructInfo(
+            [
+                relax.TensorStructInfo((expected_batch, expected_max_detections, 4), "float32"),
+                relax.TensorStructInfo((expected_batch, expected_max_detections), "float32"),
+                relax.TensorStructInfo((expected_batch, expected_max_detections), "float32"),
+                relax.TensorStructInfo((expected_batch,), "float32"),
+            ]
+        ),
+    )
+
+    legalized = relax.transform.LegalizeOps()(mod)
+    legalized_ir = legalized.script()
+    assert "R.vision.all_class_non_max_suppression(" not in legalized_ir
+    assert "R.call_tir(" in legalized_ir
+    tvm.ir.assert_structural_equal(legalized["main"].ret_struct_info, mod["main"].ret_struct_info)
+
+
+@pytest.mark.parametrize("build_kwargs", _DETECTION_POSTPROCESS_SHAPE_CASES)
+def test_detection_postprocess_shape_variations(build_kwargs):
+    mod = _build_detection_postprocess_mod(**build_kwargs)
+    batch_size = build_kwargs["batch_size"]
+    num_anchors = build_kwargs["num_anchors"]
+    input_num_classes = build_kwargs["input_num_classes"]
+    max_detections = build_kwargs["max_detections"]
+
+    tvm.ir.assert_structural_equal(
+        mod["main"].params[1].struct_info,
+        relax.TensorStructInfo((batch_size, num_anchors, input_num_classes), "float32"),
+    )
+    tvm.ir.assert_structural_equal(
+        mod["main"].ret_struct_info,
+        relax.TupleStructInfo(
+            [
+                relax.TensorStructInfo((batch_size, max_detections, 4), "float32"),
+                relax.TensorStructInfo((batch_size, max_detections), "float32"),
+                relax.TensorStructInfo((batch_size, max_detections), "float32"),
+                relax.TensorStructInfo((batch_size,), "float32"),
+            ]
+        ),
+    )
 
 def _make_resize_expected(
     input_shape, output_size, method, coordinate_transformation_mode, rounding_method

@@ -2832,7 +2832,9 @@ class OperatorConverter:
             new_b_shape = [1] * max(0, rank_a - rank_b) + [int(s) for s in shape_b]
             max_rank = max(rank_a, rank_b)
 
-            batch_shape = [max(new_a_shape[i], new_b_shape[i]) for i in range(max_rank - 2)]
+            batch_shape = [
+                max(new_a_shape[i], new_b_shape[i]) for i in range(max_rank - 2)
+            ]
 
             a_broadcast = batch_shape + [int(shape_a[-2]), int(shape_a[-1])]
             b_broadcast = batch_shape + [int(shape_b[-2]), int(shape_b[-1])]
@@ -3338,47 +3340,76 @@ class OperatorConverter:
         )
         multibox_transform_loc_attrs["keep_background"] = use_regular_nms
 
-        transformed_boxes, transformed_scores = relax.op.vision.multibox_transform_loc(
-            # reshape cls_pred so it can be consumed by
-            # multibox_transform_loc
-            relax.op.permute_dims(cls_pred, [0, 2, 1]),
-            loc_prob,
-            anchor_expr,
-            **multibox_transform_loc_attrs,
+        multibox_res = self.bb.emit(
+            relax.op.vision.multibox_transform_loc(
+                # reshape cls_pred so it can be consumed by
+                # multibox_transform_loc
+                relax.op.permute_dims(cls_pred, [0, 2, 1]),
+                loc_prob,
+                anchor_expr,
+                **multibox_transform_loc_attrs,
+            )
         )
+        transformed_boxes = self.bb.emit(relax.TupleGetItem(multibox_res, 0))
+        transformed_scores = self.bb.emit(relax.TupleGetItem(multibox_res, 1))
 
         if use_regular_nms:
-            nms_out = relax.op.vision.all_class_non_max_suppression(
-                transformed_boxes,
-                transformed_scores,
-                relax.const(detections_per_class, "int64"),
-                relax.const(iou_threshold, "float32"),
-                relax.const(score_threshold, "float32"),
-                output_format="tensorflow",
+            nms_out = self.bb.emit(
+                relax.op.vision.all_class_non_max_suppression(
+                    transformed_boxes,
+                    transformed_scores,
+                    relax.const(detections_per_class, "int64"),
+                    relax.const(iou_threshold, "float32"),
+                    relax.const(score_threshold, "float32"),
+                    output_format="tensorflow",
+                )
             )
-            selected_indices = nms_out[0]
-            selected_scores = nms_out[1]
-            num_detections = nms_out[2]
+            selected_indices = self.bb.emit(relax.TupleGetItem(nms_out, 0))
+            selected_scores = self.bb.emit(relax.TupleGetItem(nms_out, 1))
+            num_detections = self.bb.emit(relax.TupleGetItem(nms_out, 2))
             class_id_from_score = None
         else:
-            max_scores, class_id_from_score = relax.op.topk(
-                transformed_scores, k=1, axis=1, ret_type="both", largest=True
+            topk_res = self.bb.emit(
+                relax.op.topk(transformed_scores, k=1, axis=1, ret_type="both", largest=True)
             )
-            nms_out = relax.op.vision.all_class_non_max_suppression(
-                transformed_boxes,
-                max_scores,
-                relax.const(max_detections, "int64"),
-                relax.const(iou_threshold, "float32"),
-                relax.const(score_threshold, "float32"),
-                output_format="tensorflow",
+            max_scores = self.bb.emit(relax.TupleGetItem(topk_res, 0))
+            class_id_from_score = self.bb.emit(relax.TupleGetItem(topk_res, 1))
+            nms_out = self.bb.emit(
+                relax.op.vision.all_class_non_max_suppression(
+                    transformed_boxes,
+                    max_scores,
+                    relax.const(max_detections, "int64"),
+                    relax.const(iou_threshold, "float32"),
+                    relax.const(score_threshold, "float32"),
+                    output_format="tensorflow",
+                )
             )
-            selected_indices = nms_out[0]
-            selected_scores = nms_out[1]
-            num_detections = nms_out[2]
+            selected_indices = self.bb.emit(relax.TupleGetItem(nms_out, 0))
+            selected_scores = self.bb.emit(relax.TupleGetItem(nms_out, 1))
+            num_detections = self.bb.emit(relax.TupleGetItem(nms_out, 2))
             class_id_from_score = relax.op.squeeze(class_id_from_score, axis=[1])
 
+        selected_score_slots = selected_scores.struct_info.shape.values[1]
+        selected_detection_positions = relax.op.expand_dims(
+            relax.op.arange(selected_score_slots, dtype="int64"), axis=0
+        )
+        selected_valid_detection_mask = relax.op.less(
+            selected_detection_positions, relax.op.expand_dims(num_detections, axis=1)
+        )
+        masked_selected_scores = relax.op.where(
+            selected_valid_detection_mask,
+            selected_scores,
+            relax.const(-1.0, "float32"),
+        )
+        topk_scores_res = self.bb.emit(
+            relax.op.topk(
+                masked_selected_scores, k=max_detections, axis=1, ret_type="both", largest=True
+            )
+        )
+        detection_scores = self.bb.emit(relax.TupleGetItem(topk_scores_res, 0))
+        top_positions = self.bb.emit(relax.TupleGetItem(topk_scores_res, 1))
         num_detections = relax.op.minimum(
-            num_detections, relax.const(np.array([max_detections], dtype="int64"))
+            num_detections, relax.const([max_detections], dtype="int64")
         )
         detection_positions = relax.op.expand_dims(
             relax.op.arange(max_detections, dtype="int64"), axis=0
@@ -3386,23 +3417,13 @@ class OperatorConverter:
         valid_detection_mask = relax.op.less(
             detection_positions, relax.op.expand_dims(num_detections, axis=1)
         )
-        masked_selected_scores = relax.op.where(
-            valid_detection_mask,
-            selected_scores,
-            relax.const(-1.0, selected_scores.struct_info.dtype),
-        )
-        detection_scores, top_positions = relax.op.topk(
-            masked_selected_scores, k=max_detections, axis=1, ret_type="both", largest=True
-        )
         top_positions_expanded = relax.op.expand_dims(top_positions, axis=2)
         top_positions_for_pairs = relax.op.repeat(top_positions_expanded, 2, axis=2)
         top_index_pairs = relax.op.gather_elements(
             selected_indices, top_positions_for_pairs, axis=1
         )
         top_box_ids = relax.op.squeeze(
-            relax.op.strided_slice(
-                top_index_pairs, begin=[0, 0, 1], end=[batch_size, max_detections, 2]
-            ),
+            relax.op.strided_slice(top_index_pairs, axes=[2], begin=[1], end=[2]),
             axis=[2],
         )
         top_box_ids_for_gather = relax.op.expand_dims(relax.op.astype(top_box_ids, "int64"), axis=2)
@@ -3412,11 +3433,10 @@ class OperatorConverter:
 
         if use_regular_nms:
             detection_classes = relax.op.squeeze(
-                relax.op.strided_slice(
-                    top_index_pairs, begin=[0, 0, 0], end=[batch_size, max_detections, 1]
-                ),
+                relax.op.strided_slice(top_index_pairs, axes=[2], begin=[0], end=[1]),
                 axis=[2],
             )
+            detection_classes = relax.op.astype(detection_classes, "int32")
         else:
             top_box_ids_for_class = relax.op.expand_dims(
                 relax.op.astype(top_box_ids, "int64"), axis=2
@@ -3429,19 +3449,17 @@ class OperatorConverter:
         detection_boxes = relax.op.where(
             detection_mask,
             detection_boxes,
-            relax.op.zeros(
-                (batch_size, max_detections, 4), dtype=detection_boxes.struct_info.dtype
-            ),
+            relax.op.zeros((batch_size, max_detections, 4), dtype="float32"),
         )
         detection_classes = relax.op.where(
             valid_detection_mask,
             detection_classes,
-            relax.op.zeros((batch_size, max_detections), dtype=detection_classes.struct_info.dtype),
+            relax.op.zeros((batch_size, max_detections), dtype="int32"),
         )
         detection_scores = relax.op.where(
             valid_detection_mask,
             detection_scores,
-            relax.op.zeros((batch_size, max_detections), dtype=detection_scores.struct_info.dtype),
+            relax.op.zeros((batch_size, max_detections), dtype="float32"),
         )
         detection_classes = relax.op.astype(detection_classes, "float32")
         num_detections = relax.op.astype(num_detections, "float32")
