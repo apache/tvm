@@ -707,6 +707,67 @@ def test_reduce(tf_op, relax_op, axis, out_shape):
     verify(TfInput, Expected)
 
 
+def test_l2_normalization():
+    class L2Normalization(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(2, 4), dtype=tf.float32)])
+        def func(self, x):
+            return tf.nn.l2_normalize(x, axis=-1)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 4), dtype="float32")) -> R.Tensor((2, 4), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((2, 4), dtype="float32") = R.nn.l2_normalize(
+                    x, eps=1e-12, axis=[1]
+                )
+                R.output(gv)
+            return gv
+
+    verify(L2Normalization, Expected)
+
+
+def test_slice():
+    class Slice(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(3, 4), dtype=tf.float32)])
+        def func(self, x):
+            return tf.slice(x, begin=[1, 1], size=[2, 2])
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((3, 4), dtype="float32")) -> R.Tensor((2, 2), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((2, 2), dtype="float32") = R.strided_slice(
+                    x, begin=[1, 1], end=[3, 3]
+                )
+                R.output(gv)
+            return gv
+
+    verify(Slice, Expected)
+
+
+def test_reverse_v2():
+    class ReverseV2(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(2, 3), dtype=tf.float32)])
+        def func(self, x):
+            return tf.reverse(x, axis=[1])
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 3), dtype="float32")) -> R.Tensor((2, 3), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((2, 3), dtype="float32") = R.reverse(x, axis=1)
+                R.output(gv)
+            return gv
+
+    verify(ReverseV2, Expected)
+
+
 def _make_conv2d_module(data_shape, kernel_shape, data_format, strides, padding):
     class Conv2DModule(tf.Module):
         @tf.function(
