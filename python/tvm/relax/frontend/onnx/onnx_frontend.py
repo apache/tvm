@@ -304,7 +304,10 @@ class OnnxOpConverter:
         """
         versions = [int(d.replace("_impl_v", "")) for d in dir(cls) if "_impl_v" in d]
         versions = sorted(versions + [opset])
-        version = versions[max([i for i, v in enumerate(versions) if v == opset]) - 1]
+        opset_idx = max([i for i, v in enumerate(versions) if v == opset])
+        if opset_idx == 0:
+            raise NotImplementedError(f"opset version {opset} of {cls.__name__} not implemented")
+        version = versions[opset_idx - 1]
         if hasattr(cls, f"_impl_v{version}"):
             return getattr(cls, f"_impl_v{version}")
         raise NotImplementedError(f"opset version {version} of {cls.__name__} not implemented")
