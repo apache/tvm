@@ -164,6 +164,10 @@ inline InlineType AutoInlineNode::CheckInline(const s_tir::Schedule& sch,
     if (ann.value() == "disable") return InlineType::kNoInline;
   }
   // Last cond: Check inline into the consumers or the spatial producer
+  // Skip if this is the root block (no parent scope), as it cannot be inlined
+  if (block_sref->parent == nullptr) {
+    return InlineType::kNoInline;
+  }
   tirx::StmtSRef scope_block = s_tir::GetScopeRoot(sch->state(), block_sref,
                                                    /*require_stage_pipeline=*/false);
   if (into_consumer) {
