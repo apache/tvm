@@ -1088,6 +1088,11 @@ class Clip(OnnxOpConverter):
         return results
 
     @classmethod
+    def _impl_v11(cls, bb, inputs, attr, params):
+        # Opset 11 changed Clip from attribute-based min/max to input-based.
+        return cls._impl_v13(bb, inputs, attr, params)
+
+    @classmethod
     def _impl_v13(cls, bb, inputs, attr, params):
         results = inputs[0]
         if inputs[1] is not None:
@@ -3769,13 +3774,13 @@ def _argreduce_select_last_index(bb, data, axis, keepdims, op):
         offset = relax.const(int(axis_size) - 1, "int64")
     else:
         # dynamic: get axis size at runtime and subtract 1
-        shape_tensor = bb.normalize(relax.op.shape_to_tensor(
-            bb.normalize(relax.op.shape_of(data))
-        ))
-        offset = bb.normalize(relax.op.subtract(
-            bb.normalize(relax.op.take(shape_tensor, relax.const(axis, "int64"), axis=0)),
-            relax.const(1, "int64"),
-        ))
+        shape_tensor = bb.normalize(relax.op.shape_to_tensor(bb.normalize(relax.op.shape_of(data))))
+        offset = bb.normalize(
+            relax.op.subtract(
+                bb.normalize(relax.op.take(shape_tensor, relax.const(axis, "int64"), axis=0)),
+                relax.const(1, "int64"),
+            )
+        )
     return relax.op.subtract(offset, flipped_idx)
 
 
@@ -4353,7 +4358,7 @@ class SplitToSequence(OnnxOpConverter):
                 for i in range(n)
             ]
             return relax.Tuple(squeezed)
-        
+
         return output
 
 
