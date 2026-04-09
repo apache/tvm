@@ -39,64 +39,64 @@ class UnionDatabase(Database):
 
     .. code-block:: python
 
-    #### Case 1. `UnionDatabase`:
-    merged_db = ms.database.UnionDatabase(
-        db1, # no record
-        db2, # no record
-        db3, # has r3
-        db4  # has r4
-    )
-    # returns the better one between r3 and r4
-    merged_db.query_tuning_record(..., target_workload)
-
-    ### Case 2. `OrderedUnionDatabase`
-    merged_db = ms.database.OrderedUnionDatabase(
-        db1, # no record
-        db2, # no record
-        db3, # has r3
-        db4  # has r4
-    )
-    # returns r3
-    merged_db.query_tuning_record(..., target_workload)
-
-    ### Case 3. Mix-use scenario
-    merged_db = ms.database.UnionDatabase(
-        db1, # no record
-        db2, # no record
-        db3, # has r3
-        ms.database.OrderedUnionDatabase( # returns r4
-            db4,  # has r4
-            db5,  # has r5
-        )
-    )
-    # returns the better one between r3 and r4
-    merged_db.query_tuning_record(..., target_workload)
-
-    ### Case 4. Another mix-use scenario
-    merged_db = ms.database.UnionDatabase(
-        db1, # no record
-        db2, # no record
-        db3, # has r3
-        ms.database.UnionDatabase( # returns best one between r4 and r5
-            db4,  # has r4
-            db5,  # has r5
-        )
-    )
-    # returns the best one among r3, r4 and r5
-    merged_db.query_tuning_record(..., target_workload)
-
-    ### Case 5. Yet another mix-use scenario
-    merged_db = ms.database.OrderedUnionDatabase(
-        db1, # no record
-        db2, # no record
-        ms.database.UnionDatabase( # returns best one between r3 and r4
+        #### Case 1. `UnionDatabase`:
+        merged_db = ms.database.UnionDatabase(
+            db1, # no record
+            db2, # no record
             db3, # has r3
-            db4,  # has r4
+            db4  # has r4
         )
-        db5,  # has r5
-    )
-    # returns the better one between r3 and r4
-    merged_db.query_tuning_record(..., target_workload)
+        # returns the better one between r3 and r4
+        merged_db.query_tuning_record(..., target_workload)
+
+        ### Case 2. `OrderedUnionDatabase`
+        merged_db = ms.database.OrderedUnionDatabase(
+            db1, # no record
+            db2, # no record
+            db3, # has r3
+            db4  # has r4
+        )
+        # returns r3
+        merged_db.query_tuning_record(..., target_workload)
+
+        ### Case 3. Mix-use scenario
+        merged_db = ms.database.UnionDatabase(
+            db1, # no record
+            db2, # no record
+            db3, # has r3
+            ms.database.OrderedUnionDatabase( # returns r4
+                db4,  # has r4
+                db5,  # has r5
+            )
+        )
+        # returns the better one between r3 and r4
+        merged_db.query_tuning_record(..., target_workload)
+
+        ### Case 4. Another mix-use scenario
+        merged_db = ms.database.UnionDatabase(
+            db1, # no record
+            db2, # no record
+            db3, # has r3
+            ms.database.UnionDatabase( # returns best one between r4 and r5
+                db4,  # has r4
+                db5,  # has r5
+            )
+        )
+        # returns the best one among r3, r4 and r5
+        merged_db.query_tuning_record(..., target_workload)
+
+        ### Case 5. Yet another mix-use scenario
+        merged_db = ms.database.OrderedUnionDatabase(
+            db1, # no record
+            db2, # no record
+            ms.database.UnionDatabase( # returns best one between r3 and r4
+                db3, # has r3
+                db4,  # has r4
+            )
+            db5,  # has r5
+        )
+        # returns the better one between r3 and r4
+        merged_db.query_tuning_record(..., target_workload)
     """
 
     def __init__(self, *databases: Database) -> None:
