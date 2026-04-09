@@ -724,7 +724,7 @@ def test_depthwise_conv2d():
         @tf.function(
             input_signature=[
                 tf.TensorSpec(shape=(1, 8, 8, 2), dtype=tf.float32),
-                tf.TensorSpec(shape=(3, 3, 2, 2), dtype=tf.float32),
+                tf.TensorSpec(shape=(3, 3, 1, 2), dtype=tf.float32),
             ]
         )
         def func(self, data, kernel):
@@ -763,10 +763,11 @@ def test_l2_pool2d():
     class L2Pool2D(tf.Module):
         @tf.function(input_signature=[tf.TensorSpec(shape=(1, 8, 8, 2), dtype=tf.float32)])
         def func(self, data):
-            return tf.compat.v1.nn.l2_pool(
+            return tf.nn.pool(
                 input=data,
-                ksize=[1, 2, 2, 1],
-                strides=[1, 1, 1, 1],
+                window_shape=[2, 2],
+                pooling_type="AVG",
+                strides=[1, 1],
                 padding="SAME",
             )
 
