@@ -2550,7 +2550,13 @@ class OperatorConverter:
         mode_byte = mirror_pad_options.Mode()
 
         mode = "REFLECT" if mode_byte == 0 else "SYMMETRIC"
-        out = relax.op.nn.mirror_pad(in_expr, paddings, mode)
+        if mode == "SYMMETRIC":
+            raise tvm.error.OpAttributeUnImplemented(
+                "MIRROR_PAD with SYMMETRIC mode is not yet supported."
+            )
+        # Flatten tuple-of-tuples to a list for relax.op.nn.pad
+        flat_pads = [int(v) for pair in paddings for v in pair]
+        out = relax.op.nn.pad(in_expr, flat_pads, pad_mode="reflect")
 
         return out
 
@@ -3457,10 +3463,8 @@ class OperatorConverter:
             "on_value and off_value should be the same type"
         )
 
-        # Getting relax expr
+        # Getting relax expr for indices
         indices_expr = self.get_expr(indices.tensor_idx)
-        on_value_expr = self.get_expr(on_value.tensor_idx)
-        off_value_expr = self.get_expr(off_value.tensor_idx)
 
         # Getting depth value
         depth = self.get_tensor_value(depth)
@@ -3474,10 +3478,18 @@ class OperatorConverter:
         one_hot_options.Init(op_options.Bytes, op_options.Pos)
         axis = one_hot_options.Axis()
 
-        # Setting dtype
+        # Extract scalar values for on_value and off_value and wrap as PrimValue
         dtype = self.get_tensor_type_str(on_value.tensor.Type())
+        on_val = self.get_tensor_value(on_value).item()
+        off_val = self.get_tensor_value(off_value).item()
+        if "float" in dtype:
+            on_prim = relax.PrimValue(tvm.tirx.FloatImm(dtype, float(on_val)))
+            off_prim = relax.PrimValue(tvm.tirx.FloatImm(dtype, float(off_val)))
+        else:
+            on_prim = relax.PrimValue(tvm.tirx.IntImm(dtype, int(on_val)))
+            off_prim = relax.PrimValue(tvm.tirx.IntImm(dtype, int(off_val)))
 
-        out = relax.op.one_hot(indices_expr, on_value_expr, off_value_expr, depth, axis, dtype)
+        out = relax.op.one_hot(indices_expr, on_prim, off_prim, depth, axis)
 
         return out
 

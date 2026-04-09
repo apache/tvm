@@ -31,6 +31,7 @@ from tvm import relax
 from tvm.relax.frontend.tflite import from_tflite
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
+from tvm.script.parser import tirx as T
 
 
 def _get_mod_from_cfunc(cfunc):
@@ -1300,6 +1301,116 @@ def test_reduction_ops(tf_op, relax_op, input_shape, axes, keepdims, dtype):
     relax_dtype = "float32" if dtype == tf.float32 else "int32"
     expected = _make_reduce_expected(relax_op, input_shape, axes, keepdims, relax_dtype)
     verify(ReduceModule, expected)
+
+
+def test_pad():
+    class Pad(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(2, 3), dtype=tf.float32)])
+        def func(self, x):
+            return tf.pad(x, [[1, 1], [2, 2]])
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 3), dtype="float32")) -> R.Tensor((4, 7), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((4, 7), dtype="float32") = R.nn.pad(
+                    x, pad_width=[1, 1, 2, 2], pad_value=0.0, pad_mode="constant"
+                )
+                R.output(gv)
+            return gv
+
+    verify(Pad, Expected)
+
+
+def test_pad_v2():
+    class PadV2(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(2, 3), dtype=tf.float32)])
+        def func(self, x):
+            return tf.pad(x, [[1, 1], [2, 2]], constant_values=5.0)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 3), dtype="float32")) -> R.Tensor((4, 7), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((4, 7), dtype="float32") = R.nn.pad(
+                    x, pad_width=[1, 1, 2, 2], pad_value=5.0, pad_mode="constant"
+                )
+                R.output(gv)
+            return gv
+
+    verify(PadV2, Expected)
+
+
+def test_mirror_pad():
+    class MirrorPad(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(3, 4), dtype=tf.float32)])
+        def func(self, x):
+            return tf.pad(x, [[1, 1], [2, 2]], mode="REFLECT")
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((3, 4), dtype="float32")) -> R.Tensor((5, 8), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((5, 8), dtype="float32") = R.nn.pad(
+                    x, pad_width=[1, 1, 2, 2], pad_value=0.0, pad_mode="reflect"
+                )
+                R.output(gv)
+            return gv
+
+    verify(MirrorPad, Expected)
+
+
+def test_topk_v2():
+    class TopKV2(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(5,), dtype=tf.float32)])
+        def func(self, x):
+            return tf.math.top_k(x, k=3).values
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((5,), dtype="float32")) -> R.Tensor((3,), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tuple(
+                    R.Tensor((3,), dtype="float32"), R.Tensor((3,), dtype="int32")
+                ) = R.topk(x, k=3, axis=-1, ret_type="both", largest=True, dtype="int32")
+                gv: R.Tensor((3,), dtype="float32") = lv[0]
+                R.output(gv)
+            return gv
+
+    verify(TopKV2, Expected)
+
+
+def test_one_hot():
+    class OneHot(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(3,), dtype=tf.int32)])
+        def func(self, x):
+            return tf.one_hot(x, depth=4)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((3,), dtype="int32")) -> R.Tensor((3, 4), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((3, 4), dtype="float32") = R.one_hot(
+                    x,
+                    R.prim_value(T.float32(1.0)),
+                    R.prim_value(T.float32(0.0)),
+                    depth=4,
+                    axis=-1,
+                )
+                R.output(gv)
+            return gv
+
+    verify(OneHot, Expected)
 
 
 if __name__ == "__main__":
