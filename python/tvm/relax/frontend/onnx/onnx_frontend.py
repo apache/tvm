@@ -302,9 +302,11 @@ class OnnxOpConverter:
         converter, which should be `_impl_vx`. Number x is the biggest
             number smaller than or equal to opset belongs to all support versions.
         """
-        versions = [int(d.replace("_impl_v", "")) for d in dir(cls) if "_impl_v" in d]
-        versions = sorted(versions + [opset])
-        version = versions[max([i for i, v in enumerate(versions) if v == opset]) - 1]
+        impl_versions = sorted(int(d.replace("_impl_v", "")) for d in dir(cls) if "_impl_v" in d)
+        # Select the largest implemented version that is <= opset.
+        # If opset is below all implementations, fall back to the smallest.
+        candidates = [v for v in impl_versions if v <= opset]
+        version = max(candidates) if candidates else impl_versions[0]
         if hasattr(cls, f"_impl_v{version}"):
             return getattr(cls, f"_impl_v{version}")
         raise NotImplementedError(f"opset version {version} of {cls.__name__} not implemented")
