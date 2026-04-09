@@ -44,10 +44,12 @@ Python API
 
     relax/relax
     relax/analysis
+    relax/backend
     relax/block_builder
     relax/distributed
     relax/frontend
     relax/op
+    relax/testing
     relax/training
     relax/transform
     relax/dpl

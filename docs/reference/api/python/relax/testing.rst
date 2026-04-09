@@ -15,14 +15,8 @@
     specific language governing permissions and limitations
     under the License.
 
-tvm.relax.distributed
----------------------
-.. automodule:: tvm.relax.distributed
-   :members:
-   :imported-members:
-
-tvm.relax.distributed.transform
-*******************************
-.. automodule:: tvm.relax.distributed.transform
+tvm.relax.testing
+-----------------
+.. automodule:: tvm.relax.testing
    :members:
    :imported-members:
