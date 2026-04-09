@@ -800,7 +800,12 @@ class OperatorConverter:
             )
 
         # TFL uses only the default epsilon value
-        out = relax.op.nn.l2_normalize(in_expr, eps=1e-12, axis=[input_tensor_rank - 1])
+        # Implement L2 normalization: output = input / sqrt(sum(input^2) + eps)
+        # L2 normalization is applied along the last axis
+        squared = relax.op.square(in_expr)
+        sum_squared = relax.op.sum(squared, axis=input_tensor_rank - 1, keepdims=True)
+        denom = relax.op.sqrt(sum_squared + 1e-12)
+        out = relax.op.divide(in_expr, denom)
 
         # if we have fused activation fn
         if output_tensor.qnn_params:
@@ -2251,7 +2256,9 @@ class OperatorConverter:
             else:
                 end[i] += begin[i]
 
-        out = relax.op.strided_slice(in_expr, begin, end)
+        # Create axes list for all dimensions being sliced
+        axes = list(range(input_tensor_rank))
+        out = relax.op.strided_slice(in_expr, axes=axes, begin=begin, end=end)
 
         return out
 
@@ -3494,7 +3501,7 @@ class OperatorConverter:
             assert len(axis) == 1, "TFLite does not support multi-axis yet"
             axis = int(axis)
 
-        out = relax.op.reverse(input_expr, axis)
+        out = relax.op.flip(input_expr, axis)
         return out
 
     def convert_matrix_set_diag(self, op):
