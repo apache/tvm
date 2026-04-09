@@ -724,7 +724,7 @@ def test_depthwise_conv2d():
         @tf.function(
             input_signature=[
                 tf.TensorSpec(shape=(1, 8, 8, 2), dtype=tf.float32),
-                tf.TensorSpec(shape=(3, 3, 1, 2), dtype=tf.float32),
+                tf.TensorSpec(shape=(3, 3, 2, 1), dtype=tf.float32),
             ]
         )
         def func(self, data, kernel):
