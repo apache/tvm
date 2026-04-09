@@ -2123,6 +2123,15 @@ def create_reduce_test_parameters_axes_attr():
         output.append(("ReduceLogSumExp", value, 13))
         output.append(("ReduceL1", value, 13))
         output.append(("ReduceL2", value, 13))
+        # Opset 11-12 axes-as-attr: verifies get_converter does not
+        # underflow to the v18 (axes-as-input) implementation.
+        output.append(("ReduceMean", value, 11))
+        output.append(("ReduceProd", value, 11))
+        output.append(("ReduceSumSquare", value, 11))
+        output.append(("ReduceLogSum", value, 11))
+        output.append(("ReduceLogSumExp", value, 11))
+        output.append(("ReduceL1", value, 11))
+        output.append(("ReduceL2", value, 11))
     return output
 
 
@@ -3837,7 +3846,7 @@ def test_concat_from_sequence_invalid_new_axis():
         outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, [32, 8])],
     )
     model = helper.make_model(graph, producer_name="test_concat_from_sequence_invalid_new_axis")
-    
+
     with pytest.raises(ValueError, match="ConcatFromSequence only supports new_axis in"):
         from_onnx(model, opset=11)
 
@@ -5528,7 +5537,7 @@ def test_split_to_sequence_keepdims_0(axis: int):
 
     split_to_seq_node = helper.make_node(
         "SplitToSequence",
-        ["data"],          # no split input — keepdims applies here
+        ["data"],  # no split input — keepdims applies here
         ["output"],
         axis=axis,
         keepdims=0,
@@ -5568,6 +5577,7 @@ def test_split_to_sequence_keepdims_ignored_when_split_provided():
     model.ir_version = 8
     # Cannot use check_correctness here as ORT deviates from the spec for this case
     from tvm.relax.frontend.onnx import from_onnx
+
     tvm_model = from_onnx(model, opset=11, keep_params_in_input=True)
     assert tvm_model is not None
 
