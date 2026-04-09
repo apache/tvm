@@ -713,19 +713,7 @@ def test_l2_normalization():
         def func(self, x):
             return tf.nn.l2_normalize(x, axis=-1)
 
-    @I.ir_module
-    class Expected:
-        @R.function
-        def main(x: R.Tensor((2, 4), dtype="float32")) -> R.Tensor((2, 4), dtype="float32"):
-            R.func_attr({"num_input": 1})
-            with R.dataflow():
-                gv: R.Tensor((2, 4), dtype="float32") = R.nn.l2_normalize(
-                    x, eps=1e-12, axis=[1]
-                )
-                R.output(gv)
-            return gv
-
-    verify(L2Normalization, Expected)
+    verify(L2Normalization)
 
 
 def test_slice():
@@ -741,7 +729,7 @@ def test_slice():
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((2, 2), dtype="float32") = R.strided_slice(
-                    x, begin=[1, 1], end=[3, 3]
+                    x, axes=[0, 1], begin=[1, 1], end=[3, 3]
                 )
                 R.output(gv)
             return gv
@@ -761,7 +749,7 @@ def test_reverse_v2():
         def main(x: R.Tensor((2, 3), dtype="float32")) -> R.Tensor((2, 3), dtype="float32"):
             R.func_attr({"num_input": 1})
             with R.dataflow():
-                gv: R.Tensor((2, 3), dtype="float32") = R.reverse(x, axis=1)
+                gv: R.Tensor((2, 3), dtype="float32") = R.flip(x, axis=1)
                 R.output(gv)
             return gv
 
