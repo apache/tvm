@@ -2555,7 +2555,7 @@ class OperatorConverter:
                 "MIRROR_PAD with SYMMETRIC mode is not yet supported."
             )
         # Flatten tuple-of-tuples to a list for relax.op.nn.pad
-        flat_pads = [v for pair in paddings for v in pair]
+        flat_pads = [int(v) for pair in paddings for v in pair]
         out = relax.op.nn.pad(in_expr, flat_pads, pad_mode="reflect")
 
         return out
@@ -3480,12 +3480,8 @@ class OperatorConverter:
 
         # Extract scalar values for on_value and off_value and wrap as PrimValue
         dtype = self.get_tensor_type_str(on_value.tensor.Type())
-        on_val = self.get_tensor_value(on_value)
-        off_val = self.get_tensor_value(off_value)
-        if isinstance(on_val, np.ndarray):
-            on_val = on_val.item()
-        if isinstance(off_val, np.ndarray):
-            off_val = off_val.item()
+        on_val = self.get_tensor_value(on_value).item()
+        off_val = self.get_tensor_value(off_value).item()
         if "float" in dtype:
             on_prim = relax.PrimValue(tvm.tirx.FloatImm(dtype, float(on_val)))
             off_prim = relax.PrimValue(tvm.tirx.FloatImm(dtype, float(off_val)))
