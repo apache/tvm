@@ -787,20 +787,22 @@ def all_class_non_max_suppression(
     """Non-maximum suppression operator for object detection, corresponding to ONNX
     NonMaxSuppression and TensorFlow combined_non_max_suppression.
     NMS is performed for each class separately.
+
     Parameters
     ----------
     boxes : tvm.te.Tensor
         3-D tensor with shape (batch_size, num_boxes, 4)
-    scores: tvm.te.Tensor
+    scores : tvm.te.Tensor
         3-D tensor with shape (batch_size, num_classes, num_boxes)
     max_output_boxes_per_class : int or tvm.te.Tensor, optional
         The maxinum number of output selected boxes per class
-    iou_threshold : float or tvm.te.Tensor, optionaIl
+    iou_threshold : float or tvm.te.Tensor, optional
         IoU test threshold
     score_threshold : float or tvm.te.Tensor, optional
         Score threshold to filter out low score boxes early
     output_format : str, optional
         "onnx" or "tensorflow", see below.
+
     Returns
     -------
     out : list of tvm.te.Tensor
@@ -819,12 +821,12 @@ def all_class_non_max_suppression(
             may contain garbage values. When comparing with ONNX Runtime or other implementations
             that output dynamic shapes, you should only compare the first
             `num_total_detection` rows.
-            Example:
-            ```python
-            selected_indices, valid_count = nms_output
-            actual_count = int(valid_count.numpy()[0])
-            valid_indices = selected_indices.numpy()[:actual_count, :]
-            ```
+            Example::
+
+                selected_indices, valid_count = nms_output
+                actual_count = int(valid_count.numpy()[0])
+                valid_indices = selected_indices.numpy()[:actual_count, :]
+
         If `output_format` is "tensorflow", the output is three tensors, the first
         is `indices` of size `(batch_size, num_class * num_boxes , 2)`, the second is `scores` of
         size `(batch_size, num_class * num_boxes)`, and the third is `num_total_detection` of size

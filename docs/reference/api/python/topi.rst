@@ -43,12 +43,14 @@ tvm.topi.vision
 .. automodule:: tvm.topi.vision
    :members:
    :imported-members:
+   :noindex:
 
 tvm.topi.gpu
 ~~~~~~~~~~~~
 .. automodule:: tvm.topi.gpu
    :members:
    :imported-members:
+   :noindex:
 
 tvm.topi.cpp
 ~~~~~~~~~~~~
