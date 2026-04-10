@@ -134,21 +134,23 @@ def collect_selected_indices(
     num_total_detections=None,
     input_image_size=None,
 ):
-    """Collect selected indices from the core NMS loop into one linear output
+    """Collect selected indices from the core NMS loop into one linear output.
+
     Parameters
     ----------
     num_class : int
-    selected_indices: tvm.te.Tensor
+    selected_indices : tvm.te.Tensor
         2-D tensor with shape (batch_size * num_classes, num_boxes), representing the indices
         of selected boxes by the core NMS loop.
-    num_detections tvm.te.Tensor
+    num_detections : tvm.te.Tensor
         1-D tensor with shape (batch_size * num_classes,), representing
-        the number of boxes selected by the core NMS loop, per batch and class
-    row_offsets tvm.te.Tensor
+        the number of boxes selected by the core NMS loop, per batch and class.
+    row_offsets : tvm.te.Tensor
         1-D tensor with shape (batch_size * num_classes,), this should be the exclusive scan
-        of num_detections
+        of num_detections.
     ir : function
-        A function to generate IR for CPU or GPU, see its usage in vision/nms.py and cuda/nms.py
+        A function to generate IR for CPU or GPU, see its usage in vision/nms.py and cuda/nms.py.
+
     Returns
     -------
     out : tvm.te.Tensor
@@ -243,24 +245,27 @@ def collect_selected_indices(
 def collect_selected_indices_and_scores(
     selected_indices, selected_scores, num_detections, row_offsets, num_total_detections, ir
 ):
-    """Collect selected indices and scores from the core NMS loop into one linear output
+    """Collect selected indices and scores from the core NMS loop into one linear output.
+
     Parameters
     ----------
-    num_class : int
-    selected_indices: tvm.te.Tensor
+    selected_indices : tvm.te.Tensor
         2-D tensor with shape (batch_size * num_classes, num_boxes), representing the indices
         of selected boxes by the core NMS loop.
-    selected_indices: tvm.te.Tensor
+    selected_scores : tvm.te.Tensor
         2-D tensor with shape (batch_size * num_classes, num_boxes), representing the scores
         of selected boxes by the core NMS loop.
-    num_detections tvm.te.Tensor
+    num_detections : tvm.te.Tensor
         2-D tensor with shape (batch_size, num_classes), representing
-        the number of boxes selected by the core NMS loop, per batch and class
-    row_offsets tvm.te.Tensor
+        the number of boxes selected by the core NMS loop, per batch and class.
+    row_offsets : tvm.te.Tensor
         2-D tensor with shape (batch_size, num_classes), this should be the exclusive scan
-        of num_detections along axis 1
+        of num_detections along axis 1.
+    num_total_detections : tvm.te.Tensor
+        Total number of detections.
     ir : function
-        A function to generate IR for CPU or GPU, see its usage in vision/nms.py and cuda/nms.py
+        A function to generate IR for CPU or GPU, see its usage in vision/nms.py and cuda/nms.py.
+
     Returns
     -------
     out : [tvm.te.Tensor, tvm.te.Tensor]
@@ -379,28 +384,30 @@ def run_all_class_nms(
     return_scores=False,
     score_threshold=None,
 ):
-    """The core all class NMS routine
+    """The core all class NMS routine.
+
     Parameters
     ----------
     boxes : tvm.te.Tensor
         3-D tensor with shape (batch_size, num_boxes, 4)
-    sorted_scores: tvm.te.Tensor
-        2-D tensor with shape (batch_size * num_classes, num_boxes)
-        One of the outputs from argsort
-    sorted_indices: tvm.te.Tensor
-        2-D tensor with shape (batch_size * num_classes, num_boxes)
-        The other output from argsort
-    valid_count: tvm.te.Tensor
+    sorted_scores : tvm.te.Tensor
+        2-D tensor with shape (batch_size * num_classes, num_boxes).
+        One of the outputs from argsort.
+    sorted_indices : tvm.te.Tensor
+        2-D tensor with shape (batch_size * num_classes, num_boxes).
+        The other output from argsort.
+    valid_count : tvm.te.Tensor
         1-D tensor with shape (batch_size * num_classes,), representing
-        the number of boxes whose score is above score_threshold, per batch and class
-    max_output_boxes_per_class : int or tvm.te.Tensor, optional
-        The maxinum number of output selected boxes per class
-    iou_threshold : float or tvm.te.Tensor, optionaIl
-        IoU test threshold
+        the number of boxes whose score is above score_threshold, per batch and class.
+    max_output_size_per_class : int or tvm.te.Tensor, optional
+        The maxinum number of output selected boxes per class.
+    iou_threshold : float or tvm.te.Tensor, optional
+        IoU test threshold.
     nms_loop : function
-        A core NMS loop, see its usage in vision/nms.py and cuda/nms.py
+        A core NMS loop, see its usage in vision/nms.py and cuda/nms.py.
     return_scores : bool, optional
         Whether or not to return selected scores, needed by the tensorflow output format.
+
     Returns
     -------
     out : a list of tvm.te.Tensor

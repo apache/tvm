@@ -281,12 +281,14 @@ def check_bool_expr_is_true(bool_expr, vranges, cond=None):
     """Check that bool_expr holds given the condition cond
     for every value of free variables from vranges.
 
-    for example, 2x > 4y solves to x > 2y given x in (0, 10) and y in (0, 10)
-    here bool_expr is x > 2y, vranges is {x: (0, 10), y: (0, 10)}, cond is 2x > 4y
-    We creates iterations to check,
-    for x in range(10):
-      for y in range(10):
-        assert !(2x > 4y) || (x > 2y)
+    For example, ``2x > 4y`` solves to ``x > 2y`` given ``x in (0, 10)``
+    and ``y in (0, 10)``. Here bool_expr is ``x > 2y``,
+    vranges is ``{x: (0, 10), y: (0, 10)}``, cond is ``2x > 4y``.
+    We create iterations to check::
+
+        for x in range(10):
+            for y in range(10):
+                assert !(2x > 4y) || (x > 2y)
 
     Parameters
     ----------

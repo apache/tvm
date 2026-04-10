@@ -24,10 +24,13 @@ Python API
 
     error
     ir
+    arith
     instrument
     transform
     target
     driver
+    testing
+    exec
 
 .. toctree::
     :maxdepth: 1
@@ -62,6 +65,7 @@ Python API
     tirx/analysis
     tirx/stmt_functor
     tirx/transform
+    tirx/backend
 
 .. toctree::
     :maxdepth: 1

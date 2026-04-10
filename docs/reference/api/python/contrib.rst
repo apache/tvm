@@ -113,3 +113,17 @@ tvm.contrib.xcode
 ~~~~~~~~~~~~~~~~~
 .. automodule:: tvm.contrib.xcode
     :members:
+
+
+tvm.contrib.cutlass
+~~~~~~~~~~~~~~~~~~~
+.. automodule:: tvm.contrib.cutlass
+    :members:
+    :imported-members:
+
+
+tvm.contrib.hexagon
+~~~~~~~~~~~~~~~~~~~
+.. automodule:: tvm.contrib.hexagon
+    :members:
+    :imported-members:
