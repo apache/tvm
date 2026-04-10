@@ -248,7 +248,16 @@ def build(
 
     if relax_pipeline is not None:
         if isinstance(relax_pipeline, str):
-            relax_pipeline = relax.get_pipeline(relax_pipeline)
+            # When a target is available, prefer the target-specific pipeline
+            # (which includes DLight scheduling) over the generic string-keyed
+            # pipeline that ignores target kind.
+            if relax_pipeline == "default" and target is not None:
+                try:
+                    relax_pipeline = relax.get_default_pipeline(target)
+                except (ValueError, AttributeError):
+                    relax_pipeline = relax.get_pipeline(relax_pipeline)
+            else:
+                relax_pipeline = relax.get_pipeline(relax_pipeline)
         if target is None:
             mod = relax_pipeline(mod)
         else:
