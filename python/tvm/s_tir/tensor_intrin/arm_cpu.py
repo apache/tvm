@@ -234,16 +234,18 @@ def get_sme_transpose_interleave_2svlx2svl_fp32_intrin(cols, rows):
     the contents of sub-tile 1 and 2 are stored in opposite locations - see the diagram
     below.
 
-    A:                                  Accumulator tile:                     A_t:
-                2SVL                                2SVL                               2SVL
-         +----------------+                 +-----------------+                +-------------------+
-         | --0a--  --1a-- |                 |                 |                | |  |     |  |     |
-         | --0b--  --1b-- |                 |    0       1    |                | 0a 0b .. 2a 2b .. |
-         |   ...     ...  | ld1w.horiz      |                 | st1w.vert      | |  |     |  |     |
-    2SVL | --2a--  --3a-- |   ====>    2SVL |                 |   ====>   2SVL | |  |     |  |     |
-         | --2a--  --3b-- |                 |    2       3    |                | 1a 1b .. 3a 3b .. |
-         |   ...     ...  |                 |                 |                | |  |     |  |     |
-         +----------------+                 +-----------------+                +-------------------+
+    ::
+
+        A:                                  Accumulator tile:                     A_t:
+                    2SVL                                2SVL                               2SVL
+             +----------------+                 +-----------------+                +-------------------+
+             | --0a--  --1a-- |                 |                 |                | |  |     |  |     |
+             | --0b--  --1b-- |                 |    0       1    |                | 0a 0b .. 2a 2b .. |
+             |   ...     ...  | ld1w.horiz      |                 | st1w.vert      | |  |     |  |     |
+        2SVL | --2a--  --3a-- |   ====>    2SVL |                 |   ====>   2SVL | |  |     |  |     |
+             | --2a--  --3b-- |                 |    2       3    |                | 1a 1b .. 3a 3b .. |
+             |   ...     ...  |                 |                 |                | |  |     |  |     |
+             +----------------+                 +-----------------+                +-------------------+
 
     Returns
     -------
@@ -521,24 +523,26 @@ def get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(M, K, in_dtype):
     Diagram showing outer-product performed on each of the accumulator sub-tiles
     for the fp32 datatype:
 
-                       SVL           SVL
-                +----------------------------+
-                |       l     |       h      | K
-            K   +----------------------------+
-         +---+  +----------------------------+
-         |   |  |  0:            1:          |-+
-         |   |  |  mopa(l, l)    mopa(l, h)  | |-+
-       l |   |  |                            | | |
-         |   |  |                            | | |
-         |---|  |                            | | |
-         |   |  |  2:            3:          | | |
-       h |   |  |  mopa(h, l)    mopa(h, h)  | | |
-         |   |  |                            | | |
-         |   |  |                            | | |
-         +---+  +----------------------------+ | |
-                  +----------------------------+ |
-                     +---------------------------+
-                                    (accumulate K times)
+    ::
+
+                           SVL           SVL
+                    +----------------------------+
+                    |       l     |       h      | K
+                K   +----------------------------+
+             +---+  +----------------------------+
+             |   |  |  0:            1:          |-+
+             |   |  |  mopa(l, l)    mopa(l, h)  | |-+
+           l |   |  |                            | | |
+             |   |  |                            | | |
+             |---|  |                            | | |
+             |   |  |  2:            3:          | | |
+           h |   |  |  mopa(h, l)    mopa(h, h)  | | |
+             |   |  |                            | | |
+             |   |  |                            | | |
+             +---+  +----------------------------+ | |
+                      +----------------------------+ |
+                         +---------------------------+
+                                        (accumulate K times)
 
     Pseudo code computing 2SVL x 2SVL GEMM for fp32 inputs:
 
@@ -572,6 +576,7 @@ def get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(M, K, in_dtype):
         }
 
     Notes:
+
     - Recall that A has been transposed beforehand such that each column is now accessed
       by row.
     - 'sme.zero' resets the accumulator tile to contain all zero's.

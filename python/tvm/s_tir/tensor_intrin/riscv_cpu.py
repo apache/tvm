@@ -61,7 +61,9 @@ def rvv_vec_dot_product_kernels(
     with C[LANES].
 
     The pseudo code is as follows:
+
     .. code-block:: c
+
         void vec_dot_prod(A[ELEMS], B[LANES][ELEMS], C[LANES]){
             for (j = 0; j < LANES; j++) {
                 for (k = 0; k < ELEMS; k++) {
