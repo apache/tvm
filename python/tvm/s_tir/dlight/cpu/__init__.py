@@ -20,3 +20,4 @@ CPU-generic schedule rules.
 """
 
 from .gemv import GEMV
+from .reduction import Reduction
