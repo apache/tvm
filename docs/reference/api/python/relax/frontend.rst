@@ -33,7 +33,7 @@ tvm.relax.frontend.nn.llm
 *************************
 .. automodule:: tvm.relax.frontend.nn.llm
    :members:
-   :imported-members:
+   :no-index:
 
 tvm.relax.frontend.onnx
 ***********************

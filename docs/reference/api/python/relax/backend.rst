@@ -28,40 +28,40 @@ tvm.relax.backend.cuda
 **********************
 .. automodule:: tvm.relax.backend.cuda
    :members:
-   :imported-members:
+   :no-index:
 
 tvm.relax.backend.rocm
 **********************
 .. automodule:: tvm.relax.backend.rocm
    :members:
-   :imported-members:
+   :no-index:
 
 tvm.relax.backend.metal
 ***********************
 .. automodule:: tvm.relax.backend.metal
    :members:
-   :imported-members:
+   :no-index:
 
 tvm.relax.backend.adreno
 ************************
 .. automodule:: tvm.relax.backend.adreno
    :members:
-   :imported-members:
+   :no-index:
 
 tvm.relax.backend.gpu_generic
 *****************************
 .. automodule:: tvm.relax.backend.gpu_generic
    :members:
-   :imported-members:
+   :no-index:
 
 tvm.relax.backend.cpu_generic
 *****************************
 .. automodule:: tvm.relax.backend.cpu_generic
    :members:
-   :imported-members:
+   :no-index:
 
 tvm.relax.backend.contrib
 *************************
 .. automodule:: tvm.relax.backend.contrib
    :members:
-   :imported-members:
+   :no-index:

@@ -19,4 +19,4 @@ tvm.relax.testing
 -----------------
 .. automodule:: tvm.relax.testing
    :members:
-   :imported-members:
+   :no-index:
