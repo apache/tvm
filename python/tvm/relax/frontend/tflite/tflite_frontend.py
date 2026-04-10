@@ -2832,9 +2832,7 @@ class OperatorConverter:
             new_b_shape = [1] * max(0, rank_a - rank_b) + [int(s) for s in shape_b]
             max_rank = max(rank_a, rank_b)
 
-            batch_shape = [
-                max(new_a_shape[i], new_b_shape[i]) for i in range(max_rank - 2)
-            ]
+            batch_shape = [max(new_a_shape[i], new_b_shape[i]) for i in range(max_rank - 2)]
 
             a_broadcast = batch_shape + [int(shape_a[-2]), int(shape_a[-1])]
             b_broadcast = batch_shape + [int(shape_b[-2]), int(shape_b[-1])]
@@ -2903,7 +2901,14 @@ class OperatorConverter:
         depth_to_space_options = DepthToSpaceOptions()
         depth_to_space_options.Init(op_options.Bytes, op_options.Pos)
         block_size = depth_to_space_options.BlockSize()
-        out = relax.op.nn.depth_to_space(in_expr, block_size, layout="NHWC")
+
+        # TFLite uses NHWC layout: (N, H, W, C) -> (N, H*bs, W*bs, C/(bs*bs))
+        input_shape = self.get_tensor_shape(input_tensor)
+        n, h, w, c = input_shape
+        out_c = c // (block_size**2)
+        out = relax.op.reshape(in_expr, (n, h, w, block_size, block_size, out_c))
+        out = relax.op.permute_dims(out, [0, 1, 3, 2, 4, 5])
+        out = relax.op.reshape(out, (n, h * block_size, w * block_size, out_c))
 
         return out
 
@@ -2924,7 +2929,17 @@ class OperatorConverter:
         space_to_depth_options = SpaceToDepthOptions()
         space_to_depth_options.Init(op_options.Bytes, op_options.Pos)
         block_size = space_to_depth_options.BlockSize()
-        out = relax.op.nn.space_to_depth(in_expr, block_size, layout="NHWC")
+
+        # TFLite uses NHWC layout: (N, H, W, C) -> (N, H/bs, W/bs, C*bs*bs)
+        input_shape = self.get_tensor_shape(input_tensor)
+        n, h, w, c = input_shape
+        out = relax.op.reshape(
+            in_expr, (n, h // block_size, block_size, w // block_size, block_size, c)
+        )
+        out = relax.op.permute_dims(out, [0, 1, 3, 2, 4, 5])
+        out = relax.op.reshape(
+            out, (n, h // block_size, w // block_size, c * block_size * block_size)
+        )
 
         return out
 
@@ -3348,8 +3363,8 @@ class OperatorConverter:
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 6, "input tensor length should be 6"
 
-        boxes = self.get_tensor_expr(input_tensors[0]) 
-        scores = self.get_tensor_expr(input_tensors[1]) 
+        boxes = self.get_tensor_expr(input_tensors[0])
+        scores = self.get_tensor_expr(input_tensors[1])
 
         max_output_size = self.get_tensor_value(input_tensors[2])
         iou_threshold = self.get_tensor_value(input_tensors[3])
@@ -3403,14 +3418,16 @@ class OperatorConverter:
         )
 
         selected_indices = relax.op.squeeze(nms_ret[0], axis=[0])
-        selected_indices = relax.op.strided_slice(selected_indices, axes=[0], begin=[0], end=[max_output_size])
-        num_valid = relax.op.reshape(nms_ret[1], [])   
+        selected_indices = relax.op.strided_slice(
+            selected_indices, axes=[0], begin=[0], end=[max_output_size]
+        )
+        num_valid = relax.op.reshape(nms_ret[1], [])
 
         # Clamp out-of-bound padded indices to prevent take() crash.
         num_boxes = int(self.get_tensor_shape(input_tensors[0])[0])
         safe_indices = relax.op.clip(selected_indices, min=0, max=num_boxes - 1)
         selected_scores = relax.op.take(scores, safe_indices, axis=0)
-        
+
         out = relax.Tuple([selected_indices, selected_scores, num_valid])
         return out
 
