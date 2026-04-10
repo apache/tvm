@@ -407,8 +407,11 @@ def compile_relax(
         The built runtime module or vm VMExecutable for the given relax workload.
     """
     # pylint: disable=import-outside-toplevel
+    import tvm
+    from tvm import relax
     from tvm.relax import build as relax_build
     from tvm.relax.transform import BindParams, MetaScheduleApplyDatabase
+    from tvm.s_tir import dlight as dl
 
     # pylint: enable=import-outside-toplevel
     if not isinstance(target, Target):
@@ -416,7 +419,70 @@ def compile_relax(
     if params:
         mod = BindParams("main", params)(mod)
 
+    # Build a pipeline with the correct ordering:
+    #   1. library_dispatch + LegalizeOps + FuseOps + FuseTIR
+    #      (same preparation as extract_tasks, so database keys match)
+    #   2. MetaScheduleApplyDatabase — replaces tuned fused-TIR functions
+    #   3. DLight fallback — schedules remaining untuned functions
+    #   4. VM lowering passes
+    # Applying MetaScheduleApplyDatabase BEFORE FuseOps (the original bug)
+    # caused DLight.Matmul to fail on cache-write stages embedded in fused TIR.
+    backend_specific = False
+    if target.kind.name == "cuda":
+        try:
+            from tvm.relax.backend.cuda.pipeline import (  # pylint: disable=import-outside-toplevel
+                library_dispatch_passes,
+                dataflow_lower_passes,
+                finalize_passes,
+            )
+            backend_specific = True
+        except ImportError:
+            pass
+
+    is_gpu_target = target.kind.name in ("cuda", "opencl", "metal", "vulkan", "rocm")
+
+    @tvm.transform.module_pass(opt_level=3)
+    def _ms_pipeline(mod: tvm.ir.IRModule, _ctx: tvm.transform.PassContext) -> tvm.ir.IRModule:
+        fuse_passes = [
+            relax.transform.LegalizeOps(enable_warning=enable_warning),
+            relax.transform.AnnotateTIROpPattern(),
+            relax.transform.FoldConstant(),
+            relax.transform.FuseOps(),
+            relax.transform.FuseTIR(),
+        ]
+        if backend_specific:
+            fuse_passes = library_dispatch_passes(target) + fuse_passes
+        mod = tvm.transform.Sequential(fuse_passes)(mod)
+        mod = MetaScheduleApplyDatabase(enable_warning=enable_warning)(mod)
+        # DLight handles functions not covered by the database.
+        # Use GPU rules for GPU targets; non-GPU targets do not require
+        # explicit thread-binding scheduling at this stage.
+        if is_gpu_target:
+            mod = dl.ApplyDefaultSchedule(
+                dl.gpu.Matmul(),
+                dl.gpu.GEMV(),
+                dl.gpu.Reduction(),
+                dl.gpu.GeneralReduction(),
+                dl.gpu.Fallback(),
+            )(mod)
+        lower = (dataflow_lower_passes(target) if backend_specific else [
+            relax.transform.RewriteDataflowReshape(),
+            relax.transform.ToNonDataflow(),
+            relax.transform.RemovePurityChecking(),
+            relax.transform.CallTIRRewrite(),
+        ])
+        finalize = (finalize_passes(target) if backend_specific else [
+            relax.transform.StaticPlanBlockMemory(),
+            relax.transform.LowerAllocTensor(),
+            relax.transform.KillAfterLastUse(),
+            relax.transform.LowerRuntimeBuiltin(),
+            relax.transform.ComputePrimValue(),
+            relax.transform.VMShapeLower(),
+            relax.transform.AttachGlobalSymbol(),
+        ])
+        mod = tvm.transform.Sequential(lower + finalize)(mod)
+        return mod
+
     with target, database, PassContext(opt_level=3):
-        relax_mod = MetaScheduleApplyDatabase(enable_warning=enable_warning)(mod)
-        relax_ex = relax_build(relax_mod, target=target)
+        relax_ex = relax_build(mod, target=target, relax_pipeline=_ms_pipeline)
     return relax_ex
