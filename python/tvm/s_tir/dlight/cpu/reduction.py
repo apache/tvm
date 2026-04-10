@@ -16,13 +16,18 @@
 # under the License.
 """CPU reduction rule for operators including softmax, layer norm, RMS norm, etc."""
 
-from tvm import s_tir, tirx
+from tvm import DataType, s_tir, tirx
 from tvm.target import Target
 from tvm.target.codegen import llvm_get_vector_width
 
 from ..analysis import normalize_prim_func
 from ..base import get_extent
 from .base import CPUScheduleRule
+
+
+def _get_num_leading_s(dom_kind: str) -> int:
+    """Count leading spatial ('S') axes in a dom_kind string."""
+    return len(dom_kind) - len(dom_kind.lstrip("S"))
 
 
 class Reduction(CPUScheduleRule):
@@ -61,30 +66,34 @@ class Reduction(CPUScheduleRule):
             return None
 
         # Must have at least one reduction block and last block must be injective.
-        has_reduction = any(not bi.is_injective() for bi in block_infos)
-        if not has_reduction or not block_infos[-1].is_injective():
+        if not any(not bi.is_injective() for bi in block_infos):
+            return None
+        if not block_infos[-1].is_injective():
             return None
 
-        # All blocks must have at least one leading spatial axis.
+        # Every block must start with at least one spatial axis, and all blocks
+        # must agree on the minimum number of leading spatial axes.
+        num_leading_s = None
         for bi in block_infos:
             dk = bi.dom_kind()
             if not dk or dk[0] != "S":
                 return None
-
-        # Find the number of leading spatial axes (from the first reduction block).
-        first_reduction = next(bi for bi in block_infos if not bi.is_injective())
-        dom_kind = first_reduction.dom_kind()
-        num_leading_s = len(dom_kind) - len(dom_kind.lstrip("S"))
-        if num_leading_s == 0:
+            n = _get_num_leading_s(dk)
+            num_leading_s = n if num_leading_s is None else min(num_leading_s, n)
+        if not num_leading_s:
             return None
 
-        # Determine vector width from target.
-        try:
-            vlen_bits = llvm_get_vector_width(target)
-        except Exception:  # pylint: disable=broad-except
+        # Infer dtype from the last block's write buffer.
+        last_block_stmt = sch.get(block_infos[-1].block_rv)
+        dtype_bits = (
+            DataType(last_block_stmt.writes[0].buffer.dtype).bits if last_block_stmt.writes else 32
+        )
+
+        # Determine vector lanes from target VLEN.
+        vlen_bits = llvm_get_vector_width(target)
+        if vlen_bits <= 0:
             vlen_bits = 128
-        dtype_bits = 32  # default float32
-        vec_lanes = max(vlen_bits // dtype_bits, 4)
+        vec_lanes = max(vlen_bits // dtype_bits, 2)
 
         # --- Phase 1: Parallelize spatial on the last block ---
         last_block = block_infos[-1]
@@ -96,15 +105,7 @@ class Reduction(CPUScheduleRule):
         sch.parallel(spatial)
 
         # --- Phase 2: Vectorize the last (injective) block ---
-        inner_loops = sch.get_loops(last_block.block_rv)
-        if len(inner_loops) > 1:
-            inner = inner_loops[-1]
-            extent = get_extent(sch, inner)
-            if isinstance(extent, int) and extent > vec_lanes:
-                _, vec_loop = sch.split(inner, factors=[None, vec_lanes])
-                sch.vectorize(vec_loop)
-            elif isinstance(extent, int):
-                sch.vectorize(inner)
+        self._vectorize_inner(sch, last_block.block_rv, vec_lanes)
 
         # --- Phase 3: compute_at all preceding blocks under spatial ---
         for block_info in reversed(block_infos[:-1]):
@@ -112,36 +113,41 @@ class Reduction(CPUScheduleRule):
 
         # --- Phase 4: Vectorize injective, split+unroll reduction blocks ---
         for block_info in block_infos[:-1]:
-            block = block_info.block_rv
-            block_loops = sch.get_loops(block)
-            if len(block_loops) <= 1:
-                continue
-            inner = block_loops[-1]
-            extent = get_extent(sch, inner)
-
             if block_info.is_injective():
-                # Injective blocks (e.g. exp, delta): vectorize directly.
-                if isinstance(extent, int) and extent > vec_lanes:
-                    _, vec_loop = sch.split(inner, factors=[None, vec_lanes])
-                    sch.vectorize(vec_loop)
-                elif isinstance(extent, int) and extent >= 2:
-                    sch.vectorize(inner)
+                self._vectorize_inner(sch, block_info.block_rv, vec_lanes)
             else:
-                # Reduction blocks (e.g. max, sum): split inner to vec_lanes
-                # and annotate for unrolling. This prevents LLVM from doing
-                # harmful full-unroll of the 185-element loop and gives it
-                # a vec_lanes-sized inner loop to auto-vectorize.
-                if isinstance(extent, int) and extent > vec_lanes:
-                    _, inner_loop = sch.split(inner, factors=[None, vec_lanes])
-                    sch.annotate(
-                        inner_loop,
-                        ann_key="pragma_auto_unroll_max_step",
-                        ann_val=vec_lanes,
-                    )
-                    sch.annotate(
-                        inner_loop,
-                        ann_key="pragma_unroll_explicit",
-                        ann_val=1,
-                    )
+                self._unroll_reduction_inner(sch, block_info.block_rv, vec_lanes)
 
         return sch
+
+    @staticmethod
+    def _vectorize_inner(sch, block_rv, vec_lanes):
+        """Split the innermost loop to vec_lanes and vectorize."""
+        block_loops = sch.get_loops(block_rv)
+        if len(block_loops) <= 1:
+            return
+        inner = block_loops[-1]
+        extent = get_extent(sch, inner)
+        if isinstance(extent, int):
+            if extent > vec_lanes:
+                _, vec_loop = sch.split(inner, factors=[None, vec_lanes])
+                sch.vectorize(vec_loop)
+            elif extent >= 2:
+                sch.vectorize(inner)
+        else:
+            _, vec_loop = sch.split(inner, factors=[None, vec_lanes])
+            sch.vectorize(vec_loop)
+
+    @staticmethod
+    def _unroll_reduction_inner(sch, block_rv, vec_lanes):
+        """Split the reduction inner loop and annotate for unrolling."""
+        block_loops = sch.get_loops(block_rv)
+        if len(block_loops) <= 1:
+            return
+        inner = block_loops[-1]
+        extent = get_extent(sch, inner)
+        if isinstance(extent, int) and extent <= vec_lanes:
+            return
+        _, inner_loop = sch.split(inner, factors=[None, vec_lanes])
+        sch.annotate(inner_loop, ann_key="pragma_auto_unroll_max_step", ann_val=vec_lanes)
+        sch.annotate(inner_loop, ann_key="pragma_unroll_explicit", ann_val=1)
