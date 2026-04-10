@@ -745,8 +745,8 @@ bool CheckDataTypeSupport(const Target& target, const std::string& support_func_
 
 Pass BF16ComputeLegalize() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
-    auto target = f->GetAttr<Target>(tvm::attr::kTarget).value();
-    if (CheckDataTypeSupport(target, "tvm.contrib.nvcc.supports_bf16")) {
+    auto opt_target = f->GetAttr<Target>(tvm::attr::kTarget);
+    if (opt_target.defined() && CheckDataTypeSupport(opt_target.value(), "tvm.contrib.nvcc.supports_bf16")) {
       return f;
     }
     return BF16ComputeLegalizer().Legalize(f);
@@ -761,8 +761,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Pass BF16StorageLegalize() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
-    auto target = f->GetAttr<Target>(tvm::attr::kTarget).value();
-    if (CheckDataTypeSupport(target, "tvm.contrib.nvcc.supports_bf16")) {
+    auto opt_target = f->GetAttr<Target>(tvm::attr::kTarget);
+    if (opt_target.defined() && CheckDataTypeSupport(opt_target.value(), "tvm.contrib.nvcc.supports_bf16")) {
       return f;
     }
     return BF16StorageLegalizer().Legalize(f);
@@ -777,8 +777,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Pass FP8ComputeLegalize(ffi::String promote_dtype) {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
-    auto target = f->GetAttr<Target>(tvm::attr::kTarget).value();
-    if (CheckDataTypeSupport(target, "tvm.contrib.nvcc.supports_fp8")) {
+    auto opt_target = f->GetAttr<Target>(tvm::attr::kTarget);
+    if (opt_target.defined() && CheckDataTypeSupport(opt_target.value(), "tvm.contrib.nvcc.supports_fp8")) {
       return f;
     }
     return FP8ComputeLegalizer(DataType(ffi::StringToDLDataType(promote_dtype))).Legalize(f);
@@ -793,8 +793,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Pass FP8StorageLegalize() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
-    auto target = f->GetAttr<Target>(tvm::attr::kTarget).value();
-    if (CheckDataTypeSupport(target, "tvm.contrib.nvcc.supports_fp8")) {
+    auto opt_target = f->GetAttr<Target>(tvm::attr::kTarget);
+    if (opt_target.defined() && CheckDataTypeSupport(opt_target.value(), "tvm.contrib.nvcc.supports_fp8")) {
       return f;
     }
     return FP8StorageLegalizer().Legalize(f);
