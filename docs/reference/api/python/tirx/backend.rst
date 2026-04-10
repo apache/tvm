@@ -15,49 +15,17 @@
     specific language governing permissions and limitations
     under the License.
 
-tvm.topi
---------
-.. automodule:: tvm.topi
-   :members:
-   :imported-members:
-   :noindex:
-   :autosummary:
+tvm.tirx.backend
+================
 
-tvm.topi.nn
-~~~~~~~~~~~
-
-.. automodule:: tvm.topi.nn
-   :members:
-   :imported-members:
-   :autosummary:
-
-tvm.topi.image
-~~~~~~~~~~~~~~
-.. automodule:: tvm.topi.image
-   :members:
-   :imported-members:
-   :autosummary:
-
-tvm.topi.vision
-~~~~~~~~~~~~~~~
-.. automodule:: tvm.topi.vision
+tvm.tirx.backend
+*****************
+.. automodule:: tvm.tirx.backend
    :members:
    :imported-members:
 
-tvm.topi.gpu
-~~~~~~~~~~~~
-.. automodule:: tvm.topi.gpu
-   :members:
-   :imported-members:
-
-tvm.topi.cpp
-~~~~~~~~~~~~
-.. automodule:: tvm.topi.cpp
-   :members:
-   :imported-members:
-
-tvm.topi.testing
-~~~~~~~~~~~~~~~~
-.. automodule:: tvm.topi.testing
+tvm.tirx.backend.adreno
+***********************
+.. automodule:: tvm.tirx.backend.adreno
    :members:
    :imported-members:
