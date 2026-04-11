@@ -522,6 +522,7 @@ def test_square():
         (tf.math.rsqrt, R.rsqrt),
         (tf.nn.softmax, R.nn.softmax),
         (tf.math.sqrt, R.sqrt),
+        (tf.nn.log_softmax, R.nn.log_softmax),
     ],
 )
 def test_element_wise(tf_op, relax_op):
@@ -1665,44 +1666,6 @@ def test_relu_n1_to_1():
             return gv
 
     verify(ReLU_N1_to_1, Expected)
-
-
-def test_log():
-    class Log(tf.Module):
-        @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
-        def func(self, x):
-            return tf.math.log(x)
-
-    @I.ir_module
-    class Expected:
-        @R.function
-        def main(x: R.Tensor((1, 30), dtype="float32")) -> R.Tensor((1, 30), dtype="float32"):
-            R.func_attr({"num_input": 1})
-            with R.dataflow():
-                gv: R.Tensor((1, 30), dtype="float32") = R.log(x)
-                R.output(gv)
-            return gv
-
-    verify(Log, Expected)
-
-
-def test_log_softmax():
-    class LogSoftmax(tf.Module):
-        @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
-        def func(self, x):
-            return tf.nn.log_softmax(x)
-
-    @I.ir_module
-    class Expected:
-        @R.function
-        def main(x: R.Tensor((1, 30), dtype="float32")) -> R.Tensor((1, 30), dtype="float32"):
-            R.func_attr({"num_input": 1})
-            with R.dataflow():
-                gv: R.Tensor((1, 30), dtype="float32") = R.nn.log_softmax(x, axis=-1)
-                R.output(gv)
-            return gv
-
-    verify(LogSoftmax, Expected)
 
 
 if __name__ == "__main__":
