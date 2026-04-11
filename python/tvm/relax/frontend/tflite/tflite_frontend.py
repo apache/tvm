@@ -800,7 +800,12 @@ class OperatorConverter:
             )
 
         # TFL uses only the default epsilon value
-        out = relax.op.nn.l2_normalize(in_expr, eps=1e-12, axis=[input_tensor_rank - 1])
+        # Implement L2 normalization: output = input / sqrt(sum(input^2) + eps)
+        # L2 normalization is applied along the last axis
+        squared = relax.op.square(in_expr)
+        sum_squared = relax.op.sum(squared, axis=input_tensor_rank - 1, keepdims=True)
+        denom = relax.op.sqrt(relax.op.add(sum_squared, relax.const(1e-12, "float32")))
+        out = relax.op.divide(in_expr, denom)
 
         # if we have fused activation fn
         if output_tensor.qnn_params:
@@ -2251,8 +2256,11 @@ class OperatorConverter:
             else:
                 end[i] += begin[i]
 
-        out = relax.op.strided_slice(in_expr, begin, end)
-
+        # Create axes list for all dimensions being sliced
+        axes = list(range(input_tensor_rank))
+        begin = [int(v) for v in begin]
+        end   = [int(v) for v in end]
+        out = relax.op.strided_slice(in_expr, axes=axes, begin=begin, end=end)
         return out
 
     def convert_select(self, op):
@@ -3555,7 +3563,7 @@ class OperatorConverter:
         axis = self.get_tensor_value(input_tensors[1])
         if isinstance(axis, np.ndarray):
             assert axis.size == 1, "only one value is expected."
-            axis = int(axis)
+            axis = int(axis.flat[0])
 
         ndims = len(input_tensors[0].tensor.ShapeAsNumpy())
         assert -1 - ndims <= axis <= ndims, "axis out of range"
@@ -3628,9 +3636,9 @@ class OperatorConverter:
         axis = self.get_tensor_value(input_tensors[1])
         if isinstance(axis, np.ndarray):
             assert len(axis) == 1, "TFLite does not support multi-axis yet"
-            axis = int(axis)
+            axis = int(axis.flat[0])
 
-        out = relax.op.reverse(input_expr, axis)
+        out = relax.op.flip(input_expr, axis)
         return out
 
     def convert_matrix_set_diag(self, op):
