@@ -3089,8 +3089,6 @@ class OperatorConverter:
                 weight_expr_iohw,
                 strides=(stride_h, stride_w),
                 padding=padding,
-                channels=int(out_channels),
-                kernel_size=(int(kernel_h), int(kernel_w)),
                 data_layout="NHWC",
                 kernel_layout="IOHW",
                 out_dtype=output_tensor_type_str,
