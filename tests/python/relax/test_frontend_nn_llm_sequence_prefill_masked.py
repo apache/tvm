@@ -1,0 +1,197 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+"""Focused correctness tests for ``_attention_sequence_prefill_with_mask``.
+
+The masked variant is the encoder-style counterpart of
+``_attention_sequence_prefill``: each sample in a padded batch carries its
+own ``valid_len`` and the kernel applies the padding mask inside the QKV
+load path and the online softmax update. These tests cover the four shape
+/ mask regimes that can break the kernel independently of any scheduler
+tuning:
+
+* ``valid_len == 0``       — entire batch row is padding
+* ``valid_len == seq_len`` — full-length row, must match the unmasked kernel
+* mixed ``valid_lens``     — typical encoder batch
+* grouped-query attention  — ``h_q > h_kv`` with ``group_size > 1``
+
+The reference is a float32 NumPy implementation of masked softmax attention
+restricted to the valid prefix, so the kernel is only compared on the
+unpadded positions (padded positions are intentionally free to contain
+arbitrary garbage).
+"""
+# ruff: noqa: E501
+import math
+
+import numpy as np
+
+import tvm
+import tvm.testing
+from tvm.relax.frontend.nn.llm.kv_cache import _attention_sequence_prefill_with_mask
+
+
+def _reference_masked_attention(q, k, v, valid_lens, sm_scale):
+    """NumPy fp32 reference. Only the first ``valid_lens[b]`` rows are written."""
+    batch, seq_q, h_q, d = q.shape
+    _, seq_kv, h_kv, _ = k.shape
+    group_size = h_q // h_kv
+    out = np.zeros_like(q, dtype=np.float32)
+    q32 = q.astype(np.float32)
+    k32 = k.astype(np.float32)
+    v32 = v.astype(np.float32)
+    for b in range(batch):
+        L = int(valid_lens[b])
+        if L == 0:
+            continue
+        for h in range(h_q):
+            hk = h // group_size
+            qh = q32[b, :L, h, :]  # [L, d]
+            kh = k32[b, :L, hk, :]  # [L, d]
+            vh = v32[b, :L, hk, :]  # [L, d]
+            s = (qh @ kh.T) * sm_scale  # [L, L]
+            m = s.max(axis=-1, keepdims=True)
+            e = np.exp(s - m)
+            p = e / e.sum(axis=-1, keepdims=True)
+            out[b, :L, h, :] = p @ vh
+    return out
+
+
+def _build_masked_prefill(h_kv, h_q, d, dtype, target):
+    sm_scale = 1.0 / math.sqrt(d)
+    tir_func = _attention_sequence_prefill_with_mask(
+        h_kv=h_kv,
+        h_q=h_q,
+        d=d,
+        dtype=dtype,
+        target=target,
+        sm_scale=sm_scale,
+    )
+    mod = tvm.IRModule({"main": tir_func})
+    return tvm.tirx.build(mod["main"], target=target), sm_scale
+
+
+def _run_case(
+    *,
+    target,
+    dev,
+    h_kv,
+    h_q,
+    d,
+    batch,
+    seq,
+    valid_lens,
+    dtype="float16",
+    seed=0,
+):
+    target = tvm.target.Target(target)
+    built, sm_scale = _build_masked_prefill(h_kv, h_q, d, dtype, target)
+
+    np_dtype = {"float16": np.float16, "float32": np.float32}[dtype]
+    rng = np.random.default_rng(seed)
+    q_np = (rng.standard_normal((batch, seq, h_q, d)) * 0.1).astype(np_dtype)
+    k_np = (rng.standard_normal((batch, seq, h_kv, d)) * 0.1).astype(np_dtype)
+    v_np = (rng.standard_normal((batch, seq, h_kv, d)) * 0.1).astype(np_dtype)
+    valid_np = np.asarray(valid_lens, dtype=np.int32)
+    out_np = np.zeros((batch, seq, h_q, d), dtype=np_dtype)
+    lse_np = np.zeros((batch, seq, h_q), dtype=np_dtype)
+
+    q_nd = tvm.runtime.tensor(q_np, device=dev)
+    k_nd = tvm.runtime.tensor(k_np, device=dev)
+    v_nd = tvm.runtime.tensor(v_np, device=dev)
+    valid_nd = tvm.runtime.tensor(valid_np, device=dev)
+    out_nd = tvm.runtime.tensor(out_np, device=dev)
+    lse_nd = tvm.runtime.tensor(lse_np, device=dev)
+
+    built.main(q_nd, k_nd, v_nd, valid_nd, out_nd, lse_nd)
+
+    got = out_nd.numpy().astype(np.float32)
+    ref = _reference_masked_attention(q_np, k_np, v_np, valid_np, sm_scale)
+
+    # Only compare valid rows. Padding rows are undefined by design.
+    rtol, atol = (2e-2, 2e-2) if dtype == "float16" else (1e-4, 1e-4)
+    for b in range(batch):
+        L = int(valid_np[b])
+        if L == 0:
+            continue
+        np.testing.assert_allclose(got[b, :L], ref[b, :L], rtol=rtol, atol=atol)
+
+
+@tvm.testing.requires_gpu
+@tvm.testing.parametrize_targets("cuda", "metal")
+def test_valid_len_zero(target, dev):
+    """All samples are fully padded: kernel must not crash and must stay bounded."""
+    _run_case(
+        target=target,
+        dev=dev,
+        h_kv=4,
+        h_q=4,
+        d=64,
+        batch=2,
+        seq=16,
+        valid_lens=[0, 0],
+    )
+
+
+@tvm.testing.requires_gpu
+@tvm.testing.parametrize_targets("cuda", "metal")
+def test_valid_len_full(target, dev):
+    """All samples are fully valid: must match a plain unmasked attention."""
+    _run_case(
+        target=target,
+        dev=dev,
+        h_kv=4,
+        h_q=4,
+        d=64,
+        batch=2,
+        seq=32,
+        valid_lens=[32, 32],
+    )
+
+
+@tvm.testing.requires_gpu
+@tvm.testing.parametrize_targets("cuda", "metal")
+def test_valid_len_mixed(target, dev):
+    """Typical encoder batch with different valid lengths per sample."""
+    _run_case(
+        target=target,
+        dev=dev,
+        h_kv=4,
+        h_q=4,
+        d=64,
+        batch=4,
+        seq=64,
+        valid_lens=[10, 64, 5, 33],
+    )
+
+
+@tvm.testing.requires_gpu
+@tvm.testing.parametrize_targets("cuda", "metal")
+def test_valid_len_mixed_gqa(target, dev):
+    """Grouped-query attention: ``group_size = h_q / h_kv > 1``."""
+    _run_case(
+        target=target,
+        dev=dev,
+        h_kv=2,
+        h_q=4,
+        d=64,
+        batch=3,
+        seq=32,
+        valid_lens=[8, 32, 17],
+    )
+
+
+if __name__ == "__main__":
+    tvm.testing.main()
