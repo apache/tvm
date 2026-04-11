@@ -76,6 +76,7 @@ Python API
     s_tir/transform
     s_tir/dlight
     s_tir/backend
+    s_tir/tensor_intrin
 
 .. toctree::
     :maxdepth: 1
