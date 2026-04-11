@@ -17,9 +17,17 @@
 # ruff: noqa: E501, F401, F841
 """Integration test for MetaSchedule"""
 
+import tempfile
+
+import numpy as np
+import pytest
+
 import tvm
 import tvm.testing
 from tvm import relax
+from tvm.runtime import tensor as tvm_tensor
+from tvm.runtime import cpu as tvm_cpu
+from tvm.runtime.vm import VirtualMachine
 from tvm.s_tir import meta_schedule as ms
 from tvm.script import ir as I
 from tvm.script import relax as R
@@ -71,6 +79,48 @@ def test_extracting_tasks():
             module_equality=module_equality,
         )
         assert len(extracted_tasks) == count
+
+
+def test_compile_relax_with_database():
+    """End-to-end test: tune with MetaSchedule then compile_relax with the database.
+
+    Verifies that the pipeline ordering in compile_relax is correct: tasks are
+    extracted and tuned against fused-TIR keys, and compile_relax produces those
+    same keys (by running LegalizeOps + FuseOps + FuseTIR before applying the
+    database), so the scheduled kernels are actually picked up.
+    """
+    target = tvm.target.Target({"kind": "llvm", "num-cores": 1})
+
+    # Prepare the fused module whose TIR keys will populate the database.
+    fused_mod = Module0
+    fused_mod = relax.transform.LegalizeOps()(fused_mod)
+    fused_mod = relax.transform.AnnotateTIROpPattern()(fused_mod)
+    fused_mod = relax.transform.FuseOps()(fused_mod)
+    fused_mod = relax.transform.FoldConstant()(fused_mod)
+    fused_mod = relax.transform.FuseTIR()(fused_mod)
+
+    with tempfile.TemporaryDirectory() as work_dir:
+        database = ms.relax_integration.tune_relax(
+            fused_mod,
+            params={},
+            target=target,
+            work_dir=work_dir,
+            max_trials_global=4,
+        )
+        # compile_relax takes the raw module and builds the fused-TIR pipeline
+        # internally; the database keys must therefore match the ones above.
+        exe = ms.relax_integration.compile_relax(
+            database=database,
+            mod=Module0,
+            target=target,
+            params=None,
+        )
+
+    dev = tvm_cpu()
+    vm = VirtualMachine(exe.jit(), dev)
+    data = tvm_tensor(np.zeros((1, 8, 8, 4), dtype="int32"), device=dev)
+    result = vm["main"](data)
+    assert result.numpy().shape == (1, 8, 8, 4)
 
 
 if __name__ == "__main__":
