@@ -957,7 +957,6 @@ def test_reverse_v2():
 
     verify(ReverseV2, Expected)
 
-
 def _make_conv2d_module(data_shape, kernel_shape, data_format, strides, padding):
     class Conv2DModule(tf.Module):
         @tf.function(
