@@ -1602,7 +1602,7 @@ def test_space_to_depth():
 
 
 def test_leaky_relu():
-    class TfInput(tf.Module):
+    class LeakyReLU(tf.Module):
         @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
         def func(self, x):
             return tf.nn.leaky_relu(x, alpha=0.2)
@@ -1619,11 +1619,11 @@ def test_leaky_relu():
                 R.output(gv)
             return gv
 
-    verify(TfInput, Expected)
+    verify(LeakyReLU, Expected)
 
 
 def test_hard_swish():
-    class TfInput(tf.Module):
+    class HardSwish(tf.Module):
         @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
         def func(self, x):
             return x * tf.nn.relu6(x + 3) / 6
@@ -1645,7 +1645,64 @@ def test_hard_swish():
                 R.output(gv)
             return gv
 
-    verify(TfInput, Expected)
+    verify(HardSwish, Expected)
+
+
+def test_relu_n1_to_1():
+    class ReLU_N1_to_1(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
+        def func(self, x):
+            return tf.clip_by_value(x, -1.0, 1.0)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((1, 30), dtype="float32")) -> R.Tensor((1, 30), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((1, 30), dtype="float32") = R.clip(x, min=-1, max=1)
+                R.output(gv)
+            return gv
+
+    verify(ReLU_N1_to_1, Expected)
+
+
+def test_log():
+    class Log(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
+        def func(self, x):
+            return tf.math.log(x)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((1, 30), dtype="float32")) -> R.Tensor((1, 30), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((1, 30), dtype="float32") = R.log(x)
+                R.output(gv)
+            return gv
+
+    verify(Log, Expected)
+
+
+def test_log_softmax():
+    class LogSoftmax(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
+        def func(self, x):
+            return tf.nn.log_softmax(x)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((1, 30), dtype="float32")) -> R.Tensor((1, 30), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((1, 30), dtype="float32") = R.nn.log_softmax(x, axis=-1)
+                R.output(gv)
+            return gv
+
+    verify(LogSoftmax, Expected)
 
 
 if __name__ == "__main__":
