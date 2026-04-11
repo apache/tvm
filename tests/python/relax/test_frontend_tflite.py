@@ -767,6 +767,30 @@ def test_l2_pool2d():
             squared = tf.math.square(data)
             pooled = tf.nn.avg_pool2d(squared, ksize=[2, 2], strides=[1, 1], padding="SAME")
             return tf.math.sqrt(pooled)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            data: R.Tensor((1, 8, 8, 2), dtype="float32")
+        ) -> R.Tensor((1, 8, 8, 2), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                squared = R.power(data, R.const(2.0, "float32"))
+                pooled = R.nn.avg_pool2d(
+                    squared,
+                    pool_size=[2, 2],
+                    strides=[1, 1],
+                    padding=[0, 0, 1, 1],
+                    layout="NHWC",
+                )
+                gv = R.sqrt(pooled)
+                R.output(gv)
+            return gv
+
+    verify(L2Pool2D, Expected)
+
+
 def test_l2_normalization():
     class L2Normalization(tf.Module):
         @tf.function(input_signature=[tf.TensorSpec(shape=(2, 4), dtype=tf.float32)])
@@ -806,24 +830,6 @@ def test_reverse_v2():
     @I.ir_module
     class Expected:
         @R.function
-        def main(
-            data: R.Tensor((1, 8, 8, 2), dtype="float32")
-        ) -> R.Tensor((1, 8, 8, 2), dtype="float32"):
-            R.func_attr({"num_input": 1})
-            with R.dataflow():
-                squared = R.power(data, R.const(2.0, "float32"))
-                pooled = R.nn.avg_pool2d(
-                    squared,
-                    pool_size=[2, 2],
-                    strides=[1, 1],
-                    padding=[0, 0, 1, 1],
-                    layout="NHWC",
-                )
-                gv = R.sqrt(pooled)
-                R.output(gv)
-            return gv
-
-    verify(L2Pool2D, Expected)
         def main(x: R.Tensor((2, 3), dtype="float32")) -> R.Tensor((2, 3), dtype="float32"):
             R.func_attr({"num_input": 1})
             with R.dataflow():
@@ -832,7 +838,6 @@ def test_reverse_v2():
             return gv
 
     verify(ReverseV2, Expected)
-
 
 def _make_conv2d_module(data_shape, kernel_shape, data_format, strides, padding):
     class Conv2DModule(tf.Module):
