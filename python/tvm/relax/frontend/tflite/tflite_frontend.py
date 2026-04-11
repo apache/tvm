@@ -1005,7 +1005,7 @@ class OperatorConverter:
         output_tensor = output_tensors[0]
 
         def _relu6(data):
-            return relax.op.clip(data, 0.0, 6.0)
+            return relax.op.clip(data, min=0.0, max=6.0)
 
         def _hard_swish(data):
             return data * _relu6(data + relax.const(3.0)) / relax.const(6.0)
