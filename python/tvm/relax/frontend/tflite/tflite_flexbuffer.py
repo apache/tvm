@@ -78,12 +78,7 @@ class FlexBufferDecoder:
 
     def indirect_jump(self, offset, byte_width):
         """Helper function to read the offset value and jump"""
-        unpack_str = ""
-        if byte_width == 1:
-            unpack_str = "<B"
-        elif byte_width == 4:
-            unpack_str = "<i"
-        assert unpack_str != ""
+        unpack_str = {1: "<B", 2: "<H", 4: "<I", 8: "<Q"}[byte_width]
         back_jump = struct.unpack(unpack_str, self.buffer[offset : offset + byte_width])[0]
         return offset - back_jump
 
@@ -107,19 +102,26 @@ class FlexBufferDecoder:
         # Each entry in the vector can have different datatype. Each entry is of fixed length. The
         # format is a sequence of all values followed by a sequence of datatype of all values. For
         # example - (4)(3.56)(int)(float) The end here points to the start of the values.
+        # Each type byte contains: (type << 2) | bit_width, where bit_width determines actual size.
         values = list()
         for i in range(0, size):
             value_type_pos = end + size * byte_width + i
-            value_type = FlexBufferType(self.buffer[value_type_pos] >> 2)
-            value_bytes = self.buffer[end + i * byte_width : end + (i + 1) * byte_width]
+            value_type_packed = self.buffer[value_type_pos]
+            value_type = FlexBufferType(value_type_packed >> 2)
+            value_bit_width = BitWidth(value_type_packed & 3)
+            value_byte_width = 1 << value_bit_width
+            value_bytes = self.buffer[end + i * byte_width : end + i * byte_width + value_byte_width]
             if value_type == FlexBufferType.FBT_BOOL:
                 value = bool(value_bytes[0])
             elif value_type == FlexBufferType.FBT_INT:
-                value = struct.unpack("<i", value_bytes)[0]
+                fmt = {1: "<b", 2: "<h", 4: "<i", 8: "<q"}[value_byte_width]
+                value = struct.unpack(fmt, value_bytes)[0]
             elif value_type == FlexBufferType.FBT_UINT:
-                value = struct.unpack("<I", value_bytes)[0]
+                fmt = {1: "<B", 2: "<H", 4: "<I", 8: "<Q"}[value_byte_width]
+                value = struct.unpack(fmt, value_bytes)[0]
             elif value_type == FlexBufferType.FBT_FLOAT:
-                value = struct.unpack("<f", value_bytes)[0]
+                fmt = {4: "<f", 8: "<d"}[value_byte_width]
+                value = struct.unpack(fmt, value_bytes)[0]
             else:
                 raise Exception
             values.append(value)
@@ -128,7 +130,8 @@ class FlexBufferDecoder:
     def decode_map(self, end, byte_width, parent_byte_width):
         """Decodes the flexbuffer map and returns a dict"""
         mid_loc = self.indirect_jump(end, parent_byte_width)
-        map_size = struct.unpack("<i", self.buffer[mid_loc - byte_width : mid_loc])[0]
+        size_fmt = {1: "<b", 2: "<h", 4: "<i", 8: "<q"}[byte_width]
+        map_size = struct.unpack(size_fmt, self.buffer[mid_loc - byte_width : mid_loc])[0]
 
         # Find keys
         keys_offset = mid_loc - byte_width * 3
