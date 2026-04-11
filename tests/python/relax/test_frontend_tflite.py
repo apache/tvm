@@ -1622,5 +1622,31 @@ def test_leaky_relu():
     verify(TfInput, Expected)
 
 
+def test_hard_swish():
+    class TfInput(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
+        def func(self, x):
+            return x * tf.nn.relu6(x + 3) / 6
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((1, 30), dtype="float32")) -> R.Tensor((1, 30), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((1, 30), dtype="float32") = R.add(x, R.const(3.0, dtype="float32"))
+                lv1: R.Tensor((1, 30), dtype="float32") = R.clip(
+                    lv, R.prim_value(T.float64(0.0)), R.prim_value(T.float64(6.0))
+                )
+                lv2: R.Tensor((1, 30), dtype="float32") = R.multiply(x, lv1)
+                gv: R.Tensor((1, 30), dtype="float32") = R.divide(
+                    lv2, R.const(6.0, dtype="float32")
+                )
+                R.output(gv)
+            return gv
+
+    verify(TfInput, Expected)
+
+
 if __name__ == "__main__":
     pytest.main(["-s", __file__])
