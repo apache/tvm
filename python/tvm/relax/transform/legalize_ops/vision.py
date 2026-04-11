@@ -32,11 +32,15 @@ def _all_class_non_max_suppression(block_builder: BlockBuilder, call: Call) -> E
 
     Returns
     -------
-    result : Tuple[Tensor, Tensor]
-        A tuple of (trimmed_indices, num_total_detections) where:
-        - trimmed_indices: Tensor of shape (num_total_detections, 3) containing only
-          valid detection indices (batch_id, class_id, box_id)
-        - num_total_detections: Tensor of shape (1,) with the count of valid detections
+    result : Expr
+        The legalized NMS result.
+
+        - For ONNX output format, returns a tuple of
+          `(trimmed_indices, num_total_detections)`, where `trimmed_indices`
+          contains only valid detection indices.
+        - For TensorFlow output format, returns the TOPI result directly to
+          preserve the `(selected_indices, selected_scores, num_detections)`
+          layout expected by the Relax op.
     """
     boxes = call.args[0]
     scores = call.args[1]
@@ -69,8 +73,9 @@ def _all_class_non_max_suppression(block_builder: BlockBuilder, call: Call) -> E
         output_format,
     )
 
-    # Dynamic output trimming using dynamic_strided_slice
-    # Extract selected_indices and num_total_detections from the NMS result
+    if output_format == "tensorflow":
+        return nms_result
+
     selected_indices = block_builder.emit(TupleGetItem(nms_result, 0))
     num_total_detections = block_builder.emit(TupleGetItem(nms_result, 1))
 
