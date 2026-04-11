@@ -523,6 +523,7 @@ def test_square():
         (tf.math.rsqrt, R.rsqrt),
         (tf.nn.softmax, R.nn.softmax),
         (tf.math.sqrt, R.sqrt),
+        (tf.nn.log_softmax, R.nn.log_softmax),
     ],
 )
 def test_element_wise(tf_op, relax_op):
@@ -1916,6 +1917,72 @@ def test_space_to_depth():
             return gv
 
     verify(SpaceToDepth, Expected)
+
+
+def test_leaky_relu():
+    class LeakyReLU(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
+        def func(self, x):
+            return tf.nn.leaky_relu(x, alpha=0.2)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((1, 30), dtype="float32")) -> R.Tensor((1, 30), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((1, 30), dtype="float32") = R.nn.leakyrelu(
+                    x, alpha=0.20000000298023224
+                )
+                R.output(gv)
+            return gv
+
+    verify(LeakyReLU, Expected)
+
+
+def test_hard_swish():
+    class HardSwish(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
+        def func(self, x):
+            return x * tf.nn.relu6(x + 3) / 6
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((1, 30), dtype="float32")) -> R.Tensor((1, 30), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((1, 30), dtype="float32") = R.add(x, R.const(3.0, dtype="float32"))
+                lv1: R.Tensor((1, 30), dtype="float32") = R.clip(
+                    lv, R.prim_value(T.float64(0.0)), R.prim_value(T.float64(6.0))
+                )
+                lv2: R.Tensor((1, 30), dtype="float32") = R.multiply(x, lv1)
+                gv: R.Tensor((1, 30), dtype="float32") = R.divide(
+                    lv2, R.const(6.0, dtype="float32")
+                )
+                R.output(gv)
+            return gv
+
+    verify(HardSwish, Expected)
+
+
+def test_relu_n1_to_1():
+    class ReLU_N1_to_1(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
+        def func(self, x):
+            return tf.clip_by_value(x, -1.0, 1.0)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((1, 30), dtype="float32")) -> R.Tensor((1, 30), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((1, 30), dtype="float32") = R.clip(x, min=-1, max=1)
+                R.output(gv)
+            return gv
+
+    verify(ReLU_N1_to_1, Expected)
 
 
 if __name__ == "__main__":
