@@ -248,10 +248,15 @@ def build(
 
     if relax_pipeline is not None:
         if isinstance(relax_pipeline, str):
-            # When a target is available, prefer the target-specific pipeline
-            # (which includes DLight scheduling) over the generic string-keyed
-            # pipeline that ignores target kind.
-            if relax_pipeline == "default" and target is not None:
+            # For GPU targets, prefer the target-specific pipeline which
+            # includes DLight scheduling. Without it, TIR functions generated
+            # from ops like Clip/ReLU6 lack thread bindings and fail
+            # VerifyMemory. CPU targets continue to use the generic pipeline
+            # since the CPU-specific pipeline applies fusion passes that can
+            # incorrectly remove call_pure_packed calls whose results are
+            # unused but whose side effects are relied upon.
+            _is_gpu = target is not None and "gpu" in target.keys
+            if relax_pipeline == "default" and _is_gpu:
                 try:
                     relax_pipeline = relax.get_default_pipeline(target)
                 except (ValueError, AttributeError):
