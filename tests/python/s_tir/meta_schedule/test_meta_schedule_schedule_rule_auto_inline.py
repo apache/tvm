@@ -533,5 +533,35 @@ def test_inline_constant_scalars_skip_output_block():
     assert_structural_equal(sch.mod, Full)
 
 
+def test_no_inline_root_block():
+    @tvm.script.ir_module
+    class MaxReduction:
+        @T.prim_func
+        def main(
+            data: T.Buffer((8, 8), "float32"),
+            data_red: T.Buffer((), "float32"),
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            with T.block("data_red"):
+                T.reads(data[0:8, 0:8])
+                T.writes(data_red[()])
+                with T.init():
+                    data_red[()] = T.float32(-3.4e38)
+                for i, j in T.grid(8, 8):
+                    with T.block("update"):
+                        T.reads(data_red[()], data[i, j])
+                        T.writes(data_red[()])
+                        data_red[()] = T.max(data_red[()], data[i, j])
+
+    target = Target("llvm")
+    (space,) = generate_design_space(
+        kind="llvm",
+        mod=MaxReduction,
+        target=target,
+        types=ms.schedule_rule.AutoInline,
+    )
+    tvm.ir.assert_structural_equal(lhs=space.mod, rhs=MaxReduction)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
