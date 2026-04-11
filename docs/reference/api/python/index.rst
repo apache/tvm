@@ -24,10 +24,13 @@ Python API
 
     error
     ir
+    arith
     instrument
     transform
     target
     driver
+    testing
+    exec
 
 .. toctree::
     :maxdepth: 1
@@ -44,10 +47,12 @@ Python API
 
     relax/relax
     relax/analysis
+    relax/backend
     relax/block_builder
     relax/distributed
     relax/frontend
     relax/op
+    relax/testing
     relax/training
     relax/transform
     relax/dpl
@@ -60,6 +65,7 @@ Python API
     tirx/analysis
     tirx/stmt_functor
     tirx/transform
+    tirx/backend
 
 .. toctree::
     :maxdepth: 1
@@ -69,6 +75,7 @@ Python API
     s_tir/schedule
     s_tir/transform
     s_tir/dlight
+    s_tir/backend
 
 .. toctree::
     :maxdepth: 1

@@ -90,7 +90,7 @@ TVM_REGISTER_OP("tirx.fabs")
 
 TVM_REGISTER_OP("tirx.round")
     .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
-                               DispatchLLVMPureIntrin<::llvm::Intrinsic::round, 1>);
+                               DispatchLLVMPureIntrin<::llvm::Intrinsic::nearbyint, 1>);
 
 TVM_REGISTER_OP("tirx.nearbyint")
     .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",

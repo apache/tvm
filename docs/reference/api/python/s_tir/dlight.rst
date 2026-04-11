@@ -17,6 +17,50 @@
 
 tvm.s_tir.dlight
 ----------------
+
+tvm.s_tir.dlight
+****************
 .. automodule:: tvm.s_tir.dlight
    :members:
    :imported-members:
+
+tvm.s_tir.dlight.gpu
+********************
+.. automodule:: tvm.s_tir.dlight.gpu
+   :members:
+   :imported-members:
+   :noindex:
+
+tvm.s_tir.dlight.adreno
+***********************
+.. automodule:: tvm.s_tir.dlight.adreno
+   :members:
+   :imported-members:
+   :noindex:
+
+tvm.s_tir.dlight.cpu
+********************
+.. automodule:: tvm.s_tir.dlight.cpu
+   :members:
+   :imported-members:
+   :noindex:
+
+tvm.s_tir.dlight.analysis
+*************************
+.. automodule:: tvm.s_tir.dlight.analysis
+   :members:
+   :imported-members:
+   :noindex:
+
+tvm.s_tir.dlight.base
+*********************
+.. automodule:: tvm.s_tir.dlight.base
+   :members:
+   :noindex:
+
+tvm.s_tir.dlight.benchmark
+**************************
+.. automodule:: tvm.s_tir.dlight.benchmark
+   :members:
+   :imported-members:
+   :noindex:

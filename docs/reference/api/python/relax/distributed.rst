@@ -20,3 +20,9 @@ tvm.relax.distributed
 .. automodule:: tvm.relax.distributed
    :members:
    :imported-members:
+
+tvm.relax.distributed.transform
+*******************************
+.. automodule:: tvm.relax.distributed.transform
+   :members:
+   :no-index:

@@ -172,10 +172,12 @@ class Database(Object):
 
     def has_workload(self, mod: IRModule) -> bool:
         """Check if the database has the given workload.
+
         Parameters
         ----------
         mod : IRModule
             The IRModule to be searched for.
+
         Returns
         -------
         result : bool
@@ -485,10 +487,12 @@ class PyDatabase:
 
     def has_workload(self, mod: IRModule) -> bool:
         """Check if the database has the given workload.
+
         Parameters
         ----------
         mod : IRModule
             The IRModule to be searched for.
+
         Returns
         -------
         result : bool

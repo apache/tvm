@@ -115,7 +115,7 @@ def link_shared(so_name, objs, extra_args=None):
     ----------
     so_name : str
         Name of the shared library file.
-    objs : list[str,StringImm]
+    objs : list[str, tvm.tirx.StringImm]
     extra_args : dict (str->str) or Map<String,String>
         Additional arguments:
             'hex_arch' - Hexagon architecture, e.g. v68
@@ -187,7 +187,7 @@ def link_shared_macos(so_name, objs, extra_args=None):
     ----------
     so_name : str
         Name of the shared library file.
-    objs : list[str,StringImm]
+    objs : list[str, tvm.tirx.StringImm]
     extra_args : dict (str->str) or Map<String,String>
         Additional arguments:
             'hex_arch' - Hexagon architecture, e.g. v68

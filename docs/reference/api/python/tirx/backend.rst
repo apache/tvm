@@ -15,46 +15,17 @@
     specific language governing permissions and limitations
     under the License.
 
-tvm.relax.frontend
-------------------
-.. automodule:: tvm.relax.frontend
+tvm.tirx.backend
+================
+
+tvm.tirx.backend
+*****************
+.. automodule:: tvm.tirx.backend
    :members:
    :imported-members:
 
-tvm.relax.frontend.nn
-*********************
-.. automodule:: tvm.relax.frontend.nn
-   :members:
-   :imported-members:
-   :exclude-members: BlockBuilder
-   :noindex:
-
-tvm.relax.frontend.nn.llm
-*************************
-.. automodule:: tvm.relax.frontend.nn.llm
-   :members:
-   :no-index:
-
-tvm.relax.frontend.onnx
+tvm.tirx.backend.adreno
 ***********************
-.. automodule:: tvm.relax.frontend.onnx
-   :members:
-   :imported-members:
-
-tvm.relax.frontend.stablehlo
-****************************
-.. automodule:: tvm.relax.frontend.stablehlo
-   :members:
-   :imported-members:
-
-tvm.relax.frontend.tflite
-*************************
-.. automodule:: tvm.relax.frontend.tflite
-   :members:
-   :imported-members:
-
-tvm.relax.frontend.torch
-************************
-.. automodule:: tvm.relax.frontend.torch
+.. automodule:: tvm.tirx.backend.adreno
    :members:
    :imported-members:

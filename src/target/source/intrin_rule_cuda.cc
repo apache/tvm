@@ -37,8 +37,11 @@ struct CUDAMath {
     if (t.is_float()) {
       switch (t.bits()) {
         case 64:
+          // Use nearbyint (ties-to-even) for round to match constant-folding semantics.
+          if (name == "round") return "nearbyint";
           return name;
         case 32:
+          if (name == "round") return "nearbyintf";
           return name + 'f';
         case 16: {
           if (name == "fabs") {

@@ -137,7 +137,7 @@ def detect_iter_map(
     indices : List[PrimExpr]
         The input indices
 
-    input_iters : Map[Var, Range]
+    input_iters : Map[tvm.tir.Var, Range]
         The domain of each input iterators.
 
     predicate : PrimExpr
@@ -178,7 +178,7 @@ def normalize_to_iter_sum(index, input_iters):
     index : PrimExpr
         The input index
 
-    input_iters : Map[Var, Range]
+    input_iters : Map[tvm.tir.Var, Range]
         The domain of each input iterators.
 
     Returns
@@ -211,7 +211,7 @@ def iter_map_simplify(
     indices : List[PrimExpr]
         The input indices
 
-    input_iters : Map[Var, Range]
+    input_iters : Map[tvm.tir.Var, Range]
         The domain of each input iterators.
 
     predicate : PrimExpr
@@ -265,28 +265,34 @@ def subspace_divide(
     simplify_trivial_iterators=True,
 ):
     """Detect if bindings can be written as
-    [a_0*e_0 + b_0 + c_0, a_1*e_1 + b_1, ..., a_n*e_n + b_n]
-    where a = some-quasi-affine-iter-map(input_iters set_minus sub_iters)
-          b = some-quasi-affine-iter-map(sub_iters)
-          c is constant symbols
-          e is the extent of b
-    For example, z*12 + y*3 + x + c = (z*4+y)*3 + x
-                bindings = [z*12 + y*3 + x + c]
-                input_iters = [z, y, x]
-                sub_iter = [x]
-                Then the result will be [a, b] where
-                a = [z*4 + y]
-                b = [x]
+    ``[a_0*e_0 + b_0 + c_0, a_1*e_1 + b_1, ..., a_n*e_n + b_n]``
+
+    where::
+
+        a = some-quasi-affine-iter-map(input_iters set_minus sub_iters)
+        b = some-quasi-affine-iter-map(sub_iters)
+        c is constant symbols
+        e is the extent of b
+
+    For example::
+
+        z*12 + y*3 + x + c = (z*4+y)*3 + x
+        bindings = [z*12 + y*3 + x + c]
+        input_iters = [z, y, x]
+        sub_iter = [x]
+        Then the result will be [a, b] where
+        a = [z*4 + y]
+        b = [x]
 
     Parameters
     ----------
     bindings : List[PrimExpr]
         The input bindings
 
-    input_iters : Map[Var, Range]
+    input_iters : Map[tvm.tir.Var, Range]
         The domain of input iterator, which is the basis of the whole space
 
-    sub_iters : Array[Var]
+    sub_iters : Array[tvm.tir.Var]
         The subset of input_iters, which is the basis of the subspace
 
     predicate : PrimExpr
@@ -302,12 +308,13 @@ def subspace_divide(
     Returns
     -------
     results : List[List[PrimExpr]]
-        The result list has length len(bindings) + 1
-        [0, len(bindings)): The iter map matching result. The inner list is of length 2.
-                            The first expr is the basis of the quotient space.
-                            The second expr is the basis of the subspace.
-        len(bindings): the predicate of outer space and inner space
-        Empty array if no match can be found.
+        The result list has length ``len(bindings) + 1``.
+
+        - ``[0, len(bindings))``: The iter map matching result.
+          The inner list is of length 2. The first expr is the basis
+          of the quotient space. The second expr is the basis of the subspace.
+        - ``len(bindings)``: the predicate of outer space and inner space.
+        - Empty array if no match can be found.
     """
     if isinstance(check_level, str):
         check_level = IterMapLevel.from_str(check_level)
@@ -337,7 +344,7 @@ def inverse_affine_iter_map(iter_map, outputs):
 
     Returns
     -------
-    results : Map[Var, PrimExpr]
+    results : Map[tvm.tir.Var, PrimExpr]
         The map from the input to the transformed result.
     """
     return _ffi_api.InverseAffineIterMap(iter_map, outputs)

@@ -56,6 +56,27 @@ def test_nearbyint():
     tvm.testing.assert_allclose(a_rounded.numpy(), np.rint(a.numpy()))
 
 
+def test_round_ties_to_even():
+    """Test that tir.round uses ties-to-even (banker's rounding) semantics."""
+    m = te.var("m")
+    A = te.placeholder((m,), name="A")
+    A_rounded = te.compute((m,), lambda *i: tvm.tirx.round(A(*i)), name="A")
+
+    mod = te.create_prim_func([A, A_rounded])
+    sch = tvm.s_tir.Schedule(mod)
+    func = tvm.compile(sch.mod, target="llvm")
+
+    dev = tvm.cpu(0)
+    # Midpoint values where ties-to-even and ties-away differ
+    test_values = np.array([0.5, 1.5, 2.5, 3.5, -0.5, -1.5, -2.5, -3.5], dtype="float32")
+    expected = np.array([0.0, 2.0, 2.0, 4.0, 0.0, -2.0, -2.0, -4.0], dtype="float32")
+
+    a = tvm.runtime.tensor(test_values, dev)
+    a_rounded = tvm.runtime.tensor(np.zeros(len(test_values), dtype="float32"), dev)
+    func(a, a_rounded)
+    tvm.testing.assert_allclose(a_rounded.numpy(), expected)
+
+
 def test_round_intrinsics_on_int():
     i = tvm.tirx.Var("i", "int32")
     for op in [tvm.tirx.round, tvm.tirx.trunc, tvm.tirx.ceil, tvm.tirx.floor, tvm.tirx.nearbyint]:

@@ -27,10 +27,12 @@ import tflite.Model
 from tensorflow.keras import applications as keras_app
 
 import tvm
+import tvm.relax.frontend.tflite.tflite_frontend as tflite_frontend
 from tvm import relax
 from tvm.relax.frontend.tflite import from_tflite
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
+from tvm.script.parser import tirx as T
 
 
 def _get_mod_from_cfunc(cfunc):
@@ -765,6 +767,41 @@ def test_l2_pool2d():
             squared = tf.math.square(data)
             pooled = tf.nn.avg_pool2d(squared, ksize=[2, 2], strides=[1, 1], padding="SAME")
             return tf.math.sqrt(pooled)
+def test_l2_normalization():
+    class L2Normalization(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(2, 4), dtype=tf.float32)])
+        def func(self, x):
+            return tf.nn.l2_normalize(x, axis=-1)
+
+    verify(L2Normalization)
+
+
+def test_slice():
+    class Slice(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(3, 4), dtype=tf.float32)])
+        def func(self, x):
+            return tf.slice(x, begin=[1, 1], size=[2, 2])
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((3, 4), dtype="float32")) -> R.Tensor((2, 2), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((2, 2), dtype="float32") = R.strided_slice(
+                    x, axes=[0, 1], begin=[1, 1], end=[3, 3]
+                )
+                R.output(gv)
+            return gv
+
+    verify(Slice, Expected)
+
+
+def test_reverse_v2():
+    class ReverseV2(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(2, 3), dtype=tf.float32)])
+        def func(self, x):
+            return tf.reverse(x, axis=[1])
 
     @I.ir_module
     class Expected:
@@ -787,6 +824,14 @@ def test_l2_pool2d():
             return gv
 
     verify(L2Pool2D, Expected)
+        def main(x: R.Tensor((2, 3), dtype="float32")) -> R.Tensor((2, 3), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((2, 3), dtype="float32") = R.flip(x, axis=1)
+                R.output(gv)
+            return gv
+
+    verify(ReverseV2, Expected)
 
 
 def _make_conv2d_module(data_shape, kernel_shape, data_format, strides, padding):
@@ -1108,9 +1153,7 @@ def _verify_nms_v5(mod, tf_func, boxes_np, scores_np):
     if "CI_ENV_NIGHTLY" not in os.environ:
         return
 
-    tf_indices, tf_scores, tf_valid = tf_func(
-        tf.constant(boxes_np), tf.constant(scores_np)
-    )
+    tf_indices, tf_scores, tf_valid = tf_func(tf.constant(boxes_np), tf.constant(scores_np))
     n_valid = int(tf_valid.numpy())
 
     tgt = tvm.target.Target("llvm")
@@ -1165,6 +1208,142 @@ def _build_nms_v5_mod(num_boxes, max_output_size, iou_threshold, score_threshold
     return mod, instance.func
 
 
+class _StubDetectionPostprocessTensor:
+    def __init__(self, shape, name):
+        self._shape = list(shape)
+        self._name = name
+
+    def Shape(self, index):
+        return self._shape[index]
+
+    def Name(self):
+        return self._name
+
+    def Type(self):
+        return 0
+
+
+class _StubDetectionPostprocessOp:
+    def __init__(self, custom_options):
+        self._custom_options = _encode_detection_postprocess_custom_options(custom_options)
+
+    def CustomOptionsAsNumpy(self):
+        return np.frombuffer(self._custom_options, dtype="uint8")
+
+
+_DETECTION_POSTPROCESS_ANCHORS = np.array(
+    [
+        [0.5, 0.5, 1.0, 1.0],
+        [0.5, 0.2, 1.0, 1.0],
+        [0.1, 0.1, 0.5, 0.5],
+        [0.8, 0.8, 0.2, 0.2],
+    ],
+    dtype="float32",
+)
+
+
+def _encode_detection_postprocess_custom_options(custom_options):
+    from flatbuffers import flexbuffers
+
+    builder = flexbuffers.Builder()
+    with builder.Map():
+        for key, value in custom_options.items():
+            if isinstance(value, bool):
+                builder.Bool(key, value)
+            elif isinstance(value, int):
+                builder.Int(key, value)
+            else:
+                builder.Float(key, float(value))
+    return bytes(builder.Finish())
+
+
+def _make_detection_postprocess_tensor_wrapper(tensor_idx, shape, name):
+    return tflite_frontend.TensorWrapper(
+        tensor_idx,
+        _StubDetectionPostprocessTensor(shape, name),
+        None,
+    )
+
+
+def _build_detection_postprocess_mod(
+    *,
+    num_classes=1,
+    max_detections=4,
+    detections_per_class=4,
+    use_regular_nms=False,
+    nms_iou_threshold=0.5,
+    nms_score_threshold=0.3,
+    x_scale=10.0,
+    y_scale=10.0,
+    w_scale=5.0,
+    h_scale=5.0,
+    batch_size=2,
+    num_anchors=4,
+    input_num_classes=None,
+):
+    custom_options = {
+        "num_classes": num_classes,
+        "max_detections": max_detections,
+        "detections_per_class": detections_per_class,
+        "nms_iou_threshold": nms_iou_threshold,
+        "nms_score_threshold": nms_score_threshold,
+        "x_scale": x_scale,
+        "y_scale": y_scale,
+        "w_scale": w_scale,
+        "h_scale": h_scale,
+        "use_regular_nms": use_regular_nms,
+    }
+    return _convert_detection_postprocess_with_options(
+        custom_options,
+        batch_size=batch_size,
+        num_anchors=num_anchors,
+        num_classes=num_classes,
+        input_num_classes=input_num_classes,
+    )
+
+
+def _convert_detection_postprocess_with_options(
+    custom_options,
+    *,
+    batch_size=2,
+    num_anchors=4,
+    num_classes=1,
+    input_num_classes=None,
+    build_module=True,
+):
+    input_num_classes = num_classes if input_num_classes is None else input_num_classes
+    loc = relax.Var("loc", relax.TensorStructInfo((batch_size, num_anchors, 4), "float32"))
+    cls = relax.Var(
+        "cls", relax.TensorStructInfo((batch_size, num_anchors, input_num_classes), "float32")
+    )
+    inputs = [
+        _make_detection_postprocess_tensor_wrapper(0, (batch_size, num_anchors, 4), "loc"),
+        _make_detection_postprocess_tensor_wrapper(
+            1, (batch_size, num_anchors, input_num_classes), "cls"
+        ),
+        _make_detection_postprocess_tensor_wrapper(2, (num_anchors, 4), "anchors"),
+    ]
+    converter = tflite_frontend.OperatorConverter.__new__(tflite_frontend.OperatorConverter)
+    converter.bb = relax.BlockBuilder()
+    converter.exp_tab = tflite_frontend.ExprTable()
+    converter.get_input_tensors = lambda op: inputs
+    converter.get_expr = lambda tensor_idx: {0: loc, 1: cls}[tensor_idx]
+    converter.get_tensor_value = (
+        lambda tensor: _DETECTION_POSTPROCESS_ANCHORS if tensor.tensor_idx == 2 else None
+    )
+    converter.get_tensor_type_str = lambda tensor_type: "float32"
+    op = _StubDetectionPostprocessOp(custom_options)
+    if not build_module:
+        return converter.convert_detection_postprocess(op)
+    bb = converter.bb
+    with bb.function("main", [loc, cls]):
+        with bb.dataflow():
+            output = converter.convert_detection_postprocess(op)
+            gv = bb.emit_output(output)
+        bb.emit_func_output(gv)
+    return bb.get()
+
+
 def _make_valid_boxes(rng, n):
     """Generate n random boxes with y1<=y2, x1<=x2 using the given RNG."""
     raw = rng.random((n, 4), dtype=np.float32)
@@ -1181,51 +1360,75 @@ def _make_valid_boxes(rng, n):
 
 _NMS_V5_CASES = [
     pytest.param(
-        6, 3, 0.5, 0.0,
-        np.array([
-            [0.0, 0.0, 1.0, 1.0],
-            [0.0, 0.0, 1.0, 1.0],
-            [0.0, 0.1, 1.0, 1.1],
-            [0.0, 0.0, 1.0, 0.9],
-            [0.5, 0.5, 1.5, 1.5],
-            [0.0, 0.0, 0.3, 0.3],
-        ], dtype=np.float32),
+        6,
+        3,
+        0.5,
+        0.0,
+        np.array(
+            [
+                [0.0, 0.0, 1.0, 1.0],
+                [0.0, 0.0, 1.0, 1.0],
+                [0.0, 0.1, 1.0, 1.1],
+                [0.0, 0.0, 1.0, 0.9],
+                [0.5, 0.5, 1.5, 1.5],
+                [0.0, 0.0, 0.3, 0.3],
+            ],
+            dtype=np.float32,
+        ),
         np.array([0.9, 0.75, 0.6, 0.5, 0.4, 0.3], dtype=np.float32),
         id="basic",
     ),
     pytest.param(
-        8, 4, 0.5, 0.4,
+        8,
+        4,
+        0.5,
+        0.4,
         _make_valid_boxes(np.random.default_rng(42), 8),
         np.random.default_rng(42).random(8, dtype=np.float32),
         id="score_threshold",
     ),
     pytest.param(
-        5, 3, 0.5, 0.99,
+        5,
+        3,
+        0.5,
+        0.99,
         _make_valid_boxes(np.random.default_rng(0), 5),
         np.array([0.1, 0.2, 0.3, 0.4, 0.5], dtype=np.float32),
         id="all_suppressed",
     ),
     pytest.param(
-        6, 6, 0.1, 0.0,
-        np.array([
-            [0.0, 0.0, 0.4, 0.4],
-            [0.5, 0.5, 0.9, 0.9],
-            [0.1, 0.1, 0.5, 0.5],
-            [0.6, 0.6, 1.0, 1.0],
-            [0.0, 0.5, 0.4, 0.9],
-            [0.5, 0.0, 0.9, 0.4],
-        ], dtype=np.float32),
+        6,
+        6,
+        0.1,
+        0.0,
+        np.array(
+            [
+                [0.0, 0.0, 0.4, 0.4],
+                [0.5, 0.5, 0.9, 0.9],
+                [0.1, 0.1, 0.5, 0.5],
+                [0.6, 0.6, 1.0, 1.0],
+                [0.0, 0.5, 0.4, 0.9],
+                [0.5, 0.0, 0.9, 0.4],
+            ],
+            dtype=np.float32,
+        ),
         np.array([0.9, 0.85, 0.7, 0.65, 0.6, 0.55], dtype=np.float32),
         id="iou_threshold",
     ),
     pytest.param(
-        4, 10, 0.5, 0.0,
-        np.array([
-            [0.0, 0.0, 0.3, 0.3],
-            [0.5, 0.5, 0.8, 0.8],
-            [0.1, 0.1, 0.4, 0.4],
-            [0.6, 0.6, 0.9, 0.9],
-        ], dtype=np.float32),
+        4,
+        10,
+        0.5,
+        0.0,
+        np.array(
+            [
+                [0.0, 0.0, 0.3, 0.3],
+                [0.5, 0.5, 0.8, 0.8],
+                [0.1, 0.1, 0.4, 0.4],
+                [0.6, 0.6, 0.9, 0.9],
+            ],
+            dtype=np.float32,
+        ),
         np.array([0.9, 0.85, 0.7, 0.65], dtype=np.float32),
         id="max_output_size_larger_than_boxes",
     ),
@@ -1266,7 +1469,140 @@ def test_nms_v5_ir():
     assert f"R.Tensor(({max_output_size},)" in ir
 
 
-def _make_resize_expected(input_shape, output_size, method, coordinate_transformation_mode, rounding_method):
+_DETECTION_POSTPROCESS_SMOKE_CASES = [
+    pytest.param(
+        {
+            "num_classes": 2,
+            "input_num_classes": 3,
+            "max_detections": 2,
+            "detections_per_class": 2,
+            "use_regular_nms": False,
+            "nms_iou_threshold": 0.5,
+            "nms_score_threshold": 0.5,
+            "batch_size": 1,
+            "num_anchors": 4,
+        },
+        2,
+        False,
+        id="basic_fast_nms",
+    ),
+    pytest.param(
+        {
+            "num_classes": 2,
+            "input_num_classes": 3,
+            "max_detections": 3,
+            "detections_per_class": 2,
+            "use_regular_nms": True,
+            "nms_iou_threshold": 0.45,
+            "nms_score_threshold": 0.25,
+            "batch_size": 2,
+            "num_anchors": 4,
+        },
+        1,
+        True,
+        id="regular_nms_multi_batch",
+    ),
+]
+
+
+_DETECTION_POSTPROCESS_SHAPE_CASES = [
+    pytest.param(
+        {
+            "num_classes": 2,
+            "input_num_classes": 5,
+            "max_detections": 2,
+            "detections_per_class": 2,
+            "use_regular_nms": False,
+            "nms_iou_threshold": 0.5,
+            "nms_score_threshold": 0.5,
+            "batch_size": 1,
+            "num_anchors": 4,
+        },
+        id="wider_input_classes",
+    ),
+    pytest.param(
+        {
+            "num_classes": 2,
+            "input_num_classes": 3,
+            "max_detections": 4,
+            "detections_per_class": 4,
+            "use_regular_nms": False,
+            "nms_iou_threshold": 0.5,
+            "nms_score_threshold": 0.5,
+            "batch_size": 1,
+            "num_anchors": 4,
+        },
+        id="larger_max_detections",
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    "build_kwargs,expected_topk_count,expected_keep_background",
+    _DETECTION_POSTPROCESS_SMOKE_CASES,
+)
+def test_detection_postprocess_smoke(
+    build_kwargs, expected_topk_count, expected_keep_background
+):
+    mod = _build_detection_postprocess_mod(**build_kwargs)
+    ir = mod.script()
+
+    assert "R.vision.multibox_transform_loc" in ir
+    assert "R.vision.all_class_non_max_suppression" in ir
+    assert 'output_format="tensorflow"' in ir
+    assert "R.where" in ir
+    assert "R.gather_elements" in ir
+    assert "R.gather_nd" in ir
+    assert ir.count("R.topk(") == expected_topk_count
+    assert f"keep_background={expected_keep_background}" in ir
+    expected_batch = build_kwargs["batch_size"]
+    expected_max_detections = build_kwargs["max_detections"]
+    tvm.ir.assert_structural_equal(
+        mod["main"].ret_struct_info,
+        relax.TupleStructInfo(
+            [
+                relax.TensorStructInfo((expected_batch, expected_max_detections, 4), "float32"),
+                relax.TensorStructInfo((expected_batch, expected_max_detections), "float32"),
+                relax.TensorStructInfo((expected_batch, expected_max_detections), "float32"),
+                relax.TensorStructInfo((expected_batch,), "float32"),
+            ]
+        ),
+    )
+
+    legalized = relax.transform.LegalizeOps()(mod)
+    legalized_ir = legalized.script()
+    assert "R.vision.all_class_non_max_suppression(" not in legalized_ir
+    assert "R.call_tir(" in legalized_ir
+    tvm.ir.assert_structural_equal(legalized["main"].ret_struct_info, mod["main"].ret_struct_info)
+
+
+@pytest.mark.parametrize("build_kwargs", _DETECTION_POSTPROCESS_SHAPE_CASES)
+def test_detection_postprocess_shape_variations(build_kwargs):
+    mod = _build_detection_postprocess_mod(**build_kwargs)
+    batch_size = build_kwargs["batch_size"]
+    num_anchors = build_kwargs["num_anchors"]
+    input_num_classes = build_kwargs["input_num_classes"]
+    max_detections = build_kwargs["max_detections"]
+
+    tvm.ir.assert_structural_equal(
+        mod["main"].params[1].struct_info,
+        relax.TensorStructInfo((batch_size, num_anchors, input_num_classes), "float32"),
+    )
+    tvm.ir.assert_structural_equal(
+        mod["main"].ret_struct_info,
+        relax.TupleStructInfo(
+            [
+                relax.TensorStructInfo((batch_size, max_detections, 4), "float32"),
+                relax.TensorStructInfo((batch_size, max_detections), "float32"),
+                relax.TensorStructInfo((batch_size, max_detections), "float32"),
+                relax.TensorStructInfo((batch_size,), "float32"),
+            ]
+        ),
+    )
+
+def _make_resize_expected(
+    input_shape, output_size, method, coordinate_transformation_mode, rounding_method
+):
     """Build an Expected IRModule programmatically to avoid TVMScript variable scope limitations."""
     bb = relax.BlockBuilder()
     x = relax.Var("x", relax.TensorStructInfo(input_shape, "float32"))
@@ -1296,13 +1632,48 @@ def _make_resize_expected(input_shape, output_size, method, coordinate_transform
 @pytest.mark.parametrize(
     "input_shape, output_size, tf_op, coordinate_transformation_mode",
     [
-        ((1, 4, 4, 1), [8, 8],   lambda x: tf.image.resize(x, [8, 8],   method="bilinear"),                                          "half_pixel"),
-        ((1, 8, 8, 3), [4, 4],   lambda x: tf.image.resize(x, [4, 4],   method="bilinear"),                                          "half_pixel"),
-        ((1, 4, 4, 1), [7, 7],   lambda x: tf.compat.v1.image.resize_bilinear(x, [7, 7], align_corners=True),                        "align_corners"),
-        ((1, 4, 4, 2), [8, 8],   lambda x: tf.compat.v1.image.resize_bilinear(x, [8, 8], half_pixel_centers=True),                   "half_pixel"),
-        ((2, 6, 6, 16), [12, 12], lambda x: tf.image.resize(x, [12, 12], method="bilinear"),                                         "half_pixel"),
-        ((1, 5, 5, 3), [5, 5],   lambda x: tf.image.resize(x, [5, 5],   method="bilinear"),                                          "half_pixel"),
-        ((1, 4, 8, 1), [8, 16],  lambda x: tf.image.resize(x, [8, 16],  method="bilinear"),                                          "half_pixel"),
+        (
+            (1, 4, 4, 1),
+            [8, 8],
+            lambda x: tf.image.resize(x, [8, 8], method="bilinear"),
+            "half_pixel",
+        ),
+        (
+            (1, 8, 8, 3),
+            [4, 4],
+            lambda x: tf.image.resize(x, [4, 4], method="bilinear"),
+            "half_pixel",
+        ),
+        (
+            (1, 4, 4, 1),
+            [7, 7],
+            lambda x: tf.compat.v1.image.resize_bilinear(x, [7, 7], align_corners=True),
+            "align_corners",
+        ),
+        (
+            (1, 4, 4, 2),
+            [8, 8],
+            lambda x: tf.compat.v1.image.resize_bilinear(x, [8, 8], half_pixel_centers=True),
+            "half_pixel",
+        ),
+        (
+            (2, 6, 6, 16),
+            [12, 12],
+            lambda x: tf.image.resize(x, [12, 12], method="bilinear"),
+            "half_pixel",
+        ),
+        (
+            (1, 5, 5, 3),
+            [5, 5],
+            lambda x: tf.image.resize(x, [5, 5], method="bilinear"),
+            "half_pixel",
+        ),
+        (
+            (1, 4, 8, 1),
+            [8, 16],
+            lambda x: tf.image.resize(x, [8, 16], method="bilinear"),
+            "half_pixel",
+        ),
     ],
 )
 def test_resize_bilinear(input_shape, output_size, tf_op, coordinate_transformation_mode):
@@ -1311,29 +1682,316 @@ def test_resize_bilinear(input_shape, output_size, tf_op, coordinate_transformat
         def func(self, x):
             return tf_op(x)
 
-    expected = _make_resize_expected(input_shape, output_size, "linear", coordinate_transformation_mode, "")
+    expected = _make_resize_expected(
+        input_shape, output_size, "linear", coordinate_transformation_mode, ""
+    )
     verify(ResizeBilinear, expected)
 
 
 @pytest.mark.parametrize(
     "input_shape, output_size, tf_op, coordinate_transformation_mode, rounding_method",
     [
-        ((1, 2, 2, 1), [4, 4],   lambda x: tf.image.resize(x, [4, 4],   method="nearest"),                                "half_pixel",   "round_prefer_ceil"),
-        ((1, 8, 8, 3), [4, 4],   lambda x: tf.image.resize(x, [4, 4],   method="nearest"),                                "half_pixel",   "round_prefer_ceil"),
-        ((1, 4, 4, 1), [7, 7],   lambda x: tf.compat.v1.image.resize_nearest_neighbor(x, [7, 7], align_corners=True),     "align_corners", ""),
-        ((4, 3, 3, 8), [6, 6],   lambda x: tf.image.resize(x, [6, 6],   method="nearest"),                                "half_pixel",   "round_prefer_ceil"),
-        ((1, 4, 8, 1), [8, 16],  lambda x: tf.image.resize(x, [8, 16],  method="nearest"),                                "half_pixel",   "round_prefer_ceil"),
-        ((1, 3, 3, 2), [3, 3],   lambda x: tf.image.resize(x, [3, 3],   method="nearest"),                                "half_pixel",   "round_prefer_ceil"),
+        (
+            (1, 2, 2, 1),
+            [4, 4],
+            lambda x: tf.image.resize(x, [4, 4], method="nearest"),
+            "half_pixel",
+            "round_prefer_ceil",
+        ),
+        (
+            (1, 8, 8, 3),
+            [4, 4],
+            lambda x: tf.image.resize(x, [4, 4], method="nearest"),
+            "half_pixel",
+            "round_prefer_ceil",
+        ),
+        (
+            (1, 4, 4, 1),
+            [7, 7],
+            lambda x: tf.compat.v1.image.resize_nearest_neighbor(x, [7, 7], align_corners=True),
+            "align_corners",
+            "",
+        ),
+        (
+            (4, 3, 3, 8),
+            [6, 6],
+            lambda x: tf.image.resize(x, [6, 6], method="nearest"),
+            "half_pixel",
+            "round_prefer_ceil",
+        ),
+        (
+            (1, 4, 8, 1),
+            [8, 16],
+            lambda x: tf.image.resize(x, [8, 16], method="nearest"),
+            "half_pixel",
+            "round_prefer_ceil",
+        ),
+        (
+            (1, 3, 3, 2),
+            [3, 3],
+            lambda x: tf.image.resize(x, [3, 3], method="nearest"),
+            "half_pixel",
+            "round_prefer_ceil",
+        ),
     ],
 )
-def test_resize_nearest_neighbor(input_shape, output_size, tf_op, coordinate_transformation_mode, rounding_method):
+def test_resize_nearest_neighbor(
+    input_shape, output_size, tf_op, coordinate_transformation_mode, rounding_method
+):
     class ResizeNearest(tf.Module):
         @tf.function(input_signature=[tf.TensorSpec(shape=input_shape, dtype=tf.float32)])
         def func(self, x):
             return tf_op(x)
 
-    expected = _make_resize_expected(input_shape, output_size, "nearest_neighbor", coordinate_transformation_mode, rounding_method)
+    expected = _make_resize_expected(
+        input_shape,
+        output_size,
+        "nearest_neighbor",
+        coordinate_transformation_mode,
+        rounding_method,
+    )
     verify(ResizeNearest, expected)
+
+
+def _make_reduce_expected(relax_op, input_shape, axes, keepdims, dtype):
+    if axes is None:
+        axes = list(range(len(input_shape)))
+    bb = relax.BlockBuilder()
+    x = relax.Var("x", relax.TensorStructInfo(input_shape, dtype))
+    with bb.function("main", [x]):
+        with bb.dataflow():
+            gv = bb.emit_output(relax_op(x, axis=axes, keepdims=keepdims))
+        bb.emit_func_output(gv)
+    mod = bb.get()
+    mod["main"] = mod["main"].with_attr("num_input", 1)
+    return mod
+
+
+@pytest.mark.parametrize(
+    "tf_op, relax_op",
+    [
+        (tf.reduce_sum, relax.op.sum),
+        (tf.reduce_mean, relax.op.mean),
+        (tf.reduce_max, relax.op.max),
+        (tf.reduce_min, relax.op.min),
+        (tf.reduce_prod, relax.op.prod),
+    ],
+)
+@pytest.mark.parametrize(
+    "input_shape, axes",
+    [
+        ((1, 8, 8, 3), 1),
+        ((1, 8, 8, 3), [1, 2]),
+        ((1, 8, 8, 3), -1),
+        ((1, 8, 8, 3), None),
+        ((30,), 0),
+        ((2, 5, 2), [0, 2]),
+    ],
+)
+@pytest.mark.parametrize("keepdims", [True, False])
+@pytest.mark.parametrize("dtype", [tf.float32, tf.int32])
+def test_reduction_ops(tf_op, relax_op, input_shape, axes, keepdims, dtype):
+    class ReduceModule(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=input_shape, dtype=dtype)])
+        def func(self, x):
+            return tf_op(x, axis=axes, keepdims=keepdims)
+
+    relax_dtype = "float32" if dtype == tf.float32 else "int32"
+    expected = _make_reduce_expected(relax_op, input_shape, axes, keepdims, relax_dtype)
+    verify(ReduceModule, expected)
+
+
+def test_pad():
+    class Pad(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(2, 3), dtype=tf.float32)])
+        def func(self, x):
+            return tf.pad(x, [[1, 1], [2, 2]])
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 3), dtype="float32")) -> R.Tensor((4, 7), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((4, 7), dtype="float32") = R.nn.pad(
+                    x, pad_width=[1, 1, 2, 2], pad_value=0.0, pad_mode="constant"
+                )
+                R.output(gv)
+            return gv
+
+    verify(Pad, Expected)
+
+
+def test_pad_v2():
+    class PadV2(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(2, 3), dtype=tf.float32)])
+        def func(self, x):
+            return tf.pad(x, [[1, 1], [2, 2]], constant_values=5.0)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 3), dtype="float32")) -> R.Tensor((4, 7), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((4, 7), dtype="float32") = R.nn.pad(
+                    x, pad_width=[1, 1, 2, 2], pad_value=5.0, pad_mode="constant"
+                )
+                R.output(gv)
+            return gv
+
+    verify(PadV2, Expected)
+
+
+def test_mirror_pad():
+    class MirrorPad(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(3, 4), dtype=tf.float32)])
+        def func(self, x):
+            return tf.pad(x, [[1, 1], [2, 2]], mode="REFLECT")
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((3, 4), dtype="float32")) -> R.Tensor((5, 8), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((5, 8), dtype="float32") = R.nn.pad(
+                    x, pad_width=[1, 1, 2, 2], pad_value=0.0, pad_mode="reflect"
+                )
+                R.output(gv)
+            return gv
+
+    verify(MirrorPad, Expected)
+
+
+def test_topk_v2():
+    class TopKV2(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(5,), dtype=tf.float32)])
+        def func(self, x):
+            return tf.math.top_k(x, k=3).values
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((5,), dtype="float32")) -> R.Tensor((3,), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tuple(R.Tensor((3,), dtype="float32"), R.Tensor((3,), dtype="int32")) = (
+                    R.topk(x, k=3, axis=-1, ret_type="both", largest=True, dtype="int32")
+                )
+                gv: R.Tensor((3,), dtype="float32") = lv[0]
+                R.output(gv)
+            return gv
+
+    verify(TopKV2, Expected)
+
+
+def test_one_hot():
+    class OneHot(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(3,), dtype=tf.int32)])
+        def func(self, x):
+            return tf.one_hot(x, depth=4)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((3,), dtype="int32")) -> R.Tensor((3, 4), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((3, 4), dtype="float32") = R.one_hot(
+                    x,
+                    R.prim_value(T.float32(1.0)),
+                    R.prim_value(T.float32(0.0)),
+                    depth=4,
+                    axis=-1,
+                )
+                R.output(gv)
+            return gv
+
+    verify(OneHot, Expected)
+
+
+def test_select():
+    class Select(tf.Module):
+        @tf.function(
+            input_signature=[
+                tf.TensorSpec(shape=(2, 3), dtype=tf.bool),
+                tf.TensorSpec(shape=(2, 3), dtype=tf.float32),
+                tf.TensorSpec(shape=(2, 3), dtype=tf.float32),
+            ]
+        )
+        def func(self, cond, x, y):
+            return tf.where(cond, x, y)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            cond: R.Tensor((2, 3), dtype="bool"),
+            x: R.Tensor((2, 3), dtype="float32"),
+            y: R.Tensor((2, 3), dtype="float32"),
+        ) -> R.Tensor((2, 3), dtype="float32"):
+            R.func_attr({"num_input": 3})
+            with R.dataflow():
+                gv: R.Tensor((2, 3), dtype="float32") = R.where(cond, x, y)
+                R.output(gv)
+            return gv
+
+    verify(Select, Expected)
+
+
+def test_depth_to_space():
+    class DepthToSpace(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(1, 2, 4, 8), dtype=tf.float32)])
+        def func(self, x):
+            return tf.nn.depth_to_space(x, block_size=2)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((1, 2, 4, 8), dtype="float32"),
+        ) -> R.Tensor((1, 4, 8, 2), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((1, 2, 4, 2, 2, 2), dtype="float32") = R.reshape(
+                    x, R.shape([1, 2, 4, 2, 2, 2])
+                )
+                lv1: R.Tensor((1, 2, 2, 4, 2, 2), dtype="float32") = R.permute_dims(
+                    lv, axes=[0, 1, 3, 2, 4, 5]
+                )
+                gv: R.Tensor((1, 4, 8, 2), dtype="float32") = R.reshape(lv1, R.shape([1, 4, 8, 2]))
+                R.output(gv)
+            return gv
+
+    verify(DepthToSpace, Expected)
+
+
+def test_space_to_depth():
+    class SpaceToDepth(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(1, 4, 4, 2), dtype=tf.float32)])
+        def func(self, x):
+            return tf.nn.space_to_depth(x, block_size=2)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((1, 4, 4, 2), dtype="float32"),
+        ) -> R.Tensor((1, 2, 2, 8), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((1, 2, 2, 2, 2, 2), dtype="float32") = R.reshape(
+                    x, R.shape([1, 2, 2, 2, 2, 2])
+                )
+                lv1: R.Tensor((1, 2, 2, 2, 2, 2), dtype="float32") = R.permute_dims(
+                    lv, axes=[0, 1, 3, 2, 4, 5]
+                )
+                gv: R.Tensor((1, 2, 2, 8), dtype="float32") = R.reshape(lv1, R.shape([1, 2, 2, 8]))
+                R.output(gv)
+            return gv
+
+    verify(SpaceToDepth, Expected)
 
 
 if __name__ == "__main__":

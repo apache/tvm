@@ -15,46 +15,53 @@
     specific language governing permissions and limitations
     under the License.
 
-tvm.relax.frontend
-------------------
-.. automodule:: tvm.relax.frontend
+tvm.relax.backend
+-----------------
+
+tvm.relax.backend
+*****************
+.. automodule:: tvm.relax.backend
    :members:
    :imported-members:
 
-tvm.relax.frontend.nn
-*********************
-.. automodule:: tvm.relax.frontend.nn
-   :members:
-   :imported-members:
-   :exclude-members: BlockBuilder
-   :noindex:
-
-tvm.relax.frontend.nn.llm
-*************************
-.. automodule:: tvm.relax.frontend.nn.llm
+tvm.relax.backend.cuda
+**********************
+.. automodule:: tvm.relax.backend.cuda
    :members:
    :no-index:
 
-tvm.relax.frontend.onnx
+tvm.relax.backend.rocm
+**********************
+.. automodule:: tvm.relax.backend.rocm
+   :members:
+   :no-index:
+
+tvm.relax.backend.metal
 ***********************
-.. automodule:: tvm.relax.frontend.onnx
+.. automodule:: tvm.relax.backend.metal
    :members:
-   :imported-members:
+   :no-index:
 
-tvm.relax.frontend.stablehlo
-****************************
-.. automodule:: tvm.relax.frontend.stablehlo
-   :members:
-   :imported-members:
-
-tvm.relax.frontend.tflite
-*************************
-.. automodule:: tvm.relax.frontend.tflite
-   :members:
-   :imported-members:
-
-tvm.relax.frontend.torch
+tvm.relax.backend.adreno
 ************************
-.. automodule:: tvm.relax.frontend.torch
+.. automodule:: tvm.relax.backend.adreno
    :members:
-   :imported-members:
+   :no-index:
+
+tvm.relax.backend.gpu_generic
+*****************************
+.. automodule:: tvm.relax.backend.gpu_generic
+   :members:
+   :no-index:
+
+tvm.relax.backend.cpu_generic
+*****************************
+.. automodule:: tvm.relax.backend.cpu_generic
+   :members:
+   :no-index:
+
+tvm.relax.backend.contrib
+*************************
+.. automodule:: tvm.relax.backend.contrib
+   :members:
+   :no-index:
