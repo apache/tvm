@@ -1601,5 +1601,26 @@ def test_space_to_depth():
     verify(SpaceToDepth, Expected)
 
 
+def test_leaky_relu():
+    class TfInput(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
+        def func(self, x):
+            return tf.nn.leaky_relu(x, alpha=0.2)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((1, 30), dtype="float32")) -> R.Tensor((1, 30), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((1, 30), dtype="float32") = R.nn.leakyrelu(
+                    x, alpha=0.20000000298023224
+                )
+                R.output(gv)
+            return gv
+
+    verify(TfInput, Expected)
+
+
 if __name__ == "__main__":
     pytest.main(["-s", __file__])

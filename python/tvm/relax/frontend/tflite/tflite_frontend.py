@@ -1089,7 +1089,7 @@ class OperatorConverter:
 
         if input_tensor.qnn_params:
             in_expr = self.dequantize(in_expr, input_tensor)
-        out = relax.op.nn.leaky_relu(in_expr, alpha_tensor)
+        out = relax.op.nn.leakyrelu(in_expr, alpha_tensor)
         if output_tensor.qnn_params:
             out = self.quantize(out, output_tensor)
 
