@@ -302,3 +302,5 @@ Source Code Map
      - ``BuildCUDA``: CUDA build flow (codegen → compile → module)
    * - ``src/target/spirv/codegen_spirv.h``
      - ``CodeGenSPIRV``: TIR → SPIR-V for Vulkan
+   * - ``src/target/source/codegen_webgpu.h``
+     - ``CodeGenWebGPU``: TIR → WGSL
