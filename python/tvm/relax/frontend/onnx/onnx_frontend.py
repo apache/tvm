@@ -311,6 +311,67 @@ class OnnxOpConverter:
             return getattr(cls, f"_impl_v{version}")
         raise NotImplementedError(f"opset version {version} of {cls.__name__} not implemented")
 
+class QuantizeLinear(OnnxOpConverter):
+    @classmethod
+    def _impl_v10(cls, bb, inputs, attr, params):
+        x, scale = inputs[0], inputs[1]
+        zp = inputs[2] if len(inputs) > 2 and inputs[2] is not None else None
+        out_dtype = "uint8" if zp is None else zp.struct_info.dtype
+        if zp is None:
+            zp = relax.const(0, out_dtype)
+        return relax.op.quantize(x, scale, zp, axis=0, out_dtype=out_dtype)
+
+    @classmethod
+    def _impl_v13(cls, bb, inputs, attr, params):
+        x, scale = inputs[0], inputs[1]
+        zp = inputs[2] if len(inputs) > 2 and inputs[2] is not None else None
+        axis = attr.get("axis", 1)
+        if hasattr(x.struct_info, "ndim") and x.struct_info.ndim <= 1 and axis == 1:
+            axis = 0
+        out_dtype = "uint8" if zp is None else zp.struct_info.dtype
+        if zp is None:
+            zp = relax.const(0, out_dtype)
+        return relax.op.quantize(x, scale, zp, axis=axis, out_dtype=out_dtype)
+
+
+class DequantizeLinear(OnnxOpConverter):
+    @classmethod
+    def _impl_v10(cls, bb, inputs, attr, params):
+        x, scale = inputs[0], inputs[1]
+        zp = inputs[2] if len(inputs) > 2 and inputs[2] is not None else None
+        if zp is None:
+            zp = relax.const(0, x.struct_info.dtype)
+        return relax.op.dequantize(x, scale, zp, axis=0, out_dtype="float32")
+
+    @classmethod
+    def _impl_v13(cls, bb, inputs, attr, params):
+        x, scale = inputs[0], inputs[1]
+        zp = inputs[2] if len(inputs) > 2 and inputs[2] is not None else None
+        axis = attr.get("axis", 1)
+        if hasattr(x.struct_info, "ndim") and x.struct_info.ndim <= 1 and axis == 1:
+            axis = 0
+        if zp is None:
+            zp = relax.const(0, x.struct_info.dtype)
+        return relax.op.dequantize(x, scale, zp, axis=axis, out_dtype="float32")
+
+
+class DynamicQuantizeLinear(OnnxOpConverter):
+    @classmethod
+    def _impl_v11(cls, bb, inputs, attr, params):
+        x = inputs[0]
+        x_dtype = x.struct_info.dtype
+        qmin = relax.const(0, x_dtype)
+        qmax = relax.const(255, x_dtype)
+
+        x_max = relax.op.maximum(qmin, relax.op.max(x))
+        x_min = relax.op.minimum(qmin, relax.op.min(x))
+        y_scale = relax.op.divide(relax.op.subtract(x_max, x_min), qmax)
+
+        zp_fp = relax.op.subtract(qmin, relax.op.divide(x_min, y_scale))
+        y_zero_point = relax.op.astype(relax.op.round(relax.op.clip(zp_fp, 0, 255)), "uint8")
+
+        y = relax.op.quantize(x, y_scale, y_zero_point, axis=0, out_dtype="uint8")
+        return relax.Tuple([y, y_scale, y_zero_point])
 
 class MatMul(OnnxOpConverter):
     """Converts an onnx MatMul node into an equivalent Relax expression."""
@@ -4812,6 +4873,10 @@ def _get_convert_map():
         "ConcatFromSequence": ConcatFromSequence,
         "SplitToSequence": SplitToSequence,
         "SequenceAt": SequenceAt,
+        # Quantization
+        "QuantizeLinear": QuantizeLinear,
+        "DequantizeLinear": DequantizeLinear,
+        "DynamicQuantizeLinear": DynamicQuantizeLinear,
     }
 
 
