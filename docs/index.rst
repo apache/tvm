@@ -47,6 +47,7 @@ driving its costs down.
    how_to/tutorials/optimize_llm
    how_to/tutorials/cross_compilation_and_rpc
    how_to/tutorials/export_and_load_executable
+   how_to/tutorials/mix_python_and_tvm_with_pymodule
    how_to/dev/index
 
 .. The Deep Dive content is comprehensive
