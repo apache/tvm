@@ -116,8 +116,15 @@ The target translation phase transforms an IRModule to the corresponding target 
 For backends such as x86 and ARM, we use the LLVM IRBuilder to build in-memory LLVM IR.
 We can also generate source-level languages such as CUDA C and OpenCL.
 Finally, we support direct translations of a Relax function (sub-graph) to specific targets via external code generators.
+See :ref:`external-library-dispatch` for the full BYOC (Bring Your Own Codegen) pipeline that
+offloads operator subgraphs to vendor libraries like cuBLAS, CUTLASS, and cuDNN.
 It is important that the final code generation phase is as lightweight as possible. Vast majority of transformations
 and lowering should be performed before the target translation phase.
+
+.. toctree::
+   :maxdepth: 1
+
+   external_library_dispatch
 
 We also provide a Target structure to specify the compilation target.
 The transformations before the target translation phase can also be affected by the target — for example,
