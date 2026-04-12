@@ -333,6 +333,26 @@ Developers can register new Ops as well as their additional attributes(e.g. whet
 
    pass_infra
 
+tvm/script (TVMScript)
+----------------------
+
+TVMScript is a Python-based DSL for writing TVM IR. It allows users to define ``IRModule``\ s
+— containing both Relax functions and TIR ``PrimFunc``\ s — using familiar Python syntax with
+three import aliases: ``I`` (module-level), ``T`` (TIR), and ``R`` (Relax). Although TVMScript
+uses Python syntax, it is not executed by the Python interpreter — decorators like
+``@I.ir_module``, ``@T.prim_func``, and ``@R.function`` extract the Python AST and transform
+it into TVM IR through a parser and IR builder pipeline.
+
+TVMScript also supports **roundtrip**: any ``IRModule`` can be printed back to TVMScript via
+``mod.script()`` and re-parsed to produce a structurally equivalent module. See
+:ref:`tvmscript-arch` for the full architecture documentation, including the parser dispatch
+mechanism, IR builder frame stack, printer pipeline, and syntax reference.
+
+.. toctree::
+   :maxdepth: 1
+
+   tvmscript
+
 
 tvm/target
 ----------
