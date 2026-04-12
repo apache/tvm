@@ -316,10 +316,13 @@ class QuantizeLinear(OnnxOpConverter):
     def _impl_v10(cls, bb, inputs, attr, params):
         x, scale = inputs[0], inputs[1]
         zp = inputs[2] if len(inputs) > 2 and inputs[2] is not None else None
+        axis = attr.get("axis", 1)
+        if hasattr(x.struct_info, "ndim") and x.struct_info.ndim <= 1 and axis == 1:
+            axis = 0
         out_dtype = "uint8" if zp is None else zp.struct_info.dtype
         if zp is None:
             zp = relax.const(0, out_dtype)
-        return relax.op.quantize(x, scale, zp, axis=0, out_dtype=out_dtype)
+        return relax.op.quantize(x, scale, zp, axis=axis, out_dtype=out_dtype)
 
     @classmethod
     def _impl_v13(cls, bb, inputs, attr, params):
@@ -339,9 +342,12 @@ class DequantizeLinear(OnnxOpConverter):
     def _impl_v10(cls, bb, inputs, attr, params):
         x, scale = inputs[0], inputs[1]
         zp = inputs[2] if len(inputs) > 2 and inputs[2] is not None else None
+        axis = attr.get("axis", 1)
+        if hasattr(x.struct_info, "ndim") and x.struct_info.ndim <= 1 and axis == 1:
+            axis = 0
         if zp is None:
             zp = relax.const(0, x.struct_info.dtype)
-        return relax.op.dequantize(x, scale, zp, axis=0, out_dtype="float32")
+        return relax.op.dequantize(x, scale, zp, axis=axis, out_dtype="float32")
 
     @classmethod
     def _impl_v13(cls, bb, inputs, attr, params):

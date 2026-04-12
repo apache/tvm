@@ -5671,5 +5671,42 @@ def test_dynamicquantizelinear_opset11():
     x = rg.standard_normal((2, 3, 4)).astype("float32")
     check_correctness(model, inputs={"x": x}, opset=11, atol=1e-5, rtol=1e-5, check_dtypes=True)
 
+def test_quantizelinear_default_axis_opset10():
+    """opset10 QuantizeLinear should honor default axis=1 (not hardcode axis=0)."""
+    node = helper.make_node("QuantizeLinear", ["x", "scale", "zero_point"], ["y"])
+    graph = helper.make_graph(
+        [node],
+        "quantizelinear_axis_opset10",
+        [helper.make_tensor_value_info("x", TensorProto.FLOAT, [2, 3, 4])],
+        [helper.make_tensor_value_info("y", TensorProto.UINT8, [2, 3, 4])],
+        initializer=[
+            helper.make_tensor("scale", TensorProto.FLOAT, [3], [0.05, 0.1, 0.2]),
+            helper.make_tensor("zero_point", TensorProto.UINT8, [3], [1, 127, 250]),
+        ],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 10)])
+
+    x = rg.standard_normal((2, 3, 4)).astype("float32")
+    check_correctness(model, inputs={"x": x}, opset=10, check_dtypes=True)
+
+
+def test_dequantizelinear_default_axis_opset10():
+    """opset10 DequantizeLinear should honor default axis=1 (not hardcode axis=0)."""
+    node = helper.make_node("DequantizeLinear", ["x", "scale", "zero_point"], ["y"])
+    graph = helper.make_graph(
+        [node],
+        "dequantizelinear_axis_opset10",
+        [helper.make_tensor_value_info("x", TensorProto.UINT8, [2, 3, 4])],
+        [helper.make_tensor_value_info("y", TensorProto.FLOAT, [2, 3, 4])],
+        initializer=[
+            helper.make_tensor("scale", TensorProto.FLOAT, [3], [0.05, 0.1, 0.2]),
+            helper.make_tensor("zero_point", TensorProto.UINT8, [3], [1, 127, 250]),
+        ],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 10)])
+
+    x = rg.integers(low=0, high=255, size=(2, 3, 4), dtype=np.uint8)
+    check_correctness(model, inputs={"x": x}, opset=10, check_dtypes=True)
+
 if __name__ == "__main__":
     tvm.testing.main()
