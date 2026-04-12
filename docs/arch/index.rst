@@ -105,9 +105,15 @@ Apache TVM enables cross-level optimization of end-to-end models. As the IRModul
 the IRModule by applying different transformations to these two types of functions.
 
 For example, ``relax.LegalizeOps`` pass mutates the IRModule by lowering relax operators, adding corresponding TensorIR PrimFunc into the IRModule, and replacing the relax operators
-with calls to the lowered TensorIR PrimFunc. Another example is operator fusion pipeline in relax (including ``relax.FuseOps`` and ``relax.FuseTIR``), which fuses multiple consecutive tensor operations
-into one. Different from the previous implementations, relax fusion pipeline analyzes the pattern of TensorIR functions and detects the best fusion rules automatically rather
-than human-defined operator fusion patterns.
+with calls to the lowered TensorIR PrimFunc. Another example is the operator fusion pipeline
+(``relax.FuseOps`` + ``relax.FuseTIR``), which fuses multiple consecutive tensor operations into a
+single kernel. See :ref:`fusion-arch` for a detailed explanation of the fusion algorithm, operator
+pattern classification, and pattern-based fusion for external backends.
+
+.. toctree::
+   :maxdepth: 1
+
+   fusion
 
 Target Translation
 ~~~~~~~~~~~~~~~~~~
@@ -118,6 +124,8 @@ We can also generate source-level languages such as CUDA C and OpenCL.
 Finally, we support direct translations of a Relax function (sub-graph) to specific targets via external code generators.
 See :ref:`codegen-arch` for how TIR functions are compiled to native code through the LLVM and
 Source codegen families.
+See :ref:`external-library-dispatch` for the full BYOC (Bring Your Own Codegen) pipeline that
+offloads operator subgraphs to vendor libraries like cuBLAS, CUTLASS, and cuDNN.
 It is important that the final code generation phase is as lightweight as possible. Vast majority of transformations
 and lowering should be performed before the target translation phase.
 
@@ -125,6 +133,7 @@ and lowering should be performed before the target translation phase.
    :maxdepth: 1
 
    codegen
+   external_library_dispatch
 
 We also provide a Target structure to specify the compilation target.
 The transformations before the target translation phase can also be affected by the target — for example,
@@ -237,23 +246,18 @@ Relax Virtual Machine
 
 Relax defines *what* to compute — it is a graph-level IR that describes the operators and dataflow
 of a model. The Relax Virtual Machine (VM) handles *how* to run it — it is the runtime component
-that executes the compiled result. During compilation, ``tvm.compile()`` invokes ``VMCodeGen`` to
-translate Relax functions into a compact bytecode representation. The resulting ``VMExecutable``
-bundles the bytecode together with a constant pool and per-function metadata, and can be serialized
-to disk for deployment.
+that executes the compiled result. The VM uses a register-based interpreter with only four opcodes
+(``Call``, ``Ret``, ``Goto``, ``If``) and performs no mathematical computation itself — it
+orchestrates control flow while dispatching actual work to compiled TIR kernels or external
+libraries.
 
-The VM uses a register-based interpreter with an intentionally minimal instruction set — only four
-opcodes: ``Call``, ``Ret``, ``Goto``, and ``If``. The VM itself performs no mathematical computation;
-it only orchestrates control flow (function calls, conditional branches, loops). The actual
-compute-intensive work — matrix multiplications, convolutions, and other operators — is carried out
-by TIR functions that have been compiled down to native GPU/CPU kernels, or by external libraries
-such as cuBLAS and cuDNN. The VM dispatches to them through the PackedFunc mechanism. Internally the
-VM recognizes three function kinds: *PackedFunc* for external C/C++ functions, *VMFunc* for
-bytecode-interpreted Relax functions, and *VMTIRFunc* for compiled TIR kernels.
+See :ref:`relax-vm-arch` for the full architecture documentation, including the compilation
+pipeline, instruction set details, execution model, and Python interface.
 
-On the Python side, users interact with the VM through ``relax.VirtualMachine(executable, device)``,
-which provides both a direct invocation interface and a stateful set-input / invoke / get-output
-interface suitable for RPC-based remote execution.
+.. toctree::
+   :maxdepth: 1
+
+   relax_vm
 
 Disco: Distributed Runtime
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
