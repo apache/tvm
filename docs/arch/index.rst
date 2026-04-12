@@ -105,9 +105,15 @@ Apache TVM enables cross-level optimization of end-to-end models. As the IRModul
 the IRModule by applying different transformations to these two types of functions.
 
 For example, ``relax.LegalizeOps`` pass mutates the IRModule by lowering relax operators, adding corresponding TensorIR PrimFunc into the IRModule, and replacing the relax operators
-with calls to the lowered TensorIR PrimFunc. Another example is operator fusion pipeline in relax (including ``relax.FuseOps`` and ``relax.FuseTIR``), which fuses multiple consecutive tensor operations
-into one. Different from the previous implementations, relax fusion pipeline analyzes the pattern of TensorIR functions and detects the best fusion rules automatically rather
-than human-defined operator fusion patterns.
+with calls to the lowered TensorIR PrimFunc. Another example is the operator fusion pipeline
+(``relax.FuseOps`` + ``relax.FuseTIR``), which fuses multiple consecutive tensor operations into a
+single kernel. See :ref:`fusion-arch` for a detailed explanation of the fusion algorithm, operator
+pattern classification, and pattern-based fusion for external backends.
+
+.. toctree::
+   :maxdepth: 1
+
+   fusion
 
 Target Translation
 ~~~~~~~~~~~~~~~~~~
