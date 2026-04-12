@@ -124,6 +124,8 @@ We can also generate source-level languages such as CUDA C and OpenCL.
 Finally, we support direct translations of a Relax function (sub-graph) to specific targets via external code generators.
 See :ref:`external-library-dispatch` for the full BYOC (Bring Your Own Codegen) pipeline that
 offloads operator subgraphs to vendor libraries like cuBLAS, CUTLASS, and cuDNN.
+See :ref:`codegen-arch` for how TIR functions are compiled to native code through the LLVM and
+Source codegen families.
 It is important that the final code generation phase is as lightweight as possible. Vast majority of transformations
 and lowering should be performed before the target translation phase.
 
@@ -131,6 +133,7 @@ and lowering should be performed before the target translation phase.
    :maxdepth: 1
 
    external_library_dispatch
+   codegen
 
 We also provide a Target structure to specify the compilation target.
 The transformations before the target translation phase can also be affected by the target — for example,
