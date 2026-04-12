@@ -38,14 +38,16 @@ The BYOC pipeline consists of four stages:
 
 .. code-block:: text
 
-   IRModule (after LegalizeOps)
+   IRModule (high-level Relax IR)
         │
-        ▼  FuseOpsByPattern              ← match patterns, create composite functions
+        ▼  FuseOpsByPattern              ← match high-level ops, create composite functions
    IRModule (with Composite + Codegen attributes)
         │
         ▼  RunCodegen                    ← invoke backend codegen via FFI
    IRModule (with call_dps_packed to ExternFunc)
    + external runtime Modules
+        │
+        ▼  LegalizeOps + FuseOps + ...   ← compile remaining ops normally
         │
         ▼  VM compilation                ← link external modules into executable
    Deployable artifact
