@@ -172,7 +172,7 @@ The above example only deals with a simple `addone` function. The code snippet b
    vm = relax.VirtualMachine(mod, tvm.cuda(0))
    data: tvm.runtime.Tensor = get_input_data()
    # Run the model — vm["main"] returns a PackedFunc
-   result = vm["main"](data)
+   result = vm["main"](data).numpy()
 
 The main take away is that runtime.Module and runtime.PackedFunc are sufficient to encapsulate both operator level programs (such as addone), as well as the end-to-end models.
 
