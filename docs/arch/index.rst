@@ -68,7 +68,7 @@ contains a collection of functions. Currently, we support two primary variants o
   threading, and vector/tensor instructions. It is usually used to represent an operator program that executes a (possibly-fused) layer in a model.
 
 During the compilation and transformation, all relax operators are lowered to ``tirx::PrimFunc`` or ``TVM PackedFunc``, which can be executed directly
-on the target device, while the calls to relax operators are lowered to calls to low-level functions (e.g. ``R.call_tir`` or ``R.call_dps``).
+on the target device, while the calls to relax operators are lowered to calls to low-level functions (e.g. ``R.call_tir`` or ``R.call_dps_packed``).
 
 Transformations
 ~~~~~~~~~~~~~~~
@@ -160,22 +160,19 @@ following types: POD types(int, float), string, runtime.PackedFunc, runtime.Modu
 
 :py:class:`tvm.runtime.Module` and :py:class:`tvm.runtime.PackedFunc` are powerful mechanisms to modularize the runtime. For example, to get the above `addone` function on CUDA, we can use LLVM to generate the host-side code to compute the launching parameters(e.g. size of the thread groups) and then call into another PackedFunc from a CUDAModule that is backed by the CUDA driver API. The same mechanism can be used for OpenCL kernels.
 
-The above example only deals with a simple `addone` function. The code snippet below gives an example of an end-to-end model execution using the same interface:
+The above example only deals with a simple `addone` function. The code snippet below gives an example of an end-to-end model execution using the Relax Virtual Machine, which is built on the same runtime.Module and runtime.PackedFunc interface:
 
 .. code-block:: python
 
    import tvm
-   # Example runtime execution program in python, with types annotated
-   factory: tvm.runtime.Module = tvm.runtime.load_module("resnet18.so")
-   # Create a stateful graph execution module for resnet18 on cuda(0)
-   gmod: tvm.runtime.Module = factory["resnet18"](tvm.cuda(0))
+   from tvm import relax
+   # Load the compiled artifact
+   mod: tvm.runtime.Module = tvm.runtime.load_module("resnet18.so")
+   # Create a VM instance on cuda(0)
+   vm = relax.VirtualMachine(mod, tvm.cuda(0))
    data: tvm.runtime.Tensor = get_input_data()
-   # set input
-   gmod["set_input"](0, data)
-   # execute the model
-   gmod["run"]()
-   # get the output
-   result = gmod["get_output"](0).numpy()
+   # Run the model — vm["main"] returns a PackedFunc
+   result = vm["main"](data)
 
 The main take away is that runtime.Module and runtime.PackedFunc are sufficient to encapsulate both operator level programs (such as addone), as well as the end-to-end models.
 
@@ -236,7 +233,6 @@ for learning-based optimizations.
    :maxdepth: 1
 
    introduction_to_module_serialization
-   device_target_interactions
 
 Relax Virtual Machine
 ^^^^^^^^^^^^^^^^^^^^^
@@ -416,18 +412,3 @@ and then integrate it into the IRModule.
 While possible to construct operators directly via TensorIR or tensor expressions (TE) for each use case, it is tedious to do so.
 `topi` (Tensor operator inventory) provides a set of pre-defined operators defined by numpy and found in common deep learning workloads.
 
-tvm/s_tir/meta_schedule
------------------------
-
-MetaSchedule is a system for automated search-based program optimization,
-and can be used to optimize TensorIR schedules. Note that MetaSchedule only works with static-shape workloads.
-
-tvm/s_tir/dlight
-----------------
-
-DLight is a set of pre-defined, easy-to-use, and performant s_tir schedules. DLight aims:
-
-- Fully support **dynamic shape workloads**.
-- **Light weight**. DLight schedules provides tuning-free schedule with reasonable performance.
-- **Robust**. DLight schedules are designed to be robust and general-purpose for a single rule. And if the rule is not applicable,
-  DLight not raise any error and switch to the next rule automatically.

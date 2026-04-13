@@ -32,10 +32,6 @@ In this chapter, we will use the following model as an example. This is
 a two-layer neural network that consists of two linear operations with
 relu activation.
 
-.. image:: https://mlc.ai/_images/e2e_fashionmnist_mlp_model.png
-   :width: 85%
-   :align: center
-
 
 High-Level Operations Representation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

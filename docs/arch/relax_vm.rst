@@ -20,11 +20,9 @@
 Relax Virtual Machine
 =====================
 
-Relax defines *what* to compute — it is a graph-level IR that describes the operators and dataflow
-of a model. The Relax Virtual Machine (VM) handles *how* to run it — it is the runtime component
-that executes the compiled result. This document explains the VM architecture in detail, covering
-the compilation pipeline from Relax IR to bytecode, the instruction set, the execution model, and
-the Python-level user interface.
+This document explains the Relax VM architecture in detail, covering the compilation pipeline
+from Relax IR to bytecode, the instruction set, the execution model, and the Python-level user
+interface.
 
 Overview
 --------

@@ -345,10 +345,7 @@ How Backends Use Fusion
 -----------------------
 
 The default backend pipelines (CUDA, ROCm, CPU, etc.) all include ``FuseOps`` + ``FuseTIR``
-in their ``legalize_passes`` phase for automatic fusion. For example, the CUDA pipeline
-(``python/tvm/relax/backend/cuda/pipeline.py``) runs::
-
-    LegalizeOps → AnnotateTIROpPattern → FoldConstant → FuseOps → FuseTIR → DLight
+in their ``legalize_passes`` phase for automatic fusion, as shown in the `Overview`_ above.
 
 For external library dispatch (cuBLAS, CUTLASS, cuDNN, DNNL), ``FuseOpsByPattern`` is used
 separately. These are **not** included in the default pipeline — users add them explicitly
@@ -358,7 +355,7 @@ when building a custom compilation flow. The typical sequence is:
    offloaded to external libraries. For example, CUTLASS patterns match
    matmul+bias+activation combinations (``python/tvm/relax/backend/cuda/cutlass.py``).
    Functions marked by patterns are annotated with ``Composite`` and optionally ``Codegen``
-   attributes.
+   attributes. See :ref:`external-library-dispatch` for the full BYOC pipeline.
 
 2. **Automatic fusion** (``FuseOps`` + ``FuseTIR``): remaining operators that were not
    matched by backend patterns are fused automatically based on their pattern kinds.

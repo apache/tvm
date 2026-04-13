@@ -617,7 +617,7 @@ Note that it is recommended to use the ``pass_instrument`` decorator to implemen
 ``PassInstrument`` instances can be registered through ``instruments`` argument in
 :py:class:`tvm.transform.PassContext`.
 
-`use pass instrument`_ tutorial provides examples for how to implement ``PassInstrument`` with Python APIs.
+See `python/tvm/ir/instrument.py`_ for examples of how to implement ``PassInstrument`` with Python APIs.
 
 .. _pass_instrument_overriden:
 
@@ -668,4 +668,3 @@ new ``PassInstrument`` are called.
 
 .. _use pass infra: https://github.com/apache/tvm/blob/main/docs/how_to/tutorials/customize_opt.py
 
-.. _use pass instrument: https://github.com/apache/tvm/blob/main/docs/how_to/dev/index.rst
