@@ -976,8 +976,6 @@ class OperatorConverter:
         out = relax.op.shape_to_tensor(relax.op.shape_of(self.get_tensor_expr(input_tensors[0])))
         if shape_options.OutType() == TensorType.INT32:
             out = relax.op.astype(out, "int32")
-        elif shape_options.OutType() == TensorType.INT64:
-            out = relax.op.astype(out, "int64")
 
         return out
 
