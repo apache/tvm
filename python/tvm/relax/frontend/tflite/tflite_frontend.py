@@ -939,11 +939,9 @@ class OperatorConverter:
             else:
                 value = self.get_tensor_value(tensor)
 
-            if isinstance(value, np.ndarray):
-                # TFLite RANGE operands are scalar tensors in the flatbuffer.
-                assert value.size == 1, "RANGE scalar input must have exactly one element"
-                return value.item()
-            return value
+            # TFLite RANGE operands are scalar tensors in the flatbuffer.
+            assert value.size == 1, "RANGE scalar input must have exactly one element"
+            return value.item()
 
         start_value = get_scalar_value(start)
         limit_value = get_scalar_value(limit)
