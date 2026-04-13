@@ -235,7 +235,7 @@ for learning-based optimizations.
    introduction_to_module_serialization
 
 Relax Virtual Machine
-^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~
 
 Relax defines *what* to compute — it is a graph-level IR that describes the operators and dataflow
 of a model. The Relax Virtual Machine (VM) handles *how* to run it — it is the runtime component
@@ -253,7 +253,7 @@ pipeline, instruction set details, execution model, and Python interface.
    relax_vm
 
 Disco: Distributed Runtime
-^^^^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Disco is TVM's distributed runtime for executing models across multiple devices. When a model is
 too large to fit on a single GPU, the ``relax.distributed`` module annotates how tensors should be
