@@ -925,15 +925,37 @@ class OperatorConverter:
 
         start, limit, delta = input_tensors[0], input_tensors[1], input_tensors[2]
 
-        expressions = [self.get_tensor_expr(t) for t in [start, limit, delta]]
+        def get_scalar_value(tensor):
+            if self.has_expr(tensor.tensor_idx):
+                expr = self.get_expr(tensor.tensor_idx)
+                if isinstance(expr, relax.Constant):
+                    value = expr.data.numpy()
+                else:
+                    # relax.op.arange currently expects scalar-like values here.
+                    # Keep dynamic scalar RANGE explicit until frontend support is added.
+                    raise tvm.error.OpNotImplemented(
+                        "TFLite RANGE with dynamic scalar inputs is not supported in Relax frontend yet."
+                    )
+            else:
+                value = self.get_tensor_value(tensor)
 
+            if isinstance(value, np.ndarray):
+                # TFLite RANGE operands are scalar tensors in the flatbuffer.
+                assert value.size == 1, "RANGE scalar input must have exactly one element"
+                return value.item()
+            return value
+
+        start_value = get_scalar_value(start)
+        limit_value = get_scalar_value(limit)
+        delta_value = get_scalar_value(delta)
+ 
         # out type inference
         if delta.tensor.Type() == TensorType.FLOAT32:
             out_type = self.get_tensor_type_str(delta.tensor.Type())
         else:
             out_type = self.get_tensor_type_str(start.tensor.Type())
 
-        out = relax.op.arange(expressions[0], expressions[1], expressions[2], out_type)
+        out = relax.op.arange(start_value, limit_value, delta_value, out_type)
 
         return out
 
@@ -942,6 +964,7 @@ class OperatorConverter:
 
         from tflite.BuiltinOptions import BuiltinOptions
         from tflite.ShapeOptions import ShapeOptions
+        from tflite.TensorType import TensorType
 
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 1, "input tensors length should be 1"
@@ -951,7 +974,12 @@ class OperatorConverter:
         shape_options = ShapeOptions()
         shape_options.Init(op_options.Bytes, op_options.Pos)
 
-        out = relax.op.shape_of(self.get_tensor_expr(input_tensors[0]))
+        # SHAPE must materialize as a tensor output in Relax, not just symbolic shape info.
+        out = relax.op.shape_to_tensor(relax.op.shape_of(self.get_tensor_expr(input_tensors[0])))
+        if shape_options.OutType() == TensorType.INT32:
+            out = relax.op.astype(out, "int32")
+        elif shape_options.OutType() == TensorType.INT64:
+            out = relax.op.astype(out, "int64")
 
         return out
 
@@ -4067,7 +4095,7 @@ def _input_type(model):
     for subgraph_index in range(subgraph_count):
         subgraph = model.Subgraphs(subgraph_index)
         inputs_count = subgraph.InputsLength()
-        assert inputs_count >= 1
+        # TFLite subgraphs can validly have zero inputs (e.g. constant-only RANGE models).
         for input_index in range(inputs_count):
             input_ = subgraph.Inputs(input_index)
             assert subgraph.TensorsLength() > input_
@@ -4221,7 +4249,9 @@ def from_tflite(
             op_converter.convert_op_to_relax()
 
             # params and outputs
-            outputs = [exp_tab.get_expr(get_tensor_name(subgraph, i)) for i in model_outputs]
+            # Resolve outputs through tensor wrappers so constant/prefetched outputs are handled.
+            output_tensors = op_converter.get_tensors(model_outputs)
+            outputs = [op_converter.get_tensor_expr(tensor) for tensor in output_tensors]
             outputs = outputs[0] if len(outputs) == 1 else relax.Tuple(outputs)
             output_var = bb.emit_output(outputs)
 

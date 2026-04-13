@@ -279,6 +279,79 @@ def test_reshape():
     verify(Reshape, Expected)
 
 
+@pytest.mark.parametrize(
+    "input_shape, out_type",
+    [
+        ((2, 3, 4), tf.int32),
+        ((5,), tf.int64),
+        ((1, 1, 1, 1), tf.int32),
+        ((), tf.int32),
+        ((0, 3), tf.int64),
+    ],
+)
+def test_shape(input_shape, out_type):
+    """SHAPE conversion for static-rank non-quantized tensors."""
+
+    class Shape(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=input_shape, dtype=tf.float32)])
+        def func(self, x):
+            return tf.shape(x, out_type=out_type)
+
+    verify(Shape)
+
+
+def test_shape_dynamic_dim():
+    """SHAPE conversion with a dynamic input dimension."""
+
+    class ShapeDynamic(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(None, 3), dtype=tf.float32)])
+        def func(self, x):
+            return tf.shape(x, out_type=tf.int32)
+
+    verify(ShapeDynamic)
+
+
+@pytest.mark.parametrize(
+    "start, limit, delta, dtype",
+    [
+        (0, 8, 2, tf.int32),
+        (1, 9, 2, tf.int64),
+        (0.0, 1.0, 0.2, tf.float32),
+        (8, 0, -2, tf.int32),
+        (0, 0, 1, tf.int32),
+        (0, 7, 2, tf.int32),
+        (0.0, -1.0, -0.25, tf.float32),
+    ],
+)
+def test_range(start, limit, delta, dtype):
+    """RANGE conversion with non-quantized constant scalar bounds."""
+
+    class Range(tf.Module):
+        @tf.function(input_signature=[])
+        def func(self):
+            return tf.range(start, limit, delta, dtype=dtype)
+
+    verify(Range)
+
+
+def test_range_dynamic_scalar_inputs_not_supported():
+    """RANGE conversion currently rejects dynamic scalar inputs."""
+
+    class RangeDynamic(tf.Module):
+        @tf.function(
+            input_signature=[
+                tf.TensorSpec(shape=(), dtype=tf.int32),
+                tf.TensorSpec(shape=(), dtype=tf.int32),
+                tf.TensorSpec(shape=(), dtype=tf.int32),
+            ]
+        )
+        def func(self, start, limit, delta):
+            return tf.range(start, limit, delta, dtype=tf.int32)
+
+    with pytest.raises(tvm.error.OpNotImplemented, match="dynamic scalar inputs"):
+        verify(RangeDynamic)
+
+
 def test_concat_v2():
     class ConcatV2(tf.Module):
         @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
