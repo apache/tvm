@@ -166,7 +166,7 @@ ffi::Array<ScheduleRule> ScheduleRule::DefaultCUDA() {
       ScheduleRule::ParallelizeVectorizeUnroll(
           /*max_jobs_per_core=*/-1,
           /*max_vectorize_extent=*/-1,
-          /*unroll_max_steps=*/ffi::Array<Integer>{0, 16, 64, 512, 1024},
+          /*unroll_max_steps=*/ffi::Array<Integer>{0, 16, 32, 64, 128, 256, 512, 1024},
           /*unroll_explicit=*/true),
       ScheduleRule::AutoBind(
           /*max_threadblocks=*/256,
