@@ -241,7 +241,7 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
     }
     if (!can_analyze_contiguous_access) {
       max_fusible = 0;
-      continue;
+      break;
     }
     int prev_used_iter = -1;
     // check the number of fusible loops
