@@ -122,6 +122,8 @@ The target translation phase transforms an IRModule to the corresponding target 
 For backends such as x86 and ARM, we use the LLVM IRBuilder to build in-memory LLVM IR.
 We can also generate source-level languages such as CUDA C and OpenCL.
 Finally, we support direct translations of a Relax function (sub-graph) to specific targets via external code generators.
+See :ref:`codegen-arch` for how TIR functions are compiled to native code through the LLVM and
+Source codegen families.
 See :ref:`external-library-dispatch` for the full BYOC (Bring Your Own Codegen) pipeline that
 offloads operator subgraphs to vendor libraries like cuBLAS, CUTLASS, and cuDNN.
 It is important that the final code generation phase is as lightweight as possible. Vast majority of transformations
@@ -130,6 +132,7 @@ and lowering should be performed before the target translation phase.
 .. toctree::
    :maxdepth: 1
 
+   codegen
    external_library_dispatch
 
 We also provide a Target structure to specify the compilation target.
@@ -328,6 +331,26 @@ Developers can register new Ops as well as their additional attributes(e.g. whet
    :maxdepth: 1
 
    pass_infra
+
+tvm/script (TVMScript)
+----------------------
+
+TVMScript is a Python-based DSL for writing TVM IR. It allows users to define ``IRModule``\ s
+— containing both Relax functions and TIR ``PrimFunc``\ s — using familiar Python syntax with
+three import aliases: ``I`` (module-level), ``T`` (TIR), and ``R`` (Relax). Although TVMScript
+uses Python syntax, it is not executed by the Python interpreter — decorators like
+``@I.ir_module``, ``@T.prim_func``, and ``@R.function`` extract the Python AST and transform
+it into TVM IR through a parser and IR builder pipeline.
+
+TVMScript also supports **roundtrip**: any ``IRModule`` can be printed back to TVMScript via
+``mod.script()`` and re-parsed to produce a structurally equivalent module. See
+:ref:`tvmscript-arch` for the full architecture documentation, including the parser dispatch
+mechanism, IR builder frame stack, printer pipeline, and syntax reference.
+
+.. toctree::
+   :maxdepth: 1
+
+   tvmscript
 
 
 tvm/target

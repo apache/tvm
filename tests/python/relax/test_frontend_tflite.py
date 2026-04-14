@@ -279,6 +279,49 @@ def test_reshape():
     verify(Reshape, Expected)
 
 
+def test_tile_ir():
+    """TILE conversion with explicit Relax IR structural check."""
+
+    class Tile(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(2, 3), dtype=tf.float32)])
+        def func(self, x):
+            return tf.tile(x, [2, 1])
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 3), dtype="float32")) -> R.Tensor((4, 3), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((4, 3), dtype="float32") = R.tile(x, repeats=[2, 1])
+                R.output(gv)
+            return gv
+
+    verify(Tile, Expected)
+
+
+@pytest.mark.parametrize(
+    "input_shape, multiples, dtype",
+    [
+        ((2, 3), [2, 1], tf.float32),
+        ((1, 4, 2), [3, 1, 2], tf.float32),
+        ((2, 1, 3, 1), [1, 2, 1, 4], tf.float32),
+        ((2, 3), [1, 1], tf.float32),
+        ((3,), [2], tf.float32),
+        ((2, 3), [4, 2], tf.float32),
+        ((2, 2), [1, 3], tf.int32),
+    ],
+)
+def test_tile(input_shape, multiples, dtype):
+    """TILE conversion for non-quantized input and repeat factors."""
+
+    class Tile(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=input_shape, dtype=dtype)])
+        def func(self, x):
+            return tf.tile(x, multiples)
+
+    verify(Tile)
+
 def test_concat_v2():
     class ConcatV2(tf.Module):
         @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
