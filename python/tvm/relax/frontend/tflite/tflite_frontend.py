@@ -2259,7 +2259,7 @@ class OperatorConverter:
         # Create axes list for all dimensions being sliced
         axes = list(range(input_tensor_rank))
         begin = [int(v) for v in begin]
-        end   = [int(v) for v in end]
+        end = [int(v) for v in end]
         out = relax.op.strided_slice(in_expr, axes=axes, begin=begin, end=end)
         return out
 
@@ -2840,9 +2840,7 @@ class OperatorConverter:
             new_b_shape = [1] * max(0, rank_a - rank_b) + [int(s) for s in shape_b]
             max_rank = max(rank_a, rank_b)
 
-            batch_shape = [
-                max(new_a_shape[i], new_b_shape[i]) for i in range(max_rank - 2)
-            ]
+            batch_shape = [max(new_a_shape[i], new_b_shape[i]) for i in range(max_rank - 2)]
 
             a_broadcast = batch_shape + [int(shape_a[-2]), int(shape_a[-1])]
             b_broadcast = batch_shape + [int(shape_b[-2]), int(shape_b[-1])]
@@ -2987,21 +2985,23 @@ class OperatorConverter:
 
         input_tensor = input_tensors[0]
         alpha_tensor = input_tensors[1]
+        data_shape = to_int_list(self.get_tensor_shape(input_tensor))
         if self.has_expr(alpha_tensor.tensor_idx):
             alpha_expr = self.get_expr(alpha_tensor.tensor_idx)
+            alpha_expr = relax.op.broadcast_to(alpha_expr, data_shape)
+            alpha_expr = relax.op.reshape(alpha_expr, [-1])
         else:
             alpha_tensor_type = alpha_tensor.tensor.Type()
             alpha_tensor_type_str = self.get_tensor_type_str(alpha_tensor_type)
+            alpha_value = np.broadcast_to(self.get_tensor_value(alpha_tensor), data_shape).reshape(
+                -1
+            )
             alpha_expr = self.exp_tab.new_const(
-                self.get_tensor_value(alpha_tensor),
+                alpha_value,
                 dtype=alpha_tensor_type_str,
                 source_name=alpha_tensor.tensor.Name(),
             )
         in_expr = self.get_expr(input_tensor.tensor_idx)
-        data_shape = to_int_list(self.get_tensor_shape(input_tensor))
-
-        alpha_expr = relax.op.broadcast_to(alpha_expr, data_shape)
-        alpha_expr = relax.op.reshape(alpha_expr, [-1])
         out = relax.op.nn.prelu(_op.reshape(in_expr, [-1]), alpha_expr, axis=0)
         out = relax.op.reshape(out, data_shape)
         return out
