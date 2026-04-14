@@ -2305,6 +2305,273 @@ def _attention_sequence_prefill(h_kv, h_q, d, dtype, target: Target, causal=0, s
     return sch.mod["main"].with_attr("tirx.is_scheduled", True)
 
 
+def _attention_sequence_prefill_with_mask(h_kv, h_q, d, dtype, target: Target, sm_scale=1.0):  # pylint: disable=line-too-long
+    """Tiled sequence prefill kernel with a per-batch right-padding mask.
+
+    This is the counterpart of :func:`_attention_sequence_prefill` for batched
+    encoder-style inputs where each sample in the batch is padded to a common
+    ``seq_len`` but only the first ``valid_lens[b]`` tokens carry real content.
+    The kernel takes an extra ``valid_lens`` buffer of shape ``(batch_size,)``
+    and applies the padding mask inside the QKV load path and the online
+    softmax update, so no explicit mask tensor broadcast or additive bias is
+    needed on the host side.
+
+    Semantics: for batch ``b``, positions ``[0, valid_lens[b])`` are real and
+    positions ``[valid_lens[b], seq_len)`` are padding. Padding queries and
+    keys/values are zeroed at load time; padded ``(row, col)`` pairs are
+    excluded from the max/sum of the online softmax via a ``-inf`` slot.
+    """
+    (
+        _,
+        LOAD_VEC,
+        group_size,
+        bdx,
+        num_warps,
+        tile_x,
+        tile_y,
+        tile_z,
+    ) = _get_prefill_kernel_config(h_kv, h_q, d, dtype, target)
+
+    def _valid_length_mask(valid_len, row, col, qo_len):
+        """Return True when both the query row and the key col are unpadded."""
+        return tirx.And(
+            tirx.And(row < qo_len, row < valid_len),
+            col < valid_len,
+        )
+
+    # fmt: off
+    @T.prim_func
+    def batch_sequence_prefill_kv_masked(  # pylint: disable=too-many-branches
+        var_q: T.handle, # [batch_size, qo_len, h_q, d]
+        var_k: T.handle, # [batch_size, kv_len, h_kv, d]
+        var_v: T.handle, # [batch_size, kv_len, h_kv, d]
+        var_valid_lens: T.handle, # [batch_size], int32
+        var_output: T.handle, # [batch_size, qo_len, h_q, d]
+        var_lse: T.handle # [batch_size, qo_len, h_q]
+    ):
+        batch_size = T.int32(is_size_var=True)
+        qo_len = T.int32(is_size_var=True)
+        kv_len = T.int32(is_size_var=True)
+        q = T.match_buffer(var_q, (batch_size, qo_len, h_q, d), dtype)
+        k = T.match_buffer(var_k, (batch_size, kv_len, h_kv, d), dtype)
+        v = T.match_buffer(var_v, (batch_size, kv_len, h_kv, d), dtype)
+        valid_lens = T.match_buffer(var_valid_lens, (batch_size,), "int32")
+        output = T.match_buffer(var_output, (batch_size, qo_len, h_q, d), dtype)
+        lse = T.match_buffer(var_lse, (batch_size, qo_len, h_q), dtype)
+
+        batch_tiles: T.int32 = T.ceildiv(qo_len * group_size, tile_x)
+
+        for lbx in T.thread_binding(T.cast(batch_size, "int32") * batch_tiles, thread="blockIdx.x"):
+            for lby in T.thread_binding(h_kv, thread="blockIdx.y"):
+                for lty in T.thread_binding(num_warps, thread="threadIdx.y"):
+                    for ltx in T.thread_binding(bdx, thread="threadIdx.x"):
+                        with T.sblock("attn"):
+                            vbx, by, ty, tx = T.axis.remap("SSSS", [lbx, lby, lty, ltx])
+                            T.reads()
+                            T.writes()
+
+                            Q_smem = T.sblock_alloc_buffer((tile_x, d), dtype, scope="shared")
+                            K_smem = T.sblock_alloc_buffer((tile_z, d), dtype, scope="shared")
+                            V_smem = T.sblock_alloc_buffer((tile_z, d), dtype, scope="shared")
+                            S_smem = T.sblock_alloc_buffer((tile_x, tile_z), "float32", scope="shared")
+
+                            S_local = T.sblock_alloc_buffer((tile_x, tile_z), "float32", scope="local")
+                            O_local = T.sblock_alloc_buffer((tile_x, d), "float32", scope="local")
+
+                            m_smem = T.sblock_alloc_buffer((tile_x,), "float32", scope="shared")
+                            m_prev_smem = T.sblock_alloc_buffer((tile_x,), "float32", scope="shared")
+                            d_smem = T.sblock_alloc_buffer((tile_x,), "float32", scope="shared")
+
+                            m_new = T.sblock_alloc_buffer(
+                                (math.ceil(tile_x / (bdx * num_warps)),), "float32", scope="local"
+                            )
+                            m_prev = T.sblock_alloc_buffer(
+                                (math.ceil(tile_x / (bdx * num_warps)),), "float32", scope="local"
+                            )
+                            d_new = T.sblock_alloc_buffer(
+                                (math.ceil(tile_x / (bdx * num_warps)),), "float32", scope="local"
+                            )
+
+                            b_idx: T.int32 = vbx // batch_tiles
+                            valid_len: T.int32 = valid_lens[b_idx]
+                            tile_id: T.int32 = vbx % batch_tiles
+                            LH_start: T.int32 = tile_id * tile_x
+                            T.tvm_storage_sync("shared")
+
+                            # init states
+                            for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
+                                row: T.int32 = i * bdx * num_warps + ty * bdx + tx
+                                if row < tile_x:
+                                    m_smem[row] = -5e4
+                                    d_smem[row] = 1.0
+
+                            for li, lj in T.grid(tile_x, tile_y):
+                                with T.sblock("O_init"):
+                                    i, j = T.axis.remap("SS", [li, lj])
+                                    O_local[i, j] = 0.0
+                            T.tvm_storage_sync("shared")
+
+                            # Load Q; padded rows are zeroed so they contribute nothing downstream.
+                            for li, lj in T.grid(tile_x, tile_y):
+                                with T.sblock("Q_load"):
+                                    i, j = T.axis.remap("SS", [li, lj])
+                                    T.reads()
+                                    T.writes()
+                                    cur_L = (LH_start + i) // group_size
+                                    cur_H_qo = by * group_size + (LH_start + i) % group_size
+                                    if tirx.And(cur_L < qo_len, cur_L < valid_len):
+                                        Q_smem[i, j] = q[b_idx, cur_L, cur_H_qo, j]
+                                    else:
+                                        Q_smem[i, j] = 0.0
+                            T.tvm_storage_sync("shared")
+
+                            for iterator in T.serial(T.ceildiv(kv_len, tile_z)):
+                                L_kv_start: T.int32 = iterator * tile_z
+                                L_kv_base: T.int32 = 0
+                                for lz, ly in T.grid(tile_z, tile_y):
+                                    with T.sblock("K_load"):
+                                        i, j = T.axis.remap("SS", [lz, ly])
+                                        T.reads()
+                                        T.writes()
+                                        cur_L = L_kv_start + i
+                                        if tirx.And(cur_L < kv_len, cur_L < valid_len):
+                                            K_smem[i, j] = k[b_idx, L_kv_base + cur_L, by, j]
+                                        else:
+                                            K_smem[i, j] = 0.0
+                                T.tvm_storage_sync("shared")
+                                for lz, ly in T.grid(tile_z, tile_y):
+                                    with T.sblock("V_load"):
+                                        i, j = T.axis.remap("SS", [lz, ly])
+                                        T.reads()
+                                        T.writes()
+                                        cur_L = L_kv_start + i
+                                        if tirx.And(cur_L < kv_len, cur_L < valid_len):
+                                            V_smem[i, j] = v[b_idx, L_kv_base + cur_L, by, j]
+                                        else:
+                                            V_smem[i, j] = 0.0
+                                T.tvm_storage_sync("shared")
+
+                                # Compute S
+                                with T.sblock():
+                                    for li, lj, lk in T.grid(tile_x, tile_z, tile_y):
+                                        with T.sblock("S_gemm"):
+                                            i, j, k = T.axis.remap("SSR", [li, lj, lk])
+                                            with T.init():
+                                                S_local[i, j] = 0.0
+                                            S_local[i, j] += (
+                                                T.cast(Q_smem[i, k], "float32")
+                                                * T.cast(K_smem[j, k], "float32")
+                                                * sm_scale
+                                                * math.log2(math.exp(1))
+                                            )
+                                T.tvm_storage_sync("shared")
+                                for li, lj in T.grid(tile_x, tile_z):
+                                    with T.sblock("S_store"):
+                                        i, j = T.axis.remap("SS", [li, lj])
+                                        S_smem[i, j] = S_local[i, j]
+                                T.tvm_storage_sync("shared")
+
+                                # Update S, m, d — use padding mask instead of causal.
+                                for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
+                                    row: T.int32 = i * bdx * num_warps + ty * bdx + tx
+                                    if row < tile_x:
+                                        with T.sblock("update1"):
+                                            m_prev[i] = m_smem[row]
+                                            m_new[i] = m_smem[row]
+                                            row_: T.int32 = (LH_start + row) // group_size
+                                            for j in T.serial(tile_z):
+                                                if _valid_length_mask(
+                                                    valid_len,
+                                                    row=row_,
+                                                    col=L_kv_start + j,
+                                                    qo_len=qo_len,
+                                                ):
+                                                    m_new[i] = T.max(
+                                                        m_new[i], S_smem[row, j]
+                                                    )
+                                            d_new[i] = d_smem[row] * T.exp2(
+                                                m_prev[i] - m_new[i]
+                                            )
+
+                                for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
+                                    row: T.int32 = i * bdx * num_warps + ty * bdx + tx
+                                    with T.sblock("update"):
+                                        for j in T.serial(tile_z):
+                                            # sync is outside the branch, so the predicate is inside
+                                            if row < tile_x:
+                                                row_: T.int32 = (
+                                                    LH_start + row
+                                                ) // group_size
+                                                if _valid_length_mask(
+                                                    valid_len,
+                                                    row=row_,
+                                                    col=L_kv_start + j,
+                                                    qo_len=qo_len,
+                                                ):
+                                                    S_smem[row, j] = T.exp2(
+                                                        S_smem[row, j] - m_new[i]
+                                                    )
+                                                else:
+                                                    S_smem[row, j] = T.exp2(-5e4 - m_new[i])
+
+                                for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
+                                    row: T.int32 = i * bdx * num_warps + ty * bdx + tx
+                                    if row < tile_x:
+                                        with T.sblock("update"):
+                                            for j in T.serial(tile_z):
+                                                d_new[i] += S_smem[row, j]
+                                            m_smem[row] = m_new[i]
+                                            d_smem[row] = d_new[i]
+                                            m_prev_smem[row] = m_prev[i]
+                                T.tvm_storage_sync("shared")
+
+                                # Update O
+                                with T.sblock():
+                                    for li, lj, lk in T.grid(tile_x, tile_y, tile_z):
+                                        with T.sblock("O_gemm"):
+                                            i, j, k = T.axis.remap("SSR", [li, lj, lk])
+                                            with T.init():
+                                                O_local[i, j] *= T.exp2(
+                                                    m_prev_smem[i] - m_smem[i]
+                                                )
+                                            O_local[i, j] += S_smem[i, k] * T.cast(
+                                                V_smem[k, j], "float32"
+                                            )
+
+                            # Store O
+                            for li, lj in T.grid(tile_x, tile_y):
+                                with T.sblock("O_store"):
+                                    i, j = T.axis.remap("SS", [li, lj])
+                                    cur_L: T.int32 = 0 + (LH_start + i) // group_size
+                                    cur_H_qo: T.int32 = (
+                                        by * group_size + (LH_start + i) % group_size
+                                    )
+                                    if cur_L < qo_len:
+                                        output[b_idx, cur_L, cur_H_qo, j] = (
+                                            O_local[i, j] / d_smem[i]
+                                        )
+
+                            # Store LSE
+                            for li in T.grid(tile_x):
+                                with T.sblock("lse_store"):
+                                    i = T.axis.remap("S", [li])
+                                    cur_L: T.int32 = 0 + (LH_start + i) // group_size
+                                    cur_H_qo: T.int32 = (
+                                        by * group_size + (LH_start + i) % group_size
+                                    )
+                                    if cur_L < qo_len:
+                                        lse[b_idx, cur_L, cur_H_qo] = m_smem[i] + T.log2(
+                                            d_smem[i]
+                                        )
+
+    # fmt: on
+    sch = tvm.s_tir.Schedule(batch_sequence_prefill_kv_masked)
+    sch = _schedule_prefill_kernel(
+        sch, LOAD_VEC, bdx, num_warps, tile_x, tile_y, tile_z, False, False
+    )
+    return sch.mod["main"].with_attr("tirx.is_scheduled", True)
+
+
 def _attention_prefill_ragged_cpu(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dict[str, Any]):
     group_size = h_q // h_kv
 
