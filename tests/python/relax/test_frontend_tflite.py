@@ -322,6 +322,7 @@ def test_tile(input_shape, multiples, dtype):
 
     verify(Tile)
 
+
 def test_concat_v2():
     class ConcatV2(tf.Module):
         @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
@@ -804,6 +805,7 @@ def test_transpose_conv():
 
     verify(TransposeConv)
 
+
 def test_l2_pool2d():
     class L2Pool2D(tf.Module):
         @tf.function(input_signature=[tf.TensorSpec(shape=(1, 8, 8, 2), dtype=tf.float32)])
@@ -815,9 +817,9 @@ def test_l2_pool2d():
     @I.ir_module
     class Expected:
         @R.function
-        def main(
-            data: R.Tensor((1, 8, 8, 2), dtype="float32")
-        ) -> R.Tensor((1, 8, 8, 2), dtype="float32"):
+        def main(data: R.Tensor((1, 8, 8, 2), dtype="float32")) -> R.Tensor(
+            (1, 8, 8, 2), dtype="float32"
+        ):
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 squared = R.power(data, R.const(2.0, "float32"))
@@ -882,6 +884,7 @@ def test_reverse_v2():
             return gv
 
     verify(ReverseV2, Expected)
+
 
 def _make_conv2d_module(data_shape, kernel_shape, data_format, strides, padding):
     class Conv2DModule(tf.Module):
@@ -1590,9 +1593,7 @@ _DETECTION_POSTPROCESS_SHAPE_CASES = [
     "build_kwargs,expected_topk_count,expected_keep_background",
     _DETECTION_POSTPROCESS_SMOKE_CASES,
 )
-def test_detection_postprocess_smoke(
-    build_kwargs, expected_topk_count, expected_keep_background
-):
+def test_detection_postprocess_smoke(build_kwargs, expected_topk_count, expected_keep_background):
     mod = _build_detection_postprocess_mod(**build_kwargs)
     ir = mod.script()
 
@@ -1648,6 +1649,7 @@ def test_detection_postprocess_shape_variations(build_kwargs):
             ]
         ),
     )
+
 
 def _make_resize_expected(
     input_shape, output_size, method, coordinate_transformation_mode, rounding_method
@@ -2107,6 +2109,62 @@ def test_relu_n1_to_1():
             return gv
 
     verify(ReLU_N1_to_1, Expected)
+
+
+@pytest.mark.parametrize(
+    "shared_axes",
+    [
+        pytest.param([1, 2], id="channelwise_shared_axes"),
+        pytest.param([1, 2, 3], id="scalar_shared_axes"),
+        pytest.param(None, id="elementwise_no_shared_axes"),
+    ],
+)
+def test_prelu(shared_axes):
+    inputs = tf.keras.Input(shape=(4, 4, 3), batch_size=1, dtype=tf.float32)
+    prelu_kwargs = {
+        "alpha_initializer": tf.initializers.constant(0.25),
+    }
+    if shared_axes is not None:
+        prelu_kwargs["shared_axes"] = shared_axes
+    outputs = tf.keras.layers.PReLU(**prelu_kwargs)(inputs)
+    keras_model = tf.keras.Model(inputs, outputs)
+
+    converter = tf.lite.TFLiteConverter.from_keras_model(keras_model)
+    tflite_model_buf = converter.convert()
+    if hasattr(tflite.Model, "Model"):
+        tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_buf, 0)
+    else:
+        tflite_model = tflite.Model.GetRootAsModel(tflite_model_buf, 0)
+
+    mod = from_tflite(tflite_model)
+    mod["main"] = mod["main"].without_attr("params")
+
+    if shared_axes == [1, 2]:
+        alpha_const = np.full((1, 1, 3), 0.25, dtype=np.float32)
+    elif shared_axes == [1, 2, 3]:
+        alpha_const = np.full((1, 1, 1), 0.25, dtype=np.float32)
+    else:
+        alpha_const = np.full((4, 4, 3), 0.25, dtype=np.float32)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((1, 4, 4, 3), dtype="float32")) -> R.Tensor(
+            (1, 4, 4, 3), dtype="float32"
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((1, 4, 4, 3), dtype="float32") = R.broadcast_to(
+                    R.const(alpha_const), R.shape([1, 4, 4, 3])
+                )
+                lv1: R.Tensor((48,), dtype="float32") = R.reshape(x, R.shape([48]))
+                lv2: R.Tensor((48,), dtype="float32") = R.reshape(lv, R.shape([48]))
+                lv3: R.Tensor((48,), dtype="float32") = R.nn.prelu(lv1, lv2, axis=0)
+                gv: R.Tensor((1, 4, 4, 3), dtype="float32") = R.reshape(lv3, R.shape([1, 4, 4, 3]))
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
 
 
 if __name__ == "__main__":
