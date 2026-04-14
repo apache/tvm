@@ -853,14 +853,15 @@ class OperatorConverter:
         squared_2d = _op.reshape(squared, [-1, data_shape[axis], 1, 1])
         pooled = self.bb.normalize(
             relax.op.nn.avg_pool2d(
-            squared_2d,
-            pool_size=[size, 1],
-            strides=[1, 1],
-            padding=[radius, 0, radius, 0],
-            layout="NHWC",
+                squared_2d,
+                pool_size=[size, 1],
+                strides=[1, 1],
+                padding=[radius, 0, radius, 0],
+                layout="NHWC",
+                count_include_pad=True,
             )
         )
-        pooled = _op.reshape(pooled, data_shape)
+        pooled = self.bb.normalize(_op.reshape(pooled, data_shape))
         denom = relax.op.power(
             relax.op.add(relax.const(bias, in_type), relax.op.multiply(relax.const(alpha, in_type), pooled)),
             relax.const(beta, in_type),
