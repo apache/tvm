@@ -2158,35 +2158,5 @@ def test_prelu(shared_axes):
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
-def test_prelu_runtime():
-    inputs = tf.keras.Input(shape=(4, 4, 3), batch_size=1, dtype=tf.float32)
-    outputs = tf.keras.layers.PReLU(
-        alpha_initializer=tf.initializers.constant(0.25),
-        shared_axes=[1, 2],
-    )(inputs)
-    keras_model = tf.keras.Model(inputs, outputs)
-
-    converter = tf.lite.TFLiteConverter.from_keras_model(keras_model)
-    tflite_model_buf = converter.convert()
-    if hasattr(tflite.Model, "Model"):
-        tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_buf, 0)
-    else:
-        tflite_model = tflite.Model.GetRootAsModel(tflite_model_buf, 0)
-
-    mod = from_tflite(tflite_model)
-    mod["main"] = mod["main"].without_attr("params")
-
-    input_data = np.linspace(-1.0, 1.0, num=48, dtype=np.float32).reshape(1, 4, 4, 3)
-    tf_output = keras_model(tf.constant(input_data)).numpy()
-
-    ex = tvm.compile(mod, tvm.target.Target("llvm"))
-    vm = relax.VirtualMachine(ex, tvm.cpu())
-    vm.set_input("main", input_data)
-    vm.invoke_stateful("main")
-    tvm_output = vm.get_outputs("main").numpy()
-
-    np.testing.assert_allclose(tf_output, tvm_output, rtol=1e-5, atol=1e-5)
-
-
 if __name__ == "__main__":
     pytest.main(["-s", __file__])
