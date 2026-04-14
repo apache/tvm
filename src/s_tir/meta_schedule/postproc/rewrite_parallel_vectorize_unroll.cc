@@ -213,6 +213,7 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
   // (vectorizable) axes
   for (const BufferRegion& access : buffer_access) {
     int fusible = 0;
+    bool can_analyze_contiguous_access = true;
     std::vector<int64_t> strides;
     // get strides for each loop var
     for (const StmtSRef& loop_sref : loop_srefs) {
@@ -226,9 +227,21 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
           stride = coef * buffer_stride;
           break;
         }
-        buffer_stride *= access->buffer->shape[i].as<IntImmNode>()->value;
+        const auto* shape = access->buffer->shape[i].as<IntImmNode>();
+        if (shape == nullptr) {
+          can_analyze_contiguous_access = false;
+          break;
+        }
+        buffer_stride *= shape->value;
+      }
+      if (!can_analyze_contiguous_access) {
+        break;
       }
       strides.push_back(stride);
+    }
+    if (!can_analyze_contiguous_access) {
+      max_fusible = 0;
+      continue;
     }
     int prev_used_iter = -1;
     // check the number of fusible loops
@@ -246,9 +259,11 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
         prev_used_iter = i;
       } else {
         // contiguous memory access
-        const auto* prev_loop = loop_srefs[prev_used_iter]->StmtAs<ForNode>();
-        int64_t prev_used_iter_extent = prev_loop->extent.as<IntImmNode>()->value;
-        if (strides[i] == strides[prev_used_iter] * prev_used_iter_extent) {
+        const int64_t* prev_used_iter_extent = GetLoopIntExtent(loop_srefs[prev_used_iter]);
+        if (prev_used_iter_extent == nullptr) {
+          break;
+        }
+        if (strides[i] == strides[prev_used_iter] * (*prev_used_iter_extent)) {
           fusible++;
           prev_used_iter = i;
         } else {
@@ -419,47 +434,43 @@ class RewriteParallelVectorizeUnrollNode : public PostprocNode {
   void InitializeWithTuneContext(const TuneContext& context) final {}
 
   bool Apply(const Schedule& sch) final {
-    try {
-      s_tir::ParsedAnnotation parsed_root;
-      s_tir::SBlockRV root_rv{ffi::UnsafeInit()};
-      while (s_tir::FindAnnotatedRootBlock(sch, &parsed_root, &root_rv)) {
-        for (s_tir::SBlockRV block_rv : sch->GetChildBlocks(root_rv)) {
-          ffi::Array<s_tir::LoopRV> loop_rvs = sch->GetLoops(block_rv);
-          if (loop_rvs.empty()) {
-            continue;
-          }
-          s_tir::ParsedAnnotation parsed = parsed_root;
-          s_tir::AdjustParallelVectorize(sch, block_rv, loop_rvs, &parsed);
-          const int loops_num = loop_rvs.size();
-          try {
-            if (parsed.num_parallel_loops == loops_num && parsed.num_vectorize_loops == loops_num) {
-              // Fuse, split, vectorize and parallelize
-              s_tir::RewriteFuseSplitParallelVectorize(sch, &loop_rvs, parsed.max_vectorize_extent);
-            } else {
-              // Parallel
-              if (parsed.num_parallel_loops > 0) {
-                s_tir::RewriteParallel(sch, parsed.num_parallel_loops, &loop_rvs);
-              }
-              // Vectorize
-              if (parsed.num_vectorize_loops > 0) {
-                s_tir::RewriteVectorize(sch, parsed.num_vectorize_loops, &loop_rvs);
-              }
+    s_tir::ParsedAnnotation parsed_root;
+    s_tir::SBlockRV root_rv{ffi::UnsafeInit()};
+    while (s_tir::FindAnnotatedRootBlock(sch, &parsed_root, &root_rv)) {
+      for (s_tir::SBlockRV block_rv : sch->GetChildBlocks(root_rv)) {
+        ffi::Array<s_tir::LoopRV> loop_rvs = sch->GetLoops(block_rv);
+        if (loop_rvs.empty()) {
+          continue;
+        }
+        s_tir::ParsedAnnotation parsed = parsed_root;
+        s_tir::AdjustParallelVectorize(sch, block_rv, loop_rvs, &parsed);
+        const int loops_num = loop_rvs.size();
+        try {
+          if (parsed.num_parallel_loops == loops_num && parsed.num_vectorize_loops == loops_num) {
+            // Fuse, split, vectorize and parallelize
+            s_tir::RewriteFuseSplitParallelVectorize(sch, &loop_rvs, parsed.max_vectorize_extent);
+          } else {
+            // Parallel
+            if (parsed.num_parallel_loops > 0) {
+              s_tir::RewriteParallel(sch, parsed.num_parallel_loops, &loop_rvs);
             }
-            // AutoUnroll
-            if (parsed.unroll_explicit != -1 || parsed.unroll_implicit != -1) {
-              TVM_FFI_ICHECK(parsed.unroll_explicit == -1 || parsed.unroll_implicit == -1);
-              int unroll_explicit = parsed.unroll_explicit != -1;
-              int max_step = parsed.unroll_explicit + parsed.unroll_implicit + 1;
-              s_tir::RewriteUnroll(sch, unroll_explicit, max_step, block_rv, loop_rvs[0]);
+            // Vectorize
+            if (parsed.num_vectorize_loops > 0) {
+              s_tir::RewriteVectorize(sch, parsed.num_vectorize_loops, &loop_rvs);
             }
-          } catch (const s_tir::ScheduleError& e) {
-            DLOG(WARNING) << "Failed to apply parallelization/vectorization: " << e.what();
-            return false;
           }
+          // AutoUnroll
+          if (parsed.unroll_explicit != -1 || parsed.unroll_implicit != -1) {
+            TVM_FFI_ICHECK(parsed.unroll_explicit == -1 || parsed.unroll_implicit == -1);
+            int unroll_explicit = parsed.unroll_explicit != -1;
+            int max_step = parsed.unroll_explicit + parsed.unroll_implicit + 1;
+            s_tir::RewriteUnroll(sch, unroll_explicit, max_step, block_rv, loop_rvs[0]);
+          }
+        } catch (const s_tir::ScheduleError& e) {
+          DLOG(WARNING) << "Failed to apply parallelization/vectorization: " << e.what();
+          return false;
         }
       }
-    } catch (const runtime::Error&) {
-      return false;
     }
     return true;
   }
