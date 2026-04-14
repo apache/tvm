@@ -2986,22 +2986,10 @@ class OperatorConverter:
         input_tensor = input_tensors[0]
         alpha_tensor = input_tensors[1]
         data_shape = to_int_list(self.get_tensor_shape(input_tensor))
-        if self.has_expr(alpha_tensor.tensor_idx):
-            alpha_expr = self.get_expr(alpha_tensor.tensor_idx)
-            alpha_expr = relax.op.broadcast_to(alpha_expr, data_shape)
-            alpha_expr = relax.op.reshape(alpha_expr, [-1])
-        else:
-            alpha_tensor_type = alpha_tensor.tensor.Type()
-            alpha_tensor_type_str = self.get_tensor_type_str(alpha_tensor_type)
-            alpha_value = np.broadcast_to(self.get_tensor_value(alpha_tensor), data_shape).reshape(
-                -1
-            )
-            alpha_expr = self.exp_tab.new_const(
-                alpha_value,
-                dtype=alpha_tensor_type_str,
-                source_name=alpha_tensor.tensor.Name(),
-            )
-        in_expr = self.get_expr(input_tensor.tensor_idx)
+        alpha_expr = self.get_tensor_expr(alpha_tensor)
+        alpha_expr = self.bb.normalize(relax.op.broadcast_to(alpha_expr, data_shape))
+        alpha_expr = self.bb.normalize(relax.op.reshape(alpha_expr, [-1]))
+        in_expr = self.get_tensor_expr(input_tensor)
         out = relax.op.nn.prelu(_op.reshape(in_expr, [-1]), alpha_expr, axis=0)
         out = relax.op.reshape(out, data_shape)
         return out

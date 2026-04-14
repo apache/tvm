@@ -2139,6 +2139,13 @@ def test_prelu(shared_axes):
     mod = from_tflite(tflite_model)
     mod["main"] = mod["main"].without_attr("params")
 
+    if shared_axes == [1, 2]:
+        alpha_const = np.full((1, 1, 3), 0.25, dtype=np.float32)
+    elif shared_axes == [1, 2, 3]:
+        alpha_const = np.full((1, 1, 1), 0.25, dtype=np.float32)
+    else:
+        alpha_const = np.full((4, 4, 3), 0.25, dtype=np.float32)
+
     @I.ir_module
     class Expected:
         @R.function
@@ -2147,11 +2154,13 @@ def test_prelu(shared_axes):
         ):
             R.func_attr({"num_input": 1})
             with R.dataflow():
-                lv: R.Tensor((48,), dtype="float32") = R.reshape(x, R.shape([48]))
-                lv1: R.Tensor((48,), dtype="float32") = R.nn.prelu(
-                    lv, R.const(np.full((48,), 0.25, dtype=np.float32)), axis=0
+                lv: R.Tensor((1, 4, 4, 3), dtype="float32") = R.broadcast_to(
+                    R.const(alpha_const), R.shape([1, 4, 4, 3])
                 )
-                gv: R.Tensor((1, 4, 4, 3), dtype="float32") = R.reshape(lv1, R.shape([1, 4, 4, 3]))
+                lv1: R.Tensor((48,), dtype="float32") = R.reshape(x, R.shape([48]))
+                lv2: R.Tensor((48,), dtype="float32") = R.reshape(lv, R.shape([48]))
+                lv3: R.Tensor((48,), dtype="float32") = R.nn.prelu(lv1, lv2, axis=0)
+                gv: R.Tensor((1, 4, 4, 3), dtype="float32") = R.reshape(lv3, R.shape([1, 4, 4, 3]))
                 R.output(gv)
             return gv
 
