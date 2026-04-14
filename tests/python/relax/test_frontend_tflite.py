@@ -518,6 +518,18 @@ def test_swish():
     verify(TfInput, Expected)
 
 
+def test_prelu():
+    alpha_init = tf.keras.initializers.Constant(np.linspace(0.1, 0.3, 30, dtype=np.float32))
+    prelu = tf.keras.layers.PReLU(alpha_initializer=alpha_init)
+
+    class TfInput(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
+        def func(self, x):
+            return prelu(x)
+
+    verify(TfInput)
+
+
 def test_fill():
     class TfInput(tf.Module):
         @tf.function(
@@ -800,6 +812,33 @@ def test_split_binary(tf_op, relax_op):
     verify(Binary, Expected)
 
 
+def test_squared_difference():
+    class SquaredDifference(tf.Module):
+        @tf.function(
+            input_signature=[
+                tf.TensorSpec(shape=(2, 3), dtype=tf.float32),
+                tf.TensorSpec(shape=(2, 3), dtype=tf.float32),
+            ]
+        )
+        def func(self, x, y):
+            return tf.math.squared_difference(x, y)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="float32")
+        ) -> R.Tensor((2, 3), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((2, 3), dtype="float32") = R.subtract(x, y)
+                gv: R.Tensor((2, 3), dtype="float32") = R.power(lv, R.const(2.0, "float32"))
+                R.output(gv)
+            return gv
+
+    verify(SquaredDifference, Expected)
+
+
 @pytest.mark.parametrize(
     "tf_op, relax_op, axis, out_shape",
     [
@@ -916,6 +955,21 @@ def test_l2_normalization():
             return tf.nn.l2_normalize(x, axis=-1)
 
     verify(L2Normalization)
+
+
+def test_local_response_normalization():
+    class LocalResponseNormalization(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(1, 8, 8, 4), dtype=tf.float32)])
+        def func(self, x):
+            return tf.nn.local_response_normalization(
+                x,
+                depth_radius=2,
+                bias=1.0,
+                alpha=1e-4,
+                beta=0.75,
+            )
+
+    verify(LocalResponseNormalization)
 
 
 def test_slice():
