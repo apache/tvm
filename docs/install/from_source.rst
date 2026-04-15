@@ -163,7 +163,8 @@ Leaving the build environment ``tvm-build-venv``, there are two ways to install 
 .. code-block:: bash
 
     export TVM_HOME=/path-to-tvm
-    export PYTHONPATH=$TVM_HOME/python:$PYTHONPATH
+    pip install $TVM_HOME/3rdparty/tvm-ffi
+    export PYTHONPATH=$TVM_HOME/python:$TVM_HOME/3rdparty/tvm-ffi/python:$PYTHONPATH
 
 - Install via pip local project
 
