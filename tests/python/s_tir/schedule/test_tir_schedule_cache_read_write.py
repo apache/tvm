@@ -1670,5 +1670,87 @@ def test_symbolic_matmul_blocked_cache_write(use_block_name):
     verify_trace_roundtrip(sch=sch, mod=symbolic_matmul_blocked)
 
 
+def test_cache_write_with_nested_block_predicate():
+    @T.prim_func
+    def main(A: T.handle, C: T.handle) -> None:
+        A_buf = T.match_buffer(A, (12, 24), "float32")
+        C_buf = T.match_buffer(C, (10, 20), "float32")
+
+        for i, j in T.grid(12, 24):
+            with T.sblock("compute"):
+                vi, vj = T.axis.remap("SS", [i, j])
+
+                with T.sblock("inner"):
+                    T.where(vi < 10 and vj < 20)
+                    C_buf[vi, vj] = A_buf[vi, vj] * 2.0
+
+    @T.prim_func
+    def expected(A_buf: T.Buffer((12, 24), "float32"), C_buf: T.Buffer((10, 20), "float32")):
+        with T.sblock("root"):
+            C_buf_local = T.sblock_alloc_buffer((10, 20), scope="local")
+            for i, j in T.grid(12, 24):
+                with T.sblock("compute"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    T.reads(A_buf[vi, vj])
+                    T.writes(C_buf_local[vi, vj])
+                    with T.sblock("inner"):
+                        T.where(vi < 10 and vj < 20)
+                        T.reads(A_buf[vi, vj])
+                        T.writes(C_buf_local[vi, vj])
+                        C_buf_local[vi, vj] = A_buf[vi, vj] * T.float32(2)
+            for ax0, ax1 in T.grid(10, 20):
+                with T.sblock("C_buf_local"):
+                    v0, v1 = T.axis.remap("SS", [ax0, ax1])
+                    T.reads(C_buf_local[v0, v1])
+                    T.writes(C_buf[v0, v1])
+                    C_buf[v0, v1] = C_buf_local[v0, v1]
+
+    sch = tvm.s_tir.Schedule(main)
+    block = sch.get_sblock("compute")
+    sch.cache_write(block, 0, "local")
+    assert_structural_equal_ignore_global_symbol(expected, sch.mod["main"])
+
+
+def test_cache_read_with_nested_block_predicate():
+    @T.prim_func
+    def main(A: T.handle, C: T.handle) -> None:
+        A_buf = T.match_buffer(A, (12, 24), "float32")
+        C_buf = T.match_buffer(C, (10, 20), "float32")
+
+        for i, j in T.grid(12, 24):
+            with T.sblock("compute"):
+                vi, vj = T.axis.remap("SS", [i, j])
+
+                with T.sblock("inner"):
+                    T.where(vi < 10 and vj < 20)
+                    C_buf[vi, vj] = A_buf[vi, vj] * 2.0
+
+    @T.prim_func
+    def expected(A_buf: T.Buffer((12, 24), "float32"), C_buf: T.Buffer((10, 20), "float32")):
+        with T.sblock("root"):
+            A_buf_local = T.sblock_alloc_buffer((10, 20), scope="local")
+            for ax0, ax1 in T.grid(10, 20):
+                with T.sblock("A_buf_local"):
+                    v0, v1 = T.axis.remap("SS", [ax0, ax1])
+                    T.reads(A_buf[v0, v1])
+                    T.writes(A_buf_local[v0, v1])
+                    A_buf_local[v0, v1] = A_buf[v0, v1]
+            for i, j in T.grid(12, 24):
+                with T.sblock("compute"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    T.reads(A_buf_local[vi, vj])
+                    T.writes(C_buf[vi, vj])
+                    with T.sblock("inner"):
+                        T.where(vi < 10 and vj < 20)
+                        T.reads(A_buf_local[vi, vj])
+                        T.writes(C_buf[vi, vj])
+                        C_buf[vi, vj] = A_buf_local[vi, vj] * T.float32(2)
+
+    sch = tvm.s_tir.Schedule(main)
+    block = sch.get_sblock("compute")
+    sch.cache_read(block, 0, "local")
+    assert_structural_equal_ignore_global_symbol(expected, sch.mod["main"])
+
+
 if __name__ == "__main__":
     tvm.testing.main()
