@@ -558,7 +558,7 @@ static PrimExpr CollectNestedBlockPredicates(const Stmt& body, const Buffer& buf
                                              BufferIndexType index_type) {
   struct Collector : public StmtVisitor {
     Collector(const Buffer& buf, BufferIndexType idx_type)
-        : buffer_(buf), index_type_(idx_type), result_(Bool(true)) {}
+        : buffer_(buf), index_type_(idx_type), result_(Bool(false)), found_(false) {}
 
     void VisitStmt_(const SBlockRealizeNode* realize) final {
       const SBlockNode* block = realize->block.get();
@@ -580,7 +580,13 @@ static PrimExpr CollectNestedBlockPredicates(const Stmt& body, const Buffer& buf
         }
         PrimExpr pred =
             subst.empty() ? realize->predicate : Substitute(realize->predicate, subst);
-        result_ = result_ && pred;
+        // OR the predicates across all accessing nested blocks: each such block is an
+        // independent alternative access path (sibling blocks in a SeqStmt), so the
+        // cache must cover the *union* of their access regions, not the intersection.
+        // Using AND (the previous behaviour) underestimates the required region when
+        // sibling blocks have non-overlapping predicates.
+        result_ = found_ ? (result_ || pred) : pred;
+        found_ = true;
       }
       // Continue recursing into deeper nested blocks.
       StmtVisitor::VisitStmt_(realize);
@@ -589,11 +595,14 @@ static PrimExpr CollectNestedBlockPredicates(const Stmt& body, const Buffer& buf
     const Buffer& buffer_;
     BufferIndexType index_type_;
     PrimExpr result_;
+    bool found_;
   };
 
   Collector collector(buffer, index_type);
   collector(body);
-  return collector.result_;
+  // If no nested block accessed the buffer, return true (no restriction — the caller
+  // will fall back to the original scope-block reads / FullRegion path).
+  return collector.found_ ? collector.result_ : Bool(true);
 }
 
 /*!
