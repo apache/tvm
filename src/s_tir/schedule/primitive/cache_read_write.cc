@@ -1781,7 +1781,7 @@ StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_buff
         read_region_opt
             ? CollectNestedBlockPredicates(block->body, read_buffer, BufferIndexType::kRead)
             : Bool(true);
-    if (read_region_opt && !is_one(nested_pred)) {
+    if (read_region_opt && !is_one(nested_pred) && block_sref->parent != nullptr) {
       StmtSRef parent_sref = ffi::GetRef<StmtSRef>(block_sref->parent);
       cache_region = RelaxBufferRegion(self, read_region_opt.value(), block_sref, parent_sref,
                                        scope_sref, nested_pred);
@@ -1864,16 +1864,22 @@ StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int write_bu
 
   // Step 4. Find the producing region and insert position
   BufferRegion region = GetBufferRegionFromBuffer(block->writes, write_buffer).value();
-  StmtSRef parent_sref = ffi::GetRef<StmtSRef>(block_sref->parent);
   // Detect insert position
   CacheLocDetector::Detect</*is_cache_read=*/false>(self, block_sref, scope_sref, &info);
   // Collect predicates from any nested blocks that gate the actual write (e.g. T.where on an
   // inner block). The outer block's own predicate may be trivially true even though the write
-  // is restricted by a nested predicate, so we AND them together for a tighter region estimate.    
+  // is restricted by a nested predicate, so we OR them together for a tighter region estimate.
   PrimExpr nested_write_pred =
       CollectNestedBlockPredicates(block->body, write_buffer, BufferIndexType::kWrite);
-  BufferRegion cache_region =
-      RelaxBufferRegion(self, region, block_sref, parent_sref, info.loc_sref, nested_write_pred);
+  BufferRegion cache_region;
+  if (block_sref->parent != nullptr) {
+    StmtSRef parent_sref = ffi::GetRef<StmtSRef>(block_sref->parent);
+    cache_region =
+        RelaxBufferRegion(self, region, block_sref, parent_sref, info.loc_sref, nested_write_pred);
+  } else {
+    // Root block: no enclosing loops to relax over, use the write region directly.
+    cache_region = region;
+  }
 
   bool cache_full_region = info.loc_sref->StmtAs<SBlockNode>() == nullptr ||
                            !AllConsumersUnderStmt(self, write_buffer, scope_sref, info.loc_sref);
