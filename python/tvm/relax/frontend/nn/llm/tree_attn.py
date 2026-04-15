@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name
-# ruff: noqa: E501, F841, RUF005
+# ruff: noqa: E501, F841
 
 """Operators for tree attention."""
 
@@ -27,40 +27,22 @@ from tvm.runtime import DataType
 from tvm.script import tirx as T
 from tvm.target import Target
 
-from .position_embedding import switch_rope_freq_func
+# The helpers below are shared with the main KV-cache kernels. They live in
+# ``_kernel_common`` so that ``kv_cache.py``, this file, and the split kernel
+# modules can all pull from a single source of truth.
+from ._kernel_common import (
+    _alloc_mha_qkvo_buffers,
+    _alloc_softmax_state_buffers,
+    _alloc_tile_walk_state,
+    _declare_length_info,
+    _get_kv_chunk_len,
+    _get_seq_offset,
+    _rope,
+    check_thread_limits,
+)
 
 # mypy: disable-error-code="attr-defined,valid-type,no-redef"
 # pylint: disable=too-many-statements,too-many-locals,too-many-arguments
-
-
-def _var(dtype):
-    return T.sblock_alloc_buffer((1,), dtype, scope="local")
-
-
-def _rope(
-    buffer: T.Buffer,
-    offset: tirx.Var,
-    rotary_dim: int,
-    theta: tirx.Var,
-    scale: tirx.Var,
-    indices: tuple[tirx.Var, ...],
-    qkv_dtype: str,
-    rope_scaling: dict[str, Any],
-):
-    d = indices[-1]
-    cos_freq, sin_freq, var_map = switch_rope_freq_func(rope_scaling)(
-        offset * scale, d, rotary_dim, theta, "float32"
-    )
-    cos = cos_freq * buffer[indices].astype("float32")
-    sin = sin_freq * tirx.if_then_else(
-        d < rotary_dim // 2,
-        -buffer[indices[:-1] + (d + rotary_dim // 2,)],
-        buffer[indices[:-1] + (d - rotary_dim // 2,)],
-    ).astype("float32")
-    expr = (cos + sin).astype(qkv_dtype)
-    for var, value in var_map.items():
-        expr = tirx.Let(var, value, expr)
-    return expr
 
 
 def _check_tree_order(tree_order_indptr, tree_order, batch, row, col, kv_len, qo_len):
@@ -80,14 +62,6 @@ def _check_tree_order(tree_order_indptr, tree_order, batch, row, col, kv_len, qo
                 < tree_order[tree_order_indptr[batch] + parent_idx_in_tree, 1],
             ),
         ),
-    )
-
-
-def _declare_length_info(var_length_info, batch_size, sliding_window, elem_offset):
-    return (
-        T.match_buffer(var_length_info, (3, batch_size), "int32", elem_offset=elem_offset)
-        if sliding_window
-        else T.match_buffer(var_length_info, (batch_size,), "int32", elem_offset=elem_offset)
     )
 
 
@@ -385,30 +359,10 @@ def tree_attn(h_kv, h_q, d, dtype, rope_scaling: dict[str, Any], target: Target)
                             bx, by, ty, tx = T.axis.remap("SSSS", [lbx, lby, lty, ltx])
                             T.reads()
                             T.writes()
-                            tile_id = _var("int32")
-                            batch_idx = _var("int32")
-                            batch_tiles = _var("int32")
-                            batch_rows = _var("int32")
-                            iterator = _var("int32")
-                            kv_chunk_len = _var("int32")
+                            tile_id, batch_idx, batch_tiles, batch_rows, iterator, kv_chunk_len = _alloc_tile_walk_state()
+                            Q_smem, K_smem, V_smem, O_local = _alloc_mha_qkvo_buffers(tile_x, tile_z, d, d, dtype)
+                            S_smem, S_local, m_smem, m_prev_smem, d_smem, m_new, m_prev, d_new = _alloc_softmax_state_buffers(tile_x, tile_z, bdx, num_warps)
 
-                            Q_smem = T.sblock_alloc_buffer((tile_x, d), dtype, scope="shared")
-                            K_smem = T.sblock_alloc_buffer((tile_z, d), dtype, scope="shared")
-                            V_smem = T.sblock_alloc_buffer((tile_z, d), dtype, scope="shared")
-                            S_smem = T.sblock_alloc_buffer((tile_x, tile_z), "float32", scope="shared")
-
-                            S_local = T.sblock_alloc_buffer((tile_x, tile_z), "float32", scope="local")
-                            O_local = T.sblock_alloc_buffer((tile_x, d), "float32", scope="local")
-
-                            m_smem = T.sblock_alloc_buffer((tile_x, ), "float32", scope="shared")
-                            m_prev_smem = T.sblock_alloc_buffer((tile_x, ), "float32", scope="shared")
-                            d_smem = T.sblock_alloc_buffer((tile_x, ), "float32", scope="shared")
-
-                            m_new = T.sblock_alloc_buffer((math.ceil(tile_x / (bdx * num_warps)),), "float32", scope="local")
-                            m_prev = T.sblock_alloc_buffer((math.ceil(tile_x / (bdx * num_warps)),), "float32", scope="local")
-                            d_new = T.sblock_alloc_buffer((math.ceil(tile_x / (bdx * num_warps)),), "float32", scope="local")
-
-                            ## get tile_no, batch_idx, batch_tiles, batch_rows
                             tile_id[0] = bx
                             batch_idx[0] = 0
                             batch_rows[0] = (q_indptr[1] - q_indptr[0]) * group_size
@@ -672,9 +626,6 @@ def tree_attn_with_paged_kv_cache_cpu(h_kv, h_q, d, dtype, rope_scaling: dict[st
     mod : tvm.IRModule
         The generated IR module.
     """
-    # pylint: disable=import-outside-toplevel
-    from .kv_cache import _declare_length_info, _get_kv_chunk_len, _get_seq_offset
-
     global_symbol = "tree_attn_paged_kv_cpu"
     sliding_window = False
     group_size = h_q // h_kv
@@ -869,14 +820,6 @@ def tree_attn_with_paged_kv_cache(
     mod : tvm.IRModule
         The generated IR module.
     """
-    # pylint: disable=import-outside-toplevel
-    from .kv_cache import (
-        _declare_length_info,
-        _get_kv_chunk_len,
-        _get_seq_offset,
-        check_thread_limits,
-    )
-
     # pylint: disable=invalid-name, line-too-long
     NUM_BLKS = 16
     LOAD_VEC = 8 // ((DataType(dtype).bits + 7) // 8)  # 8 bytes
@@ -1002,36 +945,10 @@ def tree_attn_with_paged_kv_cache(
                             bx, by, ty, tx = T.axis.remap("SSSS", [lbx, lby, lty, ltx])
                             T.reads()
                             T.writes()
-                            tile_id = _var("int32")
-                            batch_idx = _var("int32")
-                            batch_tiles = _var("int32")
-                            batch_rows = _var("int32")
-                            iterator = _var("int32")
-                            kv_chunk_len = _var("int32")
+                            tile_id, batch_idx, batch_tiles, batch_rows, iterator, kv_chunk_len = _alloc_tile_walk_state()
+                            Q_smem, K_smem, V_smem, O_local = _alloc_mha_qkvo_buffers(tile_x, tile_z, d, d, dtype)
+                            S_smem, S_local, m_smem, m_prev_smem, d_smem, m_new, m_prev, d_new = _alloc_softmax_state_buffers(tile_x, tile_z, bdx, num_warps)
 
-                            Q_smem = T.sblock_alloc_buffer((tile_x, d), dtype, scope="shared")
-                            K_smem = T.sblock_alloc_buffer((tile_z, d), dtype, scope="shared")
-                            V_smem = T.sblock_alloc_buffer((tile_z, d), dtype, scope="shared")
-                            S_smem = T.sblock_alloc_buffer((tile_x, tile_z), "float32", scope="shared")
-
-                            S_local = T.sblock_alloc_buffer((tile_x, tile_z), "float32", scope="local")
-                            O_local = T.sblock_alloc_buffer((tile_x, d), "float32", scope="local")
-
-                            m_smem = T.sblock_alloc_buffer((tile_x,), "float32", scope="shared")
-                            m_prev_smem = T.sblock_alloc_buffer((tile_x,), "float32", scope="shared")
-                            d_smem = T.sblock_alloc_buffer((tile_x,), "float32", scope="shared")
-
-                            m_new = T.sblock_alloc_buffer(
-                                (math.ceil(tile_x / (bdx * num_warps)),), "float32", scope="local"
-                            )
-                            m_prev = T.sblock_alloc_buffer(
-                                (math.ceil(tile_x / (bdx * num_warps)),), "float32", scope="local"
-                            )
-                            d_new = T.sblock_alloc_buffer(
-                                (math.ceil(tile_x / (bdx * num_warps)),), "float32", scope="local"
-                            )
-
-                            ## get tile_no, batch_idx, batch_tiles, batch_rows
                             tile_id[0] = bx
                             batch_idx[0] = 0
                             batch_rows[0] = (q_indptr[1] - q_indptr[0]) * group_size
