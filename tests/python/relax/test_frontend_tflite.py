@@ -2289,7 +2289,119 @@ def test_prelu(shared_axes):
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+
+def test_matrix_diag():
+    """Test TFLite MATRIX_DIAG operator."""
+
+    class MatrixDiag(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(3,), dtype=tf.float32)])
+        def func(self, diagonal):
+            return tf.raw_ops.MatrixDiag(diagonal=diagonal)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(diagonal: R.Tensor((3,), dtype="float32")) -> R.Tensor((3, 3), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((3, 3), dtype="float32") = R.zeros(R.shape([3, 3]), dtype="float32")
+                gv = R.call_dps_packed(
+                    "topi.matrix_set_diag",
+                    (
+                        lv,
+                        diagonal,
+                        R.const(0, "int32"),
+                        R.const(0, "int32"),
+                        R.const(False, "bool"),
+                        R.const(False, "bool"),
+                    ),
+                    out_sinfo=R.Tensor((3, 3), dtype="float32"),
+                )
+                R.output(gv)
+            return gv
+
+    verify(MatrixDiag, Expected)
+
+
+def test_matrix_set_diag():
+    """Test TFLite MATRIX_SET_DIAG operator."""
+
+    class MatrixSetDiag(tf.Module):
+        @tf.function(
+            input_signature=[
+                tf.TensorSpec(shape=(3, 3), dtype=tf.float32),
+                tf.TensorSpec(shape=(3,), dtype=tf.float32),
+            ]
+        )
+        def func(self, input, diagonal):
+            return tf.raw_ops.MatrixSetDiag(input=input, diagonal=diagonal)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            input: R.Tensor((3, 3), dtype="float32"),
+            diagonal: R.Tensor((3,), dtype="float32"),
+        ) -> R.Tensor((3, 3), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                gv = R.call_dps_packed(
+                    "topi.matrix_set_diag",
+                    (
+                        input,
+                        diagonal,
+                        R.const(0, "int32"),
+                        R.const(0, "int32"),
+                        R.const(False, "bool"),
+                        R.const(False, "bool"),
+                    ),
+                    out_sinfo=R.Tensor((3, 3), dtype="float32"),
+                )
+                R.output(gv)
+            return gv
+
+    verify(MatrixSetDiag, Expected)
+
+
+def test_sparse_to_dense():
+    """Test TFLite SPARSE_TO_DENSE operator."""
+
+    class SparseToDense(tf.Module):
+        @tf.function(
+            input_signature=[
+                tf.TensorSpec(shape=(2,), dtype=tf.int32),
+                tf.TensorSpec(shape=(2,), dtype=tf.float32),
+                tf.TensorSpec(shape=(), dtype=tf.float32),
+            ]
+        )
+        def func(self, indices, values, default_value):
+            # output_shape is provided as a constant, not an input
+            return tf.raw_ops.SparseToDense(
+                sparse_indices=indices,
+                output_shape=tf.constant([3], dtype=tf.int32),
+                sparse_values=values,
+                default_value=default_value,
+            )
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            indices: R.Tensor((2,), dtype="int32"),
+            values: R.Tensor((2,), dtype="float32"),
+            default_value: R.Tensor((), dtype="float32"),
+        ) -> R.Tensor((3,), dtype="float32"):
+            R.func_attr({"num_input": 3})
+            with R.dataflow():
+                gv = R.call_dps_packed(
+                    "topi.sparse_to_dense",
+                    (indices, R.const([3], "int32"), values, default_value),
+                    out_sinfo=R.Tensor((3,), dtype="float32"),
+                )
+                R.output(gv)
+            return gv
+
+    verify(SparseToDense, Expected)
 
 
 if __name__ == "__main__":

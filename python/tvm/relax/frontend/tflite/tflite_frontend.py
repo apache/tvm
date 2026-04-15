@@ -3015,11 +3015,20 @@ class OperatorConverter:
             t_type = t.tensor.Type()
             assert t_type in (TensorType.INT32, TensorType.INT64)
 
-        out = relax.op.sparse_to_dense(
-            self.get_tensor_expr(indices),
-            list(self.get_tensor_value(output_shape)),
-            self.get_tensor_expr(values),
-            self.get_tensor_expr(default_value),
+        output_tensors = self.get_output_tensors(op)
+        output_tensor = output_tensors[0]
+        output_shape_val = to_int_list(self.get_tensor_shape(output_tensor))
+        output_dtype = self.get_tensor_type_str(output_tensor.tensor.Type())
+
+        indices_expr = self.get_tensor_expr(indices)
+        values_expr = self.get_tensor_expr(values)
+        default_value_expr = self.get_tensor_expr(default_value)
+        output_shape_expr = relax.const(list(self.get_tensor_value(output_shape)), "int32")
+
+        out = relax.op.call_dps_packed(
+            "topi.sparse_to_dense",
+            (indices_expr, output_shape_expr, values_expr, default_value_expr),
+            out_sinfo=relax.TensorStructInfo(output_shape_val, output_dtype),
         )
 
         return out
@@ -3700,7 +3709,18 @@ class OperatorConverter:
         input_expr = self.get_tensor_expr(input_tensors[0])
         diagonal_expr = self.get_tensor_expr(input_tensors[1])
 
-        out = relax.op.matrix_set_diag(input_expr, diagonal_expr)
+        output_tensors = self.get_output_tensors(op)
+        output_tensor = output_tensors[0]
+        output_shape = to_int_list(self.get_tensor_shape(output_tensor))
+        output_dtype = self.get_tensor_type_str(output_tensor.tensor.Type())
+
+        # topi.matrix_set_diag(input, diagonal, k1, k2, super_diag_right_align, sub_diag_right_align)
+        # TFLite MATRIX_SET_DIAG only sets the main diagonal, so k1=0, k2=0
+        out = relax.op.call_dps_packed(
+            "topi.matrix_set_diag",
+            (input_expr, diagonal_expr, relax.const(0), relax.const(0), relax.const(False), relax.const(False)),
+            out_sinfo=relax.TensorStructInfo(output_shape, output_dtype),
+        )
         return out
 
     def convert_matrix_diag(self, op):
@@ -3718,14 +3738,21 @@ class OperatorConverter:
                     scale and zero points to be equal"
             )
 
-        shape = to_int_list(self.get_tensor_shape(diagonal))
-        shape = np.append(shape, shape[-1])
-        dtype = self.get_tensor_type_str(diagonal.tensor.Type())
+        output_tensors = self.get_output_tensors(op)
+        output_tensor = output_tensors[0]
+        output_shape = to_int_list(self.get_tensor_shape(output_tensor))
+        output_dtype = self.get_tensor_type_str(output_tensor.tensor.Type())
 
-        input_expr = relax.op.zeros(tuple(shape), dtype)
         diagonal_expr = self.get_tensor_expr(diagonal)
+        zeros_expr = relax.op.zeros(output_shape, output_dtype)
 
-        out = relax.op.matrix_set_diag(input_expr, diagonal_expr)
+        # topi.matrix_set_diag(input, diagonal, k1, k2, super_diag_right_align, sub_diag_right_align)
+        # TFLite MATRIX_DIAG only sets the main diagonal, so k1=0, k2=0
+        out = relax.op.call_dps_packed(
+            "topi.matrix_set_diag",
+            (zeros_expr, diagonal_expr, relax.const(0), relax.const(0), relax.const(False), relax.const(False)),
+            out_sinfo=relax.TensorStructInfo(output_shape, output_dtype),
+        )
         return out
 
     def convert_densify(self, op):
