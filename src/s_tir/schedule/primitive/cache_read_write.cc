@@ -543,16 +543,18 @@ bool AllConsumersUnderStmt(ScheduleState self, Buffer buffer, StmtSRef scope_sre
 }
 
 /*!
- * \brief Collect AND-combined predicates from all nested BlockRealize nodes within
+ * \brief Collect OR-combined predicates from all nested BlockRealize nodes within
  * the given statement that access the specified buffer (read or write, controlled by
  * \p index_type). Each nested block's predicate is expressed in the enclosing block's
  * scope by substituting the nested block's iter var bindings. This is needed when the
  * actual access is gated by a predicate (T.where) on a nested block while the outer
- * block has a trivially-true predicate.
+ * block has a trivially-true predicate. Sibling blocks that each access the buffer under
+ * different predicates are OR-ed together so the result covers the union of their access
+ * regions.
  * \param body The body statement of the outer block to search within.
  * \param buffer The buffer being accessed.
  * \param index_type Whether to look for reads (kRead) or writes (kWrite).
- * \return The AND-combination of all nested block predicates found.
+ * \return The OR-combination of all nested block predicates found.
  */
 static PrimExpr CollectNestedBlockPredicates(const Stmt& body, const Buffer& buffer,
                                              BufferIndexType index_type) {
