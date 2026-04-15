@@ -844,7 +844,29 @@ class OperatorConverter:
         size = (radius * 2) + 1
         alpha = alpha * size
         axis = 3  # NHWC format
-        out = relax.op.nn.lrn(in_expr, size=size, axis=axis, bias=bias, alpha=alpha, beta=beta)
+        data_shape = to_int_list(self.get_tensor_shape(input_tensor))
+        in_type = self.get_tensor_type_str(input_tensor.tensor.Type())
+
+        # Relax currently does not expose a dedicated LRN op. Implement NHWC channel LRN
+        # by pooling squared values over the channel axis.
+        squared = self.bb.normalize(relax.op.square(in_expr))
+        squared_2d = _op.reshape(squared, [-1, data_shape[axis], 1, 1])
+        pooled = self.bb.normalize(
+            relax.op.nn.avg_pool2d(
+                squared_2d,
+                pool_size=[size, 1],
+                strides=[1, 1],
+                padding=[radius, 0, radius, 0],
+                layout="NHWC",
+                count_include_pad=True,
+            )
+        )
+        pooled = self.bb.normalize(_op.reshape(pooled, data_shape))
+        denom = relax.op.power(
+            relax.op.add(relax.const(bias, in_type), relax.op.multiply(relax.const(alpha, in_type), pooled)),
+            relax.const(beta, in_type),
+        )
+        out = relax.op.divide(in_expr, denom)
 
         return out
 
@@ -1421,7 +1443,7 @@ class OperatorConverter:
             out_f32 = relax.op.subtract(lhs_expr_f32, rhs_expr_f32)
             return self.quantize(out_f32 * out_f32, output_tensors[0])
 
-        difference = self._convert_elemwise(_op.subtract, op)
+        difference = self._convert_elemwise(op, _op.subtract)
         # _convert_elemwise has guaranteed only have one output tensor
         exp_type = self.get_tensor_type_str(self.get_output_tensors(op)[0].tensor.Type())
         out = relax.op.power(difference, relax.const(2, exp_type))
@@ -3010,10 +3032,10 @@ class OperatorConverter:
         input_tensor = input_tensors[0]
         alpha_tensor = input_tensors[1]
         data_shape = to_int_list(self.get_tensor_shape(input_tensor))
+        in_expr = self.get_tensor_expr(input_tensor)
         alpha_expr = self.get_tensor_expr(alpha_tensor)
         alpha_expr = self.bb.normalize(relax.op.broadcast_to(alpha_expr, data_shape))
         alpha_expr = self.bb.normalize(relax.op.reshape(alpha_expr, [-1]))
-        in_expr = self.get_tensor_expr(input_tensor)
         out = relax.op.nn.prelu(_op.reshape(in_expr, [-1]), alpha_expr, axis=0)
         out = relax.op.reshape(out, data_shape)
         return out
