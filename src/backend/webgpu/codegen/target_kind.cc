@@ -58,6 +58,7 @@ void RegisterTargetKind() {
       .add_attr_option<int64_t>("max_num_threads", refl::DefaultValue(256))
       .add_attr_option<bool>("supports_subgroups", refl::DefaultValue(false))
       .add_attr_option<int64_t>("thread_warp_size", refl::DefaultValue(1))
+      .add_attr_option<int64_t>("max_shared_memory_per_block", refl::DefaultValue(32768))
       .set_target_canonicalizer(UpdateWebGPUAttrs)
       .set_default_keys({"webgpu", "gpu"});
 }
