@@ -213,7 +213,7 @@ class PopenWorker:
         return False
 
     def send(self, fn, args=(), kwargs=None, timeout=None):
-        """Send a new function task fn(*args, **kwargs) to the subprocess.
+        """Send a new function task ``fn(*args, **kwargs)`` to the subprocess.
 
         Parameters
         ----------
