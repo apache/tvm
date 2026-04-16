@@ -240,20 +240,18 @@ INSTALL_TVM_FIXED = f"""\
 pip install apache-tvm=={version}"""
 
 INSTALL_TVM_CUDA_DEV = """\
-%%shell
-# Installs the latest dev build of TVM from PyPI, with CUDA enabled. To use this,
-# you must request a Google Colab instance with a GPU by going to Runtime ->
-# Change runtime type -> Hardware accelerator -> GPU. If you wish to build from
-# source, see https://tvm.apache.org/docs/install/from_source.html
-pip install tlcpack-nightly-cu113 --pre -f https://tlcpack.ai/wheels"""
+%%markdown
+> **Note:** This tutorial requires a CUDA-enabled build of TVM.
+> Pre-built CUDA wheels are not currently available on PyPI.
+> Please build TVM from source with CUDA enabled before running this notebook:
+> https://tvm.apache.org/docs/install/from_source.html"""
 
 INSTALL_TVM_CUDA_FIXED = f"""\
-%%shell
-# Installs TVM version {version} from PyPI, with CUDA enabled. To use this,
-# you must request a Google Colab instance with a GPU by going to Runtime ->
-# Change runtime type -> Hardware accelerator -> GPU. If you wish to build from
-# source, see https://tvm.apache.org/docs/install/from_source.html
-pip install apache-tvm-cu113=={version} --no-index  -f https://tlcpack.ai/wheels"""
+%%markdown
+> **Note:** This tutorial requires a CUDA-enabled build of TVM (version {version}).
+> Pre-built CUDA wheels are not currently available on PyPI.
+> Please build TVM from source with CUDA enabled before running this notebook:
+> https://tvm.apache.org/docs/install/from_source.html"""
 
 
 @monkey_patch("sphinx_gallery.gen_rst", "jupyter_notebook")
@@ -552,6 +550,13 @@ html_context = {
         "v0.14.0/",
         "v0.15.0/",
         "v0.16.0/",
+        "v0.17.0/",
+        "v0.18.0/",
+        "v0.19.0/",
+        "v0.20.0/",
+        "v0.21.0/",
+        "v0.22.0/",
+        "v0.23.0/",
     ],
     "display_github": True,
     "github_user": "apache",

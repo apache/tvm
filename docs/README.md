@@ -42,7 +42,18 @@ This folder contains the source of TVM's documentation, hosted at https://tvm.ap
 
 ### Native
 
-1. [Build TVM](https://tvm.apache.org/docs/install/from_source.html) first in the repo root folder
+1. [Build TVM](https://tvm.apache.org/docs/install/from_source.html) first in the repo root folder, then make it importable:
+
+   ```bash
+   export TVM_HOME=/path-to-tvm
+   export TVM_LIBRARY_PATH=$TVM_HOME/build
+   pip install --target=$TVM_HOME/python $TVM_HOME/3rdparty/tvm-ffi
+   export PYTHONPATH=$TVM_HOME/python:$PYTHONPATH
+   ```
+
+   `docs/conf.py` unconditionally imports `tvm` at startup, so the build will
+   fail immediately if TVM is not importable.
+
 2. Install dependencies
 
    ```bash
@@ -92,15 +103,25 @@ python tests/scripts/ci.py docs --tutorial-pattern=file_name\.py
 
 ## Helper Scripts
 
-You can run the following script to reproduce the CI sphinx pre-check stage.
-This script skips the tutorial executions and is useful to quickly check the content.
+The following script mirrors the CI docs pipeline: it runs a sphinx pre-check
+(when not running locally) and then performs a full `make htmldepoly` build,
+including tutorial execution. You will need a GPU CI environment.
 
 ```bash
 tests/scripts/task_python_docs.sh
 ```
 
-The following script runs the full build which includes tutorial executions.
-You will need a GPU CI environment.
+To build docs locally without executing tutorials (fastest local iteration):
+
+```bash
+cd docs && TVM_TUTORIAL_EXEC_PATTERN=none make html
+```
+
+Note: the sphinx pre-check (warning validation) only runs in CI (`IS_LOCAL=0`).
+`python tests/scripts/ci.py docs` always sets `IS_LOCAL=1` and skips the
+pre-check regardless of other flags.
+
+To run the full build including tutorial executions:
 
 ```bash
 python tests/scripts/ci.py docs --full

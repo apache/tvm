@@ -222,7 +222,8 @@ existing environment to demonstrate the usage.
 
 If you add a new categorization of how-to, you will need to add references to
 `conf.py <https://github.com/apache/tvm/tree/main/docs/conf.py>`_ and the
-`how-to index <https://github.com/apache/tvm/tree/main/docs/how_to/dev/index.rst>`_
+`top-level docs index <https://github.com/apache/tvm/tree/main/docs/index.rst>`_
+(how-to entries are registered there directly, not in a separate how-to index).
 
 Refer to Another Location in the Document
 -----------------------------------------
