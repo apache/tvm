@@ -213,6 +213,7 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
   // (vectorizable) axes
   for (const BufferRegion& access : buffer_access) {
     int fusible = 0;
+    bool can_analyze_contiguous_access = true;
     std::vector<int64_t> strides;
     // get strides for each loop var
     for (const StmtSRef& loop_sref : loop_srefs) {
@@ -226,9 +227,21 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
           stride = coef * buffer_stride;
           break;
         }
-        buffer_stride *= access->buffer->shape[i].as<IntImmNode>()->value;
+        const auto* shape = access->buffer->shape[i].as<IntImmNode>();
+        if (shape == nullptr) {
+          can_analyze_contiguous_access = false;
+          break;
+        }
+        buffer_stride *= shape->value;
+      }
+      if (!can_analyze_contiguous_access) {
+        break;
       }
       strides.push_back(stride);
+    }
+    if (!can_analyze_contiguous_access) {
+      max_fusible = 0;
+      break;
     }
     int prev_used_iter = -1;
     // check the number of fusible loops
@@ -246,9 +259,11 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
         prev_used_iter = i;
       } else {
         // contiguous memory access
-        const auto* prev_loop = loop_srefs[prev_used_iter]->StmtAs<ForNode>();
-        int64_t prev_used_iter_extent = prev_loop->extent.as<IntImmNode>()->value;
-        if (strides[i] == strides[prev_used_iter] * prev_used_iter_extent) {
+        const int64_t* prev_used_iter_extent = GetLoopIntExtent(loop_srefs[prev_used_iter]);
+        if (prev_used_iter_extent == nullptr) {
+          break;
+        }
+        if (strides[i] == strides[prev_used_iter] * (*prev_used_iter_extent)) {
           fusible++;
           prev_used_iter = i;
         } else {

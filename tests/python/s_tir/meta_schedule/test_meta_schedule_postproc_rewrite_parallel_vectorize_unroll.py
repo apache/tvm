@@ -181,6 +181,24 @@ def after_postproc_add(
                     add_compute[v0, v1, v2, v3, v4] = lhs[v0, v1, v2, v3, v4] + rhs[v0, v1, v2, v3, v4]
 
 
+@T.prim_func
+def before_postproc_dynamic_shape_vectorize(
+    a: T.handle,
+    b: T.handle,
+) -> None:
+    n = T.int64()
+    A = T.match_buffer(a, (n,), dtype="float32")
+    B = T.match_buffer(b, (n,), dtype="float32")
+    with T.block("root"):
+        T.block_attr({"meta_schedule.vectorize": 64})
+        for i in T.serial(0, n):
+            with T.block("copy"):
+                vi = T.axis.spatial(n, i)
+                T.reads(A[vi])
+                T.writes(B[vi])
+                B[vi] = A[vi]
+
+
 # fmt: on
 # pylint: enable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument,not-callable
 
@@ -267,6 +285,12 @@ def test_no_unroll_for_spatial_block():
     assert postproc.apply(sch)
     mod = tvm.tirx.transform.Simplify()(sch.mod)
     assert_structural_equal_ignore_global_symbol(mod["main"], expected)
+
+
+def test_rewrite_parallel_vectorize_unroll_dynamic_shape_no_crash():
+    sch = Schedule(before_postproc_dynamic_shape_vectorize)
+    rule = RewriteParallelVectorizeUnroll()
+    assert rule.apply(sch)
 
 
 if __name__ == "__main__":

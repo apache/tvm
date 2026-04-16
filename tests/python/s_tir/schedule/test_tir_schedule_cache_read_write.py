@@ -1670,5 +1670,175 @@ def test_symbolic_matmul_blocked_cache_write(use_block_name):
     verify_trace_roundtrip(sch=sch, mod=symbolic_matmul_blocked)
 
 
+def test_cache_write_with_nested_block_predicate():
+    @T.prim_func
+    def main(A: T.handle, C: T.handle) -> None:
+        A_buf = T.match_buffer(A, (12, 24), "float32")
+        C_buf = T.match_buffer(C, (10, 20), "float32")
+
+        for i, j in T.grid(12, 24):
+            with T.sblock("compute"):
+                vi, vj = T.axis.remap("SS", [i, j])
+
+                with T.sblock("inner"):
+                    T.where(vi < 10 and vj < 20)
+                    C_buf[vi, vj] = A_buf[vi, vj] * 2.0
+
+    @T.prim_func
+    def expected(A_buf: T.Buffer((12, 24), "float32"), C_buf: T.Buffer((10, 20), "float32")):
+        with T.sblock("root"):
+            C_buf_local = T.sblock_alloc_buffer((10, 20), scope="local")
+            for i, j in T.grid(12, 24):
+                with T.sblock("compute"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    T.reads(A_buf[vi, vj])
+                    T.writes(C_buf_local[vi, vj])
+                    with T.sblock("inner"):
+                        T.where(vi < 10 and vj < 20)
+                        T.reads(A_buf[vi, vj])
+                        T.writes(C_buf_local[vi, vj])
+                        C_buf_local[vi, vj] = A_buf[vi, vj] * T.float32(2)
+            for ax0, ax1 in T.grid(10, 20):
+                with T.sblock("C_buf_local"):
+                    v0, v1 = T.axis.remap("SS", [ax0, ax1])
+                    T.reads(C_buf_local[v0, v1])
+                    T.writes(C_buf[v0, v1])
+                    C_buf[v0, v1] = C_buf_local[v0, v1]
+
+    sch = tvm.s_tir.Schedule(main)
+    block = sch.get_sblock("compute")
+    sch.cache_write(block, 0, "local")
+    assert_structural_equal_ignore_global_symbol(expected, sch.mod["main"])
+
+
+def test_cache_read_with_nested_block_predicate():
+    @T.prim_func
+    def main(A: T.handle, C: T.handle) -> None:
+        A_buf = T.match_buffer(A, (12, 24), "float32")
+        C_buf = T.match_buffer(C, (10, 20), "float32")
+
+        for i, j in T.grid(12, 24):
+            with T.sblock("compute"):
+                vi, vj = T.axis.remap("SS", [i, j])
+
+                with T.sblock("inner"):
+                    T.where(vi < 10 and vj < 20)
+                    C_buf[vi, vj] = A_buf[vi, vj] * 2.0
+
+    @T.prim_func
+    def expected(A_buf: T.Buffer((12, 24), "float32"), C_buf: T.Buffer((10, 20), "float32")):
+        with T.sblock("root"):
+            A_buf_local = T.sblock_alloc_buffer((10, 20), scope="local")
+            for ax0, ax1 in T.grid(10, 20):
+                with T.sblock("A_buf_local"):
+                    v0, v1 = T.axis.remap("SS", [ax0, ax1])
+                    T.reads(A_buf[v0, v1])
+                    T.writes(A_buf_local[v0, v1])
+                    A_buf_local[v0, v1] = A_buf[v0, v1]
+            for i, j in T.grid(12, 24):
+                with T.sblock("compute"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    T.reads(A_buf_local[vi, vj])
+                    T.writes(C_buf[vi, vj])
+                    with T.sblock("inner"):
+                        T.where(vi < 10 and vj < 20)
+                        T.reads(A_buf_local[vi, vj])
+                        T.writes(C_buf[vi, vj])
+                        C_buf[vi, vj] = A_buf_local[vi, vj] * T.float32(2)
+
+    sch = tvm.s_tir.Schedule(main)
+    block = sch.get_sblock("compute")
+    sch.cache_read(block, 0, "local")
+    assert_structural_equal_ignore_global_symbol(expected, sch.mod["main"])
+
+
+def test_cache_write_sibling_nested_block_predicates_use_union():
+    """Regression: cache_write with sibling nested blocks must union their predicates.
+
+    Two sibling nested sblocks access the same buffer under *different* predicates:
+      left  block: T.where(vi < 8)   — writes rows 0-7, all columns
+      top   block: T.where(vj < 16)  — writes all rows, columns 0-15
+
+    The cache must cover the UNION of both access sets.  The bounding box of that
+    union is (12, 24) — the full buffer shape.
+
+    Bug: CollectNestedBlockPredicates ANDs the predicates of all found nested blocks,
+    giving (vi < 8) AND (vj < 16).  RelaxBufferRegion under that intersection predicate
+    yields the bounding box of the *intersection* instead: (8, 16), which is too small.
+    The "left" block then writes C_buf_local[vi, vj] for vi in [8,12) — indices that
+    were never loaded into C_buf_local — resulting in incorrect output.
+    """
+
+    @T.prim_func
+    def main(A: T.handle, C: T.handle) -> None:
+        A_buf = T.match_buffer(A, (12, 24), "float32")
+        C_buf = T.match_buffer(C, (12, 24), "float32")
+        for i, j in T.grid(12, 24):
+            with T.sblock("compute"):
+                vi, vj = T.axis.remap("SS", [i, j])
+                with T.sblock("left"):
+                    T.where(vi < 8)
+                    C_buf[vi, vj] = A_buf[vi, vj] * 2.0
+                with T.sblock("top"):
+                    T.where(vj < 16)
+                    C_buf[vi, vj] = A_buf[vi, vj] * 3.0
+
+    sch = tvm.s_tir.Schedule(main)
+    block = sch.get_sblock("compute")
+    sch.cache_write(block, 0, "local")
+
+    # Extract the alloc buffer shape from the resulting IR.
+    result_script = sch.mod["main"].script()
+    # The cache must be large enough to hold the union of both write regions.
+    # Union bounding box = full (12, 24).  The buggy AND gives (8, 16).
+    assert "sblock_alloc_buffer((12, 24)" in result_script, (
+        f"Expected cache shape (12, 24) covering the union of both write regions, "
+        f"but got a smaller shape. Full IR:\n{result_script}"
+    )
+
+
+def test_cache_read_sibling_nested_block_predicates_use_union():
+    """Regression: cache_read with sibling nested blocks must union their predicates.
+
+    Two sibling nested sblocks read the same input buffer under different predicates:
+      left  block: T.where(vi < 8)   — reads rows 0-7, all columns
+      top   block: T.where(vj < 16)  — reads all rows, columns 0-15
+
+    The cache must cover the UNION of both read sets.  The bounding box of that
+    union is (12, 24) — the full buffer shape.
+
+    Bug: CollectNestedBlockPredicates ANDs the two predicates, giving (vi < 8) AND
+    (vj < 16).  Case 2 of CacheRead calls RelaxBufferRegion under that intersection
+    predicate, producing a cache of shape (8, 16).  The "left" block then tries to
+    read A_buf_local[vi, vj] for vi in [8,12) — indices outside the cache — which
+    is incorrect.
+    """
+
+    @T.prim_func
+    def main(A: T.handle, C: T.handle) -> None:
+        A_buf = T.match_buffer(A, (12, 24), "float32")
+        C_buf = T.match_buffer(C, (12, 24), "float32")
+        for i, j in T.grid(12, 24):
+            with T.sblock("compute"):
+                vi, vj = T.axis.remap("SS", [i, j])
+                with T.sblock("left"):
+                    T.where(vi < 8)
+                    C_buf[vi, vj] = A_buf[vi, vj] * 2.0
+                with T.sblock("top"):
+                    T.where(vj < 16)
+                    C_buf[vi, vj] = A_buf[vi, vj] * 3.0
+
+    sch = tvm.s_tir.Schedule(main)
+    block = sch.get_sblock("compute")
+    sch.cache_read(block, 0, "local")
+
+    result_script = sch.mod["main"].script()
+    # Cache must cover the union bounding box (12, 24).  Buggy AND gives (8, 16).
+    assert "sblock_alloc_buffer((12, 24)" in result_script, (
+        f"Expected cache shape (12, 24) covering the union of both read regions, "
+        f"but got a smaller shape. Full IR:\n{result_script}"
+    )
+
+
 if __name__ == "__main__":
     tvm.testing.main()

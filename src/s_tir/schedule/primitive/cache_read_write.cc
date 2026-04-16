@@ -543,17 +543,85 @@ bool AllConsumersUnderStmt(ScheduleState self, Buffer buffer, StmtSRef scope_sre
 }
 
 /*!
+ * \brief Collect OR-combined predicates from all nested BlockRealize nodes within
+ * the given statement that access the specified buffer (read or write, controlled by
+ * \p index_type). Each nested block's predicate is expressed in the enclosing block's
+ * scope by substituting the nested block's iter var bindings. This is needed when the
+ * actual access is gated by a predicate (T.where) on a nested block while the outer
+ * block has a trivially-true predicate. Sibling blocks that each access the buffer under
+ * different predicates are OR-ed together so the result covers the union of their access
+ * regions.
+ * \param body The body statement of the outer block to search within.
+ * \param buffer The buffer being accessed.
+ * \param index_type Whether to look for reads (kRead) or writes (kWrite).
+ * \return The OR-combination of all nested block predicates found.
+ */
+static PrimExpr CollectNestedBlockPredicates(const Stmt& body, const Buffer& buffer,
+                                             BufferIndexType index_type) {
+  struct Collector : public StmtVisitor {
+    Collector(const Buffer& buf, BufferIndexType idx_type)
+        : buffer_(buf), index_type_(idx_type), result_(Bool(false)), found_(false) {}
+
+    void VisitStmt_(const SBlockRealizeNode* realize) final {
+      const SBlockNode* block = realize->block.get();
+      const auto& regions =
+          (index_type_ == BufferIndexType::kRead) ? block->reads : block->writes;
+      bool accesses_buffer = false;
+      for (const BufferRegion& region : regions) {
+        if (region->buffer.same_as(buffer_)) {
+          accesses_buffer = true;
+          break;
+        }
+      }
+      if (accesses_buffer) {
+        // Build substitution: nested block iter vars -> their binding values
+        // (which are already expressed in terms of the outer scope).
+        ffi::Map<Var, PrimExpr> subst;
+        for (size_t i = 0; i < block->iter_vars.size(); ++i) {
+          subst.Set(block->iter_vars[i]->var, realize->iter_values[i]);
+        }
+        PrimExpr pred =
+            subst.empty() ? realize->predicate : Substitute(realize->predicate, subst);
+        // OR the predicates across all accessing nested blocks: each such block is an
+        // independent alternative access path (sibling blocks in a SeqStmt), so the
+        // cache must cover the *union* of their access regions, not the intersection.
+        // Using AND (the previous behaviour) underestimates the required region when
+        // sibling blocks have non-overlapping predicates.
+        result_ = found_ ? (result_ || pred) : pred;
+        found_ = true;
+      }
+      // Continue recursing into deeper nested blocks.
+      StmtVisitor::VisitStmt_(realize);
+    }
+
+    const Buffer& buffer_;
+    BufferIndexType index_type_;
+    PrimExpr result_;
+    bool found_;
+  };
+
+  Collector collector(buffer, index_type);
+  collector(body);
+  // If no nested block accessed the buffer, return true (no restriction — the caller
+  // will fall back to the original scope-block reads / FullRegion path).
+  return collector.found_ ? collector.result_ : Bool(true);
+}
+
+/*!
  * \brief Get the buffer region under the sref tree path [dom_low_inclusive, dom_high_exclusive)
  * \param self The state of the schedule.
  * \param buffer_region The buffer region to be analyzed.
  * \param block_sref The sref of the block related to the region.
  * \param dom_low_inclusive The lowest node in the sref tree path.
  * \param dom_high_exclusive The highest node in the sref tree path.
+ * \param extra_predicate An additional predicate (e.g. collected from nested blocks) to AND
+ *        with the block's own predicate before relaxation. Defaults to true (no effect).
  * \return The relaxed buffer region.
  */
 BufferRegion RelaxBufferRegion(ScheduleState self, const BufferRegion& buffer_region,
                                const StmtSRef& block_sref, const StmtSRef& dom_low_inclusive,
-                               const StmtSRef& dom_high_exclusive) {
+                               const StmtSRef& dom_high_exclusive,
+                               PrimExpr extra_predicate = Bool(true)) {
   SBlockRealize realize = GetSBlockRealize(self, block_sref);
   ffi::Map<Var, PrimExpr> binding = GetBindings(realize);
   const Buffer& buffer = buffer_region->buffer;
@@ -561,7 +629,7 @@ BufferRegion RelaxBufferRegion(ScheduleState self, const BufferRegion& buffer_re
   BufferRegion subst_region = BufferRegion(buffer, Substitute(buffer_region->region, binding));
   ffi::Array<arith::IntSet> int_sets = AnalyzeRegionUpperBound(
       /*region=*/subst_region,
-      /*predicate=*/realize->predicate,
+      /*predicate=*/Substitute(realize->predicate && extra_predicate, binding),
       /*dom_low_inclusive=*/dom_low_inclusive,
       /*dom_high_exclusive=*/dom_high_exclusive,
       /*analyzer=*/&analyzer);
@@ -1703,9 +1771,25 @@ StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_buff
     // Case 2. The buffer is the input block for the scope.
     info.loc_sref = scope_sref;
     info.loc_pos = 0;
-    if (ffi::Optional<BufferRegion> region =
-            GetBufferRegionFromBuffer(scope_block->reads, read_buffer)) {
-      cache_region = region.value();
+    // When a nested block gates the actual read with T.where, the consumer block's own
+    // predicate is trivially true, so the scope-block read annotation covers the full loop
+    // range. Collect nested-read predicates and, if any are non-trivial, relax the consumer
+    // block's read region under that predicate to get a tighter cache allocation.
+    // Without a nested predicate we fall back to scope_block->reads (which preserves the
+    // original buffer's dtype in its extents, e.g. int64 shapes).
+    ffi::Optional<BufferRegion> read_region_opt =
+        GetBufferRegionFromBuffer(block->reads, read_buffer);
+    PrimExpr nested_pred =
+        read_region_opt
+            ? CollectNestedBlockPredicates(block->body, read_buffer, BufferIndexType::kRead)
+            : Bool(true);
+    if (read_region_opt && !is_one(nested_pred) && block_sref->parent != nullptr) {
+      StmtSRef parent_sref = ffi::GetRef<StmtSRef>(block_sref->parent);
+      cache_region = RelaxBufferRegion(self, read_region_opt.value(), block_sref, parent_sref,
+                                       scope_sref, nested_pred);
+    } else if (ffi::Optional<BufferRegion> scope_region =
+                   GetBufferRegionFromBuffer(scope_block->reads, read_buffer)) {
+      cache_region = scope_region.value();
     } else {
       cache_region = BufferRegion::FullRegion(read_buffer);
     }
@@ -1782,11 +1866,22 @@ StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int write_bu
 
   // Step 4. Find the producing region and insert position
   BufferRegion region = GetBufferRegionFromBuffer(block->writes, write_buffer).value();
-  StmtSRef parent_sref = ffi::GetRef<StmtSRef>(block_sref->parent);
   // Detect insert position
   CacheLocDetector::Detect</*is_cache_read=*/false>(self, block_sref, scope_sref, &info);
-  BufferRegion cache_region =
-      RelaxBufferRegion(self, region, block_sref, parent_sref, info.loc_sref);
+  // Collect predicates from any nested blocks that gate the actual write (e.g. T.where on an
+  // inner block). The outer block's own predicate may be trivially true even though the write
+  // is restricted by a nested predicate, so we OR them together for a tighter region estimate.
+  PrimExpr nested_write_pred =
+      CollectNestedBlockPredicates(block->body, write_buffer, BufferIndexType::kWrite);
+  BufferRegion cache_region;
+  if (block_sref->parent != nullptr) {
+    StmtSRef parent_sref = ffi::GetRef<StmtSRef>(block_sref->parent);
+    cache_region =
+        RelaxBufferRegion(self, region, block_sref, parent_sref, info.loc_sref, nested_write_pred);
+  } else {
+    // Root block: no enclosing loops to relax over, use the write region directly.
+    cache_region = region;
+  }
 
   bool cache_full_region = info.loc_sref->StmtAs<SBlockNode>() == nullptr ||
                            !AllConsumersUnderStmt(self, write_buffer, scope_sref, info.loc_sref);
