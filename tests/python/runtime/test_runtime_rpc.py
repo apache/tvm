@@ -22,6 +22,7 @@ import stat
 import sys
 import tempfile
 import time
+import gc
 
 import numpy as np
 import pytest
@@ -386,21 +387,21 @@ def test_rpc_session_constructor_args():
 
 @tvm.testing.requires_rpc
 def test_rpc_return_tensor():
-    # start server
-    server = rpc.Server(key="x1")
-    client = rpc.connect("127.0.0.1", server.port, key="x1")
-
-    m = client.get_function("rpc.test.remote_return_nd")
-    get_arr = m("get_arr")
-    ref_count = m("ref_count")
-    get_elem = m("get_elem")
-    get_arr_elem = m("get_arr_elem")
-
-    # array test
     def run_arr_test():
+        server = rpc.Server(key="x1")
+        client = rpc.connect("127.0.0.1", server.port, key="x1")
+        m = client.get_function("rpc.test.remote_return_nd")
+        get_arr = m("get_arr")
+        get_elem = m("get_elem")
+        get_arr_elem = m("get_arr_elem")
+
         arr = get_arr()
         assert get_elem(0) == 0.0
         assert get_arr_elem(arr, 0) == 0.0
+
+        del arr
+        gc.collect()
+        assert get_elem(0) == 0.0
 
     run_arr_test()
 

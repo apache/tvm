@@ -281,6 +281,14 @@ struct RemoteSpace {
   void* data;
   /*! \brief Reference to the underlying RPC session. */
   std::shared_ptr<RPCSession> sess;
+  /*!
+   * \brief The remote Tensor object handle, if this RemoteSpace wraps a returned Tensor.
+   *
+   * Returned RPC Tensors carry both the backing data pointer and a Tensor object handle.  The
+   * object handle must be released with FreeHandle so the remote side can correctly decrement the
+   * Tensor refcount and free the backing storage when it is no longer shared.
+   */
+  void* object_handle{nullptr};
 };
 
 /*!
