@@ -2289,6 +2289,8 @@ def test_prelu(shared_axes):
                 R.output(gv)
             return gv
 
+    tvm.ir.assert_structural_equal(mod, Expected)
+
 
 def test_matrix_diag():
     """Test TFLite MATRIX_DIAG operator."""
