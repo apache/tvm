@@ -72,13 +72,12 @@ one may simply use:
     conda activate tvm-build-venv
 
 .. note::
-   **For Frontend Contributors (TFLite):** If you plan to run or contribute to the frontend tests (e.g., ``test_frontend_tflite.py``), install TensorFlow and the matching TFLite flatbuffer schema:
+   **For Frontend Contributors (TFLite):** If you plan to run or contribute to the frontend tests (e.g., ``test_frontend_tflite.py``), you must install ``tensorflow==2.19.0``.
 
    .. code:: bash
 
        pip install tensorflow==2.19.0
 
-   Then build the TFLite schema from source following ``docker/install/ubuntu_install_tflite.sh``.
    Python 3.11 is supported.
 
 Step 2. Get Source from GitHub
