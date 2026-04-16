@@ -62,7 +62,15 @@ Tensor TensorFromRemoteOpaqueHandle(std::shared_ptr<RPCSession> sess, void* hand
       // the pointer to the remote space is passed in as the data pointer
       tensor->data = &(space_);
     }
-    void FreeData(DLTensor* tensor) { space_.sess->FreeHandle(space_.data); }
+    void FreeData(DLTensor* tensor) {
+      if (space_.object_handle != nullptr) {
+        try {
+          space_.sess->FreeHandle(space_.object_handle);
+        } catch (const Error& e) {
+          // fault tolerance to remote close
+        }
+      }
+    }
 
    private:
     RemoteSpace space_;
@@ -70,6 +78,7 @@ Tensor TensorFromRemoteOpaqueHandle(std::shared_ptr<RPCSession> sess, void* hand
   RemoteSpace space;
   space.sess = sess;
   space.data = handle;
+  space.object_handle = remote_tensor_handle;
   ffi::Shape shape(template_tensor->shape, template_tensor->shape + template_tensor->ndim);
   return Tensor::FromNDAlloc(RemoteSpaceAlloc(space), shape, template_tensor->dtype, dev);
 }

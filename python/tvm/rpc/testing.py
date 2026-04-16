@@ -21,6 +21,7 @@
 import numpy as np
 
 import tvm
+import tvm.testing
 
 
 # RPC test functions to be registered for unit-tests purposes
