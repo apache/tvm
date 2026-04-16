@@ -64,50 +64,20 @@ def algo_to_index(algo_type, algo_name):
 
     Parameters
     ----------
-        algo_type : str
-            ["fwd", "bwd_filter", "bwd_data]
+    algo_type : str
+        One of ``"fwd"``, ``"bwd_filter"``, or ``"bwd_data"``.
 
-        algo_name : str
-            algorithm name in cudnn definition
-            fwd = [
-                "CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_GEMM",
-                "CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_PRECOMP_GEMM",
-                "CUDNN_CONVOLUTION_FWD_ALGO_GEMM",
-                "CUDNN_CONVOLUTION_FWD_ALGO_DIRECT",
-                "CUDNN_CONVOLUTION_FWD_ALGO_FFT",
-                "CUDNN_CONVOLUTION_FWD_ALGO_FFT_TILING",
-                "CUDNN_CONVOLUTION_FWD_ALGO_WINOGRAD",
-                "CUDNN_CONVOLUTION_FWD_ALGO_WINOGRAD_NONFUSED",
-                "CUDNN_CONVOLUTION_FWD_ALGO_COUNT",
-            ]
-            bwd_filter = [
-                "CUDNN_CONVOLUTION_BWD_FILTER_ALGO_0",
-                # non-deterministic
-                "CUDNN_CONVOLUTION_BWD_FILTER_ALGO_1",
-                "CUDNN_CONVOLUTION_BWD_FILTER_ALGO_FFT",
-                "CUDNN_CONVOLUTION_BWD_FILTER_ALGO_3",
-                # non-deterministic, algo0 with workspaceS
-                "CUDNN_CONVOLUTION_BWD_FILTER_ALGO_WINOGRAD",
-                # not implemented
-                "CUDNN_CONVOLUTION_BWD_FILTER_ALGO_WINOGRAD_NONFUSED",
-                "CUDNN_CONVOLUTION_BWD_FILTER_ALGO_FFT_TILING",
-                "CUDNN_CONVOLUTION_BWD_FILTER_ALGO_COUNT",
-            ]
-            bwd_data = [
-                "CUDNN_CONVOLUTION_BWD_DATA_ALGO_0",
-                # non-deterministic
-                "CUDNN_CONVOLUTION_BWD_DATA_ALGO_1",
-                "CUDNN_CONVOLUTION_BWD_DATA_ALGO_FFT",
-                "CUDNN_CONVOLUTION_BWD_DATA_ALGO_FFT_TILING",
-                "CUDNN_CONVOLUTION_BWD_DATA_ALGO_WINOGRAD",
-                "CUDNN_CONVOLUTION_BWD_DATA_ALGO_WINOGRAD_NONFUSED",
-                "CUDNN_CONVOLUTION_BWD_DATA_ALGO_COUNT",
-            ]
+    algo_name : str
+        Algorithm name as defined in cuDNN. For example:
+
+        * fwd: ``CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_GEMM``, etc.
+        * bwd_filter: ``CUDNN_CONVOLUTION_BWD_FILTER_ALGO_0``, etc.
+        * bwd_data: ``CUDNN_CONVOLUTION_BWD_DATA_ALGO_0``, etc.
 
     Returns
     -------
-        algo: int
-            algorithm index
+    algo : int
+        Algorithm index
 
     """
     idx = -1
