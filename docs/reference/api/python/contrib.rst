@@ -37,9 +37,27 @@ tvm.contrib.cc
     :members:
 
 
+tvm.contrib.coreml_runtime
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. automodule:: tvm.contrib.coreml_runtime
+    :members:
+
+
 tvm.contrib.cublas
 ~~~~~~~~~~~~~~~~~~
 .. automodule:: tvm.contrib.cublas
+    :members:
+
+
+tvm.contrib.cublaslt
+~~~~~~~~~~~~~~~~~~~~
+.. automodule:: tvm.contrib.cublaslt
+    :members:
+
+
+tvm.contrib.cudnn
+~~~~~~~~~~~~~~~~~
+.. automodule:: tvm.contrib.cudnn
     :members:
 
 
@@ -49,9 +67,33 @@ tvm.contrib.dlpack
     :members:
 
 
+tvm.contrib.dnnl
+~~~~~~~~~~~~~~~~
+.. automodule:: tvm.contrib.dnnl
+    :members:
+
+
+tvm.contrib.download
+~~~~~~~~~~~~~~~~~~~~
+.. automodule:: tvm.contrib.download
+    :members:
+
+
 tvm.contrib.emcc
 ~~~~~~~~~~~~~~~~
 .. automodule:: tvm.contrib.emcc
+    :members:
+
+
+tvm.contrib.hipblas
+~~~~~~~~~~~~~~~~~~~
+.. automodule:: tvm.contrib.hipblas
+    :members:
+
+
+tvm.contrib.mkl
+~~~~~~~~~~~~~~~
+.. automodule:: tvm.contrib.mkl
     :members:
 
 
@@ -79,6 +121,12 @@ tvm.contrib.pickle_memoize
     :members:
 
 
+tvm.contrib.popen_pool
+~~~~~~~~~~~~~~~~~~~~~~
+.. automodule:: tvm.contrib.popen_pool
+    :members:
+
+
 tvm.contrib.random
 ~~~~~~~~~~~~~~~~~~
 .. automodule:: tvm.contrib.random
@@ -100,6 +148,18 @@ tvm.contrib.spirv
 tvm.contrib.tar
 ~~~~~~~~~~~~~~~~
 .. automodule:: tvm.contrib.tar
+    :members:
+
+
+tvm.contrib.thrust
+~~~~~~~~~~~~~~~~~~
+.. automodule:: tvm.contrib.thrust
+    :members:
+
+
+tvm.contrib.tvmjs
+~~~~~~~~~~~~~~~~~
+.. automodule:: tvm.contrib.tvmjs
     :members:
 
 

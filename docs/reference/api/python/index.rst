@@ -31,6 +31,7 @@ Python API
     driver
     testing
     exec
+    support
 
 .. toctree::
     :maxdepth: 1

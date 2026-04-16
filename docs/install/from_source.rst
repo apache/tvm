@@ -72,12 +72,14 @@ one may simply use:
     conda activate tvm-build-venv
 
 .. note::
-   **For Frontend Contributors (TFLite):** If you plan to run or contribute to the frontend tests (e.g., ``test_frontend_tflite.py``), you must strictly use **Python 3.10**.
-   
-   The TFLite tests currently require ``tensorflow==2.9.0`` and ``numpy==1.26.4`` to prevent ``_ARRAY_API`` core dumps.
-   Because TensorFlow 2.9.0 does not provide pre-compiled binaries for Python 3.11 or newer,
-   setting up your environment with Python 3.11+ will force incompatible pip upgrades
-   and cause C++ ABI crashes during testing.
+   **For Frontend Contributors (TFLite):** If you plan to run or contribute to the frontend tests (e.g., ``test_frontend_tflite.py``), install TensorFlow and the matching TFLite flatbuffer schema:
+
+   .. code:: bash
+
+       pip install tensorflow==2.19.0
+
+   Then build the TFLite schema from source following ``docker/install/ubuntu_install_tflite.sh``.
+   Python 3.11 is supported.
 
 Step 2. Get Source from GitHub
 ------------------------------
@@ -163,8 +165,8 @@ Leaving the build environment ``tvm-build-venv``, there are two ways to install 
 .. code-block:: bash
 
     export TVM_HOME=/path-to-tvm
-    pip install $TVM_HOME/3rdparty/tvm-ffi
-    export PYTHONPATH=$TVM_HOME/python:$TVM_HOME/3rdparty/tvm-ffi/python:$PYTHONPATH
+    pip install --target=$TVM_HOME/python $TVM_HOME/3rdparty/tvm-ffi
+    export PYTHONPATH=$TVM_HOME/python:$PYTHONPATH
 
 - Install via pip local project
 
@@ -173,7 +175,7 @@ Leaving the build environment ``tvm-build-venv``, there are two ways to install 
     conda activate your-own-env
     conda install python # make sure python is installed
     export TVM_LIBRARY_PATH=/path-to-tvm/build
-    pip install -e /path-to-tvm/python
+    pip install -e /path-to-tvm
 
 Step 4. Validate Installation
 -----------------------------
