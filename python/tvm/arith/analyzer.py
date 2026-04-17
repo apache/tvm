@@ -266,7 +266,12 @@ class Analyzer:
         """
         return self._can_prove(expr, strength)
 
-    def bind(self, var: tirx.Var, expr: tirx.PrimExpr | ir.Range) -> None:
+    def bind(
+        self,
+        var: tirx.Var,
+        expr: tirx.PrimExpr | ir.Range,
+        allow_override: bool = False,
+    ) -> None:
         """Bind a variable to the expression.
 
         Parameters
@@ -276,8 +281,11 @@ class Analyzer:
 
         expr : Union[tirx.PrimExpr, ir.Range]
             The expression or the range to bind to.
+
+        allow_override : bool
+            Whether to allow overriding an existing binding for the variable.
         """
-        return self._bind(var, expr)
+        return self._bind(var, expr, allow_override)
 
     def constraint_scope(self, constraint: tirx.PrimExpr) -> ConstraintScope:
         """Create a constraint scope.
