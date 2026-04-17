@@ -176,6 +176,10 @@ def test_exception():
 
 
 def test_eq_ops():
+    # NOTE: the `== None` / `!= None` below are intentional and must NOT be
+    # rewritten as `is None` / `is not None`. This test exercises the overloaded
+    # `__eq__` / `__ne__` operators on `IntImm` / `StringImm`; the `is` operators
+    # bypass those overloads and would defeat the test.
     a = tirx.IntImm("int8", 1)
     with pytest.raises(ValueError):
         assert a != None
