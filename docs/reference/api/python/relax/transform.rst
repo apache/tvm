@@ -112,6 +112,12 @@ tvm.relax.transform.legalize_ops.statistical
    :members:
    :no-index:
 
+tvm.relax.transform.legalize_ops.unary
+=======================================
+.. automodule:: tvm.relax.transform.legalize_ops.unary
+   :members:
+   :no-index:
+
 tvm.relax.transform.legalize_ops.vision
 ========================================
 .. automodule:: tvm.relax.transform.legalize_ops.vision
