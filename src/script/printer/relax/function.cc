@@ -25,14 +25,10 @@ namespace printer {
 static bool HasDefaultExternFuncStructInfo(const relax::ExternFunc& n) {
   const auto* sinfo = n->struct_info_.as<relax::FuncStructInfoNode>();
   if (sinfo == nullptr || sinfo->params.defined() || sinfo->purity ||
-      !sinfo->ret->IsInstance<relax::ObjectStructInfoNode>() || !sinfo->derive_func.defined()) {
+      !sinfo->ret->IsInstance<relax::ObjectStructInfoNode>()) {
     return false;
   }
-  static const EnvFunc fn = EnvFunc::Get("tvm.relax.struct_info.infer_by_sinfo_args");
-  if (!fn.defined()) {
-    return false;
-  }
-  return sinfo->derive_func.value().same_as(fn);
+  return true;
 }
 
 bool AtTopLevelFunction(const IRDocsifier& d) {
