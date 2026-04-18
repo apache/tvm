@@ -800,7 +800,7 @@ export class WebGPUContext {
         compute.dispatchWorkgroups(workDim[0], workDim[1], workDim[2]);
         compute.end();
 
-        if (this.maxDispatchesPerFlush > 0 &&
+        if (this.maxDispatchesPerFlush <= 0 ||
             this.pendingDispatchCount >= this.maxDispatchesPerFlush) {
           this.flushCommands();
         }
