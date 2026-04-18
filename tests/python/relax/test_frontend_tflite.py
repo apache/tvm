@@ -1977,6 +1977,22 @@ def test_reduction_ops(tf_op, relax_op, input_shape, axes, keepdims, dtype):
     verify(ReduceModule, expected)
 
 
+def _make_reduce_bool_expected(relax_op, input_shape, axes, keepdims):
+    if axes is None:
+        axes = list(range(len(input_shape)))
+    bb = relax.BlockBuilder()
+    x = relax.Var("x", relax.TensorStructInfo(input_shape, "bool"))
+    with bb.function("main", [x]):
+        with bb.dataflow():
+            cast_in = bb.emit(relax.op.astype(x, "int8"))
+            reduced = bb.emit(relax_op(cast_in, axis=axes, keepdims=keepdims))
+            gv = bb.emit_output(relax.op.astype(reduced, "bool"))
+        bb.emit_func_output(gv)
+    mod = bb.get()
+    mod["main"] = mod["main"].with_attr("num_input", 1)
+    return mod
+
+
 @pytest.mark.parametrize(
     "tf_op, relax_op",
     [
@@ -2002,8 +2018,11 @@ def test_reduction_bool_ops(tf_op, relax_op, input_shape, axes, keepdims):
         def func(self, x):
             return tf_op(x, axis=axes, keepdims=keepdims)
 
-    expected = _make_reduce_expected(relax_op, input_shape, axes, keepdims, "bool")
+    expected = _make_reduce_bool_expected(relax_op, input_shape, axes, keepdims)
     verify(ReduceBoolModule, expected)
+
+    # Regression guard: compile to catch a bool max/min lowering path.
+    tvm.compile(expected, tvm.target.Target("llvm"))
 
 
 def test_pad():

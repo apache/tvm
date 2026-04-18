@@ -195,8 +195,8 @@ class OperatorConverter:
             "PRELU": self.convert_prelu,
             "RANGE": self.convert_range,
             "QUANTIZE": self.convert_quantize,
-            "REDUCE_ALL": functools.partial(self._convert_reduce, relax_op=_op.min),
-            "REDUCE_ANY": functools.partial(self._convert_reduce, relax_op=_op.max),
+            "REDUCE_ALL": functools.partial(self._convert_reduce_bool, relax_op=_op.min),
+            "REDUCE_ANY": functools.partial(self._convert_reduce_bool, relax_op=_op.max),
             "REDUCE_MAX": functools.partial(self._convert_reduce, relax_op=_op.max),
             "REDUCE_MIN": functools.partial(self._convert_reduce, relax_op=_op.min),
             "REDUCE_PROD": functools.partial(self._convert_reduce, relax_op=_op.prod),
@@ -1786,6 +1786,36 @@ class OperatorConverter:
             )
 
         return out
+
+    def _convert_reduce_bool(self, relax_op, op):
+        """Convert TFLite REDUCE_ANY / REDUCE_ALL (bool-only ops).
+
+        Relax max/min are undefined on bool, so cast through int8.
+        """
+        from tflite.BuiltinOptions import BuiltinOptions
+        from tflite.ReducerOptions import ReducerOptions
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+
+        axis_value = self.get_tensor_value(input_tensors[1])
+        axis = tuple(axis_value) if len(axis_value.shape) > 0 else tuple((axis_value.item(),))
+
+        if op.BuiltinOptionsType():
+            assert op.BuiltinOptionsType() == BuiltinOptions.ReducerOptions
+            reduce_options = ReducerOptions()
+            op_options = op.BuiltinOptions()
+            reduce_options.Init(op_options.Bytes, op_options.Pos)
+            keep_dims = reduce_options.KeepDims()
+        else:
+            keep_dims = False
+
+        in_expr = relax.op.astype(in_expr, "int8")
+        out = relax_op(in_expr, axis, keep_dims)
+        return relax.op.astype(out, "bool")
 
     def _convert_arg_min_max(self, op, relax_op):
         """Generic method converting TFLite arg_min_max"""
