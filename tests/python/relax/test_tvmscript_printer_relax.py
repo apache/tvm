@@ -98,6 +98,41 @@ class Module:
     )
 
 
+def test_extern_func_with_struct_info():
+    obj = IRModule(
+        {
+            "my_ext": relax.ExternFunc(
+                "my_ext",
+                relax.FuncStructInfo([], relax.TensorStructInfo(dtype="float32", ndim=2), purity=True),
+            ),
+        }
+    )
+    _assert_print(
+        obj,
+        """
+# from tvm.script import ir as I
+# from tvm.script import relax as R
+
+@I.ir_module
+class Module:
+    my_ext = R.ExternFunc("my_ext", R.Callable((), R.Tensor(dtype="float32", ndim=2), True))
+""",
+    )
+
+
+def test_extern_func_with_struct_info_roundtrip():
+    mod = IRModule(
+        {
+            "my_ext": relax.ExternFunc(
+                "my_ext",
+                relax.FuncStructInfo([], relax.TensorStructInfo(dtype="float32", ndim=2), purity=True),
+            ),
+        }
+    )
+    roundtrip = tvm.script.from_source(mod.script(verbose_expr=True))
+    tvm.ir.assert_structural_equal(mod, roundtrip)
+
+
 def test_nested_function():
     @I.ir_module
     class NestedFunction:

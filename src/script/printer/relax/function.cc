@@ -22,6 +22,15 @@ namespace tvm {
 namespace script {
 namespace printer {
 
+static bool HasDefaultExternFuncStructInfo(const relax::ExternFunc& n) {
+  const auto* sinfo = n->struct_info_.as<relax::FuncStructInfoNode>();
+  if (sinfo == nullptr || sinfo->params.defined() || sinfo->purity ||
+      !sinfo->ret->IsInstance<relax::ObjectStructInfoNode>()) {
+    return false;
+  }
+  return true;
+}
+
 bool AtTopLevelFunction(const IRDocsifier& d) {
   // fewer than 2 frames: not in a function at all
   if (d->frames.size() < 2) {
@@ -128,8 +137,12 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::ExternFunc>(  //
         "", [](relax::ExternFunc n, AccessPath n_p, IRDocsifier d) -> Doc {
-          // TODO(@junrushao): print more information out of extern function.
-          return Relax(d, "ExternFunc")->Call({LiteralDoc::Str(n->global_symbol, n_p)});
+          ffi::Array<ExprDoc> args;
+          args.push_back(LiteralDoc::Str(n->global_symbol, n_p->Attr("global_symbol")));
+          if (!HasDefaultExternFuncStructInfo(n)) {
+            args.push_back(d->AsDoc<ExprDoc>(n->struct_info_, n_p->Attr("struct_info_")));
+          }
+          return Relax(d, "ExternFunc")->Call(args);
         });
 
 TVM_SCRIPT_REPR(relax::FunctionNode, ReprPrintRelax);
