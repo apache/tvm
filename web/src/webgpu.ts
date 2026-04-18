@@ -423,6 +423,7 @@ export class WebGPUContext {
   private uniformBufferPool: Array<GPUBuffer> = [];
   private uniformBufferPoolSizes: Array<number> = [];
   private pendingDispatchCount = 0;
+  maxDispatchesPerFlush = 32;
   // flags for debugging
   // stats of the runtime.
   // peak allocation
@@ -798,6 +799,11 @@ export class WebGPUContext {
 
         compute.dispatchWorkgroups(workDim[0], workDim[1], workDim[2]);
         compute.end();
+
+        if (this.maxDispatchesPerFlush > 0 &&
+            this.pendingDispatchCount >= this.maxDispatchesPerFlush) {
+          this.flushCommands();
+        }
 
         // In debug mode, flush immediately so we can observe each submission.
         if (this.debugLogFinish) {
