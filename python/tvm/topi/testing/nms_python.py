@@ -46,6 +46,8 @@ def non_max_suppression_python(
     id_index=0,
     return_indices=True,
     invalid_to_bottom=False,
+    soft_nms_sigma=0.0,
+    score_threshold=0.0,
 ):
     """Numpy reference for classic non_max_suppression.
 
@@ -71,6 +73,9 @@ def non_max_suppression_python(
     compacted = np.full((batch_size, num_anchors), -1, dtype="int32")
     valid_box_count = np.zeros((batch_size, 1), dtype="int32")
 
+    is_soft_nms = soft_nms_sigma > 0.0
+    thresh = score_threshold if is_soft_nms else 0.0
+
     for i in range(batch_size):
         nkeep = int(valid_count[i])
         if 0 < top_k < nkeep:
@@ -89,9 +94,10 @@ def non_max_suppression_python(
         # Greedy NMS
         num_valid = 0
         for j in range(nkeep):
-            if out_data[i, j, score_index] <= 0:
-                out_data[i, j, :] = -1.0
-                out_box_indices[i, j] = -1
+            if out_data[i, j, score_index] <= thresh:
+                if not is_soft_nms:
+                    out_data[i, j, :] = -1.0
+                    out_box_indices[i, j] = -1
                 continue
             if 0 < max_output_size <= num_valid:
                 out_data[i, j, :] = -1.0
@@ -102,7 +108,7 @@ def non_max_suppression_python(
 
             # Suppress overlapping boxes
             for k in range(j + 1, nkeep):
-                if out_data[i, k, score_index] <= 0:
+                if out_data[i, k, score_index] <= thresh:
                     continue
 
                 do_suppress = False
@@ -116,8 +122,12 @@ def non_max_suppression_python(
                 if do_suppress:
                     iou = _iou(out_data[i, j], out_data[i, k], coord_start)
                     if iou >= iou_threshold:
-                        out_data[i, k, score_index] = -1.0
-                        out_box_indices[i, k] = -1
+                        if is_soft_nms:
+                            decay = np.exp(-(iou ** 2) / soft_nms_sigma)
+                            out_data[i, k, score_index] *= decay
+                        else:
+                            out_data[i, k, score_index] = -1.0
+                            out_box_indices[i, k] = -1
 
         if return_indices:
             # Compact valid indices to top and remap to original
@@ -130,6 +140,8 @@ def non_max_suppression_python(
             valid_box_count[i, 0] = cnt
 
     if return_indices:
+        if is_soft_nms:
+            return [out_data, compacted, valid_box_count]
         return [compacted, valid_box_count]
 
     if invalid_to_bottom:

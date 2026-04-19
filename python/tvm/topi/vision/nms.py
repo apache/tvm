@@ -188,6 +188,8 @@ def _classic_nms_ir(
     out_data,
     out_box_indices,
     out_valid_box_count,
+    soft_nms_sigma=0.0,
+    score_threshold=0.0,
 ):
     """IR for classic single-class non-maximum suppression."""
     with IRBuilder() as ib:
@@ -199,6 +201,10 @@ def _classic_nms_ir(
         out_box_indices = T.buffer_proxy(out_box_indices)
         if out_valid_box_count is not None:
             out_valid_box_count = T.buffer_proxy(out_valid_box_count)
+
+        is_soft_nms = soft_nms_sigma > 0.0
+        # For hard NMS the historical threshold is 0.0; for soft NMS use score_threshold.
+        thresh = tvm.tirx.Cast(data.dtype, T.float32(score_threshold if is_soft_nms else 0.0))
 
         with T.parallel(0, batch_size) as i:
             # Step 1: Reorder data by sorted score
@@ -228,10 +234,10 @@ def _classic_nms_ir(
             num_valid_boxes[0] = T.int32(0)
 
             with T.serial(0, nkeep_local[0]) as j:
-                # Check if box j is still valid (score > 0) and within max_output_size
+                # Check if box j is still valid (score > threshold) and within max_output_size
                 with T.If(
                     tvm.tirx.all(
-                        out_data[i, j, score_index] > tvm.tirx.Cast(data.dtype, T.float32(0.0)),
+                        out_data[i, j, score_index] > thresh,
                         tvm.tirx.Select(
                             max_output_size > 0,
                             num_valid_boxes[0] < max_output_size,
@@ -247,8 +253,7 @@ def _classic_nms_ir(
                             with T.If(
                                 tvm.tirx.all(
                                     k > j,
-                                    out_data[i, k, score_index]
-                                    > tvm.tirx.Cast(data.dtype, T.float32(0.0)),
+                                    out_data[i, k, score_index] > thresh,
                                 )
                             ):
                                 with T.Then():
@@ -322,10 +327,23 @@ def _classic_nms_ir(
 
                                             with T.If(iou >= iou_threshold):
                                                 with T.Then():
-                                                    out_data[i, k, score_index] = tvm.tirx.Cast(
-                                                        data.dtype, T.float32(-1.0)
-                                                    )
-                                                    out_box_indices[i, k] = T.int32(-1)
+                                                    if is_soft_nms:
+                                                        # Soft-NMS Gaussian decay
+                                                        decay = tvm.tirx.exp(
+                                                            -(iou * iou)
+                                                            / tvm.tirx.Cast(
+                                                                data.dtype,
+                                                                T.float32(soft_nms_sigma),
+                                                            )
+                                                        )
+                                                        out_data[i, k, score_index] = (
+                                                            out_data[i, k, score_index] * decay
+                                                        )
+                                                    else:
+                                                        out_data[i, k, score_index] = tvm.tirx.Cast(
+                                                            data.dtype, T.float32(-1.0)
+                                                        )
+                                                        out_box_indices[i, k] = T.int32(-1)
 
                     with T.Else():
                         # Box suppressed or beyond max_output_size
@@ -372,6 +390,8 @@ def non_max_suppression(
     id_index=0,
     return_indices=True,
     invalid_to_bottom=False,
+    soft_nms_sigma=0.0,
+    score_threshold=0.0,
 ):
     """Non-maximum suppression operator for object detection.
 
@@ -415,6 +435,12 @@ def non_max_suppression(
 
     invalid_to_bottom : optional, boolean
         Whether to move all valid bounding boxes to the top.
+
+    soft_nms_sigma : optional, float
+        Sigma for soft-NMS Gaussian penalty. 0.0 means standard hard NMS.
+
+    score_threshold : optional, float
+        Minimum score for a box to be eligible during soft-NMS.
 
     Returns
     -------
@@ -464,6 +490,7 @@ def non_max_suppression(
                 coord_start, score_index, id_index,
                 return_indices,
                 outs[0], outs[1], outs[2],
+                soft_nms_sigma, score_threshold,
             ),
             dtype=[data.dtype, "int32", "int32"],
             out_buffers=[out_data_buf, out_box_indices_buf, out_valid_box_count_buf],
@@ -471,6 +498,8 @@ def non_max_suppression(
             name="non_max_suppression",
             tag="non_max_suppression",
         )
+        if soft_nms_sigma > 0.0:
+            return [out_data, out_box_indices, out_valid_box_count]
         return [out_box_indices, out_valid_box_count]
 
     out_data, out_box_indices = te.extern(
@@ -484,6 +513,7 @@ def non_max_suppression(
             coord_start, score_index, id_index,
             return_indices,
             outs[0], outs[1], None,
+            soft_nms_sigma, score_threshold,
         ),
         dtype=[data.dtype, "int32"],
         out_buffers=[out_data_buf, out_box_indices_buf],

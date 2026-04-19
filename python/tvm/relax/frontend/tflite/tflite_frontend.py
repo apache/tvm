@@ -3573,10 +3573,6 @@ class OperatorConverter:
         if isinstance(soft_nms_sigma, np.ndarray):
             assert soft_nms_sigma.size == 1, "only one value is expected."
             soft_nms_sigma = float(soft_nms_sigma)
-        if soft_nms_sigma != 0.0:
-            raise tvm.error.OpNotImplemented(
-                "It is soft_nms when soft_nms_sigma != 0, which is not supported!"
-            )
 
         scores_expand = relax.op.expand_dims(scores, axis=-1)
         data = relax.op.concat([scores_expand, boxes], axis=-1)
@@ -3602,18 +3598,39 @@ class OperatorConverter:
             id_index=-1,
             return_indices=True,
             invalid_to_bottom=False,
+            soft_nms_sigma=soft_nms_sigma,
+            score_threshold=score_threshold,
         )
 
-        selected_indices = relax.op.squeeze(nms_ret[0], axis=[0])
-        selected_indices = relax.op.strided_slice(
-            selected_indices, axes=[0], begin=[0], end=[max_output_size]
-        )
-        num_valid = relax.op.reshape(nms_ret[1], [])
+        if soft_nms_sigma > 0.0:
+            # Soft-NMS returns (out_data, box_indices, valid_box_count)
+            processed_data = relax.op.squeeze(nms_ret[0], axis=[0])
+            selected_indices = relax.op.squeeze(nms_ret[1], axis=[0])
+            selected_indices = relax.op.strided_slice(
+                selected_indices, axes=[0], begin=[0], end=[max_output_size]
+            )
+            num_valid = relax.op.reshape(nms_ret[2], [])
 
-        # Clamp out-of-bound padded indices to prevent take() crash.
-        num_boxes = int(self.get_tensor_shape(input_tensors[0])[0])
-        safe_indices = relax.op.clip(selected_indices, min=0, max=num_boxes - 1)
-        selected_scores = relax.op.take(scores, safe_indices, axis=0)
+            # Extract decayed scores from the processed data (score_index=0)
+            selected_scores = relax.op.strided_slice(
+                processed_data, axes=[1], begin=[0], end=[1]
+            )
+            selected_scores = relax.op.squeeze(selected_scores, axis=[1])
+            selected_scores = relax.op.strided_slice(
+                selected_scores, axes=[0], begin=[0], end=[max_output_size]
+            )
+        else:
+            # Hard NMS returns (box_indices, valid_box_count)
+            selected_indices = relax.op.squeeze(nms_ret[0], axis=[0])
+            selected_indices = relax.op.strided_slice(
+                selected_indices, axes=[0], begin=[0], end=[max_output_size]
+            )
+            num_valid = relax.op.reshape(nms_ret[1], [])
+
+            # Clamp out-of-bound padded indices to prevent take() crash.
+            num_boxes = int(self.get_tensor_shape(input_tensors[0])[0])
+            safe_indices = relax.op.clip(selected_indices, min=0, max=num_boxes - 1)
+            selected_scores = relax.op.take(scores, safe_indices, axis=0)
 
         out = relax.Tuple([selected_indices, selected_scores, num_valid])
         return out

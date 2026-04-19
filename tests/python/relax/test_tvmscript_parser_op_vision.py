@@ -126,6 +126,8 @@ def test_non_max_suppression_return_indices():
                 id_index=0,
                 return_indices=True,
                 invalid_to_bottom=False,
+                soft_nms_sigma=0.0,
+                score_threshold=0.0,
             )
         )
         return gv
@@ -150,6 +152,70 @@ def test_non_max_suppression_return_indices():
                 id_index=0,
                 return_indices=True,
                 invalid_to_bottom=False,
+                soft_nms_sigma=0.0,
+                score_threshold=0.0,
+            )
+        )
+        bb.emit_func_output(gv)
+
+    _check(foo, bb.get()["foo"])
+
+
+def test_non_max_suppression_return_indices_soft_nms():
+    @R.function
+    def foo(
+        data: R.Tensor((2, 5, 6), "float32"),
+        valid_count: R.Tensor((2,), "int32"),
+        indices: R.Tensor((2, 5), "int32"),
+    ) -> R.Tuple(
+        R.Tensor((2, 5, 6), "float32"),
+        R.Tensor((2, 5), "int32"),
+        R.Tensor((2, 1), "int32"),
+    ):
+        gv: R.Tuple(
+            R.Tensor((2, 5, 6), "float32"),
+            R.Tensor((2, 5), "int32"),
+            R.Tensor((2, 1), "int32"),
+        ) = R.vision.non_max_suppression(
+            data,
+            valid_count,
+            indices,
+            max_output_size=-1,
+            iou_threshold=0.5,
+            force_suppress=False,
+            top_k=3,
+            coord_start=2,
+            score_index=1,
+            id_index=0,
+            return_indices=True,
+            invalid_to_bottom=False,
+            soft_nms_sigma=0.5,
+            score_threshold=0.0,
+        )
+        return gv
+
+    data = relax.Var("data", R.Tensor((2, 5, 6), "float32"))
+    valid_count = relax.Var("valid_count", R.Tensor((2,), "int32"))
+    indices = relax.Var("indices", R.Tensor((2, 5), "int32"))
+
+    bb = relax.BlockBuilder()
+    with bb.function("foo", [data, valid_count, indices]):
+        gv = bb.emit(
+            relax.op.vision.non_max_suppression(
+                data,
+                valid_count,
+                indices,
+                max_output_size=-1,
+                iou_threshold=0.5,
+                force_suppress=False,
+                top_k=3,
+                coord_start=2,
+                score_index=1,
+                id_index=0,
+                return_indices=True,
+                invalid_to_bottom=False,
+                soft_nms_sigma=0.5,
+                score_threshold=0.0,
             )
         )
         bb.emit_func_output(gv)
@@ -177,6 +243,8 @@ def test_non_max_suppression_return_data():
             id_index=0,
             return_indices=False,
             invalid_to_bottom=True,
+            soft_nms_sigma=0.0,
+            score_threshold=0.0,
         )
         return gv
 
@@ -200,6 +268,8 @@ def test_non_max_suppression_return_data():
                 id_index=0,
                 return_indices=False,
                 invalid_to_bottom=True,
+                soft_nms_sigma=0.0,
+                score_threshold=0.0,
             )
         )
         bb.emit_func_output(gv)

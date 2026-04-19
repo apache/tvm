@@ -115,6 +115,8 @@ def non_max_suppression(
     id_index=0,
     return_indices=True,
     invalid_to_bottom=False,
+    soft_nms_sigma=0.0,
+    score_threshold=0.0,
 ):
     """Non-maximum suppression operator for object detection.
 
@@ -160,12 +162,24 @@ def non_max_suppression(
         Whether to move valid bounding boxes to the top of the returned tensor.
         This option only affects the ``return_indices=False`` path.
 
+    soft_nms_sigma : float, optional
+        Sigma for soft-NMS Gaussian penalty. When ``0.0`` (default), standard
+        hard NMS is used. Positive values decay overlapping box scores instead
+        of suppressing them outright.
+
+    score_threshold : float, optional
+        Minimum score for a box to be eligible for selection during soft-NMS.
+        Only used when ``soft_nms_sigma > 0``. Defaults to ``0.0``.
+
     Returns
     -------
     out : relax.Expr
-        If ``return_indices`` is ``True``, returns
-        ``(box_indices, valid_box_count)`` with shapes
+        If ``return_indices`` is ``True`` and ``soft_nms_sigma`` is ``0.0``,
+        returns ``(box_indices, valid_box_count)`` with shapes
         ``[batch_size, num_anchors]`` and ``[batch_size, 1]``.
+        If ``return_indices`` is ``True`` and ``soft_nms_sigma > 0``,
+        returns ``(out_data, box_indices, valid_box_count)`` where
+        ``out_data`` has the same shape as the input data.
         Otherwise returns the modified data tensor.
     """
     return _ffi_api.non_max_suppression(
@@ -181,4 +195,6 @@ def non_max_suppression(
         id_index,
         return_indices,
         invalid_to_bottom,
+        soft_nms_sigma,
+        score_threshold,
     )

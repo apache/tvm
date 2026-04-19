@@ -122,6 +122,8 @@ struct NonMaximumSuppressionAttrs
   int id_index;
   bool return_indices;
   bool invalid_to_bottom;
+  double soft_nms_sigma;
+  double score_threshold;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -143,7 +145,11 @@ struct NonMaximumSuppressionAttrs
         .def_ro("return_indices", &NonMaximumSuppressionAttrs::return_indices,
                 "Whether to return box indices in input data.")
         .def_ro("invalid_to_bottom", &NonMaximumSuppressionAttrs::invalid_to_bottom,
-                "Whether to move all valid bounding boxes to the top.");
+                "Whether to move all valid bounding boxes to the top.")
+        .def_ro("soft_nms_sigma", &NonMaximumSuppressionAttrs::soft_nms_sigma,
+                "Sigma for soft-NMS; 0.0 means standard hard NMS.")
+        .def_ro("score_threshold", &NonMaximumSuppressionAttrs::score_threshold,
+                "Score threshold for soft-NMS validity check; 0.0 when unused.");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.NonMaximumSuppressionAttrs",
                                     NonMaximumSuppressionAttrs, BaseAttrsNode);

@@ -44,8 +44,8 @@ Expr get_valid_counts(Expr data, double score_threshold, int id_index, int score
 /*! \brief Non-maximum suppression for object detection. */
 Expr non_max_suppression(Expr data, Expr valid_count, Expr indices, int max_output_size,
                          double iou_threshold, bool force_suppress, int top_k, int coord_start,
-                         int score_index, int id_index, bool return_indices,
-                         bool invalid_to_bottom);
+                         int score_index, int id_index, bool return_indices, bool invalid_to_bottom,
+                         double soft_nms_sigma = 0.0, double score_threshold = 0.0);
 
 }  // namespace relax
 }  // namespace tvm

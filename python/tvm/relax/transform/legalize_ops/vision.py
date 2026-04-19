@@ -152,6 +152,8 @@ def _non_max_suppression(block_builder: BlockBuilder, call: Call) -> Expr:
         id_index=call.attrs.id_index,
         return_indices=call.attrs.return_indices,
         invalid_to_bottom=call.attrs.invalid_to_bottom,
+        soft_nms_sigma=call.attrs.soft_nms_sigma,
+        score_threshold=call.attrs.score_threshold,
     )
 
 

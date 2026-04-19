@@ -302,6 +302,26 @@ def test_nms_infer_struct_info_return_indices():
     )
 
 
+def test_nms_infer_struct_info_return_indices_soft_nms():
+    bb = relax.BlockBuilder()
+    data = relax.Var("data", R.Tensor((2, 10, 6), "float32"))
+    valid_count = relax.Var("valid_count", R.Tensor((2,), "int32"))
+    indices = relax.Var("indices", R.Tensor((2, 10), "int32"))
+    _check_inference(
+        bb,
+        relax.op.vision.non_max_suppression(
+            data, valid_count, indices, return_indices=True, soft_nms_sigma=0.5
+        ),
+        relax.TupleStructInfo(
+            [
+                relax.TensorStructInfo((2, 10, 6), "float32"),
+                relax.TensorStructInfo((2, 10), "int32"),
+                relax.TensorStructInfo((2, 1), "int32"),
+            ]
+        ),
+    )
+
+
 def test_nms_infer_struct_info_return_data():
     bb = relax.BlockBuilder()
     data = relax.Var("data", R.Tensor((2, 10, 6), "float32"))
@@ -457,6 +477,8 @@ def test_nms_legalize():
                 id_index=0,
                 return_indices=True,
                 invalid_to_bottom=False,
+                soft_nms_sigma=0.0,
+                score_threshold=0.0,
             )
             return gv
 
@@ -466,6 +488,51 @@ def test_nms_legalize():
         mod["main"].ret_struct_info,
         relax.TupleStructInfo(
             [
+                relax.TensorStructInfo((1, 5), "int32"),
+                relax.TensorStructInfo((1, 1), "int32"),
+            ]
+        ),
+    )
+
+
+def test_nms_legalize_soft_nms():
+    @tvm.script.ir_module
+    class NMS:
+        @R.function
+        def main(
+            data: R.Tensor((1, 5, 6), "float32"),
+            valid_count: R.Tensor((1,), "int32"),
+            indices: R.Tensor((1, 5), "int32"),
+        ) -> R.Tuple(
+            R.Tensor((1, 5, 6), "float32"),
+            R.Tensor((1, 5), "int32"),
+            R.Tensor((1, 1), "int32"),
+        ):
+            gv = R.vision.non_max_suppression(
+                data,
+                valid_count,
+                indices,
+                max_output_size=-1,
+                iou_threshold=0.5,
+                force_suppress=False,
+                top_k=-1,
+                coord_start=2,
+                score_index=1,
+                id_index=0,
+                return_indices=True,
+                invalid_to_bottom=False,
+                soft_nms_sigma=0.5,
+                score_threshold=0.0,
+            )
+            return gv
+
+    mod = LegalizeOps()(NMS)
+    _assert_relax_op_legalized(mod, "relax.vision.non_max_suppression")
+    tvm.ir.assert_structural_equal(
+        mod["main"].ret_struct_info,
+        relax.TupleStructInfo(
+            [
+                relax.TensorStructInfo((1, 5, 6), "float32"),
                 relax.TensorStructInfo((1, 5), "int32"),
                 relax.TensorStructInfo((1, 1), "int32"),
             ]
@@ -495,6 +562,8 @@ def test_nms_legalize_return_data():
                 id_index=0,
                 return_indices=False,
                 invalid_to_bottom=True,
+                soft_nms_sigma=0.0,
+                score_threshold=0.0,
             )
             return gv
 
