@@ -20,8 +20,20 @@
 /*!
  * \file bind_parallel_loops_to_threads.cc
  * \brief Convert ForKind::kParallel loops to GPU thread bindings.
+ *
+ * Semantics:
+ * - Only runs when the PrimFunc carries a `tvm::attr::kTarget` that refers to a GPU device.
+ *   Functions without a target attribute are left unchanged (no ambient `Target::Current` guess).
+ * - The outermost `kParallel` loop in the function is rewritten to `blockIdx.x` / `threadIdx.x`
+ *   `thread_extent` scopes, with a guard `if (global_idx < extent)` and no else-branch.
+ * - Nested `kParallel` loops (parallel inside parallel) are rejected: binding only the outer
+ *   parallel nest would leave inner `kParallel` serial within the mapped kernel, which is
+ *   almost never what users intend.
+ * - A `kParallel` that appears inside an existing thread environment (`thread_extent` /
+ *   `virtual_thread`) is left unchanged so it does not introduce conflicting thread bindings.
  */
 
+#include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/target/target.h>
@@ -77,7 +89,7 @@ class ParallelLoopToThreadBindingMutator : public StmtExprMutator {
     PrimExpr global_idx = cast(dtype, bx_var * max_threads + tx_var);
     PrimExpr mapped_idx = cast(dtype, min + global_idx);
     Stmt mapped_body = Substitute(for_node->body, {{Var(for_node->loop_var), mapped_idx}});
-    mapped_body = IfThenElse(global_idx < extent, mapped_body, Evaluate(IntImm(DataType::Int(32), 0)));
+    mapped_body = IfThenElse(global_idx < extent, mapped_body);
 
     Stmt body_with_tx = AttrStmt(tx_iter, tirx::attr::thread_extent, max_threads, mapped_body);
     Stmt body_with_bx = AttrStmt(bx_iter, tirx::attr::thread_extent, num_blocks, body_with_tx);
@@ -96,7 +108,10 @@ class ParallelLoopToThreadBindingMutator : public StmtExprMutator {
       return StmtExprMutator::VisitStmt_(op);
     }
     if (in_parallel_loop_) {
-      return StmtExprMutator::VisitStmt_(op);
+      TVM_FFI_THROW(InternalError)
+          << "BindParallelLoopsToThreads does not support nested parallel loops. "
+          << "Inner parallel loops become serial once bound into a GPU kernel. "
+          << "Please rewrite the TIR to avoid nested T.parallel.";
     }
     bool prev_in_parallel = in_parallel_loop_;
     in_parallel_loop_ = true;
@@ -117,10 +132,10 @@ namespace transform {
 Pass BindParallelLoopsToThreads() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     auto opt_target = f->GetAttr<Target>(tvm::attr::kTarget);
-    Target target = opt_target.value_or(Target::Current(/*allow_none=*/true));
-    if (!target.defined() || !IsGpuDeviceType(target->GetTargetDeviceType())) {
+    if (!opt_target || !IsGpuDeviceType(opt_target.value()->GetTargetDeviceType())) {
       return f;
     }
+    Target target = opt_target.value();
 
     int64_t max_threads_per_block = 1024;
     if (auto opt_max_threads = target->GetAttr<Integer>("max_num_threads")) {
