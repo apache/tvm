@@ -633,7 +633,7 @@ class ExampleNPURuntime : public JSONRuntimeBase {
  */
 ffi::Module ExampleNPURuntimeCreate(const ffi::String& symbol_name, const ffi::String& graph_json,
                                     const ffi::Array<ffi::String>& const_names) {
-  auto n = make_object<ExampleNPURuntime>(symbol_name, graph_json, const_names);
+  auto n = tvm::ffi::make_object<ExampleNPURuntime>(symbol_name, graph_json, const_names);
   return ffi::Module(n);
 }
 
