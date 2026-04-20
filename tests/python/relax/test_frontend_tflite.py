@@ -2619,6 +2619,30 @@ def test_sparse_to_dense():
 # Since TensorFlow does not provide an API to create sparse TFLite models,
 # we manually build them using the flatbuffers API.
 
+# Compatibility shim: schema-generated tflite packages (as used in CI) do not
+# re-export builder helpers at the package top-level. Bind them from submodules
+# so that the rest of the test file can use tfl.XXXStart / tfl.XXXEnd uniformly.
+if not hasattr(tfl, "Int32VectorStart"):
+    _tflite_helper_modules = [
+        "AddOptions",
+        "Buffer",
+        "Conv2DOptions",
+        "DimensionMetadata",
+        "FullyConnectedOptions",
+        "Int32Vector",
+        "Model",
+        "Operator",
+        "OperatorCode",
+        "SparsityParameters",
+        "SubGraph",
+        "Tensor",
+    ]
+    for _mod_name in _tflite_helper_modules:
+        _mod = __import__(f"tflite.{_mod_name}", fromlist=[_mod_name])
+        for _attr_name in dir(_mod):
+            if not _attr_name.startswith("_"):
+                setattr(tfl, _attr_name, getattr(_mod, _attr_name))
+
 _DENSIFY_TEST_VALUES = np.array([1.0, 2.0], dtype=np.float32)
 _DENSIFY_TEST_DENSE = np.array([[1.0, 0.0], [0.0, 2.0]], dtype=np.float32)
 _DENSIFY_ROW_PTRS = [0, 1, 2]
@@ -2652,7 +2676,13 @@ def _tflite_byte_vector(builder, data):
 
 
 def _tflite_int32_table(builder, values):
-    values_vec = _tflite_int32_vector(builder, tfl.Int32VectorStartValuesVector, values)
+    # Build the values vector directly without relying on version-specific
+    # helper tfl.Int32VectorStartValuesVector, which is absent in older
+    # tflite package versions used in CI.
+    builder.StartVector(4, len(values), 4)
+    for value in reversed(values):
+        builder.PrependInt32(value)
+    values_vec = builder.EndVector()
     tfl.Int32VectorStart(builder)
     tfl.Int32VectorAddValues(builder, values_vec)
     return tfl.Int32VectorEnd(builder)
@@ -2677,9 +2707,14 @@ def _build_tensor(builder, buffer_idx, shape, sparsity=None):
 
 
 def _build_buffer(builder, data=None):
-    tfl.BufferStart(builder)
+    # Build the data vector before starting the Buffer table to avoid
+    # flatbuffers IsNestedError (vectors cannot be created inside tables).
+    data_offset = None
     if data is not None:
-        tfl.BufferAddData(builder, _tflite_byte_vector(builder, data))
+        data_offset = _tflite_byte_vector(builder, data)
+    tfl.BufferStart(builder)
+    if data_offset is not None:
+        tfl.BufferAddData(builder, data_offset)
     return tfl.BufferEnd(builder)
 
 

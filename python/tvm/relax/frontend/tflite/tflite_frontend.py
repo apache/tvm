@@ -338,7 +338,6 @@ class OperatorConverter:
                 continue
 
             ret = self.bb.normalize(ret)
-            # print("Op Code:", op_code_str, " Shape:", ret.struct_info)
 
             if len(output_tensors) == 1:
                 tensor_idx = output_tensors[0].tensor_idx
@@ -1943,15 +1942,8 @@ class OperatorConverter:
             TensorType.UINT8,
             TensorType.FLOAT32,
         )
-        weight_tensor_type_str = self.get_tensor_type_str(weight_tensor_type)
 
-        if self.has_expr(weight_tensor.tensor_idx):
-            weight_expr = self.get_expr(weight_tensor.tensor_idx)
-        else:
-            weight_value = self.get_tensor_value_or_prefetched(weight_tensor)
-            weight_expr = self.exp_tab.new_const(
-                weight_value, dtype=weight_tensor_type_str, source_name=weight_tensor.tensor.Name()
-            )
+        weight_expr = self.get_tensor_expr(weight_tensor)
         weight_shape = weight_expr.struct_info.shape
         weight_expr = relax.op.permute_dims(weight_expr, [1, 0])
 
