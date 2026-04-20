@@ -71,6 +71,8 @@ enum class StorageRank {
   kMMAMatrixC = 11,
   /*! \brief Metal SIMD group memory */
   kMetalSimdGroup = 12,
+  /*! \brief Metal cooperative_tensor memory (MetalPerformancePrimitives) */
+  kMetalCooperativeTensor = 13,
 };
 
 /*!
@@ -129,6 +131,8 @@ struct StorageScope {
         return "m16n8k8.matrixC" + tag;
       case StorageRank::kMetalSimdGroup:
         return "metal.simdgroup" + tag;
+      case StorageRank::kMetalCooperativeTensor:
+        return "metal.cooperative_tensor" + tag;
       default:
         TVM_FFI_THROW(InternalError) << "unknown storage scope";
         return "";
@@ -182,6 +186,9 @@ struct StorageScope {
     } else if (s.compare(0, 15, "metal.simdgroup") == 0) {
       r.rank = StorageRank::kMetalSimdGroup;
       r.tag = s.substr(15, std::string::npos);
+    } else if (s.compare(0, 24, "metal.cooperative_tensor") == 0) {
+      r.rank = StorageRank::kMetalCooperativeTensor;
+      r.tag = s.substr(24, std::string::npos);
     } else {
       TVM_FFI_THROW(InternalError) << "unknown storage scope " << s;
     }

@@ -1792,6 +1792,110 @@ def simdgroup_multiply_accumulate(
     )
 
 
+def cooperative_tensor_fill(
+    d: Var,
+    index: PrimExpr,
+    value: PrimExpr,
+    rows: int,
+    cols: int,
+):
+    return call_intrin("handle", "tirx.cooperative_tensor_fill", d, index, value, rows, cols)
+
+
+def cooperative_tensor_load(
+    d: Var,
+    index: PrimExpr,
+    ptr: PrimExpr,
+    stride: PrimExpr,
+    rows: int,
+    cols: int,
+    transpose_matrix: bool = False,
+    mma_M: int = 0,
+    mma_N: int = 0,
+    mma_K: int = 0,
+    operand_role: int = 0,
+):
+    return call_intrin(
+        "handle",
+        "tirx.cooperative_tensor_load",
+        d,
+        index,
+        ptr,
+        stride,
+        rows,
+        cols,
+        transpose_matrix,
+        mma_M,
+        mma_N,
+        mma_K,
+        operand_role,
+    )
+
+
+def cooperative_tensor_store(
+    d: PrimExpr,
+    index: PrimExpr,
+    ptr: PrimExpr,
+    stride: PrimExpr,
+    rows: int,
+    cols: int,
+    transpose_matrix: bool = False,
+    mma_M: int = 0,
+    mma_N: int = 0,
+    mma_K: int = 0,
+    operand_role: int = 0,
+):
+    return call_intrin(
+        "handle",
+        "tirx.cooperative_tensor_store",
+        d,
+        index,
+        ptr,
+        stride,
+        rows,
+        cols,
+        transpose_matrix,
+        mma_M,
+        mma_N,
+        mma_K,
+        operand_role,
+    )
+
+
+def cooperative_tensor_multiply_accumulate(
+    d: Var,
+    index_d: PrimExpr,
+    a: Var,
+    index_a: PrimExpr,
+    b: Var,
+    index_b: PrimExpr,
+    c: Var,
+    index_c: PrimExpr,
+    M: int,
+    N: int,
+    K: int,
+    transpose_a: bool = False,
+    transpose_b: bool = False,
+):
+    return call_intrin(
+        "handle",
+        "tirx.cooperative_tensor_multiply_accumulate",
+        d,
+        index_d,
+        a,
+        index_a,
+        b,
+        index_b,
+        c,
+        index_c,
+        M,
+        N,
+        K,
+        transpose_a,
+        transpose_b,
+    )
+
+
 def vectorlow(dtype, vec):
     """Get the low level half of the vector
 

@@ -788,6 +788,51 @@ TVM_DLL const Op& simdgroup_store();
  */
 TVM_DLL const Op& simdgroup_multiply_accumulate();
 
+// Metal cooperative_tensor intrinsics (MetalPerformancePrimitives / Metal 4)
+
+/*!
+ * \brief Fill a cooperative_tensor with a given value.
+ *
+ * void cooperative_tensor_fill(Var d, PrimExpr index, PrimExpr value,
+ *                              int rows, int cols);
+ */
+TVM_DLL const Op& cooperative_tensor_fill();
+
+/*!
+ * \brief Load data from device or threadgroup memory into a cooperative_tensor.
+ *
+ * void cooperative_tensor_load(Var d, PrimExpr index, PrimExpr ptr,
+ *                              PrimExpr stride, int rows, int cols,
+ *                              bool transpose_matrix,
+ *                              int mma_M, int mma_N, int mma_K,
+ *                              int operand_role);
+ * operand_role: 0=left(A), 1=right(B), 2=destination(C)
+ */
+TVM_DLL const Op& cooperative_tensor_load();
+
+/*!
+ * \brief Store data from a cooperative_tensor to device or threadgroup memory.
+ *
+ * void cooperative_tensor_store(Var d, PrimExpr index, PrimExpr ptr,
+ *                               PrimExpr stride, int rows, int cols,
+ *                               bool transpose_matrix,
+ *                               int mma_M, int mma_N, int mma_K,
+ *                               int operand_role);
+ * operand_role: 0=left(A), 1=right(B), 2=destination(C)
+ */
+TVM_DLL const Op& cooperative_tensor_store();
+
+/*!
+ * \brief Multiply and accumulate two matrices using cooperative_tensor
+ *        (MetalPerformancePrimitives matmul2d).
+ *
+ * void cooperative_tensor_multiply_accumulate(
+ *     Var d, PrimExpr index_d, Var a, PrimExpr index_a,
+ *     Var b, PrimExpr index_b, Var c, PrimExpr index_c,
+ *     int M, int N, int K, bool transpose_a, bool transpose_b);
+ */
+TVM_DLL const Op& cooperative_tensor_multiply_accumulate();
+
 // TODO(tvm-team) replace the usage of the vector operations by Shuffle.
 /*!
  * \brief Get the high level half of the vector
