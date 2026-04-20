@@ -438,7 +438,7 @@ def test_binary_ewise_scalar(target):
 @requires_adreno_opencl_vulkan
 @tvm.testing.parametrize_targets(*TARGETS)
 def test_residual_block(target):
-    """
+    r"""
     - some kind of residual block followed by convolution to have texture after residual block
     - scalar data type verification which should be mapped to global memory scope
         layout_transform (NCHW->NCHW4c)
@@ -486,7 +486,7 @@ def test_residual_block(target):
 @requires_adreno_opencl_vulkan
 @tvm.testing.parametrize_targets(*TARGETS)
 def test_conv2d_conv2d_fallback_to_buffer_conv2d(target):
-    """
+    r"""
         layout_transform (NCHW->NCHW4c)
                   |                      <- texture
                 conv2d (1)               <- textures as output
@@ -525,7 +525,7 @@ def test_conv2d_conv2d_fallback_to_buffer_conv2d(target):
 @requires_adreno_opencl_vulkan
 @tvm.testing.parametrize_targets(*TARGETS)
 def test_conv2d_conv2d_conv2d_concat(target):
-    """
+    r"""
         layout_transform (NCHW->NCHW4c)
                   |                      <- texture
                 conv2d (1)               <- textures as output
@@ -565,7 +565,7 @@ def test_conv2d_conv2d_conv2d_concat(target):
 @requires_adreno_opencl_vulkan
 @tvm.testing.parametrize_targets(*TARGETS)
 def test_pooling_branching_texture_params(target):
-    """
+    r"""
     Verification of the pooling and many branches having textures
                 layout_transform (NCHW->NCHW4c)
                          |                        <- texture
@@ -616,7 +616,7 @@ def test_pooling_branching_texture_params(target):
 @requires_adreno_opencl_vulkan
 @tvm.testing.parametrize_targets(*TARGETS)
 def test_injective_inputs1(target):
-    """
+    r"""
                                      Input
                                /                   \
                             /                      |
@@ -665,7 +665,7 @@ def test_injective_inputs1(target):
 @requires_adreno_opencl_vulkan
 @tvm.testing.parametrize_targets(*TARGETS)
 def test_injective_nwo_inputs2(target):
-    """
+    r"""
                                      Input
                                /             \
                          |                    \
