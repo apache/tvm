@@ -208,6 +208,20 @@ def test_split():
     verify(Split, Expected)
 
 
+def test_split_v_dynamic():
+    class TfSplitVDynamic(tf.Module):
+        @tf.function(
+            input_signature=[
+                tf.TensorSpec(shape=(10,), dtype=tf.float32),
+                tf.TensorSpec(shape=(3,), dtype=tf.int32),
+            ]
+        )
+        def func(self, x, size_splits):
+            return tf.split(x, size_splits, axis=0)
+
+    verify(TfSplitVDynamic)
+
+
 def test_pack():
     class Pack(tf.Module):
         @tf.function(
@@ -590,6 +604,20 @@ def test_fill():
             return gv
 
     verify(TfInput, Expected)
+
+
+def test_fill_dynamic_dims():
+    class TfFillDynamic(tf.Module):
+        @tf.function(
+            input_signature=[
+                tf.TensorSpec(shape=(2,), dtype=tf.int32),
+                tf.TensorSpec(shape=(), dtype=tf.float32),
+            ]
+        )
+        def func(self, dims, value):
+            return tf.fill(dims, value)
+
+    verify(TfFillDynamic)
 
 
 @pytest.mark.parametrize(
