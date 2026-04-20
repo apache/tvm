@@ -1654,6 +1654,40 @@ _NMS_V5_SOFT_CASES = [
         np.array([0.9, 0.8, 0.7, 0.6, 0.5], dtype=np.float32),
         id="soft_nms_tight_sigma",
     ),
+    pytest.param(
+        3,
+        3,
+        0.5,
+        0.3,
+        0.1,
+        np.array(
+            [
+                [0.0, 0.0, 1.0, 1.0],
+                [0.2, 0.2, 1.2, 1.2],
+                [2.0, 2.0, 3.0, 3.0],
+            ],
+            dtype=np.float32,
+        ),
+        np.array([0.9, 0.8, 0.75], dtype=np.float32),
+        id="soft_nms_threshold_hole",
+    ),
+    pytest.param(
+        3,
+        3,
+        0.5,
+        0.0,
+        0.1,
+        np.array(
+            [
+                [0.0, 0.0, 1.0, 1.0],
+                [0.2, 0.2, 1.2, 1.2],
+                [2.0, 2.0, 3.0, 3.0],
+            ],
+            dtype=np.float32,
+        ),
+        np.array([0.9, 0.85, 0.8], dtype=np.float32),
+        id="soft_nms_reorder",
+    ),
 ]
 
 

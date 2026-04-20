@@ -646,6 +646,8 @@ def _run_nms_e2e(
     id_index: int = 0,
     return_indices: bool = True,
     invalid_to_bottom: bool = False,
+    soft_nms_sigma: float = 0.0,
+    score_threshold: float = 0.0,
 ):
     """Run classic NMS through legalization and VM execution."""
 
@@ -672,6 +674,8 @@ def _run_nms_e2e(
                 id_index=id_index,
                 return_indices=return_indices,
                 invalid_to_bottom=invalid_to_bottom,
+                soft_nms_sigma=soft_nms_sigma,
+                score_threshold=score_threshold,
             )
         )
         bb.emit_func_output(result)
@@ -727,6 +731,57 @@ def test_nms_e2e_return_indices():
 
     tvm.testing.assert_allclose(result[0].numpy(), ref_indices)
     tvm.testing.assert_allclose(result[1].numpy(), ref_valid_box_count)
+
+
+@tvm.testing.requires_llvm
+def test_nms_e2e_soft_nms_reorders_by_decayed_score():
+    """Soft-NMS should re-rank by decayed scores instead of keeping the initial order."""
+
+    raw_data = np.array(
+        [
+            [
+                [0.0, 0.90, 0.0, 0.0, 1.0, 1.0],
+                [0.0, 0.85, 0.2, 0.2, 1.2, 1.2],
+                [0.0, 0.80, 2.0, 2.0, 3.0, 3.0],
+                [-1.0, 0.99, 0.0, 0.0, 1.0, 1.0],
+            ]
+        ],
+        dtype="float32",
+    )
+    valid_count_np, filtered_data_np, filtered_indices_np = _prepare_nms_inputs(raw_data)
+    ref_out_data, ref_indices, ref_valid_box_count = tvm.topi.testing.non_max_suppression_python(
+        filtered_data_np,
+        valid_count_np,
+        filtered_indices_np,
+        max_output_size=-1,
+        iou_threshold=0.5,
+        force_suppress=True,
+        top_k=-1,
+        coord_start=2,
+        score_index=1,
+        id_index=-1,
+        return_indices=True,
+        invalid_to_bottom=False,
+        soft_nms_sigma=0.1,
+        score_threshold=0.0,
+    )
+    result = _run_nms_e2e(
+        filtered_data_np,
+        valid_count_np,
+        filtered_indices_np,
+        iou_threshold=0.5,
+        force_suppress=True,
+        id_index=-1,
+        return_indices=True,
+        invalid_to_bottom=False,
+        soft_nms_sigma=0.1,
+        score_threshold=0.0,
+    )
+
+    np.testing.assert_array_equal(ref_indices[0, :3], np.array([0, 2, 1], dtype="int32"))
+    tvm.testing.assert_allclose(result[0].numpy(), ref_out_data)
+    tvm.testing.assert_allclose(result[1].numpy(), ref_indices)
+    tvm.testing.assert_allclose(result[2].numpy(), ref_valid_box_count)
 
 
 @tvm.testing.requires_llvm
