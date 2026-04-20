@@ -74,14 +74,13 @@ ffi::Array<ffi::Module> ExampleNPUCompiler(ffi::Array<Function> functions,
                                            ffi::Map<ffi::String, ffi::Any> /*unused*/,
                                            ffi::Map<Constant, ffi::String> constant_names) {
   ffi::Array<ffi::Module> compiled_functions;
+  const auto pf = tvm::ffi::Function::GetGlobalRequired("runtime.ExampleNPUJSONRuntimeCreate");
 
   for (const auto& func : functions) {
     ExampleNPUJSONSerializer serializer(constant_names, AnalyzeVar2Value(func));
     serializer.serialize(func);
     auto graph_json = serializer.GetJSON();
     auto const_names = serializer.GetConstantNames();
-    const auto pf =
-        tvm::ffi::Function::GetGlobalRequired("runtime.ExampleNPUJSONRuntimeCreate");
     auto func_name = GetExtSymbol(func);
     compiled_functions.push_back(pf(func_name, graph_json, const_names).cast<ffi::Module>());
   }

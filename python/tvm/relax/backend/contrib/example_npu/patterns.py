@@ -22,11 +22,12 @@ across different NPU vendors, including memory hierarchy, quantization,
 tiling, and fusion strategies.
 """
 
-from typing import Any, Dict, List
+from typing import ClassVar
+
+from tvm import TVMError
+from tvm.ir import Op
 from tvm.relax.dpl.pattern import is_op, wildcard
 from tvm.relax.transform import PatternCheckContext
-from tvm.ir import Op
-from tvm import TVMError
 
 from ...pattern_registry import register_patterns
 
@@ -45,15 +46,15 @@ class NPUConfig:
     VECTOR_SIZE = 16
 
     # Supported data types for NPU acceleration
-    SUPPORTED_DTYPES = ["int8", "int16", "float16", "float32"]
-    QUANTIZED_DTYPES = ["int8", "int16"]
+    SUPPORTED_DTYPES: ClassVar[list[str]] = ["int8", "int16", "float16", "float32"]
+    QUANTIZED_DTYPES: ClassVar[list[str]] = ["int8", "int16"]
 
     # NPU execution units
     MATRIX_ENGINE_SIZE = 16  # MxN matrix engine
     VECTOR_ENGINE_WIDTH = 64  # Vector processing width
 
     # Power modes
-    POWER_MODES = ["high_performance", "balanced", "low_power"]
+    POWER_MODES: ClassVar[list[str]] = ["high_performance", "balanced", "low_power"]
 
 
 def _check_npu_memory_constraints(
@@ -232,7 +233,12 @@ def depthwise_conv2d_patterns():
 
     def _check_depthwise(context: PatternCheckContext) -> bool:
         """Check if this is a depthwise conv that NPU can accelerate"""
-        # Check for groups == channels (depthwise)
+        conv_call = context.annotated_expr["root"]
+        # groups > 1 distinguishes depthwise/grouped conv from standard conv2d.
+        # True depthwise has groups == in_channels; we accept any grouped variant
+        # here since the NPU's depthwise unit handles all grouped convolutions.
+        if conv_call.attrs.groups <= 1:
+            return False
         return _check_npu_memory_constraints(context) and _check_npu_quantization(context)
 
     return [("example_npu.depthwise_conv2d", *_make_depthwise_pattern(), _check_depthwise)]

@@ -251,12 +251,13 @@ class NPUQuantizationEngine {
    * \brief Calculate quantization parameters
    */
   static std::pair<float, int> CalculateQuantizationParams(const float* data, size_t num_elements) {
+    if (num_elements == 0) return {1.0f, 0};
     float min_val = *std::min_element(data, data + num_elements);
     float max_val = *std::max_element(data, data + num_elements);
 
-    // Symmetric quantization for simplicity
-    float scale = (max_val - min_val) / 255.0f;
-    int zero_point = static_cast<int>(-min_val / scale);
+    // Guard against zero range (e.g. constant tensor) to avoid division by zero.
+    float scale = std::max(max_val - min_val, 1e-7f) / 255.0f;
+    int zero_point = static_cast<int>(std::round(-min_val / scale));
 
     return {scale, zero_point};
   }
