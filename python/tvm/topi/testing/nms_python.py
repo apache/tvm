@@ -160,9 +160,8 @@ def non_max_suppression_python(
         num_valid = 0
         for j in range(nkeep):
             if out_data[i, j, score_index] <= thresh:
-                if not is_soft_nms:
-                    out_data[i, j, :] = -1.0
-                    out_box_indices[i, j] = -1
+                out_data[i, j, :] = -1.0
+                out_box_indices[i, j] = -1
                 continue
             if 0 < max_output_size <= num_valid:
                 out_data[i, j, :] = -1.0

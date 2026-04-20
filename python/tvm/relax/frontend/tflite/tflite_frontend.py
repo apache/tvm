@@ -3603,14 +3603,20 @@ class OperatorConverter:
         )
 
         if soft_nms_sigma > 0.0:
-            # Soft-NMS returns (out_data, box_indices, valid_box_count)
             processed_data = relax.op.squeeze(nms_ret[0], axis=[0])
-            selected_indices = relax.op.squeeze(nms_ret[1], axis=[0])
-            selected_indices = relax.op.strided_slice(
-                selected_indices, axes=[0], begin=[0], end=[max_output_size]
-            )
-            num_valid = relax.op.reshape(nms_ret[2], [])
+            indices_from_nms = nms_ret[1]
+            num_valid_from_nms = nms_ret[2]
+        else:
+            indices_from_nms = nms_ret[0]
+            num_valid_from_nms = nms_ret[1]
 
+        selected_indices = relax.op.squeeze(indices_from_nms, axis=[0])
+        selected_indices = relax.op.strided_slice(
+            selected_indices, axes=[0], begin=[0], end=[max_output_size]
+        )
+        num_valid = relax.op.reshape(num_valid_from_nms, [])
+
+        if soft_nms_sigma > 0.0:
             # Extract decayed scores from the processed data (score_index=0)
             selected_scores = relax.op.strided_slice(
                 processed_data, axes=[1], begin=[0], end=[1]
@@ -3620,13 +3626,6 @@ class OperatorConverter:
                 selected_scores, axes=[0], begin=[0], end=[max_output_size]
             )
         else:
-            # Hard NMS returns (box_indices, valid_box_count)
-            selected_indices = relax.op.squeeze(nms_ret[0], axis=[0])
-            selected_indices = relax.op.strided_slice(
-                selected_indices, axes=[0], begin=[0], end=[max_output_size]
-            )
-            num_valid = relax.op.reshape(nms_ret[1], [])
-
             # Clamp out-of-bound padded indices to prevent take() crash.
             num_boxes = int(self.get_tensor_shape(input_tensors[0])[0])
             safe_indices = relax.op.clip(selected_indices, min=0, max=num_boxes - 1)
