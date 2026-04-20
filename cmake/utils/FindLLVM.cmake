@@ -238,15 +238,25 @@ macro(find_llvm use_llvm)
   endif()
   message(STATUS "Found TVM_LLVM_HAS_AARCH64_TARGET=" ${TVM_LLVM_HAS_AARCH64_TARGET})
 
-  # Detect whether DIBuilder::insertDeclare accepts BasicBlock::iterator
-  # as the insertion point (upstream LLVM 20+) vs Instruction* (pre-LLVM 20
-  # and ROCm-bundled LLVM 20, which reports version 200 but lacks this overload).
+  # Detect whether DIBuilder insertion APIs (insertDeclare,
+  # insertDbgValueIntrinsic) accept BasicBlock::iterator as the insertion point
+  # (upstream LLVM 20+) vs Instruction* (pre-LLVM 20 and ROCm-bundled LLVM 20,
+  # which reports version 200 but retains the legacy Instruction* overload).
   if (${TVM_LLVM_VERSION} GREATER_EQUAL 200)
     include(CheckCXXSourceCompiles)
     include(CMakePushCheckState)
     cmake_push_check_state(RESET)
     set(CMAKE_REQUIRED_INCLUDES ${LLVM_INCLUDE_DIRS})
-    set(CMAKE_REQUIRED_FLAGS "-std=c++17 -fno-rtti")
+    # Only force -std= when the outer project hasn't already selected a
+    # standard; signature-only probe does not need -fno-rtti. Use the
+    # compiler-appropriate form so the probe works under MSVC as well.
+    if(NOT CMAKE_CXX_STANDARD)
+      if(MSVC)
+        set(CMAKE_REQUIRED_FLAGS "/std:c++17")
+      else()
+        set(CMAKE_REQUIRED_FLAGS "-std=c++17")
+      endif()
+    endif()
     check_cxx_source_compiles("
       #include <llvm/IR/DIBuilder.h>
       #include <llvm/IR/Instructions.h>
@@ -254,14 +264,15 @@ macro(find_llvm use_llvm)
              llvm::DIExpression* e, const llvm::DILocation* dl,
              llvm::Instruction* i) {
         b->insertDeclare(v, var, e, dl, llvm::BasicBlock::iterator(i));
+        b->insertDbgValueIntrinsic(v, var, e, dl, llvm::BasicBlock::iterator(i));
       }
-    " TVM_LLVM_INSERTDECLARE_USES_ITERATOR)
+    " TVM_LLVM_DIBUILDER_USES_ITERATOR)
     cmake_pop_check_state()
-    if(TVM_LLVM_INSERTDECLARE_USES_ITERATOR)
-      add_definitions(-DTVM_LLVM_INSERTDECLARE_USES_ITERATOR=1)
-      message(STATUS "LLVM DIBuilder::insertDeclare uses BasicBlock::iterator")
+    if(TVM_LLVM_DIBUILDER_USES_ITERATOR)
+      add_definitions(-DTVM_LLVM_DIBUILDER_USES_ITERATOR=1)
+      message(STATUS "LLVM DIBuilder insertion APIs use BasicBlock::iterator")
     else()
-      message(STATUS "LLVM DIBuilder::insertDeclare uses Instruction* (ROCm or older LLVM 20)")
+      message(STATUS "LLVM DIBuilder insertion APIs use Instruction* (ROCm or older LLVM 20)")
     endif()
   endif()
 endmacro(find_llvm)

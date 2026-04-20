@@ -2147,7 +2147,7 @@ void CodeGenLLVM::AddDebugInformation(llvm::Function* f_llvm,
 
     auto* store = builder.CreateStore(iter_param, paramAlloca);
     auto* di_loc = llvm::DILocation::get(*ctx, 0, 0, di_subprogram_);
-#if TVM_LLVM_INSERTDECLARE_USES_ITERATOR
+#if TVM_LLVM_DIBUILDER_USES_ITERATOR
     dbg_info_->di_builder_->insertDeclare(
         paramAlloca, param, dbg_info_->di_builder_->createExpression(), llvm::DebugLoc(di_loc),
         llvm::BasicBlock::iterator(store));
@@ -2195,8 +2195,8 @@ void CodeGenLLVM::AddDebugInformation(llvm::Value* llvm_value, const Var& tir_va
     if (insert_before) {
       // Upstream LLVM 20+ changed insertDbgValueIntrinsic to take
       // BasicBlock::iterator; ROCm-bundled LLVM 20 retains Instruction*.
-      // TVM_LLVM_INSERTDECLARE_USES_ITERATOR is set by CMake feature detection.
-#if TVM_LLVM_INSERTDECLARE_USES_ITERATOR
+      // TVM_LLVM_DIBUILDER_USES_ITERATOR is set by CMake feature detection.
+#if TVM_LLVM_DIBUILDER_USES_ITERATOR
       dbg_info_->di_builder_->insertDbgValueIntrinsic(
           llvm_value, local_var, dbg_info_->di_builder_->createExpression(), llvm::DebugLoc(di_loc),
           llvm::BasicBlock::iterator(insert_before));
@@ -2214,7 +2214,7 @@ void CodeGenLLVM::AddDebugInformation(llvm::Value* llvm_value, const Var& tir_va
   }
 
   if (insert_before) {
-#if TVM_LLVM_INSERTDECLARE_USES_ITERATOR
+#if TVM_LLVM_DIBUILDER_USES_ITERATOR
     dbg_info_->di_builder_->insertDeclare(
         llvm_value, local_var, dbg_info_->di_builder_->createExpression(), llvm::DebugLoc(di_loc),
         llvm::BasicBlock::iterator(insert_before));
