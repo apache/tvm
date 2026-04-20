@@ -1965,6 +1965,10 @@ make_filled_simdgroup_matrix = _op_wrapper(_tir_op.make_filled_simdgroup_matrix)
 simdgroup_load = _op_wrapper(_tir_op.simdgroup_load)
 simdgroup_store = _op_wrapper(_tir_op.simdgroup_store)
 simdgroup_multiply_accumulate = _op_wrapper(_tir_op.simdgroup_multiply_accumulate)
+cooperative_tensor_fill = _op_wrapper(_tir_op.cooperative_tensor_fill)
+cooperative_tensor_load = _op_wrapper(_tir_op.cooperative_tensor_load)
+cooperative_tensor_store = _op_wrapper(_tir_op.cooperative_tensor_store)
+cooperative_tensor_multiply_accumulate = _op_wrapper(_tir_op.cooperative_tensor_multiply_accumulate)
 create_barriers = _op_wrapper(_tir_op.create_barriers)
 assume = _op_wrapper(_tir_op.assume)
 undef = _op_wrapper(_tir_op.undef)
@@ -2255,6 +2259,10 @@ __all__ = float_types + [
     "simdgroup_load",
     "simdgroup_store",
     "simdgroup_multiply_accumulate",
+    "cooperative_tensor_fill",
+    "cooperative_tensor_load",
+    "cooperative_tensor_store",
+    "cooperative_tensor_multiply_accumulate",
     "create_barriers",
     "mma_store",
     "mma_fill",
