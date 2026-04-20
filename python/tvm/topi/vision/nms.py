@@ -351,6 +351,13 @@ def _classic_nms_ir(
                             out_data[i, j, k] = tvm.tirx.Cast(data.dtype, T.float32(-1.0))
                         out_box_indices[i, j] = T.int32(-1)
 
+            # Step 2b: For soft-NMS, invalidate boxes whose score dropped below threshold.
+            if is_soft_nms:
+                with T.serial(0, nkeep_local[0]) as j:
+                    with T.If(out_data[i, j, score_index] <= thresh):
+                        with T.Then():
+                            out_box_indices[i, j] = T.int32(-1)
+
             # Step 3: If return_indices, remap to original indices
             if return_indices:
                 if out_valid_box_count is not None:
@@ -362,6 +369,9 @@ def _classic_nms_ir(
                     with T.serial(0, num_anchors) as j:
                         with T.If(out_box_indices[i, j] >= 0):
                             with T.Then():
+                                if is_soft_nms:
+                                    with T.serial(0, box_data_length) as k:
+                                        out_data[i, valid_idx[0], k] = out_data[i, j, k]
                                 orig_idx = out_box_indices[i, j]
                                 out_box_indices[i, valid_idx[0]] = indices[i, orig_idx]
                                 valid_idx[0] = valid_idx[0] + 1
@@ -373,6 +383,9 @@ def _classic_nms_ir(
                         with T.If(j >= valid_idx[0]):
                             with T.Then():
                                 out_box_indices[i, j] = T.int32(-1)
+                                if is_soft_nms:
+                                    with T.serial(0, box_data_length) as k:
+                                        out_data[i, j, k] = tvm.tirx.Cast(data.dtype, T.float32(-1.0))
 
         return ib.get()
 

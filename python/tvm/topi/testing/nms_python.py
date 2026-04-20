@@ -129,6 +129,12 @@ def non_max_suppression_python(
                             out_data[i, k, score_index] = -1.0
                             out_box_indices[i, k] = -1
 
+            if is_soft_nms:
+                # Invalidate boxes whose score dropped below threshold after decay.
+                for j in range(nkeep):
+                    if out_data[i, j, score_index] <= thresh:
+                        out_box_indices[i, j] = -1
+
         if return_indices:
             # Compact valid indices to top and remap to original
             cnt = 0
