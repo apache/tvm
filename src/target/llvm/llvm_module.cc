@@ -749,7 +749,7 @@ static void LLVMReflectionRegister() {
              ffi::Map<ffi::String, ffi::Any> target_map;
              target_map.Set("kind", ffi::String("llvm"));
              target_map.Set("mtriple", triple);
-             LLVMTargetInfo llvm_backend(*llvm_instance, target_map);
+             LLVMTargetInfo llvm_backend(*llvm_instance, Target(target_map));
              return llvm_backend.IsValidCPU(std::string(cpu));
            })
       .def("target.llvm_version_major", []() -> int { return TVM_LLVM_VERSION / 10; })
