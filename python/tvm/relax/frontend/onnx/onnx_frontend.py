@@ -721,8 +721,96 @@ class Sigmoid(OnnxOpConverter):
         return relax.op.sigmoid(inputs[0])
 
 
+def _normalize_legacy_softmax_axis(axis: int, rank: int, op_name: str) -> int:
+    """Normalize axis for ONNX Softmax/LogSoftmax/Hardmax opset <= 12 semantics.
+
+    Legacy semantics allow axis in [-rank, rank], where axis == rank means the
+    last dimension after flattening has extent 1.
+    """
+
+    if axis < -rank or axis > rank:
+        raise ValueError(f"{op_name} axis {axis} is out of range for rank {rank}.")
+    if axis < 0:
+        axis += rank
+    return axis
+
+
+def _shape_product(dims: list[int | tirx.PrimExpr]) -> int | tirx.PrimExpr:
+    """Compute product of a list of shape dims (supports symbolic dims)."""
+
+    prod = 1
+    for dim in dims:
+        if isinstance(dim, tirx.IntImm):
+            dim = int(dim.value)
+        prod = prod * dim
+    return prod
+
+
+def _legacy_softmax_prepare(
+    data: relax.Expr, axis: int, op_name: str
+) -> tuple[relax.Expr, tuple[int | tirx.PrimExpr, ...]] | None:
+    """Build legacy 2D view for Softmax-family opset <= 12 semantics.
+
+    Returns (reshaped_data, original_shape). If rank/shape isn't statically
+    available, returns None so caller can choose a permissive fallback.
+    """
+
+    rank = _get_known_tensor_rank(data)
+    if rank is None:
+        return None
+
+    axis = _normalize_legacy_softmax_axis(axis, rank, op_name)
+    struct_info = data.struct_info
+    if not isinstance(struct_info, relax.TensorStructInfo):
+        return None
+    if not isinstance(struct_info.shape, relax.ShapeExpr):
+        return None
+
+    original_shape = list(struct_info.shape.values)
+    if len(original_shape) != rank:
+        return None
+
+    dim0 = _shape_product(original_shape[:axis])
+    dim1 = _shape_product(original_shape[axis:])
+    flattened = relax.op.reshape(data, (dim0, dim1))
+    return flattened, tuple(original_shape)
+
+
+def _get_axis_extent(
+    data: relax.Expr, axis: int, op_name: str
+) -> tuple[int, int | tirx.PrimExpr]:
+    """Return normalized axis and axis extent when rank/shape are known."""
+
+    rank = _get_known_tensor_rank(data)
+    if rank is None:
+        raise ValueError(f"{op_name} requires a statically known input rank.")
+
+    normalized_axis = _normalize_constant_axes([axis], rank, op_name)[0]
+    struct_info = data.struct_info
+    if isinstance(struct_info, relax.TensorStructInfo) and isinstance(struct_info.shape, relax.ShapeExpr):
+        axis_extent = struct_info.shape.values[normalized_axis]
+        if isinstance(axis_extent, tirx.IntImm):
+            axis_extent = int(axis_extent.value)
+        return normalized_axis, axis_extent
+
+    raise ValueError(f"{op_name} requires a statically known axis extent.")
+
+
 class Softmax(OnnxOpConverter):
     """Converts an onnx Softmax node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        axis = attr.get("axis", 1)
+        prepared = _legacy_softmax_prepare(inputs[0], axis, "Softmax")
+        if prepared is None:
+            return relax.op.nn.softmax(inputs[0], axis=axis)
+
+        flattened, original_shape = prepared
+        out = relax.op.nn.softmax(flattened, axis=-1)
+        return relax.op.reshape(out, original_shape)
+
+    _impl_v11 = _impl_v1
 
     @classmethod
     def _impl_v13(cls, bb, inputs, attr, params):
@@ -734,6 +822,19 @@ class LogSoftmax(OnnxOpConverter):
     """Converts an onnx LogSoftmax node into an equivalent Relax expression."""
 
     @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        axis = attr.get("axis", 1)
+        prepared = _legacy_softmax_prepare(inputs[0], axis, "LogSoftmax")
+        if prepared is None:
+            return relax.op.nn.log_softmax(inputs[0], axis=axis)
+
+        flattened, original_shape = prepared
+        out = relax.op.nn.log_softmax(flattened, axis=-1)
+        return relax.op.reshape(out, original_shape)
+
+    _impl_v11 = _impl_v1
+
+    @classmethod
     def _impl_v13(cls, bb, inputs, attr, params):
         axis = attr.get("axis", -1)
         return relax.op.nn.log_softmax(inputs[0], axis=axis)
@@ -743,17 +844,31 @@ class Hardmax(OnnxOpConverter):
     """Converts an onnx Hardmax node into an equivalent Relax expression."""
 
     @classmethod
-    def _impl_v13(cls, bb, inputs, attr, params):
-        axis = attr.get("axis", -1)
-        indices = inputs[0]
-        dtype = indices.struct_info.dtype
-        axis_len = int(inputs[0].struct_info.shape[axis])
-        argmax = relax.op.argmax(indices, axis=axis)
+    def _hardmax_impl(cls, data: relax.Expr, axis: int):
+        normalized_axis, axis_extent = _get_axis_extent(data, axis, "Hardmax")
+        dtype = data.struct_info.dtype
+        argmax = relax.op.argmax(data, axis=normalized_axis)
         on_value = relax.PrimValue(tvm.tirx.const(1.0, dtype))
         off_value = relax.PrimValue(tvm.tirx.const(0.0, dtype))
+        return relax.op.one_hot(argmax, on_value, off_value, axis_extent, normalized_axis)
 
-        one_hot = relax.op.one_hot(argmax, on_value, off_value, axis_len, axis)
-        return one_hot
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        axis = attr.get("axis", 1)
+        prepared = _legacy_softmax_prepare(inputs[0], axis, "Hardmax")
+        if prepared is None:
+            return cls._hardmax_impl(inputs[0], axis)
+
+        flattened, original_shape = prepared
+        out = cls._hardmax_impl(flattened, -1)
+        return relax.op.reshape(out, original_shape)
+
+    _impl_v11 = _impl_v1
+
+    @classmethod
+    def _impl_v13(cls, bb, inputs, attr, params):
+        axis = attr.get("axis", -1)
+        return cls._hardmax_impl(inputs[0], axis)
 
 
 class Transpose(OnnxOpConverter):
