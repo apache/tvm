@@ -18,8 +18,17 @@
 
 from .registry import register_tag
 
+_METAL_HOST_TRIPLE = "arm64-apple-macos"
+
 
 def _register_metal_tag(name, max_threads, shared_mem, warp_size, mcpu):
+    try:
+        from ..codegen import llvm_is_valid_cpu
+
+        if not llvm_is_valid_cpu(mcpu, _METAL_HOST_TRIPLE):
+            return
+    except Exception:  # pylint: disable=broad-except
+        pass  # LLVM not available; register unconditionally
     register_tag(
         name,
         {
@@ -29,7 +38,7 @@ def _register_metal_tag(name, max_threads, shared_mem, warp_size, mcpu):
             "thread_warp_size": warp_size,
             "host": {
                 "kind": "llvm",
-                "mtriple": "arm64-apple-macos",
+                "mtriple": _METAL_HOST_TRIPLE,
                 "mcpu": mcpu,
             },
         },
