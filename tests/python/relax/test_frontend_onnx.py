@@ -34,6 +34,7 @@ import tvm
 import tvm.testing
 from tvm import relax
 from tvm.relax.frontend.onnx import from_onnx
+from tvm.relax.frontend.onnx_frontend import Hardmax, LogSoftmax, Softmax
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tirx as T
@@ -707,6 +708,16 @@ def test_softmax_family_opset11_default_axis_semantics(op_name: str):
 @pytest.mark.parametrize("op_name", ["Softmax", "LogSoftmax", "Hardmax"])
 def test_softmax_family_opset11_negative_axis_semantics(op_name: str):
     verify_unary(op_name, [2, 3, 4], attrs={"axis": -2}, opset=11)
+
+
+@pytest.mark.parametrize("op_name", ["Softmax", "LogSoftmax", "Hardmax"])
+def test_softmax_family_opset11_positive_axis_semantics(op_name: str):
+    verify_unary(op_name, [2, 3, 4], attrs={"axis": 0}, opset=11)
+
+
+@pytest.mark.parametrize("op_name", ["Softmax", "LogSoftmax", "Hardmax"])
+def tes_softmax_family_opset11_axis_equals_rank_semantics(op_name: str):
+    verify_unary(op_name, [2, 3, 4], attrs={"axis": 3}, opset=11)
 
 
 @pytest.mark.parametrize("op_name", ["Softmax", "LogSoftmax", "Hardmax"])
