@@ -804,6 +804,10 @@ class Softmax(OnnxOpConverter):
         axis = attr.get("axis", 1)
         prepared = _legacy_softmax_prepare(inputs[0], axis, "Softmax")
         if prepared is None:
+            warnings.warn(
+                "Softmax opset<=12 fallback: static rank/shape is unavailable, "
+                "falling back to axis-based softmax semantics."
+            )
             return relax.op.nn.softmax(inputs[0], axis=axis)
 
         flattened, original_shape = prepared
@@ -826,6 +830,10 @@ class LogSoftmax(OnnxOpConverter):
         axis = attr.get("axis", 1)
         prepared = _legacy_softmax_prepare(inputs[0], axis, "LogSoftmax")
         if prepared is None:
+            warnings.warn(
+                "LogSoftmax opset<=12 fallback: static rank/shape is unavailable, "
+                "falling back to axis-based log_softmax semantics."
+            )
             return relax.op.nn.log_softmax(inputs[0], axis=axis)
 
         flattened, original_shape = prepared
@@ -857,6 +865,10 @@ class Hardmax(OnnxOpConverter):
         axis = attr.get("axis", 1)
         prepared = _legacy_softmax_prepare(inputs[0], axis, "Hardmax")
         if prepared is None:
+            warnings.warn(
+                "Hardmax opset<=12 fallback: static rank/shape is unavailable, "
+                "falling back to axis-based hardmax semantics."
+            )
             return cls._hardmax_impl(inputs[0], axis)
 
         flattened, original_shape = prepared
