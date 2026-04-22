@@ -725,6 +725,53 @@ def test_softmax_family_opset13_default_axis_semantics(op_name: str):
     verify_unary(op_name, [2, 3, 4], opset=13)
 
 
+@pytest.mark.parametrize(
+    "op_name, expected_core_op",
+    [
+        ("Softmax", "relax.nn.softmax"),
+        ("LogSoftmax", "relax.nn.log_softmax"),
+        ("Hardmax", "relax.one_hot"),
+    ],
+)
+def test_softmax_family_opset1_legacy_ir_semantics(op_name: str, expected_core_op: str):
+    node = helper.make_node(op_name, ["x"], ["y"])
+    graph = helper.make_graph(
+        [node],
+        "softmax_family_opset1_ir_test",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, [2, 3, 4])],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [2, 3, 4])],
+    )
+    model = helper.make_model(
+        graph, producer_name="softmax_family_opset1_ir_test", opset_imports=[helper.make_opsetid("", 1)]
+    )
+    tvm_model = from_onnx(model, opset=1, keep_params_in_input=True)
+    call_ops = collect_relax_call_ops(tvm_model["main"])
+
+    assert expected_core_op in call_ops
+    assert call_ops.count("relax.reshape") >= 2
+
+
+def test_softmax_fallback_warns_with_unknown_rank():
+    x = relax.Var("x", relax.TensorStructInfo(ndim=-1, dtype="float32"))
+    with pytest.warns(UserWarning, match="Softmax opset<=12 fallback"):
+        out = Softmax._impl_v1(None, [x], {}, None)
+    assert isinstance(out, relax.Call)
+
+
+def test_logsoftmax_fallback_warns_with_unknown_rank():
+    x = relax.Var("x", relax.TensorStructInfo(ndim=-1, dtype="float32"))
+    with pytest.warns(UserWarning, match="LogSoftmax opset<=12 fallback"):
+        out = LogSoftmax._impl_v1(None, [x], {}, None)
+    assert isinstance(out, relax.Call)
+
+
+def test_hardmax_fallback_warns_with_unknown_rank():
+    x = relax.Var("x", relax.TensorStructInfo(ndim=-1, dtype="float32"))
+    with pytest.warns(UserWarning, match="Hardmax opset<=12 fallback"):
+        with pytest.raises(ValueError, match="Hardmax requires a statically known input rank"):
+            Hardmax._impl_v1(None, [x], {}, None)
+
+
 def test_round_ties_to_even():
     """ONNX Round must use ties-to-even (banker's rounding), not ties-away-from-zero.
 
