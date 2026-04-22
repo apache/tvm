@@ -852,7 +852,9 @@ class Hardmax(OnnxOpConverter):
     """Converts an onnx Hardmax node into an equivalent Relax expression."""
 
     @classmethod
-    def _hardmax_impl(cls, data: relax.Expr, axis: int):
+    def _hardmax_impl(cls, bb: relax.BlockBuilder | None, data: relax.Expr, axis: int):
+        if bb is not None:
+            data = bb.normalize(data)
         normalized_axis, axis_extent = _get_axis_extent(data, axis, "Hardmax")
         dtype = data.struct_info.dtype
         argmax = relax.op.argmax(data, axis=normalized_axis)
