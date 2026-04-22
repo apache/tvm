@@ -743,6 +743,15 @@ static void LLVMReflectionRegister() {
              LLVMTargetInfo llvm_target(*llvm_instance, use_target);
              return llvm_target.TargetHasCPUFeature(feature);
            })
+      .def("target.llvm_is_valid_cpu",
+           [](ffi::String cpu, ffi::String triple) -> bool {
+             auto llvm_instance = std::make_unique<LLVMInstance>();
+             ffi::Map<ffi::String, ffi::Any> target_map;
+             target_map.Set("kind", ffi::String("llvm"));
+             target_map.Set("mtriple", triple);
+             LLVMTargetInfo llvm_backend(*llvm_instance, Target(target_map));
+             return llvm_backend.IsValidCPU(std::string(cpu));
+           })
       .def("target.llvm_version_major", []() -> int { return TVM_LLVM_VERSION / 10; })
       .def("ffi.Module.load_from_file.ll",
            [](std::string filename, std::string fmt) -> ffi::Module {
