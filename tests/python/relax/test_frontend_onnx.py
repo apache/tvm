@@ -699,6 +699,21 @@ def test_unary(op_name: str):
     verify_unary(op_name, [8, 8, 8], input_dtype=input_dtype, output_dtype=output_dtype)
 
 
+@pytest.mark.parametrize("op_name", ["Softmax", "LogSoftmax", "Hardmax"])
+def test_softmax_family_opset11_default_axis_semantics(op_name: str):
+    verify_unary(op_name, [2, 3, 4], opset=11)
+
+
+@pytest.mark.parametrize("op_name", ["Softmax", "LogSoftmax", "Hardmax"])
+def test_softmax_family_opset11_negative_axis_semantics(op_name: str):
+    verify_unary(op_name, [2, 3, 4], attrs={"axis": -2}, opset=11)
+
+
+@pytest.mark.parametrize("op_name", ["Softmax", "LogSoftmax", "Hardmax"])
+def test_softmax_family_opset13_default_axis_semantics(op_name: str):
+    verify_unary(op_name, [2, 3, 4], opset=13)
+
+
 def test_round_ties_to_even():
     """ONNX Round must use ties-to-even (banker's rounding), not ties-away-from-zero.
 
