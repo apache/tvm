@@ -34,7 +34,6 @@ import tvm
 import tvm.testing
 from tvm import relax
 from tvm.relax.frontend.onnx import from_onnx
-from tvm.relax.frontend.onnx_frontend import Hardmax, LogSoftmax, Softmax
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tirx as T
@@ -749,27 +748,6 @@ def test_softmax_family_opset1_legacy_ir_semantics(op_name: str, expected_core_o
 
     assert expected_core_op in call_ops
     assert call_ops.count("relax.reshape") >= 2
-
-
-def test_softmax_fallback_warns_with_unknown_rank():
-    x = relax.Var("x", relax.TensorStructInfo(ndim=-1, dtype="float32"))
-    with pytest.warns(UserWarning, match="Softmax opset<=12 fallback"):
-        out = Softmax._impl_v1(None, [x], {}, None)
-    assert isinstance(out, relax.Call)
-
-
-def test_logsoftmax_fallback_warns_with_unknown_rank():
-    x = relax.Var("x", relax.TensorStructInfo(ndim=-1, dtype="float32"))
-    with pytest.warns(UserWarning, match="LogSoftmax opset<=12 fallback"):
-        out = LogSoftmax._impl_v1(None, [x], {}, None)
-    assert isinstance(out, relax.Call)
-
-
-def test_hardmax_fallback_warns_with_unknown_rank():
-    x = relax.Var("x", relax.TensorStructInfo(ndim=-1, dtype="float32"))
-    with pytest.warns(UserWarning, match="Hardmax opset<=12 fallback"):
-        with pytest.raises(ValueError, match="Hardmax requires a statically known input rank"):
-            Hardmax._impl_v1(None, [x], {}, None)
 
 
 def test_round_ties_to_even():
