@@ -852,7 +852,23 @@ class Hardmax(OnnxOpConverter):
     """Converts an onnx Hardmax node into an equivalent Relax expression."""
 
     @classmethod
-    def _hardmax_impl(cls, bb: relax.BlockBuilder | None, data: relax.Expr, axis: int):
+    def _hardmax_impl(cls, *args):
+        """Hardmax core implementation.
+
+        Compatibility note:
+        - New signature: _hardmax_impl(bb, data, axis)
+        - Legacy signature: _hardmax_impl(data, axis)
+        """
+        if len(args) == 3:
+            bb, data, axis = args
+        elif len(args) == 2:
+            bb = None
+            data, axis = args
+        else:
+            raise TypeError(
+                "Hardmax._hardmax_impl expects (bb, data, axis) or (data, axis)."
+            )
+
         if bb is not None:
             data = bb.normalize(data)
         normalized_axis, axis_extent = _get_axis_extent(data, axis, "Hardmax")
@@ -871,18 +887,22 @@ class Hardmax(OnnxOpConverter):
                 "Hardmax opset<=12 fallback: static rank/shape is unavailable, "
                 "falling back to axis-based hardmax semantics."
             )
-            return cls._hardmax_impl(inputs[0], axis)
+            hardmax_input = inputs[0]
+            hardmax_axis = axis
+            original_shape = None
+        else:
+            hardmax_input, original_shape = prepared
+            hardmax_axis = -1
 
-        flattened, original_shape = prepared
-        out = cls._hardmax_impl(flattened, -1)
-        return relax.op.reshape(out, original_shape)
+        out = cls._hardmax_impl(bb, hardmax_input, hardmax_axis)
+        return out if original_shape is None else relax.op.reshape(out, original_shape)
 
     _impl_v11 = _impl_v1
 
     @classmethod
     def _impl_v13(cls, bb, inputs, attr, params):
         axis = attr.get("axis", -1)
-        return cls._hardmax_impl(inputs[0], axis)
+        return cls._hardmax_impl(bb, inputs[0], axis)
 
 
 class Transpose(OnnxOpConverter):
