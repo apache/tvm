@@ -27,7 +27,7 @@ K/V loading path that is specific to its storage layout.
 
 # pylint: disable=too-many-statements,too-many-arguments,invalid-name,line-too-long
 import math
-from typing import Any
+from typing import Any, Literal
 
 import tvm
 from tvm import tirx
@@ -491,7 +491,7 @@ def _attention_sequence_prefill(h_kv, h_q, d, dtype, target: Target, causal=0, s
 
 def _attention_sequence_prefill_with_mask(
     h_kv, h_q, d, dtype, target: Target, sm_scale=1.0, *,
-    mask_mode: str = "padded",
+    mask_mode: Literal["padded", "causal_padded_left"] = "padded",
 ):
     """Tiled sequence prefill kernel with a per-batch padding mask.
 
@@ -516,12 +516,6 @@ def _attention_sequence_prefill_with_mask(
     max/sum of the online softmax via a ``-inf`` slot. Self-attention only
     (``qo_len == kv_len``).
     """
-    if mask_mode not in ("padded", "causal_padded_left"):
-        raise ValueError(
-            f"Unsupported mask_mode={mask_mode!r}; expected one of "
-            "'padded' or 'causal_padded_left'."
-        )
-
     _, LOAD_VEC, group_size, bdx, num_warps, tile_x, tile_y, tile_z = _get_prefill_kernel_config(h_kv, h_q, d, dtype, target)
     (
         init_states, compute_s_gemm, _, compute_o_gemm, softmax_update_valid_length,
