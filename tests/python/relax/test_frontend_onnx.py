@@ -699,6 +699,57 @@ def test_unary(op_name: str):
     verify_unary(op_name, [8, 8, 8], input_dtype=input_dtype, output_dtype=output_dtype)
 
 
+@pytest.mark.parametrize("op_name", ["Softmax", "LogSoftmax", "Hardmax"])
+def test_softmax_family_opset11_default_axis_semantics(op_name: str):
+    verify_unary(op_name, [2, 3, 4], opset=11)
+
+
+@pytest.mark.parametrize("op_name", ["Softmax", "LogSoftmax", "Hardmax"])
+def test_softmax_family_opset11_negative_axis_semantics(op_name: str):
+    verify_unary(op_name, [2, 3, 4], attrs={"axis": -2}, opset=11)
+
+
+@pytest.mark.parametrize("op_name", ["Softmax", "LogSoftmax", "Hardmax"])
+def test_softmax_family_opset11_positive_axis_semantics(op_name: str):
+    verify_unary(op_name, [2, 3, 4], attrs={"axis": 0}, opset=11)
+
+
+@pytest.mark.parametrize("op_name", ["Softmax", "LogSoftmax", "Hardmax"])
+def tes_softmax_family_opset11_axis_equals_rank_semantics(op_name: str):
+    verify_unary(op_name, [2, 3, 4], attrs={"axis": 3}, opset=11)
+
+
+@pytest.mark.parametrize("op_name", ["Softmax", "LogSoftmax", "Hardmax"])
+def test_softmax_family_opset13_default_axis_semantics(op_name: str):
+    verify_unary(op_name, [2, 3, 4], opset=13)
+
+
+@pytest.mark.parametrize(
+    "op_name, expected_core_op",
+    [
+        ("Softmax", "relax.nn.softmax"),
+        ("LogSoftmax", "relax.nn.log_softmax"),
+        ("Hardmax", "relax.one_hot"),
+    ],
+)
+def test_softmax_family_opset1_legacy_ir_semantics(op_name: str, expected_core_op: str):
+    node = helper.make_node(op_name, ["x"], ["y"])
+    graph = helper.make_graph(
+        [node],
+        "softmax_family_opset1_ir_test",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, [2, 3, 4])],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [2, 3, 4])],
+    )
+    model = helper.make_model(
+        graph, producer_name="softmax_family_opset1_ir_test", opset_imports=[helper.make_opsetid("", 1)]
+    )
+    tvm_model = from_onnx(model, opset=1, keep_params_in_input=True)
+    call_ops = collect_relax_call_ops(tvm_model["main"])
+
+    assert expected_core_op in call_ops
+    assert call_ops.count("relax.reshape") >= 2
+
+
 def test_round_ties_to_even():
     """ONNX Round must use ties-to-even (banker's rounding), not ties-away-from-zero.
 
