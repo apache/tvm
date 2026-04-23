@@ -2333,6 +2333,7 @@ class OperatorConverter:
     def convert_split_v(self, op):
         """SPLIT_V implementation."""
         input_tensors = self.get_input_tensors(op)
+        output_tensors = self.get_output_tensors(op)
 
         assert len(input_tensors) == 3, "input tensors length should be 3"
 
@@ -2353,7 +2354,9 @@ class OperatorConverter:
             # via strided_slice even for i == 0.
             zero = relax.const(np.array([0], dtype="int64"), "int64")
             padded_cumsum = relax.op.concat([zero, cumsum], axis=0)
-            num_splits = int(size_splits_expr.struct_info.shape[0])
+            # TFLite fixes the tuple arity in the graph, even when the split
+            # sizes themselves are supplied at runtime.
+            num_splits = len(output_tensors)
             rank = len(in_expr.struct_info.shape)
 
             # end_base is the full input shape; only split_axis changes per slice.
