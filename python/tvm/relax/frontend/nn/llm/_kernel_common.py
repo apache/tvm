@@ -347,7 +347,7 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
         S_smem: T.Buffer, m_smem: T.Buffer, d_smem: T.Buffer, m_prev_smem: T.Buffer,
         m_new: T.Buffer, m_prev: T.Buffer, d_new: T.Buffer,
         ty: T.int32, tx: T.int32, LH_start: T.int32, L_kv_start: T.int32,
-        valid_len: T.int32, qo_len: T.int32,
+        valid_len: T.int32, qo_len: T.int32, kv_len: T.int32,
     ):
         # Same three-phase online softmax as softmax_update_causal but with a
         # per-batch right-padding mask in place of causal masking.
@@ -388,12 +388,12 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
         S_smem: T.Buffer, m_smem: T.Buffer, d_smem: T.Buffer, m_prev_smem: T.Buffer,
         m_new: T.Buffer, m_prev: T.Buffer, d_new: T.Buffer,
         ty: T.int32, tx: T.int32, LH_start: T.int32, L_kv_start: T.int32,
-        valid_len: T.int32, qo_len: T.int32,
+        valid_len: T.int32, qo_len: T.int32, kv_len: T.int32,
     ):
         # Three-phase online softmax with left-padding + causal mask. Real
-        # queries/keys occupy [qo_len - valid_len, qo_len); causal keeps
-        # col <= row within that valid range. Self-attention only (qo_len
-        # == kv_len); the same `pad` expression gates both row and col.
+        # queries occupy [qo_len - valid_len, qo_len); real keys occupy
+        # [kv_len - valid_len, kv_len). Causal keeps
+        # col <= row + (kv_len - qo_len) within those valid suffixes.
         for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
             row: T.int32 = i * bdx * num_warps + ty * bdx + tx
             if row < tile_x:
@@ -401,10 +401,11 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
                     m_prev[i] = m_smem[row]
                     m_new[i] = m_smem[row]
                     row_: T.int32 = (LH_start + row) // group_size
-                    pad: T.int32 = qo_len - valid_len
+                    pad_q: T.int32 = qo_len - valid_len
+                    pad_kv: T.int32 = kv_len - valid_len
                     for j in T.serial(tile_z):
                         col_: T.int32 = L_kv_start + j
-                        if tirx.And(tirx.And(row_ < qo_len, row_ >= pad), tirx.And(col_ >= pad, col_ <= row_)):
+                        if tirx.And(tirx.And(row_ < qo_len, row_ >= pad_q), tirx.And(col_ >= pad_kv, col_ < kv_len - qo_len + row_ + 1)):
                             m_new[i] = T.max(m_new[i], S_smem[row, j])
                     d_new[i] = d_smem[row] * T.exp2(m_prev[i] - m_new[i])
         for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
@@ -413,9 +414,10 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
                 for j in T.serial(tile_z):
                     if row < tile_x:
                         row_: T.int32 = (LH_start + row) // group_size
-                        pad: T.int32 = qo_len - valid_len
+                        pad_q: T.int32 = qo_len - valid_len
+                        pad_kv: T.int32 = kv_len - valid_len
                         col_: T.int32 = L_kv_start + j
-                        if tirx.And(tirx.And(row_ < qo_len, row_ >= pad), tirx.And(col_ >= pad, col_ <= row_)):
+                        if tirx.And(tirx.And(row_ < qo_len, row_ >= pad_q), tirx.And(col_ >= pad_kv, col_ < kv_len - qo_len + row_ + 1)):
                             S_smem[row, j] = T.exp2(S_smem[row, j] - m_new[i])
                         else:
                             S_smem[row, j] = T.exp2(-5e4 - m_new[i])

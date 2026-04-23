@@ -513,8 +513,9 @@ def _attention_sequence_prefill_with_mask(
     online softmax update, so no explicit mask tensor broadcast or additive
     bias is needed on the host side. Padding queries and keys/values are
     zeroed at load time; masked ``(row, col)`` pairs are excluded from the
-    max/sum of the online softmax via a ``-inf`` slot. Self-attention only
-    (``qo_len == kv_len``).
+    max/sum of the online softmax via a ``-inf`` slot. ``valid_len`` is the
+    per-batch real token count shared by Q and K/V; cross-attention with
+    independent Q/K validity is out of scope.
     """
     _, LOAD_VEC, group_size, bdx, num_warps, tile_x, tile_y, tile_z = _get_prefill_kernel_config(h_kv, h_q, d, dtype, target)
     (
@@ -627,7 +628,7 @@ def _attention_sequence_prefill_with_mask(
                                 T.tvm_storage_sync("shared")
 
                                 compute_s_gemm(Q_smem, K_smem, S_local, S_smem, sm_scale)
-                                softmax_update(S_smem, m_smem, d_smem, m_prev_smem, m_new, m_prev, d_new, ty, tx, LH_start, L_kv_start, valid_len, qo_len)
+                                softmax_update(S_smem, m_smem, d_smem, m_prev_smem, m_new, m_prev, d_new, ty, tx, LH_start, L_kv_start, valid_len, qo_len, kv_len)
                                 compute_o_gemm(S_smem, V_smem, O_local, m_prev_smem, m_smem)
 
                             # Store O

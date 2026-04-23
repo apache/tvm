@@ -76,9 +76,11 @@ def _reference_masked_attention(q, k, v, valid_lens, sm_scale):
 
 
 def _reference_masked_attention_causal_padded_left(q, k, v, valid_lens, sm_scale):
-    """Left-pad causal reference. Real tokens occupy ``[seq - valid_len, seq)``.
+    """Left-pad causal reference.
 
-    Only the valid suffix rows are written; padded rows stay zeroed.
+    Real tokens occupy ``[seq_q - valid_len, seq_q)`` for queries and
+    ``[seq_kv - valid_len, seq_kv)`` for keys/values. Only the valid query
+    suffix rows are written; padded rows stay zeroed.
     """
     batch, seq_q, h_q, d = q.shape
     _, seq_kv, h_kv, _ = k.shape
@@ -91,19 +93,20 @@ def _reference_masked_attention_causal_padded_left(q, k, v, valid_lens, sm_scale
         L = int(valid_lens[b])
         if L == 0:
             continue
-        pad = seq_q - L
+        pad_q = seq_q - L
+        pad_kv = seq_kv - L
         for h in range(h_q):
             hk = h // group_size
-            qh = q32[b, pad:, h, :]  # [L, d]
-            kh = k32[b, pad:, hk, :]  # [L, d]
-            vh = v32[b, pad:, hk, :]  # [L, d]
+            qh = q32[b, pad_q:, h, :]  # [L, d]
+            kh = k32[b, pad_kv:, hk, :]  # [L, d]
+            vh = v32[b, pad_kv:, hk, :]  # [L, d]
             s = (qh @ kh.T) * sm_scale  # [L, L]
             # Causal on the LxL valid block: mask upper triangle to -inf.
             s = s + np.triu(np.full((L, L), -np.inf), k=1)
             m = s.max(axis=-1, keepdims=True)
             e = np.exp(s - m)
             p = e / e.sum(axis=-1, keepdims=True)
-            out[b, pad:, h, :] = p @ vh
+            out[b, pad_q:, h, :] = p @ vh
     return out
 
 
@@ -132,6 +135,7 @@ def _run_case(
     batch,
     seq,
     valid_lens,
+    seq_kv=None,
     dtype="float16",
     seed=0,
     mask_mode="padded",
@@ -139,11 +143,13 @@ def _run_case(
     target = tvm.target.Target(target)
     built, sm_scale = _build_masked_prefill(h_kv, h_q, d, dtype, target, mask_mode=mask_mode)
 
+    if seq_kv is None:
+        seq_kv = seq
     np_dtype = {"float16": np.float16, "float32": np.float32}[dtype]
     rng = np.random.default_rng(seed)
     q_np = (rng.standard_normal((batch, seq, h_q, d)) * 0.1).astype(np_dtype)
-    k_np = (rng.standard_normal((batch, seq, h_kv, d)) * 0.1).astype(np_dtype)
-    v_np = (rng.standard_normal((batch, seq, h_kv, d)) * 0.1).astype(np_dtype)
+    k_np = (rng.standard_normal((batch, seq_kv, h_kv, d)) * 0.1).astype(np_dtype)
+    v_np = (rng.standard_normal((batch, seq_kv, h_kv, d)) * 0.1).astype(np_dtype)
     valid_np = np.asarray(valid_lens, dtype=np.int32)
     out_np = np.zeros((batch, seq, h_q, d), dtype=np_dtype)
     lse_np = np.zeros((batch, seq, h_q), dtype=np_dtype)
@@ -172,8 +178,8 @@ def _run_case(
         if mask_mode == "padded":
             np.testing.assert_allclose(got[b, :L], ref[b, :L], rtol=rtol, atol=atol)
         else:
-            pad = seq - L
-            np.testing.assert_allclose(got[b, pad:], ref[b, pad:], rtol=rtol, atol=atol)
+            pad_q = seq - L
+            np.testing.assert_allclose(got[b, pad_q:], ref[b, pad_q:], rtol=rtol, atol=atol)
 
 
 @tvm.testing.requires_gpu
@@ -303,6 +309,24 @@ def test_causal_padded_left_valid_len_mixed_gqa(target, dev):
         d=64,
         batch=3,
         seq=32,
+        valid_lens=[8, 32, 17],
+        mask_mode="causal_padded_left",
+    )
+
+
+@tvm.testing.requires_gpu
+@tvm.testing.parametrize_targets("cuda", "metal")
+def test_causal_padded_left_qo_len_differs_from_kv_len(target, dev):
+    """Causal left-pad: Q and K/V may have different padded lengths."""
+    _run_case(
+        target=target,
+        dev=dev,
+        h_kv=2,
+        h_q=4,
+        d=64,
+        batch=3,
+        seq=32,
+        seq_kv=48,
         valid_lens=[8, 32, 17],
         mask_mode="causal_padded_left",
     )
