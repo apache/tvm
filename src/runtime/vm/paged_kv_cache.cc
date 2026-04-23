@@ -1337,7 +1337,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     }
     if (!rope_ext_factors_.defined()) {
       f_split_rotary_(qkv_data_view, q_rope_position_map_view_, q_data, k_data, v_data,
-                      static_cast<int>(rope_mode_ == RoPEMode::kNormal));
+                      static_cast<int64_t>(rope_mode_ == RoPEMode::kNormal));
     } else {
       f_split_rotary_(qkv_data_view, q_rope_position_map_view_, q_data, k_data, v_data,
                       rope_ext_factors_.value());
