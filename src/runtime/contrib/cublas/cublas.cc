@@ -216,6 +216,10 @@ void CallCublasLt(cublasLtHandle_t hdl, cudaStream_t stream,
     CHECK_CUBLAS_ERROR(cublasLtMatmulDescSetAttribute(op_desc, CUBLASLT_MATMUL_DESC_B_SCALE_POINTER,
                                                       &scaleB_data, sizeof(float*)));
   }
+#else
+  if (scaleA != nullptr || scaleB != nullptr) {
+    TVM_FFI_THROW(InternalError) << "Scaling pointers are only supported in CUDA 11.8 and above.";
+  }
 #endif
 
   if (epilogue != CUBLASLT_EPILOGUE_DEFAULT) {
