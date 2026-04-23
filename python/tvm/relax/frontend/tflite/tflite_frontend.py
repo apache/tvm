@@ -129,6 +129,7 @@ class OperatorConverter:
             "CONCATENATION": self.convert_concatenation,
             "CONV_2D": functools.partial(self.convert_conv, conv_type="conv2d"),
             "COS": functools.partial(self._convert_unary_elemwise, relax_op=_op.cos),
+            "CUMSUM": self.convert_cumsum,
             "DENSIFY": self.convert_densify,
             "DEPTH_TO_SPACE": self.convert_depth_to_space,
             "DEPTHWISE_CONV_2D": functools.partial(self.convert_conv, conv_type="depthwise"),
@@ -1426,6 +1427,40 @@ class OperatorConverter:
             rhs_expr = self.get_tensor_expr(rhs_tensor)
             lhs_expr = relax.op.add(lhs_expr, rhs_expr)
         return lhs_expr
+    
+    def convert_cumsum(self, op):
+        """Convert TFLite CUMSUM"""
+
+        from tflite.BuiltinOptions import BuiltinOptions
+        from tflite.CumsumOptions import CumsumOptions
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+        
+        input_expr = self.get_tensor_expr(input_tensors[0])
+        axis = self.get_tensor_value(input_tensors[1])
+        if isinstance(axis, np.ndarray):
+            assert axis.size == 1, "only one value is expected."
+            axis = int(axis.flat[0])
+
+        assert op.BuiltinOptionsType() == BuiltinOptions.CumsumOptions
+        op_options = op.BuiltinOptions()
+        cumsum_options = CumsumOptions()
+        cumsum_options.Init(op_options.Bytes, op_options.Pos)
+        exclusive = cumsum_options.Exclusive()
+        if cumsum_options.Reverse():
+            raise tvm.error.OpNotImplemented(
+                "The TFLite to Relax converter does not support reverse CUMSUM operator yet."
+            )
+        
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "output tensors length should be 1"
+
+        out_dtype = self.get_tensor_type_str(output_tensors[0].tensor.Type())
+
+        out = relax.op.cumsum(input_expr, axis, out_dtype, exclusive)
+
+        return out
 
     def convert_squared_difference(self, op):
         """Convert TFLite SQUARED DIFFERENCE"""

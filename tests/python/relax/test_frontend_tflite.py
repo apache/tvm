@@ -142,6 +142,41 @@ def test_add_n():
     verify(AddN, Expected)
 
 
+def test_cumsum():
+    class Cumsum(tf.Module):
+        @tf.function(
+            input_signature=[
+                tf.TensorSpec(shape=(3, 4), dtype=tf.float32),
+                tf.TensorSpec(shape=(5, 6), dtype=tf.int32)
+            ]
+        )
+        def func(self, x, y):
+            out1 = tf.math.cumsum(x, axis=0)
+            out2 = tf.math.cumsum(y, axis=1, exclusive=True)
+            return out1, out2
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((3, 4), dtype="float32"),
+            y: R.Tensor((5, 6), dtype="int32"),
+        ) -> R.Tuple(R.Tensor((3, 4), dtype="float32"), R.Tensor((5, 6), dtype="int32")):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                gv1: R.Tensor((3, 4), dtype="float32") = R.cumsum(
+                    x, axis=0, dtype="float32", exclusive=False
+                )
+                gv2: R.Tensor((5, 6), dtype="int32") = R.cumsum(
+                    y, axis=1, dtype="int32", exclusive=True
+                )
+                gv = (gv1, gv2)
+                R.output(gv)
+            return gv
+
+    verify(Cumsum, Expected)
+
+
 def test_split():
     class Split(tf.Module):
         @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
