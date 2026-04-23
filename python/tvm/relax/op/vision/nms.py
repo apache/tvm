@@ -168,18 +168,22 @@ def non_max_suppression(
         of suppressing them outright.
 
     score_threshold : float, optional
-        Minimum score for a box to be eligible for selection during soft-NMS.
-        Only used when ``soft_nms_sigma > 0``. Defaults to ``0.0``.
+        Post-decay minimum score for a box to remain eligible during soft-NMS.
+        Only used when ``soft_nms_sigma > 0``. This is distinct from
+        ``get_valid_counts.score_threshold``, which filters boxes before NMS.
+        Defaults to ``0.0``.
 
     Returns
     -------
     out : relax.Expr
+        The return tuple shape depends on ``soft_nms_sigma``.
         If ``return_indices`` is ``True`` and ``soft_nms_sigma`` is ``0.0``,
-        returns ``(box_indices, valid_box_count)`` with shapes
+        returns a 2-tuple ``(box_indices, valid_box_count)`` with shapes
         ``[batch_size, num_anchors]`` and ``[batch_size, 1]``.
         If ``return_indices`` is ``True`` and ``soft_nms_sigma > 0``,
-        returns ``(out_data, box_indices, valid_box_count)`` where
-        ``out_data`` has the same shape as the input data.
+        returns a 3-tuple ``(out_data, box_indices, valid_box_count)`` where
+        decayed ``out_data`` is prepended and has the same shape as the input
+        data.
         Otherwise returns the modified data tensor.
     """
     return _ffi_api.non_max_suppression(

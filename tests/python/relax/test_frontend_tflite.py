@@ -1325,7 +1325,7 @@ def test_batch_matmul_adj():
     verify(BatchMatMulAdj, Expected)
 
 
-def _verify_nms_v5(mod, tf_func, boxes_np, scores_np):
+def _verify_nms_v5(mod, tf_func, boxes_np, scores_np, soft_nms_sigma=0.0):
     """E2E verify for NMS: only run on nightly, compare valid outputs only."""
     if "CI_ENV_NIGHTLY" not in os.environ:
         return
@@ -1351,6 +1351,14 @@ def _verify_nms_v5(mod, tf_func, boxes_np, scores_np):
         rtol=1e-5,
         atol=1e-5,
     )
+    if soft_nms_sigma > 0.0:
+        np.testing.assert_allclose(
+            tf_scores.numpy(),
+            tvm_scores.numpy(),
+            rtol=1e-5,
+            atol=1e-5,
+        )
+        np.testing.assert_array_less(-1e-6, tvm_scores.numpy()[n_valid:])
 
 
 def _build_nms_v5_mod(
@@ -1712,7 +1720,7 @@ def test_nms_v5_soft(
     mod, tf_func = _build_nms_v5_mod(
         num_boxes, max_output_size, iou_threshold, score_threshold, soft_nms_sigma
     )
-    _verify_nms_v5(mod, tf_func, boxes, scores)
+    _verify_nms_v5(mod, tf_func, boxes, scores, soft_nms_sigma=soft_nms_sigma)
 
 
 def test_nms_v5_ir():
@@ -1757,6 +1765,8 @@ def test_nms_v5_soft_ir():
     assert "soft_nms_sigma=0.5" in ir
     # score_threshold must also be forwarded
     assert "score_threshold=0.0" in ir
+    # Soft-NMS padded scores must be clipped to non-negative values.
+    assert "R.clip(" in ir
 
 
 _DETECTION_POSTPROCESS_SMOKE_CASES = [

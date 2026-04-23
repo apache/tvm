@@ -3625,6 +3625,9 @@ class OperatorConverter:
             selected_scores = relax.op.strided_slice(
                 selected_scores, axes=[0], begin=[0], end=[max_output_size]
             )
+            selected_scores = relax.op.clip(
+                selected_scores, min=0.0, max=float(np.finfo("float32").max)
+            )
         else:
             # Clamp out-of-bound padded indices to prevent take() crash.
             num_boxes = int(self.get_tensor_shape(input_tensors[0])[0])
