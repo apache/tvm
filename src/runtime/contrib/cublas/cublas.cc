@@ -170,8 +170,12 @@ void CallCublasLt(cublasLtHandle_t hdl, cudaStream_t stream,
   } else if (TypeMatch(A->dtype, kDLInt, 8)) {
     ab_type = CUDA_R_8I;
   } else if (TypeMatch(A->dtype, DataType::TypeCode::kFloat8_e4m3fn, 8)) {
+#if CUDART_VERSION >= 11080
     TVM_FFI_ICHECK(TypeMatch(B->dtype, DataType::TypeCode::kFloat8_e4m3fn, 8));
     ab_type = CUDA_R_8F_E4M3;
+#else
+    TVM_FFI_THROW(InternalError) << "Float8 (E4M3) is only supported in CUDA 11.8 and above.";
+#endif
   }
 
   if (TypeMatch(C->dtype, kDLFloat, 16)) {
@@ -201,6 +205,7 @@ void CallCublasLt(cublasLtHandle_t hdl, cudaStream_t stream,
                                                       &bias->data, sizeof(float*)));
   }
 
+#if CUDART_VERSION >= 11080
   if (scaleA != nullptr) {
     auto scaleA_data = static_cast<char*>(scaleA->data) + scaleA->byte_offset;
     CHECK_CUBLAS_ERROR(cublasLtMatmulDescSetAttribute(op_desc, CUBLASLT_MATMUL_DESC_A_SCALE_POINTER,
@@ -211,6 +216,11 @@ void CallCublasLt(cublasLtHandle_t hdl, cudaStream_t stream,
     CHECK_CUBLAS_ERROR(cublasLtMatmulDescSetAttribute(op_desc, CUBLASLT_MATMUL_DESC_B_SCALE_POINTER,
                                                       &scaleB_data, sizeof(float*)));
   }
+#else
+  if (scaleA != nullptr || scaleB != nullptr) {
+    TVM_FFI_THROW(InternalError) << "Scaling pointers are only supported in CUDA 11.8 and above.";
+  }
+#endif
 
   if (epilogue != CUBLASLT_EPILOGUE_DEFAULT) {
     CHECK_CUBLAS_ERROR(cublasLtMatmulDescSetAttribute(op_desc, CUBLASLT_MATMUL_DESC_EPILOGUE,
