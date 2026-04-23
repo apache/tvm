@@ -169,14 +169,14 @@ void CallCublasLt(cublasLtHandle_t hdl, cudaStream_t stream,
     ab_type = CUDA_R_16BF;
   } else if (TypeMatch(A->dtype, kDLInt, 8)) {
     ab_type = CUDA_R_8I;
-  } 
-
+  } else if (TypeMatch(A->dtype, DataType::TypeCode::kFloat8_e4m3fn, 8)) {
 #if CUDART_VERSION >= 11800
-  else if (TypeMatch(A->dtype, DataType::TypeCode::kFloat8_e4m3fn, 8)) {
     TVM_FFI_ICHECK(TypeMatch(B->dtype, DataType::TypeCode::kFloat8_e4m3fn, 8));
     ab_type = CUDA_R_8F_E4M3;
-  }
+#else
+    TVM_FFI_THROW(InternalError) << "Float8 (E4M3) is only supported in CUDA 11.8 and above.";
 #endif
+  }
 
   if (TypeMatch(C->dtype, kDLFloat, 16)) {
     c_type = CUDA_R_16F;
