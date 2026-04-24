@@ -1430,6 +1430,10 @@ class OperatorConverter:
     
     def convert_cumsum(self, op):
         """Convert TFLite CUMSUM"""
+        if self.is_quantized(op):
+            raise tvm.error.OpNotImplemented(
+                "The TFLite to Relax converter does not support quantized CUMSUM operator yet."
+            )
 
         from tflite.BuiltinOptions import BuiltinOptions
         from tflite.CumsumOptions import CumsumOptions
@@ -1438,6 +1442,11 @@ class OperatorConverter:
         assert len(input_tensors) == 2, "input tensors length should be 2"
         
         input_expr = self.get_tensor_expr(input_tensors[0])
+
+        if self.has_expr(input_tensors[1].tensor_idx):
+            raise tvm.error.OpNotImplemented(
+                "The TFLite to Relax converter does not support dynamic axis for CUMSUM yet."
+            )
         axis = self.get_tensor_value(input_tensors[1])
         if isinstance(axis, np.ndarray):
             assert axis.size == 1, "only one value is expected."
