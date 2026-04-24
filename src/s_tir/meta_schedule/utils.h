@@ -330,14 +330,24 @@ struct ThreadedTraceApply {
    */
   ffi::Optional<s_tir::Schedule> Apply(const IRModule& mod, const s_tir::Trace& trace,
                                        TRandState* rand_state) {
-    s_tir::Schedule sch =
-        s_tir::Schedule::Traced(mod,
-                                /*rand_state=*/ForkSeed(rand_state),
-                                /*debug_mode=*/0,
-                                /*error_render_level=*/s_tir::ScheduleErrorRenderLevel::kNone);
-
-    trace->ApplyToSchedule(sch, /*remove_postproc=*/true);
-    sch->EnterPostproc();
+    s_tir::Schedule sch{nullptr};
+    try {
+      sch = s_tir::Schedule::Traced(mod,
+                                    /*rand_state=*/ForkSeed(rand_state),
+                                    /*debug_mode=*/0,
+                                    /*error_render_level=*/
+                                    s_tir::ScheduleErrorRenderLevel::kNone);
+      trace->ApplyToSchedule(sch, /*remove_postproc=*/true);
+      sch->EnterPostproc();
+    } catch (const s_tir::ScheduleError& e) {
+      DLOG(WARNING) << "Trace replay failed with ScheduleError: " << e.what();
+      this->trace_fail_counter_++;
+      return std::nullopt;
+    } catch (const std::exception& e) {
+      DLOG(WARNING) << "Trace replay failed with exception: " << e.what();
+      this->trace_fail_counter_++;
+      return std::nullopt;
+    }
 
     for (int i = 0; i < n_; ++i) {
       Item& item = items_[i];
@@ -364,6 +374,10 @@ struct ThreadedTraceApply {
   /*! \brief Returns a string summarizing the failures on each postprocessor */
   std::string SummarizeFailures() const {
     std::ostringstream os;
+    os << "Trace replay failures: " << this->trace_fail_counter_.load() << " failure(s)";
+    if (n_ > 0) {
+      os << "\n";
+    }
     for (int i = 0; i < n_; ++i) {
       const Item& item = items_[i];
       os << "Postproc #" << i << " [" << item.postproc  //
@@ -374,6 +388,9 @@ struct ThreadedTraceApply {
     }
     return os.str();
   }
+
+  /*! \brief Returns the number of trace replay failures. */
+  int TraceFailCount() const { return this->trace_fail_counter_.load(); }
 
  private:
   /*! \brief A helper data structure that stores the fail count for each postprocessor. */
@@ -386,6 +403,8 @@ struct ThreadedTraceApply {
 
   /*! \brief The number of total postprocessors. */
   int n_;
+  /*! \brief The thread-safe trace replay failure counter. */
+  std::atomic<int> trace_fail_counter_{0};
   /*! \brief The pointer to the list of postprocessor items. */
   Item* items_;
 };
