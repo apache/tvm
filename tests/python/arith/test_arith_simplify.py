@@ -134,6 +134,20 @@ def test_regression_simplify_inf_recursion():
     ana.rewrite_simplify(res)
 
 
+def test_bind_allow_override():
+    ana = tvm.arith.Analyzer()
+    x = tirx.Var("x", "int64")
+
+    ana.bind(x, tvm.ir.Range(0, 10))
+    ana.bind(x, tvm.ir.Range(0, 5), allow_override=True)
+    assert ana.can_prove(x < 5)
+
+    with pytest.raises(
+        tvm.error.TVMError, match="Trying to update var 'x' with a different const bound"
+    ):
+        ana.bind(x, tvm.ir.Range(0, 3))
+
+
 def test_simplify_floor_mod_with_linear_offset():
     """
     Test that the floor_mod is simplified correctly when the offset is linear.
