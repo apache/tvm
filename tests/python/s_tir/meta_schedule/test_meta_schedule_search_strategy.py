@@ -49,6 +49,22 @@ class Matmul:
                     C[vi, vj] = 0.0 # type: ignore
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
+
+@tvm.script.ir_module
+class OtherBlock:
+    @T.prim_func
+    def main(a: T.handle, b: T.handle, c: T.handle) -> None: # type: ignore
+        T.func_attr({"global_symbol": "main"})
+        A = T.match_buffer(a, (32, 32), "float32")
+        B = T.match_buffer(b, (32, 32), "float32")
+        C = T.match_buffer(c, (32, 32), "float32")
+        for i, j, k in T.grid(32, 32, 32):
+            with T.sblock("other"):
+                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                with T.init():
+                    C[vi, vj] = 0.0 # type: ignore
+                C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
+
 # fmt: on
 # pylint: enable=missing-class-docstring,invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument
 
@@ -306,6 +322,63 @@ def test_meta_schedule_evolutionary_search_fail_init_population():  # pylint: di
     )
     candidates = strategy.generate_measure_candidates()
     assert candidates is None
+
+
+def test_meta_schedule_evolutionary_search_skip_invalid_measured_trace()  # pylint: disable = invalid-name
+    # Construct an incompatible measured trace: it references block name "other",
+    # which doesn't exist in Matmul. Replaying this trace should fail and be skipped.
+    wrong_sch = Schedule(OtherBlock)
+    wrong_sch.get_sblock("other")
+    wrong_trace = wrong_sch.trace
+
+    database = ms.database.MemoryDatabase()
+    workload = database.commit_workload(Matmul)
+    database.commit_tuning_record(
+        ms.database.TuningRecord(
+            trace=wrong_trace,
+            workload=workload,
+            run_secs=[0.1],
+            target=tvm.target.Target("llvm"),
+            args_info=ms.arg_info.ArgInfo.from_prim_func(func=Matmul["main"]),
+        )
+    )
+
+    context = ms.TuneContext(
+        mod=Matmul,
+        space_generator=ms.space_generator.ScheduleFn(
+            sch_fn=_schedule_matmul,
+            sch_rules=[],
+            postprocs=[],
+            mutator_probs={
+                DummyMutator(): 1.0,
+            },
+        ),
+        search_strategy=ms.search_strategy.EvolutionarySearch(
+            population_size=5,
+            init_measured_ratio=1.0,
+            init_min_unmeasured=1,
+            genetic_num_iters=1,
+            genetic_mutate_prob=0.5,
+            genetic_max_fail_count=4,
+            eps_greedy=0.9,
+        ),
+        target=tvm.target.Target("llvm"),
+        num_threads=1,
+    )
+    strategy = context.search_strategy
+    strategy.pre_tuning(
+        max_trials=4,
+        num_trials_per_iter=2,
+        design_spaces=context.space_generator.generate_design_space(context.mod),
+        database=database,
+        cost_model=ms.cost_model.RandomModel(),
+    )
+
+    candidates = strategy.generate_measure_candidates()
+    strategy.post_tuning()
+
+    # Regression assertion: invalid measured trace should be skipped, not crash
+    assert candidates is not None
 
 
 def test_search_strategy_abstract_class_instantiation():
