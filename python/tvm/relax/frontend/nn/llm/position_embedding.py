@@ -529,7 +529,7 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
         var_q: T.handle,
         var_k: T.handle,
         var_v: T.handle,
-        apply_rope: T.int32,
+        apply_rope: T.int64,
     ):
         T.func_attr(
             {
