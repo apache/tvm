@@ -411,8 +411,8 @@ def test_rpc_return_tensor():
 def test_rpc_return_remote_object():
     def check(client, is_local):
         make_shape = client.get_function("ffi.Shape")
-        get_elem = client.get_function("testing.GetShapeElem")
-        get_size = client.get_function("testing.GetShapeSize")
+        get_elem = client.get_function("rpc.testing.GetShapeElem")
+        get_size = client.get_function("rpc.testing.GetShapeSize")
         shape = make_shape(2, 3)
         assert get_elem(shape, 0) == 2
         assert get_elem(shape, 1) == 3
