@@ -19,8 +19,7 @@
 import tvm_ffi
 
 import tvm
-from tvm.runtime import Scriptable
-from tvm.runtime.object import Object
+from tvm.runtime import Object, Scriptable
 
 from . import _ffi_api
 from . import expr as _expr

@@ -22,7 +22,7 @@ from enum import IntEnum
 import tvm_ffi
 
 import tvm.runtime
-from tvm.runtime.object import Object
+from tvm.runtime import Object
 
 from . import _ffi_api
 from .attrs import DictAttrs
