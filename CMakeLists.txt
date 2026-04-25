@@ -64,19 +64,6 @@ tvm_option(INSTALL_DEV "Install compiler infrastructure" OFF)
 tvm_option(HIDE_PRIVATE_SYMBOLS "Compile with -fvisibility=hidden." OFF)
 tvm_option(INDEX_DEFAULT_I64 "Defaults the index datatype to int64" ON)
 tvm_option(BUILD_STATIC_RUNTIME "Build static version of libtvm_runtime" OFF)
-# BUILD_DUMMY_LIBTVM was used to produce a stub libtvm.so (runtime-only sources
-# under the libtvm name) for downstream packages that wanted to link against
-# libtvm without pulling in the compiler. After splitting libtvm.so into
-# libtvm_runtime.so + libtvm_compiler.so, downstream consumers should link
-# directly against libtvm_runtime.so, so this option is removed. Setting it
-# emits a deprecation warning and is otherwise a no-op.
-tvm_option(BUILD_DUMMY_LIBTVM "DEPRECATED: link libtvm_runtime.so directly instead" OFF)
-if(BUILD_DUMMY_LIBTVM)
-  message(WARNING
-    "BUILD_DUMMY_LIBTVM is deprecated and ignored: libtvm.so no longer exists "
-    "after the split into libtvm_runtime.so and libtvm_compiler.so. "
-    "Link against libtvm_runtime.so directly instead.")
-endif()
 tvm_option(USE_GTEST "Use GoogleTest for C++ sanity tests" AUTO)
 tvm_option(USE_CUSTOM_LOGGING "Use user-defined custom logging, tvm::runtime::detail::LogFatalImpl and tvm::runtime::detail::LogMessageImpl must be implemented" OFF)
 tvm_option(USE_ALTERNATIVE_LINKER "Use 'mold' or 'lld' if found when invoking compiler to link artifact" AUTO)
@@ -587,38 +574,16 @@ target_link_libraries(tvm_compiler PRIVATE ${TVM_LINKER_LIBS})
 target_link_libraries(tvm_compiler PRIVATE ${TVM_RUNTIME_LINKER_LIBS})
 target_link_libraries(tvm_runtime PRIVATE ${TVM_RUNTIME_LINKER_LIBS})
 
-if(BUILD_FOR_HEXAGON AND DEFINED USE_HEXAGON_GTEST AND EXISTS ${USE_HEXAGON_GTEST})
-  include(FetchContent)
-  FetchContent_Declare(googletest SOURCE_DIR "${USE_HEXAGON_GTEST}")
-  set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-  FetchContent_MakeAvailable(googletest)
-  target_link_libraries(tvm_runtime PUBLIC gtest)
-  include_directories("${USE_HEXAGON_GTEST}/include")
-endif()
-
 # Set flags for clang
 include(cmake/modules/ClangFlags.cmake)
 set(TVM_TEST_LIBRARY_NAME tvm_compiler)
 if (HIDE_PRIVATE_SYMBOLS AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-  add_library(tvm_allvisible SHARED $<TARGET_OBJECTS:tvm_objs> $<TARGET_OBJECTS:tvm_runtime_objs> $<TARGET_OBJECTS:tvm_libinfo_objs>)
-  target_include_directories(tvm_allvisible PUBLIC "$<TARGET_PROPERTY:tvm_compiler,INCLUDE_DIRECTORIES>")
-  target_link_libraries(tvm_allvisible PRIVATE "$<TARGET_PROPERTY:tvm_compiler,LINK_LIBRARIES>")
-  target_link_libraries(tvm_allvisible PUBLIC tvm_ffi_shared)
-  set_target_properties(tvm_allvisible PROPERTIES
-    ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-  )
-  set(TVM_TEST_LIBRARY_NAME tvm_allvisible)
-
   set(HIDE_SYMBOLS_LINKER_FLAGS "-Wl,--exclude-libs,ALL")
   # Note: 'target_link_options' with 'PRIVATE' keyword would be cleaner
   # but it's not available until CMake 3.13. Switch to 'target_link_options'
   # once minimum CMake version is bumped up to 3.13 or above.
   target_link_libraries(tvm_compiler PRIVATE ${HIDE_SYMBOLS_LINKER_FLAGS})
   target_link_libraries(tvm_runtime PRIVATE ${HIDE_SYMBOLS_LINKER_FLAGS})
-  target_compile_definitions(tvm_allvisible PUBLIC $<TARGET_PROPERTY:tvm_compiler,INTERFACE_COMPILE_DEFINITONS>)
-  target_compile_definitions(tvm_allvisible PRIVATE $<TARGET_PROPERTY:tvm_compiler,COMPILE_DEFINITONS>)
 endif()
 
 # Create the `cpptest` target if we can find GTest.  If not, we create dummy
@@ -650,8 +615,8 @@ if(GTEST_FOUND)
   set_target_properties(cpptest PROPERTIES EXCLUDE_FROM_ALL 1)
   set_target_properties(cpptest PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)
   # cpptest is built into ${CMAKE_BINARY_DIR} but the TVM shared libs it
-  # links against (libtvm_allvisible.so / libtvm_compiler.so / libtvm_runtime.so)
-  # now live in ${CMAKE_BINARY_DIR}/lib. CMake's default behaviour bakes the
+  # links against (libtvm_compiler.so / libtvm_runtime.so) now live in
+  # ${CMAKE_BINARY_DIR}/lib. CMake's default behaviour bakes the
   # absolute path of build/lib/ into the binary's RUNPATH, which works in tree
   # but is not relocatable. Set $ORIGIN/lib (or @loader_path/lib on macOS)
   # explicitly so the test binary finds its TVM libs relative to its own
@@ -683,9 +648,6 @@ add_custom_target(runtime DEPENDS tvm_runtime)
 # Installation rules
 install(TARGETS tvm_compiler DESTINATION lib${LIB_SUFFIX})
 install(TARGETS tvm_runtime DESTINATION lib${LIB_SUFFIX})
-if(BUILD_FOR_HEXAGON AND DEFINED USE_HEXAGON_GTEST AND EXISTS ${USE_HEXAGON_GTEST})
-  install(TARGETS gtest DESTINATION lib${LIB_SUFFIX})
-endif()
 
 if (INSTALL_DEV)
   install(
