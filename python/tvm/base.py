@@ -19,6 +19,7 @@
 # ruff: noqa: F401
 """Base library for TVM."""
 
+import ctypes
 import os
 import sys
 from pathlib import Path
@@ -36,85 +37,59 @@ if not (sys.version_info[0] >= 3 and sys.version_info[1] >= 9):
 # library loading
 # ----------------------------
 
-# Caller-supplied dev-mode search list for ``libinfo.load_lib_ctypes``.
-# These cover the wheel-install layout (``tvm/lib/``) and the in-tree dev
-# build layout (``<worktree>/build/lib`` and ``<worktree>/lib``). Caller
-# dirs win precedence over the self-anchored fallback inside ``libinfo``.
-# TODO: remove once tvm-ffi exposes ``extra_lib_paths`` upstream
-# (tracked in tdev issue #63).
-_TVM_PKG_ROOT = Path(__file__).parent  # python/tvm/
-_EXTRA_LIB_PATHS = [
-    _TVM_PKG_ROOT / "lib",  # wheel layout
-    _TVM_PKG_ROOT.parent.parent / "build" / "lib",  # dev: <worktree>/build/lib
-    _TVM_PKG_ROOT.parent.parent / "lib",  # dev: <worktree>/lib
-]
 
-
-def _load_lib():
-    """Load TVM C++ libraries.
-
-    The TVM C++ side is split into two shared libraries:
-
-    - ``libtvm_runtime`` — runtime-only sources. Loaded with ``RTLD_GLOBAL`` so
-      its symbols are exposed to subsequent loads (NVRTC kernels, downstream
-      modules and so on resolve runtime symbols at link time).
-    - ``libtvm_compiler`` — compiler / IR / transform sources, links against
-      ``libtvm_runtime``. Loaded with ``RTLD_LOCAL`` so compiler internals
-      don't leak into the global symbol namespace.
-
-    If the environment variable ``TVM_USE_RUNTIME_LIB`` is set (truthy), only
-    the runtime is loaded — useful for runtime-only deployments where the
-    compiler library is not shipped.
-
-    Returns
-    -------
-    tuple of (loaded_lib, basename)
-        The handle returned is the compiler library (when loaded), otherwise
-        the runtime library. The basename is used by callers to determine
-        whether they're in runtime-only mode (``"runtime" in basename``).
-    """
-    # The dll search path need to be added explicitly in windows
+def _resolve_lib(target_name: str) -> Path | None:
+    """Find ``lib<target_name>.{so,dylib,dll}`` under TVM's package paths."""
     if sys.platform.startswith("win32"):
-        for path in libinfo.get_dll_directories():
-            os.add_dll_directory(path)
+        basenames = (f"{target_name}.dll",)
+    elif sys.platform.startswith("darwin"):
+        basenames = (f"lib{target_name}.dylib", f"lib{target_name}.so")
+    else:
+        basenames = (f"lib{target_name}.so",)
+    for d in libinfo.package_lib_paths():
+        for name in basenames:
+            p = d / name
+            if p.is_file():
+                return p.resolve()
+    return None
 
-    runtime_only = bool(os.environ.get("TVM_USE_RUNTIME_LIB", False))
 
-    # ``libinfo.load_lib_ctypes`` mirrors tvm_ffi's loader. We pass an explicit
-    # ``extra_lib_paths`` so dev mode (PYTHONPATH=<repo>/python) finds TVM's
-    # own ``build/lib/libtvm_*.so`` rather than the tvm-ffi tree.
-    runtime_lib = libinfo.load_lib_ctypes(
-        "tvm", "tvm_runtime", "RTLD_GLOBAL", extra_lib_paths=_EXTRA_LIB_PATHS
+# The TVM C++ side is split into two shared libraries:
+#
+# - ``libtvm_runtime`` — runtime-only sources. Loaded with ``RTLD_GLOBAL`` so
+#   its symbols are exposed to subsequent loads (NVRTC kernels, downstream
+#   modules and so on resolve runtime symbols at link time).
+# - ``libtvm_compiler`` — compiler / IR / transform sources, links against
+#   ``libtvm_runtime``. Loaded with ``RTLD_LOCAL`` so compiler internals
+#   don't leak into the global symbol namespace.
+#
+# If the environment variable ``TVM_USE_RUNTIME_LIB`` is truthy, or the
+# compiler library is simply not present (runtime-only wheel), only the
+# runtime is loaded and ``_LIB`` aliases ``_LIB_RUNTIME``.
+_runtime_path = _resolve_lib("tvm_runtime")
+if _runtime_path is None:
+    raise RuntimeError(
+        "Cannot find libtvm_runtime; searched: "
+        + ", ".join(str(p) for p in libinfo.package_lib_paths())
     )
+# Windows requires explicit DLL search-path setup before CDLL.
+if sys.platform.startswith("win32"):
+    os.add_dll_directory(str(_runtime_path.parent))
+_LIB_RUNTIME = ctypes.CDLL(str(_runtime_path), ctypes.RTLD_GLOBAL)
 
-    if runtime_only:
-        return runtime_lib, _runtime_basename()
-
-    try:
-        compiler_lib = libinfo.load_lib_ctypes(
-            "tvm", "tvm_compiler", "RTLD_LOCAL", extra_lib_paths=_EXTRA_LIB_PATHS
-        )
-        return compiler_lib, _compiler_basename()
-    except RuntimeError:
-        # Compiler lib is not present — wheel ships only the runtime, or the
-        # user is in a runtime-only environment.
-        return runtime_lib, _runtime_basename()
-
-
-def _runtime_basename() -> str:
-    if sys.platform.startswith("win32"):
-        return "tvm_runtime.dll"
-    if sys.platform.startswith("darwin"):
-        return "libtvm_runtime.dylib"
-    return "libtvm_runtime.so"
-
-
-def _compiler_basename() -> str:
-    if sys.platform.startswith("win32"):
-        return "tvm_compiler.dll"
-    if sys.platform.startswith("darwin"):
-        return "libtvm_compiler.dylib"
-    return "libtvm_compiler.so"
+_RUNTIME_ONLY = bool(os.environ.get("TVM_USE_RUNTIME_LIB", False))
+if _RUNTIME_ONLY:
+    _LIB = _LIB_RUNTIME
+else:
+    _compiler_path = _resolve_lib("tvm_compiler")
+    if _compiler_path is None:
+        # Compiler lib not present — fall back to runtime-only mode.
+        _LIB = _LIB_RUNTIME
+        _RUNTIME_ONLY = True
+    else:
+        if sys.platform.startswith("win32"):
+            os.add_dll_directory(str(_compiler_path.parent))
+        _LIB = ctypes.CDLL(str(_compiler_path), ctypes.RTLD_LOCAL)
 
 
 try:
@@ -125,11 +100,6 @@ except ImportError:
 
 # version number
 __version__ = libinfo.__version__
-# library instance
-_LIB, _LIB_NAME = _load_lib()
-
-# Whether we are runtime only
-_RUNTIME_ONLY = "runtime" in _LIB_NAME
 
 
 if _RUNTIME_ONLY:

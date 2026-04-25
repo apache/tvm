@@ -18,153 +18,26 @@
 
 from __future__ import annotations
 
-import ctypes
-import importlib.metadata as im
 import os
 import sys
 from pathlib import Path
 
 
-# TODO: once tvm-ffi exposes load_lib_ctypes with an extra_lib_paths parameter
-# (tracked in tdev issue #63), delete these mirrors and call
-# tvm_ffi.libinfo.load_lib_ctypes directly.
-def _find_library_by_basename(
-    package: str,
-    target_name: str,
-    extra_lib_paths: list[Path] | None = None,
-) -> Path:
-    """Find a shared library by ``target_name`` across known directories.
+def package_lib_paths() -> list[Path]:
+    """Return search directories for TVM's shared libraries.
 
-    Mirrors ``tvm_ffi.libinfo._find_library_by_basename`` but lets the caller
-    inject extra dev-mode search directories via ``extra_lib_paths``. Caller-
-    supplied directories take precedence over the self-anchored fallback so a
-    PYTHONPATH-style dev install of TVM can point at its own ``build/lib/``
-    instead of tvm-ffi's tree.
-
-    Parameters
-    ----------
-    package
-        Distribution name (matches the wheel's ``RECORD``) or importable
-        package name (e.g. ``"tvm"``).
-    target_name
-        CMake target name. Translates to ``lib{target_name}.so`` on Linux,
-        ``lib{target_name}.dylib`` on macOS, ``{target_name}.dll`` on Windows.
-    extra_lib_paths
-        Optional list of ``pathlib.Path`` directories to search before the
-        self-anchored fallback. Must be ``Path`` instances; raises
-        ``TypeError`` otherwise.
+    Anchored on this file's location (``python/tvm/libinfo.py``), the list
+    covers the wheel-install layout (``python/tvm/lib/``) and the in-tree dev
+    build layouts (``<worktree>/build/lib/`` and ``<worktree>/lib/``). Callers
+    pick the basenames they want (e.g. ``libtvm_runtime.so``) and the load
+    mode; this function only returns the search path.
     """
-    if extra_lib_paths is not None:
-        for i, p in enumerate(extra_lib_paths):
-            if not isinstance(p, Path):
-                raise TypeError(
-                    f"extra_lib_paths[{i}] must be a pathlib.Path, got {type(p).__name__}: {p!r}"
-                )
-
-    if sys.platform.startswith("win32"):
-        lib_dll_names = (f"{target_name}.dll",)
-    elif sys.platform.startswith("darwin"):
-        lib_dll_names = (f"lib{target_name}.dylib", f"lib{target_name}.so")
-    else:  # Linux, FreeBSD, etc.
-        lib_dll_names = (f"lib{target_name}.so",)
-
-    # Wheel-install path: walk the dist-info RECORD for entries that match.
-    try:
-        dist = im.distribution(package)
-    except im.PackageNotFoundError:
-        dist = None
-    if dist is not None:
-        record = dist.read_text("RECORD") or ""
-        for line in record.splitlines():
-            partial_path, *_ = line.split(",")
-            if partial_path.endswith(lib_dll_names):
-                try:
-                    path = (dist._path.parent / partial_path).resolve()
-                except OSError:
-                    continue
-                if path.name in lib_dll_names:
-                    return path
-
-    # Dev / source-tree fallback.
-    dll_paths: list[Path] = []
-    # Caller-supplied dirs first so they win precedence over the self-anchor.
-    if extra_lib_paths is not None:
-        dll_paths.extend(extra_lib_paths)
-    # Self-anchored fallback: this file lives at ``python/tvm/libinfo.py`` in
-    # TVM's tree, so ``Path(__file__).parent`` is ``python/tvm`` and the
-    # parent-walk reaches ``<worktree>/build/lib`` for in-tree dev builds.
-    dll_paths.extend(
-        [
-            Path(__file__).parent / "lib",
-            Path(__file__).parent.parent.parent / "build" / "lib",
-            Path(__file__).parent.parent.parent / "lib",
-        ]
-    )
-
-    if sys.platform.startswith("win32"):
-        dll_paths.extend(Path(p) for p in _split_env_var("PATH", ";"))
-    elif sys.platform.startswith("darwin"):
-        dll_paths.extend(Path(p) for p in _split_env_var("DYLD_LIBRARY_PATH", ":"))
-        dll_paths.extend(Path(p) for p in _split_env_var("PATH", ":"))
-    else:
-        dll_paths.extend(Path(p) for p in _split_env_var("LD_LIBRARY_PATH", ":"))
-        dll_paths.extend(Path(p) for p in _split_env_var("PATH", ":"))
-
-    for dll_dir in dll_paths:
-        for lib_dll_name in lib_dll_names:
-            try:
-                path = (dll_dir / lib_dll_name).resolve()
-                if path.is_file():
-                    return path
-            except OSError:
-                continue
-    raise RuntimeError(
-        f"Cannot find library {', '.join(lib_dll_names)}; "
-        f"searched directories:\n  " + "\n  ".join(str(p) for p in dll_paths)
-    )
-
-
-# TODO: once tvm-ffi exposes load_lib_ctypes with an extra_lib_paths parameter
-# (tracked in tdev issue #63), delete these mirrors and call
-# tvm_ffi.libinfo.load_lib_ctypes directly.
-def load_lib_ctypes(
-    package: str,
-    target_name: str,
-    mode: str,
-    extra_lib_paths: list[Path] | None = None,
-) -> ctypes.CDLL:
-    """Locate and ``ctypes.CDLL``-load a shared library shipped with ``package``.
-
-    Mirrors ``tvm_ffi.libinfo.load_lib_ctypes`` and forwards ``extra_lib_paths``
-    to the underlying ``_find_library_by_basename``.
-
-    Parameters
-    ----------
-    package
-        Distribution name (matches the wheel's ``RECORD``) or importable
-        package name (e.g. ``"tvm"``).
-    target_name
-        CMake target name. Translates to ``lib{target_name}.so`` on Linux,
-        ``lib{target_name}.dylib`` on macOS, ``{target_name}.dll`` on Windows.
-    mode
-        Name of a ``ctypes`` mode constant — typically ``"RTLD_LOCAL"`` or
-        ``"RTLD_GLOBAL"``.
-    extra_lib_paths
-        Optional list of ``pathlib.Path`` directories searched before the
-        self-anchored dev fallback.
-    """
-    lib_path = _find_library_by_basename(package, target_name, extra_lib_paths)
-    # Windows requires explicit DLL search-path setup.
-    if sys.platform.startswith("win32"):
-        os.add_dll_directory(str(lib_path.parent))
-    return ctypes.CDLL(str(lib_path), getattr(ctypes, mode))
-
-
-def _split_env_var(env_var: str, split: str) -> list[str]:
-    """Lower-level helper used by the mirrored library lookup."""
-    if os.environ.get(env_var, None):
-        return [p.strip() for p in os.environ[env_var].split(split)]
-    return []
+    pkg = Path(__file__).parent  # python/tvm/
+    return [
+        pkg / "lib",  # wheel layout
+        pkg.parent.parent / "build" / "lib",  # dev: <worktree>/build/lib
+        pkg.parent.parent / "lib",  # dev: <worktree>/lib
+    ]
 
 
 def split_env_var(env_var, split):
