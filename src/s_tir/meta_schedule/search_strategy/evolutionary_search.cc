@@ -498,13 +498,24 @@ std::vector<Schedule> EvolutionarySearchNode::State::PickBestFromDatabase(int nu
     TVM_FFI_ICHECK(!result.defined());
     if (ffi::Optional<Schedule> sch = pp.Apply(mod, trace, rand_state)) {
       result = sch.value();
-    } else {
-      TVM_FFI_THROW(ValueError) << "Cannot postprocess the trace:\n" << trace;
-      throw;
     }
   };
   support::parallel_for_dynamic(0, actual_num, self->ctx_->num_threads, f_proc_measured);
-  return results;
+  TVM_PY_LOG(INFO, self->ctx_->logger) << "Pick-Best-From-Database summary:\n"
+                                       << pp.SummarizeFailures();
+  if (pp.TraceFailCount() > 0) {
+    TVM_PY_LOG(WARNING, self->ctx_->logger)
+        << "PickBestFromDatabase skipped " << pp.TraceFailCount()
+        << " candidate(s) due to trace replay failures";
+  }
+  std::vector<Schedule> filtered;
+  filtered.reserve(actual_num);
+  for (const Schedule& sch : results) {
+    if (sch.defined()) {
+      filtered.push_back(sch);
+    }
+  }
+  return filtered;
 }
 
 std::vector<Schedule> EvolutionarySearchNode::State::SampleInitPopulation(int num) {
@@ -538,6 +549,11 @@ std::vector<Schedule> EvolutionarySearchNode::State::SampleInitPopulation(int nu
     fail_count += !found_new;
     TVM_PY_LOG(INFO, self->ctx_->logger) << "Sample-Init-Population summary:\n"
                                          << pp.SummarizeFailures();
+    if (pp.TraceFailCount() > 0) {
+      TVM_PY_LOG(WARNING, self->ctx_->logger)
+          << "SampleInitPopulation encountered " << pp.TraceFailCount()
+          << " trace replay failure(s); invalid candidates were skipped";
+    }
   }
   return out_schs;
 }
