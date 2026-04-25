@@ -166,12 +166,19 @@ test()
   },
 {% endmacro %}
 
-{% macro upload_artifacts(action, tag, filenames) %}
+{% macro upload_artifacts(tag, bundles=none, filenames=none) %}
+{% if bundles is not none %}
+sh(
+      script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/{{ tag }}{% for b in bundles %} --bundle {{ b }}{% endfor %}",
+      label: 'Upload artifacts to S3',
+    )
+{% elif filenames is not none %}
 {% set items = ' '.join(filenames) %}
 sh(
       script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/{{ tag }} --items {{ items }}",
       label: 'Upload artifacts to S3',
     )
+{% endif %}
 {% endmacro %}
 
 {% macro download_artifacts(tag) %}

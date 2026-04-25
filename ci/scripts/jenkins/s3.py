@@ -17,12 +17,37 @@
 # under the License.
 
 import argparse
+import importlib.util
 import logging
 import re
 from enum import Enum
 from pathlib import Path
 
 from cmd_utils import REPO_ROOT, Sh, init_log
+
+DATA_PY = REPO_ROOT / "ci" / "jenkins" / "data.py"
+
+
+def load_files_to_stash():
+    """Load the files_to_stash dict from ci/jenkins/data.py."""
+    spec = importlib.util.spec_from_file_location("data", DATA_PY)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod.files_to_stash
+
+
+def resolve_bundles(bundle_names: list[str]) -> list[str]:
+    """Resolve a list of bundle names to a flat list of file paths."""
+    files_to_stash = load_files_to_stash()
+    items = []
+    for name in bundle_names:
+        if name not in files_to_stash:
+            known = list(files_to_stash.keys())
+            logging.error(f"Unknown bundle '{name}'. Known bundles: {known}")
+            raise SystemExit(1)
+        items.extend(files_to_stash[name])
+    return items
+
 
 RETRY_SCRIPT = REPO_ROOT / "ci" / "scripts" / "jenkins" / "retry.sh"
 S3_DOWNLOAD_REGEX = re.compile(r"download: s3://.* to (.*)")
@@ -93,8 +118,19 @@ if __name__ == "__main__":
         "--prefix", help="s3 bucket + tag (e.g. s3://tvm-ci-prod/PR-1234/cpu", required=True
     )
     parser.add_argument("--items", help="files and folders to upload", nargs="+")
+    parser.add_argument(
+        "--bundle",
+        help="bundle name(s) from ci/jenkins/data.py files_to_stash (repeatable)",
+        action="append",
+        dest="bundles",
+        metavar="NAME",
+    )
 
     args = parser.parse_args()
+
+    if args.items is not None and args.bundles is not None:
+        parser.error("--items and --bundle are mutually exclusive")
+
     logging.info(args)
 
     sh = Sh()
@@ -115,16 +151,17 @@ if __name__ == "__main__":
         logging.error(f"Unsupported action: {args.action}")
         exit(1)
 
-    if args.items is None:
+    if args.bundles is not None:
+        items = resolve_bundles(args.bundles)
+    elif args.items is not None:
+        items = args.items
+    else:
         if args.action == "upload":
-            logging.error("Cannot upload without --items")
+            logging.error("Cannot upload without --items or --bundle")
             exit(1)
         else:
             # Download the whole prefix
             items = ["."]
-
-    else:
-        items = args.items
 
     for item in items:
         if action == Action.DOWNLOAD:

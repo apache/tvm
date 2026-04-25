@@ -16,6 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import argparse
+import configparser
 import datetime
 import difflib
 import re
@@ -24,12 +25,43 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import jinja2
-from data import data
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 JENKINS_DIR = REPO_ROOT / "ci" / "jenkins"
 TEMPLATES_DIR = JENKINS_DIR / "templates"
 GENERATED_DIR = JENKINS_DIR / "generated"
+DOCKER_IMAGES_INI = JENKINS_DIR / "docker-images.ini"
+
+# Platform mapping for the CI image registry. The ini section names are the
+# image names; this dict pins their Jenkins agent label. Keep in sync with
+# the [jenkins] section of docker-images.ini when adding/removing images.
+_IMAGE_PLATFORMS = {
+    "ci_arm": "ARM",
+    "ci_cpu": "CPU",
+    "ci_gpu": "GPU",
+    "ci_lint": "CPU",
+    "ci_wasm": "CPU",
+}
+
+
+def _build_render_context() -> dict:
+    """Build the Jinja render context: image metadata + AWS endpoints."""
+    config = configparser.ConfigParser()
+    config.read(DOCKER_IMAGES_INI)
+    images = [
+        {"name": name, "platform": platform}
+        for name, platform in _IMAGE_PLATFORMS.items()
+        if config.has_option("jenkins", name)
+    ]
+    aws_default_region = "us-west-2"
+    return {
+        "images": images,
+        "aws_default_region": aws_default_region,
+        "aws_ecr_url": f"dkr.ecr.{aws_default_region}.amazonaws.com",
+    }
+
+
+data = _build_render_context()
 
 
 class Change:
