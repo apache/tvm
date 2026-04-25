@@ -649,6 +649,24 @@ if(GTEST_FOUND)
   endif()
   set_target_properties(cpptest PROPERTIES EXCLUDE_FROM_ALL 1)
   set_target_properties(cpptest PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)
+  # cpptest is built into ${CMAKE_BINARY_DIR} but the TVM shared libs it
+  # links against (libtvm_allvisible.so / libtvm_compiler.so / libtvm_runtime.so)
+  # now live in ${CMAKE_BINARY_DIR}/lib. CMake's default behaviour bakes the
+  # absolute path of build/lib/ into the binary's RUNPATH, which works in tree
+  # but is not relocatable. Set $ORIGIN/lib (or @loader_path/lib on macOS)
+  # explicitly so the test binary finds its TVM libs relative to its own
+  # location, mirroring the install-time RPATH setup.
+  if(APPLE)
+    set_target_properties(cpptest PROPERTIES
+      BUILD_RPATH "@loader_path/lib"
+      INSTALL_RPATH "@loader_path/lib"
+    )
+  elseif(UNIX)
+    set_target_properties(cpptest PROPERTIES
+      BUILD_RPATH "\$ORIGIN/lib"
+      INSTALL_RPATH "\$ORIGIN/lib"
+    )
+  endif()
   target_compile_definitions(cpptest PRIVATE "NDEBUG")
   if(TVM_DEBUG_WITH_ABI_CHANGE)
     target_compile_definitions(cpptest PRIVATE "TVM_DEBUG_WITH_ABI_CHANGE")
