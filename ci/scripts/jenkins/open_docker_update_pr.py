@@ -17,6 +17,7 @@
 # under the License.
 
 import argparse
+import configparser
 import datetime
 import json
 import logging
@@ -32,7 +33,7 @@ from git_utils import GitHubRepo, git, parse_remote
 from should_rebuild_docker import docker_api
 
 JENKINS_DIR = REPO_ROOT / "ci" / "jenkins"
-IMAGES_FILE = JENKINS_DIR / "data.py"
+IMAGES_FILE = JENKINS_DIR / "docker-images.ini"
 GENERATE_SCRIPT = JENKINS_DIR / "generate.py"
 GITHUB_TOKEN = os.environ["GITHUB_TOKEN"]
 BRANCH = "nightly-docker-update"
@@ -127,33 +128,41 @@ if __name__ == "__main__":
     remote = git(["config", "--get", f"remote.{args.remote}.url"])
     user, repo = parse_remote(remote)
 
-    # Read the existing images from the Jenkinsfile
+    # Read the existing images from ci/jenkins/docker-images.ini.
+    # The ini has a single ``[jenkins]`` section with a shared ``ci_tag`` key
+    # and one ``ci_<name>: tlcpack/ci-<name>:%(ci_tag)s`` entry per image.
+    # Resolve each image to its full spec (with interpolation applied) and
+    # check against Docker Hub for newer tags.
     logging.info(f"Reading {IMAGES_FILE}")
+    config = configparser.ConfigParser()
+    config.read(IMAGES_FILE)
     with open(IMAGES_FILE) as f:
-        content = f.readlines()
+        content = f.read()
 
-    # Build a new Jenkinsfile with the latest images from tlcpack or tlcpackstaging
     replacements = {}
-
-    for line in content:
-        m = re.match(r'"tag": "(.*)",', line.strip())
-        if m is not None:
-            image_spec = m.groups()[0]
-            logging.info(f"Found match on line {line.strip()}")
-            new_image = latest_tlcpackstaging_image(image_spec)
-            if new_image is None:
-                logging.info("No new image found")
-            else:
-                logging.info(f"Using new image {new_image}")
-                new_line = f'        "tag": "{new_image}",\n'
-                replacements[line] = new_line
+    for key in config.options("jenkins"):
+        if key == "ci_tag":
+            continue
+        image_spec = config.get("jenkins", key)
+        logging.info(f"Found {key} = {image_spec}")
+        new_image = latest_tlcpackstaging_image(image_spec)
+        if new_image is None:
+            logging.info("No new image found")
+            continue
+        logging.info(f"Using new image {new_image}")
+        # Rewrite the ``ci_<name>:`` line with the resolved tag (breaking
+        # the ``%(ci_tag)s`` interpolation for that single entry) so the
+        # update is unambiguous and doesn't disturb other images that share
+        # the old tag.
+        old_line_re = re.compile(rf"^{re.escape(key)}\s*[:=].*$", re.MULTILINE)
+        new_line = f"{key}: {new_image}"
+        replacements[old_line_re] = new_line
 
     # Re-generate the Jenkinsfiles
     command = f"python3 {shlex.quote(str(GENERATE_SCRIPT))}"
 
-    content = "".join(content)
-    for old_line, new_line in replacements.items():
-        content = content.replace(old_line, new_line)
+    for old_line_re, new_line in replacements.items():
+        content = old_line_re.sub(new_line, content)
 
     print(f"Updated to:\n{content}")
 
