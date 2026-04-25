@@ -30,10 +30,13 @@ from typing import Literal
 
 # isort: on
 
+import tvm_ffi
+from tvm_ffi.core import String
+
 from tvm import ir, tirx
 from tvm.ir import Type
 from tvm.ir.base import deprecated
-from tvm.runtime import String, convert
+from tvm.runtime import convert
 from tvm.target import Target
 
 # pylint: disable=unused-import
@@ -1302,7 +1305,7 @@ def buffer_store(
     """
     from tvm.arith import Analyzer  # pylint: disable=import-outside-toplevel
 
-    if not isinstance(indices, list | tuple | ir.Array):
+    if not isinstance(indices, list | tuple | tvm_ffi.Array):
         indices = [indices]
 
     expr_indices = []

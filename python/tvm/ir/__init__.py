@@ -32,7 +32,6 @@ from .base import (
     structural_equal,
     structural_hash,
 )
-from .container import Array, Map
 from .expr import BaseExpr, GlobalVar, PrimExpr, Range, RelaxExpr
 from .function import BaseFunc, CallingConv
 from .global_info import GlobalInfo, DummyGlobalInfo, VDevice

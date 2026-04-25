@@ -18,7 +18,6 @@
 
 import tvm_ffi
 
-import tvm
 from tvm import IRModule, Object
 
 from . import _ffi_api
@@ -100,7 +99,7 @@ class GlobalVarSupply(Object):
             self.__init_handle_by_constructor__(_ffi_api.GlobalVarSupply_NameSupply, name_supply)
         elif isinstance(value, NameSupply):
             self.__init_handle_by_constructor__(_ffi_api.GlobalVarSupply_NameSupply, value)
-        elif isinstance(value, list | tvm.container.Array):
+        elif isinstance(value, list | tvm_ffi.Array):
             self.__init_handle_by_constructor__(_ffi_api.GlobalVarSupply_IRModules, value)
         elif isinstance(value, IRModule):
             self.__init_handle_by_constructor__(_ffi_api.GlobalVarSupply_IRModule, value)
