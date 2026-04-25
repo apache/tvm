@@ -340,11 +340,11 @@ struct ThreadedTraceApply {
       trace->ApplyToSchedule(sch, /*remove_postproc=*/true);
       sch->EnterPostproc();
     } catch (const s_tir::ScheduleError& e) {
-      DLOG(WARNING) << "Trace replay failed with ScheduleError: " << e.what();
+      TVM_PY_LOG(WARNING, nullptr) << "Trace replay failed with ScheduleError: " << e.what();
       this->trace_fail_counter_++;
       return std::nullopt;
     } catch (const std::exception& e) {
-      DLOG(WARNING) << "Trace replay failed with exception: " << e.what();
+      TVM_PY_LOG(WARNING, nullptr) << "Trace replay failed with exception: " << e.what();
       this->trace_fail_counter_++;
       return std::nullopt;
     }
