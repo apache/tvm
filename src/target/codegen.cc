@@ -21,11 +21,11 @@
  * \file codegen.cc
  * \brief Common utilities to generated C style code.
  */
+#include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 #include <tvm/runtime/base.h>
-#include <tvm/runtime/module.h>
 #include <tvm/support/io.h>
 #include <tvm/support/serializer.h>
 #include <tvm/target/codegen.h>

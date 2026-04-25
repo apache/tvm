@@ -31,7 +31,6 @@
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/c_backend_api.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/module.h>
 
 #include <algorithm>
 #include <array>
