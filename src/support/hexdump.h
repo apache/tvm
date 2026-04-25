@@ -25,7 +25,9 @@
 #ifndef TVM_SUPPORT_HEXDUMP_H_
 #define TVM_SUPPORT_HEXDUMP_H_
 
+#include <cctype>
 #include <iomanip>
+#include <ostream>
 #include <sstream>
 #include <string>
 
@@ -36,7 +38,37 @@ namespace support {
  * \param s Binary data to print.
  * \param os stream that receives the hexdump.
  */
-void HexDump(const std::string& s, std::ostream& os);
+inline void HexDump(const std::string& s, std::ostream& os) {
+  os << std::hex << std::setfill('0') << std::right;
+
+  int addr_width = 4;
+  for (size_t addr_bytes = s.size() >> 16; addr_bytes != 0; addr_bytes >>= 4) {
+    addr_width++;
+  }
+
+  for (size_t cursor = 0; cursor < s.size(); cursor += 0x10) {
+    os << std::setw(addr_width) << cursor;
+    size_t row_end = cursor + 0x10;
+    if (row_end > s.size()) {
+      row_end = s.size();
+    }
+
+    os << "  ";
+    for (size_t j = cursor; j < row_end; j++) {
+      os << " " << std::setw(2) << (unsigned int)(s[j] & 0xff);
+    }
+
+    for (size_t j = row_end; j < cursor + 0x10; j++) {
+      os << "   ";
+    }
+
+    os << std::setw(1) << "  ";
+    for (size_t j = cursor; j < row_end; j++) {
+      os << (isprint(s[j]) ? s[j] : '.');
+    }
+    os << std::endl;
+  }
+}
 
 /*! \brief return a string containing a hexdump of the data in s */
 inline std::string HexDump(const std::string& s) {

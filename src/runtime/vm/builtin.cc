@@ -746,15 +746,15 @@ extern "C" {
  * \param arg_offset The offset of argument.
  * \return 0 when no error is thrown, -1 when failure happens
  */
-TVM_DLL int TVMBackendAnyListSetPackedArg(void* anylist, int index, TVMFFIAny* args,
-                                          int arg_offset);
+TVM_RUNTIME_DLL int TVMBackendAnyListSetPackedArg(void* anylist, int index, TVMFFIAny* args,
+                                                  int arg_offset);
 /*!
  * \brief Backend function to get anylist item and set into Packed Func call arg stack.
  *
  * \param anylist The handle to the anylist, backed by ffi::Any*
  * \param int The index.
  */
-TVM_DLL int TVMBackendAnyListResetItem(void* anylist, int index);
+TVM_RUNTIME_DLL int TVMBackendAnyListResetItem(void* anylist, int index);
 
 /*!
  * \brief Backend function to set anylist item by moving from packed func return.
@@ -766,8 +766,8 @@ TVM_DLL int TVMBackendAnyListResetItem(void* anylist, int index);
  * \param arg_offset The offset of argument.
  * \return 0 when no error is thrown, -1 when failure happens.
  */
-TVM_DLL int TVMBackendAnyListMoveFromPackedReturn(void* anylist, int index, TVMFFIAny* args,
-                                                  int ret_offset);
+TVM_RUNTIME_DLL int TVMBackendAnyListMoveFromPackedReturn(void* anylist, int index, TVMFFIAny* args,
+                                                          int ret_offset);
 
 int TVMBackendAnyListSetPackedArg(void* anylist, int index, TVMFFIAny* args, int arg_offset) {
   using namespace tvm::runtime;

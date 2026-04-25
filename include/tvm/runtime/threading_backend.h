@@ -76,14 +76,14 @@ class ThreadGroup {
    *        `worker_callback` will only be called for values >= 1. This
    *        allows use of the main thread as a worker.
    */
-  TVM_DLL ThreadGroup(int num_workers, std::function<void(int)> worker_callback,
-                      bool exclude_worker0 = false);
-  TVM_DLL ~ThreadGroup();
+  TVM_RUNTIME_DLL ThreadGroup(int num_workers, std::function<void(int)> worker_callback,
+                              bool exclude_worker0 = false);
+  TVM_RUNTIME_DLL ~ThreadGroup();
 
   /*!
    * \brief Blocks until all non-main threads in the pool finish.
    */
-  TVM_DLL void Join();
+  TVM_RUNTIME_DLL void Join();
 
   enum AffinityMode : int {
     kBig = 1,
@@ -106,8 +106,8 @@ class ThreadGroup {
    *
    * \return The number of workers to use.
    */
-  TVM_DLL int Configure(AffinityMode mode, int nthreads, bool exclude_worker0,
-                        std::vector<unsigned int> cpus = {});
+  TVM_RUNTIME_DLL int Configure(AffinityMode mode, int nthreads, bool exclude_worker0,
+                                std::vector<unsigned int> cpus = {});
 
  private:
   Impl* impl_;
@@ -116,22 +116,22 @@ class ThreadGroup {
 /*!
  * \brief Platform-agnostic no-op.
  */
-TVM_DLL void YieldThread();
+TVM_RUNTIME_DLL void YieldThread();
 /*!
  * \return the maximum number of effective workers for this system.
  */
-TVM_DLL int MaxConcurrency();
+TVM_RUNTIME_DLL int MaxConcurrency();
 /*!
  * \brief Setting the maximum number of available cores.
  */
-TVM_DLL void SetMaxConcurrency(int value);
+TVM_RUNTIME_DLL void SetMaxConcurrency(int value);
 /*!
  * \brief Reset the threads in the pool. All current threads are destroyed and
  * new ones are created.
  *
  * Note that this does nothing when openmp is used.
  */
-TVM_DLL void ResetThreadPool();
+TVM_RUNTIME_DLL void ResetThreadPool();
 
 /*!
  * \brief Configuring the CPU affinity mode for the working threads.
@@ -140,14 +140,14 @@ TVM_DLL void ResetThreadPool();
  * \param nthreads The number of threads to use (0 = use all).
  * \param cpus A list of CPUs is used to set the 'cpu affinity' for the worker threads.
  */
-TVM_DLL void Configure(tvm::runtime::threading::ThreadGroup::AffinityMode mode, int nthreads,
-                       std::vector<unsigned int> cpus);
+TVM_RUNTIME_DLL void Configure(tvm::runtime::threading::ThreadGroup::AffinityMode mode,
+                               int nthreads, std::vector<unsigned int> cpus);
 
 /*!
  * \brief Get the number of threads being used by the TVM runtime
  * \returns The number of threads used.
  */
-TVM_DLL int32_t NumThreads();
+TVM_RUNTIME_DLL int32_t NumThreads();
 
 }  // namespace threading
 

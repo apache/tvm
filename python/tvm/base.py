@@ -19,7 +19,6 @@
 # ruff: noqa: F401
 """Base library for TVM."""
 
-import ctypes
 import os
 import sys
 
@@ -36,16 +35,35 @@ if not (sys.version_info[0] >= 3 and sys.version_info[1] >= 9):
 # library loading
 # ----------------------------
 
+# The TVM C++ side is split into two shared libraries:
+#
+# - ``libtvm_runtime`` — runtime-only sources. Loaded with ``RTLD_GLOBAL`` so
+#   its symbols are exposed to subsequent loads (NVRTC kernels, downstream
+#   modules and so on resolve runtime symbols at link time).
+# - ``libtvm_compiler`` — compiler / IR / transform sources, links against
+#   ``libtvm_runtime``. Loaded with ``RTLD_LOCAL`` so compiler internals
+#   don't leak into the global symbol namespace.
+#
+# If the environment variable ``TVM_USE_RUNTIME_LIB`` is truthy, or the
+# compiler library is simply not present (runtime-only wheel), only the
+# runtime is loaded and ``_LIB`` aliases ``_LIB_RUNTIME``.
+_extra_lib_paths = libinfo.package_lib_paths()
+_LIB_RUNTIME = libinfo.load_lib_ctypes(
+    "tvm", "tvm_runtime", "RTLD_GLOBAL", extra_lib_paths=_extra_lib_paths
+)
 
-def _load_lib():
-    """Load libary by searching possible path."""
-    lib_path = libinfo.find_lib_path()
-    # The dll search path need to be added explicitly in windows
-    if sys.platform.startswith("win32"):
-        for path in libinfo.get_dll_directories():
-            os.add_dll_directory(path)
-    lib = ctypes.CDLL(lib_path[0], ctypes.RTLD_GLOBAL)
-    return lib, os.path.basename(lib_path[0])
+_RUNTIME_ONLY = libinfo.use_runtime_lib()
+if _RUNTIME_ONLY:
+    _LIB = _LIB_RUNTIME
+else:
+    try:
+        _LIB = libinfo.load_lib_ctypes(
+            "tvm", "tvm_compiler", "RTLD_LOCAL", extra_lib_paths=_extra_lib_paths
+        )
+    except RuntimeError:
+        # Compiler lib not present — fall back to runtime-only mode.
+        _LIB = _LIB_RUNTIME
+        _RUNTIME_ONLY = True
 
 
 try:
@@ -56,11 +74,6 @@ except ImportError:
 
 # version number
 __version__ = libinfo.__version__
-# library instance
-_LIB, _LIB_NAME = _load_lib()
-
-# Whether we are runtime only
-_RUNTIME_ONLY = "runtime" in _LIB_NAME
 
 
 if _RUNTIME_ONLY:

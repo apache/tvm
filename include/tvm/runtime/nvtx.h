@@ -31,11 +31,11 @@ namespace runtime {
 class NVTXScopedRange {
  public:
   /*! \brief Enter an NVTX scoped range */
-  TVM_DLL explicit NVTXScopedRange(const char* name);
+  TVM_RUNTIME_DLL explicit NVTXScopedRange(const char* name);
   /*! \brief Enter an NVTX scoped range */
   explicit NVTXScopedRange(const std::string& name) : NVTXScopedRange(name.c_str()) {}
   /*! \brief Exist an NVTX scoped range */
-  TVM_DLL ~NVTXScopedRange();
+  TVM_RUNTIME_DLL ~NVTXScopedRange();
   NVTXScopedRange(const NVTXScopedRange& other) = delete;
   NVTXScopedRange(NVTXScopedRange&& other) = delete;
   NVTXScopedRange& operator=(const NVTXScopedRange& other) = delete;

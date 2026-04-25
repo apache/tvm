@@ -24,6 +24,8 @@
 #ifndef TVM_RUNTIME_REGEX_H_
 #define TVM_RUNTIME_REGEX_H_
 
+#include <tvm/runtime/base.h>
+
 #include <string>
 
 namespace tvm {
@@ -57,7 +59,8 @@ namespace runtime {
  *     defined by `regex_pattern`, and False otherwise.
  */
 
-bool regex_match(const std::string& match_against, const std::string& regex_pattern);
+TVM_RUNTIME_DLL bool regex_match(const std::string& match_against,
+                                 const std::string& regex_pattern);
 
 }  // namespace runtime
 }  // namespace tvm

@@ -308,7 +308,7 @@ class TVM_DLL StmtMutator : protected StmtFunctor<Stmt(const Stmt&)> {
 /*!
  * \brief Visitor that recursively visit stmts and exprs on them.
  */
-class StmtExprVisitor : public ExprVisitor, public StmtVisitor {
+class TVM_DLL StmtExprVisitor : public ExprVisitor, public StmtVisitor {
  public:
   using StmtVisitor::operator();
   using ExprVisitor::operator();

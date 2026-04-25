@@ -127,7 +127,7 @@ under the License.
             <linkerStartOption>-shared</linkerStartOption>
           </linkerStartOptions>
           <linkerEndOptions>
-            <linkerEndOption>-L${project.parent.basedir}/../../build/</linkerEndOption>
+            <linkerEndOption>-L${project.parent.basedir}/../../build/lib/</linkerEndOption>
             <linkerEndOption>-ltvm_runtime</linkerEndOption>
             <linkerEndOption>${ldflags}</linkerEndOption>
           </linkerEndOptions>

@@ -66,8 +66,8 @@ class Allocator {
    *  \param mem_scope The device memory scope hint.
    *  \return The empty Tensor.
    */
-  TVM_DLL Tensor Empty(ffi::Shape shape, DLDataType dtype, Device dev,
-                       ffi::Optional<ffi::String> mem_scope = std::nullopt);
+  TVM_RUNTIME_DLL Tensor Empty(ffi::Shape shape, DLDataType dtype, Device dev,
+                               ffi::Optional<ffi::String> mem_scope = std::nullopt);
   /*! \brief Return the allocator type. */
   inline AllocatorType type() const { return type_; }
   /*! \brief Allocate a buffer given a size, alignment and type.
@@ -77,8 +77,8 @@ class Allocator {
    *  \param type_hint A type hint to the allocator.
    *  \return A sized allocation in the form of a buffer.
    */
-  TVM_DLL virtual Buffer Alloc(Device dev, size_t nbytes, size_t alignment,
-                               DLDataType type_hint) = 0;
+  TVM_RUNTIME_DLL virtual Buffer Alloc(Device dev, size_t nbytes, size_t alignment,
+                                       DLDataType type_hint) = 0;
   /*! \brief Allocate a buffer given a shape and type.
    *  \param dev The device where the array is allocated.
    *  \param shape The shape of the tensor.
@@ -86,8 +86,8 @@ class Allocator {
    *  \param mem_scope A memory scope of the buffer.
    *  \return A sized allocation in the form of a buffer.
    */
-  TVM_DLL virtual Buffer Alloc(Device dev, ffi::Shape shape, DLDataType type_hint,
-                               const std::string& mem_scope = "");
+  TVM_RUNTIME_DLL virtual Buffer Alloc(Device dev, ffi::Shape shape, DLDataType type_hint,
+                                       const std::string& mem_scope = "");
 
   /*! \brief Create a view for the buffer given a shape, type and scope.
    *  \param buffer The existing buffer upon which we need to create a view.
@@ -96,8 +96,9 @@ class Allocator {
    *  \param mem_scope A memory scope of the view.
    *  \return A device pointer to the created view.
    */
-  TVM_DLL virtual void* CreateView(const Buffer& buffer, ffi::Shape shape, DLDataType type_hint,
-                                   const std::string& mem_scope = "global") {
+  TVM_RUNTIME_DLL virtual void* CreateView(const Buffer& buffer, ffi::Shape shape,
+                                           DLDataType type_hint,
+                                           const std::string& mem_scope = "global") {
     return buffer.data;
   }
 
@@ -105,22 +106,22 @@ class Allocator {
    *  \param dev is the device where this view is created
    *  \param data The view pointer to be freed.
    */
-  TVM_DLL virtual void FreeView(Device dev, void* data) {}
+  TVM_RUNTIME_DLL virtual void FreeView(Device dev, void* data) {}
 
   /*! \brief Free a buffer allocated by the allocator.
    *  \param buffer The buffer to free.
    */
-  TVM_DLL virtual void Free(const Buffer& buffer) = 0;
+  TVM_RUNTIME_DLL virtual void Free(const Buffer& buffer) = 0;
   /*! \brief Clear the allocated memory. */
-  TVM_DLL virtual void Clear();
+  TVM_RUNTIME_DLL virtual void Clear();
   /*! \brief The amount of memory currently allocated.
    *  \return The amount of memory currently allocated.
    */
-  TVM_DLL virtual size_t UsedMemory() const = 0;
+  TVM_RUNTIME_DLL virtual size_t UsedMemory() const = 0;
 
  protected:
   /*! \brief Check if the given memory scope is allowed to allocate by the allocator. */
-  TVM_DLL virtual bool AllowMemoryScope(const std::string& mem_scope) const;
+  TVM_RUNTIME_DLL virtual bool AllowMemoryScope(const std::string& mem_scope) const;
 
  private:
   AllocatorType type_;
@@ -128,21 +129,21 @@ class Allocator {
 
 class MemoryManager {
  public:
-  TVM_DLL static MemoryManager* Global();
+  TVM_RUNTIME_DLL static MemoryManager* Global();
   /*!
    * \brief Get or create an allocator given the context and allocator type.
    * \param dev The TVM device
    * \param type The allocator type
    * \return The memory allocator.
    */
-  TVM_DLL static Allocator* GetOrCreateAllocator(Device dev, AllocatorType type);
+  TVM_RUNTIME_DLL static Allocator* GetOrCreateAllocator(Device dev, AllocatorType type);
   /*!
    * \brief Get an allocator given the context.
    * \param dev The TVM device
    * \param type The allocator type
    * \return The memory allocator.
    */
-  TVM_DLL static Allocator* GetAllocator(Device dev, AllocatorType type);
+  TVM_RUNTIME_DLL static Allocator* GetAllocator(Device dev, AllocatorType type);
   /*! \brief Clear the allocators. */
   static void Clear();
 
@@ -164,11 +165,11 @@ class StorageObj : public Object {
   Allocator* allocator = nullptr;
 
   /*! \brief Allocate an Tensor from a given piece of storage. */
-  TVM_DLL Tensor AllocTensor(int64_t offset, ffi::Shape shape, DLDataType dtype);
+  TVM_RUNTIME_DLL Tensor AllocTensor(int64_t offset, ffi::Shape shape, DLDataType dtype);
 
   /*! \brief Allocate an Tensor with memory scope from a given piece of storage. */
-  TVM_DLL Tensor AllocTensorScoped(int64_t offset, ffi::Shape shape, DLDataType dtype,
-                                   ffi::String scope = "global");
+  TVM_RUNTIME_DLL Tensor AllocTensorScoped(int64_t offset, ffi::Shape shape, DLDataType dtype,
+                                           ffi::String scope = "global");
 
   ~StorageObj() {
     if (allocator) {
@@ -183,7 +184,7 @@ class StorageObj : public Object {
 /*! \brief reference to storage. */
 class Storage : public ObjectRef {
  public:
-  TVM_DLL explicit Storage(Buffer buffer, Allocator* allocator);
+  TVM_RUNTIME_DLL explicit Storage(Buffer buffer, Allocator* allocator);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Storage, ObjectRef, StorageObj);
 };

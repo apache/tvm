@@ -87,7 +87,7 @@ struct VMFuncInfo {
  * The executable contains information (e.g. data in different memory regions)
  * to run in a virtual machine.
  */
-class VMExecutable : public ffi::ModuleObj {
+class TVM_RUNTIME_DLL VMExecutable : public ffi::ModuleObj {
  public:
   /*! \brief Get the property of the runtime module .*/
   int GetPropertyMask() const final { return ffi::Module::kBinarySerializable; };

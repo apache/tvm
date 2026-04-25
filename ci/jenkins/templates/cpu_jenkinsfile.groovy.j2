@@ -31,7 +31,7 @@
   )
   cmake_build(ci_cpu, 'build')
   make_cpp_tests(ci_cpu, 'build')
-  {{ m.upload_artifacts(tag='cpu', bundles=["tvm_lib", "cpptest"]) }}
+  {{ m.upload_artifacts(tag='cpu', filenames=tvm_lib + cpptest) }}
 {% endcall %}
 
 {% set test_method_names = [] %}

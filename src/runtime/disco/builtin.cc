@@ -92,11 +92,11 @@ void AllGather(Tensor send, bool in_group, Tensor recv) {
   GetCCLFunc("allgather")(send, in_group, recv);
 }
 
-TVM_DLL void BroadcastFromWorker0(Tensor send, bool in_group, Tensor recv) {
+TVM_RUNTIME_DLL void BroadcastFromWorker0(Tensor send, bool in_group, Tensor recv) {
   GetCCLFunc("broadcast_from_worker0")(send, in_group, recv);
 }
 
-TVM_DLL void ScatterFromWorker0(ffi::Optional<Tensor> send, bool in_group, Tensor recv) {
+TVM_RUNTIME_DLL void ScatterFromWorker0(ffi::Optional<Tensor> send, bool in_group, Tensor recv) {
   GetCCLFunc("scatter_from_worker0")(send, in_group, recv);
 }
 

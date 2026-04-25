@@ -424,7 +424,7 @@ def generate_command(
         docker_env = {
             # Need to specify the library path manually or else TVM can't
             # determine which build directory to use (i.e. if there are
-            # multiple copies of libtvm.so laying around)
+            # multiple copies of libtvm_compiler.so / libtvm_runtime.so laying around)
             "TVM_LIBRARY_PATH": str(REPO_ROOT / get_build_dir(name)),
             "VERBOSE": "true" if verbose else "false",
         }

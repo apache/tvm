@@ -60,13 +60,6 @@ TVM_FFI_STATIC_INIT_BLOCK() { TestAttrs::RegisterReflection(); }
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("testing.GetShapeSize",
-           [](ffi::Shape shape) { return static_cast<int64_t>(shape.size()); })
-      .def("testing.GetShapeElem",
-           [](ffi::Shape shape, int idx) {
-             TVM_FFI_ICHECK_LT(idx, shape.size());
-             return shape[idx];
-           })
       .def_packed("testing.test_wrap_callback",
                   [](ffi::PackedArgs args, ffi::Any* ret) {
                     ffi::Function pf = args[0].cast<ffi::Function>();

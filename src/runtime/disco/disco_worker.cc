@@ -27,7 +27,7 @@
 namespace tvm {
 namespace runtime {
 
-TVM_DLL DiscoWorker* DiscoWorker::ThreadLocal() {
+TVM_RUNTIME_DLL DiscoWorker* DiscoWorker::ThreadLocal() {
   DiscoWorker* ret = ThreadLocalDiscoWorker::Get()->worker;
   TVM_FFI_CHECK(ret, ValueError) << "The current thread is not a DiscoWorker thread";
   return ret;

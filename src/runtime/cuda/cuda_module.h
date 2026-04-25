@@ -25,6 +25,7 @@
 #define TVM_RUNTIME_CUDA_CUDA_MODULE_H_
 
 #include <tvm/ffi/extra/module.h>
+#include <tvm/runtime/base.h>
 
 #include <memory>
 #include <string>
@@ -46,8 +47,9 @@ static constexpr const int kMaxNumGPUs = 32;
  * \param fmap The map function information map of each function.
  * \param cuda_source Optional, CUDA source file
  */
-ffi::Module CUDAModuleCreate(std::string data, std::string fmt,
-                             ffi::Map<ffi::String, FunctionInfo> fmap, std::string cuda_source);
+TVM_RUNTIME_DLL ffi::Module CUDAModuleCreate(std::string data, std::string fmt,
+                                             ffi::Map<ffi::String, FunctionInfo> fmap,
+                                             std::string cuda_source);
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_CUDA_CUDA_MODULE_H_

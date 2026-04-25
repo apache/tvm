@@ -131,16 +131,16 @@ namespace detail {
  *
  * \sa TVM_LOG_CUSTOMIZE
  */
-[[noreturn]] TVM_DLL void LogFatalImpl(const std::string& file, int lineno,
-                                       const std::string& message);
+[[noreturn]] TVM_RUNTIME_DLL void LogFatalImpl(const std::string& file, int lineno,
+                                               const std::string& message);
 
 /*!
  * \brief Custom implementations of LogMessage.
  *
  * \sa TVM_LOG_CUSTOMIZE
  */
-TVM_DLL void LogMessageImpl(const std::string& file, int lineno, int level,
-                            const std::string& message);
+TVM_RUNTIME_DLL void LogMessageImpl(const std::string& file, int lineno, int level,
+                                    const std::string& message);
 
 /*!
  * \brief Class to accumulate an error message and throw it. Do not use
@@ -223,7 +223,7 @@ class LogFatal {
     int lineno_;
   };
 
-  TVM_DLL TVM_NO_INLINE static Entry& GetEntry();
+  TVM_RUNTIME_DLL TVM_NO_INLINE static Entry& GetEntry();
 };
 
 /*!
@@ -233,16 +233,23 @@ class LogFatal {
 class LogMessage {
  public:
   LogMessage(const std::string& file, int lineno, int level) {
+    // Use inline constexpr to avoid ODR-issues with hidden static members
+    // when libtvm_runtime.so is built with -fvisibility=hidden.
+    static constexpr const char* kLevelStrings[] = {
+        ": Debug: ",    // TVM_LOG_LEVEL_DEBUG
+        ": ",           // TVM_LOG_LEVEL_INFO
+        ": Warning: ",  // TVM_LOG_LEVEL_WARNING
+        ": Error: ",    // TVM_LOG_LEVEL_ERROR
+    };
     std::time_t t = std::time(nullptr);
     stream_ << "[" << std::put_time(std::localtime(&t), "%H:%M:%S") << "] " << file << ":" << lineno
-            << level_strings_[level];
+            << kLevelStrings[level];
   }
   TVM_NO_INLINE ~LogMessage() { std::cerr << stream_.str() << std::endl; }
   std::ostringstream& stream() { return stream_; }
 
  private:
   std::ostringstream stream_;
-  TVM_DLL static const char* level_strings_[];
 };
 
 #endif
@@ -259,7 +266,7 @@ class LogMessageVoidify {
 };
 
 /*! \brief Captures the state of the \p TVM_LOG_DEBUG environment flag. */
-class TvmLogDebugSettings {
+class TVM_RUNTIME_DLL TvmLogDebugSettings {
  public:
   /*!
    * \brief Parses the \p TVM_LOG_DEBUG environment flag as per the specification given by
