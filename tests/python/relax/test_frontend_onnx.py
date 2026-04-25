@@ -28,6 +28,7 @@ import numpy as np
 import onnx
 import onnxruntime
 import pytest
+import tvm_ffi
 from onnx import ModelProto, TensorProto, helper
 
 import tvm
@@ -169,7 +170,7 @@ def check_correctness(
             return "other"
 
     def _check_output(tvm_out, ort_out):
-        if isinstance(tvm_out, tuple) and isinstance(ort_out, tvm.runtime.ShapeTuple | list):
+        if isinstance(tvm_out, tuple) and isinstance(ort_out, tvm_ffi.Shape | list):
             assert len(tvm_out) == len(ort_out), "Unequal number of outputs"
             for tvm_out_i, ort_out_i in zip(tvm_out, ort_out):
                 _check_output(tvm_out_i, ort_out_i)
@@ -177,7 +178,7 @@ def check_correctness(
             if check_dtypes:
                 assert tvm_out.numpy().dtype == ort_out.dtype
             tvm.testing.assert_allclose(tvm_out.numpy(), ort_out, rtol=rtol, atol=atol)
-        elif isinstance(tvm_out, tvm.runtime.ShapeTuple) and isinstance(ort_out, np.ndarray):
+        elif isinstance(tvm_out, tvm_ffi.Shape) and isinstance(ort_out, np.ndarray):
             shape_out = tvm.runtime.tensor([int(i) for i in tvm_out])
             if check_dtypes:
                 assert _get_numpy_subdtype(shape_out.numpy()) == _get_numpy_subdtype(ort_out)
@@ -741,7 +742,9 @@ def test_softmax_family_opset1_legacy_ir_semantics(op_name: str, expected_core_o
         outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [2, 3, 4])],
     )
     model = helper.make_model(
-        graph, producer_name="softmax_family_opset1_ir_test", opset_imports=[helper.make_opsetid("", 1)]
+        graph,
+        producer_name="softmax_family_opset1_ir_test",
+        opset_imports=[helper.make_opsetid("", 1)],
     )
     tvm_model = from_onnx(model, opset=1, keep_params_in_input=True)
     call_ops = collect_relax_call_ops(tvm_model["main"])
@@ -5650,6 +5653,7 @@ def test_split_to_sequence_uneven_last_chunk(axis: int):
     model = helper.make_model(graph, producer_name="test_split_to_sequence_uneven")
     check_correctness(model)
 
+
 def test_quantizelinear_singleton_qparams_opset10():
     """QuantizeLinear must treat shape-[1] scale/zp as scalar in opset10."""
     node = helper.make_node("QuantizeLinear", ["x", "scale", "zero_point"], ["y"])
@@ -5722,6 +5726,7 @@ def test_dynamicquantizelinear_opset11():
     x = rg.standard_normal((2, 3, 4)).astype("float32")
     check_correctness(model, inputs={"x": x}, opset=11, atol=1e-5, rtol=1e-5, check_dtypes=True)
 
+
 def test_quantizelinear_default_axis_opset10():
     """opset10 QuantizeLinear should honor default axis=1 (not hardcode axis=0)."""
     node = helper.make_node("QuantizeLinear", ["x", "scale", "zero_point"], ["y"])
@@ -5758,6 +5763,7 @@ def test_dequantizelinear_default_axis_opset10():
 
     x = rg.integers(low=0, high=255, size=(2, 3, 4), dtype=np.uint8)
     check_correctness(model, inputs={"x": x}, opset=10, check_dtypes=True)
+
 
 if __name__ == "__main__":
     tvm.testing.main()

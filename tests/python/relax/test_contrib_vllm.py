@@ -17,6 +17,7 @@
 # ruff: noqa: RUF005
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.testing
@@ -52,7 +53,7 @@ def build_and_run(mod, inputs_np, target, legalize=True):
 
     out = f(*inputs)
 
-    if isinstance(out, tvm.ir.container.Array):
+    if isinstance(out, tvm_ffi.Array):
         return [arr.numpy() for arr in out]
 
     return out.numpy()

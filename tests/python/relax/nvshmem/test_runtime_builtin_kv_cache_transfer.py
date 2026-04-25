@@ -23,6 +23,8 @@ import numpy as np
 import pytest
 import scipy.special
 import torch
+import tvm_ffi
+from tvm_ffi import Shape
 
 import tvm
 import tvm.testing
@@ -41,7 +43,6 @@ from tvm.relax.frontend.nn.llm.kv_cache import (
     tree_attn,
     tree_attn_with_paged_kv_cache,
 )
-from tvm.runtime import ShapeTuple
 from tvm.s_tir import dlight as dl
 
 
@@ -196,7 +197,7 @@ def set_global_func(head_dim, dtype):
 def create_kv_cache(head_dim, dtype, rope_mode, support_sliding_window):
     fcreate = tvm.get_global_func("vm.builtin.paged_attention_kv_cache_create")
     cache = fcreate(
-        tvm.runtime.ShapeTuple(
+        tvm_ffi.Shape(
             [
                 reserved_nseq,
                 maximum_total_seq_length,
@@ -205,12 +206,12 @@ def create_kv_cache(head_dim, dtype, rope_mode, support_sliding_window):
                 int(support_sliding_window),
             ]
         ),
-        tvm.runtime.ShapeTuple([0, num_layers]),
+        tvm_ffi.Shape([0, num_layers]),
         num_qo_heads,
         num_kv_heads,
         head_dim,
         head_dim,  # v_head_dim
-        tvm.runtime.ShapeTuple([int(AttnKind.MHA) for _ in range(num_layers)]),
+        tvm_ffi.Shape([int(AttnKind.MHA) for _ in range(num_layers)]),
         False,  # enable_kv_transfer
         rope_mode,
         rope_scale,
@@ -373,10 +374,10 @@ def apply_attention(
     if not only_update_host:
         fbegin_forward(
             kv_cache,
-            ShapeTuple(seq_ids),
-            ShapeTuple(append_lengths),
+            Shape(seq_ids),
+            Shape(append_lengths),
             (
-                ShapeTuple(flattened_token_tree_parent_ptr)
+                Shape(flattened_token_tree_parent_ptr)
                 if flattened_token_tree_parent_ptr is not None
                 else None
             ),
@@ -569,7 +570,7 @@ def apply_attention(
         seq_ids = [seq_id for seq_id, _ in batch]
         if not only_update_host:
             fcommit_accepted_token_tree_nodes(
-                kv_cache, ShapeTuple(seq_ids), ShapeTuple(accepted_leaf_indices)
+                kv_cache, Shape(seq_ids), Shape(accepted_leaf_indices)
             )
         for i, (accepted_leaf_idx, (seq_id, append_length)) in enumerate(
             zip(accepted_leaf_indices, batch)
@@ -685,7 +686,7 @@ def test_paged_attention_kv_cache_transfer(kv_cache_and_config):
         remote_pos_maps = comm.bcast(remote_pos_maps, root=1)
         comm.Barrier()
         for seq_id in prefill_len.keys():
-            fdisagg_mark_send(kv_cache, seq_id, 0, ShapeTuple(remote_pos_maps[seq_id]), 1)
+            fdisagg_mark_send(kv_cache, seq_id, 0, Shape(remote_pos_maps[seq_id]), 1)
         for batch in prefill_operation_seq:
             apply_attention(kv_cache, rope_mode, batch, cached_k, cached_v, skip_add_sequence=True)
         device.sync()

@@ -19,6 +19,7 @@ import sys
 
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.testing
@@ -83,7 +84,7 @@ def test_make_node():
     assert AA.op == A.op
     assert AA.value_index == A.value_index
 
-    y = tvm.ir.make_node("ir.IntImm", dtype=tvm.runtime.String("int32"), value=10, span=None)
+    y = tvm.ir.make_node("ir.IntImm", dtype=tvm_ffi.core.String("int32"), value=10, span=None)
 
 
 def test_make_sum():
@@ -122,12 +123,12 @@ def test_env_func():
 
 def test_string():
     # non printable str, need to store by b64
-    s1 = tvm.runtime.String("xy\x01z")
+    s1 = tvm_ffi.core.String("xy\x01z")
     s2 = tvm.ir.load_json(tvm.ir.save_json(s1))
     tvm.ir.assert_structural_equal(s1, s2)
 
     # printable str, need to store by repr_str
-    s1 = tvm.runtime.String("xyz")
+    s1 = tvm_ffi.core.String("xyz")
     s2 = tvm.ir.load_json(tvm.ir.save_json(s1))
     tvm.ir.assert_structural_equal(s1, s2)
 

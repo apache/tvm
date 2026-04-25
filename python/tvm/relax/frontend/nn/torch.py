@@ -21,9 +21,9 @@ from collections.abc import Callable
 from typing import Any
 
 import torch
+from tvm_ffi import Array, Shape
 
-from tvm.ir import Array
-from tvm.runtime import ShapeTuple, Tensor, _tensor
+from tvm.runtime import Tensor, _tensor
 from tvm.runtime.vm import VirtualMachine
 
 from . import core
@@ -91,7 +91,7 @@ def _tvm_to_torch(arg):
         return [_tvm_to_torch(i) for i in arg]
     if isinstance(arg, _tensor.Tensor):
         return torch.utils.dlpack.from_dlpack(arg)
-    if isinstance(arg, ShapeTuple):
+    if isinstance(arg, Shape):
         return list(arg)
     raise TypeError(f"Unsupported argument type: {type(arg)}")
 
@@ -108,7 +108,7 @@ def _torch_to_tvm(arg_name, arg_spec, arg_torch):
             raise TypeError(
                 f"Expected argument `{arg_name}` to be `int`, but got {type(arg_torch)}"
             )
-        return ShapeTuple([arg_torch])
+        return Shape([arg_torch])
     if isinstance(arg_spec, _spec.Tuple):
         return [
             _torch_to_tvm(f"{arg_name}[{i}]", x, arg_torch[i])

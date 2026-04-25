@@ -21,6 +21,8 @@ import itertools
 import numpy as np
 import pytest
 import scipy.special
+import tvm_ffi
+from tvm_ffi import Shape
 
 import tvm
 import tvm.testing
@@ -38,7 +40,6 @@ from tvm.relax.frontend.nn.llm.kv_cache import (
     tree_attn_cpu,
     tree_attn_with_paged_kv_cache_cpu,
 )
-from tvm.runtime import ShapeTuple
 from tvm.s_tir import dlight as dl
 
 reserved_nseq = 32
@@ -165,7 +166,7 @@ def set_global_func(head_dim, dtype):
 def create_kv_cache(head_dim, dtype, rope_mode, support_sliding_window):
     fcreate = tvm.get_global_func("vm.builtin.paged_attention_kv_cache_create")
     cache = fcreate(
-        tvm.runtime.ShapeTuple(
+        tvm_ffi.Shape(
             [
                 reserved_nseq,
                 maximum_total_seq_length,
@@ -174,12 +175,12 @@ def create_kv_cache(head_dim, dtype, rope_mode, support_sliding_window):
                 int(support_sliding_window),
             ]
         ),
-        tvm.runtime.ShapeTuple([0, num_layers]),
+        tvm_ffi.Shape([0, num_layers]),
         num_qo_heads,
         num_kv_heads,
         head_dim,
         head_dim,  # v_head_dim
-        tvm.runtime.ShapeTuple([int(AttnKind.MHA) for _ in range(num_layers)]),
+        tvm_ffi.Shape([int(AttnKind.MHA) for _ in range(num_layers)]),
         False,  # enable_kv_transfer
         rope_mode,
         rope_scale,
@@ -337,10 +338,10 @@ def apply_attention(
 
     fbegin_forward(
         kv_cache,
-        ShapeTuple(seq_ids),
-        ShapeTuple(append_lengths),
+        Shape(seq_ids),
+        Shape(append_lengths),
         (
-            ShapeTuple(flattened_token_tree_parent_ptr)
+            Shape(flattened_token_tree_parent_ptr)
             if flattened_token_tree_parent_ptr is not None
             else None
         ),
@@ -490,9 +491,7 @@ def apply_attention(
 
     if accepted_leaf_indices is not None:
         seq_ids = [seq_id for seq_id, _ in batch]
-        fcommit_accepted_token_tree_nodes(
-            kv_cache, ShapeTuple(seq_ids), ShapeTuple(accepted_leaf_indices)
-        )
+        fcommit_accepted_token_tree_nodes(kv_cache, Shape(seq_ids), Shape(accepted_leaf_indices))
         for i, (accepted_leaf_idx, (seq_id, append_length)) in enumerate(
             zip(accepted_leaf_indices, batch)
         ):

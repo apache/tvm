@@ -21,6 +21,8 @@ from collections.abc import Callable
 
 import numpy as np
 import pytest
+import tvm_ffi
+from tvm_ffi import Shape
 
 import tvm
 import tvm.script
@@ -29,7 +31,6 @@ from tvm import relax, rpc, te, tirx, topi
 from tvm.contrib import cc, popen_pool, utils
 from tvm.relax.testing import nn
 from tvm.relax.testing.vm import check_saved_func
-from tvm.runtime import ShapeTuple
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tirx as T
@@ -544,10 +545,10 @@ def test_vm_relax_symbolic_shape_tuple(exec_mode):
 
     func = vm["main"]
 
-    assert func(ShapeTuple([2, 3])) == (4, 9)
+    assert func(Shape([2, 3])) == (4, 9)
 
     with pytest.raises(ValueError):
-        func(ShapeTuple([2, 3, 4]))
+        func(Shape([2, 3, 4]))
 
     with pytest.raises(TypeError):
         func(R.prim_value(2))
@@ -570,7 +571,7 @@ def test_vm_relax_symbolic_prim_value(exec_mode):
     assert func(2) == 4
 
     with pytest.raises(TypeError):
-        func(ShapeTuple([2]))
+        func(Shape([2]))
 
 
 def test_vm_relax_multiple_symbolic_prim_value(exec_mode):
@@ -598,13 +599,13 @@ def test_vm_relax_multiple_symbolic_prim_value(exec_mode):
 
     func = vm["main"]
 
-    assert func(2, ShapeTuple([4, 12]), 6) == (4, 7)
+    assert func(2, Shape([4, 12]), 6) == (4, 7)
 
     with pytest.raises(RuntimeError):
-        func(2, ShapeTuple([4, 12]), 1)
+        func(2, Shape([4, 12]), 1)
 
     with pytest.raises(tvm.TVMError):
-        func(ShapeTuple([2]))
+        func(Shape([2]))
 
 
 @pytest.mark.xfail(reason="Current support for R.Prim with known value is primarily for int64")
@@ -1044,8 +1045,8 @@ def test_multi_systemlib(exec_mode):
         vmA = relax.VirtualMachine(tvm.runtime.system_lib("libA_"), tvm.cpu())
         vmB = relax.VirtualMachine(tvm.runtime.system_lib("libB_"), tvm.cpu())
 
-        retA = vmA["main"](tvm.runtime.ShapeTuple([1]))
-        retB = vmB["main"](tvm.runtime.ShapeTuple([2]))
+        retA = vmA["main"](tvm_ffi.Shape([1]))
+        retB = vmB["main"](tvm_ffi.Shape([2]))
         np.testing.assert_equal(retA.numpy(), np.array([0, 0]).astype("float32"))
         np.testing.assert_equal(retB.numpy(), np.array([1, 1]).astype("float32"))
 

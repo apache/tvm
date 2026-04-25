@@ -84,13 +84,15 @@ def test_popen_worker_recycles():
 
 
 def test_popen_pool_executor():
+    import tvm_ffi
+
     import tvm
 
     pool = PopenPoolExecutor(max_workers=2, timeout=0.01)
     value1 = pool.submit(identity_after, 1, 100)
     value2 = pool.submit(terminate_self)
     value3 = pool.submit(identity_after, 3, 0)
-    value4 = pool.submit(tvm.runtime.String, "xyz")
+    value4 = pool.submit(tvm_ffi.core.String, "xyz")
 
     with pytest.raises(TimeoutError):
         value1.result()

@@ -19,6 +19,7 @@
 from collections.abc import Callable
 
 import numpy as np
+import tvm_ffi
 
 import tvm
 import tvm.testing
@@ -42,7 +43,7 @@ def _numpy_to_tvm(data):
 
 
 def _tvm_to_numpy(data):
-    if isinstance(data, list | tuple | tvm.ir.Array):
+    if isinstance(data, list | tuple | tvm_ffi.Array):
         return [_tvm_to_numpy(_data) for _data in data]
     return data.numpy()
 

@@ -23,9 +23,9 @@
 from typing import Union
 
 import tvm_ffi
+from tvm_ffi import Array
 
 import tvm
-from tvm.ir.container import Array
 from tvm.ir.expr import PrimExpr
 from tvm.ir.op import Op
 
@@ -848,7 +848,7 @@ def is_shape(shape: list[tvm.ir.PrimExpr]) -> "PrimArrPattern":
     Raises
     ------
     ValueError
-        If the argument shape is not a list/tuple/tvm.ir.Array
+        If the argument shape is not a list/tuple/tvm_ffi.Array
 
     Note
     ----
@@ -856,7 +856,7 @@ def is_shape(shape: list[tvm.ir.PrimExpr]) -> "PrimArrPattern":
     puts assumptions on the shape of the tensor matched by pattern p. While
     is_shape directly matches the shape (an array of PrimExpr).
     """
-    if not isinstance(shape, list | tuple | tvm.ir.Array):
+    if not isinstance(shape, list | tuple | Array):
         raise ValueError("is_shape takes a list or tuple as input.")
     return PrimArrPattern(shape)
 

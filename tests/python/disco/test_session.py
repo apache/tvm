@@ -25,12 +25,13 @@ import threading
 
 import numpy as np
 import pytest
+from tvm_ffi import Shape
+from tvm_ffi.core import String
 
 import tvm
 import tvm.testing
 from tvm import relax as rx
 from tvm.exec import disco_worker as _  # pylint: disable=unused-import
-from tvm.runtime import ShapeTuple, String
 from tvm.runtime import disco as di
 from tvm.script import ir as I
 from tvm.script import relax as R
@@ -185,10 +186,10 @@ def test_shape_tuple(session_kind):
     num_workers = 4
     sess = session_kind(num_workers=num_workers)
     func: di.DPackedFunc = sess.get_global_func("tests.disco.shape_tuple")
-    result: di.DRef = func(ShapeTuple([1, 2, 3]))
+    result: di.DRef = func(Shape([1, 2, 3]))
     for i in range(num_workers):
         value = result.debug_get_from_remote(i)
-        assert isinstance(value, ShapeTuple)
+        assert isinstance(value, Shape)
         assert list(value) == [1, 2, 3, 4, 5]
 
 

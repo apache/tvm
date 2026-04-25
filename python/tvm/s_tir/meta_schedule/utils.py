@@ -24,12 +24,11 @@ from typing import Any
 
 import numpy as np  # type: ignore
 import psutil  # type: ignore
-from tvm_ffi import get_global_func, register_global_func
+from tvm_ffi import Array, Function, Map, get_global_func, register_global_func
 
 from tvm.error import TVMError
-from tvm.ir import Array, IRModule, Map
+from tvm.ir import IRModule
 from tvm.rpc import RPCSession
-from tvm.runtime import PackedFunc
 from tvm.tirx import FloatImm, IntImm
 
 
@@ -310,21 +309,21 @@ def get_global_func_on_rpc_session(
     session: RPCSession,
     name: str,
     extra_error_msg: str | None = None,
-) -> PackedFunc:
-    """Get a PackedFunc from the global registry from an RPCSession.
+) -> Function:
+    """Get a Function from the global registry from an RPCSession.
 
     Parameters
     ----------
     session : RPCSession
         The RPCSession to be retrieved from
     name : str
-        The name of the PackedFunc
+        The name of the Function
     extra_error_msg : Optional[str]
         Extra information to provide in the error message
 
     Returns
     -------
-    result : PackedFunc
+    result : Function
         The result
     """
     try:

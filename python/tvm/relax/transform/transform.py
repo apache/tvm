@@ -27,9 +27,9 @@ from typing import Optional, Union
 
 import numpy as np  # type: ignore
 import tvm_ffi
+from tvm_ffi import Array
 
 import tvm.ir
-from tvm.ir.container import Array
 from tvm.relax import Expr, StructInfo, Var
 from tvm.relax.dpl import DFPattern
 from tvm.runtime import Object, Tensor

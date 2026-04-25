@@ -21,9 +21,9 @@
 from enum import IntEnum
 
 import tvm_ffi
+from tvm_ffi import Shape
 
 import tvm
-from tvm.runtime.container import ShapeTuple
 
 from . import _ffi_api
 from .vm_build import VMExecutable
@@ -121,10 +121,10 @@ class ExecBuilder(tvm_ffi.core.Object):
         if args is not None:
             for arg in args:
                 if isinstance(arg, tuple):
-                    shape_tuple = ShapeTuple(arg)
+                    shape_tuple = Shape(arg)
                     new_arg = self.convert_constant(shape_tuple)
                     args_.append(new_arg)
-                elif isinstance(arg, tvm.runtime.Tensor | tvm.DataType | ShapeTuple):
+                elif isinstance(arg, tvm.runtime.Tensor | tvm.DataType | Shape):
                     new_arg = self.convert_constant(arg)
                     args_.append(new_arg)
                 else:

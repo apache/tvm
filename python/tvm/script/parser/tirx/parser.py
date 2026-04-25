@@ -20,6 +20,8 @@ import contextlib
 from functools import partial
 from typing import Any
 
+import tvm_ffi
+
 import tvm
 from tvm.ir import GlobalVar, PrimType
 from tvm.tirx import Buffer, IterVar, PrimExpr, Var
@@ -91,7 +93,7 @@ def bind_for_value(self: Parser, node: doc.expr, var_name: str, value: Any) -> A
     res : Any
         The bound value.
     """
-    if isinstance(value, list | tuple | tvm.ir.Array):
+    if isinstance(value, list | tuple | tvm_ffi.Array):
         for i, v in enumerate(value):
             bind_for_value(self, node, f"{var_name}_{i}", v)
         return value

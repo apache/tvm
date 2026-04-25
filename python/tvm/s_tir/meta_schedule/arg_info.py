@@ -18,10 +18,10 @@
 
 from typing import Any
 
-from tvm_ffi import register_object
+from tvm_ffi import Shape, register_object
 
 from tvm.ir import IRModule
-from tvm.runtime import DataType, Object, ShapeTuple
+from tvm.runtime import DataType, Object
 from tvm.tirx import PrimFunc
 
 from . import _ffi_api
@@ -95,17 +95,17 @@ class TensorInfo(ArgInfo):
     ----------
     dtype : DataType
         The data type of the tensor.
-    shape : ShapeTuple
+    shape : Shape
         The shape of the tensor.
     """
 
     dtype: DataType
-    shape: ShapeTuple
+    shape: Shape
 
     def __init__(
         self,
         dtype: DataType,
-        shape: ShapeTuple | list[int],
+        shape: Shape | list[int],
     ) -> None:
         """Constructor
 
@@ -113,13 +113,13 @@ class TensorInfo(ArgInfo):
         ----------
         dtype : DataType
             The data type of the tensor.
-        shape : ShapeTuple
+        shape : Shape
             The shape of the tensor.
         """
-        if isinstance(shape, ShapeTuple):
+        if isinstance(shape, Shape):
             shape_tuple = shape
         else:
-            shape_tuple = ShapeTuple(shape)
+            shape_tuple = Shape(shape)
         self.__init_handle_by_constructor__(
             _ffi_api.TensorInfo,  # type: ignore # pylint: disable=no-member
             dtype,

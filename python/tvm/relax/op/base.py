@@ -19,6 +19,8 @@
 
 from collections.abc import Callable
 
+import tvm_ffi
+
 import tvm
 import tvm.runtime
 from tvm.runtime import ObjectConvertible
@@ -450,20 +452,20 @@ def render_object(val: tvm.Object) -> str:
     """
     if isinstance(val, tvm.runtime.Tensor):
         return str(val)
-    if isinstance(val, tvm.ir.Array):
+    if isinstance(val, tvm_ffi.Array):
         fields = ", ".join([render_object(val[i]) for i in range(len(val))])
         return f"({fields})"
     return str(val)
 
 
 @tvm.register_global_func("relax.run.shape_to_tensor")
-def relax_shape_to_tensor(shape_tuple: tvm.runtime.ShapeTuple) -> tvm.runtime.Tensor:
+def relax_shape_to_tensor(shape_tuple: tvm_ffi.Shape) -> tvm.runtime.Tensor:
     """
-    Takes a ShapeTuple and convert it to Tensor.
+    Takes a Shape and convert it to Tensor.
 
     Parameters
     ----------
-    shape_tuple: tvm.runtime.ShapeTuple
+    shape_tuple: tvm_ffi.Shape
         Shape tuple that we want to convert to Tensor at runtime
     """
     return tvm.runtime.tensor([int(v) for v in shape_tuple])

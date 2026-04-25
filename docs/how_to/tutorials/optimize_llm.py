@@ -61,13 +61,14 @@ import os
 from pathlib import Path
 from pprint import pprint
 
+from tvm_ffi import Shape
+
 import tvm
 from tvm import relax, te, tirx
 from tvm.relax import register_pipeline
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 from tvm.relax.frontend.nn.llm.kv_cache import PagedKVCache, TIRPagedKVCache
-from tvm.runtime import ShapeTuple
 from tvm.s_tir import dlight
 
 ######################################################################
@@ -534,10 +535,10 @@ if not IS_IN_CI:
 
 if not IS_IN_CI:
     kv_cache = vm["create_tir_paged_kv_cache"](
-        ShapeTuple([1]),  # max_batch_size=1
-        ShapeTuple([2048]),  # max_total_seq_len=2048
-        ShapeTuple([2048]),  # prefill_chunk_size=2048
-        ShapeTuple([16]),  # page_size=16
+        Shape([1]),  # max_batch_size=1
+        Shape([2048]),  # max_total_seq_len=2048
+        Shape([2048]),  # prefill_chunk_size=2048
+        Shape([16]),  # page_size=16
     )
 
 
@@ -553,7 +554,7 @@ nd_view_func = tvm.get_global_func("vm.builtin.reshape")
 def embed(tokens, params):
     _embed = vm["embed"](tokens, params)
     # Reshape hidden from [seq_len, hidden_size] to [1, seq_len, hidden_size]
-    _embed = nd_view_func(_embed, ShapeTuple([1, _embed.shape[0], _embed.shape[1]]))
+    _embed = nd_view_func(_embed, Shape([1, _embed.shape[0], _embed.shape[1]]))
     return _embed
 
 
@@ -575,7 +576,7 @@ if not IS_IN_CI:
     seq_id = 0
     add_sequence_func(kv_cache, seq_id)
     hidden_states = embed(tokens, params)
-    begin_forward_func(kv_cache, ShapeTuple([seq_id]), ShapeTuple([input_len]))
+    begin_forward_func(kv_cache, Shape([seq_id]), Shape([input_len]))
     logits, kv_cache = vm["prefill"](hidden_states, kv_cache, params)
     end_forward_func(kv_cache)
 
@@ -611,7 +612,7 @@ if not IS_IN_CI:
     while last_token != tokenizer.eos_token_id:
         tokens = tvm.runtime.tensor(np.array([last_token]).astype("int32"), device=dev)
         hidden_states = embed(tokens, params)
-        begin_forward_func(kv_cache, ShapeTuple([seq_id]), ShapeTuple([1]))
+        begin_forward_func(kv_cache, Shape([seq_id]), Shape([1]))
         logits, kv_cache = vm["decode"](hidden_states, kv_cache, params)
 
         end_forward_func(kv_cache)

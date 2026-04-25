@@ -97,6 +97,7 @@ and the Firefly-RK3399 for an OpenCL example.
 # Here we will declare a simple kernel on the local machine:
 
 import numpy as np
+import tvm_ffi
 
 import tvm
 from tvm import rpc, te
@@ -481,7 +482,7 @@ def run_pytorch_model_via_rpc():
     output = vm.get_outputs("main")
 
     # Extract result (handle both tuple and single tensor outputs)
-    if isinstance(output, tvm.ir.Array) and len(output) > 0:
+    if isinstance(output, tvm_ffi.Array) and len(output) > 0:
         result = output[0]
     else:
         result = output

@@ -22,13 +22,12 @@ import json
 import tempfile
 
 import numpy as np
-from tvm_ffi import register_global_func
+from tvm_ffi import Shape, register_global_func
 
 import tvm
 import tvm.testing
 from tvm import relax as rx
 from tvm.contrib import tvmjs
-from tvm.runtime import ShapeTuple
 from tvm.runtime import disco as di
 from tvm.s_tir import dlight as dl
 from tvm.script import ir as I
@@ -150,8 +149,8 @@ def test_load_shard():
         sess.init_ccl("nccl", *devices)
         loader = _create_loader(sess, path, param_dict, shard_info)
         loader_load = sess.get_global_func("runtime.disco.ShardLoaderLoad")
-        d_0 = loader_load(loader, ShapeTuple([0]))
-        d_1 = loader_load(loader, ShapeTuple([1]))
+        d_0 = loader_load(loader, Shape([0]))
+        d_1 = loader_load(loader, Shape([1]))
         np.testing.assert_equal(
             param_dict["x_0"][:, 0:64],
             d_0.debug_get_from_remote(0).numpy(),
@@ -198,8 +197,8 @@ def test_load_presharded():
         loader = _create_presharded_loader(sess, path)
         loader_load = sess.get_global_func("runtime.disco.ShardLoaderLoadPresharded")
 
-        d_0 = loader_load(loader, ShapeTuple([0]))
-        d_1 = loader_load(loader, ShapeTuple([1]))
+        d_0 = loader_load(loader, Shape([0]))
+        d_1 = loader_load(loader, Shape([1]))
 
         np.testing.assert_equal(
             param_dict["x_0"][:, 0:64],
@@ -446,7 +445,7 @@ def test_load_qkv_proj_shard():  # pylint: disable=too-many-locals
         sess.init_ccl("nccl", *devices)
         loader = _create_loader(sess, path, param_dict, shard_info)
         loader_load = sess.get_global_func("runtime.disco.ShardLoaderLoad")
-        d_0 = loader_load(loader, ShapeTuple([0]))
+        d_0 = loader_load(loader, Shape([0]))
         np.testing.assert_equal(
             np_qkv[0],
             d_0.debug_get_from_remote(0).numpy(),

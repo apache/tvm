@@ -62,6 +62,8 @@ except ImportError:  # pragma: no cover
 # model is exported to a :py:class:`torch.export.ExportedProgram` and then
 # translated into a Relax ``IRModule``.
 
+import tvm_ffi
+
 import tvm
 from tvm import relax
 from tvm.relax.frontend.torch import from_exported_program
@@ -174,7 +176,7 @@ if RUN_EXAMPLE:
     # TVM returns Array objects for tuple outputs, access via indexing.
     # For models imported from PyTorch, outputs are typically tuples (even for single outputs).
     # For ONNX models, outputs may be a single Tensor directly.
-    if isinstance(tvm_output, tvm.ir.Array) and len(tvm_output) > 0:
+    if isinstance(tvm_output, tvm_ffi.Array) and len(tvm_output) > 0:
         result_tensor = tvm_output[0]
     else:
         result_tensor = tvm_output
@@ -263,7 +265,7 @@ if RUN_EXAMPLE:
 #
 #    # Step 6: Extract result (output may be tuple or single Tensor)
 #    # PyTorch models typically return tuples, ONNX models may return a single Tensor
-#    if isinstance(output, tvm.ir.Array) and len(output) > 0:
+#    if isinstance(output, tvm_ffi.Array) and len(output) > 0:
 #        result_tensor = output[0]
 #    else:
 #        result_tensor = output

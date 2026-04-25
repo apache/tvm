@@ -22,11 +22,12 @@ import os
 from typing import Any, Optional, Union
 
 import numpy as np
+from tvm_ffi import Function
 
 import tvm
 from tvm import relax, tirx
 from tvm.ir import IRModule
-from tvm.runtime import Device, PackedFunc, Tensor
+from tvm.runtime import Device, Tensor
 from tvm.target import Target
 
 try:
@@ -100,8 +101,8 @@ class BasePyModule:
 
         self.__getattr__ = _getattr_python_function
 
-        self.compiled_tir_funcs: dict[str, PackedFunc] = {}
-        self.extern_funcs: dict[str, PackedFunc] = {}
+        self.compiled_tir_funcs: dict[str, Function] = {}
+        self.extern_funcs: dict[str, Function] = {}
         self.tir_func_names: list[str] = []
         self.relax_func_names: list[str] = []
         self.relax_vm: relax.VirtualMachine | None = None
@@ -450,7 +451,7 @@ class BasePyModule:
             numpy_array = tvm_tensor.numpy()
             return torch.from_numpy(numpy_array)
 
-    def get_function(self, name: str) -> PackedFunc | None:
+    def get_function(self, name: str) -> Function | None:
         """Get a compiled function by name."""
         if name in self.compiled_tir_funcs:
             return self.compiled_tir_funcs[name]

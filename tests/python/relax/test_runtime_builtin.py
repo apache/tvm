@@ -17,6 +17,7 @@
 # ruff: noqa: F401
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.testing
@@ -31,7 +32,7 @@ def test_make_shape():
     heap = tvm.runtime.tensor(np.arange(10).astype("int64"))
     s = make_shape(heap, 3, MK.USE_IMM, 10, MK.LOAD_SHAPE, 0, MK.LOAD_SHAPE, 2)
 
-    assert s == tvm.runtime.container.ShapeTuple([10, 0, 2])
+    assert s == tvm_ffi.Shape([10, 0, 2])
 
 
 def test_match_shape():
@@ -41,7 +42,7 @@ def test_match_shape():
 
     assert heap.numpy()[2] == 0
 
-    s = tvm.runtime.container.ShapeTuple([1, 2, 3])
+    s = tvm_ffi.Shape([1, 2, 3])
     x = tvm.runtime.tensor(np.zeros([1, 2, 3]))
 
     match_shape(s, heap, 3, MS.ASSERT_EQUAL_TO_IMM, 1, MS.STORE_TO_HEAP, 2, MS.NO_OP, 0, "")
@@ -70,7 +71,7 @@ def test_match_shape():
 
 def test_check_shape_info():
     check_shape_info = tvm.get_global_func("vm.builtin.check_shape_info")
-    s = tvm.runtime.container.ShapeTuple([1, 2, 3])
+    s = tvm_ffi.Shape([1, 2, 3])
 
     check_shape_info(s, 3, "")
     check_shape_info(s, -1, "")
@@ -157,12 +158,12 @@ def test_attention_kv_cache():
     fappend = tvm.get_global_func("vm.builtin.attention_kv_cache_append")
     fview = tvm.get_global_func("vm.builtin.attention_kv_cache_view")
 
-    cache = fcreate(tvm.runtime.empty((1, 2), dtype="int32"), tvm.runtime.ShapeTuple([2, 2]), 0)
+    cache = fcreate(tvm.runtime.empty((1, 2), dtype="int32"), tvm_ffi.Shape([2, 2]), 0)
     num_steps = 2
     for i in range(num_steps):
         cache = fappend(cache, tvm.runtime.tensor(i * np.ones((1, 2)).astype("int32")))
 
-    res = fview(cache, tvm.runtime.ShapeTuple((num_steps, 2))).numpy()
+    res = fview(cache, tvm_ffi.Shape((num_steps, 2))).numpy()
     for i in range(num_steps):
         assert res[i][0] == i
         assert res[i][1] == i
@@ -221,7 +222,7 @@ def test_attention_kv_cache_window_override():
     current_pos = 4
     cache = fcreate(
         tvm.runtime.tensor(np.full((16, 2), -1).astype("int32")),
-        tvm.runtime.ShapeTuple([16, 2]),
+        tvm_ffi.Shape([16, 2]),
         current_pos,
     )
     np_all_arrays = np.zeros((0, 2)).astype("int32")
@@ -233,7 +234,7 @@ def test_attention_kv_cache_window_override():
         cache = foverride(cache, tvm.runtime.tensor(np_array), 16)
         current_pos = (current_pos + i) % 16
 
-    res = fview(cache, tvm.runtime.ShapeTuple((16, 2))).numpy()
+    res = fview(cache, tvm_ffi.Shape((16, 2))).numpy()
 
     # unrotate cache and assert cache matches last 16 elements
     assert (
@@ -253,7 +254,7 @@ def test_attention_kv_cache_window_override_with_sinks():
 
     cache = fcreate(
         tvm.runtime.tensor(np.full((16, 2), -1).astype("int32")),
-        tvm.runtime.ShapeTuple([16, 2]),
+        tvm_ffi.Shape([16, 2]),
         current_pos,
     )
     np_all_arrays = np.zeros((0, 2)).astype("int32")
@@ -270,7 +271,7 @@ def test_attention_kv_cache_window_override_with_sinks():
             current_pos += 1
             has_sink = current_pos >= num_attention_sinks
 
-    res = fview(cache, tvm.runtime.ShapeTuple((16, 2))).numpy()
+    res = fview(cache, tvm_ffi.Shape((16, 2))).numpy()
 
     # unrotate cache and assert cache matches last 16 elements
     assert (

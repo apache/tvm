@@ -22,6 +22,7 @@ Restrictions: all shape lowered, explicit allocation.
 
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.testing
@@ -267,7 +268,7 @@ def test_shape_check_builtin(exec_mode):
     vm = relax.VirtualMachine(ex, tvm.cpu())
     x = tvm.runtime.tensor(np.zeros((1, 2)).astype("float32"))
     res = vm["main"](x)
-    assert res == tvm.runtime.container.ShapeTuple([2, 1, 2])
+    assert res == tvm_ffi.Shape([2, 1, 2])
 
     # wrong input type
     with pytest.raises(TypeError):

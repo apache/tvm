@@ -52,7 +52,7 @@ def upsampling(
     method : {"bilinear", "nearest_neighbor", "bicubic"}
         Method to be used for upsampling.
 
-    output_shape: tvm.tirx.container.Array, optional
+    output_shape: tvm_ffi.Array, optional
         Shape to return. If left None will be inferred
         (If shape is determined dynamically, pass out_dtype.shape as output_shape)
 
@@ -147,7 +147,7 @@ def upsampling3d(
         Refer to the ONNX Resize operator specification for details.
         Available options are "half_pixel", "align_corners" and "asymmetric".
 
-    output_shape: tvm.tirx.container.Array, optional
+    output_shape: tvm_ffi.Array, optional
         Shape to return. If left None will be inferred
         (If shape is determined dynamically, pass out_dtype.shape as output_shape)
 

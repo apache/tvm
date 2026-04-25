@@ -17,10 +17,10 @@
 """Target data structure."""
 
 import tvm_ffi
+from tvm_ffi import Map
+from tvm_ffi.core import String
 
-from tvm.ir.container import Map
 from tvm.runtime import Device, Object, convert
-from tvm.runtime.container import String
 
 from . import _ffi_api
 

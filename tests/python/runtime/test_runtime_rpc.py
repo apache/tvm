@@ -16,16 +16,17 @@
 # under the License.
 # ruff: noqa: E712, F841
 
+import gc
 import multiprocessing
 import os
 import stat
 import sys
 import tempfile
 import time
-import gc
 
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.testing
@@ -119,8 +120,8 @@ def test_rpc_runtime_string():
 
     def check_remote():
         func = client.get_function("rpc.test.runtime_str_concat")
-        x = tvm.runtime.container.String("abc")
-        y = tvm.runtime.container.String("def")
+        x = tvm_ffi.core.String("abc")
+        y = tvm_ffi.core.String("def")
         assert str(func(x, y)) == "abcdef"
 
     check_remote()

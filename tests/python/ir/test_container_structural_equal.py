@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import pytest
+import tvm_ffi
 from tvm_ffi.access_path import AccessPath
 
 import tvm
@@ -114,8 +115,8 @@ def test_array_structural_equal_to_self(contents):
     ],
 )
 def test_shape_tuple_structural_equal_to_self(contents):
-    a = tvm.runtime.ShapeTuple(list(contents))
-    b = tvm.runtime.ShapeTuple(list(contents))
+    a = tvm_ffi.Shape(list(contents))
+    b = tvm_ffi.Shape(list(contents))
     assert get_first_mismatch_ensure_symmetry(a, b) is None
 
 

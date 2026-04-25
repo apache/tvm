@@ -19,6 +19,8 @@ import itertools
 import numpy as np
 import pytest
 import torch
+import tvm_ffi
+from tvm_ffi import Shape
 
 import tvm
 import tvm.testing
@@ -32,7 +34,6 @@ from tvm.relax.frontend.nn.llm.kv_cache import (
     _kv_cache_transpose_append_mla,
     _merge_state_inplace,
 )
-from tvm.runtime import ShapeTuple
 from tvm.s_tir import dlight as dl
 
 reserved_nseq = 32
@@ -164,7 +165,7 @@ def create_kv_cache(dtype):
     fcreate = tvm.get_global_func("vm.builtin.paged_attention_kv_cache_create")
     fdumb = tvm.get_global_func("test.dumb_function")
     cache = fcreate(
-        tvm.runtime.ShapeTuple(
+        tvm_ffi.Shape(
             [
                 reserved_nseq,
                 maximum_total_seq_length,
@@ -173,12 +174,12 @@ def create_kv_cache(dtype):
                 0,
             ]
         ),
-        tvm.runtime.ShapeTuple([0, num_layers]),
+        tvm_ffi.Shape([0, num_layers]),
         num_attention_heads,
         1,  # num_kv_heads
         kv_lora_rank + qk_rope_head_dim,
         kv_lora_rank,
-        tvm.runtime.ShapeTuple([int(AttnKind.MLA) for _ in range(num_layers)]),
+        tvm_ffi.Shape([int(AttnKind.MLA) for _ in range(num_layers)]),
         False,  # enable_kv_transfer
         RopeMode.NONE,
         1,
@@ -255,7 +256,7 @@ def apply_attention(
                 device=device_torch,
             )
 
-    fbegin_forward(kv_cache, ShapeTuple(seq_ids), ShapeTuple(append_lengths), None)
+    fbegin_forward(kv_cache, Shape(seq_ids), Shape(append_lengths), None)
 
     global_new_q = torch.zeros(
         (num_layers, 0, num_attention_heads, qk_nope_head_dim + qk_rope_head_dim),

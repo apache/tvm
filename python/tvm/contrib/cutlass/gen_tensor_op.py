@@ -473,7 +473,7 @@ def instantiate_template(func_name, annotations, func_args):
     func_name: str
         A string to identify the type of the kernel (dense/matmul, batched_matmul, or conv2d).
 
-    annotations: container.Map
+    annotations: tvm_ffi.Map
         Key and value pairs annotated during kernel selection.
 
     func_args: list
