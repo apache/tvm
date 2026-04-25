@@ -27,6 +27,7 @@
 #include <tvm/ffi/extra/c_env_api.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/runtime/device_api.h>
 #include <tvm/support/io.h>
 
 #include <array>

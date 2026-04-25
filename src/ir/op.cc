@@ -25,7 +25,6 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/type.h>
-#include <tvm/runtime/module.h>
 #include <tvm/tirx/op_attr_types.h>
 
 #include <memory>
