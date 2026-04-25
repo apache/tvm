@@ -16,21 +16,25 @@
 # under the License.
 
 """
-.. _tutorial-byoc-npu-example:
+.. _tutorial-bring-your-own-codegen:
 
 Bring Your Own Codegen: NPU Backend Example
 ===========================================
-**Author**: `Sheldon Aristide <https://github.com/Aristide021/>`_
 
-This tutorial walks through the example NPU BYOC backend included in TVM.
-It demonstrates the key concepts needed to offload operations to a custom
-accelerator: pattern registration, graph partitioning, codegen, and runtime
-dispatch.
+This tutorial shows how to integrate a custom hardware backend with TVM's
+BYOC framework, using the bundled example NPU backend (CPU emulation, no
+real hardware required) as the worked example.  You will see the key
+concepts needed to offload operations to a custom accelerator: pattern
+registration, graph partitioning, codegen, and runtime dispatch.
 
 NPUs are purpose-built accelerators designed around a fixed set of operations
 common in neural network inference, such as matrix multiplication, convolution,
 and activation functions.
-The example backend uses CPU emulation so no real NPU hardware is required.
+The example backend's runtime is a *stub*: it logs the dispatch decisions an
+NPU would make (memory tier, execution engine, fusion) but performs no real
+computation, so output buffers are uninitialized.  Assertions in this tutorial
+therefore check shapes, not values.  When you replace the runtime with your
+hardware SDK calls, the same flow produces real results.
 
 **Prerequisites**: Build TVM with ``USE_EXAMPLE_NPU_CODEGEN=ON`` and
 ``USE_EXAMPLE_NPU_RUNTIME=ON``.
@@ -58,6 +62,8 @@ The example backend uses CPU emulation so no real NPU hardware is required.
 # Importing the module is enough to register all supported patterns with
 # TVM's pattern registry.
 
+import numpy as np
+
 import tvm
 import tvm.relax.backend.contrib.example_npu  # registers patterns
 from tvm import relax
@@ -68,6 +74,8 @@ from tvm.script import relax as R
 has_example_npu_codegen = tvm.get_global_func("relax.ext.example_npu", True)
 has_example_npu_runtime = tvm.get_global_func("runtime.ExampleNPUJSONRuntimeCreate", True)
 has_example_npu = has_example_npu_codegen and has_example_npu_runtime
+
+target = tvm.target.Target("llvm")
 
 patterns = get_patterns_with_prefix("example_npu")
 print("Registered patterns:", [p.name for p in patterns])
@@ -98,8 +106,22 @@ class MatmulReLU:
 # ---------------------------
 #
 # ``FuseOpsByPattern`` groups ops that match a registered pattern into
-# composite functions.  ``MergeCompositeFunctions`` consolidates them
-# so each group becomes a single external call.
+# composite functions, controlled by two flags:
+#
+# - ``bind_constants=False`` keeps weights as function arguments instead
+#   of baking them in, so the host stays in charge of parameter
+#   ownership.
+# - ``annotate_codegen=True`` tags each composite with its backend name
+#   (``example_npu``); without this tag, ``RunCodegen`` has no way to
+#   route the composite to a backend.
+#
+# ``MergeCompositeFunctions`` then consolidates adjacent composites
+# that target the same backend so each group becomes a single external
+# call.  Note that consolidation depends on the patterns themselves: an
+# ``op_a + op_b`` chain only collapses into one composite if a fused
+# pattern (e.g. ``matmul_relu_fused``) was registered for it; otherwise
+# each op stays as its own composite even when both target the same
+# backend.
 
 mod = MatmulReLU
 mod = FuseOpsByPattern(patterns, bind_constants=False, annotate_codegen=True)(mod)
@@ -130,28 +152,27 @@ if has_example_npu:
     # Build the module for the host target, create a virtual machine, and
     # execute the compiled function.
 
-    import numpy as np
-
     np.random.seed(0)
     x_np = np.random.randn(2, 4).astype("float32")
     w_np = np.random.randn(4, 8).astype("float32")
 
-    target = tvm.target.Target("llvm")
     with tvm.transform.PassContext(opt_level=3):
         built = relax.build(mod, target)
 
     vm = relax.VirtualMachine(built, tvm.cpu())
     result = vm["main"](tvm.runtime.tensor(x_np, tvm.cpu()), tvm.runtime.tensor(w_np, tvm.cpu()))
 
-    expected_shape = (2, 8)
-    assert result.numpy().shape == expected_shape
+    assert result.numpy().shape == (2, 8)
     print("Execution completed. Output shape:", result.numpy().shape)
 
 ######################################################################
 # Step 6: Conv2D + ReLU
 # ---------------------
 #
-# The same flow applies to convolution workloads.
+# The same flow applies to convolution workloads.  Because the fused
+# ``conv2d + relu`` pattern is registered after the standalone
+# ``conv2d`` pattern in ``patterns.py`` (later entries have higher
+# priority), both ops are offloaded as a single composite function.
 
 
 @tvm.script.ir_module
@@ -177,7 +198,15 @@ if has_example_npu:
     with tvm.transform.PassContext(opt_level=3):
         built2 = relax.build(mod2, target)
 
-    print("Conv2dReLU compiled successfully.")
+    x2_np = np.random.randn(1, 3, 32, 32).astype("float32")
+    w2_np = np.random.randn(16, 3, 3, 3).astype("float32")
+
+    vm2 = relax.VirtualMachine(built2, tvm.cpu())
+    result2 = vm2["main"](
+        tvm.runtime.tensor(x2_np, tvm.cpu()), tvm.runtime.tensor(w2_np, tvm.cpu())
+    )
+    assert result2.numpy().shape == (1, 16, 30, 30)
+    print("Conv2dReLU output shape:", result2.numpy().shape)
 
 ######################################################################
 # Next steps

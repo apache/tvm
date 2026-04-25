@@ -319,16 +319,19 @@ class ExampleNPURuntime : public JSONRuntimeBase {
           LOG(INFO) << "  Executing fused operation - reducing memory traffic";
         }
 
-        // Dispatch to appropriate implementation
+        // Dispatch to appropriate implementation.
+        // More specific names must be checked before more general ones, since
+        // op_name.find() is a substring match (e.g. "depthwise_conv2d" also
+        // contains "conv2d", and "dequantize" also contains "quantize").
         if (op_name.find("matmul") != std::string::npos ||
             op_name.find("dense") != std::string::npos) {
-          ExecuteMatMul(node, engine);
+          ExecuteMatMul(node, engine, is_fused);
+        } else if (op_name.find("depthwise") != std::string::npos) {
+          ExecuteDepthwiseConv2D(node, engine);
         } else if (op_name.find("conv2d") != std::string::npos) {
           ExecuteConv2D(node, engine, is_fused);
         } else if (op_name.find("conv1d") != std::string::npos) {
           ExecuteConv1D(node, engine);
-        } else if (op_name.find("depthwise") != std::string::npos) {
-          ExecuteDepthwiseConv2D(node, engine);
         } else if (op_name.find("pool") != std::string::npos) {
           ExecutePooling(node, engine);
         } else if (op_name.find("relu") != std::string::npos ||
@@ -340,10 +343,10 @@ class ExampleNPURuntime : public JSONRuntimeBase {
         } else if (op_name.find("add") != std::string::npos ||
                    op_name.find("multiply") != std::string::npos) {
           ExecuteElementwise(node, engine);
-        } else if (op_name.find("quantize") != std::string::npos) {
-          ExecuteQuantization(node);
         } else if (op_name.find("dequantize") != std::string::npos) {
           ExecuteDequantization(node);
+        } else if (op_name.find("quantize") != std::string::npos) {
+          ExecuteQuantization(node);
         } else {
           LOG(WARNING) << "Unsupported operation: " << op_name;
         }
@@ -431,7 +434,7 @@ class ExampleNPURuntime : public JSONRuntimeBase {
   /*!
    * \brief Execute matrix multiplication on NPU matrix engine
    */
-  void ExecuteMatMul(const JSONGraphNode& node, ExecutionEngine engine) {
+  void ExecuteMatMul(const JSONGraphNode& node, ExecutionEngine engine, bool is_fused) {
     LOG(INFO) << "  Executing MatMul on " << GetEngineString(engine);
 
     // Get input shapes
@@ -446,6 +449,10 @@ class ExampleNPURuntime : public JSONRuntimeBase {
 
       // Check if operation fits matrix engine dimensions (e.g., 16x16)
       LOG(INFO) << "    Using 16x16 systolic array for acceleration";
+    }
+
+    if (is_fused) {
+      LOG(INFO) << "    Fused with activation - saving memory bandwidth";
     }
 
     // In a real implementation: dispatch to NPU matrix multiplication unit

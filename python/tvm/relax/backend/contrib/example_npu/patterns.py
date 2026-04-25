@@ -117,6 +117,40 @@ def conv2d_relu_fused_pattern():
     return ("example_npu.conv2d_relu_fused", *_make_conv2d_relu_pattern(), _check_conv2d_relu)
 
 
+def matmul_relu_fused_pattern():
+    """
+    NPU-optimized MatMul+ReLU fusion pattern.
+
+    Fusing the matrix engine output with the activation unit avoids a
+    write/read round-trip through L1 SRAM, mirroring the conv2d+relu
+    fusion below.
+    """
+
+    def _make_matmul_relu_pattern():
+        input_tensor = wildcard()
+        weight = wildcard()
+        matmul = is_op("relax.matmul")(input_tensor, weight)
+        relu = is_op("relax.nn.relu")(matmul)
+
+        annotations = {
+            "input": input_tensor,
+            "weight": weight,
+            "matmul": matmul,
+            "root": relu,
+        }
+        return relu, annotations
+
+    def _check_matmul_relu(context: PatternCheckContext) -> bool:
+        """Check if MatMul+ReLU fusion is beneficial for NPU"""
+        if not _check_npu_memory_constraints(context):
+            return False
+        if not _check_npu_quantization(context):
+            return False
+        return True
+
+    return ("example_npu.matmul_relu_fused", *_make_matmul_relu_pattern(), _check_matmul_relu)
+
+
 def matmul_patterns():
     """
     NPU-optimized matrix multiplication patterns.
@@ -486,18 +520,25 @@ def quantization_patterns():
 
 
 # Register all NPU patterns with architectural awareness
+# register_patterns priority: patterns that appear LATER in the list win.
+# So we place general / standalone patterns first, and fused (more
+# specific) patterns last so they take precedence over their constituents.
 register_patterns(
     [
-        conv2d_relu_fused_pattern(),  # Fused patterns first (higher priority)
+        *quantization_patterns(),
+        *elementwise_patterns(),
+        *activation_patterns(),
+        *softmax_patterns(),
+        *batch_norm_patterns(),
+        *pooling_patterns(),
         *matmul_patterns(),
         *conv1d_patterns(),
+        # Plain conv2d is more general than depthwise (groups>1); list
+        # plain first so depthwise wins on grouped convs.
         *conv2d_patterns(),
         *depthwise_conv2d_patterns(),
-        *pooling_patterns(),
-        *batch_norm_patterns(),
-        *softmax_patterns(),
-        *activation_patterns(),
-        *elementwise_patterns(),
-        *quantization_patterns(),
+        # Fused patterns last (highest priority).
+        matmul_relu_fused_pattern(),
+        conv2d_relu_fused_pattern(),
     ]
 )
