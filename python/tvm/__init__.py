@@ -30,7 +30,7 @@ from .base import TVMError, __version__, _RUNTIME_ONLY
 
 # top-level alias
 # tvm.runtime
-from .runtime.object import Object
+from .runtime import Object
 from .runtime._tensor import device, cpu, cuda, opencl, vulkan, metal
 from .runtime._tensor import vpi, rocm, ext_dev, hexagon
 from .runtime import DataType, DataTypeCode
