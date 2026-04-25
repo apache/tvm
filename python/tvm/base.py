@@ -77,7 +77,7 @@ if sys.platform.startswith("win32"):
     os.add_dll_directory(str(_runtime_path.parent))
 _LIB_RUNTIME = ctypes.CDLL(str(_runtime_path), ctypes.RTLD_GLOBAL)
 
-_RUNTIME_ONLY = bool(os.environ.get("TVM_USE_RUNTIME_LIB", False))
+_RUNTIME_ONLY = os.environ.get("TVM_USE_RUNTIME_LIB", "0").lower() in ("1", "true", "yes")
 if _RUNTIME_ONLY:
     _LIB = _LIB_RUNTIME
 else:

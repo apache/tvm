@@ -127,7 +127,7 @@ def find_lib_path(name=None, search_path=None, optional=False):
     lib_path : list(string)
         List of all found path to the libraries
     """
-    use_runtime = os.environ.get("TVM_USE_RUNTIME_LIB", False)
+    use_runtime = os.environ.get("TVM_USE_RUNTIME_LIB", "0").lower() in ("1", "true", "yes")
     dll_path = get_dll_directories()
     # When the caller asks for a specific ``name`` we honour it directly
     # regardless of TVM_USE_RUNTIME_LIB; that env var is interpreted by
