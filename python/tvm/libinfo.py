@@ -20,77 +20,47 @@ from __future__ import annotations
 
 import ctypes
 import importlib.metadata as im
-import importlib.util
 import os
 import sys
-from collections.abc import Callable
 from pathlib import Path
 
 
-# TODO: once tvm-ffi exposes load_lib_ctypes with caller-anchored fallback
+# TODO: once tvm-ffi exposes load_lib_ctypes with an extra_lib_paths parameter
 # (tracked in tdev issue #63), delete these mirrors and call
 # tvm_ffi.libinfo.load_lib_ctypes directly.
-def _package_root(package: str) -> Path:
-    """Return the on-disk root of a Python package.
+def _find_library_by_basename(
+    package: str,
+    target_name: str,
+    extra_lib_paths: list[Path] | None = None,
+) -> Path:
+    """Find a shared library by ``target_name`` across known directories.
+
+    Mirrors ``tvm_ffi.libinfo._find_library_by_basename`` but lets the caller
+    inject extra dev-mode search directories via ``extra_lib_paths``. Caller-
+    supplied directories take precedence over the self-anchored fallback so a
+    PYTHONPATH-style dev install of TVM can point at its own ``build/lib/``
+    instead of tvm-ffi's tree.
 
     Parameters
     ----------
     package
-        The dotted package name to look up (e.g. ``"tvm"``).
-
-    Returns
-    -------
-    The directory that contains the package's ``__init__.py``. If the package
-    cannot be located, fall back to this file's own directory so dev-mode
-    discovery still has a sensible anchor.
+        Distribution name (matches the wheel's ``RECORD``) or importable
+        package name (e.g. ``"tvm"``).
+    target_name
+        CMake target name. Translates to ``lib{target_name}.so`` on Linux,
+        ``lib{target_name}.dylib`` on macOS, ``{target_name}.dll`` on Windows.
+    extra_lib_paths
+        Optional list of ``pathlib.Path`` directories to search before the
+        self-anchored fallback. Must be ``Path`` instances; raises
+        ``TypeError`` otherwise.
     """
-    try:
-        spec = importlib.util.find_spec(package)
-    except (ImportError, ValueError):
-        spec = None
-    if spec is None or spec.origin is None:
-        return Path(__file__).parent
-    return Path(spec.origin).parent
+    if extra_lib_paths is not None:
+        for i, p in enumerate(extra_lib_paths):
+            if not isinstance(p, Path):
+                raise TypeError(
+                    f"extra_lib_paths[{i}] must be a pathlib.Path, got {type(p).__name__}: {p!r}"
+                )
 
-
-# TODO: once tvm-ffi exposes load_lib_ctypes with caller-anchored fallback
-# (tracked in tdev issue #63), delete these mirrors and call
-# tvm_ffi.libinfo.load_lib_ctypes directly.
-def _resolve_and_validate(
-    paths: list[Path],
-    cond: Callable[[Path], bool | Path],
-) -> str | None:
-    """Return the first resolvable path that satisfies ``cond``.
-
-    Mirrors ``tvm_ffi.libinfo._resolve_and_validate``. Gracefully handles
-    broken paths, symlinks, and permission issues by skipping any path whose
-    resolution raises ``OSError``/``AssertionError``.
-    """
-    for path in paths:
-        try:
-            resolved = path.resolve()
-            ret = cond(resolved)
-        except (OSError, AssertionError):
-            continue
-        if isinstance(ret, Path):
-            return str(ret)
-        if ret is True:
-            return str(resolved)
-    return None
-
-
-# TODO: once tvm-ffi exposes load_lib_ctypes with caller-anchored fallback
-# (tracked in tdev issue #63), delete these mirrors and call
-# tvm_ffi.libinfo.load_lib_ctypes directly.
-def _find_library_by_basename(package: str, target_name: str) -> Path:
-    """Find a shared library by ``target_name`` across known directories.
-
-    Mirrors ``tvm_ffi.libinfo._find_library_by_basename`` but anchors the
-    dev-mode fallback search on the *calling* package's root rather than this
-    file's location. That makes the helper reusable for any TVM-style package
-    laid out as ``<package_root>/{lib,build/lib}`` or whose worktree has the
-    libraries one or two levels above the package root.
-    """
     if sys.platform.startswith("win32"):
         lib_dll_names = (f"{target_name}.dll",)
     elif sys.platform.startswith("darwin"):
@@ -115,17 +85,21 @@ def _find_library_by_basename(package: str, target_name: str) -> Path:
                 if path.name in lib_dll_names:
                     return path
 
-    # Dev / source-tree fallback. Anchor on the calling package's root so
-    # ``PYTHONPATH=<repo>/python`` style dev installs locate the library.
-    package_root = _package_root(package)
-    dll_paths: list[Path] = [
-        package_root / "lib",
-        package_root / "build" / "lib",
-        package_root.parent / "build" / "lib",
-        package_root.parent / "lib",
-        package_root.parent.parent / "build" / "lib",
-        package_root.parent.parent / "lib",
-    ]
+    # Dev / source-tree fallback.
+    dll_paths: list[Path] = []
+    # Caller-supplied dirs first so they win precedence over the self-anchor.
+    if extra_lib_paths is not None:
+        dll_paths.extend(extra_lib_paths)
+    # Self-anchored fallback: this file lives at ``python/tvm/libinfo.py`` in
+    # TVM's tree, so ``Path(__file__).parent`` is ``python/tvm`` and the
+    # parent-walk reaches ``<worktree>/build/lib`` for in-tree dev builds.
+    dll_paths.extend(
+        [
+            Path(__file__).parent / "lib",
+            Path(__file__).parent.parent.parent / "build" / "lib",
+            Path(__file__).parent.parent.parent / "lib",
+        ]
+    )
 
     if sys.platform.startswith("win32"):
         dll_paths.extend(Path(p) for p in _split_env_var("PATH", ";"))
@@ -144,17 +118,25 @@ def _find_library_by_basename(package: str, target_name: str) -> Path:
                     return path
             except OSError:
                 continue
-    raise RuntimeError(f"Cannot find library: {', '.join(lib_dll_names)}")
+    raise RuntimeError(
+        f"Cannot find library {', '.join(lib_dll_names)}; "
+        f"searched directories:\n  " + "\n  ".join(str(p) for p in dll_paths)
+    )
 
 
-# TODO: once tvm-ffi exposes load_lib_ctypes with caller-anchored fallback
+# TODO: once tvm-ffi exposes load_lib_ctypes with an extra_lib_paths parameter
 # (tracked in tdev issue #63), delete these mirrors and call
 # tvm_ffi.libinfo.load_lib_ctypes directly.
-def load_lib_ctypes(package: str, target_name: str, mode: str) -> ctypes.CDLL:
+def load_lib_ctypes(
+    package: str,
+    target_name: str,
+    mode: str,
+    extra_lib_paths: list[Path] | None = None,
+) -> ctypes.CDLL:
     """Locate and ``ctypes.CDLL``-load a shared library shipped with ``package``.
 
-    Mirrors ``tvm_ffi.libinfo.load_lib_ctypes`` but uses the package-anchored
-    ``_find_library_by_basename`` above so dev-mode lookup works for TVM.
+    Mirrors ``tvm_ffi.libinfo.load_lib_ctypes`` and forwards ``extra_lib_paths``
+    to the underlying ``_find_library_by_basename``.
 
     Parameters
     ----------
@@ -167,8 +149,11 @@ def load_lib_ctypes(package: str, target_name: str, mode: str) -> ctypes.CDLL:
     mode
         Name of a ``ctypes`` mode constant — typically ``"RTLD_LOCAL"`` or
         ``"RTLD_GLOBAL"``.
+    extra_lib_paths
+        Optional list of ``pathlib.Path`` directories searched before the
+        self-anchored dev fallback.
     """
-    lib_path = _find_library_by_basename(package, target_name)
+    lib_path = _find_library_by_basename(package, target_name, extra_lib_paths)
     # Windows requires explicit DLL search-path setup.
     if sys.platform.startswith("win32"):
         os.add_dll_directory(str(lib_path.parent))

@@ -21,6 +21,7 @@
 
 import os
 import sys
+from pathlib import Path
 
 from . import libinfo
 
@@ -34,6 +35,19 @@ if not (sys.version_info[0] >= 3 and sys.version_info[1] >= 9):
 # ----------------------------
 # library loading
 # ----------------------------
+
+# Caller-supplied dev-mode search list for ``libinfo.load_lib_ctypes``.
+# These cover the wheel-install layout (``tvm/lib/``) and the in-tree dev
+# build layout (``<worktree>/build/lib`` and ``<worktree>/lib``). Caller
+# dirs win precedence over the self-anchored fallback inside ``libinfo``.
+# TODO: remove once tvm-ffi exposes ``extra_lib_paths`` upstream
+# (tracked in tdev issue #63).
+_TVM_PKG_ROOT = Path(__file__).parent  # python/tvm/
+_EXTRA_LIB_PATHS = [
+    _TVM_PKG_ROOT / "lib",  # wheel layout
+    _TVM_PKG_ROOT.parent.parent / "build" / "lib",  # dev: <worktree>/build/lib
+    _TVM_PKG_ROOT.parent.parent / "lib",  # dev: <worktree>/lib
+]
 
 
 def _load_lib():
@@ -66,11 +80,11 @@ def _load_lib():
 
     runtime_only = bool(os.environ.get("TVM_USE_RUNTIME_LIB", False))
 
-    # ``libinfo.load_lib_ctypes`` mirrors tvm_ffi's loader but anchors its
-    # dev-mode search on the ``tvm`` package root, so PYTHONPATH-style dev
-    # installs locate ``build/lib/libtvm_*.so`` correctly.
+    # ``libinfo.load_lib_ctypes`` mirrors tvm_ffi's loader. We pass an explicit
+    # ``extra_lib_paths`` so dev mode (PYTHONPATH=<repo>/python) finds TVM's
+    # own ``build/lib/libtvm_*.so`` rather than the tvm-ffi tree.
     runtime_lib = libinfo.load_lib_ctypes(
-        package="tvm", target_name="tvm_runtime", mode="RTLD_GLOBAL"
+        "tvm", "tvm_runtime", "RTLD_GLOBAL", extra_lib_paths=_EXTRA_LIB_PATHS
     )
 
     if runtime_only:
@@ -78,7 +92,7 @@ def _load_lib():
 
     try:
         compiler_lib = libinfo.load_lib_ctypes(
-            package="tvm", target_name="tvm_compiler", mode="RTLD_LOCAL"
+            "tvm", "tvm_compiler", "RTLD_LOCAL", extra_lib_paths=_EXTRA_LIB_PATHS
         )
         return compiler_lib, _compiler_basename()
     except RuntimeError:
