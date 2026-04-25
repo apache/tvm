@@ -40,7 +40,7 @@ class DeviceMesh(GlobalInfo):
     """
 
     def __init__(self, shape: Shape | list[int] | tuple[int], device_ids: list[int] | Range):
-        if isinstance(shape, list | tuple):
+        if not isinstance(shape, Shape):
             shape = Shape(shape)
         device_range = None
         if isinstance(device_ids, Range):

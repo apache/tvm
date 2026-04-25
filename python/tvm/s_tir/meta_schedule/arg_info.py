@@ -116,10 +116,7 @@ class TensorInfo(ArgInfo):
         shape : Shape
             The shape of the tensor.
         """
-        if isinstance(shape, Shape):
-            shape_tuple = shape
-        else:
-            shape_tuple = Shape(shape)
+        shape_tuple = shape if isinstance(shape, Shape) else Shape(shape)
         self.__init_handle_by_constructor__(
             _ffi_api.TensorInfo,  # type: ignore # pylint: disable=no-member
             dtype,
