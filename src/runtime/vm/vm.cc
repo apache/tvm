@@ -30,6 +30,8 @@
 #include <optional>
 #include <thread>
 
+#include "./module_utils.h"
+
 namespace tvm {
 namespace runtime {
 namespace vm {

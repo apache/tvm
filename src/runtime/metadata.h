@@ -27,8 +27,8 @@
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/extra/json.h>
+#include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
-#include <tvm/runtime/module.h>
 #include <tvm/runtime/tensor.h>
 #include <tvm/support/io.h>
 #include <tvm/support/serializer.h>

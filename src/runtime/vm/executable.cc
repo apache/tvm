@@ -32,6 +32,7 @@
 
 #include "../../support/bytes_io.h"
 #include "../file_utils.h"
+#include "./module_utils.h"
 
 namespace tvm {
 namespace runtime {
@@ -44,6 +45,21 @@ constexpr uint64_t kTVMVMBytecodeMagicV2 = 0xD225DE2F4214151E;
 #define STREAM_CHECK(val, section)                                                  \
   TVM_FFI_ICHECK(val) << "Invalid VM file format in the " << section << " section." \
                       << "\n";
+
+const char* VMExecutable::kind() const { return "relax.VMExecutable"; }
+
+ffi::Optional<ffi::Function> VMExecutable::GetFunction(const ffi::String& _name) {
+  using SelfPtr = std::remove_cv_t<decltype(this)>;
+  ::tvm::ffi::ObjectPtr<::tvm::ffi::Object> _self =
+      ::tvm::ffi::GetObjectPtr<::tvm::ffi::Object>(this);
+  TVM_MODULE_VTABLE_ENTRY("stats", &VMExecutable::Stats);
+  TVM_MODULE_VTABLE_ENTRY("as_text", &VMExecutable::AsText);
+  TVM_MODULE_VTABLE_ENTRY("as_python", &VMExecutable::AsPython);
+  TVM_MODULE_VTABLE_ENTRY("vm_load_executable", &VMExecutable::VMLoadExecutable);
+  TVM_MODULE_VTABLE_ENTRY("vm_profiler_load_executable", &VMExecutable::VMProfilerLoadExecutable);
+  TVM_MODULE_VTABLE_ENTRY("has_function", &VMExecutable::HasFunction);
+  return std::nullopt;
+}
 
 std::string VMExecutable::Stats() const {
   std::ostringstream oss;

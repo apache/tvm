@@ -41,8 +41,8 @@
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Transforms/Utils/Cloning.h>
+#include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/module.h>
 #include <tvm/target/codegen.h>
 #include <tvm/tirx/analysis.h>
 

@@ -25,7 +25,6 @@
 #include <tvm/ffi/reflection/access_path.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/module.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/buffer.h>

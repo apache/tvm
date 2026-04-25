@@ -22,9 +22,9 @@
 
 #include <dlpack/dlpack.h>
 #include <tvm/ffi/extra/json.h>
+#include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/data_type.h>
-#include <tvm/runtime/module.h>
 #include <tvm/runtime/tensor.h>
 
 #include <string>
@@ -81,10 +81,10 @@ struct OutputConfig {
 };
 
 struct Model {
-  Model(tvm::runtime::Module executor, tvm::runtime::Module module, std::string json);
+  Model(tvm::ffi::Module executor, tvm::ffi::Module module, std::string json);
 
-  tvm::runtime::Module model_executor;
-  tvm::runtime::Module graph_module;
+  tvm::ffi::Module model_executor;
+  tvm::ffi::Module graph_module;
   std::string graph_json;
 
   static tvm::Device device() { return tvm::Device{static_cast<DLDeviceType>(kDLHexagon), 0}; }
@@ -121,13 +121,13 @@ bool write_output_config(const std::string& file_name, OutputConfig* output_conf
 
 void reset_device_api();
 
-tvm::runtime::Module load_module(const std::string& file_name);
+tvm::ffi::Module load_module(const std::string& file_name);
 
 const tvm::ffi::Function get_runtime_func(const std::string& name);
-const tvm::ffi::Function get_module_func(tvm::runtime::Module module, const std::string& name);
+const tvm::ffi::Function get_module_func(tvm::ffi::Module module, const std::string& name);
 
-tvm::runtime::Module create_aot_executor(tvm::runtime::Module factory_module, tvm::Device device);
-tvm::runtime::Module create_graph_executor(const std::string& graph_json,
-                                           tvm::runtime::Module graph_module, tvm::Device device);
+tvm::ffi::Module create_aot_executor(tvm::ffi::Module factory_module, tvm::Device device);
+tvm::ffi::Module create_graph_executor(const std::string& graph_json, tvm::ffi::Module graph_module,
+                                       tvm::Device device);
 
 #endif  // TVM_RUNTIME_HEXAGON_LAUNCHER_LAUNCHER_CORE_H_

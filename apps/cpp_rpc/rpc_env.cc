@@ -20,9 +20,9 @@
  * \file rpc_env.cc
  * \brief Server environment of the RPC.
  */
+#include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/module.h>
 
 #include <cerrno>
 #ifndef _WIN32

@@ -26,10 +26,10 @@
 
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
+#include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/module.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/tensor.h>
 

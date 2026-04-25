@@ -24,10 +24,10 @@
  */
 #include "./static_library.h"
 
+#include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/memory.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/module.h>
 #include <tvm/support/io.h>
 #include <tvm/support/serializer.h>
 

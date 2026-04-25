@@ -22,12 +22,12 @@
  * \file ffi_testing.cc
  */
 #include <tvm/ffi/container/variant.h>
+#include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/env_func.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/module.h>
 #include <tvm/te/tensor.h>
 #include <tvm/tirx/expr.h>
 

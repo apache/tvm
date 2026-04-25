@@ -46,7 +46,7 @@
 #include <llvm/Support/Alignment.h>
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Transforms/Utils/ModuleUtils.h>
-#include <tvm/runtime/module.h>
+#include <tvm/ffi/extra/module.h>
 #include <tvm/target/target.h>
 
 #include <cstring>

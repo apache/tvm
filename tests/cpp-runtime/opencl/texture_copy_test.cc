@@ -19,6 +19,7 @@
 
 #include <gtest/gtest.h>
 #include <tvm/ffi/function.h>
+#include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
 
 #include <cmath>
