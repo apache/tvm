@@ -47,9 +47,9 @@
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Transforms/Utils/ModuleUtils.h>
+#include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/base.h>
-#include <tvm/runtime/module.h>
 #include <tvm/tirx/analysis.h>
 
 #include <algorithm>

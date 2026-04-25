@@ -26,6 +26,7 @@
 
 #include <tvm/ffi/any.h>
 #include <tvm/ffi/optional.h>
+#include <tvm/ffi/string.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/logging.h>
 
@@ -403,6 +404,23 @@ inline Device AddRPCSessionMask(Device dev, int session_table_index) {
       static_cast<DLDeviceType>(dev.device_type | (kRPCSessMask * (session_table_index + 1)));
   return dev;
 }
+
+/*!
+ * \brief Check if runtime module is enabled for target.
+ * \param target The target module name.
+ * \return Whether runtime is enabled.
+ */
+TVM_DLL bool RuntimeEnabled(const ffi::String& target);
+
+/*! \brief namespace for constant symbols */
+namespace symbol {
+/*! \brief global function to set device */
+constexpr const char* tvm_set_device = "__tvm_set_device";
+/*! \brief Auxiliary counter to global barrier. */
+constexpr const char* tvm_global_barrier_state = "__tvm_global_barrier_state";
+/*! \brief Prepare the global barrier before kernels that uses global barrier. */
+constexpr const char* tvm_prepare_global_barrier = "__tvm_prepare_global_barrier";
+}  // namespace symbol
 
 }  // namespace runtime
 }  // namespace tvm

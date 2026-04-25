@@ -24,8 +24,8 @@
 #ifndef TVM_TARGET_CODEGEN_H_
 #define TVM_TARGET_CODEGEN_H_
 
+#include <tvm/ffi/extra/module.h>
 #include <tvm/ir/module.h>
-#include <tvm/runtime/module.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/expr.h>
 

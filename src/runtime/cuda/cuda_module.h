@@ -24,7 +24,7 @@
 #ifndef TVM_RUNTIME_CUDA_CUDA_MODULE_H_
 #define TVM_RUNTIME_CUDA_CUDA_MODULE_H_
 
-#include <tvm/runtime/module.h>
+#include <tvm/ffi/extra/module.h>
 
 #include <memory>
 #include <string>

@@ -19,8 +19,8 @@
 #ifndef TVM_RUNTIME_DISCO_BUILTIN_H_
 #define TVM_RUNTIME_DISCO_BUILTIN_H_
 
+#include <tvm/ffi/extra/module.h>
 #include <tvm/runtime/data_type.h>
-#include <tvm/runtime/module.h>
 #include <tvm/runtime/tensor.h>
 
 #include <string>

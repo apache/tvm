@@ -25,7 +25,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/c_backend_api.h>
-#include <tvm/runtime/module.h>
+#include <tvm/runtime/device_api.h>
 
 #include <cstring>
 #include <unordered_set>

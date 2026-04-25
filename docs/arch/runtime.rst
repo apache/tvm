@@ -169,7 +169,7 @@ TVM defines the compiled object as `Module`_.
 The user can get the compiled function from Module as PackedFunc.
 The generated compiled code can dynamically get function from Module in runtime. It caches the function handle in the first call and reuses in subsequent calls. We use this to link device code and callback into any PackedFunc(e.g., python) from generated code.
 
-.. _Module: https://github.com/apache/tvm/blob/main/include/tvm/runtime/module.h
+.. _Module: https://github.com/apache/tvm/blob/main/3rdparty/tvm-ffi/include/tvm/ffi/extra/module.h
 
 The ModuleNode is an abstract class that can be implemented by each type of device.
 So far we support modules for CUDA, Metal, OpenCL and loading dynamic shared libraries. This abstraction makes introduction
