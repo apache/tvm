@@ -20,10 +20,11 @@
 from typing import Any
 
 import tvm_ffi
+from tvm_ffi import Array
 
 import tvm
 from tvm import tirx
-from tvm.ir import Array, Op, PrimExpr
+from tvm.ir import Op, PrimExpr
 from tvm.ir.base import Span
 from tvm.runtime import const
 
@@ -3456,7 +3457,7 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
             if init is not None:
                 init = [init]
         combiner = CommReducer(lhs, rhs, result, id_elem)
-        if not isinstance(axis, list | tuple | tvm.ir.Array):
+        if not isinstance(axis, list | tuple | Array):
             axis = [axis]
         if where is None:
             where = tirx.convert(True)

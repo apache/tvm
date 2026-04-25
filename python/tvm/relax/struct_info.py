@@ -21,9 +21,10 @@
 from typing import Optional, Union
 
 import tvm_ffi
+from tvm_ffi import Array
 
 import tvm
-from tvm.ir import Array, EnvFunc, Span, VDevice
+from tvm.ir import EnvFunc, Span, VDevice
 from tvm.runtime import DataType
 from tvm.tirx import PrimExpr
 

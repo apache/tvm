@@ -22,6 +22,8 @@
 
 import functools
 
+import tvm_ffi
+
 import tvm
 from tvm.relax import build as relax_build
 
@@ -58,7 +60,7 @@ def relax_dynamo(pipeline: tvm.transform.Pass | None = None):
             """A helper function to transfer a Tensor to torch.tensor."""
             if isinstance(nd_tensor, tvm.runtime.Tensor):
                 return torch.from_numpy(nd_tensor.numpy())
-            elif isinstance(nd_tensor, tvm.ir.Array):
+            elif isinstance(nd_tensor, tvm_ffi.Array):
                 return tuple(to_torch_tensor(x) for x in nd_tensor)
             else:
                 raise ValueError(f"Unsupported type {type(nd_tensor)}")

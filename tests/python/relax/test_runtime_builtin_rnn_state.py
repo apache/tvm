@@ -19,11 +19,11 @@ from collections.abc import Sequence
 
 import numpy as np
 import pytest
+from tvm_ffi import Shape
 
 import tvm
 import tvm.testing
 from tvm import tirx
-from tvm.runtime import ShapeTuple
 from tvm.s_tir import dlight as dl
 from tvm.script import tirx as T
 
@@ -121,7 +121,7 @@ def test_rnn_state_get(rnn_state):  # pylint: disable=redefined-outer-name
     state = rnn_state
     f_clear(state)
     f_add_sequence(state, 0)
-    f_begin_forward(state, ShapeTuple([0]), ShapeTuple([1]))
+    f_begin_forward(state, Shape([0]), Shape([1]))
     tvm_nd_0 = tvm.runtime.tensor(np.empty((1, 16, 16), "float16"), device=device)
     tvm_nd_1 = tvm.runtime.tensor(np.empty((1, 32, 32), "float32"), device=device)
     f_get(state, 0, 0, tvm_nd_0)
@@ -137,7 +137,7 @@ def test_rnn_state_set(rnn_state):  # pylint: disable=redefined-outer-name
     f_clear(state)
     for seq_id in range(3):
         f_add_sequence(state, seq_id)
-    f_begin_forward(state, ShapeTuple([0, 2]), ShapeTuple([1, 1]))
+    f_begin_forward(state, Shape([0, 2]), Shape([1, 1]))
 
     f_set(state, 0, 0, tvm.runtime.tensor(np.full((2, 16, 16), 2.0, "float16"), device=device))
     f_set(state, 0, 1, tvm.runtime.tensor(np.full((2, 32, 32), 3.0, "float32"), device=device))
@@ -153,7 +153,7 @@ def test_rnn_state_popn(rnn_state):  # pylint: disable=redefined-outer-name
     f_clear(state)
 
     f_add_sequence(state, 0)
-    f_begin_forward(state, ShapeTuple([0]), ShapeTuple([1]))
+    f_begin_forward(state, Shape([0]), Shape([1]))
     f_set(state, 0, 0, tvm.runtime.tensor(np_two.reshape(1, 16, 16), device=device))
     f_set(state, 0, 1, tvm.runtime.tensor(np_three.reshape(1, 32, 32), device=device))
     f_end_forward(state)
@@ -171,7 +171,7 @@ def test_rnn_state_fork_sequence(rnn_state):  # pylint: disable=redefined-outer-
     f_clear(state)
 
     f_add_sequence(state, 0)
-    f_begin_forward(state, ShapeTuple([0]), ShapeTuple([1]))
+    f_begin_forward(state, Shape([0]), Shape([1]))
     f_set(state, 0, 0, tvm.runtime.tensor(np_two.reshape(1, 16, 16), device=device))
     f_set(state, 0, 1, tvm.runtime.tensor(np_three.reshape(1, 32, 32), device=device))
     f_end_forward(state)

@@ -266,7 +266,7 @@ class Tensor(tvm_ffi.core.Tensor):
 
         Parameters
         ----------
-        shape: Union[tvm.runtime.ShapeTuple, Sequence[typing.SupportsInt]]
+        shape: Union[tvm_ffi.Shape, Sequence[typing.SupportsInt]]
 
             The shape of the view.
 
@@ -288,8 +288,8 @@ class Tensor(tvm_ffi.core.Tensor):
 
         """
 
-        if not isinstance(shape, tvm.runtime.ShapeTuple):
-            shape = tvm.runtime.ShapeTuple([int(dim) for dim in shape])
+        if not isinstance(shape, tvm_ffi.Shape):
+            shape = tvm_ffi.Shape([int(dim) for dim in shape])
 
         if dtype is None:
             dtype = self.dtype
@@ -302,7 +302,7 @@ def empty(shape, dtype="float32", device=None, mem_scope=None):
 
     Parameters
     ----------
-    shape : Union[tvm.runtime.ShapeTuple, Sequence[typing.SupportsInt]]
+    shape : Union[tvm_ffi.Shape, Sequence[typing.SupportsInt]]
         The shape of the array.
 
     dtype : type or str
@@ -320,8 +320,8 @@ def empty(shape, dtype="float32", device=None, mem_scope=None):
         The array tvm supported.
     """
     device = device or cpu()
-    if not isinstance(shape, tvm.runtime.ShapeTuple):
-        shape = tvm.runtime.ShapeTuple([int(dim) for dim in shape])
+    if not isinstance(shape, tvm_ffi.Shape):
+        shape = tvm_ffi.Shape([int(dim) for dim in shape])
     dtype = tvm_ffi.dtype(dtype)
     arr = _ffi_api.TVMTensorAllocWithScope(shape, dtype, device, mem_scope)
     return arr

@@ -26,11 +26,10 @@ from collections.abc import Callable, Sequence
 from typing import Any, Optional, Union
 
 import numpy as np
-from tvm_ffi import get_global_func, register_global_func, register_object
+from tvm_ffi import Shape, get_global_func, register_global_func, register_object
 
 from .._tensor import Tensor
 from .._tensor import tensor as _as_Tensor
-from ..container import ShapeTuple
 from ..device import Device
 from ..object import Object
 from . import _ffi_api, process_pool  # pylint: disable=unused-import
@@ -153,7 +152,7 @@ class Session(Object):
 
         """
         func = self._get_cached_method("runtime.disco.empty")
-        return func(ShapeTuple(shape), dtype, device, worker0_only, in_group)
+        return func(Shape(shape), dtype, device, worker0_only, in_group)
 
     def shutdown(self):
         """Shut down the Disco session"""
@@ -326,7 +325,7 @@ class Session(Object):
             The device IDs to be used by the underlying communication library.
         """
         assert ccl in ("nccl", "rccl"), f"Unsupported CCL backend: {ccl}"
-        _ffi_api.SessionInitCCL(self, ccl, ShapeTuple(device_ids))  # type: ignore # pylint: disable=no-member
+        _ffi_api.SessionInitCCL(self, ccl, Shape(device_ids))  # type: ignore # pylint: disable=no-member
         self._clear_ipc_memory_pool()
 
     def broadcast(
@@ -497,7 +496,7 @@ class Session(Object):
         """
         if op not in REDUCE_OPS:
             raise ValueError(f"Unsupported reduce op: {op}. Available ops are: {REDUCE_OPS.keys()}")
-        op = ShapeTuple([REDUCE_OPS[op]])
+        op = Shape([REDUCE_OPS[op]])
         func = self._get_cached_method("runtime.disco.allreduce")
         func(src, op, in_group, dst)
 

@@ -297,7 +297,7 @@ class BlockBuilder(Object):
         called with python `list` or `tuple` objects.  These objects
         should be converted to `relax.Tuple` prior to calling an FFI
         function, as they would otherwise be converted to
-        `tvm.runtime.Array`.  In addition, any nested tuple objects
+        `tvm_ffi.Array`.  In addition, any nested tuple objects
         should be converted.
         """
         if isinstance(expr, list | tuple):

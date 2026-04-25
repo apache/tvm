@@ -20,15 +20,15 @@ import pickle
 import random
 
 import numpy as np
+import tvm_ffi
 
 import tvm
 import tvm.runtime
 import tvm.testing
-from tvm.runtime import container as _container
 
 
 def test_string():
-    s = tvm.runtime.String("xyz")
+    s = tvm_ffi.core.String("xyz")
 
     assert isinstance(s, str)
     assert s.startswith("xy")
@@ -47,18 +47,18 @@ def test_string():
 
 def test_shape_tuple():
     shape = [random.randint(-10, 10) for _ in range(5)]
-    stuple = _container.ShapeTuple(shape)
+    stuple = tvm_ffi.Shape(shape)
     len(stuple) == len(shape)
     for a, b in zip(stuple, shape):
         assert a == b
     # ShapleTuple vs. tuple
     assert stuple == tuple(shape)
     # ShapleTuple vs. ShapeTuple
-    assert stuple == _container.ShapeTuple(shape)
+    assert stuple == tvm_ffi.Shape(shape)
 
     # test pickle
     z = pickle.loads(pickle.dumps(stuple))
-    assert isinstance(z, tvm.runtime.ShapeTuple)
+    assert isinstance(z, tvm_ffi.Shape)
     assert stuple == z
 
 

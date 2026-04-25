@@ -20,13 +20,14 @@ import os
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
+from tvm_ffi import Array, Map
 from tvm_ffi import register_object as _register_object
 
 from tvm.runtime import Object
 from tvm.tirx.expr import FloatImm, IntImm
 from tvm.tirx.function import IndexMap
 
-from ...ir import Array, Map, save_json
+from ...ir import save_json
 from . import _ffi_api
 from .instruction import ATTR_TYPE, INPUT_RV_TYPE, Instruction
 

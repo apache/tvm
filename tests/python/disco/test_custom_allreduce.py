@@ -21,10 +21,11 @@ from itertools import product
 
 import numpy as np
 import pytest
+from tvm_ffi import Shape
 
 import tvm
 import tvm.testing
-from tvm.runtime import DataType, ShapeTuple, disco
+from tvm.runtime import DataType, disco
 from tvm.runtime.disco import Session
 
 
@@ -60,8 +61,8 @@ def test_allreduce(shape, ccl, strategy):
     falloc_ipc_storage = sess.get_global_func("runtime.disco.cuda_ipc.alloc_storage")
     falloc_tensor = sess.get_global_func("vm.builtin.alloc_tensor")
     fallreduce = sess.get_global_func("runtime.disco.cuda_ipc.custom_allreduce")
-    d_storage = sess.call_packed(falloc_ipc_storage, ShapeTuple(shape), DataType(dtype))
-    d_input = sess.call_packed(falloc_tensor, d_storage, 0, ShapeTuple(shape), DataType(dtype))
+    d_storage = sess.call_packed(falloc_ipc_storage, Shape(shape), DataType(dtype))
+    d_input = sess.call_packed(falloc_tensor, d_storage, 0, Shape(shape), DataType(dtype))
 
     array_1 = np.arange(num_elements, dtype="float32").reshape(*shape)
     array_2 = np.arange(start=1, stop=-(num_elements - 1), step=-1, dtype="float32").reshape(*shape)

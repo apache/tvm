@@ -17,6 +17,7 @@
 import json
 
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.testing
@@ -265,7 +266,7 @@ def test_target_host_merge_2():
 
 def test_target_tvm_object():
     """Test creating Target by using TVM Objects"""
-    String = tvm.runtime.container.String
+    String = tvm_ffi.core.String
     tgt = tvm.target.Target(target={"kind": "cuda", "host": {"kind": "llvm"}})
     assert tgt.kind.name == "cuda"
     assert tgt.host.kind.name == "llvm"

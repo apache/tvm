@@ -16,7 +16,8 @@
 # under the License.
 """Code generation related functions."""
 
-from ..ir.container import Array
+from tvm_ffi import Array
+
 from . import _ffi_api
 from .target import Target
 

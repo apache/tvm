@@ -24,6 +24,7 @@ from typing import Any, Optional, Union
 
 import numpy as _np  # type: ignore
 import tvm_ffi
+from tvm_ffi.core import String
 
 import tvm.ir
 import tvm.relax
@@ -32,7 +33,7 @@ from tvm import DataType
 from tvm.runtime import Object
 
 from ..ir import BaseFunc, Node, Span
-from ..runtime import Scriptable, String
+from ..runtime import Scriptable
 from ..tirx import PrimExpr
 from . import _ffi_api
 
@@ -685,7 +686,7 @@ class ShapeExpr(ExprWithOp):
 
     Parameters
     ----------
-    values: Union[List[PrimExpr], typing.Tuple[PrimExpr, ...], tvm.ir.Array]
+    values: Union[List[PrimExpr], typing.Tuple[PrimExpr, ...], tvm_ffi.Array]
         The values of the shape expression.
 
     span: Optional[Span]
@@ -697,7 +698,7 @@ class ShapeExpr(ExprWithOp):
 
     def __init__(
         self,
-        values: list[PrimExpr] | tuple[PrimExpr, ...] | tvm.ir.Array,
+        values: list[PrimExpr] | tuple[PrimExpr, ...] | tvm_ffi.Array,
         span: Span | None = None,
     ) -> None:
         self.__init_handle_by_constructor__(_ffi_api.ShapeExpr, values, span)  # type: ignore

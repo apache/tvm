@@ -21,6 +21,7 @@ from decimal import Decimal
 from typing import Optional, Union
 
 import numpy as np  # type: ignore
+import tvm_ffi
 
 import tvm
 
@@ -53,7 +54,7 @@ class Optimizer:
     param_list : List[Var]
         The list of variables to optimize. Will be set in `init()`.
 
-    state : tvm.ir.Array
+    state : tvm_ffi.Array
         `state` is an runtime Array representing the state of the optimizer. Will be set in
         `init()`.
 
@@ -102,7 +103,7 @@ class Optimizer:
     dtype: str
     name: str
     param_list: list[Var]
-    state: tvm.ir.Array
+    state: tvm_ffi.Array
 
     def __init__(self, name: str) -> None:
         self.name = name

@@ -21,10 +21,11 @@ import inspect
 # pylint: disable=invalid-name
 from numbers import Integral as _Integral
 
+from tvm_ffi import Array
+
 import tvm.arith._ffi_api
 import tvm.tirx
 import tvm.tirx._ffi_api
-from tvm.ir import Array
 from tvm.runtime import convert
 
 from . import _ffi_api

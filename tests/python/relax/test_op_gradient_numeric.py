@@ -20,6 +20,7 @@ from typing import Union
 
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.testing
@@ -90,7 +91,7 @@ def relax_check_gradients(
         return tvm.runtime.tensor(data)
 
     def _tvm_to_numpy(data, ignore_idx=[]):
-        if isinstance(data, tvm.ir.Array):
+        if isinstance(data, tvm_ffi.Array):
             return [_tvm_to_numpy(d) for i, d in enumerate(data) if i not in ignore_idx]
         if isinstance(data, tvm.runtime.Tensor):
             return data.numpy()

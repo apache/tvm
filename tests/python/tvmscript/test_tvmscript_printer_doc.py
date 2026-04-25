@@ -551,7 +551,7 @@ def test_doc_source_paths():
     source_paths = [AccessPath.root(), AccessPath.root().attr("x")]
 
     doc.source_paths = source_paths
-    # This should triggers the __getattr__ and gets a tvm.ir.container.Array
+    # This should triggers the __getattr__ and gets a tvm_ffi.Array
     assert not isinstance(doc.source_paths, list)
     assert list(doc.source_paths) == source_paths
 

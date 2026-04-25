@@ -24,10 +24,10 @@ from numbers import Integral, Number
 from typing import Any
 
 import numpy as np  # type: ignore
-from tvm_ffi import register_global_func
+from tvm_ffi import Function, register_global_func
 
 import tvm
-from tvm.runtime import Device, Object, PackedFunc
+from tvm.runtime import Device, Object
 from tvm.runtime.profiling import Report
 
 from ..rpc.base import RPC_SESS_MASK
@@ -126,7 +126,7 @@ class VirtualMachine:
             init_args.append(alloc_type)
         self.module["vm_initialization"](*init_args)
 
-    def __getitem__(self, key: str) -> PackedFunc:
+    def __getitem__(self, key: str) -> Function:
         return self.module[key]
 
     def invoke_closure(self, closure: Object, *args: Any) -> Object:
@@ -157,10 +157,10 @@ class VirtualMachine:
     ) -> None:
         """
         Convenience function. Takes a function from the module and saves
-        a `PackedFunc` that, when called, will invoke the function with the given arguments.
-        The `PackedFunc` can be accessed from the module using `saved_name`.
+        a `Function` that, when called, will invoke the function with the given arguments.
+        The `Function` can be accessed from the module using `saved_name`.
         This is included to facilitate timing trials:
-        Invoking the returned `PackedFunc` will have less overhead from dictionary lookups
+        Invoking the returned `Function` will have less overhead from dictionary lookups
         than normally running through the VM.
 
         If the saved name is taken, it can be overridden, though it cannot override
@@ -178,7 +178,7 @@ class VirtualMachine:
             The name that the resulting closure should be saved under.
 
         include_return : bool
-            Whether the saved PackedFunc should return its output.
+            Whether the saved Function should return its output.
             If timing over RPC, it may not be desirable to send output
             between machines.
 
@@ -328,7 +328,7 @@ class VirtualMachine:
 
         return get_output_rec(func_name)
 
-    def set_instrument(self, instrument: tvm.runtime.PackedFunc) -> None:
+    def set_instrument(self, instrument: Function) -> None:
         """Set an instrumentation function.
 
         If instrument is present, the function will be called
@@ -338,7 +338,7 @@ class VirtualMachine:
         .. code:: python
 
             def instrument(
-                func: Union[VMClosure, PackedFunc],
+                func: Union[VMClosure, Function],
                 func_symbol: str,
                 before_run: bool,
                 ret_value: any,
@@ -359,7 +359,7 @@ class VirtualMachine:
 
         Parameters
         ----------
-        instrument: tvm.runtime.PackedFunc
+        instrument: tvm_ffi.Function
             A instrumentation function that get invoked every VM call instr.
 
         See Also
@@ -485,7 +485,7 @@ class VirtualMachine:
         func_name : str
             The name of the function.
 
-        args: List of Tensor or other objects supported by PackedFunc.
+        args: List of Tensor or other objects supported by Function.
             The arguments to the function.
 
         Returns

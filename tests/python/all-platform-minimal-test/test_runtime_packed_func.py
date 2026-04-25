@@ -20,6 +20,7 @@
 import gc
 
 import numpy as np
+import tvm_ffi
 
 import tvm
 import tvm.testing
@@ -37,7 +38,7 @@ def test_get_global():
 
     # get it out from global function table
     f = tvm.get_global_func("my_packed_func")
-    assert isinstance(f, tvm.runtime.PackedFunc)
+    assert isinstance(f, tvm_ffi.Function)
     y = f(*targs)
     assert y == 10
 
@@ -58,7 +59,7 @@ def test_get_callback_with_node():
 
     # get it out from global function table
     f = tvm.get_global_func("my_callback_with_node")
-    assert isinstance(f, tvm.runtime.PackedFunc)
+    assert isinstance(f, tvm_ffi.Function)
     y = f(x, f2)
     assert y.value == 10
 
@@ -83,7 +84,7 @@ def test_convert():
         assert tuple(args) == targs
 
     f = tvm.runtime.convert(myfunc)
-    assert isinstance(f, tvm.runtime.PackedFunc)
+    assert isinstance(f, tvm_ffi.Function)
 
 
 def test_byte_array():

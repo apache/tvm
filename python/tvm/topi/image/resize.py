@@ -434,7 +434,7 @@ def resize1d(
     out_dtype: string, optional
         Type to return. If left None will be same as input type.
 
-    output_shape: tvm.tirx.container.Array, optional
+    output_shape: tvm_ffi.Array, optional
         Shape to return. If left None will be inferred
         (If shape is determined dynamically, pass out_dtype.shape as output_shape)
 
@@ -801,7 +801,7 @@ def resize2d(
     out_dtype: string, optional
         Type to return. If left None will be same as input type.
 
-    output_shape: tvm.tirx.container.Array, optional
+    output_shape: tvm_ffi.Array, optional
         Shape to return. If left None will be inferred
         (If shape is determined dynamically, pass out_dtype.shape as output_shape)
 
@@ -1270,7 +1270,7 @@ def resize3d(
     out_dtype: string, optional
         Type to return. If left None will be same as input type.
 
-    output_shape: tvm.tirx.container.Array, optional
+    output_shape: tvm_ffi.Array, optional
         Shape to return. If left None will be inferred
         (If shape is determined dynamically, pass out_dtype.shape as output_shape)
 

@@ -21,9 +21,7 @@ import os
 import subprocess
 import sys
 
-from tvm_ffi import register_global_func
-
-from tvm.runtime import ShapeTuple
+from tvm_ffi import Shape, register_global_func
 
 
 class DiscoPopenWorker:
@@ -188,7 +186,7 @@ def _create_process_pool(num_workers: int, num_groups: int, entrypoint: str):
         nonlocal pool
         if worker_id != 0:
             read_fd, write_fd = pool[worker_id - 1].start()
-            return ShapeTuple([read_fd, write_fd])
+            return Shape([read_fd, write_fd])
         del pool
         return None
 

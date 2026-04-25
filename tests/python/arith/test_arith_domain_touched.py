@@ -14,6 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import tvm_ffi
+
 import tvm
 from tvm.script import tirx as T
 
@@ -63,7 +65,7 @@ def test_domain_touched():
     assert b_domain_r[1].extent.name == "m"
 
     b_domain_w = tvm.arith._ffi_api.DomainTouched(ir, b, False, True)
-    assert isinstance(b_domain_w, tvm.container.Array)
+    assert isinstance(b_domain_w, tvm_ffi.Array)
     assert len(b_domain_w) == 0
 
 

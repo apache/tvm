@@ -18,6 +18,7 @@
 
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm
 from tvm import TVMError, relax
@@ -104,9 +105,9 @@ def test_emit_cache():
         x1 = ib.convert_constant("str0")
         # cache constant str
         assert x0 == x1
-        s0 = ib.convert_constant(tvm.runtime.container.ShapeTuple([1, 2]))
-        s1 = ib.convert_constant(tvm.runtime.container.ShapeTuple([1, 2]))
-        s2 = ib.convert_constant(tvm.runtime.container.ShapeTuple([1, 3]))
+        s0 = ib.convert_constant(tvm_ffi.Shape([1, 2]))
+        s1 = ib.convert_constant(tvm_ffi.Shape([1, 2]))
+        s2 = ib.convert_constant(tvm_ffi.Shape([1, 3]))
         assert s0 == s1
         assert s1 != s2
         y0 = ib.convert_constant(tvm.runtime.tensor(np.array([1, 2, 3]).astype("int32")))

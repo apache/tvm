@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 # ruff: noqa: F841
+import tvm_ffi
+
 import tvm
 import tvm.testing
 from tvm import relax as rx
@@ -58,7 +60,7 @@ def test_call_tir_with_grad():
         te_grad_kwargs={"k": 1.0},
     )
     assert v2.attrs.te_grad_name == "identity_k_grad"
-    assert isinstance(v2.attrs.te_grad_kwargs, tvm.ir.container.Map)
+    assert isinstance(v2.attrs.te_grad_kwargs, tvm_ffi.Map)
     val = next(iter(v2.attrs.te_grad_kwargs.items()))
     assert val[0] == "k" and float(val[1]) == 1.0
 

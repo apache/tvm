@@ -42,7 +42,6 @@ from . import error
 from .ir import IRModule
 from .ir import transform
 from .ir import instrument
-from .ir import container
 from . import ir
 
 # tvm.tirx

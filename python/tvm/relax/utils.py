@@ -26,11 +26,12 @@ from collections.abc import Callable
 from typing import Any, Optional
 
 import tvm_ffi
+from tvm_ffi import Array, Map
 
 import tvm
 
 from .. import tirx
-from ..ir import Array, Attrs, Map, Type, VDevice
+from ..ir import Attrs, Type, VDevice
 from ..te import Tensor as te_Tensor
 from ..te import create_prim_func
 from ..tirx import PrimExpr
@@ -191,7 +192,7 @@ def gen_call_tir_inputs(
 
         In the common case, the type of te_args is a Relax expression and is converted
         into a TE tensor.
-        If te_args is a nested or recursive datatype (i.e list, dict, tvm.ir.Map, tvm.ir.Array),
+        If te_args is a nested or recursive datatype (i.e list, dict, tvm_ffi.Map, tvm_ffi.Array),
         we recursive and convert any value of type Relax expression into a TE tensor.
         Common values of type int, float, and str are preserved.
 
