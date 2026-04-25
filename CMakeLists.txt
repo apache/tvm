@@ -64,7 +64,19 @@ tvm_option(INSTALL_DEV "Install compiler infrastructure" OFF)
 tvm_option(HIDE_PRIVATE_SYMBOLS "Compile with -fvisibility=hidden." OFF)
 tvm_option(INDEX_DEFAULT_I64 "Defaults the index datatype to int64" ON)
 tvm_option(BUILD_STATIC_RUNTIME "Build static version of libtvm_runtime" OFF)
-tvm_option(BUILD_DUMMY_LIBTVM "Build a dummy version of libtvm" OFF)
+# BUILD_DUMMY_LIBTVM was used to produce a stub libtvm.so (runtime-only sources
+# under the libtvm name) for downstream packages that wanted to link against
+# libtvm without pulling in the compiler. After splitting libtvm.so into
+# libtvm_runtime.so + libtvm_compiler.so, downstream consumers should link
+# directly against libtvm_runtime.so, so this option is removed. Setting it
+# emits a deprecation warning and is otherwise a no-op.
+tvm_option(BUILD_DUMMY_LIBTVM "DEPRECATED: link libtvm_runtime.so directly instead" OFF)
+if(BUILD_DUMMY_LIBTVM)
+  message(WARNING
+    "BUILD_DUMMY_LIBTVM is deprecated and ignored: libtvm.so no longer exists "
+    "after the split into libtvm_runtime.so and libtvm_compiler.so. "
+    "Link against libtvm_runtime.so directly instead.")
+endif()
 tvm_option(USE_GTEST "Use GoogleTest for C++ sanity tests" AUTO)
 tvm_option(USE_CUSTOM_LOGGING "Use user-defined custom logging, tvm::runtime::detail::LogFatalImpl and tvm::runtime::detail::LogMessageImpl must be implemented" OFF)
 tvm_option(USE_ALTERNATIVE_LINKER "Use 'mold' or 'lld' if found when invoking compiler to link artifact" AUTO)
@@ -467,32 +479,14 @@ target_link_libraries(tvm_runtime_objs PUBLIC tvm_ffi_header)
 target_link_libraries(tvm_libinfo_objs PUBLIC tvm_ffi_header)
 
 include(GNUInstallDirs)
-if(NOT BUILD_DUMMY_LIBTVM)
-  add_library(tvm SHARED
-    $<TARGET_OBJECTS:tvm_objs>
-    $<TARGET_OBJECTS:tvm_runtime_objs>
-    $<TARGET_OBJECTS:tvm_libinfo_objs>
-    ${TVM_RUNTIME_EXT_OBJS}
-  )
-  target_link_libraries(tvm PUBLIC tvm_ffi_shared)
-else()
-  # dummy version of libtvm that can be used by downstream to specify dependencies
-  # the real runner still need a full version of libtvm
-  add_library(tvm SHARED
-    $<TARGET_OBJECTS:tvm_runtime_objs>
-    $<TARGET_OBJECTS:tvm_libinfo_objs>
-    ${TVM_RUNTIME_EXT_OBJS}
-  )
-  target_link_libraries(tvm PUBLIC tvm_ffi_shared)
-endif()
 
-target_include_directories(tvm PUBLIC "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
-set_property(TARGET tvm APPEND PROPERTY LINK_OPTIONS "${TVM_NO_UNDEFINED_SYMBOLS}")
-set_property(TARGET tvm APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAG}")
+# Runtime library: built from runtime sources only. Loaded with RTLD_GLOBAL on
+# Linux/macOS so its symbols are exposed to downstream loads (e.g. NVRTC kernels
+# and other dynamically loaded modules that resolve runtime symbols at link
+# time).
 if(BUILD_STATIC_RUNTIME)
   add_library(tvm_runtime STATIC
     $<TARGET_OBJECTS:tvm_runtime_objs>
-    $<TARGET_OBJECTS:tvm_libinfo_objs>
     ${TVM_RUNTIME_EXT_OBJS}
   )
   set(NOTICE_MULTILINE
@@ -505,16 +499,54 @@ if(BUILD_STATIC_RUNTIME)
 else()
   add_library(tvm_runtime SHARED
     $<TARGET_OBJECTS:tvm_runtime_objs>
-    $<TARGET_OBJECTS:tvm_libinfo_objs>
     ${TVM_RUNTIME_EXT_OBJS}
   )
   set_property(TARGET tvm_runtime APPEND PROPERTY LINK_OPTIONS "${TVM_NO_UNDEFINED_SYMBOLS}")
   target_link_libraries(tvm_runtime PUBLIC tvm_ffi_shared)
 endif()
 
-
 target_include_directories(tvm_runtime PUBLIC "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
 set_property(TARGET tvm_runtime APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAG}")
+
+# Compiler library: built from compiler-only sources plus the libinfo TU.
+# Links against tvm_runtime (and tvm_ffi_shared transitively). Loaded with
+# RTLD_LOCAL so compiler-internal symbols don't leak into the global namespace.
+add_library(tvm_compiler SHARED
+  $<TARGET_OBJECTS:tvm_objs>
+  $<TARGET_OBJECTS:tvm_libinfo_objs>
+)
+target_link_libraries(tvm_compiler PUBLIC tvm_runtime tvm_ffi_shared)
+target_include_directories(tvm_compiler PUBLIC "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
+set_property(TARGET tvm_compiler APPEND PROPERTY LINK_OPTIONS "${TVM_NO_UNDEFINED_SYMBOLS}")
+set_property(TARGET tvm_compiler APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAG}")
+
+# Place runtime/compiler/allvisible artifacts under build/lib/ to mirror the
+# tvm-ffi layout and make tvm_ffi.libinfo.load_lib_ctypes(package="tvm") able
+# to discover them in dev / editable builds.
+set_target_properties(tvm_runtime PROPERTIES
+  ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
+  LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
+)
+set_target_properties(tvm_compiler PROPERTIES
+  ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
+  LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
+)
+if(MSVC)
+  foreach(config_type Release RELEASE Debug DEBUG RelWithDebInfo RELWITHDEBINFO MinSizeRel MINSIZEREL)
+    set_target_properties(tvm_runtime PROPERTIES
+      ARCHIVE_OUTPUT_DIRECTORY_${config_type} "${CMAKE_BINARY_DIR}/lib"
+      LIBRARY_OUTPUT_DIRECTORY_${config_type} "${CMAKE_BINARY_DIR}/lib"
+      RUNTIME_OUTPUT_DIRECTORY_${config_type} "${CMAKE_BINARY_DIR}/lib"
+    )
+    set_target_properties(tvm_compiler PROPERTIES
+      ARCHIVE_OUTPUT_DIRECTORY_${config_type} "${CMAKE_BINARY_DIR}/lib"
+      LIBRARY_OUTPUT_DIRECTORY_${config_type} "${CMAKE_BINARY_DIR}/lib"
+      RUNTIME_OUTPUT_DIRECTORY_${config_type} "${CMAKE_BINARY_DIR}/lib"
+    )
+  endforeach()
+endif()
 
 
 # logging option for libbacktrace
@@ -546,15 +578,13 @@ if(USE_THREADS AND NOT BUILD_FOR_HEXAGON)
   set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
   set(THREADS_PREFER_PTHREAD_FLAG TRUE)
   find_package(Threads REQUIRED)
-  target_link_libraries(tvm PUBLIC Threads::Threads)
+  target_link_libraries(tvm_compiler PUBLIC Threads::Threads)
   target_link_libraries(tvm_runtime PUBLIC Threads::Threads)
 endif()
 
-if(NOT BUILD_DUMMY_LIBTVM)
-  target_link_libraries(tvm PRIVATE ${TVM_LINKER_LIBS})
-endif()
+target_link_libraries(tvm_compiler PRIVATE ${TVM_LINKER_LIBS})
 
-target_link_libraries(tvm PRIVATE ${TVM_RUNTIME_LINKER_LIBS})
+target_link_libraries(tvm_compiler PRIVATE ${TVM_RUNTIME_LINKER_LIBS})
 target_link_libraries(tvm_runtime PRIVATE ${TVM_RUNTIME_LINKER_LIBS})
 
 if(BUILD_FOR_HEXAGON AND DEFINED USE_HEXAGON_GTEST AND EXISTS ${USE_HEXAGON_GTEST})
@@ -568,22 +598,27 @@ endif()
 
 # Set flags for clang
 include(cmake/modules/ClangFlags.cmake)
-set(TVM_TEST_LIBRARY_NAME tvm)
+set(TVM_TEST_LIBRARY_NAME tvm_compiler)
 if (HIDE_PRIVATE_SYMBOLS AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   add_library(tvm_allvisible SHARED $<TARGET_OBJECTS:tvm_objs> $<TARGET_OBJECTS:tvm_runtime_objs> $<TARGET_OBJECTS:tvm_libinfo_objs>)
-  target_include_directories(tvm_allvisible PUBLIC "$<TARGET_PROPERTY:tvm,INCLUDE_DIRECTORIES>")
-  target_link_libraries(tvm_allvisible PRIVATE "$<TARGET_PROPERTY:tvm,LINK_LIBRARIES>")
+  target_include_directories(tvm_allvisible PUBLIC "$<TARGET_PROPERTY:tvm_compiler,INCLUDE_DIRECTORIES>")
+  target_link_libraries(tvm_allvisible PRIVATE "$<TARGET_PROPERTY:tvm_compiler,LINK_LIBRARIES>")
   target_link_libraries(tvm_allvisible PUBLIC tvm_ffi_shared)
+  set_target_properties(tvm_allvisible PROPERTIES
+    ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
+  )
   set(TVM_TEST_LIBRARY_NAME tvm_allvisible)
 
   set(HIDE_SYMBOLS_LINKER_FLAGS "-Wl,--exclude-libs,ALL")
   # Note: 'target_link_options' with 'PRIVATE' keyword would be cleaner
   # but it's not available until CMake 3.13. Switch to 'target_link_options'
   # once minimum CMake version is bumped up to 3.13 or above.
-  target_link_libraries(tvm PRIVATE ${HIDE_SYMBOLS_LINKER_FLAGS})
+  target_link_libraries(tvm_compiler PRIVATE ${HIDE_SYMBOLS_LINKER_FLAGS})
   target_link_libraries(tvm_runtime PRIVATE ${HIDE_SYMBOLS_LINKER_FLAGS})
-  target_compile_definitions(tvm_allvisible PUBLIC $<TARGET_PROPERTY:tvm,INTERFACE_COMPILE_DEFINITONS>)
-  target_compile_definitions(tvm_allvisible PRIVATE $<TARGET_PROPERTY:tvm,COMPILE_DEFINITONS>)
+  target_compile_definitions(tvm_allvisible PUBLIC $<TARGET_PROPERTY:tvm_compiler,INTERFACE_COMPILE_DEFINITONS>)
+  target_compile_definitions(tvm_allvisible PRIVATE $<TARGET_PROPERTY:tvm_compiler,COMPILE_DEFINITONS>)
 endif()
 
 # Create the `cpptest` target if we can find GTest.  If not, we create dummy
@@ -620,7 +655,7 @@ if(GTEST_FOUND)
   endif(TVM_DEBUG_WITH_ABI_CHANGE)
 
   # For some reason, compile definitions are not propagated correctly, so we manually add them here
-  target_compile_definitions(cpptest PUBLIC $<TARGET_PROPERTY:tvm,INTERFACE_COMPILE_DEFINITIONS>)
+  target_compile_definitions(cpptest PUBLIC $<TARGET_PROPERTY:tvm_compiler,INTERFACE_COMPILE_DEFINITIONS>)
   gtest_discover_tests(cpptest)
 endif()
 
@@ -628,7 +663,7 @@ endif()
 add_custom_target(runtime DEPENDS tvm_runtime)
 
 # Installation rules
-install(TARGETS tvm DESTINATION lib${LIB_SUFFIX})
+install(TARGETS tvm_compiler DESTINATION lib${LIB_SUFFIX})
 install(TARGETS tvm_runtime DESTINATION lib${LIB_SUFFIX})
 if(BUILD_FOR_HEXAGON AND DEFINED USE_HEXAGON_GTEST AND EXISTS ${USE_HEXAGON_GTEST})
   install(TARGETS gtest DESTINATION lib${LIB_SUFFIX})
@@ -685,10 +720,10 @@ endif()
 # Change relative paths in backtrace to absolute ones
 if(TVM_IS_DEBUG_BUILD)
   set(FILE_PREFIX_MAP_FLAG "-ffile-prefix-map=..=${CMAKE_CURRENT_SOURCE_DIR}")
-  target_compile_options(tvm PRIVATE "${FILE_PREFIX_MAP_FLAG}")
+  target_compile_options(tvm_compiler PRIVATE "${FILE_PREFIX_MAP_FLAG}")
   CHECK_CXX_COMPILER_FLAG("${FILE_PREFIX_MAP_FLAG}" FILE_PREFIX_MAP_SUPPORTED)
   if(FILE_PREFIX_MAP_SUPPORTED)
-    target_compile_options(tvm PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${FILE_PREFIX_MAP_FLAG}>)
+    target_compile_options(tvm_compiler PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${FILE_PREFIX_MAP_FLAG}>)
     target_compile_options(tvm_objs PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${FILE_PREFIX_MAP_FLAG}>)
     target_compile_options(tvm_libinfo_objs PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${FILE_PREFIX_MAP_FLAG}>)
     target_compile_options(tvm_runtime PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${FILE_PREFIX_MAP_FLAG}>)
@@ -696,7 +731,7 @@ if(TVM_IS_DEBUG_BUILD)
   endif()
 endif()
 
-tvm_ffi_add_apple_dsymutil(tvm)
+tvm_ffi_add_apple_dsymutil(tvm_compiler)
 # Only run dsymutil on shared libraries, not static libraries
 if(NOT BUILD_STATIC_RUNTIME)
   tvm_ffi_add_apple_dsymutil(tvm_runtime)
@@ -725,13 +760,17 @@ dump_options_to_file("${TVM_ALL_OPTIONS}")
 
 if(USE_CUDA AND USE_CUTLASS)
   install(TARGETS fpA_intB_gemm EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
-  target_link_libraries(tvm PRIVATE fpA_intB_gemm)
+  # fpA_intB_gemm is a separate shared library; link it into the runtime so
+  # the runtime exposes its kernels and tvm_compiler picks them up
+  # transitively at run time.
   target_link_libraries(tvm_runtime PRIVATE fpA_intB_gemm)
-  target_link_libraries(tvm PRIVATE fpA_intB_gemm_tvm)
+  # fpA_intB_gemm_tvm is an OBJECT library carrying the
+  # `fastertransformer.gemm_fp16_int` global registration. Linking it into
+  # both tvm_runtime and tvm_compiler causes the static initializer to run
+  # twice (once per shared library). Anchor it in tvm_runtime only.
   target_link_libraries(tvm_runtime PRIVATE fpA_intB_gemm_tvm)
 
   install(TARGETS flash_attn EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
-  target_link_libraries(tvm PRIVATE -Wl,--no-as-needed flash_attn)
   target_link_libraries(tvm_runtime PRIVATE -Wl,--no-as-needed flash_attn)
 endif()
 
@@ -741,7 +780,7 @@ endif()
 
 if(USE_CUDA AND USE_NCCL)
   find_library(LIBRT rt)
-  target_link_libraries(tvm PRIVATE nccl ${LIBRT})
+  # Runtime-only dependency.
   target_link_libraries(tvm_runtime PRIVATE nccl ${LIBRT})
 endif()
 
@@ -750,14 +789,14 @@ if (USE_CUDA AND USE_NVSHMEM)
   target_include_directories(tvm_runtime_objs PUBLIC ${NVSHMEM_INCLUDE_DIR})
   find_library(NVSHMEM_HOST nvshmem_host ${NVSHMEM_LIB_DIR})
   find_library(NVSHMEM_DEVICE nvshmem_device ${NVSHMEM_LIB_DIR})
-  target_link_libraries(tvm PRIVATE ${NVSHMEM_HOST} ${NVSHMEM_DEVICE})
+  # Runtime-only dependency.
   target_link_libraries(tvm_runtime PRIVATE ${NVSHMEM_HOST} ${NVSHMEM_DEVICE})
-  set_target_properties(tvm PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
   set_target_properties(tvm_runtime PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+  set_target_properties(tvm_compiler PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 endif()
 
 if(USE_ROCM AND USE_RCCL)
-  target_link_libraries(tvm PRIVATE rccl)
+  # Runtime-only dependency.
   target_link_libraries(tvm_runtime PRIVATE rccl)
 endif()
 
@@ -766,27 +805,30 @@ endif()
 if(TVM_BUILD_PYTHON_MODULE)
   message(STATUS "Configuring Python package installation")
 
-  # Set RPATH for tvm and tvm_runtime to find other libraries relatively
+  # Set RPATH for tvm_compiler and tvm_runtime to find each other relatively
+  # (libtvm_compiler.so links against libtvm_runtime.so).
   if(APPLE)
     # macOS uses @loader_path
-    set_target_properties(tvm PROPERTIES INSTALL_RPATH "@loader_path")
+    set_target_properties(tvm_compiler PROPERTIES INSTALL_RPATH "@loader_path")
     set_target_properties(tvm_runtime PROPERTIES INSTALL_RPATH "@loader_path")
   elseif(LINUX)
     # Linux uses $ORIGIN
-    set_target_properties(tvm PROPERTIES INSTALL_RPATH "\$ORIGIN")
+    set_target_properties(tvm_compiler PROPERTIES INSTALL_RPATH "\$ORIGIN")
     set_target_properties(tvm_runtime PROPERTIES INSTALL_RPATH "\$ORIGIN")
   endif()
 
-  # Install compiled shared libraries
-  install(TARGETS tvm DESTINATION ".")
-  install(TARGETS tvm_runtime DESTINATION ".")
+  # Install compiled shared libraries into <project>/lib so that
+  # tvm_ffi.libinfo.load_lib_ctypes(package="tvm", target_name=...) can find
+  # them via the package RECORD or the project's lib/ fallback dir.
+  install(TARGETS tvm_compiler DESTINATION "lib")
+  install(TARGETS tvm_runtime DESTINATION "lib")
 
-  # Install third-party compiled dependencies
+  # Install third-party compiled dependencies into the same lib/ dir.
   if(TARGET fpA_intB_gemm)
-    install(TARGETS fpA_intB_gemm DESTINATION ".")
+    install(TARGETS fpA_intB_gemm DESTINATION "lib")
   endif()
   if(TARGET flash_attn)
-    install(TARGETS flash_attn DESTINATION ".")
+    install(TARGETS flash_attn DESTINATION "lib")
   endif()
 
   # Install minimal header files needed by Python extensions

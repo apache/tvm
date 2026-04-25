@@ -25,13 +25,13 @@ files_to_stash = {
         "build/hexagon_api_output",
     ],
     # This library is produced with HIDE_PRIVATE_SYMBOLS=ON
-    "tvm_allvisible": ["build/libtvm_allvisible.so"],
+    "tvm_allvisible": ["build/lib/libtvm_allvisible.so"],
     # runtime files
-    "tvm_runtime": ["build/libtvm_runtime.so", "build/config.cmake"],
+    "tvm_runtime": ["build/lib/libtvm_runtime.so", "build/config.cmake"],
     # compiler files
     "tvm_lib": [
-        "build/libtvm.so",
-        "build/libtvm_runtime.so",
+        "build/lib/libtvm_compiler.so",
+        "build/lib/libtvm_runtime.so",
         "build/lib/libtvm_ffi.so",
         "build/config.cmake",
     ],

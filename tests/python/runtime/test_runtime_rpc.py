@@ -38,7 +38,7 @@ from tvm.script import ir as I
 from tvm.script import tirx as T
 
 if __name__ == "__main__":
-    # NOTE: must live here to avoid registering PackedFunc with libtvm.so twice.
+    # NOTE: must live here to avoid registering PackedFunc with libtvm_compiler.so twice.
     tvm.testing.main()
 
 

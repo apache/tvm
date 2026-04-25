@@ -48,7 +48,7 @@ def find_minrpc_server_libpath(server="posix_popen_server"):
     return minrpc_dir, path
 
 
-def with_minrpc(compile_func, server="posix_popen_server", runtime="libtvm"):
+def with_minrpc(compile_func, server="posix_popen_server", runtime="libtvm_runtime"):
     """Attach the compiler function with minrpc related options.
 
     Parameters
@@ -70,20 +70,36 @@ def with_minrpc(compile_func, server="posix_popen_server", runtime="libtvm"):
     minrpc_dir, server_path = find_minrpc_server_libpath(server)
     runtime_path = libinfo.find_lib_path([runtime, runtime + ".so", runtime + ".dylib"])[0]
     tvm_ffi_path = tvm_ffi.libinfo.find_libtvm_ffi()
+    # Optional compiler library: when present we link it in too so the
+    # minrpc server has access to compiler-side global functions (e.g.
+    # ``testing.GetShapeElem`` registered in ``src/support/ffi_testing.cc``).
+    # In runtime-only deployments the lib is absent and we silently skip it.
+    compiler_paths = libinfo.find_lib_path(
+        ["libtvm_compiler", "libtvm_compiler.so", "libtvm_compiler.dylib"], optional=True
+    )
+    compiler_path = compiler_paths[0] if compiler_paths else None
 
     runtime_dir = os.path.abspath(os.path.dirname(runtime_path))
     tvm_ffi_dir = os.path.abspath(os.path.dirname(tvm_ffi_path))
     options = ["-std=c++17"]
-    # Make sure the rpath to the libtvm is set so we can do local tests.
+    # Make sure the rpath to the libtvm_runtime is set so we can do local tests.
     # Note that however, this approach won't work on remote.
     # Always recommend to link statically.
     options += ["-Wl,-rpath=" + runtime_dir]
     options += ["-Wl,-rpath=" + tvm_ffi_dir]
+    # Force the linker to retain the runtime/compiler shared lib dependencies
+    # even if no symbol from them is directly referenced. The minrpc server
+    # binary only touches tvm_ffi APIs at link time, but it relies on global
+    # functions (e.g. ``rpc.CreateEventDrivenServer``) registered via static
+    # initializers inside libtvm_runtime / libtvm_compiler; with the default
+    # ``--as-needed`` those registrations would never run.
+    options += ["-Wl,--no-as-needed"]
     options += ["-I" + path for path in libinfo.find_include_path()]
     options += ["-I" + minrpc_dir]
-    fcompile = cc.cross_compiler(
-        compile_func, options=options, add_files=[server_path, runtime_path, tvm_ffi_path]
-    )
+    add_files = [server_path, runtime_path, tvm_ffi_path]
+    if compiler_path is not None:
+        add_files.insert(2, compiler_path)
+    fcompile = cc.cross_compiler(compile_func, options=options, add_files=add_files)
     fcompile.__name__ = "with_minrpc"
     fcompile.need_system_lib = True
     return fcompile

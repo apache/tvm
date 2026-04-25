@@ -68,7 +68,11 @@ def get_dll_directories():
     # Pip lib directory
     dll_path.append(ffi_dir)
     dll_path.append(os.path.join(ffi_dir, "lib"))
-    # Default CMake build directory
+    # Default CMake build directory: shared libs are placed under build/lib/
+    # to mirror the tvm-ffi layout (so wheel install + dev-mode dlopen find
+    # them via the same `lib/` subdir).
+    dll_path.append(os.path.join(source_dir, "build", "lib"))
+    dll_path.append(os.path.join(source_dir, "build", "lib", "Release"))
     dll_path.append(os.path.join(source_dir, "build"))
     dll_path.append(os.path.join(source_dir, "build", "Release"))
     # Default make build directory
@@ -105,6 +109,13 @@ def find_lib_path(name=None, search_path=None, optional=False):
     """
     use_runtime = os.environ.get("TVM_USE_RUNTIME_LIB", False)
     dll_path = get_dll_directories()
+    # When the caller asks for a specific ``name`` we honour it directly
+    # regardless of TVM_USE_RUNTIME_LIB; that env var is interpreted by
+    # ``base.py::_load_lib`` to choose which name to ask for. This avoids
+    # the runtime/compiler dual-list logic below from making `name` paths
+    # unreachable when the user sets TVM_USE_RUNTIME_LIB.
+    if name is not None:
+        use_runtime = False
 
     if search_path is not None:
         if isinstance(search_path, list):
@@ -123,18 +134,18 @@ def find_lib_path(name=None, search_path=None, optional=False):
         ext_lib_dll_path = []
     else:
         if sys.platform.startswith("win32"):
-            lib_dll_names = ["libtvm.dll", "tvm.dll"]
+            lib_dll_names = ["libtvm_compiler.dll", "tvm_compiler.dll"]
             runtime_dll_names = ["libtvm_runtime.dll", "tvm_runtime.dll"]
             ext_lib_dll_names = [
                 "3rdparty/cutlass_fpA_intB_gemm/cutlass_kernels/libfpA_intB_gemm.dll",
                 "3rdparty/libflash_attn/src/libflash_attn.dll",
             ]
         elif sys.platform.startswith("darwin"):
-            lib_dll_names = ["libtvm.dylib"]
+            lib_dll_names = ["libtvm_compiler.dylib"]
             runtime_dll_names = ["libtvm_runtime.dylib"]
             ext_lib_dll_names = []
         else:
-            lib_dll_names = ["libtvm.so"]
+            lib_dll_names = ["libtvm_compiler.so"]
             runtime_dll_names = ["libtvm_runtime.so"]
             ext_lib_dll_names = [
                 "3rdparty/cutlass_fpA_intB_gemm/cutlass_kernels/libfpA_intB_gemm.so",

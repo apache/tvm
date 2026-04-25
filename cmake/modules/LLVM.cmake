@@ -23,7 +23,7 @@
 # for more discussion.
 add_definitions(-DNDEBUG=1)
 # TODO(@jroesch, @tkonolige): if we actually use targets we can do this.
-# target_compile_definitions(tvm PRIVATE NDEBUG=1)
+# target_compile_definitions(tvm_compiler PRIVATE NDEBUG=1)
 
 # Test if ${USE_LLVM} is not an explicit boolean false
 # It may be a boolean or a string

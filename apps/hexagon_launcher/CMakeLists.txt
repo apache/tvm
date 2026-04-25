@@ -54,7 +54,7 @@ ExternalProject_Get_Property(android_launcher_binaries BINARY_DIR)
 ExternalProject_Add_Step(android_launcher_binaries copy_binaries
   COMMAND ${CMAKE_COMMAND} -E copy_if_different
     ${BINARY_DIR}/launcher_android
-    ${BINARY_DIR}/libtvm_runtime.so
+    ${BINARY_DIR}/lib/libtvm_runtime.so
     ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDEES install
 )
