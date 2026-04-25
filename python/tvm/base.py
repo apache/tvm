@@ -19,12 +19,8 @@
 # ruff: noqa: F401
 """Base library for TVM."""
 
-import ctypes
-import importlib.metadata as _im
 import os
 import sys
-
-import tvm_ffi
 
 from . import libinfo
 
@@ -70,20 +66,18 @@ def _load_lib():
 
     runtime_only = bool(os.environ.get("TVM_USE_RUNTIME_LIB", False))
 
-    # Preferred path: tvm_ffi.libinfo.load_lib_ctypes resolves shared libs via
-    # the wheel RECORD or a dev-mode `lib/`/`build/lib/` fallback.
-    try:
-        runtime_lib = tvm_ffi.libinfo.load_lib_ctypes(
-            package="tvm", target_name="tvm_runtime", mode="RTLD_GLOBAL"
-        )
-    except (RuntimeError, _im.PackageNotFoundError):
-        return _load_lib_dev_fallback(runtime_only=runtime_only)
+    # ``libinfo.load_lib_ctypes`` mirrors tvm_ffi's loader but anchors its
+    # dev-mode search on the ``tvm`` package root, so PYTHONPATH-style dev
+    # installs locate ``build/lib/libtvm_*.so`` correctly.
+    runtime_lib = libinfo.load_lib_ctypes(
+        package="tvm", target_name="tvm_runtime", mode="RTLD_GLOBAL"
+    )
 
     if runtime_only:
         return runtime_lib, _runtime_basename()
 
     try:
-        compiler_lib = tvm_ffi.libinfo.load_lib_ctypes(
+        compiler_lib = libinfo.load_lib_ctypes(
             package="tvm", target_name="tvm_compiler", mode="RTLD_LOCAL"
         )
         return compiler_lib, _compiler_basename()
@@ -107,20 +101,6 @@ def _compiler_basename() -> str:
     if sys.platform.startswith("darwin"):
         return "libtvm_compiler.dylib"
     return "libtvm_compiler.so"
-
-
-def _load_lib_dev_fallback(runtime_only: bool):
-    """PYTHONPATH / dev-build fallback when load_lib_ctypes can't find package metadata."""
-    runtime_paths = libinfo.find_lib_path(name=_runtime_basename(), optional=False)
-    runtime_lib = ctypes.CDLL(runtime_paths[0], ctypes.RTLD_GLOBAL)
-    if runtime_only:
-        return runtime_lib, os.path.basename(runtime_paths[0])
-    compiler_paths = libinfo.find_lib_path(name=_compiler_basename(), optional=True)
-    if compiler_paths:
-        # NOTE: compiler is RTLD_LOCAL — internals must not leak globally.
-        compiler_lib = ctypes.CDLL(compiler_paths[0], ctypes.RTLD_LOCAL)
-        return compiler_lib, os.path.basename(compiler_paths[0])
-    return runtime_lib, os.path.basename(runtime_paths[0])
 
 
 try:
