@@ -21,7 +21,6 @@ from tvm_ffi import convert
 from tvm_ffi._dtype import dtype as DataType, DataTypeCode
 
 # class exposures
-from .packed_func import PackedFunc
 from .object import Object
 from .script_printer import Scriptable
 from .object_generic import ObjectConvertible
@@ -35,7 +34,6 @@ from .executable import Executable
 from ._tensor import device, cpu, cuda, opencl, vulkan, metal
 from ._tensor import vpi, rocm, ext_dev, from_dlpack
 from .module import load_module, enabled, system_lib, load_static_library, num_threads
-from .container import String, ShapeTuple
 from .object_generic import const
 from .params import (
     save_param_dict,

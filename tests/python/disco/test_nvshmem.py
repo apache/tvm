@@ -30,11 +30,11 @@ from typing import Any
 
 import numpy as np
 import pytest
+from tvm_ffi import Shape
 
 import tvm
 import tvm.testing
 from tvm.exec import disco_worker as _  # pylint: disable=unused-import
-from tvm.runtime import ShapeTuple
 from tvm.runtime import disco as di
 from tvm.script import ir as I
 from tvm.script import relax as R
@@ -133,8 +133,8 @@ def test_nvshmem_empty(session_kind: di.Session, num_workers: int):
     init_dfunc(uid, num_workers, 0)
     sess.sync_worker_0()
     empty_dfunc = sess.get_global_func("runtime.disco.nvshmem.empty")
-    a = empty_dfunc(ShapeTuple((32, 64)), "float32", device)
-    b = empty_dfunc(ShapeTuple((64, 32)), "float32", device)
+    a = empty_dfunc(Shape((32, 64)), "float32", device)
+    b = empty_dfunc(Shape((64, 32)), "float32", device)
     sess.sync_worker_0()
     finalize_dfunc = sess.get_global_func("runtime.disco.nvshmem.finalize_nvshmem")
     finalize_dfunc()

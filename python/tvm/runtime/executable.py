@@ -21,10 +21,12 @@
 from collections.abc import Callable
 from typing import Any
 
+from tvm_ffi import Function
+
 import tvm
 from tvm.contrib import utils as _utils
 
-from . import Module, PackedFunc
+from . import Module
 
 
 class Executable:
@@ -35,8 +37,8 @@ class Executable:
         self.mod: Module = mod
         self._jitted_mod: Module | None = None
 
-    def __getitem__(self, name: str) -> PackedFunc:
-        """Get the PackedFunc from the jitted module."""
+    def __getitem__(self, name: str) -> Function:
+        """Get the Function from the jitted module."""
         return self.jit().get_function(name, query_imports=True)
 
     def __call__(self, *args, **kwargs) -> Any:
