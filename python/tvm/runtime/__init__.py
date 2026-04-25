@@ -17,11 +17,14 @@
 # under the License.
 """TVM runtime namespace."""
 
-from tvm_ffi import convert
+from tvm_ffi import convert, Object
 from tvm_ffi._dtype import dtype as DataType, DataTypeCode
 
+# Import _ffi_node_api for its side effect of installing AsRepr as
+# tvm_ffi.core.__object_repr__ so TVM IR objects use the rich C++ ReprPrinter.
+from . import _ffi_node_api
+
 # class exposures
-from .object import Object
 from .script_printer import Scriptable
 from .object_generic import ObjectConvertible
 from .device import Device

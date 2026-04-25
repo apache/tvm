@@ -39,3 +39,9 @@ def LoadJSON(json_str):
 
 # Exports functions registered in node namespace.
 tvm_ffi.init_ffi_api("node", __name__)
+
+# Override the default repr function for tvm_ffi.core.Object so TVM IR
+# objects use the rich C++ ReprPrinter (registered above via init_ffi_api),
+# falling back to the runtime-only AsRepr defined in this file when libtvm.so
+# is not available.
+tvm_ffi.core.__object_repr__ = AsRepr

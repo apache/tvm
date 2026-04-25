@@ -26,12 +26,11 @@ from collections.abc import Callable, Sequence
 from typing import Any, Optional, Union
 
 import numpy as np
-from tvm_ffi import Shape, get_global_func, register_global_func, register_object
+from tvm_ffi import Object, Shape, get_global_func, register_global_func, register_object
 
 from .._tensor import Tensor
 from .._tensor import tensor as _as_Tensor
 from ..device import Device
-from ..object import Object
 from . import _ffi_api, process_pool  # pylint: disable=unused-import
 
 

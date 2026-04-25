@@ -19,8 +19,7 @@
 import tvm_ffi
 
 import tvm
-from tvm.runtime import Device
-from tvm.runtime.object import Object
+from tvm.runtime import Device, Object
 
 from . import _ffi_api
 
