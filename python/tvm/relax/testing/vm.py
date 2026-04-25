@@ -23,7 +23,7 @@ import numpy as np  # type: ignore
 
 import tvm
 from tvm import relax
-from tvm.runtime.object import Object
+from tvm.runtime import Object
 
 
 @tvm.register_global_func("test.vm.move")

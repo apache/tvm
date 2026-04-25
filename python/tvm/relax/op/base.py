@@ -23,8 +23,7 @@ import tvm_ffi
 
 import tvm
 import tvm.runtime
-from tvm.runtime import ObjectConvertible
-from tvm.runtime.object import Object
+from tvm.runtime import Object, ObjectConvertible
 
 from ...ir import PrimExpr
 from ..expr import Call, Expr, ExternFunc, GlobalVar, ShapeExpr, StringImm, Var

@@ -24,7 +24,7 @@ import tvm_ffi
 from tvm import TVMError
 from tvm.ir import Span
 from tvm.relax.struct_info import StructInfo, TensorStructInfo
-from tvm.runtime.object import Object
+from tvm.runtime import Object
 
 from . import _ffi_api
 from .global_info import DeviceMesh

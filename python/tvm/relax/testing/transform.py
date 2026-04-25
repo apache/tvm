@@ -25,7 +25,7 @@ import tvm_ffi
 import tvm
 from tvm.ir.module import IRModule
 from tvm.relax.expr import Call, DataflowBlock, Var
-from tvm.runtime.object import Object
+from tvm.runtime import Object
 
 
 def ApplyEmptyCppMutator() -> tvm.ir.transform.Pass:
