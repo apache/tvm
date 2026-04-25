@@ -15,6 +15,19 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Bundle registry for CI artifact stashing.
+
+Single source of truth for the file lists uploaded to / downloaded from S3 by
+``ci/scripts/jenkins/s3.py``. This module deliberately carries nothing else —
+docker image tags live in ``ci/jenkins/docker-images.ini`` and Jinja-template
+metadata (image platforms, AWS endpoints) lives in ``ci/jenkins/generate.py``.
+
+CLI: ``python3 ci/jenkins/data.py <bundle> [<bundle> ...]`` resolves bundle
+names to their file paths (one per line; exit 1 on unknown name). Used by
+``s3.py`` at Jenkins runtime and by any external caller that needs
+data-driven artifact lists.
+"""
+
 import sys
 
 files_to_stash = {
@@ -24,15 +37,16 @@ files_to_stash = {
     "hexagon_api": [
         "build/hexagon_api_output",
     ],
-    # This library is produced with HIDE_PRIVATE_SYMBOLS=ON
-    "tvm_allvisible": ["build/libtvm_allvisible.so"],
     # runtime files
     "tvm_runtime": ["build/libtvm_runtime.so", "build/config.cmake"],
-    # compiler files
+    # compiler files (libtvm_allvisible is the HIDE_PRIVATE_SYMBOLS=ON
+    # variant cpptest links against; bundled here so every consumer of
+    # tvm_lib gets it without having to remember a second bundle name).
     "tvm_lib": [
         "build/libtvm.so",
         "build/libtvm_runtime.so",
         "build/lib/libtvm_ffi.so",
+        "build/libtvm_allvisible.so",
         "build/config.cmake",
     ],
     # gpu related compiler files
@@ -43,46 +57,12 @@ files_to_stash = {
 }
 
 
-# AWS info
-aws_default_region = "us-west-2"
-aws_ecr_url = "dkr.ecr." + aws_default_region + ".amazonaws.com"
-
-# Docker Images
-docker_images = {
-    "ci_arm": {
-        "tag": "tlcpack/ci-arm:20251130-061900-c429a2b1",
-        "platform": "ARM",
-    },
-    "ci_cpu": {
-        "tag": "tlcpack/ci-cpu:20251130-061900-c429a2b1",
-        "platform": "CPU",
-    },
-    "ci_gpu": {
-        "tag": "tlcpack/ci-gpu:20251130-061900-c429a2b1",
-        "platform": "GPU",
-    },
-    "ci_lint": {
-        "tag": "tlcpack/ci-lint:20251130-061900-c429a2b1",
-        "platform": "CPU",
-    },
-    "ci_wasm": {
-        "tag": "tlcpack/ci-wasm:20251130-061900-c429a2b1",
-        "platform": "CPU",
-    },
-}
-
-data = {
-    "images": [{"name": k, "platform": v["platform"]} for k, v in docker_images.items()],
-    "aws_default_region": aws_default_region,
-    "aws_ecr_url": aws_ecr_url,
-    **{k: v["tag"] for k, v in docker_images.items()},
-    **files_to_stash,
-}
-
 if __name__ == "__main__":
-    # This is used in docker/dev_common.sh to look up image tags
-    name = sys.argv[1]
-    if name in docker_images:
-        print(docker_images[name]["tag"])
-    else:
-        exit(1)
+    paths = []
+    for name in sys.argv[1:]:
+        if name not in files_to_stash:
+            print(f"unknown bundle: {name}", file=sys.stderr)
+            sys.exit(1)
+        paths.extend(files_to_stash[name])
+    for p in paths:
+        print(p)

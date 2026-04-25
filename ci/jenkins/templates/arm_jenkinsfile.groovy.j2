@@ -31,5 +31,5 @@
   )
   cmake_build(ci_arm, 'build')
   make_cpp_tests(ci_arm, 'build')
-  {{ m.upload_artifacts(tag='arm', filenames=tvm_lib + cpptest) }}
+  {{ m.upload_artifacts(tag='arm', bundles=["tvm_lib", "cpptest"]) }}
 {% endcall %}

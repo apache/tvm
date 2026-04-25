@@ -1198,7 +1198,7 @@ def test_github_tag_teams(tmpdir_factory, source_type, data, check):
         },
         expected="Using tlcpackstaging tag on tlcpack",
         expected_images=[
-            '"tag": "tlcpack/ci-arm:456-456-abc"',
+            "ci_arm: tlcpack/ci-arm:456-456-abc",
         ],
     ),
     tlcpack_update=dict(
@@ -1220,7 +1220,7 @@ def test_github_tag_teams(tmpdir_factory, source_type, data, check):
         },
         expected="Found newer image, using: tlcpack",
         expected_images=[
-            '"tag": "tlcpack/ci-arm:234-234-abc",',
+            "ci_arm: tlcpack/ci-arm:234-234-abc",
         ],
     ),
 )
