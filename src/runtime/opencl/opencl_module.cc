@@ -360,8 +360,9 @@ ffi::Optional<ffi::Function> OpenCLModuleNode::GetFunction(const ffi::String& na
   return OpenCLModuleNodeBase::GetFunction(name);
 }
 
-ffi::Module OpenCLModuleCreate(std::string data, std::string fmt,
-                               ffi::Map<ffi::String, FunctionInfo> fmap, std::string source) {
+static ffi::Module OpenCLModuleCreateImpl(std::string data, std::string fmt,
+                                          ffi::Map<ffi::String, FunctionInfo> fmap,
+                                          std::string source) {
   auto n = ffi::make_object<OpenCLModuleNode>(data, fmt, fmap, source);
   n->Init();
   return ffi::Module(n);
@@ -375,7 +376,7 @@ ffi::Module OpenCLModuleLoadFile(const std::string& file_name, const ffi::String
   std::string meta_file = GetMetaFilePath(file_name);
   LoadBinaryFromFile(file_name, &data);
   LoadMetaDataFromFile(meta_file, &fmap);
-  return OpenCLModuleCreate(data, fmt, fmap, std::string());
+  return OpenCLModuleCreateImpl(data, fmt, fmap, std::string());
 }
 
 ffi::Module OpenCLModuleLoadFromBytes(const ffi::Bytes& bytes) {
@@ -386,7 +387,7 @@ ffi::Module OpenCLModuleLoadFromBytes(const ffi::Bytes& bytes) {
   stream.Read(&fmt);
   TVM_FFI_ICHECK(stream.Read(&fmap));
   stream.Read(&data);
-  return OpenCLModuleCreate(data, fmt, fmap, std::string());
+  return OpenCLModuleCreateImpl(data, fmt, fmap, std::string());
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -394,7 +395,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef()
       .def("ffi.Module.load_from_file.cl", OpenCLModuleLoadFile)
       .def("ffi.Module.load_from_file.clbin", OpenCLModuleLoadFile)
-      .def("ffi.Module.load_from_bytes.opencl", OpenCLModuleLoadFromBytes);
+      .def("ffi.Module.load_from_bytes.opencl", OpenCLModuleLoadFromBytes)
+      .def("ffi.Module.create.opencl",
+           [](ffi::String data, ffi::String fmt, ffi::Map<ffi::String, FunctionInfo> fmap,
+              ffi::String source) {
+             return OpenCLModuleCreateImpl(std::string(data), std::string(fmt), fmap,
+                                           std::string(source));
+           });
 }
 }  // namespace runtime
 }  // namespace tvm

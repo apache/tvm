@@ -22,6 +22,7 @@
  */
 #include "codegen_metal.h"
 
+#include <tvm/ffi/container/map.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/tirx/transform.h>
 
@@ -447,7 +448,7 @@ ffi::Module BuildMetal(IRModule mod, Target target) {
   mod = tirx::transform::PointerValueTypeRewrite()(std::move(mod));
 
   std::ostringstream source_maker;
-  std::unordered_map<std::string, std::string> smap;
+  ffi::Map<ffi::String, ffi::String> smap;
   const auto fmetal_compile = tvm::ffi::Function::GetGlobal("tvm_callback_metal_compile");
   std::string fmt = fmetal_compile ? "metallib" : "metal";
 
@@ -472,7 +473,7 @@ ffi::Module BuildMetal(IRModule mod, Target target) {
     if (fmetal_compile) {
       fsource = (*fmetal_compile)(fsource, target).cast<std::string>();
     }
-    smap[func_name] = fsource;
+    smap.Set(func_name, fsource);
   }
 
   return MetalModuleCreate(smap, ExtractFuncInfo(mod), fmt, source_maker.str());
