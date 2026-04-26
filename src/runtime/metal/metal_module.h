@@ -24,7 +24,9 @@
 #ifndef TVM_RUNTIME_METAL_METAL_MODULE_H_
 #define TVM_RUNTIME_METAL_METAL_MODULE_H_
 
+#include <tvm/ffi/container/map.h>
 #include <tvm/ffi/extra/module.h>
+#include <tvm/ffi/function.h>
 
 #include <memory>
 #include <string>
@@ -41,14 +43,24 @@ static constexpr const int kMetalMaxNumDevice = 32;
 /*!
  * \brief create a metal module from data.
  *
- * \param smap The map from name to each shader kernel.
+ * \param smap The map from name to each shader kernel (FFI-typed).
  * \param fmap The map function information map of each function.
  * \param fmt The format of the source, can be "metal" or "metallib"
- * \param source Optional, source file, concatenaed for debug dump
+ * \param source Optional, source file, concatenated for debug dump
+ *
+ * Dispatches through the FFI registry ("ffi.Module.create.metal").
+ * Requires libtvm_runtime built with USE_METAL=ON to have registered the creator.
  */
-ffi::Module MetalModuleCreate(std::unordered_map<std::string, std::string> smap,
-                              ffi::Map<ffi::String, FunctionInfo> fmap, std::string fmt,
-                              std::string source);
+inline ffi::Module MetalModuleCreate(ffi::Map<ffi::String, ffi::String> smap,
+                                     ffi::Map<ffi::String, FunctionInfo> fmap, ffi::String fmt,
+                                     ffi::String source) {
+  static const auto fcreate = ffi::Function::GetGlobal("ffi.Module.create.metal");
+  TVM_FFI_CHECK(fcreate.has_value(), RuntimeError)
+      << "ffi.Module.create.metal is not registered in runtime. "
+      << "Link or load libtvm_runtime built with USE_METAL=ON.";
+  return (*fcreate)(smap, fmap, fmt, source).cast<ffi::Module>();
+}
+
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_METAL_METAL_MODULE_H_

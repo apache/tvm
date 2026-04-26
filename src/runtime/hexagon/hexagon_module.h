@@ -21,6 +21,7 @@
 #define TVM_RUNTIME_HEXAGON_HEXAGON_MODULE_H_
 
 #include <tvm/ffi/extra/module.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/logging.h>
 
 #include <array>
@@ -38,14 +39,24 @@ namespace runtime {
  * \param data          The module data.
  * \param fmt           The format of the data, can be "obj".
  * \param fmap          The function information map of each function.
- * \param asm_str       ffi::String with the generated assembly source.
- * \param obj_str       ffi::String with the object file data.
- * \param ir_str        ffi::String with the disassembled LLVM IR source.
- * \param bc_str        ffi::String with the bitcode LLVM IR.
+ * \param asm_str       String with the generated assembly source.
+ * \param obj_str       String with the object file data.
+ * \param ir_str        String with the disassembled LLVM IR source.
+ * \param bc_str        String with the bitcode LLVM IR.
+ *
+ * Dispatches through the FFI registry ("ffi.Module.create.hexagon").
+ * Requires libtvm_runtime built with USE_HEXAGON=ON to have registered the creator.
  */
-ffi::Module HexagonModuleCreate(std::string data, std::string fmt,
-                                ffi::Map<ffi::String, FunctionInfo> fmap, std::string asm_str,
-                                std::string obj_str, std::string ir_str, std::string bc_str);
+inline ffi::Module HexagonModuleCreate(ffi::String data, ffi::String fmt,
+                                       ffi::Map<ffi::String, FunctionInfo> fmap,
+                                       ffi::String asm_str, ffi::String obj_str, ffi::String ir_str,
+                                       ffi::String bc_str) {
+  static const auto fcreate = ffi::Function::GetGlobal("ffi.Module.create.hexagon");
+  TVM_FFI_CHECK(fcreate.has_value(), RuntimeError)
+      << "ffi.Module.create.hexagon is not registered in runtime. "
+      << "Link or load libtvm_runtime built with USE_HEXAGON=ON.";
+  return (*fcreate)(data, fmt, fmap, asm_str, obj_str, ir_str, bc_str).cast<ffi::Module>();
+}
 
 /*!
   \brief Module implementation for compiled Hexagon binaries. It is suitable

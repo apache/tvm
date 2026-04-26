@@ -25,6 +25,7 @@
 
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/support/io.h>
 
 #include <string>
@@ -89,11 +90,23 @@ ffi::Bytes HexagonModuleNode::SaveToBytes() const {
   return ffi::Bytes(std::move(result));
 }
 
-ffi::Module HexagonModuleCreate(std::string data, std::string fmt,
-                                ffi::Map<ffi::String, FunctionInfo> fmap, std::string asm_str,
-                                std::string obj_str, std::string ir_str, std::string bc_str) {
+static ffi::Module HexagonModuleCreateImpl(std::string data, std::string fmt,
+                                           ffi::Map<ffi::String, FunctionInfo> fmap,
+                                           std::string asm_str, std::string obj_str,
+                                           std::string ir_str, std::string bc_str) {
   auto n = ffi::make_object<HexagonModuleNode>(data, fmt, fmap, asm_str, obj_str, ir_str, bc_str);
   return ffi::Module(n);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("ffi.Module.create.hexagon", [](ffi::String data, ffi::String fmt,
+                                                        ffi::Map<ffi::String, FunctionInfo> fmap,
+                                                        ffi::String asm_str, ffi::String obj_str,
+                                                        ffi::String ir_str, ffi::String bc_str) {
+    return HexagonModuleCreateImpl(std::string(data), std::string(fmt), fmap, std::string(asm_str),
+                                   std::string(obj_str), std::string(ir_str), std::string(bc_str));
+  });
 }
 
 }  // namespace runtime

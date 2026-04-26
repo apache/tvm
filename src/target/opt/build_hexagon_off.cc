@@ -17,16 +17,32 @@
  * under the License.
  */
 
+/*!
+ *  Optional module when Hexagon runtime is switched to off.
+ *  When ffi.Module.create.hexagon is not registered, HexagonModuleCreate (the inline
+ *  wrapper) raises a clear RuntimeError.  Fall back to a DeviceSourceModule for
+ *  compilation-only (source inspection) workflows instead.
+ */
+#include "../../runtime/hexagon/hexagon_module.h"
 #include "../source/codegen_source_base.h"
 
 namespace tvm {
 namespace runtime {
 
-ffi::Module HexagonModuleCreate(std::string data, std::string fmt,
-                                ffi::Map<ffi::String, FunctionInfo> fmap, std::string asm_str,
-                                std::string obj_str, std::string ir_str, std::string bc_str) {
-  LOG(WARNING) << "Hexagon runtime is not enabled, return a source module...";
-  return codegen::DeviceSourceModuleCreate(data, fmt, fmap, "hex");
+// Register a fallback creator so that compiler-side code that calls
+// HexagonModuleCreate() when USE_HEXAGON=OFF still gets a usable
+// DeviceSourceModule (for source inspection / serialisation) rather than a
+// registry-not-found error.
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def(
+      "ffi.Module.create.hexagon",
+      [](ffi::String data, ffi::String fmt, ffi::Map<ffi::String, FunctionInfo> fmap,
+         ffi::String /*asm_str*/, ffi::String /*obj_str*/, ffi::String /*ir_str*/,
+         ffi::String /*bc_str*/) -> ffi::Module {
+        LOG(WARNING) << "Hexagon runtime is not enabled, returning a source module...";
+        return codegen::DeviceSourceModuleCreate(std::string(data), std::string(fmt), fmap, "hex");
+      });
 }
 
 }  // namespace runtime

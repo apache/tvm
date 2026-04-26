@@ -272,9 +272,9 @@ ffi::Optional<ffi::Function> MetalModuleNode::GetFunction(const ffi::String& nam
   return ret;
 }
 
-ffi::Module MetalModuleCreate(std::unordered_map<std::string, std::string> smap,
-                              ffi::Map<ffi::String, FunctionInfo> fmap, std::string fmt,
-                              std::string source) {
+static ffi::Module MetalModuleCreateImpl(std::unordered_map<std::string, std::string> smap,
+                                         ffi::Map<ffi::String, FunctionInfo> fmap, std::string fmt,
+                                         std::string source) {
   ObjectPtr<MetalModuleNode> n;
   AUTORELEASEPOOL { n = ffi::make_object<MetalModuleNode>(smap, fmap, fmt, source); };
   return ffi::Module(n);
@@ -295,7 +295,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           fmap.Set(kv.first.cast<ffi::String>(), FunctionInfo(std::move(info_node)));
         }
 
-        return MetalModuleCreate(
+        return MetalModuleCreateImpl(
             std::unordered_map<std::string, std::string>(smap.begin(), smap.end()), fmap, fmt,
             source);
       });
@@ -315,12 +315,20 @@ ffi::Module MetalModuleLoadFromBytes(const ffi::Bytes& bytes) {
   TVM_FFI_ICHECK(stream.Read(&fmap));
   stream.Read(&fmt);
 
-  return MetalModuleCreate(smap, fmap, fmt, "");
+  return MetalModuleCreateImpl(smap, fmap, fmt, "");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("ffi.Module.load_from_bytes.metal", MetalModuleLoadFromBytes);
+  refl::GlobalDef()
+      .def("ffi.Module.load_from_bytes.metal", MetalModuleLoadFromBytes)
+      .def("ffi.Module.create.metal",
+           [](ffi::Map<ffi::String, ffi::String> smap, ffi::Map<ffi::String, FunctionInfo> fmap,
+              ffi::String fmt, ffi::String source) {
+             return MetalModuleCreateImpl(
+                 std::unordered_map<std::string, std::string>(smap.begin(), smap.end()), fmap,
+                 std::string(fmt), std::string(source));
+           });
 }
 }  // namespace runtime
 }  // namespace tvm

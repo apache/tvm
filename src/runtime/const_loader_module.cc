@@ -250,7 +250,7 @@ class ConstLoaderModuleObj : public ffi::ModuleObj {
   std::unordered_map<std::string, std::vector<std::string>> const_vars_by_symbol_;
 };
 
-ffi::Module ConstLoaderModuleCreate(
+static ffi::Module ConstLoaderModuleCreateImpl(
     const std::unordered_map<std::string, Tensor>& const_var_tensor,
     const std::unordered_map<std::string, std::vector<std::string>>& const_vars_by_symbol) {
   auto n = ffi::make_object<ConstLoaderModuleObj>(const_var_tensor, const_vars_by_symbol);
@@ -259,8 +259,25 @@ ffi::Module ConstLoaderModuleCreate(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("ffi.Module.load_from_bytes.const_loader",
-                        ConstLoaderModuleObj::LoadFromBytes);
+  refl::GlobalDef()
+      .def("ffi.Module.load_from_bytes.const_loader", ConstLoaderModuleObj::LoadFromBytes)
+      .def("ffi.Module.create.const_loader",
+           [](ffi::Map<ffi::String, Tensor> const_var_tensor_ffi,
+              ffi::Map<ffi::String, ffi::Array<ffi::String>> const_vars_by_symbol_ffi) {
+             std::unordered_map<std::string, Tensor> const_var_tensor;
+             for (const auto& kv : const_var_tensor_ffi) {
+               const_var_tensor[std::string(kv.first)] = kv.second;
+             }
+             std::unordered_map<std::string, std::vector<std::string>> const_vars_by_symbol;
+             for (const auto& kv : const_vars_by_symbol_ffi) {
+               std::vector<std::string> vars;
+               for (const auto& v : kv.second) {
+                 vars.push_back(std::string(v));
+               }
+               const_vars_by_symbol[std::string(kv.first)] = vars;
+             }
+             return ConstLoaderModuleCreateImpl(const_var_tensor, const_vars_by_symbol);
+           });
 }
 
 }  // namespace runtime

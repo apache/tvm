@@ -18,20 +18,7 @@
  */
 
 /*!
- *  Optional module when build metal is switched to off
+ *  Optional module when build metal is switched to off.
+ *  MetalModuleCreate is now an inline registry-lookup wrapper in metal_module.h,
+ *  so no out-of-line stub is needed here.
  */
-#include "../../runtime/metal/metal_module.h"
-#include "../source/codegen_source_base.h"
-
-namespace tvm {
-namespace runtime {
-
-ffi::Module MetalModuleCreate(std::unordered_map<std::string, std::string> smap,
-                              ffi::Map<ffi::String, FunctionInfo> fmap, std::string fmt,
-                              std::string source) {
-  LOG(WARNING) << "Metal runtime not enabled, return a source module...";
-  return codegen::DeviceSourceModuleCreate(source, fmt, fmap, "metal");
-}
-
-}  // namespace runtime
-}  // namespace tvm
