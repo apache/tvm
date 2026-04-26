@@ -32,10 +32,6 @@
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/tensor.h>
 
-#include <string>
-#include <unordered_map>
-#include <vector>
-
 namespace tvm {
 namespace runtime {
 
@@ -52,26 +48,13 @@ namespace runtime {
  * The creator is always available (ConstLoaderModule is a runtime-universal module).
  */
 inline ffi::Module ConstLoaderModuleCreate(
-    const std::unordered_map<std::string, Tensor>& const_var_tensor,
-    const std::unordered_map<std::string, std::vector<std::string>>& const_vars_by_symbol) {
+    ffi::Map<ffi::String, Tensor> const_var_tensor,
+    ffi::Map<ffi::String, ffi::Array<ffi::String>> const_vars_by_symbol) {
   static const auto fcreate = ffi::Function::GetGlobal("ffi.Module.create.const_loader");
   TVM_FFI_CHECK(fcreate.has_value(), RuntimeError)
       << "ffi.Module.create.const_loader is not registered in runtime. "
       << "Ensure libtvm_runtime is loaded.";
-  // Convert to FFI-compatible types.
-  ffi::Map<ffi::String, Tensor> ffi_const_var_tensor;
-  for (const auto& kv : const_var_tensor) {
-    ffi_const_var_tensor.Set(kv.first, kv.second);
-  }
-  ffi::Map<ffi::String, ffi::Array<ffi::String>> ffi_const_vars_by_symbol;
-  for (const auto& kv : const_vars_by_symbol) {
-    ffi::Array<ffi::String> vars;
-    for (const auto& v : kv.second) {
-      vars.push_back(ffi::String(v));
-    }
-    ffi_const_vars_by_symbol.Set(kv.first, vars);
-  }
-  return (*fcreate)(ffi_const_var_tensor, ffi_const_vars_by_symbol).cast<ffi::Module>();
+  return (*fcreate)(const_var_tensor, const_vars_by_symbol).cast<ffi::Module>();
 }
 
 }  // namespace runtime

@@ -28,11 +28,6 @@
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
 
-#include <memory>
-#include <string>
-#include <unordered_map>
-#include <vector>
-
 #include "../metadata.h"
 
 namespace tvm {
