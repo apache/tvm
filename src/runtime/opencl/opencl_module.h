@@ -84,8 +84,7 @@ inline ffi::Module OpenCLModuleCreate(
   for (const auto& kv : shaders) {
     std::string buf;
     support::BytesOutStream strm(&buf);
-    strm.Write(kv.second.flag);
-    strm.Write(kv.second.data);
+    strm.Write(kv.second);
     shader_bytes.Set(kv.first, ffi::Bytes(std::move(buf)));
   }
   return (*fcreate)(shader_bytes, ffi::String(spirv_text), fmap).cast<ffi::Module>();

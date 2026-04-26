@@ -147,8 +147,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                           for (const auto& kv : shader_bytes) {
                             support::BytesInStream stream(kv.second);
                             SPIRVShader shader;
-                            TVM_FFI_ICHECK(stream.Read(&shader.flag));
-                            TVM_FFI_ICHECK(stream.Read(&shader.data));
+                            TVM_FFI_ICHECK(stream.Read(&shader));
                             shaders[std::string(kv.first)] = shader;
                           }
                           return OpenCLSPIRVModuleCreateInternal(shaders, std::string(spirv_text),

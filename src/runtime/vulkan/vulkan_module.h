@@ -60,8 +60,7 @@ inline ffi::Module VulkanModuleCreate(std::unordered_map<std::string, SPIRVShade
   for (const auto& kv : smap) {
     std::string buf;
     support::BytesOutStream strm(&buf);
-    strm.Write(kv.second.flag);
-    strm.Write(kv.second.data);
+    strm.Write(kv.second);
     shader_bytes.Set(kv.first, ffi::Bytes(std::move(buf)));
   }
   return (*fcreate)(shader_bytes, fmap, ffi::String(source)).cast<ffi::Module>();

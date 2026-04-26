@@ -39,8 +39,7 @@ namespace vulkan {
 static SPIRVShader DeserializeSPIRVShader(const ffi::Bytes& bytes) {
   support::BytesInStream stream(bytes);
   SPIRVShader shader;
-  TVM_FFI_ICHECK(stream.Read(&shader.flag));
-  TVM_FFI_ICHECK(stream.Read(&shader.data));
+  TVM_FFI_ICHECK(stream.Read(&shader));
   return shader;
 }
 
