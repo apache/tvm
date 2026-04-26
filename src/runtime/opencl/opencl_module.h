@@ -71,8 +71,8 @@ inline ffi::Module OpenCLModuleCreate(ffi::String data, ffi::String fmt,
  * registered the creator.
  */
 inline ffi::Module OpenCLModuleCreate(
-    const std::unordered_map<std::string, spirv::SPIRVShader>& shaders, ffi::String spirv_text,
-    ffi::Map<ffi::String, FunctionInfo> fmap) {
+    const std::unordered_map<std::string, spirv::SPIRVShader>& shaders,
+    const ffi::String& spirv_text, const ffi::Map<ffi::String, FunctionInfo>& fmap) {
   static const auto fcreate = ffi::Function::GetGlobal("ffi.Module.create.opencl.spirv");
   TVM_FFI_CHECK(fcreate.has_value(), RuntimeError)
       << "ffi.Module.create.opencl.spirv is not registered in runtime. "

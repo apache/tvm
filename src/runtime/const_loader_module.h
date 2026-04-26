@@ -29,6 +29,7 @@
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/string.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/tensor.h>
 
@@ -48,8 +49,8 @@ namespace runtime {
  * The creator is always available (ConstLoaderModule is a runtime-universal module).
  */
 inline ffi::Module ConstLoaderModuleCreate(
-    ffi::Map<ffi::String, Tensor> const_var_tensor,
-    ffi::Map<ffi::String, ffi::Array<ffi::String>> const_vars_by_symbol) {
+    const ffi::Map<ffi::String, Tensor>& const_var_tensor,
+    const ffi::Map<ffi::String, ffi::Array<ffi::String>>& const_vars_by_symbol) {
   static const auto fcreate = ffi::Function::GetGlobal("ffi.Module.create.const_loader");
   TVM_FFI_CHECK(fcreate.has_value(), RuntimeError)
       << "ffi.Module.create.const_loader is not registered in runtime. "

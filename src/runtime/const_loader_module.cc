@@ -39,6 +39,9 @@
 #include <tvm/support/io.h>
 
 #include <cstdint>
+#include <string>
+#include <unordered_map>
+#include <vector>
 
 #include "../support/bytes_io.h"
 
