@@ -91,7 +91,7 @@ class Tensor : public tvm::ffi::Tensor {
    *        Must be equal to the size of the Tensor.
    * \note The copy always triggers a TVMSynchronize.
    */
-  TVM_DLL void CopyFromBytes(const void* data, size_t nbytes);
+  TVM_RUNTIME_DLL void CopyFromBytes(const void* data, size_t nbytes);
   /*!
    * \brief Copy data content into another array.
    * \param other The source array to be copied from.
@@ -107,7 +107,7 @@ class Tensor : public tvm::ffi::Tensor {
    *        Must be equal to the size of the Tensor.
    * \note The copy always triggers a TVMSynchronize.
    */
-  TVM_DLL void CopyToBytes(void* data, size_t nbytes) const;
+  TVM_RUNTIME_DLL void CopyToBytes(void* data, size_t nbytes) const;
   /*!
    * \brief Copy the data to another device.
    * \param dev The target device.
@@ -115,8 +115,8 @@ class Tensor : public tvm::ffi::Tensor {
    * \return The array under another device.
    * \note The copy always triggers a TVMSynchronize.
    */
-  TVM_DLL Tensor CopyTo(const Device& dev,
-                        ffi::Optional<ffi::String> mem_scope = std::nullopt) const;
+  TVM_RUNTIME_DLL Tensor CopyTo(const Device& dev,
+                                ffi::Optional<ffi::String> mem_scope = std::nullopt) const;
   /*!
    * \brief Load Tensor from stream
    * \param stream The input data stream
@@ -149,8 +149,8 @@ class Tensor : public tvm::ffi::Tensor {
    *       outside the bounds of the current array, this function will
    *       raise an exception.
    */
-  TVM_DLL Tensor CreateView(ffi::Shape shape, DLDataType dtype,
-                            uint64_t relative_byte_offset = 0) const;
+  TVM_RUNTIME_DLL Tensor CreateView(ffi::Shape shape, DLDataType dtype,
+                                    uint64_t relative_byte_offset = 0) const;
   /*!
    * \brief Create an empty Tensor.
    * \param shape The shape of the new array.
@@ -159,16 +159,16 @@ class Tensor : public tvm::ffi::Tensor {
    * \param mem_scope The memory scope of the array.
    * \return The created Array
    */
-  TVM_DLL static Tensor Empty(ffi::Shape shape, DLDataType dtype, Device dev,
-                              ffi::Optional<ffi::String> mem_scope = std::nullopt);
+  TVM_RUNTIME_DLL static Tensor Empty(ffi::Shape shape, DLDataType dtype, Device dev,
+                                      ffi::Optional<ffi::String> mem_scope = std::nullopt);
   /*!
    * \brief Function to copy data from one array to another.
    * \param from The source array.
    * \param to The target array.
    * \param stream The stream used in copy.
    */
-  TVM_DLL static void CopyFromTo(const DLTensor* from, DLTensor* to,
-                                 TVMStreamHandle stream = nullptr);
+  TVM_RUNTIME_DLL static void CopyFromTo(const DLTensor* from, DLTensor* to,
+                                         TVMStreamHandle stream = nullptr);
 
   /*!
    * \brief Function to copy data from one array to a byte buffer.
@@ -177,8 +177,8 @@ class Tensor : public tvm::ffi::Tensor {
    * \param nbytes The size of the data buffer.
    * \param stream The stream used in copy.
    */
-  TVM_DLL static void CopyToBytes(const DLTensor* from, void* to, size_t nbytes,
-                                  TVMStreamHandle stream = nullptr);
+  TVM_RUNTIME_DLL static void CopyToBytes(const DLTensor* from, void* to, size_t nbytes,
+                                          TVMStreamHandle stream = nullptr);
 
   /*!
    * \brief Function to copy data from one array to a byte buffer.
@@ -187,8 +187,8 @@ class Tensor : public tvm::ffi::Tensor {
    * \param nbytes The size of the data buffer.
    * \param stream The stream used in copy.
    */
-  TVM_DLL static void CopyFromBytes(const DLTensor* to, void* from, size_t nbytes,
-                                    TVMStreamHandle stream = nullptr);
+  TVM_RUNTIME_DLL static void CopyFromBytes(const DLTensor* to, void* from, size_t nbytes,
+                                            TVMStreamHandle stream = nullptr);
 };
 
 /*!
