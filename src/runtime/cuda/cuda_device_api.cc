@@ -337,7 +337,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                         [](Device dev) { return Timer(ffi::make_object<CUDATimerNode>()); });
 }
 
-TVM_DLL ffi::String GetCudaFreeMemory() {
+TVM_RUNTIME_DLL ffi::String GetCudaFreeMemory() {
   size_t free_mem, total_mem;
   CUDA_CALL(cudaMemGetInfo(&free_mem, &total_mem));
   std::stringstream ss;
@@ -359,7 +359,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-TVM_DLL int GetCudaDeviceCount() {
+TVM_RUNTIME_DLL int GetCudaDeviceCount() {
   int count;
   CUDA_CALL(cudaGetDeviceCount(&count));
   return count;
