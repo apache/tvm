@@ -43,9 +43,9 @@ static SPIRVShader DeserializeSPIRVShader(const ffi::Bytes& bytes) {
   return shader;
 }
 
-static ffi::Module VulkanModuleCreateInternal(std::unordered_map<std::string, SPIRVShader> smap,
-                                              ffi::Map<ffi::String, FunctionInfo> fmap,
-                                              std::string source) {
+static ffi::Module VulkanModuleCreateImpl(std::unordered_map<std::string, SPIRVShader> smap,
+                                          ffi::Map<ffi::String, FunctionInfo> fmap,
+                                          std::string source) {
   auto n = ffi::make_object<VulkanModuleNode>(smap, fmap, source);
   return ffi::Module(n);
 }
@@ -63,7 +63,7 @@ ffi::Module VulkanModuleLoadFile(const std::string& file_name, const ffi::String
   stream.Read(&magic);
   TVM_FFI_ICHECK_EQ(magic, kVulkanModuleMagic) << "VulkanModule Magic mismatch";
   stream.Read(&smap);
-  return VulkanModuleCreateInternal(smap, fmap, "");
+  return VulkanModuleCreateImpl(smap, fmap, "");
 }
 
 ffi::Module VulkanModuleLoadFromBytes(const ffi::Bytes& bytes) {
@@ -75,7 +75,7 @@ ffi::Module VulkanModuleLoadFromBytes(const ffi::Bytes& bytes) {
   ffi::Map<ffi::String, FunctionInfo> fmap;
   TVM_FFI_ICHECK(stream.Read(&fmap));
   stream.Read(&smap);
-  return VulkanModuleCreateInternal(smap, fmap, "");
+  return VulkanModuleCreateImpl(smap, fmap, "");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -90,7 +90,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              for (const auto& kv : shader_bytes) {
                smap[std::string(kv.first)] = DeserializeSPIRVShader(kv.second);
              }
-             return VulkanModuleCreateInternal(smap, fmap, std::string(source));
+             return VulkanModuleCreateImpl(smap, fmap, std::string(source));
            });
 }
 

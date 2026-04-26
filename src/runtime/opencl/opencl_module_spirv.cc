@@ -130,7 +130,7 @@ cl_kernel OpenCLSPIRVModuleNode::InstallKernel(cl::OpenCLWorkspace* w, cl::OpenC
   return kernel;
 }
 
-static ffi::Module OpenCLSPIRVModuleCreateInternal(
+static ffi::Module OpenCLSPIRVModuleCreateImpl(
     const std::unordered_map<std::string, SPIRVShader>& shaders, const std::string& spirv_text,
     ffi::Map<ffi::String, FunctionInfo> fmap) {
   auto n = ffi::make_object<OpenCLSPIRVModuleNode>(shaders, spirv_text, fmap);
@@ -150,8 +150,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                             TVM_FFI_ICHECK(stream.Read(&shader));
                             shaders[std::string(kv.first)] = shader;
                           }
-                          return OpenCLSPIRVModuleCreateInternal(shaders, std::string(spirv_text),
-                                                                 fmap);
+                          return OpenCLSPIRVModuleCreateImpl(shaders, std::string(spirv_text),
+                                                             fmap);
                         });
 }
 

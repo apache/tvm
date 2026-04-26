@@ -250,7 +250,7 @@ class ConstLoaderModuleObj : public ffi::ModuleObj {
   std::unordered_map<std::string, std::vector<std::string>> const_vars_by_symbol_;
 };
 
-static ffi::Module ConstLoaderModuleCreateInternal(
+static ffi::Module ConstLoaderModuleCreateImpl(
     const std::unordered_map<std::string, Tensor>& const_var_tensor,
     const std::unordered_map<std::string, std::vector<std::string>>& const_vars_by_symbol) {
   auto n = ffi::make_object<ConstLoaderModuleObj>(const_var_tensor, const_vars_by_symbol);
@@ -276,7 +276,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                }
                const_vars_by_symbol[std::string(kv.first)] = vars;
              }
-             return ConstLoaderModuleCreateInternal(const_var_tensor, const_vars_by_symbol);
+             return ConstLoaderModuleCreateImpl(const_var_tensor, const_vars_by_symbol);
            });
 }
 
