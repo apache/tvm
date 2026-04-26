@@ -1702,7 +1702,12 @@ class OperatorConverter:
                     elif begin[index]:
                         m_begin[final_index] = begin[index]
                     if mask & end_mask:
-                        m_end[final_index] = 0 if stride[index] < 0 else data_shape[final_index]
+                        if stride[index] < 0:
+                            # Relax negative-step slicing excludes the end index, so an
+                            # unspecified lower bound needs one extra step past index 0.
+                            m_end[final_index] = -data_shape[final_index] - 1
+                        else:
+                            m_end[final_index] = data_shape[final_index]
                     elif end[index]:
                         m_end[final_index] = end[index]
                     m_stride[final_index] = stride[index]

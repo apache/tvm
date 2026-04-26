@@ -228,6 +228,43 @@ def test_split_v_dynamic():
     assert "R.scatter_elements" in ir
 
 
+def test_split_v_static():
+    """SPLIT_V with static unequal size_splits lowers to Relax split."""
+
+    class SplitVUnequal(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(2, 10, 4), dtype=tf.float32)])
+        def func(self, x):
+            return tf.split(x, [2, 3, 5], axis=1)
+
+    @I.ir_module
+    class ExpectedUnequal:
+        @R.function
+        def main(x: R.Tensor((2, 10, 4), dtype="float32")) -> R.Tuple(
+            R.Tensor((2, 2, 4), dtype="float32"),
+            R.Tensor((2, 3, 4), dtype="float32"),
+            R.Tensor((2, 5, 4), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tuple(
+                    R.Tensor((2, 2, 4), dtype="float32"),
+                    R.Tensor((2, 3, 4), dtype="float32"),
+                    R.Tensor((2, 5, 4), dtype="float32"),
+                ) = R.split(x, indices_or_sections=[2, 5], axis=1)
+                lv1: R.Tensor((2, 2, 4), dtype="float32") = lv[0]
+                lv2: R.Tensor((2, 3, 4), dtype="float32") = lv[1]
+                lv3: R.Tensor((2, 5, 4), dtype="float32") = lv[2]
+                gv: R.Tuple(
+                    R.Tensor((2, 2, 4), dtype="float32"),
+                    R.Tensor((2, 3, 4), dtype="float32"),
+                    R.Tensor((2, 5, 4), dtype="float32"),
+                ) = lv1, lv2, lv3
+                R.output(gv)
+            return gv
+
+    verify(SplitVUnequal, ExpectedUnequal)
+
+
 def test_pack():
     class Pack(tf.Module):
         @tf.function(
@@ -1068,6 +1105,55 @@ def test_slice():
             return gv
 
     verify(Slice, Expected)
+
+
+def test_strided_slice_stride():
+    class StridedSliceStride(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(4, 6), dtype=tf.float32)])
+        def func(self, x):
+            return x[0:2, 1:5:2]
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((4, 6), dtype="float32")) -> R.Tensor((2, 2), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((2, 2), dtype="float32") = R.strided_slice(
+                    x,
+                    axes=[0, 1],
+                    begin=[0, 1],
+                    end=[2, 5],
+                    strides=[1, 2],
+                    assume_inbound=False,
+                )
+                gv: R.Tensor((2, 2), dtype="float32") = R.reshape(lv, R.shape([2, 2]))
+                R.output(gv)
+            return gv
+
+    verify(StridedSliceStride, Expected)
+
+
+def test_strided_slice_negative_stride():
+    class StridedSliceNegativeStride(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(4,), dtype=tf.float32)])
+        def func(self, x):
+            return x[::-1]
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((4,), dtype="float32")) -> R.Tensor((4,), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((4,), dtype="float32") = R.strided_slice(
+                    x, axes=[0], begin=[4], end=[-5], strides=[-1], assume_inbound=False
+                )
+                gv: R.Tensor((4,), dtype="float32") = R.reshape(lv, R.shape([4]))
+                R.output(gv)
+            return gv
+
+    verify(StridedSliceNegativeStride, Expected)
 
 
 def test_reverse_v2():
