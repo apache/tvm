@@ -25,6 +25,7 @@
 #define TVM_RUNTIME_CUDA_CUDA_MODULE_H_
 
 #include <tvm/ffi/extra/module.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/base.h>
 
 #include <memory>
@@ -46,10 +47,20 @@ static constexpr const int kMaxNumGPUs = 32;
  * \param fmt The format of the data, can be "ptx", "cubin"
  * \param fmap The map function information map of each function.
  * \param cuda_source Optional, CUDA source file
+ *
+ * Dispatches through the FFI registry ("ffi.Module.create.cuda").
+ * Requires libtvm_runtime built with USE_CUDA=ON to have registered the creator.
  */
-TVM_RUNTIME_DLL ffi::Module CUDAModuleCreate(std::string data, std::string fmt,
-                                             ffi::Map<ffi::String, FunctionInfo> fmap,
-                                             std::string cuda_source);
+inline ffi::Module CUDAModuleCreate(ffi::String data, ffi::String fmt,
+                                    ffi::Map<ffi::String, FunctionInfo> fmap,
+                                    ffi::String cuda_source) {
+  static const auto fcreate = ffi::Function::GetGlobal("ffi.Module.create.cuda");
+  TVM_FFI_CHECK(fcreate.has_value(), RuntimeError)
+      << "ffi.Module.create.cuda is not registered in runtime. "
+      << "Link or load libtvm_runtime built with USE_CUDA=ON.";
+  return (*fcreate)(data, fmt, fmap, cuda_source).cast<ffi::Module>();
+}
+
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_CUDA_CUDA_MODULE_H_

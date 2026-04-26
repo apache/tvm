@@ -18,6 +18,7 @@
  */
 
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/support/io.h>
 
 #include <string>
@@ -129,12 +130,30 @@ cl_kernel OpenCLSPIRVModuleNode::InstallKernel(cl::OpenCLWorkspace* w, cl::OpenC
   return kernel;
 }
 
-ffi::Module OpenCLModuleCreate(const std::unordered_map<std::string, SPIRVShader>& shaders,
-                               const std::string& spirv_text,
-                               ffi::Map<ffi::String, FunctionInfo> fmap) {
+static ffi::Module OpenCLSPIRVModuleCreateInternal(
+    const std::unordered_map<std::string, SPIRVShader>& shaders, const std::string& spirv_text,
+    ffi::Map<ffi::String, FunctionInfo> fmap) {
   auto n = ffi::make_object<OpenCLSPIRVModuleNode>(shaders, spirv_text, fmap);
   n->Init();
   return ffi::Module(n);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("ffi.Module.create.opencl.spirv",
+                        [](ffi::Map<ffi::String, ffi::Bytes> shader_bytes, ffi::String spirv_text,
+                           ffi::Map<ffi::String, FunctionInfo> fmap) {
+                          std::unordered_map<std::string, SPIRVShader> shaders;
+                          for (const auto& kv : shader_bytes) {
+                            support::BytesInStream stream(kv.second);
+                            SPIRVShader shader;
+                            TVM_FFI_ICHECK(stream.Read(&shader.flag));
+                            TVM_FFI_ICHECK(stream.Read(&shader.data));
+                            shaders[std::string(kv.first)] = shader;
+                          }
+                          return OpenCLSPIRVModuleCreateInternal(shaders, std::string(spirv_text),
+                                                                 fmap);
+                        });
 }
 
 }  // namespace runtime

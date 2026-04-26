@@ -25,6 +25,7 @@
 #define TVM_RUNTIME_ROCM_ROCM_MODULE_H_
 
 #include <tvm/ffi/extra/module.h>
+#include <tvm/ffi/function.h>
 
 #include <memory>
 #include <string>
@@ -45,10 +46,21 @@ static constexpr const int kMaxNumGPUs = 32;
  * \param fmt The format of the data, can be "hsaco"
  * \param fmap The map function information map of each function.
  * \param rocm_source Optional, rocm source file
+ * \param assembly Optional, GCN assembly source
+ *
+ * Dispatches through the FFI registry ("ffi.Module.create.rocm").
+ * Requires libtvm_runtime built with USE_ROCM=ON to have registered the creator.
  */
-ffi::Module ROCMModuleCreate(std::string data, std::string fmt,
-                             ffi::Map<ffi::String, FunctionInfo> fmap, std::string rocm_source,
-                             std::string assembly);
+inline ffi::Module ROCMModuleCreate(ffi::String data, ffi::String fmt,
+                                    ffi::Map<ffi::String, FunctionInfo> fmap,
+                                    ffi::String rocm_source, ffi::String assembly) {
+  static const auto fcreate = ffi::Function::GetGlobal("ffi.Module.create.rocm");
+  TVM_FFI_CHECK(fcreate.has_value(), RuntimeError)
+      << "ffi.Module.create.rocm is not registered in runtime. "
+      << "Link or load libtvm_runtime built with USE_ROCM=ON.";
+  return (*fcreate)(data, fmt, fmap, rocm_source, assembly).cast<ffi::Module>();
+}
+
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_ROCM_ROCM_MODULE_H_

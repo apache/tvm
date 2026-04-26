@@ -308,8 +308,9 @@ ffi::Optional<ffi::Function> CUDAModuleNode::GetFunction(const ffi::String& name
   return PackFuncVoidAddr(f, info->arg_types, info->arg_extra_tags);
 }
 
-ffi::Module CUDAModuleCreate(std::string data, std::string fmt,
-                             ffi::Map<ffi::String, FunctionInfo> fmap, std::string cuda_source) {
+static ffi::Module CUDAModuleCreateInternal(std::string data, std::string fmt,
+                                            ffi::Map<ffi::String, FunctionInfo> fmap,
+                                            std::string cuda_source) {
   auto n = ffi::make_object<CUDAModuleNode>(data, fmt, fmap, cuda_source);
   return ffi::Module(n);
 }
@@ -322,7 +323,7 @@ ffi::Module CUDAModuleLoadFile(const std::string& file_name, const ffi::String& 
   std::string meta_file = GetMetaFilePath(file_name);
   LoadBinaryFromFile(file_name, &data);
   LoadMetaDataFromFile(meta_file, &fmap);
-  return CUDAModuleCreate(data, fmt, fmap, std::string());
+  return CUDAModuleCreateInternal(data, fmt, fmap, std::string());
 }
 
 ffi::Module CUDAModuleLoadFromBytes(const ffi::Bytes& bytes) {
@@ -333,7 +334,7 @@ ffi::Module CUDAModuleLoadFromBytes(const ffi::Bytes& bytes) {
   stream.Read(&fmt);
   TVM_FFI_ICHECK(stream.Read(&fmap));
   stream.Read(&data);
-  return CUDAModuleCreate(data, fmt, fmap, std::string());
+  return CUDAModuleCreateInternal(data, fmt, fmap, std::string());
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -342,7 +343,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("ffi.Module.load_from_file.cuda", CUDAModuleLoadFile)
       .def("ffi.Module.load_from_file.ptx", CUDAModuleLoadFile)
       .def("ffi.Module.load_from_file.cubin", CUDAModuleLoadFile)
-      .def("ffi.Module.load_from_bytes.cuda", CUDAModuleLoadFromBytes);
+      .def("ffi.Module.load_from_bytes.cuda", CUDAModuleLoadFromBytes)
+      .def("ffi.Module.create.cuda",
+           [](ffi::String data, ffi::String fmt, ffi::Map<ffi::String, FunctionInfo> fmap,
+              ffi::String cuda_source) {
+             return CUDAModuleCreateInternal(std::string(data), std::string(fmt), fmap,
+                                             std::string(cuda_source));
+           });
 }
 }  // namespace runtime
 }  // namespace tvm

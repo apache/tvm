@@ -18,26 +18,7 @@
  */
 
 /*!
- *  Optional module when build rocm is switched to off
+ *  Optional module when build rocm is switched to off.
+ *  ROCMModuleCreate is now an inline registry-lookup wrapper in rocm_module.h,
+ *  so no out-of-line stub is needed here.
  */
-#include "../../runtime/rocm/rocm_module.h"
-#include "../source/codegen_source_base.h"
-
-namespace tvm {
-namespace runtime {
-
-ffi::Module ROCMModuleCreate(std::string data, std::string fmt,
-                             ffi::Map<ffi::String, FunctionInfo> fmap, std::string rocm_source,
-                             std::string assembly) {
-  LOG(WARNING) << "ROCM runtime is not enabled, return a source module...";
-  auto fget_source = [rocm_source, assembly](const std::string& format) {
-    if (format.length() == 0) return assembly;
-    if (format == "ll" || format == "llvm") return rocm_source;
-    if (format == "asm") return assembly;
-    return std::string("");
-  };
-  return codegen::DeviceSourceModuleCreate(data, fmt, fmap, "hsaco", fget_source);
-}
-
-}  // namespace runtime
-}  // namespace tvm

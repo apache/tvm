@@ -208,9 +208,9 @@ ffi::Optional<ffi::Function> ROCMModuleNode::GetFunction(const ffi::String& name
   return PackFuncPackedArgAligned(f, info->arg_types);
 }
 
-ffi::Module ROCMModuleCreate(std::string data, std::string fmt,
-                             ffi::Map<ffi::String, FunctionInfo> fmap, std::string hip_source,
-                             std::string assembly) {
+static ffi::Module ROCMModuleCreateInternal(std::string data, std::string fmt,
+                                            ffi::Map<ffi::String, FunctionInfo> fmap,
+                                            std::string hip_source, std::string assembly) {
   auto n = ffi::make_object<ROCMModuleNode>(data, fmt, fmap, hip_source, assembly);
   return ffi::Module(n);
 }
@@ -222,7 +222,7 @@ ffi::Module ROCMModuleLoadFile(const std::string& file_name, const std::string& 
   std::string meta_file = GetMetaFilePath(file_name);
   LoadBinaryFromFile(file_name, &data);
   LoadMetaDataFromFile(meta_file, &fmap);
-  return ROCMModuleCreate(data, fmt, fmap, std::string(), std::string());
+  return ROCMModuleCreateInternal(data, fmt, fmap, std::string(), std::string());
 }
 
 ffi::Module ROCMModuleLoadFromBytes(const ffi::Bytes& bytes) {
@@ -233,7 +233,7 @@ ffi::Module ROCMModuleLoadFromBytes(const ffi::Bytes& bytes) {
   stream.Read(&fmt);
   TVM_FFI_ICHECK(stream.Read(&fmap));
   stream.Read(&data);
-  return ROCMModuleCreate(data, fmt, fmap, std::string(), std::string());
+  return ROCMModuleCreateInternal(data, fmt, fmap, std::string(), std::string());
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -242,7 +242,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("ffi.Module.load_from_bytes.hsaco", ROCMModuleLoadFromBytes)
       .def("ffi.Module.load_from_bytes.hip", ROCMModuleLoadFromBytes)
       .def("ffi.Module.load_from_file.hsaco", ROCMModuleLoadFile)
-      .def("ffi.Module.load_from_file.hip", ROCMModuleLoadFile);
+      .def("ffi.Module.load_from_file.hip", ROCMModuleLoadFile)
+      .def("ffi.Module.create.rocm",
+           [](ffi::String data, ffi::String fmt, ffi::Map<ffi::String, FunctionInfo> fmap,
+              ffi::String hip_source, ffi::String assembly) {
+             return ROCMModuleCreateInternal(std::string(data), std::string(fmt), fmap,
+                                             std::string(hip_source), std::string(assembly));
+           });
 }
 }  // namespace runtime
 }  // namespace tvm

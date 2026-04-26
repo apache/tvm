@@ -18,24 +18,35 @@
  */
 
 /*!
- *  Optional module when build opencl is switched to off
+ *  Optional module when build opencl is switched to off.
+ *  Register fallback creators so that compiler-side code (codegen_opencl.cc)
+ *  that calls OpenCLModuleCreate() when USE_OPENCL=OFF still gets a usable
+ *  DeviceSourceModule for source inspection / serialisation workflows.
  */
-#include "../../runtime/opencl/opencl_module.h"
+#include <tvm/ffi/reflection/registry.h>
+
+#include "../../runtime/metadata.h"
 #include "../source/codegen_source_base.h"
 
 namespace tvm {
 namespace runtime {
 
-ffi::Module OpenCLModuleCreate(std::string data, std::string fmt,
-                               ffi::Map<ffi::String, FunctionInfo> fmap, std::string source) {
-  return codegen::DeviceSourceModuleCreate(data, fmt, fmap, "opencl");
-}
-
-ffi::Module OpenCLModuleCreate(const std::unordered_map<std::string, SPIRVShader>& shaders,
-                               const std::string& spirv_text,
-                               ffi::Map<ffi::String, FunctionInfo> fmap) {
-  TVM_FFI_THROW(InternalError) << "OpenCLModuleCreate is called but OpenCL is not enabled.";
-  TVM_FFI_UNREACHABLE();
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("ffi.Module.create.opencl",
+           [](ffi::String data, ffi::String fmt, ffi::Map<ffi::String, FunctionInfo> fmap,
+              ffi::String /*source*/) -> ffi::Module {
+             return codegen::DeviceSourceModuleCreate(std::string(data), std::string(fmt), fmap,
+                                                      "opencl");
+           })
+      .def("ffi.Module.create.opencl.spirv",
+           [](ffi::Map<ffi::String, ffi::Bytes> /*shader_bytes*/, ffi::String /*spirv_text*/,
+              ffi::Map<ffi::String, FunctionInfo> /*fmap*/) -> ffi::Module {
+             TVM_FFI_THROW(InternalError)
+                 << "OpenCLModuleCreate (SPIRV) is called but OpenCL is not enabled.";
+             TVM_FFI_UNREACHABLE();
+           });
 }
 
 }  // namespace runtime

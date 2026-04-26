@@ -18,16 +18,7 @@
  */
 
 /*!
- *  Optional module when build CUDA is switched to off
+ *  Optional module when build CUDA is switched to off.
+ *  CUDAModuleCreate is now an inline registry-lookup wrapper in cuda_module.h,
+ *  so no out-of-line stub is needed here.
  */
-#include "../../runtime/cuda/cuda_module.h"
-namespace tvm {
-namespace runtime {
-
-ffi::Module CUDAModuleCreate(std::string data, std::string fmt,
-                             ffi::Map<ffi::String, FunctionInfo> fmap, std::string cuda_source) {
-  TVM_FFI_THROW(InternalError) << "CUDA is not enabled";
-  TVM_FFI_UNREACHABLE();
-}
-}  // namespace runtime
-}  // namespace tvm
