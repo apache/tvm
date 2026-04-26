@@ -17,28 +17,30 @@
  * under the License.
  */
 
-#ifndef TVM_RUNTIME_VULKAN_VULKAN_MODULE_H_
-#define TVM_RUNTIME_VULKAN_VULKAN_MODULE_H_
-
-#include <tvm/ffi/extra/module.h>
-#include <tvm/runtime/base.h>
-
-#include <string>
-#include <unordered_map>
-
-#include "../metadata.h"
-#include "../spirv/spirv_shader.h"
+/*!
+ *  Runtime-side test helpers used by the RPC test suite.
+ *  Registered here (rather than in ``src/support/ffi_testing.cc``) so the
+ *  ``minrpc`` server binary — which links only against ``libtvm_runtime``
+ *  — can resolve them.
+ * \file runtime/rpc/testing.cc
+ */
+#include <tvm/ffi/container/shape.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 
 namespace tvm {
 namespace runtime {
-namespace vulkan {
-TVM_RUNTIME_DLL ffi::Module VulkanModuleCreate(std::unordered_map<std::string, SPIRVShader> smap,
-                                               ffi::Map<ffi::String, FunctionInfo> fmap,
-                                               std::string source);
 
-}  // namespace vulkan
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("rpc.testing.GetShapeSize",
+           [](ffi::Shape shape) { return static_cast<int64_t>(shape.size()); })
+      .def("rpc.testing.GetShapeElem", [](ffi::Shape shape, int idx) {
+        TVM_FFI_ICHECK_LT(idx, shape.size());
+        return shape[idx];
+      });
+}
 
-using vulkan::VulkanModuleCreate;
 }  // namespace runtime
 }  // namespace tvm
-#endif  // TVM_RUNTIME_VULKAN_VULKAN_MODULE_H_

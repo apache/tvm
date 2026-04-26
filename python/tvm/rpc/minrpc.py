@@ -48,7 +48,7 @@ def find_minrpc_server_libpath(server="posix_popen_server"):
     return minrpc_dir, path
 
 
-def with_minrpc(compile_func, server="posix_popen_server", runtime="libtvm"):
+def with_minrpc(compile_func, server="posix_popen_server", runtime="libtvm_runtime"):
     """Attach the compiler function with minrpc related options.
 
     Parameters
@@ -74,11 +74,18 @@ def with_minrpc(compile_func, server="posix_popen_server", runtime="libtvm"):
     runtime_dir = os.path.abspath(os.path.dirname(runtime_path))
     tvm_ffi_dir = os.path.abspath(os.path.dirname(tvm_ffi_path))
     options = ["-std=c++17"]
-    # Make sure the rpath to the libtvm is set so we can do local tests.
+    # Make sure the rpath to the libtvm_runtime is set so we can do local tests.
     # Note that however, this approach won't work on remote.
     # Always recommend to link statically.
     options += ["-Wl,-rpath=" + runtime_dir]
     options += ["-Wl,-rpath=" + tvm_ffi_dir]
+    # Force the linker to retain the runtime shared lib dependency even if no
+    # symbol from it is directly referenced. The minrpc server binary only
+    # touches tvm_ffi APIs at link time but relies on global functions (e.g.
+    # ``rpc.CreateEventDrivenServer``) registered via static initializers
+    # inside libtvm_runtime; with the default ``--as-needed`` those
+    # registrations would never run.
+    options += ["-Wl,--no-as-needed"]
     options += ["-I" + path for path in libinfo.find_include_path()]
     options += ["-I" + minrpc_dir]
     fcompile = cc.cross_compiler(

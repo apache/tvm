@@ -110,7 +110,7 @@ TensorCacheMetadata TensorCacheMetadata::LoadFromStr(const std::string& json_str
   return result;
 }
 
-TVM_DLL TensorCacheMetadata TensorCacheMetadata::Load(const std::string& path) {
+TVM_RUNTIME_DLL TensorCacheMetadata TensorCacheMetadata::Load(const std::string& path) {
   std::string json_str;
   LoadBinaryFromFile(path + "/tensor-cache.json", &json_str);
   ffi::String err;
@@ -169,7 +169,7 @@ Tensor TensorCacheMetadata::FileRecord::ParamRecord::Load(
   return arr;
 }
 
-TVM_DLL ffi::Array<Tensor> TensorCacheMetadata::FileRecord::Load(
+TVM_RUNTIME_DLL ffi::Array<Tensor> TensorCacheMetadata::FileRecord::Load(
     Device device,
     const std::string& path_prefix,  //
     std::string* raw_data_buffer,    //

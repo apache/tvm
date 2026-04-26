@@ -142,7 +142,7 @@ class Timer : public ObjectRef {
    *  }
    * \endcode
    */
-  static TVM_DLL Timer Start(Device dev);
+  static TVM_RUNTIME_DLL Timer Start(Device dev);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Timer, ObjectRef, TimerNode);
 };
@@ -178,7 +178,7 @@ class DeviceWrapper : public ObjectRef {
 
 /*! \brief Data collected from a profiling run. Includes per-call metrics and per-device metrics.
  */
-class ReportNode : public Object {
+class TVM_RUNTIME_DLL ReportNode : public Object {
  public:
   /*! \brief A list of function calls and the metrics recorded for that call.
    *

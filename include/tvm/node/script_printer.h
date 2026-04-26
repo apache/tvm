@@ -152,7 +152,7 @@ class PrinterConfigNode : public ffi::Object {
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.PrinterConfig", PrinterConfigNode, Object);
 };
 
-class PrinterConfig : public ObjectRef {
+class TVM_DLL PrinterConfig : public ObjectRef {
  public:
   explicit PrinterConfig(
       ffi::Map<ffi::String, ffi::Any> config_dict = ffi::Map<ffi::String, ffi::Any>());
@@ -165,7 +165,7 @@ class PrinterConfig : public ObjectRef {
 class TVMScriptPrinter {
  public:
   /* Convert the object to TVMScript format */
-  static std::string Script(const ObjectRef& node, const ffi::Optional<PrinterConfig>& cfg);
+  TVM_DLL static std::string Script(const ObjectRef& node, const ffi::Optional<PrinterConfig>& cfg);
   // Allow registration to be printer.
   using FType = NodeFunctor<std::string(const ObjectRef&, const PrinterConfig&)>;
   TVM_DLL static FType& vtable();

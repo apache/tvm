@@ -239,7 +239,6 @@ namespace tvm {
 TVM_DLL ffi::Map<ffi::String, ffi::String> GetLibInfo() {
   ffi::Map<ffi::String, ffi::String> result = {
       {"BUILD_STATIC_RUNTIME", TVM_INFO_BUILD_STATIC_RUNTIME},
-      {"BUILD_DUMMY_LIBTVM", TVM_INFO_BUILD_DUMMY_LIBTVM},
       {"COMPILER_RT_PATH", TVM_INFO_COMPILER_RT_PATH},
       {"CUDA_VERSION", TVM_INFO_CUDA_VERSION},
       {"GIT_COMMIT_HASH", TVM_INFO_GIT_COMMIT_HASH},

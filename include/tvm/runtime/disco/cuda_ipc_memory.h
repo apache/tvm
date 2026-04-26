@@ -81,14 +81,14 @@ class CUDAIPCMemoryObj : public Object {
 class CUDAIPCMemory : public ObjectRef {
  public:
   /*! \brief Get the global singleton CUDAIPCMemory allocator. */
-  TVM_DLL static memory::Allocator* GlobalAllocator();
+  TVM_RUNTIME_DLL static memory::Allocator* GlobalAllocator();
   /*!
    * \brief Given a local CUDA data pointer, return the CUDAIPCMemory object of the pointer.
    * \note The pointer's CUDAIPCMemory is expected to have been allocated
    * through global function "cuda_ipc.alloc_storage". Or otherwise this
    * function will raise exception.
    */
-  TVM_DLL static CUDAIPCMemory GetIPCMemoryFromDevicePtr(void* ptr);
+  TVM_RUNTIME_DLL static CUDAIPCMemory GetIPCMemoryFromDevicePtr(void* ptr);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(CUDAIPCMemory, ObjectRef, CUDAIPCMemoryObj);
 };

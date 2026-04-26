@@ -126,7 +126,7 @@ constexpr int kDefaultWorkspaceAlignment = 1;
  *  \brief TVM Runtime Device API, abstracts the device
  *  specific interface for memory management.
  */
-class TVM_DLL DeviceAPI {
+class TVM_RUNTIME_DLL DeviceAPI {
  public:
   /*! \brief virtual destructor */
   virtual ~DeviceAPI() {}
@@ -410,7 +410,7 @@ inline Device AddRPCSessionMask(Device dev, int session_table_index) {
  * \param target The target module name.
  * \return Whether runtime is enabled.
  */
-TVM_DLL bool RuntimeEnabled(const ffi::String& target);
+TVM_RUNTIME_DLL bool RuntimeEnabled(const ffi::String& target);
 
 /*! \brief namespace for constant symbols */
 namespace symbol {

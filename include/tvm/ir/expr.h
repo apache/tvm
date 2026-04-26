@@ -706,7 +706,7 @@ class Range : public ObjectRef {
    * \param extent The extent of the range.
    * \param span The location of the Range in the source.
    */
-  static Range FromMinExtent(PrimExpr min, PrimExpr extent, Span span = Span());
+  TVM_DLL static Range FromMinExtent(PrimExpr min, PrimExpr extent, Span span = Span());
   // declare range.
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Range, ObjectRef, RangeNode);
 };

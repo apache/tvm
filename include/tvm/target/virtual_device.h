@@ -277,8 +277,9 @@ class VirtualDevice : public ObjectRef {
    * \param memory_scope The memory scope w.r.t. the virtual device which holds data, or "" if
    * unconstrained.
    */
-  explicit VirtualDevice(int device_type_int = kInvalidDeviceType, int virtual_device_id = -1,
-                         Target target = {}, MemoryScope memory_scope = {});
+  TVM_DLL explicit VirtualDevice(int device_type_int = kInvalidDeviceType,
+                                 int virtual_device_id = -1, Target target = {},
+                                 MemoryScope memory_scope = {});
 
   /*! \brief Returns the unique fully unconstrained \p VirtualDevice. */
   static VirtualDevice FullyUnconstrained();
@@ -331,13 +332,14 @@ class VirtualDevice : public ObjectRef {
    * \p lhs and \p rhs on all their constrained fields. Returns the null optional if no such
    * join exists, ie there's disagreement on at least one constrained field.
    */
-  static ffi::Optional<VirtualDevice> Join(const VirtualDevice& lhs, const VirtualDevice& rhs);
+  TVM_DLL static ffi::Optional<VirtualDevice> Join(const VirtualDevice& lhs,
+                                                   const VirtualDevice& rhs);
 
   /*!
    * \brief Returns the 'default' of \p lhs and \p rhs. The result will be \p lhs, except any
    * unconstrained fields in \p lhs will take their value from \p rhs. Always well-defined.
    */
-  static VirtualDevice Default(const VirtualDevice& lhs, const VirtualDevice& rhs);
+  TVM_DLL static VirtualDevice Default(const VirtualDevice& lhs, const VirtualDevice& rhs);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(VirtualDevice, ObjectRef, VirtualDeviceNode);
 
@@ -352,7 +354,7 @@ class VirtualDevice : public ObjectRef {
  *  - So we can assume \p VirtualDevices are pointer equal if and only if they are structurally
  * equal. This simplifies the unification of 'device domains' which are built on \p VirtualDevices.
  */
-class VirtualDeviceCache {
+class TVM_DLL VirtualDeviceCache {
  public:
   /*! \brief Returns the unique \p VirtualDevice representing given fields. */
   VirtualDevice Make(int device_type = kInvalidDeviceType, int virtual_device_id = -1,

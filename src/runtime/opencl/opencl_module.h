@@ -25,6 +25,7 @@
 #define TVM_RUNTIME_OPENCL_OPENCL_MODULE_H_
 
 #include <tvm/ffi/function.h>
+#include <tvm/runtime/base.h>
 
 #include <memory>
 #include <string>
@@ -43,8 +44,9 @@ namespace runtime {
  * \param fmap The map function information map of each function.
  * \param source Generated OpenCL kernels.
  */
-ffi::Module OpenCLModuleCreate(std::string data, std::string fmt,
-                               ffi::Map<ffi::String, FunctionInfo> fmap, std::string source);
+TVM_RUNTIME_DLL ffi::Module OpenCLModuleCreate(std::string data, std::string fmt,
+                                               ffi::Map<ffi::String, FunctionInfo> fmap,
+                                               std::string source);
 
 /*!
  * \brief Create a opencl module from SPIRV.
@@ -53,9 +55,9 @@ ffi::Module OpenCLModuleCreate(std::string data, std::string fmt,
  * \param spirv_text The concatenated text representation of SPIRV modules.
  * \param fmap The map function information map of each function.
  */
-ffi::Module OpenCLModuleCreate(const std::unordered_map<std::string, spirv::SPIRVShader>& shaders,
-                               const std::string& spirv_text,
-                               ffi::Map<ffi::String, FunctionInfo> fmap);
+TVM_RUNTIME_DLL ffi::Module OpenCLModuleCreate(
+    const std::unordered_map<std::string, spirv::SPIRVShader>& shaders,
+    const std::string& spirv_text, ffi::Map<ffi::String, FunctionInfo> fmap);
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_OPENCL_OPENCL_MODULE_H_

@@ -25,6 +25,8 @@
 #ifndef TVM_RUNTIME_CONST_LOADER_MODULE_H_
 #define TVM_RUNTIME_CONST_LOADER_MODULE_H_
 
+#include <tvm/ffi/extra/module.h>
+#include <tvm/runtime/base.h>
 #include <tvm/runtime/tensor.h>
 
 #include <string>
@@ -43,7 +45,7 @@ namespace runtime {
  *
  * \return The created ConstLoaderModule.
  */
-ffi::Module ConstLoaderModuleCreate(
+TVM_RUNTIME_DLL ffi::Module ConstLoaderModuleCreate(
     const std::unordered_map<std::string, Tensor>& const_var_tensor,
     const std::unordered_map<std::string, std::vector<std::string>>& const_vars_by_symbol);
 

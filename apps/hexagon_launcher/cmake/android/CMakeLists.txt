@@ -88,13 +88,13 @@ ExternalProject_Add(android_tvm_runtime
 ExternalProject_Get_Property(android_tvm_runtime BINARY_DIR)
 ExternalProject_Add_Step(android_tvm_runtime copy_binaries
   COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    ${BINARY_DIR}/libtvm_runtime.so
+    ${BINARY_DIR}/lib/libtvm_runtime.so
     ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDEES install
 )
 
 add_dependencies(launcher_android android_tvm_runtime)
 add_library(a_tvm_runtime SHARED IMPORTED)
-set_target_properties(a_tvm_runtime PROPERTIES IMPORTED_LOCATION "${BINARY_DIR}/libtvm_runtime.so")
+set_target_properties(a_tvm_runtime PROPERTIES IMPORTED_LOCATION "${BINARY_DIR}/lib/libtvm_runtime.so")
 
 target_link_libraries(launcher_android cdsprpc log a_tvm_runtime)

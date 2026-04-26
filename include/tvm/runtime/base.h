@@ -44,6 +44,29 @@
 #define TVM_ATTRIBUTE_UNUSED
 #endif
 
+// Two distinct DLL macros are needed because TVM ships TWO shared libraries:
+//
+// - ``TVM_RUNTIME_DLL`` marks symbols defined in ``libtvm_runtime``. They are
+//   exported when ``TVM_RUNTIME_EXPORTS`` is set (the runtime build) and
+//   imported otherwise (compiler-side TUs or downstream consumers).
+// - ``TVM_DLL`` marks symbols defined in ``libtvm_compiler``. Exported when
+//   ``TVM_EXPORTS`` is set (the compiler build), imported otherwise.
+//
+// On non-MSVC platforms both expand to ``visibility("default")`` — symbol
+// imports vs exports are decided by the runtime dynamic loader, not the
+// compiler.
+#ifndef TVM_RUNTIME_DLL
+#ifdef _WIN32
+#ifdef TVM_RUNTIME_EXPORTS
+#define TVM_RUNTIME_DLL __declspec(dllexport)
+#else
+#define TVM_RUNTIME_DLL __declspec(dllimport)
+#endif
+#else
+#define TVM_RUNTIME_DLL __attribute__((visibility("default")))
+#endif
+#endif
+
 #ifndef TVM_DLL
 #ifdef _WIN32
 #ifdef TVM_EXPORTS
