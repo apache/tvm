@@ -164,7 +164,7 @@ class LogFatal {
     int lineno_;
   };
 
-  TVM_RUNTIME_DLL TVM_FFI_NO_INLINE static Entry& GetEntry();
+  TVM_FFI_NO_INLINE TVM_RUNTIME_DLL static Entry& GetEntry();
 };
 
 /*!

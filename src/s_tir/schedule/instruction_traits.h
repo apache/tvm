@@ -172,12 +172,12 @@ struct UnpackedInstTraits {
 
  protected:
   template <size_t index_offset>
-  static TVM_FFI_INLINE void _SetInputs(AnyView* packed_args, const ffi::Array<Any>& inputs);
+  TVM_FFI_INLINE static void _SetInputs(AnyView* packed_args, const ffi::Array<Any>& inputs);
   template <size_t index_offset>
-  static TVM_FFI_INLINE void _SetAttrs(AnyView* packed_args, const ffi::Array<Any>& attrs);
+  TVM_FFI_INLINE static void _SetAttrs(AnyView* packed_args, const ffi::Array<Any>& attrs);
   template <size_t index_offset>
-  static TVM_FFI_INLINE void _SetDecision(AnyView* packed_args, const Any& decision);
-  static TVM_FFI_INLINE ffi::Array<Any> _ConvertOutputs(const ffi::Any& rv);
+  TVM_FFI_INLINE static void _SetDecision(AnyView* packed_args, const Any& decision);
+  TVM_FFI_INLINE static ffi::Array<Any> _ConvertOutputs(const ffi::Any& rv);
 };
 
 /*!

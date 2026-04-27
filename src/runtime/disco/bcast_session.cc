@@ -28,7 +28,7 @@ namespace runtime {
 
 struct BcastSessionObj::Internal {
   template <typename... Args>
-  static void TVM_FFI_INLINE BroadcastUnpacked(BcastSessionObj* self, DiscoAction action,
+  TVM_FFI_INLINE static void BroadcastUnpacked(BcastSessionObj* self, DiscoAction action,
                                                int64_t reg_id, Args&&... args) {
     constexpr int kNumArgs = 2 + sizeof...(Args);
     ffi::AnyView packed_args[kNumArgs];
