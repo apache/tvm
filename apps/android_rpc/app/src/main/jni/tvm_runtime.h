@@ -101,7 +101,7 @@ namespace detail {
 [[noreturn]] void LogFatalImpl(const std::string& file, int lineno, const std::string& message) {
   std::string m = file + ":" + std::to_string(lineno) + ": " + message;
   __android_log_write(ANDROID_LOG_FATAL, "TVM_RUNTIME", m.c_str());
-  throw InternalError(file, lineno, message);
+  throw tvm::ffi::Error("InternalError", message, TVMFFIBacktrace(file.c_str(), lineno, "", 0));
 }
 void LogMessageImpl(const std::string& file, int lineno, int level, const std::string& message) {
   std::string m = file + ":" + std::to_string(lineno) + ": " + message;
