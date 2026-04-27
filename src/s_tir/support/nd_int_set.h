@@ -16,8 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef TVM_SUPPORT_ND_INT_SET_H_
-#define TVM_SUPPORT_ND_INT_SET_H_
+#ifndef TVM_S_TIR_SUPPORT_ND_INT_SET_H_
+#define TVM_S_TIR_SUPPORT_ND_INT_SET_H_
 
 #include <tvm/arith/int_set.h>
 #include <tvm/ir/expr.h>
@@ -147,4 +147,4 @@ inline NDIntSet NDIntSetEval(
 }  // namespace support
 }  // namespace tvm
 
-#endif  // TVM_SUPPORT_ND_INT_SET_H_
+#endif  // TVM_S_TIR_SUPPORT_ND_INT_SET_H_

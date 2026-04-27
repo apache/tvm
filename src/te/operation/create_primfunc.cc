@@ -36,7 +36,6 @@
 #include <utility>
 #include <vector>
 
-#include "../../support/array.h"
 #include "../../tirx/ir/data_type_rewriter.h"
 #include "../../tirx/ir/functor_common.h"
 #include "graph.h"

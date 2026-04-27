@@ -18,41 +18,14 @@
  */
 
 /*!
- * \file src/support/scalars.h
- * \brief Helpers for converting between scalars in native, text, TIR immediate and Tensor forms.
+ * \file src/support/limits.h
+ * \brief Numeric range limits for TVM low-precision floating-point dtypes.
  */
-
-#ifndef TVM_SUPPORT_SCALARS_H_
-#define TVM_SUPPORT_SCALARS_H_
-
-#include <cmath>
-#include <string>
-
-#include "tvm/ir/expr.h"
-#include "tvm/runtime/tensor.h"
+#ifndef TVM_SUPPORT_LIMITS_H_
+#define TVM_SUPPORT_LIMITS_H_
 
 namespace tvm {
 namespace support {
-
-/*! \brief Returns Tensor 'scalar' for given TIR immediate. */
-runtime::Tensor IntImmToTensor(const IntImm& int_imm);
-runtime::Tensor FloatImmToTensor(const FloatImm& float_imm);
-runtime::Tensor BoolToTensor(bool value);
-
-/*! \brief Returns literal text for Tensor 'scalar'. */
-std::string TensorScalarToString(const runtime::Tensor& data);
-
-/*! \brief Returns literal text for given TIR immediate. */
-std::string IntImmToString(const IntImm& int_imm);
-std::string FloatImmToString(const FloatImm& float_imm);
-
-/*!
- * \brief Returns TIR immediate for given value and width. Result will be null if value is
- * out of range in width. Note however for floating point we don't check if the value is
- * representable without loss of precision.
- */
-IntImm ValueToIntImm(int64_t value, int width);
-FloatImm ValueToFloatImm(double value, int width);
 
 // 2^15 * (1 + 1023/1024)
 // See https://en.wikipedia.org/wiki/Half-precision_floating-point_format
@@ -100,4 +73,4 @@ constexpr double kMaxE2M1FN = 6.0;
 }  // namespace support
 }  // namespace tvm
 
-#endif  // TVM_SUPPORT_SCALARS_H_
+#endif  // TVM_SUPPORT_LIMITS_H_

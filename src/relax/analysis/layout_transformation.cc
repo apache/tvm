@@ -30,8 +30,6 @@
 #include <tvm/tirx/index_map.h>
 #include <tvm/tirx/stmt_functor.h>
 
-#include "../../support/array.h"
-
 namespace tvm {
 namespace relax {
 
@@ -217,8 +215,10 @@ static ffi::Optional<IndexMap> InferLayoutTransformation(const SpatialLayout& sr
                                                          const IndexMap& src_transformation,
                                                          const SpatialLayout& tgt_spatial_layout) {
   // Copy over the src transformation intial and final indices
-  auto initial_indices = support::AsList(src_transformation->initial_indices);
-  auto final_indices = support::AsList(src_transformation->final_indices);
+  std::vector<tirx::Var> initial_indices(src_transformation->initial_indices.begin(),
+                                         src_transformation->initial_indices.end());
+  std::vector<PrimExpr> final_indices(src_transformation->final_indices.begin(),
+                                      src_transformation->final_indices.end());
 
   // Get the iterator var set used in target spatial layout.
   VarSet tgt_var_set;
@@ -297,11 +297,16 @@ static ffi::Optional<IndexMap> InferLayoutTransformation(const SpatialLayout& sr
     }
 
     auto new_dim = tirx::Var("d");
-    initial_indices.insert(initial_indices_it, new_dim);
-    final_indices.insert(final_indices_it, new_dim);
+    initial_indices_it = initial_indices.insert(initial_indices_it, new_dim);
+    final_indices_it = final_indices.insert(final_indices_it, new_dim);
+    // Advance past the newly inserted element so subsequent iterations start correctly.
+    initial_indices_it++;
+    final_indices_it++;
   }
 
-  return IndexMap(support::AsArray(initial_indices), support::AsArray(final_indices));
+  ffi::Array<tirx::Var> initial_array(initial_indices.begin(), initial_indices.end());
+  ffi::Array<PrimExpr> final_array(final_indices.begin(), final_indices.end());
+  return IndexMap(initial_array, final_array);
 }
 
 /*!

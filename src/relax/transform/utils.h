@@ -36,7 +36,6 @@
 #include <utility>
 #include <vector>
 
-#include "../../support/array.h"
 #include "../analysis/graph_partitioner.h"
 #include "../op/nn/convolution.h"
 #include "../op/nn/nn.h"
@@ -375,7 +374,10 @@ inline ffi::Array<Integer> GetOrderedPositiveAxes(const ffi::Array<Integer>& axe
     ret.push_back(axis_val);
   }
   std::sort(ret.begin(), ret.end());
-  return support::AsArray<int64_t, Integer>(ret);
+  ffi::Array<Integer> result;
+  result.reserve(ret.size());
+  for (int64_t x : ret) result.push_back(Integer(x));
+  return result;
 }
 
 inline ffi::String GetCodegenName(const std::string& composite_name) {

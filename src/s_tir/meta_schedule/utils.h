@@ -41,7 +41,6 @@
 #include <tvm/s_tir/meta_schedule/tune_context.h>
 #include <tvm/s_tir/schedule/schedule.h>
 #include <tvm/support/io.h>
-#include <tvm/support/parallel_for.h>
 #include <tvm/support/serializer.h>
 #include <tvm/tirx/transform.h>
 
@@ -52,14 +51,15 @@
 #include <utility>
 #include <vector>
 
-#include "../../support/array.h"
 #include "../../support/base64.h"
 #include "../../support/bytes_io.h"
-#include "../../support/nd_int_set.h"
-#include "../../support/table_printer.h"
 #include "../../support/utils.h"
 #include "../schedule/primitive.h"
 #include "../schedule/utils.h"
+#include "../support/array_utils.h"
+#include "../support/nd_int_set.h"
+#include "../support/parallel_for.h"
+#include "../support/table_printer.h"
 
 #define TVM_PY_LOG(logging_level, logger)                                       \
   ::tvm::s_tir::meta_schedule::PyLogMessage(__FILE__, __LINE__, logger,         \
