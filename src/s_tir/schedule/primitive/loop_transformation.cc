@@ -1187,7 +1187,7 @@ struct SplitTraits : public UnpackedInstTraits<SplitTraits> {
   static constexpr size_t kNumDecisions = 0;
 
   template <size_t delta>
-  static TVM_ALWAYS_INLINE void _SetInputs(AnyView* packed_args, const ffi::Array<Any>& inputs) {
+  TVM_FFI_INLINE static void _SetInputs(AnyView* packed_args, const ffi::Array<Any>& inputs) {
     thread_local Any loop_rv{nullptr};
     thread_local ffi::Array<Any> factors{nullptr};
     loop_rv = inputs[0];
@@ -1230,7 +1230,7 @@ struct LoopPartitionTraits : public UnpackedInstTraits<LoopPartitionTraits> {
   static constexpr size_t kNumDecisions = 0;
 
   template <size_t delta>
-  static TVM_ALWAYS_INLINE void _SetInputs(AnyView* packed_args, const ffi::Array<Any>& inputs) {
+  TVM_FFI_INLINE static void _SetInputs(AnyView* packed_args, const ffi::Array<Any>& inputs) {
     thread_local Any loop_rv{nullptr};
     thread_local ffi::Array<Any> factors{nullptr};
     loop_rv = inputs[0];
@@ -1269,7 +1269,7 @@ struct MergeTraits : public UnpackedInstTraits<MergeTraits> {
   static constexpr size_t kNumDecisions = 0;
 
   template <size_t delta>
-  static TVM_ALWAYS_INLINE void _SetInputs(AnyView* packed_args, const ffi::Array<Any>& inputs) {
+  TVM_FFI_INLINE static void _SetInputs(AnyView* packed_args, const ffi::Array<Any>& inputs) {
     packed_args[delta] = inputs;
   }
 
@@ -1301,7 +1301,7 @@ struct FuseTraits : public UnpackedInstTraits<FuseTraits> {
   static constexpr size_t kNumDecisions = 0;
 
   template <size_t delta>
-  static TVM_ALWAYS_INLINE void _SetInputs(AnyView* packed_args, const ffi::Array<Any>& inputs) {
+  TVM_FFI_INLINE static void _SetInputs(AnyView* packed_args, const ffi::Array<Any>& inputs) {
     packed_args[delta] = inputs;
   }
 
@@ -1335,7 +1335,7 @@ struct ReorderTraits : public UnpackedInstTraits<ReorderTraits> {
   static constexpr size_t kNumDecisions = 0;
 
   template <size_t delta>
-  static TVM_ALWAYS_INLINE void _SetInputs(AnyView* packed_args, const ffi::Array<Any>& inputs) {
+  TVM_FFI_INLINE static void _SetInputs(AnyView* packed_args, const ffi::Array<Any>& inputs) {
     packed_args[delta] = inputs;
   }
 

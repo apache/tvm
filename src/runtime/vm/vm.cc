@@ -361,7 +361,7 @@ class VirtualMachineImpl : public VirtualMachine {
    * \param reg The register to write to.
    * \param obj The object to write to.
    */
-  TVM_ALWAYS_INLINE void WriteRegister(VMFrame* frame, RegName reg, const RegType& obj) {
+  TVM_FFI_INLINE void WriteRegister(VMFrame* frame, RegName reg, const RegType& obj) {
     TVM_FFI_ICHECK_LT(reg, frame->register_file.size());
     frame->register_file[reg] = obj;
   }
@@ -371,7 +371,7 @@ class VirtualMachineImpl : public VirtualMachine {
    * \param reg The register to read from.
    * \return The value of the register.
    */
-  TVM_ALWAYS_INLINE RegType ReadRegister(VMFrame* frame, RegName reg) {
+  TVM_FFI_INLINE RegType ReadRegister(VMFrame* frame, RegName reg) {
     if (reg < Instruction::kBeginSpecialReg) {
       return frame->register_file[reg];
     }

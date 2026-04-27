@@ -66,7 +66,7 @@ Tensor TensorFromRemoteOpaqueHandle(std::shared_ptr<RPCSession> sess, void* hand
       if (space_.object_handle != nullptr) {
         try {
           space_.sess->FreeHandle(space_.object_handle);
-        } catch (const Error& e) {
+        } catch (const ffi::Error& e) {
           // fault tolerance to remote close
         }
       }
@@ -153,7 +153,7 @@ class RPCWrappedFunc : public Object {
   ~RPCWrappedFunc() {
     try {
       sess_->FreeHandle(handle_);
-    } catch (const Error& e) {
+    } catch (const ffi::Error& e) {
       // fault tolerance to remote close
     }
   }
@@ -188,7 +188,7 @@ class RPCModuleNode final : public ffi::ModuleObj {
     if (module_handle_ != nullptr) {
       try {
         sess_->FreeHandle(module_handle_);
-      } catch (const Error& e) {
+      } catch (const ffi::Error& e) {
         // fault tolerance to remote close
       }
       module_handle_ = nullptr;

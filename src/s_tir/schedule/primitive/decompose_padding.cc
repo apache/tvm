@@ -527,7 +527,7 @@ bool CanDecomposePadding(ScheduleState self, const StmtSRef& block_sref,
                          const StmtSRef& loop_sref) {
   try {
     DecomposePaddingImpl(self, block_sref, loop_sref, true);
-  } catch (const tvm::runtime::Error& e) {
+  } catch (const tvm::ffi::Error& e) {
     return false;
   }
   return true;

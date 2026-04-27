@@ -49,52 +49,6 @@
 #include <vector>
 
 /*!
- * \brief Macro helper to force a function not to be inlined.
- * It is only used in places that we know not inlining is good,
- * e.g. some logging functions.
- */
-#if defined(_MSC_VER)
-#define TVM_NO_INLINE __declspec(noinline)
-#else
-#define TVM_NO_INLINE __attribute__((noinline))
-#endif
-
-/*!
- * \brief Macro helper to force a function to be inlined.
- * It is only used in places that we know inline is important,
- * e.g. some template expansion cases.
- */
-#ifdef _MSC_VER
-#define TVM_ALWAYS_INLINE __forceinline
-#else
-#define TVM_ALWAYS_INLINE inline __attribute__((always_inline))
-#endif
-
-/*!
- * \brief Macro helper for exception throwing.
- */
-#define TVM_THROW_EXCEPTION noexcept(false)
-
-/*!
- * \brief Whether or not enable backtrace logging during a
- *        fatal error.
- *
- * \note TVM won't depend on LIBBACKTRACE or other exec_info
- *       library when this option is disabled.
- */
-#ifndef TVM_LOG_STACK_TRACE
-#define TVM_LOG_STACK_TRACE 1
-#endif
-
-/*!
- * \brief Whether or not use libbacktrace library
- *        for getting backtrace information
- */
-#ifndef TVM_USE_LIBBACKTRACE
-#define TVM_USE_LIBBACKTRACE 0
-#endif
-
-/*!
  * \brief Whether or not customize the logging output.
  *  If log customize is enabled, the user must implement
  *  tvm::runtime::detail::LogFatalImpl and tvm::runtime::detail::LogMessageImpl.
@@ -107,20 +61,6 @@ namespace tvm {
 namespace runtime {
 
 using ffi::EnvErrorAlreadySet;
-using ffi::Error;
-
-/*!
- * \brief Error type for errors from LOG(FATAL). This error
- * contains a backtrace of where it occurred.
- *
- * \note LOG(FATAL) always throws InternalError. For typed errors,
- * use TVM_FFI_THROW(ErrorKind) instead.
- */
-class InternalError : public Error {
- public:
-  InternalError(std::string file, int lineno, std::string message)
-      : Error("InternalError", std::move(message), TVMFFIBacktrace(file.c_str(), lineno, "", 0)) {}
-};
 
 /*! \brief Internal implementation */
 namespace detail {
@@ -153,7 +93,7 @@ class LogFatal {
 #pragma warning(push)
 #pragma warning(disable : 4722)
 #endif
-  [[noreturn]] ~LogFatal() TVM_THROW_EXCEPTION { LogFatalImpl(file_, lineno_, stream_.str()); }
+  [[noreturn]] ~LogFatal() noexcept(false) { LogFatalImpl(file_, lineno_, stream_.str()); }
 #ifdef _MSC_VER
 #pragma warning(pop)
 #endif
@@ -193,12 +133,12 @@ class LogMessage {
  */
 class LogFatal {
  public:
-  TVM_NO_INLINE LogFatal(const char* file, int lineno) { GetEntry().Init(file, lineno); }
+  TVM_FFI_NO_INLINE LogFatal(const char* file, int lineno) { GetEntry().Init(file, lineno); }
 #ifdef _MSC_VER
 #pragma warning(push)
 #pragma warning(disable : 4722)
 #endif
-  [[noreturn]] ~LogFatal() TVM_THROW_EXCEPTION {
+  [[noreturn]] ~LogFatal() noexcept(false) {
     GetEntry().Finalize();
     throw;
   }
@@ -214,8 +154,9 @@ class LogFatal {
       this->file_ = file;
       this->lineno_ = lineno;
     }
-    [[noreturn]] TVM_NO_INLINE Error Finalize() TVM_THROW_EXCEPTION {
-      InternalError error(file_, lineno_, stream_.str());
+    [[noreturn]] TVM_FFI_NO_INLINE ffi::Error Finalize() noexcept(false) {
+      ffi::Error error("InternalError", stream_.str(),
+                       TVMFFIBacktrace(file_.c_str(), lineno_, "", 0));
       throw error;
     }
     std::ostringstream stream_;
@@ -223,7 +164,7 @@ class LogFatal {
     int lineno_;
   };
 
-  TVM_RUNTIME_DLL TVM_NO_INLINE static Entry& GetEntry();
+  TVM_FFI_NO_INLINE TVM_RUNTIME_DLL static Entry& GetEntry();
 };
 
 /*!
@@ -245,7 +186,7 @@ class LogMessage {
     stream_ << "[" << std::put_time(std::localtime(&t), "%H:%M:%S") << "] " << file << ":" << lineno
             << kLevelStrings[level];
   }
-  TVM_NO_INLINE ~LogMessage() { std::cerr << stream_.str() << std::endl; }
+  TVM_FFI_NO_INLINE ~LogMessage() { std::cerr << stream_.str() << std::endl; }
   std::ostringstream& stream() { return stream_; }
 
  private:
@@ -459,9 +400,5 @@ class VLogContextEntry {
       << ::tvm::runtime::detail::ThreadLocalVLogContext()->str()
 
 }  // namespace runtime
-// Re-export error types
-using runtime::Error;
-using runtime::InternalError;
-
 }  // namespace tvm
 #endif  // TVM_RUNTIME_LOGGING_H_

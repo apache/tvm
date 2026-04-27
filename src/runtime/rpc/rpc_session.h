@@ -311,7 +311,7 @@ class RPCObjectRefObj : public Object {
     if (object_handle_ != nullptr && sess_ != nullptr) {
       try {
         sess_->FreeHandle(object_handle_);
-      } catch (const Error& e) {
+      } catch (const ffi::Error& e) {
         // fault tolerance to remote close
       }
       object_handle_ = nullptr;

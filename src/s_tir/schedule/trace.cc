@@ -396,7 +396,7 @@ void Trace::ApplyJSONToSchedule(ObjectRef json, Schedule sch) {
     TVM_FFI_ICHECK(arr0 && arr1);
     json_insts = ffi::GetRef<ffi::Array<Any>>(arr0);
     json_decisions = ffi::GetRef<ffi::Array<Any>>(arr1);
-  } catch (const tvm::Error& e) {
+  } catch (const tvm::ffi::Error& e) {
     TVM_FFI_THROW(ValueError) << "The json entry of a trace should contain two arrays, an array of "
                                  "instructions and an array of decisions, but gets: "
                               << json;
@@ -414,7 +414,7 @@ void Trace::ApplyJSONToSchedule(ObjectRef json, Schedule sch) {
       TVM_FFI_ICHECK(arr0);
       index = arr0.value()->value;
       decision = arr->at(1);
-    } catch (const tvm::Error& e) {
+    } catch (const tvm::ffi::Error& e) {
       TVM_FFI_THROW(ValueError) << "Each entry of a json decision should be a tuple [index, "
                                    "decision], but gets: "
                                 << decision_entry;
@@ -439,7 +439,7 @@ void Trace::ApplyJSONToSchedule(ObjectRef json, Schedule sch) {
       inputs = arr->at(1).cast<ffi::Array<Any>>();
       attrs = arr->at(2).cast<ffi::Array<Any>>();
       outputs = arr->at(3).cast<ffi::Array<ffi::String>>();
-    } catch (const tvm::Error& e) {
+    } catch (const tvm::ffi::Error& e) {
       TVM_FFI_THROW(ValueError) << "Each entry of a json instruction should be a tuple [inst_name, "
                                    "inputs, attrs, outputs], but gets: "
                                 << inst_entry << "\nThe error is: " << e.what();

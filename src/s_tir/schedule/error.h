@@ -18,6 +18,7 @@
  */
 #ifndef TVM_S_TIR_SCHEDULE_ERROR_H_
 #define TVM_S_TIR_SCHEDULE_ERROR_H_
+#include <tvm/ffi/error.h>
 #include <tvm/s_tir/schedule/state.h>
 
 #include <string>
@@ -28,11 +29,10 @@ namespace s_tir {
 using namespace tvm::tirx;
 
 /*! \brief Error that happens during TensorIR scheduling */
-class ScheduleError : public tvm::runtime::Error {
+class ScheduleError : public tvm::ffi::Error {
  public:
   /*! \brief Base constructor */
-  ScheduleError()
-      : tvm::runtime::Error("ScheduleError", "", TVMFFIBacktrace(nullptr, 0, nullptr, 0)) {}
+  ScheduleError() : tvm::ffi::Error("ScheduleError", "", TVMFFIBacktrace(nullptr, 0, nullptr, 0)) {}
   /*! \brief The error occurred in this IRModule */
   virtual IRModule mod() const = 0;
   /*! \brief The locations of interest that we want to point out */

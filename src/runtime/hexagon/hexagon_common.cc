@@ -81,7 +81,7 @@ void HexagonLog(const std::string& file, int lineno, int level, const std::strin
 namespace detail {
 [[noreturn]] void LogFatalImpl(const std::string& file, int lineno, const std::string& message) {
   HexagonLog(file, lineno, TVM_LOG_LEVEL_FATAL, message);
-  throw InternalError(file, lineno, message);
+  throw tvm::ffi::Error("InternalError", message, TVMFFIBacktrace(file.c_str(), lineno, "", 0));
 }
 void LogMessageImpl(const std::string& file, int lineno, int level, const std::string& message) {
   HexagonLog(file, lineno, level, message);

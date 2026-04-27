@@ -48,7 +48,7 @@ struct ModuleVTableEntryHelper {};
 template <typename T, typename R, typename... Args>
 struct ModuleVTableEntryHelper<R (T::*)(Args...) const> {
   using MemFnType = R (T::*)(Args...) const;
-  static TVM_ALWAYS_INLINE void Call(ffi::Any* rv, T* self, MemFnType f, ffi::PackedArgs args) {
+  TVM_FFI_INLINE static void Call(ffi::Any* rv, T* self, MemFnType f, ffi::PackedArgs args) {
     auto wrapped = [self, f](Args... args) -> R { return (self->*f)(std::forward<Args>(args)...); };
     ffi::details::unpack_call<R>(std::make_index_sequence<sizeof...(Args)>{}, nullptr, wrapped,
                                  args.data(), args.size(), rv);
@@ -58,7 +58,7 @@ struct ModuleVTableEntryHelper<R (T::*)(Args...) const> {
 template <typename T, typename R, typename... Args>
 struct ModuleVTableEntryHelper<R (T::*)(Args...)> {
   using MemFnType = R (T::*)(Args...);
-  static TVM_ALWAYS_INLINE void Call(ffi::Any* rv, T* self, MemFnType f, ffi::PackedArgs args) {
+  TVM_FFI_INLINE static void Call(ffi::Any* rv, T* self, MemFnType f, ffi::PackedArgs args) {
     auto wrapped = [self, f](Args... args) -> R { return (self->*f)(std::forward<Args>(args)...); };
     ffi::details::unpack_call<R>(std::make_index_sequence<sizeof...(Args)>{}, nullptr, wrapped,
                                  args.data(), args.size(), rv);
@@ -68,7 +68,7 @@ struct ModuleVTableEntryHelper<R (T::*)(Args...)> {
 template <typename T, typename... Args>
 struct ModuleVTableEntryHelper<void (T::*)(Args...) const> {
   using MemFnType = void (T::*)(Args...) const;
-  static TVM_ALWAYS_INLINE void Call(ffi::Any* rv, T* self, MemFnType f, ffi::PackedArgs args) {
+  TVM_FFI_INLINE static void Call(ffi::Any* rv, T* self, MemFnType f, ffi::PackedArgs args) {
     auto wrapped = [self, f](Args... args) -> void { (self->*f)(std::forward<Args>(args)...); };
     ffi::details::unpack_call<void>(std::make_index_sequence<sizeof...(Args)>{}, nullptr, wrapped,
                                     args.data(), args.size(), rv);
@@ -78,7 +78,7 @@ struct ModuleVTableEntryHelper<void (T::*)(Args...) const> {
 template <typename T, typename... Args>
 struct ModuleVTableEntryHelper<void (T::*)(Args...)> {
   using MemFnType = void (T::*)(Args...);
-  static TVM_ALWAYS_INLINE void Call(ffi::Any* rv, T* self, MemFnType f, ffi::PackedArgs args) {
+  TVM_FFI_INLINE static void Call(ffi::Any* rv, T* self, MemFnType f, ffi::PackedArgs args) {
     auto wrapped = [self, f](Args... args) -> void { (self->*f)(std::forward<Args>(args)...); };
     ffi::details::unpack_call<void>(std::make_index_sequence<sizeof...(Args)>{}, nullptr, wrapped,
                                     args.data(), args.size(), rv);

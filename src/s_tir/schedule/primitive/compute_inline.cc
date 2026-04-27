@@ -921,7 +921,7 @@ void ComputeInline(ScheduleState self, const StmtSRef& producer_block_sref) {
 bool CanComputeInline(const ScheduleState& self, const StmtSRef& producer_block_sref) {
   try {
     ComputeInlineImpl(self, producer_block_sref, true);
-  } catch (const tvm::runtime::Error& e) {
+  } catch (const tvm::ffi::Error& e) {
     return false;
   }
   return true;
@@ -977,7 +977,7 @@ void ReverseComputeInlineImpl(ScheduleState self, const StmtSRef& consumer_block
 bool CanReverseComputeInline(const ScheduleState& self, const StmtSRef& block_sref) {
   try {
     ReverseComputeInlineImpl(self, block_sref, true);
-  } catch (const tvm::runtime::Error& e) {
+  } catch (const tvm::ffi::Error& e) {
     return false;
   }
   return true;
