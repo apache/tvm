@@ -528,6 +528,32 @@ def test_outer_reduction():
         mod = dl.ApplyDefaultSchedule(dl.gpu.LowBatchGEMV(4))(mod)  # pylint: disable=not-callable
     tvm.ir.assert_structural_equal(mod["main"], expected)
 
+def test_low_batch_gemv_cuda_target_without_max_shared_memory_per_block():
+    # fmt: off
+    @T.prim_func(private=True)
+    def before(var_A: T.handle, B: T.Buffer((T.int64(128), T.int64(128)), "float16"), var_C: T.handle):
+        T.func_attr({"tir.noalias": True})
+        batch_size = T.int64()
+        A = T.match_buffer(var_A, (batch_size, T.int64(1), T.int64(128)), "float16")
+        C = T.match_buffer(var_C, (batch_size, T.int64(1), T.int64(128)), "float16")
+        for i0, i1, i2, k in T.grid(batch_size, T.int64(1), T.int64(128), T.int64(128)):
+            with T.sblock("NT_matmul"):
+                v_i0, v_i1, v_i2, v_k = T.axis.remap("SSSR", [i0, i1, i2, k])
+                T.reads(A[v_i0, v_i1, v_k], B[v_i2, v_k])
+                T.writes(C[v_i0, v_i1, v_i2])
+                with T.init():
+                    C[v_i0, v_i1, v_i2] = T.float16(0)
+                C[v_i0, v_i1, v_i2] = C[v_i0, v_i1, v_i2] + A[v_i0, v_i1, v_k] * B[v_i2, v_k]
+    # fmt: on
+
+    target = Target({"kind": "cuda", "max_num_threads": 1024})
+    assert target.attrs.get("max_shared_memory_per_block", None) is None
+
+    mod = tvm.IRModule({"main": before})
+    with target:
+        mod = dl.ApplyDefaultSchedule(dl.gpu.LowBatchGEMV(4))(mod)
+    assert mod["main"].attrs["tirx.is_scheduled"] == 1
+
 
 if __name__ == "__main__":
     tvm.testing.main()

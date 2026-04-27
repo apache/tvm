@@ -1054,5 +1054,37 @@ def test_func_to_skip():
         tvm.ir.assert_structural_equal(mod["main"], before)
 
 
+def test_gemv_cuda_target_without_max_shared_memory_per_block():
+    # fmt: off
+    @T.prim_func(private=True)
+    def before(
+        A: T.Buffer((1, 1, 1, 128), "float16"),
+        B: T.Buffer((1, 1, 64, 128), "float16"),
+        C: T.Buffer((1, 1, 1, 64), "float16"),
+    ):
+        T.func_attr({"tirx.noalias": True})
+        for i0, i1, i2, i3, k in T.grid(1, 1, 1, 64, 128):
+            with T.sblock("NT_matmul"):
+                v_i0, v_i1, v_i2, v_i3, v_k = T.axis.remap("SSSSR", [i0, i1, i2, i3, k])
+                T.reads(A[v_i0, v_i1, v_i2, v_k], B[v_i0, v_i1, v_i3, v_k])
+                T.writes(C[v_i0, v_i1, v_i2, v_i3])
+                with T.init():
+                    C[v_i0, v_i1, v_i2, v_i3] = T.float16(0)
+                C[v_i0, v_i1, v_i2, v_i3] = C[v_i0, v_i1, v_i2, v_i3] + A[
+                    v_i0, v_i1, v_i2, v_k
+                ] * B[v_i0, v_i1, v_i3, v_k]
+
+    # fmt: on
+
+    target = Target({"kind": "cuda", "max_num_threads": 1024})
+    assert target.attrs.get("max_shared_memory_per_block", None) is None
+
+    mod = tvm.IRModule({"main": before})
+    with target:
+        mod = dl.ApplyDefaultSchedule(dl.gpu.GEMV())(mod)
+
+    assert mod["main"].attrs["tirx.is_scheduled"] == 1
+
+
 if __name__ == "__main__":
     tvm.testing.main()
