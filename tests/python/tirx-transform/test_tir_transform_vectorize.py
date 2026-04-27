@@ -499,7 +499,7 @@ def test_illegal_extent():
             for j in T.vectorized(n):
                 A[j] = 3
 
-    error_msg = "Failed to vectorize loop with extent n for target \\(nullptr\\)"
+    error_msg = "Failed to vectorize loop with extent n for target None"
     with pytest.raises(tvm.error.InternalError, match=error_msg):
         tvm.tirx.transform.VectorizeLoop()(Mod)
 

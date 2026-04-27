@@ -161,7 +161,7 @@ class TVM_DLL PrinterConfig : public ObjectRef {
                                                 PrinterConfigNode);
 };
 
-/*! \brief Legacy behavior of ReprPrinter. */
+/*! \brief TVMScript-based printer for IR nodes. */
 class TVMScriptPrinter {
  public:
   /* Convert the object to TVMScript format */

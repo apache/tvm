@@ -160,37 +160,31 @@ class NodeFunctor<R(const ObjectRef& n, Args...)> {
  * \brief Useful macro to set NodeFunctor dispatch in a global static field.
  *
  * \code
- *  // Use NodeFunctor to implement ReprPrinter similar to Visitor Pattern.
+ *  // Use NodeFunctor to implement TVMScriptPrinter similar to Visitor Pattern.
  *  // vtable allows easy patch of new Node types, without changing
- *  // interface of ReprPrinter.
+ *  // the interface of TVMScriptPrinter.
  *
- *  class ReprPrinter {
+ *  class TVMScriptPrinter {
  *   public:
- *    std::ostream& stream;
  *    // the dispatch function.
- *    void print(Expr e) {
- *      const static FType& f = *vtable();
- *      f(e, this);
+ *    static std::string Script(const ObjectRef& node, const PrinterConfig& cfg) {
+ *      return vtable()(node, cfg);
  *    }
- *
- *    using FType = NodeFunctor<void (const ObjectRef&, ReprPrinter* )>;
+ *    using FType = NodeFunctor<std::string(const ObjectRef&, const PrinterConfig&)>;
  *    // function to return global function table
  *    static FType& vtable();
  *  };
  *
  *  // in cpp/cc file
- *  ReprPrinter::FType& ReprPrinter::vtable() { // NOLINT(*)
+ *  TVMScriptPrinter::FType& TVMScriptPrinter::vtable() {
  *    static FType inst; return inst;
  *  }
  *
- *  TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
- *  .set_dispatch<Add>([](const ObjectRef& ref, ReprPrinter* p) {
- *    auto* n = static_cast<const Add*>(ref.get());
- *    p->print(n->a);
- *    p->stream << '+'
- *    p->print(n->b);
+ *  TVM_STATIC_IR_FUNCTOR(TVMScriptPrinter, vtable)
+ *  .set_dispatch<AddNode>([](const ObjectRef& ref, const PrinterConfig& cfg) {
+ *    auto* n = static_cast<const AddNode*>(ref.get());
+ *    return Script(n->a, cfg) + " + " + Script(n->b, cfg);
  *  });
- *
  *
  * \endcode
  *

@@ -67,15 +67,7 @@ inline void PrintBoundValue(std::ostream& os, int64_t val) {
   }
 }
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<ConstIntBoundNode>([](const ObjectRef& node, ReprPrinter* p) {
-      auto* op = static_cast<const ConstIntBoundNode*>(node.get());
-      p->stream << "ConstIntBound[";
-      PrintBoundValue(p->stream, op->min_value);
-      p->stream << ',';
-      PrintBoundValue(p->stream, op->max_value);
-      p->stream << ']';
-    });
+// Pattern A (RM): auto-default repr from reflection.
 
 // internal entry for const int bound
 struct ConstIntBoundAnalyzer::Entry {
