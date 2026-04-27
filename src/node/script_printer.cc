@@ -20,7 +20,8 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
 #include <tvm/node/cast.h>
-#include <tvm/node/repr_printer.h>
+#include <tvm/ffi/extra/dataclass.h>
+#include <tvm/node/repr.h>
 #include <tvm/node/script_printer.h>
 
 #include <algorithm>
@@ -39,10 +40,8 @@ TVMScriptPrinter::FType& TVMScriptPrinter::vtable() {
 std::string TVMScriptPrinter::Script(const ObjectRef& node,
                                      const ffi::Optional<PrinterConfig>& cfg) {
   if (!TVMScriptPrinter::vtable().can_dispatch(node)) {
-    std::ostringstream os;
-    ReprPrinter printer(os);
-    printer.Print(node);
-    return os.str();
+    // Fall back to ffi::ReprPrint for types not registered with TVMScriptPrinter.
+    return std::string(ffi::ReprPrint(ffi::Any(node)));
   }
   return TVMScriptPrinter::vtable()(node, cfg.value_or(PrinterConfig()));
 }

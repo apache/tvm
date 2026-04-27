@@ -63,17 +63,16 @@ CostModel CostModel::PyCostModel(PyCostModelNode::FLoad f_load,        //
   return CostModel(n);
 }
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<PyCostModelNode>([](const ObjectRef& n, ReprPrinter* p) {
-      const auto* self = n.as<PyCostModelNode>();
-      TVM_FFI_ICHECK(self);
-      PyCostModelNode::FAsString f_as_string = (*self).f_as_string;
-      TVM_FFI_ICHECK(f_as_string != nullptr) << "PyCostModel's AsString method not implemented!";
-      p->stream << f_as_string();
-    });
+// Pattern A (RM): auto-default repr from reflection.
+// Ensure the type index is allocated for Python registration to work.
+// (Previously, TVM_STATIC_IR_FUNCTOR(ReprPrinter).set_dispatch<PyCostModelNode> had
+// a side-effect of calling PyCostModelNode::RuntimeTypeIndex() which registered the type.)
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  // Trigger type index allocation for types that Python @register_object needs to find.
+  refl::ObjectDef<CostModelNode>();
+  refl::ObjectDef<PyCostModelNode>();
   refl::GlobalDef()
       .def_method("s_tir.meta_schedule.CostModelLoad", &CostModelNode::Load)
       .def_method("s_tir.meta_schedule.CostModelSave", &CostModelNode::Save)

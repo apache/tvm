@@ -1227,12 +1227,7 @@ ffi::Array<IntSet> EstimateRegionUpperBound(const ffi::Array<Range>& region,
   return result;
 }
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<IntervalSetNode>([](const ObjectRef& node, ReprPrinter* p) {
-      auto* op = static_cast<const IntervalSetNode*>(node.get());
-      p->stream << "IntervalSet"
-                << "[" << op->min_value << ", " << op->max_value << ']';
-    });
+// Pattern A (RM): auto-default repr from reflection.
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

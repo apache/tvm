@@ -121,11 +121,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<TensorNode>([](const ObjectRef& node, ReprPrinter* p) {
-      auto* t = static_cast<const TensorNode*>(node.get());
-      p->stream << "Tensor(shape=" << t->shape << ", op.name=" << t->op->name << ')';
-    });
+// Pattern A (RM): auto-default repr from reflection.
 
 // Other tensor ops.
 TVM_FFI_STATIC_INIT_BLOCK() {

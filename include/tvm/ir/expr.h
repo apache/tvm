@@ -29,7 +29,7 @@
 #include <tvm/ir/source_map.h>
 #include <tvm/ir/type.h>
 #include <tvm/node/cast.h>
-#include <tvm/node/repr_printer.h>
+#include <tvm/node/repr.h>
 #include <tvm/node/script_printer.h>
 #include <tvm/runtime/object.h>
 

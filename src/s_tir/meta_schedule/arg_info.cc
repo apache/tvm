@@ -19,6 +19,8 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/transform.h>
 
+#include <sstream>
+
 #include "./utils.h"
 
 namespace tvm {
@@ -153,12 +155,22 @@ TensorInfo TensorInfo::FromJSON(const ObjectRef& json_obj) {
 
 /******** Repr ********/
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<TensorInfoNode>([](const ObjectRef& n, ReprPrinter* p) {
-      const auto* self = n.as<TensorInfoNode>();
-      TVM_FFI_ICHECK(self);
-      p->stream << "TensorInfo(\"" << self->dtype << "\", " << self->shape << ")";
-    });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::TypeAttrDef<TensorInfoNode>().def(
+      refl::type_attr::kRepr, [](TensorInfo ti, ffi::Function) -> ffi::String {
+        std::ostringstream os;
+        os << "TensorInfo(\"" << ti->dtype << "\", [";
+        bool first = true;
+        for (int64_t v : ti->shape) {
+          if (!first) os << ", ";
+          os << v;
+          first = false;
+        }
+        os << "])";
+        return os.str();
+      });
+}
 
 /******** FFI ********/
 TVM_FFI_STATIC_INIT_BLOCK() { TensorInfoNode::RegisterReflection(); }

@@ -25,7 +25,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/instrument.h>
 #include <tvm/ir/transform.h>
-#include <tvm/node/repr_printer.h>
+#include <tvm/node/repr.h>
 
 #include <chrono>
 #include <stack>
@@ -190,11 +190,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<BasePassInstrumentNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      auto* node = static_cast<const BasePassInstrumentNode*>(ref.get());
-      p->stream << node->name;
-    });
+// Pattern A (RM): auto-default repr from reflection.
 
 /*! \brief PassProfile stores profiling information for a given pass and its sub-passes. */
 struct PassProfile {

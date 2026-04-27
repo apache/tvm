@@ -97,11 +97,7 @@ struct ReportNodeTrait {
 
 TVM_FFI_STATIC_INIT_BLOCK() { ReportNodeTrait::RegisterReflection(); }
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<runtime::profiling::ReportNode>([](const ObjectRef& node, ReprPrinter* p) {
-      auto* op = static_cast<const runtime::profiling::ReportNode*>(node.get());
-      p->stream << op->AsTable();
-    });
+// Pattern A (RM): auto-default repr from reflection for ReportNode.
 
 struct CountNodeTrait {
   static void RegisterReflection() {
@@ -113,11 +109,7 @@ struct CountNodeTrait {
 
 TVM_FFI_STATIC_INIT_BLOCK() { CountNodeTrait::RegisterReflection(); }
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<runtime::profiling::CountNode>([](const ObjectRef& node, ReprPrinter* p) {
-      auto* op = static_cast<const runtime::profiling::CountNode*>(node.get());
-      p->stream << op->GetTypeKey() << "(" << op->value << ")";
-    });
+// Pattern A (RM): auto-default repr from reflection for CountNode.
 
 struct DurationNodeTrait {
   static void RegisterReflection() {
@@ -129,11 +121,7 @@ struct DurationNodeTrait {
 
 TVM_FFI_STATIC_INIT_BLOCK() { DurationNodeTrait::RegisterReflection(); }
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<runtime::profiling::DurationNode>([](const ObjectRef& node, ReprPrinter* p) {
-      auto* op = static_cast<const runtime::profiling::DurationNode*>(node.get());
-      p->stream << op->GetTypeKey() << "(" << op->microseconds << ")";
-    });
+// Pattern A (RM): auto-default repr from reflection for DurationNode.
 
 struct PercentNodeTrait {
   static void RegisterReflection() {
@@ -145,11 +133,7 @@ struct PercentNodeTrait {
 
 TVM_FFI_STATIC_INIT_BLOCK() { PercentNodeTrait::RegisterReflection(); }
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<runtime::profiling::PercentNode>([](const ObjectRef& node, ReprPrinter* p) {
-      auto* op = static_cast<const runtime::profiling::PercentNode*>(node.get());
-      p->stream << op->GetTypeKey() << "(" << op->percent << ")";
-    });
+// Pattern A (RM): auto-default repr from reflection for PercentNode.
 
 struct RatioNodeTrait {
   static void RegisterReflection() {
@@ -161,10 +145,6 @@ struct RatioNodeTrait {
 
 TVM_FFI_STATIC_INIT_BLOCK() { RatioNodeTrait::RegisterReflection(); }
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<runtime::profiling::RatioNode>([](const ObjectRef& node, ReprPrinter* p) {
-      auto* op = static_cast<const runtime::profiling::RatioNode*>(node.get());
-      p->stream << op->GetTypeKey() << "(" << op->ratio << ")";
-    });
+// Pattern A (RM): auto-default repr from reflection for RatioNode.
 
 }  // namespace tvm

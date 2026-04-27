@@ -160,10 +160,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("__data_from_json__", [](const ffi::String& name) -> Op { return Op::Get(name); });
 }
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<OpNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      auto* node = static_cast<const OpNode*>(ref.get());
-      p->stream << "Op(" << node->name << ")";
-    });
+// Pattern A (RM): auto-default repr from reflection.
 
 }  // namespace tvm

@@ -79,14 +79,7 @@ ffi::Map<Mutator, FloatImm> Mutator::DefaultHexagon() {
       {Mutator::MutateParallel(/*max_jobs_per_core=*/16), FloatImm(DataType::Float(64), 0.02)}};
 }
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<PyMutatorNode>([](const ObjectRef& n, ReprPrinter* p) {
-      const auto* self = n.as<PyMutatorNode>();
-      TVM_FFI_ICHECK(self);
-      PyMutatorNode::FAsString f_as_string = (*self).f_as_string;
-      TVM_FFI_ICHECK(f_as_string != nullptr) << "PyMutator's AsString method not implemented!";
-      p->stream << f_as_string();
-    });
+// Pattern A (RM): auto-default repr from reflection.
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   MutatorNode::RegisterReflection();

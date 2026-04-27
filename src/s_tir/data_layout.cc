@@ -289,11 +289,13 @@ int32_t Layout::FactorOf(const LayoutAxis& axis) const {
   return factor;
 }
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<LayoutNode>([](const ObjectRef& node, ReprPrinter* p) {
-      auto* l = static_cast<const LayoutNode*>(node.get());
-      p->stream << "Layout(" << l->name << ")";
-    });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::TypeAttrDef<LayoutNode>().def(
+      refl::type_attr::kRepr, [](Layout l, ffi::Function) -> ffi::String {
+        return "Layout(" + std::string(l->name) + ")";
+      });
+}
 
 inline bool GetStoreRule(ffi::Array<PrimExpr>* index_rule, ffi::Array<PrimExpr>* shape_rule,
                          const Layout& src_layout, const Layout& dst_layout) {
@@ -570,12 +572,14 @@ BijectiveLayout::BijectiveLayout(Layout src_layout, Layout dst_layout) {
   }
 }
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<BijectiveLayoutNode>([](const ObjectRef& node, ReprPrinter* p) {
-      auto* b = static_cast<const BijectiveLayoutNode*>(node.get());
-      p->stream << "BijectiveLayout(" << b->src_layout.name() << "->" << b->dst_layout.name()
-                << ")";
-    });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::TypeAttrDef<BijectiveLayoutNode>().def(
+      refl::type_attr::kRepr, [](BijectiveLayout bl, ffi::Function) -> ffi::String {
+        return "BijectiveLayout(" + std::string(bl->src_layout.name()) + "->" +
+               std::string(bl->dst_layout.name()) + ")";
+      });
+}
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

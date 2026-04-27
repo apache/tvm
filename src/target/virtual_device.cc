@@ -26,45 +26,46 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/target/virtual_device.h>
 
+#include <sstream>
+
 namespace tvm {
 
 TVM_FFI_STATIC_INIT_BLOCK() { VirtualDeviceNode::RegisterReflection(); }
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<VirtualDeviceNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      auto* node = ref.as<VirtualDeviceNode>();
-      p->stream << "VirtualDevice(";
-      if (node->IsFullyUnconstrained()) {
-        p->stream << "?";
-      } else {
-        bool need_sep = false;
-        if (node->device_type() != kInvalidDeviceType) {
-          p->stream << "device_type=" << node->device_type();
-          need_sep = true;
-        }
-        if (node->virtual_device_id >= 0) {
-          if (need_sep) {
-            p->stream << ", ";
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::TypeAttrDef<VirtualDeviceNode>().def(
+      refl::type_attr::kRepr, [](VirtualDevice vd, ffi::Function) -> ffi::String {
+        auto* node = vd.get();
+        std::ostringstream os;
+        os << "VirtualDevice(";
+        if (node->IsFullyUnconstrained()) {
+          os << "?";
+        } else {
+          bool need_sep = false;
+          if (node->device_type() != kInvalidDeviceType) {
+            os << "device_type=" << node->device_type();
+            need_sep = true;
           }
-          p->stream << "virtual_device_id=" << node->virtual_device_id;
-          need_sep = true;
-        }
-        if (node->target.defined()) {
-          if (need_sep) {
-            p->stream << ", ";
+          if (node->virtual_device_id >= 0) {
+            if (need_sep) os << ", ";
+            os << "virtual_device_id=" << node->virtual_device_id;
+            need_sep = true;
           }
-          p->stream << "target=" << node->target->str();
-          need_sep = true;
-        }
-        if (!node->memory_scope.empty()) {
-          if (need_sep) {
-            p->stream << ", ";
+          if (node->target.defined()) {
+            if (need_sep) os << ", ";
+            os << "target=" << node->target->str();
+            need_sep = true;
           }
-          p->stream << "memory_scope='" << node->memory_scope << "'";
+          if (!node->memory_scope.empty()) {
+            if (need_sep) os << ", ";
+            os << "memory_scope='" << node->memory_scope << "'";
+          }
         }
-      }
-      p->stream << ")";
-    });
+        os << ")";
+        return os.str();
+      });
+}
 
 VirtualDevice::VirtualDevice(int device_type_int, int virtual_device_id, Target target,
                              MemoryScope memory_scope) {

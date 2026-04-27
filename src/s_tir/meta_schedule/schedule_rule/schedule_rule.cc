@@ -451,14 +451,7 @@ ffi::Array<ScheduleRule> ScheduleRule::DefaultARM(const ffi::String& type) {
       ScheduleRule::RandomComputeLocation());
 }
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<PyScheduleRuleNode>([](const ObjectRef& n, ReprPrinter* p) {
-      const auto* self = n.as<PyScheduleRuleNode>();
-      TVM_FFI_ICHECK(self);
-      PyScheduleRuleNode::FAsString f_as_string = (*self).f_as_string;
-      TVM_FFI_ICHECK(f_as_string != nullptr) << "PyScheduleRule's AsString method not implemented!";
-      p->stream << f_as_string();
-    });
+// Pattern A (RM): auto-default repr from reflection.
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ScheduleRuleNode::RegisterReflection();

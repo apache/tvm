@@ -32,11 +32,7 @@ using namespace tirx;
 
 TVM_FFI_STATIC_INIT_BLOCK() { ScanOpNode::RegisterReflection(); }
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<ScanOpNode>([](const ObjectRef& node, ReprPrinter* p) {
-      auto* op = static_cast<const ScanOpNode*>(node.get());
-      p->stream << "scan(" << op->name << ", " << op << ")";
-    });
+// Pattern A (RM): auto-default repr from reflection.
 
 int ScanOpNode::num_outputs() const { return static_cast<int>(update.size()); }
 

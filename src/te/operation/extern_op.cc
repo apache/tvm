@@ -33,12 +33,7 @@ using namespace tirx;
 
 TVM_FFI_STATIC_INIT_BLOCK() { ExternOpNode::RegisterReflection(); }
 
-// ExternOpNode
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<ExternOpNode>([](const ObjectRef& node, ReprPrinter* p) {
-      auto* op = static_cast<const ExternOpNode*>(node.get());
-      p->stream << "extern(" << op->name << ", " << op << ")";
-    });
+// Pattern A (RM): auto-default repr from reflection.
 
 int ExternOpNode::num_outputs() const { return static_cast<int>(output_placeholders.size()); }
 

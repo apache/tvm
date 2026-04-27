@@ -103,10 +103,7 @@ ffi::String InstructionAsPythonRepr(const InstructionNode* self) {
 }
 }  // namespace
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<InstructionNode>([](const ObjectRef& obj, ReprPrinter* p) {
-      p->stream << InstructionAsPythonRepr(obj.as<InstructionNode>());
-    });
+// AC: kRepr already registered below in TVM_FFI_STATIC_INIT_BLOCK.
 
 /**************** FFI ****************/
 

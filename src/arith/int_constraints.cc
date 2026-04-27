@@ -219,12 +219,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<IntGroupBoundsNode>([](const ObjectRef& node, ReprPrinter* p) {
-      auto* op = static_cast<const IntGroupBoundsNode*>(node.get());
-      p->stream << "IntGroupBounds(coef=" << op->coef << ", lower=" << op->lower
-                << ", equal=" << op->equal << ", upper=" << op->upper << ")";
-    });
+// Pattern A (RM): auto-default repr from reflection.
 
 IntConstraints::IntConstraints(ffi::Array<Var> variables, ffi::Map<Var, Range> ranges,
                                ffi::Array<PrimExpr> relations) {
@@ -255,12 +250,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<IntConstraintsNode>([](const ObjectRef& node, ReprPrinter* p) {
-      auto* op = static_cast<const IntConstraintsNode*>(node.get());
-      p->stream << "IntConstraints(" << op->variables << ", " << op->ranges << ", " << op->relations
-                << ")";
-    });
+// Pattern A (RM): auto-default repr from reflection.
 
 IntConstraintsTransform::IntConstraintsTransform(IntConstraints src, IntConstraints dst,
                                                  ffi::Map<Var, PrimExpr> src_to_dst,
@@ -302,13 +292,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                         });
 }
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<IntConstraintsTransformNode>([](const ObjectRef& node, ReprPrinter* p) {
-      auto* op = static_cast<const IntConstraintsTransformNode*>(node.get());
-      p->stream << "IntConstraintsTransform("
-                << "\n\t" << op->src << "\n\t" << op->dst << "\n\t" << op->src_to_dst << "\n\t"
-                << op->dst_to_src << "\n)";
-    });
+// Pattern A (RM): auto-default repr from reflection.
 
 }  // namespace arith
 }  // namespace tvm

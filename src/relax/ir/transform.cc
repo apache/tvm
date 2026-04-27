@@ -24,7 +24,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/rvalue_ref.h>
-#include <tvm/node/repr_printer.h>
+#include <tvm/node/repr.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/struct_info_functor.h>
@@ -176,13 +176,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<FunctionPassNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      auto* node = static_cast<const FunctionPassNode*>(ref.get());
-      const PassInfo info = node->Info();
-      p->stream << "Run Function pass: " << info->name << " at the optimization level "
-                << info->opt_level;
-    });
+// Pattern A (RM): auto-default repr from reflection for FunctionPassNode.
 
 class DataflowBlockPass;
 
@@ -399,13 +393,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<DataflowBlockPassNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      auto* node = static_cast<const DataflowBlockPassNode*>(ref.get());
-      const PassInfo info = node->Info();
-      p->stream << "Run DataflowBlock pass: " << info->name << " at the optimization level "
-                << info->opt_level;
-    });
+// Pattern A (RM): auto-default repr from reflection for DataflowBlockPassNode.
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   FunctionPassNode::RegisterReflection();

@@ -49,12 +49,8 @@ ModularSet::ModularSet(int64_t coeff, int64_t base) {
   data_ = std::move(node);
 }
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<ModularSetNode>([](const ObjectRef& node, ReprPrinter* p) {
-      auto* op = static_cast<const ModularSetNode*>(node.get());
-      p->stream << "ModularSet("
-                << "coeff=" << op->coeff << ", base=" << op->base << ')';
-    });
+// Pattern A (RM): auto-default repr from reflection produces
+// "arith.ModularSet(coeff=..., base=...)"
 
 ModularSet MakeModularSet(int64_t coeff, int64_t base) { return ModularSet(coeff, base); }
 

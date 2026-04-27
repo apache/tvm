@@ -29,12 +29,7 @@
 namespace tvm {
 namespace relax {
 
-// RXPlaceholderOpNode
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<RXPlaceholderOpNode>([](const ObjectRef& node, ReprPrinter* p) {
-      auto* op = static_cast<const RXPlaceholderOpNode*>(node.get());
-      p->stream << "rxplaceholder(" << op->name << ", " << op << ")";
-    });
+// Pattern A (RM): auto-default repr from reflection for RXPlaceholderOpNode.
 
 TVM_FFI_STATIC_INIT_BLOCK() { RXPlaceholderOpNode::RegisterReflection(); }
 

@@ -2428,16 +2428,7 @@ RewriteSimplifier::RewriteSimplifier(Analyzer* parent) : impl_(new Impl(parent))
 
 RewriteSimplifier::~RewriteSimplifier() { delete impl_; }
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<RewriteSimplifierStatsNode>([](const ObjectRef& node, ReprPrinter* p) {
-      auto* ptr = node.as<RewriteSimplifierStatsNode>();
-      p->stream << "RewriteSimplifierStats(nodes_visited = " << ptr->nodes_visited
-                << ", constraints_entered = " << ptr->constraints_entered
-                << ", rewrites_attempted = " << ptr->rewrites_attempted
-                << ", rewrites_performed = " << ptr->rewrites_performed
-                << ", max_recursive_depth = " << ptr->max_recursive_depth
-                << ", num_recursive_rewrites = " << ptr->num_recursive_rewrites << ")";
-    });
+// Pattern A (RM): auto-default repr from reflection.
 
 }  // namespace arith
 }  // namespace tvm

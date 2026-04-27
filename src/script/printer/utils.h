@@ -19,11 +19,14 @@
 #ifndef TVM_SCRIPT_PRINTER_UTILS_H_
 #define TVM_SCRIPT_PRINTER_UTILS_H_
 
+#include <tvm/ffi/extra/dataclass.h>
 #include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/extra/serialization.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/base.h>
 #include <tvm/script/printer/ir_docsifier.h>
 
+#include <sstream>
 #include <string>
 #include <unordered_set>
 #include <utility>
@@ -35,18 +38,25 @@ namespace tvm {
 namespace script {
 namespace printer {
 
-#define TVM_SCRIPT_REPR(ObjectType, Method)                   \
-  TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)                  \
-      .set_dispatch<ObjectType>(RedirectedReprPrinterMethod); \
-  TVM_STATIC_IR_FUNCTOR(TVMScriptPrinter, vtable).set_dispatch<ObjectType>(Method);
+#define TVM_SCRIPT_REPR(ObjectType, Method)                                                \
+  TVM_FFI_STATIC_INIT_BLOCK() {                                                            \
+    namespace refl = tvm::ffi::reflection;                                                 \
+    refl::TypeAttrDef<ObjectType>().def(refl::type_attr::kRepr,                            \
+                                        [](ffi::ObjectRef obj, ffi::Function) -> ffi::String { \
+                                          return RedirectedReprPrinterMethod(obj);         \
+                                        });                                                \
+  }                                                                                        \
+  TVM_STATIC_IR_FUNCTOR(TVMScriptPrinter, vtable).set_dispatch<ObjectType>(Method)
 
-inline void RedirectedReprPrinterMethod(const ObjectRef& obj, ReprPrinter* p) {
+inline std::string RedirectedReprPrinterMethod(const ObjectRef& obj) {
   try {
-    p->stream << TVMScriptPrinter::Script(obj, std::nullopt);
+    return TVMScriptPrinter::Script(obj, std::nullopt);
   } catch (const tvm::Error& e) {
     LOG(WARNING) << "TVMScript printer falls back to the basic address printer with the error:\n"
                  << e.what();
-    p->stream << obj->GetTypeKey() << '(' << obj.get() << ')';
+    std::ostringstream os;
+    os << obj->GetTypeKey() << '(' << obj.get() << ')';
+    return os.str();
   }
 }
 

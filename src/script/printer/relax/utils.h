@@ -67,7 +67,7 @@ class RelaxFrame : public Frame {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(RelaxFrame, Frame, RelaxFrameNode);
 };
 
-/*! \brief Redirected method for the ReprPrinter */
+/*! \brief Redirected method for the ffi repr hook */
 inline std::string ReprPrintRelax(const ObjectRef& obj, const PrinterConfig& cfg) {
   IRDocsifier d(cfg);
   With<RelaxFrame> f(d);
