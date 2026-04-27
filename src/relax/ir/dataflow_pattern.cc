@@ -62,22 +62,27 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // Helper used inside RELAX_PATTERN_PRINTER_DEF lambdas.
 // Mimics the ReprPrinter interface (p->stream, p->Print) so that existing
 // REPR_LAMBDA bodies compile without modification.
+// fn_repr is the canonical dispatch callback from the kRepr machinery; Print
+// routes through it rather than calling ffi::ReprPrint directly so that any
+// recursion context threaded by the printer is preserved.
 struct PatternReprPrinterHelper {
   std::ostringstream stream;
-  void Print(const ObjectRef& x) { stream << ffi::ReprPrint(ffi::Any(x)); }
+  ffi::Function fn_repr;
+  explicit PatternReprPrinterHelper(ffi::Function fn_repr_) : fn_repr(std::move(fn_repr_)) {}
+  void Print(const ObjectRef& x) { stream << fn_repr(ffi::AnyView(x)).cast<ffi::String>(); }
 };
 
-#define RELAX_PATTERN_PRINTER_DEF(NODE_TYPE, REPR_LAMBDA)                                       \
-  TVM_FFI_STATIC_INIT_BLOCK() {                                                                 \
-    namespace refl = tvm::ffi::reflection;                                                      \
-    refl::TypeAttrDef<NODE_TYPE>().def(refl::type_attr::kRepr,                                  \
-                                       [](ffi::ObjectRef ref, ffi::Function) -> ffi::String {   \
-                                         auto* node = static_cast<const NODE_TYPE*>(ref.get()); \
-                                         PatternReprPrinterHelper printer;                      \
-                                         auto* p = &printer;                                    \
-                                         REPR_LAMBDA(p, node);                                  \
-                                         return printer.stream.str();                           \
-                                       });                                                      \
+#define RELAX_PATTERN_PRINTER_DEF(NODE_TYPE, REPR_LAMBDA)                                      \
+  TVM_FFI_STATIC_INIT_BLOCK() {                                                                \
+    namespace refl = tvm::ffi::reflection;                                                     \
+    refl::TypeAttrDef<NODE_TYPE>().def(                                                        \
+        refl::type_attr::kRepr, [](ffi::ObjectRef ref, ffi::Function fn_repr) -> ffi::String { \
+          auto* node = static_cast<const NODE_TYPE*>(ref.get());                               \
+          PatternReprPrinterHelper printer(fn_repr);                                           \
+          auto* p = &printer;                                                                  \
+          REPR_LAMBDA(p, node);                                                                \
+          return printer.stream.str();                                                         \
+        });                                                                                    \
   }
 
 ExternFuncPattern::ExternFuncPattern(ffi::String global_symbol) {
