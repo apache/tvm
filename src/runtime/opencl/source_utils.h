@@ -18,15 +18,26 @@
  */
 
 /*!
- * \file source_utils.cc
+ * \file source_utils.h
+ * \brief Minimum source manipulation utils for the OpenCL runtime.
  */
-#include "source_utils.h"
+
+#ifndef TVM_RUNTIME_OPENCL_SOURCE_UTILS_H_
+#define TVM_RUNTIME_OPENCL_SOURCE_UTILS_H_
+
+#include <string>
+#include <unordered_map>
 
 namespace tvm {
 namespace runtime {
-
-std::unordered_map<std::string, std::string> SplitKernels(std::string source,
-                                                          std::string delimiter) {
+/*!
+ * \brief Split the source file on separate kernels by specified delimiter.
+ * \param source The source code of the kernels.
+ * \param delimiter The delimiter which is using for splitting kernels.
+ * \return Mapping from primitive name to kernel source
+ */
+inline std::unordered_map<std::string, std::string> SplitKernels(
+    const std::string& source, const std::string& delimiter = "// Function: ") {
   std::unordered_map<std::string, std::string> split_kernels;
   if (source.size()) {
     size_t begin = source.find(delimiter);
@@ -47,3 +58,5 @@ std::unordered_map<std::string, std::string> SplitKernels(std::string source,
 }
 }  // namespace runtime
 }  // namespace tvm
+
+#endif  // TVM_RUNTIME_OPENCL_SOURCE_UTILS_H_
