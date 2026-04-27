@@ -30,8 +30,8 @@
 #include <vector>
 
 #include "../../support/bytes_io.h"
-#include "../source_utils.h"
 #include "opencl_common.h"
+#include "source_utils.h"
 
 namespace tvm {
 namespace runtime {

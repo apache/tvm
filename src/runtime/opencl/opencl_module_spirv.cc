@@ -25,10 +25,10 @@
 #include <vector>
 
 #include "../../support/bytes_io.h"
-#include "../source_utils.h"
 #include "../spirv/spirv_shader.h"
 #include "opencl_common.h"
 #include "opencl_module.h"
+#include "source_utils.h"
 
 namespace tvm {
 namespace runtime {
