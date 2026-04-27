@@ -33,7 +33,6 @@ namespace transform {
 
 // Register build pipeline related options
 TVM_REGISTER_PASS_CONFIG_OPTION("tirx.noalias", Bool);
-TVM_REGISTER_PASS_CONFIG_OPTION("tirx.detect_global_barrier", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tirx.instrument_bound_checkers", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tirx.disable_assert", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tirx.disable_vectorize", Bool);

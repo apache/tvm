@@ -27,7 +27,6 @@
 #include <tvm/ffi/extra/c_env_api.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/device_api.h>
 #include <tvm/support/io.h>
 
 #include <array>
@@ -133,30 +132,6 @@ class CUDAModuleNode : public ffi::ModuleObj {
                                << " failed with error: " << msg;
     }
     return func;
-  }
-  // get a global var from primary context in device_id
-  CUdeviceptr GetGlobal(int device_id, const std::string& global_name, size_t expect_nbytes) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    // must recheck under the lock scope
-    if (module_[device_id] == nullptr) {
-      CUDA_DRIVER_CALL(cuModuleLoadData(&(module_[device_id]), data_.c_str()));
-      static auto nvshmem_init_hook = ffi::Function::GetGlobal("runtime.nvshmem.cumodule_init");
-      if (nvshmem_init_hook.has_value()) {
-        (*nvshmem_init_hook)(static_cast<void*>(module_[device_id]));
-      }
-    }
-    CUdeviceptr global;
-    size_t nbytes;
-
-    CUresult result = cuModuleGetGlobal(&global, &nbytes, module_[device_id], global_name.c_str());
-    TVM_FFI_ICHECK_EQ(nbytes, expect_nbytes);
-    if (result != CUDA_SUCCESS) {
-      const char* msg;
-      cuGetErrorName(result, &msg);
-      TVM_FFI_THROW(CUDAError) << "cuModuleGetGlobal " << global_name
-                               << " failed with error: " << msg;
-    }
-    return global;
   }
 
  private:
@@ -269,37 +244,9 @@ class CUDAWrappedFunc {
   LaunchParamConfig launch_param_config_;
 };
 
-class CUDAPrepGlobalBarrier {
- public:
-  CUDAPrepGlobalBarrier(CUDAModuleNode* m, ObjectPtr<Object> sptr) : m_(m), sptr_(sptr) {
-    std::fill(pcache_.begin(), pcache_.end(), 0);
-  }
-
-  void operator()(const ffi::PackedArgs& args, ffi::Any* rv) const {
-    int device_id;
-    CUDA_CALL(cudaGetDevice(&device_id));
-    if (pcache_[device_id] == 0) {
-      pcache_[device_id] =
-          m_->GetGlobal(device_id, runtime::symbol::tvm_global_barrier_state, sizeof(unsigned));
-    }
-    CUDA_DRIVER_CALL(cuMemsetD32(pcache_[device_id], 0, 1));
-  }
-
- private:
-  // internal module
-  CUDAModuleNode* m_;
-  // the resource holder
-  ObjectPtr<Object> sptr_;
-  // mark as mutable, to enable lazy initialization
-  mutable std::array<CUdeviceptr, kMaxNumGPUs> pcache_;
-};
-
 ffi::Optional<ffi::Function> CUDAModuleNode::GetFunction(const ffi::String& name) {
   ObjectPtr<Object> sptr_to_self = ffi::GetObjectPtr<Object>(this);
   TVM_FFI_ICHECK_EQ(sptr_to_self.get(), this);
-  if (name == symbol::tvm_prepare_global_barrier) {
-    return ffi::Function(CUDAPrepGlobalBarrier(this, sptr_to_self));
-  }
   auto opt_info = fmap_.Get(name);
   if (!opt_info.has_value()) return ffi::Function();
   FunctionInfo info = opt_info.value();
