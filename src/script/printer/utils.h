@@ -38,14 +38,14 @@ namespace tvm {
 namespace script {
 namespace printer {
 
-#define TVM_SCRIPT_REPR(ObjectType, Method)                                                \
-  TVM_FFI_STATIC_INIT_BLOCK() {                                                            \
-    namespace refl = tvm::ffi::reflection;                                                 \
-    refl::TypeAttrDef<ObjectType>().def(refl::type_attr::kRepr,                            \
+#define TVM_SCRIPT_REPR(ObjectType, Method)                                                    \
+  TVM_FFI_STATIC_INIT_BLOCK() {                                                                \
+    namespace refl = tvm::ffi::reflection;                                                     \
+    refl::TypeAttrDef<ObjectType>().def(refl::type_attr::kRepr,                                \
                                         [](ffi::ObjectRef obj, ffi::Function) -> ffi::String { \
-                                          return RedirectedReprPrinterMethod(obj);         \
-                                        });                                                \
-  }                                                                                        \
+                                          return RedirectedReprPrinterMethod(obj);             \
+                                        });                                                    \
+  }                                                                                            \
   TVM_STATIC_IR_FUNCTOR(TVMScriptPrinter, vtable).set_dispatch<ObjectType>(Method)
 
 inline std::string RedirectedReprPrinterMethod(const ObjectRef& obj) {

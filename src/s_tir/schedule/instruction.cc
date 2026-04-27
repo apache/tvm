@@ -79,8 +79,8 @@ ffi::String InstructionAsPythonRepr(const InstructionNode* self) {
     } else if (obj.as<IntImmNode>() || obj.as<FloatImmNode>()) {
       inputs.push_back(obj);
     } else if (const auto* expr = obj.as<PrimExprNode>()) {
-      PrimExpr new_expr = Substitute(
-          ffi::GetRef<PrimExpr>(expr), [](const Var& var) -> ffi::Optional<PrimExpr> {
+      PrimExpr new_expr =
+          Substitute(ffi::GetRef<PrimExpr>(expr), [](const Var& var) -> ffi::Optional<PrimExpr> {
             ObjectPtr<VarNode> new_var = ffi::make_object<VarNode>(*var.get());
             new_var->name_hint = "_";
             return Var(new_var);
@@ -116,10 +116,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
               ffi::Array<Any> outputs) -> Instruction {
              return Instruction(kind, inputs, attrs, outputs);
            });
-  refl::TypeAttrDef<InstructionNode>().def(
-      refl::type_attr::kRepr, [](Instruction inst, ffi::Function) -> ffi::String {
-        return InstructionAsPythonRepr(inst.get());
-      });
+  refl::TypeAttrDef<InstructionNode>().def(refl::type_attr::kRepr,
+                                           [](Instruction inst, ffi::Function) -> ffi::String {
+                                             return InstructionAsPythonRepr(inst.get());
+                                           });
 }
 
 }  // namespace s_tir

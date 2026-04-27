@@ -291,10 +291,10 @@ int32_t Layout::FactorOf(const LayoutAxis& axis) const {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::TypeAttrDef<LayoutNode>().def(
-      refl::type_attr::kRepr, [](Layout l, ffi::Function) -> ffi::String {
-        return "Layout(" + std::string(l->name) + ")";
-      });
+  refl::TypeAttrDef<LayoutNode>().def(refl::type_attr::kRepr,
+                                      [](Layout l, ffi::Function) -> ffi::String {
+                                        return "Layout(" + std::string(l->name) + ")";
+                                      });
 }
 
 inline bool GetStoreRule(ffi::Array<PrimExpr>* index_rule, ffi::Array<PrimExpr>* shape_rule,
