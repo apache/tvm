@@ -105,7 +105,7 @@ class GenericArena {
    */
   template <typename T>
   T* allocate_(int count = 1) {
-    static_assert(PageAllocator::kPageAlign % alignof(T) == 0, "To large alignment");
+    static_assert(PageAllocator::kPageAlign % alignof(T) == 0, "Too large alignment");
     return static_cast<T*>(Alloc(sizeof(T) * count, alignof(T)));
   }
   /*!
