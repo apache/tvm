@@ -31,52 +31,48 @@
 // TVM version
 #define TVM_VERSION "0.24.dev0"
 
-// define extra macros for TVM DLL exprt
-#ifdef __EMSCRIPTEN__
+// TVM ships two shared libraries: libtvm_compiler and libtvm_runtime.
+// Each exposes its own DLL macro pair.
+//
+// TVM_DLL / TVM_DLL_EXPORT: symbols in libtvm_compiler.
+//   - TVM_DLL is dllexport when TVM_EXPORTS is defined (compiler build),
+//     dllimport otherwise (downstream consumers, runtime TUs).
+//   - TVM_DLL_EXPORT is always dllexport.
+//
+// TVM_RUNTIME_DLL / TVM_RUNTIME_DLL_EXPORT: symbols in libtvm_runtime.
+//   - TVM_RUNTIME_DLL is dllexport when TVM_RUNTIME_EXPORTS is defined
+//     (runtime build), dllimport otherwise.
+//   - TVM_RUNTIME_DLL_EXPORT is always dllexport.
+//
+// On non-MSVC platforms the import/export decision is made by the dynamic
+// loader, so all four macros expand to visibility("default"). Under
+// Emscripten they expand to EMSCRIPTEN_KEEPALIVE.
+#if !defined(TVM_DLL) && defined(__EMSCRIPTEN__)
 #include <emscripten/emscripten.h>
 #define TVM_DLL EMSCRIPTEN_KEEPALIVE
+#define TVM_DLL_EXPORT EMSCRIPTEN_KEEPALIVE
+#define TVM_RUNTIME_DLL EMSCRIPTEN_KEEPALIVE
+#define TVM_RUNTIME_DLL_EXPORT EMSCRIPTEN_KEEPALIVE
 #endif
-
-// helper macro to suppress unused warning
-#if defined(__GNUC__)
-#define TVM_ATTRIBUTE_UNUSED __attribute__((unused))
-#else
-#define TVM_ATTRIBUTE_UNUSED
-#endif
-
-// Two distinct DLL macros are needed because TVM ships TWO shared libraries:
-//
-// - ``TVM_RUNTIME_DLL`` marks symbols defined in ``libtvm_runtime``. They are
-//   exported when ``TVM_RUNTIME_EXPORTS`` is set (the runtime build) and
-//   imported otherwise (compiler-side TUs or downstream consumers).
-// - ``TVM_DLL`` marks symbols defined in ``libtvm_compiler``. Exported when
-//   ``TVM_EXPORTS`` is set (the compiler build), imported otherwise.
-//
-// On non-MSVC platforms both expand to ``visibility("default")`` — symbol
-// imports vs exports are decided by the runtime dynamic loader, not the
-// compiler.
-#ifndef TVM_RUNTIME_DLL
-#ifdef _WIN32
-#ifdef TVM_RUNTIME_EXPORTS
-#define TVM_RUNTIME_DLL __declspec(dllexport)
-#else
-#define TVM_RUNTIME_DLL __declspec(dllimport)
-#endif
-#else
-#define TVM_RUNTIME_DLL __attribute__((visibility("default")))
-#endif
-#endif
-
-#ifndef TVM_DLL
-#ifdef _WIN32
+#if !defined(TVM_DLL) && defined(_MSC_VER)
 #ifdef TVM_EXPORTS
 #define TVM_DLL __declspec(dllexport)
 #else
 #define TVM_DLL __declspec(dllimport)
 #endif
+#define TVM_DLL_EXPORT __declspec(dllexport)
+#ifdef TVM_RUNTIME_EXPORTS
+#define TVM_RUNTIME_DLL __declspec(dllexport)
 #else
-#define TVM_DLL __attribute__((visibility("default")))
+#define TVM_RUNTIME_DLL __declspec(dllimport)
 #endif
+#define TVM_RUNTIME_DLL_EXPORT __declspec(dllexport)
+#endif
+#ifndef TVM_DLL
+#define TVM_DLL __attribute__((visibility("default")))
+#define TVM_DLL_EXPORT __attribute__((visibility("default")))
+#define TVM_RUNTIME_DLL __attribute__((visibility("default")))
+#define TVM_RUNTIME_DLL_EXPORT __attribute__((visibility("default")))
 #endif
 
 #endif  // TVM_RUNTIME_BASE_H_

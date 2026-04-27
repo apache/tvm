@@ -280,7 +280,7 @@ inline TargetKindRegEntry& TargetKindRegEntry::set_name() {
 }
 
 #define TVM_TARGET_KIND_REGISTER_VAR_DEF \
-  static TVM_ATTRIBUTE_UNUSED ::tvm::TargetKindRegEntry& __make_##TargetKind
+  [[maybe_unused]] static ::tvm::TargetKindRegEntry& __make_##TargetKind
 
 /*!
  * \def TVM_REGISTER_TARGET_KIND
