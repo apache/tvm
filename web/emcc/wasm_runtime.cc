@@ -23,7 +23,6 @@
  */
 
 // configurations for tvm logging
-#define TVM_LOG_STACK_TRACE 0
 #define TVM_LOG_DEBUG 0
 #define TVM_LOG_CUSTOMIZE 1
 #define TVM_FFI_USE_LIBBACKTRACE 0

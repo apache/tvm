@@ -199,7 +199,7 @@ class SessionObj : public Object {
    * \return The return value of function call
    */
   template <typename... Args>
-  DRef TVM_ALWAYS_INLINE CallPacked(const DRef& func, Args&&... args);
+  DRef TVM_FFI_INLINE CallPacked(const DRef& func, Args&&... args);
   /*!
    * \brief Call packed function on each worker using a packed sequence. The calling convention:
    * The first element must be DiscoAction::kCallPacked,

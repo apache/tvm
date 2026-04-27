@@ -172,12 +172,12 @@ struct UnpackedInstTraits {
 
  protected:
   template <size_t index_offset>
-  static TVM_ALWAYS_INLINE void _SetInputs(AnyView* packed_args, const ffi::Array<Any>& inputs);
+  static TVM_FFI_INLINE void _SetInputs(AnyView* packed_args, const ffi::Array<Any>& inputs);
   template <size_t index_offset>
-  static TVM_ALWAYS_INLINE void _SetAttrs(AnyView* packed_args, const ffi::Array<Any>& attrs);
+  static TVM_FFI_INLINE void _SetAttrs(AnyView* packed_args, const ffi::Array<Any>& attrs);
   template <size_t index_offset>
-  static TVM_ALWAYS_INLINE void _SetDecision(AnyView* packed_args, const Any& decision);
-  static TVM_ALWAYS_INLINE ffi::Array<Any> _ConvertOutputs(const ffi::Any& rv);
+  static TVM_FFI_INLINE void _SetDecision(AnyView* packed_args, const Any& decision);
+  static TVM_FFI_INLINE ffi::Array<Any> _ConvertOutputs(const ffi::Any& rv);
 };
 
 /*!
@@ -363,8 +363,8 @@ ffi::String UnpackedInstTraits<TTraits>::AsPython(const ffi::Array<Any>& inputs,
 
 template <class TTraits>
 template <size_t index_offset>
-TVM_ALWAYS_INLINE void UnpackedInstTraits<TTraits>::_SetInputs(AnyView* packed_args,
-                                                               const ffi::Array<Any>& inputs) {
+TVM_FFI_INLINE void UnpackedInstTraits<TTraits>::_SetInputs(AnyView* packed_args,
+                                                            const ffi::Array<Any>& inputs) {
   constexpr size_t kNumInputs = TTraits::kNumInputs;
   TVM_FFI_CHECK_EQ(kNumInputs, inputs.size(), ValueError)
       << "Incorrect kNumInputs for instruction: " << TTraits::kName;
@@ -375,8 +375,8 @@ TVM_ALWAYS_INLINE void UnpackedInstTraits<TTraits>::_SetInputs(AnyView* packed_a
 
 template <class TTraits>
 template <size_t index_offset>
-TVM_ALWAYS_INLINE void UnpackedInstTraits<TTraits>::_SetAttrs(AnyView* packed_args,
-                                                              const ffi::Array<Any>& attrs) {
+TVM_FFI_INLINE void UnpackedInstTraits<TTraits>::_SetAttrs(AnyView* packed_args,
+                                                           const ffi::Array<Any>& attrs) {
   constexpr size_t kNumAttrs = TTraits::kNumAttrs;
   TVM_FFI_CHECK_EQ(kNumAttrs, attrs.size(), ValueError)
       << "Incorrect kNumAttrs for instruction: " << TTraits::kName;
@@ -387,8 +387,8 @@ TVM_ALWAYS_INLINE void UnpackedInstTraits<TTraits>::_SetAttrs(AnyView* packed_ar
 
 template <class TTraits>
 template <size_t index_offset>
-TVM_ALWAYS_INLINE void UnpackedInstTraits<TTraits>::_SetDecision(AnyView* packed_args,
-                                                                 const Any& decision) {
+TVM_FFI_INLINE void UnpackedInstTraits<TTraits>::_SetDecision(AnyView* packed_args,
+                                                              const Any& decision) {
   constexpr size_t kNumDecisions = TTraits::kNumDecisions;
   static_assert(kNumDecisions <= 1, "an instruction is supposed to have at most 1 decision");
   if (kNumDecisions == 1) {
@@ -399,7 +399,7 @@ TVM_ALWAYS_INLINE void UnpackedInstTraits<TTraits>::_SetDecision(AnyView* packed
 }
 
 template <class TTraits>
-TVM_ALWAYS_INLINE ffi::Array<Any> UnpackedInstTraits<TTraits>::_ConvertOutputs(const ffi::Any& rv) {
+TVM_FFI_INLINE ffi::Array<Any> UnpackedInstTraits<TTraits>::_ConvertOutputs(const ffi::Any& rv) {
   using method_type = decltype(TTraits::UnpackedApplyToSchedule);
   using return_type = details::ReturnType<method_type>;
   constexpr int is_array = details::IsTVMArray<return_type>;

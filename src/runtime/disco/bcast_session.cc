@@ -28,8 +28,8 @@ namespace runtime {
 
 struct BcastSessionObj::Internal {
   template <typename... Args>
-  static void TVM_ALWAYS_INLINE BroadcastUnpacked(BcastSessionObj* self, DiscoAction action,
-                                                  int64_t reg_id, Args&&... args) {
+  static void TVM_FFI_INLINE BroadcastUnpacked(BcastSessionObj* self, DiscoAction action,
+                                               int64_t reg_id, Args&&... args) {
     constexpr int kNumArgs = 2 + sizeof...(Args);
     ffi::AnyView packed_args[kNumArgs];
     ffi::PackedArgs::Fill(packed_args, static_cast<int>(action), reg_id,

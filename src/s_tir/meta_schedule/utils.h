@@ -91,7 +91,7 @@ class PyLogMessage {
   explicit PyLogMessage(const char* filename, int lineno, ffi::Function logger, Level logging_level)
       : filename_(filename), lineno_(lineno), logger_(logger), logging_level_(logging_level) {}
 
-  TVM_NO_INLINE ~PyLogMessage() {
+  TVM_FFI_NO_INLINE ~PyLogMessage() {
     TVM_FFI_ICHECK(logging_level_ != Level::CLEAR)
         << "Cannot use CLEAR as logging level in TVM_PY_LOG, please use TVM_PY_LOG_CLEAR_SCREEN.";
     if (this->logger_ != nullptr) {
