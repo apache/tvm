@@ -25,7 +25,6 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/function.h>
-#include <tvm/runtime/device_api.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/index_map.h>
 #include <tvm/tirx/stmt_functor.h>
@@ -136,12 +135,7 @@ std::string GetFP4Type(DataType type) {
 
 CodeGenCUDA::CodeGenCUDA() { restrict_keyword_ = "__restrict__"; }
 
-void CodeGenCUDA::Init(bool output_ssa) {
-  CodeGenC::Init(output_ssa);
-  vid_global_barrier_state_ = name_supply_->FreshName(runtime::symbol::tvm_global_barrier_state);
-  vid_global_barrier_expect_ = name_supply_->FreshName("__barrier_expect");
-  TVM_FFI_ICHECK_EQ(vid_global_barrier_state_, runtime::symbol::tvm_global_barrier_state);
-}
+void CodeGenCUDA::Init(bool output_ssa) { CodeGenC::Init(output_ssa); }
 
 void CodeGenCUDA::PrintFunctionSignature(const ffi::String& function_name, const PrimFunc& func,
                                          std::ostream& os) {
@@ -759,35 +753,8 @@ void CodeGenCUDA::PrintStorageSync(const CallNode* op) {
     this->PrintIndent();
     this->stream << "__syncthreads();\n";
   } else if (sync == "global") {
-    if (!need_global_barrier_) {
-      need_global_barrier_ = true;
-      this->decl_stream << "extern \"C\" __device__ unsigned " << vid_global_barrier_state_
-                        << ";\n";
-    }
-    // global synchronizer
-    std::string is_load = PrintExpr(op->args[1]);
-    std::string num_blocks = PrintExpr(op->args[2]);
-    this->PrintIndent();
-    // In theory only threadfence is needed
-    // but we observed problems with only threadfence
-    this->stream << "__threadfence_system();\n";
-    this->PrintIndent();
-    this->stream << "if (" << is_load << ") {\n";
-    int wb = this->BeginScope();
-    this->PrintIndent();
-    this->stream << "atomicAdd(&" << vid_global_barrier_state_ << ", 1);\n";
-    this->PrintIndent();
-    std::string ptr = name_supply_->FreshName("pf");
-    this->stream << "volatile unsigned* " << ptr << " = &" << vid_global_barrier_state_ << ";\n";
-    this->PrintIndent();
-    this->stream << vid_global_barrier_expect_ << " += " << num_blocks << ";\n";
-    this->PrintIndent();
-    this->stream << "while (" << ptr << "[0] < " << vid_global_barrier_expect_ << ");\n";
-    this->EndScope(wb);
-    this->PrintIndent();
-    this->stream << "}\n";
-    this->PrintIndent();
-    this->stream << "__syncthreads();\n";
+    TVM_FFI_THROW(InternalError)
+        << "Global barrier is no longer supported. Use device-native synchronization primitives.";
   }
 }
 
@@ -1437,23 +1404,6 @@ void CodeGenCUDA::VisitStmt_(const AllocBufferNode* op) {
   RegisterHandleType(op->buffer->data.get(), dtype);
   if (op->annotations.count(tirx::attr::kVolatile)) {
     MarkVolatile(op->buffer->data.get());
-  }
-}
-
-void CodeGenCUDA::VisitStmt_(const EvaluateNode* op) {
-  if (is_const_int(op->value)) return;
-  const CallNode* call = op->value.as<CallNode>();
-  if (call && call->op.same_as(builtin::tvm_global_barrier_kinit())) {
-    PrintIndent();
-    stream << "__shared__ unsigned " << vid_global_barrier_expect_ << ";\n";
-    PrintIndent();
-    stream << "if (threadIdx.x == 0) {\n";
-    PrintIndent();
-    stream << "  " << vid_global_barrier_expect_ << " = 0;\n";
-    PrintIndent();
-    stream << "}\n";
-  } else {
-    CodeGenC::VisitStmt_(op);
   }
 }
 

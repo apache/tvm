@@ -69,7 +69,6 @@ class CodeGenCUDA final : public CodeGenC {
   void VisitExpr_(const FloatImmNode* op, std::ostream& os) final;
   void VisitExpr_(const CallNode* op, std::ostream& os) final;
   void VisitExpr_(const CastNode* op, std::ostream& os) final;
-  void VisitStmt_(const EvaluateNode* op) final;
   void VisitStmt_(const AllocBufferNode* op) final;
   void VisitStmt_(const AttrStmtNode* op) final;
 
@@ -85,12 +84,6 @@ class CodeGenCUDA final : public CodeGenC {
   // Whether scope such as "__shared__" or "__constant__"  is part of type.
   bool IsScopePartOfType() const final { return false; }
 
-  // Whether global barrier is needed.
-  bool need_global_barrier_{false};
-  // Global barrier state
-  std::string vid_global_barrier_state_;
-  // Global barrier expected node.
-  std::string vid_global_barrier_expect_;
   // whether enable fp16
   bool enable_fp16_{false};
   // whether enable bf16
