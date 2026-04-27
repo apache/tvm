@@ -16,11 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/extra/dataclass.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
 #include <tvm/node/cast.h>
-#include <tvm/ffi/extra/dataclass.h>
 #include <tvm/node/repr.h>
 #include <tvm/node/script_printer.h>
 

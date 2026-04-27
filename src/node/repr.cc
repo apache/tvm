@@ -40,9 +40,7 @@
 
 namespace tvm {
 
-void Dump(const runtime::ObjectRef& n) {
-  std::cerr << ffi::ReprPrint(ffi::Any(n)) << "\n";
-}
+void Dump(const runtime::ObjectRef& n) { std::cerr << ffi::ReprPrint(ffi::Any(n)) << "\n"; }
 
 void Dump(const runtime::Object* n) { Dump(runtime::GetRef<runtime::ObjectRef>(n)); }
 
@@ -98,19 +96,16 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   // node.AsRepr: backward-compatible Python entry point.
   // Python's tvm.runtime._ffi_node_api sets __object_repr__ = AsRepr via init_ffi_api.
-  refl::GlobalDef().def("node.AsRepr", [](ffi::Any obj) -> ffi::String {
-    return ffi::ReprPrint(obj);
-  });
+  refl::GlobalDef().def("node.AsRepr",
+                        [](ffi::Any obj) -> ffi::String { return ffi::ReprPrint(obj); });
   // Register __ffi_repr__ for AccessPath/AccessStep so that ffi.ReprPrint
   // uses the concise "<root>.field[idx]" format.
   refl::TypeAttrDef<ffi::reflection::AccessPathObj>().def(
-      refl::type_attr::kRepr,
-      [](ffi::reflection::AccessPath path, ffi::Function) -> ffi::String {
+      refl::type_attr::kRepr, [](ffi::reflection::AccessPath path, ffi::Function) -> ffi::String {
         return FormatAccessPath(path);
       });
   refl::TypeAttrDef<ffi::reflection::AccessStepObj>().def(
-      refl::type_attr::kRepr,
-      [](ffi::reflection::AccessStep step, ffi::Function) -> ffi::String {
+      refl::type_attr::kRepr, [](ffi::reflection::AccessStep step, ffi::Function) -> ffi::String {
         std::ostringstream os;
         FormatAccessStep(os, step);
         return os.str();
