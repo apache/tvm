@@ -508,12 +508,6 @@ TVM_DLL const Op& tvm_warp_shuffle_down();
 TVM_DLL const Op& tvm_warp_activemask();
 
 /*!
- * \brief Initialize the global barrier.
- *  Call this at beginning of kernel that need global barrier.
- */
-TVM_DLL const Op& tvm_global_barrier_kinit();
-
-/*!
  * \brief See pesudo code
  *
  *  void tvm_thread_allreduce(UIntImm size, Expr source0, ..., Expr cond,

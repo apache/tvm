@@ -253,9 +253,6 @@ TIR_DEFINE_BUILTIN_FUNC(tvm_warp_shuffle_down)
 TIR_DEFINE_BUILTIN_FUNC(tvm_warp_activemask)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
-TIR_DEFINE_BUILTIN_FUNC(tvm_global_barrier_kinit)
-    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
-
 TIR_DEFINE_BUILTIN_FUNC(tvm_thread_allreduce)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 

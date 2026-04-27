@@ -91,8 +91,6 @@ def default_s_tir_pipeline():
                 tirx.transform.AnnotateEntryFunc(),
             ]
         )
-        if bool(config.get("tirx.detect_global_barrier", False)):
-            passes.append(s_tir.transform.ThreadSync("global"))
         passes.extend(
             [
                 s_tir.transform.ThreadSync("shared"),

@@ -22,19 +22,17 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/device_api.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/expr.h>
+#include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 
-#include <unordered_map>
 #include <unordered_set>
 
 #include "../../runtime/thread_storage_scope.h"
-#include "../../tirx/transform/ir_utils.h"
 #include "storage_access.h"
 
 namespace tvm {
@@ -320,13 +318,8 @@ class ThreadSyncInserter : public StmtExprMutator {
   Stmt VisitStmt(const Stmt& stmt) final {
     if (syncs_.size() == 0) return stmt;
     if (syncs_.count(stmt.get())) {
-      Stmt barrier;
-      if (sync_scope_.rank == StorageRank::kGlobal) {
-        barrier = MakeGlobalBarrier();
-      } else {
-        barrier = Evaluate(Call(DataType::Int(32), builtin::tvm_storage_sync(),
-                                {StringImm(sync_scope_.to_string())}));
-      }
+      Stmt barrier = Evaluate(Call(DataType::Int(32), builtin::tvm_storage_sync(),
+                                   {StringImm(sync_scope_.to_string())}));
       // Mutate after query, to avoid stmt change.
       auto ret = StmtExprMutator::VisitStmt(stmt);
       ret = SeqStmt({barrier, ret});
@@ -335,137 +328,11 @@ class ThreadSyncInserter : public StmtExprMutator {
       return StmtExprMutator::VisitStmt(stmt);
     }
   }
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-    if (sync_scope_.rank == StorageRank::kGlobal &&
-        GetScope(op->buffer->data).rank == StorageRank::kGlobal) {
-      ++rw_stats_[op->buffer->data].read_count;
-    }
-    return StmtExprMutator::VisitExpr_(op);
-  }
-  Stmt VisitStmt_(const BufferStoreNode* op) final {
-    if (sync_scope_.rank == StorageRank::kGlobal &&
-        GetScope(op->buffer->data).rank == StorageRank::kGlobal) {
-      ++rw_stats_[op->buffer->data].write_count;
-    }
-    return StmtExprMutator::VisitStmt_(op);
-  }
-  Stmt VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == tirx::attr::thread_extent) {
-      bool temp = true;
-      std::swap(temp, in_thread_env_);
-      thread_extents_.push_back(op);
-      Stmt ret = StmtExprMutator::VisitStmt_(op);
-      thread_extents_.pop_back();
-      std::swap(temp, in_thread_env_);
-      // first thread scope.
-      if (!in_thread_env_ && sync_scope_.rank == StorageRank::kGlobal) {
-        ret = InitGlobalBarrier(ret.as<AttrStmtNode>());
-        num_blocks_ = PrimExpr();
-        is_lead_ = PrimExpr();
-      }
-      return ret;
-    } else {
-      return StmtExprMutator::VisitStmt_(op);
-    }
-  }
-
-  Stmt VisitStmt_(const AllocBufferNode* op) final {
-    auto node = Downcast<AllocBuffer>(StmtExprMutator::VisitStmt_(op));
-    if (volatile_vars_.count(op->buffer->data.get())) {
-      auto* cow = node.CopyOnWrite();
-      auto annotations = cow->annotations;
-      annotations.Set(tirx::attr::kVolatile, Bool(true));
-      cow->annotations = annotations;
-    }
-    return node;
-  }
-
-  PrimExpr VisitExpr_(const CallNode* op) final {
-    if (op->op.same_as(builtin::tvm_access_ptr())) {
-      PrimExpr expr = StmtExprMutator::VisitExpr_(op);
-      op = expr.as<CallNode>();
-      TVM_FFI_ICHECK_EQ(op->args.size(), 5U);
-      Var buffer_var(Downcast<Var>(op->args[1]));
-      const IntImmNode* flag = op->args[4].as<IntImmNode>();
-      if ((flag->value & 1) && sync_scope_.rank == StorageRank::kGlobal &&
-          GetScope(buffer_var).rank == StorageRank::kGlobal) {
-        ++rw_stats_[buffer_var].read_count;
-      }
-      if (flag->value & 2 && sync_scope_.rank == StorageRank::kGlobal &&
-          GetScope(buffer_var).rank == StorageRank::kGlobal) {
-        ++rw_stats_[buffer_var].write_count;
-      }
-      return expr;
-    } else {
-      return StmtExprMutator::VisitExpr_(op);
-    }
-  }
 
  private:
-  // RW statistics about data
-  struct Entry {
-    int read_count{0};
-    int write_count{0};
-  };
-
-  // Get current storage scope.
-  StorageScope GetScope(Var buffer_var) const {
-    return StorageScope::Create(GetPtrStorageScope(buffer_var));
-  }
-
-  // private functions.
-  Stmt InitGlobalBarrier(const AttrStmtNode* op) {
-    TVM_FFI_ICHECK(op != nullptr);
-    ffi::Array<PrimExpr> pargs = {StringImm(runtime::symbol::tvm_prepare_global_barrier)};
-    Stmt prep = Evaluate(Call(DataType::Int(32), builtin::tvm_call_packed(), pargs));
-    Stmt body = op->body;
-    for (const auto& kv : rw_stats_) {
-      const auto& e = kv.second;
-      if (e.read_count != 0 && e.write_count != 0) {
-        volatile_vars_.insert(kv.first.get());
-      }
-    }
-    rw_stats_.clear();
-    Stmt kinit = Evaluate(Call(DataType::Int(32), builtin::tvm_global_barrier_kinit(), {}));
-    body = SeqStmt({kinit, body});
-    body = AttrStmt(op->node, op->attr_key, op->value, body);
-    return SeqStmt({prep, body});
-  }
-  Stmt MakeGlobalBarrier() {
-    TVM_FFI_ICHECK(sync_scope_.rank == StorageRank::kGlobal);
-    if (!num_blocks_.defined()) {
-      TVM_FFI_ICHECK(!is_lead_.defined());
-      num_work_dim_ = thread_extents_.size();
-      for (const AttrStmtNode* attr : thread_extents_) {
-        IterVar iv = Downcast<IterVar>(attr->node);
-        runtime::ThreadScope s = runtime::ThreadScope::Create(iv->thread_tag);
-        if (s.rank == 0) {
-          num_blocks_ = (num_blocks_.defined() ? attr->value * num_blocks_ : attr->value);
-        } else if (s.rank == 1) {
-          PrimExpr cond = iv->var == make_zero(iv->var.dtype());
-          is_lead_ = is_lead_.defined() ? (is_lead_ && cond) : cond;
-        }
-      }
-    } else {
-      TVM_FFI_ICHECK_EQ(num_work_dim_, thread_extents_.size());
-    }
-    return Evaluate(Call(DataType::Int(32), builtin::tvm_storage_sync(),
-                         {StringImm(sync_scope_.to_string()), is_lead_, num_blocks_}));
-  }
   // data structure.
   StorageScope sync_scope_;
   const std::unordered_set<const Object*>& syncs_;
-  // The read write statistics of storage
-  std::unordered_map<Var, Entry> rw_stats_;
-  // Set of buffer data vars that should be marked volatile.
-  std::unordered_set<const VarNode*> volatile_vars_;
-  // The statistics for global barrier
-  bool in_thread_env_{false};
-  // memorized results
-  std::vector<const AttrStmtNode*> thread_extents_;
-  size_t num_work_dim_{0};
-  PrimExpr num_blocks_;
-  PrimExpr is_lead_;
 };
 
 Stmt ThreadSync(Stmt stmt, std::string storage_scope) {
