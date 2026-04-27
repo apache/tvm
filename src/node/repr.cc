@@ -36,8 +36,6 @@
 #include <sstream>
 #include <vector>
 
-#include "../support/str_escape.h"
-
 namespace tvm {
 
 void Dump(const runtime::ObjectRef& n) { std::cerr << ffi::ReprPrint(ffi::Any(n)) << "\n"; }
