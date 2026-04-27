@@ -300,7 +300,7 @@ class PassContext : public ObjectRef {
   friend class With<PassContext>;
 };
 
-#define TVM_PASS_CTX_CONFIG_VAR_DEF static TVM_ATTRIBUTE_UNUSED uint32_t __make_PassContext_tid
+#define TVM_PASS_CTX_CONFIG_VAR_DEF [[maybe_unused]] static uint32_t __make_PassContext_tid
 
 /*!
  * \brief Helper macro to register the object type to runtime.
