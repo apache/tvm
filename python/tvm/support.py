@@ -16,7 +16,6 @@
 # under the License.
 """Support infra of TVM."""
 
-import ctypes
 import json
 import os
 import sys
@@ -27,7 +26,6 @@ import tvm_ffi
 import tvm
 
 from . import get_global_func
-from .runtime.module import Module
 
 tvm_ffi.init_ffi_api("support", __name__)
 
@@ -68,25 +66,3 @@ def describe():
     print(textwrap.indent("\n".join(lines), prefix="  "))
     print("CMake Options:")
     print(textwrap.indent(json.dumps(info, indent=2), prefix="  "))
-
-
-class FrontendTestModule(Module):
-    """A tvm.runtime.Module whose member functions are PackedFunc."""
-
-    def __init__(self, entry_name=None):
-        underlying_mod = get_global_func("testing.FrontendTestModule")()
-        handle = underlying_mod.handle
-
-        # Set handle to NULL to avoid cleanup in c++ runtime, transferring ownership.
-        # Both cython and ctypes FFI use c_void_p, so this is safe to assign here.
-        underlying_mod.handle = ctypes.c_void_p(0)
-
-        super().__init__(handle)
-        if entry_name is not None:
-            self.entry_name = entry_name
-
-    def add_function(self, name, func):
-        self.get_function("__add_function")(name, func)
-
-    def __setitem__(self, key, value):
-        self.add_function(key, value)
