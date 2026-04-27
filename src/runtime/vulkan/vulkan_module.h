@@ -48,9 +48,9 @@ namespace vulkan {
  * and rehydrated on the runtime side.
  * Requires libtvm_runtime built with USE_VULKAN=ON to have registered the creator.
  */
-inline ffi::Module VulkanModuleCreate(std::unordered_map<std::string, SPIRVShader> smap,
-                                      ffi::Map<ffi::String, FunctionInfo> fmap,
-                                      std::string source) {
+inline ffi::Module VulkanModuleCreate(const std::unordered_map<std::string, SPIRVShader>& smap,
+                                      const ffi::Map<ffi::String, FunctionInfo>& fmap,
+                                      const ffi::String& source) {
   static const auto fcreate = ffi::Function::GetGlobal("ffi.Module.create.vulkan");
   TVM_FFI_CHECK(fcreate.has_value(), RuntimeError)
       << "ffi.Module.create.vulkan is not registered in runtime. "
@@ -63,7 +63,7 @@ inline ffi::Module VulkanModuleCreate(std::unordered_map<std::string, SPIRVShade
     strm.Write(kv.second);
     shader_bytes.Set(kv.first, ffi::Bytes(std::move(buf)));
   }
-  return (*fcreate)(shader_bytes, fmap, ffi::String(source)).cast<ffi::Module>();
+  return (*fcreate)(shader_bytes, fmap, source).cast<ffi::Module>();
 }
 
 }  // namespace vulkan

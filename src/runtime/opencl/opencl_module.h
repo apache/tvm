@@ -28,10 +28,8 @@
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/base.h>
 
-#include <memory>
 #include <string>
 #include <unordered_map>
-#include <vector>
 
 #include "../../support/bytes_io.h"
 #include "../metadata.h"
@@ -74,7 +72,7 @@ inline ffi::Module OpenCLModuleCreate(ffi::String data, ffi::String fmt,
  */
 inline ffi::Module OpenCLModuleCreate(
     const std::unordered_map<std::string, spirv::SPIRVShader>& shaders,
-    const std::string& spirv_text, ffi::Map<ffi::String, FunctionInfo> fmap) {
+    const ffi::String& spirv_text, const ffi::Map<ffi::String, FunctionInfo>& fmap) {
   static const auto fcreate = ffi::Function::GetGlobal("ffi.Module.create.opencl.spirv");
   TVM_FFI_CHECK(fcreate.has_value(), RuntimeError)
       << "ffi.Module.create.opencl.spirv is not registered in runtime. "
@@ -87,7 +85,7 @@ inline ffi::Module OpenCLModuleCreate(
     strm.Write(kv.second);
     shader_bytes.Set(kv.first, ffi::Bytes(std::move(buf)));
   }
-  return (*fcreate)(shader_bytes, ffi::String(spirv_text), fmap).cast<ffi::Module>();
+  return (*fcreate)(shader_bytes, spirv_text, fmap).cast<ffi::Module>();
 }
 }  // namespace runtime
 }  // namespace tvm

@@ -465,30 +465,20 @@ void LinkModules(ObjectPtr<VMExecutable> exec, const ffi::Map<ffi::String, runti
                  const tvm::ffi::Module& lib, const ffi::Array<ffi::Module>& ext_libs) {
   // query if we need const loader for ext_modules
   // Wrap all submodules in the initialization wrapper.
-  std::unordered_map<std::string, std::vector<std::string>> const_vars_by_symbol;
+  ffi::Map<ffi::String, ffi::Array<ffi::String>> const_vars_by_symbol;
   for (tvm::ffi::Module mod : ext_libs) {
     auto pf_sym = mod->GetFunction("get_symbol");
     auto pf_var = mod->GetFunction("get_const_vars");
-    std::vector<std::string> symbol_const_vars;
     if (pf_sym.has_value() && pf_var.has_value()) {
       ffi::String symbol = (*pf_sym)().cast<ffi::String>();
       ffi::Array<ffi::String> variables = (*pf_var)().cast<ffi::Array<ffi::String>>();
-      for (size_t i = 0; i < variables.size(); i++) {
-        symbol_const_vars.push_back(variables[i].operator std::string());
-      }
-      TVM_FFI_ICHECK_EQ(const_vars_by_symbol.count(symbol), 0U)
-          << "Found duplicated symbol: " << symbol;
-      const_vars_by_symbol[symbol] = symbol_const_vars;
+      TVM_FFI_ICHECK(!const_vars_by_symbol.count(symbol)) << "Found duplicated symbol: " << symbol;
+      const_vars_by_symbol.Set(symbol, variables);
     }
   }
   if (!const_vars_by_symbol.empty() || !params.empty()) {
     // need runtime const information, run link const loader
-    std::unordered_map<std::string, runtime::Tensor> const_var_tensor;
-    for (const auto& [name, param] : params) {
-      const_var_tensor[name] = param;
-    }
-    ffi::Module const_loader_mod =
-        runtime::ConstLoaderModuleCreate(const_var_tensor, const_vars_by_symbol);
+    ffi::Module const_loader_mod = runtime::ConstLoaderModuleCreate(params, const_vars_by_symbol);
     const_loader_mod->ImportModule(lib);
     for (const auto& it : ext_libs) {
       const_loader_mod->ImportModule(it);
