@@ -1680,16 +1680,21 @@ class ConvTranspose(OnnxOpConverter):
             if isinstance(auto_pad, bytes):
                 auto_pad = auto_pad.decode("utf-8")
             if auto_pad in ("SAME_UPPER", "SAME_LOWER"):
-                input_spatial = [int(s) for s in inputs[0].struct_info.shape.values[2:]]
+                # Per ONNX ConvTranspose spec, when output_shape is unspecified
+                # the target output size is `input_size * stride`. Substituting
+                # this into the spec's total_padding formula cancels the
+                # input-size term, leaving a value that depends only on the
+                # kernel/dilation/stride/output_padding attributes. Avoiding the
+                # input shape keeps the converter usable when spatial dims are
+                # symbolic (`tir.Var`).
                 pads_begin: list[int] = []
                 pads_end: list[int] = []
                 for i in range(spatial_dims):
-                    out_size = input_spatial[i] * strides[i]
                     total_pad = (
-                        strides[i] * (input_spatial[i] - 1)
+                        (kernel_shape[i] - 1) * dilations[i]
+                        + 1
                         + output_padding[i]
-                        + ((kernel_shape[i] - 1) * dilations[i] + 1)
-                        - out_size
+                        - strides[i]
                     )
                     total_pad = max(total_pad, 0)
                     if auto_pad == "SAME_UPPER":
