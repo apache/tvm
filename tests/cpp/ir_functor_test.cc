@@ -109,7 +109,7 @@ TEST(IRF, ExprTransform) {
   try {
     f(z - 1, 2);
     TVM_FFI_THROW(InternalError) << "should fail";
-  } catch (Error&) {
+  } catch (tvm::ffi::Error&) {
   }
 }
 
