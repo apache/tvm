@@ -1663,13 +1663,65 @@ class ConvTranspose(OnnxOpConverter):
         else:
             raise NotImplementedError("Ndim > 5 not supported for convolution.")
 
+        spatial_dims = ndim - 2
+        strides = attr.get("strides", [1] * spatial_dims)
+        dilations = attr.get("dilations", [1] * spatial_dims)
+        output_padding = attr.get("output_padding", [0] * spatial_dims)
+        if "kernel_shape" in attr:
+            kernel_shape = list(attr["kernel_shape"])
+        else:
+            kernel_shape = [int(s) for s in inputs[1].struct_info.shape.values[2:]]
+
+        # Resolve `auto_pad` per ONNX ConvTranspose spec. Unlike Conv, the spec
+        # derives `pads` from `output_shape`/`strides` when auto_pad is SAME_*,
+        # so we cannot reuse `autopad()` (which pads the input data instead).
+        if "auto_pad" in attr:
+            auto_pad = attr["auto_pad"]
+            if isinstance(auto_pad, bytes):
+                auto_pad = auto_pad.decode("utf-8")
+            if auto_pad in ("SAME_UPPER", "SAME_LOWER"):
+                # Per ONNX ConvTranspose spec, when output_shape is unspecified
+                # the target output size is `input_size * stride`. Substituting
+                # this into the spec's total_padding formula cancels the
+                # input-size term, leaving a value that depends only on the
+                # kernel/dilation/stride/output_padding attributes. Avoiding the
+                # input shape keeps the converter usable when spatial dims are
+                # symbolic (`tir.Var`).
+                pads_begin: list[int] = []
+                pads_end: list[int] = []
+                for i in range(spatial_dims):
+                    total_pad = (
+                        (kernel_shape[i] - 1) * dilations[i]
+                        + 1
+                        + output_padding[i]
+                        - strides[i]
+                    )
+                    total_pad = max(total_pad, 0)
+                    if auto_pad == "SAME_UPPER":
+                        pad_begin = total_pad // 2
+                    else:
+                        pad_begin = total_pad - total_pad // 2
+                    pads_begin.append(pad_begin)
+                    pads_end.append(total_pad - pad_begin)
+                attr["pads"] = pads_begin + pads_end
+            elif auto_pad == "VALID":
+                attr["pads"] = [0] * (2 * spatial_dims)
+            elif auto_pad == "NOTSET":
+                pass
+            else:
+                raise tvm.error.OpAttributeInvalid(
+                    f'Value {auto_pad} in attribute "auto_pad" of operator '
+                    "ConvTranspose is invalid."
+                )
+            attr.pop("auto_pad")
+
         conv_out = op(
             data=inputs[0],
             weight=inputs[1],
-            strides=attr.get("strides", 1),
+            strides=strides,
             padding=attr.get("pads", 0),
-            output_padding=attr.get("output_padding", 0),
-            dilation=attr.get("dilations", 1),
+            output_padding=output_padding,
+            dilation=dilations,
             groups=attr.get("group", 1),
             data_layout=data_layout,
             kernel_layout=kernel_layout,
