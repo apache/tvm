@@ -140,8 +140,6 @@ class TVM_RUNTIME_DLL VMExecutable : public ffi::ModuleObj {
   void WriteToFile(const ffi::String& file_name, const ffi::String& format) const final;
   /*! \brief Create a Relax virtual machine and load `this` as the executable. */
   ffi::Module VMLoadExecutable() const;
-  /*! \brief Create a Relax virtual machine with profiler and load `this` as the executable. */
-  ffi::Module VMProfilerLoadExecutable() const;
   /*! \brief Check if the VMExecutable contains a specific function. */
   bool HasFunction(const ffi::String& name) const;
   /*!

@@ -24,10 +24,8 @@
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/nvtx.h>
-#include <tvm/runtime/profiling.h>
 #include <tvm/runtime/vm/vm.h>
 
-#include <optional>
 #include <thread>
 
 #include "./module_utils.h"
@@ -971,127 +969,6 @@ ffi::Function VirtualMachineImpl::_LookupFunction(const ffi::String& name) {
   return ffi::Function(nullptr);
 }
 
-//----------------------------------------------------------------
-// Profiler can be optionally disabled via a macro to reduce dep.
-//----------------------------------------------------------------
-#if TVM_VM_ENABLE_PROFILER
-
-/*!
- * \brief An extension of VirtualMachineImpl to support per-op profiling
- * It overrides RunInstrCall to add instrumentations around it.
- */
-class VirtualMachineProfiler : public VirtualMachineImpl {
- public:
-  ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) override {
-    ObjectPtr<Object> sptr_to_self = ffi::GetObjectPtr<Object>(this);
-    if (name == "profile") {
-      return ffi::Function([sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) {
-        std::string f_name = args[0].cast<std::string>();
-        VMClosure clo = this->GetClosure(f_name);
-
-        std::vector<Device> devices;
-        for (auto dev : this->devices) {
-          if (dev.device_type > 0) {
-            devices.push_back(dev);
-          }
-        }
-
-        prof_ = profiling::Profiler(devices, {}, {{ffi::String("Executor"), ffi::String("VM")}});
-
-        auto inputs = GetInputsFor(f_name);
-
-        bool clear_inputs = false;
-        if (inputs.size() == 0) {
-          TVM_FFI_ICHECK(args.size() > 1) << "No input is provided";
-          SetInput(f_name, false, args.Slice(1));
-          inputs = GetInputsFor(f_name);
-          clear_inputs = true;
-        } else {
-          TVM_FFI_ICHECK_EQ(args.size(), 1) << "Inputs are already provided by set_input.";
-        }
-
-        // warmup
-        this->InvokeClosureInternal(clo, inputs);
-
-        prof_->Start();
-        this->InvokeClosureInternal(clo, inputs);
-        prof_->Stop();
-
-        // Return the report as json, since profiling::Report object is not supported by RPC
-        std::string report_json = prof_->Report()->AsJSON();
-        *rv = report_json;
-
-        prof_ = std::nullopt;  // releases hardware counters
-        if (clear_inputs) {
-          // SetInput modifies the internal states of VM. Undo the change after profiling.
-          ClearInputsFor(f_name);
-        }
-      });
-    } else {
-      return VirtualMachineImpl::GetFunction(name);
-    }
-  }
-
- protected:
-  void RunInstrCall(VMFrame* curr_frame, Instruction inst) override {
-    bool profiling = false;
-    if (prof_ && prof_->IsRunning()) {
-      auto f_name = GetFuncName(inst.func_idx);
-      std::optional<Device> dev;
-      std::vector<Tensor> arrs;
-
-      auto f_check_tensor_arg = [&dev, &arrs](const RegType& arg) {
-        if (auto opt_nd = arg.as<Tensor>()) {
-          Tensor arr = opt_nd.value();
-          if (arr.defined()) {
-            dev = arr->device;
-            arrs.push_back(arr);
-          }
-        }
-      };
-
-      for (Index i = 0; i < inst.num_args; ++i) {
-        Instruction::Arg arg = inst.args[i];
-        if (arg.kind() == Instruction::ArgKind::kRegister) {
-          auto reg = ReadRegister(curr_frame, arg.value());
-          f_check_tensor_arg(reg);
-        } else if (arg.kind() == Instruction::ArgKind::kConstIdx) {
-          const auto& const_val = this->const_pool_[arg.value()];
-          f_check_tensor_arg(const_val);
-        }
-      }
-
-      std::unordered_map<std::string, ffi::Any> metrics;
-      metrics["Argument Shapes"] = profiling::ShapeString(arrs);
-
-      // If a suitable device is found, enable profiling.
-      if (dev) {
-        profiling = true;
-        prof_->StartCall(f_name, *dev, metrics);
-      }
-    }
-
-    VirtualMachineImpl::RunInstrCall(curr_frame, inst);
-
-    if (profiling) {
-      prof_->StopCall();
-    }
-  }
-
- private:
-  std::optional<profiling::Profiler> prof_;
-};
-
-ObjectPtr<VirtualMachine> VirtualMachine::CreateProfiler() {
-  return ffi::make_object<VirtualMachineProfiler>();
-}
-
-#else
-ObjectPtr<VirtualMachine> VirtualMachine::CreateProfiler() {
-  TVM_FFI_THROW(InternalError) << "Profiler support is disabled";
-  return nullptr;
-}
-#endif  // TVM_VM_ENABLE_PROFILER
 }  // namespace vm
 }  // namespace runtime
 }  // namespace tvm

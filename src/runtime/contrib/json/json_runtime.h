@@ -27,7 +27,6 @@
 
 #include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/extra/module.h>
-#include <tvm/runtime/profiling.h>
 #include <tvm/runtime/tensor.h>
 #include <tvm/support/io.h>
 
@@ -72,17 +71,6 @@ class JSONRuntimeBase : public ffi::ModuleObj {
   /*! \brief Invoke the execution engine to inteprete a specific json runtime. */
   virtual void Run() = 0;
 
-  /*! \brief Does the backend support debug & profiling */
-  virtual bool CanDebug() { return false; }
-
-  /*!
-   * \brief Invoke the profiler
-   * \param pointer to profiler
-   */
-  virtual void RunProfile(profiling::Profiler* prof) {
-    TVM_FFI_THROW(InternalError) << "Not expected to be here : Profiling call w/o support ?";
-  }
-
   /*!
    * \brief Invoke the debugger
    * \return External compiler specific debug blob
@@ -115,30 +103,6 @@ class JSONRuntimeBase : public ffi::ModuleObj {
 
         // Execute the subgraph.
         this->Run();
-      });
-    } else if (this->symbol_name_ + "_debug" == name) {
-      // NOTE: the current debug convention is not very compatible with
-      // the FFI convention, consider clean up
-      if (!this->CanDebug()) {
-        return ffi::Function(nullptr);
-      }
-      return ffi::Function([sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) {
-        TVM_FFI_ICHECK(this->initialized_) << "The module has not been initialized";
-
-        // Bind argument tensors to data entries.
-        this->SetInputOutputBuffers(args);
-
-        if (auto opt_str = rv->try_cast<ffi::String>()) {
-          ffi::String purpose = std::move(opt_str.value());
-          if ("debug_dump" == purpose) {
-            *rv = this->DebugDump();
-          }
-        } else {
-          // Profile the subgraph.
-          profiling::Profiler* prof = static_cast<profiling::Profiler*>(rv->cast<void*>());
-          this->RunProfile(prof);
-        }
-        // ffi::String vendor_prof = this->RunProfile(prof);
       });
     } else if ("__init_" + this->symbol_name_ == name) {
       // The function to initialize constant tensors.

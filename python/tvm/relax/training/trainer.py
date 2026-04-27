@@ -65,7 +65,6 @@ class Trainer:
         trainer.xaiver_uniform_init_params()
         trainer.predict(input_instances)
         trainer.update([input_instances], [labels])
-        trainer.profile_adjoint([input_instances], [labels])
     """
 
     BACKBONE_FUNC: str = "backbone"
@@ -347,49 +346,3 @@ class Trainer:
         self._params = list(new_params)
 
         return ret
-
-    def profile_adjoint(
-        self,
-        input_instances: list[np.ndarray | Tensor],
-        targets: list[np.ndarray | Tensor],
-    ) -> tvm.runtime.profiling.Report:
-        """Profile the adjoint function. It requires the VM to be constructed with `profile=True`,
-        and runs `tvm.relax.VirtualMachine.profile()` internally.
-
-        Parameters
-        ----------
-        input_instances : Union[np.ndarray, Tensor, List[Union[np.ndarray, Tensor]]]
-            The values corresponding to the input_instances part of the backbone function.
-            Parameters and model states are not needed to provide.
-
-            If there are more than one input instances, you can provide a list.
-
-        targets : Union[np.ndarray, Tensor, List[Union[np.ndarray, Tensor]]]
-            The values corresponding to the targets part of the backbone function.
-
-            If there are more than one targets, you can provide a list.
-
-        Returns
-        -------
-        report : tvm.runtime.profiling.Report
-            The formatted profiling result.
-        """
-        self._check_inited()
-
-        if not isinstance(input_instances, list):
-            input_instances = [input_instances]
-
-        if not isinstance(targets, list):
-            targets = [targets]
-
-        if len(input_instances) != self._input_num:
-            raise ValueError("The length of the input does not match the backbone")
-
-        all_inputs: list[Tensor] = (
-            [tvm.runtime.tensor(i) for i in input_instances]
-            + self._params
-            + self._states
-            + [tvm.runtime.tensor(i) for i in targets]
-        )
-        all_inputs = [i.copyto(self.device) for i in all_inputs]
-        return self.vm.profile(self.ADJOINT_FUNC, *all_inputs)

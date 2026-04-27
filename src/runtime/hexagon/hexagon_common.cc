@@ -25,7 +25,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/profiling.h>
+#include <tvm/runtime/timer.h>
 
 #include <sstream>
 #include <string>
@@ -55,7 +55,7 @@ class HexagonTimerNode : public TimerNode {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("profiling.timer.hexagon",
+  refl::GlobalDef().def("runtime.timer.hexagon",
                         [](Device dev) { return Timer(ffi::make_object<HexagonTimerNode>()); });
 }
 }  // namespace hexagon

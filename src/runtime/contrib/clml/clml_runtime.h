@@ -33,7 +33,6 @@
 #include <CL/opencl.h>
 #include <stdlib.h>
 #include <tvm/ffi/function.h>
-#include <tvm/runtime/profiling.h>
 #include <tvm/runtime/tensor.h>
 
 #include <fstream>

@@ -51,7 +51,6 @@
 #include "../src/runtime/logging.cc"
 #include "../src/runtime/memory/memory_manager.cc"
 #include "../src/runtime/minrpc/minrpc_logger.cc"
-#include "../src/runtime/profiling.cc"
 #include "../src/runtime/registry.cc"
 #include "../src/runtime/rpc/rpc_channel.cc"
 #include "../src/runtime/rpc/rpc_endpoint.cc"
@@ -64,6 +63,7 @@
 #include "../src/runtime/tensor.cc"
 #include "../src/runtime/thread_pool.cc"
 #include "../src/runtime/threading_backend.cc"
+#include "../src/runtime/timer.cc"
 #include "../src/runtime/workspace_pool.cc"
 
 #ifdef TVM_OPENCL_RUNTIME

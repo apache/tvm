@@ -22,7 +22,7 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/profiling.h>
+#include <tvm/runtime/timer.h>
 
 #include <sstream>
 
@@ -813,7 +813,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("profiling.timer.opencl",
+  refl::GlobalDef().def("runtime.timer.opencl",
                         [](Device dev) { return Timer(ffi::make_object<OpenCLTimerNode>(dev)); });
 }
 

@@ -23,10 +23,6 @@
 #ifndef TVM_RUNTIME_VM_VM_H_
 #define TVM_RUNTIME_VM_VM_H_
 
-#ifndef TVM_VM_ENABLE_PROFILER
-#define TVM_VM_ENABLE_PROFILER 1
-#endif
-
 #include <tvm/ffi/extra/module.h>
 
 #include <memory>
@@ -201,11 +197,6 @@ class VirtualMachine : public ffi::ModuleObj {
    * \return Created VM
    */
   static ObjectPtr<VirtualMachine> Create();
-  /*!
-   * \brief Create an instance of VM with the profiling feature enabled.
-   * \return Created VM
-   */
-  static ObjectPtr<VirtualMachine> CreateProfiler();
   /*!
    * \brief Helper function for vm closure functions to get the context ptr
    * \param arg The argument value.

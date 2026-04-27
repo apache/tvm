@@ -26,7 +26,7 @@
 #include <tvm/ffi/reflection/access_path.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/node/functor.h>
-#include <tvm/runtime/profiling.h>
+#include <tvm/runtime/tensor.h>
 #include <tvm/support/io.h>
 #include <tvm/target/codegen.h>
 
@@ -84,67 +84,5 @@ struct RefToObjectPtr : public ObjectRef {
     return ffi::details::ObjectUnsafe::ObjectPtrFromObjectRef<Object>(ref);
   }
 };
-
-struct ReportNodeTrait {
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<runtime::profiling::ReportNode>()
-        .def_ro("calls", &runtime::profiling::ReportNode::calls)
-        .def_ro("device_metrics", &runtime::profiling::ReportNode::device_metrics)
-        .def_ro("configuration", &runtime::profiling::ReportNode::configuration);
-  }
-};
-
-TVM_FFI_STATIC_INIT_BLOCK() { ReportNodeTrait::RegisterReflection(); }
-
-// Pattern A (RM): auto-default repr from reflection for ReportNode.
-
-struct CountNodeTrait {
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<runtime::profiling::CountNode>().def_ro("value",
-                                                            &runtime::profiling::CountNode::value);
-  }
-};
-
-TVM_FFI_STATIC_INIT_BLOCK() { CountNodeTrait::RegisterReflection(); }
-
-// Pattern A (RM): auto-default repr from reflection for CountNode.
-
-struct DurationNodeTrait {
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<runtime::profiling::DurationNode>().def_ro(
-        "microseconds", &runtime::profiling::DurationNode::microseconds);
-  }
-};
-
-TVM_FFI_STATIC_INIT_BLOCK() { DurationNodeTrait::RegisterReflection(); }
-
-// Pattern A (RM): auto-default repr from reflection for DurationNode.
-
-struct PercentNodeTrait {
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<runtime::profiling::PercentNode>().def_ro(
-        "percent", &runtime::profiling::PercentNode::percent);
-  }
-};
-
-TVM_FFI_STATIC_INIT_BLOCK() { PercentNodeTrait::RegisterReflection(); }
-
-// Pattern A (RM): auto-default repr from reflection for PercentNode.
-
-struct RatioNodeTrait {
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<runtime::profiling::RatioNode>().def_ro("ratio",
-                                                            &runtime::profiling::RatioNode::ratio);
-  }
-};
-
-TVM_FFI_STATIC_INIT_BLOCK() { RatioNodeTrait::RegisterReflection(); }
-
-// Pattern A (RM): auto-default repr from reflection for RatioNode.
 
 }  // namespace tvm

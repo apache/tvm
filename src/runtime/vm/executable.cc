@@ -56,7 +56,6 @@ ffi::Optional<ffi::Function> VMExecutable::GetFunction(const ffi::String& _name)
   TVM_MODULE_VTABLE_ENTRY("as_text", &VMExecutable::AsText);
   TVM_MODULE_VTABLE_ENTRY("as_python", &VMExecutable::AsPython);
   TVM_MODULE_VTABLE_ENTRY("vm_load_executable", &VMExecutable::VMLoadExecutable);
-  TVM_MODULE_VTABLE_ENTRY("vm_profiler_load_executable", &VMExecutable::VMProfilerLoadExecutable);
   TVM_MODULE_VTABLE_ENTRY("has_function", &VMExecutable::HasFunction);
   return std::nullopt;
 }
@@ -433,12 +432,6 @@ std::string RegNameToStr(RegName reg) {
 
 ffi::Module VMExecutable::VMLoadExecutable() const {
   ObjectPtr<VirtualMachine> vm = VirtualMachine::Create();
-  vm->LoadExecutable(GetObjectPtr<VMExecutable>(const_cast<VMExecutable*>(this)));
-  return ffi::Module(vm);
-}
-
-ffi::Module VMExecutable::VMProfilerLoadExecutable() const {
-  ObjectPtr<VirtualMachine> vm = VirtualMachine::CreateProfiler();
   vm->LoadExecutable(GetObjectPtr<VMExecutable>(const_cast<VMExecutable*>(this)));
   return ffi::Module(vm);
 }
