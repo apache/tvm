@@ -46,6 +46,8 @@ def non_max_suppression_python(
     id_index=0,
     return_indices=True,
     invalid_to_bottom=False,
+    soft_nms_sigma=0.0,
+    score_threshold=0.0,
 ):
     """Numpy reference for classic non_max_suppression.
 
@@ -62,7 +64,9 @@ def non_max_suppression_python(
 
     Returns
     -------
-    If return_indices is True: (box_indices, valid_box_count)
+    If return_indices is True and soft_nms_sigma == 0.0: (box_indices, valid_box_count)
+    If return_indices is True and soft_nms_sigma > 0.0:
+        (out_data, box_indices, valid_box_count)
     Otherwise: modified data tensor
     """
     batch_size, num_anchors, _ = data.shape
@@ -70,6 +74,10 @@ def non_max_suppression_python(
     out_box_indices = np.full((batch_size, num_anchors), -1, dtype="int32")
     compacted = np.full((batch_size, num_anchors), -1, dtype="int32")
     valid_box_count = np.zeros((batch_size, 1), dtype="int32")
+
+    is_soft_nms = soft_nms_sigma > 0.0
+    thresh = score_threshold if is_soft_nms else 0.0
+    soft_nms_scale = -0.5 / soft_nms_sigma if is_soft_nms else 0.0
 
     for i in range(batch_size):
         nkeep = int(valid_count[i])
@@ -86,10 +94,72 @@ def non_max_suppression_python(
             out_data[i, j, :] = data[i, src, :]
             out_box_indices[i, j] = src
 
+        if is_soft_nms:
+            num_selected = 0
+            while num_selected < nkeep and (max_output_size < 0 or num_selected < max_output_size):
+                best_idx = -1
+                best_score = thresh
+                for j in range(num_selected, nkeep):
+                    if out_box_indices[i, j] >= 0 and out_data[i, j, score_index] > best_score:
+                        best_idx = j
+                        best_score = out_data[i, j, score_index]
+
+                if best_idx < 0:
+                    break
+
+                if best_idx != num_selected:
+                    out_data[i, [num_selected, best_idx], :] = out_data[
+                        i, [best_idx, num_selected], :
+                    ]
+                    out_box_indices[i, [num_selected, best_idx]] = out_box_indices[
+                        i, [best_idx, num_selected]
+                    ]
+
+                selected_idx = num_selected
+                for j in range(selected_idx + 1, nkeep):
+                    if out_box_indices[i, j] < 0 or out_data[i, j, score_index] <= thresh:
+                        continue
+
+                    do_suppress = False
+                    if force_suppress:
+                        do_suppress = True
+                    elif id_index >= 0:
+                        do_suppress = (
+                            out_data[i, selected_idx, id_index] == out_data[i, j, id_index]
+                        )
+                    else:
+                        do_suppress = True
+
+                    if not do_suppress:
+                        continue
+
+                    iou = _iou(out_data[i, selected_idx], out_data[i, j], coord_start)
+                    if iou >= iou_threshold:
+                        out_box_indices[i, j] = -1
+                    else:
+                        out_data[i, j, score_index] *= np.exp(soft_nms_scale * (iou**2))
+                        if out_data[i, j, score_index] <= thresh:
+                            out_box_indices[i, j] = -1
+
+                num_selected += 1
+
+            valid_box_count[i, 0] = num_selected
+            if return_indices:
+                for j in range(num_selected):
+                    orig_idx = out_box_indices[i, j]
+                    compacted[i, j] = int(indices[i, orig_idx])
+                    out_box_indices[i, j] = compacted[i, j]
+                for j in range(num_selected, num_anchors):
+                    out_data[i, j, :] = -1.0
+                    out_box_indices[i, j] = -1
+            else:
+                out_data[i, num_selected:, :] = -1.0
+            continue
+
         # Greedy NMS
         num_valid = 0
         for j in range(nkeep):
-            if out_data[i, j, score_index] <= 0:
+            if out_data[i, j, score_index] <= thresh:
                 out_data[i, j, :] = -1.0
                 out_box_indices[i, j] = -1
                 continue
@@ -102,7 +172,7 @@ def non_max_suppression_python(
 
             # Suppress overlapping boxes
             for k in range(j + 1, nkeep):
-                if out_data[i, k, score_index] <= 0:
+                if out_data[i, k, score_index] <= thresh:
                     continue
 
                 do_suppress = False
@@ -130,6 +200,8 @@ def non_max_suppression_python(
             valid_box_count[i, 0] = cnt
 
     if return_indices:
+        if is_soft_nms:
+            return [out_data, compacted, valid_box_count]
         return [compacted, valid_box_count]
 
     if invalid_to_bottom:

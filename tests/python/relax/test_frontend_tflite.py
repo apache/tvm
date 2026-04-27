@@ -1360,7 +1360,7 @@ def test_batch_matmul_adj():
     verify(BatchMatMulAdj, Expected)
 
 
-def _verify_nms_v5(mod, tf_func, boxes_np, scores_np):
+def _verify_nms_v5(mod, tf_func, boxes_np, scores_np, soft_nms_sigma=0.0):
     """E2E verify for NMS: only run on nightly, compare valid outputs only."""
     if "CI_ENV_NIGHTLY" not in os.environ:
         return
@@ -1386,9 +1386,19 @@ def _verify_nms_v5(mod, tf_func, boxes_np, scores_np):
         rtol=1e-5,
         atol=1e-5,
     )
+    if soft_nms_sigma > 0.0:
+        np.testing.assert_allclose(
+            tf_scores.numpy(),
+            tvm_scores.numpy(),
+            rtol=1e-5,
+            atol=1e-5,
+        )
+        np.testing.assert_array_less(-1e-6, tvm_scores.numpy()[n_valid:])
 
 
-def _build_nms_v5_mod(num_boxes, max_output_size, iou_threshold, score_threshold):
+def _build_nms_v5_mod(
+    num_boxes, max_output_size, iou_threshold, score_threshold, soft_nms_sigma=0.0
+):
     """Convert a NonMaxSuppressionV5 TFLite model to a Relax module.
 
     Scalar params must be Python literals (not tf.constant) so TFLite can
@@ -1409,7 +1419,7 @@ def _build_nms_v5_mod(num_boxes, max_output_size, iou_threshold, score_threshold
                 max_output_size=max_output_size,
                 iou_threshold=iou_threshold,
                 score_threshold=score_threshold,
-                soft_nms_sigma=0.0,
+                soft_nms_sigma=soft_nms_sigma,
                 pad_to_max_output_size=True,
             )
             return indices, out_scores, valid
@@ -1647,6 +1657,83 @@ _NMS_V5_CASES = [
 ]
 
 
+_NMS_V5_SOFT_CASES = [
+    pytest.param(
+        6,
+        6,
+        0.5,
+        0.0,
+        0.5,
+        np.array(
+            [
+                [0.0, 0.0, 1.0, 1.0],
+                [0.0, 0.0, 1.0, 1.0],
+                [0.0, 0.1, 1.0, 1.1],
+                [0.0, 0.0, 1.0, 0.9],
+                [0.5, 0.5, 1.5, 1.5],
+                [0.0, 0.0, 0.3, 0.3],
+            ],
+            dtype=np.float32,
+        ),
+        np.array([0.9, 0.75, 0.6, 0.5, 0.4, 0.3], dtype=np.float32),
+        id="soft_nms_basic",
+    ),
+    pytest.param(
+        5,
+        5,
+        0.5,
+        0.0,
+        0.3,
+        np.array(
+            [
+                [0.0, 0.0, 1.0, 1.0],
+                [0.1, 0.1, 1.1, 1.1],
+                [0.2, 0.2, 1.2, 1.2],
+                [0.3, 0.3, 1.3, 1.3],
+                [2.0, 2.0, 3.0, 3.0],
+            ],
+            dtype=np.float32,
+        ),
+        np.array([0.9, 0.8, 0.7, 0.6, 0.5], dtype=np.float32),
+        id="soft_nms_tight_sigma",
+    ),
+    pytest.param(
+        3,
+        3,
+        0.5,
+        0.3,
+        0.1,
+        np.array(
+            [
+                [0.0, 0.0, 1.0, 1.0],
+                [0.2, 0.2, 1.2, 1.2],
+                [2.0, 2.0, 3.0, 3.0],
+            ],
+            dtype=np.float32,
+        ),
+        np.array([0.9, 0.8, 0.75], dtype=np.float32),
+        id="soft_nms_threshold_hole",
+    ),
+    pytest.param(
+        3,
+        3,
+        0.5,
+        0.0,
+        0.1,
+        np.array(
+            [
+                [0.0, 0.0, 1.0, 1.0],
+                [0.2, 0.2, 1.2, 1.2],
+                [2.0, 2.0, 3.0, 3.0],
+            ],
+            dtype=np.float32,
+        ),
+        np.array([0.9, 0.85, 0.8], dtype=np.float32),
+        id="soft_nms_reorder",
+    ),
+]
+
+
 @pytest.mark.parametrize(
     "num_boxes,max_output_size,iou_threshold,score_threshold,boxes,scores",
     _NMS_V5_CASES,
@@ -1655,6 +1742,20 @@ def test_nms_v5(num_boxes, max_output_size, iou_threshold, score_threshold, boxe
     """NON_MAX_SUPPRESSION_V5: conversion smoke test + E2E correctness (nightly only)."""
     mod, tf_func = _build_nms_v5_mod(num_boxes, max_output_size, iou_threshold, score_threshold)
     _verify_nms_v5(mod, tf_func, boxes, scores)
+
+
+@pytest.mark.parametrize(
+    "num_boxes,max_output_size,iou_threshold,score_threshold,soft_nms_sigma,boxes,scores",
+    _NMS_V5_SOFT_CASES,
+)
+def test_nms_v5_soft(
+    num_boxes, max_output_size, iou_threshold, score_threshold, soft_nms_sigma, boxes, scores
+):
+    """NON_MAX_SUPPRESSION_V5 with soft_nms_sigma: conversion smoke test + E2E correctness."""
+    mod, tf_func = _build_nms_v5_mod(
+        num_boxes, max_output_size, iou_threshold, score_threshold, soft_nms_sigma
+    )
+    _verify_nms_v5(mod, tf_func, boxes, scores, soft_nms_sigma=soft_nms_sigma)
 
 
 def test_nms_v5_ir():
@@ -1679,6 +1780,28 @@ def test_nms_v5_ir():
     assert 'R.Tensor((), dtype="int32")' in ir
     # Bounding boxes / scores tensor bounds checks
     assert f"R.Tensor(({max_output_size},)" in ir
+
+
+def test_nms_v5_soft_ir():
+    """Verify the emitted Relax IR passes soft_nms_sigma for NON_MAX_SUPPRESSION_V5."""
+    num_boxes = 6
+    max_output_size = 3
+    mod, _ = _build_nms_v5_mod(
+        num_boxes=num_boxes,
+        max_output_size=max_output_size,
+        iou_threshold=0.5,
+        score_threshold=0.0,
+        soft_nms_sigma=0.5,
+    )
+
+    ir = mod.script()
+
+    # soft_nms_sigma must appear in the IR
+    assert "soft_nms_sigma=0.5" in ir
+    # score_threshold must also be forwarded
+    assert "score_threshold=0.0" in ir
+    # Soft-NMS padded scores must be clipped to non-negative values.
+    assert "R.clip(" in ir
 
 
 _DETECTION_POSTPROCESS_SMOKE_CASES = [

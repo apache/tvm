@@ -196,8 +196,8 @@ TVM_REGISTER_OP("relax.vision.get_valid_counts")
 
 Expr non_max_suppression(Expr data, Expr valid_count, Expr indices, int max_output_size,
                          double iou_threshold, bool force_suppress, int top_k, int coord_start,
-                         int score_index, int id_index, bool return_indices,
-                         bool invalid_to_bottom) {
+                         int score_index, int id_index, bool return_indices, bool invalid_to_bottom,
+                         double soft_nms_sigma, double score_threshold) {
   auto attrs = tvm::ffi::make_object<NonMaximumSuppressionAttrs>();
   attrs->max_output_size = max_output_size;
   attrs->iou_threshold = iou_threshold;
@@ -208,6 +208,8 @@ Expr non_max_suppression(Expr data, Expr valid_count, Expr indices, int max_outp
   attrs->id_index = id_index;
   attrs->return_indices = return_indices;
   attrs->invalid_to_bottom = invalid_to_bottom;
+  attrs->soft_nms_sigma = soft_nms_sigma;
+  attrs->score_threshold = score_threshold;
 
   static const Op& op = Op::Get("relax.vision.non_max_suppression");
   return Call(op, {std::move(data), std::move(valid_count), std::move(indices)}, Attrs(attrs), {});
@@ -319,7 +321,28 @@ StructInfo InferStructInfoNMS(const Call& call, const BlockBuilder& ctx) {
   }
 
   if (attrs->return_indices) {
-    // Returns (box_indices[batch, num_anchors], valid_box_count[batch, 1])
+    if (attrs->soft_nms_sigma > 0.0) {
+      // Soft-NMS returns (out_data[batch, num_anchors, elem_length],
+      //                   box_indices[batch, num_anchors],
+      //                   valid_box_count[batch, 1])
+      if (data_shape == nullptr) {
+        tvm::ffi::Array<StructInfo> fields = {
+            TensorStructInfo(data_sinfo->dtype, /*ndim=*/3, vdev),
+            TensorStructInfo(DataType::Int(32), /*ndim=*/2, vdev),
+            TensorStructInfo(DataType::Int(32), /*ndim=*/2, vdev)};
+        return TupleStructInfo(fields);
+      }
+      auto batch = data_shape->values[0];
+      auto num_anchors = data_shape->values[1];
+      tvm::ffi::Array<StructInfo> fields = {
+          TensorStructInfo(ffi::GetRef<ShapeExpr>(data_shape), data_sinfo->dtype, vdev),
+          TensorStructInfo(ShapeExpr({batch, num_anchors}), DataType::Int(32), vdev),
+          TensorStructInfo(ShapeExpr({batch, IntImm(DataType::Int(64), 1)}), DataType::Int(32),
+                           vdev)};
+      return TupleStructInfo(fields);
+    }
+
+    // Hard NMS returns (box_indices[batch, num_anchors], valid_box_count[batch, 1])
     if (data_shape == nullptr) {
       tvm::ffi::Array<StructInfo> fields = {
           TensorStructInfo(DataType::Int(32), /*ndim=*/2, vdev),

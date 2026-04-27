@@ -188,6 +188,8 @@ def _classic_nms_ir(
     out_data,
     out_box_indices,
     out_valid_box_count,
+    soft_nms_sigma=0.0,
+    score_threshold=0.0,
 ):
     """IR for classic single-class non-maximum suppression."""
     with IRBuilder() as ib:
@@ -199,6 +201,10 @@ def _classic_nms_ir(
         out_box_indices = T.buffer_proxy(out_box_indices)
         if out_valid_box_count is not None:
             out_valid_box_count = T.buffer_proxy(out_valid_box_count)
+
+        is_soft_nms = soft_nms_sigma > 0.0
+        # For hard NMS the historical threshold is 0.0; for soft NMS use score_threshold.
+        thresh = tvm.tirx.Cast(data.dtype, T.float32(score_threshold if is_soft_nms else 0.0))
 
         with T.parallel(0, batch_size) as i:
             # Step 1: Reorder data by sorted score
@@ -226,117 +232,220 @@ def _classic_nms_ir(
             num_valid_boxes_buf = T.alloc_buffer((1,), "int32", scope="local")
             num_valid_boxes = T.buffer_proxy(num_valid_boxes_buf)
             num_valid_boxes[0] = T.int32(0)
+            best_idx_buf = T.alloc_buffer((1,), "int32", scope="local")
+            best_idx = T.buffer_proxy(best_idx_buf)
+            best_score_buf = T.alloc_buffer((1,), data.dtype, scope="local")
+            best_score = T.buffer_proxy(best_score_buf)
+            tmp_idx_buf = T.alloc_buffer((1,), "int32", scope="local")
+            tmp_idx = T.buffer_proxy(tmp_idx_buf)
+            tmp_val_buf = T.alloc_buffer((1,), data.dtype, scope="local")
+            tmp_val = T.buffer_proxy(tmp_val_buf)
+            zero = tvm.tirx.Cast(data.dtype, T.float32(0.0))
 
-            with T.serial(0, nkeep_local[0]) as j:
-                # Check if box j is still valid (score > 0) and within max_output_size
-                with T.If(
-                    tvm.tirx.all(
-                        out_data[i, j, score_index] > tvm.tirx.Cast(data.dtype, T.float32(0.0)),
+            def compute_iou(lhs_idx, rhs_idx):
+                lhs_l = tvm.te.min(
+                    out_data[i, lhs_idx, coord_start],
+                    out_data[i, lhs_idx, coord_start + 2],
+                )
+                lhs_t = tvm.te.min(
+                    out_data[i, lhs_idx, coord_start + 1],
+                    out_data[i, lhs_idx, coord_start + 3],
+                )
+                lhs_r = tvm.te.max(
+                    out_data[i, lhs_idx, coord_start],
+                    out_data[i, lhs_idx, coord_start + 2],
+                )
+                lhs_b = tvm.te.max(
+                    out_data[i, lhs_idx, coord_start + 1],
+                    out_data[i, lhs_idx, coord_start + 3],
+                )
+                rhs_l = tvm.te.min(
+                    out_data[i, rhs_idx, coord_start],
+                    out_data[i, rhs_idx, coord_start + 2],
+                )
+                rhs_t = tvm.te.min(
+                    out_data[i, rhs_idx, coord_start + 1],
+                    out_data[i, rhs_idx, coord_start + 3],
+                )
+                rhs_r = tvm.te.max(
+                    out_data[i, rhs_idx, coord_start],
+                    out_data[i, rhs_idx, coord_start + 2],
+                )
+                rhs_b = tvm.te.max(
+                    out_data[i, rhs_idx, coord_start + 1],
+                    out_data[i, rhs_idx, coord_start + 3],
+                )
+                width = tvm.te.max(zero, tvm.te.min(lhs_r, rhs_r) - tvm.te.max(lhs_l, rhs_l))
+                height = tvm.te.max(zero, tvm.te.min(lhs_b, rhs_b) - tvm.te.max(lhs_t, rhs_t))
+                intersection = height * width
+                union = (
+                    (lhs_r - lhs_l) * (lhs_b - lhs_t)
+                    + (rhs_r - rhs_l) * (rhs_b - rhs_t)
+                    - intersection
+                )
+                return tvm.tirx.Select(union <= zero, zero, intersection / union)
+
+            if is_soft_nms:
+                # LiteRT soft-NMS selects the current highest-score candidate each round.
+                soft_nms_scale = tvm.tirx.Cast(data.dtype, T.float32(-0.5 / soft_nms_sigma))
+
+                with T.serial(0, nkeep_local[0]) as _:
+                    with T.If(
                         tvm.tirx.Select(
                             max_output_size > 0,
                             num_valid_boxes[0] < max_output_size,
                             tvm.tirx.const(True),
-                        ),
-                    )
-                ):
-                    with T.Then():
-                        num_valid_boxes[0] = num_valid_boxes[0] + 1
+                        )
+                    ):
+                        with T.Then():
+                            best_idx[0] = T.int32(-1)
+                            best_score[0] = thresh
 
-                        # Suppress overlapping boxes
-                        with T.serial(0, nkeep_local[0]) as k:
-                            with T.If(
-                                tvm.tirx.all(
-                                    k > j,
-                                    out_data[i, k, score_index]
-                                    > tvm.tirx.Cast(data.dtype, T.float32(0.0)),
-                                )
-                            ):
+                            with T.serial(0, nkeep_local[0]) as j:
+                                with T.If(
+                                    tvm.tirx.all(
+                                        j >= num_valid_boxes[0],
+                                        out_box_indices[i, j] >= 0,
+                                        out_data[i, j, score_index] > best_score[0],
+                                    )
+                                ):
+                                    with T.Then():
+                                        best_idx[0] = j
+                                        best_score[0] = out_data[i, j, score_index]
+
+                            with T.If(best_idx[0] >= 0):
                                 with T.Then():
-                                    # Check class ID match (or force_suppress)
-                                    do_suppress = tvm.tirx.const(False)
-                                    if force_suppress:
-                                        do_suppress = tvm.tirx.const(True)
-                                    elif id_index >= 0:
-                                        do_suppress = (
-                                            out_data[i, j, id_index] == out_data[i, k, id_index]
-                                        )
-                                    else:
-                                        do_suppress = tvm.tirx.const(True)
-
-                                    with T.If(do_suppress):
+                                    with T.If(best_idx[0] != num_valid_boxes[0]):
                                         with T.Then():
-                                            # Calculate IoU
-                                            a_l = tvm.te.min(
-                                                out_data[i, j, coord_start],
-                                                out_data[i, j, coord_start + 2],
-                                            )
-                                            a_t = tvm.te.min(
-                                                out_data[i, j, coord_start + 1],
-                                                out_data[i, j, coord_start + 3],
-                                            )
-                                            a_r = tvm.te.max(
-                                                out_data[i, j, coord_start],
-                                                out_data[i, j, coord_start + 2],
-                                            )
-                                            a_b = tvm.te.max(
-                                                out_data[i, j, coord_start + 1],
-                                                out_data[i, j, coord_start + 3],
-                                            )
+                                            tmp_idx[0] = out_box_indices[i, num_valid_boxes[0]]
+                                            out_box_indices[
+                                                i, num_valid_boxes[0]
+                                            ] = out_box_indices[i, best_idx[0]]
+                                            out_box_indices[i, best_idx[0]] = tmp_idx[0]
 
-                                            b_l = tvm.te.min(
-                                                out_data[i, k, coord_start],
-                                                out_data[i, k, coord_start + 2],
-                                            )
-                                            b_t = tvm.te.min(
-                                                out_data[i, k, coord_start + 1],
-                                                out_data[i, k, coord_start + 3],
-                                            )
-                                            b_r = tvm.te.max(
-                                                out_data[i, k, coord_start],
-                                                out_data[i, k, coord_start + 2],
-                                            )
-                                            b_b = tvm.te.max(
-                                                out_data[i, k, coord_start + 1],
-                                                out_data[i, k, coord_start + 3],
-                                            )
+                                            with T.serial(0, box_data_length) as k:
+                                                tmp_val[0] = out_data[i, num_valid_boxes[0], k]
+                                                out_data[i, num_valid_boxes[0], k] = out_data[
+                                                    i, best_idx[0], k
+                                                ]
+                                                out_data[i, best_idx[0], k] = tmp_val[0]
 
-                                            w = tvm.te.max(
-                                                tvm.tirx.Cast(data.dtype, T.float32(0.0)),
-                                                tvm.te.min(a_r, b_r) - tvm.te.max(a_l, b_l),
+                                    with T.serial(0, nkeep_local[0]) as j:
+                                        with T.If(
+                                            tvm.tirx.all(
+                                                j > num_valid_boxes[0],
+                                                out_box_indices[i, j] >= 0,
+                                                out_data[i, j, score_index] > thresh,
                                             )
-                                            h = tvm.te.max(
-                                                tvm.tirx.Cast(data.dtype, T.float32(0.0)),
-                                                tvm.te.min(a_b, b_b) - tvm.te.max(a_t, b_t),
-                                            )
-                                            area = h * w
-                                            u = (
-                                                (a_r - a_l) * (a_b - a_t)
-                                                + (b_r - b_l) * (b_b - b_t)
-                                                - area
-                                            )
-                                            iou = tvm.tirx.Select(
-                                                u <= tvm.tirx.Cast(data.dtype, T.float32(0.0)),
-                                                tvm.tirx.Cast(data.dtype, T.float32(0.0)),
-                                                area / u,
-                                            )
-
-                                            with T.If(iou >= iou_threshold):
-                                                with T.Then():
-                                                    out_data[i, k, score_index] = tvm.tirx.Cast(
-                                                        data.dtype, T.float32(-1.0)
+                                        ):
+                                            with T.Then():
+                                                do_suppress = tvm.tirx.const(False)
+                                                if force_suppress:
+                                                    do_suppress = tvm.tirx.const(True)
+                                                elif id_index >= 0:
+                                                    do_suppress = (
+                                                        out_data[i, num_valid_boxes[0], id_index]
+                                                        == out_data[i, j, id_index]
                                                     )
-                                                    out_box_indices[i, k] = T.int32(-1)
+                                                else:
+                                                    do_suppress = tvm.tirx.const(True)
 
-                    with T.Else():
-                        # Box suppressed or beyond max_output_size
-                        with T.serial(0, box_data_length) as k:
-                            out_data[i, j, k] = tvm.tirx.Cast(data.dtype, T.float32(-1.0))
-                        out_box_indices[i, j] = T.int32(-1)
+                                                with T.If(do_suppress):
+                                                    with T.Then():
+                                                        iou = compute_iou(num_valid_boxes[0], j)
 
-            # Step 3: If return_indices, remap to original indices
-            if return_indices:
-                if out_valid_box_count is not None:
-                    # Count valid boxes and remap indices
+                                                        with T.If(iou >= iou_threshold):
+                                                            with T.Then():
+                                                                out_box_indices[i, j] = T.int32(-1)
+                                                        with T.If(iou < iou_threshold):
+                                                            with T.Then():
+                                                                out_data[i, j, score_index] = (
+                                                                    out_data[i, j, score_index]
+                                                                    * tvm.tirx.exp(
+                                                                        soft_nms_scale
+                                                                        * iou
+                                                                        * iou
+                                                                    )
+                                                                )
+                                                                with T.If(
+                                                                    out_data[i, j, score_index]
+                                                                    <= thresh
+                                                                ):
+                                                                    with T.Then():
+                                                                        out_box_indices[
+                                                                            i, j
+                                                                        ] = T.int32(-1)
+
+                                    num_valid_boxes[0] = num_valid_boxes[0] + 1
+
+                if return_indices:
+                    out_valid_box_count[i, 0] = num_valid_boxes[0]
+
+                    with T.serial(0, num_anchors) as j:
+                        with T.If(j < num_valid_boxes[0]):
+                            with T.Then():
+                                orig_idx = out_box_indices[i, j]
+                                out_box_indices[i, j] = indices[i, orig_idx]
+                        with T.If(j >= num_valid_boxes[0]):
+                            with T.Then():
+                                with T.serial(0, box_data_length) as k:
+                                    out_data[i, j, k] = tvm.tirx.Cast(
+                                        data.dtype, T.float32(-1.0)
+                                    )
+                                out_box_indices[i, j] = T.int32(-1)
+                else:
+                    with T.serial(0, num_anchors) as j:
+                        with T.If(j >= num_valid_boxes[0]):
+                            with T.Then():
+                                with T.serial(0, box_data_length) as k:
+                                    out_data[i, j, k] = tvm.tirx.Cast(data.dtype, T.float32(-1.0))
+            else:
+                with T.serial(0, nkeep_local[0]) as j:
+                    with T.If(
+                        tvm.tirx.all(
+                            out_data[i, j, score_index] > thresh,
+                            tvm.tirx.Select(
+                                max_output_size > 0,
+                                num_valid_boxes[0] < max_output_size,
+                                tvm.tirx.const(True),
+                            ),
+                        )
+                    ):
+                        with T.Then():
+                            num_valid_boxes[0] = num_valid_boxes[0] + 1
+
+                            with T.serial(0, nkeep_local[0]) as k:
+                                with T.If(
+                                    tvm.tirx.all(k > j, out_data[i, k, score_index] > thresh)
+                                ):
+                                    with T.Then():
+                                        do_suppress = tvm.tirx.const(False)
+                                        if force_suppress:
+                                            do_suppress = tvm.tirx.const(True)
+                                        elif id_index >= 0:
+                                            do_suppress = (
+                                                out_data[i, j, id_index] == out_data[i, k, id_index]
+                                            )
+                                        else:
+                                            do_suppress = tvm.tirx.const(True)
+
+                                        with T.If(do_suppress):
+                                            with T.Then():
+                                                iou = compute_iou(j, k)
+
+                                                with T.If(iou >= iou_threshold):
+                                                    with T.Then():
+                                                        out_data[i, k, score_index] = tvm.tirx.Cast(
+                                                            data.dtype, T.float32(-1.0)
+                                                        )
+                                                        out_box_indices[i, k] = T.int32(-1)
+
+                        with T.Else():
+                            with T.serial(0, box_data_length) as k:
+                                out_data[i, j, k] = tvm.tirx.Cast(data.dtype, T.float32(-1.0))
+                            out_box_indices[i, j] = T.int32(-1)
+
+                if return_indices:
                     valid_idx_buf = T.alloc_buffer((1,), "int32", scope="local")
                     valid_idx = T.buffer_proxy(valid_idx_buf)
                     valid_idx[0] = T.int32(0)
@@ -350,7 +459,6 @@ def _classic_nms_ir(
 
                     out_valid_box_count[i, 0] = valid_idx[0]
 
-                    # Fill remaining with -1
                     with T.serial(0, num_anchors) as j:
                         with T.If(j >= valid_idx[0]):
                             with T.Then():
@@ -372,6 +480,8 @@ def non_max_suppression(
     id_index=0,
     return_indices=True,
     invalid_to_bottom=False,
+    soft_nms_sigma=0.0,
+    score_threshold=0.0,
 ):
     """Non-maximum suppression operator for object detection.
 
@@ -416,10 +526,24 @@ def non_max_suppression(
     invalid_to_bottom : optional, boolean
         Whether to move all valid bounding boxes to the top.
 
+    soft_nms_sigma : optional, float
+        Sigma for soft-NMS Gaussian penalty. 0.0 means standard hard NMS.
+
+    score_threshold : optional, float
+        Post-decay minimum score for a box to remain eligible during soft-NMS.
+        Only used when ``soft_nms_sigma > 0``. This is distinct from
+        ``get_valid_counts.score_threshold``, which filters boxes before NMS.
+
     Returns
     -------
     out : tvm.te.Tensor or tuple of tvm.te.Tensor
-        If return_indices is True, returns a tuple of (box_indices, valid_box_count).
+        The return tuple shape depends on ``soft_nms_sigma``.
+        If ``return_indices`` is ``True`` and ``soft_nms_sigma`` is ``0.0``,
+        returns a 2-tuple ``(box_indices, valid_box_count)``.
+        If ``return_indices`` is ``True`` and ``soft_nms_sigma > 0``,
+        returns a 3-tuple ``(out_data, box_indices, valid_box_count)`` where
+        decayed ``out_data`` is prepended and has the same shape as the input
+        data.
         Otherwise returns the modified data tensor.
     """
     batch_size = data.shape[0]
@@ -464,6 +588,7 @@ def non_max_suppression(
                 coord_start, score_index, id_index,
                 return_indices,
                 outs[0], outs[1], outs[2],
+                soft_nms_sigma, score_threshold,
             ),
             dtype=[data.dtype, "int32", "int32"],
             out_buffers=[out_data_buf, out_box_indices_buf, out_valid_box_count_buf],
@@ -471,6 +596,8 @@ def non_max_suppression(
             name="non_max_suppression",
             tag="non_max_suppression",
         )
+        if soft_nms_sigma > 0.0:
+            return [out_data, out_box_indices, out_valid_box_count]
         return [out_box_indices, out_valid_box_count]
 
     out_data, out_box_indices = te.extern(
@@ -484,6 +611,7 @@ def non_max_suppression(
             coord_start, score_index, id_index,
             return_indices,
             outs[0], outs[1], None,
+            soft_nms_sigma, score_threshold,
         ),
         dtype=[data.dtype, "int32"],
         out_buffers=[out_data_buf, out_box_indices_buf],
