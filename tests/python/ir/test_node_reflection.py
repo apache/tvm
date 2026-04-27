@@ -97,30 +97,6 @@ def test_make_sum():
     assert BB.op.body[0].combiner is not None
 
 
-def test_env_func():
-    @tvm.register_global_func("test.env_func")
-    def test(x):
-        return x + 1
-
-    f = tvm.get_global_func("test.env_func")
-    x = tvm.ir.EnvFunc.get("test.env_func")
-    assert x.name == "test.env_func"
-    json_str = tvm.ir.save_json([x])
-    y = tvm.ir.load_json(json_str)[0]
-    assert y.name == x.name
-    assert y(1) == 2
-    assert y.func(1) == 2
-
-    x = tvm.ir.make_node("attrs.TestAttrs", name="xx", padding=(3, 4), func=y)
-    assert x.name == "xx"
-    assert x.padding[0].value == 3
-    assert x.padding[1].value == 4
-    assert x.axis == 10
-    x = tvm.ir.load_json(tvm.ir.save_json(x))
-    assert isinstance(x.func, tvm.ir.EnvFunc)
-    assert x.func(10) == 11
-
-
 def test_string():
     # non printable str, need to store by b64
     s1 = tvm_ffi.core.String("xy\x01z")

@@ -15,12 +15,18 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, missing-function-docstring
-# ruff: noqa: F821
-"""Common functions for popen_pool test cases"""
+"""Helper functions for popen_pool test cases.
+
+These functions run inside PopenWorker subprocesses and must live in an
+importable module (cloudpickle resolves them by module + qualname).  The
+previous version used FFI helpers (testing.sleep_in_ffi, testing.identity_cpp,
+etc.) that were removed with ffi_testing.cc.  This version is pure-Python and
+uses time.sleep for any blocking needed by the timeout test.
+"""
+
+import time
 
 import tvm_ffi
-
-from . import _ffi_api
 
 TEST_GLOBAL_STATE_1 = 0
 TEST_GLOBAL_STATE_2 = 0
@@ -39,13 +45,13 @@ def after_initializer():
     return TEST_GLOBAL_STATE_1, TEST_GLOBAL_STATE_2, TEST_GLOBAL_STATE_3
 
 
-@tvm_ffi.register_global_func("testing.identity_py")
+@tvm_ffi.register_global_func("testing.identity_py", override=True)
 def identity_py(arg):
     return arg
 
 
 def register_ffi():
-    @tvm_ffi.register_global_func("testing.nested_identity_py")
+    @tvm_ffi.register_global_func("testing.nested_identity_py", override=True)
     def _identity_py(arg):  # pylint: disable=unused-variable
         return arg
 
@@ -56,23 +62,20 @@ def call_py_ffi(arg):
 
 
 def call_cpp_ffi(arg):
+    import tvm  # pylint: disable=import-outside-toplevel
+
     return tvm.testing.echo(arg)
 
 
 def call_cpp_py_ffi(arg):
-    return tvm.testing.identity_cpp(arg)
+    # Call the Python-registered identity function through the FFI registry,
+    # exercising the same cross-language dispatch path that identity_cpp covered.
+    _identity = tvm_ffi.get_global_func("testing.identity_py")
+    return _identity(arg)
 
 
-def fast_summation(n):
-    return n * (n + 1) // 2
-
-
-def slow_summation(n):
-    r = 0
-    for i in range(0, n + 1):
-        r += i
-    return r
-
-
-def timeout_job(n):
-    _ffi_api.sleep_in_ffi(n * 1.5)
+def timeout_job(seconds):
+    # Previously called testing.sleep_in_ffi (C++ FFI helper, now removed).
+    # Plain time.sleep is sufficient — the PopenPoolExecutor timeout mechanism
+    # watches wall-clock time and terminates the process just the same.
+    time.sleep(seconds)

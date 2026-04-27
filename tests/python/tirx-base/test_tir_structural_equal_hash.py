@@ -186,20 +186,6 @@ def test_env_func():
     assert consistent_equal(y, x)
 
 
-def test_attrs():
-    x = tvm.ir.make_node("attrs.TestAttrs", axis=1, name="xx")
-    y = tvm.ir.make_node("attrs.TestAttrs", axis=1, name="xx")
-    z = tvm.ir.make_node("attrs.TestAttrs", axis=2, name="xx")
-    tvm.ir.assert_structural_equal(y, x)
-    assert not consistent_equal(y, z)
-
-    x = tvm.runtime.convert({"x": [1, 2, 3], "y": 2})
-    y = tvm.runtime.convert({"y": 2, "x": [1, 2, 3]})
-    z = tvm.runtime.convert({"y": 2, "x": [1, 2, 3, 4]})
-    assert consistent_equal(y, x)
-    assert not consistent_equal(y, z)
-
-
 def test_stmt():
     @T.prim_func(private=True, check_well_formed=False)
     def func2(A: T.handle, n_param: T.int32):

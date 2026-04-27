@@ -109,30 +109,5 @@ def test_tensor_container():
     assert isinstance(arr[0], tvm.runtime.Tensor)
 
 
-def test_return_variant_type():
-    func = tvm.get_global_func("testing.ReturnsVariant")
-    res_even = func(42)
-    assert isinstance(res_even, tvm.tirx.IntImm)
-    assert res_even == 21
-
-    res_odd = func(17)
-    assert res_odd == "argument was odd"
-
-
-def test_pass_variant_type():
-    func = tvm.get_global_func("testing.AcceptsVariant")
-
-    assert func("string arg") == "ffi.String"
-    assert func(17) == "ir.IntImm"
-
-
-def test_pass_incorrect_variant_type():
-    func = tvm.get_global_func("testing.AcceptsVariant")
-    float_arg = tvm.tirx.FloatImm("float32", 0.5)
-
-    with pytest.raises(Exception):
-        func(float_arg)
-
-
 if __name__ == "__main__":
     tvm.testing.main()

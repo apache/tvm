@@ -19,9 +19,8 @@
 
 /*!
  *  Runtime-side test helpers used by the RPC test suite.
- *  Registered here (rather than in ``src/support/ffi_testing.cc``) so the
- *  ``minrpc`` server binary — which links only against ``libtvm_runtime``
- *  — can resolve them.
+ *  Registered here so the ``minrpc`` server binary — which links only
+ *  against ``libtvm_runtime`` — can resolve them.
  * \file runtime/rpc/testing.cc
  */
 #include <tvm/ffi/container/shape.h>
