@@ -1619,6 +1619,37 @@ def test_conv_transpose(stride: int, dilation: int, pad: int, bias: bool, output
     _verify_conv_transpose([3, 4, 12, 12, 12], [4, 2, 3, 3, 3])  # group=2
 
 
+@pytest.mark.parametrize("auto_pad", ["SAME_UPPER", "SAME_LOWER", "VALID"])
+@pytest.mark.parametrize("stride", [1, 2])
+def test_conv_transpose_auto_pad(auto_pad: str, stride: int):
+    def _verify(input_shape, weight_shape):
+        nd = len(weight_shape) - 2
+        conv_node = helper.make_node(
+            "ConvTranspose",
+            inputs=["x", "w"],
+            outputs=["y"],
+            kernel_shape=weight_shape[2:],
+            strides=[stride] * nd,
+            auto_pad=auto_pad,
+        )
+        graph = helper.make_graph(
+            [conv_node],
+            "conv_transpose_auto_pad_test",
+            inputs=[
+                helper.make_tensor_value_info("x", TensorProto.FLOAT, input_shape),
+                helper.make_tensor_value_info("w", TensorProto.FLOAT, weight_shape),
+            ],
+            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, None)],
+        )
+        model = helper.make_model(graph, producer_name="conv_transpose_auto_pad_test")
+        check_correctness(model, atol=1e-4)
+
+    # ConvTranspose1D / 2D / 3D
+    _verify([1, 1, 8], [1, 1, 3])
+    _verify([1, 1, 8, 8], [1, 1, 3, 3])
+    _verify([1, 1, 4, 4, 4], [1, 1, 3, 3, 3])
+
+
 def test_pow():
     verify_binary("Pow", [32, 32], [32, 32], [32, 32])
 
