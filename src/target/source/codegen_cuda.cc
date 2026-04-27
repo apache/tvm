@@ -752,6 +752,9 @@ void CodeGenCUDA::PrintStorageSync(const CallNode* op) {
   } else if (sync == "shared" || sync == "shared.dyn") {
     this->PrintIndent();
     this->stream << "__syncthreads();\n";
+  } else if (sync == "global") {
+    TVM_FFI_THROW(InternalError)
+        << "Global barrier is no longer supported. Use device-native synchronization primitives.";
   }
 }
 
