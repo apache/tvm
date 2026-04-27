@@ -27,6 +27,7 @@ from ..analysis import (
     SBlockInfo,
     collect_block_iter_vars_used_in_access_region,
     collect_vars_used_in_prim_expr,
+    get_max_shared_memory_per_block,
     is_broadcast_epilogue,
     normalize_prim_func,
 )
@@ -354,10 +355,11 @@ class LowBatchGEMV(GPUScheduleRule):
                     lambda x, y: x * y, buf.shape, tirx.IntImm(buf.shape[0].dtype, 1)
                 ) * get_bytes(buf.dtype)
                 shared_mem_usage += buf_size
+            max_smem = get_max_shared_memory_per_block(target)
             LOAD_V_SHARED = (
                 LOAD_V_SHARED
                 and isinstance(shared_mem_usage, tirx.IntImm)
-                and shared_mem_usage.value <= int(target.attrs["max_shared_memory_per_block"])
+                and shared_mem_usage.value <= max_smem
             )
 
             # vectorize load A

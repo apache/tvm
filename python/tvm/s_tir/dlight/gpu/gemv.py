@@ -24,6 +24,7 @@ from tvm.target import Target
 
 from ..analysis import (
     SBlockInfo,
+    get_max_shared_memory_per_block,
     is_broadcast_epilogue,
     is_gemv,
     normalize,
@@ -156,10 +157,11 @@ class GEMV(GPUScheduleRule):
                     # is implemented with shared memory.
                     shared_mem_usage += TS * TR * dtype_bytes
 
+            max_smem = get_max_shared_memory_per_block(target)
             LOAD_V_SHARED = (
                 LOAD_V_SHARED
                 and isinstance(shared_mem_usage, tirx.IntImm)
-                and shared_mem_usage.value <= int(target.attrs["max_shared_memory_per_block"])
+                and shared_mem_usage.value <= max_smem
             )
 
             # vectorize load A
