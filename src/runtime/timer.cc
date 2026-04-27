@@ -80,9 +80,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                         [](Device dev) { return Timer(ffi::make_object<CPUTimerNode>()); });
 }
 
+namespace {
 // keep track of which timers are not defined but we have already warned about
 std::set<DLDeviceType> seen_devices;
 std::mutex seen_devices_lock;
+}  // namespace
 
 Timer Timer::Start(Device dev) {
   auto f = tvm::ffi::Function::GetGlobal(std::string("runtime.timer.") +
