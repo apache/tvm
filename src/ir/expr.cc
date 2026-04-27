@@ -29,7 +29,9 @@
 #include <tvm/te/tensor.h>
 #include <tvm/tirx/expr.h>
 
-#include "../support/scalars.h"
+#include <cmath>
+
+#include "../support/limits.h"
 
 namespace tvm {
 

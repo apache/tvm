@@ -27,7 +27,7 @@
 #include <utility>
 #include <vector>
 
-#include "../../../support/array.h"
+#include "../../support/array_utils.h"
 
 namespace tvm {
 namespace s_tir {

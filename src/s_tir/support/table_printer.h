@@ -16,8 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef TVM_SUPPORT_TABLE_PRINTER_H_
-#define TVM_SUPPORT_TABLE_PRINTER_H_
+#ifndef TVM_S_TIR_SUPPORT_TABLE_PRINTER_H_
+#define TVM_S_TIR_SUPPORT_TABLE_PRINTER_H_
 
 #include <tvm/runtime/logging.h>
 
@@ -157,4 +157,4 @@ inline std::string TablePrinter::AsStr() const {
 }  // namespace support
 }  // namespace tvm
 
-#endif  // TVM_SUPPORT_TABLE_PRINTER_H_
+#endif  // TVM_S_TIR_SUPPORT_TABLE_PRINTER_H_

@@ -16,8 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef TVM_SUPPORT_ARRAY_H_
-#define TVM_SUPPORT_ARRAY_H_
+#ifndef TVM_S_TIR_SUPPORT_ARRAY_UTILS_H_
+#define TVM_S_TIR_SUPPORT_ARRAY_UTILS_H_
 #include <tvm/ffi/container/array.h>
 #include <tvm/ir/expr.h>
 
@@ -278,4 +278,4 @@ inline ffi::Array<TDst> AsArray(const std::vector<TSrc>& vec) {
 
 }  // namespace support
 }  // namespace tvm
-#endif  // TVM_SUPPORT_ARRAY_H_
+#endif  // TVM_S_TIR_SUPPORT_ARRAY_UTILS_H_
