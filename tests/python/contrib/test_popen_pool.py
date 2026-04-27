@@ -25,16 +25,16 @@ import pytest
 
 from tvm.contrib.popen_pool import PopenPoolExecutor, PopenWorker
 from tvm.testing import (
+    identity_after,
+    terminate_self,
+)
+from tvm.testing.popen_pool import (
     after_initializer,
     call_cpp_ffi,
     call_cpp_py_ffi,
     call_py_ffi,
-    fast_summation,
-    identity_after,
     initializer,
     register_ffi,
-    slow_summation,
-    terminate_self,
     timeout_job,
 )
 
@@ -151,12 +151,12 @@ def test_popen_ffi():
     proc.send(call_py_ffi, initargs)
     assert proc.recv() == initargs[0]
 
-    # call cpp function via ffi
+    # call cpp function (testing.echo) via ffi
     initargs = [1]
     proc.send(call_cpp_ffi, initargs)
     assert proc.recv() == initargs[0]
 
-    # call python function from cpp function via ffi
+    # call python function from ffi registry via cross-language dispatch
     initargs = [2]
     proc.send(call_cpp_py_ffi, initargs)
     assert proc.recv() == initargs[0]
