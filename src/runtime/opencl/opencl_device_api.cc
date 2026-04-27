@@ -842,7 +842,7 @@ class OpenCLPooledAllocator final : public memory::PooledAllocator {
     buf.alloc_type = AllocatorType::kPooled;
     try {
       buf.data = DeviceAllocDataSpace(dev, size, alignment, type_hint);
-    } catch (InternalError& err) {
+    } catch (tvm::ffi::Error& err) {
       LOG(WARNING) << "PooledAllocator got InternalError during allocation: " << err.what();
       LOG(WARNING) << "Trying to release all unused memory and reallocate...";
       ReleaseAll();

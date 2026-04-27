@@ -51,7 +51,7 @@ namespace printer {
 inline std::string RedirectedReprPrinterMethod(const ObjectRef& obj) {
   try {
     return TVMScriptPrinter::Script(obj, std::nullopt);
-  } catch (const tvm::Error& e) {
+  } catch (const tvm::ffi::Error& e) {
     LOG(WARNING) << "TVMScript printer falls back to the basic address printer with the error:\n"
                  << e.what();
     std::ostringstream os;

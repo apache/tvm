@@ -154,7 +154,7 @@ class NodeFunctor<R(const ObjectRef& n, Args...)> {
   }
 };
 
-#define TVM_REG_FUNC_VAR_DEF(ClsName) static TVM_ATTRIBUTE_UNUSED auto& __make_functor##_##ClsName
+#define TVM_REG_FUNC_VAR_DEF(ClsName) [[maybe_unused]] static auto& __make_functor##_##ClsName
 
 /*!
  * \brief Useful macro to set NodeFunctor dispatch in a global static field.

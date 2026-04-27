@@ -111,10 +111,10 @@ Target::Target(const ffi::String& tag_or_config_or_target_str) {
   ObjectPtr<Object> target;
   try {
     target = TargetInternal::FromString(tag_or_config_or_target_str);
-  } catch (const Error& e) {
+  } catch (const ffi::Error& e) {
     std::ostringstream os;
     os << ". Target creation from string failed: " << tag_or_config_or_target_str;
-    throw Error("ValueError", e.message() + os.str(), e.backtrace());
+    throw ffi::Error("ValueError", e.message() + os.str(), e.backtrace());
   }
   data_ = std::move(target);
 }
@@ -123,10 +123,10 @@ Target::Target(const ffi::Map<ffi::String, ffi::Any>& config) {
   ObjectPtr<Object> target;
   try {
     target = TargetInternal::FromConfig(config);
-  } catch (const Error& e) {
+  } catch (const ffi::Error& e) {
     std::ostringstream os;
     os << ". Target creation from config dict failed: " << config;
-    throw Error("ValueError", std::string(e.message()) + os.str(), e.backtrace());
+    throw ffi::Error("ValueError", std::string(e.message()) + os.str(), e.backtrace());
   }
   data_ = std::move(target);
 }
