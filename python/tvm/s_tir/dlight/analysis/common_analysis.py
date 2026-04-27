@@ -362,6 +362,14 @@ def get_max_threads_per_block(target: Target) -> int:
     return int(max_threads_per_block)
 
 
+TARGET_KIND_TO_DEFAULT_MAX_SMEM = {
+    "cuda": 49152,
+    "rocm": 65536,
+    "metal": 32768,
+    "opencl": 16384,
+    "vulkan": 16384,
+}
+
 def get_max_shared_memory_per_block(target: Target) -> int:
     _assert_gpu_target(target)
     max_shared_memory_per_block = target.attrs.get("max_shared_memory_per_block", None)
@@ -372,14 +380,7 @@ def get_max_shared_memory_per_block(target: Target) -> int:
     # 1) Use explicit target attrs provided (handled above).
     # 2) Fall back to backend defaults matching target-kind defaults/tag defaults.
     # 3) Use a conservative GPU default as last resort.
-    target_kind_to_default_max_smem = {
-        "cuda": 49152,
-        "rocm": 65536,
-        "metal": 32768,
-        "opencl": 16384,
-        "vulkan": 16384,
-    }
-    return int(target_kind_to_default_max_smem.get(target.kind.name, 16384))
+    return int(TARGET_KIND_TO_DEFAULT_MAX_SMEM.get(target.kind.name, 16384))
 
 
 def get_root_block(sch: Schedule, func_name: str = "main") -> SBlockRV:
