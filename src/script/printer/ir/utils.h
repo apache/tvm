@@ -59,7 +59,7 @@ class IRFrame : public Frame {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IRFrame, Frame, IRFrameNode);
 };
 
-/*! \brief Redirected method for the ReprPrinter */
+/*! \brief Redirected method for the ffi repr hook */
 inline std::string ReprPrintIR(const ObjectRef& obj, const PrinterConfig& cfg) {
   IRDocsifier d(cfg);
   With<IRFrame> f(d);

@@ -61,11 +61,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                         [](PrimExpr source, PrimExpr extent) { return IterMark(source, extent); });
 }
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<IterMarkNode>([](const ObjectRef& node, ReprPrinter* p) {
-      auto* op = static_cast<const IterMarkNode*>(node.get());
-      p->stream << "IterMark(" << op->source << ", extent=" << op->extent << ")";
-    });
+// Pattern A (RM): auto-default repr from reflection.
 
 IterSplitExpr::IterSplitExpr(IterMark source) {
   auto n = ffi::make_object<IterSplitExprNode>();
@@ -108,12 +104,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   });
 }
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<IterSplitExprNode>([](const ObjectRef& node, ReprPrinter* p) {
-      auto* op = static_cast<const IterSplitExprNode*>(node.get());
-      p->stream << "IterSplit(" << op->source << ", lower_factor=" << op->lower_factor
-                << ", extent=" << op->extent << ", scale=" << op->scale << ")";
-    });
+// Pattern A (RM): auto-default repr from reflection.
 
 IterSumExpr::IterSumExpr(ffi::Array<IterSplitExpr> args, PrimExpr base) {
   auto n = ffi::make_object<IterSumExprNode>();
@@ -130,11 +121,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   });
 }
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<IterSumExprNode>([](const ObjectRef& node, ReprPrinter* p) {
-      auto* op = static_cast<const IterSumExprNode*>(node.get());
-      p->stream << "IterSum(" << op->args << ", " << op->base << ")";
-    });
+// Pattern A (RM): auto-default repr from reflection.
 
 /*!
  * \brief Collector that collects the outgoing split reference of each IterMark.

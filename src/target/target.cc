@@ -488,9 +488,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       [](Target target, ffi::Function) -> ffi::String { return target->str(); });
 }
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<TargetNode>([](const ObjectRef& obj, ReprPrinter* p) {
-      p->stream << Downcast<Target>(obj)->str();
-    });
+// AC: kRepr already registered above at refl::TypeAttrDef<TargetNode>().def(kRepr, ...)
 
 }  // namespace tvm

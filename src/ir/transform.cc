@@ -26,7 +26,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/rvalue_ref.h>
 #include <tvm/ir/transform.h>
-#include <tvm/node/repr_printer.h>
+#include <tvm/node/repr.h>
 #include <tvm/relax/expr.h>
 #include <tvm/runtime/device_api.h>
 
@@ -35,7 +35,6 @@
 namespace tvm {
 namespace transform {
 
-using tvm::ReprPrinter;
 using tvm::ffi::Any;
 
 TVM_REGISTER_PASS_CONFIG_OPTION("testing.immutable_module", Bool);
@@ -505,23 +504,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<PassInfoNode>([](const ObjectRef& ref, tvm::ReprPrinter* p) {
-      auto* node = static_cast<const PassInfoNode*>(ref.get());
-      p->stream << "The meta data of the pass - ";
-      p->stream << "pass name: " << node->name;
-      p->stream << ", opt_level: " << node->opt_level;
-      if (node->required.empty()) {
-        p->stream << ", required passes: []\n";
-      } else {
-        p->stream << ", required passes: ["
-                  << "\n";
-        for (const auto& it : node->required) {
-          p->stream << it << ", ";
-        }
-        p->stream << "]\n";
-      }
-    });
+// Pattern A (RM): auto-default repr from reflection for PassInfoNode.
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   PassContextNode::RegisterReflection();
@@ -545,13 +528,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            [](Pass pass, ffi::RValueRef<IRModule> mod) { return pass(*std::move(mod)); });
 }
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<ModulePassNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      auto* node = static_cast<const ModulePassNode*>(ref.get());
-      const PassInfo info = node->Info();
-      p->stream << "Run Module pass: " << info->name << " at the optimization level "
-                << info->opt_level;
-    });
+// Pattern A (RM): auto-default repr from reflection for ModulePassNode.
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
@@ -566,19 +543,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   });
 }
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<SequentialNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      auto* node = static_cast<const SequentialNode*>(ref.get());
-      const PassInfo info = node->Info();
-      p->stream << "Run Sequential pass: " << info->name << " at the optimization level "
-                << info->opt_level << ". ";
-      p->stream << "The passes will be executed are: [";
-      for (const auto& it : node->passes) {
-        const PassInfo pass_info = it->Info();
-        p->stream << pass_info->name << " ";
-      }
-      p->stream << "]";
-    });
+// Pattern A (RM): auto-default repr from reflection for SequentialNode.
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
@@ -602,19 +567,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<PassContextNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      auto* node = static_cast<const PassContextNode*>(ref.get());
-      p->stream << "Pass context information: "
-                << "\n";
-      p->stream << "\topt_level: " << node->opt_level << "\n";
-
-      p->stream << "\trequired passes: " << node->required_pass << "\n";
-      p->stream << "\tdisabled passes: " << node->disabled_pass << "\n";
-      p->stream << "\tinstruments: " << node->instruments << "\n";
-
-      p->stream << "\tconfig: " << node->config << "\n";
-    });
+// Pattern A (RM): auto-default repr from reflection for PassContextNode.
 
 class PassContext::Internal {
  public:
