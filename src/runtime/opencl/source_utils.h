@@ -37,7 +37,7 @@ namespace runtime {
  * \return Mapping from primitive name to kernel source
  */
 inline std::unordered_map<std::string, std::string> SplitKernels(
-    std::string source, std::string delimiter = "// Function: ") {
+    const std::string& source, const std::string& delimiter = "// Function: ") {
   std::unordered_map<std::string, std::string> split_kernels;
   if (source.size()) {
     size_t begin = source.find(delimiter);
