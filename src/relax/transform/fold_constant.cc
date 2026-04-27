@@ -121,7 +121,7 @@ class ConstantFolder : public ExprMutator {
       func = WithAttr(func, tvm::attr::kGlobalSymbol, ffi::String("tir_function"));
       ffi::Module rt_module = pf(func, eval_cpu_target).cast<ffi::Module>();
       build_func = rt_module->GetFunction("tir_function");
-    } catch (const tvm::Error& err) {
+    } catch (const tvm::ffi::Error& err) {
       // build failure may happen in which case we skip
       DLOG(WARNING) << "Build failure for function " << func << ", Error message: " << err.what();
     }

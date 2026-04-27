@@ -783,7 +783,7 @@ bool CanComputeAt(const ScheduleState& self, const StmtSRef& block_sref, const S
   try {
     ComputeAtOrReverseComputeAtImpl<true>(self, block_sref, loop_sref, preserve_unit_loops,
                                           &analyzer, true);
-  } catch (const tvm::runtime::Error& e) {
+  } catch (const tvm::ffi::Error& e) {
     return false;
   }
   return true;
@@ -795,7 +795,7 @@ bool CanReverseComputeAt(const ScheduleState& self, const StmtSRef& block_sref,
   try {
     ComputeAtOrReverseComputeAtImpl<false>(self, block_sref, loop_sref, preserve_unit_loops,
                                            &analyzer, true);
-  } catch (const tvm::runtime::Error& e) {
+  } catch (const tvm::ffi::Error& e) {
     return false;
   }
   return true;

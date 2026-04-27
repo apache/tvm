@@ -537,7 +537,7 @@ ffi::Optional<ObjectRef> NormalizePrimFunc(Schedule sch) {
     }
     try {
       sch->TransformBlockLayout(block, IndexMap(index_map_inputs, index_map_outputs));
-    } catch (tvm::runtime::Error& e) {
+    } catch (tvm::ffi::Error& e) {
       // Skip layout transformation when not transformable.
     }
     block_loops.push_back(sch->GetLoops(block));

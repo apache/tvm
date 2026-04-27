@@ -625,7 +625,7 @@ class RPCEndpoint::EventHandler : public support::Stream {
 
       try {
         fconstructor->CallPacked(constructor_args, &con_ret);
-      } catch (const Error& e) {
+      } catch (const ffi::Error& e) {
         TVM_FFI_THROW(InternalError)
             << "Server[" << name_ << "]:"
             << " Error caught from session constructor " << constructor_name << ":\n"
@@ -830,7 +830,7 @@ void RPCEndpoint::Shutdown() {
             writer_.bytes_available());
         if (n == 0) break;
       }
-    } catch (const Error& e) {
+    } catch (const ffi::Error& e) {
     }
     channel_.reset(nullptr);
   }

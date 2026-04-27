@@ -72,7 +72,7 @@ class RPCDeviceAPI final : public DeviceAPI {
     auto remote_dev = RemoveRPCSessionMask(dev);
     try {
       GetSess(dev)->GetDeviceAPI(remote_dev)->FreeDataSpace(remote_dev, space->data);
-    } catch (const Error& e) {
+    } catch (const ffi::Error& e) {
       // fault tolerance to remote close.
     }
     delete space;

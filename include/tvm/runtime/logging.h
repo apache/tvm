@@ -61,20 +61,6 @@ namespace tvm {
 namespace runtime {
 
 using ffi::EnvErrorAlreadySet;
-using ffi::Error;
-
-/*!
- * \brief Error type for errors from LOG(FATAL). This error
- * contains a backtrace of where it occurred.
- *
- * \note LOG(FATAL) always throws InternalError. For typed errors,
- * use TVM_FFI_THROW(ErrorKind) instead.
- */
-class InternalError : public Error {
- public:
-  InternalError(std::string file, int lineno, std::string message)
-      : Error("InternalError", std::move(message), TVMFFIBacktrace(file.c_str(), lineno, "", 0)) {}
-};
 
 /*! \brief Internal implementation */
 namespace detail {
@@ -168,8 +154,9 @@ class LogFatal {
       this->file_ = file;
       this->lineno_ = lineno;
     }
-    [[noreturn]] TVM_FFI_NO_INLINE InternalError Finalize() noexcept(false) {
-      InternalError error(file_, lineno_, stream_.str());
+    [[noreturn]] TVM_FFI_NO_INLINE ffi::Error Finalize() noexcept(false) {
+      ffi::Error error("InternalError", stream_.str(),
+                       TVMFFIBacktrace(file_.c_str(), lineno_, "", 0));
       throw error;
     }
     std::ostringstream stream_;
@@ -413,9 +400,5 @@ class VLogContextEntry {
       << ::tvm::runtime::detail::ThreadLocalVLogContext()->str()
 
 }  // namespace runtime
-// Re-export error types
-using runtime::Error;
-using runtime::InternalError;
-
 }  // namespace tvm
 #endif  // TVM_RUNTIME_LOGGING_H_

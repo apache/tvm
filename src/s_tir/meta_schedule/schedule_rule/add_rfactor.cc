@@ -117,7 +117,7 @@ ffi::Array<s_tir::Schedule> AddRFactorNode::Apply(const s_tir::Schedule& sch,
       // be considered by the rule Random-Compute-Location.
       sch_tmp->Annotate(block_rv, s_tir::attr::meta_schedule_random_compute_producer, Integer(1));
       res.push_back(sch_tmp);
-    } catch (const tvm::runtime::Error& e) {
+    } catch (const tvm::ffi::Error& e) {
     }
   }
 
