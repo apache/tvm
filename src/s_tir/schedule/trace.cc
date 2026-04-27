@@ -546,12 +546,6 @@ ffi::String TraceAsPythonRepr(const TraceNode* self) {
 }
 }  // namespace
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<TraceNode>([](const ObjectRef& obj, ReprPrinter* p) {
-      p->stream << TraceAsPythonRepr(obj.as<TraceNode>());
-      p->stream << std::flush;
-    });
-
 /**************** Instruction Registration ****************/
 
 struct EnterPostprocTraits : public UnpackedInstTraits<EnterPostprocTraits> {

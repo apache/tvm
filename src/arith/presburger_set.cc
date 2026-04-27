@@ -260,15 +260,7 @@ IntSet EvalSet(const PrimExpr& e, const PresburgerSet& set) {
   return result;
 }
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<PresburgerSetNode>([](const ObjectRef& node, ReprPrinter* p) {
-      auto set = node.as<PresburgerSetNode>();
-      TVM_FFI_ICHECK(ret) << "Unknown type:" << node->GetTypeKey();
-      p->stream << "{";
-      p->stream << set->GetVars() << ": ";
-      p->stream << node.as<PresburgerSetNode>()->GenerateConstraint();
-      p->stream << "}";
-    });
+// Pattern A (RM): auto-default repr from reflection.
 
 #else  // defined(TVM_MLIR_VERSION) && TVM_MLIR_VERSION >= 150
 

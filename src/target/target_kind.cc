@@ -54,11 +54,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<TargetKindNode>([](const ObjectRef& obj, ReprPrinter* p) {
-      const TargetKind& kind = Downcast<TargetKind>(obj);
-      p->stream << kind->name;
-    });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::TypeAttrDef<TargetKindNode>().def(
+      refl::type_attr::kRepr,
+      [](TargetKind kind, ffi::Function) -> ffi::String { return kind->name; });
+}
 
 /**********  Registry-related code  **********/
 

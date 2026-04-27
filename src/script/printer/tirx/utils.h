@@ -166,7 +166,7 @@ inline ffi::Optional<Frame> FindLowestVarDef(const ObjectRef& var, const IRDocsi
   return std::nullopt;
 }
 
-/*! \brief Redirected method for the ReprPrinter */
+/*! \brief Redirected method for the ffi repr hook */
 inline std::string ReprPrintTIR(const ObjectRef& obj, const PrinterConfig& cfg) {
   IRDocsifier d(cfg);
   d->SetCommonPrefix(obj, [](const ObjectRef& obj) {

@@ -22,10 +22,13 @@
  * \brief The dataflow pattern language for Relax
  */
 
+#include <tvm/ffi/extra/dataclass.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/node/repr.h>
 #include <tvm/relax/dataflow_pattern.h>
 #include <tvm/relax/dataflow_pattern_functor.h>
 
+#include <sstream>
 #include <stack>
 #include <string>
 
@@ -56,12 +59,26 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   ConstantPatternNode::RegisterReflection();
 }
 
-#define RELAX_PATTERN_PRINTER_DEF(NODE_TYPE, REPR_LAMBDA)                 \
-  TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)                              \
-      .set_dispatch<NODE_TYPE>([](const ObjectRef& ref, ReprPrinter* p) { \
-        auto* node = static_cast<const NODE_TYPE*>(ref.get());            \
-        REPR_LAMBDA(p, node);                                             \
-      })
+// Helper used inside RELAX_PATTERN_PRINTER_DEF lambdas.
+// Mimics the ReprPrinter interface (p->stream, p->Print) so that existing
+// REPR_LAMBDA bodies compile without modification.
+struct PatternReprPrinterHelper {
+  std::ostringstream stream;
+  void Print(const ObjectRef& x) { stream << ffi::ReprPrint(ffi::Any(x)); }
+};
+
+#define RELAX_PATTERN_PRINTER_DEF(NODE_TYPE, REPR_LAMBDA)                                       \
+  TVM_FFI_STATIC_INIT_BLOCK() {                                                                 \
+    namespace refl = tvm::ffi::reflection;                                                      \
+    refl::TypeAttrDef<NODE_TYPE>().def(refl::type_attr::kRepr,                                  \
+                                       [](ffi::ObjectRef ref, ffi::Function) -> ffi::String {   \
+                                         auto* node = static_cast<const NODE_TYPE*>(ref.get()); \
+                                         PatternReprPrinterHelper printer;                      \
+                                         auto* p = &printer;                                    \
+                                         REPR_LAMBDA(p, node);                                  \
+                                         return printer.stream.str();                           \
+                                       });                                                      \
+  }
 
 ExternFuncPattern::ExternFuncPattern(ffi::String global_symbol) {
   ObjectPtr<ExternFuncPatternNode> n = ffi::make_object<ExternFuncPatternNode>();

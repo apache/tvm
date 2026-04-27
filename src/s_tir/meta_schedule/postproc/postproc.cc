@@ -111,14 +111,7 @@ ffi::Array<Postproc> Postproc::DefaultHexagon() {
   };
 }
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<PyPostprocNode>([](const ObjectRef& n, ReprPrinter* p) {
-      const auto* self = n.as<PyPostprocNode>();
-      TVM_FFI_ICHECK(self);
-      PyPostprocNode::FAsString f_as_string = (*self).f_as_string;
-      TVM_FFI_ICHECK(f_as_string != nullptr) << "PyPostproc's AsString method not implemented!";
-      p->stream << f_as_string();
-    });
+// Pattern A (RM): auto-default repr from reflection.
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   PostprocNode::RegisterReflection();

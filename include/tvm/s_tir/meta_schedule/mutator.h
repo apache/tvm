@@ -162,6 +162,8 @@ class PyMutatorNode : public MutatorNode {
   FAsString f_as_string;
 
   static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PyMutatorNode>();
     // `f_initialize_with_tune_context` is not registered
     // `f_apply` is not registered
     // `f_clone` is not registered

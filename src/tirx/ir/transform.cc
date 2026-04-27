@@ -24,7 +24,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/rvalue_ref.h>
-#include <tvm/node/repr_printer.h>
+#include <tvm/node/repr.h>
 #include <tvm/tirx/transform.h>
 
 namespace tvm {
@@ -158,12 +158,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<PrimFuncPassNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      auto* node = static_cast<const PrimFuncPassNode*>(ref.get());
-      const PassInfo info = node->Info();
-      p->stream << "PrimFuncPass(" << info->name << ", opt_level=" << info->opt_level << ")";
-    });
+// Pattern A (RM): auto-default repr from reflection.
 
 }  // namespace transform
 }  // namespace tirx

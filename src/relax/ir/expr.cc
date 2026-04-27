@@ -27,8 +27,6 @@
 namespace tvm {
 namespace relax {
 
-using tvm::ReprPrinter;
-
 TVM_FFI_STATIC_INIT_BLOCK() {
   IdNode::RegisterReflection();
   CallNode::RegisterReflection();
