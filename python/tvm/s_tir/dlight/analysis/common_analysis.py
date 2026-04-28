@@ -30,6 +30,9 @@ from tvm.s_tir import Schedule
 from tvm.s_tir.schedule import SBlockRV
 from tvm.target.target import Target
 
+from ..logging import get_logger
+
+logger = get_logger(__name__)  # pylint: disable=invalid-name
 
 class IterInfo:
     """Information about a loop/iter var."""
@@ -380,7 +383,13 @@ def get_max_shared_memory_per_block(target: Target) -> int:
     # 1) Use explicit target attrs provided (handled above).
     # 2) Fall back to backend defaults matching target-kind defaults/tag defaults.
     # 3) Use a conservative GPU default as last resort.
-    return int(TARGET_KIND_TO_DEFAULT_MAX_SMEM.get(target.kind.name, 16384))
+    default_smem = TARGET_KIND_TO_DEFAULT_MAX_SMEM.get(target.kind.name, 16384)
+    logger.warning(
+        "Target %s missing 'max_shared_memory_per_block'; using %d bytes.",
+        target.kind.name,
+        default_smem,
+    )
+    return int(default_smem)
 
 
 def get_root_block(sch: Schedule, func_name: str = "main") -> SBlockRV:
