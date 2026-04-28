@@ -19,6 +19,8 @@
 # pylint: disable=unused-argument, unused-variable
 """Analysis on TIR blocks, loops and functions."""
 
+import logging
+
 from collections import namedtuple
 from typing import Literal
 
@@ -30,9 +32,7 @@ from tvm.s_tir import Schedule
 from tvm.s_tir.schedule import SBlockRV
 from tvm.target.target import Target
 
-from ..logging import get_logger
-
-logger = get_logger(__name__)  # pylint: disable=invalid-name
+logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 class IterInfo:
     """Information about a loop/iter var."""
