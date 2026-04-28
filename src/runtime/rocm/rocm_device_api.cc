@@ -28,7 +28,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/profiling.h>
+#include <tvm/runtime/timer.h>
 
 #include "rocm_common.h"
 
@@ -297,7 +297,7 @@ class ROCMTimerNode : public TimerNode {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("profiling.timer.rocm",
+      .def("runtime.timer.rocm",
            [](Device dev) { return Timer(ffi::make_object<ROCMTimerNode>()); })
       .def("runtime.get_rocm_stream", []() {
         int device_id;
