@@ -158,7 +158,7 @@ TensorInfo TensorInfo::FromJSON(const ObjectRef& json_obj) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::TypeAttrDef<TensorInfoNode>().def(refl::type_attr::kRepr,
-                                          [](TensorInfo ti, ffi::Function) -> ffi::String {
+                                          [](TensorInfo ti, ffi::Function fn_repr) -> ffi::String {
                                             std::ostringstream os;
                                             os << "TensorInfo(\"" << ti->dtype << "\", [";
                                             bool first = true;

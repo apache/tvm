@@ -35,7 +35,7 @@ TVM_FFI_STATIC_INIT_BLOCK() { VirtualDeviceNode::RegisterReflection(); }
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::TypeAttrDef<VirtualDeviceNode>().def(
-      refl::type_attr::kRepr, [](VirtualDevice vd, ffi::Function) -> ffi::String {
+      refl::type_attr::kRepr, [](VirtualDevice vd, ffi::Function fn_repr) -> ffi::String {
         auto* node = vd.get();
         std::ostringstream os;
         os << "VirtualDevice(";
@@ -54,7 +54,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           }
           if (node->target.defined()) {
             if (need_sep) os << ", ";
-            os << "target=" << node->target->str();
+            os << "target=" << fn_repr(ffi::AnyView(node->target)).cast<ffi::String>();
             need_sep = true;
           }
           if (!node->memory_scope.empty()) {
