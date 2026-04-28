@@ -20,9 +20,9 @@
 #define TVM_SCRIPT_IR_BUILDER_BASE_H_
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/cast.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/function.h>
-#include <tvm/node/cast.h>
 
 #include <vector>
 
