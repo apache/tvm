@@ -31,9 +31,9 @@
 #include <tvm/ir/expr.h>
 #include <tvm/ir/function.h>
 #include <tvm/ir/global_info.h>
+#include <tvm/ir/script_printer.h>
 #include <tvm/ir/source_map.h>
 #include <tvm/ir/type.h>
-#include <tvm/node/script_printer.h>
 
 #include <string>
 #include <unordered_map>

@@ -27,11 +27,11 @@
 
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/attr_registry_map.h>
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/env_func.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/type.h>
-#include <tvm/node/attr_registry_map.h>
 #include <tvm/runtime/logging.h>
 
 #include <string>
