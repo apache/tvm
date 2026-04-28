@@ -30,7 +30,6 @@ from .object_generic import ObjectConvertible
 from .device import Device
 from ._tensor import Tensor, tensor, empty
 from .module import Module
-from .profiling import Report
 from .executable import Executable
 
 # function exposures

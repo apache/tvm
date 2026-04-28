@@ -27,7 +27,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/profiling.h>
+#include <tvm/runtime/timer.h>
 
 #include <cstring>
 
@@ -333,7 +333,7 @@ class CUDATimerNode : public TimerNode {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("profiling.timer.cuda",
+  refl::GlobalDef().def("runtime.timer.cuda",
                         [](Device dev) { return Timer(ffi::make_object<CUDATimerNode>()); });
 }
 
