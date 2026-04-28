@@ -19,10 +19,10 @@
 #include <tvm/ffi/extra/dataclass.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/cast.h>
 #include <tvm/ir/expr.h>
-#include <tvm/node/cast.h>
-#include <tvm/node/repr.h>
-#include <tvm/node/script_printer.h>
+#include <tvm/ir/repr.h>
+#include <tvm/ir/script_printer.h>
 
 #include <algorithm>
 

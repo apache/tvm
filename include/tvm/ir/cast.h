@@ -17,11 +17,11 @@
  * under the License.
  */
 /*!
- * \file tvm/node/cast.h
+ * \file tvm/ir/cast.h
  * \brief Value casting helpers
  */
-#ifndef TVM_NODE_CAST_H_
-#define TVM_NODE_CAST_H_
+#ifndef TVM_IR_CAST_H_
+#define TVM_IR_CAST_H_
 
 #include <tvm/ffi/any.h>
 #include <tvm/ffi/cast.h>
@@ -115,4 +115,4 @@ inline OptionalType Downcast(const std::optional<ffi::Any>& ref) {
   }
 }
 }  // namespace tvm
-#endif  // TVM_NODE_CAST_H_
+#endif  // TVM_IR_CAST_H_

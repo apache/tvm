@@ -24,7 +24,7 @@
 #ifndef TVM_RELAX_STRUCT_INFO_FUNCTOR_H_
 #define TVM_RELAX_STRUCT_INFO_FUNCTOR_H_
 
-#include <tvm/node/functor.h>
+#include <tvm/ir/node_functor.h>
 #include <tvm/relax/distributed/struct_info.h>
 #include <tvm/relax/struct_info.h>
 

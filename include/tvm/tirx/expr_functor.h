@@ -25,7 +25,7 @@
 #ifndef TVM_TIR_EXPR_FUNCTOR_H_
 #define TVM_TIR_EXPR_FUNCTOR_H_
 
-#include <tvm/node/functor.h>
+#include <tvm/ir/node_functor.h>
 #include <tvm/tirx/expr.h>
 
 #include <utility>

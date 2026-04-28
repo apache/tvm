@@ -17,11 +17,11 @@
  * under the License.
  */
 /*!
- * \file tvm/node/repr_printer.h
+ * \file tvm/ir/script_printer.h
  * \brief Printer class to print repr string of each AST/IR nodes.
  */
-#ifndef TVM_NODE_SCRIPT_PRINTER_H_
-#define TVM_NODE_SCRIPT_PRINTER_H_
+#ifndef TVM_IR_SCRIPT_PRINTER_H_
+#define TVM_IR_SCRIPT_PRINTER_H_
 
 #include <tvm/ffi/any.h>
 #include <tvm/ffi/container/array.h>
@@ -29,7 +29,7 @@
 #include <tvm/ffi/reflection/access_path.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
-#include <tvm/node/functor.h>
+#include <tvm/ir/node_functor.h>
 #include <tvm/runtime/data_type.h>
 
 #include <iostream>
@@ -178,4 +178,4 @@ class TVMScriptPrinter {
   }
 
 }  // namespace tvm
-#endif  // TVM_NODE_SCRIPT_PRINTER_H_
+#endif  // TVM_IR_SCRIPT_PRINTER_H_

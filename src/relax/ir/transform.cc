@@ -24,7 +24,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/rvalue_ref.h>
-#include <tvm/node/repr.h>
+#include <tvm/ir/repr.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/struct_info_functor.h>

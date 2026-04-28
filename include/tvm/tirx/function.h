@@ -27,7 +27,7 @@
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/container/variant.h>
 #include <tvm/ir/function.h>
-#include <tvm/node/script_printer.h>
+#include <tvm/ir/script_printer.h>
 #include <tvm/runtime/tensor.h>
 #include <tvm/tirx/buffer.h>
 #include <tvm/tirx/expr.h>

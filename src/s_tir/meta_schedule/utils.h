@@ -23,7 +23,7 @@
 #include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/extra/serialization.h>
 #include <tvm/ffi/optional.h>
-#include <tvm/node/cast.h>
+#include <tvm/ir/cast.h>
 #include <tvm/runtime/object.h>
 #include <tvm/s_tir/meta_schedule/arg_info.h>
 #include <tvm/s_tir/meta_schedule/builder.h>

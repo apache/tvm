@@ -28,7 +28,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
-#include <tvm/node/repr.h>
+#include <tvm/ir/repr.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/vm/bytecode.h>
 #include <tvm/runtime/vm/executable.h>
