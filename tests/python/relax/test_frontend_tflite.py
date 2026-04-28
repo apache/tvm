@@ -1360,6 +1360,59 @@ def test_batch_matmul_adj():
     verify(BatchMatMulAdj, Expected)
 
 
+def _verify_nms_v4(mod, tf_func, boxes_np, scores_np):
+    """E2E verify for NMS V4: only run on nightly, compare valid outputs only."""
+    if "CI_ENV_NIGHTLY" not in os.environ:
+        return
+
+    tf_indices, tf_valid = tf_func(tf.constant(boxes_np), tf.constant(scores_np))
+    n_valid = int(tf_valid.numpy())
+
+    tgt = tvm.target.Target("llvm")
+    ex = tvm.compile(mod, tgt)
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+    vm.set_input("main", boxes_np, scores_np)
+    vm.invoke_stateful("main")
+    tvm_indices, tvm_valid = vm.get_outputs("main")
+
+    assert int(tvm_valid.numpy()) == n_valid
+    np.testing.assert_array_equal(
+        tf_indices.numpy()[:n_valid],
+        tvm_indices.numpy()[:n_valid],
+    )
+
+
+def _build_nms_v4_mod(num_boxes, max_output_size, iou_threshold, score_threshold):
+    """Convert a NonMaxSuppressionV4 TFLite model to a Relax module.
+
+    Scalar params must be Python literals (not tf.constant) so TFLite can
+    statically infer output shapes during conversion.
+    """
+
+    class NMSv4Module(tf.Module):
+        @tf.function(
+            input_signature=[
+                tf.TensorSpec(shape=(num_boxes, 4), dtype=tf.float32),
+                tf.TensorSpec(shape=(num_boxes,), dtype=tf.float32),
+            ]
+        )
+        def func(self, boxes, scores):
+            indices, valid = tf.raw_ops.NonMaxSuppressionV4(
+                boxes=boxes,
+                scores=scores,
+                max_output_size=max_output_size,
+                iou_threshold=iou_threshold,
+                score_threshold=score_threshold,
+                pad_to_max_output_size=True,
+            )
+            return indices, valid
+
+    instance = NMSv4Module()
+    cf = instance.func.get_concrete_function()
+    mod = _get_mod_from_cfunc(cf)
+    return mod, instance.func
+
+
 def _verify_nms_v5(mod, tf_func, boxes_np, scores_np, soft_nms_sigma=0.0):
     """E2E verify for NMS: only run on nightly, compare valid outputs only."""
     if "CI_ENV_NIGHTLY" not in os.environ:
@@ -1802,6 +1855,100 @@ def test_nms_v5_soft_ir():
     assert "score_threshold=0.0" in ir
     # Soft-NMS padded scores must be clipped to non-negative values.
     assert "R.clip(" in ir
+
+
+_NMS_V4_CASES = [
+    pytest.param(
+        6,
+        3,
+        0.5,
+        0.0,
+        np.array(
+            [
+                [0.0, 0.0, 1.0, 1.0],
+                [0.0, 0.0, 1.0, 1.0],
+                [0.0, 0.1, 1.0, 1.1],
+                [0.0, 0.0, 1.0, 0.9],
+                [0.5, 0.5, 1.5, 1.5],
+                [0.0, 0.0, 0.3, 0.3],
+            ],
+            dtype=np.float32,
+        ),
+        np.array([0.9, 0.75, 0.6, 0.5, 0.4, 0.3], dtype=np.float32),
+        id="basic",
+    ),
+    pytest.param(
+        8,
+        4,
+        0.5,
+        0.4,
+        _make_valid_boxes(np.random.default_rng(42), 8),
+        np.random.default_rng(42).random(8, dtype=np.float32),
+        id="score_threshold",
+    ),
+    pytest.param(
+        5,
+        3,
+        0.5,
+        0.99,
+        _make_valid_boxes(np.random.default_rng(0), 5),
+        np.array([0.1, 0.2, 0.3, 0.4, 0.5], dtype=np.float32),
+        id="all_suppressed",
+    ),
+    pytest.param(
+        4,
+        10,
+        0.5,
+        0.0,
+        np.array(
+            [
+                [0.0, 0.0, 0.3, 0.3],
+                [0.5, 0.5, 0.8, 0.8],
+                [0.1, 0.1, 0.4, 0.4],
+                [0.6, 0.6, 0.9, 0.9],
+            ],
+            dtype=np.float32,
+        ),
+        np.array([0.9, 0.85, 0.7, 0.65], dtype=np.float32),
+        id="max_output_size_larger_than_boxes",
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    "num_boxes,max_output_size,iou_threshold,score_threshold,boxes,scores",
+    _NMS_V4_CASES,
+)
+def test_nms_v4(num_boxes, max_output_size, iou_threshold, score_threshold, boxes, scores):
+    """NON_MAX_SUPPRESSION_V4: conversion smoke test + E2E correctness (nightly only)."""
+    mod, tf_func = _build_nms_v4_mod(num_boxes, max_output_size, iou_threshold, score_threshold)
+    _verify_nms_v4(mod, tf_func, boxes, scores)
+
+
+def test_nms_v4_ir():
+    """Verify the emitted Relax IR has correct structure for NON_MAX_SUPPRESSION_V4."""
+    num_boxes = 6
+    max_output_size = 3
+    mod, _ = _build_nms_v4_mod(
+        num_boxes=num_boxes,
+        max_output_size=max_output_size,
+        iou_threshold=0.5,
+        score_threshold=0.0,
+    )
+
+    ir = mod.script()
+
+    # Validate correct sorting/id indices are passed to valid_counts
+    assert "score_index=0" in ir
+    assert "id_index=-1" in ir
+    # NMS size limit validation
+    assert f"max_output_size={max_output_size}" in ir
+    # Valid output shape must be () statically
+    assert 'R.Tensor((), dtype="int32")' in ir
+    # Selected indices tensor bounds check
+    assert f"R.Tensor(({max_output_size},)" in ir
+    # V4 must use hard-NMS (soft_nms_sigma left at default 0.0)
+    assert "soft_nms_sigma=0.0" in ir
 
 
 _DETECTION_POSTPROCESS_SMOKE_CASES = [
