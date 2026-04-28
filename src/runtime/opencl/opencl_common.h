@@ -29,8 +29,8 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/memory/memory_manager.h>
-#include <tvm/runtime/profiling.h>
 #include <tvm/runtime/tensor.h>
+#include <tvm/runtime/timer.h>
 
 /* There are many OpenCL platforms that do not yet support OpenCL 2.0,
  * hence we use 1.2 APIs, some of which are now deprecated.  In order

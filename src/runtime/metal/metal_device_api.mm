@@ -22,7 +22,7 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/profiling.h>
+#include <tvm/runtime/timer.h>
 #include "metal_common.h"
 
 namespace tvm {
@@ -453,7 +453,7 @@ class MetalTimerNode : public TimerNode {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("profiling.timer.metal",
+  refl::GlobalDef().def("runtime.timer.metal",
                         [](Device dev) { return Timer(ffi::make_object<MetalTimerNode>(dev)); });
 }
 

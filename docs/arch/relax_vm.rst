@@ -354,26 +354,14 @@ Key methods:
   reducing dictionary lookup overhead during benchmarking.
 - ``vm.time_evaluator(func_name, dev)`` — returns a timing function following the same convention
   as ``tvm.runtime.Module.time_evaluator``.
-- ``vm.profile(func_name, *args)`` — returns a per-operator profiling report (requires
-  ``profile=True`` at VM construction).
 - ``vm.set_instrument(func)`` — register an instrumentation callback that is invoked before/after
   every ``Call`` instruction. The callback can return ``VMInstrumentReturnKind.SKIP_RUN`` to
   skip the call.
 
-Profiling and instrumentation
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Instrumentation
+~~~~~~~~~~~~~~~
 
-The VM supports two levels of observability:
-
-**Profiling** via ``VirtualMachine(exec, dev, profile=True)``:
-
-.. code-block:: python
-
-   vm = relax.VirtualMachine(ex, tvm.cuda(), profile=True)
-   report = vm.profile("main", inp)
-   print(report)
-
-This produces a ``tvm.runtime.profiling.Report`` with per-operator timing breakdown.
+The VM supports observability via instrumentation:
 
 **Instrumentation** via ``set_instrument()``:
 

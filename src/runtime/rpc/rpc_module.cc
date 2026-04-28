@@ -25,7 +25,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/profiling.h>
+#include <tvm/runtime/timer.h>
 
 #include <chrono>
 #include <cstring>
@@ -432,9 +432,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  ffi::Optional<ffi::Function> pf = m->GetFunction(name);
                  TVM_FFI_ICHECK(pf.has_value())
                      << "Cannot find " << name << "` in the global registry";
-                 return profiling::WrapTimeEvaluator(
-                     *pf, dev, number, repeat, min_repeat_ms, limit_zero_time_iterations,
-                     cooldown_interval_ms, repeats_to_cooldown, cache_flush_bytes, f_preproc);
+                 return WrapTimeEvaluator(*pf, dev, number, repeat, min_repeat_ms,
+                                          limit_zero_time_iterations, cooldown_interval_ms,
+                                          repeats_to_cooldown, cache_flush_bytes, f_preproc);
                }
              } else {
                auto pf = tvm::ffi::Function::GetGlobal(name);
@@ -447,9 +447,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                      << "Cannot find " << f_preproc_name << " in the global function";
                  f_preproc = *pf_preproc;
                }
-               return profiling::WrapTimeEvaluator(
-                   *pf, dev, number, repeat, min_repeat_ms, limit_zero_time_iterations,
-                   cooldown_interval_ms, repeats_to_cooldown, cache_flush_bytes, f_preproc);
+               return WrapTimeEvaluator(*pf, dev, number, repeat, min_repeat_ms,
+                                        limit_zero_time_iterations, cooldown_interval_ms,
+                                        repeats_to_cooldown, cache_flush_bytes, f_preproc);
              }
            })
       .def_packed("cache_flush_cpu_non_first_arg",

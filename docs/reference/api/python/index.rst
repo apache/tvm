@@ -40,7 +40,6 @@ Python API
     runtime/runtime
     runtime/vm
     runtime/disco
-    runtime/profiling
 
 .. toctree::
     :maxdepth: 1

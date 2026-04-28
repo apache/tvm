@@ -54,12 +54,12 @@ def verify(mod, inputs):
     assert relax.analysis.well_formed(mod1)
 
     ex1 = tvm.compile(mod1, target=target)
-    vm1 = relax.VirtualMachine(ex1, dev, profile=True)
+    vm1 = relax.VirtualMachine(ex1, dev)
     out1 = vm1["main"](*inputs)
 
     mod2 = relax.transform.LegalizeOps()(mod)
     ex2 = tvm.compile(mod2, target=target)
-    vm2 = relax.VirtualMachine(ex2, dev, profile=True)
+    vm2 = relax.VirtualMachine(ex2, dev)
     out2 = vm2["main"](*inputs)
 
     tvm.testing.assert_allclose(out1.numpy(), out2.numpy(), rtol=1e-3, atol=1e-3)

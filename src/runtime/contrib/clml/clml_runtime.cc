@@ -36,7 +36,7 @@
 #include "clml_utils.h"
 #endif
 
-#include <tvm/runtime/profiling.h>
+#include <tvm/runtime/timer.h>
 
 namespace tvm {
 namespace runtime {
@@ -362,152 +362,6 @@ class CLMLRuntime : public JSONRuntimeBase {
   }
 #endif
 
-  void RunProfile(profiling::Profiler* prof) override {
-    cl_command_queue queue = CLML_QUEUE;
-    std::vector<cl_event>& evts = cws->workspace->GetEventQueue(cws->tentry->device);
-    std::vector<profiling::MetricCollector> cs;
-    std::vector<Device> devices;
-    devices.push_back(cws->tentry->device);
-    bool update_desc = false;
-
-    for (size_t i = 0; i < input_nodes_.size(); ++i) {
-      auto nid = input_nodes_[i];
-      uint32_t eid = EntryID(nid, 0);
-      if (nodes_[nid].GetOpType() == "input") {
-#if (CL_QCOM_ML_OPS_H_MAJOR_VERSION >= 5)
-        if (this->layer_.storage_map[nid].is_dynamic_tensor) {
-          SetTensorMemDesc(&this->layer_, nid, eid);
-          update_desc = true;
-        }
-#endif
-        // Assuming all inputs are from OpenCL
-        if (kDLOpenCL == data_entry_[eid]->device.device_type) {
-          if (this->layer_.storage_map[nid].layout == CL_TENSOR_LAYOUT_NCHW_QCOM) {
-            int index = layer_.tensorMemDescs_indexmap[nid];
-            layer_.tensorMemDescs[index].memory = static_cast<cl_mem>(
-                ((cl::BufferDescriptor*)const_cast<DLTensor*>(data_entry_[eid])->data)->buffer);
-            update_desc = true;
-          } else {
-            layer_.in_placeholder[nid]->memory = static_cast<cl_mem>(
-                ((cl::BufferDescriptor*)const_cast<DLTensor*>(data_entry_[eid])->data)->buffer);
-            cl_event cpy_evt = nullptr;
-            cl_event* evt = &cpy_evt;
-            if (cws->workspace->IsProfiling(cws->tentry->device)) {
-              evts.resize(evts.size() + 1);
-              evt = &(evts.back());
-            }
-            std::unordered_map<std::string, ffi::Any> metrics;
-            std::string shape_str;
-            std::vector<int64_t> shape(nodes_[nid].GetOpShape()[0].begin(),
-                                       nodes_[nid].GetOpShape()[0].end());
-            DLDataType tvm_dtype = nodes_[nid].GetOpDataType()[0];
-            shape_str.append(profiling::ShapeString(shape, tvm_dtype));
-            metrics["Argument Shapes"] = ffi::String(shape_str);
-
-            prof->StartCall("CopyIn", cws->tentry->device, metrics);
-            CLML_CALL(clEnqueueCopyMLTensorDataQCOM, queue, layer_.in_placeholder[nid]->tensor,
-                      layer_.in_placeholder[nid]->memory, layer_.inputs[nid]->tensor,
-                      layer_.inputs[nid]->memory, 0, nullptr, evt);
-            prof->StopCall();
-          }
-        }
-      }
-    }
-
-    for (size_t i = 0; i < outputs_.size(); ++i) {
-      auto nid = outputs_[i].id_;
-      uint32_t eid = EntryID(outputs_[i]);
-#if (CL_QCOM_ML_OPS_H_MAJOR_VERSION >= 5)
-      if (this->layer_.storage_map[nid].is_dynamic_tensor) {
-        SetTensorMemDesc(&this->layer_, nid, eid);
-        update_desc = true;
-      }
-#endif
-      if (this->layer_.storage_map[nid].layout == CL_TENSOR_LAYOUT_NCHW_QCOM) {
-        int index = layer_.tensorMemDescs_indexmap[nid];
-        layer_.tensorMemDescs[index].memory = static_cast<cl_mem>(
-            ((cl::BufferDescriptor*)const_cast<DLTensor*>(data_entry_[eid])->data)->buffer);
-        update_desc = true;
-      }
-    }
-
-    if (update_desc) {
-      CLML_CALL(clUpdateMLTensorMemoryDescriptorSetQCOM, this->layer_.descriptorSet,
-                static_cast<uint32_t>(this->layer_.tensorMemDescs.size()),
-                this->layer_.tensorMemDescs.data());
-    }
-
-    for (size_t i = 0; i < this->layer_.function.size(); ++i) {
-      std::unordered_map<std::string, ffi::Any> metrics;
-      auto node = this->layer_.op_node_map[this->layer_.function[i].op].second;
-      std::string shape_str;
-      for (uint32_t j = 0; j < node.GetInputs().size(); ++j) {
-        const JSONGraphNode in_node = nodes_[node.GetInputs()[j].id_];
-        auto shape_arr = in_node.GetOpShape()[0];
-        std::vector<int64_t> shape(shape_arr.begin(), shape_arr.end());
-        DLDataType tvm_dtype = in_node.GetOpDataType()[0];
-        shape_str.append(profiling::ShapeString(shape, tvm_dtype));
-        shape_str.append(", ");
-      }
-      // Assuming one output per operation
-      auto shape_arr = node.GetOpShape()[0];
-      std::vector<int64_t> shape(shape_arr.begin(), shape_arr.end());
-      DLDataType tvm_dtype = node.GetOpDataType()[0];
-      shape_str.append(profiling::ShapeString(shape, tvm_dtype));
-      metrics["Argument Shapes"] = ffi::String(shape_str);
-
-      // Launch call
-      prof->StartCall(clml_symbol + "-" + this->layer_.function[i].layer_name, cws->tentry->device,
-                      metrics);
-      queue = CLML_QUEUE;
-      evts.resize(evts.size() + 1);
-      cl_event* evt = &(evts.back());
-#if (CL_QCOM_ML_OPS_H_MAJOR_VERSION >= 5)
-      if (this->layer_.function[i].op_props.size()) {
-        CLML_CALL_clUpdateMLOpQCOM(this->layer_.function[i].op,
-                                   this->layer_.function[i].op_props.data(),
-                                   this->layer_.descriptorSet, NULL);
-      }
-#endif
-      CLML_CALL(clEnqueueMLOpQCOM, queue, this->layer_.function[i].op, this->layer_.descriptorSet,
-                0, nullptr, evt);
-      prof->StopCall();
-    }
-
-    for (size_t i = 0; i < outputs_.size(); ++i) {
-      uint32_t eid = EntryID(outputs_[i]);
-      auto nid = outputs_[i].id_;
-      // Assuming all outputs are to OpenCL
-      if (kDLOpenCL == data_entry_[eid]->device.device_type) {
-        if (this->layer_.storage_map[nid].layout != CL_TENSOR_LAYOUT_NCHW_QCOM) {
-          layer_.out_placeholder[i]->memory = static_cast<cl_mem>(
-              ((cl::BufferDescriptor*)const_cast<DLTensor*>(data_entry_[eid])->data)->buffer);
-          cl_event cpy_evt = nullptr;
-          cl_event* evt = &cpy_evt;
-          if (cws->workspace->IsProfiling(cws->tentry->device)) {
-            evts.resize(evts.size() + 1);
-            evt = &(evts.back());
-          }
-
-          std::unordered_map<std::string, ffi::Any> metrics;
-          std::string shape_str;
-          std::vector<int64_t> shape(nodes_[eid].GetOpShape()[0].begin(),
-                                     nodes_[eid].GetOpShape()[0].end());
-          DLDataType tvm_dtype = nodes_[eid].GetOpDataType()[0];
-          shape_str.append(profiling::ShapeString(shape, tvm_dtype));
-          metrics["Argument Shapes"] = ffi::String(shape_str);
-
-          prof->StartCall("CopyOut", cws->tentry->device, metrics);
-          CLML_CALL(clEnqueueCopyMLTensorDataQCOM, queue, layer_.outputs[i]->tensor,
-                    layer_.outputs[i]->memory, layer_.out_placeholder[i]->tensor,
-                    layer_.out_placeholder[i]->memory, 0, nullptr, evt);
-          prof->StopCall();
-        }
-      }
-    }
-    return;
-  }
-
   /*!
    * \brief Unpack inputs and outputs and run inference on a given layer.
    *
@@ -599,7 +453,7 @@ class CLMLRuntime : public JSONRuntimeBase {
       LOG_CLML << "Execution by Rec Queue";
       if (cws->workspace->IsProfiling(cws->tentry->device)) {
         Timer t;
-        auto f = tvm::ffi::Function::GetGlobal(std::string("profiling.timer.opencl"));
+        auto f = tvm::ffi::Function::GetGlobal(std::string("runtime.timer.opencl"));
         t = f->operator()(cws->tentry->device).cast<Timer>();
         t->Start();
         queue = CLML_QUEUE;
@@ -627,7 +481,7 @@ class CLMLRuntime : public JSONRuntimeBase {
 #endif
         if (cws->workspace->IsProfiling(cws->tentry->device)) {
           Timer t;
-          auto f = tvm::ffi::Function::GetGlobal(std::string("profiling.timer.opencl"));
+          auto f = tvm::ffi::Function::GetGlobal(std::string("runtime.timer.opencl"));
           t = f->operator()(cws->tentry->device).cast<Timer>();
           t->Start();
           queue = CLML_QUEUE;
@@ -2102,8 +1956,6 @@ class CLMLRuntime : public JSONRuntimeBase {
                  << "Please build with USE_CLML_GRAPH_EXECUTOR.";
   }
 #endif
-  bool CanDebug() override { return true; }
-
   /*! CLML sub graph symbol in TVM main module */
   std::string clml_symbol;
 };

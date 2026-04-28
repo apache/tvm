@@ -37,7 +37,6 @@
 #include "src/runtime/device_api.cc"
 #include "src/runtime/file_utils.cc"
 #include "src/runtime/logging.cc"
-#include "src/runtime/profiling.cc"
 #include "src/runtime/rpc/rpc_channel.cc"
 #include "src/runtime/rpc/rpc_endpoint.cc"
 #include "src/runtime/rpc/rpc_event_impl.cc"
@@ -45,6 +44,7 @@
 #include "src/runtime/rpc/rpc_module.cc"
 #include "src/runtime/rpc/rpc_session.cc"
 #include "src/runtime/tensor.cc"
+#include "src/runtime/timer.cc"
 #include "src/runtime/workspace_pool.cc"
 // relax setup
 #include "3rdparty/tvm-ffi/src/ffi/backtrace.cc"

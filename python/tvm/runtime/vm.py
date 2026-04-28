@@ -28,7 +28,6 @@ from tvm_ffi import Function, register_global_func
 
 import tvm
 from tvm.runtime import Device, Object
-from tvm.runtime.profiling import Report
 
 from ..rpc.base import RPC_SESS_MASK
 
@@ -50,7 +49,6 @@ class VirtualMachine:
         rt_mod: tvm.runtime.Module | tvm.runtime.Executable,
         device: Device | list[Device],
         memory_cfg: str | dict[Device, str] | None = None,
-        profile: bool = False,
     ) -> None:
         """
         Construct a VirtualMachine wrapper object.
@@ -70,9 +68,6 @@ class VirtualMachine:
             allocator type. If memory_cfg is a dict, each device uses the allocator
             type specified in the dict, or pooled allocator if not specified in the
             dict.
-
-        profile : Optional[bool]
-            Whether or not to enable profiling.
         """
         if not isinstance(rt_mod, tvm.runtime.Module):
             if isinstance(rt_mod, tvm.runtime.Executable):
@@ -80,8 +75,7 @@ class VirtualMachine:
             else:
                 raise ValueError("Expect the rt_mod to be an runtime.Module")
 
-        load_exec = "vm_profiler_load_executable" if profile else "vm_load_executable"
-        self.module = rt_mod[load_exec]()
+        self.module = rt_mod["vm_load_executable"]()
         self._invoke_closure = self.module["invoke_closure"]
         self._save_function = self.module["save_function"]
         self._set_input = self.module["set_input"]
@@ -476,30 +470,6 @@ class VirtualMachine:
             repeats_to_cooldown=repeats_to_cooldown,
             f_preproc=f_preproc,
         )
-
-    def profile(self, func_name: str, *args):
-        """Profile a function call.
-
-        Parameters
-        ----------
-        func_name : str
-            The name of the function.
-
-        args: List of Tensor or other objects supported by Function.
-            The arguments to the function.
-
-        Returns
-        -------
-        report: tvm.runtime.profiling.Report
-            The formatted profiling result, showing per-op timing measurements.
-        """
-        cargs: list[Any] = []
-
-        for arg in args:
-            self._convert(arg, cargs)
-
-        report_json = self.module["profile"](func_name, *cargs)
-        return Report.from_json(report_json)
 
 
 @register_global_func("vm.builtin.debug_print")

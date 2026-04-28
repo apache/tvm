@@ -66,7 +66,7 @@ def test_execute(target, dev):
 
     train_mod = setup_trainer(backbone)
     ex = tvm.compile(train_mod, target)
-    vm = relax.VirtualMachine(ex, dev, profile=True)
+    vm = relax.VirtualMachine(ex, dev)
 
     trainer = Trainer(train_mod, vm, dev, False)
     trainer.zero_init_params()
@@ -75,7 +75,6 @@ def test_execute(target, dev):
     dataset = _make_dataset()
     trainer.predict(dataset[0][0])
     trainer.update(dataset[0][0], dataset[0][1])
-    trainer.profile_adjoint(dataset[0][0], dataset[0][1])
 
 
 @tvm.testing.parametrize_targets("llvm")
