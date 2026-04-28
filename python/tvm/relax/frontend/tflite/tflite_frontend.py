@@ -31,7 +31,7 @@ import math
 import numpy as np
 
 import tvm
-from tvm import relax
+from tvm import relax, tirx
 from tvm.relax import op as _op
 
 from .tflite_flexbuffer import FlexBufferDecoder
@@ -1775,8 +1775,16 @@ class OperatorConverter:
 
         if self.has_expr(dims_tensor.tensor_idx):
             dims_expr = self.get_expr(dims_tensor.tensor_idx)
-            shape_expr = relax.op.tensor_to_shape(dims_expr)
-            out = relax.op.full(shape_expr, in_value_expr)
+            dims_ndim = int(self.get_tensor_shape(dims_tensor)[0])
+
+            # Bind runtime dims to fresh symbolic shape vars so the imported
+            # module remains well formed before LegalizeOps runs.
+            dims_expr = self.bb.match_cast(dims_expr, relax.TensorStructInfo([dims_ndim], "int32"))
+            dims_expr = self.bb.normalize(relax.op.astype(dims_expr, "int64"))
+            shape_dataflow_var = self.bb.emit(relax.op.tensor_to_shape(dims_expr))
+            shape_vars = [tirx.Var(f"fill_dim_{i}", "int64") for i in range(dims_ndim)]
+            self.bb.match_cast(shape_dataflow_var, relax.ShapeStructInfo(shape_vars))
+            out = relax.op.full(relax.ShapeExpr(shape_vars), in_value_expr)
         else:
             in_dims = list(self.get_tensor_value(dims_tensor))
             out = relax.op.full(in_dims, in_value_expr)
