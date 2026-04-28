@@ -23,7 +23,8 @@ import numpy as np
 from tvm import tirx, topi
 
 from ...block_builder import BlockBuilder
-from ...expr import Call, Expr, PrimValue, const
+from ...expr import Call, Expr, PrimValue, ShapeExpr, const
+from ...struct_info import ShapeStructInfo
 from .common import LegalizeFunc, _try_convert_to_scalar_const, register_legalize
 
 
@@ -34,10 +35,21 @@ def _full(is_like: bool, fill_value: float | None, primfunc_name: str) -> Legali
             if fill_value is None
             else fill_value
         )
+        shape = call.args[0].struct_info.shape if is_like else call.args[0]
+
+        if isinstance(shape, ShapeExpr):
+            output_shape = shape.values
+        else:
+            assert isinstance(shape.struct_info, ShapeStructInfo)
+            assert shape.struct_info.ndim >= 0
+
+            shape = bb.emit(shape)
+            output_shape = [tirx.Var(f"s{i}", "int64") for i in range(shape.struct_info.ndim)]
+            bb.match_cast(shape, ShapeStructInfo(output_shape))
 
         return bb.call_te(
             topi.full,
-            call.args[0].struct_info.shape if is_like else call.args[0],
+            output_shape,
             call.struct_info.dtype,
             _fill_value,
             primfunc_name_hint=primfunc_name,

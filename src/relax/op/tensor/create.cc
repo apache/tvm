@@ -96,6 +96,8 @@ TVM_REGISTER_OP("relax.full")
     .add_argument("shape", "Shape", "The shape of the created tensor.")
     .add_argument("fill_value", "Tensor", "The scalar tensor, denoting the value to fill.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoFull)
+    .set_attr<Bool>("RequiresArgumentShapes", Bool(false))
+    .set_attr<Bool>("FDataDependent", Bool(true))
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<Bool>("FPurity", Bool(true));
 

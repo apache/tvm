@@ -208,6 +208,26 @@ def test_split():
     verify(Split, Expected)
 
 
+def test_split_v_dynamic():
+    """SPLIT_V with runtime split sizes imports shape-aware Relax IR."""
+
+    class TfSplitVDynamic(tf.Module):
+        @tf.function(
+            input_signature=[
+                tf.TensorSpec(shape=(10,), dtype=tf.float32),
+                tf.TensorSpec(shape=(3,), dtype=tf.int32),
+            ]
+        )
+        def func(self, x, size_splits):
+            return tf.split(x, size_splits, axis=0)
+
+    cf = TfSplitVDynamic().func.get_concrete_function()
+    mod = _get_mod_from_cfunc(cf)
+    ir = mod.script()
+    assert "R.dynamic_strided_slice" in ir
+    assert "R.scatter_elements" in ir
+
+
 def test_pack():
     class Pack(tf.Module):
         @tf.function(
@@ -590,6 +610,28 @@ def test_fill():
             return gv
 
     verify(TfInput, Expected)
+
+
+def test_fill_dynamic_dims():
+    """FILL with runtime dims legalizes and compiles."""
+
+    class TfFillDynamic(tf.Module):
+        @tf.function(
+            input_signature=[
+                tf.TensorSpec(shape=(2,), dtype=tf.int32),
+                tf.TensorSpec(shape=(), dtype=tf.float32),
+            ]
+        )
+        def func(self, dims, value):
+            return tf.fill(dims, value)
+
+    cf = TfFillDynamic().func.get_concrete_function()
+    mod = _get_mod_from_cfunc(cf)
+    ir = mod.script()
+    assert "R.tensor_to_shape" in ir
+    assert "R.full" in ir
+    tvm.compile(mod, tvm.target.Target("llvm"))
+    verify(cf)
 
 
 @pytest.mark.parametrize(
