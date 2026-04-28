@@ -25,7 +25,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/access_path.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/node/functor.h>
+#include <tvm/ir/node_functor.h>
 #include <tvm/runtime/tensor.h>
 #include <tvm/support/io.h>
 #include <tvm/target/codegen.h>

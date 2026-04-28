@@ -24,9 +24,9 @@
 #include <tvm/ffi/reflection/access_path.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
-#include <tvm/node/functor.h>
-#include <tvm/node/repr.h>
-#include <tvm/node/script_printer.h>
+#include <tvm/ir/node_functor.h>
+#include <tvm/ir/repr.h>
+#include <tvm/ir/script_printer.h>
 
 #include <optional>
 #include <unordered_map>

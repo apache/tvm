@@ -25,7 +25,7 @@
 #define TVM_IR_ATTR_REGISTRY_H_
 
 #include <tvm/ffi/function.h>
-#include <tvm/node/attr_registry_map.h>
+#include <tvm/ir/attr_registry_map.h>
 
 #include <memory>
 #include <unordered_map>

@@ -19,7 +19,7 @@
 
 #include <gtest/gtest.h>
 #include <tvm/ir/module.h>
-#include <tvm/node/functor.h>
+#include <tvm/ir/node_functor.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>

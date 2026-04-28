@@ -17,11 +17,11 @@
  * under the License.
  */
 /*!
- * \file tvm/node/functor.h
+ * \file tvm/ir/node_functor.h
  * \brief Defines the Functor data structures.
  */
-#ifndef TVM_NODE_FUNCTOR_H_
-#define TVM_NODE_FUNCTOR_H_
+#ifndef TVM_IR_NODE_FUNCTOR_H_
+#define TVM_IR_NODE_FUNCTOR_H_
 
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/object.h>
@@ -194,4 +194,4 @@ class NodeFunctor<R(const ObjectRef& n, Args...)> {
 #define TVM_STATIC_IR_FUNCTOR(ClsName, FField) \
   TVM_STR_CONCAT(TVM_REG_FUNC_VAR_DEF(ClsName), __COUNTER__) = ClsName::FField()
 }  // namespace tvm
-#endif  // TVM_NODE_FUNCTOR_H_
+#endif  // TVM_IR_NODE_FUNCTOR_H_

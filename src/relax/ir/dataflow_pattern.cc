@@ -24,7 +24,7 @@
 
 #include <tvm/ffi/extra/dataclass.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/node/repr.h>
+#include <tvm/ir/repr.h>
 #include <tvm/relax/dataflow_pattern.h>
 #include <tvm/relax/dataflow_pattern_functor.h>
 

@@ -24,8 +24,8 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/instrument.h>
+#include <tvm/ir/repr.h>
 #include <tvm/ir/transform.h>
-#include <tvm/node/repr.h>
 
 #include <chrono>
 #include <stack>

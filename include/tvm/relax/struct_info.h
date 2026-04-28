@@ -20,9 +20,9 @@
 #define TVM_RELAX_STRUCT_INFO_H_
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/cast.h>
 #include <tvm/ir/env_func.h>
 #include <tvm/ir/source_map.h>
-#include <tvm/node/cast.h>
 #include <tvm/relax/block_builder.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/type.h>

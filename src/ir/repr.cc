@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file node/repr.cc
+ * \file ir/repr.cc
  * \brief Implements Dump helpers and FFI registration for ffi-repr-based printing.
  *
  * The legacy ReprPrinter has been replaced by ffi::ReprPrint.  This file:
@@ -30,7 +30,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/access_path.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/node/repr.h>
+#include <tvm/ir/repr.h>
 #include <tvm/runtime/device_api.h>
 
 #include <sstream>

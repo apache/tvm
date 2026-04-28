@@ -25,8 +25,8 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/rvalue_ref.h>
+#include <tvm/ir/repr.h>
 #include <tvm/ir/transform.h>
-#include <tvm/node/repr.h>
 #include <tvm/relax/expr.h>
 #include <tvm/runtime/device_api.h>
 

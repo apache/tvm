@@ -26,8 +26,8 @@
 
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/attr_registry_map.h>
 #include <tvm/ir/config_schema.h>
-#include <tvm/node/attr_registry_map.h>
 #include <tvm/runtime/object.h>
 
 #include <memory>

@@ -24,8 +24,8 @@
 #ifndef TVM_IR_TYPE_FUNCTOR_H_
 #define TVM_IR_TYPE_FUNCTOR_H_
 
+#include <tvm/ir/node_functor.h>
 #include <tvm/ir/type.h>
-#include <tvm/node/functor.h>
 
 #include <string>
 #include <utility>

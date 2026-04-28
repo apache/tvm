@@ -17,11 +17,11 @@
  * under the License.
  */
 /*!
- * \file tvm/node/attr_registry_map.h
+ * \file tvm/ir/attr_registry_map.h
  * \brief Attribute map used in registry.
  */
-#ifndef TVM_NODE_ATTR_REGISTRY_MAP_H_
-#define TVM_NODE_ATTR_REGISTRY_MAP_H_
+#ifndef TVM_IR_ATTR_REGISTRY_MAP_H_
+#define TVM_IR_ATTR_REGISTRY_MAP_H_
 
 #include <tvm/ffi/string.h>
 
@@ -141,4 +141,4 @@ class AttrRegistryMap {
 };
 
 }  // namespace tvm
-#endif  // TVM_NODE_ATTR_REGISTRY_MAP_H_
+#endif  // TVM_IR_ATTR_REGISTRY_MAP_H_

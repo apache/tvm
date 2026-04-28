@@ -26,11 +26,11 @@
 
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
+#include <tvm/ir/cast.h>
+#include <tvm/ir/repr.h>
+#include <tvm/ir/script_printer.h>
 #include <tvm/ir/source_map.h>
 #include <tvm/ir/type.h>
-#include <tvm/node/cast.h>
-#include <tvm/node/repr.h>
-#include <tvm/node/script_printer.h>
 #include <tvm/runtime/object.h>
 
 #include <algorithm>
