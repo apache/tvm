@@ -39,6 +39,17 @@ namespace tvm {
 namespace runtime {
 
 /*!
+ * \brief Static FFI type index for `runtime::RPCObjectRef`.
+ *
+ * Allocated within the [kTVMFFIDynObjectBegin - 16, kTVMFFIDynObjectBegin)
+ * custom-static slot range. The sibling constant `kRuntimeDiscoDRef` lives in
+ * `tvm/runtime/disco/session.h` and uses `... - 14`; values must remain
+ * disjoint across this small reserved block.
+ */
+constexpr int32_t kRuntimeRPCObjectRef = TVMFFITypeIndex::kTVMFFIDynObjectBegin - 13;
+
+
+/*!
  * \brief The interface of all remote RPC sessions.
  *
  *  It contains all the necessary interface to implement
@@ -322,7 +333,7 @@ class RPCObjectRefObj : public Object {
 
   void* object_handle() const { return object_handle_; }
 
-  static constexpr const uint32_t _type_index = TypeIndex::kRuntimeRPCObjectRef;
+  static constexpr const uint32_t _type_index = kRuntimeRPCObjectRef;
   static const constexpr bool _type_final = true;
   TVM_FFI_DECLARE_OBJECT_INFO_STATIC("runtime.RPCObjectRef", RPCObjectRefObj, Object);
 

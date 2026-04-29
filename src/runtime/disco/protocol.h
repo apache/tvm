@@ -149,7 +149,7 @@ inline void DiscoProtocol<SubClassType>::WriteFFIAny(const TVMFFIAny* value) {
   const AnyView* any_view_ptr = reinterpret_cast<const AnyView*>(value);
   if (const auto* ref = any_view_ptr->as<DRefObj>()) {
     int64_t reg_id = ref->reg_id;
-    self->template Write<uint32_t>(TypeIndex::kRuntimeDiscoDRef);
+    self->template Write<uint32_t>(kRuntimeDiscoDRef);
     self->template Write<int64_t>(reg_id);
   } else if (const auto opt_str = any_view_ptr->as<ffi::String>()) {
     self->template Write<uint32_t>(ffi::TypeIndex::kTVMFFIStr);
@@ -181,7 +181,7 @@ inline void DiscoProtocol<SubClassType>::ReadFFIAny(TVMFFIAny* out) {
   ffi::Any result{nullptr};
   uint32_t type_index;
   self->template Read<uint32_t>(&type_index);
-  if (type_index == TypeIndex::kRuntimeDiscoDRef) {
+  if (type_index == kRuntimeDiscoDRef) {
     ObjectPtr<DRefObj> dref = ffi::make_object<DRefObj>();
     self->template Read<int64_t>(&dref->reg_id);
     dref->session = Session{nullptr};

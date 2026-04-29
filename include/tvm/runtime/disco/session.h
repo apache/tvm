@@ -87,6 +87,20 @@ namespace tvm {
 namespace runtime {
 
 /*!
+ * \brief Static FFI type index for `runtime::disco::DRef`.
+ *
+ * Allocated within the [kTVMFFIDynObjectBegin - 16, kTVMFFIDynObjectBegin)
+ * custom-static slot range. The sibling constant `kRuntimeRPCObjectRef`
+ * lives in `src/runtime/rpc/rpc_session.h` and uses `... - 13`; values must
+ * remain disjoint across this small reserved block.
+ */
+constexpr int32_t kRuntimeDiscoDRef = TVMFFITypeIndex::kTVMFFIDynObjectBegin - 14;
+
+static_assert(kRuntimeDiscoDRef >= TVMFFITypeIndex::kTVMFFIStaticObjectEnd &&
+                  kRuntimeDiscoDRef < TVMFFITypeIndex::kTVMFFIDynObjectBegin,
+              "kRuntimeDiscoDRef must live in the static custom-index slot range");
+
+/*!
  * \brief All possible kinds of Disco commands.
  */
 enum class DiscoAction : int32_t {
@@ -151,7 +165,7 @@ class DRefObj : public Object {
    */
   inline void DebugCopyFrom(int worker_id, ffi::AnyView source);
 
-  static constexpr const uint32_t _type_index = TypeIndex::kRuntimeDiscoDRef;
+  static constexpr const uint32_t _type_index = kRuntimeDiscoDRef;
   static const constexpr bool _type_final = true;
   static constexpr const bool _type_mutable = true;
   TVM_FFI_DECLARE_OBJECT_INFO_STATIC("runtime.disco.DRef", DRefObj, Object);

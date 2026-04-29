@@ -42,41 +42,6 @@ using tvm::ffi::ObjectRef;
 using tvm::ffi::GetObjectPtr;
 using tvm::ffi::GetRef;
 
-/*!
- * \brief Namespace for the list of type index.
- * \note Use struct so that we have to use TypeIndex::ENumName to refer to
- *       the constant, but still able to use enum.
- */
-enum TypeIndex : int32_t {
-  // Standard static index assignments,
-  // Frontends can take benefit of these constants.
-  /*! \brief runtime::Module. */
-  kRuntimeModule = TVMFFITypeIndex::kTVMFFIModule,
-  /*! \brief runtime::Tensor. */
-  kRuntimeTensor = TVMFFITypeIndex::kTVMFFITensor,
-  /*! \brief runtime::Shape. */
-  kRuntimeShape = TVMFFITypeIndex::kTVMFFIShape,
-  // Extra builtin static index here
-  // We reserve 16 extra static indices for custom types
-  kCustomStaticIndex = TVMFFITypeIndex::kTVMFFIDynObjectBegin - 16,
-  /*! \brief ffi::Function. */
-  kRuntimePackedFunc = kCustomStaticIndex + 1,
-  /*! \brief runtime::DRef for disco distributed runtime */
-  kRuntimeDiscoDRef = kCustomStaticIndex + 2,
-  /*! \brief runtime::RPCObjectRef */
-  kRuntimeRPCObjectRef = kCustomStaticIndex + 3,
-  // custom builtin
-  kRuntimeString,
-  kRuntimeMap,
-  kRuntimeArray,
-  // static assignments that may subject to change.
-  kStaticIndexEnd,
-};
-
-static_assert(static_cast<int>(TypeIndex::kCustomStaticIndex) >=
-                  static_cast<int>(TVMFFITypeIndex::kTVMFFIStaticObjectEnd),
-              "Static slot overflows to custom indices");
-
 /*
  * \brief Define the default copy/move constructor and assign operator
  * \param TypeName The class typename.
