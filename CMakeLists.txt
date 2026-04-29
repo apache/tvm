@@ -275,7 +275,15 @@ tvm_file_glob(GLOB_RECURSE COMPILER_SRCS
     src/topi/*.cc
     src/driver/*.cc
     src/support/*.cc
-    src/script/*.cc
+    # TVMScript shared core (Doc IR + dispatch infrastructure). Per-dialect
+    # printer/builder pieces live under src/<dialect>/script/. The list below
+    # is intentionally explicit (not src/script/*.cc) so that any new file
+    # accidentally added under src/script/{printer,ir_builder}/<dialect>/ is
+    # rejected at link time rather than silently included.
+    src/script/ir_builder/base.cc
+    src/script/printer/doc.cc
+    src/script/printer/doc_printer/*.cc
+    src/script/printer/ir_docsifier.cc
     src/relax/ir/*.cc
     src/relax/op/*.cc
     src/relax/analysis/*.cc
