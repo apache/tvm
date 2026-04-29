@@ -28,11 +28,10 @@
 #include <string>
 #include <vector>
 
-#include "../../runtime/opencl/opencl_module.h"
 #include "../../runtime/texture.h"
 #include "../../runtime/thread_storage_scope.h"
 #include "../build_common.h"
-#include "../vulkan/spirv_utils.h"
+#include "opencl_fallback_module.h"
 
 namespace tvm {
 namespace codegen {
@@ -682,14 +681,6 @@ void CodeGenOpenCL::SetTextureScope(
 }
 
 ffi::Module BuildOpenCL(IRModule mod, Target target) {
-#if TVM_ENABLE_SPIRV
-  ffi::Optional<ffi::String> device = target->GetAttr<ffi::String>("device");
-  if (device && device.value() == "spirv") {
-    auto [smap, spirv_text] = LowerToSPIRV(mod, target);
-    return runtime::OpenCLModuleCreate(smap, spirv_text, ExtractFuncInfo(mod));
-  }
-#endif
-
   bool output_ssa = false;
 
   ffi::Map<GlobalVar, PrimFunc> functions;
@@ -720,7 +711,14 @@ ffi::Module BuildOpenCL(IRModule mod, Target target) {
     code << fsource;
   }
 
-  return OpenCLModuleCreate(code.str(), "cl", ExtractFuncInfo(mod), code.str());
+  // The aggregated OpenCL C source dump is preserved in the in-memory
+  // source map keyed by "cl" — only used by InspectSource and never
+  // serialized.
+  std::string code_str = code.str();
+  ffi::Map<ffi::String, ffi::String> source;
+  source.Set("cl", code_str);
+  return target::OpenCLModuleCreateWithFallback(ffi::Bytes(code_str), ffi::String("cl"),
+                                                ExtractFuncInfo(mod), std::move(source));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
