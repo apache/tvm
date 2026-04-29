@@ -21,28 +21,12 @@
  * \file opencl_fallback_module.h
  * \brief Codegen-facing OpenCL module factory.
  *
- *   `OpenCLModuleCreateWithFallback` is the ONLY entry point codegen
- *   uses to construct an OpenCL `ffi::Module`.  It tries the runtime-
- *   registered factory "ffi.Module.create.opencl" via the FFI registry;
- *   on miss (USE_OPENCL=OFF build) or when the env var
- *   TVM_COMPILE_FORCE_FALLBACK is truthy, it constructs an
- *   `OpenCLFallbackModuleNode` directly via the in-process
- *   `OpenCLFallbackModuleCreate`.
- *
- *   The fallback exists so that codegen can succeed on a build where
- *   the OpenCL runtime is not linked.  The fallback's saved-bytes are
- *   byte-identical to the real module's saved-bytes for the same
- *   payload — the receiver on a USE_OPENCL=ON box reconstructs a real
- *   OpenCL module via "ffi.Module.load_from_bytes.opencl".  See
- *   src/runtime/opencl/opencl_module.cc for the real module + on-disk
- *   format.
- *
- *   OpenCL is single-binary: the `code` payload is `Bytes` carrying the
- *   raw OpenCL C source (`fmt=="cl"`) — the runtime parses kernel
- *   delimiters and `clCreateProgramWithSource`s each kernel on demand.
- *   The legacy SPIR-V path (`OpenCLSPIRVModuleNode`) was removed
- *   alongside this commit; SPIR-V tooling now lives only under
- *   `src/target/vulkan/`.
+ *   `OpenCLModuleCreateWithFallback` is the ONLY entry point codegen uses
+ *   to construct an OpenCL `ffi::Module`.  It tries the runtime-registered
+ *   factory "ffi.Module.create.opencl" via the FFI registry; on miss it
+ *   constructs an `OpenCLFallbackModuleNode` directly.  The fallback exists
+ *   so that codegen can succeed on a build where the OpenCL runtime is
+ *   not linked.
  */
 #ifndef TVM_TARGET_OPENCL_OPENCL_FALLBACK_MODULE_H_
 #define TVM_TARGET_OPENCL_OPENCL_FALLBACK_MODULE_H_

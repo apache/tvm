@@ -23,23 +23,10 @@
  *
  *   `VulkanModuleCreateWithFallback` is the ONLY entry point codegen uses
  *   to construct a Vulkan `ffi::Module`.  It tries the runtime-registered
- *   factory "ffi.Module.create.vulkan" via the FFI registry; on miss
- *   (USE_VULKAN=OFF build) or when the env var TVM_COMPILE_FORCE_FALLBACK
- *   is truthy, it constructs a `VulkanFallbackModuleNode` directly via
- *   the in-process `VulkanFallbackModuleCreate`.
- *
- *   The fallback exists so that codegen can succeed on a build where the
- *   Vulkan runtime is not linked.  The fallback's saved-bytes are
- *   byte-identical to the real module's saved-bytes for the same payload —
- *   the receiver on a USE_VULKAN=ON box reconstructs a real
- *   `VulkanModuleNode` via "ffi.Module.load_from_bytes.vulkan".  See
- *   src/runtime/vulkan/vulkan_module.cc for the real module + on-disk
- *   format.
- *
- *   Vulkan is multi-shader: each kernel is its own SPIR-V binary (packed
- *   as a `SPIRVShader` — flag + uint32_t data segment), keyed by kernel
- *   name.  The unified per-kernel `smap` payload is `Map<String, Bytes>`
- *   where each value is the serialized `SPIRVShader` bytes.
+ *   factory "ffi.Module.create.vulkan" via the FFI registry; on miss it
+ *   constructs a `VulkanFallbackModuleNode` directly.  The fallback exists
+ *   so that codegen can succeed on a build where the Vulkan runtime is
+ *   not linked.
  */
 #ifndef TVM_TARGET_VULKAN_VULKAN_FALLBACK_MODULE_H_
 #define TVM_TARGET_VULKAN_VULKAN_FALLBACK_MODULE_H_

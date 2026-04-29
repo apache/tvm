@@ -23,20 +23,9 @@
  *
  *   `ROCmModuleCreateWithFallback` is the ONLY entry point codegen uses to
  *   construct a ROCm `ffi::Module`.  It tries the runtime-registered factory
- *   "ffi.Module.create.rocm" via the FFI registry; on miss (USE_ROCM=OFF
- *   build) or when the env var TVM_COMPILE_FORCE_FALLBACK is truthy, it
- *   constructs a `ROCmFallbackModuleNode` directly via the in-process
- *   `ROCmFallbackModuleCreate`.
- *
- *   The fallback exists so that codegen can succeed on a build where the
- *   ROCm runtime is not linked.  The fallback's saved-bytes are byte-identical
- *   to the real module's saved-bytes for the same payload — the receiver
- *   on a USE_ROCM=ON box reconstructs a real `ROCMModuleNode` via
- *   "ffi.Module.load_from_bytes.hsaco".  See
- *   src/runtime/rocm/rocm_module.cc for the real module + on-disk format.
- *
- *   ROCm has no source-JIT path (no `tvm_callback_rocm_compile`); codegen
- *   always produces hsaco bytes via the LLVM AMDGPU backend.
+ *   "ffi.Module.create.rocm" via the FFI registry; on miss it constructs a
+ *   `ROCmFallbackModuleNode` directly.  The fallback exists so that codegen
+ *   can succeed on a build where the ROCm runtime is not linked.
  */
 #ifndef TVM_TARGET_ROCM_ROCM_FALLBACK_MODULE_H_
 #define TVM_TARGET_ROCM_ROCM_FALLBACK_MODULE_H_

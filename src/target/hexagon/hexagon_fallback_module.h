@@ -23,29 +23,10 @@
  *
  *   `HexagonModuleCreateWithFallback` is the ONLY entry point codegen uses
  *   to construct a Hexagon `ffi::Module`.  It tries the runtime-registered
- *   factory "ffi.Module.create.hexagon" via the FFI registry; on miss
- *   (USE_HEXAGON=OFF build) or when the env var TVM_COMPILE_FORCE_FALLBACK
- *   is truthy, it constructs a `HexagonFallbackModuleNode` directly via
- *   the in-process `HexagonFallbackModuleCreate`.
- *
- *   The fallback exists so that codegen can succeed on a build where the
- *   Hexagon runtime is not linked.  The fallback's saved-bytes are
- *   byte-identical to the real module's saved-bytes for the same payload —
- *   the receiver on a USE_HEXAGON=ON box reconstructs a real
- *   `HexagonModuleNode` via "ffi.Module.load_from_bytes.hexagon".  See
- *   src/runtime/hexagon/hexagon_module.cc for the real module + on-disk
- *   format.
- *
- *   Hexagon is the ONLY backend whose source map carries binary
- *   auxiliaries (object code, bitcode) in addition to text — its source
- *   map type is `Map<String, Variant<String, Bytes>>`.  Keys: "asm"/"s"/
- *   "ll" carry text, "obj"/"bc" carry binary blobs.  The source map is
- *   never serialized; it is decorative for InspectSource only.
- *
- *   `code` is the linked Hexagon `.so` shared library bytes (fmt="so").
- *   The receiver runtime materializes the bytes to a tempfile internally
- *   before `dlopen`, since Hexagon shared libraries cannot be loaded
- *   directly from memory.
+ *   factory "ffi.Module.create.hexagon" via the FFI registry; on miss it
+ *   constructs a `HexagonFallbackModuleNode` directly.  The fallback exists
+ *   so that codegen can succeed on a build where the Hexagon runtime is
+ *   not linked.
  */
 #ifndef TVM_TARGET_HEXAGON_HEXAGON_FALLBACK_MODULE_H_
 #define TVM_TARGET_HEXAGON_HEXAGON_FALLBACK_MODULE_H_

@@ -23,17 +23,9 @@
  *
  *   `CUDAModuleCreateWithFallback` is the ONLY entry point codegen uses to
  *   construct a CUDA `ffi::Module`.  It tries the runtime-registered factory
- *   "ffi.Module.create.cuda" via the FFI registry; on miss (USE_CUDA=OFF
- *   build) or when the env var TVM_COMPILE_FORCE_FALLBACK is truthy, it
- *   constructs a `CUDAFallbackModuleNode` directly via the in-process
- *   `CUDAFallbackModuleCreate`.
- *
- *   The fallback exists so that codegen can succeed on a build where the
- *   CUDA runtime is not linked.  The fallback's saved-bytes are byte-identical
- *   to the real module's saved-bytes for the same payload — the receiver
- *   on a USE_CUDA=ON box reconstructs a real `CUDAModuleNode` via
- *   "ffi.Module.load_from_bytes.cuda".  See
- *   src/runtime/cuda/cuda_module.cc for the real module + on-disk format.
+ *   "ffi.Module.create.cuda" via the FFI registry; on miss it constructs a
+ *   `CUDAFallbackModuleNode` directly.  The fallback exists so that codegen
+ *   can succeed on a build where the CUDA runtime is not linked.
  */
 #ifndef TVM_TARGET_CUDA_CUDA_FALLBACK_MODULE_H_
 #define TVM_TARGET_CUDA_CUDA_FALLBACK_MODULE_H_

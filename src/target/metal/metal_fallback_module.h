@@ -23,25 +23,9 @@
  *
  *   `MetalModuleCreateWithFallback` is the ONLY entry point codegen uses to
  *   construct a Metal `ffi::Module`.  It tries the runtime-registered factory
- *   "ffi.Module.create.metal" via the FFI registry; on miss (USE_METAL=OFF
- *   build — typical Linux CI) or when the env var TVM_COMPILE_FORCE_FALLBACK
- *   is truthy, it constructs a `MetalFallbackModuleNode` directly via the
- *   in-process `MetalFallbackModuleCreate`.
- *
- *   The fallback exists so that codegen can succeed on a build where the
- *   Metal runtime is not linked.  The fallback's saved-bytes are
- *   byte-identical to the real module's saved-bytes for the same payload —
- *   the receiver on a USE_METAL=ON box (macOS) reconstructs a real
- *   `MetalModuleNode` via "ffi.Module.load_from_bytes.metal", which JIT-
- *   compiles MSL via `MTLDevice::newLibraryWithSource` on first
- *   `GetFunction`.  See src/runtime/metal/metal_module.mm for the real
- *   module + on-disk format.
- *
- *   Metal is multi-shader: each kernel is its own MSL source (or
- *   compiled metallib blob), keyed by kernel name.  The unified
- *   per-kernel `smap` payload is `Map<String, Bytes>` — text-vs-binary
- *   distinction lives in `fmt` (`"metal"` source / `"metallib"`
- *   compiled), not in the container.
+ *   "ffi.Module.create.metal" via the FFI registry; on miss it constructs a
+ *   `MetalFallbackModuleNode` directly.  The fallback exists so that codegen
+ *   can succeed on a build where the Metal runtime is not linked.
  */
 #ifndef TVM_TARGET_METAL_METAL_FALLBACK_MODULE_H_
 #define TVM_TARGET_METAL_METAL_FALLBACK_MODULE_H_

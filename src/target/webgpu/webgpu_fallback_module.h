@@ -23,22 +23,10 @@
  *
  *   `WebGPUModuleCreateWithFallback` is the ONLY entry point codegen uses
  *   to construct a WebGPU `ffi::Module`.  It tries the runtime-registered
- *   factory "ffi.Module.create.webgpu" via the FFI registry; on miss
- *   (always, on the C++ side — there is no native WebGPU runtime in the
- *   C++ tree; the real WebGPU runtime lives in `web/emcc/webgpu_runtime.cc`
- *   and is wasm-side only) or when the env var TVM_COMPILE_FORCE_FALLBACK
- *   is truthy, it constructs a `WebGPUFallbackModuleNode` directly via the
- *   in-process `WebGPUFallbackModuleCreate`.
- *
- *   For WebGPU the fallback IS the canonical C++-side module — it carries
- *   per-kernel WGSL bytes for shipment to the wasm receiver.  The
- *   wasm-side loader `ffi.Module.load_from_bytes.webgpu` (registered in
- *   web/emcc/webgpu_runtime.cc) reads the same byte format.  The format
- *   is `[fmap][smap]` (2 fields, no `fmt` because WebGPU is single-format
- *   `"wgsl"`); changes here MUST be mirrored in the wasm-side reader.
- *
- *   Multi-shader: per-kernel `smap` payload is `Map<String, Bytes>`
- *   (WGSL source bytes per kernel name).
+ *   factory "ffi.Module.create.webgpu" via the FFI registry; on miss it
+ *   constructs a `WebGPUFallbackModuleNode` directly.  The fallback exists
+ *   so that codegen can succeed on a build where the WebGPU runtime is
+ *   not linked.
  */
 #ifndef TVM_TARGET_WEBGPU_WEBGPU_FALLBACK_MODULE_H_
 #define TVM_TARGET_WEBGPU_WEBGPU_FALLBACK_MODULE_H_
