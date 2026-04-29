@@ -1687,13 +1687,13 @@ def test_cumsum1():
         "cumsum_graph",
         inputs=[
             helper.make_tensor_value_info("X", onnx.TensorProto.DOUBLE, input_shape),
-            helper.make_tensor_value_info("axis", onnx.TensorProto.INT32, [1], "axis"),
         ],
+        initializer=[helper.make_tensor("axis", onnx.TensorProto.INT32, [1], [0])],
         outputs=[helper.make_tensor_value_info("Y", onnx.TensorProto.DOUBLE, input_shape)],
     )
 
     model = helper.make_model(graph, producer_name="cumsum_graph")
-    check_correctness(model, inputs={"axis": np.array([0], dtype=np.int32)})
+    check_correctness(model)
 
 
 @pytest.mark.parametrize("axis", [[0, 2], None])
