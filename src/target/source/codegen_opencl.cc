@@ -32,7 +32,7 @@
 #include "../../runtime/texture.h"
 #include "../../runtime/thread_storage_scope.h"
 #include "../build_common.h"
-#include "../spirv/spirv_utils.h"
+#include "../vulkan/spirv_utils.h"
 
 namespace tvm {
 namespace codegen {

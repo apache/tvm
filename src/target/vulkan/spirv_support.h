@@ -23,8 +23,8 @@
  * \brief Utility for determining which spirv capabilities a TVM
  * target supports.
  */
-#ifndef TVM_TARGET_SPIRV_SPIRV_SUPPORT_H_
-#define TVM_TARGET_SPIRV_SPIRV_SUPPORT_H_
+#ifndef TVM_TARGET_VULKAN_SPIRV_SUPPORT_H_
+#define TVM_TARGET_VULKAN_SPIRV_SUPPORT_H_
 
 #include <tvm/target/target.h>
 #include <vulkan/vulkan_core.h>
@@ -294,4 +294,4 @@ struct SPIRVSupport {
 
 }  // namespace codegen
 }  // namespace tvm
-#endif  // TVM_TARGET_SPIRV_SPIRV_SUPPORT_H_
+#endif  // TVM_TARGET_VULKAN_SPIRV_SUPPORT_H_

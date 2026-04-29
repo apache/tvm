@@ -24,17 +24,37 @@
 
 #include <tvm/ffi/reflection/registry.h>
 
-#include "../../runtime/spirv/spirv_shader.h"
-#include "../../runtime/vulkan/vulkan_module.h"
+#include <string>
+#include <utility>
+
+#include "../../runtime/vulkan/spirv_shader.h"
+#include "../../support/bytes_io.h"
 #include "../build_common.h"
 #include "spirv_utils.h"
+#include "vulkan_fallback_module.h"
 
 namespace tvm {
 namespace codegen {
 
 ffi::Module BuildSPIRV(IRModule mod, Target target) {
   auto [smap, spirv_text] = LowerToSPIRV(mod, target);
-  return runtime::VulkanModuleCreate(smap, ExtractFuncInfo(mod), spirv_text);
+  // Serialize each SPIRVShader to ffi::Bytes for the unified per-kernel
+  // smap shape.  Each value is a self-packed SPIRVShader (flag + data
+  // vector); the Vulkan runtime (USE_VULKAN=ON) deserializes via the
+  // inverse helper in src/runtime/vulkan/vulkan_module.cc.
+  ffi::Map<ffi::String, ffi::Bytes> shader_bytes;
+  for (auto& kv : smap) {
+    std::string buf;
+    support::BytesOutStream strm(&buf);
+    strm.Write(kv.second);
+    shader_bytes.Set(kv.first, ffi::Bytes(std::move(buf)));
+  }
+  // The aggregated SPIR-V text dump is preserved in the in-memory source
+  // map keyed by "spv" — only used by InspectSource and never serialized.
+  ffi::Map<ffi::String, ffi::String> source;
+  source.Set("spv", std::move(spirv_text));
+  return target::VulkanModuleCreateWithFallback(std::move(shader_bytes), ffi::String("vulkan"),
+                                                ExtractFuncInfo(mod), std::move(source));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

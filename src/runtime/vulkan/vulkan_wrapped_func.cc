@@ -24,7 +24,6 @@
 #include <utility>
 
 #include "../../support/bytes_io.h"
-#include "../file_utils.h"
 #include "vulkan_device_api.h"
 
 namespace tvm {
@@ -232,8 +231,8 @@ std::shared_ptr<VulkanPipeline> VulkanModuleNode::GetPipeline(size_t device_id,
   auto pe = std::make_shared<VulkanPipeline>();
   {
     // create shader
-    auto sit = smap_.find(func_name);
-    TVM_FFI_ICHECK(sit != smap_.end());
+    auto sit = internal_smap_.find(func_name);
+    TVM_FFI_ICHECK(sit != internal_smap_.end());
     pe->use_ubo = sit->second.flag & (1 << ShaderMetaDataFlagMask::kUseUBO);
     const std::vector<uint32_t>& data = sit->second.data;
     VkShaderModuleCreateInfo shader_cinfo;
@@ -405,20 +404,13 @@ std::shared_ptr<VulkanPipeline> VulkanModuleNode::GetPipeline(size_t device_id,
   return pe;
 }
 
-void VulkanModuleNode::WriteToFile(const ffi::String& file_name, const ffi::String& format) const {
-  std::string fmt = GetFileFormat(file_name, format);
-  TVM_FFI_ICHECK_EQ(fmt, fmt_) << "Can only save to customized format vulkan";
-  std::string meta_file = GetMetaFilePath(file_name);
-  SaveMetaDataToFile(meta_file, fmap_);
-  std::string result;
-  support::BytesOutStream stream(&result);
-  uint32_t magic = kVulkanModuleMagic;
-  stream.Write(magic);
-  stream.Write(smap_);
-  SaveBinaryToFile(file_name, result);
-}
-
 ffi::Bytes VulkanModuleNode::SaveToBytes() const {
+  // NOTE: serialization format MUST remain byte-identical to
+  // target::VulkanFallbackModuleNode::SaveToBytes in
+  // src/target/vulkan/vulkan_fallback_module.cc.  This file is the
+  // source of truth; the fallback follows.
+  // 3 fields only — the source map is in-memory inspection material and
+  // is NEVER serialized (matches upstream behavior for all backends).
   std::string result;
   support::BytesOutStream stream(&result);
   stream.Write(fmt_);
@@ -428,8 +420,16 @@ ffi::Bytes VulkanModuleNode::SaveToBytes() const {
 }
 
 ffi::String VulkanModuleNode::InspectSource(const ffi::String& format) const {
-  // can only return disassembly code.
-  return source_;
+  if (auto it = source_.find(format); it != source_.end()) {
+    return (*it).second;
+  }
+  if (format.empty()) {
+    // Default: aggregated SPIR-V text dump (key "spv").
+    if (auto it = source_.find("spv"); it != source_.end()) {
+      return (*it).second;
+    }
+  }
+  return ffi::String();
 }
 
 }  // namespace vulkan

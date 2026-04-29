@@ -16,8 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef TVM_TARGET_SPIRV_SPIRV_UTILS_H_
-#define TVM_TARGET_SPIRV_SPIRV_UTILS_H_
+#ifndef TVM_TARGET_VULKAN_SPIRV_UTILS_H_
+#define TVM_TARGET_VULKAN_SPIRV_UTILS_H_
 
 #include <tvm/ir/module.h>
 #include <tvm/target/target.h>
@@ -26,7 +26,7 @@
 #include <unordered_map>
 #include <utility>
 
-#include "../../runtime/spirv/spirv_shader.h"
+#include "../../runtime/vulkan/spirv_shader.h"
 
 namespace tvm {
 namespace codegen {
@@ -43,4 +43,4 @@ std::pair<std::unordered_map<std::string, runtime::SPIRVShader>, std::string> Lo
 
 }  // namespace codegen
 }  // namespace tvm
-#endif  // TVM_TARGET_SPIRV_SPIRV_UTILS_H_
+#endif  // TVM_TARGET_VULKAN_SPIRV_UTILS_H_
