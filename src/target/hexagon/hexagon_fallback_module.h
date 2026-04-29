@@ -26,7 +26,8 @@
  *   factory "ffi.Module.create.hexagon" via the FFI registry; on miss it
  *   constructs a `HexagonFallbackModuleNode` directly.  The fallback exists
  *   so that codegen can succeed on a build where the Hexagon runtime is
- *   not linked.
+ *   not linked.  This setup is helpful for cross compilation where we
+ *   compile on one env and run on another.
  */
 #ifndef TVM_TARGET_HEXAGON_HEXAGON_FALLBACK_MODULE_H_
 #define TVM_TARGET_HEXAGON_HEXAGON_FALLBACK_MODULE_H_

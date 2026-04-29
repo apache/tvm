@@ -26,7 +26,8 @@
  *   factory "ffi.Module.create.opencl" via the FFI registry; on miss it
  *   constructs an `OpenCLFallbackModuleNode` directly.  The fallback exists
  *   so that codegen can succeed on a build where the OpenCL runtime is
- *   not linked.
+ *   not linked.  This setup is helpful for cross compilation where we
+ *   compile on one env and run on another.
  */
 #ifndef TVM_TARGET_OPENCL_OPENCL_FALLBACK_MODULE_H_
 #define TVM_TARGET_OPENCL_OPENCL_FALLBACK_MODULE_H_

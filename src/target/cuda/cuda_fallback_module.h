@@ -25,7 +25,9 @@
  *   construct a CUDA `ffi::Module`.  It tries the runtime-registered factory
  *   "ffi.Module.create.cuda" via the FFI registry; on miss it constructs a
  *   `CUDAFallbackModuleNode` directly.  The fallback exists so that codegen
- *   can succeed on a build where the CUDA runtime is not linked.
+ *   can succeed on a build where the CUDA runtime is not linked.  This
+ *   setup is helpful for cross compilation where we compile on one env
+ *   and run on another.
  */
 #ifndef TVM_TARGET_CUDA_CUDA_FALLBACK_MODULE_H_
 #define TVM_TARGET_CUDA_CUDA_FALLBACK_MODULE_H_

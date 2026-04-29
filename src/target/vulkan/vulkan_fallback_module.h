@@ -26,7 +26,8 @@
  *   factory "ffi.Module.create.vulkan" via the FFI registry; on miss it
  *   constructs a `VulkanFallbackModuleNode` directly.  The fallback exists
  *   so that codegen can succeed on a build where the Vulkan runtime is
- *   not linked.
+ *   not linked.  This setup is helpful for cross compilation where we
+ *   compile on one env and run on another.
  */
 #ifndef TVM_TARGET_VULKAN_VULKAN_FALLBACK_MODULE_H_
 #define TVM_TARGET_VULKAN_VULKAN_FALLBACK_MODULE_H_
