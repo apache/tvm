@@ -20,6 +20,7 @@
 
 import os
 
+import flatbuffers
 import numpy as np
 import pytest
 import tensorflow as tf
@@ -2887,6 +2888,546 @@ def test_sparse_to_dense():
             return gv
 
     verify(SparseToDense, Expected)
+
+
+# DENSIFY operator tests
+# DENSIFY converts sparse weight tensors to dense at conversion time (not runtime).
+# Since TensorFlow does not provide an API to create sparse TFLite models,
+# we manually build them using the flatbuffers API.
+
+# Import schema helpers explicitly. CI's generated tflite package does not
+# reliably re-export these builder helpers and enums at the package top-level.
+def _get_tflite_schema_module(module_name):
+    return __import__(f"tflite.{module_name}", fromlist=[module_name])
+
+
+def _get_tflite_schema_enum(enum_name):
+    return getattr(_get_tflite_schema_module(enum_name), enum_name)
+
+
+_tfl_add_options = _get_tflite_schema_module("AddOptions")
+_tfl_buffer = _get_tflite_schema_module("Buffer")
+_tfl_conv2d_options = _get_tflite_schema_module("Conv2DOptions")
+_tfl_dimension_metadata = _get_tflite_schema_module("DimensionMetadata")
+_tfl_fully_connected_options = _get_tflite_schema_module("FullyConnectedOptions")
+_tfl_int32_vector = _get_tflite_schema_module("Int32Vector")
+_tfl_model = _get_tflite_schema_module("Model")
+_tfl_operator = _get_tflite_schema_module("Operator")
+_tfl_operator_code = _get_tflite_schema_module("OperatorCode")
+_tfl_sparsity_parameters = _get_tflite_schema_module("SparsityParameters")
+_tfl_subgraph = _get_tflite_schema_module("SubGraph")
+_tfl_tensor = _get_tflite_schema_module("Tensor")
+
+_tfl_builtin_operator = _get_tflite_schema_enum("BuiltinOperator")
+_tfl_builtin_options = _get_tflite_schema_enum("BuiltinOptions")
+_tfl_dimension_type = _get_tflite_schema_enum("DimensionType")
+_tfl_fc_weights_format = _get_tflite_schema_enum("FullyConnectedOptionsWeightsFormat")
+_tfl_padding = _get_tflite_schema_enum("Padding")
+_tfl_sparse_index_vector = _get_tflite_schema_enum("SparseIndexVector")
+_tfl_tensor_type = _get_tflite_schema_enum("TensorType")
+
+_DENSIFY_TEST_VALUES = np.array([1.0, 2.0], dtype=np.float32)
+_DENSIFY_TEST_DENSE = np.array([[1.0, 0.0], [0.0, 2.0]], dtype=np.float32)
+_DENSIFY_ROW_PTRS = [0, 1, 2]
+_DENSIFY_COL_INDICES = [0, 1]
+_DENSIFY_CONV_KERNEL_DENSE_HWIO = _DENSIFY_TEST_DENSE.reshape(2, 2, 1, 1)
+_DENSIFY_FC_WEIGHT_VALUES = np.array([1.0, 2.0, 3.0, 4.0], dtype=np.float32)
+_DENSIFY_FC_WEIGHT_DENSE_OI = np.diag(_DENSIFY_FC_WEIGHT_VALUES).astype(np.float32)
+_DENSIFY_FC_ROW_PTRS = [0, 1, 2, 3, 4]
+_DENSIFY_FC_COL_INDICES = [0, 1, 2, 3]
+
+
+def _tflite_int32_vector(builder, start_vector_fn, values):
+    start_vector_fn(builder, len(values))
+    for value in reversed(values):
+        builder.PrependInt32(value)
+    return builder.EndVector()
+
+
+def _tflite_offset_vector(builder, start_vector_fn, offsets):
+    start_vector_fn(builder, len(offsets))
+    for offset in reversed(offsets):
+        builder.PrependUOffsetTRelative(offset)
+    return builder.EndVector()
+
+
+def _tflite_byte_vector(builder, data):
+    _tfl_buffer.BufferStartDataVector(builder, len(data))
+    for byte in reversed(data):
+        builder.PrependByte(byte)
+    return builder.EndVector()
+
+
+def _tflite_int32_table(builder, values):
+    # Build the values vector directly without relying on version-specific
+    # helper Int32VectorStartValuesVector, which is absent in older
+    # tflite package versions used in CI.
+    builder.StartVector(4, len(values), 4)
+    for value in reversed(values):
+        builder.PrependInt32(value)
+    values_vec = builder.EndVector()
+    _tfl_int32_vector.Int32VectorStart(builder)
+    _tfl_int32_vector.Int32VectorAddValues(builder, values_vec)
+    return _tfl_int32_vector.Int32VectorEnd(builder)
+
+
+def _tflite_shape(builder, shape):
+    return _tflite_int32_vector(builder, _tfl_tensor.TensorStartShapeVector, shape)
+
+
+def _build_tensor(builder, buffer_idx, shape, sparsity=None):
+    """Helper to build a TFLite tensor."""
+    shape_vec = _tflite_shape(builder, shape)
+    _tfl_tensor.TensorStart(builder)
+    _tfl_tensor.TensorAddBuffer(builder, buffer_idx)
+    _tfl_tensor.TensorAddHasRank(builder, True)
+    _tfl_tensor.TensorAddIsVariable(builder, False)
+    _tfl_tensor.TensorAddShape(builder, shape_vec)
+    if sparsity is not None:
+        _tfl_tensor.TensorAddSparsity(builder, sparsity)
+    _tfl_tensor.TensorAddType(builder, _tfl_tensor_type.FLOAT32)
+    return _tfl_tensor.TensorEnd(builder)
+
+
+def _build_buffer(builder, data=None):
+    # Build the data vector before starting the Buffer table to avoid
+    # flatbuffers IsNestedError (vectors cannot be created inside tables).
+    data_offset = None
+    if data is not None:
+        data_offset = _tflite_byte_vector(builder, data)
+    _tfl_buffer.BufferStart(builder)
+    if data_offset is not None:
+        _tfl_buffer.BufferAddData(builder, data_offset)
+    return _tfl_buffer.BufferEnd(builder)
+
+
+def _build_operator(
+    builder, opcode_index, inputs, outputs, builtin_options_type, builtin_options=None
+):
+    inputs_vec = _tflite_int32_vector(builder, _tfl_operator.OperatorStartInputsVector, inputs)
+    outputs_vec = _tflite_int32_vector(
+        builder, _tfl_operator.OperatorStartOutputsVector, outputs
+    )
+    _tfl_operator.OperatorStart(builder)
+    _tfl_operator.OperatorAddOpcodeIndex(builder, opcode_index)
+    _tfl_operator.OperatorAddInputs(builder, inputs_vec)
+    _tfl_operator.OperatorAddOutputs(builder, outputs_vec)
+    _tfl_operator.OperatorAddBuiltinOptionsType(builder, builtin_options_type)
+    if builtin_options is not None:
+        _tfl_operator.OperatorAddBuiltinOptions(builder, builtin_options)
+    return _tfl_operator.OperatorEnd(builder)
+
+
+def _build_operator_code(builder, builtin_op):
+    _tfl_operator_code.OperatorCodeStart(builder)
+    _tfl_operator_code.OperatorCodeAddDeprecatedBuiltinCode(builder, builtin_op)
+    _tfl_operator_code.OperatorCodeAddBuiltinCode(builder, builtin_op)
+    _tfl_operator_code.OperatorCodeAddVersion(builder, 1)
+    return _tfl_operator_code.OperatorCodeEnd(builder)
+
+
+def _build_subgraph(builder, *, tensors, operators, inputs, outputs):
+    tensors_vec = _tflite_offset_vector(builder, _tfl_subgraph.SubGraphStartTensorsVector, tensors)
+    operators_vec = _tflite_offset_vector(
+        builder, _tfl_subgraph.SubGraphStartOperatorsVector, operators
+    )
+    inputs_vec = _tflite_int32_vector(builder, _tfl_subgraph.SubGraphStartInputsVector, inputs)
+    outputs_vec = _tflite_int32_vector(
+        builder, _tfl_subgraph.SubGraphStartOutputsVector, outputs
+    )
+
+    _tfl_subgraph.SubGraphStart(builder)
+    _tfl_subgraph.SubGraphAddTensors(builder, tensors_vec)
+    _tfl_subgraph.SubGraphAddOperators(builder, operators_vec)
+    _tfl_subgraph.SubGraphAddInputs(builder, inputs_vec)
+    _tfl_subgraph.SubGraphAddOutputs(builder, outputs_vec)
+    return _tfl_subgraph.SubGraphEnd(builder)
+
+
+def _finish_tflite_model(builder, *, subgraph, operator_codes, buffers):
+    buffers_vec = _tflite_offset_vector(builder, _tfl_model.ModelStartBuffersVector, buffers)
+    opcodes_vec = _tflite_offset_vector(
+        builder, _tfl_model.ModelStartOperatorCodesVector, operator_codes
+    )
+    subgraphs_vec = _tflite_offset_vector(builder, _tfl_model.ModelStartSubgraphsVector, [subgraph])
+
+    _tfl_model.ModelStart(builder)
+    _tfl_model.ModelAddBuffers(builder, buffers_vec)
+    _tfl_model.ModelAddSubgraphs(builder, subgraphs_vec)
+    _tfl_model.ModelAddOperatorCodes(builder, opcodes_vec)
+    _tfl_model.ModelAddVersion(builder, 3)
+    model = _tfl_model.ModelEnd(builder)
+
+    builder.Finish(model)
+    return bytes(builder.Output())
+
+
+def _build_csr_sparsity(
+    builder,
+    *,
+    dense_sizes,
+    row_ptrs,
+    col_indices,
+    sparse_axis,
+    traversal_order=None,
+):
+    row_ptrs_vec = _tflite_int32_table(builder, row_ptrs)
+    col_indices_vec = _tflite_int32_table(builder, col_indices)
+    dim_metadata = []
+
+    for axis, dense_size in enumerate(dense_sizes):
+        _tfl_dimension_metadata.DimensionMetadataStart(builder)
+        if axis == sparse_axis:
+            _tfl_dimension_metadata.DimensionMetadataAddFormat(
+                builder, _tfl_dimension_type.SPARSE_CSR
+            )
+            _tfl_dimension_metadata.DimensionMetadataAddArraySegmentsType(
+                builder, _tfl_sparse_index_vector.Int32Vector
+            )
+            _tfl_dimension_metadata.DimensionMetadataAddArraySegments(builder, row_ptrs_vec)
+            _tfl_dimension_metadata.DimensionMetadataAddArrayIndicesType(
+                builder, _tfl_sparse_index_vector.Int32Vector
+            )
+            _tfl_dimension_metadata.DimensionMetadataAddArrayIndices(builder, col_indices_vec)
+        else:
+            _tfl_dimension_metadata.DimensionMetadataAddFormat(builder, _tfl_dimension_type.DENSE)
+            _tfl_dimension_metadata.DimensionMetadataAddDenseSize(builder, dense_size)
+        dim_metadata.append(_tfl_dimension_metadata.DimensionMetadataEnd(builder))
+
+    if traversal_order is None:
+        traversal_order = list(range(len(dense_sizes)))
+
+    traversal_order_vec = _tflite_int32_vector(
+        builder,
+        _tfl_sparsity_parameters.SparsityParametersStartTraversalOrderVector,
+        traversal_order,
+    )
+    dim_metadata_vec = _tflite_offset_vector(
+        builder, _tfl_sparsity_parameters.SparsityParametersStartDimMetadataVector, dim_metadata
+    )
+
+    _tfl_sparsity_parameters.SparsityParametersStart(builder)
+    _tfl_sparsity_parameters.SparsityParametersAddTraversalOrder(builder, traversal_order_vec)
+    _tfl_sparsity_parameters.SparsityParametersAddDimMetadata(builder, dim_metadata_vec)
+    return _tfl_sparsity_parameters.SparsityParametersEnd(builder)
+
+
+def _build_densify_only_case(builder):
+    sparse_tensor_idx = 0
+    dense_tensor_idx = 1
+    shape = [2, 2]
+    sparsity = _build_csr_sparsity(
+        builder,
+        dense_sizes=shape,
+        row_ptrs=_DENSIFY_ROW_PTRS,
+        col_indices=_DENSIFY_COL_INDICES,
+        sparse_axis=1,
+    )
+
+    sparse_tensor = _build_tensor(builder, 0, shape, sparsity)
+    dense_tensor = _build_tensor(builder, 1, shape)
+    densify_op = _build_operator(
+        builder,
+        0,
+        [sparse_tensor_idx],
+        [dense_tensor_idx],
+        _tfl_builtin_options.DensifyOptions,
+    )
+    subgraph = _build_subgraph(
+        builder,
+        tensors=[sparse_tensor, dense_tensor],
+        operators=[densify_op],
+        inputs=[],
+        outputs=[dense_tensor_idx],
+    )
+    operator_codes = [_build_operator_code(builder, _tfl_builtin_operator.DENSIFY)]
+    return _DENSIFY_TEST_VALUES, subgraph, operator_codes
+
+
+def _build_densify_add_case(builder):
+    input_tensor_idx = 0
+    sparse_tensor_idx = 1
+    dense_tensor_idx = 2
+    output_tensor_idx = 3
+    shape = [2, 2]
+    sparsity = _build_csr_sparsity(
+        builder,
+        dense_sizes=shape,
+        row_ptrs=_DENSIFY_ROW_PTRS,
+        col_indices=_DENSIFY_COL_INDICES,
+        sparse_axis=1,
+    )
+
+    input_tensor = _build_tensor(builder, 1, shape)
+    sparse_tensor = _build_tensor(builder, 0, shape, sparsity)
+    dense_tensor = _build_tensor(builder, 1, shape)
+    output_tensor = _build_tensor(builder, 1, shape)
+
+    densify_op = _build_operator(
+        builder,
+        1,
+        [sparse_tensor_idx],
+        [dense_tensor_idx],
+        _tfl_builtin_options.DensifyOptions,
+    )
+    _tfl_add_options.AddOptionsStart(builder)
+    add_options = _tfl_add_options.AddOptionsEnd(builder)
+    add_op = _build_operator(
+        builder,
+        0,
+        [input_tensor_idx, dense_tensor_idx],
+        [output_tensor_idx],
+        _tfl_builtin_options.AddOptions,
+        add_options,
+    )
+    subgraph = _build_subgraph(
+        builder,
+        tensors=[input_tensor, sparse_tensor, dense_tensor, output_tensor],
+        operators=[densify_op, add_op],
+        inputs=[input_tensor_idx],
+        outputs=[output_tensor_idx],
+    )
+    operator_codes = [
+        _build_operator_code(builder, _tfl_builtin_operator.ADD),
+        _build_operator_code(builder, _tfl_builtin_operator.DENSIFY),
+    ]
+    return _DENSIFY_TEST_VALUES, subgraph, operator_codes
+
+
+def _build_densify_conv2d_case(builder):
+    input_tensor_idx = 0
+    sparse_kernel_idx = 1
+    dense_kernel_idx = 2
+    output_tensor_idx = 3
+
+    sparsity = _build_csr_sparsity(
+        builder,
+        dense_sizes=[1, 2, 2, 1],
+        row_ptrs=_DENSIFY_ROW_PTRS,
+        col_indices=_DENSIFY_COL_INDICES,
+        sparse_axis=2,
+    )
+
+    input_tensor = _build_tensor(builder, 1, [1, 4, 4, 1])
+    sparse_kernel = _build_tensor(builder, 0, [1, 2, 2, 1], sparsity)
+    dense_kernel = _build_tensor(builder, 1, [1, 2, 2, 1])
+    output_tensor = _build_tensor(builder, 1, [1, 4, 4, 1])
+
+    _tfl_conv2d_options.Conv2DOptionsStart(builder)
+    _tfl_conv2d_options.Conv2DOptionsAddStrideH(builder, 1)
+    _tfl_conv2d_options.Conv2DOptionsAddStrideW(builder, 1)
+    _tfl_conv2d_options.Conv2DOptionsAddPadding(builder, _tfl_padding.SAME)
+    _tfl_conv2d_options.Conv2DOptionsAddDilationHFactor(builder, 1)
+    _tfl_conv2d_options.Conv2DOptionsAddDilationWFactor(builder, 1)
+    conv2d_options = _tfl_conv2d_options.Conv2DOptionsEnd(builder)
+
+    densify_op = _build_operator(
+        builder,
+        1,
+        [sparse_kernel_idx],
+        [dense_kernel_idx],
+        _tfl_builtin_options.DensifyOptions,
+    )
+    conv2d_op = _build_operator(
+        builder,
+        0,
+        [input_tensor_idx, dense_kernel_idx],
+        [output_tensor_idx],
+        _tfl_builtin_options.Conv2DOptions,
+        conv2d_options,
+    )
+    subgraph = _build_subgraph(
+        builder,
+        tensors=[input_tensor, sparse_kernel, dense_kernel, output_tensor],
+        operators=[densify_op, conv2d_op],
+        inputs=[input_tensor_idx],
+        outputs=[output_tensor_idx],
+    )
+    operator_codes = [
+        _build_operator_code(builder, _tfl_builtin_operator.CONV_2D),
+        _build_operator_code(builder, _tfl_builtin_operator.DENSIFY),
+    ]
+    return _DENSIFY_TEST_VALUES, subgraph, operator_codes
+
+
+def _build_densify_fully_connected_case(builder):
+    input_tensor_idx = 0
+    sparse_weight_idx = 1
+    dense_weight_idx = 2
+    output_tensor_idx = 3
+    weight_shape = [4, 4]
+
+    sparsity = _build_csr_sparsity(
+        builder,
+        dense_sizes=weight_shape,
+        row_ptrs=_DENSIFY_FC_ROW_PTRS,
+        col_indices=_DENSIFY_FC_COL_INDICES,
+        sparse_axis=1,
+    )
+
+    input_tensor = _build_tensor(builder, 1, [1, 4])
+    sparse_weight = _build_tensor(builder, 0, weight_shape, sparsity)
+    dense_weight = _build_tensor(builder, 1, weight_shape)
+    output_tensor = _build_tensor(builder, 1, [1, 4])
+
+    _tfl_fully_connected_options.FullyConnectedOptionsStart(builder)
+    _tfl_fully_connected_options.FullyConnectedOptionsAddWeightsFormat(
+        builder, _tfl_fc_weights_format.DEFAULT
+    )
+    fc_options = _tfl_fully_connected_options.FullyConnectedOptionsEnd(builder)
+
+    densify_op = _build_operator(
+        builder,
+        1,
+        [sparse_weight_idx],
+        [dense_weight_idx],
+        _tfl_builtin_options.DensifyOptions,
+    )
+    fc_op = _build_operator(
+        builder,
+        0,
+        [input_tensor_idx, dense_weight_idx],
+        [output_tensor_idx],
+        _tfl_builtin_options.FullyConnectedOptions,
+        fc_options,
+    )
+    subgraph = _build_subgraph(
+        builder,
+        tensors=[input_tensor, sparse_weight, dense_weight, output_tensor],
+        operators=[densify_op, fc_op],
+        inputs=[input_tensor_idx],
+        outputs=[output_tensor_idx],
+    )
+    operator_codes = [
+        _build_operator_code(builder, _tfl_builtin_operator.FULLY_CONNECTED),
+        _build_operator_code(builder, _tfl_builtin_operator.DENSIFY),
+    ]
+    return _DENSIFY_FC_WEIGHT_VALUES, subgraph, operator_codes
+
+
+def _build_densify_model(*, downstream_op=None):
+    """Build a sparse TFLite model with DENSIFY operator for testing."""
+    scenario_builders = {
+        None: _build_densify_only_case,
+        "add": _build_densify_add_case,
+        "conv2d": _build_densify_conv2d_case,
+        "fully_connected": _build_densify_fully_connected_case,
+    }
+    if downstream_op not in scenario_builders:
+        raise ValueError(f"Unsupported DENSIFY downstream op: {downstream_op}")
+
+    builder = flatbuffers.Builder(4096)
+    sparse_values, subgraph, operator_codes = scenario_builders[downstream_op](builder)
+    sparse_buffer = _build_buffer(builder, sparse_values.tobytes())
+    empty_buffer = _build_buffer(builder)
+    return _finish_tflite_model(
+        builder,
+        subgraph=subgraph,
+        operator_codes=operator_codes,
+        buffers=[sparse_buffer, empty_buffer],
+    )
+
+
+def _load_densify_module(downstream_op=None):
+    """Load a DENSIFY test model and return the converted Relax module."""
+    model_bytes = _build_densify_model(downstream_op=downstream_op)
+    if hasattr(tflite.Model, "Model"):
+        tflite_model = tflite.Model.Model.GetRootAsModel(model_bytes, 0)
+    else:
+        tflite_model = tflite.Model.GetRootAsModel(model_bytes, 0)
+    mod = from_tflite(tflite_model)
+    mod["main"] = mod["main"].without_attr("params")
+    return mod
+
+
+def test_densify():
+    """Test TFLite DENSIFY operator conversion."""
+    mod = _load_densify_module()
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main() -> R.Tensor((2, 2), dtype="float32"):
+            R.func_attr({"num_input": 0})
+            with R.dataflow():
+                gv: R.Tensor((2, 2), dtype="float32") = R.const(_DENSIFY_TEST_DENSE)
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_densify_with_add():
+    """Test DENSIFY followed by a downstream ADD operator."""
+    mod = _load_densify_module(downstream_op="add")
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 2), dtype="float32")) -> R.Tensor((2, 2), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((2, 2), dtype="float32") = R.add(x, R.const(_DENSIFY_TEST_DENSE))
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+def test_densify_with_conv2d():
+    """Test DENSIFY followed by CONV2D - a real-world scenario.
+
+    This simulates a sparse convolution where DENSIFY converts sparse weights
+    before CONV2D uses them for inference.
+    """
+    mod = _load_densify_module(downstream_op="conv2d")
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((1, 4, 4, 1), dtype="float32")) -> R.Tensor(
+            (1, 4, 4, 1), dtype="float32"
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((1, 4, 4, 1), dtype="float32") = R.nn.conv2d(
+                    x,
+                    R.const(_DENSIFY_CONV_KERNEL_DENSE_HWIO),
+                    strides=[1, 1],
+                    padding=[0, 0, 1, 1],
+                    dilation=[1, 1],
+                    groups=1,
+                    data_layout="NHWC",
+                    kernel_layout="HWIO",
+                    out_layout="NHWC",
+                    out_dtype="void",
+                )
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+def test_densify_with_fully_connected():
+    """Test DENSIFY followed by FULLY_CONNECTED - a real-world scenario.
+
+    This simulates a sparse fully connected layer where DENSIFY converts
+    sparse weights before matrix multiplication for inference.
+    """
+    mod = _load_densify_module(downstream_op="fully_connected")
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((1, 4), dtype="float32")) -> R.Tensor((1, 4), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                weight_t: R.Tensor((4, 4), dtype="float32") = R.permute_dims(
+                    R.const(_DENSIFY_FC_WEIGHT_DENSE_OI), axes=[1, 0]
+                )
+                gv: R.Tensor((1, 4), dtype="float32") = R.matmul(x, weight_t, out_dtype="void")
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
 
 
 if __name__ == "__main__":
