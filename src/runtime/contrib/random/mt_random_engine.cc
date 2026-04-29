@@ -31,7 +31,6 @@
 #include <random>
 #include <thread>
 
-#include "../../threading_backend.h"
 #include "../3rdparty/compiler-rt/builtin_fp16.h"
 
 namespace tvm {

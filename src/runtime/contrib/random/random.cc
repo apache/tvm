@@ -27,7 +27,6 @@
 
 #include <algorithm>
 
-#include "../../threading_backend.h"
 #include "mt_random_engine.cc"
 
 #define DLPACK_INTEGER_TYPE_SWITCH(type, DType, ...)     \
