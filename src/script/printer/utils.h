@@ -25,6 +25,7 @@
 #include <tvm/ffi/extra/serialization.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/base.h>
+#include <tvm/script/printer/config.h>
 #include <tvm/script/printer/ir_docsifier.h>
 
 #include <sstream>
@@ -111,13 +112,13 @@ inline ExprDoc IR(const IRDocsifier& d, const ffi::String& attr) {
 /*! \brief Creates the TIR common prefix, which is by default `T` */
 inline ExprDoc TIR(const IRDocsifier& d, const ffi::String& attr) {
   d->ir_usage.insert("tirx");
-  return IdDoc(d->cfg->tir_prefix)->Attr(attr);
+  return IdDoc(d->cfg->GetExtraConfig<ffi::String>("tirx.prefix", "T"))->Attr(attr);
 }
 
 /*! \brief Creates the Relax common prefix, which is by default `R` */
 inline ExprDoc Relax(const IRDocsifier& d, const ffi::String& attr) {
   d->ir_usage.insert("relax");
-  return IdDoc(d->cfg->relax_prefix)->Attr(attr);
+  return IdDoc(d->cfg->GetExtraConfig<ffi::String>("relax.prefix", "R"))->Attr(attr);
 }
 
 inline std::string DType2Str(const runtime::DataType& dtype) {
@@ -132,10 +133,12 @@ inline Doc HeaderWrapper(const IRDocsifier& d, const Doc& doc) {
       stmts.push_back(CommentDoc("from tvm.script import ir as " + d->cfg->ir_prefix));
     }
     if (d->ir_usage.count("tirx")) {
-      stmts.push_back(CommentDoc("from tvm.script import tirx as " + d->cfg->tir_prefix));
+      stmts.push_back(CommentDoc("from tvm.script import tirx as " +
+                                 d->cfg->GetExtraConfig<ffi::String>("tirx.prefix", "T")));
     }
     if (d->ir_usage.count("relax")) {
-      stmts.push_back(CommentDoc("from tvm.script import relax as " + d->cfg->relax_prefix));
+      stmts.push_back(CommentDoc("from tvm.script import relax as " +
+                                 d->cfg->GetExtraConfig<ffi::String>("relax.prefix", "R")));
     }
     stmts.push_back(CommentDoc(""));
     stmts.push_back(Downcast<StmtDoc>(doc));

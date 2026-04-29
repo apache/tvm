@@ -204,7 +204,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
                                   /*body=*/(*f)->stmts));
     });
 
-TVM_SCRIPT_REPR(tirx::PrimFuncNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::PrimFuncNode, ReprPrintTIR);
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tvm::GlobalVar>(                                            //

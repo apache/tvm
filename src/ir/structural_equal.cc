@@ -26,7 +26,7 @@
 #include <tvm/ir/module.h>
 #include <tvm/ir/node_functor.h>
 #include <tvm/ir/repr.h>
-#include <tvm/ir/script_printer.h>
+#include <tvm/script/printer/config.h>
 
 #include <optional>
 #include <unordered_map>

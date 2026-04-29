@@ -47,7 +47,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           using relax::StructInfo;
           using relax::MatchStructInfo;
           ffi::Optional<ExprDoc> ann = std::nullopt;
-          if (d->cfg->show_all_struct_info) {
+          if (d->cfg->GetExtraConfig<bool>("relax.show_all_struct_info", true)) {
             ann = StructInfoAsAnn(n->var, n_p->Attr("var"), d, n->value);
           }
           ExprDoc rhs = Relax(d, "match_cast")
@@ -88,9 +88,9 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       return PrintIfExpr(n, n_p, d, std::nullopt, std::nullopt);
     });
 
-TVM_SCRIPT_REPR(relax::MatchCastNode, ReprPrintRelax);
-TVM_SCRIPT_REPR(relax::VarBindingNode, ReprPrintRelax);
-TVM_SCRIPT_REPR(relax::IfNode, ReprPrintRelax);
+TVM_REGISTER_SCRIPT_AS_REPR(relax::MatchCastNode, ReprPrintRelax);
+TVM_REGISTER_SCRIPT_AS_REPR(relax::VarBindingNode, ReprPrintRelax);
+TVM_REGISTER_SCRIPT_AS_REPR(relax::IfNode, ReprPrintRelax);
 
 }  // namespace printer
 }  // namespace script

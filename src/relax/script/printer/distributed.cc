@@ -126,9 +126,9 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           }
         });
 
-TVM_SCRIPT_REPR(relax::distributed::DeviceMeshNode, ReprPrintRelax);
-TVM_SCRIPT_REPR(relax::distributed::PlacementNode, ReprPrintRelax);
-TVM_SCRIPT_REPR(relax::distributed::DTensorStructInfoNode, ReprPrintRelax);
+TVM_REGISTER_SCRIPT_AS_REPR(relax::distributed::DeviceMeshNode, ReprPrintRelax);
+TVM_REGISTER_SCRIPT_AS_REPR(relax::distributed::PlacementNode, ReprPrintRelax);
+TVM_REGISTER_SCRIPT_AS_REPR(relax::distributed::DTensorStructInfoNode, ReprPrintRelax);
 }  // namespace printer
 }  // namespace script
 }  // namespace tvm

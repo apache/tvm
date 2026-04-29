@@ -17,11 +17,11 @@
  * under the License.
  */
 /*!
- * \file tvm/ir/script_printer.h
+ * \file tvm/script/printer/config.h
  * \brief Printer class to print repr string of each AST/IR nodes.
  */
-#ifndef TVM_IR_SCRIPT_PRINTER_H_
-#define TVM_IR_SCRIPT_PRINTER_H_
+#ifndef TVM_SCRIPT_PRINTER_CONFIG_H_
+#define TVM_SCRIPT_PRINTER_CONFIG_H_
 
 #include <tvm/ffi/any.h>
 #include <tvm/ffi/container/array.h>
@@ -29,10 +29,10 @@
 #include <tvm/ffi/reflection/access_path.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
+#include <tvm/ir/cast.h>
 #include <tvm/ir/node_functor.h>
 #include <tvm/runtime/data_type.h>
 
-#include <iostream>
 #include <string>
 
 namespace tvm {
@@ -44,18 +44,12 @@ class PrinterConfigNode : public ffi::Object {
   /*! \brief Whether or not to show metadata. */
   bool show_meta = false;
   /*! \brief The prefix of IR nodes */
-  std::string ir_prefix = "I";
-  /*! \brief The prefix of TIR nodes */
-  std::string tir_prefix = "T";
-  /*! \brief The prefix of Relax nodes */
-  std::string relax_prefix = "R";
+  ffi::String ir_prefix = "I";
   /*!
    * \brief The alias of the current module at cross-function call
    * \note Directly use module name if it's empty.
    */
-  std::string module_alias = "cls";
-  /*! \brief Default data type of TIR buffer */
-  DataType buffer_dtype = DataType::Float(32);
+  ffi::String module_alias = "cls";
   /*! \brief Default data type of integer literals */
   DataType int_dtype = DataType::Int(32);
   /*!
@@ -77,41 +71,6 @@ class PrinterConfigNode : public ffi::Object {
   /*! \brief Whether variable names should include the object's address */
   bool show_object_address = false;
 
-  /*! \brief In Relax, whether to show all StructInfo annotations
-   *
-   * If true (default), all variable bindings will be annotated with
-   * the struct info of the variable being bound.
-   *
-   * If false, the annotations will only be shown when they are
-   * required for correct parsing of the Relax function.  For example,
-   * function parameters must always have struct info annotations, but
-   * the struct info for expressions within a function body may be inferred from their
-   * arguments, and are therefore
-   *
-   * Example:
-   *
-   * \code{.py}
-   *     # func.show(show_all_struct_info=True)
-   *     @R.function
-   *     def func(
-   *         A: R.Tensor((10, 20), dtype="float32"),
-   *         B: R.Tensor((10,20), dtype="float32"),
-   *     ) -> R.Tensor((10, 20), dtype="float32"):
-   *         C: R.Tensor((10,20), dtype="float32") = R.add(A, B2)
-   *         return C
-   *
-   *     # func.show(show_all_struct_info=False)
-   *     @R.function
-   *     def func(
-   *         A: R.Tensor((10, 20), dtype="float32"),
-   *         B: R.Tensor((10,20), dtype="float32"),
-   *     ) -> R.Tensor((10, 20), dtype="float32"):
-   *         C = R.add(A, B2)
-   *         return C
-   * \endcode
-   */
-  bool show_all_struct_info = true;
-
   /* \brief ffi::Object path to be underlined */
   ffi::Array<ffi::reflection::AccessPath> path_to_underline;
   /*! \brief ffi::Object path to be annotated. */
@@ -121,16 +80,39 @@ class PrinterConfigNode : public ffi::Object {
   /*! \brief ffi::Object to be annotated. */
   ffi::Map<ffi::ObjectRef, ffi::String> obj_to_annotate = ffi::Map<ffi::ObjectRef, ffi::String>();
 
+  /*!
+   * \brief Generic extension map for dialect-specific config knobs.
+   *
+   * Keys are conventionally namespaced as "<dialect>.<knob>", e.g.:
+   *   "tirx.prefix"              — the TIR prefix (default "T")
+   *   "tirx.buffer_dtype"        — default buffer dtype (default float32)
+   *   "relax.prefix"             — the Relax prefix (default "R")
+   *   "relax.show_all_struct_info" — whether to show all struct info (default true)
+   *
+   * Use GetExtraConfig<T>(key, fallback) to read values with a typed fallback.
+   */
+  ffi::Map<ffi::String, ffi::Any> extra_config;
+
+  /*!
+   * \brief Look up a value in extra_config with type cast and fallback.
+   *
+   * Keys are conventionally namespaced as "<dialect>.<knob>"
+   * (e.g. "tirx.prefix", "relax.show_all_struct_info").
+   */
+  template <typename T>
+  T GetExtraConfig(const ffi::String& key, T fallback) const {
+    auto it = extra_config.find(key);
+    if (it == extra_config.end()) return fallback;
+    return Downcast<T>((*it).second);
+  }
+
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<PrinterConfigNode>()
         .def_ro("binding_names", &PrinterConfigNode::binding_names)
         .def_ro("show_meta", &PrinterConfigNode::show_meta)
         .def_ro("ir_prefix", &PrinterConfigNode::ir_prefix)
-        .def_ro("tir_prefix", &PrinterConfigNode::tir_prefix)
-        .def_ro("relax_prefix", &PrinterConfigNode::relax_prefix)
         .def_ro("module_alias", &PrinterConfigNode::module_alias)
-        .def_ro("buffer_dtype", &PrinterConfigNode::buffer_dtype)
         .def_ro("int_dtype", &PrinterConfigNode::int_dtype)
         .def_ro("float_dtype", &PrinterConfigNode::float_dtype)
         .def_ro("verbose_expr", &PrinterConfigNode::verbose_expr)
@@ -139,11 +121,11 @@ class PrinterConfigNode : public ffi::Object {
         .def_ro("num_context_lines", &PrinterConfigNode::num_context_lines)
         .def_ro("syntax_sugar", &PrinterConfigNode::syntax_sugar)
         .def_ro("show_object_address", &PrinterConfigNode::show_object_address)
-        .def_ro("show_all_struct_info", &PrinterConfigNode::show_all_struct_info)
         .def_ro("path_to_underline", &PrinterConfigNode::path_to_underline)
         .def_ro("path_to_annotate", &PrinterConfigNode::path_to_annotate)
         .def_ro("obj_to_underline", &PrinterConfigNode::obj_to_underline)
-        .def_ro("obj_to_annotate", &PrinterConfigNode::obj_to_annotate);
+        .def_ro("obj_to_annotate", &PrinterConfigNode::obj_to_annotate)
+        .def_ro("extra_config", &PrinterConfigNode::extra_config);
   }
 
   ffi::Array<ffi::String> GetBuiltinKeywords();
@@ -177,5 +159,31 @@ class TVMScriptPrinter {
                                     config.value_or(PrinterConfig()));                  \
   }
 
+/*!
+ * \brief The fallback body used by TVM_REGISTER_SCRIPT_AS_REPR.
+ *
+ * Tries to format \p obj via TVMScriptPrinter::Script; on error falls back to
+ * a plain address string.  Defined in src/script/printer/config.cc so that
+ * <tvm/runtime/logging.h> is not pulled into this public header.
+ */
+TVM_DLL std::string RedirectedReprPrinterMethod(const ObjectRef& obj);
+
+/*!
+ * \brief Register Script as the kRepr callback for ObjectType and install
+ *        the per-type dispatch entry in TVMScriptPrinter::vtable().
+ *
+ * \param ObjectType  The concrete object node type (e.g. tirx::VarNode).
+ * \param Method      The TVMScriptPrinter vtable dispatch function.
+ */
+#define TVM_REGISTER_SCRIPT_AS_REPR(ObjectType, Method)                                        \
+  TVM_FFI_STATIC_INIT_BLOCK() {                                                                \
+    namespace refl = tvm::ffi::reflection;                                                     \
+    refl::TypeAttrDef<ObjectType>().def(refl::type_attr::kRepr,                                \
+                                        [](ffi::ObjectRef obj, ffi::Function) -> ffi::String { \
+                                          return RedirectedReprPrinterMethod(obj);             \
+                                        });                                                    \
+  }                                                                                            \
+  TVM_STATIC_IR_FUNCTOR(TVMScriptPrinter, vtable).set_dispatch<ObjectType>(Method)
+
 }  // namespace tvm
-#endif  // TVM_IR_SCRIPT_PRINTER_H_
+#endif  // TVM_SCRIPT_PRINTER_CONFIG_H_

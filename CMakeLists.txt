@@ -283,6 +283,7 @@ tvm_file_glob(GLOB_RECURSE COMPILER_SRCS
     # rejected at link time rather than silently included.
     src/script/ir_builder/base.cc
     src/script/ir_builder/ir/*.cc
+    src/script/printer/config.cc
     src/script/printer/doc.cc
     src/script/printer/doc_printer/*.cc
     src/script/printer/ir_docsifier.cc

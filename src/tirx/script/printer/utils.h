@@ -42,20 +42,6 @@ namespace tvm {
 namespace script {
 namespace printer {
 
-// Per-dialect duplication of the macro: each dialect defines it locally so
-// dialect printer translation units do not need to reach into the shared
-// header for it. The body matches the equivalent definitions in the other
-// `<dialect>/script/printer/utils.h` headers.
-#define TVM_SCRIPT_REPR(ObjectType, Method)                                                    \
-  TVM_FFI_STATIC_INIT_BLOCK() {                                                                \
-    namespace refl = tvm::ffi::reflection;                                                     \
-    refl::TypeAttrDef<ObjectType>().def(refl::type_attr::kRepr,                                \
-                                        [](ffi::ObjectRef obj, ffi::Function) -> ffi::String { \
-                                          return RedirectedReprPrinterMethod(obj);             \
-                                        });                                                    \
-  }                                                                                            \
-  TVM_STATIC_IR_FUNCTOR(TVMScriptPrinter, vtable).set_dispatch<ObjectType>(Method)
-
 /*! \brief A printer frame for TIR fragment */
 class TIRFrameNode : public FrameNode {
  public:

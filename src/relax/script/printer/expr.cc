@@ -163,15 +163,15 @@ Doc PrintRelaxVar(relax::Var n, AccessPath p, IRDocsifier d) {
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable).set_dispatch<relax::Var>("", PrintRelaxVar);
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable).set_dispatch<relax::DataflowVar>("", PrintRelaxVar);
 
-TVM_SCRIPT_REPR(relax::PrimValueNode, ReprPrintRelax);
-TVM_SCRIPT_REPR(relax::StringImmNode, ReprPrintRelax);
-TVM_SCRIPT_REPR(relax::DataTypeImmNode, ReprPrintRelax);
-TVM_SCRIPT_REPR(relax::TupleNode, ReprPrintRelax);
-TVM_SCRIPT_REPR(relax::TupleGetItemNode, ReprPrintRelax);
-TVM_SCRIPT_REPR(relax::ShapeExprNode, ReprPrintRelax);
-TVM_SCRIPT_REPR(relax::VarNode, ReprPrintRelax);
-TVM_SCRIPT_REPR(relax::DataflowVarNode, ReprPrintRelax);
-TVM_SCRIPT_REPR(relax::ConstantNode, ReprPrintRelax);
+TVM_REGISTER_SCRIPT_AS_REPR(relax::PrimValueNode, ReprPrintRelax);
+TVM_REGISTER_SCRIPT_AS_REPR(relax::StringImmNode, ReprPrintRelax);
+TVM_REGISTER_SCRIPT_AS_REPR(relax::DataTypeImmNode, ReprPrintRelax);
+TVM_REGISTER_SCRIPT_AS_REPR(relax::TupleNode, ReprPrintRelax);
+TVM_REGISTER_SCRIPT_AS_REPR(relax::TupleGetItemNode, ReprPrintRelax);
+TVM_REGISTER_SCRIPT_AS_REPR(relax::ShapeExprNode, ReprPrintRelax);
+TVM_REGISTER_SCRIPT_AS_REPR(relax::VarNode, ReprPrintRelax);
+TVM_REGISTER_SCRIPT_AS_REPR(relax::DataflowVarNode, ReprPrintRelax);
+TVM_REGISTER_SCRIPT_AS_REPR(relax::ConstantNode, ReprPrintRelax);
 
 }  // namespace printer
 }  // namespace script

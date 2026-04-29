@@ -186,12 +186,12 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           return Relax(d, "Callable")->Call({TupleDoc(params_doc), ret_doc, purity_doc});
         });
 
-TVM_SCRIPT_REPR(relax::ObjectStructInfoNode, ReprPrintRelax);
-TVM_SCRIPT_REPR(relax::PrimStructInfoNode, ReprPrintRelax);
-TVM_SCRIPT_REPR(relax::ShapeStructInfoNode, ReprPrintRelax);
-TVM_SCRIPT_REPR(relax::TensorStructInfoNode, ReprPrintRelax);
-TVM_SCRIPT_REPR(relax::TupleStructInfoNode, ReprPrintRelax);
-TVM_SCRIPT_REPR(relax::FuncStructInfoNode, ReprPrintRelax);
+TVM_REGISTER_SCRIPT_AS_REPR(relax::ObjectStructInfoNode, ReprPrintRelax);
+TVM_REGISTER_SCRIPT_AS_REPR(relax::PrimStructInfoNode, ReprPrintRelax);
+TVM_REGISTER_SCRIPT_AS_REPR(relax::ShapeStructInfoNode, ReprPrintRelax);
+TVM_REGISTER_SCRIPT_AS_REPR(relax::TensorStructInfoNode, ReprPrintRelax);
+TVM_REGISTER_SCRIPT_AS_REPR(relax::TupleStructInfoNode, ReprPrintRelax);
+TVM_REGISTER_SCRIPT_AS_REPR(relax::FuncStructInfoNode, ReprPrintRelax);
 
 }  // namespace printer
 }  // namespace script

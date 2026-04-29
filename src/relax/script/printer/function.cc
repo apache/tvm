@@ -145,8 +145,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           return Relax(d, "ExternFunc")->Call(args);
         });
 
-TVM_SCRIPT_REPR(relax::FunctionNode, ReprPrintRelax);
-TVM_SCRIPT_REPR(relax::ExternFuncNode, ReprPrintRelax);
+TVM_REGISTER_SCRIPT_AS_REPR(relax::FunctionNode, ReprPrintRelax);
+TVM_REGISTER_SCRIPT_AS_REPR(relax::ExternFuncNode, ReprPrintRelax);
 
 }  // namespace printer
 }  // namespace script
