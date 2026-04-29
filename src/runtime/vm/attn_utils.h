@@ -286,7 +286,7 @@ GetBlockIdsOnDepth(const std::vector<Sequence*>& sequences,
  * input blocks.
  */
 inline std::pair<std::vector<std::pair<int32_t, int32_t>>, bool> GetChunkedBlockIds(
-    const std::vector<int32_t>& block_ids, bool enable_coalesce, const IntTuple& append_lengths,
+    const std::vector<int32_t>& block_ids, bool enable_coalesce, const ffi::Shape& append_lengths,
     const std::vector<Block>& global_block_pool, bool is_decode_request) {
   std::vector<std::pair<int32_t, int32_t>> uncoalesced_block_ids;
   std::vector<std::pair<int32_t, int32_t>> coalesced_block_ids;
@@ -389,13 +389,13 @@ class HostMemoryVector {
   /*! \brief Return the vector as an Tensor. */
   Tensor as_tensor() { return data_.CreateView({current_size_}, data_->dtype); }
 
-  IntTuple as_int_tuple() const {
+  ffi::Shape as_int_tuple() const {
     std::vector<int64_t> values;
     values.reserve(current_size_);
     for (int i = 0; i < current_size_; ++i) {
       values.push_back(static_cast<int32_t*>(data_->data)[i]);
     }
-    return IntTuple(values);
+    return ffi::Shape(values);
   }
 
  private:

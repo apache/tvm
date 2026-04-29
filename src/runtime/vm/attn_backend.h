@@ -28,7 +28,6 @@
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/int_tuple.h>
 #include <tvm/runtime/logging.h>
 
 #include <memory>

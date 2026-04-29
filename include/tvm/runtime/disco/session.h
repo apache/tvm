@@ -74,7 +74,6 @@
 #define TVM_RUNTIME_DISCO_SESSION_H_
 
 #include <tvm/ffi/function.h>
-#include <tvm/runtime/int_tuple.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/tensor.h>
 
@@ -240,7 +239,7 @@ class SessionObj : public Object {
    * \param ccl The name of the communication backend, e.g., nccl, rccl, mpi.
    * \param device_ids The device ids of the workers.
    */
-  TVM_RUNTIME_DLL virtual void InitCCL(ffi::String ccl, IntTuple device_ids) = 0;
+  TVM_RUNTIME_DLL virtual void InitCCL(ffi::String ccl, ffi::Shape device_ids) = 0;
   /*!
    * \brief Get the value of a register from a remote worker.
    * \param reg_id The id of the register to be fetched.
