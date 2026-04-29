@@ -21,15 +21,15 @@
  * \file codegen_metal.h
  * \brief Generate Metal device code.
  */
-#ifndef TVM_TARGET_SOURCE_CODEGEN_METAL_H_
-#define TVM_TARGET_SOURCE_CODEGEN_METAL_H_
+#ifndef TVM_TARGET_METAL_CODEGEN_METAL_H_
+#define TVM_TARGET_METAL_CODEGEN_METAL_H_
 
 #include <tvm/target/codegen.h>
 
 #include <string>
 #include <unordered_map>
 
-#include "codegen_c.h"
+#include "../source/codegen_c.h"
 
 namespace tvm {
 namespace codegen {
@@ -69,4 +69,4 @@ class CodeGenMetal final : public CodeGenC {
 }  // namespace codegen
 }  // namespace tvm
 
-#endif  // TVM_TARGET_SOURCE_CODEGEN_METAL_H_
+#endif  // TVM_TARGET_METAL_CODEGEN_METAL_H_

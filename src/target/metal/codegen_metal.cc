@@ -33,9 +33,9 @@
 #include <unordered_map>
 #include <utility>
 
-#include "../../runtime/metal/metal_module.h"
 #include "../../runtime/thread_storage_scope.h"
 #include "../build_common.h"
+#include "metal_fallback_module.h"
 
 namespace tvm {
 namespace codegen {
@@ -448,7 +448,11 @@ ffi::Module BuildMetal(IRModule mod, Target target) {
   mod = tirx::transform::PointerValueTypeRewrite()(std::move(mod));
 
   std::ostringstream source_maker;
-  ffi::Map<ffi::String, ffi::String> smap;
+  // Per-kernel payload: kernel-name -> bytes (MSL source for fmt="metal" /
+  // compiled metallib bytes for fmt="metallib").  See
+  // tasks/...-tvm-unify-device-module... "Per-kernel smap shape" — uniform
+  // Map<String, Bytes> across all multi-shader backends.
+  ffi::Map<ffi::String, ffi::Bytes> smap;
   const auto fmetal_compile = tvm::ffi::Function::GetGlobal("tvm_callback_metal_compile");
   std::string fmt = fmetal_compile ? "metallib" : "metal";
 
@@ -473,10 +477,15 @@ ffi::Module BuildMetal(IRModule mod, Target target) {
     if (fmetal_compile) {
       fsource = (*fmetal_compile)(fsource, target).cast<std::string>();
     }
-    smap.Set(func_name, fsource);
+    smap.Set(func_name, ffi::Bytes(std::move(fsource)));
   }
 
-  return MetalModuleCreate(smap, ExtractFuncInfo(mod), fmt, source_maker.str());
+  // The aggregated MSL source dump is preserved in the in-memory source
+  // map keyed by "metal" — only used by InspectSource and never serialized.
+  ffi::Map<ffi::String, ffi::String> source;
+  source.Set("metal", source_maker.str());
+  return target::MetalModuleCreateWithFallback(std::move(smap), ffi::String(fmt),
+                                               ExtractFuncInfo(mod), std::move(source));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

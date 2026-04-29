@@ -22,7 +22,7 @@ if(USE_METAL)
   tvm_file_glob(GLOB RUNTIME_METAL_SRCS src/runtime/metal/*.mm)
   list(APPEND TVM_RUNTIME_LINKER_LIBS ${METAL_LIB} ${FOUNDATION_LIB})
   list(APPEND RUNTIME_SRCS ${RUNTIME_METAL_SRCS})
-
-else(USE_METAL)
-  list(APPEND COMPILER_SRCS src/target/opt/build_metal_off.cc)
 endif(USE_METAL)
+# When USE_METAL=OFF the codegen-side fallback in
+# src/target/metal/metal_fallback_module.cc handles construction; no opt
+# stub is needed (it is always compiled via CODEGEN_SRCS in CMakeLists.txt).
