@@ -331,6 +331,12 @@ TVM_DLL Pass UnifiedStaticMemoryPlanner();
 TVM_DLL Pass BindTarget(Target target);
 
 /*!
+ * \brief Convert ForKind::kParallel loops to blockIdx.x/threadIdx.x bindings on GPU targets.
+ * \return The pass.
+ */
+TVM_DLL Pass BindParallelLoopsToThreads();
+
+/*!
  * \brief Set a PrimFunc as the entry point if it is only function in IRModule.
  * \return The pass.
  */
@@ -354,6 +360,7 @@ TVM_DLL Pass Filter(ffi::TypedFunction<bool(PrimFunc)> fcond);
  *
  * \return The pass.
  */
+
 }  // namespace transform
 }  // namespace tirx
 }  // namespace tvm
