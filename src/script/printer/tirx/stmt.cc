@@ -245,10 +245,10 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           return DoConciseScoping(lhs, rhs.value(), &(*f)->stmts, concise);
         });
 
-TVM_SCRIPT_REPR(tirx::BindNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::AttrStmtNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::AssertStmtNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::WhileNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::BindNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::AttrStmtNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::AssertStmtNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::WhileNode, ReprPrintTIR);
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tirx::AllocBuffer>(  //
         "", [](tirx::AllocBuffer stmt, AccessPath p, IRDocsifier d) -> Doc {
@@ -286,7 +286,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             args.push_back(TupleDoc(shape_docs));
           }
           // dtype (positional, skip if default float32)
-          if (buffer->dtype != d->cfg->buffer_dtype) {
+          if (buffer->dtype !=
+              d->cfg->GetExtraConfig<DataType>("tirx.buffer_dtype", DataType::Float(32))) {
             args.push_back(LiteralDoc::DataType(buffer->dtype, buffer_p->Attr("dtype")));
           }
           // scope (keyword, skip if "global")
@@ -308,11 +309,11 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           return AssignDoc(lhs, rhs, std::nullopt);
         });
 
-TVM_SCRIPT_REPR(tirx::AllocBufferNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::DeclBufferNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::SeqStmtNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::IfThenElseNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::EvaluateNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::AllocBufferNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::DeclBufferNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::SeqStmtNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::IfThenElseNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::EvaluateNode, ReprPrintTIR);
 }  // namespace printer
 }  // namespace script
 }  // namespace tvm

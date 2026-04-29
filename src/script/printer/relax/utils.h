@@ -85,7 +85,8 @@ inline ffi::Optional<ExprDoc> StructInfoAsAnn(const relax::Var& v, const AccessP
   if (!v->struct_info_.defined()) {
     return std::nullopt;
   }
-  bool attempt_to_hide_struct_info = !d->cfg->show_all_struct_info;
+  bool attempt_to_hide_struct_info =
+      !d->cfg->GetExtraConfig<bool>("relax.show_all_struct_info", true);
 
   if (const auto* call = rhs.as<relax::CallNode>()) {
     static const Op& call_tir_op = Op::Get("relax.call_tir");

@@ -28,10 +28,10 @@
 #include <tvm/ffi/string.h>
 #include <tvm/ir/cast.h>
 #include <tvm/ir/repr.h>
-#include <tvm/ir/script_printer.h>
 #include <tvm/ir/source_map.h>
 #include <tvm/ir/type.h>
 #include <tvm/runtime/object.h>
+#include <tvm/script/printer/config.h>
 
 #include <algorithm>
 #include <functional>

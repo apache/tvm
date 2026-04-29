@@ -92,9 +92,9 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           return ScopeDoc(std::nullopt, Relax(d, "dataflow")->Call({}), stmts);
         });
 
-TVM_SCRIPT_REPR(relax::SeqExprNode, ReprPrintRelax);
-TVM_SCRIPT_REPR(relax::BindingBlockNode, ReprPrintRelax);
-TVM_SCRIPT_REPR(relax::DataflowBlockNode, ReprPrintRelax);
+TVM_REGISTER_SCRIPT_AS_REPR(relax::SeqExprNode, ReprPrintRelax);
+TVM_REGISTER_SCRIPT_AS_REPR(relax::BindingBlockNode, ReprPrintRelax);
+TVM_REGISTER_SCRIPT_AS_REPR(relax::DataflowBlockNode, ReprPrintRelax);
 
 }  // namespace printer
 }  // namespace script

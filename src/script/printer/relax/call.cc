@@ -333,7 +333,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           return prefix->Call(args, kwargs_keys, kwargs_values);
         });
 
-TVM_SCRIPT_REPR(relax::CallNode, ReprPrintRelax);
+TVM_REGISTER_SCRIPT_AS_REPR(relax::CallNode, ReprPrintRelax);
 
 }  // namespace printer
 }  // namespace script

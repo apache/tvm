@@ -90,7 +90,7 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::Buffer buffer, const AccessPath
     kwargs.Set("shape", TupleDoc(results));
   }
   // Step 2. Handle `buffer.dtype`
-  if (buffer->dtype != d->cfg->buffer_dtype) {
+  if (buffer->dtype != d->cfg->GetExtraConfig<DataType>("tirx.buffer_dtype", DataType::Float(32))) {
     kwargs.Set("dtype", LiteralDoc::DataType(buffer->dtype, buffer_p->Attr("dtype")));
   }
   // Step 3. Handle `buffer.data`
@@ -342,12 +342,12 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           return prefix[BufferIndices(load->indices, p->Attr("indices"), d)];
         });
 
-TVM_SCRIPT_REPR(tirx::BufferRegionNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::BufferLoadNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::BufferStoreNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::BufferNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::MatchBufferRegionNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::ProducerLoadNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::BufferRegionNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::BufferLoadNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::BufferStoreNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::BufferNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::MatchBufferRegionNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::ProducerLoadNode, ReprPrintTIR);
 
 }  // namespace printer
 }  // namespace script

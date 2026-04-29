@@ -22,7 +22,7 @@
 #include <tvm/ir/cast.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/repr.h>
-#include <tvm/ir/script_printer.h>
+#include <tvm/script/printer/config.h>
 
 #include <algorithm>
 
@@ -71,17 +71,8 @@ PrinterConfig::PrinterConfig(ffi::Map<ffi::String, Any> config_dict) {
   if (auto v = config_dict.Get("ir_prefix")) {
     n->ir_prefix = Downcast<ffi::String>(v.value());
   }
-  if (auto v = config_dict.Get("tir_prefix")) {
-    n->tir_prefix = Downcast<ffi::String>(v.value());
-  }
-  if (auto v = config_dict.Get("relax_prefix")) {
-    n->relax_prefix = Downcast<ffi::String>(v.value());
-  }
   if (auto v = config_dict.Get("module_alias")) {
     n->module_alias = Downcast<ffi::String>(v.value());
-  }
-  if (auto v = config_dict.Get("buffer_dtype")) {
-    n->buffer_dtype = DataType(ffi::StringToDLDataType(Downcast<ffi::String>(v.value())));
   }
   if (auto v = config_dict.Get("int_dtype")) {
     n->int_dtype = DataType(ffi::StringToDLDataType(Downcast<ffi::String>(v.value())));
@@ -123,22 +114,47 @@ PrinterConfig::PrinterConfig(ffi::Map<ffi::String, Any> config_dict) {
   if (auto v = config_dict.Get("show_object_address")) {
     n->show_object_address = v.value().cast<bool>();
   }
-  if (auto v = config_dict.Get("show_all_struct_info")) {
-    n->show_all_struct_info = v.value().cast<bool>();
+  // Dialect-specific keys are stored in extra_config with dotted-name keys.
+  // String-typed dialect keys passed through directly.
+  for (const char* key : {"tirx.prefix", "relax.prefix"}) {
+    if (auto v = config_dict.Get(key)) {
+      n->extra_config.Set(ffi::String(key), v.value());
+    }
+  }
+  // "tirx.buffer_dtype" is passed as a DLDataType string from Python; convert to DataType.
+  if (auto v = config_dict.Get("tirx.buffer_dtype")) {
+    DataType dt(ffi::StringToDLDataType(Downcast<ffi::String>(v.value())));
+    n->extra_config.Set(ffi::String("tirx.buffer_dtype"), ffi::Any(dt));
+  }
+  // Boolean dialect keys.
+  if (auto v = config_dict.Get("relax.show_all_struct_info")) {
+    n->extra_config.Set(ffi::String("relax.show_all_struct_info"), v.value());
+  }
+  if (auto v = config_dict.Get("extra_config")) {
+    auto extra = Downcast<ffi::Map<ffi::String, ffi::Any>>(v.value());
+    for (auto kv : extra) {
+      n->extra_config.Set(kv.first, kv.second);
+    }
   }
 
   // Checking prefixes if they are valid Python identifiers.
-  TVM_FFI_ICHECK(IsIdentifier(n->ir_prefix)) << "Invalid `ir_prefix`: " << n->ir_prefix;
-  TVM_FFI_ICHECK(IsIdentifier(n->tir_prefix)) << "Invalid `tir_prefix`: " << n->tir_prefix;
-  TVM_FFI_ICHECK(IsIdentifier(n->relax_prefix)) << "Invalid `relax_prefix`: " << n->relax_prefix;
-  TVM_FFI_ICHECK(n->module_alias.empty() || IsIdentifier(n->module_alias))
+  TVM_FFI_ICHECK(IsIdentifier(std::string(n->ir_prefix)))
+      << "Invalid `ir_prefix`: " << n->ir_prefix;
+  ffi::String tir_prefix = n->GetExtraConfig<ffi::String>("tirx.prefix", "T");
+  ffi::String relax_prefix = n->GetExtraConfig<ffi::String>("relax.prefix", "R");
+  TVM_FFI_ICHECK(IsIdentifier(std::string(tir_prefix))) << "Invalid `tirx.prefix`: " << tir_prefix;
+  TVM_FFI_ICHECK(IsIdentifier(std::string(relax_prefix)))
+      << "Invalid `relax.prefix`: " << relax_prefix;
+  TVM_FFI_ICHECK(n->module_alias.empty() || IsIdentifier(std::string(n->module_alias)))
       << "Invalid `module_alias`: " << n->module_alias;
 
   this->data_ = std::move(n);
 }
 
 ffi::Array<ffi::String> PrinterConfigNode::GetBuiltinKeywords() {
-  ffi::Array<ffi::String> result{this->ir_prefix, this->tir_prefix, this->relax_prefix};
+  ffi::String tir_prefix = GetExtraConfig<ffi::String>("tirx.prefix", "T");
+  ffi::String relax_prefix = GetExtraConfig<ffi::String>("relax.prefix", "R");
+  ffi::Array<ffi::String> result{this->ir_prefix, tir_prefix, relax_prefix};
   if (!this->module_alias.empty()) {
     result.push_back(this->module_alias);
   }
