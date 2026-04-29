@@ -39,16 +39,11 @@ namespace tvm {
 namespace script {
 namespace printer {
 
-#define TVM_SCRIPT_REPR(ObjectType, Method)                                                    \
-  TVM_FFI_STATIC_INIT_BLOCK() {                                                                \
-    namespace refl = tvm::ffi::reflection;                                                     \
-    refl::TypeAttrDef<ObjectType>().def(refl::type_attr::kRepr,                                \
-                                        [](ffi::ObjectRef obj, ffi::Function) -> ffi::String { \
-                                          return RedirectedReprPrinterMethod(obj);             \
-                                        });                                                    \
-  }                                                                                            \
-  TVM_STATIC_IR_FUNCTOR(TVMScriptPrinter, vtable).set_dispatch<ObjectType>(Method)
-
+// Note: the `TVM_SCRIPT_REPR` macro is intentionally duplicated in each
+// dialect-local `src/<dialect>/script/printer/utils.h`. Keeping a single
+// definition here would force the dialect headers to depend on this shared
+// header, which the per-dialect restructure aims to avoid for cross-directory
+// references. See each `<dialect>/script/printer/utils.h` for the macro.
 inline std::string RedirectedReprPrinterMethod(const ffi::ObjectRef& obj) {
   try {
     return TVMScriptPrinter::Script(obj, std::nullopt);
