@@ -63,7 +63,7 @@
 #include <tvm/ir/diagnostic.h>
 #include <tvm/ir/instrument.h>
 #include <tvm/ir/module.h>
-#include <tvm/support/with.h>
+#include <tvm/ir/with_context.h>
 
 #include <string>
 #include <utility>

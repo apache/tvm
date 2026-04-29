@@ -26,7 +26,7 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/ir/scope_stack.h>
-#include <tvm/support/with.h>
+#include <tvm/ir/with_context.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/stmt_functor.h>
 
