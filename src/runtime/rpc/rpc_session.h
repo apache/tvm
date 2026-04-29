@@ -37,12 +37,6 @@
 namespace tvm {
 namespace runtime {
 
-using ffi::Object;
-using ffi::ObjectPtr;
-using ffi::ObjectPtrEqual;
-using ffi::ObjectPtrHash;
-using ffi::ObjectRef;
-
 /*!
  * \brief Static FFI type index for `runtime::RPCObjectRef`.
  *
@@ -307,9 +301,9 @@ struct RemoteSpace {
 };
 
 /*!
- * \brief Object wrapper that represents a reference to a remote object
+ * \brief ffi::Object wrapper that represents a reference to a remote object
  */
-class RPCObjectRefObj : public Object {
+class RPCObjectRefObj : public ffi::Object {
  public:
   /*!
    * \brief constructor
@@ -339,7 +333,7 @@ class RPCObjectRefObj : public Object {
 
   static constexpr const uint32_t _type_index = kRuntimeRPCObjectRef;
   static const constexpr bool _type_final = true;
-  TVM_FFI_DECLARE_OBJECT_INFO_STATIC("runtime.RPCObjectRef", RPCObjectRefObj, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_STATIC("runtime.RPCObjectRef", RPCObjectRefObj, ffi::Object);
 
  private:
   // The object handle
@@ -353,12 +347,12 @@ class RPCObjectRefObj : public Object {
  * \sa RPCObjectRefObj
  * \note No public constructor is provided as it is not supposed to be directly created by users.
  */
-class RPCObjectRef : public ObjectRef {
+class RPCObjectRef : public ffi::ObjectRef {
  public:
-  explicit RPCObjectRef(ObjectPtr<RPCObjectRefObj> data) : ObjectRef(data) {
+  explicit RPCObjectRef(ffi::ObjectPtr<RPCObjectRefObj> data) : ffi::ObjectRef(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(RPCObjectRef, ObjectRef, RPCObjectRefObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(RPCObjectRef, ffi::ObjectRef, RPCObjectRefObj);
 };
 
 /*!

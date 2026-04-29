@@ -173,7 +173,7 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
   }
 
  private:
-  std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> buffer_map_;
+  std::unordered_map<Buffer, Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_map_;
   std::unordered_map<Var, Var> buffer_var_map_;
   arith::Analyzer analyzer;
 };

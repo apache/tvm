@@ -83,7 +83,7 @@ using arith::IntSet;
 using PartitionKey = std::pair<PrimExpr, bool>;
 struct PartitionKeyHash {
   std::size_t operator()(PartitionKey const& k) const noexcept {
-    std::size_t h1 = ObjectPtrHash{}(k.first);  // NOLINT(whitespace/braces)
+    std::size_t h1 = ffi::ObjectPtrHash{}(k.first);  // NOLINT(whitespace/braces)
     std::size_t h2 = std::hash<bool>{}(k.second);
     return h1 ^ h2;
   }
@@ -92,7 +92,7 @@ struct PartitionKeyHash {
 struct PartitionKeyEqual {
   bool operator()(const PartitionKey& k1, const PartitionKey& k2) const {
     // NOLINTNEXTLINE(whitespace/braces)
-    return k1.second == k2.second && ObjectPtrEqual{}(k1.first, k2.first);
+    return k1.second == k2.second && ffi::ObjectPtrEqual{}(k1.first, k2.first);
   }
 };
 
@@ -100,7 +100,7 @@ struct PartitionKeyEqual {
 // condition cond is proven to have value cond_value (true or false) in interval.
 using Partition = std::unordered_map<PartitionKey, IntSet, PartitionKeyHash, PartitionKeyEqual>;
 
-using ExpressionSet = std::unordered_set<PrimExpr, ObjectPtrHash, ObjectPtrEqual>;
+using ExpressionSet = std::unordered_set<PrimExpr, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>;
 
 // Select potential candidate IRs that can be partitioned.
 // Rule:
@@ -201,7 +201,7 @@ class CandidateSelector final : public StmtExprVisitor {
     }
   }
 
-  std::unordered_set<Stmt, ObjectPtrHash, ObjectPtrEqual> candidates;
+  std::unordered_set<Stmt, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> candidates;
   std::unordered_set<const VarNode*> partition_hint_vars;
 
  private:
@@ -476,7 +476,7 @@ class LoopPartitioner : public StmtMutator {
                                                          const arith::IntervalSet& for_interval,
                                                          bool cond_value, bool has_partition_hint);
 
-  inline Stmt MakeFor(const Object* op, PrimExpr extent, Stmt body);
+  inline Stmt MakeFor(const ffi::Object* op, PrimExpr extent, Stmt body);
 
   /* Candidate IRs that may be partitioned potentially */
   std::unordered_map<const VarNode*, IntSet> hint_map_;
@@ -760,7 +760,7 @@ Stmt LoopPartitioner::TryPartition(const Stmt& stmt, Var var, PrimExpr min, Prim
   return s;
 }
 
-inline Stmt LoopPartitioner::MakeFor(const Object* node, PrimExpr extent, Stmt body) {
+inline Stmt LoopPartitioner::MakeFor(const ffi::Object* node, PrimExpr extent, Stmt body) {
   const ForNode* for_node = static_cast<const ForNode*>(node);
   TVM_FFI_ICHECK(for_node);
 

@@ -315,7 +315,7 @@ PrimExpr NumElements(const ShapeExpr& shape) {
 // that is eleigible to be used for in-place computations (tensors are eligible
 // only if all their dimensions are integer constants, tuples are eligible if
 // all members are eligible though we can consider only individual members separately)
-std::unordered_set<StructInfo, ObjectPtrHash, ObjectPtrEqual> GatherCandidateSinfo(
+std::unordered_set<StructInfo, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> GatherCandidateSinfo(
     const StructInfo& result_sinfo) {
   if (auto* tensor_info = result_sinfo.as<TensorStructInfoNode>()) {
     // don't consider void dtype (don't know the size at compile time)
@@ -331,7 +331,7 @@ std::unordered_set<StructInfo, ObjectPtrHash, ObjectPtrEqual> GatherCandidateSin
     }
   } else if (auto* tuple_info = result_sinfo.as<TupleStructInfoNode>()) {
     // we can see if the whole tuple matches or go for any of the components
-    std::unordered_set<StructInfo, ObjectPtrHash, ObjectPtrEqual> ret;
+    std::unordered_set<StructInfo, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> ret;
     for (auto field : tuple_info->fields) {
       auto field_candidates = GatherCandidateSinfo(field);
       ret.insert(field_candidates.begin(), field_candidates.end());
@@ -520,7 +520,7 @@ bool OpSupportsInplace(const Op& op) { return SUPPORTED_OPS.count(op->name); }
 /*! \brief Corresponds to a binding where at least one argument meets the conditions to be
  *  made in-place. Contains the binding index and indices of the applicable arguments
  */
-class InplaceOpportunityNode : public Object {
+class InplaceOpportunityNode : public ffi::Object {
  public:
   // need to use Array for the benefit of the FFI
   Integer binding_idx;
@@ -532,12 +532,13 @@ class InplaceOpportunityNode : public Object {
         .def_ro("binding_idx", &InplaceOpportunityNode::binding_idx)
         .def_ro("arg_idxs", &InplaceOpportunityNode::arg_idxs);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO("relax.transform.InplaceOpportunity", InplaceOpportunityNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.transform.InplaceOpportunity", InplaceOpportunityNode,
+                              ffi::Object);
 };
 
 TVM_FFI_STATIC_INIT_BLOCK() { InplaceOpportunityNode::RegisterReflection(); }
 
-class InplaceOpportunity : public ObjectRef {
+class InplaceOpportunity : public ffi::ObjectRef {
  public:
   TVM_DLL InplaceOpportunity(const Integer& binding_idx, const ffi::Array<Integer>& arg_idxs) {
     auto node = ffi::make_object<InplaceOpportunityNode>();
@@ -546,7 +547,8 @@ class InplaceOpportunity : public ObjectRef {
     data_ = std::move(node);
   }
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(InplaceOpportunity, ObjectRef, InplaceOpportunityNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(InplaceOpportunity, ffi::ObjectRef,
+                                             InplaceOpportunityNode);
 };
 
 // Check for in-place eligibility:
@@ -940,7 +942,7 @@ class ModuleInplaceTransformer : public ExprMutator {
     new_args.Set(0, new_gv);
     legalized_call_cow->args = new_args;
 
-    ObjectPtr<CallTIRInplaceAttrs> attrs = ffi::make_object<CallTIRInplaceAttrs>();
+    ffi::ObjectPtr<CallTIRInplaceAttrs> attrs = ffi::make_object<CallTIRInplaceAttrs>();
     attrs->inplace_indices = inplace_indices;
     legalized_call_cow->attrs = Attrs(attrs);
 
@@ -972,7 +974,8 @@ ffi::Map<Var, ffi::Array<Integer>> DataflowLivenessAnalysis(const DataflowBlock&
   return ret;
 }
 
-ffi::Array<ObjectRef> DataflowAliasAnalysis(const DataflowBlock& block, ffi::Array<Var> inputs) {
+ffi::Array<ffi::ObjectRef> DataflowAliasAnalysis(const DataflowBlock& block,
+                                                 ffi::Array<Var> inputs) {
   AliasAnalyzer analyzer;
   auto res = analyzer.Analyze(block, inputs);
   auto alias_sets = res.first;
@@ -1028,10 +1031,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("relax.testing.transform.DataflowInplaceAnalysis", DataflowInplaceAnalysis)
       .def("relax.testing.transform.SingleInplaceCall",
            [](const IRModule& mod, const Call& call,
-              const ffi::Array<Integer>& inplace_indices) -> ffi::Array<ObjectRef> {
+              const ffi::Array<Integer>& inplace_indices) -> ffi::Array<ffi::ObjectRef> {
              ModuleInplaceTransformer transformer(mod);
              auto ret_call = transformer.CreateInplaceCall(call, inplace_indices);
-             return ffi::Array<ObjectRef>{ret_call, transformer.CurrentMod()};
+             return ffi::Array<ffi::ObjectRef>{ret_call, transformer.CurrentMod()};
            });
 }
 

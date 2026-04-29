@@ -76,7 +76,7 @@ class TaskRecordNode : public ffi::Object {
   }
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.TaskRecord", TaskRecordNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.TaskRecord", TaskRecordNode, ffi::Object);
 };
 
 /*!
@@ -88,7 +88,7 @@ class TaskRecord : public ffi::ObjectRef {
   /*! \brief Constructor */
   explicit TaskRecord(TuneContext task, double task_weight);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TaskRecord, ObjectRef, TaskRecordNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TaskRecord, ffi::ObjectRef, TaskRecordNode);
 };
 
 /*!
@@ -203,7 +203,7 @@ class TaskSchedulerNode : public ffi::Object {
   void PrintTuningStatistics();
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.TaskScheduler", TaskSchedulerNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.TaskScheduler", TaskSchedulerNode, ffi::Object);
 };
 
 class TaskScheduler;
@@ -261,7 +261,7 @@ class PyTaskSchedulerNode : public TaskSchedulerNode {
  */
 class TaskScheduler : public ffi::ObjectRef {
  public:
-  explicit TaskScheduler(ObjectPtr<TaskSchedulerNode> data) : ffi::ObjectRef(data) {
+  explicit TaskScheduler(ffi::ObjectPtr<TaskSchedulerNode> data) : ffi::ObjectRef(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
   /*!
@@ -291,7 +291,7 @@ class TaskScheduler : public ffi::ObjectRef {
   TVM_DLL static TaskScheduler PyTaskScheduler(
       ffi::Function logger, PyTaskSchedulerNode::FNextTaskId f_next_task_id,
       PyTaskSchedulerNode::FJoinRunningTask f_join_running_task, PyTaskSchedulerNode::FTune f_tune);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TaskScheduler, ObjectRef, TaskSchedulerNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TaskScheduler, ffi::ObjectRef, TaskSchedulerNode);
 };
 
 }  // namespace meta_schedule

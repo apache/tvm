@@ -84,7 +84,7 @@ class ConstLoaderModuleObj : public ffi::ModuleObj {
       this->InitSubModule(name);
       initialized_[name] = true;
     }
-    ObjectRef _self = ffi::GetRef<ObjectRef>(this);
+    ffi::ObjectRef _self = ffi::GetRef<ffi::ObjectRef>(this);
 
     if (name == "get_const_var_tensor") {
       return ffi::Function([_self, this](ffi::PackedArgs args, ffi::Any* rv) {

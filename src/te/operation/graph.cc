@@ -40,7 +40,7 @@ namespace te {
 ReadGraph CreateReadGraph(const ffi::Array<Operation>& roots) {
   ReadGraph rmap;
   std::vector<Operation> stack;
-  std::unordered_set<const Object*> visited;
+  std::unordered_set<const ffi::Object*> visited;
   // initialize the roots
   for (Operation op : roots) {
     stack.push_back(op);

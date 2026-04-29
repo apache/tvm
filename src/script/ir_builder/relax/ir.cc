@@ -34,7 +34,7 @@ namespace relax {
 using tvm::script::ir_builder::details::Namer;
 
 TVM_STATIC_IR_FUNCTOR(Namer, vtable)
-    .set_dispatch<tvm::relax::VarNode>([](const ObjectRef& node, ffi::String name) -> void {
+    .set_dispatch<tvm::relax::VarNode>([](const ffi::ObjectRef& node, ffi::String name) -> void {
       using tvm::relax::VarNode;
       using tvm::relax::IdNode;
       const VarNode* var = node.as<VarNode>();
@@ -43,7 +43,8 @@ TVM_STATIC_IR_FUNCTOR(Namer, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(Namer, vtable)
-    .set_dispatch<tvm::relax::DataflowVarNode>([](const ObjectRef& node, ffi::String name) -> void {
+    .set_dispatch<tvm::relax::DataflowVarNode>([](const ffi::ObjectRef& node,
+                                                  ffi::String name) -> void {
       using tvm::relax::DataflowVarNode;
       using tvm::relax::IdNode;
       const DataflowVarNode* var = node.as<DataflowVarNode>();
@@ -54,7 +55,7 @@ TVM_STATIC_IR_FUNCTOR(Namer, vtable)
 /////////////////////////////// Function ////////////////////////////////
 
 FunctionFrame Function(const Bool& is_pure, const Bool& is_private) {
-  ObjectPtr<FunctionFrameNode> n = ffi::make_object<FunctionFrameNode>();
+  ffi::ObjectPtr<FunctionFrameNode> n = ffi::make_object<FunctionFrameNode>();
   const IRBuilder& ir_builder = IRBuilder::Current();
   ffi::Optional<tvm::IRModule> mod = std::nullopt;
   if (const ffi::Optional<ir::IRModuleFrame> mod_frame =
@@ -159,14 +160,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 ///////////////////////////// BindingBlock //////////////////////////////
 
 BindingBlockFrame Dataflow() {
-  ObjectPtr<BindingBlockFrameNode> n = ffi::make_object<BindingBlockFrameNode>();
+  ffi::ObjectPtr<BindingBlockFrameNode> n = ffi::make_object<BindingBlockFrameNode>();
   n->is_dataflow = true;
   n->block_ended = false;
   return BindingBlockFrame(n);
 }
 
 BindingBlockFrame BindingBlock() {
-  ObjectPtr<BindingBlockFrameNode> n = ffi::make_object<BindingBlockFrameNode>();
+  ffi::ObjectPtr<BindingBlockFrameNode> n = ffi::make_object<BindingBlockFrameNode>();
   n->is_dataflow = false;
   n->block_ended = false;
   return BindingBlockFrame(n);
@@ -258,7 +259,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /////////////////////////////// SeqExpr ///////////////////////////////
 
 SeqExprFrame SeqExpr() {
-  ObjectPtr<SeqExprFrameNode> n = ffi::make_object<SeqExprFrameNode>();
+  ffi::ObjectPtr<SeqExprFrameNode> n = ffi::make_object<SeqExprFrameNode>();
   return SeqExprFrame(n);
 }
 
@@ -270,7 +271,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 ///////////////////////////// If Then Else /////////////////////////////
 
 IfFrame If(tvm::relax::Expr condition) {
-  ObjectPtr<IfFrameNode> n = ffi::make_object<IfFrameNode>();
+  ffi::ObjectPtr<IfFrameNode> n = ffi::make_object<IfFrameNode>();
   n->condition = condition;
   n->then_expr = std::nullopt;
   n->else_expr = std::nullopt;
@@ -278,12 +279,12 @@ IfFrame If(tvm::relax::Expr condition) {
 }
 
 ThenFrame Then() {
-  ObjectPtr<ThenFrameNode> n = ffi::make_object<ThenFrameNode>();
+  ffi::ObjectPtr<ThenFrameNode> n = ffi::make_object<ThenFrameNode>();
   return ThenFrame(n);
 }
 
 ElseFrame Else() {
-  ObjectPtr<ElseFrameNode> n = ffi::make_object<ElseFrameNode>();
+  ffi::ObjectPtr<ElseFrameNode> n = ffi::make_object<ElseFrameNode>();
   return ElseFrame(n);
 }
 

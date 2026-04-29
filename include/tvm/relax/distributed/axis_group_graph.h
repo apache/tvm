@@ -44,7 +44,7 @@ using BufferAxis = std::pair<Buffer, int>;
 class BufferAxisHash {
  public:
   size_t operator()(const BufferAxis& buffer_axis) const {
-    size_t const h1(ObjectPtrHash()(buffer_axis.first));
+    size_t const h1(ffi::ObjectPtrHash()(buffer_axis.first));
     size_t const h2(std::hash<int>()(buffer_axis.second));
     return h1 ^ (h2 << 1);
   }

@@ -37,7 +37,7 @@ bool InstructionKindNode::IsPostproc() const {
 
 Instruction::Instruction(InstructionKind kind, ffi::Array<Any> inputs, ffi::Array<Any> attrs,
                          ffi::Array<Any> outputs) {
-  ObjectPtr<InstructionNode> n = ffi::make_object<InstructionNode>();
+  ffi::ObjectPtr<InstructionNode> n = ffi::make_object<InstructionNode>();
   n->kind = std::move(kind);
   n->inputs = std::move(inputs);
   n->attrs = std::move(attrs);
@@ -82,7 +82,7 @@ ffi::String InstructionAsPythonRepr(const InstructionNode* self) {
     } else if (const auto* expr = obj.as<PrimExprNode>()) {
       PrimExpr new_expr =
           Substitute(ffi::GetRef<PrimExpr>(expr), [](const Var& var) -> ffi::Optional<PrimExpr> {
-            ObjectPtr<VarNode> new_var = ffi::make_object<VarNode>(*var.get());
+            ffi::ObjectPtr<VarNode> new_var = ffi::make_object<VarNode>(*var.get());
             new_var->name_hint = "_";
             return Var(new_var);
           });

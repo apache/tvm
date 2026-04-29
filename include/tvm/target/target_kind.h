@@ -37,12 +37,6 @@
 
 namespace tvm {
 
-using ffi::Object;
-using ffi::ObjectPtr;
-using ffi::ObjectPtrEqual;
-using ffi::ObjectPtrHash;
-using ffi::ObjectRef;
-
 class Target;
 
 /*!
@@ -60,7 +54,7 @@ template <typename>
 class TargetKindAttrMap;
 
 /*! \brief Target kind, specifies the kind of the target */
-class TargetKindNode : public Object {
+class TargetKindNode : public ffi::Object {
  public:
   /*! \brief Name of the target kind */
   ffi::String name;
@@ -82,7 +76,7 @@ class TargetKindNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindUniqueInstance;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("target.TargetKind", TargetKindNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("target.TargetKind", TargetKindNode, ffi::Object);
 
  private:
   /*! \brief Return the index stored in attr registry */
@@ -106,10 +100,10 @@ class TargetKindNode : public Object {
  * \brief Managed reference class to TargetKindNode
  * \sa TargetKindNode
  */
-class TargetKind : public ObjectRef {
+class TargetKind : public ffi::ObjectRef {
  public:
   TargetKind() = default;
-  explicit TargetKind(ObjectPtr<TargetKindNode> data) : ObjectRef(data) {
+  explicit TargetKind(ffi::ObjectPtr<TargetKindNode> data) : ffi::ObjectRef(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
   /*! \brief Get the attribute map given the attribute name */
@@ -124,7 +118,7 @@ class TargetKind : public ObjectRef {
   /*! \brief Mutable access to the container class  */
   TargetKindNode* operator->() { return static_cast<TargetKindNode*>(data_.get()); }
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TargetKind, ObjectRef, TargetKindNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TargetKind, ffi::ObjectRef, TargetKindNode);
 
  private:
   TVM_DLL static const AttrRegistryMapContainerMap<TargetKind>& GetAttrMapContainer(

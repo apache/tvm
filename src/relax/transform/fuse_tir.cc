@@ -353,7 +353,7 @@ class SBlockNameDeduplicator : public tirx::StmtMutator {
       return block;
 
     } else {
-      ObjectPtr<SBlockNode> n = CopyOnWrite(block.get());
+      ffi::ObjectPtr<SBlockNode> n = CopyOnWrite(block.get());
       n->name_hint = std::move(name);
       return Stmt(n);
     }
@@ -610,7 +610,7 @@ class FusedTIRConstructor : public ExprVisitor {
     const ffi::Array<tirx::Buffer>& buffers = (*it).second;
 
     // map of input buffers to indices (helpful for detecting in-place inputs)
-    std::unordered_map<tirx::Buffer, size_t, ObjectPtrHash, ObjectPtrEqual> buffer_to_idx;
+    std::unordered_map<tirx::Buffer, size_t, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_to_idx;
     std::unordered_map<tirx::Var, size_t> input_to_idx;
     for (size_t i = 0; i < func_info_.params.size(); i++) {
       input_to_idx[func_info_.params[i]] = i;

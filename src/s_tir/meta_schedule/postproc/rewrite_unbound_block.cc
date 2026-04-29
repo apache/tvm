@@ -102,7 +102,7 @@ class RewriteUnboundBlockNode : public PostprocNode {
   bool Apply(const s_tir::Schedule& sch) final;
 
   Postproc Clone() const {
-    ObjectPtr<RewriteUnboundBlockNode> n = ffi::make_object<RewriteUnboundBlockNode>(*this);
+    ffi::ObjectPtr<RewriteUnboundBlockNode> n = ffi::make_object<RewriteUnboundBlockNode>(*this);
     return Postproc(n);
   }
 
@@ -141,7 +141,7 @@ bool RewriteUnboundBlockNode::Apply(const s_tir::Schedule& sch) {
 }
 
 Postproc Postproc::RewriteUnboundBlock(int max_threadblocks) {
-  ObjectPtr<RewriteUnboundBlockNode> n = ffi::make_object<RewriteUnboundBlockNode>();
+  ffi::ObjectPtr<RewriteUnboundBlockNode> n = ffi::make_object<RewriteUnboundBlockNode>();
   n->max_threadblocks_ = max_threadblocks;
   n->max_threads_per_block_ = -1;
   return Postproc(n);

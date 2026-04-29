@@ -69,7 +69,7 @@ class MutatorNode : public ffi::Object {
   virtual Mutator Clone() const = 0;
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.Mutator", MutatorNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.Mutator", MutatorNode, ffi::Object);
 };
 
 /*!
@@ -142,7 +142,7 @@ class Mutator : public ffi::ObjectRef {
   /*! \brief Create default mutators for Hexagon */
   TVM_DLL static ffi::Map<Mutator, FloatImm, void> DefaultHexagon();
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Mutator, ObjectRef, MutatorNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Mutator, ffi::ObjectRef, MutatorNode);
 };
 
 /*! \brief The mutator with customized methods on the python-side. */

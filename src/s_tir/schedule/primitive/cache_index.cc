@@ -171,7 +171,7 @@ class IndexInfoCollector : public StmtExprVisitor {
 
       // Record the final sub expr with repeat time greater than cse_thresh_
       // In order to make the result stable, sort it by post order and then by complexity
-      PostOrderVisit(store->value, [&semantic_comp_done_by_stmt, this](const ObjectRef& node) {
+      PostOrderVisit(store->value, [&semantic_comp_done_by_stmt, this](const ffi::ObjectRef& node) {
         if (node->IsInstance<PrimExprNode>()) {
           PrimExpr this_expr = Downcast<PrimExpr>(node);
           for (auto& it : semantic_comp_done_by_stmt) {
@@ -234,7 +234,7 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
 
     // Collect the block vars in original index computation
     info->origin_block_vars.push_back({});
-    PostOrderVisit(index_expr, [&info, &expr_index](const ObjectRef& node) {
+    PostOrderVisit(index_expr, [&info, &expr_index](const ffi::ObjectRef& node) {
       if (node->IsInstance<VarNode>()) {
         Var iter_var = Downcast<Var>(node);
         const ffi::Array<Var>& origin_block_var = info->origin_block_vars[expr_index];
@@ -250,7 +250,7 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
     // which will be used to create new loop vars
     std::vector<Var> iter_vars;
     for (const Var& it : info->origin_block_vars[expr_index]) {
-      PostOrderVisit(info->var_binding.at(it), [/*&info,*/ &iter_vars](const ObjectRef& node) {
+      PostOrderVisit(info->var_binding.at(it), [/*&info,*/ &iter_vars](const ffi::ObjectRef& node) {
         if (node->IsInstance<VarNode>()) {
           Var iter_var = Downcast<Var>(node);
           if (std::find_if(iter_vars.begin(), iter_vars.end(),
@@ -350,7 +350,7 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
  */
 Stmt InsertIndexStage(const Stmt& stmt, int pos, const Stmt& stage) {
   if (const auto* seq_stmt = stmt.as<SeqStmtNode>()) {
-    ObjectPtr<SeqStmtNode> result = ffi::make_object<SeqStmtNode>(*seq_stmt);
+    ffi::ObjectPtr<SeqStmtNode> result = ffi::make_object<SeqStmtNode>(*seq_stmt);
     result->seq.insert(result->seq.begin() + pos, stage);
     return SeqStmt(result);
   }
@@ -397,7 +397,7 @@ class CacheIndexRewriter : public StmtExprMutator {
     // Check if it is the block corresponding to the parent scope
     if (block == scope_sref_->stmt) {
       // If so, put buffer allocation and insert cache stages on the parent scope
-      ObjectPtr<SBlockNode> n = ffi::make_object<SBlockNode>(*stmt.as<SBlockNode>());
+      ffi::ObjectPtr<SBlockNode> n = ffi::make_object<SBlockNode>(*stmt.as<SBlockNode>());
       n->body = InsertIndexStage(n->body, info_->loc_pos, info_->cache_stage);
       for (const Buffer& it : info_->cache_buffer) {
         n->alloc_buffers.push_back(it);

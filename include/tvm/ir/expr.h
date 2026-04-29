@@ -41,12 +41,6 @@
 
 namespace tvm {
 
-using ffi::Object;
-using ffi::ObjectPtr;
-using ffi::ObjectPtrEqual;
-using ffi::ObjectPtrHash;
-using ffi::ObjectRef;
-
 // Forward-declare VirtualDevice to avoid circular imports.
 class VirtualDevice;
 
@@ -54,7 +48,7 @@ class VirtualDevice;
  * \brief Base type of all the expressions.
  * \sa Expr
  */
-class BaseExprNode : public Object {
+class BaseExprNode : public ffi::Object {
  public:
   /*!
    * \brief Span that points to the original source code.
@@ -72,16 +66,16 @@ class BaseExprNode : public Object {
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
 
   static constexpr const uint32_t _type_child_slots = 64;
-  TVM_FFI_DECLARE_OBJECT_INFO("ir.BaseExpr", BaseExprNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("ir.BaseExpr", BaseExprNode, ffi::Object);
 };
 
 /*!
  * \brief Managed reference to BaseExprNode.
  * \sa BaseExprNode
  */
-class BaseExpr : public ObjectRef {
+class BaseExpr : public ffi::ObjectRef {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BaseExpr, ObjectRef, BaseExprNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BaseExpr, ffi::ObjectRef, BaseExprNode);
 };
 
 /*!
@@ -159,20 +153,20 @@ class PrimExpr : public BaseExpr {
  * This is useful for the FFI to convert the expressions to PrimExpr.
  * \sa PrimExpr
  */
-class PrimExprConvertibleNode : public Object {
+class PrimExprConvertibleNode : public ffi::Object {
  public:
   virtual ~PrimExprConvertibleNode() {}
   virtual PrimExpr ToPrimExpr() const = 0;
-  TVM_FFI_DECLARE_OBJECT_INFO("ir.PrimExprConvertible", PrimExprConvertibleNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("ir.PrimExprConvertible", PrimExprConvertibleNode, ffi::Object);
 };
 
 /*!
  * \brief Managed reference to PrimExprConvertibleNode.
  * \sa PrimExprConvertibleNode
  */
-class PrimExprConvertible : public ObjectRef {
+class PrimExprConvertible : public ffi::ObjectRef {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PrimExprConvertible, ObjectRef,
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PrimExprConvertible, ffi::ObjectRef,
                                              PrimExprConvertibleNode);
 };
 
@@ -428,7 +422,7 @@ class RelaxExprNode : public BaseExprNode {
    *        expression that encapsulate both static shape and
    *        runtime information such as shape.
    */
-  mutable ffi::Optional<ObjectRef> struct_info_ = ffi::Optional<ObjectRef>();
+  mutable ffi::Optional<ffi::ObjectRef> struct_info_ = ffi::Optional<ffi::ObjectRef>();
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -610,7 +604,7 @@ class Integer : public IntImm {
   /*!
    * \brief constructor from node.
    */
-  explicit Integer(ObjectPtr<IntImmNode> node) : IntImm(node) {}
+  explicit Integer(ffi::ObjectPtr<IntImmNode> node) : IntImm(node) {}
   /*!
    * \brief constructor with UnsafeInit
    */
@@ -639,7 +633,7 @@ class Integer : public IntImm {
    * \param other another expression.
    */
   Integer& operator=(const IntImm& other) {
-    data_ = ffi::details::ObjectUnsafe::ObjectPtrFromObjectRef<Object>(other);
+    data_ = ffi::details::ObjectUnsafe::ObjectPtrFromObjectRef<ffi::Object>(other);
     return *this;
   }
   /*!
@@ -666,7 +660,7 @@ class Integer : public IntImm {
 };
 
 /*! \brief range over one dimension */
-class RangeNode : public Object {
+class RangeNode : public ffi::Object {
  public:
   /*! \brief beginning of the node */
   PrimExpr min;
@@ -689,11 +683,11 @@ class RangeNode : public Object {
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
 
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.Range", RangeNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.Range", RangeNode, ffi::Object);
 };
 
 /*! \brief Range container  */
-class Range : public ObjectRef {
+class Range : public ffi::ObjectRef {
  public:
   /*!
    * \brief constructor by begin and end
@@ -714,7 +708,7 @@ class Range : public ObjectRef {
    */
   TVM_DLL static Range FromMinExtent(PrimExpr min, PrimExpr extent, Span span = Span());
   // declare range.
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Range, ObjectRef, RangeNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Range, ffi::ObjectRef, RangeNode);
 };
 
 namespace ffi {
@@ -790,7 +784,7 @@ TVM_FFI_INLINE PrimExpr TypeTraits<PrimExpr>::ConvertFallbackValue(double value)
  * `tvm::GlobalVar` allows it to be used as a key in STL tables.  For
  * other IR expressions, the user must specify the type of equality
  * used (e.g. `std::unordered_set<T, StructuralHash, StructuralEqual>`
- * or `std::unordered_set<T, ObjectPtrHash, ObjectPtrEqual>`).
+ * or `std::unordered_set<T, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>`).
  */
 template <>
 struct std::hash<tvm::GlobalVar> {

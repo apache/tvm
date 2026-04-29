@@ -88,7 +88,7 @@ class JSONRuntimeBase : public ffi::ModuleObj {
    * \return The packed function.
    */
   ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) override {
-    ObjectPtr<Object> sptr_to_self = ffi::GetObjectPtr<Object>(this);
+    ffi::ObjectPtr<ffi::Object> sptr_to_self = ffi::GetObjectPtr<ffi::Object>(this);
     if (name == "get_symbol") {
       return ffi::Function(
           [sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) { *rv = this->symbol_name_; });

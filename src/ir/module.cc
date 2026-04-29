@@ -89,7 +89,7 @@ int64_t IRModuleNode::SHash(int64_t init_hash,
   hash_value = hash(this->global_infos, hash_value, false);
 
   // hash the functions.
-  using KV = std::tuple<std::string, ObjectRef, ObjectRef>;
+  using KV = std::tuple<std::string, ffi::ObjectRef, ffi::ObjectRef>;
   std::vector<KV> temp;
   for (const auto& kv : this->functions) {
     temp.emplace_back(kv.first->name_hint, kv.first, kv.second);
@@ -257,7 +257,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              return clone;
            })
       .def("ir.Module_Add",
-           [](IRModule mod, GlobalVar var, ObjectRef val, bool update) -> IRModule {
+           [](IRModule mod, GlobalVar var, ffi::ObjectRef val, bool update) -> IRModule {
              TVM_FFI_ICHECK(val->IsInstance<RelaxExprNode>());
              mod->Add(var, Downcast<BaseFunc>(val), update);
              return mod;
@@ -299,7 +299,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            [](IRModule mod, ffi::String name, ffi::Array<GlobalInfo> global_info) {
              mod->UpdateGlobalInfo(name, global_info);
            })
-      .def("ir.Module_GetAttrs", [](IRModule mod) -> ObjectRef { return mod->GetAttrs(); })
+      .def("ir.Module_GetAttrs", [](IRModule mod) -> ffi::ObjectRef { return mod->GetAttrs(); })
       .def("ir.Module_WithAttr",
            [](ffi::RValueRef<IRModule> mod, ffi::String key, ffi::Any value) -> IRModule {
              return WithAttr(*std::move(mod), key, value);
@@ -312,8 +312,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            [](ffi::RValueRef<IRModule> mod, ffi::Map<ffi::String, ffi::Any> attr_map) -> IRModule {
              return WithAttrs(*std::move(mod), attr_map);
            })
-      .def("ir.Module_GetAttr",
-           [](IRModule mod, ffi::String key) -> ObjectRef { return mod->GetAttr<ObjectRef>(key); });
+      .def("ir.Module_GetAttr", [](IRModule mod, ffi::String key) -> ffi::ObjectRef {
+        return mod->GetAttr<ffi::ObjectRef>(key);
+      });
 }
 
 }  // namespace tvm

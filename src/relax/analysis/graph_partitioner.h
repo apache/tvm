@@ -84,7 +84,7 @@ class IndexedForwardGraph {
     std::ostringstream os;
     for (size_t i = 0; i < post_dfs_order.size(); ++i) {
       Node* node = post_dfs_order[i];
-      os << "node[" << i << "], " << ffi::GetRef<ObjectRef>(node->ref) << " outputs=[";
+      os << "node[" << i << "], " << ffi::GetRef<ffi::ObjectRef>(node->ref) << " outputs=[";
       for (auto* link = node->outputs.head; link != nullptr; link = link->next) {
         os << link->value.node->index << ", ";
       }

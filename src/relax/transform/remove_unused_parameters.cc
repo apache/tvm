@@ -35,10 +35,10 @@ namespace relax {
 namespace {
 
 template <typename T>
-using PSet = std::unordered_set<T, ObjectPtrHash, ObjectPtrEqual>;
+using PSet = std::unordered_set<T, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>;
 
 template <typename T, typename U>
-using PMap = std::unordered_map<T, U, ObjectPtrHash, ObjectPtrEqual>;
+using PMap = std::unordered_map<T, U, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>;
 
 /* \brief Describes the modifications to be made for a function */
 struct CalleeAnalysis {

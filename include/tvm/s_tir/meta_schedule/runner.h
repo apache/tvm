@@ -31,12 +31,6 @@ namespace tvm {
 namespace s_tir {
 namespace meta_schedule {
 
-using ffi::Object;
-using ffi::ObjectPtr;
-using ffi::ObjectPtrEqual;
-using ffi::ObjectPtrHash;
-using ffi::ObjectRef;
-
 /*! \brief Runner's input containing path of artifact, type of device and argument info. */
 class RunnerInputNode : public ffi::Object {
  public:
@@ -215,10 +209,12 @@ class Runner : public ffi::ObjectRef {
  public:
   using FRun = RunnerNode::FRun;
   /*!
-   * \brief Constructor from ObjectPtr<RunnerNode>.
+   * \brief Constructor from ffi::ObjectPtr<RunnerNode>.
    * \param data The object pointer.
    */
-  explicit Runner(ObjectPtr<RunnerNode> data) : ObjectRef(data) { TVM_FFI_ICHECK(data != nullptr); }
+  explicit Runner(ffi::ObjectPtr<RunnerNode> data) : ffi::ObjectRef(data) {
+    TVM_FFI_ICHECK(data != nullptr);
+  }
   /*!
    * \brief Create a runner with customized build method on the python-side.
    * \param f_run The packed function to run the built artifacts and get runner futures.

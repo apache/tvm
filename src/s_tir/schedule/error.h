@@ -36,7 +36,7 @@ class ScheduleError : public tvm::ffi::Error {
   /*! \brief The error occurred in this IRModule */
   virtual IRModule mod() const = 0;
   /*! \brief The locations of interest that we want to point out */
-  virtual ffi::Array<ObjectRef> LocationsOfInterest() const = 0;
+  virtual ffi::Array<ffi::ObjectRef> LocationsOfInterest() const = 0;
   /*!
    * \brief Returns an error string template for rendering, corresponds to the "detail" mode.
    * \sa ScheduleErrorRenderLevel
@@ -76,7 +76,7 @@ class LoopPositionError : public ScheduleError {
   }
 
   IRModule mod() const final { return mod_; }
-  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {loop_, block_}; }
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {loop_, block_}; }
 
   IRModule mod_;
   For loop_;

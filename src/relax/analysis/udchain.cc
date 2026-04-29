@@ -58,8 +58,9 @@ class UDChain : relax::ExprVisitor {
  private:
   ffi::Map<Var, Expr> bound_values;
   std::unordered_set<Var> forward_declarations;
-  std::unordered_map<Var, support::OrderedSet<Var, ObjectPtrHash, ObjectPtrEqual>> usage_map;
-  support::OrderedSet<Var, ObjectPtrHash, ObjectPtrEqual> outputs;
+  std::unordered_map<Var, support::OrderedSet<Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>>
+      usage_map;
+  support::OrderedSet<Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> outputs;
 
   ffi::Optional<Var> cur_user_;
 

@@ -70,7 +70,7 @@ class MultiLevelTilingWithIntrinNode : public MultiLevelTilingNode {
 
   // Inherited from ScheduleRuleNode
   ScheduleRule Clone() const final {
-    ObjectPtr<MultiLevelTilingWithIntrinNode> n =
+    ffi::ObjectPtr<MultiLevelTilingWithIntrinNode> n =
         ffi::make_object<MultiLevelTilingWithIntrinNode>(*this);
     return ScheduleRule(n);
   }

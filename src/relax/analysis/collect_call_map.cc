@@ -47,13 +47,14 @@ struct Visitor : ExprVisitor {
 }  // namespace
 
 TVM_STATIC_IR_FUNCTOR(CalleeCollector, vtable)
-    .set_dispatch<relax::FunctionNode>([](const ObjectRef& func, CalleeCollector* collector) {
+    .set_dispatch<relax::FunctionNode>([](const ffi::ObjectRef& func, CalleeCollector* collector) {
       Visitor visitor{collector};
       visitor(Downcast<Function>(func));
     });
 
 TVM_STATIC_IR_FUNCTOR(CalleeCollector, vtable)
-    .set_dispatch<relax::ExternFuncNode>([](const ObjectRef& func, CalleeCollector* collector) {});
+    .set_dispatch<relax::ExternFuncNode>([](const ffi::ObjectRef& func,
+                                            CalleeCollector* collector) {});
 
 }  // namespace relax
 }  // namespace tvm

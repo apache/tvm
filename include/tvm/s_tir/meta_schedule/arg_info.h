@@ -29,12 +29,6 @@ namespace tvm {
 namespace s_tir {
 namespace meta_schedule {
 
-using ffi::Object;
-using ffi::ObjectPtr;
-using ffi::ObjectPtrEqual;
-using ffi::ObjectPtrHash;
-using ffi::ObjectRef;
-
 /*! \brief The argument information. */
 class ArgInfoNode : public ffi::Object {
  public:
@@ -44,7 +38,7 @@ class ArgInfoNode : public ffi::Object {
   /*! \brief Default destructor. */
   virtual ~ArgInfoNode() = default;
   /*! \brief Converts the ArgInfo to its corresponding JSON representation. */
-  virtual ObjectRef AsJSON() const = 0;
+  virtual ffi::ObjectRef AsJSON() const = 0;
 };
 
 /*!
@@ -58,7 +52,7 @@ class ArgInfo : public ffi::ObjectRef {
    * \param json_obj The json object to parse.
    * \return The argument information parsed.
    */
-  TVM_DLL static ArgInfo FromJSON(const ObjectRef& json_obj);
+  TVM_DLL static ArgInfo FromJSON(const ffi::ObjectRef& json_obj);
   /*!
    * \brief Extract a list of the argument information from PrimFunc.
    * \param func The PrimFunc to get argument information from.
@@ -96,7 +90,7 @@ class TensorInfoNode : public ArgInfoNode {
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.TensorInfo", TensorInfoNode, ArgInfoNode);
 
  public:
-  ObjectRef AsJSON() const;
+  ffi::ObjectRef AsJSON() const;
 };
 
 /*!
@@ -116,7 +110,7 @@ class TensorInfo : public ArgInfo {
    * \param json_obj The json object to parse.
    * \return The argument information parsed.
    */
-  TVM_DLL static TensorInfo FromJSON(const ObjectRef& json_obj);
+  TVM_DLL static TensorInfo FromJSON(const ffi::ObjectRef& json_obj);
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorInfo, ArgInfo, TensorInfoNode);
 };
 

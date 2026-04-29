@@ -150,7 +150,7 @@ InferLayoutOutput InferLayoutConv1d(
   TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision data_layout, weight_layout, output_layout;
-  ObjectPtr<Conv1DAttrs> new_attrs = ffi::make_object<Conv1DAttrs>(*attrs);
+  ffi::ObjectPtr<Conv1DAttrs> new_attrs = ffi::make_object<Conv1DAttrs>(*attrs);
 
   if (it != desired_layouts.end()) {
     // We have a desired layout for conv1d.
@@ -326,7 +326,7 @@ InferLayoutOutput InferLayoutConv2d(
   LayoutDecision data_layout, weight_layout, output_layout;
   data_layout = GetLayoutDecision(var_layout_map, call->args[0]);
   weight_layout = GetLayoutDecision(var_layout_map, call->args[1]);
-  ObjectPtr<Conv2DAttrs> new_attrs = ffi::make_object<Conv2DAttrs>(*attrs);
+  ffi::ObjectPtr<Conv2DAttrs> new_attrs = ffi::make_object<Conv2DAttrs>(*attrs);
 
   if (it != desired_layouts.end()) {
     // We have a desired layout for conv2d.
@@ -540,7 +540,7 @@ InferLayoutOutput InferLayoutConv3d(
   TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision data_layout, weight_layout, output_layout;
-  ObjectPtr<Conv3DAttrs> new_attrs = ffi::make_object<Conv3DAttrs>(*attrs);
+  ffi::ObjectPtr<Conv3DAttrs> new_attrs = ffi::make_object<Conv3DAttrs>(*attrs);
 
   if (it != desired_layouts.end()) {
     // We have a desired layout for conv3d.
@@ -722,7 +722,7 @@ InferLayoutOutput InferLayoutConv1dTranspose(
     const VarLayoutMap& var_layout_map) {
   const auto* attrs = call->attrs.as<Conv1DTransposeAttrs>();
   LayoutDecision data_layout, weight_layout, output_layout;
-  ObjectPtr<Conv1DTransposeAttrs> new_attrs = ffi::make_object<Conv1DTransposeAttrs>(*attrs);
+  ffi::ObjectPtr<Conv1DTransposeAttrs> new_attrs = ffi::make_object<Conv1DTransposeAttrs>(*attrs);
 
   auto it = desired_layouts.find("relax.nn.conv1d_transpose");
   if (it != desired_layouts.end()) {
@@ -923,7 +923,7 @@ InferLayoutOutput InferLayoutConv2dTranspose(
   LayoutDecision data_layout = GetLayoutDecision(var_layout_map, call->args[0]);
   LayoutDecision weight_layout = GetLayoutDecision(var_layout_map, call->args[1]);
   LayoutDecision output_layout;
-  ObjectPtr<Conv2DTransposeAttrs> new_attrs = ffi::make_object<Conv2DTransposeAttrs>(*attrs);
+  ffi::ObjectPtr<Conv2DTransposeAttrs> new_attrs = ffi::make_object<Conv2DTransposeAttrs>(*attrs);
 
   auto it = desired_layouts.find("relax.nn.conv2d_transpose");
   if (it != desired_layouts.end()) {
@@ -1165,7 +1165,7 @@ InferLayoutOutput InferLayoutConv3dTranspose(
   LayoutDecision data_layout = GetLayoutDecision(var_layout_map, call->args[0]);
   LayoutDecision weight_layout = GetLayoutDecision(var_layout_map, call->args[1]);
   LayoutDecision output_layout;
-  ObjectPtr<Conv3DTransposeAttrs> new_attrs = ffi::make_object<Conv3DTransposeAttrs>(*attrs);
+  ffi::ObjectPtr<Conv3DTransposeAttrs> new_attrs = ffi::make_object<Conv3DTransposeAttrs>(*attrs);
 
   auto it = desired_layouts.find("relax.nn.conv3d_transpose");
   if (it != desired_layouts.end()) {

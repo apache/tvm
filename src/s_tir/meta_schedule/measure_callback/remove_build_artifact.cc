@@ -50,7 +50,7 @@ class RemoveBuildArtifactNode : public MeasureCallbackNode {
 };
 
 MeasureCallback MeasureCallback::RemoveBuildArtifact() {
-  ObjectPtr<RemoveBuildArtifactNode> n = ffi::make_object<RemoveBuildArtifactNode>();
+  ffi::ObjectPtr<RemoveBuildArtifactNode> n = ffi::make_object<RemoveBuildArtifactNode>();
   return MeasureCallback(n);
 }
 

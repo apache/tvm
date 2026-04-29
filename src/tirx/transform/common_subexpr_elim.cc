@@ -100,12 +100,12 @@ using ExprRemapTable = std::unordered_map<PrimExpr, Var, ffi::StructuralHash, Ex
  * \brief Map from statement (by pointer identity) to a list of Bind
  *        statements that should be inserted immediately before it.
  *
- * Pointer identity (ObjectPtrHash/Equal) is used because the insertion
+ * Pointer identity (ffi::ObjectPtrHash/Equal) is used because the insertion
  * point is a specific child of a SeqStmt, not a structurally-equivalent
  * statement elsewhere in the tree.
  */
 using InsertBeforeTable =
-    std::unordered_map<Stmt, std::vector<Stmt>, ObjectPtrHash, ObjectPtrEqual>;
+    std::unordered_map<Stmt, std::vector<Stmt>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>;
 
 // ============================================================================
 // CSEPlanner: Phase 1 — scan tree, build scope tree + expression table

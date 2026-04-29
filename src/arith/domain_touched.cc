@@ -137,9 +137,9 @@ Region DomainTouched(const Stmt& stmt, const Buffer& buffer, bool consider_loads
   return BufferTouchedDomain(stmt).FindUnion(buffer, consider_loads, consider_stores);
 }
 
-ffi::Map<Buffer, ffi::Array<ObjectRef>> DomainTouchedAccessMap(const PrimFunc& func) {
+ffi::Map<Buffer, ffi::Array<ffi::ObjectRef>> DomainTouchedAccessMap(const PrimFunc& func) {
   auto buffer_access_map = BufferTouchedDomain(func->body).GetAccessedBufferRegions();
-  ffi::Map<Buffer, ffi::Array<ObjectRef>> ret;
+  ffi::Map<Buffer, ffi::Array<ffi::ObjectRef>> ret;
   auto& buffer_map = func->buffer_map;
   for (auto& var : func->params) {
     auto& buffer = buffer_map[var];
@@ -155,7 +155,7 @@ ffi::Map<Buffer, ffi::Array<ObjectRef>> DomainTouchedAccessMap(const PrimFunc& f
       combined.push_back(ffi::Array<IntSet>(touch));
     }
 
-    ffi::Array<ObjectRef> fields;
+    ffi::Array<ffi::ObjectRef> fields;
     fields.push_back(loads);
     fields.push_back(stores);
     fields.push_back(combined);

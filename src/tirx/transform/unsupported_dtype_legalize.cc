@@ -46,7 +46,7 @@ namespace tirx {
 class ComputeLegalizePlanner : public StmtExprVisitor {
  public:
   ComputeLegalizePlanner(
-      std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual>* buffer_remap,
+      std::unordered_map<Buffer, Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>* buffer_remap,
       std::unordered_map<Var, Var>* var_remap, DataType promote_dtype)
       : buffer_remap_(buffer_remap), var_remap_(var_remap), promote_dtype_(promote_dtype) {}
 
@@ -125,7 +125,7 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
     (*buffer_remap_)[buf] = new_buffer;
   }
 
-  std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual>* buffer_remap_;
+  std::unordered_map<Buffer, Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>* buffer_remap_;
   std::unordered_map<Var, Var>* var_remap_;
   std::unordered_set<Var> opaque_var_access_;
   DataType promote_dtype_;
@@ -134,7 +134,7 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
 class BF16ComputeLegalizePlanner : public ComputeLegalizePlanner {
  public:
   explicit BF16ComputeLegalizePlanner(
-      std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual>* buffer_remap,
+      std::unordered_map<Buffer, Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>* buffer_remap,
       std::unordered_map<Var, Var>* var_remap, DataType promote_dtype)
       : ComputeLegalizePlanner(buffer_remap, var_remap, promote_dtype) {}
   bool MatchDType(DataType dtype) const { return dtype.is_bfloat16(); }
@@ -143,7 +143,7 @@ class BF16ComputeLegalizePlanner : public ComputeLegalizePlanner {
 class FP8ComputeLegalizePlanner : public ComputeLegalizePlanner {
  public:
   explicit FP8ComputeLegalizePlanner(
-      std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual>* buffer_remap,
+      std::unordered_map<Buffer, Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>* buffer_remap,
       std::unordered_map<Var, Var>* var_remap, DataType promote_dtype)
       : ComputeLegalizePlanner(buffer_remap, var_remap, promote_dtype) {}
   bool MatchDType(DataType dtype) const { return dtype.is_float8(); }
@@ -471,7 +471,7 @@ class ComputeLegalizer : public StmtExprMutator {
 
  protected:
   DataType promote_dtype_;
-  std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> buffer_remap_;
+  std::unordered_map<Buffer, Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_remap_;
   std::unordered_map<Var, Var> var_remap_;
 };
 
@@ -715,7 +715,7 @@ class StorageLegalizer : public StmtExprMutator {
     return new_buf;
   }
 
-  std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> buffer_remap_;
+  std::unordered_map<Buffer, Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_remap_;
   std::unordered_map<Var, Var> var_remap_;
 };
 

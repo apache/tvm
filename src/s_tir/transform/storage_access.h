@@ -77,7 +77,7 @@ class StorageAccessVisitor : public StmtExprVisitor {
   /*! \brief Access pattern about a single statement */
   struct StmtEntry {
     /*! \brief The statement */
-    const Object* stmt;
+    const ffi::Object* stmt;
     /*! \brief access patterns in the statement */
     std::vector<AccessEntry> access;
   };

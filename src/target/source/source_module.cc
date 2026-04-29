@@ -89,7 +89,7 @@ class CSourceModuleNode : public ffi::ModuleObj {
   const char* kind() const final { return "c"; }
 
   ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) final {
-    ObjectPtr<Object> sptr_to_self = ffi::GetObjectPtr<Object>(this);
+    ffi::ObjectPtr<ffi::Object> sptr_to_self = ffi::GetObjectPtr<ffi::Object>(this);
     // Currently c-source module is used as demonstration purposes with binary metadata module
     // that expects get_symbol interface. When c-source module is used as external module, it
     // will only contain one function. However, when its used as an internal module (e.g., target

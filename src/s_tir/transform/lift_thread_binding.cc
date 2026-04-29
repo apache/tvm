@@ -35,7 +35,7 @@ namespace s_tir {
 using namespace tvm::tirx;
 
 std::pair<std::unordered_map<Stmt, std::vector<std::pair<IterVar, ffi::Map<ffi::String, ffi::Any>>>,
-                             ObjectPtrHash, ObjectPtrEqual>,
+                             ffi::ObjectPtrHash, ffi::ObjectPtrEqual>,
           ffi::Map<Var, Var>>
 FindLoopLCA(const Stmt& root) {
   class LCAFinder : public StmtVisitor {
@@ -87,7 +87,7 @@ FindLoopLCA(const Stmt& root) {
   LCAFinder finder;
   finder(root);
   std::unordered_map<Stmt, std::vector<std::pair<IterVar, ffi::Map<ffi::String, ffi::Any>>>,
-                     ObjectPtrHash, ObjectPtrEqual>
+                     ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       result;
   std::vector<std::string> sorted_thread_tags;
   for (const auto& kv : finder.lca) {
@@ -166,7 +166,7 @@ class ThreadBindingLifter : public StmtExprMutator {
   }
 
   std::unordered_map<Stmt, std::vector<std::pair<IterVar, ffi::Map<ffi::String, ffi::Any>>>,
-                     ObjectPtrHash, ObjectPtrEqual>
+                     ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       iter_lca;
   ffi::Map<Var, Var> var_subst;
 };

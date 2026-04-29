@@ -89,8 +89,8 @@ class CollectCLMLFromCompositeFunctionBody : public ExprVisitor {
     }
 
     OpAttrExtractor extractor(node_);
-    const Object* attr_obj = call_node->attrs.get();
-    extractor.Extract(const_cast<Object*>(attr_obj));
+    const ffi::Object* attr_obj = call_node->attrs.get();
+    extractor.Extract(const_cast<ffi::Object*>(attr_obj));
   }
 
   OpenCLMLJSONSerializer* serializer_;

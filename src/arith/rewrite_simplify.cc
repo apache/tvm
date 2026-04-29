@@ -2417,7 +2417,7 @@ RewriteSimplifier::Extension RewriteSimplifier::GetEnabledExtensions() const {
   return impl_->GetEnabledExtensions();
 }
 
-ObjectRef RewriteSimplifier::GetStatsCounters() const { return impl_->GetStatsCounters(); }
+ffi::ObjectRef RewriteSimplifier::GetStatsCounters() const { return impl_->GetStatsCounters(); }
 
 void RewriteSimplifier::ResetStatsCounters() { impl_->ResetStatsCounters(); }
 

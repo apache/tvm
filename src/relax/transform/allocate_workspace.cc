@@ -190,7 +190,7 @@ class WorkspaceProvider : ExprMutator {
    * the new ones that are transformed to take an additional workspace parameter. This is only
    * needed since the struct info of the global variables changes between transformation. */
   std::unordered_map<const GlobalVarNode*, GlobalVar> gvar_map_;
-  std::unordered_set<GlobalVar, ObjectPtrHash, ObjectPtrEqual> new_gvars_;
+  std::unordered_set<GlobalVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> new_gvars_;
 };
 
 }  // namespace relax

@@ -260,7 +260,7 @@ Pass SimplifyForFeatureExtraction() {
    private:
     static bool HasBufferLoad(const PrimExpr& expr) {
       bool found = false;
-      PostOrderVisit(expr, [&found](const ObjectRef& node) {
+      PostOrderVisit(expr, [&found](const ffi::ObjectRef& node) {
         if (node->IsInstance<BufferLoadNode>()) {
           found = true;
         }
@@ -788,7 +788,7 @@ void Feature::Init(const BufferStoreNode* store, int n_loops) {
     info.access_type = AccessType::kWrite;
     info.multi_indices.push_back({store->indices.begin(), store->indices.end()});
   }
-  PostOrderVisit(store->value, [&buffer_info](const ObjectRef& obj) -> void {
+  PostOrderVisit(store->value, [&buffer_info](const ffi::ObjectRef& obj) -> void {
     if (const BufferLoadNode* load = obj.as<BufferLoadNode>()) {
       const BufferNode* buffer = load->buffer.get();
       Info& info = buffer_info[buffer];
@@ -912,7 +912,7 @@ void Feature::SubFeature::SetReuse(const LoopNest& loop_nest, int64_t top_loop_t
   std::unordered_set<const VarNode*> region_vars;
   for (const MultiIndex& multi_index : this->multi_indices) {
     for (const PrimExpr& index : multi_index) {
-      PostOrderVisit(index, [&region_vars](const ObjectRef& obj) -> void {
+      PostOrderVisit(index, [&region_vars](const ffi::ObjectRef& obj) -> void {
         if (const auto* var = obj.as<VarNode>()) {
           region_vars.insert(var);
         }
@@ -1434,7 +1434,7 @@ class PerStoreFeatureNode : public FeatureExtractorNode {
 FeatureExtractor FeatureExtractor::PerStoreFeature(int buffers_per_store,
                                                    int arith_intensity_curve_num_samples,
                                                    int cache_line_bytes, bool extract_workload) {
-  ObjectPtr<PerStoreFeatureNode> n = ffi::make_object<PerStoreFeatureNode>();
+  ffi::ObjectPtr<PerStoreFeatureNode> n = ffi::make_object<PerStoreFeatureNode>();
   n->buffers_per_store = buffers_per_store;
   n->arith_intensity_curve_num_samples = arith_intensity_curve_num_samples;
   n->cache_line_bytes = cache_line_bytes;

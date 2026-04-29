@@ -117,7 +117,7 @@ class LayoutFreeBufferCollector : public StmtVisitor {
     }
   }
 
-  std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual> buffers;
+  std::unordered_set<Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffers;
 };
 
 ffi::Array<Buffer> CollectLayoutFreeBuffers(const PrimFuncNode* func) {
@@ -265,7 +265,7 @@ class RewriteLayoutNode : public PostprocNode {
   }
 
   Postproc Clone() const {
-    ObjectPtr<RewriteLayoutNode> n = ffi::make_object<RewriteLayoutNode>(*this);
+    ffi::ObjectPtr<RewriteLayoutNode> n = ffi::make_object<RewriteLayoutNode>(*this);
     return Postproc(n);
   }
 

@@ -84,7 +84,7 @@ struct HoistExpressionConfigNode : public AttrsNodeReflAdapter<HoistExpressionCo
     return static_cast<int>(flag) & hoisted_let_bindings;
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.transform.HoistExpressionConfig",
-                                    HoistExpressionConfigNode, Object);
+                                    HoistExpressionConfigNode, ffi::Object);
 };
 
 class HoistExpressionConfig : public Attrs {
@@ -113,7 +113,7 @@ struct HoistIfThenElseConfigNode : public AttrsNodeReflAdapter<HoistIfThenElseCo
         "Hoist if cond with block scope variables", refl::DefaultValue(false));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.transform.HoistIfThenElseConfig",
-                                    HoistIfThenElseConfigNode, Object);
+                                    HoistIfThenElseConfigNode, ffi::Object);
 };
 
 class HoistIfThenElseConfig : public Attrs {

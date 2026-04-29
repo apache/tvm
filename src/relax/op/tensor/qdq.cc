@@ -39,7 +39,7 @@ TVM_FFI_STATIC_INIT_BLOCK() { QuantizeAttrs::RegisterReflection(); }
 /* relax.quantize */
 
 Expr quantize(Expr data, Expr scale, Expr zero_point, int axis, DataType out_dtype) {
-  ObjectPtr<QuantizeAttrs> attrs = ffi::make_object<QuantizeAttrs>();
+  ffi::ObjectPtr<QuantizeAttrs> attrs = ffi::make_object<QuantizeAttrs>();
   attrs->axis = axis;
   attrs->out_dtype = out_dtype;
   static const Op& op = Op::Get("relax.quantize");
@@ -122,8 +122,10 @@ StructInfo InferStructInfoQuantize(const Call& call, const BlockBuilder& ctx) {
   };
 
   // Check size matching of scale/zp params with input shape at dim = attrs->axis.
-  if (!is_scalar_or_singleton_vector(scale_sinfo)) check_param_size(scale_sinfo, input_sinfo, "scale");
-  if (!is_scalar_or_singleton_vector(zp_sinfo)) check_param_size(zp_sinfo, input_sinfo, "zero_point");
+  if (!is_scalar_or_singleton_vector(scale_sinfo))
+    check_param_size(scale_sinfo, input_sinfo, "scale");
+  if (!is_scalar_or_singleton_vector(zp_sinfo))
+    check_param_size(zp_sinfo, input_sinfo, "zero_point");
 
   auto output_sinfo = ffi::make_object<TensorStructInfoNode>(*input_sinfo.get());
   output_sinfo->dtype = attrs->out_dtype;
@@ -142,7 +144,7 @@ TVM_REGISTER_OP("relax.quantize")
 /* relax.dequantize */
 
 Expr dequantize(Expr data, Expr scale, Expr zero_point, int axis, DataType out_dtype) {
-  ObjectPtr<QuantizeAttrs> attrs = ffi::make_object<QuantizeAttrs>();
+  ffi::ObjectPtr<QuantizeAttrs> attrs = ffi::make_object<QuantizeAttrs>();
   attrs->axis = axis;
   attrs->out_dtype = out_dtype;
   static const Op& op = Op::Get("relax.dequantize");
@@ -227,8 +229,10 @@ StructInfo InferStructInfoDequantize(const Call& call, const BlockBuilder& ctx) 
   };
 
   // Check size matching of scale/zp params with input shape at dim = attrs->axis.
-  if (!is_scalar_or_singleton_vector(scale_sinfo)) check_param_size(scale_sinfo, input_sinfo, "scale");
-  if (!is_scalar_or_singleton_vector(zp_sinfo)) check_param_size(zp_sinfo, input_sinfo, "zero_point");
+  if (!is_scalar_or_singleton_vector(scale_sinfo))
+    check_param_size(scale_sinfo, input_sinfo, "scale");
+  if (!is_scalar_or_singleton_vector(zp_sinfo))
+    check_param_size(zp_sinfo, input_sinfo, "zero_point");
 
   auto output_sinfo = ffi::make_object<TensorStructInfoNode>(*input_sinfo.get());
   output_sinfo->dtype = attrs->out_dtype;

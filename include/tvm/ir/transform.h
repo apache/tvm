@@ -76,7 +76,7 @@ namespace transform {
  * such as analysis results.
  * \sa PassContext
  */
-class PassContextNode : public Object {
+class PassContextNode : public ffi::Object {
  public:
   /*! \brief The default optimization level. */
   int opt_level{2};
@@ -134,7 +134,7 @@ class PassContextNode : public Object {
         .def_ro("config", &PassContextNode::config)
         .def_ro("diag_ctx", &PassContextNode::diag_ctx);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("transform.PassContext", PassContextNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("transform.PassContext", PassContextNode, ffi::Object);
 };
 
 /*!
@@ -150,17 +150,17 @@ class PassContextNode : public Object {
  * \endcode
  * \sa PassContextNode
  */
-class PassContext : public ObjectRef {
+class PassContext : public ffi::ObjectRef {
  public:
   PassContext() {}
   /*!
    * \brief constructor with UnsafeInit
    */
-  explicit PassContext(ffi::UnsafeInit tag) : ObjectRef(tag) {}
+  explicit PassContext(ffi::UnsafeInit tag) : ffi::ObjectRef(tag) {}
   /*!
-   * \brief constructor with ObjectPtr
+   * \brief constructor with ffi::ObjectPtr
    */
-  explicit PassContext(ObjectPtr<PassContextNode> n) : ObjectRef(n) {}
+  explicit PassContext(ffi::ObjectPtr<PassContextNode> n) : ffi::ObjectRef(n) {}
   /*!
    * \brief const accessor.
    * \return const access pointer.
@@ -247,7 +247,7 @@ class PassContext : public ObjectRef {
   template <typename ValueType>
   static int32_t RegisterConfigOption(const char* key) {
     // NOTE: we could further update the function later.
-    if constexpr (std::is_base_of_v<ObjectRef, ValueType>) {
+    if constexpr (std::is_base_of_v<ffi::ObjectRef, ValueType>) {
       int32_t tindex = ffi::TypeToRuntimeTypeIndex<ValueType>::v();
       auto type_key = ffi::TypeIndexToTypeKey(tindex);
       auto legalization = [=](ffi::Any value) -> ffi::Any {
@@ -308,7 +308,7 @@ class PassContext : public ObjectRef {
  *
  *  Use this macro in the cc file for each terminal class.
  */
-#define TVM_REGISTER_PASS_CONFIG_OPTION(Key, ValueType)      \
+#define TVM_REGISTER_PASS_CONFIG_OPTION(Key, ValueType)          \
   TVM_FFI_STR_CONCAT(TVM_PASS_CTX_CONFIG_VAR_DEF, __COUNTER__) = \
       ::tvm::transform::PassContext::RegisterConfigOption<ValueType>(Key)
 
@@ -316,7 +316,7 @@ class PassContext : public ObjectRef {
  * \brief Meta data that will be used to help optimization and analysis.
  * \sa PassInfo
  */
-class PassInfoNode : public Object {
+class PassInfoNode : public ffi::Object {
  public:
   /*! \brief The minimal optimization level that this pass will be enabled. */
   int opt_level;
@@ -340,14 +340,14 @@ class PassInfoNode : public Object {
         .def_ro("required", &PassInfoNode::required)
         .def_ro("traceable", &PassInfoNode::traceable);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("transform.PassInfo", PassInfoNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("transform.PassInfo", PassInfoNode, ffi::Object);
 };
 
 /*!
  * \brief Managed reference class for PassInfoNode
  * \sa PassInfoNode
  */
-class PassInfo : public ObjectRef {
+class PassInfo : public ffi::ObjectRef {
  public:
   /*!
    * \brief Constructor
@@ -359,7 +359,7 @@ class PassInfo : public ObjectRef {
   TVM_DLL PassInfo(int opt_level, ffi::String name, ffi::Array<ffi::String> required,
                    bool traceable);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PassInfo, ObjectRef, PassInfoNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PassInfo, ffi::ObjectRef, PassInfoNode);
 };
 
 /*!
@@ -367,7 +367,7 @@ class PassInfo : public ObjectRef {
  * It is designed as a pure class and implemented by different pass subclasses
  * at different granularity of Relax nodes.
  */
-class PassNode : public Object {
+class PassNode : public ffi::Object {
  public:
   virtual ~PassNode() {}
   /*!
@@ -394,10 +394,10 @@ class PassNode : public Object {
    * \return The transformed module.
    */
   virtual IRModule operator()(IRModule mod, const PassContext& pass_ctx) const = 0;
-  TVM_FFI_DECLARE_OBJECT_INFO("transform.Pass", PassNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("transform.Pass", PassNode, ffi::Object);
 };
 
-class Pass : public ObjectRef {
+class Pass : public ffi::ObjectRef {
  public:
   /*!
    * \brief Transform mod using the default PassContext in the current scope.
@@ -426,7 +426,7 @@ class Pass : public ObjectRef {
    */
   IRModule operator()(IRModule mod, const PassContext& pass_ctx) const;
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Pass, ObjectRef, PassNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Pass, ffi::ObjectRef, PassNode);
 
  private:
   IRModule static AssertImmutableModule(const IRModule& mod, const PassNode* node,
@@ -509,7 +509,7 @@ class Sequential : public Pass {
   TVM_DLL Sequential(ffi::Array<Pass> passes, ffi::String name = "sequential");
 
   Sequential() = default;
-  explicit Sequential(ObjectPtr<SequentialNode> n) : Pass(n) {}
+  explicit Sequential(ffi::ObjectPtr<SequentialNode> n) : Pass(n) {}
 
   const SequentialNode* operator->() const;
   using ContainerType = SequentialNode;

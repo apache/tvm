@@ -35,7 +35,7 @@ namespace relax {
 
 template <typename T>
 struct InsertionSet {
-  std::unordered_set<T, ObjectPtrHash, ObjectPtrEqual> set;
+  std::unordered_set<T, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> set;
   std::vector<T> data;
   void Insert(const T& t) {
     if (set.count(t) == 0) {

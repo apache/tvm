@@ -27,8 +27,9 @@ ffi::String ScheduleError::RenderReport(const ffi::String& primitive) const {
   std::ostringstream os;
 
   // get locations of interest
-  ffi::Array<ObjectRef> locs = LocationsOfInterest();
-  std::unordered_map<ObjectRef, ffi::String, ObjectPtrHash, ObjectPtrEqual> loc_obj_to_name;
+  ffi::Array<ffi::ObjectRef> locs = LocationsOfInterest();
+  std::unordered_map<ffi::ObjectRef, ffi::String, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+      loc_obj_to_name;
   int n_locs = locs.size();
   std::string msg = DetailRenderTemplate();
   PrinterConfig cfg;

@@ -66,7 +66,7 @@ class PostprocNode : public ffi::Object {
   virtual Postproc Clone() const = 0;
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.Postproc", PostprocNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.Postproc", PostprocNode, ffi::Object);
 };
 
 /*!
@@ -177,7 +177,7 @@ class Postproc : public ffi::ObjectRef {
   /*! \brief Create default postprocessors for Hexagon */
   TVM_DLL static ffi::Array<Postproc, void> DefaultHexagon();
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Postproc, ObjectRef, PostprocNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Postproc, ffi::ObjectRef, PostprocNode);
 };
 
 /*! \brief The postprocessor with customized methods on the python-side. */

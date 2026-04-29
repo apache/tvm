@@ -185,7 +185,7 @@ class AppendLossMutator : private ExprMutator {
     TVM_FFI_ICHECK(static_cast<int>(backbone_return_arr_.size()) >= num_backbone_outputs_)
         << "The number of return values of the backbone function is " << backbone_return_arr_.size()
         << ", which is less than the given num_backbone_outputs " << num_backbone_outputs_;
-    std::unordered_set<Var, ObjectPtrHash> other_outputs_var(
+    std::unordered_set<Var, ffi::ObjectPtrHash> other_outputs_var(
         backbone_return_arr_.begin() + num_backbone_outputs_, backbone_return_arr_.end());
     for (int i = 0; i < num_backbone_outputs_; ++i) {
       auto var = backbone_return_arr_[i];

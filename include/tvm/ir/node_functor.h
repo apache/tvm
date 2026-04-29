@@ -32,14 +32,6 @@
 
 namespace tvm {
 
-using ffi::Object;
-using ffi::ObjectPtr;
-using ffi::ObjectPtrEqual;
-using ffi::ObjectPtrHash;
-using ffi::ObjectRef;
-
-using ffi::ObjectRef;
-
 /*!
  * \brief A dynamically dispatched functor on the type of the first argument.
  *
@@ -47,11 +39,11 @@ using ffi::ObjectRef;
  * base on the AST/IR node's type.
  *
  * \code
- *   NodeFunctor<std::string (const ObjectRef& n, std::string prefix)> tostr;
- *   tostr.set_dispatch<Add>([](const ObjectRef& op, std::string prefix) {
+ *   NodeFunctor<std::string (const ffi::ObjectRef& n, std::string prefix)> tostr;
+ *   tostr.set_dispatch<Add>([](const ffi::ObjectRef& op, std::string prefix) {
  *     return prefix + "Add";
  *   });
- *   tostr.set_dispatch<IntImm>([](const ObjectRef& op, std::string prefix) {
+ *   tostr.set_dispatch<IntImm>([](const ffi::ObjectRef& op, std::string prefix) {
  *     return prefix + "IntImm"
  *   });
  *
@@ -70,12 +62,12 @@ template <typename FType>
 class NodeFunctor;
 
 template <typename R, typename... Args>
-class NodeFunctor<R(const ObjectRef& n, Args...)> {
+class NodeFunctor<R(const ffi::ObjectRef& n, Args...)> {
  private:
   /*! \brief internal function pointer type */
-  typedef R (*FPointer)(const ObjectRef& n, Args...);
+  typedef R (*FPointer)(const ffi::ObjectRef& n, Args...);
   /*! \brief refer to itself. */
-  using TSelf = NodeFunctor<R(const ObjectRef& n, Args...)>;
+  using TSelf = NodeFunctor<R(const ffi::ObjectRef& n, Args...)>;
   /*! \brief internal function table */
   std::vector<FPointer> func_;
   /*! \brief start range of func index */
@@ -89,7 +81,7 @@ class NodeFunctor<R(const ObjectRef& n, Args...)> {
    * \param n The node to be dispatched
    * \return Whether dispatching function is registered for n's type.
    */
-  bool can_dispatch(const ObjectRef& n) const {
+  bool can_dispatch(const ffi::ObjectRef& n) const {
     uint32_t type_index = n->type_index();
     if (type_index < begin_type_index_) return false;
     type_index -= begin_type_index_;
@@ -101,7 +93,7 @@ class NodeFunctor<R(const ObjectRef& n, Args...)> {
    * \param args The additional arguments
    * \return The result.
    */
-  R operator()(const ObjectRef& n, Args... args) const {
+  R operator()(const ffi::ObjectRef& n, Args... args) const {
     TVM_FFI_ICHECK(can_dispatch(n))
         << "NodeFunctor calls un-registered function on type " << n->GetTypeKey();
     return (*func_[n->type_index() - begin_type_index_])(n, std::forward<Args>(args)...);
@@ -172,10 +164,10 @@ class NodeFunctor<R(const ObjectRef& n, Args...)> {
  *  class TVMScriptPrinter {
  *   public:
  *    // the dispatch function.
- *    static std::string Script(const ObjectRef& node, const PrinterConfig& cfg) {
+ *    static std::string Script(const ffi::ObjectRef& node, const PrinterConfig& cfg) {
  *      return vtable()(node, cfg);
  *    }
- *    using FType = NodeFunctor<std::string(const ObjectRef&, const PrinterConfig&)>;
+ *    using FType = NodeFunctor<std::string(const ffi::ObjectRef&, const PrinterConfig&)>;
  *    // function to return global function table
  *    static FType& vtable();
  *  };
@@ -186,7 +178,7 @@ class NodeFunctor<R(const ObjectRef& n, Args...)> {
  *  }
  *
  *  TVM_STATIC_IR_FUNCTOR(TVMScriptPrinter, vtable)
- *  .set_dispatch<AddNode>([](const ObjectRef& ref, const PrinterConfig& cfg) {
+ *  .set_dispatch<AddNode>([](const ffi::ObjectRef& ref, const PrinterConfig& cfg) {
  *    auto* n = static_cast<const AddNode*>(ref.get());
  *    return Script(n->a, cfg) + " + " + Script(n->b, cfg);
  *  });

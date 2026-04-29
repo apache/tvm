@@ -33,12 +33,6 @@ namespace tvm {
 namespace script {
 namespace printer {
 
-using ffi::Object;
-using ffi::ObjectPtr;
-using ffi::ObjectPtrEqual;
-using ffi::ObjectPtrHash;
-using ffi::ObjectRef;
-
 /*!
  * \brief Dynamic dispatch functor based on AccessPath.
  *
@@ -132,9 +126,9 @@ class IRDocsifierFunctor {
   }
 
   template <typename TCallable,
-            typename = std::enable_if_t<IsDispatchFunction<ObjectRef, TCallable>::value>>
+            typename = std::enable_if_t<IsDispatchFunction<ffi::ObjectRef, TCallable>::value>>
   TSelf& set_fallback(TCallable f) {
-    ffi::Function func = ffi::TypedFunction<R(ObjectRef, Args...)>(f);
+    ffi::Function func = ffi::TypedFunction<R(ffi::ObjectRef, Args...)>(f);
     return set_fallback(func);
   }
 

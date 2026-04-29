@@ -44,7 +44,7 @@ class AnnotateRegionRewriter : public StmtExprMutator {
         << "Buffer index out of range";
     regions.Set(buffer_index_, new_region_);
 
-    ObjectPtr<SBlockNode> n = CopyOnWrite(block.get());
+    ffi::ObjectPtr<SBlockNode> n = CopyOnWrite(block.get());
     if (buffer_index_type_ == BufferIndexType::kWrite) {
       n->writes = std::move(regions);
     } else {

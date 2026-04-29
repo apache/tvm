@@ -78,7 +78,7 @@ class TextureLoweringBase : public StmtExprMutator {
   }
 
   // Set of all external input and output buffers
-  std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual> extern_buf_;
+  std::unordered_set<Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> extern_buf_;
   // Bound analzer
   IRVisitorWithAnalyzer* bound_analyzer_;
 };

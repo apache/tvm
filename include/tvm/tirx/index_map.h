@@ -42,12 +42,6 @@ class Analyzer;
 namespace tvm {
 namespace tirx {
 
-using ffi::Object;
-using ffi::ObjectPtr;
-using ffi::ObjectPtrEqual;
-using ffi::ObjectPtrHash;
-using ffi::ObjectRef;
-
 /*!
  * \brief Defines a mapping between two representations of indices
  * into a buffer.
@@ -55,7 +49,7 @@ using ffi::ObjectRef;
  * This is primarily used for layout transformations of Buffer
  * objects.
  */
-class IndexMapNode : public Object {
+class IndexMapNode : public ffi::Object {
  public:
   /*! \brief Variables representing the indices prior to remapping.
    *
@@ -84,9 +78,9 @@ class IndexMapNode : public Object {
    * will be computed on the fly.  It is the user's responsibility to
    * ensure the correctness of the pre-defined inverse index map.
    *
-   * \note ObjectRef is used here instead of IndexMap to avoid circular reference.
+   * \note ffi::ObjectRef is used here instead of IndexMap to avoid circular reference.
    */
-  ffi::Optional<ObjectRef> inverse_index_map;
+  ffi::Optional<ffi::ObjectRef> inverse_index_map;
 
   /*!
    * \brief Default constructor
@@ -169,10 +163,10 @@ class IndexMapNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.IndexMap", IndexMapNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.IndexMap", IndexMapNode, ffi::Object);
 };
 
-class IndexMap : public ObjectRef {
+class IndexMap : public ffi::ObjectRef {
  public:
   /*!
    * \brief The constructor
@@ -226,7 +220,7 @@ class IndexMap : public ObjectRef {
   std::pair<IndexMap, PrimExpr> NonSurjectiveInverse(ffi::Array<Range> initial_ranges,
                                                      arith::Analyzer* analyzer) const;
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IndexMap, ObjectRef, IndexMapNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IndexMap, ffi::ObjectRef, IndexMapNode);
 };
 
 /*! \brief Substitute variables in an index map.

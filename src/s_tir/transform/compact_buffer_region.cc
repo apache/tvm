@@ -50,7 +50,7 @@ using support::NDIntSet;
 NDIntSet NDIntSetEval(Region region, PrimExpr predicate,
                       const std::unordered_map<const VarNode*, arith::IntSet>& dom_map,
                       arith::Analyzer* analyzer) {
-  std::unordered_map<Var, Range, ObjectPtrHash, ObjectPtrEqual> var_dom;
+  std::unordered_map<Var, Range, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> var_dom;
   for (const auto& it : dom_map) {
     var_dom[ffi::GetRef<Var>(it.first)] = it.second.CoverRange(Range::FromMinExtent(0, 0));
   }
@@ -69,7 +69,8 @@ NDIntSet NDIntSetEval(Region region, PrimExpr predicate,
 class Var2BufferCollector : public StmtExprVisitor {
  public:
   /*! \brief Map the buffer var to all aliased buffers. */
-  std::unordered_map<Var, std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual>> var2buffer_;
+  std::unordered_map<Var, std::unordered_set<Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>>
+      var2buffer_;
 
  private:
   void VisitStmt_(const BufferStoreNode* op) final {
@@ -110,7 +111,7 @@ class Var2BufferCollector : public StmtExprVisitor {
  */
 class BufferAccessRegionCollector : public StmtExprVisitor {
  public:
-  static std::unordered_map<Buffer, Region, ObjectPtrHash, ObjectPtrEqual> Collect(
+  static std::unordered_map<Buffer, Region, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> Collect(
       const PrimFunc& f, bool collect_inbound) {
     BufferAccessRegionCollector region_collector(collect_inbound);
 
@@ -238,7 +239,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     TVM_FFI_ICHECK(!op->init.defined());
     TVM_FFI_ICHECK_EQ(op->iter_vars.size(), 0) << "CompactBufferRegion only works on opaque blocks";
     // Step 1. Record and update current read/write region annotations
-    std::unordered_map<Buffer, std::vector<BufferRegion>, ObjectPtrHash, ObjectPtrEqual>
+    std::unordered_map<Buffer, std::vector<BufferRegion>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
         cur_access_annotations;
     for (const BufferRegion& region : op->reads) {
       cur_access_annotations[region->buffer].push_back(region);
@@ -508,7 +509,8 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
   std::unordered_map<Var, size_t> buffer_scope_depth_;
 
   /*! \brief Map the buffer var to all aliased buffers. */
-  std::unordered_map<Var, std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual>> var2buffer_;
+  std::unordered_map<Var, std::unordered_set<Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>>
+      var2buffer_;
 
   /*! \brief The map from loop vars to their iter range. */
   std::unordered_map<const VarNode*, arith::IntSet> dom_map_;
@@ -519,20 +521,20 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
   /*! \brief The analyzer aware of loop domains. */
   arith::Analyzer dom_analyzer_;
   /*! \brief The map from Buffer to it's relaxed access set. */
-  std::unordered_map<Buffer, NDIntSet, ObjectPtrHash, ObjectPtrEqual> relaxed_accesses_;
+  std::unordered_map<Buffer, NDIntSet, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> relaxed_accesses_;
 
   /*!
    * \brief The map from Buffer to it entire access region, used for returning.
    * The entire access region should get updated on the buffer's define point
    * and we sanity check that every buffer is defined only once.
    */
-  std::unordered_map<Buffer, Region, ObjectPtrHash, ObjectPtrEqual> buffer_access_region_;
+  std::unordered_map<Buffer, Region, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_access_region_;
 
   /*! \brief The map from Buffer to it's access regions annotated by current block. */
-  std::unordered_map<Buffer, std::vector<BufferRegion>, ObjectPtrHash, ObjectPtrEqual>
+  std::unordered_map<Buffer, std::vector<BufferRegion>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       access_annotations_;
   /*! \brief The map from Buffer to its explicit access region annotated by the block. */
-  std::unordered_map<Buffer, BufferRegion, ObjectPtrHash, ObjectPtrEqual>
+  std::unordered_map<Buffer, BufferRegion, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       explicit_access_annotations_;
 };
 
@@ -714,7 +716,7 @@ ffi::Array<PrimExpr> CalcStrides(const BufferAllocInfo& alloc_info,
 
 Stmt BufferCompactorCompact(
     const PrimFunc& f,
-    const std::unordered_map<Buffer, Region, ObjectPtrHash, ObjectPtrEqual>& regions,
+    const std::unordered_map<Buffer, Region, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& regions,
     const std::unordered_map<Var, StorageAlignAnnotation>& storage_align) {
   // collect buffer allocation info for no-alias buffers
   std::unordered_map<Var, BufferAllocInfo> buffer_info;
@@ -738,7 +740,7 @@ Stmt BufferCompactorCompact(
     // prepare new buffer
     ffi::Array<PrimExpr> shape = region.Map([](const Range& range) { return range->extent; });
     ffi::Array<PrimExpr> strides = CalcStrides(alloc_info, shape);
-    ObjectPtr<BufferNode> n = ffi::make_object<BufferNode>(*buffer.get());
+    ffi::ObjectPtr<BufferNode> n = ffi::make_object<BufferNode>(*buffer.get());
     n->shape = std::move(shape);
     n->strides = std::move(strides);
     alloc_info.new_buffer = Buffer(std::move(n));

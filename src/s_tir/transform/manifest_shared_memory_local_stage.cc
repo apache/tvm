@@ -142,7 +142,7 @@ class IntermediateStageRewriter {
     // Step 2: Add outer loops
     ffi::Map<Var, Var> subst_map;
     for (const ForNode* relaxed_loop : relaxed_loops) {
-      ObjectPtr<ForNode> for_node = ffi::make_object<ForNode>(*relaxed_loop);
+      ffi::ObjectPtr<ForNode> for_node = ffi::make_object<ForNode>(*relaxed_loop);
       for_node->loop_var = for_node->loop_var.copy_with_suffix("");
       for_node->body = std::move(local_stage);
       local_stage = For(for_node);
@@ -207,7 +207,7 @@ class SharedMemoryLocalStageInserter : public StmtMutator {
       return new_block;
     }
 
-    std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual> allocated_buffers(
+    std::unordered_set<Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> allocated_buffers(
         op->alloc_buffers.begin(), op->alloc_buffers.end());
 
     // Visit children and insert local stages (if any) to the proper location.

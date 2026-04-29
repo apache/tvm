@@ -18,7 +18,7 @@
  */
 /*!
  * \file tvm/ir/repr.h
- * \brief ostream operator<< for ObjectRef, Any, and Variant, delegating to
+ * \brief ostream operator<< for ffi::ObjectRef, Any, and Variant, delegating to
  *        ffi::ReprPrint.  Also re-exports the Dump() debug helpers.
  *
  * Include this header wherever you need `os << some_objectref` and you are
@@ -33,12 +33,6 @@
 #include <iostream>
 
 namespace tvm {
-
-using ffi::Object;
-using ffi::ObjectPtr;
-using ffi::ObjectPtrEqual;
-using ffi::ObjectPtrHash;
-using ffi::ObjectRef;
 
 /*!
  * \brief Dump the node to stderr, used for debug purposes.

@@ -132,7 +132,7 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
   }
 
   // Override visitor behaviors
-  Entry VisitExprDefault_(const Object* op) final { return Everything(); }
+  Entry VisitExprDefault_(const ffi::Object* op) final { return Everything(); }
 
   Entry VisitExpr_(const LetNode* op) final {
     auto it = var_map_.find(op->var);

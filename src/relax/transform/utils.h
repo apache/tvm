@@ -98,7 +98,7 @@ class MemoizedExprTranslator : public ::tvm::relax::ExprFunctor<OutputType(const
 
  protected:
   /*! \brief Internal map used for memoization. */
-  std::unordered_map<Expr, OutputType, ObjectPtrHash, ObjectPtrEqual> memo_;
+  std::unordered_map<Expr, OutputType, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> memo_;
 };
 
 /*!
@@ -142,7 +142,7 @@ inline std::string GetExtSymbol(const Function& func) {
  * \return A new module containing grouped functions.
  */
 IRModule MakeGroupedFunctions(
-    IRModule mod, const std::unordered_map<const Object*, GraphPartitioner::Group*>& partition,
+    IRModule mod, const std::unordered_map<const ffi::Object*, GraphPartitioner::Group*>& partition,
     bool lift_constants = true, const ffi::Array<ffi::String>& entry_function_names = {});
 
 /*!
@@ -199,7 +199,7 @@ bool IsNestedTensor(const Expr& expr);
 // TODO(@bohan): implements some postorder function accepts a visitor closure
 class VarReplacer : public ExprMutator {
  public:
-  using VarMap = std::unordered_map<Id, Var, ObjectPtrHash, ObjectPtrEqual>;
+  using VarMap = std::unordered_map<Id, Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>;
 
   explicit VarReplacer(const VarMap& var_remap) : var_remap_(var_remap) {}
 

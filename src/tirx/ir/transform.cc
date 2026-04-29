@@ -41,7 +41,7 @@ TVM_REGISTER_PASS_CONFIG_OPTION("tirx.disable_cse_tir", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tirx.enable_debug", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tirx.disable_storage_rewrite", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tirx.is_entry_func", Bool);
-TVM_REGISTER_PASS_CONFIG_OPTION("tirx.add_lower_pass", ffi::Array<ffi::Array<ObjectRef>>);
+TVM_REGISTER_PASS_CONFIG_OPTION("tirx.add_lower_pass", ffi::Array<ffi::Array<ffi::ObjectRef>>);
 TVM_REGISTER_PASS_CONFIG_OPTION("tirx.debug_keep_trivial_loop", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tirx.use_async_copy", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tirx.merge_static_smem", Bool);

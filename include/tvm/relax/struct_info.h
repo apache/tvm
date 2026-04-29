@@ -33,12 +33,6 @@
 namespace tvm {
 namespace relax {
 
-using ffi::Object;
-using ffi::ObjectPtr;
-using ffi::ObjectPtrEqual;
-using ffi::ObjectPtrHash;
-using ffi::ObjectRef;
-
 /*!
  * \brief Opaque object.
  */
@@ -314,7 +308,7 @@ class FuncStructInfoNode : public StructInfoNode {
  */
 class FuncStructInfo : public StructInfo {
  public:
-  explicit FuncStructInfo(ObjectPtr<FuncStructInfoNode> data) : StructInfo(ffi::UnsafeInit{}) {
+  explicit FuncStructInfo(ffi::ObjectPtr<FuncStructInfoNode> data) : StructInfo(ffi::UnsafeInit{}) {
     TVM_FFI_ICHECK(data != nullptr);
     data_ = std::move(data);
   }

@@ -28,7 +28,7 @@ TEST(Expr, Basic) {
   using namespace tvm::tirx;
   Var x("x");
   auto z = max(x + 1 + 2, 100);
-  ObjectRef tmp = z;
+  ffi::ObjectRef tmp = z;
   PrimExpr zz = Downcast<PrimExpr>(tmp);
   std::ostringstream os;
   os << z;
@@ -52,5 +52,5 @@ TEST(ExprNodeRef, Basic) {
   Var x("x");
   PrimExpr z = max(x + 1 + 2, 100);
   const tirx::MaxNode* op = z.as<tirx::MaxNode>();
-  TVM_FFI_ICHECK(ffi::GetRef<ObjectRef>(op).same_as(z));
+  TVM_FFI_ICHECK(ffi::GetRef<ffi::ObjectRef>(op).same_as(z));
 }

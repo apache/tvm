@@ -53,7 +53,7 @@ class MutateThreadBindingNode : public MutatorNode {
   ffi::Optional<Trace> Apply(const Trace& trace, TRandState* rand_state) final;
   // Inherit from `MutatorNode`
   Mutator Clone() const final {
-    ObjectPtr<MutateThreadBindingNode> n = ffi::make_object<MutateThreadBindingNode>(*this);
+    ffi::ObjectPtr<MutateThreadBindingNode> n = ffi::make_object<MutateThreadBindingNode>(*this);
     return Mutator(n);
   }
 

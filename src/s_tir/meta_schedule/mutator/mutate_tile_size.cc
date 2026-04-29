@@ -38,9 +38,9 @@ using s_tir::Trace;
  * \param decision The decision of Sample-Perfect-Tile
  * \return The result of downcast
  */
-std::vector<int64_t> DowncastTilingDecision(const ObjectRef& decision) {
+std::vector<int64_t> DowncastTilingDecision(const ffi::ObjectRef& decision) {
   const auto* arr = TVM_TYPE_AS(decision, ffi::ArrayObj);
-  return support::AsVector<ObjectRef, int64_t>(ffi::GetRef<ffi::Array<ObjectRef>>(arr));
+  return support::AsVector<ffi::ObjectRef, int64_t>(ffi::GetRef<ffi::Array<ffi::ObjectRef>>(arr));
 }
 
 /*!
@@ -73,7 +73,7 @@ class MutateTileSizeNode : public MutatorNode {
   ffi::Optional<Trace> Apply(const Trace& trace, TRandState* rand_state) final;
   // Inherit from `MutatorNode`
   Mutator Clone() const final {
-    ObjectPtr<MutateTileSizeNode> n = ffi::make_object<MutateTileSizeNode>(*this);
+    ffi::ObjectPtr<MutateTileSizeNode> n = ffi::make_object<MutateTileSizeNode>(*this);
     return Mutator(n);
   }
 };
@@ -97,7 +97,7 @@ void FindSamplePerfectTile(const Trace& trace, std::vector<Instruction>* inst,
   for (const auto& kv : trace->decisions) {
     const Instruction& inst = kv.first;
     if (inst->kind.same_as(inst_sample_perfect_tile)) {
-      std::vector<int64_t> tiles = DowncastTilingDecision(kv.second.cast<ObjectRef>());
+      std::vector<int64_t> tiles = DowncastTilingDecision(kv.second.cast<ffi::ObjectRef>());
       if (tiles.size() >= 2 && Product(tiles) >= 2) {
         instructions.push_back(inst);
         decisions.push_back(tiles);
@@ -112,7 +112,7 @@ void FindSampleVectorize(const Trace& trace, std::vector<Instruction>* inst,
   static const InstructionKind& inst_annotate = InstructionKind::Get("Annotate");
   std::vector<Instruction>& instructions = *inst;
   std::vector<int64_t>& decisions = *decision;
-  std::unordered_set<const Object*> annotated;
+  std::unordered_set<const ffi::Object*> annotated;
   instructions.reserve(trace->decisions.size());
   decisions.reserve(trace->decisions.size());
   annotated.reserve(trace->decisions.size());
@@ -133,7 +133,7 @@ void FindSampleVectorize(const Trace& trace, std::vector<Instruction>* inst,
     const Instruction& inst = kv.first;
     if (inst->kind.same_as(inst_sample_categorical)) {
       TVM_FFI_ICHECK_EQ(inst->outputs.size(), 1);
-      if (annotated.count(inst->outputs[0].as<Object>())) {
+      if (annotated.count(inst->outputs[0].as<ffi::Object>())) {
         TVM_FFI_ICHECK_EQ(inst->attrs.size(), 2);
         std::vector<double> probs =
             support::AsVector<FloatImm, double>(Downcast<ffi::Array<FloatImm>>(inst->attrs[1]));
@@ -141,7 +141,7 @@ void FindSampleVectorize(const Trace& trace, std::vector<Instruction>* inst,
           // Skip mutating the sampling instructions who have only single candidate.
           continue;
         }
-        const ObjectRef& decision = kv.second.cast<ObjectRef>();
+        const ffi::ObjectRef& decision = kv.second.cast<ffi::ObjectRef>();
         const auto* d = TVM_TYPE_AS(decision, IntImmNode);
         instructions.push_back(inst);
         decisions.push_back(d->value);

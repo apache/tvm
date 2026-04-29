@@ -200,7 +200,7 @@ class MetalModuleNode final : public ffi::ModuleObj {
 class MetalWrappedFunc {
  public:
   // initialize the METAL function.
-  void Init(MetalModuleNode* m, ObjectPtr<Object> sptr, const std::string& func_name,
+  void Init(MetalModuleNode* m, ffi::ObjectPtr<ffi::Object> sptr, const std::string& func_name,
             size_t num_buffer_args, size_t num_pack_args,
             const ffi::Array<ffi::String>& launch_param_tags) {
     w_ = metal::MetalWorkspace::Global();
@@ -260,7 +260,7 @@ class MetalWrappedFunc {
   // internal module
   MetalModuleNode* m_;
   // the resource holder
-  ObjectPtr<Object> sptr_;
+  ffi::ObjectPtr<ffi::Object> sptr_;
   // The name of the function.
   std::string func_name_;
   // Number of buffer arguments
@@ -277,7 +277,7 @@ class MetalWrappedFunc {
 ffi::Optional<ffi::Function> MetalModuleNode::GetFunction(const ffi::String& name) {
   ffi::Function ret;
   AUTORELEASEPOOL {
-    ObjectPtr<Object> sptr_to_self = ffi::GetObjectPtr<Object>(this);
+    ffi::ObjectPtr<ffi::Object> sptr_to_self = ffi::GetObjectPtr<ffi::Object>(this);
     TVM_FFI_ICHECK_EQ(sptr_to_self.get(), this);
     auto opt_info = fmap_.Get(name);
     if (!opt_info.has_value()) {
@@ -296,7 +296,7 @@ ffi::Optional<ffi::Function> MetalModuleNode::GetFunction(const ffi::String& nam
 static ffi::Module MetalModuleCreateImpl(ffi::Map<ffi::String, ffi::Bytes> smap, ffi::String fmt,
                                          ffi::Map<ffi::String, FunctionInfo> fmap,
                                          ffi::Map<ffi::String, ffi::String> source) {
-  ObjectPtr<MetalModuleNode> n;
+  ffi::ObjectPtr<MetalModuleNode> n;
   AUTORELEASEPOOL {
     n = ffi::make_object<MetalModuleNode>(std::move(smap), std::move(fmt), std::move(fmap),
                                           std::move(source));

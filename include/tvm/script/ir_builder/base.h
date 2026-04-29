@@ -74,8 +74,7 @@ class IRBuilderFrameNode : public ffi::Object {
   }
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("script.ir_builder.IRBuilderFrame", IRBuilderFrameNode,
-                              ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("script.ir_builder.IRBuilderFrame", IRBuilderFrameNode, ffi::Object);
 
  public:
   /*! \brief Default destructor. */
@@ -103,12 +102,12 @@ class IRBuilderFrameNode : public ffi::Object {
  */
 class IRBuilderFrame : public ffi::ObjectRef {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IRBuilderFrame, ObjectRef, IRBuilderFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IRBuilderFrame, ffi::ObjectRef, IRBuilderFrameNode);
 
  protected:
   /*! \brief Disallow direct construction of this object. */
   IRBuilderFrame() = default;
-  explicit IRBuilderFrame(ObjectPtr<IRBuilderFrameNode> data) : ObjectRef(data) {}
+  explicit IRBuilderFrame(ffi::ObjectPtr<IRBuilderFrameNode> data) : ffi::ObjectRef(data) {}
 
  public:
   /*!
@@ -161,7 +160,7 @@ class IRBuilderNode : public ffi::Object {
   /*! \brief A stack of context frames in the IRBuilder */
   ffi::Array<IRBuilderFrame> frames;
   /*! \brief The outcome of IR construction */
-  ffi::Optional<ObjectRef> result;
+  ffi::Optional<ffi::ObjectRef> result;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -206,7 +205,7 @@ class IRBuilder : public ffi::ObjectRef {
  public:
   /*! \brief Creates an IRBuilder. */
   IRBuilder();
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IRBuilder, ObjectRef, IRBuilderNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IRBuilder, ffi::ObjectRef, IRBuilderNode);
 
  public:
   /*!
@@ -260,9 +259,9 @@ namespace details {
 
 class Namer {
  public:
-  using FType = NodeFunctor<void(const ObjectRef&, ffi::String)>;
+  using FType = NodeFunctor<void(const ffi::ObjectRef&, ffi::String)>;
   static FType& vtable();
-  static void Name(ObjectRef node, ffi::String name);
+  static void Name(ffi::ObjectRef node, ffi::String name);
 };
 
 }  // namespace details

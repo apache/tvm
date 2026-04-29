@@ -49,7 +49,7 @@ class DFPatternFunctor;
   }
 
 #define RELAX_DFPATTERN_FUNCTOR_DISPATCH(OP)                                                    \
-  vtable.template set_dispatch<OP>([](const ObjectRef& n, TSelf* self, Args... args) {          \
+  vtable.template set_dispatch<OP>([](const ffi::ObjectRef& n, TSelf* self, Args... args) {     \
     return self->VisitDFPattern_(static_cast<const OP*>(n.get()), std::forward<Args>(args)...); \
   });
 
@@ -57,7 +57,7 @@ template <typename R, typename... Args>
 class DFPatternFunctor<R(const DFPattern& n, Args...)> {
  private:
   using TSelf = DFPatternFunctor<R(const DFPattern& n, Args...)>;
-  using FType = tvm::NodeFunctor<R(const ObjectRef& n, TSelf* self, Args...)>;
+  using FType = tvm::NodeFunctor<R(const ffi::ObjectRef& n, TSelf* self, Args...)>;
 
  public:
   /*! \brief virtual destructor */
@@ -110,7 +110,7 @@ class DFPatternFunctor<R(const DFPattern& n, Args...)> {
   virtual R VisitDFPattern_(const UnorderedTuplePatternNode* op,
                             Args... args) DFPATTERN_FUNCTOR_DEFAULT;
 
-  virtual R VisitDFPatternDefault_(const Object* op, Args...) {
+  virtual R VisitDFPatternDefault_(const ffi::Object* op, Args...) {
     TVM_FFI_THROW(InternalError) << "Do not have a default for " << op->GetTypeKey();
     throw;
   }
@@ -178,7 +178,7 @@ class DFPatternVisitor : public DFPatternFunctor<void(const DFPattern&)> {
 
  protected:
   // set of already-visited nodes
-  std::unordered_set<const Object*> visited_;
+  std::unordered_set<const ffi::Object*> visited_;
 };
 
 }  // namespace relax

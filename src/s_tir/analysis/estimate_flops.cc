@@ -254,7 +254,7 @@ double EstimateTIRFlops(const IRModule& mod) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("s_tir.analysis.EstimateTIRFlops", [](ObjectRef obj) -> double {
+  refl::GlobalDef().def("s_tir.analysis.EstimateTIRFlops", [](ffi::ObjectRef obj) -> double {
     if (auto mod = obj.as<IRModule>()) {
       return EstimateTIRFlops(mod.value());
     } else if (auto stmt = obj.as<Stmt>()) {

@@ -296,9 +296,10 @@ class GraphCreator : public ExprVisitor {
    * \return The created graph node
    * \note The node corresponding to each key is supposed to be created for only once
    */
-  IndexedForwardGraph::Node* CreateNode(const Object* key) {
+  IndexedForwardGraph::Node* CreateNode(const ffi::Object* key) {
     TVM_FFI_ICHECK(graph_.node_map.find(key) == graph_.node_map.end())
-        << "The object " << ffi::GetRef<ObjectRef>(key) << " appears at multiple definition sites.";
+        << "The object " << ffi::GetRef<ffi::ObjectRef>(key)
+        << " appears at multiple definition sites.";
     auto* node = arena_->make<IndexedForwardGraph::Node>();
     graph_.node_map[key] = node;
     return node;
@@ -310,16 +311,16 @@ class GraphCreator : public ExprVisitor {
    * \param key The key corresponding to the node
    * \note Each node is supposed to be appended to the post-dfs order for only once
    */
-  void AddToPostDFSOrder(IndexedForwardGraph::Node* node, const Object* key) {
+  void AddToPostDFSOrder(IndexedForwardGraph::Node* node, const ffi::Object* key) {
     auto it = graph_.node_map.find(key);
     TVM_FFI_ICHECK(it != graph_.node_map.end() && it->second == node)
-        << "Cannot add node " << ffi::GetRef<ObjectRef>(key) << " to the post-DFS order, "
+        << "Cannot add node " << ffi::GetRef<ffi::ObjectRef>(key) << " to the post-DFS order, "
         << "because the node for this object has not yet been created.";
 
     // We only set the reference of the node when adding it to the post-dfs order. Thus, if the
     // reference of a node is already set, it must have been appended to the post-dfs order.
     TVM_FFI_ICHECK(node->ref == nullptr)
-        << "Cannot add node " << ffi::GetRef<ObjectRef>(key) << " to the post-DFS order, "
+        << "Cannot add node " << ffi::GetRef<ffi::ObjectRef>(key) << " to the post-DFS order, "
         << "because it has already been added.";
 
     node->ref = key;
@@ -355,7 +356,7 @@ class GraphCreator : public ExprVisitor {
    */
   void SetNodePattern(IndexedForwardGraph::Node* node, OpPatternKind pattern) {
     TVM_FFI_ICHECK(initialized_nodes_.find(node) == initialized_nodes_.end())
-        << "The input node " << ffi::GetRef<ObjectRef>(node->ref)
+        << "The input node " << ffi::GetRef<ffi::ObjectRef>(node->ref)
         << " cannot have have its OpPatternKind set more than once.";
     initialized_nodes_.insert(node);
     node->pattern = pattern;
@@ -694,7 +695,7 @@ class FunctionCreator : public ExprMutator {
 class OperatorFusor : public ExprMutator {
  public:
   using Group = GraphPartitioner::Group;
-  using GroupMap = std::unordered_map<const Object*, Group*>;
+  using GroupMap = std::unordered_map<const ffi::Object*, Group*>;
 
   OperatorFusor(IRModule mod, const GroupMap& obj2group, bool lift_constants = true)
       : ExprMutator(mod),
@@ -1056,7 +1057,7 @@ IRModule FuseOps(IRModule mod, int opt_level, size_t max_fuse_depth) {
 }
 
 IRModule MakeGroupedFunctions(
-    IRModule mod, const std::unordered_map<const Object*, GraphPartitioner::Group*>& partition,
+    IRModule mod, const std::unordered_map<const ffi::Object*, GraphPartitioner::Group*>& partition,
     bool lift_constants, const ffi::Array<ffi::String>& entry_function_names) {
   return OperatorFusor(mod, partition, lift_constants).Transform(entry_function_names);
 }
@@ -1383,7 +1384,8 @@ IRModule FuseOpsByPattern(const tvm::ffi::Array<transform::FusionPattern>& patte
       for (const auto& [key, value] : map) {
         TVM_FFI_CHECK(!group_map.count(key), ValueError)
             << "IRModule is invalid.  "
-            << "The object " << ffi::GetRef<ObjectRef>(key) << " appears in multiple partitions, "
+            << "The object " << ffi::GetRef<ffi::ObjectRef>(key)
+            << " appears in multiple partitions, "
             << "which can occur when the IRModule was not single-site assignment";
         group_map.insert({key, value});
       }
@@ -1403,7 +1405,7 @@ FusionPattern::FusionPattern(ffi::String name, DFPattern pattern,
                              ffi::Map<ffi::String, DFPattern> annotation_patterns,
                              ffi::Optional<ffi::Function> check,
                              ffi::Optional<ffi::Function> attrs_getter) {
-  ObjectPtr<FusionPatternNode> n = ffi::make_object<FusionPatternNode>();
+  ffi::ObjectPtr<FusionPatternNode> n = ffi::make_object<FusionPatternNode>();
   n->name = std::move(name);
   n->pattern = std::move(pattern);
   n->annotation_patterns = std::move(annotation_patterns);
@@ -1427,7 +1429,7 @@ PatternCheckContext::PatternCheckContext(Expr matched_expr,
                                          ffi::Map<Var, Expr> matched_bindings,
                                          ffi::Map<Var, ffi::Array<Var>> var_usages,
                                          ffi::Map<Expr, Var> value_to_bound_var) {
-  ObjectPtr<PatternCheckContextNode> n = ffi::make_object<PatternCheckContextNode>();
+  ffi::ObjectPtr<PatternCheckContextNode> n = ffi::make_object<PatternCheckContextNode>();
   n->matched_expr = std::move(matched_expr);
   n->annotated_expr = std::move(annotated_expr);
   n->matched_bindings = std::move(matched_bindings);

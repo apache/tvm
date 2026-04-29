@@ -79,9 +79,10 @@ class TensorizeComparator : public ExprComparator, public StmtComparator {
   bool VisitExpr_(const SelectNode* op, const PrimExpr& other) override;
 
   /*! \brief Map from RHS buffer to LHS buffer */
-  std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> rhs_buffer_map_;
+  std::unordered_map<Buffer, Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> rhs_buffer_map_;
   /*! \brief Base indices of the LHS buffer. */
-  std::unordered_map<Buffer, std::vector<PrimExpr>, ObjectPtrHash, ObjectPtrEqual> buffer_indices_;
+  std::unordered_map<Buffer, std::vector<PrimExpr>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+      buffer_indices_;
 
  protected:
   bool DefEqual(const Var& lhs, const Var& rhs);
@@ -115,7 +116,8 @@ class TensorizeComparator : public ExprComparator, public StmtComparator {
   /*! \brief Additional error messages. Only used when assert_mode is true. */
   std::vector<std::string> error_messages_;
   // variable remap if any
-  std::unordered_map<ObjectRef, ObjectRef, ObjectPtrHash, ObjectPtrEqual> equal_map_;
+  std::unordered_map<ffi::ObjectRef, ffi::ObjectRef, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+      equal_map_;
 };
 
 /*!
@@ -133,8 +135,8 @@ class AutoTensorizeComparator : public TensorizeComparator {
       : TensorizeComparator(lhs_mod, /* assert_mode=*/false) {}
 
  private:
-  bool VisitExprDefault_(const Object* op, const PrimExpr& other) override;
-  bool VisitStmtDefault_(const Object* op, const Stmt& other) override;
+  bool VisitExprDefault_(const ffi::Object* op, const PrimExpr& other) override;
+  bool VisitStmtDefault_(const ffi::Object* op, const Stmt& other) override;
 
   bool VisitStmt_(const SBlockNode* op, const Stmt& other) override;
   bool VisitStmt_(const BufferStoreNode* op, const Stmt& other) override;
@@ -153,13 +155,13 @@ class AutoTensorizeComparator : public TensorizeComparator {
   /*! \brief SBlock iters in the RHS stmt. */
   std::vector<IterVar> rhs_iters_;
   /*! \brief The buffer and its access indices in the LHS stmt. */
-  std::unordered_map<Buffer, ffi::Array<PrimExpr>, ObjectPtrHash, ObjectPtrEqual>
+  std::unordered_map<Buffer, ffi::Array<PrimExpr>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       lhs_buffer_indices_map_;
   /*! \brief The buffer and its access indices in the RHS stmt. */
-  std::unordered_map<Buffer, ffi::Array<PrimExpr>, ObjectPtrHash, ObjectPtrEqual>
+  std::unordered_map<Buffer, ffi::Array<PrimExpr>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       rhs_buffer_indices_map_;
   /*! \brief Map from LHS buffer to RHS buffer */
-  std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> lhs_buffer_map_;
+  std::unordered_map<Buffer, Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> lhs_buffer_map_;
 
  private:
   /*! \brief The domain of the inner block iters. */

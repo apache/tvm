@@ -131,7 +131,8 @@ class SearchStrategyNode : public ffi::Object {
   virtual SearchStrategy Clone() const = 0;
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.SearchStrategy", SearchStrategyNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.SearchStrategy", SearchStrategyNode,
+                              ffi::Object);
 };
 
 /*!
@@ -217,7 +218,7 @@ class SearchStrategy : public ffi::ObjectRef {
                                                    int genetic_max_fail_count,  //
                                                    double eps_greedy);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(SearchStrategy, ObjectRef, SearchStrategyNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(SearchStrategy, ffi::ObjectRef, SearchStrategyNode);
 };
 
 /*! \brief The python side customizable class for measure candidate generation */

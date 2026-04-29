@@ -149,7 +149,7 @@ class LCADetector : public StmtExprVisitor {
     auto do_collect_itervar_scope = [this](const IterVar& itervar,
                                            const PrimExpr& binding) -> const ScopeInfo* {
       const ScopeInfo* highest_scope = nullptr;
-      PostOrderVisit(binding, [this, &highest_scope](const ObjectRef& obj) {
+      PostOrderVisit(binding, [this, &highest_scope](const ffi::ObjectRef& obj) {
         if (const VarNode* loop_var = obj.as<VarNode>()) {
           auto it = loop_scope_map_.find(loop_var);
           if (it == loop_scope_map_.end()) {
@@ -198,7 +198,7 @@ class LCADetector : public StmtExprVisitor {
       const Buffer& buffer = region->buffer;
       const ScopeInfo* scope = ancestor_scopes_.back();
 
-      auto handle_itervar = [&opaque_var_scope, &scope](const ObjectRef& obj) {
+      auto handle_itervar = [&opaque_var_scope, &scope](const ffi::ObjectRef& obj) {
         if (const VarNode* iter_var = obj.as<VarNode>()) {
           auto dom_scope_it = opaque_var_scope.find(iter_var);
           if (dom_scope_it == opaque_var_scope.end()) {

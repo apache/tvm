@@ -29,12 +29,6 @@ namespace tvm {
 namespace runtime {
 namespace cuda_ipc {
 
-using ffi::Object;
-using ffi::ObjectPtr;
-using ffi::ObjectPtrEqual;
-using ffi::ObjectPtrHash;
-using ffi::ObjectRef;
-
 /*!
  * \brief The CUDA IPC (interprocess communication) memory object,
  * which internally contains data pointers to CUDA IPC memory.
@@ -43,7 +37,7 @@ using ffi::ObjectRef;
  * all-reduce kernel. They may also be extended for other uses in
  * the future.
  */
-class CUDAIPCMemoryObj : public Object {
+class CUDAIPCMemoryObj : public ffi::Object {
  public:
   /*! \brief The number of GPU workers. */
   int num_workers;
@@ -76,14 +70,14 @@ class CUDAIPCMemoryObj : public Object {
   int barrier_flag;
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("tvm.runtime.disco.cuda_ipc_memory", CUDAIPCMemoryObj, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("tvm.runtime.disco.cuda_ipc_memory", CUDAIPCMemoryObj, ffi::Object);
 };
 
 /*!
  * \brief Managed reference to CUDAIPCMemoryObj.
  * \sa CUDAIPCMemory
  */
-class CUDAIPCMemory : public ObjectRef {
+class CUDAIPCMemory : public ffi::ObjectRef {
  public:
   /*! \brief Get the global singleton CUDAIPCMemory allocator. */
   TVM_RUNTIME_DLL static memory::Allocator* GlobalAllocator();
@@ -95,7 +89,7 @@ class CUDAIPCMemory : public ObjectRef {
    */
   TVM_RUNTIME_DLL static CUDAIPCMemory GetIPCMemoryFromDevicePtr(void* ptr);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(CUDAIPCMemory, ObjectRef, CUDAIPCMemoryObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(CUDAIPCMemory, ffi::ObjectRef, CUDAIPCMemoryObj);
 };
 
 }  // namespace cuda_ipc

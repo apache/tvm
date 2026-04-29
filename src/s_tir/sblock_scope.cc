@@ -33,7 +33,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /******** Utility functions ********/
 
 template <class K, class V>
-using SMap = std::unordered_map<K, V, ObjectPtrHash, ObjectPtrEqual>;
+using SMap = std::unordered_map<K, V, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>;
 
 /*!
  * \brief Add a dependency relation.
@@ -53,7 +53,7 @@ void AddDependency(SBlockScopeNode* self, const StmtSRef& src, const StmtSRef& d
 /******** Constructors ********/
 
 StmtSRef::StmtSRef(const StmtNode* stmt, StmtSRefNode* parent, int64_t seq_index) {
-  ObjectPtr<StmtSRefNode> n = ffi::make_object<StmtSRefNode>();
+  ffi::ObjectPtr<StmtSRefNode> n = ffi::make_object<StmtSRefNode>();
   n->stmt = stmt;
   n->parent = parent;
   n->seq_index = seq_index;
@@ -71,7 +71,7 @@ StmtSRef StmtSRef::RootMark() {
 }
 
 Dependency::Dependency(StmtSRef src, StmtSRef dst, DepKind kind) {
-  ObjectPtr<DependencyNode> node = ffi::make_object<DependencyNode>();
+  ffi::ObjectPtr<DependencyNode> node = ffi::make_object<DependencyNode>();
   node->src = std::move(src);
   node->dst = std::move(dst);
   node->kind = kind;
@@ -81,7 +81,7 @@ Dependency::Dependency(StmtSRef src, StmtSRef dst, DepKind kind) {
 SBlockScope::SBlockScope() { data_ = ffi::make_object<SBlockScopeNode>(); }
 
 SBlockScope::SBlockScope(const ffi::Array<StmtSRef>& child_block_srefs) {
-  ObjectPtr<SBlockScopeNode> n = ffi::make_object<SBlockScopeNode>();
+  ffi::ObjectPtr<SBlockScopeNode> n = ffi::make_object<SBlockScopeNode>();
   SMap<Buffer, ffi::Array<StmtSRef>> buffer_readers;
   SMap<Buffer, ffi::Array<StmtSRef>>& buffer_writers = n->buffer_writers;
   for (const StmtSRef& child_block_sref : child_block_srefs) {

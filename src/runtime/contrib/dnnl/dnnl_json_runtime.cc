@@ -102,7 +102,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
 
   /* Override GetFunction to reimplement Run method */
   ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) override {
-    ObjectPtr<Object> sptr_to_self = ffi::GetObjectPtr<Object>(this);
+    ffi::ObjectPtr<ffi::Object> sptr_to_self = ffi::GetObjectPtr<ffi::Object>(this);
     if (this->symbol_name_ == name) {
       return ffi::Function([sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) {
         TVM_FFI_ICHECK(this->initialized_) << "The module has not been initialized";

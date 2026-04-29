@@ -19,7 +19,7 @@
 
 /*!
  * \file tvm/ir/cow.h
- * \brief Copy-on-write helper macro for IR ObjectRef types.
+ * \brief Copy-on-write helper macro for IR ffi::ObjectRef types.
  */
 #ifndef TVM_IR_COW_H_
 #define TVM_IR_COW_H_
@@ -31,7 +31,7 @@
 namespace tvm {
 
 /*!
- * \brief Define CopyOnWrite function in an ObjectRef.
+ * \brief Define CopyOnWrite function in an ffi::ObjectRef.
  * \param ObjectName The Type of the Node.
  *
  *  CopyOnWrite will generate a unique copy of the internal node.
@@ -50,18 +50,18 @@ namespace tvm {
  * \endcode
  */
 #ifndef TVM_DEFINE_OBJECT_REF_COW_METHOD
-#define TVM_DEFINE_OBJECT_REF_COW_METHOD(ObjectName)                          \
-  static_assert(ObjectName::_type_final,                                      \
-                "TVM's CopyOnWrite may only be used for "                     \
-                "Object types that are declared as final, "                   \
-                "using the TVM_FFI_DECLARE_OBJECT_INFO_FINAL macro.");        \
-  ObjectName* CopyOnWrite() {                                                 \
-    TVM_FFI_ICHECK(data_ != nullptr);                                         \
-    if (!data_.unique()) {                                                    \
-      auto n = ::tvm::ffi::make_object<ObjectName>(*(operator->()));          \
-      ::tvm::ffi::ObjectPtr<::tvm::ffi::Object>(std::move(n)).swap(data_);    \
-    }                                                                         \
-    return static_cast<ObjectName*>(data_.get());                             \
+#define TVM_DEFINE_OBJECT_REF_COW_METHOD(ObjectName)                       \
+  static_assert(ObjectName::_type_final,                                   \
+                "TVM's CopyOnWrite may only be used for "                  \
+                "Object types that are declared as final, "                \
+                "using the TVM_FFI_DECLARE_OBJECT_INFO_FINAL macro.");     \
+  ObjectName* CopyOnWrite() {                                              \
+    TVM_FFI_ICHECK(data_ != nullptr);                                      \
+    if (!data_.unique()) {                                                 \
+      auto n = ::tvm::ffi::make_object<ObjectName>(*(operator->()));       \
+      ::tvm::ffi::ObjectPtr<::tvm::ffi::Object>(std::move(n)).swap(data_); \
+    }                                                                      \
+    return static_cast<ObjectName*>(data_.get());                          \
   }
 #endif  // TVM_DEFINE_OBJECT_REF_COW_METHOD
 

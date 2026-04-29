@@ -42,16 +42,16 @@ class TypeFunctor;
     return VisitTypeDefault_(op, std::forward<Args>(args)...); \
   }
 
-#define TVM_TYPE_FUNCTOR_DISPATCH(OP)                                                      \
-  vtable.template set_dispatch<OP>([](const ObjectRef& n, TSelf* self, Args... args) {     \
-    return self->VisitType_(static_cast<const OP*>(n.get()), std::forward<Args>(args)...); \
+#define TVM_TYPE_FUNCTOR_DISPATCH(OP)                                                       \
+  vtable.template set_dispatch<OP>([](const ffi::ObjectRef& n, TSelf* self, Args... args) { \
+    return self->VisitType_(static_cast<const OP*>(n.get()), std::forward<Args>(args)...);  \
   });
 
 template <typename R, typename... Args>
 class TypeFunctor<R(const Type& n, Args...)> {
  private:
   using TSelf = TypeFunctor<R(const Type& n, Args...)>;
-  using FType = tvm::NodeFunctor<R(const ObjectRef& n, TSelf* self, Args...)>;
+  using FType = tvm::NodeFunctor<R(const ffi::ObjectRef& n, TSelf* self, Args...)>;
 
  public:
   /*! \brief the result type of this functor */
@@ -81,7 +81,7 @@ class TypeFunctor<R(const Type& n, Args...)> {
   virtual R VisitType_(const TupleTypeNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
   virtual R VisitType_(const PrimTypeNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
   virtual R VisitType_(const PointerTypeNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
-  virtual R VisitTypeDefault_(const Object* op, Args...) {
+  virtual R VisitTypeDefault_(const ffi::Object* op, Args...) {
     TVM_FFI_THROW(InternalError) << "Do not have a default for " << op->GetTypeKey();
     throw;  // unreachable, written to stop compiler warning
   }

@@ -75,7 +75,7 @@ using Group = GraphPartitioner::Group;
  * dataflow, and returns a mapping from a subexpression to its group. */
 class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
  public:
-  using GroupMap = std::unordered_map<const Object*, Group*>;
+  using GroupMap = std::unordered_map<const ffi::Object*, Group*>;
   using MemoizedExprTranslator<Group*>::VisitExpr_;
 
   CompositeGroupsBuilder(IRModule mod, support::Arena* arena) : mod_(mod), arena_(arena) {}

@@ -36,12 +36,6 @@
 namespace tvm {
 namespace runtime {
 
-using ffi::Object;
-using ffi::ObjectPtr;
-using ffi::ObjectPtrEqual;
-using ffi::ObjectPtrHash;
-using ffi::ObjectRef;
-
 class DiscoProcessChannel final : public DiscoChannel {
  public:
   DiscoProcessChannel(int64_t controler_to_worker_fd, int64_t worker_to_controler_fd)
@@ -126,8 +120,8 @@ class ProcessSessionObj final : public BcastSessionObj {
       worker_0_->worker->SetRegister(reg_id, value);
       return;
     }
-    ObjectRef wrapped{nullptr};
-    if (value.as<ObjectRef>()) {
+    ffi::ObjectRef wrapped{nullptr};
+    if (value.as<ffi::ObjectRef>()) {
       wrapped = DiscoDebugObject::Wrap(value);
       value = wrapped;
     }

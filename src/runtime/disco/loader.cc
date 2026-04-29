@@ -101,11 +101,11 @@ std::unordered_map<std::string, ShardInfo> LoadShardInfoFromStr(const std::strin
 }
 
 /*! \brief An object that helps to load parameters in shards. */
-class ShardLoaderObj : public Object {
+class ShardLoaderObj : public ffi::Object {
  public:
   /*! \brief Create a shard loader. */
-  static ObjectRef Create(const std::string& path_to_metadata, const std::string& metadata,
-                          std::string shard_info, ffi::Optional<ffi::Module> mod);
+  static ffi::ObjectRef Create(const std::string& path_to_metadata, const std::string& metadata,
+                               std::string shard_info, ffi::Optional<ffi::Module> mod);
   /*! \brief Load the i-th parameter */
   Tensor Load(int weight_index) const;
 
@@ -124,7 +124,7 @@ class ShardLoaderObj : public Object {
 
   /*! \brief Slice the given tensor at a specific dimension */
   Tensor Shard(Tensor source, int dim, int num_slices) const;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.disco.ShardLoader", ShardLoaderObj, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.disco.ShardLoader", ShardLoaderObj, ffi::Object);
 
  public:
   /*! \brief Information of how each weight is stored and sharded */
@@ -160,14 +160,15 @@ class ShardLoaderObj : public Object {
   Tensor LoadDirect(int weight_index) const;
 };
 
-ObjectRef ShardLoaderObj::Create(const std::string& path_to_metadata, const std::string& metadata,
-                                 std::string shard_info, ffi::Optional<ffi::Module> mod) {
+ffi::ObjectRef ShardLoaderObj::Create(const std::string& path_to_metadata,
+                                      const std::string& metadata, std::string shard_info,
+                                      ffi::Optional<ffi::Module> mod) {
   if (shard_info.empty() && mod.has_value()) {
     if (auto get_shard_info = (*mod)->GetFunction("get_shard_info")) {
       shard_info = (*get_shard_info)().cast<ffi::String>();
     }
   }
-  ObjectPtr<ShardLoaderObj> n = ffi::make_object<ShardLoaderObj>();
+  ffi::ObjectPtr<ShardLoaderObj> n = ffi::make_object<ShardLoaderObj>();
   n->metadata_ = TensorCacheMetadata::LoadFromStr(metadata, path_to_metadata);
   n->current_file_ = nullptr;
   n->param_info_.clear();
@@ -192,7 +193,7 @@ ObjectRef ShardLoaderObj::Create(const std::string& path_to_metadata, const std:
       n->param_info_.emplace_back(ParamInfo{&file_record, &param_record, shard_info});
     }
   }
-  return ObjectRef(std::move(n));
+  return ffi::ObjectRef(std::move(n));
 }
 
 Tensor ShardLoaderObj::ApplyShardFunc(const ShardInfo::ShardFunc& shard_func,
@@ -395,35 +396,35 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef()
       .def("runtime.disco.ShardLoader", ShardLoaderObj::Create)
       .def("runtime.disco.ShardLoaderLoad",
-           [](ObjectRef loader_obj, ffi::Shape weight_index) {
+           [](ffi::ObjectRef loader_obj, ffi::Shape weight_index) {
              const auto* loader = loader_obj.as<ShardLoaderObj>();
              TVM_FFI_CHECK(loader != nullptr, TypeError)
                  << "Expected ShardLoaderObj, but gets: " << loader_obj->GetTypeKey();
              return loader->Load(IntegerFromShape(weight_index));
            })
       .def("runtime.disco.ShardLoaderLoadPresharded",
-           [](ObjectRef loader_obj, ffi::Shape weight_index) {
+           [](ffi::ObjectRef loader_obj, ffi::Shape weight_index) {
              const auto* loader = loader_obj.as<ShardLoaderObj>();
              TVM_FFI_CHECK(loader != nullptr, TypeError)
                  << "Expected ShardLoaderObj, but gets: " << loader_obj->GetTypeKey();
              return loader->LoadPresharded(IntegerFromShape(weight_index));
            })
       .def("runtime.disco.ShardLoaderLoadAll",
-           [](ObjectRef loader_obj) {
+           [](ffi::ObjectRef loader_obj) {
              const auto* loader = loader_obj.as<ShardLoaderObj>();
              TVM_FFI_CHECK(loader != nullptr, TypeError)
                  << "Expected ShardLoaderObj, but gets: " << loader_obj->GetTypeKey();
              return loader->LoadAll();
            })
       .def("runtime.disco.ShardLoaderLoadAllPresharded",
-           [](ObjectRef loader_obj) {
+           [](ffi::ObjectRef loader_obj) {
              const auto* loader = loader_obj.as<ShardLoaderObj>();
              TVM_FFI_CHECK(loader != nullptr, TypeError)
                  << "Expected ShardLoaderObj, but gets: " << loader_obj->GetTypeKey();
              return loader->LoadAllPresharded();
            })
       .def("runtime.disco.ShardLoaderLoadParamOnWorker0",
-           [](ObjectRef loader_obj, int param_index) {
+           [](ffi::ObjectRef loader_obj, int param_index) {
              const auto* loader = loader_obj.as<ShardLoaderObj>();
              TVM_FFI_CHECK(loader != nullptr, TypeError)
                  << "Expected ShardLoaderObj, but gets: " << loader_obj->GetTypeKey();

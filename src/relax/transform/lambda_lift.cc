@@ -482,7 +482,8 @@ class LambdaLifter : public ExprMutator {
  private:
   std::unordered_map<Var, Call> nested_closure_map_;
   std::unordered_map<Var, Expr> rebind_map_;
-  std::unordered_set<ffi::Variant<GlobalVar, Var>, ObjectPtrHash, ObjectPtrEqual> closures_;
+  std::unordered_set<ffi::Variant<GlobalVar, Var>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+      closures_;
   ffi::Optional<Var> current_lambda_var_ = std::nullopt;
   IRModule mod_;
 

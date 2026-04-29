@@ -63,7 +63,8 @@ class MeasureCallbackNode : public ffi::Object {
                      const ffi::Array<RunnerResult>& runner_results) = 0;
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.MeasureCallback", MeasureCallbackNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.MeasureCallback", MeasureCallbackNode,
+                              ffi::Object);
 };
 
 /*! \brief The measure callback with customized methods on the python-side. */
@@ -141,7 +142,7 @@ class MeasureCallback : public ffi::ObjectRef {
                                                    PyMeasureCallbackNode::FAsString f_as_string);
   /*! \brief The default list of measure callbacks. */
   TVM_DLL static ffi::Array<MeasureCallback, void> Default();
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(MeasureCallback, ObjectRef, MeasureCallbackNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(MeasureCallback, ffi::ObjectRef, MeasureCallbackNode);
 };
 
 }  // namespace meta_schedule

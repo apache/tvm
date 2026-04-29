@@ -159,7 +159,7 @@ class PrimFunc : public BaseFunc {
 /*!
  * \brief Tensor intrinsics for tensorization
  */
-class TensorIntrinNode : public Object {
+class TensorIntrinNode : public ffi::Object {
  public:
   /*! \brief The function to describe the computation. */
   PrimFunc desc;
@@ -172,13 +172,13 @@ class TensorIntrinNode : public Object {
         .def_ro("desc", &TensorIntrinNode::desc)
         .def_ro("impl", &TensorIntrinNode::impl);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.TensorIntrin", TensorIntrinNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.TensorIntrin", TensorIntrinNode, ffi::Object);
 };
 
 /*!
  * \brief Managed reference to TensorIntrinNode.
  */
-class TensorIntrin : public ObjectRef {
+class TensorIntrin : public ffi::ObjectRef {
  public:
   /*!
    * \brief Constructor
@@ -209,7 +209,7 @@ class TensorIntrin : public ObjectRef {
    */
   TVM_DLL static ffi::Optional<TensorIntrin> Get(ffi::String name, bool allow_missing = false);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TensorIntrin, ObjectRef, TensorIntrinNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TensorIntrin, ffi::ObjectRef, TensorIntrinNode);
 };
 
 /*!

@@ -128,7 +128,7 @@ class LayoutConvertMutator : public ExprMutator {
       } else {
         auto index_map = LayoutIndexMap(from.LeafValue()->layout.ndim(), from.LeafValue()->layout,
                                         to.LeafValue()->layout);
-        ObjectPtr<LayoutTransformAttrs> attrs = ffi::make_object<LayoutTransformAttrs>();
+        ffi::ObjectPtr<LayoutTransformAttrs> attrs = ffi::make_object<LayoutTransformAttrs>();
         ffi::Array<IntImm> axis_separator;
         ffi::Array<IntImm> input_axis_separator;
         attrs->index_map = Downcast<IndexMap>(ffi::FromJSONGraph(ffi::ToJSONGraph(index_map)));
@@ -227,7 +227,7 @@ class LayoutConvertMutator : public ExprMutator {
   void VisitBinding_(const VarBindingNode* binding, const CallNode* call_node) final {
     ffi::Optional<InferLayoutOutput> res =
         GetInferLayoutInfo(call_node, desired_layouts_, layout_cb_, var_layout_map_);
-    ObjectPtr<CallNode> new_call = ffi::make_object<CallNode>(*call_node);
+    ffi::ObjectPtr<CallNode> new_call = ffi::make_object<CallNode>(*call_node);
     new_call->struct_info_ = std::nullopt;
     if (!res.defined() ||
         (!IsNestedTensor(binding->var) && !binding->var->IsInstance<DataflowVarNode>())) {

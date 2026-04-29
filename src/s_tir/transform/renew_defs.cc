@@ -267,7 +267,7 @@ class RenewDefMutator : public StmtExprMutator {
     }
   }
 
-  ffi::Map<ObjectRef, ObjectRef> remap_;
+  ffi::Map<ffi::ObjectRef, ffi::ObjectRef> remap_;
 };
 
 PrimFunc RenewDefs(const PrimFunc& func) { return RenewDefMutator::Transform(func); }

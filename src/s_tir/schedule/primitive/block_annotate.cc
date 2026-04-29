@@ -50,7 +50,7 @@ class StorageAlignAxisOutOfRangeError : public ScheduleError {
   }
 
   IRModule mod() const final { return mod_; }
-  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {}; }
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {}; }
 
   static int CheckAndUpdate(const IRModule& mod, const Buffer& buffer, int axis) {
     int ndim = static_cast<int>(buffer->shape.size());
@@ -97,7 +97,7 @@ class NonAllocatedBufferError : public ScheduleError {
     return defining_site_sref.value();
   }
 
-  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {}; }
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {}; }
   IRModule mod() const final { return mod_; }
 
  private:
@@ -129,7 +129,7 @@ class StorageAlignInvalidFactorError : public ScheduleError {
     }
   }
 
-  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {}; }
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {}; }
   IRModule mod() const final { return mod_; }
 
  private:
@@ -171,7 +171,7 @@ class StorageAlignInvalidAnnotationError : public ScheduleError {
     return storage_align_annotation;
   }
 
-  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {block_}; }
   IRModule mod() const final { return mod_; }
 
  private:

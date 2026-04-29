@@ -61,7 +61,7 @@ void VerifyCachedFlags(const ScheduleState& self);
  * \param root_block The root block of the PrimFunc
  * \param result_g_var The result GlobalVar
  * \return The result PrimFunc where the root block belongs to
- * \note This function returns the pointer instead of ObjectRef to avoid later copy-on-write
+ * \note This function returns the pointer instead of ffi::ObjectRef to avoid later copy-on-write
  */
 const PrimFuncNode* GetRootPrimFunc(const IRModule& mod, const StmtNode* root_block,
                                     GlobalVar* result_g_var);
@@ -737,7 +737,7 @@ ffi::Array<arith::IntSet> AnalyzeRegionLowerBound(const BufferRegion& region,
 PrimExpr SimplifyNonTrivialExpr(const PrimExpr& expr, arith::Analyzer* analyzer);
 
 /*! \brief Necessary information used for tensorization */
-class TensorizeInfoNode : public Object {
+class TensorizeInfoNode : public ffi::Object {
  public:
   /*! \brief Maps loops in a target block to the ones in an intrinsic description */
   ffi::Map<tirx::StmtSRef, tirx::For> loop_map;
@@ -755,15 +755,15 @@ class TensorizeInfoNode : public Object {
         .def_ro("desc_loop_indexer", &TensorizeInfoNode::desc_loop_indexer)
         .def_ro("block_iter_paddings", &TensorizeInfoNode::block_iter_paddings);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.schedule.TensorizeInfo", TensorizeInfoNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.schedule.TensorizeInfo", TensorizeInfoNode, ffi::Object);
 };
 
-class TensorizeInfo : public ObjectRef {
+class TensorizeInfo : public ffi::ObjectRef {
  public:
-  explicit TensorizeInfo(ObjectPtr<TensorizeInfoNode> data) : ObjectRef(data) {
+  explicit TensorizeInfo(ffi::ObjectPtr<TensorizeInfoNode> data) : ffi::ObjectRef(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorizeInfo, ObjectRef, TensorizeInfoNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorizeInfo, ffi::ObjectRef, TensorizeInfoNode);
 };
 
 /*!
@@ -780,7 +780,7 @@ ffi::Optional<TensorizeInfo> GetTensorizeLoopMapping(const s_tir::ScheduleState&
                                                      bool allow_padding);
 
 /*！\brief Necessary information used to perform transformations for tensorization */
-class AutoTensorizeMappingInfoNode : public Object {
+class AutoTensorizeMappingInfoNode : public ffi::Object {
  public:
   /*! \brief Possible mappings to apply to block iters */
   ffi::Array<IndexMap> mappings;
@@ -806,16 +806,16 @@ class AutoTensorizeMappingInfoNode : public Object {
         .def_ro("rhs_iters", &AutoTensorizeMappingInfoNode::rhs_iters);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.schedule.AutoTensorizeMappingInfo",
-                                    AutoTensorizeMappingInfoNode, Object);
+                                    AutoTensorizeMappingInfoNode, ffi::Object);
 };
 
-class AutoTensorizeMappingInfo : public ObjectRef {
+class AutoTensorizeMappingInfo : public ffi::ObjectRef {
  public:
-  explicit AutoTensorizeMappingInfo(ObjectPtr<AutoTensorizeMappingInfoNode> data)
-      : ObjectRef(data) {
+  explicit AutoTensorizeMappingInfo(ffi::ObjectPtr<AutoTensorizeMappingInfoNode> data)
+      : ffi::ObjectRef(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AutoTensorizeMappingInfo, ObjectRef,
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AutoTensorizeMappingInfo, ffi::ObjectRef,
                                                 AutoTensorizeMappingInfoNode);
 };
 

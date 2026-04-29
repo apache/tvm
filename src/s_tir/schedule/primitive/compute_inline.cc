@@ -49,7 +49,7 @@ class HasInitBlock : public ScheduleError {
   }
 
   IRModule mod() const final { return mod_; }
-  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {block_}; }
 
   static void Check(const IRModule& mod, const SBlock& block) {
     if (block->init.defined()) {
@@ -85,7 +85,7 @@ class NotSingleReadWriteBuffer : public ScheduleError {
   }
 
   IRModule mod() const final { return mod_; }
-  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {block_}; }
 
   IRModule mod_;
   bool is_read_;
@@ -93,7 +93,7 @@ class NotSingleReadWriteBuffer : public ScheduleError {
 
   static Buffer GetSingleRead(const ScheduleState& self, const SBlock& block,
                               const StmtSRef& scope_root_sref) {
-    const std::unordered_map<Buffer, ffi::Array<StmtSRef>, ObjectPtrHash, ObjectPtrEqual>&
+    const std::unordered_map<Buffer, ffi::Array<StmtSRef>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>&
         buffer_writers = self->block_info.at(scope_root_sref).scope->buffer_writers;
     const BufferNode* read_buffer = nullptr;
     for (const BufferRegion& read_region : block->reads) {
@@ -137,7 +137,7 @@ class BodyAnalysisError : public ScheduleError {
   }
 
   IRModule mod() const final { return mod_; }
-  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {block_}; }
 
   bool is_reverse_;
   IRModule mod_;
@@ -162,7 +162,7 @@ class NonSingleProducerError : public ScheduleError {
   }
 
   IRModule mod() const final { return mod_; }
-  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {block_}; }
 
   IRModule mod_;
   SBlock block_;
@@ -257,7 +257,7 @@ class OpaqueAccessError : public ScheduleError {
   }
 
   IRModule mod() const final { return mod_; }
-  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {scope_root_}; }
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {scope_root_}; }
 
   IRModule mod_;
   SBlock scope_root_;
@@ -282,7 +282,7 @@ class ProducerHasNonTrivialPredicateError : public ScheduleError {
   }
 
   IRModule mod() const final { return mod_; }
-  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {producer_}; }
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {producer_}; }
 
   IRModule mod_;
   SBlockRealize producer_;
@@ -1242,7 +1242,7 @@ void ReductionEpilogueFuser::ExtractEpilogueInfo() {
 
 SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
     const SBlockNode* reduction_block, const SBlockRealizeNode* reduction_realize) {
-  ObjectPtr<SBlockNode> new_block = ffi::make_object<SBlockNode>(*reduction_block);
+  ffi::ObjectPtr<SBlockNode> new_block = ffi::make_object<SBlockNode>(*reduction_block);
 
   // 1. Map epilogue block vars to reduction block vars
   std::vector<Var> reduction_data_vars;
@@ -1619,7 +1619,7 @@ class SingleBlockFusionReplacer : public StmtMutator {
   Stmt VisitStmt_(const SBlockRealizeNode* realize) final {
     if (realize->block.same_as(old_reduction_block_)) {
       // Replace reduction block with new fused block
-      ObjectPtr<SBlockRealizeNode> new_realize = ffi::make_object<SBlockRealizeNode>(*realize);
+      ffi::ObjectPtr<SBlockRealizeNode> new_realize = ffi::make_object<SBlockRealizeNode>(*realize);
       new_realize->block = new_fused_block_;
       return SBlockRealize(new_realize);
     } else if (realize->block.same_as(old_epilogue_block_)) {

@@ -371,7 +371,7 @@ class ForMatcher : public TensorizeComparator {
   arith::Analyzer analyzer_;
   std::vector<For> loop_stack_lhs_, loop_stack_rhs_;
   tirx::PrimFunc pattern_;
-  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> pattern_vars_;
+  std::unordered_set<Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> pattern_vars_;
 };
 
 /*! \brief Analyze the function and match it with a list of patterns */
@@ -448,15 +448,15 @@ class FunctionPartitioner : public StmtExprVisitor {
  public:
   explicit FunctionPartitioner(int num_matched_ops) : num_matched_ops_(num_matched_ops) {}
   /*! \brief alloc_buffers for the first function */
-  std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual> allocs1;
+  std::unordered_set<Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> allocs1;
   /*! \brief alloc_buffers for the second function */
-  std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual> allocs2;
+  std::unordered_set<Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> allocs2;
   /*! \brief whether the current block is in the first function */
   ffi::Map<SBlock, Bool> block_partition;
   /*! \brief input buffers for the first function */
-  std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual> input1;
+  std::unordered_set<Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> input1;
   /*! \brief input buffers for the second function */
-  std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual> input2;
+  std::unordered_set<Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> input2;
   /*! \brief The output buffer for the first function, which is also the input buffer for the second
   function */
   Buffer intermediate_buffer;
@@ -505,7 +505,7 @@ class BlockRemover : public StmtExprMutator {
  public:
   static Stmt RemoveBlockByPartition(
       Stmt stmt, const ffi::Map<SBlock, Bool>& block_partition,
-      const std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual>& allocs,
+      const std::unordered_set<Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& allocs,
       bool is_library_part) {
     BlockRemover remover(block_partition, allocs, is_library_part);
     return remover(stmt);
@@ -513,13 +513,13 @@ class BlockRemover : public StmtExprMutator {
 
  private:
   BlockRemover(const ffi::Map<SBlock, Bool>& block_partition,
-               const std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual>& allocs,
+               const std::unordered_set<Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& allocs,
                bool is_library_part)
       : block_partition(block_partition), allocs_(allocs), is_library_part_(is_library_part) {}
 
   Stmt VisitStmt_(const SBlockNode* op) final {
     SBlock block = Downcast<SBlock>(StmtExprMutator::VisitStmt_(op));
-    ObjectPtr<SBlockNode> n = ffi::make_object<SBlockNode>(*block.operator->());
+    ffi::ObjectPtr<SBlockNode> n = ffi::make_object<SBlockNode>(*block.operator->());
     if (op->name_hint != "root") {
       TVM_FFI_ICHECK(block_partition.count(ffi::GetRef<SBlock>(op)));
       bool block_is_library = block_partition[ffi::GetRef<SBlock>(op)]->value;
@@ -554,7 +554,7 @@ class BlockRemover : public StmtExprMutator {
 
   bool erased_ = false;
   ffi::Map<SBlock, Bool> block_partition;
-  std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual> allocs_;
+  std::unordered_set<Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> allocs_;
   bool is_library_part_ = false;
 };
 
@@ -733,7 +733,7 @@ class SplitMutator : public ExprMutator {
       TVM_FFI_ICHECK(lib_func->IsInstance<ExternFuncNode>());
       builder_->UpdateFunction(gv, lib_func);
       // emit the call to the library kernel
-      ObjectPtr<CallNode> new_call = ffi::make_object<CallNode>(*call.operator->());
+      ffi::ObjectPtr<CallNode> new_call = ffi::make_object<CallNode>(*call.operator->());
       new_call->op = this->call_dps_packed_;
       new_call->args = {lib_func, call->args[1]};
       return Call(new_call);

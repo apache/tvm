@@ -327,7 +327,7 @@ void ErrorRFactorCrossThreadReductionNotApplicable(const ffi::Optional<ScheduleS
     }
 
     IRModule mod() const final { return mod_; }
-    ffi::Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+    ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {block_}; }
 
     IRModule mod_;
     SBlock block_;
@@ -557,7 +557,7 @@ bool ReductionIterNotIndexOutputBuffer(const SBlock& block) {
     match_buffer_sources[region->buffer.get()] = region->source->buffer.get();
   }
   bool affected = false;
-  PreOrderVisit(block->body, [&](const ObjectRef& obj) {
+  PreOrderVisit(block->body, [&](const ffi::ObjectRef& obj) {
     if (affected) {
       return false;
     }
@@ -614,7 +614,7 @@ class NoMatchedReducerError : public ScheduleError {
   }
 
   IRModule mod() const final { return mod_; }
-  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {}; }
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {}; }
 
   IRModule mod_;
   ffi::Array<PrimExpr> identities_;

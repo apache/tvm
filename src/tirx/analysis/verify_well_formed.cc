@@ -369,9 +369,11 @@ class UndefinedBufferVerifier : public Verifier<UndefinedBufferVerifier> {
   }
 
   // Buffers defined in the currently-visited scope.
-  std::unordered_map<Buffer, AccessPath, ObjectPtrHash, ObjectPtrEqual> currently_defined_;
+  std::unordered_map<Buffer, AccessPath, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+      currently_defined_;
   // Buffers that were previously defined and are now out of scope.
-  std::unordered_map<Buffer, AccessPath, ObjectPtrHash, ObjectPtrEqual> previously_defined_;
+  std::unordered_map<Buffer, AccessPath, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+      previously_defined_;
 };
 
 /* \brief Verify unique tirx::Var for each environment thread
@@ -447,7 +449,7 @@ bool VerifyWellFormed(const IRModule& mod, bool assert_mode) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
-      "tirx.analysis.VerifyWellFormed", [](const ObjectRef& obj, bool assert_mode) {
+      "tirx.analysis.VerifyWellFormed", [](const ffi::ObjectRef& obj, bool assert_mode) {
         if (auto opt = obj.as<PrimFunc>()) {
           return VerifyWellFormed(opt.value(), assert_mode);
         } else if (auto opt = obj.as<IRModule>()) {

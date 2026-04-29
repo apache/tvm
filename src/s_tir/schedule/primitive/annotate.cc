@@ -44,11 +44,11 @@ void Annotate(ScheduleState self, const StmtSRef& sref, const ffi::String& ann_k
   new_ann.Set(ann_key, ann_val);
   // Create the new stmt
   if (const auto* loop = sref->StmtAs<ForNode>()) {
-    ObjectPtr<ForNode> n = ffi::make_object<ForNode>(*loop);
+    ffi::ObjectPtr<ForNode> n = ffi::make_object<ForNode>(*loop);
     n->annotations = std::move(new_ann);
     self->Replace(sref, For(n), {});
   } else if (const auto* block = sref->StmtAs<SBlockNode>()) {
-    ObjectPtr<SBlockNode> n = ffi::make_object<SBlockNode>(*block);
+    ffi::ObjectPtr<SBlockNode> n = ffi::make_object<SBlockNode>(*block);
     n->annotations = std::move(new_ann);
     SBlock p(n);
     self->Replace(sref, p, {{ffi::GetRef<SBlock>(block), p}});
@@ -75,11 +75,11 @@ void Unannotate(ScheduleState self, const StmtSRef& sref, const ffi::String& ann
   new_ann.erase(ann_key);
   // Create the new stmt
   if (const auto* loop = sref->StmtAs<ForNode>()) {
-    ObjectPtr<ForNode> n = ffi::make_object<ForNode>(*loop);
+    ffi::ObjectPtr<ForNode> n = ffi::make_object<ForNode>(*loop);
     n->annotations = std::move(new_ann);
     self->Replace(sref, For(n), {});
   } else if (const auto* block = sref->StmtAs<SBlockNode>()) {
-    ObjectPtr<SBlockNode> n = ffi::make_object<SBlockNode>(*block);
+    ffi::ObjectPtr<SBlockNode> n = ffi::make_object<SBlockNode>(*block);
     n->annotations = std::move(new_ann);
     SBlock p(n);
     self->Replace(sref, p, {{ffi::GetRef<SBlock>(block), p}});
@@ -98,7 +98,7 @@ struct AnnotateTraits : public UnpackedInstTraits<AnnotateTraits> {
   static constexpr size_t kNumAttrs = 1;
   static constexpr size_t kNumDecisions = 0;
 
-  static void UnpackedApplyToSchedule(Schedule sch, ObjectRef block_or_loop_rv, Any ann_val,
+  static void UnpackedApplyToSchedule(Schedule sch, ffi::ObjectRef block_or_loop_rv, Any ann_val,
                                       ffi::String ann_key) {
     if (auto block = block_or_loop_rv.as<SBlockRV>()) {
       return sch->Annotate(block.value(), ann_key, ann_val);
@@ -111,8 +111,9 @@ struct AnnotateTraits : public UnpackedInstTraits<AnnotateTraits> {
     throw;
   }
 
-  static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ObjectRef block_or_loop_rv,
-                                      Any ann_val, ffi::String ann_key) {
+  static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs,
+                                      ffi::ObjectRef block_or_loop_rv, Any ann_val,
+                                      ffi::String ann_key) {
     PythonAPICall py("annotate");
     py.Input("block_or_loop", block_or_loop_rv);
     py.Input("ann_key", ann_key);
@@ -133,7 +134,7 @@ struct UnannotateTraits : public UnpackedInstTraits<UnannotateTraits> {
   static constexpr size_t kNumAttrs = 1;
   static constexpr size_t kNumDecisions = 0;
 
-  static void UnpackedApplyToSchedule(Schedule sch, ObjectRef block_or_loop_rv,
+  static void UnpackedApplyToSchedule(Schedule sch, ffi::ObjectRef block_or_loop_rv,
                                       ffi::String ann_key) {
     if (auto block = block_or_loop_rv.as<SBlockRV>()) {
       return sch->Unannotate(block.value(), ann_key);
@@ -146,8 +147,8 @@ struct UnannotateTraits : public UnpackedInstTraits<UnannotateTraits> {
     throw;
   }
 
-  static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ObjectRef block_or_loop_rv,
-                                      ffi::String ann_key) {
+  static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs,
+                                      ffi::ObjectRef block_or_loop_rv, ffi::String ann_key) {
     PythonAPICall py("unannotate");
     py.Input("block_or_loop", block_or_loop_rv);
     py.Input("ann_key", ann_key);

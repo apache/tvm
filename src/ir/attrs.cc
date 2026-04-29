@@ -64,7 +64,7 @@ void DictAttrsNode::InitByPackedArgs(const ffi::PackedArgs& args, bool allow_unk
 }
 
 DictAttrs::DictAttrs(ffi::Map<ffi::String, Any> dict) {
-  ObjectPtr<DictAttrsNode> n = ffi::make_object<DictAttrsNode>();
+  ffi::ObjectPtr<DictAttrsNode> n = ffi::make_object<DictAttrsNode>();
   n->dict = std::move(dict);
   data_ = std::move(n);
 }

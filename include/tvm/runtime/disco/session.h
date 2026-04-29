@@ -85,12 +85,6 @@
 namespace tvm {
 namespace runtime {
 
-using ffi::Object;
-using ffi::ObjectPtr;
-using ffi::ObjectPtrEqual;
-using ffi::ObjectPtrHash;
-using ffi::ObjectRef;
-
 /*!
  * \brief Static FFI type index for `runtime::disco::DRef`.
  *
@@ -153,7 +147,7 @@ class SessionObj;
  * The controler assigns a unique "register id" to each object, and the worker uses this id to
  * refer to the object residing on itself.
  */
-class DRefObj : public Object {
+class DRefObj : public ffi::Object {
  public:
   /*!\ brief Send dellocation command for `reg_id` */
   inline ~DRefObj();
@@ -173,12 +167,12 @@ class DRefObj : public Object {
   static constexpr const uint32_t _type_index = kRuntimeDiscoDRef;
   static const constexpr bool _type_final = true;
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO_STATIC("runtime.disco.DRef", DRefObj, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_STATIC("runtime.disco.DRef", DRefObj, ffi::Object);
 
   /*! \brief The id of the register */
   int64_t reg_id;
   /*! \brief Back-pointer to the host controler session */
-  ObjectRef session{nullptr};
+  ffi::ObjectRef session{nullptr};
 
  private:
   inline SessionObj* GetSession();
@@ -189,17 +183,19 @@ class DRefObj : public Object {
  * \sa DRefObj
  * \note No public constructor is provided as it is not supposed to be directly created by users.
  */
-class DRef : public ObjectRef {
+class DRef : public ffi::ObjectRef {
  public:
-  explicit DRef(ObjectPtr<DRefObj> data) : ObjectRef(data) { TVM_FFI_ICHECK(data != nullptr); }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DRef, ObjectRef, DRefObj);
+  explicit DRef(ffi::ObjectPtr<DRefObj> data) : ffi::ObjectRef(data) {
+    TVM_FFI_ICHECK(data != nullptr);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DRef, ffi::ObjectRef, DRefObj);
 };
 
 /*!
  * \brief A Disco interactive session. It allows users to interact with the Disco command queue with
  * various ffi::Function calling convention.
  */
-class SessionObj : public Object {
+class SessionObj : public ffi::Object {
  public:
   virtual ~SessionObj() = default;
   /*!
@@ -281,7 +277,7 @@ class SessionObj : public Object {
   friend class DRefObj;
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("runtime.disco.Session", SessionObj, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("runtime.disco.Session", SessionObj, ffi::Object);
 
  protected:
   /*! \brief Deallocate a register id, kill it on all workers, and append it to `free_regs_`. */
@@ -292,7 +288,7 @@ class SessionObj : public Object {
  * \brief Managed reference to SessionObj
  * \sa SessionObj
  */
-class Session : public ObjectRef {
+class Session : public ffi::ObjectRef {
  public:
   /*!
    * \brief Create a session backed by a thread pool of workers
@@ -316,7 +312,7 @@ class Session : public ObjectRef {
                                                 ffi::String process_pool_creator,
                                                 ffi::String entrypoint);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Session, ObjectRef, SessionObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Session, ffi::ObjectRef, SessionObj);
 };
 
 /*!

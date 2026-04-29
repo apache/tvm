@@ -486,7 +486,7 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
                 [[maybe_unused]] std::vector<const VarNode*>* vars_collector = nullptr,
                 std::vector<const tirx::VarNode*>* tir_vars_collector = nullptr) {
     bool is_static = true;
-    tirx::PostOrderVisit(expr, [&](const ObjectRef& e) {
+    tirx::PostOrderVisit(expr, [&](const ffi::ObjectRef& e) {
       if (auto var = e.as<tirx::VarNode>()) {
         if (!capture_symbolic_vars_.count(var)) {
           is_static = false;

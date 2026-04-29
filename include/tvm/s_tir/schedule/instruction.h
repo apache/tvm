@@ -65,7 +65,7 @@ using FInstructionAsPython =
  * \return An array, serialized attributes
  * \note This functor is nullable
  */
-using FInstructionAttrsAsJSON = ffi::TypedFunction<ObjectRef(ffi::Array<Any> attrs)>;
+using FInstructionAttrsAsJSON = ffi::TypedFunction<ffi::ObjectRef(ffi::Array<Any> attrs)>;
 
 /*!
  * \brief Type of the functor that deserialize its attributes from JSON
@@ -73,7 +73,7 @@ using FInstructionAttrsAsJSON = ffi::TypedFunction<ObjectRef(ffi::Array<Any> att
  * \return An array, deserialized attributes
  * \note This functor is nullable
  */
-using FInstructionAttrsFromJSON = ffi::TypedFunction<ffi::Array<Any>(ObjectRef json_attrs)>;
+using FInstructionAttrsFromJSON = ffi::TypedFunction<ffi::Array<Any>(ffi::ObjectRef json_attrs)>;
 
 /*!
  * \brief Kind of an instruction, e.g. Split, Reorder, etc.
@@ -137,8 +137,7 @@ class InstructionKind : public ffi::ObjectRef {
    * \return The InstructionKind retrieved
    */
   static InstructionKind Get(const ffi::String& name);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(InstructionKind, ffi::ObjectRef,
-                                             InstructionKindNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(InstructionKind, ffi::ObjectRef, InstructionKindNode);
 };
 
 /*! \brief Schedule instructions each corresponds to a schedule primitive */
@@ -227,7 +226,7 @@ class Instruction : public ffi::ObjectRef {
  *
  * \endcode
  */
-#define TVM_REGISTER_INST_KIND(InstructionKindName)             \
+#define TVM_REGISTER_INST_KIND(InstructionKindName)                 \
   TVM_FFI_STR_CONCAT(TVM_INST_KIND_REGISTER_VAR_DEF, __COUNTER__) = \
       ::tvm::s_tir::InstructionKindRegEntry::RegisterOrGet(InstructionKindName).set_name()
 

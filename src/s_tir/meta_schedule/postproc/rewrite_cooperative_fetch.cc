@@ -92,7 +92,7 @@ size_t GetMaxUsedDtypeBytes(SBlock block) {
   static auto q_multiply_shift_per_axis = Op::Get("tirx.q_multiply_shift_per_axis");
   static auto q_multiply_shift = Op::Get("tirx.q_multiply_shift");
 
-  tirx::PostOrderVisit(block->body, [&](const ObjectRef& obj) {
+  tirx::PostOrderVisit(block->body, [&](const ffi::ObjectRef& obj) {
     if (const auto* store = obj.as<tirx::BufferStoreNode>()) {
       max_bytes = std::max(max_bytes, static_cast<size_t>(store->value->dtype.bytes()));
     } else if (const auto* load = obj.as<tirx::BufferLoadNode>()) {
@@ -139,7 +139,8 @@ class RewriteCooperativeFetchNode : public PostprocNode {
   bool Apply(const s_tir::Schedule& sch) final;
 
   Postproc Clone() const {
-    ObjectPtr<RewriteCooperativeFetchNode> n = ffi::make_object<RewriteCooperativeFetchNode>(*this);
+    ffi::ObjectPtr<RewriteCooperativeFetchNode> n =
+        ffi::make_object<RewriteCooperativeFetchNode>(*this);
     return Postproc(n);
   }
 
@@ -234,7 +235,7 @@ bool RewriteCooperativeFetchNode::Apply(const s_tir::Schedule& sch) {
 }
 
 Postproc Postproc::RewriteCooperativeFetch() {
-  ObjectPtr<RewriteCooperativeFetchNode> n = ffi::make_object<RewriteCooperativeFetchNode>();
+  ffi::ObjectPtr<RewriteCooperativeFetchNode> n = ffi::make_object<RewriteCooperativeFetchNode>();
   return Postproc(n);
 }
 

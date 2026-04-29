@@ -61,7 +61,7 @@ namespace vm {
 /*!
  * \brief An object representing an attention kv cache.
  */
-class AttentionKVCacheLegacyObj : public Object {
+class AttentionKVCacheLegacyObj : public ffi::Object {
  public:
   /*!
    * \brief Underlying support data.
@@ -231,11 +231,11 @@ class AttentionKVCacheLegacyObj : public Object {
 
   static constexpr const bool _type_mutable = true;
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.vm.AttentionKVCacheLegacy", AttentionKVCacheLegacyObj,
-                                    Object);
+                                    ffi::Object);
 };
 
 /*! \brief reference to closure. */
-class AttentionKVCacheLegacy : public ObjectRef {
+class AttentionKVCacheLegacy : public ffi::ObjectRef {
  public:
   /*!
    * \brief Create the attention kv cache.
@@ -254,7 +254,7 @@ class AttentionKVCacheLegacy : public ObjectRef {
     return AttentionKVCacheLegacy(n);
   }
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(AttentionKVCacheLegacy, ObjectRef,
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(AttentionKVCacheLegacy, ffi::ObjectRef,
                                              AttentionKVCacheLegacyObj);
 };
 

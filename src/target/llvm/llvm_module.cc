@@ -85,12 +85,6 @@
 namespace tvm {
 namespace codegen {
 
-using ffi::Object;
-using ffi::ObjectPtr;
-using ffi::ObjectPtrEqual;
-using ffi::ObjectPtrHash;
-using ffi::ObjectRef;
-
 using ffi::Any;
 using ffi::Function;
 using ffi::PackedArgs;
@@ -162,7 +156,7 @@ LLVMModuleNode::~LLVMModuleNode() {
 }
 
 ffi::Optional<ffi::Function> LLVMModuleNode::GetFunction(const ffi::String& name) {
-  ObjectPtr<Object> sptr_to_self = ffi::GetObjectPtr<Object>(this);
+  ffi::ObjectPtr<ffi::Object> sptr_to_self = ffi::GetObjectPtr<ffi::Object>(this);
   if (name == "__tvm_is_system_module") {
     bool flag = (module_->getFunction("__tvm_module_startup") != nullptr);
     return ffi::Function([flag](ffi::PackedArgs args, ffi::Any* rv) { *rv = flag; });

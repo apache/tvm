@@ -322,9 +322,9 @@ IndexMap IndexMap::RenameVariables(
   const IndexMapNode* n = this->get();
   if (f_name_map != nullptr) {
     // Collect variables with pre-defined names provided by f_name_map.
-    std::unordered_set<const Object*> visited;
+    std::unordered_set<const ffi::Object*> visited;
     std::for_each(n->final_indices.begin(), n->final_indices.end(), [&](const PrimExpr& expr) {
-      PostOrderVisit(expr, [&](const ObjectRef& obj) {
+      PostOrderVisit(expr, [&](const ffi::ObjectRef& obj) {
         if (!obj->IsInstance<VarNode>()) {
           return;
         }
@@ -454,7 +454,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            [](IndexMap forward, ffi::Array<Range> initial_ranges) {
              arith::Analyzer analyzer;
              auto result = forward.NonSurjectiveInverse(initial_ranges, &analyzer);
-             return ffi::Array<ObjectRef>{result.first, result.second};
+             return ffi::Array<ffi::ObjectRef>{result.first, result.second};
            });
 }
 

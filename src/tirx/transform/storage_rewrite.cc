@@ -69,7 +69,7 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
   /*! \brief record the touch hist of statment. */
   struct StmtEntry {
     // The statment
-    const Object* stmt;
+    const ffi::Object* stmt;
     // The index in the linear_seq_ to point to end of the nested scope.
     // This is only set to non-zero if stmt is a nested scope.
     // if offset > 0, means this is the begin, the end entry is current_index + offset
@@ -269,7 +269,7 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
 //
 class InplaceOpVerifier : public StmtExprVisitor {
  public:
-  bool Check(const Object* stmt, const VarNode* dst, const VarNode* src) {
+  bool Check(const ffi::Object* stmt, const VarNode* dst, const VarNode* src) {
     dst_ = dst;
     src_ = src;
     result_ = true;
@@ -567,7 +567,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     // The scope that this alloc attaches after
     // For shared/local memory it is beginning of the thread extent.
     // for global memory it is nullptr, means beginning of everything.
-    const Object* attach_scope_{nullptr};
+    const ffi::Object* attach_scope_{nullptr};
     // The constant size of the buffer in bits, only used if it is constant
     uint64_t const_nbits{0};
     // The storage scope.
@@ -813,7 +813,7 @@ class StoragePlanRewriter : public StmtExprMutator {
       }
     }
   }
-  void PlanNewScope(const Object* op) {
+  void PlanNewScope(const ffi::Object* op) {
     if (thread_scope_ != nullptr) {
       TVM_FFI_ICHECK(thread_scope_ == op);
       // erase all memory atatched to this scope.
@@ -933,7 +933,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     }
   }
   // Allocate new storage entry.
-  StorageEntry* NewAlloc(const AllocBufferNode* op, const Object* attach_scope,
+  StorageEntry* NewAlloc(const AllocBufferNode* op, const ffi::Object* attach_scope,
                          const StorageScope& scope, size_t const_nbits) {
     TVM_FFI_ICHECK(op != nullptr);
     // Re-use not successful, allocate a new buffer.
@@ -947,7 +947,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     return e;
   }
 
-  StorageEntry* FindAlloc(const AllocBufferNode* op, const Object* attach_scope,
+  StorageEntry* FindAlloc(const AllocBufferNode* op, const ffi::Object* attach_scope,
                           const StorageScope& scope, size_t num_physical_dimensions,
                           bool enable_reuse, bool reuse_require_exact_matched_dtype) {
     TVM_FFI_ICHECK(op != nullptr);
@@ -1047,17 +1047,17 @@ class StoragePlanRewriter : public StmtExprMutator {
     }
   }
   // thread scope.
-  const Object* thread_scope_{nullptr};
+  const ffi::Object* thread_scope_{nullptr};
   // whether enable inplace detection.
   bool detect_inplace_{false};
   // Locations of free ops.
-  std::unordered_map<const Object*, EventEntry> event_map_;
+  std::unordered_map<const ffi::Object*, EventEntry> event_map_;
   // constant size free map.
   std::multimap<uint64_t, StorageEntry*> const_free_map_;
   // symbolic free list, for non constant items.
   std::list<StorageEntry*> sym_free_list_;
   // The allocation attach map
-  std::unordered_map<const Object*, std::vector<StorageEntry*>> attach_map_;
+  std::unordered_map<const ffi::Object*, std::vector<StorageEntry*>> attach_map_;
   // The allocation assign map
   std::unordered_map<const VarNode*, StorageEntry*> alloc_map_;
   // The allocations

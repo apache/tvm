@@ -380,7 +380,7 @@ class CollectConsumerScopeInfo : public ExprVisitor {
   template <typename T>
   ffi::Array<Attrs> ExtractAttrs(const T& func) {
     ffi::Array<Attrs> op_attrs;
-    ffi::Optional<ObjectRef> attrs = func->template GetAttr<ObjectRef>("op_attrs");
+    ffi::Optional<ffi::ObjectRef> attrs = func->template GetAttr<ffi::ObjectRef>("op_attrs");
     if (attrs) {
       if (auto val = attrs.value().as<Attrs>()) {
         op_attrs.push_back(val.value());
@@ -727,7 +727,7 @@ class DefineVDevice : ExprMutator {
         }
       }
     }
-    ObjectPtr<HintOnDeviceAttrs> attrs = ffi::make_object<HintOnDeviceAttrs>();
+    ffi::ObjectPtr<HintOnDeviceAttrs> attrs = ffi::make_object<HintOnDeviceAttrs>();
     const VDevice& vdev = MakeGlobalVDevice(VDevice(target_, 0, scope));
     attrs->device_type = vdev->target->GetTargetDeviceType();
     attrs->index = vdev->vdevice_id;

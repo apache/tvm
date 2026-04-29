@@ -105,7 +105,7 @@ TVM_REGISTER_OP("relax.grad.end_checkpoint")
 /* relax.grad.nll_loss_backward */
 Expr nll_loss_backward(Expr output_grad, Expr predictions, Expr targets,
                        ffi::Optional<Expr> weights, ffi::String reduction, int ignore_index) {
-  ObjectPtr<NLLLossAttrs> attrs = ffi::make_object<NLLLossAttrs>();
+  ffi::ObjectPtr<NLLLossAttrs> attrs = ffi::make_object<NLLLossAttrs>();
 
   attrs->reduction = reduction;
   attrs->ignore_index = ignore_index;
@@ -213,7 +213,7 @@ TVM_REGISTER_OP("relax.grad.avg_pool2d_backward")
 /* relax.grad.take_backward */
 
 Expr take_backward(Expr output_grad, Expr x, Expr indices, ffi::Optional<int64_t> axis) {
-  ObjectPtr<TakeAttrs> attrs = ffi::make_object<TakeAttrs>();
+  ffi::ObjectPtr<TakeAttrs> attrs = ffi::make_object<TakeAttrs>();
   attrs->axis = std::move(axis);
 
   static const Op& op = Op::Get("relax.grad.take_backward");

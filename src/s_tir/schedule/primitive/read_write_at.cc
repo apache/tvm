@@ -57,7 +57,7 @@ class ScopeReplacer : public StmtMutator {
  public:
   static SBlock Replace(const SBlockNode* scope_block, const Buffer& dst, const ForNode* old_loop,
                         const ForNode* new_loop) {
-    ObjectPtr<SBlockNode> new_scope_block = ffi::make_object<SBlockNode>(*scope_block);
+    ffi::ObjectPtr<SBlockNode> new_scope_block = ffi::make_object<SBlockNode>(*scope_block);
     new_scope_block->body = ScopeReplacer(old_loop, new_loop)(std::move(new_scope_block->body));
     new_scope_block->alloc_buffers.push_back(dst);
     return SBlock(new_scope_block);
@@ -92,7 +92,7 @@ class ReadWriteAtBufferReplacer : public StmtExprMutator {
   Stmt VisitStmt_(const BufferStoreNode* _store) final {
     BufferStore store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(_store));
     if (store->buffer.same_as(src_)) {
-      ObjectPtr<BufferStoreNode> new_store = ffi::make_object<BufferStoreNode>(*store.get());
+      ffi::ObjectPtr<BufferStoreNode> new_store = ffi::make_object<BufferStoreNode>(*store.get());
       new_store->buffer = dst_;
       return BufferStore(new_store);
     }
@@ -102,7 +102,7 @@ class ReadWriteAtBufferReplacer : public StmtExprMutator {
   PrimExpr VisitExpr_(const BufferLoadNode* _load) final {
     BufferLoad load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(_load));
     if (load->buffer.same_as(src_)) {
-      ObjectPtr<BufferLoadNode> new_load = ffi::make_object<BufferLoadNode>(*load.get());
+      ffi::ObjectPtr<BufferLoadNode> new_load = ffi::make_object<BufferLoadNode>(*load.get());
       new_load->buffer = dst_;
       return BufferLoad(new_load);
     }
@@ -112,7 +112,7 @@ class ReadWriteAtBufferReplacer : public StmtExprMutator {
   Stmt VisitStmt_(const SBlockNode* _block) final {
     SBlock old_block = ffi::GetRef<SBlock>(_block);
     SBlock block = Downcast<SBlock>(StmtExprMutator::VisitStmt_(_block));
-    ObjectPtr<SBlockNode> new_block = ffi::make_object<SBlockNode>(*block.get());
+    ffi::ObjectPtr<SBlockNode> new_block = ffi::make_object<SBlockNode>(*block.get());
     new_block->reads = ReplaceBuffer(new_block->reads, src_, dst_);
     new_block->writes = ReplaceBuffer(new_block->writes, src_, dst_);
     block_sref_reuse_->Set(old_block, SBlock(new_block));
@@ -185,7 +185,7 @@ struct ReadWriteAtImpl {
       bool r_visited = false;
       bool w_visited = false;
       auto f_visit = [this, &relaxed_regions, &r_visited, &w_visited,
-                      &scope](const ObjectRef& obj) -> bool {
+                      &scope](const ffi::ObjectRef& obj) -> bool {
         const SBlockRealizeNode* realize = obj.as<SBlockRealizeNode>();
         if (realize == nullptr) {
           return true;
@@ -260,7 +260,7 @@ struct ReadWriteAtImpl {
             ? MakeSBlock(src_, dst_, new_block_name_hint, GetLoopDomain(loop_sref_.get()), domain)
             : MakeSBlock(dst_, src_, new_block_name_hint, GetLoopDomain(loop_sref_.get()), domain);
     subtrees.insert(subtrees.begin() + insert_pos, realize);
-    ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*loop_);
+    ffi::ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*loop_);
     new_loop->body = SeqStmt(std::move(subtrees));
     return {For(new_loop), realize};
   }
@@ -289,14 +289,14 @@ struct ReadWriteAtImpl {
           return (*it).second;
         }
         Range range = loop_domain.at(var);
-        ObjectPtr<VarNode> v = ffi::make_object<VarNode>(*var.get());
+        ffi::ObjectPtr<VarNode> v = ffi::make_object<VarNode>(*var.get());
         v->name_hint = "v" + std::to_string(iter_vars.size());
         bindings.Set(var, Var(v));
         iter_values.push_back(var);
         iter_vars.push_back(IterVar(range, Var(v), IterVarType::kDataPar));
         return Var(v);
       };
-      ObjectPtr<RangeNode> dom = ffi::make_object<RangeNode>(*domain[i].get());
+      ffi::ObjectPtr<RangeNode> dom = ffi::make_object<RangeNode>(*domain[i].get());
       dom->min = Substitute(std::move(dom->min), f_substitute);
       dom->extent = Substitute(std::move(dom->extent), f_substitute);
       domain.Set(i, Range(dom));

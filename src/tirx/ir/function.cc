@@ -131,7 +131,7 @@ TensorIntrin::TensorIntrin(PrimFunc desc, PrimFunc impl) {
   }
   TVM_FFI_ICHECK_EQ(desc->buffer_map.size(), impl->buffer_map.size());
 
-  ObjectPtr<TensorIntrinNode> n = ffi::make_object<TensorIntrinNode>();
+  ffi::ObjectPtr<TensorIntrinNode> n = ffi::make_object<TensorIntrinNode>();
   n->desc = std::move(desc);
   n->impl = std::move(impl);
   data_ = std::move(n);

@@ -43,7 +43,7 @@ using namespace tvm::tirx;
  * \return A new block with the given annotation as its last annotation
  */
 SBlock WithAnnotation(const SBlockNode* block, const ffi::String& attr_key,
-                      const ObjectRef& attr_value);
+                      const ffi::ObjectRef& attr_value);
 
 /******** Buffer Related ********/
 

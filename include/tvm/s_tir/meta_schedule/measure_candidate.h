@@ -30,12 +30,6 @@ namespace tvm {
 namespace s_tir {
 namespace meta_schedule {
 
-using ffi::Object;
-using ffi::ObjectPtr;
-using ffi::ObjectPtrEqual;
-using ffi::ObjectPtrHash;
-using ffi::ObjectRef;
-
 /*! \brief The schedule (with input shapes) to be measured. */
 class MeasureCandidateNode : public ffi::Object {
  public:
@@ -51,7 +45,7 @@ class MeasureCandidateNode : public ffi::Object {
         .def_ro("args_info", &MeasureCandidateNode::args_info);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.MeasureCandidate", MeasureCandidateNode,
-                                    Object);
+                                    ffi::Object);
 };
 
 /*!
@@ -66,7 +60,8 @@ class MeasureCandidate : public ffi::ObjectRef {
    * \param args_info The argument information, e.g., (shape, dtype) for tensors.
    */
   TVM_DLL MeasureCandidate(s_tir::Schedule sch, ffi::Array<ArgInfo> args_info);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(MeasureCandidate, ObjectRef, MeasureCandidateNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(MeasureCandidate, ffi::ObjectRef,
+                                                MeasureCandidateNode);
 };
 
 }  // namespace meta_schedule

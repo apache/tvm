@@ -315,7 +315,7 @@ class StructInfoBaseChecker
     return StructInfoFunctor::VisitStructInfo(lhs, other);
   }
 
-  // Object is base of everything
+  // ffi::Object is base of everything
   BaseCheckResult VisitStructInfo_(const ObjectStructInfoNode* lhs, const StructInfo& other) final {
     return BaseCheckResult::kPass;
   }
@@ -992,7 +992,7 @@ class StructInfoLCAFinder
     return StructInfoFunctor::VisitStructInfo(lhs, other);
   }
 
-  // Object is based of everything, unify to object.
+  // ffi::Object is based of everything, unify to object.
   StructInfo VisitStructInfo_(const ObjectStructInfoNode* lhs, const StructInfo& other) final {
     return ffi::GetRef<StructInfo>(lhs);
   }

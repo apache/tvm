@@ -60,7 +60,7 @@ Buffer BufferDecl(ffi::Array<PrimExpr> shape, DataType dtype, ffi::String buffer
 }
 
 PrimFuncFrame PrimFunc(bool is_private) {
-  ObjectPtr<PrimFuncFrameNode> n = ffi::make_object<PrimFuncFrameNode>();
+  ffi::ObjectPtr<PrimFuncFrameNode> n = ffi::make_object<PrimFuncFrameNode>();
   n->name = std::nullopt;
   n->is_private = is_private;
   n->args.clear();
@@ -128,7 +128,7 @@ tvm::Type FuncRet(tvm::Type ret_type) {
   return ret_type;
 }
 
-Buffer MatchBuffer(ObjectRef param, ffi::Array<PrimExpr> shape, DataType dtype,
+Buffer MatchBuffer(ffi::ObjectRef param, ffi::Array<PrimExpr> shape, DataType dtype,
                    ffi::Optional<Var> data, ffi::Array<PrimExpr> strides, PrimExpr elem_offset,
                    ffi::String storage_scope, int align, int offset_factor,
                    ffi::String buffer_type_str, ffi::Optional<ffi::Array<IntImm>> axis_separators) {
@@ -159,7 +159,7 @@ Buffer MatchBuffer(ObjectRef param, ffi::Array<PrimExpr> shape, DataType dtype,
 }
 
 SBlockFrame Block(ffi::String name, bool no_realize) {
-  ObjectPtr<SBlockFrameNode> n = ffi::make_object<SBlockFrameNode>();
+  ffi::ObjectPtr<SBlockFrameNode> n = ffi::make_object<SBlockFrameNode>();
   n->name = name;
   n->iter_vars.clear();
   n->reads = std::nullopt;
@@ -185,7 +185,7 @@ void Where(PrimExpr predicate) {
   frame->predicate = predicate;
 }
 
-void Reads(ffi::Array<ObjectRef> buffer_slices) {
+void Reads(ffi::Array<ffi::ObjectRef> buffer_slices) {
   using namespace tvm::tirx;
   SBlockFrame frame = FindSBlockFrame("T.reads");
   if (frame->reads.defined()) {
@@ -193,7 +193,7 @@ void Reads(ffi::Array<ObjectRef> buffer_slices) {
                               << frame->reads;
   }
   ffi::Array<BufferRegion> reads;
-  for (const ObjectRef& obj : buffer_slices) {
+  for (const ffi::ObjectRef& obj : buffer_slices) {
     if (auto buffer_region = obj.as<BufferRegion>()) {
       reads.push_back(buffer_region.value());
     } else if (auto buffer_load = obj.as<BufferLoad>()) {
@@ -205,7 +205,7 @@ void Reads(ffi::Array<ObjectRef> buffer_slices) {
   frame->reads = reads;
 }
 
-void Writes(ffi::Array<ObjectRef> buffer_slices) {
+void Writes(ffi::Array<ffi::ObjectRef> buffer_slices) {
   using namespace tvm::tirx;
   SBlockFrame frame = FindSBlockFrame("T.writes");
   if (frame->writes.defined()) {
@@ -213,7 +213,7 @@ void Writes(ffi::Array<ObjectRef> buffer_slices) {
                               << frame->writes;
   }
   ffi::Array<BufferRegion> writes;
-  for (const ObjectRef& obj : buffer_slices) {
+  for (const ffi::ObjectRef& obj : buffer_slices) {
     if (auto buffer_region = obj.as<BufferRegion>()) {
       writes.push_back(buffer_region.value());
     } else if (auto buffer_load = obj.as<BufferLoad>()) {
@@ -373,7 +373,7 @@ ffi::Array<Var> Remap(ffi::String kinds, ffi::Array<PrimExpr> bindings, DataType
                   ffi::Optional<PrimExpr> step) {                                             \
     PrimExpr min = start;                                                                     \
     PrimExpr extent = arith::Analyzer().Simplify(stop - start);                               \
-    ObjectPtr<ForFrameNode> n = ffi::make_object<ForFrameNode>();                             \
+    ffi::ObjectPtr<ForFrameNode> n = ffi::make_object<ForFrameNode>();                        \
     int bits = std::max(min.dtype().bits(), extent.dtype().bits());                           \
     n->vars = {Var("v", DataType(min.dtype().code(), bits, 1))};                              \
     n->doms = {Range::FromMinExtent(min, extent)};                                            \
@@ -402,7 +402,7 @@ ForFrame ThreadBinding(PrimExpr start, PrimExpr stop, ffi::String thread,
   using namespace tvm::tirx;
   PrimExpr min = start;
   PrimExpr extent = arith::Analyzer().Simplify(stop - start);
-  ObjectPtr<ForFrameNode> n = ffi::make_object<ForFrameNode>();
+  ffi::ObjectPtr<ForFrameNode> n = ffi::make_object<ForFrameNode>();
   int bits = std::max(min.dtype().bits(), extent.dtype().bits());
   DataType dtype = DataType(min.dtype().code(), bits, 1);
   n->vars = {Var("v", dtype)};
@@ -423,7 +423,7 @@ ForFrame ThreadBinding(PrimExpr start, PrimExpr stop, ffi::String thread,
 
 ForFrame Grid(ffi::Array<PrimExpr> extents) {
   using namespace tvm::tirx;
-  ObjectPtr<ForFrameNode> n = ffi::make_object<ForFrameNode>();
+  ffi::ObjectPtr<ForFrameNode> n = ffi::make_object<ForFrameNode>();
   n->vars.reserve(extents.size());
   n->doms.reserve(extents.size());
   n->steps.resize(extents.size());
@@ -450,7 +450,7 @@ ForFrame Grid(ffi::Array<PrimExpr> extents) {
 
 AssertFrame Assert(PrimExpr condition, ffi::String error_kind,
                    ffi::Array<ffi::String> message_parts) {
-  ObjectPtr<AssertFrameNode> n = ffi::make_object<AssertFrameNode>();
+  ffi::ObjectPtr<AssertFrameNode> n = ffi::make_object<AssertFrameNode>();
   n->condition = condition;
   n->error_kind = tvm::tirx::StringImm(error_kind);
   ffi::Array<tvm::tirx::StringImm> parts;
@@ -488,7 +488,7 @@ LaunchThreadFrame LaunchThread(Var var, PrimExpr extent) {
   } else {
     TVM_FFI_THROW(InternalError) << "LaunchThread can only be used inside a PrimFunc";
   }
-  ObjectPtr<LaunchThreadFrameNode> n = ffi::make_object<LaunchThreadFrameNode>();
+  ffi::ObjectPtr<LaunchThreadFrameNode> n = ffi::make_object<LaunchThreadFrameNode>();
   if (!iter_var->dom.defined()) {
     const_cast<tvm::tirx::IterVarNode*>(iter_var.get())->dom =
         Range(tvm::tirx::make_zero(extent.dtype()), extent);
@@ -511,7 +511,7 @@ AttrFrame Attr(ffi::Any node, ffi::String attr_key, PrimExpr value) {
   if (node.type_index() < ffi::TypeIndex::kTVMFFISmallStr) {
     node = node.cast<PrimExpr>();
   }
-  ObjectPtr<AttrFrameNode> n = ffi::make_object<AttrFrameNode>();
+  ffi::ObjectPtr<AttrFrameNode> n = ffi::make_object<AttrFrameNode>();
   n->node = std::move(node);
   n->attr_key = attr_key;
   n->value = value;
@@ -519,13 +519,13 @@ AttrFrame Attr(ffi::Any node, ffi::String attr_key, PrimExpr value) {
 }
 
 WhileFrame While(PrimExpr condition) {
-  ObjectPtr<WhileFrameNode> n = ffi::make_object<WhileFrameNode>();
+  ffi::ObjectPtr<WhileFrameNode> n = ffi::make_object<WhileFrameNode>();
   n->condition = condition;
   return WhileFrame(n);
 }
 
 IfFrame If(PrimExpr condition) {
-  ObjectPtr<IfFrameNode> n = ffi::make_object<IfFrameNode>();
+  ffi::ObjectPtr<IfFrameNode> n = ffi::make_object<IfFrameNode>();
   n->condition = condition;
   n->then_stmts = std::nullopt;
   n->else_stmts = std::nullopt;
@@ -533,12 +533,12 @@ IfFrame If(PrimExpr condition) {
 }
 
 ThenFrame Then() {
-  ObjectPtr<ThenFrameNode> n = ffi::make_object<ThenFrameNode>();
+  ffi::ObjectPtr<ThenFrameNode> n = ffi::make_object<ThenFrameNode>();
   return ThenFrame(n);
 }
 
 ElseFrame Else() {
-  ObjectPtr<ElseFrameNode> n = ffi::make_object<ElseFrameNode>();
+  ffi::ObjectPtr<ElseFrameNode> n = ffi::make_object<ElseFrameNode>();
   return ElseFrame(n);
 }
 
@@ -658,7 +658,7 @@ PrimExpr Ptr(runtime::DataType dtype, ffi::String storage_scope = "global",
 using tvm::script::ir_builder::details::Namer;
 
 TVM_STATIC_IR_FUNCTOR(Namer, vtable)
-    .set_dispatch<tvm::tirx::BufferNode>([](const ObjectRef& node, ffi::String name) -> void {
+    .set_dispatch<tvm::tirx::BufferNode>([](const ffi::ObjectRef& node, ffi::String name) -> void {
       tvm::tirx::BufferNode* buffer =
           const_cast<tvm::tirx::BufferNode*>(node.as<tvm::tirx::BufferNode>());
       buffer->name = name;
@@ -673,21 +673,21 @@ TVM_STATIC_IR_FUNCTOR(Namer, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(Namer, vtable)
-    .set_dispatch<tvm::tirx::SizeVarNode>([](const ObjectRef& node, ffi::String name) -> void {
+    .set_dispatch<tvm::tirx::SizeVarNode>([](const ffi::ObjectRef& node, ffi::String name) -> void {
       using namespace tvm::tirx;
       SizeVarNode* var = const_cast<SizeVarNode*>(node.as<SizeVarNode>());
       var->name_hint = name;
     });
 
 TVM_STATIC_IR_FUNCTOR(Namer, vtable)
-    .set_dispatch<tvm::tirx::VarNode>([](const ObjectRef& node, ffi::String name) -> void {
+    .set_dispatch<tvm::tirx::VarNode>([](const ffi::ObjectRef& node, ffi::String name) -> void {
       using namespace tvm::tirx;
       VarNode* var = const_cast<VarNode*>(node.as<VarNode>());
       var->name_hint = name;
     });
 
 TVM_STATIC_IR_FUNCTOR(Namer, vtable)
-    .set_dispatch<tvm::tirx::IterVarNode>([](const ObjectRef& node, ffi::String name) -> void {
+    .set_dispatch<tvm::tirx::IterVarNode>([](const ffi::ObjectRef& node, ffi::String name) -> void {
       using namespace tvm::tirx;
       IterVarNode* var = const_cast<IterVarNode*>(node.as<IterVarNode>());
       Namer::Name(var->var, name);
@@ -699,7 +699,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("script.ir_builder.tirx.Buffer", BufferDecl)
       .def("script.ir_builder.tirx.PrimFunc", PrimFunc)
       .def("script.ir_builder.tirx.Arg",
-           [](ffi::String name, ObjectRef obj) -> ObjectRef {
+           [](ffi::String name, ffi::ObjectRef obj) -> ffi::ObjectRef {
              using namespace tvm::tirx;
              if (auto var = obj.as<Var>()) {
                return Arg(name, var.value());

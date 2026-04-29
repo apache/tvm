@@ -98,7 +98,7 @@ class ScheduleFnDatabaseNode : public DatabaseNode {
 
 Database Database::ScheduleFnDatabase(ffi::TypedFunction<bool(s_tir::Schedule)> schedule_fn,
                                       ffi::String mod_eq_name) {
-  ObjectPtr<ScheduleFnDatabaseNode> n = ffi::make_object<ScheduleFnDatabaseNode>(mod_eq_name);
+  ffi::ObjectPtr<ScheduleFnDatabaseNode> n = ffi::make_object<ScheduleFnDatabaseNode>(mod_eq_name);
   n->schedule_fn = std::move(schedule_fn);
   return Database(n);
 }

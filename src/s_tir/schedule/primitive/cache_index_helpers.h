@@ -47,7 +47,7 @@ namespace tirx {
  * \brief A computation table is a hashtable which associates to each expression being computed
           a number (which is the number of time that it is computed)
           It is important to note that the hash used is a ffi::StructuralHash (and not an
- ObjectPtrHash) as we need to hash similarly deeply equal terms. The comparison used is
+ ffi::ObjectPtrHash) as we need to hash similarly deeply equal terms. The comparison used is
  ExprDeepEqual, which is stricter than ffi::StructuralEqual (as it does not do variables remapping),
  so it is compatible with ffi::StructuralHash (intended to be used with ffi::StructuralEqual).
  */
@@ -61,12 +61,12 @@ using ComputationTable = support::OrderedMap<PrimExpr, size_t, ffi::StructuralHa
 struct ComputationCache {
   // Part of the cache for statements
   // It maps each known statement to its computation table
-  std::unordered_map<Stmt, ComputationTable, ObjectPtrHash, ObjectPtrEqual>
+  std::unordered_map<Stmt, ComputationTable, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       cache_stmt_table_computations_;
 
   // Part of the cache for expressions
   // It maps each known expression to its computation table
-  std::unordered_map<PrimExpr, ComputationTable, ObjectPtrHash, ObjectPtrEqual>
+  std::unordered_map<PrimExpr, ComputationTable, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       cache_expr_table_computations_;
 };
 

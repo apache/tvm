@@ -45,12 +45,12 @@ class OperationNode;
 class Tensor;
 
 /*! \brief Operation that produces tensors */
-class Operation : public ObjectRef {
+class Operation : public ffi::ObjectRef {
  public:
   /*! \brief default constructor  */
   Operation() {}
-  explicit Operation(ObjectPtr<Object> n) : ObjectRef(n) {}
-  explicit Operation(ffi::UnsafeInit tag) : ObjectRef(tag) {}
+  explicit Operation(ffi::ObjectPtr<ffi::Object> n) : ffi::ObjectRef(n) {}
+  explicit Operation(ffi::UnsafeInit tag) : ffi::ObjectRef(tag) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container

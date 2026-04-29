@@ -49,7 +49,7 @@ class DiagnosticBuilder;
 class Diagnostic;
 
 /*! \brief A compiler diagnostic message. */
-class DiagnosticNode : public Object {
+class DiagnosticNode : public ffi::Object {
  public:
   /*! \brief The level. */
   DiagnosticLevel level;
@@ -62,7 +62,7 @@ class DiagnosticNode : public Object {
    * available during transformation. The error reporter can
    * still pick up loc->span if necessary.
    */
-  ObjectRef loc;
+  ffi::ObjectRef loc;
   /*! \brief The diagnostic message. */
   ffi::String message;
   /*! \brief The error kind when the diagnostic is used as an error (e.g. "TypeError"). */
@@ -78,10 +78,10 @@ class DiagnosticNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("Diagnostic", DiagnosticNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("Diagnostic", DiagnosticNode, ffi::Object);
 };
 
-class Diagnostic : public ObjectRef {
+class Diagnostic : public ffi::ObjectRef {
  public:
   TVM_DLL Diagnostic(DiagnosticLevel level, Span span, const std::string& message);
   TVM_DLL Diagnostic(DiagnosticLevel level, Span span, const std::string& message,
@@ -93,23 +93,23 @@ class Diagnostic : public ObjectRef {
   static DiagnosticBuilder Note(Span span);
   static DiagnosticBuilder Help(Span span);
   // variants uses object location
-  static DiagnosticBuilder Bug(ObjectRef loc);
-  static DiagnosticBuilder Error(ObjectRef loc);
-  static DiagnosticBuilder Warning(ObjectRef loc);
-  static DiagnosticBuilder Note(ObjectRef loc);
-  static DiagnosticBuilder Help(ObjectRef loc);
+  static DiagnosticBuilder Bug(ffi::ObjectRef loc);
+  static DiagnosticBuilder Error(ffi::ObjectRef loc);
+  static DiagnosticBuilder Warning(ffi::ObjectRef loc);
+  static DiagnosticBuilder Note(ffi::ObjectRef loc);
+  static DiagnosticBuilder Help(ffi::ObjectRef loc);
   // variants uses object ptr.
-  static DiagnosticBuilder Bug(const Object* loc);
-  static DiagnosticBuilder Error(const Object* loc);
-  static DiagnosticBuilder Warning(const Object* loc);
-  static DiagnosticBuilder Note(const Object* loc);
-  static DiagnosticBuilder Help(const Object* loc);
+  static DiagnosticBuilder Bug(const ffi::Object* loc);
+  static DiagnosticBuilder Error(const ffi::Object* loc);
+  static DiagnosticBuilder Warning(const ffi::Object* loc);
+  static DiagnosticBuilder Note(const ffi::Object* loc);
+  static DiagnosticBuilder Help(const ffi::Object* loc);
   // variants with error kind
   static DiagnosticBuilder Error(std::string error_kind, Span span);
-  static DiagnosticBuilder Error(std::string error_kind, ObjectRef loc);
-  static DiagnosticBuilder Error(std::string error_kind, const Object* loc);
+  static DiagnosticBuilder Error(std::string error_kind, ffi::ObjectRef loc);
+  static DiagnosticBuilder Error(std::string error_kind, const ffi::Object* loc);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Diagnostic, ObjectRef, DiagnosticNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Diagnostic, ffi::ObjectRef, DiagnosticNode);
 };
 
 /*!
@@ -129,7 +129,7 @@ class DiagnosticBuilder {
   /*!
    * \brief The object location at which to report an error.
    */
-  ObjectRef loc;
+  ffi::ObjectRef loc;
 
   /*! \brief The error kind (e.g. "TypeError", "ValueError"). */
   std::string error_kind{"InternalError"};
@@ -150,7 +150,7 @@ class DiagnosticBuilder {
 
   DiagnosticBuilder(DiagnosticLevel level, Span span) : level(level), span(span) {}
 
-  DiagnosticBuilder(DiagnosticLevel level, ObjectRef loc) : level(level), loc(loc) {}
+  DiagnosticBuilder(DiagnosticLevel level, ffi::ObjectRef loc) : level(level), loc(loc) {}
 
   /*! \brief Set the error kind for this diagnostic. */
   DiagnosticBuilder& WithErrorKind(std::string kind) {
@@ -181,7 +181,7 @@ class DiagnosticContext;
  * of compiler diagnostics to std::out and std::err in
  * a human readable form.
  */
-class DiagnosticRendererNode : public Object {
+class DiagnosticRendererNode : public ffi::Object {
  public:
   ffi::TypedFunction<void(DiagnosticContext ctx)> renderer;
 
@@ -189,10 +189,10 @@ class DiagnosticRendererNode : public Object {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<DiagnosticRendererNode>().def_ro("renderer", &DiagnosticRendererNode::renderer);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("DiagnosticRenderer", DiagnosticRendererNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("DiagnosticRenderer", DiagnosticRendererNode, ffi::Object);
 };
 
-class DiagnosticRenderer : public ObjectRef {
+class DiagnosticRenderer : public ffi::ObjectRef {
  public:
   TVM_DLL DiagnosticRenderer(ffi::TypedFunction<void(DiagnosticContext ctx)> render);
   TVM_DLL DiagnosticRenderer()
@@ -205,11 +205,11 @@ class DiagnosticRenderer : public ObjectRef {
     return static_cast<DiagnosticRendererNode*>(get_mutable());
   }
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DiagnosticRenderer, ObjectRef,
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DiagnosticRenderer, ffi::ObjectRef,
                                                 DiagnosticRendererNode);
 };
 
-class DiagnosticContextNode : public Object {
+class DiagnosticContextNode : public ffi::Object {
  public:
   /*! \brief The Module to report against. */
   IRModule module;
@@ -228,10 +228,10 @@ class DiagnosticContextNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("DiagnosticContext", DiagnosticContextNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("DiagnosticContext", DiagnosticContextNode, ffi::Object);
 };
 
-class DiagnosticContext : public ObjectRef {
+class DiagnosticContext : public ffi::ObjectRef {
  public:
   TVM_DLL DiagnosticContext(const IRModule& module, const DiagnosticRenderer& renderer);
   TVM_DLL static DiagnosticContext Default(const IRModule& source_map);
@@ -258,7 +258,7 @@ class DiagnosticContext : public ObjectRef {
     return static_cast<DiagnosticContextNode*>(get_mutable());
   }
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DiagnosticContext, ObjectRef,
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DiagnosticContext, ffi::ObjectRef,
                                                 DiagnosticContextNode);
 };
 

@@ -99,7 +99,7 @@ namespace relax {
  * any time we find a tensor satisfying any of the conditions above, we erase
  * its storage token.
  */
-class StorageTokenNode : public Object {
+class StorageTokenNode : public ffi::Object {
  public:
   /*! \brief Reference counter. */
   int ref_counter{0};
@@ -126,14 +126,14 @@ class StorageTokenNode : public Object {
   }
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("relax.transform.StorageToken", StorageTokenNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.transform.StorageToken", StorageTokenNode, ffi::Object);
 };
 
 /*!
  * \brief Managed reference to StorageTokenNode.
  * \sa StorageTokenNode
  */
-class StorageToken : public ObjectRef {
+class StorageToken : public ffi::ObjectRef {
  public:
   explicit StorageToken(ffi::Array<PrimExpr> shape, DataType dtype, std::string storage_scope,
                         ffi::Optional<VDevice> vdevice = std::nullopt) {
@@ -175,14 +175,14 @@ class StorageToken : public ObjectRef {
 
     size = tirx::make_const(DataType::Int(64), const_coeff) * size;
 
-    ObjectPtr<StorageTokenNode> n = ffi::make_object<StorageTokenNode>();
+    ffi::ObjectPtr<StorageTokenNode> n = ffi::make_object<StorageTokenNode>();
     n->bytes = size;
     n->dtype = dtype;
     n->storage_scope = std::move(storage_scope);
     n->vdevice = std::move(vdevice);
     data_ = std::move(n);
   }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(StorageToken, ObjectRef, StorageTokenNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(StorageToken, ffi::ObjectRef, StorageTokenNode);
 };
 
 // We use NestedMsg to store the tokens used by each Expr.

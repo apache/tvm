@@ -75,7 +75,7 @@ class DisallowDynamicLoopNode : public PostprocNode {
   }
   // Inherited from PostprocNode
   Postproc Clone() const {
-    ObjectPtr<DisallowDynamicLoopNode> n = ffi::make_object<DisallowDynamicLoopNode>(*this);
+    ffi::ObjectPtr<DisallowDynamicLoopNode> n = ffi::make_object<DisallowDynamicLoopNode>(*this);
     return Postproc(n);
   }
 
@@ -89,7 +89,7 @@ class DisallowDynamicLoopNode : public PostprocNode {
 };
 
 Postproc Postproc::DisallowDynamicLoop() {
-  ObjectPtr<DisallowDynamicLoopNode> n = ffi::make_object<DisallowDynamicLoopNode>();
+  ffi::ObjectPtr<DisallowDynamicLoopNode> n = ffi::make_object<DisallowDynamicLoopNode>();
   return Postproc(n);
 }
 

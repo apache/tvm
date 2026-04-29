@@ -106,8 +106,8 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
 
   void SetGenericAttributes(const CallNode* call_node) {
     OpAttrExtractor extractor(node_);
-    const Object* attr_obj = call_node->attrs.get();
-    extractor.Extract(const_cast<Object*>(attr_obj));
+    const ffi::Object* attr_obj = call_node->attrs.get();
+    extractor.Extract(const_cast<ffi::Object*>(attr_obj));
   }
 
   TensorRTJSONSerializer* serializer_;

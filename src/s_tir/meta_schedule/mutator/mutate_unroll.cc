@@ -71,7 +71,7 @@ class MutateUnrollNode : public MutatorNode {
   ffi::Optional<Trace> Apply(const Trace& trace, TRandState* rand_state) final;
   // Inherit from `MutatorNode`
   Mutator Clone() const final {
-    ObjectPtr<MutateUnrollNode> n = ffi::make_object<MutateUnrollNode>(*this);
+    ffi::ObjectPtr<MutateUnrollNode> n = ffi::make_object<MutateUnrollNode>(*this);
     return Mutator(n);
   }
 };

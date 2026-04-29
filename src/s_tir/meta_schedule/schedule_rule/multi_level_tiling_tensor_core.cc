@@ -118,7 +118,7 @@ TensorCoreState::TensorCoreState(TensorCoreIntrinGroup intrin_group,
                                  s_tir::AutoTensorizeMappingInfo mapping_info, Schedule sch,
                                  SBlockRV block_rv, bool use_async,
                                  ffi::Array<ffi::Array<LoopRV>> tiles) {
-  ObjectPtr<TensorCoreStateNode> node = ffi::make_object<TensorCoreStateNode>();
+  ffi::ObjectPtr<TensorCoreStateNode> node = ffi::make_object<TensorCoreStateNode>();
   node->intrin_group = intrin_group;
   node->mapping_info = mapping_info;
   node->sch = std::move(sch);
@@ -130,7 +130,7 @@ TensorCoreState::TensorCoreState(TensorCoreIntrinGroup intrin_group,
 }
 
 State TensorCoreStateNode::Copy() const {
-  ObjectPtr<TensorCoreStateNode> node = ffi::make_object<TensorCoreStateNode>(*this);
+  ffi::ObjectPtr<TensorCoreStateNode> node = ffi::make_object<TensorCoreStateNode>(*this);
   node->sch = sch->Copy();
   return State(node);
 }
@@ -173,7 +173,7 @@ class MultiLevelTilingTensorCoreNode : public MultiLevelTilingNode {
 
   // Inherited from ScheduleRuleNode
   ScheduleRule Clone() const final {
-    ObjectPtr<MultiLevelTilingTensorCoreNode> n =
+    ffi::ObjectPtr<MultiLevelTilingTensorCoreNode> n =
         ffi::make_object<MultiLevelTilingTensorCoreNode>(*this);
     return ScheduleRule(n);
   }
@@ -843,7 +843,7 @@ ffi::Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
     return tirx::IndexMap(sub_index_map_src, sub_index_map_tgt);
   };
 
-  std::unordered_set<tirx::Buffer, ObjectPtrHash, ObjectPtrEqual> visited_buffers;
+  std::unordered_set<tirx::Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> visited_buffers;
 
   ffi::Map<tirx::Buffer, tirx::IndexMap> buffer_sub_index_map;  // cache of the sub index map
                                                                 // associated with each buffer

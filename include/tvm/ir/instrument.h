@@ -34,12 +34,6 @@
 
 namespace tvm {
 
-using ffi::Object;
-using ffi::ObjectPtr;
-using ffi::ObjectPtrEqual;
-using ffi::ObjectPtrHash;
-using ffi::ObjectRef;
-
 class IRModule;
 
 // Forward class for PassInstrumentNode methods
@@ -105,7 +99,7 @@ namespace instrument {
  * \sa PassInstrument
  * \sa src/ir/transform.cc
  */
-class PassInstrumentNode : public Object {
+class PassInstrumentNode : public ffi::Object {
  public:
   /*! \brief Name of this pass instrument object. */
   ffi::String name;
@@ -146,16 +140,16 @@ class PassInstrumentNode : public Object {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<PassInstrumentNode>().def_ro("name", &PassInstrumentNode::name);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO("instrument.PassInstrument", PassInstrumentNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("instrument.PassInstrument", PassInstrumentNode, ffi::Object);
 };
 
 /*!
  * \brief Managed reference class for PassInstrumentNode
  * \sa PassInstrumentNode
  */
-class PassInstrument : public ObjectRef {
+class PassInstrument : public ffi::ObjectRef {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PassInstrument, ObjectRef, PassInstrumentNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PassInstrument, ffi::ObjectRef, PassInstrumentNode);
 };
 
 }  // namespace instrument

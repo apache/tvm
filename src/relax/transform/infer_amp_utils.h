@@ -73,9 +73,9 @@ using VarDTypeMap = std::unordered_map<Var, NType>;
 using FInferMixedPrecision =
     ffi::TypedFunction<Call(const Call& call_node, const DataType& out_dtype)>;
 
-ffi::Array<ObjectRef> InferMixedPrecisionFollow(const Call& call, const DataType& out_dtype);
+ffi::Array<ffi::ObjectRef> InferMixedPrecisionFollow(const Call& call, const DataType& out_dtype);
 
-ffi::Array<ObjectRef> InferMixedPrecisionNever(const Call& call, const DataType& out_dtype);
+ffi::Array<ffi::ObjectRef> InferMixedPrecisionNever(const Call& call, const DataType& out_dtype);
 
 }  // namespace relax
 }  // namespace tvm

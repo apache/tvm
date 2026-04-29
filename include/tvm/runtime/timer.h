@@ -32,19 +32,13 @@
 namespace tvm {
 namespace runtime {
 
-using ffi::Object;
-using ffi::ObjectPtr;
-using ffi::ObjectPtrEqual;
-using ffi::ObjectPtrHash;
-using ffi::ObjectRef;
-
 /*! \brief Base class for all timer implementations.
  *
  * New implementations of this interface should make sure that `Start` and `Stop`
  * are as lightweight as possible. Expensive state synchronization should be
  * done in `SyncAndGetElapsedNanos`.
  */
-class TimerNode : public Object {
+class TimerNode : public ffi::Object {
  public:
   /*! \brief Start the timer.
    *
@@ -71,7 +65,7 @@ class TimerNode : public Object {
   virtual ~TimerNode() {}
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("runtime.TimerNode", TimerNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("runtime.TimerNode", TimerNode, ffi::Object);
 };
 
 /*! \brief Timer for a specific device.
@@ -80,7 +74,7 @@ class TimerNode : public Object {
  *
  * \sa TimerNode
  */
-class Timer : public ObjectRef {
+class Timer : public ffi::ObjectRef {
  public:
   /*!
    * \brief Get a device specific timer.
@@ -139,7 +133,7 @@ class Timer : public ObjectRef {
    */
   static TVM_RUNTIME_DLL Timer Start(Device dev);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Timer, ObjectRef, TimerNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Timer, ffi::ObjectRef, TimerNode);
 };
 
 /*!

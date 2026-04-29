@@ -380,7 +380,7 @@ ffi::Map<ffi::String, ffi::Any> IndexDataTypeRewriter::VisitBlockAnnotations(
     return obj;
   };
   for (const auto& [key, value] : annotations) {
-    if (auto opt_object_ref = value.as<ObjectRef>()) {
+    if (auto opt_object_ref = value.as<ffi::ObjectRef>()) {
       auto new_value = f_mutate_obj(*opt_object_ref);
       if (!new_value.same_as(*opt_object_ref)) {
         new_annotations.Set(key, new_value);

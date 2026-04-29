@@ -238,11 +238,11 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
   }
 
   /*! \brief Map of buffers being remapped. */
-  std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> buffer_remap_;
+  std::unordered_map<Buffer, Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_remap_;
 
   /*! \brief Set of buffers accessed during visitation (used to emit DeclBuffer for param buffers).
    */
-  std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual> buffers_used_;
+  std::unordered_set<Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffers_used_;
 
   /*! \brief The updated external buffer map. */
   ffi::Map<Var, Buffer> updated_extern_buffer_map_;

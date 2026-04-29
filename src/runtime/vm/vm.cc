@@ -118,7 +118,7 @@ ffi::Any ConvertArgToDevice(ffi::AnyView input, Device dev, Allocator* alloc) {
   // The developer can still explicitly allocate Tensor
   // in TVM Native API or Tensor::FromDLPack to regain zero copy behavior.
   ffi::Any ret;
-  if (auto opt_obj = input.as<ObjectRef>()) {
+  if (auto opt_obj = input.as<ffi::ObjectRef>()) {
     ret = ConvertObjectToDevice(opt_obj.value(), dev, alloc);
   } else if (auto opt_dltensor = input.as<DLTensor*>()) {
     DLTensor* tensor = opt_dltensor.value();
@@ -135,7 +135,7 @@ ffi::Any ConvertArgToDevice(ffi::AnyView input, Device dev, Allocator* alloc) {
 ffi::Any ConvertRegToDevice(ffi::Any input, Device dev, Allocator* alloc,
                             ffi::String scope = "global") {
   ffi::Any ret;
-  if (auto opt_obj = input.as<ObjectRef>()) {
+  if (auto opt_obj = input.as<ffi::ObjectRef>()) {
     ret = ConvertObjectToDevice(opt_obj.value(), dev, alloc, scope);
   } else {
     ret = input;
@@ -190,13 +190,13 @@ class VirtualMachineImpl : public VirtualMachine {
   //---------------------------------------------------
   // Public facing functions overloading
   //---------------------------------------------------
-  void LoadExecutable(ObjectPtr<VMExecutable> exec) final;
+  void LoadExecutable(ffi::ObjectPtr<VMExecutable> exec) final;
   void Init(const std::vector<Device>& devices,
             const std::vector<AllocatorType>& alloc_types) final;
   VMClosure GetClosure(const ffi::String& func_name) final {
     return this->GetClosureInternal(func_name, false).value();
   }
-  void InvokeClosurePacked(const ObjectRef& closure_or_packedfunc, ffi::PackedArgs args,
+  void InvokeClosurePacked(const ffi::ObjectRef& closure_or_packedfunc, ffi::PackedArgs args,
                            ffi::Any* rv) final;
   void SetInstrument(ffi::Function instrument) final { this->instrument_ = instrument; }
 
@@ -288,7 +288,7 @@ class VirtualMachineImpl : public VirtualMachine {
    * \param args The arguments to the function.
    * \return The result value.
    */
-  RegType InvokeClosureInternal(const ObjectRef& closure_or_packed,
+  RegType InvokeClosureInternal(const ffi::ObjectRef& closure_or_packed,
                                 const std::vector<RegType>& args);
   /*!
    * \brief Invoke a VM function by interpreting bytecode.
@@ -418,7 +418,7 @@ class VirtualMachineImpl : public VirtualMachine {
   // Internal states for execution.
   //--------------------------------------------------------
   /*! \brief The loaded executable. */
-  ObjectPtr<VMExecutable> exec_;
+  ffi::ObjectPtr<VMExecutable> exec_;
   /*! \brief The global constant pool */
   std::vector<ffi::Any> const_pool_;
   /*!
@@ -455,7 +455,7 @@ class VirtualMachineImpl : public VirtualMachine {
   ffi::Function instrument_ = nullptr;
 };
 
-void VirtualMachineImpl::LoadExecutable(ObjectPtr<VMExecutable> exec) {
+void VirtualMachineImpl::LoadExecutable(ffi::ObjectPtr<VMExecutable> exec) {
   this->exec_ = exec;
   this->imports_ = exec->imports();
 }
@@ -528,7 +528,7 @@ void VirtualMachineImpl::SetInput(std::string func_name, bool with_param_module,
 //------------------------------------------
 // Closure handling
 //------------------------------------------
-void VirtualMachineImpl::InvokeClosurePacked(const ObjectRef& closure_or_packedfunc,
+void VirtualMachineImpl::InvokeClosurePacked(const ffi::ObjectRef& closure_or_packedfunc,
                                              ffi::PackedArgs args, ffi::Any* rv) {
   // run packed call if it is a packed func.
   if (auto* packed = closure_or_packedfunc.as<ffi::Function::ContainerType>()) {
@@ -552,7 +552,7 @@ void VirtualMachineImpl::InvokeClosurePacked(const ObjectRef& closure_or_packedf
 }
 
 // internal variant version of invoke closurepacked
-RegType VirtualMachineImpl::InvokeClosureInternal(const ObjectRef& closure_or_packed,
+RegType VirtualMachineImpl::InvokeClosureInternal(const ffi::ObjectRef& closure_or_packed,
                                                   const std::vector<RegType>& args) {
   RegType ret;
   auto* packed = closure_or_packed.as<ffi::Function::ContainerType>();
@@ -765,7 +765,7 @@ void VirtualMachineImpl::RunInstrCall(VMFrame* curr_frame, Instruction instr) {
   TVM_FFI_ICHECK_LT(static_cast<size_t>(instr.func_idx), this->func_pool_.size());
 
   if (instrument_ == nullptr) {
-    this->InvokeClosurePacked(func_pool_[instr.func_idx].cast<ObjectRef>(), args, &ret);
+    this->InvokeClosurePacked(func_pool_[instr.func_idx].cast<ffi::ObjectRef>(), args, &ret);
   } else {
     // insert light-weight instrument callback
     call_args[0] = func_pool_[instr.func_idx];
@@ -790,7 +790,7 @@ void VirtualMachineImpl::RunInstrCall(VMFrame* curr_frame, Instruction instr) {
       ret_kind = opt_int.value();
     }
     if (ret_kind != static_cast<int>(VMInstrumentReturnKind::kSkipRun)) {
-      this->InvokeClosurePacked(func_pool_[instr.func_idx].cast<ObjectRef>(), args, &ret);
+      this->InvokeClosurePacked(func_pool_[instr.func_idx].cast<ffi::ObjectRef>(), args, &ret);
       call_args[2] = false;
       call_args[3] = ret;
       instrument_.CallPacked(call_args.data(), call_args.size(), &rv);
@@ -852,7 +852,7 @@ void VirtualMachineImpl::RunLoop() {
   }
 }
 
-ObjectPtr<VirtualMachine> VirtualMachine::Create() {
+ffi::ObjectPtr<VirtualMachine> VirtualMachine::Create() {
   return ffi::make_object<VirtualMachineImpl>();
 }
 
@@ -881,7 +881,7 @@ void VirtualMachineImpl::_SaveClosure(ffi::PackedArgs args, ffi::Any* rv) {
 }
 
 void VirtualMachineImpl::_InvokeClosure(ffi::PackedArgs args, ffi::Any* rv) {
-  this->InvokeClosurePacked(args[0].cast<ObjectRef>(), args.Slice(1), rv);
+  this->InvokeClosurePacked(args[0].cast<ffi::ObjectRef>(), args.Slice(1), rv);
 }
 
 void VirtualMachineImpl::_InvokeClosureStateful(std::string func_name) {
@@ -894,8 +894,8 @@ void VirtualMachineImpl::_InvokeClosureStateful(std::string func_name) {
                               << "; use `set_input` first.";
     return;
   }
-  outputs_[func_name] = this->InvokeClosureInternal(func_pool_[m.at(func_name)].cast<ObjectRef>(),
-                                                    inputs_[func_name]);
+  outputs_[func_name] = this->InvokeClosureInternal(
+      func_pool_[m.at(func_name)].cast<ffi::ObjectRef>(), inputs_[func_name]);
 }
 
 void VirtualMachineImpl::_SetInstrument(ffi::PackedArgs args, ffi::Any* rv) {

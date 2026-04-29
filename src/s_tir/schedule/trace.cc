@@ -34,7 +34,7 @@ TVM_FFI_STATIC_INIT_BLOCK() { TraceNode::RegisterReflection(); }
 Trace::Trace() { data_ = ffi::make_object<TraceNode>(); }
 
 Trace::Trace(ffi::Array<Instruction> insts, ffi::Map<Instruction, Any> decisions) {
-  ObjectPtr<TraceNode> n = ffi::make_object<TraceNode>();
+  ffi::ObjectPtr<TraceNode> n = ffi::make_object<TraceNode>();
   n->insts = std::move(insts);
   n->decisions = std::move(decisions);
   data_ = std::move(n);
@@ -59,8 +59,9 @@ int GetNumValidInstructions(const ffi::Array<Instruction>& insts, bool remove_po
 
 /**************** TranslateInputRVs  ****************/
 
-ffi::Array<Any> TranslateInputRVs(const ffi::Array<Any>& inputs,
-                                  const std::unordered_map<const Object*, const Object*>& rv_map) {
+ffi::Array<Any> TranslateInputRVs(
+    const ffi::Array<Any>& inputs,
+    const std::unordered_map<const ffi::Object*, const ffi::Object*>& rv_map) {
   ffi::Array<Any> result;
   result.reserve(inputs.size());
   auto f_subst_with_rv_map = [&rv_map](const Var& var) -> ffi::Optional<PrimExpr> {
@@ -68,7 +69,7 @@ ffi::Array<Any> TranslateInputRVs(const ffi::Array<Any>& inputs,
     if (it == rv_map.end()) {
       return std::nullopt;
     }
-    const Object* dst = it->second;
+    const ffi::Object* dst = it->second;
     TVM_FFI_CHECK(dst->IsInstance<VarNode>(), TypeError)
         << "Expect 'tirx.Var', but gets: " << dst->GetTypeKey();
     return ffi::GetRef<Var>(static_cast<const VarNode*>(dst));
@@ -83,9 +84,9 @@ ffi::Array<Any> TranslateInputRVs(const ffi::Array<Any>& inputs,
     } else if (input.as<SBlockRVNode>() ||  // RV: block
                input.as<LoopRVNode>() ||    // RV: loop
                input.as<VarNode>()) {       // RV: var
-      auto it = rv_map.find(input.as<Object>());
+      auto it = rv_map.find(input.as<ffi::Object>());
       TVM_FFI_CHECK(it != rv_map.end(), IndexError) << "Random variable doesn't exist: " << input;
-      result.push_back(ffi::GetRef<ObjectRef>(it->second));
+      result.push_back(ffi::GetRef<ffi::ObjectRef>(it->second));
     } else if (auto expr = input.try_cast<PrimExpr>()) {  // RV: Expr
       result.push_back(Substitute(expr.value(), f_subst_with_rv_map));
     } else if (auto index_map = input.as<IndexMap>()) {
@@ -105,7 +106,8 @@ ffi::Array<Any> TranslateInputRVs(const ffi::Array<Any>& inputs,
 // translate rv to string
 ffi::Array<Any> TranslateInputRVs(
     const ffi::Array<Any>& inputs,
-    const std::unordered_map<ObjectRef, ffi::String, ObjectPtrHash, ObjectPtrEqual>& rv_names) {
+    const std::unordered_map<ffi::ObjectRef, ffi::String, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>&
+        rv_names) {
   ffi::Array<Any> results;
   results.reserve(inputs.size());
   for (const Any& input : inputs) {
@@ -123,7 +125,7 @@ ffi::Array<Any> TranslateInputRVs(
     } else if (input.as<SBlockRVNode>() ||  // RV: block
                input.as<LoopRVNode>() ||    // RV: loop
                input.as<VarNode>()) {       // RV: var
-      auto it = rv_names.find(input.cast<ObjectRef>());
+      auto it = rv_names.find(input.cast<ffi::ObjectRef>());
       if (it != rv_names.end()) {
         // Case 1. SBlockRV, LoopRV, VarRV
         results.push_back(it->second);
@@ -159,8 +161,9 @@ ffi::Array<Any> TranslateInputRVs(
   return results;
 }
 
-ffi::Array<Any> TranslateInputRVs(const ffi::Array<Any>& inputs,
-                                  const std::unordered_map<std::string, ObjectRef>& named_rvs) {
+ffi::Array<Any> TranslateInputRVs(
+    const ffi::Array<Any>& inputs,
+    const std::unordered_map<std::string, ffi::ObjectRef>& named_rvs) {
   ffi::Array<Any> results;
   results.reserve(inputs.size());
   for (const Any& input : inputs) {
@@ -226,12 +229,12 @@ ffi::Array<Any> TranslateInputRVs(const ffi::Array<Any>& inputs,
 /**************** TranslateAddOutputRVs  ****************/
 
 void TranslateAddOutputRVs(const ffi::Array<Any>& old_outputs, const ffi::Array<Any>& new_outputs,
-                           std::unordered_map<const Object*, const Object*>* rv_map) {
+                           std::unordered_map<const ffi::Object*, const ffi::Object*>* rv_map) {
   TVM_FFI_ICHECK_EQ(old_outputs.size(), new_outputs.size());
   int n = old_outputs.size();
   for (int i = 0; i < n; ++i) {
-    const Object* old_rv = old_outputs[i].as<Object>();
-    const Object* new_rv = new_outputs[i].as<Object>();
+    const ffi::Object* old_rv = old_outputs[i].as<ffi::Object>();
+    const ffi::Object* new_rv = new_outputs[i].as<ffi::Object>();
     TVM_FFI_ICHECK(old_rv != nullptr && new_rv != nullptr);
     (*rv_map)[old_rv] = new_rv;
   }
@@ -239,13 +242,15 @@ void TranslateAddOutputRVs(const ffi::Array<Any>& old_outputs, const ffi::Array<
 
 ffi::Array<ffi::String> TranslateAddOutputRVs(
     const ffi::Array<Any>& outputs,
-    std::unordered_map<ObjectRef, ffi::String, ObjectPtrHash, ObjectPtrEqual>* rv_names) {
+    std::unordered_map<ffi::ObjectRef, ffi::String, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>*
+        rv_names) {
   ffi::Array<ffi::String> results;
   results.reserve(outputs.size());
   for (const Any& output : outputs) {
     int i = rv_names->size();
-    TVM_FFI_CHECK(!rv_names->count(output.cast<ObjectRef>()), ValueError)
-        << "The random variable has been produced once: " << rv_names->at(output.cast<ObjectRef>());
+    TVM_FFI_CHECK(!rv_names->count(output.cast<ffi::ObjectRef>()), ValueError)
+        << "The random variable has been produced once: "
+        << rv_names->at(output.cast<ffi::ObjectRef>());
     ffi::String result;
     if (output == nullptr) {
       result = "_";
@@ -261,18 +266,19 @@ ffi::Array<ffi::String> TranslateAddOutputRVs(
       throw;
     }
     results.push_back(result);
-    rv_names->emplace(output.cast<ObjectRef>(), std::move(result));
+    rv_names->emplace(output.cast<ffi::ObjectRef>(), std::move(result));
   }
   return results;
 }
 
 void TranslateAddOutputRVs(const ffi::Array<ffi::String>& old_outputs,
                            const ffi::Array<Any>& new_outputs,
-                           std::unordered_map<std::string, ObjectRef>* named_rvs) {
+                           std::unordered_map<std::string, ffi::ObjectRef>* named_rvs) {
   TVM_FFI_ICHECK_EQ(old_outputs.size(), new_outputs.size());
   int n = old_outputs.size();
   for (int i = 0; i < n; ++i) {
-    named_rvs->emplace(Downcast<ffi::String>(old_outputs[i]), new_outputs[i].cast<ObjectRef>());
+    named_rvs->emplace(Downcast<ffi::String>(old_outputs[i]),
+                       new_outputs[i].cast<ffi::ObjectRef>());
   }
 }
 
@@ -309,7 +315,7 @@ void TraceNode::ApplyToSchedule(
                            const ffi::Array<Any>& attrs,                            //
                            const Any& decision)>
         decision_provider) const {
-  std::unordered_map<const Object*, const Object*> rv_map;
+  std::unordered_map<const ffi::Object*, const ffi::Object*> rv_map;
   for (const Instruction& inst : this->insts) {
     if (remove_postproc && inst->kind->IsPostproc()) {
       break;
@@ -325,8 +331,8 @@ void TraceNode::ApplyToSchedule(
   }
 }
 
-ObjectRef TraceNode::AsJSON(bool remove_postproc) const {
-  std::unordered_map<ObjectRef, ffi::String, ObjectPtrHash, ObjectPtrEqual> rv_names;
+ffi::ObjectRef TraceNode::AsJSON(bool remove_postproc) const {
+  std::unordered_map<ffi::ObjectRef, ffi::String, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> rv_names;
   ffi::Array<ffi::Any> json_insts;
   ffi::Array<ffi::Any> json_decisions;
   json_insts.reserve(this->insts.size());
@@ -342,11 +348,11 @@ ObjectRef TraceNode::AsJSON(bool remove_postproc) const {
         /* 0: inst name */ kind->name,
         /* 1: inputs    */ TranslateInputRVs(inst->inputs, rv_names),
         /* 2: attrs     */ kind->f_attrs_as_json != nullptr ? kind->f_attrs_as_json(inst->attrs)
-                                                            : ObjectRef(inst->attrs),
+                                                            : ffi::ObjectRef(inst->attrs),
         /* 3: outputs   */ TranslateAddOutputRVs(inst->outputs, &rv_names),
     });
-    if (auto decision = this->GetDecision(inst).cast<ffi::Optional<ObjectRef>>()) {
-      json_decisions.push_back(ffi::Array<ObjectRef>{
+    if (auto decision = this->GetDecision(inst).cast<ffi::Optional<ffi::ObjectRef>>()) {
+      json_decisions.push_back(ffi::Array<ffi::ObjectRef>{
           /* 0: index    */ Integer(i),
           /* 1: decision */ decision.value(),
       });
@@ -360,7 +366,7 @@ ObjectRef TraceNode::AsJSON(bool remove_postproc) const {
 }
 
 ffi::Array<ffi::String> TraceNode::AsPython(bool remove_postproc) const {
-  std::unordered_map<ObjectRef, ffi::String, ObjectPtrHash, ObjectPtrEqual> rv_names;
+  std::unordered_map<ffi::ObjectRef, ffi::String, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> rv_names;
   ffi::Array<ffi::String> py_trace;
   py_trace.reserve(this->insts.size());
   for (const Instruction& inst : this->insts) {
@@ -385,7 +391,7 @@ ffi::Array<ffi::String> TraceNode::AsPython(bool remove_postproc) const {
   return py_trace;
 }
 
-void Trace::ApplyJSONToSchedule(ObjectRef json, Schedule sch) {
+void Trace::ApplyJSONToSchedule(ffi::ObjectRef json, Schedule sch) {
   ffi::Array<Any> json_insts{nullptr};
   ffi::Array<Any> json_decisions{nullptr};
   // Parse `json` into `json_insts` and `json_decisions`
@@ -424,13 +430,13 @@ void Trace::ApplyJSONToSchedule(ObjectRef json, Schedule sch) {
     decisions[index] = std::move(decision);
   }
   // Parse `json_insts`
-  std::unordered_map<std::string, ObjectRef> named_rvs{{"None", ObjectRef{nullptr}}};
+  std::unordered_map<std::string, ffi::ObjectRef> named_rvs{{"None", ffi::ObjectRef{nullptr}}};
   int i = 0;
   for (const Any& inst_entry : json_insts) {
     InstructionKind kind{nullptr};
     ffi::Array<Any> inputs{nullptr};
     ffi::Array<Any> attrs{nullptr};
-    ffi::Array<ffi::String> outputs{ObjectPtr<Object>{nullptr}};
+    ffi::Array<ffi::String> outputs{ffi::ObjectPtr<ffi::Object>{nullptr}};
     // Parse the entry
     try {
       const auto* arr = inst_entry.as<ffi::ArrayObj>();
@@ -473,9 +479,9 @@ Trace TraceNode::WithDecision(Instruction inst, Any decision, bool remove_postpr
 
 Trace TraceNode::Simplified(bool remove_postproc) const {
   int n_insts = GetNumValidInstructions(this->insts, remove_postproc);
-  std::unordered_set<const Object*> used_rvs;
+  std::unordered_set<const ffi::Object*> used_rvs;
   std::vector<Instruction> new_insts;
-  std::unordered_map<Instruction, Any, ObjectPtrHash, ObjectPtrEqual> new_decisions;
+  std::unordered_map<Instruction, Any, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> new_decisions;
   new_insts.reserve(n_insts);
   new_decisions.reserve(this->decisions.size());
   for (int inst_idx = n_insts - 1; inst_idx >= 0; --inst_idx) {
@@ -485,7 +491,7 @@ Trace TraceNode::Simplified(bool remove_postproc) const {
     bool all_defs_dead = inst->kind->is_pure;
     if (all_defs_dead) {
       for (const Any& obj : inst->outputs) {
-        if (auto* obj_ptr = obj.as<Object>()) {
+        if (auto* obj_ptr = obj.as<ffi::Object>()) {
           if (used_rvs.count(obj_ptr)) {
             all_defs_dead = false;
             break;
@@ -508,10 +514,10 @@ Trace TraceNode::Simplified(bool remove_postproc) const {
       if (obj == nullptr) {
         continue;
       } else if (obj.as<SBlockRVNode>() || obj.as<LoopRVNode>() || obj.as<VarNode>()) {
-        used_rvs.insert(obj.as<Object>());
+        used_rvs.insert(obj.as<ffi::Object>());
         continue;
       } else if (auto prim_expr = obj.as<PrimExpr>()) {
-        PostOrderVisit(*prim_expr, [&used_rvs](const ObjectRef& obj) -> void {
+        PostOrderVisit(*prim_expr, [&used_rvs](const ffi::ObjectRef& obj) -> void {
           if (obj.as<VarNode>()) {
             used_rvs.insert(obj.get());
           }
@@ -583,7 +589,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            })
       .def_method("s_tir.schedule.TraceGetDecision", &TraceNode::GetDecision)
       .def("s_tir.schedule.TraceAppend",
-           [](Trace self, Instruction inst, ffi::Optional<ObjectRef> decision) {
+           [](Trace self, Instruction inst, ffi::Optional<ffi::ObjectRef> decision) {
              if (decision.defined()) {
                return self->Append(inst, decision.value());
              } else {

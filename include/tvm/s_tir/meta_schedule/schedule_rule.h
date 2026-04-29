@@ -70,7 +70,7 @@ class ScheduleRuleNode : public ffi::Object {
   virtual ScheduleRule Clone() const = 0;
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.ScheduleRule", ScheduleRuleNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.ScheduleRule", ScheduleRuleNode, ffi::Object);
 };
 
 /*!
@@ -314,7 +314,7 @@ class ScheduleRule : public ffi::ObjectRef {
   /*! \brief Create default schedule rules for RISCV CPU (RVV) */
   TVM_DLL static ffi::Array<ScheduleRule, void> DefaultRISCV(int vlen);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ScheduleRule, ObjectRef, ScheduleRuleNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ScheduleRule, ffi::ObjectRef, ScheduleRuleNode);
 };
 
 /*! \brief The schedule rule with customized methods on the python-side. */

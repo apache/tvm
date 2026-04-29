@@ -28,7 +28,7 @@ namespace meta_schedule {
 
 BuilderInput::BuilderInput(IRModule mod, Target target,
                            ffi::Optional<ffi::Map<ffi::String, runtime::Tensor>> params) {
-  ObjectPtr<BuilderInputNode> n = ffi::make_object<BuilderInputNode>();
+  ffi::ObjectPtr<BuilderInputNode> n = ffi::make_object<BuilderInputNode>();
   n->mod = std::move(mod);
   n->target = std::move(target);
   n->params = std::move(params);
@@ -37,14 +37,14 @@ BuilderInput::BuilderInput(IRModule mod, Target target,
 
 BuilderResult::BuilderResult(ffi::Optional<ffi::String> artifact_path,
                              ffi::Optional<ffi::String> error_msg) {
-  ObjectPtr<BuilderResultNode> n = ffi::make_object<BuilderResultNode>();
+  ffi::ObjectPtr<BuilderResultNode> n = ffi::make_object<BuilderResultNode>();
   n->artifact_path = std::move(artifact_path);
   n->error_msg = std::move(error_msg);
   data_ = std::move(n);
 }
 
 Builder Builder::PyBuilder(BuilderNode::FBuild f_build) {
-  ObjectPtr<PyBuilderNode> n = ffi::make_object<PyBuilderNode>();
+  ffi::ObjectPtr<PyBuilderNode> n = ffi::make_object<PyBuilderNode>();
   n->f_build = std::move(f_build);
   return Builder(std::move(n));
 }

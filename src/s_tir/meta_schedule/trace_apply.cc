@@ -121,10 +121,10 @@ std::vector<SBlockRV> ApplyAnchorTrace(Schedule sch, Trace anchor_trace) {
   const auto block_names_orig = GetSBlockNames(sch->mod());
   const auto sch_orig = sch->Copy();
 
-  std::unordered_map<const Object*, const Object*> rv_map;
+  std::unordered_map<const ffi::Object*, const ffi::Object*> rv_map;
   // Blocks and loops that appear in the anchor trace but are not part of the target schedule.
-  std::unordered_set<SBlockRV, ObjectPtrHash, ObjectPtrEqual> foreign_blocks;
-  std::unordered_set<LoopRV, ObjectPtrHash, ObjectPtrEqual> foreign_loops;
+  std::unordered_set<SBlockRV, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> foreign_blocks;
+  std::unordered_set<LoopRV, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> foreign_loops;
 
   // Instructions in the anchor trace can be applied only if all inputs are part of the target
   // schedule.

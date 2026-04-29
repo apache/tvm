@@ -57,7 +57,7 @@ class TensorIntrinMismatchError : public ScheduleError {
 
   IRModule mod() const final { return lhs_mod_; }
 
-  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {lhs_stmt_}; }
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {lhs_stmt_}; }
 
  private:
   IRModule lhs_mod_;
@@ -618,11 +618,11 @@ void TensorizeComparator::EmitError(const std::string& error_message) {
 
 /******** AutoTensorize Extractor ********/
 
-bool AutoTensorizeComparator::VisitExprDefault_(const Object* op, const PrimExpr& other) {
+bool AutoTensorizeComparator::VisitExprDefault_(const ffi::Object* op, const PrimExpr& other) {
   return false;
 }
 
-bool AutoTensorizeComparator::VisitStmtDefault_(const Object* op, const Stmt& other) {
+bool AutoTensorizeComparator::VisitStmtDefault_(const ffi::Object* op, const Stmt& other) {
   return false;
 }
 

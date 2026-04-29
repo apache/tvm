@@ -44,7 +44,7 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
   explicit ThreadSyncPlanner(StorageScope sync_scope) : sync_scope_(sync_scope) {}
 
   // The syncs inserted before each statement
-  std::unordered_set<const Object*> syncs_inserted_;
+  std::unordered_set<const ffi::Object*> syncs_inserted_;
 
  protected:
   bool Enabled(const VarNode* buf, const StorageScope& scope) const final {
@@ -312,7 +312,7 @@ class ThreadSyncAfterWaitQueueInserter : public StmtExprMutator {
 
 class ThreadSyncInserter : public StmtExprMutator {
  public:
-  ThreadSyncInserter(StorageScope sync_scope, const std::unordered_set<const Object*>& syncs)
+  ThreadSyncInserter(StorageScope sync_scope, const std::unordered_set<const ffi::Object*>& syncs)
       : sync_scope_(sync_scope), syncs_(syncs) {}
 
   Stmt VisitStmt(const Stmt& stmt) final {
@@ -332,7 +332,7 @@ class ThreadSyncInserter : public StmtExprMutator {
  private:
   // data structure.
   StorageScope sync_scope_;
-  const std::unordered_set<const Object*>& syncs_;
+  const std::unordered_set<const ffi::Object*>& syncs_;
 };
 
 Stmt ThreadSync(Stmt stmt, std::string storage_scope) {

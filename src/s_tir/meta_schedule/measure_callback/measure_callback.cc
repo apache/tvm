@@ -36,7 +36,7 @@ void PyMeasureCallbackNode::Apply(const TaskScheduler& task_scheduler,          
 
 MeasureCallback MeasureCallback::PyMeasureCallback(PyMeasureCallbackNode::FApply f_apply,  //
                                                    PyMeasureCallbackNode::FAsString f_as_string) {
-  ObjectPtr<PyMeasureCallbackNode> n = ffi::make_object<PyMeasureCallbackNode>();
+  ffi::ObjectPtr<PyMeasureCallbackNode> n = ffi::make_object<PyMeasureCallbackNode>();
   n->f_apply = std::move(f_apply);
   n->f_as_string = std::move(f_as_string);
   return MeasureCallback(n);

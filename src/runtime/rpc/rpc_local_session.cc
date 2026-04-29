@@ -95,7 +95,7 @@ void LocalSession::CallFunc(RPCSession::PackedFuncHandle func, ffi::PackedArgs a
   // unwrap RPCObjectRef in case we are directly using it to call LocalSession
   for (int i = 0; i < args.size(); ++i) {
     if (auto opt_rpc_obj = args[i].as<RPCObjectRef>()) {
-      packed_args[i] = static_cast<const Object*>(opt_rpc_obj.value()->object_handle());
+      packed_args[i] = static_cast<const ffi::Object*>(opt_rpc_obj.value()->object_handle());
     } else {
       packed_args[i] = args[i];
     }

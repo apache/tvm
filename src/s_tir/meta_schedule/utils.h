@@ -71,12 +71,6 @@ namespace tvm {
 namespace s_tir {
 namespace meta_schedule {
 
-using ffi::Object;
-using ffi::ObjectPtr;
-using ffi::ObjectPtrEqual;
-using ffi::ObjectPtrHash;
-using ffi::ObjectRef;
-
 /*!
  * \brief Class to accumulate an log message on the python side. Do not use directly, instead use
  * TVM_PY_LOG(DEBUG), TVM_PY_LOG(INFO), TVM_PY_LOG(WARNING), TVM_PY_ERROR(ERROR).
@@ -232,7 +226,7 @@ inline ffi::String SHash2Str(Workload::THashCode hash_code) { return std::to_str
  * \param obj The TVM object.
  * \return The hex string representation of the hash code.
  */
-inline ffi::String SHash2Hex(const ObjectRef& obj) {
+inline ffi::String SHash2Hex(const ffi::ObjectRef& obj) {
   std::ostringstream os;
   size_t hash_code = 0;
   if (obj.defined()) {
@@ -461,7 +455,7 @@ inline double GetRunMsMedian(const RunnerResult& runner_result) {
  * \param obj The object to be converted
  * \return The array of floating point numbers
  */
-inline ffi::Array<FloatImm> AsFloatArray(const ObjectRef& obj) {
+inline ffi::Array<FloatImm> AsFloatArray(const ffi::ObjectRef& obj) {
   const ffi::ArrayObj* arr = obj.as<ffi::ArrayObj>();
   TVM_FFI_CHECK(arr, TypeError) << "Expect an array, but gets: " << obj->GetTypeKey();
   ffi::Array<FloatImm> results;
@@ -489,7 +483,7 @@ inline ffi::Array<FloatImm> AsFloatArray(const ObjectRef& obj) {
  * \param obj The object to be converted
  * \return The array of integers
  */
-inline ffi::Array<Integer> AsIntArray(const ObjectRef& obj) {
+inline ffi::Array<Integer> AsIntArray(const ffi::ObjectRef& obj) {
   const ffi::ArrayObj* arr = obj.as<ffi::ArrayObj>();
   TVM_FFI_CHECK(arr, TypeError) << "Expect an array, but gets: " << obj->GetTypeKey();
   ffi::Array<Integer> results;

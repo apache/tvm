@@ -192,7 +192,7 @@ SpaceGenerator SpaceGenerator::PySpaceGenerator(
     ffi::Optional<ffi::Map<Mutator, FloatImm>> mutator_probs,
     FInitializeWithTuneContext f_initialize_with_tune_context,
     FGenerateDesignSpace f_generate_design_space, FClone f_clone) {
-  ObjectPtr<PySpaceGeneratorNode> n = ffi::make_object<PySpaceGeneratorNode>();
+  ffi::ObjectPtr<PySpaceGeneratorNode> n = ffi::make_object<PySpaceGeneratorNode>();
   n->sch_rules = sch_rules;
   n->postprocs = postprocs;
   n->mutator_probs = mutator_probs;

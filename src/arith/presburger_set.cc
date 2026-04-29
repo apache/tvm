@@ -94,7 +94,7 @@ static void Update(const PrimExpr& constraint, PresburgerSetNode* intset) {
 
 PresburgerSet::PresburgerSet(const PrimExpr& constraint) {
   ffi::Array<Var> vars;
-  PostOrderVisit(constraint, [&vars](const ObjectRef& obj) {
+  PostOrderVisit(constraint, [&vars](const ffi::ObjectRef& obj) {
     if (const VarNode* new_var = obj.as<VarNode>()) {
       auto var = ffi::GetRef<Var>(new_var);
       if (!std::any_of(vars.begin(), vars.end(), [&var](const Var& v) { return v.same_as(var); })) {

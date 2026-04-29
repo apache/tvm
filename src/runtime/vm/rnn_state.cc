@@ -493,7 +493,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
     TVM_FFI_ICHECK_EQ(f_sets.size(), init_layer_value.size())
         << "The number of state setters should be the same as the number of states per layer, "
         << "but got " << f_sets.size() << " and " << init_layer_value.size() << " respectively.";
-    ObjectPtr<RNNStateImpObj> n =
+    ffi::ObjectPtr<RNNStateImpObj> n =
         ffi::make_object<RNNStateImpObj>(num_layers, reserved_num_seqs, max_history, device,
                                          std::move(f_gets), std::move(f_sets), init_layer_value);
     return RNNState(std::move(n));

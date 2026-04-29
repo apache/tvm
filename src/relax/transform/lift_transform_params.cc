@@ -65,11 +65,11 @@ struct BaseCollectInfo {
    * model weights, and computed tensors that require neither model
    * weights nor runtime arguments (e.g. `R.zeros([16], "float16")`).
    */
-  std::unordered_set<ffi::Variant<relax::Var, tirx::Var>, ObjectPtrHash, ObjectPtrEqual>
+  std::unordered_set<ffi::Variant<relax::Var, tirx::Var>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       requires_compile_time_param;
 
   /*! \brief Variables that are required at runtime */
-  std::unordered_set<ffi::Variant<relax::Var, tirx::Var>, ObjectPtrHash, ObjectPtrEqual>
+  std::unordered_set<ffi::Variant<relax::Var, tirx::Var>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       required_at_runtime;
 
  protected:
@@ -381,7 +381,8 @@ class BaseLiftableBindingCollector : public ExprVisitor {
     return true;
   }
 
-  std::unordered_set<ffi::Variant<Var, tirx::Var>, ObjectPtrHash, ObjectPtrEqual> liftable_vars_;
+  std::unordered_set<ffi::Variant<Var, tirx::Var>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+      liftable_vars_;
   bool is_in_dataflow_block_{false};
 };
 
@@ -392,31 +393,33 @@ class LocalLiftableBindingCollector : public BaseLiftableBindingCollector {
     visitor(func);
     visitor.info_.orig_func = func;
 
-    auto set_union = [&](std::unordered_set<ffi::Variant<relax::Var, tirx::Var>, ObjectPtrHash,
-                                            ObjectPtrEqual>& target_set,
-                         const std::unordered_set<ffi::Variant<relax::Var, tirx::Var>,
-                                                  ObjectPtrHash, ObjectPtrEqual>& source_set,
-                         const ffi::Map<relax::Var, Expr>& var_remap,
-                         const ffi::Map<tirx::Var, PrimExpr>& tir_var_remap) {
-      // In-place update the set in global info by unioning with the local set, variable
-      // mappings are applied.
-      for (const auto& relax_or_tir_var : source_set) {
-        if (relax_or_tir_var.as<relax::VarNode>()) {
-          if (auto it = var_remap.find(Downcast<Var>(relax_or_tir_var)); it != var_remap.end()) {
-            target_set.insert(Downcast<relax::Var>((*it).second));
-          } else {
-            target_set.insert(Downcast<relax::Var>(relax_or_tir_var));
+    auto set_union =
+        [&](std::unordered_set<ffi::Variant<relax::Var, tirx::Var>, ffi::ObjectPtrHash,
+                               ffi::ObjectPtrEqual>& target_set,
+            const std::unordered_set<ffi::Variant<relax::Var, tirx::Var>, ffi::ObjectPtrHash,
+                                     ffi::ObjectPtrEqual>& source_set,
+            const ffi::Map<relax::Var, Expr>& var_remap,
+            const ffi::Map<tirx::Var, PrimExpr>& tir_var_remap) {
+          // In-place update the set in global info by unioning with the local set, variable
+          // mappings are applied.
+          for (const auto& relax_or_tir_var : source_set) {
+            if (relax_or_tir_var.as<relax::VarNode>()) {
+              if (auto it = var_remap.find(Downcast<Var>(relax_or_tir_var));
+                  it != var_remap.end()) {
+                target_set.insert(Downcast<relax::Var>((*it).second));
+              } else {
+                target_set.insert(Downcast<relax::Var>(relax_or_tir_var));
+              }
+            } else {
+              if (auto it = tir_var_remap.find(Downcast<tirx::Var>(relax_or_tir_var));
+                  it != tir_var_remap.end()) {
+                target_set.insert(Downcast<tirx::Var>((*it).second));
+              } else {
+                target_set.insert(Downcast<tirx::Var>(relax_or_tir_var));
+              }
+            }
           }
-        } else {
-          if (auto it = tir_var_remap.find(Downcast<tirx::Var>(relax_or_tir_var));
-              it != tir_var_remap.end()) {
-            target_set.insert(Downcast<tirx::Var>((*it).second));
-          } else {
-            target_set.insert(Downcast<tirx::Var>(relax_or_tir_var));
-          }
-        }
-      }
-    };
+        };
 
     if (global_info) {
       set_union(global_info->requires_compile_time_param, visitor.info_.requires_compile_time_param,

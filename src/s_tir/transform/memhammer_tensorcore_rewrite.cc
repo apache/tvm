@@ -222,7 +222,7 @@ Stmt RewriteWmmaStore(Stmt stmt) {
   // TODO(tian): the assumption that the RHS of BufferStore is BufferLoad may not be accurate
   const BufferStoreNode* buf_store = TVM_TYPE_AS(body, BufferStoreNode);
   const BufferLoadNode* buf_load = nullptr;
-  PostOrderVisit(buf_store->value, [&](const ObjectRef& obj) {
+  PostOrderVisit(buf_store->value, [&](const ffi::ObjectRef& obj) {
     const BufferLoadNode* load = obj.as<BufferLoadNode>();
     if (load && load->buffer.scope() == "wmma.accumulator") {
       TVM_FFI_ICHECK(buf_load == nullptr || buf_load->buffer.same_as(load->buffer))
@@ -434,7 +434,7 @@ Stmt RewriteMmaStore(Stmt stmt) {
   // Step 2. Find matrixC buffer
   const BufferStoreNode* buf_store = TVM_TYPE_AS(body, BufferStoreNode);
   const BufferLoadNode* buf_load = nullptr;
-  PostOrderVisit(buf_store->value, [&](const ObjectRef& obj) {
+  PostOrderVisit(buf_store->value, [&](const ffi::ObjectRef& obj) {
     const BufferLoadNode* load = obj.as<BufferLoadNode>();
     if (load && load->buffer.scope() == "m16n8k8.matrixC") {
       TVM_FFI_ICHECK(buf_load == nullptr || buf_load->buffer.same_as(load->buffer))

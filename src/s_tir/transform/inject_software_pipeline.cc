@@ -76,7 +76,8 @@ struct PipelineAnnotation {
   bool async;
 };
 
-using PipelineInfo = std::unordered_map<SBlock, PipelineAnnotation, ObjectPtrHash, ObjectPtrEqual>;
+using PipelineInfo =
+    std::unordered_map<SBlock, PipelineAnnotation, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>;
 
 struct BufferAccessInfo {
   int def = -1;  // the defining stage of the buffer
@@ -319,7 +320,7 @@ class PipelineRewriter : public StmtExprMutator {
  public:
   static Stmt Rewrite(
       ffi::Map<Var, Buffer> buffer_data_to_buffer,
-      const std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual>& double_buffers,
+      const std::unordered_set<Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& double_buffers,
       const ffi::Array<Buffer> pipeline_allocs, const For& pipeline_loop,
       const PipelineInfo& pipeline_info,
       const std::unordered_map<const VarNode*, FragmentInfo>& fragment_info,
@@ -330,12 +331,13 @@ class PipelineRewriter : public StmtExprMutator {
   }
 
  private:
-  PipelineRewriter(ffi::Map<Var, Buffer> buffer_data_to_buffer,
-                   const std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual>& double_buffers,
-                   const ffi::Array<Buffer>& pipeline_allocs, const For& pipeline_loop,
-                   const PipelineInfo& pipeline_info,
-                   const std::unordered_map<const VarNode*, FragmentInfo>& fragment_info,
-                   const ffi::Map<ffi::String, ffi::Any> preserved_annotations)
+  PipelineRewriter(
+      ffi::Map<Var, Buffer> buffer_data_to_buffer,
+      const std::unordered_set<Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& double_buffers,
+      const ffi::Array<Buffer>& pipeline_allocs, const For& pipeline_loop,
+      const PipelineInfo& pipeline_info,
+      const std::unordered_map<const VarNode*, FragmentInfo>& fragment_info,
+      const ffi::Map<ffi::String, ffi::Any> preserved_annotations)
 
       : buffer_data_to_buffer_(std::move(buffer_data_to_buffer)),
         double_buffers_(double_buffers),
@@ -348,7 +350,7 @@ class PipelineRewriter : public StmtExprMutator {
   Stmt BuildPipeline() {
     // Step 1: Analyze accesses to the buffers in the pipeline and compute the number of versions
     // need to maintain for each buffer.
-    std::unordered_map<Buffer, BufferAccessInfo, ObjectPtrHash, ObjectPtrEqual> infos =
+    std::unordered_map<Buffer, BufferAccessInfo, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> infos =
         GetBufferAccessInfo();
     for (const Buffer& buffer : pipeline_allocs_) {
       int num_versions = ComputeBufferVersions(buffer, infos.at(buffer));
@@ -405,9 +407,9 @@ class PipelineRewriter : public StmtExprMutator {
    * This method check the 'define' and 'use' stage of the buffers in the software pipeline, which
    * can be used to compute the number of versions needed to maintain after rewriting.
    */
-  std::unordered_map<Buffer, BufferAccessInfo, ObjectPtrHash, ObjectPtrEqual>
+  std::unordered_map<Buffer, BufferAccessInfo, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
   GetBufferAccessInfo() {
-    std::unordered_map<Buffer, BufferAccessInfo, ObjectPtrHash, ObjectPtrEqual> infos;
+    std::unordered_map<Buffer, BufferAccessInfo, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> infos;
     for (const auto& pair : pipeline_info_) {
       const SBlock& block = pair.first;
       int stage = pair.second.stage;
@@ -533,7 +535,7 @@ class PipelineRewriter : public StmtExprMutator {
    * \return The resized buffer.
    */
   Buffer RewriteAllocBuffer(const Buffer& buffer, int num_versions) {
-    ObjectPtr<BufferNode> new_buffer = ffi::make_object<BufferNode>(*(buffer.get()));
+    ffi::ObjectPtr<BufferNode> new_buffer = ffi::make_object<BufferNode>(*(buffer.get()));
     new_buffer->shape.insert(new_buffer->shape.begin(), PrimExpr(num_versions));
     if (new_buffer->strides.size()) {
       TVM_FFI_ICHECK(new_buffer->strides.size() + 1 == new_buffer->shape.size());
@@ -973,7 +975,7 @@ class PipelineRewriter : public StmtExprMutator {
 
   arith::Analyzer analyzer_;
   ffi::Map<Var, Buffer> buffer_data_to_buffer_;
-  const std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual>& double_buffers_;
+  const std::unordered_set<Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& double_buffers_;
   ffi::Array<Buffer> pipeline_allocs_;
   For pipeline_loop_;
   PipelineInfo pipeline_info_;
@@ -993,10 +995,11 @@ class PipelineRewriter : public StmtExprMutator {
  * \param[out] dep_dst2src Optional, a map to store dependency edges from the
  * destination to the source.
  */
-void BuildDependencyGraph(
-    const ffi::Array<SBlock>& blocks,
-    std::unordered_map<SBlock, ffi::Array<SBlock>, ObjectPtrHash, ObjectPtrEqual>* dep_src2dst,
-    std::unordered_map<SBlock, ffi::Array<SBlock>, ObjectPtrHash, ObjectPtrEqual>* dep_dst2src) {
+void BuildDependencyGraph(const ffi::Array<SBlock>& blocks,
+                          std::unordered_map<SBlock, ffi::Array<SBlock>, ffi::ObjectPtrHash,
+                                             ffi::ObjectPtrEqual>* dep_src2dst,
+                          std::unordered_map<SBlock, ffi::Array<SBlock>, ffi::ObjectPtrHash,
+                                             ffi::ObjectPtrEqual>* dep_dst2src) {
   std::unordered_map<Var, ffi::Array<SBlock>> buffer_writers;
 
   for (const SBlock& block : blocks) {
@@ -1058,7 +1061,8 @@ class PipelineInjector : private StmtExprMutator {
       used_orders.insert(order);
     }
 
-    std::unordered_map<SBlock, ffi::Array<SBlock>, ObjectPtrHash, ObjectPtrEqual> dep_src2dst;
+    std::unordered_map<SBlock, ffi::Array<SBlock>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+        dep_src2dst;
     BuildDependencyGraph(original_order, &dep_src2dst, nullptr);
 
     for (const auto& pair : dep_src2dst) {
@@ -1249,7 +1253,7 @@ class PipelineInjector : private StmtExprMutator {
 
   ffi::Map<Var, Buffer> buffer_data_to_buffer_;
   std::unordered_map<const VarNode*, FragmentInfo> fragment_info_;
-  std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual> double_buffers;
+  std::unordered_set<Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> double_buffers;
   ffi::Optional<ffi::String> global_symbol_;
 };
 

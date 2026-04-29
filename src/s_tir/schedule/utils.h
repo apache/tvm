@@ -416,8 +416,9 @@ inline bool HasBlock(const Schedule& sch, const std::string& block_name) {
  * \param rv_map The substitution map for variables.
  * \return The transformed objects.
  */
-ffi::Array<Any> TranslateInputRVs(const ffi::Array<Any>& inputs,
-                                  const std::unordered_map<const Object*, const Object*>& rv_map);
+ffi::Array<Any> TranslateInputRVs(
+    const ffi::Array<Any>& inputs,
+    const std::unordered_map<const ffi::Object*, const ffi::Object*>& rv_map);
 
 /*!
  * \brief Update the variable substitution map according to the new outputs.
@@ -426,7 +427,7 @@ ffi::Array<Any> TranslateInputRVs(const ffi::Array<Any>& inputs,
  * \param rv_map The substitution map for variables.
  */
 void TranslateAddOutputRVs(const ffi::Array<Any>& old_outputs, const ffi::Array<Any>& new_outputs,
-                           std::unordered_map<const Object*, const Object*>* rv_map);
+                           std::unordered_map<const ffi::Object*, const ffi::Object*>* rv_map);
 
 /*!
  * \brief Counts the number of trace instructions.

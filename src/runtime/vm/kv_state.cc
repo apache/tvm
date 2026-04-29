@@ -27,7 +27,7 @@ namespace tvm {
 namespace runtime {
 namespace vm {
 
-// Register Object Type
+// Register ffi::Object Type
 
 // KV State base methods
 TVM_FFI_STATIC_INIT_BLOCK() {

@@ -35,12 +35,6 @@
 
 namespace tvm {
 
-using ffi::Object;
-using ffi::ObjectPtr;
-using ffi::ObjectPtrEqual;
-using ffi::ObjectPtrHash;
-using ffi::ObjectRef;
-
 /*!
  * \brief The source name in the Span
  * \sa SourceNameNode, Span
@@ -49,7 +43,7 @@ class SourceName;
 /*!
  * \brief The name of a source fragment.
  */
-class SourceNameNode : public Object {
+class SourceNameNode : public ffi::Object {
  public:
   /*! \brief The source name. */
   ffi::String name;
@@ -60,14 +54,14 @@ class SourceNameNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.SourceName", SourceNameNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.SourceName", SourceNameNode, ffi::Object);
 };
 
 /*!
  * \brief The source name of a file span.
  * \sa SourceNameNode, Span
  */
-class SourceName : public ObjectRef {
+class SourceName : public ffi::ObjectRef {
  public:
   /*!
    * \brief Get an SourceName for a given operator name.
@@ -77,7 +71,7 @@ class SourceName : public ObjectRef {
    */
   TVM_DLL static SourceName Get(const ffi::String& name);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(SourceName, ObjectRef, SourceNameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(SourceName, ffi::ObjectRef, SourceNameNode);
 };
 
 /*!
@@ -87,7 +81,7 @@ class Span;
 /*!
  * \brief Stores locations in frontend source that generated a node.
  */
-class SpanNode : public Object {
+class SpanNode : public ffi::Object {
  public:
   /*! \brief The source name. */
   SourceName source_name;
@@ -111,17 +105,17 @@ class SpanNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO("ir.Span", SpanNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("ir.Span", SpanNode, ffi::Object);
 };
 
-class Span : public ObjectRef {
+class Span : public ffi::ObjectRef {
  public:
   TVM_DLL Span(SourceName source_name, int line, int end_line, int column, int end_column);
 
   /*! \brief Merge two spans into one which captures the combined regions. */
   TVM_DLL Span Merge(const Span& other) const;
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Span, ObjectRef, SpanNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Span, ffi::ObjectRef, SpanNode);
 };
 
 /*!
@@ -159,7 +153,7 @@ class SequentialSpan : public Span {
  */
 class Source;
 
-class SourceNode : public Object {
+class SourceNode : public ffi::Object {
  public:
   /*! \brief The source name. */
   SourceName source_name;
@@ -176,15 +170,15 @@ class SourceNode : public Object {
         .def_ro("source_name", &SourceNode::source_name)
         .def_ro("source", &SourceNode::source);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.Source", SourceNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.Source", SourceNode, ffi::Object);
 };
 
-class Source : public ObjectRef {
+class Source : public ffi::ObjectRef {
  public:
   TVM_DLL Source(SourceName src_name, std::string source);
   TVM_DLL tvm::ffi::String GetLine(int line);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Source, ObjectRef, SourceNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Source, ffi::ObjectRef, SourceNode);
 };
 
 /*!
@@ -194,7 +188,7 @@ class SourceMap;
 /*!
  * \brief Stores locations in frontend source that generated a node.
  */
-class SourceMapObj : public Object {
+class SourceMapObj : public ffi::Object {
  public:
   /*! \brief The source mapping. */
   ffi::Map<SourceName, Source> source_map;
@@ -205,10 +199,10 @@ class SourceMapObj : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.SourceMap", SourceMapObj, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.SourceMap", SourceMapObj, ffi::Object);
 };
 
-class SourceMap : public ObjectRef {
+class SourceMap : public ffi::ObjectRef {
  public:
   explicit SourceMap(ffi::Map<SourceName, Source> source_map);
 
@@ -224,7 +218,7 @@ class SourceMap : public ObjectRef {
     return static_cast<SourceMapObj*>(get_mutable());
   }
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SourceMap, ObjectRef, SourceMapObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SourceMap, ffi::ObjectRef, SourceMapObj);
 };
 
 }  // namespace tvm

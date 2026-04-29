@@ -83,7 +83,7 @@ bool MatchAttrs(const Any& attrs, const ffi::Map<ffi::String, ffi::Any>& attribu
         << "Type " << attrs.GetTypeKey() << " do not have reflection metadata";
     size_t match_count = 0;
     bool success = true;
-    const Object* obj = attrs.cast<const Object*>();
+    const ffi::Object* obj = attrs.cast<const ffi::Object*>();
     ffi::reflection::ForEachFieldInfoWithEarlyStop(
         type_info, [&](const TVMFFIFieldInfo* field_info) {
           ffi::String field_name(field_info->name);

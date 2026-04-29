@@ -59,12 +59,6 @@
 
 namespace tvm {
 
-using ffi::Object;
-using ffi::ObjectPtr;
-using ffi::ObjectPtrEqual;
-using ffi::ObjectPtrHash;
-using ffi::ObjectRef;
-
 /*!
  * \brief Type is the base type of all types.
  *
@@ -77,7 +71,7 @@ using ffi::ObjectRef;
  * There are also advanced types to support generic(polymorphic types).
  * \sa Type
  */
-class TypeNode : public Object {
+class TypeNode : public ffi::Object {
  public:
   /*!
    * \brief Span that points to the original source code.
@@ -95,16 +89,16 @@ class TypeNode : public Object {
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
 
   static constexpr const uint32_t _type_child_slots = 14;
-  TVM_FFI_DECLARE_OBJECT_INFO("ir.Type", TypeNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("ir.Type", TypeNode, ffi::Object);
 };
 
 /*!
  * \brief Managed reference to TypeNode.
  * \sa TypeNode
  */
-class Type : public ObjectRef {
+class Type : public ffi::ObjectRef {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Type, ObjectRef, TypeNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Type, ffi::ObjectRef, TypeNode);
 };
 
 /*!

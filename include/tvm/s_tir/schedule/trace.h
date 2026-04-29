@@ -113,7 +113,7 @@ class TraceNode : public ffi::Object {
    * \param remove_postproc If postprocessing instructions are removed
    * \return The JSON-style object
    */
-  ObjectRef AsJSON(bool remove_postproc) const;
+  ffi::ObjectRef AsJSON(bool remove_postproc) const;
   /*!
    * \brief Serialize the trace as a sequence of python statements
    * \param remove_postproc If postprocessing instructions are removed
@@ -156,7 +156,7 @@ class Trace : public ffi::ObjectRef {
    * \param json The JSON-serialized trace
    * \param sch The TensorIR schedule
    */
-  static void ApplyJSONToSchedule(ObjectRef json, Schedule sch);
+  static void ApplyJSONToSchedule(ffi::ObjectRef json, Schedule sch);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Trace, ffi::ObjectRef, TraceNode);
 };

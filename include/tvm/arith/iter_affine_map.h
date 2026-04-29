@@ -86,7 +86,7 @@ class IterMapExpr : public PrimExpr {
  *  IterMark is used to mark source expression as a valid
  *  iterator to make future analysis easy.
  */
-class IterMarkNode : public Object {
+class IterMarkNode : public ffi::Object {
  public:
   /*!
    * \brief The source expression, can either be
@@ -106,14 +106,14 @@ class IterMarkNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindDAGNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.IterMark", IterMarkNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.IterMark", IterMarkNode, ffi::Object);
 };
 
 /*!
  * \brief Managed reference to IterMarkExprNode.
  * \sa IterMarkExprNode
  */
-class IterMark : public ObjectRef {
+class IterMark : public ffi::ObjectRef {
  public:
   /*!
    * \brief constructor.
@@ -122,7 +122,7 @@ class IterMark : public ObjectRef {
    */
   TVM_DLL IterMark(PrimExpr source, PrimExpr extent);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IterMark, ObjectRef, IterMarkNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IterMark, ffi::ObjectRef, IterMarkNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(IterMarkNode);
 };
 
@@ -239,7 +239,7 @@ enum IterMapLevel {
 /*!
  * \brief Result of DetectIterMap.
  */
-class IterMapResultNode : public Object {
+class IterMapResultNode : public ffi::Object {
  public:
   // The detected pattern if a match exists.
   ffi::Array<IterSumExpr> indices;
@@ -265,14 +265,14 @@ class IterMapResultNode : public Object {
         .def_ro("errors", &IterMapResultNode::errors)
         .def_ro("padding_predicate", &IterMapResultNode::padding_predicate);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.IterMapResult", IterMapResultNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.IterMapResult", IterMapResultNode, ffi::Object);
 };
 
 /*!
  * \brief Managed reference to IterMapResultNode.
  * \sa IterMapResultNode
  */
-class IterMapResult : public ObjectRef {
+class IterMapResult : public ffi::ObjectRef {
  public:
   // constructor
   IterMapResult() { data_ = ffi::make_object<IterMapResultNode>(); }

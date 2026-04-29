@@ -84,7 +84,7 @@ void MatchSymbolicVar(const Expr& arg, const Expr& constant,
 }
 
 std::tuple<ffi::Map<Var, Expr>, ffi::Map<tirx::Var, PrimExpr>> NormalizeBindings(
-    const Function& func, const ffi::Map<Any, ObjectRef>& untyped_params) {
+    const Function& func, const ffi::Map<Any, ffi::ObjectRef>& untyped_params) {
   TVM_FFI_ICHECK(func.defined());
   TVM_FFI_ICHECK(untyped_params.defined());
 
@@ -160,7 +160,7 @@ std::tuple<ffi::Map<Var, Expr>, ffi::Map<tirx::Var, PrimExpr>> NormalizeBindings
  * \param params params dict
  * \return Function
  */
-Function FunctionBindParams(Function func, const ffi::Map<Any, ObjectRef>& untyped_params) {
+Function FunctionBindParams(Function func, const ffi::Map<Any, ffi::ObjectRef>& untyped_params) {
   auto [bind_dict, symbolic_var_map] = NormalizeBindings(func, untyped_params);
 
   Expr bound_expr = Bind(func, bind_dict, symbolic_var_map);
@@ -174,7 +174,7 @@ Function FunctionBindParams(Function func, const ffi::Map<Any, ObjectRef>& untyp
  * \param param The param dict
  * \return The module after binding params.
  */
-IRModule BindParam(IRModule m, ffi::String func_name, ffi::Map<Any, ObjectRef> bind_params) {
+IRModule BindParam(IRModule m, ffi::String func_name, ffi::Map<Any, ffi::ObjectRef> bind_params) {
   IRModuleNode* new_module = m.CopyOnWrite();
   ffi::Map<GlobalVar, BaseFunc> functions = m->functions;
   for (const auto& func_pr : functions) {
@@ -206,7 +206,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 namespace transform {
 
-Pass BindParams(ffi::String func_name, ffi::Map<Any, ObjectRef> params) {
+Pass BindParams(ffi::String func_name, ffi::Map<Any, ffi::ObjectRef> params) {
   auto pass_func = [=](IRModule mod, PassContext pc) {
     return BindParam(std::move(mod), func_name, params);
   };

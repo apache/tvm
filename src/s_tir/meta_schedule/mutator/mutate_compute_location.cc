@@ -52,7 +52,8 @@ class MutateComputeLocationNode : public MutatorNode {
   ffi::Optional<Trace> Apply(const Trace& trace, TRandState* rand_state) final;
   // Inherit from `MutatorNode`
   Mutator Clone() const final {
-    ObjectPtr<MutateComputeLocationNode> n = ffi::make_object<MutateComputeLocationNode>(*this);
+    ffi::ObjectPtr<MutateComputeLocationNode> n =
+        ffi::make_object<MutateComputeLocationNode>(*this);
     return Mutator(n);
   }
 

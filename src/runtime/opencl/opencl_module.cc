@@ -44,8 +44,8 @@ namespace runtime {
 class OpenCLWrappedFunc {
  public:
   // initialize the OpenCL function.
-  void Init(OpenCLModuleNodeBase* m, ObjectPtr<Object> sptr, OpenCLModuleNode::KTRefEntry entry,
-            std::string func_name, std::vector<size_t> arg_size,
+  void Init(OpenCLModuleNodeBase* m, ffi::ObjectPtr<ffi::Object> sptr,
+            OpenCLModuleNode::KTRefEntry entry, std::string func_name, std::vector<size_t> arg_size,
             const ffi::Array<ffi::String>& launch_param_tags) {
     w_ = m->GetGlobalWorkspace();
     m_ = m;
@@ -103,7 +103,7 @@ class OpenCLWrappedFunc {
   // The module
   OpenCLModuleNodeBase* m_;
   // resource handle
-  ObjectPtr<Object> sptr_;
+  ffi::ObjectPtr<ffi::Object> sptr_;
   // global kernel id in the kernel table.
   OpenCLModuleNode::KTRefEntry entry_;
   // The name of the function.
@@ -141,7 +141,7 @@ cl::OpenCLWorkspace* OpenCLModuleNodeBase::GetGlobalWorkspace() {
 }
 
 ffi::Optional<ffi::Function> OpenCLModuleNodeBase::GetFunction(const ffi::String& name) {
-  ObjectPtr<Object> sptr_to_self = ffi::GetObjectPtr<Object>(this);
+  ffi::ObjectPtr<ffi::Object> sptr_to_self = ffi::GetObjectPtr<ffi::Object>(this);
   TVM_FFI_ICHECK_EQ(sptr_to_self.get(), this);
   auto opt_info = fmap_.Get(name);
   if (!opt_info.has_value()) return std::nullopt;
@@ -362,7 +362,7 @@ std::string OpenCLModuleNode::GetPreCompiledPrograms() {
 }
 
 ffi::Optional<ffi::Function> OpenCLModuleNode::GetFunction(const ffi::String& name) {
-  ObjectPtr<Object> sptr_to_self = ffi::GetObjectPtr<Object>(this);
+  ffi::ObjectPtr<ffi::Object> sptr_to_self = ffi::GetObjectPtr<ffi::Object>(this);
   TVM_FFI_ICHECK_EQ(sptr_to_self.get(), this);
   if (name == "opencl.GetPreCompiledPrograms") {
     return ffi::Function([sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) {

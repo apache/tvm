@@ -97,7 +97,7 @@ enum ScheduleDebugMask : uint32_t {
  * 5) A debug flag, if set, extra checking is enabled (debug_mask)
  * 6) A check flag, if set, enable prequisite check for schedule primitives (enable_check)
  */
-class ScheduleStateNode : public Object {
+class ScheduleStateNode : public ffi::Object {
  public:
   /*! \brief The AST of the module being scheduled */
   IRModule mod;
@@ -106,7 +106,7 @@ class ScheduleStateNode : public Object {
    * tracking the dependency inside the block scope,
    * and storing necessary information flags for scheduling
    */
-  std::unordered_map<StmtSRef, SBlockInfo, ObjectPtrHash, ObjectPtrEqual> block_info;
+  std::unordered_map<StmtSRef, SBlockInfo, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> block_info;
   /*! \brief The reverse mapping from block/for-loop to their corresponding srefs */
   std::unordered_map<const StmtNode*, StmtSRef> stmt2ref;
   /*!
@@ -158,7 +158,7 @@ class ScheduleStateNode : public Object {
   TVM_DLL void DebugVerify() const;
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.ScheduleState", ScheduleStateNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.ScheduleState", ScheduleStateNode, ffi::Object);
 
   /******** Property of blocks ********/
   /*! \brief Returns the SBlockInfo correpsonding to the block sref */
@@ -208,7 +208,7 @@ class ScheduleStateNode : public Object {
  * \brief Managed reference to ScheduleStateNode
  * \sa ScheduleStateNode
  */
-class ScheduleState : public ObjectRef {
+class ScheduleState : public ffi::ObjectRef {
  public:
   /*!
    * \brief Construct a schedule state from an IRModule
@@ -219,7 +219,7 @@ class ScheduleState : public ObjectRef {
    */
   TVM_DLL explicit ScheduleState(IRModule mod, int debug_mask = 0, bool enable_check = true);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ScheduleState, ObjectRef, ScheduleStateNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ScheduleState, ffi::ObjectRef, ScheduleStateNode);
 };
 
 }  // namespace s_tir

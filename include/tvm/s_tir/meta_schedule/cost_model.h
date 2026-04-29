@@ -75,7 +75,7 @@ class CostModelNode : public ffi::Object {
                                       const ffi::Array<MeasureCandidate>& candidates) = 0;
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.CostModel", CostModelNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.CostModel", CostModelNode, ffi::Object);
 };
 
 /*! \brief The cost model with customized methods on the python-side. */
@@ -155,7 +155,7 @@ class CostModel : public ffi::ObjectRef {
                                        PyCostModelNode::FUpdate f_update,    //
                                        PyCostModelNode::FPredict f_predict,  //
                                        PyCostModelNode::FAsString f_as_string);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(CostModel, ObjectRef, CostModelNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(CostModel, ffi::ObjectRef, CostModelNode);
 };
 
 }  // namespace meta_schedule

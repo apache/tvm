@@ -48,7 +48,7 @@ struct Visitor : StmtExprVisitor {
 }  // namespace
 
 TVM_STATIC_IR_FUNCTOR(CalleeCollector, vtable)
-    .set_dispatch<tirx::PrimFuncNode>([](const ObjectRef& func, CalleeCollector* collector) {
+    .set_dispatch<tirx::PrimFuncNode>([](const ffi::ObjectRef& func, CalleeCollector* collector) {
       Visitor visitor{collector};
       visitor(Downcast<tirx::PrimFunc>(func)->body);
     });

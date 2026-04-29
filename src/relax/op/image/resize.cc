@@ -41,7 +41,7 @@ Expr resize2d(Expr data, Expr size, ffi::Array<FloatImm> roi, ffi::String layout
               ffi::String method, ffi::String coordinate_transformation_mode,
               ffi::String rounding_method, double cubic_alpha, int cubic_exclude,
               double extrapolation_value, ffi::Optional<DataType> out_dtype) {
-  ObjectPtr<Resize2DAttrs> attrs = ffi::make_object<Resize2DAttrs>();
+  ffi::ObjectPtr<Resize2DAttrs> attrs = ffi::make_object<Resize2DAttrs>();
   attrs->roi = std::move(roi);
   attrs->layout = std::move(layout);
   attrs->method = std::move(method);
@@ -118,7 +118,7 @@ InferLayoutOutput InferLayoutResize2d(
   TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision data_layout;
-  ObjectPtr<Resize2DAttrs> new_attrs = ffi::make_object<Resize2DAttrs>(*attrs);
+  ffi::ObjectPtr<Resize2DAttrs> new_attrs = ffi::make_object<Resize2DAttrs>(*attrs);
 
   if (it != desired_layouts.end()) {
     // We have a desired layout for resize2d.
@@ -156,7 +156,7 @@ Expr resize3d(Expr data, Expr size, ffi::Array<FloatImm> roi, ffi::String layout
               ffi::String method, ffi::String coordinate_transformation_mode,
               ffi::String rounding_method, double cubic_alpha, int cubic_exclude,
               double extrapolation_value, ffi::Optional<DataType> out_dtype) {
-  ObjectPtr<Resize3DAttrs> attrs = ffi::make_object<Resize3DAttrs>();
+  ffi::ObjectPtr<Resize3DAttrs> attrs = ffi::make_object<Resize3DAttrs>();
   attrs->roi = std::move(roi);
   attrs->layout = std::move(layout);
   attrs->method = std::move(method);
@@ -234,7 +234,7 @@ InferLayoutOutput InferLayoutResize3d(
   TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision data_layout;
-  ObjectPtr<Resize3DAttrs> new_attrs = ffi::make_object<Resize3DAttrs>(*attrs);
+  ffi::ObjectPtr<Resize3DAttrs> new_attrs = ffi::make_object<Resize3DAttrs>(*attrs);
 
   if (it != desired_layouts.end()) {
     Layout desired_data_layout = (*it).second[0];
@@ -269,7 +269,7 @@ TVM_FFI_STATIC_INIT_BLOCK() { GridSampleAttrs::RegisterReflection(); }
 
 Expr grid_sample(Expr data, Expr grid, ffi::String method, ffi::String layout,
                  ffi::String padding_mode, bool align_corners) {
-  ObjectPtr<GridSampleAttrs> attrs = ffi::make_object<GridSampleAttrs>();
+  ffi::ObjectPtr<GridSampleAttrs> attrs = ffi::make_object<GridSampleAttrs>();
   attrs->method = std::move(method);
   attrs->layout = std::move(layout);
   attrs->padding_mode = std::move(padding_mode);

@@ -79,7 +79,7 @@ class OrderedUnionDatabaseNode : public DatabaseNode {
 };
 
 Database Database::OrderedUnionDatabase(ffi::Array<Database> databases) {
-  ObjectPtr<OrderedUnionDatabaseNode> n = ffi::make_object<OrderedUnionDatabaseNode>();
+  ffi::ObjectPtr<OrderedUnionDatabaseNode> n = ffi::make_object<OrderedUnionDatabaseNode>();
   n->databases = std::move(databases);
   return Database(n);
 }

@@ -64,7 +64,8 @@ class RandomComputeLocationNode : public ScheduleRuleNode {
 
   // Inherited from ScheduleRuleNode
   ScheduleRule Clone() const final {
-    ObjectPtr<RandomComputeLocationNode> n = ffi::make_object<RandomComputeLocationNode>(*this);
+    ffi::ObjectPtr<RandomComputeLocationNode> n =
+        ffi::make_object<RandomComputeLocationNode>(*this);
     return ScheduleRule(n);
   }
 

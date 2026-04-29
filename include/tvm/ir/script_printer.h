@@ -112,14 +112,14 @@ class PrinterConfigNode : public ffi::Object {
    */
   bool show_all_struct_info = true;
 
-  /* \brief Object path to be underlined */
+  /* \brief ffi::Object path to be underlined */
   ffi::Array<ffi::reflection::AccessPath> path_to_underline;
-  /*! \brief Object path to be annotated. */
+  /*! \brief ffi::Object path to be annotated. */
   ffi::Map<ffi::reflection::AccessPath, ffi::String> path_to_annotate;
-  /*! \brief Object to be underlined. */
-  ffi::Array<ObjectRef> obj_to_underline = ffi::Array<ObjectRef>();
-  /*! \brief Object to be annotated. */
-  ffi::Map<ObjectRef, ffi::String> obj_to_annotate = ffi::Map<ObjectRef, ffi::String>();
+  /*! \brief ffi::Object to be underlined. */
+  ffi::Array<ffi::ObjectRef> obj_to_underline = ffi::Array<ffi::ObjectRef>();
+  /*! \brief ffi::Object to be annotated. */
+  ffi::Map<ffi::ObjectRef, ffi::String> obj_to_annotate = ffi::Map<ffi::ObjectRef, ffi::String>();
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -149,31 +149,31 @@ class PrinterConfigNode : public ffi::Object {
   ffi::Array<ffi::String> GetBuiltinKeywords();
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.PrinterConfig", PrinterConfigNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.PrinterConfig", PrinterConfigNode, ffi::Object);
 };
 
-class TVM_DLL PrinterConfig : public ObjectRef {
+class TVM_DLL PrinterConfig : public ffi::ObjectRef {
  public:
   explicit PrinterConfig(
       ffi::Map<ffi::String, ffi::Any> config_dict = ffi::Map<ffi::String, ffi::Any>());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PrinterConfig, ffi::ObjectRef,
-                                                PrinterConfigNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PrinterConfig, ffi::ObjectRef, PrinterConfigNode);
 };
 
 /*! \brief TVMScript-based printer for IR nodes. */
 class TVMScriptPrinter {
  public:
   /* Convert the object to TVMScript format */
-  TVM_DLL static std::string Script(const ObjectRef& node, const ffi::Optional<PrinterConfig>& cfg);
+  TVM_DLL static std::string Script(const ffi::ObjectRef& node,
+                                    const ffi::Optional<PrinterConfig>& cfg);
   // Allow registration to be printer.
-  using FType = NodeFunctor<std::string(const ObjectRef&, const PrinterConfig&)>;
+  using FType = NodeFunctor<std::string(const ffi::ObjectRef&, const PrinterConfig&)>;
   TVM_DLL static FType& vtable();
 };
 
 #define TVM_OBJECT_ENABLE_SCRIPT_PRINTER()                                              \
   std::string Script(const ffi::Optional<PrinterConfig>& config = std::nullopt) const { \
-    return TVMScriptPrinter::Script(ffi::GetRef<ObjectRef>(this),                       \
+    return TVMScriptPrinter::Script(ffi::GetRef<ffi::ObjectRef>(this),                  \
                                     config.value_or(PrinterConfig()));                  \
   }
 

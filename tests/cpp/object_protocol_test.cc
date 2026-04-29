@@ -24,19 +24,13 @@
 namespace tvm {
 namespace test {
 
-using ffi::Object;
-using ffi::ObjectPtr;
-using ffi::ObjectPtrEqual;
-using ffi::ObjectPtrHash;
-using ffi::ObjectRef;
-
 using namespace tvm::runtime;
 
-class ObjBase : public Object {
+class ObjBase : public ffi::Object {
  public:
   // dynamically allocate slow
   static constexpr const uint32_t _type_child_slots = 1;
-  TVM_FFI_DECLARE_OBJECT_INFO("test.ObjBase", ObjBase, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("test.ObjBase", ObjBase, ffi::Object);
 };
 
 class ObjA : public ObjBase {
@@ -65,25 +59,25 @@ TEST(ObjectHierachy, Basic) {
   using namespace tvm::test;
   using namespace tvm::ffi;
 
-  ObjectRef refA(ffi::make_object<ObjA>());
+  ffi::ObjectRef refA(ffi::make_object<ObjA>());
   TVM_FFI_ICHECK_EQ(refA->type_index(), ObjA::RuntimeTypeIndex());
-  TVM_FFI_ICHECK(refA.as<Object>() != nullptr);
+  TVM_FFI_ICHECK(refA.as<ffi::Object>() != nullptr);
   TVM_FFI_ICHECK(refA.as<ObjA>() != nullptr);
   TVM_FFI_ICHECK(refA.as<ObjBase>() != nullptr);
   TVM_FFI_ICHECK(refA.as<ObjB>() == nullptr);
   TVM_FFI_ICHECK(refA.as<ObjAA>() == nullptr);
 
-  ObjectRef refAA(ffi::make_object<ObjAA>());
+  ffi::ObjectRef refAA(ffi::make_object<ObjAA>());
   TVM_FFI_ICHECK_EQ(refAA->type_index(), ObjAA::RuntimeTypeIndex());
-  TVM_FFI_ICHECK(refAA.as<Object>() != nullptr);
+  TVM_FFI_ICHECK(refAA.as<ffi::Object>() != nullptr);
   TVM_FFI_ICHECK(refAA.as<ObjBase>() != nullptr);
   TVM_FFI_ICHECK(refAA.as<ObjA>() != nullptr);
   TVM_FFI_ICHECK(refAA.as<ObjAA>() != nullptr);
   TVM_FFI_ICHECK(refAA.as<ObjB>() == nullptr);
 
-  ObjectRef refB(ffi::make_object<ObjB>());
+  ffi::ObjectRef refB(ffi::make_object<ObjB>());
   TVM_FFI_ICHECK_EQ(refB->type_index(), ObjB::RuntimeTypeIndex());
-  TVM_FFI_ICHECK(refB.as<Object>() != nullptr);
+  TVM_FFI_ICHECK(refB.as<ffi::Object>() != nullptr);
   TVM_FFI_ICHECK(refB.as<ObjBase>() != nullptr);
   TVM_FFI_ICHECK(refB.as<ObjA>() == nullptr);
   TVM_FFI_ICHECK(refB.as<ObjAA>() == nullptr);

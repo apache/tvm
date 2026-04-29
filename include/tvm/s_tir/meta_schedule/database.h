@@ -37,12 +37,6 @@ namespace tvm {
 namespace s_tir {
 namespace meta_schedule {
 
-using ffi::Object;
-using ffi::ObjectPtr;
-using ffi::ObjectPtrEqual;
-using ffi::ObjectPtrHash;
-using ffi::ObjectRef;
-
 class ModuleEquality;
 
 /*! \brief A workload, i.e. an IRModule and its structural hash. */
@@ -65,7 +59,7 @@ class WorkloadNode : public ffi::Object {
    * \brief Export the workload to a JSON string.
    * \return An array containing the structural hash and the base64 json string.
    */
-  ObjectRef AsJSON() const;
+  ffi::ObjectRef AsJSON() const;
 };
 
 /*!
@@ -75,7 +69,7 @@ class WorkloadNode : public ffi::Object {
 class Workload : public ffi::ObjectRef {
  public:
   using THashCode = WorkloadNode::THashCode;
-  explicit Workload(ObjectPtr<WorkloadNode> data) : ObjectRef(data) {}
+  explicit Workload(ffi::ObjectPtr<WorkloadNode> data) : ffi::ObjectRef(data) {}
   /*!
    * \brief Constructor of Workload.
    * \param mod The workload's IRModule.
@@ -92,7 +86,7 @@ class Workload : public ffi::ObjectRef {
    * \param json_obj The json object.
    * \return The created workload.
    */
-  TVM_DLL static Workload FromJSON(const ObjectRef& json_obj);
+  TVM_DLL static Workload FromJSON(const ffi::ObjectRef& json_obj);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Workload, ffi::ObjectRef, WorkloadNode);
 };
@@ -150,7 +144,7 @@ class TuningRecordNode : public ffi::Object {
    * \return An array containing the trace, running secs, serialized target, and
    * argument information.
    */
-  ObjectRef AsJSON() const;
+  ffi::ObjectRef AsJSON() const;
   /*!
    * \brief Check if this tuning record has valid trace instructions and successful run results.
    * \return The check result.
@@ -182,7 +176,7 @@ class TuningRecord : public ffi::ObjectRef {
    * \param workload The workload.
    * \return The tuning record created.
    */
-  TVM_DLL static TuningRecord FromJSON(const ObjectRef& json_obj, const Workload& workload);
+  TVM_DLL static TuningRecord FromJSON(const ffi::ObjectRef& json_obj, const Workload& workload);
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TuningRecord, ffi::ObjectRef, TuningRecordNode);
 };
 
@@ -473,10 +467,10 @@ class PyDatabaseNode : public DatabaseNode {
 class Database : public ffi::ObjectRef {
  public:
   /*!
-   * \brief Constructor from ObjectPtr<DatabaseNode>.
+   * \brief Constructor from ffi::ObjectPtr<DatabaseNode>.
    * \param data The object pointer.
    */
-  explicit Database(ObjectPtr<DatabaseNode> data) : ObjectRef(data) {
+  explicit Database(ffi::ObjectPtr<DatabaseNode> data) : ffi::ObjectRef(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
   /*!

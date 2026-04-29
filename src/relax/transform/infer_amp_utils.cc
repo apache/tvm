@@ -53,11 +53,11 @@ NType NTypeMerge(const NType& a, const NType& b) {
   return CombineNestedMsg<ffi::String>(a, b, fcombine);
 }
 
-ffi::Array<ObjectRef> InferMixedPrecisionFollow(const Call& call, const DataType& out_dtype) {
+ffi::Array<ffi::ObjectRef> InferMixedPrecisionFollow(const Call& call, const DataType& out_dtype) {
   return {Integer(MixedPrecisionPolicyKind::kFollow), call};
 }
 
-ffi::Array<ObjectRef> InferMixedPrecisionNever(const Call& call, const DataType& out_dtype) {
+ffi::Array<ffi::ObjectRef> InferMixedPrecisionNever(const Call& call, const DataType& out_dtype) {
   return {Integer(MixedPrecisionPolicyKind::kNever), call};
 }
 

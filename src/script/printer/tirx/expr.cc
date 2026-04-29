@@ -198,7 +198,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           return TIR(d, "comm_reducer")->Call({lambda.value(), id});
         });
 
-LambdaDoc PrintIndexMap(const ObjectRef& map, const ffi::Array<tirx::Var>& vs,
+LambdaDoc PrintIndexMap(const ffi::ObjectRef& map, const ffi::Array<tirx::Var>& vs,
                         const AccessPath& vs_p, const ffi::Array<PrimExpr>& es,
                         const AccessPath& es_p, const IRDocsifier& d) {
   With<TIRFrame> f(d, map);

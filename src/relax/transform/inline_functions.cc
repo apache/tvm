@@ -140,7 +140,7 @@ class FunctionInliner : public ExprMutator {
   }
 
   const ffi::Map<ffi::Variant<ffi::String, GlobalVar>, Function>& replacements_;
-  std::unordered_set<GlobalVar, ObjectPtrHash, ObjectPtrEqual> inline_stack_;
+  std::unordered_set<GlobalVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> inline_stack_;
 };
 }  // namespace
 

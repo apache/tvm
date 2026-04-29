@@ -282,7 +282,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
  * \param ndim Expected size of the shape, can be -1 (indicate unknown).
  * \param err_ctx Additional context if error occurs.
  */
-void CheckShapeInfo(ObjectRef arg, int ndim, ffi::Optional<ffi::String> err_ctx) {
+void CheckShapeInfo(ffi::ObjectRef arg, int ndim, ffi::Optional<ffi::String> err_ctx) {
   // a function that lazily get context for error reporting
   auto* ptr = arg.as<ffi::Shape::ContainerType>();
   TVM_FFI_CHECK(ptr != nullptr, TypeError)
@@ -305,7 +305,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
  * \param err_ctx Additional context if error occurs.
  */
 void CheckPrimValueInfo(ffi::AnyView arg, DataType dtype, ffi::Optional<ffi::String> err_ctx) {
-  if (auto opt_obj = arg.as<ObjectRef>()) {
+  if (auto opt_obj = arg.as<ffi::ObjectRef>()) {
     TVM_FFI_THROW(TypeError) << err_ctx.value_or("") << ", expected dtype " << dtype
                              << ", but received ObjectRef of type "
                              << opt_obj.value()->GetTypeKey();
@@ -335,7 +335,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
  * \param size The expected size of the tuple.
  * \param err_ctx Additional context if error occurs.
  */
-void CheckTupleInfo(ObjectRef arg, int64_t size, ffi::Optional<ffi::String> err_ctx) {
+void CheckTupleInfo(ffi::ObjectRef arg, int64_t size, ffi::Optional<ffi::String> err_ctx) {
   // a function that lazily get context for error reporting
   auto* ptr = arg.as<ffi::ArrayObj>();
   TVM_FFI_CHECK(ptr != nullptr, TypeError)
@@ -355,7 +355,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
  * \param arg The input argument.
  * \param err_ctx Additional context if error occurs.
  */
-void CheckFuncInfo(ObjectRef arg, ffi::Optional<ffi::String> err_ctx) {
+void CheckFuncInfo(ffi::ObjectRef arg, ffi::Optional<ffi::String> err_ctx) {
   // a function that lazily get context for error reporting
   bool is_func = arg.as<ffi::Function::ContainerType>() || arg.as<VMClosure::ContainerType>();
   TVM_FFI_CHECK(is_func, TypeError)
@@ -429,7 +429,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                   [](ffi::PackedArgs args, ffi::Any* rv) {
                     // args[0]: vm; args[1]: closure; args[2, 3, ...]: function arguments
                     VirtualMachine* vm = VirtualMachine::GetContextPtr(args[0]);
-                    ObjectRef vm_closure = args[1].cast<ObjectRef>();
+                    ffi::ObjectRef vm_closure = args[1].cast<ffi::ObjectRef>();
                     vm->InvokeClosurePacked(vm_closure, args.Slice(2), rv);
                   })
       .def_packed("vm.builtin.call_tir_dyn", [](ffi::PackedArgs args, ffi::Any* rv) {
@@ -632,7 +632,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       "vm.builtin.invoke_debug_func", [](ffi::PackedArgs args, ffi::Any* rv) -> void {
         TVM_FFI_ICHECK_GE(args.size(), 3);
         int num_args = args.size() - 3;
-        ObjectRef io_effect = args[0].cast<ObjectRef>();
+        ffi::ObjectRef io_effect = args[0].cast<ffi::ObjectRef>();
         TVM_FFI_CHECK(!io_effect.defined(), ValueError)
             << "IOEffect is expected to be lowered to None.";
         ffi::String debug_func_name = args[1].cast<ffi::String>();

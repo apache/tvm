@@ -46,7 +46,7 @@ class CodeGenRunner : ExprMutator {
                ffi::Array<ffi::String> entry_function_names) {
     IRModule mod = builder_->GetContextIRModule();
 
-    support::OrderedSet<GlobalVar, ObjectPtrHash, ObjectPtrEqual> entry_functions;
+    support::OrderedSet<GlobalVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> entry_functions;
     // Any user-provided functions are treated as entry functions.
     for (const auto& name : entry_function_names) {
       entry_functions.insert(mod->GetGlobalVar(name));

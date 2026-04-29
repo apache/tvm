@@ -56,7 +56,7 @@ class CublasJSONRuntime : public JSONRuntimeBase {
     // JSONRuntimeBase::SetInputOutputBuffers(...) is not thread safe. Since CublasJSONRuntime
     // can be used by multiple GPUs running on different threads, we avoid using that function
     // and directly call cuBLAS on the inputs from ffi::PackedArgs.
-    ObjectPtr<Object> sptr_to_self = ffi::GetObjectPtr<Object>(this);
+    ffi::ObjectPtr<ffi::Object> sptr_to_self = ffi::GetObjectPtr<ffi::Object>(this);
     if (this->symbol_name_ == name) {
       return ffi::Function([sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) {
         TVM_FFI_ICHECK(this->initialized_) << "The module has not been initialized";

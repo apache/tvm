@@ -56,7 +56,7 @@ class IRModule;
  *  but we mutate the Module while optimizing programs.
  * \sa IRModule
  */
-class IRModuleNode : public Object {
+class IRModuleNode : public ffi::Object {
  public:
   /*! \brief A map from ids to all global functions. */
   ffi::Map<GlobalVar, BaseFunc> functions;
@@ -245,7 +245,7 @@ class IRModuleNode : public Object {
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
 
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.IRModule", IRModuleNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.IRModule", IRModuleNode, ffi::Object);
 
  private:
   friend class IRModule;
@@ -255,7 +255,7 @@ class IRModuleNode : public Object {
  * \brief Managed reference class to IRModuleNode.
  * \sa IRModuleNode
  */
-class IRModule : public ObjectRef {
+class IRModule : public ffi::ObjectRef {
  public:
   /*!
    * \brief constructor
@@ -274,11 +274,11 @@ class IRModule : public ObjectRef {
    * \brief constructor
    * \param n The object pointer.
    */
-  explicit IRModule(ObjectPtr<IRModuleNode> n) : ObjectRef(n) {}
+  explicit IRModule(ffi::ObjectPtr<IRModuleNode> n) : ffi::ObjectRef(n) {}
   /*!
    * \brief constructor with UnsafeInit
    */
-  explicit IRModule(ffi::UnsafeInit tag) : ObjectRef(tag) {}
+  explicit IRModule(ffi::UnsafeInit tag) : ffi::ObjectRef(tag) {}
   /*! \return mutable pointers to the node. */
   IRModuleNode* operator->() const {
     auto* ptr = get_mutable();

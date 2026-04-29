@@ -150,7 +150,7 @@ class ConstIntBoundAnalyzer::Impl
   }
 
   // Override visitor behaviors
-  Entry VisitExprDefault_(const Object* op) final {
+  Entry VisitExprDefault_(const ffi::Object* op) final {
     return Everything(static_cast<const PrimExprNode*>(op)->dtype);
   }
 

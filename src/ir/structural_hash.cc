@@ -80,9 +80,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-struct RefToObjectPtr : public ObjectRef {
-  static ObjectPtr<Object> Get(const ObjectRef& ref) {
-    return ffi::details::ObjectUnsafe::ObjectPtrFromObjectRef<Object>(ref);
+struct RefToObjectPtr : public ffi::ObjectRef {
+  static ffi::ObjectPtr<ffi::Object> Get(const ffi::ObjectRef& ref) {
+    return ffi::details::ObjectUnsafe::ObjectPtrFromObjectRef<ffi::Object>(ref);
   }
 };
 

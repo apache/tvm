@@ -37,12 +37,6 @@
 namespace tvm {
 namespace runtime {
 
-using ffi::Object;
-using ffi::ObjectPtr;
-using ffi::ObjectPtrEqual;
-using ffi::ObjectPtrHash;
-using ffi::ObjectRef;
-
 class DiscoThreadedMessageQueue : private support::Stream,
                                   private DiscoProtocol<DiscoThreadedMessageQueue> {
  public:
@@ -195,7 +189,8 @@ class ThreadedSessionObj final : public BcastSessionObj {
 Session Session::ThreadedSession(int num_workers, int num_group) {
   TVM_FFI_ICHECK_EQ(num_workers % num_group, 0)
       << "The number of workers should be divisible by the number of worker group.";
-  ObjectPtr<ThreadedSessionObj> n = ffi::make_object<ThreadedSessionObj>(num_workers, num_group);
+  ffi::ObjectPtr<ThreadedSessionObj> n =
+      ffi::make_object<ThreadedSessionObj>(num_workers, num_group);
   return Session(std::move(n));
 }
 

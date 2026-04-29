@@ -34,7 +34,7 @@ namespace distributed {
 enum class PlacementSpecKind : int { kSharding = 0, kReplica = 1 };
 
 /*! \brief Describes how data is distributed in one dimension of the device mesh*/
-class PlacementSpecNode : public Object {
+class PlacementSpecNode : public ffi::Object {
  public:
   /*! \brief If the kind is sharding, this value represents the tensor dimension to shard.
    *         otherwise, axis is -1.
@@ -52,20 +52,20 @@ class PlacementSpecNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindConstTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO("relax.distributed.PlacementSpec", PlacementSpecNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.distributed.PlacementSpec", PlacementSpecNode, ffi::Object);
 };
 
 /*!
  * \brief Managed reference to PlacementSpecNode.
  * \sa PlacementSpecNode
  */
-class PlacementSpec : public ObjectRef {
+class PlacementSpec : public ffi::ObjectRef {
  public:
   TVM_DLL static PlacementSpec Sharding(int axis);
 
   TVM_DLL static PlacementSpec Replica();
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PlacementSpec, ObjectRef, PlacementSpecNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PlacementSpec, ffi::ObjectRef, PlacementSpecNode);
 };
 
 class ShardingNode : public PlacementSpecNode {
@@ -82,7 +82,7 @@ class ShardingNode : public PlacementSpecNode {
 };
 
 /*! \brief Describes how data is distributed in each dimension of the device mesh*/
-class PlacementNode : public Object {
+class PlacementNode : public ffi::Object {
  public:
   /*! \brief specs for each dim of device mesh.*/
   ffi::Array<PlacementSpec> dim_specs;
@@ -95,19 +95,19 @@ class PlacementNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindConstTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.distributed.Placement", PlacementNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.distributed.Placement", PlacementNode, ffi::Object);
 };
 
 /*!
  * \brief Managed reference to a Placement.
  * \sa PlacementNode
  */
-class Placement : public ObjectRef {
+class Placement : public ffi::ObjectRef {
  public:
   TVM_DLL explicit Placement(ffi::Array<PlacementSpec> dim_specs);
   /*! \brief replica dim is printed as "R" and sharding dim is printed as "S[i]".]*/
   static Placement FromText(ffi::String text_repr);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Placement, ObjectRef, PlacementNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Placement, ffi::ObjectRef, PlacementNode);
 };
 
 /*!

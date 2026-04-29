@@ -32,7 +32,7 @@ namespace ir {
 ffi::Map<GlobalVar, ffi::Array<GlobalVar>> CollectCallMap(const IRModule& mod) {
   struct CalleeCollectorImpl : CalleeCollector {
     void Mark(GlobalVar gvar) override { gvars.push_back(gvar); }
-    support::OrderedSet<GlobalVar, ObjectPtrHash, ObjectPtrEqual> gvars;
+    support::OrderedSet<GlobalVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> gvars;
   };
 
   ffi::Map<GlobalVar, ffi::Array<GlobalVar>> call_map;

@@ -46,7 +46,7 @@ class RelaxFrameNode : public IRBuilderFrameNode {
 
 class RelaxFrame : public IRBuilderFrame {
  public:
-  explicit RelaxFrame(ObjectPtr<RelaxFrameNode> data) : IRBuilderFrame(ffi::UnsafeInit{}) {
+  explicit RelaxFrame(ffi::ObjectPtr<RelaxFrameNode> data) : IRBuilderFrame(ffi::UnsafeInit{}) {
     TVM_FFI_ICHECK(data != nullptr);
     data_ = std::move(data);
   }
@@ -82,7 +82,7 @@ class SeqExprFrameNode : public RelaxFrameNode {
 
 class SeqExprFrame : public RelaxFrame {
  public:
-  explicit SeqExprFrame(ObjectPtr<SeqExprFrameNode> data) : RelaxFrame(data) {
+  explicit SeqExprFrame(ffi::ObjectPtr<SeqExprFrameNode> data) : RelaxFrame(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SeqExprFrame, RelaxFrame, SeqExprFrameNode);
@@ -139,7 +139,7 @@ class FunctionFrameNode : public SeqExprFrameNode {
 
 class FunctionFrame : public SeqExprFrame {
  public:
-  explicit FunctionFrame(ObjectPtr<FunctionFrameNode> data) : SeqExprFrame(data) {
+  explicit FunctionFrame(ffi::ObjectPtr<FunctionFrameNode> data) : SeqExprFrame(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FunctionFrame, SeqExprFrame, FunctionFrameNode);
@@ -182,7 +182,7 @@ class BindingBlockFrameNode : public RelaxFrameNode {
 
 class BindingBlockFrame : public RelaxFrame {
  public:
-  explicit BindingBlockFrame(ObjectPtr<BindingBlockFrameNode> data) : RelaxFrame(data) {
+  explicit BindingBlockFrame(ffi::ObjectPtr<BindingBlockFrameNode> data) : RelaxFrame(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BindingBlockFrame, RelaxFrame,
@@ -238,7 +238,7 @@ class IfFrameNode : public RelaxFrameNode {
  */
 class IfFrame : public RelaxFrame {
  public:
-  explicit IfFrame(ObjectPtr<IfFrameNode> data) : RelaxFrame(data) {
+  explicit IfFrame(ffi::ObjectPtr<IfFrameNode> data) : RelaxFrame(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IfFrame, RelaxFrame, IfFrameNode);
@@ -278,7 +278,7 @@ class ThenFrameNode : public SeqExprFrameNode {
  */
 class ThenFrame : public SeqExprFrame {
  public:
-  explicit ThenFrame(ObjectPtr<ThenFrameNode> data) : SeqExprFrame(data) {
+  explicit ThenFrame(ffi::ObjectPtr<ThenFrameNode> data) : SeqExprFrame(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ThenFrame, SeqExprFrame, ThenFrameNode);
@@ -318,7 +318,7 @@ class ElseFrameNode : public SeqExprFrameNode {
  */
 class ElseFrame : public SeqExprFrame {
  public:
-  explicit ElseFrame(ObjectPtr<ElseFrameNode> data) : SeqExprFrame(data) {
+  explicit ElseFrame(ffi::ObjectPtr<ElseFrameNode> data) : SeqExprFrame(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ElseFrame, SeqExprFrame, ElseFrameNode);

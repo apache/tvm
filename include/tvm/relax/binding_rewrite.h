@@ -39,7 +39,7 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Statement rewriter for relax.DataflowBlock. */
-class DataflowBlockRewriteNode : public Object {
+class DataflowBlockRewriteNode : public ffi::Object {
  public:
   /*! \brief Replace all uses of old_var with new_var. */
   void ReplaceAllUses(Var old_var, Var new_var);
@@ -74,7 +74,8 @@ class DataflowBlockRewriteNode : public Object {
         .def_ro("dfb", &DataflowBlockRewriteNode::dfb_)
         .def_ro("root_fn", &DataflowBlockRewriteNode::root_fn_);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.DataflowBlockRewrite", DataflowBlockRewriteNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.DataflowBlockRewrite", DataflowBlockRewriteNode,
+                                    ffi::Object);
 
  protected:
   friend class DataflowBlockRewrite;
@@ -93,7 +94,7 @@ class DataflowBlockRewriteNode : public Object {
  * \brief A statement rewriter for relax.DataflowBlock.
  * \sa DataflowBlockRewriteNode
  */
-class DataflowBlockRewrite : public ObjectRef {
+class DataflowBlockRewrite : public ffi::ObjectRef {
  public:
   TVM_DLL explicit DataflowBlockRewrite(DataflowBlock dfb, Function root_fn);
 
@@ -106,7 +107,7 @@ class DataflowBlockRewrite : public ObjectRef {
     return static_cast<DataflowBlockRewriteNode*>(get_mutable());
   }
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DataflowBlockRewrite, ObjectRef,
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DataflowBlockRewrite, ffi::ObjectRef,
                                              DataflowBlockRewriteNode);
 };
 

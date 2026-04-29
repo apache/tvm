@@ -43,7 +43,7 @@ class StructInfoFunctor;
   }
 
 #define TVM_STRUCT_INFO_FUNCTOR_DISPATCH(OP)                                                     \
-  vtable.template set_dispatch<OP>([](const ObjectRef& n, TSelf* self, Args... args) {           \
+  vtable.template set_dispatch<OP>([](const ffi::ObjectRef& n, TSelf* self, Args... args) {      \
     return self->VisitStructInfo_(static_cast<const OP*>(n.get()), std::forward<Args>(args)...); \
   });
 
@@ -51,7 +51,7 @@ template <typename R, typename... Args>
 class StructInfoFunctor<R(const StructInfo& n, Args...)> {
  private:
   using TSelf = StructInfoFunctor<R(const StructInfo& n, Args...)>;
-  using FStructInfo = tvm::NodeFunctor<R(const ObjectRef& n, TSelf* self, Args...)>;
+  using FStructInfo = tvm::NodeFunctor<R(const ffi::ObjectRef& n, TSelf* self, Args...)>;
 
  public:
   /*! \brief the result type of this functor */
@@ -93,7 +93,7 @@ class StructInfoFunctor<R(const StructInfo& n, Args...)> {
                              Args... args) STRUCT_INFO_FUNCTOR_DEFAULT;
   virtual R VisitStructInfo_(const FuncStructInfoNode* op,
                              Args... args) STRUCT_INFO_FUNCTOR_DEFAULT;
-  virtual R VisitStructInfoDefault_(const Object* op, Args...) {
+  virtual R VisitStructInfoDefault_(const ffi::Object* op, Args...) {
     TVM_FFI_THROW(InternalError) << "Do not have a default for " << op->GetTypeKey();
     throw;  // unreachable, written to stop compiler warning
   }

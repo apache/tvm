@@ -49,7 +49,7 @@ bool NodeStructuralEqualAdapter(const Any& lhs, const Any& rhs, bool assert_mode
         // The TVMScriptPrinter::Script will fallback to Repr printer,
         // if the root node to print is not supported yet,
         // e.g. Relax nodes, ArrayObj, MapObj, etc.
-        oss << ":" << std::endl << TVMScriptPrinter::Script(lhs.cast<ObjectRef>(), cfg);
+        oss << ":" << std::endl << TVMScriptPrinter::Script(lhs.cast<ffi::ObjectRef>(), cfg);
       }
       oss << std::endl << "and rhs";
       {
@@ -62,7 +62,7 @@ bool NodeStructuralEqualAdapter(const Any& lhs, const Any& rhs, bool assert_mode
           // The TVMScriptPrinter::Script will fallback to Repr printer,
           // if the root node to print is not supported yet,
           // e.g. Relax nodes, ArrayObj, MapObj, etc.
-          oss << ":" << std::endl << TVMScriptPrinter::Script(rhs.cast<ObjectRef>(), cfg);
+          oss << ":" << std::endl << TVMScriptPrinter::Script(rhs.cast<ffi::ObjectRef>(), cfg);
         }
       }
       TVM_FFI_THROW(ValueError) << oss.str();

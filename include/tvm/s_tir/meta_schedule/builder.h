@@ -33,12 +33,6 @@ namespace tvm {
 namespace s_tir {
 namespace meta_schedule {
 
-using ffi::Object;
-using ffi::ObjectPtr;
-using ffi::ObjectPtrEqual;
-using ffi::ObjectPtrHash;
-using ffi::ObjectRef;
-
 /*! \brief The builder's input, containing an IRModule and the target. */
 class BuilderInputNode : public ffi::Object {
  public:
@@ -141,10 +135,10 @@ class BuilderNode : public ffi::Object {
 class Builder : public ffi::ObjectRef {
  public:
   /*!
-   * \brief Constructor from ObjectPtr<BuilderNode>.
+   * \brief Constructor from ffi::ObjectPtr<BuilderNode>.
    * \param data The object pointer.
    */
-  explicit Builder(ObjectPtr<BuilderNode> data) : ObjectRef(data) {
+  explicit Builder(ffi::ObjectPtr<BuilderNode> data) : ffi::ObjectRef(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
   /*!

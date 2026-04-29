@@ -647,7 +647,7 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
     if (const auto* op = expr.as<CanonicalExprNode>()) {
       expr = op->Normalize();
     }
-    ObjectPtr<SplitExprNode> n = ffi::make_object<SplitExprNode>();
+    ffi::ObjectPtr<SplitExprNode> n = ffi::make_object<SplitExprNode>();
     n->dtype = expr.dtype();
     n->index = std::move(expr);
     n->div_mode = kTruncDiv;
@@ -684,7 +684,7 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
     if (auto op = expr.as<SumExpr>()) {
       return op.value();
     }
-    ObjectPtr<SumExprNode> n = ffi::make_object<SumExprNode>();
+    ffi::ObjectPtr<SumExprNode> n = ffi::make_object<SumExprNode>();
     n->dtype = expr.dtype();
     if (const auto* op = expr.as<IntImmNode>()) {
       n->base = op->value;

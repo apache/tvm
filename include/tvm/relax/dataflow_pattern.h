@@ -88,17 +88,17 @@ TVM_DLL PatternSeq operator>>(const PatternSeq& lhs, const PatternSeq& rhs);
  * \brief Base type of all dataflow patterns.
  * \sa DFPattern
  */
-class DFPatternNode : public Object {
+class DFPatternNode : public ffi::Object {
  public:
   static constexpr const uint32_t _type_child_slots = 21;
-  TVM_FFI_DECLARE_OBJECT_INFO("relax.dpl.DFPattern", DFPatternNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.dpl.DFPattern", DFPatternNode, ffi::Object);
 };
 
 /*!
  * \brief Managed reference to dataflow patterns.
  * \sa DFPatternNode
  */
-class DFPattern : public ObjectRef {
+class DFPattern : public ffi::ObjectRef {
  public:
   /*! \brief Syntatic Sugar for creating a CallPattern */
   template <typename... Args>
@@ -129,7 +129,7 @@ class DFPattern : public ObjectRef {
   /*! \brief Implicit conversion from DFPattern to PatternSeq */
   TVM_DLL operator PatternSeq() const;
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DFPattern, ObjectRef, DFPatternNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DFPattern, ffi::ObjectRef, DFPatternNode);
 };
 
 /*! \brief Constraint of a DFPattern edge (producer -> consumer) in graph-level matching */
@@ -161,7 +161,7 @@ struct PairCons {
  * example, constraining the two branches of an elementwise operation
  * to have the same shape.
  */
-class DFConstraintNode : public Object {
+class DFConstraintNode : public ffi::Object {
  public:
   /*! \brief Return the patterns on which the constraint depends */
   virtual ffi::Array<DFPattern> GetDependentPatterns() const = 0;
@@ -197,19 +197,19 @@ class DFConstraintNode : public Object {
       std::function<ffi::Optional<Var>(const DFPatternNode*)> match_state) const = 0;
 
   static constexpr const uint32_t _type_child_slots = 1;
-  TVM_FFI_DECLARE_OBJECT_INFO("relax.dpl.DFConstraint", DFConstraintNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.dpl.DFConstraint", DFConstraintNode, ffi::Object);
 };
 
-class DFConstraint : public ObjectRef {
+class DFConstraint : public ffi::ObjectRef {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DFConstraint, ObjectRef, DFConstraintNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DFConstraint, ffi::ObjectRef, DFConstraintNode);
 };
 
 /*!
  * \brief A sequence of DFPatterns that the previous DFPattern is connected to the next one.
  * \sa PatternSeq
  */
-class PatternSeqNode final : public Object {
+class PatternSeqNode final : public ffi::Object {
  public:
   tvm::ffi::Array<DFPattern> patterns;    /*!< The sequence of DFPatterns */
   std::vector<PairCons> pair_constraints; /*!< Constraints between the previous and next patterns */
@@ -218,14 +218,14 @@ class PatternSeqNode final : public Object {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<PatternSeqNode>().def_ro("patterns", &PatternSeqNode::patterns);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO("relax.dpl.PatternSeq", PatternSeqNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.dpl.PatternSeq", PatternSeqNode, ffi::Object);
 };
 
 /*!
  * \brief Managed reference to pattern sequences.
  * \sa PatternSeqNode
  */
-class PatternSeq final : public ObjectRef {
+class PatternSeq final : public ffi::ObjectRef {
  public:
   TVM_DLL explicit PatternSeq(DFPattern init_pattern);
   TVM_DLL explicit PatternSeq(tvm::ffi::Array<DFPattern> patterns, bool only_used_by = false);
@@ -240,14 +240,14 @@ class PatternSeq final : public ObjectRef {
   friend PatternSeq UsedBy(const PatternSeq& lhs, const PatternSeq& rhs, int index);
   friend PatternSeq OnlyUsedBy(const PatternSeq& lhs, const PatternSeq& rhs, int index);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PatternSeq, ObjectRef, PatternSeqNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PatternSeq, ffi::ObjectRef, PatternSeqNode);
 };
 
 /*!
  * \brief A context to manage the graph-level pattern matching.
  * \sa PatternContext
  */
-class PatternContextNode : public Object {
+class PatternContextNode : public ffi::Object {
  public:
   /*! \brief Constrainting matched graph with assertion to external uses */
   enum ExternUse {
@@ -265,17 +265,17 @@ class PatternContextNode : public Object {
 
   // Non-edge constraints
   std::vector<DFConstraint> validation_constraints;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.dpl.PatternContext", PatternContextNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.dpl.PatternContext", PatternContextNode, ffi::Object);
 };
 
 /*!
  * \brief Managed reference to a pattern context.
  * \sa PatternContextNode
  */
-class PatternContext : public ObjectRef {
+class PatternContext : public ffi::ObjectRef {
  public:
-  explicit PatternContext(ffi::UnsafeInit tag) : ObjectRef(tag) {}
-  TVM_DLL explicit PatternContext(ObjectPtr<Object> n) : ObjectRef(n) {}
+  explicit PatternContext(ffi::UnsafeInit tag) : ffi::ObjectRef(tag) {}
+  TVM_DLL explicit PatternContext(ffi::ObjectPtr<ffi::Object> n) : ffi::ObjectRef(n) {}
   TVM_DLL explicit PatternContext(bool incremental = false);
 
   const PatternContextNode* operator->() const {
@@ -754,13 +754,14 @@ class WildcardPatternNode : public DFPatternNode {
 class WildcardPattern : public DFPattern {
  public:
   WildcardPattern();
-  explicit WildcardPattern(ObjectPtr<WildcardPatternNode> data) : DFPattern(ffi::UnsafeInit{}) {
+  explicit WildcardPattern(ffi::ObjectPtr<WildcardPatternNode> data)
+      : DFPattern(ffi::UnsafeInit{}) {
     TVM_FFI_ICHECK(data != nullptr);
     data_ = std::move(data);
   }
 
   // Declaring WildcardPattern declared as non-nullable avoids the
-  // default zero-parameter constructor for ObjectRef with `data_ =
+  // default zero-parameter constructor for ffi::ObjectRef with `data_ =
   // nullptr`.  This allows a zero-parameter constructor to be
   // declared here, to create a valid wildcard instance.
 

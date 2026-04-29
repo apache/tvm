@@ -33,12 +33,6 @@ namespace tvm {
 namespace s_tir {
 namespace meta_schedule {
 
-using ffi::Object;
-using ffi::ObjectPtr;
-using ffi::ObjectPtrEqual;
-using ffi::ObjectPtrHash;
-using ffi::ObjectRef;
-
 // Forward declaration
 class TuneContext;
 class SpaceGenerator;
@@ -120,7 +114,8 @@ class SpaceGeneratorNode : public ffi::Object {
   virtual SpaceGenerator Clone() const = 0;
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.SpaceGenerator", SpaceGeneratorNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.SpaceGenerator", SpaceGeneratorNode,
+                              ffi::Object);
 };
 
 /*!
@@ -130,10 +125,10 @@ class SpaceGeneratorNode : public ffi::Object {
 class SpaceGenerator : public ffi::ObjectRef {
  public:
   /*!
-   * \brief Constructor from ObjectPtr<SpaceGeneratorNode>.
+   * \brief Constructor from ffi::ObjectPtr<SpaceGeneratorNode>.
    * \param data The object pointer.
    */
-  explicit SpaceGenerator(ObjectPtr<SpaceGeneratorNode> data) : ObjectRef(data) {
+  explicit SpaceGenerator(ffi::ObjectPtr<SpaceGeneratorNode> data) : ffi::ObjectRef(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
   /*!
@@ -213,7 +208,7 @@ class SpaceGenerator : public ffi::ObjectRef {
       ffi::Function f_block_filter, ffi::Optional<ffi::Array<ScheduleRule>> sch_rules,
       ffi::Optional<ffi::Array<Postproc>> postprocs,
       ffi::Optional<ffi::Map<Mutator, FloatImm>> mutator_probs);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SpaceGenerator, ObjectRef, SpaceGeneratorNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SpaceGenerator, ffi::ObjectRef, SpaceGeneratorNode);
 };
 
 /*! \brief The design space generator with customized methods on the python-side. */
