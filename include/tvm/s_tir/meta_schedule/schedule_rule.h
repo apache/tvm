@@ -38,7 +38,7 @@ class TuneContext;
 class ScheduleRule;
 
 /*! \brief Rules to modify a block in a schedule. */
-class ScheduleRuleNode : public runtime::Object {
+class ScheduleRuleNode : public ffi::Object {
  public:
   /*! \brief Virtual destructor. */
   virtual ~ScheduleRuleNode() = default;
@@ -78,7 +78,7 @@ class ScheduleRuleNode : public runtime::Object {
  * \brief Managed reference to ScheduleRuleNode
  * \sa ScheduleRuleNode
  */
-class ScheduleRule : public runtime::ObjectRef {
+class ScheduleRule : public ffi::ObjectRef {
  public:
   /*!
    * \brief The function type of `InitializeWithTuneContext` method.

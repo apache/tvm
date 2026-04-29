@@ -61,7 +61,7 @@ bool IsIdentifier(const std::string& name) {
 }
 
 PrinterConfig::PrinterConfig(ffi::Map<ffi::String, Any> config_dict) {
-  runtime::ObjectPtr<PrinterConfigNode> n = ffi::make_object<PrinterConfigNode>();
+  ffi::ObjectPtr<PrinterConfigNode> n = ffi::make_object<PrinterConfigNode>();
   if (auto v = config_dict.Get("name")) {
     n->binding_names.push_back(Downcast<ffi::String>(v.value()));
   }

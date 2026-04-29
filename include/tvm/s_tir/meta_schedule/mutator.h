@@ -36,7 +36,7 @@ class TuneContext;
 class Mutator;
 
 /*! \brief Mutator is designed to mutate the trace to explore the design space. */
-class MutatorNode : public runtime::Object {
+class MutatorNode : public ffi::Object {
  public:
   /*! \brief Virtual destructor. */
   virtual ~MutatorNode() = default;
@@ -76,7 +76,7 @@ class MutatorNode : public runtime::Object {
  * \brief Managed reference to MutatorNode
  * \sa MutatorNode
  */
-class Mutator : public runtime::ObjectRef {
+class Mutator : public ffi::ObjectRef {
  public:
   /*!
    * \brief The function type of `InitializeWithTuneContext` method.

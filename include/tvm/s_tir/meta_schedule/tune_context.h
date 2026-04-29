@@ -44,7 +44,7 @@ class MeasureCallback;
 class TuneContext;
 
 /*! \brief The auto tuning context. */
-class TuneContextNode : public runtime::Object {
+class TuneContextNode : public ffi::Object {
  public:
   using TRandState = LinearCongruentialEngine::TRandState;
 
@@ -96,7 +96,7 @@ class TuneContextNode : public runtime::Object {
  * \brief Managed reference to TuneContextNode.
  * \sa TuneContextNode
  */
-class TuneContext : public runtime::ObjectRef {
+class TuneContext : public ffi::ObjectRef {
  public:
   using TRandState = LinearCongruentialEngine::TRandState;
   /*!

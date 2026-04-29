@@ -38,7 +38,7 @@ namespace meta_schedule {
 class TaskScheduler;
 
 /*! \brief Rules to apply after measure results is available. */
-class MeasureCallbackNode : public runtime::Object {
+class MeasureCallbackNode : public ffi::Object {
  public:
   /*! \brief Virtual destructor. */
   virtual ~MeasureCallbackNode() = default;
@@ -114,7 +114,7 @@ class PyMeasureCallbackNode : public MeasureCallbackNode {
  * \brief Managed reference to MeasureCallbackNode
  * \sa MeasureCallbackNode
  */
-class MeasureCallback : public runtime::ObjectRef {
+class MeasureCallback : public ffi::ObjectRef {
  public:
   /*!
    * \brief Create a measure callback that adds the measurement results into the database

@@ -63,7 +63,7 @@ class IndexedForwardGraph {
   /*! \brief A node in the graph. */
   struct Node {
     /*! \brief weak reference to the corresponding edge. */
-    const tvm::Object* ref{nullptr};
+    const tvm::ffi::Object* ref{nullptr};
     /*! \brief The index of the node in topological order. */
     size_t index{0};
     /*! \brief Whether this node is referenced by external source */
@@ -74,7 +74,7 @@ class IndexedForwardGraph {
     LinkedList<Edge> outputs;
   };
   /*! \brief The node map that maps node to graph */
-  std::unordered_map<const tvm::Object*, Node*> node_map;
+  std::unordered_map<const tvm::ffi::Object*, Node*> node_map;
   /*! \brief All the nodes in post DFS order */
   std::vector<Node*> post_dfs_order;
 
@@ -178,12 +178,12 @@ class GraphPartitioner {
     /*! \brief The pattern of the group */
     OpPatternKind pattern;
     /*! \brief reference to the root node. */
-    const tvm::Object* root_ref{nullptr};
+    const tvm::ffi::Object* root_ref{nullptr};
     /*!
      * \brief Reference to the anchor node,
      * this field is not nullptr only if pattern is kOutEWiseFusable.
      */
-    const tvm::Object* anchor_ref{nullptr};
+    const tvm::ffi::Object* anchor_ref{nullptr};
     /*!
      * \brief The number of nodes belonging to this group
      */

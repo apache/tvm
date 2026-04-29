@@ -33,7 +33,7 @@
 
 namespace tvm {
 
-using runtime::ObjectRef;
+using ffi::ObjectRef;
 
 /*!
  * \brief A dynamically dispatched functor on the type of the first argument.

@@ -353,14 +353,14 @@ inline const char* IterVarType2String(IterVarType t) {
 template <>
 struct std::hash<tvm::tirx::Var> {
   std::size_t operator()(const tvm::tirx::Var& var) const {
-    return tvm::runtime::ObjectPtrHash()(var);
+    return tvm::ffi::ObjectPtrHash()(var);
   }
 };
 
 template <>
 struct std::equal_to<tvm::tirx::Var> {
   bool operator()(const tvm::tirx::Var& var_a, const tvm::tirx::Var& var_b) const {
-    return tvm::runtime::ObjectPtrEqual()(var_a, var_b);
+    return tvm::ffi::ObjectPtrEqual()(var_a, var_b);
   }
 };
 

@@ -35,7 +35,7 @@ namespace s_tir {
 namespace meta_schedule {
 
 /*! \brief The builder's input, containing an IRModule and the target. */
-class BuilderInputNode : public runtime::Object {
+class BuilderInputNode : public ffi::Object {
  public:
   /*! \brief The IRModule to be built. */
   IRModule mod;
@@ -52,14 +52,14 @@ class BuilderInputNode : public runtime::Object {
         .def_ro("params", &BuilderInputNode::params);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.BuilderInput", BuilderInputNode,
-                                    runtime::Object);
+                                    ffi::Object);
 };
 
 /*!
  * \brief Managed reference to BuilderInputNode
  * \sa BuilderInputNode
  */
-class BuilderInput : public runtime::ObjectRef {
+class BuilderInput : public ffi::ObjectRef {
  public:
   /*!
    * \brief Constructor of BuilderInput.
@@ -70,11 +70,11 @@ class BuilderInput : public runtime::ObjectRef {
   TVM_DLL explicit BuilderInput(
       IRModule mod, Target target,
       ffi::Optional<ffi::Map<ffi::String, runtime::Tensor>> params = std::nullopt);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BuilderInput, runtime::ObjectRef, BuilderInputNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BuilderInput, ffi::ObjectRef, BuilderInputNode);
 };
 
 /*! \brief The builder's output, containing the artifact path or error message if any. */
-class BuilderResultNode : public runtime::Object {
+class BuilderResultNode : public ffi::Object {
  public:
   /*! \brief The path to the built artifact. */
   ffi::Optional<ffi::String> artifact_path;
@@ -88,14 +88,14 @@ class BuilderResultNode : public runtime::Object {
         .def_ro("error_msg", &BuilderResultNode::error_msg);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.BuilderResult", BuilderResultNode,
-                                    runtime::Object);
+                                    ffi::Object);
 };
 
 /*!
  * \brief Managed reference to BuilderResultNode
  * \sa BuilderResultNode
  */
-class BuilderResult : public runtime::ObjectRef {
+class BuilderResult : public ffi::ObjectRef {
  public:
   /*!
    * \brief Constructor of BuilderResult.
@@ -104,12 +104,12 @@ class BuilderResult : public runtime::ObjectRef {
    */
   TVM_DLL explicit BuilderResult(ffi::Optional<ffi::String> artifact_path,
                                  ffi::Optional<ffi::String> error_msg);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BuilderResult, runtime::ObjectRef,
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BuilderResult, ffi::ObjectRef,
                                                 BuilderResultNode);
 };
 
 /*! \brief The abstract builder interface. */
-class BuilderNode : public runtime::Object {
+class BuilderNode : public ffi::Object {
  public:
   /*! \brief Default destructor */
   virtual ~BuilderNode() = default;
@@ -127,14 +127,14 @@ class BuilderNode : public runtime::Object {
   using FBuild = ffi::TypedFunction<ffi::Array<BuilderResult>(const ffi::Array<BuilderInput>&)>;
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.Builder", BuilderNode, runtime::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.Builder", BuilderNode, ffi::Object);
 };
 
 /*!
  * \brief Managed reference to BuilderNode
  * \sa BuilderNode
  */
-class Builder : public runtime::ObjectRef {
+class Builder : public ffi::ObjectRef {
  public:
   /*!
    * \brief Constructor from ObjectPtr<BuilderNode>.
@@ -149,7 +149,7 @@ class Builder : public runtime::ObjectRef {
    * \return The Builder created.
    */
   static Builder PyBuilder(BuilderNode::FBuild f_build);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Builder, runtime::ObjectRef, BuilderNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Builder, ffi::ObjectRef, BuilderNode);
 };
 
 /*! \brief An abstract builder with customized build method on the python-side. */

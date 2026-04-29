@@ -231,7 +231,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("ir.IRModule",
-           [](tvm::ffi::Map<GlobalVar, BaseFunc> funcs, tvm::ObjectRef attrs,
+           [](tvm::ffi::Map<GlobalVar, BaseFunc> funcs, tvm::ffi::ObjectRef attrs,
               ffi::Map<ffi::String, ffi::Array<GlobalInfo>> global_infos) {
              auto dict_attrs = [&attrs]() {
                if (!attrs.defined()) {

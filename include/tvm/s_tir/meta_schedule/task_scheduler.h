@@ -38,7 +38,7 @@ namespace tvm {
 namespace s_tir {
 namespace meta_schedule {
 
-class TaskRecordNode : public runtime::Object {
+class TaskRecordNode : public ffi::Object {
  public:
   /*! \brief The tune context of the task. */
   TuneContext ctx{ffi::UnsafeInit()};
@@ -83,7 +83,7 @@ class TaskRecordNode : public runtime::Object {
  * \brief Managed reference to TaskRecordNode.
  * \sa TaskRecordNode
  */
-class TaskRecord : public runtime::ObjectRef {
+class TaskRecord : public ffi::ObjectRef {
  public:
   /*! \brief Constructor */
   explicit TaskRecord(TuneContext task, double task_weight);
@@ -127,7 +127,7 @@ class TaskRecord : public runtime::ObjectRef {
   |                   +----  Runner Future <-------+                    |
   +---------------------------------------------------------------------+
 */
-class TaskSchedulerNode : public runtime::Object {
+class TaskSchedulerNode : public ffi::Object {
  public:
   /*! \brief The tuning task's logging function. */
   ffi::Function logger;
@@ -259,9 +259,9 @@ class PyTaskSchedulerNode : public TaskSchedulerNode {
  * \brief Managed reference to TaskSchedulerNode.
  * \sa TaskSchedulerNode
  */
-class TaskScheduler : public runtime::ObjectRef {
+class TaskScheduler : public ffi::ObjectRef {
  public:
-  explicit TaskScheduler(ObjectPtr<TaskSchedulerNode> data) : runtime::ObjectRef(data) {
+  explicit TaskScheduler(ObjectPtr<TaskSchedulerNode> data) : ffi::ObjectRef(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
   /*!

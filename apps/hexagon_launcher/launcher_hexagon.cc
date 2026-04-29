@@ -178,11 +178,11 @@ AEEResult __QAIC_HEADER(launcher_rpc_get_output)(remote_handle64 handle, int out
 
   auto* container = new tvm::runtime::Tensor::Container(static_cast<void*>(output_value), shape_vec,
                                                         output->dtype, Model::external());
-  container->SetDeleter([](tvm::Object* container) {
+  container->SetDeleter([](tvm::ffi::Object* container) {
     delete static_cast<tvm::runtime::Tensor::Container*>(container);
   });
 
-  tvm::runtime::Tensor host_output(tvm::runtime::GetObjectPtr<tvm::runtime::Object>(container));
+  tvm::runtime::Tensor host_output(tvm::ffi::GetObjectPtr<tvm::ffi::Object>(container));
 
   if (meta_size != 0) {
     auto* meta = reinterpret_cast<tensor_meta*>(output_meta);

@@ -38,13 +38,13 @@ namespace tvm {
  * \brief Dump the node to stderr, used for debug purposes.
  * \param node The input node
  */
-TVM_DLL void Dump(const runtime::ObjectRef& node);
+TVM_DLL void Dump(const ffi::ObjectRef& node);
 
 /*!
  * \brief Dump the node to stderr, used for debug purposes.
  * \param node The input node
  */
-TVM_DLL void Dump(const runtime::Object* node);
+TVM_DLL void Dump(const ffi::Object* node);
 
 }  // namespace tvm
 

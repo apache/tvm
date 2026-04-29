@@ -39,7 +39,7 @@ namespace meta_schedule {
 class TuneContext;
 
 /*! \brief Cost model. */
-class CostModelNode : public runtime::Object {
+class CostModelNode : public ffi::Object {
  public:
   /*! \brief Virtual destructor. */
   virtual ~CostModelNode() = default;
@@ -139,7 +139,7 @@ class PyCostModelNode : public CostModelNode {
  * \brief Managed reference to CostModelNode
  * \sa CostModelNode
  */
-class CostModel : public runtime::ObjectRef {
+class CostModel : public ffi::ObjectRef {
  public:
   /*!
    * \brief Create a feature extractor with customized methods on the python-side.

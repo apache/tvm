@@ -157,7 +157,7 @@ class TVM_DLL PrinterConfig : public ObjectRef {
   explicit PrinterConfig(
       ffi::Map<ffi::String, ffi::Any> config_dict = ffi::Map<ffi::String, ffi::Any>());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PrinterConfig, runtime::ObjectRef,
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PrinterConfig, ffi::ObjectRef,
                                                 PrinterConfigNode);
 };
 

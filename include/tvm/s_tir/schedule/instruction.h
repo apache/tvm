@@ -87,7 +87,7 @@ using FInstructionAttrsFromJSON = ffi::TypedFunction<ffi::Array<Any>(ObjectRef j
  * Unlike `tvm::OpNode`, `InstructionKindNode` doesn't support unstructured properties,
  * mainly because there is no such usecase yet to add any other property.
  */
-class InstructionKindNode : public runtime::Object {
+class InstructionKindNode : public ffi::Object {
  public:
   /*! \brief The name of a kind of instructions */
   ffi::String name;
@@ -122,14 +122,14 @@ class InstructionKindNode : public runtime::Object {
 
   /*! \brief Checks if the instruction kind is EnterPostproc */
   bool IsPostproc() const;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.InstructionKind", InstructionKindNode, runtime::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.InstructionKind", InstructionKindNode, ffi::Object);
 };
 
 /*!
  * \brief Managed reference to InstructionKindNode
  * \sa InstructionKindNode
  */
-class InstructionKind : public runtime::ObjectRef {
+class InstructionKind : public ffi::ObjectRef {
  public:
   /*!
    * \brief Retrieve an InstructionKind using its name
@@ -137,12 +137,12 @@ class InstructionKind : public runtime::ObjectRef {
    * \return The InstructionKind retrieved
    */
   static InstructionKind Get(const ffi::String& name);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(InstructionKind, runtime::ObjectRef,
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(InstructionKind, ffi::ObjectRef,
                                              InstructionKindNode);
 };
 
 /*! \brief Schedule instructions each corresponds to a schedule primitive */
-class InstructionNode : public runtime::Object {
+class InstructionNode : public ffi::Object {
  public:
   /*! \brief The kind of the instruction */
   InstructionKind kind;
@@ -180,14 +180,14 @@ class InstructionNode : public runtime::Object {
         .def_ro("attrs", &InstructionNode::attrs)
         .def_ro("outputs", &InstructionNode::outputs);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.Instruction", InstructionNode, runtime::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.Instruction", InstructionNode, ffi::Object);
 };
 
 /*!
  * \brief Managed reference to InstructionNode
  * \sa InstructionNode
  */
-class Instruction : public runtime::ObjectRef {
+class Instruction : public ffi::ObjectRef {
  public:
   /*!
    * \brief Constructor
@@ -199,7 +199,7 @@ class Instruction : public runtime::ObjectRef {
   explicit Instruction(InstructionKind kind, ffi::Array<Any> inputs, ffi::Array<Any> attrs,
                        ffi::Array<Any> outputs);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Instruction, runtime::ObjectRef, InstructionNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Instruction, ffi::ObjectRef, InstructionNode);
 };
 
 /*!

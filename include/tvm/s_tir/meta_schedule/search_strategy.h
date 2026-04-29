@@ -75,7 +75,7 @@ class SearchStrategy;
   |                   +----  Runner Future <-------+                    |
   +---------------------------------------------------------------------+
 */
-class SearchStrategyNode : public runtime::Object {
+class SearchStrategyNode : public ffi::Object {
  public:
   /*! \brief Virtual destructor */
   virtual ~SearchStrategyNode() = default;
@@ -138,7 +138,7 @@ class SearchStrategyNode : public runtime::Object {
  * \brief Managed reference to SearchStrategyNode.
  * \sa SearchStrategyNode
  */
-class SearchStrategy : public runtime::ObjectRef {
+class SearchStrategy : public ffi::ObjectRef {
  public:
   /*!
    * \brief The function type of `InitializeWithTuneContext` method.

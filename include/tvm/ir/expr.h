@@ -790,14 +790,14 @@ TVM_FFI_INLINE PrimExpr TypeTraits<PrimExpr>::ConvertFallbackValue(double value)
 template <>
 struct std::hash<tvm::GlobalVar> {
   std::size_t operator()(const tvm::GlobalVar& var) const {
-    return tvm::runtime::ObjectPtrHash()(var);
+    return tvm::ffi::ObjectPtrHash()(var);
   }
 };
 
 template <>
 struct std::equal_to<tvm::GlobalVar> {
   bool operator()(const tvm::GlobalVar& var_a, const tvm::GlobalVar& var_b) const {
-    return tvm::runtime::ObjectPtrEqual()(var_a, var_b);
+    return tvm::ffi::ObjectPtrEqual()(var_a, var_b);
   }
 };
 #endif  // TVM_IR_EXPR_H_

@@ -225,7 +225,7 @@ class TVM_DLL StmtMutator : protected StmtFunctor<Stmt(const Stmt&)> {
                   "Please create a new node directly in other cases.");
     if (allow_copy_on_write_) {
       // return the old node.
-      return runtime::GetObjectPtr<TNode>(const_cast<TNode*>(node));
+      return ffi::GetObjectPtr<TNode>(const_cast<TNode*>(node));
     } else {
       // Make a new copy of the node.
       // need to rely on the default copy constructor

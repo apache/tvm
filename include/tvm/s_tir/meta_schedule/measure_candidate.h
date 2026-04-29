@@ -31,7 +31,7 @@ namespace s_tir {
 namespace meta_schedule {
 
 /*! \brief The schedule (with input shapes) to be measured. */
-class MeasureCandidateNode : public runtime::Object {
+class MeasureCandidateNode : public ffi::Object {
  public:
   /*! \brief The schedule for measurement. */
   s_tir::Schedule sch;
@@ -52,7 +52,7 @@ class MeasureCandidateNode : public runtime::Object {
  * \brief Managed reference to MeasureCandidateNode.
  * \sa MeasureCandidateNode
  */
-class MeasureCandidate : public runtime::ObjectRef {
+class MeasureCandidate : public ffi::ObjectRef {
  public:
   /*!
    * \brief Constructor of MeasureCandidate.

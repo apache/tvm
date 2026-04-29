@@ -31,9 +31,9 @@ namespace s_tir {
 namespace meta_schedule {
 
 /*! \brief The argument information. */
-class ArgInfoNode : public runtime::Object {
+class ArgInfoNode : public ffi::Object {
  public:
-  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.ArgInfo", ArgInfoNode, runtime::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.ArgInfo", ArgInfoNode, ffi::Object);
 
  public:
   /*! \brief Default destructor. */
@@ -46,7 +46,7 @@ class ArgInfoNode : public runtime::Object {
  * \brief Managed reference to ArgInfoNode
  * \sa ArgInfoNode
  */
-class ArgInfo : public runtime::ObjectRef {
+class ArgInfo : public ffi::ObjectRef {
  public:
   /*!
    * \brief Parse the argument information from a JSON object.
@@ -68,7 +68,7 @@ class ArgInfo : public runtime::ObjectRef {
    */
   TVM_DLL static ffi::Array<ArgInfo, void> FromEntryFunc(const IRModule& mod, bool remove_preproc);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ArgInfo, runtime::ObjectRef, ArgInfoNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ArgInfo, ffi::ObjectRef, ArgInfoNode);
 
  protected:
   ArgInfo() = default;

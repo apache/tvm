@@ -958,14 +958,14 @@ TVM_DLL Expr GetShapeOf(const Expr& expr);
 template <>
 struct std::hash<tvm::relax::Var> {
   std::size_t operator()(const tvm::relax::Var& var) const {
-    return tvm::runtime::ObjectPtrHash()(var);
+    return tvm::ffi::ObjectPtrHash()(var);
   }
 };
 
 template <>
 struct std::equal_to<tvm::relax::Var> {
   bool operator()(const tvm::relax::Var& var_a, const tvm::relax::Var& var_b) const {
-    return tvm::runtime::ObjectPtrEqual()(var_a, var_b);
+    return tvm::ffi::ObjectPtrEqual()(var_a, var_b);
   }
 };
 

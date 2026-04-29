@@ -74,7 +74,7 @@ class SpaceGenerator;
   |                   +----  Runner Future <-------+                    |
   +---------------------------------------------------------------------+
 */
-class SpaceGeneratorNode : public runtime::Object {
+class SpaceGeneratorNode : public ffi::Object {
  public:
   /*! \brief The schedule rules. */
   ffi::Optional<ffi::Array<ScheduleRule>> sch_rules;
@@ -122,7 +122,7 @@ class SpaceGeneratorNode : public runtime::Object {
  * \brief Managed reference to SpaceGeneratorNode.
  * \sa SpaceGeneratorNode
  */
-class SpaceGenerator : public runtime::ObjectRef {
+class SpaceGenerator : public ffi::ObjectRef {
  public:
   /*!
    * \brief Constructor from ObjectPtr<SpaceGeneratorNode>.

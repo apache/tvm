@@ -53,7 +53,7 @@ class ScopedTimer {
 };
 
 /*! \brief A generic profiler */
-class ProfilerNode : public runtime::Object {
+class ProfilerNode : public ffi::Object {
  public:
   /*! \brief The segments that are already profiled */
   std::unordered_map<std::string, double> stats_sec;
@@ -66,7 +66,7 @@ class ProfilerNode : public runtime::Object {
   }
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.Profiler", ProfilerNode, runtime::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.Profiler", ProfilerNode, ffi::Object);
 
  public:
   /*! \brief Get the internal stats of the running time */
@@ -79,10 +79,10 @@ class ProfilerNode : public runtime::Object {
  * \brief Managed reference to ProfilerNode
  * \sa ProfilerNode
  */
-class Profiler : public runtime::ObjectRef {
+class Profiler : public ffi::ObjectRef {
  public:
   Profiler();
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Profiler, runtime::ObjectRef, ProfilerNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Profiler, ffi::ObjectRef, ProfilerNode);
 
   /*! \brief Entering the scope of the context manager */
   void EnterWithScope();

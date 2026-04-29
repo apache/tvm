@@ -35,7 +35,7 @@ class Postproc;
 /*!
  * \brief Rules to apply a postprocessor to a schedule.
  */
-class PostprocNode : public runtime::Object {
+class PostprocNode : public ffi::Object {
  public:
   /*! \brief Virtual destructor. */
   virtual ~PostprocNode() = default;
@@ -73,7 +73,7 @@ class PostprocNode : public runtime::Object {
  * \brief Managed reference to PostprocNode
  * \sa PostprocNode
  */
-class Postproc : public runtime::ObjectRef {
+class Postproc : public ffi::ObjectRef {
  public:
   /*!
    * \brief The function type of `InitializeWithTuneContext` method.

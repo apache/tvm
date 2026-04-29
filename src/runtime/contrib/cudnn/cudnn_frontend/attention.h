@@ -40,7 +40,7 @@
 namespace tvm {
 namespace contrib {
 
-class CuDNNSDPARunnerNode : public tvm::runtime::Object {
+class CuDNNSDPARunnerNode : public tvm::ffi::Object {
  public:
   CuDNNSDPARunnerNode() {}
 
@@ -66,14 +66,14 @@ class CuDNNSDPARunnerNode : public tvm::runtime::Object {
   int64_t offset_v_{0};
 };
 
-class CuDNNSDPARunner : public tvm::runtime::ObjectRef {
+class CuDNNSDPARunner : public tvm::ffi::ObjectRef {
  public:
   static CuDNNSDPARunner Create() {
     auto n = ffi::make_object<CuDNNSDPARunnerNode>();
     return CuDNNSDPARunner(n);
   }
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(CuDNNSDPARunner, tvm::runtime::ObjectRef,
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(CuDNNSDPARunner, tvm::ffi::ObjectRef,
                                              CuDNNSDPARunnerNode);
 };
 

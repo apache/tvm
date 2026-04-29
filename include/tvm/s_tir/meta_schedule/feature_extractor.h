@@ -35,7 +35,7 @@ namespace meta_schedule {
 class TuneContext;
 
 /*! \brief Extractor for features from measure candidates for use in cost model. */
-class FeatureExtractorNode : public runtime::Object {
+class FeatureExtractorNode : public ffi::Object {
  public:
   /*! \brief Virtual destructor. */
   virtual ~FeatureExtractorNode() = default;
@@ -95,7 +95,7 @@ class PyFeatureExtractorNode : public FeatureExtractorNode {
  * \brief Managed reference to FeatureExtractorNode
  * \sa FeatureExtractorNode
  */
-class FeatureExtractor : public runtime::ObjectRef {
+class FeatureExtractor : public ffi::ObjectRef {
  public:
   /*!
    * \brief Create a feature extractor that extracts features from each BufferStore

@@ -37,9 +37,9 @@
 
 namespace tvm {
 
-void Dump(const runtime::ObjectRef& n) { std::cerr << ffi::ReprPrint(ffi::Any(n)) << "\n"; }
+void Dump(const ffi::ObjectRef& n) { std::cerr << ffi::ReprPrint(ffi::Any(n)) << "\n"; }
 
-void Dump(const runtime::Object* n) { Dump(runtime::GetRef<runtime::ObjectRef>(n)); }
+void Dump(const ffi::Object* n) { Dump(ffi::GetRef<ffi::ObjectRef>(n)); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

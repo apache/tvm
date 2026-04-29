@@ -40,7 +40,7 @@ namespace s_tir {
 namespace meta_schedule {
 
 /*! \brief A tuning task extracted from the high-level IR */
-class ExtractedTaskNode : public runtime::Object {
+class ExtractedTaskNode : public ffi::Object {
  public:
   /*! \brief The name of the task extracted */
   ffi::String task_name;
@@ -65,18 +65,18 @@ class ExtractedTaskNode : public runtime::Object {
 
   static constexpr const bool _type_mutable = true;
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.ExtractedTask", ExtractedTaskNode,
-                                    runtime::Object);
+                                    ffi::Object);
 };
 
 /*!
  * \brief Managed reference to ExtractedTaskNode
  * \sa ExtractedTaskNode
  */
-class ExtractedTask : public runtime::ObjectRef {
+class ExtractedTask : public ffi::ObjectRef {
  public:
   explicit ExtractedTask(ffi::String task_name, IRModule mod, Target target,
                          ffi::Array<IRModule> dispatched, int weight);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ExtractedTask, runtime::ObjectRef,
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ExtractedTask, ffi::ObjectRef,
                                                 ExtractedTaskNode);
 };
 

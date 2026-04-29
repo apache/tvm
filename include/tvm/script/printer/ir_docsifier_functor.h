@@ -75,10 +75,10 @@ class IRDocsifierFunctor {
     }
 
     LOG(WARNING) << "ObjectFunctor calls un-registered function on type: "
-                 << runtime::Object::TypeIndex2Key(type_index) << " (token: " << token << ")"
+                 << ffi::Object::TypeIndex2Key(type_index) << " (token: " << token << ")"
                  << ". ObjectType: " << obj->GetTypeKey() << ". Object: " << obj;
     TVM_FFI_ICHECK(false) << "ObjectFunctor calls un-registered function on type: "
-                          << runtime::Object::TypeIndex2Key(type_index) << " (token: " << token
+                          << ffi::Object::TypeIndex2Key(type_index) << " (token: " << token
                           << ")"
                           << ". ObjectType: " << obj->GetTypeKey() << ". Object: " << obj;
     TVM_FFI_UNREACHABLE();
@@ -101,7 +101,7 @@ class IRDocsifierFunctor {
     ffi::Function& slot = (*table)[type_index];
     if (slot != nullptr) {
       TVM_FFI_ICHECK(false) << "Dispatch for type is already registered: "
-                            << runtime::Object::TypeIndex2Key(type_index);
+                            << ffi::Object::TypeIndex2Key(type_index);
     }
     slot = f;
     return *this;

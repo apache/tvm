@@ -918,6 +918,6 @@ struct TypeTraits<tvm::tirx::StringImm>
 
 namespace std {
 template <>
-struct hash<::tvm::tirx::IterVar> : public ::tvm::ObjectPtrHash {};
+struct hash<::tvm::tirx::IterVar> : public ::tvm::ffi::ObjectPtrHash {};
 }  // namespace std
 #endif  // TVM_TIR_EXPR_H_
