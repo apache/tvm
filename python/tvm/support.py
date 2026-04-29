@@ -30,30 +30,31 @@ from . import get_global_func
 tvm_ffi.init_ffi_api("support", __name__)
 
 
-def libinfo():
-    """Returns a dictionary containing compile-time info, including cmake flags and git commit hash
+def detect_active_modules() -> dict:
+    """Detect device-runtime modules linked into the current libtvm
+    by querying the FFI global function registry for
+    ``ffi.Module.create.<kind>`` registrations.
+
+    Probes a minimal set of key device runtimes (cuda, vulkan, opencl);
+    expand the list when a new caller needs it.
 
     Returns
     -------
-    info: Dict[str, str]
-        The dictionary of compile-time info.
+    active : dict[str, bool]
+        Mapping from runtime kind to whether it is registered in this build.
     """
-    get_lib_info_func = get_global_func("support.GetLibInfo", allow_missing=True)
-    if get_lib_info_func is not None:
-        lib_info = get_lib_info_func()
-        if lib_info is None:
-            return {}
-    else:
-        return {}
-    return dict(lib_info.items())
+    # Registry: "ffi.Module.create.<kind>" — per-backend device-module factory.
+    # Grep hint: grep -rn 'ffi.Module.create.' src/ python/
+    keys = ["cuda", "vulkan", "opencl"]
+    return {
+        k: get_global_func(f"ffi.Module.create.{k}", allow_missing=True) is not None for k in keys
+    }
 
 
 def describe():
     """
     Print out information about TVM and the current Python environment
     """
-    info = list((k, v) for k, v in libinfo().items())
-    info = dict(sorted(info, key=lambda x: x[0]))
     print("Python Environment")
     sys_version = sys.version.replace("\n", " ")
     uname = os.uname()
@@ -64,5 +65,5 @@ def describe():
         f"os.uname()     = {uname}",
     ]
     print(textwrap.indent("\n".join(lines), prefix="  "))
-    print("CMake Options:")
-    print(textwrap.indent(json.dumps(info, indent=2), prefix="  "))
+    print("Active Device Runtimes:")
+    print(textwrap.indent(json.dumps(detect_active_modules(), indent=2), prefix="  "))

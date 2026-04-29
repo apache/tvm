@@ -402,10 +402,10 @@ def _get_targets(target_names=None):
             target_kind = target.split()[0]
 
         if target_kind == "cuda" and "cudnn" in tvm.target.Target(target).attrs.get("libs", []):
-            is_enabled = tvm.support.libinfo()["USE_CUDNN"].lower() in ["on", "true", "1"]
-            is_runnable = is_enabled and cudnn.exists()
+            is_enabled = cudnn.exists()
+            is_runnable = is_enabled
         elif target_kind == "hexagon":
-            is_enabled = tvm.support.libinfo()["USE_HEXAGON"].lower() in ["on", "true", "1"]
+            is_enabled = tvm.runtime.enabled("hexagon")
             # If Hexagon has compile-time support, we can always fall back
             is_runnable = is_enabled and "ANDROID_SERIAL_NUMBER" in os.environ
         else:
@@ -1086,11 +1086,40 @@ requires_x86_amx = Feature(
 
 
 def _cmake_flag_enabled(flag):
-    flag = tvm.support.libinfo()[flag]
-
-    # Because many of the flags can be library flags, we check if the
-    # flag is not disabled, rather than checking if it is enabled.
-    return flag.lower() not in ["off", "false", "0"]
+    # Maps cmake USE_* option names to runtime probes.
+    # Device backends: tvm.runtime.enabled("<kind>") returns True iff the
+    # runtime module factory is registered (ffi.Module.create.<kind>).
+    # Contrib libraries: probe a known FFI global that only registers when
+    # the feature was compiled in.
+    # Grep hint: grep -rn 'ffi.Module.create.' src/ python/
+    _flag_to_device_kind = {
+        "USE_CUDA": "cuda",
+        "USE_OPENCL": "opencl",
+        "USE_VULKAN": "vulkan",
+        "USE_METAL": "metal",
+        "USE_ROCM": "rocm",
+        "USE_HEXAGON": "hexagon",
+        "USE_WEBGPU": "webgpu",
+        "USE_LLVM": "llvm",
+        "USE_RPC": "rpc",
+    }
+    _flag_to_global_func = {
+        "USE_CUDNN": "tvm.contrib.cudnn.exists",
+        "USE_CUBLAS": "tvm.contrib.cublas.matmul",
+        "USE_NCCL": "tvm.contrib.nccl.init_nccl_uid",
+        "USE_HIPBLAS": "tvm.contrib.hipblas.matmul",
+        "USE_CLML": "relax.is_openclml_runtime_enabled",
+        "USE_NNAPI_CODEGEN": "relax.ext.nnapi",
+        "USE_CUTLASS": "relax.ext.cutlass",
+    }
+    if flag in _flag_to_device_kind:
+        return tvm.runtime.enabled(_flag_to_device_kind[flag])
+    if flag in _flag_to_global_func:
+        return tvm.get_global_func(_flag_to_global_func[flag], allow_missing=True) is not None
+    raise RuntimeError(
+        f"_cmake_flag_enabled: unknown flag '{flag}'. "
+        "Add an entry to _flag_to_device_kind or _flag_to_global_func."
+    )
 
 
 def _parse_target_entry(entry):

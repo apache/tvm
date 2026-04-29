@@ -86,9 +86,18 @@ class AppendReshapeToBNRewriterPass:
 
 
 def clml_sdk_version():
-    """Utility function to get clml version"""
+    """Utility function to get clml version.
 
-    return int(tvm.support.libinfo().get("TVM_CLML_VERSION", 2))
+    Probes the FFI registry for the OpenCLML version registered by the
+    CLML backend at build time.  Returns 2 when CLML is not present.
+    """
+    # Registry: "relax.get_openclml_version" — returns the CLML SDK version
+    # that TVM was built against; registered unconditionally in codegen.cc.
+    # Grep hint: grep -rn 'relax.get_openclml_version' src/
+    get_version = tvm.get_global_func("relax.get_openclml_version", allow_missing=True)
+    if get_version is None:
+        return 2
+    return int(get_version())
 
 
 def is_clml_runtime_enabled():

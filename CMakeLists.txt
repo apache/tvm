@@ -457,18 +457,11 @@ include(cmake/modules/contrib/NNAPI.cmake)
 include(cmake/modules/contrib/ExampleNPU.cmake)
 include(cmake/modules/contrib/vllm.cmake)
 include(cmake/modules/Git.cmake)
-include(cmake/modules/LibInfo.cmake)
-
-set(LIBINFO_FILE ${CMAKE_CURRENT_LIST_DIR}/src/support/libinfo.cc)
-add_lib_info(${LIBINFO_FILE})
-list(REMOVE_ITEM COMPILER_SRCS ${LIBINFO_FILE})
 
 add_library(tvm_objs OBJECT ${COMPILER_SRCS})
 add_library(tvm_runtime_objs OBJECT ${RUNTIME_SRCS})
-add_library(tvm_libinfo_objs OBJECT ${LIBINFO_FILE})
 target_link_libraries(tvm_objs PUBLIC tvm_ffi_header)
 target_link_libraries(tvm_runtime_objs PUBLIC tvm_ffi_header)
-target_link_libraries(tvm_libinfo_objs PUBLIC tvm_ffi_header)
 
 include(GNUInstallDirs)
 
@@ -507,15 +500,13 @@ set_property(TARGET tvm_runtime APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_F
 if(TVM_VISIBILITY_FLAG)
   target_compile_options(tvm_runtime_objs PRIVATE "${TVM_VISIBILITY_FLAG}")
   target_compile_options(tvm_objs PRIVATE "${TVM_VISIBILITY_FLAG}")
-  target_compile_options(tvm_libinfo_objs PRIVATE "${TVM_VISIBILITY_FLAG}")
 endif()
 
-# Compiler library: built from compiler-only sources plus the libinfo TU.
+# Compiler library: built from compiler-only sources.
 # Links against tvm_runtime (and tvm_ffi_shared transitively). Loaded with
 # RTLD_LOCAL so compiler-internal symbols don't leak into the global namespace.
 add_library(tvm_compiler SHARED
   $<TARGET_OBJECTS:tvm_objs>
-  $<TARGET_OBJECTS:tvm_libinfo_objs>
 )
 target_link_libraries(tvm_compiler PUBLIC tvm_runtime tvm_ffi_shared)
 target_include_directories(tvm_compiler PUBLIC "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
@@ -572,7 +563,6 @@ if(TVM_DEBUG_WITH_ABI_CHANGE)
   message(STATUS "Building with debug code that may cause ABI changes...")
   target_compile_definitions(tvm_objs PRIVATE "TVM_DEBUG_WITH_ABI_CHANGE")
   target_compile_definitions(tvm_runtime_objs PRIVATE "TVM_DEBUG_WITH_ABI_CHANGE")
-  target_compile_definitions(tvm_libinfo_objs PRIVATE "TVM_DEBUG_WITH_ABI_CHANGE")
 endif(TVM_DEBUG_WITH_ABI_CHANGE)
 
 if(USE_THREADS AND NOT BUILD_FOR_HEXAGON)
@@ -702,10 +692,9 @@ install(
 
 # More target definitions
 if(MSVC)
-  # tvm_objs / tvm_libinfo_objs build libtvm_compiler.dll → TVM_DLL=dllexport,
+  # tvm_objs builds libtvm_compiler.dll → TVM_DLL=dllexport,
   # but TVM_RUNTIME_DLL=dllimport (runtime symbols come from libtvm_runtime.dll).
   target_compile_definitions(tvm_objs PRIVATE -DTVM_EXPORTS -DTVM_FFI_EXPORTS)
-  target_compile_definitions(tvm_libinfo_objs PRIVATE -DTVM_EXPORTS -DTVM_FFI_EXPORTS)
   # tvm_runtime_objs builds libtvm_runtime.dll → TVM_RUNTIME_DLL=dllexport.
   # No TVM_EXPORTS here: the runtime side never defines compiler-exported
   # symbols, so leaving TVM_DLL as dllimport correctly fails any accidental
@@ -726,7 +715,6 @@ if(TVM_IS_DEBUG_BUILD)
   if(FILE_PREFIX_MAP_SUPPORTED)
     target_compile_options(tvm_compiler PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${FILE_PREFIX_MAP_FLAG}>)
     target_compile_options(tvm_objs PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${FILE_PREFIX_MAP_FLAG}>)
-    target_compile_options(tvm_libinfo_objs PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${FILE_PREFIX_MAP_FLAG}>)
     target_compile_options(tvm_runtime PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${FILE_PREFIX_MAP_FLAG}>)
     target_compile_options(tvm_runtime_objs PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${FILE_PREFIX_MAP_FLAG}>)
   endif()
