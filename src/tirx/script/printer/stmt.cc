@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "../../../tirx/transform/ir_utils.h"  // For `GetPtrStorageScope`
+#include "../../transform/ir_utils.h"  // For `GetPtrStorageScope`
 #include "./utils.h"
 
 namespace tvm {

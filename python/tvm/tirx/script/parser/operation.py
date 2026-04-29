@@ -18,10 +18,9 @@
 
 from tvm import tirx
 from tvm.runtime import DataType, DataTypeCode
+from tvm.script.parser._core import OpMethod, doc, register_op
 from tvm.tirx import IntImm
 from tvm.tirx.expr import FloatImm
-
-from .._core import OpMethod, doc, register_op
 
 
 def _register_expr_op(ty: type):  # pylint: disable=invalid-name

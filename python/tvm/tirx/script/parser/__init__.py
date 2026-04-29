@@ -14,7 +14,24 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Backward-compat shim for ``tvm.script.parser.tirx`` — moved to ``tvm.tirx.script.parser``."""
+# ruff: noqa: RUF005
+"""The tirx parser"""
 
-from tvm.tirx.script.parser import *  # pylint: disable=wildcard-import,redefined-builtin
-from tvm.tirx.script.parser import Buffer, Ptr, macro, prim_func
+from typing import TYPE_CHECKING
+
+from tvm.tirx.script.builder import *  # pylint: disable=redefined-builtin
+from tvm.tirx.script.builder import ir as _tir
+
+from . import operation as _operation
+from . import parser as _parser
+from .entry import Buffer, Ptr
+
+if TYPE_CHECKING:
+    # pylint: disable=invalid-name
+    # Define prim_func and make it type check as static method
+    # so most tvmscript won't trigger pylint error here.
+    prim_func = staticmethod
+else:
+    from .entry import macro, prim_func
+
+__all__ = _tir.__all__ + ["Buffer", "Ptr", "bool", "prim_func", "macro"]

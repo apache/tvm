@@ -19,7 +19,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ir/expr.h>
 
-#include "../tirx/utils.h"
+#include "../../../tirx/script/printer/utils.h"
 #include "./utils.h"
 
 namespace tvm {

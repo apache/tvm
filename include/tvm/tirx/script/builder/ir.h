@@ -16,12 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef TVM_SCRIPT_IR_BUILDER_TIR_IR_H_
-#define TVM_SCRIPT_IR_BUILDER_TIR_IR_H_
+#ifndef TVM_TIRX_SCRIPT_BUILDER_IR_H_
+#define TVM_TIRX_SCRIPT_BUILDER_IR_H_
 
 #include <tvm/script/ir_builder/base.h>
-#include <tvm/script/ir_builder/tirx/frame.h>
 #include <tvm/tirx/op.h>
+#include <tvm/tirx/script/builder/frame.h>
 
 namespace tvm {
 namespace script {
@@ -519,4 +519,4 @@ TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST(Void, DataType::Void());
 }  // namespace script
 }  // namespace tvm
 
-#endif  // TVM_SCRIPT_IR_BUILDER_TIR_IR_H_
+#endif  // TVM_TIRX_SCRIPT_BUILDER_IR_H_

@@ -14,7 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Backward-compat shim for ``tvm.script.parser.tirx`` — moved to ``tvm.tirx.script.parser``."""
+"""TIRX-layer TVMScript pieces (parser, builder).
 
-from tvm.tirx.script.parser import *  # pylint: disable=wildcard-import,redefined-builtin
-from tvm.tirx.script.parser import Buffer, Ptr, macro, prim_func
+After the per-dialect TVMScript restructure, the TIRX layer owns its own
+``script/{parser,builder}`` subpackages. The legacy paths
+``tvm.script.parser.tirx`` and ``tvm.script.ir_builder.tirx`` continue to
+work as backward-compatibility shims that re-export from here.
+"""
