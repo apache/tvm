@@ -21,15 +21,15 @@
  * \brief Random number generator. It provides a generic interface consistent with
  * `std::uniform_random_bit_generator`
  */
-#ifndef TVM_SUPPORT_RANDOM_ENGINE_H_
-#define TVM_SUPPORT_RANDOM_ENGINE_H_
+#ifndef TVM_S_TIR_RANDOM_ENGINE_H_
+#define TVM_S_TIR_RANDOM_ENGINE_H_
 #include <tvm/runtime/logging.h>
 
 #include <cstdint>
 #include <random>
 
 namespace tvm {
-namespace support {
+namespace s_tir {
 
 /*!
  * \brief This linear congruential engine is a drop-in replacement for std::minstd_rand. It strictly
@@ -130,7 +130,7 @@ class LinearCongruentialEngine {
   TRandState* rand_state_ptr_;
 };
 
-}  // namespace support
+}  // namespace s_tir
 }  // namespace tvm
 
-#endif  // TVM_SUPPORT_RANDOM_ENGINE_H_
+#endif  // TVM_S_TIR_RANDOM_ENGINE_H_

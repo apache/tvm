@@ -125,20 +125,20 @@ struct PrimeTable {
   }
 };
 
-int32_t SampleInt(support::LinearCongruentialEngine::TRandState* rand_state, int32_t min_inclusive,
+int32_t SampleInt(LinearCongruentialEngine::TRandState* rand_state, int32_t min_inclusive,
                   int32_t max_exclusive) {
   TVM_FFI_CHECK(min_inclusive < max_exclusive, ValueError)
       << "max_exclusive must be greater than min_inclusive.";
   if (min_inclusive + 1 == max_exclusive) {
     return min_inclusive;
   }
-  support::LinearCongruentialEngine rand_(rand_state);
+  LinearCongruentialEngine rand_(rand_state);
   std::uniform_int_distribution<int32_t> dist(min_inclusive, max_exclusive - 1);
   return dist(rand_);
 }
 
-std::vector<int32_t> SampleWithoutReplacement(
-    support::LinearCongruentialEngine::TRandState* rand_state, int32_t n, int32_t k) {
+std::vector<int32_t> SampleWithoutReplacement(LinearCongruentialEngine::TRandState* rand_state,
+                                              int32_t n, int32_t k) {
   if (k == 1) {
     return {SampleInt(rand_state, 0, n)};
   }
@@ -163,7 +163,7 @@ std::vector<int32_t> SampleWithoutReplacement(
   return {order.begin(), order.begin() + k};
 }
 
-int64_t SampleCategorical(support::LinearCongruentialEngine::TRandState* rand_state,
+int64_t SampleCategorical(LinearCongruentialEngine::TRandState* rand_state,
                           const ffi::Array<Integer>& candidates, const ffi::Array<FloatImm>& probs,
                           ffi::Optional<Integer>* decision) {
   TVM_FFI_CHECK(candidates.size() == probs.size(), ValueError)
@@ -177,7 +177,7 @@ int64_t SampleCategorical(support::LinearCongruentialEngine::TRandState* rand_st
   } else {
     std::vector<double> weights = support::AsVector<FloatImm, double>(probs);
     std::discrete_distribution<int32_t> dist(weights.begin(), weights.end());
-    support::LinearCongruentialEngine rand_(rand_state);
+    LinearCongruentialEngine rand_(rand_state);
     i = dist(rand_);
     TVM_FFI_CHECK(0 <= i && i < n, ValueError)
         << "Unexpected decision generated, where n = " << n << ", but decision is: " << i;
@@ -187,8 +187,8 @@ int64_t SampleCategorical(support::LinearCongruentialEngine::TRandState* rand_st
   return candidates[i]->value;
 }
 
-std::function<int32_t()> MakeMultinomialSampler(
-    support::LinearCongruentialEngine::TRandState* rand_state, const std::vector<double>& weights) {
+std::function<int32_t()> MakeMultinomialSampler(LinearCongruentialEngine::TRandState* rand_state,
+                                                const std::vector<double>& weights) {
   TVM_FFI_ICHECK(!weights.empty());
   std::vector<double> sums;
   sums.reserve(weights.size());
@@ -196,10 +196,10 @@ std::function<int32_t()> MakeMultinomialSampler(
   for (double w : weights) {
     sums.push_back(sum += w);
   }
-  return [rng = support::LinearCongruentialEngine(rand_state).ForkSeed(),
+  return [rng = LinearCongruentialEngine(rand_state).ForkSeed(),
           dist = std::uniform_real_distribution<double>(0.0, sum),
           sums = std::move(sums)]() mutable -> int32_t {
-    support::LinearCongruentialEngine rand_(&rng);
+    LinearCongruentialEngine rand_(&rng);
     double p = dist(rand_);
     int32_t idx = std::lower_bound(sums.begin(), sums.end(), p) - sums.begin();
     int32_t n = sums.size();
@@ -209,7 +209,7 @@ std::function<int32_t()> MakeMultinomialSampler(
   };
 }
 
-std::vector<int64_t> SamplePerfectTile(support::LinearCongruentialEngine::TRandState* rand_state,
+std::vector<int64_t> SamplePerfectTile(LinearCongruentialEngine::TRandState* rand_state,
                                        int32_t extent, int32_t n_splits) {
   TVM_FFI_CHECK_GE(extent, 1, ValueError) << "Cannot tile a loop with 0 or negative extent";
   TVM_FFI_CHECK_GE(n_splits, 1, ValueError) << "Cannot tile a loop to 0 or negative splits";
@@ -292,7 +292,7 @@ std::vector<int64_t> SamplePerfectTile(support::LinearCongruentialEngine::TRandS
   return result;
 }
 
-std::vector<int64_t> SamplePerfectTile(support::LinearCongruentialEngine::TRandState* rand_state,
+std::vector<int64_t> SamplePerfectTile(LinearCongruentialEngine::TRandState* rand_state,
                                        int32_t extent, int32_t n_splits,
                                        int32_t max_innermost_factor) {
   if (max_innermost_factor == -1) {
@@ -307,10 +307,10 @@ std::vector<int64_t> SamplePerfectTile(support::LinearCongruentialEngine::TRandS
   }
 }
 
-std::vector<int64_t> SamplePerfectTile(
-    support::LinearCongruentialEngine::TRandState* rand_state,  //
-    const tirx::StmtSRef& loop_sref, int32_t n_splits, int32_t max_innermost_factor,
-    ffi::Optional<ffi::Array<Integer>>* decision) {
+std::vector<int64_t> SamplePerfectTile(LinearCongruentialEngine::TRandState* rand_state,  //
+                                       const tirx::StmtSRef& loop_sref, int32_t n_splits,
+                                       int32_t max_innermost_factor,
+                                       ffi::Optional<ffi::Array<Integer>>* decision) {
   const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
   const int64_t* extent = GetLoopIntExtent(loop);
   std::vector<int64_t> result;
@@ -347,7 +347,7 @@ std::vector<int64_t> SamplePerfectTile(
 }
 
 TVM_DLL std::vector<int64_t> SamplePartitionedTile(
-    support::LinearCongruentialEngine::TRandState* rand_state,  //
+    LinearCongruentialEngine::TRandState* rand_state,  //
     int32_t extent, int32_t n_splits, int32_t partition_pos, int32_t innerpart_factor) {
   if (partition_pos == 0 && innerpart_factor == 1) {
     return SamplePerfectTile(rand_state, extent, n_splits);
@@ -368,10 +368,10 @@ TVM_DLL std::vector<int64_t> SamplePartitionedTile(
   }
 }
 
-std::vector<int64_t> SamplePartitionedTile(
-    support::LinearCongruentialEngine::TRandState* rand_state,  //
-    const tirx::StmtSRef& loop_sref, int32_t n_splits, int32_t partition_pos,
-    int32_t innerpart_factor, ffi::Optional<ffi::Array<Integer>>* decision) {
+std::vector<int64_t> SamplePartitionedTile(LinearCongruentialEngine::TRandState* rand_state,  //
+                                           const tirx::StmtSRef& loop_sref, int32_t n_splits,
+                                           int32_t partition_pos, int32_t innerpart_factor,
+                                           ffi::Optional<ffi::Array<Integer>>* decision) {
   const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
   const int64_t* extent = GetLoopIntExtent(loop);
   std::vector<int64_t> result;
@@ -419,7 +419,7 @@ std::vector<int64_t> SamplePartitionedTile(
 }
 
 tirx::StmtSRef SampleComputeLocation(s_tir::ScheduleState self,
-                                     support::LinearCongruentialEngine::TRandState* rand_state,
+                                     LinearCongruentialEngine::TRandState* rand_state,
                                      const StmtSRef& block_sref, ffi::Optional<Integer>* decision) {
   // Step 1. Collect all possible compute-at locations.
   auto [location_srefs, location_indices] = CollectComputeLocation(self, block_sref);

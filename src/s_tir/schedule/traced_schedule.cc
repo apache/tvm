@@ -22,9 +22,8 @@ namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 
-Schedule Schedule::Traced(IRModule mod, support::LinearCongruentialEngine::TRandState seed,
-                          int debug_mask, ScheduleErrorRenderLevel error_render_level,
-                          bool enable_check) {
+Schedule Schedule::Traced(IRModule mod, LinearCongruentialEngine::TRandState seed, int debug_mask,
+                          ScheduleErrorRenderLevel error_render_level, bool enable_check) {
   ObjectPtr<TracedScheduleNode> n = ffi::make_object<TracedScheduleNode>();
   n->state_ = ScheduleState(mod, debug_mask, enable_check);
   n->error_render_level_ = error_render_level;

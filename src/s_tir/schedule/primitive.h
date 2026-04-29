@@ -19,8 +19,8 @@
 #ifndef TVM_S_TIR_SCHEDULE_PRIMITIVE_H_
 #define TVM_S_TIR_SCHEDULE_PRIMITIVE_H_
 
+#include <tvm/s_tir/random_engine.h>
 #include <tvm/s_tir/schedule/state.h>
-#include <tvm/support/random_engine.h>
 
 #include <vector>
 
@@ -36,8 +36,8 @@ using namespace tvm::tirx;
  * \param max_exclusive The maximum value of the range, exclusive.
  * \return The random integer sampled in the given range.
  */
-TVM_DLL int32_t SampleInt(support::LinearCongruentialEngine::TRandState* rand_state,
-                          int32_t min_inclusive, int32_t max_exclusive);
+TVM_DLL int32_t SampleInt(LinearCongruentialEngine::TRandState* rand_state, int32_t min_inclusive,
+                          int32_t max_exclusive);
 /*!
  * \brief Sample k random integers from given range without replacement, i.e, no duplication.
  * \param rand_state The pointer to schedule's random state
@@ -45,8 +45,8 @@ TVM_DLL int32_t SampleInt(support::LinearCongruentialEngine::TRandState* rand_st
  * \param k The total number of samples.
  * \return The randomly selected samples from the n candidates.
  */
-std::vector<int32_t> SampleWithoutReplacement(
-    support::LinearCongruentialEngine::TRandState* rand_state, int32_t n, int32_t k);
+std::vector<int32_t> SampleWithoutReplacement(LinearCongruentialEngine::TRandState* rand_state,
+                                              int32_t n, int32_t k);
 /*!
  * \brief Sample once category from candidates according to the probability weights.
  * \param rand_state The pointer to schedule's random state
@@ -55,7 +55,7 @@ std::vector<int32_t> SampleWithoutReplacement(
  * \param decision The sampling decision, if any
  * \return The random variable sampled from candidates
  */
-TVM_DLL int64_t SampleCategorical(support::LinearCongruentialEngine::TRandState* rand_state,
+TVM_DLL int64_t SampleCategorical(LinearCongruentialEngine::TRandState* rand_state,
                                   const ffi::Array<Integer>& candidates,
                                   const ffi::Array<FloatImm>& probs,
                                   ffi::Optional<Integer>* decision);
@@ -66,7 +66,7 @@ TVM_DLL int64_t SampleCategorical(support::LinearCongruentialEngine::TRandState*
  * \return The multinomial sampling function.
  */
 TVM_DLL std::function<int32_t()> MakeMultinomialSampler(
-    support::LinearCongruentialEngine::TRandState* rand_state, const std::vector<double>& weights);
+    LinearCongruentialEngine::TRandState* rand_state, const std::vector<double>& weights);
 /*!
  * \brief Sample the factors to perfect tile a specific loop
  * \param rand_state The random state
@@ -74,9 +74,8 @@ TVM_DLL std::function<int32_t()> MakeMultinomialSampler(
  * \param n_split The number of tiles to be sampled
  * \return A list of length `n`, the random perfect tile sizes sampled
  */
-TVM_DLL std::vector<int64_t> SamplePerfectTile(
-    support::LinearCongruentialEngine::TRandState* rand_state,  //
-    int32_t extent, int32_t n_splits);
+TVM_DLL std::vector<int64_t> SamplePerfectTile(LinearCongruentialEngine::TRandState* rand_state,  //
+                                               int32_t extent, int32_t n_splits);
 /*!
  * \brief Sample the factors to perfect tile a specific loop
  * \param rand_state The random state
@@ -85,9 +84,9 @@ TVM_DLL std::vector<int64_t> SamplePerfectTile(
  * \param max_innermost_factor The maximum tile size allowed to be sampled in the innermost loop
  * \return A list of length `n`, the random perfect tile sizes sampled
  */
-TVM_DLL std::vector<int64_t> SamplePerfectTile(
-    support::LinearCongruentialEngine::TRandState* rand_state,  //
-    int32_t extent, int32_t n_split, int32_t max_innermost_factor);
+TVM_DLL std::vector<int64_t> SamplePerfectTile(LinearCongruentialEngine::TRandState* rand_state,  //
+                                               int32_t extent, int32_t n_split,
+                                               int32_t max_innermost_factor);
 /*!
  * \brief Sample the factors to perfect tile a specific loop
  * \param rand_state The random state
@@ -97,10 +96,10 @@ TVM_DLL std::vector<int64_t> SamplePerfectTile(
  * \param decision The sampling decision
  * \return A list of length `n`, the random perfect tile sizes sampled
  */
-TVM_DLL std::vector<int64_t> SamplePerfectTile(
-    support::LinearCongruentialEngine::TRandState* rand_state,  //
-    const tirx::StmtSRef& loop_sref, int32_t n_split, int32_t max_innermost_factor,
-    ffi::Optional<ffi::Array<Integer>>* decision);
+TVM_DLL std::vector<int64_t> SamplePerfectTile(LinearCongruentialEngine::TRandState* rand_state,  //
+                                               const tirx::StmtSRef& loop_sref, int32_t n_split,
+                                               int32_t max_innermost_factor,
+                                               ffi::Optional<ffi::Array<Integer>>* decision);
 /*!
  * \brief Sample the factors to a partitioned tile for a specific loop
  *
@@ -117,7 +116,7 @@ TVM_DLL std::vector<int64_t> SamplePerfectTile(
  * \return A list of length `n`, the random partitioned tile sizes sampled
  */
 TVM_DLL std::vector<int64_t> SamplePartitionedTile(
-    support::LinearCongruentialEngine::TRandState* rand_state,  //
+    LinearCongruentialEngine::TRandState* rand_state,  //
     int32_t extent, int32_t n_split, int32_t partition_pos, int32_t innerpart_factor);
 /*!
  * \brief Sample the factors to a partitioned tile for a specific loop
@@ -136,7 +135,7 @@ TVM_DLL std::vector<int64_t> SamplePartitionedTile(
  * \return A list of length `n`, the random partitioned tile sizes sampled
  */
 TVM_DLL std::vector<int64_t> SamplePartitionedTile(
-    support::LinearCongruentialEngine::TRandState* rand_state,  //
+    LinearCongruentialEngine::TRandState* rand_state,  //
     const tirx::StmtSRef& loop_sref, int32_t n_split, int32_t partition_pos,
     int32_t innerpart_factor, ffi::Optional<ffi::Array<Integer>>* decision);
 /*!
@@ -147,9 +146,10 @@ TVM_DLL std::vector<int64_t> SamplePartitionedTile(
  * \param decision The sampling decision
  * \return The sampled loop where the input block is to be computed at
  */
-TVM_DLL tirx::StmtSRef SampleComputeLocation(
-    s_tir::ScheduleState self, support::LinearCongruentialEngine::TRandState* rand_state,
-    const tirx::StmtSRef& block_sref, ffi::Optional<Integer>* decision);
+TVM_DLL tirx::StmtSRef SampleComputeLocation(s_tir::ScheduleState self,
+                                             LinearCongruentialEngine::TRandState* rand_state,
+                                             const tirx::StmtSRef& block_sref,
+                                             ffi::Optional<Integer>* decision);
 
 /******** Schedule: Get blocks & loops ********/
 /*!

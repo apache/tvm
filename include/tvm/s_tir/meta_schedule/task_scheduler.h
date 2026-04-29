@@ -29,7 +29,7 @@
 #include <tvm/s_tir/meta_schedule/measure_callback.h>
 #include <tvm/s_tir/meta_schedule/runner.h>
 #include <tvm/s_tir/meta_schedule/tune_context.h>
-#include <tvm/support/random_engine.h>
+#include <tvm/s_tir/random_engine.h>
 
 #include <string>
 #include <vector>
@@ -279,7 +279,7 @@ class TaskScheduler : public runtime::ObjectRef {
    * \return The task scheduler created.
    */
   TVM_DLL static TaskScheduler GradientBased(ffi::Function logger, double alpha, int window_size,
-                                             support::LinearCongruentialEngine::TRandState seed);
+                                             LinearCongruentialEngine::TRandState seed);
   /*!
    * \brief Create a task scheduler with customized methods on the python-side.
    * \param logger The tuning task's logging function.

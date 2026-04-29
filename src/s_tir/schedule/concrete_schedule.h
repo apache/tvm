@@ -48,7 +48,7 @@ class ConcreteScheduleNode : public ScheduleNode {
   /*! \brief A persistent stateless arithmetic analyzer. */
   std::unique_ptr<arith::Analyzer> analyzer_;
   /*! \brief The value of random state for sampling. */
-  support::LinearCongruentialEngine::TRandState rand_state_;
+  LinearCongruentialEngine::TRandState rand_state_;
 
  public:
   static void RegisterReflection() {
@@ -64,8 +64,8 @@ class ConcreteScheduleNode : public ScheduleNode {
   ffi::Optional<GlobalVar> func_working_on() const final { return func_working_on_; }
   void WorkOn(const ffi::String& func_name) final;
   Schedule Copy() override;
-  void Seed(support::LinearCongruentialEngine::TRandState seed) final;
-  support::LinearCongruentialEngine::TRandState ForkSeed() final;
+  void Seed(LinearCongruentialEngine::TRandState seed) final;
+  LinearCongruentialEngine::TRandState ForkSeed() final;
 
  public:
   /******** Lookup random variables ********/
