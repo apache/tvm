@@ -822,6 +822,7 @@ def _multi_gpu_exists():
 requires_llvm = Feature(
     "llvm",
     "LLVM",
+    compile_time_check=lambda: tvm.runtime.enabled("llvm"),
     run_time_check=lambda: tvm.runtime.enabled("llvm"),
     target_kind_enabled="llvm",
     target_kind_hardware="llvm",
@@ -861,6 +862,7 @@ requires_aarch64 = Feature(
 requires_cuda = Feature(
     "cuda",
     "CUDA",
+    compile_time_check=lambda: tvm.runtime.enabled("cuda"),
     run_time_check=lambda: tvm.runtime.enabled("cuda"),
     target_kind_enabled="cuda",
     target_kind_hardware="cuda",
@@ -879,6 +881,8 @@ requires_tensorcore = Feature(
 requires_cudnn = Feature(
     "cudnn",
     "cuDNN",
+    compile_time_check=lambda: tvm.get_global_func("tvm.contrib.cudnn.exists", allow_missing=True)
+    is not None,
     run_time_check=lambda: tvm.get_global_func("tvm.contrib.cudnn.exists", allow_missing=True)
     is not None,
     parent_features="cuda",
@@ -888,6 +892,8 @@ requires_cudnn = Feature(
 requires_cublas = Feature(
     "cublas",
     "cuBLAS",
+    compile_time_check=lambda: tvm.get_global_func("tvm.contrib.cublas.matmul", allow_missing=True)
+    is not None,
     run_time_check=lambda: tvm.get_global_func("tvm.contrib.cublas.matmul", allow_missing=True)
     is not None,
     parent_features="cuda",
@@ -897,6 +903,10 @@ requires_cublas = Feature(
 requires_nccl = Feature(
     "nccl",
     "NCCL",
+    compile_time_check=lambda: tvm.get_global_func(
+        "tvm.contrib.nccl.init_nccl_uid", allow_missing=True
+    )
+    is not None,
     run_time_check=lambda: tvm.get_global_func("tvm.contrib.nccl.init_nccl_uid", allow_missing=True)
     is not None,
     parent_features="cuda",
@@ -924,6 +934,7 @@ requires_cudagraph = Feature(
 requires_adreno_opencl = Feature(
     "opencl",
     long_name="Remote Adreno OpenCL",
+    compile_time_check=lambda: tvm.runtime.enabled("opencl"),
     run_time_check=lambda: tvm.runtime.enabled("opencl") and os.getenv("RPC_TARGET") is not None,
     target_kind_enabled="opencl",
     target_kind_hardware=None,
@@ -934,6 +945,7 @@ requires_adreno_opencl = Feature(
 requires_opencl = Feature(
     "opencl",
     "OpenCL",
+    compile_time_check=lambda: tvm.runtime.enabled("opencl"),
     run_time_check=lambda: tvm.runtime.enabled("opencl"),
     target_kind_enabled="opencl",
     target_kind_hardware="opencl" if "RPC_TARGET" not in os.environ else None,
@@ -944,6 +956,7 @@ requires_opencl = Feature(
 requires_rocm = Feature(
     "rocm",
     "ROCm",
+    compile_time_check=lambda: tvm.runtime.enabled("rocm"),
     run_time_check=lambda: tvm.runtime.enabled("rocm"),
     target_kind_enabled="rocm",
     target_kind_hardware="rocm",
@@ -962,6 +975,8 @@ requires_matrixcore = Feature(
 requires_hipblas = Feature(
     "hipblas",
     "hipBLAS",
+    compile_time_check=lambda: tvm.get_global_func("tvm.contrib.hipblas.matmul", allow_missing=True)
+    is not None,
     run_time_check=lambda: tvm.get_global_func("tvm.contrib.hipblas.matmul", allow_missing=True)
     is not None,
     parent_features="rocm",
@@ -971,6 +986,7 @@ requires_hipblas = Feature(
 requires_metal = Feature(
     "metal",
     "Metal",
+    compile_time_check=lambda: tvm.runtime.enabled("metal"),
     run_time_check=lambda: tvm.runtime.enabled("metal"),
     target_kind_enabled="metal",
     target_kind_hardware="metal",
@@ -981,6 +997,7 @@ requires_metal = Feature(
 requires_vulkan = Feature(
     "vulkan",
     "Vulkan",
+    compile_time_check=lambda: tvm.runtime.enabled("vulkan"),
     run_time_check=lambda: tvm.runtime.enabled("vulkan"),
     target_kind_enabled="vulkan",
     target_kind_hardware="vulkan",
@@ -991,6 +1008,10 @@ requires_vulkan = Feature(
 requires_openclml = Feature(
     "OpenCLML",
     "CLML",
+    compile_time_check=lambda: tvm.get_global_func(
+        "relax.is_openclml_runtime_enabled", allow_missing=True
+    )
+    is not None,
     run_time_check=lambda: tvm.get_global_func(
         "relax.is_openclml_runtime_enabled", allow_missing=True
     )
@@ -1002,6 +1023,8 @@ requires_openclml = Feature(
 requires_nnapi = Feature(
     "NNAPI",
     "NNAPI",
+    compile_time_check=lambda: tvm.get_global_func("relax.ext.nnapi", allow_missing=True)
+    is not None,
     run_time_check=lambda: tvm.get_global_func("relax.ext.nnapi", allow_missing=True) is not None,
 )
 
@@ -1009,6 +1032,8 @@ requires_nnapi = Feature(
 requires_cutlass = Feature(
     "cutlass",
     "CUTLASS",
+    compile_time_check=lambda: tvm.get_global_func("relax.ext.cutlass", allow_missing=True)
+    is not None,
     run_time_check=lambda: tvm.get_global_func("relax.ext.cutlass", allow_missing=True) is not None,
 )
 
@@ -1016,6 +1041,7 @@ requires_cutlass = Feature(
 requires_rpc = Feature(
     "rpc",
     "RPC",
+    compile_time_check=lambda: tvm.runtime.enabled("rpc"),
     run_time_check=lambda: tvm.runtime.enabled("rpc"),
 )
 
