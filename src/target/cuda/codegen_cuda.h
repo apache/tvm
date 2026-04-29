@@ -21,8 +21,8 @@
  * \file codegen_cuda.h
  * \brief Utility to generate CUDA code
  */
-#ifndef TVM_TARGET_SOURCE_CODEGEN_CUDA_H_
-#define TVM_TARGET_SOURCE_CODEGEN_CUDA_H_
+#ifndef TVM_TARGET_CUDA_CODEGEN_CUDA_H_
+#define TVM_TARGET_CUDA_CODEGEN_CUDA_H_
 
 #include <tvm/target/codegen.h>
 #include <tvm/tirx/expr.h>
@@ -31,7 +31,7 @@
 #include <string>
 #include <unordered_map>
 
-#include "codegen_c.h"
+#include "../source/codegen_c.h"
 
 namespace tvm {
 namespace codegen {
@@ -126,4 +126,4 @@ class CodeGenCUDA final : public CodeGenC {
 }  // namespace codegen
 }  // namespace tvm
 
-#endif  // TVM_TARGET_SOURCE_CODEGEN_CUDA_H_
+#endif  // TVM_TARGET_CUDA_CODEGEN_CUDA_H_

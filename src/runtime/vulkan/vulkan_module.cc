@@ -17,14 +17,22 @@
  * under the License.
  */
 
-#include "vulkan_module.h"
-
+/*!
+ * \file vulkan_module.cc
+ * \brief Plugin-only Vulkan runtime module.  Built only when USE_VULKAN=ON.
+ *        No exported header — codegen-side construction goes through
+ *        src/target/vulkan/vulkan_fallback_module.h:VulkanModuleCreateWithFallback,
+ *        which dispatches to "ffi.Module.create.vulkan" registered below
+ *        when this file is linked into the build.
+ */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/support/io.h>
 
+#include <string>
+#include <utility>
+
 #include "../../support/bytes_io.h"
-#include "../file_utils.h"
 #include "spirv_shader.h"
 #include "vulkan_wrapped_func.h"
 
@@ -34,7 +42,8 @@ namespace vulkan {
 
 /*!
  * \brief Deserialize a SPIRVShader from ffi::Bytes.
- * Format: flag (uint32_t) followed by data (vector<uint32_t>).
+ * Format: flag (uint32_t) followed by data (vector<uint32_t>) — matches
+ * the SPIRVShader::Save format in src/runtime/vulkan/spirv_shader.h.
  */
 static SPIRVShader DeserializeSPIRVShader(const ffi::Bytes& bytes) {
   support::BytesInStream stream(bytes);
@@ -43,54 +52,47 @@ static SPIRVShader DeserializeSPIRVShader(const ffi::Bytes& bytes) {
   return shader;
 }
 
-static ffi::Module VulkanModuleCreateImpl(std::unordered_map<std::string, SPIRVShader> smap,
+static ffi::Module VulkanModuleCreateImpl(ffi::Map<ffi::String, ffi::Bytes> smap, ffi::String fmt,
                                           ffi::Map<ffi::String, FunctionInfo> fmap,
-                                          std::string source) {
-  auto n = ffi::make_object<VulkanModuleNode>(smap, fmap, source);
+                                          ffi::Map<ffi::String, ffi::String> source) {
+  // Convert Map<String, Bytes> smap → unordered_map<string, SPIRVShader>
+  // for the in-memory module.  SaveToBytes will re-emit Map<String, Bytes>
+  // form so the bytes shape stays uniform across backends.
+  std::unordered_map<std::string, SPIRVShader> internal_smap;
+  for (const auto& kv : smap) {
+    internal_smap[std::string(kv.first)] = DeserializeSPIRVShader(kv.second);
+  }
+  auto n = ffi::make_object<VulkanModuleNode>(std::move(internal_smap), std::move(smap),
+                                              std::move(fmt), std::move(fmap), std::move(source));
   return ffi::Module(n);
 }
 
-ffi::Module VulkanModuleLoadFile(const std::string& file_name, const ffi::String& format) {
-  std::string data;
-  std::unordered_map<std::string, SPIRVShader> smap;
-  ffi::Map<ffi::String, FunctionInfo> fmap;
-  std::string fmt = GetFileFormat(file_name, format);
-  std::string meta_file = GetMetaFilePath(file_name);
-  LoadBinaryFromFile(file_name, &data);
-  LoadMetaDataFromFile(meta_file, &fmap);
-  support::BytesInStream stream(data);
-  uint32_t magic;
-  stream.Read(&magic);
-  TVM_FFI_ICHECK_EQ(magic, kVulkanModuleMagic) << "VulkanModule Magic mismatch";
-  stream.Read(&smap);
-  return VulkanModuleCreateImpl(smap, fmap, "");
-}
-
-ffi::Module VulkanModuleLoadFromBytes(const ffi::Bytes& bytes) {
+static ffi::Module VulkanModuleLoadFromBytes(const ffi::Bytes& bytes) {
   support::BytesInStream stream(bytes);
-  std::unordered_map<std::string, SPIRVShader> smap;
-
-  std::string fmt;
-  stream.Read(&fmt);
+  ffi::String fmt;
   ffi::Map<ffi::String, FunctionInfo> fmap;
+  ffi::Map<ffi::String, ffi::Bytes> smap;
+  stream.Read(&fmt);
   TVM_FFI_ICHECK(stream.Read(&fmap));
   stream.Read(&smap);
-  return VulkanModuleCreateImpl(smap, fmap, "");
+  // Source map is not serialized — reconstructed empty on load.
+  return VulkanModuleCreateImpl(std::move(smap), std::move(fmt), std::move(fmap),
+                                ffi::Map<ffi::String, ffi::String>());
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  // Registry: "ffi.Module.create.vulkan" — codegen-time Vulkan module factory.
+  // Used by src/target/vulkan/vulkan_fallback_module.h:VulkanModuleCreateWithFallback.
+  // Registry: "ffi.Module.load_from_bytes.vulkan" — disk loader.  Only this
+  // (real) module registers a loader; the fallback is codegen-only.
   refl::GlobalDef()
-      .def("ffi.Module.load_from_file.vulkan", VulkanModuleLoadFile)
       .def("ffi.Module.load_from_bytes.vulkan", VulkanModuleLoadFromBytes)
       .def("ffi.Module.create.vulkan",
-           [](ffi::Map<ffi::String, ffi::Bytes> shader_bytes,
-              ffi::Map<ffi::String, FunctionInfo> fmap, ffi::String source) {
-             std::unordered_map<std::string, SPIRVShader> smap;
-             for (const auto& kv : shader_bytes) {
-               smap[std::string(kv.first)] = DeserializeSPIRVShader(kv.second);
-             }
-             return VulkanModuleCreateImpl(smap, fmap, std::string(source));
+           [](ffi::Map<ffi::String, ffi::Bytes> smap, ffi::String fmt,
+              ffi::Map<ffi::String, FunctionInfo> fmap, ffi::Map<ffi::String, ffi::String> source) {
+             return VulkanModuleCreateImpl(std::move(smap), std::move(fmt), std::move(fmap),
+                                           std::move(source));
            });
 }
 

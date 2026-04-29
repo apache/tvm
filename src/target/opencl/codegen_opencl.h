@@ -21,15 +21,15 @@
  * \file codegen_opencl.h
  * \brief Generate OpenCL device code.
  */
-#ifndef TVM_TARGET_SOURCE_CODEGEN_OPENCL_H_
-#define TVM_TARGET_SOURCE_CODEGEN_OPENCL_H_
+#ifndef TVM_TARGET_OPENCL_CODEGEN_OPENCL_H_
+#define TVM_TARGET_OPENCL_CODEGEN_OPENCL_H_
 
 #include <tvm/target/codegen.h>
 
 #include <string>
 #include <unordered_map>
 
-#include "codegen_c.h"
+#include "../source/codegen_c.h"
 
 namespace tvm {
 namespace codegen {
@@ -93,4 +93,4 @@ class CodeGenOpenCL final : public CodeGenC {
 }  // namespace codegen
 }  // namespace tvm
 
-#endif  // TVM_TARGET_SOURCE_CODEGEN_OPENCL_H_
+#endif  // TVM_TARGET_OPENCL_CODEGEN_OPENCL_H_

@@ -23,8 +23,8 @@
  * \brief Utility for determining which spirv capabilities a TVM
  * target supports.
  */
-#ifndef TVM_TARGET_SPIRV_SPIRV_SUPPORT_H_
-#define TVM_TARGET_SPIRV_SPIRV_SUPPORT_H_
+#ifndef TVM_TARGET_VULKAN_SPIRV_SUPPORT_H_
+#define TVM_TARGET_VULKAN_SPIRV_SUPPORT_H_
 
 #include <tvm/target/target.h>
 #include <vulkan/vulkan_core.h>
@@ -276,8 +276,22 @@ struct SPIRVSupport {
    * attempting to perform integer dot product.
    */
   bool supports_integer_dot_product{false};
+
+  /*!
+   * \brief  Whether the driver supports operations involving cooperative matrix.
+   *
+   * Vulkan extension: VK_NV_cooperative_matrix
+   * SPV Extension name: SPV_NV_cooperative_matrix
+   * SPV Capability: spv::CapabilityCooperativeMatrixNV
+   *
+   * If support is present, can perform cooperative matrix operations.  If
+   * support is not present, codegen will throw exception on
+   * attempting to perform cooperative matrix.
+   */
+
+  bool supports_cooperative_matrix{false};
 };
 
 }  // namespace codegen
 }  // namespace tvm
-#endif  // TVM_TARGET_SPIRV_SPIRV_SUPPORT_H_
+#endif  // TVM_TARGET_VULKAN_SPIRV_SUPPORT_H_

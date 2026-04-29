@@ -18,19 +18,23 @@
  */
 
 /*!
- * \file metal_module.cc
+ * \file metal_module.mm
+ * \brief MetalModuleNode — runtime-side, plugin-only.  Reachable from C++
+ *        only through the FFI registry keys "ffi.Module.create.metal" and
+ *        "ffi.Module.load_from_bytes.metal".  No exported header — codegen-
+ *        side construction goes through src/target/metal/metal_fallback_module.h.
  */
-#include "metal_module.h"
-#include <tvm/support/io.h>
-
 #include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/support/io.h>
 #include <array>
 #include <mutex>
 #include <sstream>
 #include <string>
+#include <unordered_map>
+#include <utility>
 #include "../../support/bytes_io.h"
 #include "../file_utils.h"
 #include "../metadata.h"
@@ -41,20 +45,27 @@
 namespace tvm {
 namespace runtime {
 
-// The version of metal module
-// for future compatibility checking
-// bump when we change the binary format.
-static constexpr const char* kMetalModuleVersion = "0.1.0";
+/*! \brief Maximum number of GPU supported in MetalModule. */
+static constexpr const int kMetalMaxNumDevice = 32;
 
 // Module to support thread-safe multi-GPU execution.
 // The runtime will contain a per-device module table
 // The modules will be lazily loaded
 class MetalModuleNode final : public ffi::ModuleObj {
  public:
-  explicit MetalModuleNode(std::unordered_map<std::string, std::string> smap,
-                           ffi::Map<ffi::String, FunctionInfo> fmap, std::string fmt,
-                           std::string source)
-      : smap_(smap), fmap_(fmap), fmt_(fmt), source_(source) {}
+  // Unified factory signature shared with the codegen-side fallback in
+  // src/target/metal/metal_fallback_module.h.  The per-kernel `smap`
+  // payload is Map<String, Bytes> regardless of whether the format is
+  // text MSL ("metal") or compiled metallib ("metallib") — text vs binary
+  // distinction lives in `fmt`.
+  MetalModuleNode(ffi::Map<ffi::String, ffi::Bytes> smap, ffi::String fmt,
+                  ffi::Map<ffi::String, FunctionInfo> fmap,
+                  ffi::Map<ffi::String, ffi::String> source)
+      : smap_(std::move(smap)),
+        fmt_(std::move(fmt)),
+        fmap_(std::move(fmap)),
+        source_(std::move(source)) {}
+
   const char* kind() const final { return "metal"; }
 
   /*! \brief Get the property of the runtime module. */
@@ -64,23 +75,29 @@ class MetalModuleNode final : public ffi::ModuleObj {
 
   ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) final;
 
-  void WriteToFile(const ffi::String& file_name, const ffi::String& format) const final {
-    LOG(FATAL) << "Do not support save to file, use save to binary and export instead";
-  }
-
   ffi::Bytes SaveToBytes() const final {
+    // 3 fields [fmt][fmap][smap].  Source map is in-memory inspection only
+    // and is NEVER serialized — matches the cross-backend rule.
+    // MetalFallbackModuleNode::SaveToBytes (in
+    // src/target/metal/metal_fallback_module.cc) MUST mirror this format
+    // byte-for-byte; see one-way comment there.
     std::string result;
     support::BytesOutStream stream(&result);
-    std::string version = kMetalModuleVersion;
-    stream.Write(version);
-    stream.Write(smap_);
-    stream.Write(fmap_);
     stream.Write(fmt_);
+    stream.Write(fmap_);
+    stream.Write(smap_);
     return ffi::Bytes(std::move(result));
   }
   ffi::String InspectSource(const ffi::String& format) const final {
-    // return text source if available.
-    return source_;
+    if (auto it = source_.find(format); it != source_.end()) {
+      return (*it).second;
+    }
+    if (format.empty()) {
+      if (auto it = source_.find("metal"); it != source_.end()) {
+        return (*it).second;
+      }
+    }
+    return ffi::String();
   }
 
   // get a from primary context in device_id
@@ -101,17 +118,19 @@ class MetalModuleNode final : public ffi::ModuleObj {
     auto kernel = smap_.find(func_name);
     // Directly lookup kernels
     TVM_FFI_ICHECK(kernel != smap_.end());
-    const std::string& source = kernel->second;
+    const ffi::Bytes& source = (*kernel).second;
 
     if (fmt_ == "metal") {
       MTLCompileOptions* opts = [MTLCompileOptions alloc];
       opts.languageVersion = MTLLanguageVersion2_3;
       opts.fastMathEnabled = YES;
       // opts = nil;
-      lib =
-          [w->devices[device_id] newLibraryWithSource:[NSString stringWithUTF8String:source.c_str()]
-                                              options:opts
-                                                error:&err_msg];
+      // Per-kernel payload is bytes; treat as UTF-8 MSL source.
+      std::string source_str(source.data(), source.size());
+      lib = [w->devices[device_id]
+          newLibraryWithSource:[NSString stringWithUTF8String:source_str.c_str()]
+                       options:opts
+                         error:&err_msg];
       [opts dealloc];
       if (lib == nil) {
         LOG(FATAL) << "Fail to compile metal source:"
@@ -123,7 +142,7 @@ class MetalModuleNode final : public ffi::ModuleObj {
     } else {
       // Build from library.
       auto q = dispatch_queue_create("q", DISPATCH_QUEUE_SERIAL);
-      auto data = dispatch_data_create(source.c_str(), source.length(), q,
+      auto data = dispatch_data_create(source.data(), source.size(), q,
                                        ^{
                                        });
       lib = [w->devices[device_id] newLibraryWithData:data error:&err_msg];
@@ -161,14 +180,15 @@ class MetalModuleNode final : public ffi::ModuleObj {
       }
     }
   };
-  // the source shader data, can be mtl or binary
-  std::unordered_map<std::string, std::string> smap_;
+  // Per-kernel payload: kernel-name -> bytes (MSL source for fmt="metal" /
+  // metallib blob for fmt="metallib").
+  ffi::Map<ffi::String, ffi::Bytes> smap_;
+  // The format ("metal" source / "metallib" compiled).
+  ffi::String fmt_;
   // function information table.
   ffi::Map<ffi::String, FunctionInfo> fmap_;
-  // The format
-  std::string fmt_;
-  // The source
-  std::string source_;
+  // In-memory source map for InspectSource — never serialized.
+  ffi::Map<ffi::String, ffi::String> source_;
   // function information.
   std::vector<DeviceEntry> finfo_;
   // internal mutex when updating the module
@@ -272,62 +292,43 @@ ffi::Optional<ffi::Function> MetalModuleNode::GetFunction(const ffi::String& nam
   return ret;
 }
 
-static ffi::Module MetalModuleCreateImpl(std::unordered_map<std::string, std::string> smap,
-                                         ffi::Map<ffi::String, FunctionInfo> fmap, std::string fmt,
-                                         std::string source) {
+static ffi::Module MetalModuleCreateImpl(ffi::Map<ffi::String, ffi::Bytes> smap, ffi::String fmt,
+                                         ffi::Map<ffi::String, FunctionInfo> fmap,
+                                         ffi::Map<ffi::String, ffi::String> source) {
   ObjectPtr<MetalModuleNode> n;
-  AUTORELEASEPOOL { n = ffi::make_object<MetalModuleNode>(smap, fmap, fmt, source); };
+  AUTORELEASEPOOL {
+    n = ffi::make_object<MetalModuleNode>(std::move(smap), std::move(fmt), std::move(fmap),
+                                          std::move(source));
+  };
   return ffi::Module(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def(
-      "runtime.module.create_metal_module",
-      [](ffi::Map<ffi::String, ffi::String> smap, std::string fmap_json, std::string fmt,
-         std::string source) {
-        namespace json = ::tvm::ffi::json;
-        auto parsed = json::Parse(fmap_json).cast<json::Object>();
-        ffi::Map<ffi::String, FunctionInfo> fmap;
-        for (const auto& kv : parsed) {
-          auto info_node = ffi::make_object<FunctionInfoObj>();
-          info_node->LoadFromJSON(kv.second.cast<json::Object>());
-          fmap.Set(kv.first.cast<ffi::String>(), FunctionInfo(std::move(info_node)));
-        }
-
-        return MetalModuleCreateImpl(
-            std::unordered_map<std::string, std::string>(smap.begin(), smap.end()), fmap, fmt,
-            source);
-      });
-}
-
-ffi::Module MetalModuleLoadFromBytes(const ffi::Bytes& bytes) {
+static ffi::Module MetalModuleLoadFromBytes(const ffi::Bytes& bytes) {
   support::BytesInStream stream(bytes);
-  // version is reserved for future changes and
-  // is discarded for now
-  std::string ver;
-  std::unordered_map<std::string, std::string> smap;
+  ffi::String fmt;
   ffi::Map<ffi::String, FunctionInfo> fmap;
-  std::string fmt;
-
-  stream.Read(&ver);
-  stream.Read(&smap);
-  TVM_FFI_ICHECK(stream.Read(&fmap));
+  ffi::Map<ffi::String, ffi::Bytes> smap;
   stream.Read(&fmt);
-
-  return MetalModuleCreateImpl(smap, fmap, fmt, "");
+  TVM_FFI_ICHECK(stream.Read(&fmap));
+  stream.Read(&smap);
+  // Source map is not serialized — reconstructed empty on load.
+  return MetalModuleCreateImpl(std::move(smap), std::move(fmt), std::move(fmap),
+                               ffi::Map<ffi::String, ffi::String>());
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  // Registry: "ffi.Module.create.metal" — codegen-time Metal module factory.
+  // Used by src/target/metal/metal_fallback_module.h:MetalModuleCreateWithFallback.
+  // Registry: "ffi.Module.load_from_bytes.metal" — disk loader.  Only this
+  // (real) module registers a loader; the fallback is codegen-only.
   refl::GlobalDef()
       .def("ffi.Module.load_from_bytes.metal", MetalModuleLoadFromBytes)
       .def("ffi.Module.create.metal",
-           [](ffi::Map<ffi::String, ffi::String> smap, ffi::Map<ffi::String, FunctionInfo> fmap,
-              ffi::String fmt, ffi::String source) {
-             return MetalModuleCreateImpl(
-                 std::unordered_map<std::string, std::string>(smap.begin(), smap.end()), fmap,
-                 std::string(fmt), std::string(source));
+           [](ffi::Map<ffi::String, ffi::Bytes> smap, ffi::String fmt,
+              ffi::Map<ffi::String, FunctionInfo> fmap, ffi::Map<ffi::String, ffi::String> source) {
+             return MetalModuleCreateImpl(std::move(smap), std::move(fmt), std::move(fmap),
+                                          std::move(source));
            });
 }
 }  // namespace runtime

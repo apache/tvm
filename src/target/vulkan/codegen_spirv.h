@@ -21,8 +21,8 @@
  * \file ir_builder.h
  * \brief Utility for building SPIRV code block
  */
-#ifndef TVM_TARGET_SPIRV_CODEGEN_SPIRV_H_
-#define TVM_TARGET_SPIRV_CODEGEN_SPIRV_H_
+#ifndef TVM_TARGET_VULKAN_CODEGEN_SPIRV_H_
+#define TVM_TARGET_VULKAN_CODEGEN_SPIRV_H_
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/target/target.h>
@@ -37,8 +37,8 @@
 #include <utility>
 #include <vector>
 
-#include "../../runtime/spirv/spirv_shader.h"
 #include "../../runtime/thread_storage_scope.h"
+#include "../../runtime/vulkan/spirv_shader.h"
 #include "ir_builder.h"
 #include "spirv_support.h"
 
@@ -240,4 +240,4 @@ class CodeGenSPIRV : public ExprFunctor<spirv::Value(const PrimExpr&)>,
 }  // namespace codegen
 }  // namespace tvm
 
-#endif  // TVM_TARGET_SPIRV_CODEGEN_SPIRV_H_
+#endif  // TVM_TARGET_VULKAN_CODEGEN_SPIRV_H_

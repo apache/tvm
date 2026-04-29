@@ -41,6 +41,7 @@
 #include "../../runtime/thread_storage_scope.h"
 #include "../../support/bytes_io.h"
 #include "../build_common.h"
+#include "webgpu_fallback_module.h"
 
 namespace tvm {
 namespace codegen {
@@ -725,65 +726,20 @@ void CodeGenWebGPU::VisitStmt_(const WhileNode* op) {
 }
 
 //-------------------------------------------------
-// WebGPUSourceModule to enable export
-//-------------------------------------------------
-class WebGPUSourceModuleNode final : public ffi::ModuleObj {
- public:
-  explicit WebGPUSourceModuleNode(std::unordered_map<std::string, std::string> smap,
-                                  ffi::Map<ffi::String, runtime::FunctionInfo> fmap)
-      : smap_(smap), fmap_(fmap) {}
-
-  const char* kind() const final { return "webgpu"; }
-  /*! \brief Get the property of the runtime module .*/
-  int GetPropertyMask() const final { return ffi::Module::kBinarySerializable; }
-
-  ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) final {
-    TVM_FFI_THROW(InternalError)
-        << "WebGPUSourceModule is not directly runnable, export and run through tvmjs";
-    return std::nullopt;
-  }
-
-  ffi::Bytes SaveToBytes() const final {
-    std::string result;
-    support::BytesOutStream stream(&result);
-    stream.Write(fmap_);
-    stream.Write(smap_);
-    return ffi::Bytes(std::move(result));
-  }
-
-  ffi::String InspectSource(const ffi::String& format) const final {
-    if (format == "func_info") {
-      namespace json = ::tvm::ffi::json;
-      json::Object obj;
-      for (const auto& kv : fmap_) {
-        obj.Set(kv.first, kv.second->SaveToJSON());
-      }
-      return std::string(json::Stringify(obj));
-    } else {
-      std::ostringstream os;
-      for (auto kv : smap_) {
-        os << kv.second;
-      }
-      return os.str();
-    }
-  }
-
- private:
-  // function shader code table.
-  std::unordered_map<std::string, std::string> smap_;
-  // function information table.
-  ffi::Map<ffi::String, runtime::FunctionInfo> fmap_;
-};
-
-//-------------------------------------------------
 // Build logic.
 //-------------------------------------------------
+//
+// The "C++ side" canonical WebGPU module is `WebGPUFallbackModuleNode` in
+// src/target/webgpu/webgpu_fallback_module.{h,cc} — there is no native
+// WebGPU runtime in the C++ tree (the real receiver is the wasm runtime
+// in web/emcc/webgpu_runtime.cc).
 ffi::Module BuildWebGPU(IRModule mod, Target target) {
   mod = tirx::transform::PointerValueTypeRewrite()(std::move(mod));
   bool output_ssa = false;
   bool skip_readonly_decl = false;
-  std::unordered_map<std::string, std::string> smap;
+  ffi::Map<ffi::String, ffi::Bytes> smap;
   ffi::Map<ffi::String, runtime::FunctionInfo> fmap;
+  std::ostringstream source_maker;
 
   // narrow all i64 to i32
   mod = tirx::transform::ForceNarrowIndexToInt32()(std::move(mod));
@@ -803,11 +759,16 @@ ffi::Module BuildWebGPU(IRModule mod, Target target) {
     cg.Init(output_ssa);
     fmap.Set(f_name, cg.AddFunction(f, skip_readonly_decl));
     std::string code = cg.Finish();
-    smap[f_name] = code;
+    source_maker << "// Function: " << f_name << "\n" << code << "\n";
+    smap.Set(f_name, ffi::Bytes(std::move(code)));
   }
 
-  auto n = ffi::make_object<WebGPUSourceModuleNode>(smap, fmap);
-  return ffi::Module(n);
+  // The aggregated WGSL source dump is preserved in the in-memory source
+  // map keyed by "wgsl" — only used by InspectSource and never serialized.
+  ffi::Map<ffi::String, ffi::String> source;
+  source.Set("wgsl", source_maker.str());
+  return target::WebGPUModuleCreateWithFallback(std::move(smap), ffi::String("wgsl"),
+                                                std::move(fmap), std::move(source));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
