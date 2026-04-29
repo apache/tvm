@@ -17,7 +17,11 @@
 """TIRX-layer TVMScript pieces (parser, builder).
 
 After the per-dialect TVMScript restructure, the TIRX layer owns its own
-``script/{parser,builder}`` subpackages. The legacy paths
-``tvm.script.parser.tirx`` and ``tvm.script.ir_builder.tirx`` continue to
-work as backward-compatibility shims that re-export from here.
+``script/{parser,builder}`` subpackages. ``tvm.script.tirx`` resolves to
+this module via the dialect registry, so the public parser surface
+(``prim_func``, ``Buffer``, ``Ptr``, etc.) is re-exported here.
 """
+
+# pylint: disable=redefined-builtin,wildcard-import,unused-wildcard-import
+from .parser import *
+from .parser import Buffer, Ptr, macro, prim_func

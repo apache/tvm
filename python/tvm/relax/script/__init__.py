@@ -17,7 +17,11 @@
 """Relax-layer TVMScript pieces (parser, builder).
 
 After the per-dialect TVMScript restructure, the Relax layer owns its own
-``script/{parser,builder}`` subpackages. The legacy paths
-``tvm.script.parser.relax`` and ``tvm.script.ir_builder.relax`` continue to
-work as backward-compatibility shims that re-export from here.
+``script/{parser,builder}`` subpackages. ``tvm.script.relax`` resolves to
+this module via the dialect registry, so the public parser surface
+(``function``, ``Tensor``, ``match_cast``, etc.) is re-exported here.
 """
+
+# pylint: disable=redefined-builtin,wildcard-import,unused-wildcard-import
+from .parser import *
+from .parser import dist

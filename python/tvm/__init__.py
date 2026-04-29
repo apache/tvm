@@ -47,6 +47,15 @@ from . import ir
 # tvm.tirx
 from . import tirx
 
+# Register the TIRX-layer script package with the TVMScript registry so
+# that ``tvm.script.tirx`` resolves to ``tvm.tirx.script`` before any
+# downstream module (e.g. ``tvm.s_tir``) does ``from tvm.script import
+# tirx``. IR is foundational (``tvm.script`` depends on ``tvm.ir``) and is
+# not registered as a dialect.
+from . import script as _script
+
+_script.register_dialect("tirx", "tvm.tirx.script")
+
 # tvm.s_tir
 from . import s_tir
 
@@ -72,6 +81,10 @@ from .contrib import rocm as _rocm, nvcc as _nvcc
 # Do not import them if TVM is built with runtime only
 if not _RUNTIME_ONLY:
     from . import relax
+
+    _script.register_dialect("relax", "tvm.relax.script")
+
+del _script
 
 # NOTE: This file should be python2 compatible so we can
 # raise proper error message when user run the package using

@@ -1,4 +1,3 @@
-# isort: skip_file
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,8 +14,30 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""The parser"""
+"""The parser.
+
+Per-dialect parser submodules (``tvm.script.parser.tirx`` etc.) resolve via
+:data:`tvm.script._DIALECT_REGISTRY`. Each extension dialect's package
+registers a mapping from short name to ``tvm.<dialect>.script``; this
+module's ``__getattr__`` then looks up ``f"{path}.parser"`` and returns it.
+The IR layer is foundational and lives as a real submodule
+(``tvm.script.parser.ir``); ``ir_module`` is re-exported from there.
+"""
+
+import importlib
+from typing import Any
 
 from . import _core, ir
 from ._core import parse
 from .ir import ir_module
+
+
+def __getattr__(name: str) -> Any:
+    # Lazy import to avoid loading tvm.script during dialect bootstrap.
+    from tvm.script import _DIALECT_REGISTRY  # pylint: disable=import-outside-toplevel
+
+    if name in _DIALECT_REGISTRY:
+        module = importlib.import_module(f"{_DIALECT_REGISTRY[name]}.parser")
+        globals()[name] = module
+        return module
+    raise AttributeError(f"module 'tvm.script.parser' has no attribute {name!r}")
