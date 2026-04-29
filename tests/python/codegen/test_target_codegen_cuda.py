@@ -1066,5 +1066,41 @@ def test_cuda_loop_step():
     tvm.testing.assert_allclose(c_nd.numpy(), a_np + b_np)
 
 
+@tvm.testing.requires_gpu
+@tvm.testing.requires_cuda
+def test_export_load_with_fallback(monkeypatch, tmp_path):
+    """Force the codegen wrapper into the fallback branch, then export+load+run."""
+    n = 1024
+
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(A: T.Buffer((n,), "float32"), B: T.Buffer((n,), "float32")):
+            T.func_attr({"tirx.noalias": True})
+            for i_0 in T.thread_binding(n // 32, thread="blockIdx.x"):
+                for i_1 in T.thread_binding(32, thread="threadIdx.x"):
+                    with T.sblock("B"):
+                        v_i = T.axis.spatial(n, i_0 * 32 + i_1)
+                        T.reads(A[v_i])
+                        T.writes(B[v_i])
+                        B[v_i] = A[v_i] + 1.0
+
+    monkeypatch.setenv("TVM_COMPILE_FORCE_FALLBACK", "1")
+    host_lib = tvm.compile(Module, target="cuda")
+    monkeypatch.delenv("TVM_COMPILE_FORCE_FALLBACK")
+
+    lib_path = str(tmp_path / "lib.so")
+    host_lib.export_library(lib_path)
+    reloaded = tvm.runtime.load_module(lib_path)
+
+    dev = tvm.cuda(0)
+    a_np = np.random.uniform(size=(n,)).astype("float32")
+    b_np = np.zeros((n,), dtype="float32")
+    a = tvm.runtime.tensor(a_np, dev)
+    b = tvm.runtime.tensor(b_np, dev)
+    reloaded["main"](a, b)
+    np.testing.assert_allclose(b.numpy(), a_np + 1.0, rtol=1e-5)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
