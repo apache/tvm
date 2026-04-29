@@ -25,13 +25,13 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/tensor.h>
-#include <tvm/runtime/threading_backend.h>
 
 #include <algorithm>
 #include <ctime>
 #include <random>
 #include <thread>
 
+#include "../../threading_backend.h"
 #include "../3rdparty/compiler-rt/builtin_fp16.h"
 
 namespace tvm {

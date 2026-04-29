@@ -24,10 +24,10 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/threading_backend.h>
 
 #include <algorithm>
 
+#include "../../threading_backend.h"
 #include "mt_random_engine.cc"
 
 #define DLPACK_INTEGER_TYPE_SWITCH(type, DType, ...)     \

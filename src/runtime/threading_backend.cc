@@ -21,11 +21,12 @@
  * \file threading_backend.cc
  * \brief Native threading backend
  */
+#include "threading_backend.h"
+
 #include <tvm/ffi/container/shape.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/threading_backend.h>
 
 #if defined(__linux__) || defined(__ANDROID__)
 #if __ANDROID_API__ >= 21
