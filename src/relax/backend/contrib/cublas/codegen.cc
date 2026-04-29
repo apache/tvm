@@ -21,9 +21,9 @@
  * \file src/relax/backend/contrib/cublas/codegen.cc
  * \brief Implementation of the CUBLAS JSON serializer.
  */
+#include <builtin_fp16.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
-#include <tvm/runtime/builtin_fp16.h>
 
 #include <string>
 
@@ -86,7 +86,8 @@ class CublasJSONSerializer : public JSONSerializer {
         auto sinfo = Downcast<TensorStructInfo>(const_expr->struct_info_);
         float alpha = 1.0;
         if (sinfo->dtype == DataType::Float(16)) {
-          alpha = __gnu_h2f_ieee(static_cast<uint16_t*>(const_expr->data->data)[0]);
+          alpha = __extendXfYf2__<uint16_t, uint16_t, 10, float, uint32_t, 23>(
+              static_cast<uint16_t*>(const_expr->data->data)[0]);
         } else {
           TVM_FFI_ICHECK(sinfo->dtype == DataType::Float(32));
           alpha = static_cast<float*>(const_expr->data->data)[0];

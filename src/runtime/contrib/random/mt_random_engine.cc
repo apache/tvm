@@ -21,6 +21,7 @@
  * \file random/mt_random_engine.cc
  * \brief mt19937 random engine
  */
+#include <builtin_fp16.h>
 #include <tvm/runtime/c_backend_api.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
@@ -31,8 +32,6 @@
 #include <ctime>
 #include <random>
 #include <thread>
-
-#include "../3rdparty/compiler-rt/builtin_fp16.h"
 
 namespace tvm {
 namespace contrib {
