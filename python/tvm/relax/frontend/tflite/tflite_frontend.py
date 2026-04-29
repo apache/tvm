@@ -239,6 +239,7 @@ class OperatorConverter:
             # "UNIDIRECTIONAL_SEQUENCE_LSTM": self.convert_unidirectional_sequence_lstm,
             "WHERE": self.convert_select,
             "ZEROS_LIKE": self.convert_zeros_like,
+            "NON_MAX_SUPPRESSION_V4": self.convert_nms_v4,
             "NON_MAX_SUPPRESSION_V5": self.convert_nms_v5,
         }
 
@@ -3656,6 +3657,64 @@ class OperatorConverter:
         detection_classes = relax.op.astype(detection_classes, "float32")
         num_detections = relax.op.astype(num_detections, "float32")
         return relax.Tuple([detection_boxes, detection_classes, detection_scores, num_detections])
+
+    def convert_nms_v4(self, op):
+        """Convert TFLite NonMaxSuppressionV4"""
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 5, "input tensor length should be 5"
+
+        boxes = self.get_tensor_expr(input_tensors[0])
+        scores = self.get_tensor_expr(input_tensors[1])
+
+        max_output_size = self.get_tensor_value(input_tensors[2])
+        iou_threshold = self.get_tensor_value(input_tensors[3])
+        score_threshold = self.get_tensor_value(input_tensors[4])
+
+        if isinstance(max_output_size, np.ndarray):
+            assert max_output_size.size == 1, "only one value is expected."
+            max_output_size = int(max_output_size)
+
+        if isinstance(iou_threshold, np.ndarray):
+            assert iou_threshold.size == 1, "only one value is expected."
+            iou_threshold = float(iou_threshold)
+
+        if isinstance(score_threshold, np.ndarray):
+            assert score_threshold.size == 1, "only one value is expected."
+            score_threshold = float(score_threshold)
+
+        scores_expand = relax.op.expand_dims(scores, axis=-1)
+        data = relax.op.concat([scores_expand, boxes], axis=-1)
+        data = relax.op.expand_dims(data, axis=0)
+
+        valid_counts_ret = relax.op.vision.get_valid_counts(
+            data, score_threshold=score_threshold, id_index=-1, score_index=0
+        )
+        count = valid_counts_ret[0]
+        data = valid_counts_ret[1]
+        indices = valid_counts_ret[2]
+
+        nms_ret = relax.op.vision.non_max_suppression(
+            data=data,
+            valid_count=count,
+            indices=indices,
+            max_output_size=max_output_size,
+            iou_threshold=iou_threshold,
+            force_suppress=True,
+            top_k=-1,
+            coord_start=1,
+            score_index=0,
+            id_index=-1,
+            return_indices=True,
+            invalid_to_bottom=False,
+        )
+
+        selected_indices = relax.op.squeeze(nms_ret[0], axis=[0])
+        selected_indices = relax.op.strided_slice(
+            selected_indices, axes=[0], begin=[0], end=[max_output_size]
+        )
+        num_valid = relax.op.reshape(nms_ret[1], [])
+
+        return relax.Tuple([selected_indices, num_valid])
 
     def convert_nms_v5(self, op):
         """Convert TFLite NonMaxSuppressionV5"""
