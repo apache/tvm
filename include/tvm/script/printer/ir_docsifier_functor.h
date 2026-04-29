@@ -21,7 +21,6 @@
 
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/object.h>
 
 #include <optional>
 #include <string>
@@ -33,6 +32,12 @@
 namespace tvm {
 namespace script {
 namespace printer {
+
+using ffi::Object;
+using ffi::ObjectPtr;
+using ffi::ObjectPtrEqual;
+using ffi::ObjectPtrHash;
+using ffi::ObjectRef;
 
 /*!
  * \brief Dynamic dispatch functor based on AccessPath.
@@ -78,8 +83,7 @@ class IRDocsifierFunctor {
                  << ffi::Object::TypeIndex2Key(type_index) << " (token: " << token << ")"
                  << ". ObjectType: " << obj->GetTypeKey() << ". Object: " << obj;
     TVM_FFI_ICHECK(false) << "ObjectFunctor calls un-registered function on type: "
-                          << ffi::Object::TypeIndex2Key(type_index) << " (token: " << token
-                          << ")"
+                          << ffi::Object::TypeIndex2Key(type_index) << " (token: " << token << ")"
                           << ". ObjectType: " << obj->GetTypeKey() << ". Object: " << obj;
     TVM_FFI_UNREACHABLE();
   }

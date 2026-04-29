@@ -23,6 +23,7 @@
 #include "codegen_c.h"
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/cast.h>
 #include <tvm/ir/name_supply.h>
 
 #include <cctype>

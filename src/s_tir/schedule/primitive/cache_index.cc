@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/arith/int_set.h>
+#include <tvm/ffi/cast.h>
 
 #include "../../../tirx/transform/replace_selected_expr.h"
 #include "../utils.h"

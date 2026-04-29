@@ -25,6 +25,7 @@
 #ifndef TVM_RELAX_ANALYSIS_GRAPH_PARTITIONER_H_
 #define TVM_RELAX_ANALYSIS_GRAPH_PARTITIONER_H_
 
+#include <tvm/ffi/cast.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/type.h>
 

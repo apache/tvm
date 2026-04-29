@@ -21,6 +21,7 @@
  * \brief Automatic layout conversion pass, especially for axis swapping.
  */
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/serialization.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/expr_functor.h>

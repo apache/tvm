@@ -24,6 +24,7 @@
 
 #include "data_type_rewriter.h"
 
+#include <tvm/ffi/cast.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>

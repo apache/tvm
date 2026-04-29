@@ -25,12 +25,17 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/expr.h>
-#include <tvm/runtime/object.h>
 #include <tvm/s_tir/meta_schedule/arg_info.h>
 
 namespace tvm {
 namespace s_tir {
 namespace meta_schedule {
+
+using ffi::Object;
+using ffi::ObjectPtr;
+using ffi::ObjectPtrEqual;
+using ffi::ObjectPtrHash;
+using ffi::ObjectRef;
 
 /*! \brief Runner's input containing path of artifact, type of device and argument info. */
 class RunnerInputNode : public ffi::Object {

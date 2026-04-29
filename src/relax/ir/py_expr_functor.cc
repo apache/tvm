@@ -21,6 +21,7 @@
  * \file src/relax/py_expr_functor.cc
  * \brief The backbone of PyExprVisitor/PyExprMutator.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/expr_functor.h>
 

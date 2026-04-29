@@ -21,6 +21,7 @@
  * \file tvm/relax/transform/realize_vdevice.cc
  * \brief Propagate virtual device information.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/op.h>

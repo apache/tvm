@@ -25,7 +25,6 @@
 #include <tvm/ffi/string.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/module.h>
-#include <tvm/runtime/object.h>
 #include <tvm/s_tir/meta_schedule/arg_info.h>
 #include <tvm/s_tir/schedule/schedule.h>
 #include <tvm/s_tir/schedule/trace.h>
@@ -37,6 +36,12 @@
 namespace tvm {
 namespace s_tir {
 namespace meta_schedule {
+
+using ffi::Object;
+using ffi::ObjectPtr;
+using ffi::ObjectPtrEqual;
+using ffi::ObjectPtrHash;
+using ffi::ObjectRef;
 
 class ModuleEquality;
 

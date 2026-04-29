@@ -24,6 +24,7 @@
 
 #include "convolution.h"
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 
 #include <vector>
@@ -1073,8 +1074,8 @@ StructInfo InferStructInfoConv3dTranspose(const Call& call, const BlockBuilder& 
                                                          /*tgt_layout=*/"IODHW",           //
                                                          /*tensor_name=*/"kernel");
   auto [out_layout, out2NCDHW] = CheckTensorLayout(call, ctx, attrs->out_layout,  //
-                                                  /*tgt_layout=*/"NCDHW",        //
-                                                  /*tensor_name=*/"output");
+                                                   /*tgt_layout=*/"NCDHW",        //
+                                                   /*tensor_name=*/"output");
 
   ffi::Optional<ShapeExpr> data_shape =
       CheckNdimPerLayoutAndGetShape(call, ctx, data_sinfo, data_layout);
@@ -1199,7 +1200,7 @@ InferLayoutOutput InferLayoutConv3dTranspose(
       bool can_data_proved =
           CanProveLayoutTransform(input_layout, desired_data_layout, data_shape.value()->values);
       bool can_kernel_proved = CanProveLayoutTransform(kernel_layout, desired_weight_layout,
-                                                     kernel_shape.value()->values);
+                                                       kernel_shape.value()->values);
 
       if (can_data_proved && can_kernel_proved) {
         data_layout = TransposeSubLayoutLike(InitialLayout(5), input_layout, desired_data_layout);

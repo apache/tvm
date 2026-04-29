@@ -20,11 +20,11 @@
 #define TVM_S_TIR_META_SCHEDULE_UTILS_H_
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/extra/serialization.h>
 #include <tvm/ffi/optional.h>
 #include <tvm/ir/cast.h>
-#include <tvm/runtime/object.h>
 #include <tvm/s_tir/meta_schedule/arg_info.h>
 #include <tvm/s_tir/meta_schedule/builder.h>
 #include <tvm/s_tir/meta_schedule/cost_model.h>
@@ -70,6 +70,12 @@
 namespace tvm {
 namespace s_tir {
 namespace meta_schedule {
+
+using ffi::Object;
+using ffi::ObjectPtr;
+using ffi::ObjectPtrEqual;
+using ffi::ObjectPtrHash;
+using ffi::ObjectRef;
 
 /*!
  * \brief Class to accumulate an log message on the python side. Do not use directly, instead use

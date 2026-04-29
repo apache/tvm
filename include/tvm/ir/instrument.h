@@ -28,12 +28,17 @@
 
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
-#include <tvm/runtime/object.h>
 
 #include <utility>
 #include <vector>
 
 namespace tvm {
+
+using ffi::Object;
+using ffi::ObjectPtr;
+using ffi::ObjectPtrEqual;
+using ffi::ObjectPtrHash;
+using ffi::ObjectRef;
 
 class IRModule;
 

@@ -23,7 +23,6 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/module.h>
-#include <tvm/runtime/object.h>
 #include <tvm/target/target.h>
 
 namespace tvm {
@@ -76,8 +75,7 @@ class ExtractedTask : public ffi::ObjectRef {
  public:
   explicit ExtractedTask(ffi::String task_name, IRModule mod, Target target,
                          ffi::Array<IRModule> dispatched, int weight);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ExtractedTask, ffi::ObjectRef,
-                                                ExtractedTaskNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ExtractedTask, ffi::ObjectRef, ExtractedTaskNode);
 };
 
 }  // namespace meta_schedule

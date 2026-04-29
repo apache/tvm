@@ -26,6 +26,7 @@
  */
 #include <cuda.h>
 #include <cuda_runtime.h>
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/c_env_api.h>
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>

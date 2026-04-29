@@ -32,7 +32,6 @@
 #include <tvm/ir/script_printer.h>
 #include <tvm/ir/source_map.h>
 #include <tvm/ir/type.h>
-#include <tvm/runtime/object.h>
 
 #include <algorithm>
 #include <functional>
@@ -41,6 +40,12 @@
 #include <type_traits>
 
 namespace tvm {
+
+using ffi::Object;
+using ffi::ObjectPtr;
+using ffi::ObjectPtrEqual;
+using ffi::ObjectPtrHash;
+using ffi::ObjectRef;
 
 // Forward-declare VirtualDevice to avoid circular imports.
 class VirtualDevice;
@@ -789,9 +794,7 @@ TVM_FFI_INLINE PrimExpr TypeTraits<PrimExpr>::ConvertFallbackValue(double value)
  */
 template <>
 struct std::hash<tvm::GlobalVar> {
-  std::size_t operator()(const tvm::GlobalVar& var) const {
-    return tvm::ffi::ObjectPtrHash()(var);
-  }
+  std::size_t operator()(const tvm::GlobalVar& var) const { return tvm::ffi::ObjectPtrHash()(var); }
 };
 
 template <>

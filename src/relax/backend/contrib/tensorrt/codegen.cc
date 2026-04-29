@@ -21,6 +21,7 @@
  * \file src/relax/backend/contrib/tensorrt/codegen.cc
  * \brief Implementation of the TensorRT JSON serializer.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/transform.h>

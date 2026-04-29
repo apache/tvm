@@ -21,6 +21,7 @@
  * \file tvm/relax/distributed/transform/propagate_sharding.cc
  * \brief Pass for propagating sharding information.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/distributed.h>

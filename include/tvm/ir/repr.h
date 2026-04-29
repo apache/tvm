@@ -28,11 +28,17 @@
 #define TVM_IR_REPR_H_
 
 #include <tvm/ffi/extra/dataclass.h>
-#include <tvm/runtime/object.h>
+#include <tvm/runtime/base.h>
 
 #include <iostream>
 
 namespace tvm {
+
+using ffi::Object;
+using ffi::ObjectPtr;
+using ffi::ObjectPtrEqual;
+using ffi::ObjectPtrHash;
+using ffi::ObjectRef;
 
 /*!
  * \brief Dump the node to stderr, used for debug purposes.

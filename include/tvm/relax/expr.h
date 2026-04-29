@@ -27,7 +27,6 @@
 #include <tvm/ir/function.h>
 #include <tvm/ir/source_map.h>
 #include <tvm/relax/type.h>
-#include <tvm/runtime/object.h>
 #include <tvm/runtime/tensor.h>
 #include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
@@ -36,6 +35,12 @@
 
 namespace tvm {
 namespace relax {
+
+using ffi::Object;
+using ffi::ObjectPtr;
+using ffi::ObjectPtrEqual;
+using ffi::ObjectPtrHash;
+using ffi::ObjectRef;
 
 using Expr = RelaxExpr;
 using ExprNode = RelaxExprNode;

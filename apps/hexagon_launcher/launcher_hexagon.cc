@@ -25,7 +25,8 @@ extern "C" {
 #include <qurt_error.h>
 }
 
-#include <tvm/runtime/object.h>
+#include <tvm/ffi/cast.h>
+#include <tvm/ffi/object.h>
 
 #include <algorithm>
 #include <memory>

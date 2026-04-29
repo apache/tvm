@@ -24,8 +24,6 @@
 #ifndef TVM_SUPPORT_ORDERED_SET_H_
 #define TVM_SUPPORT_ORDERED_SET_H_
 
-#include <tvm/runtime/object.h>
-
 #include <functional>
 #include <unordered_map>
 #include <vector>

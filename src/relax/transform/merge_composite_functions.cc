@@ -54,6 +54,7 @@
  * is important since the dependency relation is transitive.
  */
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/struct_info.h>

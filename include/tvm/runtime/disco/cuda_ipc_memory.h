@@ -22,13 +22,18 @@
 
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/memory/memory_manager.h>
-#include <tvm/runtime/object.h>
 
 #include <vector>
 
 namespace tvm {
 namespace runtime {
 namespace cuda_ipc {
+
+using ffi::Object;
+using ffi::ObjectPtr;
+using ffi::ObjectPtrEqual;
+using ffi::ObjectPtrHash;
+using ffi::ObjectRef;
 
 /*!
  * \brief The CUDA IPC (interprocess communication) memory object,

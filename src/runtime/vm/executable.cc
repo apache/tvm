@@ -21,6 +21,7 @@
  * \file src/runtime/vm/executable.cc
  */
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/vm/executable.h>
@@ -432,7 +433,7 @@ std::string RegNameToStr(RegName reg) {
 
 ffi::Module VMExecutable::VMLoadExecutable() const {
   ObjectPtr<VirtualMachine> vm = VirtualMachine::Create();
-  vm->LoadExecutable(GetObjectPtr<VMExecutable>(const_cast<VMExecutable*>(this)));
+  vm->LoadExecutable(ffi::GetObjectPtr<VMExecutable>(const_cast<VMExecutable*>(this)));
   return ffi::Module(vm);
 }
 

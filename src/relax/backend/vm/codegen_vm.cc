@@ -21,6 +21,7 @@
  * \file src/relax/backend/vm/codegen_vm.cc
  * \brief A codegen to generate VM executable from a Relax IRModule.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/exec_builder.h>
 #include <tvm/relax/expr_functor.h>

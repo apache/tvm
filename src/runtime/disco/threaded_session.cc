@@ -19,7 +19,6 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/disco/disco_worker.h>
-#include <tvm/runtime/object.h>
 #include <tvm/support/io.h>
 
 #include <condition_variable>
@@ -37,6 +36,12 @@
 
 namespace tvm {
 namespace runtime {
+
+using ffi::Object;
+using ffi::ObjectPtr;
+using ffi::ObjectPtrEqual;
+using ffi::ObjectPtrHash;
+using ffi::ObjectRef;
 
 class DiscoThreadedMessageQueue : private support::Stream,
                                   private DiscoProtocol<DiscoThreadedMessageQueue> {

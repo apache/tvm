@@ -24,12 +24,17 @@
 #include <tvm/ffi/optional.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/object.h>
 #include <tvm/runtime/tensor.h>
 
 namespace tvm {
 namespace runtime {
 namespace vm {
+
+using ffi::Object;
+using ffi::ObjectPtr;
+using ffi::ObjectPtrEqual;
+using ffi::ObjectPtrHash;
+using ffi::ObjectRef;
 
 /*! \brief The base class of attention KV cache and rnn state. */
 class KVStateObj : public Object {

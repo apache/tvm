@@ -28,7 +28,6 @@
 
 #include <tvm/ffi/container/array.h>
 #include <tvm/ir/expr.h>
-#include <tvm/runtime/object.h>
 #include <tvm/runtime/tensor.h>
 #include <tvm/tirx/var.h>
 
@@ -42,6 +41,12 @@ class Analyzer;
 
 namespace tvm {
 namespace tirx {
+
+using ffi::Object;
+using ffi::ObjectPtr;
+using ffi::ObjectPtrEqual;
+using ffi::ObjectPtrHash;
+using ffi::ObjectRef;
 
 /*!
  * \brief Defines a mapping between two representations of indices

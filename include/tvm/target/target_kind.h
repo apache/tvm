@@ -28,7 +28,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/attr_registry_map.h>
 #include <tvm/ir/config_schema.h>
-#include <tvm/runtime/object.h>
+#include <tvm/runtime/base.h>
 
 #include <memory>
 #include <unordered_map>
@@ -36,6 +36,12 @@
 #include <vector>
 
 namespace tvm {
+
+using ffi::Object;
+using ffi::ObjectPtr;
+using ffi::ObjectPtrEqual;
+using ffi::ObjectPtrHash;
+using ffi::ObjectRef;
 
 class Target;
 
@@ -299,19 +305,19 @@ inline TargetKindRegEntry& TargetKindRegEntry::set_name() {
  *
  * \endcode
  */
-#define TVM_REGISTER_TARGET_KIND(TargetKindName, DeviceType)      \
+#define TVM_REGISTER_TARGET_KIND(TargetKindName, DeviceType)          \
   TVM_FFI_STR_CONCAT(TVM_TARGET_KIND_REGISTER_VAR_DEF, __COUNTER__) = \
-      ::tvm::TargetKindRegEntry::RegisterOrGet(TargetKindName)    \
-          .set_name()                                             \
-          .set_default_device_type(DeviceType)                    \
-          .add_attr_option<ffi::String>("kind")                   \
-          .add_attr_option<ffi::Array<ffi::String>>("keys")       \
-          .add_attr_option<ffi::String>("tag")                    \
-          .add_attr_option<ffi::String>("device")                 \
-          .add_attr_option<ffi::String>("model")                  \
-          .add_attr_option<ffi::Array<ffi::String>>("libs")       \
-          .add_attr_option<Target>("host")                        \
-          .add_attr_option<int64_t>("from_device")                \
+      ::tvm::TargetKindRegEntry::RegisterOrGet(TargetKindName)        \
+          .set_name()                                                 \
+          .set_default_device_type(DeviceType)                        \
+          .add_attr_option<ffi::String>("kind")                       \
+          .add_attr_option<ffi::Array<ffi::String>>("keys")           \
+          .add_attr_option<ffi::String>("tag")                        \
+          .add_attr_option<ffi::String>("device")                     \
+          .add_attr_option<ffi::String>("model")                      \
+          .add_attr_option<ffi::Array<ffi::String>>("libs")           \
+          .add_attr_option<Target>("host")                            \
+          .add_attr_option<int64_t>("from_device")                    \
           .add_attr_option<int64_t>("target_device_type")
 
 }  // namespace tvm

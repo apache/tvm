@@ -24,6 +24,7 @@
  * \brief Collect cross-IR call graph
  */
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ir/analysis.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>

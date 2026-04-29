@@ -18,6 +18,7 @@
  */
 #include "./bcast_session.h"
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/disco/session.h>
 

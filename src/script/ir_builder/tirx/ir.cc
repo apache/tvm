@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/container/variant.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/script/ir_builder/tirx/ir.h>

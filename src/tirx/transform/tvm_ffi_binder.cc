@@ -23,6 +23,7 @@
  */
 #include "tvm_ffi_binder.h"
 
+#include <tvm/ffi/cast.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/expr.h>

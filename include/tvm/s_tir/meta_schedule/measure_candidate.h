@@ -22,13 +22,19 @@
 
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/object.h>
+#include <tvm/runtime/base.h>
 #include <tvm/s_tir/meta_schedule/arg_info.h>
 #include <tvm/s_tir/schedule/schedule.h>
 
 namespace tvm {
 namespace s_tir {
 namespace meta_schedule {
+
+using ffi::Object;
+using ffi::ObjectPtr;
+using ffi::ObjectPtrEqual;
+using ffi::ObjectPtrHash;
+using ffi::ObjectRef;
 
 /*! \brief The schedule (with input shapes) to be measured. */
 class MeasureCandidateNode : public ffi::Object {

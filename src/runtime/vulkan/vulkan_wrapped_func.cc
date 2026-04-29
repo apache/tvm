@@ -19,6 +19,7 @@
 
 #include "vulkan_wrapped_func.h"
 
+#include <tvm/ffi/cast.h>
 #include <tvm/support/io.h>
 
 #include <utility>

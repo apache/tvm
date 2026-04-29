@@ -19,6 +19,8 @@
 
 #include "op_common.h"
 
+#include <tvm/ffi/cast.h>
+
 #include <algorithm>
 
 namespace tvm {

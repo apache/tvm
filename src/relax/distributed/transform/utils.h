@@ -20,6 +20,7 @@
 #ifndef TVM_RELAX_DISTRIBUTED_TRANSFORM_UTILS_H_
 #define TVM_RELAX_DISTRIBUTED_TRANSFORM_UTILS_H_
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ir/function.h>
 #include <tvm/ir/module.h>
 #include <tvm/relax/analysis.h>

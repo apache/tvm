@@ -21,6 +21,7 @@
  * \file lower_device_kernel_launch.cc
  * \brief Split device function from host.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/transform.h>

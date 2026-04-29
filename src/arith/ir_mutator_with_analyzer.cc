@@ -23,6 +23,7 @@
 #include "ir_mutator_with_analyzer.h"
 
 #include <tvm/arith/iter_affine_map.h>
+#include <tvm/ffi/cast.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/op.h>

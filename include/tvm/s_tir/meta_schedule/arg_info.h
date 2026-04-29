@@ -23,12 +23,17 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 #include <tvm/runtime/data_type.h>
-#include <tvm/runtime/object.h>
 #include <tvm/tirx/function.h>
 
 namespace tvm {
 namespace s_tir {
 namespace meta_schedule {
+
+using ffi::Object;
+using ffi::ObjectPtr;
+using ffi::ObjectPtrEqual;
+using ffi::ObjectPtrHash;
+using ffi::ObjectRef;
 
 /*! \brief The argument information. */
 class ArgInfoNode : public ffi::Object {

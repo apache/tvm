@@ -22,6 +22,7 @@
  * \brief Source code module, only for viewing
  */
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>

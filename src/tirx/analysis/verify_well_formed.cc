@@ -22,6 +22,7 @@
  * \brief Check if schedulable tirx is well-formed.
  */
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/tirx/stmt.h>

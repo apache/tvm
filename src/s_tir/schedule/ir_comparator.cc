@@ -18,6 +18,8 @@
  */
 #include "./ir_comparator.h"
 
+#include <tvm/ffi/cast.h>
+
 #include "../../arith/scalable_expression.h"
 
 namespace tvm {

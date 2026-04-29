@@ -24,6 +24,7 @@
  *        "ffi.Module.load_from_bytes.metal".  No exported header — codegen-
  *        side construction goes through src/target/metal/metal_fallback_module.h.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>

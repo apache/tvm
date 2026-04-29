@@ -18,8 +18,8 @@
  */
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/cast.h>
 #include <tvm/ir/cast.h>
-#include <tvm/runtime/object.h>
 
 #include <optional>
 #include <variant>
@@ -29,6 +29,12 @@
 
 namespace tvm {
 namespace s_tir {
+
+using ffi::Object;
+using ffi::ObjectPtr;
+using ffi::ObjectPtrEqual;
+using ffi::ObjectPtrHash;
+using ffi::ObjectRef;
 using namespace tvm::tirx;
 
 /*! \brief Planning stage prior to rewriting in TransformLayoutRewriter

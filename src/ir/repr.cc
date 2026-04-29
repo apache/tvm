@@ -26,6 +26,7 @@
  *  - Registers node.AsRepr (for backward Python compatibility) via ffi::ReprPrint.
  *  - Registers __ffi_repr__ hooks for AccessPath and AccessStep.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/dataclass.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/access_path.h>

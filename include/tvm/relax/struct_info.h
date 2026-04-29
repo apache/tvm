@@ -26,12 +26,18 @@
 #include <tvm/relax/block_builder.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/type.h>
-#include <tvm/runtime/object.h>
+#include <tvm/runtime/base.h>
 
 #include <utility>
 
 namespace tvm {
 namespace relax {
+
+using ffi::Object;
+using ffi::ObjectPtr;
+using ffi::ObjectPtrEqual;
+using ffi::ObjectPtrHash;
+using ffi::ObjectRef;
 
 /*!
  * \brief Opaque object.

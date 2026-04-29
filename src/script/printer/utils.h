@@ -19,6 +19,7 @@
 #ifndef TVM_SCRIPT_PRINTER_UTILS_H_
 #define TVM_SCRIPT_PRINTER_UTILS_H_
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/dataclass.h>
 #include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/extra/serialization.h>

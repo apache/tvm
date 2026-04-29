@@ -27,7 +27,6 @@
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/object.h>
 
 #include <functional>
 #include <memory>
@@ -38,6 +37,12 @@
 namespace tvm {
 namespace runtime {
 
+using ffi::Object;
+using ffi::ObjectPtr;
+using ffi::ObjectPtrEqual;
+using ffi::ObjectPtrHash;
+using ffi::ObjectRef;
+
 /*!
  * \brief Static FFI type index for `runtime::RPCObjectRef`.
  *
@@ -47,7 +52,6 @@ namespace runtime {
  * disjoint across this small reserved block.
  */
 constexpr int32_t kRuntimeRPCObjectRef = TVMFFITypeIndex::kTVMFFIDynObjectBegin - 13;
-
 
 /*!
  * \brief The interface of all remote RPC sessions.

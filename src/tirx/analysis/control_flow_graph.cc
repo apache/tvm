@@ -24,6 +24,7 @@
 
 #include "control_flow_graph.h"
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>

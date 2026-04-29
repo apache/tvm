@@ -25,7 +25,6 @@
 #define TVM_RUNTIME_MEMORY_MEMORY_MANAGER_H_
 
 #include <tvm/runtime/base.h>
-#include <tvm/runtime/object.h>
 #include <tvm/runtime/tensor.h>
 
 #include <functional>
@@ -38,6 +37,12 @@
 namespace tvm {
 namespace runtime {
 namespace memory {
+
+using ffi::Object;
+using ffi::ObjectPtr;
+using ffi::ObjectPtrEqual;
+using ffi::ObjectPtrHash;
+using ffi::ObjectRef;
 
 enum AllocatorType {
   kNaive = 1,

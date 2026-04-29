@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>
 
@@ -166,12 +167,13 @@ inline InlineType AutoInlineNode::CheckInline(const s_tir::Schedule& sch,
   // Last cond: Check inline into the consumers or the spatial producer
   // Skip if:
   // - root block (no parent scope).
-  // - root block is wrapped in a For loop, then parent is non-null, but there is still no enclosing SBlockNode.
-  const StmtSRefNode* p = block_sref->parent;                   
-  for (; p != nullptr; p = p->parent) {                                                   
+  // - root block is wrapped in a For loop, then parent is non-null, but there is still no enclosing
+  // SBlockNode.
+  const StmtSRefNode* p = block_sref->parent;
+  for (; p != nullptr; p = p->parent) {
     if (p->stmt->IsInstance<SBlockNode>()) break;
-  }                                                                                       
-  if (p == nullptr) {                                           
+  }
+  if (p == nullptr) {
     return InlineType::kNoInline;
   }
   tirx::StmtSRef scope_block = s_tir::GetScopeRoot(sch->state(), block_sref,

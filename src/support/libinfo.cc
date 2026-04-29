@@ -20,7 +20,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
-#include <tvm/runtime/object.h>
+#include <tvm/runtime/base.h>
 
 #ifndef TVM_INFO_GIT_COMMIT_HASH
 #define TVM_INFO_GIT_COMMIT_HASH "NOT-FOUND"

@@ -19,6 +19,7 @@
 /*!
  * \file src/ir/structural_hash.cc
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/base64.h>
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/extra/structural_hash.h>

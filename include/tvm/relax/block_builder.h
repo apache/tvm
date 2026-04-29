@@ -29,10 +29,16 @@
 #include <tvm/ir/name_supply.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/utils.h>
-#include <tvm/runtime/object.h>
+#include <tvm/runtime/base.h>
 
 namespace tvm {
 namespace relax {
+
+using ffi::Object;
+using ffi::ObjectPtr;
+using ffi::ObjectPtrEqual;
+using ffi::ObjectPtrHash;
+using ffi::ObjectRef;
 
 /*!
  * \brief A builder to build Relax binding blocks.

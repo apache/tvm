@@ -24,6 +24,7 @@
  *
  * Currently it removes common subexpressions within a Function.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/extra/structural_hash.h>
 #include <tvm/ffi/reflection/registry.h>

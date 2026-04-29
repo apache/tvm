@@ -24,7 +24,6 @@
 #define TVM_IR_NODE_FUNCTOR_H_
 
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/object.h>
 
 #include <cstring>
 #include <type_traits>
@@ -32,6 +31,12 @@
 #include <vector>
 
 namespace tvm {
+
+using ffi::Object;
+using ffi::ObjectPtr;
+using ffi::ObjectPtrEqual;
+using ffi::ObjectPtrHash;
+using ffi::ObjectRef;
 
 using ffi::ObjectRef;
 

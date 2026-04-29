@@ -21,6 +21,7 @@
  *  Lower intrinsic calls and ops to device specific ir when possible.
  * \file lower_intrin.cc
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/target/target.h>

@@ -29,6 +29,7 @@
  */
 #include "const_loader_module.h"
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/extra/module.h>

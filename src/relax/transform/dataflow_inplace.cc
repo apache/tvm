@@ -23,6 +23,7 @@
  *   into in-place versions.
  */
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/transform.h>
 #include <tvm/relax/analysis.h>

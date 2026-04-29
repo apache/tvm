@@ -20,10 +20,15 @@
 #include <gtest/gtest.h>
 #include <tvm/ffi/memory.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/object.h>
 
 namespace tvm {
 namespace test {
+
+using ffi::Object;
+using ffi::ObjectPtr;
+using ffi::ObjectPtrEqual;
+using ffi::ObjectPtrHash;
+using ffi::ObjectRef;
 
 using namespace tvm::runtime;
 

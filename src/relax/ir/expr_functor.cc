@@ -24,6 +24,7 @@
  * ExprMutator uses memoization and self return in order to amortize
  * the cost of using functional updates.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/type_functor.h>
 #include <tvm/relax/analysis.h>

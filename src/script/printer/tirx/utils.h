@@ -19,6 +19,7 @@
 #ifndef TVM_SCRIPT_PRINTER_TIR_UTILS_H_
 #define TVM_SCRIPT_PRINTER_TIR_UTILS_H_
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/script/printer/ir_docsifier.h>
 #include <tvm/tirx/analysis.h>

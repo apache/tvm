@@ -24,6 +24,7 @@
 
 #include "inspect.h"
 
+#include <tvm/ffi/cast.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/function.h>

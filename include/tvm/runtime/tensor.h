@@ -31,7 +31,6 @@
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/object.h>
 #include <tvm/support/io.h>
 #include <tvm/support/serializer.h>
 
@@ -42,6 +41,12 @@
 
 namespace tvm {
 namespace runtime {
+
+using ffi::Object;
+using ffi::ObjectPtr;
+using ffi::ObjectPtrEqual;
+using ffi::ObjectPtrHash;
+using ffi::ObjectRef;
 
 using ffi::GetDataSize;
 using ffi::IsAligned;

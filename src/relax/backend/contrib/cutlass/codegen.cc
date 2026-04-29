@@ -21,6 +21,7 @@
  * \file src/relax/backend/contrib/cutlass/codegen.cc
  * \brief Implementation of the CUTLASS code generator for Relax.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>

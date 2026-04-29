@@ -24,6 +24,7 @@
 
 #include <tvm/arith/int_set.h>
 #include <tvm/arith/int_solver.h>
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>

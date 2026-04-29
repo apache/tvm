@@ -20,6 +20,7 @@
  * \file src/relax/backend/vm/vm_shape_lower.cc
  * \brief Lower the function boundary type checks and symbolic shape computations.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/backend.h>

@@ -21,6 +21,7 @@
  * \file src/tirx/ir/specialize.cc
  * \brief Specialize parameters of PrimFunc.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/tirx/analysis.h>

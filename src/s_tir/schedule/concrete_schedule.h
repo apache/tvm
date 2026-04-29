@@ -19,6 +19,8 @@
 #ifndef TVM_S_TIR_SCHEDULE_CONCRETE_SCHEDULE_H_
 #define TVM_S_TIR_SCHEDULE_CONCRETE_SCHEDULE_H_
 
+#include <tvm/ffi/cast.h>
+
 #include <memory>
 #include <utility>
 #include <vector>

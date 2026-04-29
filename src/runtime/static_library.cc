@@ -24,6 +24,7 @@
  */
 #include "./static_library.h"
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/memory.h>

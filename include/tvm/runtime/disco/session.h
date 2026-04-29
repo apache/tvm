@@ -75,7 +75,6 @@
 
 #include <tvm/ffi/container/shape.h>
 #include <tvm/ffi/function.h>
-#include <tvm/runtime/object.h>
 #include <tvm/runtime/tensor.h>
 
 #include <mutex>
@@ -85,6 +84,12 @@
 
 namespace tvm {
 namespace runtime {
+
+using ffi::Object;
+using ffi::ObjectPtr;
+using ffi::ObjectPtrEqual;
+using ffi::ObjectPtrHash;
+using ffi::ObjectRef;
 
 /*!
  * \brief Static FFI type index for `runtime::disco::DRef`.

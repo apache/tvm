@@ -25,6 +25,7 @@
 #ifndef TVM_RUNTIME_CONTRIB_JSON_JSON_RUNTIME_H_
 #define TVM_RUNTIME_CONTRIB_JSON_JSON_RUNTIME_H_
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/extra/module.h>
 #include <tvm/runtime/tensor.h>

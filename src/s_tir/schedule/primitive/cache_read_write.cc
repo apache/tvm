@@ -17,6 +17,8 @@
  * under the License.
  */
 
+#include <tvm/ffi/cast.h>
+
 #include <unordered_set>
 
 #include "../../../tirx/analysis/var_use_def_analysis.h"
@@ -564,8 +566,7 @@ static PrimExpr CollectNestedBlockPredicates(const Stmt& body, const Buffer& buf
 
     void VisitStmt_(const SBlockRealizeNode* realize) final {
       const SBlockNode* block = realize->block.get();
-      const auto& regions =
-          (index_type_ == BufferIndexType::kRead) ? block->reads : block->writes;
+      const auto& regions = (index_type_ == BufferIndexType::kRead) ? block->reads : block->writes;
       bool accesses_buffer = false;
       for (const BufferRegion& region : regions) {
         if (region->buffer.same_as(buffer_)) {
@@ -580,8 +581,7 @@ static PrimExpr CollectNestedBlockPredicates(const Stmt& body, const Buffer& buf
         for (size_t i = 0; i < block->iter_vars.size(); ++i) {
           subst.Set(block->iter_vars[i]->var, realize->iter_values[i]);
         }
-        PrimExpr pred =
-            subst.empty() ? realize->predicate : Substitute(realize->predicate, subst);
+        PrimExpr pred = subst.empty() ? realize->predicate : Substitute(realize->predicate, subst);
         // OR the predicates across all accessing nested blocks: each such block is an
         // independent alternative access path (sibling blocks in a SeqStmt), so the
         // cache must cover the *union* of their access regions, not the intersection.
@@ -1779,10 +1779,9 @@ StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_buff
     // original buffer's dtype in its extents, e.g. int64 shapes).
     ffi::Optional<BufferRegion> read_region_opt =
         GetBufferRegionFromBuffer(block->reads, read_buffer);
-    PrimExpr nested_pred =
-        read_region_opt
-            ? CollectNestedBlockPredicates(block->body, read_buffer, BufferIndexType::kRead)
-            : Bool(true);
+    PrimExpr nested_pred = read_region_opt ? CollectNestedBlockPredicates(block->body, read_buffer,
+                                                                          BufferIndexType::kRead)
+                                           : Bool(true);
     if (read_region_opt && !is_one(nested_pred) && block_sref->parent != nullptr) {
       StmtSRef parent_sref = ffi::GetRef<StmtSRef>(block_sref->parent);
       cache_region = RelaxBufferRegion(self, read_region_opt.value(), block_sref, parent_sref,

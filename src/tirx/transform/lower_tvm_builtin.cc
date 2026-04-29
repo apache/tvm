@@ -21,6 +21,7 @@
  *  Lower TVM related builtin intrinsics such as packed call.
  * \file tirx/transform/lower_tvm_builtin.cc
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/scope_stack.h>

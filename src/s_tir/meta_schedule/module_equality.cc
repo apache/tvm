@@ -18,6 +18,7 @@
  */
 #include "module_equality.h"
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/extra/structural_hash.h>
 #include <tvm/ir/module.h>

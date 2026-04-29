@@ -56,6 +56,7 @@
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Target/TargetOptions.h>
 #include <llvm/Transforms/Utils/Cloning.h>
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
@@ -63,7 +64,6 @@
 #include <tvm/ir/module.h>
 #include <tvm/ir/with_context.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/object.h>
 #include <tvm/target/codegen.h>
 #include <tvm/target/target.h>
 
@@ -84,6 +84,12 @@
 
 namespace tvm {
 namespace codegen {
+
+using ffi::Object;
+using ffi::ObjectPtr;
+using ffi::ObjectPtrEqual;
+using ffi::ObjectPtrHash;
+using ffi::ObjectRef;
 
 using ffi::Any;
 using ffi::Function;

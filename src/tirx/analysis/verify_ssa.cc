@@ -23,6 +23,7 @@
  *  SSA requires each varaible to be only defined once.
  * \file verify_ssa.cc
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/tirx/analysis.h>

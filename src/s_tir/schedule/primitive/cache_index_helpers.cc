@@ -26,7 +26,8 @@
 #include "cache_index_helpers.h"
 
 #include <tvm/arith/analyzer.h>  // For the arith::Analyzer::Simplify() method simplifying terms
-#include <tvm/tirx/analysis.h>   // For the ExprDeepEqual analysis
+#include <tvm/ffi/cast.h>
+#include <tvm/tirx/analysis.h>  // For the ExprDeepEqual analysis
 #include <tvm/tirx/expr.h>
 #include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/stmt.h>

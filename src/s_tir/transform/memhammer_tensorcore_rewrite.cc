@@ -17,6 +17,8 @@
  * under the License.
  */
 
+#include <tvm/ffi/cast.h>
+
 #include "./memhammer_rewrite_rule.h"
 
 namespace tvm {

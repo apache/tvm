@@ -21,6 +21,7 @@
  * \brief Pass for lowering custom datatypes
  */
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/target/target.h>

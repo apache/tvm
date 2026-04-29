@@ -49,6 +49,7 @@
  * 2. Lift the regions identified in step 1 to a separate function and rewrite the original function
  * with `CUDAGraphRewriter`.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/backend.h>

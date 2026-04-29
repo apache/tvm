@@ -25,6 +25,7 @@
  *        which dispatches to "ffi.Module.create.opencl" registered
  *        below when this file is linked into the build.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/support/io.h>

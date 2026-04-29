@@ -18,6 +18,8 @@
  */
 #include "./concrete_schedule.h"
 
+#include <tvm/ffi/cast.h>
+
 #include <random>
 
 namespace tvm {

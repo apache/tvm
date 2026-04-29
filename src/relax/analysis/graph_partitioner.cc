@@ -19,6 +19,8 @@
 
 #include "./graph_partitioner.h"
 
+#include <tvm/ffi/cast.h>
+
 #include <vector>
 
 namespace tvm {

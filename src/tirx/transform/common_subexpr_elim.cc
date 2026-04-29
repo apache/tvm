@@ -58,6 +58,7 @@
  * point — the narrowest scope that dominates all uses.
  */
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/extra/structural_hash.h>

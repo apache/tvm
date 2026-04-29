@@ -20,6 +20,7 @@
  * \file  module.cc
  * \brief The global module in TVM.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/container/variant.h>
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/function.h>

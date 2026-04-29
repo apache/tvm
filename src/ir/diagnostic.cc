@@ -21,6 +21,7 @@
  * \file src/ir/diagnostic.cc
  * \brief Implementation of DiagnosticContext and friends.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/diagnostic.h>
 #include <tvm/ir/source_map.h>

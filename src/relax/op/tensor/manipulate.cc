@@ -24,6 +24,7 @@
 
 #include "manipulate.h"
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 
 #include <algorithm>

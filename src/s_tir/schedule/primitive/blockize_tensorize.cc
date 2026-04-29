@@ -17,6 +17,8 @@
  * under the License.
  */
 
+#include <tvm/ffi/cast.h>
+
 #include <functional>
 
 #include "../../../tirx/ir/data_type_rewriter.h"

@@ -26,13 +26,18 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/module.h>
-#include <tvm/runtime/object.h>
 #include <tvm/runtime/tensor.h>
 #include <tvm/target/target.h>
 
 namespace tvm {
 namespace s_tir {
 namespace meta_schedule {
+
+using ffi::Object;
+using ffi::ObjectPtr;
+using ffi::ObjectPtrEqual;
+using ffi::ObjectPtrHash;
+using ffi::ObjectRef;
 
 /*! \brief The builder's input, containing an IRModule and the target. */
 class BuilderInputNode : public ffi::Object {
@@ -104,8 +109,7 @@ class BuilderResult : public ffi::ObjectRef {
    */
   TVM_DLL explicit BuilderResult(ffi::Optional<ffi::String> artifact_path,
                                  ffi::Optional<ffi::String> error_msg);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BuilderResult, ffi::ObjectRef,
-                                                BuilderResultNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BuilderResult, ffi::ObjectRef, BuilderResultNode);
 };
 
 /*! \brief The abstract builder interface. */

@@ -27,11 +27,16 @@
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/object.h>
 #include <tvm/runtime/tensor.h>
 
 namespace tvm {
 namespace runtime {
+
+using ffi::Object;
+using ffi::ObjectPtr;
+using ffi::ObjectPtrEqual;
+using ffi::ObjectPtrHash;
+using ffi::ObjectRef;
 
 /*! \brief Base class for all timer implementations.
  *

@@ -26,6 +26,7 @@
  *        src/target/rocm/rocm_fallback_module.h.
  */
 #include <hip/hip_runtime_api.h>
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/c_env_api.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>

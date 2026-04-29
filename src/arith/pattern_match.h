@@ -65,6 +65,7 @@
 #ifndef TVM_ARITH_PATTERN_MATCH_H_
 #define TVM_ARITH_PATTERN_MATCH_H_
 
+#include <tvm/ffi/cast.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/expr.h>

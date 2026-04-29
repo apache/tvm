@@ -19,6 +19,8 @@
 
 #include "utils.h"
 
+#include <tvm/ffi/cast.h>
+
 #include <vector>
 namespace tvm {
 namespace relax {

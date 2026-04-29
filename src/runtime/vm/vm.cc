@@ -21,6 +21,7 @@
  * \file src/runtime/vm/vm.cc
  */
 #include <dlpack/dlpack.h>
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/nvtx.h>

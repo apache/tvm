@@ -19,6 +19,7 @@
 #include "nms.h"
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/attrs.h>
@@ -26,7 +27,6 @@
 #include <tvm/ir/op.h>
 #include <tvm/relax/attrs/vision.h>
 #include <tvm/relax/struct_info.h>
-#include <tvm/runtime/object.h>
 
 #include <utility>
 #include <vector>
@@ -153,10 +153,9 @@ StructInfo InferStructInfoGetValidCounts(const Call& call, const BlockBuilder& c
   auto vdev = data_sinfo->vdevice;
   const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
   if (data_shape == nullptr) {
-    tvm::ffi::Array<StructInfo> fields = {
-        TensorStructInfo(DataType::Int(32), /*ndim=*/1, vdev),
-        TensorStructInfo(data_sinfo->dtype, /*ndim=*/3, vdev),
-        TensorStructInfo(DataType::Int(32), /*ndim=*/2, vdev)};
+    tvm::ffi::Array<StructInfo> fields = {TensorStructInfo(DataType::Int(32), /*ndim=*/1, vdev),
+                                          TensorStructInfo(data_sinfo->dtype, /*ndim=*/3, vdev),
+                                          TensorStructInfo(DataType::Int(32), /*ndim=*/2, vdev)};
     return TupleStructInfo(fields);
   }
 
@@ -344,9 +343,8 @@ StructInfo InferStructInfoNMS(const Call& call, const BlockBuilder& ctx) {
 
     // Hard NMS returns (box_indices[batch, num_anchors], valid_box_count[batch, 1])
     if (data_shape == nullptr) {
-      tvm::ffi::Array<StructInfo> fields = {
-          TensorStructInfo(DataType::Int(32), /*ndim=*/2, vdev),
-          TensorStructInfo(DataType::Int(32), /*ndim=*/2, vdev)};
+      tvm::ffi::Array<StructInfo> fields = {TensorStructInfo(DataType::Int(32), /*ndim=*/2, vdev),
+                                            TensorStructInfo(DataType::Int(32), /*ndim=*/2, vdev)};
       return TupleStructInfo(fields);
     }
     auto batch = data_shape->values[0];

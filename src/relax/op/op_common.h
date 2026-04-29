@@ -26,6 +26,7 @@
 #define TVM_RELAX_OP_OP_COMMON_H_
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/cast.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/s_tir/data_layout.h>
 

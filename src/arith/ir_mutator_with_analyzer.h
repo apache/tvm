@@ -25,6 +25,7 @@
 #define TVM_ARITH_IR_MUTATOR_WITH_ANALYZER_H_
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/cast.h>
 #include <tvm/ir/scope_stack.h>
 #include <tvm/ir/with_context.h>
 #include <tvm/tirx/analysis.h>

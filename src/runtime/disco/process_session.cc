@@ -20,7 +20,6 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/disco/disco_worker.h>
-#include <tvm/runtime/object.h>
 
 #include <memory>
 #include <sstream>
@@ -36,6 +35,12 @@
 
 namespace tvm {
 namespace runtime {
+
+using ffi::Object;
+using ffi::ObjectPtr;
+using ffi::ObjectPtrEqual;
+using ffi::ObjectPtrHash;
+using ffi::ObjectRef;
 
 class DiscoProcessChannel final : public DiscoChannel {
  public:

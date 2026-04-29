@@ -22,6 +22,7 @@
  * \brief Find the "anchor block" of a given module
  */
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/tirx/analysis.h>

@@ -21,6 +21,7 @@
  * \file src/relax/backend/contrib/example_npu/codegen.cc
  * \brief Example NPU JSON codegen implementation.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 

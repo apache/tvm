@@ -23,6 +23,7 @@
  * satisfy their temporary storage requirement.
  */
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/name_supply.h>
 #include <tvm/relax/expr.h>
