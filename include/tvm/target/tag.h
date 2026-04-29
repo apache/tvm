@@ -165,7 +165,7 @@ inline TargetTagRegEntry& TargetTagRegEntry::set_name() {
  * \param TargetTagName The name of target tag
  */
 #define TVM_REGISTER_TARGET_TAG(TargetTagName)                   \
-  TVM_STR_CONCAT(TVM_TARGET_TAG_REGISTER_VAR_DEF, __COUNTER__) = \
+  TVM_FFI_STR_CONCAT(TVM_TARGET_TAG_REGISTER_VAR_DEF, __COUNTER__) = \
       ::tvm::TargetTagRegEntry::RegisterOrGet(TargetTagName).set_name()
 
 }  // namespace tvm

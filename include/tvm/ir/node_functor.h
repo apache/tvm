@@ -192,6 +192,6 @@ class NodeFunctor<R(const ObjectRef& n, Args...)> {
  * \param FField The static function that returns a singleton of NodeFunctor.
  */
 #define TVM_STATIC_IR_FUNCTOR(ClsName, FField) \
-  TVM_STR_CONCAT(TVM_REG_FUNC_VAR_DEF(ClsName), __COUNTER__) = ClsName::FField()
+  TVM_FFI_STR_CONCAT(TVM_REG_FUNC_VAR_DEF(ClsName), __COUNTER__) = ClsName::FField()
 }  // namespace tvm
 #endif  // TVM_IR_NODE_FUNCTOR_H_

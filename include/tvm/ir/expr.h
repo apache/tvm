@@ -27,6 +27,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/cast.h>
+#include <tvm/ir/cow.h>
 #include <tvm/ir/repr.h>
 #include <tvm/ir/script_printer.h>
 #include <tvm/ir/source_map.h>

@@ -22,6 +22,7 @@
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/cow.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/function.h>
 #include <tvm/ir/source_map.h>
@@ -589,7 +590,10 @@ class Binding : public ObjectRef {
  public:
   explicit Binding(ObjectPtr<BindingNode> n) : ObjectRef(n) {}
   explicit Binding(ffi::UnsafeInit tag) : ObjectRef(tag) {}
-  TVM_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(Binding);
+  Binding(const Binding&) = default;
+  Binding(Binding&&) = default;
+  Binding& operator=(const Binding&) = default;
+  Binding& operator=(Binding&&) = default;
   const BindingNode* operator->() const { return static_cast<const BindingNode*>(data_.get()); }
   const BindingNode* get() const { return operator->(); }
   using ContainerType = BindingNode;

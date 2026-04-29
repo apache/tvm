@@ -24,6 +24,7 @@
 #ifndef TVM_TIR_VAR_H_
 #define TVM_TIR_VAR_H_
 
+#include <tvm/ir/cow.h>
 #include <tvm/ir/expr.h>
 #include <tvm/runtime/data_type.h>
 

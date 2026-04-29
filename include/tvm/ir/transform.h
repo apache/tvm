@@ -309,7 +309,7 @@ class PassContext : public ObjectRef {
  *  Use this macro in the cc file for each terminal class.
  */
 #define TVM_REGISTER_PASS_CONFIG_OPTION(Key, ValueType)      \
-  TVM_STR_CONCAT(TVM_PASS_CTX_CONFIG_VAR_DEF, __COUNTER__) = \
+  TVM_FFI_STR_CONCAT(TVM_PASS_CTX_CONFIG_VAR_DEF, __COUNTER__) = \
       ::tvm::transform::PassContext::RegisterConfigOption<ValueType>(Key)
 
 /*!

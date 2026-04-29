@@ -305,8 +305,16 @@ class TensorMapType : public Type {
  public:
   TVM_DLL TensorMapType(Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE_WITHOUT_DEFAULT_CONSTRUCTOR(TensorMapType, Type,
-                                                                         TensorMapTypeNode);
+  explicit TensorMapType(::tvm::ffi::ObjectPtr<TensorMapTypeNode> n) : Type(n) {}
+  TensorMapType(const TensorMapType&) = default;
+  TensorMapType(TensorMapType&&) = default;
+  TensorMapType& operator=(const TensorMapType&) = default;
+  TensorMapType& operator=(TensorMapType&&) = default;
+  const TensorMapTypeNode* operator->() const {
+    return static_cast<const TensorMapTypeNode*>(data_.get());
+  }
+  const TensorMapTypeNode* get() const { return operator->(); }
+  using ContainerType = TensorMapTypeNode;
 };
 
 }  // namespace tvm

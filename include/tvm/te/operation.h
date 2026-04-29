@@ -26,6 +26,7 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/cow.h>
 #include <tvm/te/tensor.h>
 #include <tvm/tirx/buffer.h>
 #include <tvm/tirx/expr.h>

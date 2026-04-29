@@ -228,7 +228,7 @@ class Instruction : public runtime::ObjectRef {
  * \endcode
  */
 #define TVM_REGISTER_INST_KIND(InstructionKindName)             \
-  TVM_STR_CONCAT(TVM_INST_KIND_REGISTER_VAR_DEF, __COUNTER__) = \
+  TVM_FFI_STR_CONCAT(TVM_INST_KIND_REGISTER_VAR_DEF, __COUNTER__) = \
       ::tvm::s_tir::InstructionKindRegEntry::RegisterOrGet(InstructionKindName).set_name()
 
 /*! \brief An entry in the registry of InstructionKind */

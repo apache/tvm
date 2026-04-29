@@ -300,7 +300,7 @@ inline TargetKindRegEntry& TargetKindRegEntry::set_name() {
  * \endcode
  */
 #define TVM_REGISTER_TARGET_KIND(TargetKindName, DeviceType)      \
-  TVM_STR_CONCAT(TVM_TARGET_KIND_REGISTER_VAR_DEF, __COUNTER__) = \
+  TVM_FFI_STR_CONCAT(TVM_TARGET_KIND_REGISTER_VAR_DEF, __COUNTER__) = \
       ::tvm::TargetKindRegEntry::RegisterOrGet(TargetKindName)    \
           .set_name()                                             \
           .set_default_device_type(DeviceType)                    \

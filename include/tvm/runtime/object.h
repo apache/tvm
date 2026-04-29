@@ -106,6 +106,7 @@ static_assert(static_cast<int>(TypeIndex::kCustomStaticIndex) >=
  *
  * \endcode
  */
+#ifndef TVM_DEFINE_OBJECT_REF_COW_METHOD
 #define TVM_DEFINE_OBJECT_REF_COW_METHOD(ObjectName)                   \
   static_assert(ObjectName::_type_final,                               \
                 "TVM's CopyOnWrite may only be used for "              \
@@ -119,6 +120,7 @@ static_assert(static_cast<int>(TypeIndex::kCustomStaticIndex) >=
     }                                                                  \
     return static_cast<ObjectName*>(data_.get());                      \
   }
+#endif  // TVM_DEFINE_OBJECT_REF_COW_METHOD
 
 /*
  * \brief Define object reference methods.

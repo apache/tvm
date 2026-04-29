@@ -22,6 +22,7 @@
  * \brief Canonical form based simplification.
  */
 #include <tvm/arith/analyzer.h>
+#include <tvm/ir/cow.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/op.h>
 

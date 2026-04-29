@@ -34,6 +34,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/accessor.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/cow.h>
 #include <tvm/ir/expr.h>
 
 #include <functional>
@@ -233,8 +234,16 @@ class DictAttrs : public Attrs {
     return GetAttr<Integer>(attr_key, 0).value_or(0).IntValue() != 0;
   }
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE_WITHOUT_DEFAULT_CONSTRUCTOR(DictAttrs, Attrs,
-                                                                         DictAttrsNode);
+  explicit DictAttrs(::tvm::ffi::ObjectPtr<DictAttrsNode> n) : Attrs(n) {}
+  DictAttrs(const DictAttrs&) = default;
+  DictAttrs(DictAttrs&&) = default;
+  DictAttrs& operator=(const DictAttrs&) = default;
+  DictAttrs& operator=(DictAttrs&&) = default;
+  const DictAttrsNode* operator->() const {
+    return static_cast<const DictAttrsNode*>(data_.get());
+  }
+  const DictAttrsNode* get() const { return operator->(); }
+  using ContainerType = DictAttrsNode;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(DictAttrsNode);
 };
 
