@@ -19,8 +19,15 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
+#include <tvm/ir/script/builder/ir.h>
+// NOTE: This IR-layer ir_builder file legitimately depends on Relax and TIRX.
+// `DeclFunction` inspects whether the registered function is a `relax::Function`
+// or a `tirx::PrimFunc` and calls into both dialects to derive the correct
+// `relax::FuncStructInfo`. This is the canonical "IRModule contains heterogeneous
+// dialects" coupling — it lives here intentionally rather than being duplicated
+// in each dialect's builder. See `src/tirx/ir/function.cc` for an analogous
+// pre-existing tirx → relax dependency.
 #include <tvm/relax/analysis.h>
-#include <tvm/script/ir_builder/ir/ir.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op.h>
 

@@ -16,10 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef TVM_SCRIPT_IR_BUILDER_IR_UTILS_H_
-#define TVM_SCRIPT_IR_BUILDER_IR_UTILS_H_
+#ifndef TVM_IR_SCRIPT_BUILDER_UTILS_H_
+#define TVM_IR_SCRIPT_BUILDER_UTILS_H_
 
-#include <tvm/script/ir_builder/ir/frame.h>
+#include <tvm/ir/script/builder/frame.h>
 
 namespace tvm {
 namespace script {
@@ -57,4 +57,4 @@ inline IRModuleFrame FindModuleFrame() {
 }  // namespace script
 }  // namespace tvm
 
-#endif  // TVM_SCRIPT_IR_BUILDER_IR_UTILS_H_
+#endif  // TVM_IR_SCRIPT_BUILDER_UTILS_H_

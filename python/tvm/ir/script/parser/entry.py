@@ -22,8 +22,7 @@ from collections.abc import Callable
 
 from tvm import cpu, ir
 from tvm.ir import GlobalVar, IRModule
-
-from .._core import parse, utils
+from tvm.script.parser._core import parse, utils
 
 
 # this formulation allows us to support having @I.ir_module

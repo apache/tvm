@@ -16,8 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef TVM_SCRIPT_PRINTER_IR_UTILS_H_
-#define TVM_SCRIPT_PRINTER_IR_UTILS_H_
+#ifndef TVM_IR_SCRIPT_PRINTER_UTILS_H_
+#define TVM_IR_SCRIPT_PRINTER_UTILS_H_
 
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
@@ -29,7 +29,7 @@
 #include <string>
 #include <utility>
 
-#include "../utils.h"
+#include "../../../script/printer/utils.h"
 
 namespace tvm {
 namespace script {
@@ -71,4 +71,4 @@ inline std::string ReprPrintIR(const ObjectRef& obj, const PrinterConfig& cfg) {
 }  // namespace script
 }  // namespace tvm
 
-#endif  // TVM_SCRIPT_PRINTER_IR_UTILS_H_
+#endif  // TVM_IR_SCRIPT_PRINTER_UTILS_H_

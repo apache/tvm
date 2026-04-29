@@ -18,9 +18,8 @@
 """The base parser for ir module"""
 
 from tvm.ir import GlobalVar
-
-from ...ir_builder import ir as I
-from .._core import Parser, dispatch, doc
+from tvm.ir.script import builder as I
+from tvm.script.parser._core import Parser, dispatch, doc
 
 
 class ModuleWithGlobalVars:

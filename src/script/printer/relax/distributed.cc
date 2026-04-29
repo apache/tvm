@@ -19,7 +19,7 @@
 #include <tvm/ir/expr.h>
 #include <tvm/relax/distributed/struct_info.h>
 
-#include "../ir/utils.h"
+#include "../../../ir/script/printer/utils.h"
 #include "./utils.h"
 
 namespace tvm {

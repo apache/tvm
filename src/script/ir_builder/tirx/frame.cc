@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/script/ir_builder/ir/ir.h>
+#include <tvm/ir/script/builder/ir.h>
 #include <tvm/script/ir_builder/tirx/frame.h>
 #include <tvm/tirx/function.h>
 

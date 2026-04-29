@@ -1,4 +1,3 @@
-# isort: skip_file
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,18 +14,19 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Package tvm.script.ir_builder.ir"""
+"""Backward-compat shim for ``tvm.script.ir_builder.ir`` — moved to ``tvm.ir.script.builder``."""
 
-from .frame import IRModuleFrame
-from .ir import (
+from tvm.ir.script.builder import *  # pylint: disable=wildcard-import,redefined-builtin
+from tvm.ir.script.builder import (
+    IRModuleFrame,
     decl_function,
     def_function,
+    dummy_global_info,
     ir_module,
+    lookup_vdevice,
     module_attrs,
     module_get_attr,
-    module_set_attr,
     module_global_infos,
-    lookup_vdevice,
+    module_set_attr,
     vdevice,
-    dummy_global_info,
 )

@@ -19,8 +19,8 @@
 #ifndef TVM_SCRIPT_IR_BUILDER_TIR_FRAME_H_
 #define TVM_SCRIPT_IR_BUILDER_TIR_FRAME_H_
 
+#include <tvm/ir/script/builder/frame.h>
 #include <tvm/script/ir_builder/base.h>
-#include <tvm/script/ir_builder/ir/frame.h>
 #include <tvm/tirx/stmt.h>
 
 #include <utility>

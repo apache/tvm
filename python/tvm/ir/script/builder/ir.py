@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Package tvm.script.ir_builder.ir.ir"""
+"""Package tvm.ir.script.builder.ir"""
 
 from tvm.ir import BaseFunc, DummyGlobalInfo, GlobalInfo, GlobalVar, VDevice
 from tvm.runtime import Object as tvm_Object

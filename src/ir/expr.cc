@@ -227,7 +227,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         ss << ref;
         return ss.str();
       });
-  // Note: kRepr for GlobalVarNode is registered in script/printer/ir/ir.cc
+  // Note: kRepr for GlobalVarNode is registered in src/ir/script/printer/ir.cc
   // via TVM_SCRIPT_REPR(GlobalVarNode, ReprPrintIR).
 }
 

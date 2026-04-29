@@ -14,12 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Package tvm.script.ir_builder.ir.frame"""
+"""IR-layer TVMScript pieces (parser, builder).
 
-from tvm_ffi import register_object as _register_object
-
-from ..base import IRBuilderFrame
-
-
-@_register_object("script.ir_builder.IRModuleFrame")
-class IRModuleFrame(IRBuilderFrame): ...
+After the per-dialect TVMScript restructure, the IR layer owns its own
+`script/{parser,builder}` subpackages. The legacy paths
+``tvm.script.parser.ir`` and ``tvm.script.ir_builder.ir`` continue to
+work as backward-compatibility shims that re-export from here.
+"""

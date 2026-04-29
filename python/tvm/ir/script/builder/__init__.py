@@ -1,3 +1,4 @@
+# isort: skip_file
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -14,7 +15,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Backward-compat shim for ``tvm.script.parser.ir`` — moved to ``tvm.ir.script.parser``."""
+"""Package tvm.ir.script.builder — IR-layer ir_builder API."""
 
-from tvm.ir.script.parser import *  # pylint: disable=wildcard-import,redefined-builtin
-from tvm.ir.script.parser import ir_module, pyfunc
+from .frame import IRModuleFrame
+from .ir import (
+    decl_function,
+    def_function,
+    ir_module,
+    module_attrs,
+    module_get_attr,
+    module_set_attr,
+    module_global_infos,
+    lookup_vdevice,
+    vdevice,
+    dummy_global_info,
+)

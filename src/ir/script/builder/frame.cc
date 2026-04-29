@@ -18,7 +18,7 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ir/module.h>
-#include <tvm/script/ir_builder/ir/frame.h>
+#include <tvm/ir/script/builder/frame.h>
 
 namespace tvm {
 namespace script {

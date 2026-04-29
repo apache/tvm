@@ -14,7 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Backward-compat shim for ``tvm.script.parser.ir`` — moved to ``tvm.ir.script.parser``."""
+"""Package tvm.ir.script.builder.frame"""
 
-from tvm.ir.script.parser import *  # pylint: disable=wildcard-import,redefined-builtin
-from tvm.ir.script.parser import ir_module, pyfunc
+from tvm_ffi import register_object as _register_object
+
+from tvm.script.ir_builder.base import IRBuilderFrame
+
+
+@_register_object("script.ir_builder.IRModuleFrame")
+class IRModuleFrame(IRBuilderFrame): ...

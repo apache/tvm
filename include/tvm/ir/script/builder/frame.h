@@ -16,8 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef TVM_SCRIPT_IR_BUILDER_IR_FRAME_H_
-#define TVM_SCRIPT_IR_BUILDER_IR_FRAME_H_
+#ifndef TVM_IR_SCRIPT_BUILDER_FRAME_H_
+#define TVM_IR_SCRIPT_BUILDER_FRAME_H_
 
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
@@ -84,4 +84,4 @@ class IRModuleFrame : public IRBuilderFrame {
 }  // namespace script
 }  // namespace tvm
 
-#endif  // TVM_SCRIPT_IR_BUILDER_IR_FRAME_H_
+#endif  // TVM_IR_SCRIPT_BUILDER_FRAME_H_

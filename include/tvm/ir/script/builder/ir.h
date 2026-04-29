@@ -16,12 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef TVM_SCRIPT_IR_BUILDER_IR_IR_H_
-#define TVM_SCRIPT_IR_BUILDER_IR_IR_H_
+#ifndef TVM_IR_SCRIPT_BUILDER_IR_H_
+#define TVM_IR_SCRIPT_BUILDER_IR_H_
 
 #include <tvm/ir/expr.h>
 #include <tvm/ir/function.h>
-#include <tvm/script/ir_builder/ir/frame.h>
+#include <tvm/ir/script/builder/frame.h>
 
 #include <vector>
 
@@ -58,4 +58,4 @@ TVM_DLL void DefFunction(const ffi::String& func_name, const BaseFunc& func);
 }  // namespace script
 }  // namespace tvm
 
-#endif  // TVM_SCRIPT_IR_BUILDER_IR_IR_H_
+#endif  // TVM_IR_SCRIPT_BUILDER_IR_H_
