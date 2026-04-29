@@ -31,8 +31,8 @@
 
 #include <sstream>
 
-#include "../intrin_rule.h"
-#include "intrin_rule_llvm.h"
+#include "../../intrin_rule.h"
+#include "../../llvm/intrin_rule_llvm.h"
 
 namespace tvm {
 namespace codegen {

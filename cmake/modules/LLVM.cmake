@@ -45,6 +45,7 @@ if(NOT ${USE_LLVM} MATCHES ${IS_FALSE_PATTERN})
   tvm_file_glob(GLOB COMPILER_LLVM_SRCS
     src/target/llvm/*.cc
     src/target/cuda/llvm/*.cc
+    src/target/rocm/llvm/*.cc
   )
   list(APPEND TVM_LINKER_LIBS ${LLVM_LIBS})
   list(APPEND COMPILER_SRCS ${COMPILER_LLVM_SRCS})

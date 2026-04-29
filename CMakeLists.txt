@@ -297,6 +297,7 @@ tvm_file_glob(GLOB CODEGEN_SRCS
   src/target/canonicalizer/*.cc
   src/target/canonicalizer/llvm/*.cc
   src/target/cuda/*.cc
+  src/target/rocm/*.cc
     )
 
 list(APPEND COMPILER_SRCS ${CODEGEN_SRCS})

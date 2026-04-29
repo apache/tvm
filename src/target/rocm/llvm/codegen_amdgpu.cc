@@ -48,10 +48,11 @@
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/device_api.h>
 
-#include "../../runtime/rocm/rocm_module.h"
-#include "../build_common.h"
-#include "codegen_llvm.h"
-#include "llvm_instance.h"
+#include "../../../runtime/metadata.h"
+#include "../../build_common.h"
+#include "../../llvm/codegen_llvm.h"
+#include "../../llvm/llvm_instance.h"
+#include "../rocm_fallback_module.h"
 
 namespace tvm {
 namespace codegen {
@@ -312,7 +313,11 @@ ffi::Module BuildAMDGPU(IRModule mod, Target target) {
 
   std::string hsaco = (*flink)(&arr).cast<std::string>();
   std::string ll(data_ll.begin(), data_ll.end());
-  return ROCMModuleCreate(hsaco, "hsaco", ExtractFuncInfo(mod), ll, assembly);
+  ffi::Map<ffi::String, ffi::String> source;
+  source.Set("hip", ffi::String(ll));
+  source.Set("asm", ffi::String(assembly));
+  return target::ROCmModuleCreateWithFallback(ffi::Bytes(std::move(hsaco)), "hsaco",
+                                              ExtractFuncInfo(mod), std::move(source));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
