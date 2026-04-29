@@ -1748,22 +1748,31 @@ class CumSum(OnnxOpConverter):
     @classmethod
     def _impl_v14(cls, bb, inputs, attr, params):
         data = inputs[0]
-        axis = get_constant(inputs[1], params)
+        axis_input = get_constant(inputs[1], params)
         assert not attr.get("exclusive", False), "Exclusive option not yet supported."
 
-        if isinstance(axis, relax.Constant):
-            axis = int(axis.data.numpy())
-        elif isinstance(axis, relax.Var):
-            axis = 0
-
+        if isinstance(axis_input, relax.Constant):
+            axis_np = int(axis_input.data.numpy())
+            if axis_np.size != 1:
+                raise ValueError("CumSum axis input tensor must have exactly on element, got shape {}".format(axis_np.shape))
+            axis = int(axis_np.item())
+        elif isinstance(axis_input, relax.Var):
+            axis_shape = axis_input.struct_info.shape if hasattr(axis_input.struct_info, 'shape') else None
+            if axis_shape is not None and hasattr(axis_shape, '__len__') and len(axis_shape) == 1:
+                axis = bb.normalize(relax.op.squeeze(axis_input, [0]))
+            else:
+                raise ValueError("CumSum axis input must be a single-element tensor (shape [1]), got {}".format(axis_shape))
+        else:
+            raise TypeError("CumSum axis input must be a Constant or Var")
+            
         if attr.get("reverse", 0) != 0:
-            data = bb.emit_te(topi.flip, data, axis=axis if axis else 0)
+            data = bb.emit_te(topi.flip, data, axis=axis)
 
         data = relax.op.cumsum(data, axis)
         data = bb.normalize(data)
 
         if attr.get("reverse", 0) != 0:
-            data = bb.emit_te(topi.flip, data, axis=axis if axis else 0)
+            data = bb.emit_te(topi.flip, data, axis=axis)
 
         return data
 
