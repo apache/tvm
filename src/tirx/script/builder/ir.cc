@@ -20,6 +20,8 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/container/variant.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/relax/analysis.h>
+#include <tvm/relax/struct_info.h>
 #include <tvm/tirx/script/builder/ir.h>
 
 #include "./utils.h"
@@ -884,6 +886,18 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            [](PrimExpr a, PrimExpr b) -> PrimExpr { return tvm::min(a, b); })
       .def("script.ir_builder.tirx.max",
            [](PrimExpr a, PrimExpr b) -> PrimExpr { return tvm::max(a, b); });
+  // Registry: "script.ir_builder.decl_function.tirx.PrimFunc" — derives the
+  // GlobalVar struct_info for a tirx PrimFunc declared via I.DeclFunction.
+  // The IR layer's DeclFunction looks up this key on the function's type-key
+  // when no pre-existing struct_info_ is set.
+  refl::GlobalDef().def("script.ir_builder.decl_function.tirx.PrimFunc",
+                        [](const BaseFunc& func) -> ObjectRef {
+                          const auto* prim_func = func.as<tvm::tirx::PrimFuncNode>();
+                          TVM_FFI_ICHECK(prim_func != nullptr)
+                              << "Expected tirx::PrimFunc, got " << func->GetTypeKey();
+                          return tvm::relax::FuncStructInfo::OpaqueFunc(
+                              tvm::relax::StructInfoFromType(prim_func->ret_type));
+                        });
 }
 }  // namespace tirx
 }  // namespace ir_builder
