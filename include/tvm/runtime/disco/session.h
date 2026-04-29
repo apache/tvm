@@ -73,6 +73,7 @@
 #ifndef TVM_RUNTIME_DISCO_SESSION_H_
 #define TVM_RUNTIME_DISCO_SESSION_H_
 
+#include <tvm/ffi/container/shape.h>
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/tensor.h>

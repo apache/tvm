@@ -24,6 +24,7 @@
 #ifndef TVM_RUNTIME_VM_ATTN_UTILS_H_
 #define TVM_RUNTIME_VM_ATTN_UTILS_H_
 
+#include <tvm/ffi/container/shape.h>
 #include <tvm/runtime/tensor.h>
 
 #include <algorithm>
