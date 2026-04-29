@@ -27,6 +27,7 @@ from .common_analysis import (
     normalize_prim_func,
     get_root_block,
     get_sblock_info,
+    get_max_shared_memory_per_block,
 )
 from .gemv import (
     is_gemv,

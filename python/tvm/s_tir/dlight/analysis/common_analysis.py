@@ -19,6 +19,8 @@
 # pylint: disable=unused-argument, unused-variable
 """Analysis on TIR blocks, loops and functions."""
 
+import logging
+
 from collections import namedtuple
 from typing import Literal
 
@@ -30,6 +32,7 @@ from tvm.s_tir import Schedule
 from tvm.s_tir.schedule import SBlockRV
 from tvm.target.target import Target
 
+logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 class IterInfo:
     """Information about a loop/iter var."""
@@ -362,14 +365,31 @@ def get_max_threads_per_block(target: Target) -> int:
     return int(max_threads_per_block)
 
 
+TARGET_KIND_TO_DEFAULT_MAX_SMEM = {
+    "cuda": 49152,
+    "rocm": 65536,
+    "metal": 32768,
+    "opencl": 16384,
+    "vulkan": 16384,
+}
+
 def get_max_shared_memory_per_block(target: Target) -> int:
     _assert_gpu_target(target)
     max_shared_memory_per_block = target.attrs.get("max_shared_memory_per_block", None)
-    if max_shared_memory_per_block is None:
-        raise ValueError(
-            f"Cannot find `max_shared_memory_per_block` in {target}, please specify it manually"
-        )
-    return int(max_shared_memory_per_block)
+    if max_shared_memory_per_block is not None:
+        return int(max_shared_memory_per_block)
+
+    # Layered fallback strategy for targets that do not carry this attribute
+    # 1) Use explicit target attrs provided (handled above).
+    # 2) Fall back to backend defaults matching target-kind defaults/tag defaults.
+    # 3) Use a conservative GPU default as last resort.
+    default_smem = TARGET_KIND_TO_DEFAULT_MAX_SMEM.get(target.kind.name, 16384)
+    logger.warning(
+        "Target %s missing 'max_shared_memory_per_block'; using %d bytes.",
+        target.kind.name,
+        default_smem,
+    )
+    return int(default_smem)
 
 
 def get_root_block(sch: Schedule, func_name: str = "main") -> SBlockRV:
