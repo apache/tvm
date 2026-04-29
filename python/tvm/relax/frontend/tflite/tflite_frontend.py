@@ -2452,8 +2452,8 @@ class OperatorConverter:
         in_expr = self.get_tensor_expr(input_tensors[0])
         input_dtype = self.get_tensor_type_str(input_tensors[0].tensor.Type())
         output_dtype = self.get_tensor_type_str(output_tensors[0].tensor.Type())
-        input_shape = self.get_tensor_shape(input_tensors[0]).tolist()
-        output_shape = self.get_tensor_shape(output_tensors[0]).tolist()
+        input_shape = to_int_list(self.get_tensor_shape(input_tensors[0]))
+        output_shape = to_int_list(self.get_tensor_shape(output_tensors[0]))
 
         input_nbytes = int(np.prod(input_shape)) * np.dtype(input_dtype).itemsize
         output_nbytes = int(np.prod(output_shape)) * np.dtype(output_dtype).itemsize
