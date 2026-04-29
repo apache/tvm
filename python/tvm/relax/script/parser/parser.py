@@ -23,13 +23,13 @@ from typing import Any
 from tvm import relax, tirx
 from tvm.ir import GlobalVar, structural_equal
 from tvm.relax import Expr, StructInfo
+from tvm.relax.script import builder as R
+from tvm.relax.script.builder.frame import BindingBlockFrame
 from tvm.relax.utils import convert_to_expr
-from tvm.script.ir_builder.relax.frame import BindingBlockFrame
+from tvm.script.ir_builder import ir as I
+from tvm.script.ir_builder.base import IRBuilder
+from tvm.script.parser._core import Parser, dispatch, doc
 
-from ...ir_builder import ir as I
-from ...ir_builder import relax as R
-from ...ir_builder.base import IRBuilder
-from .._core import Parser, dispatch, doc
 from .entry import (
     MatchCastPair,
     StructInfoProxy,

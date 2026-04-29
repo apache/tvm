@@ -17,9 +17,7 @@
  * under the License.
  */
 #include <tvm/ir/expr.h>
-#include <tvm/relax/distributed/global_info.h>
 
-#include "../relax/utils.h"
 #include "./utils.h"
 namespace tvm {
 namespace script {

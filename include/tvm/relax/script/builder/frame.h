@@ -16,8 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef TVM_SCRIPT_IR_BUILDER_RELAX_FRAME_H_
-#define TVM_SCRIPT_IR_BUILDER_RELAX_FRAME_H_
+#ifndef TVM_RELAX_SCRIPT_BUILDER_FRAME_H_
+#define TVM_RELAX_SCRIPT_BUILDER_FRAME_H_
 
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/block_builder.h>
@@ -329,4 +329,4 @@ class ElseFrame : public SeqExprFrame {
 }  // namespace script
 }  // namespace tvm
 
-#endif  // TVM_SCRIPT_IR_BUILDER_RELAX_FRAME_H_
+#endif  // TVM_RELAX_SCRIPT_BUILDER_FRAME_H_

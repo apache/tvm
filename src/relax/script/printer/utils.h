@@ -16,8 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef TVM_SCRIPT_PRINTER_RELAX_UTILS_H_
-#define TVM_SCRIPT_PRINTER_RELAX_UTILS_H_
+#ifndef TVM_RELAX_SCRIPT_PRINTER_UTILS_H_
+#define TVM_RELAX_SCRIPT_PRINTER_UTILS_H_
 
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
@@ -32,7 +32,7 @@
 #include <utility>
 #include <vector>
 
-#include "../utils.h"
+#include "../../../script/printer/utils.h"
 
 namespace tvm {
 namespace script {
@@ -156,4 +156,4 @@ inline int FindVDeviceIndexByTargetKind(const VDevice& vdevice, const IRDocsifie
 }  // namespace script
 }  // namespace tvm
 
-#endif  // TVM_SCRIPT_PRINTER_RELAX_UTILS_H_
+#endif  // TVM_RELAX_SCRIPT_PRINTER_UTILS_H_

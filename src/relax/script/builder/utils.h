@@ -16,13 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef TVM_SCRIPT_IR_BUILDER_RELAX_UTILS_H_
-#define TVM_SCRIPT_IR_BUILDER_RELAX_UTILS_H_
+#ifndef TVM_RELAX_SCRIPT_BUILDER_UTILS_H_
+#define TVM_RELAX_SCRIPT_BUILDER_UTILS_H_
 
+#include <tvm/relax/script/builder/frame.h>
+#include <tvm/relax/script/builder/ir.h>
 #include <tvm/relax/struct_info_functor.h>
 #include <tvm/relax/utils.h>
-#include <tvm/script/ir_builder/relax/frame.h>
-#include <tvm/script/ir_builder/relax/ir.h>
 
 #include <string>
 
@@ -138,4 +138,4 @@ inline tvm::relax::SeqExpr GetSeqExprForBranch(const SeqExprFrame& frame, ffi::S
 }  // namespace script
 }  // namespace tvm
 
-#endif  // TVM_SCRIPT_IR_BUILDER_RELAX_UTILS_H_
+#endif  // TVM_RELAX_SCRIPT_BUILDER_UTILS_H_

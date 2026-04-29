@@ -1,3 +1,4 @@
+# isort: skip_file
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -14,8 +15,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F401, F403
-"""Backward-compat shim — moved to ``tvm.relax.script.builder.ir``."""
+"""Package tvm.script.ir_builder.relax"""
 
-from tvm.relax.script.builder.ir import *  # pylint: disable=wildcard-import
-from tvm.relax.script.builder.ir import py_print, py_str, py_tuple
+from . import distributed, frame
+from .ir import *  # pylint: disable=wildcard-import,redefined-builtin
