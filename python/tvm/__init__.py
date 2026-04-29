@@ -44,17 +44,12 @@ from .ir import transform
 from .ir import instrument
 from . import ir
 
-# tvm.tirx
+# tvm.script — must be imported before any dialect package so that
+# tvm.script.register_dialect is reachable when dialect __init__.py files run.
+from . import script
+
+# tvm.tirx — registers itself via tvm.script.register_dialect in its __init__
 from . import tirx
-
-# Register the TIRX-layer script package with the TVMScript registry so
-# that ``tvm.script.tirx`` resolves to ``tvm.tirx.script`` before any
-# downstream module (e.g. ``tvm.s_tir``) does ``from tvm.script import
-# tirx``. IR is foundational (``tvm.script`` depends on ``tvm.ir``) and is
-# not registered as a dialect.
-from . import script as _script
-
-_script.register_dialect("tirx", "tvm.tirx.script")
 
 # tvm.s_tir
 from . import s_tir
@@ -80,11 +75,8 @@ from .contrib import rocm as _rocm, nvcc as _nvcc
 # Relax contain modules that are only available in compiler package
 # Do not import them if TVM is built with runtime only
 if not _RUNTIME_ONLY:
+    # tvm.relax — registers itself via tvm.script.register_dialect in its __init__
     from . import relax
-
-    _script.register_dialect("relax", "tvm.relax.script")
-
-del _script
 
 # NOTE: This file should be python2 compatible so we can
 # raise proper error message when user run the package using

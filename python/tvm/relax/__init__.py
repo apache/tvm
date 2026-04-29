@@ -120,3 +120,7 @@ from . import utils
 from .vm_build import build, VMExecutable
 
 from .binding_rewrite import DataflowBlockRewrite
+
+import tvm.script
+
+tvm.script.register_dialect("relax", "tvm.relax.script")

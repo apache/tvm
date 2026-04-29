@@ -14,14 +14,22 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""The parser.
+"""The parser subpackage of TVMScript.
 
-Per-dialect parser submodules (``tvm.script.parser.tirx`` etc.) resolve via
-:data:`tvm.script._DIALECT_REGISTRY`. Each extension dialect's package
-registers a mapping from short name to ``tvm.<dialect>.script``; this
-module's ``__getattr__`` then looks up ``f"{path}.parser"`` and returns it.
-The IR layer is foundational and lives as a real submodule
-(``tvm.script.parser.ir``); ``ir_module`` is re-exported from there.
+Per-dialect parser submodules (``tvm.script.parser.tirx``, etc.) are
+resolved lazily via :data:`tvm.script._DIALECT_REGISTRY`.  When a dialect
+is accessed (e.g. ``tvm.script.parser.tirx``), this subpackage's
+``__getattr__`` looks up the dialect in ``_DIALECT_REGISTRY`` and imports
+``<dialect_module_path>.parser`` (e.g. ``tvm.tirx.script.parser``),
+caching the result so subsequent accesses skip ``__getattr__``.
+
+The IR layer is foundational and is NOT registered as a dialect — its
+parser lives as a real submodule ``tvm.script.parser.ir``, with
+``ir_module`` re-exported at this level for convenience.
+
+See :mod:`tvm.script` for a full description of the dialect resolution
+mechanism, including the ``_DialectRedirectFinder`` that handles
+deep statement-form imports.
 """
 
 import importlib
