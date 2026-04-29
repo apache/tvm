@@ -124,6 +124,7 @@ class OperatorConverter:
             "AVERAGE_POOL_2D": functools.partial(self.convert_pool2d, pool_type="average"),
             "BATCH_TO_SPACE_ND": self.convert_batch_to_space_nd,
             "BATCH_MATMUL": self.convert_batch_matmul,
+            "BITCAST": self.convert_bitcast,
             "CAST": self.convert_cast,
             "CEIL": functools.partial(self._convert_unary_elemwise, relax_op=_op.ceil),
             "CONCATENATION": self.convert_concatenation,
@@ -2440,6 +2441,28 @@ class OperatorConverter:
         seq_axis = options.SeqDim()
 
         return relax.op.reverse_sequence(in_expr, length_expr, seq_axis, batch_axis)
+
+    def convert_bitcast(self, op):
+        """Convert TFLite BITCAST"""
+        input_tensors = self.get_input_tensors(op)
+        output_tensors = self.get_output_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+        assert len(output_tensors) == 1, "output tensors length should be 1"
+
+        in_expr = self.get_tensor_expr(input_tensors[0])
+        input_dtype = self.get_tensor_type_str(input_tensors[0].tensor.Type())
+        output_dtype = self.get_tensor_type_str(output_tensors[0].tensor.Type())
+        input_shape = self.get_tensor_shape(input_tensors[0]).tolist()
+        output_shape = self.get_tensor_shape(output_tensors[0]).tolist()
+
+        input_nbytes = int(np.prod(input_shape)) * np.dtype(input_dtype).itemsize
+        output_nbytes = int(np.prod(output_shape)) * np.dtype(output_dtype).itemsize
+        assert input_nbytes == output_nbytes, (
+            "TFLite BITCAST requires input.nbytes == output.nbytes, "
+            f"but got input={input_nbytes} bytes, output={output_nbytes} bytes"
+        )
+
+        return relax.op.memory.view(in_expr, shape=output_shape, dtype=output_dtype)
 
     def convert_cast(self, op):
         """Convert TFLite CAST"""
