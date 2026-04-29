@@ -27,9 +27,9 @@
 #include <tvm/arith/int_set.h>
 #include <tvm/arith/int_solver.h>
 #include <tvm/ffi/container/tuple.h>
+#include <tvm/ir/with_context.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/s_tir/stmt.h>
-#include <tvm/support/with.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/expr.h>
 #include <tvm/tirx/function.h>

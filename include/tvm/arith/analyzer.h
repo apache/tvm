@@ -27,7 +27,7 @@
 #include <tvm/arith/int_set.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
-#include <tvm/support/with.h>
+#include <tvm/ir/with_context.h>
 
 #include <limits>
 #include <memory>

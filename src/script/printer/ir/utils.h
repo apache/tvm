@@ -23,8 +23,8 @@
 #include <tvm/ir/expr.h>
 #include <tvm/ir/function.h>
 #include <tvm/ir/op.h>
+#include <tvm/ir/with_context.h>
 #include <tvm/script/printer/ir_docsifier.h>
-#include <tvm/support/with.h>
 
 #include <string>
 #include <utility>

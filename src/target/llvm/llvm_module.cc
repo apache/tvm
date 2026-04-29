@@ -61,9 +61,9 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/module.h>
+#include <tvm/ir/with_context.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/object.h>
-#include <tvm/support/with.h>
 #include <tvm/target/codegen.h>
 #include <tvm/target/target.h>
 

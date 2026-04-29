@@ -18,12 +18,12 @@
  */
 
 /*!
- * \file tvm/support/with.h
+ * \file tvm/ir/with_context.h
  * \brief RAII wrapper function to enter and exit a context object
  *        similar to python's with syntax.
  */
-#ifndef TVM_SUPPORT_WITH_H_
-#define TVM_SUPPORT_WITH_H_
+#ifndef TVM_IR_WITH_CONTEXT_H_
+#define TVM_IR_WITH_CONTEXT_H_
 
 #include <exception>
 #include <functional>
@@ -165,4 +165,4 @@ class WithGroup {
 };
 
 }  // namespace tvm
-#endif  // TVM_SUPPORT_WITH_H_
+#endif  // TVM_IR_WITH_CONTEXT_H_
