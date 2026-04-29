@@ -170,7 +170,7 @@ inline void clear_logging(const char* file, int lineno, ffi::Function logging_fu
 }
 
 /*! \brief The type of the random state */
-using TRandState = support::LinearCongruentialEngine::TRandState;
+using TRandState = LinearCongruentialEngine::TRandState;
 
 /*!
  * \brief Get the base64 encoded result of a string.
@@ -242,9 +242,9 @@ inline ffi::String SHash2Hex(const ObjectRef& obj) {
  * \param rand_state The random state to be forked
  * \return The forked random state
  */
-inline support::LinearCongruentialEngine::TRandState ForkSeed(
-    support::LinearCongruentialEngine::TRandState* rand_state) {
-  return support::LinearCongruentialEngine(rand_state).ForkSeed();
+inline LinearCongruentialEngine::TRandState ForkSeed(
+    LinearCongruentialEngine::TRandState* rand_state) {
+  return LinearCongruentialEngine(rand_state).ForkSeed();
 }
 
 /*!
@@ -254,12 +254,12 @@ inline support::LinearCongruentialEngine::TRandState ForkSeed(
  * \param n The number of forks
  * \return The forked random states
  */
-inline std::vector<support::LinearCongruentialEngine::TRandState> ForkSeed(
-    support::LinearCongruentialEngine::TRandState* rand_state, int n) {
-  std::vector<support::LinearCongruentialEngine::TRandState> results;
+inline std::vector<LinearCongruentialEngine::TRandState> ForkSeed(
+    LinearCongruentialEngine::TRandState* rand_state, int n) {
+  std::vector<LinearCongruentialEngine::TRandState> results;
   results.reserve(n);
   for (int i = 0; i < n; ++i) {
-    results.push_back(support::LinearCongruentialEngine(rand_state).ForkSeed());
+    results.push_back(LinearCongruentialEngine(rand_state).ForkSeed());
   }
   return results;
 }

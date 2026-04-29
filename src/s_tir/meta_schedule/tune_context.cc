@@ -40,7 +40,7 @@ TuneContext::TuneContext(ffi::Optional<IRModule> mod, ffi::Optional<Target> targ
   n->search_strategy = search_strategy;
   n->task_name = task_name;
   n->num_threads = num_threads;
-  n->rand_state = support::LinearCongruentialEngine::NormalizeSeed(rand_state);
+  n->rand_state = LinearCongruentialEngine::NormalizeSeed(rand_state);
   n->logger = logger;
   data_ = std::move(n);
 }

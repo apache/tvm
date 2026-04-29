@@ -24,9 +24,8 @@ namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 
-Schedule Schedule::Concrete(IRModule mod, support::LinearCongruentialEngine::TRandState seed,
-                            int debug_mask, ScheduleErrorRenderLevel error_render_level,
-                            bool enable_check) {
+Schedule Schedule::Concrete(IRModule mod, LinearCongruentialEngine::TRandState seed, int debug_mask,
+                            ScheduleErrorRenderLevel error_render_level, bool enable_check) {
   ObjectPtr<ConcreteScheduleNode> n = ffi::make_object<ConcreteScheduleNode>();
   n->state_ = ScheduleState(mod, debug_mask, enable_check);
   n->error_render_level_ = error_render_level;
@@ -226,12 +225,12 @@ Schedule ConcreteScheduleNode::Copy() {
 
 /******** Schedule: Schedule: Sampling ********/
 
-void ConcreteScheduleNode::Seed(support::LinearCongruentialEngine::TRandState seed) {
-  this->rand_state_ = support::LinearCongruentialEngine::NormalizeSeed(seed);
+void ConcreteScheduleNode::Seed(LinearCongruentialEngine::TRandState seed) {
+  this->rand_state_ = LinearCongruentialEngine::NormalizeSeed(seed);
 }
 
-support::LinearCongruentialEngine::TRandState ConcreteScheduleNode::ForkSeed() {
-  return support::LinearCongruentialEngine(&rand_state_).ForkSeed();
+LinearCongruentialEngine::TRandState ConcreteScheduleNode::ForkSeed() {
+  return LinearCongruentialEngine(&rand_state_).ForkSeed();
 }
 
 ExprRV ConcreteScheduleNode::SampleCategorical(const ffi::Array<Integer>& candidates,

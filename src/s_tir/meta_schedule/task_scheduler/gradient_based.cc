@@ -29,7 +29,7 @@ class GradientBasedNode final : public TaskSchedulerNode {
  public:
   double alpha;
   int window_size;
-  support::LinearCongruentialEngine::TRandState rand_state;
+  LinearCongruentialEngine::TRandState rand_state;
 
   int round_robin_rounds_;
   std::vector<std::vector<double>> best_latency_history_;
@@ -135,12 +135,12 @@ class GradientBasedNode final : public TaskSchedulerNode {
 };
 
 TaskScheduler TaskScheduler::GradientBased(ffi::Function logger, double alpha, int window_size,
-                                           support::LinearCongruentialEngine::TRandState seed) {
+                                           LinearCongruentialEngine::TRandState seed) {
   ObjectPtr<GradientBasedNode> n = ffi::make_object<GradientBasedNode>();
   n->logger = logger;
   n->alpha = alpha;
   n->window_size = window_size;
-  n->rand_state = support::LinearCongruentialEngine::NormalizeSeed(seed);
+  n->rand_state = LinearCongruentialEngine::NormalizeSeed(seed);
   return TaskScheduler(n);
 }
 

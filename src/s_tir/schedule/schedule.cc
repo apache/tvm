@@ -70,14 +70,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("s_tir.schedule.SBlockRV", []() { return SBlockRV(); })
       .def("s_tir.schedule.LoopRV", []() { return LoopRV(); })
       .def("s_tir.schedule.ConcreteSchedule",
-           [](IRModule mod, support::LinearCongruentialEngine::TRandState seed, int debug_mask,
+           [](IRModule mod, LinearCongruentialEngine::TRandState seed, int debug_mask,
               int error_render_level, bool enable_check) -> Schedule {
              return Schedule::Concrete(mod, debug_mask, seed,
                                        static_cast<ScheduleErrorRenderLevel>(error_render_level),
                                        enable_check);
            })
       .def("s_tir.schedule.TracedSchedule",
-           [](IRModule mod, support::LinearCongruentialEngine::TRandState seed, int debug_mask,
+           [](IRModule mod, LinearCongruentialEngine::TRandState seed, int debug_mask,
               int error_render_level, bool enable_check) -> Schedule {
              return Schedule::Traced(mod, seed, debug_mask,
                                      static_cast<ScheduleErrorRenderLevel>(error_render_level),

@@ -32,7 +32,7 @@
 #include <tvm/s_tir/meta_schedule/runner.h>
 #include <tvm/s_tir/meta_schedule/search_strategy.h>
 #include <tvm/s_tir/meta_schedule/space_generator.h>
-#include <tvm/support/random_engine.h>
+#include <tvm/s_tir/random_engine.h>
 #include <tvm/target/target.h>
 
 namespace tvm {
@@ -46,7 +46,7 @@ class TuneContext;
 /*! \brief The auto tuning context. */
 class TuneContextNode : public runtime::Object {
  public:
-  using TRandState = support::LinearCongruentialEngine::TRandState;
+  using TRandState = LinearCongruentialEngine::TRandState;
 
   /*! \brief The workload to be tuned. */
   ffi::Optional<IRModule> mod;
@@ -98,7 +98,7 @@ class TuneContextNode : public runtime::Object {
  */
 class TuneContext : public runtime::ObjectRef {
  public:
-  using TRandState = support::LinearCongruentialEngine::TRandState;
+  using TRandState = LinearCongruentialEngine::TRandState;
   /*!
    * \brief Constructor from ObjectPtr<TuneContextNode>.
    * \param data The object pointer.

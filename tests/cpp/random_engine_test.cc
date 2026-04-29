@@ -19,12 +19,12 @@
 
 #include <gtest/gtest.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/support/random_engine.h>
+#include <tvm/s_tir/random_engine.h>
 
 TEST(RandomEngine, Randomness) {
   int64_t rand_state = 0;
 
-  tvm::support::LinearCongruentialEngine rng(&rand_state);
+  tvm::s_tir::LinearCongruentialEngine rng(&rand_state);
   rng.Seed(0x114514);
 
   bool covered[100];
@@ -39,7 +39,7 @@ TEST(RandomEngine, Randomness) {
 
 TEST(RandomEngine, Reproducibility) {
   int64_t rand_state_a = 0, rand_state_b = 0;
-  tvm::support::LinearCongruentialEngine rng_a(&rand_state_a), rng_b(&rand_state_b);
+  tvm::s_tir::LinearCongruentialEngine rng_a(&rand_state_a), rng_b(&rand_state_b);
 
   rng_a.Seed(0x23456789);
   rng_b.Seed(0x23456789);
@@ -51,7 +51,7 @@ TEST(RandomEngine, Reproducibility) {
 
 TEST(RandomEngine, Serialization) {
   int64_t rand_state_a = 0, rand_state_b = 0;
-  tvm::support::LinearCongruentialEngine rng_a(&rand_state_a), rng_b(&rand_state_b);
+  tvm::s_tir::LinearCongruentialEngine rng_a(&rand_state_a), rng_b(&rand_state_b);
 
   rng_a.Seed(0x56728);
 

@@ -19,9 +19,9 @@
 #ifndef TVM_S_TIR_SCHEDULE_SCHEDULE_H_
 #define TVM_S_TIR_SCHEDULE_SCHEDULE_H_
 
+#include <tvm/s_tir/random_engine.h>
 #include <tvm/s_tir/schedule/state.h>
 #include <tvm/s_tir/schedule/trace.h>
-#include <tvm/support/random_engine.h>
 #include <tvm/tirx/index_map.h>
 
 namespace tvm {
@@ -150,9 +150,9 @@ class ScheduleNode : public runtime::Object {
    * \brief Seed the randomness
    * \param seed The new random seed, -1 if use device random, otherwise non-negative
    */
-  virtual void Seed(support::LinearCongruentialEngine::TRandState seed) = 0;
+  virtual void Seed(LinearCongruentialEngine::TRandState seed) = 0;
   /*! \brief Fork the random state */
-  virtual support::LinearCongruentialEngine::TRandState ForkSeed() = 0;
+  virtual LinearCongruentialEngine::TRandState ForkSeed() = 0;
 
  public:
   /******** Lookup/Remove random variables ********/
@@ -909,7 +909,7 @@ class Schedule : public runtime::ObjectRef {
    * \sa ScheduleDebugMask
    * \note The checks performed includes: 1) VerifySRefTree 2) VerifyCachedFlags
    */
-  TVM_DLL static Schedule Concrete(IRModule mod, support::LinearCongruentialEngine::TRandState seed,
+  TVM_DLL static Schedule Concrete(IRModule mod, LinearCongruentialEngine::TRandState seed,
                                    int debug_mask, ScheduleErrorRenderLevel error_render_level,
                                    bool enable_check = true);
   /*!
@@ -926,7 +926,7 @@ class Schedule : public runtime::ObjectRef {
    * 1) VerifySRefTree
    * 2) VerifyCachedFlags
    */
-  TVM_DLL static Schedule Traced(IRModule mod, support::LinearCongruentialEngine::TRandState seed,
+  TVM_DLL static Schedule Traced(IRModule mod, LinearCongruentialEngine::TRandState seed,
                                  int debug_mask, ScheduleErrorRenderLevel error_render_level,
                                  bool enable_check = true);
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Schedule, runtime::ObjectRef, ScheduleNode);
