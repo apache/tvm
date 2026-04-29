@@ -1752,16 +1752,23 @@ class CumSum(OnnxOpConverter):
         assert not attr.get("exclusive", False), "Exclusive option not yet supported."
 
         if isinstance(axis_input, relax.Constant):
-            axis_np = int(axis_input.data.numpy())
-            if axis_np.size != 1:
-                raise ValueError("CumSum axis input tensor must have exactly on element, got shape {}".format(axis_np.shape))
-            axis = int(axis_np.item())
-        elif isinstance(axis_input, relax.Var):
-            axis_shape = axis_input.struct_info.shape if hasattr(axis_input.struct_info, 'shape') else None
-            if axis_shape is not None and hasattr(axis_shape, '__len__') and len(axis_shape) == 1:
-                axis = bb.normalize(relax.op.squeeze(axis_input, [0]))
+            axis_data = axis_input.data.numpy()
+            if axis_data.ndim == 0:
+                axis = int(axis_data.item())
+            elif axis_data.ndim == 1 and axis_data.shape[0] == 1:
+                axis = int(axis_data.item())
             else:
-                raise ValueError("CumSum axis input must be a single-element tensor (shape [1]), got {}".format(axis_shape))
+                raise ValueError(
+                    "CumSum axis input must be a scalar (0-D) or a single-element 1-D tensor, "
+                    "got shape {}".format(axis_data.shape)
+                )
+        elif isinstance(axis_input, relax.Var):
+            axis_shape = axis_input.struct_info.shape if hasattr(axis_input.struct_info, "shape") else None
+            raise ValueError(
+                "CumSum with non-constant axis input is not supported yet. "
+                "ONNX permits runtime axis tensors, but Relax/TE currently requires a compile-time "
+                "constant axis for cumsum/flip. Got axis shape {}".format(axis_shape)
+            )
         else:
             raise TypeError("CumSum axis input must be a Constant or Var")
             
