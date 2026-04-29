@@ -39,7 +39,7 @@ def setup_cuda_compile_mode(request):
 
     orig_func = tvm.contrib.nvcc.tvm_callback_cuda_compile
 
-    def compile_mode_wrapper(code, target):
+    def compile_mode_wrapper(code):
         if mode == "nvcc":
             return tvm.contrib.nvcc.compile_cuda(code, target_format="fatbin", compiler="nvcc")
         elif mode == "nvrtc":

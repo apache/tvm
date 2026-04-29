@@ -42,7 +42,10 @@ if(NOT ${USE_LLVM} MATCHES ${IS_FALSE_PATTERN})
     add_definitions(-DTVM_MLIR_VERSION=${TVM_MLIR_VERSION})
   endif()
   add_definitions(-DTVM_LLVM_HAS_AARCH64_TARGET=${TVM_LLVM_HAS_AARCH64_TARGET})
-  tvm_file_glob(GLOB COMPILER_LLVM_SRCS src/target/llvm/*.cc)
+  tvm_file_glob(GLOB COMPILER_LLVM_SRCS
+    src/target/llvm/*.cc
+    src/target/cuda/llvm/*.cc
+  )
   list(APPEND TVM_LINKER_LIBS ${LLVM_LIBS})
   list(APPEND COMPILER_SRCS ${COMPILER_LLVM_SRCS})
   if(NOT MSVC)

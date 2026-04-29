@@ -25,6 +25,7 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/index_map.h>
 #include <tvm/tirx/stmt_functor.h>
@@ -35,6 +36,8 @@
 #include <vector>
 
 #include "../../tirx/transform/ir_utils.h"
+#include "../build_common.h"
+#include "cuda_fallback_module.h"
 #include "literal/cuda_half_t.h"
 #include "literal/cuda_int8_t.h"
 #include "ptx.h"
@@ -1783,6 +1786,60 @@ void CodeGenCUDA::PrintVecElemLoadExpr(DataType t, int i, const std::string& val
   }
   return;
 }
+
+// CUDA codegen entry point.  Generates CUDA C++ source, optionally lets a
+// Python postproc hook rewrite it, and hands the source bytes off to the
+// fallback-aware module factory.  The factory may JIT to PTX/cubin via
+// `tvm_callback_cuda_compile` (CUDAModuleNode::JitCompileFromSource) when
+// USE_CUDA=ON; on USE_CUDA=OFF builds (or when TVM_COMPILE_FORCE_FALLBACK is
+// set), it returns a `CUDAFallbackModuleNode` carrying the raw source for
+// later cross-compile.
+ffi::Module BuildCUDA(IRModule mod, Target target) {
+  bool output_ssa = false;
+  CodeGenCUDA cg;
+  cg.Init(output_ssa);
+
+  ffi::Map<GlobalVar, PrimFunc> functions;
+  for (auto [gvar, base_func] : mod->functions) {
+    TVM_FFI_ICHECK(base_func->IsInstance<PrimFuncNode>()) << "CodeGenCUDA: Can only take PrimFunc";
+    auto prim_func = Downcast<PrimFunc>(base_func);
+    auto calling_conv =
+        prim_func->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(tvm::CallingConv::kDefault));
+    TVM_FFI_ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch ||
+                   calling_conv == CallingConv::kDefault)
+        << "CodeGenCUDA: expect calling_conv equals CallingConv::kDeviceKernelLaunch or "
+           "CallingConv::kDefault";
+    functions.Set(gvar, prim_func);
+  }
+
+  for (auto [gvar, prim_func] : functions) {
+    cg.DeclareFunction(gvar, prim_func);
+  }
+  for (auto [gvar, prim_func] : functions) {
+    cg.AddFunction(gvar, prim_func);
+  }
+
+  std::string code = cg.Finish();
+
+  if (auto f = ffi::Function::GetGlobal("tvm_callback_cuda_postproc")) {
+    code = (*f)(code, target).cast<std::string>();
+  }
+
+  // Hand off raw CUDA source to the fallback-aware factory.  When the real
+  // CUDA runtime is registered (USE_CUDA=ON and not forced-fallback) the
+  // factory invokes JitCompileFromSource via tvm_callback_cuda_compile and
+  // builds a real CUDAModuleNode.  Otherwise it stores the source in a
+  // CUDAFallbackModuleNode for later cross-compile.
+  ffi::Map<ffi::String, ffi::String> source_map;
+  return target::CUDAModuleCreateWithFallback(
+      ffi::Bytes(code.data(), code.size()), ffi::String("cuda"), ExtractFuncInfo(mod), source_map);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("target.build.cuda", BuildCUDA);
+}
+TVM_REGISTER_PASS_CONFIG_OPTION("cuda.kernels_output_dir", ffi::String);
 
 }  // namespace codegen
 }  // namespace tvm
