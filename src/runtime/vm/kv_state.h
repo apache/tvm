@@ -19,9 +19,10 @@
 #ifndef TVM_RUNTIME_VM_KV_STATE_H_
 #define TVM_RUNTIME_VM_KV_STATE_H_
 #include <tvm/ffi/container/array.h>
+#include <tvm/ffi/container/shape.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/optional.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/int_tuple.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/tensor.h>
@@ -95,8 +96,8 @@ class KVStateObj : public Object {
    * is a chain.
    */
   virtual void BeginForward(
-      const IntTuple& seq_ids, const IntTuple& append_lengths,
-      const ffi::Optional<IntTuple>& token_tree_parent_ptr = std::nullopt) = 0;
+      const ffi::Shape& seq_ids, const ffi::Shape& append_lengths,
+      const ffi::Optional<ffi::Shape>& token_tree_parent_ptr = std::nullopt) = 0;
 
   /*!
    * \brief Mark the start of the forward function.
@@ -155,15 +156,15 @@ class AttentionKVCacheObj : public KVStateObj {
    * \param seq_ids The ids of the sequences to commit.
    * \param leaf_indices The leaf token tree node index of each sequence.
    */
-  virtual void CommitAcceptedTokenTreeNodes(const IntTuple& seq_ids,
-                                            const IntTuple& leaf_indices) = 0;
+  virtual void CommitAcceptedTokenTreeNodes(const ffi::Shape& seq_ids,
+                                            const ffi::Shape& leaf_indices) = 0;
 
   /*! \brief Prepare for the disaggregation KV data receive for the specified sequence and length.*/
-  virtual IntTuple DisaggPrepareRecv(int64_t seq_id, int length) = 0;
+  virtual ffi::Shape DisaggPrepareRecv(int64_t seq_id, int length) = 0;
 
   /*! \brief Mark which tokens' KV cache needs to be sent to other devices */
   virtual void DisaggMarkSend(int64_t seq_id, int64_t begin,
-                              const IntTuple& compressed_remote_position_map,
+                              const ffi::Shape& compressed_remote_position_map,
                               int32_t recver_pe_offset) = 0;
 
   /************** Attention **************/
