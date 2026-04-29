@@ -24,6 +24,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: show ci/scripts/github/github_tvmbot.py
+        run: |
+          set -eux
+          if ! [ -f ci/scripts/github/github_tvmbot.py ]; then
+            echo "Error: ci/scripts/github/github_tvmbot.py not found"
+            exit 1
+          fi
+          cat ci/scripts/github/github_tvmbot.py
       - name: Run tvm-bot
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
