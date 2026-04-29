@@ -28,8 +28,8 @@
 #include <tvm/ir/cast.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/function.h>
+#include <tvm/ir/with_context.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/support/with.h>
 #include <tvm/target/target_kind.h>
 
 #include <string>

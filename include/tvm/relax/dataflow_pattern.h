@@ -28,9 +28,9 @@
 #include <tvm/ffi/optional.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
+#include <tvm/ir/with_context.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/type.h>
-#include <tvm/support/with.h>
 
 #include <cstdint>
 #include <functional>
