@@ -16,8 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef TVM_SCRIPT_PRINTER_TIR_UTILS_H_
-#define TVM_SCRIPT_PRINTER_TIR_UTILS_H_
+#ifndef TVM_TIRX_SCRIPT_PRINTER_UTILS_H_
+#define TVM_TIRX_SCRIPT_PRINTER_UTILS_H_
 
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/script/printer/ir_docsifier.h>
@@ -35,7 +35,7 @@
 #include <utility>
 #include <vector>
 
-#include "../utils.h"
+#include "../../../script/printer/utils.h"
 
 namespace tvm {
 namespace script {
@@ -289,4 +289,4 @@ class OccurrenceCounter : public tirx::StmtExprVisitor {
 }  // namespace script
 }  // namespace tvm
 
-#endif  // TVM_SCRIPT_PRINTER_TIR_UTILS_H_
+#endif  // TVM_TIRX_SCRIPT_PRINTER_UTILS_H_

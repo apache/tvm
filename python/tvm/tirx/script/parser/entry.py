@@ -20,11 +20,10 @@ import inspect
 from collections.abc import Callable
 
 from tvm.ir.base import deprecated
+from tvm.script.parser._core import parse, scan_macro, utils
+from tvm.script.parser.core.parser import Parser, ScriptMacro
 from tvm.tirx import Buffer, PrimFunc
-
-from ...ir_builder.tirx import block_name_suffix_context, buffer, ptr
-from .._core import parse, scan_macro, utils
-from ..core.parser import Parser, ScriptMacro
+from tvm.tirx.script.builder import block_name_suffix_context, buffer, ptr
 
 
 def prim_func(

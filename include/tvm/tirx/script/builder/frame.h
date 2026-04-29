@@ -16,8 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef TVM_SCRIPT_IR_BUILDER_TIR_FRAME_H_
-#define TVM_SCRIPT_IR_BUILDER_TIR_FRAME_H_
+#ifndef TVM_TIRX_SCRIPT_BUILDER_FRAME_H_
+#define TVM_TIRX_SCRIPT_BUILDER_FRAME_H_
 
 #include <tvm/ir/script/builder/frame.h>
 #include <tvm/script/ir_builder/base.h>
@@ -601,4 +601,4 @@ class ElseFrame : public TIRFrame {
 }  // namespace script
 }  // namespace tvm
 
-#endif  // TVM_SCRIPT_IR_BUILDER_TIR_FRAME_H_
+#endif  // TVM_TIRX_SCRIPT_BUILDER_FRAME_H_

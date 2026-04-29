@@ -1,4 +1,3 @@
-# isort: skip_file
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,9 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Package tvm.script.ir_builder.tirx"""
+"""Backward-compat shim — moved to ``tvm.tirx.script.builder``."""
 
-from .ir import *  # pylint: disable=wildcard-import,redefined-builtin
-from .ir import boolean as bool  # pylint: disable=redefined-builtin
-from .ir import buffer as Buffer
-from .utils import buffer_proxy, frame_scope, seq_scope
+from tvm.tirx.script.builder import *  # pylint: disable=wildcard-import,redefined-builtin
+from tvm.tirx.script.builder import utils

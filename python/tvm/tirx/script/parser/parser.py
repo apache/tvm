@@ -24,13 +24,12 @@ import tvm_ffi
 
 import tvm
 from tvm.ir import GlobalVar, PrimType
+from tvm.ir.script import builder as I
+from tvm.script.ir_builder.base import IRBuilder
+from tvm.script.ir_builder.base import IRBuilderFrame as Frame
+from tvm.script.parser._core import Parser, dispatch, doc
 from tvm.tirx import Buffer, IterVar, PrimExpr, Var
-
-from ...ir_builder import ir as I
-from ...ir_builder import tirx as T
-from ...ir_builder.base import IRBuilder
-from ...ir_builder.base import IRBuilderFrame as Frame
-from .._core import Parser, dispatch, doc
+from tvm.tirx.script import builder as T
 
 
 def bind_with_value(self: Parser, node: doc.expr, var_name: str, value: Any) -> Any:
