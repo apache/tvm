@@ -20,8 +20,8 @@
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/script/ir_builder/relax/frame.h>
-#include <tvm/script/ir_builder/relax/ir.h>
+#include <tvm/relax/script/builder/frame.h>
+#include <tvm/relax/script/builder/ir.h>
 
 #include "./utils.h"
 

@@ -14,8 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F401, F403
-"""Backward-compat shim — moved to ``tvm.relax.script.builder.ir``."""
+"""Relax-layer TVMScript pieces (parser, builder).
 
-from tvm.relax.script.builder.ir import *  # pylint: disable=wildcard-import
-from tvm.relax.script.builder.ir import py_print, py_str, py_tuple
+After the per-dialect TVMScript restructure, the Relax layer owns its own
+``script/{parser,builder}`` subpackages. The legacy paths
+``tvm.script.parser.relax`` and ``tvm.script.ir_builder.relax`` continue to
+work as backward-compatibility shims that re-export from here.
+"""

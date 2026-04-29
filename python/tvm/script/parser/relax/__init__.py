@@ -1,4 +1,3 @@
-# isort: skip_file
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,36 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: RUF005
-"""Initial impl of relax parser for sugars"""
+"""Backward-compat shim — moved to ``tvm.relax.script.parser``."""
 
-from typing import TYPE_CHECKING
+from tvm.relax.script.parser import *  # pylint: disable=wildcard-import,redefined-builtin
+from tvm.relax.script.parser import dist
 
-from ...ir_builder.relax import *  # pylint: disable=redefined-builtin
-from ...ir_builder.relax import ir as _relax
-from . import parser as _parser
-from .entry import Callable, Object, Prim, Shape, Tensor, Tuple, match_cast
-
-from . import dist
-from .dist import *  # pylint: disable=wildcard-import,redefined-builtin
-
-if TYPE_CHECKING:
-    # pylint: disable=invalid-name
-    # Define prim_func and make it type check as static method
-    # so most tvmscript won't trigger pylint error here.
-    function = staticmethod
-else:
-    from .entry import function, macro
-
-__all__ = _relax.__all__ + [
-    "dist",
-    "Callable",
-    "Object",
-    "Prim",
-    "Shape",
-    "Tensor",
-    "Tuple",
-    "function",
-    "macro",
-    "match_cast",
-]
+from . import entry

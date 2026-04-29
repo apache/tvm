@@ -20,8 +20,8 @@
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/op.h>
 #include <tvm/relax/distributed/struct_info.h>
+#include <tvm/relax/script/builder/ir.h>
 #include <tvm/relax/struct_info.h>
-#include <tvm/script/ir_builder/relax/ir.h>
 #include <tvm/tirx/op.h>
 
 #include "./utils.h"

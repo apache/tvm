@@ -27,6 +27,7 @@ import numpy as _np  # type: ignore
 import tvm
 from tvm import base as _base
 from tvm.ir import PrimExpr
+from tvm.ir.script.builder import IRModuleFrame
 from tvm.relax.distributed import DeviceMesh, DTensorStructInfo, Placement
 from tvm.relax.expr import Call, Constant, Expr, ExternFunc, ShapeExpr
 from tvm.relax.expr import Tuple as RxTuple
@@ -40,12 +41,11 @@ from tvm.relax.op.distributed import (
 from tvm.relax.op.distributed import (
     redistribute as _redistribute,
 )
+from tvm.relax.script.builder.ir import py_str
 from tvm.relax.utils import convert_to_expr
 from tvm.runtime import _tensor
+from tvm.script.ir_builder import IRBuilder
 
-from ... import IRBuilder
-from ...ir import IRModuleFrame
-from ..ir import py_str
 from . import _ffi_api
 
 

@@ -20,11 +20,10 @@
 from typing import Any, Optional, Union
 
 from tvm.ir import Range
+from tvm.ir.script.builder import IRModuleFrame
 from tvm.relax import TensorStructInfo
 from tvm.relax.distributed import DeviceMesh, DTensorStructInfo, Placement, device_mesh
-from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder.ir import IRModuleFrame
-from tvm.script.ir_builder.relax.distributed import (
+from tvm.relax.script.builder.distributed import (
     annotate_sharding,
     call_tir,
     call_tir_local_view,
@@ -32,6 +31,7 @@ from tvm.script.ir_builder.relax.distributed import (
     redistribute,
     redistribute_replica_to_shard,
 )
+from tvm.script.ir_builder import IRBuilder
 from tvm.tirx import PrimExpr
 
 from .entry import StructInfoProxy, TensorProxy

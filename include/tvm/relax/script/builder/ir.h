@@ -16,13 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef TVM_SCRIPT_IR_BUILDER_RELAX_IR_H_
-#define TVM_SCRIPT_IR_BUILDER_RELAX_IR_H_
+#ifndef TVM_RELAX_SCRIPT_BUILDER_IR_H_
+#define TVM_RELAX_SCRIPT_BUILDER_IR_H_
 
 #include <tvm/relax/expr.h>
+#include <tvm/relax/script/builder/frame.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/script/ir_builder/base.h>
-#include <tvm/script/ir_builder/relax/frame.h>
 
 namespace tvm {
 namespace script {
@@ -143,4 +143,4 @@ ElseFrame Else();
 }  // namespace script
 }  // namespace tvm
 
-#endif  // TVM_SCRIPT_IR_BUILDER_RELAX_IR_H_
+#endif  // TVM_RELAX_SCRIPT_BUILDER_IR_H_
