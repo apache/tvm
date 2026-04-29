@@ -52,10 +52,10 @@
 #include <utility>
 #include <vector>
 
-#include "../../runtime/cuda/cuda_module.h"
-#include "../build_common.h"
-#include "codegen_llvm.h"
-#include "llvm_instance.h"
+#include "../../build_common.h"
+#include "../../llvm/codegen_llvm.h"
+#include "../../llvm/llvm_instance.h"
+#include "../cuda_fallback_module.h"
 
 namespace tvm {
 namespace codegen {
@@ -345,7 +345,13 @@ ffi::Module BuildNVPTX(IRModule mod, Target target) {
 #endif
   pass.run(*module);
   std::string ptx(data_ptx.begin(), data_ptx.end());
-  return CUDAModuleCreate(ptx, "ptx", ExtractFuncInfo(mod), ll);
+  // BuildNVPTX produces PTX directly via the LLVM AMDGPU backend; hand it to
+  // the fallback-aware factory.  Source map is `{"ll": ll}` so InspectSource
+  // can recover the LLVM IR even when the receiver only has a fallback module.
+  ffi::Map<ffi::String, ffi::String> source_map;
+  source_map.Set("ll", ll);
+  return target::CUDAModuleCreateWithFallback(ffi::Bytes(ptx.data(), ptx.size()),
+                                              ffi::String("ptx"), ExtractFuncInfo(mod), source_map);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

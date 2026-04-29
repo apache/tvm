@@ -24,10 +24,12 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+import tvm_ffi
+
 from tvm import __version__ as tvm_version
 from tvm import tirx
 from tvm.contrib import nvcc
-from tvm.runtime import Module, const, load_module
+from tvm.runtime import Module, const
 
 
 class BaseKernel:  # pylint: disable=too-few-public-methods
@@ -91,17 +93,17 @@ class BaseKernel:  # pylint: disable=too-few-public-methods
         tvm_metadata = self._format_tvm_module_metadata(
             kernel_name, kernel_arg_types, launch_param_tags
         )
-        with tempfile.TemporaryDirectory() as temp_dir:
-            binary_path = f"{temp_dir}/{kernel_name}.{fmt}"
-            if fmt == "ptx":
-                with open(binary_path, "w") as f:
-                    f.write(binary_data)
-            else:
-                with open(binary_path, "wb") as f:
-                    f.write(binary_data)
-            with open(f"{temp_dir}/{kernel_name}.tvm_meta.json", "w") as f:
-                f.write(tvm_metadata)
-            kernel_module = load_module(binary_path)
+        # Build the FunctionInfo map in-memory from the JSON metadata, then
+        # construct the CUDA module via the FFI registry without going to
+        # disk.  Avoids the load_from_file dispatch path entirely.
+        if isinstance(binary_data, str):
+            binary_bytes = binary_data.encode("utf-8")
+        else:
+            binary_bytes = bytes(binary_data)
+        load_meta = tvm_ffi.get_global_func("runtime.LoadMetaDataFromJSON")
+        fmap = load_meta(tvm_metadata)
+        create_cuda = tvm_ffi.get_global_func("ffi.Module.create.cuda")
+        kernel_module = create_cuda(binary_bytes, fmt, fmap, {})
         return kernel_module
 
 

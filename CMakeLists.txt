@@ -296,6 +296,13 @@ tvm_file_glob(GLOB CODEGEN_SRCS
   src/target/source/*.cc
   src/target/canonicalizer/*.cc
   src/target/canonicalizer/llvm/*.cc
+  src/target/cuda/*.cc
+  src/target/rocm/*.cc
+  src/target/hexagon/*.cc
+  src/target/metal/*.cc
+  src/target/opencl/*.cc
+  src/target/vulkan/vulkan_fallback_module.cc
+  src/target/webgpu/*.cc
     )
 
 list(APPEND COMPILER_SRCS ${CODEGEN_SRCS})

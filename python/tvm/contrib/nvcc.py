@@ -770,12 +770,15 @@ def find_nvshmem_paths() -> tuple[str, str]:
 
 
 @tvm_ffi.register_global_func
-def tvm_callback_cuda_compile(code, target):  # pylint: disable=unused-argument
+def tvm_callback_cuda_compile(code):
     """
     Compile CUDA code using the configured backend (nvcc or nvrtc).
 
     This callback is invoked by TVM's C++ backend during CUDA module compilation.
-    By default, uses nvcc to generate fatbin.
+    By default, uses nvcc to generate fatbin.  The current target is fetched
+    inside the callback (via ``tvm.target.Target.current(allow_none=True)``)
+    so the caller does not need to push/pop a target scope around the
+    invocation.
 
     Environment Variables
     ---------------------
@@ -788,14 +791,15 @@ def tvm_callback_cuda_compile(code, target):  # pylint: disable=unused-argument
     ----------
     code : str
         CUDA source code to compile
-    target : Target
-        TVM target architecture
 
     Returns
     -------
     bytes
         Compiled binary (fatbin for nvcc, cubin for nvrtc)
     """
+    # The current Target is fetched inside compile_cuda via
+    # tvm.target.Target.current(allow_none=True) when arch is unset; the
+    # caller no longer needs to push/pop a target scope.
     compiler = os.environ.get("TVM_CUDA_COMPILE_MODE", "nvcc").lower()
 
     if compiler == "nvrtc":

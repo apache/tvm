@@ -19,14 +19,18 @@
 
 /*!
  * \file opencl_module.cc
+ * \brief Plugin-only OpenCL runtime module.  Built only when
+ *        USE_OPENCL=ON.  No exported header — codegen-side construction
+ *        goes through src/target/opencl/opencl_fallback_module.h:OpenCLModuleCreateWithFallback,
+ *        which dispatches to "ffi.Module.create.opencl" registered
+ *        below when this file is linked into the build.
  */
-#include "opencl_module.h"
-
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/support/io.h>
 
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "../../support/bytes_io.h"
@@ -160,30 +164,36 @@ ffi::Optional<ffi::Function> OpenCLModuleNodeBase::GetFunction(const ffi::String
   return PackFuncVoidAddr(f, info->arg_types);
 }
 
-void OpenCLModuleNode::WriteToFile(const ffi::String& file_name, const ffi::String& format) const {
-  std::string fmt = GetFileFormat(file_name, format);
-  TVM_FFI_ICHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
-  std::string meta_file = GetMetaFilePath(file_name);
-  SaveMetaDataToFile(meta_file, fmap_);
-  SaveBinaryToFile(file_name, data_);
-}
-
 ffi::Bytes OpenCLModuleNode::SaveToBytes() const {
+  // NOTE: serialization format MUST remain byte-identical to
+  // target::OpenCLFallbackModuleNode::SaveToBytes in
+  // src/target/opencl/opencl_fallback_module.cc.  This file is the
+  // source of truth; the fallback follows.
+  // 3 fields only — the source map is in-memory inspection material
+  // and is NEVER serialized (matches upstream behavior for all
+  // backends).
   std::string result;
   support::BytesOutStream stream(&result);
   stream.Write(fmt_);
   stream.Write(fmap_);
-  stream.Write(data_);
+  stream.Write(code_);
   return ffi::Bytes(std::move(result));
 }
 
 ffi::String OpenCLModuleNode::InspectSource(const ffi::String& format) const {
-  if (format == fmt_) return data_;
-  if (fmt_ == "cl") {
-    return data_;
-  } else {
-    return source_;
+  if (auto it = source_.find(format); it != source_.end()) {
+    return (*it).second;
   }
+  if (format.empty()) {
+    // Default: aggregated OpenCL C source dump (key "cl").
+    if (auto it = source_.find("cl"); it != source_.end()) {
+      return (*it).second;
+    }
+    if (fmt_ == "cl") {
+      return ffi::String(code_.data(), code_.size());
+    }
+  }
+  return ffi::String();
 }
 
 void OpenCLModuleNode::Init() {
@@ -203,13 +213,18 @@ void OpenCLModuleNode::Init() {
     kid_map_[key] = e;
   }
 
-  // split into source artifacts for each kernel
-  parsed_kernels_ = SplitKernels(InspectSource("cl"));
-  TVM_FFI_ICHECK(!parsed_kernels_.empty()) << "The OpenCL module expects a kernel delimited "
-                                           << "source from code generation, but no kernel "
-                                           << "delimiter was found.";
-  TVM_FFI_ICHECK_EQ(fmap_.size(), parsed_kernels_.size())
-      << "The number of parsed kernel sources does not match the number of kernel functions";
+  // split into source artifacts for each kernel.  For fmt=="cl" the
+  // code_ bytes are the OpenCL C source; for the binary formats
+  // (xclbin/awsxclbin/aocx) parsing is skipped — the binary blob is
+  // passed directly to clCreateProgramWithBinary in InstallKernel.
+  if (fmt_ == "cl") {
+    parsed_kernels_ = SplitKernels(std::string(code_.data(), code_.size()));
+    TVM_FFI_ICHECK(!parsed_kernels_.empty()) << "The OpenCL module expects a kernel delimited "
+                                             << "source from code generation, but no kernel "
+                                             << "delimiter was found.";
+    TVM_FFI_ICHECK_EQ(fmap_.size(), parsed_kernels_.size())
+        << "The number of parsed kernel sources does not match the number of kernel functions";
+  }
 }
 
 bool OpenCLModuleNode::IsProgramCreated(const std::string& func_name, int device_id) {
@@ -239,8 +254,8 @@ cl_kernel OpenCLModuleNode::InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThre
           clCreateProgramWithSource(w->contexts[platform], 1, &s, &len, &err);
       OPENCL_CHECK_ERROR(err);
     } else if (fmt_ == "xclbin" || fmt_ == "awsxclbin" || fmt_ == "aocx") {
-      const unsigned char* s = (const unsigned char*)data_.c_str();
-      size_t len = data_.length();
+      const unsigned char* s = reinterpret_cast<const unsigned char*>(code_.data());
+      size_t len = code_.size();
       cl_int err;
       cl_device_id dev = w->devices[device_id];
       programs_[func_name][device_id] =
@@ -360,47 +375,41 @@ ffi::Optional<ffi::Function> OpenCLModuleNode::GetFunction(const ffi::String& na
   return OpenCLModuleNodeBase::GetFunction(name);
 }
 
-static ffi::Module OpenCLModuleCreateImpl(std::string data, std::string fmt,
+static ffi::Module OpenCLModuleCreateImpl(ffi::Bytes code, ffi::String fmt,
                                           ffi::Map<ffi::String, FunctionInfo> fmap,
-                                          std::string source) {
-  auto n = ffi::make_object<OpenCLModuleNode>(data, fmt, fmap, source);
+                                          ffi::Map<ffi::String, ffi::String> source) {
+  auto n = ffi::make_object<OpenCLModuleNode>(std::move(code), std::move(fmt), std::move(fmap),
+                                              std::move(source));
   n->Init();
   return ffi::Module(n);
 }
 
-// Load module from module.
-ffi::Module OpenCLModuleLoadFile(const std::string& file_name, const ffi::String& format) {
-  std::string data;
-  ffi::Map<ffi::String, FunctionInfo> fmap;
-  std::string fmt = GetFileFormat(file_name, format);
-  std::string meta_file = GetMetaFilePath(file_name);
-  LoadBinaryFromFile(file_name, &data);
-  LoadMetaDataFromFile(meta_file, &fmap);
-  return OpenCLModuleCreateImpl(data, fmt, fmap, std::string());
-}
-
 ffi::Module OpenCLModuleLoadFromBytes(const ffi::Bytes& bytes) {
   support::BytesInStream stream(bytes);
-  std::string data;
+  ffi::String fmt;
   ffi::Map<ffi::String, FunctionInfo> fmap;
-  std::string fmt;
+  ffi::Bytes code;
   stream.Read(&fmt);
   TVM_FFI_ICHECK(stream.Read(&fmap));
-  stream.Read(&data);
-  return OpenCLModuleCreateImpl(data, fmt, fmap, std::string());
+  stream.Read(&code);
+  // Source map is not serialized — reconstructed empty on load.
+  return OpenCLModuleCreateImpl(std::move(code), std::move(fmt), std::move(fmap),
+                                ffi::Map<ffi::String, ffi::String>());
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  // Registry: "ffi.Module.create.opencl" — codegen-time OpenCL module factory.
+  // Used by src/target/opencl/opencl_fallback_module.h:OpenCLModuleCreateWithFallback.
+  // Registry: "ffi.Module.load_from_bytes.opencl" — disk loader.  Only this
+  // (real) module registers a loader; the fallback is codegen-only.
   refl::GlobalDef()
-      .def("ffi.Module.load_from_file.cl", OpenCLModuleLoadFile)
-      .def("ffi.Module.load_from_file.clbin", OpenCLModuleLoadFile)
       .def("ffi.Module.load_from_bytes.opencl", OpenCLModuleLoadFromBytes)
       .def("ffi.Module.create.opencl",
-           [](ffi::String data, ffi::String fmt, ffi::Map<ffi::String, FunctionInfo> fmap,
-              ffi::String source) {
-             return OpenCLModuleCreateImpl(std::string(data), std::string(fmt), fmap,
-                                           std::string(source));
+           [](ffi::Bytes code, ffi::String fmt, ffi::Map<ffi::String, FunctionInfo> fmap,
+              ffi::Map<ffi::String, ffi::String> source) {
+             return OpenCLModuleCreateImpl(std::move(code), std::move(fmt), std::move(fmap),
+                                           std::move(source));
            });
 }
 }  // namespace runtime

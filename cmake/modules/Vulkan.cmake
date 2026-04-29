@@ -29,9 +29,21 @@ if(USE_VULKAN)
   include_directories(SYSTEM ${Vulkan_INCLUDE_DIRS})
   message(STATUS "Build with Vulkan support")
   tvm_file_glob(GLOB RUNTIME_VULKAN_SRCS src/runtime/vulkan/*.cc)
-  tvm_file_glob(GLOB COMPILER_VULKAN_SRCS src/target/spirv/*.cc)
+  # SPIR-V codegen tooling lives under src/target/vulkan/ alongside the
+  # fallback module.  The fallback module itself is always compiled (in
+  # CMakeLists.txt's CODEGEN_SRCS); the rest depends on spirv-tools and
+  # is only compiled when USE_VULKAN=ON.
+  tvm_file_glob(GLOB COMPILER_VULKAN_SRCS
+    src/target/vulkan/build_vulkan.cc
+    src/target/vulkan/codegen_spirv.cc
+    src/target/vulkan/intrin_rule_spirv.cc
+    src/target/vulkan/ir_builder.cc
+    src/target/vulkan/spirv_support.cc
+    src/target/vulkan/spirv_utils.cc
+  )
   list(APPEND RUNTIME_SRCS ${RUNTIME_VULKAN_SRCS})
   list(APPEND COMPILER_SRCS ${COMPILER_VULKAN_SRCS})
   list(APPEND TVM_LINKER_LIBS ${Vulkan_SPIRV_TOOLS_LIBRARY})
   list(APPEND TVM_RUNTIME_LINKER_LIBS ${Vulkan_LIBRARY})
+  add_definitions(-DTVM_ENABLE_SPIRV=1)
 endif(USE_VULKAN)

@@ -511,14 +511,17 @@ class OpenCLModuleNodeBase : public ffi::ModuleObj {
 
 class OpenCLModuleNode : public OpenCLModuleNodeBase {
  public:
-  explicit OpenCLModuleNode(std::string data, std::string fmt,
-                            ffi::Map<ffi::String, FunctionInfo> fmap, std::string source)
-      : OpenCLModuleNodeBase(fmap), data_(data), fmt_(fmt), source_(source) {}
+  explicit OpenCLModuleNode(ffi::Bytes code, ffi::String fmt,
+                            ffi::Map<ffi::String, FunctionInfo> fmap,
+                            ffi::Map<ffi::String, ffi::String> source)
+      : OpenCLModuleNodeBase(fmap),
+        code_(std::move(code)),
+        fmt_(std::move(fmt)),
+        source_(std::move(source)) {}
 
   ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) final;
   // Return true if OpenCL program for the requested function and device was created
   bool IsProgramCreated(const std::string& func_name, int device_id);
-  void WriteToFile(const ffi::String& file_name, const ffi::String& format) const final;
   ffi::Bytes SaveToBytes() const final;
   void SetPreCompiledPrograms(const std::string& bytes);
   std::string GetPreCompiledPrograms();
@@ -531,13 +534,15 @@ class OpenCLModuleNode : public OpenCLModuleNodeBase {
                           const std::string& func_name, const KTRefEntry& e) override;
 
  private:
-  // the binary data
-  std::string data_;
-  // The format
-  std::string fmt_;
-  // The OpenCL source.
-  std::string source_;
-  // parsed kernel data
+  // The single-binary code payload: for fmt=="cl" the bytes are the
+  // OpenCL C source; for fmt=="xclbin"/"awsxclbin"/"aocx" the bytes
+  // are a pre-compiled OpenCL binary.
+  ffi::Bytes code_;
+  // The format identifier ("cl" / "xclbin" / "awsxclbin" / "aocx").
+  ffi::String fmt_;
+  // In-memory source map for InspectSource — never serialized.
+  ffi::Map<ffi::String, ffi::String> source_;
+  // parsed kernel data (computed in Init from code_ when fmt_ == "cl").
   std::unordered_map<std::string, std::string> parsed_kernels_;
 };
 

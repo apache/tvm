@@ -55,10 +55,12 @@
 #include <utility>
 #include <vector>
 
-#include "../../runtime/hexagon/hexagon_module.h"
-#include "../build_common.h"
-#include "codegen_cpu.h"
-#include "llvm_instance.h"
+#include "../../../runtime/file_utils.h"
+#include "../../../runtime/metadata.h"
+#include "../../build_common.h"
+#include "../../llvm/codegen_cpu.h"
+#include "../../llvm/llvm_instance.h"
+#include "../hexagon_fallback_module.h"
 
 namespace tvm {
 namespace codegen {
@@ -568,7 +570,22 @@ ffi::Module BuildHexagon(IRModule mod, Target target) {
   int rc = (*f)(so_name, o_names, extra_args).cast<int>();
   TVM_FFI_ICHECK(rc == 0) << "Failed to link " << so_name;
 
-  return HexagonModuleCreate(so_name, "so", ExtractFuncInfo(mod), asm_str, obj_str, ir_str, bc_str);
+  // The new design takes Bytes (not a filename); slurp the linked .so into
+  // memory.  Receiver materializes the bytes back to a tempfile internally
+  // before dlopen.
+  std::string so_data;
+  runtime::LoadBinaryFromFile(so_name, &so_data);
+
+  // Pack auxiliaries into the unified source map.  Variant lets text blobs
+  // (asm/ll) and binary blobs (obj/bc) coexist in their natural form.
+  target::HexagonSourceMap source;
+  source.Set("s", ffi::Variant<ffi::String, ffi::Bytes>(ffi::String(asm_str)));
+  source.Set("ll", ffi::Variant<ffi::String, ffi::Bytes>(ffi::String(ir_str)));
+  source.Set("obj", ffi::Variant<ffi::String, ffi::Bytes>(ffi::Bytes(obj_str)));
+  source.Set("bc", ffi::Variant<ffi::String, ffi::Bytes>(ffi::Bytes(bc_str)));
+
+  return target::HexagonModuleCreateWithFallback(ffi::Bytes(std::move(so_data)), "so",
+                                                 ExtractFuncInfo(mod), std::move(source));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

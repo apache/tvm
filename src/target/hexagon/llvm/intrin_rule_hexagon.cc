@@ -23,7 +23,7 @@
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>
 
-#include "intrin_rule_llvm.h"
+#include "../../llvm/intrin_rule_llvm.h"
 
 #define TVM_REGISTER_QHL_OP_FP16(INTRIN_FUNC, WRAPPER_FUNC, NUM_SIGN)                          \
   std::string tvm_qhl_ahf_##INTRIN_FUNC = WRAPPER_FUNC;                                        \

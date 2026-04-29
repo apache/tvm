@@ -67,6 +67,4 @@ if(USE_ROCM)
     list(APPEND TVM_RUNTIME_LINKER_LIBS roc::rocthrust)
   endif(USE_THRUST)
 
-else(USE_ROCM)
-  list(APPEND COMPILER_SRCS src/target/opt/build_rocm_off.cc)
 endif(USE_ROCM)

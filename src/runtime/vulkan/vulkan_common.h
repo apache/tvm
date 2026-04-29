@@ -38,9 +38,6 @@ namespace vulkan {
 /*! \brief Maximum number of GPU supported in VulkanModule. */
 static constexpr const int kVulkanMaxNumDevice = 8;
 
-/*! \brief TVM Vulkan binary pack magic number */
-static constexpr const int kVulkanModuleMagic = 0x02700027;
-
 const int kMaxPushConstantsBytes = 128;
 
 /*! \brief A mask used when we attach additional information to shaders */
