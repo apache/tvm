@@ -19,9 +19,9 @@
 #ifndef TVM_RUNTIME_VM_KV_STATE_H_
 #define TVM_RUNTIME_VM_KV_STATE_H_
 #include <tvm/ffi/container/array.h>
-#include <tvm/ffi/container/optional.h>
 #include <tvm/ffi/container/shape.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/optional.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/object.h>
