@@ -276,6 +276,94 @@ def test_cast():
     verify(Cast, Expected)
 
 
+def test_bitcast_float32_to_int32():
+    """BITCAST same-width: float32 -> int32, shape preserved."""
+
+    class BitcastF32ToI32(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
+        def func(self, x):
+            return tf.bitcast(x, tf.int32)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((1, 30), dtype="float32")) -> R.Tensor((1, 30), dtype="int32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((1, 30), dtype="int32") = R.memory.view(
+                    x, R.shape([1, 30]), R.dtype("int32")
+                )
+                R.output(gv)
+            return gv
+
+    verify(BitcastF32ToI32, Expected)
+
+
+def test_bitcast_uint8_to_int8():
+    """BITCAST same-width 8-bit: uint8 -> int8."""
+
+    class BitcastU8ToI8(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(4,), dtype=tf.uint8)])
+        def func(self, x):
+            return tf.bitcast(x, tf.int8)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((4,), dtype="uint8")) -> R.Tensor((4,), dtype="int8"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((4,), dtype="int8") = R.memory.view(x, R.shape([4]), R.dtype("int8"))
+                R.output(gv)
+            return gv
+
+    verify(BitcastU8ToI8, Expected)
+
+
+def test_bitcast_int32_to_int16_widens_shape():
+    """BITCAST width-changing (smaller): int32[3] -> int16[3, 2]."""
+
+    class BitcastI32ToI16(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(3,), dtype=tf.int32)])
+        def func(self, x):
+            return tf.bitcast(x, tf.int16)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((3,), dtype="int32")) -> R.Tensor((3, 2), dtype="int16"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((3, 2), dtype="int16") = R.memory.view(
+                    x, R.shape([3, 2]), R.dtype("int16")
+                )
+                R.output(gv)
+            return gv
+
+    verify(BitcastI32ToI16, Expected)
+
+
+def test_bitcast_int16_to_int32_collapses_shape():
+    """BITCAST width-changing (larger): int16[5, 2] -> int32[5]."""
+
+    class BitcastI16ToI32(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(5, 2), dtype=tf.int16)])
+        def func(self, x):
+            return tf.bitcast(x, tf.int32)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((5, 2), dtype="int16")) -> R.Tensor((5,), dtype="int32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((5,), dtype="int32") = R.memory.view(x, R.shape([5]), R.dtype("int32"))
+                R.output(gv)
+            return gv
+
+    verify(BitcastI16ToI32, Expected)
+
+
 def test_expand_dims():
     class ExpandDims(tf.Module):
         @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
