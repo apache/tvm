@@ -535,13 +535,6 @@ class Feature:
 
         If None, defaults to the short name.
 
-    cmake_flag: Optional[str]
-
-        The flag that must be enabled in the config.cmake in order to
-        use this feature.
-
-        If None, no flag is required to use this feature.
-
     target_kind_enabled: Optional[str]
 
         The target kind that must be enabled to run tests using this
@@ -605,7 +598,6 @@ class Feature:
         self,
         name: str,
         long_name: str | None = None,
-        cmake_flag: str | None = None,
         target_kind_enabled: str | None = None,
         compile_time_check: Callable[[], bool | str] | None = None,
         target_kind_hardware: str | None = None,
@@ -614,7 +606,6 @@ class Feature:
     ):
         self.name = name
         self.long_name = long_name or name
-        self.cmake_flag = cmake_flag
         self.target_kind_enabled = target_kind_enabled
         self.compile_time_check = compile_time_check
         self.target_kind_hardware = target_kind_hardware
@@ -662,15 +653,6 @@ class Feature:
                 reason=(
                     f"{self.target_kind_enabled} tests disabled "
                     f"by TVM_TEST_TARGETS environment variable"
-                ),
-            )
-
-        if self.cmake_flag is not None:
-            yield pytest.mark.skipif(
-                not _cmake_flag_enabled(self.cmake_flag),
-                reason=(
-                    f"{self.long_name} support not enabled.  "
-                    f"Set {self.cmake_flag} in config.cmake to enable."
                 ),
             )
 
@@ -838,7 +820,11 @@ def _multi_gpu_exists():
 
 # Mark a test as requiring llvm to run
 requires_llvm = Feature(
-    "llvm", "LLVM", cmake_flag="USE_LLVM", target_kind_enabled="llvm", target_kind_hardware="llvm"
+    "llvm",
+    "LLVM",
+    run_time_check=lambda: tvm.runtime.enabled("llvm"),
+    target_kind_enabled="llvm",
+    target_kind_hardware="llvm",
 )
 
 # Mark a test as requiring a GPU to run.
@@ -875,7 +861,7 @@ requires_aarch64 = Feature(
 requires_cuda = Feature(
     "cuda",
     "CUDA",
-    cmake_flag="USE_CUDA",
+    run_time_check=lambda: tvm.runtime.enabled("cuda"),
     target_kind_enabled="cuda",
     target_kind_hardware="cuda",
     parent_features="gpu",
@@ -890,13 +876,31 @@ requires_tensorcore = Feature(
 )
 
 # Mark a test as requiring the cuDNN library.
-requires_cudnn = Feature("cudnn", "cuDNN", cmake_flag="USE_CUDNN", parent_features="cuda")
+requires_cudnn = Feature(
+    "cudnn",
+    "cuDNN",
+    run_time_check=lambda: tvm.get_global_func("tvm.contrib.cudnn.exists", allow_missing=True)
+    is not None,
+    parent_features="cuda",
+)
 
 # Mark a test as requiring the cuBLAS library.
-requires_cublas = Feature("cublas", "cuBLAS", cmake_flag="USE_CUBLAS", parent_features="cuda")
+requires_cublas = Feature(
+    "cublas",
+    "cuBLAS",
+    run_time_check=lambda: tvm.get_global_func("tvm.contrib.cublas.matmul", allow_missing=True)
+    is not None,
+    parent_features="cuda",
+)
 
 # Mark a test as requiring NCCL support
-requires_nccl = Feature("nccl", "NCCL", cmake_flag="USE_NCCL", parent_features="cuda")
+requires_nccl = Feature(
+    "nccl",
+    "NCCL",
+    run_time_check=lambda: tvm.get_global_func("tvm.contrib.nccl.init_nccl_uid", allow_missing=True)
+    is not None,
+    parent_features="cuda",
+)
 
 # Mark a test as requiring the NVPTX compilation on the CUDA runtime
 requires_nvptx = Feature(
@@ -920,18 +924,17 @@ requires_cudagraph = Feature(
 requires_adreno_opencl = Feature(
     "opencl",
     long_name="Remote Adreno OpenCL",
-    cmake_flag="USE_OPENCL",
+    run_time_check=lambda: tvm.runtime.enabled("opencl") and os.getenv("RPC_TARGET") is not None,
     target_kind_enabled="opencl",
     target_kind_hardware=None,
     parent_features="gpu",
-    run_time_check=lambda: os.getenv("RPC_TARGET") is not None,
 )
 
 # Mark a test as requiring the OpenCL runtime
 requires_opencl = Feature(
     "opencl",
     "OpenCL",
-    cmake_flag="USE_OPENCL",
+    run_time_check=lambda: tvm.runtime.enabled("opencl"),
     target_kind_enabled="opencl",
     target_kind_hardware="opencl" if "RPC_TARGET" not in os.environ else None,
     parent_features="gpu" if "RPC_TARGET" not in os.environ else None,
@@ -941,7 +944,7 @@ requires_opencl = Feature(
 requires_rocm = Feature(
     "rocm",
     "ROCm",
-    cmake_flag="USE_ROCM",
+    run_time_check=lambda: tvm.runtime.enabled("rocm"),
     target_kind_enabled="rocm",
     target_kind_hardware="rocm",
     parent_features="gpu",
@@ -956,13 +959,19 @@ requires_matrixcore = Feature(
 )
 
 # Mark a test as requiring the hipBLAS library.
-requires_hipblas = Feature("hipblas", "hipBLAS", cmake_flag="USE_HIPBLAS", parent_features="rocm")
+requires_hipblas = Feature(
+    "hipblas",
+    "hipBLAS",
+    run_time_check=lambda: tvm.get_global_func("tvm.contrib.hipblas.matmul", allow_missing=True)
+    is not None,
+    parent_features="rocm",
+)
 
 # Mark a test as requiring the metal runtime
 requires_metal = Feature(
     "metal",
     "Metal",
-    cmake_flag="USE_METAL",
+    run_time_check=lambda: tvm.runtime.enabled("metal"),
     target_kind_enabled="metal",
     target_kind_hardware="metal",
     parent_features="gpu",
@@ -972,7 +981,7 @@ requires_metal = Feature(
 requires_vulkan = Feature(
     "vulkan",
     "Vulkan",
-    cmake_flag="USE_VULKAN",
+    run_time_check=lambda: tvm.runtime.enabled("vulkan"),
     target_kind_enabled="vulkan",
     target_kind_hardware="vulkan",
     parent_features="gpu",
@@ -982,7 +991,10 @@ requires_vulkan = Feature(
 requires_openclml = Feature(
     "OpenCLML",
     "CLML",
-    cmake_flag="USE_CLML",
+    run_time_check=lambda: tvm.get_global_func(
+        "relax.is_openclml_runtime_enabled", allow_missing=True
+    )
+    is not None,
     target_kind_enabled="opencl",
 )
 
@@ -990,20 +1002,27 @@ requires_openclml = Feature(
 requires_nnapi = Feature(
     "NNAPI",
     "NNAPI",
-    cmake_flag="USE_NNAPI_CODEGEN",
+    run_time_check=lambda: tvm.get_global_func("relax.ext.nnapi", allow_missing=True) is not None,
 )
 
 # Mark a test as requiring CUTLASS to run
-requires_cutlass = Feature("cutlass", "CUTLASS", cmake_flag="USE_CUTLASS")
+requires_cutlass = Feature(
+    "cutlass",
+    "CUTLASS",
+    run_time_check=lambda: tvm.get_global_func("relax.ext.cutlass", allow_missing=True) is not None,
+)
 
 # Mark a test as requiring rpc to run
-requires_rpc = Feature("rpc", "RPC", cmake_flag="USE_RPC")
+requires_rpc = Feature(
+    "rpc",
+    "RPC",
+    run_time_check=lambda: tvm.runtime.enabled("rpc"),
+)
 
 # Mark a test as requiring Hexagon to run
 requires_hexagon = Feature(
     "hexagon",
     "Hexagon",
-    cmake_flag="USE_HEXAGON",
     target_kind_enabled="hexagon",
     compile_time_check=hexagon._compile_time_check,
     run_time_check=hexagon._run_time_check,
@@ -1083,43 +1102,6 @@ requires_x86_amx = Feature(
     "x86 AMX Extensions",
     run_time_check=lambda: _has_cpu_feat("amx-int8"),
 )
-
-
-def _cmake_flag_enabled(flag):
-    # Maps cmake USE_* option names to runtime probes.
-    # Device backends: tvm.runtime.enabled("<kind>") returns True iff the
-    # runtime module factory is registered (ffi.Module.create.<kind>).
-    # Contrib libraries: probe a known FFI global that only registers when
-    # the feature was compiled in.
-    # Grep hint: grep -rn 'ffi.Module.create.' src/ python/
-    _flag_to_device_kind = {
-        "USE_CUDA": "cuda",
-        "USE_OPENCL": "opencl",
-        "USE_VULKAN": "vulkan",
-        "USE_METAL": "metal",
-        "USE_ROCM": "rocm",
-        "USE_HEXAGON": "hexagon",
-        "USE_WEBGPU": "webgpu",
-        "USE_LLVM": "llvm",
-        "USE_RPC": "rpc",
-    }
-    _flag_to_global_func = {
-        "USE_CUDNN": "tvm.contrib.cudnn.exists",
-        "USE_CUBLAS": "tvm.contrib.cublas.matmul",
-        "USE_NCCL": "tvm.contrib.nccl.init_nccl_uid",
-        "USE_HIPBLAS": "tvm.contrib.hipblas.matmul",
-        "USE_CLML": "relax.is_openclml_runtime_enabled",
-        "USE_NNAPI_CODEGEN": "relax.ext.nnapi",
-        "USE_CUTLASS": "relax.ext.cutlass",
-    }
-    if flag in _flag_to_device_kind:
-        return tvm.runtime.enabled(_flag_to_device_kind[flag])
-    if flag in _flag_to_global_func:
-        return tvm.get_global_func(_flag_to_global_func[flag], allow_missing=True) is not None
-    raise RuntimeError(
-        f"_cmake_flag_enabled: unknown flag '{flag}'. "
-        "Add an entry to _flag_to_device_kind or _flag_to_global_func."
-    )
 
 
 def _parse_target_entry(entry):

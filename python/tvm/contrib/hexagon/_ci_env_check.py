@@ -37,10 +37,7 @@ def _compile_time_check():
     Designed for use as a the ``compile_time_check`` argument to
     `tvm.testing.Feature`.
     """
-    if (
-        tvm.testing.utils._cmake_flag_enabled("USE_LLVM")
-        and tvm.target.codegen.llvm_version_major() < 7
-    ):
+    if tvm.runtime.enabled("llvm") and tvm.target.codegen.llvm_version_major() < 7:
         return "Hexagon requires LLVM 7 or later"
 
     if "HEXAGON_TOOLCHAIN" not in os.environ:
