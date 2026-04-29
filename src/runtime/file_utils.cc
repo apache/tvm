@@ -222,9 +222,26 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              SaveParams(&strm, params);
            })
       .def("runtime.LoadParams", [](const ffi::Bytes& s) { return ::tvm::runtime::LoadParams(s); })
-      .def("runtime.LoadParamsFromFile", [](const ffi::String& path) {
-        tvm::runtime::SimpleBinaryFileStream strm(path, "rb");
-        return LoadParams(&strm);
+      .def("runtime.LoadParamsFromFile",
+           [](const ffi::String& path) {
+             tvm::runtime::SimpleBinaryFileStream strm(path, "rb");
+             return LoadParams(&strm);
+           })
+      // Registry: "runtime.LoadMetaDataFromJSON" — parse a tvm_meta.json
+      // string into Map<String, FunctionInfo>.  Used by Python callers that
+      // build FunctionInfo maps in-memory (e.g. tirx external_kernel) without
+      // a disk round-trip.
+      .def("runtime.LoadMetaDataFromJSON", [](const ffi::String& json_str) {
+        namespace json = ::tvm::ffi::json;
+        ffi::Map<ffi::String, FunctionInfo> fmap;
+        auto root = json::Parse(std::string(json_str)).cast<json::Object>();
+        auto func_info_obj = root.at("func_info").cast<json::Object>();
+        for (const auto& kv : func_info_obj) {
+          auto info_node = ffi::make_object<FunctionInfoObj>();
+          info_node->LoadFromJSON(kv.second.cast<json::Object>());
+          fmap.Set(kv.first.cast<ffi::String>(), FunctionInfo(std::move(info_node)));
+        }
+        return fmap;
       });
 }
 

@@ -78,12 +78,10 @@ endif()
 
 
 if(NOT USE_HEXAGON)
-  # If nothing related to Hexagon is enabled, add phony Hexagon codegen,
-  # and some stuff needed by cpptests (this part is a temporary workaround
-  # until e2e support for Hexagon is enabled).
-  if(BUILD_FOR_HOST)
-    list(APPEND COMPILER_SRCS src/target/opt/build_hexagon_off.cc)
-  endif()
+  # USE_HEXAGON=OFF: codegen still works through the per-backend fallback
+  # module (src/target/hexagon/hexagon_fallback_module.cc), which is always
+  # compiled into libtvm via CODEGEN_SRCS.  No opt-stub registration is
+  # needed.
   return()
 endif()
 

@@ -211,6 +211,27 @@ struct Serializer<ffi::String> {
   }
 };
 
+// ---- ffi::Bytes (binary payload, same wire format as std::string) ----
+template <>
+struct Serializer<ffi::Bytes> {
+  static constexpr bool enabled = true;
+
+  static void Write(Stream* strm, const ffi::Bytes& data) {
+    uint64_t sz = static_cast<uint64_t>(data.size());
+    Serializer<uint64_t>::Write(strm, sz);
+    if (sz != 0) {
+      strm->Write(data.data(), data.size());
+    }
+  }
+
+  static bool Read(Stream* strm, ffi::Bytes* data) {
+    std::string s;
+    if (!Serializer<std::string>::Read(strm, &s)) return false;
+    *data = ffi::Bytes(std::move(s));
+    return true;
+  }
+};
+
 // ---- ffi::Array<T> (binary-compatible with std::vector<T>) ----
 template <typename T>
 struct Serializer<ffi::Array<T>> {
