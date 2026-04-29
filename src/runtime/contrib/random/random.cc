@@ -24,7 +24,6 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/threading_backend.h>
 
 #include <algorithm>
 

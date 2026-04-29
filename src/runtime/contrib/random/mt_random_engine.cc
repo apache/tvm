@@ -25,7 +25,6 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/tensor.h>
-#include <tvm/runtime/threading_backend.h>
 
 #include <algorithm>
 #include <ctime>
