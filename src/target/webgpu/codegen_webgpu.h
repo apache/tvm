@@ -24,14 +24,14 @@
  * This module generates WGSL shading language.
  * See https://www.w3.org/TR/WGSL/ for the language reference.
  */
-#ifndef TVM_TARGET_SOURCE_CODEGEN_WEBGPU_H_
-#define TVM_TARGET_SOURCE_CODEGEN_WEBGPU_H_
+#ifndef TVM_TARGET_WEBGPU_CODEGEN_WEBGPU_H_
+#define TVM_TARGET_WEBGPU_CODEGEN_WEBGPU_H_
 
 #include <tvm/target/codegen.h>
 
 #include <string>
 
-#include "codegen_c.h"
+#include "../source/codegen_c.h"
 
 namespace tvm {
 namespace codegen {
@@ -104,4 +104,4 @@ class CodeGenWebGPU final : public CodeGenC {
 }  // namespace codegen
 }  // namespace tvm
 
-#endif  // TVM_TARGET_SOURCE_CODEGEN_WEBGPU_H_
+#endif  // TVM_TARGET_WEBGPU_CODEGEN_WEBGPU_H_

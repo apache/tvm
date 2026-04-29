@@ -300,6 +300,7 @@ tvm_file_glob(GLOB CODEGEN_SRCS
   src/target/rocm/*.cc
   src/target/hexagon/*.cc
   src/target/metal/*.cc
+  src/target/webgpu/*.cc
     )
 
 list(APPEND COMPILER_SRCS ${CODEGEN_SRCS})
