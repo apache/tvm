@@ -275,7 +275,19 @@ tvm_file_glob(GLOB_RECURSE COMPILER_SRCS
     src/topi/*.cc
     src/driver/*.cc
     src/support/*.cc
-    src/script/*.cc
+    # TVMScript shared core (Doc IR + dispatch infrastructure + IR-layer
+    # printer/builder). Per-dialect (relax, tirx, ...) printer/builder pieces
+    # live under src/<dialect>/script/. The list below is intentionally explicit
+    # (not src/script/*.cc) so that any new file accidentally added under
+    # src/script/{printer,ir_builder}/<dialect>/ for a non-IR dialect is
+    # rejected at link time rather than silently included.
+    src/script/ir_builder/base.cc
+    src/script/ir_builder/ir/*.cc
+    src/script/printer/config.cc
+    src/script/printer/doc.cc
+    src/script/printer/doc_printer/*.cc
+    src/script/printer/ir_docsifier.cc
+    src/script/printer/ir/*.cc
     src/relax/ir/*.cc
     src/relax/op/*.cc
     src/relax/analysis/*.cc
@@ -288,6 +300,7 @@ tvm_file_glob(GLOB_RECURSE COMPILER_SRCS
     src/relax/distributed/*.cc
     src/relax/distributed/transform/*.cc
     src/relax/op/distributed/*.cc
+    src/relax/script/*.cc
     src/relax/testing/*.cc
     )
 
