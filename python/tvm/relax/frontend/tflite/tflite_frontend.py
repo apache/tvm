@@ -3435,7 +3435,8 @@ class OperatorConverter:
         padding_expr = self.get_tensor_expr(padding_value_tensor)
 
         # Multi-index per input element, shape [n_elements, n_dims].
-        base_indices_np = np.array(list(np.ndindex(*in_shape)), dtype=np.int64)
+        # Multi-index per input element, shape [n_elements, n_dims].
+        base_indices_np = np.stack(np.indices(in_shape), axis=-1).reshape(-1, n_dims).astype(np.int64)
         base_indices = relax.const(base_indices_np, dtype="int64")
 
         if self.has_expr(dilations_tensor.tensor_idx):
