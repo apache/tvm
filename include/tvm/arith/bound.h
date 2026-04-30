@@ -33,6 +33,7 @@
 namespace tvm {
 namespace arith {
 
+using tirx::Region;
 using tirx::Stmt;
 using tirx::Var;
 using tirx::VarNode;
@@ -76,8 +77,8 @@ IntSet DeduceBound(PrimExpr v, PrimExpr cond,
  * \param consider_stores If stores are considered.
  * \return The domain that covers all the calls or provides within the given statement.
  */
-ffi::Array<Range> DomainTouched(const Stmt& body, const tirx::Buffer& buffer, bool consider_loads,
-                                bool consider_stores);
+Region DomainTouched(const Stmt& body, const tirx::Buffer& buffer, bool consider_loads,
+                     bool consider_stores);
 
 }  // namespace arith
 }  // namespace tvm

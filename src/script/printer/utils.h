@@ -25,9 +25,9 @@
 #include <tvm/ffi/extra/serialization.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/base.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/script/printer/config.h>
 #include <tvm/script/printer/ir_docsifier.h>
-#include <tvm/runtime/logging.h>
 
 #include <sstream>
 #include <string>
@@ -60,7 +60,7 @@ inline std::string RedirectedReprPrinterMethod(const ffi::ObjectRef& obj) {
 
 inline std::string Docsify(const ffi::ObjectRef& obj, const IRDocsifier& d, const Frame& f,
                            const PrinterConfig& cfg) {
-  Doc doc = d->AsDoc(obj, ffi::reflection::AccessPath::Root());
+  Doc doc = d->AsDoc(obj, AccessPath::Root());
   bool move_source_paths = false;
   if (const auto* expr_doc = doc.as<ExprDocNode>()) {
     if (!cfg->verbose_expr) {

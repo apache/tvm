@@ -573,7 +573,7 @@ class AutoPadder {
               Buffer src_buffer = r->source->buffer;
               runtime::StorageScope scope = runtime::StorageScope::Create(src_buffer.scope());
               if (scope.rank == runtime::StorageRank::kShared) {
-                ffi::Array<Range> region = r->source->region;
+                Region region = r->source->region;
                 ffi::Array<PrimExpr> indices;
                 for (int i = 0; i < static_cast<int>(region.size()); i++) {
                   Var var("region" + std::to_string(i));

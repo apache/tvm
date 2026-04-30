@@ -37,6 +37,11 @@
 namespace tvm {
 namespace tirx {
 /*!
+ * \brief Global symbol of the op after lowering.
+ */
+using TGlobalSymbol = ffi::String;
+
+/*!
  * \brief Whether the op is overloaded for vector form.
  */
 using TVectorizable = bool;
@@ -50,6 +55,11 @@ using FLowerIntrinsic = ffi::TypedFunction<PrimExpr(PrimExpr)>;
  * \brief The legalization function for given tirx op.
  */
 using FLegalize = ffi::TypedFunction<PrimExpr(PrimExpr)>;
+
+/*!
+ * \brief The operator's name in TVMScript printer
+ */
+using TScriptPrinterName = ffi::String;
 
 /*!
  * \brief Specifies that TVMScript printer prints the dtype as the first/last argument.

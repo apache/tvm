@@ -182,17 +182,17 @@ SBlock MakeReindexCacheStage(const BufferRegion& cache_region, ReindexCacheStage
   }
 
   // block access region for read/write buffers
-  ffi::Array<Range> read_access_region, write_access_region;
+  Region read_access_region, write_access_region;
   ffi::Array<PrimExpr> read_access_indices, write_access_indices;
   // Compute read/write region and read/write access indices.
   ffi::Array<PrimExpr>& old_indices = (is_cache_read) ? read_access_indices : write_access_indices;
-  ffi::Array<Range>& old_region = (is_cache_read) ? read_access_region : write_access_region;
+  Region& old_region = (is_cache_read) ? read_access_region : write_access_region;
   for (const Range& range : cache_region->region) {
     old_indices.push_back(Substitute(range->min, var_map));
     old_region.push_back(Range::FromMinExtent(old_indices.back(), Integer(1)));
   }
   ffi::Array<PrimExpr>& new_indices = (is_cache_read) ? write_access_indices : read_access_indices;
-  ffi::Array<Range>& new_region = (is_cache_read) ? write_access_region : read_access_region;
+  Region& new_region = (is_cache_read) ? write_access_region : read_access_region;
   for (const PrimExpr& idx : info->indices) {
     new_indices.push_back(Substitute((idx), var_map));
     new_region.push_back(Range::FromMinExtent(new_indices.back(), Integer(1)));
@@ -254,8 +254,8 @@ SBlock MakeCacheStage(const BufferRegion& cache_region, CacheStageInfo* info,
   // block variables
   ffi::Array<IterVar> block_vars;
   // block access region for read/write buffers
-  ffi::Array<Range> read_access_region;
-  ffi::Array<Range> write_access_region;
+  Region read_access_region;
+  Region write_access_region;
   // indices used in block body
   ffi::Array<PrimExpr> read_access_indices;
   ffi::Array<PrimExpr> write_access_indices;
@@ -384,8 +384,8 @@ SBlock MakeReIndexStage(const SBlock& block, CacheStageInfo* info,
   // Step 3: Create the reindex block
 
   // The src and the dst region and indices of the data copy
-  ffi::Array<Range> src_region{nullptr};
-  ffi::Array<Range> dst_region{nullptr};
+  Region src_region{nullptr};
+  Region dst_region{nullptr};
   ffi::Array<PrimExpr> src_indices{nullptr};
   ffi::Array<PrimExpr> dst_indices{nullptr};
 
@@ -635,7 +635,7 @@ BufferRegion RelaxBufferRegion(ScheduleState self, const BufferRegion& buffer_re
       /*analyzer=*/&analyzer);
   TVM_FFI_ICHECK_EQ(buffer_region->region.size(), int_sets.size());
 
-  ffi::Array<Range> region;
+  Region region;
   region.reserve(int_sets.size());
   for (size_t i = 0; i < int_sets.size(); ++i) {
     region.push_back(int_sets[i].CoverRange(Range::FromMinExtent(0, buffer->shape[i])));
@@ -901,7 +901,7 @@ class CacheReadRewriter : public StmtExprMutator {
   explicit CacheReadRewriter(const StmtSRef& scope_sref, CacheStageInfo* info,
                              bool cache_full_region = true)
       : scope_sref_(scope_sref), info_(info), cache_full_region_(cache_full_region) {
-    auto update_region = [this](const ffi::Array<Range>& region, const ffi::Array<Range>& offset) -> ffi::Array<Range> {
+    auto update_region = [this](const Region& region, const Region& offset) -> Region {
       TVM_FFI_ICHECK_EQ(region.size(), offset.size());
       std::vector<Range> ret;
       for (size_t i = 0; i < region.size(); ++i) {
@@ -1087,7 +1087,7 @@ class ReindexCacheReadRewriter : public CacheReadRewriter {
       ffi::Array<BufferRegion> new_reads;
       for (const BufferRegion& buf_region : reads) {
         if (buf_region->buffer.same_as(info_->read_buffer)) {
-          ffi::Array<Range> region;
+          Region region;
           for (const PrimExpr index : new_indices_) {
             region.push_back(Range::FromMinExtent(index, Integer(1)));
           }
@@ -1103,7 +1103,7 @@ class ReindexCacheReadRewriter : public CacheReadRewriter {
       for (const MatchBufferRegion& match_buffer_region : match_buffers) {
         BufferRegion source = match_buffer_region->source;
         if (source->buffer.same_as(info_->read_buffer)) {
-          ffi::Array<Range> region;
+          Region region;
           for (const PrimExpr index : new_indices_) {
             region.push_back(Range::FromMinExtent(index, Integer(1)));
           }
@@ -1158,7 +1158,7 @@ class CacheWriteRewriter : public StmtExprMutator {
         writer_block_sref_(writer_block_sref),
         info_(info),
         cache_full_region_(cache_full_region) {
-    auto update_region = [this](const ffi::Array<Range>& region, const ffi::Array<Range>& offset) -> ffi::Array<Range> {
+    auto update_region = [this](const Region& region, const Region& offset) -> Region {
       TVM_FFI_ICHECK_EQ(region.size(), offset.size());
       std::vector<Range> ret;
       for (size_t i = 0; i < region.size(); ++i) {
@@ -1376,7 +1376,7 @@ class ReindexCacheWriteRewriter : public CacheWriteRewriter {
       ffi::Array<BufferRegion> new_reads;
       for (const BufferRegion& buf_region : reads) {
         if (buf_region->buffer.same_as(info_->write_buffer)) {
-          ffi::Array<Range> region;
+          Region region;
           for (const PrimExpr index : new_indices_) {
             region.push_back(Range::FromMinExtent(index, Integer(1)));
           }
@@ -1392,7 +1392,7 @@ class ReindexCacheWriteRewriter : public CacheWriteRewriter {
       for (const MatchBufferRegion& match_buffer_region : match_buffers) {
         BufferRegion source = match_buffer_region->source;
         if (source->buffer.same_as(info_->write_buffer)) {
-          ffi::Array<Range> region;
+          Region region;
           for (const PrimExpr index : new_indices_) {
             region.push_back(Range::FromMinExtent(index, Integer(1)));
           }
@@ -1680,7 +1680,7 @@ class ReIndexRewriter : public StmtExprMutator {
   /*! \brief The new indices */
   ffi::Array<PrimExpr> indices_;
   /*! \brief The new region */
-  ffi::Array<Range> region_;
+  Region region_;
 };
 
 void CheckRegionCover(const ScheduleState& self, StmtSRef scope_root, Buffer read_buffer) {

@@ -68,8 +68,8 @@ class BufferTouchedDomain final : public IRVisitorWithAnalyzer {
     return buffer_access_map_;
   }
 
-  ffi::Array<Range> FindUnion(const Buffer& buffer, bool consider_loads, bool consider_stores) {
-    ffi::Array<Range> ret;
+  Region FindUnion(const Buffer& buffer, bool consider_loads, bool consider_stores) {
+    Region ret;
     auto kv = buffer_access_map_.find(buffer.get());
     if (kv == buffer_access_map_.end()) {
       LOG(WARNING) << "[arith::BufferDomainTouched] "
@@ -133,8 +133,8 @@ class BufferTouchedDomain final : public IRVisitorWithAnalyzer {
   std::unordered_map<const BufferNode*, BufferDomainAccess> buffer_access_map_;
 };
 
-ffi::Array<Range> DomainTouched(const Stmt& stmt, const Buffer& buffer, bool consider_loads,
-                                bool consider_stores) {
+Region DomainTouched(const Stmt& stmt, const Buffer& buffer, bool consider_loads,
+                     bool consider_stores) {
   return BufferTouchedDomain(stmt).FindUnion(buffer, consider_loads, consider_stores);
 }
 

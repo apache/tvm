@@ -81,7 +81,7 @@ ffi::Optional<PrimExpr> FindReturnValue(const tirx::Stmt& node) {
 }
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tirx::Evaluate>("", [](tirx::Evaluate eval, ffi::reflection::AccessPath p, IRDocsifier d) -> Doc {
+    .set_dispatch<tirx::Evaluate>("", [](tirx::Evaluate eval, AccessPath p, IRDocsifier d) -> Doc {
       if (d->cfg->syntax_sugar) {
         if (auto return_value = FindReturnValue(eval)) {
           ExprDoc value =
@@ -98,7 +98,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tirx::Bind>("", [](tirx::Bind stmt, ffi::reflection::AccessPath p, IRDocsifier d) -> Doc {
+    .set_dispatch<tirx::Bind>("", [](tirx::Bind stmt, AccessPath p, IRDocsifier d) -> Doc {
       // Step 1. Type annotation
       ffi::Optional<ExprDoc> type_doc = d->AsDoc<ExprDoc>(stmt->var->type_annotation,  //
                                                           p->Attr("var")->Attr("type_annotation"));
@@ -122,7 +122,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tirx::AssertStmt>(
-        "", [](tirx::AssertStmt stmt, ffi::reflection::AccessPath p, IRDocsifier d) -> Doc {
+        "", [](tirx::AssertStmt stmt, AccessPath p, IRDocsifier d) -> Doc {
           ExprDoc cond = d->AsDoc<ExprDoc>(stmt->condition, p->Attr("condition"));
           // Always emit the canonical tuple form: assert cond, ("Kind", ["part0", "part1", ...])
           ffi::Array<ExprDoc> parts;
@@ -135,7 +135,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tirx::While>("", [](tirx::While stmt, ffi::reflection::AccessPath p, IRDocsifier d) -> Doc {
+    .set_dispatch<tirx::While>("", [](tirx::While stmt, AccessPath p, IRDocsifier d) -> Doc {
       ExprDoc cond = d->AsDoc<ExprDoc>(stmt->condition, p->Attr("condition"));
       With<TIRFrame> f(d, stmt);
       AsDocBody(stmt->body, p->Attr("body"), f->get(), d);
@@ -143,7 +143,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     });
 
 namespace {
-Doc DeclBufferDoc(tirx::DeclBuffer stmt, ffi::reflection::AccessPath p, IRDocsifier d,
+Doc DeclBufferDoc(tirx::DeclBuffer stmt, AccessPath p, IRDocsifier d,
                   BufferVarDefinition var_definitions) {
   ExprDoc rhs = BufferDecl(stmt->buffer, "decl_buffer", {}, p->Attr("buffer"), d->frames.back(), d,
                            var_definitions);
@@ -154,13 +154,13 @@ Doc DeclBufferDoc(tirx::DeclBuffer stmt, ffi::reflection::AccessPath p, IRDocsif
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tirx::DeclBuffer>(  //
-        "", [](tirx::DeclBuffer stmt, ffi::reflection::AccessPath p, IRDocsifier d) -> Doc {
+        "", [](tirx::DeclBuffer stmt, AccessPath p, IRDocsifier d) -> Doc {
           return DeclBufferDoc(stmt, p, d, BufferVarDefinition::None);
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tirx::IfThenElse>(  //
-        "", [](tirx::IfThenElse stmt, ffi::reflection::AccessPath p, IRDocsifier d) -> Doc {
+        "", [](tirx::IfThenElse stmt, AccessPath p, IRDocsifier d) -> Doc {
           ExprDoc cond = d->AsDoc<ExprDoc>(stmt->condition, p->Attr("condition"));
           ffi::Array<StmtDoc> then_branch;
           ffi::Array<StmtDoc> else_branch;
@@ -178,13 +178,13 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tirx::SeqStmt>("", [](tirx::SeqStmt stmt, ffi::reflection::AccessPath p, IRDocsifier d) -> Doc {
+    .set_dispatch<tirx::SeqStmt>("", [](tirx::SeqStmt stmt, AccessPath p, IRDocsifier d) -> Doc {
       With<TIRFrame> f(d, stmt);
       AsDocBody(stmt, p, f->get(), d);
       return StmtBlockDoc((*f)->stmts);
     });
 
-void InsertEnvThread(const tirx::IterVar& iter_var, const ffi::reflection::AccessPath& iter_var_p,
+void InsertEnvThread(const tirx::IterVar& iter_var, const AccessPath& iter_var_p,
                      const IRDocsifier& d) {
   Frame f = FindLowestVarDef(iter_var->var, d).value();
   DefineVar(iter_var->var, f, d);
@@ -195,10 +195,10 @@ void InsertEnvThread(const tirx::IterVar& iter_var, const ffi::reflection::Acces
   f->stmts.push_back(AssignDoc(lhs, rhs, std::nullopt));
 }
 
-ExprDoc DocsifyLaunchThread(const tirx::AttrStmt& attr_stmt, const ffi::reflection::AccessPath& attr_stmt_p,
+ExprDoc DocsifyLaunchThread(const tirx::AttrStmt& attr_stmt, const AccessPath& attr_stmt_p,
                             ffi::Optional<tirx::Var>* define_var, const IRDocsifier& d) {
   tirx::IterVar iter_var = Downcast<tirx::IterVar>(attr_stmt->node);
-  ffi::reflection::AccessPath iter_var_p = attr_stmt_p->Attr("node");
+  AccessPath iter_var_p = attr_stmt_p->Attr("node");
 
   ExprDoc var_doc{ffi::UnsafeInit()};
   if (d->IsVarDefined(iter_var->var)) {
@@ -219,13 +219,13 @@ ExprDoc DocsifyLaunchThread(const tirx::AttrStmt& attr_stmt, const ffi::reflecti
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tirx::AttrStmt>(  //
-        "", [](tirx::AttrStmt stmt, ffi::reflection::AccessPath stmt_p, IRDocsifier d) -> Doc {
+        "", [](tirx::AttrStmt stmt, AccessPath stmt_p, IRDocsifier d) -> Doc {
           bool concise = AllowConciseScoping(d, stmt);
           ffi::Optional<ExprDoc> lhs = std::nullopt;
           ffi::Optional<ExprDoc> rhs = std::nullopt;
           ffi::Optional<tirx::Var> define_var = std::nullopt;
           tirx::Stmt body = stmt->body;
-          ffi::reflection::AccessPath body_p = stmt_p->Attr("body");
+          AccessPath body_p = stmt_p->Attr("body");
           if (stmt->attr_key == "thread_extent" || stmt->attr_key == "virtual_thread") {
             if (stmt->node.as<tirx::IterVarNode>()) {
               rhs = DocsifyLaunchThread(stmt, stmt_p, &define_var, d);
@@ -252,9 +252,9 @@ TVM_REGISTER_SCRIPT_AS_REPR(tirx::AssertStmtNode, ReprPrintTIR);
 TVM_REGISTER_SCRIPT_AS_REPR(tirx::WhileNode, ReprPrintTIR);
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tirx::AllocBuffer>(  //
-        "", [](tirx::AllocBuffer stmt, ffi::reflection::AccessPath p, IRDocsifier d) -> Doc {
+        "", [](tirx::AllocBuffer stmt, AccessPath p, IRDocsifier d) -> Doc {
           tirx::Buffer buffer = stmt->buffer;
-          ffi::reflection::AccessPath buffer_p = p->Attr("buffer");
+          AccessPath buffer_p = p->Attr("buffer");
           Frame frame = d->frames.back();
           // Define buffer's data var inline as buffer.data
           if (!d->IsVarDefined(buffer->data)) {
@@ -272,10 +272,10 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             int n = buffer->shape.size();
             ffi::Array<ExprDoc> shape_docs;
             shape_docs.reserve(n);
-            ffi::reflection::AccessPath shape_p = buffer_p->Attr("shape");
+            AccessPath shape_p = buffer_p->Attr("shape");
             for (int i = 0; i < n; ++i) {
               PrimExpr e = buffer->shape[i];
-              ffi::reflection::AccessPath e_p = shape_p->ArrayItem(i);
+              AccessPath e_p = shape_p->ArrayItem(i);
               if (!d->IsVarDefined(e) && e->IsInstance<tirx::VarNode>()) {
                 ExprDoc lhs = DefineVar(Downcast<tirx::Var>(e), frame, d);
                 lhs->source_paths.push_back(e_p);

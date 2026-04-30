@@ -25,11 +25,11 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
-#include <tvm/runtime/logging.h>
 
 #include "../../tirx/ir/functor_common.h"
 #include "../../tirx/transform/ir_utils.h"
@@ -154,7 +154,7 @@ class MatchBufferLower : public StmtExprMutator {
       return buffer_region;
     } else {
       const BufferRegion& source = (*it).second;
-      ffi::Array<Range> region = ConvertRegion(MatchBufferRegion(buffer, source), buffer_region->region);
+      Region region = ConvertRegion(MatchBufferRegion(buffer, source), buffer_region->region);
       return BufferRegion(source->buffer, std::move(region));
     }
   }

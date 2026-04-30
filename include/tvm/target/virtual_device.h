@@ -35,6 +35,15 @@
 
 namespace tvm {
 
+/*!
+ * \brief Abstract label for an area of memory.
+ *
+ * Currently uninterpreted and arbitrary. Likely to be replaced by a structured representation
+ * of a memory pool in the future. Please try to use this alias instead of ffi::String to aid future
+ * code migration.
+ */
+using MemoryScope = ffi::String;
+
 // NOTE: cannot use enum as they are out of bound of the original enum
 // and results in an undefined behavior
 // A 'null' device type, does not correspond to any DLDeviceType enum.
@@ -58,7 +67,7 @@ constexpr int kInvalidDeviceType = -1;
  *   See "Virtual Devices" below.
  * - A \p target (\p Target) describing how to compile code for the intended device. May be null
  *   if unconstrained.
- * - A \p memory_scope (\p ffi::String) describing which memory
+ * - A \p memory_scope (\p MemoryScope, which is currently just \p String) describing which memory
  *   area is to be used to hold data. May be "" if unconstrained. See "Memory Scopes and Devices"
  *   below.
  *
@@ -200,7 +209,7 @@ class VirtualDeviceNode : public AttrsNodeReflAdapter<VirtualDeviceNode> {
    *
    * Empty denotes unconstrained.
    */
-  ffi::String memory_scope;
+  MemoryScope memory_scope;
 
   /*!
    * \brief Returns true if virtual device is 'fully unconstrained', ie no target/device type,
@@ -270,7 +279,7 @@ class VirtualDevice : public ffi::ObjectRef {
    */
   TVM_DLL explicit VirtualDevice(int device_type_int = kInvalidDeviceType,
                                  int virtual_device_id = -1, Target target = {},
-                                 ffi::String memory_scope = {});
+                                 MemoryScope memory_scope = {});
 
   /*! \brief Returns the unique fully unconstrained \p VirtualDevice. */
   static VirtualDevice FullyUnconstrained();
@@ -307,13 +316,13 @@ class VirtualDevice : public ffi::ObjectRef {
   }
 
   /*! \brief Returns the \p VirtualDevice for \p memory_scope alone. */
-  static VirtualDevice ForMemoryScope(ffi::String memory_scope) {
+  static VirtualDevice ForMemoryScope(MemoryScope memory_scope) {
     return VirtualDevice(kInvalidDeviceType, -1, {}, std::move(memory_scope));
   }
 
   /*! \brief Returns the \p VirtualDevice for \p device, \p target and \p memory_scope. */
   TVM_DLL static VirtualDevice ForDeviceTargetAndMemoryScope(const Device& device, Target target,
-                                                             ffi::String memory_scope) {
+                                                             MemoryScope memory_scope) {
     return VirtualDevice(device.device_type, device.device_id, std::move(target),
                          std::move(memory_scope));
   }
@@ -349,7 +358,7 @@ class TVM_DLL VirtualDeviceCache {
  public:
   /*! \brief Returns the unique \p VirtualDevice representing given fields. */
   VirtualDevice Make(int device_type = kInvalidDeviceType, int virtual_device_id = -1,
-                     Target target = {}, ffi::String memory_scope = {});
+                     Target target = {}, MemoryScope memory_scope = {});
 
   /*!
    * \brief Returns the unique \p VirtualDevice structurally equal to the given \p virtual_device.

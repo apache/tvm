@@ -104,7 +104,7 @@ struct ToVDeviceAttrs : public AttrsNodeReflAdapter<ToVDeviceAttrs> {
 struct HintOnDeviceAttrs : public AttrsNodeReflAdapter<HintOnDeviceAttrs> {
   int32_t device_type;
   int32_t index;
-  ffi::String memory_scope;
+  MemoryScope memory_scope;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;

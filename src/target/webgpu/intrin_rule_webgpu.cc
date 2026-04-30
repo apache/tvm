@@ -163,21 +163,21 @@ TVM_REGISTER_OP("tirx.webgpu.subgroup_shuffle")
     .set_num_inputs(2)
     .add_argument("var", "Expr", "The variable to sync.")
     .add_argument("lane", "Expr", "The source thread id.")
-    .set_attr<ffi::String>("TGlobalSymbol", "subgroupShuffle")
+    .set_attr<TGlobalSymbol>("TGlobalSymbol", "subgroupShuffle")
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
 TVM_REGISTER_OP("tirx.webgpu.subgroup_shuffle_up")
     .set_num_inputs(2)
     .add_argument("var", "Expr", "The variable to sync.")
     .add_argument("delta", "Expr", "The source lane id offset to be added.")
-    .set_attr<ffi::String>("TGlobalSymbol", "subgroupShuffleUp")
+    .set_attr<TGlobalSymbol>("TGlobalSymbol", "subgroupShuffleUp")
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
 TVM_REGISTER_OP("tirx.webgpu.subgroup_shuffle_down")
     .set_num_inputs(2)
     .add_argument("var", "Expr", "The variable to sync.")
     .add_argument("delta", "Expr", "The source lane id offset to be subtracted.")
-    .set_attr<ffi::String>("TGlobalSymbol", "subgroupShuffleDown")
+    .set_attr<TGlobalSymbol>("TGlobalSymbol", "subgroupShuffleDown")
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
 }  // namespace intrin

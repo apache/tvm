@@ -36,7 +36,7 @@ using NDIntSet = std::vector<arith::IntSet>;
  * \param region The region.
  * \return The constructed set.
  */
-inline NDIntSet NDIntSetFromRegion(const ffi::Array<Range>& region) {
+inline NDIntSet NDIntSetFromRegion(const tirx::Region& region) {
   NDIntSet result;
   result.reserve(region.size());
   for (const Range& range : region) {

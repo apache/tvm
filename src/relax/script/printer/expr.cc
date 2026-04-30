@@ -30,32 +30,32 @@ namespace printer {
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::PrimValue>(  //
-        "", [](relax::PrimValue n, ffi::reflection::AccessPath n_p, IRDocsifier d) -> Doc {
+        "", [](relax::PrimValue n, AccessPath n_p, IRDocsifier d) -> Doc {
           // TODO(@junrushao): float numbers
           return Relax(d, "prim_value")->Call({d->AsDoc<ExprDoc>(n->value, n_p->Attr("value"))});
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::StringImm>(  //
-        "", [](relax::StringImm n, ffi::reflection::AccessPath n_p, IRDocsifier d) -> Doc {
+        "", [](relax::StringImm n, AccessPath n_p, IRDocsifier d) -> Doc {
           return Relax(d, "str")->Call({LiteralDoc::Str(n->value, n_p->Attr("value"))});
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::DataTypeImm>(  //
-        "", [](relax::DataTypeImm n, ffi::reflection::AccessPath n_p, IRDocsifier d) -> Doc {
+        "", [](relax::DataTypeImm n, AccessPath n_p, IRDocsifier d) -> Doc {
           return Relax(d, "dtype")->Call({LiteralDoc::DataType(n->value, n_p->Attr("value"))});
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::Tuple>(  //
-        "", [](relax::Tuple n, ffi::reflection::AccessPath n_p, IRDocsifier d) -> Doc {
+        "", [](relax::Tuple n, AccessPath n_p, IRDocsifier d) -> Doc {
           // TODO(@junrushao): revisit tuple printing
           if (n->fields.empty()) {
             return Relax(d, "tuple")->Call({});
           }
           ffi::Array<ExprDoc> fields_doc;
-          ffi::reflection::AccessPath fields_p = n_p->Attr("fields");
+          AccessPath fields_p = n_p->Attr("fields");
           for (int i = 0, l = n->fields.size(); i < l; ++i) {
             fields_doc.push_back(d->AsDoc<ExprDoc>(n->fields[i], fields_p->ArrayItem(i)));
           }
@@ -64,24 +64,23 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::TupleGetItem>(  //
-        "", [](relax::TupleGetItem n, ffi::reflection::AccessPath n_p, IRDocsifier d) -> Doc {
+        "", [](relax::TupleGetItem n, AccessPath n_p, IRDocsifier d) -> Doc {
           ExprDoc idx = LiteralDoc::Int(n->index, n_p->Attr("index"));
           return d->AsDoc<ExprDoc>(n->tuple, n_p->Attr("tuple"))[{idx}];
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::ShapeExpr>(  //
-        "", [](relax::ShapeExpr n, ffi::reflection::AccessPath n_p, IRDocsifier d) -> Doc {
+        "", [](relax::ShapeExpr n, AccessPath n_p, IRDocsifier d) -> Doc {
           ffi::Array<ExprDoc> values_doc;
-          ffi::reflection::AccessPath values_p = n_p->Attr("values");
+          AccessPath values_p = n_p->Attr("values");
           for (int i = 0, l = n->values.size(); i < l; ++i) {
             values_doc.push_back(PrintShapeVar(n->values[i], values_p->ArrayItem(i), d));
           }
           return Relax(d, "shape")->Call({ListDoc(values_doc)});
         });
 
-ffi::Optional<ExprDoc> SpecialScalar(const runtime::Tensor& n,
-                                     const ffi::reflection::AccessPath& p) {
+ffi::Optional<ExprDoc> SpecialScalar(const runtime::Tensor& n, const AccessPath& p) {
   DataType dtype = n.DataType();
   const void* data = n->data;
   if (n->ndim != 0 || n->device.device_type != kDLCPU) {
@@ -136,7 +135,7 @@ ffi::Optional<ExprDoc> SpecialScalar(const runtime::Tensor& n,
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::Constant>(  //
-        "", [](relax::Constant n, ffi::reflection::AccessPath n_p, IRDocsifier d) -> Doc {
+        "", [](relax::Constant n, AccessPath n_p, IRDocsifier d) -> Doc {
           if (ffi::Optional<ExprDoc> s = SpecialScalar(n->data, n_p->Attr("data"))) {
             if (n->struct_info_.as<relax::distributed::DTensorStructInfoNode>()) {
               ExprDoc ann = d->AsDoc<ExprDoc>(n->struct_info_, n_p->Attr("struct_info_"));
@@ -151,7 +150,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           return d->AddMetadata(n);
         });
 
-Doc PrintRelaxVar(relax::Var n, ffi::reflection::AccessPath p, IRDocsifier d) {
+Doc PrintRelaxVar(relax::Var n, AccessPath p, IRDocsifier d) {
   if (!d->IsVarDefined(n)) {
     ExprDoc ann = d->AsDoc<ExprDoc>(n->struct_info_, p->Attr("struct_info_"));
     Frame f = d->frames.back();

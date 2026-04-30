@@ -32,6 +32,11 @@
 namespace tvm {
 
 /*!
+ * \brief Abstract label for an area of memory.
+ */
+using MemoryScope = ffi::String;
+
+/*!
  * \brief GlobalInfo are globally static object that are referred by the IR itself.
  *        Base node for all global info that can appear in the IR
  */
@@ -62,7 +67,7 @@ class VDeviceNode : public GlobalInfoNode {
    * differentiate between distinct devices with same Target, such as multiple GPUs.
    */
   int vdevice_id;
-  ffi::String memory_scope;
+  MemoryScope memory_scope;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -81,7 +86,7 @@ class VDeviceNode : public GlobalInfoNode {
  */
 class VDevice : public GlobalInfo {
  public:
-  TVM_DLL explicit VDevice(Target tgt, int dev_id, ffi::String mem_scope);
+  TVM_DLL explicit VDevice(Target tgt, int dev_id, MemoryScope mem_scope);
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(VDevice, GlobalInfo, VDeviceNode);
 };
 

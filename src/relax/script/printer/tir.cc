@@ -42,7 +42,7 @@ RelaxFrameNode* GetRelaxFrame(IRDocsifier d) {
   return f;
 }
 
-Doc PrintTIRVar(tirx::Var n, ffi::reflection::AccessPath n_p, IRDocsifier d) {
+Doc PrintTIRVar(tirx::Var n, AccessPath n_p, IRDocsifier d) {
   TVM_FFI_CHECK(n->dtype.is_scalar(), TypeError)
       << "Relax only uses scalar TIR variables,"
       << "but received TIR variable " << n << " with dtype " << n->dtype;
@@ -74,8 +74,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable).set_dispatch<tirx::Var>("relax", Prin
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable).set_dispatch<tirx::SizeVar>("relax", PrintTIRVar);
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tvm::IntImm>(                                                              //
-        "relax", [](tvm::IntImm n, ffi::reflection::AccessPath n_p, IRDocsifier d) -> Doc {  //
+    .set_dispatch<tvm::IntImm>(                                             //
+        "relax", [](tvm::IntImm n, AccessPath n_p, IRDocsifier d) -> Doc {  //
           // TODO(@junrushao): support non-int64 cases
           if (n->dtype.is_bool()) {
             return LiteralDoc::Boolean(n->value, n_p);
@@ -85,8 +85,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tvm::GlobalVar>(                                                              //
-        "relax", [](tvm::GlobalVar n, ffi::reflection::AccessPath n_p, IRDocsifier d) -> Doc {  //
+    .set_dispatch<tvm::GlobalVar>(                                             //
+        "relax", [](tvm::GlobalVar n, AccessPath n_p, IRDocsifier d) -> Doc {  //
           if (ffi::Optional<ExprDoc> doc = d->GetVarDoc(n)) {
             return doc.value();
           } else {
@@ -97,8 +97,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tvm::IRModule>(                                                                //
-        "relax", [](tvm::IRModule mod, ffi::reflection::AccessPath n_p, IRDocsifier d) -> Doc {  //
+    .set_dispatch<tvm::IRModule>(                                               //
+        "relax", [](tvm::IRModule mod, AccessPath n_p, IRDocsifier d) -> Doc {  //
           ffi::Optional<ExprDoc> doc = d->GetVarDoc(mod);
           TVM_FFI_ICHECK(doc) << "Unable to print IRModule before definition in Relax.";
           if (d->cfg->module_alias.empty()) {
@@ -118,14 +118,13 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<Range>("relax",
-                         [](Range range, ffi::reflection::AccessPath p, IRDocsifier d) -> Doc {
-                           return Relax(d, "Range")
-                               ->Call({
-                                   d->AsDoc<ExprDoc>(range->min, p->Attr("min")),
-                                   d->AsDoc<ExprDoc>(range->extent + range->min, p->Attr("extent")),
-                               });
-                         });
+    .set_dispatch<Range>("relax", [](Range range, AccessPath p, IRDocsifier d) -> Doc {
+      return Relax(d, "Range")
+          ->Call({
+              d->AsDoc<ExprDoc>(range->min, p->Attr("min")),
+              d->AsDoc<ExprDoc>(range->extent + range->min, p->Attr("extent")),
+          });
+    });
 
 }  // namespace printer
 }  // namespace script

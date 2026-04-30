@@ -24,7 +24,7 @@ namespace printer {
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<ffi::Array<Any>>(  //
-        "", [](ffi::Array<Any> array, ffi::reflection::AccessPath p, IRDocsifier d) -> Doc {
+        "", [](ffi::Array<Any> array, AccessPath p, IRDocsifier d) -> Doc {
           int n = array.size();
           ffi::Array<ExprDoc> results;
           results.reserve(n);
@@ -36,7 +36,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<ffi::Map<Any, Any>>(  //
-        "", [](ffi::Map<Any, Any> dict, ffi::reflection::AccessPath p, IRDocsifier d) -> Doc {
+        "", [](ffi::Map<Any, Any> dict, AccessPath p, IRDocsifier d) -> Doc {
           using POO = std::pair<Any, Any>;
           std::vector<POO> items{dict.begin(), dict.end()};
           bool is_str_map = true;

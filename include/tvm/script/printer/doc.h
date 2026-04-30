@@ -31,6 +31,8 @@ namespace tvm {
 namespace script {
 namespace printer {
 
+using AccessPath = ffi::reflection::AccessPath;
+
 // Forward declaration
 class Doc;
 
@@ -61,7 +63,7 @@ class DocNode : public ffi::Object {
    * this Doc is generated, in order to position the diagnostic
    * message.
    */
-  mutable ffi::Array<ffi::reflection::AccessPath> source_paths;
+  mutable ffi::Array<AccessPath> source_paths;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -258,15 +260,14 @@ class LiteralDocNode : public ExprDocNode {
  */
 class LiteralDoc : public ExprDoc {
  protected:
-  explicit LiteralDoc(ffi::Any value,
-                      const ffi::Optional<ffi::reflection::AccessPath>& object_path);
+  explicit LiteralDoc(ffi::Any value, const ffi::Optional<AccessPath>& object_path);
 
  public:
   /*!
    * \brief Create a LiteralDoc to represent None/null/empty value.
    * \param p The object path
    */
-  static LiteralDoc None(const ffi::Optional<ffi::reflection::AccessPath>& p) {
+  static LiteralDoc None(const ffi::Optional<AccessPath>& p) {
     return LiteralDoc(ffi::Any(nullptr), p);
   }
   /*!
@@ -274,7 +275,7 @@ class LiteralDoc : public ExprDoc {
    * \param v The integer value.
    * \param p The object path
    */
-  static LiteralDoc Int(int64_t v, const ffi::Optional<ffi::reflection::AccessPath>& p) {
+  static LiteralDoc Int(int64_t v, const ffi::Optional<AccessPath>& p) {
     return LiteralDoc(IntImm(DataType::Int(64), v), p);
   }
   /*!
@@ -282,7 +283,7 @@ class LiteralDoc : public ExprDoc {
    * \param v The boolean value.
    * \param p The object path
    */
-  static LiteralDoc Boolean(bool v, const ffi::Optional<ffi::reflection::AccessPath>& p) {
+  static LiteralDoc Boolean(bool v, const ffi::Optional<AccessPath>& p) {
     return LiteralDoc(IntImm(DataType::Bool(), v), p);
   }
   /*!
@@ -290,7 +291,7 @@ class LiteralDoc : public ExprDoc {
    * \param v The float value.
    * \param p The object path
    */
-  static LiteralDoc Float(double v, const ffi::Optional<ffi::reflection::AccessPath>& p) {
+  static LiteralDoc Float(double v, const ffi::Optional<AccessPath>& p) {
     return LiteralDoc(FloatImm(DataType::Float(64), v), p);
   }
   /*!
@@ -298,7 +299,7 @@ class LiteralDoc : public ExprDoc {
    * \param v The string value.
    * \param p The object path
    */
-  static LiteralDoc Str(const ffi::String& v, const ffi::Optional<ffi::reflection::AccessPath>& p) {
+  static LiteralDoc Str(const ffi::String& v, const ffi::Optional<AccessPath>& p) {
     return LiteralDoc(v, p);
   }
   /*!
@@ -306,8 +307,7 @@ class LiteralDoc : public ExprDoc {
    * \param v The string value.
    * \param p The object path
    */
-  static LiteralDoc DataType(const runtime::DataType& v,
-                             const ffi::Optional<ffi::reflection::AccessPath>& p) {
+  static LiteralDoc DataType(const runtime::DataType& v, const ffi::Optional<AccessPath>& p) {
     std::string dtype = v.is_void() ? "void" : ffi::DLDataTypeToString(v);
     return LiteralDoc::Str(dtype, p);
   }
@@ -316,7 +316,7 @@ class LiteralDoc : public ExprDoc {
    * \param v The device.
    * \param p The object path
    */
-  static LiteralDoc Device(const DLDevice& v, const ffi::Optional<ffi::reflection::AccessPath>& p) {
+  static LiteralDoc Device(const DLDevice& v, const ffi::Optional<AccessPath>& p) {
     std::ostringstream os;
     runtime::operator<<(os, v);
     return LiteralDoc::Str(os.str(), p);

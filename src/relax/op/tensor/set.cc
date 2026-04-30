@@ -166,7 +166,7 @@ TVM_REGISTER_OP("relax.unique")
                   "flattened input "
                   "are returned.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoUnique)
-    .set_attr<ffi::String>("FCallPacked", "relax.run.unique")
+    .set_attr<FCallPacked>("FCallPacked", "relax.run.unique")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nonzero */
@@ -189,7 +189,7 @@ TVM_REGISTER_OP("relax.nonzero")
     .set_num_inputs(1)
     .add_argument("x", "Tensor", "The input tensor")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoNonzero)
-    .set_attr<ffi::String>("FCallPacked", "relax.run.nonzero")
+    .set_attr<FCallPacked>("FCallPacked", "relax.run.nonzero")
     .set_attr<Bool>("FPurity", Bool(true));
 
 }  // namespace relax

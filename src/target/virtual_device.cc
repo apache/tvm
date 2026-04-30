@@ -68,7 +68,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 VirtualDevice::VirtualDevice(int device_type_int, int virtual_device_id, Target target,
-                             ffi::String memory_scope) {
+                             MemoryScope memory_scope) {
   TVM_FFI_ICHECK(!target.defined() || device_type_int == target->GetTargetDeviceType())
       << "target " << target->str() << " has device type " << target->GetTargetDeviceType()
       << " but virtual device has device type " << device_type_int;
@@ -118,7 +118,7 @@ ffi::Optional<VirtualDevice> VirtualDevice::Join(const VirtualDevice& lhs,
   } else {
     joined_target = rhs->target;
   }
-  ffi::String joined_memory_scope;
+  MemoryScope joined_memory_scope;
   if (!lhs->memory_scope.empty()) {
     joined_memory_scope = lhs->memory_scope;
     if (!rhs->memory_scope.empty() && lhs->memory_scope != rhs->memory_scope) {
@@ -158,7 +158,7 @@ VirtualDevice VirtualDevice::Default(const VirtualDevice& lhs, const VirtualDevi
     }
     // else: leave as null
   }
-  ffi::String defaulted_memory_scope;
+  MemoryScope defaulted_memory_scope;
   if (!lhs->memory_scope.empty()) {
     defaulted_memory_scope = lhs->memory_scope;
   } else {
@@ -169,7 +169,7 @@ VirtualDevice VirtualDevice::Default(const VirtualDevice& lhs, const VirtualDevi
 }
 
 VirtualDevice VirtualDeviceCache::Make(int device_type, int virtual_device_id, Target target,
-                                       ffi::String memory_scope) {
+                                       MemoryScope memory_scope) {
   VirtualDevice prototype(device_type, virtual_device_id, std::move(target),
                           std::move(memory_scope));
   if (prototype->IsFullyUnconstrained()) {

@@ -36,6 +36,8 @@ namespace tvm {
 namespace script {
 namespace printer {
 
+using AccessPath = ffi::reflection::AccessPath;
+
 //////////////////////// Frame ////////////////////////
 
 class IRDocsifier;
@@ -235,7 +237,7 @@ class IRDocsifierNode : public ffi::Object {
    * \return The Doc object.
    */
   template <class TDoc = Doc>
-  inline TDoc AsDoc(const Any& obj, const ffi::reflection::AccessPath& path) const;
+  inline TDoc AsDoc(const Any& obj, const AccessPath& path) const;
 };
 
 /*!
@@ -243,7 +245,7 @@ class IRDocsifierNode : public ffi::Object {
  */
 class IRDocsifier : public ffi::ObjectRef {
  public:
-  using FType = IRDocsifierFunctor<printer::Doc, ffi::reflection::AccessPath, IRDocsifier>;
+  using FType = IRDocsifierFunctor<printer::Doc, AccessPath, IRDocsifier>;
   /*! \brief Create a IRDocsifier. */
   explicit IRDocsifier(const PrinterConfig& cfg);
   /*! \brief The registration table for IRDocsifier. */
@@ -271,8 +273,7 @@ inline void FrameNode::ExitWithScope() {
 }
 
 template <class TDoc>
-inline static void AddDocDecoration(const Doc& d, const ffi::ObjectRef& obj,
-                                    const ffi::reflection::AccessPath& path,
+inline static void AddDocDecoration(const Doc& d, const ffi::ObjectRef& obj, const AccessPath& path,
                                     const PrinterConfig& cfg) {
   if (cfg->obj_to_annotate.count(obj)) {
     if (const auto* stmt = d.as<StmtDocNode>()) {
@@ -292,7 +293,7 @@ inline static void AddDocDecoration(const Doc& d, const ffi::ObjectRef& obj,
     }
   }
   for (const auto& pair : cfg->path_to_annotate) {
-    ffi::reflection::AccessPath p = pair.first;
+    AccessPath p = pair.first;
     ffi::String attn = pair.second;
     if (p->IsPrefixOf(path) && path->IsPrefixOf(p)) {
       if (const auto* stmt = d.as<StmtDocNode>()) {
@@ -310,8 +311,7 @@ inline static void AddDocDecoration(const Doc& d, const ffi::ObjectRef& obj,
 }
 
 template <class TDoc>
-inline TDoc IRDocsifierNode::AsDoc(const Any& value,
-                                   const ffi::reflection::AccessPath& path) const {
+inline TDoc IRDocsifierNode::AsDoc(const Any& value, const AccessPath& path) const {
   switch (value.type_index()) {
     case ffi::TypeIndex::kTVMFFINone:
       return Downcast<TDoc>(LiteralDoc::None(path));

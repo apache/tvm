@@ -44,7 +44,7 @@ BufferRegion GetRelaxedBufferRegion(const SBlockRealize& realize, const BufferRe
                                     const ffi::Map<Var, arith::IntSet>& dom_map) {
   ffi::Array<arith::IntSet> relaxed_intsets =
       arith::EvalSet(Substitute(buffer_region->region, GetBindings(realize)), dom_map);
-  ffi::Array<Range> relaxed_region;
+  Region relaxed_region;
   relaxed_region.reserve(relaxed_intsets.size());
   for (size_t i = 0; i < relaxed_intsets.size(); ++i) {
     relaxed_region.push_back(
@@ -165,7 +165,7 @@ class RollingBufferInfoCollector {
  private:
   bool MatchRollingBuffer(const StmtSRef& block_sref, const BufferRegion& buffer_region) {
     const Buffer& buffer = buffer_region->buffer;
-    const ffi::Array<Range>& region = buffer_region->region;
+    const Region& region = buffer_region->region;
 
     std::vector<ffi::Optional<Var>> bound_iter_vars;
     std::vector<int> bound_overlaps;

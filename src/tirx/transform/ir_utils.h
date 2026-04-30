@@ -227,7 +227,7 @@ ffi::Array<PrimExpr> ConvertIndices(const MatchBufferRegion& match_buffer,
  * \param region The sub-region of the target buffer
  * \return The region of source buffer.
  */
-ffi::Array<Range> ConvertRegion(const MatchBufferRegion& match_buffer, const ffi::Array<Range>& region);
+Region ConvertRegion(const MatchBufferRegion& match_buffer, const Region& region);
 
 /*!
  * \brief Get stride aware buffer allocation shape from buffer.

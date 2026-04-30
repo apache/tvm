@@ -18,9 +18,9 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/container/array.h>
+#include <tvm/ffi/error.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ffi/error.h>
 #include <tvm/script/printer/doc.h>
 
 namespace tvm {
@@ -83,7 +83,7 @@ StmtBlockDoc::StmtBlockDoc(ffi::Array<StmtDoc> stmts) {
   this->data_ = std::move(n);
 }
 
-LiteralDoc::LiteralDoc(ffi::Any value, const ffi::Optional<ffi::reflection::AccessPath>& object_path) {
+LiteralDoc::LiteralDoc(ffi::Any value, const ffi::Optional<AccessPath>& object_path) {
   ffi::ObjectPtr<LiteralDocNode> n = ffi::make_object<LiteralDocNode>();
   n->value = value;
   if (object_path.defined()) {
@@ -273,7 +273,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "script.printer.DocSetSourcePaths",
-      [](Doc doc, ffi::Array<ffi::reflection::AccessPath> source_paths) { doc->source_paths = source_paths; });
+      [](Doc doc, ffi::Array<AccessPath> source_paths) { doc->source_paths = source_paths; });
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

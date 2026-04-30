@@ -22,14 +22,14 @@ namespace tvm {
 namespace script {
 namespace printer {
 
-Doc PrintBlock(IRDocsifier d, tirx::SBlock block, ffi::reflection::AccessPath block_p,  //
+Doc PrintBlock(IRDocsifier d, tirx::SBlock block, AccessPath block_p,  //
                ffi::Optional<tirx::SBlockRealize> opt_realize,
-               ffi::Optional<ffi::reflection::AccessPath> opt_realize_p) {
+               ffi::Optional<AccessPath> opt_realize_p) {
   With<TIRFrame> frame(d, block);
   TVM_FFI_ICHECK_EQ(opt_realize.defined(), opt_realize_p.defined());
   const tirx::SBlockRealizeNode* realize =
       opt_realize.defined() ? opt_realize.value().get() : nullptr;
-  ffi::reflection::AccessPath realize_p = *opt_realize_p;
+  AccessPath realize_p = *opt_realize_p;
   // Step 1. Handle block var and block bindings
   // Step 1.1. Obtain all loop var defined along path
   std::unordered_map<const tirx::VarNode*, tirx::For> loop_vars;
@@ -69,7 +69,7 @@ Doc PrintBlock(IRDocsifier d, tirx::SBlock block, ffi::reflection::AccessPath bl
 
   auto print_single_iter_var = [&](int i) {
     tirx::IterVar iter_var = block->iter_vars[i];
-    ffi::reflection::AccessPath iter_var_p = block_p->Attr("iter_var")->ArrayItem(i);
+    AccessPath iter_var_p = block_p->Attr("iter_var")->ArrayItem(i);
     ExprDoc rhs = TIR(d, "axis");
     if (iter_var->iter_type == tirx::IterVarType::kDataPar) {
       rhs = rhs->Attr("spatial");
@@ -120,10 +120,10 @@ Doc PrintBlock(IRDocsifier d, tirx::SBlock block, ffi::reflection::AccessPath bl
       lhs.reserve(m);
       loop_var_doc.reserve(m);
       std::string binding_type = "";
-      ffi::Array<ffi::reflection::AccessPath> binding_paths;
+      ffi::Array<AccessPath> binding_paths;
       for (int i : remap_vars_indices) {
         tirx::IterVar iter_var = block->iter_vars[i];
-        ffi::reflection::AccessPath iter_var_p = block_p->Attr("iter_vars")->ArrayItem(i);
+        AccessPath iter_var_p = block_p->Attr("iter_vars")->ArrayItem(i);
         lhs.push_back(DefineVar(iter_var->var, *frame, d));
         loop_var_doc.push_back(d->AsDoc<ExprDoc>(realize->iter_values[i],
                                                  realize_p->Attr("iter_values")->ArrayItem(i)));
@@ -180,7 +180,7 @@ Doc PrintBlock(IRDocsifier d, tirx::SBlock block, ffi::reflection::AccessPath bl
   // Step 5. Handle `alloc_buffer`
   for (int i = 0, n = block->alloc_buffers.size(); i < n; ++i) {
     tirx::Buffer buffer = block->alloc_buffers[i];
-    ffi::reflection::AccessPath buffer_p = block_p->Attr("alloc_buffers")->ArrayItem(i);
+    AccessPath buffer_p = block_p->Attr("alloc_buffers")->ArrayItem(i);
     IdDoc lhs = DefineBuffer(buffer, *frame, d);
     ExprDoc rhs = BufferDecl(buffer, "sblock_alloc_buffer", {}, buffer_p, *frame, d,
                              BufferVarDefinition::DataPointer);
@@ -189,7 +189,7 @@ Doc PrintBlock(IRDocsifier d, tirx::SBlock block, ffi::reflection::AccessPath bl
   // Step 6. Handle `match_buffer`
   for (int i = 0, n = block->match_buffers.size(); i < n; ++i) {
     tirx::MatchBufferRegion buffer_region = block->match_buffers[i];
-    ffi::reflection::AccessPath buffer_region_p = block_p->Attr("match_buffers")->ArrayItem(i);
+    AccessPath buffer_region_p = block_p->Attr("match_buffers")->ArrayItem(i);
     StmtDoc doc = d->AsDoc<StmtDoc>(buffer_region, buffer_region_p);
     (*frame)->stmts.push_back(doc);
   }
@@ -218,7 +218,7 @@ Doc PrintBlock(IRDocsifier d, tirx::SBlock block, ffi::reflection::AccessPath bl
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tirx::SBlockRealize>(
-        "", [](tirx::SBlockRealize realize, ffi::reflection::AccessPath p, IRDocsifier d) -> Doc {
+        "", [](tirx::SBlockRealize realize, AccessPath p, IRDocsifier d) -> Doc {
           Doc doc = PrintBlock(d, realize->block, p->Attr("block"), realize, p);
           // since we do not have d->AsDoc for realize->block,
           // we should add possible doc decoration manually.
@@ -227,7 +227,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tirx::SBlock>("", [](tirx::SBlock block, ffi::reflection::AccessPath p, IRDocsifier d) -> Doc {
+    .set_dispatch<tirx::SBlock>("", [](tirx::SBlock block, AccessPath p, IRDocsifier d) -> Doc {
       return PrintBlock(d, block, p, std::nullopt, std::nullopt);
     });
 
