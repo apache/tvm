@@ -27,6 +27,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/timer.h>
 
 #include <cstring>
@@ -454,7 +455,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             break;
           default:
             TVM_FFI_THROW(InternalError)
-                << "Unsupported data type " << runtime::DLDataTypeToString(tensor_dtype);
+                << "Unsupported data type " << ffi::DLDataTypeToString(tensor_dtype);
         }
         break;
       case DataType::kUInt:
@@ -474,7 +475,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             break;
           default:
             TVM_FFI_THROW(InternalError)
-                << "Unsupported data type " << runtime::DLDataTypeToString(tensor_dtype);
+                << "Unsupported data type " << ffi::DLDataTypeToString(tensor_dtype);
         }
         break;
       case DataType::kFloat:
@@ -491,7 +492,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             break;
           default:
             TVM_FFI_THROW(InternalError)
-                << "Unsupported data type " << runtime::DLDataTypeToString(tensor_dtype);
+                << "Unsupported data type " << ffi::DLDataTypeToString(tensor_dtype);
         }
         break;
       case DataType::kBFloat:
@@ -502,7 +503,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             break;
           default:
             TVM_FFI_THROW(InternalError)
-                << "Unsupported data type " << runtime::DLDataTypeToString(tensor_dtype);
+                << "Unsupported data type " << ffi::DLDataTypeToString(tensor_dtype);
         }
         break;
       case DataType::kFloat8_e4m3fn:
@@ -515,7 +516,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         break;
       default:
         TVM_FFI_THROW(InternalError)
-            << "Unsupported data type " << runtime::DLDataTypeToString(tensor_dtype);
+            << "Unsupported data type " << ffi::DLDataTypeToString(tensor_dtype);
     }
 
     // sanity checks per cuTensorMapEncodeTiled requirements

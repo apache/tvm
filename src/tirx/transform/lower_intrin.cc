@@ -29,6 +29,7 @@
 #include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/transform.h>
+#include <tvm/runtime/logging.h>
 
 #include <limits>
 #include <unordered_set>

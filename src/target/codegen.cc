@@ -35,6 +35,7 @@
 
 #include <cstdint>
 #include <cstring>
+#include <iomanip>
 #include <sstream>
 #include <unordered_set>
 #include <vector>
@@ -109,7 +110,7 @@ class ModuleSerializer {
     uint64_t module_index = 0;
 
     auto fpush_imports_to_stack = [&](ffi::ModuleObj* node) {
-      for (Any m : node->imports()) {
+      for (ffi::Any m : node->imports()) {
         ffi::ModuleObj* next = m.cast<ffi::Module>().operator->();
         if (visited.count(next) == 0) {
           visited.insert(next);
@@ -177,7 +178,7 @@ class ModuleSerializer {
     for (size_t parent_index = 0; parent_index < mod_group_vec_.size(); ++parent_index) {
       child_indices.clear();
       for (const auto* m : mod_group_vec_[parent_index]) {
-        for (Any im : m->imports()) {
+        for (ffi::Any im : m->imports()) {
           uint64_t mod_index = mod2index_.at(im.cast<ffi::Module>().operator->());
           // skip cycle when dso modules are merged together
           if (mod_index != parent_index) {

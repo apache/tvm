@@ -20,6 +20,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 #include <tvm/script/ir_builder/ir/ir.h>
+#include <tvm/runtime/logging.h>
 
 #include "./utils.h"
 

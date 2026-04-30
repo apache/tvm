@@ -31,6 +31,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/support/io.h>
 #include <tvm/support/serializer.h>
+#include <tvm/runtime/logging.h>
 
 #include <iostream>
 

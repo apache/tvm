@@ -25,6 +25,7 @@
 #include <tvm/ffi/extra/serialization.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/base.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/script/printer/config.h>
 #include <tvm/script/printer/ir_docsifier.h>
 
@@ -122,7 +123,7 @@ inline ExprDoc Relax(const IRDocsifier& d, const ffi::String& attr) {
 }
 
 inline std::string DType2Str(const runtime::DataType& dtype) {
-  return dtype.is_void() ? "void" : runtime::DLDataTypeToString(dtype);
+  return dtype.is_void() ? "void" : ffi::DLDataTypeToString(dtype);
 }
 
 /*! \brief Add headers as comments to doc if needed */

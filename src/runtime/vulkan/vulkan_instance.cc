@@ -18,6 +18,7 @@
  */
 
 #include "vulkan_instance.h"
+#include <tvm/runtime/logging.h>
 
 #include <cstdlib>
 #include <utility>
@@ -81,8 +82,8 @@ VulkanInstance::VulkanInstance() {
   {
     // Result from vkGetInstanceProcAddr is NULL if driver only
     // supports vulkan 1.0.
-    auto vkEnumerateInstanceVersion =
-        (PFN_vkEnumerateInstanceVersion)vkGetInstanceProcAddr(NULL, "vkEnumerateInstanceVersion");
+    auto vkEnumerateInstanceVersion = (PFN_vkEnumerateInstanceVersion)vkGetInstanceProcAddr(
+        nullptr, "vkEnumerateInstanceVersion");
     if (vkEnumerateInstanceVersion) {
       vkEnumerateInstanceVersion(&api_version);
     }
