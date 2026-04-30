@@ -136,6 +136,7 @@ class OperatorConverter:
             "DEPTHWISE_CONV_2D": functools.partial(self.convert_conv, conv_type="depthwise"),
             "DEQUANTIZE": self.convert_dequantize,
             "DETECTION_POSTPROCESS": self.convert_detection_postprocess,
+            "DILATE": self.convert_dilate,
             "DIV": functools.partial(self._convert_elemwise, relax_op=_op.divide),
             "ELU": self.convert_elu,
             "EQUAL": functools.partial(
@@ -3415,6 +3416,53 @@ class OperatorConverter:
         out = self.dequantize(in_expr, input_tensor)
 
         return out
+
+    def convert_dilate(self, op):
+        """Convert TFLite DILATE"""
+        input_tensors = self.get_input_tensors(op)
+        output_tensors = self.get_output_tensors(op)
+        assert len(input_tensors) == 3, "input tensors length should be 3"
+        assert len(output_tensors) == 1, "output tensors length should be 1"
+
+        in_expr = self.get_tensor_expr(input_tensors[0])
+        in_shape = to_int_list(self.get_tensor_shape(input_tensors[0]))
+        in_dtype = self.get_tensor_type_str(input_tensors[0].tensor.Type())
+        n_dims = len(in_shape)
+        n_elements = int(np.prod(in_shape))
+
+        dilations_tensor = input_tensors[1]
+        padding_value_tensor = input_tensors[2]
+        padding_expr = self.get_tensor_expr(padding_value_tensor)
+
+        # Multi-index per input element, shape [n_elements, n_dims].
+        base_indices_np = np.array(list(np.ndindex(*in_shape)), dtype=np.int64)
+        base_indices = relax.const(base_indices_np, dtype="int64")
+
+        if self.has_expr(dilations_tensor.tensor_idx):
+            dilations_expr = self.get_expr(dilations_tensor.tensor_idx)
+            dilations_expr = self.bb.match_cast(
+                dilations_expr, relax.TensorStructInfo([n_dims], "int32")
+            )
+            dilations_int64 = self.bb.normalize(relax.op.astype(dilations_expr, "int64"))
+            shape_var = self.bb.emit(relax.op.tensor_to_shape(dilations_int64))
+            stride_vars = [tirx.Var(f"dilate_stride_{i}", "int64") for i in range(n_dims)]
+            self.bb.match_cast(shape_var, relax.ShapeStructInfo(stride_vars))
+            # Standard dilation output formula: (input - 1) * stride + 1 per axis.
+            out_shape = relax.ShapeExpr(
+                [(in_shape[i] - 1) * stride_vars[i] + 1 for i in range(n_dims)]
+            )
+            indices = relax.op.multiply(base_indices, dilations_int64)
+        else:
+            # Can fold into static values for constant dilation
+            strides = to_int_list(self.get_tensor_value(dilations_tensor))
+            out_shape = [(in_shape[i] - 1) * strides[i] + 1 for i in range(n_dims)]
+            indices = relax.const(
+                base_indices_np * np.array(strides, dtype=np.int64), dtype="int64"
+            )
+
+        filled = relax.op.full(out_shape, padding_expr, dtype=in_dtype)
+        flat_input = relax.op.reshape(in_expr, [n_elements])
+        return relax.op.scatter_nd(filled, indices, flat_input, reduction="update")
 
     def convert_detection_postprocess(self, op):
         """Convert TFLite_Detection_PostProcess"""
