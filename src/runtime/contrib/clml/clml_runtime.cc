@@ -36,6 +36,7 @@
 #include "clml_utils.h"
 #endif
 
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/timer.h>
 
 namespace tvm {

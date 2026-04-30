@@ -33,6 +33,7 @@
 #include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
+#include <tvm/runtime/logging.h>
 
 #include <unordered_map>
 #include <vector>

@@ -21,6 +21,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/meta_schedule/schedule_rule.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/runtime/logging.h>
 
 #include <algorithm>
 #include <utility>

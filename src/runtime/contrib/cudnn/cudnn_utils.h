@@ -25,8 +25,8 @@
 #define TVM_RUNTIME_CONTRIB_CUDNN_CUDNN_UTILS_H_
 
 #include <cudnn.h>
+#include <tvm/ffi/error.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/logging.h>
 
 #include <string>
 

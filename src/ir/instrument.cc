@@ -26,8 +26,10 @@
 #include <tvm/ir/instrument.h>
 #include <tvm/ir/repr.h>
 #include <tvm/ir/transform.h>
+#include <tvm/runtime/logging.h>
 
 #include <chrono>
+#include <iomanip>
 #include <stack>
 
 namespace tvm {

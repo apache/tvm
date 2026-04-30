@@ -32,6 +32,7 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relax/utils.h>
+#include <tvm/runtime/logging.h>
 
 #include "../../support/utils.h"
 

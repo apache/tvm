@@ -49,7 +49,7 @@ namespace tirx {
  * generation for packed function parameters. The primary public method is
  * DecodeAllParams(), which handles everything: type index extraction,
  * type checking (TypeError), value loading, scalar binding, buffer
- * binding, and rich error message generation with AccessPath.
+ * binding, and rich error message generation with ffi::reflection::AccessPath.
  *
  * ## Generated statement ordering
  *
@@ -85,7 +85,7 @@ namespace tirx {
  */
 class TVMFFIABIBuilder {
  public:
-  /*! \brief Variable definition info: bound value and the AccessPath where first defined. */
+  /*! \brief Variable definition info: bound value and the ffi::reflection::AccessPath where first defined. */
   struct VarDefInfo {
     PrimExpr value;
     ffi::reflection::AccessPath first_def_path;
@@ -221,10 +221,10 @@ class TVMFFIABIBuilder {
    */
   PrimExpr DecodeParamFloat(int param_index, const Var& type_index, DataType dtype);
 
-  // ── Private binding submethods (all take AccessPath) ───────────
+  // ── Private binding submethods (all take ffi::reflection::AccessPath) ───────────
 
   /*!
-   * \brief Internal scalar bind with AccessPath tracking and rich error messages.
+   * \brief Internal scalar bind with ffi::reflection::AccessPath tracking and rich error messages.
    *
    * Binds \p arg to \p value. If arg is a Var not yet in var_defs_, creates a
    * new definition (Bind to init_nest_); otherwise emits a rich assertion
@@ -232,36 +232,36 @@ class TVMFFIABIBuilder {
    *
    * When arg is a non-Var expression (e.g. batch_size + 1), the assertion is
    * deferred to Finalize() so display-var substitution can render the expression
-   * using AccessPath names (e.g. "k.shape[0] + 1" instead of "batch_size + 1").
+   * using ffi::reflection::AccessPath names (e.g. "k.shape[0] + 1" instead of "batch_size + 1").
    *
    * \param arg The argument expression to bind (typically a Var or constant).
    * \param value The value expression to bind to the argument.
    * \param with_lets If true, emit Bind bindings into init_nest_.
-   * \param path AccessPath for rich error message rendering.
+   * \param path ffi::reflection::AccessPath for rich error message rendering.
    * \return True if this was the first bind (definition created), false otherwise.
    */
   bool BindScalar(const PrimExpr& arg, const PrimExpr& value,
                   const ffi::reflection::AccessPath& path, bool with_lets);
 
   /*!
-   * \brief Array bind: binds element-wise with AccessPath[k] for each element.
+   * \brief Array bind: binds element-wise with ffi::reflection::AccessPath[k] for each element.
    *
    * \param arg The expected array of expressions.
    * \param value The actual array of expressions to bind against.
-   * \param base_path Base AccessPath; each element appends ArrayItem(k).
+   * \param base_path Base ffi::reflection::AccessPath; each element appends ArrayItem(k).
    */
   void BindArray(const ffi::Array<PrimExpr>& arg, const ffi::Array<PrimExpr>& value,
                  const ffi::reflection::AccessPath& base_path);
 
   /*!
-   * \brief Buffer-to-buffer bind with AccessPath.
+   * \brief Buffer-to-buffer bind with ffi::reflection::AccessPath.
    *
    * Binds data, elem_offset, shape, and strides of \p arg against \p value,
    * emitting assertions for any mismatches.
    *
    * \param arg The expected buffer definition.
    * \param value The actual buffer to bind against.
-   * \param base_path Base AccessPath for the buffer parameter.
+   * \param base_path Base ffi::reflection::AccessPath for the buffer parameter.
    * \param fuzzy_match If true, allow value to have more dimensions than arg.
    */
   void BindBuffer(const Buffer& arg, const Buffer& value, ffi::reflection::AccessPath base_path,
@@ -275,7 +275,7 @@ class TVMFFIABIBuilder {
    * \param device_id The expected device id expression.
    * \param handle The variable holding the DLTensor handle.
    * \param arg_name Human-readable name for error messages.
-   * \param base_path Base AccessPath for the tensor parameter.
+   * \param base_path Base ffi::reflection::AccessPath for the tensor parameter.
    */
   void DecodeParamDLTensor(const Buffer& buffer, const PrimExpr& device_type,
                            const PrimExpr& device_id, const Var& handle,
@@ -310,7 +310,7 @@ class TVMFFIABIBuilder {
    * \param buffer The expected buffer definition.
    * \param strides_ptr The strides pointer variable.
    * \param v_strides_is_null Expression checking if strides pointer is NULL.
-   * \param param_path AccessPath for the tensor parameter.
+   * \param param_path ffi::reflection::AccessPath for the tensor parameter.
    */
   void BindCompactStrides(const Buffer& buffer, const Var& strides_ptr,
                           const PrimExpr& v_strides_is_null,
@@ -322,7 +322,7 @@ class TVMFFIABIBuilder {
    * \param buffer The expected buffer definition.
    * \param strides_ptr The strides pointer variable.
    * \param v_strides_is_null Expression checking if strides pointer is NULL.
-   * \param param_path AccessPath for the tensor parameter.
+   * \param param_path ffi::reflection::AccessPath for the tensor parameter.
    */
   void BindAutoBroadcastStrides(const Buffer& buffer, const Var& strides_ptr,
                                 const PrimExpr& v_strides_is_null,
@@ -335,7 +335,7 @@ class TVMFFIABIBuilder {
    * \param strides_ptr The strides pointer variable.
    * \param shape_ptr The shape pointer variable (for computing C-contiguous strides).
    * \param v_strides_is_null Expression checking if strides pointer is NULL.
-   * \param param_path AccessPath for the tensor parameter.
+   * \param param_path ffi::reflection::AccessPath for the tensor parameter.
    */
   void BindRegularStrides(const Buffer& buffer, const Var& strides_ptr, const Var& shape_ptr,
                           const PrimExpr& v_strides_is_null,
@@ -356,15 +356,15 @@ class TVMFFIABIBuilder {
   void EmitTypeIndexCheck(int param_index, const PrimExpr& cond, const std::string& expected_type);
 
   /*!
-   * \brief Render an AccessPath as a human-readable string (e.g. "a.shape[0]").
-   * \param path The AccessPath to render.
+   * \brief Render an ffi::reflection::AccessPath as a human-readable string (e.g. "a.shape[0]").
+   * \param path The ffi::reflection::AccessPath to render.
    * \return A human-readable string representation of the path.
    */
   ffi::String RenderAccessPath(const ffi::reflection::AccessPath& path) const;
 
   /*!
    * \brief Extract param_index from the root ArrayItem step of a path.
-   * \param path The AccessPath to extract the index from.
+   * \param path The ffi::reflection::AccessPath to extract the index from.
    * \return The param index, or -1 if not found.
    */
   int GetParamIndex(const ffi::reflection::AccessPath& path) const;
@@ -373,7 +373,7 @@ class TVMFFIABIBuilder {
    * \brief Render pending constant-expression assertions with display-var substitution.
    *
    * For each pending assertion, substitutes known variable names with their
-   * AccessPath-rendered names (e.g. batch_size → "k.shape[0]") so error messages
+   * ffi::reflection::AccessPath-rendered names (e.g. batch_size → "k.shape[0]") so error messages
    * show human-readable expressions like "k.shape[0] + 1" instead of "batch_size + 1".
    */
   void RenderPendingAsserts();
@@ -416,7 +416,7 @@ class TVMFFIABIBuilder {
   PrimExpr device_type_;
   /*! \brief The device id variable. */
   PrimExpr device_id_;
-  /*! \brief Map from param_index to param_name for AccessPath rendering. */
+  /*! \brief Map from param_index to param_name for ffi::reflection::AccessPath rendering. */
   std::unordered_map<int, std::string> param_names_;
 
   // Pre-cached common message fragments for string sharing across assertions
