@@ -231,8 +231,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       return PrintBlock(d, block, p, std::nullopt, std::nullopt);
     });
 
-TVM_SCRIPT_REPR(tirx::SBlockNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::SBlockRealizeNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::SBlockNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::SBlockRealizeNode, ReprPrintTIR);
 
 }  // namespace printer
 }  // namespace script

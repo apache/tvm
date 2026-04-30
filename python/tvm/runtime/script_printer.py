@@ -34,10 +34,7 @@ class PrinterConfig(Object):
     binding_names: Sequence[str]
     show_meta: bool
     ir_prefix: str
-    tir_prefix: str
-    relax_prefix: str
     module_alias: str
-    buffer_dtype: str
     int_dtype: str
     float_dtype: str
     verbose_expr: bool
@@ -46,7 +43,7 @@ class PrinterConfig(Object):
     num_context_lines: int
     syntax_sugar: bool
     show_object_address: bool
-    show_all_struct_info: bool
+    extra_config: dict
     path_to_underline: list[AccessPath] | None
     path_to_annotate: dict[AccessPath, str] | None
     obj_to_underline: list[AccessPath] | None
@@ -81,10 +78,7 @@ class PrinterConfig(Object):
         cfg = {
             "show_meta": show_meta,
             "ir_prefix": ir_prefix,
-            "tir_prefix": tir_prefix,
-            "relax_prefix": relax_prefix,
             "module_alias": module_alias,
-            "buffer_dtype": buffer_dtype,
             "int_dtype": int_dtype,
             "float_dtype": float_dtype,
             "verbose_expr": verbose_expr,
@@ -93,11 +87,15 @@ class PrinterConfig(Object):
             "num_context_lines": num_context_lines,
             "syntax_sugar": syntax_sugar,
             "show_object_address": show_object_address,
-            "show_all_struct_info": show_all_struct_info,
             "path_to_underline": path_to_underline,
             "path_to_annotate": path_to_annotate,
             "obj_to_underline": obj_to_underline,
             "obj_to_annotate": obj_to_annotate,
+            # Dialect-specific config via dotted keys in extra_config
+            "tirx.prefix": tir_prefix,
+            "tirx.buffer_dtype": buffer_dtype,
+            "relax.prefix": relax_prefix,
+            "relax.show_all_struct_info": show_all_struct_info,
         }
 
         if name is not None:

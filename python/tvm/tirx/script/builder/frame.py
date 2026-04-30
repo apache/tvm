@@ -18,9 +18,8 @@
 
 from tvm_ffi import register_object as _register_object
 
+from tvm.script.ir_builder.base import IRBuilderFrame
 from tvm.tirx import Var
-
-from ..base import IRBuilderFrame
 
 
 @_register_object("script.ir_builder.tirx.TIRFrame")

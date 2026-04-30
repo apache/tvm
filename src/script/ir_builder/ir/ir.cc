@@ -19,10 +19,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
-#include <tvm/relax/analysis.h>
 #include <tvm/script/ir_builder/ir/ir.h>
-#include <tvm/tirx/function.h>
-#include <tvm/tirx/op.h>
 
 #include "./utils.h"
 
@@ -38,15 +35,24 @@ IRModuleFrame IRModule() {
   return IRModuleFrame(n);
 }
 
-inline relax::StructInfo GetGlobalVarStructInfo(const BaseFunc& func) {
+// DeclFunction lives at the IR layer because an IRModule may host
+// heterogeneous function kinds (e.g. relax::Function, tirx::PrimFunc).
+// To derive the GlobalVar's struct_info_ without coupling the IR layer to
+// any specific dialect, dispatch is keyed by the function's type-key:
+// each dialect registers its own handler that maps a function of that
+// type to the appropriate struct_info.
+inline ffi::Optional<ffi::ObjectRef> GetGlobalVarStructInfo(const BaseFunc& func) {
   if (func->struct_info_.defined()) {
-    return tvm::relax::GetStructInfo(func);
-  } else if (const auto* prim_func = func.as<tvm::tirx::PrimFuncNode>()) {
-    return tvm::relax::FuncStructInfo::OpaqueFunc(
-        tvm::relax::StructInfoFromType(prim_func->ret_type));
-  } else {
-    TVM_FFI_THROW(InternalError) << "Unsupported function type: " << func->GetTypeKey();
+    return func->struct_info_;
   }
+  // Registry: "script.ir_builder.decl_function.<type-key>" — per-function-kind
+  // handler that derives the GlobalVar struct_info from the function signature.
+  // Grep hint: grep -rn 'script.ir_builder.decl_function.' src/
+  const std::string key = "script.ir_builder.decl_function." + func->GetTypeKey();
+  if (auto fn = tvm::ffi::Function::GetGlobal(key)) {
+    return (*fn)(func).cast<ffi::Optional<ffi::ObjectRef>>();
+  }
+  return std::nullopt;
 }
 
 GlobalVar DeclFunction(const ffi::String& func_name, const BaseFunc& func_signature) {
@@ -54,18 +60,12 @@ GlobalVar DeclFunction(const ffi::String& func_name, const BaseFunc& func_signat
   TVM_FFI_CHECK(!frame->global_var_map.count(func_name), ValueError)
       << "function " << func_name << " already exists";
 
-  auto gvar_type = [&]() -> Type {
-    if (auto prim_func = func_signature.as<tirx::PrimFuncNode>()) {
-      ffi::Array<Type> arg_types =
-          prim_func->params.Map([](const auto& var) { return GetType(var); });
-      return FuncType(arg_types, prim_func->ret_type);
-    }
-
-    return {};
-  }();
-
   GlobalVar gv = GlobalVar(func_name);
-  gv->struct_info_ = GetGlobalVarStructInfo(func_signature);
+  if (auto sinfo = GetGlobalVarStructInfo(func_signature)) {
+    gv->struct_info_ = sinfo.value();
+  } else {
+    TVM_FFI_THROW(InternalError) << "Unsupported function type: " << func_signature->GetTypeKey();
+  }
   TVM_FFI_CHECK(frame->functions.find(gv) == frame->functions.end(), ValueError)
       << "function " << func_name << " has already been defined.";
   frame->global_var_map.Set(func_name, gv);
@@ -80,7 +80,11 @@ void DefFunction(const ffi::String& func_name, const BaseFunc& func) {
       << "function " << func_name << " does not exist, please declare it first.";
   const GlobalVar& gv = (*it).second;
   frame->functions.Set(gv, func);
-  gv->struct_info_ = GetGlobalVarStructInfo(func);
+  if (auto sinfo = GetGlobalVarStructInfo(func)) {
+    gv->struct_info_ = sinfo.value();
+  } else {
+    TVM_FFI_THROW(InternalError) << "Unsupported function type: " << func->GetTypeKey();
+  }
 }
 
 void ModuleAttrs(ffi::Map<ffi::String, Any> attrs, bool allow_overwrite) {
