@@ -204,7 +204,7 @@ void BlockReadWriteDetector::VisitExpr_(const CallNode* op) {
       if (it != buffer_var_map_.end()) {
         const Buffer& buffer = (*it).second;
         const BufferRegion buffer_region = BufferRegion::FullRegion(buffer);
-        const Region& region = buffer_region->region;
+        const ffi::Array<Range>& region = buffer_region->region;
         std::vector<arith::IntSet> int_set;
         int_set.reserve(region.size());
         for (const Range& range : region) {
@@ -287,7 +287,7 @@ std::vector<arith::IntSet> BlockReadWriteDetector::ConvertMatchedRegion(
     const MatchBufferRegion& match_buffer, const std::vector<arith::IntSet>& int_sets) const {
   const Buffer& buffer = match_buffer->buffer;
 
-  Region region;
+  ffi::Array<Range> region;
   region.reserve(int_sets.size());
   TVM_FFI_ICHECK_EQ(buffer->shape.size(), int_sets.size());
   for (size_t i = 0; i < int_sets.size(); ++i) {
@@ -363,7 +363,7 @@ void BlockReadWriteDetector::UpdateOpaque(const Var& buffer_var) {
   if (it != buffer_var_map_.end()) {
     const Buffer& buffer = (*it).second;
     const BufferRegion buffer_region = BufferRegion::FullRegion(buffer);
-    const Region& region = buffer_region->region;
+    const ffi::Array<Range>& region = buffer_region->region;
     std::vector<arith::IntSet> int_set;
     int_set.reserve(region.size());
     for (const Range& range : region) {

@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/runtime/logging.h>
 
 #include "../../../target/canonicalizer/llvm/arm_aprofile.h"
 #include "../utils.h"

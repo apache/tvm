@@ -237,7 +237,7 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
     auto f_mutate_match_buffers = [this](const MatchBufferRegion& match_buffer) {
       const Buffer& src_buffer = SubstituteBuffer(match_buffer->source->buffer);
       const Buffer& tgt_buffer = SubstituteAllocatedBuffer(match_buffer->buffer);
-      Region region = MutateRegion(match_buffer->source->region);
+      ffi::Array<Range> region = MutateRegion(match_buffer->source->region);
       if (src_buffer.same_as(match_buffer->source->buffer) &&
           tgt_buffer.same_as(match_buffer->buffer) &&
           region.same_as(match_buffer->source->region)) {
@@ -252,7 +252,7 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
 
     auto f_mutate_read_write_region = [this](const BufferRegion& buffer_region) {
       const Buffer& buffer = SubstituteBuffer(buffer_region->buffer);
-      const Region& region = MutateRegion(buffer_region->region);
+      const ffi::Array<Range>& region = MutateRegion(buffer_region->region);
       if (buffer.same_as(buffer_region->buffer) && region.same_as(buffer_region->region)) {
         return buffer_region;
       } else {
@@ -302,7 +302,7 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
     // However, `A[vi, vj], A[vi, vj + 1]` is not allow for now.
     // Note: the order of return region should remain the same as the first occurrence of the region
     ffi::Array<BufferRegion> ret;
-    std::unordered_map<const BufferNode*, Region> buffer_region_set;
+    std::unordered_map<const BufferNode*, ffi::Array<Range>> buffer_region_set;
 
     for (const BufferRegion& region : regions) {
       auto it = buffer_region_set.find(region->buffer.get());
@@ -328,7 +328,7 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
     }
   }
 
-  inline Region MutateRegion(const Region& region) {
+  inline ffi::Array<Range> MutateRegion(const ffi::Array<Range>& region) {
     return MutateArray(region, [this](const Range& range) {
       const PrimExpr& min = this->VisitExpr(range->min);
       const PrimExpr& extent = this->VisitExpr(range->extent);

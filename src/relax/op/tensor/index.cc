@@ -26,6 +26,7 @@
 
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/topi/transform.h>
 
 #include <algorithm>

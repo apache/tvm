@@ -24,6 +24,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/transform.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/s_tir/meta_schedule/database.h>
 #include <tvm/tirx/transform.h>
 

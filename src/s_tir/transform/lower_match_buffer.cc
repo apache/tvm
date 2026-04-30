@@ -25,6 +25,7 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op.h>

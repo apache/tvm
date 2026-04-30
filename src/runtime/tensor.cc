@@ -25,7 +25,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/logging.h>
+#include <tvm/ffi/error.h>
 #include <tvm/runtime/tensor.h>
 
 #include "tvm/runtime/data_type.h"
@@ -60,9 +60,9 @@ inline void VerifyDataType(DLDataType dtype) {
 }
 
 void TensorCopyFromBytes(DLTensor* handle, const void* data, size_t nbytes) {
-  size_t arr_size = GetDataSize(*handle);
+  size_t arr_size = ffi::GetDataSize(*handle);
   TVM_FFI_ICHECK_EQ(arr_size, nbytes) << "TensorCopyFromBytes: size mismatch";
-  TVM_FFI_ICHECK(IsContiguous(*handle))
+  TVM_FFI_ICHECK(ffi::IsContiguous(*handle))
       << "TensorCopyFromBytes only support contiguous array for now";
 
   DLTensor from;
@@ -80,7 +80,7 @@ void TensorCopyFromBytes(DLTensor* handle, const void* data, size_t nbytes) {
 
 void Tensor::CopyToBytes(const DLTensor* handle, void* data, size_t nbytes,
                          TVMStreamHandle stream) {
-  size_t arr_size = GetDataSize(*handle);
+  size_t arr_size = ffi::GetDataSize(*handle);
   TVM_FFI_ICHECK_EQ(arr_size, nbytes) << "ArrayCopyToBytes: size mismatch";
   TVM_FFI_ICHECK(ffi::IsContiguous(*handle))
       << "ArrayCopyToBytes only support contiguous array for now";
@@ -101,7 +101,7 @@ void Tensor::CopyToBytes(const DLTensor* handle, void* data, size_t nbytes,
 
 void Tensor::CopyFromBytes(const DLTensor* handle, void* data, size_t nbytes,
                            TVMStreamHandle stream) {
-  size_t arr_size = GetDataSize(*handle);
+  size_t arr_size = ffi::GetDataSize(*handle);
   TVM_FFI_ICHECK_EQ(arr_size, nbytes) << "ArrayCopyToBytes: size mismatch";
   TVM_FFI_ICHECK(ffi::IsContiguous(*handle))
       << "ArrayCopyToBytes only support contiguous array for now";
@@ -160,7 +160,7 @@ Tensor Tensor::CreateView(ffi::Shape shape, DLDataType dtype, uint64_t relative_
     return ss.str();
   }();
   const auto& curr_dl_tensor = *get_mutable();
-  size_t curr_size = GetDataSize(curr_dl_tensor);
+  size_t curr_size = ffi::GetDataSize(curr_dl_tensor);
   size_t view_size = ffi::GetDataSize(shape.Product(), dtype);
   TVM_FFI_CHECK_LE(relative_byte_offset + view_size, curr_size, ValueError)
       << "View with shape " << shape << " and datatype " << dtype << " would have a size of "
@@ -215,8 +215,8 @@ Tensor Tensor::CopyTo(const Device& dev, ffi::Optional<ffi::String> mem_scope) c
 }
 
 void Tensor::CopyFromTo(const DLTensor* from, DLTensor* to, TVMStreamHandle stream) {
-  size_t from_size = GetDataSize(*from);
-  size_t to_size = GetDataSize(*to);
+  size_t from_size = ffi::GetDataSize(*from);
+  size_t to_size = ffi::GetDataSize(*to);
   TVM_FFI_ICHECK_EQ(from_size, to_size)
       << "TVMTensorCopyFromTo: The size in bytes must exactly match.";
 

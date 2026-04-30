@@ -145,7 +145,7 @@ class NNAPIRuntime : public JSONRuntimeBase {
           const uint32_t eid = EntryID(nid, j);
           const auto entry = data_entry_[eid];
 
-          const auto operand_data_size = GetDataSize(*entry);
+          const auto operand_data_size = ffi::GetDataSize(*entry);
           TVM_FFI_ICHECK_EQ(
               ANeuralNetworksExecution_setInput(execution, i, operand.GetOperandType().Get(),
                                                 entry->data, operand_data_size),
@@ -161,7 +161,7 @@ class NNAPIRuntime : public JSONRuntimeBase {
       const auto eid = EntryID(node);
       const auto entry = data_entry_[eid];
 
-      const auto operand_data_size = GetDataSize(*entry);
+      const auto operand_data_size = ffi::GetDataSize(*entry);
       TVM_FFI_ICHECK_EQ(
           ANeuralNetworksExecution_setOutput(execution, i, operand.GetOperandType().Get(),
                                              entry->data, operand_data_size),

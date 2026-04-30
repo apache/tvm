@@ -26,6 +26,7 @@
 #include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/nvtx.h>
 #include <tvm/runtime/vm/vm.h>
+#include <tvm/runtime/logging.h>
 
 #include <thread>
 
@@ -779,7 +780,7 @@ void VirtualMachineImpl::RunInstrCall(VMFrame* curr_frame, Instruction instr) {
     for (int i = 0; i < instr.num_args; ++i) {
       if (call_args[i + args_begin_offset].type_index() == ffi::TypeIndex::kTVMFFIDataType) {
         std::string str_dtype =
-            DLDataTypeToString(call_args[i + args_begin_offset].cast<DLDataType>());
+            ffi::DLDataTypeToString(call_args[i + args_begin_offset].cast<DLDataType>());
         temp_dtype.emplace_back(std::make_unique<std::string>(str_dtype));
         call_args[i + args_begin_offset] = *temp_dtype.back();
       }

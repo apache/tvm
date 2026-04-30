@@ -26,6 +26,7 @@
 #include <tvm/ir/module.h>
 #include <tvm/ir/transform.h>
 #include <tvm/relax/type.h>
+#include <tvm/runtime/logging.h>
 
 #include <memory>
 #include <string>

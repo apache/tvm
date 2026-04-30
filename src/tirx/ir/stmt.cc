@@ -510,7 +510,7 @@ MatchBufferRegion::MatchBufferRegion(Buffer buffer, BufferRegion source) {
 
   // Validate shape
   TVM_FFI_ICHECK(source->region.size() >= buffer->shape.size())
-      << "Dimension of source Region expected to be larger or equal than target buffer shape, but "
+      << "Dimension of source ffi::Array<Range> expected to be larger or equal than target buffer shape, but "
          "got "
       << source->region.size() << " vs. " << buffer->shape.size();
   size_t offset = source->region.size() - buffer->shape.size();

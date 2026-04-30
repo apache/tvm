@@ -31,6 +31,7 @@
 #include <tvm/tirx/stmt_functor.h>
 
 #include <cmath>
+#include <iomanip>
 #include <string>
 #include <utility>
 #include <vector>

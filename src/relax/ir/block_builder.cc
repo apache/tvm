@@ -33,6 +33,7 @@
 #include <tvm/relax/struct_info_functor.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/tirx/function.h>
 
 #include <memory>

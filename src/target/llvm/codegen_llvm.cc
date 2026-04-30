@@ -81,6 +81,7 @@
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/tirx/op.h>
+#include <tvm/runtime/logging.h>
 
 #include <algorithm>
 #include <functional>
@@ -2265,7 +2266,7 @@ llvm::DIType* CodeGenLLVM::GetDebugType(const Type& ty_tir, llvm::Type* ty_llvm)
 
     if (dtype.is_scalable_vector()) return nullptr;
 
-    return dbg_info_->di_builder_->createBasicType(DLDataTypeToString(dtype).operator std::string(),
+    return dbg_info_->di_builder_->createBasicType(ffi::DLDataTypeToString(dtype).operator std::string(),
                                                    dtype.bits() * dtype.lanes(), dwarf_type);
 
   } else {

@@ -23,13 +23,13 @@
  */
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/error.h>
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
-#include <tvm/runtime/logging.h>
 
 #include <iostream>
 #include <optional>

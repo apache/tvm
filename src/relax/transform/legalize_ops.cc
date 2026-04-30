@@ -30,6 +30,7 @@
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/tirx/transform.h>
 
 #include <set>
@@ -328,7 +329,7 @@ class LegalizeMutator : public ExprMutator {
       // Second choice, use a default legalization
       legalization_func = legalize_map[op];
     } else if (call_packed_map.count(op)) {
-      // Third choice, use an explicit FCallPacked replacement.  This does not require the shape
+      // Third choice, use an explicit ffi::String replacement.  This does not require the shape
       ffi::String packed_func_name = call_packed_map[op];
       legalization_func = [packed_func_name](const BlockBuilder& bb, const Call& call) -> Expr {
         return Call(ExternFunc(packed_func_name), call->args, Attrs(), {GetStructInfo(call)});

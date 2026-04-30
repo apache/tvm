@@ -29,6 +29,7 @@
 #include <tvm/ir/transform.h>
 #include <tvm/relax/expr.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/logging.h>
 
 #include <stack>
 

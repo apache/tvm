@@ -24,7 +24,7 @@
 #ifndef TVM_TARGET_SOURCE_PTX_H_
 #define TVM_TARGET_SOURCE_PTX_H_
 
-#include <tvm/runtime/logging.h>
+#include <tvm/ffi/error.h>
 
 #include <string>
 #include <tuple>

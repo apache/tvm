@@ -22,10 +22,10 @@
  */
 
 #include <dlpack/dlpack.h>
+#include <tvm/ffi/error.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/data_type.h>
-#include <tvm/runtime/logging.h>
 
 #include <algorithm>
 #include <vector>
@@ -334,8 +334,8 @@ void RegisterSort() {
                                             "input ndim "
                                          << input->ndim;
 
-    auto data_dtype = DLDataTypeToString(input->dtype);
-    auto out_dtype = DLDataTypeToString(output->dtype);
+    auto data_dtype = ffi::DLDataTypeToString(input->dtype);
+    auto out_dtype = ffi::DLDataTypeToString(output->dtype);
 
     TVM_FFI_ICHECK_EQ(data_dtype, out_dtype);
 

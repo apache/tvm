@@ -18,6 +18,7 @@
  */
 
 #include "hexagon_thread_manager.h"
+#include <tvm/runtime/logging.h>
 
 namespace tvm {
 namespace runtime {

@@ -23,7 +23,7 @@
 #ifndef TVM_IR_NODE_FUNCTOR_H_
 #define TVM_IR_NODE_FUNCTOR_H_
 
-#include <tvm/runtime/logging.h>
+#include <tvm/ffi/error.h>
 
 #include <cstring>
 #include <type_traits>

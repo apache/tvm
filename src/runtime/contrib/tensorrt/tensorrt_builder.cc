@@ -24,6 +24,7 @@
 
 #include "tensorrt_builder.h"
 
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/tensor.h>
 
 #include <memory>
@@ -227,10 +228,10 @@ nvinfer1::Weights TensorRTBuilder::GetDLTensorAsWeights(const DLTensor* dptr,
   const auto trt_dtype = (static_cast<int>(dptr->dtype.bits) == 16) ? nvinfer1::DataType::kHALF
                                                                     : nvinfer1::DataType::kFLOAT;
 
-  const size_t weight_bytes = GetDataSize(*dptr);
+  const size_t weight_bytes = ffi::GetDataSize(*dptr);
   nvinfer1::Weights weight{trt_dtype, nullptr, 0};
   size_t count = 1;
-  for (tvm_index_t i = 0; i < dptr->ndim; ++i) {
+  for (ffi::Shape::index_type i = 0; i < dptr->ndim; ++i) {
     count *= dptr->shape[i];
   }
   weight.count = count;

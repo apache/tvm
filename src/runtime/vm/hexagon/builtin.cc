@@ -45,8 +45,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              void* src = sptr->data;
              int ret = DMA_RETRY;
 
-             TVM_FFI_ICHECK_EQ(GetDataSize(*dptr), GetDataSize(*sptr));
-             auto size = GetDataSize(*dptr);
+             TVM_FFI_ICHECK_EQ(ffi::GetDataSize(*dptr), ffi::GetDataSize(*sptr));
+             auto size = ffi::GetDataSize(*dptr);
              TVM_FFI_ICHECK(size > 0);
              if (bypass_cache)
                qurt_mem_cache_clean(reinterpret_cast<qurt_addr_t>(src), size,
@@ -65,7 +65,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         if (bypass_cache) {
           const DLTensor* dptr = dst_arr.operator->();
           void* dst = dptr->data;
-          auto size = GetDataSize(*dptr);
+          auto size = ffi::GetDataSize(*dptr);
           qurt_mem_cache_clean(reinterpret_cast<qurt_addr_t>(dst), size, QURT_MEM_CACHE_FLUSH,
                                QURT_MEM_DCACHE);
         }

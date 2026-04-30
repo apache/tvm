@@ -24,7 +24,8 @@ namespace tvm {
 namespace script {
 namespace printer {
 
-IfDoc PrintIfExpr(const relax::If& n, const AccessPath& n_p, const IRDocsifier& d,  //
+IfDoc PrintIfExpr(const relax::If& n, const AccessPath& n_p,
+                  const IRDocsifier& d,  //
                   const ffi::Optional<ExprDoc>& var, const ffi::Optional<ExprDoc>& ann) {
   using relax::SeqExpr;
   ExprDoc cond = d->AsDoc<ExprDoc>(n->cond, n_p->Attr("cond"));

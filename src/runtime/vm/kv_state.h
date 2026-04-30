@@ -23,7 +23,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/optional.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/logging.h>
+#include <tvm/ffi/error.h>
 #include <tvm/runtime/tensor.h>
 
 namespace tvm {

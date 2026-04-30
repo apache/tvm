@@ -18,9 +18,9 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/container/array.h>
+#include <tvm/ffi/error.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/logging.h>
 #include <tvm/script/printer/doc.h>
 
 namespace tvm {

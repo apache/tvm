@@ -20,10 +20,10 @@
 /*!
  * \file External random functions for tensor.
  */
+#include <tvm/ffi/error.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/data_type.h>
-#include <tvm/runtime/logging.h>
 
 #include <algorithm>
 

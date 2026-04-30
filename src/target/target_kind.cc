@@ -27,6 +27,7 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/target/target.h>
 #include <tvm/target/target_kind.h>
+#include <tvm/runtime/logging.h>
 
 #include <algorithm>
 

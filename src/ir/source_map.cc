@@ -25,6 +25,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/source_map.h>
 #include <tvm/ir/transform.h>
+#include <tvm/runtime/logging.h>
 
 #include <algorithm>
 
