@@ -26,6 +26,7 @@
 #include <tvm/tirx/buffer.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>
+#include <tvm/runtime/logging.h>
 
 namespace tvm {
 namespace codegen {

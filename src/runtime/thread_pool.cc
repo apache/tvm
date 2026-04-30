@@ -26,7 +26,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/c_backend_api.h>
-#include <tvm/runtime/logging.h>
+#include <tvm/ffi/error.h>
 
 #include "threading_backend.h"
 #if TVM_THREADPOOL_USE_OPENMP

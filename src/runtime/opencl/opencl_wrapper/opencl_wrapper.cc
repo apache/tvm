@@ -33,7 +33,7 @@
 #include <dlfcn.h>
 #endif
 
-#include <tvm/runtime/logging.h>
+#include <tvm/ffi/error.h>
 
 #include <cstring>
 #include <vector>

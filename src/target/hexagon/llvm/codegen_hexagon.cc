@@ -45,6 +45,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/target/codegen.h>
 #include <tvm/tirx/analysis.h>
+#include <tvm/runtime/logging.h>
 
 #include <cstdio>
 #include <cstdlib>
