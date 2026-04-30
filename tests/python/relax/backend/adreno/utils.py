@@ -67,9 +67,8 @@ requires_adreno_opencl_vulkan = tvm.testing.Feature(
 requires_adreno_vulkan = tvm.testing.Feature(
     "adreno_vulkan",
     "Adreno Vulkan",
-    cmake_flag="USE_VULKAN",
     target_kind_enabled="vulkan",
-    run_time_check=run_time_check("vulkan")(),
+    run_time_check=lambda: tvm.runtime.enabled("vulkan") and run_time_check("vulkan").check(),
     parent_features="gpu" if "ADRENO_TARGET" not in os.environ else "rpc",
 )
 
@@ -77,9 +76,8 @@ requires_adreno_vulkan = tvm.testing.Feature(
 requires_adreno_opencl = tvm.testing.Feature(
     "adreno_opencl",
     "Adreno OpenCL",
-    cmake_flag="USE_OPENCL",
     target_kind_enabled="opencl",
-    run_time_check=run_time_check("opencl")(),
+    run_time_check=lambda: tvm.runtime.enabled("opencl") and run_time_check("opencl").check(),
     parent_features="gpu" if "ADRENO_TARGET" not in os.environ else "rpc",
 )
 
@@ -87,9 +85,8 @@ requires_adreno_opencl = tvm.testing.Feature(
 requires_adreno_opencl_real = tvm.testing.Feature(
     "adreno_opencl_real",
     "Adreno OpenCL Real",
-    cmake_flag="USE_OPENCL",
     target_kind_enabled="opencl",
-    run_time_check=run_time_check("real")(),
+    run_time_check=lambda: tvm.runtime.enabled("opencl") and run_time_check("real").check(),
     parent_features="rpc",
 )
 
@@ -97,7 +94,10 @@ requires_adreno_opencl_real = tvm.testing.Feature(
 requires_adreno_clml = tvm.testing.Feature(
     "adreno_clml",
     "Adreno OpenCLML",
-    cmake_flag="USE_CLML",
+    run_time_check=lambda: tvm.get_global_func(
+        "relax.is_openclml_runtime_enabled", allow_missing=True
+    )
+    is not None,
     target_kind_enabled="opencl",
     parent_features="opencl" if "ADRENO_TARGET" not in os.environ else "rpc",
 )

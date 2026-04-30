@@ -35,14 +35,6 @@ repos:
         language_version: python3
         pass_filenames: false
         verbose: false
-      - id: check-cmake-options
-        name: check CMake options mirroring
-        entry: python tests/lint/check_cmake_options.py
-        language: python
-        language_version: python3
-        pass_filenames: false
-        verbose: false
-
   # ---------- General file checks ----------
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0

@@ -57,7 +57,7 @@ from tvm.script import tirx as T
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import relax as relax_builder
 
-CLML_VERSION = int(tvm.support.libinfo().get("TVM_CLML_VERSION", 4))
+CLML_VERSION = clml.clml_sdk_version()
 TARGET_CLML_VERSION = int(os.environ.get("ADRENO_TARGET_CLML_VERSION", 4))
 clml_target = tvm.target.Target("qcom/adreno-opencl-clml")
 ref_target = tvm.target.Target("opencl")
