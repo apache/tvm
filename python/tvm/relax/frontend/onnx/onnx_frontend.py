@@ -1748,22 +1748,38 @@ class CumSum(OnnxOpConverter):
     @classmethod
     def _impl_v14(cls, bb, inputs, attr, params):
         data = inputs[0]
-        axis = get_constant(inputs[1], params)
+        axis_input = get_constant(inputs[1], params)
         assert not attr.get("exclusive", False), "Exclusive option not yet supported."
 
-        if isinstance(axis, relax.Constant):
-            axis = int(axis.data.numpy())
-        elif isinstance(axis, relax.Var):
-            axis = 0
-
+        if isinstance(axis_input, relax.Constant):
+            axis_data = axis_input.data.numpy()
+            if axis_data.ndim == 0:
+                axis = int(axis_data.item())
+            elif axis_data.ndim == 1 and axis_data.shape[0] == 1:
+                axis = int(axis_data.item())
+            else:
+                raise ValueError(
+                    "CumSum axis input must be a scalar (0-D) or a single-element 1-D tensor, "
+                    "got shape {}".format(axis_data.shape)
+                )
+        elif isinstance(axis_input, relax.Var):
+            axis_shape = axis_input.struct_info.shape if hasattr(axis_input.struct_info, "shape") else None
+            raise ValueError(
+                "CumSum with non-constant axis input is not supported yet. "
+                "ONNX permits runtime axis tensors, but Relax/TE currently requires a compile-time "
+                "constant axis for cumsum/flip. Got axis shape {}".format(axis_shape)
+            )
+        else:
+            raise TypeError("CumSum axis input must be a Constant or Var")
+            
         if attr.get("reverse", 0) != 0:
-            data = bb.emit_te(topi.flip, data, axis=axis if axis else 0)
+            data = bb.emit_te(topi.flip, data, axis=axis)
 
         data = relax.op.cumsum(data, axis)
         data = bb.normalize(data)
 
         if attr.get("reverse", 0) != 0:
-            data = bb.emit_te(topi.flip, data, axis=axis if axis else 0)
+            data = bb.emit_te(topi.flip, data, axis=axis)
 
         return data
 
