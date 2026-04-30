@@ -95,11 +95,11 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       return TIR(d, "target")->Call({d->AsDoc<ExprDoc>(config, p)});
     });
 
-TVM_SCRIPT_REPR(IntImmNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(FloatImmNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(PrimTypeNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(PointerTypeNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(TupleTypeNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(IntImmNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(FloatImmNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(PrimTypeNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(PointerTypeNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(TupleTypeNode, ReprPrintTIR);
 
 }  // namespace printer
 }  // namespace script

@@ -29,7 +29,7 @@
 #include <tvm/ffi/string.h>
 #include <tvm/ir/cow.h>
 #include <tvm/ir/expr.h>
-#include <tvm/ir/script_printer.h>
+#include <tvm/script/printer/config.h>
 #include <tvm/tirx/var.h>
 
 #include <string>

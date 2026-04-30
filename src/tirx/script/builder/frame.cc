@@ -17,10 +17,10 @@
  * under the License.
  */
 #include <tvm/script/ir_builder/ir/ir.h>
-#include <tvm/script/ir_builder/tirx/frame.h>
 #include <tvm/tirx/function.h>
+#include <tvm/tirx/script/builder/frame.h>
 
-#include "../../../tirx/ir/script/script_complete.h"
+#include "../../ir/script/script_complete.h"
 #include "./utils.h"
 
 namespace tvm {

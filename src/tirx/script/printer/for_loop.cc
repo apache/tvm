@@ -131,7 +131,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       return ForDoc(lhs, rhs, (*f)->stmts);
     });
 
-TVM_SCRIPT_REPR(tirx::ForNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::ForNode, ReprPrintTIR);
 
 }  // namespace printer
 }  // namespace script
