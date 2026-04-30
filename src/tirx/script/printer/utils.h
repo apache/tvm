@@ -108,7 +108,7 @@ inline IdDoc DefineBuffer(const tirx::Buffer& buffer, const Frame& frame, const 
  * \param f The frame
  * \param d The IRDocsifier
  */
-inline void AsDocBody(const tirx::Stmt& stmt, AccessPath p, TIRFrameNode* f, const IRDocsifier& d) {
+inline void AsDocBody(const tirx::Stmt& stmt, ffi::reflection::AccessPath p, TIRFrameNode* f, const IRDocsifier& d) {
   if (const auto* seq_stmt = stmt.as<tirx::SeqStmtNode>()) {
     ffi::Array<tirx::Stmt> body = seq_stmt->seq;
     for (int i = 0, n = body.size(); i < n; ++i) {
@@ -214,7 +214,7 @@ enum class BufferVarDefinition {
  * \return The ExprDoc corresponding to the buffer declaration
  */
 ExprDoc BufferDecl(const tirx::Buffer& buffer, const ffi::String& method,
-                   const ffi::Array<ExprDoc>& args, const AccessPath& p, const Frame& frame,
+                   const ffi::Array<ExprDoc>& args, const ffi::reflection::AccessPath& p, const Frame& frame,
                    const IRDocsifier& d, BufferVarDefinition var_definitions);
 
 /*!
@@ -225,7 +225,7 @@ ExprDoc BufferDecl(const tirx::Buffer& buffer, const ffi::String& method,
  * \param d The IRDocsifier
  * \return The ExprDoc corresponding to the buffer declaration
  */
-ExprDoc BufferAttn(const tirx::Buffer& buffer, const AccessPath& p, const Frame& frame,
+ExprDoc BufferAttn(const tirx::Buffer& buffer, const ffi::reflection::AccessPath& p, const Frame& frame,
                    const IRDocsifier& d);
 
 /*!
@@ -235,7 +235,7 @@ ExprDoc BufferAttn(const tirx::Buffer& buffer, const AccessPath& p, const Frame&
  * \param d The IRDocsifier
  * \return The ExprDoc corresponding to the Var creation
  */
-ExprDoc PrintVarCreation(const tirx::Var& var, const AccessPath& var_p, const IRDocsifier& d);
+ExprDoc PrintVarCreation(const tirx::Var& var, const ffi::reflection::AccessPath& var_p, const IRDocsifier& d);
 
 /*! \brief A Var occurrence counter visitor */
 class OccurrenceCounter : public tirx::StmtExprVisitor {

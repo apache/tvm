@@ -168,7 +168,7 @@ void HexagonDeviceAPI::FreeWorkspace(Device dev, void* data) {
 void HexagonDeviceAPI::CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) {
   TVM_FFI_ICHECK_EQ(from->byte_offset, 0);
   TVM_FFI_ICHECK_EQ(to->byte_offset, 0);
-  TVM_FFI_ICHECK_EQ(GetDataSize(*from), GetDataSize(*to));
+  TVM_FFI_ICHECK_EQ(ffi::GetDataSize(*from), ffi::GetDataSize(*to));
   TVM_FFI_ICHECK(runtime_hexbuffs)
       << "Attempted to copy Hexagon data with "
       << "HexagonDeviceAPI::CopyDataFromTo before initializing resources.  "
@@ -182,11 +182,11 @@ void HexagonDeviceAPI::CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHan
   HexagonBuffer* hex_to_buf = lookup_hexagon_buffer(to->data);
 
   if (hex_from_buf && hex_to_buf) {
-    hex_to_buf->CopyFrom(*hex_from_buf, GetDataSize(*from));
+    hex_to_buf->CopyFrom(*hex_from_buf, ffi::GetDataSize(*from));
   } else if (hex_to_buf) {
-    hex_to_buf->CopyFrom(from->data, GetDataSize(*from));
+    hex_to_buf->CopyFrom(from->data, ffi::GetDataSize(*from));
   } else if (hex_from_buf) {
-    hex_from_buf->CopyTo(to->data, GetDataSize(*to));
+    hex_from_buf->CopyTo(to->data, ffi::GetDataSize(*to));
   } else {
     TVM_FFI_ICHECK(false)
         << "CopyDataFromTo requested between src and dst which are not managed by the "

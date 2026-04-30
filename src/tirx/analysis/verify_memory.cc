@@ -29,6 +29,7 @@
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/expr.h>
 #include <tvm/tirx/stmt_functor.h>
+#include <tvm/runtime/logging.h>
 
 namespace tvm {
 namespace tirx {

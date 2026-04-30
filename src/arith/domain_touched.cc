@@ -23,6 +23,7 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/te/tensor.h>
 #include <tvm/tirx/expr.h>
 #include <tvm/tirx/stmt_functor.h>
@@ -67,8 +68,8 @@ class BufferTouchedDomain final : public IRVisitorWithAnalyzer {
     return buffer_access_map_;
   }
 
-  Region FindUnion(const Buffer& buffer, bool consider_loads, bool consider_stores) {
-    Region ret;
+  ffi::Array<Range> FindUnion(const Buffer& buffer, bool consider_loads, bool consider_stores) {
+    ffi::Array<Range> ret;
     auto kv = buffer_access_map_.find(buffer.get());
     if (kv == buffer_access_map_.end()) {
       LOG(WARNING) << "[arith::BufferDomainTouched] "
@@ -132,8 +133,8 @@ class BufferTouchedDomain final : public IRVisitorWithAnalyzer {
   std::unordered_map<const BufferNode*, BufferDomainAccess> buffer_access_map_;
 };
 
-Region DomainTouched(const Stmt& stmt, const Buffer& buffer, bool consider_loads,
-                     bool consider_stores) {
+ffi::Array<Range> DomainTouched(const Stmt& stmt, const Buffer& buffer, bool consider_loads,
+                                bool consider_stores) {
   return BufferTouchedDomain(stmt).FindUnion(buffer, consider_loads, consider_stores);
 }
 

@@ -62,12 +62,6 @@ enum OpPatternKind {
 using FInferStructInfo = ffi::TypedFunction<StructInfo(const Call& call, const BlockBuilder& ctx)>;
 
 /*!
- * \brief Packed function implementation for operators. The relax operator will be lowered to
- * this packed function call during codegen.
- */
-using FCallPacked = ffi::String;
-
-/*!
  * \brief The function type of a normalization function.
  *
  * A normalization function is used when a `relax::Call` may be

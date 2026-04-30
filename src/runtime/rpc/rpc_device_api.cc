@@ -23,7 +23,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/logging.h>
+#include <tvm/ffi/error.h>
 
 #include <utility>
 
@@ -98,14 +98,14 @@ class RPCDeviceAPI final : public DeviceAPI {
       from_tensor.device = RemoveRPCSessionMask(dev_from);
       from_tensor.data = static_cast<const RemoteSpace*>(from->data)->data;
       void* to_bytes = static_cast<char*>(to->data) + to->byte_offset;
-      size_t nbytes = GetDataSize(*to);
+      size_t nbytes = ffi::GetDataSize(*to);
       GetSess(dev_from)->CopyFromRemote(&from_tensor, to_bytes, nbytes);
     } else if (dev_from.device_type == kDLCPU && IsRPCSessionDevice(dev_to)) {
       DLTensor to_tensor = *to;
       to_tensor.device = RemoveRPCSessionMask(dev_to);
       to_tensor.data = static_cast<const RemoteSpace*>(to->data)->data;
       void* from_bytes = static_cast<char*>(from->data) + from->byte_offset;
-      size_t nbytes = GetDataSize(*from);
+      size_t nbytes = ffi::GetDataSize(*from);
       GetSess(dev_to)->CopyToRemote(from_bytes, &to_tensor, nbytes);
     } else {
       TVM_FFI_THROW(InternalError) << "expect copy from/to remote or between remote";

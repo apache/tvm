@@ -67,7 +67,7 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
   void SetAstypeAttribute(const CallNode* call_node) {
     const auto* astype_attrs = call_node->attrs.as<AstypeAttrs>();
     TVM_FFI_ICHECK(astype_attrs);
-    node_->SetAttr("astype_dtype", ffi::String(runtime::DLDataTypeToString(astype_attrs->dtype)));
+    node_->SetAttr("astype_dtype", ffi::String(ffi::DLDataTypeToString(astype_attrs->dtype)));
   }
 
   void SetMeanAttribute(const CallNode* call_node) {

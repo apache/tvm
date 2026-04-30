@@ -132,7 +132,7 @@ void* DeviceAPI::AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDa
     temp.shape = const_cast<int64_t*>(shape);
     temp.strides = nullptr;
     temp.byte_offset = 0;
-    size_t size = GetDataSize(temp);
+    size_t size = ffi::GetDataSize(temp);
     size_t alignment = GetDataAlignment(temp.dtype);
     return AllocDataSpace(dev, size, alignment, dtype);
   }
@@ -143,8 +143,8 @@ void* DeviceAPI::AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDa
 
 void DeviceAPI::CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) {
   // by default, we can always redirect to the flat memory copy operation.
-  size_t nbytes = GetDataSize(*from);
-  TVM_FFI_ICHECK_EQ(nbytes, GetDataSize(*to));
+  size_t nbytes = ffi::GetDataSize(*from);
+  TVM_FFI_ICHECK_EQ(nbytes, ffi::GetDataSize(*to));
 
   TVM_FFI_ICHECK(ffi::IsContiguous(*from) && ffi::IsContiguous(*to))
       << "CopyDataFromTo only support contiguous array for now";

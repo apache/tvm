@@ -24,7 +24,8 @@ namespace tvm {
 namespace script {
 namespace printer {
 
-IfDoc PrintIfExpr(const relax::If& n, const AccessPath& n_p, const IRDocsifier& d,  //
+IfDoc PrintIfExpr(const relax::If& n, const ffi::reflection::AccessPath& n_p,
+                  const IRDocsifier& d,  //
                   const ffi::Optional<ExprDoc>& var, const ffi::Optional<ExprDoc>& ann) {
   using relax::SeqExpr;
   ExprDoc cond = d->AsDoc<ExprDoc>(n->cond, n_p->Attr("cond"));
@@ -43,7 +44,7 @@ IfDoc PrintIfExpr(const relax::If& n, const AccessPath& n_p, const IRDocsifier& 
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::MatchCast>(
-        "", [](relax::MatchCast n, AccessPath n_p, IRDocsifier d) -> Doc {
+        "", [](relax::MatchCast n, ffi::reflection::AccessPath n_p, IRDocsifier d) -> Doc {
           using relax::StructInfo;
           using relax::MatchStructInfo;
           ffi::Optional<ExprDoc> ann = std::nullopt;
@@ -59,7 +60,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::VarBinding>(  //
-        "", [](relax::VarBinding n, AccessPath n_p, IRDocsifier d) -> Doc {
+        "", [](relax::VarBinding n, ffi::reflection::AccessPath n_p, IRDocsifier d) -> Doc {
           if (const auto if_ = n->value.as<relax::IfNode>()) {
             ffi::Optional<ExprDoc> ann = StructInfoAsAnn(n->var, n_p->Attr("var"), d, n->value);
             ExprDoc lhs = DefineVar(n->var, d->frames.back(), d);
@@ -84,9 +85,11 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<relax::If>("", [](relax::If n, AccessPath n_p, IRDocsifier d) -> Doc {
-      return PrintIfExpr(n, n_p, d, std::nullopt, std::nullopt);
-    });
+    .set_dispatch<relax::If>("",
+                             [](relax::If n, ffi::reflection::AccessPath n_p,
+                                IRDocsifier d) -> Doc {
+                               return PrintIfExpr(n, n_p, d, std::nullopt, std::nullopt);
+                             });
 
 TVM_REGISTER_SCRIPT_AS_REPR(relax::MatchCastNode, ReprPrintRelax);
 TVM_REGISTER_SCRIPT_AS_REPR(relax::VarBindingNode, ReprPrintRelax);

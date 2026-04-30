@@ -33,7 +33,6 @@ namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 
-using AccessPath = ffi::reflection::AccessPath;
 
 namespace {
 class PurityChecker : TIRVisitorWithPath {
@@ -47,12 +46,12 @@ class PurityChecker : TIRVisitorWithPath {
  private:
   explicit PurityChecker(bool assert_on_error) : assert_on_error_(assert_on_error) {}
 
-  void VisitStmt_(const AllocBufferNode* op, AccessPath path) override {
+  void VisitStmt_(const AllocBufferNode* op, ffi::reflection::AccessPath path) override {
     internal_allocations_.insert(op->buffer->data);
     TIRVisitorWithPath::VisitStmt_(op, path);
   }
 
-  void VisitStmt_(const BufferStoreNode* op, AccessPath path) override {
+  void VisitStmt_(const BufferStoreNode* op, ffi::reflection::AccessPath path) override {
     TIRVisitorWithPath::VisitStmt_(op, path);
 
     if (!internal_allocations_.count(op->buffer->data)) {
@@ -65,7 +64,7 @@ class PurityChecker : TIRVisitorWithPath {
     }
   }
 
-  void VisitExpr_(const CallNode* call, AccessPath path) override {
+  void VisitExpr_(const CallNode* call, ffi::reflection::AccessPath path) override {
     TIRVisitorWithPath::VisitExpr_(call, path);
 
     static auto op_call_effect = Op::GetAttrMap<TCallEffectKind>("TCallEffectKind");

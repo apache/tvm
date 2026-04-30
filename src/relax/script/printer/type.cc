@@ -26,20 +26,20 @@ namespace printer {
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::ShapeType>(  //
-        "", [](relax::ShapeType n, AccessPath n_p, IRDocsifier d) -> Doc {
+        "", [](relax::ShapeType n, ffi::reflection::AccessPath n_p, IRDocsifier d) -> Doc {
           return Relax(d, "Shape")
               ->Call({}, {"ndim"}, {LiteralDoc::Int(n->ndim, n_p->Attr("ndim"))});
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::ObjectType>(  //
-        "", [](relax::ObjectType n, AccessPath n_p, IRDocsifier d) -> Doc {
+        "", [](relax::ObjectType n, ffi::reflection::AccessPath n_p, IRDocsifier d) -> Doc {
           return Relax(d, "Object");
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::TensorType>(  //
-        "", [](relax::TensorType n, AccessPath n_p, IRDocsifier d) -> Doc {
+        "", [](relax::TensorType n, ffi::reflection::AccessPath n_p, IRDocsifier d) -> Doc {
           return Relax(d, "Tensor")
               ->Call({}, {"ndim", "dtype"},
                      {LiteralDoc::Int(n->ndim, n_p->Attr("ndim")),
@@ -48,18 +48,18 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::PackedFuncType>(  //
-        "", [](relax::PackedFuncType n, AccessPath n_p, IRDocsifier d) -> Doc {
+        "", [](relax::PackedFuncType n, ffi::reflection::AccessPath n_p, IRDocsifier d) -> Doc {
           return Relax(d, "PackedFunc");  // TODO(@junrushao): verify if this is correct
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tvm::TupleType>(  //
-        "relax", [](tvm::TupleType n, AccessPath n_p, IRDocsifier d) -> Doc {
+        "relax", [](tvm::TupleType n, ffi::reflection::AccessPath n_p, IRDocsifier d) -> Doc {
           if (n->fields.empty()) {
             return Relax(d, "Tuple");
           }
           ffi::Array<ExprDoc> fields_doc;
-          AccessPath fields_p = n_p->Attr("fields");
+          ffi::reflection::AccessPath fields_p = n_p->Attr("fields");
           for (int i = 0, l = n->fields.size(); i < l; ++i) {
             fields_doc.push_back(d->AsDoc<ExprDoc>(n->fields[i], fields_p->ArrayItem(i)));
           }
@@ -68,10 +68,10 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tvm::FuncType>(
-        "relax", [](tvm::FuncType n, AccessPath n_p, IRDocsifier d) -> Doc {
+        "relax", [](tvm::FuncType n, ffi::reflection::AccessPath n_p, IRDocsifier d) -> Doc {
           ffi::Array<ExprDoc> arg_types_doc;
           ffi::Array<Type> arg_types = n->arg_types;
-          AccessPath arg_types_p = n_p->Attr("arg_types");
+          ffi::reflection::AccessPath arg_types_p = n_p->Attr("arg_types");
           for (int i = 0, n_params = arg_types.size(); i < n_params; ++i) {
             arg_types_doc.push_back(d->AsDoc<ExprDoc>(arg_types[i], arg_types_p->ArrayItem(i)));
           }

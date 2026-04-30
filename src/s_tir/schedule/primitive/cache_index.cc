@@ -289,7 +289,7 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
     // block variables
     ffi::Array<IterVar> block_vars;
     // block access region for write buffers
-    Region access_region;
+    ffi::Array<Range> access_region;
     // indices used in block body
     ffi::Array<PrimExpr> access_indices;
     ffi::Map<Var, Var> block_var_map;

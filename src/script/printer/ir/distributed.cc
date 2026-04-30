@@ -24,7 +24,7 @@ namespace script {
 namespace printer {
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<ffi::Shape>("", [](ffi::Shape n, AccessPath n_p, IRDocsifier d) -> Doc {
+    .set_dispatch<ffi::Shape>("", [](ffi::Shape n, ffi::reflection::AccessPath n_p, IRDocsifier d) -> Doc {
       int s = n.size();
       ffi::Array<ExprDoc> results;
       results.reserve(s);

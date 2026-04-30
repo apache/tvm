@@ -27,6 +27,7 @@
 #include <tvm/runtime/base.h>
 #include <tvm/script/printer/config.h>
 #include <tvm/script/printer/ir_docsifier.h>
+#include <tvm/runtime/logging.h>
 
 #include <sstream>
 #include <string>
@@ -59,7 +60,7 @@ inline std::string RedirectedReprPrinterMethod(const ffi::ObjectRef& obj) {
 
 inline std::string Docsify(const ffi::ObjectRef& obj, const IRDocsifier& d, const Frame& f,
                            const PrinterConfig& cfg) {
-  Doc doc = d->AsDoc(obj, AccessPath::Root());
+  Doc doc = d->AsDoc(obj, ffi::reflection::AccessPath::Root());
   bool move_source_paths = false;
   if (const auto* expr_doc = doc.as<ExprDocNode>()) {
     if (!cfg->verbose_expr) {
@@ -122,7 +123,7 @@ inline ExprDoc Relax(const IRDocsifier& d, const ffi::String& attr) {
 }
 
 inline std::string DType2Str(const runtime::DataType& dtype) {
-  return dtype.is_void() ? "void" : runtime::DLDataTypeToString(dtype);
+  return dtype.is_void() ? "void" : ffi::DLDataTypeToString(dtype);
 }
 
 /*! \brief Add headers as comments to doc if needed */

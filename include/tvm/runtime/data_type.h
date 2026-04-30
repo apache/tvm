@@ -26,8 +26,8 @@
 
 #include <tvm/ffi/container/shape.h>
 #include <tvm/ffi/dtype.h>
+#include <tvm/ffi/error.h>
 #include <tvm/runtime/base.h>
-#include <tvm/runtime/logging.h>
 
 #include <cstring>
 #include <string>
@@ -35,8 +35,6 @@
 
 namespace tvm {
 namespace runtime {
-
-using tvm_index_t = ffi::Shape::index_type;
 
 /*!
  * \brief Runtime primitive data type.
@@ -404,10 +402,10 @@ class DataType {
    * \return The type of TVM shape index.
    */
   static DataType ShapeIndex() {
-    if (std::is_signed<tvm_index_t>::value) {
-      return DataType::Int(sizeof(tvm_index_t) * 8);
+    if (std::is_signed<ffi::Shape::index_type>::value) {
+      return DataType::Int(sizeof(ffi::Shape::index_type) * 8);
     } else {
-      return DataType::UInt(sizeof(tvm_index_t) * 8);
+      return DataType::UInt(sizeof(ffi::Shape::index_type) * 8);
     }
   }
 
@@ -450,9 +448,6 @@ inline bool TypeMatch(DLDataType t, int code, int bits, int lanes = 1) {
 inline bool TypeEqual(DLDataType lhs, DLDataType rhs) {
   return lhs.code == rhs.code && lhs.bits == rhs.bits && lhs.lanes == rhs.lanes;
 }
-
-using ffi::DLDataTypeToString;
-using ffi::StringToDLDataType;
 
 inline std::ostream& operator<<(std::ostream& os, const DataType& dtype) {  // NOLINT(*)
   return os << dtype.operator DLDataType();

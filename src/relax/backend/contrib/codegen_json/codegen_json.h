@@ -91,7 +91,7 @@ class OpAttrExtractor {
 
   void Visit(const char* key, DataType* value) {
     if (!value->is_void()) {
-      SetNodeAttr(key, ffi::String(runtime::DLDataTypeToString(*value)));
+      SetNodeAttr(key, ffi::String(ffi::DLDataTypeToString(*value)));
     } else {
       SetNodeAttr(key, ffi::String(""));
     }

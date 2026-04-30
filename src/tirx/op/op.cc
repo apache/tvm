@@ -29,6 +29,7 @@
 #include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>
+#include <tvm/runtime/logging.h>
 
 #include <cmath>
 // Centralized header for constant folders.
@@ -1145,12 +1146,12 @@ TVM_TIR_REGISTER_PURE_BINARY_OP("ldexp");
 
 TVM_TIR_REGISTER_OP("TVMBackendAllocWorkspace")
     .set_num_inputs(5)
-    .set_attr<TGlobalSymbol>("TGlobalSymbol", "TVMBackendAllocWorkspace")
+    .set_attr<ffi::String>("TGlobalSymbol", "TVMBackendAllocWorkspace")
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
 TVM_TIR_REGISTER_OP("TVMBackendFreeWorkspace")
     .set_num_inputs(3)
-    .set_attr<TGlobalSymbol>("TGlobalSymbol", "TVMBackendFreeWorkspace")
+    .set_attr<ffi::String>("TGlobalSymbol", "TVMBackendFreeWorkspace")
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
 // expose basic functions to node namespace

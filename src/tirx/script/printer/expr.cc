@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/tirx/builtin.h>
+#include <tvm/runtime/logging.h>
 
 #include "./utils.h"
 
@@ -24,9 +25,9 @@ namespace tvm {
 namespace script {
 namespace printer {
 
-ExprDoc PrintVarCreation(const tirx::Var& var, const AccessPath& var_p, const IRDocsifier& d) {
+ExprDoc PrintVarCreation(const tirx::Var& var, const ffi::reflection::AccessPath& var_p, const IRDocsifier& d) {
   Type type = var->type_annotation;
-  AccessPath type_p = var_p->Attr("type_annotation");
+  ffi::reflection::AccessPath type_p = var_p->Attr("type_annotation");
   ExprDoc rhs{ffi::UnsafeInit()};
   ffi::Array<ffi::String> kwargs_keys;
   ffi::Array<ExprDoc> kwargs_values;
@@ -64,7 +65,7 @@ ExprDoc PrintVarCreation(const tirx::Var& var, const AccessPath& var_p, const IR
   return rhs;
 }
 
-Doc PrintVar(const tirx::Var& var, const AccessPath& var_p, const IRDocsifier& d) {
+Doc PrintVar(const tirx::Var& var, const ffi::reflection::AccessPath& var_p, const IRDocsifier& d) {
   if (!d->IsVarDefined(var)) {
     if (ffi::Optional<Frame> opt_f = FindLowestVarDef(var, d)) {
       ExprDoc lhs = DefineVar(var, opt_f.value(), d);
@@ -82,17 +83,17 @@ Doc PrintVar(const tirx::Var& var, const AccessPath& var_p, const IRDocsifier& d
 }
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)  //
-    .set_dispatch<tirx::Var>("", [](tirx::Var var, AccessPath p, IRDocsifier d) -> Doc {
+    .set_dispatch<tirx::Var>("", [](tirx::Var var, ffi::reflection::AccessPath p, IRDocsifier d) -> Doc {
       return PrintVar(var, p, d);
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)  //
-    .set_dispatch<tirx::SizeVar>("", [](tirx::SizeVar var, AccessPath p, IRDocsifier d) -> Doc {
+    .set_dispatch<tirx::SizeVar>("", [](tirx::SizeVar var, ffi::reflection::AccessPath p, IRDocsifier d) -> Doc {
       return PrintVar(var, p, d);
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tirx::IterVar>("", [](tirx::IterVar var, AccessPath var_p, IRDocsifier d) -> Doc {
+    .set_dispatch<tirx::IterVar>("", [](tirx::IterVar var, ffi::reflection::AccessPath var_p, IRDocsifier d) -> Doc {
       return TIR(d, "iter_var")
           ->Call({
               d->AsDoc<ExprDoc>(var->var, var_p->Attr("var")),
@@ -103,7 +104,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tirx::Not>("", [](tirx::Not node, AccessPath p, IRDocsifier d) -> Doc {
+    .set_dispatch<tirx::Not>("", [](tirx::Not node, ffi::reflection::AccessPath p, IRDocsifier d) -> Doc {
       ExprDoc a = d->AsDoc<ExprDoc>(node->a, p->Attr("a"));
       if (a->IsInstance<LiteralDocNode>()) {
         return TIR(d, "Not")->Call({a});
@@ -112,7 +113,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tirx::StringImm>("", [](tirx::StringImm s, AccessPath p, IRDocsifier d) -> Doc {
+    .set_dispatch<tirx::StringImm>("", [](tirx::StringImm s, ffi::reflection::AccessPath p, IRDocsifier d) -> Doc {
       if (HasMultipleLines(s->value)) {
         return d->AddMetadata(s);
       } else {
@@ -121,14 +122,14 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tirx::Cast>("", [](tirx::Cast cast, AccessPath p, IRDocsifier d) -> Doc {
+    .set_dispatch<tirx::Cast>("", [](tirx::Cast cast, ffi::reflection::AccessPath p, IRDocsifier d) -> Doc {
       ExprDoc dtype = LiteralDoc::DataType(cast->dtype, p->Attr("dtype"));
       ExprDoc value = d->AsDoc<ExprDoc>(cast->value, p->Attr("value"));
       return TIR(d, "Cast")->Call({dtype, value});
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tirx::Select>("", [](tirx::Select select, AccessPath p, IRDocsifier d) -> Doc {
+    .set_dispatch<tirx::Select>("", [](tirx::Select select, ffi::reflection::AccessPath p, IRDocsifier d) -> Doc {
       return TIR(d, "Select")
           ->Call({
               d->AsDoc<ExprDoc>(select->condition, p->Attr("condition")),
@@ -138,7 +139,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tirx::Ramp>("", [](tirx::Ramp ramp, AccessPath ramp_p, IRDocsifier d) -> Doc {
+    .set_dispatch<tirx::Ramp>("", [](tirx::Ramp ramp, ffi::reflection::AccessPath ramp_p, IRDocsifier d) -> Doc {
       return TIR(d, "Ramp")->Call({
           d->AsDoc<ExprDoc>(ramp->base, ramp_p->Attr("base")),
           d->AsDoc<ExprDoc>(ramp->stride, ramp_p->Attr("stride")),
@@ -148,7 +149,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tirx::Broadcast>("",
-                                   [](tirx::Broadcast bc, AccessPath bc_p, IRDocsifier d) -> Doc {
+                                   [](tirx::Broadcast bc, ffi::reflection::AccessPath bc_p, IRDocsifier d) -> Doc {
                                      return TIR(d, "Broadcast")
                                          ->Call({
                                              d->AsDoc<ExprDoc>(bc->value, bc_p->Attr("value")),
@@ -158,7 +159,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tirx::Shuffle>(  //
-        "", [](tirx::Shuffle shuffle, AccessPath p, IRDocsifier d) -> Doc {
+        "", [](tirx::Shuffle shuffle, ffi::reflection::AccessPath p, IRDocsifier d) -> Doc {
           return TIR(d, "Shuffle")
               ->Call({
                   d->AsDoc<ExprDoc>(shuffle->vectors, p->Attr("vectors")),
@@ -168,7 +169,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tirx::CommReducer>(  //
-        "", [](tirx::CommReducer r, AccessPath p, IRDocsifier d) -> Doc {
+        "", [](tirx::CommReducer r, ffi::reflection::AccessPath p, IRDocsifier d) -> Doc {
           TVM_FFI_ICHECK_EQ(r->lhs.size(), r->rhs.size());
           ffi::Optional<LambdaDoc> lambda;
           {
@@ -199,8 +200,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         });
 
 LambdaDoc PrintIndexMap(const ffi::ObjectRef& map, const ffi::Array<tirx::Var>& vs,
-                        const AccessPath& vs_p, const ffi::Array<PrimExpr>& es,
-                        const AccessPath& es_p, const IRDocsifier& d) {
+                        const ffi::reflection::AccessPath& vs_p, const ffi::Array<PrimExpr>& es,
+                        const ffi::reflection::AccessPath& es_p, const IRDocsifier& d) {
   With<TIRFrame> f(d, map);
   ffi::Array<IdDoc> vars;
   for (int i = 0, l = vs.size(); i < l; ++i) {
@@ -215,7 +216,7 @@ LambdaDoc PrintIndexMap(const ffi::ObjectRef& map, const ffi::Array<tirx::Var>& 
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tirx::IndexMap>(  //
-        "", [](tirx::IndexMap m, AccessPath m_p, IRDocsifier d) -> Doc {
+        "", [](tirx::IndexMap m, ffi::reflection::AccessPath m_p, IRDocsifier d) -> Doc {
           LambdaDoc map = PrintIndexMap(m, m->initial_indices, m_p->Attr("initial_indices"),
                                         m->final_indices, m_p->Attr("final_indices"), d);
           if (m->inverse_index_map.defined()) {
@@ -231,7 +232,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tirx::Let>("", [](tirx::Let let, AccessPath p, IRDocsifier d) -> Doc {
+    .set_dispatch<tirx::Let>("", [](tirx::Let let, ffi::reflection::AccessPath p, IRDocsifier d) -> Doc {
       DictDoc where({d->AsDoc<ExprDoc>(let->var, p->Attr("var"))},
                     {d->AsDoc<ExprDoc>(let->value, p->Attr("value"))});
       return TIR(d, "Let")->Call({d->AsDoc<ExprDoc>(let->body, p->Attr("body"))},  //
@@ -239,9 +240,9 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tirx::Call>("", [](tirx::Call call, AccessPath call_p, IRDocsifier d) -> Doc {
-      static const OpAttrMap<tirx::TScriptPrinterName>& op_names =
-          Op::GetAttrMap<tirx::TScriptPrinterName>("TScriptPrinterName");
+    .set_dispatch<tirx::Call>("", [](tirx::Call call, ffi::reflection::AccessPath call_p, IRDocsifier d) -> Doc {
+      static const OpAttrMap<ffi::String>& op_names =
+          Op::GetAttrMap<ffi::String>("TScriptPrinterName");
       static const OpAttrMap<tirx::TScriptDtypePrintLocation> dtype_locations =
           Op::GetAttrMap<tirx::TScriptDtypePrintLocation>("TScriptDtypePrintLocation");
       tirx::ScriptDtypePrintLocation dtype_print_location = tirx::ScriptDtypePrintLocation::kNone;
@@ -304,7 +305,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tirx::Reduce>("", [](tirx::Reduce r, AccessPath p, IRDocsifier d) -> Doc {
+    .set_dispatch<tirx::Reduce>("", [](tirx::Reduce r, ffi::reflection::AccessPath p, IRDocsifier d) -> Doc {
       ExprDoc combiner = d->AsDoc<ExprDoc>(r->combiner, p->Attr("combiner"));
       ExprDoc source = d->AsDoc<ExprDoc>(r->source, p->Attr("source"));
       ExprDoc init = d->AsDoc<ExprDoc>(r->init, p->Attr("init"));
@@ -320,7 +321,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 #define TVM_SCRIPT_PRINTER_DEF_BINARY(NodeType, OpString)                                         \
   TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)                                                      \
       .set_dispatch<tirx::NodeType>("",                                                           \
-                                    [](tirx::NodeType node, AccessPath p, IRDocsifier d) -> Doc { \
+                                    [](tirx::NodeType node, ffi::reflection::AccessPath p, IRDocsifier d) -> Doc { \
                                       ExprDoc a = d->AsDoc<ExprDoc>(node->a, p->Attr("a"));       \
                                       ExprDoc b = d->AsDoc<ExprDoc>(node->b, p->Attr("b"));       \
                                       return TIR(d, OpString)->Call({a, b});                      \
@@ -336,7 +337,7 @@ bool IsNumber(const ExprDoc& e) {
 }
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tirx::Div>("", [](tirx::Div node, AccessPath p, IRDocsifier d) -> Doc {
+    .set_dispatch<tirx::Div>("", [](tirx::Div node, ffi::reflection::AccessPath p, IRDocsifier d) -> Doc {
       ExprDoc a = d->AsDoc<ExprDoc>(node->a, p->Attr("a"));
       ExprDoc b = d->AsDoc<ExprDoc>(node->b, p->Attr("b"));
       PrimExpr ret = tvm::div(node->a, node->b);
@@ -353,7 +354,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 #define TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(NodeType, NodeObj, NodeFunc, OpString, OpKind) \
   TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)                                                    \
       .set_dispatch<tirx::NodeType>(                                                            \
-          "", [](tirx::NodeType node, AccessPath p, IRDocsifier d) -> Doc {                     \
+          "", [](tirx::NodeType node, ffi::reflection::AccessPath p, IRDocsifier d) -> Doc {                     \
             ExprDoc a = d->AsDoc<ExprDoc>(node->a, p->Attr("a"));                               \
             ExprDoc b = d->AsDoc<ExprDoc>(node->b, p->Attr("b"));                               \
             PrimExpr ret = tvm::NodeFunc(node->a, node->b);                                     \

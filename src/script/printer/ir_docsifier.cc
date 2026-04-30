@@ -19,7 +19,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/accessor.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/logging.h>
+#include <tvm/ffi/error.h>
 #include <tvm/script/printer/ir_docsifier.h>
 
 #include <sstream>
@@ -209,7 +209,7 @@ IRDocsifier::FType& IRDocsifier::vtable() {
 }
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_fallback([](ffi::ObjectRef obj, AccessPath p, IRDocsifier d) -> Doc {
+    .set_fallback([](ffi::ObjectRef obj, ffi::reflection::AccessPath p, IRDocsifier d) -> Doc {
       return d->AddMetadata(obj);
     });
 

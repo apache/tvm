@@ -42,17 +42,12 @@
 namespace tvm {
 namespace runtime {
 
-using ffi::GetDataSize;
-using ffi::IsAligned;
-using ffi::IsContiguous;
-
 /*!
  * \brief Managed Tensor.
  *  The array is backed by reference counted blocks.
  */
 class Tensor : public tvm::ffi::Tensor {
  public:
-  using Container = ffi::TensorObj;
   Tensor() = default;
   /*!
    * \brief constructor.

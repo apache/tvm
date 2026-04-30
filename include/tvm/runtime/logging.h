@@ -60,8 +60,6 @@
 namespace tvm {
 namespace runtime {
 
-using ffi::EnvErrorAlreadySet;
-
 /*! \brief Internal implementation */
 namespace detail {
 // Provide support for customized logging.

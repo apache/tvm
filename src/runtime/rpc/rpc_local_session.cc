@@ -106,7 +106,7 @@ void LocalSession::CallFunc(RPCSession::PackedFuncHandle func, ffi::PackedArgs a
 }
 
 void LocalSession::CopyToRemote(void* from_bytes, DLTensor* to, uint64_t nbytes) {
-  TVM_FFI_ICHECK_EQ(nbytes, GetDataSize(*to));
+  TVM_FFI_ICHECK_EQ(nbytes, ffi::GetDataSize(*to));
   DLTensor from;
   from.data = from_bytes;
   from.device = {kDLCPU, 0};

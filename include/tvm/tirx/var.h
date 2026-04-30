@@ -173,7 +173,7 @@ class SizeVar : public Var {
   using ContainerType = SizeVarNode;
 };
 
-using Region = ffi::Array<Range>;
+// NOTE: Region was an alias for ffi::Array<Range>; use ffi::Array<Range> directly.
 
 /*!
  * \brief Type of iteration variable.

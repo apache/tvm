@@ -682,13 +682,13 @@ ffi::Array<PrimExpr> ConvertIndices(const MatchBufferRegion& match_buffer,
   return result;
 }
 
-Region ConvertRegion(const MatchBufferRegion& match_buffer, const Region& region) {
+ffi::Array<Range> ConvertRegion(const MatchBufferRegion& match_buffer, const ffi::Array<Range>& region) {
   const Buffer& target = match_buffer->buffer;
   const BufferRegion& source = match_buffer->source;
   TVM_FFI_ICHECK_EQ(region.size(), target->shape.size());
 
   arith::Analyzer analyzer;
-  Region result;
+  ffi::Array<Range> result;
   result.reserve(source->region.size());
   size_t offset = source->region.size() - region.size();
   for (size_t i = 0; i < offset; ++i) {

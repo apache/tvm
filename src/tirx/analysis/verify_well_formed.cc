@@ -40,7 +40,6 @@
 namespace tvm {
 namespace tirx {
 
-using AccessPath = ffi::reflection::AccessPath;
 
 namespace {
 
@@ -234,19 +233,19 @@ class UndefinedVarVerifier : public Verifier<UndefinedVarVerifier> {
 
  private:
   using Verifier::Visit;
-  void Visit(const PrimFunc& prim_func, AccessPath path) override {
+  void Visit(const PrimFunc& prim_func, ffi::reflection::AccessPath path) override {
     Verifier::Visit(prim_func, path);
     redefine_allowed_within_function_.clear();
   }
 
-  void EnterDef(const IterVar& iter_var, AccessPath path) override {
+  void EnterDef(const IterVar& iter_var, ffi::reflection::AccessPath path) override {
     Verifier::EnterDef(iter_var, path);
     if (iter_var->iter_type == IterVarType::kThreadIndex) {
       redefine_allowed_within_function_.insert(iter_var->var);
     }
   }
 
-  void EnterDef(const Var& var, AccessPath path) override {
+  void EnterDef(const Var& var, ffi::reflection::AccessPath path) override {
     bool redefine_is_allowed = redefine_allowed_within_function_.count(var);
     {
       auto it = currently_defined_.find(var);
@@ -272,14 +271,14 @@ class UndefinedVarVerifier : public Verifier<UndefinedVarVerifier> {
     currently_defined_.insert({var, path});
   }
 
-  void ExitDef(const Var& var, AccessPath path) override {
+  void ExitDef(const Var& var, ffi::reflection::AccessPath path) override {
     auto active_def = currently_defined_.find(var);
 
     currently_defined_.erase(active_def);
     previously_defined_.insert({var, path});
   }
 
-  void VisitExpr_(const VarNode* op, AccessPath path) override {
+  void VisitExpr_(const VarNode* op, ffi::reflection::AccessPath path) override {
     auto var = ffi::GetRef<Var>(op);
 
     auto active_def = currently_defined_.find(var);
@@ -298,10 +297,10 @@ class UndefinedVarVerifier : public Verifier<UndefinedVarVerifier> {
   }
 
   // Variables that are defined in the currently-visited scope.
-  std::unordered_map<Var, AccessPath> currently_defined_;
+  std::unordered_map<Var, ffi::reflection::AccessPath> currently_defined_;
 
   // Variables that were previously defined, and are now out of scope.
-  std::unordered_map<Var, AccessPath> previously_defined_;
+  std::unordered_map<Var, ffi::reflection::AccessPath> previously_defined_;
 
   // Special variables that are allowed to be re-defined, so long as
   // that re-definition occurs within the same PrimFunc.  For example
@@ -328,20 +327,20 @@ class UndefinedBufferVerifier : public Verifier<UndefinedBufferVerifier> {
  private:
   using Verifier::Visit;
 
-  void Visit(const PrimFunc& prim_func, AccessPath path) override {
+  void Visit(const PrimFunc& prim_func, ffi::reflection::AccessPath path) override {
     Verifier::Visit(prim_func, path);
     // Clear per-function state (buffers should not cross function boundaries).
     currently_defined_.clear();
     previously_defined_.clear();
   }
 
-  void EnterDef(const Buffer& buffer, AccessPath path) override {
+  void EnterDef(const Buffer& buffer, ffi::reflection::AccessPath path) override {
     // Call the base class to visit buffer's internal vars (shape, strides, etc.)
     Verifier::EnterDef(buffer, path);
     currently_defined_.insert({buffer, path});
   }
 
-  void ExitDef(const Buffer& buffer, AccessPath path) override {
+  void ExitDef(const Buffer& buffer, ffi::reflection::AccessPath path) override {
     auto active_def = currently_defined_.find(buffer);
     if (active_def != currently_defined_.end()) {
       currently_defined_.erase(active_def);
@@ -349,7 +348,7 @@ class UndefinedBufferVerifier : public Verifier<UndefinedBufferVerifier> {
     previously_defined_.insert({buffer, path});
   }
 
-  void VisitBufferUse(const Buffer& buffer, AccessPath path) override {
+  void VisitBufferUse(const Buffer& buffer, ffi::reflection::AccessPath path) override {
     bool is_declared = currently_defined_.count(buffer);
     bool was_declared = previously_defined_.count(buffer);
 
@@ -369,10 +368,10 @@ class UndefinedBufferVerifier : public Verifier<UndefinedBufferVerifier> {
   }
 
   // Buffers defined in the currently-visited scope.
-  std::unordered_map<Buffer, AccessPath, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+  std::unordered_map<Buffer, ffi::reflection::AccessPath, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       currently_defined_;
   // Buffers that were previously defined and are now out of scope.
-  std::unordered_map<Buffer, AccessPath, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+  std::unordered_map<Buffer, ffi::reflection::AccessPath, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       previously_defined_;
 };
 
@@ -389,12 +388,12 @@ class SingleEnvThreadVerifier : public Verifier<SingleEnvThreadVerifier> {
   using Verifier::Verifier;
 
  private:
-  void Visit(const PrimFunc& prim_func, AccessPath path) override {
+  void Visit(const PrimFunc& prim_func, ffi::reflection::AccessPath path) override {
     Verifier::Visit(prim_func, path);
     env_thread_vars_.clear();
   }
 
-  void EnterDef(const IterVar& iter_var, AccessPath path) override {
+  void EnterDef(const IterVar& iter_var, ffi::reflection::AccessPath path) override {
     if (iter_var->iter_type == IterVarType::kThreadIndex) {
       if (auto it = env_thread_vars_.find(iter_var->thread_tag); it != env_thread_vars_.end()) {
         const auto& [prev_var, prev_path] = it->second;
@@ -413,7 +412,7 @@ class SingleEnvThreadVerifier : public Verifier<SingleEnvThreadVerifier> {
     }
   }
 
-  std::unordered_map<ffi::String, std::tuple<Var, AccessPath>> env_thread_vars_;
+  std::unordered_map<ffi::String, std::tuple<Var, ffi::reflection::AccessPath>> env_thread_vars_;
 };
 
 bool VerifyWellFormed(const PrimFunc& func, bool assert_mode) {

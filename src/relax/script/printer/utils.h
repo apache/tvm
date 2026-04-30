@@ -79,7 +79,8 @@ inline IdDoc DefineVar(const relax::Var& var, const Frame& frame, const IRDocsif
   return d->Define(var, frame, var->name_hint().empty() ? "v" : var->name_hint());
 }
 
-inline ffi::Optional<ExprDoc> StructInfoAsAnn(const relax::Var& v, const AccessPath& v_p,
+inline ffi::Optional<ExprDoc> StructInfoAsAnn(const relax::Var& v,
+                                              const ffi::reflection::AccessPath& v_p,
                                               const IRDocsifier& d,
                                               const ffi::Optional<relax::Expr>& rhs) {
   if (!v->struct_info_.defined()) {
@@ -133,10 +134,11 @@ inline ffi::Optional<ExprDoc> StructInfoAsAnn(const relax::Var& v, const AccessP
   return d->AsDoc<ExprDoc>(v->struct_info_, v_p->Attr("struct_info_"));
 }
 
-ffi::Array<StmtDoc> PrintSeqExpr(const relax::SeqExpr& n, const AccessPath& n_p,
+ffi::Array<StmtDoc> PrintSeqExpr(const relax::SeqExpr& n, const ffi::reflection::AccessPath& n_p,
                                  const IRDocsifier& d, bool use_ret);
 
-ExprDoc PrintShapeVar(const PrimExpr& e, const AccessPath& e_p, const IRDocsifier& d);
+ExprDoc PrintShapeVar(const PrimExpr& e, const ffi::reflection::AccessPath& e_p,
+                      const IRDocsifier& d);
 
 inline int FindVDeviceIndexByTargetKind(const VDevice& vdevice, const IRDocsifier& d) {
   ffi::Array<GlobalInfo> vdevices = d->global_infos["vdevice"];

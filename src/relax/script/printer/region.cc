@@ -24,11 +24,11 @@ namespace tvm {
 namespace script {
 namespace printer {
 
-ffi::Array<StmtDoc> PrintSeqExpr(const relax::SeqExpr& n, const AccessPath& n_p,
+ffi::Array<StmtDoc> PrintSeqExpr(const relax::SeqExpr& n, const ffi::reflection::AccessPath& n_p,
                                  const IRDocsifier& d, bool use_ret) {
   With<RelaxFrame> f(d);
   const ffi::Array<relax::BindingBlock>& blocks = n->blocks;
-  AccessPath blocks_p = n_p->Attr("blocks");
+  ffi::reflection::AccessPath blocks_p = n_p->Attr("blocks");
   ffi::Array<StmtDoc>* stmts = &(*f)->stmts;
   for (int i = 0, l = blocks.size(); i < l; ++i) {
     Doc block = d->AsDoc(blocks[i], blocks_p->ArrayItem(i));
@@ -50,19 +50,21 @@ ffi::Array<StmtDoc> PrintSeqExpr(const relax::SeqExpr& n, const AccessPath& n_p,
 }
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<relax::SeqExpr>("", [](relax::SeqExpr n, AccessPath n_p, IRDocsifier d) -> Doc {
-      return StmtBlockDoc(PrintSeqExpr(n, n_p, d, false));
-    });
+    .set_dispatch<relax::SeqExpr>("",
+                                  [](relax::SeqExpr n, ffi::reflection::AccessPath n_p,
+                                     IRDocsifier d) -> Doc {
+                                    return StmtBlockDoc(PrintSeqExpr(n, n_p, d, false));
+                                  });
 
-ffi::Array<StmtDoc> PrintBindingBlock(const relax::BindingBlock& n, const AccessPath& n_p,
-                                      const IRDocsifier& d,
+ffi::Array<StmtDoc> PrintBindingBlock(const relax::BindingBlock& n,
+                                      const ffi::reflection::AccessPath& n_p, const IRDocsifier& d,
                                       ffi::Array<ExprDoc>* non_dataflow_vars) {
   const ffi::Array<relax::Binding>& bindings = n->bindings;
-  AccessPath bindings_p = n_p->Attr("bindings");
+  ffi::reflection::AccessPath bindings_p = n_p->Attr("bindings");
   ffi::Array<StmtDoc> stmts;
   for (int i = 0, l = bindings.size(); i < l; ++i) {
     const relax::Binding& binding = bindings[i];
-    AccessPath binding_p = bindings_p->ArrayItem(i);
+    ffi::reflection::AccessPath binding_p = bindings_p->ArrayItem(i);
     TVM_FFI_ICHECK(binding->var.defined());
     Doc binding_doc = d->AsDoc(binding, binding_p);
     if (const auto* stmt = binding_doc.as<StmtDocNode>()) {
@@ -81,13 +83,13 @@ ffi::Array<StmtDoc> PrintBindingBlock(const relax::BindingBlock& n, const Access
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::BindingBlock>(  //
-        "", [](relax::BindingBlock n, AccessPath n_p, IRDocsifier d) -> Doc {
+        "", [](relax::BindingBlock n, ffi::reflection::AccessPath n_p, IRDocsifier d) -> Doc {
           return StmtBlockDoc(PrintBindingBlock(n, n_p, d, nullptr));
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::DataflowBlock>(  //
-        "", [](relax::DataflowBlock n, AccessPath n_p, IRDocsifier d) -> Doc {
+        "", [](relax::DataflowBlock n, ffi::reflection::AccessPath n_p, IRDocsifier d) -> Doc {
           ffi::Array<ExprDoc> non_dataflow_vars;
           ffi::Array<StmtDoc> stmts = PrintBindingBlock(n, n_p, d, &non_dataflow_vars);
           stmts.push_back(ExprStmtDoc(Relax(d, "output")->Call(non_dataflow_vars)));

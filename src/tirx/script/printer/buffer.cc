@@ -24,7 +24,7 @@ namespace tvm {
 namespace script {
 namespace printer {
 
-ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::Buffer buffer, const AccessPath& buffer_p,
+ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::Buffer buffer, const ffi::reflection::AccessPath& buffer_p,
                                            const Frame& frame, const IRDocsifier& d,
                                            BufferVarDefinition var_definitions) {
   using tvm::tirx::Var;
@@ -53,14 +53,14 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::Buffer buffer, const AccessPath
   auto is_new_var = [&](const PrimExpr& e) {
     return e->IsInstance<VarNode>() && !d->IsVarDefined(e);
   };
-  auto add_out_of_line_var_def = [&](const Var& var, const AccessPath& var_p) {
+  auto add_out_of_line_var_def = [&](const Var& var, const ffi::reflection::AccessPath& var_p) {
     TVM_FFI_ICHECK(!d->IsVarDefined(var));
     ExprDoc lhs = DefineVar(var, frame, d);
     lhs->source_paths.push_back(var_p);
     var_def_lhs.push_back(lhs);
     var_def_rhs.push_back(PrintVarCreation(var, var_p, d));
   };
-  auto try_inline_def = [&](const PrimExpr& e, const AccessPath& e_p,
+  auto try_inline_def = [&](const PrimExpr& e, const ffi::reflection::AccessPath& e_p,
                             std::function<ExprDoc()> inline_f) {
     TVM_FFI_ICHECK(is_new_var(e));
     Var var = Downcast<Var>(e);
@@ -75,13 +75,13 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::Buffer buffer, const AccessPath
   // Step 1. Handle `buffer.shape`
   {
     const ffi::Array<PrimExpr>& shape = buffer->shape;
-    AccessPath shape_p = buffer_p->Attr("shape");
+    ffi::reflection::AccessPath shape_p = buffer_p->Attr("shape");
     int n = shape.size();
     ffi::Array<ExprDoc> results;
     results.reserve(n);
     for (int i = 0; i < n; ++i) {
       PrimExpr e = shape[i];
-      AccessPath e_p = shape_p->ArrayItem(i);
+      ffi::reflection::AccessPath e_p = shape_p->ArrayItem(i);
       if (is_new_var(e)) {
         add_out_of_line_var_def(Downcast<Var>(e), e_p);
       }
@@ -110,13 +110,13 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::Buffer buffer, const AccessPath
   // Step 4. Handle `buffer.strides`
   if (!buffer->strides.empty()) {
     const ffi::Array<PrimExpr>& strides = buffer->strides;
-    AccessPath strides_p = buffer_p->Attr("strides");
+    ffi::reflection::AccessPath strides_p = buffer_p->Attr("strides");
     int n = strides.size();
     ffi::Array<ExprDoc> results;
     results.reserve(n);
     for (int i = 0; i < n; ++i) {
       PrimExpr e = strides[i];
-      AccessPath e_p = strides_p->ArrayItem(i);
+      ffi::reflection::AccessPath e_p = strides_p->ArrayItem(i);
       if (is_new_var(e)) {
         if (try_inline_def(e, e_p, [=]() {
               return d->AsDoc<ExprDoc>(buffer, buffer_p)
@@ -203,14 +203,14 @@ ExprDoc BufferCall(const ExprDoc& prefix, const ffi::Map<ffi::String, ExprDoc>& 
 }
 
 ExprDoc BufferDecl(const tirx::Buffer& buffer, const ffi::String& method,
-                   const ffi::Array<ExprDoc>& args, const AccessPath& p, const Frame& frame,
+                   const ffi::Array<ExprDoc>& args, const ffi::reflection::AccessPath& p, const Frame& frame,
                    const IRDocsifier& d, BufferVarDefinition var_definitions) {
   return BufferCall(/*prefix=*/TIR(d, method),
                     /*attrs=*/BufferAttrs(buffer, p, frame, d, var_definitions),
                     /*args=*/args);
 }
 
-ExprDoc BufferAttn(const tirx::Buffer& buffer, const AccessPath& p, const Frame& frame,
+ExprDoc BufferAttn(const tirx::Buffer& buffer, const ffi::reflection::AccessPath& p, const Frame& frame,
                    const IRDocsifier& d) {
   ffi::Map<ffi::String, ExprDoc> attrs =
       BufferAttrs(buffer, p, frame, d, BufferVarDefinition::DataPointer);
@@ -220,7 +220,7 @@ ExprDoc BufferAttn(const tirx::Buffer& buffer, const AccessPath& p, const Frame&
   return TIR(d, "Buffer")->Call({shape, dtype}, {}, {});
 }
 
-ffi::Array<Doc> BufferIndices(const ffi::Array<PrimExpr>& indices, const AccessPath& p,
+ffi::Array<Doc> BufferIndices(const ffi::Array<PrimExpr>& indices, const ffi::reflection::AccessPath& p,
                               const IRDocsifier& d) {
   int n = indices.size();
   ffi::Array<Doc> indices_doc;
@@ -228,8 +228,8 @@ ffi::Array<Doc> BufferIndices(const ffi::Array<PrimExpr>& indices, const AccessP
   for (int i = 0; i < n; ++i) {
     if (const auto* ramp = indices[i].as<tirx::RampNode>()) {
       if (const auto* stride = ramp->stride.as<IntImmNode>()) {
-        AccessPath ramp_p = p->Attr("indices")->ArrayItem(i);
-        AccessPath stride_p = ramp_p->Attr("stride");
+        ffi::reflection::AccessPath ramp_p = p->Attr("indices")->ArrayItem(i);
+        ffi::reflection::AccessPath stride_p = ramp_p->Attr("stride");
         ExprDoc start = d->AsDoc<ExprDoc>(ramp->base,  //
                                           ramp_p->Attr("base"));
         ExprDoc stop = d->AsDoc<ExprDoc>(ramp->base + ramp->lanes * ramp->stride,  //
@@ -247,14 +247,14 @@ ffi::Array<Doc> BufferIndices(const ffi::Array<PrimExpr>& indices, const AccessP
   return indices_doc;
 }
 
-ffi::Array<Doc> BufferSlices(const ffi::Array<Range>& region, const AccessPath& p,
+ffi::Array<Doc> BufferSlices(const ffi::Array<Range>& region, const ffi::reflection::AccessPath& p,
                              const IRDocsifier& d) {
   int n = region.size();
   ffi::Array<Doc> indices;
   indices.reserve(n);
   for (int i = 0; i < n; ++i) {
     Range range = region[i];
-    AccessPath range_p = p->ArrayItem(i);
+    ffi::reflection::AccessPath range_p = p->ArrayItem(i);
     ExprDoc min = d->AsDoc<ExprDoc>(range->min, range_p->Attr("min"));
     if (tirx::is_one(range->extent)) {
       indices.push_back(min);
@@ -268,14 +268,14 @@ ffi::Array<Doc> BufferSlices(const ffi::Array<Range>& region, const AccessPath& 
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tirx::BufferRegion>(
-        "", [](tirx::BufferRegion buffer_region, AccessPath p, IRDocsifier d) -> Doc {
+        "", [](tirx::BufferRegion buffer_region, ffi::reflection::AccessPath p, IRDocsifier d) -> Doc {
           ExprDoc prefix = d->AsDoc<ExprDoc>(buffer_region->buffer, p->Attr("buffer"));
           return prefix[BufferSlices(buffer_region->region, p->Attr("region"), d)];
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tirx::BufferStore>(  //
-        "", [](tirx::BufferStore store, AccessPath p, IRDocsifier d) -> Doc {
+        "", [](tirx::BufferStore store, ffi::reflection::AccessPath p, IRDocsifier d) -> Doc {
           ExprDoc buffer = d->AsDoc<ExprDoc>(store->buffer, p->Attr("buffer"));
           ExprDoc value = d->AsDoc<ExprDoc>(store->value, p->Attr("value"));
 
@@ -294,7 +294,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tirx::BufferLoad>(  //
-        "", [](tirx::BufferLoad load, AccessPath p, IRDocsifier d) -> Doc {
+        "", [](tirx::BufferLoad load, ffi::reflection::AccessPath p, IRDocsifier d) -> Doc {
           ExprDoc buffer = d->AsDoc<ExprDoc>(load->buffer, p->Attr("buffer"));
 
           // Use .vload(...) syntax when there is a predicate
@@ -308,7 +308,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)  //
-    .set_dispatch<tirx::Buffer>("", [](tirx::Buffer buffer, AccessPath p, IRDocsifier d) -> Doc {
+    .set_dispatch<tirx::Buffer>("", [](tirx::Buffer buffer, ffi::reflection::AccessPath p, IRDocsifier d) -> Doc {
       if (!d->IsVarDefined(buffer)) {
         if (ffi::Optional<Frame> opt_f = FindLowestVarDef(buffer, d)) {
           ExprDoc lhs = DefineBuffer(buffer, opt_f.value(), d);
@@ -326,7 +326,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)  //
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tirx::MatchBufferRegion>(
-        "", [](tirx::MatchBufferRegion stmt, AccessPath p, IRDocsifier d) -> Doc {
+        "", [](tirx::MatchBufferRegion stmt, ffi::reflection::AccessPath p, IRDocsifier d) -> Doc {
           Frame frame = d->frames.back();
           ExprDoc lhs = DefineBuffer(stmt->buffer, frame, d);
           ExprDoc src_buffer = d->AsDoc<ExprDoc>(stmt->source, p->Attr("source"));
@@ -337,7 +337,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tirx::ProducerLoad>(  //
-        "", [](tirx::ProducerLoad load, AccessPath p, IRDocsifier d) -> Doc {
+        "", [](tirx::ProducerLoad load, ffi::reflection::AccessPath p, IRDocsifier d) -> Doc {
           ExprDoc prefix = IdDoc(load->producer->GetNameHint());
           return prefix[BufferIndices(load->indices, p->Attr("indices"), d)];
         });

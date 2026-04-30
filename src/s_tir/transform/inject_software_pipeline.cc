@@ -237,7 +237,7 @@ class PipelineBodyRewriter : public StmtExprMutator {
   BufferRegion RewritePipelineBufferRegion(const BufferRegion& buffer_region) const {
     auto it = buffer_remap_.find(buffer_region->buffer);
     if (it != buffer_remap_.end()) {
-      Region new_region = buffer_region->region;
+      ffi::Array<Range> new_region = buffer_region->region;
       const Buffer& new_buffer = (*it).second;
       // For pipeline buffers, relax the access region of the first dimension to full extent
       // if access_all_versions == true
@@ -444,7 +444,7 @@ class PipelineRewriter : public StmtExprMutator {
    * \param region2 The second region.
    * \return Whether region1 and region2 have intersections.
    */
-  bool MayConflict(Region region1, Region region2) {
+  bool MayConflict(ffi::Array<Range> region1, ffi::Array<Range> region2) {
     TVM_FFI_ICHECK(region1.size() == region2.size());
     for (size_t i = 0; i < region1.size(); i++) {
       Range dim1 = region1[i];
@@ -1203,7 +1203,7 @@ class PipelineInjector : private StmtExprMutator {
   void AddAllocBuffers(SBlockNode* n, const ffi::Array<Buffer> alloc_buffers) {
     for (const Buffer& alloc_buffer : alloc_buffers) {
       n->alloc_buffers.push_back(alloc_buffer);
-      Region region;
+      ffi::Array<Range> region;
       region.reserve(alloc_buffer->shape.size());
       for (const PrimExpr& dim : alloc_buffer->shape) {
         region.push_back(Range::FromMinExtent(0, dim));

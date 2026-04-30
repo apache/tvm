@@ -313,7 +313,7 @@ static std::pair<Stmt, SBlockRealize> CreateInBoundBlock(const SBlockRealizeNode
   auto rewrite_expr = [&repl_dict, analyzer](const PrimExpr& e) {
     return analyzer->Simplify(Substitute(e, repl_dict));
   };
-  auto rewrite_region = [rewrite_expr](const Region& region) {
+  auto rewrite_region = [rewrite_expr](const ffi::Array<Range>& region) {
     return region.Map([rewrite_expr](const Range& r) {
       return Range::FromMinExtent(rewrite_expr(r->min), rewrite_expr(r->extent));
     });

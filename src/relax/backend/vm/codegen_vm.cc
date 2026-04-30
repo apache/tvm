@@ -405,7 +405,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   }
 
   // Emits call to packed function `name` with arguments copied over from `call_node` args
-  void EmitPackedFuncCall(const Call& call_node, const FCallPacked& name, RegName dst_reg) {
+  void EmitPackedFuncCall(const Call& call_node, const ffi::String& name, RegName dst_reg) {
     std::vector<Instruction::Arg> args = VisitArray(call_node->args);
     builder_->EmitCall(name, args, dst_reg);
   }

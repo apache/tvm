@@ -977,7 +977,7 @@ TVM_REGISTER_OP("relax.print")
                   "The first value is Python-style format string to use to print. The others "
                   "are values to print")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnVoidStructInfo)
-    .set_attr<FCallPacked>("FCallPacked", "relax.run.print")
+    .set_attr<ffi::String>("FCallPacked", "relax.run.print")
     .set_attr<Bool>("FPurity", Bool(false));
 
 Expr MakePrint(ffi::Array<Expr> vals, StringImm format) {
@@ -1023,7 +1023,7 @@ TVM_REGISTER_OP("relax.assert_op")
                   "Python-style format string to use for displaying an error message, if the "
                   "assert fails. The others are used as format arguments if there is an error.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferAssertStructInfo)
-    .set_attr<FCallPacked>("FCallPacked", "relax.run.assert_op")
+    .set_attr<ffi::String>("FCallPacked", "relax.run.assert_op")
     .set_attr<Bool>("FPurity", Bool(false));
 
 Expr MakeAssertOp(Expr condition, ffi::Array<Expr> vals, StringImm format) {
@@ -1204,7 +1204,7 @@ TVM_REGISTER_OP("relax.shape_to_tensor")
     .set_num_inputs(1)
     .add_argument("input", "Expr", "The input expression")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnShapeToTensorStructInfo)
-    .set_attr<FCallPacked>("FCallPacked", "relax.run.shape_to_tensor")
+    .set_attr<ffi::String>("FCallPacked", "relax.run.shape_to_tensor")
     .set_attr<Bool>("FPurity", Bool(true));
 
 Expr MakeShapeToTensor(Expr expr) {

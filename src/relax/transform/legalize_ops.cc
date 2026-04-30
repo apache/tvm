@@ -30,6 +30,7 @@
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/tirx/transform.h>
 
 #include <set>
@@ -235,7 +236,7 @@ class LegalizeMutator : public ExprMutator {
   Expr VisitExpr_(const CallNode* call) final {
     Call visited_call = Downcast<Call>(this->VisitExprPostOrder_(call));
     static const auto& legalize_map = Op::GetAttrMap<FLegalize>("FLegalize");
-    static const auto& call_packed_map = Op::GetAttrMap<FCallPacked>("FCallPacked");
+    static const auto& call_packed_map = Op::GetAttrMap<ffi::String>("FCallPacked");
     static const auto& requires_arg_shapes_map = Op::GetAttrMap<Bool>("RequiresArgumentShapes");
     static const Op& call_pure_packed_op = Op::Get("relax.call_pure_packed");
     static const Op& call_tir_op = Op::Get("relax.call_tir");
@@ -328,7 +329,7 @@ class LegalizeMutator : public ExprMutator {
       // Second choice, use a default legalization
       legalization_func = legalize_map[op];
     } else if (call_packed_map.count(op)) {
-      // Third choice, use an explicit FCallPacked replacement.  This does not require the shape
+      // Third choice, use an explicit ffi::String replacement.  This does not require the shape
       ffi::String packed_func_name = call_packed_map[op];
       legalization_func = [packed_func_name](const BlockBuilder& bb, const Call& call) -> Expr {
         return Call(ExternFunc(packed_func_name), call->args, Attrs(), {GetStructInfo(call)});

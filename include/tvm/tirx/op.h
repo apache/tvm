@@ -42,7 +42,7 @@
 namespace tvm {
 
 #define TVM_TIR_REGISTER_OP(OpName) \
-  TVM_REGISTER_OP("tirx." OpName).set_attr<TScriptPrinterName>("TScriptPrinterName", OpName)
+  TVM_REGISTER_OP("tirx." OpName).set_attr<ffi::String>("TScriptPrinterName", OpName)
 
 // Most common operators can be overloaded by argument type(PrimExpr).
 // So we put them under the root namespace.
