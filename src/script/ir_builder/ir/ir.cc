@@ -41,7 +41,7 @@ IRModuleFrame IRModule() {
 // any specific dialect, dispatch is keyed by the function's type-key:
 // each dialect registers its own handler that maps a function of that
 // type to the appropriate struct_info.
-inline ffi::Optional<ObjectRef> GetGlobalVarStructInfo(const BaseFunc& func) {
+inline ffi::Optional<ffi::ObjectRef> GetGlobalVarStructInfo(const BaseFunc& func) {
   if (func->struct_info_.defined()) {
     return func->struct_info_;
   }
@@ -50,7 +50,7 @@ inline ffi::Optional<ObjectRef> GetGlobalVarStructInfo(const BaseFunc& func) {
   // Grep hint: grep -rn 'script.ir_builder.decl_function.' src/
   const std::string key = "script.ir_builder.decl_function." + func->GetTypeKey();
   if (auto fn = tvm::ffi::Function::GetGlobal(key)) {
-    return (*fn)(func).cast<ffi::Optional<ObjectRef>>();
+    return (*fn)(func).cast<ffi::Optional<ffi::ObjectRef>>();
   }
   return std::nullopt;
 }

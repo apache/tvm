@@ -891,7 +891,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   // The IR layer's DeclFunction looks up this key on the function's type-key
   // when no pre-existing struct_info_ is set.
   refl::GlobalDef().def("script.ir_builder.decl_function.tirx.PrimFunc",
-                        [](const BaseFunc& func) -> ObjectRef {
+                        [](const BaseFunc& func) -> ffi::ObjectRef {
                           const auto* prim_func = func.as<tvm::tirx::PrimFuncNode>();
                           TVM_FFI_ICHECK(prim_func != nullptr)
                               << "Expected tirx::PrimFunc, got " << func->GetTypeKey();

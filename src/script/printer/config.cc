@@ -23,7 +23,7 @@
 
 namespace tvm {
 
-std::string RedirectedReprPrinterMethod(const ObjectRef& obj) {
+std::string RedirectedReprPrinterMethod(const ffi::ObjectRef& obj) {
   try {
     return TVMScriptPrinter::Script(obj, std::nullopt);
   } catch (const tvm::ffi::Error& e) {

@@ -166,7 +166,7 @@ class TVMScriptPrinter {
  * a plain address string.  Defined in src/script/printer/config.cc so that
  * <tvm/runtime/logging.h> is not pulled into this public header.
  */
-TVM_DLL std::string RedirectedReprPrinterMethod(const ObjectRef& obj);
+TVM_DLL std::string RedirectedReprPrinterMethod(const ffi::ObjectRef& obj);
 
 /*!
  * \brief Register Script as the kRepr callback for ObjectType and install
