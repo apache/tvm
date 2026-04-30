@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
@@ -50,7 +51,7 @@ void IRBuilderFrameNode::AddCallback(ffi::TypedFunction<void()> callback) {
 }
 
 IRBuilder::IRBuilder() {
-  ObjectPtr<IRBuilderNode> n = ffi::make_object<IRBuilderNode>();
+  ffi::ObjectPtr<IRBuilderNode> n = ffi::make_object<IRBuilderNode>();
   n->frames.clear();
   n->result = std::nullopt;
   data_ = n;
@@ -95,7 +96,7 @@ Namer::FType& Namer::vtable() {
   return inst;
 }
 
-void Namer::Name(ObjectRef node, ffi::String name) {
+void Namer::Name(ffi::ObjectRef node, ffi::String name) {
   static const FType& f = vtable();
   TVM_FFI_CHECK(node.defined(), ValueError) << "Cannot name nullptr with: " << name;
   TVM_FFI_CHECK(f.can_dispatch(node), ValueError)
@@ -116,8 +117,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def_method("script.ir_builder.IRBuilderExit", &IRBuilder::ExitWithScope)
       .def("script.ir_builder.IRBuilderCurrent", IRBuilder::Current)
       .def("script.ir_builder.IRBuilderIsInScope", IRBuilder::IsInScope)
-      .def_method("script.ir_builder.IRBuilderGet", &IRBuilderNode::Get<ObjectRef>)
-      .def("script.ir_builder.IRBuilderName", IRBuilder::Name<ObjectRef>);
+      .def_method("script.ir_builder.IRBuilderGet", &IRBuilderNode::Get<ffi::ObjectRef>)
+      .def("script.ir_builder.IRBuilderName", IRBuilder::Name<ffi::ObjectRef>);
 }
 
 }  // namespace ir_builder

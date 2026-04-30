@@ -108,7 +108,7 @@ class LinearEqDetector : public ExprFunctor<LinearEqEntry(const PrimExpr&, const
     }
     return ret;
   }
-  LinearEqEntry VisitExprDefault_(const Object* op, const PrimExpr& e) final {
+  LinearEqEntry VisitExprDefault_(const ffi::Object* op, const PrimExpr& e) final {
     if (fail_) return LinearEqEntry();
     if (UsesVar(e, [this](const VarNode* var) { return var == var_.get(); })) {
       fail_ = true;
@@ -174,7 +174,7 @@ bool DetectClipBound(const PrimExpr& cond,
                      std::unordered_map<const VarNode*, IntervalEntry>* bmap) {
   int flag = 0;
   Var var;
-  auto fvisit = [&bmap, &flag, &var](const ObjectRef& n) {
+  auto fvisit = [&bmap, &flag, &var](const ffi::ObjectRef& n) {
     if (const VarNode* v = n.as<VarNode>()) {
       if (bmap->count(v)) {
         if (flag == 0) {

@@ -43,12 +43,12 @@ class Target;
  * \brief Compilation target.
  * \sa Target
  */
-class TargetNode : public Object {
+class TargetNode : public ffi::Object {
  public:
   /*! \brief The kind of the target device */
   TargetKind kind;
   /*! \brief Target host information, must be Target type */
-  ffi::Optional<ObjectRef> host;
+  ffi::Optional<ffi::ObjectRef> host;
   /*! \brief Tag of the target, can be empty */
   ffi::String tag;
   /*! \brief Keys for this target */
@@ -119,7 +119,7 @@ class TargetNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("target.Target", TargetNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("target.Target", TargetNode, ffi::Object);
 
  private:
   /*! \brief Internal string repr. */
@@ -132,7 +132,7 @@ class TargetNode : public Object {
  * \brief Managed reference class to TargetNode.
  * \sa TargetNode
  */
-class Target : public ObjectRef {
+class Target : public ffi::ObjectRef {
  public:
   /*! \brief Construct a null Target */
   TVM_DLL explicit Target(std::nullptr_t) { data_ = nullptr; }
@@ -161,7 +161,7 @@ class Target : public ObjectRef {
    * \param host The Target typed object for target host
    */
   TVM_DLL explicit Target(Target target, Target host);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Target, ObjectRef, TargetNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Target, ffi::ObjectRef, TargetNode);
 
   static Target WithHost(const Target& target, const Target& host);
 
@@ -169,7 +169,7 @@ class Target : public ObjectRef {
   Target WithoutHost() const;
 
  private:
-  Target(TargetKind kind, ffi::Optional<ObjectRef> host, ffi::String tag,
+  Target(TargetKind kind, ffi::Optional<ffi::ObjectRef> host, ffi::String tag,
          ffi::Array<ffi::String> keys, ffi::Map<ffi::String, ffi::Any> attrs);
 
   // enable with syntax.

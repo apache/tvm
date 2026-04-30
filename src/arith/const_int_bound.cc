@@ -21,6 +21,7 @@
  * \file tvm/arith/const_int_bound.cc
  */
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/tirx/builtin.h>
@@ -149,7 +150,7 @@ class ConstIntBoundAnalyzer::Impl
   }
 
   // Override visitor behaviors
-  Entry VisitExprDefault_(const Object* op) final {
+  Entry VisitExprDefault_(const ffi::Object* op) final {
     return Everything(static_cast<const PrimExprNode*>(op)->dtype);
   }
 

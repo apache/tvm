@@ -37,7 +37,7 @@ Doc DoConciseScoping(const ffi::Optional<ExprDoc>& lhs, const ExprDoc& rhs,
   }
 }
 
-bool AllowConciseScoping(const IRDocsifier& d, const ObjectRef& obj) {
+bool AllowConciseScoping(const IRDocsifier& d, const ffi::ObjectRef& obj) {
   if (d->cfg.defined()) {
     if (d->cfg->obj_to_annotate.count(obj)) {
       // if the object requires annotation, do not fold this frame
@@ -52,11 +52,12 @@ bool AllowConciseScoping(const IRDocsifier& d, const ObjectRef& obj) {
   TVM_FFI_UNREACHABLE();
 }
 
-bool IsAncestorOfAllVarUse(const tirx::Stmt& node, const ObjectRef& var, const IRDocsifier& d) {
+bool IsAncestorOfAllVarUse(const tirx::Stmt& node, const ffi::ObjectRef& var,
+                           const IRDocsifier& d) {
   if (!d->common_prefix.count(var.get())) {
     return false;
   }
-  const std::vector<const Object*>& path = d->common_prefix.at(var.get());
+  const std::vector<const ffi::Object*>& path = d->common_prefix.at(var.get());
   for (auto it = path.rbegin(); it != path.rend(); ++it) {
     if (*it == node.get()) {
       return true;

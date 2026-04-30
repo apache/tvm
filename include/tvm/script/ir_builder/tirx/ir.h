@@ -108,7 +108,7 @@ Type FuncRet(Type ret_type);
  * \param axis_separators The separators between input axes when generating flattened output axes.
  * \return The matched buffer.
  */
-Buffer MatchBuffer(ObjectRef param, ffi::Array<PrimExpr> shape,
+Buffer MatchBuffer(ffi::ObjectRef param, ffi::Array<PrimExpr> shape,
                    DataType dtype = DataType::Float(32), ffi::Optional<Var> data = std::nullopt,
                    ffi::Array<PrimExpr> strides = {}, PrimExpr elem_offset = PrimExpr(),
                    ffi::String storage_scope = "global", int align = -1, int offset_factor = 0,
@@ -139,13 +139,13 @@ void Where(PrimExpr predicate);
  * \brief The block buffer region reading statement.
  * \param buffer_slices The array of buffer regions to read.
  */
-void Reads(ffi::Array<ObjectRef> buffer_slices);
+void Reads(ffi::Array<ffi::ObjectRef> buffer_slices);
 
 /*!
  * \brief The block buffer region writing statement.
  * \param buffer_slices The array of buffer regions to write.
  */
-void Writes(ffi::Array<ObjectRef> buffer_slices);
+void Writes(ffi::Array<ffi::ObjectRef> buffer_slices);
 
 /*!
  * \brief The block annotation statement.

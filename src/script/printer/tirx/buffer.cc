@@ -34,9 +34,9 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::Buffer buffer, const AccessPath
   ffi::Array<ExprDoc> var_def_rhs;
 
   // Step 0. Set up statistics
-  std::unordered_map<const Object*, int> use_count;
+  std::unordered_map<const ffi::Object*, int> use_count;
   auto update_use_count = [&](const PrimExpr& e) {
-    tirx::PostOrderVisit(e, [&](const ObjectRef& n) {
+    tirx::PostOrderVisit(e, [&](const ffi::ObjectRef& n) {
       if (const VarNode* var = n.as<VarNode>()) {
         ++use_count[var];
       }

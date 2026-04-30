@@ -58,7 +58,7 @@ class TIRFrame : public IRBuilderFrame {
 
  protected:
   TIRFrame() = default;
-  explicit TIRFrame(ObjectPtr<TIRFrameNode> data) : IRBuilderFrame(data) {}
+  explicit TIRFrame(ffi::ObjectPtr<TIRFrameNode> data) : IRBuilderFrame(data) {}
 };
 
 /*!
@@ -115,7 +115,7 @@ class PrimFuncFrameNode : public TIRFrameNode {
  */
 class PrimFuncFrame : public TIRFrame {
  public:
-  explicit PrimFuncFrame(ObjectPtr<PrimFuncFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
+  explicit PrimFuncFrame(ffi::ObjectPtr<PrimFuncFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
     TVM_FFI_ICHECK(data != nullptr);
     data_ = std::move(data);
   }
@@ -189,7 +189,7 @@ class SBlockFrameNode : public TIRFrameNode {
 
 class SBlockFrame : public TIRFrame {
  public:
-  explicit SBlockFrame(ObjectPtr<SBlockFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
+  explicit SBlockFrame(ffi::ObjectPtr<SBlockFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
     TVM_FFI_ICHECK(data != nullptr);
     data_ = std::move(data);
   }
@@ -230,7 +230,7 @@ class BlockInitFrameNode : public TIRFrameNode {
  */
 class BlockInitFrame : public TIRFrame {
  public:
-  explicit BlockInitFrame(ObjectPtr<BlockInitFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
+  explicit BlockInitFrame(ffi::ObjectPtr<BlockInitFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
     TVM_FFI_ICHECK(data != nullptr);
     data_ = std::move(data);
   }
@@ -287,7 +287,7 @@ class ForFrameNode : public TIRFrameNode {
  */
 class ForFrame : public TIRFrame {
  public:
-  explicit ForFrame(ObjectPtr<ForFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
+  explicit ForFrame(ffi::ObjectPtr<ForFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
     TVM_FFI_ICHECK(data != nullptr);
     data_ = std::move(data);
   }
@@ -334,7 +334,7 @@ class AssertFrameNode : public TIRFrameNode {
  */
 class AssertFrame : public TIRFrame {
  public:
-  explicit AssertFrame(ObjectPtr<AssertFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
+  explicit AssertFrame(ffi::ObjectPtr<AssertFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
     TVM_FFI_ICHECK(data != nullptr);
     data_ = std::move(data);
   }
@@ -379,7 +379,8 @@ class LaunchThreadFrameNode : public TIRFrameNode {
  */
 class LaunchThreadFrame : public TIRFrame {
  public:
-  explicit LaunchThreadFrame(ObjectPtr<LaunchThreadFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
+  explicit LaunchThreadFrame(ffi::ObjectPtr<LaunchThreadFrameNode> data)
+      : TIRFrame(ffi::UnsafeInit{}) {
     TVM_FFI_ICHECK(data != nullptr);
     data_ = std::move(data);
   }
@@ -425,7 +426,7 @@ class AttrFrameNode : public TIRFrameNode {
  */
 class AttrFrame : public TIRFrame {
  public:
-  explicit AttrFrame(ObjectPtr<AttrFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
+  explicit AttrFrame(ffi::ObjectPtr<AttrFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
     TVM_FFI_ICHECK(data != nullptr);
     data_ = std::move(data);
   }
@@ -464,7 +465,7 @@ class WhileFrameNode : public TIRFrameNode {
  */
 class WhileFrame : public TIRFrame {
  public:
-  explicit WhileFrame(ObjectPtr<WhileFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
+  explicit WhileFrame(ffi::ObjectPtr<WhileFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
     TVM_FFI_ICHECK(data != nullptr);
     data_ = std::move(data);
   }
@@ -509,7 +510,7 @@ class IfFrameNode : public TIRFrameNode {
  */
 class IfFrame : public TIRFrame {
  public:
-  explicit IfFrame(ObjectPtr<IfFrameNode> data) : TIRFrame(data) {
+  explicit IfFrame(ffi::ObjectPtr<IfFrameNode> data) : TIRFrame(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IfFrame, TIRFrame, IfFrameNode);
@@ -549,7 +550,7 @@ class ThenFrameNode : public TIRFrameNode {
  */
 class ThenFrame : public TIRFrame {
  public:
-  explicit ThenFrame(ObjectPtr<ThenFrameNode> data) : TIRFrame(data) {
+  explicit ThenFrame(ffi::ObjectPtr<ThenFrameNode> data) : TIRFrame(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ThenFrame, TIRFrame, ThenFrameNode);
@@ -589,7 +590,7 @@ class ElseFrameNode : public TIRFrameNode {
  */
 class ElseFrame : public TIRFrame {
  public:
-  explicit ElseFrame(ObjectPtr<ElseFrameNode> data) : TIRFrame(data) {
+  explicit ElseFrame(ffi::ObjectPtr<ElseFrameNode> data) : TIRFrame(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
 

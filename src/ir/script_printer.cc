@@ -37,7 +37,7 @@ TVMScriptPrinter::FType& TVMScriptPrinter::vtable() {
   return inst;
 }
 
-std::string TVMScriptPrinter::Script(const ObjectRef& node,
+std::string TVMScriptPrinter::Script(const ffi::ObjectRef& node,
                                      const ffi::Optional<PrinterConfig>& cfg) {
   if (!TVMScriptPrinter::vtable().can_dispatch(node)) {
     // Fall back to ffi::ReprPrint for types not registered with TVMScriptPrinter.
@@ -61,7 +61,7 @@ bool IsIdentifier(const std::string& name) {
 }
 
 PrinterConfig::PrinterConfig(ffi::Map<ffi::String, Any> config_dict) {
-  runtime::ObjectPtr<PrinterConfigNode> n = ffi::make_object<PrinterConfigNode>();
+  ffi::ObjectPtr<PrinterConfigNode> n = ffi::make_object<PrinterConfigNode>();
   if (auto v = config_dict.Get("name")) {
     n->binding_names.push_back(Downcast<ffi::String>(v.value()));
   }
@@ -110,12 +110,12 @@ PrinterConfig::PrinterConfig(ffi::Map<ffi::String, Any> config_dict) {
         ffi::Map<AccessPath, ffi::String>());
   }
   if (auto v = config_dict.Get("obj_to_underline")) {
-    n->obj_to_underline =
-        Downcast<ffi::Optional<ffi::Array<ObjectRef>>>(v).value_or(ffi::Array<ObjectRef>());
+    n->obj_to_underline = Downcast<ffi::Optional<ffi::Array<ffi::ObjectRef>>>(v).value_or(
+        ffi::Array<ffi::ObjectRef>());
   }
   if (auto v = config_dict.Get("obj_to_annotate")) {
-    n->obj_to_annotate = Downcast<ffi::Optional<ffi::Map<ObjectRef, ffi::String>>>(v).value_or(
-        ffi::Map<ObjectRef, ffi::String>());
+    n->obj_to_annotate = Downcast<ffi::Optional<ffi::Map<ffi::ObjectRef, ffi::String>>>(v).value_or(
+        ffi::Map<ffi::ObjectRef, ffi::String>());
   }
   if (auto v = config_dict.Get("syntax_sugar")) {
     n->syntax_sugar = v.value().cast<bool>();

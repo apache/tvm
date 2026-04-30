@@ -25,6 +25,7 @@
 #include "rewrite_simplify.h"
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/cast.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 
@@ -2416,7 +2417,7 @@ RewriteSimplifier::Extension RewriteSimplifier::GetEnabledExtensions() const {
   return impl_->GetEnabledExtensions();
 }
 
-ObjectRef RewriteSimplifier::GetStatsCounters() const { return impl_->GetStatsCounters(); }
+ffi::ObjectRef RewriteSimplifier::GetStatsCounters() const { return impl_->GetStatsCounters(); }
 
 void RewriteSimplifier::ResetStatsCounters() { impl_->ResetStatsCounters(); }
 

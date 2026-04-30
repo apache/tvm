@@ -160,7 +160,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           });
     });
 
-std::string ReprPrintIRModule(const ObjectRef& mod, const PrinterConfig& cfg) {
+std::string ReprPrintIRModule(const ffi::ObjectRef& mod, const PrinterConfig& cfg) {
   return ReprPrintIR(mod, cfg);
 }
 

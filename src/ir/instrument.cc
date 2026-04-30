@@ -194,7 +194,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 /*! \brief PassProfile stores profiling information for a given pass and its sub-passes. */
 struct PassProfile {
-  // TODO(@altanh): expose PassProfile through TVM Object API
+  // TODO(@altanh): expose PassProfile through TVM ffi::Object API
   using Clock = std::chrono::steady_clock;
   using Duration = std::chrono::duration<double, std::micro>;
   using Time = std::chrono::time_point<Clock>;

@@ -49,11 +49,11 @@
 #ifndef TVM_IR_TYPE_H_
 #define TVM_IR_TYPE_H_
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/source_map.h>
 #include <tvm/runtime/data_type.h>
-#include <tvm/runtime/object.h>
 
 #include <string>
 
@@ -71,7 +71,7 @@ namespace tvm {
  * There are also advanced types to support generic(polymorphic types).
  * \sa Type
  */
-class TypeNode : public Object {
+class TypeNode : public ffi::Object {
  public:
   /*!
    * \brief Span that points to the original source code.
@@ -89,16 +89,16 @@ class TypeNode : public Object {
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
 
   static constexpr const uint32_t _type_child_slots = 14;
-  TVM_FFI_DECLARE_OBJECT_INFO("ir.Type", TypeNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("ir.Type", TypeNode, ffi::Object);
 };
 
 /*!
  * \brief Managed reference to TypeNode.
  * \sa TypeNode
  */
-class Type : public ObjectRef {
+class Type : public ffi::ObjectRef {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Type, ObjectRef, TypeNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Type, ffi::ObjectRef, TypeNode);
 };
 
 /*!
@@ -305,8 +305,16 @@ class TensorMapType : public Type {
  public:
   TVM_DLL TensorMapType(Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE_WITHOUT_DEFAULT_CONSTRUCTOR(TensorMapType, Type,
-                                                                         TensorMapTypeNode);
+  explicit TensorMapType(::tvm::ffi::ObjectPtr<TensorMapTypeNode> n) : Type(n) {}
+  TensorMapType(const TensorMapType&) = default;
+  TensorMapType(TensorMapType&&) = default;
+  TensorMapType& operator=(const TensorMapType&) = default;
+  TensorMapType& operator=(TensorMapType&&) = default;
+  const TensorMapTypeNode* operator->() const {
+    return static_cast<const TensorMapTypeNode*>(data_.get());
+  }
+  const TensorMapTypeNode* get() const { return operator->(); }
+  using ContainerType = TensorMapTypeNode;
 };
 
 }  // namespace tvm

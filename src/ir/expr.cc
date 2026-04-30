@@ -73,7 +73,7 @@ IntImm::IntImm(DataType dtype, int64_t value, Span span) {
     TVM_FFI_CHECK_LT(value, 1LL << (dtype.bits() - 1), ValueError)
         << "Literal value " << value << " exceeds maximum of " << dtype;
   }
-  ObjectPtr<IntImmNode> node = ffi::make_object<IntImmNode>();
+  ffi::ObjectPtr<IntImmNode> node = ffi::make_object<IntImmNode>();
   node->dtype = dtype;
   node->value = value;
   node->span = span;
@@ -177,7 +177,7 @@ FloatImm::FloatImm(DataType dtype, double value, Span span) {
           << "Literal value " << value << " exceeds maximum of " << dtype;
     }
   }
-  ObjectPtr<FloatImmNode> node = ffi::make_object<FloatImmNode>();
+  ffi::ObjectPtr<FloatImmNode> node = ffi::make_object<FloatImmNode>();
   node->dtype = dtype;
   node->value = value;
   node->span = span;
@@ -212,7 +212,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 GlobalVar::GlobalVar(ffi::String name_hint, Span span) {
-  ObjectPtr<GlobalVarNode> n = ffi::make_object<GlobalVarNode>();
+  ffi::ObjectPtr<GlobalVarNode> n = ffi::make_object<GlobalVarNode>();
   n->name_hint = std::move(name_hint);
   n->span = std::move(span);
   data_ = std::move(n);
@@ -222,7 +222,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("ir.GlobalVar", [](ffi::String name) { return GlobalVar(name); })
-      .def("ir.DebugPrint", [](ObjectRef ref) {
+      .def("ir.DebugPrint", [](ffi::ObjectRef ref) {
         std::stringstream ss;
         ss << ref;
         return ss.str();

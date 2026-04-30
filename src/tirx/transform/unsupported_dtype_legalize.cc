@@ -21,6 +21,7 @@
  * \file unsupported_dtype_legalize.cc
  * \brief legalize bf16/fp8 type by adding cast_to_fp32
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/tirx/builtin.h>
@@ -45,7 +46,7 @@ namespace tirx {
 class ComputeLegalizePlanner : public StmtExprVisitor {
  public:
   ComputeLegalizePlanner(
-      std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual>* buffer_remap,
+      std::unordered_map<Buffer, Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>* buffer_remap,
       std::unordered_map<Var, Var>* var_remap, DataType promote_dtype)
       : buffer_remap_(buffer_remap), var_remap_(var_remap), promote_dtype_(promote_dtype) {}
 
@@ -124,7 +125,7 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
     (*buffer_remap_)[buf] = new_buffer;
   }
 
-  std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual>* buffer_remap_;
+  std::unordered_map<Buffer, Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>* buffer_remap_;
   std::unordered_map<Var, Var>* var_remap_;
   std::unordered_set<Var> opaque_var_access_;
   DataType promote_dtype_;
@@ -133,7 +134,7 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
 class BF16ComputeLegalizePlanner : public ComputeLegalizePlanner {
  public:
   explicit BF16ComputeLegalizePlanner(
-      std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual>* buffer_remap,
+      std::unordered_map<Buffer, Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>* buffer_remap,
       std::unordered_map<Var, Var>* var_remap, DataType promote_dtype)
       : ComputeLegalizePlanner(buffer_remap, var_remap, promote_dtype) {}
   bool MatchDType(DataType dtype) const { return dtype.is_bfloat16(); }
@@ -142,7 +143,7 @@ class BF16ComputeLegalizePlanner : public ComputeLegalizePlanner {
 class FP8ComputeLegalizePlanner : public ComputeLegalizePlanner {
  public:
   explicit FP8ComputeLegalizePlanner(
-      std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual>* buffer_remap,
+      std::unordered_map<Buffer, Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>* buffer_remap,
       std::unordered_map<Var, Var>* var_remap, DataType promote_dtype)
       : ComputeLegalizePlanner(buffer_remap, var_remap, promote_dtype) {}
   bool MatchDType(DataType dtype) const { return dtype.is_float8(); }
@@ -470,7 +471,7 @@ class ComputeLegalizer : public StmtExprMutator {
 
  protected:
   DataType promote_dtype_;
-  std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> buffer_remap_;
+  std::unordered_map<Buffer, Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_remap_;
   std::unordered_map<Var, Var> var_remap_;
 };
 
@@ -714,7 +715,7 @@ class StorageLegalizer : public StmtExprMutator {
     return new_buf;
   }
 
-  std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> buffer_remap_;
+  std::unordered_map<Buffer, Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_remap_;
   std::unordered_map<Var, Var> var_remap_;
 };
 
@@ -746,7 +747,8 @@ bool CheckDataTypeSupport(const Target& target, const std::string& support_func_
 Pass BF16ComputeLegalize() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     auto opt_target = f->GetAttr<Target>(tvm::attr::kTarget);
-    if (opt_target.defined() && CheckDataTypeSupport(opt_target.value(), "tvm.contrib.nvcc.supports_bf16")) {
+    if (opt_target.defined() &&
+        CheckDataTypeSupport(opt_target.value(), "tvm.contrib.nvcc.supports_bf16")) {
       return f;
     }
     return BF16ComputeLegalizer().Legalize(f);
@@ -762,7 +764,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 Pass BF16StorageLegalize() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     auto opt_target = f->GetAttr<Target>(tvm::attr::kTarget);
-    if (opt_target.defined() && CheckDataTypeSupport(opt_target.value(), "tvm.contrib.nvcc.supports_bf16")) {
+    if (opt_target.defined() &&
+        CheckDataTypeSupport(opt_target.value(), "tvm.contrib.nvcc.supports_bf16")) {
       return f;
     }
     return BF16StorageLegalizer().Legalize(f);
@@ -778,7 +781,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 Pass FP8ComputeLegalize(ffi::String promote_dtype) {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     auto opt_target = f->GetAttr<Target>(tvm::attr::kTarget);
-    if (opt_target.defined() && CheckDataTypeSupport(opt_target.value(), "tvm.contrib.nvcc.supports_fp8")) {
+    if (opt_target.defined() &&
+        CheckDataTypeSupport(opt_target.value(), "tvm.contrib.nvcc.supports_fp8")) {
       return f;
     }
     return FP8ComputeLegalizer(DataType(ffi::StringToDLDataType(promote_dtype))).Legalize(f);
@@ -794,7 +798,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 Pass FP8StorageLegalize() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     auto opt_target = f->GetAttr<Target>(tvm::attr::kTarget);
-    if (opt_target.defined() && CheckDataTypeSupport(opt_target.value(), "tvm.contrib.nvcc.supports_fp8")) {
+    if (opt_target.defined() &&
+        CheckDataTypeSupport(opt_target.value(), "tvm.contrib.nvcc.supports_fp8")) {
       return f;
     }
     return FP8StorageLegalizer().Legalize(f);

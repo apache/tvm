@@ -28,7 +28,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/attr_registry_map.h>
 #include <tvm/ir/config_schema.h>
-#include <tvm/runtime/object.h>
+#include <tvm/runtime/base.h>
 
 #include <memory>
 #include <unordered_map>
@@ -54,7 +54,7 @@ template <typename>
 class TargetKindAttrMap;
 
 /*! \brief Target kind, specifies the kind of the target */
-class TargetKindNode : public Object {
+class TargetKindNode : public ffi::Object {
  public:
   /*! \brief Name of the target kind */
   ffi::String name;
@@ -76,7 +76,7 @@ class TargetKindNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindUniqueInstance;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("target.TargetKind", TargetKindNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("target.TargetKind", TargetKindNode, ffi::Object);
 
  private:
   /*! \brief Return the index stored in attr registry */
@@ -100,10 +100,10 @@ class TargetKindNode : public Object {
  * \brief Managed reference class to TargetKindNode
  * \sa TargetKindNode
  */
-class TargetKind : public ObjectRef {
+class TargetKind : public ffi::ObjectRef {
  public:
   TargetKind() = default;
-  explicit TargetKind(ObjectPtr<TargetKindNode> data) : ObjectRef(data) {
+  explicit TargetKind(ffi::ObjectPtr<TargetKindNode> data) : ffi::ObjectRef(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
   /*! \brief Get the attribute map given the attribute name */
@@ -118,7 +118,7 @@ class TargetKind : public ObjectRef {
   /*! \brief Mutable access to the container class  */
   TargetKindNode* operator->() { return static_cast<TargetKindNode*>(data_.get()); }
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TargetKind, ObjectRef, TargetKindNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TargetKind, ffi::ObjectRef, TargetKindNode);
 
  private:
   TVM_DLL static const AttrRegistryMapContainerMap<TargetKind>& GetAttrMapContainer(
@@ -299,19 +299,19 @@ inline TargetKindRegEntry& TargetKindRegEntry::set_name() {
  *
  * \endcode
  */
-#define TVM_REGISTER_TARGET_KIND(TargetKindName, DeviceType)      \
-  TVM_STR_CONCAT(TVM_TARGET_KIND_REGISTER_VAR_DEF, __COUNTER__) = \
-      ::tvm::TargetKindRegEntry::RegisterOrGet(TargetKindName)    \
-          .set_name()                                             \
-          .set_default_device_type(DeviceType)                    \
-          .add_attr_option<ffi::String>("kind")                   \
-          .add_attr_option<ffi::Array<ffi::String>>("keys")       \
-          .add_attr_option<ffi::String>("tag")                    \
-          .add_attr_option<ffi::String>("device")                 \
-          .add_attr_option<ffi::String>("model")                  \
-          .add_attr_option<ffi::Array<ffi::String>>("libs")       \
-          .add_attr_option<Target>("host")                        \
-          .add_attr_option<int64_t>("from_device")                \
+#define TVM_REGISTER_TARGET_KIND(TargetKindName, DeviceType)          \
+  TVM_FFI_STR_CONCAT(TVM_TARGET_KIND_REGISTER_VAR_DEF, __COUNTER__) = \
+      ::tvm::TargetKindRegEntry::RegisterOrGet(TargetKindName)        \
+          .set_name()                                                 \
+          .set_default_device_type(DeviceType)                        \
+          .add_attr_option<ffi::String>("kind")                       \
+          .add_attr_option<ffi::Array<ffi::String>>("keys")           \
+          .add_attr_option<ffi::String>("tag")                        \
+          .add_attr_option<ffi::String>("device")                     \
+          .add_attr_option<ffi::String>("model")                      \
+          .add_attr_option<ffi::Array<ffi::String>>("libs")           \
+          .add_attr_option<Target>("host")                            \
+          .add_attr_option<int64_t>("from_device")                    \
           .add_attr_option<int64_t>("target_device_type")
 
 }  // namespace tvm

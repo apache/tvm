@@ -50,16 +50,16 @@ class StmtFunctor;
     return VisitStmtDefault_(op, std::forward<Args>(args)...); \
   }
 
-#define IR_STMT_FUNCTOR_DISPATCH(OP)                                                       \
-  vtable.template set_dispatch<OP>([](const ObjectRef& n, TSelf* self, Args... args) {     \
-    return self->VisitStmt_(static_cast<const OP*>(n.get()), std::forward<Args>(args)...); \
+#define IR_STMT_FUNCTOR_DISPATCH(OP)                                                        \
+  vtable.template set_dispatch<OP>([](const ffi::ObjectRef& n, TSelf* self, Args... args) { \
+    return self->VisitStmt_(static_cast<const OP*>(n.get()), std::forward<Args>(args)...);  \
   });
 
 template <typename R, typename... Args>
 class StmtFunctor<R(const Stmt& n, Args... args)> {
  private:
   using TSelf = StmtFunctor<R(const Stmt& n, Args... args)>;
-  using FType = NodeFunctor<R(const ObjectRef& n, TSelf* self, Args... args)>;
+  using FType = NodeFunctor<R(const ffi::ObjectRef& n, TSelf* self, Args... args)>;
 
  public:
   /*! \brief the result type of this functor */
@@ -97,7 +97,7 @@ class StmtFunctor<R(const Stmt& n, Args... args)> {
   virtual R VisitStmt_(const EvaluateNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const SBlockNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const SBlockRealizeNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
-  virtual R VisitStmtDefault_(const Object* op, Args...) {
+  virtual R VisitStmtDefault_(const ffi::Object* op, Args...) {
     TVM_FFI_THROW(InternalError) << "Do not have a default for " << op->GetTypeKey();
     TVM_FFI_UNREACHABLE();
   }
@@ -216,7 +216,7 @@ class TVM_DLL StmtMutator : protected StmtFunctor<Stmt(const Stmt&)> {
    * \return The result object pointer.
    */
   template <typename TNode>
-  ObjectPtr<TNode> CopyOnWrite(const TNode* node) {
+  ffi::ObjectPtr<TNode> CopyOnWrite(const TNode* node) {
     static_assert(std::is_base_of<StmtNode, TNode>::value,
                   "StmtMutator:: CopyOnWrite requires us to track uniqueness of all parent "
                   "nodes during the recursion. Because the child classes do not necessarily "
@@ -225,7 +225,7 @@ class TVM_DLL StmtMutator : protected StmtFunctor<Stmt(const Stmt&)> {
                   "Please create a new node directly in other cases.");
     if (allow_copy_on_write_) {
       // return the old node.
-      return runtime::GetObjectPtr<TNode>(const_cast<TNode*>(node));
+      return ffi::GetObjectPtr<TNode>(const_cast<TNode*>(node));
     } else {
       // Make a new copy of the node.
       // need to rely on the default copy constructor
@@ -363,7 +363,8 @@ TVM_DLL Stmt IRTransform(Stmt stmt, const ffi::Function& preorder, const ffi::Fu
  * \param node The ir to be visited.
  * \param fvisit The visitor function to be applied.
  */
-TVM_DLL void PostOrderVisit(const ObjectRef& node, std::function<void(const ObjectRef&)> fvisit);
+TVM_DLL void PostOrderVisit(const ffi::ObjectRef& node,
+                            std::function<void(const ffi::ObjectRef&)> fvisit);
 
 /*!
  * \brief Substitute the var specified by vmap.
@@ -548,8 +549,8 @@ TVM_DLL PrimExpr SubstituteWithDataTypeLegalization(
  * \param fvisit The visitor function to be applied. If fvisit returns false, it won't visit the
  * children of the node
  */
-TVM_DLL void PreOrderVisit(const ObjectRef& stmt_or_expr,
-                           const std::function<bool(const ObjectRef&)>& fvisit);
+TVM_DLL void PreOrderVisit(const ffi::ObjectRef& stmt_or_expr,
+                           const std::function<bool(const ffi::ObjectRef&)>& fvisit);
 
 /*!
  * \brief Check if the statement contains the specified node type.

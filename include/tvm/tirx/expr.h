@@ -28,6 +28,7 @@
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/string.h>
+#include <tvm/ir/cow.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/node_functor.h>
 #include <tvm/runtime/base.h>
@@ -788,7 +789,7 @@ class Shuffle : public PrimExpr {
  * \brief A commutative reducer node to represent a commutative
  *  binary operator with identity element
  */
-class CommReducerNode : public Object {
+class CommReducerNode : public ffi::Object {
  public:
   /*! \brief The left argument of reducer */
   ffi::Array<Var> lhs;
@@ -821,19 +822,19 @@ class CommReducerNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.CommReducer", CommReducerNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.CommReducer", CommReducerNode, ffi::Object);
 };
 
 /*!
  * \brief Managed reference to CommReducerNode
  * \sa CommReducerNode
  */
-class CommReducer : public ObjectRef {
+class CommReducer : public ffi::ObjectRef {
  public:
   TVM_DLL CommReducer(ffi::Array<Var> lhs, ffi::Array<Var> rhs, ffi::Array<PrimExpr> result,
                       ffi::Array<PrimExpr> identity_element, Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(CommReducer, ObjectRef, CommReducerNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(CommReducer, ffi::ObjectRef, CommReducerNode);
 };
 
 /*! \brief Reduction operator */
@@ -917,6 +918,6 @@ struct TypeTraits<tvm::tirx::StringImm>
 
 namespace std {
 template <>
-struct hash<::tvm::tirx::IterVar> : public ::tvm::ObjectPtrHash {};
+struct hash<::tvm::tirx::IterVar> : public ::tvm::ffi::ObjectPtrHash {};
 }  // namespace std
 #endif  // TVM_TIR_EXPR_H_

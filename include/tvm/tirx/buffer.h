@@ -27,6 +27,7 @@
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
+#include <tvm/ir/cow.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/script_printer.h>
 #include <tvm/tirx/var.h>
@@ -59,7 +60,7 @@ enum BufferType : int {
 };
 
 /*! \brief Node to represent a buffer */
-class BufferNode : public Object {
+class BufferNode : public ffi::Object {
  public:
   // Data fields.
   /*!
@@ -144,7 +145,7 @@ class BufferNode : public Object {
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
 
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.Buffer", BufferNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.Buffer", BufferNode, ffi::Object);
   TVM_OBJECT_ENABLE_SCRIPT_PRINTER();
 };
 
@@ -153,7 +154,7 @@ class BufferNode : public Object {
  *  It is a composition of primitive symbolic types,
  *  used to specify the memory layout of the Tensor used in program input.
  */
-class Buffer : public ObjectRef {
+class Buffer : public ffi::ObjectRef {
  public:
   // User can specify data_alignment and offset_factor to be 0
   // A default value will be picked.
@@ -225,7 +226,7 @@ class Buffer : public ObjectRef {
    */
   TVM_DLL ffi::String scope() const;
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Buffer, ObjectRef, BufferNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Buffer, ffi::ObjectRef, BufferNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferNode);
 };
 

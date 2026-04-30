@@ -61,7 +61,7 @@ constexpr const char* kUseCooperativeLaunch = "tirx.use_cooperative_launch";
 enum class ArgExtraTags : int { kNone = 0, kTensorMap = 1 };
 
 /*! \brief function information needed by device */
-class FunctionInfoObj : public Object {
+class FunctionInfoObj : public ffi::Object {
  public:
   ffi::String name;
   ffi::Array<DLDataType> arg_types;
@@ -121,10 +121,10 @@ class FunctionInfoObj : public Object {
     }
   }
 
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.FunctionInfo", FunctionInfoObj, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.FunctionInfo", FunctionInfoObj, ffi::Object);
 };
 
-class FunctionInfo : public ObjectRef {
+class FunctionInfo : public ffi::ObjectRef {
  public:
   FunctionInfo(ffi::String name, ffi::Array<DLDataType> arg_types,
                ffi::Array<ffi::String> launch_param_tags, ffi::Array<ArgExtraTags> arg_extra_tags) {
@@ -136,7 +136,7 @@ class FunctionInfo : public ObjectRef {
     data_ = std::move(n);
   }
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(FunctionInfo, ObjectRef, FunctionInfoObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(FunctionInfo, ffi::ObjectRef, FunctionInfoObj);
 };
 
 }  // namespace runtime

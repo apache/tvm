@@ -32,7 +32,7 @@ namespace ir_builder {
 namespace ir {
 
 IRModuleFrame IRModule() {
-  ObjectPtr<IRModuleFrameNode> n = ffi::make_object<IRModuleFrameNode>();
+  ffi::ObjectPtr<IRModuleFrameNode> n = ffi::make_object<IRModuleFrameNode>();
   n->global_var_map.clear();
   n->functions.clear();
   return IRModuleFrame(n);
@@ -94,17 +94,17 @@ void ModuleAttrs(ffi::Map<ffi::String, Any> attrs, bool allow_overwrite) {
   }
 }
 
-ffi::Optional<ObjectRef> ModuleGetAttr(const ffi::String& key) {
+ffi::Optional<ffi::ObjectRef> ModuleGetAttr(const ffi::String& key) {
   if (IRBuilder::IsInScope()) {
     IRModuleFrame frame = FindModuleFrame();
     if (frame->attrs.find(key) != frame->attrs.end()) {
-      return frame->attrs[key].cast<ObjectRef>();
+      return frame->attrs[key].cast<ffi::ObjectRef>();
     }
   }
   return std::nullopt;
 }
 
-void ModuleSetAttr(const ffi::String& key, const ffi::Optional<ObjectRef>& value,
+void ModuleSetAttr(const ffi::String& key, const ffi::Optional<ffi::ObjectRef>& value,
                    bool allow_override) {
   if (IRBuilder::IsInScope()) {
     IRModuleFrame frame = FindModuleFrame();
