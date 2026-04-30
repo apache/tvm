@@ -1519,6 +1519,40 @@ def test_networks(net, shape):
     verify(concrete_func)
 
 
+def test_broadcast_to():
+    class Model(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(2, 2), dtype=tf.float32)])
+        def func(self, x):
+            return tf.broadcast_to(x, [3, 2, 2])
+
+    verify(Model)
+
+
+def test_embedding_lookup():
+    class Model(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(3,), dtype=tf.int32)])
+        def func(self, indices):
+            params = tf.constant([[1, 2], [3, 4], [5, 6]], dtype=tf.float32)
+            return tf.nn.embedding_lookup(params, indices)
+
+    verify(Model)
+
+
+def test_select_v2():
+    class Model(tf.Module):
+        @tf.function(
+            input_signature=[
+                tf.TensorSpec(shape=(2, 2), dtype=tf.bool),
+                tf.TensorSpec(shape=(2, 2), dtype=tf.float32),
+                tf.TensorSpec(shape=(2, 2), dtype=tf.float32),
+            ]
+        )
+        def func(self, condition, x, y):
+            return tf.where(condition, x, y)
+
+    verify(Model)
+
+
 def test_batch_matmul():
     class BatchMatMul(tf.Module):
         @tf.function(

@@ -125,6 +125,7 @@ class OperatorConverter:
             "BATCH_TO_SPACE_ND": self.convert_batch_to_space_nd,
             "BATCH_MATMUL": self.convert_batch_matmul,
             "BITCAST": self.convert_bitcast,
+            "BROADCAST_TO": self.convert_broadcast_to,
             "CAST": self.convert_cast,
             "CEIL": functools.partial(self._convert_unary_elemwise, relax_op=_op.ceil),
             "CONCATENATION": self.convert_concatenation,
@@ -138,6 +139,7 @@ class OperatorConverter:
             "DETECTION_POSTPROCESS": self.convert_detection_postprocess,
             "DIV": functools.partial(self._convert_elemwise, relax_op=_op.divide),
             "ELU": self.convert_elu,
+            "EMBEDDING_LOOKUP": self.convert_embedding_lookup,
             "EQUAL": functools.partial(
                 self._convert_elemwise, relax_op=_op.equal, comparison_op=True
             ),
@@ -213,6 +215,7 @@ class OperatorConverter:
             "REVERSE_SEQUENCE": self.convert_reverse_sequence,
             "REVERSE_V2": self.convert_reverse_v2,
             "SELECT": self.convert_select,
+            "SELECT_V2": self.convert_select,
             "SHAPE": self.convert_shape,
             "SIN": functools.partial(self._convert_unary_elemwise, relax_op=_op.sin),
             "SLICE": self.convert_slice,
@@ -2995,6 +2998,22 @@ class OperatorConverter:
         out = relax.op.nn.batch_to_space_nd(in_expr, block_shape, crops)
 
         return out
+
+    def convert_broadcast_to(self, op):
+        """Convert TFLite BROADCAST_TO"""
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+        data = self.get_tensor_expr(input_tensors[0])
+        shape = self.get_tensor_expr(input_tensors[1])
+        return relax.op.broadcast_to(data, shape)
+
+    def convert_embedding_lookup(self, op):
+        """Convert TFLite EMBEDDING_LOOKUP"""
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+        params = self.get_tensor_expr(input_tensors[0])
+        indices = self.get_tensor_expr(input_tensors[1])
+        return relax.op.take(params, indices, axis=0)
 
     def convert_batch_matmul(self, op):
         """batch_matmul implementation."""
