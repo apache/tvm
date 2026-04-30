@@ -39,7 +39,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* relax.astype */
 
 Expr astype(Expr x, DataType dtype) {
-  ObjectPtr<AstypeAttrs> attrs = ffi::make_object<AstypeAttrs>();
+  ffi::ObjectPtr<AstypeAttrs> attrs = ffi::make_object<AstypeAttrs>();
   attrs->dtype = dtype;
 
   static const Op& op = Op::Get("relax.astype");
@@ -54,7 +54,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 StructInfo InferStructInfoAstype(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo sinfo = GetUnaryInputTensorStructInfo(call, ctx);
   const auto* attrs = call->attrs.as<AstypeAttrs>();
-  ObjectPtr<TensorStructInfoNode> new_sinfo = ffi::make_object<TensorStructInfoNode>(*sinfo.get());
+  ffi::ObjectPtr<TensorStructInfoNode> new_sinfo =
+      ffi::make_object<TensorStructInfoNode>(*sinfo.get());
   new_sinfo->dtype = attrs->dtype;
   return TensorStructInfo(new_sinfo);
 }
@@ -71,7 +72,7 @@ TVM_REGISTER_OP("relax.astype")
 /* relax.wrap_param */
 
 Expr MakeWrapParam(Expr data, DataType dtype) {
-  ObjectPtr<WrapParamAttrs> attrs = ffi::make_object<WrapParamAttrs>();
+  ffi::ObjectPtr<WrapParamAttrs> attrs = ffi::make_object<WrapParamAttrs>();
   attrs->dtype = dtype;
 
   static const Op& op = Op::Get("relax.wrap_param");
@@ -86,7 +87,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 StructInfo InferStructInfoWrapParam(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo sinfo = GetUnaryInputTensorStructInfo(call, ctx);
   const auto* attrs = call->attrs.as<WrapParamAttrs>();
-  ObjectPtr<TensorStructInfoNode> new_sinfo = ffi::make_object<TensorStructInfoNode>(*sinfo.get());
+  ffi::ObjectPtr<TensorStructInfoNode> new_sinfo =
+      ffi::make_object<TensorStructInfoNode>(*sinfo.get());
   new_sinfo->dtype = attrs->dtype;
   return TensorStructInfo(new_sinfo);
 }

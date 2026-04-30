@@ -26,6 +26,7 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/cow.h>
 #include <tvm/tirx/op.h>
 
 #include <algorithm>
@@ -46,7 +47,7 @@ using namespace tirx;
  * These are intended for debug and testing purposes, to ensure that
  * PrimExpr simplifications and TIR passes do not require an excessive
  */
-struct RewriteSimplifierStatsNode : Object {
+struct RewriteSimplifierStatsNode : ffi::Object {
   int64_t nodes_visited{0};
   int64_t constraints_entered{0};
   int64_t rewrites_attempted{0};
@@ -65,15 +66,15 @@ struct RewriteSimplifierStatsNode : Object {
         .def_ro("num_recursive_rewrites", &RewriteSimplifierStatsNode::num_recursive_rewrites);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.RewriteSimplifierStats", RewriteSimplifierStatsNode,
-                                    Object);
+                                    ffi::Object);
 };
 
-struct RewriteSimplifierStats : ObjectRef {
+struct RewriteSimplifierStats : ffi::ObjectRef {
   explicit RewriteSimplifierStats(RewriteSimplifierStatsNode data) {
     data_ = ffi::make_object<RewriteSimplifierStatsNode>(data);
   }
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(RewriteSimplifierStats, ObjectRef,
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(RewriteSimplifierStats, ffi::ObjectRef,
                                              RewriteSimplifierStatsNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(RewriteSimplifierStatsNode);
 };

@@ -27,7 +27,6 @@
 #include <tvm/ir/expr.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/object.h>
 #include <tvm/s_tir/data_layout.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/expr.h>

@@ -24,6 +24,7 @@
  *        Ideally should be used before constant folding and eliminating unused bindings.
  */
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
@@ -146,7 +147,7 @@ class SymbolicVarCanonicalizer : public ExprMutator {
 struct CanonicalizationPlan {
   ffi::Map<Id, Var> replace_usage;
   ffi::Map<Id, Var> replace_binding;
-  std::unordered_set<Id, ObjectPtrHash, ObjectPtrEqual> bindings_to_remove;
+  std::unordered_set<Id, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> bindings_to_remove;
   ffi::Map<Id, Constant> inline_constant;
 };
 
@@ -457,10 +458,10 @@ class BindingCanonicalizer : public ExprMutator {
   // use the dataflow var's definition directly
   BindingBlock VisitBindingBlock_(const DataflowBlockNode* block) override {
     auto new_block = Downcast<DataflowBlock>(ExprMutator::VisitBindingBlock_(block));
-    std::unordered_set<DataflowVar, ObjectPtrHash, ObjectPtrEqual> disqualified_set;
-    std::unordered_set<DataflowVar, ObjectPtrHash, ObjectPtrEqual> output_vars;
+    std::unordered_set<DataflowVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> disqualified_set;
+    std::unordered_set<DataflowVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> output_vars;
 
-    std::unordered_map<DataflowVar, Expr, ObjectPtrHash, ObjectPtrEqual> candidates;
+    std::unordered_map<DataflowVar, Expr, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> candidates;
     for (int i = new_block->bindings.size() - 1; i >= 0; i--) {
       auto binding = new_block->bindings[i];
       auto var = binding->var;

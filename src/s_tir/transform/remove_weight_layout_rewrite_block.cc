@@ -110,7 +110,7 @@ class RemoveLayoutRewriteBlock : public StmtMutator {
   /*! \brief The buffer map from original layout buffer to rewritten buffer */
   ffi::Map<Buffer, Buffer> buf_map_;
   /*! \brief The buffer map from original layout buffer to rewritten buffer */
-  std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual> rewritten_buffers_;
+  std::unordered_set<Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> rewritten_buffers_;
   /*! \brief Maps a buffer load to an index map associated with the load / store
     in a layout rewrite block. */
   std::unordered_map<const VarNode*, IndexMap> buffer_var_to_index_map_;

@@ -49,47 +49,47 @@ enum class BufferIndexType : int32_t {
 /**************** Random variable: SBlockRV ****************/
 
 /*! \brief A random variable that evaluates to a TensorIR block */
-class SBlockRVNode : public runtime::Object {
+class SBlockRVNode : public ffi::Object {
  public:
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<SBlockRVNode>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.SBlockRV", SBlockRVNode, runtime::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.SBlockRV", SBlockRVNode, ffi::Object);
 };
 
 /*!
  * \brief Managed reference to SBlockRVNode
  * \sa SBlockRVNode
  */
-class SBlockRV : public runtime::ObjectRef {
+class SBlockRV : public ffi::ObjectRef {
  public:
   /*! \brief Constructor */
   TVM_DLL SBlockRV();
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SBlockRV, runtime::ObjectRef, SBlockRVNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SBlockRV, ffi::ObjectRef, SBlockRVNode);
 };
 
 /**************** Random variable: LoopRV ****************/
 
 /*! \brief A random variable that evaluates to a TensorIR for loop */
-class LoopRVNode : public runtime::Object {
+class LoopRVNode : public ffi::Object {
  public:
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<LoopRVNode>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.LoopRV", LoopRVNode, runtime::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.LoopRV", LoopRVNode, ffi::Object);
 };
 
 /*!
  * \brief Managed reference to LoopRVNode
  * \sa LoopRVNode
  */
-class LoopRV : public runtime::ObjectRef {
+class LoopRV : public ffi::ObjectRef {
  public:
   /*! \brief Constructor */
   TVM_DLL LoopRV();
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(LoopRV, runtime::ObjectRef, LoopRVNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(LoopRV, ffi::ObjectRef, LoopRVNode);
 };
 
 /**************** Random variable: ExprRV ****************/
@@ -104,14 +104,14 @@ using ExprRVNode = PrimExprNode;
 class Schedule;
 
 /*! \brief The user-facing schedule class */
-class ScheduleNode : public runtime::Object {
+class ScheduleNode : public ffi::Object {
   friend class Schedule;
 
  public:
   virtual ~ScheduleNode() = default;
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.Schedule", ScheduleNode, runtime::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.Schedule", ScheduleNode, ffi::Object);
 
  public:
   /*! \brief Get the IRModule associated with this schedule. */
@@ -894,7 +894,7 @@ class ScheduleNode : public runtime::Object {
  *
  * \sa ScheduleNode
  */
-class Schedule : public runtime::ObjectRef {
+class Schedule : public ffi::ObjectRef {
  public:
   /*!
    * \brief Construct a concrete TensorIR schedule from an IRModule
@@ -929,7 +929,7 @@ class Schedule : public runtime::ObjectRef {
   TVM_DLL static Schedule Traced(IRModule mod, LinearCongruentialEngine::TRandState seed,
                                  int debug_mask, ScheduleErrorRenderLevel error_render_level,
                                  bool enable_check = true);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Schedule, runtime::ObjectRef, ScheduleNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Schedule, ffi::ObjectRef, ScheduleNode);
 };
 
 }  // namespace s_tir

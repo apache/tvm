@@ -265,7 +265,7 @@ class VirtualDeviceNode : public AttrsNodeReflAdapter<VirtualDeviceNode> {
 /*!
  * \brief Managed reference class to \p VirtualDeviceNode.
  */
-class VirtualDevice : public ObjectRef {
+class VirtualDevice : public ffi::ObjectRef {
  public:
   /*!
    * \brief Construct a virtual device.
@@ -341,7 +341,7 @@ class VirtualDevice : public ObjectRef {
    */
   TVM_DLL static VirtualDevice Default(const VirtualDevice& lhs, const VirtualDevice& rhs);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(VirtualDevice, ObjectRef, VirtualDeviceNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(VirtualDevice, ffi::ObjectRef, VirtualDeviceNode);
 
   friend class VirtualDeviceCache;  // Private implementation helper.
 };

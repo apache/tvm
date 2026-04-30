@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 
 #include "../utils.h"
@@ -64,7 +65,7 @@ class DecomposeReductionBlockReplacer : public StmtMutator {
 
   Stmt VisitStmt_(const SBlockNode* block) final {
     if (block == old_reduction_block_.get()) {
-      ObjectPtr<SBlockNode> p_new_block = CopyOnWrite(block);
+      ffi::ObjectPtr<SBlockNode> p_new_block = CopyOnWrite(block);
       p_new_block->name_hint = p_new_block->name_hint + "_update";
       p_new_block->init = std::nullopt;
       // Add write regions back to read regions in update block.
@@ -149,7 +150,7 @@ class LoopHeightError : public ScheduleError {
   }
 
   IRModule mod() const final { return mod_; }
-  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {loop_, block_}; }
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {loop_, block_}; }
 
   IRModule mod_;
   For loop_;
@@ -205,8 +206,8 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
     LoopHeightError::CheckLoopHigherThanReduceLoops(self->mod, block, realize, loops, loop_sref);
   }
   // IR Manipulation
-  ObjectPtr<SBlockNode> init_block = ffi::make_object<SBlockNode>();
-  ObjectPtr<SBlockRealizeNode> init_realize = ffi::make_object<SBlockRealizeNode>();
+  ffi::ObjectPtr<SBlockNode> init_block = ffi::make_object<SBlockNode>();
+  ffi::ObjectPtr<SBlockRealizeNode> init_realize = ffi::make_object<SBlockRealizeNode>();
   init_block->name_hint = block->name_hint + "_init";
   init_block->annotations = block->annotations;
   init_realize->iter_values = {};
@@ -461,7 +462,7 @@ class NotSerialLoopKindError : public ScheduleError {
   }
 
   IRModule mod() const final { return mod_; }
-  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {loop_}; }
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {loop_}; }
 
   IRModule mod_;
   For loop_;
@@ -488,7 +489,7 @@ class FactorAxisOutOfRangeError : public ScheduleError {
   }
 
   IRModule mod() const final { return mod_; }
-  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {}; }
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {}; }
 
   static int CheckAndUpdate(const IRModule& mod, const Buffer& buffer, int factor_axis) {
     int ndim = static_cast<int>(buffer->shape.size());
@@ -558,7 +559,7 @@ class LoopPropertyError : public ScheduleError {
   }
 
   IRModule mod() const final { return mod_; }
-  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {loop_}; }
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {loop_}; }
 
   static void CheckLoopProperty(const ScheduleState& self, const ffi::Array<For>& loops,
                                 const ForNode* rf_loop, const SBlock& block,
@@ -632,7 +633,7 @@ ffi::Array<Buffer> CreateRFactorBuffers(const ffi::Array<BufferStore>& buf_store
     ffi::Array<PrimExpr> rf_shape = buffer->shape;
     rf_shape.insert(rf_shape.begin() + factor_axis, rf_loop->extent);
 
-    ObjectPtr<BufferNode> n = ffi::make_object<BufferNode>(*buffer.get());
+    ffi::ObjectPtr<BufferNode> n = ffi::make_object<BufferNode>(*buffer.get());
     n->shape = rf_shape;
     n->name = buffer->name + ".rf";
     n->data = buffer->data.copy_with_suffix(".rf");
@@ -1072,7 +1073,7 @@ Stmt CreateLoopOutsideRfactorBlock(SBlockRealize rf_block_realize, const ffi::Ar
   // Step 3. Wrap `rf_block_realize` with outer loops.
   Stmt rf_body = rf_block_realize;
   for (int i = n_loops - 1; i >= 0; --i) {
-    ObjectPtr<ForNode> p_loop = ffi::make_object<ForNode>(*loops[i].get());
+    ffi::ObjectPtr<ForNode> p_loop = ffi::make_object<ForNode>(*loops[i].get());
     p_loop->loop_var = Downcast<Var>(new_loop_var_map[loops[i]->loop_var.get()]);
     p_loop->body = rf_body;
     rf_body = For(std::move(p_loop));
@@ -1149,7 +1150,7 @@ class BlockReplacer : public StmtMutator {
     // Step 3. If this loop is the rfactor loop and isn't touched by any reduction block iter, it
     // should be kept outside the write-back block. Otherwise it shouldn't.
     if (loop == rf_loop_.get() || !reduce_loop_vars_.count(loop->loop_var.get())) {
-      ObjectPtr<ForNode> p_loop = CopyOnWrite(loop);
+      ffi::ObjectPtr<ForNode> p_loop = CopyOnWrite(loop);
       p_loop->body = body;
       body = Stmt(p_loop);
     }

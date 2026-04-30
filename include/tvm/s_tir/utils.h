@@ -71,10 +71,10 @@ namespace tirx {
   }()
 
 /*!
- * \brief Downcast a TVM ObjectRef to its corresponding container using `ObjectRef::as<Type>`,
- * then check if the downcasting succeeded.
+ * \brief Downcast a TVM ffi::ObjectRef to its corresponding container using
+ * `ffi::ObjectRef::as<Type>`, then check if the downcasting succeeded.
  * \param Result The result variable, used for checking
- * \param From The ObjectRef to be downcast
+ * \param From The ffi::ObjectRef to be downcast
  * \param Type The type to be downcast to
  */
 #define TVM_TYPE_AS_OR_ERR(Result, From, Type) \
@@ -82,9 +82,9 @@ namespace tirx {
   TVM_FFI_CHECK(Result, TypeError)
 
 /*!
- * \brief Downcast a TVM ObjectRef to its corresponding container using `ObjectRef::as<Type>`,
- * throwing an internal error if downcast fails.
- * \param From The ObjectRef to be downcast
+ * \brief Downcast a TVM ffi::ObjectRef to its corresponding container using
+ * `ffi::ObjectRef::as<Type>`, throwing an internal error if downcast fails.
+ * \param From The ffi::ObjectRef to be downcast
  * \param Type The type to be downcast to
  */
 #define TVM_TYPE_AS(From, Type)                                                    \

@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/cast.h>
+
 #include <set>
 
 #include "../utils.h"
@@ -42,7 +44,7 @@ class InvalidReorderIndex : public ScheduleError {
        << " is not a valid permutation of [0, 1, ..., num_block_iter_vars-1] in block {0}.";
     return ffi::String(os.str());
   }
-  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {block_}; }
 
  private:
   IRModule mod_;

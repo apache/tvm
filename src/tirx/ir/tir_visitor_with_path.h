@@ -250,7 +250,7 @@ class TIRVisitorWithPath
     return context;
   }
 
-  std::unordered_set<ObjectRef, ObjectPtrHash, ObjectPtrEqual> in_scope_definitions_;
+  std::unordered_set<ffi::ObjectRef, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> in_scope_definitions_;
 
   /*! \brief Scope stack for Bind variable definitions.
    *

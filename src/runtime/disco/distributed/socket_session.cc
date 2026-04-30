@@ -121,8 +121,8 @@ class SocketSessionObj : public BcastSessionObj {
     if (node_id == 0) {
       local_session_->DebugSetRegister(reg_id, value, worker_id);
     } else {
-      ObjectRef wrapped{nullptr};
-      if (auto opt_obj = value.as<ObjectRef>()) {
+      ffi::ObjectRef wrapped{nullptr};
+      if (auto opt_obj = value.as<ffi::ObjectRef>()) {
         wrapped = DiscoDebugObject::Wrap(value);
         value = wrapped;
       }

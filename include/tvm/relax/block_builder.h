@@ -29,7 +29,7 @@
 #include <tvm/ir/name_supply.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/utils.h>
-#include <tvm/runtime/object.h>
+#include <tvm/runtime/base.h>
 
 namespace tvm {
 namespace relax {
@@ -63,7 +63,7 @@ namespace relax {
  * allow logically grouped implementation and internal data
  * structures that are hidden from the users.
  */
-class BlockBuilderNode : public Object {
+class BlockBuilderNode : public ffi::Object {
  public:
   //-------------------------------
   // Global Context management
@@ -258,10 +258,10 @@ class BlockBuilderNode : public Object {
   virtual arith::Analyzer* GetAnalyzer() = 0;
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("relax.BlockBuilder", BlockBuilderNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.BlockBuilder", BlockBuilderNode, ffi::Object);
 };
 
-class BlockBuilder : public ObjectRef {
+class BlockBuilder : public ffi::ObjectRef {
  public:
   /*!
    * \brief Create a BlockBuilder.
@@ -318,7 +318,7 @@ class BlockBuilder : public ObjectRef {
   TVM_DLL static BlockBuilder Create(ffi::Optional<IRModule> ctx_mod,
                                      DisableOperatorSpecificNormalizationForTVMScript tag);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BlockBuilder, ObjectRef, BlockBuilderNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BlockBuilder, ffi::ObjectRef, BlockBuilderNode);
 };
 
 }  // namespace relax

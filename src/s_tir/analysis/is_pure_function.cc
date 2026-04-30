@@ -21,6 +21,7 @@
  * \file is_pure_function.cc
  * \brief PrimFunc purity analysis
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
 #include <tvm/tirx/analysis.h>

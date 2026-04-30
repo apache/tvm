@@ -125,7 +125,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "s_tir.analysis.calculate_allocated_bytes",
-      [](ObjectRef obj) -> tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, Integer> > {
+      [](ffi::ObjectRef obj) -> tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, Integer> > {
         if (auto func = obj.as<PrimFunc>()) {
           return CalculateAllocatedBytes(func.value());
         } else if (auto mod = obj.as<IRModule>()) {

@@ -19,7 +19,6 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/disco/disco_worker.h>
-#include <tvm/runtime/object.h>
 #include <tvm/support/io.h>
 
 #include <condition_variable>
@@ -190,7 +189,8 @@ class ThreadedSessionObj final : public BcastSessionObj {
 Session Session::ThreadedSession(int num_workers, int num_group) {
   TVM_FFI_ICHECK_EQ(num_workers % num_group, 0)
       << "The number of workers should be divisible by the number of worker group.";
-  ObjectPtr<ThreadedSessionObj> n = ffi::make_object<ThreadedSessionObj>(num_workers, num_group);
+  ffi::ObjectPtr<ThreadedSessionObj> n =
+      ffi::make_object<ThreadedSessionObj>(num_workers, num_group);
   return Session(std::move(n));
 }
 

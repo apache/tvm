@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/cast.h>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -53,7 +55,7 @@ class WrongBlockIterTypeError : public ScheduleError {
     return os.str();
   }
   IRModule mod() const final { return mod_; }
-  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {block_}; }
   IRModule mod_;
   std::string op_str_;
   Var loop_var_;
@@ -121,7 +123,7 @@ void CheckLoopParallelizableInBlock(const ScheduleState& self, ForKind for_kind,
  */
 void CheckParallelizability(const ScheduleState& self, const For& loop, ForKind for_kind,
                             runtime::ThreadScope thread_scope) {
-  PreOrderVisit(loop, [&](const ObjectRef& node) {
+  PreOrderVisit(loop, [&](const ffi::ObjectRef& node) {
     if (const auto* realize = node.as<SBlockRealizeNode>()) {
       // If this block doesn't have corresponding StmtSRef in the schedule state, it must be a block
       // inside `tirx.init()`. We don't check the condition for such blocks.
@@ -169,7 +171,7 @@ void ParallelizeComputation(const ScheduleState& self, const StmtSRef& loop_sref
                                                  : runtime::ThreadScope{-1, -1});
 
   // Step 3. Loop update and IR replacement
-  ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*loop);
+  ffi::ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*loop);
   new_loop->kind = for_kind;
   if (thread_axis.has_value()) {
     new_loop->thread_binding = IterVar(/*dom=*/Range(nullptr),                                    //
@@ -196,7 +198,7 @@ void Bind(ScheduleState self, const StmtSRef& loop_sref, const ffi::String& thre
 
 void Unroll(ScheduleState self, const StmtSRef& loop_sref) {
   const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
-  ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*loop);
+  ffi::ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*loop);
   new_loop->kind = ForKind::kUnrolled;
   new_loop->thread_binding = std::nullopt;
   self->Replace(loop_sref, For(new_loop), {});

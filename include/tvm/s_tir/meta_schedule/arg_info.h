@@ -23,7 +23,6 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 #include <tvm/runtime/data_type.h>
-#include <tvm/runtime/object.h>
 #include <tvm/tirx/function.h>
 
 namespace tvm {
@@ -31,29 +30,29 @@ namespace s_tir {
 namespace meta_schedule {
 
 /*! \brief The argument information. */
-class ArgInfoNode : public runtime::Object {
+class ArgInfoNode : public ffi::Object {
  public:
-  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.ArgInfo", ArgInfoNode, runtime::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.ArgInfo", ArgInfoNode, ffi::Object);
 
  public:
   /*! \brief Default destructor. */
   virtual ~ArgInfoNode() = default;
   /*! \brief Converts the ArgInfo to its corresponding JSON representation. */
-  virtual ObjectRef AsJSON() const = 0;
+  virtual ffi::ObjectRef AsJSON() const = 0;
 };
 
 /*!
  * \brief Managed reference to ArgInfoNode
  * \sa ArgInfoNode
  */
-class ArgInfo : public runtime::ObjectRef {
+class ArgInfo : public ffi::ObjectRef {
  public:
   /*!
    * \brief Parse the argument information from a JSON object.
    * \param json_obj The json object to parse.
    * \return The argument information parsed.
    */
-  TVM_DLL static ArgInfo FromJSON(const ObjectRef& json_obj);
+  TVM_DLL static ArgInfo FromJSON(const ffi::ObjectRef& json_obj);
   /*!
    * \brief Extract a list of the argument information from PrimFunc.
    * \param func The PrimFunc to get argument information from.
@@ -68,7 +67,7 @@ class ArgInfo : public runtime::ObjectRef {
    */
   TVM_DLL static ffi::Array<ArgInfo, void> FromEntryFunc(const IRModule& mod, bool remove_preproc);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ArgInfo, runtime::ObjectRef, ArgInfoNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ArgInfo, ffi::ObjectRef, ArgInfoNode);
 
  protected:
   ArgInfo() = default;
@@ -91,7 +90,7 @@ class TensorInfoNode : public ArgInfoNode {
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.TensorInfo", TensorInfoNode, ArgInfoNode);
 
  public:
-  ObjectRef AsJSON() const;
+  ffi::ObjectRef AsJSON() const;
 };
 
 /*!
@@ -111,7 +110,7 @@ class TensorInfo : public ArgInfo {
    * \param json_obj The json object to parse.
    * \return The argument information parsed.
    */
-  TVM_DLL static TensorInfo FromJSON(const ObjectRef& json_obj);
+  TVM_DLL static TensorInfo FromJSON(const ffi::ObjectRef& json_obj);
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorInfo, ArgInfo, TensorInfoNode);
 };
 

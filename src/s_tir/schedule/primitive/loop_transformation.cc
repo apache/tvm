@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/cast.h>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -35,7 +37,7 @@ class BlockPredicateAppender : public StmtMutator {
   // For each direct child of type BlockRealizeNode, append the predicate
   Stmt VisitStmt_(const SBlockRealizeNode* realize) final {
     // We do not recursively do this
-    ObjectPtr<SBlockRealizeNode> n = CopyOnWrite(realize);
+    ffi::ObjectPtr<SBlockRealizeNode> n = CopyOnWrite(realize);
     n->predicate = n->predicate && to_append_;
     return SBlockRealize(n);
   }
@@ -128,7 +130,7 @@ class IterMapSimplifyBlockBinding : public StmtExprMutator {
     if (v.same_as(op->iter_values)) {
       return ffi::GetRef<Stmt>(op);
     } else {
-      ObjectPtr<SBlockRealizeNode> n = CopyOnWrite(op);
+      ffi::ObjectPtr<SBlockRealizeNode> n = CopyOnWrite(op);
       n->iter_values = std::move(v);
       return Stmt(n);
     }
@@ -193,7 +195,7 @@ class BlockPropertyError : public ScheduleError {
   }
 
   IRModule mod() const final { return mod_; }
-  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {block_}; }
 
   IRModule mod_;
   SBlock block_;
@@ -214,7 +216,7 @@ class HasAnnotationOrThreadBindingError : public ScheduleError {
   }
 
   IRModule mod() const final { return mod_; }
-  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {loop_}; }
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {loop_}; }
 
   IRModule mod_;
   For loop_;
@@ -235,7 +237,7 @@ class OuterNotInnerParent : public ScheduleError {
   }
 
   IRModule mod() const final { return mod_; }
-  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {outer_, inner_}; }
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {outer_, inner_}; }
 
   IRModule mod_;
   For outer_;
@@ -257,7 +259,7 @@ class NotOnlyChildError : public ScheduleError {
   }
 
   IRModule mod() const final { return mod_; }
-  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {outer_, inner_}; }
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {outer_, inner_}; }
 
   IRModule mod_;
   For outer_;
@@ -277,7 +279,7 @@ class NotSingleInferFactorError : public ScheduleError {
   }
 
   IRModule mod() const final { return mod_; }
-  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {}; }
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {}; }
 
   IRModule mod_;
 };
@@ -296,7 +298,7 @@ class WrongFactorProductError : public ScheduleError {
   }
 
   IRModule mod() const final { return mod_; }
-  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {loop_}; }
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {loop_}; }
 
   IRModule mod_;
   For loop_;
@@ -315,7 +317,7 @@ class LoopMultiAppearanceError : public ScheduleError {
   }
 
   IRModule mod() const final { return mod_; }
-  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {loop_}; }
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {loop_}; }
 
   IRModule mod_;
   For loop_;
@@ -344,7 +346,7 @@ class LoopsNotAChainError : public ScheduleError {
   }
 
   IRModule mod() const final { return mod_; }
-  ffi::Array<ObjectRef> LocationsOfInterest() const final {
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final {
     if (kind_ == ProblemKind::kNotUnderAScope) {
       return {};
     } else {
@@ -383,7 +385,7 @@ class DependentLoopError : public ScheduleError {
   }
 
   IRModule mod() const final { return mod_; }
-  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {loop_}; }
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {loop_}; }
 
   IRModule mod_;
   For loop_;
@@ -1087,7 +1089,7 @@ For ConstructNewLoopChain(const ScheduleState& self, std::vector<const StmtSRefN
       copy = loop_sref->StmtAs<ForNode>();
     }
     TVM_FFI_ICHECK(copy != nullptr);
-    ObjectPtr<ForNode> n = ffi::make_object<ForNode>(*copy);
+    ffi::ObjectPtr<ForNode> n = ffi::make_object<ForNode>(*copy);
     if (new_loop.defined()) {
       n->body = new_loop;
     } else {
@@ -1365,7 +1367,7 @@ struct AddUnitLoopTraits : public UnpackedInstTraits<AddUnitLoopTraits> {
   static constexpr size_t kNumAttrs = 0;
   static constexpr size_t kNumDecisions = 0;
 
-  static LoopRV UnpackedApplyToSchedule(Schedule sch, ObjectRef rv) {
+  static LoopRV UnpackedApplyToSchedule(Schedule sch, ffi::ObjectRef rv) {
     if (auto block = rv.as<SBlockRV>()) {
       return sch->AddUnitLoop(block.value());
     } else if (auto loop = rv.as<LoopRV>()) {

@@ -23,6 +23,7 @@
  */
 #include "tvm_ffi_binder.h"
 
+#include <tvm/ffi/cast.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/expr.h>
@@ -255,7 +256,7 @@ class ExprPathRenderer : public ExprFunctor<std::string(const PrimExpr&)> {
   std::string VisitExpr_(const MinNode* op) final { return FuncOp("min", op->a, op->b); }
   std::string VisitExpr_(const MaxNode* op) final { return FuncOp("max", op->a, op->b); }
   // Fallback: use operator<< for unhandled expression types.
-  std::string VisitExprDefault_(const Object* op) final {
+  std::string VisitExprDefault_(const ffi::Object* op) final {
     std::ostringstream os;
     os << ffi::GetRef<PrimExpr>(static_cast<const PrimExprNode*>(op));
     return os.str();

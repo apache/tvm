@@ -19,6 +19,8 @@
 #ifndef TVM_S_TIR_SCHEDULE_CONCRETE_SCHEDULE_H_
 #define TVM_S_TIR_SCHEDULE_CONCRETE_SCHEDULE_H_
 
+#include <tvm/ffi/cast.h>
+
 #include <memory>
 #include <utility>
 #include <vector>
@@ -34,7 +36,7 @@ class ConcreteScheduleNode : public ScheduleNode {
   friend class ScheduleCopier;
 
  public:
-  using TSymbolTable = ffi::Map<ObjectRef, ObjectRef>;
+  using TSymbolTable = ffi::Map<ffi::ObjectRef, ffi::ObjectRef>;
 
  protected:
   /*! \brief The internal state of scheduling */
@@ -233,7 +235,7 @@ class ConcreteScheduleNode : public ScheduleNode {
   inline ffi::Array<ExprRV> CreateRV(const std::vector<int64_t>& value,
                                      bool convert_negone_to_none = false);
   /*! \brief Remove a random variable from the symbol table */
-  inline void RemoveFromSymbolTable(const ObjectRef& rv);
+  inline void RemoveFromSymbolTable(const ffi::ObjectRef& rv);
   /*!
    * \brief Check the annotation value is valid and look up the random variable. Raises an exception
    * if the type of the annotation value is not allowed.
@@ -264,7 +266,7 @@ inline PrimExpr ConcreteScheduleNode::Get(const ExprRV& expr_rv) const {
     if (it == this->symbol_table_.end()) {
       TVM_FFI_THROW(IndexError) << "Cannot find corresponding ExprRV: " << var;
     }
-    const ObjectRef& obj = (*it).second;
+    const ffi::ObjectRef& obj = (*it).second;
     const auto* int_imm = TVM_TYPE_AS(obj, IntImmNode);
     return Integer(int_imm->value);
   });
@@ -276,7 +278,7 @@ inline bool ConcreteScheduleNode::HasBlock(const SBlockRV& block_rv) const {
   if (it == this->symbol_table_.end()) {
     return false;
   }
-  const ObjectRef& obj = (*it).second;
+  const ffi::ObjectRef& obj = (*it).second;
   const auto* sref = obj.as<StmtSRefNode>();
   if (sref == nullptr || sref->stmt == nullptr) {
     return false;
@@ -289,7 +291,7 @@ inline StmtSRef ConcreteScheduleNode::GetSRef(const SBlockRV& block_rv) const {
   if (it == this->symbol_table_.end()) {
     TVM_FFI_THROW(IndexError) << "Cannot find corresponding SBlockRV: " << block_rv;
   }
-  const ObjectRef& obj = (*it).second;
+  const ffi::ObjectRef& obj = (*it).second;
   const auto* sref = obj.as<StmtSRefNode>();
   if (sref == nullptr) {
     TVM_FFI_THROW(ValueError) << "SBlockRV's corresponding type is invalid: "
@@ -308,7 +310,7 @@ inline StmtSRef ConcreteScheduleNode::GetSRef(const LoopRV& loop_rv) const {
   if (it == this->symbol_table_.end()) {
     TVM_FFI_THROW(IndexError) << "Cannot find corresponding LoopRV: " << loop_rv;
   }
-  const ObjectRef& obj = (*it).second;
+  const ffi::ObjectRef& obj = (*it).second;
   if (obj.same_as(inline_mark)) {
     return inline_mark;
   }
@@ -386,7 +388,7 @@ inline ffi::Array<ExprRV> ConcreteScheduleNode::CreateRV(const std::vector<int64
   return results;
 }
 
-inline void ConcreteScheduleNode::RemoveFromSymbolTable(const ObjectRef& obj) {
+inline void ConcreteScheduleNode::RemoveFromSymbolTable(const ffi::ObjectRef& obj) {
   auto it = this->symbol_table_.find(obj);
   if (it != this->symbol_table_.end()) {
     this->symbol_table_.erase(obj);

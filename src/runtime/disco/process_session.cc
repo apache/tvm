@@ -20,7 +20,6 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/disco/disco_worker.h>
-#include <tvm/runtime/object.h>
 
 #include <memory>
 #include <sstream>
@@ -121,8 +120,8 @@ class ProcessSessionObj final : public BcastSessionObj {
       worker_0_->worker->SetRegister(reg_id, value);
       return;
     }
-    ObjectRef wrapped{nullptr};
-    if (value.as<ObjectRef>()) {
+    ffi::ObjectRef wrapped{nullptr};
+    if (value.as<ffi::ObjectRef>()) {
       wrapped = DiscoDebugObject::Wrap(value);
       value = wrapped;
     }

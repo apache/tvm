@@ -21,6 +21,7 @@
  * \file type_functor.cc
  * \brief Implementations of type functors.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ir/type_functor.h>
 
 #include <utility>

@@ -26,7 +26,6 @@
 
 #include <tvm/ffi/string.h>
 #include <tvm/relax/attrs/vision.h>
-#include <tvm/runtime/object.h>
 
 #include "../op_common.h"
 

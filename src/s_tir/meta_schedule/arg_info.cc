@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/transform.h>
 
@@ -69,7 +70,7 @@ inline tirx::PrimFunc FindEntryFunc(const IRModule& mod) {
 }
 /******** ArgInfo ********/
 
-ArgInfo ArgInfo::FromJSON(const ObjectRef& json_obj) {
+ArgInfo ArgInfo::FromJSON(const ffi::ObjectRef& json_obj) {
   // The JSON object is always an array whose first element is a tag. For example:
   // `['TENSOR', 'float32', [1, 224, 224, 3]]
   // Step 1. Extract the tag
@@ -117,20 +118,20 @@ ffi::Array<ArgInfo> ArgInfo::FromEntryFunc(const IRModule& mod, bool remove_prep
 /******** TensorInfo ********/
 
 TensorInfo::TensorInfo(runtime::DataType dtype, ffi::Shape shape) {
-  ObjectPtr<TensorInfoNode> n = ffi::make_object<TensorInfoNode>();
+  ffi::ObjectPtr<TensorInfoNode> n = ffi::make_object<TensorInfoNode>();
   n->dtype = dtype;
   n->shape = shape;
   this->data_ = std::move(n);
 }
 
-ObjectRef TensorInfoNode::AsJSON() const {
+ffi::ObjectRef TensorInfoNode::AsJSON() const {
   static ffi::String tag = "TENSOR";
   ffi::String dtype = DLDataTypeToString(this->dtype);
   ffi::Array<Integer> shape = support::AsArray(this->shape);
   return ffi::Array<ffi::Any>{tag, dtype, shape};
 }
 
-TensorInfo TensorInfo::FromJSON(const ObjectRef& json_obj) {
+TensorInfo TensorInfo::FromJSON(const ffi::ObjectRef& json_obj) {
   DLDataType dtype;
   ffi::Array<Integer> shape;
   try {
@@ -142,7 +143,7 @@ TensorInfo TensorInfo::FromJSON(const ObjectRef& json_obj) {
       dtype = StringToDLDataType(dtype_str);
     }
     // Load json[2] => shape
-    shape = AsIntArray(json_array->at(2).cast<ObjectRef>());
+    shape = AsIntArray(json_array->at(2).cast<ffi::ObjectRef>());
   } catch (const std::runtime_error& e) {  // includes tvm::Error and dmlc::Error
     TVM_FFI_THROW(ValueError) << "Unable to parse the JSON object: " << json_obj
                               << "\nThe error is: " << e.what();

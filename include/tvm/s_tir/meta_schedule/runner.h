@@ -25,7 +25,6 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/expr.h>
-#include <tvm/runtime/object.h>
 #include <tvm/s_tir/meta_schedule/arg_info.h>
 
 namespace tvm {
@@ -33,7 +32,7 @@ namespace s_tir {
 namespace meta_schedule {
 
 /*! \brief Runner's input containing path of artifact, type of device and argument info. */
-class RunnerInputNode : public runtime::Object {
+class RunnerInputNode : public ffi::Object {
  public:
   /*! \brief The path to the built artifact. */
   ffi::String artifact_path;
@@ -50,14 +49,14 @@ class RunnerInputNode : public runtime::Object {
         .def_ro("args_info", &RunnerInputNode::args_info);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.RunnerInput", RunnerInputNode,
-                                    runtime::Object);
+                                    ffi::Object);
 };
 
 /*!
  * \brief Managed reference to RunnerInputNode
  * \sa RunnerInputNode
  */
-class RunnerInput : public runtime::ObjectRef {
+class RunnerInput : public ffi::ObjectRef {
  public:
   /*!
    * \brief Constructor of RunnerInput
@@ -67,11 +66,11 @@ class RunnerInput : public runtime::ObjectRef {
    */
   TVM_DLL explicit RunnerInput(ffi::String artifact_path, ffi::String device_type,
                                ffi::Array<ArgInfo> args_info);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(RunnerInput, runtime::ObjectRef, RunnerInputNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(RunnerInput, ffi::ObjectRef, RunnerInputNode);
 };
 
 /*! \brief Runner's output containing measurement result of MeasureCandidate or error msg if any. */
-class RunnerResultNode : public runtime::Object {
+class RunnerResultNode : public ffi::Object {
  public:
   /*! \brief The run time in seconds.*/
   ffi::Optional<ffi::Array<FloatImm>> run_secs;
@@ -85,14 +84,14 @@ class RunnerResultNode : public runtime::Object {
         .def_ro("error_msg", &RunnerResultNode::error_msg);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.RunnerResult", RunnerResultNode,
-                                    runtime::Object);
+                                    ffi::Object);
 };
 
 /*!
  * \brief Managed reference to RunnerResultNode
  * \sa RunnerResultNode
  */
-class RunnerResult : public runtime::ObjectRef {
+class RunnerResult : public ffi::ObjectRef {
  public:
   /*!
    * \brief Constructor
@@ -101,7 +100,7 @@ class RunnerResult : public runtime::ObjectRef {
    */
   TVM_DLL explicit RunnerResult(ffi::Optional<ffi::Array<FloatImm>> run_secs,
                                 ffi::Optional<ffi::String> error_msg);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(RunnerResult, runtime::ObjectRef, RunnerResultNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(RunnerResult, ffi::ObjectRef, RunnerResultNode);
 };
 
 /*!
@@ -109,7 +108,7 @@ class RunnerResult : public runtime::ObjectRef {
  * \note The API design is consistent with python's concurrent.futures.Future:
  *  https://docs.python.org/3/library/concurrent.futures.html#concurrent.futures.Future
  */
-class RunnerFutureNode : public runtime::Object {
+class RunnerFutureNode : public ffi::Object {
  public:
   /*!
    * \brief The function type to check whether the runner has finished.
@@ -151,14 +150,14 @@ class RunnerFutureNode : public runtime::Object {
     return f_result();
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.RunnerFuture", RunnerFutureNode,
-                                    runtime::Object);
+                                    ffi::Object);
 };
 
 /*!
  * \brief Managed reference to RunnerFutureNode
  * \sa RunnerFutureNode
  */
-class RunnerFuture : public runtime::ObjectRef {
+class RunnerFuture : public ffi::ObjectRef {
  public:
   using FDone = RunnerFutureNode::FDone;
   using FResult = RunnerFutureNode::FResult;
@@ -169,11 +168,11 @@ class RunnerFuture : public runtime::ObjectRef {
    * \param f_result The packed function to fetch runner output if it is ready.
    */
   TVM_DLL explicit RunnerFuture(FDone f_done, FResult f_result);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(RunnerFuture, runtime::ObjectRef, RunnerFutureNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(RunnerFuture, ffi::ObjectRef, RunnerFutureNode);
 };
 
 /*! \brief The abstract runner interface. */
-class RunnerNode : public runtime::Object {
+class RunnerNode : public ffi::Object {
  public:
   /*!
    * \brief The function type to run the built artifacts and get runner futures.
@@ -199,28 +198,30 @@ class RunnerNode : public runtime::Object {
   }
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.Runner", RunnerNode, runtime::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.Runner", RunnerNode, ffi::Object);
 };
 
 /*!
  * \brief Managed reference to RunnerNode
  * \sa RunnerNode
  */
-class Runner : public runtime::ObjectRef {
+class Runner : public ffi::ObjectRef {
  public:
   using FRun = RunnerNode::FRun;
   /*!
-   * \brief Constructor from ObjectPtr<RunnerNode>.
+   * \brief Constructor from ffi::ObjectPtr<RunnerNode>.
    * \param data The object pointer.
    */
-  explicit Runner(ObjectPtr<RunnerNode> data) : ObjectRef(data) { TVM_FFI_ICHECK(data != nullptr); }
+  explicit Runner(ffi::ObjectPtr<RunnerNode> data) : ffi::ObjectRef(data) {
+    TVM_FFI_ICHECK(data != nullptr);
+  }
   /*!
    * \brief Create a runner with customized build method on the python-side.
    * \param f_run The packed function to run the built artifacts and get runner futures.
    * \return The runner created.
    */
   TVM_DLL static Runner PyRunner(FRun f_run);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Runner, runtime::ObjectRef, RunnerNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Runner, ffi::ObjectRef, RunnerNode);
 };
 
 /*! \brief An abstract runner with customized build method on the python-side. */

@@ -24,6 +24,7 @@
  * \brief Analysis functions for Relax.
  */
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
@@ -34,7 +35,7 @@ namespace relax {
 
 template <typename T>
 struct InsertionSet {
-  std::unordered_set<T, ObjectPtrHash, ObjectPtrEqual> set;
+  std::unordered_set<T, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> set;
   std::vector<T> data;
   void Insert(const T& t) {
     if (set.count(t) == 0) {

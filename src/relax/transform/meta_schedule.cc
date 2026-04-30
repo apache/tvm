@@ -21,6 +21,7 @@
  * \file tvm/relax/transform/meta_schedule.cc
  * \brief Pass for meta_schedule tuning
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/transform.h>
 #include <tvm/s_tir/meta_schedule/database.h>

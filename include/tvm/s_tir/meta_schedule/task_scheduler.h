@@ -23,7 +23,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/optional.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/object.h>
+#include <tvm/runtime/base.h>
 #include <tvm/s_tir/meta_schedule/builder.h>
 #include <tvm/s_tir/meta_schedule/cost_model.h>
 #include <tvm/s_tir/meta_schedule/measure_callback.h>
@@ -38,7 +38,7 @@ namespace tvm {
 namespace s_tir {
 namespace meta_schedule {
 
-class TaskRecordNode : public runtime::Object {
+class TaskRecordNode : public ffi::Object {
  public:
   /*! \brief The tune context of the task. */
   TuneContext ctx{ffi::UnsafeInit()};
@@ -76,19 +76,19 @@ class TaskRecordNode : public runtime::Object {
   }
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.TaskRecord", TaskRecordNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.TaskRecord", TaskRecordNode, ffi::Object);
 };
 
 /*!
  * \brief Managed reference to TaskRecordNode.
  * \sa TaskRecordNode
  */
-class TaskRecord : public runtime::ObjectRef {
+class TaskRecord : public ffi::ObjectRef {
  public:
   /*! \brief Constructor */
   explicit TaskRecord(TuneContext task, double task_weight);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TaskRecord, ObjectRef, TaskRecordNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TaskRecord, ffi::ObjectRef, TaskRecordNode);
 };
 
 /*!
@@ -127,7 +127,7 @@ class TaskRecord : public runtime::ObjectRef {
   |                   +----  Runner Future <-------+                    |
   +---------------------------------------------------------------------+
 */
-class TaskSchedulerNode : public runtime::Object {
+class TaskSchedulerNode : public ffi::Object {
  public:
   /*! \brief The tuning task's logging function. */
   ffi::Function logger;
@@ -203,7 +203,7 @@ class TaskSchedulerNode : public runtime::Object {
   void PrintTuningStatistics();
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.TaskScheduler", TaskSchedulerNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.TaskScheduler", TaskSchedulerNode, ffi::Object);
 };
 
 class TaskScheduler;
@@ -259,9 +259,9 @@ class PyTaskSchedulerNode : public TaskSchedulerNode {
  * \brief Managed reference to TaskSchedulerNode.
  * \sa TaskSchedulerNode
  */
-class TaskScheduler : public runtime::ObjectRef {
+class TaskScheduler : public ffi::ObjectRef {
  public:
-  explicit TaskScheduler(ObjectPtr<TaskSchedulerNode> data) : runtime::ObjectRef(data) {
+  explicit TaskScheduler(ffi::ObjectPtr<TaskSchedulerNode> data) : ffi::ObjectRef(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
   /*!
@@ -291,7 +291,7 @@ class TaskScheduler : public runtime::ObjectRef {
   TVM_DLL static TaskScheduler PyTaskScheduler(
       ffi::Function logger, PyTaskSchedulerNode::FNextTaskId f_next_task_id,
       PyTaskSchedulerNode::FJoinRunningTask f_join_running_task, PyTaskSchedulerNode::FTune f_tune);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TaskScheduler, ObjectRef, TaskSchedulerNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TaskScheduler, ffi::ObjectRef, TaskSchedulerNode);
 };
 
 }  // namespace meta_schedule

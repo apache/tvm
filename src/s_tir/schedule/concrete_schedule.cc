@@ -18,6 +18,8 @@
  */
 #include "./concrete_schedule.h"
 
+#include <tvm/ffi/cast.h>
+
 #include <random>
 
 namespace tvm {
@@ -26,7 +28,7 @@ using namespace tvm::tirx;
 
 Schedule Schedule::Concrete(IRModule mod, LinearCongruentialEngine::TRandState seed, int debug_mask,
                             ScheduleErrorRenderLevel error_render_level, bool enable_check) {
-  ObjectPtr<ConcreteScheduleNode> n = ffi::make_object<ConcreteScheduleNode>();
+  ffi::ObjectPtr<ConcreteScheduleNode> n = ffi::make_object<ConcreteScheduleNode>();
   n->state_ = ScheduleState(mod, debug_mask, enable_check);
   n->error_render_level_ = error_render_level;
   n->symbol_table_ = {};
@@ -49,14 +51,14 @@ class ScheduleCopier {
   template <class K, class V>
   using UMap = std::unordered_map<K, V>;
   template <class K, class V>
-  using SMap = std::unordered_map<K, V, ObjectPtrHash, ObjectPtrEqual>;
+  using SMap = std::unordered_map<K, V, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>;
 
  public:
   static void Copy(const ConcreteScheduleNode* self, ScheduleState* new_state,
                    TSymbolTable* new_symbol_table) {
     const ScheduleState& src_state = self->state_;
     ScheduleCopier copier(src_state);
-    ObjectPtr<ScheduleStateNode> n = ffi::make_object<ScheduleStateNode>();
+    ffi::ObjectPtr<ScheduleStateNode> n = ffi::make_object<ScheduleStateNode>();
     n->mod = src_state->mod;
     n->block_info = copier.Copy(src_state->block_info);
     n->stmt2ref = copier.Copy(src_state->stmt2ref);
@@ -145,7 +147,7 @@ class ScheduleCopier {
       const StmtSRef& old_sref = kv.first;
       const SBlockInfo& old_info = kv.second;
       SBlockInfo new_info = old_info;
-      ObjectPtr<SBlockScopeNode> scope = ffi::make_object<SBlockScopeNode>();
+      ffi::ObjectPtr<SBlockScopeNode> scope = ffi::make_object<SBlockScopeNode>();
       scope->src2deps = Copy(old_info.scope->src2deps);
       scope->dst2deps = Copy(old_info.scope->dst2deps);
       scope->buffer_writers = Copy(old_info.scope->buffer_writers);
@@ -171,7 +173,7 @@ class ScheduleCopier {
   TSymbolTable Copy(const TSymbolTable& tab) {
     TSymbolTable result;
     for (const auto& kv : tab) {
-      ObjectRef entry = kv.second;
+      ffi::ObjectRef entry = kv.second;
       if (const auto* sref = entry.as<StmtSRefNode>()) {
         entry = Copy(sref);
       }
@@ -194,7 +196,7 @@ void ConcreteScheduleNode::Copy(ScheduleState* new_state, TSymbolTable* new_symb
 }
 
 Schedule ConcreteScheduleNode::Copy() {
-  ObjectPtr<ConcreteScheduleNode> n = ffi::make_object<ConcreteScheduleNode>();
+  ffi::ObjectPtr<ConcreteScheduleNode> n = ffi::make_object<ConcreteScheduleNode>();
   n->func_working_on_ = this->func_working_on_;
   n->error_render_level_ = this->error_render_level_;
   ConcreteScheduleNode::Copy(&n->state_, &n->symbol_table_);
@@ -289,7 +291,7 @@ SBlockRV ConcreteScheduleNode::GetSBlock(const ffi::String& name,
     }
 
     IRModule mod() const final { return mod_; }
-    ffi::Array<ObjectRef> LocationsOfInterest() const final {
+    ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final {
       return {blocks_.begin(), blocks_.end()};
     }
 
@@ -413,7 +415,7 @@ class NotSingleInferFactorError : public ScheduleError {
   }
 
   IRModule mod() const final { return mod_; }
-  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {}; }
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {}; }
 
   IRModule mod_;
 };
@@ -439,7 +441,7 @@ class WrongFactorError : public ScheduleError {
   }
 
   IRModule mod() const final { return mod_; }
-  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {loop_}; }
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {loop_}; }
 
   IRModule mod_;
   For loop_;
@@ -462,7 +464,7 @@ class NonPositiveFactorError : public ScheduleError {
     return os.str();
   }
   IRModule mod() const final { return mod_; }
-  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {}; }
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {}; }
 
  private:
   IRModule mod_;
@@ -531,7 +533,7 @@ ffi::Array<LoopRV> ConcreteScheduleNode::LoopPartition(
     }
 
     IRModule mod() const final { return mod_; }
-    ffi::Array<ObjectRef> LocationsOfInterest() const final { return {loop_}; }
+    ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {loop_}; }
 
     IRModule mod_;
     For loop_;

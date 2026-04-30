@@ -49,6 +49,7 @@
  * 2. Lift the regions identified in step 1 to a separate function and rewrite the original function
  * with `CUDAGraphRewriter`.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/backend.h>
@@ -485,7 +486,7 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
                 [[maybe_unused]] std::vector<const VarNode*>* vars_collector = nullptr,
                 std::vector<const tirx::VarNode*>* tir_vars_collector = nullptr) {
     bool is_static = true;
-    tirx::PostOrderVisit(expr, [&](const ObjectRef& e) {
+    tirx::PostOrderVisit(expr, [&](const ffi::ObjectRef& e) {
       if (auto var = e.as<tirx::VarNode>()) {
         if (!capture_symbolic_vars_.count(var)) {
           is_static = false;

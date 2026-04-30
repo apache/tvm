@@ -177,7 +177,7 @@ class RPCEndpoint::EventHandler : public support::Stream {
       if (args[i].type_index() == ffi::TypeIndex::kTVMFFIStr ||
           args[i].type_index() == ffi::TypeIndex::kTVMFFIBytes)
         continue;
-      if (const Object* obj = args[i].as<Object>()) {
+      if (const ffi::Object* obj = args[i].as<ffi::Object>()) {
         if (!obj->IsInstance<RPCObjectRefObj>()) {
           TVM_FFI_THROW(ValueError)
               << "Cannot pass argument " << i << ", type " << obj->GetTypeKey()
@@ -230,7 +230,7 @@ class RPCEndpoint::EventHandler : public support::Stream {
     // TODO(tqchen): consider merge with disco protocol
     const AnyView* any_view_ptr = reinterpret_cast<const AnyView*>(in);
     if (const auto* ref = any_view_ptr->as<RPCObjectRefObj>()) {
-      this->template Write<uint32_t>(runtime::TypeIndex::kRuntimeRPCObjectRef);
+      this->template Write<uint32_t>(runtime::kRuntimeRPCObjectRef);
       uint64_t handle = reinterpret_cast<uint64_t>(ref->object_handle());
       this->template Write<int64_t>(handle);
     } else if (auto opt_str = any_view_ptr->as<ffi::String>()) {
@@ -271,7 +271,7 @@ class RPCEndpoint::EventHandler : public support::Stream {
     // which is needed for wasm and other env that goes through C API
     uint32_t type_index;
     this->template Read<uint32_t>(&type_index);
-    if (type_index == runtime::TypeIndex::kRuntimeRPCObjectRef) {
+    if (type_index == runtime::kRuntimeRPCObjectRef) {
       uint64_t handle;
       this->template Read<uint64_t>(&handle);
       // Always wrap things back in RPCObjectRef
@@ -301,7 +301,7 @@ class RPCEndpoint::EventHandler : public support::Stream {
       any_arena_.emplace_back(ret);
     } else {
       TVM_FFI_THROW(ValueError) << "Object type is not supported in Disco calling convention: "
-                                << Object::TypeIndex2Key(type_index)
+                                << ffi::Object::TypeIndex2Key(type_index)
                                 << " (type_index = " << type_index << ")";
     }
   }

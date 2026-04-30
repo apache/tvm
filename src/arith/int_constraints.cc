@@ -76,7 +76,7 @@ IntGroupBounds::IntGroupBounds(PrimExpr coef, ffi::Array<PrimExpr> lower,
                                ffi::Array<PrimExpr> equal, ffi::Array<PrimExpr> upper) {
   TVM_FFI_ICHECK(coef.dtype().is_int() || coef.dtype().is_uint())
       << "Coefficient in IntGroupBounds must be integers";
-  ObjectPtr<IntGroupBoundsNode> node = ffi::make_object<IntGroupBoundsNode>();
+  ffi::ObjectPtr<IntGroupBoundsNode> node = ffi::make_object<IntGroupBoundsNode>();
   node->coef = std::move(coef);
   node->lower = std::move(lower);
   node->equal = std::move(equal);
@@ -223,7 +223,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 IntConstraints::IntConstraints(ffi::Array<Var> variables, ffi::Map<Var, Range> ranges,
                                ffi::Array<PrimExpr> relations) {
-  ObjectPtr<IntConstraintsNode> node = ffi::make_object<IntConstraintsNode>();
+  ffi::ObjectPtr<IntConstraintsNode> node = ffi::make_object<IntConstraintsNode>();
   if (!variables.defined()) {
     variables = ffi::Array<Var>();
   }
@@ -255,7 +255,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 IntConstraintsTransform::IntConstraintsTransform(IntConstraints src, IntConstraints dst,
                                                  ffi::Map<Var, PrimExpr> src_to_dst,
                                                  ffi::Map<Var, PrimExpr> dst_to_src) {
-  ObjectPtr<IntConstraintsTransformNode> node = ffi::make_object<IntConstraintsTransformNode>();
+  ffi::ObjectPtr<IntConstraintsTransformNode> node =
+      ffi::make_object<IntConstraintsTransformNode>();
   node->src = std::move(src);
   node->dst = std::move(dst);
   node->src_to_dst = std::move(src_to_dst);

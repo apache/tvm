@@ -56,7 +56,7 @@ class RelaxFrameNode : public FrameNode {
 class RelaxFrame : public Frame {
  public:
   explicit RelaxFrame(const IRDocsifier& d) {
-    ObjectPtr<RelaxFrameNode> n = ffi::make_object<RelaxFrameNode>();
+    ffi::ObjectPtr<RelaxFrameNode> n = ffi::make_object<RelaxFrameNode>();
     n->stmts.clear();
     n->d = d.get();
     n->is_func = false;
@@ -68,7 +68,7 @@ class RelaxFrame : public Frame {
 };
 
 /*! \brief Redirected method for the ffi repr hook */
-inline std::string ReprPrintRelax(const ObjectRef& obj, const PrinterConfig& cfg) {
+inline std::string ReprPrintRelax(const ffi::ObjectRef& obj, const PrinterConfig& cfg) {
   IRDocsifier d(cfg);
   With<RelaxFrame> f(d);
   (*f)->AddDispatchToken(d, "relax");

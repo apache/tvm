@@ -58,7 +58,7 @@ class RoundRobinNode final : public TaskSchedulerNode {
 };
 
 TaskScheduler TaskScheduler::RoundRobin(ffi::Function logger) {
-  ObjectPtr<RoundRobinNode> n = ffi::make_object<RoundRobinNode>();
+  ffi::ObjectPtr<RoundRobinNode> n = ffi::make_object<RoundRobinNode>();
   n->logger = logger;
   n->task_id = -1;
   return TaskScheduler(n);

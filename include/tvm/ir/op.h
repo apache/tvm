@@ -310,8 +310,8 @@ class OpAttrMap : public AttrRegistryMap<Op, ValueType> {
  *
  * \endcode
  */
-#define TVM_REGISTER_OP(OpName)                          \
-  TVM_STR_CONCAT(TVM_OP_REGISTER_VAR_DEF, __COUNTER__) = \
+#define TVM_REGISTER_OP(OpName)                              \
+  TVM_FFI_STR_CONCAT(TVM_OP_REGISTER_VAR_DEF, __COUNTER__) = \
       ::tvm::OpRegEntry::RegisterOrGet(OpName).set_name()
 
 // implementations

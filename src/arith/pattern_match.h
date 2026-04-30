@@ -65,6 +65,7 @@
 #ifndef TVM_ARITH_PATTERN_MATCH_H_
 #define TVM_ARITH_PATTERN_MATCH_H_
 
+#include <tvm/ffi/cast.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/expr.h>
@@ -338,7 +339,7 @@ class PBinaryExpr : public Pattern<PBinaryExpr<OpType, TA, TB>> {
     b_.InitMatch_();
   }
 
-  bool Match_(const ObjectRef& node) const {
+  bool Match_(const ffi::ObjectRef& node) const {
     using NodeType = typename OpType::ContainerType;
     if (const NodeType* ptr = node.as<NodeType>()) {
       if (!a_.Match_(ptr->a)) return false;
@@ -368,7 +369,7 @@ class PConstWithTypeLike : public Pattern<PConstWithTypeLike<TA>> {
 
   void InitMatch_() const {}
 
-  bool Match_(const ObjectRef& node) const {
+  bool Match_(const ffi::ObjectRef& node) const {
     if (const tirx::IntImmNode* ptr = node.as<tirx::IntImmNode>()) {
       return ptr->value == value_;
     } else {
@@ -441,7 +442,7 @@ class PNotExpr : public Pattern<PNotExpr<TA>> {
 
   void InitMatch_() const { value_.InitMatch_(); }
 
-  bool Match_(const ObjectRef& node) const {
+  bool Match_(const ffi::ObjectRef& node) const {
     if (const tirx::NotNode* ptr = node.as<tirx::NotNode>()) {
       if (!value_.Match_(ptr->a)) return false;
       return true;
@@ -480,7 +481,7 @@ class PSelectExpr : public Pattern<PSelectExpr<TCond, TA, TB>> {
     false_value_.InitMatch_();
   }
 
-  bool Match_(const ObjectRef& node) const {
+  bool Match_(const ffi::ObjectRef& node) const {
     if (const tirx::SelectNode* ptr = node.as<tirx::SelectNode>()) {
       if (!condition_.Match_(ptr->condition)) return false;
       if (!true_value_.Match_(ptr->true_value)) return false;
@@ -537,7 +538,7 @@ class PCastExpr : public Pattern<PCastExpr<DType, TA>> {
     value_.InitMatch_();
   }
 
-  bool Match_(const ObjectRef& node) const {
+  bool Match_(const ffi::ObjectRef& node) const {
     if (const tirx::CastNode* ptr = node.as<tirx::CastNode>()) {
       if (!dtype_.Match_(ptr->dtype)) return false;
       if (!value_.Match_(ptr->value)) return false;
@@ -588,7 +589,7 @@ class PRampExpr : public Pattern<PRampExpr<TBase, TStride, TLanes>> {
     lanes_.InitMatch_();
   }
 
-  bool Match_(const ObjectRef& node) const {
+  bool Match_(const ffi::ObjectRef& node) const {
     if (const tirx::RampNode* ptr = node.as<tirx::RampNode>()) {
       if (!base_.Match_(ptr->base)) return false;
       if (!stride_.Match_(ptr->stride)) return false;
@@ -650,7 +651,7 @@ class PBroadcastExpr : public Pattern<PBroadcastExpr<TA, TLanes>> {
     lanes_.InitMatch_();
   }
 
-  bool Match_(const ObjectRef& node) const {
+  bool Match_(const ffi::ObjectRef& node) const {
     if (const tirx::BroadcastNode* ptr = node.as<tirx::BroadcastNode>()) {
       if (!value_.Match_(ptr->value)) return false;
       if (!lanes_.Match_(ptr->lanes)) return false;
@@ -753,7 +754,7 @@ class PCallExpr : public Pattern<PCallExpr<Op, TArgs...>> {
     detail::tuple_for_each(finit, args_);
   }
 
-  bool Match_(const ObjectRef& node) const {
+  bool Match_(const ffi::ObjectRef& node) const {
     if (const tirx::CallNode* ptr = node.as<tirx::CallNode>()) {
       if (ptr->args.size() != sizeof...(TArgs)) return false;
       if (!ptr->op.same_as(Op::GetOp())) return false;

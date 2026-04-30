@@ -21,6 +21,7 @@
  * \file tvm/tirx/stmt.cc
  */
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/tirx/op.h>
@@ -63,7 +64,7 @@ Bind::Bind(Var var, PrimExpr value, Span span) {
     TVM_FFI_ICHECK_EQ(value.dtype(), var.dtype());
   }
 
-  ObjectPtr<BindNode> node = ffi::make_object<BindNode>();
+  ffi::ObjectPtr<BindNode> node = ffi::make_object<BindNode>();
   node->var = std::move(var);
   node->value = std::move(value);
   node->span = std::move(span);
@@ -109,7 +110,7 @@ AssertStmt::AssertStmt(PrimExpr condition, StringImm error_kind,
       << "but received " << condition << " with dtype " << condition.dtype();
   TVM_FFI_ICHECK(error_kind.defined());
 
-  ObjectPtr<AssertStmtNode> node = ffi::make_object<AssertStmtNode>();
+  ffi::ObjectPtr<AssertStmtNode> node = ffi::make_object<AssertStmtNode>();
   node->condition = std::move(condition);
   node->error_kind = std::move(error_kind);
   node->message_parts = std::move(message_parts);
@@ -172,7 +173,7 @@ For::For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
         << loop_var.dtype() << " vs " << (*step).dtype();
   }
 
-  ObjectPtr<ForNode> node = ffi::make_object<ForNode>();
+  ffi::ObjectPtr<ForNode> node = ffi::make_object<ForNode>();
   node->loop_var = std::move(loop_var);
   node->min = std::move(min);
   node->extent = std::move(extent);
@@ -225,7 +226,7 @@ While::While(PrimExpr condition, Stmt body, Span span) {
   TVM_FFI_ICHECK(condition.dtype().is_scalar());
   TVM_FFI_ICHECK(body.defined());
 
-  ObjectPtr<WhileNode> node = ffi::make_object<WhileNode>();
+  ffi::ObjectPtr<WhileNode> node = ffi::make_object<WhileNode>();
   node->condition = std::move(condition);
   node->body = std::move(body);
   node->span = std::move(span);
@@ -241,7 +242,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // DeclBuffer
 DeclBuffer::DeclBuffer(Buffer buffer, Span span) {
-  ObjectPtr<DeclBufferNode> node = ffi::make_object<DeclBufferNode>();
+  ffi::ObjectPtr<DeclBufferNode> node = ffi::make_object<DeclBufferNode>();
   node->buffer = std::move(buffer);
   node->span = std::move(span);
   data_ = std::move(node);
@@ -255,7 +256,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // AllocBuffer
 AllocBuffer::AllocBuffer(Buffer buffer, ffi::Map<ffi::String, Any> annotations, Span span) {
-  ObjectPtr<AllocBufferNode> node = ffi::make_object<AllocBufferNode>();
+  ffi::ObjectPtr<AllocBufferNode> node = ffi::make_object<AllocBufferNode>();
   node->buffer = std::move(buffer);
   node->annotations = std::move(annotations);
   node->span = std::move(span);
@@ -311,7 +312,7 @@ IfThenElse::IfThenElse(PrimExpr condition, Stmt then_case, ffi::Optional<Stmt> e
   TVM_FFI_ICHECK(condition.defined());
   TVM_FFI_ICHECK(then_case.defined());
   // else_case may be null.
-  ObjectPtr<IfThenElseNode> node = ffi::make_object<IfThenElseNode>();
+  ffi::ObjectPtr<IfThenElseNode> node = ffi::make_object<IfThenElseNode>();
   node->condition = std::move(condition);
   node->then_case = std::move(then_case);
   node->else_case = std::move(else_case);
@@ -331,7 +332,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 Evaluate::Evaluate(PrimExpr value, Span span) {
   TVM_FFI_ICHECK(value.defined());
 
-  ObjectPtr<EvaluateNode> node = ffi::make_object<EvaluateNode>();
+  ffi::ObjectPtr<EvaluateNode> node = ffi::make_object<EvaluateNode>();
   node->value = std::move(value);
   node->span = std::move(span);
   data_ = std::move(node);
@@ -410,7 +411,7 @@ BufferStore::BufferStore(Buffer buffer, PrimExpr value, ffi::Array<PrimExpr> ind
                              << "`, but RHS's dtype is `" << value.dtype() << "`";
   }
 
-  ObjectPtr<BufferStoreNode> node = ffi::make_object<BufferStoreNode>();
+  ffi::ObjectPtr<BufferStoreNode> node = ffi::make_object<BufferStoreNode>();
   node->buffer = std::move(buffer);
   node->value = std::move(value);
   node->indices = std::move(indices);
@@ -450,7 +451,7 @@ BufferRegion::BufferRegion(Buffer buffer, ffi::Array<Range> region) {
   TVM_FFI_ICHECK_EQ(buffer->shape.size(), region.size())
       << "The dimension between " << buffer << " and region " << region
       << " mismatched, the buffer is " << buffer;
-  ObjectPtr<BufferRegionNode> node = ffi::make_object<BufferRegionNode>();
+  ffi::ObjectPtr<BufferRegionNode> node = ffi::make_object<BufferRegionNode>();
   node->buffer = std::move(buffer);
   node->region = std::move(region);
   data_ = std::move(node);
@@ -529,7 +530,7 @@ MatchBufferRegion::MatchBufferRegion(Buffer buffer, BufferRegion source) {
   // Note that we do not check elem_offset and strides in this function
 
   // Construction
-  ObjectPtr<MatchBufferRegionNode> node = ffi::make_object<MatchBufferRegionNode>();
+  ffi::ObjectPtr<MatchBufferRegionNode> node = ffi::make_object<MatchBufferRegionNode>();
   node->buffer = std::move(buffer);
   node->source = std::move(source);
   data_ = std::move(node);
@@ -548,7 +549,7 @@ SBlock::SBlock(ffi::Array<IterVar> iter_vars, ffi::Array<BufferRegion> reads,
                ffi::Optional<Stmt> init, ffi::Array<Buffer> alloc_buffers,
                ffi::Array<MatchBufferRegion> match_buffers, ffi::Map<ffi::String, Any> annotations,
                Span span) {
-  ObjectPtr<SBlockNode> node = ffi::make_object<SBlockNode>();
+  ffi::ObjectPtr<SBlockNode> node = ffi::make_object<SBlockNode>();
   node->iter_vars = std::move(iter_vars);
   node->reads = std::move(reads);
   node->writes = std::move(writes);
@@ -582,7 +583,7 @@ SBlockRealize::SBlockRealize(ffi::Array<PrimExpr> values, PrimExpr predicate, SB
       << "BlockRealize needs to have the same number of iter_vars and binding values";
   TVM_FFI_CHECK(predicate.dtype().is_bool() || predicate.dtype() == DataType::UInt(1), TypeError)
       << "Expect Block.predicate to be a bool expression";
-  ObjectPtr<SBlockRealizeNode> node = ffi::make_object<SBlockRealizeNode>();
+  ffi::ObjectPtr<SBlockRealizeNode> node = ffi::make_object<SBlockRealizeNode>();
   node->iter_values = std::move(values);
   node->predicate = std::move(predicate);
   node->block = std::move(block);

@@ -21,6 +21,7 @@
  * \file tvm/relax/distributed/transform/propagate_sharding.cc
  * \brief Pass for propagating sharding information.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/distributed.h>
@@ -452,7 +453,7 @@ class DistributedIRBuilder : public ExprMutator {
       }
     }
 
-    ObjectPtr<CallNode> n = ffi::make_object<CallNode>(*new_call.get());
+    ffi::ObjectPtr<CallNode> n = ffi::make_object<CallNode>(*new_call.get());
     if (new_call->op.same_as(call_tir_op)) {
       // do not infer output sinfo when arg size is 0
       if (!args.empty()) {
@@ -492,7 +493,7 @@ class DistributedIRBuilder : public ExprMutator {
     static Op call_tir_op = Op::Get("relax.call_tir");
     if (const auto* extern_func = call->op.as<ExternFuncNode>()) {
       if (extern_func->global_symbol == "vm.builtin.distributed.attention_kv_cache_view") {
-        ObjectPtr<CallNode> new_call_node = ffi::make_object<CallNode>(*call.get());
+        ffi::ObjectPtr<CallNode> new_call_node = ffi::make_object<CallNode>(*call.get());
         StructInfo new_dtensor_sinfo = DTensorStructInfo(
             Downcast<TensorStructInfo>(call->sinfo_args[0]), device_mesh, placements[0]);
         new_call_node->sinfo_args = {new_dtensor_sinfo};
@@ -502,7 +503,7 @@ class DistributedIRBuilder : public ExprMutator {
     } else if (call->op.same_as(call_tir_op)) {
       TVM_FFI_ICHECK(call->sinfo_args.size() == 1);
       if (!SinfoCompatibleWithDistIR(call->sinfo_args)) {
-        ObjectPtr<CallNode> new_call_node = ffi::make_object<CallNode>(*call.get());
+        ffi::ObjectPtr<CallNode> new_call_node = ffi::make_object<CallNode>(*call.get());
         if (placements.size() == 1) {
           new_call_node->sinfo_args = {DTensorStructInfo(
               Downcast<TensorStructInfo>(call->sinfo_args[0]), device_mesh, placements[0])};

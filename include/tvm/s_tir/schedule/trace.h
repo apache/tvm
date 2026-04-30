@@ -56,7 +56,7 @@ using FTraceDecisionProvider =
  * their decisions accordingly. Re-sampling is invoked if a sampling instruction doesn't have its
  * corresponding decision; Otherwise the existing decision will be reused accordingly.
  */
-class TraceNode : public runtime::Object {
+class TraceNode : public ffi::Object {
  public:
   /*! \brief The instructions invoked so far in the program execution */
   ffi::Array<Instruction> insts;
@@ -71,7 +71,7 @@ class TraceNode : public runtime::Object {
   }
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.Trace", TraceNode, runtime::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.Trace", TraceNode, ffi::Object);
 
  public:
   /*!
@@ -113,7 +113,7 @@ class TraceNode : public runtime::Object {
    * \param remove_postproc If postprocessing instructions are removed
    * \return The JSON-style object
    */
-  ObjectRef AsJSON(bool remove_postproc) const;
+  ffi::ObjectRef AsJSON(bool remove_postproc) const;
   /*!
    * \brief Serialize the trace as a sequence of python statements
    * \param remove_postproc If postprocessing instructions are removed
@@ -141,7 +141,7 @@ class TraceNode : public runtime::Object {
  * \brief Managed reference to TraceNode
  * \sa TraceNode
  */
-class Trace : public runtime::ObjectRef {
+class Trace : public ffi::ObjectRef {
  public:
   /*! \brief Default constructor. Creating an empty trace. */
   Trace();
@@ -156,9 +156,9 @@ class Trace : public runtime::ObjectRef {
    * \param json The JSON-serialized trace
    * \param sch The TensorIR schedule
    */
-  static void ApplyJSONToSchedule(ObjectRef json, Schedule sch);
+  static void ApplyJSONToSchedule(ffi::ObjectRef json, Schedule sch);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Trace, runtime::ObjectRef, TraceNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Trace, ffi::ObjectRef, TraceNode);
 };
 
 }  // namespace s_tir

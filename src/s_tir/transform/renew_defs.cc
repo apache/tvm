@@ -22,6 +22,7 @@
  * \brief Renew the definition nodes for a TIR, including Var, Buffer and IterVar.
  */
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/stmt_functor.h>
@@ -266,7 +267,7 @@ class RenewDefMutator : public StmtExprMutator {
     }
   }
 
-  ffi::Map<ObjectRef, ObjectRef> remap_;
+  ffi::Map<ffi::ObjectRef, ffi::ObjectRef> remap_;
 };
 
 PrimFunc RenewDefs(const PrimFunc& func) { return RenewDefMutator::Transform(func); }

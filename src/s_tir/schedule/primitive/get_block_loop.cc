@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/cast.h>
+
 #include "../analysis.h"
 #include "../utils.h"
 
@@ -157,7 +159,8 @@ struct GetChildBlocksTraits : public UnpackedInstTraits<GetChildBlocksTraits> {
   static constexpr size_t kNumAttrs = 0;
   static constexpr size_t kNumDecisions = 0;
 
-  static ffi::Array<SBlockRV> UnpackedApplyToSchedule(Schedule sch, ObjectRef block_or_loop_rv) {
+  static ffi::Array<SBlockRV> UnpackedApplyToSchedule(Schedule sch,
+                                                      ffi::ObjectRef block_or_loop_rv) {
     if (auto block = block_or_loop_rv.as<SBlockRV>()) {
       return sch->GetChildBlocks(block.value());
     }

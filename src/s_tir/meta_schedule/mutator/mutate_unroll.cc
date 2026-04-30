@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>
 
@@ -70,7 +71,7 @@ class MutateUnrollNode : public MutatorNode {
   ffi::Optional<Trace> Apply(const Trace& trace, TRandState* rand_state) final;
   // Inherit from `MutatorNode`
   Mutator Clone() const final {
-    ObjectPtr<MutateUnrollNode> n = ffi::make_object<MutateUnrollNode>(*this);
+    ffi::ObjectPtr<MutateUnrollNode> n = ffi::make_object<MutateUnrollNode>(*this);
     return Mutator(n);
   }
 };

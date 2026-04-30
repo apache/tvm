@@ -38,7 +38,7 @@ namespace tvm {
 /*!
  * \brief NameSupply can be used to generate unique names.
  */
-class NameSupplyNode : public Object {
+class NameSupplyNode : public ffi::Object {
  public:
   /*!
    * \brief Empty constructor. Needed by the TVM_REGISTER_NODE_TYPE macro.
@@ -92,7 +92,7 @@ class NameSupplyNode : public Object {
     refl::ObjectDef<NameSupplyNode>();
   }
 
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.NameSupply", NameSupplyNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.NameSupply", NameSupplyNode, ffi::Object);
 
  private:
   /*! \brief Helper function to add the NameSupply prefix to the name. */
@@ -114,7 +114,7 @@ class NameSupplyNode : public Object {
  * \brief Managed reference class to NameSupplyNode.
  * \sa NameSupplyNode
  */
-class NameSupply : public ObjectRef {
+class NameSupply : public ffi::ObjectRef {
  public:
   /*!
    * \brief Constructor.
@@ -134,7 +134,7 @@ class NameSupply : public ObjectRef {
   TVM_DLL explicit NameSupply(Iter begin, Iter end, Lambda f)
       : NameSupply("", GetNameMap(begin, end, f)) {}
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(NameSupply, ObjectRef, NameSupplyNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(NameSupply, ffi::ObjectRef, NameSupplyNode);
 
  private:
   template <typename Iter, typename Lambda>

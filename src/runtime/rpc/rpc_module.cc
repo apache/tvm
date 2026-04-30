@@ -21,6 +21,7 @@
  * \file rpc_module.cc
  * \brief RPC runtime module.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
@@ -86,7 +87,7 @@ Tensor TensorFromRemoteOpaqueHandle(std::shared_ptr<RPCSession> sess, void* hand
 /*!
  * \brief A wrapped remote function as a ffi::Function.
  */
-class RPCWrappedFunc : public Object {
+class RPCWrappedFunc : public ffi::Object {
  public:
   RPCWrappedFunc(void* handle, std::shared_ptr<RPCSession> sess) : handle_(handle), sess_(sess) {}
 
@@ -332,7 +333,7 @@ void RPCWrappedFunc::WrapRemoteReturnToValue(ffi::PackedArgs args, ffi::Any* rv)
     TVM_FFI_ICHECK_EQ(args.size(), 2);
     void* handle = args[1].cast<void*>();
     auto n = ffi::make_object<RPCObjectRefObj>(handle, sess_);
-    *rv = ObjectRef(n);
+    *rv = ffi::ObjectRef(n);
   } else {
     TVM_FFI_ICHECK_EQ(args.size(), 2);
     *rv = args[1];

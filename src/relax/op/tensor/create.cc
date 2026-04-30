@@ -25,6 +25,7 @@
 #include "create.h"
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 
 #include <string>
@@ -55,7 +56,7 @@ Expr full(ffi::Variant<Expr, ffi::Array<PrimExpr>> shape, Expr fill_value,
         << "Full only expects the input shape to be either an Expr or an Array of PrimExpr. ";
   }
 
-  ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
+  ffi::ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
   attrs->dtype = dtype.value_or(DataType::Void());
 
   static const Op& op = Op::Get("relax.full");
@@ -103,7 +104,7 @@ TVM_REGISTER_OP("relax.full")
 
 /* relax.full_like */
 Expr full_like(Expr x, Expr fill_value, ffi::Optional<DataType> dtype) {
-  ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
+  ffi::ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
   attrs->dtype = dtype.value_or(DataType::Void());
   static const Op& op = Op::Get("relax.full_like");
   return Call(op, {std::move(x), std::move(fill_value)}, Attrs(attrs), {});
@@ -176,7 +177,7 @@ StructInfo InferStructInfoOnesLikeZerosLike(const Call& call, const BlockBuilder
 /* relax.ones & relax.ones_like */
 Expr ones(Expr shape, DataType dtype) {
   TVM_FFI_ICHECK(!dtype.is_void()) << "Ones op expects the input dtype not to be void";
-  ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
+  ffi::ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
   attrs->dtype = dtype;
 
   static const Op& op = Op::Get("relax.ones");
@@ -184,7 +185,7 @@ Expr ones(Expr shape, DataType dtype) {
 }
 
 Expr ones_like(Expr x, ffi::Optional<DataType> dtype) {
-  ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
+  ffi::ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
   attrs->dtype = dtype.value_or(DataType::Void());
   static const Op& op = Op::Get("relax.ones_like");
   return Call(op, {std::move(x)}, Attrs(attrs), {});
@@ -213,7 +214,7 @@ TVM_REGISTER_OP("relax.ones_like")
 /* relax.zeros & relax.zeros_like */
 Expr zeros(Expr shape, DataType dtype) {
   TVM_FFI_ICHECK(!dtype.is_void()) << "Zeros op expects the input dtype not to be void";
-  ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
+  ffi::ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
   attrs->dtype = dtype;
 
   static const Op& op = Op::Get("relax.zeros");
@@ -221,7 +222,7 @@ Expr zeros(Expr shape, DataType dtype) {
 }
 
 Expr zeros_like(Expr x, ffi::Optional<DataType> dtype) {
-  ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
+  ffi::ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
   attrs->dtype = dtype.value_or(DataType::Void());
   static const Op& op = Op::Get("relax.zeros_like");
   return Call(op, {std::move(x)}, Attrs(attrs), {});
@@ -249,14 +250,14 @@ TVM_REGISTER_OP("relax.zeros_like")
 
 /* relax.eye & relax.eye_like */
 Expr eye(PrimValue n, PrimValue m, PrimValue k, DataType dtype) {
-  ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
+  ffi::ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
   attrs->dtype = dtype;
   static const Op& op = Op::Get("relax.eye");
   return Call(op, {std::move(n), std::move(m), std::move(k)}, Attrs(attrs), {});
 }
 
 Expr eye_like(Expr x, PrimValue k, ffi::Optional<DataType> dtype) {
-  ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
+  ffi::ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
   attrs->dtype = dtype.value_or(DataType::Void());
   static const Op& op = Op::Get("relax.eye_like");
   return Call(op, {std::move(x), std::move(k)}, Attrs(attrs), {});
@@ -335,7 +336,7 @@ TVM_REGISTER_OP("relax.eye_like")
 
 /* relax.arange */
 Expr arange(PrimValue start, PrimValue stop, PrimValue step, DataType dtype) {
-  ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
+  ffi::ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
   attrs->dtype = dtype;
   static const Op& op = Op::Get("relax.arange");
   return Call(op, {std::move(start), std::move(stop), std::move(step)}, Attrs(attrs), {});
@@ -391,7 +392,7 @@ TVM_REGISTER_OP("relax.arange")
 /* relax.hamming_window */
 Expr hamming_window(PrimValue window_size, PrimValue periodic, PrimValue alpha, PrimValue beta,
                     DataType dtype) {
-  ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
+  ffi::ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
   attrs->dtype = dtype;
   static const Op& op = Op::Get("relax.hamming_window");
   return Call(op, {std::move(window_size), std::move(periodic), std::move(alpha), std::move(beta)},

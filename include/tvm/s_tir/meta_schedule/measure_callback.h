@@ -24,7 +24,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
-#include <tvm/runtime/object.h>
+#include <tvm/runtime/base.h>
 #include <tvm/s_tir/meta_schedule/builder.h>
 #include <tvm/s_tir/meta_schedule/measure_candidate.h>
 #include <tvm/s_tir/meta_schedule/runner.h>
@@ -38,7 +38,7 @@ namespace meta_schedule {
 class TaskScheduler;
 
 /*! \brief Rules to apply after measure results is available. */
-class MeasureCallbackNode : public runtime::Object {
+class MeasureCallbackNode : public ffi::Object {
  public:
   /*! \brief Virtual destructor. */
   virtual ~MeasureCallbackNode() = default;
@@ -63,7 +63,8 @@ class MeasureCallbackNode : public runtime::Object {
                      const ffi::Array<RunnerResult>& runner_results) = 0;
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.MeasureCallback", MeasureCallbackNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.MeasureCallback", MeasureCallbackNode,
+                              ffi::Object);
 };
 
 /*! \brief The measure callback with customized methods on the python-side. */
@@ -114,7 +115,7 @@ class PyMeasureCallbackNode : public MeasureCallbackNode {
  * \brief Managed reference to MeasureCallbackNode
  * \sa MeasureCallbackNode
  */
-class MeasureCallback : public runtime::ObjectRef {
+class MeasureCallback : public ffi::ObjectRef {
  public:
   /*!
    * \brief Create a measure callback that adds the measurement results into the database
@@ -141,7 +142,7 @@ class MeasureCallback : public runtime::ObjectRef {
                                                    PyMeasureCallbackNode::FAsString f_as_string);
   /*! \brief The default list of measure callbacks. */
   TVM_DLL static ffi::Array<MeasureCallback, void> Default();
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(MeasureCallback, ObjectRef, MeasureCallbackNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(MeasureCallback, ffi::ObjectRef, MeasureCallbackNode);
 };
 
 }  // namespace meta_schedule

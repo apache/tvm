@@ -22,6 +22,7 @@
  * \brief Modular set analysis
  */
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/tirx/builtin.h>
@@ -131,7 +132,7 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
   }
 
   // Override visitor behaviors
-  Entry VisitExprDefault_(const Object* op) final { return Everything(); }
+  Entry VisitExprDefault_(const ffi::Object* op) final { return Everything(); }
 
   Entry VisitExpr_(const LetNode* op) final {
     auto it = var_map_.find(op->var);

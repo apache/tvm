@@ -37,7 +37,7 @@ namespace tvm {
 /*!
  * \brief GlobalVarSupply can be used to generate unique GlobalVars.
  */
-class GlobalVarSupplyNode : public Object {
+class GlobalVarSupplyNode : public ffi::Object {
  public:
   /*!
    * \brief Empty constructor. Will use an empty NameSupply.
@@ -85,7 +85,7 @@ class GlobalVarSupplyNode : public Object {
   NameSupply name_supply_;
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.GlobalVarSupply", GlobalVarSupplyNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.GlobalVarSupply", GlobalVarSupplyNode, ffi::Object);
 
  private:
   std::unordered_map<std::string, GlobalVar> name_to_var_map_;
@@ -95,7 +95,7 @@ class GlobalVarSupplyNode : public Object {
  * \brief Managed reference class to GlobalVarSupplyNode.
  * \sa GlobalVarSupplyNode
  */
-class GlobalVarSupply : public ObjectRef {
+class GlobalVarSupply : public ffi::ObjectRef {
  public:
   /*!
    * \brief Constructor.
@@ -119,7 +119,8 @@ class GlobalVarSupply : public ObjectRef {
    */
   TVM_DLL explicit GlobalVarSupply(const IRModule module);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(GlobalVarSupply, ObjectRef, GlobalVarSupplyNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(GlobalVarSupply, ffi::ObjectRef,
+                                                GlobalVarSupplyNode);
 };
 
 }  // namespace tvm

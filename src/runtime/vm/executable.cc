@@ -21,6 +21,7 @@
  * \file src/runtime/vm/executable.cc
  */
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/vm/executable.h>
@@ -209,7 +210,7 @@ void VMExecutable::WriteToFile(const ffi::String& file_name, const ffi::String& 
 ffi::Module VMExecutable::LoadFromBytes(const ffi::Bytes& bytes) {
   support::BytesInStream strm(bytes);
 
-  ObjectPtr<VMExecutable> exec = ffi::make_object<VMExecutable>();
+  ffi::ObjectPtr<VMExecutable> exec = ffi::make_object<VMExecutable>();
 
   // Load header.
   uint64_t header_magic = LoadHeader(&strm);
@@ -431,8 +432,8 @@ std::string RegNameToStr(RegName reg) {
 }
 
 ffi::Module VMExecutable::VMLoadExecutable() const {
-  ObjectPtr<VirtualMachine> vm = VirtualMachine::Create();
-  vm->LoadExecutable(GetObjectPtr<VMExecutable>(const_cast<VMExecutable*>(this)));
+  ffi::ObjectPtr<VirtualMachine> vm = VirtualMachine::Create();
+  vm->LoadExecutable(ffi::GetObjectPtr<VMExecutable>(const_cast<VMExecutable*>(this)));
   return ffi::Module(vm);
 }
 

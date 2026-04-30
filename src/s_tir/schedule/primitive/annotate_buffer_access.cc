@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/s_tir/stmt.h>
 
 #include "../utils.h"
@@ -43,7 +44,7 @@ class AnnotateRegionRewriter : public StmtExprMutator {
         << "Buffer index out of range";
     regions.Set(buffer_index_, new_region_);
 
-    ObjectPtr<SBlockNode> n = CopyOnWrite(block.get());
+    ffi::ObjectPtr<SBlockNode> n = CopyOnWrite(block.get());
     if (buffer_index_type_ == BufferIndexType::kWrite) {
       n->writes = std::move(regions);
     } else {

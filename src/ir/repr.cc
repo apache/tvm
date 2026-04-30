@@ -26,6 +26,7 @@
  *  - Registers node.AsRepr (for backward Python compatibility) via ffi::ReprPrint.
  *  - Registers __ffi_repr__ hooks for AccessPath and AccessStep.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/dataclass.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/access_path.h>
@@ -37,9 +38,9 @@
 
 namespace tvm {
 
-void Dump(const runtime::ObjectRef& n) { std::cerr << ffi::ReprPrint(ffi::Any(n)) << "\n"; }
+void Dump(const ffi::ObjectRef& n) { std::cerr << ffi::ReprPrint(ffi::Any(n)) << "\n"; }
 
-void Dump(const runtime::Object* n) { Dump(runtime::GetRef<runtime::ObjectRef>(n)); }
+void Dump(const ffi::Object* n) { Dump(ffi::GetRef<ffi::ObjectRef>(n)); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

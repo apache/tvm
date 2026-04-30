@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>
 
@@ -70,7 +71,7 @@ StmtSRef GetScopeRoot(const ScheduleState& self, const StmtSRef& sref,
     ffi::String DetailRenderTemplate() const final {
       return "The primitive does not operate on the root block";
     }
-    ffi::Array<ObjectRef> LocationsOfInterest() const final { return {}; }
+    ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {}; }
     IRModule mod_;
   };
 
@@ -90,7 +91,7 @@ Definition of a scope that is a stage pipeline:
 - All the statements in the scope are schedulable statements, i.e. SBlock and For
 )";
     }
-    ffi::Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+    ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {block_}; }
     IRModule mod_;
     SBlock block_;
   };
@@ -140,7 +141,7 @@ ScopeBlockLoopInfo GetScopeBlockLoopInfo(const SBlock& scope_block) {
         } else {
           vars = &result.non_spatial_vars;
         }
-        PostOrderVisit(iter_value, [vars](const ObjectRef& obj) {
+        PostOrderVisit(iter_value, [vars](const ffi::ObjectRef& obj) {
           if (const VarNode* var = obj.as<VarNode>()) {
             vars->insert(var);
           }
@@ -179,7 +180,8 @@ void CheckSRefHigherOrEqual(const StmtSRef& sref_a, const StmtSRef& sref_b) {
  */
 bool IsDominantBlock(const ScheduleState& self, const StmtSRef& scope_root_sref,
                      const StmtSRef& block_sref) {
-  std::unordered_map<Buffer, ffi::Array<StmtSRef>, ObjectPtrHash, ObjectPtrEqual> buffer_writers;
+  std::unordered_map<Buffer, ffi::Array<StmtSRef>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+      buffer_writers;
   CheckSRefHigherOrEqual(scope_root_sref, block_sref);
   const SBlockNode* maybe_root_block = scope_root_sref->StmtAs<SBlockNode>();
   if (maybe_root_block) {
@@ -287,7 +289,7 @@ void CheckCompleteBlock(const ScheduleState& self, const StmtSRef& block_sref,
       return os.str();
     }
     IRModule mod() const final { return mod_; }
-    ffi::Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+    ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {block_}; }
     IRModule mod_;
     SBlock block_;
     int violated_cond_;
@@ -361,7 +363,7 @@ void CheckReductionBlock(const ScheduleState& self, const StmtSRef& block_sref,
       return os.str();
     }
     IRModule mod() const final { return mod_; }
-    ffi::Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+    ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {block_}; }
     IRModule mod_;
     SBlock block_;
     int violated_cond_;
@@ -400,7 +402,7 @@ void CheckCompleteOrReductionBlock(const ScheduleState& self, const StmtSRef& bl
       return os.str();
     }
     IRModule mod() const final { return mod_; }
-    ffi::Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+    ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {block_}; }
 
     IRModule mod_;
     SBlock block_;
@@ -453,7 +455,7 @@ void CheckSubtreeCompactDataflow(const ScheduleState& self, const StmtSRef& subt
       return os.str();
     }
     IRModule mod() const final { return mod_; }
-    ffi::Array<ObjectRef> LocationsOfInterest() const final {
+    ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final {
       return {subtree_root_, violate_block_};
     }
 
@@ -504,7 +506,7 @@ void CheckNotOutputBlock(const ScheduleState& self, const StmtSRef& block_sref,
     }
     ffi::String DetailRenderTemplate() const final { return "The block {0} is an output block"; }
     IRModule mod() const final { return mod_; }
-    ffi::Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+    ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {block_}; }
 
     IRModule mod_;
     SBlock block_;
@@ -608,7 +610,7 @@ void CheckPartialAffineBinding(const ScheduleState& self, SBlock block,
       return ss.str();
     }
     IRModule mod() const final { return mod_; }
-    ffi::Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+    ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {block_}; }
     IRModule mod_;
     SBlock block_;
     const ForNode* high_exclusive_loop_{nullptr};
@@ -652,7 +654,7 @@ void CheckBlockHasTrivialBinding(const ScheduleState& self, const StmtSRef& bloc
     }
 
     IRModule mod() const final { return mod_; }
-    ffi::Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+    ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {block_}; }
 
    private:
     IRModule mod_;
@@ -759,7 +761,7 @@ void CheckLoopStartsWithZero(const ScheduleState& self, const StmtSRef& loop_sre
     }
 
     IRModule mod() const final { return mod_; }
-    ffi::Array<ObjectRef> LocationsOfInterest() const final { return {loop_}; }
+    ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {loop_}; }
 
     IRModule mod_;
     For loop_;
@@ -832,7 +834,7 @@ SBlockRealize CheckGetSingleChildBlockRealizeOnSRefTree(const ScheduleState& sel
     }
 
     IRModule mod() const final { return mod_; }
-    ffi::Array<ObjectRef> LocationsOfInterest() const final { return {stmt_}; }
+    ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {stmt_}; }
 
     IRModule mod_;
     Stmt stmt_;
@@ -895,7 +897,7 @@ IterVarType GetLoopIterType(const StmtSRef& loop_sref) {
   int n_spatial = 0;
   int n_reduce = 0;
   int n_other = 0;
-  auto f_visit = [&loop_var, &n_spatial, &n_reduce, &n_other](const ObjectRef& obj) -> bool {
+  auto f_visit = [&loop_var, &n_spatial, &n_reduce, &n_other](const ffi::ObjectRef& obj) -> bool {
     if (const auto* realize = obj.as<SBlockRealizeNode>()) {
       const SBlockNode* block = realize->block.get();
       // Number of block vars and their bindings
@@ -914,7 +916,7 @@ IterVarType GetLoopIterType(const StmtSRef& loop_sref) {
           ref = &n_other;
         }
         // Visit the binding to see if `loop_var` appears
-        PostOrderVisit(binding, [&ref, &loop_var](const ObjectRef& obj) -> void {
+        PostOrderVisit(binding, [&ref, &loop_var](const ffi::ObjectRef& obj) -> void {
           if (obj.same_as(loop_var)) {
             (*ref) += 1;
           }
@@ -1047,7 +1049,7 @@ std::pair<ffi::Array<StmtSRef>, std::vector<int>> CollectComputeLocation(
 ffi::Array<StmtSRef> GetProducers(const StmtSRef& block_sref, const SBlockScope& scope) {
   ffi::Array<Dependency> edges = scope->GetDepsByDst(block_sref);
   ffi::Array<StmtSRef> results;
-  std::unordered_set<StmtSRef, ObjectPtrHash, ObjectPtrEqual> result_set;
+  std::unordered_set<StmtSRef, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> result_set;
   results.reserve(edges.size());
   for (const Dependency& edge : edges) {
     if ((edge->kind == DepKind::kRAW || edge->kind == DepKind::kWAW) &&
@@ -1062,7 +1064,7 @@ ffi::Array<StmtSRef> GetProducers(const StmtSRef& block_sref, const SBlockScope&
 ffi::Array<StmtSRef> GetConsumers(const StmtSRef& block_sref, const SBlockScope& scope) {
   ffi::Array<Dependency> edges = scope->GetDepsBySrc(block_sref);
   ffi::Array<StmtSRef> results;
-  std::unordered_set<StmtSRef, ObjectPtrHash, ObjectPtrEqual> result_set;
+  std::unordered_set<StmtSRef, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> result_set;
   results.reserve(edges.size());
   for (const Dependency& edge : edges) {
     if ((edge->kind == DepKind::kRAW || edge->kind == DepKind::kWAW) &&
@@ -1129,7 +1131,7 @@ ProducerConsumerSplit ProducerConsumerSplit::Find(
 
     IRModule mod() const final { return mod_; }
 
-    ffi::Array<ObjectRef> LocationsOfInterest() const final { return {}; }
+    ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {}; }
 
    private:
     IRModule mod_;
@@ -1238,7 +1240,7 @@ BufferRegion GetNthAccessBufferRegion(const ScheduleState& self, const SBlock& b
     }
 
     IRModule mod() const final { return mod_; }
-    ffi::Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+    ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {block_}; }
 
    private:
     IRModule mod_;
@@ -1318,13 +1320,13 @@ void AddShapeVarBounds(const ScheduleState& state, const StmtSRefNode* sref,
 /******** Misc ********/
 
 bool HasOp(const Stmt& stmt, const ffi::Array<Op>& ops) {
-  std::unordered_set<const Object*> op_set;
+  std::unordered_set<const ffi::Object*> op_set;
   op_set.reserve(ops.size());
   for (const Op& op : ops) {
     op_set.insert(op.operator->());
   }
   bool found = false;
-  PreOrderVisit(stmt, [&found, &op_set](const ObjectRef& obj) -> bool {
+  PreOrderVisit(stmt, [&found, &op_set](const ffi::ObjectRef& obj) -> bool {
     if (found) {
       return false;
     }
@@ -1340,7 +1342,7 @@ bool HasOp(const Stmt& stmt, const ffi::Array<Op>& ops) {
 
 bool HasIfThenElse(const Stmt& stmt) {
   bool has_branch = false;
-  auto f_visit = [&has_branch](const ObjectRef& obj) -> bool {
+  auto f_visit = [&has_branch](const ffi::ObjectRef& obj) -> bool {
     if (has_branch) {
       // stop visiting
       return false;
@@ -1464,7 +1466,7 @@ void CheckStorageScope(const ScheduleState& self, ffi::String storage_scope) {
       return "The input storage scope \"" + storage_scope_ + "\" is invalid.";
     }
 
-    ffi::Array<ObjectRef> LocationsOfInterest() const final { return {}; }
+    ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {}; }
     IRModule mod() const final { return mod_; }
 
    private:
@@ -1575,7 +1577,7 @@ bool NeedsMultiLevelTiling(const ScheduleState& self, const StmtSRef& block_sref
 
 bool IsSpatialPrimFunc(const PrimFunc& func) {
   bool result = true;
-  PreOrderVisit(func->body, [&result](const ObjectRef& obj) {
+  PreOrderVisit(func->body, [&result](const ffi::ObjectRef& obj) {
     if (result == false) {
       return false;
     }
@@ -1729,7 +1731,7 @@ TensorIntrinDescInfo ExtractTensorIntrinDescInfo(arith::Analyzer* analyzer,
   const auto* desc_scope_realize = desc_func->body.as<SBlockRealizeNode>();
   TVM_FFI_ICHECK(desc_scope_realize);
   {
-    auto f_visit = [&](const ObjectRef& obj) -> bool {
+    auto f_visit = [&](const ffi::ObjectRef& obj) -> bool {
       // Extract the block
       if (const auto* block = obj.as<SBlockRealizeNode>()) {
         info.desc_block = block;
@@ -1783,7 +1785,7 @@ ffi::Optional<TensorizeInfo> GetTensorizeLoopMapping(const s_tir::ScheduleState&
   const std::vector<const ForNode*>& desc_loops = desc_info.desc_loops;
   const std::unordered_set<const VarNode*>& desc_loop_vars = desc_info.desc_loop_vars;
   const SBlockRealizeNode* desc_block = desc_info.desc_block;
-  ObjectPtr<TensorizeInfoNode> ret = ffi::make_object<TensorizeInfoNode>();
+  ffi::ObjectPtr<TensorizeInfoNode> ret = ffi::make_object<TensorizeInfoNode>();
   const int n_block_vars = block->iter_values.size();
   const int n_desc_vars = desc_block->iter_values.size();
   const int offset = n_block_vars - n_desc_vars;
@@ -1967,8 +1969,8 @@ class AutoTensorizeMappingProposer {
     using BufferMask = std::vector<bool>;
 
     // Step 1: Assign an index to each buffer in LHS and RHS
-    std::unordered_map<Buffer, int, ObjectPtrHash, ObjectPtrEqual> rhs_buffer_index;
-    std::unordered_map<Buffer, int, ObjectPtrHash, ObjectPtrEqual> lhs_buffer_index;
+    std::unordered_map<Buffer, int, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> rhs_buffer_index;
+    std::unordered_map<Buffer, int, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> lhs_buffer_index;
     {
       int i = 0;
       for (const auto& kv : extractor_->rhs_buffer_map_) {
@@ -2009,7 +2011,7 @@ class AutoTensorizeMappingProposer {
       TVM_FFI_ICHECK(lhs_buffer_it != extractor_->rhs_buffer_map_.end());
       const Buffer& lhs_buffer = lhs_buffer_it->second;
       for (const PrimExpr& index : extractor_->lhs_buffer_indices_map_.at(lhs_buffer)) {
-        PreOrderVisit(index, [&](const ObjectRef& obj) -> bool {
+        PreOrderVisit(index, [&](const ffi::ObjectRef& obj) -> bool {
           if (const VarNode* var = obj.as<VarNode>()) {
             update_mask(var, &lhs_buffer_masks, lhs_buffer_index.at(lhs_buffer));
           }
@@ -2067,7 +2069,7 @@ class AutoTensorizeMappingProposer {
     }
 
     // Step 3: Fuse LHS iters mapped to the same RHS iter
-    std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> used_rhs_vars;
+    std::unordered_set<Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> used_rhs_vars;
     for (size_t i = 0; i < extractor_->lhs_iters_.size(); ++i) {
       const Var& lhs_iter_var = extractor_->lhs_iters_[i]->var;
       const VarSet& rhs_candidates = lhs_feasible_vars_[lhs_iter_var];
@@ -2138,7 +2140,8 @@ ffi::Optional<AutoTensorizeMappingInfo> GetAutoTensorizeMappingInfo(
   if (mappings.empty()) {
     return std::nullopt;
   }
-  ObjectPtr<AutoTensorizeMappingInfoNode> ret = ffi::make_object<AutoTensorizeMappingInfoNode>();
+  ffi::ObjectPtr<AutoTensorizeMappingInfoNode> ret =
+      ffi::make_object<AutoTensorizeMappingInfoNode>();
   ret->mappings = std::move(mappings);
   ret->lhs_buffer_map = std::move(extractor.lhs_buffer_map_);
   ret->rhs_buffer_indices = std::move(extractor.rhs_buffer_indices_map_);

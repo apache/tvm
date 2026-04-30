@@ -57,9 +57,9 @@ class ExprFunctor;
     return VisitExprDefault_(op, std::forward<Args>(args)...); \
   }
 
-#define RELAX_EXPR_FUNCTOR_DISPATCH(OP)                                                    \
-  vtable.template set_dispatch<OP>([](const ObjectRef& n, TSelf* self, Args... args) {     \
-    return self->VisitExpr_(static_cast<const OP*>(n.get()), std::forward<Args>(args)...); \
+#define RELAX_EXPR_FUNCTOR_DISPATCH(OP)                                                     \
+  vtable.template set_dispatch<OP>([](const ffi::ObjectRef& n, TSelf* self, Args... args) { \
+    return self->VisitExpr_(static_cast<const OP*>(n.get()), std::forward<Args>(args)...);  \
   });
 
 #define PY_EXPR_VISITOR_DEFAULT(N, PY_FUNC, DEFAULT_FUNC) \
@@ -80,34 +80,34 @@ class ExprFunctor;
     }                                                               \
   }
 
-#define PY_EXPR_VISITOR_DISPATCH(OP, PY_FUNC)                            \
-  vtable.template set_dispatch<OP>([](const ObjectRef& n, TSelf* self) { \
-    if (self->PY_FUNC != nullptr)                                        \
-      self->PY_FUNC(n);                                                  \
-    else                                                                 \
-      self->VisitExpr_(static_cast<const OP*>(n.get()));                 \
+#define PY_EXPR_VISITOR_DISPATCH(OP, PY_FUNC)                                 \
+  vtable.template set_dispatch<OP>([](const ffi::ObjectRef& n, TSelf* self) { \
+    if (self->PY_FUNC != nullptr)                                             \
+      self->PY_FUNC(n);                                                       \
+    else                                                                      \
+      self->VisitExpr_(static_cast<const OP*>(n.get()));                      \
   });
 
-#define PY_EXPR_MUTATOR_DISPATCH(OP, PY_FUNC)                            \
-  vtable.template set_dispatch<OP>([](const ObjectRef& n, TSelf* self) { \
-    if (self->PY_FUNC != nullptr) {                                      \
-      Expr expr = self->PY_FUNC(n).cast<Expr>();                         \
-      return expr;                                                       \
-    } else {                                                             \
-      return self->VisitExpr_(static_cast<const OP*>(n.get()));          \
-    }                                                                    \
+#define PY_EXPR_MUTATOR_DISPATCH(OP, PY_FUNC)                                 \
+  vtable.template set_dispatch<OP>([](const ffi::ObjectRef& n, TSelf* self) { \
+    if (self->PY_FUNC != nullptr) {                                           \
+      Expr expr = self->PY_FUNC(n).cast<Expr>();                              \
+      return expr;                                                            \
+    } else {                                                                  \
+      return self->VisitExpr_(static_cast<const OP*>(n.get()));               \
+    }                                                                         \
   });
 
-#define PY_EXPR_MUTATOR_VISIT_EXPR_POST_ORDER_DISPATCH(OP)                          \
-  post_order_vtable.template set_dispatch<OP>([](const ObjectRef& n, TSelf* self) { \
-    return self->VisitExprPostOrder_(static_cast<const OP*>(n.get()));              \
+#define PY_EXPR_MUTATOR_VISIT_EXPR_POST_ORDER_DISPATCH(OP)                               \
+  post_order_vtable.template set_dispatch<OP>([](const ffi::ObjectRef& n, TSelf* self) { \
+    return self->VisitExprPostOrder_(static_cast<const OP*>(n.get()));                   \
   });
 
 template <typename R, typename... Args>
 class ExprFunctor<R(const Expr& n, Args...)> {
  private:
   using TSelf = ExprFunctor<R(const Expr& n, Args...)>;
-  using FType = tvm::NodeFunctor<R(const ObjectRef& n, TSelf* self, Args...)>;
+  using FType = tvm::NodeFunctor<R(const ffi::ObjectRef& n, TSelf* self, Args...)>;
 
  public:
   /*! \brief the result type of this functor */
@@ -153,7 +153,7 @@ class ExprFunctor<R(const Expr& n, Args...)> {
   virtual R VisitExpr_(const PrimValueNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const StringImmNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const DataTypeImmNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
-  virtual R VisitExprDefault_(const Object* op, Args...) {
+  virtual R VisitExprDefault_(const ffi::Object* op, Args...) {
     TVM_FFI_THROW(InternalError) << "Do not have a default for " << op->GetTypeKey();
     throw;
   }
@@ -280,8 +280,8 @@ class ExprVisitor : public ExprFunctor<void(const Expr&)> {
 
  private:
   using TSelf = ExprVisitor;
-  using VisitBindingVTable =
-      tvm::NodeFunctor<void(const ObjectRef& n, ExprVisitor* self, const VarBindingNode* binding)>;
+  using VisitBindingVTable = tvm::NodeFunctor<void(const ffi::ObjectRef& n, ExprVisitor* self,
+                                                   const VarBindingNode* binding)>;
   // initialize the vtable.
   static VisitBindingVTable InitVisitBindingVTable();
   /*!
@@ -380,7 +380,7 @@ class ExprMutatorBase : public ExprFunctor<Expr(const Expr&)> {
    *       If change is detected, the implementation can generate a fresh
    *       node without struct_info, and trigger normalizer to re-derive.
    */
-  bool VisitAndCheckStructInfoFieldUnchanged(const ObjectRef& struct_info) {
+  bool VisitAndCheckStructInfoFieldUnchanged(const ffi::ObjectRef& struct_info) {
     if (const StructInfoNode* sinfo = struct_info.as<StructInfoNode>()) {
       return this->VisitExprDepStructInfoField(ffi::GetRef<StructInfo>(sinfo)).same_as(struct_info);
     } else {
@@ -556,12 +556,12 @@ class ExprMutator : public ExprMutatorBase {
   BlockBuilder builder_;
 
   /*! \brief Remap a var to a new var in use-site. */
-  std::unordered_map<Id, Var, ObjectPtrHash, ObjectPtrEqual> var_remap_;
+  std::unordered_map<Id, Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> var_remap_;
 
  private:
   using TSelf = ExprMutator;
-  using VisitBindingVTable =
-      tvm::NodeFunctor<void(const ObjectRef& n, ExprMutator* self, const VarBindingNode* binding)>;
+  using VisitBindingVTable = tvm::NodeFunctor<void(const ffi::ObjectRef& n, ExprMutator* self,
+                                                   const VarBindingNode* binding)>;
   // initialize the vtable.
   static VisitBindingVTable InitVisitBindingVTable();
 };

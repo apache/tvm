@@ -24,6 +24,7 @@
  * true.
  */
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/serialization.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/attrs.h>
@@ -192,7 +193,7 @@ class AlterOpImplMutator : public ExprMutator {
     if (IsScalarConstant(expr) || index_map.get() == nullptr) {
       return expr;
     }
-    ObjectPtr<LayoutTransformAttrs> attrs = ffi::make_object<LayoutTransformAttrs>();
+    ffi::ObjectPtr<LayoutTransformAttrs> attrs = ffi::make_object<LayoutTransformAttrs>();
     // We want to avoid two layout_transform ops to share the same index map even if they are
     // identical. The scope of vars used in index map initial indices is local to the op. Not doing
     // so would confuse the structural equality check.

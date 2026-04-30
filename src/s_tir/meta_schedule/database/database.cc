@@ -28,20 +28,20 @@ namespace meta_schedule {
 /******** Workload ********/
 
 Workload::Workload(IRModule mod) {
-  ObjectPtr<WorkloadNode> n = ffi::make_object<WorkloadNode>();
+  ffi::ObjectPtr<WorkloadNode> n = ffi::make_object<WorkloadNode>();
   n->mod = mod;
   n->shash = ModuleEquality::Create("structural")->Hash(mod);
   data_ = std::move(n);
 }
 
 Workload::Workload(IRModule mod, Workload::THashCode shash) {
-  ObjectPtr<WorkloadNode> n = ffi::make_object<WorkloadNode>();
+  ffi::ObjectPtr<WorkloadNode> n = ffi::make_object<WorkloadNode>();
   n->mod = mod;
   n->shash = shash;
   data_ = std::move(n);
 }
 
-ObjectRef WorkloadNode::AsJSON() const {
+ffi::ObjectRef WorkloadNode::AsJSON() const {
   // Convert `this->mod` to JSON
   std::string json_mod = ffi::json::Stringify(
       ffi::ToJSONGraph(this->mod, ffi::json::Object{{"tvm_version", TVM_VERSION}}), /*indent=*/2);
@@ -51,7 +51,7 @@ ObjectRef WorkloadNode::AsJSON() const {
   return ffi::Array<ffi::Any>{SHash2Str(this->shash), ffi::String(b64_mod)};
 }
 
-Workload Workload::FromJSON(const ObjectRef& json_obj) {
+Workload Workload::FromJSON(const ffi::ObjectRef& json_obj) {
   IRModule mod{ffi::UnsafeInit()};
   THashCode shash = 0;
   try {
@@ -79,7 +79,7 @@ TuningRecord::TuningRecord(s_tir::Trace trace, Workload workload,
                            ffi::Optional<ffi::Array<FloatImm>> run_secs,
                            ffi::Optional<Target> target,
                            ffi::Optional<ffi::Array<ArgInfo>> args_info) {
-  ObjectPtr<TuningRecordNode> n = ffi::make_object<TuningRecordNode>();
+  ffi::ObjectPtr<TuningRecordNode> n = ffi::make_object<TuningRecordNode>();
   n->trace = trace;
   n->workload = workload;
   n->run_secs = run_secs;
@@ -99,11 +99,11 @@ MeasureCandidate TuningRecordNode::AsMeasureCandidate() const {
   return MeasureCandidate(sch, ArgInfo::FromEntryFunc(sch->mod(), /*remove_preproc=*/true));
 }
 
-ObjectRef TuningRecordNode::AsJSON() const {
-  ffi::Optional<ffi::Array<ObjectRef>> json_args_info;
-  ffi::Optional<ObjectRef> json_target;
+ffi::ObjectRef TuningRecordNode::AsJSON() const {
+  ffi::Optional<ffi::Array<ffi::ObjectRef>> json_args_info;
+  ffi::Optional<ffi::ObjectRef> json_target;
   if (args_info.defined()) {
-    ffi::Array<ObjectRef> info;
+    ffi::Array<ffi::ObjectRef> info;
     info.reserve(args_info.value().size());
     for (const ArgInfo& arg_info : args_info.value()) {
       info.push_back(arg_info->AsJSON());
@@ -113,10 +113,10 @@ ObjectRef TuningRecordNode::AsJSON() const {
   if (target.defined()) {
     json_target = target.value()->ToConfig();
   }
-  return ffi::Array<ObjectRef>{trace->AsJSON(false),  //
-                               run_secs,              //
-                               json_target,           //
-                               json_args_info};
+  return ffi::Array<ffi::ObjectRef>{trace->AsJSON(false),  //
+                                    run_secs,              //
+                                    json_target,           //
+                                    json_args_info};
 }
 
 bool TuningRecordNode::IsValid() const {
@@ -134,7 +134,7 @@ bool TuningRecordNode::IsValid() const {
   return false;
 }
 
-TuningRecord TuningRecord::FromJSON(const ObjectRef& json_obj, const Workload& workload) {
+TuningRecord TuningRecord::FromJSON(const ffi::ObjectRef& json_obj, const Workload& workload) {
   s_tir::Trace trace{ffi::UnsafeInit()};
   ffi::Optional<ffi::Array<FloatImm>> run_secs;
   ffi::Optional<Target> target;
@@ -144,7 +144,7 @@ TuningRecord TuningRecord::FromJSON(const ObjectRef& json_obj, const Workload& w
     TVM_FFI_ICHECK(json_array && json_array->size() == 4);
     // Load json[1] => run_secs
     if (json_array->at(1) != nullptr) {
-      run_secs = AsFloatArray(json_array->at(1).cast<ObjectRef>());
+      run_secs = AsFloatArray(json_array->at(1).cast<ffi::ObjectRef>());
     }
     // Load json[2] => target
     if (json_array->at(2) != nullptr) {
@@ -156,13 +156,13 @@ TuningRecord TuningRecord::FromJSON(const ObjectRef& json_obj, const Workload& w
       ffi::Array<ArgInfo> info;
       info.reserve(json_args_info->size());
       for (Any json_arg_info : *json_args_info) {
-        info.push_back(ArgInfo::FromJSON(json_arg_info.cast<ObjectRef>()));
+        info.push_back(ArgInfo::FromJSON(json_arg_info.cast<ffi::ObjectRef>()));
       }
       args_info = info;
     }
     // Load json[0] => trace
     {
-      auto json_trace = json_array->at(0).cast<ObjectRef>();
+      auto json_trace = json_array->at(0).cast<ffi::ObjectRef>();
       s_tir::Schedule sch =
           s_tir::Schedule::Traced(workload->mod, /*seed=*/-1, /*debug_mask=*/0,
                                   /*error_render_level=*/s_tir::ScheduleErrorRenderLevel::kNone);
@@ -222,7 +222,8 @@ ffi::Optional<IRModule> DatabaseNode::QueryIRModule(const IRModule& mod, const T
 }
 
 void DatabaseNode::DumpPruned(Database destination) {
-  std::unordered_map<Workload, TuningRecord, ObjectPtrHash, ObjectPtrEqual> workload2record;
+  std::unordered_map<Workload, TuningRecord, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+      workload2record;
   for (const TuningRecord& record : this->GetAllTuningRecords()) {
     if (record->IsValid()) {
       auto it = workload2record.find(record->workload);
@@ -274,7 +275,7 @@ Database Database::PyDatabase(PyDatabaseNode::FHasWorkload f_has_workload,
                               PyDatabaseNode::FQuerySchedule f_query_schedule,
                               PyDatabaseNode::FQueryIRModule f_query_ir_module,
                               PyDatabaseNode::FSize f_size, ffi::String mod_eq_name) {
-  ObjectPtr<PyDatabaseNode> n = ffi::make_object<PyDatabaseNode>(mod_eq_name);
+  ffi::ObjectPtr<PyDatabaseNode> n = ffi::make_object<PyDatabaseNode>(mod_eq_name);
   n->f_has_workload = f_has_workload;
   n->f_commit_workload = f_commit_workload;
   n->f_commit_tuning_record = f_commit_tuning_record;

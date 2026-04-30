@@ -90,7 +90,7 @@ class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Ex
    */
   PrimExpr SimplifyCondition(PrimExpr condition);
 
-  std::unordered_map<DFPattern, Expr, ObjectPtrHash, ObjectPtrEqual> memo_;
+  std::unordered_map<DFPattern, Expr, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> memo_;
   var2val_t var2val_;
   std::vector<DFPattern> matched_nodes_;
   PrimExpr symbolic_expr_condition_{Bool(true)};

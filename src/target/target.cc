@@ -47,12 +47,12 @@ class TargetInternal {
   static void EnterScope(Target target) { target.EnterWithScope(); }
   static void ExitScope(Target target) { target.ExitWithScope(); }
   static ffi::Map<ffi::String, ffi::Any> ToConfig(Target target) { return target->ToConfig(); }
-  static ObjectPtr<TargetNode> FromString(const ffi::String& tag_or_config_or_target_str);
-  static ObjectPtr<TargetNode> FromConfigString(const ffi::String& config_str);
-  static ObjectPtr<TargetNode> FromConfig(ffi::Map<ffi::String, ffi::Any> config);
+  static ffi::ObjectPtr<TargetNode> FromString(const ffi::String& tag_or_config_or_target_str);
+  static ffi::ObjectPtr<TargetNode> FromConfigString(const ffi::String& config_str);
+  static ffi::ObjectPtr<TargetNode> FromConfig(ffi::Map<ffi::String, ffi::Any> config);
   static void ConstructorDispatcher(ffi::PackedArgs args, ffi::Any* rv);
   static Target WithHost(const Target& target, const Target& target_host) {
-    ObjectPtr<TargetNode> n = ffi::make_object<TargetNode>(*target.get());
+    ffi::ObjectPtr<TargetNode> n = ffi::make_object<TargetNode>(*target.get());
     n->host = target_host;
     return (Target)n;
   }
@@ -108,7 +108,7 @@ const std::string& TargetNode::str() const {
 /**********  Small member methods  **********/
 
 Target::Target(const ffi::String& tag_or_config_or_target_str) {
-  ObjectPtr<Object> target;
+  ffi::ObjectPtr<ffi::Object> target;
   try {
     target = TargetInternal::FromString(tag_or_config_or_target_str);
   } catch (const ffi::Error& e) {
@@ -120,7 +120,7 @@ Target::Target(const ffi::String& tag_or_config_or_target_str) {
 }
 
 Target::Target(const ffi::Map<ffi::String, ffi::Any>& config) {
-  ObjectPtr<Object> target;
+  ffi::ObjectPtr<ffi::Object> target;
   try {
     target = TargetInternal::FromConfig(config);
   } catch (const ffi::Error& e) {
@@ -132,12 +132,12 @@ Target::Target(const ffi::Map<ffi::String, ffi::Any>& config) {
 }
 
 Target::Target(Target target, Target host) {
-  ObjectPtr<TargetNode> n = ffi::make_object<TargetNode>(*target.get());
+  ffi::ObjectPtr<TargetNode> n = ffi::make_object<TargetNode>(*target.get());
   n->host = std::move(host);
   data_ = std::move(n);
 }
 
-Target::Target(TargetKind kind, ffi::Optional<ObjectRef> host, ffi::String tag,
+Target::Target(TargetKind kind, ffi::Optional<ffi::ObjectRef> host, ffi::String tag,
                ffi::Array<ffi::String> keys, ffi::Map<ffi::String, ffi::Any> attrs) {
   auto data = ffi::make_object<TargetNode>();
   data->kind = std::move(kind);
@@ -251,7 +251,8 @@ void TargetInternal::ConstructorDispatcher(ffi::PackedArgs args, ffi::Any* rv) {
                             << args.size();
 }
 
-ObjectPtr<TargetNode> TargetInternal::FromString(const ffi::String& tag_or_config_or_target_str) {
+ffi::ObjectPtr<TargetNode> TargetInternal::FromString(
+    const ffi::String& tag_or_config_or_target_str) {
   if (ffi::Optional<Target> target = TargetTag::Get(tag_or_config_or_target_str)) {
     Target value = target.value();
     return ffi::details::ObjectUnsafe::ObjectPtrFromObjectRef<TargetNode>(value);
@@ -270,7 +271,7 @@ ObjectPtr<TargetNode> TargetInternal::FromString(const ffi::String& tag_or_confi
   return TargetInternal::FromConfig(ffi::Map<ffi::String, ffi::Any>{{"kind", ffi::String(s)}});
 }
 
-ObjectPtr<TargetNode> TargetInternal::FromConfigString(const ffi::String& config_str) {
+ffi::ObjectPtr<TargetNode> TargetInternal::FromConfigString(const ffi::String& config_str) {
   ffi::String error_msg;
   ffi::json::Value parsed = ffi::json::Parse(config_str, &error_msg);
   if (error_msg.size() > 0) {
@@ -283,14 +284,14 @@ ObjectPtr<TargetNode> TargetInternal::FromConfigString(const ffi::String& config
   return TargetInternal::FromConfig(config.value());
 }
 
-ObjectPtr<TargetNode> TargetInternal::FromConfig(ffi::Map<ffi::String, ffi::Any> config) {
+ffi::ObjectPtr<TargetNode> TargetInternal::FromConfig(ffi::Map<ffi::String, ffi::Any> config) {
   const ffi::String kKind = "kind";
   const ffi::String kTag = "tag";
   const ffi::String kKeys = "keys";
   const ffi::String kDeviceName = "device";
   const ffi::String kHost = "host";
   const ffi::String kFromDevice = "from_device";
-  ObjectPtr<TargetNode> target = ffi::make_object<TargetNode>();
+  ffi::ObjectPtr<TargetNode> target = ffi::make_object<TargetNode>();
 
   // Step 0: If "tag" is present without "kind", look up the tag config and merge overrides on top
   if (!config.count(kKind) && config.count(kTag)) {

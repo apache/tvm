@@ -17,6 +17,8 @@
  * under the License.
  */
 
+#include <tvm/ffi/cast.h>
+
 #include <functional>
 
 #include "../../../tirx/ir/data_type_rewriter.h"
@@ -64,7 +66,9 @@ class SubspaceNotDivisibleError : public ScheduleError {
 
   IRModule mod() const final { return mod_; }
 
-  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {inner_block_, scope_loop_}; }
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final {
+    return {inner_block_, scope_loop_};
+  }
 
  private:
   IRModule mod_;
@@ -329,7 +333,7 @@ Stmt GenerateOuterInit(const Stmt& block_init, const SBlockRealize& inner_realiz
     const PrimExpr& iter_value = inner_realize->iter_values[i];
     if (old_iter_var->iter_type == IterVarType::kDataPar &&
         UsesVar(block_init, old_iter_var->var)) {
-      ObjectPtr<IterVarNode> new_iter_var = ffi::make_object<IterVarNode>(*old_iter_var.get());
+      ffi::ObjectPtr<IterVarNode> new_iter_var = ffi::make_object<IterVarNode>(*old_iter_var.get());
       new_iter_var->var = new_iter_var->var.copy_with_suffix("_init");
       subst_map.Set(old_iter_var->var, new_iter_var->var);
       iter_vars.push_back(IterVar(new_iter_var));
@@ -357,7 +361,7 @@ Stmt GenerateOuterInit(const Stmt& block_init, const SBlockRealize& inner_realiz
       }
     }
     if (is_init_loop) {
-      ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*loop);
+      ffi::ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*loop);
       new_loop->loop_var = loop->loop_var.copy_with_suffix("");
       new_loop->body = std::move(stmt);
       subst_map.Set(loop->loop_var, new_loop->loop_var);
@@ -446,7 +450,7 @@ ffi::Array<BufferRegion> EvalSetRegions(const ffi::Array<BufferRegion>& regions,
  */
 ffi::Array<BufferRegion> UnionRegions(const ffi::Array<BufferRegion>& regions) {
   typedef std::vector<ffi::Array<arith::IntSet>> ranges_t;
-  std::unordered_map<Buffer, ranges_t, ObjectPtrHash, ObjectPtrEqual> intset_map;
+  std::unordered_map<Buffer, ranges_t, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> intset_map;
   for (const BufferRegion& buffer_region : regions) {
     const Buffer& buffer = buffer_region->buffer;
     if (intset_map.find(buffer) == intset_map.end()) {
@@ -479,7 +483,7 @@ ffi::Array<BufferRegion> UnionRegions(const ffi::Array<BufferRegion>& regions) {
  */
 Stmt MakeLoopNest(Stmt stmt, const std::vector<const ForNode*>& loops) {
   for (const ForNode* loop : loops) {
-    ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*loop);
+    ffi::ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*loop);
     new_loop->body = std::move(stmt);
     stmt = For(new_loop);
   }
@@ -641,7 +645,7 @@ SBlockRealize BlockizeBlocks(const ScheduleState& self, const ffi::Array<StmtSRe
     block_sref_reuse->Set(block, inner_realize->block);
     Stmt stmt = inner_realize;
     for (const ForNode* loop : loops) {
-      ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*loop);
+      ffi::ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*loop);
       new_loop->body = std::move(stmt);
       new_loop->extent = Substitute(new_loop->extent, loop_var_subst);
       stmt = For(new_loop);
@@ -785,21 +789,22 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
   // 1) Buffer mapping from intrin impl buffers to intrin desc buffers.
   // 2) Buffer mapping from intrin impl buffers to buffers in the current AST.
   // 3) Mapping impl buffers to their accessed regions.
-  std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> impl2desc;
+  std::unordered_map<Buffer, Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> impl2desc;
   TVM_FFI_ICHECK_EQ(intrin_desc->params.size(), intrin_impl->params.size());
   for (int i = 0, n = intrin_desc->params.size(); i < n; ++i) {
     const Buffer& desc = intrin_desc->buffer_map[intrin_desc->params[i]];
     const Buffer& impl = intrin_impl->buffer_map[intrin_impl->params[i]];
     impl2desc[impl] = desc;
   }
-  std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> impl2cur;
+  std::unordered_map<Buffer, Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> impl2cur;
   for (const auto& pair : impl2desc) {
     const Buffer& impl = pair.first;
     const Buffer& desc = pair.second;
     TVM_FFI_ICHECK(comparator.rhs_buffer_map_.count(desc));
     impl2cur[impl] = comparator.rhs_buffer_map_[desc];
   }
-  std::unordered_map<Buffer, ffi::Array<Range>, ObjectPtrHash, ObjectPtrEqual> impl2region;
+  std::unordered_map<Buffer, ffi::Array<Range>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+      impl2region;
   SBlock impl_block = Downcast<SBlockRealize>(intrin_impl->body)->block;
   for (const BufferRegion& read : impl_block->reads) {
     impl2region.emplace(read->buffer, read->region);
@@ -869,7 +874,7 @@ struct BlockizeTraits : public UnpackedInstTraits<BlockizeTraits> {
   static constexpr size_t kNumAttrs = 1;
   static constexpr size_t kNumDecisions = 0;
 
-  static SBlockRV UnpackedApplyToSchedule(Schedule sch, ObjectRef target,
+  static SBlockRV UnpackedApplyToSchedule(Schedule sch, ffi::ObjectRef target,
                                           Bool preserve_unit_iters) {
     if (auto loop = target.as<LoopRV>()) {
       return sch->Blockize(loop.value(), preserve_unit_iters.operator bool());
@@ -880,7 +885,7 @@ struct BlockizeTraits : public UnpackedInstTraits<BlockizeTraits> {
     TVM_FFI_UNREACHABLE();
   }
 
-  static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ObjectRef target,
+  static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::ObjectRef target,
                                       Bool preserve_unit_iters) {
     PythonAPICall py("blockize");
     py.Input("target", target);
@@ -902,8 +907,8 @@ struct TensorizeTraits : public UnpackedInstTraits<TensorizeTraits> {
   static constexpr size_t kNumAttrs = 2;
   static constexpr size_t kNumDecisions = 0;
 
-  static void UnpackedApplyToSchedule(Schedule sch, ObjectRef block_or_loop_rv, ffi::String intrin,
-                                      Bool preserve_unit_iters) {
+  static void UnpackedApplyToSchedule(Schedule sch, ffi::ObjectRef block_or_loop_rv,
+                                      ffi::String intrin, Bool preserve_unit_iters) {
     if (auto block = block_or_loop_rv.as<SBlockRV>()) {
       sch->Tensorize(block.value(), intrin, preserve_unit_iters.operator bool());
     } else if (auto loop = block_or_loop_rv.as<LoopRV>()) {

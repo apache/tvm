@@ -26,6 +26,7 @@
  *        src/target/rocm/rocm_fallback_module.h.
  */
 #include <hip/hip_runtime_api.h>
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/c_env_api.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -156,7 +157,7 @@ class ROCMModuleNode : public ffi::ModuleObj {
 class ROCMWrappedFunc {
  public:
   // initialize the ROCM function.
-  void Init(ROCMModuleNode* m, ObjectPtr<Object> sptr, const std::string& func_name,
+  void Init(ROCMModuleNode* m, ffi::ObjectPtr<ffi::Object> sptr, const std::string& func_name,
             size_t num_void_args, const ffi::Array<ffi::String>& launch_param_tags) {
     m_ = m;
     sptr_ = sptr;
@@ -189,7 +190,7 @@ class ROCMWrappedFunc {
   // internal module
   ROCMModuleNode* m_;
   // the resource holder
-  ObjectPtr<Object> sptr_;
+  ffi::ObjectPtr<ffi::Object> sptr_;
   // The name of the function.
   std::string func_name_;
   // Device function cache per device.
@@ -200,7 +201,7 @@ class ROCMWrappedFunc {
 };
 
 ffi::Optional<ffi::Function> ROCMModuleNode::GetFunction(const ffi::String& name) {
-  ObjectPtr<Object> sptr_to_self = ffi::GetObjectPtr<Object>(this);
+  ffi::ObjectPtr<ffi::Object> sptr_to_self = ffi::GetObjectPtr<ffi::Object>(this);
   TVM_FFI_ICHECK_EQ(sptr_to_self.get(), this);
   auto opt_info = fmap_.Get(name);
   if (!opt_info.has_value()) return std::nullopt;

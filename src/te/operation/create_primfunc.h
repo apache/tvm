@@ -34,7 +34,7 @@ PrimFunc CreatePrimFunc(const ffi::Array<te::Tensor>& arg_list,
                         std::optional<DataType> index_dtype_override = std::nullopt);
 
 /*! \brief Use Tensor Expression to create a schedulable TensorIR func. */
-PrimFunc CreatePrimFunc(const ffi::Array<ObjectRef>& arg_list,
+PrimFunc CreatePrimFunc(const ffi::Array<ffi::ObjectRef>& arg_list,
                         std::optional<DataType> index_dtype_override);
 
 }  // namespace tirx

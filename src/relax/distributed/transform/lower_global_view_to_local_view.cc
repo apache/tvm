@@ -21,6 +21,7 @@
  * \file tvm/relax/distributed/transform/lower_global_view_to_local_view.cc
  * \brief Pass for lowering global view TensorIR into local view
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/attrs/ccl.h>
 #include <tvm/relax/distributed/axis_group_graph.h>
@@ -49,7 +50,7 @@ class DistBufferReplacer : public StmtExprMutator {
   Stmt VisitStmt_(const BufferStoreNode* _store) final {
     BufferStore store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(_store));
     if (buffer_map_.count(store->buffer)) {
-      ObjectPtr<BufferStoreNode> new_store = ffi::make_object<BufferStoreNode>(*store.get());
+      ffi::ObjectPtr<BufferStoreNode> new_store = ffi::make_object<BufferStoreNode>(*store.get());
       new_store->buffer = buffer_map_[store->buffer];
       return BufferStore(new_store);
     }
@@ -59,7 +60,7 @@ class DistBufferReplacer : public StmtExprMutator {
   PrimExpr VisitExpr_(const BufferLoadNode* _load) final {
     BufferLoad load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(_load));
     if (buffer_map_.count(load->buffer)) {
-      ObjectPtr<BufferLoadNode> new_load = ffi::make_object<BufferLoadNode>(*load.get());
+      ffi::ObjectPtr<BufferLoadNode> new_load = ffi::make_object<BufferLoadNode>(*load.get());
       new_load->buffer = buffer_map_[load->buffer];
       return BufferLoad(new_load);
     }
@@ -69,7 +70,7 @@ class DistBufferReplacer : public StmtExprMutator {
   Stmt VisitStmt_(const SBlockNode* _block) final {
     SBlock old_block = ffi::GetRef<SBlock>(_block);
     SBlock block = Downcast<SBlock>(StmtExprMutator::VisitStmt_(_block));
-    ObjectPtr<SBlockNode> new_block = ffi::make_object<SBlockNode>(*block.get());
+    ffi::ObjectPtr<SBlockNode> new_block = ffi::make_object<SBlockNode>(*block.get());
     new_block->reads = ReplaceBuffer(new_block->reads, buffer_map_);
     new_block->writes = ReplaceBuffer(new_block->writes, buffer_map_);
     return SBlock(new_block);
@@ -138,7 +139,8 @@ class DistSBlockInfoCollector : public StmtExprVisitor {
   Buffer reduce_buffer_;
 
  public:
-  std::unordered_map<Buffer, ffi::Array<ffi::Array<PrimExpr>>, ObjectPtrHash, ObjectPtrEqual>
+  std::unordered_map<Buffer, ffi::Array<ffi::Array<PrimExpr>>, ffi::ObjectPtrHash,
+                     ffi::ObjectPtrEqual>
       buffer_access_indices;
   std::string reduce_kind;
 };
@@ -164,7 +166,7 @@ class DistributedBufferCompactor : StmtExprMutator {
     }
     Stmt new_body = compactor(prim_func->body);
     new_body = DistBufferReplacer::BufferReplace(new_body, replace_buffer_map);
-    ObjectPtr<PrimFuncNode> new_func = ffi::make_object<PrimFuncNode>(*prim_func.get());
+    ffi::ObjectPtr<PrimFuncNode> new_func = ffi::make_object<PrimFuncNode>(*prim_func.get());
     new_func->buffer_map = new_func_buffer_map;
     new_func->body = new_body;
     return std::make_tuple(PrimFunc(new_func), compactor.add_allreduce_kind_);
@@ -204,8 +206,8 @@ class DistributedBufferCompactor : StmtExprMutator {
 
   ffi::Array<IterVar> ShardIterVar(
       SBlock block,
-      const std::unordered_map<Buffer, ffi::Array<ffi::Array<PrimExpr>>, ObjectPtrHash,
-                               ObjectPtrEqual>& buffer_access_indices) {
+      const std::unordered_map<Buffer, ffi::Array<ffi::Array<PrimExpr>>, ffi::ObjectPtrHash,
+                               ffi::ObjectPtrEqual>& buffer_access_indices) {
     std::vector<Buffer> buffers;
     for (const auto& read : block->reads) {
       buffers.push_back(read->buffer);
@@ -269,7 +271,7 @@ class DistributedBufferCompactor : StmtExprMutator {
         shape.push_back(buffer->shape[i]);
       }
     }
-    ObjectPtr<BufferNode> new_buffer = ffi::make_object<BufferNode>(*buffer.get());
+    ffi::ObjectPtr<BufferNode> new_buffer = ffi::make_object<BufferNode>(*buffer.get());
     new_buffer->shape = shape;
     return Buffer(new_buffer);
   }
@@ -297,7 +299,7 @@ class DistributedBufferCompactor : StmtExprMutator {
         break;
       }
     }
-    ObjectPtr<SBlockNode> new_block = ffi::make_object<SBlockNode>(*block.operator->());
+    ffi::ObjectPtr<SBlockNode> new_block = ffi::make_object<SBlockNode>(*block.operator->());
     new_block->iter_vars = new_iter_vars;
     new_block->alloc_buffers = new_alloc_buffers;
     if (new_block->name_hint == "root") {
@@ -345,7 +347,7 @@ class DistributedBufferCompactor : StmtExprMutator {
   ffi::Array<Buffer> allocated_buffer_under_root;
   BufferAxisGraphExtractor extractor_;
   std::vector<ShardingSpec> sharding_specs_;
-  std::unordered_map<Buffer, DimShard, ObjectPtrHash, ObjectPtrEqual> buffer_shards_;
+  std::unordered_map<Buffer, DimShard, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_shards_;
   std::string add_allreduce_kind_;
 };
 
@@ -368,7 +370,7 @@ class LowerTIRToLocalView : public ExprMutator {
         continue;
       }
       Expr new_func_body = this->VisitExpr(func_->body);
-      ObjectPtr<FunctionNode> new_func = ffi::make_object<FunctionNode>(*func_);
+      ffi::ObjectPtr<FunctionNode> new_func = ffi::make_object<FunctionNode>(*func_);
       new_func->body = new_func_body;
       builder_->UpdateFunction(gv, Function(new_func));
     }
@@ -417,12 +419,12 @@ class LowerTIRToLocalView : public ExprMutator {
         tirx::DistributedBufferCompactor::DistBufferCompact(sharding_specs, prim_func);
     auto new_gvar = builder_->AddFunction(new_prim_func, gvar->name_hint);
     Call call = Downcast<Call>(this->VisitExpr(binding->value));
-    ObjectPtr<CallNode> new_call_node = ffi::make_object<CallNode>(*call.get());
+    ffi::ObjectPtr<CallNode> new_call_node = ffi::make_object<CallNode>(*call.get());
     new_call_node->op = Op::Get("relax.dist.call_tir_local_view");
     new_call_node->args.Set(0, new_gvar);
     Call new_call(new_call_node);
     if (allreduce_kind != "") {
-      ObjectPtr<AllReduceAttrs> attrs = ffi::make_object<AllReduceAttrs>();
+      ffi::ObjectPtr<AllReduceAttrs> attrs = ffi::make_object<AllReduceAttrs>();
       attrs->op_type = allreduce_kind;
       new_call = Call(Op::Get("relax.ccl.allreduce"), {new_call}, Attrs(attrs), {});
     }

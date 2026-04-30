@@ -24,6 +24,8 @@
 
 #include "binary.h"
 
+#include <tvm/ffi/cast.h>
+
 #include <algorithm>
 
 namespace tvm {

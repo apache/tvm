@@ -21,6 +21,7 @@
  * \file lower_opaque_block.cc
  */
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>

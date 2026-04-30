@@ -18,8 +18,8 @@
  */
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/cast.h>
 #include <tvm/ir/cast.h>
-#include <tvm/runtime/object.h>
 
 #include <optional>
 #include <variant>
@@ -29,6 +29,7 @@
 
 namespace tvm {
 namespace s_tir {
+
 using namespace tvm::tirx;
 
 /*! \brief Planning stage prior to rewriting in TransformLayoutRewriter
@@ -947,7 +948,7 @@ class BufferIsSubregionError : public ScheduleError {
     return os.str();
   }
 
-  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {}; }
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {}; }
   IRModule mod() const final { return mod_; }
 
  private:
@@ -975,7 +976,7 @@ class TransformationPaddingIndexMapError : public ScheduleError {
   }
 
   IRModule mod() const final { return mod_; }
-  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {}; }
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {}; }
 
  private:
   IRModule mod_;
@@ -1005,7 +1006,7 @@ class TransformationPaddingTypeError : public ScheduleError {
   }
 
   IRModule mod() const final { return mod_; }
-  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {}; }
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {}; }
 
  private:
   IRModule mod_;
@@ -1061,7 +1062,7 @@ class TransformationPaddingExpressionError : public ScheduleError {
   }
 
   IRModule mod() const final { return mod_; }
-  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {}; }
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {}; }
 
   IRModule mod_;
   Buffer buffer_;
@@ -1095,7 +1096,7 @@ class TransformationIntroducesPaddingError : public ScheduleError {
   }
 
   IRModule mod() const final { return mod_; }
-  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {}; }
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {}; }
 
  private:
   IRModule mod_;
@@ -1252,7 +1253,7 @@ IterVarType DetectNewBlockIterType(
     const std::unordered_map<const VarNode*, IterVarType>& block_iter_type_map) {
   IterVarType result{kOpaque};
   bool found = false;
-  PostOrderVisit(expr, [&](const ObjectRef& obj) {
+  PostOrderVisit(expr, [&](const ffi::ObjectRef& obj) {
     if (const VarNode* var = obj.as<VarNode>()) {
       auto it = block_iter_type_map.find(var);
       if (it != block_iter_type_map.end()) {
@@ -1286,7 +1287,7 @@ class NotBijectiveAffineIndexMapError : public ScheduleError {
 
   IRModule mod() const final { return mod_; }
 
-  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {}; }
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {}; }
 
  private:
   IRModule mod_;
@@ -1319,7 +1320,7 @@ class IndexMapNotApplicableToBlockIterError : public ScheduleError {
 
   IRModule mod() const final { return mod_; }
 
-  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {block_}; }
 
  private:
   IRModule mod_;
@@ -1345,7 +1346,7 @@ class OpaqueNewIterTypeError : public ScheduleError {
   }
 
   IRModule mod() const final { return mod_; }
-  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {block_}; }
 
  private:
   IRModule mod_;
@@ -1604,7 +1605,7 @@ struct TransformLayoutTraits : public UnpackedInstTraits<TransformLayoutTraits> 
   }
 
  public:
-  static ObjectRef AttrsAsJSON(const ffi::Array<Any>& attrs) {
+  static ffi::ObjectRef AttrsAsJSON(const ffi::Array<Any>& attrs) {
     ffi::Array<Any> attrs_record;
     attrs_record.reserve(kNumAttrs);
     attrs_record.push_back(attrs[0]);
@@ -1620,7 +1621,7 @@ struct TransformLayoutTraits : public UnpackedInstTraits<TransformLayoutTraits> 
     return attrs_record;
   }
 
-  static ffi::Array<Any> AttrsFromJSON(const ObjectRef& attrs_record_) {
+  static ffi::Array<Any> AttrsFromJSON(const ffi::ObjectRef& attrs_record_) {
     ffi::Array<Any> attrs_record = Downcast<ffi::Array<Any>>(attrs_record_);
     ffi::Array<Any> attrs;
     attrs.push_back(attrs_record[0]);
@@ -1660,7 +1661,7 @@ struct TransformBlockLayoutTraits : public UnpackedInstTraits<TransformBlockLayo
   }
 
  public:
-  static ObjectRef AttrsAsJSON(const ffi::Array<Any>& attrs) {
+  static ffi::ObjectRef AttrsAsJSON(const ffi::Array<Any>& attrs) {
     ffi::Array<Any> attrs_record;
     attrs_record.reserve(kNumAttrs);
     attrs_record.push_back(ffi::String(ffi::json::Stringify(
@@ -1669,7 +1670,7 @@ struct TransformBlockLayoutTraits : public UnpackedInstTraits<TransformBlockLayo
     return attrs_record;
   }
 
-  static ffi::Array<Any> AttrsFromJSON(const ObjectRef& attrs_record_) {
+  static ffi::Array<Any> AttrsFromJSON(const ffi::ObjectRef& attrs_record_) {
     ffi::Array<Any> attrs_record = Downcast<ffi::Array<Any>>(attrs_record_);
     ffi::Array<Any> attrs;
     attrs.push_back(ffi::FromJSONGraph(ffi::json::Parse(Downcast<ffi::String>(attrs_record[0]))));

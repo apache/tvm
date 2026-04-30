@@ -26,6 +26,7 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/cow.h>
 #include <tvm/te/tensor.h>
 #include <tvm/tirx/buffer.h>
 #include <tvm/tirx/expr.h>
@@ -53,7 +54,7 @@ struct TensorDom {
 /*!
  * \brief Base class of all operation nodes
  */
-class TVM_DLL OperationNode : public Object {
+class TVM_DLL OperationNode : public ffi::Object {
  public:
   /*! \brief optional name of the operation */
   std::string name;
@@ -90,7 +91,7 @@ class TVM_DLL OperationNode : public Object {
         .def_ro("tag", &OperationNode::tag)
         .def_ro("attrs", &OperationNode::attrs);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO("te.Operation", OperationNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("te.Operation", OperationNode, ffi::Object);
 };
 
 /*!

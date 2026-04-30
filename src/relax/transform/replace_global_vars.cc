@@ -24,6 +24,7 @@
  * \brief GlobalVar replacement across IR types
  */
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ir/analysis.h>
 #include <tvm/ir/replace_global_vars.h>
 #include <tvm/relax/analysis.h>
@@ -50,7 +51,7 @@ struct Mutator : ExprMutator {
 }  // namespace
 
 TVM_STATIC_IR_FUNCTOR(GlobalVarReplacer, vtable)
-    .set_dispatch<relax::FunctionNode>([](const ObjectRef& func,
+    .set_dispatch<relax::FunctionNode>([](const ffi::ObjectRef& func,
                                           ffi::Map<GlobalVar, GlobalVar> replacements) -> BaseFunc {
       Mutator mutator(replacements);
       auto new_func = Downcast<Function>(mutator(Downcast<Function>(func)));
@@ -74,7 +75,7 @@ TVM_STATIC_IR_FUNCTOR(GlobalVarReplacer, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(GlobalVarReplacer, vtable)
-    .set_dispatch<relax::ExternFuncNode>([](const ObjectRef& func,
+    .set_dispatch<relax::ExternFuncNode>([](const ffi::ObjectRef& func,
                                             ffi::Map<GlobalVar, GlobalVar>) -> BaseFunc {
       return Downcast<ExternFunc>(func);
     });

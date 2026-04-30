@@ -68,7 +68,7 @@ class AddToDatabaseNode : public MeasureCallbackNode {
 };
 
 MeasureCallback MeasureCallback::AddToDatabase() {
-  ObjectPtr<AddToDatabaseNode> n = ffi::make_object<AddToDatabaseNode>();
+  ffi::ObjectPtr<AddToDatabaseNode> n = ffi::make_object<AddToDatabaseNode>();
   return MeasureCallback(n);
 }
 

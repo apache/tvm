@@ -35,7 +35,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 Expr allreduce(Expr x, ffi::String op_type, bool in_group) {
-  ObjectPtr<AllReduceAttrs> attrs = ffi::make_object<AllReduceAttrs>();
+  ffi::ObjectPtr<AllReduceAttrs> attrs = ffi::make_object<AllReduceAttrs>();
   attrs->op_type = std::move(op_type);
   attrs->in_group = std::move(in_group);
 
@@ -64,7 +64,7 @@ TVM_REGISTER_OP("relax.ccl.allreduce")
 /* relax.ccl.allgather */
 
 Expr allgather(Expr x, int num_workers, bool in_group) {
-  ObjectPtr<AllGatherAttrs> attrs = ffi::make_object<AllGatherAttrs>();
+  ffi::ObjectPtr<AllGatherAttrs> attrs = ffi::make_object<AllGatherAttrs>();
   attrs->num_workers = std::move(num_workers);
   attrs->in_group = std::move(in_group);
 
@@ -126,7 +126,7 @@ TVM_REGISTER_OP("relax.ccl.broadcast_from_worker0")
 /* relax.ccl.scatter_from_worker0 */
 
 Expr scatter_from_worker0(Expr data, int num_workers, int axis) {
-  ObjectPtr<ScatterCollectiveAttrs> attrs = ffi::make_object<ScatterCollectiveAttrs>();
+  ffi::ObjectPtr<ScatterCollectiveAttrs> attrs = ffi::make_object<ScatterCollectiveAttrs>();
   attrs->num_workers = std::move(num_workers);
   attrs->axis = std::move(axis);
   static const Op& op = Op::Get("relax.ccl.scatter_from_worker0");

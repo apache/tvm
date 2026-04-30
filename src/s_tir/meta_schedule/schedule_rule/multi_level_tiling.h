@@ -104,7 +104,7 @@ struct ReuseConfig {
 class State;
 
 /*! \brief The state of auto scheduling for the multi-level tiling rule */
-class StateNode : public Object {
+class StateNode : public ffi::Object {
  public:
   /*! \brief The schedule to date */
   s_tir::Schedule sch;
@@ -126,16 +126,16 @@ class StateNode : public Object {
   virtual State Copy() const;
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.State", StateNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.State", StateNode, ffi::Object);
 };
 
 /*! \brief Managed reference to StateNode */
-class State : public ObjectRef {
+class State : public ffi::ObjectRef {
  public:
   /*! \brief Default constructor */
   explicit State(s_tir::Schedule sch, s_tir::SBlockRV block_rv,
                  ffi::Array<ffi::Array<s_tir::LoopRV>> tiles = {});
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(State, ObjectRef, StateNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(State, ffi::ObjectRef, StateNode);
 };
 
 /*!
@@ -235,13 +235,13 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
 };
 
 template <typename NodeType>
-ObjectPtr<NodeType> MultiLevelTilingInitCommon(
+ffi::ObjectPtr<NodeType> MultiLevelTilingInitCommon(
     ffi::String structure, ffi::Optional<ffi::Array<ffi::String>> tile_binds,
     ffi::Optional<Integer> max_innermost_factor,
     ffi::Optional<ffi::Array<Integer>> vector_load_lens,
     ffi::Optional<ffi::Map<ffi::String, ffi::Any>> reuse_read,
     ffi::Optional<ffi::Map<ffi::String, ffi::Any>> reuse_write) {
-  ObjectPtr<NodeType> n = ffi::make_object<NodeType>();
+  ffi::ObjectPtr<NodeType> n = ffi::make_object<NodeType>();
   n->structure = structure;
   n->tile_binds = tile_binds.value_or({});
   n->max_innermost_factor = max_innermost_factor.value_or(Integer(-1))->value;

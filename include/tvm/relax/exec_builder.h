@@ -29,7 +29,6 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/repr.h>
-#include <tvm/runtime/object.h>
 #include <tvm/runtime/vm/bytecode.h>
 #include <tvm/runtime/vm/executable.h>
 
@@ -47,7 +46,7 @@ class ExecBuilder;
 /*!
  * \brief A builder provides api to build VM executable with instructions.
  */
-class ExecBuilderNode : public Object {
+class ExecBuilderNode : public ffi::Object {
  public:
   /*!
    * \brief Declare a function, it is OK to have multiple declarations.
@@ -141,7 +140,7 @@ class ExecBuilderNode : public Object {
    * \brief Finalize the build, run formalize and get the final result.
    * \note This function should not be called during construction.
    */
-  ObjectPtr<vm::VMExecutable> Get();
+  ffi::ObjectPtr<vm::VMExecutable> Get();
   /*!
    * \brief Create an ExecBuilder.
    * \return The ExecBuilder.
@@ -154,7 +153,7 @@ class ExecBuilderNode : public Object {
   }
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.ExecBuilder", ExecBuilderNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.ExecBuilder", ExecBuilderNode, ffi::Object);
 
  private:
   /*!
@@ -178,15 +177,15 @@ class ExecBuilderNode : public Object {
   void Formalize();
 
   /*! \brief The mutable internal executable. */
-  ObjectPtr<vm::VMExecutable> exec_;  // mutable
+  ffi::ObjectPtr<vm::VMExecutable> exec_;  // mutable
   /*! \brief internal dedup map when creating index for a new constant */
   std::unordered_map<ffi::Any, vm::Index, ffi::StructuralHash, ffi::StructuralEqual>
       const_dedup_map_;
 };
 
-class ExecBuilder : public ObjectRef {
+class ExecBuilder : public ffi::ObjectRef {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ExecBuilder, ObjectRef, ExecBuilderNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ExecBuilder, ffi::ObjectRef, ExecBuilderNode);
 };
 
 }  // namespace relax

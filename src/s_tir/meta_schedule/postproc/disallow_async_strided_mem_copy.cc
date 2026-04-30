@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
@@ -173,7 +174,7 @@ class DisallowAsyncStridedMemCopyNode : public PostprocNode {
   }
   // Inherited from PostprocNode
   Postproc Clone() const {
-    ObjectPtr<DisallowAsyncStridedMemCopyNode> n =
+    ffi::ObjectPtr<DisallowAsyncStridedMemCopyNode> n =
         ffi::make_object<DisallowAsyncStridedMemCopyNode>(*this);
     return Postproc(n);
   }
@@ -191,7 +192,7 @@ class DisallowAsyncStridedMemCopyNode : public PostprocNode {
 };
 
 Postproc Postproc::DisallowAsyncStridedMemCopy() {
-  ObjectPtr<DisallowAsyncStridedMemCopyNode> n =
+  ffi::ObjectPtr<DisallowAsyncStridedMemCopyNode> n =
       ffi::make_object<DisallowAsyncStridedMemCopyNode>();
   return Postproc(n);
 }

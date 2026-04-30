@@ -25,6 +25,7 @@
  *  inserting necessary broadcast and scatter for inputs.
  */
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/attrs/ccl.h>
 #include <tvm/relax/distributed/axis_group_graph.h>

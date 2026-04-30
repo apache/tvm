@@ -106,7 +106,7 @@ TEST(TargetCreationFail, UnrecognizedConfigOption) {
       {"my_bool", true},
       {"your_names", ffi::Array<ffi::String>{"junru", "jian"}},
       {"kind", ffi::String("TestTargetKind")},
-      {"bad", ObjectRef(nullptr)},
+      {"bad", ffi::ObjectRef(nullptr)},
       {
           "her_maps",
           ffi::Map<ffi::String, int64_t>{

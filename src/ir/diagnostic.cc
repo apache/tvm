@@ -21,6 +21,7 @@
  * \file src/ir/diagnostic.cc
  * \brief Implementation of DiagnosticContext and friends.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/diagnostic.h>
 #include <tvm/ir/source_map.h>
@@ -82,50 +83,56 @@ DiagnosticBuilder Diagnostic::Help(Span span) {
   return DiagnosticBuilder(DiagnosticLevel::kHelp, span);
 }
 
-DiagnosticBuilder Diagnostic::Bug(ObjectRef loc) {
+DiagnosticBuilder Diagnostic::Bug(ffi::ObjectRef loc) {
   return DiagnosticBuilder(DiagnosticLevel::kBug, loc);
 }
 
-DiagnosticBuilder Diagnostic::Error(ObjectRef loc) {
+DiagnosticBuilder Diagnostic::Error(ffi::ObjectRef loc) {
   return DiagnosticBuilder(DiagnosticLevel::kError, loc);
 }
 
-DiagnosticBuilder Diagnostic::Warning(ObjectRef loc) {
+DiagnosticBuilder Diagnostic::Warning(ffi::ObjectRef loc) {
   return DiagnosticBuilder(DiagnosticLevel::kWarning, loc);
 }
 
-DiagnosticBuilder Diagnostic::Note(ObjectRef loc) {
+DiagnosticBuilder Diagnostic::Note(ffi::ObjectRef loc) {
   return DiagnosticBuilder(DiagnosticLevel::kNote, loc);
 }
 
-DiagnosticBuilder Diagnostic::Help(ObjectRef loc) {
+DiagnosticBuilder Diagnostic::Help(ffi::ObjectRef loc) {
   return DiagnosticBuilder(DiagnosticLevel::kHelp, loc);
 }
 
-DiagnosticBuilder Diagnostic::Bug(const Object* loc) { return Bug(ffi::GetRef<ObjectRef>(loc)); }
-
-DiagnosticBuilder Diagnostic::Error(const Object* loc) {
-  return Error(ffi::GetRef<ObjectRef>(loc));
+DiagnosticBuilder Diagnostic::Bug(const ffi::Object* loc) {
+  return Bug(ffi::GetRef<ffi::ObjectRef>(loc));
 }
 
-DiagnosticBuilder Diagnostic::Note(const Object* loc) { return Note(ffi::GetRef<ObjectRef>(loc)); }
-
-DiagnosticBuilder Diagnostic::Warning(const Object* loc) {
-  return Warning(ffi::GetRef<ObjectRef>(loc));
+DiagnosticBuilder Diagnostic::Error(const ffi::Object* loc) {
+  return Error(ffi::GetRef<ffi::ObjectRef>(loc));
 }
 
-DiagnosticBuilder Diagnostic::Help(const Object* loc) { return Help(ffi::GetRef<ObjectRef>(loc)); }
+DiagnosticBuilder Diagnostic::Note(const ffi::Object* loc) {
+  return Note(ffi::GetRef<ffi::ObjectRef>(loc));
+}
+
+DiagnosticBuilder Diagnostic::Warning(const ffi::Object* loc) {
+  return Warning(ffi::GetRef<ffi::ObjectRef>(loc));
+}
+
+DiagnosticBuilder Diagnostic::Help(const ffi::Object* loc) {
+  return Help(ffi::GetRef<ffi::ObjectRef>(loc));
+}
 
 DiagnosticBuilder Diagnostic::Error(std::string error_kind, Span span) {
   return DiagnosticBuilder(DiagnosticLevel::kError, span).WithErrorKind(std::move(error_kind));
 }
 
-DiagnosticBuilder Diagnostic::Error(std::string error_kind, ObjectRef loc) {
+DiagnosticBuilder Diagnostic::Error(std::string error_kind, ffi::ObjectRef loc) {
   return DiagnosticBuilder(DiagnosticLevel::kError, loc).WithErrorKind(std::move(error_kind));
 }
 
-DiagnosticBuilder Diagnostic::Error(std::string error_kind, const Object* loc) {
-  return Error(std::move(error_kind), ffi::GetRef<ObjectRef>(loc));
+DiagnosticBuilder Diagnostic::Error(std::string error_kind, const ffi::Object* loc) {
+  return Error(std::move(error_kind), ffi::GetRef<ffi::ObjectRef>(loc));
 }
 
 /* Diagnostic Renderer */
@@ -219,15 +226,15 @@ static const char* OVERRIDE_RENDERER = "diagnostics.OverrideRenderer";
 
 DiagnosticRenderer GetRenderer() {
   auto override_pf = tvm::ffi::Function::GetGlobal(OVERRIDE_RENDERER);
-  tvm::ffi::TypedFunction<ObjectRef()> pf;
+  tvm::ffi::TypedFunction<ffi::ObjectRef()> pf;
   if (override_pf) {
-    pf = tvm::ffi::TypedFunction<ObjectRef()>(*override_pf);
+    pf = tvm::ffi::TypedFunction<ffi::ObjectRef()>(*override_pf);
   } else {
     auto default_pf = tvm::ffi::Function::GetGlobal(DEFAULT_RENDERER);
     TVM_FFI_ICHECK(default_pf.has_value())
         << "Can not find registered function for " << DEFAULT_RENDERER << "." << std::endl
         << "Either this is an internal error or the default function was overloaded incorrectly.";
-    pf = tvm::ffi::TypedFunction<ObjectRef()>(*default_pf);
+    pf = tvm::ffi::TypedFunction<ffi::ObjectRef()>(*default_pf);
   }
   return Downcast<DiagnosticRenderer>(pf());
 }

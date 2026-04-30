@@ -46,7 +46,7 @@ class AutoBindNode : public ScheduleRuleNode {
 
   // Inherited from ScheduleRuleNode
   ScheduleRule Clone() const final {
-    ObjectPtr<AutoBindNode> n = ffi::make_object<AutoBindNode>(*this);
+    ffi::ObjectPtr<AutoBindNode> n = ffi::make_object<AutoBindNode>(*this);
     return ScheduleRule(n);
   }
 
@@ -75,7 +75,7 @@ ffi::Array<s_tir::Schedule> AutoBindNode::Apply(const s_tir::Schedule& sch,
 
 ScheduleRule ScheduleRule::AutoBind(int max_threadblocks, ffi::Array<Integer> thread_extents,
                                     int max_threads_per_block) {
-  ObjectPtr<AutoBindNode> n = ffi::make_object<AutoBindNode>();
+  ffi::ObjectPtr<AutoBindNode> n = ffi::make_object<AutoBindNode>();
   n->max_threadblocks_ = max_threadblocks;
   n->max_threads_per_block_ = max_threads_per_block;
   n->thread_extents_ = std::move(thread_extents);

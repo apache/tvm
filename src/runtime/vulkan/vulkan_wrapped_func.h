@@ -56,7 +56,7 @@ class VulkanModuleNode;
 // a wrapped function class to get packed func.
 class VulkanWrappedFunc {
  public:
-  void Init(VulkanModuleNode* m, ObjectPtr<Object> sptr, const std::string& func_name,
+  void Init(VulkanModuleNode* m, ffi::ObjectPtr<ffi::Object> sptr, const std::string& func_name,
             size_t num_buffer_args, size_t num_pack_args,
             const ffi::Array<ffi::String>& launch_param_tags);
 
@@ -66,7 +66,7 @@ class VulkanWrappedFunc {
   // internal module
   VulkanModuleNode* m_;
   // the resource holder
-  ObjectPtr<Object> sptr_;
+  ffi::ObjectPtr<ffi::Object> sptr_;
   // v The name of the function.
   std::string func_name_;
   // Number of buffer arguments

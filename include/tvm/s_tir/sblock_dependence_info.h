@@ -51,13 +51,13 @@ namespace tirx {
  * dependences. This provides the advantage that the scope block (parent block) for a given block
  * sref can be directly accessed using the sref->parent member
  */
-class SBlockDependenceInfoNode : public Object {
+class SBlockDependenceInfoNode : public ffi::Object {
  public:
   /*!
    * \brief Mapping from a block sref to its corresponding SBlockScope,
    * tracking the dependency inside the block scope,
    */
-  std::unordered_map<StmtSRef, SBlockScope, ObjectPtrHash, ObjectPtrEqual> sref2scope;
+  std::unordered_map<StmtSRef, SBlockScope, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> sref2scope;
   /*! \brief The reverse mapping from block/for-loop to their corresponding srefs */
   std::unordered_map<const StmtNode*, StmtSRef> stmt2ref;
 
@@ -65,7 +65,8 @@ class SBlockDependenceInfoNode : public Object {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<SBlockDependenceInfoNode>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.SBlockDependenceInfo", SBlockDependenceInfoNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.SBlockDependenceInfo", SBlockDependenceInfoNode,
+                                    ffi::Object);
 
   /*!
    * \brief Get the SBlockScope corresponding to the sref of scope root block
@@ -85,7 +86,7 @@ class SBlockDependenceInfoNode : public Object {
  * \brief Managed reference to SBlockDependenceInfoNode
  * \sa SBlockDependenceInfo
  */
-class SBlockDependenceInfo : public ObjectRef {
+class SBlockDependenceInfo : public ffi::ObjectRef {
   /*! \brief Construct an empty SBlockDependenceInfo
    */
   TVM_DLL SBlockDependenceInfo();
@@ -95,7 +96,7 @@ class SBlockDependenceInfo : public ObjectRef {
    */
   TVM_DLL SBlockDependenceInfo(IRModule mod);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SBlockDependenceInfo, ObjectRef,
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SBlockDependenceInfo, ffi::ObjectRef,
                                                 SBlockDependenceInfoNode);
 };
 

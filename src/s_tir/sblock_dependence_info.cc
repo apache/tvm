@@ -75,7 +75,7 @@ SBlockDependenceInfo::SBlockDependenceInfo() {
 }
 
 SBlockDependenceInfo::SBlockDependenceInfo(IRModule mod) {
-  ObjectPtr<SBlockDependenceInfoNode> n = ffi::make_object<SBlockDependenceInfoNode>();
+  ffi::ObjectPtr<SBlockDependenceInfoNode> n = ffi::make_object<SBlockDependenceInfoNode>();
   SBlockDependenceInfoNode* self = n.get();
   n->stmt2ref = SRefTreeCreator::Create(mod, /* include_loops */ false);
 

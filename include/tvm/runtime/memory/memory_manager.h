@@ -25,7 +25,6 @@
 #define TVM_RUNTIME_MEMORY_MEMORY_MANAGER_H_
 
 #include <tvm/runtime/base.h>
-#include <tvm/runtime/object.h>
 #include <tvm/runtime/tensor.h>
 
 #include <functional>
@@ -157,7 +156,7 @@ class MemoryManager {
 };
 
 /*! \brief An object representing a storage allocation. */
-class StorageObj : public Object {
+class StorageObj : public ffi::Object {
  public:
   /*! \brief The index into the VM function table. */
   Buffer buffer;
@@ -178,15 +177,15 @@ class StorageObj : public Object {
   }
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("vm.Storage", StorageObj, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("vm.Storage", StorageObj, ffi::Object);
 };
 
 /*! \brief reference to storage. */
-class Storage : public ObjectRef {
+class Storage : public ffi::ObjectRef {
  public:
   TVM_RUNTIME_DLL explicit Storage(Buffer buffer, Allocator* allocator);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Storage, ObjectRef, StorageObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Storage, ffi::ObjectRef, StorageObj);
 };
 
 }  // namespace memory

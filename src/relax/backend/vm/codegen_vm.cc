@@ -21,6 +21,7 @@
  * \file src/relax/backend/vm/codegen_vm.cc
  * \brief A codegen to generate VM executable from a Relax IRModule.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/exec_builder.h>
 #include <tvm/relax/expr_functor.h>
@@ -461,8 +462,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
  * module(s).
  * \return The created module.
  */
-void LinkModules(ObjectPtr<VMExecutable> exec, const ffi::Map<ffi::String, runtime::Tensor>& params,
-                 const tvm::ffi::Module& lib, const ffi::Array<ffi::Module>& ext_libs) {
+void LinkModules(ffi::ObjectPtr<VMExecutable> exec,
+                 const ffi::Map<ffi::String, runtime::Tensor>& params, const tvm::ffi::Module& lib,
+                 const ffi::Array<ffi::Module>& ext_libs) {
   // query if we need const loader for ext_modules
   // Wrap all submodules in the initialization wrapper.
   ffi::Map<ffi::String, ffi::Array<ffi::String>> const_vars_by_symbol;
@@ -499,7 +501,7 @@ void LinkModules(ObjectPtr<VMExecutable> exec, const ffi::Map<ffi::String, runti
 ffi::Module VMLink(ExecBuilder builder, Target target, ffi::Optional<ffi::Module> lib,
                    ffi::Array<ffi::Module> ext_libs,
                    ffi::Map<ffi::String, runtime::Tensor> params) {
-  ObjectPtr<VMExecutable> executable = builder->Get();
+  ffi::ObjectPtr<VMExecutable> executable = builder->Get();
   if (!lib.defined()) {
     lib = codegen::CSourceModuleCreate(";", "c", ffi::Array<ffi::String>{});
   }

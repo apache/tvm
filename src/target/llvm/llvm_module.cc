@@ -56,6 +56,7 @@
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Target/TargetOptions.h>
 #include <llvm/Transforms/Utils/Cloning.h>
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
@@ -63,7 +64,6 @@
 #include <tvm/ir/module.h>
 #include <tvm/ir/with_context.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/object.h>
 #include <tvm/target/codegen.h>
 #include <tvm/target/target.h>
 
@@ -156,7 +156,7 @@ LLVMModuleNode::~LLVMModuleNode() {
 }
 
 ffi::Optional<ffi::Function> LLVMModuleNode::GetFunction(const ffi::String& name) {
-  ObjectPtr<Object> sptr_to_self = ffi::GetObjectPtr<Object>(this);
+  ffi::ObjectPtr<ffi::Object> sptr_to_self = ffi::GetObjectPtr<ffi::Object>(this);
   if (name == "__tvm_is_system_module") {
     bool flag = (module_->getFunction("__tvm_module_startup") != nullptr);
     return ffi::Function([flag](ffi::PackedArgs args, ffi::Any* rv) { *rv = flag; });

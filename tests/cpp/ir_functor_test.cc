@@ -35,9 +35,9 @@ TEST(IRF, Basic) {
   Var x("x");
   auto z = x + 1;
 
-  NodeFunctor<int(const ObjectRef& n, int b)> f;
-  f.set_dispatch<VarNode>([](const ObjectRef& n, int b) { return b; });
-  f.set_dispatch<AddNode>([](const ObjectRef& n, int b) { return b + 2; });
+  NodeFunctor<int(const ffi::ObjectRef& n, int b)> f;
+  f.set_dispatch<VarNode>([](const ffi::ObjectRef& n, int b) { return b; });
+  f.set_dispatch<AddNode>([](const ffi::ObjectRef& n, int b) { return b + 2; });
   TVM_FFI_ICHECK_EQ(f(x, 2), 2);
   TVM_FFI_ICHECK_EQ(f(z, 2), 4);
 }
@@ -49,7 +49,7 @@ TEST(IRF, CountVar) {
   Var x("x"), y;
 
   auto z = x + 1 + y + y;
-  tirx::PostOrderVisit(z, [&n_var](const ObjectRef& n) {
+  tirx::PostOrderVisit(z, [&n_var](const ffi::ObjectRef& n) {
     if (n.as<VarNode>()) ++n_var;
   });
   TVM_FFI_ICHECK_EQ(n_var, 2);
@@ -66,7 +66,7 @@ TEST(IRF, PreOrderVisit) {
   bool init_visited = false;
   bool stopped_at_if = true;
   bool body_visited = false;
-  PreOrderVisit(block, [&](const ObjectRef& n) -> bool {
+  PreOrderVisit(block, [&](const ffi::ObjectRef& n) -> bool {
     if (n->IsInstance<IfThenElseNode>()) {
       init_visited = true;
       return false;

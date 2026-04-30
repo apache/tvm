@@ -24,7 +24,6 @@
 #include <tvm/ffi/optional.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/object.h>
 #include <tvm/runtime/tensor.h>
 
 namespace tvm {
@@ -32,7 +31,7 @@ namespace runtime {
 namespace vm {
 
 /*! \brief The base class of attention KV cache and rnn state. */
-class KVStateObj : public Object {
+class KVStateObj : public ffi::Object {
  public:
   /*! \brief Reset the KV State. */
   virtual void Clear() = 0;
@@ -107,12 +106,12 @@ class KVStateObj : public Object {
   virtual void EndForward() = 0;
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("relax.vm.KVState", KVStateObj, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.vm.KVState", KVStateObj, ffi::Object);
 };
 
-class KVState : public ObjectRef {
+class KVState : public ffi::ObjectRef {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(KVState, ObjectRef, KVStateObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(KVState, ffi::ObjectRef, KVStateObj);
 };
 
 /*!

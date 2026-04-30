@@ -25,7 +25,6 @@
 #include <tvm/ffi/string.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/module.h>
-#include <tvm/runtime/object.h>
 #include <tvm/s_tir/meta_schedule/arg_info.h>
 #include <tvm/s_tir/schedule/schedule.h>
 #include <tvm/s_tir/schedule/trace.h>
@@ -41,7 +40,7 @@ namespace meta_schedule {
 class ModuleEquality;
 
 /*! \brief A workload, i.e. an IRModule and its structural hash. */
-class WorkloadNode : public runtime::Object {
+class WorkloadNode : public ffi::Object {
  public:
   /*! \brief The type of structural hash */
   using THashCode = size_t;
@@ -54,23 +53,23 @@ class WorkloadNode : public runtime::Object {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<WorkloadNode>().def_ro("mod", &WorkloadNode::mod);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.Workload", WorkloadNode, runtime::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.Workload", WorkloadNode, ffi::Object);
 
   /*!
    * \brief Export the workload to a JSON string.
    * \return An array containing the structural hash and the base64 json string.
    */
-  ObjectRef AsJSON() const;
+  ffi::ObjectRef AsJSON() const;
 };
 
 /*!
  * \brief Managed reference to WorkloadNode.
  *  \sa WorkloadNode
  */
-class Workload : public runtime::ObjectRef {
+class Workload : public ffi::ObjectRef {
  public:
   using THashCode = WorkloadNode::THashCode;
-  explicit Workload(ObjectPtr<WorkloadNode> data) : ObjectRef(data) {}
+  explicit Workload(ffi::ObjectPtr<WorkloadNode> data) : ffi::ObjectRef(data) {}
   /*!
    * \brief Constructor of Workload.
    * \param mod The workload's IRModule.
@@ -87,9 +86,9 @@ class Workload : public runtime::ObjectRef {
    * \param json_obj The json object.
    * \return The created workload.
    */
-  TVM_DLL static Workload FromJSON(const ObjectRef& json_obj);
+  TVM_DLL static Workload FromJSON(const ffi::ObjectRef& json_obj);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Workload, runtime::ObjectRef, WorkloadNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Workload, ffi::ObjectRef, WorkloadNode);
 };
 
 /*! \brief The hash method for Workload */
@@ -112,7 +111,7 @@ struct WorkloadEqual {
 class MeasureCandidate;
 
 /*! \brief The class of tuning records. */
-class TuningRecordNode : public runtime::Object {
+class TuningRecordNode : public ffi::Object {
  public:
   /*! \brief The trace tuned. */
   s_tir::Trace trace;
@@ -135,7 +134,7 @@ class TuningRecordNode : public runtime::Object {
         .def_ro("args_info", &TuningRecordNode::args_info);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.TuningRecord", TuningRecordNode,
-                                    runtime::Object);
+                                    ffi::Object);
 
   /*! \brief Construct the measure candidate given the initial IR module and trace
    * stored in the tuning record. */
@@ -145,7 +144,7 @@ class TuningRecordNode : public runtime::Object {
    * \return An array containing the trace, running secs, serialized target, and
    * argument information.
    */
-  ObjectRef AsJSON() const;
+  ffi::ObjectRef AsJSON() const;
   /*!
    * \brief Check if this tuning record has valid trace instructions and successful run results.
    * \return The check result.
@@ -157,7 +156,7 @@ class TuningRecordNode : public runtime::Object {
  * \brief The managed reference of TuningRecordNode.
  * \sa TuningRecordNode
  */
-class TuningRecord : public runtime::ObjectRef {
+class TuningRecord : public ffi::ObjectRef {
  public:
   /*!
    \brief Constructor of a tuning record.
@@ -177,14 +176,14 @@ class TuningRecord : public runtime::ObjectRef {
    * \param workload The workload.
    * \return The tuning record created.
    */
-  TVM_DLL static TuningRecord FromJSON(const ObjectRef& json_obj, const Workload& workload);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TuningRecord, runtime::ObjectRef, TuningRecordNode);
+  TVM_DLL static TuningRecord FromJSON(const ffi::ObjectRef& json_obj, const Workload& workload);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TuningRecord, ffi::ObjectRef, TuningRecordNode);
 };
 
 class Database;
 
 /* \brief The abstract interface of database. */
-class DatabaseNode : public runtime::Object {
+class DatabaseNode : public ffi::Object {
  public:
   /*!
    * \brief Constructor
@@ -275,7 +274,7 @@ class DatabaseNode : public runtime::Object {
   }
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.Database", DatabaseNode, runtime::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.Database", DatabaseNode, ffi::Object);
 
  private:
   /*! \brief The module equality testing and hashing method */
@@ -465,13 +464,13 @@ class PyDatabaseNode : public DatabaseNode {
  * \brief Managed reference to DatabaseNode.
  * \sa DatabaseNode
  */
-class Database : public runtime::ObjectRef {
+class Database : public ffi::ObjectRef {
  public:
   /*!
-   * \brief Constructor from ObjectPtr<DatabaseNode>.
+   * \brief Constructor from ffi::ObjectPtr<DatabaseNode>.
    * \param data The object pointer.
    */
-  explicit Database(ObjectPtr<DatabaseNode> data) : ObjectRef(data) {
+  explicit Database(ffi::ObjectPtr<DatabaseNode> data) : ffi::ObjectRef(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
   /*!
@@ -543,7 +542,7 @@ class Database : public runtime::ObjectRef {
   /*! \brief Exiting the scope of the context manager */
   void ExitWithScope();
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Database, runtime::ObjectRef, DatabaseNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Database, ffi::ObjectRef, DatabaseNode);
 };
 
 }  // namespace meta_schedule

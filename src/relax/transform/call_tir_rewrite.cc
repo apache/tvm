@@ -21,6 +21,7 @@
  * \brief Perform explicit tensor allocation for call_tir,
  *        call_tir_inplace, and call_dps_packed.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/attrs/op.h>
 #include <tvm/relax/expr_functor.h>

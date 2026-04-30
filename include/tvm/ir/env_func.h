@@ -26,12 +26,13 @@
 
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/object.h>
+#include <tvm/runtime/base.h>
 
 #include <string>
 #include <utility>
 
 namespace tvm {
+
 /*!
  * \brief A serializable function backed by TVM's global environment.
  *
@@ -40,7 +41,7 @@ namespace tvm {
  * under the assumption that the same function is registered during load.
  * \sa EnvFunc
  */
-class EnvFuncNode : public Object {
+class EnvFuncNode : public ffi::Object {
  public:
   /*! \brief Unique name of the global function */
   ffi::String name;
@@ -58,21 +59,21 @@ class EnvFuncNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.EnvFunc", EnvFuncNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.EnvFunc", EnvFuncNode, ffi::Object);
 };
 
 /*!
  * \brief Managed reference to EnvFuncNode.
  * \sa EnvFuncNode
  */
-class EnvFunc : public ObjectRef {
+class EnvFunc : public ffi::ObjectRef {
  public:
   EnvFunc() {}
-  explicit EnvFunc(ObjectPtr<Object> n) : ObjectRef(n) {}
+  explicit EnvFunc(ffi::ObjectPtr<ffi::Object> n) : ffi::ObjectRef(n) {}
   /*!
    * \brief constructor with UnsafeInit
    */
-  explicit EnvFunc(ffi::UnsafeInit tag) : ObjectRef(tag) {}
+  explicit EnvFunc(ffi::UnsafeInit tag) : ffi::ObjectRef(tag) {}
   /*! \return The internal global function pointer */
   const EnvFuncNode* operator->() const { return static_cast<const EnvFuncNode*>(get()); }
   /*!
@@ -113,23 +114,23 @@ class TypedEnvFunc;
  * \sa EnvFunc
  */
 template <typename R, typename... Args>
-class TypedEnvFunc<R(Args...)> : public ObjectRef {
+class TypedEnvFunc<R(Args...)> : public ffi::ObjectRef {
  public:
   /*! \brief short hand for this function type */
   using TSelf = TypedEnvFunc<R(Args...)>;
   TypedEnvFunc() {}
-  explicit TypedEnvFunc(ObjectPtr<Object> n) : ObjectRef(n) {}
+  explicit TypedEnvFunc(ffi::ObjectPtr<ffi::Object> n) : ffi::ObjectRef(n) {}
   /*!
    * \brief constructor with UnsafeInit
    */
-  explicit TypedEnvFunc(ffi::UnsafeInit tag) : ObjectRef(tag) {}
+  explicit TypedEnvFunc(ffi::UnsafeInit tag) : ffi::ObjectRef(tag) {}
   /*!
    * \brief Assign global function to a TypedEnvFunc
    * \param other Another global function.
    * \return reference to self.
    */
   TSelf& operator=(const EnvFunc& other) {
-    ObjectRef::operator=(other);
+    ffi::ObjectRef::operator=(other);
     return *this;
   }
   /*! \return The internal global function pointer */

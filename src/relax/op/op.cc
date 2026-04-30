@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/op.h>
@@ -242,7 +243,7 @@ TVM_REGISTER_OP("relax.call_inplace_packed")
 
 Expr MakeCallInplacePacked(Expr func, ffi::Array<Expr> args, ffi::Array<Integer> inplace_indices,
                            ffi::Array<StructInfo> sinfo_args) {
-  ObjectPtr<CallInplacePackedAttrs> attrs = ffi::make_object<CallInplacePackedAttrs>();
+  ffi::ObjectPtr<CallInplacePackedAttrs> attrs = ffi::make_object<CallInplacePackedAttrs>();
   attrs->inplace_indices = ffi::Array<Integer>(inplace_indices.begin(), inplace_indices.end());
 
   static const Op& op = Op::Get("relax.call_inplace_packed");
@@ -651,7 +652,7 @@ Expr MakeCallTIRWithGrad(Expr func, Tuple args, ffi::Array<TensorStructInfo> out
     out_sinfo = TupleStructInfo({out_sinfo_list.begin(), out_sinfo_list.end()});
   }
 
-  ObjectPtr<CallTIRWithGradAttrs> attrs = ffi::make_object<CallTIRWithGradAttrs>();
+  ffi::ObjectPtr<CallTIRWithGradAttrs> attrs = ffi::make_object<CallTIRWithGradAttrs>();
   attrs->te_grad_name = te_grad_name;
   attrs->te_grad_kwargs = te_grad_kwargs;
 
@@ -789,7 +790,7 @@ Expr MakeCallTIRInplace(Expr func, Tuple args, ffi::Array<Integer> inplace_indic
         << sinfo;
   }
 
-  ObjectPtr<CallTIRInplaceAttrs> attrs = ffi::make_object<CallTIRInplaceAttrs>();
+  ffi::ObjectPtr<CallTIRInplaceAttrs> attrs = ffi::make_object<CallTIRInplaceAttrs>();
   attrs->inplace_indices = ffi::Array<Integer>(inplace_indices.begin(), inplace_indices.end());
 
   StructInfo out_sinfo{nullptr};
@@ -1563,7 +1564,7 @@ TVM_REGISTER_OP("relax.to_vdevice")
 
 Expr MakeToVDevice(Expr data, VDevice dst_vdev) {
   static const Op& op = Op::Get("relax.to_vdevice");
-  ObjectPtr<ToVDeviceAttrs> attrs = ffi::make_object<ToVDeviceAttrs>();
+  ffi::ObjectPtr<ToVDeviceAttrs> attrs = ffi::make_object<ToVDeviceAttrs>();
   attrs->dst_vdevice = dst_vdev;
   return Call(op, {data}, Attrs(attrs), {});
 }
@@ -1591,7 +1592,7 @@ TVM_REGISTER_OP("relax.hint_on_device")
 
 Expr MakeHintOnDevice(Expr data, Device device, ffi::String memory_scope = "global") {
   static const Op& op = Op::Get("relax.hint_on_device");
-  ObjectPtr<HintOnDeviceAttrs> attrs = ffi::make_object<HintOnDeviceAttrs>();
+  ffi::ObjectPtr<HintOnDeviceAttrs> attrs = ffi::make_object<HintOnDeviceAttrs>();
   attrs->device_type = static_cast<int32_t>(device.device_type);
   attrs->index = device.device_id;
   attrs->memory_scope = memory_scope;

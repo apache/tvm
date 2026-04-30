@@ -19,6 +19,7 @@
 
 #include "vulkan_wrapped_func.h"
 
+#include <tvm/ffi/cast.h>
 #include <tvm/support/io.h>
 
 #include <utility>
@@ -30,7 +31,7 @@ namespace tvm {
 namespace runtime {
 namespace vulkan {
 
-void VulkanWrappedFunc::Init(VulkanModuleNode* m, ObjectPtr<Object> sptr,
+void VulkanWrappedFunc::Init(VulkanModuleNode* m, ffi::ObjectPtr<ffi::Object> sptr,
                              const std::string& func_name, size_t num_buffer_args,
                              size_t num_pack_args,
                              const ffi::Array<ffi::String>& launch_param_tags) {
@@ -206,7 +207,7 @@ VulkanModuleNode::~VulkanModuleNode() {
 }
 
 ffi::Optional<ffi::Function> VulkanModuleNode::GetFunction(const ffi::String& name) {
-  ObjectPtr<Object> sptr_to_self = ffi::GetObjectPtr<Object>(this);
+  ffi::ObjectPtr<ffi::Object> sptr_to_self = ffi::GetObjectPtr<ffi::Object>(this);
   TVM_FFI_ICHECK_EQ(sptr_to_self.get(), this);
   auto opt_info = fmap_.Get(name);
   if (!opt_info.has_value()) return std::nullopt;

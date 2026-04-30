@@ -21,6 +21,7 @@
  * \file tvm/runtime/memory/memory_manager.cc
  * \brief Allocate and manage memory for the runtime.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/memory/memory_manager.h>

@@ -19,6 +19,7 @@
 #ifndef TVM_SCRIPT_PRINTER_UTILS_H_
 #define TVM_SCRIPT_PRINTER_UTILS_H_
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/dataclass.h>
 #include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/extra/serialization.h>
@@ -48,7 +49,7 @@ namespace printer {
   }                                                                                            \
   TVM_STATIC_IR_FUNCTOR(TVMScriptPrinter, vtable).set_dispatch<ObjectType>(Method)
 
-inline std::string RedirectedReprPrinterMethod(const ObjectRef& obj) {
+inline std::string RedirectedReprPrinterMethod(const ffi::ObjectRef& obj) {
   try {
     return TVMScriptPrinter::Script(obj, std::nullopt);
   } catch (const tvm::ffi::Error& e) {
@@ -60,7 +61,7 @@ inline std::string RedirectedReprPrinterMethod(const ObjectRef& obj) {
   }
 }
 
-inline std::string Docsify(const ObjectRef& obj, const IRDocsifier& d, const Frame& f,
+inline std::string Docsify(const ffi::ObjectRef& obj, const IRDocsifier& d, const Frame& f,
                            const PrinterConfig& cfg) {
   Doc doc = d->AsDoc(obj, AccessPath::Root());
   bool move_source_paths = false;

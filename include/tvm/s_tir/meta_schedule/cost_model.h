@@ -24,7 +24,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
-#include <tvm/runtime/object.h>
+#include <tvm/runtime/base.h>
 #include <tvm/s_tir/meta_schedule/arg_info.h>
 #include <tvm/s_tir/meta_schedule/measure_candidate.h>
 #include <tvm/s_tir/meta_schedule/runner.h>
@@ -39,7 +39,7 @@ namespace meta_schedule {
 class TuneContext;
 
 /*! \brief Cost model. */
-class CostModelNode : public runtime::Object {
+class CostModelNode : public ffi::Object {
  public:
   /*! \brief Virtual destructor. */
   virtual ~CostModelNode() = default;
@@ -75,7 +75,7 @@ class CostModelNode : public runtime::Object {
                                       const ffi::Array<MeasureCandidate>& candidates) = 0;
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.CostModel", CostModelNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.CostModel", CostModelNode, ffi::Object);
 };
 
 /*! \brief The cost model with customized methods on the python-side. */
@@ -139,7 +139,7 @@ class PyCostModelNode : public CostModelNode {
  * \brief Managed reference to CostModelNode
  * \sa CostModelNode
  */
-class CostModel : public runtime::ObjectRef {
+class CostModel : public ffi::ObjectRef {
  public:
   /*!
    * \brief Create a feature extractor with customized methods on the python-side.
@@ -155,7 +155,7 @@ class CostModel : public runtime::ObjectRef {
                                        PyCostModelNode::FUpdate f_update,    //
                                        PyCostModelNode::FPredict f_predict,  //
                                        PyCostModelNode::FAsString f_as_string);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(CostModel, ObjectRef, CostModelNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(CostModel, ffi::ObjectRef, CostModelNode);
 };
 
 }  // namespace meta_schedule

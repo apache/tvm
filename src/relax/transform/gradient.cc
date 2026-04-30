@@ -25,6 +25,7 @@
  * with respect to the only return value of the function, which needs to be scalar.
  */
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/op.h>
@@ -45,10 +46,10 @@ namespace relax {
 
 // We will use NestedMsg<Expr> to handle adjoint updates involving tuple handling
 using AdjointMsg = NestedMsg<Expr>;
-using VarIdSet = std::unordered_set<Id, ObjectPtrHash, ObjectPtrEqual>;
+using VarIdSet = std::unordered_set<Id, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>;
 
 // Used in CallTIRWithGradCollector. call_tir -> call_tir_with_grad
-using CallTIRWithGradInfo = std::unordered_map<Call, Call, ObjectPtrHash, ObjectPtrEqual>;
+using CallTIRWithGradInfo = std::unordered_map<Call, Call, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>;
 
 /*!
  * \brief Collect all call_tir_with_grad nodes, transform them into call_tir nodes, and collect the
@@ -110,7 +111,7 @@ class CheckpointCollector : private ExprMutator {
   // checkpointed vars
   VarIdSet checkpoints;
   // mapping from vars that are wrapped in start_checkpoint or end_checkpoint to the original vars
-  std::unordered_map<Id, Var, ObjectPtrHash, ObjectPtrEqual> var_mapping;
+  std::unordered_map<Id, Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> var_mapping;
 
  private:
   Expr VisitExpr_(const FunctionNode* func) final {

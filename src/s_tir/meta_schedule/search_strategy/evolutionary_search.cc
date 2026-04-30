@@ -17,6 +17,7 @@
  * under the License.
  */
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 
 #include <mutex>
@@ -460,7 +461,7 @@ class EvolutionarySearchNode : public SearchStrategyNode {
   }
 
   SearchStrategy Clone() const final {
-    ObjectPtr<EvolutionarySearchNode> n = ffi::make_object<EvolutionarySearchNode>();
+    ffi::ObjectPtr<EvolutionarySearchNode> n = ffi::make_object<EvolutionarySearchNode>();
     n->population_size = this->population_size;
     n->num_empty_iters_before_early_stop = this->num_empty_iters_before_early_stop;
     n->init_measured_ratio = this->init_measured_ratio;
@@ -784,7 +785,7 @@ SearchStrategy SearchStrategy::EvolutionarySearch(int population_size,         /
   TVM_META_SCHEDULE_CHECK_PROB_RANGE(init_measured_ratio, "Initial measured ratio");
   TVM_META_SCHEDULE_CHECK_PROB_RANGE(genetic_mutate_prob, "Mutation probability");
   TVM_META_SCHEDULE_CHECK_PROB_RANGE(eps_greedy, "Greedy pick probability");
-  ObjectPtr<EvolutionarySearchNode> n = ffi::make_object<EvolutionarySearchNode>();
+  ffi::ObjectPtr<EvolutionarySearchNode> n = ffi::make_object<EvolutionarySearchNode>();
   n->population_size = population_size;
   n->num_empty_iters_before_early_stop = 5;
   n->init_measured_ratio = init_measured_ratio;

@@ -111,7 +111,7 @@ struct PermuteDimsAttrs : public AttrsNodeReflAdapter<PermuteDimsAttrs> {
 
 /*! \brief Attributes used in split operator */
 struct SplitAttrs : public AttrsNodeReflAdapter<SplitAttrs> {
-  ObjectRef indices_or_sections;
+  ffi::ObjectRef indices_or_sections;
   int axis;
 
   static void RegisterReflection() {

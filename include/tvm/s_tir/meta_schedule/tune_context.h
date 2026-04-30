@@ -27,7 +27,6 @@
 #include <tvm/ffi/string.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/module.h>
-#include <tvm/runtime/object.h>
 #include <tvm/s_tir/meta_schedule/builder.h>
 #include <tvm/s_tir/meta_schedule/runner.h>
 #include <tvm/s_tir/meta_schedule/search_strategy.h>
@@ -44,7 +43,7 @@ class MeasureCallback;
 class TuneContext;
 
 /*! \brief The auto tuning context. */
-class TuneContextNode : public runtime::Object {
+class TuneContextNode : public ffi::Object {
  public:
   using TRandState = LinearCongruentialEngine::TRandState;
 
@@ -89,21 +88,22 @@ class TuneContextNode : public runtime::Object {
   TuneContext Clone() const;
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.TuneContext", TuneContextNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.TuneContext", TuneContextNode,
+                                    ffi::Object);
 };
 
 /*!
  * \brief Managed reference to TuneContextNode.
  * \sa TuneContextNode
  */
-class TuneContext : public runtime::ObjectRef {
+class TuneContext : public ffi::ObjectRef {
  public:
   using TRandState = LinearCongruentialEngine::TRandState;
   /*!
-   * \brief Constructor from ObjectPtr<TuneContextNode>.
+   * \brief Constructor from ffi::ObjectPtr<TuneContextNode>.
    * \param data The object pointer.
    */
-  explicit TuneContext(ObjectPtr<TuneContextNode> data) : ObjectRef(data) {
+  explicit TuneContext(ffi::ObjectPtr<TuneContextNode> data) : ffi::ObjectRef(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
   /*!
@@ -122,7 +122,7 @@ class TuneContext : public runtime::ObjectRef {
                                ffi::Optional<SearchStrategy> search_strategy,
                                ffi::Optional<ffi::String> task_name, int num_threads,
                                TRandState rand_state, ffi::Function logger);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TuneContext, ObjectRef, TuneContextNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TuneContext, ffi::ObjectRef, TuneContextNode);
 };
 
 }  // namespace meta_schedule

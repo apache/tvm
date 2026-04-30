@@ -18,6 +18,7 @@
  */
 
 #include <tvm/arith/iter_affine_map.h>
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/op_attr_types.h>
@@ -256,7 +257,7 @@ class PatternKindAnalyzer : public StmtExprVisitor {
       }
     }
     for (const PrimExpr& index : load->indices) {
-      PreOrderVisit(index, [&](const ObjectRef& node) {
+      PreOrderVisit(index, [&](const ffi::ObjectRef& node) {
         if (const auto* v = node.as<tirx::VarNode>()) {
           if (vars.count(v)) {
             vars.erase(v);
@@ -342,7 +343,7 @@ class PatternKindAnalyzer : public StmtExprVisitor {
   /*! \brief The result of op pattern. */
   OpPatternKind kind_ = kElemWise;
   /*! \brief The buffers from function params. I.e. the input and output buffers. */
-  std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual> param_buffers_;
+  std::unordered_set<Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> param_buffers_;
 
  public:
   OpPatternKind GetResult() { return kind_; }

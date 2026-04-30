@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/distributed.h>
 #include <tvm/relax/attrs/linear_algebra.h>

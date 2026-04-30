@@ -23,6 +23,7 @@
  * This pass merges multiple TIR-level dynamic or static shared memory allocations into one
  * allocation.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>
@@ -114,7 +115,7 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
   /*! \brief record the touch list of statement. */
   struct StmtEntry {
     // The statement
-    const Object* stmt;
+    const ffi::Object* stmt;
     // The index in the linear_seq_ to point to end of the nested scope.
     // This is only set to non-zero if stmt is a nested scope.
     // if offset > 0, means this is the begin, the end entry is current_index + offset
@@ -692,7 +693,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
   // Whether any original shared memory allocation had the volatile annotation
   bool has_volatile_alloc_{false};
   // Locations of free ops.
-  std::unordered_map<const Object*, EventEntry> event_map_;
+  std::unordered_map<const ffi::Object*, EventEntry> event_map_;
   // constant size free map.
   std::multimap<uint64_t, StorageEntry*> const_free_map_;
   // symbolic free list, for non constant items.

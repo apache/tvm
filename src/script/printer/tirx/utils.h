@@ -19,6 +19,7 @@
 #ifndef TVM_SCRIPT_PRINTER_TIR_UTILS_H_
 #define TVM_SCRIPT_PRINTER_TIR_UTILS_H_
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/script/printer/ir_docsifier.h>
 #include <tvm/tirx/analysis.h>
@@ -45,7 +46,7 @@ namespace printer {
 class TIRFrameNode : public FrameNode {
  public:
   /*! \brief The TIR fragment the frame corresponds to */
-  ObjectRef tirx;
+  ffi::ObjectRef tirx;
   /*! \brief Whether or not the frame allows concise scoping */
   bool allow_concise_scoping{false};
 
@@ -62,8 +63,8 @@ class TIRFrameNode : public FrameNode {
 class TIRFrame : public Frame {
  public:
   /*! \brief Constructor */
-  explicit TIRFrame(const IRDocsifier& d, const ObjectRef& tirx) {
-    ObjectPtr<TIRFrameNode> n = ffi::make_object<TIRFrameNode>();
+  explicit TIRFrame(const IRDocsifier& d, const ffi::ObjectRef& tirx) {
+    ffi::ObjectPtr<TIRFrameNode> n = ffi::make_object<TIRFrameNode>();
     n->stmts.clear();
     n->d = d.get();
     n->tirx = tirx;
@@ -137,12 +138,12 @@ inline void AsDocBody(const tirx::Stmt& stmt, AccessPath p, TIRFrameNode* f, con
  * \param d The IRDocsifier
  * \return The frame that could place the var definition
  */
-inline ffi::Optional<Frame> FindLowestVarDef(const ObjectRef& var, const IRDocsifier& d) {
+inline ffi::Optional<Frame> FindLowestVarDef(const ffi::ObjectRef& var, const IRDocsifier& d) {
   if (!d->common_prefix.count(var.get())) {
     return std::nullopt;
   }
   int n_frames = d->frames.size();
-  std::unordered_map<const Object*, const FrameNode*> tir_to_frame;
+  std::unordered_map<const ffi::Object*, const FrameNode*> tir_to_frame;
   const FrameNode* fallback_frame = nullptr;
   tir_to_frame.reserve(n_frames);
   for (int i = n_frames - 1; i >= 0; --i) {
@@ -154,7 +155,7 @@ inline ffi::Optional<Frame> FindLowestVarDef(const ObjectRef& var, const IRDocsi
       }
     }
   }
-  const std::vector<const Object*>& path = d->common_prefix.at(var.get());
+  const std::vector<const ffi::Object*>& path = d->common_prefix.at(var.get());
   for (auto it = path.rbegin(); it != path.rend(); ++it) {
     if (tir_to_frame.count(*it)) {
       return ffi::GetRef<Frame>(tir_to_frame.at(*it));
@@ -167,12 +168,12 @@ inline ffi::Optional<Frame> FindLowestVarDef(const ObjectRef& var, const IRDocsi
 }
 
 /*! \brief Redirected method for the ffi repr hook */
-inline std::string ReprPrintTIR(const ObjectRef& obj, const PrinterConfig& cfg) {
+inline std::string ReprPrintTIR(const ffi::ObjectRef& obj, const PrinterConfig& cfg) {
   IRDocsifier d(cfg);
-  d->SetCommonPrefix(obj, [](const ObjectRef& obj) {
+  d->SetCommonPrefix(obj, [](const ffi::ObjectRef& obj) {
     return obj->IsInstance<tirx::VarNode>() || obj->IsInstance<tirx::BufferNode>();
   });
-  With<TIRFrame> f(d, ObjectRef{nullptr});
+  With<TIRFrame> f(d, ffi::ObjectRef{nullptr});
   (*f)->AddDispatchToken(d, "tirx");
   return Docsify(obj, d, *f, cfg);
 }

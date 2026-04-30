@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 
 #include <utility>
@@ -33,7 +34,7 @@ TuneContext::TuneContext(ffi::Optional<IRModule> mod, ffi::Optional<Target> targ
                          TRandState rand_state, ffi::Function logger) {
   TVM_FFI_CHECK(rand_state == -1 || rand_state >= 0, ValueError)
       << "Invalid random state: " << rand_state;
-  ObjectPtr<TuneContextNode> n = ffi::make_object<TuneContextNode>();
+  ffi::ObjectPtr<TuneContextNode> n = ffi::make_object<TuneContextNode>();
   n->mod = mod;
   n->target = target;
   n->space_generator = space_generator;
@@ -46,7 +47,7 @@ TuneContext::TuneContext(ffi::Optional<IRModule> mod, ffi::Optional<Target> targ
 }
 
 TuneContext TuneContextNode::Clone() const {
-  ObjectPtr<TuneContextNode> n = ffi::make_object<TuneContextNode>(*this);
+  ffi::ObjectPtr<TuneContextNode> n = ffi::make_object<TuneContextNode>(*this);
   if (this->space_generator.defined()) {
     n->space_generator = this->space_generator.value()->Clone();
   }

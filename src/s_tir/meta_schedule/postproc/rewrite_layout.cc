@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>
 
@@ -116,7 +117,7 @@ class LayoutFreeBufferCollector : public StmtVisitor {
     }
   }
 
-  std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual> buffers;
+  std::unordered_set<Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffers;
 };
 
 ffi::Array<Buffer> CollectLayoutFreeBuffers(const PrimFuncNode* func) {
@@ -264,7 +265,7 @@ class RewriteLayoutNode : public PostprocNode {
   }
 
   Postproc Clone() const {
-    ObjectPtr<RewriteLayoutNode> n = ffi::make_object<RewriteLayoutNode>(*this);
+    ffi::ObjectPtr<RewriteLayoutNode> n = ffi::make_object<RewriteLayoutNode>(*this);
     return Postproc(n);
   }
 

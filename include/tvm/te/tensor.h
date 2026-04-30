@@ -45,12 +45,12 @@ class OperationNode;
 class Tensor;
 
 /*! \brief Operation that produces tensors */
-class Operation : public ObjectRef {
+class Operation : public ffi::ObjectRef {
  public:
   /*! \brief default constructor  */
   Operation() {}
-  explicit Operation(ObjectPtr<Object> n) : ObjectRef(n) {}
-  explicit Operation(ffi::UnsafeInit tag) : ObjectRef(tag) {}
+  explicit Operation(ffi::ObjectPtr<ffi::Object> n) : ffi::ObjectRef(n) {}
+  explicit Operation(ffi::UnsafeInit tag) : ffi::ObjectRef(tag) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
@@ -261,12 +261,12 @@ DEFINE_OVERLOAD_SLICE_BINARY_OP(<);  // NOLINT(*)
 
 namespace std {
 template <>
-struct hash<::tvm::te::Operation> : public ::tvm::ObjectPtrHash {};
+struct hash<::tvm::te::Operation> : public ::tvm::ffi::ObjectPtrHash {};
 
 template <>
 struct hash<::tvm::te::Tensor> {
   std::size_t operator()(const ::tvm::te::Tensor& k) const {
-    ::tvm::ObjectPtrHash hasher;
+    ::tvm::ffi::ObjectPtrHash hasher;
     if (k.defined() && k->op.defined()) {
       return hasher(k->op);
     } else {

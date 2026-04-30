@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
@@ -206,7 +207,7 @@ class VerifyGPUCodeNode : public PostprocNode {
   }
 
   Postproc Clone() const {
-    ObjectPtr<VerifyGPUCodeNode> n = ffi::make_object<VerifyGPUCodeNode>(*this);
+    ffi::ObjectPtr<VerifyGPUCodeNode> n = ffi::make_object<VerifyGPUCodeNode>(*this);
     n->target_constraints_ = this->target_constraints_;
     return Postproc(n);
   }
@@ -221,7 +222,7 @@ class VerifyGPUCodeNode : public PostprocNode {
 };
 
 Postproc Postproc::VerifyGPUCode() {
-  ObjectPtr<VerifyGPUCodeNode> n = ffi::make_object<VerifyGPUCodeNode>();
+  ffi::ObjectPtr<VerifyGPUCodeNode> n = ffi::make_object<VerifyGPUCodeNode>();
   return Postproc(n);
 }
 

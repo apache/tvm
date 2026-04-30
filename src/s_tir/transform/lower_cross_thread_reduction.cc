@@ -21,6 +21,7 @@
  * \file lower_cross_thread_reduction.cc
  */
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
@@ -77,7 +78,7 @@ bool IsBoundToThreadIdx(const ForNode* loop) {
 bool IsDominantBlock(const SBlock& scope_block, const SBlock& block) {
   // Step 1. Count the number of writers for each buffer written by the scope block.
   std::unordered_map<const BufferNode*, int> buffer_writer_cnt;
-  PreOrderVisit(scope_block->body, [&buffer_writer_cnt](const ObjectRef& obj) {
+  PreOrderVisit(scope_block->body, [&buffer_writer_cnt](const ffi::ObjectRef& obj) {
     if (const auto* block = obj.as<SBlockNode>()) {
       for (const BufferRegion& buffer_region : block->writes) {
         ++buffer_writer_cnt[buffer_region->buffer.get()];
@@ -353,13 +354,13 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
     // then replace `wb_buffers` with `it_buffers` accordingly in given BlockRealize
     // otherwise, directly remove given BlockRealize
     if (it_buffers.defined()) {
-      ObjectPtr<SBlockNode> new_block = ffi::make_object<SBlockNode>(*block);
+      ffi::ObjectPtr<SBlockNode> new_block = ffi::make_object<SBlockNode>(*block);
       new_block->writes = it_buffer_regions.value();
       new_block->name_hint = new_block->name_hint + "_in_thread";
       new_block->body =
           BufferReplacer::Run(wb_buffers, it_buffers.value(), std::move(new_block->body));
       new_block->init = std::nullopt;
-      ObjectPtr<SBlockRealizeNode> n = ffi::make_object<SBlockRealizeNode>(*realize);
+      ffi::ObjectPtr<SBlockRealizeNode> n = ffi::make_object<SBlockRealizeNode>(*realize);
       n->block = SBlock(new_block);
       new_realize = SBlockRealize(n);
     }
@@ -441,8 +442,8 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
       if (iter_var->iter_type != kCommReduce) {
         IterVar new_iter_var{nullptr};
         {
-          ObjectPtr<IterVarNode> n = ffi::make_object<IterVarNode>(*iter_var.get());
-          ObjectPtr<VarNode> v = ffi::make_object<VarNode>(*iter_var->var.get());
+          ffi::ObjectPtr<IterVarNode> n = ffi::make_object<IterVarNode>(*iter_var.get());
+          ffi::ObjectPtr<VarNode> v = ffi::make_object<VarNode>(*iter_var->var.get());
           n->var = Var(v);
           new_iter_var = IterVar(n);
         }
@@ -477,30 +478,31 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
     for (const ForNode* reduction_loop : reduction_loops) {
       reduction_loop_vars.insert(reduction_loop->loop_var.get());
     }
-    PostOrderVisit(realize->predicate, [&wb_predicate, &reduction_loop_vars](const ObjectRef& obj) {
-      if (const auto* and_node = obj.as<AndNode>()) {
-        ffi::Array<PrimExpr> sub_exprs = {and_node->a, and_node->b};
-        for (PrimExpr sub_expr : sub_exprs) {
-          if (sub_expr->IsInstance<AndNode>()) {
-            continue;
-          }
-          bool is_reduction = [sub_expr, &reduction_loop_vars]() {
-            ffi::Array<Var> vars = UndefinedVars(sub_expr);
-            for (Var var : vars) {
-              if (reduction_loop_vars.find(var.get()) != reduction_loop_vars.end()) {
-                return true;
-              }
-            }
-            return false;
-          }();
-          if (!is_reduction) {
-            wb_predicate = wb_predicate && sub_expr;
-          }
-        }
-        return true;
-      }
-      return false;
-    });
+    PostOrderVisit(realize->predicate,
+                   [&wb_predicate, &reduction_loop_vars](const ffi::ObjectRef& obj) {
+                     if (const auto* and_node = obj.as<AndNode>()) {
+                       ffi::Array<PrimExpr> sub_exprs = {and_node->a, and_node->b};
+                       for (PrimExpr sub_expr : sub_exprs) {
+                         if (sub_expr->IsInstance<AndNode>()) {
+                           continue;
+                         }
+                         bool is_reduction = [sub_expr, &reduction_loop_vars]() {
+                           ffi::Array<Var> vars = UndefinedVars(sub_expr);
+                           for (Var var : vars) {
+                             if (reduction_loop_vars.find(var.get()) != reduction_loop_vars.end()) {
+                               return true;
+                             }
+                           }
+                           return false;
+                         }();
+                         if (!is_reduction) {
+                           wb_predicate = wb_predicate && sub_expr;
+                         }
+                       }
+                       return true;
+                     }
+                     return false;
+                   });
     if (wb_buffers[0].scope() != "local") {
       for (const ForNode* loop : reduction_loops) {
         if (loop->thread_binding.defined()) {
@@ -524,7 +526,7 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
   for (auto rit = reduction_loops.rbegin(); rit != reduction_loops.rend(); ++rit) {
     const ForNode* loop = *rit;
     if (loop->thread_binding.defined()) {
-      ObjectPtr<ForNode> n = ffi::make_object<ForNode>(*loop);
+      ffi::ObjectPtr<ForNode> n = ffi::make_object<ForNode>(*loop);
       n->body = std::move(new_stmt);
       new_stmt = For(n);
     }
@@ -706,7 +708,7 @@ class CrossThreadReductionTransformer : public StmtMutator {
 
     // Condition 5. The block should be the last block under the first reduction-related loop.
     bool visit = false;
-    PreOrderVisit(ffi::GetRef<For>(reduction_loops[0]), [block, &visit](const ObjectRef& obj) {
+    PreOrderVisit(ffi::GetRef<For>(reduction_loops[0]), [block, &visit](const ffi::ObjectRef& obj) {
       if (const auto* realize = obj.as<SBlockRealizeNode>()) {
         TVM_FFI_CHECK(!visit, ValueError)
             << "Cross-thread reduction cannot be applied when the reduction "
@@ -865,7 +867,7 @@ class CrossThreadReductionTransformer : public StmtMutator {
     }
 
     // Step 2. Update the BlockRealize with the new predicate.
-    ObjectPtr<SBlockRealizeNode> p_realize = ffi::make_object<SBlockRealizeNode>(*realize);
+    ffi::ObjectPtr<SBlockRealizeNode> p_realize = ffi::make_object<SBlockRealizeNode>(*realize);
     p_realize->predicate = std::move(predicate);
 
     // Step 3. Wrap the updated BlockRealize with the new loops.

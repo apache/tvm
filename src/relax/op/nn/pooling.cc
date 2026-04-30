@@ -19,6 +19,7 @@
 
 #include "pooling.h"
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 
 #include <utility>
@@ -135,7 +136,7 @@ InferLayoutOutput InferLayoutPool1d(
   TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
-  ObjectPtr<Pool1DAttrs> new_attrs = ffi::make_object<Pool1DAttrs>(*attrs);
+  ffi::ObjectPtr<Pool1DAttrs> new_attrs = ffi::make_object<Pool1DAttrs>(*attrs);
   new_attrs->layout = TransposeLike(attrs->layout, InitialLayout(3), layout->layout).name();
   new_attrs->out_layout = TransposeLike(attrs->out_layout, InitialLayout(3), layout->layout).name();
   return InferLayoutOutput({layout}, {layout}, Attrs(new_attrs));
@@ -268,7 +269,7 @@ InferLayoutOutput InferLayoutPool2d(
   TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
-  ObjectPtr<Pool2DAttrs> new_attrs = ffi::make_object<Pool2DAttrs>(*attrs);
+  ffi::ObjectPtr<Pool2DAttrs> new_attrs = ffi::make_object<Pool2DAttrs>(*attrs);
 
   if (layout->layout.ndim() != layout->layout.ndim_primal()) {
     tirx::Layout in_layout(attrs->layout, DataType::Int(64));
@@ -432,7 +433,7 @@ InferLayoutOutput InferLayoutPool3d(
   TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
-  ObjectPtr<Pool3DAttrs> new_attrs = ffi::make_object<Pool3DAttrs>(*attrs);
+  ffi::ObjectPtr<Pool3DAttrs> new_attrs = ffi::make_object<Pool3DAttrs>(*attrs);
   new_attrs->layout = TransposeLike(attrs->layout, InitialLayout(5), layout->layout).name();
   new_attrs->out_layout = TransposeLike(attrs->out_layout, InitialLayout(5), layout->layout).name();
   return InferLayoutOutput({layout}, {layout}, Attrs(new_attrs));
@@ -517,7 +518,7 @@ TVM_REGISTER_OP("relax.nn.avg_pool3d")
 
 Expr adaptive_avg_pool1d(Expr data, ffi::Optional<ffi::Array<int64_t>> output_size,
                          ffi::String layout, ffi::Optional<ffi::String> out_layout) {
-  ObjectPtr<AdaptivePool1DAttrs> attrs = ffi::make_object<AdaptivePool1DAttrs>();
+  ffi::ObjectPtr<AdaptivePool1DAttrs> attrs = ffi::make_object<AdaptivePool1DAttrs>();
   attrs->layout = layout;
   attrs->out_layout = out_layout.value_or(layout);
   if (output_size.defined()) {
@@ -580,7 +581,7 @@ InferLayoutOutput InferLayoutAdaptiveAvgPool1D(
   TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
-  ObjectPtr<AdaptivePool1DAttrs> new_attrs = ffi::make_object<AdaptivePool1DAttrs>(*attrs);
+  ffi::ObjectPtr<AdaptivePool1DAttrs> new_attrs = ffi::make_object<AdaptivePool1DAttrs>(*attrs);
   new_attrs->layout = TransposeLike(attrs->layout, InitialLayout(3), layout->layout).name();
   new_attrs->out_layout = TransposeLike(attrs->out_layout, InitialLayout(3), layout->layout).name();
   return InferLayoutOutput({layout}, {layout}, Attrs(new_attrs));
@@ -599,7 +600,7 @@ TVM_REGISTER_OP("relax.nn.adaptive_avg_pool1d")
 
 Expr adaptive_avg_pool2d(Expr data, ffi::Optional<ffi::Array<int64_t>> output_size,
                          ffi::String layout, ffi::Optional<ffi::String> out_layout) {
-  ObjectPtr<AdaptivePool2DAttrs> attrs = ffi::make_object<AdaptivePool2DAttrs>();
+  ffi::ObjectPtr<AdaptivePool2DAttrs> attrs = ffi::make_object<AdaptivePool2DAttrs>();
   attrs->layout = layout;
   attrs->out_layout = out_layout.value_or(layout);
   if (output_size.defined()) {
@@ -666,7 +667,7 @@ InferLayoutOutput InferLayoutAdaptiveAvgPool2D(
   TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
-  ObjectPtr<AdaptivePool2DAttrs> new_attrs = ffi::make_object<AdaptivePool2DAttrs>(*attrs);
+  ffi::ObjectPtr<AdaptivePool2DAttrs> new_attrs = ffi::make_object<AdaptivePool2DAttrs>(*attrs);
   if (layout->layout.ndim() != layout->layout.ndim_primal()) {
     tirx::Layout in_layout(attrs->layout, DataType::Int(64));
     auto desired_layout = TransposeSubLayoutLike(attrs->layout, InitialLayout(4), layout->layout);
@@ -701,7 +702,7 @@ TVM_REGISTER_OP("relax.nn.adaptive_avg_pool2d")
 
 Expr adaptive_avg_pool3d(Expr data, ffi::Optional<ffi::Array<int64_t>> output_size,
                          ffi::String layout, ffi::Optional<ffi::String> out_layout) {
-  ObjectPtr<AdaptivePool3DAttrs> attrs = ffi::make_object<AdaptivePool3DAttrs>();
+  ffi::ObjectPtr<AdaptivePool3DAttrs> attrs = ffi::make_object<AdaptivePool3DAttrs>();
   attrs->layout = layout;
   attrs->out_layout = out_layout.value_or(layout);
   if (output_size.defined()) {
@@ -769,7 +770,7 @@ InferLayoutOutput InferLayoutAdaptiveAvgPool3D(
   TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
-  ObjectPtr<AdaptivePool3DAttrs> new_attrs = ffi::make_object<AdaptivePool3DAttrs>(*attrs);
+  ffi::ObjectPtr<AdaptivePool3DAttrs> new_attrs = ffi::make_object<AdaptivePool3DAttrs>(*attrs);
   new_attrs->layout = TransposeLike(attrs->layout, InitialLayout(5), layout->layout).name();
   new_attrs->out_layout = TransposeLike(attrs->out_layout, InitialLayout(5), layout->layout).name();
   return InferLayoutOutput({layout}, {layout}, Attrs(new_attrs));

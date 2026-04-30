@@ -98,7 +98,7 @@ class LayoutAxis {
  *  Here subordinate axis channel_block=16 is the factor size of the primal axis C (channel).
  *  Layout for scalar is defined, while both its name and axes have size 0.
  */
-class LayoutNode : public Object {
+class LayoutNode : public ffi::Object {
  public:
   /*! \brief string representation of layout, "" for scalar. */
   ffi::String name;
@@ -116,14 +116,14 @@ class LayoutNode : public Object {
         .def_ro("name", &LayoutNode::name)
         .def_ro("axes", &LayoutNode::axes);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.Layout", LayoutNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.Layout", LayoutNode, ffi::Object);
 };
 
 /*!
  * \brief Managed reference to LayoutNode
  * \sa LayoutNode
  */
-class Layout : public ObjectRef {
+class Layout : public ffi::ObjectRef {
  public:
   explicit Layout(const ffi::Array<tirx::IterVar>& axes);
 
@@ -342,11 +342,11 @@ class Layout : public ObjectRef {
     return os;
   }
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Layout, ObjectRef, LayoutNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Layout, ffi::ObjectRef, LayoutNode);
 };
 
 // Internal node container BijectiveLayout
-class BijectiveLayoutNode : public Object {
+class BijectiveLayoutNode : public ffi::Object {
  public:
   /*! \brief Describes how source axes can be mapped to the destination axes,
    *   e.g., [i0 / 16, i1, i0 % 16] can describe NC -> NC16n
@@ -374,7 +374,7 @@ class BijectiveLayoutNode : public Object {
         .def_ro("shape_forward_rule", &BijectiveLayoutNode::shape_forward_rule)
         .def_ro("shape_backward_rule", &BijectiveLayoutNode::shape_backward_rule);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.BijectiveLayout", BijectiveLayoutNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.BijectiveLayout", BijectiveLayoutNode, ffi::Object);
 };
 
 /*!
@@ -383,7 +383,7 @@ class BijectiveLayoutNode : public Object {
  *   provides API to transform N-dimention tensor from the source indices (i0, i1, .., im)
  *   to the destination indices (j0, j1, .., jm).
  */
-class BijectiveLayout : public ObjectRef {
+class BijectiveLayout : public ffi::ObjectRef {
  public:
   /*!
    * \brief The constructor
@@ -401,7 +401,7 @@ class BijectiveLayout : public ObjectRef {
   // Given the destination indices, recover the source indices.
   TVM_DLL ffi::Array<PrimExpr> BackwardIndex(const ffi::Array<PrimExpr>& dst_index) const;
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BijectiveLayout, ObjectRef, BijectiveLayoutNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BijectiveLayout, ffi::ObjectRef, BijectiveLayoutNode);
 };
 
 }  // namespace tirx

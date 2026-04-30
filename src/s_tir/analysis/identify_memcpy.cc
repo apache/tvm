@@ -24,6 +24,7 @@
 
 #include <tvm/arith/bound.h>
 #include <tvm/arith/iter_affine_map.h>
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/optional.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/tirx/analysis.h>
@@ -287,11 +288,11 @@ std::optional<MemCpyDetails> IdentifyMemCpy(const For& loop, arith::Analyzer* an
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("s_tir.analysis._identify_memcpy", [](const Stmt& stmt) {
-    ffi::Array<ObjectRef> output;
+    ffi::Array<ffi::ObjectRef> output;
 
     struct Visitor : arith::IRVisitorWithAnalyzer {
-      explicit Visitor(ffi::Array<ObjectRef>* output) : output(output) {}
-      ffi::Array<ObjectRef>* output;
+      explicit Visitor(ffi::Array<ffi::ObjectRef>* output) : output(output) {}
+      ffi::Array<ffi::ObjectRef>* output;
 
      private:
       using IRVisitorWithAnalyzer::VisitStmt_;

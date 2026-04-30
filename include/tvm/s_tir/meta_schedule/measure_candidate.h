@@ -22,7 +22,7 @@
 
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/object.h>
+#include <tvm/runtime/base.h>
 #include <tvm/s_tir/meta_schedule/arg_info.h>
 #include <tvm/s_tir/schedule/schedule.h>
 
@@ -31,7 +31,7 @@ namespace s_tir {
 namespace meta_schedule {
 
 /*! \brief The schedule (with input shapes) to be measured. */
-class MeasureCandidateNode : public runtime::Object {
+class MeasureCandidateNode : public ffi::Object {
  public:
   /*! \brief The schedule for measurement. */
   s_tir::Schedule sch;
@@ -45,14 +45,14 @@ class MeasureCandidateNode : public runtime::Object {
         .def_ro("args_info", &MeasureCandidateNode::args_info);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.MeasureCandidate", MeasureCandidateNode,
-                                    Object);
+                                    ffi::Object);
 };
 
 /*!
  * \brief Managed reference to MeasureCandidateNode.
  * \sa MeasureCandidateNode
  */
-class MeasureCandidate : public runtime::ObjectRef {
+class MeasureCandidate : public ffi::ObjectRef {
  public:
   /*!
    * \brief Constructor of MeasureCandidate.
@@ -60,7 +60,8 @@ class MeasureCandidate : public runtime::ObjectRef {
    * \param args_info The argument information, e.g., (shape, dtype) for tensors.
    */
   TVM_DLL MeasureCandidate(s_tir::Schedule sch, ffi::Array<ArgInfo> args_info);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(MeasureCandidate, ObjectRef, MeasureCandidateNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(MeasureCandidate, ffi::ObjectRef,
+                                                MeasureCandidateNode);
 };
 
 }  // namespace meta_schedule

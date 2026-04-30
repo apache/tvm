@@ -2539,7 +2539,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         }
         // NOTE: We will remove this legacy construction after finishing the transition phase.
         // Some `ffi::Function()` here are placeholders that will be filled.
-        ObjectPtr<PagedAttentionKVCacheObj> n = ffi::make_object<PagedAttentionKVCacheObj>(
+        ffi::ObjectPtr<PagedAttentionKVCacheObj> n = ffi::make_object<PagedAttentionKVCacheObj>(
             page_size, num_layers, layer_id_begin_offset, layer_id_end_offset, num_qo_heads,
             num_kv_heads, qk_head_dim, v_head_dim, attn_kinds_vec, reserved_num_seqs,
             num_total_pages, prefill_chunk_size, support_sliding_window, RoPEMode(rope_mode),

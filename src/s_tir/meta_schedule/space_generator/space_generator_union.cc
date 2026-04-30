@@ -55,7 +55,7 @@ class SpaceGeneratorUnionNode : public SpaceGeneratorNode {
   }
 
   SpaceGenerator Clone() const final {
-    ObjectPtr<SpaceGeneratorUnionNode> n = ffi::make_object<SpaceGeneratorUnionNode>(*this);
+    ffi::ObjectPtr<SpaceGeneratorUnionNode> n = ffi::make_object<SpaceGeneratorUnionNode>(*this);
     n->space_generators = ffi::Array<SpaceGenerator>();
     for (const SpaceGenerator& space_generator : this->space_generators) {
       n->space_generators.push_back(space_generator->Clone());
@@ -76,7 +76,7 @@ SpaceGenerator SpaceGenerator::SpaceGeneratorUnion(
     ffi::Array<SpaceGenerator> space_generators, ffi::Optional<ffi::Array<ScheduleRule>> sch_rules,
     ffi::Optional<ffi::Array<Postproc>> postprocs,
     ffi::Optional<ffi::Map<Mutator, FloatImm>> mutator_probs) {
-  ObjectPtr<SpaceGeneratorUnionNode> n = ffi::make_object<SpaceGeneratorUnionNode>();
+  ffi::ObjectPtr<SpaceGeneratorUnionNode> n = ffi::make_object<SpaceGeneratorUnionNode>();
   n->sch_rules = std::move(sch_rules);
   n->postprocs = std::move(postprocs);
   n->mutator_probs = std::move(mutator_probs);

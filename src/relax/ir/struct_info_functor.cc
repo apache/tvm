@@ -21,6 +21,7 @@
  * \file struct_info_functor.cc
  * \brief Implementations of struct info functors.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/relax/struct_info_functor.h>
 
 namespace tvm {

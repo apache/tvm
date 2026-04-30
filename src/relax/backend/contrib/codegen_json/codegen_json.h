@@ -24,6 +24,7 @@
 #ifndef TVM_RELAX_BACKEND_CONTRIB_CODEGEN_JSON_CODEGEN_JSON_H_
 #define TVM_RELAX_BACKEND_CONTRIB_CODEGEN_JSON_CODEGEN_JSON_H_
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/accessor.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/struct_info.h>
@@ -169,14 +170,14 @@ class OpAttrExtractor {
     }
   }
 
-  void Extract(Object* node) {
+  void Extract(ffi::Object* node) {
     if (node) {
       this->VisitObjectFields(node);
     }
   }
 
  private:
-  void VisitObjectFields(Object* obj) {
+  void VisitObjectFields(ffi::Object* obj) {
     const TVMFFITypeInfo* tinfo = TVMFFIGetTypeInfo(obj->type_index());
     TVM_FFI_ICHECK(tinfo->metadata != nullptr)
         << "Object `" << obj->GetTypeKey()
@@ -309,8 +310,8 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
   void SetCallNodeAttribute(JSONGraphObjectPtr node, const CallNode* cn) {
     if (cn->op.as<OpNode>()) {
       OpAttrExtractor extractor(node);
-      const Object* call_attr = cn->attrs.get();
-      extractor.Extract(const_cast<Object*>(call_attr));
+      const ffi::Object* call_attr = cn->attrs.get();
+      extractor.Extract(const_cast<ffi::Object*>(call_attr));
     } else if (const auto* fn = cn->op.as<FunctionNode>()) {
       TVM_FFI_ICHECK(false);
       auto pattern = fn->GetAttr<ffi::String>(attr::kPartitionedFromPattern);
@@ -380,7 +381,7 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
     return nodes;
   }
 
-  NodeEntries VisitExprDefault_(const Object* op) {
+  NodeEntries VisitExprDefault_(const ffi::Object* op) {
     TVM_FFI_THROW(InternalError) << "JSON runtime currently doesn't support " << op->GetTypeKey();
     return {};
   }

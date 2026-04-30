@@ -35,14 +35,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 PlacementSpec PlacementSpec::Sharding(int axis) {
-  ObjectPtr<PlacementSpecNode> n = ffi::make_object<PlacementSpecNode>();
+  ffi::ObjectPtr<PlacementSpecNode> n = ffi::make_object<PlacementSpecNode>();
   n->axis = axis;
   n->kind = PlacementSpecKind::kSharding;
   return PlacementSpec(n);
 }
 
 PlacementSpec PlacementSpec::Replica() {
-  ObjectPtr<PlacementSpecNode> n = ffi::make_object<PlacementSpecNode>();
+  ffi::ObjectPtr<PlacementSpecNode> n = ffi::make_object<PlacementSpecNode>();
   n->axis = -1;
   n->kind = PlacementSpecKind::kReplica;
   return PlacementSpec(n);
@@ -71,7 +71,7 @@ ffi::String PlacementNode::ToString() const {
 }
 
 Placement::Placement(ffi::Array<PlacementSpec> dim_specs) {
-  ObjectPtr<PlacementNode> n = ffi::make_object<PlacementNode>();
+  ffi::ObjectPtr<PlacementNode> n = ffi::make_object<PlacementNode>();
   n->dim_specs = std::move(dim_specs);
   data_ = std::move(n);
 }
@@ -127,7 +127,7 @@ DTensorStructInfo::DTensorStructInfo(TensorStructInfo tensor_sinfo, DeviceMesh d
     TVM_FFI_CHECK_LT(spec->axis, tensor_sinfo->ndim, ValueError)
         << "Sharding dimension should be smaller than tensor ndim";
   }
-  ObjectPtr<DTensorStructInfoNode> n = ffi::make_object<DTensorStructInfoNode>();
+  ffi::ObjectPtr<DTensorStructInfoNode> n = ffi::make_object<DTensorStructInfoNode>();
   n->device_mesh = std::move(device_mesh);
   n->placement = std::move(placement);
   n->tensor_sinfo = std::move(tensor_sinfo);

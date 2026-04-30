@@ -19,6 +19,7 @@
 /*!
  * \file expr_functor.cc
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/tirx/expr_functor.h>
 
 #include "functor_common.h"

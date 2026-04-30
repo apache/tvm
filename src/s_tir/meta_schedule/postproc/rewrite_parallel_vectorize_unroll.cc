@@ -476,7 +476,7 @@ class RewriteParallelVectorizeUnrollNode : public PostprocNode {
   }
 
   Postproc Clone() const {
-    ObjectPtr<RewriteParallelVectorizeUnrollNode> n =
+    ffi::ObjectPtr<RewriteParallelVectorizeUnrollNode> n =
         ffi::make_object<RewriteParallelVectorizeUnrollNode>(*this);
     return Postproc(n);
   }
@@ -491,7 +491,7 @@ class RewriteParallelVectorizeUnrollNode : public PostprocNode {
 };
 
 Postproc Postproc::RewriteParallelVectorizeUnroll() {
-  ObjectPtr<RewriteParallelVectorizeUnrollNode> n =
+  ffi::ObjectPtr<RewriteParallelVectorizeUnrollNode> n =
       ffi::make_object<RewriteParallelVectorizeUnrollNode>();
   return Postproc(n);
 }

@@ -64,6 +64,7 @@
  *    17. If the kForcePure attribute is set for a function,
  *        that function's is_pure field must be true.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
@@ -651,7 +652,7 @@ class WellFormedChecker : public relax::ExprVisitor,
   // set of context variables.
   std::unordered_set<Var> var_set_;
   std::unordered_set<Var> recur_vars_;
-  std::unordered_set<DataflowVar, ObjectPtrHash, ObjectPtrEqual> dataflow_var_set_;
+  std::unordered_set<DataflowVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> dataflow_var_set_;
   std::unordered_set<tirx::Var> symbolic_var_set_;
   std::unordered_map<Var, const FunctionNode*> param_var_func_map_;
   std::unordered_map<tirx::Var, const FunctionNode*> symbolic_var_func_map_;

@@ -31,7 +31,6 @@
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/object.h>
 #include <tvm/support/io.h>
 #include <tvm/support/serializer.h>
 
@@ -57,9 +56,9 @@ class Tensor : public tvm::ffi::Tensor {
   Tensor() = default;
   /*!
    * \brief constructor.
-   * \param data ObjectPtr to the data container.
+   * \param data ffi::ObjectPtr to the data container.
    */
-  explicit Tensor(ObjectPtr<ffi::TensorObj> data) : tvm::ffi::Tensor(data) {}
+  explicit Tensor(ffi::ObjectPtr<ffi::TensorObj> data) : tvm::ffi::Tensor(data) {}
   explicit Tensor(ffi::UnsafeInit tag) : tvm::ffi::Tensor(tag) {}
   Tensor(ffi::Tensor&& other) : tvm::ffi::Tensor(std::move(other)) {}  // NOLINT(*)
   Tensor(const ffi::Tensor& other) : tvm::ffi::Tensor(other) {}        // NOLINT(*)

@@ -90,20 +90,20 @@ struct DiscoProtocol {
  * \brief The debug extension of the communication protocol that allows serialization and
  * deserialization of Tensors and reflection-capable TVM objects.
  */
-struct DiscoDebugObject : public Object {
+struct DiscoDebugObject : public ffi::Object {
  public:
   /*! \brief The data to be serialized */
   ffi::Any data;
 
   /*! \brief Wrap an Tensor or reflection-capable TVM object into the debug extension. */
-  static ObjectRef Wrap(const ffi::Any& data) {
-    ObjectPtr<DiscoDebugObject> n = ffi::make_object<DiscoDebugObject>();
+  static ffi::ObjectRef Wrap(const ffi::Any& data) {
+    ffi::ObjectPtr<DiscoDebugObject> n = ffi::make_object<DiscoDebugObject>();
     n->data = data;
-    return ObjectRef(n);
+    return ffi::ObjectRef(n);
   }
 
   /*! \brief Wrap an Tensor or reflection-capable TVM object into the debug extension. */
-  static ObjectRef Wrap(const ffi::AnyView& data) {
+  static ffi::ObjectRef Wrap(const ffi::AnyView& data) {
     ffi::Any rv;
     rv = data;
     return Wrap(std::move(rv));
@@ -112,7 +112,7 @@ struct DiscoDebugObject : public Object {
   /*! \brief Serialize the debug object to string */
   inline std::string SaveToStr() const;
   /*! \brief Deserialize the debug object from string */
-  static inline ObjectPtr<DiscoDebugObject> LoadFromStr(std::string json_str);
+  static inline ffi::ObjectPtr<DiscoDebugObject> LoadFromStr(std::string json_str);
   /*! \brief Get the size of the debug object in bytes */
   inline uint64_t GetFFIAnyProtocolBytes() const {
     return sizeof(uint64_t) + this->SaveToStr().size();
@@ -149,7 +149,7 @@ inline void DiscoProtocol<SubClassType>::WriteFFIAny(const TVMFFIAny* value) {
   const AnyView* any_view_ptr = reinterpret_cast<const AnyView*>(value);
   if (const auto* ref = any_view_ptr->as<DRefObj>()) {
     int64_t reg_id = ref->reg_id;
-    self->template Write<uint32_t>(TypeIndex::kRuntimeDiscoDRef);
+    self->template Write<uint32_t>(kRuntimeDiscoDRef);
     self->template Write<int64_t>(reg_id);
   } else if (const auto opt_str = any_view_ptr->as<ffi::String>()) {
     self->template Write<uint32_t>(ffi::TypeIndex::kTVMFFIStr);
@@ -181,11 +181,11 @@ inline void DiscoProtocol<SubClassType>::ReadFFIAny(TVMFFIAny* out) {
   ffi::Any result{nullptr};
   uint32_t type_index;
   self->template Read<uint32_t>(&type_index);
-  if (type_index == TypeIndex::kRuntimeDiscoDRef) {
-    ObjectPtr<DRefObj> dref = ffi::make_object<DRefObj>();
+  if (type_index == kRuntimeDiscoDRef) {
+    ffi::ObjectPtr<DRefObj> dref = ffi::make_object<DRefObj>();
     self->template Read<int64_t>(&dref->reg_id);
     dref->session = Session{nullptr};
-    result = ObjectRef(std::move(dref));
+    result = ffi::ObjectRef(std::move(dref));
   } else if (type_index == ffi::TypeIndex::kTVMFFIStr) {
     uint64_t size = 0;
     self->template Read<uint64_t>(&size);
@@ -209,10 +209,10 @@ inline void DiscoProtocol<SubClassType>::ReadFFIAny(TVMFFIAny* out) {
     self->template Read<uint64_t>(&size);
     std::string data(size, '\0');
     self->template ReadArray<char>(data.data(), size);
-    result = DiscoDebugObject::LoadFromStr(std::move(data))->data.cast<ObjectRef>();
+    result = DiscoDebugObject::LoadFromStr(std::move(data))->data.cast<ffi::ObjectRef>();
   } else {
     TVM_FFI_THROW(ValueError) << "Object type is not supported in Disco calling convention: "
-                              << Object::TypeIndex2Key(type_index)
+                              << ffi::Object::TypeIndex2Key(type_index)
                               << " (type_index = " << type_index << ")";
   }
   *reinterpret_cast<ffi::AnyView*>(out) = result;
@@ -231,8 +231,8 @@ inline std::string DiscoDebugObject::SaveToStr() const {
     }
     result.push_back('1');
     return result;
-  } else if (auto opt_obj = this->data.as<ObjectRef>()) {
-    ObjectRef obj = opt_obj.value();
+  } else if (auto opt_obj = this->data.as<ffi::ObjectRef>()) {
+    ffi::ObjectRef obj = opt_obj.value();
     const auto f = tvm::ffi::Function::GetGlobal("node.SaveJSON");
     TVM_FFI_CHECK(f.has_value(), ValueError)
         << "Cannot serialize object in non-debugging mode: " << obj->GetTypeKey();
@@ -245,11 +245,11 @@ inline std::string DiscoDebugObject::SaveToStr() const {
   return "";
 }
 
-inline ObjectPtr<DiscoDebugObject> DiscoDebugObject::LoadFromStr(std::string json_str) {
+inline ffi::ObjectPtr<DiscoDebugObject> DiscoDebugObject::LoadFromStr(std::string json_str) {
   TVM_FFI_ICHECK(!json_str.empty());
   char control_bit = json_str.back();
   json_str.pop_back();
-  ObjectPtr<DiscoDebugObject> result = ffi::make_object<DiscoDebugObject>();
+  ffi::ObjectPtr<DiscoDebugObject> result = ffi::make_object<DiscoDebugObject>();
   if (control_bit == '0') {
     const auto f = tvm::ffi::Function::GetGlobal("node.LoadJSON");
     TVM_FFI_CHECK(f.has_value(), ValueError) << "Cannot deserialize object in non-debugging mode";

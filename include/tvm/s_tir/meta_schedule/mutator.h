@@ -23,7 +23,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/optional.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/object.h>
+#include <tvm/runtime/base.h>
 #include <tvm/s_tir/random_engine.h>
 #include <tvm/s_tir/schedule/schedule.h>
 #include <tvm/s_tir/schedule/trace.h>
@@ -36,7 +36,7 @@ class TuneContext;
 class Mutator;
 
 /*! \brief Mutator is designed to mutate the trace to explore the design space. */
-class MutatorNode : public runtime::Object {
+class MutatorNode : public ffi::Object {
  public:
   /*! \brief Virtual destructor. */
   virtual ~MutatorNode() = default;
@@ -69,14 +69,14 @@ class MutatorNode : public runtime::Object {
   virtual Mutator Clone() const = 0;
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.Mutator", MutatorNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.Mutator", MutatorNode, ffi::Object);
 };
 
 /*!
  * \brief Managed reference to MutatorNode
  * \sa MutatorNode
  */
-class Mutator : public runtime::ObjectRef {
+class Mutator : public ffi::ObjectRef {
  public:
   /*!
    * \brief The function type of `InitializeWithTuneContext` method.
@@ -142,7 +142,7 @@ class Mutator : public runtime::ObjectRef {
   /*! \brief Create default mutators for Hexagon */
   TVM_DLL static ffi::Map<Mutator, FloatImm, void> DefaultHexagon();
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Mutator, ObjectRef, MutatorNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Mutator, ffi::ObjectRef, MutatorNode);
 };
 
 /*! \brief The mutator with customized methods on the python-side. */

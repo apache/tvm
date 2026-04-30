@@ -24,6 +24,7 @@
 #ifndef TVM_TIR_VAR_H_
 #define TVM_TIR_VAR_H_
 
+#include <tvm/ir/cow.h>
 #include <tvm/ir/expr.h>
 #include <tvm/runtime/data_type.h>
 
@@ -76,7 +77,7 @@ class VarNode : public PrimExprNode {
 class Var : public PrimExpr {
  public:
   explicit Var(ffi::UnsafeInit tag) : PrimExpr(tag) {}
-  explicit Var(ObjectPtr<VarNode> n) : PrimExpr(n) {}
+  explicit Var(ffi::ObjectPtr<VarNode> n) : PrimExpr(n) {}
   /*!
    * \brief Constructor
    * \param name_hint variable name
@@ -141,7 +142,7 @@ class SizeVarNode : public VarNode {
 /*! \brief a named variable represents a tensor index size */
 class SizeVar : public Var {
  public:
-  explicit SizeVar(ObjectPtr<SizeVarNode> n) : Var(n) {}
+  explicit SizeVar(ffi::ObjectPtr<SizeVarNode> n) : Var(n) {}
   explicit SizeVar(ffi::UnsafeInit tag) : Var(tag) {}
   /*!
    * \brief constructor
@@ -347,19 +348,17 @@ inline const char* IterVarType2String(IterVarType t) {
  * `tirx::Var` allows it to be used as a key in STL tables.  For
  * `PrimExpr`, the user must specify the type of equality used
  * (e.g. `std::unordered_set<T, StructuralHash, StructuralEqual>` or
- * `std::unordered_set<T, ObjectPtrHash, ObjectPtrEqual>`).
+ * `std::unordered_set<T, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>`).
  */
 template <>
 struct std::hash<tvm::tirx::Var> {
-  std::size_t operator()(const tvm::tirx::Var& var) const {
-    return tvm::runtime::ObjectPtrHash()(var);
-  }
+  std::size_t operator()(const tvm::tirx::Var& var) const { return tvm::ffi::ObjectPtrHash()(var); }
 };
 
 template <>
 struct std::equal_to<tvm::tirx::Var> {
   bool operator()(const tvm::tirx::Var& var_a, const tvm::tirx::Var& var_b) const {
-    return tvm::runtime::ObjectPtrEqual()(var_a, var_b);
+    return tvm::ffi::ObjectPtrEqual()(var_a, var_b);
   }
 };
 

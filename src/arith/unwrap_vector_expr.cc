@@ -25,6 +25,7 @@
 #include "unwrap_vector_expr.h"
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/cast.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/expr.h>

@@ -194,7 +194,7 @@ class BufferAllocationLocator : public StmtExprMutator {
       }
     }
 
-    ObjectPtr<SBlockNode> n = CopyOnWrite(op);
+    ffi::ObjectPtr<SBlockNode> n = CopyOnWrite(op);
     n->alloc_buffers = std::move(alloc_buffers);
     // Erase buffer allocated inside the block from access region.
     n->reads = RemoveRedundantBufferRegion(n->reads);
@@ -211,7 +211,7 @@ class BufferAllocationLocator : public StmtExprMutator {
                         /*body=*/std::move(body),
                         /*init=*/std::nullopt,
                         /*alloc_buffers=*/alloc_buffers);
-    ObjectPtr<SBlockNode> n = CopyOnWrite(opaque_block.get());
+    ffi::ObjectPtr<SBlockNode> n = CopyOnWrite(opaque_block.get());
     ffi::Array<ffi::Array<BufferRegion>> access =
         GetSBlockReadWriteRegion(opaque_block, buffer_data_to_buffer_);
     n->reads = access[0];

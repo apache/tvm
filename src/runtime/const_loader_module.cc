@@ -29,6 +29,7 @@
  */
 #include "const_loader_module.h"
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/extra/module.h>
@@ -83,7 +84,7 @@ class ConstLoaderModuleObj : public ffi::ModuleObj {
       this->InitSubModule(name);
       initialized_[name] = true;
     }
-    ObjectRef _self = ffi::GetRef<ObjectRef>(this);
+    ffi::ObjectRef _self = ffi::GetRef<ffi::ObjectRef>(this);
 
     if (name == "get_const_var_tensor") {
       return ffi::Function([_self, this](ffi::PackedArgs args, ffi::Any* rv) {

@@ -36,7 +36,7 @@ using TIRPattern = tirx::PrimFunc;
 /*
  * \brief The match result of a TIR pattern.
  */
-class MatchResultNode : public Object {
+class MatchResultNode : public ffi::Object {
  public:
   /*! The matched tirx pattern*/
   TIRPattern pattern;
@@ -52,13 +52,13 @@ class MatchResultNode : public Object {
         .def_ro("symbol_values", &MatchResultNode::symbol_values)
         .def_ro("matched_buffers", &MatchResultNode::matched_buffers);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.MatchResult", MatchResultNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.MatchResult", MatchResultNode, ffi::Object);
 };
 
 /*!
  * \brief Managed reference to MatchResultNode.
  */
-class MatchResult : public ObjectRef {
+class MatchResult : public ffi::ObjectRef {
  public:
   /*!
    * \brief Constructor
@@ -69,7 +69,7 @@ class MatchResult : public ObjectRef {
   TVM_DLL explicit MatchResult(TIRPattern pattern, ffi::Array<PrimExpr> symbol_values,
                                ffi::Array<tirx::Buffer> matched_buffers);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(MatchResult, ObjectRef, MatchResultNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(MatchResult, ffi::ObjectRef, MatchResultNode);
 };
 
 using FCodegen = ffi::TypedFunction<ffi::Array<ffi::Any>(ffi::Array<MatchResult> match_results)>;

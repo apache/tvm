@@ -24,6 +24,7 @@
 #ifndef TVM_RELAX_BACKEND_CONTRIB_UTILS_H_
 #define TVM_RELAX_BACKEND_CONTRIB_UTILS_H_
 
+#include <tvm/ffi/cast.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
 

@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/cast.h>
+
 #include <set>
 
 #include "../../../tirx/transform/ir_utils.h"
@@ -44,7 +46,7 @@ class BufTypeError : public ScheduleError {
   }
 
   IRModule mod() const final { return mod_; }
-  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {}; }
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {}; }
 
  private:
   IRModule mod_;
@@ -69,7 +71,7 @@ class InvalidIndexError : public ScheduleError {
 
   IRModule mod() const final { return mod_; }
 
-  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {}; }
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {}; }
 
  private:
   IRModule mod_;

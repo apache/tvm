@@ -26,6 +26,7 @@
  */
 #include <cuda.h>
 #include <cuda_runtime.h>
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/c_env_api.h>
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
@@ -192,7 +193,7 @@ class CUDAModuleNode : public ffi::ModuleObj {
 class CUDAWrappedFunc {
  public:
   // initialize the CUDA function.
-  void Init(CUDAModuleNode* m, ObjectPtr<Object> sptr, const std::string& func_name,
+  void Init(CUDAModuleNode* m, ffi::ObjectPtr<ffi::Object> sptr, const std::string& func_name,
             size_t num_void_args, const ffi::Array<ffi::String>& launch_param_tags) {
     m_ = m;
     sptr_ = sptr;
@@ -273,7 +274,7 @@ class CUDAWrappedFunc {
   // internal module
   CUDAModuleNode* m_;
   // the resource holder
-  ObjectPtr<Object> sptr_;
+  ffi::ObjectPtr<ffi::Object> sptr_;
   // The name of the function.
   std::string func_name_;
   // Device function cache per device.
@@ -284,7 +285,7 @@ class CUDAWrappedFunc {
 };
 
 ffi::Optional<ffi::Function> CUDAModuleNode::GetFunction(const ffi::String& name) {
-  ObjectPtr<Object> sptr_to_self = ffi::GetObjectPtr<Object>(this);
+  ffi::ObjectPtr<ffi::Object> sptr_to_self = ffi::GetObjectPtr<ffi::Object>(this);
   TVM_FFI_ICHECK_EQ(sptr_to_self.get(), this);
   auto opt_info = fmap_.Get(name);
   if (!opt_info.has_value()) return ffi::Function();

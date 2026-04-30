@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>
 
@@ -80,7 +81,7 @@ class AutoInlineNode : public ScheduleRuleNode {
 
   // Inherited from ScheduleRuleNode
   ScheduleRule Clone() const final {
-    ObjectPtr<AutoInlineNode> n = ffi::make_object<AutoInlineNode>(*this);
+    ffi::ObjectPtr<AutoInlineNode> n = ffi::make_object<AutoInlineNode>(*this);
     return ScheduleRule(n);
   }
 
@@ -166,12 +167,13 @@ inline InlineType AutoInlineNode::CheckInline(const s_tir::Schedule& sch,
   // Last cond: Check inline into the consumers or the spatial producer
   // Skip if:
   // - root block (no parent scope).
-  // - root block is wrapped in a For loop, then parent is non-null, but there is still no enclosing SBlockNode.
-  const StmtSRefNode* p = block_sref->parent;                   
-  for (; p != nullptr; p = p->parent) {                                                   
+  // - root block is wrapped in a For loop, then parent is non-null, but there is still no enclosing
+  // SBlockNode.
+  const StmtSRefNode* p = block_sref->parent;
+  for (; p != nullptr; p = p->parent) {
     if (p->stmt->IsInstance<SBlockNode>()) break;
-  }                                                                                       
-  if (p == nullptr) {                                           
+  }
+  if (p == nullptr) {
     return InlineType::kNoInline;
   }
   tirx::StmtSRef scope_block = s_tir::GetScopeRoot(sch->state(), block_sref,
@@ -202,7 +204,7 @@ ScheduleRule ScheduleRule::AutoInline(bool into_producer,          //
                                       bool require_injective,      //
                                       bool require_ordered,        //
                                       ffi::Optional<ffi::Array<ffi::String>> disallow_op) {
-  ObjectPtr<AutoInlineNode> n = ffi::make_object<AutoInlineNode>();
+  ffi::ObjectPtr<AutoInlineNode> n = ffi::make_object<AutoInlineNode>();
   n->into_producer = into_producer;
   n->into_consumer = into_consumer;
   n->inline_const_tensor = inline_const_tensor;
@@ -253,7 +255,8 @@ class InlineConstantScalarsNode : public ScheduleRuleNode {
   }
 
   ScheduleRule Clone() const final {
-    ObjectPtr<InlineConstantScalarsNode> n = ffi::make_object<InlineConstantScalarsNode>(*this);
+    ffi::ObjectPtr<InlineConstantScalarsNode> n =
+        ffi::make_object<InlineConstantScalarsNode>(*this);
     return ScheduleRule(n);
   }
 
@@ -266,7 +269,7 @@ class InlineConstantScalarsNode : public ScheduleRuleNode {
 };
 
 ScheduleRule ScheduleRule::InlineConstantScalars() {
-  ObjectPtr<InlineConstantScalarsNode> n = ffi::make_object<InlineConstantScalarsNode>();
+  ffi::ObjectPtr<InlineConstantScalarsNode> n = ffi::make_object<InlineConstantScalarsNode>();
   return ScheduleRule(n);
 }
 

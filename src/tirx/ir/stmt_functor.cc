@@ -19,6 +19,7 @@
 /*!
  * \file stmt_functor.cc
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
@@ -456,7 +457,7 @@ Stmt StmtMutator::VisitSeqStmt_(const SeqStmtNode* op, bool flatten_before_visit
     // Such destruction removes duplicated reference
     // count to children and still enables COW for
     // child Stmt.
-    ObjectPtr<SeqStmtNode> n = CopyOnWrite(op);
+    ffi::ObjectPtr<SeqStmtNode> n = CopyOnWrite(op);
     n->seq = std::move(seq);
     return frunvisit(n.operator->());
   } else {
@@ -542,7 +543,7 @@ Stmt StmtMutator::VisitStmt_(const SBlockRealizeNode* op) {
 // Implementations of IRTransform, PostOrderVisit and Substitute
 class IRApplyVisit : public StmtExprVisitor {
  public:
-  explicit IRApplyVisit(std::function<void(const ObjectRef&)> f) : f_(f) {}
+  explicit IRApplyVisit(std::function<void(const ffi::ObjectRef&)> f) : f_(f) {}
 
   void VisitExpr(const PrimExpr& node) final {
     if (visited_.count(node.get()) != 0) return;
@@ -562,11 +563,11 @@ class IRApplyVisit : public StmtExprVisitor {
   void VisitBufferUse(const Buffer& buffer) override {}
 
  private:
-  std::function<void(const ObjectRef&)> f_;
-  std::unordered_set<const Object*> visited_;
+  std::function<void(const ffi::ObjectRef&)> f_;
+  std::unordered_set<const ffi::Object*> visited_;
 };
 
-void PostOrderVisit(const ObjectRef& node, std::function<void(const ObjectRef&)> fvisit) {
+void PostOrderVisit(const ffi::ObjectRef& node, std::function<void(const ffi::ObjectRef&)> fvisit) {
   if (node.as<StmtNode>()) {
     IRApplyVisit visitor(fvisit);
     visitor(Downcast<Stmt>(node));
@@ -696,11 +697,11 @@ PrimExpr Substitute(PrimExpr expr, std::function<ffi::Optional<PrimExpr>(const V
   return IRSubstitute(vmap)(std::move(expr));
 }
 
-void PreOrderVisit(const ObjectRef& stmt_or_expr,
-                   const std::function<bool(const ObjectRef&)>& fvisit) {
+void PreOrderVisit(const ffi::ObjectRef& stmt_or_expr,
+                   const std::function<bool(const ffi::ObjectRef&)>& fvisit) {
   class PreOrderVisitor : public StmtExprVisitor {
    public:
-    explicit PreOrderVisitor(const std::function<bool(const ObjectRef&)>& f) : f_(f) {}
+    explicit PreOrderVisitor(const std::function<bool(const ffi::ObjectRef&)>& f) : f_(f) {}
 
    private:
     void VisitExpr(const PrimExpr& expr) final {
@@ -723,8 +724,8 @@ void PreOrderVisit(const ObjectRef& stmt_or_expr,
       }
     }
 
-    const std::function<bool(const ObjectRef&)>& f_;
-    std::unordered_set<const Object*> visited_;
+    const std::function<bool(const ffi::ObjectRef&)>& f_;
+    std::unordered_set<const ffi::Object*> visited_;
   };
 
   PreOrderVisitor visitor(fvisit);
@@ -788,20 +789,21 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef()
       .def("tirx.IRTransform", IRTransform)
       .def("tirx.PostOrderVisit",
-           [](ObjectRef node, ffi::Function f) {
-             tirx::PostOrderVisit(node, [f](const ObjectRef& n) { f(n); });
+           [](ffi::ObjectRef node, ffi::Function f) {
+             tirx::PostOrderVisit(node, [f](const ffi::ObjectRef& n) { f(n); });
            })
       .def("tirx.PreOrderVisit",
-           [](ObjectRef node, ffi::Function f) {
-             tirx::PreOrderVisit(node, [f](const ObjectRef& n) { return f(n).cast<bool>(); });
+           [](ffi::ObjectRef node, ffi::Function f) {
+             tirx::PreOrderVisit(node, [f](const ffi::ObjectRef& n) { return f(n).cast<bool>(); });
            })
-      .def("tirx.Substitute", [](ObjectRef node, ffi::Map<Var, PrimExpr> vmap) -> ObjectRef {
-        if (node->IsInstance<StmtNode>()) {
-          return Substitute(Downcast<Stmt>(node), vmap);
-        } else {
-          return Substitute(Downcast<PrimExpr>(node), vmap);
-        }
-      });
+      .def("tirx.Substitute",
+           [](ffi::ObjectRef node, ffi::Map<Var, PrimExpr> vmap) -> ffi::ObjectRef {
+             if (node->IsInstance<StmtNode>()) {
+               return Substitute(Downcast<Stmt>(node), vmap);
+             } else {
+               return Substitute(Downcast<PrimExpr>(node), vmap);
+             }
+           });
 }
 
 }  // namespace tirx

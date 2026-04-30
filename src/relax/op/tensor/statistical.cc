@@ -145,7 +145,7 @@ InferLayoutOutput InferLayoutStatistical(
     output_layout.push_back(output_layout_ref[i]);
   }
 
-  ObjectPtr<StatisticalAttrs> new_attrs = ffi::make_object<StatisticalAttrs>(*attrs);
+  ffi::ObjectPtr<StatisticalAttrs> new_attrs = ffi::make_object<StatisticalAttrs>(*attrs);
   new_attrs->axis = new_axis;
   return InferLayoutOutput({exisiting_layout},
                            {attrs->keepdims ? exisiting_layout : Layout(output_layout)},
@@ -291,7 +291,7 @@ TVM_REGISTER_OP("relax.cumsum")
 
 /* relax.median */
 Expr median(Expr data, ffi::Optional<ffi::Array<Integer>> axis, bool keepdims) {
-  ObjectPtr<StatisticalAttrs> attrs = ffi::make_object<StatisticalAttrs>();
+  ffi::ObjectPtr<StatisticalAttrs> attrs = ffi::make_object<StatisticalAttrs>();
   attrs->axis = std::move(axis);
   attrs->keepdims = keepdims;
   static const Op& op = Op::Get("relax.median");

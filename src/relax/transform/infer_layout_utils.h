@@ -55,7 +55,7 @@ using tirx::Layout;
  * \brief A layout decision node that holds the layout decision of the tensor.
  * \param layout The layout of the tensor.
  */
-class LayoutDecisionNode : public Object {
+class LayoutDecisionNode : public ffi::Object {
  public:
   /*! \brief The layout decision of the tensor. */
   Layout layout;
@@ -69,10 +69,10 @@ class LayoutDecisionNode : public Object {
         .def_ro("is_unknown_dim", &LayoutDecisionNode::is_unknown_dim);
   }
 
-  TVM_FFI_DECLARE_OBJECT_INFO("relax.transform.LayoutDecision", LayoutDecisionNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.transform.LayoutDecision", LayoutDecisionNode, ffi::Object);
 };
 
-class LayoutDecision : public ObjectRef {
+class LayoutDecision : public ffi::ObjectRef {
  public:
   LayoutDecision(Layout layout, bool is_unknown_dim = false) {  // NOLINT(*)
     auto n = ffi::make_object<LayoutDecisionNode>();
@@ -90,7 +90,7 @@ class LayoutDecision : public ObjectRef {
     return operator->()->layout.name();
   }
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(LayoutDecision, ObjectRef, LayoutDecisionNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(LayoutDecision, ffi::ObjectRef, LayoutDecisionNode);
 };
 
 using NLayout = NestedMsg<LayoutDecision>;
@@ -101,7 +101,7 @@ using NLayout = NestedMsg<LayoutDecision>;
  * \param output_layouts Inferred output layouts.
  * \param new_attrs Updated attributes consistent with inferred layouts.
  */
-class InferLayoutOutputNode : public Object {
+class InferLayoutOutputNode : public ffi::Object {
  public:
   ffi::Array<NLayout> input_layouts;
   ffi::Array<NLayout> output_layouts;
@@ -117,10 +117,11 @@ class InferLayoutOutputNode : public Object {
         .def_ro("new_args", &InferLayoutOutputNode::new_args);
   }
 
-  TVM_FFI_DECLARE_OBJECT_INFO("relax.transform.InferLayoutOutput", InferLayoutOutputNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.transform.InferLayoutOutput", InferLayoutOutputNode,
+                              ffi::Object);
 };
 
-class InferLayoutOutput : public ObjectRef {
+class InferLayoutOutput : public ffi::ObjectRef {
  public:
   explicit InferLayoutOutput(ffi::Array<NLayout> input_layouts, ffi::Array<NLayout> output_layouts,
                              Attrs new_attrs, ffi::Map<Integer, Expr> new_args = {}) {
@@ -131,7 +132,8 @@ class InferLayoutOutput : public ObjectRef {
     n->new_args = std::move(new_args);
     data_ = n;
   }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(InferLayoutOutput, ObjectRef, InferLayoutOutputNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(InferLayoutOutput, ffi::ObjectRef,
+                                             InferLayoutOutputNode);
 };
 
 struct NLayoutEqual {

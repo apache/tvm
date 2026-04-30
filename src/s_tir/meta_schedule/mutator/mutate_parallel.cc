@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>
 
@@ -197,7 +198,7 @@ class MutateParallelNode : public MutatorNode {
   ffi::Optional<Trace> Apply(const Trace& trace, TRandState* rand_state) final;
   // Inherit from `MutatorNode`
   Mutator Clone() const final {
-    ObjectPtr<MutateParallelNode> n = ffi::make_object<MutateParallelNode>(*this);
+    ffi::ObjectPtr<MutateParallelNode> n = ffi::make_object<MutateParallelNode>(*this);
     return Mutator(n);
   }
 };
@@ -313,7 +314,7 @@ ffi::Optional<Trace> MutateParallelNode::Apply(const Trace& trace, TRandState* r
 }
 
 Mutator Mutator::MutateParallel(int64_t max_jobs_per_core) {
-  ObjectPtr<MutateParallelNode> n = ffi::make_object<MutateParallelNode>();
+  ffi::ObjectPtr<MutateParallelNode> n = ffi::make_object<MutateParallelNode>();
   n->max_jobs_per_core = max_jobs_per_core;
   return Mutator(n);
 }

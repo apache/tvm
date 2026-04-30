@@ -21,6 +21,7 @@
  * \brief Inject double buffering optimization for data fetch.
  * \file inject_double_buffer.cc
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>

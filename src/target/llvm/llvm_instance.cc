@@ -50,7 +50,6 @@
 #include <tvm/ffi/optional.h>
 #include <tvm/ffi/string.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/object.h>
 #include <tvm/target/target.h>
 
 #include <atomic>

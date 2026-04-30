@@ -21,6 +21,7 @@
  * \file src/relax/block_builder.cc
  */
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_hash.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -328,7 +329,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
      * \note The normalizer only caches reuse in the current block scope
      *       and will not cache bindings from parent scope.
      */
-    std::unordered_map<Expr, Var, ObjectPtrHash, ObjectPtrEqual> normalize_binding_map;
+    std::unordered_map<Expr, Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> normalize_binding_map;
   };
   /*!
    * \brief A representation of a scope frame.
@@ -353,7 +354,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
   std::vector<ScopeFrame> scope_stack_;
 
   /*! \brief A binding table that maps var to value. */
-  std::unordered_map<Id, Expr, ObjectPtrHash, ObjectPtrEqual> binding_table_;
+  std::unordered_map<Id, Expr, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> binding_table_;
 
   /*! \brief A name supply to get unique names for IR construction. */
   NameSupply name_supply_;
@@ -432,7 +433,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
   /*! \brief A custom structural hashing that ignores Tensor raw data. */
   class StructuralHashIgnoreNDarray {
    public:
-    uint64_t operator()(const ObjectRef& key) const {
+    uint64_t operator()(const ffi::ObjectRef& key) const {
       return ffi::StructuralHash::Hash(key, /*map_free_vars=*/false,
                                        /*skip_tensor_content=*/true);
     }
@@ -443,9 +444,9 @@ class BlockBuilderImpl : public BlockBuilderNode {
    * in context_mod to their GlobalVar to avoid generating duplicated functions.
    * We use a custom hash to avoid hashing constants that may be bound to each BaseFunc.
    */
-  std::unique_ptr<
-      std::unordered_map<BaseFunc, std::unordered_set<GlobalVar, ObjectPtrHash, ObjectPtrEqual>,
-                         StructuralHashIgnoreNDarray, ffi::StructuralEqual>>
+  std::unique_ptr<std::unordered_map<
+      BaseFunc, std::unordered_set<GlobalVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>,
+      StructuralHashIgnoreNDarray, ffi::StructuralEqual>>
       ctx_func_dedup_map_ = nullptr;
 
   /*!
@@ -453,9 +454,9 @@ class BlockBuilderImpl : public BlockBuilderNode {
    */
   void LazyInitCtxFuncDedupMap() {
     if (ctx_func_dedup_map_ != nullptr) return;
-    ctx_func_dedup_map_ = std::make_unique<
-        std::unordered_map<BaseFunc, std::unordered_set<GlobalVar, ObjectPtrHash, ObjectPtrEqual>,
-                           StructuralHashIgnoreNDarray, ffi::StructuralEqual>>();
+    ctx_func_dedup_map_ = std::make_unique<std::unordered_map<
+        BaseFunc, std::unordered_set<GlobalVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>,
+        StructuralHashIgnoreNDarray, ffi::StructuralEqual>>();
     for (const auto& kv : context_mod_->functions) {
       const GlobalVar gv = kv.first;
       const BaseFunc func = kv.second;
@@ -1040,13 +1041,13 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
 };
 
 BlockBuilder BlockBuilder::Create(ffi::Optional<IRModule> mod) {
-  ObjectPtr<BlockBuilderNode> n = ffi::make_object<Normalizer>(mod.value_or(IRModule()));
+  ffi::ObjectPtr<BlockBuilderNode> n = ffi::make_object<Normalizer>(mod.value_or(IRModule()));
   return BlockBuilder(n);
 }
 
 BlockBuilder BlockBuilder::Create(ffi::Optional<IRModule> mod,
                                   BlockBuilder::DisableOperatorSpecificNormalizationForTVMScript) {
-  ObjectPtr<BlockBuilderNode> n = ffi::make_object<Normalizer>(
+  ffi::ObjectPtr<BlockBuilderNode> n = ffi::make_object<Normalizer>(
       mod.value_or(IRModule()), BlockBuilder::DisableOperatorSpecificNormalizationForTVMScript());
   return BlockBuilder(n);
 }

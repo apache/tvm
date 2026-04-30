@@ -45,26 +45,26 @@ using namespace tvm::tirx;
  *   static constexpr bool kIsPure = false;
  *
  *   // Convertible to `InstructionKindNode::FInstructionApply`
- *   static ffi::Array<ObjectRef> ApplyToSchedule(
+ *   static ffi::Array<ffi::ObjectRef> ApplyToSchedule(
  *      const s_tir::Schedule& sch,
- *      const ffi::Array<ObjectRef>& inputs,
- *      const ffi::Array<ObjectRef>& attrs,
- *      const ffi::Optional<ObjectRef>& decision);
+ *      const ffi::Array<ffi::ObjectRef>& inputs,
+ *      const ffi::Array<ffi::ObjectRef>& attrs,
+ *      const ffi::Optional<ffi::ObjectRef>& decision);
  *
  *   // Convertible to `InstructionKindNode::FInstructionAsPython`
  *   static ffi::String AsPython(
  *      const ffi::Array<ffi::String>& inputs,
- *      const ffi::Array<ObjectRef>& attrs,
- *      const ffi::Optional<ObjectRef>& decision,
+ *      const ffi::Array<ffi::ObjectRef>& attrs,
+ *      const ffi::Optional<ffi::ObjectRef>& decision,
  *      const ffi::Array<ffi::String>& outputs);
  *
  *   // Convertible to `InstructionKindNode::FInstructionAttrsAsJSON`
- *   static ObjectRef AttrsAsJSON(
- *      const ffi::Array<ObjectRef>& attrs);
+ *   static ffi::ObjectRef AttrsAsJSON(
+ *      const ffi::Array<ffi::ObjectRef>& attrs);
  *
  *   // Convertible to `InstructionKindNode::FInstructionAttrsFromJSON`
- *   static ffi::Array<ObjectRef> AttrsFromJSON(
- *      const ObjectRef& attrs_record);
+ *   static ffi::Array<ffi::ObjectRef> AttrsFromJSON(
+ *      const ffi::ObjectRef& attrs_record);
  * };
  *
  * TVM_REGISTER_INST_KIND_TRAITS(SomeInstructionKindTraits);
@@ -104,7 +104,7 @@ using namespace tvm::tirx;
  *   static constexpr size_t kNumDecisions = 1;
  *
  *   // Calling convention:
- *   // - All the arguments must be ObjectRef
+ *   // - All the arguments must be ffi::ObjectRef
  *   // - The 1st argument is Schedule
  *   // - The next `kNumInputs` arguments are input random variables
  *   // - The next `kNumAttrs` arguments are attributes
@@ -119,7 +119,7 @@ using namespace tvm::tirx;
  *   }
  *
  *   // Calling convention:
- *   // - All the arguments must be ObjectRef
+ *   // - All the arguments must be ffi::ObjectRef
  *   // - The 1st argument is an array containing names of output random variables
  *   // - The next `kNumInputs` arguments are names of input random variables
  *   // - The next `kNumAttrs` arguments are attributes
@@ -250,7 +250,7 @@ struct _ArgsPacker<> {
 template <typename TObjectRef, typename... Args>
 struct _ArgsPacker<TObjectRef, Args...> {
   static constexpr bool checked =
-      std::is_base_of<ObjectRef, TObjectRef>::value && _ArgsPacker<Args...>::checked;
+      std::is_base_of<ffi::ObjectRef, TObjectRef>::value && _ArgsPacker<Args...>::checked;
 };
 
 template <typename T>

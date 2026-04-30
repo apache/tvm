@@ -22,6 +22,7 @@
  */
 #include <tvm/arith/analyzer.h>
 #include <tvm/arith/iter_affine_map.h>
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/expr.h>
@@ -131,9 +132,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 class IterMarkSplitCollector {
  public:
   // mark all IterMarks that are visited.
-  std::unordered_set<IterMark, ObjectPtrHash, ObjectPtrEqual> visited_;
+  std::unordered_set<IterMark, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> visited_;
   // each iter mark to its outgoing splits that are referenced.
-  std::unordered_map<IterMark, std::vector<IterSplitExpr>, ObjectPtrHash, ObjectPtrEqual>
+  std::unordered_map<IterMark, std::vector<IterSplitExpr>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       mark2splits_;
   /*!
    * \brief Collect all mark2splits recursively from indices.
@@ -401,7 +402,7 @@ class IterMapRewriter : public ExprMutator {
       // for now only hash on source index.
       size_t hash = value->args.size();
       for (const IterSplitExpr& arg : value->args) {
-        hash = support::HashCombine(hash, std::hash<const Object*>()(arg->source.get()));
+        hash = support::HashCombine(hash, std::hash<const ffi::Object*>()(arg->source.get()));
       }
       return hash;
     }
@@ -985,7 +986,7 @@ class IterMapRewriter : public ExprMutator {
    */
   ffi::Optional<IterSumExpr> TryCombineSplitFromSameSource(IterSumExpr expr) {
     if (expr->args.size() <= 1) return std::nullopt;
-    std::unordered_map<IterMark, int, ObjectPtrHash, ObjectPtrEqual> hit_count;
+    std::unordered_map<IterMark, int, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> hit_count;
     // most iter map are small n < 5
     // so we can afford N^2 complexity
     bool has_overlap = false;
@@ -2475,7 +2476,8 @@ class SubspaceDivider {
   // the set of subspace iters
   const std::unordered_set<Var>& sub_iters_;
   // map from SplitExpr to its corresponding DivisionResult(Y*E(X)+X)
-  std::unordered_map<IterSplitExpr, DivisionResult, ObjectPtrHash, ObjectPtrEqual> split_map_;
+  std::unordered_map<IterSplitExpr, DivisionResult, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+      split_map_;
   // predicate of outer space and inner space;
   PrimExpr outer_preds_{Bool(true)}, inner_preds_{Bool(true)};
 };
@@ -2589,7 +2591,7 @@ class InverseAffineIterMapTransformer {
   std::vector<const IterMapExprNode*> ReverseTopologyOrder(
       const ffi::Array<IterSumExpr>& iter_map) {
     std::vector<const IterMapExprNode*> post_dfs_order;
-    std::unordered_map<IterMapExpr, bool, ObjectPtrHash, ObjectPtrEqual> visited;
+    std::unordered_map<IterMapExpr, bool, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> visited;
 
     std::function<void(const IterMapExpr&)> fvisit = [&](const IterMapExpr& expr) {
       if (visited[expr]) {

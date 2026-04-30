@@ -17,6 +17,7 @@
  * under the License.
  */
 
+#include <tvm/ffi/cast.h>
 #include <tvm/tirx/op.h>
 
 #include "../utils.h"
@@ -71,7 +72,7 @@ class InvalidPaddingError : public ScheduleError {
   InvalidPaddingError(IRModule mod, SBlock block, ffi::Array<Integer> padding)
       : mod_(std::move(mod)), block_(std::move(block)), padding_(std::move(padding)) {}
   IRModule mod() const final { return mod_; }
-  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {block_}; }
   ffi::String FastErrorString() const final {
     return "ScheduleError: The padding size for the block is invalid.";
   }
@@ -106,7 +107,7 @@ class NonEinsumError : public ScheduleError {
       : mod_(std::move(mod)), block_(std::move(block)) {}
 
   IRModule mod() const final { return mod_; }
-  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {block_}; }
   ffi::String FastErrorString() const final {
     return "ScheduleError: The block is not a computation of Einsum pattern.";
   }
@@ -264,7 +265,7 @@ class BufferNotAllocatedInScopeError : public ScheduleError {
   }
 
   IRModule mod() const final { return mod_; }
-  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {}; }
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {}; }
 
  private:
   IRModule mod_;
@@ -289,7 +290,7 @@ class InvalidProducerError : public ScheduleError {
   }
 
   IRModule mod() const final { return mod_; }
-  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {producer_}; }
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {producer_}; }
 
  private:
   IRModule mod_;
@@ -306,7 +307,7 @@ class PadEinsumBufferReplacer : public StmtExprMutator {
     iter_vars.reserve(block->iter_vars.size());
     for (const IterVar& iter_var : block->iter_vars) {
       if (ffi::Optional<PrimExpr> new_dom = iter2padded_extents.Get(iter_var->var)) {
-        ObjectPtr<IterVarNode> new_iter_var = ffi::make_object<IterVarNode>(*iter_var.get());
+        ffi::ObjectPtr<IterVarNode> new_iter_var = ffi::make_object<IterVarNode>(*iter_var.get());
         new_iter_var->dom = Range::FromMinExtent(iter_var->dom->min, new_dom.value());
         iter_vars.push_back(IterVar(new_iter_var));
       } else {
@@ -342,7 +343,7 @@ class PadEinsumBufferReplacer : public StmtExprMutator {
     For old_for = ffi::GetRef<For>(old_for_ptr);
     For new_for = Downcast<For>(StmtMutator::VisitStmt_(old_for_ptr));
     if (ffi::Optional<PrimExpr> new_extent = loop_var2padded_extent.Get(new_for->loop_var)) {
-      ObjectPtr<ForNode> new_for_ptr = ffi::make_object<ForNode>(*new_for.get());
+      ffi::ObjectPtr<ForNode> new_for_ptr = ffi::make_object<ForNode>(*new_for.get());
       new_for_ptr->extent = new_extent.value();
       new_for = For(new_for_ptr);
     }
@@ -418,7 +419,7 @@ void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const ffi::Array<
   int pos = -1;
   for (int i = 0; i < static_cast<int>(scope_body.size()); ++i) {
     bool found = false;
-    PostOrderVisit(scope_body[i], [&found, &block](const ObjectRef& node) {
+    PostOrderVisit(scope_body[i], [&found, &block](const ffi::ObjectRef& node) {
       if (node.get() == block) {
         found = true;
       }
@@ -466,7 +467,7 @@ void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const ffi::Array<
   // Step 7. Create new scope
   SBlock new_scope_block{nullptr};
   {
-    ObjectPtr<SBlockNode> n = ffi::make_object<SBlockNode>(*scope_block);
+    ffi::ObjectPtr<SBlockNode> n = ffi::make_object<SBlockNode>(*scope_block);
     n->body = SeqStmt::Flatten(new_scope_body);
     n->alloc_buffers.insert(n->alloc_buffers.end(), alloc_buffers.begin(), alloc_buffers.end());
     new_scope_block = SBlock(n);

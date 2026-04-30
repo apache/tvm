@@ -67,7 +67,7 @@ class DocPrinter {
    * \brief Append a doc to the final content
    *
    * \param doc  Doc to be printed
-   * \param path_to_underline  Object path to be underlined
+   * \param path_to_underline  ffi::Object path to be underlined
    *
    * \sa GetString
    */

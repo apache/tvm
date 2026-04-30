@@ -21,6 +21,7 @@
  * \file tvm/relax/transform/realize_vdevice.cc
  * \brief Propagate virtual device information.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/op.h>
@@ -391,7 +392,7 @@ class VDeviceStructInfoUpdater : ExprMutator {
     if (input_vdevice.defined() && input_vdevice.value() == output_vdevice) {
       return arg;
     } else {
-      ObjectPtr<ToVDeviceAttrs> attrs = ffi::make_object<ToVDeviceAttrs>();
+      ffi::ObjectPtr<ToVDeviceAttrs> attrs = ffi::make_object<ToVDeviceAttrs>();
       attrs->dst_vdevice = output_vdevice;
       return Call(to_vdevice_op_, {arg}, Attrs(attrs), {});
     }

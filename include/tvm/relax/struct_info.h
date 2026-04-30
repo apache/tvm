@@ -26,7 +26,7 @@
 #include <tvm/relax/block_builder.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/type.h>
-#include <tvm/runtime/object.h>
+#include <tvm/runtime/base.h>
 
 #include <utility>
 
@@ -308,7 +308,7 @@ class FuncStructInfoNode : public StructInfoNode {
  */
 class FuncStructInfo : public StructInfo {
  public:
-  explicit FuncStructInfo(ObjectPtr<FuncStructInfoNode> data) : StructInfo(ffi::UnsafeInit{}) {
+  explicit FuncStructInfo(ffi::ObjectPtr<FuncStructInfoNode> data) : StructInfo(ffi::UnsafeInit{}) {
     TVM_FFI_ICHECK(data != nullptr);
     data_ = std::move(data);
   }

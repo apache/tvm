@@ -23,6 +23,7 @@
 // Instrument checkers for out of the bounds access.
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/transform.h>

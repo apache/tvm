@@ -282,7 +282,7 @@ class JSONParser {
   Any Get() {
     Token token = tokenizer_.Next();
     if (token.type == TokenType::kEOF) {
-      return ObjectRef(nullptr);
+      return ffi::ObjectRef(nullptr);
     }
     return ParseObject(std::move(token));
   }

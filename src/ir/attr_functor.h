@@ -45,17 +45,17 @@ class AttrFunctor;
     return VisitAttrDefault_(op, std::forward<Args>(args)...); \
   }
 
-#define ATTR_FUNCTOR_DISPATCH(OP)                                                          \
-  vtable.template set_dispatch<OP>([](const ObjectRef& n, TSelf* self, Args... args) {     \
-    return self->VisitAttr_(static_cast<const OP*>(n.get()), std::forward<Args>(args)...); \
+#define ATTR_FUNCTOR_DISPATCH(OP)                                                           \
+  vtable.template set_dispatch<OP>([](const ffi::ObjectRef& n, TSelf* self, Args... args) { \
+    return self->VisitAttr_(static_cast<const OP*>(n.get()), std::forward<Args>(args)...);  \
   });
 
 // A functor for common attribute information.
 template <typename R, typename... Args>
-class AttrFunctor<R(const ObjectRef& n, Args...)> {
+class AttrFunctor<R(const ffi::ObjectRef& n, Args...)> {
  private:
-  using TSelf = AttrFunctor<R(const ObjectRef& n, Args...)>;
-  using FType = tvm::NodeFunctor<R(const ObjectRef& n, TSelf* self, Args...)>;
+  using TSelf = AttrFunctor<R(const ffi::ObjectRef& n, Args...)>;
+  using FType = tvm::NodeFunctor<R(const ffi::ObjectRef& n, TSelf* self, Args...)>;
 
  public:
   /*! \brief the result type of this functor */
@@ -68,7 +68,7 @@ class AttrFunctor<R(const ObjectRef& n, Args...)> {
    * \param args Additional arguments.
    * \return The result of the call
    */
-  virtual R VisitAttr(const ObjectRef& n, Args... args) {
+  virtual R VisitAttr(const ffi::ObjectRef& n, Args... args) {
     static FType vtable = InitVTable();
     if (vtable.can_dispatch(n)) {
       return vtable(n, this, std::forward<Args>(args)...);
@@ -76,7 +76,7 @@ class AttrFunctor<R(const ObjectRef& n, Args...)> {
       return VisitAttrDefault_(n.get(), std::forward<Args>(args)...);
     }
   }
-  virtual R VisitAttrDefault_(const Object* node, Args... args) = 0;
+  virtual R VisitAttrDefault_(const ffi::Object* node, Args... args) = 0;
   virtual R VisitAttr_(const ffi::ArrayObj* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const tirx::IntImmNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const tirx::FloatImmNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;

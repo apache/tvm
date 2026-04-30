@@ -27,7 +27,6 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/expr.h>
-#include <tvm/runtime/object.h>
 #include <tvm/s_tir/schedule/schedule.h>
 
 namespace tvm {
@@ -38,7 +37,7 @@ class TuneContext;
 class ScheduleRule;
 
 /*! \brief Rules to modify a block in a schedule. */
-class ScheduleRuleNode : public runtime::Object {
+class ScheduleRuleNode : public ffi::Object {
  public:
   /*! \brief Virtual destructor. */
   virtual ~ScheduleRuleNode() = default;
@@ -71,14 +70,14 @@ class ScheduleRuleNode : public runtime::Object {
   virtual ScheduleRule Clone() const = 0;
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.ScheduleRule", ScheduleRuleNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.ScheduleRule", ScheduleRuleNode, ffi::Object);
 };
 
 /*!
  * \brief Managed reference to ScheduleRuleNode
  * \sa ScheduleRuleNode
  */
-class ScheduleRule : public runtime::ObjectRef {
+class ScheduleRule : public ffi::ObjectRef {
  public:
   /*!
    * \brief The function type of `InitializeWithTuneContext` method.
@@ -315,7 +314,7 @@ class ScheduleRule : public runtime::ObjectRef {
   /*! \brief Create default schedule rules for RISCV CPU (RVV) */
   TVM_DLL static ffi::Array<ScheduleRule, void> DefaultRISCV(int vlen);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ScheduleRule, ObjectRef, ScheduleRuleNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ScheduleRule, ffi::ObjectRef, ScheduleRuleNode);
 };
 
 /*! \brief The schedule rule with customized methods on the python-side. */

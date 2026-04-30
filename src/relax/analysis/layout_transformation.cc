@@ -24,6 +24,7 @@
  */
 #include <tvm/arith/analyzer.h>
 #include <tvm/arith/iter_affine_map.h>
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/tirx/analysis.h>
@@ -535,7 +536,8 @@ class BlockAnalyzer : public StmtExprVisitor {
 
   ffi::Map<Buffer, IndexMap> read_buffer_transformations_;
   const ffi::Map<Buffer, IndexMap>& buffer_transformation_cache_;
-  std::unordered_map<Buffer, BufferAccessInfo, ObjectPtrHash, ObjectPtrEqual> buffer_access_info_;
+  std::unordered_map<Buffer, BufferAccessInfo, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+      buffer_access_info_;
 };
 
 /*!
@@ -564,10 +566,10 @@ class PrimFuncAnalyzer : public StmtExprVisitor {
     }
     VisitStmt(func->body);
   }
-  ffi::Map<SBlock, ffi::Map<ObjectRef, IndexMap>> GetSuggestedTransforms() {
-    ffi::Map<SBlock, ffi::Map<ObjectRef, IndexMap>> result;
+  ffi::Map<SBlock, ffi::Map<ffi::ObjectRef, IndexMap>> GetSuggestedTransforms() {
+    ffi::Map<SBlock, ffi::Map<ffi::ObjectRef, IndexMap>> result;
     for (const auto& [block, index_map] : block_transformations_) {
-      ffi::Map<ObjectRef, IndexMap> block_transformations;
+      ffi::Map<ffi::ObjectRef, IndexMap> block_transformations;
       block_transformations.Set(block, index_map);
       for (const auto& buffer : block_to_buffer_[block]) {
         block_transformations.Set(buffer, buffer_transformation_cache_[buffer]);
@@ -610,10 +612,11 @@ class PrimFuncAnalyzer : public StmtExprVisitor {
  private:
   ffi::Map<Buffer, IndexMap> buffer_transformation_cache_;
   ffi::Map<SBlock, IndexMap> block_transformations_;
-  std::unordered_map<SBlock, ffi::Array<Buffer>, ObjectPtrHash, ObjectPtrEqual> block_to_buffer_;
+  std::unordered_map<SBlock, ffi::Array<Buffer>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+      block_to_buffer_;
 };
 
-ffi::Map<tirx::SBlock, ffi::Map<ObjectRef, tirx::IndexMap>> SuggestLayoutTransforms(
+ffi::Map<tirx::SBlock, ffi::Map<ffi::ObjectRef, tirx::IndexMap>> SuggestLayoutTransforms(
     const PrimFunc& prim_func, ffi::Array<IndexMap> write_buffer_transformations) {
   // No changes to the PrimFunc are required if no transformations on output buffers.
   if (write_buffer_transformations.empty()) return {};

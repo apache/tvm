@@ -34,7 +34,7 @@ namespace transform {
 struct OOBLocation {
   Buffer buf;
   size_t dimension;
-  ObjectRef index;
+  ffi::ObjectRef index;
   arith::IntSet index_bounds;
   arith::IntSet shape_bounds;
 };
@@ -57,8 +57,8 @@ class OOBError : public s_tir::ScheduleError {
     return s.str();
   }
   IRModule mod() const final { return mod_; }
-  ffi::Array<ObjectRef> LocationsOfInterest() const final {
-    std::vector<ObjectRef> locs;
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final {
+    std::vector<ffi::ObjectRef> locs;
     for (auto loc : locations_) {
       locs.push_back(loc.index);
     }

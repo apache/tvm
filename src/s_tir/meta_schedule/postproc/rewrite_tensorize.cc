@@ -35,7 +35,7 @@ void CollectTensorizationJobs(
     const s_tir::Schedule& sch, const ffi::String& func_name, const tirx::PrimFuncNode* func,
     bool vectorize_init_loop,
     std::vector<std::tuple<ffi::String, ffi::String, std::function<void(s_tir::SBlockRV)>>>* jobs) {
-  tirx::PostOrderVisit(func->body, [=, &jobs](const ObjectRef& obj) {
+  tirx::PostOrderVisit(func->body, [=, &jobs](const ffi::ObjectRef& obj) {
     if (const auto* block = obj.as<tirx::SBlockNode>()) {
       tirx::StmtSRef block_sref = sch->GetSRef(block);
       std::string block_name = block_sref->StmtAs<tirx::SBlockNode>()->name_hint;
@@ -75,7 +75,7 @@ class RewriteTensorizeNode : public PostprocNode {
   bool Apply(const s_tir::Schedule& sch) final;
 
   Postproc Clone() const {
-    ObjectPtr<RewriteTensorizeNode> n = ffi::make_object<RewriteTensorizeNode>(*this);
+    ffi::ObjectPtr<RewriteTensorizeNode> n = ffi::make_object<RewriteTensorizeNode>(*this);
     return Postproc(n);
   }
 
@@ -107,7 +107,7 @@ bool RewriteTensorizeNode::Apply(const s_tir::Schedule& sch) {
 }
 
 Postproc Postproc::RewriteTensorize(bool vectorize_init_loop) {
-  ObjectPtr<RewriteTensorizeNode> n = ffi::make_object<RewriteTensorizeNode>();
+  ffi::ObjectPtr<RewriteTensorizeNode> n = ffi::make_object<RewriteTensorizeNode>();
   n->vectorize_init_loop = vectorize_init_loop;
   return Postproc(n);
 }

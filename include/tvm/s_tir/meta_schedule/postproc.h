@@ -22,7 +22,7 @@
 
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/object.h>
+#include <tvm/runtime/base.h>
 #include <tvm/s_tir/schedule/schedule.h>
 
 namespace tvm {
@@ -35,7 +35,7 @@ class Postproc;
 /*!
  * \brief Rules to apply a postprocessor to a schedule.
  */
-class PostprocNode : public runtime::Object {
+class PostprocNode : public ffi::Object {
  public:
   /*! \brief Virtual destructor. */
   virtual ~PostprocNode() = default;
@@ -66,14 +66,14 @@ class PostprocNode : public runtime::Object {
   virtual Postproc Clone() const = 0;
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.Postproc", PostprocNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.Postproc", PostprocNode, ffi::Object);
 };
 
 /*!
  * \brief Managed reference to PostprocNode
  * \sa PostprocNode
  */
-class Postproc : public runtime::ObjectRef {
+class Postproc : public ffi::ObjectRef {
  public:
   /*!
    * \brief The function type of `InitializeWithTuneContext` method.
@@ -177,7 +177,7 @@ class Postproc : public runtime::ObjectRef {
   /*! \brief Create default postprocessors for Hexagon */
   TVM_DLL static ffi::Array<Postproc, void> DefaultHexagon();
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Postproc, ObjectRef, PostprocNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Postproc, ffi::ObjectRef, PostprocNode);
 };
 
 /*! \brief The postprocessor with customized methods on the python-side. */

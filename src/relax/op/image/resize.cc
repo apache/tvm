@@ -24,6 +24,7 @@
 
 #include "resize.h"
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 
 #include <utility>
@@ -40,7 +41,7 @@ Expr resize2d(Expr data, Expr size, ffi::Array<FloatImm> roi, ffi::String layout
               ffi::String method, ffi::String coordinate_transformation_mode,
               ffi::String rounding_method, double cubic_alpha, int cubic_exclude,
               double extrapolation_value, ffi::Optional<DataType> out_dtype) {
-  ObjectPtr<Resize2DAttrs> attrs = ffi::make_object<Resize2DAttrs>();
+  ffi::ObjectPtr<Resize2DAttrs> attrs = ffi::make_object<Resize2DAttrs>();
   attrs->roi = std::move(roi);
   attrs->layout = std::move(layout);
   attrs->method = std::move(method);
@@ -117,7 +118,7 @@ InferLayoutOutput InferLayoutResize2d(
   TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision data_layout;
-  ObjectPtr<Resize2DAttrs> new_attrs = ffi::make_object<Resize2DAttrs>(*attrs);
+  ffi::ObjectPtr<Resize2DAttrs> new_attrs = ffi::make_object<Resize2DAttrs>(*attrs);
 
   if (it != desired_layouts.end()) {
     // We have a desired layout for resize2d.
@@ -155,7 +156,7 @@ Expr resize3d(Expr data, Expr size, ffi::Array<FloatImm> roi, ffi::String layout
               ffi::String method, ffi::String coordinate_transformation_mode,
               ffi::String rounding_method, double cubic_alpha, int cubic_exclude,
               double extrapolation_value, ffi::Optional<DataType> out_dtype) {
-  ObjectPtr<Resize3DAttrs> attrs = ffi::make_object<Resize3DAttrs>();
+  ffi::ObjectPtr<Resize3DAttrs> attrs = ffi::make_object<Resize3DAttrs>();
   attrs->roi = std::move(roi);
   attrs->layout = std::move(layout);
   attrs->method = std::move(method);
@@ -204,7 +205,7 @@ StructInfo InferStructInfoResize3D(const Call& call, const BlockBuilder& ctx) {
 
   const auto* attrs = call->attrs.as<Resize3DAttrs>();
   auto [data_layout, data2NCDHW] = CheckTensorLayout(call, ctx, attrs->layout,  //
-                                                     /*tgt_layout=*/"NCDHW",     //
+                                                     /*tgt_layout=*/"NCDHW",    //
                                                      /*tensor_name=*/"data");
 
   DataType out_dtype = attrs->out_dtype.is_void() ? data_sinfo->dtype : attrs->out_dtype;
@@ -233,7 +234,7 @@ InferLayoutOutput InferLayoutResize3d(
   TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision data_layout;
-  ObjectPtr<Resize3DAttrs> new_attrs = ffi::make_object<Resize3DAttrs>(*attrs);
+  ffi::ObjectPtr<Resize3DAttrs> new_attrs = ffi::make_object<Resize3DAttrs>(*attrs);
 
   if (it != desired_layouts.end()) {
     Layout desired_data_layout = (*it).second[0];
@@ -268,7 +269,7 @@ TVM_FFI_STATIC_INIT_BLOCK() { GridSampleAttrs::RegisterReflection(); }
 
 Expr grid_sample(Expr data, Expr grid, ffi::String method, ffi::String layout,
                  ffi::String padding_mode, bool align_corners) {
-  ObjectPtr<GridSampleAttrs> attrs = ffi::make_object<GridSampleAttrs>();
+  ffi::ObjectPtr<GridSampleAttrs> attrs = ffi::make_object<GridSampleAttrs>();
   attrs->method = std::move(method);
   attrs->layout = std::move(layout);
   attrs->padding_mode = std::move(padding_mode);
@@ -364,16 +365,14 @@ StructInfo InferStructInfoAffineGrid(const Call& call, const BlockBuilder& ctx) 
   const auto* size_value = call->args[1].as<ShapeExprNode>();
 
   if (data_sinfo == nullptr) {
-    ctx->ReportFatal(
-        Diagnostic::Error(call)
-        << "AffineGrid expects the input data to be a Tensor, while the given data is "
-        << call->args[0]->GetTypeKey());
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "AffineGrid expects the input data to be a Tensor, while the given data is "
+                     << call->args[0]->GetTypeKey());
   }
   if (size_sinfo == nullptr) {
-    ctx->ReportFatal(
-        Diagnostic::Error(call)
-        << "AffineGrid expects the target size to be a Shape, while the given one is "
-        << call->args[1]->GetTypeKey());
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "AffineGrid expects the target size to be a Shape, while the given one is "
+                     << call->args[1]->GetTypeKey());
   }
   if (size_sinfo->ndim != 2) {
     ctx->ReportFatal(Diagnostic::Error(call)
@@ -418,10 +417,10 @@ StructInfo InferStructInfoAffineGrid(const Call& call, const BlockBuilder& ctx) 
 
   // Output shape: [batch, 2, target_height, target_width]
   ffi::Array<PrimExpr> out_shape;
-  out_shape.push_back(data_shape->values[0]);  // batch
+  out_shape.push_back(data_shape->values[0]);         // batch
   out_shape.push_back(IntImm(DataType::Int(64), 2));  // 2 (spatial dimensions)
-  out_shape.push_back(size_value->values[0]);  // target_height
-  out_shape.push_back(size_value->values[1]);  // target_width
+  out_shape.push_back(size_value->values[0]);         // target_height
+  out_shape.push_back(size_value->values[1]);         // target_width
 
   return TensorStructInfo(ShapeExpr(out_shape), out_dtype, data_sinfo->vdevice);
 }

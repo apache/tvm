@@ -94,7 +94,7 @@ class MemoryDatabaseNode : public DatabaseNode {
 };
 
 Database Database::MemoryDatabase(ffi::String mod_eq_name) {
-  ObjectPtr<MemoryDatabaseNode> n = ffi::make_object<MemoryDatabaseNode>(mod_eq_name);
+  ffi::ObjectPtr<MemoryDatabaseNode> n = ffi::make_object<MemoryDatabaseNode>(mod_eq_name);
   n->records.clear();
   n->workloads.clear();
   return Database(n);

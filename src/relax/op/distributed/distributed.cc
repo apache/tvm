@@ -43,7 +43,7 @@ TVM_FFI_STATIC_INIT_BLOCK() { DistributionAttrs::RegisterReflection(); }
 
 Expr annotate_sharding(Expr input, distributed::DeviceMesh device_mesh,
                        distributed::Placement placement) {
-  ObjectPtr<DistributionAttrs> attrs = ffi::make_object<DistributionAttrs>();
+  ffi::ObjectPtr<DistributionAttrs> attrs = ffi::make_object<DistributionAttrs>();
   attrs->device_mesh = device_mesh;
   attrs->placement = placement;
 
@@ -71,7 +71,7 @@ TVM_REGISTER_OP("relax.dist.annotate_sharding")
 
 Expr redistribute(Expr input, distributed::DeviceMesh device_mesh,
                   distributed::Placement placement) {
-  ObjectPtr<DistributionAttrs> attrs = ffi::make_object<DistributionAttrs>();
+  ffi::ObjectPtr<DistributionAttrs> attrs = ffi::make_object<DistributionAttrs>();
   attrs->device_mesh = device_mesh;
   attrs->placement = placement;
 
@@ -212,7 +212,7 @@ StructInfo InferDistStructInfoRtoS(const Call& call, const BlockBuilder& ctx) {
 }
 
 Expr redistribute_replica_to_shard(Expr input, int num_workers, int axis) {
-  ObjectPtr<ScatterCollectiveAttrs> attrs = ffi::make_object<ScatterCollectiveAttrs>();
+  ffi::ObjectPtr<ScatterCollectiveAttrs> attrs = ffi::make_object<ScatterCollectiveAttrs>();
   attrs->num_workers = std::move(num_workers);
   attrs->axis = std::move(axis);
   static const Op& op = Op::Get("relax.dist.redistribute_replica_to_shard");

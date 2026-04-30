@@ -21,6 +21,7 @@
  * \file src/tirx/ir/specialize.cc
  * \brief Specialize parameters of PrimFunc.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/tirx/analysis.h>
@@ -132,7 +133,7 @@ class PrimFuncSpecializer : public StmtExprMutator {
         writes.same_as(op->writes)) {
       return ffi::GetRef<SBlock>(op);
     } else {
-      ObjectPtr<SBlockNode> n = CopyOnWrite(op);
+      ffi::ObjectPtr<SBlockNode> n = CopyOnWrite(op);
       n->alloc_buffers = std::move(alloc_buffers);
       n->reads = std::move(reads);
       n->writes = std::move(writes);
@@ -291,7 +292,7 @@ class PrimFuncSpecializer : public StmtExprMutator {
   /*! \brief The vars to be substitute and their values */
   const VarMap& var_map_;
   /*! \brief map from old buffer to mutated buffer */
-  std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> buffer_map_;
+  std::unordered_map<Buffer, Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_map_;
 };
 
 /*!

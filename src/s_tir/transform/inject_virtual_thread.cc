@@ -20,6 +20,7 @@
 /*!
  * \file inject_virtual_thread.cc
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>

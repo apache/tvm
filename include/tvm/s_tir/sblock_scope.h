@@ -51,7 +51,7 @@ namespace tirx {
  * - Sref tree: The parent-children-relationship of srefs that forms a tree, uniquely determined by
  * the TensorIR AST.
  */
-class StmtSRefNode : public Object {
+class StmtSRefNode : public ffi::Object {
  public:
   /*!
    * \brief The block or `for` stmt the object refers to
@@ -73,7 +73,7 @@ class StmtSRefNode : public Object {
   }
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.StmtSRef", StmtSRefNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.StmtSRef", StmtSRefNode, ffi::Object);
 
   /*! \brief Reset the object inplace to the invalid state */
   void Reset() {
@@ -84,7 +84,8 @@ class StmtSRefNode : public Object {
 
   /*!
    * \brief Get the referenced statement with proper type checking.
-   * It serves the same purpose as `ObjectRef::as`, but does not acquire strong reference to `stmt`
+   * It serves the same purpose as `ffi::ObjectRef::as`, but does not acquire strong reference to
+   * `stmt`
    * \tparam StmtType The type that `this->stmt` to be downcasted to. Presumably
    * tvm::tirx::SBlockNode or tvm::tirx::ForNode
    * \return nullptr if type check fails, otherwise the casted result for `this->stmt`
@@ -103,7 +104,7 @@ class StmtSRefNode : public Object {
  * \brief Managed reference to StmtSRefNode
  * \sa StmtSRefNode
  */
-class StmtSRef : public ObjectRef {
+class StmtSRef : public ffi::ObjectRef {
  public:
   /*!
    * \brief The constructor
@@ -114,7 +115,7 @@ class StmtSRef : public ObjectRef {
    */
   TVM_DLL explicit StmtSRef(const StmtNode* stmt, StmtSRefNode* parent, int64_t seq_index);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(StmtSRef, ObjectRef, StmtSRefNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(StmtSRef, ffi::ObjectRef, StmtSRefNode);
 
  public:
   /*!
@@ -207,7 +208,7 @@ enum class DepKind : int32_t {
  * For example, (A, B, kRAW) means block B depends on block A, and the dependency kind is
  * read-after-write, which means block B reads the result written by block A.
  */
-class DependencyNode : public Object {
+class DependencyNode : public ffi::Object {
  public:
   /*! \brief The source of the dependency relation */
   StmtSRef src;
@@ -223,18 +224,18 @@ class DependencyNode : public Object {
         .def_ro("dst", &DependencyNode::dst)
         .def_ro("kind", &DependencyNode::kind);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.Dependency", DependencyNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.Dependency", DependencyNode, ffi::Object);
 };
 
 /*!
  * \brief Managed reference to DependencyNode
  * \sa DependencyNode
  */
-class Dependency : public ObjectRef {
+class Dependency : public ffi::ObjectRef {
  public:
   /*! \brief Constructor */
   TVM_DLL explicit Dependency(StmtSRef src, StmtSRef dst, DepKind kind);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Dependency, ObjectRef, DependencyNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Dependency, ffi::ObjectRef, DependencyNode);
 };
 
 /*!
@@ -250,24 +251,27 @@ class Dependency : public ObjectRef {
  *   - scope leaves: block srefs
  * - Child block: The scope leaf blocks under the scope root or a specific internal sref
  */
-class SBlockScopeNode : public Object {
+class SBlockScopeNode : public ffi::Object {
  public:
   /*!
    * \brief Lookup table for the `src` of dependencies
    * \note We intentionally didn't use tvm::Map as the data structure, because we need the values
    * inside to be mutable so that they could be further maintained properly during transformations.
    */
-  std::unordered_map<StmtSRef, ffi::Array<Dependency>, ObjectPtrHash, ObjectPtrEqual> src2deps;
+  std::unordered_map<StmtSRef, ffi::Array<Dependency>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+      src2deps;
   /*! \brief Lookup table for the `dst` of dependencies */
-  std::unordered_map<StmtSRef, ffi::Array<Dependency>, ObjectPtrHash, ObjectPtrEqual> dst2deps;
+  std::unordered_map<StmtSRef, ffi::Array<Dependency>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+      dst2deps;
   /*! \brief The mapping from the buffer to the blocks who write it */
-  std::unordered_map<Buffer, ffi::Array<StmtSRef>, ObjectPtrHash, ObjectPtrEqual> buffer_writers;
+  std::unordered_map<Buffer, ffi::Array<StmtSRef>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+      buffer_writers;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<SBlockScopeNode>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.SBlockScope", SBlockScopeNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.SBlockScope", SBlockScopeNode, ffi::Object);
 
  public:
   /******** Dependency ********/
@@ -289,13 +293,13 @@ class SBlockScopeNode : public Object {
  * \brief Managed reference to SBlockScopeNode
  * \sa SBlockScopeNode
  */
-class SBlockScope : public ObjectRef {
+class SBlockScope : public ffi::ObjectRef {
  public:
   /*!
-   * \brief Constructor from ObjectPtr<SBlockScopeNode>.
+   * \brief Constructor from ffi::ObjectPtr<SBlockScopeNode>.
    * \param data The object pointer.
    */
-  explicit SBlockScope(ObjectPtr<SBlockScopeNode> data) : ObjectRef(data) {
+  explicit SBlockScope(ffi::ObjectPtr<SBlockScopeNode> data) : ffi::ObjectRef(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
   /*! \brief The constructor creating an empty block scope with on dependency information */
@@ -308,7 +312,7 @@ class SBlockScope : public ObjectRef {
    */
   TVM_DLL explicit SBlockScope(const ffi::Array<StmtSRef>& child_block_srefs);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SBlockScope, ObjectRef, SBlockScopeNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SBlockScope, ffi::ObjectRef, SBlockScopeNode);
 };
 
 }  // namespace tirx

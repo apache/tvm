@@ -27,7 +27,6 @@
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/type.h>
 #include <tvm/relax/expr.h>
-#include <tvm/runtime/object.h>
 
 namespace tvm {
 namespace relax {
@@ -111,8 +110,7 @@ struct GetValidCountsAttrs : public AttrsNodeReflAdapter<GetValidCountsAttrs> {
 };  // struct GetValidCountsAttrs
 
 /*! \brief Attributes used in NonMaximumSuppression operator */
-struct NonMaximumSuppressionAttrs
-    : public AttrsNodeReflAdapter<NonMaximumSuppressionAttrs> {
+struct NonMaximumSuppressionAttrs : public AttrsNodeReflAdapter<NonMaximumSuppressionAttrs> {
   int max_output_size;
   double iou_threshold;
   bool force_suppress;

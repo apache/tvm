@@ -21,6 +21,7 @@
  * \brief Pass for lowering custom datatypes
  */
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/target/target.h>
@@ -237,7 +238,7 @@ class CustomDatatypesLowerer : public StmtExprMutator {
   std::string target_;
   // remap buffer vars
   std::unordered_map<Var, Var> var_remap_;
-  std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> buf_remap_;
+  std::unordered_map<Buffer, Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buf_remap_;
 };
 
 namespace transform {

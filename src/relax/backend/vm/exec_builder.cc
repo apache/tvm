@@ -41,7 +41,7 @@ ExecBuilder ExecBuilderNode::Create() {
 
 VMExecutable* ExecBuilderNode::exec() const { return exec_.get(); }
 
-ObjectPtr<VMExecutable> ExecBuilderNode::Get() {
+ffi::ObjectPtr<VMExecutable> ExecBuilderNode::Get() {
   this->Formalize();
   this->CheckExecutable();
   return exec_;
@@ -381,7 +381,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           "relax.ExecBuilderF",
           [](ExecBuilder builder, ffi::String value) { return builder->GetFunction(value).data(); })
       .def("relax.ExecBuilderGet", [](ExecBuilder builder) {
-        ObjectPtr<VMExecutable> p_exec = builder->Get();
+        ffi::ObjectPtr<VMExecutable> p_exec = builder->Get();
         return ffi::Module(p_exec);
       });
 }

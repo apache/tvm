@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/cast.h>
+
 #include "memhammer_rewrite_rule.h"
 
 namespace tvm {
@@ -26,7 +28,7 @@ Stmt CopyLoopChain(const std::vector<const ForNode*> loops, const Stmt& inner_bo
                    Stmt* ith_loop = nullptr) {
   Stmt ret = inner_body;
   for (int i = static_cast<int>(loops.size() - 1); i >= 0; i--) {
-    ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*loops[i]);
+    ffi::ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*loops[i]);
     new_loop->body = ret;
     ret = For(new_loop);
     if (ith == i) {
@@ -279,7 +281,7 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
   arith::Analyzer analyzer;
   const BufferLoadNode* target_buffer_load = nullptr;
   if (is_write_cache) {
-    tirx::PreOrderVisit(stmt, [&](const ObjectRef& obj) {
+    tirx::PreOrderVisit(stmt, [&](const ffi::ObjectRef& obj) {
       if (const auto* buffer_load = obj.as<BufferLoadNode>()) {
         if (buffer_load->buffer.scope() == "wmma.accumulator" ||
             buffer_load->buffer.scope() == "m16n8k8.matrixC") {
@@ -390,14 +392,14 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
 
   for (int i = static_cast<int>(loops_under_compute_location.size()) - 1; i >= 0; i--) {
     const ForNode* orig_loop = loops_under_compute_location[i];
-    ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*orig_loop);
+    ffi::ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*orig_loop);
     new_loop->loop_var = new_loop_vars[i + relaxed_thread_loops.size()];
     new_loop->body = generate_body;
     generate_body = For(new_loop);
   }
   for (int i = static_cast<int>(relaxed_thread_loops.size()) - 1; i >= 0; i--) {
     const ForNode* orig_loop = relaxed_thread_loops[i];
-    ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*orig_loop);
+    ffi::ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*orig_loop);
     new_loop->loop_var = new_loop_vars[i];
     new_loop->body = generate_body;
     new_loop->kind = ForKind::kSerial;
@@ -419,7 +421,7 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
   }
   for (int i = static_cast<int>(loops_under_compute_location.size()) - 1; i >= 0; i--) {
     const ForNode* orig_loop = loops_under_compute_location[i];
-    ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*orig_loop);
+    ffi::ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*orig_loop);
     new_loop->body = rewrite_body;
     rewrite_body = For(new_loop);
   }

@@ -121,7 +121,7 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
 
   // Inherited from ScheduleRuleNode
   ScheduleRule Clone() const final {
-    ObjectPtr<CrossThreadReductionNode> n = ffi::make_object<CrossThreadReductionNode>(*this);
+    ffi::ObjectPtr<CrossThreadReductionNode> n = ffi::make_object<CrossThreadReductionNode>(*this);
     return ScheduleRule(n);
   }
 
@@ -156,7 +156,7 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
                              s_tir::ExprRV* extent) {
     for (const s_tir::Instruction& inst : trace->insts) {
       if (inst->kind->name == "Split") {
-        auto fcheck = [&](const Any& a) -> bool { return a.as<Object>() == loop.get(); };
+        auto fcheck = [&](const Any& a) -> bool { return a.as<ffi::Object>() == loop.get(); };
         int i = std::find_if(inst->outputs.begin(), inst->outputs.end(), fcheck) -
                 inst->outputs.begin();
         TVM_FFI_CHECK(inst->inputs[1 + i] != nullptr, ValueError)
@@ -295,7 +295,7 @@ ScheduleRule ScheduleRule::CrossThreadReduction(ffi::Array<Integer> thread_exten
     TVM_FFI_CHECK(extent->value > 0, ValueError)
         << "The candidates of thread extent must be positive";
   }
-  ObjectPtr<CrossThreadReductionNode> n = ffi::make_object<CrossThreadReductionNode>();
+  ffi::ObjectPtr<CrossThreadReductionNode> n = ffi::make_object<CrossThreadReductionNode>();
   n->thread_extents = std::move(thread_extents);
   return ScheduleRule(n);
 }

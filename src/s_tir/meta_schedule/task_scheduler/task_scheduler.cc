@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/analysis.h>
 
@@ -32,7 +33,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 TaskRecord::TaskRecord(TuneContext ctx, double task_weight) {
-  ObjectPtr<TaskRecordNode> n = ffi::make_object<TaskRecordNode>();
+  ffi::ObjectPtr<TaskRecordNode> n = ffi::make_object<TaskRecordNode>();
   n->ctx = ctx;
   n->task_weight = task_weight;
   n->flop = 1.0;
@@ -337,7 +338,7 @@ TaskScheduler TaskScheduler::PyTaskScheduler(
     ffi::Function logger, PyTaskSchedulerNode::FNextTaskId f_next_task_id,
     PyTaskSchedulerNode::FJoinRunningTask f_join_running_task, PyTaskSchedulerNode::FTune f_tune) {
   TVM_FFI_CHECK(f_next_task_id != nullptr, ValueError) << "next_task_id is not defined";
-  ObjectPtr<PyTaskSchedulerNode> n = ffi::make_object<PyTaskSchedulerNode>();
+  ffi::ObjectPtr<PyTaskSchedulerNode> n = ffi::make_object<PyTaskSchedulerNode>();
   n->logger = logger;
   n->f_next_task_id = f_next_task_id;
   n->f_join_running_task = f_join_running_task;

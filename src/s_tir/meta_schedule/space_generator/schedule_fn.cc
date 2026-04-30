@@ -54,7 +54,7 @@ class ScheduleFnNode : public SpaceGeneratorNode {
     if (rv == nullptr) {
       return {sch};
     }
-    ObjectRef obj = rv.cast<ObjectRef>();
+    ffi::ObjectRef obj = rv.cast<ffi::ObjectRef>();
     if (auto sch = obj.as<s_tir::Schedule>()) {
       return {sch.value()};
     }
@@ -79,7 +79,7 @@ class ScheduleFnNode : public SpaceGeneratorNode {
   }
 
   SpaceGenerator Clone() const final {
-    ObjectPtr<ScheduleFnNode> n = ffi::make_object<ScheduleFnNode>(*this);
+    ffi::ObjectPtr<ScheduleFnNode> n = ffi::make_object<ScheduleFnNode>(*this);
     CloneRules(this, n.get());
     return SpaceGenerator(n);
   }
@@ -92,7 +92,7 @@ SpaceGenerator SpaceGenerator::ScheduleFn(
     ffi::Function schedule_fn, ffi::Optional<ffi::Array<ScheduleRule>> sch_rules,
     ffi::Optional<ffi::Array<Postproc>> postprocs,
     ffi::Optional<ffi::Map<Mutator, FloatImm>> mutator_probs) {
-  ObjectPtr<ScheduleFnNode> n = ffi::make_object<ScheduleFnNode>();
+  ffi::ObjectPtr<ScheduleFnNode> n = ffi::make_object<ScheduleFnNode>();
   n->sch_rules = std::move(sch_rules);
   n->postprocs = std::move(postprocs);
   n->mutator_probs = std::move(mutator_probs);

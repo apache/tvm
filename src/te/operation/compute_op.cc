@@ -163,7 +163,7 @@ ffi::Array<Tensor> ComputeOpNode::InputTensors() const {
   ffi::Array<Tensor> ret;
   std::unordered_set<Tensor> visited;
   for (auto& e : body) {
-    tirx::PostOrderVisit(e, [&ret, &visited](const ObjectRef& n) {
+    tirx::PostOrderVisit(e, [&ret, &visited](const ffi::ObjectRef& n) {
       if (auto* pload = n.as<tirx::ProducerLoadNode>()) {
         Tensor t = Downcast<Tensor>(pload->producer);
         if (!visited.count(t)) {

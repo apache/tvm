@@ -20,6 +20,7 @@
 #include "create_primfunc.h"
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/name_supply.h>
@@ -176,7 +177,7 @@ class LayoutFreePlaceholdersNormalizer : public StmtMutator {
     return block;
   }
 
-  std::unordered_map<tirx::Buffer, int, ObjectPtrHash, ObjectPtrEqual> buffer2index_;
+  std::unordered_map<tirx::Buffer, int, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer2index_;
   std::set<int> layout_free_buffer_indices_;
   ffi::String topi_attr = "layout_free_placeholders";
   std::vector<ffi::String> blocklist = {"const_matrix",
@@ -788,7 +789,7 @@ PrimFunc CreatePrimFunc(const ffi::Array<te::Tensor>& arg_list,
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("te.CreatePrimFunc", [](ffi::PackedArgs args, ffi::Any* ret) {
-    ffi::Array<ObjectRef> arg_list = args[0].cast<ffi::Array<ObjectRef>>();
+    ffi::Array<ffi::ObjectRef> arg_list = args[0].cast<ffi::Array<ffi::ObjectRef>>();
     std::optional<DataType> index_dtype_override{std::nullopt};
     // Add conversion to make std::optional compatible with FFI.
     if (args[1] != nullptr) {
@@ -799,11 +800,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // Relax version impl
-PrimFunc GenerateAndCompletePrimFunc(const ffi::Array<ObjectRef>& arg_tir_var_list,
+PrimFunc GenerateAndCompletePrimFunc(const ffi::Array<ffi::ObjectRef>& arg_tir_var_list,
                                      const ffi::Array<Stmt>& root_stmts, CreateFuncInfo* info) {
   ffi::Array<Var> parameters;
   ffi::Map<Var, Buffer> buffer_map;
-  for (const ObjectRef& arg : arg_tir_var_list) {
+  for (const ffi::ObjectRef& arg : arg_tir_var_list) {
     if (auto opt_tensor = arg.as<te::Tensor>()) {
       te::Tensor tensor = opt_tensor.value();
       Var arg("var_" + tensor->GetNameHint(), PrimType(DataType::Handle()));
@@ -826,10 +827,10 @@ PrimFunc GenerateAndCompletePrimFunc(const ffi::Array<ObjectRef>& arg_tir_var_li
   return func;
 }
 
-PrimFunc CreatePrimFunc(const ffi::Array<ObjectRef>& arg_list,
+PrimFunc CreatePrimFunc(const ffi::Array<ffi::ObjectRef>& arg_list,
                         std::optional<DataType> index_dtype_override) {
   ffi::Array<te::Tensor> tensor_arg_list;
-  for (const ObjectRef& x : arg_list) {
+  for (const ffi::ObjectRef& x : arg_list) {
     if (auto tensor_node = x.as<te::TensorNode>()) {
       te::Tensor tensor = ffi::GetRef<te::Tensor>(tensor_node);
       tensor_arg_list.push_back(tensor);

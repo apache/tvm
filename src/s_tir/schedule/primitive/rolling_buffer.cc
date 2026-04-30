@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/cast.h>
+
 #include <functional>
 
 #include "../ir_comparator.h"
@@ -65,7 +67,7 @@ class RollingBufferDependencyError : public ScheduleError {
   }
 
   IRModule mod() const final { return mod_; }
-  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {block_}; }
 
   /*!
    * \brief Check if the block has only RAW dependencies.
@@ -114,7 +116,7 @@ class RollingBufferMatchError : public ScheduleError {
   }
 
   IRModule mod() const final { return mod_; }
-  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {block_}; }
 
  private:
   IRModule mod_;
@@ -139,7 +141,7 @@ class RollingBufferInsertionError : public ScheduleError {
     return os.str();
   }
   IRModule mod() const final { return mod_; }
-  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {block_}; }
 
  private:
   IRModule mod_;

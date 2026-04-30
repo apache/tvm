@@ -17,6 +17,7 @@
  * under the License.
  */
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
@@ -34,10 +35,10 @@ namespace relax {
 namespace {
 
 template <typename T>
-using PSet = std::unordered_set<T, ObjectPtrHash, ObjectPtrEqual>;
+using PSet = std::unordered_set<T, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>;
 
 template <typename T, typename U>
-using PMap = std::unordered_map<T, U, ObjectPtrHash, ObjectPtrEqual>;
+using PMap = std::unordered_map<T, U, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>;
 
 class PartialTupleUsageCollector : ExprVisitor {
  public:

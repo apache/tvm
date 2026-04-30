@@ -23,7 +23,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/optional.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/object.h>
+#include <tvm/runtime/base.h>
 #include <tvm/s_tir/meta_schedule/arg_info.h>
 #include <tvm/s_tir/meta_schedule/cost_model.h>
 #include <tvm/s_tir/meta_schedule/database.h>
@@ -75,7 +75,7 @@ class SearchStrategy;
   |                   +----  Runner Future <-------+                    |
   +---------------------------------------------------------------------+
 */
-class SearchStrategyNode : public runtime::Object {
+class SearchStrategyNode : public ffi::Object {
  public:
   /*! \brief Virtual destructor */
   virtual ~SearchStrategyNode() = default;
@@ -131,14 +131,15 @@ class SearchStrategyNode : public runtime::Object {
   virtual SearchStrategy Clone() const = 0;
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.SearchStrategy", SearchStrategyNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.SearchStrategy", SearchStrategyNode,
+                              ffi::Object);
 };
 
 /*!
  * \brief Managed reference to SearchStrategyNode.
  * \sa SearchStrategyNode
  */
-class SearchStrategy : public runtime::ObjectRef {
+class SearchStrategy : public ffi::ObjectRef {
  public:
   /*!
    * \brief The function type of `InitializeWithTuneContext` method.
@@ -217,7 +218,7 @@ class SearchStrategy : public runtime::ObjectRef {
                                                    int genetic_max_fail_count,  //
                                                    double eps_greedy);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(SearchStrategy, ObjectRef, SearchStrategyNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(SearchStrategy, ffi::ObjectRef, SearchStrategyNode);
 };
 
 /*! \brief The python side customizable class for measure candidate generation */

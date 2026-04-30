@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/cast.h>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -62,7 +64,7 @@ class NotAllRequiredBlocksAreVisitedError : public ScheduleError {
 
   IRModule mod() const final { return mod_; }
 
-  ffi::Array<ObjectRef> LocationsOfInterest() const final {
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final {
     return {required_.begin(), required_.end()};
   }
 
@@ -106,7 +108,7 @@ class NotInSameScopeError : public ScheduleError {
            "and loop not to be the ancestor of block";
   }
   IRModule mod() const final { return mod_; }
-  ffi::Array<ObjectRef> LocationsOfInterest() const final { return {block_, loop_}; }
+  ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {block_, loop_}; }
 
  private:
   explicit NotInSameScopeError(IRModule mod, const StmtSRef& block_sref, const StmtSRef& loop_sref)
@@ -305,7 +307,7 @@ class ScopeReconstructor : private StmtMutator {
     }
     ffi::Array<Stmt> subtrees = AsArray(loop_->body);
     subtrees.insert(subtrees.begin() + insert_position, std::move(new_subtree));
-    ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*loop_.get());
+    ffi::ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*loop_.get());
     new_loop->body = SeqStmt(std::move(subtrees));
     this->new_loop_ = For(std::move(new_loop));
   }

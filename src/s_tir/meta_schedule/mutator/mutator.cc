@@ -46,7 +46,7 @@ Mutator Mutator::PyMutator(
     PyMutatorNode::FApply f_apply,                                             //
     PyMutatorNode::FClone f_clone,                                             //
     PyMutatorNode::FAsString f_as_string) {
-  ObjectPtr<PyMutatorNode> n = ffi::make_object<PyMutatorNode>();
+  ffi::ObjectPtr<PyMutatorNode> n = ffi::make_object<PyMutatorNode>();
   n->f_initialize_with_tune_context = std::move(f_initialize_with_tune_context);
   n->f_apply = std::move(f_apply);
   n->f_clone = std::move(f_clone);
