@@ -25,6 +25,7 @@
 #define TVM_TIR_STMT_H_
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/cow.h>
 #include <tvm/ir/script_printer.h>
 #include <tvm/tirx/expr.h>
 
@@ -37,7 +38,7 @@ namespace tvm {
 namespace tirx {
 
 /*! \brief Base node of all statements. */
-class StmtNode : public Object {
+class StmtNode : public ffi::Object {
  public:
   /*!
    * \brief Span that points to the original source code.
@@ -58,13 +59,13 @@ class StmtNode : public Object {
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
 
   static constexpr const uint32_t _type_child_slots = 15;
-  TVM_FFI_DECLARE_OBJECT_INFO("tirx.Stmt", StmtNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("tirx.Stmt", StmtNode, ffi::Object);
 };
 
 /*! \brief Container of all statements */
-class Stmt : public ObjectRef {
+class Stmt : public ffi::ObjectRef {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Stmt, ObjectRef, StmtNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Stmt, ffi::ObjectRef, StmtNode);
 };
 
 /*!
@@ -457,8 +458,8 @@ class SeqStmt : public Stmt {
 
     template <typename T>
     void operator()(size_t i, const T& stmt_or_seq) const {
-      if constexpr (std::is_base_of_v<ObjectRef, T>) {
-        // Early bail-out, applicable to any ObjectRef
+      if constexpr (std::is_base_of_v<ffi::ObjectRef, T>) {
+        // Early bail-out, applicable to any ffi::ObjectRef
         if (!stmt_or_seq.defined()) {
           return;
         }
@@ -745,7 +746,7 @@ class BufferRegion : public PrimExprConvertible {
  * low-level hardware primitives in the IR and defer the check after the sequence of
  * transformations.
  */
-class MatchBufferRegionNode : public Object {
+class MatchBufferRegionNode : public ffi::Object {
  public:
   /*! \brief The target buffer. */
   Buffer buffer;
@@ -760,18 +761,19 @@ class MatchBufferRegionNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.MatchBufferRegion", MatchBufferRegionNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.MatchBufferRegion", MatchBufferRegionNode, ffi::Object);
 };
 
 /*!
  * \brief Managed reference to MatchBufferRegionNode.
  * \sa MatchBufferRegionNode
  */
-class MatchBufferRegion : public ObjectRef {
+class MatchBufferRegion : public ffi::ObjectRef {
  public:
   TVM_DLL explicit MatchBufferRegion(Buffer buffer, BufferRegion source);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(MatchBufferRegion, ObjectRef, MatchBufferRegionNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(MatchBufferRegion, ffi::ObjectRef,
+                                             MatchBufferRegionNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(MatchBufferRegionNode);
 };
 

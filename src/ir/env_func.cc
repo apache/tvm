@@ -35,10 +35,10 @@ using ffi::PackedArgs;
 
 // Pattern A (RM): auto-default repr from reflection.
 
-ObjectPtr<Object> CreateEnvNode(const std::string& name) {
+ffi::ObjectPtr<ffi::Object> CreateEnvNode(const std::string& name) {
   auto f = tvm::ffi::Function::GetGlobal(name);
   TVM_FFI_ICHECK(f.has_value()) << "Cannot find global function \'" << name << '\'';
-  ObjectPtr<EnvFuncNode> n = ffi::make_object<EnvFuncNode>();
+  ffi::ObjectPtr<EnvFuncNode> n = ffi::make_object<EnvFuncNode>();
   n->func = *f;
   n->name = name;
   return n;

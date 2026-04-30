@@ -36,7 +36,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 PrimType::PrimType(runtime::DataType dtype, Span span) {
-  ObjectPtr<PrimTypeNode> n = ffi::make_object<PrimTypeNode>();
+  ffi::ObjectPtr<PrimTypeNode> n = ffi::make_object<PrimTypeNode>();
   n->dtype = dtype;
   n->span = std::move(span);
   data_ = std::move(n);
@@ -48,7 +48,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 PointerType::PointerType(Type element_type, ffi::String storage_scope) {
-  ObjectPtr<PointerTypeNode> n = ffi::make_object<PointerTypeNode>();
+  ffi::ObjectPtr<PointerTypeNode> n = ffi::make_object<PointerTypeNode>();
   if (storage_scope.empty()) {
     n->storage_scope = "global";
   } else {
@@ -66,7 +66,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 FuncType::FuncType(tvm::ffi::Array<Type> arg_types, Type ret_type, Span span) {
-  ObjectPtr<FuncTypeNode> n = ffi::make_object<FuncTypeNode>();
+  ffi::ObjectPtr<FuncTypeNode> n = ffi::make_object<FuncTypeNode>();
   n->arg_types = std::move(arg_types);
   n->ret_type = std::move(ret_type);
   n->span = std::move(span);
@@ -81,7 +81,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 TupleType::TupleType(ffi::Array<Type> fields, Span span) {
-  ObjectPtr<TupleTypeNode> n = ffi::make_object<TupleTypeNode>();
+  ffi::ObjectPtr<TupleTypeNode> n = ffi::make_object<TupleTypeNode>();
   n->fields = std::move(fields);
   n->span = std::move(span);
   data_ = std::move(n);
@@ -97,7 +97,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 TensorMapType::TensorMapType(Span span) {
-  ObjectPtr<TensorMapTypeNode> n = ffi::make_object<TensorMapTypeNode>();
+  ffi::ObjectPtr<TensorMapTypeNode> n = ffi::make_object<TensorMapTypeNode>();
   n->span = std::move(span);
   data_ = std::move(n);
 }

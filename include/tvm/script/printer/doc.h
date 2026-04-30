@@ -54,7 +54,7 @@ ffi::String DocToPythonScript(Doc doc, const PrinterConfig& cfg);
  *
  * \sa Doc
  */
-class DocNode : public Object {
+class DocNode : public ffi::Object {
  public:
   /*!
    * \brief The list of object paths of the source IR node.
@@ -72,7 +72,7 @@ class DocNode : public Object {
 
   static constexpr bool _type_mutable = true;
 
-  TVM_FFI_DECLARE_OBJECT_INFO("script.printer.Doc", DocNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("script.printer.Doc", DocNode, ffi::Object);
 
  public:
   virtual ~DocNode() = default;
@@ -83,13 +83,13 @@ class DocNode : public Object {
  *
  * \sa DocNode
  */
-class Doc : public ObjectRef {
+class Doc : public ffi::ObjectRef {
  protected:
   Doc() = default;
-  explicit Doc(ObjectPtr<DocNode> data) : ObjectRef(data) {}
+  explicit Doc(ffi::ObjectPtr<DocNode> data) : ffi::ObjectRef(data) {}
 
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Doc, ObjectRef, DocNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Doc, ffi::ObjectRef, DocNode);
 };
 
 class ExprDoc;
@@ -152,7 +152,9 @@ class ExprDoc : public Doc {
    */
   ExprDoc operator[](ffi::Array<Doc> indices) const;
 
-  explicit ExprDoc(ObjectPtr<ExprDocNode> data) : Doc(data) { TVM_FFI_ICHECK(data != nullptr); }
+  explicit ExprDoc(ffi::ObjectPtr<ExprDocNode> data) : Doc(data) {
+    TVM_FFI_ICHECK(data != nullptr);
+  }
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ExprDoc, Doc, ExprDocNode);
 };

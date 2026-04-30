@@ -82,7 +82,7 @@ enum class ProofStrength : int {
  *
  *  set = [min_value, max_value]
  */
-class ConstIntBoundNode : public Object {
+class ConstIntBoundNode : public ffi::Object {
  public:
   int64_t min_value;
   int64_t max_value;
@@ -103,14 +103,14 @@ class ConstIntBoundNode : public Object {
   static const constexpr int64_t kNegInf = -kPosInf;
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.ConstIntBound", ConstIntBoundNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.ConstIntBound", ConstIntBoundNode, ffi::Object);
 };
 
 /*!
  * \brief reference class to ConstIntBoundNode
  * \sa ConstIntBoundNode
  */
-class ConstIntBound : public ObjectRef {
+class ConstIntBound : public ffi::ObjectRef {
  public:
   /*!
    * \brief constructor by fields.
@@ -121,7 +121,7 @@ class ConstIntBound : public ObjectRef {
 
   static const constexpr int64_t kPosInf = ConstIntBoundNode::kPosInf;
   static const constexpr int64_t kNegInf = ConstIntBoundNode::kNegInf;
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ConstIntBound, ObjectRef, ConstIntBoundNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ConstIntBound, ffi::ObjectRef, ConstIntBoundNode);
 };
 
 /*!
@@ -129,7 +129,8 @@ class ConstIntBound : public ObjectRef {
  */
 class ConstIntBoundAnalyzer {
  public:
-  using BoundMapType = std::unordered_map<PrimExpr, ConstIntBound, ObjectPtrHash, ObjectPtrEqual>;
+  using BoundMapType =
+      std::unordered_map<PrimExpr, ConstIntBound, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>;
   /*!
    * \brief analyze the expr
    * \param expr The expression of interest.
@@ -200,7 +201,7 @@ class ConstIntBoundAnalyzer {
  *  This is useful to decide if the index is dividable by certain value.
  *  For example, if index = 0 + 4 x, then we know it can be divided by 4.
  */
-class ModularSetNode : public Object {
+class ModularSetNode : public ffi::Object {
  public:
   /*! \brief linear co-efficient */
   int64_t coeff;
@@ -215,18 +216,18 @@ class ModularSetNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.ModularSet", ModularSetNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.ModularSet", ModularSetNode, ffi::Object);
 };
 
 /*!
  * \brief reference of ModularSetNode
  * \sa ModularSetNode
  */
-class ModularSet : public ObjectRef {
+class ModularSet : public ffi::ObjectRef {
  public:
   TVM_DLL ModularSet(int64_t coeff, int64_t base);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ModularSet, ObjectRef, ModularSetNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ModularSet, ffi::ObjectRef, ModularSetNode);
 };
 
 /*!
@@ -381,7 +382,7 @@ class RewriteSimplifier {
   TVM_DLL Extension GetEnabledExtensions() const;
 
   /*! \brief Return the statistics counters */
-  TVM_DLL ObjectRef GetStatsCounters() const;
+  TVM_DLL ffi::ObjectRef GetStatsCounters() const;
 
   /*! \brief Reset the statistics counters */
   TVM_DLL void ResetStatsCounters();

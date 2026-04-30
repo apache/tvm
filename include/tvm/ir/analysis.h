@@ -43,7 +43,7 @@ class CalleeCollector {
    * Implementation should call `CalleeCollector::Mark` for each
    * `GlobalVar` in the function.
    */
-  using FType = NodeFunctor<void(const ObjectRef&, CalleeCollector*)>;
+  using FType = NodeFunctor<void(const ffi::ObjectRef&, CalleeCollector*)>;
   TVM_DLL static FType& vtable() {
     static FType inst;
     return inst;

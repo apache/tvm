@@ -34,6 +34,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/accessor.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/cow.h>
 #include <tvm/ir/expr.h>
 
 #include <functional>
@@ -53,7 +54,7 @@ namespace tvm {
 template <typename TObjectRef>
 inline TObjectRef NullValue() {
   static_assert(TObjectRef::_type_is_nullable, "Can only get NullValue for nullable types");
-  return TObjectRef(ObjectPtr<typename TObjectRef::ContainerType>(nullptr));
+  return TObjectRef(ffi::ObjectPtr<typename TObjectRef::ContainerType>(nullptr));
 }
 
 template <>
@@ -64,7 +65,7 @@ inline DataType NullValue<DataType>() {
 /*!
  * \brief Information about attribute fields in string representations.
  */
-class AttrFieldInfoNode : public Object {
+class AttrFieldInfoNode : public ffi::Object {
  public:
   /*! \brief name of the field */
   ffi::String name;
@@ -83,13 +84,13 @@ class AttrFieldInfoNode : public Object {
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
 
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.AttrFieldInfo", AttrFieldInfoNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.AttrFieldInfo", AttrFieldInfoNode, ffi::Object);
 };
 
 /*! \brief AttrFieldInfo */
-class AttrFieldInfo : public ObjectRef {
+class AttrFieldInfo : public ffi::ObjectRef {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(AttrFieldInfo, ObjectRef, AttrFieldInfoNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(AttrFieldInfo, ffi::ObjectRef, AttrFieldInfoNode);
 };
 
 /*!
@@ -98,7 +99,7 @@ class AttrFieldInfo : public ObjectRef {
  *       subclass AttrsNode instead.
  * \sa AttrsNode
  */
-class BaseAttrsNode : public Object {
+class BaseAttrsNode : public ffi::Object {
  public:
   /*! \brief virtual destructor */
   virtual ~BaseAttrsNode() {}
@@ -120,16 +121,16 @@ class BaseAttrsNode : public Object {
                                         bool allow_unknown = false) = 0;
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO("ir.Attrs", BaseAttrsNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("ir.Attrs", BaseAttrsNode, ffi::Object);
 };
 
 /*!
  * \brief Managed reference to BaseAttrsNode.
  * \sa AttrsNode, BaseAttrsNode
  */
-class Attrs : public ObjectRef {
+class Attrs : public ffi::ObjectRef {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Attrs, ObjectRef, BaseAttrsNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Attrs, ffi::ObjectRef, BaseAttrsNode);
 };
 
 /*!
@@ -233,8 +234,14 @@ class DictAttrs : public Attrs {
     return GetAttr<Integer>(attr_key, 0).value_or(0).IntValue() != 0;
   }
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE_WITHOUT_DEFAULT_CONSTRUCTOR(DictAttrs, Attrs,
-                                                                         DictAttrsNode);
+  explicit DictAttrs(::tvm::ffi::ObjectPtr<DictAttrsNode> n) : Attrs(n) {}
+  DictAttrs(const DictAttrs&) = default;
+  DictAttrs(DictAttrs&&) = default;
+  DictAttrs& operator=(const DictAttrs&) = default;
+  DictAttrs& operator=(DictAttrs&&) = default;
+  const DictAttrsNode* operator->() const { return static_cast<const DictAttrsNode*>(data_.get()); }
+  const DictAttrsNode* get() const { return operator->(); }
+  using ContainerType = DictAttrsNode;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(DictAttrsNode);
 };
 
