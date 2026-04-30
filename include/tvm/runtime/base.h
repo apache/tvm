@@ -29,7 +29,7 @@
 #include <tvm/ffi/c_api.h>
 
 // TVM version
-#define TVM_VERSION "0.24.dev0"
+#define TVM_VERSION "0.25.dev0"
 
 // TVM ships two shared libraries: libtvm_compiler and libtvm_runtime.
 // Each exposes its own DLL macro pair.  The two families are defined
