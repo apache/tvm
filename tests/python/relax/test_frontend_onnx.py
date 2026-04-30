@@ -1712,7 +1712,7 @@ def test_cumsum_dynamic_axis_not_supported():
     )
 
     model = helper.make_model(graph, producer_name="cumsum_dynamic_axis_graph")
-    with pytest.raises(ValueError, match="non-constant axis input is not supported")
+    with pytest.raises(ValueError, match="non-constant axis input is not supported"):
         from_onnx(model, opset=14, keep_params_in_input=True)
 
 
