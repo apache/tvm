@@ -58,6 +58,11 @@ def relax_dynamo(pipeline: tvm.transform.Pass | None = None):
 
         def to_torch_tensor(nd_tensor):
             """A helper function to transfer a Tensor to torch.tensor."""
+            if isinstance(nd_tensor, torch.Tensor):
+                # tvm-ffi #517 (Recursive DLPack container conversion) auto-converts
+                # ffi::Tensor items returned in containers back to torch.Tensor when
+                # the call site passed torch.Tensor inputs.
+                return nd_tensor
             if isinstance(nd_tensor, tvm.runtime.Tensor):
                 return torch.from_numpy(nd_tensor.numpy())
             elif isinstance(nd_tensor, tvm_ffi.Array):
