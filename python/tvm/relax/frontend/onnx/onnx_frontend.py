@@ -1847,7 +1847,10 @@ class ConstantOfShape(OnnxOpConverter):
     @classmethod
     def _impl_v9(cls, bb, inputs, attr, params):
         shape = inputs[0]
-        value = get_numpy(attr.get("value", 0))
+        # ONNX spec: `value` is optional and defaults to a zero float32 scalar.
+        # `get_numpy` requires a TensorProto, so dispatch on presence first.
+        attr_value = attr.get("value")
+        value = get_numpy(attr_value) if attr_value is not None else 0
         if isinstance(value, _np.ndarray):
             dtype = str(value.dtype)
         else:
