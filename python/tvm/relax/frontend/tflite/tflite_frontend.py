@@ -3004,7 +3004,12 @@ class OperatorConverter:
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 2, "input tensors length should be 2"
         data = self.get_tensor_expr(input_tensors[0])
-        shape = self.get_tensor_expr(input_tensors[1])
+        shape_tensor = input_tensors[1]
+        if self.has_expr(shape_tensor.tensor_idx):
+            shape_expr = self.get_expr(shape_tensor.tensor_idx)
+            shape = self.bb.emit(relax.op.tensor_to_shape(shape_expr))
+        else:
+            shape = to_int_list(self.get_tensor_value(shape_tensor))
         return relax.op.broadcast_to(data, shape)
 
     def convert_embedding_lookup(self, op):
@@ -3012,7 +3017,11 @@ class OperatorConverter:
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 2, "input tensors length should be 2"
         params = self.get_tensor_expr(input_tensors[0])
-        indices = self.get_tensor_expr(input_tensors[1])
+        indices_tensor = input_tensors[1]
+        if self.has_expr(indices_tensor.tensor_idx):
+            indices = relax.op.astype(self.get_expr(indices_tensor.tensor_idx), "int32")
+        else:
+            indices = self.get_tensor_expr(indices_tensor)
         return relax.op.take(params, indices, axis=0)
 
     def convert_batch_matmul(self, op):
