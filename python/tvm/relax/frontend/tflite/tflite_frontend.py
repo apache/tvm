@@ -1552,7 +1552,7 @@ class OperatorConverter:
         assert axis < data_dim, "Axis out of bounds"
 
         if self.has_expr(indices.tensor_idx):
-            indices_expr = relax.op.cast(self.get_expr(indices.tensor_idx), "int32")
+            indices_expr = relax.op.astype(self.get_expr(indices.tensor_idx), "int32")
         else:
             indices_val = self.get_tensor_value(indices)
             indices_expr = self.exp_tab.new_const(
