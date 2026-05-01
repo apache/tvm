@@ -820,7 +820,7 @@ ffi::Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
     rhs_to_index_map_tgt[mapping_info->rhs_iters[i - offset]->var] = index_map->final_indices[i];
   }
 
-  auto f_get_sub_index_map = [&](const tirx::Buffer& lhs_buffer, const tirx::Region& lhs_region) {
+  auto f_get_sub_index_map = [&](const tirx::Buffer& lhs_buffer, const ffi::Array<Range>& lhs_region) {
     std::vector<tirx::Var> sub_index_map_src;
     std::vector<PrimExpr> sub_index_map_tgt;
     const tirx::Buffer& rhs_buffer = mapping_info->lhs_buffer_map[lhs_buffer];

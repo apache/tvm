@@ -33,7 +33,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/logging.h>
+#include <tvm/ffi/error.h>
 
 #include <memory>
 #include <mutex>

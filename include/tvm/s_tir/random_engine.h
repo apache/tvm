@@ -23,7 +23,7 @@
  */
 #ifndef TVM_S_TIR_RANDOM_ENGINE_H_
 #define TVM_S_TIR_RANDOM_ENGINE_H_
-#include <tvm/runtime/logging.h>
+#include <tvm/ffi/error.h>
 
 #include <cstdint>
 #include <random>

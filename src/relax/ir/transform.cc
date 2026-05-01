@@ -30,6 +30,7 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/struct_info_functor.h>
 #include <tvm/relax/transform.h>
+#include <tvm/runtime/logging.h>
 
 namespace tvm {
 namespace relax {

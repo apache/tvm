@@ -19,7 +19,7 @@
 #ifndef TVM_S_TIR_SUPPORT_TABLE_PRINTER_H_
 #define TVM_S_TIR_SUPPORT_TABLE_PRINTER_H_
 
-#include <tvm/runtime/logging.h>
+#include <tvm/ffi/error.h>
 
 #include <algorithm>
 #include <iomanip>

@@ -126,7 +126,7 @@ TensorInfo::TensorInfo(runtime::DataType dtype, ffi::Shape shape) {
 
 ffi::ObjectRef TensorInfoNode::AsJSON() const {
   static ffi::String tag = "TENSOR";
-  ffi::String dtype = DLDataTypeToString(this->dtype);
+  ffi::String dtype = ffi::DLDataTypeToString(this->dtype);
   ffi::Array<Integer> shape = support::AsArray(this->shape);
   return ffi::Array<ffi::Any>{tag, dtype, shape};
 }
@@ -140,7 +140,7 @@ TensorInfo TensorInfo::FromJSON(const ffi::ObjectRef& json_obj) {
     // Load json[1] => dtype
     {
       ffi::String dtype_str = json_array->at(1).cast<ffi::String>();
-      dtype = StringToDLDataType(dtype_str);
+      dtype = ffi::StringToDLDataType(dtype_str);
     }
     // Load json[2] => shape
     shape = AsIntArray(json_array->at(2).cast<ffi::ObjectRef>());

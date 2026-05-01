@@ -20,10 +20,10 @@
 /*!
  * \file Use external hipblas library call.
  */
+#include <tvm/ffi/error.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/data_type.h>
-#include <tvm/runtime/logging.h>
 
 #include "../../3rdparty/compiler-rt/builtin_fp16.h"
 #include "../cblas/gemm_common.h"

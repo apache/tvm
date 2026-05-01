@@ -18,6 +18,7 @@
  */
 
 #include <tvm/ffi/cast.h>
+#include <tvm/runtime/logging.h>
 
 #include <functional>
 

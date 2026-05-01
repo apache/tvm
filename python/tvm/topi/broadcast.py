@@ -249,6 +249,25 @@ def power(lhs, rhs):
     return _cpp.power(lhs, rhs)
 
 
+def atan2(lhs, rhs):
+    """Atan2 with auto-broadcasting.
+
+    Parameters
+    ----------
+    lhs : tvm.te.Tensor or Expr
+        The left operand (y-coordinates).
+    rhs : tvm.te.Tensor or Expr
+        The right operand (x-coordinates).
+
+    Returns
+    -------
+    ret : tvm.te.Tensor or Expr
+        Returns Expr if both operands are Expr.
+        Otherwise returns Tensor.
+    """
+    return _cpp.atan2(lhs, rhs)
+
+
 def left_shift(lhs, rhs):
     """Left shift with auto-broadcasting
 

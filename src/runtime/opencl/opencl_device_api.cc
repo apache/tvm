@@ -23,6 +23,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/timer.h>
+#include <tvm/runtime/logging.h>
 
 #include <sstream>
 
@@ -507,9 +508,9 @@ void OpenCLWorkspace::FreeDataSpace(Device dev, void* ptr) {
 
 void OpenCLWorkspace::CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) {
   this->Init();
-  size_t nbytes = GetDataSize(*from);
-  TVM_FFI_ICHECK_EQ(nbytes, GetDataSize(*to));
-  TVM_FFI_ICHECK(IsContiguous(*from) && IsContiguous(*to))
+  size_t nbytes = ffi::GetDataSize(*from);
+  TVM_FFI_ICHECK_EQ(nbytes, ffi::GetDataSize(*to));
+  TVM_FFI_ICHECK(ffi::IsContiguous(*from) && ffi::IsContiguous(*to))
       << "CopyDataFromTo only support contiguous array for now";
 
   if (IsOpenCLDevice(from->device) && IsOpenCLDevice(to->device)) {

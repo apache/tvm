@@ -22,9 +22,9 @@
  * \brief mt19937 random engine
  */
 #include <builtin_fp16.h>
+#include <tvm/ffi/error.h>
 #include <tvm/runtime/c_backend_api.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/logging.h>
 #include <tvm/runtime/tensor.h>
 
 #include <algorithm>

@@ -18,6 +18,8 @@
  */
 #include "hexagon_buffer.h"
 
+#include <tvm/runtime/logging.h>
+
 #include <algorithm>
 #include <string>
 #include <utility>

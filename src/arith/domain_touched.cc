@@ -23,6 +23,7 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/te/tensor.h>
 #include <tvm/tirx/expr.h>
 #include <tvm/tirx/stmt_functor.h>

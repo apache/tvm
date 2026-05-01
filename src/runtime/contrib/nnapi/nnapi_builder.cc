@@ -22,7 +22,7 @@
 #include "nnapi_builder.h"
 
 #include <android/log.h>
-#include <tvm/runtime/logging.h>
+#include <tvm/ffi/error.h>
 
 #include <algorithm>
 #include <iterator>
@@ -138,7 +138,7 @@ NNAPIModelBuilder::~NNAPIModelBuilder() { ANeuralNetworksModel_free(model_); }
 
 NNAPIOperand NNAPIModelBuilder::CreateOperandWithValue(const DLTensor& tensor) {
   NNAPIOperand operand(next_operand_index_++, &tensor);
-  const size_t operand_data_size = GetDataSize(tensor);
+  const size_t operand_data_size = ffi::GetDataSize(tensor);
 
   TVM_FFI_ICHECK_EQ(ANeuralNetworksModel_addOperand(model_, operand.GetOperandType().Get()),
                     ANEURALNETWORKS_NO_ERROR);

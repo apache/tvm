@@ -26,7 +26,7 @@
 #include <dlpack/dlpack.h>
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/c_backend_api.h>
-#include <tvm/runtime/logging.h>
+#include <tvm/ffi/error.h>
 
 #if defined(__hexagon__)
 #include <HAP_farf.h>

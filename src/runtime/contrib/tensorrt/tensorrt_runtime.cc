@@ -25,6 +25,7 @@
 #include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/tensor.h>
 
 #include <fstream>

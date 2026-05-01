@@ -1687,13 +1687,56 @@ def test_cumsum1():
         "cumsum_graph",
         inputs=[
             helper.make_tensor_value_info("X", onnx.TensorProto.DOUBLE, input_shape),
+        ],
+        initializer=[helper.make_tensor("axis", onnx.TensorProto.INT32, [1], [0])],
+        outputs=[helper.make_tensor_value_info("Y", onnx.TensorProto.DOUBLE, input_shape)],
+    )
+
+    model = helper.make_model(graph, producer_name="cumsum_graph")
+    check_correctness(model)
+
+
+def test_cumsum_dynamic_axis_not_supported():
+    input_shape = [2, 3]
+
+    graph = helper.make_graph(
+        [
+            helper.make_node("CumSum", inputs=["X", "axis"], outputs=["Y"]),
+        ],
+        "cumsum_dynamic_axis_graph",
+        inputs=[
+            helper.make_tensor_value_info("X", onnx.TensorProto.DOUBLE, input_shape),
             helper.make_tensor_value_info("axis", onnx.TensorProto.INT32, [1], "axis"),
         ],
         outputs=[helper.make_tensor_value_info("Y", onnx.TensorProto.DOUBLE, input_shape)],
     )
 
-    model = helper.make_model(graph, producer_name="cumsum_graph")
-    check_correctness(model, inputs={"axis": np.array([0], dtype=np.int32)})
+    model = helper.make_model(graph, producer_name="cumsum_dynamic_axis_graph")
+    with pytest.raises(ValueError, match="non-constant axis input is not supported"):
+        from_onnx(model, opset=14, keep_params_in_input=True)
+
+
+def test_cumsum_axis_shape_validation():
+    input_shape = [2, 3]
+
+    graph = helper.make_graph(
+        [
+            helper.make_node("CumSum", inputs=["X", "axis"], outputs=["Y"]),
+        ],
+        "cumsum_invalid_axis_shape_graph",
+        inputs=[
+            helper.make_tensor_value_info("X", onnx.TensorProto.DOUBLE, input_shape),
+        ],
+        initializer=[helper.make_tensor("axis", onnx.TensorProto.INT64, [2], [0, 1])],
+        outputs=[helper.make_tensor_value_info("Y", onnx.TensorProto.DOUBLE, input_shape)],
+    )
+
+    model = helper.make_model(graph, producer_name="cumsum_invalid_axis_shape_graph")
+    with pytest.raises(
+        ValueError, 
+        match="axis input must be a scalar \(0-D\) or a single-element 1-D tensor",
+    ):
+        from_onnx(model, opset=14, keep_params_in_input=True)
 
 
 @pytest.mark.parametrize("axis", [[0, 2], None])
@@ -2684,6 +2727,28 @@ def test_constantofshape():
     verify_constantofshape((2, 3, 4, 5), 10, "float32")
     verify_constantofshape((3, 3), 0, "int32")
     verify_constantofshape((1, 2, 3), -1, "float32")
+
+
+def test_constantofshape_default_value():
+    # Per ONNX spec, the `value` attribute is optional and defaults to a zero
+    # float32 scalar of the requested shape.
+    shape_init = helper.make_tensor("shape", TensorProto.INT64, [2], [2, 3])
+    node = helper.make_node("ConstantOfShape", ["shape"], ["y"])
+    graph = helper.make_graph(
+        [node],
+        "constantofshape_default_value_test",
+        inputs=[],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, None)],
+        initializer=[shape_init],
+    )
+    model = helper.make_model(graph, producer_name="constantofshape_default_value_test")
+
+    tvm_model = from_onnx(model)
+    tvm_model = relax.transform.LegalizeOps()(tvm_model)
+    exe = tvm.compile(tvm_model, target="llvm")
+    vm = relax.VirtualMachine(exe, device=tvm.cpu())
+    out = vm["main"]().numpy()
+    np.testing.assert_array_equal(out, np.zeros((2, 3), dtype="float32"))
 
 
 def test_slice():

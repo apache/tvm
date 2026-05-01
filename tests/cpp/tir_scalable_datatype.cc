@@ -83,7 +83,7 @@ TEST(ScalableDataType, TestIsScalar) {
 
 TEST(ScalableDataType, TestScalableDataTypeToString) {
   tvm::DataType scalable_type = tvm::DataType(kDLInt, 32, 4, true);
-  EXPECT_EQ(tvm::runtime::DLDataTypeToString(scalable_type), "int32xvscalex4");
+  EXPECT_EQ(tvm::ffi::DLDataTypeToString(scalable_type), "int32xvscalex4");
 }
 
 TEST(ScalableDataType, TestStringToScalableDataType) {

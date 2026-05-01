@@ -20,10 +20,10 @@
 /*!
  * \file Use external mkl library call.
  */
+#include <tvm/ffi/error.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/data_type.h>
-#include <tvm/runtime/logging.h>
 
 extern "C" {
 #include <mkl_cblas.h>

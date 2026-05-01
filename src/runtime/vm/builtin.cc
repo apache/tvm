@@ -27,7 +27,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/logging.h>
+#include <tvm/ffi/error.h>
 #include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/tensor.h>
 #include <tvm/runtime/vm/builtin.h>
@@ -611,7 +611,7 @@ bool ReadIfCond(ffi::AnyView cond) {
       break;
     }
     default:
-      TVM_FFI_THROW(InternalError) << "Unknown scalar int type: " << DLDataTypeToString(arr->dtype);
+      TVM_FFI_THROW(InternalError) << "Unknown scalar int type: " << ffi::DLDataTypeToString(arr->dtype);
       throw;
   }
   return result != 0;
@@ -702,7 +702,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  }
                  default:
                    TVM_FFI_THROW(InternalError)
-                       << "Unknown scalar int type: " << DLDataTypeToString(arr->dtype);
+                       << "Unknown scalar int type: " << ffi::DLDataTypeToString(arr->dtype);
                    throw;
                }
                out_shape.push_back(result);

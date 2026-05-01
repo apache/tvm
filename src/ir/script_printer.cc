@@ -28,8 +28,6 @@
 
 namespace tvm {
 
-using AccessPath = ffi::reflection::AccessPath;
-
 TVM_FFI_STATIC_INIT_BLOCK() { PrinterConfigNode::RegisterReflection(); }
 
 TVMScriptPrinter::FType& TVMScriptPrinter::vtable() {
@@ -94,11 +92,13 @@ PrinterConfig::PrinterConfig(ffi::Map<ffi::String, Any> config_dict) {
   }
   if (auto v = config_dict.Get("path_to_underline")) {
     n->path_to_underline =
-        Downcast<ffi::Optional<ffi::Array<AccessPath>>>(v).value_or(ffi::Array<AccessPath>());
+        Downcast<ffi::Optional<ffi::Array<ffi::reflection::AccessPath>>>(v).value_or(
+            ffi::Array<ffi::reflection::AccessPath>());
   }
   if (auto v = config_dict.Get("path_to_annotate")) {
-    n->path_to_annotate = Downcast<ffi::Optional<ffi::Map<AccessPath, ffi::String>>>(v).value_or(
-        ffi::Map<AccessPath, ffi::String>());
+    n->path_to_annotate =
+        Downcast<ffi::Optional<ffi::Map<ffi::reflection::AccessPath, ffi::String>>>(v).value_or(
+            ffi::Map<ffi::reflection::AccessPath, ffi::String>());
   }
   if (auto v = config_dict.Get("obj_to_underline")) {
     n->obj_to_underline = Downcast<ffi::Optional<ffi::Array<ffi::ObjectRef>>>(v).value_or(

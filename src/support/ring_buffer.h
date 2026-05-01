@@ -24,7 +24,7 @@
 #ifndef TVM_SUPPORT_RING_BUFFER_H_
 #define TVM_SUPPORT_RING_BUFFER_H_
 
-#include <tvm/runtime/logging.h>
+#include <tvm/ffi/error.h>
 
 #include <algorithm>
 #include <cstring>

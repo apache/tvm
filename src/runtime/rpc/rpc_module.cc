@@ -399,7 +399,7 @@ inline void CPUCacheFlushImpl(const char* addr, unsigned int len) {
 inline void CPUCacheFlush(int begin_index, const ffi::PackedArgs& args) {
   for (int i = begin_index; i < args.size(); i++) {
     CPUCacheFlushImpl(static_cast<char*>((args[i].cast<DLTensor*>()->data)),
-                      GetDataSize(*(args[i].cast<DLTensor*>())));
+                      ffi::GetDataSize(*(args[i].cast<DLTensor*>())));
   }
 }
 

@@ -24,6 +24,8 @@
 
 #include "arm_aprofile.h"
 
+#include <tvm/runtime/logging.h>
+
 #include <memory>
 #include <string>
 

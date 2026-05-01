@@ -25,9 +25,9 @@
 #define TVM_RELAX_UTILS_H_
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/error.h>
 #include <tvm/ir/module.h>
 #include <tvm/relax/expr.h>
-#include <tvm/runtime/logging.h>
 
 namespace tvm {
 namespace relax {

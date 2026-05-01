@@ -28,7 +28,7 @@
 #include <hip/hip_runtime_api.h>
 #include <hipblas/hipblas.h>
 #include <hipblaslt/hipblaslt.h>
-#include <tvm/runtime/logging.h>
+#include <tvm/ffi/error.h>
 
 #include <cstdint>
 

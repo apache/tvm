@@ -24,6 +24,7 @@
 #define TVM_RUNTIME_MEMORY_POOLED_ALLOCATOR_H_
 
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/memory/memory_manager.h>
 
 #include <atomic>

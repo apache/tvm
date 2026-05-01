@@ -141,6 +141,24 @@ def power(x1: Expr, x2: Expr):
     return _ffi_api.power(x1, x2)  # type: ignore
 
 
+def atan2(x1: Expr, x2: Expr) -> Expr:
+    """Atan2 with numpy-style broadcasting.
+
+    Parameters
+    ----------
+    x1 : relax.Expr
+        The first input tensor (y-coordinates).
+    x2 : relax.Expr
+        The second input tensor (x-coordinates).
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.atan2(x1, x2)  # type: ignore
+
+
 def subtract(x1: Expr, x2: Expr) -> Expr:
     """Subtraction with numpy-style broadcasting.
 

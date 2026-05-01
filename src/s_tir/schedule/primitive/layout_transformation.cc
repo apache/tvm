@@ -20,6 +20,7 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ir/cast.h>
+#include <tvm/runtime/logging.h>
 
 #include <optional>
 #include <variant>

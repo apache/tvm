@@ -19,7 +19,7 @@
 #if defined(__hexagon__)
 #include <hexagon_types.h>
 #include <stdio.h>
-#include <tvm/runtime/logging.h>
+#include <tvm/ffi/error.h>
 
 #define restrict __restrict__
 #define LOG2VLEN 7

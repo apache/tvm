@@ -24,7 +24,7 @@
 #ifndef TVM_SUPPORT_PIPE_H_
 #define TVM_SUPPORT_PIPE_H_
 
-#include <tvm/runtime/logging.h>
+#include <tvm/ffi/error.h>
 #include <tvm/support/io.h>
 
 #ifdef _WIN32

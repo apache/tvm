@@ -33,6 +33,7 @@
 #include <tvm/tirx/expr.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
+#include <tvm/runtime/logging.h>
 
 #include <list>
 #include <map>

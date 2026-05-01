@@ -24,6 +24,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/logging.h>
 
 #include "cudnn_utils.h"
 
@@ -78,7 +79,7 @@ void BackwardDataFindAlgo(int format, int dims, int groups, const int pad[], con
     dx_dim_int64[i] = dx_dim[i];
   }
   SetConvDescriptors(entry_ptr, format, dims, groups, pad, stride, dilation, dx_dim_int64.data(),
-                     w_dim_int64.data(), dy_dim_int64.data(), StringToDLDataType(data_dtype),
+                     w_dim_int64.data(), dy_dim_int64.data(), ffi::StringToDLDataType(data_dtype),
                      conv_dtype);
 
   int returned_algo_count = 0;
@@ -157,7 +158,7 @@ void BackwardFilterFindAlgo(int format, int dims, int groups, const int pad[], c
     dw_dim_int64[i] = dw_dim[i];
   }
   SetConvDescriptors(entry_ptr, format, dims, groups, pad, stride, dilation, x_dim_int64.data(),
-                     dw_dim_int64.data(), dy_dim_int64.data(), StringToDLDataType(data_dtype),
+                     dw_dim_int64.data(), dy_dim_int64.data(), ffi::StringToDLDataType(data_dtype),
                      conv_dtype);
 
   int returned_algo_count = 0;

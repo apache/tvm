@@ -25,6 +25,7 @@
 #define TVM_ARITH_CONST_FOLD_H_
 
 #include <tvm/ffi/optional.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
 

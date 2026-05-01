@@ -198,9 +198,7 @@ class TupleTypeNode : public TypeNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<TupleTypeNode>()
-        .def_ro("fields", &TupleTypeNode::fields)
-        .def_ro("span", &TupleTypeNode::span);
+    refl::ObjectDef<TupleTypeNode>().def_ro("fields", &TupleTypeNode::fields);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.TupleType", TupleTypeNode, TypeNode);
 };
@@ -260,8 +258,7 @@ class FuncTypeNode : public TypeNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<FuncTypeNode>()
         .def_ro("arg_types", &FuncTypeNode::arg_types)
-        .def_ro("ret_type", &FuncTypeNode::ret_type)
-        .def_ro("span", &FuncTypeNode::span);
+        .def_ro("ret_type", &FuncTypeNode::ret_type);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.FuncType", FuncTypeNode, TypeNode);
 };
@@ -292,7 +289,7 @@ class TensorMapTypeNode : public TypeNode {
  public:
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<TensorMapTypeNode>().def_ro("span", &TensorMapTypeNode::span);
+    refl::ObjectDef<TensorMapTypeNode>();
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.TensorMapType", TensorMapTypeNode, TypeNode);
 };

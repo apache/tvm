@@ -28,6 +28,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/type.h>
+#include <tvm/runtime/logging.h>
 
 #include <unordered_map>
 #include <unordered_set>

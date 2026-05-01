@@ -25,6 +25,7 @@
 #define TVM_TOPI_DETAIL_CONSTANT_UTILS_H_
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/expr.h>

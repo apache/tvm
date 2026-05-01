@@ -25,6 +25,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/diagnostic.h>
 #include <tvm/ir/source_map.h>
+#include <tvm/runtime/logging.h>
 
 namespace tvm {
 

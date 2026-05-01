@@ -121,11 +121,13 @@ class OperatorConverter:
             "ADD_N": self.convert_add_n,
             "ARG_MAX": functools.partial(self._convert_arg_min_max, relax_op=_op.argmax),
             "ARG_MIN": functools.partial(self._convert_arg_min_max, relax_op=_op.argmin),
+            "ATAN2": functools.partial(self._convert_elemwise, relax_op=_op.atan2),
             "AVERAGE_POOL_2D": functools.partial(self.convert_pool2d, pool_type="average"),
             "BATCH_TO_SPACE_ND": self.convert_batch_to_space_nd,
             "BATCH_MATMUL": self.convert_batch_matmul,
             "BITCAST": self.convert_bitcast,
             "BROADCAST_TO": self.convert_broadcast_to,
+            "BROADCAST_ARGS": self.convert_broadcast_args,
             "CAST": self.convert_cast,
             "CEIL": functools.partial(self._convert_unary_elemwise, relax_op=_op.ceil),
             "CONCATENATION": self.convert_concatenation,
@@ -137,6 +139,7 @@ class OperatorConverter:
             "DEPTHWISE_CONV_2D": functools.partial(self.convert_conv, conv_type="depthwise"),
             "DEQUANTIZE": self.convert_dequantize,
             "DETECTION_POSTPROCESS": self.convert_detection_postprocess,
+            "DILATE": self.convert_dilate,
             "DIV": functools.partial(self._convert_elemwise, relax_op=_op.divide),
             "ELU": self.convert_elu,
             "EMBEDDING_LOOKUP": self.convert_embedding_lookup,
@@ -187,6 +190,7 @@ class OperatorConverter:
             "MINIMUM": functools.partial(self._convert_elemwise, relax_op=_op.minimum),
             "MIRROR_PAD": self.convert_mirror_pad,
             "MUL": functools.partial(self._convert_elemwise, relax_op=_op.multiply),
+            "MULTINOMIAL": self.convert_multinomial,
             "NEG": functools.partial(self._convert_unary_elemwise, relax_op=_op.negative),
             "NOT_EQUAL": functools.partial(
                 self._convert_elemwise, relax_op=_op.not_equal, comparison_op=True
@@ -199,6 +203,8 @@ class OperatorConverter:
             "PRELU": self.convert_prelu,
             "RANGE": self.convert_range,
             "QUANTIZE": self.convert_quantize,
+            "RANDOM_STANDARD_NORMAL": self.convert_random_standard_normal,
+            "RANDOM_UNIFORM": self.convert_random_uniform,
             "REDUCE_ALL": functools.partial(self._convert_reduce_bool, relax_op=_op.min),
             "REDUCE_ANY": functools.partial(self._convert_reduce_bool, relax_op=_op.max),
             "REDUCE_MAX": functools.partial(self._convert_reduce, relax_op=_op.max),
@@ -214,6 +220,7 @@ class OperatorConverter:
             "RSQRT": functools.partial(self._convert_unary_elemwise, relax_op=_op.rsqrt),
             "REVERSE_SEQUENCE": self.convert_reverse_sequence,
             "REVERSE_V2": self.convert_reverse_v2,
+            "SCATTER_ND": self.convert_scatter_nd,
             "SELECT": self.convert_select,
             "SELECT_V2": self.convert_select,
             "SHAPE": self.convert_shape,
@@ -541,6 +548,22 @@ class OperatorConverter:
         if tensor_type == TensorType.BOOL:
             return "bool"
         raise NotImplementedError(f"Tensor type {tensor_type!s} is currently not supported")
+
+    def _get_shape_expr_from_tensor(self, shape_tensor, prefix):
+        """Convert a TFLite shape tensor to a Relax shape expression."""
+        if self.has_expr(shape_tensor.tensor_idx):
+            dims_expr = self.get_expr(shape_tensor.tensor_idx)
+            dims_ndim = int(self.get_tensor_shape(shape_tensor)[0])
+            dims_dtype = self.get_tensor_type_str(shape_tensor.tensor.Type())
+            dims_expr = self.bb.match_cast(dims_expr, relax.TensorStructInfo([dims_ndim], dims_dtype))
+            dims_expr = self.bb.normalize(relax.op.astype(dims_expr, "int64"))
+            shape_dataflow_var = self.bb.emit(relax.op.tensor_to_shape(dims_expr))
+            shape_vars = [tirx.Var(f"{prefix}_{i}", "int64") for i in range(dims_ndim)]
+            self.bb.match_cast(shape_dataflow_var, relax.ShapeStructInfo(shape_vars))
+            return relax.ShapeExpr(shape_vars), shape_vars
+
+        dims = to_int_list(self.get_tensor_value(shape_tensor))
+        return dims, dims
 
     def flatten_to_nd(self, x, nd=3):
         """Flatten input tensor to nd rank"""
@@ -1783,23 +1806,129 @@ class OperatorConverter:
         dims_tensor = input_tensors[0]
         in_value_expr = self.get_expr(input_tensors[1].tensor_idx)
 
-        if self.has_expr(dims_tensor.tensor_idx):
-            dims_expr = self.get_expr(dims_tensor.tensor_idx)
-            dims_ndim = int(self.get_tensor_shape(dims_tensor)[0])
-
-            # Bind runtime dims to fresh symbolic shape vars so the imported
-            # module remains well formed before LegalizeOps runs.
-            dims_expr = self.bb.match_cast(dims_expr, relax.TensorStructInfo([dims_ndim], "int32"))
-            dims_expr = self.bb.normalize(relax.op.astype(dims_expr, "int64"))
-            shape_dataflow_var = self.bb.emit(relax.op.tensor_to_shape(dims_expr))
-            shape_vars = [tirx.Var(f"fill_dim_{i}", "int64") for i in range(dims_ndim)]
-            self.bb.match_cast(shape_dataflow_var, relax.ShapeStructInfo(shape_vars))
-            out = relax.op.full(relax.ShapeExpr(shape_vars), in_value_expr)
-        else:
-            in_dims = list(self.get_tensor_value(dims_tensor))
-            out = relax.op.full(in_dims, in_value_expr)
+        out_shape, _ = self._get_shape_expr_from_tensor(dims_tensor, "fill_dim")
+        out = relax.op.full(out_shape, in_value_expr)
 
         return out
+
+    def _get_random_options(self, op):
+        """Return the seed pair for random TFLite operators.
+
+        The runtime imports seeded TFLite random ops with stateless semantics, so identical
+        non-zero seed pairs produce identical results on every invocation. The seed pair
+        (0, 0) is forwarded as the TF non-deterministic case.
+        """
+        from tflite.BuiltinOptions import BuiltinOptions
+        from tflite.RandomOptions import RandomOptions
+
+        if op.BuiltinOptionsType():
+            assert op.BuiltinOptionsType() == BuiltinOptions.RandomOptions
+            random_options = RandomOptions()
+            op_options = op.BuiltinOptions()
+            random_options.Init(op_options.Bytes, op_options.Pos)
+            return int(random_options.Seed()), int(random_options.Seed2())
+        return 0, 0
+
+    def _check_random_output_dtype(self, op_name, output_dtype, supported_dtypes):
+        if output_dtype not in supported_dtypes:
+            supported = ", ".join(supported_dtypes)
+            raise tvm.error.OpNotImplemented(
+                f"The TFLite {op_name} converter currently supports output dtype(s) "
+                f"{supported} only, but got {output_dtype}."
+            )
+
+    def convert_random_uniform(self, op):
+        """Convert TFLite RANDOM_UNIFORM using stateless seeded RNG semantics."""
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "output tensors length should be 1"
+        output_tensor = output_tensors[0]
+        output_dtype = self.get_tensor_type_str(output_tensor.tensor.Type())
+        self._check_random_output_dtype("RANDOM_UNIFORM", output_dtype, ["float32"])
+
+        out_shape, _ = self._get_shape_expr_from_tensor(input_tensors[0], "random_uniform_dim")
+        seed, seed2 = self._get_random_options(op)
+        return relax.op.call_dps_packed(
+            "tvm.contrib.random.uniform",
+            (seed, seed2, 0.0, 1.0),
+            out_sinfo=relax.TensorStructInfo(out_shape, output_dtype),
+        )
+
+    def convert_random_standard_normal(self, op):
+        """Convert TFLite RANDOM_STANDARD_NORMAL using stateless seeded RNG semantics."""
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "output tensors length should be 1"
+        output_tensor = output_tensors[0]
+        output_dtype = self.get_tensor_type_str(output_tensor.tensor.Type())
+        self._check_random_output_dtype("RANDOM_STANDARD_NORMAL", output_dtype, ["float32"])
+
+        out_shape, _ = self._get_shape_expr_from_tensor(
+            input_tensors[0], "random_standard_normal_dim"
+        )
+        seed, seed2 = self._get_random_options(op)
+        return relax.op.call_dps_packed(
+            "tvm.contrib.random.normal",
+            (seed, seed2, 0.0, 1.0),
+            out_sinfo=relax.TensorStructInfo(out_shape, output_dtype),
+        )
+
+    def convert_multinomial(self, op):
+        """Convert TFLite MULTINOMIAL using stateless seeded RNG semantics."""
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+
+        logits_tensor, num_samples_tensor = input_tensors
+        logits_expr = self.get_tensor_expr(logits_tensor)
+        batch_size = self.get_tensor_shape(logits_tensor)[0]
+        if self.has_expr(num_samples_tensor.tensor_idx):
+            scalar_expr = self.get_expr(num_samples_tensor.tensor_idx)
+            scalar_dtype = self.get_tensor_type_str(num_samples_tensor.tensor.Type())
+            scalar_expr = self.bb.match_cast(scalar_expr, relax.TensorStructInfo([], scalar_dtype))
+            scalar_expr = self.bb.normalize(relax.op.astype(scalar_expr, "int64"))
+            scalar_expr = self.bb.normalize(relax.op.reshape(scalar_expr, [1]))
+            shape_dataflow_var = self.bb.emit(relax.op.tensor_to_shape(scalar_expr))
+            num_samples = tirx.Var("multinomial_num_samples", "int64")
+            self.bb.match_cast(shape_dataflow_var, relax.ShapeStructInfo([num_samples]))
+        else:
+            value = self.get_tensor_value(num_samples_tensor)
+            assert value.size == 1, (
+                "TFLite MULTINOMIAL num_samples must be a scalar tensor, "
+                f"but got {value.size} values"
+            )
+            num_samples = int(value.item())
+        output_batch = batch_size * num_samples
+
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "output tensors length should be 1"
+        output_tensor = output_tensors[0]
+        output_dtype = self.get_tensor_type_str(output_tensor.tensor.Type())
+        self._check_random_output_dtype("MULTINOMIAL", output_dtype, ["int32", "int64"])
+
+        seed, seed2 = self._get_random_options(op)
+        uniform_sample = relax.op.call_dps_packed(
+            "tvm.contrib.random.uniform",
+            (seed, seed2, 0.0, 1.0),
+            out_sinfo=relax.TensorStructInfo([output_batch, 1], "float32"),
+        )
+        sample_indices = relax.op.reshape(
+            relax.op.broadcast_to(
+                relax.op.expand_dims(relax.op.arange(batch_size, dtype="int64"), axis=[1]),
+                relax.ShapeExpr([batch_size, num_samples]),
+            ),
+            relax.ShapeExpr([output_batch, 1]),
+        )
+        sampled = relax.op.multinomial_from_uniform(
+            relax.op.nn.softmax(logits_expr, axis=-1),
+            uniform_sample,
+            sample_indices,
+            dtype=output_dtype,
+        )
+        return relax.op.reshape(sampled, relax.ShapeExpr([batch_size, num_samples]))
 
     def _convert_reduce(self, relax_op, op):
         """Generic method to Convert TFLite REDUCE operators"""
@@ -2432,6 +2561,31 @@ class OperatorConverter:
         out = relax.op.strided_slice(in_expr, axes=axes, begin=begin, end=end)
         return out
 
+    def convert_scatter_nd(self, op):
+        """Convert TFLite SCATTER_ND"""
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 3, "SCATTER_ND should have 3 input tensors"
+        indices = self.get_tensor_expr(input_tensors[0])
+        updates = self.get_tensor_expr(input_tensors[1])
+        shape_tensor = input_tensors[2]
+
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "SCATTER_ND should have 1 output tensor"
+        updates_dtype = self.get_tensor_type_str(output_tensors[0].tensor.Type())
+
+        if self.has_expr(shape_tensor.tensor_idx):
+            shape_expr = self.get_expr(shape_tensor.tensor_idx)
+            shape_expr = self.bb.normalize(relax.op.astype(shape_expr, "int64"))
+            shape = self.bb.emit(relax.op.tensor_to_shape(shape_expr))
+        else:
+            shape = to_int_list(self.get_tensor_value(shape_tensor))
+
+        indices_dims = len(self._infer_shape(indices))
+        indices = relax.op.permute_dims(indices, axes=[-1] + list(range(indices_dims - 1)))
+
+        data = relax.op.zeros(shape, updates_dtype)
+        return relax.op.scatter_nd(data, indices, updates, "update")
+
     def convert_select(self, op):
         """Convert TFLite SELECT"""
         input_tensors = self.get_input_tensors(op)
@@ -2510,6 +2664,37 @@ class OperatorConverter:
         )
 
         return relax.op.memory.view(in_expr, shape=output_shape, dtype=output_dtype)
+
+    def convert_broadcast_args(self, op):
+        """Convert TFLite BROADCAST_ARGS"""
+        input_tensors = self.get_input_tensors(op)
+        output_tensors = self.get_output_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+        assert len(output_tensors) == 1, "output tensors length should be 1"
+
+        s0 = self.get_tensor_expr(input_tensors[0])
+        s1 = self.get_tensor_expr(input_tensors[1])
+        s0_len = to_int_list(self.get_tensor_shape(input_tensors[0]))[0]
+        s1_len = to_int_list(self.get_tensor_shape(input_tensors[1]))[0]
+        out_dtype = self.get_tensor_type_str(input_tensors[0].tensor.Type())
+
+        # Left-pad the shorter input with 1s to length target_len.
+        target_len = tirx.max(s0_len, s1_len)
+        one = relax.const(1, dtype=out_dtype)
+        s0 = relax.op.concat(
+            [relax.op.full([target_len - s0_len], one, dtype=out_dtype), s0], axis=0
+        )
+        s1 = relax.op.concat(
+            [relax.op.full([target_len - s1_len], one, dtype=out_dtype), s1], axis=0
+        )
+        # Per-dim broadcast. If either side is 1 take the other, else elementwise max.
+        s0_is_one = relax.op.equal(s0, one)
+        s1_is_one = relax.op.equal(s1, one)
+        return relax.op.where(
+            s0_is_one,
+            s1,
+            relax.op.where(s1_is_one, s0, relax.op.maximum(s0, s1)),
+        )
 
     def convert_cast(self, op):
         """Convert TFLite CAST"""
@@ -3443,6 +3628,67 @@ class OperatorConverter:
         out = self.dequantize(in_expr, input_tensor)
 
         return out
+
+    def convert_dilate(self, op):
+        """Convert TFLite DILATE"""
+        input_tensors = self.get_input_tensors(op)
+        output_tensors = self.get_output_tensors(op)
+        assert len(input_tensors) == 3, "input tensors length should be 3"
+        assert len(output_tensors) == 1, "output tensors length should be 1"
+
+        in_expr = self.get_tensor_expr(input_tensors[0])
+        in_shape = to_int_list(self.get_tensor_shape(input_tensors[0]))
+        in_dtype = self.get_tensor_type_str(input_tensors[0].tensor.Type())
+        n_dims = len(in_shape)
+
+        dilations_tensor = input_tensors[1]
+        padding_expr = self.get_tensor_expr(input_tensors[2])
+
+        # Runtime dilations bind tensor values to TIR Vars for symbolic 
+        # per-axis math.
+        if self.has_expr(dilations_tensor.tensor_idx):
+            dilations_expr = self.get_expr(dilations_tensor.tensor_idx)
+            dilations_expr = self.bb.match_cast(
+                dilations_expr, relax.TensorStructInfo([n_dims], "int32")
+            )
+            dilations_int64 = self.bb.normalize(relax.op.astype(dilations_expr, "int64"))
+            shape_var = self.bb.emit(relax.op.tensor_to_shape(dilations_int64))
+            stride_vars = [tirx.Var(f"dilate_stride_{i}", "int64") for i in range(n_dims)]
+            self.bb.match_cast(shape_var, relax.ShapeStructInfo(stride_vars))
+            strides = stride_vars
+        else:
+            strides = to_int_list(self.get_tensor_value(dilations_tensor))
+
+        # Per axis: reshape to add a size-1 stride-axis, concat (s-1) padding
+        # values along it, reshape to merge axes (length d*s), trim trailing
+        # pad to TFLite's output dim formula (d-1)*s + 1.
+        result = in_expr
+        current_shape = list(in_shape)
+        axes = list(range(n_dims))
+        ones = [1] * n_dims
+        for axis in range(n_dims):
+            d = current_shape[axis]
+            s = strides[axis]
+            expanded_shape = current_shape[: axis + 1] + [1] + current_shape[axis + 1 :]
+            expanded = relax.op.reshape(result, expanded_shape)
+            pad_shape = list(expanded_shape)
+            pad_shape[axis + 1] = s - 1
+            pad = relax.op.full(pad_shape, padding_expr, dtype=in_dtype)
+            concatted = relax.op.concat([expanded, pad], axis=axis + 1)
+            merged_shape = list(current_shape)
+            merged_shape[axis] = d * s
+            merged = relax.op.reshape(concatted, merged_shape)
+            # (d - 1) * s + 1 is the output dim along this axis.
+            final_dim = (d - 1) * s + 1
+            end = list(merged_shape)
+            end[axis] = final_dim
+            result = relax.op.strided_slice(
+                merged, axes=axes, begin=[0] * n_dims, end=end, strides=ones
+            )
+            current_shape = list(merged_shape)
+            current_shape[axis] = final_dim
+
+        return result
 
     def convert_detection_postprocess(self, op):
         """Convert TFLite_Detection_PostProcess"""

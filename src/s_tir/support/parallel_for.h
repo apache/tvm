@@ -25,7 +25,7 @@
 #define TVM_S_TIR_SUPPORT_PARALLEL_FOR_H_
 
 #include <tvm/runtime/base.h>
-#include <tvm/runtime/logging.h>
+#include <tvm/ffi/error.h>
 
 #include <atomic>
 #include <functional>

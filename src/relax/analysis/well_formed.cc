@@ -72,6 +72,7 @@
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/struct_info_functor.h>
 #include <tvm/relax/utils.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/tirx/expr_functor.h>
 
 #include <string>

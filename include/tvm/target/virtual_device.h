@@ -36,7 +36,7 @@
 namespace tvm {
 
 /*!
- * Abstract label for an area of memory.
+ * \brief Abstract label for an area of memory.
  *
  * Currently uninterpreted and arbitrary. Likely to be replaced by a structured representation
  * of a memory pool in the future. Please try to use this alias instead of ffi::String to aid future

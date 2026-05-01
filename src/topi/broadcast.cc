@@ -66,6 +66,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .TOPI_DEF_BCAST_OP("topi.maximum", topi::maximum)
       .TOPI_DEF_BCAST_OP("topi.minimum", topi::minimum)
       .TOPI_DEF_BCAST_OP("topi.power", topi::power)
+      .TOPI_DEF_BCAST_OP("topi.atan2", topi::atan2)
       .TOPI_DEF_BCAST_OP("topi.left_shift", topi::left_shift)
       .TOPI_DEF_BCAST_OP("topi.logical_and", topi::logical_and)
       .TOPI_DEF_BCAST_OP("topi.logical_or", topi::logical_or)

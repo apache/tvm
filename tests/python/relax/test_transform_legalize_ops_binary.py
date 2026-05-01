@@ -791,6 +791,123 @@ def test_power_primvalue():
     tvm.ir.assert_structural_equal(Expected, After)
 
 
+def test_atan2():
+    # fmt: off
+    @tvm.script.ir_module
+    class Atan2:
+        @R.function
+        def main(x: R.Tensor((1, 2, 3), "float32"), y: R.Tensor((4, 3, 2, 1), "float32")) -> R.Tensor((4, 3, 2, 3), "float32"):
+            gv: R.Tensor((4, 3, 2, 3), "float32") = R.atan2(x, y)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func(private=True)
+        def atan2(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_atan2: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
+            T.func_attr({"tirx.noalias": True})
+            # with T.sblock("root"):
+            for ax0, ax1, ax2, ax3 in T.grid(T.int64(4), T.int64(3), T.int64(2), T.int64(3)):
+                with T.sblock("T_atan2"):
+                    v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                    T.reads(rxplaceholder[T.int64(0), v_ax2, v_ax3], rxplaceholder_1[v_ax0, v_ax1, v_ax2, T.int64(0)])
+                    T.writes(T_atan2[v_ax0, v_ax1, v_ax2, v_ax3])
+                    T_atan2[v_ax0, v_ax1, v_ax2, v_ax3] = T.atan2(rxplaceholder[T.int64(0), v_ax2, v_ax3], rxplaceholder_1[v_ax0, v_ax1, v_ax2, T.int64(0)])
+
+        @R.function
+        def main(x: R.Tensor((1, 2, 3), dtype="float32"), y: R.Tensor((4, 3, 2, 1), dtype="float32")) -> R.Tensor((4, 3, 2, 3), dtype="float32"):
+            gv = R.call_tir(Expected.atan2, (x, y), out_sinfo=R.Tensor((4, 3, 2, 3), dtype="float32"))
+            return gv
+
+    # fmt: on
+
+    mod = LegalizeOps()(Atan2)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_atan2_symbolic():
+    # fmt: off
+    @tvm.script.ir_module
+    class Atan2:
+        @R.function
+        def main(x: R.Tensor((1, "c", "d"), "float32"), y: R.Tensor(("a", "b", "c", 1), "float32")) -> R.Tensor(("a", "b", "c", "d"), "float32"):
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
+            gv: R.Tensor((a, b, c, d), "float32") = R.atan2(x, y)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func(private=True)
+        def atan2(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_T_atan2: T.handle):
+            T.func_attr({"tirx.noalias": True})
+            c = T.int64()
+            d = T.int64()
+            rxplaceholder = T.match_buffer(var_rxplaceholder, (T.int64(1), c, d))
+            a = T.int64()
+            b = T.int64()
+            rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, (a, b, c, T.int64(1)))
+            T_atan2 = T.match_buffer(var_T_atan2, (a, b, c, d))
+            for ax0, ax1, ax2, ax3 in T.grid(a, b, c, d):
+                with T.sblock("T_atan2"):
+                    v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                    T.reads(rxplaceholder[T.int64(0), v_ax2, v_ax3], rxplaceholder_1[v_ax0, v_ax1, v_ax2, T.int64(0)])
+                    T.writes(T_atan2[v_ax0, v_ax1, v_ax2, v_ax3])
+                    T_atan2[v_ax0, v_ax1, v_ax2, v_ax3] = T.atan2(rxplaceholder[T.int64(0), v_ax2, v_ax3], rxplaceholder_1[v_ax0, v_ax1, v_ax2, T.int64(0)])
+
+        @R.function
+        def main(x: R.Tensor((1, "c", "d"), dtype="float32"), y: R.Tensor(("a", "b", "c", 1), dtype="float32")) -> R.Tensor(("a", "b", "c", "d"), dtype="float32"):
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
+            d = T.int64()
+            gv = R.call_tir(Expected.atan2, (x, y), out_sinfo=R.Tensor((a, b, c, d), dtype="float32"))
+            return gv
+    # fmt: on
+
+    mod = LegalizeOps()(Expected)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_atan2_primvalue():
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            x: R.Tensor([64, 32, 16], "float32"),
+            y: R.Prim("float32"),
+        ):
+            gv = R.atan2(x, y)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor([64, 32, 16], "float32"),
+            y: R.Prim("float32"),
+        ):
+            cls = Expected
+            gv = R.call_tir(cls.atan2, (x, y), R.Tensor([64, 32, 16], dtype="float32"))
+            return gv
+
+        @T.prim_func(private=True)
+        def atan2(
+            lhs: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
+            rhs: T.float32,
+            output: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
+        ):
+            T.func_attr({"tirx.noalias": True})
+            for i, j, k in T.grid(*lhs.shape):
+                with T.sblock("T_atan2"):
+                    vi, vj, vk = T.axis.remap("SSS", [i, j, k])
+                    output[vi, vj, vk] = T.atan2(lhs[vi, vj, vk], rhs)
+
+    After = LegalizeOps()(Before)
+    tvm.ir.assert_structural_equal(Expected, After)
+
+
 def test_subtract():
     # fmt: off
     @tvm.script.ir_module

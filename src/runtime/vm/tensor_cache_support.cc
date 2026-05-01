@@ -137,7 +137,7 @@ void CopyTensorFromBytes(Tensor param, const void* data, size_t nbytes,
   // It creates a host side memory mirror, for every cl_mem that tries to copy data from host
   // which can cause memory issue. Her we use a large staging buffer to postpone deallocation
   if (staging_buffer->defined()) {
-    size_t curr_size = runtime::GetDataSize(*(staging_buffer->value().operator->()));
+    size_t curr_size = ffi::GetDataSize(*(staging_buffer->value().operator->()));
     if (curr_size < nbytes) {
       *staging_buffer = std::nullopt;
     }

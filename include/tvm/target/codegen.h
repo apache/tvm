@@ -34,10 +34,6 @@
 namespace tvm {
 /*! \brief namespace for target translation and codegen. */
 namespace codegen {
-// use packed function from runtime.
-using ffi::Any;
-using ffi::Function;
-using ffi::PackedArgs;
 
 /*!
  * \brief Build a module from array of lowered function.

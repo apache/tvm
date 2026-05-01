@@ -60,9 +60,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         return rtmod;
       });
 
-  refl::TypeAttrDef<runtime::Tensor::Container>()
+  refl::TypeAttrDef<ffi::TensorObj>()
       .def("__data_to_json__",
-           [](const runtime::Tensor::Container* node) {
+           [](const ffi::TensorObj* node) {
              std::string result;
              support::BytesOutStream mstrm(&result);
              support::Base64OutStream b64strm(&mstrm);

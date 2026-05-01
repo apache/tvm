@@ -1087,7 +1087,7 @@ class ReindexCacheReadRewriter : public CacheReadRewriter {
       ffi::Array<BufferRegion> new_reads;
       for (const BufferRegion& buf_region : reads) {
         if (buf_region->buffer.same_as(info_->read_buffer)) {
-          ffi::Array<Range> region;
+          Region region;
           for (const PrimExpr index : new_indices_) {
             region.push_back(Range::FromMinExtent(index, Integer(1)));
           }
@@ -1103,7 +1103,7 @@ class ReindexCacheReadRewriter : public CacheReadRewriter {
       for (const MatchBufferRegion& match_buffer_region : match_buffers) {
         BufferRegion source = match_buffer_region->source;
         if (source->buffer.same_as(info_->read_buffer)) {
-          ffi::Array<Range> region;
+          Region region;
           for (const PrimExpr index : new_indices_) {
             region.push_back(Range::FromMinExtent(index, Integer(1)));
           }
@@ -1376,7 +1376,7 @@ class ReindexCacheWriteRewriter : public CacheWriteRewriter {
       ffi::Array<BufferRegion> new_reads;
       for (const BufferRegion& buf_region : reads) {
         if (buf_region->buffer.same_as(info_->write_buffer)) {
-          ffi::Array<Range> region;
+          Region region;
           for (const PrimExpr index : new_indices_) {
             region.push_back(Range::FromMinExtent(index, Integer(1)));
           }
@@ -1392,7 +1392,7 @@ class ReindexCacheWriteRewriter : public CacheWriteRewriter {
       for (const MatchBufferRegion& match_buffer_region : match_buffers) {
         BufferRegion source = match_buffer_region->source;
         if (source->buffer.same_as(info_->write_buffer)) {
-          ffi::Array<Range> region;
+          Region region;
           for (const PrimExpr index : new_indices_) {
             region.push_back(Range::FromMinExtent(index, Integer(1)));
           }

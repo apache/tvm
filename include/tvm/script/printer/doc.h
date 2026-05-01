@@ -63,7 +63,7 @@ class DocNode : public ffi::Object {
    * this Doc is generated, in order to position the diagnostic
    * message.
    */
-  mutable ffi::Array<ffi::reflection::AccessPath> source_paths;
+  mutable ffi::Array<AccessPath> source_paths;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -308,7 +308,7 @@ class LiteralDoc : public ExprDoc {
    * \param p The object path
    */
   static LiteralDoc DataType(const runtime::DataType& v, const ffi::Optional<AccessPath>& p) {
-    std::string dtype = v.is_void() ? "void" : runtime::DLDataTypeToString(v);
+    std::string dtype = v.is_void() ? "void" : ffi::DLDataTypeToString(v);
     return LiteralDoc::Str(dtype, p);
   }
   /*!

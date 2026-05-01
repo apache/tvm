@@ -81,6 +81,9 @@ Expr multiply(Expr x1, Expr x2);
 /*! \brief Power with numpy-style broadcasting. */
 Expr power(Expr x1, Expr x2);
 
+/*! \brief Atan2 with numpy-style broadcasting. */
+Expr atan2(Expr x1, Expr x2);
+
 /*! \brief Subtraction with numpy-style broadcasting. */
 Expr subtract(Expr x1, Expr x2);
 

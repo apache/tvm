@@ -385,6 +385,19 @@ TOPI_DEFINE_BCAST_OP(minimum, { return tvm::min(a, b); });
 TOPI_DEFINE_BCAST_OP(power, { return tvm::pow(a, b); });
 
 /*!
+ * \fn atan2
+ * \brief Compute atan2(y, x) with auto-broadcasting.
+ *
+ * \param A The first tensor, or Expr (y-coordinates).
+ * \param B The second tensor, or Expr (x-coordinates).
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return The result.
+ */
+TOPI_DEFINE_BCAST_OP(atan2, { return tvm::atan2(a, b); });
+
+/*!
  * \fn left_shift
  * \brief Compute A << B with auto-broadcasting.
  *

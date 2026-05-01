@@ -273,7 +273,7 @@ void CastOpConverter::Convert(NNAPIModelBuilder& builder, const JSONGraphNode& n
 
   // Extract the dtype attribute and check that the output operand type matches the dtype specified.
   const auto dtype_str = node.GetAttr<ffi::String>("astype_dtype");
-  const DLDataType dtype = StringToDLDataType(std::string(dtype_str));
+  const DLDataType dtype = ffi::StringToDLDataType(std::string(dtype_str));
   TVM_FFI_ICHECK(outputs.size() == 1);
   const auto output_tensor_type = outputs[0].GetTensorType();
   TVM_FFI_ICHECK(TensorTypeFromDLDataType(dtype) == output_tensor_type)

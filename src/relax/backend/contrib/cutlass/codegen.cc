@@ -29,6 +29,7 @@
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/nn.h>
 #include <tvm/relax/type.h>
+#include <tvm/runtime/logging.h>
 
 #include <memory>
 #include <string>

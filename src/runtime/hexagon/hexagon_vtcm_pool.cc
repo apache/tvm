@@ -17,6 +17,7 @@
  * under the License.
  */
 #include "hexagon_vtcm_pool.h"
+#include <tvm/runtime/logging.h>
 
 #include "HAP_compute_res.h"
 #include "hexagon_common.h"

@@ -47,6 +47,7 @@ from .base import (
 )
 from .binary import (
     add,
+    atan2,
     bitwise_and,
     bitwise_or,
     bitwise_xor,

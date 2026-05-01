@@ -24,7 +24,7 @@
  * The legacy ReprPrinter has been replaced by ffi::ReprPrint.  This file:
  *  - Implements the Dump() debug helpers (they call ffi::ReprPrint).
  *  - Registers node.AsRepr (for backward Python compatibility) via ffi::ReprPrint.
- *  - Registers __ffi_repr__ hooks for AccessPath and AccessStep.
+ *  - Registers __ffi_repr__ hooks for ffi::reflection::AccessPath and AccessStep.
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/dataclass.h>
@@ -48,7 +48,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   // Python's tvm.runtime._ffi_node_api sets __object_repr__ = AsRepr via init_ffi_api.
   refl::GlobalDef().def("node.AsRepr",
                         [](ffi::Any obj) -> ffi::String { return ffi::ReprPrint(obj); });
-  // Register __ffi_repr__ for AccessPath/AccessStep so that ffi.ReprPrint
+  // Register __ffi_repr__ for ffi::reflection::AccessPath/AccessStep so that ffi.ReprPrint
   // uses the concise "<root>.field[idx]" format.
   //
   // AccessStep: format one step fragment (e.g. ".field", "[0]", "[key]?").
@@ -79,7 +79,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         }
         return os.str();
       });
-  // AccessPath: recurse through parent via fn_repr rather than walking the
+  // ffi::reflection::AccessPath: recurse through parent via fn_repr rather than walking the
   // linked list manually.  Root (no step) emits "<root>"; each non-root node
   // prepends its parent's repr and appends the current step's repr.
   refl::TypeAttrDef<ffi::reflection::AccessPathObj>().def(

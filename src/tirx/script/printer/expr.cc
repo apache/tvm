@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/runtime/logging.h>
 #include <tvm/tirx/builtin.h>
 
 #include "./utils.h"

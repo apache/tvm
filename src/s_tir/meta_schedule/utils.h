@@ -43,6 +43,7 @@
 #include <tvm/support/io.h>
 #include <tvm/support/serializer.h>
 #include <tvm/tirx/transform.h>
+#include <tvm/runtime/logging.h>
 
 #include <algorithm>
 #include <sstream>
