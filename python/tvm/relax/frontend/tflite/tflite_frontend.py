@@ -2444,9 +2444,13 @@ class OperatorConverter:
 
         if self.has_expr(shape_tensor.tensor_idx):
             shape_expr = self.get_expr(shape_tensor.tensor_idx)
+            shape_expr = self.bb.normalize(relax.op.astype(shape_expr, "int64"))
             shape = self.bb.emit(relax.op.tensor_to_shape(shape_expr))
         else:
             shape = to_int_list(self.get_tensor_value(shape_tensor))
+
+        indices_dims = len(self._infer_shape(indices))
+        indices = relax.op.permute_dims(indices, axes=[-1] + list(range(indices_dims - 1)))
 
         data = relax.op.zeros(shape, updates_dtype)
         return relax.op.scatter_nd(data, indices, updates, "update")
