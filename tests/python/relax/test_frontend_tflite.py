@@ -1527,6 +1527,13 @@ def test_broadcast_to():
 
     verify(Model)
 
+    class ModelScalarAndInt(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(), dtype=tf.int32)])
+        def func(self, x):
+            return tf.broadcast_to(x, [4, 4])
+
+    verify(ModelScalarAndInt)
+
 
 def test_embedding_lookup():
     class Model(tf.Module):
@@ -1536,6 +1543,14 @@ def test_embedding_lookup():
             return tf.nn.embedding_lookup(params, indices)
 
     verify(Model)
+
+    class ModelMultidim(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(2, 3), dtype=tf.int32)])
+        def func(self, indices):
+            params = tf.constant([[1, 2], [3, 4], [5, 6], [7, 8]], dtype=tf.float32)
+            return tf.nn.embedding_lookup(params, indices)
+
+    verify(ModelMultidim)
 
 
 def test_select_v2():
@@ -1551,6 +1566,19 @@ def test_select_v2():
             return tf.where(condition, x, y)
 
     verify(Model)
+
+    class ModelBroadcasting(tf.Module):
+        @tf.function(
+            input_signature=[
+                tf.TensorSpec(shape=(2, 1), dtype=tf.bool),
+                tf.TensorSpec(shape=(2, 2), dtype=tf.float32),
+                tf.TensorSpec(shape=(), dtype=tf.float32),
+            ]
+        )
+        def func(self, condition, x, y):
+            return tf.where(condition, x, y)
+
+    verify(ModelBroadcasting)
 
 
 def test_batch_matmul():
