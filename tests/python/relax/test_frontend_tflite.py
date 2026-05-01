@@ -1519,6 +1519,21 @@ def test_networks(net, shape):
     verify(concrete_func)
 
 
+def test_scatter_nd():
+    class Model(tf.Module):
+        @tf.function(
+            input_signature=[
+                tf.TensorSpec(shape=(4, 1), dtype=tf.int32),
+                tf.TensorSpec(shape=(4,), dtype=tf.float32),
+                tf.TensorSpec(shape=(1,), dtype=tf.int32),
+            ]
+        )
+        def func(self, indices, updates, shape):
+            return tf.scatter_nd(indices, updates, shape)
+
+    verify(Model)
+
+
 def test_batch_matmul():
     class BatchMatMul(tf.Module):
         @tf.function(

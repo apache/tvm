@@ -212,6 +212,7 @@ class OperatorConverter:
             "RSQRT": functools.partial(self._convert_unary_elemwise, relax_op=_op.rsqrt),
             "REVERSE_SEQUENCE": self.convert_reverse_sequence,
             "REVERSE_V2": self.convert_reverse_v2,
+            "SCATTER_ND": self.convert_scatter_nd,
             "SELECT": self.convert_select,
             "SHAPE": self.convert_shape,
             "SIN": functools.partial(self._convert_unary_elemwise, relax_op=_op.sin),
@@ -2428,6 +2429,27 @@ class OperatorConverter:
         end = [int(v) for v in end]
         out = relax.op.strided_slice(in_expr, axes=axes, begin=begin, end=end)
         return out
+
+    def convert_scatter_nd(self, op):
+        """Convert TFLite SCATTER_ND"""
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 3, "SCATTER_ND should have 3 input tensors"
+        indices = self.get_tensor_expr(input_tensors[0])
+        updates = self.get_tensor_expr(input_tensors[1])
+        shape_tensor = input_tensors[2]
+
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "SCATTER_ND should have 1 output tensor"
+        updates_dtype = self.get_tensor_type_str(output_tensors[0].tensor.Type())
+
+        if self.has_expr(shape_tensor.tensor_idx):
+            shape_expr = self.get_expr(shape_tensor.tensor_idx)
+            shape = self.bb.emit(relax.op.tensor_to_shape(shape_expr))
+        else:
+            shape = to_int_list(self.get_tensor_value(shape_tensor))
+
+        data = relax.op.zeros(shape, updates_dtype)
+        return relax.op.scatter_nd(data, indices, updates, "update")
 
     def convert_select(self, op):
         """Convert TFLite SELECT"""
