@@ -643,6 +643,10 @@ class ParameterDict(Module):
         return self.params[key]
 
     def __setitem__(self, key: str, param: Parameter) -> None:
+        if not isinstance(key, str):
+            raise TypeError(f"ParameterDict keys must be strings, but got {type(key).__name__}")
+        if not isinstance(param, Parameter):
+            raise TypeError(f"ParameterDict values must be nn.Parameter, but got {type(param).__name__}")
         self.params[key] = param
 
     def __len__(self) -> int:
@@ -726,6 +730,8 @@ class ParameterList(Module):
         return self.params[idx]
 
     def __setitem__(self, idx: int, param: Parameter) -> None:
+        if not isinstance(param, Parameter):
+            raise TypeError(f"ParameterList elements must be nn.Parameter, but got {type(param).__name__}")
         self.params[idx] = param
 
     def __len__(self) -> int:
@@ -733,6 +739,8 @@ class ParameterList(Module):
 
     def append(self, param: Parameter) -> None:
         """Add a parameter to the end of the ParameterList"""
+        if not isinstance(param, Parameter):  
+            raise TypeError(f"ParameterList elements must be nn.Parameter, but got {type(param).__name__}")         
         self.params.append(param)
 
     def extend(self, params: list[Parameter]) -> None:
