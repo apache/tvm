@@ -713,6 +713,41 @@ def test_let_floordiv_pattern():
     assert "cse_v" not in script, f"CSE incorrectly extracted from Let body:\n{script}"
 
 
+# =====================================================================
+# T22: Wholly-constant Cast is not lifted
+# `Cast(int32, 1)` is a compound expression whose leaves are constants
+# only. The constant folder collapses it; CSE adds noise only.
+# =====================================================================
+def test_no_lift_constant_expression():
+    @tvm.script.ir_module
+    class Before:
+        @T.prim_func
+        def main(B: T.Buffer((50,), "int32"), i1: T.int32, i2: T.int32):
+            B[i1] = T.Cast("int32", 1) + i1
+            B[i2] = T.Cast("int32", 1) + i2
+
+    after = tvm.tirx.transform.CommonSubexprElim()(Before)
+    tvm.ir.assert_structural_equal(after, Before)
+    assert "cse_v" not in after["main"].script()
+
+
+# =====================================================================
+# T23: Wholly-constant Min is not lifted
+# `T.min(1, 2)` is a compound constant; CSE must not lift it.
+# =====================================================================
+def test_no_lift_constant_min():
+    @tvm.script.ir_module
+    class Before:
+        @T.prim_func
+        def main(B: T.Buffer((50,), "int32"), i1: T.int32, i2: T.int32):
+            B[i1] = T.min(1, 2) + i1
+            B[i2] = T.min(1, 2) + i2
+
+    after = tvm.tirx.transform.CommonSubexprElim()(Before)
+    tvm.ir.assert_structural_equal(after, Before)
+    assert "cse_v" not in after["main"].script()
+
+
 if __name__ == "__main__":
     test_basic()
     test_if_single_branch()
@@ -735,3 +770,5 @@ if __name__ == "__main__":
     test_let_value_cse()
     test_nested_let_no_extraction()
     test_let_floordiv_pattern()
+    test_no_lift_constant_expression()
+    test_no_lift_constant_min()

@@ -49,6 +49,9 @@
  *   - It is not a leaf (Var, IntImm, FloatImm, StringImm).
  *   - It does not contain Call or BufferLoad (side-effects / memory dependence).
  *   - It is not Ramp or Broadcast (hardware-specific vector ops).
+ *   - It is not a wholly-constant expression (no Var anywhere in the tree).
+ *     Constant subtrees provide no CSE benefit — the constant folder
+ *     collapses them — and lifting them only adds noise like `cse_v = 1`.
  *
  * Scope tree
  * ----------
@@ -263,6 +266,10 @@ class CSEPlanner : public StmtExprVisitor {
    *   - Not a Call or BufferLoad (side effects / memory dependence).
    *   - Not Ramp or Broadcast (hardware-specific vector construction).
    *   - Does not transitively contain any forbidden node.
+   *   - Is not a wholly-constant expression (contains no Var in its tree).
+   *     Compound expressions like `Cast(int32, 1)` or `Min(1, 2)` pass the
+   *     leaf-only checks above but are still compile-time constants — the
+   *     constant folder will collapse them, so hoisting only adds noise.
    *
    * \param expr The expression to check.
    * \return true if the expression can participate in CSE.
@@ -275,6 +282,13 @@ class CSEPlanner : public StmtExprVisitor {
     if (IsForbiddenNode(expr)) return false;
     if (expr.as<RampNode>() || expr.as<BroadcastNode>()) return false;
     if (CheckContains::ExprContains(expr, IsForbiddenNode)) return false;
+    // Reject wholly-constant expressions (no Var anywhere in the tree).
+    // BufferLoad is already filtered above by IsForbiddenNode, so
+    // "contains no Var" is sufficient to declare the expression a
+    // compile-time constant. Hoisting it adds noise; the constant
+    // folder will collapse it.
+    auto contains_var = [](const PrimExpr& e) { return e.as<VarNode>() != nullptr; };
+    if (!CheckContains::ExprContains(expr, contains_var)) return false;
     return true;
   }
 
