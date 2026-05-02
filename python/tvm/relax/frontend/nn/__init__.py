@@ -19,7 +19,17 @@
 
 # pylint: disable=redefined-builtin
 from . import op, spec
-from .core import Effect, Module, ModuleDict, ModuleList, Object, Parameter, Tensor
+from .core import (
+    Effect,
+    Module,
+    ModuleDict,
+    ModuleList,
+    Object,
+    Parameter,
+    ParameterDict,
+    ParameterList,
+    Tensor,
+)
 from .exporter import add_extern
 from .extern import ExternModule, ObjectModule, SourceModule
 from .modules import (

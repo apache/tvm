@@ -625,6 +625,59 @@ class ModuleDict(Module):
             module.to(dtype=dtype)
 
 
+class ParameterDict(Module):
+    """Holds parameters in a dict."""
+
+    def __init__(
+        self,
+        params: OrderedDict[str, Parameter] | dict[str, Parameter] | None = None,
+    ):
+        self.params: OrderedDict[str, Parameter] = OrderedDict()
+        if params is not None:
+            self.update(params)
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self.params)
+
+    def __getitem__(self, key: str) -> Parameter:
+        return self.params[key]
+
+    def __setitem__(self, key: str, param: Parameter) -> None:
+        self.params[key] = param
+
+    def __len__(self) -> int:
+        return len(self.params)
+
+    def keys(self) -> Iterator[str]:
+        return self.params.keys()
+
+    def values(self) -> Iterator[Parameter]:
+        return self.params.values()
+
+    def items(self) -> Iterator[tuple[str, Parameter]]:
+        return self.params.items()
+
+    def get(self, key: str, default: Parameter | None = None) -> Parameter | None:
+        return self.params.get(key, default)
+
+    def update(self, params: dict[str, Parameter]) -> None:
+        for key, param in params.items():
+            self[key] = param
+
+    def clear(self) -> None:
+        self.params.clear()
+
+    def pop(self, key: str) -> Parameter:
+        return self.params.pop(key)
+
+    def __contains__(self, key: str) -> bool:
+        return key in self.params
+
+    def to(self, dtype: str | None = None) -> None:  # pylint: disable=invalid-name
+        for param in self.params.values():
+            param.to(dtype=dtype)
+
+
 class ModuleList(Module):
     """Holds submodules in a list."""
 
@@ -656,6 +709,40 @@ class ModuleList(Module):
         for module in self.modules:
             x = module(x)
         return x
+
+
+class ParameterList(Module):
+    """Holds parameters in a list."""
+
+    def __init__(self, params: list[Parameter] | None = None):
+        self.params: list[Parameter] = []
+        if params is not None:
+            self.extend(params)
+
+    def __iter__(self) -> Iterator[Parameter]:
+        return iter(self.params)
+
+    def __getitem__(self, idx: int) -> Parameter:
+        return self.params[idx]
+
+    def __setitem__(self, idx: int, param: Parameter) -> None:
+        self.params[idx] = param
+
+    def __len__(self) -> int:
+        return len(self.params)
+
+    def append(self, param: Parameter) -> None:
+        """Add a parameter to the end of the ParameterList"""
+        self.params.append(param)
+
+    def extend(self, params: list[Parameter]) -> None:
+        """Add parameters to the end of the ParameterList"""
+        for param in params:
+            self.append(param)
+
+    def to(self, dtype: str | None = None) -> None:  # pylint: disable=invalid-name
+        for param in self.params:
+            param.to(dtype=dtype)
 
 
 def wrap_nested(expr: rx.Expr, name: str) -> Tensor | Sequence[Tensor]:
@@ -692,7 +779,17 @@ def wrap_nested(expr: rx.Expr, name: str) -> Tensor | Sequence[Tensor]:
 
 def _attribute_finder(root: Module, prefix: str, condition_yield: Callable[[Any], bool]):
     """Find attributes that satisfy the condition recursively"""
-    if isinstance(root, ModuleList):
+    if isinstance(root, ParameterList):
+        for i, param in enumerate(root):
+            if condition_yield(param):
+                yield prefix + f"{i}", param
+        return
+    elif isinstance(root, ParameterDict):
+        for name, param in root.items():
+            if condition_yield(param):
+                yield prefix + name, param
+        return
+    elif isinstance(root, ModuleList):
         for i, subitem in enumerate(root):
             yield from _attribute_finder(subitem, prefix + f"{i}.", condition_yield)
         return
@@ -703,6 +800,18 @@ def _attribute_finder(root: Module, prefix: str, condition_yield: Callable[[Any]
     for name, item in root.__dict__.items():
         if condition_yield(item):
             yield prefix + name, item
+        elif isinstance(item, ParameterList):
+            yield from _attribute_finder(
+                item,
+                prefix + name + ".",
+                condition_yield,
+            )
+        elif isinstance(item, ParameterDict):
+            yield from _attribute_finder(
+                item,
+                prefix + name + ".",
+                condition_yield,
+            )
         elif isinstance(item, ModuleList):
             yield from _attribute_finder(
                 item,

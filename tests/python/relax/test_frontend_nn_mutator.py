@@ -127,6 +127,42 @@ def test_mutator_naming_modulelist():
     mutator.visit("mod_list", mod_list)
 
 
+def test_mutator_naming_parameter_containers():
+    class Module(nn.Module):
+        def __init__(self) -> None:
+            super().__init__()
+            self.param_list = nn.ParameterList(
+                [
+                    nn.Parameter((32, 128), "float64"),
+                    nn.Parameter((32, 128), "float32"),
+                ]
+            )
+            self.param_dict = nn.ParameterDict(
+                {
+                    "k0": nn.Parameter((32, 128), "float16"),
+                    "k1": nn.Parameter((32, 128), "float8"),
+                }
+            )
+
+    seen = []
+
+    class Mutator(nn.Mutator):
+        def visit_param(self, name: str, node: nn.Parameter) -> Any:
+            seen.append((name, node.dtype))
+            return node
+
+    module = Module()
+    mutator = Mutator()
+    mutator.visit("", module)
+
+    assert seen == [
+        ("param_list.0", "float64"),
+        ("param_list.1", "float32"),
+        ("param_dict.k0", "float16"),
+        ("param_dict.k1", "float8"),
+    ]
+
+
 def test_mutator_module():
     class SubModule1(nn.Module):
         def __init__(self) -> None:

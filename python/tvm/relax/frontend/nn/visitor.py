@@ -116,6 +116,42 @@ class Mutator:
         """
         return self.visit(name, node)
 
+    def visit_parameterdict(self, name: str, node: nn.ParameterDict) -> Any:
+        """The base visiting method for mutation of nn.ParameterDict nodes.
+
+        Parameters
+        ----------
+        name : str
+            The name of the current node in parent's attribute.
+
+        node : nn.ParameterDict
+            The current node of nn.ParameterDict to mutate.
+
+        Returns
+        ------
+        ret_node: Any
+            The new node to replace current node.
+        """
+        return self.visit(name, node)
+
+    def visit_parameterlist(self, name: str, node: nn.ParameterList) -> Any:
+        """The base visiting method for mutation of nn.ParameterList nodes.
+
+        Parameters
+        ----------
+        name : str
+            The name of the current node in parent's attribute.
+
+        node : nn.ParameterList
+            The current node of nn.ParameterList to mutate.
+
+        Returns
+        ------
+        ret_node: Any
+            The new node to replace current node.
+        """
+        return self.visit(name, node)
+
     def visit(self, name: str, node: Any) -> Any:
         """The base dispatching method for visiting of all nodes.
 
@@ -141,9 +177,19 @@ class Mutator:
             else:
                 return f"{parent}.{child}"
 
-        if isinstance(node, nn.ModuleList):
+        if isinstance(node, nn.ParameterList):
             for i in range(len(node)):
-                if isinstance(node[i], nn.ModuleDict):
+                node[i] = self.visit_param(_get_child_name(name, str(i)), node[i])
+        elif isinstance(node, nn.ParameterDict):
+            for k, v in node.items():
+                node[k] = self.visit_param(_get_child_name(name, k), v)
+        elif isinstance(node, nn.ModuleList):
+            for i in range(len(node)):
+                if isinstance(node[i], nn.ParameterDict):
+                    node[i] = self.visit_parameterdict(_get_child_name(name, str(i)), node[i])
+                elif isinstance(node[i], nn.ParameterList):
+                    node[i] = self.visit_parameterlist(_get_child_name(name, str(i)), node[i])
+                elif isinstance(node[i], nn.ModuleDict):
                     node[i] = self.visit_moduledict(f"{name}.{i}", node[i])
                 elif isinstance(node[i], nn.ModuleList):
                     node[i] = self.visit_modulelist(f"{name}.{i}", node[i])
@@ -155,7 +201,11 @@ class Mutator:
                     node[i] = self.visit_param(f"{name}.{i}", node[i])
         elif isinstance(node, nn.ModuleDict):
             for k, v in node.items():
-                if isinstance(v, nn.ModuleDict):
+                if isinstance(v, nn.ParameterDict):
+                    node[k] = self.visit_parameterdict(_get_child_name(name, k), v)
+                elif isinstance(v, nn.ParameterList):
+                    node[k] = self.visit_parameterlist(_get_child_name(name, k), v)
+                elif isinstance(v, nn.ModuleDict):
                     node[k] = self.visit_moduledict(_get_child_name(name, k), v)
                 elif isinstance(v, nn.ModuleList):
                     node[k] = self.visit_modulelist(_get_child_name(name, k), v)
@@ -167,7 +217,11 @@ class Mutator:
                     node[k] = self.visit_param(_get_child_name(name, k), v)
         else:
             for key, value in node.__dict__.items():
-                if isinstance(value, nn.ModuleDict):
+                if isinstance(value, nn.ParameterDict):
+                    setattr(node, key, self.visit_parameterdict(_get_child_name(name, key), value))
+                elif isinstance(value, nn.ParameterList):
+                    setattr(node, key, self.visit_parameterlist(_get_child_name(name, key), value))
+                elif isinstance(value, nn.ModuleDict):
                     setattr(node, key, self.visit_moduledict(_get_child_name(name, key), value))
                 elif isinstance(value, nn.ModuleList):
                     setattr(node, key, self.visit_modulelist(_get_child_name(name, key), value))
