@@ -1014,10 +1014,7 @@ class Concat(OnnxOpConverter):
     @classmethod
     def _impl_v13(cls, bb, inputs, attr, params):
         axis = attr.get("axis", 0)
-        # Resolve any param Vars to their baked Constant values so that 1D-int64
-        # shape values loaded under keep_params_in_input=True can take the
-        # shape-like fast path below.
-        inputs = [get_constant(inp, params) for inp in inputs]
+        _, param_dict = params
 
         def is_shape_like(x: Any) -> bool:
             if isinstance(x, relax.ShapeExpr):
@@ -1027,10 +1024,22 @@ class Concat(OnnxOpConverter):
             else:
                 return False
 
+        # Resolve 1D-int64 param Vars to constants only for the shape-like
+        # fast path; tensor fallback keeps the original Vars so runtime
+        # weights aren't folded under keep_params_in_input=True.
+        def resolve(x):
+            if isinstance(x, relax.Var) and x.name_hint in param_dict:
+                arr = param_dict[x.name_hint][1].numpy()
+                if arr.ndim == 1 and arr.dtype == _np.int64:
+                    return relax.const(arr, "int64")
+            return x
+
+        resolved = [resolve(inp) for inp in inputs]
+
         # If all inputs are shape expr, perform computation directly.
-        if all([is_shape_like(inp) for inp in inputs]):
+        if all([is_shape_like(inp) for inp in resolved]):
             const_inputs = []
-            for inp in inputs:
+            for inp in resolved:
                 if isinstance(inp, relax.ShapeExpr):
                     const_inputs.extend(inp.values)
                 elif isinstance(inp, relax.Constant):

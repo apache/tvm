@@ -563,6 +563,27 @@ def test_concat_with_param_shape_value():
     from_onnx(model, keep_params_in_input=True)
 
 
+def test_concat_with_param_tensor_keeps_runtime_param():
+    """Concat(input, weight) under keep_params_in_input=True must keep `weight`
+    as a runtime param, not fold it into a constant."""
+    weight_np = np.arange(8, dtype=np.float32).reshape(2, 4)
+    graph = helper.make_graph(
+        [helper.make_node("Concat", ["x", "w"], ["y"], axis=0)],
+        "concat_param_tensor",
+        [helper.make_tensor_value_info("x", TensorProto.FLOAT, [2, 4])],
+        [helper.make_tensor_value_info("y", TensorProto.FLOAT, [4, 4])],
+        initializer=[numpy_helper.from_array(weight_np, "w")],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 13)])
+    model.ir_version = 8
+    onnx.checker.check_model(model)
+
+    mod, params = relax.frontend.detach_params(from_onnx(model, keep_params_in_input=True))
+    assert "w" in [p.name_hint for p in mod["main"].params]
+    assert len(params["main"]) == 1
+    np.testing.assert_array_equal(params["main"][0].numpy(), weight_np)
+
+
 @pytest.mark.parametrize("op_name", ["Add", "Sub", "Mul", "Div", "Pow"])
 def test_binary(op_name: str):
     verify_binary(op_name, [1, 32], [1, 32], [1, 32])
