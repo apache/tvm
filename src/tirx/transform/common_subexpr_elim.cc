@@ -280,7 +280,6 @@ class CSEPlanner : public StmtExprVisitor {
     }
     if (IsForbiddenNode(expr)) return false;
     if (expr.as<RampNode>() || expr.as<BroadcastNode>()) return false;
-    if (CheckContains::ExprContains(expr, IsForbiddenNode)) return false;
     // Reject bool-typed expressions. Boolean predicates almost always feed an
     // if / Select / assert, where reading the condition inline is clearer than
     // going through a `cse_v: bool = (a < b)` temporary, and where downstream
@@ -289,6 +288,7 @@ class CSEPlanner : public StmtExprVisitor {
     // leaf, so this rule only affects compound bool expressions
     // (LT/LE/GT/GE/EQ/NE/And/Or/Not/Cast-to-bool/Select-of-bool).
     if (expr.dtype().is_bool()) return false;
+    if (CheckContains::ExprContains(expr, IsForbiddenNode)) return false;
     return true;
   }
 
