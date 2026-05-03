@@ -3280,10 +3280,10 @@ class OperatorConverter:
         input_tensor_idx = input_tensor.tensor_idx
         in_expr = self.get_expr(input_tensor_idx)
 
-        block_shape = list(self.get_tensor_value(input_tensors[1]))
-        crops = self.get_tensor_value(input_tensors[2]).tolist()
-        crop_begin = [crop[0] for crop in crops]
-        crop_end = [crop[1] for crop in crops]
+        block_shape = to_int_list(self.get_tensor_value(input_tensors[1]))
+        crops = self.get_tensor_value(input_tensors[2])
+        crop_begin = to_int_list(crops[:, 0])
+        crop_end = to_int_list(crops[:, 1])
 
         output_tensors = self.get_output_tensors(op)
         assert len(output_tensors) == 1, "output tensors length should be 1"
@@ -3298,7 +3298,6 @@ class OperatorConverter:
                 relax.ShapeExpr(block_shape),
                 relax.ShapeExpr(crop_begin),
                 relax.ShapeExpr(crop_end),
-                "batch_to_space_nd",
             ),
             out_sinfo=relax.TensorStructInfo(output_shape, output_dtype),
         )
@@ -3407,10 +3406,10 @@ class OperatorConverter:
         input_tensor_idx = input_tensor.tensor_idx
         in_expr = self.get_expr(input_tensor_idx)
 
-        block_shape = list(self.get_tensor_value(input_tensors[1]))
-        paddings = self.get_tensor_value(input_tensors[2]).tolist()
-        pad_before = [pad[0] for pad in paddings]
-        pad_after = [pad[1] for pad in paddings]
+        block_shape = to_int_list(self.get_tensor_value(input_tensors[1]))
+        paddings = self.get_tensor_value(input_tensors[2])
+        pad_before = to_int_list(paddings[:, 0])
+        pad_after = to_int_list(paddings[:, 1])
 
         output_tensors = self.get_output_tensors(op)
         assert len(output_tensors) == 1, "output tensors length should be 1"
