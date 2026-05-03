@@ -1014,6 +1014,10 @@ class Concat(OnnxOpConverter):
     @classmethod
     def _impl_v13(cls, bb, inputs, attr, params):
         axis = attr.get("axis", 0)
+        # Resolve any param Vars to their baked Constant values so that 1D-int64
+        # shape values loaded under keep_params_in_input=True can take the
+        # shape-like fast path below.
+        inputs = [get_constant(inp, params) for inp in inputs]
 
         def is_shape_like(x: Any) -> bool:
             if isinstance(x, relax.ShapeExpr):
