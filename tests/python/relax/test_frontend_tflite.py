@@ -3099,6 +3099,74 @@ def test_space_to_depth():
     verify(SpaceToDepth, Expected)
 
 
+@pytest.mark.parametrize(
+    "input_shape, block_shape, paddings, expected_out_shape",
+    [
+        ((1, 2, 2, 1), [2, 2], [[0, 0], [0, 0]], (4, 1, 1, 1)),
+        ((1, 2, 3, 1), [2, 2], [[0, 0], [1, 0]], (4, 1, 2, 1)),
+    ],
+)
+def test_space_to_batch_nd(input_shape, block_shape, paddings, expected_out_shape):
+    """SPACE_TO_BATCH_ND imports to Relax and preserves expected output shape."""
+
+    class SpaceToBatchND(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=input_shape, dtype=tf.float32)])
+        def func(self, x):
+            return tf.space_to_batch_nd(
+                x,
+                tf.constant(block_shape, dtype=tf.int32),
+                tf.constant(paddings, dtype=tf.int32),
+            )
+
+    cf = SpaceToBatchND().func.get_concrete_function()
+    mod = _get_mod_from_cfunc(cf)
+    ir = mod.script()
+
+    assert "space_to_batch_nd" in ir
+    assert len(mod["main"].params) == 1
+    tvm.ir.assert_structural_equal(
+        mod["main"].ret_struct_info,
+        relax.TensorStructInfo(expected_out_shape, "float32"),
+    )
+
+    if "CI_ENV_NIGHTLY" in os.environ:
+        verify(SpaceToBatchND)
+
+
+@pytest.mark.parametrize(
+    "input_shape, block_shape, crops, expected_out_shape",
+    [
+        ((4, 1, 1, 1), [2, 2], [[0, 0], [0, 0]], (1, 2, 2, 1)),
+        ((4, 1, 2, 1), [2, 2], [[0, 0], [1, 0]], (1, 2, 3, 1)),
+    ],
+)
+def test_batch_to_space_nd(input_shape, block_shape, crops, expected_out_shape):
+    """BATCH_TO_SPACE_ND imports to Relax and preserves expected output shape."""
+
+    class BatchToSpaceND(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=input_shape, dtype=tf.float32)])
+        def func(self, x):
+            return tf.raw_ops.BatchToSpaceND(
+                input=x,
+                block_shape=tf.constant(block_shape, dtype=tf.int32),
+                crops=tf.constant(crops, dtype=tf.int32),
+            )
+
+    cf = BatchToSpaceND().func.get_concrete_function()
+    mod = _get_mod_from_cfunc(cf)
+    ir = mod.script()
+
+    assert "batch_to_space_nd" in ir
+    assert len(mod["main"].params) == 1
+    tvm.ir.assert_structural_equal(
+        mod["main"].ret_struct_info,
+        relax.TensorStructInfo(expected_out_shape, "float32"),
+    )
+
+    if "CI_ENV_NIGHTLY" in os.environ:
+        verify(BatchToSpaceND)
+
+
 def test_leaky_relu():
     class LeakyReLU(tf.Module):
         @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
