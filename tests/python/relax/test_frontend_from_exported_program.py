@@ -7430,6 +7430,41 @@ def test_index_put_with_tuple_output():
     )
 
 
+def test_m4d_diag_index_put_tuple_output_regression():
+    class M4D(Module):
+        def forward(self, x):
+            b, k, n = 2, 3, 5
+            l = x.new_zeros(b, k, n, n)
+            idx = torch.arange(n, device=x.device)
+
+            diag = l[..., idx, idx]
+            diag = torch.nn.functional.elu(diag) + 1.0 + 1e-8
+            l[..., idx, idx] = diag
+
+            return x[..., :1], l
+
+    ex_in = torch.zeros(2, 3, 5, dtype=torch.float32)
+    exported_program = export(M4D().eval(), args=(ex_in,))
+
+    exported_targets = [str(getattr(n, "target", "")) for n in exported_program.graph.nodes]
+    assert any("index_put" in target for target in exported_targets)
+
+    # Regression focus: importing this graph should not segfault at Tuple construction.
+    mod = from_exported_program(exported_program)
+    ret_sinfo = mod["main"].ret_struct_info
+    assert isinstance(ret_sinfo, relax.TupleStructInfo)
+
+    tensor_fields = [f for f in ret_sinfo.fields if isinstance(f, relax.TensorStructInfo)]
+    assert len(tensor_fields) >= 2
+    # x: (2, 3, 5) → x[..., :1]: (2, 3, 1)
+    assert any(len(f.shape) == 3 and int(f.shape[-1]) == 1 for f in tensor_fields)
+    # l: (2, 3, 5, 5) → 4-D with spatial dims 5×5
+    assert any(
+        len(f.shape) == 4 and int(f.shape[-2]) == 5 and int(f.shape[-1]) == 5
+        for f in tensor_fields
+    )
+
+
 def test_flip():
     class Flip0(Module):
         def forward(self, data):
