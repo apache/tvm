@@ -49,6 +49,10 @@
  *   - It is not a leaf (Var, IntImm, FloatImm, StringImm).
  *   - It does not contain Call or BufferLoad (side-effects / memory dependence).
  *   - It is not Ramp or Broadcast (hardware-specific vector ops).
+ *   - It is not bool-typed. Boolean predicates are kept inline because the
+ *     consumer (if / Select / assert) reads more clearly with the condition
+ *     spelled out, and downstream simplification benefits from seeing the
+ *     predicate directly.
  *
  * Scope tree
  * ----------
@@ -263,6 +267,8 @@ class CSEPlanner : public StmtExprVisitor {
    *   - Not a Call or BufferLoad (side effects / memory dependence).
    *   - Not Ramp or Broadcast (hardware-specific vector construction).
    *   - Does not transitively contain any forbidden node.
+   *   - Is not bool-typed (predicates are kept inline for readability and
+   *     downstream simplification).
    *
    * \param expr The expression to check.
    * \return true if the expression can participate in CSE.
@@ -274,6 +280,14 @@ class CSEPlanner : public StmtExprVisitor {
     }
     if (IsForbiddenNode(expr)) return false;
     if (expr.as<RampNode>() || expr.as<BroadcastNode>()) return false;
+    // Reject bool-typed expressions. Boolean predicates almost always feed an
+    // if / Select / assert, where reading the condition inline is clearer than
+    // going through a `cse_v: bool = (a < b)` temporary, and where downstream
+    // simplification (ProveCondition, branch elimination) benefits from seeing
+    // the predicate directly. BoolImm is already filtered above as an IntImm
+    // leaf, so this rule only affects compound bool expressions
+    // (LT/LE/GT/GE/EQ/NE/And/Or/Not/Cast-to-bool/Select-of-bool).
+    if (expr.dtype().is_bool()) return false;
     if (CheckContains::ExprContains(expr, IsForbiddenNode)) return false;
     return true;
   }
