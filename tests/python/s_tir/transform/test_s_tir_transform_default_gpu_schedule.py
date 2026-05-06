@@ -567,5 +567,39 @@ def test_sum():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_scalar_block_no_loops():
+    # A PrimFunc whose body is a bare SBlockRealize (e.g. a fully-scalar op)
+    # used to crash DefaultGPUSchedule with "Cannot add loops on top of the
+    # root block" because the realized block was the function's root sref.
+    # pylint: disable=no-self-argument,missing-class-docstring,line-too-long
+    # fmt: off
+    @tvm.script.ir_module
+    class Before:
+        @T.prim_func
+        def scalar_add(a: T.Buffer((), "float32"), b: T.Buffer((), "float32"), c: T.Buffer((), "float32")):
+            with T.sblock("scalar_add"):
+                c[()] = a[()] + b[()]
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func
+        def scalar_add(a: T.Buffer((), "float32"), b: T.Buffer((), "float32"), c: T.Buffer((), "float32")):
+            T.func_attr({"tirx.is_scheduled": True})
+            # with T.sblock("root"):
+            for u_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
+                for u_fused_1 in T.thread_binding(1, thread="threadIdx.x"):
+                    with T.sblock("scalar_add"):
+                        vu = T.axis.spatial(1, 0)
+                        T.reads()
+                        T.writes()
+                        c[()] = a[()] + b[()]
+    # fmt: on
+    # pylint: enable=no-self-argument,missing-class-docstring,line-too-long
+    target = tvm.target.Target("nvidia/geforce-rtx-3070")
+    with target, tvm.transform.PassContext(opt_level=0):
+        mod = DefaultGPUSchedule()(Before)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
