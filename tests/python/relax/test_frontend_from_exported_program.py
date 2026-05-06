@@ -7441,6 +7441,47 @@ def test_flip():
     verify_model(Flip1(), example_args, {}, Expected1)
 
 
+def test_flip_multi_axis():
+    class FlipMulti(Module):
+        def forward(self, data):
+            return torch.flip(data, [0, 1])
+
+    class FlipNegMulti(Module):
+        def forward(self, data):
+            return torch.flip(data, dims=[-1, -2])
+
+    @tvm.script.ir_module
+    class ExpectedMulti:
+        @R.function
+        def main(
+            inp_0: R.Tensor((2, 3), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((2, 3), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((2, 3), dtype="float32") = R.flip(inp_0, axis=0)
+                lv1: R.Tensor((2, 3), dtype="float32") = R.flip(lv, axis=1)
+                gv: R.Tuple(R.Tensor((2, 3), dtype="float32")) = (lv1,)
+                R.output(gv)
+            return gv
+
+    @tvm.script.ir_module
+    class ExpectedNegMulti:
+        @R.function
+        def main(
+            inp_0: R.Tensor((2, 3), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((2, 3), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((2, 3), dtype="float32") = R.flip(inp_0, axis=-1)
+                lv1: R.Tensor((2, 3), dtype="float32") = R.flip(lv, axis=-2)
+                gv: R.Tuple(R.Tensor((2, 3), dtype="float32")) = (lv1,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(2, 3, dtype=torch.float32),)
+
+    verify_model(FlipMulti(), example_args, {}, ExpectedMulti)
+    verify_model(FlipNegMulti(), example_args, {}, ExpectedNegMulti)
+
+
 def test_take():
     class Take(Module):
         def forward(self, data, indices):

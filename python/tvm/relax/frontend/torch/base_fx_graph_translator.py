@@ -1802,11 +1802,15 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
     def _flip(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         dims = node.args[1] if len(node.args) > 1 else node.kwargs.get("dims", None)
-        if isinstance(dims, list | tuple) and len(dims) > 0:
-            dims = dims[0]
-        elif not isinstance(dims, int):
-            raise TypeError(f"flip expects an integer axis, but got {type(dims)}: {dims}")
-        return self.block_builder.emit(relax.op.flip(x, dims))
+        if isinstance(dims, int):
+            dims = [dims]
+        elif not isinstance(dims, list | tuple):
+            raise TypeError(f"flip expects an int or list of ints, but got {type(dims)}: {dims}")
+        # relax.op.flip is single-axis; iterate to honor multi-axis torch.flip semantics.
+        out = x
+        for d in dims:
+            out = self.block_builder.emit(relax.op.flip(out, d))
+        return out
 
     def _gather(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]

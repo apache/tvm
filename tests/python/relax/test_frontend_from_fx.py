@@ -5862,6 +5862,27 @@ def test_flip():
     verify_model(Flip1(), [([2, 2], "float32")], {}, Expected1)
 
 
+def test_flip_multi_axis():
+    class FlipMulti(Module):
+        def forward(self, data):
+            return torch.flip(data, [0, 1])
+
+    @tvm.script.ir_module
+    class ExpectedMulti:
+        @R.function
+        def main(
+            inp_0: R.Tensor((2, 3), dtype="float32"),
+        ) -> R.Tensor((2, 3), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((2, 3), dtype="float32") = R.flip(inp_0, axis=0)
+                lv1: R.Tensor((2, 3), dtype="float32") = R.flip(lv, axis=1)
+                gv: R.Tensor((2, 3), dtype="float32") = lv1
+                R.output(gv)
+            return gv
+
+    verify_model(FlipMulti(), [([2, 3], "float32")], {}, ExpectedMulti)
+
+
 def test_take():
     class Take(Module):
         def forward(self, data, indices):
