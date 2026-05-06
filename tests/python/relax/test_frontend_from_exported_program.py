@@ -7492,6 +7492,7 @@ def test_any():
 
 
 def test_std():
+    # torch.std(x) defaults to correction=1 (Bessel); decomposes to var.correction + sqrt.
     class Std(Module):
         def forward(self, x):
             return torch.std(x)
@@ -7504,8 +7505,9 @@ def test_std():
         ) -> R.Tuple(R.Tensor((), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((), dtype="float32") = R.variance(x, axis=None, keepdims=False)
-                lv1: R.Tensor((), dtype="float32") = R.sqrt(lv)
-                gv: R.Tuple(R.Tensor((), dtype="float32")) = (lv1,)
+                lv1: R.Tensor((), dtype="float32") = R.multiply(lv, R.const(15.0 / 14.0, "float32"))
+                lv2: R.Tensor((), dtype="float32") = R.sqrt(lv1)
+                gv: R.Tuple(R.Tensor((), dtype="float32")) = (lv2,)
                 R.output(gv)
             return gv
 
@@ -7514,6 +7516,7 @@ def test_std():
 
 
 def test_var():
+    # torch.var(x) defaults to correction=1 (Bessel).
     class Var(Module):
         def forward(self, x):
             return torch.var(x)
@@ -7526,12 +7529,52 @@ def test_var():
         ) -> R.Tuple(R.Tensor((), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((), dtype="float32") = R.variance(x, axis=None, keepdims=False)
-                gv: R.Tuple(R.Tensor((), dtype="float32")) = (lv,)
+                lv1: R.Tensor((), dtype="float32") = R.multiply(lv, R.const(15.0 / 14.0, "float32"))
+                gv: R.Tuple(R.Tensor((), dtype="float32")) = (lv1,)
                 R.output(gv)
             return gv
 
     example_args = (torch.randn(5, 3, dtype=torch.float32),)
     verify_model(Var(), example_args, {}, Expected)
+
+
+def test_var_correction():
+    class VarCorrection2(Module):
+        def forward(self, x):
+            return torch.var(x, dim=-1, correction=2)
+
+    class VarCorrection0(Module):
+        def forward(self, x):
+            return torch.var(x, dim=1, correction=0)
+
+    @tvm.script.ir_module
+    class Expected2:
+        @R.function
+        def main(
+            x: R.Tensor((2, 5), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((2,), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((2,), dtype="float32") = R.variance(x, axis=[-1], keepdims=False)
+                lv1: R.Tensor((2,), dtype="float32") = R.multiply(lv, R.const(5.0 / 3.0, "float32"))
+                gv: R.Tuple(R.Tensor((2,), dtype="float32")) = (lv1,)
+                R.output(gv)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected0:
+        @R.function
+        def main(
+            x: R.Tensor((2, 5), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((2,), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((2,), dtype="float32") = R.variance(x, axis=[1], keepdims=False)
+                gv: R.Tuple(R.Tensor((2,), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(2, 5, dtype=torch.float32),)
+    verify_model(VarCorrection2(), example_args, {}, Expected2)
+    verify_model(VarCorrection0(), example_args, {}, Expected0)
 
 
 def test_prod():
