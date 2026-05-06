@@ -713,6 +713,47 @@ def test_let_floordiv_pattern():
     assert "cse_v" not in script, f"CSE incorrectly extracted from Let body:\n{script}"
 
 
+# =====================================================================
+# T22: No lifting of bool predicate (comparison expression)
+# A duplicated `i < n` feeds two if-statements.  CSE must leave it
+# inline rather than hoisting a `cse_v: bool = (i < n)` binding.
+# =====================================================================
+def test_no_lift_bool_predicate():
+    @tvm.script.ir_module
+    class Before:
+        @T.prim_func
+        def main(B: T.Buffer((50,), "int32"), n: T.int32, x: T.int32):
+            for i in range(50):
+                if i < n:
+                    B[i] = x
+                if i < n:
+                    B[i] = x + 1
+
+    after = tvm.tirx.transform.CommonSubexprElim()(Before)
+    tvm.ir.assert_structural_equal(after, Before)
+    assert "cse_v" not in after["main"].script()
+
+
+# =====================================================================
+# T23: No lifting of bool logical expression (And)
+# A duplicated `a && b` feeds two if-statements.  CSE must leave it
+# inline rather than hoisting a `cse_v: bool = T.And(a, b)` binding.
+# =====================================================================
+def test_no_lift_bool_logical():
+    @tvm.script.ir_module
+    class Before:
+        @T.prim_func
+        def main(B: T.Buffer((50,), "int32"), a: T.bool, b: T.bool, x: T.int32):
+            if T.And(a, b):
+                B[0] = x
+            if T.And(a, b):
+                B[1] = x + 1
+
+    after = tvm.tirx.transform.CommonSubexprElim()(Before)
+    tvm.ir.assert_structural_equal(after, Before)
+    assert "cse_v" not in after["main"].script()
+
+
 if __name__ == "__main__":
     test_basic()
     test_if_single_branch()
@@ -735,3 +776,5 @@ if __name__ == "__main__":
     test_let_value_cse()
     test_nested_let_no_extraction()
     test_let_floordiv_pattern()
+    test_no_lift_bool_predicate()
+    test_no_lift_bool_logical()
