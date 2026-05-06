@@ -1698,13 +1698,15 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             axes = list(range(rank))
         elif isinstance(dim, int):
             axes = [dim]
-        else:
+        elif isinstance(dim, (list, tuple)) and all(isinstance(a, int) for a in dim):
             axes = list(dim)
+        else:
+            return None
         n = 1
         for ax in axes:
             ax = ax + rank if ax < 0 else ax
             s = shape[ax]
-            if not isinstance(s, tvm.tirx.IntImm):
+            if not isinstance(s, tirx.IntImm):
                 return None
             n *= int(s.value)
         return n
