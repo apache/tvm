@@ -1630,6 +1630,9 @@ class OperatorConverter:
 
         indices_dims = len(self._infer_shape(indices))
         indices_t = relax.op.permute_dims(indices, axes=[-1] + list(range(indices_dims - 1)))
+        if indices_type == TensorType.INT32:
+            # Relax gather_nd requires int64 indices.
+            indices_t = relax.op.astype(indices_t, "int64")
 
         out = relax.op.gather_nd(data, indices_t)
         return out

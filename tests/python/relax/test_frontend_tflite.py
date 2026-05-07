@@ -1451,6 +1451,64 @@ def test_reverse_v2():
 
     verify(ReverseV2, Expected)
 
+
+def test_gather():
+    class Gather(tf.Module):
+        @tf.function(
+            input_signature=[
+                tf.TensorSpec(shape=(2, 3, 4), dtype=tf.float32),
+                tf.TensorSpec(shape=(2,), dtype=tf.int64),
+            ]
+        )
+        def func(self, x, indices):
+            return tf.gather(x, indices, axis=1)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3, 4), dtype="float32"),
+            indices: R.Tensor((2,), dtype="int64"),
+        ) -> R.Tensor((2, 2, 4), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((2,), dtype="int32") = R.astype(indices, dtype="int32")
+                gv: R.Tensor((2, 2, 4), dtype="float32") = R.take(x, lv, axis=1, mode="fast")
+                R.output(gv)
+            return gv
+
+    verify(Gather, Expected)
+
+
+def test_gather_nd():
+    class GatherND(tf.Module):
+        @tf.function(
+            input_signature=[
+                tf.TensorSpec(shape=(2, 3, 4), dtype=tf.float32),
+                tf.TensorSpec(shape=(2, 2), dtype=tf.int32),
+            ]
+        )
+        def func(self, x, indices):
+            return tf.gather_nd(x, indices)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3, 4), dtype="float32"),
+            indices: R.Tensor((2, 2), dtype="int32"),
+        ) -> R.Tensor((2, 4), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((2, 2), dtype="int32") = R.permute_dims(indices, axes=[-1, 0])
+                lv1: R.Tensor((2, 2), dtype="int64") = R.astype(lv, dtype="int64")
+                gv: R.Tensor((2, 4), dtype="float32") = R.gather_nd(x, lv1, batch_dims=0)
+                R.output(gv)
+            return gv
+
+    verify(GatherND, Expected)
+
+
 def _make_conv2d_module(data_shape, kernel_shape, data_format, strides, padding):
     class Conv2DModule(tf.Module):
         @tf.function(
