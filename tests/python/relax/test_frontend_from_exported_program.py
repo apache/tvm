@@ -7465,6 +7465,41 @@ def test_m4d_diag_index_put_tuple_output_regression():
     )
 
 
+def test_index_put_mutation_through_alias_regression():
+    class IndexPutAlias(Module):
+        def forward(self, x, idx, values):
+            y = torch.ops.aten.alias.default(x)
+            y[idx] = values
+            return x, y
+
+    example_args = (
+        torch.zeros(5, dtype=torch.float32),
+        torch.tensor([1, 3], dtype=torch.int64),
+        torch.tensor([2.0, 4.0], dtype=torch.float32),
+    )
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((5,), dtype="float32"),
+            idx: R.Tensor((2,), dtype="int64"),
+            values: R.Tensor((2,), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((5,), dtype="float32"), R.Tensor((5,), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((5,), dtype="float32") = R.index_put(
+                    x, (idx,), values, accumulate=False
+                )
+                gv: R.Tuple(R.Tensor((5,), dtype="float32"), R.Tensor((5,), dtype="float32")) = (
+                    lv,
+                    lv,
+                )
+                R.output(gv)
+            return gv
+
+    verify_model(IndexPutAlias(), example_args, {}, Expected)
+
+
 def test_flip():
     class Flip0(Module):
         def forward(self, data):
