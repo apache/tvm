@@ -7485,12 +7485,22 @@ def test_index_put_mutation_through_alias_regression():
             x: R.Tensor((5,), dtype="float32"),
             idx: R.Tensor((2,), dtype="int64"),
             values: R.Tensor((2,), dtype="float32"),
-        ) -> R.Tuple(R.Tensor((5,), dtype="float32"), R.Tensor((5,), dtype="float32")):
+        ) -> R.Tuple(
+            R.Tensor((5,), dtype="float32"),
+            R.Tensor((5,), dtype="float32"),
+            R.Tensor((5,), dtype="float32"),
+        ):
             with R.dataflow():
                 lv: R.Tensor((5,), dtype="float32") = R.index_put(
                     x, (idx,), values, accumulate=False
                 )
-                gv: R.Tuple(R.Tensor((5,), dtype="float32"), R.Tensor((5,), dtype="float32")) = (
+                # ExportedProgram may include an additional mutation output.
+                gv: R.Tuple(
+                    R.Tensor((5,), dtype="float32"),
+                    R.Tensor((5,), dtype="float32"),
+                    R.Tensor((5,), dtype="float32"),
+                ) = (
+                    lv,
                     lv,
                     lv,
                 )
