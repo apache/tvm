@@ -128,6 +128,7 @@ class OperatorConverter:
             "BITCAST": self.convert_bitcast,
             "BROADCAST_TO": self.convert_broadcast_to,
             "BROADCAST_ARGS": self.convert_broadcast_args,
+            "BUCKETIZE": self.convert_bucketize,
             "CAST": self.convert_cast,
             "CEIL": functools.partial(self._convert_unary_elemwise, relax_op=_op.ceil),
             "CONCATENATION": self.convert_concatenation,
@@ -227,6 +228,7 @@ class OperatorConverter:
                 self._convert_segment_op, op_name="SEGMENT_SUM", reduction="add"
             ),
             "SHAPE": self.convert_shape,
+            "SIGN": functools.partial(self._convert_unary_elemwise, relax_op=_op.sign),
             "SIN": functools.partial(self._convert_unary_elemwise, relax_op=_op.sin),
             "SLICE": self.convert_slice,
             "SOFTMAX": self.convert_softmax,
@@ -249,6 +251,7 @@ class OperatorConverter:
             "TRANSPOSE_CONV": self.convert_transpose_conv,
             "TRANSPOSE": self.convert_transpose,
             "UNPACK": self.convert_unpack,
+            "UNIQUE": self.convert_unique,
             "UNSORTED_SEGMENT_MIN": functools.partial(
                 self._convert_segment_op, op_name="UNSORTED_SEGMENT_MIN", reduction="min"
             ),
@@ -992,11 +995,18 @@ class OperatorConverter:
                 if isinstance(expr, relax.Constant):
                     value = expr.data.numpy()
                 else:
-                    # relax.op.arange currently expects scalar-like values here.
-                    # Keep dynamic scalar RANGE explicit until frontend support is added.
-                    raise tvm.error.OpNotImplemented(
-                        "TFLite RANGE with dynamic scalar inputs is not supported in Relax frontend yet."
-                    )
+                    scalar_dtype = self.get_tensor_type_str(tensor.tensor.Type())
+                    if scalar_dtype not in ("int32", "int64"):
+                        raise tvm.error.OpNotImplemented(
+                            "TFLite RANGE with dynamic non-integer scalar inputs is not supported in Relax frontend yet."
+                        )
+                    expr = self.bb.match_cast(expr, relax.TensorStructInfo([], scalar_dtype))
+                    expr = self.bb.normalize(relax.op.astype(expr, "int64"))
+                    expr = self.bb.normalize(relax.op.reshape(expr, [1]))
+                    shape_expr = self.bb.emit(relax.op.tensor_to_shape(expr))
+                    scalar_var = tirx.Var(f"range_{tensor.tensor.Name()}", "int64")
+                    self.bb.match_cast(shape_expr, relax.ShapeStructInfo([scalar_var]))
+                    return scalar_var
             else:
                 value = self.get_tensor_value(tensor)
 
@@ -1017,6 +1027,33 @@ class OperatorConverter:
         out = relax.op.arange(start_value, limit_value, delta_value, out_type)
 
         return out
+
+    def convert_bucketize(self, op):
+        """Convert TFLite BUCKETIZE."""
+
+        from tflite.BuiltinOptions import BuiltinOptions
+        from tflite.BucketizeOptions import BucketizeOptions
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+
+        assert op.BuiltinOptionsType() == BuiltinOptions.BucketizeOptions
+        op_options = op.BuiltinOptions()
+        bucketize_options = BucketizeOptions()
+        bucketize_options.Init(op_options.Bytes, op_options.Pos)
+        boundaries = np.array(
+            [bucketize_options.Boundaries(i) for i in range(bucketize_options.BoundariesLength())],
+            dtype="float32",
+        )
+
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "output tensors length should be 1"
+        output_tensor = output_tensors[0]
+        out_int32 = self.get_tensor_type_str(output_tensor.tensor.Type()) == "int32"
+
+        return relax.op.bucketize(in_expr, relax.const(boundaries, "float32"), out_int32, False)
 
     def convert_shape(self, op):
         """Convert TFLite Shape"""
@@ -1228,6 +1265,38 @@ class OperatorConverter:
             )
 
         return out
+
+    def convert_unique(self, op):
+        """Convert TFLite UNIQUE."""
+
+        from tflite.BuiltinOptions import BuiltinOptions
+        from tflite.TensorType import TensorType
+        from tflite.UniqueOptions import UniqueOptions
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+
+        assert op.BuiltinOptionsType() == BuiltinOptions.UniqueOptions
+        op_options = op.BuiltinOptions()
+        unique_options = UniqueOptions()
+        unique_options.Init(op_options.Bytes, op_options.Pos)
+
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 2, "output tensors length should be 2"
+
+        unique_out = relax.op.unique(in_expr, sorted=False, return_index=True)
+        values = relax.TupleGetItem(unique_out, 0)
+        indices = relax.TupleGetItem(unique_out, 1)
+
+        idx_out_type = unique_options.IdxOutType()
+        if idx_out_type == TensorType.INT64:
+            indices = relax.op.astype(indices, "int64")
+        else:
+            indices = relax.op.astype(indices, "int32")
+
+        return relax.Tuple([values, indices])
 
     def convert_log_softmax(self, op):
         """Convert TFLite LOG_SOFTMAX"""
@@ -4440,6 +4509,8 @@ class OperatorConverter:
 
         quant_min = 1 if narrow_range else 0
         quant_max = (1 << num_bits) - 1
+        if opt_min == opt_max:
+            return relax.op.clip(in_expr, opt_min, opt_max)
         scale = (opt_max - opt_min) / (quant_max - quant_min)
 
         zero_point_from_min = quant_min - opt_min / scale

@@ -214,6 +214,24 @@ def test_cumsum():
     verify(Cumsum, Expected)
 
 
+def test_sign():
+    class Sign(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(3, 4), dtype=tf.float32)])
+        def func(self, x):
+            return tf.math.sign(x)
+
+    verify(Sign)
+
+
+def test_unique():
+    class Unique(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(6,), dtype=tf.float32)])
+        def func(self, x):
+            return tf.unique(x)
+
+    verify(Unique)
+
+
 def test_split():
     class Split(tf.Module):
         @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
@@ -300,6 +318,15 @@ def test_split_v_static():
             return gv
 
     verify(SplitVUnequal, ExpectedUnequal)
+
+
+def test_bucketize():
+    class Bucketize(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(5,), dtype=tf.float32)])
+        def func(self, x):
+            return tf.raw_ops.Bucketize(input=x, boundaries=[0.0, 1.0, 2.0])
+
+    verify(Bucketize)
 
 
 def test_pack():
@@ -551,8 +578,8 @@ def test_range(start, limit, delta, dtype):
     verify(Range)
 
 
-def test_range_dynamic_scalar_inputs_not_supported():
-    """RANGE conversion currently rejects dynamic scalar inputs."""
+def test_range_dynamic():
+    """RANGE conversion with dynamic scalar inputs."""
 
     class RangeDynamic(tf.Module):
         @tf.function(
@@ -565,9 +592,29 @@ def test_range_dynamic_scalar_inputs_not_supported():
         def func(self, start, limit, delta):
             return tf.range(start, limit, delta, dtype=tf.int32)
 
-    with pytest.raises(tvm.error.OpNotImplemented, match="dynamic scalar inputs"):
-        verify(RangeDynamic)
-        
+    verify(RangeDynamic)
+
+
+def test_fake_quant():
+    class FakeQuantStandard(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(2, 4), dtype=tf.float32)])
+        def func(self, x):
+            return tf.quantization.fake_quant_with_min_max_args(
+                x, min=-1.0, max=1.0, num_bits=8
+            )
+
+    verify(FakeQuantStandard)
+
+    class FakeQuantNarrowRange(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(2, 4), dtype=tf.float32)])
+        def func(self, x):
+            return tf.quantization.fake_quant_with_min_max_args(
+                x, min=-1.0, max=1.0, num_bits=8, narrow_range=True
+            )
+
+    verify(FakeQuantNarrowRange)
+
+
 def test_tile_ir():
     """TILE conversion with explicit Relax IR structural check."""
 
