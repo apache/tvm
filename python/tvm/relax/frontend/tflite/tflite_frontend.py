@@ -1584,7 +1584,7 @@ class OperatorConverter:
             zero_point_val = get_scalar_from_constant(input_tensor.qnn_params["zero_point"])
 
             def quantize(x):
-                return float(round(x / scale_val) + zero_point_val)
+                return float(math.floor(x / scale_val + 0.5) + zero_point_val)
 
             input_tensor_type_str = self.get_tensor_type_str(input_tensor.tensor.Type())
             qmin = float(tvm.tirx.min_value(input_tensor_type_str).value)
@@ -4895,9 +4895,9 @@ class OperatorConverter:
         boundaries = [
             bucket_options.Boundaries(i) for i in range(bucket_options.BoundariesLength())
         ]
-        boundaries_const = relax.op.const(np.array(boundaries, dtype="float32"))
+        boundaries_const = relax.const(np.array(boundaries, dtype="float32"))
 
-        out = relax.op.bucketize(in_expr, boundaries_const, right=False)
+        out = relax.op.bucketize(in_expr, boundaries_const, right=True)
         return out
 
     def convert_cast(self, op):

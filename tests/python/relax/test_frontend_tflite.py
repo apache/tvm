@@ -11321,7 +11321,7 @@ def test_bucketize():
                 lv: R.Tensor((3,), dtype="float32") = R.const(
                     np.array([0.0, 1.0, 2.0], dtype="float32"), "float32"
                 )
-                gv: R.Tensor((5,), dtype="int32") = R.bucketize(x, lv, right=False)
+                gv: R.Tensor((5,), dtype="int32") = R.bucketize(x, lv, right=True)
                 R.output(gv)
             return gv
 
