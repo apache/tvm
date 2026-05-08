@@ -1611,6 +1611,89 @@ def test_conv2d_valid():
     verify(Conv2DModule, Expected)
 
 
+def _make_conv3d_module(data_shape, kernel_shape, strides, padding):
+    class Conv3DModule(tf.Module):
+        @tf.function(
+            input_signature=[
+                tf.TensorSpec(shape=data_shape, dtype=tf.float32),
+                tf.TensorSpec(shape=kernel_shape, dtype=tf.float32),
+            ]
+        )
+        def func(self, data, kernel):
+            return tf.nn.conv3d(
+                input=data,
+                filters=kernel,
+                strides=strides,
+                padding=padding,
+            )
+
+    return Conv3DModule
+
+
+def test_conv3d_valid():
+    Conv3DModule = _make_conv3d_module(
+        (1, 8, 8, 8, 3), (3, 3, 3, 3, 16), (1, 1, 1, 1, 1), "VALID"
+    )
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            data: R.Tensor((1, 8, 8, 8, 3), dtype="float32"),
+            kernel: R.Tensor((3, 3, 3, 3, 16), dtype="float32"),
+        ) -> R.Tensor((1, 6, 6, 6, 16), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                gv: R.Tensor((1, 6, 6, 6, 16), dtype="float32") = R.nn.conv3d(
+                    data,
+                    kernel,
+                    strides=[1, 1, 1],
+                    padding=[0, 0, 0, 0, 0, 0],
+                    dilation=[1, 1, 1],
+                    groups=1,
+                    data_layout="NDHWC",
+                    kernel_layout="DHWIO",
+                    out_layout="NDHWC",
+                    out_dtype="void",
+                )
+                R.output(gv)
+            return gv
+
+    verify(Conv3DModule, Expected)
+
+
+def test_conv3d_same():
+    Conv3DModule = _make_conv3d_module(
+        (1, 8, 8, 8, 3), (3, 3, 3, 3, 16), (1, 1, 1, 1, 1), "SAME"
+    )
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            data: R.Tensor((1, 8, 8, 8, 3), dtype="float32"),
+            kernel: R.Tensor((3, 3, 3, 3, 16), dtype="float32"),
+        ) -> R.Tensor((1, 8, 8, 8, 16), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                gv: R.Tensor((1, 8, 8, 8, 16), dtype="float32") = R.nn.conv3d(
+                    data,
+                    kernel,
+                    strides=[1, 1, 1],
+                    padding=[1, 1, 1, 1, 1, 1],
+                    dilation=[1, 1, 1],
+                    groups=1,
+                    data_layout="NDHWC",
+                    kernel_layout="DHWIO",
+                    out_layout="NDHWC",
+                    out_dtype="void",
+                )
+                R.output(gv)
+            return gv
+
+    verify(Conv3DModule, Expected)
+
+
 def _make_pool2d_module(pool, data_shape, ksize, data_format, strides, padding):
     class Pool2DModule(tf.Module):
         @tf.function(
