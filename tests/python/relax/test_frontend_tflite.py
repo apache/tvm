@@ -556,8 +556,8 @@ def test_range(start, limit, delta, dtype):
     verify(Range)
 
 
-def test_range_dynamic_scalar_inputs_not_supported():
-    """RANGE conversion currently rejects dynamic scalar inputs."""
+def test_range_dynamic():
+    """RANGE with dynamic scalar inputs lowers to relax.op.arange."""
 
     class RangeDynamic(tf.Module):
         @tf.function(
@@ -570,8 +570,7 @@ def test_range_dynamic_scalar_inputs_not_supported():
         def func(self, start, limit, delta):
             return tf.range(start, limit, delta, dtype=tf.int32)
 
-    with pytest.raises(tvm.error.OpNotImplemented, match="dynamic scalar inputs"):
-        verify(RangeDynamic)
+    verify(RangeDynamic)
 
 
 def test_tile_ir():
@@ -11255,6 +11254,116 @@ def test_unidirectional_sequence_rnn_time_major():
     # Output is always batch-major [batch, time, num_units].
     out_shape = fn.ret_struct_info.shape
     assert tuple(int(d) for d in out_shape) == (batch, time, num_units)
+
+
+def test_sign():
+    """SIGN → relax.op.sign (unary elemwise, float and int)."""
+
+    class Sign(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(3, 4), dtype=tf.float32)])
+        def func(self, x):
+            return tf.math.sign(x)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((3, 4), dtype="float32")) -> R.Tensor((3, 4), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((3, 4), dtype="float32") = R.sign(x)
+                R.output(gv)
+            return gv
+
+    verify(Sign, Expected)
+
+    class SignInt(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(5,), dtype=tf.int32)])
+        def func(self, x):
+            return tf.math.sign(x)
+
+    verify(SignInt)
+
+
+def test_unique():
+    """UNIQUE → relax.op.unique, two-output (values, inverse_indices)."""
+
+    class Unique(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(6,), dtype=tf.float32)])
+        def func(self, x):
+            y, idx = tf.unique(x)
+            return y, idx
+
+    verify(Unique)
+
+    class UniqueInt(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(8,), dtype=tf.int32)])
+        def func(self, x):
+            y, idx = tf.unique(x)
+            return y, idx
+
+    verify(UniqueInt)
+
+
+def test_bucketize():
+    """BUCKETIZE → relax.op.bucketize with constant boundaries from BucketizeOptions."""
+
+    class Bucketize(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(5,), dtype=tf.float32)])
+        def func(self, x):
+            return tf.raw_ops.Bucketize(input=x, boundaries=[0.0, 1.0, 2.0])
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((5,), dtype="float32")) -> R.Tensor((5,), dtype="int32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((3,), dtype="float32") = R.const(
+                    np.array([0.0, 1.0, 2.0], dtype="float32"), "float32"
+                )
+                gv: R.Tensor((5,), dtype="int32") = R.bucketize(x, lv, right=False)
+                R.output(gv)
+            return gv
+
+    verify(Bucketize, Expected)
+
+    class BucketizeEmpty(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(4,), dtype=tf.float32)])
+        def func(self, x):
+            return tf.raw_ops.Bucketize(input=x, boundaries=[])
+
+    verify(BucketizeEmpty)
+
+
+def test_fake_quant():
+    """FAKE_QUANT — standard range, narrow range, and degenerate (min == max)."""
+
+    class FakeQuantStandard(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(2, 4), dtype=tf.float32)])
+        def func(self, x):
+            return tf.quantization.fake_quant_with_min_max_args(
+                x, min=-1.0, max=1.0, num_bits=8, narrow_range=False
+            )
+
+    verify(FakeQuantStandard)
+
+    class FakeQuantNarrowRange(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(2, 4), dtype=tf.float32)])
+        def func(self, x):
+            return tf.quantization.fake_quant_with_min_max_args(
+                x, min=-1.0, max=1.0, num_bits=8, narrow_range=True
+            )
+
+    verify(FakeQuantNarrowRange)
+
+    class FakeQuant4Bit(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(3, 3), dtype=tf.float32)])
+        def func(self, x):
+            return tf.quantization.fake_quant_with_min_max_args(
+                x, min=0.0, max=15.0, num_bits=4, narrow_range=False
+            )
+
+    verify(FakeQuant4Bit)
 
 
 if __name__ == "__main__":
