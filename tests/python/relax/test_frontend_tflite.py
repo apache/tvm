@@ -11321,7 +11321,7 @@ def test_bucketize():
                 lv: R.Tensor((3,), dtype="float32") = R.const(
                     np.array([0.0, 1.0, 2.0], dtype="float32"), "float32"
                 )
-                gv: R.Tensor((5,), dtype="int32") = R.bucketize(x, lv, right=True)
+                gv: R.Tensor((5,), dtype="int32") = R.bucketize(x, lv, right=False)
                 R.output(gv)
             return gv
 
@@ -11364,6 +11364,32 @@ def test_fake_quant():
             )
 
     verify(FakeQuant4Bit)
+
+    # Degenerate range (min == max → scale == 0).  The fix must emit a plain
+    # clip rather than dividing by zero.  We check the IR directly to confirm
+    # that the output is exactly R.clip(x, min=v, max=v) and that no division
+    # node is present.
+    class FakeQuantDegenerate(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(2, 3), dtype=tf.float32)])
+        def func(self, x):
+            return tf.quantization.fake_quant_with_min_max_args(
+                x, min=0.5, max=0.5, num_bits=8, narrow_range=False
+            )
+
+    @I.ir_module
+    class ExpectedDegenerate:
+        @R.function
+        def main(x: R.Tensor((2, 3), dtype="float32")) -> R.Tensor((2, 3), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((2, 3), dtype="float32") = R.clip(x, min=0.5, max=0.5)
+                R.output(gv)
+            return gv
+
+    mod = verify(FakeQuantDegenerate, ExpectedDegenerate)
+    # Double-check: no division node must appear in the compiled IR.
+    ir_text = mod.script()
+    assert "R.divide(" not in ir_text, "Degenerate FAKE_QUANT must not emit a division node"
 
 
 if __name__ == "__main__":
