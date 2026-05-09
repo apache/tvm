@@ -886,11 +886,8 @@ def test_gather():
         ),
     ],
 )
-@pytest.mark.parametrize(
-    "indices_type", "indices_np_dtype",
-    [(TensorProto.INT64, np.int64), (TensorProto.INT32, np.int32)],
-)
-def test_gather_negative_indices(axis, indices, out_shape, indices_type, indices_np_dtype):
+@pytest.mark.parametrize("indices_type", [TensorProto.INT64, TensorProto.INT32])
+def test_gather_negative_indices(axis, indices, out_shape, indices_type):
     gather_node = helper.make_node("Gather", ["data", "indices"], ["y"], axis=axis)
     indices_shape = np.asarray(indices).shape
 
@@ -905,9 +902,13 @@ def test_gather_negative_indices(axis, indices, out_shape, indices_type, indices
     )
 
     model = helper.make_model(graph, producer_name="gather_negative_indices_test")
+    indices_np_dtype = {
+        TensorProto.INT64: np.int64,
+        TensorProto.INT32: np.int32,
+    }[indices_type]
     input_values = {
         "data": np.random.randn(3, 4).astype("float32"),
-        "indices": np.array(indices).astype(indices_type),
+        "indices": np.array(indices).astype(indices_np_dtype),
     }
     check_correctness(model, inputs=input_values)
 
