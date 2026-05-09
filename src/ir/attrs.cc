@@ -24,8 +24,6 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/attrs.h>
 
-#include "attr_functor.h"
-
 namespace tvm {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
