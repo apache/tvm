@@ -1023,6 +1023,106 @@ def test_scatter(axis: int, name: str, opset: int):
     check_correctness(model, inputs={"indices": indices}, opset=opset)
 
 
+@pytest.mark.parametrize(
+    "reduction, opset, data, indices, updates",
+    [
+        (
+            None,
+            11,
+            np.array([[1, 2, 3], [4, 5, 6]], dtype="float32"),
+            np.array([[2, 0, 1], [1, 2, 0]], dtype="int64"),
+            np.array([[30, 10, 20], [50, 60, 40]], dtype="float32"),
+        ),
+        (
+            "none",
+            18,
+            np.array([[1, 2, 3], [4, 5, 6]], dtype="float32"),
+            np.array([[2, 0, 1], [1, 2, 0]], dtype="int64"),
+            np.array([[30, 10, 20], [50, 60, 40]], dtype="float32"),
+        ),
+        (
+            "add",
+            16,
+            np.full((2, 3), 10, dtype="float32"),
+            np.array([[0, 0, 2], [1, 1, 2]], dtype="int64"),
+            np.array([[2, 5, 7], [20, 3, 4]], dtype="float32"),
+        ),
+        (
+            "mul",
+            16,
+            np.full((2, 3), 10, dtype="float32"),
+            np.array([[0, 0, 2], [1, 1, 2]], dtype="int64"),
+            np.array([[2, 5, 7], [20, 3, 4]], dtype="float32"),
+        ),
+        (
+            "min",
+            18,
+            np.full((2, 3), 10, dtype="float32"),
+            np.array([[0, 0, 2], [1, 1, 2]], dtype="int64"),
+            np.array([[2, 5, 7], [20, 3, 4]], dtype="float32"),
+        ),
+        (
+            "max",
+            18,
+            np.full((2, 3), 10, dtype="float32"),
+            np.array([[0, 0, 2], [1, 1, 2]], dtype="int64"),
+            np.array([[2, 5, 7], [20, 3, 4]], dtype="float32"),
+        ),
+    ],
+)
+def test_scatter_elements_reduction(reduction, opset, data, indices, updates):
+    attrs = {"axis": 1}
+    if reduction is not None:
+        attrs["reduction"] = reduction
+    scatter_elements_node = helper.make_node(
+        "ScatterElements", ["data", "indices", "updates"], ["output"], **attrs
+    )
+
+    graph = helper.make_graph(
+        [scatter_elements_node],
+        "scatter_elements_reduction_test",
+        inputs=[
+            helper.make_tensor_value_info("data", TensorProto.FLOAT, list(data.shape)),
+            helper.make_tensor_value_info("indices", TensorProto.INT64, list(indices.shape)),
+            helper.make_tensor_value_info("updates", TensorProto.FLOAT, list(updates.shape)),
+        ],
+        outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, list(data.shape))],
+    )
+    model = helper.make_model(graph, producer_name="scatter_elements_reduction_test")
+
+    check_correctness(
+        model,
+        inputs={"data": data, "indices": indices, "updates": updates},
+        opset=opset,
+    )
+
+
+def test_scatter_elements_invalid_reduction():
+    data_shape = [2, 3]
+    scatter_elements_node = helper.make_node(
+        "ScatterElements",
+        ["data", "indices", "updates"],
+        ["output"],
+        axis=1,
+        reduction="unsupported",
+    )
+
+    graph = helper.make_graph(
+        [scatter_elements_node],
+        "scatter_elements_invalid_reduction_test",
+        inputs=[
+            helper.make_tensor_value_info("data", TensorProto.FLOAT, data_shape),
+            helper.make_tensor_value_info("indices", TensorProto.INT64, data_shape),
+            helper.make_tensor_value_info("updates", TensorProto.FLOAT, data_shape),
+        ],
+        outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, data_shape)],
+    )
+    model = helper.make_model(graph, producer_name="scatter_elements_invalid_reduction_test")
+
+    with pytest.raises(ValueError, match="Only .* reductions are supported, but got unsupported"):
+        from_onnx(model, opset=18, keep_params_in_input=True)
+
+
 @pytest.mark.parametrize("reduction", ["none", "add", "mul"])
 def test_scatter_nd(reduction):
     def verify_scatter_nd(data_shape, indices_shape, updates_shape):

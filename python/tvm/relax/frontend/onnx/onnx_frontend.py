@@ -1159,6 +1159,20 @@ class Scatter(OnnxOpConverter):
         raise ValueError("Scatter is deprecated in ONNX 11")
 
 
+def _get_onnx_reduction(attr, valid_reductions: list[str]):
+    reduction = attr.get("reduction", None)
+    reduction = reduction or b"update"
+    if isinstance(reduction, bytes):
+        reduction = reduction.decode("utf-8")
+    reduction = "update" if reduction == "none" else reduction
+    if reduction not in valid_reductions:
+        raise ValueError(
+            f"Only {valid_reductions} reductions are supported, but got {reduction}"
+        )
+
+    return reduction
+
+
 class ScatterElements(OnnxOpConverter):
     """Convert an onnx ScatterElements node into an equivalent Relax expression."""
 
@@ -1167,21 +1181,29 @@ class ScatterElements(OnnxOpConverter):
         axis = attr.get("axis", 0)
         return relax.op.scatter_elements(inputs[0], inputs[1], inputs[2], axis=axis)
 
+    @classmethod
+    def _impl_v16(cls, bb, inputs, attr, params):
+        axis = attr.get("axis", 0)
+        reduction = _get_onnx_reduction(attr, ["update", "add", "mul"])
+        return relax.op.scatter_elements(
+            inputs[0], inputs[1], inputs[2], axis=axis, reduction=reduction
+        )
+
+    @classmethod
+    def _impl_v18(cls, bb, inputs, attr, params):
+        axis = attr.get("axis", 0)
+        reduction = _get_onnx_reduction(attr, ["update", "add", "mul", "min", "max"])
+        return relax.op.scatter_elements(
+            inputs[0], inputs[1], inputs[2], axis=axis, reduction=reduction
+        )
+
 
 class ScatterND(OnnxOpConverter):
     """Convert an onnx ScatterND node into an equivalent Relax expression."""
 
     @staticmethod
     def _reduction_check(attr, valid_reductions: list[str]):
-        reduction = attr.get("reduction", None)
-        reduction = reduction or b"update"
-        reduction = reduction.decode("utf-8")
-        reduction = "update" if reduction == "none" else reduction
-        assert reduction in valid_reductions, (
-            f"Only {valid_reductions} reductions are supported, but {reduction} is gotten"
-        )
-
-        return reduction
+        return _get_onnx_reduction(attr, valid_reductions)
 
     @classmethod
     def _impl_v11(cls, bb, inputs, attr, params):
