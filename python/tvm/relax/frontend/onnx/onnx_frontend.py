@@ -1106,6 +1106,25 @@ class Gather(OnnxOpConverter):
             shape_val = data[np_index]
             return relax.PrimValue(shape_val)
 
+        data_shape = bb.normalize(relax.op.shape_of(data))
+        data_shape_tensor = bb.normalize(relax.op.shape_to_tensor(data_shape))
+        axis_extent = bb.normalize(
+            relax.op.take(data_shape_tensor, relax.const(axis, "int64"), axis=0, mode="wrap")
+        )
+
+        indices_dtype = indices.struct_info.dtype
+        if not indices_dtype.startswith("uint"):
+            if indices_dtype !="int64":
+                axis_extent = bb.normalize(relax.op.astype(axis_extent, indices_dtype))
+
+            indices = bb.normalize(
+                relax.op.where(
+                    relax.op.less(indices, relax.const(0, indices_dtype)),
+                    relax.op.add(indices, axis_extent),
+                    indices,
+                )
+            )
+
         return relax.op.take(data, indices, axis)
 
 
