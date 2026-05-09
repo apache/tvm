@@ -902,7 +902,7 @@ def test_gather_negative_indices(axis, indices, out_shape, indices_type):
     )
 
     model = helper.make_model(graph, producer_name="gather_negative_indices_test")
-    indices_np_dtype = "int64" if indices_type == TensorProto.INT64 else "int32"
+    indices_np_dtype = helper.tensor_dtype_to_np_dtype(indices_type)
     input_values = {
         "data": np.random.randn(3, 4).astype("float32"),
         "indices": np.array(indices).astype(indices_type),
