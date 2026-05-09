@@ -879,7 +879,11 @@ def test_gather():
     [
         (0, [-1, 0], [2, 4]),
         (1, [-1, 0], [3, 2]),
-        (1, [[-1, 0], [1, -2], [3, 2, 2]]),
+        (
+            1, 
+            [[-1, 0], [1, -2]], 
+            [3, 2, 2],
+        ),
     ],
 )
 @pytest.mark.parametrize("indices_type", [TensorProto.INT64, TensorProto.INT32])
