@@ -1694,6 +1694,109 @@ def test_conv3d_same():
     verify(Conv3DModule, Expected)
 
 
+def _make_conv3d_transpose_module(data_shape, kernel_shape, strides, padding):
+    # Compute the expected output_shape for tf.nn.conv3d_transpose.
+    # data_shape: (N, D, H, W, C_in), kernel_shape: (KD, KH, KW, C_out, C_in)
+    # strides: (1, sD, sH, sW, 1)
+    batch = data_shape[0]
+    out_channels = kernel_shape[3]
+    out_spatial = []
+    for i in range(3):  # D, H, W
+        in_size = data_shape[1 + i]
+        k_size = kernel_shape[i]
+        s = strides[1 + i]
+        if padding == "VALID":
+            out_spatial.append((in_size - 1) * s + k_size)
+        else:  # SAME
+            out_spatial.append(in_size * s)
+    computed_output_shape = [batch] + out_spatial + [out_channels]
+
+    class Conv3DTransposeModule(tf.Module):
+        @tf.function(
+            input_signature=[
+                tf.TensorSpec(shape=data_shape, dtype=tf.float32),
+                tf.TensorSpec(shape=kernel_shape, dtype=tf.float32),
+            ]
+        )
+        def func(self, data, kernel):
+            return tf.nn.conv3d_transpose(
+                input=data,
+                filters=kernel,
+                output_shape=computed_output_shape,
+                strides=strides,
+                padding=padding,
+            )
+
+    return Conv3DTransposeModule
+
+
+
+def test_conv3d_transpose_valid():
+    Conv3DTransposeModule = _make_conv3d_transpose_module(
+        (1, 8, 8, 8, 3), (3, 3, 3, 8, 3), (1, 1, 1, 1, 1), "VALID"
+    )
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            data: R.Tensor((1, 8, 8, 8, 3), dtype="float32"),
+            kernel: R.Tensor((3, 3, 3, 8, 3), dtype="float32"),
+        ) -> R.Tensor((1, 10, 10, 10, 8), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                gv: R.Tensor((1, 10, 10, 10, 8), dtype="float32") = R.nn.conv3d_transpose(
+                    data,
+                    kernel,
+                    strides=[1, 1, 1],
+                    padding=[0, 0, 0, 0, 0, 0],
+                    output_padding=[0, 0, 0],
+                    dilation=[1, 1, 1],
+                    groups=1,
+                    data_layout="NDHWC",
+                    kernel_layout="DHWOI",
+                    out_layout="NDHWC",
+                    out_dtype="void",
+                )
+                R.output(gv)
+            return gv
+
+    verify(Conv3DTransposeModule, Expected)
+
+
+def test_conv3d_transpose_same():
+    Conv3DTransposeModule = _make_conv3d_transpose_module(
+        (1, 8, 8, 8, 3), (3, 3, 3, 8, 3), (1, 1, 1, 1, 1), "SAME"
+    )
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            data: R.Tensor((1, 8, 8, 8, 3), dtype="float32"),
+            kernel: R.Tensor((3, 3, 3, 8, 3), dtype="float32"),
+        ) -> R.Tensor((1, 8, 8, 8, 8), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                gv: R.Tensor((1, 8, 8, 8, 8), dtype="float32") = R.nn.conv3d_transpose(
+                    data,
+                    kernel,
+                    strides=[1, 1, 1],
+                    padding=[1, 1, 1, 1, 1, 1],
+                    output_padding=[0, 0, 0],
+                    dilation=[1, 1, 1],
+                    groups=1,
+                    data_layout="NDHWC",
+                    kernel_layout="DHWOI",
+                    out_layout="NDHWC",
+                    out_dtype="void",
+                )
+                R.output(gv)
+            return gv
+
+    verify(Conv3DTransposeModule, Expected)
+
+
 def _make_pool2d_module(pool, data_shape, ksize, data_format, strides, padding):
     class Pool2DModule(tf.Module):
         @tf.function(
