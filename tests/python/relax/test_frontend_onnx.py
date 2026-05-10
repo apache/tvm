@@ -913,6 +913,29 @@ def test_gather_negative_indices(axis, indices, out_shape, indices_type):
     check_correctness(model, inputs=input_values)
 
 
+@pytest.mark.parametrize("indices_type", [TensorProto.INT64, TensorProto.INT32])
+def test_gather_negative_indices_ir_normalization(indices_type):
+    gather_node = helper.make_node("Gather", ["data", "indices"], ["y"], axis=1)
+    graph = helper.make_graph(
+        [gather_node],
+        "gather_negative_indices_ir_test",
+        inputs=[
+            helper.make_tensor_value_info("data", TensorProto.FLOAT, [3, 4]),
+            helper.make_tensor_value_info("indices", indices_type, [2]),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [3, 2])],
+    )
+
+    model = helper.make_model(graph, producer_name="gather_negative_indices_ir_test")
+    tvm_model = from_onnx(model, opset=13, keep_params_in_input=True)
+    call_ops = collect_relax_call_ops(tvm_model["main"])
+
+    assert "relax.where" in call_ops
+    assert "relax.less" in call_ops
+    assert "relax.add" in call_ops
+    assert "relax.take" in call_ops
+
+
 @pytest.mark.parametrize(
     "data_shape, indices_shape, axis",
     [
