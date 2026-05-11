@@ -19,11 +19,6 @@
 # pylint: disable=no-value-for-parameter, unused-variable
 # pylint: disable=unexpected-keyword-arg, unused-import, too-many-function-args
 # ruff: noqa: RUF005
-# F821: remaining _qnn references (requantize, conv2d, dense, concat,
-# conv2d_transpose, and detection-postprocess dequantize) are in
-# not-yet-covered code paths and will be resolved as quantized op support
-# advances.  _expr references will be resolved when vision ops are added.
-# ruff: noqa: F821
 """Tensorflow lite frontend."""
 
 import functools
@@ -715,7 +710,7 @@ class OperatorConverter:
         if fused_activation_fn == ActivationFunctionType.RELU_N1_TO_1:
             return relax.op.clip(expr, min=max(qmin, quantize(-1.0)), max=min(qmax, quantize(1.0)))
         if fused_activation_fn == ActivationFunctionType.RELU:
-            return relax.op.clip(expr, min=max(qmin, quantize(0.0)), a_max=qmax)
+            return relax.op.clip(expr, min=max(qmin, quantize(0.0)), max=qmax)
 
         fused_activation_fn_str = self.activation_fn_type[fused_activation_fn]
         raise tvm.error.OpNotImplemented(
@@ -790,12 +785,15 @@ class OperatorConverter:
                 "TFLite reshape requires input and output scale and zero points to be equal"
             )
 
-        out = relax.op.reshape(in_expr, shape=relax.ShapeExpr(target_shape))
         if input_tensor.qnn_params and input_tensor_type_str == "uint8":
             output_tensor = output_tensors[0]
             if not self.has_same_qnn_params(input_tensor, output_tensor):
+                in_f32 = self.dequantize(in_expr, input_tensor)
+                out = relax.op.reshape(in_f32, shape=relax.ShapeExpr(target_shape))
                 out = self.quantize(out, output_tensor)
+                return out
 
+        out = relax.op.reshape(in_expr, shape=relax.ShapeExpr(target_shape))
         return out
 
     def _convert_resize(self, method, op):
@@ -1266,18 +1264,11 @@ class OperatorConverter:
         if not input_tensors[0].qnn_params:
             out = relax.op.concat(in_exprs, axis=concatenation_axis)
         else:
-            input_scales = [input_tensor.qnn_params["scale"] for input_tensor in input_tensors]
-            input_zero_points = [
-                input_tensor.qnn_params["zero_point"] for input_tensor in input_tensors
+            in_f32s = [
+                self.dequantize(expr, tensor) for expr, tensor in zip(in_exprs, input_tensors)
             ]
-            out = _qnn.op.concat(
-                in_exprs,
-                input_scales=input_scales,
-                input_zero_points=input_zero_points,
-                output_scale=output_tensor.qnn_params["scale"],
-                output_zero_point=output_tensor.qnn_params["zero_point"],
-                axis=concatenation_axis,
-            )
+            out = relax.op.concat(in_f32s, axis=concatenation_axis)
+            out = self.quantize(out, output_tensor)
 
         # Handle fused activations
         if output_tensor.qnn_params:
@@ -2367,7 +2358,7 @@ class OperatorConverter:
 
         return out
 
-    def _convert_elemwise(self, op, relax_op, relax_qnn_op=None, comparison_op=False):
+    def _convert_elemwise(self, op, relax_op, comparison_op=False):
         """Generic method to Convert TFLite elemwise"""
 
         from tflite.AddOptions import AddOptions
@@ -2376,7 +2367,6 @@ class OperatorConverter:
         from tflite.MulOptions import MulOptions
         from tflite.SubOptions import SubOptions
 
-        ignore_qnn_params = self.is_quantized(op)
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 2, "input tensors length should be 2"
 
@@ -2384,36 +2374,19 @@ class OperatorConverter:
         rhs_tensor = input_tensors[1]
         lhs_expr = self.get_tensor_expr(lhs_tensor)
         rhs_expr = self.get_tensor_expr(rhs_tensor)
+        input_is_quantized = lhs_tensor.qnn_params is not None or rhs_tensor.qnn_params is not None
 
         output_tensors = self.get_output_tensors(op)
         assert len(output_tensors) == 1, "output tensors length should be 1"
         output_tensor = output_tensors[0]
 
-        # TFLite format demands equal scale and zero_point tuple parameters for some operations
-        # to allow us to use non-quantized operation instead of quantized if ignore_qnn_params=True
-        if ignore_qnn_params and not comparison_op:
-            assert (
-                lhs_tensor.qnn_params
-                and self.has_same_qnn_params(lhs_tensor, output_tensor)
-                and self.has_same_qnn_params(rhs_tensor, output_tensor)
-            ), "All tensors should be quantized with the same (scale,zero-point) tuple parameters"
+        if input_is_quantized:
+            if lhs_tensor.qnn_params:
+                lhs_expr = self.dequantize(lhs_expr, lhs_tensor)
+            if rhs_tensor.qnn_params:
+                rhs_expr = self.dequantize(rhs_expr, rhs_tensor)
 
-        # If quantized, extracts qnn params and call QNN add operator.
-        if not ignore_qnn_params and lhs_tensor.qnn_params:
-            assert rhs_tensor.qnn_params, "Both tensors should be quantized."
-            assert output_tensor.qnn_params, "Output tensor should be quantized."
-            out = relax_op(
-                lhs=lhs_expr,
-                rhs=rhs_expr,
-                lhs_scale=lhs_tensor.qnn_params["scale"],
-                lhs_zero_point=lhs_tensor.qnn_params["zero_point"],
-                rhs_scale=rhs_tensor.qnn_params["scale"],
-                rhs_zero_point=rhs_tensor.qnn_params["zero_point"],
-                output_scale=output_tensor.qnn_params["scale"],
-                output_zero_point=output_tensor.qnn_params["zero_point"],
-            )
-        else:
-            out = relax_op(lhs_expr, rhs_expr)
+        out = relax_op(lhs_expr, rhs_expr)
 
         # Options (fused_activation_function)
         options = None
@@ -2431,20 +2404,14 @@ class OperatorConverter:
             options.Init(op_options.Bytes, op_options.Pos)
             fused_activation_fn = options.FusedActivationFunction()
 
-            # Handle fused activations
-            if not ignore_qnn_params and output_tensor.qnn_params:
-                scale_val = get_scalar_from_constant(output_tensor.qnn_params["scale"])
-                zero_point_val = get_scalar_from_constant(output_tensor.qnn_params["zero_point"])
-                output_tensor_type_str = self.get_tensor_type_str(output_tensor.tensor.Type())
-                out = self.convert_qnn_fused_activation_function(
-                    expr=out,
-                    fused_activation_fn=fused_activation_fn,
-                    scale=scale_val,
-                    zero_point=zero_point_val,
-                    dtype=output_tensor_type_str,
+            out = self.convert_fused_activation_function(out, fused_activation_fn)
+
+        if input_is_quantized and not comparison_op:
+            if not output_tensor.qnn_params:
+                raise tvm.error.OpAttributeInvalid(
+                    "Quantized TFLite elemwise operator output must have quantization parameters"
                 )
-            else:
-                out = self.convert_fused_activation_function(out, fused_activation_fn)
+            out = self.quantize(out, output_tensor)
         return out
 
     def convert_add_n(self, op):
@@ -3093,20 +3060,24 @@ class OperatorConverter:
         )
 
         weight_expr = self.get_tensor_expr(weight_tensor)
-        weight_shape = weight_expr.struct_info.shape
         weight_expr = relax.op.permute_dims(weight_expr, [1, 0])
 
         if input_tensor.qnn_params:
-            out = _qnn.op.dense(
-                in_expr,
+            # Dequantize input and weight (OC remapped from axis 0 to 1)
+            in_f32 = self.dequantize(in_expr, input_tensor)
+            weight_axis = weight_tensor.qnn_params["axis"]
+            if weight_axis != 0:
+                raise tvm.error.OpAttributeInvalid(
+                    f"FC weight QuantizedDimension() must be 0 (output-channel "
+                    f"axis in [OC,IC] layout), got {weight_axis}"
+                )
+            w_f32 = relax.op.dequantize(
                 weight_expr,
-                input_zero_point=input_tensor.qnn_params["zero_point"],
-                kernel_zero_point=weight_tensor.qnn_params["zero_point"],
-                input_scale=input_tensor.qnn_params["scale"],
-                kernel_scale=weight_tensor.qnn_params["scale"],
-                units=weight_shape[0],
-                out_dtype="int64" if output_tensor_type_str == "int16" else "int32",
+                scale=weight_tensor.qnn_params["scale"],
+                zero_point=weight_tensor.qnn_params["zero_point"],
+                axis=1,
             )
+            out = relax.op.matmul(in_f32, w_f32)
         else:
             out = relax.op.matmul(in_expr, weight_expr)
 
@@ -3130,27 +3101,27 @@ class OperatorConverter:
                         dtype=bias_tensor_type_str,
                         source_name=bias_tensor.tensor.Name(),
                     )
+                if bias_tensor.qnn_params:
+                    bias_expr = self.dequantize(bias_expr, bias_tensor)
+                elif input_tensor.qnn_params and bias_tensor_type in (
+                    TensorType.INT32,
+                    TensorType.INT64,
+                ):
+                    bias_scale = relax.op.multiply(
+                        input_tensor.qnn_params["scale"],
+                        weight_tensor.qnn_params["scale"],
+                    )
+                    bias_expr = relax.op.dequantize(
+                        bias_expr,
+                        scale=bias_scale,
+                        zero_point=relax.const(0, "int32"),
+                        axis=0,
+                    )
                 out = relax.op.add(out, bias_expr)
 
-        # Finally if the dense is quantized. Add a requantize at the end.
+        # Finally if the dense is quantized. Quantize the output.
         if output_tensor.qnn_params:
-            data_scale = input_tensor.qnn_params["scale"]
-            weight_scale = weight_tensor.qnn_params["scale"]
-            data_scale_val = get_scalar_from_constant(data_scale)
-            weight_scale_val = get_scalar_from_constant(weight_scale)
-            new_input_scale_val = data_scale_val * weight_scale_val
-            new_input_scale = relax.const(new_input_scale_val, "float32")
-            new_input_zero_point = relax.const(0, "int32")
-
-            # Requantize
-            out = _qnn.op.requantize(
-                out,
-                input_scale=new_input_scale,
-                input_zero_point=new_input_zero_point,
-                output_scale=output_tensor.qnn_params["scale"],
-                output_zero_point=output_tensor.qnn_params["zero_point"],
-                out_dtype=output_tensor_type_str,
-            )
+            out = self.quantize(out, output_tensor)
 
             # Call activation function
             output_scale_val = get_scalar_from_constant(output_tensor.qnn_params["scale"])
@@ -3369,7 +3340,19 @@ class OperatorConverter:
             # After transpose to HWIO: [KH, KW, IC, OC]
             # QuantizedDimension() == 0 (OC in original) → axis 3 in HWIO.
             weight_axis = weight_tensor.qnn_params["axis"]
-            if not is_depthwise_conv:
+            if is_depthwise_conv:
+                if weight_axis != 0:
+                    raise tvm.error.OpNotImplemented(
+                        "Per-channel quantized depthwise convolution is not supported "
+                        "because the channel axis changes semantics after the "
+                        "[1,KH,KW,C*M] → [KH,KW,C,M] reshape."
+                    )
+            else:
+                if weight_axis != 0:
+                    raise tvm.error.OpAttributeInvalid(
+                        f"Conv2D weight QuantizedDimension() must be 0 (output-channel "
+                        f"axis in [OC,KH,KW,IC] layout), got {weight_axis}"
+                    )
                 weight_axis = 3
             w_f32 = relax.op.dequantize(
                 weight_expr,
@@ -3411,7 +3394,10 @@ class OperatorConverter:
             ):
                 bias_expr = relax.op.dequantize(
                     bias_expr,
-                    scale=input_tensor.qnn_params["scale"],
+                    scale=relax.op.multiply(
+                        input_tensor.qnn_params["scale"],
+                        weight_tensor.qnn_params["scale"],
+                    ),
                     zero_point=relax.const(0, "int32"),
                     axis=0,
                 )
@@ -4902,25 +4888,27 @@ class OperatorConverter:
             padding = (0, 0, 0, 0)
 
         if input_tensor.qnn_params:
-            input_zero_point = input_tensor.qnn_params["zero_point"]
-            kernel_zero_point = weights_tensor.qnn_params["zero_point"]
-            input_scale = input_tensor.qnn_params["scale"]
-            kernel_scale = weights_tensor.qnn_params["scale"]
-            out_dtype = "int64" if output_tensor_type_str == "int16" else "int32"
-            out = _qnn.op.conv2d_transpose(
-                in_expr,
+            in_f32 = self.dequantize(in_expr, input_tensor)
+            weight_axis = weights_tensor.qnn_params["axis"]
+            if weight_axis != 0:
+                raise tvm.error.OpAttributeInvalid(
+                    f"TransposeConv weight QuantizedDimension() must be 0 "
+                    f"(output-channel axis in OHWI layout), got {weight_axis}"
+                )
+            w_f32 = relax.op.dequantize(
                 weight_expr_iohw,
-                input_zero_point,
-                kernel_zero_point,
-                input_scale,
-                kernel_scale,
+                scale=weights_tensor.qnn_params["scale"],
+                zero_point=weights_tensor.qnn_params["zero_point"],
+                axis=1,
+            )
+            out = relax.op.nn.conv2d_transpose(
+                in_f32,
+                w_f32,
                 strides=(stride_h, stride_w),
                 padding=padding,
-                channels=int(out_channels),
-                kernel_size=(int(kernel_h), int(kernel_w)),
                 data_layout="NHWC",
                 kernel_layout="IOHW",
-                out_dtype=out_dtype,
+                out_dtype="float32",
             )
         else:
             out = relax.op.nn.conv2d_transpose(
@@ -4952,34 +4940,26 @@ class OperatorConverter:
                     dtype=bias_tensor_type_str,
                     source_name=bias_tensor.tensor.Name(),
                 )
-            channel_axis = 3
-            out = relax.op.nn.bias_add(out, bias_expr, axis=channel_axis)
+            if bias_tensor.qnn_params:
+                bias_expr = self.dequantize(bias_expr, bias_tensor)
+            elif input_tensor.qnn_params and bias_tensor_type in (
+                TensorType.INT32,
+                TensorType.INT64,
+            ):
+                bias_scale = relax.op.multiply(
+                    input_tensor.qnn_params["scale"],
+                    weights_tensor.qnn_params["scale"],
+                )
+                bias_expr = relax.op.dequantize(
+                    bias_expr,
+                    scale=bias_scale,
+                    zero_point=relax.const(0, "int32"),
+                    axis=0,
+                )
+            out = relax.op.add(out, bias_expr)
 
         if output_tensor.qnn_params:
-            # Calculate the intermediate scale and zero point of the int32 output.
-            data_scale = input_tensor.qnn_params["scale"]
-            data_scale_val = get_scalar_from_constant(data_scale)
-
-            weight_scale = weights_tensor.qnn_params["scale"]
-            # If weight scale is scalar, it is per-tensor quantization
-            if isinstance(weight_scale, float):
-                weight_scale_val = get_scalar_from_constant(weight_scale)
-            else:
-                weight_scale_val = get_tensor_from_constant(weight_scale)
-
-            new_input_scale_val = data_scale_val * weight_scale_val
-            new_input_scale = relax.const(new_input_scale_val, "float32")
-            new_input_zero_point = relax.const(0, "int32")
-
-            out = _qnn.op.requantize(
-                out,
-                input_scale=new_input_scale,
-                input_zero_point=new_input_zero_point,
-                output_scale=output_tensor.qnn_params["scale"],
-                output_zero_point=output_tensor.qnn_params["zero_point"],
-                out_dtype=output_tensor_type_str,
-                axis=3,
-            )
+            out = self.quantize(out, output_tensor)
         return out
 
     def convert_quantize(self, op):
@@ -4994,7 +4974,6 @@ class OperatorConverter:
         output_tensors = self.get_output_tensors(op)
         assert len(output_tensors) == 1, "output tensors length should be 1"
         output_tensor = output_tensors[0]
-        output_tensor_type_str = self.get_tensor_type_str(output_tensor.tensor.Type())
 
         # The output must be quantized
         assert output_tensor.qnn_params
@@ -5003,9 +4982,8 @@ class OperatorConverter:
         if input_tensor_type_str == "float32":
             out = self.quantize(in_expr, output_tensor)
         else:
-            raise tvm.error.OpNotImplemented(
-                "TFLite QUANTIZE acting as requantize is not supported yet"
-            )
+            in_f32 = self.dequantize(in_expr, input_tensor)
+            out = self.quantize(in_f32, output_tensor)
         return out
 
     def convert_dequantize(self, op):
@@ -5154,23 +5132,11 @@ class OperatorConverter:
         )
 
         if inputs[0].qnn_params:
-            loc_prob = _qnn.op.dequantize(
-                data=loc_prob,
-                input_scale=inputs[0].qnn_params["scale"],
-                input_zero_point=inputs[0].qnn_params["zero_point"],
-            )
+            loc_prob = self.dequantize(loc_prob, inputs[0])
         if inputs[1].qnn_params:
-            cls_pred = _qnn.op.dequantize(
-                data=cls_pred,
-                input_scale=inputs[1].qnn_params["scale"],
-                input_zero_point=inputs[1].qnn_params["zero_point"],
-            )
+            cls_pred = self.dequantize(cls_pred, inputs[1])
         if inputs[2].qnn_params:
-            anchor_expr = _qnn.op.dequantize(
-                data=anchor_expr,
-                input_scale=inputs[2].qnn_params["scale"],
-                input_zero_point=inputs[2].qnn_params["zero_point"],
-            )
+            anchor_expr = self.dequantize(anchor_expr, inputs[2])
 
         # loc_prob coords are in yxhw format
         # need to convert to xywh
