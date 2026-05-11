@@ -90,6 +90,7 @@ def check_correctness(
     rtol: float = 1e-7,
     atol: float = 1e-5,
     check_dtypes: bool = False,
+    equal_nan: bool = False,
 ) -> None:
     """Run an onnx model in both onnxruntime and TVM through our importer
        confirm that the results match. Otherwise, an exception will be raised.
@@ -109,6 +110,8 @@ def check_correctness(
         arithmetic variance than others.
     check_dtypes: bool
         Check if data types are the same.
+    equal_nan: bool
+        If True, treat NaN as equal when comparing floating outputs (np.testing.assert_allclose).
     """
     # Configure model format.
     if ir_version is not None:
@@ -177,16 +180,31 @@ def check_correctness(
         elif isinstance(tvm_out, tvm.runtime.Tensor) and isinstance(ort_out, np.ndarray):
             if check_dtypes:
                 assert tvm_out.numpy().dtype == ort_out.dtype
-            tvm.testing.assert_allclose(tvm_out.numpy(), ort_out, rtol=rtol, atol=atol)
+            if equal_nan:
+                np.testing.assert_allclose(
+                    tvm_out.numpy(), ort_out, rtol=rtol, atol=atol, equal_nan=True
+                )
+            else:
+                tvm.testing.assert_allclose(tvm_out.numpy(), ort_out, rtol=rtol, atol=atol)
         elif isinstance(tvm_out, tvm_ffi.Shape) and isinstance(ort_out, np.ndarray):
             shape_out = tvm.runtime.tensor([int(i) for i in tvm_out])
             if check_dtypes:
                 assert _get_numpy_subdtype(shape_out.numpy()) == _get_numpy_subdtype(ort_out)
-            tvm.testing.assert_allclose(shape_out.numpy(), ort_out, rtol=rtol, atol=atol)
+            if equal_nan:
+                np.testing.assert_allclose(
+                    shape_out.numpy(), ort_out, rtol=rtol, atol=atol, equal_nan=True
+                )
+            else:
+                tvm.testing.assert_allclose(shape_out.numpy(), ort_out, rtol=rtol, atol=atol)
         elif isinstance(tvm_out, int | float | bool) and isinstance(ort_out, np.ndarray):
             if check_dtypes:
                 assert _get_numpy_subdtype(np.array(tvm_out)) == _get_numpy_subdtype(ort_out)
-            tvm.testing.assert_allclose(np.array(tvm_out), ort_out, rtol=rtol, atol=atol)
+            if equal_nan:
+                np.testing.assert_allclose(
+                    np.array(tvm_out), ort_out, rtol=rtol, atol=atol, equal_nan=True
+                )
+            else:
+                tvm.testing.assert_allclose(np.array(tvm_out), ort_out, rtol=rtol, atol=atol)
         else:
             raise ValueError(f"Unsupported types: {type(tvm_out)}, {type(ort_out)}")
 
@@ -1433,6 +1451,50 @@ def test_clip_v6(max, min):
         graph, producer_name="clip_v6_test", opset_imports=[helper.make_opsetid("", 6)]
     )
     check_correctness(model, opset=10)
+
+
+@pytest.mark.parametrize(
+    "min,max",
+    [
+        pytest.param(
+            np.array(0.0, dtype=np.float32),
+            np.array(np.nan, dtype=np.float32),
+        ),
+        pytest.param(
+            np.array(0.0, dtype=np.float32),
+            np.array(np.nan, dtype=np.float32),
+        ),
+        pytest.param(
+            np.array(np.nan, dtype=np.float32),
+            np.array(6.0, dtype=np.float32),
+        ),
+        pytest.param(
+            np.array(np.nan, dtype=np.float32),
+            np.array(np.nan, dtype=np.float32),
+        ),
+    ],
+)
+def test_clip_v13(min, max):
+    # Opset 13: tensor min/max. NaN bound => unbounded on that side (ORT); input NaN preserved.
+    clip_node = helper.make_node("Clip", ["input", "min", "max"], ["output"])
+    graph = helper.make_graph(
+        [clip_node],
+        "clip_v13_nan_max",
+        inputs=[
+            helper.make_tensor_value_info("input", TensorProto.FLOAT, [5]),
+            helper.make_tensor_value_info("min", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("max", TensorProto.FLOAT, []),
+        ],
+        outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, [5])],
+    )
+    model = helper.make_model(graph, producer_name="clip_v13_nan_max")
+    input = np.array([0.5, -3.0, 4.5, 11.0, 7.0], dtype=np.float32)
+    check_correctness(
+        model,
+        inputs={"input": input, "min": min, "max": max},
+        opset=13,
+        equal_nan=True,
+    )
 
 
 def test_equal():

@@ -52,10 +52,24 @@ import tvm
 from tvm import TVMError, relax, tirx, topi
 from tvm.ir import IRModule
 from tvm.ir.supply import NameSupply
+from tvm.runtime import DataType, DataTypeCode
 from tvm.tirx.generic import cast
 from tvm.topi.utils import get_const_tuple
 
 from ..common import autopad
+
+
+def _relax_dtype_is_floating_point(dtype: str) -> bool:
+    """Whether a Relax dtype string is a floating point type."""
+    try:
+        code = DataType(dtype).type_code
+    except (ValueError, TypeError, TVMError):
+        return False
+    return (
+        code == DataTypeCode.FLOAT
+        or code == DataTypeCode.BFLOAT
+        or (code >= DataTypeCode.Float8E3M4 and code <= DataTypeCode.Float4E2M1FN)
+    )
 
 
 def get_type(elem_type: str | int) -> str:
@@ -311,6 +325,7 @@ class OnnxOpConverter:
             return getattr(cls, f"_impl_v{version}")
         raise NotImplementedError(f"opset version {version} of {cls.__name__} not implemented")
 
+
 class QuantizeLinear(OnnxOpConverter):
     @classmethod
     def _impl_v10(cls, bb, inputs, attr, params):
@@ -378,6 +393,7 @@ class DynamicQuantizeLinear(OnnxOpConverter):
 
         y = relax.op.quantize(x, y_scale, y_zero_point, axis=0, out_dtype="uint8")
         return relax.Tuple([y, y_scale, y_zero_point])
+
 
 class MatMul(OnnxOpConverter):
     """Converts an onnx MatMul node into an equivalent Relax expression."""
@@ -1309,6 +1325,15 @@ class Where(OnnxOpConverter):
 class Clip(OnnxOpConverter):
     """Converts an onnx Clip node into an equivalent Relax expression."""
 
+    @staticmethod
+    def _sanitize_nan_clip_bound(bb, bound: relax.Expr, *, for_min: bool) -> relax.Expr:
+        """ONNX/ORT treat NaN clip bounds as unbounded; plain max/min with NaN poisons output."""
+        dtype = bound.struct_info.dtype
+        if not _relax_dtype_is_floating_point(dtype):
+            return bound
+        repl = -_np.inf if for_min else _np.inf
+        return bb.emit(relax.op.where(relax.op.isnan(bound), relax.const(repl, dtype), bound))
+
     @classmethod
     def _impl_v1(cls, bb, inputs, attr, params):
         min = float(attr.get("min", -_np.inf))
@@ -1325,11 +1350,16 @@ class Clip(OnnxOpConverter):
 
     @classmethod
     def _impl_v13(cls, bb, inputs, attr, params):
-        results = inputs[0]
+        x: Any = inputs[0]
+        results = x
         if inputs[1] is not None:
-            results = bb.emit_te(topi.maximum, results, inputs[1])
+            lo = cls._sanitize_nan_clip_bound(bb, inputs[1], for_min=True)
+            results = bb.emit_te(topi.maximum, results, lo)
         if inputs[2] is not None:
-            results = bb.emit_te(topi.minimum, results, inputs[2])
+            hi = cls._sanitize_nan_clip_bound(bb, inputs[2], for_min=False)
+            results = bb.emit_te(topi.minimum, results, hi)
+        if _relax_dtype_is_floating_point(x.struct_info.dtype):
+            results = bb.emit(relax.op.where(relax.op.isnan(x), x, results))
         return results
 
 
