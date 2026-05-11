@@ -3573,6 +3573,7 @@ _tfl_stablehlo_comp_dir = _get_tflite_schema_module("StablehloComparisonDirectio
 _tfl_stablehlo_comp_type = _get_tflite_schema_module("StablehloComparisonType")
 _tfl_stablehlo_pad_opts = _get_tflite_schema_module("StablehloPadOptions")
 _tfl_stablehlo_dyn_slice_opts = _get_tflite_schema_module("StablehloDynamicSliceOptions")
+_tfl_stablehlo_gather_opts = _get_tflite_schema_module("StablehloGatherOptions")
 _tfl_dimension_metadata = _get_tflite_schema_module("DimensionMetadata")
 _tfl_fully_connected_options = _get_tflite_schema_module("FullyConnectedOptions")
 _tfl_int32_vector = _get_tflite_schema_module("Int32Vector")
@@ -4356,6 +4357,157 @@ def test_stablehlo_compare_totalorder_unsupported():
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
 
     with pytest.raises(tvm.error.OpNotImplemented, match="TOTALORDER"):
+        from_tflite(tflite_model)
+
+
+def _stablehlo_gather_i64_vector(builder, start_vector_fn, values):
+    start_vector_fn(builder, len(values))
+    for value in reversed(values):
+        builder.PrependInt64(value)
+    return builder.EndVector()
+
+
+def _build_stablehlo_gather_model(
+    *,
+    data_shape,
+    indices_shape,
+    output_shape,
+    offset_dims,
+    collapsed_slice_dims,
+    start_index_map,
+    index_vector_dim,
+    slice_sizes,
+):
+    """Build a minimal STABLEHLO_GATHER TFLite model."""
+    builder = flatbuffers.Builder(1024)
+
+    offset_dims_vec = _stablehlo_gather_i64_vector(
+        builder,
+        _tfl_stablehlo_gather_opts.StablehloGatherOptionsStartOffsetDimsVector,
+        offset_dims,
+    )
+    collapsed_slice_dims_vec = _stablehlo_gather_i64_vector(
+        builder,
+        _tfl_stablehlo_gather_opts.StablehloGatherOptionsStartCollapsedSliceDimsVector,
+        collapsed_slice_dims,
+    )
+    start_index_map_vec = _stablehlo_gather_i64_vector(
+        builder,
+        _tfl_stablehlo_gather_opts.StablehloGatherOptionsStartStartIndexMapVector,
+        start_index_map,
+    )
+    slice_sizes_vec = _stablehlo_gather_i64_vector(
+        builder,
+        _tfl_stablehlo_gather_opts.StablehloGatherOptionsStartSliceSizesVector,
+        slice_sizes,
+    )
+
+    _tfl_stablehlo_gather_opts.StablehloGatherOptionsStart(builder)
+    _tfl_stablehlo_gather_opts.StablehloGatherOptionsAddOffsetDims(
+        builder, offset_dims_vec
+    )
+    _tfl_stablehlo_gather_opts.StablehloGatherOptionsAddCollapsedSliceDims(
+        builder, collapsed_slice_dims_vec
+    )
+    _tfl_stablehlo_gather_opts.StablehloGatherOptionsAddStartIndexMap(
+        builder, start_index_map_vec
+    )
+    _tfl_stablehlo_gather_opts.StablehloGatherOptionsAddIndexVectorDim(
+        builder, index_vector_dim
+    )
+    _tfl_stablehlo_gather_opts.StablehloGatherOptionsAddSliceSizes(
+        builder, slice_sizes_vec
+    )
+    gather_opts = _tfl_stablehlo_gather_opts.StablehloGatherOptionsEnd(builder)
+
+    builtin_op = _get_stablehlo_builtin_operator("STABLEHLO_GATHER")
+    op_code = _build_operator_code(builder, builtin_op)
+
+    t_data = _build_tensor(builder, 0, data_shape)
+    t_indices = _build_tensor(builder, 1, indices_shape, tensor_type=_tfl_tensor_type.INT32)
+    t_out = _build_tensor(builder, 2, output_shape)
+    op = _build_operator(
+        builder,
+        0,
+        [0, 1],
+        [2],
+        builtin_options2_type=_tfl_builtin_options2.StablehloGatherOptions,
+        builtin_options2=gather_opts,
+    )
+    subgraph = _build_subgraph(
+        builder,
+        tensors=[t_data, t_indices, t_out],
+        operators=[op],
+        inputs=[0, 1],
+        outputs=[2],
+    )
+    buffers = [_build_buffer(builder) for _ in range(3)]
+    return _finish_tflite_model(
+        builder, subgraph=subgraph, operator_codes=[op_code], buffers=buffers
+    )
+
+
+@pytest.mark.parametrize(
+    "axis, offset_dims, slice_sizes, output_shape",
+    [
+        (0, [1], [1, 4], [2, 4]),
+        (1, [0], [3, 1], [3, 2]),
+    ],
+)
+def test_stablehlo_gather_take_equivalent(axis, offset_dims, slice_sizes, output_shape):
+    """TFLite StableHLO GATHER take-equivalent subset."""
+    mod = _load_model_from_buffer(
+        _build_stablehlo_gather_model(
+            data_shape=[3, 4],
+            indices_shape=[2, 1],
+            output_shape=output_shape,
+            offset_dims=offset_dims,
+            collapsed_slice_dims=[axis],
+            start_index_map=[axis],
+            index_vector_dim=1,
+            slice_sizes=slice_sizes,
+        )
+    )
+
+    out_shape = tuple(output_shape)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            data: R.Tensor((3, 4), dtype="float32"),
+            indices: R.Tensor((2, 1), dtype="int32"),
+        ) -> R.Tensor(out_shape, dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                reshaped: R.Tensor((2,), dtype="int32") = R.reshape(indices, (2,))
+                gv: R.Tensor(out_shape, dtype="float32") = R.take(
+                    data, reshaped, axis=axis, mode="fast"
+                )
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_stablehlo_gather_complex_unsupported():
+    """TFLite StableHLO GATHER with multi-dimensional start_index_map is unsupported."""
+    buf = _build_stablehlo_gather_model(
+        data_shape=[3, 4],
+        indices_shape=[2, 2],
+        output_shape=[2],
+        offset_dims=[],
+        collapsed_slice_dims=[0, 1],
+        start_index_map=[0, 1],
+        index_vector_dim=1,
+        slice_sizes=[1, 1],
+    )
+    if hasattr(tflite.Model, "Model"):
+        tflite_model = tflite.Model.Model.GetRootAsModel(buf, 0)
+    else:
+        tflite_model = tflite.Model.GetRootAsModel(buf, 0)
+
+    with pytest.raises(tvm.error.OpNotImplemented, match="start_index_map"):
         from_tflite(tflite_model)
 
 

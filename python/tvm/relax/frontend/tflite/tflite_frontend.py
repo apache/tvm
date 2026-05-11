@@ -264,6 +264,7 @@ class OperatorConverter:
             "STABLEHLO_FLOOR": functools.partial(
                 self._convert_stablehlo_unary, relax_op=_op.floor
             ),
+            "STABLEHLO_GATHER": self._convert_stablehlo_gather,
             "STABLEHLO_IOTA": self._convert_stablehlo_iota,
             "STABLEHLO_LOG": functools.partial(
                 self._convert_stablehlo_unary, relax_op=_op.log
@@ -1738,6 +1739,86 @@ class OperatorConverter:
         return self.bb.normalize(
             relax.op.dynamic_strided_slice(operand, begin, end, strides)
         )
+
+
+    def _convert_stablehlo_gather(self, op):
+        """Convert STABLEHLO_GATHER to Relax (take-equivalent subset only).
+
+        Only handles gather patterns equivalent to R.take along a single axis.
+        Multi-dimensional gathers, index_vector_dim != rank(indices)-1, and
+        non-trivial slice_sizes raise OpNotImplemented.
+        """
+        from tflite.StablehloGatherOptions import StablehloGatherOptions
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1
+
+        opts = self._get_stablehlo_options(op, StablehloGatherOptions)
+        offset_dims = [int(d) for d in opts.OffsetDimsAsNumpy()]
+        collapsed_slice_dims = [int(d) for d in opts.CollapsedSliceDimsAsNumpy()]
+        start_index_map = [int(d) for d in opts.StartIndexMapAsNumpy()]
+        slice_sizes = [int(d) for d in opts.SliceSizesAsNumpy()]
+        index_vector_dim = int(opts.IndexVectorDim())
+
+        data_tensor, indices_tensor = input_tensors
+        data_shape = [int(d) for d in self.get_tensor_shape(data_tensor)]
+        indices_shape = [int(d) for d in self.get_tensor_shape(indices_tensor)]
+        output_shape = [int(d) for d in self.get_tensor_shape(output_tensors[0])]
+
+        if len(start_index_map) != 1:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_GATHER only supports one start_index_map entry"
+            )
+        axis = start_index_map[0]
+        if axis < 0 or axis >= len(data_shape):
+            raise tvm.error.OpNotImplemented(f"Unsupported STABLEHLO_GATHER axis: {axis}")
+        if collapsed_slice_dims != [axis]:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_GATHER only supports collapsed_slice_dims matching the gather axis"
+            )
+        if len(slice_sizes) != len(data_shape):
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_GATHER slice_sizes must match operand rank"
+            )
+        for i, (size, dim) in enumerate(zip(slice_sizes, data_shape)):
+            expected = 1 if i == axis else dim
+            if size != expected:
+                raise tvm.error.OpNotImplemented(
+                    "STABLEHLO_GATHER only supports take-equivalent slice_sizes"
+                )
+        if index_vector_dim != len(indices_shape) - 1:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_GATHER only supports trailing index_vector_dim"
+            )
+        if not indices_shape or indices_shape[index_vector_dim] != 1:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_GATHER only supports index vector size 1"
+            )
+
+        indices_batch_shape = indices_shape[:index_vector_dim]
+        expected_offset_dims = list(range(axis)) + list(
+            range(axis + len(indices_batch_shape), len(data_shape) + len(indices_batch_shape) - 1)
+        )
+        if offset_dims != expected_offset_dims:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_GATHER offset_dims do not match Relax take output layout"
+            )
+
+        expected_output_shape = (
+            data_shape[:axis] + indices_batch_shape + data_shape[axis + 1 :]
+        )
+        if output_shape != expected_output_shape:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_GATHER output shape does not match Relax take semantics"
+            )
+
+        data = self.get_tensor_expr(data_tensor)
+        indices = self.get_tensor_expr(indices_tensor)
+        indices = self.bb.normalize(relax.op.reshape(indices, indices_batch_shape))
+        return self.bb.normalize(relax.op.take(data, indices, axis=axis, mode="fast"))
+
 
     def convert_elu(self, op):
         """Convert TFLite ELU"""
