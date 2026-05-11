@@ -5823,6 +5823,129 @@ def test_tensor_quantization_parameters_are_parsed():
     assert len(mod["main"].params) == 2
 
 
+def test_quantize_op_uses_relax_quantize():
+    """TFLite QUANTIZE float32 -> int8 uses R.quantize."""
+    builder = flatbuffers.Builder(1024)
+
+    input_data = np.array([1.0, 2.0], dtype=np.float32)
+    output_qparams = _build_quantization_parameters(
+        builder, scale=[0.5], zero_point=[3], quantized_dimension=0
+    )
+
+    input_tensor = _build_tensor(builder, 0, [2], tensor_type=_tfl_tensor_type.FLOAT32)
+    output_tensor = _build_tensor(
+        builder,
+        1,
+        [2],
+        tensor_type=_tfl_tensor_type.INT8,
+        quantization=output_qparams,
+    )
+
+    quantize_op = _build_operator(builder, 0, [0], [1])
+    subgraph = _build_subgraph(
+        builder,
+        tensors=[input_tensor, output_tensor],
+        operators=[quantize_op],
+        inputs=[0],
+        outputs=[1],
+    )
+    operator_codes = [_build_operator_code(builder, _tfl_builtin_operator.QUANTIZE)]
+    input_buffer = _build_buffer(builder, input_data.tobytes())
+    output_buffer = _build_buffer(builder)
+    buf = _finish_tflite_model(
+        builder,
+        subgraph=subgraph,
+        operator_codes=operator_codes,
+        buffers=[input_buffer, output_buffer],
+    )
+
+    if hasattr(tflite.Model, "Model"):
+        tflite_model = tflite.Model.Model.GetRootAsModel(buf, 0)
+    else:
+        tflite_model = tflite.Model.GetRootAsModel(buf, 0)
+    mod = from_tflite(tflite_model)
+    mod["main"] = mod["main"].without_attr("params")
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2,), dtype="float32")) -> R.Tensor((2,), dtype="int8"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((2,), dtype="int8") = R.quantize(
+                    x,
+                    R.const(0.5, "float32"),
+                    R.const(3, "int32"),
+                    axis=0,
+                    out_dtype="int8",
+                )
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_dequantize_op_uses_relax_dequantize():
+    """TFLite DEQUANTIZE int8 -> float32 uses R.dequantize."""
+    builder = flatbuffers.Builder(1024)
+
+    input_data = np.array([10, 20], dtype=np.int8)
+    input_qparams = _build_quantization_parameters(
+        builder, scale=[0.5], zero_point=[3], quantized_dimension=0
+    )
+
+    input_tensor = _build_tensor(
+        builder,
+        0,
+        [2],
+        tensor_type=_tfl_tensor_type.INT8,
+        quantization=input_qparams,
+    )
+    output_tensor = _build_tensor(builder, 1, [2], tensor_type=_tfl_tensor_type.FLOAT32)
+
+    dequantize_op = _build_operator(builder, 0, [0], [1])
+    subgraph = _build_subgraph(
+        builder,
+        tensors=[input_tensor, output_tensor],
+        operators=[dequantize_op],
+        inputs=[0],
+        outputs=[1],
+    )
+    operator_codes = [_build_operator_code(builder, _tfl_builtin_operator.DEQUANTIZE)]
+    input_buffer = _build_buffer(builder, input_data.tobytes())
+    output_buffer = _build_buffer(builder)
+    buf = _finish_tflite_model(
+        builder,
+        subgraph=subgraph,
+        operator_codes=operator_codes,
+        buffers=[input_buffer, output_buffer],
+    )
+
+    if hasattr(tflite.Model, "Model"):
+        tflite_model = tflite.Model.Model.GetRootAsModel(buf, 0)
+    else:
+        tflite_model = tflite.Model.GetRootAsModel(buf, 0)
+    mod = from_tflite(tflite_model)
+    mod["main"] = mod["main"].without_attr("params")
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2,), dtype="int8")) -> R.Tensor((2,), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((2,), dtype="float32") = R.dequantize(
+                    x,
+                    R.const(0.5, "float32"),
+                    R.const(3, "int32"),
+                    axis=0,
+                )
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
 def test_stablehlo_cbrt():
     """TFLite StableHLO CBRT uses a sign-preserving composite expression."""
     mod = _load_model_from_buffer(

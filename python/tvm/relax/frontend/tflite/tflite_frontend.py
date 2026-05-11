@@ -19,8 +19,10 @@
 # pylint: disable=no-value-for-parameter, unused-variable
 # pylint: disable=unexpected-keyword-arg, unused-import, too-many-function-args
 # ruff: noqa: RUF005
-# F821: _qnn and _expr references are in not-yet-covered code paths and will be
-# resolved as quantization and vision op support are completed.
+# F821: remaining _qnn references (requantize, conv2d, dense, concat,
+# conv2d_transpose, and detection-postprocess dequantize) are in
+# not-yet-covered code paths and will be resolved as quantized op support
+# advances.  _expr references will be resolved when vision ops are added.
 # ruff: noqa: F821
 """Tensorflow lite frontend."""
 
@@ -662,20 +664,22 @@ class OperatorConverter:
         """Helper function to quantize a tensor with Relax"""
         tensor_type = tensor_to_quantize.tensor.Type()
         tensor_type_str = self.get_tensor_type_str(tensor_type)
-        quantized = _qnn.op.quantize(
+        quantized = relax.op.quantize(
             data=expr,
-            output_scale=tensor_to_quantize.qnn_params["scale"],
-            output_zero_point=tensor_to_quantize.qnn_params["zero_point"],
+            scale=tensor_to_quantize.qnn_params["scale"],
+            zero_point=tensor_to_quantize.qnn_params["zero_point"],
+            axis=tensor_to_quantize.qnn_params["axis"],
             out_dtype=tensor_type_str,
         )
         return quantized
 
     def dequantize(self, expr, tensor):
         """Helper function to dequantize a tensor with Relax"""
-        dequantized = _qnn.op.dequantize(
+        dequantized = relax.op.dequantize(
             data=expr,
-            input_scale=tensor.qnn_params["scale"],
-            input_zero_point=tensor.qnn_params["zero_point"],
+            scale=tensor.qnn_params["scale"],
+            zero_point=tensor.qnn_params["zero_point"],
+            axis=tensor.qnn_params["axis"],
         )
         return dequantized
 
