@@ -246,8 +246,29 @@ class OperatorConverter:
                 self._convert_stablehlo_binary, relax_op=_op.add
             ),
             "STABLEHLO_AND": self._convert_stablehlo_and,
+            "STABLEHLO_BROADCAST_IN_DIM": self._convert_stablehlo_broadcast_in_dim,
+            "STABLEHLO_CLAMP": self._convert_stablehlo_clamp,
+            "STABLEHLO_COMPARE": self._convert_stablehlo_compare,
+            "STABLEHLO_CONCATENATE": self._convert_stablehlo_concatenate,
+            "STABLEHLO_CONVERT": self._convert_stablehlo_convert,
+            "STABLEHLO_COSINE": functools.partial(
+                self._convert_stablehlo_unary, relax_op=_op.cos
+            ),
             "STABLEHLO_DIVIDE": functools.partial(
                 self._convert_stablehlo_binary, relax_op=_op.divide
+            ),
+            "STABLEHLO_EXPONENTIAL": functools.partial(
+                self._convert_stablehlo_unary, relax_op=_op.exp
+            ),
+            "STABLEHLO_FLOOR": functools.partial(
+                self._convert_stablehlo_unary, relax_op=_op.floor
+            ),
+            "STABLEHLO_IOTA": self._convert_stablehlo_iota,
+            "STABLEHLO_LOG": functools.partial(
+                self._convert_stablehlo_unary, relax_op=_op.log
+            ),
+            "STABLEHLO_LOGISTIC": functools.partial(
+                self._convert_stablehlo_unary, relax_op=_op.sigmoid
             ),
             "STABLEHLO_MAXIMUM": functools.partial(
                 self._convert_stablehlo_binary, relax_op=_op.maximum
@@ -260,21 +281,6 @@ class OperatorConverter:
             ),
             "STABLEHLO_NEGATE": functools.partial(
                 self._convert_stablehlo_unary, relax_op=_op.negative
-            ),
-            "STABLEHLO_COSINE": functools.partial(
-                self._convert_stablehlo_unary, relax_op=_op.cos
-            ),
-            "STABLEHLO_EXPONENTIAL": functools.partial(
-                self._convert_stablehlo_unary, relax_op=_op.exp
-            ),
-            "STABLEHLO_FLOOR": functools.partial(
-                self._convert_stablehlo_unary, relax_op=_op.floor
-            ),
-            "STABLEHLO_LOG": functools.partial(
-                self._convert_stablehlo_unary, relax_op=_op.log
-            ),
-            "STABLEHLO_LOGISTIC": functools.partial(
-                self._convert_stablehlo_unary, relax_op=_op.sigmoid
             ),
             "STABLEHLO_OR": self._convert_stablehlo_or,
             "STABLEHLO_POWER": functools.partial(
@@ -1465,6 +1471,168 @@ class OperatorConverter:
         arg1 = self.get_tensor_expr(input_tensors[1])
         arg2 = self.get_tensor_expr(input_tensors[2])
         return relax_op(arg0, arg1, arg2)
+
+    def _get_stablehlo_options(self, op, options_cls):
+        """Parse BuiltinOptions2 for a StableHLO TFLite builtin operator.
+
+        Returns an initialized options object of the given class.
+        """
+        from tflite.BuiltinOptions2 import BuiltinOptions2
+
+        op_options = op.BuiltinOptions2()
+        # Look up the expected BuiltinOptions2 enum value by matching the class
+        # name to an enum member (e.g. StablehloConcatenateOptions → 1).
+        options_type = getattr(BuiltinOptions2, options_cls.__name__, None)
+        if options_type is not None:
+            assert op.BuiltinOptions2Type() == options_type, (
+                f"Unexpected BuiltinOptions2 type: expected "
+                f"{options_cls.__name__}, got {op.BuiltinOptions2Type()}"
+            )
+        result = options_cls()
+        result.Init(op_options.Bytes, op_options.Pos)
+        return result
+
+    def _convert_stablehlo_convert(self, op):
+        """Convert STABLEHLO_CONVERT to Relax (astype).
+
+        Reads the output tensor dtype from the TFLite schema and applies
+        relax.op.astype.  This path is intentionally separate from the
+        generic _convert_stablehlo_unary helper because the output dtype
+        is operator-level metadata, not a Relax op parameter.
+        """
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "output tensors length should be 1"
+
+        in_expr = self.get_tensor_expr(input_tensors[0])
+        output_dtype = self.get_tensor_type_str(output_tensors[0].tensor.Type())
+        return self.bb.normalize(relax.op.astype(in_expr, output_dtype))
+
+    def _convert_stablehlo_clamp(self, op):
+        """Convert STABLEHLO_CLAMP to Relax.
+
+        StableHLO clamp(min, operand, max) → R.minimum(R.maximum(operand, min), max).
+        """
+        # NOTE: R.clip is not used here because it only accepts scalar PrimValue
+        # min/max, not tensor inputs.
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 3, "input tensors length should be 3"
+
+        assert len(self.get_output_tensors(op)) == 1
+
+        min_expr = self.get_tensor_expr(input_tensors[0])
+        operand_expr = self.get_tensor_expr(input_tensors[1])
+        max_expr = self.get_tensor_expr(input_tensors[2])
+
+        clamped = self.bb.normalize(relax.op.maximum(operand_expr, min_expr))
+        return self.bb.normalize(relax.op.minimum(clamped, max_expr))
+
+    def _convert_stablehlo_concatenate(self, op):
+        """Convert STABLEHLO_CONCATENATE to Relax."""
+        from tflite.StablehloConcatenateOptions import StablehloConcatenateOptions
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) >= 1, "input tensors length should be >= 1"
+        assert len(self.get_output_tensors(op)) == 1
+
+        opts = self._get_stablehlo_options(op, StablehloConcatenateOptions)
+        dim = opts.Dimension()
+
+        in_exprs = [self.get_tensor_expr(t) for t in input_tensors]
+        return self.bb.normalize(relax.op.concat(in_exprs, axis=dim))
+
+    def _convert_stablehlo_broadcast_in_dim(self, op):
+        """Convert STABLEHLO_BROADCAST_IN_DIM to Relax."""
+        from tflite.StablehloBroadcastInDimOptions import StablehloBroadcastInDimOptions
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1
+
+        opts = self._get_stablehlo_options(op, StablehloBroadcastInDimOptions)
+        broadcast_dims = [int(d) for d in opts.BroadcastDimensionsAsNumpy()]
+
+        in_expr = self.get_tensor_expr(input_tensors[0])
+        input_shape = [int(d) for d in self.get_tensor_shape(input_tensors[0])]
+        output_shape = [int(d) for d in self.get_tensor_shape(output_tensors[0])]
+
+        # Map input dims to output dims via broadcast_dims, filling
+        # unmapped positions with 1 so broadcast_to covers them.
+        intermediate_shape = [1] * len(output_shape)
+        for i, d in enumerate(broadcast_dims):
+            intermediate_shape[d] = input_shape[i]
+
+        reshaped = self.bb.normalize(relax.op.reshape(in_expr, intermediate_shape))
+        return self.bb.normalize(relax.op.broadcast_to(reshaped, output_shape))
+
+    def _convert_stablehlo_iota(self, op):
+        """Convert STABLEHLO_IOTA to Relax (arange + broadcast)."""
+        from tflite.StablehloIotaOptions import StablehloIotaOptions
+
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1
+
+        opts = self._get_stablehlo_options(op, StablehloIotaOptions)
+        iota_dim = opts.IotaDimension()
+
+        output_tensor = output_tensors[0]
+        output_shape = [int(d) for d in self.get_tensor_shape(output_tensor)]
+        output_dtype = self.get_tensor_type_str(output_tensor.tensor.Type())
+
+        # arange along the iota dimension
+        size = output_shape[iota_dim]
+        arange_1d = self.bb.normalize(relax.op.arange(0, size, 1, output_dtype))
+
+        # reshape to [1, ..., size, ..., 1]
+        broadcast_shape = [1] * len(output_shape)
+        broadcast_shape[iota_dim] = size
+        arange_reshaped = self.bb.normalize(relax.op.reshape(arange_1d, broadcast_shape))
+
+        # broadcast to full output shape
+        return self.bb.normalize(relax.op.broadcast_to(arange_reshaped, output_shape))
+
+    def _convert_stablehlo_compare(self, op):
+        """Convert STABLEHLO_COMPARE to Relax binary comparison ops."""
+        from tflite.StablehloCompareOptions import StablehloCompareOptions
+        from tflite.StablehloComparisonDirection import StablehloComparisonDirection
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2
+        assert len(self.get_output_tensors(op)) == 1
+
+        from tflite.StablehloComparisonType import StablehloComparisonType
+
+        opts = self._get_stablehlo_options(op, StablehloCompareOptions)
+        direction = opts.ComparisonDirection()
+        compare_type = opts.CompareType()
+
+        # TOTALORDER compare is not expressible via Relax comparison ops.
+        if compare_type == StablehloComparisonType.STABLEHLO_COMPARISON_TYPE_FLOAT_TOTAL_ORDER:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_COMPARE with TOTALORDER comparison type is not supported"
+            )
+
+        _DIR = StablehloComparisonDirection
+        direction_map = {
+            _DIR.STABLEHLO_COMPARISON_DIRECTION_EQ: relax.op.equal,
+            _DIR.STABLEHLO_COMPARISON_DIRECTION_NE: relax.op.not_equal,
+            _DIR.STABLEHLO_COMPARISON_DIRECTION_GE: relax.op.greater_equal,
+            _DIR.STABLEHLO_COMPARISON_DIRECTION_GT: relax.op.greater,
+            _DIR.STABLEHLO_COMPARISON_DIRECTION_LE: relax.op.less_equal,
+            _DIR.STABLEHLO_COMPARISON_DIRECTION_LT: relax.op.less,
+        }
+        relax_fn = direction_map.get(direction)
+        if relax_fn is None:
+            raise tvm.error.OpNotImplemented(
+                f"Unsupported StableHLO comparison direction: {direction}"
+            )
+
+        lhs = self.get_tensor_expr(input_tensors[0])
+        rhs = self.get_tensor_expr(input_tensors[1])
+        return self.bb.normalize(relax_fn(lhs, rhs))
 
     def convert_elu(self, op):
         """Convert TFLite ELU"""
