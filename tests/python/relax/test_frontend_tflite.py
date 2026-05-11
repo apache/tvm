@@ -5946,6 +5946,256 @@ def test_dequantize_op_uses_relax_dequantize():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_quantized_conv2d_per_tensor_uses_qdq():
+    """Quantized Conv2D with per-tensor quantization uses DQ -> conv2d -> Q."""
+    builder = flatbuffers.Builder(2048)
+
+    in_q = _build_quantization_parameters(
+        builder, scale=[0.5], zero_point=[3], quantized_dimension=0
+    )
+    wt_q = _build_quantization_parameters(
+        builder, scale=[0.25], zero_point=[0], quantized_dimension=0
+    )
+    out_q = _build_quantization_parameters(
+        builder, scale=[1.0], zero_point=[0], quantized_dimension=0
+    )
+
+    input_tensor = _build_tensor(
+        builder,
+        0,
+        [1, 4, 4, 1],
+        tensor_type=_tfl_tensor_type.INT8,
+        quantization=in_q,
+    )
+    weight_tensor = _build_tensor(
+        builder,
+        1,
+        [2, 3, 3, 1],
+        tensor_type=_tfl_tensor_type.INT8,
+        quantization=wt_q,
+    )
+    output_tensor = _build_tensor(
+        builder,
+        2,
+        [1, 2, 2, 2],
+        tensor_type=_tfl_tensor_type.INT8,
+        quantization=out_q,
+    )
+
+    _tfl_conv2d_options.Conv2DOptionsStart(builder)
+    _tfl_conv2d_options.Conv2DOptionsAddStrideH(builder, 1)
+    _tfl_conv2d_options.Conv2DOptionsAddStrideW(builder, 1)
+    _tfl_conv2d_options.Conv2DOptionsAddPadding(builder, _tfl_padding.VALID)
+    _tfl_conv2d_options.Conv2DOptionsAddFusedActivationFunction(builder, 0)
+    conv_opts = _tfl_conv2d_options.Conv2DOptionsEnd(builder)
+
+    conv_op = _build_operator(
+        builder,
+        0,
+        [0, 1],
+        [2],
+        builtin_options_type=_tfl_builtin_options.Conv2DOptions,
+        builtin_options=conv_opts,
+    )
+    subgraph = _build_subgraph(
+        builder,
+        tensors=[input_tensor, weight_tensor, output_tensor],
+        operators=[conv_op],
+        inputs=[0, 1],
+        outputs=[2],
+    )
+    operator_codes = [_build_operator_code(builder, _tfl_builtin_operator.CONV_2D)]
+    buf = _finish_tflite_model(
+        builder,
+        subgraph=subgraph,
+        operator_codes=operator_codes,
+        buffers=[_build_buffer(builder), _build_buffer(builder), _build_buffer(builder)],
+    )
+
+    if hasattr(tflite.Model, "Model"):
+        tflite_model = tflite.Model.Model.GetRootAsModel(buf, 0)
+    else:
+        tflite_model = tflite.Model.GetRootAsModel(buf, 0)
+    mod = from_tflite(tflite_model)
+    mod["main"] = mod["main"].without_attr("params")
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            tvmgen_tensor_0: R.Tensor((1, 4, 4, 1), dtype="int8"),
+            tvmgen_tensor_1: R.Tensor((2, 3, 3, 1), dtype="int8"),
+        ) -> R.Tensor((1, 2, 2, 2), dtype="int8"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((1, 4, 4, 1), dtype="float32") = R.dequantize(
+                    tvmgen_tensor_0,
+                    R.const(0.5, "float32"),
+                    R.const(3, "int32"),
+                    out_dtype="float32",
+                    axis=0,
+                )
+                lv1: R.Tensor((3, 3, 1, 2), dtype="int8") = R.permute_dims(
+                    tvmgen_tensor_1,
+                    axes=[1, 2, 3, 0],
+                )
+                lv2: R.Tensor((3, 3, 1, 2), dtype="float32") = R.dequantize(
+                    lv1,
+                    R.const(0.25, "float32"),
+                    R.const(0, "int32"),
+                    out_dtype="float32",
+                    axis=3,
+                )
+                lv3: R.Tensor((1, 2, 2, 2), dtype="float32") = R.nn.conv2d(
+                    lv,
+                    lv2,
+                    strides=[1, 1],
+                    padding=[0, 0, 0, 0],
+                    dilation=[1, 1],
+                    groups=1,
+                    data_layout="NHWC",
+                    kernel_layout="HWIO",
+                    out_layout="NHWC",
+                    out_dtype="void",
+                )
+                gv: R.Tensor((1, 2, 2, 2), dtype="int8") = R.quantize(
+                    lv3,
+                    R.const(1.0, "float32"),
+                    R.const(0, "int32"),
+                    out_dtype="int8",
+                    axis=0,
+                )
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_quantized_conv2d_per_channel_weight_uses_remapped_axis():
+    """Quantized Conv2D remaps per-channel weight axis after OHWI -> HWIO."""
+    builder = flatbuffers.Builder(2048)
+
+    in_q = _build_quantization_parameters(
+        builder, scale=[0.5], zero_point=[3], quantized_dimension=0
+    )
+    wt_q = _build_quantization_parameters(
+        builder, scale=[0.25, 0.75], zero_point=[0, 0], quantized_dimension=0
+    )
+    out_q = _build_quantization_parameters(
+        builder, scale=[1.0], zero_point=[0], quantized_dimension=0
+    )
+
+    input_tensor = _build_tensor(
+        builder,
+        0,
+        [1, 4, 4, 1],
+        tensor_type=_tfl_tensor_type.INT8,
+        quantization=in_q,
+    )
+    weight_tensor = _build_tensor(
+        builder,
+        1,
+        [2, 3, 3, 1],
+        tensor_type=_tfl_tensor_type.INT8,
+        quantization=wt_q,
+    )
+    output_tensor = _build_tensor(
+        builder,
+        2,
+        [1, 2, 2, 2],
+        tensor_type=_tfl_tensor_type.INT8,
+        quantization=out_q,
+    )
+
+    _tfl_conv2d_options.Conv2DOptionsStart(builder)
+    _tfl_conv2d_options.Conv2DOptionsAddStrideH(builder, 1)
+    _tfl_conv2d_options.Conv2DOptionsAddStrideW(builder, 1)
+    _tfl_conv2d_options.Conv2DOptionsAddPadding(builder, _tfl_padding.VALID)
+    _tfl_conv2d_options.Conv2DOptionsAddFusedActivationFunction(builder, 0)
+    conv_opts = _tfl_conv2d_options.Conv2DOptionsEnd(builder)
+
+    conv_op = _build_operator(
+        builder,
+        0,
+        [0, 1],
+        [2],
+        builtin_options_type=_tfl_builtin_options.Conv2DOptions,
+        builtin_options=conv_opts,
+    )
+    subgraph = _build_subgraph(
+        builder,
+        tensors=[input_tensor, weight_tensor, output_tensor],
+        operators=[conv_op],
+        inputs=[0, 1],
+        outputs=[2],
+    )
+    operator_codes = [_build_operator_code(builder, _tfl_builtin_operator.CONV_2D)]
+    buf = _finish_tflite_model(
+        builder,
+        subgraph=subgraph,
+        operator_codes=operator_codes,
+        buffers=[_build_buffer(builder), _build_buffer(builder), _build_buffer(builder)],
+    )
+
+    if hasattr(tflite.Model, "Model"):
+        tflite_model = tflite.Model.Model.GetRootAsModel(buf, 0)
+    else:
+        tflite_model = tflite.Model.GetRootAsModel(buf, 0)
+    mod = from_tflite(tflite_model)
+    mod["main"] = mod["main"].without_attr("params")
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            tvmgen_tensor_0: R.Tensor((1, 4, 4, 1), dtype="int8"),
+            tvmgen_tensor_1: R.Tensor((2, 3, 3, 1), dtype="int8"),
+        ) -> R.Tensor((1, 2, 2, 2), dtype="int8"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((1, 4, 4, 1), dtype="float32") = R.dequantize(
+                    tvmgen_tensor_0,
+                    R.const(0.5, "float32"),
+                    R.const(3, "int32"),
+                    out_dtype="float32",
+                    axis=0,
+                )
+                lv1: R.Tensor((3, 3, 1, 2), dtype="int8") = R.permute_dims(
+                    tvmgen_tensor_1,
+                    axes=[1, 2, 3, 0],
+                )
+                lv2: R.Tensor((3, 3, 1, 2), dtype="float32") = R.dequantize(
+                    lv1,
+                    R.const([0.25, 0.75], "float32"),
+                    R.const(0, "int32"),
+                    out_dtype="float32",
+                    axis=3,
+                )
+                lv3: R.Tensor((1, 2, 2, 2), dtype="float32") = R.nn.conv2d(
+                    lv,
+                    lv2,
+                    strides=[1, 1],
+                    padding=[0, 0, 0, 0],
+                    dilation=[1, 1],
+                    groups=1,
+                    data_layout="NHWC",
+                    kernel_layout="HWIO",
+                    out_layout="NHWC",
+                    out_dtype="void",
+                )
+                gv: R.Tensor((1, 2, 2, 2), dtype="int8") = R.quantize(
+                    lv3,
+                    R.const(1.0, "float32"),
+                    R.const(0, "int32"),
+                    out_dtype="int8",
+                    axis=0,
+                )
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
 def test_stablehlo_cbrt():
     """TFLite StableHLO CBRT uses a sign-preserving composite expression."""
     mod = _load_model_from_buffer(
