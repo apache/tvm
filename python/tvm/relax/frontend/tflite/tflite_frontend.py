@@ -1725,12 +1725,7 @@ class OperatorConverter:
 
         def _const_1d(values, dtype="int64"):
             arr = np.array(values, dtype=dtype)
-            return self.bb.normalize(
-                relax.op.reshape(
-                    relax.const(arr, dtype=dtype),
-                    [len(values)],
-                )
-            )
+            return self.bb.normalize(relax.const(arr, dtype=dtype))
 
         begin = _const_1d(start_vals)
         end = _const_1d(end_vals)

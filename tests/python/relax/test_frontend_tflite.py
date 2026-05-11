@@ -4510,16 +4510,9 @@ def test_stablehlo_gather_complex_unsupported():
     with pytest.raises(tvm.error.OpNotImplemented, match="start_index_map"):
         from_tflite(tflite_model)
 
-
-
-
-
-
-def _pad_vector(builder, values):
+def _pad_vector(builder, start_vector_fn, values):
     """Build a FlatBuffers int64 vector for pad options."""
-    _tfl_stablehlo_pad_opts.StablehloPadOptionsStartEdgePaddingLowVector(
-        builder, len(values)
-    )
+    start_vector_fn(builder, len(values))
     for v in reversed(values):
         builder.PrependInt64(v)
     return builder.EndVector()
@@ -4529,23 +4522,21 @@ def _build_stablehlo_pad_model(edge_low, edge_high, interior):
     """STABLEHLO_PAD with given padding vectors."""
     builder = flatbuffers.Builder(1024)
 
-    # Build EdgePaddingLow vector
-    _tfl_stablehlo_pad_opts.StablehloPadOptionsStartEdgePaddingLowVector(builder, len(edge_low))
-    for v in reversed(edge_low):
-        builder.PrependInt64(v)
-    lo_vec = builder.EndVector()
-
-    # Build EdgePaddingHigh vector
-    _tfl_stablehlo_pad_opts.StablehloPadOptionsStartEdgePaddingHighVector(builder, len(edge_high))
-    for v in reversed(edge_high):
-        builder.PrependInt64(v)
-    hi_vec = builder.EndVector()
-
-    # Build InteriorPadding vector
-    _tfl_stablehlo_pad_opts.StablehloPadOptionsStartInteriorPaddingVector(builder, len(interior))
-    for v in reversed(interior):
-        builder.PrependInt64(v)
-    int_vec = builder.EndVector()
+    lo_vec = _pad_vector(
+        builder,
+        _tfl_stablehlo_pad_opts.StablehloPadOptionsStartEdgePaddingLowVector,
+        edge_low,
+    )
+    hi_vec = _pad_vector(
+        builder,
+        _tfl_stablehlo_pad_opts.StablehloPadOptionsStartEdgePaddingHighVector,
+        edge_high,
+    )
+    int_vec = _pad_vector(
+        builder,
+        _tfl_stablehlo_pad_opts.StablehloPadOptionsStartInteriorPaddingVector,
+        interior,
+    )
 
     _tfl_stablehlo_pad_opts.StablehloPadOptionsStart(builder)
     _tfl_stablehlo_pad_opts.StablehloPadOptionsAddEdgePaddingLow(builder, lo_vec)
@@ -4608,9 +4599,21 @@ def test_stablehlo_pad_interior_unsupported():
     """STABLEHLO_PAD with interior padding raises OpNotImplemented."""
     builder = flatbuffers.Builder(1024)
 
-    lo_vec = _pad_vector(builder, [0, 0])
-    hi_vec = _pad_vector(builder, [0, 0])
-    int_vec = _pad_vector(builder, [1, 0])
+    lo_vec = _pad_vector(
+        builder,
+        _tfl_stablehlo_pad_opts.StablehloPadOptionsStartEdgePaddingLowVector,
+        [0, 0],
+    )
+    hi_vec = _pad_vector(
+        builder,
+        _tfl_stablehlo_pad_opts.StablehloPadOptionsStartEdgePaddingHighVector,
+        [0, 0],
+    )
+    int_vec = _pad_vector(
+        builder,
+        _tfl_stablehlo_pad_opts.StablehloPadOptionsStartInteriorPaddingVector,
+        [1, 0],
+    )
 
     _tfl_stablehlo_pad_opts.StablehloPadOptionsStart(builder)
     _tfl_stablehlo_pad_opts.StablehloPadOptionsAddEdgePaddingLow(builder, lo_vec)
@@ -4655,9 +4658,21 @@ def test_stablehlo_pad_negative_unsupported():
     """STABLEHLO_PAD with negative edge padding raises OpNotImplemented."""
     builder = flatbuffers.Builder(1024)
 
-    lo_vec = _pad_vector(builder, [-1, 0])
-    hi_vec = _pad_vector(builder, [0, 0])
-    int_vec = _pad_vector(builder, [0, 0])
+    lo_vec = _pad_vector(
+        builder,
+        _tfl_stablehlo_pad_opts.StablehloPadOptionsStartEdgePaddingLowVector,
+        [-1, 0],
+    )
+    hi_vec = _pad_vector(
+        builder,
+        _tfl_stablehlo_pad_opts.StablehloPadOptionsStartEdgePaddingHighVector,
+        [0, 0],
+    )
+    int_vec = _pad_vector(
+        builder,
+        _tfl_stablehlo_pad_opts.StablehloPadOptionsStartInteriorPaddingVector,
+        [0, 0],
+    )
 
     _tfl_stablehlo_pad_opts.StablehloPadOptionsStart(builder)
     _tfl_stablehlo_pad_opts.StablehloPadOptionsAddEdgePaddingLow(builder, lo_vec)
@@ -4819,9 +4834,9 @@ def test_stablehlo_dynamic_slice():
             with R.dataflow():
                 gv: R.Tensor(dtype="float32", ndim=2) = R.dynamic_strided_slice(
                     x,
-                    R.reshape(R.const([0, 1], dtype="int64"), [2]),
-                    R.reshape(R.const([2, 3], dtype="int64"), [2]),
-                    R.reshape(R.const([1, 1], dtype="int64"), [2]),
+                    R.const([0, 1], dtype="int64"),
+                    R.const([2, 3], dtype="int64"),
+                    R.const([1, 1], dtype="int64"),
                 )
                 R.output(gv)
             return gv
