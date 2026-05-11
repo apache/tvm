@@ -324,7 +324,7 @@ def test_meta_schedule_evolutionary_search_fail_init_population():  # pylint: di
     assert candidates is None
 
 
-def test_meta_schedule_evolutionary_search_skip_invalid_measured_trace()  # pylint: disable = invalid-name
+def test_meta_schedule_evolutionary_search_skip_invalid_measured_trace():  # pylint: disable = invalid-name
     # Construct an incompatible measured trace: it references block name "other",
     # which doesn't exist in Matmul. Replaying this trace should fail and be skipped.
     wrong_sch = Schedule(OtherBlock)

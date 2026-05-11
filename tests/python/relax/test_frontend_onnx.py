@@ -173,34 +173,23 @@ def check_correctness(
             return "other"
 
     def _check_output(tvm_out, ort_out):
-        def _assert_allclose_nd(actual_np: np.ndarray, desired_np: np.ndarray) -> None:
-            tvm.testing.assert_allclose(
-                actual_np,
-                desired_np,
-                rtol=rtol,
-                atol=atol,
-                equal_nan=equal_nan,
-            )
-
         if isinstance(tvm_out, tuple) and isinstance(ort_out, tvm_ffi.Shape | list):
             assert len(tvm_out) == len(ort_out), "Unequal number of outputs"
             for tvm_out_i, ort_out_i in zip(tvm_out, ort_out):
                 _check_output(tvm_out_i, ort_out_i)
         elif isinstance(tvm_out, tvm.runtime.Tensor) and isinstance(ort_out, np.ndarray):
-            actual_np = tvm_out.numpy()
             if check_dtypes:
-                assert actual_np.dtype == ort_out.dtype
-            _assert_allclose_nd(actual_np, ort_out)
+                assert tvm_out.numpy().dtype == ort_out.dtype
+            tvm.testing.assert_allclose(tvm_out.numpy(), ort_out, rtol=rtol, atol=atol)
         elif isinstance(tvm_out, tvm_ffi.Shape) and isinstance(ort_out, np.ndarray):
-            actual_np = tvm.runtime.tensor([int(i) for i in tvm_out]).numpy()
+            shape_out = tvm.runtime.tensor([int(i) for i in tvm_out])
             if check_dtypes:
-                assert _get_numpy_subdtype(actual_np) == _get_numpy_subdtype(ort_out)
-            _assert_allclose_nd(actual_np, ort_out)
+                assert _get_numpy_subdtype(shape_out.numpy()) == _get_numpy_subdtype(ort_out)
+            tvm.testing.assert_allclose(shape_out.numpy(), ort_out, rtol=rtol, atol=atol)
         elif isinstance(tvm_out, int | float | bool) and isinstance(ort_out, np.ndarray):
-            actual_np = np.array(tvm_out)
             if check_dtypes:
-                assert _get_numpy_subdtype(actual_np) == _get_numpy_subdtype(ort_out)
-            _assert_allclose_nd(actual_np, ort_out)
+                assert _get_numpy_subdtype(np.array(tvm_out)) == _get_numpy_subdtype(ort_out)
+            tvm.testing.assert_allclose(np.array(tvm_out), ort_out, rtol=rtol, atol=atol)
         else:
             raise ValueError(f"Unsupported types: {type(tvm_out)}, {type(ort_out)}")
 

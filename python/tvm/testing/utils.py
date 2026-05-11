@@ -103,41 +103,18 @@ skip_if_wheel_test = pytest.mark.skipif(
 )
 
 
-def assert_allclose(actual, desired, rtol=1e-7, atol=1e-7, verbose=True, equal_nan=False):
-    """Thin wrapper around `numpy.testing.assert_allclose` with TVM default tolerances.
+def assert_allclose(actual, desired, rtol=1e-7, atol=1e-7, verbose=True):
+    """Version of np.testing.assert_allclose with `atol` and `rtol` fields set
+    in reasonable defaults.
 
     Arguments `actual` and `desired` are not interchangeable, since the function
     compares the `abs(actual-desired)` with `atol+rtol*abs(desired)`.  Since we
     often allow `desired` to be close to zero, we generally want non-zero `atol`.
-
-    Parameters
-    ----------
-    actual : numpy.ndarray or array_like
-        Coerced with `numpy.asanyarray` before comparison.
-
-    desired : numpy.ndarray or array_like
-        Reference values. These arguments are not interchangeable: the check uses
-        `atol + rtol * abs(desired)`.
-
-    rtol : float, optional
-        Relative tolerance. Default is ``1e-7``.
-
-    atol : float, optional
-        Absolute tolerance. Default is ``1e-7``. A non-zero value is usually
-        appropriate when `desired` may be close to zero.
-
-    verbose : bool, optional
-        Passed through to NumPy. Default is ``True``.
-
-    equal_nan : bool, optional
-        If True, NaNs at the same index are treated as equal. Default is ``False``.
     """
     actual = np.asanyarray(actual)
     desired = np.asanyarray(desired)
     np.testing.assert_allclose(actual.shape, desired.shape)
-    np.testing.assert_allclose(
-        actual, desired, rtol=rtol, atol=atol, verbose=verbose, equal_nan=equal_nan
-    )
+    np.testing.assert_allclose(actual, desired, rtol=rtol, atol=atol, verbose=verbose)
 
 
 def check_numerical_grads(
