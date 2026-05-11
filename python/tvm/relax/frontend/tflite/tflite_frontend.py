@@ -245,6 +245,7 @@ class OperatorConverter:
             "STABLEHLO_ADD": functools.partial(
                 self._convert_stablehlo_binary, relax_op=_op.add
             ),
+            "STABLEHLO_AND": self._convert_stablehlo_and,
             "STABLEHLO_DIVIDE": functools.partial(
                 self._convert_stablehlo_binary, relax_op=_op.divide
             ),
@@ -260,8 +261,39 @@ class OperatorConverter:
             "STABLEHLO_NEGATE": functools.partial(
                 self._convert_stablehlo_unary, relax_op=_op.negative
             ),
+            "STABLEHLO_COSINE": functools.partial(
+                self._convert_stablehlo_unary, relax_op=_op.cos
+            ),
+            "STABLEHLO_EXPONENTIAL": functools.partial(
+                self._convert_stablehlo_unary, relax_op=_op.exp
+            ),
+            "STABLEHLO_FLOOR": functools.partial(
+                self._convert_stablehlo_unary, relax_op=_op.floor
+            ),
+            "STABLEHLO_LOG": functools.partial(
+                self._convert_stablehlo_unary, relax_op=_op.log
+            ),
+            "STABLEHLO_LOGISTIC": functools.partial(
+                self._convert_stablehlo_unary, relax_op=_op.sigmoid
+            ),
+            "STABLEHLO_OR": self._convert_stablehlo_or,
+            "STABLEHLO_POWER": functools.partial(
+                self._convert_stablehlo_binary, relax_op=_op.power
+            ),
+            "STABLEHLO_RSQRT": functools.partial(
+                self._convert_stablehlo_unary, relax_op=_op.rsqrt
+            ),
+            "STABLEHLO_SELECT": functools.partial(
+                self._convert_stablehlo_ternary, relax_op=_op.where
+            ),
+            "STABLEHLO_SHIFT_LEFT": functools.partial(
+                self._convert_stablehlo_binary, relax_op=_op.left_shift
+            ),
             "STABLEHLO_SUBTRACT": functools.partial(
                 self._convert_stablehlo_binary, relax_op=_op.subtract
+            ),
+            "STABLEHLO_TANH": functools.partial(
+                self._convert_stablehlo_unary, relax_op=_op.tanh
             ),
             "SQUEEZE": self.convert_squeeze,
             "STRIDED_SLICE": self.convert_strided_slice,
@@ -1376,6 +1408,63 @@ class OperatorConverter:
         lhs_expr = self.get_tensor_expr(input_tensors[0])
         rhs_expr = self.get_tensor_expr(input_tensors[1])
         return relax_op(lhs_expr, rhs_expr)
+
+    def _convert_stablehlo_and(self, op):
+        """Convert StableHLO AND for bool and integer tensors."""
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+
+        assert len(self.get_output_tensors(op)) == 1, "output tensors length should be 1"
+
+        lhs = self.get_tensor_expr(input_tensors[0])
+        rhs = self.get_tensor_expr(input_tensors[1])
+        dtype = lhs.struct_info.dtype
+        if dtype == "bool":
+            op_fn = _op.logical_and
+        elif dtype.startswith(("int", "uint")):
+            op_fn = _op.bitwise_and
+        else:
+            raise tvm.error.OpNotImplemented(
+                f"STABLEHLO_AND with dtype {dtype} is not supported"
+            )
+        return self.bb.normalize(op_fn(lhs, rhs))
+
+    def _convert_stablehlo_or(self, op):
+        """Convert StableHLO OR for bool and integer tensors."""
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+
+        assert len(self.get_output_tensors(op)) == 1, "output tensors length should be 1"
+
+        lhs = self.get_tensor_expr(input_tensors[0])
+        rhs = self.get_tensor_expr(input_tensors[1])
+        dtype = lhs.struct_info.dtype
+        if dtype == "bool":
+            op_fn = _op.logical_or
+        elif dtype.startswith(("int", "uint")):
+            op_fn = _op.bitwise_or
+        else:
+            raise tvm.error.OpNotImplemented(
+                f"STABLEHLO_OR with dtype {dtype} is not supported"
+            )
+        return self.bb.normalize(op_fn(lhs, rhs))
+
+    def _convert_stablehlo_ternary(self, op, relax_op):
+        """Convert a ternary StableHLO TFLite builtin operator.
+
+        StableHLO builtins do not have TFLite fused activation attributes. Keep
+        this path independent from the regular TFLite elemwise/QNN helpers so
+        StableHLO semantics are mapped directly to Relax operators.
+        """
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 3, "input tensors length should be 3"
+
+        assert len(self.get_output_tensors(op)) == 1, "output tensors length should be 1"
+
+        arg0 = self.get_tensor_expr(input_tensors[0])
+        arg1 = self.get_tensor_expr(input_tensors[1])
+        arg2 = self.get_tensor_expr(input_tensors[2])
+        return relax_op(arg0, arg1, arg2)
 
     def convert_elu(self, op):
         """Convert TFLite ELU"""

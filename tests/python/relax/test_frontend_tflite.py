@@ -3779,11 +3779,44 @@ def _build_stablehlo_model(*, builtin_name, input_count):
     )
 
 
+def _build_stablehlo_typed_binary_model(*, builtin_name, tensor_type):
+    """Build a minimal TFLite StableHLO binary model with the requested tensor type."""
+    builder = flatbuffers.Builder(1024)
+    shape = [2, 2]
+    output_tensor_idx = 2
+    builtin_op = _get_stablehlo_builtin_operator(builtin_name)
+
+    tensors = [
+        _build_tensor(builder, buffer_idx, shape, tensor_type=tensor_type)
+        for buffer_idx in range(3)
+    ]
+    stablehlo_op = _build_operator(builder, 0, [0, 1], [output_tensor_idx])
+    subgraph = _build_subgraph(
+        builder,
+        tensors=tensors,
+        operators=[stablehlo_op],
+        inputs=[0, 1],
+        outputs=[output_tensor_idx],
+    )
+    operator_codes = [_build_operator_code(builder, builtin_op)]
+    buffers = [_build_buffer(builder) for _ in range(3)]
+    return _finish_tflite_model(
+        builder, subgraph=subgraph, operator_codes=operator_codes, buffers=buffers
+    )
+
+
 @pytest.mark.parametrize(
     "builtin_name, relax_op",
     [
         ("STABLEHLO_ABS", R.abs),
+        ("STABLEHLO_COSINE", R.cos),
+        ("STABLEHLO_EXPONENTIAL", R.exp),
+        ("STABLEHLO_FLOOR", R.floor),
+        ("STABLEHLO_LOG", R.log),
+        ("STABLEHLO_LOGISTIC", R.sigmoid),
         ("STABLEHLO_NEGATE", R.negative),
+        ("STABLEHLO_RSQRT", R.rsqrt),
+        ("STABLEHLO_TANH", R.tanh),
     ],
 )
 def test_stablehlo_unary(builtin_name, relax_op):
@@ -3809,11 +3842,12 @@ def test_stablehlo_unary(builtin_name, relax_op):
     "builtin_name, relax_op",
     [
         ("STABLEHLO_ADD", R.add),
-        ("STABLEHLO_SUBTRACT", R.subtract),
-        ("STABLEHLO_MULTIPLY", R.multiply),
         ("STABLEHLO_DIVIDE", R.divide),
         ("STABLEHLO_MAXIMUM", R.maximum),
         ("STABLEHLO_MINIMUM", R.minimum),
+        ("STABLEHLO_MULTIPLY", R.multiply),
+        ("STABLEHLO_POWER", R.power),
+        ("STABLEHLO_SUBTRACT", R.subtract),
     ],
 )
 def test_stablehlo_binary(builtin_name, relax_op):
@@ -3832,6 +3866,98 @@ def test_stablehlo_binary(builtin_name, relax_op):
             R.func_attr({"num_input": 2})
             with R.dataflow():
                 gv: R.Tensor((2, 2), dtype="float32") = relax_op(x, y)
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+@pytest.mark.parametrize(
+    "builtin_name, relax_op, dtype, tensor_type",
+    [
+        ("STABLEHLO_AND", R.logical_and, "bool", _tfl_tensor_type.BOOL),
+        ("STABLEHLO_OR", R.logical_or, "bool", _tfl_tensor_type.BOOL),
+        ("STABLEHLO_AND", R.bitwise_and, "int32", _tfl_tensor_type.INT32),
+        ("STABLEHLO_OR", R.bitwise_or, "int32", _tfl_tensor_type.INT32),
+        ("STABLEHLO_SHIFT_LEFT", R.left_shift, "int32", _tfl_tensor_type.INT32),
+    ],
+)
+def test_stablehlo_typed_binary(builtin_name, relax_op, dtype, tensor_type):
+    """TFLite StableHLO binary elementwise operators with non-float dtype requirements."""
+    mod = _load_model_from_buffer(
+        _build_stablehlo_typed_binary_model(
+            builtin_name=builtin_name, tensor_type=tensor_type
+        )
+    )
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((2, 2), dtype=dtype),
+            y: R.Tensor((2, 2), dtype=dtype),
+        ) -> R.Tensor((2, 2), dtype=dtype):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                gv: R.Tensor((2, 2), dtype=dtype) = relax_op(x, y)
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+@pytest.mark.parametrize(
+    "builtin_name, relax_op",
+    [
+        ("STABLEHLO_SELECT", R.where),
+    ],
+)
+def test_stablehlo_ternary(builtin_name, relax_op):
+    """TFLite StableHLO ternary elementwise operators."""
+    builder = flatbuffers.Builder(1024)
+    shape = [2, 2]
+    builtin_op = _get_stablehlo_builtin_operator(builtin_name)
+
+    # First input (condition) must be bool for R.where
+    tensor_0 = _build_tensor(builder, 0, shape, tensor_type=_tfl_tensor_type.BOOL)
+    tensor_1 = _build_tensor(builder, 1, shape)
+    tensor_2 = _build_tensor(builder, 2, shape)
+    tensor_out = _build_tensor(builder, 3, shape)
+    tensors = [tensor_0, tensor_1, tensor_2, tensor_out]
+
+    stablehlo_op = _build_operator(
+        builder,
+        0,
+        [0, 1, 2],
+        [3],
+    )
+    subgraph = _build_subgraph(
+        builder,
+        tensors=tensors,
+        operators=[stablehlo_op],
+        inputs=[0, 1, 2],
+        outputs=[3],
+    )
+    operator_codes = [_build_operator_code(builder, builtin_op)]
+    buffers = [_build_buffer(builder) for _ in range(4)]
+
+    mod = _load_model_from_buffer(
+        _finish_tflite_model(
+            builder, subgraph=subgraph, operator_codes=operator_codes, buffers=buffers
+        )
+    )
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            c: R.Tensor((2, 2), dtype="bool"),
+            x: R.Tensor((2, 2), dtype="float32"),
+            y: R.Tensor((2, 2), dtype="float32"),
+        ) -> R.Tensor((2, 2), dtype="float32"):
+            R.func_attr({"num_input": 3})
+            with R.dataflow():
+                gv: R.Tensor((2, 2), dtype="float32") = relax_op(c, x, y)
                 R.output(gv)
             return gv
 
