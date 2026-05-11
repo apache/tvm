@@ -257,6 +257,7 @@ class OperatorConverter:
             "STABLEHLO_DIVIDE": functools.partial(
                 self._convert_stablehlo_binary, relax_op=_op.divide
             ),
+            "STABLEHLO_DYNAMIC_SLICE": self._convert_stablehlo_dynamic_slice,
             "STABLEHLO_EXPONENTIAL": functools.partial(
                 self._convert_stablehlo_unary, relax_op=_op.exp
             ),
@@ -283,6 +284,7 @@ class OperatorConverter:
                 self._convert_stablehlo_unary, relax_op=_op.negative
             ),
             "STABLEHLO_OR": self._convert_stablehlo_or,
+            "STABLEHLO_PAD": self._convert_stablehlo_pad,
             "STABLEHLO_POWER": functools.partial(
                 self._convert_stablehlo_binary, relax_op=_op.power
             ),
@@ -1633,6 +1635,109 @@ class OperatorConverter:
         lhs = self.get_tensor_expr(input_tensors[0])
         rhs = self.get_tensor_expr(input_tensors[1])
         return self.bb.normalize(relax_fn(lhs, rhs))
+
+    def _convert_stablehlo_pad(self, op):
+        """Convert STABLEHLO_PAD to Relax (nn.pad).
+
+        Maps edge padding to R.nn.pad with constant mode.  Interior padding
+        (dilation) is not supported in the first version.
+        """
+        from tflite.StablehloPadOptions import StablehloPadOptions
+
+        input_tensors = self.get_input_tensors(op)
+        # operand + padding_value
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+        assert len(self.get_output_tensors(op)) == 1
+
+        opts = self._get_stablehlo_options(op, StablehloPadOptions)
+        edge_low = [int(d) for d in opts.EdgePaddingLowAsNumpy()]
+        edge_high = [int(d) for d in opts.EdgePaddingHighAsNumpy()]
+        interior = [int(d) for d in opts.InteriorPaddingAsNumpy()]
+
+        if any(d != 0 for d in interior):
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_PAD with interior (dilation) padding is not supported"
+            )
+        if any(d < 0 for d in edge_low) or any(d < 0 for d in edge_high):
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_PAD with negative edge padding (crop) is not supported"
+            )
+
+        operand = self.get_tensor_expr(input_tensors[0])
+
+        # R.nn.pad only supports a static Python float pad_value.
+        pad_value_tensor = input_tensors[1]
+        if not self.has_expr(pad_value_tensor.tensor_idx):
+            pad_val = float(self.get_tensor_value(pad_value_tensor))
+        else:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_PAD with dynamic padding value is not supported"
+            )
+
+        # R.nn.pad with flat pad_width: [lo0, hi0, lo1, hi1, ...]
+        pad_width = []
+        for lo, hi in zip(edge_low, edge_high):
+            pad_width.extend([lo, hi])
+
+        return self.bb.normalize(
+            relax.op.nn.pad(operand, pad_width=pad_width, pad_value=pad_val)
+        )
+
+    def _convert_stablehlo_dynamic_slice(self, op):
+        """Convert STABLEHLO_DYNAMIC_SLICE to Relax (dynamic_strided_slice).
+
+        Start indices are assumed to be constant (non-dynamic) values stored
+        in the flatbuffer.  Truly dynamic (runtime) start indices require
+        Relax arithmetic to compute begin/end from scalar inputs and are not
+        yet supported.
+        """
+        from tflite.StablehloDynamicSliceOptions import StablehloDynamicSliceOptions
+
+        input_tensors = self.get_input_tensors(op)
+        # operand + N start-index scalars
+        assert len(input_tensors) >= 2
+        ndim = len(input_tensors) - 1
+        assert len(self.get_output_tensors(op)) == 1
+
+        opts = self._get_stablehlo_options(op, StablehloDynamicSliceOptions)
+        slice_sizes = [int(d) for d in opts.SliceSizesAsNumpy()]
+        assert len(slice_sizes) == ndim
+
+        operand = self.get_tensor_expr(input_tensors[0])
+
+        # Build constant 1D tensors for begin, end, strides
+        # (assumes start values are constant in the flatbuffer)
+        # TODO: support dynamic start indices via Relax arithmetic
+        if any(self.has_expr(t.tensor_idx) for t in input_tensors[1:]):
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_DYNAMIC_SLICE with dynamic start indices is not supported"
+            )
+        start_vals = [int(self.get_tensor_value(t)) for t in input_tensors[1:]]
+        operand_shape = [int(d) for d in self.get_tensor_shape(input_tensors[0])]
+        for start, size, dim in zip(start_vals, slice_sizes, operand_shape):
+            if start < 0 or start + size > dim:
+                raise tvm.error.OpNotImplemented(
+                    "STABLEHLO_DYNAMIC_SLICE with out-of-bounds start indices is not supported"
+                )
+        end_vals = [s + sz for s, sz in zip(start_vals, slice_sizes)]
+        stride_vals = [1] * ndim
+
+        def _const_1d(values, dtype="int64"):
+            arr = np.array(values, dtype=dtype)
+            return self.bb.normalize(
+                relax.op.reshape(
+                    relax.const(arr, dtype=dtype),
+                    [len(values)],
+                )
+            )
+
+        begin = _const_1d(start_vals)
+        end = _const_1d(end_vals)
+        strides = _const_1d(stride_vals)
+
+        return self.bb.normalize(
+            relax.op.dynamic_strided_slice(operand, begin, end, strides)
+        )
 
     def convert_elu(self, op):
         """Convert TFLite ELU"""

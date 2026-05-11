@@ -3571,6 +3571,8 @@ _tfl_stablehlo_iota_opts = _get_tflite_schema_module("StablehloIotaOptions")
 _tfl_stablehlo_compare_opts = _get_tflite_schema_module("StablehloCompareOptions")
 _tfl_stablehlo_comp_dir = _get_tflite_schema_module("StablehloComparisonDirection")
 _tfl_stablehlo_comp_type = _get_tflite_schema_module("StablehloComparisonType")
+_tfl_stablehlo_pad_opts = _get_tflite_schema_module("StablehloPadOptions")
+_tfl_stablehlo_dyn_slice_opts = _get_tflite_schema_module("StablehloDynamicSliceOptions")
 _tfl_dimension_metadata = _get_tflite_schema_module("DimensionMetadata")
 _tfl_fully_connected_options = _get_tflite_schema_module("FullyConnectedOptions")
 _tfl_int32_vector = _get_tflite_schema_module("Int32Vector")
@@ -4357,6 +4359,346 @@ def test_stablehlo_compare_totalorder_unsupported():
         from_tflite(tflite_model)
 
 
+
+
+
+
+def _pad_vector(builder, values):
+    """Build a FlatBuffers int64 vector for pad options."""
+    _tfl_stablehlo_pad_opts.StablehloPadOptionsStartEdgePaddingLowVector(
+        builder, len(values)
+    )
+    for v in reversed(values):
+        builder.PrependInt64(v)
+    return builder.EndVector()
+
+
+def _build_stablehlo_pad_model(edge_low, edge_high, interior):
+    """STABLEHLO_PAD with given padding vectors."""
+    builder = flatbuffers.Builder(1024)
+
+    # Build EdgePaddingLow vector
+    _tfl_stablehlo_pad_opts.StablehloPadOptionsStartEdgePaddingLowVector(builder, len(edge_low))
+    for v in reversed(edge_low):
+        builder.PrependInt64(v)
+    lo_vec = builder.EndVector()
+
+    # Build EdgePaddingHigh vector
+    _tfl_stablehlo_pad_opts.StablehloPadOptionsStartEdgePaddingHighVector(builder, len(edge_high))
+    for v in reversed(edge_high):
+        builder.PrependInt64(v)
+    hi_vec = builder.EndVector()
+
+    # Build InteriorPadding vector
+    _tfl_stablehlo_pad_opts.StablehloPadOptionsStartInteriorPaddingVector(builder, len(interior))
+    for v in reversed(interior):
+        builder.PrependInt64(v)
+    int_vec = builder.EndVector()
+
+    _tfl_stablehlo_pad_opts.StablehloPadOptionsStart(builder)
+    _tfl_stablehlo_pad_opts.StablehloPadOptionsAddEdgePaddingLow(builder, lo_vec)
+    _tfl_stablehlo_pad_opts.StablehloPadOptionsAddEdgePaddingHigh(builder, hi_vec)
+    _tfl_stablehlo_pad_opts.StablehloPadOptionsAddInteriorPadding(builder, int_vec)
+    pad_opts = _tfl_stablehlo_pad_opts.StablehloPadOptionsEnd(builder)
+
+    builtin_op = _get_stablehlo_builtin_operator("STABLEHLO_PAD")
+    op_code = _build_operator_code(builder, builtin_op)
+
+    t_in = _build_tensor(builder, 0, [3, 3])
+    # pad_value is a scalar tensor
+    t_pad_val = _build_tensor(builder, 1, [])
+    t_out = _build_tensor(builder, 2, [4, 4])
+    tensors = [t_in, t_pad_val, t_out]
+
+    op = _build_operator(
+        builder, 0, [0, 1], [2],
+        builtin_options2_type=_tfl_builtin_options2.StablehloPadOptions,
+        builtin_options2=pad_opts,
+    )
+    subgraph = _build_subgraph(
+        builder, tensors=tensors, operators=[op],
+        inputs=[0], outputs=[2],
+    )
+    buffers = [
+        _build_buffer(builder),
+        _build_buffer(builder, np.array([0.0], dtype=np.float32).tobytes()),
+        _build_buffer(builder),
+    ]
+    return _finish_tflite_model(
+        builder, subgraph=subgraph, operator_codes=[op_code], buffers=buffers
+    )
+
+
+def test_stablehlo_pad():
+    """TFLite StableHLO PAD: edge_low=[1,0], edge_high=[0,1], interior=[0,0]."""
+    mod = _load_model_from_buffer(
+        _build_stablehlo_pad_model(edge_low=[1, 0], edge_high=[0, 1], interior=[0, 0])
+    )
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((3, 3), dtype="float32"),
+        ) -> R.Tensor((4, 4), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((4, 4), dtype="float32") = R.nn.pad(
+                    x, pad_width=[1, 0, 0, 1], pad_value=0.0
+                )
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_stablehlo_pad_interior_unsupported():
+    """STABLEHLO_PAD with interior padding raises OpNotImplemented."""
+    builder = flatbuffers.Builder(1024)
+
+    lo_vec = _pad_vector(builder, [0, 0])
+    hi_vec = _pad_vector(builder, [0, 0])
+    int_vec = _pad_vector(builder, [1, 0])
+
+    _tfl_stablehlo_pad_opts.StablehloPadOptionsStart(builder)
+    _tfl_stablehlo_pad_opts.StablehloPadOptionsAddEdgePaddingLow(builder, lo_vec)
+    _tfl_stablehlo_pad_opts.StablehloPadOptionsAddEdgePaddingHigh(builder, hi_vec)
+    _tfl_stablehlo_pad_opts.StablehloPadOptionsAddInteriorPadding(builder, int_vec)
+    pad_opts = _tfl_stablehlo_pad_opts.StablehloPadOptionsEnd(builder)
+
+    builtin_op = _get_stablehlo_builtin_operator("STABLEHLO_PAD")
+    op_code = _build_operator_code(builder, builtin_op)
+
+    t_in = _build_tensor(builder, 0, [3, 3])
+    t_pv = _build_tensor(builder, 1, [])
+    t_out = _build_tensor(builder, 2, [3, 3])
+    tensors = [t_in, t_pv, t_out]
+
+    op = _build_operator(
+        builder, 0, [0, 1], [2],
+        builtin_options2_type=_tfl_builtin_options2.StablehloPadOptions,
+        builtin_options2=pad_opts,
+    )
+    subgraph = _build_subgraph(
+        builder, tensors=tensors, operators=[op],
+        inputs=[0], outputs=[2],
+    )
+    buffers = [
+        _build_buffer(builder),
+        _build_buffer(builder, np.array([0.0], dtype=np.float32).tobytes()),
+        _build_buffer(builder),
+    ]
+    buf = _finish_tflite_model(
+        builder, subgraph=subgraph, operator_codes=[op_code], buffers=buffers
+    )
+    if hasattr(tflite.Model, "Model"):
+        tflite_model = tflite.Model.Model.GetRootAsModel(buf, 0)
+    else:
+        tflite_model = tflite.Model.GetRootAsModel(buf, 0)
+    with pytest.raises(tvm.error.OpNotImplemented, match="interior"):
+        from_tflite(tflite_model)
+
+
+def test_stablehlo_pad_negative_unsupported():
+    """STABLEHLO_PAD with negative edge padding raises OpNotImplemented."""
+    builder = flatbuffers.Builder(1024)
+
+    lo_vec = _pad_vector(builder, [-1, 0])
+    hi_vec = _pad_vector(builder, [0, 0])
+    int_vec = _pad_vector(builder, [0, 0])
+
+    _tfl_stablehlo_pad_opts.StablehloPadOptionsStart(builder)
+    _tfl_stablehlo_pad_opts.StablehloPadOptionsAddEdgePaddingLow(builder, lo_vec)
+    _tfl_stablehlo_pad_opts.StablehloPadOptionsAddEdgePaddingHigh(builder, hi_vec)
+    _tfl_stablehlo_pad_opts.StablehloPadOptionsAddInteriorPadding(builder, int_vec)
+    pad_opts = _tfl_stablehlo_pad_opts.StablehloPadOptionsEnd(builder)
+
+    builtin_op = _get_stablehlo_builtin_operator("STABLEHLO_PAD")
+    op_code = _build_operator_code(builder, builtin_op)
+
+    t_in = _build_tensor(builder, 0, [3, 3])
+    t_pv = _build_tensor(builder, 1, [])
+    t_out = _build_tensor(builder, 2, [2, 3])
+    tensors = [t_in, t_pv, t_out]
+
+    op = _build_operator(
+        builder, 0, [0, 1], [2],
+        builtin_options2_type=_tfl_builtin_options2.StablehloPadOptions,
+        builtin_options2=pad_opts,
+    )
+    subgraph = _build_subgraph(
+        builder, tensors=tensors, operators=[op],
+        inputs=[0], outputs=[2],
+    )
+    buffers = [
+        _build_buffer(builder),
+        _build_buffer(builder, np.array([0.0], dtype=np.float32).tobytes()),
+        _build_buffer(builder),
+    ]
+    buf = _finish_tflite_model(
+        builder, subgraph=subgraph, operator_codes=[op_code], buffers=buffers
+    )
+    if hasattr(tflite.Model, "Model"):
+        tflite_model = tflite.Model.Model.GetRootAsModel(buf, 0)
+    else:
+        tflite_model = tflite.Model.GetRootAsModel(buf, 0)
+    with pytest.raises(tvm.error.OpNotImplemented, match="negative"):
+        from_tflite(tflite_model)
+
+
+def _build_stablehlo_dynamic_slice_model(slice_sizes, start_vals):
+    """STABLEHLO_DYNAMIC_SLICE with given slice sizes and start indices."""
+    builder = flatbuffers.Builder(1024)
+    ndim = len(slice_sizes)
+
+    # Build SliceSizes vector
+    _tfl_stablehlo_dyn_slice_opts.StablehloDynamicSliceOptionsStartSliceSizesVector(
+        builder, ndim
+    )
+    for v in reversed(slice_sizes):
+        builder.PrependInt64(v)
+    sizes_vec = builder.EndVector()
+
+    _tfl_stablehlo_dyn_slice_opts.StablehloDynamicSliceOptionsStart(builder)
+    _tfl_stablehlo_dyn_slice_opts.StablehloDynamicSliceOptionsAddSliceSizes(
+        builder, sizes_vec
+    )
+    dyn_opts = _tfl_stablehlo_dyn_slice_opts.StablehloDynamicSliceOptionsEnd(builder)
+
+    builtin_op = _get_stablehlo_builtin_operator("STABLEHLO_DYNAMIC_SLICE")
+    op_code = _build_operator_code(builder, builtin_op)
+
+    # operand + start indices + output
+    t_in = _build_tensor(builder, 0, [3, 3])
+    start_tensors = []
+    start_inputs = []
+    start_buffers = []
+    for i, sv in enumerate(start_vals):
+        bidx = 1 + i
+        start_tensors.append(
+            _build_tensor(builder, bidx, [], tensor_type=_tfl_tensor_type.INT32)
+        )
+        start_inputs.append(bidx)
+        start_buffers.append(
+            _build_buffer(builder, np.array([sv], dtype=np.int32).tobytes())
+        )
+    out_idx = 1 + ndim
+    t_out = _build_tensor(builder, out_idx, slice_sizes)
+    tensors = [t_in, *start_tensors, t_out]
+    op_inputs = [0, *start_inputs]
+
+    op = _build_operator(
+        builder, 0, op_inputs, [out_idx],
+        builtin_options2_type=_tfl_builtin_options2.StablehloDynamicSliceOptions,
+        builtin_options2=dyn_opts,
+    )
+    subgraph = _build_subgraph(
+        builder, tensors=tensors, operators=[op],
+        inputs=[0], outputs=[out_idx],
+    )
+    buffers = [_build_buffer(builder), *start_buffers, _build_buffer(builder)]
+    return _finish_tflite_model(
+        builder, subgraph=subgraph, operator_codes=[op_code], buffers=buffers
+    )
+
+
+def _build_stablehlo_dynamic_slice_with_dynamic_starts_model(slice_sizes):
+    """STABLEHLO_DYNAMIC_SLICE with runtime start-index inputs."""
+    builder = flatbuffers.Builder(1024)
+    ndim = len(slice_sizes)
+
+    _tfl_stablehlo_dyn_slice_opts.StablehloDynamicSliceOptionsStartSliceSizesVector(
+        builder, ndim
+    )
+    for v in reversed(slice_sizes):
+        builder.PrependInt64(v)
+    sizes_vec = builder.EndVector()
+
+    _tfl_stablehlo_dyn_slice_opts.StablehloDynamicSliceOptionsStart(builder)
+    _tfl_stablehlo_dyn_slice_opts.StablehloDynamicSliceOptionsAddSliceSizes(
+        builder, sizes_vec
+    )
+    dyn_opts = _tfl_stablehlo_dyn_slice_opts.StablehloDynamicSliceOptionsEnd(builder)
+
+    builtin_op = _get_stablehlo_builtin_operator("STABLEHLO_DYNAMIC_SLICE")
+    op_code = _build_operator_code(builder, builtin_op)
+
+    t_in = _build_tensor(builder, 0, [3, 3])
+    start_tensors = [
+        _build_tensor(builder, 1 + i, [], tensor_type=_tfl_tensor_type.INT32)
+        for i in range(ndim)
+    ]
+    out_idx = 1 + ndim
+    t_out = _build_tensor(builder, out_idx, slice_sizes)
+    start_inputs = list(range(1, 1 + ndim))
+    tensors = [t_in, *start_tensors, t_out]
+    op_inputs = [0, *start_inputs]
+
+    op = _build_operator(
+        builder, 0, op_inputs, [out_idx],
+        builtin_options2_type=_tfl_builtin_options2.StablehloDynamicSliceOptions,
+        builtin_options2=dyn_opts,
+    )
+    subgraph = _build_subgraph(
+        builder, tensors=tensors, operators=[op],
+        inputs=op_inputs, outputs=[out_idx],
+    )
+    buffers = [_build_buffer(builder) for _ in range(out_idx + 1)]
+    return _finish_tflite_model(
+        builder, subgraph=subgraph, operator_codes=[op_code], buffers=buffers
+    )
+
+
+def test_stablehlo_dynamic_slice():
+    """TFLite StableHLO DYNAMIC_SLICE: start=[0,1], sizes=[2,2] from (3,3)."""
+    mod = _load_model_from_buffer(
+        _build_stablehlo_dynamic_slice_model(
+            slice_sizes=[2, 2], start_vals=[0, 1]
+        )
+    )
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((3, 3), dtype="float32"),
+        ) -> R.Tensor(dtype="float32", ndim=2):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor(dtype="float32", ndim=2) = R.dynamic_strided_slice(
+                    x,
+                    R.reshape(R.const([0, 1], dtype="int64"), [2]),
+                    R.reshape(R.const([2, 3], dtype="int64"), [2]),
+                    R.reshape(R.const([1, 1], dtype="int64"), [2]),
+                )
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_stablehlo_dynamic_slice_dynamic_starts_unsupported():
+    """TFLite StableHLO DYNAMIC_SLICE with runtime starts is not supported yet."""
+    buf = _build_stablehlo_dynamic_slice_with_dynamic_starts_model(slice_sizes=[2, 2])
+    if hasattr(tflite.Model, "Model"):
+        tflite_model = tflite.Model.Model.GetRootAsModel(buf, 0)
+    else:
+        tflite_model = tflite.Model.GetRootAsModel(buf, 0)
+
+    with pytest.raises(tvm.error.OpNotImplemented, match="dynamic start"):
+        from_tflite(tflite_model)
+
+
+def test_stablehlo_dynamic_slice_out_of_bounds_unsupported():
+    """TFLite StableHLO DYNAMIC_SLICE with out-of-bounds starts is not supported."""
+    buf = _build_stablehlo_dynamic_slice_model(slice_sizes=[2, 2], start_vals=[0, 2])
+    if hasattr(tflite.Model, "Model"):
+        tflite_model = tflite.Model.Model.GetRootAsModel(buf, 0)
+    else:
+        tflite_model = tflite.Model.GetRootAsModel(buf, 0)
+
+    with pytest.raises(tvm.error.OpNotImplemented, match="out-of-bounds"):
+        from_tflite(tflite_model)
 
 
 def _build_csr_sparsity(
