@@ -239,6 +239,30 @@ class OperatorConverter:
             "SQRT": functools.partial(self._convert_unary_elemwise, relax_op=_op.sqrt),
             "SQUARE": self.convert_square,
             "SQUARED_DIFFERENCE": self.convert_squared_difference,
+            "STABLEHLO_ABS": functools.partial(
+                self._convert_stablehlo_unary, relax_op=_op.abs
+            ),
+            "STABLEHLO_ADD": functools.partial(
+                self._convert_stablehlo_binary, relax_op=_op.add
+            ),
+            "STABLEHLO_DIVIDE": functools.partial(
+                self._convert_stablehlo_binary, relax_op=_op.divide
+            ),
+            "STABLEHLO_MAXIMUM": functools.partial(
+                self._convert_stablehlo_binary, relax_op=_op.maximum
+            ),
+            "STABLEHLO_MINIMUM": functools.partial(
+                self._convert_stablehlo_binary, relax_op=_op.minimum
+            ),
+            "STABLEHLO_MULTIPLY": functools.partial(
+                self._convert_stablehlo_binary, relax_op=_op.multiply
+            ),
+            "STABLEHLO_NEGATE": functools.partial(
+                self._convert_stablehlo_unary, relax_op=_op.negative
+            ),
+            "STABLEHLO_SUBTRACT": functools.partial(
+                self._convert_stablehlo_binary, relax_op=_op.subtract
+            ),
             "SQUEEZE": self.convert_squeeze,
             "STRIDED_SLICE": self.convert_strided_slice,
             "SUB": functools.partial(self._convert_elemwise, relax_op=_op.subtract),
@@ -1321,6 +1345,37 @@ class OperatorConverter:
         if output_tensor.qnn_params:
             out = self.quantize(out, output_tensor)
         return out
+
+    def _convert_stablehlo_unary(self, op, relax_op):
+        """Convert a unary StableHLO TFLite builtin operator.
+
+        StableHLO builtins do not have TFLite fused activation attributes. Keep
+        this path independent from the regular TFLite elemwise/QNN helpers so
+        StableHLO semantics are mapped directly to Relax operators.
+        """
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+
+        assert len(self.get_output_tensors(op)) == 1, "output tensors length should be 1"
+
+        in_expr = self.get_tensor_expr(input_tensors[0])
+        return relax_op(in_expr)
+
+    def _convert_stablehlo_binary(self, op, relax_op):
+        """Convert a binary StableHLO TFLite builtin operator.
+
+        StableHLO builtins do not have TFLite fused activation attributes. Keep
+        this path independent from the regular TFLite elemwise/QNN helpers so
+        StableHLO semantics are mapped directly to Relax operators.
+        """
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+
+        assert len(self.get_output_tensors(op)) == 1, "output tensors length should be 1"
+
+        lhs_expr = self.get_tensor_expr(input_tensors[0])
+        rhs_expr = self.get_tensor_expr(input_tensors[1])
+        return relax_op(lhs_expr, rhs_expr)
 
     def convert_elu(self, op):
         """Convert TFLite ELU"""

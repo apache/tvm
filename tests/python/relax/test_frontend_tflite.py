@@ -3735,6 +3735,109 @@ def _finish_tflite_model(builder, *, subgraph, operator_codes, buffers):
     return bytes(builder.Output())
 
 
+def _load_model_from_buffer(model_bytes):
+    if hasattr(tflite.Model, "Model"):
+        tflite_model = tflite.Model.Model.GetRootAsModel(model_bytes, 0)
+    else:
+        tflite_model = tflite.Model.GetRootAsModel(model_bytes, 0)
+    mod = from_tflite(tflite_model)
+    mod["main"] = mod["main"].without_attr("params")
+    return mod
+
+
+def _get_stablehlo_builtin_operator(builtin_name):
+    if not hasattr(_tfl_builtin_operator, builtin_name):
+        pytest.skip(f"TFLite schema does not provide BuiltinOperator.{builtin_name}")
+    return getattr(_tfl_builtin_operator, builtin_name)
+
+
+def _build_stablehlo_model(*, builtin_name, input_count):
+    """Build a minimal TFLite model containing one StableHLO builtin operator."""
+    builder = flatbuffers.Builder(1024)
+    shape = [2, 2]
+    output_tensor_idx = input_count
+    builtin_op = _get_stablehlo_builtin_operator(builtin_name)
+
+    tensors = [_build_tensor(builder, buffer_idx, shape) for buffer_idx in range(input_count + 1)]
+    stablehlo_op = _build_operator(
+        builder,
+        0,
+        list(range(input_count)),
+        [output_tensor_idx],
+    )
+    subgraph = _build_subgraph(
+        builder,
+        tensors=tensors,
+        operators=[stablehlo_op],
+        inputs=list(range(input_count)),
+        outputs=[output_tensor_idx],
+    )
+    operator_codes = [_build_operator_code(builder, builtin_op)]
+    buffers = [_build_buffer(builder) for _ in range(input_count + 1)]
+    return _finish_tflite_model(
+        builder, subgraph=subgraph, operator_codes=operator_codes, buffers=buffers
+    )
+
+
+@pytest.mark.parametrize(
+    "builtin_name, relax_op",
+    [
+        ("STABLEHLO_ABS", R.abs),
+        ("STABLEHLO_NEGATE", R.negative),
+    ],
+)
+def test_stablehlo_unary(builtin_name, relax_op):
+    """TFLite StableHLO unary elementwise operators."""
+    mod = _load_model_from_buffer(
+        _build_stablehlo_model(builtin_name=builtin_name, input_count=1)
+    )
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 2), dtype="float32")) -> R.Tensor((2, 2), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((2, 2), dtype="float32") = relax_op(x)
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+@pytest.mark.parametrize(
+    "builtin_name, relax_op",
+    [
+        ("STABLEHLO_ADD", R.add),
+        ("STABLEHLO_SUBTRACT", R.subtract),
+        ("STABLEHLO_MULTIPLY", R.multiply),
+        ("STABLEHLO_DIVIDE", R.divide),
+        ("STABLEHLO_MAXIMUM", R.maximum),
+        ("STABLEHLO_MINIMUM", R.minimum),
+    ],
+)
+def test_stablehlo_binary(builtin_name, relax_op):
+    """TFLite StableHLO binary elementwise operators."""
+    mod = _load_model_from_buffer(
+        _build_stablehlo_model(builtin_name=builtin_name, input_count=2)
+    )
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((2, 2), dtype="float32"),
+            y: R.Tensor((2, 2), dtype="float32"),
+        ) -> R.Tensor((2, 2), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                gv: R.Tensor((2, 2), dtype="float32") = relax_op(x, y)
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
 def _build_csr_sparsity(
     builder,
     *,
