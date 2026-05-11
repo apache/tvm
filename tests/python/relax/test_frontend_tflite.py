@@ -3697,6 +3697,7 @@ _tfl_int32_vector = _get_tflite_schema_module("Int32Vector")
 _tfl_model = _get_tflite_schema_module("Model")
 _tfl_operator = _get_tflite_schema_module("Operator")
 _tfl_operator_code = _get_tflite_schema_module("OperatorCode")
+_tfl_quantization_parameters = _get_tflite_schema_module("QuantizationParameters")
 _tfl_sparsity_parameters = _get_tflite_schema_module("SparsityParameters")
 _tfl_subgraph = _get_tflite_schema_module("SubGraph")
 _tfl_tensor = _get_tflite_schema_module("Tensor")
@@ -3742,6 +3743,13 @@ def _tflite_bool_vector(builder, start_vector_fn, values):
     return builder.EndVector()
 
 
+def _tflite_float32_vector(builder, start_vector_fn, values):
+    start_vector_fn(builder, len(values))
+    for value in reversed(values):
+        builder.PrependFloat32(value)
+    return builder.EndVector()
+
+
 def _tflite_offset_vector(builder, start_vector_fn, offsets):
     start_vector_fn(builder, len(offsets))
     for offset in reversed(offsets):
@@ -3773,7 +3781,7 @@ def _tflite_shape(builder, shape):
     return _tflite_int32_vector(builder, _tfl_tensor.TensorStartShapeVector, shape)
 
 
-def _build_tensor(builder, buffer_idx, shape, sparsity=None, tensor_type=None):
+def _build_tensor(builder, buffer_idx, shape, sparsity=None, tensor_type=None, quantization=None):
     """Helper to build a TFLite tensor."""
     if tensor_type is None:
         tensor_type = _tfl_tensor_type.FLOAT32
@@ -3785,6 +3793,8 @@ def _build_tensor(builder, buffer_idx, shape, sparsity=None, tensor_type=None):
     _tfl_tensor.TensorAddShape(builder, shape_vec)
     if sparsity is not None:
         _tfl_tensor.TensorAddSparsity(builder, sparsity)
+    if quantization is not None:
+        _tfl_tensor.TensorAddQuantization(builder, quantization)
     _tfl_tensor.TensorAddType(builder, tensor_type)
     return _tfl_tensor.TensorEnd(builder)
 
@@ -3799,6 +3809,24 @@ def _build_buffer(builder, data=None):
     if data_offset is not None:
         _tfl_buffer.BufferAddData(builder, data_offset)
     return _tfl_buffer.BufferEnd(builder)
+
+
+def _build_quantization_parameters(builder, *, scale, zero_point, quantized_dimension):
+    scale_vec = _tflite_float32_vector(
+        builder, _tfl_quantization_parameters.QuantizationParametersStartScaleVector, scale
+    )
+    zero_point_vec = _tflite_int64_vector(
+        builder,
+        _tfl_quantization_parameters.QuantizationParametersStartZeroPointVector,
+        zero_point,
+    )
+    _tfl_quantization_parameters.QuantizationParametersStart(builder)
+    _tfl_quantization_parameters.QuantizationParametersAddScale(builder, scale_vec)
+    _tfl_quantization_parameters.QuantizationParametersAddZeroPoint(builder, zero_point_vec)
+    _tfl_quantization_parameters.QuantizationParametersAddQuantizedDimension(
+        builder, quantized_dimension
+    )
+    return _tfl_quantization_parameters.QuantizationParametersEnd(builder)
 
 
 def _build_operator(
@@ -5739,6 +5767,60 @@ def test_stablehlo_dynamic_slice_out_of_bounds_unsupported():
 
     with pytest.raises(tvm.error.OpNotImplemented, match="out-of-bounds"):
         from_tflite(tflite_model)
+
+
+def test_tensor_quantization_parameters_are_parsed():
+    """Tensor quantization metadata is kept without requiring quantized op support."""
+    builder = flatbuffers.Builder(1024)
+
+    per_tensor_quantization = _build_quantization_parameters(
+        builder, scale=[0.5], zero_point=[3], quantized_dimension=0
+    )
+    per_axis_quantization = _build_quantization_parameters(
+        builder, scale=[0.25, 0.75], zero_point=[0, 0], quantized_dimension=3
+    )
+    per_tensor = _build_tensor(
+        builder,
+        0,
+        [1, 4],
+        tensor_type=_tfl_tensor_type.UINT8,
+        quantization=per_tensor_quantization,
+    )
+    per_axis = _build_tensor(
+        builder,
+        1,
+        [1, 2, 3, 2],
+        tensor_type=_tfl_tensor_type.INT8,
+        quantization=per_axis_quantization,
+    )
+    subgraph = _build_subgraph(
+        builder, tensors=[per_tensor, per_axis], operators=[], inputs=[0, 1], outputs=[0, 1]
+    )
+    buffers = [_build_buffer(builder), _build_buffer(builder)]
+    buf = _finish_tflite_model(builder, subgraph=subgraph, operator_codes=[], buffers=buffers)
+
+    if hasattr(tflite.Model, "Model"):
+        tflite_model = tflite.Model.Model.GetRootAsModel(buf, 0)
+    else:
+        tflite_model = tflite.Model.GetRootAsModel(buf, 0)
+
+    converter = tflite_frontend.OperatorConverter(
+        tflite_model, tflite_model.Subgraphs(0), tflite_frontend.ExprTable(), None
+    )
+    per_tensor_wrapper, per_axis_wrapper = converter.get_tensors([0, 1])
+
+    np.testing.assert_allclose(per_tensor_wrapper.qnn_params["scale"].data.numpy(), 0.5)
+    np.testing.assert_equal(per_tensor_wrapper.qnn_params["zero_point"].data.numpy(), 3)
+    assert per_tensor_wrapper.qnn_params["axis"] == 0
+
+    np.testing.assert_allclose(
+        per_axis_wrapper.qnn_params["scale"].data.numpy(), np.array([0.25, 0.75])
+    )
+    np.testing.assert_equal(per_axis_wrapper.qnn_params["zero_point"].data.numpy(), 0)
+    assert per_axis_wrapper.qnn_params["axis"] == 3
+
+    mod = from_tflite(tflite_model)
+    assert len(mod["main"].params) == 2
 
 
 def test_stablehlo_cbrt():

@@ -19,8 +19,8 @@
 # pylint: disable=no-value-for-parameter, unused-variable
 # pylint: disable=unexpected-keyword-arg, unused-import, too-many-function-args
 # ruff: noqa: RUF005
-# F821: _qnn and _expr references are in unreachable code paths (guarded by NotImplementedError)
-# and will be resolved when quantization and vision op support are added.
+# F821: _qnn and _expr references are in not-yet-covered code paths and will be
+# resolved as quantization and vision op support are completed.
 # ruff: noqa: F821
 """Tensorflow lite frontend."""
 
@@ -557,9 +557,7 @@ class OperatorConverter:
                     qnn_params = dict()
                     qnn_params["scale"] = relax.const(scale, "float32")
                     qnn_params["zero_point"] = relax.const(zero_point, "int32")
-                    raise NotImplementedError(
-                        "Quantized TFLite models are not yet supported in the Relax frontend"
-                    )
+                    qnn_params["axis"] = int(tflite_qnn_params.QuantizedDimension())
             return_list.append(TensorWrapper(tensor_idx, tensor, buffer, qnn_params))
         return return_list
 
