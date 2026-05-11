@@ -173,38 +173,34 @@ def check_correctness(
             return "other"
 
     def _check_output(tvm_out, ort_out):
+        def _assert_allclose_nd(actual_np: np.ndarray, desired_np: np.ndarray) -> None:
+            tvm.testing.assert_allclose(
+                actual_np,
+                desired_np,
+                rtol=rtol,
+                atol=atol,
+                equal_nan=equal_nan,
+            )
+
         if isinstance(tvm_out, tuple) and isinstance(ort_out, tvm_ffi.Shape | list):
             assert len(tvm_out) == len(ort_out), "Unequal number of outputs"
             for tvm_out_i, ort_out_i in zip(tvm_out, ort_out):
                 _check_output(tvm_out_i, ort_out_i)
         elif isinstance(tvm_out, tvm.runtime.Tensor) and isinstance(ort_out, np.ndarray):
+            actual_np = tvm_out.numpy()
             if check_dtypes:
-                assert tvm_out.numpy().dtype == ort_out.dtype
-            if equal_nan:
-                np.testing.assert_allclose(
-                    tvm_out.numpy(), ort_out, rtol=rtol, atol=atol, equal_nan=True
-                )
-            else:
-                tvm.testing.assert_allclose(tvm_out.numpy(), ort_out, rtol=rtol, atol=atol)
+                assert actual_np.dtype == ort_out.dtype
+            _assert_allclose_nd(actual_np, ort_out)
         elif isinstance(tvm_out, tvm_ffi.Shape) and isinstance(ort_out, np.ndarray):
-            shape_out = tvm.runtime.tensor([int(i) for i in tvm_out])
+            actual_np = tvm.runtime.tensor([int(i) for i in tvm_out]).numpy()
             if check_dtypes:
-                assert _get_numpy_subdtype(shape_out.numpy()) == _get_numpy_subdtype(ort_out)
-            if equal_nan:
-                np.testing.assert_allclose(
-                    shape_out.numpy(), ort_out, rtol=rtol, atol=atol, equal_nan=True
-                )
-            else:
-                tvm.testing.assert_allclose(shape_out.numpy(), ort_out, rtol=rtol, atol=atol)
+                assert _get_numpy_subdtype(actual_np) == _get_numpy_subdtype(ort_out)
+            _assert_allclose_nd(actual_np, ort_out)
         elif isinstance(tvm_out, int | float | bool) and isinstance(ort_out, np.ndarray):
+            actual_np = np.array(tvm_out)
             if check_dtypes:
-                assert _get_numpy_subdtype(np.array(tvm_out)) == _get_numpy_subdtype(ort_out)
-            if equal_nan:
-                np.testing.assert_allclose(
-                    np.array(tvm_out), ort_out, rtol=rtol, atol=atol, equal_nan=True
-                )
-            else:
-                tvm.testing.assert_allclose(np.array(tvm_out), ort_out, rtol=rtol, atol=atol)
+                assert _get_numpy_subdtype(actual_np) == _get_numpy_subdtype(ort_out)
+            _assert_allclose_nd(actual_np, ort_out)
         else:
             raise ValueError(f"Unsupported types: {type(tvm_out)}, {type(ort_out)}")
 
@@ -1458,7 +1454,7 @@ def test_clip_v6(max, min):
     [
         pytest.param(
             np.array(0.0, dtype=np.float32),
-            np.array(np.nan, dtype=np.float32),
+            np.array(6.0, dtype=np.float32),
         ),
         pytest.param(
             np.array(0.0, dtype=np.float32),
@@ -1474,7 +1470,14 @@ def test_clip_v6(max, min):
         ),
     ],
 )
-def test_clip_v13(min, max):
+@pytest.mark.parametrize(
+    "input",
+    [
+        np.array([0.5, -3.0, 4.5, 11.0, 7.0], dtype=np.float32),
+        np.array([0.5, -3.0, 4.5, 11.0, np.nan], dtype=np.float32),
+    ],
+)
+def test_clip_v13(input, min, max):
     # Opset 13: tensor min/max. NaN bound => unbounded on that side (ORT); input NaN preserved.
     clip_node = helper.make_node("Clip", ["input", "min", "max"], ["output"])
     graph = helper.make_graph(
@@ -1488,7 +1491,6 @@ def test_clip_v13(min, max):
         outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, [5])],
     )
     model = helper.make_model(graph, producer_name="clip_v13_nan_max")
-    input = np.array([0.5, -3.0, 4.5, 11.0, 7.0], dtype=np.float32)
     check_correctness(
         model,
         inputs={"input": input, "min": min, "max": max},
