@@ -794,15 +794,7 @@ class OperatorConverter:
         if input_tensor.qnn_params and input_tensor_type_str == "uint8":
             output_tensor = output_tensors[0]
             if not self.has_same_qnn_params(input_tensor, output_tensor):
-                output_tensor_type_str = self.get_tensor_type_str(output_tensor.tensor.Type())
-                out = _qnn.op.requantize(
-                    out,
-                    input_scale=input_tensor.qnn_params["scale"],
-                    input_zero_point=input_tensor.qnn_params["zero_point"],
-                    output_scale=output_tensor.qnn_params["scale"],
-                    output_zero_point=output_tensor.qnn_params["zero_point"],
-                    out_dtype=output_tensor_type_str,
-                )
+                out = self.quantize(out, output_tensor)
 
         return out
 
@@ -1113,8 +1105,6 @@ class OperatorConverter:
     def convert_relu(self, op):
         """Convert TFLite ReLU"""
 
-        from tflite.ActivationFunctionType import ActivationFunctionType
-
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 1, "input tensors length should be 1"
         input_tensor = input_tensors[0]
@@ -1125,31 +1115,11 @@ class OperatorConverter:
         output_tensor = output_tensors[0]
 
         if input_tensor.qnn_params:
-            # Quantize a float value to an quantized integer value
-            scale_val = get_scalar_from_constant(input_tensor.qnn_params["scale"])
-            zero_point_val = get_scalar_from_constant(input_tensor.qnn_params["zero_point"])
-
-            output_tensor_type_str = self.get_tensor_type_str(output_tensor.tensor.Type())
-            out = self.convert_qnn_fused_activation_function(
-                expr=in_expr,
-                fused_activation_fn=ActivationFunctionType.RELU,
-                scale=scale_val,
-                zero_point=zero_point_val,
-                dtype=output_tensor_type_str,
-            )
+            in_f32 = self.dequantize(in_expr, input_tensor)
+            out = relax.op.nn.relu(in_f32)
+            out = self.quantize(out, output_tensor)
         else:
             out = relax.op.nn.relu(in_expr)
-
-        if output_tensor.qnn_params:
-            output_tensor_type_str = self.get_tensor_type_str(output_tensor.tensor.Type())
-            out = _qnn.op.requantize(
-                out,
-                input_scale=input_tensor.qnn_params["scale"],
-                input_zero_point=input_tensor.qnn_params["zero_point"],
-                output_scale=output_tensor.qnn_params["scale"],
-                output_zero_point=output_tensor.qnn_params["zero_point"],
-                out_dtype=output_tensor_type_str,
-            )
 
         return out
 
@@ -1186,8 +1156,6 @@ class OperatorConverter:
     def convert_relu6(self, op):
         """Convert TFLite ReLU6"""
 
-        from tflite.ActivationFunctionType import ActivationFunctionType
-
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 1, "input tensors length should be 1"
         input_tensor = input_tensors[0]
@@ -1198,31 +1166,11 @@ class OperatorConverter:
         output_tensor = output_tensors[0]
 
         if input_tensor.qnn_params:
-            # Quantize a float value to an quantized integer value
-            scale_val = get_scalar_from_constant(input_tensor.qnn_params["scale"])
-            zero_point_val = get_scalar_from_constant(input_tensor.qnn_params["zero_point"])
-
-            output_tensor_type_str = self.get_tensor_type_str(output_tensor.tensor.Type())
-            out = self.convert_qnn_fused_activation_function(
-                expr=in_expr,
-                fused_activation_fn=ActivationFunctionType.RELU6,
-                scale=scale_val,
-                zero_point=zero_point_val,
-                dtype=output_tensor_type_str,
-            )
+            in_f32 = self.dequantize(in_expr, input_tensor)
+            out = relax.op.clip(in_f32, min=0, max=6)
+            out = self.quantize(out, output_tensor)
         else:
             out = relax.op.clip(in_expr, min=0, max=6)
-
-        if output_tensor.qnn_params:
-            output_tensor_type_str = self.get_tensor_type_str(output_tensor.tensor.Type())
-            out = _qnn.op.requantize(
-                out,
-                input_scale=input_tensor.qnn_params["scale"],
-                input_zero_point=input_tensor.qnn_params["zero_point"],
-                output_scale=output_tensor.qnn_params["scale"],
-                output_zero_point=output_tensor.qnn_params["zero_point"],
-                out_dtype=output_tensor_type_str,
-            )
 
         return out
 
@@ -1267,35 +1215,11 @@ class OperatorConverter:
         output_tensor = output_tensors[0]
 
         if input_tensor.qnn_params:
-            # Quantize a float value to an quantized integer value
-            scale_val = get_scalar_from_constant(input_tensor.qnn_params["scale"])
-            zero_point_val = get_scalar_from_constant(input_tensor.qnn_params["zero_point"])
-
-            def quantize(x):
-                return float(round(x / scale_val) + zero_point_val)
-
-            # Get min/max of the input dtype. This will be used to ensure that
-            # clip a_min/a_max are not beyond the dtype range.
-            input_tensor_type_str = self.get_tensor_type_str(input_tensor.tensor.Type())
-            qmin = float(tvm.tirx.min_value(input_tensor_type_str).value)
-            qmax = float(tvm.tirx.max_value(input_tensor_type_str).value)
-
-            out = relax.op.clip(
-                in_expr, min=max(qmin, quantize(-1.0)), max=min(qmax, quantize(1.0))
-            )
+            in_f32 = self.dequantize(in_expr, input_tensor)
+            out = relax.op.clip(in_f32, min=-1, max=1)
+            out = self.quantize(out, output_tensor)
         else:
             out = relax.op.clip(in_expr, min=-1, max=1)
-
-        if output_tensor.qnn_params:
-            output_tensor_type_str = self.get_tensor_type_str(output_tensor.tensor.Type())
-            out = _qnn.op.requantize(
-                out,
-                input_scale=input_tensor.qnn_params["scale"],
-                input_zero_point=input_tensor.qnn_params["zero_point"],
-                output_scale=output_tensor.qnn_params["scale"],
-                output_zero_point=output_tensor.qnn_params["zero_point"],
-                out_dtype=output_tensor_type_str,
-            )
 
         return out
 
@@ -3043,24 +2967,16 @@ class OperatorConverter:
             keep_dims = False
 
         if input_tensor.qnn_params:
-            in_expr = relax.op.cast(in_expr, "int32")
+            in_expr = self.dequantize(in_expr, input_tensor)
 
         out = relax_op(in_expr, axis, keep_dims)
 
-        # Finally if the reduce is quantized. Add a requantize at the end.
+        # Finally if the reduce is quantized. Quantize the output.
         output_tensors = self.get_output_tensors(op)
         assert len(output_tensors) == 1, "output tensors length should be 1"
         output_tensor = output_tensors[0]
-        output_tensor_type_str = self.get_tensor_type_str(output_tensor.tensor.Type())
         if output_tensor.qnn_params:
-            out = _qnn.op.requantize(
-                out,
-                input_scale=input_tensor.qnn_params["scale"],
-                input_zero_point=input_tensor.qnn_params["zero_point"],
-                output_scale=output_tensor.qnn_params["scale"],
-                output_zero_point=output_tensor.qnn_params["zero_point"],
-                out_dtype=output_tensor_type_str,
-            )
+            out = self.quantize(out, output_tensor)
 
         return out
 
