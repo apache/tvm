@@ -21,6 +21,7 @@
 #include <float.h>
 #include <tvm/ffi/extra/c_env_api.h>
 #include <tvm/ffi/function.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/tensor.h>
 
 #include "cutlass/bfloat16.h"

@@ -23,6 +23,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/disco/disco_worker.h>
+#include <tvm/runtime/logging.h>
 
 #include "../../cuda/cuda_common.h"
 

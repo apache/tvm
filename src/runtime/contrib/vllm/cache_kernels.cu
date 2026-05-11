@@ -154,7 +154,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  static_cast<const int*>(slot_mapping->data), key_stride, value_stride, num_heads,
                  head_size, block_size, vec_size);
 
-             return Array{key_cache, value_cache};
+             return ffi::Array<Tensor>{key_cache, value_cache};
            })
       .def("tvm.contrib.vllm.reconstruct_from_cache",
            [](Tensor key_cache, Tensor value_cache, Tensor slot_mapping) {
@@ -182,7 +182,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  static_cast<scalar_t*>(value->data), key_stride, value_stride, num_heads,
                  head_size, block_size, vec_size);
 
-             return Array{key, value};
+             return ffi::Array<Tensor>{key, value};
            })
       .def("tvm.contrib.vllm.copy_blocks", [](ffi::Array<Tensor> key_value_caches,
                                               Tensor block_mapping) {

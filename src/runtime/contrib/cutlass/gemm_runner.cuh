@@ -17,6 +17,8 @@
  * under the License.
  */
 
+#include <tvm/runtime/logging.h>
+
 #include <fstream>
 #include <iostream>
 #include <sstream>

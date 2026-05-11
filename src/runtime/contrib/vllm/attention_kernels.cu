@@ -37,6 +37,7 @@
 #include <float.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/tensor.h>
 
 #include <algorithm>
@@ -756,10 +757,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "tvm.contrib.vllm.single_query_cached_kv_attention",
-      [](const DLTensor* query, const DLTensor* key_cache, const DLTensor* value_cache,
-         const DLTensor* block_tables, const DLTensor* context_lens, int block_size,
-         const DLTensor* max_context_len_tensor,  // TODO(masahi): pass integer
-         DLTensor* exp_sums, DLTensor* max_logits, DLTensor* tmp_out, DLTensor* out) {
+      [](Tensor query, Tensor key_cache, Tensor value_cache, Tensor block_tables,
+         Tensor context_lens, int block_size,
+         Tensor max_context_len_tensor,  // TODO(masahi): pass integer
+         Tensor exp_sums, Tensor max_logits, Tensor tmp_out, Tensor out) {
         int num_seqs = query->shape[0];
         int num_heads = query->shape[1];
         int max_context_len = static_cast<int*>(max_context_len_tensor->data)[0];
@@ -768,13 +769,19 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         bool use_v1 =
             max_context_len <= 8192 && (max_num_partitions == 1 || num_seqs * num_heads > 512);
         if (use_v1) {
-          single_query_cached_kv_attention_v1(query, key_cache, value_cache, block_tables,
-                                              context_lens, block_size, max_context_len_tensor,
-                                              out);
+          single_query_cached_kv_attention_v1(
+              query.GetDLTensorPtr(), key_cache.GetDLTensorPtr(), value_cache.GetDLTensorPtr(),
+              block_tables.GetDLTensorPtr(), context_lens.GetDLTensorPtr(), block_size,
+              max_context_len_tensor.GetDLTensorPtr(), const_cast<DLTensor*>(out.GetDLTensorPtr()));
         } else {
-          single_query_cached_kv_attention_v2(query, key_cache, value_cache, block_tables,
-                                              context_lens, block_size, max_context_len_tensor,
-                                              exp_sums, max_logits, tmp_out, out);
+          single_query_cached_kv_attention_v2(
+              query.GetDLTensorPtr(), key_cache.GetDLTensorPtr(), value_cache.GetDLTensorPtr(),
+              block_tables.GetDLTensorPtr(), context_lens.GetDLTensorPtr(), block_size,
+              max_context_len_tensor.GetDLTensorPtr(),
+              const_cast<DLTensor*>(exp_sums.GetDLTensorPtr()),
+              const_cast<DLTensor*>(max_logits.GetDLTensorPtr()),
+              const_cast<DLTensor*>(tmp_out.GetDLTensorPtr()),
+              const_cast<DLTensor*>(out.GetDLTensorPtr()));
         }
       });
 }
@@ -784,9 +791,27 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("tvm.contrib.vllm.single_query_cached_kv_attention_v1",
-           single_query_cached_kv_attention_v1)
+           [](Tensor query, Tensor key_cache, Tensor value_cache, Tensor block_tables,
+              Tensor context_lens, int block_size, Tensor max_context_len_tensor, Tensor out) {
+             single_query_cached_kv_attention_v1(
+                 query.GetDLTensorPtr(), key_cache.GetDLTensorPtr(), value_cache.GetDLTensorPtr(),
+                 block_tables.GetDLTensorPtr(), context_lens.GetDLTensorPtr(), block_size,
+                 max_context_len_tensor.GetDLTensorPtr(),
+                 const_cast<DLTensor*>(out.GetDLTensorPtr()));
+           })
       .def("tvm.contrib.vllm.single_query_cached_kv_attention_v2",
-           single_query_cached_kv_attention_v2);
+           [](Tensor query, Tensor key_cache, Tensor value_cache, Tensor block_tables,
+              Tensor context_lens, int block_size, Tensor max_context_len_tensor, Tensor exp_sums,
+              Tensor max_logits, Tensor tmp_out, Tensor out) {
+             single_query_cached_kv_attention_v2(
+                 query.GetDLTensorPtr(), key_cache.GetDLTensorPtr(), value_cache.GetDLTensorPtr(),
+                 block_tables.GetDLTensorPtr(), context_lens.GetDLTensorPtr(), block_size,
+                 max_context_len_tensor.GetDLTensorPtr(),
+                 const_cast<DLTensor*>(exp_sums.GetDLTensorPtr()),
+                 const_cast<DLTensor*>(max_logits.GetDLTensorPtr()),
+                 const_cast<DLTensor*>(tmp_out.GetDLTensorPtr()),
+                 const_cast<DLTensor*>(out.GetDLTensorPtr()));
+           });
 }
 
 }  // namespace runtime
