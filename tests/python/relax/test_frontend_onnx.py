@@ -90,7 +90,6 @@ def check_correctness(
     rtol: float = 1e-7,
     atol: float = 1e-5,
     check_dtypes: bool = False,
-    equal_nan: bool = False,
 ) -> None:
     """Run an onnx model in both onnxruntime and TVM through our importer
        confirm that the results match. Otherwise, an exception will be raised.
@@ -110,8 +109,6 @@ def check_correctness(
         arithmetic variance than others.
     check_dtypes: bool
         Check if data types are the same.
-    equal_nan: bool
-        If True, treat NaN as equal when comparing floating outputs (np.testing.assert_allclose).
     """
     # Configure model format.
     if ir_version is not None:
@@ -1484,7 +1481,6 @@ def test_clip_v13(input, min, max):
         model,
         inputs={"input": input, "min": min, "max": max},
         opset=13,
-        equal_nan=True,
     )
 
 
