@@ -4821,6 +4821,63 @@ def test_nms():
         )
 
 
+@pytest.mark.parametrize("with_explicit_max", [False, True])
+def test_nms_max_output_boxes_per_class_zero(with_explicit_max: bool):
+    """ONNX default for max_output_boxes_per_class is 0, yielding empty output."""
+    node_inputs = ["boxes", "scores"]
+    initializer = []
+    if with_explicit_max:
+        node_inputs.append("max_output_boxes_per_class")
+        initializer.append(
+            helper.make_tensor("max_output_boxes_per_class", TensorProto.INT64, [1], [0])
+        )
+
+    nms_node = helper.make_node(
+        "NonMaxSuppression",
+        node_inputs,
+        ["selected_indices"],
+        center_point_box=0,
+    )
+
+    boxes_shape = [1, 4, 4]
+    scores_shape = [1, 1, 4]
+    graph = helper.make_graph(
+        [nms_node],
+        "nms_max_output_boxes_per_class_zero",
+        inputs=[
+            helper.make_tensor_value_info("boxes", TensorProto.FLOAT, boxes_shape),
+            helper.make_tensor_value_info("scores", TensorProto.FLOAT, scores_shape),
+        ],
+        initializer=initializer,
+        outputs=[helper.make_tensor_value_info("selected_indices", TensorProto.INT64, [0, 3])],
+    )
+
+    model = helper.make_model(graph, producer_name="nms_max_output_boxes_per_class_zero")
+    model.ir_version = 8
+    model.opset_import[0].version = 11
+
+    inputs = {
+        "boxes": np.array(
+            [
+                [
+                    [0.0, 0.0, 1.0, 1.0],
+                    [0.0, 0.1, 1.0, 1.1],
+                    [2.0, 2.0, 3.0, 3.0],
+                    [2.0, 2.1, 3.0, 3.1],
+                ]
+            ],
+            dtype=np.float32,
+        ),
+        "scores": np.array([[[0.9, 0.8, 0.7, 0.6]]], dtype=np.float32),
+    }
+
+    check_correctness(model, inputs=inputs, opset=11)
+
+    tvm_out = run_in_tvm(model, inputs=inputs, opset=11)
+    tvm_selected = tvm_out[0].numpy() if isinstance(tvm_out, (list, tuple)) else tvm_out.numpy()
+    assert tvm_selected.shape == (0, 3)
+
+
 def test_nms_algorithm_correctness():
     """Test NMS algorithm correctness with fixed data to verify suppression logic."""
     nms_node = helper.make_node(
