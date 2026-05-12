@@ -4846,9 +4846,9 @@ class AllClassNMS(OnnxOpConverter):
                 _, param_value = params[1][var_name]
                 max_output_boxes_per_class = int(param_value.numpy().item())
             else:
-                max_output_boxes_per_class = 100  # Default value
+                max_output_boxes_per_class = 0  # Default value
         else:
-            max_output_boxes_per_class = 100  # Default value
+            max_output_boxes_per_class = 0  # Default value
 
         if iou_threshold is not None and isinstance(iou_threshold, relax.Constant):
             iou_threshold = float(iou_threshold.data.numpy())
