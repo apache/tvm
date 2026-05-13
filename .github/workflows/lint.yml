@@ -35,8 +35,4 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
-      - name: Set up uv
-        uses: astral-sh/setup-uv@b75a909f75acd358c2196fb9a5f1299a9a8868a4  # v6.7.0
-      - name: Set up Python environment
-        run: uv sync --group lint --no-install-project
       - uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd  # v3.0.1
