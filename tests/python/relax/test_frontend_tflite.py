@@ -3705,6 +3705,7 @@ _tfl_model = _get_tflite_schema_module("Model")
 _tfl_operator = _get_tflite_schema_module("Operator")
 _tfl_operator_code = _get_tflite_schema_module("OperatorCode")
 _tfl_quantization_parameters = _get_tflite_schema_module("QuantizationParameters")
+_tfl_reduce_window_options = _get_tflite_schema_module("ReduceWindowOptions")
 _tfl_sparsity_parameters = _get_tflite_schema_module("SparsityParameters")
 _tfl_subgraph = _get_tflite_schema_module("SubGraph")
 _tfl_tensor = _get_tflite_schema_module("Tensor")
@@ -3717,6 +3718,7 @@ _tfl_activation_fn = _get_tflite_schema_enum("ActivationFunctionType")
 _tfl_dimension_type = _get_tflite_schema_enum("DimensionType")
 _tfl_fc_weights_format = _get_tflite_schema_enum("FullyConnectedOptionsWeightsFormat")
 _tfl_padding = _get_tflite_schema_enum("Padding")
+_tfl_reduce_window_function = _get_tflite_schema_enum("ReduceWindowFunction")
 _tfl_sparse_index_vector = _get_tflite_schema_enum("SparseIndexVector")
 _tfl_tensor_type = _get_tflite_schema_enum("TensorType")
 
@@ -3949,6 +3951,410 @@ def _load_model_from_buffer(model_bytes):
     mod = from_tflite(tflite_model)
     mod["main"] = mod["main"].without_attr("params")
     return mod
+
+
+def _build_reduce_window_options(builder, reduce_function):
+    _tfl_reduce_window_options.ReduceWindowOptionsStart(builder)
+    _tfl_reduce_window_options.ReduceWindowOptionsAddReduceFunction(builder, reduce_function)
+    return _tfl_reduce_window_options.ReduceWindowOptionsEnd(builder)
+
+
+def _reduce_window_output_shape(input_shape, window_shape, window_strides, window_dilations):
+    output_shape = []
+    for input_dim, window_dim, stride, dilation in zip(
+        input_shape, window_shape, window_strides, window_dilations
+    ):
+        dilated_window = (window_dim - 1) * dilation + 1
+        if stride <= 0:
+            output_shape.append(0)
+        elif input_dim < dilated_window:
+            output_shape.append(0)
+        else:
+            output_shape.append((input_dim - dilated_window) // stride + 1)
+    return tuple(output_shape)
+
+
+def _build_reduce_window_model(
+    *,
+    input_shape,
+    init_value,
+    init_shape=(),
+    window_shape,
+    window_strides,
+    window_dilations,
+    output_shape=None,
+    reduce_function,
+    tensor_type=None,
+    value_dtype=np.float32,
+):
+    builder = flatbuffers.Builder(1024)
+    if tensor_type is None:
+        tensor_type = _tfl_tensor_type.FLOAT32
+
+    input_tensor_idx = 0
+    init_tensor_idx = 1
+    window_shape_tensor_idx = 2
+    window_strides_tensor_idx = 3
+    window_dilations_tensor_idx = 4
+    output_tensor_idx = 5
+
+    if output_shape is None:
+        output_shape = _reduce_window_output_shape(
+            input_shape, window_shape, window_strides, window_dilations
+        )
+
+    input_tensor = _build_tensor(builder, 1, input_shape, tensor_type=tensor_type)
+    init_tensor = _build_tensor(builder, 2, init_shape, tensor_type=tensor_type)
+    window_shape_tensor = _build_tensor(
+        builder, 3, [len(window_shape)], tensor_type=_tfl_tensor_type.INT64
+    )
+    window_strides_tensor = _build_tensor(
+        builder, 4, [len(window_strides)], tensor_type=_tfl_tensor_type.INT64
+    )
+    window_dilations_tensor = _build_tensor(
+        builder, 5, [len(window_dilations)], tensor_type=_tfl_tensor_type.INT64
+    )
+    output_tensor = _build_tensor(builder, 6, output_shape, tensor_type=tensor_type)
+
+    reduce_window_opts = _build_reduce_window_options(builder, reduce_function)
+    reduce_window_op = _build_operator(
+        builder,
+        0,
+        [
+            input_tensor_idx,
+            init_tensor_idx,
+            window_shape_tensor_idx,
+            window_strides_tensor_idx,
+            window_dilations_tensor_idx,
+        ],
+        [output_tensor_idx],
+        builtin_options2_type=_tfl_builtin_options2.ReduceWindowOptions,
+        builtin_options2=reduce_window_opts,
+    )
+
+    subgraph = _build_subgraph(
+        builder,
+        tensors=[
+            input_tensor,
+            init_tensor,
+            window_shape_tensor,
+            window_strides_tensor,
+            window_dilations_tensor,
+            output_tensor,
+        ],
+        operators=[reduce_window_op],
+        inputs=[input_tensor_idx],
+        outputs=[output_tensor_idx],
+    )
+    operator_codes = [_build_operator_code(builder, _tfl_builtin_operator.REDUCE_WINDOW)]
+
+    buffers = [
+        _build_buffer(builder),
+        _build_buffer(builder),
+        _build_buffer(builder, np.asarray([init_value], dtype=value_dtype).tobytes()),
+        _build_buffer(builder, np.asarray(window_shape, dtype=np.int64).tobytes()),
+        _build_buffer(builder, np.asarray(window_strides, dtype=np.int64).tobytes()),
+        _build_buffer(builder, np.asarray(window_dilations, dtype=np.int64).tobytes()),
+        _build_buffer(builder),
+    ]
+
+    return _finish_tflite_model(
+        builder, subgraph=subgraph, operator_codes=operator_codes, buffers=buffers
+    )
+
+
+def _from_reduce_window_model(**kwargs):
+    return _load_model_from_buffer(_build_reduce_window_model(**kwargs))
+
+
+def _reduce_window_dilated_shape(window_shape, window_dilations):
+    return [
+        (window_dim - 1) * dilation + 1
+        for window_dim, dilation in zip(window_shape, window_dilations)
+    ]
+
+
+def _make_reduce_window_numeric_expected(
+    *,
+    input_shape,
+    init_value,
+    init_shape=(),
+    window_shape,
+    window_strides,
+    window_dilations,
+    reduce_op,
+    combine_op,
+    dtype="float32",
+):
+    output_shape = _reduce_window_output_shape(
+        input_shape, window_shape, window_strides, window_dilations
+    )
+    dilated_window_shape = _reduce_window_dilated_shape(window_shape, window_dilations)
+    rank = len(input_shape)
+
+    bb = relax.BlockBuilder()
+    x = relax.Var("tvmgen_tensor_0", relax.TensorStructInfo(input_shape, dtype))
+    with bb.function("main", [x]):
+        with bb.dataflow():
+            windowed = bb.emit(
+                relax.op.call_dps_packed(
+                    "topi.sliding_window",
+                    (
+                        x,
+                        0,
+                        relax.ShapeExpr(dilated_window_shape),
+                        relax.ShapeExpr(window_strides),
+                    ),
+                    out_sinfo=relax.TensorStructInfo(
+                        output_shape + tuple(dilated_window_shape), dtype
+                    ),
+                )
+            )
+            if any(dilation != 1 for dilation in window_dilations):
+                windowed = bb.emit(
+                    relax.op.strided_slice(
+                        windowed,
+                        axes=list(range(rank, 2 * rank)),
+                        begin=[0] * rank,
+                        end=dilated_window_shape,
+                        strides=window_dilations,
+                    )
+                )
+            reduced = bb.emit(reduce_op(windowed, axis=list(range(rank, 2 * rank))))
+            init = relax.const(np.asarray([init_value], dtype=dtype).reshape(init_shape), dtype)
+            if len(init_shape) != 0:
+                init = relax.op.reshape(init, [])
+            gv = bb.emit_output(combine_op(reduced, init))
+        bb.emit_func_output(gv)
+
+    mod = bb.get()
+    mod["main"] = mod["main"].with_attr("num_input", 1)
+    return mod
+
+
+def _make_reduce_window_bool_expected(
+    *,
+    input_shape,
+    init_value,
+    window_shape,
+    window_strides,
+    window_dilations,
+    reduce_op,
+    combine_op,
+):
+    output_shape = _reduce_window_output_shape(
+        input_shape, window_shape, window_strides, window_dilations
+    )
+    dilated_window_shape = _reduce_window_dilated_shape(window_shape, window_dilations)
+    rank = len(input_shape)
+
+    bb = relax.BlockBuilder()
+    x = relax.Var("tvmgen_tensor_0", relax.TensorStructInfo(input_shape, "bool"))
+    with bb.function("main", [x]):
+        with bb.dataflow():
+            windowed = bb.emit(
+                relax.op.call_dps_packed(
+                    "topi.sliding_window",
+                    (
+                        x,
+                        0,
+                        relax.ShapeExpr(dilated_window_shape),
+                        relax.ShapeExpr(window_strides),
+                    ),
+                    out_sinfo=relax.TensorStructInfo(
+                        output_shape + tuple(dilated_window_shape), "bool"
+                    ),
+                )
+            )
+            cast_windowed = bb.emit(relax.op.astype(windowed, "int8"))
+            reduced = bb.emit(reduce_op(cast_windowed, axis=list(range(rank, 2 * rank))))
+            reduced_bool = bb.emit(relax.op.astype(reduced, "bool"))
+            gv = bb.emit_output(combine_op(reduced_bool, relax.const(init_value, "bool")))
+        bb.emit_func_output(gv)
+
+    mod = bb.get()
+    mod["main"] = mod["main"].with_attr("num_input", 1)
+    return mod
+
+
+def _make_reduce_window_empty_expected(*, input_shape, output_shape, dtype="float32"):
+    bb = relax.BlockBuilder()
+    x = relax.Var("tvmgen_tensor_0", relax.TensorStructInfo(input_shape, dtype))
+    with bb.function("main", [x]):
+        with bb.dataflow():
+            gv = bb.emit_output(relax.op.zeros(output_shape, dtype))
+        bb.emit_func_output(gv)
+
+    mod = bb.get()
+    mod["main"] = mod["main"].with_attr("num_input", 1)
+    return mod
+
+
+def test_reduce_window_unsupported_function():
+    with pytest.raises(tvm.error.OpNotImplemented, match="UNSUPPORTED reduce_function"):
+        _from_reduce_window_model(
+            input_shape=(4,),
+            init_value=0.0,
+            window_shape=[2],
+            window_strides=[1],
+            window_dilations=[1],
+            reduce_function=_tfl_reduce_window_function.UNSUPPORTED,
+        )
+
+
+@pytest.mark.parametrize(
+    "reduce_function, reduce_op, combine_op",
+    [
+        (_tfl_reduce_window_function.ADD, relax.op.sum, relax.op.add),
+        (_tfl_reduce_window_function.MUL, relax.op.prod, relax.op.multiply),
+        (_tfl_reduce_window_function.MINIMUM, relax.op.min, relax.op.minimum),
+        (_tfl_reduce_window_function.MAXIMUM, relax.op.max, relax.op.maximum),
+    ],
+)
+def test_reduce_window_numeric_modes(reduce_function, reduce_op, combine_op):
+    input_shape = (4, 5)
+    init_value = 1.0
+    window_shape = [2, 2]
+    window_strides = [1, 2]
+    window_dilations = [2, 1]
+    mod = _from_reduce_window_model(
+        input_shape=input_shape,
+        init_value=init_value,
+        window_shape=window_shape,
+        window_strides=window_strides,
+        window_dilations=window_dilations,
+        reduce_function=reduce_function,
+    )
+    expected = _make_reduce_window_numeric_expected(
+        input_shape=input_shape,
+        init_value=init_value,
+        window_shape=window_shape,
+        window_strides=window_strides,
+        window_dilations=window_dilations,
+        reduce_op=reduce_op,
+        combine_op=combine_op,
+    )
+    tvm.ir.assert_structural_equal(mod, expected)
+
+
+def test_reduce_window_one_element_init_tensor():
+    input_shape = (4,)
+    init_value = 1.0
+    init_shape = (1,)
+    window_shape = [2]
+    window_strides = [1]
+    window_dilations = [1]
+    mod = _from_reduce_window_model(
+        input_shape=input_shape,
+        init_value=init_value,
+        init_shape=init_shape,
+        window_shape=window_shape,
+        window_strides=window_strides,
+        window_dilations=window_dilations,
+        reduce_function=_tfl_reduce_window_function.ADD,
+    )
+    expected = _make_reduce_window_numeric_expected(
+        input_shape=input_shape,
+        init_value=init_value,
+        init_shape=init_shape,
+        window_shape=window_shape,
+        window_strides=window_strides,
+        window_dilations=window_dilations,
+        reduce_op=relax.op.sum,
+        combine_op=relax.op.add,
+    )
+    tvm.ir.assert_structural_equal(mod, expected)
+
+
+@pytest.mark.parametrize(
+    "reduce_function, reduce_op, combine_op, init_value",
+    [
+        (_tfl_reduce_window_function.ALL, relax.op.min, relax.op.logical_and, True),
+        (_tfl_reduce_window_function.ANY, relax.op.max, relax.op.logical_or, False),
+    ],
+)
+def test_reduce_window_bool_modes(reduce_function, reduce_op, combine_op, init_value):
+    input_shape = (5,)
+    window_shape = [3]
+    window_strides = [2]
+    window_dilations = [1]
+    mod = _from_reduce_window_model(
+        input_shape=input_shape,
+        init_value=init_value,
+        window_shape=window_shape,
+        window_strides=window_strides,
+        window_dilations=window_dilations,
+        reduce_function=reduce_function,
+        tensor_type=_tfl_tensor_type.BOOL,
+        value_dtype=np.bool_,
+    )
+    expected = _make_reduce_window_bool_expected(
+        input_shape=input_shape,
+        init_value=init_value,
+        window_shape=window_shape,
+        window_strides=window_strides,
+        window_dilations=window_dilations,
+        reduce_op=reduce_op,
+        combine_op=combine_op,
+    )
+    tvm.ir.assert_structural_equal(mod, expected)
+
+
+def test_reduce_window_empty_output_dimension():
+    input_shape = (2,)
+    window_shape = [3]
+    window_strides = [1]
+    window_dilations = [1]
+    mod = _from_reduce_window_model(
+        input_shape=input_shape,
+        init_value=0.0,
+        window_shape=window_shape,
+        window_strides=window_strides,
+        window_dilations=window_dilations,
+        reduce_function=_tfl_reduce_window_function.ADD,
+    )
+    expected = _make_reduce_window_empty_expected(
+        input_shape=input_shape,
+        output_shape=(0,),
+    )
+    tvm.ir.assert_structural_equal(mod, expected)
+
+
+def test_reduce_window_mismatched_window_rank():
+    with pytest.raises(tvm.error.OpAttributeUnImplemented, match="must match input rank"):
+        _from_reduce_window_model(
+            input_shape=(4, 5),
+            init_value=0.0,
+            window_shape=[2],
+            window_strides=[1],
+            window_dilations=[1],
+            reduce_function=_tfl_reduce_window_function.ADD,
+        )
+
+
+def test_reduce_window_non_positive_stride():
+    with pytest.raises(tvm.error.OpAttributeUnImplemented, match="must be positive"):
+        _from_reduce_window_model(
+            input_shape=(4,),
+            init_value=0.0,
+            window_shape=[2],
+            window_strides=[0],
+            window_dilations=[1],
+            reduce_function=_tfl_reduce_window_function.ADD,
+        )
+
+
+def test_reduce_window_inconsistent_output_shape():
+    with pytest.raises(tvm.error.OpAttributeUnImplemented, match="output shape"):
+        _from_reduce_window_model(
+            input_shape=(5,),
+            init_value=0.0,
+            window_shape=[2],
+            window_strides=[1],
+            window_dilations=[1],
+            output_shape=(3,),
+            reduce_function=_tfl_reduce_window_function.ADD,
+        )
 
 
 def _get_builtin_operator(builtin_name):
