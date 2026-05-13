@@ -19,8 +19,8 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
-#include <tvm/script/ir_builder/ir/ir.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/script/ir_builder/ir/ir.h>
 
 #include "./utils.h"
 

@@ -85,7 +85,8 @@ namespace tirx {
  */
 class TVMFFIABIBuilder {
  public:
-  /*! \brief Variable definition info: bound value and the ffi::reflection::AccessPath where first defined. */
+  /*! \brief Variable definition info: bound value and the ffi::reflection::AccessPath where first
+   * defined. */
   struct VarDefInfo {
     PrimExpr value;
     ffi::reflection::AccessPath first_def_path;

@@ -27,8 +27,8 @@
 #define TVM_RUNTIME_STATIC_LIBRARY_H_
 
 #include <tvm/ffi/container/array.h>
-#include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/error.h>
+#include <tvm/ffi/extra/module.h>
 
 #include <array>
 #include <memory>

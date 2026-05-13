@@ -40,7 +40,6 @@
 namespace tvm {
 namespace tirx {
 
-
 namespace {
 
 template <typename DerivedVerifier>

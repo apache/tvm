@@ -25,8 +25,8 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/tirx/transform.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/tirx/transform.h>
 
 #include <algorithm>
 #include <cmath>

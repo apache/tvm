@@ -28,11 +28,11 @@ class Node(Object):
     """Base class of all IR Nodes."""
 
     def __repr__(self) -> str:
-        from tvm.runtime.script_printer import _script  # noqa: PLC0415
+        from tvm.runtime.script_printer import _script
 
         try:
             return _script(self, None)
-        except Exception:  # noqa: BLE001
+        except Exception:
             return super().__repr__()
 
 
