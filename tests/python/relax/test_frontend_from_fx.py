@@ -6231,24 +6231,28 @@ def test_var():
     verify_model(Var(), [([5, 3], "float32")], {}, Expected)
 
 
-def test_prod():
+@pytest.mark.parametrize(
+    "torch_dtype,relax_dtype",
+    [(torch.float32, "float32"), (torch.bool, "bool")],
+)
+def test_prod(torch_dtype, relax_dtype):
     class Prod(Module):
         def forward(self, x):
-            return torch.prod(x)
+            return torch.prod(x, dtype=torch_dtype)
 
     @tvm.script.ir_module
     class Expected:
         @R.function
         def main(
-            inp_0: R.Tensor((5, 3), dtype="float32"),
-        ) -> R.Tensor((), dtype="float32"):
+            inp_0: R.Tensor((5, 3), dtype=relax_dtype),
+        ) -> R.Tensor((), dtype=relax_dtype):
             with R.dataflow():
-                lv: R.Tensor((), dtype="float32") = R.prod(inp_0, axis=None, keepdims=False)
-                gv: R.Tensor((), dtype="float32") = lv
+                lv: R.Tensor((), dtype=relax_dtype) = R.prod(inp_0, axis=None, keepdims=False)
+                gv: R.Tensor((), dtype=relax_dtype) = lv
                 R.output(gv)
             return gv
 
-    verify_model(Prod(), [([5, 3], "float32")], {}, Expected)
+    verify_model(Prod(), [([5, 3], relax_dtype)], {}, Expected)
 
 
 def test_cumprod():

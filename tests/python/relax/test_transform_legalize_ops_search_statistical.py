@@ -557,6 +557,39 @@ def test_prod():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_prod_bool():
+    # fmt: off
+    @tvm.script.ir_module
+    class Prod:
+        @R.function
+        def main(x: R.Tensor((2, 3, 4, 5), "bool")) -> R.Tensor((1, 1, 1, 1), "bool"):
+            gv: R.Tensor((1, 1, 1, 1), "bool") = R.prod(x, keepdims=True)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 3, 4, 5), "bool")) -> R.Tensor((1, 1, 1, 1), "bool"):
+            gv = R.call_tir(Expected.prod, (x,), R.Tensor((1, 1, 1, 1), dtype="bool"))
+            return gv
+
+        @T.prim_func(private=True)
+        def prod(rxplaceholder: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "bool"), rxplaceholder_red: T.Buffer((T.int64(1), T.int64(1), T.int64(1), T.int64(1)), "bool")):
+            T.func_attr({"tirx.noalias": True})
+            for i0, i1, i2, i3, i4, i5, i6, i7 in T.grid(T.int64(1), T.int64(1), T.int64(1), T.int64(1), T.int64(2), T.int64(3), T.int64(4), T.int64(5)):
+                with T.sblock("rxplaceholder_red"):
+                    ax0, ax1, ax2, ax3, k0, k1, k2, k3 = T.axis.remap("SSSSRRRR", [i0, i1, i2, i3, i4, i5, i6, i7])
+                    T.reads(rxplaceholder[k0, k1, k2, k3])
+                    T.writes(rxplaceholder_red[ax0, ax1, ax2, ax3])
+                    with T.init():
+                        rxplaceholder_red[ax0, ax1, ax2, ax3] = T.bool(1)
+                    rxplaceholder_red[ax0, ax1, ax2, ax3] = rxplaceholder_red[ax0, ax1, ax2, ax3] and rxplaceholder[k0, k1, k2, k3]
+    # fmt: on
+
+    mod = LegalizeOps()(Prod)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
 def test_prod_symbolic():
     # fmt: off
     @tvm.script.ir_module

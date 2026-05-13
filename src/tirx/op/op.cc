@@ -994,11 +994,19 @@ PrimExpr min(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> ini
 }
 
 PrimExpr prod(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> init, Span span) {
-  Var x("x", source.dtype(), span), y("y", source.dtype(), span);
-  PrimExpr result = tirx::Mul(x, y, span);
-  PrimExpr identity_element = make_const(source.dtype(), 1, span);
-  tirx::CommReducer combiner = tirx::CommReducer({x}, {y}, {result}, {identity_element}, span);
-  return tirx::Reduce(combiner, {source}, rdom, make_const(DataType::Bool(), true), 0, init, span);
+  if (source.dtype().is_bool()) {
+    // Bool product (prod) has the same truth table as logical AND.  Reuse all() to
+    // avoid lowering bool prod through Mul, which LLVM codegen does not support.
+    return all(source, rdom, init, span);
+  } else {
+    // For non-bool types, we lower prod through Mul.
+    Var x("x", source.dtype(), span), y("y", source.dtype(), span);
+    PrimExpr result = tirx::Mul(x, y, span);
+    PrimExpr identity_element = make_const(source.dtype(), 1, span);
+    tirx::CommReducer combiner = tirx::CommReducer({x}, {y}, {result}, {identity_element}, span);
+    return tirx::Reduce(combiner, {source}, rdom, make_const(DataType::Bool(), true), 0, init,
+                        span);
+  }
 }
 
 // fmod

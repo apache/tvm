@@ -4924,7 +4924,7 @@ def test_nms_max_output_boxes_per_class_zero(with_explicit_max: bool):
     check_correctness(model, inputs=inputs, opset=11)
 
     tvm_out = run_in_tvm(model, inputs=inputs, opset=11)
-    tvm_selected = tvm_out[0].numpy() if isinstance(tvm_out, (list, tuple)) else tvm_out.numpy()
+    tvm_selected = tvm_out[0].numpy() if isinstance(tvm_out, list | tuple) else tvm_out.numpy()
     assert tvm_selected.shape == (0, 3)
 
 

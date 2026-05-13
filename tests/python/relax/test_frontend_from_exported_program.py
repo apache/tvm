@@ -7724,24 +7724,28 @@ def test_var_correction():
     verify_model(VarCorrection0(), example_args, {}, Expected0)
 
 
-def test_prod():
+@pytest.mark.parametrize(
+    "torch_dtype,relax_dtype",
+    [(torch.float32, "float32"), (torch.bool, "bool")],
+)
+def test_prod(torch_dtype, relax_dtype):
     class Prod(Module):
         def forward(self, x):
-            return torch.prod(x)
+            return torch.prod(x, dtype=torch_dtype)
 
     @tvm.script.ir_module
     class Expected:
         @R.function
         def main(
-            x: R.Tensor((5, 3), dtype="float32"),
-        ) -> R.Tuple(R.Tensor((), dtype="float32")):
+            x: R.Tensor((5, 3), dtype=relax_dtype),
+        ) -> R.Tuple(R.Tensor((), dtype=relax_dtype)):
             with R.dataflow():
-                lv: R.Tensor((), dtype="float32") = R.prod(x, axis=None, keepdims=False)
-                gv: R.Tuple(R.Tensor((), dtype="float32")) = (lv,)
+                lv: R.Tensor((), dtype=relax_dtype) = R.prod(x, axis=None, keepdims=False)
+                gv: R.Tuple(R.Tensor((), dtype=relax_dtype)) = (lv,)
                 R.output(gv)
             return gv
 
-    example_args = (torch.randn(5, 3, dtype=torch.float32),)
+    example_args = (torch.ones(5, 3, dtype=torch_dtype),)
     verify_model(Prod(), example_args, {}, Expected)
 
 
