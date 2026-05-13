@@ -25,11 +25,11 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/expr.h>
 #include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/op.h>
-#include <tvm/runtime/logging.h>
 
 #include "ir_utils.h"
 
@@ -226,7 +226,8 @@ bool TVMFFIABIBuilder::BindScalar(const PrimExpr& arg, const PrimExpr& value,
 // ============================================================
 
 /*!
- * \brief Render PrimExpr to string with variable names replaced by ffi::reflection::AccessPath names.
+ * \brief Render PrimExpr to string with variable names replaced by ffi::reflection::AccessPath
+ * names.
  *
  * Uses ExprFunctor for generic dispatch over all expression types.
  * The default TIR printer sanitizes Var name_hints (e.g. "B.shape[0]" -> "B_shape_0_")
@@ -342,8 +343,8 @@ void TVMFFIABIBuilder::BindArray(const ffi::Array<PrimExpr>& arg, const ffi::Arr
 // BindBuffer (buffer-to-buffer bind with ffi::reflection::AccessPath)
 // ============================================================
 
-void TVMFFIABIBuilder::BindBuffer(const Buffer& arg, const Buffer& value, ffi::reflection::AccessPath base_path,
-                                  bool fuzzy_match) {
+void TVMFFIABIBuilder::BindBuffer(const Buffer& arg, const Buffer& value,
+                                  ffi::reflection::AccessPath base_path, bool fuzzy_match) {
   TVM_FFI_ICHECK_EQ(arg.scope(), value.scope())
       << "Argument " << arg->name << " Buffer bind scope mismatch";
   TVM_FFI_ICHECK_EQ(arg->dtype, value->dtype)
@@ -514,7 +515,8 @@ void TVMFFIABIBuilder::DecodeParam(int param_index) {
   }
 
   // Bind scalar param to loaded value (defines vars before buffer binds reference them)
-  ffi::reflection::AccessPath param_path = ffi::reflection::AccessPath::Root()->Extend(AccessStep::ArrayItem(param_index));
+  ffi::reflection::AccessPath param_path =
+      ffi::reflection::AccessPath::Root()->Extend(AccessStep::ArrayItem(param_index));
   BindScalar(param, arg_value, param_path, true);
 }
 
@@ -536,8 +538,9 @@ void TVMFFIABIBuilder::DecodeAllParams() {
     Var param = params_[i];
     if (buffer_map_.count(param)) {
       Buffer buffer = buffer_map_[param];
-      ffi::reflection::AccessPath param_path =
-          ffi::reflection::AccessPath::Root()->Extend(AccessStep::ArrayItem(i))->Attr(ffi::String(buffer->name));
+      ffi::reflection::AccessPath param_path = ffi::reflection::AccessPath::Root()
+                                                   ->Extend(AccessStep::ArrayItem(i))
+                                                   ->Attr(ffi::String(buffer->name));
       DecodeParamDLTensor(buffer, device_type_, device_id_, param,
                           func_name_ + "." + param->name_hint, param_path);
       decl_buffers_.push_back(DeclBuffer(buffer));
@@ -607,7 +610,8 @@ void TVMFFIABIBuilder::BindAutoBroadcastStrides(const Buffer& buffer, const Var&
     PrimExpr value = cast(buffer->shape[k].dtype(), LoadInt64ArrayElem(strides_ptr, k));
     value = tvm::if_then_else(v_strides_is_null, stride, value);
     value = tvm::if_then_else(buffer->shape[k] == 1, 0, value);
-    ffi::reflection::AccessPath strides_k_path = param_path->Attr(ffi::String("strides"))->ArrayItem(k);
+    ffi::reflection::AccessPath strides_k_path =
+        param_path->Attr(ffi::String("strides"))->ArrayItem(k);
     BindScalar(buffer->strides[k], value, strides_k_path, true);
     stride = analyzer_.Simplify(stride * buffer->shape[k]);
   }
@@ -619,7 +623,8 @@ void TVMFFIABIBuilder::BindRegularStrides(const Buffer& buffer, const Var& strid
   PrimExpr stride_from_shape = 1;
   for (int k = buffer->strides.size() - 1; k >= 0; k--) {
     PrimExpr explicit_stride = cast(buffer->shape[k].dtype(), LoadInt64ArrayElem(strides_ptr, k));
-    ffi::reflection::AccessPath strides_k_path = param_path->Attr(ffi::String("strides"))->ArrayItem(k);
+    ffi::reflection::AccessPath strides_k_path =
+        param_path->Attr(ffi::String("strides"))->ArrayItem(k);
     BindScalar(buffer->strides[k],
                tvm::if_then_else(v_strides_is_null, stride_from_shape, explicit_stride),
                strides_k_path, true);
@@ -633,7 +638,8 @@ void TVMFFIABIBuilder::BindRegularStrides(const Buffer& buffer, const Var& strid
 
 void TVMFFIABIBuilder::DecodeParamDLTensor(const Buffer& buffer, const PrimExpr& device_type,
                                            const PrimExpr& device_id, const Var& handle,
-                                           const std::string& arg_name, ffi::reflection::AccessPath base_path) {
+                                           const std::string& arg_name,
+                                           ffi::reflection::AccessPath base_path) {
   const DataType tvm_ndim_type = DataType::Int(32);
 
   std::string buf_name = buffer->name;

@@ -16,9 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/error.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ffi/error.h>
 #include <tvm/script/printer/doc.h>
 
 #include <algorithm>

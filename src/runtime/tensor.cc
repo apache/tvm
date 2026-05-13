@@ -21,11 +21,11 @@
  * \file tensor.cc
  * \brief Tensor container infratructure.
  */
+#include <tvm/ffi/error.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/ffi/error.h>
 #include <tvm/runtime/tensor.h>
 
 #include "tvm/runtime/data_type.h"
