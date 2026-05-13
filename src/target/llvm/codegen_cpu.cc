@@ -50,8 +50,8 @@
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/base.h>
-#include <tvm/tirx/analysis.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/tirx/analysis.h>
 
 #include <algorithm>
 #include <memory>

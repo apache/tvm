@@ -724,9 +724,7 @@ def _patch_python_domain_find_obj():
                     return context_matches
 
             # Fall back to the unique match that best shares the current module prefix.
-            match_scores = {
-                match[0]: _common_prefix_len(modname, match[0]) for match in matches
-            }
+            match_scores = {match[0]: _common_prefix_len(modname, match[0]) for match in matches}
             best_score = max(match_scores.values())
             if best_score > 1:
                 best_matches = [match for match in matches if match_scores[match[0]] == best_score]

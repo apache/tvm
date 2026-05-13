@@ -587,7 +587,8 @@ def conv3d_transpose(
     See Also
     --------
     conv3d : Forward 3D convolution (default ``OIDHW`` weights vs. ``IODHW`` here).
-    conv2d_transpose : 2D analogue; legalization supports the same TOPI subset (canonical layout, dilation 1).
+    conv2d_transpose : 2D analogue; legalization supports the same TOPI subset
+                       (canonical layout, dilation 1).
 
     Returns
     -------

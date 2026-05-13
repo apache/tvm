@@ -188,8 +188,8 @@ def get_const_tuple(in_tuple):
     """
     if isinstance(in_tuple, te.tensor.Tensor):
         raise TypeError(
-            f"get_const_tuple expects a tuple-like shape (e.g., tensor.shape), "
-            f"but got a te.Tensor. Did you mean get_const_tuple(tensor.shape)?"
+            "get_const_tuple expects a tuple-like shape (e.g., tensor.shape), "
+            "but got a te.Tensor. Did you mean get_const_tuple(tensor.shape)?"
         )
     ret = []
     ana = None

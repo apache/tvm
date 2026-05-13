@@ -20,7 +20,6 @@
 """Analysis on TIR blocks, loops and functions."""
 
 import logging
-
 from collections import namedtuple
 from typing import Literal
 
@@ -33,6 +32,7 @@ from tvm.s_tir.schedule import SBlockRV
 from tvm.target.target import Target
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
+
 
 class IterInfo:
     """Information about a loop/iter var."""
@@ -372,6 +372,7 @@ TARGET_KIND_TO_DEFAULT_MAX_SMEM = {
     "opencl": 16384,
     "vulkan": 16384,
 }
+
 
 def get_max_shared_memory_per_block(target: Target) -> int:
     _assert_gpu_target(target)

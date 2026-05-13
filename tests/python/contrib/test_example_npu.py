@@ -122,9 +122,9 @@ def test_example_npu_patterns_registered():
         "example_npu.max_pool2d",
     }
 
-    assert core_patterns.issubset(
-        pattern_names
-    ), f"Missing core patterns: {core_patterns - pattern_names}"
+    assert core_patterns.issubset(pattern_names), (
+        f"Missing core patterns: {core_patterns - pattern_names}"
+    )
 
     # Check that at least some activation patterns are available
     activation_patterns = {name for name in pattern_names if "relu" in name or "sigmoid" in name}
@@ -224,7 +224,7 @@ def test_example_npu_codegen():
 @example_npu_enabled
 def test_example_npu_runtime_execution():
     """Test end-to-end execution with the example NPU runtime"""
-    import tvm.relax.backend.contrib.example_npu  # noqa: F401
+    import tvm.relax.backend.contrib.example_npu
 
     # Create simple test inputs
     np.random.seed(42)

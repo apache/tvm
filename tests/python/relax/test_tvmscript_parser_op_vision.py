@@ -96,9 +96,7 @@ def test_get_valid_counts():
     bb = relax.BlockBuilder()
     with bb.function("foo", [data]):
         gv = bb.emit(
-            relax.op.vision.get_valid_counts(
-                data, score_threshold=0.5, id_index=0, score_index=1
-            )
+            relax.op.vision.get_valid_counts(data, score_threshold=0.5, id_index=0, score_index=1)
         )
         bb.emit_func_output(gv)
 

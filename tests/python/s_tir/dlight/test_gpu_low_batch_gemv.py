@@ -528,6 +528,7 @@ def test_outer_reduction():
         mod = dl.ApplyDefaultSchedule(dl.gpu.LowBatchGEMV(4))(mod)  # pylint: disable=not-callable
     tvm.ir.assert_structural_equal(mod["main"], expected)
 
+
 def test_low_batch_gemv_cuda_target_without_max_shared_memory_per_block():
     # fmt: off
     @T.prim_func(private=True)

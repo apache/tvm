@@ -564,7 +564,7 @@ class TorchFXImporter(BaseFXGraphImporter):
                 layout_3d = "NDHWC"
             else:
                 layout_3d = "NCDHW"
-                
+
             return self.block_builder.emit(
                 relax.op.image.resize3d(
                     data,

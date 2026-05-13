@@ -792,9 +792,7 @@ def _legacy_softmax_prepare(
     return flattened, tuple(original_shape)
 
 
-def _get_axis_extent(
-    data: relax.Expr, axis: int, op_name: str
-) -> tuple[int, int | tirx.PrimExpr]:
+def _get_axis_extent(data: relax.Expr, axis: int, op_name: str) -> tuple[int, int | tirx.PrimExpr]:
     """Return normalized axis and axis extent when rank/shape are known."""
 
     rank = _get_known_tensor_rank(data)
@@ -803,7 +801,9 @@ def _get_axis_extent(
 
     normalized_axis = _normalize_constant_axes([axis], rank, op_name)[0]
     struct_info = data.struct_info
-    if isinstance(struct_info, relax.TensorStructInfo) and isinstance(struct_info.shape, relax.ShapeExpr):
+    if isinstance(struct_info, relax.TensorStructInfo) and isinstance(
+        struct_info.shape, relax.ShapeExpr
+    ):
         axis_extent = struct_info.shape.values[normalized_axis]
         if isinstance(axis_extent, tirx.IntImm):
             axis_extent = int(axis_extent.value)
@@ -881,9 +881,7 @@ class Hardmax(OnnxOpConverter):
             bb = None
             data, axis = args
         else:
-            raise TypeError(
-                "Hardmax._hardmax_impl expects (bb, data, axis) or (data, axis)."
-            )
+            raise TypeError("Hardmax._hardmax_impl expects (bb, data, axis) or (data, axis).")
 
         if bb is not None:
             data = bb.normalize(data)
@@ -1130,7 +1128,7 @@ class Gather(OnnxOpConverter):
                 relax.op.take(data_shape_tensor, relax.const(axis, "int64"), axis=0, mode="wrap")
             )
 
-            if indices_dtype !="int64":
+            if indices_dtype != "int64":
                 axis_extent = bb.normalize(relax.op.astype(axis_extent, indices_dtype))
 
             indices = bb.normalize(
@@ -1182,9 +1180,7 @@ def _get_onnx_reduction(attr, valid_reductions: list[str]):
         reduction = reduction.decode("utf-8")
     reduction = "update" if reduction == "none" else reduction
     if reduction not in valid_reductions:
-        raise ValueError(
-            f"Only {valid_reductions} reductions are supported, but got {reduction}"
-        )
+        raise ValueError(f"Only {valid_reductions} reductions are supported, but got {reduction}")
 
     return reduction
 
@@ -1775,10 +1771,7 @@ class ConvTranspose(OnnxOpConverter):
                 pads_end: list[int] = []
                 for i in range(spatial_dims):
                     total_pad = (
-                        (kernel_shape[i] - 1) * dilations[i]
-                        + 1
-                        + output_padding[i]
-                        - strides[i]
+                        (kernel_shape[i] - 1) * dilations[i] + 1 + output_padding[i] - strides[i]
                     )
                     total_pad = max(total_pad, 0)
                     if auto_pad == "SAME_UPPER":
@@ -1844,18 +1837,20 @@ class CumSum(OnnxOpConverter):
             else:
                 raise ValueError(
                     "CumSum axis input must be a scalar (0-D) or a single-element 1-D tensor, "
-                    "got shape {}".format(axis_data.shape)
+                    f"got shape {axis_data.shape}"
                 )
         elif isinstance(axis_input, relax.Var):
-            axis_shape = axis_input.struct_info.shape if hasattr(axis_input.struct_info, "shape") else None
+            axis_shape = (
+                axis_input.struct_info.shape if hasattr(axis_input.struct_info, "shape") else None
+            )
             raise ValueError(
                 "CumSum with non-constant axis input is not supported yet. "
                 "ONNX permits runtime axis tensors, but Relax/TE currently requires a compile-time "
-                "constant axis for cumsum/flip. Got axis shape {}".format(axis_shape)
+                f"constant axis for cumsum/flip. Got axis shape {axis_shape}"
             )
         else:
             raise TypeError("CumSum axis input must be a Constant or Var")
-            
+
         if attr.get("reverse", 0) != 0:
             data = bb.emit_te(topi.flip, data, axis=axis)
 
@@ -4694,7 +4689,6 @@ class SplitToSequence(OnnxOpConverter):
 
         input_tensor = inputs[0]
         input_shape = input_tensor.struct_info.shape
-        split_is_scalar = False
 
         if len(inputs) == 1:
             split = _np.array(1)
@@ -4711,7 +4705,7 @@ class SplitToSequence(OnnxOpConverter):
             chunk_size = int(split)
             dim_size = input_shape[axis]
 
-            if isinstance(dim_size, (int, tirx.IntImm)):
+            if isinstance(dim_size, int | tirx.IntImm):
                 dim_size_int = int(dim_size)
                 split = math.ceil(dim_size_int / chunk_size)
             else:

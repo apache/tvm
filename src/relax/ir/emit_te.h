@@ -43,8 +43,7 @@ class RXPlaceholderOpNode : public te::PlaceholderOpNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<RXPlaceholderOpNode>()
-        .def_ro("value", &RXPlaceholderOpNode::value);
+    refl::ObjectDef<RXPlaceholderOpNode>().def_ro("value", &RXPlaceholderOpNode::value);
   }
 
   // FFI system configuration for structural equality and hashing

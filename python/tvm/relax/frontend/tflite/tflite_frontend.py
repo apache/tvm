@@ -240,21 +240,15 @@ class OperatorConverter:
             "SQRT": functools.partial(self._convert_unary_elemwise, relax_op=_op.sqrt),
             "SQUARE": self.convert_square,
             "SQUARED_DIFFERENCE": self.convert_squared_difference,
-            "STABLEHLO_ABS": functools.partial(
-                self._convert_stablehlo_unary, relax_op=_op.abs
-            ),
-            "STABLEHLO_ADD": functools.partial(
-                self._convert_stablehlo_binary, relax_op=_op.add
-            ),
+            "STABLEHLO_ABS": functools.partial(self._convert_stablehlo_unary, relax_op=_op.abs),
+            "STABLEHLO_ADD": functools.partial(self._convert_stablehlo_binary, relax_op=_op.add),
             "STABLEHLO_AND": self._convert_stablehlo_and,
             "STABLEHLO_BROADCAST_IN_DIM": self._convert_stablehlo_broadcast_in_dim,
             "STABLEHLO_CLAMP": self._convert_stablehlo_clamp,
             "STABLEHLO_COMPARE": self._convert_stablehlo_compare,
             "STABLEHLO_CONCATENATE": self._convert_stablehlo_concatenate,
             "STABLEHLO_CONVERT": self._convert_stablehlo_convert,
-            "STABLEHLO_COSINE": functools.partial(
-                self._convert_stablehlo_unary, relax_op=_op.cos
-            ),
+            "STABLEHLO_COSINE": functools.partial(self._convert_stablehlo_unary, relax_op=_op.cos),
             "STABLEHLO_DIVIDE": functools.partial(
                 self._convert_stablehlo_binary, relax_op=_op.divide
             ),
@@ -262,14 +256,10 @@ class OperatorConverter:
             "STABLEHLO_EXPONENTIAL": functools.partial(
                 self._convert_stablehlo_unary, relax_op=_op.exp
             ),
-            "STABLEHLO_FLOOR": functools.partial(
-                self._convert_stablehlo_unary, relax_op=_op.floor
-            ),
+            "STABLEHLO_FLOOR": functools.partial(self._convert_stablehlo_unary, relax_op=_op.floor),
             "STABLEHLO_GATHER": self._convert_stablehlo_gather,
             "STABLEHLO_IOTA": self._convert_stablehlo_iota,
-            "STABLEHLO_LOG": functools.partial(
-                self._convert_stablehlo_unary, relax_op=_op.log
-            ),
+            "STABLEHLO_LOG": functools.partial(self._convert_stablehlo_unary, relax_op=_op.log),
             "STABLEHLO_LOGISTIC": functools.partial(
                 self._convert_stablehlo_unary, relax_op=_op.sigmoid
             ),
@@ -290,9 +280,7 @@ class OperatorConverter:
             "STABLEHLO_POWER": functools.partial(
                 self._convert_stablehlo_binary, relax_op=_op.power
             ),
-            "STABLEHLO_RSQRT": functools.partial(
-                self._convert_stablehlo_unary, relax_op=_op.rsqrt
-            ),
+            "STABLEHLO_RSQRT": functools.partial(self._convert_stablehlo_unary, relax_op=_op.rsqrt),
             "STABLEHLO_SELECT": functools.partial(
                 self._convert_stablehlo_ternary, relax_op=_op.where
             ),
@@ -302,9 +290,7 @@ class OperatorConverter:
             "STABLEHLO_SUBTRACT": functools.partial(
                 self._convert_stablehlo_binary, relax_op=_op.subtract
             ),
-            "STABLEHLO_TANH": functools.partial(
-                self._convert_stablehlo_unary, relax_op=_op.tanh
-            ),
+            "STABLEHLO_TANH": functools.partial(self._convert_stablehlo_unary, relax_op=_op.tanh),
             "SQUEEZE": self.convert_squeeze,
             "STRIDED_SLICE": self.convert_strided_slice,
             "SUB": functools.partial(self._convert_elemwise, relax_op=_op.subtract),
@@ -631,7 +617,9 @@ class OperatorConverter:
             dims_expr = self.get_expr(shape_tensor.tensor_idx)
             dims_ndim = int(self.get_tensor_shape(shape_tensor)[0])
             dims_dtype = self.get_tensor_type_str(shape_tensor.tensor.Type())
-            dims_expr = self.bb.match_cast(dims_expr, relax.TensorStructInfo([dims_ndim], dims_dtype))
+            dims_expr = self.bb.match_cast(
+                dims_expr, relax.TensorStructInfo([dims_ndim], dims_dtype)
+            )
             dims_expr = self.bb.normalize(relax.op.astype(dims_expr, "int64"))
             shape_dataflow_var = self.bb.emit(relax.op.tensor_to_shape(dims_expr))
             shape_vars = [tirx.Var(f"{prefix}_{i}", "int64") for i in range(dims_ndim)]
@@ -969,7 +957,9 @@ class OperatorConverter:
         )
         pooled = self.bb.normalize(_op.reshape(pooled, data_shape))
         denom = relax.op.power(
-            relax.op.add(relax.const(bias, in_type), relax.op.multiply(relax.const(alpha, in_type), pooled)),
+            relax.op.add(
+                relax.const(bias, in_type), relax.op.multiply(relax.const(alpha, in_type), pooled)
+            ),
             relax.const(beta, in_type),
         )
         out = relax.op.divide(in_expr, denom)
@@ -1062,7 +1052,8 @@ class OperatorConverter:
                     # relax.op.arange currently expects scalar-like values here.
                     # Keep dynamic scalar RANGE explicit until frontend support is added.
                     raise tvm.error.OpNotImplemented(
-                        "TFLite RANGE with dynamic scalar inputs is not supported in Relax frontend yet."
+                        "TFLite RANGE with dynamic scalar inputs is not supported in"
+                        "Relax frontend yet."
                     )
             else:
                 value = self.get_tensor_value(tensor)
@@ -1074,7 +1065,7 @@ class OperatorConverter:
         start_value = get_scalar_value(start)
         limit_value = get_scalar_value(limit)
         delta_value = get_scalar_value(delta)
- 
+
         # out type inference
         if delta.tensor.Type() == TensorType.FLOAT32:
             out_type = self.get_tensor_type_str(delta.tensor.Type())
@@ -1434,9 +1425,7 @@ class OperatorConverter:
         elif dtype.startswith(("int", "uint")):
             op_fn = _op.bitwise_and
         else:
-            raise tvm.error.OpNotImplemented(
-                f"STABLEHLO_AND with dtype {dtype} is not supported"
-            )
+            raise tvm.error.OpNotImplemented(f"STABLEHLO_AND with dtype {dtype} is not supported")
         return self.bb.normalize(op_fn(lhs, rhs))
 
     def _convert_stablehlo_or(self, op):
@@ -1454,9 +1443,7 @@ class OperatorConverter:
         elif dtype.startswith(("int", "uint")):
             op_fn = _op.bitwise_or
         else:
-            raise tvm.error.OpNotImplemented(
-                f"STABLEHLO_OR with dtype {dtype} is not supported"
-            )
+            raise tvm.error.OpNotImplemented(f"STABLEHLO_OR with dtype {dtype} is not supported")
         return self.bb.normalize(op_fn(lhs, rhs))
 
     def _convert_stablehlo_ternary(self, op, relax_op):
@@ -1681,9 +1668,7 @@ class OperatorConverter:
         for lo, hi in zip(edge_low, edge_high):
             pad_width.extend([lo, hi])
 
-        return self.bb.normalize(
-            relax.op.nn.pad(operand, pad_width=pad_width, pad_value=pad_val)
-        )
+        return self.bb.normalize(relax.op.nn.pad(operand, pad_width=pad_width, pad_value=pad_val))
 
     def _convert_stablehlo_dynamic_slice(self, op):
         """Convert STABLEHLO_DYNAMIC_SLICE to Relax (dynamic_strided_slice).
@@ -1732,10 +1717,7 @@ class OperatorConverter:
         end = _const_1d(end_vals)
         strides = _const_1d(stride_vals)
 
-        return self.bb.normalize(
-            relax.op.dynamic_strided_slice(operand, begin, end, strides)
-        )
-
+        return self.bb.normalize(relax.op.dynamic_strided_slice(operand, begin, end, strides))
 
     def _convert_stablehlo_gather(self, op):
         """Convert STABLEHLO_GATHER to Relax (take-equivalent subset only).
@@ -1775,9 +1757,7 @@ class OperatorConverter:
                 "STABLEHLO_GATHER only supports collapsed_slice_dims matching the gather axis"
             )
         if len(slice_sizes) != len(data_shape):
-            raise tvm.error.OpNotImplemented(
-                "STABLEHLO_GATHER slice_sizes must match operand rank"
-            )
+            raise tvm.error.OpNotImplemented("STABLEHLO_GATHER slice_sizes must match operand rank")
         for i, (size, dim) in enumerate(zip(slice_sizes, data_shape)):
             expected = 1 if i == axis else dim
             if size != expected:
@@ -1789,9 +1769,7 @@ class OperatorConverter:
                 "STABLEHLO_GATHER only supports trailing index_vector_dim"
             )
         if not indices_shape or indices_shape[index_vector_dim] != 1:
-            raise tvm.error.OpNotImplemented(
-                "STABLEHLO_GATHER only supports index vector size 1"
-            )
+            raise tvm.error.OpNotImplemented("STABLEHLO_GATHER only supports index vector size 1")
 
         indices_batch_shape = indices_shape[:index_vector_dim]
         expected_offset_dims = list(range(axis)) + list(
@@ -1802,9 +1780,7 @@ class OperatorConverter:
                 "STABLEHLO_GATHER offset_dims do not match Relax take output layout"
             )
 
-        expected_output_shape = (
-            data_shape[:axis] + indices_batch_shape + data_shape[axis + 1 :]
-        )
+        expected_output_shape = data_shape[:axis] + indices_batch_shape + data_shape[axis + 1 :]
         if output_shape != expected_output_shape:
             raise tvm.error.OpNotImplemented(
                 "STABLEHLO_GATHER output shape does not match Relax take semantics"
@@ -1814,7 +1790,6 @@ class OperatorConverter:
         indices = self.get_tensor_expr(indices_tensor)
         indices = self.bb.normalize(relax.op.reshape(indices, indices_batch_shape))
         return self.bb.normalize(relax.op.take(data, indices, axis=axis, mode="fast"))
-
 
     def convert_elu(self, op):
         """Convert TFLite ELU"""
@@ -1959,7 +1934,7 @@ class OperatorConverter:
             rhs_expr = self.get_tensor_expr(rhs_tensor)
             lhs_expr = relax.op.add(lhs_expr, rhs_expr)
         return lhs_expr
-    
+
     def convert_cumsum(self, op):
         """Convert TFLite CUMSUM"""
         if self.is_quantized(op):
@@ -1972,7 +1947,7 @@ class OperatorConverter:
 
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 2, "input tensors length should be 2"
-        
+
         input_expr = self.get_tensor_expr(input_tensors[0])
 
         if self.has_expr(input_tensors[1].tensor_idx):
@@ -1993,7 +1968,7 @@ class OperatorConverter:
             raise tvm.error.OpNotImplemented(
                 "The TFLite to Relax converter does not support reverse CUMSUM operator yet."
             )
-        
+
         output_tensors = self.get_output_tensors(op)
         assert len(output_tensors) == 1, "output tensors length should be 1"
 
@@ -2954,7 +2929,7 @@ class OperatorConverter:
 
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) >= 2, "input tensors length should be >= 2"
-        
+
         input_tensor = input_tensors[0]
         input_tensor_idx = input_tensor.tensor_idx
         weight_tensor = input_tensors[1]
@@ -3023,8 +2998,7 @@ class OperatorConverter:
                 weight_value = self.get_tensor_value(weight_tensor)
 
             weight_expr = self.exp_tab.new_const(
-                weight_value, dtype=weight_tensor_type_str,
-                source_name=weight_tensor.tensor.Name()
+                weight_value, dtype=weight_tensor_type_str, source_name=weight_tensor.tensor.Name()
             )
 
         if padding == Padding.VALID:
@@ -3035,9 +3009,12 @@ class OperatorConverter:
             pad_left, pad_right = get_pad_value(input_w, dilated_kernel_w, stride_w)
 
             do_pad = not (
-                pad_front == 0 and pad_back == 0
-                and pad_top == 0 and pad_bottom == 0
-                and pad_left == 0 and pad_right == 0
+                pad_front == 0
+                and pad_back == 0
+                and pad_top == 0
+                and pad_bottom == 0
+                and pad_left == 0
+                and pad_right == 0
             )
             if do_pad:
                 params["padding"] = [pad_front, pad_top, pad_left, pad_back, pad_bottom, pad_right]
@@ -3163,8 +3140,7 @@ class OperatorConverter:
                 weight_value = self.get_tensor_value(weight_tensor)
 
             weight_expr = self.exp_tab.new_const(
-                weight_value, dtype=weight_tensor_type_str,
-                source_name=weight_tensor.tensor.Name()
+                weight_value, dtype=weight_tensor_type_str, source_name=weight_tensor.tensor.Name()
             )
 
         if padding == Padding.VALID:
@@ -3297,9 +3273,7 @@ class OperatorConverter:
 
             outputs = []
             for i in range(num_splits):
-                start_val = relax.op.strided_slice(
-                    padded_cumsum, axes=[0], begin=[i], end=[i + 1]
-                )
+                start_val = relax.op.strided_slice(padded_cumsum, axes=[0], begin=[i], end=[i + 1])
                 end_val = relax.op.strided_slice(
                     padded_cumsum, axes=[0], begin=[i + 1], end=[i + 2]
                 )
@@ -3403,7 +3377,7 @@ class OperatorConverter:
                 raise tvm.error.OpNotImplemented(
                     "TFLite SEGMENT_SUM with runtime segment_ids is not supported, "
                     "because TFLite does not encode a reliable output segment count."
-            )
+                )
             segment_ids = self.get_tensor_value(segment_ids_tensor)
             if np.any(segment_ids < 0):
                 raise tvm.error.OpNotImplemented(
@@ -4563,7 +4537,7 @@ class OperatorConverter:
         dilations_tensor = input_tensors[1]
         padding_expr = self.get_tensor_expr(input_tensors[2])
 
-        # Runtime dilations bind tensor values to TIR Vars for symbolic 
+        # Runtime dilations bind tensor values to TIR Vars for symbolic
         # per-axis math.
         if self.has_expr(dilations_tensor.tensor_idx):
             dilations_expr = self.get_expr(dilations_tensor.tensor_idx)
@@ -4980,9 +4954,7 @@ class OperatorConverter:
 
         if soft_nms_sigma > 0.0:
             # Extract decayed scores from the processed data (score_index=0)
-            selected_scores = relax.op.strided_slice(
-                processed_data, axes=[1], begin=[0], end=[1]
-            )
+            selected_scores = relax.op.strided_slice(processed_data, axes=[1], begin=[0], end=[1])
             selected_scores = relax.op.squeeze(selected_scores, axis=[1])
             selected_scores = relax.op.strided_slice(
                 selected_scores, axes=[0], begin=[0], end=[max_output_size]
@@ -5126,11 +5098,20 @@ class OperatorConverter:
         output_shape = to_int_list(self.get_tensor_shape(output_tensor))
         output_dtype = self.get_tensor_type_str(output_tensor.tensor.Type())
 
-        # topi.matrix_set_diag(input, diagonal, k1, k2, super_diag_right_align, sub_diag_right_align)
+        # topi.matrix_set_diag(
+        #     input, diagonal, k1, k2, super_diag_right_align, sub_diag_right_align
+        # )
         # TFLite MATRIX_SET_DIAG only sets the main diagonal, so k1=0, k2=0
         out = relax.op.call_dps_packed(
             "topi.matrix_set_diag",
-            (input_expr, diagonal_expr, relax.const(0), relax.const(0), relax.const(False), relax.const(False)),
+            (
+                input_expr,
+                diagonal_expr,
+                relax.const(0),
+                relax.const(0),
+                relax.const(False),
+                relax.const(False),
+            ),
             out_sinfo=relax.TensorStructInfo(output_shape, output_dtype),
         )
         return out
@@ -5158,11 +5139,20 @@ class OperatorConverter:
         diagonal_expr = self.get_tensor_expr(diagonal)
         zeros_expr = relax.op.zeros(output_shape, output_dtype)
 
-        # topi.matrix_set_diag(input, diagonal, k1, k2, super_diag_right_align, sub_diag_right_align)
+        # topi.matrix_set_diag(
+        #     input, diagonal, k1, k2, super_diag_right_align, sub_diag_right_align
+        # )
         # TFLite MATRIX_DIAG only sets the main diagonal, so k1=0, k2=0
         out = relax.op.call_dps_packed(
             "topi.matrix_set_diag",
-            (zeros_expr, diagonal_expr, relax.const(0), relax.const(0), relax.const(False), relax.const(False)),
+            (
+                zeros_expr,
+                diagonal_expr,
+                relax.const(0),
+                relax.const(0),
+                relax.const(False),
+                relax.const(False),
+            ),
             out_sinfo=relax.TensorStructInfo(output_shape, output_dtype),
         )
         return out
@@ -5271,9 +5261,7 @@ class OperatorConverter:
 
         type_str = self.get_tensor_type_str(tensor.tensor.Type())
         value = self.get_tensor_value_or_prefetched(tensor, is_sparse)
-        return self.exp_tab.new_const(
-            value, dtype=type_str, source_name=tensor.tensor.Name()
-        )
+        return self.exp_tab.new_const(value, dtype=type_str, source_name=tensor.tensor.Name())
 
     def get_tensor_shape(self, tensor_wrapper):
         """Returns tensor shape. Infers shape if the shape is empty."""

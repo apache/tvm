@@ -549,12 +549,13 @@ def test_concat_with_param_shape_value():
         helper.make_node("Reshape", ["x", "new_shape"], ["y"]),
     ]
     graph = helper.make_graph(
-        nodes, "concat_param_shape", [inp], [out],
+        nodes,
+        "concat_param_shape",
+        [inp],
+        [out],
         initializer=[twelve, starts, ends],
     )
-    model = helper.make_model(
-        graph, opset_imports=[helper.make_opsetid("", 13)]
-    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 13)])
     model.ir_version = 8
     onnx.checker.check_model(model)
     # Both modes should succeed; previously True crashed with
@@ -880,8 +881,8 @@ def test_gather():
         (0, [-1, 0], [2, 4]),
         (1, [-1, 0], [3, 2]),
         (
-            1, 
-            [[-1, 0], [1, -2]], 
+            1,
+            [[-1, 0], [1, -2]],
             [3, 2, 2],
         ),
     ],
@@ -1995,7 +1996,7 @@ def test_cumsum_axis_shape_validation():
 
     model = helper.make_model(graph, producer_name="cumsum_invalid_axis_shape_graph")
     with pytest.raises(
-        ValueError, 
+        ValueError,
         match="axis input must be a scalar \(0-D\) or a single-element 1-D tensor",
     ):
         from_onnx(model, opset=14, keep_params_in_input=True)

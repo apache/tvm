@@ -33,7 +33,6 @@ namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 
-
 namespace {
 class PurityChecker : TIRVisitorWithPath {
  public:

@@ -303,11 +303,12 @@ struct Conv3DTransposeAttrs : public AttrsNodeReflAdapter<Conv3DTransposeAttrs> 
                 "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
                 "dimensions respectively. Convolution is applied on the 'D', 'H', and"
                 "'W' dimensions.")
-        .def_ro("kernel_layout", &Conv3DTransposeAttrs::kernel_layout,
-                "Dimension ordering of weight. Can be 'IODHW', etc."
-                "'I', 'O', 'D', 'H', 'W' stands for input_channel, output_channel, depth, height, and "
-                "width"
-                "dimensions respectively.")
+        .def_ro(
+            "kernel_layout", &Conv3DTransposeAttrs::kernel_layout,
+            "Dimension ordering of weight. Can be 'IODHW', etc."
+            "'I', 'O', 'D', 'H', 'W' stands for input_channel, output_channel, depth, height, and "
+            "width"
+            "dimensions respectively.")
         .def_ro("out_layout", &Conv3DTransposeAttrs::out_layout,
                 "Dimension ordering of output. Can be 'NCDHW', 'NDHWC', etc."
                 "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"

@@ -22,8 +22,8 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/struct_info.h>
-#include <tvm/tirx/script/builder/ir.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/tirx/script/builder/ir.h>
 
 #include "./utils.h"
 

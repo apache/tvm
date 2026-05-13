@@ -278,9 +278,9 @@ def test_nms_op_correctness():
     data = relax.Var("data", R.Tensor((2, 10, 6), "float32"))
     valid_count = relax.Var("valid_count", R.Tensor((2,), "int32"))
     indices = relax.Var("indices", R.Tensor((2, 10), "int32"))
-    assert relax.op.vision.non_max_suppression(
-        data, valid_count, indices
-    ).op == Op.get("relax.vision.non_max_suppression")
+    assert relax.op.vision.non_max_suppression(data, valid_count, indices).op == Op.get(
+        "relax.vision.non_max_suppression"
+    )
 
 
 def test_nms_infer_struct_info_return_indices():
@@ -290,9 +290,7 @@ def test_nms_infer_struct_info_return_indices():
     indices = relax.Var("indices", R.Tensor((2, 10), "int32"))
     _check_inference(
         bb,
-        relax.op.vision.non_max_suppression(
-            data, valid_count, indices, return_indices=True
-        ),
+        relax.op.vision.non_max_suppression(data, valid_count, indices, return_indices=True),
         relax.TupleStructInfo(
             [
                 relax.TensorStructInfo((2, 10), "int32"),
@@ -329,9 +327,7 @@ def test_nms_infer_struct_info_return_data():
     indices = relax.Var("indices", R.Tensor((2, 10), "int32"))
     _check_inference(
         bb,
-        relax.op.vision.non_max_suppression(
-            data, valid_count, indices, return_indices=False
-        ),
+        relax.op.vision.non_max_suppression(data, valid_count, indices, return_indices=False),
         relax.TensorStructInfo((2, 10, 6), "float32"),
     )
 
@@ -346,9 +342,7 @@ def test_nms_infer_struct_info_return_data_shape_var():
     indices = relax.Var("indices", R.Tensor((batch_size, num_anchors), "int32"))
     _check_inference(
         bb,
-        relax.op.vision.non_max_suppression(
-            data, valid_count, indices, return_indices=False
-        ),
+        relax.op.vision.non_max_suppression(data, valid_count, indices, return_indices=False),
         relax.TensorStructInfo((batch_size, num_anchors, elem_length), "float32"),
     )
 
@@ -402,9 +396,7 @@ def test_nms_wrong_aux_input_shape():
     indices_bad_anchors = relax.Var("indices_bad_anchors", R.Tensor((2, 9), "int32"))
     with pytest.raises(TVMError):
         bb.normalize(
-            relax.op.vision.non_max_suppression(
-                data, valid_count_bad_batch, indices_bad_anchors
-            )
+            relax.op.vision.non_max_suppression(data, valid_count_bad_batch, indices_bad_anchors)
         )
     with pytest.raises(TVMError):
         bb.normalize(relax.op.vision.non_max_suppression(data, valid_count, indices_bad_batch))
@@ -1264,6 +1256,8 @@ def test_roi_pool_legalize():
         mod["main"].ret_struct_info,
         relax.TensorStructInfo((2, 2, 3, 2), "float32"),
     )
+
+
 def test_all_class_non_max_suppression_infer_struct_info():
     bb = relax.BlockBuilder()
     batch_size, num_classes, num_boxes = 10, 8, 5

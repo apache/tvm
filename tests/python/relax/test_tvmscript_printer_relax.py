@@ -103,7 +103,9 @@ def test_extern_func_with_struct_info():
         {
             "my_ext": relax.ExternFunc(
                 "my_ext",
-                relax.FuncStructInfo([], relax.TensorStructInfo(dtype="float32", ndim=2), purity=True),
+                relax.FuncStructInfo(
+                    [], relax.TensorStructInfo(dtype="float32", ndim=2), purity=True
+                ),
             ),
         }
     )
@@ -125,7 +127,9 @@ def test_extern_func_with_struct_info_roundtrip():
         {
             "my_ext": relax.ExternFunc(
                 "my_ext",
-                relax.FuncStructInfo([], relax.TensorStructInfo(dtype="float32", ndim=2), purity=True),
+                relax.FuncStructInfo(
+                    [], relax.TensorStructInfo(dtype="float32", ndim=2), purity=True
+                ),
             ),
         }
     )

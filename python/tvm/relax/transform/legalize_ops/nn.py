@@ -222,7 +222,8 @@ def _nn_conv2d_transpose(bb: BlockBuilder, call: Call) -> Expr:
 
 @register_legalize("relax.nn.conv3d_transpose")
 def _nn_conv3d_transpose(bb: BlockBuilder, call: Call) -> Expr:
-    # Keep policy in sync with _nn_conv2d_transpose: only lower when TOPI supports the layout/dilation.
+    # Keep policy in sync with _nn_conv2d_transpose: only lower when TOPI supports
+    # the layout/dilation.
     if call.attrs.out_layout != call.attrs.data_layout:
         logging.info(
             "TOPI conv3d_transpose does not support different input-output "

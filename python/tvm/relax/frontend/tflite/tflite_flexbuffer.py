@@ -110,7 +110,9 @@ class FlexBufferDecoder:
             value_type = FlexBufferType(value_type_packed >> 2)
             value_bit_width = BitWidth(value_type_packed & 3)
             value_byte_width = 1 << value_bit_width
-            value_bytes = self.buffer[end + i * byte_width : end + i * byte_width + value_byte_width]
+            value_bytes = self.buffer[
+                end + i * byte_width : end + i * byte_width + value_byte_width
+            ]
             if value_type == FlexBufferType.FBT_BOOL:
                 value = bool(value_bytes[0])
             elif value_type == FlexBufferType.FBT_INT:

@@ -1650,9 +1650,10 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         # Legacy fx `tensor.var(...)` calls go through the original path
         # below to keep this fix narrowly scoped.
         target = node.target
-        if getattr(target, "_overloadname", None) == "correction" or getattr(
-            target, "overload_name", None
-        ) == "correction":
+        if (
+            getattr(target, "_overloadname", None) == "correction"
+            or getattr(target, "overload_name", None) == "correction"
+        ):
             return self._var_correction(node)
         args = self.retrieve_args(node)
         x = args[0]
@@ -1674,8 +1675,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         n = self._reduction_size(x, dim)
         if n is None:
             raise NotImplementedError(
-                "var/std with non-zero correction requires statically known "
-                "reduction-axis sizes."
+                "var/std with non-zero correction requires statically known reduction-axis sizes."
             )
         # PyTorch returns NaN (with a warning) when `n - correction <= 0`;
         # mirror that semantics rather than failing the import.
@@ -1698,7 +1698,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             axes = list(range(rank))
         elif isinstance(dim, int):
             axes = [dim]
-        elif isinstance(dim, (list, tuple)) and all(isinstance(a, int) for a in dim):
+        elif isinstance(dim, list | tuple) and all(isinstance(a, int) for a in dim):
             axes = list(dim)
         else:
             return None

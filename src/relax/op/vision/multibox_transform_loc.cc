@@ -188,9 +188,10 @@ StructInfo InferStructInfoMultiboxTransformLoc(const Call& call, const BlockBuil
 }
 
 TVM_REGISTER_OP("relax.vision.multibox_transform_loc")
-    .describe("Decode SSD/TFLite-style priors and offsets into boxes and softmax scores. If "
-              "cls_pred shape is unknown, N-based loc/anchor shape checks are skipped in "
-              "inference. Very large variances (w,h) can overflow exp in half box sizes.")
+    .describe(
+        "Decode SSD/TFLite-style priors and offsets into boxes and softmax scores. If "
+        "cls_pred shape is unknown, N-based loc/anchor shape checks are skipped in "
+        "inference. Very large variances (w,h) can overflow exp in half box sizes.")
     .set_attrs_type<MultiboxTransformLocAttrs>()
     .set_num_inputs(3)
     .add_argument("cls_pred", "Tensor", "[B,C,N] class logits (pre-softmax).")

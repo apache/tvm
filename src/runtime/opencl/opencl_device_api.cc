@@ -22,8 +22,8 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/timer.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/runtime/timer.h>
 
 #include <sstream>
 

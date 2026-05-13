@@ -7404,10 +7404,10 @@ def test_index_put():
 
 def test_index_put_with_tuple_output():
     class IndexPutTupleOutput(Module):
-        def forward(self, x, l, idx):
+        def forward(self, x, buf, idx):
             values = x
-            l[..., idx, idx] = values
-            return x[..., 1], l
+            buf[..., idx, idx] = values
+            return x[..., 1], buf
 
     example_args = (
         torch.ones(2, 3, 5, dtype=torch.float32),
@@ -7425,8 +7425,7 @@ def test_index_put_with_tuple_output():
     assert len(tensor_fields) >= 2
 
     assert any(
-        len(f.shape) == 4 and int(f.shape[-2]) == 5 and int(f.shape[-1]) == 5 
-        for f in tensor_fields
+        len(f.shape) == 4 and int(f.shape[-2]) == 5 and int(f.shape[-1]) == 5 for f in tensor_fields
     )
 
 
@@ -7434,14 +7433,14 @@ def test_m4d_diag_index_put_tuple_output_regression():
     class M4D(Module):
         def forward(self, x):
             b, k, n = 2, 3, 5
-            l = x.new_zeros(b, k, n, n)
+            buf = x.new_zeros(b, k, n, n)
             idx = torch.arange(n, device=x.device)
 
-            diag = l[..., idx, idx]
+            diag = buf[..., idx, idx]
             diag = torch.nn.functional.elu(diag) + 1.0 + 1e-8
-            l[..., idx, idx] = diag
+            buf[..., idx, idx] = diag
 
-            return x[..., :1], l
+            return x[..., :1], buf
 
     ex_in = torch.zeros(2, 3, 5, dtype=torch.float32)
     exported_program = export(M4D().eval(), args=(ex_in,))
@@ -7458,10 +7457,9 @@ def test_m4d_diag_index_put_tuple_output_regression():
     assert len(tensor_fields) >= 2
     # x: (2, 3, 5) → x[..., :1]: (2, 3, 1)
     assert any(len(f.shape) == 3 and int(f.shape[-1]) == 1 for f in tensor_fields)
-    # l: (2, 3, 5, 5) → 4-D with spatial dims 5×5
+    # buf: (2, 3, 5, 5) → 4-D with spatial dims 5x5
     assert any(
-        len(f.shape) == 4 and int(f.shape[-2]) == 5 and int(f.shape[-1]) == 5
-        for f in tensor_fields
+        len(f.shape) == 4 and int(f.shape[-2]) == 5 and int(f.shape[-1]) == 5 for f in tensor_fields
     )
 
 
@@ -9290,9 +9288,7 @@ def test_cond_nested():
 def test_affine_grid():
     class AffineGrid(Module):
         def forward(self, theta):
-            return torch.nn.functional.affine_grid(
-                theta, [1, 3, 16, 16], align_corners=True
-            )
+            return torch.nn.functional.affine_grid(theta, [1, 3, 16, 16], align_corners=True)
 
     @tvm.script.ir_module
     class expected:
@@ -9321,9 +9317,7 @@ def test_affine_grid_numerically():
 
     class AffineGrid(Module):
         def forward(self, theta):
-            return torch.nn.functional.affine_grid(
-                theta, [2, 3, 8, 12], align_corners=True
-            )
+            return torch.nn.functional.affine_grid(theta, [2, 3, 8, 12], align_corners=True)
 
     model = AffineGrid()
     example_args = (torch.randn(2, 2, 3, dtype=torch.float32),)

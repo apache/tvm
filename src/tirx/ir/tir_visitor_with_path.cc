@@ -35,7 +35,6 @@
 namespace tvm {
 namespace tirx {
 
-
 void TIRVisitorWithPath::Visit(const IRModule& mod, ffi::reflection::AccessPath path) {
   // To ensure deterministic order of visits, sort the GlobalVar first
   // by visibility (public then private), then alphabetically by name.
@@ -333,10 +332,10 @@ void TIRVisitorWithPath::VisitExpr_(const CallNode* op, ffi::reflection::AccessP
   Visit(op->args, path->Attr("args"));
 }
 
-#define DEFINE_BINOP_VISIT_(OP)                                        \
+#define DEFINE_BINOP_VISIT_(OP)                                                         \
   void TIRVisitorWithPath::VisitExpr_(const OP* op, ffi::reflection::AccessPath path) { \
-    Visit(op->a, path->Attr("a"));                                     \
-    Visit(op->b, path->Attr("b"));                                     \
+    Visit(op->a, path->Attr("a"));                                                      \
+    Visit(op->b, path->Attr("b"));                                                      \
   }
 
 DEFINE_BINOP_VISIT_(AddNode);

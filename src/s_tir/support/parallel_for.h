@@ -24,8 +24,8 @@
 #ifndef TVM_S_TIR_SUPPORT_PARALLEL_FOR_H_
 #define TVM_S_TIR_SUPPORT_PARALLEL_FOR_H_
 
-#include <tvm/runtime/base.h>
 #include <tvm/ffi/error.h>
+#include <tvm/runtime/base.h>
 
 #include <atomic>
 #include <functional>

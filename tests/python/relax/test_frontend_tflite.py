@@ -184,7 +184,7 @@ def test_cumsum():
         @tf.function(
             input_signature=[
                 tf.TensorSpec(shape=(3, 4), dtype=tf.float32),
-                tf.TensorSpec(shape=(5, 6), dtype=tf.int32)
+                tf.TensorSpec(shape=(5, 6), dtype=tf.int32),
             ]
         )
         def func(self, x, y):
@@ -567,7 +567,8 @@ def test_range_dynamic_scalar_inputs_not_supported():
 
     with pytest.raises(tvm.error.OpNotImplemented, match="dynamic scalar inputs"):
         verify(RangeDynamic)
-        
+
+
 def test_tile_ir():
     """TILE conversion with explicit Relax IR structural check."""
 
@@ -735,18 +736,6 @@ def test_swish():
     verify(TfInput, Expected)
 
 
-def test_prelu():
-    alpha_init = tf.keras.initializers.Constant(np.linspace(0.1, 0.3, 30, dtype=np.float32))
-    prelu = tf.keras.layers.PReLU(alpha_initializer=alpha_init)
-
-    class TfInput(tf.Module):
-        @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
-        def func(self, x):
-            return prelu(x)
-
-    verify(TfInput)
-
-
 def test_fill():
     class TfInput(tf.Module):
         @tf.function(
@@ -819,9 +808,7 @@ def test_random_standard_normal_dynamic_shape():
     class TfRandomStandardNormal(tf.Module):
         @tf.function(input_signature=[tf.TensorSpec(shape=(2,), dtype=tf.int32)])
         def func(self, shape):
-            return tf.raw_ops.RandomStandardNormal(
-                shape=shape, dtype=tf.float32, seed=3, seed2=5
-            )
+            return tf.raw_ops.RandomStandardNormal(shape=shape, dtype=tf.float32, seed=3, seed2=5)
 
     cf = TfRandomStandardNormal().func.get_concrete_function()
     mod = _get_mod_from_cfunc(cf)
@@ -959,9 +946,9 @@ def test_broadcast_args():
     @I.ir_module
     class Expected:
         @R.function
-        def main(
-            s0: R.Tensor((3,), dtype="int32"), s1: R.Tensor((3,), dtype="int32")
-        ) -> R.Tensor((3,), dtype="int32"):
+        def main(s0: R.Tensor((3,), dtype="int32"), s1: R.Tensor((3,), dtype="int32")) -> R.Tensor(
+            (3,), dtype="int32"
+        ):
             R.func_attr({"num_input": 2})
             with R.dataflow():
                 lv: R.Tensor((0,), dtype="int32") = R.full(
@@ -999,9 +986,9 @@ def test_broadcast_args_diff_length():
     @I.ir_module
     class Expected:
         @R.function
-        def main(
-            s0: R.Tensor((1,), dtype="int32"), s1: R.Tensor((3,), dtype="int32")
-        ) -> R.Tensor((3,), dtype="int32"):
+        def main(s0: R.Tensor((1,), dtype="int32"), s1: R.Tensor((3,), dtype="int32")) -> R.Tensor(
+            (3,), dtype="int32"
+        ):
             R.func_attr({"num_input": 2})
             with R.dataflow():
                 lv: R.Tensor((2,), dtype="int32") = R.full(
@@ -1631,9 +1618,7 @@ def _make_conv3d_module(data_shape, kernel_shape, strides, padding):
 
 
 def test_conv3d_valid():
-    Conv3DModule = _make_conv3d_module(
-        (1, 8, 8, 8, 3), (3, 3, 3, 3, 16), (1, 1, 1, 1, 1), "VALID"
-    )
+    Conv3DModule = _make_conv3d_module((1, 8, 8, 8, 3), (3, 3, 3, 3, 16), (1, 1, 1, 1, 1), "VALID")
 
     @I.ir_module
     class Expected:
@@ -1663,9 +1648,7 @@ def test_conv3d_valid():
 
 
 def test_conv3d_same():
-    Conv3DModule = _make_conv3d_module(
-        (1, 8, 8, 8, 3), (3, 3, 3, 3, 16), (1, 1, 1, 1, 1), "SAME"
-    )
+    Conv3DModule = _make_conv3d_module((1, 8, 8, 8, 3), (3, 3, 3, 3, 16), (1, 1, 1, 1, 1), "SAME")
 
     @I.ir_module
     class Expected:
@@ -1709,7 +1692,7 @@ def _make_conv3d_transpose_module(data_shape, kernel_shape, strides, padding):
             out_spatial.append((in_size - 1) * s + k_size)
         else:  # SAME
             out_spatial.append(in_size * s)
-    computed_output_shape = [batch] + out_spatial + [out_channels]
+    computed_output_shape = [batch, *out_spatial, out_channels]
 
     class Conv3DTransposeModule(tf.Module):
         @tf.function(
@@ -1728,7 +1711,6 @@ def _make_conv3d_transpose_module(data_shape, kernel_shape, strides, padding):
             )
 
     return Conv3DTransposeModule
-
 
 
 def test_conv3d_transpose_valid():
@@ -2012,6 +1994,7 @@ def test_select_v2():
 
     verify(ModelBroadcasting)
 
+
 def test_scatter_nd():
     class Model(tf.Module):
         @tf.function(
@@ -2047,9 +2030,7 @@ def test_segment_sum():
                 lv1: R.Tensor((4, 1), dtype="int32") = R.expand_dims(
                     R.const([0, 0, 1, 2], "int32"), axis=[1]
                 )
-                gv: R.Tensor((3, 2), dtype="float32") = R.scatter_nd(
-                    lv, lv1, data, reduction="add"
-                )
+                gv: R.Tensor((3, 2), dtype="float32") = R.scatter_nd(lv, lv1, data, reduction="add")
                 R.output(gv)
             return gv
 
@@ -2080,9 +2061,7 @@ def test_unsorted_segment_min():
                 lv1: R.Tensor((4, 1), dtype="int32") = R.expand_dims(
                     R.const([2, 0, 2, 1], "int32"), axis=[1]
                 )
-                gv: R.Tensor((3, 2), dtype="float32") = R.scatter_nd(
-                    lv, lv1, data, reduction="min"
-                )
+                gv: R.Tensor((3, 2), dtype="float32") = R.scatter_nd(lv, lv1, data, reduction="min")
                 R.output(gv)
             return gv
 
@@ -2113,9 +2092,7 @@ def test_unsorted_segment_prod():
                 lv1: R.Tensor((4, 1), dtype="int32") = R.expand_dims(
                     R.const([1, 0, 1, 2], "int32"), axis=[1]
                 )
-                gv: R.Tensor((3, 2), dtype="float32") = R.scatter_nd(
-                    lv, lv1, data, reduction="mul"
-                )
+                gv: R.Tensor((3, 2), dtype="float32") = R.scatter_nd(lv, lv1, data, reduction="mul")
                 R.output(gv)
             return gv
 
@@ -3477,6 +3454,18 @@ def test_relu_n1_to_1():
     verify(ReLU_N1_to_1, Expected)
 
 
+def test_prelu_basic():
+    alpha_init = tf.keras.initializers.Constant(np.linspace(0.1, 0.3, 30, dtype=np.float32))
+    prelu = tf.keras.layers.PReLU(alpha_initializer=alpha_init)
+
+    class TfInput(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
+        def func(self, x):
+            return prelu(x)
+
+    verify(TfInput)
+
+
 @pytest.mark.parametrize(
     "shared_axes",
     [
@@ -3652,6 +3641,7 @@ def test_sparse_to_dense():
 # Since TensorFlow does not provide an API to create sparse TFLite models,
 # we manually build them using the flatbuffers API.
 
+
 # Import schema helpers explicitly. CI's generated tflite package does not
 # reliably re-export these builder helpers and enums at the package top-level.
 def _get_tflite_schema_module(module_name):
@@ -3784,9 +3774,7 @@ def _build_operator(
     builtin_options2=None,
 ):
     inputs_vec = _tflite_int32_vector(builder, _tfl_operator.OperatorStartInputsVector, inputs)
-    outputs_vec = _tflite_int32_vector(
-        builder, _tfl_operator.OperatorStartOutputsVector, outputs
-    )
+    outputs_vec = _tflite_int32_vector(builder, _tfl_operator.OperatorStartOutputsVector, outputs)
     _tfl_operator.OperatorStart(builder)
     _tfl_operator.OperatorAddOpcodeIndex(builder, opcode_index)
     _tfl_operator.OperatorAddInputs(builder, inputs_vec)
@@ -3819,9 +3807,7 @@ def _build_subgraph(builder, *, tensors, operators, inputs, outputs):
         builder, _tfl_subgraph.SubGraphStartOperatorsVector, operators
     )
     inputs_vec = _tflite_int32_vector(builder, _tfl_subgraph.SubGraphStartInputsVector, inputs)
-    outputs_vec = _tflite_int32_vector(
-        builder, _tfl_subgraph.SubGraphStartOutputsVector, outputs
-    )
+    outputs_vec = _tflite_int32_vector(builder, _tfl_subgraph.SubGraphStartOutputsVector, outputs)
 
     _tfl_subgraph.SubGraphStart(builder)
     _tfl_subgraph.SubGraphAddTensors(builder, tensors_vec)
@@ -3935,9 +3921,7 @@ def _build_stablehlo_typed_binary_model(*, builtin_name, tensor_type):
 )
 def test_stablehlo_unary(builtin_name, relax_op):
     """TFLite StableHLO unary elementwise operators."""
-    mod = _load_model_from_buffer(
-        _build_stablehlo_model(builtin_name=builtin_name, input_count=1)
-    )
+    mod = _load_model_from_buffer(_build_stablehlo_model(builtin_name=builtin_name, input_count=1))
 
     @I.ir_module
     class Expected:
@@ -3966,9 +3950,7 @@ def test_stablehlo_unary(builtin_name, relax_op):
 )
 def test_stablehlo_binary(builtin_name, relax_op):
     """TFLite StableHLO binary elementwise operators."""
-    mod = _load_model_from_buffer(
-        _build_stablehlo_model(builtin_name=builtin_name, input_count=2)
-    )
+    mod = _load_model_from_buffer(_build_stablehlo_model(builtin_name=builtin_name, input_count=2))
 
     @I.ir_module
     class Expected:
@@ -3999,9 +3981,7 @@ def test_stablehlo_binary(builtin_name, relax_op):
 def test_stablehlo_typed_binary(builtin_name, relax_op, dtype, tensor_type):
     """TFLite StableHLO binary elementwise operators with non-float dtype requirements."""
     mod = _load_model_from_buffer(
-        _build_stablehlo_typed_binary_model(
-            builtin_name=builtin_name, tensor_type=tensor_type
-        )
+        _build_stablehlo_typed_binary_model(builtin_name=builtin_name, tensor_type=tensor_type)
     )
 
     @I.ir_module
@@ -4075,10 +4055,7 @@ def test_stablehlo_ternary(builtin_name, relax_op):
                 R.output(gv)
             return gv
 
-
     tvm.ir.assert_structural_equal(mod, Expected)
-
-
 
 
 def _build_stablehlo_convert_model():
@@ -4090,9 +4067,7 @@ def _build_stablehlo_convert_model():
     t_out = _build_tensor(builder, 1, shape, tensor_type=_tfl_tensor_type.INT32)
     tensors = [t_in, t_out]
 
-    op_code = _build_operator_code(
-        builder, _get_stablehlo_builtin_operator("STABLEHLO_CONVERT")
-    )
+    op_code = _build_operator_code(builder, _get_stablehlo_builtin_operator("STABLEHLO_CONVERT"))
     op = _build_operator(builder, 0, [0], [1])
     subgraph = _build_subgraph(
         builder,
@@ -4164,9 +4139,9 @@ def _build_stablehlo_concat_model(dimension, num_inputs):
         out_shape = [num_inputs * shape[0], shape[1]]
     else:
         out_shape = [shape[0], num_inputs * shape[1]]
-    tensors = [
-        _build_tensor(builder, i, shape) for i in range(num_inputs)
-    ] + [_build_tensor(builder, num_inputs, out_shape)]
+    tensors = [_build_tensor(builder, i, shape) for i in range(num_inputs)] + [
+        _build_tensor(builder, num_inputs, out_shape)
+    ]
 
     op = _build_operator(
         builder,
@@ -4275,9 +4250,7 @@ def test_stablehlo_broadcast_in_dim():
         def main(x: R.Tensor((3,), dtype="float32")) -> R.Tensor((2, 3), dtype="float32"):
             R.func_attr({"num_input": 1})
             with R.dataflow():
-                gv: R.Tensor((2, 3), dtype="float32") = R.broadcast_to(
-                    R.reshape(x, (1, 3)), (2, 3)
-                )
+                gv: R.Tensor((2, 3), dtype="float32") = R.broadcast_to(R.reshape(x, (1, 3)), (2, 3))
                 R.output(gv)
             return gv
 
@@ -4381,12 +4354,30 @@ def _build_stablehlo_compare_model(direction):
 @pytest.mark.parametrize(
     "direction_enum, relax_op",
     [
-        (_tfl_stablehlo_comp_dir.StablehloComparisonDirection.STABLEHLO_COMPARISON_DIRECTION_EQ, R.equal),
-        (_tfl_stablehlo_comp_dir.StablehloComparisonDirection.STABLEHLO_COMPARISON_DIRECTION_NE, R.not_equal),
-        (_tfl_stablehlo_comp_dir.StablehloComparisonDirection.STABLEHLO_COMPARISON_DIRECTION_GE, R.greater_equal),
-        (_tfl_stablehlo_comp_dir.StablehloComparisonDirection.STABLEHLO_COMPARISON_DIRECTION_GT, R.greater),
-        (_tfl_stablehlo_comp_dir.StablehloComparisonDirection.STABLEHLO_COMPARISON_DIRECTION_LE, R.less_equal),
-        (_tfl_stablehlo_comp_dir.StablehloComparisonDirection.STABLEHLO_COMPARISON_DIRECTION_LT, R.less),
+        (
+            _tfl_stablehlo_comp_dir.StablehloComparisonDirection.STABLEHLO_COMPARISON_DIRECTION_EQ,
+            R.equal,
+        ),
+        (
+            _tfl_stablehlo_comp_dir.StablehloComparisonDirection.STABLEHLO_COMPARISON_DIRECTION_NE,
+            R.not_equal,
+        ),
+        (
+            _tfl_stablehlo_comp_dir.StablehloComparisonDirection.STABLEHLO_COMPARISON_DIRECTION_GE,
+            R.greater_equal,
+        ),
+        (
+            _tfl_stablehlo_comp_dir.StablehloComparisonDirection.STABLEHLO_COMPARISON_DIRECTION_GT,
+            R.greater,
+        ),
+        (
+            _tfl_stablehlo_comp_dir.StablehloComparisonDirection.STABLEHLO_COMPARISON_DIRECTION_LE,
+            R.less_equal,
+        ),
+        (
+            _tfl_stablehlo_comp_dir.StablehloComparisonDirection.STABLEHLO_COMPARISON_DIRECTION_LT,
+            R.less,
+        ),
     ],
 )
 def test_stablehlo_compare(direction_enum, relax_op):
@@ -4506,21 +4497,13 @@ def _build_stablehlo_gather_model(
     )
 
     _tfl_stablehlo_gather_opts.StablehloGatherOptionsStart(builder)
-    _tfl_stablehlo_gather_opts.StablehloGatherOptionsAddOffsetDims(
-        builder, offset_dims_vec
-    )
+    _tfl_stablehlo_gather_opts.StablehloGatherOptionsAddOffsetDims(builder, offset_dims_vec)
     _tfl_stablehlo_gather_opts.StablehloGatherOptionsAddCollapsedSliceDims(
         builder, collapsed_slice_dims_vec
     )
-    _tfl_stablehlo_gather_opts.StablehloGatherOptionsAddStartIndexMap(
-        builder, start_index_map_vec
-    )
-    _tfl_stablehlo_gather_opts.StablehloGatherOptionsAddIndexVectorDim(
-        builder, index_vector_dim
-    )
-    _tfl_stablehlo_gather_opts.StablehloGatherOptionsAddSliceSizes(
-        builder, slice_sizes_vec
-    )
+    _tfl_stablehlo_gather_opts.StablehloGatherOptionsAddStartIndexMap(builder, start_index_map_vec)
+    _tfl_stablehlo_gather_opts.StablehloGatherOptionsAddIndexVectorDim(builder, index_vector_dim)
+    _tfl_stablehlo_gather_opts.StablehloGatherOptionsAddSliceSizes(builder, slice_sizes_vec)
     gather_opts = _tfl_stablehlo_gather_opts.StablehloGatherOptionsEnd(builder)
 
     builtin_op = _get_stablehlo_builtin_operator("STABLEHLO_GATHER")
@@ -4613,6 +4596,7 @@ def test_stablehlo_gather_complex_unsupported():
     with pytest.raises(tvm.error.OpNotImplemented, match="start_index_map"):
         from_tflite(tflite_model)
 
+
 def _pad_vector(builder, start_vector_fn, values):
     """Build a FlatBuffers int64 vector for pad options."""
     start_vector_fn(builder, len(values))
@@ -4657,13 +4641,19 @@ def _build_stablehlo_pad_model(edge_low, edge_high, interior):
     tensors = [t_in, t_pad_val, t_out]
 
     op = _build_operator(
-        builder, 0, [0, 1], [2],
+        builder,
+        0,
+        [0, 1],
+        [2],
         builtin_options2_type=_tfl_builtin_options2.StablehloPadOptions,
         builtin_options2=pad_opts,
     )
     subgraph = _build_subgraph(
-        builder, tensors=tensors, operators=[op],
-        inputs=[0], outputs=[2],
+        builder,
+        tensors=tensors,
+        operators=[op],
+        inputs=[0],
+        outputs=[2],
     )
     buffers = [
         _build_buffer(builder),
@@ -4733,13 +4723,19 @@ def test_stablehlo_pad_interior_unsupported():
     tensors = [t_in, t_pv, t_out]
 
     op = _build_operator(
-        builder, 0, [0, 1], [2],
+        builder,
+        0,
+        [0, 1],
+        [2],
         builtin_options2_type=_tfl_builtin_options2.StablehloPadOptions,
         builtin_options2=pad_opts,
     )
     subgraph = _build_subgraph(
-        builder, tensors=tensors, operators=[op],
-        inputs=[0], outputs=[2],
+        builder,
+        tensors=tensors,
+        operators=[op],
+        inputs=[0],
+        outputs=[2],
     )
     buffers = [
         _build_buffer(builder),
@@ -4792,13 +4788,19 @@ def test_stablehlo_pad_negative_unsupported():
     tensors = [t_in, t_pv, t_out]
 
     op = _build_operator(
-        builder, 0, [0, 1], [2],
+        builder,
+        0,
+        [0, 1],
+        [2],
         builtin_options2_type=_tfl_builtin_options2.StablehloPadOptions,
         builtin_options2=pad_opts,
     )
     subgraph = _build_subgraph(
-        builder, tensors=tensors, operators=[op],
-        inputs=[0], outputs=[2],
+        builder,
+        tensors=tensors,
+        operators=[op],
+        inputs=[0],
+        outputs=[2],
     )
     buffers = [
         _build_buffer(builder),
@@ -4822,17 +4824,13 @@ def _build_stablehlo_dynamic_slice_model(slice_sizes, start_vals):
     ndim = len(slice_sizes)
 
     # Build SliceSizes vector
-    _tfl_stablehlo_dyn_slice_opts.StablehloDynamicSliceOptionsStartSliceSizesVector(
-        builder, ndim
-    )
+    _tfl_stablehlo_dyn_slice_opts.StablehloDynamicSliceOptionsStartSliceSizesVector(builder, ndim)
     for v in reversed(slice_sizes):
         builder.PrependInt64(v)
     sizes_vec = builder.EndVector()
 
     _tfl_stablehlo_dyn_slice_opts.StablehloDynamicSliceOptionsStart(builder)
-    _tfl_stablehlo_dyn_slice_opts.StablehloDynamicSliceOptionsAddSliceSizes(
-        builder, sizes_vec
-    )
+    _tfl_stablehlo_dyn_slice_opts.StablehloDynamicSliceOptionsAddSliceSizes(builder, sizes_vec)
     dyn_opts = _tfl_stablehlo_dyn_slice_opts.StablehloDynamicSliceOptionsEnd(builder)
 
     builtin_op = _get_stablehlo_builtin_operator("STABLEHLO_DYNAMIC_SLICE")
@@ -4845,26 +4843,28 @@ def _build_stablehlo_dynamic_slice_model(slice_sizes, start_vals):
     start_buffers = []
     for i, sv in enumerate(start_vals):
         bidx = 1 + i
-        start_tensors.append(
-            _build_tensor(builder, bidx, [], tensor_type=_tfl_tensor_type.INT32)
-        )
+        start_tensors.append(_build_tensor(builder, bidx, [], tensor_type=_tfl_tensor_type.INT32))
         start_inputs.append(bidx)
-        start_buffers.append(
-            _build_buffer(builder, np.array([sv], dtype=np.int32).tobytes())
-        )
+        start_buffers.append(_build_buffer(builder, np.array([sv], dtype=np.int32).tobytes()))
     out_idx = 1 + ndim
     t_out = _build_tensor(builder, out_idx, slice_sizes)
     tensors = [t_in, *start_tensors, t_out]
     op_inputs = [0, *start_inputs]
 
     op = _build_operator(
-        builder, 0, op_inputs, [out_idx],
+        builder,
+        0,
+        op_inputs,
+        [out_idx],
         builtin_options2_type=_tfl_builtin_options2.StablehloDynamicSliceOptions,
         builtin_options2=dyn_opts,
     )
     subgraph = _build_subgraph(
-        builder, tensors=tensors, operators=[op],
-        inputs=[0], outputs=[out_idx],
+        builder,
+        tensors=tensors,
+        operators=[op],
+        inputs=[0],
+        outputs=[out_idx],
     )
     buffers = [_build_buffer(builder), *start_buffers, _build_buffer(builder)]
     return _finish_tflite_model(
@@ -4877,17 +4877,13 @@ def _build_stablehlo_dynamic_slice_with_dynamic_starts_model(slice_sizes):
     builder = flatbuffers.Builder(1024)
     ndim = len(slice_sizes)
 
-    _tfl_stablehlo_dyn_slice_opts.StablehloDynamicSliceOptionsStartSliceSizesVector(
-        builder, ndim
-    )
+    _tfl_stablehlo_dyn_slice_opts.StablehloDynamicSliceOptionsStartSliceSizesVector(builder, ndim)
     for v in reversed(slice_sizes):
         builder.PrependInt64(v)
     sizes_vec = builder.EndVector()
 
     _tfl_stablehlo_dyn_slice_opts.StablehloDynamicSliceOptionsStart(builder)
-    _tfl_stablehlo_dyn_slice_opts.StablehloDynamicSliceOptionsAddSliceSizes(
-        builder, sizes_vec
-    )
+    _tfl_stablehlo_dyn_slice_opts.StablehloDynamicSliceOptionsAddSliceSizes(builder, sizes_vec)
     dyn_opts = _tfl_stablehlo_dyn_slice_opts.StablehloDynamicSliceOptionsEnd(builder)
 
     builtin_op = _get_stablehlo_builtin_operator("STABLEHLO_DYNAMIC_SLICE")
@@ -4895,8 +4891,7 @@ def _build_stablehlo_dynamic_slice_with_dynamic_starts_model(slice_sizes):
 
     t_in = _build_tensor(builder, 0, [3, 3])
     start_tensors = [
-        _build_tensor(builder, 1 + i, [], tensor_type=_tfl_tensor_type.INT32)
-        for i in range(ndim)
+        _build_tensor(builder, 1 + i, [], tensor_type=_tfl_tensor_type.INT32) for i in range(ndim)
     ]
     out_idx = 1 + ndim
     t_out = _build_tensor(builder, out_idx, slice_sizes)
@@ -4905,13 +4900,19 @@ def _build_stablehlo_dynamic_slice_with_dynamic_starts_model(slice_sizes):
     op_inputs = [0, *start_inputs]
 
     op = _build_operator(
-        builder, 0, op_inputs, [out_idx],
+        builder,
+        0,
+        op_inputs,
+        [out_idx],
         builtin_options2_type=_tfl_builtin_options2.StablehloDynamicSliceOptions,
         builtin_options2=dyn_opts,
     )
     subgraph = _build_subgraph(
-        builder, tensors=tensors, operators=[op],
-        inputs=op_inputs, outputs=[out_idx],
+        builder,
+        tensors=tensors,
+        operators=[op],
+        inputs=op_inputs,
+        outputs=[out_idx],
     )
     buffers = [_build_buffer(builder) for _ in range(out_idx + 1)]
     return _finish_tflite_model(
@@ -4922,9 +4923,7 @@ def _build_stablehlo_dynamic_slice_with_dynamic_starts_model(slice_sizes):
 def test_stablehlo_dynamic_slice():
     """TFLite StableHLO DYNAMIC_SLICE: start=[0,1], sizes=[2,2] from (3,3)."""
     mod = _load_model_from_buffer(
-        _build_stablehlo_dynamic_slice_model(
-            slice_sizes=[2, 2], start_vals=[0, 1]
-        )
+        _build_stablehlo_dynamic_slice_model(slice_sizes=[2, 2], start_vals=[0, 1])
     )
 
     @I.ir_module
@@ -5282,6 +5281,7 @@ def test_densify_with_add():
 
     tvm.ir.assert_structural_equal(mod, Expected)
 
+
 def test_densify_with_conv2d():
     """Test DENSIFY followed by CONV2D - a real-world scenario.
 
@@ -5314,6 +5314,7 @@ def test_densify_with_conv2d():
             return gv
 
     tvm.ir.assert_structural_equal(mod, Expected)
+
 
 def test_densify_with_fully_connected():
     """Test DENSIFY followed by FULLY_CONNECTED - a real-world scenario.
@@ -5399,9 +5400,7 @@ def test_dilate():
         _build_buffer(builder),
         _build_buffer(builder),
         _build_buffer(builder, np.asarray(dilations, dtype=np.int32).tobytes()),
-        _build_buffer(
-            builder, np.asarray([dilation_value], dtype=np.float32).tobytes()
-        ),
+        _build_buffer(builder, np.asarray([dilation_value], dtype=np.float32).tobytes()),
         _build_buffer(builder),
     ]
 
@@ -5434,9 +5433,7 @@ def test_dilate():
                 lv4: R.Tensor((5, 4), dtype="float32") = R.strided_slice(
                     lv3, [0, 1], [0, 0], [5, 4], [1, 1], assume_inbound=False
                 )
-                lv5: R.Tensor((5, 4, 1), dtype="float32") = R.reshape(
-                    lv4, R.shape([5, 4, 1])
-                )
+                lv5: R.Tensor((5, 4, 1), dtype="float32") = R.reshape(lv4, R.shape([5, 4, 1]))
                 lv6: R.Tensor((5, 4, 1), dtype="float32") = R.full(
                     R.shape([5, 4, 1]), R.const(0.5, "float32"), dtype="float32"
                 )
@@ -5470,9 +5467,7 @@ def test_dilate_dynamic_dilations():
         _build_buffer(builder),
         _build_buffer(builder),
         _build_buffer(builder),  # dilations is a runtime input so empty buffer
-        _build_buffer(
-            builder, np.asarray([dilation_value], dtype=np.float32).tobytes()
-        ),
+        _build_buffer(builder, np.asarray([dilation_value], dtype=np.float32).tobytes()),
         _build_buffer(builder),
     ]
 
@@ -5513,9 +5508,9 @@ def test_dilate_dynamic_dilations():
                     R.const(0.5, "float32"),
                     dtype="float32",
                 )
-                lv6: R.Tensor(
-                    (3, 1 + (dilate_stride_0 - 1), 4), dtype="float32"
-                ) = R.concat((lv4, lv5), axis=1)
+                lv6: R.Tensor((3, 1 + (dilate_stride_0 - 1), 4), dtype="float32") = R.concat(
+                    (lv4, lv5), axis=1
+                )
                 lv7: R.Tensor((3 * dilate_stride_0, 4), dtype="float32") = R.reshape(
                     lv6, R.shape([3 * dilate_stride_0, 4])
                 )
@@ -5530,9 +5525,9 @@ def test_dilate_dynamic_dilations():
                     [1, 1],
                     assume_inbound=False,
                 )
-                lv9: R.Tensor(
-                    (2 * dilate_stride_0 + 1, 4, 1), dtype="float32"
-                ) = R.reshape(lv8, R.shape([2 * dilate_stride_0 + 1, 4, 1]))
+                lv9: R.Tensor((2 * dilate_stride_0 + 1, 4, 1), dtype="float32") = R.reshape(
+                    lv8, R.shape([2 * dilate_stride_0 + 1, 4, 1])
+                )
                 lv10: R.Tensor(
                     (2 * dilate_stride_0 + 1, 4, dilate_stride_1 - 1), dtype="float32"
                 ) = R.full(
@@ -5544,10 +5539,8 @@ def test_dilate_dynamic_dilations():
                     (2 * dilate_stride_0 + 1, 4, 1 + (dilate_stride_1 - 1)),
                     dtype="float32",
                 ) = R.concat((lv9, lv10), axis=2)
-                lv12: R.Tensor(
-                    (2 * dilate_stride_0 + 1, 4 * dilate_stride_1), dtype="float32"
-                ) = R.reshape(
-                    lv11, R.shape([2 * dilate_stride_0 + 1, 4 * dilate_stride_1])
+                lv12: R.Tensor((2 * dilate_stride_0 + 1, 4 * dilate_stride_1), dtype="float32") = (
+                    R.reshape(lv11, R.shape([2 * dilate_stride_0 + 1, 4 * dilate_stride_1]))
                 )
                 gv: R.Tensor(
                     (

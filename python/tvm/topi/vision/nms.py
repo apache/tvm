@@ -123,9 +123,7 @@ def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
     out_tensor_buf = tvm.tirx.decl_buffer(
         (batch_size, num_anchors, box_data_length), data.dtype, "out_tensor"
     )
-    out_indices_buf = tvm.tirx.decl_buffer(
-        (batch_size, num_anchors), "int32", "out_indices"
-    )
+    out_indices_buf = tvm.tirx.decl_buffer((batch_size, num_anchors), "int32", "out_indices")
 
     if is_score_threshold_tensor:
         score_thresh_buf = tvm.tirx.decl_buffer(
@@ -135,8 +133,13 @@ def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
             [(batch_size,), (batch_size, num_anchors, box_data_length), (batch_size, num_anchors)],
             [data, score_threshold],
             lambda ins, outs: _get_valid_counts_ir(
-                ins[0], ins[1], id_index_const, score_index_const,
-                outs[0], outs[1], outs[2],
+                ins[0],
+                ins[1],
+                id_index_const,
+                score_index_const,
+                outs[0],
+                outs[1],
+                outs[2],
             ),
             dtype=["int32", data.dtype, "int32"],
             out_buffers=[valid_count_buf, out_tensor_buf, out_indices_buf],
@@ -151,8 +154,13 @@ def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
         # score_threshold is a TIR constant, not a tensor
         def _ir_with_const_threshold(ins, outs):
             return _get_valid_counts_ir(
-                ins[0], score_threshold, id_index_const, score_index_const,
-                outs[0], outs[1], outs[2],
+                ins[0],
+                score_threshold,
+                id_index_const,
+                score_index_const,
+                outs[0],
+                outs[1],
+                outs[2],
             )
 
         valid_count, out_tensor, out_indices = te.extern(
@@ -318,9 +326,9 @@ def _classic_nms_ir(
                                     with T.If(best_idx[0] != num_valid_boxes[0]):
                                         with T.Then():
                                             tmp_idx[0] = out_box_indices[i, num_valid_boxes[0]]
-                                            out_box_indices[
-                                                i, num_valid_boxes[0]
-                                            ] = out_box_indices[i, best_idx[0]]
+                                            out_box_indices[i, num_valid_boxes[0]] = (
+                                                out_box_indices[i, best_idx[0]]
+                                            )
                                             out_box_indices[i, best_idx[0]] = tmp_idx[0]
 
                                             with T.serial(0, box_data_length) as k:
@@ -362,9 +370,7 @@ def _classic_nms_ir(
                                                                 out_data[i, j, score_index] = (
                                                                     out_data[i, j, score_index]
                                                                     * tvm.tirx.exp(
-                                                                        soft_nms_scale
-                                                                        * iou
-                                                                        * iou
+                                                                        soft_nms_scale * iou * iou
                                                                     )
                                                                 )
                                                                 with T.If(
@@ -372,9 +378,9 @@ def _classic_nms_ir(
                                                                     <= thresh
                                                                 ):
                                                                     with T.Then():
-                                                                        out_box_indices[
-                                                                            i, j
-                                                                        ] = T.int32(-1)
+                                                                        out_box_indices[i, j] = (
+                                                                            T.int32(-1)
+                                                                        )
 
                                     num_valid_boxes[0] = num_valid_boxes[0] + 1
 
@@ -389,9 +395,7 @@ def _classic_nms_ir(
                         with T.If(j >= num_valid_boxes[0]):
                             with T.Then():
                                 with T.serial(0, box_data_length) as k:
-                                    out_data[i, j, k] = tvm.tirx.Cast(
-                                        data.dtype, T.float32(-1.0)
-                                    )
+                                    out_data[i, j, k] = tvm.tirx.Cast(data.dtype, T.float32(-1.0))
                                 out_box_indices[i, j] = T.int32(-1)
                 else:
                     with T.serial(0, num_anchors) as j:
@@ -552,7 +556,7 @@ def non_max_suppression(
 
     if isinstance(max_output_size, int):
         max_output_size = tvm.tirx.const(max_output_size, dtype="int32")
-    if isinstance(iou_threshold, (float, int)):
+    if isinstance(iou_threshold, float | int):
         iou_threshold = tvm.tirx.const(iou_threshold, dtype=data.dtype)
 
     # Sort by score
@@ -581,14 +585,26 @@ def non_max_suppression(
             [data.shape, (batch_size, num_anchors), (batch_size, 1)],
             [data, sort_tensor, valid_count, indices],
             lambda ins, outs: _classic_nms_ir(
-                ins[0], ins[1], ins[2], ins[3],
-                batch_size, num_anchors, box_data_length,
-                max_output_size, iou_threshold,
-                force_suppress, top_k,
-                coord_start, score_index, id_index,
+                ins[0],
+                ins[1],
+                ins[2],
+                ins[3],
+                batch_size,
+                num_anchors,
+                box_data_length,
+                max_output_size,
+                iou_threshold,
+                force_suppress,
+                top_k,
+                coord_start,
+                score_index,
+                id_index,
                 return_indices,
-                outs[0], outs[1], outs[2],
-                soft_nms_sigma, score_threshold,
+                outs[0],
+                outs[1],
+                outs[2],
+                soft_nms_sigma,
+                score_threshold,
             ),
             dtype=[data.dtype, "int32", "int32"],
             out_buffers=[out_data_buf, out_box_indices_buf, out_valid_box_count_buf],
@@ -604,14 +620,26 @@ def non_max_suppression(
         [data.shape, (batch_size, num_anchors)],
         [data, sort_tensor, valid_count, indices],
         lambda ins, outs: _classic_nms_ir(
-            ins[0], ins[1], ins[2], ins[3],
-            batch_size, num_anchors, box_data_length,
-            max_output_size, iou_threshold,
-            force_suppress, top_k,
-            coord_start, score_index, id_index,
+            ins[0],
+            ins[1],
+            ins[2],
+            ins[3],
+            batch_size,
+            num_anchors,
+            box_data_length,
+            max_output_size,
+            iou_threshold,
+            force_suppress,
+            top_k,
+            coord_start,
+            score_index,
+            id_index,
             return_indices,
-            outs[0], outs[1], None,
-            soft_nms_sigma, score_threshold,
+            outs[0],
+            outs[1],
+            None,
+            soft_nms_sigma,
+            score_threshold,
         ),
         dtype=[data.dtype, "int32"],
         out_buffers=[out_data_buf, out_box_indices_buf],
@@ -644,9 +672,7 @@ def _rearrange_out(data, batch_size, num_anchors, box_data_length, score_index):
                 valid_idx[0] = T.int32(0)
 
                 with T.serial(0, num_anchors) as j:
-                    with T.If(
-                        data[i, j, score_index] >= tvm.tirx.Cast(data.dtype, T.float32(0.0))
-                    ):
+                    with T.If(data[i, j, score_index] >= tvm.tirx.Cast(data.dtype, T.float32(0.0))):
                         with T.Then():
                             with T.serial(0, box_data_length) as k:
                                 out[i, valid_idx[0], k] = data[i, j, k]

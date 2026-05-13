@@ -25,6 +25,7 @@
 #include <tvm/ffi/extra/serialization.h>
 #include <tvm/ffi/optional.h>
 #include <tvm/ir/cast.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/s_tir/meta_schedule/arg_info.h>
 #include <tvm/s_tir/meta_schedule/builder.h>
 #include <tvm/s_tir/meta_schedule/cost_model.h>
@@ -43,7 +44,6 @@
 #include <tvm/support/io.h>
 #include <tvm/support/serializer.h>
 #include <tvm/tirx/transform.h>
-#include <tvm/runtime/logging.h>
 
 #include <algorithm>
 #include <sstream>

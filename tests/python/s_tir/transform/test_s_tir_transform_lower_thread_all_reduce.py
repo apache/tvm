@@ -503,7 +503,7 @@ def test_webgpu_multi_warp_reduce():
     After_script = After.script()
     assert "tvm_warp_shuffle_down" in After_script
     assert "tvm_storage_sync" in After_script
-    assert "\"tirx.volatile\": T.bool(True)" in After_script
+    assert '"tirx.volatile": T.bool(True)' in After_script
     assert "T.uint32(" not in After_script
 
 

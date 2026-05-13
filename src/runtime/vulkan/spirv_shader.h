@@ -20,10 +20,10 @@
 #ifndef TVM_RUNTIME_VULKAN_SPIRV_SHADER_H_
 #define TVM_RUNTIME_VULKAN_SPIRV_SHADER_H_
 
+#include <tvm/ffi/error.h>
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/ffi/error.h>
 #include <tvm/support/io.h>
 #include <tvm/support/serializer.h>
 

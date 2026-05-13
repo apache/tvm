@@ -463,7 +463,8 @@ def compile_relax(
 
     @tvm.transform.module_pass(opt_level=3)
     def _ms_pipeline(mod: tvm.ir.IRModule, _ctx: tvm.transform.PassContext) -> tvm.ir.IRModule:
-        fuse_seq = dispatch_passes + [
+        fuse_seq = [
+            *dispatch_passes,
             relax.transform.LegalizeOps(enable_warning=enable_warning),
             relax.transform.AnnotateTIROpPattern(),
             relax.transform.FoldConstant(),

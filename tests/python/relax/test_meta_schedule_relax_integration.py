@@ -25,8 +25,8 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import relax
-from tvm.runtime import tensor as tvm_tensor
 from tvm.runtime import cpu as tvm_cpu
+from tvm.runtime import tensor as tvm_tensor
 from tvm.runtime.vm import VirtualMachine
 from tvm.s_tir import meta_schedule as ms
 from tvm.script import ir as I

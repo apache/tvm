@@ -308,7 +308,7 @@ def _all_class_nms_ir(
         if selected_scores is not None:
             selected_scores = T.buffer_proxy(selected_scores)
 
-        if isinstance(iou_threshold, (float, int)):
+        if isinstance(iou_threshold, float | int):
             iou_threshold = tvm.tirx.FloatImm("float32", float(iou_threshold))
         elif isinstance(iou_threshold, te.Tensor):
             if len(iou_threshold.shape) == 0:

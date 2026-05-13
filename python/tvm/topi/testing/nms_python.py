@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Numpy reference implementation for classic non_max_suppression."""
+
 import numpy as np
 
 

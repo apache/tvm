@@ -26,6 +26,6 @@ The patterns module registers all supported NPU operations and their
 constraints, making them available for graph partitioning.
 """
 
-from . import patterns  # noqa: F401
+from . import patterns
 
 __all__ = ["patterns"]

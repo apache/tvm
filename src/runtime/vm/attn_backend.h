@@ -26,9 +26,9 @@
 #define TVM_RUNTIME_VM_ATTN_BACKEND_H_
 
 #include <tvm/ffi/container/array.h>
+#include <tvm/ffi/error.h>
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/ffi/error.h>
 
 #include <memory>
 #include <tuple>

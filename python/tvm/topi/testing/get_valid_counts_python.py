@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Numpy reference implementation for get_valid_counts."""
+
 import numpy as np
 
 

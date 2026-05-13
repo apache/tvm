@@ -17,8 +17,8 @@
  * under the License.
  */
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/s_tir/stmt.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/s_tir/stmt.h>
 
 #include "../utils.h"
 

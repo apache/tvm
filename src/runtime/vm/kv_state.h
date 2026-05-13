@@ -20,10 +20,10 @@
 #define TVM_RUNTIME_VM_KV_STATE_H_
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/shape.h>
+#include <tvm/ffi/error.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/optional.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/ffi/error.h>
 #include <tvm/runtime/tensor.h>
 
 namespace tvm {

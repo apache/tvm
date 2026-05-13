@@ -25,9 +25,9 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/target/target.h>
 #include <tvm/target/target_kind.h>
-#include <tvm/runtime/logging.h>
 
 #include <algorithm>
 

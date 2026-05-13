@@ -29,9 +29,9 @@
 #define TVM_RUNTIME_MINRPC_MINRPC_SERVER_H_
 
 #include <tvm/ffi/c_api.h>
+#include <tvm/ffi/error.h>
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/base.h>
-#include <tvm/ffi/error.h>
 
 #include <cstring>
 #include <memory>

@@ -96,7 +96,8 @@ class FunctionInfoObj : public ffi::Object {
     auto sarg_types_arr = src.at("arg_types").cast<json::Array>();
     arg_types = ffi::Array<DLDataType>();
     for (size_t i = 0; i < sarg_types_arr.size(); ++i) {
-      arg_types.push_back(ffi::StringToDLDataType(std::string(sarg_types_arr[i].cast<ffi::String>())));
+      arg_types.push_back(
+          ffi::StringToDLDataType(std::string(sarg_types_arr[i].cast<ffi::String>())));
     }
     auto lt = src.find("launch_param_tags");
     if (lt != src.end()) {

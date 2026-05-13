@@ -1140,9 +1140,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         target_w = size[3]
 
         # Relax affine_grid outputs [N, 2, H, W]
-        grid = self.block_builder.emit(
-            relax.op.image.affine_grid(theta, (target_h, target_w))
-        )
+        grid = self.block_builder.emit(relax.op.image.affine_grid(theta, (target_h, target_w)))
         # Permute to PyTorch convention [N, H, W, 2]
         return self.block_builder.emit(relax.op.permute_dims(grid, axes=[0, 2, 3, 1]))
 
@@ -1361,10 +1359,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 # Preserve explicit None outputs as Relax null objects.
                 flattened.append(relax.op.null_value())
             else:
-                raise ValueError(
-                    "Unsupported output type in exported graph output: "
-                    f"{type(value)}"
-                )
+                raise ValueError(f"Unsupported output type in exported graph output: {type(value)}")
 
         _visit(output_args)
 

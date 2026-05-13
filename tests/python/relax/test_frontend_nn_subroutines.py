@@ -137,7 +137,8 @@ def test_different_shapes_produce_distinct_subroutines():
         func
         for gvar, func in tvm_mod.functions.items()
         if isinstance(func, relax.Function)
-        and gvar.name_hint not in (
+        and gvar.name_hint
+        not in (
             "forward",
             "_initialize_effect",
         )

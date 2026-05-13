@@ -17,7 +17,6 @@
 # pylint: disable=invalid-name
 """Default legalization function for quantize/dequantize operators."""
 
-from typing import Union
 import tvm
 from tvm import te, tirx
 
@@ -59,8 +58,8 @@ def _quantize(bb: BlockBuilder, call: Call) -> Expr:
 
     def te_quantize(
         data: te.Tensor,
-        scale: Union[te.Tensor, tirx.IntImm, tirx.FloatImm],
-        zp: Union[te.Tensor, tirx.IntImm, tirx.FloatImm],
+        scale: te.Tensor | tirx.IntImm | tirx.FloatImm,
+        zp: te.Tensor | tirx.IntImm | tirx.FloatImm,
     ):
         scale_singleton = _is_singleton_qparam(scale) if isinstance(scale, te.Tensor) else False
         zp_singleton = _is_singleton_qparam(zp) if isinstance(zp, te.Tensor) else False
@@ -121,8 +120,8 @@ def _dequantize(bb: BlockBuilder, call: Call) -> Expr:
 
     def te_dequantize(
         data: te.Tensor,
-        scale: Union[te.Tensor, tirx.IntImm, tirx.FloatImm],
-        zp: Union[te.Tensor, tirx.IntImm, tirx.FloatImm],
+        scale: te.Tensor | tirx.IntImm | tirx.FloatImm,
+        zp: te.Tensor | tirx.IntImm | tirx.FloatImm,
     ):
         scale_singleton = _is_singleton_qparam(scale) if isinstance(scale, te.Tensor) else False
         zp_singleton = _is_singleton_qparam(zp) if isinstance(zp, te.Tensor) else False

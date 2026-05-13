@@ -1669,9 +1669,7 @@ def test_conv3d_transpose_wrong_output_padding():
         bb.normalize(relax.op.nn.conv3d_transpose(x0, w0, strides=2, output_padding=2))
     with pytest.raises(TVMError):
         bb.normalize(
-            relax.op.nn.conv3d_transpose(
-                x0, w0, strides=(2, 2, 2), output_padding=(2, 2, 2)
-            )
+            relax.op.nn.conv3d_transpose(x0, w0, strides=(2, 2, 2), output_padding=(2, 2, 2))
         )
 
 
