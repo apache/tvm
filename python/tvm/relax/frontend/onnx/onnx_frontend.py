@@ -556,9 +556,6 @@ class Div(BinaryBase):
         if rhs_has_zero:
             raise ValueError("ONNX Div with integer inputs encountered divisor value 0.")
 
-        if rhs_has_zero is False:
-            return cls.base_impl(bb, inputs, attr, params)
-
         return cls.base_impl(bb, inputs, attr, params)
 
 class Pow(BinaryBase):
