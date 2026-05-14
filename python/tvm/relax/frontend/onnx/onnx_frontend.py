@@ -554,23 +554,12 @@ class Div(BinaryBase):
 
         rhs_has_zero = _const_integer_expr_has_zero(inputs[1])
         if rhs_has_zero:
-            return ValueError("ONNX Div with integer inputs encountered divisor value 0.")
+            raise ValueError("ONNX Div with integer inputs encountered divisor value 0.")
 
         if rhs_has_zero is False:
             return cls.base_impl(bb, inputs, attr, params)
 
-        rhs_is_zero = bb.normalize(relax.op.equal(inputs[1], relax.const(0, rhs_dtype)))
-        rhs_is_zero_i64 = bb.normalize(relax.op.astype(rhs_is_zero, "int64"))
-        zero_count = bb.normalize(relax.op.sum(rhs_is_zero_i64, axis=None, keepdims=False))
-        no_zero_divisor = bb.normalize(relax.op.equal(zero_count, relax.const(0, "int64")))
-        bb.emit(
-            relax.op.assert_op(
-                no_zero_divisor,
-                format="ONNX Div with integer inputs encountered divisor value 0.",
-            )
-        )
-        return cls.relax_op(inputs[0], inputs[1]) # pylint: disable=not-callable
-
+        return cls.base_impl(bb, inputs, attr, params)
 
 class Pow(BinaryBase):
     """Converts an onnx Pow node into an equivalent Relax expression."""
