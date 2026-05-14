@@ -77,12 +77,10 @@ class TVMRelaxBackendRep(BackendRep):
         self._vm.invoke_stateful("main")
         output = self._vm.get_outputs("main")
 
-        if isinstance(output, (tvm.runtime.Tensor, np.ndarray)):
+        if isinstance(output, (tvm.runtime.Tensor, np.ndarray)):  # noqa: UP038
             return (output.numpy() if hasattr(output, "numpy") else output,)
-        if isinstance(output, (tuple, list)):
-            return tuple(
-                o.numpy() if hasattr(o, "numpy") else np.array(o) for o in output
-            )
+        if isinstance(output, (tuple, list)):  # noqa: UP038
+            return tuple(o.numpy() if hasattr(o, "numpy") else np.array(o) for o in output)
         return (np.array(output),)
 
 
@@ -110,9 +108,7 @@ class TVMRelaxBackend(Backend):
         func_param_names = [p.name_hint for p in func.params]
         graph_input_names = [inp.name for inp in model.graph.input]
 
-        return TVMRelaxBackendRep(
-            tvm_model, params, func_param_names, graph_input_names
-        )
+        return TVMRelaxBackendRep(tvm_model, params, func_param_names, graph_input_names)
 
     @classmethod
     def supports_device(cls, device: str) -> bool:
@@ -133,32 +129,77 @@ backend_test = onnx.backend.test.BackendTest(TVMRelaxBackend, __name__)
 # validated against the ONNX Backend Test Suite.  They can be added
 # incrementally as the importer improves.
 _INCLUDE_OPS = [
-    "abs", "acos", "acosh", "add", "and", "argmax", "argmin",
-    "averagepool", "bitshift",
-    "bitwise_and", "bitwise_not", "bitwise_or", "bitwise_xor",
-    "ceil", "clip", "compress", "concat",
-    "conv", "cos", "cosh",
-    "depthtospace", "div",
-    "einsum", "erf", "exp",
-    "flatten", "floor",
-    "gathernd", "gemm",
-    "globalaveragepool", "globalmaxpool", "greater", "greater_equal",
-    "hardmax", "hardswish",
+    "abs",
+    "acos",
+    "acosh",
+    "add",
+    "and",
+    "argmax",
+    "argmin",
+    "averagepool",
+    "bitshift",
+    "bitwise_and",
+    "bitwise_not",
+    "bitwise_or",
+    "bitwise_xor",
+    "ceil",
+    "clip",
+    "compress",
+    "concat",
+    "conv",
+    "cos",
+    "cosh",
+    "depthtospace",
+    "div",
+    "einsum",
+    "erf",
+    "exp",
+    "flatten",
+    "floor",
+    "gathernd",
+    "gemm",
+    "globalaveragepool",
+    "globalmaxpool",
+    "greater",
+    "greater_equal",
+    "hardmax",
+    "hardswish",
     "isnan",
-    "less", "less_equal", "lrn",
-    "matmul", "matmulinteger", "mean", "min", "mod", "mul", "neg",
-    "nonzero", "not",
+    "less",
+    "less_equal",
+    "lrn",
+    "matmul",
+    "matmulinteger",
+    "mean",
+    "min",
+    "mod",
+    "mul",
+    "neg",
+    "nonzero",
+    "not",
     "or",
     "reciprocal",
     "round",
     "scatternd",
-    "sigmoid", "sign",
-    "sin", "sinh", "size", "slice",
+    "sigmoid",
+    "sign",
+    "sin",
+    "sinh",
+    "size",
+    "slice",
     "spacetodepth",
-    "sqrt", "squeeze", "sub", "sum",
-    "tan", "tanh", "tile", "transpose",
-    "unique", "unsqueeze",
-    "where", "xor",
+    "sqrt",
+    "squeeze",
+    "sub",
+    "sum",
+    "tan",
+    "tanh",
+    "tile",
+    "transpose",
+    "unique",
+    "unsqueeze",
+    "where",
+    "xor",
 ]
 
 for _op in _INCLUDE_OPS:

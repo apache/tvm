@@ -28,12 +28,14 @@ def _register_cuda_tag(name, arch, shared_mem=49152, regs=65536, **extra):
         "max_threads_per_block": 1024,
         "thread_warp_size": 32,
         "registers_per_block": regs,
+        # Default to disable fast math
+        "enable_fast_math": False,
     }
     config.update(extra)
     register_tag(name, config)
 
 
-def _register_jetson_tag(name, arch, mcpu, num_cores, regs=65536):
+def _register_jetson_tag(name, arch, mcpu, num_cores, regs=65536, enable_fast_math=False):
     register_tag(
         name,
         {
@@ -49,6 +51,7 @@ def _register_jetson_tag(name, arch, mcpu, num_cores, regs=65536):
                 "mcpu": mcpu,
                 "num-cores": num_cores,
             },
+            "enable_fast_math": enable_fast_math,
         },
     )
 

@@ -183,6 +183,14 @@ ffi::Map<ffi::String, ffi::Any> UpdateCUDAAttrs(ffi::Map<ffi::String, ffi::Any> 
     }
     target.Set("arch", ffi::String("sm_") + std::to_string(archInt));
   }
+  // Update enable_fast_math
+  if (target.count("enable_fast_math")) {
+    // If enable_fast_math has been specified, validate that enable_fast_math is a bool
+    Downcast<bool>(target.at("enable_fast_math"));
+  } else {
+    // If enable_fast_math has not been specified, default to false
+    target.Set("enable_fast_math", false);
+  }
   return target;
 }
 
@@ -367,6 +375,7 @@ TVM_REGISTER_TARGET_KIND("cuda", kDLCUDA)
     .add_attr_option<int64_t>("l2_cache_size_bytes")
     .add_attr_option<int64_t>("max_num_threads",
                               refl::DefaultValue(1024))  // TODO(@zxybazh): deprecate it
+    .add_attr_option<bool>("enable_fast_math")
     .set_default_keys({"cuda", "gpu"})
     .set_target_canonicalizer(UpdateCUDAAttrs);
 
