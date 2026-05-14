@@ -72,6 +72,18 @@ def _relax_dtype_is_floating_point(dtype: str) -> bool:
     )
 
 
+def _const_integer_expr_has_zero(expr: relax.Expr) -> bool | None:
+    """Return whether a constant integer expression contains a zero value.
+
+    Returns None when expression is not statically inspectable.
+    """
+
+    if isinstance(expr, relax.Constant):
+        return bool(_np.any(expr.data.numpy() == 0))
+
+    return None
+
+
 def get_type(elem_type: str | int) -> str:
     """Converts onnx integer datatype to numpy datatype"""
     # If a string was passed instead of a tensor type, it does not need
@@ -526,7 +538,38 @@ class Div(BinaryBase):
 
     @classmethod
     def _impl_v7(cls, bb, inputs, attr, params):
-        return cls.base_impl(bb, inputs, attr, params)
+        lhs_dtype = inputs[0].struct_info.dtype
+        rhs_dtype = inputs[1].struct_info.dtype
+
+        try:
+            lhs_code = DataType(lhs_dtype).type_code
+            rhs_code = DataType(rhs_dtype).type_code
+        except (ValueError, TypeError, TVMError):
+            return cls.base_impl(bb, inputs, attr, params)
+
+        lhs_is_integer = lhs_code == DataTypeCode.INT or lhs_code == DataTypeCode.UINT
+        rhs_is_integer = rhs_code == DataTypeCode.INT or rhs_code == DataTypeCode.UINT
+        if not (lhs_is_integer and rhs_is_integer):
+            return cls.base_impl(bb, inputs, attr, params)
+
+        rhs_has_zero = _const_integer_expr_has_zero(inputs[1])
+        if rhs_has_zero:
+            return ValueError("ONNX Div with integer inputs encountered divisor value 0.")
+
+        if rhs_has_zero is False:
+            return cls.base_impl(bb, inputs, attr, params)
+
+        rhs_is_zero = bb.normalize(relax.op.equal(inputs[1], relax.const(0, rhs_dtype)))
+        rhs_is_zero_i64 = bb.normalize(relax.op.astype(rhs_is_zero, "int64"))
+        zero_count = bb.normalize(relax.op.sum(rhs_is_zero_i64, axis=None, keepdims=False))
+        no_zero_divisor = bb.normalize(relax.op.equal(zero_count, relax.const(0, "int64")))
+        bb.emit(
+            relax.op.assert_op(
+                no_zero_divisor,
+                format="ONNX Div with integer inputs encountered divisor value 0.",
+            )
+        )
+        return cls.relax_op(inputs[0], inputs[1]) # pylint: disable=not-callable
 
 
 class Pow(BinaryBase):
