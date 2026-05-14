@@ -538,13 +538,10 @@ class Div(BinaryBase):
 
     @classmethod
     def _impl_v7(cls, bb, inputs, attr, params):
-        lhs_dtype = inputs[0].struct_info.dtype
-        rhs_dtype = inputs[1].struct_info.dtype
-
         try:
-            lhs_code = DataType(lhs_dtype).type_code
-            rhs_code = DataType(rhs_dtype).type_code
-        except (ValueError, TypeError, TVMError):
+            lhs_code = DataType(inputs[0].struct_info.dtype).type_code
+            rhs_code = DataType(inputs[1].struct_info.dtype).type_code
+        except (AttributeError, ValueError, TypeError, TVMError):
             return cls.base_impl(bb, inputs, attr, params)
 
         lhs_is_integer = lhs_code == DataTypeCode.INT or lhs_code == DataTypeCode.UINT
