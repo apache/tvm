@@ -726,7 +726,7 @@ def test_bitwise_shift(direction: str):
         "Tanh",
         "Asin",
         "Acos",
-        # "Atan",  // TODO: fix x²+1 overflow in llvm legalize for huge inputs (issue #19560)
+        "Atan",
         "Asinh",
         "Acosh",
         "Atanh",
