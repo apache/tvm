@@ -555,6 +555,7 @@ class Div(BinaryBase):
 
         return cls.base_impl(bb, inputs, attr, params)
 
+
 class Pow(BinaryBase):
     """Converts an onnx Pow node into an equivalent Relax expression."""
 
