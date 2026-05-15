@@ -191,13 +191,10 @@ TVM_REGISTER_OP("tirx.asinh")
 
 TVM_REGISTER_OP("tirx.acosh")
     .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
-      using tirx::make_const;
+      using namespace intrin;
       const tirx::CallNode* call = e.as<tirx::CallNode>();
       TVM_FFI_ICHECK(call != nullptr) << "Invalid call node in acosh legalization";
-      const PrimExpr& x = call->args[0];
-      PrimExpr one = make_const(x.dtype(), 1.0);
-      PrimExpr sqrt_val = sqrt(x * x - one);
-      return log(x + sqrt_val);
+      return ::tvm::codegen::intrin::DispatchPureExtern<::tvm::codegen::intrin::FloatSuffix>(e);
     });
 
 TVM_REGISTER_OP("tirx.atanh")
