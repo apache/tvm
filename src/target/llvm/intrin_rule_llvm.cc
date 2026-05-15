@@ -173,40 +173,18 @@ TVM_REGISTER_OP("tirx.sinh")
 
 TVM_REGISTER_OP("tirx.asin")
     .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
-      using tirx::make_const;
       using namespace intrin;
       const tirx::CallNode* call = e.as<tirx::CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
-      const PrimExpr& x = call->args[0];
-
-      PrimExpr lib_result =
-          ::tvm::codegen::intrin::DispatchPureExtern<::tvm::codegen::intrin::FloatSuffix>(e);
-
-      PrimExpr lower = make_const(x.dtype(), -1.0);
-      PrimExpr upper = make_const(x.dtype(), 1.0);
-      PrimExpr out_range = tirx::Or(x<lower, x> upper);
-      PrimExpr nan_const = make_const(x.dtype(), std::numeric_limits<double>::quiet_NaN());
-
-      return tirx::Select(out_range, nan_const, lib_result);
+      return ::tvm::codegen::intrin::DispatchPureExtern<::tvm::codegen::intrin::FloatSuffix>(e);
     });
 
 TVM_REGISTER_OP("tirx.acos")
     .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
-      using tirx::make_const;
       using namespace intrin;
       const tirx::CallNode* call = e.as<tirx::CallNode>();
       TVM_FFI_ICHECK(call != nullptr) << "Invalid call node in acos legalization";
-      const PrimExpr& x = call->args[0];
-
-      PrimExpr lib_result =
-          ::tvm::codegen::intrin::DispatchPureExtern<::tvm::codegen::intrin::FloatSuffix>(e);
-
-      PrimExpr lower = make_const(x.dtype(), -1.0);
-      PrimExpr upper = make_const(x.dtype(), 1.0);
-      PrimExpr out_range = tirx::Or(x<lower, x> upper);
-      PrimExpr nan_const = make_const(x.dtype(), std::numeric_limits<double>::quiet_NaN());
-
-      return tirx::Select(out_range, nan_const, lib_result);
+      return ::tvm::codegen::intrin::DispatchPureExtern<::tvm::codegen::intrin::FloatSuffix>(e);
     });
 
 TVM_REGISTER_OP("tirx.atan")
