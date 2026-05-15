@@ -143,7 +143,6 @@ TVM_REGISTER_OP("tirx.tan")
 
 TVM_REGISTER_OP("tirx.cosh")
     .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
-      using namespace intrin;
       const tirx::CallNode* call = e.as<tirx::CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
       return ::tvm::codegen::intrin::DispatchPureExtern<::tvm::codegen::intrin::FloatSuffix>(e);
@@ -151,7 +150,6 @@ TVM_REGISTER_OP("tirx.cosh")
 
 TVM_REGISTER_OP("tirx.sinh")
     .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
-      using namespace intrin;
       const tirx::CallNode* call = e.as<tirx::CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
       return ::tvm::codegen::intrin::DispatchPureExtern<::tvm::codegen::intrin::FloatSuffix>(e);
@@ -175,7 +173,6 @@ TVM_REGISTER_OP("tirx.acos")
 
 TVM_REGISTER_OP("tirx.atan")
     .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
-      using namespace intrin;
       const tirx::CallNode* call = e.as<tirx::CallNode>();
       TVM_FFI_ICHECK(call != nullptr) << "Invalid call node in atan legalization";
       return ::tvm::codegen::intrin::DispatchPureExtern<::tvm::codegen::intrin::FloatSuffix>(e);
@@ -183,7 +180,6 @@ TVM_REGISTER_OP("tirx.atan")
 
 TVM_REGISTER_OP("tirx.asinh")
     .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
-      using namespace intrin;
       const tirx::CallNode* call = e.as<tirx::CallNode>();
       TVM_FFI_ICHECK(call != nullptr) << "Invalid call node in asinh legalization";
       return ::tvm::codegen::intrin::DispatchPureExtern<::tvm::codegen::intrin::FloatSuffix>(e);
@@ -191,7 +187,6 @@ TVM_REGISTER_OP("tirx.asinh")
 
 TVM_REGISTER_OP("tirx.acosh")
     .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
-      using namespace intrin;
       const tirx::CallNode* call = e.as<tirx::CallNode>();
       TVM_FFI_ICHECK(call != nullptr) << "Invalid call node in acosh legalization";
       return ::tvm::codegen::intrin::DispatchPureExtern<::tvm::codegen::intrin::FloatSuffix>(e);
@@ -209,7 +204,6 @@ TVM_REGISTER_OP("tirx.atanh")
 
 TVM_REGISTER_OP("tirx.erf")
     .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
-      using namespace intrin;
       const tirx::CallNode* call = e.as<tirx::CallNode>();
       TVM_FFI_ICHECK(call != nullptr) << "Invalid call node in erf legalization";
       return ::tvm::codegen::intrin::DispatchPureExtern<::tvm::codegen::intrin::FloatSuffix>(e);
