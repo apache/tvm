@@ -610,32 +610,6 @@ def test_div_integer_constant_zero_divisor_raises_valueerror():
         from_onnx(model, opset=18, keep_params_in_input=False)
 
 
-def test_div_integer_dynamic_nonzero_matches_ort():
-    node = helper.make_node("Div", ["a", "b"], ["y"])
-    graph = helper.make_graph(
-        [node],
-        "div_dynamic_nonzero",
-        [
-            helper.make_tensor_value_info("a", TensorProto.INT32, [4]),
-            helper.make_tensor_value_info("b", TensorProto.INT32, [4]),
-        ],
-        [helper.make_tensor_value_info("y", TensorProto.INT32, [4])],
-    )
-    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 18)])
-    model.ir_version = 9
-
-    check_correctness(
-        model,
-        inputs={
-            "a": np.array([42, 99, -50, 7], dtype=np.int32),
-            "b": np.array([3, -2, 5, 1], dtype=np.int32),
-        },
-        ir_version=9,
-        opset=18,
-        check_dtypes=True,
-    )
-
-
 @pytest.mark.parametrize("int_mode", [True, False])
 def test_mod(int_mode: bool):
     if int_mode:

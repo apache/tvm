@@ -72,18 +72,6 @@ def _relax_dtype_is_floating_point(dtype: str) -> bool:
     )
 
 
-def _const_integer_expr_has_zero(expr: relax.Expr) -> bool | None:
-    """Return whether a constant integer expression contains a zero value.
-
-    Returns None when expression is not statically inspectable.
-    """
-
-    if isinstance(expr, relax.Constant):
-        return bool(_np.any(expr.data.numpy() == 0))
-
-    return None
-
-
 def get_type(elem_type: str | int) -> str:
     """Converts onnx integer datatype to numpy datatype"""
     # If a string was passed instead of a tensor type, it does not need
@@ -549,8 +537,9 @@ class Div(BinaryBase):
         if not (lhs_is_integer and rhs_is_integer):
             return cls.base_impl(bb, inputs, attr, params)
 
-        rhs_has_zero = _const_integer_expr_has_zero(inputs[1])
-        if rhs_has_zero:
+        if isinstance(inputs[1], relax.Constant) and bool(
+            _np.any(inputs[1].data.numpy() == 0)
+        ):
             raise ValueError("ONNX Div with integer inputs encountered divisor value 0.")
 
         return cls.base_impl(bb, inputs, attr, params)
