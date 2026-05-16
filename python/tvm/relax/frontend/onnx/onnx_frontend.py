@@ -537,9 +537,7 @@ class Div(BinaryBase):
         if not (lhs_is_integer and rhs_is_integer):
             return cls.base_impl(bb, inputs, attr, params)
 
-        if isinstance(inputs[1], relax.Constant) and bool(
-            _np.any(inputs[1].data.numpy() == 0)
-        ):
+        if isinstance(inputs[1], relax.Constant) and bool(_np.any(inputs[1].data.numpy() == 0)):
             raise ValueError("ONNX Div with integer inputs encountered divisor value 0.")
 
         return cls.base_impl(bb, inputs, attr, params)
