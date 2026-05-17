@@ -324,6 +324,33 @@ Supported Backends
      - ``dnnl.*``
      - Matmul, conv2d (x86 CPU). Codegen exists at C++ level; patterns are
        defined in tests rather than pre-registered.
+   * - XNNPACK
+     - none in Phase 1
+     - Opt-in runtime/codegen skeleton only. Operator partitioning is planned,
+       but no Relax operators are currently marked supported.
+
+
+XNNPACK Phase 1
+---------------
+
+XNNPACK support is opt-in and disabled by default. Build with
+``USE_XNNPACK=ON`` to use normal CMake search paths, or with
+``USE_XNNPACK=/path/to/xnnpack/prefix`` to use a specific XNNPACK install
+prefix. TVM does not vendor XNNPACK and does not download it during CMake
+configuration.
+
+The Phase 1 integration only registers the Relax BYOC and JSON runtime entry
+points. ``tvm.relax.backend.xnnpack.partition_for_xnnpack`` is intentionally a
+no-op, because there is no operator coverage yet. Unsupported graphs must stay
+on TVM's normal lowering path until Phase 2 adds explicit supported patterns
+and lowering.
+
+The runtime uses XNNPACK's public ``xnnpack.h`` API only. It initializes
+XNNPACK with ``xnn_initialize`` and does not include
+``xnnpack/experimental.h``. Future operator lowering must account for
+XNNPACK's documented ``XNN_EXTRA_BYTES`` input padding requirement, static
+weight lifetime constraints, and thread-pool ownership before passing TVM
+buffers to XNNPACK.
 
 
 Source Code Map
@@ -345,6 +372,8 @@ Source Code Map
      - CUTLASS patterns and partition_for_cutlass
    * - ``python/tvm/relax/backend/cuda/cudnn.py``
      - cuDNN patterns and partition_for_cudnn
+   * - ``python/tvm/relax/backend/xnnpack.py``
+     - XNNPACK Phase 1 partition helper
    * - ``src/relax/backend/pattern_registry.cc``
      - Pattern registry C++ implementation
    * - ``src/relax/transform/run_codegen.cc``

@@ -217,6 +217,13 @@ set(USE_CLML OFF)
 # USE_CLML_GRAPH_EXECUTOR - CLML SDK PATH or ON or OFF
 set(USE_CLML_GRAPH_EXECUTOR OFF)
 
+# Whether to build with XNNPACK Relax BYOC support.
+# Possible values:
+# - ON: enable with CMake's default library/header search paths
+# - /path/to/xnnpack/prefix: use a specific XNNPACK install prefix
+# - OFF: disable XNNPACK support
+set(USE_XNNPACK OFF)
+
 # Whether use Thrust
 # Possible values:
 # - ON: enable Thrust with CMake's auto search
