@@ -15,16 +15,77 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Phase 1 helpers for the XNNPACK Relax backend."""
+"""Minimal pattern table for the XNNPACK Relax backend."""
 
+import tvm
 from tvm.ir import IRModule
+from tvm import relax
+from tvm.relax.dpl.pattern import is_op, wildcard
+from tvm.relax.transform import FuseOpsByPattern, PatternCheckContext
+
+from .pattern_registry import get_patterns_with_prefix, register_patterns
+from .utils import has_leaking_intermediate_variables
+
+
+def _get_static_shape(expr: relax.Expr) -> list[int] | None:
+    sinfo = expr.struct_info
+    if not isinstance(sinfo, relax.TensorStructInfo):
+        return None
+    if sinfo.shape is None or not hasattr(sinfo.shape, "values"):
+        return None
+
+    shape = []
+    for dim in sinfo.shape.values:
+        if not isinstance(dim, tvm.tirx.expr.IntImm | int):
+            return None
+        dim = int(dim)
+        if dim <= 0:
+            return None
+        shape.append(dim)
+    return shape
+
+
+def _check_relu(context: PatternCheckContext) -> bool:
+    if has_leaking_intermediate_variables(context):
+        return False
+
+    input_expr = context.annotated_expr["input"]
+    root_expr = context.annotated_expr["root"]
+
+    if isinstance(input_expr, relax.Constant):
+        return False
+
+    if input_expr.struct_info.dtype != "float32" or root_expr.struct_info.dtype != "float32":
+        return False
+
+    input_shape = _get_static_shape(input_expr)
+    output_shape = _get_static_shape(root_expr)
+    if input_shape is None or output_shape is None:
+        return False
+
+    return input_shape == output_shape
+
+
+_input = wildcard()
+_relu = is_op("relax.nn.relu")(_input)
+
+register_patterns(
+    [
+        (
+            "xnnpack.relu",
+            _relu,
+            {"input": _input, "root": _relu},
+            _check_relu,
+        )
+    ]
+)
 
 
 def partition_for_xnnpack(mod: IRModule) -> IRModule:
-    """Return ``mod`` unchanged until XNNPACK operator support is implemented.
+    """Partition the input module into XNNPACK-supported subgraphs.
 
-    Phase 1 only installs an opt-in runtime/codegen skeleton. It intentionally registers no
-    supported operator patterns, so this helper must not mark any Relax subgraph for XNNPACK.
+    Phase 2 supports only static-shape float32 ``relax.nn.relu``.
     """
 
-    return mod
+    patterns = get_patterns_with_prefix("xnnpack")
+    return FuseOpsByPattern(patterns, bind_constants=False, annotate_codegen=True)(mod)

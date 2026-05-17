@@ -19,27 +19,81 @@
 
 /*!
  * \file src/relax/backend/contrib/xnnpack/codegen.cc
- * \brief Phase 1 XNNPACK Relax external codegen skeleton.
+ * \brief Minimal XNNPACK Relax external codegen.
  */
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/module.h>
 #include <tvm/relax/expr.h>
+
+#include <string>
+
+#include "../codegen_json/codegen_json.h"
+#include "../utils.h"
 
 namespace tvm {
 namespace relax {
 namespace contrib {
 
-ffi::Array<ffi::Module> XNNPACKCompiler(ffi::Array<Function> functions,
-                                        ffi::Map<ffi::String, ffi::Any> /*options*/,
-                                        ffi::Map<Constant, ffi::String> /*constant_names*/) {
-  if (functions.empty()) {
-    return {};
+using JSONGraphNode = tvm::runtime::json::JSONGraphNode;
+using JSONSerializer = backend::contrib::JSONSerializer;
+using backend::contrib::NodeEntries;
+
+class XNNPACKJSONSerializer : public JSONSerializer {
+ public:
+  XNNPACKJSONSerializer(ffi::Map<Constant, ffi::String> constant_names,
+                        ffi::Map<Var, Expr> bindings)
+      : JSONSerializer(constant_names), bindings_(bindings) {}
+
+  using JSONSerializer::VisitExpr_;
+
+  NodeEntries VisitExpr_(const CallNode* call_node) final {
+    const auto* fn_var = call_node->op.as<VarNode>();
+    TVM_FFI_ICHECK(fn_var) << "XNNPACK codegen expects calls to composite functions.";
+
+    const auto fn = Downcast<Function>(bindings_[ffi::GetRef<Var>(fn_var)]);
+    TVM_FFI_ICHECK(fn.defined()) << "Expects the callee to be a function.";
+
+    auto composite_opt = fn->GetAttr<ffi::String>(attr::kComposite);
+    TVM_FFI_ICHECK(composite_opt.has_value()) << "Only composite functions are supported.";
+
+    std::string composite_name = composite_opt.value();
+    TVM_FFI_ICHECK_EQ(composite_name, "xnnpack.relu")
+        << "Unsupported XNNPACK composite pattern: " << composite_name;
+
+    NodeEntries inputs;
+    for (const auto& arg : call_node->args) {
+      auto res = VisitExpr(arg);
+      inputs.insert(inputs.end(), res.begin(), res.end());
+    }
+    TVM_FFI_ICHECK_EQ(inputs.size(), 1U) << "xnnpack.relu expects exactly one input.";
+
+    auto node = std::make_shared<JSONGraphNode>(composite_name, "kernel", inputs, 1);
+    return AddNode(node, ffi::GetRef<Expr>(call_node));
   }
 
-  TVM_FFI_THROW(InternalError)
-      << "XNNPACK Relax codegen is registered, but Phase 1 does not support any operators. "
-      << "Do not annotate Relax functions with Codegen=\"xnnpack\" until operator support is added.";
+ private:
+  ffi::Map<Var, Expr> bindings_;
+};
+
+ffi::Array<ffi::Module> XNNPACKCompiler(ffi::Array<Function> functions,
+                                        ffi::Map<ffi::String, ffi::Any> /*options*/,
+                                        ffi::Map<Constant, ffi::String> constant_names) {
+  ffi::Array<ffi::Module> compiled_functions;
+  const auto pf = tvm::ffi::Function::GetGlobalRequired("runtime.XNNPACKJSONRuntimeCreate");
+
+  for (const auto& func : functions) {
+    XNNPACKJSONSerializer serializer(constant_names, AnalyzeVar2Value(func));
+    serializer.serialize(func);
+    auto graph_json = serializer.GetJSON();
+    auto const_names = serializer.GetConstantNames();
+    auto func_name = GetExtSymbol(func);
+    compiled_functions.push_back(pf(func_name, graph_json, const_names).cast<ffi::Module>());
+  }
+
+  return compiled_functions;
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

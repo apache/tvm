@@ -325,13 +325,13 @@ Supported Backends
      - Matmul, conv2d (x86 CPU). Codegen exists at C++ level; patterns are
        defined in tests rather than pre-registered.
    * - XNNPACK
-     - none in Phase 1
-     - Opt-in runtime/codegen skeleton only. Operator partitioning is planned,
-       but no Relax operators are currently marked supported.
+     - ``xnnpack.relu``
+     - Minimal Relax ``nn.relu`` path for static-shape ``float32`` tensors.
+       Broader operator coverage is not implemented.
 
 
-XNNPACK Phase 1
----------------
+XNNPACK Minimal Pipeline
+------------------------
 
 XNNPACK support is opt-in and disabled by default. Build with
 ``USE_XNNPACK=ON`` to use normal CMake search paths, or with
@@ -339,18 +339,22 @@ XNNPACK support is opt-in and disabled by default. Build with
 prefix. TVM does not vendor XNNPACK and does not download it during CMake
 configuration.
 
-The Phase 1 integration only registers the Relax BYOC and JSON runtime entry
-points. ``tvm.relax.backend.xnnpack.partition_for_xnnpack`` is intentionally a
-no-op, because there is no operator coverage yet. Unsupported graphs must stay
-on TVM's normal lowering path until Phase 2 adds explicit supported patterns
-and lowering.
+The current integration proves the minimal Relax BYOC pipeline for exactly one
+operator pattern: ``relax.nn.relu`` on CPU tensors with static shape and
+``float32`` dtype. ``tvm.relax.backend.xnnpack.partition_for_xnnpack`` registers
+only ``xnnpack.relu`` and must leave all unsupported graphs on TVM's normal
+lowering path. There is no dense, convolution, pooling, binary elementwise,
+broadcasting, quantized dtype, layout conversion, dynamic-shape, or fused CNN
+coverage in this phase.
 
 The runtime uses XNNPACK's public ``xnnpack.h`` API only. It initializes
 XNNPACK with ``xnn_initialize`` and does not include
-``xnnpack/experimental.h``. Future operator lowering must account for
-XNNPACK's documented ``XNN_EXTRA_BYTES`` input padding requirement, static
-weight lifetime constraints, and thread-pool ownership before passing TVM
-buffers to XNNPACK.
+``xnnpack/experimental.h``. The ReLU path creates an XNNPACK subgraph with a
+unary clamp operator, uses a null XNNPACK threadpool so execution remains
+single-threaded on the caller thread, and copies external tensors through
+runtime-owned buffers padded by ``XNN_EXTRA_BYTES``. Future static-weight
+operators must keep packed or copied weights alive for the full XNNPACK runtime
+lifetime.
 
 
 Source Code Map
@@ -373,7 +377,7 @@ Source Code Map
    * - ``python/tvm/relax/backend/cuda/cudnn.py``
      - cuDNN patterns and partition_for_cudnn
    * - ``python/tvm/relax/backend/xnnpack.py``
-     - XNNPACK Phase 1 partition helper
+     - XNNPACK ReLU pattern registration and partition helper
    * - ``src/relax/backend/pattern_registry.cc``
      - Pattern registry C++ implementation
    * - ``src/relax/transform/run_codegen.cc``
