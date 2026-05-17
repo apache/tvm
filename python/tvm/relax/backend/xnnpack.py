@@ -370,6 +370,24 @@ def _parse_output_quantize(expr: relax.Expr) -> dict[str, object] | None:
     return qparams
 
 
+def _qparams_equal(lhs: dict[str, object], rhs: dict[str, object]) -> bool:
+    return (
+        lhs["qscheme"] == rhs["qscheme"]
+        and lhs["zero_point"] == rhs["zero_point"]
+        and lhs["axis"] == rhs["axis"]
+        and lhs["channel_dim"] == rhs["channel_dim"]
+        and np.array_equal(lhs["scale"], rhs["scale"])
+    )
+
+
+def _qparams_value_equal(lhs: dict[str, object], rhs: dict[str, object]) -> bool:
+    return (
+        lhs["qscheme"] == rhs["qscheme"]
+        and lhs["zero_point"] == rhs["zero_point"]
+        and np.array_equal(lhs["scale"], rhs["scale"])
+    )
+
+
 def _activation_bounds(root: relax.Expr, inner: relax.Expr) -> tuple[relax.Expr, float, float] | None:
     if root.same_as(inner) or (
         isinstance(root, relax.Call)
@@ -415,6 +433,19 @@ def _find_call_in_expr(expr: relax.Expr, op_name: str) -> relax.Call | None:
     return None
 
 
+def _find_call_in_expr_resolved(expr: relax.Expr, op_name: str, bindings=None) -> relax.Call | None:
+    if isinstance(expr, relax.Var) and bindings is not None and expr in bindings:
+        return _find_call_in_expr_resolved(bindings[expr], op_name, bindings)
+    if isinstance(expr, relax.Call):
+        if _call_op_name(expr) == op_name:
+            return expr
+        for arg in expr.args:
+            found = _find_call_in_expr_resolved(arg, op_name, bindings)
+            if found is not None:
+                return found
+    return None
+
+
 def _find_bias_dequantize(expr: relax.Expr, weighted: relax.Expr) -> relax.Call | None:
     if isinstance(expr, relax.Call):
         if _call_op_name(expr) == "relax.add":
@@ -442,6 +473,24 @@ def _resolve_bound_expr(context: PatternCheckContext, expr: relax.Expr | None) -
 
 def _op_list_from_pattern(pattern_name: str, root: relax.Expr) -> list[str]:
     op_list = _collect_op_names(root)
+    if "qs8_reshape" in pattern_name:
+        return ["relax.dequantize", "relax.reshape", "relax.quantize"]
+    if "qs8_flatten" in pattern_name:
+        return ["relax.dequantize", "relax.flatten", "relax.quantize"]
+    if "qs8_copy" in pattern_name:
+        return ["relax.dequantize", "relax.quantize"]
+    if "qs8_max_pool2d" in pattern_name:
+        return ["relax.dequantize", "relax.nn.max_pool2d", "relax.quantize"]
+    if "qs8_avg_pool2d" in pattern_name:
+        return ["relax.dequantize", "relax.nn.avg_pool2d", "relax.quantize"]
+    if "qs8_add" in pattern_name:
+        return [
+            "relax.dequantize",
+            "relax.add",
+            *(["relax.nn.relu"] if "relu" in pattern_name else []),
+            *(["relax.clip"] if "clip" in pattern_name else []),
+            "relax.quantize",
+        ]
     if "qs8_fully_connected" in pattern_name:
         return [
             "relax.dequantize",
@@ -500,7 +549,7 @@ def _candidate_layout(context: PatternCheckContext) -> str:
 
 
 def _candidate_dtype(context: PatternCheckContext) -> str:
-    for key in ("root", "conv", "weighted", "input", "data", "lhs", "rhs"):
+    for key in ("root", "conv", "weighted", "input", "q_data", "data", "lhs", "rhs", "q_lhs"):
         expr = context.annotated_expr.get(key)
         if expr is not None:
             dtype = _tensor_dtype(expr)
@@ -791,6 +840,140 @@ def _check_qs8_depthwise_conv2d(context: PatternCheckContext) -> bool:
     return True
 
 
+def _qs8_unary_qdq_parts(
+    context: PatternCheckContext,
+    op_name: str,
+) -> tuple[dict[str, object], dict[str, object], relax.Call] | None:
+    if _tensor_dtype(context.annotated_expr.get("root")) != "int8":
+        return None
+    matched_expr = _resolve_bound_expr(context, context.matched_expr)
+    output = _parse_output_quantize(matched_expr)
+    if output is None:
+        return None
+    op = _resolve_bound_expr(context, context.annotated_expr.get("op", output["value"]))
+    if not isinstance(op, relax.Call) or _call_op_name(op) != op_name:
+        return None
+    data_dq = _resolve_bound_expr(context, context.annotated_expr.get("data_dq", op.args[0]))
+    data = _parse_activation_qdq(data_dq, context.matched_bindings)
+    if data is None:
+        return None
+    return data, output, op
+
+
+def _check_qs8_reshape_like(context: PatternCheckContext, op_name: str) -> bool:
+    if not _check_no_leaks(context):
+        return False
+    parts = _qs8_unary_qdq_parts(context, op_name)
+    if parts is None:
+        return False
+    data, output, op = parts
+    if not _qparams_value_equal(data, output):
+        return False
+    input_elems = _num_elements(data["value"])
+    output_elems = _num_elements(context.matched_expr)
+    if input_elems is None or output_elems is None or input_elems != output_elems:
+        return False
+    if _get_static_shape(op) != output["shape"]:
+        return False
+    return True
+
+
+def _check_qs8_copy(context: PatternCheckContext) -> bool:
+    if not _check_no_leaks(context):
+        return False
+    if _tensor_dtype(context.annotated_expr.get("root")) != "int8":
+        return False
+    matched_expr = _resolve_bound_expr(context, context.matched_expr)
+    output = _parse_output_quantize(matched_expr)
+    if output is None:
+        return False
+    data_dq = _resolve_bound_expr(context, context.annotated_expr.get("data_dq", output["value"]))
+    data = _parse_activation_qdq(data_dq, context.matched_bindings)
+    if data is None:
+        return False
+    return _qparams_value_equal(data, output) and data["shape"] == output["shape"]
+
+
+def _check_qs8_pool2d(context: PatternCheckContext, op_name: str) -> bool:
+    if not _check_no_leaks(context):
+        return False
+    parts = _qs8_unary_qdq_parts(context, op_name)
+    if parts is None:
+        return False
+    data, output, pool = parts
+    if op_name == "relax.nn.max_pool2d" and not _qparams_value_equal(data, output):
+        return False
+    data_shape = _get_static_shape(data["value"])
+    pool_shape = _get_static_shape(pool)
+    out_shape = _get_static_shape(context.matched_expr)
+    if data_shape is None or pool_shape is None or out_shape is None:
+        return False
+    if len(data_shape) != 4 or len(pool_shape) != 4 or pool_shape != out_shape:
+        return False
+    attrs = pool.attrs
+    out_layout = attrs.out_layout if attrs.out_layout else attrs.layout
+    if attrs.layout != "NHWC" or out_layout != "NHWC":
+        return False
+    if [int(x) for x in attrs.dilation] != [1, 1]:
+        return False
+    if bool(attrs.ceil_mode):
+        return False
+    if _padding_2d(attrs.padding) is None:
+        return False
+    pool_size = [int(x) for x in attrs.pool_size]
+    strides = [int(x) for x in attrs.strides]
+    if pool_size == [1, 1] and strides != [1, 1]:
+        return False
+    if op_name == "relax.nn.avg_pool2d" and bool(attrs.count_include_pad):
+        return False
+    return True
+
+
+def _qs8_add_parts(
+    context: PatternCheckContext,
+) -> tuple[dict[str, object], dict[str, object], dict[str, object], relax.Call] | None:
+    if _tensor_dtype(context.annotated_expr.get("root")) != "int8":
+        return None
+    matched_expr = _resolve_bound_expr(context, context.matched_expr)
+    output = _parse_output_quantize(matched_expr)
+    if output is None:
+        return None
+    q_root = _resolve_bound_expr(context, output["value"])
+    add = _find_call_in_expr_resolved(q_root, "relax.add", context.matched_bindings)
+    if add is None:
+        return None
+    lhs_dq = _resolve_bound_expr(context, context.annotated_expr.get("lhs_dq", add.args[0]))
+    rhs_dq = _resolve_bound_expr(context, context.annotated_expr.get("rhs_dq", add.args[1]))
+    lhs = _parse_activation_qdq(lhs_dq, context.matched_bindings)
+    rhs = _parse_activation_qdq(rhs_dq, context.matched_bindings)
+    if lhs is None or rhs is None:
+        return None
+    return lhs, rhs, output, add
+
+
+def _check_qs8_add(context: PatternCheckContext) -> bool:
+    if not _check_no_leaks(context):
+        return False
+    parts = _qs8_add_parts(context)
+    if parts is None:
+        return False
+    lhs, rhs, output, add = parts
+    lhs_shape = _get_static_shape(lhs["value"])
+    rhs_shape = _get_static_shape(rhs["value"])
+    add_shape = _get_static_shape(add)
+    out_shape = _get_static_shape(context.matched_expr)
+    if lhs_shape is None or rhs_shape is None or add_shape is None or out_shape is None:
+        return False
+    if lhs_shape != rhs_shape or lhs_shape != add_shape or lhs_shape != out_shape:
+        return False
+    root = _resolve_bound_expr(context, output["value"])
+    if isinstance(root, relax.Call) and _call_op_name(root) == "relax.clip":
+        min_value = _as_float_prim_value(root.args[1])
+        max_value = _as_float_prim_value(root.args[2])
+        return min_value is not None and max_value is not None and min_value <= max_value
+    return True
+
+
 def _unary_pattern(pattern_name: str, op_name: str):
     input_expr = wildcard()
     root = is_op(op_name)(input_expr)
@@ -944,6 +1127,79 @@ def _qs8_depthwise_conv2d_patterns():
     )
 
 
+def _qs8_reshape_pattern(pattern_name: str, op_name: str, check):
+    q_data, data_dq = _qdq_input_pattern()
+    if op_name == "relax.reshape":
+        shape = wildcard()
+        op = is_op(op_name)(data_dq, shape)
+    else:
+        op = is_op(op_name)(data_dq)
+    out_scale = is_const()
+    out_zp = is_const()
+    root = is_op("relax.quantize")(op, out_scale, out_zp)
+    return (
+        pattern_name,
+        root,
+        {"q_data": q_data, "data_dq": data_dq, "op": op, "root": root},
+        lambda context: check(context, op_name),
+    )
+
+
+def _qs8_copy_pattern():
+    q_data, data_dq = _qdq_input_pattern()
+    out_scale = is_const()
+    out_zp = is_const()
+    root = is_op("relax.quantize")(data_dq, out_scale, out_zp)
+    return (
+        "xnnpack.qs8_copy",
+        root,
+        {"q_data": q_data, "data_dq": data_dq, "root": root},
+        _check_qs8_copy,
+    )
+
+
+def _qs8_pool2d_pattern(pattern_name: str, op_name: str):
+    q_data, data_dq = _qdq_input_pattern()
+    op = is_op(op_name)(data_dq)
+    out_scale = is_const()
+    out_zp = is_const()
+    root = is_op("relax.quantize")(op, out_scale, out_zp)
+    return (
+        pattern_name,
+        root,
+        {"q_data": q_data, "data_dq": data_dq, "op": op, "root": root},
+        lambda context: _check_qs8_pool2d(context, op_name),
+    )
+
+
+def _qs8_add_patterns():
+    q_lhs, lhs_dq = _qdq_input_pattern()
+    q_rhs, rhs_dq = _qdq_input_pattern()
+    add = is_op("relax.add")(lhs_dq, rhs_dq)
+    relu = is_op("relax.nn.relu")(add)
+    min_value = wildcard()
+    max_value = wildcard()
+    clip = is_op("relax.clip")(add, min_value, max_value)
+    out_scale = is_const()
+    out_zp = is_const()
+
+    def make(suffix, expr):
+        root = is_op("relax.quantize")(expr, out_scale, out_zp)
+        return (
+            f"xnnpack.qs8_add{suffix}",
+            root,
+            {"q_lhs": q_lhs, "lhs_dq": lhs_dq, "q_rhs": q_rhs, "rhs_dq": rhs_dq,
+             "op": add, "root": root},
+            _check_qs8_add,
+        )
+
+    return [
+        make("_clip", clip),
+        make("_relu", relu),
+        make("", add),
+    ]
+
+
 def _conv2d_flops(conv: relax.Expr) -> int:
     if not isinstance(conv, relax.Call):
         return 0
@@ -994,6 +1250,16 @@ def _pool2d_flops(pool: relax.Expr) -> int:
     return int(out_elems * kernel[0] * kernel[1])
 
 
+def _quantized_op_type(pattern_name: str) -> str:
+    name = pattern_name.removeprefix("xnnpack.")
+    if not name.startswith("qs8_"):
+        return "none"
+    for suffix in ("_bias_clip", "_bias_relu", "_clip", "_relu", "_bias"):
+        if name.endswith(suffix):
+            return name[: -len(suffix)]
+    return name
+
+
 def _estimate_flops(context: PatternCheckContext, pattern_name: str) -> int:
     root = context.annotated_expr.get("root", context.matched_expr)
     op_names = _collect_op_names(root)
@@ -1001,6 +1267,12 @@ def _estimate_flops(context: PatternCheckContext, pattern_name: str) -> int:
         return _matmul_flops(context.annotated_expr.get("weighted", root))
     if "qs8_depthwise_conv2d" in pattern_name:
         return _depthwise_conv2d_flops(context.annotated_expr.get("weighted", root))
+    if "qs8_conv2d" in pattern_name:
+        return _conv2d_flops(context.annotated_expr.get("weighted", root))
+    if "qs8_max_pool2d" in pattern_name or "qs8_avg_pool2d" in pattern_name:
+        return _pool2d_flops(context.annotated_expr.get("op", root))
+    if "qs8_reshape" in pattern_name or "qs8_flatten" in pattern_name or "qs8_copy" in pattern_name:
+        return 0
     if "relax.nn.conv2d" in op_names or "conv2d" in pattern_name:
         return _conv2d_flops(context.annotated_expr.get("conv", root))
     if _call_op_name(root) in ("relax.nn.max_pool2d", "relax.nn.avg_pool2d"):
@@ -1014,6 +1286,8 @@ def _estimate_flops(context: PatternCheckContext, pattern_name: str) -> int:
 def _is_compute_heavy(pattern_name: str, context: PatternCheckContext, flops: int) -> bool:
     if "conv2d" in pattern_name or "fully_connected" in pattern_name:
         return True
+    if "qs8_max_pool2d" in pattern_name or "qs8_avg_pool2d" in pattern_name:
+        return flops >= 4096
     root = context.annotated_expr.get("root", context.matched_expr)
     if _call_op_name(root) in ("relax.nn.max_pool2d", "relax.nn.avg_pool2d"):
         return flops >= 4096
@@ -1070,8 +1344,18 @@ def _make_report_entry(
             context.matched_expr, "relax.nn.conv2d"
         )
         qscheme = _qscheme_from_scale(weighted.args[1].args[1]) if weighted is not None else None
+        if qscheme is None:
+            root_q = _parse_output_quantize(context.matched_expr)
+            qscheme = root_q["qscheme"] if root_q is not None else None
         qscheme = qscheme or "unknown"
     qdq_count = sum(1 for op in op_list if op in ("relax.quantize", "relax.dequantize"))
+    quantized_op_type = _quantized_op_type(pattern_name)
+    qparam_equality_required = quantized_op_type in (
+        "qs8_reshape",
+        "qs8_flatten",
+        "qs8_copy",
+        "qs8_max_pool2d",
+    )
     return {
         "candidate_id": -1,
         "accepted": accepted,
@@ -1094,6 +1378,10 @@ def _make_report_entry(
         "qdq_boundary_count": qdq_count,
         "qparam_source": "constant" if quantized else "none",
         "qparam_validation_result": "ok" if quantized and accepted else reason,
+        "quantized_op_type": quantized_op_type,
+        "qparams_summary": qscheme if quantized else "none",
+        "qparam_equality_required": qparam_equality_required,
+        "qparam_rejection_reason": reason if quantized and not accepted else "none",
     }
 
 
@@ -1149,6 +1437,15 @@ def _cost_accepts(
         return False, "rejected_layout_rewrite_overhead"
     if layout_policy == "NHWC" and layout not in ("NHWC", "none") and op_count <= 1:
         return False, "rejected_layout_rewrite_overhead"
+    if not allow_isolated_elementwise and (
+        ("qs8_add" in pattern_name)
+        or ("qs8_reshape" in pattern_name)
+        or ("qs8_flatten" in pattern_name)
+        or ("qs8_copy" in pattern_name)
+    ):
+        if "qs8_add" in pattern_name:
+            return False, "rejected_isolated_elementwise"
+        return False, "rejected_low_compute_to_copy_ratio"
     if not allow_isolated_elementwise and op_count <= 1 and "conv2d" not in pattern_name:
         root_name = _call_op_name(context.annotated_expr.get("root", context.matched_expr))
         if root_name not in ("relax.nn.max_pool2d", "relax.nn.avg_pool2d"):
@@ -1239,6 +1536,12 @@ register_patterns(
         *_qs8_fully_connected_patterns(),
         *_qs8_conv2d_patterns(),
         *_qs8_depthwise_conv2d_patterns(),
+        _qs8_reshape_pattern("xnnpack.qs8_reshape", "relax.reshape", _check_qs8_reshape_like),
+        _qs8_reshape_pattern("xnnpack.qs8_flatten", "relax.flatten", _check_qs8_reshape_like),
+        _qs8_copy_pattern(),
+        _qs8_pool2d_pattern("xnnpack.qs8_max_pool2d", "relax.nn.max_pool2d"),
+        _qs8_pool2d_pattern("xnnpack.qs8_avg_pool2d", "relax.nn.avg_pool2d"),
+        *_qs8_add_patterns(),
         *_conv2d_patterns(),
         _pool2d_pattern("xnnpack.max_pool2d", "relax.nn.max_pool2d"),
         _pool2d_pattern("xnnpack.avg_pool2d", "relax.nn.avg_pool2d"),

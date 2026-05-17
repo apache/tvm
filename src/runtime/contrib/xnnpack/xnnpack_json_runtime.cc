@@ -684,6 +684,16 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
     return result;
   }
 
+  static std::vector<size_t> GetSizeArray(const JSONGraphNode& node, const std::string& key) {
+    ffi::Array<int64_t> arr = node.GetAttr<ffi::Array<int64_t>>(key);
+    std::vector<size_t> result;
+    for (int64_t value : arr) {
+      TVM_FFI_ICHECK_GT(value, 0);
+      result.push_back(static_cast<size_t>(value));
+    }
+    return result;
+  }
+
   static float GetFloatAttr(const JSONGraphNode& node, const std::string& key) {
     return static_cast<float>(node.GetAttr<double>(key));
   }
@@ -898,6 +908,43 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
     return value_ids_[eid];
   }
 
+  void DefineQS8ExternalInput(const JSONGraphNode& node,
+                              const std::vector<JSONGraphNodeEntry>& inputs, size_t input_index,
+                              const std::string& qparam_prefix) {
+    TVM_FFI_ICHECK_LT(input_index, inputs.size());
+    const uint32_t input_eid = EntryID(inputs[input_index]);
+    if (value_ids_[input_eid] != XNN_INVALID_VALUE_ID) return;
+    const uint32_t input_nid = inputs[input_index].id_;
+    CheckInt8DType(nodes_[input_nid], inputs[input_index].index_);
+    std::vector<size_t> input_shape = GetShape(nodes_[input_nid], inputs[input_index].index_);
+    QuantizationMetadata input_qparams = GetNodeQParams(node, qparam_prefix, input_shape, "int8");
+    const bool is_external =
+        std::find(input_var_eid_.begin(), input_var_eid_.end(), input_eid) != input_var_eid_.end();
+    DefineQuantizedTensor(input_eid, input_shape, input_qparams,
+                          is_external ? XNN_VALUE_FLAG_EXTERNAL_INPUT : 0);
+    if (is_external && std::none_of(external_tensors_.begin(), external_tensors_.end(),
+                                    [input_eid](const ExternalTensor& entry) {
+                                      return entry.eid == input_eid;
+                                    })) {
+      external_tensors_.push_back(
+          {input_eid, input_shape, "input", GetDType(nodes_[input_nid], inputs[input_index].index_),
+           sizeof(int8_t), false, {}});
+    }
+  }
+
+  void DefineQS8IslandInputs(const JSONGraphNode& node,
+                             const std::vector<JSONGraphNodeEntry>& inputs) {
+    const std::string op_kind = node.GetAttr<ffi::String>("op_kind");
+    if (op_kind == "qs8_add") {
+      TVM_FFI_ICHECK_EQ(inputs.size(), 2U);
+      DefineQS8ExternalInput(node, inputs, 0, "lhs");
+      DefineQS8ExternalInput(node, inputs, 1, "rhs");
+    } else {
+      TVM_FFI_ICHECK_EQ(inputs.size(), 1U);
+      DefineQS8ExternalInput(node, inputs, 0, "input");
+    }
+  }
+
   void DefineQS8Inputs(const JSONGraphNode& node, const std::vector<JSONGraphNodeEntry>& inputs) {
     TVM_FFI_ICHECK(inputs.size() == 2U || inputs.size() == 3U);
     const uint32_t input_eid = EntryID(inputs[0]);
@@ -1006,7 +1053,43 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
     CheckXNNStatus(
         xnn_define_binary(subgraph_, xnn_binary_add, &params, value_ids_[EntryID(inputs[0])],
                           value_ids_[EntryID(inputs[1])], output_id, XNN_FLAG_NO_BROADCAST),
-        "xnn_define_binary(add)");
+                   "xnn_define_binary(add)");
+  }
+
+  void DefineQS8Add(const JSONGraphNode& node, const std::vector<JSONGraphNodeEntry>& inputs,
+                    uint32_t output_id) {
+    TVM_FFI_ICHECK_EQ(inputs.size(), 2U);
+    xnn_binary_params params{};
+    params.output_min = GetFloatAttr(node, "activation_min");
+    params.output_max = GetFloatAttr(node, "activation_max");
+    CheckXNNStatus(
+        xnn_define_binary(subgraph_, xnn_binary_add, &params, value_ids_[EntryID(inputs[0])],
+                          value_ids_[EntryID(inputs[1])], output_id, XNN_FLAG_NO_BROADCAST),
+        "xnn_define_binary(qs8_add)");
+  }
+
+  void DefineQS8Reshape(const JSONGraphNode& node, const std::vector<JSONGraphNodeEntry>& inputs,
+                        uint32_t output_id) {
+#if defined(TVM_XNNPACK_HAS_STATIC_RESHAPE)
+    TVM_FFI_ICHECK_EQ(inputs.size(), 1U);
+    std::vector<size_t> new_shape = GetSizeArray(node, "new_shape");
+    CheckXNNStatus(
+        xnn_define_static_reshape(subgraph_, new_shape.size(), new_shape.data(),
+                                  value_ids_[EntryID(inputs[0])], output_id, 0),
+        "xnn_define_static_reshape");
+#else
+    TVM_FFI_THROW(RuntimeError) << "XNNPACK static reshape API is unavailable.";
+#endif
+  }
+
+  void DefineQS8Copy(const std::vector<JSONGraphNodeEntry>& inputs, uint32_t output_id) {
+#if defined(TVM_XNNPACK_HAS_COPY)
+    TVM_FFI_ICHECK_EQ(inputs.size(), 1U);
+    CheckXNNStatus(xnn_define_copy(subgraph_, value_ids_[EntryID(inputs[0])], output_id, 0),
+                   "xnn_define_copy");
+#else
+    TVM_FFI_THROW(RuntimeError) << "XNNPACK copy API is unavailable.";
+#endif
   }
 
   void DefineConv2D(const JSONGraphNode& node, const std::vector<JSONGraphNodeEntry>& inputs,
@@ -1334,6 +1417,11 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
           DefineQS8Inputs(node, inputs);
         }
         output_id = DefineQS8Output(node, output_entry, graph_output_eids);
+      } else if (op_kind == "qs8_reshape" || op_kind == "qs8_max_pool2d" ||
+                 op_kind == "qs8_avg_pool2d" || op_kind == "qs8_add" ||
+                 op_kind == "qs8_copy") {
+        DefineQS8IslandInputs(node, inputs);
+        output_id = DefineQS8Output(node, output_entry, graph_output_eids);
       } else {
         DefineOutput(node, output_entry, graph_output_eids);
         output_id = value_ids_[EntryID(output_entry)];
@@ -1357,6 +1445,16 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
         DefineQS8Conv2D(node, inputs, output_id);
       } else if (op_kind == "qs8_depthwise_conv2d") {
         DefineQS8DepthwiseConv2D(node, inputs, output_id);
+      } else if (op_kind == "qs8_reshape") {
+        DefineQS8Reshape(node, inputs, output_id);
+      } else if (op_kind == "qs8_copy") {
+        DefineQS8Copy(inputs, output_id);
+      } else if (op_kind == "qs8_max_pool2d") {
+        DefinePool2D(node, inputs, output_id, true);
+      } else if (op_kind == "qs8_avg_pool2d") {
+        DefinePool2D(node, inputs, output_id, false);
+      } else if (op_kind == "qs8_add") {
+        DefineQS8Add(node, inputs, output_id);
       } else if (op_kind == "max_pool2d") {
         DefinePool2D(node, inputs, output_id, true);
       } else {
@@ -1558,6 +1656,20 @@ ffi::Map<ffi::String, ffi::Any> XNNPACKJSONRuntimeGetCapabilities() {
                                                      0
 #endif
                                                      ));
+  result.Set("static_reshape", static_cast<int64_t>(
+#if defined(TVM_XNNPACK_HAS_STATIC_RESHAPE)
+                                      1
+#else
+                                      0
+#endif
+                                      ));
+  result.Set("copy", static_cast<int64_t>(
+#if defined(TVM_XNNPACK_HAS_COPY)
+                             1
+#else
+                             0
+#endif
+                             ));
   result.Set("transpose_weights", static_cast<int64_t>(
 #if defined(TVM_XNNPACK_HAS_TRANSPOSE_WEIGHTS_FLAG)
                                               1

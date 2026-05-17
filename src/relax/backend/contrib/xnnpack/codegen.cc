@@ -226,6 +226,14 @@ class XNNPACKJSONSerializer : public JSONSerializer {
         "xnnpack.qs8_depthwise_conv2d_relu",
         "xnnpack.qs8_depthwise_conv2d_bias",
         "xnnpack.qs8_depthwise_conv2d",
+        "xnnpack.qs8_reshape",
+        "xnnpack.qs8_flatten",
+        "xnnpack.qs8_copy",
+        "xnnpack.qs8_max_pool2d",
+        "xnnpack.qs8_avg_pool2d",
+        "xnnpack.qs8_add_clip",
+        "xnnpack.qs8_add_relu",
+        "xnnpack.qs8_add",
     };
     return std::find(supported.begin(), supported.end(), name) != supported.end();
   }
@@ -311,6 +319,22 @@ class XNNPACKJSONSerializer : public JSONSerializer {
     ffi::Array<int64_t> result;
     for (int64_t value : input) {
       result.push_back(value);
+    }
+    return result;
+  }
+
+  static ffi::Array<int64_t> StaticShape(const Expr& expr, const char* name) {
+    const auto* expr_node = expr.as<ExprNode>();
+    TVM_FFI_ICHECK(expr_node) << name << " must be a Relax expression.";
+    auto sinfo = Downcast<TensorStructInfo>(expr_node->struct_info_);
+    TVM_FFI_ICHECK(sinfo->shape.defined()) << name << " must have static shape.";
+    auto shape = Downcast<ShapeExpr>(sinfo->shape.value());
+    ffi::Array<int64_t> result;
+    for (PrimExpr dim : shape->values) {
+      const auto* int_dim = dim.as<IntImmNode>();
+      TVM_FFI_ICHECK(int_dim) << name << " must have static integer shape.";
+      TVM_FFI_ICHECK_GT(int_dim->value, 0) << name << " dimensions must be positive.";
+      result.push_back(int_dim->value);
     }
     return result;
   }
@@ -435,6 +459,15 @@ class XNNPACKJSONSerializer : public JSONSerializer {
 
   NodeEntries VisitQuantizedComposite(const CallNode* call_node, const Function& fn,
                                       const std::string& composite_name) {
+    if (composite_name == "xnnpack.qs8_reshape" ||
+        composite_name == "xnnpack.qs8_flatten" ||
+        composite_name == "xnnpack.qs8_copy" ||
+        composite_name == "xnnpack.qs8_max_pool2d" ||
+        composite_name == "xnnpack.qs8_avg_pool2d" ||
+        composite_name.find("xnnpack.qs8_add") == 0) {
+      return VisitQuantizedIslandComposite(call_node, fn, composite_name);
+    }
+
     const auto calls = CollectCalls(fn);
     const auto local_bindings = AnalyzeVar2Value(fn);
     const CallNode* weighted_call = nullptr;
@@ -480,6 +513,24 @@ class XNNPACKJSONSerializer : public JSONSerializer {
     auto node = std::make_shared<JSONGraphNode>(composite_name, "kernel", inputs, 1);
     SetQuantizedCompositeAttrs(node, fn, composite_name, inputs.size(), weighted_call, data_dq,
                                weight_dq, bias_dq);
+    return AddNode(node, ffi::GetRef<Expr>(call_node));
+  }
+
+  NodeEntries VisitQuantizedIslandComposite(const CallNode* call_node, const Function& fn,
+                                            const std::string& composite_name) {
+    const auto calls = CollectCalls(fn);
+    const auto local_bindings = AnalyzeVar2Value(fn);
+    const CallNode* root = RootCall(calls);
+    TVM_FFI_ICHECK_EQ(OpName(root), "relax.quantize");
+
+    NodeEntries inputs;
+    for (const auto& arg : call_node->args) {
+      auto res = VisitExpr(arg);
+      inputs.insert(inputs.end(), res.begin(), res.end());
+    }
+
+    auto node = std::make_shared<JSONGraphNode>(composite_name, "kernel", inputs, 1);
+    SetQuantizedIslandAttrs(node, fn, composite_name, inputs.size(), root, local_bindings);
     return AddNode(node, ffi::GetRef<Expr>(call_node));
   }
 
@@ -535,6 +586,83 @@ class XNNPACKJSONSerializer : public JSONSerializer {
       SetQParams(node, "weight", weight_dq, 0);
       if (has_bias) SetQParams(node, "bias", bias_dq, 0);
     }
+    SetQuantizedActivationAttrs(node, fn, composite_name);
+  }
+
+  static void SetQuantizedIslandAttrs(const JSONGraphObjectPtr& node, const Function& fn,
+                                      const std::string& composite_name, size_t num_inputs,
+                                      const CallNode* root,
+                                      const ffi::Map<Var, Expr>& local_bindings) {
+    node->SetAttr("quantized", static_cast<int64_t>(1));
+    node->SetAttr("signedness", ffi::String("qs8"));
+    SetQParams(node, "output", root, -1);
+
+    if (composite_name == "xnnpack.qs8_reshape" ||
+        composite_name == "xnnpack.qs8_flatten") {
+      TVM_FFI_ICHECK_EQ(num_inputs, 1U) << composite_name << " expects one input.";
+      const std::string op_name =
+          composite_name == "xnnpack.qs8_reshape" ? "relax.reshape" : "relax.flatten";
+      const CallNode* op_call = FindCall(CollectCalls(fn), op_name);
+      TVM_FFI_ICHECK(op_call) << composite_name << " must contain " << op_name << ".";
+      const CallNode* data_dq =
+          AsCall(ResolveExpr(op_call->args[0], local_bindings), "quantized reshape input");
+      TVM_FFI_ICHECK_EQ(OpName(data_dq), "relax.dequantize");
+      node->SetAttr("op_kind", ffi::String("qs8_reshape"));
+      node->SetAttr("new_shape", StaticShape(ffi::GetRef<Expr>(root), "quantized reshape output"));
+      SetQParams(node, "input", data_dq, -1);
+      SetActivationAttrs(node, "none");
+      return;
+    }
+
+    if (composite_name == "xnnpack.qs8_copy") {
+      TVM_FFI_ICHECK_EQ(num_inputs, 1U) << composite_name << " expects one input.";
+      const CallNode* data_dq =
+          AsCall(ResolveExpr(root->args[0], local_bindings), "quantized copy input");
+      TVM_FFI_ICHECK_EQ(OpName(data_dq), "relax.dequantize");
+      node->SetAttr("op_kind", ffi::String("qs8_copy"));
+      SetQParams(node, "input", data_dq, -1);
+      SetActivationAttrs(node, "none");
+      return;
+    }
+
+    if (composite_name == "xnnpack.qs8_max_pool2d" ||
+        composite_name == "xnnpack.qs8_avg_pool2d") {
+      TVM_FFI_ICHECK_EQ(num_inputs, 1U) << composite_name << " expects one input.";
+      const std::string op_name = composite_name == "xnnpack.qs8_max_pool2d"
+                                      ? "relax.nn.max_pool2d"
+                                      : "relax.nn.avg_pool2d";
+      const auto calls = CollectCalls(fn);
+      const CallNode* pool_call = FindCall(calls, op_name);
+      TVM_FFI_ICHECK(pool_call) << composite_name << " must contain " << op_name << ".";
+      const CallNode* data_dq =
+          AsCall(ResolveExpr(pool_call->args[0], local_bindings), "quantized pool input");
+      TVM_FFI_ICHECK_EQ(OpName(data_dq), "relax.dequantize");
+      SetQParams(node, "input", data_dq, -1);
+      SetPool2DAttrs(node, fn,
+                     composite_name == "xnnpack.qs8_max_pool2d" ? "xnnpack.max_pool2d"
+                                                                 : "xnnpack.avg_pool2d",
+                     num_inputs);
+      node->SetAttr("op_kind", ffi::String(composite_name == "xnnpack.qs8_max_pool2d"
+                                               ? "qs8_max_pool2d"
+                                               : "qs8_avg_pool2d"));
+      return;
+    }
+
+    TVM_FFI_ICHECK(composite_name.find("xnnpack.qs8_add") == 0)
+        << "Unsupported quantized island composite: " << composite_name;
+    TVM_FFI_ICHECK_EQ(num_inputs, 2U) << composite_name << " expects two inputs.";
+    const auto calls = CollectCalls(fn);
+    const CallNode* add_call = FindCall(calls, "relax.add");
+    TVM_FFI_ICHECK(add_call) << composite_name << " must contain relax.add.";
+    const CallNode* lhs_dq =
+        AsCall(ResolveExpr(add_call->args[0], local_bindings), "quantized add lhs");
+    const CallNode* rhs_dq =
+        AsCall(ResolveExpr(add_call->args[1], local_bindings), "quantized add rhs");
+    TVM_FFI_ICHECK_EQ(OpName(lhs_dq), "relax.dequantize");
+    TVM_FFI_ICHECK_EQ(OpName(rhs_dq), "relax.dequantize");
+    node->SetAttr("op_kind", ffi::String("qs8_add"));
+    SetQParams(node, "lhs", lhs_dq, -1);
+    SetQParams(node, "rhs", rhs_dq, -1);
     SetQuantizedActivationAttrs(node, fn, composite_name);
   }
 

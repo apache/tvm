@@ -229,6 +229,19 @@ check_cxx_source_compiles("
   }" TVM_XNNPACK_HAS_DEPTHWISE_CONVOLUTION_2D)
 check_cxx_source_compiles("
   #include <xnnpack.h>
+  int main() {
+    const size_t shape[2] = {1, 2};
+    (void)xnn_define_static_reshape(nullptr, 2, shape, 0, 1, 0);
+    return 0;
+  }" TVM_XNNPACK_HAS_STATIC_RESHAPE)
+check_cxx_source_compiles("
+  #include <xnnpack.h>
+  int main() {
+    (void)xnn_define_copy(nullptr, 0, 1, 0);
+    return 0;
+  }" TVM_XNNPACK_HAS_COPY)
+check_cxx_source_compiles("
+  #include <xnnpack.h>
   int main() { return XNN_FLAG_TRANSPOSE_WEIGHTS == 0; }" TVM_XNNPACK_HAS_TRANSPOSE_WEIGHTS_FLAG)
 check_cxx_source_compiles("
   #include <xnnpack.h>
@@ -273,6 +286,8 @@ foreach(_feature
     VALIDATE_CHANNELWISE_QUANTIZED_TENSOR
     FULLY_CONNECTED
     DEPTHWISE_CONVOLUTION_2D
+    STATIC_RESHAPE
+    COPY
     TRANSPOSE_WEIGHTS_FLAG
     DONT_SPIN_WORKERS_FLAG
     TRANSIENT_INDIRECTION_BUFFER_FLAG

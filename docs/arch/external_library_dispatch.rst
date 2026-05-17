@@ -469,9 +469,12 @@ TFLite ``[out, in]`` weights to Relax ``[in, out]`` and remaps per-channel
 weight scales to axis 1. ``CONV_2D`` keeps TFLite ``[out, kh, kw, in]``
 weights as OHWI. ``DEPTHWISE_CONV_2D`` maps TFLite
 ``[1, kh, kw, in * depth_multiplier]`` weights to HWOI for the XNNPACK
-patterns. QU8/``uint8``, dynamic range quantization, weight-only quantization,
-dynamic quantization parameters, and unsupported quantized TFLite operators are
-rejected rather than silently lowered.
+patterns. Phase 5C-2B also keeps small signed-int8 QDQ islands inside XNNPACK
+for reshape/flatten/copy, max pooling, average pooling expressed as
+``avg_pool2d`` including full-spatial global average pooling, and same-shape
+residual add. QU8/``uint8``, dynamic range quantization, weight-only
+quantization, dynamic quantization parameters, and unsupported quantized TFLite
+operators are rejected rather than silently lowered.
 
 .. list-table::
    :header-rows: 1
@@ -491,11 +494,43 @@ rejected rather than silently lowered.
      - Equal static input shapes only. Broadcasting is intentionally rejected.
    * - ``relax.nn.max_pool2d`` and ``relax.nn.avg_pool2d``
      - NHWC input/output, dilation 1, ``ceil_mode=False``, and zero padding.
+   * - QDQ ``relax.matmul``
+     - Static signed-int8 input/output, static signed-int8 weights, optional
+       static int32 bias, rank-2 only, per-tensor activation/output qparams,
+       per-tensor or per-channel weight qparams, and ReLU/ReLU6/clip fusion.
+   * - QDQ ``relax.nn.conv2d``
+     - Static signed-int8 NHWC input/output, OHWI static weights, ``groups=1``,
+       optional static int32 bias, per-channel weight axis 0, and
+       ReLU/ReLU6/clip fusion.
+   * - QDQ depthwise ``relax.nn.conv2d``
+     - Static signed-int8 NHWC input/output, HWOI static weights,
+       ``groups=input_channels``, depth multiplier 1, optional static int32
+       bias, per-channel weight axis 2, and ReLU/ReLU6/clip fusion.
+   * - QDQ ``relax.reshape`` / ``relax.flatten`` / copy
+     - Static signed-int8 tensors with exactly matching input/output scale and
+       zero point. The copy case is represented as
+       ``dequantize(int8) -> quantize(int8)`` with unchanged shape and qparams.
+   * - QDQ ``relax.nn.max_pool2d``
+     - Static signed-int8 NHWC tensors, constant qparams, exactly matching
+       input/output qparams, static pool/stride/padding/dilation,
+       ``ceil_mode=False``.
+   * - QDQ ``relax.nn.avg_pool2d``
+     - Static signed-int8 NHWC tensors, constant per-tensor qparams, static
+       pool/stride/padding, dilation 1, ``ceil_mode=False``,
+       ``count_include_pad=False``. Full-spatial average pooling is supported
+       only through this ``avg_pool2d`` form, not generic ``relax.mean``.
+   * - QDQ ``relax.add``
+     - Static signed-int8 tensors, exactly equal input shapes, constant
+       per-tensor qparams, no scalar or channel broadcasting, and optional
+       ReLU/ReLU6/clip fusion.
 
-There is no depthwise convolution, dense/matmul, resize, softmax, quantized
-dtype, layout conversion, dynamic-shape, broad broadcasting, or broad CNN
-coverage in this phase. Explicit ``float16`` Relax graphs are also unsupported
-in this phase and must fall back to TVM.
+There is no int8 multiply/subtract/concat/pad/resize, generic spatial mean,
+softmax, QU8/``uint8``, 4-bit, dynamic-range quantization, weight-only
+quantization, dynamic qparams, layout conversion, dynamic-shape support, broad
+broadcasting, or broad CNN coverage in this phase. Explicit ``float16`` Relax
+graphs are also unsupported and must fall back to TVM. The cost policy can
+reject isolated small int8 elementwise or reshape/copy islands even when the
+greedy/debug policies would partition them.
 
 The runtime uses XNNPACK's public ``xnnpack.h`` API only. It initializes
 XNNPACK with ``xnn_initialize`` and does not include

@@ -270,6 +270,235 @@ class QS8DepthwiseConv2DBiasRelu6Module:
 
 
 @tvm.script.ir_module
+class QS8ReshapeModule:
+    @R.function
+    def main(x: R.Tensor((2, 3), "int8")) -> R.Tensor((1, 6), "int8"):
+        with R.dataflow():
+            x_f = R.dequantize(
+                x, R.const(0.25, "float32"), R.const(0, "int8"), axis=-1, out_dtype="float32"
+            )
+            y = relax.op.reshape(x_f, (1, 6))
+            z = R.quantize(
+                y, R.const(0.25, "float32"), R.const(0, "int8"), axis=-1, out_dtype="int8"
+            )
+            R.output(z)
+        return z
+
+
+@tvm.script.ir_module
+class QS8FlattenModule:
+    @R.function
+    def main(x: R.Tensor((2, 3, 4), "int8")) -> R.Tensor((24,), "int8"):
+        with R.dataflow():
+            x_f = R.dequantize(
+                x, R.const(0.25, "float32"), R.const(0, "int8"), axis=-1, out_dtype="float32"
+            )
+            y = relax.op.flatten(x_f)
+            z = R.quantize(
+                y, R.const(0.25, "float32"), R.const(0, "int8"), axis=-1, out_dtype="int8"
+            )
+            R.output(z)
+        return z
+
+
+@tvm.script.ir_module
+class QS8CopyModule:
+    @R.function
+    def main(x: R.Tensor((2, 3), "int8")) -> R.Tensor((2, 3), "int8"):
+        with R.dataflow():
+            x_f = R.dequantize(
+                x, R.const(0.25, "float32"), R.const(0, "int8"), axis=-1, out_dtype="float32"
+            )
+            z = R.quantize(
+                x_f, R.const(0.25, "float32"), R.const(0, "int8"), axis=-1, out_dtype="int8"
+            )
+            R.output(z)
+        return z
+
+
+@tvm.script.ir_module
+class QS8MaxPool2DModule:
+    @R.function
+    def main(x: R.Tensor((1, 4, 4, 2), "int8")) -> R.Tensor((1, 2, 2, 2), "int8"):
+        with R.dataflow():
+            x_f = R.dequantize(
+                x, R.const(0.25, "float32"), R.const(0, "int8"), axis=-1, out_dtype="float32"
+            )
+            y = relax.op.nn.max_pool2d(
+                x_f,
+                pool_size=[2, 2],
+                strides=[2, 2],
+                padding=[0, 0, 0, 0],
+                dilation=[1, 1],
+                ceil_mode=False,
+                layout="NHWC",
+                out_layout="NHWC",
+            )
+            z = R.quantize(
+                y, R.const(0.25, "float32"), R.const(0, "int8"), axis=-1, out_dtype="int8"
+            )
+            R.output(z)
+        return z
+
+
+@tvm.script.ir_module
+class QS8AvgPool2DModule:
+    @R.function
+    def main(x: R.Tensor((1, 4, 4, 2), "int8")) -> R.Tensor((1, 2, 2, 2), "int8"):
+        with R.dataflow():
+            x_f = R.dequantize(
+                x, R.const(0.25, "float32"), R.const(0, "int8"), axis=-1, out_dtype="float32"
+            )
+            y = relax.op.nn.avg_pool2d(
+                x_f,
+                pool_size=[2, 2],
+                strides=[2, 2],
+                padding=[0, 0, 0, 0],
+                dilation=[1, 1],
+                ceil_mode=False,
+                count_include_pad=False,
+                layout="NHWC",
+                out_layout="NHWC",
+            )
+            z = R.quantize(
+                y, R.const(0.25, "float32"), R.const(0, "int8"), axis=-1, out_dtype="int8"
+            )
+            R.output(z)
+        return z
+
+
+@tvm.script.ir_module
+class QS8GlobalAvgPoolAsAvgPool2DModule:
+    @R.function
+    def main(x: R.Tensor((1, 4, 4, 2), "int8")) -> R.Tensor((1, 1, 1, 2), "int8"):
+        with R.dataflow():
+            x_f = R.dequantize(
+                x, R.const(0.25, "float32"), R.const(0, "int8"), axis=-1, out_dtype="float32"
+            )
+            y = relax.op.nn.avg_pool2d(
+                x_f,
+                pool_size=[4, 4],
+                strides=[1, 1],
+                padding=[0, 0, 0, 0],
+                dilation=[1, 1],
+                ceil_mode=False,
+                count_include_pad=False,
+                layout="NHWC",
+                out_layout="NHWC",
+            )
+            z = R.quantize(
+                y, R.const(0.25, "float32"), R.const(0, "int8"), axis=-1, out_dtype="int8"
+            )
+            R.output(z)
+        return z
+
+
+@tvm.script.ir_module
+class QS8AddModule:
+    @R.function
+    def main(x: R.Tensor((1, 4, 4, 2), "int8"), y: R.Tensor((1, 4, 4, 2), "int8")) -> R.Tensor(
+        (1, 4, 4, 2), "int8"
+    ):
+        with R.dataflow():
+            x_f = R.dequantize(
+                x, R.const(0.25, "float32"), R.const(0, "int8"), axis=-1, out_dtype="float32"
+            )
+            y_f = R.dequantize(
+                y, R.const(0.5, "float32"), R.const(0, "int8"), axis=-1, out_dtype="float32"
+            )
+            added = relax.op.add(x_f, y_f)
+            z = R.quantize(
+                added, R.const(0.25, "float32"), R.const(0, "int8"), axis=-1, out_dtype="int8"
+            )
+            R.output(z)
+        return z
+
+
+@tvm.script.ir_module
+class QS8AddRelu6Module:
+    @R.function
+    def main(x: R.Tensor((1, 4, 4, 2), "int8"), y: R.Tensor((1, 4, 4, 2), "int8")) -> R.Tensor(
+        (1, 4, 4, 2), "int8"
+    ):
+        with R.dataflow():
+            x_f = R.dequantize(
+                x, R.const(0.25, "float32"), R.const(0, "int8"), axis=-1, out_dtype="float32"
+            )
+            y_f = R.dequantize(
+                y, R.const(0.5, "float32"), R.const(0, "int8"), axis=-1, out_dtype="float32"
+            )
+            added = relax.op.add(x_f, y_f)
+            clipped = relax.op.clip(added, 0, 6)
+            z = R.quantize(
+                clipped, R.const(0.25, "float32"), R.const(0, "int8"), axis=-1, out_dtype="int8"
+            )
+            R.output(z)
+        return z
+
+
+@tvm.script.ir_module
+class QS8ReshapeMismatchedQParamsModule:
+    @R.function
+    def main(x: R.Tensor((2, 3), "int8")) -> R.Tensor((1, 6), "int8"):
+        with R.dataflow():
+            x_f = R.dequantize(
+                x, R.const(0.25, "float32"), R.const(0, "int8"), axis=-1, out_dtype="float32"
+            )
+            y = relax.op.reshape(x_f, (1, 6))
+            z = R.quantize(
+                y, R.const(0.5, "float32"), R.const(0, "int8"), axis=-1, out_dtype="int8"
+            )
+            R.output(z)
+        return z
+
+
+@tvm.script.ir_module
+class QS8MaxPoolNCHWModule:
+    @R.function
+    def main(x: R.Tensor((1, 2, 4, 4), "int8")) -> R.Tensor((1, 2, 2, 2), "int8"):
+        with R.dataflow():
+            x_f = R.dequantize(
+                x, R.const(0.25, "float32"), R.const(0, "int8"), axis=1, out_dtype="float32"
+            )
+            y = relax.op.nn.max_pool2d(
+                x_f,
+                pool_size=[2, 2],
+                strides=[2, 2],
+                padding=[0, 0, 0, 0],
+                dilation=[1, 1],
+                ceil_mode=False,
+                layout="NCHW",
+                out_layout="NCHW",
+            )
+            z = R.quantize(
+                y, R.const(0.25, "float32"), R.const(0, "int8"), axis=1, out_dtype="int8"
+            )
+            R.output(z)
+        return z
+
+
+@tvm.script.ir_module
+class QS8AddBroadcastModule:
+    @R.function
+    def main(x: R.Tensor((1, 4, 4, 2), "int8"), y: R.Tensor((2,), "int8")) -> R.Tensor(
+        (1, 4, 4, 2), "int8"
+    ):
+        with R.dataflow():
+            x_f = R.dequantize(
+                x, R.const(0.25, "float32"), R.const(0, "int8"), axis=-1, out_dtype="float32"
+            )
+            y_f = R.dequantize(
+                y, R.const(0.25, "float32"), R.const(0, "int8"), axis=-1, out_dtype="float32"
+            )
+            added = relax.op.add(x_f, y_f)
+            z = R.quantize(
+                added, R.const(0.25, "float32"), R.const(0, "int8"), axis=-1, out_dtype="int8"
+            )
+            R.output(z)
+        return z
+
+
+@tvm.script.ir_module
 class ClipModule:
     @R.function
     def main(x: R.Tensor((2, 3), "float32")):
@@ -581,6 +810,8 @@ def _skip_if_local_xnnpack_rejects_qs8(exc):
         "status 2" in message or "status 4" in message or "status 5" in message
     ):
         pytest.skip(f"linked XNNPACK build rejected this QS8 runtime: {message}")
+    if "xnn_define_average_pooling_2d failed with status 2" in message:
+        pytest.skip(f"linked XNNPACK build rejected QS8 average pooling: {message}")
     raise exc
 
 
@@ -613,6 +844,10 @@ def _assert_report_fields(report):
         "qdq_boundary_count",
         "qparam_source",
         "qparam_validation_result",
+        "quantized_op_type",
+        "qparams_summary",
+        "qparam_equality_required",
+        "qparam_rejection_reason",
     }
     assert expected_fields.issubset(report[0].keys())
 
@@ -654,6 +889,12 @@ def test_xnnpack_registers_relu_pattern():
         "xnnpack.qs8_fully_connected",
         "xnnpack.qs8_conv2d_bias_relu",
         "xnnpack.qs8_depthwise_conv2d_bias_clip",
+        "xnnpack.qs8_reshape",
+        "xnnpack.qs8_flatten",
+        "xnnpack.qs8_copy",
+        "xnnpack.qs8_max_pool2d",
+        "xnnpack.qs8_avg_pool2d",
+        "xnnpack.qs8_add",
         "xnnpack.conv2d_bias_relu",
         "xnnpack.max_pool2d",
         "xnnpack.add",
@@ -735,6 +976,7 @@ def test_xnnpack_cost_policy_reports_qs8_weighted_candidate():
     assert accepted[0]["quantized"] is True
     assert accepted[0]["qparam_source"] == "constant"
     assert accepted[0]["qparam_validation_result"] == "ok"
+    assert accepted[0]["quantized_op_type"] == "qs8_fully_connected"
 
 
 @tvm.script.ir_module
@@ -761,6 +1003,62 @@ class QS8FullyConnectedBadWeightZeroPointModule:
 def test_partition_for_xnnpack_rejects_invalid_qs8_qparams(mod):
     mod = _partition(mod)
     assert not _has_codegen_attr(mod)
+
+
+@pytest.mark.parametrize(
+    "mod",
+    [
+        QS8ReshapeModule,
+        QS8FlattenModule,
+        QS8CopyModule,
+        QS8MaxPool2DModule,
+        QS8AvgPool2DModule,
+        QS8GlobalAvgPoolAsAvgPool2DModule,
+        QS8AddModule,
+        QS8AddRelu6Module,
+    ],
+)
+def test_partition_for_xnnpack_partitions_static_qs8_island_ops(mod):
+    mod = _partition(mod)
+    assert _has_codegen_attr(mod)
+
+
+@pytest.mark.parametrize(
+    "mod",
+    [
+        QS8ReshapeMismatchedQParamsModule,
+        QS8MaxPoolNCHWModule,
+        QS8AddBroadcastModule,
+    ],
+)
+def test_partition_for_xnnpack_rejects_unsupported_qs8_island_ops(mod):
+    mod = _partition(mod)
+    assert not _has_codegen_attr(mod)
+
+
+def test_xnnpack_cost_policy_reports_qs8_island_rejections():
+    reshape_mod, reshape_report = _partition(
+        QS8ReshapeModule,
+        partition_policy="cost",
+        report_partition_decisions=True,
+    )
+    add_mod, add_report = _partition(
+        QS8AddModule,
+        partition_policy="cost",
+        report_partition_decisions=True,
+    )
+    assert not _has_codegen_attr(reshape_mod)
+    assert not _has_codegen_attr(add_mod)
+    _assert_report_fields(reshape_report)
+    assert any(entry["reason"] == "rejected_low_compute_to_copy_ratio" for entry in reshape_report)
+    assert any(entry["reason"] == "rejected_isolated_elementwise" for entry in add_report)
+    accepted_debug, debug_report = _partition(
+        QS8AddModule,
+        partition_policy="debug_all_supported",
+        report_partition_decisions=True,
+    )
+    assert _has_codegen_attr(accepted_debug)
+    assert any(entry["quantized_op_type"] == "qs8_add" for entry in debug_report)
 
 
 def test_partition_for_xnnpack_rejects_float16_even_with_fp16_policy():
@@ -1187,6 +1485,72 @@ def test_xnnpack_qs8_weighted_ops_external_runtime(mod, inputs, output_shape):
     max_diff = np.max(np.abs(result.astype("int16") - expected.astype("int16")))
     if max_diff > 1 and mod is QS8FullyConnectedBiasRelu6Module:
         pytest.skip("linked XNNPACK build does not produce matching QS8 fully_connected output")
+    assert max_diff <= 1
+    metadata = json.loads(ext_mod["get_quantization_metadata_json"]())
+    assert metadata
+
+
+@pytest.mark.skipif(
+    not (_has_xnnpack_codegen() and _has_xnnpack_runtime()),
+    reason="XNNPACK codegen/runtime is not enabled",
+)
+@pytest.mark.parametrize(
+    "mod, inputs, output_shape",
+    [
+        (QS8ReshapeModule, [np.array([[-3, -1, 2], [4, 1, -2]], dtype="int8")], (1, 6)),
+        (QS8FlattenModule, [np.arange(-12, 12, dtype="int8").reshape(2, 3, 4)], (24,)),
+        (QS8CopyModule, [np.array([[-3, -1, 2], [4, 1, -2]], dtype="int8")], (2, 3)),
+        (QS8MaxPool2DModule, [np.arange(-16, 16, dtype="int8").reshape(1, 4, 4, 2)], (1, 2, 2, 2)),
+        (QS8AvgPool2DModule, [np.arange(-16, 16, dtype="int8").reshape(1, 4, 4, 2)], (1, 2, 2, 2)),
+        (
+            QS8GlobalAvgPoolAsAvgPool2DModule,
+            [np.arange(-16, 16, dtype="int8").reshape(1, 4, 4, 2)],
+            (1, 1, 1, 2),
+        ),
+        (
+            QS8AddModule,
+            [
+                np.arange(-16, 16, dtype="int8").reshape(1, 4, 4, 2),
+                np.arange(16, -16, -1, dtype="int8").reshape(1, 4, 4, 2),
+            ],
+            (1, 4, 4, 2),
+        ),
+        (
+            QS8AddRelu6Module,
+            [
+                np.arange(-16, 16, dtype="int8").reshape(1, 4, 4, 2),
+                np.arange(16, -16, -1, dtype="int8").reshape(1, 4, 4, 2),
+            ],
+            (1, 4, 4, 2),
+        ),
+    ],
+)
+def test_xnnpack_qs8_island_ops_external_runtime(mod, inputs, output_shape):
+    capabilities = _xnnpack_capabilities()
+    required = capabilities.get("datatype_qint8") and capabilities.get(
+        "define_quantized_tensor_value"
+    )
+    if mod in (QS8ReshapeModule, QS8FlattenModule) and not capabilities.get("static_reshape"):
+        pytest.skip("XNNPACK static reshape API is unavailable")
+    if mod is QS8CopyModule and not capabilities.get("copy"):
+        pytest.skip("XNNPACK copy API is unavailable")
+    if not required:
+        pytest.skip("XNNPACK QS8 tensor APIs are unavailable")
+    partitioned = _partition(mod)
+    assert _has_codegen_attr(partitioned)
+    codegen_mod = relax.transform.RunCodegen()(partitioned)
+    assert _has_external_mods(codegen_mod)
+
+    ref_ex = tvm.compile(mod, target="llvm")
+    ref_vm = relax.VirtualMachine(ref_ex, tvm.cpu())
+    expected = ref_vm["main"](*[tvm.runtime.tensor(input_np) for input_np in inputs]).numpy()
+    try:
+        ext_mod, result = _run_first_external_module(
+            codegen_mod, inputs, output_shape, output_dtype="int8"
+        )
+    except tvm.error.TVMError as err:
+        _skip_if_local_xnnpack_rejects_qs8(err)
+    max_diff = np.max(np.abs(result.astype("int16") - expected.astype("int16")))
     assert max_diff <= 1
     metadata = json.loads(ext_mod["get_quantization_metadata_json"]())
     assert metadata
