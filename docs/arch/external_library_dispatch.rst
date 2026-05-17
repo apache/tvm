@@ -476,6 +476,35 @@ residual add. QU8/``uint8``, dynamic range quantization, weight-only
 quantization, dynamic quantization parameters, and unsupported quantized TFLite
 operators are rejected rather than silently lowered.
 
+Dynamic-range quantization is available as an explicit partitioning mode:
+
+.. code-block:: python
+
+   mod = tvm.relax.backend.xnnpack.partition_for_xnnpack(
+       mod,
+       quantization="dynamic_range",
+   )
+
+This mode is separate from static QS8. Relax graph boundaries remain
+``float32``; static weights are signed ``int8`` with per-channel scales; and
+XNNPACK computes activation quantization parameters at runtime. Phase 5C-3
+only registers the fully-connected form
+``float32 input -> dequantize(static int8 weight) -> relax.matmul -> float32
+output``. The weight must be static, rank-2, signed int8, zero-point 0, and
+per-channel quantized on the output-channel axis. Bias, dynamic-range Conv2D,
+QU8, weight-only quantization, dynamic qparams, 4-bit/2-bit weights, and
+mixed static-QS8/dynamic-range islands are intentionally not supported.
+
+The dynamic-range path is guarded by XNNPACK feature probes for the public QD8
+datatypes, dynamically quantized tensor values, ``xnn_define_convert``, and
+the fully-connected subgraph construction. Some XNNPACK revisions expose these
+public APIs but reject or miscompile particular dynamic-range subgraphs at
+runtime; TVM tests skip those enabled-runtime cases cleanly and the docs do not
+claim runtime acceleration unless the linked XNNPACK build passes numerical
+validation. The partition report marks these candidates with
+``dynamic_range=True``, ``weight_qscheme``, ``activation_boundary_dtype``,
+``output_boundary_dtype``, and an estimated activation-quantization overhead.
+
 .. list-table::
    :header-rows: 1
    :widths: 30 70
@@ -523,14 +552,18 @@ operators are rejected rather than silently lowered.
      - Static signed-int8 tensors, exactly equal input shapes, constant
        per-tensor qparams, no scalar or channel broadcasting, and optional
        ReLU/ReLU6/clip fusion.
+   * - Dynamic-range ``relax.matmul``
+     - Opt-in with ``quantization="dynamic_range"``. Float32 input/output,
+       static signed-int8 rank-2 weights, per-channel weight scales on axis 1,
+       zero weight zero-point, and no bias or fused activation in this phase.
 
 There is no int8 multiply/subtract/concat/pad/resize, generic spatial mean,
-softmax, QU8/``uint8``, 4-bit, dynamic-range quantization, weight-only
-quantization, dynamic qparams, layout conversion, dynamic-shape support, broad
-broadcasting, or broad CNN coverage in this phase. Explicit ``float16`` Relax
-graphs are also unsupported and must fall back to TVM. The cost policy can
-reject isolated small int8 elementwise or reshape/copy islands even when the
-greedy/debug policies would partition them.
+softmax, dynamic-range Conv2D, QU8/``uint8``, 4-bit, weight-only quantization,
+dynamic qparams, layout conversion, dynamic-shape support, broad broadcasting,
+or broad CNN coverage in this phase. Explicit ``float16`` Relax graphs are
+also unsupported and must fall back to TVM. The cost policy can reject isolated
+small int8 elementwise or reshape/copy islands, and tiny dynamic-range dense
+islands, even when the greedy/debug policies would partition them.
 
 The runtime uses XNNPACK's public ``xnnpack.h`` API only. It initializes
 XNNPACK with ``xnn_initialize`` and does not include
@@ -604,9 +637,14 @@ Troubleshooting:
   TVM fails configure only for baseline public APIs required by the current
   runtime; optional FP16, QS8, workspace, profiling, and future dynamic-quant
   features are reported as unavailable instead.
-* Dynamic quantization/QD8 capability bits are detection-only. They do not
-  enable dynamic-range quantization, weight-only quantization, or additional
-  partition patterns.
+* Dynamic quantization/QD8 capability bits report public API availability for
+  the opt-in dynamic-range dense path. They do not enable dynamic-range Conv2D,
+  weight-only quantization, QU8, or additional partition patterns.
+* If a dynamic-range dense partition is present but runtime validation skips or
+  fails, the linked XNNPACK revision exposed the required public APIs but did
+  not produce a numerically valid subgraph for the tested shape. Use normal TVM
+  lowering or ``quantization="none"`` for that model until the XNNPACK build is
+  updated or the backend grows a tested alternate lowering.
 
 Deployment and platform notes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

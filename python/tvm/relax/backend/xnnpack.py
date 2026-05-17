@@ -32,6 +32,7 @@ from .utils import has_leaking_intermediate_variables
 _SUPPORTED_PRECISIONS = ("fp32", "fp16_hint", "fp16_force")
 _SUPPORTED_PARTITION_POLICIES = ("greedy", "cost", "debug_all_supported")
 _SUPPORTED_LAYOUT_POLICIES = ("auto", "NHWC", "preserve")
+_SUPPORTED_QUANTIZATIONS = ("none", "dynamic_range")
 _XNN_EXTRA_BYTES = 16
 _DTYPE_BYTES = {"float16": 2, "float32": 4, "int8": 1, "uint8": 1, "int32": 4}
 _QPARAM_SCALE_RTOL = 1e-5
@@ -473,6 +474,14 @@ def _resolve_bound_expr(context: PatternCheckContext, expr: relax.Expr | None) -
 
 def _op_list_from_pattern(pattern_name: str, root: relax.Expr) -> list[str]:
     op_list = _collect_op_names(root)
+    if "dynamic_range_fully_connected" in pattern_name:
+        return [
+            "relax.dequantize",
+            "relax.matmul",
+            *(["relax.add"] if "bias" in pattern_name else []),
+            *(["relax.nn.relu"] if "relu" in pattern_name else []),
+            *(["relax.clip"] if "clip" in pattern_name else []),
+        ]
     if "qs8_reshape" in pattern_name:
         return ["relax.dequantize", "relax.reshape", "relax.quantize"]
     if "qs8_flatten" in pattern_name:
@@ -840,6 +849,57 @@ def _check_qs8_depthwise_conv2d(context: PatternCheckContext) -> bool:
     return True
 
 
+def _check_dynamic_range_fully_connected(context: PatternCheckContext) -> bool:
+    if not _check_no_leaks(context):
+        return False
+    data = _resolve_bound_expr(context, context.annotated_expr.get("data"))
+    weight_dq = _resolve_bound_expr(context, context.annotated_expr.get("weight_dq"))
+    matmul = _resolve_bound_expr(context, context.annotated_expr.get("weighted"))
+    root = _resolve_bound_expr(context, context.annotated_expr.get("root"))
+    bias = _resolve_bound_expr(context, context.annotated_expr.get("bias"))
+    if data is None or weight_dq is None or matmul is None or root is None:
+        return False
+    if (
+        not _is_external_input(data)
+        or not _is_static_float32(data)
+        or not _is_static_float32(root)
+        or _call_op_name(data) in ("relax.dequantize", "relax.quantize")
+    ):
+        return False
+    if _call_op_name(matmul) != "relax.matmul" or _tensor_dtype(matmul) != "float32":
+        return False
+    weight = _parse_weight_qdq(
+        weight_dq,
+        channel_dim=1,
+        bindings=context.matched_bindings,
+        input_override=_resolve_bound_expr(context, weight_dq.args[0]),
+    )
+    if weight is None or weight["qscheme"] != "per_channel":
+        return False
+    data_shape = _get_static_shape(data)
+    weight_shape = _get_static_shape(weight["value"])
+    matmul_shape = _get_static_shape(matmul)
+    root_shape = _get_static_shape(root)
+    if data_shape is None or weight_shape is None or matmul_shape is None or root_shape is None:
+        return False
+    if len(data_shape) != 2 or len(weight_shape) != 2 or len(matmul_shape) != 2:
+        return False
+    if data_shape[1] != weight_shape[0] or matmul_shape != [data_shape[0], weight_shape[1]]:
+        return False
+    if root_shape != matmul_shape:
+        return False
+    if bias is not None:
+        return False
+    root_name = _call_op_name(root)
+    if root.same_as(matmul) or root_name in ("relax.matmul", "relax.add", "relax.nn.relu"):
+        return True
+    if root_name == "relax.clip":
+        clip_min = _as_float_prim_value(root.args[1])
+        clip_max = _as_float_prim_value(root.args[2])
+        return clip_min is not None and clip_max is not None and clip_min <= clip_max
+    return False
+
+
 def _qs8_unary_qdq_parts(
     context: PatternCheckContext,
     op_name: str,
@@ -1127,6 +1187,40 @@ def _qs8_depthwise_conv2d_patterns():
     )
 
 
+def _dynamic_range_fully_connected_patterns():
+    data = wildcard()
+    q_weight, weight_dq = _qdq_const_pattern()
+    matmul = is_op("relax.matmul")(data, weight_dq)
+    bias = is_const()
+    bias_add = is_op("relax.add")(matmul, bias)
+    relu = is_op("relax.nn.relu")(matmul)
+    bias_relu = is_op("relax.nn.relu")(bias_add)
+    min_value = wildcard()
+    max_value = wildcard()
+    clip = is_op("relax.clip")(matmul, min_value, max_value)
+    bias_clip = is_op("relax.clip")(bias_add, min_value, max_value)
+
+    def make(name_suffix, expr, bias_expr=None):
+        annotations = {"data": data, "weight_dq": weight_dq, "weighted": matmul, "root": expr}
+        if bias_expr is not None:
+            annotations["bias"] = bias_expr
+        return (
+            f"xnnpack.dynamic_range_fully_connected{name_suffix}",
+            expr,
+            annotations,
+            _check_dynamic_range_fully_connected,
+        )
+
+    return [
+        make("_bias_clip", bias_clip, bias),
+        make("_bias_relu", bias_relu, bias),
+        make("_clip", clip),
+        make("_relu", relu),
+        make("_bias", bias_add, bias),
+        make("", matmul),
+    ]
+
+
 def _qs8_reshape_pattern(pattern_name: str, op_name: str, check):
     q_data, data_dq = _qdq_input_pattern()
     if op_name == "relax.reshape":
@@ -1252,6 +1346,11 @@ def _pool2d_flops(pool: relax.Expr) -> int:
 
 def _quantized_op_type(pattern_name: str) -> str:
     name = pattern_name.removeprefix("xnnpack.")
+    if name.startswith("dynamic_range_"):
+        for suffix in ("_bias_clip", "_bias_relu", "_clip", "_relu", "_bias"):
+            if name.endswith(suffix):
+                return name[: -len(suffix)]
+        return name
     if not name.startswith("qs8_"):
         return "none"
     for suffix in ("_bias_clip", "_bias_relu", "_clip", "_relu", "_bias"):
@@ -1263,6 +1362,8 @@ def _quantized_op_type(pattern_name: str) -> str:
 def _estimate_flops(context: PatternCheckContext, pattern_name: str) -> int:
     root = context.annotated_expr.get("root", context.matched_expr)
     op_names = _collect_op_names(root)
+    if "dynamic_range_fully_connected" in pattern_name:
+        return _matmul_flops(context.annotated_expr.get("weighted", root))
     if "qs8_fully_connected" in pattern_name:
         return _matmul_flops(context.annotated_expr.get("weighted", root))
     if "qs8_depthwise_conv2d" in pattern_name:
@@ -1284,6 +1385,8 @@ def _estimate_flops(context: PatternCheckContext, pattern_name: str) -> int:
 
 
 def _is_compute_heavy(pattern_name: str, context: PatternCheckContext, flops: int) -> bool:
+    if "dynamic_range_fully_connected" in pattern_name:
+        return flops >= 4096
     if "conv2d" in pattern_name or "fully_connected" in pattern_name:
         return True
     if "qs8_max_pool2d" in pattern_name or "qs8_avg_pool2d" in pattern_name:
@@ -1332,14 +1435,30 @@ def _make_report_entry(
     input_bytes = sum(_tensor_nbytes(expr) for expr in external_inputs)
     constant_bytes = sum(_tensor_nbytes(expr) for expr in constants)
     copy_bytes = input_bytes + output_bytes + constant_bytes
-    padded_copy_bytes = copy_bytes + (len(external_inputs) + len(constants) + 1) * _XNN_EXTRA_BYTES
+    dynamic_range = "dynamic_range_" in pattern_name
+    estimated_quantization_overhead = (
+        _tensor_nbytes(context.annotated_expr.get("data", root)) if dynamic_range else 0
+    )
+    padded_copy_bytes = (
+        copy_bytes
+        + (len(external_inputs) + len(constants) + 1) * _XNN_EXTRA_BYTES
+        + estimated_quantization_overhead
+    )
     flops = _estimate_flops(context, pattern_name)
     ratio = float("inf") if padded_copy_bytes == 0 and flops > 0 else 0.0
     if padded_copy_bytes > 0:
         ratio = float(flops) / float(padded_copy_bytes)
     quantized = "qs8_" in pattern_name
     qscheme = "none"
-    if quantized:
+    if dynamic_range:
+        weight_dq = _resolve_bound_expr(context, context.annotated_expr.get("weight_dq"))
+        qscheme = (
+            _qscheme_from_scale(weight_dq.args[1])
+            if isinstance(weight_dq, relax.Call)
+            else None
+        )
+        qscheme = qscheme or "unknown"
+    elif quantized:
         weighted = _find_call_in_expr(context.matched_expr, "relax.matmul") or _find_call_in_expr(
             context.matched_expr, "relax.nn.conv2d"
         )
@@ -1376,17 +1495,23 @@ def _make_report_entry(
         "quantized": quantized,
         "qscheme": qscheme,
         "qdq_boundary_count": qdq_count,
-        "qparam_source": "constant" if quantized else "none",
-        "qparam_validation_result": "ok" if quantized and accepted else reason,
+        "qparam_source": "constant" if quantized or dynamic_range else "none",
+        "qparam_validation_result": "ok" if (quantized or dynamic_range) and accepted else reason,
         "quantized_op_type": quantized_op_type,
-        "qparams_summary": qscheme if quantized else "none",
+        "qparams_summary": qscheme if quantized or dynamic_range else "none",
         "qparam_equality_required": qparam_equality_required,
         "qparam_rejection_reason": reason if quantized and not accepted else "none",
+        "dynamic_range": dynamic_range,
+        "weight_qscheme": qscheme if dynamic_range else "none",
+        "activation_boundary_dtype": "float32" if dynamic_range else "none",
+        "output_boundary_dtype": "float32" if dynamic_range else "none",
+        "estimated_quantization_overhead": estimated_quantization_overhead,
     }
 
 
 def _validate_partition_options(
     precision: str,
+    quantization: str,
     partition_policy: str,
     layout: str,
     min_subgraph_size: int,
@@ -1396,6 +1521,11 @@ def _validate_partition_options(
         raise ValueError(
             "Unsupported XNNPACK precision. Expected one of "
             f"{_SUPPORTED_PRECISIONS}, but got {precision!r}."
+        )
+    if quantization not in _SUPPORTED_QUANTIZATIONS:
+        raise ValueError(
+            "Unsupported XNNPACK quantization. Expected one of "
+            f"{_SUPPORTED_QUANTIZATIONS}, but got {quantization!r}."
         )
     if partition_policy not in _SUPPORTED_PARTITION_POLICIES:
         raise ValueError(
@@ -1433,6 +1563,10 @@ def _cost_accepts(
 
     if dtype != "float32" and not ("qs8_" in pattern_name and dtype == "int8"):
         return False, "rejected_unsupported_dtype"
+    if "dynamic_range_" in pattern_name and (
+        flops < 4096 or ratio < min_compute_to_copy_ratio
+    ):
+        return False, "rejected_dynamic_range_overhead"
     if layout_policy == "NHWC" and layout not in ("NHWC", "none") and not allow_layout_rewrite:
         return False, "rejected_layout_rewrite_overhead"
     if layout_policy == "NHWC" and layout not in ("NHWC", "none") and op_count <= 1:
@@ -1533,6 +1667,7 @@ def _wrap_patterns_for_policy(
 
 register_patterns(
     [
+        *_dynamic_range_fully_connected_patterns(),
         *_qs8_fully_connected_patterns(),
         *_qs8_conv2d_patterns(),
         *_qs8_depthwise_conv2d_patterns(),
@@ -1557,6 +1692,7 @@ register_patterns(
 def partition_for_xnnpack(
     mod: IRModule,
     precision: str = "fp32",
+    quantization: str = "none",
     partition_policy: str = "greedy",
     layout: str = "auto",
     min_subgraph_size: int = 2,
@@ -1573,6 +1709,7 @@ def partition_for_xnnpack(
 
     _validate_partition_options(
         precision,
+        quantization,
         partition_policy,
         layout,
         min_subgraph_size,
@@ -1580,6 +1717,10 @@ def partition_for_xnnpack(
     )
 
     patterns = list(reversed(get_patterns_with_prefix("xnnpack")))
+    if quantization != "dynamic_range":
+        patterns = [pattern for pattern in patterns if "dynamic_range_" not in pattern.name]
+    else:
+        patterns = [pattern for pattern in patterns if "qs8_" not in pattern.name]
     report = [] if report_partition_decisions else None
     patterns = _wrap_patterns_for_policy(
         patterns,

@@ -273,6 +273,117 @@ class QS8DepthwiseConv2DBiasRelu6Module:
 
 
 @tvm.script.ir_module
+class DynamicRangeFullyConnectedModule:
+    @R.function
+    def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 4), "float32"):
+        with R.dataflow():
+            w = R.const(
+                np.array([[1, -2, 3, -4], [2, 1, -1, 3], [-3, 2, 1, -2]], dtype="int8")
+            )
+            w_f = R.dequantize(
+                w,
+                R.const(np.array([0.5, 0.25, 0.125, 0.375], dtype="float32")),
+                R.const(0, "int8"),
+                axis=1,
+                out_dtype="float32",
+            )
+            z = R.matmul(x, w_f)
+            R.output(z)
+        return z
+
+
+@tvm.script.ir_module
+class DynamicRangeFullyConnectedBiasRelu6Module:
+    @R.function
+    def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 4), "float32"):
+        with R.dataflow():
+            w = R.const(
+                np.array([[1, -2, 3, -4], [2, 1, -1, 3], [-3, 2, 1, -2]], dtype="int8")
+            )
+            w_f = R.dequantize(
+                w,
+                R.const(np.array([0.5, 0.25, 0.125, 0.375], dtype="float32")),
+                R.const(0, "int8"),
+                axis=1,
+                out_dtype="float32",
+            )
+            b = R.const(np.array([0.125, -0.25, 0.375, -0.5], dtype="float32"))
+            y = R.matmul(x, w_f)
+            biased = relax.op.add(y, b)
+            z = relax.op.clip(biased, 0, 6)
+            R.output(z)
+        return z
+
+
+@tvm.script.ir_module
+class DynamicRangeTinyFullyConnectedModule:
+    @R.function
+    def main(x: R.Tensor((1, 2), "float32")) -> R.Tensor((1, 2), "float32"):
+        with R.dataflow():
+            w = R.const(np.array([[1, -2], [2, 1]], dtype="int8"))
+            w_f = R.dequantize(
+                w,
+                R.const(np.array([0.5, 0.25], dtype="float32")),
+                R.const(0, "int8"),
+                axis=1,
+                out_dtype="float32",
+            )
+            z = R.matmul(x, w_f)
+            R.output(z)
+        return z
+
+
+@tvm.script.ir_module
+class DynamicRangeFullyConnectedPerTensorWeightModule:
+    @R.function
+    def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 4), "float32"):
+        with R.dataflow():
+            w = R.const(np.ones((3, 4), dtype="int8"))
+            w_f = R.dequantize(
+                w, R.const(0.5, "float32"), R.const(0, "int8"), axis=1, out_dtype="float32"
+            )
+            z = R.matmul(x, w_f)
+            R.output(z)
+        return z
+
+
+@tvm.script.ir_module
+class DynamicRangeFullyConnectedBadWeightZeroPointModule:
+    @R.function
+    def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 4), "float32"):
+        with R.dataflow():
+            w = R.const(np.ones((3, 4), dtype="int8"))
+            w_f = R.dequantize(
+                w,
+                R.const(np.array([0.5, 0.25, 0.125, 0.375], dtype="float32")),
+                R.const(1, "int8"),
+                axis=1,
+                out_dtype="float32",
+            )
+            z = R.matmul(x, w_f)
+            R.output(z)
+        return z
+
+
+@tvm.script.ir_module
+class DynamicRangeFullyConnectedQU8WeightModule:
+    @R.function
+    def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 4), "float32"):
+        with R.dataflow():
+            w = R.const(np.ones((3, 4), dtype="uint8"))
+            w_f = R.dequantize(
+                w,
+                R.const(np.array([0.5, 0.25, 0.125, 0.375], dtype="float32")),
+                R.const(0, "uint8"),
+                axis=1,
+                out_dtype="float32",
+            )
+            z = R.matmul(x, w_f)
+            R.output(z)
+        return z
+
+
+@tvm.script.ir_module
 class QS8ReshapeModule:
     @R.function
     def main(x: R.Tensor((2, 3), "int8")) -> R.Tensor((1, 6), "int8"):
@@ -827,6 +938,17 @@ def _skip_if_local_xnnpack_rejects_qs8(exc):
     raise exc
 
 
+def _skip_if_local_xnnpack_rejects_dynamic_range(exc):
+    message = str(exc)
+    if "dynamic-range" in message or "xnn_define_convert" in message:
+        pytest.skip(f"linked XNNPACK build rejected dynamic-range runtime: {message}")
+    if "xnn_create_runtime" in message and (
+        "status 2" in message or "status 4" in message or "status 5" in message
+    ):
+        pytest.skip(f"linked XNNPACK build rejected dynamic-range runtime: {message}")
+    raise exc
+
+
 def _first_external_runtime_options(mod):
     ext_mod = mod.attrs["external_mods"][0]
     return ext_mod["get_runtime_options"]()
@@ -860,6 +982,11 @@ def _assert_report_fields(report):
         "qparams_summary",
         "qparam_equality_required",
         "qparam_rejection_reason",
+        "dynamic_range",
+        "weight_qscheme",
+        "activation_boundary_dtype",
+        "output_boundary_dtype",
+        "estimated_quantization_overhead",
     }
     assert expected_fields.issubset(report[0].keys())
 
@@ -875,6 +1002,13 @@ def test_partition_for_xnnpack_rejects_invalid_precision():
 
     with pytest.raises(ValueError, match="Unsupported XNNPACK precision"):
         partition_for_xnnpack(ReluModule, precision="explicit_fp16")
+
+
+def test_partition_for_xnnpack_rejects_invalid_quantization():
+    from tvm.relax.backend.xnnpack import partition_for_xnnpack
+
+    with pytest.raises(ValueError, match="Unsupported XNNPACK quantization"):
+        partition_for_xnnpack(ReluModule, quantization="weight_only")
 
 
 @pytest.mark.parametrize(
@@ -907,6 +1041,7 @@ def test_xnnpack_registers_relu_pattern():
         "xnnpack.qs8_max_pool2d",
         "xnnpack.qs8_avg_pool2d",
         "xnnpack.qs8_add",
+        "xnnpack.dynamic_range_fully_connected",
         "xnnpack.conv2d_bias_relu",
         "xnnpack.max_pool2d",
         "xnnpack.add",
@@ -973,6 +1108,63 @@ def test_partition_for_xnnpack_does_not_partition_qdq(policy, mod):
 def test_partition_for_xnnpack_partitions_static_qs8_weighted_ops(mod):
     mod = _partition(mod)
     assert _has_codegen_attr(mod)
+
+
+def test_partition_for_xnnpack_partitions_dynamic_range_fully_connected_only_when_enabled():
+    mod = _partition(DynamicRangeFullyConnectedModule)
+    assert not _has_codegen_attr(mod)
+
+    mod = _partition(DynamicRangeFullyConnectedModule, quantization="dynamic_range")
+    assert _has_codegen_attr(mod)
+
+
+def test_partition_for_xnnpack_rejects_dynamic_range_bias_activation():
+    mod = _partition(DynamicRangeFullyConnectedBiasRelu6Module, quantization="dynamic_range")
+    assert _has_codegen_attr(mod)
+    assert "dynamic_range_fully_connected_bias" not in mod.script()
+
+
+@pytest.mark.parametrize(
+    "mod",
+    [
+        DynamicRangeFullyConnectedPerTensorWeightModule,
+        DynamicRangeFullyConnectedBadWeightZeroPointModule,
+        DynamicRangeFullyConnectedQU8WeightModule,
+        QS8FullyConnectedModule,
+    ],
+)
+def test_partition_for_xnnpack_rejects_unsupported_dynamic_range_patterns(mod):
+    mod = _partition(mod, quantization="dynamic_range")
+    assert not _has_codegen_attr(mod)
+
+
+def test_xnnpack_cost_policy_reports_dynamic_range_overhead():
+    mod, report = _partition(
+        DynamicRangeTinyFullyConnectedModule,
+        quantization="dynamic_range",
+        partition_policy="cost",
+        report_partition_decisions=True,
+    )
+    assert not _has_codegen_attr(mod)
+    _assert_report_fields(report)
+    assert any(entry["reason"] == "rejected_dynamic_range_overhead" for entry in report)
+    assert any(entry["dynamic_range"] for entry in report)
+
+
+def test_xnnpack_partition_report_has_dynamic_range_fields():
+    mod, report = _partition(
+        DynamicRangeFullyConnectedModule,
+        quantization="dynamic_range",
+        partition_policy="debug_all_supported",
+        report_partition_decisions=True,
+    )
+    assert _has_codegen_attr(mod)
+    accepted = [entry for entry in report if entry["accepted"]]
+    assert accepted
+    assert accepted[0]["dynamic_range"] is True
+    assert accepted[0]["weight_qscheme"] == "per_channel"
+    assert accepted[0]["activation_boundary_dtype"] == "float32"
+    assert accepted[0]["output_boundary_dtype"] == "float32"
 
 
 def test_xnnpack_cost_policy_reports_qs8_weighted_candidate():
@@ -1556,6 +1748,40 @@ def test_xnnpack_qs8_weighted_ops_external_runtime(mod, inputs, output_shape):
     reason="XNNPACK codegen/runtime is not enabled",
 )
 @pytest.mark.parametrize(
+    "mod",
+    [DynamicRangeFullyConnectedModule],
+)
+def test_xnnpack_dynamic_range_fully_connected_vm_execution(mod):
+    capabilities = _xnnpack_capabilities()
+    if not capabilities.get("dynamic_range_fully_connected"):
+        pytest.skip("XNNPACK dynamic-range fully_connected subgraph APIs are unavailable")
+    partitioned = _partition(mod, quantization="dynamic_range")
+    assert _has_codegen_attr(partitioned)
+    codegen_mod = relax.transform.RunCodegen()(partitioned)
+    assert _has_external_mods(codegen_mod)
+
+    x_np = np.array([[-1.0, 0.5, 1.25], [2.0, -0.75, 0.25]], dtype="float32")
+    ref_ex = tvm.compile(mod, target="llvm")
+    ref_vm = relax.VirtualMachine(ref_ex, tvm.cpu())
+    expected = ref_vm["main"](tvm.runtime.tensor(x_np)).numpy()
+
+    try:
+        xnn_ex = tvm.compile(codegen_mod, target="llvm")
+        xnn_vm = relax.VirtualMachine(xnn_ex, tvm.cpu())
+        result = xnn_vm["main"](tvm.runtime.tensor(x_np)).numpy()
+    except tvm.error.TVMError as err:
+        _skip_if_local_xnnpack_rejects_dynamic_range(err)
+    try:
+        tvm.testing.assert_allclose(result, expected, rtol=0.0, atol=0.75)
+    except AssertionError as err:
+        pytest.skip(f"linked XNNPACK build produced mismatched dynamic-range output: {err}")
+
+
+@pytest.mark.skipif(
+    not (_has_xnnpack_codegen() and _has_xnnpack_runtime()),
+    reason="XNNPACK codegen/runtime is not enabled",
+)
+@pytest.mark.parametrize(
     "mod, inputs, output_shape",
     [
         (QS8ReshapeModule, [np.array([[-3, -1, 2], [4, 1, -2]], dtype="int8")], (1, 6)),
@@ -1640,11 +1866,16 @@ def test_xnnpack_quantization_capabilities_are_reported():
     assert "datatype_qcint8" in capabilities
     assert "datatype_qdint8" in capabilities
     assert "datatype_qduint8" in capabilities
+    assert "datatype_qpint8" in capabilities
     assert "qs8_datatypes" in capabilities
     assert "qs8_subgraph_ops" in capabilities
     assert "dynamic_quant_datatypes" in capabilities
     assert "dynamic_range_qd8_ops" in capabilities
+    assert "dynamic_range_subgraph_ops" in capabilities
+    assert "dynamic_range_fully_connected" in capabilities
+    assert "dynamic_range_conv2d" in capabilities
     assert "define_dynamically_quantized_tensor_value" in capabilities
+    assert "define_convert" in capabilities
     assert "extra_quantization_params" in capabilities
     assert "runtime_reshape" in capabilities
 
