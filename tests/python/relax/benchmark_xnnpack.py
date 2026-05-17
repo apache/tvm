@@ -22,6 +22,8 @@ reproducible without downloading model files.
 
 import argparse
 import importlib
+import sys
+import time
 from typing import Dict, List, Tuple
 
 import numpy as np
@@ -76,6 +78,25 @@ def has_xnnpack_enabled() -> bool:
         tvm.get_global_func("relax.ext.xnnpack", allow_missing=True) is not None
         and tvm.get_global_func("runtime.XNNPACKJSONRuntimeCreate", allow_missing=True) is not None
     )
+
+
+def get_xnnpack_capabilities() -> Dict[str, int]:
+    func = tvm.get_global_func("runtime.XNNPACKJSONRuntimeGetCapabilities", allow_missing=True)
+    if func is None:
+        return {}
+    return {str(key): int(value) for key, value in func().items()}
+
+
+def get_memory_kib() -> int:
+    try:
+        import resource
+
+        rss = int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
+        if sys.platform == "darwin":
+            return rss // 1024
+        return rss
+    except Exception:  # pylint: disable=broad-except
+        return -1
 
 
 def count_xnnpack_partitions(mod: tvm.IRModule) -> int:
@@ -175,12 +196,27 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--input-shape", type=parse_shape, default=(1, 3, 224, 224))
     parser.add_argument("--xnnpack-prefix-info", default="")
+    parser.add_argument("--use-weights-cache", action="store_true")
+    parser.add_argument("--use-workspace", action="store_true")
+    parser.add_argument("--profile", action="store_true")
+    parser.add_argument("--dont-spin-workers", action="store_true")
+    parser.add_argument("--transient-indirection-buffer", action="store_true")
+    parser.add_argument("--num-threads", type=int, default=1)
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
     xnnpack_enabled = has_xnnpack_enabled()
+    xnnpack_options = {
+        "use_weights_cache": args.use_weights_cache,
+        "use_workspace": args.use_workspace,
+        "profile": args.profile,
+        "dont_spin_workers": args.dont_spin_workers,
+        "transient_indirection_buffer": args.transient_indirection_buffer,
+        "num_threads": args.num_threads,
+    }
+    capabilities = get_xnnpack_capabilities()
 
     load_error = None
     try:
@@ -200,6 +236,10 @@ def main() -> None:
     baseline_timing = None
     byoc_timing = None
     byoc_error = None
+    byoc_first_run_ms = None
+    byoc_compile_ms = None
+    memory_before_kib = get_memory_kib()
+    memory_after_kib = -1
 
     if mod is not None:
         baseline_vm = compile_vm(mod, args.target)
@@ -211,9 +251,13 @@ def main() -> None:
                 byoc_mod = partition_for_xnnpack(mod)
                 partition_count = count_xnnpack_partitions(byoc_mod)
                 if partition_count > 0:
-                    byoc_mod = relax.transform.RunCodegen()(byoc_mod)
+                    compile_start = time.perf_counter()
+                    byoc_mod = relax.transform.RunCodegen({"xnnpack": xnnpack_options})(byoc_mod)
                     byoc_vm = compile_vm(byoc_mod, args.target)
+                    byoc_compile_ms = (time.perf_counter() - compile_start) * 1000.0
+                    first_run_start = time.perf_counter()
                     byoc_output = byoc_vm["main"](*inputs)
+                    byoc_first_run_ms = (time.perf_counter() - first_run_start) * 1000.0
                     tvm.testing.assert_allclose(
                         byoc_output.numpy(), baseline_output.numpy(), rtol=1e-5, atol=1e-5
                     )
@@ -228,19 +272,33 @@ def main() -> None:
                 correctness = "failed"
         else:
             correctness = "not run: XNNPACK is not enabled"
+    memory_after_kib = get_memory_kib()
 
     print(f"model: {model_name}")
     print(f"target: {args.target}")
     print(f"xnnpack_enabled: {xnnpack_enabled}")
+    print(f"xnnpack_capabilities: {capabilities if capabilities else 'not available'}")
+    print(f"xnnpack_runtime_options: {xnnpack_options}")
     print(f"xnnpack_prefix_info: {args.xnnpack_prefix_info or 'not provided'}")
     print(f"xnnpack_partitions: {partition_count}")
-    print("threading: threadpool=nullptr / caller-thread")
+    threading = (
+        "threadpool=nullptr / caller-thread"
+        if args.num_threads <= 1
+        else f"private pthreadpool / {args.num_threads} threads"
+    )
+    print(f"threading: {threading}")
     print("layout_policy: NHWC only, no inserted transposes")
     print(f"correctness: {correctness}")
     if load_error:
         print(f"load_error: {load_error}")
     if byoc_error:
         print(f"byoc_error: {byoc_error}")
+    print(f"xnnpack_compile_and_codegen_ms: {byoc_compile_ms if byoc_compile_ms is not None else 'not measured'}")
+    print(f"xnnpack_first_run_ms: {byoc_first_run_ms if byoc_first_run_ms is not None else 'not measured'}")
+    if memory_before_kib >= 0 and memory_after_kib >= 0:
+        print(f"max_rss_delta_kib: {memory_after_kib - memory_before_kib}")
+    else:
+        print("max_rss_delta_kib: not available")
     print(f"baseline_latency: {baseline_timing if baseline_timing is not None else 'not measured'}")
     print(f"xnnpack_byoc_latency: {byoc_timing if byoc_timing is not None else 'not measured'}")
     if baseline_timing is not None and byoc_timing is not None:

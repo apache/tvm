@@ -32,7 +32,9 @@
 #include <tvm/relax/struct_info.h>
 
 #include <limits>
+#include <sstream>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 #include "../codegen_json/codegen_json.h"
@@ -46,6 +48,73 @@ using JSONGraphNode = tvm::runtime::json::JSONGraphNode;
 using JSONGraphObjectPtr = backend::contrib::JSONGraphObjectPtr;
 using JSONSerializer = backend::contrib::JSONSerializer;
 using backend::contrib::NodeEntries;
+
+struct XNNPACKRuntimeOptions {
+  bool use_weights_cache{false};
+  bool use_workspace{false};
+  bool profile{false};
+  bool dont_spin_workers{false};
+  bool transient_indirection_buffer{false};
+  int64_t num_threads{1};
+
+  std::string Serialize() const {
+    std::ostringstream os;
+    os << "use_weights_cache=" << (use_weights_cache ? 1 : 0) << ";";
+    os << "use_workspace=" << (use_workspace ? 1 : 0) << ";";
+    os << "profile=" << (profile ? 1 : 0) << ";";
+    os << "dont_spin_workers=" << (dont_spin_workers ? 1 : 0) << ";";
+    os << "transient_indirection_buffer=" << (transient_indirection_buffer ? 1 : 0) << ";";
+    os << "num_threads=" << num_threads << ";";
+    return os.str();
+  }
+};
+
+bool GetBoolOption(const ffi::Map<ffi::String, ffi::Any>& options, const std::string& key,
+                   bool default_value) {
+  auto it = options.find(key);
+  if (it == options.end()) return default_value;
+  const ffi::Any& value = (*it).second;
+  if (auto opt_bool = value.try_cast<bool>()) return opt_bool.value();
+  if (auto opt_int = value.try_cast<int64_t>()) return opt_int.value() != 0;
+  TVM_FFI_THROW(ValueError) << "XNNPACK RunCodegen option '" << key << "' must be a boolean value.";
+}
+
+int64_t GetIntOption(const ffi::Map<ffi::String, ffi::Any>& options, const std::string& key,
+                     int64_t default_value) {
+  auto it = options.find(key);
+  if (it == options.end()) return default_value;
+  const ffi::Any& value = (*it).second;
+  if (auto opt_int = value.try_cast<int64_t>()) return opt_int.value();
+  TVM_FFI_THROW(ValueError) << "XNNPACK RunCodegen option '" << key
+                            << "' must be an integer value.";
+}
+
+XNNPACKRuntimeOptions ParseRuntimeOptions(const ffi::Map<ffi::String, ffi::Any>& options) {
+  static const std::unordered_set<std::string> supported = {
+      "use_weights_cache",
+      "use_workspace",
+      "profile",
+      "dont_spin_workers",
+      "transient_indirection_buffer",
+      "num_threads",
+  };
+  for (const auto& kv : options) {
+    const std::string key = kv.first;
+    TVM_FFI_ICHECK(supported.count(key)) << "Unsupported XNNPACK RunCodegen option: " << key;
+  }
+
+  XNNPACKRuntimeOptions parsed;
+  parsed.use_weights_cache = GetBoolOption(options, "use_weights_cache", false);
+  parsed.use_workspace = GetBoolOption(options, "use_workspace", false);
+  parsed.profile = GetBoolOption(options, "profile", false);
+  parsed.dont_spin_workers = GetBoolOption(options, "dont_spin_workers", false);
+  parsed.transient_indirection_buffer =
+      GetBoolOption(options, "transient_indirection_buffer", false);
+  parsed.num_threads = GetIntOption(options, "num_threads", 1);
+  TVM_FFI_ICHECK_GE(parsed.num_threads, 1)
+      << "XNNPACK RunCodegen option 'num_threads' must be >= 1.";
+  return parsed;
+}
 
 class XNNPACKJSONSerializer : public JSONSerializer {
  public:
@@ -288,10 +357,11 @@ class XNNPACKJSONSerializer : public JSONSerializer {
 };
 
 ffi::Array<ffi::Module> XNNPACKCompiler(ffi::Array<Function> functions,
-                                        ffi::Map<ffi::String, ffi::Any> /*options*/,
+                                        ffi::Map<ffi::String, ffi::Any> options,
                                         ffi::Map<Constant, ffi::String> constant_names) {
   ffi::Array<ffi::Module> compiled_functions;
   const auto pf = tvm::ffi::Function::GetGlobalRequired("runtime.XNNPACKJSONRuntimeCreate");
+  const std::string runtime_options = ParseRuntimeOptions(options).Serialize();
 
   for (const auto& func : functions) {
     XNNPACKJSONSerializer serializer(constant_names, AnalyzeVar2Value(func));
@@ -299,7 +369,8 @@ ffi::Array<ffi::Module> XNNPACKCompiler(ffi::Array<Function> functions,
     auto graph_json = serializer.GetJSON();
     auto const_names = serializer.GetConstantNames();
     auto func_name = GetExtSymbol(func);
-    compiled_functions.push_back(pf(func_name, graph_json, const_names).cast<ffi::Module>());
+    compiled_functions.push_back(
+        pf(func_name, graph_json, const_names, runtime_options).cast<ffi::Module>());
   }
 
   return compiled_functions;

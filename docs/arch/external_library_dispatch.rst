@@ -359,9 +359,35 @@ Python usage::
 
   mod = relax.transform.BindParams("main", {"w": weight_np, "b": bias_np})(mod)
   mod = partition_for_xnnpack(mod)
-  mod = relax.transform.RunCodegen()(mod)
+  mod = relax.transform.RunCodegen({"xnnpack": {"num_threads": 1}})(mod)
   executable = tvm.compile(mod, target="llvm")
   vm = relax.VirtualMachine(executable, tvm.cpu())
+
+Runtime options are passed to ``RunCodegen`` and are stored in the generated
+XNNPACK runtime module:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 35 65
+
+   * - Option
+     - Meaning
+   * - ``use_weights_cache``
+     - Create an XNNPACK weights cache when the linked XNNPACK revision supports
+       it. TVM finalizes the cache after runtime creation and before inference.
+   * - ``use_workspace``
+     - Create an XNNPACK workspace when ``xnn_create_runtime_v4`` and workspace
+       APIs are available. The workspace is owned by the runtime module.
+   * - ``profile``
+     - Enable ``XNN_FLAG_BASIC_PROFILING`` when profiling APIs are available.
+       The runtime module exposes ``get_profile_json`` after execution.
+   * - ``dont_spin_workers``
+     - Set ``XNN_FLAG_DONT_SPIN_WORKERS`` when the flag is available.
+   * - ``transient_indirection_buffer``
+     - Set ``XNN_FLAG_TRANSIENT_INDIRECTION_BUFFER`` when the flag is available.
+   * - ``num_threads``
+     - ``1`` keeps the default caller-thread behavior. Values greater than
+       ``1`` create a private pthreadpool when pthreadpool support is available.
 
 .. list-table::
    :header-rows: 1
@@ -388,10 +414,17 @@ coverage in this phase.
 
 The runtime uses XNNPACK's public ``xnnpack.h`` API only. It initializes
 XNNPACK with ``xnn_initialize`` and does not include
-``xnnpack/experimental.h``. The runtime creates XNNPACK subgraphs with a null
-threadpool so execution remains single-threaded on the caller thread, copies
-external tensors through runtime-owned buffers padded by ``XNN_EXTRA_BYTES``,
-and keeps copied static constants alive for the full XNNPACK runtime lifetime.
+``xnnpack/experimental.h``. By default the runtime creates XNNPACK subgraphs
+with a null threadpool so execution remains single-threaded on the caller
+thread. Runtime-owned input, output, and static constant buffers are padded by
+``XNN_EXTRA_BYTES``. Copied static constants, optional weights cache, optional
+workspace, optional pthreadpool, subgraph, and runtime handles are owned by the
+runtime module and released when the module is destroyed.
+
+When available, TVM prefers ``xnn_create_runtime_v4`` so weights cache,
+workspace, threadpool, and runtime flags can be configured together. If v4 is
+not available, TVM falls back to v3 for weights-cache-only configurations, or
+to v2 for the default runtime. Unsupported requested options fail clearly.
 The current layout policy is strict: supported convolutions use NHWC input and
 output tensors with OHWI weights, and the partitioner does not insert layout
 transposes. Runtime tensors must be compact CPU tensors.
@@ -403,6 +436,7 @@ both TVM and XNNPACK regions.
 Benchmarking and validation::
 
   python tests/python/relax/benchmark_xnnpack.py --model xnnpack_tiny_cnn
+  python tests/python/relax/benchmark_xnnpack.py --model xnnpack_tiny_cnn --use-weights-cache --use-workspace --profile
   python tests/python/relax/benchmark_xnnpack.py --model torchvision:mobilenet_v2
 
 The in-tree ``xnnpack_tiny_cnn`` benchmark uses only supported NHWC ``float32``
@@ -420,6 +454,10 @@ Troubleshooting:
   operators.
 * If numerical validation fails, confirm the input tensors are compact CPU
   tensors and that static parameters were bound before partitioning.
+* If a runtime option fails, inspect
+  ``runtime.XNNPACKJSONRuntimeGetCapabilities`` or the benchmark's
+  ``xnnpack_capabilities`` output to confirm the linked XNNPACK revision
+  exposes the required public APIs.
 
 
 Source Code Map

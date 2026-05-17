@@ -261,6 +261,13 @@ def _has_xnnpack_runtime():
     return tvm.get_global_func("runtime.XNNPACKJSONRuntimeCreate", allow_missing=True) is not None
 
 
+def _xnnpack_capability(name):
+    func = tvm.get_global_func("runtime.XNNPACKJSONRuntimeGetCapabilities", allow_missing=True)
+    if func is None:
+        return False
+    return bool(int(func()[name]))
+
+
 def _has_codegen_attr(mod):
     found = False
 
@@ -319,6 +326,50 @@ def _bind_tiny_cnn_params():
     weight = np.linspace(-0.2, 0.2, num=4 * 3 * 3 * 3, dtype="float32").reshape(4, 3, 3, 3)
     bias = np.array([0.15, -0.05, 0.25, -0.10], dtype="float32")
     return relax.transform.BindParams("main", {"w": weight, "b": bias})(TinyCNNModule)
+
+
+def _tiny_cnn_inputs():
+    rng = np.random.default_rng(0)
+    x_np = rng.uniform(-1.0, 1.0, size=(1, 8, 8, 3)).astype("float32")
+    residual_np = rng.uniform(-0.5, 0.5, size=(1, 3, 3, 4)).astype("float32")
+    return x_np, residual_np
+
+
+def _run_tiny_cnn_with_options(options=None):
+    bound_mod = _bind_tiny_cnn_params()
+    partitioned = _partition(bound_mod)
+    assert _count_xnnpack_partitions(partitioned) == 4
+    partitioned = relax.transform.RunCodegen({"xnnpack": options or {}})(partitioned)
+    assert _has_external_mods(partitioned)
+
+    x_np, residual_np = _tiny_cnn_inputs()
+    ref_ex = tvm.compile(bound_mod, target="llvm")
+    ref_vm = relax.VirtualMachine(ref_ex, tvm.cpu())
+    expected = ref_vm["main"](
+        tvm.runtime.tensor(x_np), tvm.runtime.tensor(residual_np)
+    ).numpy()
+
+    xnn_ex = tvm.compile(partitioned, target="llvm")
+    xnn_vm = relax.VirtualMachine(xnn_ex, tvm.cpu())
+    result = xnn_vm["main"](
+        tvm.runtime.tensor(x_np), tvm.runtime.tensor(residual_np)
+    ).numpy()
+    tvm.testing.assert_allclose(result, expected, rtol=1e-5, atol=1e-5)
+    return partitioned, expected, (x_np, residual_np)
+
+
+def _run_first_external_module(mod, inputs, output_shape):
+    ext_mod = mod.attrs["external_mods"][0]
+    symbol = ext_mod["get_symbol"]()
+    const_names = list(ext_mod["get_const_vars"]())
+    const_map = mod.attrs.get("const_name_to_constant", {})
+    consts = [const_map[name] for name in const_names]
+    ext_mod["__init_" + symbol](consts)
+
+    output_np = np.empty(output_shape, dtype="float32")
+    output = tvm.runtime.tensor(output_np)
+    ext_mod[symbol](*[tvm.runtime.tensor(input_np) for input_np in inputs], output)
+    return ext_mod, output.numpy()
 
 
 def test_xnnpack_python_module_importable():
@@ -429,29 +480,82 @@ def test_xnnpack_cnn_vm_execution():
     reason="XNNPACK codegen/runtime is not enabled",
 )
 def test_xnnpack_tiny_cnn_vm_execution():
-    bound_mod = _bind_tiny_cnn_params()
-    partitioned = _partition(bound_mod)
-    assert _count_xnnpack_partitions(partitioned) == 4
+    _run_tiny_cnn_with_options()
 
-    partitioned = relax.transform.RunCodegen()(partitioned)
-    assert _has_external_mods(partitioned)
 
-    rng = np.random.default_rng(0)
-    x_np = rng.uniform(-1.0, 1.0, size=(1, 8, 8, 3)).astype("float32")
-    residual_np = rng.uniform(-0.5, 0.5, size=(1, 3, 3, 4)).astype("float32")
+@pytest.mark.skipif(
+    not (_has_xnnpack_codegen() and _has_xnnpack_runtime()),
+    reason="XNNPACK codegen/runtime is not enabled",
+)
+@pytest.mark.parametrize("use_weights_cache", [False, True])
+def test_xnnpack_tiny_cnn_weights_cache_option(use_weights_cache):
+    if use_weights_cache and not _xnnpack_capability("weights_cache"):
+        pytest.skip("XNNPACK weights cache is unavailable")
+    _run_tiny_cnn_with_options({"use_weights_cache": use_weights_cache})
 
-    ref_ex = tvm.compile(bound_mod, target="llvm")
-    ref_vm = relax.VirtualMachine(ref_ex, tvm.cpu())
-    expected = ref_vm["main"](
-        tvm.runtime.tensor(x_np), tvm.runtime.tensor(residual_np)
-    ).numpy()
 
-    xnn_ex = tvm.compile(partitioned, target="llvm")
-    xnn_vm = relax.VirtualMachine(xnn_ex, tvm.cpu())
-    result = xnn_vm["main"](
-        tvm.runtime.tensor(x_np), tvm.runtime.tensor(residual_np)
-    ).numpy()
-    tvm.testing.assert_allclose(result, expected, rtol=1e-5, atol=1e-5)
+@pytest.mark.skipif(
+    not (_has_xnnpack_codegen() and _has_xnnpack_runtime()),
+    reason="XNNPACK codegen/runtime is not enabled",
+)
+@pytest.mark.parametrize("use_workspace", [False, True])
+def test_xnnpack_tiny_cnn_workspace_option(use_workspace):
+    if use_workspace and not (
+        _xnnpack_capability("runtime_v4") and _xnnpack_capability("workspace")
+    ):
+        pytest.skip("XNNPACK workspace runtime is unavailable")
+    _run_tiny_cnn_with_options({"use_workspace": use_workspace})
+
+
+@pytest.mark.skipif(
+    not (_has_xnnpack_codegen() and _has_xnnpack_runtime()),
+    reason="XNNPACK codegen/runtime is not enabled",
+)
+def test_xnnpack_tiny_cnn_threading_and_runtime_flags():
+    options = {
+        "dont_spin_workers": _xnnpack_capability("dont_spin_workers"),
+        "transient_indirection_buffer": _xnnpack_capability("transient_indirection_buffer"),
+        "num_threads": 1,
+    }
+    _run_tiny_cnn_with_options(options)
+
+
+@pytest.mark.skipif(
+    not (_has_xnnpack_codegen() and _has_xnnpack_runtime()),
+    reason="XNNPACK codegen/runtime is not enabled",
+)
+def test_xnnpack_tiny_cnn_num_threads_two():
+    if not _xnnpack_capability("pthreadpool"):
+        pytest.skip("XNNPACK pthreadpool is unavailable")
+    _run_tiny_cnn_with_options({"num_threads": 2})
+
+
+@pytest.mark.skipif(
+    not (_has_xnnpack_codegen() and _has_xnnpack_runtime()),
+    reason="XNNPACK codegen/runtime is not enabled",
+)
+def test_xnnpack_multiple_modules_with_weights_cache():
+    if not _xnnpack_capability("weights_cache"):
+        pytest.skip("XNNPACK weights cache is unavailable")
+    _run_tiny_cnn_with_options({"use_weights_cache": True})
+    _run_tiny_cnn_with_options({"use_weights_cache": True})
+
+
+@pytest.mark.skipif(
+    not (_has_xnnpack_codegen() and _has_xnnpack_runtime()),
+    reason="XNNPACK codegen/runtime is not enabled",
+)
+def test_xnnpack_profile_json():
+    if not _xnnpack_capability("profiling"):
+        pytest.skip("XNNPACK profiling is unavailable")
+    mod = _partition(ReluModule)
+    mod = relax.transform.RunCodegen({"xnnpack": {"profile": True}})(mod)
+    x_np = np.array([[-1.0, 0.0, 1.5], [2.0, -3.0, 4.0]], dtype="float32")
+    expected = np.maximum(x_np, 0.0)
+    ext_mod, output = _run_first_external_module(mod, [x_np], expected.shape)
+    tvm.testing.assert_allclose(output, expected, rtol=1e-5, atol=1e-5)
+    profile_json = ext_mod["get_profile_json"]()
+    assert "time_ns" in profile_json
 
 
 @pytest.mark.skipif(not _has_xnnpack_codegen(), reason="XNNPACK codegen is not enabled")

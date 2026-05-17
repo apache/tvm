@@ -27,12 +27,14 @@
 #include <tvm/runtime/tensor.h>
 #include <xnnpack.h>
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <functional>
 #include <limits>
 #include <numeric>
+#include <sstream>
 #include <string>
 #include <unordered_set>
 #include <vector>
@@ -49,8 +51,16 @@ using namespace tvm::runtime::json;
 class XNNPACKJSONRuntime : public JSONRuntimeBase {
  public:
   XNNPACKJSONRuntime(const std::string& symbol_name, const std::string& graph_json,
-                     const ffi::Array<ffi::String> const_names)
-      : JSONRuntimeBase(symbol_name, graph_json, const_names) {}
+                     const ffi::Array<ffi::String> const_names,
+                     const std::string& options = DefaultOptionsString())
+      : JSONRuntimeBase(symbol_name, graph_json, const_names),
+        options_string_(options),
+        options_(ParseOptions(options)) {}
+
+  static std::string DefaultOptionsString() {
+    return "use_weights_cache=0;use_workspace=0;profile=0;dont_spin_workers=0;"
+           "transient_indirection_buffer=0;num_threads=1;";
+  }
 
   ~XNNPACKJSONRuntime() {
     if (runtime_ != nullptr) {
@@ -61,9 +71,56 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
       xnn_delete_subgraph(subgraph_);
       subgraph_ = nullptr;
     }
+#if defined(TVM_XNNPACK_HAS_WORKSPACE)
+    if (workspace_ != nullptr) {
+      xnn_release_workspace(workspace_);
+      workspace_ = nullptr;
+    }
+#endif
+#if defined(TVM_XNNPACK_HAS_WEIGHTS_CACHE)
+    if (weights_cache_ != nullptr) {
+      xnn_delete_weights_cache(weights_cache_);
+      weights_cache_ = nullptr;
+    }
+#endif
+#if defined(TVM_XNNPACK_HAS_PTHREADPOOL_CREATE)
+    if (threadpool_ != nullptr) {
+      pthreadpool_destroy(threadpool_);
+      threadpool_ = nullptr;
+    }
+#endif
   }
 
   const char* kind() const override { return "xnnpack_json"; }
+
+  ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) override {
+    ffi::ObjectPtr<ffi::Object> sptr_to_self = ffi::GetObjectPtr<ffi::Object>(this);
+    if (name == "get_profile_json") {
+      return ffi::Function([sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) {
+        *rv = ffi::String(this->GetProfileJSON());
+      });
+    }
+    if (name == "get_runtime_options") {
+      return ffi::Function([sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) {
+        *rv = ffi::String(this->options_string_);
+      });
+    }
+    return JSONRuntimeBase::GetFunction(name);
+  }
+
+  ffi::Bytes SaveToBytes() const override {
+    std::string result;
+    support::BytesOutStream stream(&result);
+    stream.Write(symbol_name_);
+    stream.Write(graph_json_);
+    std::vector<std::string> consts;
+    for (const auto& it : const_names_) {
+      consts.push_back(it);
+    }
+    stream.Write(consts);
+    stream.Write(options_string_);
+    return ffi::Bytes(std::move(result));
+  }
 
   void Init(const ffi::Array<Tensor>& consts) override {
     TVM_FFI_ICHECK_EQ(consts.size(), const_idx_.size())
@@ -121,6 +178,15 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
   }
 
  private:
+  struct RuntimeOptions {
+    bool use_weights_cache{false};
+    bool use_workspace{false};
+    bool profile{false};
+    bool dont_spin_workers{false};
+    bool transient_indirection_buffer{false};
+    int64_t num_threads{1};
+  };
+
   struct ExternalTensor {
     uint32_t eid{0};
     std::vector<size_t> shape;
@@ -128,6 +194,41 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
     bool is_output{false};
     std::vector<uint8_t> buffer;
   };
+
+  static RuntimeOptions ParseOptions(const std::string& options) {
+    RuntimeOptions parsed;
+    size_t offset = 0;
+    while (offset < options.size()) {
+      size_t end = options.find(';', offset);
+      if (end == std::string::npos) end = options.size();
+      std::string item = options.substr(offset, end - offset);
+      if (!item.empty()) {
+        size_t equals = item.find('=');
+        TVM_FFI_ICHECK(equals != std::string::npos) << "Malformed XNNPACK runtime option: " << item;
+        const std::string key = item.substr(0, equals);
+        const std::string value = item.substr(equals + 1);
+        const bool bool_value = value == "1";
+        if (key == "use_weights_cache") {
+          parsed.use_weights_cache = bool_value;
+        } else if (key == "use_workspace") {
+          parsed.use_workspace = bool_value;
+        } else if (key == "profile") {
+          parsed.profile = bool_value;
+        } else if (key == "dont_spin_workers") {
+          parsed.dont_spin_workers = bool_value;
+        } else if (key == "transient_indirection_buffer") {
+          parsed.transient_indirection_buffer = bool_value;
+        } else if (key == "num_threads") {
+          parsed.num_threads = std::stoll(value);
+        } else {
+          TVM_FFI_THROW(ValueError) << "Unsupported XNNPACK runtime option: " << key;
+        }
+      }
+      offset = end + 1;
+    }
+    TVM_FFI_ICHECK_GE(parsed.num_threads, 1) << "XNNPACK num_threads must be >= 1.";
+    return parsed;
+  }
 
   static void CheckXNNStatus(xnn_status status, const char* call) {
     TVM_FFI_ICHECK_EQ(status, xnn_status_success) << call << " failed with status " << status;
@@ -208,6 +309,20 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
 
   static bool IsGraphOutput(const std::unordered_set<uint32_t>& output_eids, uint32_t eid) {
     return output_eids.find(eid) != output_eids.end();
+  }
+
+  static std::string EscapeJSON(const std::string& value) {
+    std::ostringstream os;
+    for (char ch : value) {
+      if (ch == '"' || ch == '\\') {
+        os << '\\' << ch;
+      } else if (ch == '\n') {
+        os << "\\n";
+      } else {
+        os << ch;
+      }
+    }
+    return os.str();
   }
 
   void DefineTensor(uint32_t eid, const JSONGraphNode& node, uint32_t index, uint32_t flags,
@@ -360,6 +475,143 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
     }
   }
 
+  uint32_t RuntimeFlags() const {
+    uint32_t flags = 0;
+    if (options_.profile) {
+#if defined(TVM_XNNPACK_HAS_PROFILING) && defined(TVM_XNNPACK_HAS_BASIC_PROFILING_FLAG)
+      flags |= XNN_FLAG_BASIC_PROFILING;
+#else
+      TVM_FFI_THROW(RuntimeError) << "XNNPACK profiling was requested but is unavailable.";
+#endif
+    }
+    if (options_.dont_spin_workers) {
+#if defined(TVM_XNNPACK_HAS_DONT_SPIN_WORKERS_FLAG)
+      flags |= XNN_FLAG_DONT_SPIN_WORKERS;
+#else
+      TVM_FFI_THROW(RuntimeError) << "XNNPACK dont_spin_workers was requested but is unavailable.";
+#endif
+    }
+    if (options_.transient_indirection_buffer) {
+#if defined(TVM_XNNPACK_HAS_TRANSIENT_INDIRECTION_BUFFER_FLAG)
+      flags |= XNN_FLAG_TRANSIENT_INDIRECTION_BUFFER;
+#else
+      TVM_FFI_THROW(RuntimeError)
+          << "XNNPACK transient_indirection_buffer was requested but is unavailable.";
+#endif
+    }
+    return flags;
+  }
+
+  void CreateOptionalResources() {
+    if (options_.num_threads > 1) {
+#if defined(TVM_XNNPACK_HAS_PTHREADPOOL_CREATE)
+      threadpool_ = pthreadpool_create(static_cast<size_t>(options_.num_threads));
+      TVM_FFI_ICHECK(threadpool_ != nullptr) << "Failed to create XNNPACK pthreadpool.";
+#else
+      TVM_FFI_THROW(RuntimeError)
+          << "XNNPACK num_threads > 1 was requested but pthreadpool is unavailable.";
+#endif
+    }
+
+    if (options_.use_weights_cache) {
+#if defined(TVM_XNNPACK_HAS_WEIGHTS_CACHE)
+      CheckXNNStatus(xnn_create_weights_cache(&weights_cache_), "xnn_create_weights_cache");
+#else
+      TVM_FFI_THROW(RuntimeError) << "XNNPACK weights cache was requested but is unavailable.";
+#endif
+    }
+
+    if (options_.use_workspace) {
+#if defined(TVM_XNNPACK_HAS_WORKSPACE)
+      CheckXNNStatus(xnn_create_workspace(&workspace_), "xnn_create_workspace");
+#else
+      TVM_FFI_THROW(RuntimeError) << "XNNPACK workspace was requested but is unavailable.";
+#endif
+    }
+  }
+
+  void CreateRuntime() {
+    const uint32_t flags = RuntimeFlags();
+    CreateOptionalResources();
+
+#if defined(TVM_XNNPACK_HAS_RUNTIME_V4)
+    CheckXNNStatus(
+        xnn_create_runtime_v4(subgraph_, weights_cache_, workspace_, threadpool_, flags, &runtime_),
+        "xnn_create_runtime_v4");
+#elif defined(TVM_XNNPACK_HAS_RUNTIME_V3) && defined(TVM_XNNPACK_HAS_WEIGHTS_CACHE)
+    TVM_FFI_ICHECK(!options_.use_workspace) << "XNNPACK workspace requires xnn_create_runtime_v4.";
+    CheckXNNStatus(xnn_create_runtime_v3(subgraph_, weights_cache_, threadpool_, flags, &runtime_),
+                   "xnn_create_runtime_v3");
+#else
+    TVM_FFI_ICHECK(!options_.use_weights_cache)
+        << "XNNPACK weights cache requires xnn_create_runtime_v3 or newer.";
+    TVM_FFI_ICHECK(!options_.use_workspace) << "XNNPACK workspace requires xnn_create_runtime_v4.";
+    CheckXNNStatus(xnn_create_runtime_v2(subgraph_, threadpool_, flags, &runtime_),
+                   "xnn_create_runtime_v2");
+#endif
+
+    if (options_.use_weights_cache) {
+#if defined(TVM_XNNPACK_HAS_WEIGHTS_CACHE)
+      CheckXNNStatus(
+          xnn_finalize_weights_cache(weights_cache_, xnn_weights_cache_finalization_kind_soft),
+          "xnn_finalize_weights_cache");
+#endif
+    }
+  }
+
+  std::string GetProfileJSON() const {
+    if (!options_.profile) return "[]";
+#if defined(TVM_XNNPACK_HAS_PROFILING)
+    if (runtime_ == nullptr) return "[]";
+
+    size_t num_operators = 0;
+    size_t bytes = 0;
+    CheckXNNStatus(xnn_get_runtime_profiling_info(runtime_, xnn_profile_info_num_operators,
+                                                  sizeof(num_operators), &num_operators, &bytes),
+                   "xnn_get_runtime_profiling_info(num_operators)");
+    if (num_operators == 0) return "[]";
+
+    size_t names_size = 0;
+    xnn_status status = xnn_get_runtime_profiling_info(runtime_, xnn_profile_info_operator_name, 0,
+                                                       nullptr, &names_size);
+    TVM_FFI_ICHECK(status == xnn_status_success || status == xnn_status_out_of_memory)
+        << "xnn_get_runtime_profiling_info(operator_name) failed with status " << status;
+    std::vector<char> names(names_size);
+    CheckXNNStatus(xnn_get_runtime_profiling_info(runtime_, xnn_profile_info_operator_name,
+                                                  names.size(), names.data(), &names_size),
+                   "xnn_get_runtime_profiling_info(operator_name)");
+
+    std::vector<uint64_t> timings(num_operators);
+    CheckXNNStatus(
+        xnn_get_runtime_profiling_info(runtime_, xnn_profile_info_operator_timing,
+                                       timings.size() * sizeof(uint64_t), timings.data(), &bytes),
+        "xnn_get_runtime_profiling_info(operator_timing)");
+
+    std::vector<std::string> parsed_names;
+    size_t start = 0;
+    for (size_t i = 0; i < names.size() && parsed_names.size() < num_operators; ++i) {
+      if (names[i] == '\0') {
+        parsed_names.emplace_back(names.data() + start, i - start);
+        start = i + 1;
+      }
+    }
+    while (parsed_names.size() < num_operators) {
+      parsed_names.push_back("");
+    }
+
+    std::ostringstream os;
+    os << "[";
+    for (size_t i = 0; i < num_operators; ++i) {
+      if (i != 0) os << ",";
+      os << "{\"name\":\"" << EscapeJSON(parsed_names[i]) << "\",\"time_ns\":" << timings[i] << "}";
+    }
+    os << "]";
+    return os.str();
+#else
+    TVM_FFI_THROW(RuntimeError) << "XNNPACK profiling is unavailable.";
+#endif
+  }
+
   void BuildRuntime() {
     CheckXNNStatus(xnn_create_subgraph(NumEntries(), 0, &subgraph_), "xnn_create_subgraph");
     value_ids_.assign(NumEntries(), XNN_INVALID_VALUE_ID);
@@ -403,29 +655,122 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
       }
     }
 
-    CheckXNNStatus(xnn_create_runtime_v2(subgraph_, nullptr, 0, &runtime_),
-                   "xnn_create_runtime_v2");
+    CreateRuntime();
   }
 
   xnn_subgraph_t subgraph_{nullptr};
   xnn_runtime_t runtime_{nullptr};
+#if defined(TVM_XNNPACK_HAS_WEIGHTS_CACHE)
+  xnn_weights_cache_t weights_cache_{nullptr};
+#endif
+#if defined(TVM_XNNPACK_HAS_WORKSPACE)
+  xnn_workspace_t workspace_{nullptr};
+#endif
+#if defined(TVM_XNNPACK_HAS_PTHREADPOOL_CREATE)
+  pthreadpool_t threadpool_{nullptr};
+#endif
+  std::string options_string_;
+  RuntimeOptions options_;
   std::vector<uint32_t> value_ids_;
   std::vector<ExternalTensor> external_tensors_;
   std::vector<std::vector<uint8_t>> constant_buffers_;
 };
 
 ffi::Module XNNPACKJSONRuntimeCreate(const ffi::String& symbol_name, const ffi::String& graph_json,
-                                     const ffi::Array<ffi::String>& const_names) {
-  auto n = tvm::ffi::make_object<XNNPACKJSONRuntime>(symbol_name, graph_json, const_names);
+                                     const ffi::Array<ffi::String>& const_names,
+                                     const ffi::String& options) {
+  auto n = tvm::ffi::make_object<XNNPACKJSONRuntime>(symbol_name, graph_json, const_names,
+                                                     std::string(options));
   return ffi::Module(n);
+}
+
+ffi::Module XNNPACKJSONRuntimeLoadFromBytes(const ffi::Bytes& bytes) {
+  support::BytesInStream stream(bytes);
+  std::string symbol;
+  std::string graph_json;
+  std::vector<std::string> consts;
+  std::string options;
+  TVM_FFI_ICHECK(stream.Read(&symbol)) << "Loading symbol name failed";
+  TVM_FFI_ICHECK(stream.Read(&graph_json)) << "Loading graph json failed";
+  TVM_FFI_ICHECK(stream.Read(&consts)) << "Loading the const name list failed";
+  if (!stream.Read(&options)) {
+    options = XNNPACKJSONRuntime::DefaultOptionsString();
+  }
+  ffi::Array<ffi::String> const_names;
+  for (const auto& it : consts) {
+    const_names.push_back(it);
+  }
+  auto n = tvm::ffi::make_object<XNNPACKJSONRuntime>(symbol, graph_json, const_names, options);
+  return ffi::Module(n);
+}
+
+ffi::Map<ffi::String, ffi::Any> XNNPACKJSONRuntimeGetCapabilities() {
+  ffi::Map<ffi::String, ffi::Any> result;
+  result.Set("runtime_v4", static_cast<int64_t>(
+#if defined(TVM_XNNPACK_HAS_RUNTIME_V4)
+                               1
+#else
+                               0
+#endif
+                               ));
+  result.Set("runtime_v3", static_cast<int64_t>(
+#if defined(TVM_XNNPACK_HAS_RUNTIME_V3)
+                               1
+#else
+                               0
+#endif
+                               ));
+  result.Set("weights_cache", static_cast<int64_t>(
+#if defined(TVM_XNNPACK_HAS_WEIGHTS_CACHE)
+                                  1
+#else
+                                  0
+#endif
+                                  ));
+  result.Set("workspace", static_cast<int64_t>(
+#if defined(TVM_XNNPACK_HAS_WORKSPACE)
+                              1
+#else
+                              0
+#endif
+                              ));
+  result.Set("profiling", static_cast<int64_t>(
+#if defined(TVM_XNNPACK_HAS_PROFILING) && defined(TVM_XNNPACK_HAS_BASIC_PROFILING_FLAG)
+                              1
+#else
+                              0
+#endif
+                              ));
+  result.Set("pthreadpool", static_cast<int64_t>(
+#if defined(TVM_XNNPACK_HAS_PTHREADPOOL_CREATE)
+                                1
+#else
+                                0
+#endif
+                                ));
+  result.Set("dont_spin_workers", static_cast<int64_t>(
+#if defined(TVM_XNNPACK_HAS_DONT_SPIN_WORKERS_FLAG)
+                                      1
+#else
+                                      0
+#endif
+                                      ));
+  result.Set("transient_indirection_buffer", static_cast<int64_t>(
+#if defined(TVM_XNNPACK_HAS_TRANSIENT_INDIRECTION_BUFFER_FLAG)
+                                                 1
+#else
+                                                 0
+#endif
+                                                 ));
+  return result;
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.XNNPACKJSONRuntimeCreate", XNNPACKJSONRuntimeCreate)
-      .def("ffi.Module.load_from_bytes.xnnpack_json",
-           JSONRuntimeBase::LoadFromBytes<XNNPACKJSONRuntime>);
+      .def("runtime.XNNPACKJSONRuntimeGetCapabilities", XNNPACKJSONRuntimeGetCapabilities)
+      .def("ffi.Module.load_from_bytes.xnnpack_json", XNNPACKJSONRuntimeLoadFromBytes);
 }
 
 }  // namespace contrib
