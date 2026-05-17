@@ -325,13 +325,14 @@ Supported Backends
      - Matmul, conv2d (x86 CPU). Codegen exists at C++ level; patterns are
        defined in tests rather than pre-registered.
    * - XNNPACK
-     - ``xnnpack.relu``
-     - Minimal Relax ``nn.relu`` path for static-shape ``float32`` tensors.
-       Broader operator coverage is not implemented.
+     - ``xnnpack.*``
+     - Static-shape ``float32`` CPU tensors for a small NHWC CNN subset:
+       conv2d, optional bias, clamp-style activations, add without
+       broadcasting, and no-padding 2D pooling.
 
 
-XNNPACK Minimal Pipeline
-------------------------
+XNNPACK CNN MVP
+---------------
 
 XNNPACK support is opt-in and disabled by default. Build with
 ``USE_XNNPACK=ON`` to use normal CMake search paths, or with
@@ -339,22 +340,40 @@ XNNPACK support is opt-in and disabled by default. Build with
 prefix. TVM does not vendor XNNPACK and does not download it during CMake
 configuration.
 
-The current integration proves the minimal Relax BYOC pipeline for exactly one
-operator pattern: ``relax.nn.relu`` on CPU tensors with static shape and
-``float32`` dtype. ``tvm.relax.backend.xnnpack.partition_for_xnnpack`` registers
-only ``xnnpack.relu`` and must leave all unsupported graphs on TVM's normal
-lowering path. There is no dense, convolution, pooling, binary elementwise,
-broadcasting, quantized dtype, layout conversion, dynamic-shape, or fused CNN
+The current integration proves a conservative CNN MVP on CPU tensors with
+static shape and ``float32`` dtype. ``tvm.relax.backend.xnnpack.partition_for_xnnpack``
+registers only patterns that can be represented by the public XNNPACK subgraph
+API and must leave all unsupported graphs on TVM's normal lowering path.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - Relax pattern
+     - Restrictions
+   * - ``relax.nn.conv2d``
+     - NHWC input/output, OHWI static weights, ``groups=1``, static bias only
+       when fused through ``relax.add``.
+   * - ``relax.nn.relu`` and ``relax.clip``
+     - Static ``float32`` tensors. ReLU and ReLU6 are represented as XNNPACK
+       clamp nodes.
+   * - ``relax.sigmoid`` and ``relax.tanh``
+     - Static ``float32`` tensors.
+   * - ``relax.add``
+     - Equal static input shapes only. Broadcasting is intentionally rejected.
+   * - ``relax.nn.max_pool2d`` and ``relax.nn.avg_pool2d``
+     - NHWC input/output, dilation 1, ``ceil_mode=False``, and zero padding.
+
+There is no depthwise convolution, dense/matmul, resize, softmax, quantized
+dtype, layout conversion, dynamic-shape, broad broadcasting, or broad CNN
 coverage in this phase.
 
 The runtime uses XNNPACK's public ``xnnpack.h`` API only. It initializes
 XNNPACK with ``xnn_initialize`` and does not include
-``xnnpack/experimental.h``. The ReLU path creates an XNNPACK subgraph with a
-unary clamp operator, uses a null XNNPACK threadpool so execution remains
-single-threaded on the caller thread, and copies external tensors through
-runtime-owned buffers padded by ``XNN_EXTRA_BYTES``. Future static-weight
-operators must keep packed or copied weights alive for the full XNNPACK runtime
-lifetime.
+``xnnpack/experimental.h``. The runtime creates XNNPACK subgraphs with a null
+threadpool so execution remains single-threaded on the caller thread, copies
+external tensors through runtime-owned buffers padded by ``XNN_EXTRA_BYTES``,
+and keeps copied static constants alive for the full XNNPACK runtime lifetime.
 
 
 Source Code Map
@@ -377,7 +396,7 @@ Source Code Map
    * - ``python/tvm/relax/backend/cuda/cudnn.py``
      - cuDNN patterns and partition_for_cudnn
    * - ``python/tvm/relax/backend/xnnpack.py``
-     - XNNPACK ReLU pattern registration and partition helper
+     - XNNPACK pattern registration and partition helper
    * - ``src/relax/backend/pattern_registry.cc``
      - Pattern registry C++ implementation
    * - ``src/relax/transform/run_codegen.cc``

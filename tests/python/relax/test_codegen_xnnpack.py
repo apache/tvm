@@ -65,6 +65,155 @@ class AddModule:
         return z
 
 
+@tvm.script.ir_module
+class MultiplyModule:
+    @R.function
+    def main(x: R.Tensor((2, 3), "float32"), y: R.Tensor((2, 3), "float32")):
+        with R.dataflow():
+            z = relax.op.multiply(x, y)
+            R.output(z)
+        return z
+
+
+@tvm.script.ir_module
+class AddBroadcastModule:
+    @R.function
+    def main(x: R.Tensor((2, 3), "float32"), y: R.Tensor((3,), "float32")):
+        with R.dataflow():
+            z = relax.op.add(x, y)
+            R.output(z)
+        return z
+
+
+@tvm.script.ir_module
+class ClipModule:
+    @R.function
+    def main(x: R.Tensor((2, 3), "float32")):
+        with R.dataflow():
+            z = relax.op.clip(x, 0, 6)
+            R.output(z)
+        return z
+
+
+@tvm.script.ir_module
+class SigmoidModule:
+    @R.function
+    def main(x: R.Tensor((2, 3), "float32")):
+        with R.dataflow():
+            z = relax.op.sigmoid(x)
+            R.output(z)
+        return z
+
+
+@tvm.script.ir_module
+class TanhModule:
+    @R.function
+    def main(x: R.Tensor((2, 3), "float32")):
+        with R.dataflow():
+            z = relax.op.tanh(x)
+            R.output(z)
+        return z
+
+
+@tvm.script.ir_module
+class ConvBiasReluPoolModule:
+    @R.function
+    def main(
+        x: R.Tensor((1, 5, 5, 3), "float32"),
+        w: R.Tensor((4, 3, 3, 3), "float32"),
+        b: R.Tensor((4,), "float32"),
+    ):
+        with R.dataflow():
+            conv = relax.op.nn.conv2d(
+                x,
+                w,
+                strides=[1, 1],
+                padding=[0, 0, 0, 0],
+                dilation=[1, 1],
+                groups=1,
+                data_layout="NHWC",
+                kernel_layout="OHWI",
+                out_layout="NHWC",
+            )
+            biased = relax.op.add(conv, b)
+            relu = relax.op.nn.relu(biased)
+            z = relax.op.nn.max_pool2d(
+                relu,
+                pool_size=[2, 2],
+                strides=[1, 1],
+                padding=[0, 0, 0, 0],
+                dilation=[1, 1],
+                ceil_mode=False,
+                layout="NHWC",
+                out_layout="NHWC",
+            )
+            R.output(z)
+        return z
+
+
+@tvm.script.ir_module
+class ConvNCHWModule:
+    @R.function
+    def main(x: R.Tensor((1, 3, 5, 5), "float32")):
+        with R.dataflow():
+            w = R.const(np.zeros((4, 3, 3, 3), dtype="float32"))
+            z = relax.op.nn.conv2d(
+                x,
+                w,
+                strides=[1, 1],
+                padding=[0, 0, 0, 0],
+                dilation=[1, 1],
+                groups=1,
+                data_layout="NCHW",
+                kernel_layout="OIHW",
+                out_layout="NCHW",
+            )
+            R.output(z)
+        return z
+
+
+@tvm.script.ir_module
+class ConvDynamicWeightModule:
+    @R.function
+    def main(
+        x: R.Tensor((1, 5, 5, 3), "float32"), w: R.Tensor((4, 3, 3, 3), "float32")
+    ):
+        with R.dataflow():
+            z = relax.op.nn.conv2d(
+                x,
+                w,
+                strides=[1, 1],
+                padding=[0, 0, 0, 0],
+                dilation=[1, 1],
+                groups=1,
+                data_layout="NHWC",
+                kernel_layout="OHWI",
+                out_layout="NHWC",
+            )
+            R.output(z)
+        return z
+
+
+@tvm.script.ir_module
+class AvgPoolPaddedModule:
+    @R.function
+    def main(x: R.Tensor((1, 5, 5, 3), "float32")):
+        with R.dataflow():
+            z = relax.op.nn.avg_pool2d(
+                x,
+                pool_size=[2, 2],
+                strides=[1, 1],
+                padding=[1, 1, 1, 1],
+                dilation=[1, 1],
+                ceil_mode=False,
+                count_include_pad=False,
+                layout="NHWC",
+                out_layout="NHWC",
+            )
+            R.output(z)
+        return z
+
+
 def _has_xnnpack_codegen():
     return tvm.get_global_func("relax.ext.xnnpack", allow_missing=True) is not None
 
@@ -107,6 +256,12 @@ def _partition(mod):
     return partition_for_xnnpack(mod)
 
 
+def _bind_cnn_params(mod=ConvBiasReluPoolModule):
+    weight = np.arange(4 * 3 * 3 * 3).reshape(4, 3, 3, 3).astype("float32") / 100.0
+    bias = np.array([0.1, -0.2, 0.3, -0.4], dtype="float32")
+    return relax.transform.BindParams("main", {"w": weight, "b": bias})(mod)
+
+
 def test_xnnpack_python_module_importable():
     from tvm.relax.backend.xnnpack import partition_for_xnnpack
 
@@ -116,7 +271,16 @@ def test_xnnpack_python_module_importable():
 def test_xnnpack_registers_relu_pattern():
     import tvm.relax.backend.xnnpack  # noqa: F401
 
-    assert [pattern.name for pattern in get_patterns_with_prefix("xnnpack")] == ["xnnpack.relu"]
+    pattern_names = {pattern.name for pattern in get_patterns_with_prefix("xnnpack")}
+    assert {
+        "xnnpack.conv2d_bias_relu",
+        "xnnpack.max_pool2d",
+        "xnnpack.add",
+        "xnnpack.clip",
+        "xnnpack.relu",
+        "xnnpack.sigmoid",
+        "xnnpack.tanh",
+    }.issubset(pattern_names)
 
 
 def test_partition_for_xnnpack_partitions_static_float32_relu():
@@ -124,13 +288,35 @@ def test_partition_for_xnnpack_partitions_static_float32_relu():
     assert _has_codegen_attr(mod)
 
 
-@pytest.mark.parametrize("mod", [AddModule, ReluFloat16Module, ReluSymbolicModule])
+@pytest.mark.parametrize(
+    "mod",
+    [
+        MultiplyModule,
+        AddBroadcastModule,
+        ReluFloat16Module,
+        ReluSymbolicModule,
+        ConvNCHWModule,
+        ConvDynamicWeightModule,
+        AvgPoolPaddedModule,
+    ],
+)
 def test_partition_for_xnnpack_rejects_unsupported_patterns(mod):
     mod = _partition(mod)
     assert not _has_codegen_attr(mod)
 
     mod = relax.transform.RunCodegen()(mod)
     assert not _has_external_mods(mod)
+
+
+@pytest.mark.parametrize("mod", [AddModule, ClipModule, SigmoidModule, TanhModule])
+def test_partition_for_xnnpack_partitions_supported_phase3_patterns(mod):
+    mod = _partition(mod)
+    assert _has_codegen_attr(mod)
+
+
+def test_partition_for_xnnpack_partitions_bound_cnn_pattern():
+    mod = _partition(_bind_cnn_params())
+    assert _has_codegen_attr(mod)
 
 
 @pytest.mark.skipif(
@@ -149,6 +335,29 @@ def test_xnnpack_relu_vm_execution():
     x_np = np.array([[-1.0, 0.0, 1.5], [2.0, -3.0, 4.0]], dtype="float32")
     result = vm["main"](tvm.runtime.tensor(x_np)).numpy()
     tvm.testing.assert_allclose(result, np.maximum(x_np, 0.0), rtol=1e-6, atol=1e-6)
+
+
+@pytest.mark.skipif(
+    not (_has_xnnpack_codegen() and _has_xnnpack_runtime()),
+    reason="XNNPACK codegen/runtime is not enabled",
+)
+def test_xnnpack_cnn_vm_execution():
+    bound_mod = _bind_cnn_params()
+    partitioned = _partition(bound_mod)
+    assert _has_codegen_attr(partitioned)
+    partitioned = relax.transform.RunCodegen()(partitioned)
+    assert _has_external_mods(partitioned)
+
+    x_np = np.linspace(-1.0, 1.0, num=1 * 5 * 5 * 3, dtype="float32").reshape(1, 5, 5, 3)
+
+    ref_ex = tvm.compile(bound_mod, target="llvm")
+    ref_vm = relax.VirtualMachine(ref_ex, tvm.cpu())
+    expected = ref_vm["main"](tvm.runtime.tensor(x_np)).numpy()
+
+    xnn_ex = tvm.compile(partitioned, target="llvm")
+    xnn_vm = relax.VirtualMachine(xnn_ex, tvm.cpu())
+    result = xnn_vm["main"](tvm.runtime.tensor(x_np)).numpy()
+    tvm.testing.assert_allclose(result, expected, rtol=1e-5, atol=1e-5)
 
 
 @pytest.mark.skipif(not _has_xnnpack_codegen(), reason="XNNPACK codegen is not enabled")
