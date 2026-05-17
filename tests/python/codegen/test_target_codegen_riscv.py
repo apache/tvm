@@ -14,8 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: E501, F401, F841
-import pytest
+# ruff: noqa: E501, F841
 
 import tvm
 import tvm.testing
@@ -56,7 +55,7 @@ from tvm.target.codegen import target_has_features
 )
 def test_rvv(target):
     def check_rvv_presence(N, extent):
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def load_vec(A: T.Buffer((N,), "int8")):
             for j in T.vectorized(0, extent):
                 A[j] = 1
@@ -92,7 +91,7 @@ def test_rvv(target):
 )
 def test_rvv_vscale_llvm_dbginfo(target):
     # fmt: off
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def rvv_with_vscale(A_handle: T.handle, B_handle: T.handle, C_handle: T.handle):
         A = T.match_buffer(A_handle, (8,), dtype="float32", align=4, offset_factor=1)
         B = T.match_buffer(B_handle, (4, 8), dtype="float32", align=4, offset_factor=1, strides=[8, 1])

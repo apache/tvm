@@ -28,7 +28,7 @@ codegen_target = tvm.testing.parameter("llvm", "c")
 def test_assert_runtime_error(codegen_target):
     """AssertStmt with RuntimeError kind produces RuntimeError."""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def func(x: T.int32):
         assert x > 0, ("RuntimeError", ["Expected non-null input"])
 
@@ -40,7 +40,7 @@ def test_assert_runtime_error(codegen_target):
 def test_assert_value_error(codegen_target):
     """AssertStmt with ValueError kind produces ValueError."""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def func(x: T.int32):
         assert x > 0, ("ValueError", ["Shape mismatch: expected 4 got 8"])
 
@@ -52,7 +52,7 @@ def test_assert_value_error(codegen_target):
 def test_assert_type_error(codegen_target):
     """AssertStmt with TypeError kind produces TypeError."""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def func(x: T.int32):
         assert x > 0, ("TypeError", ["Expected Tensor but got int"])
 
@@ -64,7 +64,7 @@ def test_assert_type_error(codegen_target):
 def test_assert_multi_part_message(codegen_target):
     """Multi-part messages are correctly concatenated at runtime."""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def func(x: T.int32):
         assert x > 0, ("ValueError", ["Expected shape ", "4", " but got ", "8"])
 
@@ -76,7 +76,7 @@ def test_assert_multi_part_message(codegen_target):
 def test_assert_passing_condition(codegen_target):
     """Passing assertion does not raise."""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def func(x: T.int32):
         assert x > 0, ("RuntimeError", ["This should not be raised"])
 
@@ -87,7 +87,7 @@ def test_assert_passing_condition(codegen_target):
 def test_assert_many_parts(codegen_target):
     """Assertion with 8 parts concatenated correctly."""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def func(x: T.int32):
         assert x > 0, ("RuntimeError", ["p0", "p1", "p2", "p3", "p4", "p5", "p6", "p7"])
 
@@ -99,7 +99,7 @@ def test_assert_many_parts(codegen_target):
 def test_tvmscript_assert_preserves_kind(codegen_target):
     """Regression: TVMScript structured assert preserves kind at runtime."""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def func(x: T.int32):
         assert x > 0, ("ValueError", ["x must be positive"])
 
@@ -111,7 +111,7 @@ def test_tvmscript_assert_preserves_kind(codegen_target):
 def test_tvmscript_assert_preserves_parts(codegen_target):
     """Regression: TVMScript structured assert with separate parts."""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def func(x: T.int32):
         assert x > 0, ("ValueError", ["x must be ", "positive"])
 

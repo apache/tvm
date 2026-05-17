@@ -29,7 +29,7 @@ from tvm.script import tirx as T
 # fmt: off
 
 
-@I.ir_module
+@I.ir_module(s_tir=True)
 class Module:
     @R.function(pure=False)
     def main(x: R.Tensor((16, 16), dtype="float32")) -> R.Tensor((16, 16), dtype="float32"):
@@ -49,7 +49,7 @@ class Module:
         lv5: R.Tensor(dtype="float32") = alloc3
         return lv5
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def add(A: T.Buffer((16, 16), "float32"), B: T.Buffer((16, 16), "float32")):
         T.func_attr({"global_symbol": "add"})
         with T.sblock("root"):
@@ -139,7 +139,7 @@ def test_capture_error_is_recoverable():
         _dummy_workspace = tvm.runtime.empty([16], "float16", dev)
         return arg_tensor
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
         @R.function
         def main(A: R.Tensor([16], "float16")):

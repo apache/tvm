@@ -187,7 +187,7 @@ def rnn_state_get(
     dtype: str,
 ):
     # fmt: off
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def _rnn_state_get(
         var_storage: T.handle,
         var_seq_slot_ids: T.handle,
@@ -205,8 +205,8 @@ def rnn_state_get(
             for s in T.grid(*shape):
                 with T.sblock("copy"):
                     vi, *vs = T.axis.remap("S" * (len(shape) + 1), [i, *s])
-                    seq_id: T.int32 = seq_slot_ids[vi]
-                    history_id: T.int32 = history_slot_ids[vi]
+                    seq_id: T.let[T.int32] = seq_slot_ids[vi]
+                    history_id: T.let[T.int32] = history_slot_ids[vi]
                     # The following line is equivalent to:
                     # `output[vi, *vs] = storage[seq_id, history_id, *vs]`
                     # However, unpacking operator in subscript requires Python 3.11 or newer
@@ -222,7 +222,7 @@ def rnn_state_set(
     dtype: str,
 ):
     # fmt: off
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def _rnn_state_set(
         var_storage: T.handle,
         var_seq_slot_ids: T.handle,
@@ -240,8 +240,8 @@ def rnn_state_set(
             for s in T.grid(*shape):
                 with T.sblock("copy"):
                     vi, *vs = T.axis.remap("S" * (len(shape) + 1), [i, *s])
-                    seq_id: T.int32 = seq_slot_ids[vi]
-                    history_id: T.int32 = (history_slot_ids[vi] + 1) % T.cast(
+                    seq_id: T.let[T.int32] = seq_slot_ids[vi]
+                    history_id: T.let[T.int32] = (history_slot_ids[vi] + 1) % T.cast(
                         max_history, "int32"
                     )
                     # The following line is equivalent to:

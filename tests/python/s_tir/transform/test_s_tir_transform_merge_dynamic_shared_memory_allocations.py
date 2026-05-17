@@ -37,7 +37,7 @@ def test_matmul_t_buffer():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(
             A: T.Buffer((1024, 1024), "float16"),
             B: T.Buffer((1024, 1024), "float16"),
@@ -82,7 +82,7 @@ def test_matmul_t_buffer():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(
             A: T.Buffer((1024, 1024), "float16"),
             B: T.Buffer((1024, 1024), "float16"),
@@ -148,7 +148,7 @@ def test_matmul_decl_buffer():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(
             A: T.Buffer((1024, 1024), "float16"),
             B: T.Buffer((1024, 1024), "float16"),
@@ -207,7 +207,7 @@ def test_simple_alloc_no_reuse():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main():
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
             A_sh = T.alloc_buffer((128,), "float32", scope="shared.dyn")
@@ -230,7 +230,7 @@ def test_simple_alloc_reuse():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main():
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
             A_sh = T.alloc_buffer((128,), "float32", scope="shared.dyn")
@@ -252,13 +252,13 @@ def test_async_copy():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
             A_sh = T.alloc_buffer((128,), "float32", scope="shared.dyn")
             B_sh = T.alloc_buffer((128,), "float32", scope="shared.dyn")
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
-            T.ptx_cp_async("float32", A_sh.data, threadIdx_x, A.data, threadIdx_x, 512)
-            T.ptx_cp_async("float32", B_sh.data, threadIdx_x, B.data, threadIdx_x, 512)
+            T.ptx.cp_async("float32", A_sh.data, threadIdx_x, A.data, threadIdx_x, 512)
+            T.ptx.cp_async("float32", B_sh.data, threadIdx_x, B.data, threadIdx_x, 512)
 
     After = transform(Before)
     # The pass merges shared.dyn allocations but DeclBuffer nodes from the original

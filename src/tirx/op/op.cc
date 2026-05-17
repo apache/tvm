@@ -25,7 +25,7 @@
 
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/logging.h>
+#include <tvm/ir/type.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
@@ -94,11 +94,22 @@ Type GetType(const PrimExpr& expr) {
           << "Builtin address_of() expects a single argument, but received arguments "
           << address_of->args;
       auto* address = address_of->args[0].as<BufferLoadNode>();
-      TVM_FFI_ICHECK(address)
-          << "Builtin address_of() expects the argument to be a BufferLoad, but received argument "
-          << address_of->args[0];
+      if (address) {
+        return PointerType(PrimType(address->dtype));
+      }
 
-      return PointerType(PrimType(address->dtype));
+      if (auto* var = address_of->args[0].as<VarNode>()) {
+        if (auto* ptr = var->type_annotation.as<PointerTypeNode>()) {
+          if (ptr->element_type.as<TensorMapTypeNode>()) {
+            return PrimType(DataType::UInt(64));
+          }
+        }
+        return PointerType(PrimType(var->dtype));
+      }
+
+      TVM_FFI_ICHECK(false)
+          << "Builtin address_of() expects the argument to be a BufferLoad or Var, but "
+          << "received argument " << address_of->args[0];
     }
   }
   // Default: return the type indicated by the dtype.
@@ -1293,6 +1304,78 @@ PrimExpr fast_erf_float_expr(PrimExpr arg, int bits) {
   q = x2 * q + beta_0;
 
   return p / q;
+}
+
+// Helper function to safely extract boolean from PackedArgs
+bool ExtractBool(const ffi::PackedArgs& args, int index) {
+  try {
+    return args[index].cast<bool>();
+  } catch (...) {
+    // Handle IntImm case (from TIR parsing)
+    PrimExpr expr = args[index].cast<PrimExpr>();
+    if (auto int_imm = expr.as<IntImmNode>()) {
+      return int_imm->value != 0;
+    }
+    LOG(FATAL) << "Cannot extract bool from argument at index " << index;
+    return false;
+  }
+}
+
+// Helper function to safely extract int from PackedArgs
+int ExtractInt(const ffi::PackedArgs& args, int index) {
+  try {
+    return args[index].cast<int>();
+  } catch (...) {
+    // Handle IntImm case (from TIR parsing)
+    PrimExpr expr = args[index].cast<PrimExpr>();
+    if (auto int_imm = expr.as<IntImmNode>()) {
+      return static_cast<int>(int_imm->value);
+    }
+    LOG(FATAL) << "Cannot extract int from argument at index " << index;
+    return 0;
+  }
+}
+
+PrimExpr PrintOpPacked(Var data, DataType dtype, bool is_string, bool is_scalar, int dim_num,
+                       ffi::Array<PrimExpr> shape) {
+  ffi::Array<PrimExpr> args;
+  args.push_back(data);
+  args.push_back(tirx::StringImm(ffi::DLDataTypeToString(dtype)));
+  args.push_back(make_const(DataType::Bool(), is_string));
+  args.push_back(make_const(DataType::Bool(), is_scalar));
+  args.push_back(make_const(DataType::UInt(32), dim_num));
+  for (const auto& dim : shape) {
+    args.push_back(dim);
+  }
+  return tirx::Call(dtype, tirx::builtin::print_buffer(), args);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def_packed("tirx.print_buffer", [](ffi::PackedArgs args, ffi::Any* ret) {
+    // Expected arguments:
+    // args[0]: buffer_var (Var)
+    // args[1]: dtype (DataType)
+    // args[2]: is_string (bool or IntImm)
+    // args[3]: is_scalar (bool or IntImm)
+    // args[4]: dim_num (int or IntImm)
+    // args[5...]: shape dimensions (PrimExpr)
+
+    TVM_FFI_ICHECK_GE(args.size(), 5) << "print_buffer expects at least 5 arguments";
+
+    Var buffer_var = args[0].cast<Var>();
+    DataType dtype = args[1].cast<DataType>();
+    bool is_string = ExtractBool(args, 2);
+    bool is_scalar = ExtractBool(args, 3);
+    int dim_num = ExtractInt(args, 4);
+
+    ffi::Array<PrimExpr> shape;
+    for (int i = 5; i < args.size(); ++i) {
+      shape.push_back(args[i].cast<PrimExpr>());
+    }
+
+    *ret = PrintOpPacked(buffer_var, dtype, is_string, is_scalar, dim_num, shape);
+  });
 }
 
 }  // namespace tvm

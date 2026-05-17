@@ -53,22 +53,22 @@ class TVMStructFieldKind(enum.IntEnum):
 
 @register_legalize("relax.inspect.tensor_stride_i")
 def _tensor_stride_i(bb: BlockBuilder, call: Call) -> Expr:
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def _get_tensor_stride_i(dlpack_handle: T.handle, axis: T.int64) -> T.int64:
-        T.func_attr({"tirx.is_host": True, "tirx.is_scheduled": True})
+        T.func_attr({"tirx.is_host_func": True, "tirx.is_scheduled": True})
         assert T.int64(0) <= axis, "Specified axis may not be negative"
-        ndim: T.int32 = T.tvm_struct_get(
+        ndim: T.let[T.int32] = T.tvm_struct_get(
             dlpack_handle, 0, int(TVMStructFieldKind.kDLTensorNDim), "int32"
         )
         assert axis < T.Cast("int64", ndim), (
             "Specified axis may not be larger than the tensor's dimensionality"
         )
-        stride_ptr: T.handle("int64") = T.tvm_struct_get(
+        stride_ptr: T.let[T.handle("int64")] = T.tvm_struct_get(
             dlpack_handle, 0, int(TVMStructFieldKind.kDLTensorStrides), "handle"
         )
 
         if T.isnullptr(stride_ptr):
-            shape_ptr: T.handle("int64") = T.tvm_struct_get(
+            shape_ptr: T.let[T.handle("int64")] = T.tvm_struct_get(
                 dlpack_handle, 0, int(TVMStructFieldKind.kDLTensorShape), "handle"
             )
             shape = T.decl_buffer(ndim, "int64", data=shape_ptr)
@@ -80,13 +80,13 @@ def _tensor_stride_i(bb: BlockBuilder, call: Call) -> Expr:
             # ranges to start somewhere other than zero.  This loop
             # could then iterate on `range(axis+1, ndim)`.
             for dim_offset in range(ndim - (axis + 1)):
-                dim = dim_offset + (axis + 1)
+                dim: T.let[T.int64] = dim_offset + (axis + 1)
                 product[()] = product[()] * shape[dim]
 
             return product[()]
         else:
             strides = T.decl_buffer(ndim, "int64", data=stride_ptr)
-            stride: T.int64 = strides[axis]
+            stride: T.let[T.int64] = strides[axis]
             return stride
 
     gvar = bb.add_func(_get_tensor_stride_i, "_get_tensor_stride_i")
@@ -95,10 +95,10 @@ def _tensor_stride_i(bb: BlockBuilder, call: Call) -> Expr:
 
 @register_legalize("relax.inspect.tensor_byte_offset")
 def _tensor_byte_offset(bb: BlockBuilder, call: Call) -> Expr:
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def _get_tensor_byte_offset(dlpack_handle: T.handle) -> T.int64:
-        T.func_attr({"tirx.is_host": True, "tirx.is_scheduled": True})
-        byte_offset: T.uint64 = T.tvm_struct_get(
+        T.func_attr({"tirx.is_host_func": True, "tirx.is_scheduled": True})
+        byte_offset: T.let[T.uint64] = T.tvm_struct_get(
             dlpack_handle, 0, int(TVMStructFieldKind.kDLTensorByteOffset), "uint64"
         )
         return byte_offset
@@ -109,20 +109,22 @@ def _tensor_byte_offset(bb: BlockBuilder, call: Call) -> Expr:
 
 @register_legalize("relax.inspect.tensor_elem_offset")
 def _tensor_elem_offset(bb: BlockBuilder, call: Call) -> Expr:
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def _get_tensor_elem_offset(dlpack_handle: T.handle) -> T.int64:
-        T.func_attr({"tirx.is_host": True, "tirx.is_scheduled": True})
-        byte_offset: T.uint64 = T.tvm_struct_get(
+        T.func_attr({"tirx.is_host_func": True, "tirx.is_scheduled": True})
+        byte_offset: T.let[T.uint64] = T.tvm_struct_get(
             dlpack_handle, 0, int(TVMStructFieldKind.kDLTensorByteOffset), "uint64"
         )
-        scalar_bits: T.uint8 = T.tvm_struct_get(
+        scalar_bits: T.let[T.uint8] = T.tvm_struct_get(
             dlpack_handle, 0, int(TVMStructFieldKind.kDLTensorTypeBits), "uint8"
         )
-        lanes: T.uint16 = T.tvm_struct_get(
+        lanes: T.let[T.uint16] = T.tvm_struct_get(
             dlpack_handle, 0, int(TVMStructFieldKind.kDLTensorTypeLanes), "uint16"
         )
-        bytes_per_element = T.ceildiv(scalar_bits.astype("uint64") * lanes.astype("uint64"), 8)
-        elem_offset = byte_offset // bytes_per_element
+        bytes_per_element: T.let[T.uint64] = T.ceildiv(
+            scalar_bits.astype("uint64") * lanes.astype("uint64"), 8
+        )
+        elem_offset: T.let[T.uint64] = byte_offset // bytes_per_element
         return elem_offset
 
     gvar = bb.add_func(_get_tensor_elem_offset, "_get_tensor_elem_offset")

@@ -139,12 +139,12 @@ def test_fast_softmax_schedule_structure():
 def _codegen_llvm_ir(mod, target):
     """Lower and codegen to LLVM IR (no linking)."""
     bound = tirx.transform.BindTarget(target.with_host(target))(mod)
-    pipeline = tirx.get_tir_pipeline("default")
+    pipeline, finalize_host, _ = tirx.get_tir_pipeline("default")
     lowered = pipeline(bound)
     from tvm.tirx.build import split_host_device_mods
 
     host_mod, _ = split_host_device_mods(lowered)
-    host_mod = tirx.pipeline.finalize_host_passes()(host_mod)
+    host_mod = finalize_host()(host_mod)
     built = tvm.target.codegen.build_module(host_mod, target)
     return built.inspect_source("ll")
 
@@ -152,12 +152,12 @@ def _codegen_llvm_ir(mod, target):
 def _codegen_asm(mod, target):
     """Lower and codegen to assembly (no linking)."""
     bound = tirx.transform.BindTarget(target.with_host(target))(mod)
-    pipeline = tirx.get_tir_pipeline("default")
+    pipeline, finalize_host, _ = tirx.get_tir_pipeline("default")
     lowered = pipeline(bound)
     from tvm.tirx.build import split_host_device_mods
 
     host_mod, _ = split_host_device_mods(lowered)
-    host_mod = tirx.pipeline.finalize_host_passes()(host_mod)
+    host_mod = finalize_host()(host_mod)
     built = tvm.target.codegen.build_module(host_mod, target)
     return built.inspect_source("s")
 

@@ -35,9 +35,9 @@ from tvm.script.parser import tirx as T
 data_type = "int32"
 
 
-@I.ir_module
+@I.ir_module(s_tir=True)
 class Module_1D:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def compute_add_in_vtcm(a: T.handle, b: T.handle, c: T.handle) -> None:
         m = T.int32()
         A = T.match_buffer(a, (m,), data_type, scope="global.vtcm")

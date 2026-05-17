@@ -406,9 +406,8 @@ def conv2d_NCHWc_OIHWo(
         5-D with shape [batch, in_channel_chunk, in_height, in_width, in_channel_block]
 
     kernel : tvm.te.Tensor
-        6-D with shape
-        [num_filter_chunk, in_channel_chunk, filter_height, filter_width,
-         num_filter_block]
+        6-D with shape ``[num_filter_chunk, in_channel_chunk, filter_height,
+        filter_width, num_filter_block]``.
 
     stride : int or a list/tuple of two ints
         stride size, or [stride_height, stride_width]

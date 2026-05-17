@@ -23,7 +23,7 @@ from tvm.target import Target
 # pylint: disable=invalid-name, no-member
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def element_wise(var_A: T.handle, var_B: T.handle) -> None:
     A = T.match_buffer(var_A, [512, 512], dtype="float32")
     B = T.match_buffer(var_B, [512, 512], dtype="float32")

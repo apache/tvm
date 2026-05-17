@@ -26,7 +26,7 @@ def test_annotate_thread_extent():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer(16, "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
             i = T.launch_thread("threadIdx.x", 16)
@@ -34,7 +34,7 @@ def test_annotate_thread_extent():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer(16, "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
             T.attr(T.target("cuda"), "target", 0)
@@ -50,7 +50,7 @@ def test_annotate_device_scope():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer(1, "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
             T.attr(0, "device_scope", 0)
@@ -58,7 +58,7 @@ def test_annotate_device_scope():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer(1, "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
             T.attr(T.target("cuda"), "target", 0)

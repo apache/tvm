@@ -79,7 +79,7 @@ location 0. In our example, we have module relationship like this:
 
 .. code:: c++
 
-  llvm_mod:imported_modules
+  llvm_mod:imports
     - cuda_mod
 
 So LLVM module will have index 0, CUDA module will have index 1.

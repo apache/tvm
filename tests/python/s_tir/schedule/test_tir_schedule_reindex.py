@@ -29,7 +29,7 @@ from tvm.s_tir.schedule.testing import (
 from tvm.script import tirx as T
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def transpose_elementwise(
     A: T.Buffer((128, 128), "float32"), B: T.Buffer((128, 128), "float32")
 ) -> None:
@@ -39,7 +39,7 @@ def transpose_elementwise(
             B[vi, vj] = A[vj, vi] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def transpose_elementwise_reindex_read(
     A: T.Buffer((128, 128), "float32"), B: T.Buffer((128, 128), "float32")
 ) -> None:
@@ -54,7 +54,7 @@ def transpose_elementwise_reindex_read(
             B[vi, vj] = A_reindex[vi, vj] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def conv2d_nhwc(
     Input: T.Buffer((1, 224, 224, 3), "float32"),
     Weight: T.Buffer((7, 7, 3, 64), "float32"),
@@ -81,7 +81,7 @@ def conv2d_nhwc(
             )
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def conv2d_nhwc_reindex_data(
     Input: T.Buffer((1, 224, 224, 3), "float32"),
     Weight: T.Buffer((7, 7, 3, 64), "float32"),
@@ -112,7 +112,7 @@ def conv2d_nhwc_reindex_data(
             )
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def conv2d_nhwc_reindex_weight(
     var_inputs: T.handle, var_weight: T.handle, var_conv2d_nhwc: T.handle
 ) -> None:
@@ -155,7 +155,7 @@ def conv2d_nhwc_reindex_weight(
             )
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def matmul(
     A: T.Buffer((512, 512), "float32"),
     B: T.Buffer((512, 512), "float32"),
@@ -171,7 +171,7 @@ def matmul(
             C[i, j] = C[i, j] + A[i, k] * B[k, j]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def matmul_reindex_write(
     A: T.Buffer((512, 512), "float32"),
     B: T.Buffer((512, 512), "float32"),
@@ -194,7 +194,7 @@ def matmul_reindex_write(
             C[v0, v1] = C_reindex[v0, v1]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def multiple_read(A: T.Buffer((128, 128), "float32"), B: T.Buffer((128, 128), "float32")) -> None:
     for i, j in T.grid(128, 128):
         with T.sblock("B"):
@@ -202,7 +202,7 @@ def multiple_read(A: T.Buffer((128, 128), "float32"), B: T.Buffer((128, 128), "f
             B[vi, vj] = A[vj, vi] + A[vi, vj]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def mixed_dtype(
     p0: T.Buffer((T.int64(2), 1280), "float16"),
     p1: T.Buffer((1280, 1280), "float16"),
@@ -219,7 +219,7 @@ def mixed_dtype(
             T_matmul_NT[i, j] = T_matmul_NT[i, j] + p0[i, k] * p1[j, k]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def mixed_dtype_reindex_write(
     p0: T.Buffer((T.int64(2), 1280), "float16"),
     p1: T.Buffer((1280, 1280), "float16"),
@@ -244,7 +244,7 @@ def mixed_dtype_reindex_write(
             T_matmul_NT[v0, v1] = T_matmul_NT_reindex[v0, v1]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def matmul_unit_dim(
     A: T.Buffer((1, 512), "float32"),
     B: T.Buffer((512, 1), "float32"),
@@ -260,7 +260,7 @@ def matmul_unit_dim(
             C[i, j] = C[i, j] + A[i, k] * B[k, j]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def matmul_unit_dim_reindex_write(
     A: T.Buffer((1, 512), "float32"),
     B: T.Buffer((512, 1), "float32"),

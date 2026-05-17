@@ -23,9 +23,9 @@ from tvm.runtime import Object
 from . import _ffi_api
 
 
-@tvm_ffi.register_object("s_tir.Layout")
-class Layout(Object):
-    """Layout is composed of upper cases, lower cases and numbers,
+@tvm_ffi.register_object("s_tir.SLayout")
+class SLayout(Object):
+    """SLayout is composed of upper cases, lower cases and numbers,
     where upper case indicates a primal axis and
     the corresponding lower case with factor size indicates the subordinate axis.
     For example, NCHW16c can describe a 5-D tensor of
@@ -34,11 +34,11 @@ class Layout(Object):
 
     See Also
     --------
-    layout : Declare a layout
+    slayout : Declare a layout
     """
 
     def __len__(self):
-        return _ffi_api.LayoutNdim(self)  # type: ignore
+        return _ffi_api.SLayoutNdim(self)  # type: ignore
 
     def __contains__(self, axis):
         # Note: We do a weaker check for packed axis assuming layout is valid
@@ -46,8 +46,8 @@ class Layout(Object):
 
     def __getitem__(self, index):
         if index >= len(self):
-            raise IndexError("Layout index out of range")
-        return _ffi_api.LayoutGetItem(self, index)  # type: ignore
+            raise IndexError("SLayout index out of range")
+        return _ffi_api.SLayoutGetItem(self, index)  # type: ignore
 
     def index_of(self, axis):
         """Get the index of an axis
@@ -62,7 +62,7 @@ class Layout(Object):
         index : int
             The index of the axis, -1 if not found.
         """
-        return _ffi_api.LayoutIndexOf(self, axis)  # type: ignore
+        return _ffi_api.SLayoutIndexOf(self, axis)  # type: ignore
 
     def factor_of(self, axis):
         """Get the factor size of the subordinate axis.
@@ -79,28 +79,28 @@ class Layout(Object):
             or the size of axis itself (if axis is a subordinate-axis).
             Return -1 if axis is not in the layout.
         """
-        return _ffi_api.LayoutFactorOf(self, axis)  # type: ignore
+        return _ffi_api.SLayoutFactorOf(self, axis)  # type: ignore
 
 
-@tvm_ffi.register_object("s_tir.BijectiveLayout")
-class BijectiveLayout(Object):
+@tvm_ffi.register_object("s_tir.SBijectiveLayout")
+class SBijectiveLayout(Object):
     """Bijective mapping for two layouts (src-layout and dst-layout).
     It provides shape and index conversion between each other.
 
-    Do not construct directly, use :any:`bijective_layout` instead.
-    See the documentation of :any:`bijective_layout` for more details.
+    Do not construct directly, use :any:`sbijective_layout` instead.
+    See the documentation of :any:`sbijective_layout` for more details.
 
     Parameters
     ----------
-    src_layout : str or Layout
+    src_layout : str or SLayout
         source layout.
 
-    dst_layout : str or Layout
+    dst_layout : str or SLayout
         destination layout.
 
     See Also
     --------
-    bijective_layout : Declare a layout
+    sbijective_layout : Declare a layout
     """
 
     def forward_index(self, index):
@@ -116,7 +116,7 @@ class BijectiveLayout(Object):
         dst_index: Array of Expr
             The inferred indices in dst-layout.
         """
-        return _ffi_api.BijectiveLayoutForwardIndex(self, index)  # type: ignore
+        return _ffi_api.SBijectiveLayoutForwardIndex(self, index)  # type: ignore
 
     def backward_index(self, index):
         """Given the indices of the dst-layout, infer the src index.
@@ -131,7 +131,7 @@ class BijectiveLayout(Object):
         src_index: Array of Expr
             The inferred indices in src-layout.
         """
-        return _ffi_api.BijectiveLayoutBackwardIndex(self, index)  # type: ignore
+        return _ffi_api.SBijectiveLayoutBackwardIndex(self, index)  # type: ignore
 
     def forward_shape(self, shape):
         """Given the shape of the src-layout, infer the dst shape.
@@ -146,7 +146,7 @@ class BijectiveLayout(Object):
         dst_shape: Array of Expr
             The inferred shape in dst-layout.
         """
-        return _ffi_api.BijectiveLayoutForwardShape(self, shape)  # type: ignore
+        return _ffi_api.SBijectiveLayoutForwardShape(self, shape)  # type: ignore
 
     def backward_shape(self, shape):
         """Given the shape of the dst-layout, infer the src shape.
@@ -161,10 +161,10 @@ class BijectiveLayout(Object):
         src_shape: Array of Expr
             The inferred shape in src-layout.
         """
-        return _ffi_api.BijectiveLayoutBackwardShape(self, shape)  # type: ignore
+        return _ffi_api.SBijectiveLayoutBackwardShape(self, shape)  # type: ignore
 
 
-def layout(layout_str: str, dtype: str = "int32") -> Layout:
+def slayout(layout_str: str, dtype: str = "int32") -> SLayout:
     """Create a layout node from a string.
 
     Parameters
@@ -184,30 +184,30 @@ def layout(layout_str: str, dtype: str = "int32") -> Layout:
 
     Returns
     -------
-    layout : Layout
+    layout : SLayout
         The created layout
     """
-    return _ffi_api.Layout(layout_str, dtype)  # type: ignore
+    return _ffi_api.SLayout(layout_str, dtype)  # type: ignore
 
 
-def bijective_layout(src_layout: str | Layout, dst_layout: str | Layout) -> BijectiveLayout:
+def sbijective_layout(src_layout: str | SLayout, dst_layout: str | SLayout) -> SBijectiveLayout:
     """Create a bijective layout mapping.
 
     Parameters
     ----------
-    src_layout : str or Layout
+    src_layout : str or SLayout
         source layout.
 
-    dst_layout : str or Layout
+    dst_layout : str or SLayout
         destination layout.
 
     Returns
     -------
-    bijective_layout : BijectiveLayout
+    sbijective_layout : SBijectiveLayout
         The created bijective layout
     """
     if isinstance(src_layout, str):
-        src_layout = layout(src_layout)
+        src_layout = slayout(src_layout)
     if isinstance(dst_layout, str):
-        dst_layout = layout(dst_layout)
-    return _ffi_api.BijectiveLayout(src_layout, dst_layout)  # type: ignore
+        dst_layout = slayout(dst_layout)
+    return _ffi_api.SBijectiveLayout(src_layout, dst_layout)  # type: ignore

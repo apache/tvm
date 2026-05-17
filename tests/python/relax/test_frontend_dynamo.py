@@ -50,7 +50,7 @@ def test_relax_dynamo():
     ### construct the database
     @tvm.script.ir_module
     class Input1_ir:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(
             inp_0: T.Buffer((T.int64(10), T.int64(100)), "float32"),
             param_0: T.Buffer((T.int64(100), T.int64(10)), "float32"),
@@ -352,7 +352,7 @@ def test_ones():
         def forward(self, input):
             return torch.ones((10, 10), dtype=torch.float32)
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected1:
         @R.function
         def main(
@@ -383,7 +383,7 @@ def test_full():
         def forward(self, input):
             return torch.full((10, 10), 1, dtype=torch.float32)
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected1:
         @R.function
         def main(
@@ -418,7 +418,7 @@ def test_gelu():
         def forward(self, input):
             return torch.nn.functional.gelu(input, approximate="tanh")
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class ExpectedGeLU:
         @R.function
         def main(
@@ -430,7 +430,7 @@ def test_gelu():
                 R.output(gv)
             return gv
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class ExpectedGeLUTanh:
         @R.function
         def main(
@@ -471,7 +471,7 @@ def test_masked_fill():
             input.masked_fill_(mask, 0)
             return input
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected1:
         @R.function
         def main(
@@ -504,7 +504,7 @@ def test_getitem():
             result = input1[:, input2.argmax(dim=-1), :]
             return result
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected1:
         @R.function
         def main(
@@ -527,7 +527,7 @@ def test_getitem():
                 R.output(gv)
             return gv
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected2:
         @R.function
         def main(
@@ -579,7 +579,7 @@ def test_arange():
             result = mask_cond + 1
             return result
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected1:
         @R.function
         def main(inp_0: R.Tensor((1, 77), dtype="float32")) -> R.Tensor((77,), dtype="int64"):

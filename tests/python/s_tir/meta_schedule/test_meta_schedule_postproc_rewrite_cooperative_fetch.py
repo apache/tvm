@@ -52,7 +52,7 @@ def _create_context(mod, target) -> ms.TuneContext:
 
 @tvm.script.ir_module
 class AfterRewrite0:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(var_A: T.handle, var_B: T.handle, var_C: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
@@ -106,7 +106,7 @@ class AfterRewrite0:
 
 @tvm.script.ir_module
 class WarpExecutionAfterRewrite:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(
         A: T.Buffer((512, 512), "float32"),
         B: T.Buffer((512, 512), "float32"),

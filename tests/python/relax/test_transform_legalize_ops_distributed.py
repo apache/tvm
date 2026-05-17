@@ -34,9 +34,9 @@ def test_redistribute_replica_to_shard():
             gv0 = R.dist.redistribute_replica_to_shard(x, num_workers=2, axis=1)
             return gv0
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def strided_slice(A: T.Buffer((T.int64(10), T.int64(10)), "float32"), redistribute_replica_to_shard: T.Buffer((T.int64(10), T.int64(5)), "float32"), worker_id: T.int64):
             T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):

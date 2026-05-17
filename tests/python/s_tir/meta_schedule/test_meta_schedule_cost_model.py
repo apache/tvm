@@ -41,7 +41,7 @@ from tvm.script import tirx as T
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,missing-docstring
 @tvm.script.ir_module
 class Matmul:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         A = T.match_buffer(a, (1024, 1024), "float32")
@@ -57,7 +57,7 @@ class Matmul:
 
 @tvm.script.ir_module
 class FullModule:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(T_full: T.Buffer((T.int64(2), T.int64(3)), "float32")):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):

@@ -242,6 +242,14 @@ void StorageAccessVisitor::VisitExpr_(const CallNode* op) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 5U);
     DataType dtype = op->args[0].dtype();
     const VarNode* buffer = op->args[1].as<VarNode>();
+    if (buffer == nullptr) {
+      // args[1] is not a raw Var — e.g. a nested tvm_access_ptr or some
+      // other PrimExpr. Recurse into sub-exprs so any inner buffer var
+      // refs still get visited, but don't try to record an access entry
+      // here (GetScope(Var(nullptr)) would deref a null pointer).
+      StmtExprVisitor::VisitExpr_(op);
+      return;
+    }
     PrimExpr offset = op->args[2];
     PrimExpr extent = op->args[3];
     const IntImmNode* flag = op->args[4].as<IntImmNode>();

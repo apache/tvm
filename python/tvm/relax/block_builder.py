@@ -474,7 +474,7 @@ class BlockBuilder(Object):
 
             @tvm.script.ir_module
             class Module:
-                @T.prim_func
+                @T.prim_func(s_tir=True)
                 def te_func(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle,
                             var_compute: T.handle) -> None:
                     # function attr dict
@@ -523,7 +523,7 @@ class BlockBuilder(Object):
 
             @tvm.script.ir_module
             class Module:
-                @T.prim_func
+                @T.prim_func(s_tir=True)
                 def te_func(var_rxplaceholder: T.handle, var_compute: T.handle, n: T.int64) -> None:
                     rxplaceholder = T.match_buffer(var_rxplaceholder, [n + T.int64(1)],
                                                    dtype="float32")

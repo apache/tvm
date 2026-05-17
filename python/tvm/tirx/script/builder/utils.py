@@ -212,7 +212,7 @@ def buffer_proxy(buf: Buffer) -> _BufferProxy:
     --------
     .. code-block:: python
 
-        from tvm.script.ir_builder.tirx.utils import buffer_proxy
+        from tvm.tirx.script.builder.utils import buffer_proxy
 
         buf = tvm.tirx.decl_buffer([2, 3], "float32")
         ptr = buffer_proxy(buf)

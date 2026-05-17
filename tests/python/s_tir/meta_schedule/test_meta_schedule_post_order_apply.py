@@ -58,7 +58,7 @@ def get_matmul_packed(m, n, k, lhs_type="int8", rhs_dtype="int8", acc_dtype="int
 
 @tvm.script.ir_module
 class Matmul:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(a: T.handle, b: T.handle, c: T.handle) -> None:
         T.func_attr({"global_symbol": "main"})
         A = T.match_buffer(a, (1024, 1024), "float32")
@@ -74,7 +74,7 @@ class Matmul:
 
 @tvm.script.ir_module
 class DuplicateMatmul:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(a: T.handle, b: T.handle, c: T.handle) -> None:
         T.func_attr({"global_symbol": "main"})
         A = T.match_buffer(a, (1024, 1024), "float32")
@@ -94,7 +94,7 @@ class DuplicateMatmul:
 
 @tvm.script.ir_module
 class TrinityMatmul:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(a: T.handle, d: T.handle) -> None:
         T.func_attr({"global_symbol": "main"})
         A = T.match_buffer(a, (1024, 1024), "float32")
@@ -117,7 +117,7 @@ class TrinityMatmul:
 
 @tvm.script.ir_module
 class TrinityMatmulProcessedForReference:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(a: T.handle, d: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main"})

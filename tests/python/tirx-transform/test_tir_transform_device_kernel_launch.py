@@ -34,12 +34,12 @@ def test_lower_device_kernel_launch():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer(1, "float32")):
             T.func_attr({"target": T.target("llvm")})
             Before.kernel(A.data)
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def kernel(A_data: T.handle("float32")):
             T.func_attr({"target": T.target("cuda")})
             A = T.decl_buffer(1, dtype="float32", data=A_data)
@@ -47,12 +47,12 @@ def test_lower_device_kernel_launch():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer(1, "float32")):
             T.func_attr({"target": T.target("llvm")})
             T.call_packed("kernel", A.data)
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def kernel(A_data: T.handle("float32")):
             T.func_attr(
                 {
@@ -85,12 +85,12 @@ def test_externally_visible_kernel_launch():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer(1, "float32")):
             T.func_attr({"target": T.target("llvm")})
             Before.kernel(A.data)
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def kernel(A_data: T.handle("float32")):
             T.func_attr({"target": T.target("cuda"), "global_symbol": "kernel_by_another_name"})
             A = T.decl_buffer(1, dtype="float32", data=A_data)
@@ -98,12 +98,12 @@ def test_externally_visible_kernel_launch():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer(1, "float32")):
             T.func_attr({"target": T.target("llvm")})
             T.call_packed("kernel_by_another_name", A.data)
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def kernel(A_data: T.handle("float32")):
             T.func_attr(
                 {
@@ -134,12 +134,12 @@ def test_collect_launch_parameter():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer(16, "float32")):
             T.func_attr({"target": T.target("llvm")})
             Before.kernel(A.data)
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def kernel(A_data: T.handle("float32")):
             T.func_attr(
                 {
@@ -153,12 +153,12 @@ def test_collect_launch_parameter():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer(16, "float32")):
             T.func_attr({"target": T.target("llvm")})
             T.call_packed("kernel", A.data, 16)
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def kernel(A_data: T.handle("float32")):
             T.func_attr(
                 {
@@ -189,12 +189,12 @@ def test_same_device_different_target():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer(1, "float32")):
             T.func_attr({"target": T.target("llvm")})
             Before.kernel(A.data)
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def kernel(A_data: T.handle("float32")):
             T.func_attr({"target": T.target("c")})
             A = T.decl_buffer(16, dtype="float32", data=A_data)
@@ -202,12 +202,12 @@ def test_same_device_different_target():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer(1, "float32")):
             T.func_attr({"target": T.target("llvm")})
             T.call_extern("kernel", A.data, dtype="void")
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def kernel(A_data: T.handle("float32")):
             T.func_attr(
                 {
@@ -235,27 +235,27 @@ def test_bind_before_thread_extent():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer(16, "float32"), n: T.int32):
             T.func_attr({"target": T.target("llvm")})
             Before.kernel(A.data, n)
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def kernel(A_data: T.handle("float32"), n: T.int32):
             T.func_attr({"target": T.target("cuda"), "global_symbol": "kernel"})
             A = T.decl_buffer(16, dtype="float32", data=A_data)
-            v: T.int32 = n + 1
+            v: T.let[T.int32] = n + 1
             i = T.launch_thread("threadIdx.x", v)
             A[i] = 0.0
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer(16, "float32"), n: T.int32):
             T.func_attr({"target": T.target("llvm")})
             T.call_packed("kernel", A.data, n, n + 1)
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def kernel(A_data: T.handle("float32"), n: T.int32):
             T.func_attr(
                 {
@@ -267,7 +267,7 @@ def test_bind_before_thread_extent():
                 }
             )
             A = T.decl_buffer(16, dtype="float32", data=A_data)
-            v: T.int32 = n + 1
+            v: T.let[T.int32] = n + 1
             i = T.launch_thread("threadIdx.x", v)
             A[i] = 0.0
 

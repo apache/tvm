@@ -198,6 +198,7 @@ BINARY_OP_TOKENS = {
     OperationKind.GtE: ">=",
     OperationKind.And: "and",
     OperationKind.Or: "or",
+    OperationKind.MatMul: "@",
 }
 
 
@@ -893,14 +894,8 @@ def test_print_class_doc(decorators, body, expected):
 @pytest.mark.parametrize(
     "comment, expected",
     [
-        (
-            "",
-            "",
-        ),
-        (
-            "test comment 1",
-            "# test comment 1",
-        ),
+        ("", ""),
+        ("test comment 1", "# test comment 1"),
         (
             "test comment 1\ntest comment 2",
             """

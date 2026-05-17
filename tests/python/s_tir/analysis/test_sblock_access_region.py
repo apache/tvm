@@ -23,7 +23,7 @@ from tvm.ir import Range
 from tvm.script import tirx as T
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def func() -> None:
     A = T.sblock_alloc_buffer((128, 128), "float32")
     B = T.sblock_alloc_buffer((128, 128), "float32")
@@ -45,7 +45,7 @@ def func() -> None:
         T.evaluate(D.data)
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def match_buffer_func() -> None:
     with T.sblock("root"):
         A = T.sblock_alloc_buffer((128, 128), "float32")
@@ -74,7 +74,7 @@ def match_buffer_func() -> None:
                 T.evaluate(B1.data)
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def opaque_block_func() -> None:
     with T.sblock("root"):
         A = T.sblock_alloc_buffer((16, 16), "float32")
@@ -93,7 +93,7 @@ def opaque_block_func() -> None:
                         B[i, j] = A[i, j] + 1.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def opaque_access_func() -> None:
     A = T.sblock_alloc_buffer([1024])
     B = T.sblock_alloc_buffer([1024])
@@ -107,7 +107,7 @@ def opaque_access_func() -> None:
             )
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def opaque_access_with_tvm_access_ptr_func() -> None:
     A = T.sblock_alloc_buffer([1024])
     B = T.sblock_alloc_buffer([1024])
@@ -120,7 +120,7 @@ def opaque_access_with_tvm_access_ptr_func() -> None:
         T.evaluate(C.access_ptr("rw"))
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def access_in_if_then_else_func() -> None:
     A = T.sblock_alloc_buffer([8])
     B = T.sblock_alloc_buffer([8])
@@ -131,7 +131,7 @@ def access_in_if_then_else_func() -> None:
             B[i] = T.if_then_else(i < 5, A[i], 0.0, dtype="float32")
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def access_in_branch_func() -> None:
     A = T.sblock_alloc_buffer([8])
     B = T.sblock_alloc_buffer([8])
@@ -145,7 +145,7 @@ def access_in_branch_func() -> None:
                 B[i] = A[i - 1]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def gemm() -> None:
     A = T.sblock_alloc_buffer([16, 16], "float32")
     B = T.sblock_alloc_buffer([16, 16], "float32")
@@ -162,7 +162,7 @@ def gemm() -> None:
             C[vi, vj] += A[vi, vk] * B[vj, vk]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def decomposed_gemm() -> None:
     A = T.sblock_alloc_buffer([16, 16], "float32")
     B = T.sblock_alloc_buffer([16, 16], "float32")
@@ -185,7 +185,7 @@ def decomposed_gemm() -> None:
                 C[vi, vj] += A[vi, vk] * B[vj, vk]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def access_of_padding_pattern() -> None:
     X = T.sblock_alloc_buffer([28, 28])
     X_pad = T.sblock_alloc_buffer([32, 32])
@@ -358,7 +358,7 @@ def test_access_of_decompose_reduction():
 
 
 def test_buffer_access_with_let_binding():
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def func(
         storage: T.Buffer((16, 16, 16), "float32"),
         seq_slot_ids: T.Buffer((16,), "int32"),
@@ -374,8 +374,8 @@ def test_buffer_access_with_let_binding():
                     storage[seq_slot_ids[vi], history_slot_ids[vi], vs],
                 )
                 T.writes(output[vi, vs])
-                seq_id: T.int32 = seq_slot_ids[vi]
-                history_id: T.int32 = history_slot_ids[vi]
+                seq_id: T.let[T.int32] = seq_slot_ids[vi]
+                history_id: T.let[T.int32] = history_slot_ids[vi]
                 output[vi, vs] = storage[seq_id, history_id, vs]
 
     block = func.body.block.body.body.body.block
@@ -386,7 +386,7 @@ def test_buffer_access_with_let_binding():
 
 
 def test_buffer_access_with_nested_let_binding():
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def func(
         A: T.Buffer((16, 16), "float32"),
         B: T.Buffer((16, 16), "float32"),
@@ -397,11 +397,11 @@ def test_buffer_access_with_nested_let_binding():
                 vi, vs = T.axis.remap("SS", [i, s])
                 T.reads(A[vi, vs], B[vi, vs])
                 T.writes(C[vi, vs])
-                vi1: T.int32 = vi
-                vi2: T.int32 = vi1
-                vs1: T.int32 = vs
-                vs2: T.int32 = vs1
-                vs3: T.int32 = vs2
+                vi1: T.let[T.int32] = vi
+                vi2: T.let[T.int32] = vi1
+                vs1: T.let[T.int32] = vs
+                vs2: T.let[T.int32] = vs1
+                vs3: T.let[T.int32] = vs2
                 C[vi, vs1] = A[vi1, vs2] + B[vi2, vs3]
 
     block = func.body.block.body.body.body.block

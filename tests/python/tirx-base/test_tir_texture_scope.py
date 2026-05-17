@@ -28,7 +28,7 @@ from tvm.script import tirx as T
 def test_texture_scope():
     @tvm.script.ir_module
     class PlusOneMultTwo:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(a: T.handle, b: T.handle) -> None:
             T.func_attr({"tirx.noalias": True})
             A = T.match_buffer(a, (128, 128, 4), dtype="float32", scope="global.texture")

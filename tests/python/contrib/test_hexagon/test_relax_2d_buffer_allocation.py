@@ -29,9 +29,9 @@ from tvm.script import tirx as T
 
 
 # pylint: disable=missing-docstring,no-self-argument,invalid-name
-@I.ir_module
+@I.ir_module(s_tir=True)
 class Module:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def add(
         arg0: T.Buffer((2, 2), "float32"),
         arg1: T.Buffer((2, 2), "float32"),

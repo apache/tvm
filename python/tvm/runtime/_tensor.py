@@ -349,7 +349,7 @@ def tensor(arr, device=None, mem_scope=None):
     device = device or cpu()
 
     if not isinstance(arr, np.ndarray | Tensor):
-        arr = np.array(arr)
+        arr = np.asarray(arr)
     return empty(arr.shape, arr.dtype, device, mem_scope).copyfrom(arr)
 
 

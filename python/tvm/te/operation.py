@@ -308,7 +308,11 @@ def extern(
         if in_buffers is None:
             input_placeholders.append(
                 tvm.tirx.decl_buffer(
-                    t.shape, t.dtype, t.op.name, elem_offset=tvm.tirx.Var("elem_offset", "int32")
+                    t.shape,
+                    t.dtype,
+                    t.op.name,
+                    elem_offset=tvm.tirx.Var("elem_offset", "int32"),
+                    layout=None,
                 )
             )
         types.add(t.dtype)
@@ -325,7 +329,11 @@ def extern(
         for shp, dt in zip(shape, dtype):
             output_placeholders.append(
                 tvm.tirx.decl_buffer(
-                    shp, dt, name, elem_offset=tvm.tirx.Var("elem_offset", "int32")
+                    shp,
+                    dt,
+                    name,
+                    elem_offset=tvm.tirx.Var("elem_offset", "int32"),
+                    layout=None,
                 )
             )
     body = fcompute(input_placeholders, output_placeholders)
@@ -368,7 +376,7 @@ def extern_primfunc(input_tensors: list[_tensor.Tensor], primfunc: tvm.tirx.Prim
         A = te.placeholder((128, 128), name="A")
         B = te.placeholder((128, 128), name="B")
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def before_split(a: T.handle, b: T.handle) -> None:
             A = T.match_buffer(a, (128, 128))
             B = T.match_buffer(b, (128, 128))
@@ -582,7 +590,7 @@ def create_prim_func(
 
     .. code-block:: python
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def tir_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
             A = T.match_buffer(a, (128, 128))
             B = T.match_buffer(b, (128, 128))

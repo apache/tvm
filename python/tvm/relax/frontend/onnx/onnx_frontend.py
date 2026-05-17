@@ -4231,7 +4231,8 @@ class TopK(OnnxOpConverter):
         k = inputs[1]
         if not isinstance(k, relax.Constant):
             raise ValueError("TopK k must be a constant")
-        k = int(k.data.numpy())
+        # ONNX represents k as a tensor of shape [1]; flatten before scalar cast.
+        k = int(k.data.numpy().reshape(-1)[0])
         axis = attr.get("axis", -1)
         largest = attr.get("largest", 1)
         sorted = attr.get("sorted", 1)

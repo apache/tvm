@@ -43,7 +43,7 @@ def test_add():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def __vmtir__foo(ctx_ptr: T.handle, r: T.handle, c: T.handle, f: T.handle):
             T.func_attr({"global_symbol": "__vmtir__foo"})
             T.anylist_setitem_call_packed(
@@ -66,7 +66,7 @@ def test_add():
 def test_tir_call():
     @tvm.script.ir_module
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def shape_func(H: T.Buffer(T.int64(4), "int64")):
             T.func_attr({"global_symbol": "shape_func"})
             # generated compute function
@@ -80,13 +80,13 @@ def test_tir_call():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def shape_func(H: T.Buffer(T.int64(4), "int64")):
             T.func_attr({"global_symbol": "shape_func"})
             # generated compute function
             H[T.int64(0)] = H[T.int64(0)] + T.int64(1)
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def __vmtir__foo(ctx_ptr: T.handle, r: T.handle, c: T.handle, f: T.handle):
             T.func_attr({"global_symbol": "__vmtir__foo"})
             T.call_cpacked("shape_func", T.anylist_getitem(r, T.int32(0)))
@@ -114,7 +114,7 @@ def test_if_cond():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def __vmtir__ife(ctx_ptr: T.handle, r: T.handle, c: T.handle, f: T.handle):
             T.func_attr({"global_symbol": "__vmtir__ife"})
             if T.Call(
@@ -165,7 +165,7 @@ def test_const():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def __vmtir__main(ctx_ptr: T.handle, r: T.handle, c: T.handle, f: T.handle):
             # function attr dict
             T.func_attr({"global_symbol": "__vmtir__main"})
@@ -200,7 +200,7 @@ def test_const_call():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def __vmtir__main(ctx_ptr: T.handle, r: T.handle, c: T.handle, f: T.handle):
             # function attr dict
             T.func_attr({"global_symbol": "__vmtir__main"})

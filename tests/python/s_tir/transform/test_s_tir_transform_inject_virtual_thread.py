@@ -29,7 +29,7 @@ def test_vthread():
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.handle("float32"), C: T.handle("float32")):
             A_buf = T.decl_buffer((n * nthread,), "float32", data=A)
             C_buf = T.decl_buffer((n * nthread,), "float32", data=C)
@@ -73,7 +73,7 @@ def test_vthread_extern():
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main():
             T.func_attr({"global_symbol": "main"})
             for i in range(n):
@@ -122,7 +122,7 @@ def test_vthread_if_then_else():
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.handle("float32")):
             T.func_attr({"global_symbol": "main"})
             A_buf = T.decl_buffer((100 * nthread,), "float32", data=A)
@@ -160,14 +160,14 @@ def test_vthread_simplified():
     not need to each simplify the indices.
     """
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before_func():
         vthread = T.env_thread("vthread")
         T.launch_thread(vthread, 4)
         B = T.alloc_buffer((4,), "int32", scope="shared")
         B[0:4] = T.broadcast(vthread, 4)
 
-    @T.prim_func(check_well_formed=False)
+    @T.prim_func(check_well_formed=False, s_tir=True)
     def expected_func():
         B = T.alloc_buffer((16,), "int32", scope="shared")
         B_1 = T.Buffer([16], "int32", data=B.data, scope="shared")
@@ -188,7 +188,7 @@ def test_vthread_simplified():
 def test_vthread_vectorized():
     """Use of vthread is compatible with vector allocations"""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before_func():
         vthread = T.env_thread("vthread")
         T.launch_thread(vthread, 4)

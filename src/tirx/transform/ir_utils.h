@@ -33,6 +33,7 @@
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/expr.h>
 #include <tvm/tirx/function.h>
+#include <tvm/tirx/layout.h>
 #include <tvm/tirx/op.h>
 
 #include <limits>
@@ -109,7 +110,9 @@ inline PrimExpr TVMStructGet(DataType dtype, Var handle, int index,
  */
 inline PrimExpr AddressOffset(Var handle, DataType dtype, int offset) {
   PrimExpr offset_expr = make_const(DataType::Int(32), offset * dtype.lanes());
-  Buffer dummy_buf(handle, dtype, {offset_expr + 1}, {}, 0, handle->name_hint, 0, 0, kDefault);
+  ffi::Array<PrimExpr> shape = {offset_expr + 1};
+  Buffer dummy_buf(handle, dtype, shape, {}, 0, handle->name_hint, 0, 0, kDefault, {}, Span(),
+                   std::nullopt);
   BufferLoad buf_load(dummy_buf, {offset_expr});
 
   return Call(DataType::Handle(), builtin::address_of(), {buf_load});
@@ -127,8 +130,9 @@ inline PrimExpr AddressOffset(Var handle, DataType dtype, PrimExpr offset) {
     offset = Ramp(offset, make_const(offset.dtype(), 1), dtype.lanes());
   }
 
-  Buffer dummy_buf(handle, dtype.element_of(), {offset + 1}, {}, 0, handle->name_hint, 0, 0,
-                   kDefault);
+  ffi::Array<PrimExpr> shape = {offset + 1};
+  Buffer dummy_buf(handle, dtype.element_of(), shape, {}, 0, handle->name_hint, 0, 0, kDefault, {},
+                   Span(), std::nullopt);
   BufferLoad buf_load(dummy_buf, {offset});
 
   return Call(DataType::Handle(), builtin::address_of(), {buf_load});

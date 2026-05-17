@@ -68,7 +68,7 @@ MATMUL_M = 32
 
 @tvm.script.ir_module
 class MatmulModule:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         A = T.match_buffer(a, (16, 16), "float32")
@@ -84,7 +84,7 @@ class MatmulModule:
 
 @tvm.script.ir_module
 class MatmulReluModule:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(a: T.handle, b: T.handle, d: T.handle) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         A = T.match_buffer(a, (16, 16), "float32")
@@ -105,7 +105,7 @@ class MatmulReluModule:
 
 @tvm.script.ir_module
 class BatchMatmulModule:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         A = T.match_buffer(a, [16, 32, 32])
@@ -121,7 +121,7 @@ class BatchMatmulModule:
 
 @tvm.script.ir_module
 class AddModule:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         A = T.match_buffer(a, [32], "float32")
@@ -136,7 +136,7 @@ class AddModule:
 # A huge matmul that must cause timeout in the timeout test below.
 @tvm.script.ir_module
 class MatmulHugeModule:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         A = T.match_buffer(a, (4096, 4096), "float32")

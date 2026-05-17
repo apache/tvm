@@ -147,7 +147,8 @@ class PyRunnerFuture:
     Can NOT be used for general return type of runner.
 
     Note: @derived_object is required for proper usage of any inherited class.
-    Example:
+    Example::
+
         @derived_object
         def LocalRunnerFuture(PyRunnerFuture):
             ...

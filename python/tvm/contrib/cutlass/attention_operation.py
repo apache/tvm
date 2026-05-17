@@ -26,7 +26,7 @@ def instantiate_attention_template(attrs):
     based on a template and the provided attribute map."""
 
     bias_template = """
-  TVM_FFI_CHECK(${bias}->ndim == 4, ValueError); // B, N, S, S'
+  TVM_FFI_ICHECK(${bias}->ndim == 4); // B, N, S, S'
 
   p.attn_bias_ptr = reinterpret_cast<T *>(${bias}->data);
   p.bias_strideM = ${bias_strideM};
@@ -46,9 +46,9 @@ def instantiate_attention_template(attrs):
   p.query_ptr = reinterpret_cast<T *>(${query}->data);
   p.key_ptr = reinterpret_cast<T *>(${key}->data);
   p.value_ptr = reinterpret_cast<T *>(${value}->data);
-  TVM_FFI_CHECK(${query}->ndim == 4, ValueError); // B, S, N, H
-  TVM_FFI_CHECK(${key}->ndim == 4, ValueError); // B, S', N, H
-  TVM_FFI_CHECK(${value}->ndim == 4, ValueError); // B, S', N, H'
+  TVM_FFI_ICHECK(${query}->ndim == 4); // B, S, N, H
+  TVM_FFI_ICHECK(${key}->ndim == 4); // B, S', N, H
+  TVM_FFI_ICHECK(${value}->ndim == 4); // B, S', N, H'
 
   // stride for N
   p.q_strideH = p.head_dim; // H
@@ -69,7 +69,7 @@ def instantiate_attention_template(attrs):
   p.query_ptr = reinterpret_cast<T *>(${qkv}->data);
   p.key_ptr = reinterpret_cast<T *>(${qkv}->data) + p.head_dim * p.num_heads;
   p.value_ptr = reinterpret_cast<T *>(${qkv}->data) + p.head_dim * p.num_heads * 2;
-  TVM_FFI_CHECK(${qkv}->ndim == 3, ValueError); // B, S, NH + NH + NH'
+  TVM_FFI_ICHECK(${qkv}->ndim == 3); // B, S, NH + NH + NH'
 
   // stride for N
   p.q_strideH = p.head_dim; // H
@@ -132,7 +132,7 @@ def instantiate_attention_template(attrs):
 
 
   p.o_strideM = p.head_dim_value * p.num_heads; // H' * N
-  TVM_FFI_CHECK(out0->ndim == 4, ValueError); // B, S, N, H'
+  TVM_FFI_ICHECK(out0->ndim == 4); // B, S, N, H'
 
   ${qkv_template}
   ${bias_template}
@@ -148,7 +148,7 @@ def instantiate_attention_template(attrs):
     }();
   }
 
-  TVM_FFI_CHECK(Attention::check_supported(p), RuntimeError);
+  TVM_FFI_ICHECK(Attention::check_supported(p));
   cudaStream_t stream = static_cast<cudaStream_t>(TVMFFIEnvGetStream(kDLCUDA, ${query}->device.device_id));
 
   kernel_fn<<<p.getBlocksGrid(), p.getThreadsGrid(), smem_bytes, stream>>>(p);

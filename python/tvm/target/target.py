@@ -198,6 +198,18 @@ class Target(Object):
     def features(self):
         return TargetFeatures(self)
 
+    def __getattr__(self, name: str):
+        """Backward-compatible attribute access for target attrs.
+
+        Historically, code accessed target options via attribute syntax
+        (e.g. ``target.arch``). Newer APIs prefer ``target.attrs["arch"]``.
+        """
+        attrs = self.attrs
+        if name in attrs:
+            value = attrs[name]
+            return str(value) if isinstance(value, String) else value
+        raise AttributeError(f"'Target' object has no attribute '{name}'")
+
     def get_kind_attr(self, attr_name):
         """Get additional attribute about the target kind.
 

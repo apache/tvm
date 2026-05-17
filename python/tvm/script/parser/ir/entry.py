@@ -29,7 +29,9 @@ from .._core import parse, utils
 # this formulation allows us to support having @I.ir_module
 # appear as a decorator by itself or to have optional arguments
 # like @I.ir_module(check_well_formed=False)
-def ir_module(mod: type | None = None, check_well_formed: bool = True) -> IRModule:
+def ir_module(
+    mod: type | None = None, check_well_formed: bool = True, s_tir: bool = False
+) -> IRModule:
     """The parsing method for ir module, by using `@ir_module` as decorator.
 
     Parameters
@@ -59,14 +61,12 @@ def ir_module(mod: type | None = None, check_well_formed: bool = True) -> IRModu
         extra_vars = utils.inspect_class_capture(mod)
         # Resolve closure variables hidden by PEP 563 (annotation-only names)
         utils.resolve_closure_vars(mod, extra_vars, outer_stack)
-        m = parse(mod, extra_vars, check_well_formed=check_well_formed)
+        m = parse(mod, extra_vars, check_well_formed=check_well_formed, s_tir=s_tir)
 
         if base_py_module_inherited:
             # Lazy import: tvm.relax cannot be imported at module level in tvm.script.parser
             # because tvm.script is loaded before tvm.relax during tvm initialization.
-            from tvm.relax.base_py_module import (
-                BasePyModule,
-            )
+            from tvm.relax.base_py_module import BasePyModule
             from tvm.relax.expr import ExternFunc  # pylint: disable=import-outside-toplevel
 
             # Collect pyfunc methods

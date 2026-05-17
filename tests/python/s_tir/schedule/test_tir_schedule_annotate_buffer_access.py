@@ -27,7 +27,7 @@ from tvm.script import tirx as T
 
 
 def test_annotate_read_buffer_access():
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")):
         B = T.sblock_alloc_buffer((128, 128), "float32")
         for i, j in T.grid(128, 128):
@@ -39,7 +39,7 @@ def test_annotate_read_buffer_access():
                 vi, vj = T.axis.remap("SS", [i, j])
                 C[vi, vj] = B[vi, vj] + 1.0
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def expected(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")):
         B = T.sblock_alloc_buffer((128, 128), "float32")
         for i, j in T.grid(128, 128):
@@ -64,7 +64,7 @@ def test_annotate_read_buffer_access():
 
 
 def test_annotate_write_buffer_access():
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")):
         B = T.sblock_alloc_buffer((128, 128), "float32")
         for i, j in T.grid(128, 128):
@@ -76,7 +76,7 @@ def test_annotate_write_buffer_access():
                 vi, vj = T.axis.remap("SS", [i, j])
                 C[vi, vj] = B[vi, vj] + 1.0
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def expected(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")):
         B = T.sblock_alloc_buffer((128, 128), "float32")
         for i, j in T.grid(128, 128):
@@ -100,7 +100,7 @@ def test_annotate_write_buffer_access():
 
 def test_annotate_buffer_access_for_resize():
     # fmt: off
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def resize_before(x: T.Buffer((1, 1, 32, 32), "float16"), resize: T.Buffer((1, 1, 16, 16), "float16")):
         for i0, i1, i2, i3 in T.grid(1, 1, 16, 16):
             with T.sblock("resize"):
@@ -109,7 +109,7 @@ def test_annotate_buffer_access_for_resize():
                 T.writes(resize[v_i0, v_i1, v_i2, v_i3])
                 resize[v_i0, v_i1, v_i2, v_i3] = T.Cast("float16", T.Cast("float32", x[v_i0, v_i1, T.max(T.min(T.Cast("int32", T.floor((T.Cast("float32", v_i2) + T.float32(0.5)) * T.float32(2) - T.float32(0.5) + T.float32(1.0000000000000001e-05))), 31), 0), T.max(T.min(T.Cast("int32", T.floor((T.Cast("float32", v_i3) + T.float32(0.5)) * T.float32(2) - T.float32(0.5) + T.float32(1.0000000000000001e-05))), 31), 0)]))
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def resize_expected(x: T.Buffer((1, 1, 32, 32), "float16"), resize: T.Buffer((1, 1, 16, 16), "float16")):
         for i0, i1, i2, i3 in T.grid(1, 1, 16, 16):
             with T.sblock("resize"):
@@ -137,7 +137,7 @@ def test_annotate_buffer_access_for_resize():
 
 
 def test_annotate_buffer_access_read_and_write():
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")):
         B = T.sblock_alloc_buffer((128, 128), "float32")
         for i, j in T.grid(128, 128):
@@ -153,7 +153,7 @@ def test_annotate_buffer_access_read_and_write():
                 T.writes(C[vi, vj])
                 C[vi, vj] = B[vi, vj] + 1.0
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def expected(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")):
         B = T.sblock_alloc_buffer((128, 128), "float32")
         for i, j in T.grid(128, 128):
@@ -186,7 +186,7 @@ def test_annotate_buffer_access_read_and_write():
 
 
 def test_double_annotate_buffer_access_read():
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")):
         B = T.sblock_alloc_buffer((128, 128), "float32")
         for i, j in T.grid(128, 128):
@@ -202,7 +202,7 @@ def test_double_annotate_buffer_access_read():
                 T.writes(C[vi, vj])
                 C[vi, vj] = B[vi, vj] + 1.0
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def expected(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")):
         B = T.sblock_alloc_buffer((128, 128), "float32")
         for i, j in T.grid(128, 128):
@@ -236,7 +236,7 @@ def test_double_annotate_buffer_access_read():
 
 def test_annotate_buffer_access_with_compute_at_for_resize():
     # fmt: off
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before(x: T.Buffer((1, 3, 200, 200), "float32"), y: T.Buffer((1, 3, 100, 100), "float32")):
         x_global = T.sblock_alloc_buffer([1, 3, 200, 200], dtype="float32")
         for ax0, ax1, ax2, ax3 in T.grid(1, 3, 200, 200):
@@ -248,7 +248,7 @@ def test_annotate_buffer_access_with_compute_at_for_resize():
                 v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 y[v_i0, v_i1, v_i2, v_i3] = x_global[v_i0, v_i1, T.Cast("int32", T.floor(v_i2 * 2 + 0.5)), T.Cast("int32", T.floor(v_i3 * 2 + 0.5))]
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def after(x: T.Buffer((1, 3, 200, 200), "float32"), y: T.Buffer((1, 3, 100, 100), "float32")):
         x_global = T.sblock_alloc_buffer((1, 3, 200, 200))
         for i0, i1, i2_0, i3_0 in T.grid(1, 3, 10, 10):
@@ -272,7 +272,7 @@ def test_annotate_buffer_access_with_compute_at_for_resize():
                     T.sblock_attr({"explicit_read_region": [T.int32(0)]})
                     y[v_i0, v_i1, v_i2, v_i3] = x_global[v_i0, v_i1, T.Cast("int32", T.floor(T.Cast("float32", v_i2 * 2) + T.float32(0.5))), T.Cast("int32", T.floor(T.Cast("float32", v_i3 * 2) + T.float32(0.5)))]
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def after_without_annotate_buffer_access(x: T.Buffer((1, 3, 200, 200), "float32"), y: T.Buffer((1, 3, 100, 100), "float32")):
         x_global = T.sblock_alloc_buffer((1, 3, 200, 200))
         for i0, i1, i2_0, i3_0 in T.grid(1, 3, 10, 10):

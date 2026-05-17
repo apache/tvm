@@ -36,7 +36,7 @@ MATMUL_M = 32
 
 @tvm.script.ir_module
 class Matmul:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(a: T.handle, b: T.handle, c: T.handle) -> None: # type: ignore
         T.func_attr({"global_symbol": "main"})
         A = T.match_buffer(a, (32, 32), "float32")
@@ -52,7 +52,7 @@ class Matmul:
 
 @tvm.script.ir_module
 class OtherBlock:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(a: T.handle, b: T.handle, c: T.handle) -> None: # type: ignore
         T.func_attr({"global_symbol": "main"})
         A = T.match_buffer(a, (32, 32), "float32")

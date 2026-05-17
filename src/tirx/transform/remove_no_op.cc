@@ -47,6 +47,7 @@ namespace tirx {
 struct RemoveNoOpConfigNode : public AttrsNodeReflAdapter<RemoveNoOpConfigNode> {
   bool use_dataflow_analysis;
   int64_t max_simplification_steps;
+  bool ignore_profiler_call;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -59,7 +60,9 @@ struct RemoveNoOpConfigNode : public AttrsNodeReflAdapter<RemoveNoOpConfigNode> 
                 "If non-zero, RewriteSimplifier will throw an error "
                 "after the number of steps specified.  "
                 "For use in debug and testing purposes.",
-                refl::DefaultValue(0));
+                refl::DefaultValue(0))
+        .def_ro("ignore_profiler_call", &RemoveNoOpConfigNode::ignore_profiler_call,
+                "If true, profiler calls are rendered as no-ops.", refl::DefaultValue(false));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.transform.RemoveNoOpConfig", RemoveNoOpConfigNode,
                                     BaseAttrsNode);
@@ -78,8 +81,9 @@ TVM_REGISTER_PASS_CONFIG_OPTION("tirx.RemoveNoOp", RemoveNoOpConfig);
 class NoOpRemover : public arith::IRMutatorWithAnalyzer {
  public:
   static Stmt Apply(Stmt stmt, arith::Analyzer* analyzer,
-                    std::optional<ControlFlowGraph> touch_pattern, const StmtNode* context) {
-    NoOpRemover visitor(analyzer, touch_pattern, context);
+                    std::optional<ControlFlowGraph> touch_pattern, const StmtNode* context,
+                    bool ignore_profiler_call = false) {
+    NoOpRemover visitor(analyzer, touch_pattern, context, ignore_profiler_call);
     return visitor(std::move(stmt));
   }
 
@@ -89,8 +93,11 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
   using Parent::VisitStmt_;
 
   NoOpRemover(arith::Analyzer* analyzer, std::optional<ControlFlowGraph> touch_pattern,
-              const StmtNode* context)
-      : Parent(analyzer), touch_pattern_(touch_pattern), context_(context) {}
+              const StmtNode* context, bool ignore_profiler_call = false)
+      : Parent(analyzer),
+        touch_pattern_(touch_pattern),
+        context_(context),
+        ignore_profiler_call_(ignore_profiler_call) {}
 
   Stmt VisitStmt_(const BindNode* op) final {
     // Simply mutate the value and return.
@@ -243,6 +250,16 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
   }
 
   bool HasSideEffect(const PrimExpr& value) {
+    if (ignore_profiler_call_) {
+      if (const CallNode* call = value.as<CallNode>()) {
+        if (call->op.same_as(builtin::timer_init_cuda()) ||
+            call->op.same_as(builtin::timer_start_cuda()) ||
+            call->op.same_as(builtin::timer_end_cuda()) ||
+            call->op.same_as(builtin::timer_finalize_cuda())) {
+          return false;
+        }
+      }
+    }
     return SideEffect(value) > CallEffectKind::kReadState;
   }
 
@@ -273,11 +290,13 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
   std::unordered_map<const VarNode*, arith::IntSet> var_range_map_;
   std::optional<ControlFlowGraph> touch_pattern_;
   const StmtNode* context_;
+  bool ignore_profiler_call_{false};
 };
 
 Stmt RemoveNoOp(Stmt stmt, arith::Analyzer* analyzer, std::optional<ControlFlowGraph> touch_pattern,
-                const StmtNode* context) {
-  return NoOpRemover::Apply(std::move(stmt), analyzer, std::move(touch_pattern), context);
+                const StmtNode* context, bool ignore_profiler_call = false) {
+  return NoOpRemover::Apply(std::move(stmt), analyzer, std::move(touch_pattern), context,
+                            ignore_profiler_call);
 }
 
 namespace transform {
@@ -296,10 +315,12 @@ Pass RemoveNoOp() {
     arith::Analyzer analyzer;
     analyzer.rewrite_simplify.SetMaximumRewriteSteps(config->max_simplification_steps);
 
+    bool ignore_profiler_call = config->ignore_profiler_call;
+
     {
       auto* write_ptr = f.CopyOnWrite();
       write_ptr->body = NoOpRemover::Apply(std::move(write_ptr->body), &analyzer,
-                                           std::move(touch_pattern), nullptr);
+                                           std::move(touch_pattern), nullptr, ignore_profiler_call);
     }
     return f;
   };

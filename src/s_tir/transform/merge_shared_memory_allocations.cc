@@ -26,6 +26,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/expr.h>
@@ -328,9 +329,18 @@ class SharedMemoryRewriter : public StmtExprMutator {
           for (const VarNode* buffer : e->allocs[i]) {
             const Buffer& buf = shmem_allocs_.at(buffer);
             ffi::Array<PrimExpr> alloc_shape = GetBufferAllocationShape(buf);
+            int align_bytes = std::max(align[i], buf->dtype.bytes());
+            if (buf->data_alignment > 0) {
+              TVM_FFI_ICHECK(buf->data_alignment % align_bytes == 0)
+                  << "The alignment of the buffer is not a multiple of the data type size.";
+              align_bytes = buf->data_alignment;
+            }
+            PrimExpr buffer_bytes = alloc_shape[0] * buf->dtype.bytes();
+            inner_offset +=
+                indexmod(align_bytes - indexmod(merged_alloc_size_ + inner_offset, align_bytes),
+                         align_bytes);
             buffer_byte_offsets_[buffer] = merged_alloc_size_ + inner_offset;
-            inner_offset += alloc_shape[0] * buf->dtype.bytes();
-            inner_offset += indexmod(align[i] - indexmod(inner_offset, align[i]), align[i]);
+            inner_offset += buffer_bytes;
           }
           max_inner_offset = max(max_inner_offset, inner_offset);
         }
@@ -435,8 +445,12 @@ class SharedMemoryRewriter : public StmtExprMutator {
                   {op->args[0], merged_buf_var_, extra_offset + offset, extent, op->args[4]});
     } else if (op->op.same_as(builtin::ptx_cp_async())) {
       TVM_FFI_ICHECK((op->args.size() == 5U) || (op->args.size() == 6U));
-      DataType dtype = op->dtype;
       Var buffer = Downcast<Var>(op->args[0]);
+      const auto* ptr_type = buffer->type_annotation.as<PointerTypeNode>();
+      TVM_FFI_ICHECK(ptr_type) << "The buffer should be a pointer type.";
+      const auto* prim_type = ptr_type->element_type.as<PrimTypeNode>();
+      TVM_FFI_ICHECK(prim_type) << "The buffer should be a pointer to a primitive type.";
+      DataType dtype = DataType(prim_type->dtype);
       if (!IsAppropriateSharedMemory(buffer)) {
         return StmtExprMutator::VisitExpr_(op);
       }

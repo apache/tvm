@@ -161,6 +161,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("runtime.disco.recv_from_worker", RecvFromWorker)
       .def("runtime.disco.worker_id", []() -> ffi::Shape { return ffi::Shape({WorkerId()}); })
       .def("runtime.disco.worker_rank", []() -> int64_t { return WorkerId(); })
+      .def("runtime.disco.world_size",
+           []() -> int64_t { return DiscoWorker::ThreadLocal()->num_workers; })
       .def("runtime.disco.device",
            []() -> Device { return DiscoWorker::ThreadLocal()->default_device; })
       .def("runtime.disco.bind_worker_to_cpu_core", [](ffi::Shape cpu_ids) {

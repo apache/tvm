@@ -33,7 +33,7 @@ from tvm.script import tirx as T
 # pylint: disable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def rowsum_blockized(a: T.handle, b: T.handle) -> None:
     B = T.match_buffer(b, [32, 4])
     A = T.match_buffer(a, [32, 4, 128])
@@ -52,7 +52,7 @@ def rowsum_blockized(a: T.handle, b: T.handle) -> None:
                     B[io, ii] = B[io, ii] + A[io, ii, k]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128])
     B = T.match_buffer(b, [128, 128])
@@ -65,7 +65,7 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def matmul_decompose0(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128])
     B = T.match_buffer(b, [128, 128])
@@ -82,7 +82,7 @@ def matmul_decompose0(a: T.handle, b: T.handle, c: T.handle) -> None:
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def matmul_decompose1(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [32, 4, 128], elem_offset=0, align=64, offset_factor=1)
     B = T.match_buffer(b, [32, 4], elem_offset=0, align=64, offset_factor=1)
@@ -104,7 +104,7 @@ def matmul_decompose1(a: T.handle, b: T.handle) -> None:
                     B[io, ii] = B[io, ii] + A[io, ii, k]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def matmul_decompose2(a: T.handle, b: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, [128, 128], elem_offset=0, align=64, offset_factor=1)
     B = T.match_buffer(b, [128, 128], elem_offset=0, align=64, offset_factor=1)
@@ -120,7 +120,7 @@ def matmul_decompose2(a: T.handle, b: T.handle, c: T.handle) -> None:
                 C[vi, vj] = C[vi, vj] + (A[vi, vk] * B[vj, vk])
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def matmul_decompose_fail3(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128])
     B = T.match_buffer(b, [128, 128])
@@ -134,7 +134,7 @@ def matmul_decompose_fail3(a: T.handle, b: T.handle, c: T.handle) -> None:
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def matmul_decompose4(a: T.handle, b: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, [128, 128], elem_offset=0, align=64, offset_factor=1)
     B = T.match_buffer(b, [128, 128], elem_offset=0, align=64, offset_factor=1)
@@ -158,7 +158,7 @@ def matmul_decompose4(a: T.handle, b: T.handle, c: T.handle) -> None:
                     C[vi, vj] = C[vi, vj] + (A[vi, vk] * B[vj, vk])
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def matmul_with_annotation(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128])
     B = T.match_buffer(b, [128, 128])
@@ -172,7 +172,7 @@ def matmul_with_annotation(a: T.handle, b: T.handle, c: T.handle) -> None:
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def matmul_decompose_with_annotation(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128])
     B = T.match_buffer(b, [128, 128])
@@ -191,7 +191,7 @@ def matmul_decompose_with_annotation(a: T.handle, b: T.handle, c: T.handle) -> N
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def colsum_with_vectorization(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128, 32], dtype="float32")
     B = T.match_buffer(b, [32], dtype="float32")
@@ -204,7 +204,7 @@ def colsum_with_vectorization(a: T.handle, b: T.handle) -> None:
                 B[vi] = B[vi] + A[vk, vi]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def colsum_decompose_with_vectorization(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128, 32], dtype="float32")
     B = T.match_buffer(b, [32], dtype="float32")
@@ -303,7 +303,7 @@ def test_decompose_reduction_ref_hash_check():
 
 
 def test_decompose_reduction_nested_block():
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def nested_block(A: T.Buffer((1, 64), "float32"), B: T.Buffer((1,), "float32")):
         for i, ko in T.grid(1, 2):
             with T.sblock("outer"):
@@ -320,7 +320,7 @@ def test_decompose_reduction_nested_block():
                         vki = T.axis.remap("R", [ki])
                         B[vi] += C[vki]
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def decomposed_nested_block(A: T.Buffer((1, 64), "float32"), B: T.Buffer((1,), "float32")):
         for i in range(1):
             with T.sblock("outer_init"):
@@ -357,9 +357,9 @@ def test_decompose_reduction_nested_block():
 
 
 def test_decompose_reduction_with_thread_binding():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((32, 16), "float32"), B: T.Buffer((32,), "float32")):
             for t in T.thread_binding(0, 32, thread="threadIdx.x"):
                 for r in T.serial(16):
@@ -369,9 +369,9 @@ def test_decompose_reduction_with_thread_binding():
                             B[vi] = T.float32(0)
                         B[vi] += A[vi, vr]
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((32, 16), "float32"), B: T.Buffer((32,), "float32")):
             for t_init in T.thread_binding(0, 32, thread="threadIdx.x"):
                 with T.sblock("B_init"):

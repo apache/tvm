@@ -21,7 +21,7 @@ import tvm.testing
 from tvm.script import tirx as T
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def vector_add(A: T.Buffer((16), "float32"), B: T.Buffer((32), "float32")) -> None:
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
     bx = T.env_thread("blockIdx.x")

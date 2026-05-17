@@ -30,7 +30,7 @@ from tvm.script import tirx as T
 # pylint: disable=no-member,invalid-name,unused-variable
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def elementwise(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128), "float32")
     C = T.match_buffer(c, (128, 128), "float32")
@@ -45,7 +45,7 @@ def elementwise(a: T.handle, c: T.handle) -> None:
             C[vi, vj] = B[vi, vj] + 1.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128])
     B = T.match_buffer(b, [128, 128])
@@ -60,7 +60,7 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def block_in_opaque_block(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128), "float32")
     B = T.match_buffer(b, (128, 128), "float32")

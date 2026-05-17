@@ -27,7 +27,7 @@ from tvm.script import tirx as T
 
 @tvm.script.ir_module
 class Matmul:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(a: T.handle, b: T.handle, c: T.handle) -> None:
         T.func_attr({"global_symbol": "main"})
         A = T.match_buffer(a, (1024, 1024), "float32")

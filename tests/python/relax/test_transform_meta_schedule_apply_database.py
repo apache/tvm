@@ -27,9 +27,9 @@ target = tvm.target.Target({"kind": "llvm", "num-cores": 16})
 
 
 def test_apply_to_func_with_different_block_name():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class RecordModule:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((2,), "float32"), B: T.Buffer((2,), "float32")):
             T.func_attr({"global_symbol": "main", "tirx.noalias": True})
             for i in T.serial(2):
@@ -37,9 +37,9 @@ def test_apply_to_func_with_different_block_name():
                     vi = T.axis.spatial(2, i)
                     B[vi] = A[vi]
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class BlockRenamedModule:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((2,), "float32"), B: T.Buffer((2,), "float32")):
             T.func_attr({"global_symbol": "main", "tirx.noalias": True})
             for i in T.serial(2):
@@ -47,9 +47,9 @@ def test_apply_to_func_with_different_block_name():
                     vi = T.axis.spatial(2, i)
                     B[vi] = A[vi]
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((2,), "float32"), B: T.Buffer((2,), "float32")):
             T.func_attr(
                 {

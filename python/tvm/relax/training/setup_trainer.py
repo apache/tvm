@@ -39,6 +39,7 @@ class SetupTrainer:
     int attributes `param_num` and `state_num`, as follows:
 
     .. code-block:: python
+
         @I.ir_module
         class Backbone:
             I.module_attrs({"param_num": 1, "state_num": 1})
@@ -60,6 +61,7 @@ class SetupTrainer:
     The transformed module will at least contain the functions and attributes listed below:
 
     .. code-block:: python
+
         @I.ir_module
         class Module:
             I.module_attrs({"input_num": 1, "param_num": 1, "state_num": 1, "optim_states": ...})

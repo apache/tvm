@@ -596,6 +596,7 @@ class VMShapeLowerMutator
     // the shape_func to indicate that this is a host function
     // This could require us to attach target to the relax function here.
     tirx::PrimFunc shape_func(params, body, ret_type, buffer_map);
+    shape_func = WithAttr(std::move(shape_func), tvm::attr::kSTir, tvm::Bool(true));
     if (!shape_func->attrs.GetAttr<tvm::Target>(tvm::attr::kTarget).has_value()) {
       // kTarget and kIsHostFunc are mutually exclusive
       shape_func =

@@ -29,13 +29,13 @@ def test_remove_store_undef():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer(1, "int32")):
             A[0] = T.undef(dtype="int32")
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer(1, "int32")):
             T.evaluate(0)
 
@@ -48,13 +48,13 @@ def test_remove_store_undef_expression():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer(1, "int32")):
             A[0] = 1 + T.undef(dtype="int32")
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer(1, "int32")):
             T.evaluate(0)
 
@@ -67,7 +67,7 @@ def test_keep_other_call_nodes():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer(1, "int32"), n: T.int32):
             A[0] = T.shift_left(n, 1, dtype="int32")
 
@@ -82,14 +82,14 @@ def test_remove_let_undef():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer(1, "int32")):
             val = T.undef(dtype="int32")
             A[0] = val
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer(1, "int32")):
             T.evaluate(0)
 
@@ -102,7 +102,7 @@ def test_raise_error_for_undef_as_store_indices():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer(1, "int32")):
             val = T.undef(dtype="int32")
             A[val] = 5
@@ -120,7 +120,7 @@ def test_raise_error_for_undef_as_load_indices():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer(1, "int32"), B: T.Buffer(1, "int32")):
             B[0] = A[T.undef(dtype="int32")]
 

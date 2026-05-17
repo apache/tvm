@@ -26,7 +26,7 @@ from tvm.script import tirx as T
 
 @tvm.script.ir_module
 class Before:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(inputs: T.Buffer((1, 4, 4, 512), "float32"), weight: T.Buffer((4, 4, 512, 256), "float32"), conv2d_transpose_nhwc: T.Buffer((1, 8, 8, 256), "float32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
@@ -57,7 +57,7 @@ class Before:
 
 @tvm.script.ir_module
 class After:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(inputs: T.Buffer((1, 4, 4, 512), "float32"), weight: T.Buffer((4, 4, 512, 256), "float32"), conv2d_transpose_nhwc: T.Buffer((1, 8, 8, 256), "float32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
@@ -88,7 +88,7 @@ class After:
 
 @tvm.script.ir_module
 class After_simplified:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(inputs: T.Buffer((1, 4, 4, 512), "float32"), weight: T.Buffer((4, 4, 512, 256), "float32"), conv2d_transpose_nhwc: T.Buffer((1, 8, 8, 256), "float32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
@@ -127,7 +127,7 @@ def test_renormalize_split_pattern():
     tvm.ir.assert_structural_equal(after, After_simplified)
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def impossible_equality(n: T.int32):
     # Prior to bugfix, this conditional defined the expression "2" as
     # equal to zero within the then_case. [min_value=2, max_value=0]
@@ -138,7 +138,7 @@ def impossible_equality(n: T.int32):
             T.evaluate(0)
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def impossible_inequality(n: T.int32):
     # Prior to bugfix, this conditional set up a range of possible
     # values for the expression "-2" as [0, kPosInf].

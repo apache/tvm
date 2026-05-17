@@ -30,7 +30,7 @@ def compute(comp_type, outer, inner, dtype):
     """Generate compute function."""
     if comp_type == "single_input":
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def a_plus_1_primfunc(
             a_buffer: T.Buffer((outer, inner), dtype), out: T.Buffer((outer, inner), dtype)
         ):
@@ -43,7 +43,7 @@ def compute(comp_type, outer, inner, dtype):
         return a_plus_1_primfunc
     else:
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def a_plus_b_plus_1_primfunc(
             a_buffer: T.Buffer((outer, inner), dtype),
             b_buffer: T.Buffer((outer, inner), dtype),

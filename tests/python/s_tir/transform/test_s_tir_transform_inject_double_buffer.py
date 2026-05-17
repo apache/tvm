@@ -28,7 +28,7 @@ def test_double_buffer():
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def db(A: T.handle("float32"), C: T.handle("float32")):
             A_buf = T.decl_buffer((n * m,), "float32", data=A)
             C_buf = T.decl_buffer((m,), "float32", data=C)
@@ -84,7 +84,7 @@ def test_double_buffer_transform():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer([16, 32], "float32"), B: T.Buffer(16, "float32")):
             for i in range(16):
                 cache = T.alloc_buffer((32,), "float32")
@@ -124,7 +124,7 @@ def test_double_buffer_with_decl_buffer():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((16, 32), "float32"), B: T.Buffer(16, "float32")):
             for i in range(16):
                 cache = T.decl_buffer(32, "float32")
@@ -139,7 +139,7 @@ def test_double_buffer_with_decl_buffer():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((16, 32), "float32"), B: T.Buffer(16, "float32")):
             cache = T.decl_buffer(64, "float32")
             for j in range(32):

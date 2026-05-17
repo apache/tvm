@@ -40,7 +40,7 @@ def get_simdgroup_index(buffer: Buffer, stride: PrimExpr, col: int, row: int):
 def get_make_filled_simdgroup_matrix_intrin(
     dtype: str, col: int = 8, row: int = 8
 ) -> tuple[PrimFunc, PrimFunc]:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def desc(a: T.handle) -> None:
         A = T.match_buffer(a, (col, row), dtype, scope="metal.simdgroup", offset_factor=1)
         with T.sblock("root"):
@@ -51,7 +51,7 @@ def get_make_filled_simdgroup_matrix_intrin(
                     vi, vj = T.axis.remap("SS", [i, j])
                     A[vi, vj] = T.float32(0)
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def impl(a: T.handle) -> None:
         d0, d1 = T.int32(), T.int32()
         A = T.match_buffer(
@@ -80,7 +80,7 @@ def get_simdgroup_load_intrin(
 ) -> tuple[PrimFunc, PrimFunc]:
     align = col * row
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def desc(a: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (col, row), dtype, align=align, scope=scope, offset_factor=1)
         C = T.match_buffer(
@@ -98,7 +98,7 @@ def get_simdgroup_load_intrin(
                     else:
                         C[vii, vjj] = A[vii, vjj]
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def impl(a: T.handle, c: T.handle) -> None:
         s0, s1, d0, d1 = T.int32(), T.int32(), T.int32(), T.int32()
         A = T.match_buffer(
@@ -144,7 +144,7 @@ def get_simdgroup_store_intrin(
 ) -> tuple[PrimFunc, PrimFunc]:
     align = col * row
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def desc(a: T.handle, c: T.handle) -> None:
         A = T.match_buffer(
             a, (col, row), dtype, align=align, scope="metal.simdgroup", offset_factor=1
@@ -161,7 +161,7 @@ def get_simdgroup_store_intrin(
                     else:
                         C[vii, vjj] = A[vii, vjj]
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def impl(a: T.handle, c: T.handle) -> None:
         s0, s1, d0, d1 = T.int32(), T.int32(), T.int32(), T.int32()
         A = T.match_buffer(
@@ -195,7 +195,7 @@ def get_simdgroup_store_intrin(
 def get_simdgroup_multiply_accumulate_intrin(
     m_dim: int, n_dim: int, k_dim: int, dtype: str
 ) -> tuple[PrimFunc, PrimFunc]:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def desc(a: T.handle, b: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (m_dim, k_dim), dtype, scope="metal.simdgroup", offset_factor=1)
         B = T.match_buffer(b, (k_dim, n_dim), dtype, scope="metal.simdgroup", offset_factor=1)
@@ -208,7 +208,7 @@ def get_simdgroup_multiply_accumulate_intrin(
                     vii, vjj, vkk = T.axis.remap("SSR", [i, j, k])
                     C[vii, vjj] += A[vii, vkk] * B[vkk, vjj]
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def impl(a: T.handle, b: T.handle, c: T.handle) -> None:
         a0, a1, b0, b1, c0, c1 = T.int32(), T.int32(), T.int32(), T.int32(), T.int32(), T.int32()
         A = T.match_buffer(

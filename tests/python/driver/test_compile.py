@@ -89,7 +89,7 @@ def test_compile_relax():
 def test_compile_mixed_module():
     @tvm.script.ir_module
     class MyModule:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def add_one(X: T.Buffer((4,), "float32"), Y: T.Buffer((4,), "float32")):
             for i in range(4):
                 Y[i] = X[i] + 1

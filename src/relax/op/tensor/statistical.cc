@@ -148,7 +148,7 @@ InferLayoutOutput InferLayoutStatistical(
   ffi::ObjectPtr<StatisticalAttrs> new_attrs = ffi::make_object<StatisticalAttrs>(*attrs);
   new_attrs->axis = new_axis;
   return InferLayoutOutput({exisiting_layout},
-                           {attrs->keepdims ? exisiting_layout : Layout(output_layout)},
+                           {attrs->keepdims ? exisiting_layout : SLayout(output_layout)},
                            Attrs(new_attrs));
 }
 

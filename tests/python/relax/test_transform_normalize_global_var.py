@@ -65,7 +65,7 @@ def test_normalize_relax_function():
 def test_normalize_tir_function():
     @I.ir_module(check_well_formed=False)
     class Before:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def f(x: T.Buffer((1,), "int32")):
             x[0] = T.int32(0)
 
@@ -78,7 +78,7 @@ def test_normalize_tir_function():
 
     @I.ir_module
     class Expected:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def f1(x: T.Buffer((1,), "int32")):
             x[0] = 0
 

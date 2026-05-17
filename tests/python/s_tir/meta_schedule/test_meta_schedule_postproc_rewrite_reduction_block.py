@@ -49,7 +49,7 @@ def _create_context(mod, target) -> ms.TuneContext:
 
 @tvm.script.ir_module
 class Matmul_before_rewrite:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(var_A: T.handle, var_B: T.handle, var_C: T.handle) -> None:
         A = T.match_buffer(var_A, [512, 512], dtype="float32")
         B = T.match_buffer(var_B, [512, 512], dtype="float32")
@@ -101,7 +101,7 @@ class Matmul_before_rewrite:
 
 @tvm.script.ir_module
 class Matmul_after_rewrite:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(var_A: T.handle, var_B: T.handle, var_C: T.handle) -> None:
         A = T.match_buffer(var_A, [512, 512], dtype="float32")
         B = T.match_buffer(var_B, [512, 512], dtype="float32")
@@ -158,7 +158,7 @@ class Matmul_after_rewrite:
 
 @tvm.script.ir_module
 class Softmax_cross_thread_reduction:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(A: T.Buffer((256, 256), "float32"), T_softmax_norm: T.Buffer((256, 256), "float32")) -> None:
         T_softmax_maxelem_shared = T.sblock_alloc_buffer([256], dtype="float32", scope="shared")
         T_softmax_expsum_shared = T.sblock_alloc_buffer([256], dtype="float32", scope="shared")

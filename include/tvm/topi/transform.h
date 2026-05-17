@@ -1811,8 +1811,8 @@ inline Tensor layout_transform(const Tensor& src, const std::string& src_layout,
                                const std::string schedule_rule = "None",
                                const std::string name = "T_layout_trans",
                                const std::string tag = kInjective) {
-  Layout src_layout_struct(src_layout);
-  Layout dst_layout_struct(dst_layout);
+  SLayout src_layout_struct(src_layout);
+  SLayout dst_layout_struct(dst_layout);
 
   if (src_layout_struct.Equals(dst_layout_struct)) {
     return src;
@@ -1821,7 +1821,7 @@ inline Tensor layout_transform(const Tensor& src, const std::string& src_layout,
   TVM_FFI_ICHECK(src_layout_struct.defined() && dst_layout_struct.defined())
       << "cannot convert from/to undefined layout";
 
-  auto layout_converter = tirx::BijectiveLayout(src_layout_struct, dst_layout_struct);
+  auto layout_converter = tirx::SBijectiveLayout(src_layout_struct, dst_layout_struct);
   TVM_FFI_ICHECK(layout_converter.defined())
       << "cannot convert from " << src_layout << " to " << dst_layout;
 

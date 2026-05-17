@@ -379,7 +379,7 @@ def test_no_op_for_call_to_tir():
             _ = Before.shape_func(x)
             return x
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def shape_func(H: T.Buffer(T.int64(4), "int64")):
             H[T.int64(0)] = H[T.int64(0)] + T.int64(1)
 

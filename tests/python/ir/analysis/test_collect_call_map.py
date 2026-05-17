@@ -59,7 +59,7 @@ def test_collect_relax_to_tir():
         def main() -> R.Prim("int32"):
             return Module.subroutine(R.prim_value(T.int32(42)))
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def subroutine(i: T.int32) -> T.int32:
             return i + 1
 
@@ -75,11 +75,11 @@ def test_collect_relax_to_tir():
 def test_collect_tir_to_tir():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main() -> T.int32:
             return Module.subroutine(42)
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def subroutine(i: T.int32) -> T.int32:
             return i + 1
 

@@ -28,7 +28,7 @@ from tvm.script import tirx as T
 
 
 def test_tir_print_all_passes(capsys):
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def func(a: T.handle, b: T.handle) -> None:
         A = T.match_buffer(a, (128, 128, 128, 128))
         B = T.match_buffer(b, (128, 128, 128, 128))
@@ -46,7 +46,7 @@ def test_tir_print_all_passes(capsys):
 
 
 def test_relax_print_all_passes(capsys):
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
         @R.function
         def func(x: R.Tensor((16,), "float32"), y: R.Tensor((16,), "float32")):

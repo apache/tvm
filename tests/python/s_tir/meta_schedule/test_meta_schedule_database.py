@@ -40,7 +40,7 @@ from tvm.target import Target
 # fmt: off
 @tvm.script.ir_module
 class Matmul:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(a: T.handle, b: T.handle, c: T.handle) -> None:
         T.func_attr({"global_symbol": "main"})
         A = T.match_buffer(a, (1024, 1024), "float32")
@@ -56,7 +56,7 @@ class Matmul:
 
 @tvm.script.ir_module
 class MatmulRelu:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(a: T.handle, b: T.handle, d: T.handle) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         A = T.match_buffer(a, (16, 16), "float32")
