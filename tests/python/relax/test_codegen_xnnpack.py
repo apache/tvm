@@ -310,10 +310,10 @@ def _count_xnnpack_partitions(mod):
     return count
 
 
-def _partition(mod):
+def _partition(mod, precision="fp32"):
     from tvm.relax.backend.xnnpack import partition_for_xnnpack
 
-    return partition_for_xnnpack(mod)
+    return partition_for_xnnpack(mod, precision=precision)
 
 
 def _bind_cnn_params(mod=ConvBiasReluPoolModule):
@@ -335,9 +335,9 @@ def _tiny_cnn_inputs():
     return x_np, residual_np
 
 
-def _run_tiny_cnn_with_options(options=None):
+def _run_tiny_cnn_with_options(options=None, precision="fp32", rtol=1e-5, atol=1e-5):
     bound_mod = _bind_tiny_cnn_params()
-    partitioned = _partition(bound_mod)
+    partitioned = _partition(bound_mod, precision=precision)
     assert _count_xnnpack_partitions(partitioned) == 4
     partitioned = relax.transform.RunCodegen({"xnnpack": options or {}})(partitioned)
     assert _has_external_mods(partitioned)
@@ -354,7 +354,7 @@ def _run_tiny_cnn_with_options(options=None):
     result = xnn_vm["main"](
         tvm.runtime.tensor(x_np), tvm.runtime.tensor(residual_np)
     ).numpy()
-    tvm.testing.assert_allclose(result, expected, rtol=1e-5, atol=1e-5)
+    tvm.testing.assert_allclose(result, expected, rtol=rtol, atol=atol)
     return partitioned, expected, (x_np, residual_np)
 
 
@@ -372,10 +372,22 @@ def _run_first_external_module(mod, inputs, output_shape):
     return ext_mod, output.numpy()
 
 
+def _first_external_runtime_options(mod):
+    ext_mod = mod.attrs["external_mods"][0]
+    return ext_mod["get_runtime_options"]()
+
+
 def test_xnnpack_python_module_importable():
     from tvm.relax.backend.xnnpack import partition_for_xnnpack
 
     assert callable(partition_for_xnnpack)
+
+
+def test_partition_for_xnnpack_rejects_invalid_precision():
+    from tvm.relax.backend.xnnpack import partition_for_xnnpack
+
+    with pytest.raises(ValueError, match="Unsupported XNNPACK precision"):
+        partition_for_xnnpack(ReluModule, precision="explicit_fp16")
 
 
 def test_xnnpack_registers_relu_pattern():
@@ -398,6 +410,19 @@ def test_partition_for_xnnpack_partitions_static_float32_relu():
     assert _has_codegen_attr(mod)
 
 
+def test_partition_for_xnnpack_records_precision_attr():
+    mod = _partition(ReluModule, precision="fp16_hint")
+    precisions = [
+        func.attrs.get("xnnpack_precision")
+        for func in mod.functions.values()
+        if isinstance(func, relax.Function)
+        and func.attrs
+        and func.attrs.get("Codegen") == "xnnpack"
+    ]
+    assert precisions
+    assert set(precisions) == {"fp16_hint"}
+
+
 @pytest.mark.parametrize(
     "mod",
     [
@@ -416,6 +441,11 @@ def test_partition_for_xnnpack_rejects_unsupported_patterns(mod):
 
     mod = relax.transform.RunCodegen()(mod)
     assert not _has_external_mods(mod)
+
+
+def test_partition_for_xnnpack_rejects_float16_even_with_fp16_policy():
+    mod = _partition(ReluFloat16Module, precision="fp16_hint")
+    assert not _has_codegen_attr(mod)
 
 
 @pytest.mark.parametrize("mod", [AddModule, ClipModule, SigmoidModule, TanhModule])
@@ -481,6 +511,74 @@ def test_xnnpack_cnn_vm_execution():
 )
 def test_xnnpack_tiny_cnn_vm_execution():
     _run_tiny_cnn_with_options()
+
+
+@pytest.mark.skipif(
+    not (_has_xnnpack_codegen() and _has_xnnpack_runtime()),
+    reason="XNNPACK codegen/runtime is not enabled",
+)
+def test_xnnpack_runtime_options_persist_precision():
+    mod = _partition(ReluModule, precision="fp16_hint")
+    mod = relax.transform.RunCodegen()(mod)
+    assert "precision=fp16_hint" in _first_external_runtime_options(mod)
+
+
+@pytest.mark.skipif(
+    not (_has_xnnpack_codegen() and _has_xnnpack_runtime()),
+    reason="XNNPACK codegen/runtime is not enabled",
+)
+def test_xnnpack_runcodegen_precision_conflict_rejected():
+    mod = _partition(ReluModule, precision="fp16_hint")
+    with pytest.raises(tvm.error.TVMError, match="must match"):
+        relax.transform.RunCodegen({"xnnpack": {"precision": "fp32"}})(mod)
+
+
+@pytest.mark.skipif(
+    not (_has_xnnpack_codegen() and _has_xnnpack_runtime()),
+    reason="XNNPACK codegen/runtime is not enabled",
+)
+def test_xnnpack_tiny_cnn_fp16_hint_precision():
+    if not _xnnpack_capability("fp16_hint"):
+        pytest.skip("XNNPACK FP16 hint flag is unavailable")
+    mod, _, _ = _run_tiny_cnn_with_options(precision="fp16_hint", rtol=5e-2, atol=5e-2)
+    assert "precision=fp16_hint" in _first_external_runtime_options(mod)
+
+
+@pytest.mark.skipif(
+    not (_has_xnnpack_codegen() and _has_xnnpack_runtime()),
+    reason="XNNPACK codegen/runtime is not enabled",
+)
+def test_xnnpack_tiny_cnn_fp16_force_precision():
+    if not _xnnpack_capability("fp16_force"):
+        pytest.skip("XNNPACK FP16 force flag is unavailable")
+    try:
+        mod, _, _ = _run_tiny_cnn_with_options(precision="fp16_force", rtol=5e-2, atol=5e-2)
+    except tvm.error.TVMError as err:
+        assert "fp16_force" in str(err) or "FP16 runtime" in str(err)
+    else:
+        assert "precision=fp16_force" in _first_external_runtime_options(mod)
+
+
+@pytest.mark.skipif(
+    not (_has_xnnpack_codegen() and _has_xnnpack_runtime()),
+    reason="XNNPACK codegen/runtime is not enabled",
+)
+def test_xnnpack_fp16_hint_composes_with_runtime_options():
+    if not _xnnpack_capability("fp16_hint"):
+        pytest.skip("XNNPACK FP16 hint flag is unavailable")
+    options = {
+        "use_weights_cache": _xnnpack_capability("weights_cache"),
+        "use_workspace": _xnnpack_capability("runtime_v4") and _xnnpack_capability("workspace"),
+        "profile": _xnnpack_capability("profiling"),
+        "dont_spin_workers": _xnnpack_capability("dont_spin_workers"),
+        "transient_indirection_buffer": _xnnpack_capability("transient_indirection_buffer"),
+        "num_threads": 1,
+        "precision": "fp16_hint",
+    }
+    mod, _, _ = _run_tiny_cnn_with_options(options, precision="fp16_hint", rtol=5e-2, atol=5e-2)
+    runtime_options = _first_external_runtime_options(mod)
+    assert "precision=fp16_hint" in runtime_options
+    assert "num_threads=1" in runtime_options
 
 
 @pytest.mark.skipif(

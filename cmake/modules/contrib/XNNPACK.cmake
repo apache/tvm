@@ -65,6 +65,11 @@ foreach(_feature
     WORKSPACE
     PROFILING
     BASIC_PROFILING_FLAG
+    HINT_FP16_INFERENCE_FLAG
+    FORCE_FP16_INFERENCE_FLAG
+    FP32_STATIC_WEIGHTS_FLAG
+    FP32_STATIC_BIASES_FLAG
+    DATATYPE_FP16
     DONT_SPIN_WORKERS_FLAG
     TRANSIENT_INDIRECTION_BUFFER_FLAG
     PTHREADPOOL_CREATE)
@@ -114,6 +119,25 @@ check_cxx_source_compiles("
   int main() { return XNN_FLAG_BASIC_PROFILING == 0; }" TVM_XNNPACK_HAS_BASIC_PROFILING_FLAG)
 check_cxx_source_compiles("
   #include <xnnpack.h>
+  int main() { return XNN_FLAG_HINT_FP16_INFERENCE == 0; }"
+  TVM_XNNPACK_HAS_HINT_FP16_INFERENCE_FLAG)
+check_cxx_source_compiles("
+  #include <xnnpack.h>
+  int main() { return XNN_FLAG_FORCE_FP16_INFERENCE == 0; }"
+  TVM_XNNPACK_HAS_FORCE_FP16_INFERENCE_FLAG)
+check_cxx_source_compiles("
+  #include <xnnpack.h>
+  int main() { return XNN_FLAG_FP32_STATIC_WEIGHTS == 0; }"
+  TVM_XNNPACK_HAS_FP32_STATIC_WEIGHTS_FLAG)
+check_cxx_source_compiles("
+  #include <xnnpack.h>
+  int main() { return XNN_FLAG_FP32_STATIC_BIASES == 0; }"
+  TVM_XNNPACK_HAS_FP32_STATIC_BIASES_FLAG)
+check_cxx_source_compiles("
+  #include <xnnpack.h>
+  int main() { return xnn_datatype_fp16 == xnn_datatype_invalid; }" TVM_XNNPACK_HAS_DATATYPE_FP16)
+check_cxx_source_compiles("
+  #include <xnnpack.h>
   int main() { return XNN_FLAG_DONT_SPIN_WORKERS == 0; }" TVM_XNNPACK_HAS_DONT_SPIN_WORKERS_FLAG)
 check_cxx_source_compiles("
   #include <xnnpack.h>
@@ -137,6 +161,11 @@ foreach(_feature
     WORKSPACE
     PROFILING
     BASIC_PROFILING_FLAG
+    HINT_FP16_INFERENCE_FLAG
+    FORCE_FP16_INFERENCE_FLAG
+    FP32_STATIC_WEIGHTS_FLAG
+    FP32_STATIC_BIASES_FLAG
+    DATATYPE_FP16
     DONT_SPIN_WORKERS_FLAG
     TRANSIENT_INDIRECTION_BUFFER_FLAG
     PTHREADPOOL_CREATE)

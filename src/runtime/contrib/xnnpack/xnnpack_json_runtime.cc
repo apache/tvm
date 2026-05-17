@@ -59,7 +59,7 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
 
   static std::string DefaultOptionsString() {
     return "use_weights_cache=0;use_workspace=0;profile=0;dont_spin_workers=0;"
-           "transient_indirection_buffer=0;num_threads=1;";
+           "transient_indirection_buffer=0;num_threads=1;precision=fp32;";
   }
 
   ~XNNPACKJSONRuntime() {
@@ -185,6 +185,7 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
     bool dont_spin_workers{false};
     bool transient_indirection_buffer{false};
     int64_t num_threads{1};
+    std::string precision{"fp32"};
   };
 
   struct ExternalTensor {
@@ -220,6 +221,8 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
           parsed.transient_indirection_buffer = bool_value;
         } else if (key == "num_threads") {
           parsed.num_threads = std::stoll(value);
+        } else if (key == "precision") {
+          parsed.precision = value;
         } else {
           TVM_FFI_THROW(ValueError) << "Unsupported XNNPACK runtime option: " << key;
         }
@@ -227,11 +230,22 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
       offset = end + 1;
     }
     TVM_FFI_ICHECK_GE(parsed.num_threads, 1) << "XNNPACK num_threads must be >= 1.";
+    TVM_FFI_ICHECK(parsed.precision == "fp32" || parsed.precision == "fp16_hint" ||
+                   parsed.precision == "fp16_force")
+        << "Unsupported XNNPACK precision: " << parsed.precision;
     return parsed;
   }
 
   static void CheckXNNStatus(xnn_status status, const char* call) {
     TVM_FFI_ICHECK_EQ(status, xnn_status_success) << call << " failed with status " << status;
+  }
+
+  void CheckRuntimeCreateStatus(xnn_status status, const char* call) const {
+    TVM_FFI_ICHECK_EQ(status, xnn_status_success)
+        << call << " failed with status " << status << " for XNNPACK precision '"
+        << options_.precision
+        << "'. If precision='fp16_force', this means XNNPACK could not create an FP16 runtime for "
+           "the current graph, hardware, or linked XNNPACK build.";
   }
 
   static bool IsFloat32(const DLDataType& dtype) {
@@ -499,6 +513,23 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
           << "XNNPACK transient_indirection_buffer was requested but is unavailable.";
 #endif
     }
+    if (options_.precision == "fp16_hint") {
+#if defined(TVM_XNNPACK_HAS_HINT_FP16_INFERENCE_FLAG)
+      flags |= XNN_FLAG_HINT_FP16_INFERENCE;
+#else
+      TVM_FFI_THROW(RuntimeError) << "XNNPACK precision='fp16_hint' was requested but "
+                                     "XNN_FLAG_HINT_FP16_INFERENCE is unavailable.";
+#endif
+    } else if (options_.precision == "fp16_force") {
+#if defined(TVM_XNNPACK_HAS_FORCE_FP16_INFERENCE_FLAG)
+      flags |= XNN_FLAG_FORCE_FP16_INFERENCE;
+#else
+      TVM_FFI_THROW(RuntimeError) << "XNNPACK precision='fp16_force' was requested but "
+                                     "XNN_FLAG_FORCE_FP16_INFERENCE is unavailable.";
+#endif
+    } else {
+      TVM_FFI_ICHECK_EQ(options_.precision, "fp32");
+    }
     return flags;
   }
 
@@ -535,19 +566,20 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
     CreateOptionalResources();
 
 #if defined(TVM_XNNPACK_HAS_RUNTIME_V4)
-    CheckXNNStatus(
+    CheckRuntimeCreateStatus(
         xnn_create_runtime_v4(subgraph_, weights_cache_, workspace_, threadpool_, flags, &runtime_),
         "xnn_create_runtime_v4");
 #elif defined(TVM_XNNPACK_HAS_RUNTIME_V3) && defined(TVM_XNNPACK_HAS_WEIGHTS_CACHE)
     TVM_FFI_ICHECK(!options_.use_workspace) << "XNNPACK workspace requires xnn_create_runtime_v4.";
-    CheckXNNStatus(xnn_create_runtime_v3(subgraph_, weights_cache_, threadpool_, flags, &runtime_),
-                   "xnn_create_runtime_v3");
+    CheckRuntimeCreateStatus(
+        xnn_create_runtime_v3(subgraph_, weights_cache_, threadpool_, flags, &runtime_),
+        "xnn_create_runtime_v3");
 #else
     TVM_FFI_ICHECK(!options_.use_weights_cache)
         << "XNNPACK weights cache requires xnn_create_runtime_v3 or newer.";
     TVM_FFI_ICHECK(!options_.use_workspace) << "XNNPACK workspace requires xnn_create_runtime_v4.";
-    CheckXNNStatus(xnn_create_runtime_v2(subgraph_, threadpool_, flags, &runtime_),
-                   "xnn_create_runtime_v2");
+    CheckRuntimeCreateStatus(xnn_create_runtime_v2(subgraph_, threadpool_, flags, &runtime_),
+                             "xnn_create_runtime_v2");
 #endif
 
     if (options_.use_weights_cache) {
@@ -741,6 +773,41 @@ ffi::Map<ffi::String, ffi::Any> XNNPACKJSONRuntimeGetCapabilities() {
                               0
 #endif
                               ));
+  result.Set("fp16_hint", static_cast<int64_t>(
+#if defined(TVM_XNNPACK_HAS_HINT_FP16_INFERENCE_FLAG)
+                              1
+#else
+                              0
+#endif
+                              ));
+  result.Set("fp16_force", static_cast<int64_t>(
+#if defined(TVM_XNNPACK_HAS_FORCE_FP16_INFERENCE_FLAG)
+                               1
+#else
+                               0
+#endif
+                               ));
+  result.Set("datatype_fp16", static_cast<int64_t>(
+#if defined(TVM_XNNPACK_HAS_DATATYPE_FP16)
+                                  1
+#else
+                                  0
+#endif
+                                  ));
+  result.Set("fp32_static_weights", static_cast<int64_t>(
+#if defined(TVM_XNNPACK_HAS_FP32_STATIC_WEIGHTS_FLAG)
+                                        1
+#else
+                                        0
+#endif
+                                        ));
+  result.Set("fp32_static_biases", static_cast<int64_t>(
+#if defined(TVM_XNNPACK_HAS_FP32_STATIC_BIASES_FLAG)
+                                       1
+#else
+                                       0
+#endif
+                                       ));
   result.Set("pthreadpool", static_cast<int64_t>(
 #if defined(TVM_XNNPACK_HAS_PTHREADPOOL_CREATE)
                                 1

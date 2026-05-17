@@ -154,10 +154,10 @@ def load_torchvision_model(model_name: str, input_shape: Tuple[int, ...]):
     return mod, [tvm.runtime.tensor(input_np)], f"torchvision:{model_name}"
 
 
-def partition_for_xnnpack(mod: tvm.IRModule) -> tvm.IRModule:
+def partition_for_xnnpack(mod: tvm.IRModule, precision: str) -> tvm.IRModule:
     from tvm.relax.backend.xnnpack import partition_for_xnnpack as partition
 
-    return partition(mod)
+    return partition(mod, precision=precision)
 
 
 def compile_vm(mod: tvm.IRModule, target: str) -> relax.VirtualMachine:
@@ -178,6 +178,12 @@ def format_result(result) -> Dict[str, object]:
         "median_ms": float(np.median(results) * 1000.0),
         "raw_ms": [x * 1000.0 for x in results],
     }
+
+
+def correctness_tolerance(precision: str) -> Tuple[float, float]:
+    if precision == "fp32":
+        return 1e-5, 1e-5
+    return 5e-2, 5e-2
 
 
 def parse_shape(shape: str) -> Tuple[int, ...]:
@@ -202,6 +208,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--dont-spin-workers", action="store_true")
     parser.add_argument("--transient-indirection-buffer", action="store_true")
     parser.add_argument("--num-threads", type=int, default=1)
+    parser.add_argument(
+        "--precision",
+        choices=("fp32", "fp16_hint", "fp16_force"),
+        default="fp32",
+        help="XNNPACK runtime precision policy. Does not rewrite TVM IR dtypes.",
+    )
     return parser.parse_args()
 
 
@@ -215,6 +227,7 @@ def main() -> None:
         "dont_spin_workers": args.dont_spin_workers,
         "transient_indirection_buffer": args.transient_indirection_buffer,
         "num_threads": args.num_threads,
+        "precision": args.precision,
     }
     capabilities = get_xnnpack_capabilities()
 
@@ -248,7 +261,7 @@ def main() -> None:
 
         if xnnpack_enabled:
             try:
-                byoc_mod = partition_for_xnnpack(mod)
+                byoc_mod = partition_for_xnnpack(mod, precision=args.precision)
                 partition_count = count_xnnpack_partitions(byoc_mod)
                 if partition_count > 0:
                     compile_start = time.perf_counter()
@@ -258,8 +271,9 @@ def main() -> None:
                     first_run_start = time.perf_counter()
                     byoc_output = byoc_vm["main"](*inputs)
                     byoc_first_run_ms = (time.perf_counter() - first_run_start) * 1000.0
+                    rtol, atol = correctness_tolerance(args.precision)
                     tvm.testing.assert_allclose(
-                        byoc_output.numpy(), baseline_output.numpy(), rtol=1e-5, atol=1e-5
+                        byoc_output.numpy(), baseline_output.numpy(), rtol=rtol, atol=atol
                     )
                     correctness = "passed"
                     byoc_timing = format_result(

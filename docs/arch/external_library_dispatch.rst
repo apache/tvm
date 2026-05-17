@@ -358,8 +358,8 @@ Python usage::
   from tvm.relax.backend.xnnpack import partition_for_xnnpack
 
   mod = relax.transform.BindParams("main", {"w": weight_np, "b": bias_np})(mod)
-  mod = partition_for_xnnpack(mod)
-  mod = relax.transform.RunCodegen({"xnnpack": {"num_threads": 1}})(mod)
+  mod = partition_for_xnnpack(mod, precision="fp32")
+  mod = relax.transform.RunCodegen({"xnnpack": {"num_threads": 1, "precision": "fp32"}})(mod)
   executable = tvm.compile(mod, target="llvm")
   vm = relax.VirtualMachine(executable, tvm.cpu())
 
@@ -388,6 +388,18 @@ XNNPACK runtime module:
    * - ``num_threads``
      - ``1`` keeps the default caller-thread behavior. Values greater than
        ``1`` create a private pthreadpool when pthreadpool support is available.
+   * - ``precision``
+     - ``fp32`` keeps the default behavior. ``fp16_hint`` sets
+       ``XNN_FLAG_HINT_FP16_INFERENCE`` when available. ``fp16_force`` sets
+       ``XNN_FLAG_FORCE_FP16_INFERENCE`` and fails runtime creation if XNNPACK
+       cannot create an FP16 runtime.
+
+``fp16_hint`` and ``fp16_force`` are XNNPACK runtime policies only. They do not
+rewrite Relax IR dtypes, do not allow explicit ``float16`` Relax graphs to be
+partitioned, and do not change TVM's visible input/output dtypes. The current
+partitioner still accepts only static ``float32`` tensors. Explicit
+``xnn_datatype_fp16`` lowering, mixed dtype partitioning, and FP32 static
+weights or biases in FP16 partitions are left for future work.
 
 .. list-table::
    :header-rows: 1
@@ -410,7 +422,8 @@ XNNPACK runtime module:
 
 There is no depthwise convolution, dense/matmul, resize, softmax, quantized
 dtype, layout conversion, dynamic-shape, broad broadcasting, or broad CNN
-coverage in this phase.
+coverage in this phase. Explicit ``float16`` Relax graphs are also unsupported
+in this phase and must fall back to TVM.
 
 The runtime uses XNNPACK's public ``xnnpack.h`` API only. It initializes
 XNNPACK with ``xnn_initialize`` and does not include
@@ -437,6 +450,7 @@ Benchmarking and validation::
 
   python tests/python/relax/benchmark_xnnpack.py --model xnnpack_tiny_cnn
   python tests/python/relax/benchmark_xnnpack.py --model xnnpack_tiny_cnn --use-weights-cache --use-workspace --profile
+  python tests/python/relax/benchmark_xnnpack.py --model xnnpack_tiny_cnn --precision fp16_hint
   python tests/python/relax/benchmark_xnnpack.py --model torchvision:mobilenet_v2
 
 The in-tree ``xnnpack_tiny_cnn`` benchmark uses only supported NHWC ``float32``
@@ -444,6 +458,18 @@ operators and compares normal TVM CPU execution with XNNPACK BYOC execution.
 The optional ``torchvision:*`` path is best-effort and may report zero XNNPACK
 partitions for models that rely on unsupported depthwise convolution, dense
 layers, NCHW layout, or other unsupported operators.
+
+For future explicit FP16 experiments, run TVM mixed-precision rewrites before
+partitioning and inspect the resulting dtype and cast boundaries before enabling
+XNNPACK partitioning::
+
+  mod = tvm.relax.transform.ConvertToDataflow()(mod)
+  mod = tvm.relax.transform.ToMixedPrecision(out_dtype="float32")(mod)
+  # Future work: partition_for_xnnpack(mod, precision="explicit_fp16")
+
+Runtime precision hints may change XNNPACK's internal compute path and accuracy.
+Benchmark output should be treated as measured data for the local hardware only;
+TVM does not fabricate speedup results.
 
 Troubleshooting:
 

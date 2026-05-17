@@ -32,6 +32,7 @@
 #include <tvm/relax/struct_info.h>
 
 #include <limits>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <unordered_set>
@@ -56,6 +57,7 @@ struct XNNPACKRuntimeOptions {
   bool dont_spin_workers{false};
   bool transient_indirection_buffer{false};
   int64_t num_threads{1};
+  std::string precision{"fp32"};
 
   std::string Serialize() const {
     std::ostringstream os;
@@ -65,6 +67,7 @@ struct XNNPACKRuntimeOptions {
     os << "dont_spin_workers=" << (dont_spin_workers ? 1 : 0) << ";";
     os << "transient_indirection_buffer=" << (transient_indirection_buffer ? 1 : 0) << ";";
     os << "num_threads=" << num_threads << ";";
+    os << "precision=" << precision << ";";
     return os.str();
   }
 };
@@ -89,7 +92,22 @@ int64_t GetIntOption(const ffi::Map<ffi::String, ffi::Any>& options, const std::
                             << "' must be an integer value.";
 }
 
-XNNPACKRuntimeOptions ParseRuntimeOptions(const ffi::Map<ffi::String, ffi::Any>& options) {
+ffi::Optional<ffi::String> GetStringOption(const ffi::Map<ffi::String, ffi::Any>& options,
+                                           const std::string& key) {
+  auto it = options.find(key);
+  if (it == options.end()) return std::nullopt;
+  const ffi::Any& value = (*it).second;
+  if (auto opt_string = value.try_cast<ffi::String>()) return opt_string.value();
+  TVM_FFI_THROW(ValueError) << "XNNPACK RunCodegen option '" << key << "' must be a string value.";
+}
+
+void ValidatePrecision(const std::string& precision) {
+  static const std::unordered_set<std::string> supported = {"fp32", "fp16_hint", "fp16_force"};
+  TVM_FFI_ICHECK(supported.count(precision)) << "Unsupported XNNPACK precision: " << precision;
+}
+
+XNNPACKRuntimeOptions ParseRuntimeOptions(const ffi::Map<ffi::String, ffi::Any>& options,
+                                          const ffi::Optional<ffi::String>& annotated_precision) {
   static const std::unordered_set<std::string> supported = {
       "use_weights_cache",
       "use_workspace",
@@ -97,6 +115,7 @@ XNNPACKRuntimeOptions ParseRuntimeOptions(const ffi::Map<ffi::String, ffi::Any>&
       "dont_spin_workers",
       "transient_indirection_buffer",
       "num_threads",
+      "precision",
   };
   for (const auto& kv : options) {
     const std::string key = kv.first;
@@ -111,6 +130,19 @@ XNNPACKRuntimeOptions ParseRuntimeOptions(const ffi::Map<ffi::String, ffi::Any>&
   parsed.transient_indirection_buffer =
       GetBoolOption(options, "transient_indirection_buffer", false);
   parsed.num_threads = GetIntOption(options, "num_threads", 1);
+  if (annotated_precision.has_value()) {
+    parsed.precision = annotated_precision.value();
+  }
+  if (auto option_precision = GetStringOption(options, "precision")) {
+    ValidatePrecision(option_precision.value());
+    if (annotated_precision.has_value()) {
+      TVM_FFI_ICHECK_EQ(std::string(annotated_precision.value()),
+                        std::string(option_precision.value()))
+          << "XNNPACK precision from partition_for_xnnpack and RunCodegen options must match.";
+    }
+    parsed.precision = option_precision.value();
+  }
+  ValidatePrecision(parsed.precision);
   TVM_FFI_ICHECK_GE(parsed.num_threads, 1)
       << "XNNPACK RunCodegen option 'num_threads' must be >= 1.";
   return parsed;
@@ -361,9 +393,10 @@ ffi::Array<ffi::Module> XNNPACKCompiler(ffi::Array<Function> functions,
                                         ffi::Map<Constant, ffi::String> constant_names) {
   ffi::Array<ffi::Module> compiled_functions;
   const auto pf = tvm::ffi::Function::GetGlobalRequired("runtime.XNNPACKJSONRuntimeCreate");
-  const std::string runtime_options = ParseRuntimeOptions(options).Serialize();
 
   for (const auto& func : functions) {
+    const std::string runtime_options =
+        ParseRuntimeOptions(options, func->GetAttr<ffi::String>("xnnpack_precision")).Serialize();
     XNNPACKJSONSerializer serializer(constant_names, AnalyzeVar2Value(func));
     serializer.serialize(func);
     auto graph_json = serializer.GetJSON();

@@ -26,6 +26,8 @@ from tvm.relax.transform import FuseOpsByPattern, PatternCheckContext
 from .pattern_registry import get_patterns_with_prefix, register_patterns
 from .utils import has_leaking_intermediate_variables
 
+_SUPPORTED_PRECISIONS = ("fp32", "fp16_hint", "fp16_force")
+
 
 def _get_static_shape(expr: relax.Expr) -> list[int] | None:
     sinfo = expr.struct_info
@@ -311,11 +313,26 @@ register_patterns(
 )
 
 
-def partition_for_xnnpack(mod: IRModule) -> IRModule:
+def partition_for_xnnpack(mod: IRModule, precision: str = "fp32") -> IRModule:
     """Partition the input module into XNNPACK-supported subgraphs.
 
     Phase 3 supports a small static-shape float32 NHWC CNN subset.
     """
 
+    if precision not in _SUPPORTED_PRECISIONS:
+        raise ValueError(
+            "Unsupported XNNPACK precision. Expected one of "
+            f"{_SUPPORTED_PRECISIONS}, but got {precision!r}."
+        )
+
     patterns = list(reversed(get_patterns_with_prefix("xnnpack")))
-    return FuseOpsByPattern(patterns, bind_constants=True, annotate_codegen=True)(mod)
+    mod = FuseOpsByPattern(patterns, bind_constants=True, annotate_codegen=True)(mod)
+
+    for gv, func in list(mod.functions.items()):
+        if (
+            isinstance(func, relax.Function)
+            and func.attrs
+            and func.attrs.get("Codegen") == "xnnpack"
+        ):
+            mod[gv] = func.with_attr("xnnpack_precision", precision)
+    return mod
