@@ -154,10 +154,36 @@ def load_torchvision_model(model_name: str, input_shape: Tuple[int, ...]):
     return mod, [tvm.runtime.tensor(input_np)], f"torchvision:{model_name}"
 
 
-def partition_for_xnnpack(mod: tvm.IRModule, precision: str) -> tvm.IRModule:
+def partition_for_xnnpack(mod: tvm.IRModule, args: argparse.Namespace):
     from tvm.relax.backend.xnnpack import partition_for_xnnpack as partition
 
-    return partition(mod, precision=precision)
+    return partition(
+        mod,
+        precision=args.precision,
+        partition_policy=args.partition_policy,
+        layout=args.layout,
+        min_subgraph_size=args.min_subgraph_size,
+        min_compute_to_copy_ratio=args.min_compute_to_copy_ratio,
+        allow_isolated_elementwise=args.allow_isolated_elementwise,
+        allow_layout_rewrite=not args.disable_layout_rewrite,
+        allow_cast_boundary=args.allow_cast_boundary,
+        report_partition_decisions=args.report_partition_decisions,
+    )
+
+
+def summarize_partition_report(report: List[Dict[str, object]]) -> Dict[str, object]:
+    accepted = sum(1 for entry in report if entry["accepted"])
+    rejected = len(report) - accepted
+    reasons: Dict[str, int] = {}
+    for entry in report:
+        reason = str(entry["reason"])
+        reasons[reason] = reasons.get(reason, 0) + 1
+    return {
+        "candidates": len(report),
+        "accepted": accepted,
+        "rejected": rejected,
+        "reasons": reasons,
+    }
 
 
 def compile_vm(mod: tvm.IRModule, target: str) -> relax.VirtualMachine:
@@ -165,7 +191,9 @@ def compile_vm(mod: tvm.IRModule, target: str) -> relax.VirtualMachine:
     return relax.VirtualMachine(executable, tvm.cpu())
 
 
-def benchmark_vm(vm: relax.VirtualMachine, args: List[tvm.runtime.Tensor], number: int, repeat: int):
+def benchmark_vm(
+    vm: relax.VirtualMachine, args: List[tvm.runtime.Tensor], number: int, repeat: int
+):
     vm["main"](*args)
     evaluator = vm.time_evaluator("main", tvm.cpu(), number=number, repeat=repeat)
     return evaluator(*args)
@@ -209,6 +237,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--transient-indirection-buffer", action="store_true")
     parser.add_argument("--num-threads", type=int, default=1)
     parser.add_argument(
+        "--partition-policy",
+        choices=("greedy", "cost", "debug_all_supported"),
+        default="greedy",
+    )
+    parser.add_argument("--layout", choices=("auto", "NHWC", "preserve"), default="auto")
+    parser.add_argument("--min-subgraph-size", type=int, default=2)
+    parser.add_argument("--min-compute-to-copy-ratio", type=float, default=8.0)
+    parser.add_argument("--allow-isolated-elementwise", action="store_true")
+    parser.add_argument("--disable-layout-rewrite", action="store_true")
+    parser.add_argument("--allow-cast-boundary", action="store_true")
+    parser.add_argument("--report-partition-decisions", action="store_true")
+    parser.add_argument(
         "--precision",
         choices=("fp32", "fp16_hint", "fp16_force"),
         default="fp32",
@@ -251,6 +291,7 @@ def main() -> None:
     byoc_error = None
     byoc_first_run_ms = None
     byoc_compile_ms = None
+    partition_report_summary = None
     memory_before_kib = get_memory_kib()
     memory_after_kib = -1
 
@@ -261,7 +302,12 @@ def main() -> None:
 
         if xnnpack_enabled:
             try:
-                byoc_mod = partition_for_xnnpack(mod, precision=args.precision)
+                byoc_result = partition_for_xnnpack(mod, args)
+                if args.report_partition_decisions:
+                    byoc_mod, partition_report = byoc_result
+                    partition_report_summary = summarize_partition_report(partition_report)
+                else:
+                    byoc_mod = byoc_result
                 partition_count = count_xnnpack_partitions(byoc_mod)
                 if partition_count > 0:
                     compile_start = time.perf_counter()
@@ -293,6 +339,11 @@ def main() -> None:
     print(f"xnnpack_enabled: {xnnpack_enabled}")
     print(f"xnnpack_capabilities: {capabilities if capabilities else 'not available'}")
     print(f"xnnpack_runtime_options: {xnnpack_options}")
+    print(f"xnnpack_partition_policy: {args.partition_policy}")
+    print(
+        "xnnpack_partition_report: "
+        f"{partition_report_summary if partition_report_summary is not None else 'not requested'}"
+    )
     print(f"xnnpack_prefix_info: {args.xnnpack_prefix_info or 'not provided'}")
     print(f"xnnpack_partitions: {partition_count}")
     threading = (
@@ -307,8 +358,10 @@ def main() -> None:
         print(f"load_error: {load_error}")
     if byoc_error:
         print(f"byoc_error: {byoc_error}")
-    print(f"xnnpack_compile_and_codegen_ms: {byoc_compile_ms if byoc_compile_ms is not None else 'not measured'}")
-    print(f"xnnpack_first_run_ms: {byoc_first_run_ms if byoc_first_run_ms is not None else 'not measured'}")
+    byoc_compile = byoc_compile_ms if byoc_compile_ms is not None else "not measured"
+    byoc_first_run = byoc_first_run_ms if byoc_first_run_ms is not None else "not measured"
+    print(f"xnnpack_compile_and_codegen_ms: {byoc_compile}")
+    print(f"xnnpack_first_run_ms: {byoc_first_run}")
     if memory_before_kib >= 0 and memory_after_kib >= 0:
         print(f"max_rss_delta_kib: {memory_after_kib - memory_before_kib}")
     else:

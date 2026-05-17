@@ -17,16 +17,22 @@
 
 """Pattern table for the XNNPACK Relax backend."""
 
+from collections.abc import Callable
+
 import tvm
 from tvm.ir import IRModule
 from tvm import relax
 from tvm.relax.dpl.pattern import is_const, is_op, wildcard
-from tvm.relax.transform import FuseOpsByPattern, PatternCheckContext
+from tvm.relax.transform import FuseOpsByPattern, FusionPattern, PatternCheckContext
 
 from .pattern_registry import get_patterns_with_prefix, register_patterns
 from .utils import has_leaking_intermediate_variables
 
 _SUPPORTED_PRECISIONS = ("fp32", "fp16_hint", "fp16_force")
+_SUPPORTED_PARTITION_POLICIES = ("greedy", "cost", "debug_all_supported")
+_SUPPORTED_LAYOUT_POLICIES = ("auto", "NHWC", "preserve")
+_XNN_EXTRA_BYTES = 16
+_DTYPE_BYTES = {"float16": 2, "float32": 4}
 
 
 def _get_static_shape(expr: relax.Expr) -> list[int] | None:
@@ -56,6 +62,31 @@ def _is_static_float32(expr: relax.Expr) -> bool:
     return _is_float32_tensor(expr) and _get_static_shape(expr) is not None
 
 
+def _tensor_dtype(expr: relax.Expr) -> str | None:
+    sinfo = expr.struct_info
+    if isinstance(sinfo, relax.TensorStructInfo):
+        return str(sinfo.dtype)
+    return None
+
+
+def _num_elements(expr: relax.Expr) -> int | None:
+    shape = _get_static_shape(expr)
+    if shape is None:
+        return None
+    result = 1
+    for dim in shape:
+        result *= dim
+    return result
+
+
+def _tensor_nbytes(expr: relax.Expr) -> int:
+    num_elements = _num_elements(expr)
+    dtype = _tensor_dtype(expr)
+    if num_elements is None or dtype not in _DTYPE_BYTES:
+        return 0
+    return num_elements * _DTYPE_BYTES[dtype]
+
+
 def _same_static_shape(lhs: relax.Expr, rhs: relax.Expr) -> bool:
     lhs_shape = _get_static_shape(lhs)
     rhs_shape = _get_static_shape(rhs)
@@ -83,6 +114,73 @@ def _call_op_name(expr: relax.Expr) -> str | None:
     if hasattr(expr.op, "name"):
         return expr.op.name
     return None
+
+
+def _collect_op_names(expr: relax.Expr) -> list[str]:
+    names: list[str] = []
+
+    def visit(current):
+        if isinstance(current, relax.Call):
+            name = _call_op_name(current)
+            if name is not None:
+                names.append(name)
+            for arg in current.args:
+                visit(arg)
+
+    visit(expr)
+    names.reverse()
+    return names
+
+
+def _op_list_from_pattern(pattern_name: str, root: relax.Expr) -> list[str]:
+    op_list = _collect_op_names(root)
+    if "conv2d" in pattern_name:
+        op_list = ["relax.nn.conv2d"]
+        if "bias" in pattern_name:
+            op_list.append("relax.add")
+        if "relu" in pattern_name:
+            op_list.append("relax.nn.relu")
+        if "clip" in pattern_name:
+            op_list.append("relax.clip")
+        return op_list
+    if op_list:
+        return op_list
+    if pattern_name.endswith(".add"):
+        return ["relax.add"]
+    if pattern_name.endswith(".relu"):
+        return ["relax.nn.relu"]
+    if pattern_name.endswith(".clip"):
+        return ["relax.clip"]
+    if pattern_name.endswith(".sigmoid"):
+        return ["relax.sigmoid"]
+    if pattern_name.endswith(".tanh"):
+        return ["relax.tanh"]
+    if pattern_name.endswith(".max_pool2d"):
+        return ["relax.nn.max_pool2d"]
+    if pattern_name.endswith(".avg_pool2d"):
+        return ["relax.nn.avg_pool2d"]
+    return []
+
+
+def _candidate_layout(context: PatternCheckContext) -> str:
+    for expr in context.annotated_expr.values():
+        if isinstance(expr, relax.Call) and expr.attrs is not None:
+            attrs = expr.attrs
+            if hasattr(attrs, "data_layout"):
+                return str(attrs.data_layout)
+            if hasattr(attrs, "layout"):
+                return str(attrs.layout)
+    return "none"
+
+
+def _candidate_dtype(context: PatternCheckContext) -> str:
+    for key in ("root", "conv", "input", "data", "lhs", "rhs"):
+        expr = context.annotated_expr.get(key)
+        if expr is not None:
+            dtype = _tensor_dtype(expr)
+            if dtype is not None:
+                return dtype
+    return "unknown"
 
 
 def _padding_2d(padding) -> list[int] | None:
@@ -299,6 +397,253 @@ def _conv2d_patterns():
     ]
 
 
+def _conv2d_flops(conv: relax.Expr) -> int:
+    if not isinstance(conv, relax.Call):
+        return 0
+    data_shape = _get_static_shape(conv.args[0])
+    weight_shape = _get_static_shape(conv.args[1])
+    out_shape = _get_static_shape(conv)
+    if data_shape is None or weight_shape is None or out_shape is None:
+        return 0
+    if len(data_shape) != 4 or len(weight_shape) != 4 or len(out_shape) != 4:
+        return 0
+    out_elems = out_shape[0] * out_shape[1] * out_shape[2] * out_shape[3]
+    kernel_h, kernel_w, in_channels = weight_shape[1], weight_shape[2], weight_shape[3]
+    return int(out_elems * kernel_h * kernel_w * in_channels * 2)
+
+
+def _pool2d_flops(pool: relax.Expr) -> int:
+    if not isinstance(pool, relax.Call):
+        return 0
+    out_elems = _num_elements(pool)
+    if out_elems is None:
+        return 0
+    attrs = pool.attrs
+    kernel = [int(x) for x in attrs.pool_size]
+    return int(out_elems * kernel[0] * kernel[1])
+
+
+def _estimate_flops(context: PatternCheckContext, pattern_name: str) -> int:
+    root = context.annotated_expr.get("root", context.matched_expr)
+    op_names = _collect_op_names(root)
+    if "relax.nn.conv2d" in op_names or "conv2d" in pattern_name:
+        return _conv2d_flops(context.annotated_expr.get("conv", root))
+    if _call_op_name(root) in ("relax.nn.max_pool2d", "relax.nn.avg_pool2d"):
+        return _pool2d_flops(root)
+    out_elems = _num_elements(root)
+    if out_elems is None:
+        return 0
+    return int(out_elems * max(1, len(op_names)))
+
+
+def _is_compute_heavy(pattern_name: str, context: PatternCheckContext, flops: int) -> bool:
+    if "conv2d" in pattern_name:
+        return True
+    root = context.annotated_expr.get("root", context.matched_expr)
+    if _call_op_name(root) in ("relax.nn.max_pool2d", "relax.nn.avg_pool2d"):
+        return flops >= 4096
+    return False
+
+
+def _external_input_exprs(context: PatternCheckContext) -> list[relax.Expr]:
+    exprs = []
+    for key, expr in context.annotated_expr.items():
+        if key in ("root", "conv"):
+            continue
+        if isinstance(expr, relax.Constant):
+            continue
+        if isinstance(expr, relax.Expr) and _tensor_dtype(expr) is not None:
+            if all(not expr.same_as(existing) for existing in exprs):
+                exprs.append(expr)
+    return exprs
+
+
+def _constant_exprs(context: PatternCheckContext) -> list[relax.Expr]:
+    exprs = []
+    for expr in context.annotated_expr.values():
+        if isinstance(expr, relax.Constant) and all(
+            not expr.same_as(existing) for existing in exprs
+        ):
+            exprs.append(expr)
+    return exprs
+
+
+def _make_report_entry(
+    context: PatternCheckContext,
+    pattern_name: str,
+    policy: str,
+    accepted: bool,
+    reason: str,
+) -> dict[str, object]:
+    root = context.annotated_expr.get("root", context.matched_expr)
+    op_list = _op_list_from_pattern(pattern_name, root)
+    external_inputs = _external_input_exprs(context)
+    constants = _constant_exprs(context)
+    output_bytes = _tensor_nbytes(root)
+    input_bytes = sum(_tensor_nbytes(expr) for expr in external_inputs)
+    constant_bytes = sum(_tensor_nbytes(expr) for expr in constants)
+    copy_bytes = input_bytes + output_bytes + constant_bytes
+    padded_copy_bytes = copy_bytes + (len(external_inputs) + len(constants) + 1) * _XNN_EXTRA_BYTES
+    flops = _estimate_flops(context, pattern_name)
+    ratio = float("inf") if padded_copy_bytes == 0 and flops > 0 else 0.0
+    if padded_copy_bytes > 0:
+        ratio = float(flops) / float(padded_copy_bytes)
+    return {
+        "candidate_id": -1,
+        "accepted": accepted,
+        "reason": reason,
+        "op_list": op_list,
+        "dtype": _candidate_dtype(context),
+        "layout": _candidate_layout(context),
+        "estimated_flops": flops,
+        "copy_bytes": copy_bytes,
+        "padded_copy_bytes": padded_copy_bytes,
+        "layout_transform_bytes": 0,
+        "cast_bytes": 0,
+        "external_input_count": len(external_inputs),
+        "external_output_count": 1,
+        "boundary_count": len(external_inputs) + 1,
+        "compute_to_copy_ratio": ratio,
+        "policy": policy,
+    }
+
+
+def _validate_partition_options(
+    precision: str,
+    partition_policy: str,
+    layout: str,
+    min_subgraph_size: int,
+    min_compute_to_copy_ratio: float,
+):
+    if precision not in _SUPPORTED_PRECISIONS:
+        raise ValueError(
+            "Unsupported XNNPACK precision. Expected one of "
+            f"{_SUPPORTED_PRECISIONS}, but got {precision!r}."
+        )
+    if partition_policy not in _SUPPORTED_PARTITION_POLICIES:
+        raise ValueError(
+            "Unsupported XNNPACK partition_policy. Expected one of "
+            f"{_SUPPORTED_PARTITION_POLICIES}, but got {partition_policy!r}."
+        )
+    if layout not in _SUPPORTED_LAYOUT_POLICIES:
+        raise ValueError(
+            "Unsupported XNNPACK layout policy. Expected one of "
+            f"{_SUPPORTED_LAYOUT_POLICIES}, but got {layout!r}."
+        )
+    if min_subgraph_size < 1:
+        raise ValueError("min_subgraph_size must be at least 1.")
+    if min_compute_to_copy_ratio < 0:
+        raise ValueError("min_compute_to_copy_ratio must be non-negative.")
+
+
+def _cost_accepts(
+    context: PatternCheckContext,
+    pattern_name: str,
+    layout_policy: str,
+    min_subgraph_size: int,
+    min_compute_to_copy_ratio: float,
+    allow_isolated_elementwise: bool,
+    allow_layout_rewrite: bool,
+    allow_cast_boundary: bool,
+) -> tuple[bool, str]:
+    del allow_cast_boundary  # Explicit fp16 and cast-boundary lowering are not implemented yet.
+    entry = _make_report_entry(context, pattern_name, "cost", True, "")
+    op_count = len(entry["op_list"])
+    dtype = entry["dtype"]
+    layout = entry["layout"]
+    ratio = float(entry["compute_to_copy_ratio"])
+    flops = int(entry["estimated_flops"])
+
+    if dtype != "float32":
+        return False, "rejected_unsupported_dtype"
+    if layout_policy == "NHWC" and layout not in ("NHWC", "none") and not allow_layout_rewrite:
+        return False, "rejected_layout_rewrite_overhead"
+    if layout_policy == "NHWC" and layout not in ("NHWC", "none") and op_count <= 1:
+        return False, "rejected_layout_rewrite_overhead"
+    if not allow_isolated_elementwise and op_count <= 1 and "conv2d" not in pattern_name:
+        root_name = _call_op_name(context.annotated_expr.get("root", context.matched_expr))
+        if root_name not in ("relax.nn.max_pool2d", "relax.nn.avg_pool2d"):
+            return False, "rejected_isolated_elementwise"
+    if _is_compute_heavy(pattern_name, context, flops):
+        return True, "accepted_compute_heavy"
+    if op_count >= min_subgraph_size and ratio >= min_compute_to_copy_ratio:
+        return True, "accepted_ratio"
+    return False, "rejected_low_compute_to_copy_ratio"
+
+
+def _wrap_patterns_for_policy(
+    patterns: list[FusionPattern],
+    partition_policy: str,
+    layout_policy: str,
+    min_subgraph_size: int,
+    min_compute_to_copy_ratio: float,
+    allow_isolated_elementwise: bool,
+    allow_layout_rewrite: bool,
+    allow_cast_boundary: bool,
+    report: list[dict[str, object]] | None,
+) -> list[FusionPattern]:
+    if partition_policy == "greedy" and report is None:
+        return patterns
+
+    wrapped = []
+
+    for pattern in patterns:
+        original_check: Callable[[PatternCheckContext], bool] | None = pattern.check
+
+        def make_check(pattern_name, check):
+            def check_with_policy(context: PatternCheckContext) -> bool:
+                supported = True if check is None else bool(check(context))
+                if not supported:
+                    if _candidate_dtype(context) != "float32":
+                        reason = "rejected_unsupported_dtype"
+                    elif layout_policy == "NHWC" and _candidate_layout(context) not in (
+                        "NHWC",
+                        "none",
+                    ):
+                        reason = "rejected_layout_rewrite_overhead"
+                    else:
+                        reason = "rejected_existing_support_check"
+                    accepted = False
+                elif partition_policy in ("greedy", "debug_all_supported"):
+                    reason = (
+                        "accepted_debug_all_supported"
+                        if partition_policy == "debug_all_supported"
+                        else "accepted_supported"
+                    )
+                    accepted = True
+                else:
+                    accepted, reason = _cost_accepts(
+                        context,
+                        pattern_name,
+                        layout_policy,
+                        min_subgraph_size,
+                        min_compute_to_copy_ratio,
+                        allow_isolated_elementwise,
+                        allow_layout_rewrite,
+                        allow_cast_boundary,
+                    )
+                if report is not None:
+                    entry = _make_report_entry(
+                        context, pattern_name, partition_policy, accepted, reason
+                    )
+                    entry["candidate_id"] = len(report)
+                    report.append(entry)
+                return accepted
+
+            return check_with_policy
+
+        wrapped.append(
+            FusionPattern(
+                pattern.name,
+                pattern.pattern,
+                pattern.annotation_patterns,
+                make_check(pattern.name, original_check),
+                pattern.attrs_getter,
+            )
+        )
+    return wrapped
+
+
 register_patterns(
     [
         *_conv2d_patterns(),
@@ -313,19 +658,44 @@ register_patterns(
 )
 
 
-def partition_for_xnnpack(mod: IRModule, precision: str = "fp32") -> IRModule:
+def partition_for_xnnpack(
+    mod: IRModule,
+    precision: str = "fp32",
+    partition_policy: str = "greedy",
+    layout: str = "auto",
+    min_subgraph_size: int = 2,
+    min_compute_to_copy_ratio: float = 8.0,
+    allow_isolated_elementwise: bool = False,
+    allow_layout_rewrite: bool = True,
+    allow_cast_boundary: bool = False,
+    report_partition_decisions: bool = False,
+) -> IRModule | tuple[IRModule, list[dict[str, object]]]:
     """Partition the input module into XNNPACK-supported subgraphs.
 
     Phase 3 supports a small static-shape float32 NHWC CNN subset.
     """
 
-    if precision not in _SUPPORTED_PRECISIONS:
-        raise ValueError(
-            "Unsupported XNNPACK precision. Expected one of "
-            f"{_SUPPORTED_PRECISIONS}, but got {precision!r}."
-        )
+    _validate_partition_options(
+        precision,
+        partition_policy,
+        layout,
+        min_subgraph_size,
+        min_compute_to_copy_ratio,
+    )
 
     patterns = list(reversed(get_patterns_with_prefix("xnnpack")))
+    report = [] if report_partition_decisions else None
+    patterns = _wrap_patterns_for_policy(
+        patterns,
+        partition_policy,
+        layout,
+        min_subgraph_size,
+        min_compute_to_copy_ratio,
+        allow_isolated_elementwise,
+        allow_layout_rewrite,
+        allow_cast_boundary,
+        report,
+    )
     mod = FuseOpsByPattern(patterns, bind_constants=True, annotate_codegen=True)(mod)
 
     for gv, func in list(mod.functions.items()):
@@ -335,4 +705,6 @@ def partition_for_xnnpack(mod: IRModule, precision: str = "fp32") -> IRModule:
             and func.attrs.get("Codegen") == "xnnpack"
         ):
             mod[gv] = func.with_attr("xnnpack_precision", precision)
+    if report is not None:
+        return mod, report
     return mod

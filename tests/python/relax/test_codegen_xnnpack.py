@@ -310,10 +310,10 @@ def _count_xnnpack_partitions(mod):
     return count
 
 
-def _partition(mod, precision="fp32"):
+def _partition(mod, precision="fp32", **kwargs):
     from tvm.relax.backend.xnnpack import partition_for_xnnpack
 
-    return partition_for_xnnpack(mod, precision=precision)
+    return partition_for_xnnpack(mod, precision=precision, **kwargs)
 
 
 def _bind_cnn_params(mod=ConvBiasReluPoolModule):
@@ -377,6 +377,29 @@ def _first_external_runtime_options(mod):
     return ext_mod["get_runtime_options"]()
 
 
+def _assert_report_fields(report):
+    assert report
+    expected_fields = {
+        "candidate_id",
+        "accepted",
+        "reason",
+        "op_list",
+        "dtype",
+        "layout",
+        "estimated_flops",
+        "copy_bytes",
+        "padded_copy_bytes",
+        "layout_transform_bytes",
+        "cast_bytes",
+        "external_input_count",
+        "external_output_count",
+        "boundary_count",
+        "compute_to_copy_ratio",
+        "policy",
+    }
+    assert expected_fields.issubset(report[0].keys())
+
+
 def test_xnnpack_python_module_importable():
     from tvm.relax.backend.xnnpack import partition_for_xnnpack
 
@@ -388,6 +411,22 @@ def test_partition_for_xnnpack_rejects_invalid_precision():
 
     with pytest.raises(ValueError, match="Unsupported XNNPACK precision"):
         partition_for_xnnpack(ReluModule, precision="explicit_fp16")
+
+
+@pytest.mark.parametrize(
+    "kwargs, match",
+    [
+        ({"partition_policy": "fast"}, "partition_policy"),
+        ({"layout": "NCHW"}, "layout policy"),
+        ({"min_subgraph_size": 0}, "min_subgraph_size"),
+        ({"min_compute_to_copy_ratio": -1.0}, "min_compute_to_copy_ratio"),
+    ],
+)
+def test_partition_for_xnnpack_rejects_invalid_policy_options(kwargs, match):
+    from tvm.relax.backend.xnnpack import partition_for_xnnpack
+
+    with pytest.raises(ValueError, match=match):
+        partition_for_xnnpack(ReluModule, **kwargs)
 
 
 def test_xnnpack_registers_relu_pattern():
@@ -464,6 +503,87 @@ def test_partition_for_xnnpack_tiny_cnn_partition_count():
     assert _count_xnnpack_partitions(mod) == 4
 
 
+def test_xnnpack_greedy_policy_preserves_partition_count():
+    mod = _partition(_bind_tiny_cnn_params(), partition_policy="greedy")
+    assert _count_xnnpack_partitions(mod) == 4
+
+
+def test_xnnpack_debug_policy_partitions_supported_patterns():
+    mod = _partition(ReluModule, partition_policy="debug_all_supported")
+    assert _has_codegen_attr(mod)
+
+
+def test_xnnpack_cost_policy_rejects_isolated_unary_and_small_binary():
+    relu_mod, relu_report = _partition(
+        ReluModule,
+        partition_policy="cost",
+        report_partition_decisions=True,
+    )
+    add_mod, add_report = _partition(
+        AddModule,
+        partition_policy="cost",
+        report_partition_decisions=True,
+    )
+    assert not _has_codegen_attr(relu_mod)
+    assert not _has_codegen_attr(add_mod)
+    _assert_report_fields(relu_report)
+    assert any(entry["reason"] == "rejected_isolated_elementwise" for entry in relu_report)
+    assert any(entry["reason"] == "rejected_isolated_elementwise" for entry in add_report)
+
+
+def test_xnnpack_cost_policy_accepts_conv_and_tiny_cnn_island():
+    conv_mod, conv_report = _partition(
+        _bind_cnn_params(),
+        partition_policy="cost",
+        report_partition_decisions=True,
+    )
+    tiny_mod, tiny_report = _partition(
+        _bind_tiny_cnn_params(),
+        partition_policy="cost",
+        report_partition_decisions=True,
+    )
+    assert _count_xnnpack_partitions(conv_mod) >= 1
+    assert _count_xnnpack_partitions(tiny_mod) >= 1
+    assert any(entry["reason"] == "accepted_compute_heavy" for entry in conv_report)
+    assert any(entry["reason"] == "accepted_compute_heavy" for entry in tiny_report)
+
+
+def test_xnnpack_cost_policy_reports_float16_rejection():
+    mod, report = _partition(
+        ReluFloat16Module,
+        precision="fp16_hint",
+        partition_policy="cost",
+        report_partition_decisions=True,
+    )
+    assert not _has_codegen_attr(mod)
+    _assert_report_fields(report)
+    assert any(entry["reason"] == "rejected_unsupported_dtype" for entry in report)
+
+
+def test_xnnpack_cost_policy_reports_layout_rewrite_rejection():
+    mod, report = _partition(
+        ConvNCHWModule,
+        partition_policy="cost",
+        layout="NHWC",
+        report_partition_decisions=True,
+    )
+    assert not _has_codegen_attr(mod)
+    _assert_report_fields(report)
+    assert any(entry["reason"] == "rejected_layout_rewrite_overhead" for entry in report)
+
+
+def test_xnnpack_partition_report_has_stable_fields_and_reasons():
+    _, report = _partition(
+        _bind_cnn_params(),
+        partition_policy="cost",
+        report_partition_decisions=True,
+    )
+    _assert_report_fields(report)
+    assert report[0]["candidate_id"] == 0
+    assert report[0]["policy"] == "cost"
+    assert isinstance(report[0]["op_list"], list)
+
+
 @pytest.mark.skipif(
     not (_has_xnnpack_codegen() and _has_xnnpack_runtime()),
     reason="XNNPACK codegen/runtime is not enabled",
@@ -511,6 +631,57 @@ def test_xnnpack_cnn_vm_execution():
 )
 def test_xnnpack_tiny_cnn_vm_execution():
     _run_tiny_cnn_with_options()
+
+
+@pytest.mark.skipif(
+    not (_has_xnnpack_codegen() and _has_xnnpack_runtime()),
+    reason="XNNPACK codegen/runtime is not enabled",
+)
+def test_xnnpack_cost_policy_tiny_cnn_vm_execution():
+    bound_mod = _bind_tiny_cnn_params()
+    partitioned = _partition(bound_mod, partition_policy="cost")
+    assert _count_xnnpack_partitions(partitioned) >= 1
+    partitioned = relax.transform.RunCodegen()(partitioned)
+    assert _has_external_mods(partitioned)
+
+    x_np, residual_np = _tiny_cnn_inputs()
+    ref_ex = tvm.compile(bound_mod, target="llvm")
+    ref_vm = relax.VirtualMachine(ref_ex, tvm.cpu())
+    expected = ref_vm["main"](
+        tvm.runtime.tensor(x_np), tvm.runtime.tensor(residual_np)
+    ).numpy()
+
+    xnn_ex = tvm.compile(partitioned, target="llvm")
+    xnn_vm = relax.VirtualMachine(xnn_ex, tvm.cpu())
+    result = xnn_vm["main"](
+        tvm.runtime.tensor(x_np), tvm.runtime.tensor(residual_np)
+    ).numpy()
+    tvm.testing.assert_allclose(result, expected, rtol=1e-5, atol=1e-5)
+
+
+@pytest.mark.skipif(
+    not (_has_xnnpack_codegen() and _has_xnnpack_runtime()),
+    reason="XNNPACK codegen/runtime is not enabled",
+)
+def test_xnnpack_cost_policy_rejected_relu_has_no_external_modules():
+    mod = _partition(ReluModule, partition_policy="cost")
+    assert not _has_codegen_attr(mod)
+    mod = relax.transform.RunCodegen()(mod)
+    assert not _has_external_mods(mod)
+
+
+@pytest.mark.skipif(
+    not (_has_xnnpack_codegen() and _has_xnnpack_runtime()),
+    reason="XNNPACK codegen/runtime is not enabled",
+)
+def test_xnnpack_cost_policy_composes_with_runtime_options():
+    if not _xnnpack_capability("fp16_hint"):
+        pytest.skip("XNNPACK FP16 hint flag is unavailable")
+    mod = _partition(_bind_cnn_params(), partition_policy="cost", precision="fp16_hint")
+    assert _has_codegen_attr(mod)
+    options = {"num_threads": 1, "precision": "fp16_hint"}
+    mod = relax.transform.RunCodegen({"xnnpack": options})(mod)
+    assert "precision=fp16_hint" in _first_external_runtime_options(mod)
 
 
 @pytest.mark.skipif(

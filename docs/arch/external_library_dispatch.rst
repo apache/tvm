@@ -363,6 +363,47 @@ Python usage::
   executable = tvm.compile(mod, target="llvm")
   vm = relax.VirtualMachine(executable, tvm.cpu())
 
+Partition policy options are passed to ``partition_for_xnnpack``. The default
+``partition_policy="greedy"`` preserves the historical behavior and partitions
+every supported pattern. ``partition_policy="cost"`` applies a conservative
+heuristic before creating XNNPACK regions, so small unary or binary islands may
+stay on TVM when external call overhead and padded boundary copies are likely
+to dominate. ``partition_policy="debug_all_supported"`` is intended only for
+debugging supported-pattern coverage and is not performance-oriented.
+
+The cost model estimates operator count, FLOPs, input/output/constant bytes,
+``XNN_EXTRA_BYTES`` padded copy bytes, graph boundaries, and visible dtype or
+layout boundary costs. It accepts candidates with existing compute-heavy
+operators such as supported ``conv2d`` fusions, or candidates whose
+compute-to-copy ratio meets ``min_compute_to_copy_ratio``. It rejects isolated
+elementwise operators by default unless ``allow_isolated_elementwise=True``.
+The heuristic is intentionally simple and is not an optimal performance model.
+
+Partition decisions can be inspected without changing runtime behavior::
+
+  mod, report = partition_for_xnnpack(
+      mod,
+      partition_policy="cost",
+      report_partition_decisions=True,
+  )
+
+Each report entry includes stable fields such as ``candidate_id``,
+``accepted``, ``reason``, ``op_list``, ``dtype``, ``layout``,
+``estimated_flops``, ``copy_bytes``, ``padded_copy_bytes``,
+``layout_transform_bytes``, ``cast_bytes``, boundary counts, and the selected
+policy. Common reasons include ``accepted_compute_heavy``,
+``accepted_ratio``, ``rejected_isolated_elementwise``,
+``rejected_low_compute_to_copy_ratio``, ``rejected_unsupported_dtype``, and
+``rejected_existing_support_check``.
+
+The layout option is ``"auto"`` by default, which preserves the current strict
+NHWC/OHWI policy. ``layout="preserve"`` never requests layout changes.
+``layout="NHWC"`` is reported as the desired policy for cost decisions, but
+Phase 5D does not introduce broad layout rewrite or transpose insertion.
+Explicit FP16 cast boundaries are likewise not lowered in this phase:
+``allow_cast_boundary`` is accepted as a policy option for reporting, but
+explicit ``float16`` Relax graphs remain unsupported and fall back to TVM.
+
 Runtime options are passed to ``RunCodegen`` and are stored in the generated
 XNNPACK runtime module:
 
@@ -449,6 +490,7 @@ both TVM and XNNPACK regions.
 Benchmarking and validation::
 
   python tests/python/relax/benchmark_xnnpack.py --model xnnpack_tiny_cnn
+  python tests/python/relax/benchmark_xnnpack.py --model xnnpack_tiny_cnn --partition-policy cost --report-partition-decisions
   python tests/python/relax/benchmark_xnnpack.py --model xnnpack_tiny_cnn --use-weights-cache --use-workspace --profile
   python tests/python/relax/benchmark_xnnpack.py --model xnnpack_tiny_cnn --precision fp16_hint
   python tests/python/relax/benchmark_xnnpack.py --model torchvision:mobilenet_v2
