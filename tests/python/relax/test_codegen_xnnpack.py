@@ -82,6 +82,106 @@ class MultiplyModule:
 
 
 @tvm.script.ir_module
+class FullyConnectedBiasGeluParamModule:
+    @R.function
+    def main(
+        x: R.Tensor((4, 8), "float32"),
+        w: R.Tensor((8, 16), "float32"),
+        b: R.Tensor((16,), "float32"),
+    ):
+        with R.dataflow():
+            y = R.matmul(x, w)
+            z = R.add(y, b)
+            out = R.nn.gelu(z)
+            R.output(out)
+        return out
+
+
+@tvm.script.ir_module
+class FullyConnectedBiasApproxGeluParamModule:
+    @R.function
+    def main(
+        x: R.Tensor((4, 8), "float32"),
+        w: R.Tensor((8, 16), "float32"),
+        b: R.Tensor((16,), "float32"),
+    ):
+        with R.dataflow():
+            y = R.matmul(x, w)
+            z = R.add(y, b)
+            out = R.nn.gelu_tanh(z)
+            R.output(out)
+        return out
+
+
+@tvm.script.ir_module
+class MLPResidualModule:
+    @R.function
+    def main(
+        x: R.Tensor((4, 8), "float32"),
+        residual: R.Tensor((4, 16), "float32"),
+        w: R.Tensor((8, 16), "float32"),
+        b: R.Tensor((16,), "float32"),
+    ):
+        with R.dataflow():
+            y = R.matmul(x, w)
+            z = R.add(y, b)
+            gelu = R.nn.gelu(z)
+            out = R.add(gelu, residual)
+            R.output(out)
+        return out
+
+
+@tvm.script.ir_module
+class GeluModule:
+    @R.function
+    def main(x: R.Tensor((4, 16), "float32")):
+        with R.dataflow():
+            z = R.nn.gelu(x)
+            R.output(z)
+        return z
+
+
+@tvm.script.ir_module
+class GeluFloat16Module:
+    @R.function
+    def main(x: R.Tensor((4, 16), "float16")):
+        with R.dataflow():
+            z = R.nn.gelu(x)
+            R.output(z)
+        return z
+
+
+@tvm.script.ir_module
+class GeluSymbolicModule:
+    @R.function
+    def main(x: R.Tensor(("n", 16), "float32")):
+        with R.dataflow():
+            z = R.nn.gelu(x)
+            R.output(z)
+        return z
+
+
+@tvm.script.ir_module
+class SoftmaxLastAxisModule:
+    @R.function
+    def main(x: R.Tensor((2, 3, 4), "float32")):
+        with R.dataflow():
+            z = R.nn.softmax(x, axis=-1)
+            R.output(z)
+        return z
+
+
+@tvm.script.ir_module
+class SoftmaxAxis0Module:
+    @R.function
+    def main(x: R.Tensor((2, 3, 4), "float32")):
+        with R.dataflow():
+            z = R.nn.softmax(x, axis=0)
+            R.output(z)
+        return z
+
+
+@tvm.script.ir_module
 class AddBroadcastModule:
     @R.function
     def main(x: R.Tensor((2, 3), "float32"), y: R.Tensor((3,), "float32")):
@@ -1062,6 +1162,17 @@ def _bind_tiny_cnn_params():
     return relax.transform.BindParams("main", {"w": weight, "b": bias})(TinyCNNModule)
 
 
+def _mlp_weight_bias():
+    weight = np.linspace(-0.3, 0.3, num=8 * 16, dtype="float32").reshape(8, 16)
+    bias = np.linspace(-0.2, 0.2, num=16, dtype="float32")
+    return weight, bias
+
+
+def _bind_mlp_params(mod):
+    weight, bias = _mlp_weight_bias()
+    return relax.transform.BindParams("main", {"w": weight, "b": bias})(mod)
+
+
 def _dynamic_batch_fc_weight():
     return np.array(
         [[1.0, -2.0, 3.0, -4.0], [2.0, 1.0, -1.0, 3.0], [-3.0, 2.0, 1.0, -2.0]],
@@ -1360,8 +1471,13 @@ def test_xnnpack_registers_relu_pattern():
         "xnnpack.conv2d_bias_relu",
         "xnnpack.max_pool2d",
         "xnnpack.add",
+        "xnnpack.fully_connected_bias_gelu",
+        "xnnpack.fully_connected_bias_approx_gelu",
+        "xnnpack.softmax",
         "xnnpack.clip",
         "xnnpack.relu",
+        "xnnpack.gelu",
+        "xnnpack.approx_gelu",
         "xnnpack.sigmoid",
         "xnnpack.tanh",
     }.issubset(pattern_names)
@@ -1370,6 +1486,52 @@ def test_xnnpack_registers_relu_pattern():
 def test_partition_for_xnnpack_partitions_static_float32_relu():
     mod = _partition(ReluModule)
     assert _has_codegen_attr(mod)
+
+
+@pytest.mark.parametrize(
+    "mod, composite",
+    [
+        (FullyConnectedBiasGeluParamModule, "fully_connected_bias_gelu"),
+        (FullyConnectedBiasApproxGeluParamModule, "fully_connected_bias_approx_gelu"),
+    ],
+)
+def test_partition_for_xnnpack_partitions_mlp_fully_connected_gelu(mod, composite):
+    mod = _partition(_bind_mlp_params(mod))
+    assert _has_codegen_attr(mod)
+    assert composite in mod.script()
+
+
+def test_partition_for_xnnpack_partitions_last_axis_softmax():
+    mod = _partition(SoftmaxLastAxisModule)
+    assert _has_codegen_attr(mod)
+    assert "xnnpack.softmax" in mod.script()
+
+
+@pytest.mark.parametrize(
+    "mod",
+    [SoftmaxAxis0Module, GeluFloat16Module, GeluSymbolicModule],
+)
+def test_partition_for_xnnpack_rejects_unsupported_mlp_patterns(mod):
+    mod = _partition(mod)
+    assert not _has_codegen_attr(mod)
+
+
+@pytest.mark.parametrize("mod", [GeluModule, SoftmaxLastAxisModule])
+def test_xnnpack_cost_policy_rejects_isolated_mlp_unary(mod):
+    mod, report = _partition(
+        mod,
+        partition_policy="cost",
+        report_partition_decisions=True,
+    )
+    assert not _has_codegen_attr(mod)
+    _assert_report_fields(report)
+    assert any(entry["reason"] == "rejected_isolated_elementwise" for entry in report)
+
+
+def test_partition_for_xnnpack_partitions_mlp_residual_block():
+    mod = _partition(_bind_mlp_params(MLPResidualModule))
+    assert _has_codegen_attr(mod)
+    assert _count_xnnpack_partitions(mod) >= 2
 
 
 def test_partition_for_xnnpack_records_precision_attr():
@@ -1747,6 +1909,96 @@ def test_xnnpack_relu_vm_execution():
     x_np = np.array([[-1.0, 0.0, 1.5], [2.0, -3.0, 4.0]], dtype="float32")
     result = vm["main"](tvm.runtime.tensor(x_np)).numpy()
     tvm.testing.assert_allclose(result, np.maximum(x_np, 0.0), rtol=1e-6, atol=1e-6)
+
+
+@pytest.mark.skipif(
+    not (_has_xnnpack_codegen() and _has_xnnpack_runtime()),
+    reason="XNNPACK codegen/runtime is not enabled",
+)
+@pytest.mark.parametrize(
+    "mod, capability",
+    [
+        (FullyConnectedBiasGeluParamModule, "unary_gelu"),
+        (FullyConnectedBiasApproxGeluParamModule, "unary_approxgelu"),
+    ],
+)
+def test_xnnpack_mlp_fully_connected_gelu_vm_execution(mod, capability):
+    capabilities = _xnnpack_capabilities()
+    if not capabilities.get("fully_connected") or not capabilities.get("transpose_weights"):
+        pytest.skip("XNNPACK fully_connected subgraph API is unavailable")
+    if not capabilities.get(capability):
+        pytest.skip(f"XNNPACK {capability} API is unavailable")
+    bound_mod = _bind_mlp_params(mod)
+    partitioned = _partition(bound_mod)
+    assert _has_codegen_attr(partitioned)
+    partitioned = relax.transform.RunCodegen()(partitioned)
+    assert _has_external_mods(partitioned)
+
+    x_np = np.linspace(-1.0, 1.0, num=4 * 8, dtype="float32").reshape(4, 8)
+    ref_ex = tvm.compile(bound_mod, target="llvm")
+    ref_vm = relax.VirtualMachine(ref_ex, tvm.cpu())
+    expected = ref_vm["main"](tvm.runtime.tensor(x_np)).numpy()
+
+    xnn_ex = tvm.compile(partitioned, target="llvm")
+    xnn_vm = relax.VirtualMachine(xnn_ex, tvm.cpu())
+    result = xnn_vm["main"](tvm.runtime.tensor(x_np)).numpy()
+    tvm.testing.assert_allclose(result, expected, rtol=1e-4, atol=1e-4)
+
+
+@pytest.mark.skipif(
+    not (_has_xnnpack_codegen() and _has_xnnpack_runtime()),
+    reason="XNNPACK codegen/runtime is not enabled",
+)
+def test_xnnpack_softmax_vm_execution():
+    if not _xnnpack_capabilities().get("softmax"):
+        pytest.skip("XNNPACK softmax subgraph API is unavailable")
+    partitioned = _partition(SoftmaxLastAxisModule)
+    assert _has_codegen_attr(partitioned)
+    partitioned = relax.transform.RunCodegen()(partitioned)
+    assert _has_external_mods(partitioned)
+
+    x_np = np.linspace(-2.0, 2.0, num=2 * 3 * 4, dtype="float32").reshape(2, 3, 4)
+    x_shifted = x_np - np.max(x_np, axis=-1, keepdims=True)
+    expected = np.exp(x_shifted) / np.sum(np.exp(x_shifted), axis=-1, keepdims=True)
+
+    xnn_ex = tvm.compile(partitioned, target="llvm")
+    xnn_vm = relax.VirtualMachine(xnn_ex, tvm.cpu())
+    result = xnn_vm["main"](tvm.runtime.tensor(x_np)).numpy()
+    tvm.testing.assert_allclose(result, expected, rtol=1e-5, atol=1e-6)
+
+
+@pytest.mark.skipif(
+    not (_has_xnnpack_codegen() and _has_xnnpack_runtime()),
+    reason="XNNPACK codegen/runtime is not enabled",
+)
+def test_xnnpack_mlp_residual_vm_execution():
+    capabilities = _xnnpack_capabilities()
+    if not (
+        capabilities.get("fully_connected")
+        and capabilities.get("transpose_weights")
+        and capabilities.get("unary_gelu")
+    ):
+        pytest.skip("XNNPACK fully_connected/GELU APIs are unavailable")
+    bound_mod = _bind_mlp_params(MLPResidualModule)
+    partitioned = _partition(bound_mod)
+    assert _has_codegen_attr(partitioned)
+    partitioned = relax.transform.RunCodegen()(partitioned)
+    assert _has_external_mods(partitioned)
+
+    x_np = np.linspace(-1.0, 1.0, num=4 * 8, dtype="float32").reshape(4, 8)
+    residual_np = np.linspace(0.25, -0.25, num=4 * 16, dtype="float32").reshape(4, 16)
+    ref_ex = tvm.compile(bound_mod, target="llvm")
+    ref_vm = relax.VirtualMachine(ref_ex, tvm.cpu())
+    expected = ref_vm["main"](
+        tvm.runtime.tensor(x_np), tvm.runtime.tensor(residual_np)
+    ).numpy()
+
+    xnn_ex = tvm.compile(partitioned, target="llvm")
+    xnn_vm = relax.VirtualMachine(xnn_ex, tvm.cpu())
+    result = xnn_vm["main"](
+        tvm.runtime.tensor(x_np), tvm.runtime.tensor(residual_np)
+    ).numpy()
+    tvm.testing.assert_allclose(result, expected, rtol=1e-4, atol=1e-4)
 
 
 @pytest.mark.skipif(
@@ -2352,6 +2604,9 @@ def test_xnnpack_quantization_capabilities_are_reported():
     assert "dynamic_range_subgraph_ops" in capabilities
     assert "dynamic_range_fully_connected" in capabilities
     assert "dynamic_range_conv2d" in capabilities
+    assert "unary_gelu" in capabilities
+    assert "unary_approxgelu" in capabilities
+    assert "softmax" in capabilities
     assert "define_dynamically_quantized_tensor_value" in capabilities
     assert "define_convert" in capabilities
     assert "extra_quantization_params" in capabilities

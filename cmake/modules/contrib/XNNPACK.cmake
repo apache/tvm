@@ -97,6 +97,9 @@ foreach(_feature
     VALIDATE_CHANNELWISE_QUANTIZED_TENSOR
     FULLY_CONNECTED
     DEPTHWISE_CONVOLUTION_2D
+    UNARY_GELU
+    UNARY_APPROXGELU
+    DEFINE_SOFTMAX
     DYNAMIC_RANGE_QD8_OPS
     DYNAMIC_RANGE_FULLY_CONNECTED_SUBGRAPH
     DYNAMIC_RANGE_CONV2D_SUBGRAPH
@@ -344,6 +347,19 @@ check_cxx_source_compiles("
   }" TVM_XNNPACK_HAS_DEPTHWISE_CONVOLUTION_2D)
 check_cxx_source_compiles("
   #include <xnnpack.h>
+  int main() { return xnn_unary_gelu == xnn_unary_invalid; }" TVM_XNNPACK_HAS_UNARY_GELU)
+check_cxx_source_compiles("
+  #include <xnnpack.h>
+  int main() { return xnn_unary_approxgelu == xnn_unary_invalid; }"
+  TVM_XNNPACK_HAS_UNARY_APPROXGELU)
+check_cxx_source_compiles("
+  #include <xnnpack.h>
+  int main() {
+    (void)xnn_define_softmax(nullptr, 0, 1, 0);
+    return 0;
+  }" TVM_XNNPACK_HAS_DEFINE_SOFTMAX)
+check_cxx_source_compiles("
+  #include <xnnpack.h>
   int main() {
     const size_t shape[2] = {1, 2};
     (void)xnn_define_static_reshape(nullptr, 2, shape, 0, 1, 0);
@@ -518,6 +534,9 @@ foreach(_feature
     VALIDATE_CHANNELWISE_QUANTIZED_TENSOR
     FULLY_CONNECTED
     DEPTHWISE_CONVOLUTION_2D
+    UNARY_GELU
+    UNARY_APPROXGELU
+    DEFINE_SOFTMAX
     DYNAMIC_RANGE_QD8_OPS
     DYNAMIC_RANGE_FULLY_CONNECTED_SUBGRAPH
     DYNAMIC_RANGE_CONV2D_SUBGRAPH
@@ -549,6 +568,9 @@ message(STATUS "XNNPACK runtime features: v4=${TVM_XNNPACK_HAS_RUNTIME_V4}, "
                "workspace=${TVM_XNNPACK_HAS_WORKSPACE}, profiling=${TVM_XNNPACK_HAS_PROFILING}")
 message(STATUS "XNNPACK precision features: fp16_flags=${TVM_XNNPACK_HAS_FP16_FLAGS}, "
                "datatype_fp16=${TVM_XNNPACK_HAS_DATATYPE_FP16}")
+message(STATUS "XNNPACK MLP features: unary_gelu=${TVM_XNNPACK_HAS_UNARY_GELU}, "
+               "unary_approxgelu=${TVM_XNNPACK_HAS_UNARY_APPROXGELU}, "
+               "softmax=${TVM_XNNPACK_HAS_DEFINE_SOFTMAX}")
 message(STATUS "XNNPACK quantization features: qs8_datatypes=${TVM_XNNPACK_HAS_QS8_DATATYPES}, "
                "qs8_subgraph_ops=${TVM_XNNPACK_HAS_QS8_SUBGRAPH_OPS}, "
                "dynamic_quant_datatypes=${TVM_XNNPACK_HAS_DYNAMIC_QUANT_DATATYPES}, "

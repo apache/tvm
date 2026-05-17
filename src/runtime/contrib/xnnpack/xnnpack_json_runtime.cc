@@ -1009,6 +1009,7 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
     static const std::unordered_set<std::string> supported = {
         "unary",
         "add",
+        "softmax",
         "conv2d",
         "fully_connected",
         "max_pool2d",
@@ -1112,6 +1113,12 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
       RequireAttrs(node, {"activation_min", "activation_max"});
       TVM_FFI_ICHECK_EQ(node.GetInputs().size(), 2U)
           << "XNNPACK add JSON node expects two inputs.";
+      return;
+    }
+    if (op_kind == "softmax") {
+      RequireAttrs(node, {"axis", "activation_min", "activation_max"});
+      TVM_FFI_ICHECK_EQ(node.GetInputs().size(), 1U)
+          << "XNNPACK softmax JSON node expects one input.";
       return;
     }
     if (op_kind == "conv2d") {
@@ -1541,11 +1548,36 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
       CheckXNNStatus(
           xnn_define_unary(subgraph_, xnn_unary_sigmoid, nullptr, input_id, output_id, 0),
           "xnn_define_unary(sigmoid)");
+    } else if (unary_op == "gelu") {
+#if defined(TVM_XNNPACK_HAS_UNARY_GELU)
+      CheckXNNStatus(xnn_define_unary(subgraph_, xnn_unary_gelu, nullptr, input_id, output_id, 0),
+                     "xnn_define_unary(gelu)");
+#else
+      TVM_FFI_THROW(RuntimeError) << "XNNPACK GELU unary API is unavailable.";
+#endif
+    } else if (unary_op == "approx_gelu") {
+#if defined(TVM_XNNPACK_HAS_UNARY_APPROXGELU)
+      CheckXNNStatus(
+          xnn_define_unary(subgraph_, xnn_unary_approxgelu, nullptr, input_id, output_id, 0),
+          "xnn_define_unary(approx_gelu)");
+#else
+      TVM_FFI_THROW(RuntimeError) << "XNNPACK approximate GELU unary API is unavailable.";
+#endif
     } else {
       TVM_FFI_ICHECK_EQ(unary_op, "tanh");
       CheckXNNStatus(xnn_define_unary(subgraph_, xnn_unary_tanh, nullptr, input_id, output_id, 0),
                      "xnn_define_unary(tanh)");
     }
+  }
+
+  void DefineSoftmax(const std::vector<JSONGraphNodeEntry>& inputs, uint32_t output_id) {
+#if defined(TVM_XNNPACK_HAS_DEFINE_SOFTMAX)
+    TVM_FFI_ICHECK_EQ(inputs.size(), 1U);
+    CheckXNNStatus(xnn_define_softmax(subgraph_, value_ids_[EntryID(inputs[0])], output_id, 0),
+                   "xnn_define_softmax");
+#else
+    TVM_FFI_THROW(RuntimeError) << "XNNPACK softmax subgraph API is unavailable.";
+#endif
   }
 
   void DefineAdd(const JSONGraphNode& node, const std::vector<JSONGraphNodeEntry>& inputs,
@@ -2007,6 +2039,8 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
         DefineUnary(node, inputs, output_id);
       } else if (op_kind == "add") {
         DefineAdd(node, inputs, output_id);
+      } else if (op_kind == "softmax") {
+        DefineSoftmax(inputs, output_id);
       } else if (op_kind == "conv2d") {
         DefineConv2D(node, inputs, output_id);
       } else if (op_kind == "fully_connected") {
@@ -2289,6 +2323,27 @@ ffi::Map<ffi::String, ffi::Any> XNNPACKJSONRuntimeGetCapabilities() {
                                             0
 #endif
                                             ));
+  result.Set("unary_gelu", static_cast<int64_t>(
+#if defined(TVM_XNNPACK_HAS_UNARY_GELU)
+                                      1
+#else
+                                      0
+#endif
+                                      ));
+  result.Set("unary_approxgelu", static_cast<int64_t>(
+#if defined(TVM_XNNPACK_HAS_UNARY_APPROXGELU)
+                                            1
+#else
+                                            0
+#endif
+                                            ));
+  result.Set("softmax", static_cast<int64_t>(
+#if defined(TVM_XNNPACK_HAS_DEFINE_SOFTMAX)
+                                1
+#else
+                                0
+#endif
+                                ));
   result.Set("depthwise_convolution_2d", static_cast<int64_t>(
 #if defined(TVM_XNNPACK_HAS_DEPTHWISE_CONVOLUTION_2D)
                                                      1

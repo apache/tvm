@@ -582,6 +582,13 @@ def _op_list_from_pattern(pattern_name: str, root: relax.Expr) -> list[str]:
             *(["relax.nn.relu"] if "relu" in pattern_name else []),
             *(["relax.clip"] if "clip" in pattern_name else []),
         ]
+    if "fully_connected" in pattern_name:
+        return [
+            "relax.matmul",
+            *(["relax.add"] if "bias" in pattern_name else []),
+            *(["relax.nn.gelu_tanh"] if "approx_gelu" in pattern_name else []),
+            *(["relax.nn.gelu"] if "gelu" in pattern_name and "approx_gelu" not in pattern_name else []),
+        ]
     if "qs8_reshape" in pattern_name:
         return ["relax.dequantize", "relax.reshape", "relax.quantize"]
     if "qs8_flatten" in pattern_name:
@@ -639,6 +646,12 @@ def _op_list_from_pattern(pattern_name: str, root: relax.Expr) -> list[str]:
         return ["relax.sigmoid"]
     if pattern_name.endswith(".tanh"):
         return ["relax.tanh"]
+    if pattern_name.endswith(".gelu"):
+        return ["relax.nn.gelu"]
+    if pattern_name.endswith(".approx_gelu"):
+        return ["relax.nn.gelu_tanh"]
+    if pattern_name.endswith(".softmax"):
+        return ["relax.nn.softmax"]
     if pattern_name.endswith(".max_pool2d"):
         return ["relax.nn.max_pool2d"]
     if pattern_name.endswith(".avg_pool2d"):
@@ -716,6 +729,67 @@ def _check_add(context: PatternCheckContext) -> bool:
     if not _is_external_input(lhs) or not _is_external_input(rhs):
         return False
     return _same_static_shape(lhs, rhs) and _same_static_shape(lhs, root)
+
+
+def _check_fully_connected(context: PatternCheckContext) -> bool:
+    if not _check_no_leaks(context):
+        return False
+    data = context.annotated_expr["data"]
+    weight = context.annotated_expr["weight"]
+    matmul = context.annotated_expr["weighted"]
+    root = context.annotated_expr["root"]
+    bias = context.annotated_expr.get("bias")
+
+    if not _is_external_input(data) or not isinstance(weight, relax.Constant):
+        return False
+    if bias is not None and not isinstance(bias, relax.Constant):
+        return False
+    exprs = [data, weight, matmul, root]
+    if bias is not None:
+        exprs.append(bias)
+    if any(not _is_static_float32(expr) for expr in exprs):
+        return False
+
+    data_shape = _get_static_shape(data)
+    weight_shape = _get_static_shape(weight)
+    matmul_shape = _get_static_shape(matmul)
+    root_shape = _get_static_shape(root)
+    if (
+        data_shape is None
+        or weight_shape is None
+        or matmul_shape is None
+        or root_shape is None
+    ):
+        return False
+    if len(data_shape) != 2 or len(weight_shape) != 2 or len(matmul_shape) != 2:
+        return False
+    if data_shape[1] != weight_shape[0] or matmul_shape != [data_shape[0], weight_shape[1]]:
+        return False
+    if root_shape != matmul_shape:
+        return False
+    if bias is not None and _get_static_shape(bias) != [weight_shape[1]]:
+        return False
+
+    root_name = _call_op_name(root)
+    return root_name in ("relax.nn.gelu", "relax.nn.gelu_tanh")
+
+
+def _check_softmax(context: PatternCheckContext) -> bool:
+    if not _check_no_leaks(context):
+        return False
+    input_expr = context.annotated_expr["input"]
+    root = context.annotated_expr["root"]
+    if not _is_external_input(input_expr):
+        return False
+    if not _is_static_float32(input_expr) or not _is_static_float32(root):
+        return False
+    shape = _get_static_shape(input_expr)
+    if shape is None or not shape or not _same_static_shape(input_expr, root):
+        return False
+    axis = int(root.attrs.axis)
+    if axis < 0:
+        axis += len(shape)
+    return axis == len(shape) - 1
 
 
 def _check_pool2d(context: PatternCheckContext) -> bool:
@@ -1256,6 +1330,35 @@ def _add_pattern():
     return ("xnnpack.add", root, {"lhs": lhs, "rhs": rhs, "root": root}, _check_add)
 
 
+def _fully_connected_gelu_patterns():
+    data = wildcard()
+    weight = is_const()
+    bias = is_const()
+    matmul = is_op("relax.matmul")(data, weight)
+    bias_add = is_op("relax.add")(matmul, bias)
+    gelu = is_op("relax.nn.gelu")(bias_add)
+    approx_gelu = is_op("relax.nn.gelu_tanh")(bias_add)
+
+    def make(name_suffix, expr):
+        return (
+            f"xnnpack.fully_connected_bias{name_suffix}",
+            expr,
+            {"data": data, "weight": weight, "bias": bias, "weighted": matmul, "root": expr},
+            _check_fully_connected,
+        )
+
+    return [
+        make("_approx_gelu", approx_gelu),
+        make("_gelu", gelu),
+    ]
+
+
+def _softmax_pattern():
+    input_expr = wildcard()
+    root = is_op("relax.nn.softmax")(input_expr)
+    return ("xnnpack.softmax", root, {"input": input_expr, "root": root}, _check_softmax)
+
+
 def _pool2d_pattern(pattern_name: str, op_name: str):
     input_expr = wildcard()
     root = is_op(op_name)(input_expr)
@@ -1633,6 +1736,8 @@ def _estimate_flops(context: PatternCheckContext, pattern_name: str) -> int:
     op_names = _collect_op_names(root)
     if "dynamic_range_fully_connected" in pattern_name:
         return _matmul_flops(context.annotated_expr.get("weighted", root))
+    if "fully_connected" in pattern_name:
+        return _matmul_flops(context.annotated_expr.get("weighted", root))
     if "qs8_fully_connected" in pattern_name:
         return _matmul_flops(context.annotated_expr.get("weighted", root))
     if "qs8_depthwise_conv2d" in pattern_name:
@@ -1669,7 +1774,7 @@ def _is_compute_heavy(pattern_name: str, context: PatternCheckContext, flops: in
 def _external_input_exprs(context: PatternCheckContext) -> list[relax.Expr]:
     exprs = []
     for key, expr in context.annotated_expr.items():
-        if key in ("root", "conv"):
+        if key in ("root", "conv", "weighted"):
             continue
         if isinstance(expr, relax.Constant):
             continue
@@ -1983,12 +2088,16 @@ register_patterns(
         _qs8_pool2d_pattern("xnnpack.qs8_max_pool2d", "relax.nn.max_pool2d"),
         _qs8_pool2d_pattern("xnnpack.qs8_avg_pool2d", "relax.nn.avg_pool2d"),
         *_qs8_add_patterns(),
+        *_fully_connected_gelu_patterns(),
         *_conv2d_patterns(),
         _pool2d_pattern("xnnpack.max_pool2d", "relax.nn.max_pool2d"),
         _pool2d_pattern("xnnpack.avg_pool2d", "relax.nn.avg_pool2d"),
         _add_pattern(),
+        _softmax_pattern(),
         _clip_pattern("xnnpack.clip"),
         _unary_pattern("xnnpack.relu", "relax.nn.relu"),
+        _unary_pattern("xnnpack.gelu", "relax.nn.gelu"),
+        _unary_pattern("xnnpack.approx_gelu", "relax.nn.gelu_tanh"),
         _unary_pattern("xnnpack.sigmoid", "relax.sigmoid"),
         _unary_pattern("xnnpack.tanh", "relax.tanh"),
     ]

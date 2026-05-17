@@ -559,6 +559,17 @@ overflow-like shapes.
        clamp nodes.
    * - ``relax.sigmoid`` and ``relax.tanh``
      - Static ``float32`` tensors.
+   * - ``relax.nn.gelu`` and ``relax.nn.gelu_tanh``
+     - Static ``float32`` tensors. ``gelu_tanh`` maps to XNNPACK's approximate
+       GELU unary op. Isolated GELU islands can be rejected by the cost policy.
+   * - ``relax.matmul`` + static bias + GELU
+     - Static rank-2 float32 input, static rank-2 float32 weights in
+       ``[input_channels, output_channels]`` form, static float32 bias, and
+       either exact GELU or approximate GELU. This is intended for small MLP
+       blocks, not batch matrix multiply or full attention lowering.
+   * - ``relax.nn.softmax``
+     - Static float32 tensors, last axis only. Non-last-axis softmax and
+       ``relax.nn.log_softmax`` are intentionally rejected.
    * - ``relax.add``
      - Equal static input shapes only. Broadcasting is intentionally rejected.
    * - ``relax.nn.max_pool2d`` and ``relax.nn.avg_pool2d``
@@ -606,14 +617,15 @@ overflow-like shapes.
        OHWI static weights, ``groups=1``, static attributes, optional static
        float32 bias, and optional ReLU/ReLU6/clip.
 
-There is no int8 multiply/subtract/concat/pad/resize, generic spatial mean,
-softmax, dynamic-range Conv2D, QU8/``uint8``, 4-bit, weight-only quantization,
+There is no full attention lowering, batch matrix multiply, SwiGLU,
+``log_softmax``, int8 multiply/subtract/concat/pad/resize, generic spatial
+mean, dynamic-range Conv2D, QU8/``uint8``, 4-bit, weight-only quantization,
 dynamic qparams, layout conversion, dynamic-shape support, broad broadcasting,
 or broad CNN coverage in this phase. Explicit ``float16`` Relax graphs are
 also unsupported and must fall back to TVM. Dynamic-shape support is limited to
 the explicit batch-only cases above; arbitrary symbolic shapes still fall back
-to TVM. The cost policy can reject isolated small int8 elementwise or
-reshape/copy islands, and tiny dynamic-range dense islands, even when the
+to TVM. The cost policy can reject isolated small fp32 or int8 elementwise,
+unary, reshape/copy, and tiny dynamic-range dense islands, even when the
 greedy/debug policies would partition them. Dynamic-batch report entries set
 ``dynamic_batch=True`` and include the symbol name, lower/upper bounds, and
 min/max FLOP and copy-byte estimates.

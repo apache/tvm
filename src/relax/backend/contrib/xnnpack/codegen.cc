@@ -191,6 +191,10 @@ class XNNPACKJSONSerializer : public JSONSerializer {
     if (IsQuantizedComposite(composite_name)) {
       return VisitQuantizedComposite(call_node, fn, composite_name);
     }
+    if (composite_name == "xnnpack.fully_connected_bias_gelu" ||
+        composite_name == "xnnpack.fully_connected_bias_approx_gelu") {
+      return VisitFullyConnectedGeluComposite(call_node, fn, composite_name);
+    }
 
     NodeEntries inputs;
     for (const auto& arg : call_node->args) {
@@ -221,8 +225,13 @@ class XNNPACKJSONSerializer : public JSONSerializer {
         "xnnpack.max_pool2d",
         "xnnpack.avg_pool2d",
         "xnnpack.add",
+        "xnnpack.fully_connected_bias_gelu",
+        "xnnpack.fully_connected_bias_approx_gelu",
+        "xnnpack.softmax",
         "xnnpack.clip",
         "xnnpack.relu",
+        "xnnpack.gelu",
+        "xnnpack.approx_gelu",
         "xnnpack.sigmoid",
         "xnnpack.tanh",
         "xnnpack.dynamic_range_fully_connected_bias_clip",
@@ -279,6 +288,36 @@ class XNNPACKJSONSerializer : public JSONSerializer {
 
   static bool IsDynamicRangeComposite(const std::string& name) {
     return name.find("xnnpack.dynamic_range_") == 0;
+  }
+
+  NodeEntries VisitFullyConnectedGeluComposite(const CallNode* call_node, const Function& fn,
+                                               const std::string& composite_name) {
+    NodeEntries inputs;
+    for (const auto& arg : call_node->args) {
+      auto res = VisitExpr(arg);
+      inputs.insert(inputs.end(), res.begin(), res.end());
+    }
+    for (const auto& constant : CollectConstants(fn)) {
+      auto res = VisitExpr(constant);
+      inputs.insert(inputs.end(), res.begin(), res.end());
+    }
+
+    TVM_FFI_ICHECK_EQ(inputs.size(), 3U)
+        << composite_name << " expects data, weight, and bias inputs.";
+    auto fc_node = std::make_shared<JSONGraphNode>(composite_name + "_fully_connected", "kernel",
+                                                   inputs, 1);
+    fc_node->SetAttr("op_kind", ffi::String("fully_connected"));
+    fc_node->SetAttr("has_bias", static_cast<int64_t>(1));
+    SetActivationAttrs(fc_node, "none");
+    NodeEntries fc_output = AddNode(fc_node, fn->body);
+
+    auto gelu_node = std::make_shared<JSONGraphNode>(composite_name, "kernel", fc_output, 1);
+    gelu_node->SetAttr("op_kind", ffi::String("unary"));
+    gelu_node->SetAttr("unary_op", ffi::String(composite_name.find("approx_gelu") != std::string::npos
+                                                   ? "approx_gelu"
+                                                   : "gelu"));
+    SetActivationAttrs(gelu_node, "none");
+    return AddNode(gelu_node, ffi::GetRef<Expr>(call_node));
   }
 
   static std::string OpName(const CallNode* call) {
@@ -848,6 +887,19 @@ class XNNPACKJSONSerializer : public JSONSerializer {
     SetActivationAttrs(node, "none");
   }
 
+  static void SetSoftmaxAttrs(const JSONGraphObjectPtr& node, const Function& fn,
+                              const std::string& composite_name, size_t num_inputs) {
+    TVM_FFI_ICHECK_EQ(num_inputs, 1U) << composite_name << " expects one input.";
+    const auto calls = CollectCalls(fn);
+    const CallNode* softmax_call = FindCall(calls, "relax.nn.softmax");
+    TVM_FFI_ICHECK(softmax_call) << composite_name << " must contain relax.nn.softmax.";
+    const auto* attrs = softmax_call->attrs.as<SoftmaxAttrs>();
+    TVM_FFI_ICHECK(attrs) << "relax.nn.softmax is missing SoftmaxAttrs.";
+    node->SetAttr("op_kind", ffi::String("softmax"));
+    node->SetAttr("axis", static_cast<int64_t>(attrs->axis));
+    SetActivationAttrs(node, "none");
+  }
+
   static void SetUnaryAttrs(const JSONGraphObjectPtr& node, const Function& fn,
                             const std::string& composite_name, size_t num_inputs) {
     TVM_FFI_ICHECK_EQ(num_inputs, 1U) << composite_name << " expects one input.";
@@ -865,6 +917,12 @@ class XNNPACKJSONSerializer : public JSONSerializer {
     } else if (composite_name == "xnnpack.sigmoid") {
       node->SetAttr("unary_op", ffi::String("sigmoid"));
       SetActivationAttrs(node, "none");
+    } else if (composite_name == "xnnpack.gelu") {
+      node->SetAttr("unary_op", ffi::String("gelu"));
+      SetActivationAttrs(node, "none");
+    } else if (composite_name == "xnnpack.approx_gelu") {
+      node->SetAttr("unary_op", ffi::String("approx_gelu"));
+      SetActivationAttrs(node, "none");
     } else {
       TVM_FFI_ICHECK_EQ(composite_name, "xnnpack.tanh");
       node->SetAttr("unary_op", ffi::String("tanh"));
@@ -879,8 +937,12 @@ class XNNPACKJSONSerializer : public JSONSerializer {
       SetConv2DAttrs(node, fn, composite_name, num_inputs);
     } else if (composite_name.find("xnnpack.dynamic_batch_fully_connected") == 0) {
       SetFullyConnectedAttrs(node, fn, composite_name, num_inputs);
+    } else if (composite_name.find("xnnpack.fully_connected") == 0) {
+      SetFullyConnectedAttrs(node, fn, composite_name, num_inputs);
     } else if (composite_name == "xnnpack.max_pool2d" || composite_name == "xnnpack.avg_pool2d") {
       SetPool2DAttrs(node, fn, composite_name, num_inputs);
+    } else if (composite_name == "xnnpack.softmax") {
+      SetSoftmaxAttrs(node, fn, composite_name, num_inputs);
     } else if (composite_name == "xnnpack.add") {
       TVM_FFI_ICHECK_EQ(num_inputs, 2U) << "xnnpack.add expects two inputs.";
       node->SetAttr("op_kind", ffi::String("add"));
