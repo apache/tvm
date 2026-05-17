@@ -398,8 +398,10 @@ class XNNPACKJSONSerializer : public JSONSerializer {
     const std::vector<double> scales = ConstantFloatArray(qdq_call->args[1], "qparam scale");
     node->SetAttr(prefix + "_qscheme", ffi::String(QScheme(scales)));
     node->SetAttr(prefix + "_scales", JoinFloats(scales));
-    node->SetAttr(prefix + "_zero_point", ConstantIntScalar(qdq_call->args[2], "qparam zero_point"));
-    node->SetAttr(prefix + "_axis", static_cast<int64_t>(attrs->axis));
+    node->SetAttr(prefix + "_zero_point",
+                  ConstantIntScalar(qdq_call->args[2], "qparam zero_point"));
+    node->SetAttr(prefix + "_axis",
+                  channel_dim >= 0 ? channel_dim : static_cast<int64_t>(attrs->axis));
     node->SetAttr(prefix + "_channel_dim", channel_dim);
   }
 
@@ -458,14 +460,20 @@ class XNNPACKJSONSerializer : public JSONSerializer {
         << composite_name << " expects one external quantized input.";
     auto data_res = VisitExpr(call_node->args[0]);
     inputs.insert(inputs.end(), data_res.begin(), data_res.end());
-    TVM_FFI_ICHECK_GE(call_node->args.size(), 2U)
-        << composite_name << " expects quantized data and weight inputs.";
-    auto weight_res = VisitExpr(ResolveExpr(call_node->args[1], bindings_));
+    Expr weight_expr = ResolveExpr(weight_dq->args[0], local_bindings);
+    if (!weight_expr.as<ConstantNode>() && call_node->args.size() > 1) {
+      weight_expr = ResolveExpr(call_node->args[1], bindings_);
+    }
+    auto weight_res = weight_expr.as<ConstantNode>() ? VisitExpr(Downcast<Constant>(weight_expr))
+                                                     : VisitExpr(weight_expr);
     inputs.insert(inputs.end(), weight_res.begin(), weight_res.end());
     if (has_bias) {
-      TVM_FFI_ICHECK_GE(call_node->args.size(), 3U)
-          << composite_name << " expects quantized data, weight, and bias inputs.";
-      auto bias_res = VisitExpr(ResolveExpr(call_node->args[2], bindings_));
+      Expr bias_expr = ResolveExpr(bias_dq->args[0], local_bindings);
+      if (!bias_expr.as<ConstantNode>() && call_node->args.size() > 2) {
+        bias_expr = ResolveExpr(call_node->args[2], bindings_);
+      }
+      auto bias_res = bias_expr.as<ConstantNode>() ? VisitExpr(Downcast<Constant>(bias_expr))
+                                                   : VisitExpr(bias_expr);
       inputs.insert(inputs.end(), bias_res.begin(), bias_res.end());
     }
 

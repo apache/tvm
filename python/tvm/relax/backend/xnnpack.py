@@ -253,10 +253,16 @@ def _parse_dequantize(
     channel_dim: int | None = None,
     require_constant_input: bool = False,
     require_zero_point_zero: bool = False,
+    bindings=None,
+    input_override: relax.Expr | None = None,
 ) -> dict[str, object] | None:
     if _call_op_name(expr) != "relax.dequantize":
         return None
     input_expr, scale, zero_point = expr.args[:3]
+    if input_override is not None:
+        input_expr = input_override
+    if isinstance(input_expr, relax.Var) and bindings is not None and input_expr in bindings:
+        input_expr = bindings[input_expr]
     if require_constant_input and not isinstance(input_expr, relax.Constant):
         return None
     if _tensor_dtype(input_expr) != expected_dtype or _tensor_dtype(expr) != "float32":
@@ -280,19 +286,25 @@ def _parse_dequantize(
     return qparams
 
 
-def _parse_activation_qdq(expr: relax.Expr) -> dict[str, object] | None:
+def _parse_activation_qdq(expr: relax.Expr, bindings=None) -> dict[str, object] | None:
     qdq = _parse_dequantize(
         expr,
         expected_dtype="int8",
         allow_per_channel=False,
         require_constant_input=False,
+        bindings=bindings,
     )
     if qdq is None or not _is_external_input(qdq["value"]):
         return None
     return qdq
 
 
-def _parse_weight_qdq(expr: relax.Expr, channel_dim: int) -> dict[str, object] | None:
+def _parse_weight_qdq(
+    expr: relax.Expr,
+    channel_dim: int,
+    bindings=None,
+    input_override: relax.Expr | None = None,
+) -> dict[str, object] | None:
     return _parse_dequantize(
         expr,
         expected_dtype="int8",
@@ -300,6 +312,8 @@ def _parse_weight_qdq(expr: relax.Expr, channel_dim: int) -> dict[str, object] |
         channel_dim=channel_dim,
         require_constant_input=True,
         require_zero_point_zero=True,
+        bindings=bindings,
+        input_override=input_override,
     )
 
 
@@ -308,6 +322,8 @@ def _parse_bias_qdq(
     input_scale: np.ndarray,
     weight_scale: np.ndarray,
     output_channels: int,
+    bindings=None,
+    input_override: relax.Expr | None = None,
 ) -> dict[str, object] | None:
     qdq = _parse_dequantize(
         expr,
@@ -316,6 +332,8 @@ def _parse_bias_qdq(
         channel_dim=0,
         require_constant_input=True,
         require_zero_point_zero=True,
+        bindings=bindings,
+        input_override=input_override,
     )
     if qdq is None or qdq["shape"] != [output_channels]:
         return None
@@ -410,6 +428,16 @@ def _find_bias_dequantize(expr: relax.Expr, weighted: relax.Expr) -> relax.Call 
             if found is not None:
                 return found
     return None
+
+
+def _resolve_bound_expr(context: PatternCheckContext, expr: relax.Expr | None) -> relax.Expr | None:
+    if isinstance(expr, relax.Var) and expr in context.matched_bindings:
+        return _resolve_bound_expr(context, context.matched_bindings[expr])
+    if isinstance(expr, relax.Var):
+        for value, bound_var in context.value_to_bound_var.items():
+            if bound_var.same_as(expr):
+                return value
+    return expr
 
 
 def _op_list_from_pattern(pattern_name: str, root: relax.Expr) -> list[str]:
@@ -616,17 +644,21 @@ def _check_conv2d(context: PatternCheckContext) -> bool:
 
 
 def _qs8_weighted_parts(context: PatternCheckContext) -> tuple[dict[str, object], ...] | None:
-    output = _parse_output_quantize(context.matched_expr)
+    matched_expr = _resolve_bound_expr(context, context.matched_expr)
+    output = _parse_output_quantize(matched_expr)
     if output is None:
         return None
-    q_root = output["value"]
-    weighted = _find_call_in_expr(q_root, "relax.matmul") or _find_call_in_expr(
-        q_root, "relax.nn.conv2d"
-    )
+    weighted = _resolve_bound_expr(context, context.annotated_expr.get("weighted"))
+    if weighted is None:
+        q_root = _resolve_bound_expr(context, output["value"])
+        weighted = _find_call_in_expr(q_root, "relax.matmul") or _find_call_in_expr(
+            q_root, "relax.nn.conv2d"
+        )
     if weighted is None:
         return None
 
-    data = _parse_activation_qdq(weighted.args[0])
+    data_dq = _resolve_bound_expr(context, context.annotated_expr.get("data_dq", weighted.args[0]))
+    data = _parse_activation_qdq(data_dq, context.matched_bindings)
     if data is None:
         return None
     return (data, output, {"weighted": weighted})
@@ -635,12 +667,23 @@ def _qs8_weighted_parts(context: PatternCheckContext) -> tuple[dict[str, object]
 def _check_qs8_fully_connected(context: PatternCheckContext) -> bool:
     if _tensor_dtype(context.annotated_expr.get("root")) != "int8":
         return False
-    matmul = context.annotated_expr["weighted"]
+    parts = _qs8_weighted_parts(context)
+    if parts is None:
+        return False
+    data, _, extra = parts
+    matmul = extra["weighted"]
     if _call_op_name(matmul) != "relax.matmul":
         return False
-    data = {"value": context.annotated_expr["data"], "scale": np.array([1.0])}
-    weight = {"value": context.annotated_expr["weight"], "scale": np.array([1.0])}
-    if _tensor_dtype(data["value"]) != "int8" or _tensor_dtype(weight["value"]) != "int8":
+    weight_dq = _resolve_bound_expr(
+        context, context.annotated_expr.get("weight_dq", matmul.args[1])
+    )
+    weight = _parse_weight_qdq(
+        weight_dq,
+        channel_dim=1,
+        bindings=context.matched_bindings,
+        input_override=_resolve_bound_expr(context, weight_dq.args[0]),
+    )
+    if weight is None:
         return False
     if context.annotated_expr.get("bias_dq") is None:
         return True
@@ -659,12 +702,23 @@ def _check_qs8_fully_connected(context: PatternCheckContext) -> bool:
 def _check_qs8_conv2d(context: PatternCheckContext) -> bool:
     if _tensor_dtype(context.annotated_expr.get("root")) != "int8":
         return False
-    data = {"value": context.annotated_expr["data"], "scale": np.array([1.0])}
-    conv = context.annotated_expr["weighted"]
+    parts = _qs8_weighted_parts(context)
+    if parts is None:
+        return False
+    data, _, extra = parts
+    conv = extra["weighted"]
     if _call_op_name(conv) != "relax.nn.conv2d":
         return False
-    weight = {"value": context.annotated_expr["weight"], "scale": np.array([1.0])}
-    if _tensor_dtype(data["value"]) != "int8" or _tensor_dtype(weight["value"]) != "int8":
+    weight_dq = _resolve_bound_expr(
+        context, context.annotated_expr.get("weight_dq", conv.args[1])
+    )
+    weight = _parse_weight_qdq(
+        weight_dq,
+        channel_dim=0,
+        bindings=context.matched_bindings,
+        input_override=_resolve_bound_expr(context, weight_dq.args[0]),
+    )
+    if weight is None:
         return False
     data_shape = _get_static_shape(data["value"])
     weight_shape = _get_static_shape(weight["value"])
@@ -692,12 +746,23 @@ def _check_qs8_conv2d(context: PatternCheckContext) -> bool:
 def _check_qs8_depthwise_conv2d(context: PatternCheckContext) -> bool:
     if _tensor_dtype(context.annotated_expr.get("root")) != "int8":
         return False
-    data = {"value": context.annotated_expr["data"], "scale": np.array([1.0])}
-    conv = context.annotated_expr["weighted"]
+    parts = _qs8_weighted_parts(context)
+    if parts is None:
+        return False
+    data, _, extra = parts
+    conv = extra["weighted"]
     if _call_op_name(conv) != "relax.nn.conv2d":
         return False
-    weight = {"value": context.annotated_expr["weight"], "scale": np.array([1.0])}
-    if _tensor_dtype(data["value"]) != "int8" or _tensor_dtype(weight["value"]) != "int8":
+    weight_dq = _resolve_bound_expr(
+        context, context.annotated_expr.get("weight_dq", conv.args[1])
+    )
+    weight = _parse_weight_qdq(
+        weight_dq,
+        channel_dim=2,
+        bindings=context.matched_bindings,
+        input_override=_resolve_bound_expr(context, weight_dq.args[0]),
+    )
+    if weight is None:
         return False
     data_shape = _get_static_shape(data["value"])
     weight_shape = _get_static_shape(weight["value"])
@@ -840,13 +905,9 @@ def _qs8_weighted_patterns(prefix: str, weighted, check):
         annotations = {
             "data": q_data,
             "data_dq": data_dq,
-            "weight": q_weight,
-            "weight_dq": weight_dq,
             "weighted": base_weighted,
             "root": root,
         }
-        if has_bias:
-            annotations.update({"bias": q_bias, "bias_dq": bias_dq})
         return (f"xnnpack.{prefix}{name_suffix}", root, annotations, check)
 
     return [

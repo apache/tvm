@@ -157,11 +157,12 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
     // ensure buffers passed to XNNPACK satisfy this padding contract.
     // TODO(XNNPACK): Static weight tensors passed into XNNPACK must outlive XNNPACK subgraphs,
     // runtimes, and operator objects that reference them.
-    BuildRuntime();
   }
 
   void Run() override {
-    TVM_FFI_ICHECK(runtime_ != nullptr) << "XNNPACK runtime has not been built.";
+    if (runtime_ == nullptr) {
+      BuildRuntime();
+    }
 
     std::vector<xnn_external_value> external_values;
     external_values.reserve(external_tensors_.size());
@@ -916,22 +917,19 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
     const uint32_t weight_nid = inputs[1].id_;
     CheckInt8DType(nodes_[weight_nid], inputs[1].index_);
     std::vector<size_t> weight_shape = GetShape(nodes_[weight_nid], inputs[1].index_);
+    const void* weight_data =
+        PrepareTypedConstant(weight_eid, nodes_[weight_nid], inputs[1].index_);
     QuantizationMetadata weight_qparams = GetNodeQParams(node, "weight", weight_shape, "int8");
-    DefineQuantizedTensor(weight_eid, weight_shape, weight_qparams, XNN_VALUE_FLAG_EXTERNAL_INPUT);
-    external_tensors_.push_back(
-        {weight_eid, weight_shape, "weight", GetDType(nodes_[weight_nid], inputs[1].index_),
-         sizeof(int8_t), false, {}});
+    DefineQuantizedTensor(weight_eid, weight_shape, weight_qparams, 0, weight_data);
 
     if (inputs.size() == 3U) {
       const uint32_t bias_eid = EntryID(inputs[2]);
       const uint32_t bias_nid = inputs[2].id_;
       CheckInt32DType(nodes_[bias_nid], inputs[2].index_);
       std::vector<size_t> bias_shape = GetShape(nodes_[bias_nid], inputs[2].index_);
+      const void* bias_data = PrepareTypedConstant(bias_eid, nodes_[bias_nid], inputs[2].index_);
       QuantizationMetadata bias_qparams = GetNodeQParams(node, "bias", bias_shape, "int32");
-      DefineQuantizedTensor(bias_eid, bias_shape, bias_qparams, XNN_VALUE_FLAG_EXTERNAL_INPUT);
-      external_tensors_.push_back(
-          {bias_eid, bias_shape, "bias", GetDType(nodes_[bias_nid], inputs[2].index_),
-           sizeof(int32_t), false, {}});
+      DefineQuantizedTensor(bias_eid, bias_shape, bias_qparams, 0, bias_data);
     }
   }
 
@@ -958,23 +956,21 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
     TVM_FFI_ICHECK_EQ(hwoi_shape.size(), 4U);
     TVM_FFI_ICHECK_EQ(hwoi_shape[3], 1U)
         << "XNNPACK QS8 depthwise currently requires depth_multiplier=1.";
-    std::vector<size_t> xnn_shape = {1, hwoi_shape[0], hwoi_shape[1], hwoi_shape[2] * hwoi_shape[3]};
+    std::vector<size_t> xnn_shape = {1, hwoi_shape[0], hwoi_shape[1],
+                                     hwoi_shape[2] * hwoi_shape[3]};
+    const void* weight_data =
+        PrepareTypedConstant(weight_eid, nodes_[weight_nid], inputs[1].index_);
     QuantizationMetadata weight_qparams = GetNodeQParams(node, "weight", xnn_shape, "int8");
-    DefineQuantizedTensor(weight_eid, hwoi_shape, weight_qparams, XNN_VALUE_FLAG_EXTERNAL_INPUT);
-    external_tensors_.push_back(
-        {weight_eid, hwoi_shape, "weight", GetDType(nodes_[weight_nid], inputs[1].index_),
-         sizeof(int8_t), false, {}});
+    DefineQuantizedTensor(weight_eid, xnn_shape, weight_qparams, 0, weight_data);
 
     if (inputs.size() == 3U) {
       const uint32_t bias_eid = EntryID(inputs[2]);
       const uint32_t bias_nid = inputs[2].id_;
       CheckInt32DType(nodes_[bias_nid], inputs[2].index_);
       std::vector<size_t> bias_shape = GetShape(nodes_[bias_nid], inputs[2].index_);
+      const void* bias_data = PrepareTypedConstant(bias_eid, nodes_[bias_nid], inputs[2].index_);
       QuantizationMetadata bias_qparams = GetNodeQParams(node, "bias", bias_shape, "int32");
-      DefineQuantizedTensor(bias_eid, bias_shape, bias_qparams, XNN_VALUE_FLAG_EXTERNAL_INPUT);
-      external_tensors_.push_back(
-          {bias_eid, bias_shape, "bias", GetDType(nodes_[bias_nid], inputs[2].index_),
-           sizeof(int32_t), false, {}});
+      DefineQuantizedTensor(bias_eid, bias_shape, bias_qparams, 0, bias_data);
     }
   }
 

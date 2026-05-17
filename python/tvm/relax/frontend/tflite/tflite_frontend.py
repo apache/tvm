@@ -544,12 +544,28 @@ class OperatorConverter:
 
                 # Check that the scale and zero points are valid.
                 if is_qnn_params_valid:
+                    axis = (
+                        int(tflite_qnn_params.QuantizedDimension())
+                        if hasattr(tflite_qnn_params, "QuantizedDimension")
+                        else -1
+                    )
+                    tensor_type_str = self.get_tensor_type_str(tensor.Type())
+                    zero_point_dtype = "int32" if tensor_type_str == "int32" else tensor_type_str
+                    if tensor_type_str not in ("int8", "int32", "uint8"):
+                        raise NotImplementedError(
+                            f"Quantized TFLite tensor dtype {tensor_type_str} is not supported"
+                        )
+                    scale_arr = np.asarray(scale, dtype="float32")
+                    if np.any(scale_arr <= 0):
+                        raise tvm.error.OpAttributeInvalid(
+                            "TFLite quantization scales must be positive constants"
+                        )
                     qnn_params = dict()
                     qnn_params["scale"] = relax.const(scale, "float32")
-                    qnn_params["zero_point"] = relax.const(zero_point, "int32")
-                    raise NotImplementedError(
-                        "Quantized TFLite models are not yet supported in the Relax frontend"
-                    )
+                    qnn_params["zero_point"] = relax.const(zero_point, zero_point_dtype)
+                    qnn_params["axis"] = axis
+                    qnn_params["qscheme"] = "per_tensor" if scale_arr.size == 1 else "per_channel"
+                    qnn_params["dtype"] = tensor_type_str
             return_list.append(TensorWrapper(tensor_idx, tensor, buffer, qnn_params))
         return return_list
 
@@ -654,22 +670,81 @@ class OperatorConverter:
         """Helper function to quantize a tensor with Relax"""
         tensor_type = tensor_to_quantize.tensor.Type()
         tensor_type_str = self.get_tensor_type_str(tensor_type)
-        quantized = _qnn.op.quantize(
-            data=expr,
-            output_scale=tensor_to_quantize.qnn_params["scale"],
-            output_zero_point=tensor_to_quantize.qnn_params["zero_point"],
+        quantized = relax.op.quantize(
+            expr,
+            tensor_to_quantize.qnn_params["scale"],
+            tensor_to_quantize.qnn_params["zero_point"],
+            axis=tensor_to_quantize.qnn_params.get("axis", -1),
             out_dtype=tensor_type_str,
         )
         return quantized
 
     def dequantize(self, expr, tensor):
         """Helper function to dequantize a tensor with Relax"""
-        dequantized = _qnn.op.dequantize(
-            data=expr,
-            input_scale=tensor.qnn_params["scale"],
-            input_zero_point=tensor.qnn_params["zero_point"],
+        dequantized = relax.op.dequantize(
+            expr,
+            tensor.qnn_params["scale"],
+            tensor.qnn_params["zero_point"],
+            axis=tensor.qnn_params.get("axis", -1),
+            out_dtype="float32",
         )
         return dequantized
+
+    def _require_qs8_tensor(self, tensor, role):
+        dtype = self.get_tensor_type_str(tensor.tensor.Type())
+        if dtype != "int8" or not tensor.qnn_params:
+            raise tvm.error.OpAttributeInvalid(
+                f"XNNPACK TFLite QDQ import expects signed int8 {role} tensors"
+            )
+        if tensor.qnn_params["dtype"] != "int8":
+            raise tvm.error.OpAttributeInvalid(f"Unexpected qparam dtype for {role}")
+
+    def _require_qs8_weight(self, tensor, expected_axis):
+        self._require_qs8_tensor(tensor, "weight")
+        zero_point = tensor.qnn_params["zero_point"].data.numpy()
+        if np.any(zero_point != 0):
+            raise tvm.error.OpAttributeInvalid("XNNPACK QS8 weights require zero_point == 0")
+        axis = tensor.qnn_params.get("axis", -1)
+        if tensor.qnn_params["qscheme"] == "per_channel" and axis != expected_axis:
+            raise tvm.error.OpAttributeInvalid(
+                f"XNNPACK QS8 weight per-channel axis must be {expected_axis}, got {axis}"
+            )
+
+    def _validate_qs8_bias(self, input_tensor, weight_tensor, bias_tensor):
+        if (
+            self.get_tensor_type_str(bias_tensor.tensor.Type()) != "int32"
+            or not bias_tensor.qnn_params
+        ):
+            raise tvm.error.OpAttributeInvalid("XNNPACK QS8 bias must be static int32 with qparams")
+        if np.any(bias_tensor.qnn_params["zero_point"].data.numpy() != 0):
+            raise tvm.error.OpAttributeInvalid("XNNPACK QS8 bias requires zero_point == 0")
+        expected = (
+            input_tensor.qnn_params["scale"].data.numpy().reshape(-1)[0]
+            * weight_tensor.qnn_params["scale"].data.numpy().reshape(-1)
+        )
+        actual = bias_tensor.qnn_params["scale"].data.numpy().reshape(-1)
+        if actual.size == 1 and expected.size != 1:
+            raise tvm.error.OpAttributeInvalid(
+                "XNNPACK QS8 bias scale must match per-channel weight scale"
+            )
+        if not np.allclose(actual, expected, rtol=1e-5, atol=1e-8):
+            raise tvm.error.OpAttributeInvalid(
+                "XNNPACK QS8 bias scale must equal input_scale * weight_scale"
+            )
+
+    def _dq_static_tensor(self, tensor, axis=None):
+        expr = self.get_tensor_expr(tensor)
+        if axis is None:
+            return self.dequantize(expr, tensor)
+        qparams = dict(tensor.qnn_params)
+        qparams["axis"] = axis
+        return relax.op.dequantize(
+            expr,
+            qparams["scale"],
+            qparams["zero_point"],
+            axis=axis,
+            out_dtype="float32",
+        )
 
     def is_quantized(self, op):
         """Check if an input tensor is quantized."""
@@ -2574,6 +2649,36 @@ class OperatorConverter:
             TensorType.FLOAT32,
         )
 
+        if input_tensor.qnn_params:
+            self._require_qs8_tensor(input_tensor, "input")
+            self._require_qs8_weight(weight_tensor, expected_axis=0)
+            self._require_qs8_tensor(output_tensor, "output")
+            in_f32 = self.dequantize(in_expr, input_tensor)
+            weight_value = self.get_tensor_value(weight_tensor).transpose((1, 0))
+            weight_expr = self.exp_tab.new_const(
+                weight_value, dtype="int8", source_name=weight_tensor.tensor.Name()
+            )
+            weight_axis = 1 if weight_tensor.qnn_params["qscheme"] == "per_channel" else -1
+            weight_f32 = relax.op.dequantize(
+                weight_expr,
+                weight_tensor.qnn_params["scale"],
+                weight_tensor.qnn_params["zero_point"],
+                axis=weight_axis,
+                out_dtype="float32",
+            )
+            out = relax.op.matmul(in_f32, weight_f32)
+            if len(input_tensors) == 3 and input_tensors[2].tensor_idx != -1:
+                bias_tensor = input_tensors[2]
+                self._validate_qs8_bias(input_tensor, weight_tensor, bias_tensor)
+                out = relax.op.add(out, self._dq_static_tensor(bias_tensor, axis=0))
+            out = self.convert_fused_activation_function(out, fused_activation_fn)
+            out = self.quantize(out, output_tensor)
+            if keep_num_dims:
+                input_shape = self._infer_shape(self.get_tensor_expr(input_tensor))
+                output_shape = to_int_list(input_shape)[:-1] + [weight_tensor_shape[0]]
+                out = relax.op.reshape(out, output_shape)
+            return out
+
         weight_expr = self.get_tensor_expr(weight_tensor)
         weight_shape = weight_expr.struct_info.shape
         weight_expr = relax.op.permute_dims(weight_expr, [1, 0])
@@ -2794,6 +2899,42 @@ class OperatorConverter:
         weight_tensor_type_str = self.get_tensor_type_str(weight_tensor_type)
 
         in_expr = self.get_expr(input_tensor_idx)
+
+        if input_tensor.qnn_params:
+            self._require_qs8_tensor(input_tensor, "input")
+            self._require_qs8_tensor(output_tensor, "output")
+            expected_axis = 3 if is_depthwise_conv else 0
+            self._require_qs8_weight(weight_tensor, expected_axis=expected_axis)
+            qdq_params = dict(params)
+            qdq_params["out_layout"] = "NHWC"
+            if is_depthwise_conv:
+                qdq_params["kernel_layout"] = "HWOI"
+                weight_value = self.get_tensor_value(weight_tensor).reshape(
+                    kernel_h, kernel_w, input_c, depth_multiplier
+                )
+                weight_axis = 2 if weight_tensor.qnn_params["qscheme"] == "per_channel" else -1
+            else:
+                qdq_params["kernel_layout"] = "OHWI"
+                weight_value = self.get_tensor_value(weight_tensor)
+                weight_axis = 0 if weight_tensor.qnn_params["qscheme"] == "per_channel" else -1
+            weight_expr = self.exp_tab.new_const(
+                weight_value, dtype="int8", source_name=weight_tensor.tensor.Name()
+            )
+            in_f32 = self.dequantize(in_expr, input_tensor)
+            weight_f32 = relax.op.dequantize(
+                weight_expr,
+                weight_tensor.qnn_params["scale"],
+                weight_tensor.qnn_params["zero_point"],
+                axis=weight_axis,
+                out_dtype="float32",
+            )
+            out = relax.op.nn.conv2d(in_f32, weight_f32, **qdq_params)
+            if len(input_tensors) == 3 and input_tensors[2].tensor_idx != -1:
+                bias_tensor = input_tensors[2]
+                self._validate_qs8_bias(input_tensor, weight_tensor, bias_tensor)
+                out = relax.op.add(out, self._dq_static_tensor(bias_tensor, axis=0))
+            out = self.convert_fused_activation_function(out, fused_activation_fn)
+            return self.quantize(out, output_tensor)
 
         # TFLite converts float32 models to float16 models by introducing
         # a Dequantize op in every op that contains a float32 values.
@@ -4486,14 +4627,11 @@ class OperatorConverter:
         if input_tensor_type_str == "float32":
             out = self.quantize(in_expr, output_tensor)
         else:
-            out = _qnn.op.requantize(
-                in_expr,
-                input_scale=input_tensor.qnn_params["scale"],
-                input_zero_point=input_tensor.qnn_params["zero_point"],
-                output_scale=output_tensor.qnn_params["scale"],
-                output_zero_point=output_tensor.qnn_params["zero_point"],
-                out_dtype=output_tensor_type_str,
-            )
+            if input_tensor_type_str != "int8" or output_tensor_type_str != "int8":
+                raise tvm.error.OpAttributeInvalid(
+                    "Relax TFLite QDQ import only supports signed int8 requantize"
+                )
+            out = self.quantize(self.dequantize(in_expr, input_tensor), output_tensor)
         return out
 
     def convert_dequantize(self, op):

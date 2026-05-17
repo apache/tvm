@@ -442,11 +442,11 @@ partitioner still accepts only static ``float32`` tensors. Explicit
 ``xnn_datatype_fp16`` lowering, mixed dtype partitioning, and FP32 static
 weights or biases in FP16 partitions are left for future work.
 
-Quantization metadata plumbing is present for future int8 work, but quantized
-operator execution is not enabled in this phase. ``relax.quantize`` and
-``relax.dequantize`` graphs are not partitioned for XNNPACK, and there is no
-QDQ, int8 convolution, requantization, or explicit quantized runtime execution
-coverage yet. The metadata schema used by the runtime-side validation helpers
+Quantization metadata plumbing is present for static signed-int8 weighted
+operators. The canonical imported representation is Relax QDQ:
+``relax.dequantize`` around signed-int8 activations and static weights, a
+float Relax weighted operator, an optional float bias add and activation, and a
+final ``relax.quantize`` back to signed int8. The runtime metadata schema
 contains ``dtype``, ``qscheme`` (``none``, ``per_tensor``, or
 ``per_channel``), ``scale``, ``zero_point``, ``axis``, ``channel_dim``, and
 ``signedness``.
@@ -460,8 +460,18 @@ per-channel zero-point arrays, mixed signedness, unsupported dtypes, and axis
 remapping after quantized layout conversion are rejected. Runtime-owned
 quantization parameter arrays are padded with ``XNN_EXTRA_QUANTIZATION_PARAMS``
 where XNNPACK may overread, and their lifetime is tied to the XNNPACK runtime
-or subgraph that uses them. Phase 5C-1 is expected to add the first tested
-quantized operator pattern on top of this metadata layer.
+or subgraph that uses them.
+
+The TFLite Relax frontend imports signed-int8 ``QUANTIZE``, ``DEQUANTIZE``,
+``FULLY_CONNECTED``, ``CONV_2D``, and ``DEPTHWISE_CONV_2D`` as these QDQ
+graphs when all quantization parameters are static. ``FULLY_CONNECTED`` maps
+TFLite ``[out, in]`` weights to Relax ``[in, out]`` and remaps per-channel
+weight scales to axis 1. ``CONV_2D`` keeps TFLite ``[out, kh, kw, in]``
+weights as OHWI. ``DEPTHWISE_CONV_2D`` maps TFLite
+``[1, kh, kw, in * depth_multiplier]`` weights to HWOI for the XNNPACK
+patterns. QU8/``uint8``, dynamic range quantization, weight-only quantization,
+dynamic quantization parameters, and unsupported quantized TFLite operators are
+rejected rather than silently lowered.
 
 .. list-table::
    :header-rows: 1
