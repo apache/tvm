@@ -152,6 +152,45 @@ class ConvBiasReluPoolModule:
 
 
 @tvm.script.ir_module
+class TinyCNNModule:
+    @R.function
+    def main(
+        x: R.Tensor((1, 8, 8, 3), "float32"),
+        residual: R.Tensor((1, 3, 3, 4), "float32"),
+        w: R.Tensor((4, 3, 3, 3), "float32"),
+        b: R.Tensor((4,), "float32"),
+    ):
+        with R.dataflow():
+            conv = relax.op.nn.conv2d(
+                x,
+                w,
+                strides=[1, 1],
+                padding=[0, 0, 0, 0],
+                dilation=[1, 1],
+                groups=1,
+                data_layout="NHWC",
+                kernel_layout="OHWI",
+                out_layout="NHWC",
+            )
+            biased = relax.op.add(conv, b)
+            relu = relax.op.nn.relu(biased)
+            pooled = relax.op.nn.max_pool2d(
+                relu,
+                pool_size=[2, 2],
+                strides=[2, 2],
+                padding=[0, 0, 0, 0],
+                dilation=[1, 1],
+                ceil_mode=False,
+                layout="NHWC",
+                out_layout="NHWC",
+            )
+            added = relax.op.add(pooled, residual)
+            z = relax.op.tanh(added)
+            R.output(z)
+        return z
+
+
+@tvm.script.ir_module
 class ConvNCHWModule:
     @R.function
     def main(x: R.Tensor((1, 3, 5, 5), "float32")):
@@ -250,6 +289,20 @@ def _has_external_mods(mod):
     )
 
 
+def _count_xnnpack_partitions(mod):
+    count = 0
+
+    for func in mod.functions.values():
+        if (
+            isinstance(func, relax.Function)
+            and func.attrs
+            and func.attrs.get("Codegen") == "xnnpack"
+        ):
+            count += 1
+
+    return count
+
+
 def _partition(mod):
     from tvm.relax.backend.xnnpack import partition_for_xnnpack
 
@@ -260,6 +313,12 @@ def _bind_cnn_params(mod=ConvBiasReluPoolModule):
     weight = np.arange(4 * 3 * 3 * 3).reshape(4, 3, 3, 3).astype("float32") / 100.0
     bias = np.array([0.1, -0.2, 0.3, -0.4], dtype="float32")
     return relax.transform.BindParams("main", {"w": weight, "b": bias})(mod)
+
+
+def _bind_tiny_cnn_params():
+    weight = np.linspace(-0.2, 0.2, num=4 * 3 * 3 * 3, dtype="float32").reshape(4, 3, 3, 3)
+    bias = np.array([0.15, -0.05, 0.25, -0.10], dtype="float32")
+    return relax.transform.BindParams("main", {"w": weight, "b": bias})(TinyCNNModule)
 
 
 def test_xnnpack_python_module_importable():
@@ -319,6 +378,11 @@ def test_partition_for_xnnpack_partitions_bound_cnn_pattern():
     assert _has_codegen_attr(mod)
 
 
+def test_partition_for_xnnpack_tiny_cnn_partition_count():
+    mod = _partition(_bind_tiny_cnn_params())
+    assert _count_xnnpack_partitions(mod) == 4
+
+
 @pytest.mark.skipif(
     not (_has_xnnpack_codegen() and _has_xnnpack_runtime()),
     reason="XNNPACK codegen/runtime is not enabled",
@@ -357,6 +421,36 @@ def test_xnnpack_cnn_vm_execution():
     xnn_ex = tvm.compile(partitioned, target="llvm")
     xnn_vm = relax.VirtualMachine(xnn_ex, tvm.cpu())
     result = xnn_vm["main"](tvm.runtime.tensor(x_np)).numpy()
+    tvm.testing.assert_allclose(result, expected, rtol=1e-5, atol=1e-5)
+
+
+@pytest.mark.skipif(
+    not (_has_xnnpack_codegen() and _has_xnnpack_runtime()),
+    reason="XNNPACK codegen/runtime is not enabled",
+)
+def test_xnnpack_tiny_cnn_vm_execution():
+    bound_mod = _bind_tiny_cnn_params()
+    partitioned = _partition(bound_mod)
+    assert _count_xnnpack_partitions(partitioned) == 4
+
+    partitioned = relax.transform.RunCodegen()(partitioned)
+    assert _has_external_mods(partitioned)
+
+    rng = np.random.default_rng(0)
+    x_np = rng.uniform(-1.0, 1.0, size=(1, 8, 8, 3)).astype("float32")
+    residual_np = rng.uniform(-0.5, 0.5, size=(1, 3, 3, 4)).astype("float32")
+
+    ref_ex = tvm.compile(bound_mod, target="llvm")
+    ref_vm = relax.VirtualMachine(ref_ex, tvm.cpu())
+    expected = ref_vm["main"](
+        tvm.runtime.tensor(x_np), tvm.runtime.tensor(residual_np)
+    ).numpy()
+
+    xnn_ex = tvm.compile(partitioned, target="llvm")
+    xnn_vm = relax.VirtualMachine(xnn_ex, tvm.cpu())
+    result = xnn_vm["main"](
+        tvm.runtime.tensor(x_np), tvm.runtime.tensor(residual_np)
+    ).numpy()
     tvm.testing.assert_allclose(result, expected, rtol=1e-5, atol=1e-5)
 
 

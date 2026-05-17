@@ -343,7 +343,25 @@ configuration.
 The current integration proves a conservative CNN MVP on CPU tensors with
 static shape and ``float32`` dtype. ``tvm.relax.backend.xnnpack.partition_for_xnnpack``
 registers only patterns that can be represented by the public XNNPACK subgraph
-API and must leave all unsupported graphs on TVM's normal lowering path.
+API and must leave all unsupported graphs on TVM's normal lowering path. Static
+weights and biases must be bound into the Relax module before partitioning.
+
+Build examples::
+
+  cmake -S . -B build -DUSE_XNNPACK=OFF
+  cmake -S . -B build -DUSE_XNNPACK=ON
+  cmake -S . -B build -DUSE_XNNPACK=/path/to/xnnpack/prefix
+
+Python usage::
+
+  from tvm import relax
+  from tvm.relax.backend.xnnpack import partition_for_xnnpack
+
+  mod = relax.transform.BindParams("main", {"w": weight_np, "b": bias_np})(mod)
+  mod = partition_for_xnnpack(mod)
+  mod = relax.transform.RunCodegen()(mod)
+  executable = tvm.compile(mod, target="llvm")
+  vm = relax.VirtualMachine(executable, tvm.cpu())
 
 .. list-table::
    :header-rows: 1
@@ -374,6 +392,34 @@ XNNPACK with ``xnn_initialize`` and does not include
 threadpool so execution remains single-threaded on the caller thread, copies
 external tensors through runtime-owned buffers padded by ``XNN_EXTRA_BYTES``,
 and keeps copied static constants alive for the full XNNPACK runtime lifetime.
+The current layout policy is strict: supported convolutions use NHWC input and
+output tensors with OHWI weights, and the partitioner does not insert layout
+transposes. Runtime tensors must be compact CPU tensors.
+
+Unsupported operators and unsupported attributes are not partitioned. They
+continue through TVM's normal CPU lowering path, and mixed graphs may contain
+both TVM and XNNPACK regions.
+
+Benchmarking and validation::
+
+  python tests/python/relax/benchmark_xnnpack.py --model xnnpack_tiny_cnn
+  python tests/python/relax/benchmark_xnnpack.py --model torchvision:mobilenet_v2
+
+The in-tree ``xnnpack_tiny_cnn`` benchmark uses only supported NHWC ``float32``
+operators and compares normal TVM CPU execution with XNNPACK BYOC execution.
+The optional ``torchvision:*`` path is best-effort and may report zero XNNPACK
+partitions for models that rely on unsupported depthwise convolution, dense
+layers, NCHW layout, or other unsupported operators.
+
+Troubleshooting:
+
+* If ``xnnpack_enabled`` is false in the benchmark output, rebuild TVM with
+  ``USE_XNNPACK=ON`` or ``USE_XNNPACK=/path/to/xnnpack/prefix``.
+* If the partition count is zero, inspect the model for unsupported dtype,
+  symbolic shapes, NCHW layout, dynamic weights, broadcasting, or unsupported
+  operators.
+* If numerical validation fails, confirm the input tensors are compact CPU
+  tensors and that static parameters were bound before partitioning.
 
 
 Source Code Map
