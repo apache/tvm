@@ -84,13 +84,8 @@ foreach(_feature
     DATATYPE_QINT32
     DATATYPE_QCINT8
     DATATYPE_QCINT32
-    DATATYPE_QDINT8
-    DATATYPE_QDUINT8
-    DATATYPE_QPINT8
     EXTRA_QUANTIZATION_PARAMS
-    DEFINE_CONVERT
     DEFINE_QUANTIZED_TENSOR_VALUE
-    DEFINE_DYNAMICALLY_QUANTIZED_TENSOR_VALUE
     DEFINE_CHANNELWISE_QUANTIZED_TENSOR_VALUE
     DEFINE_CHANNELWISE_QUANTIZED_TENSOR_VALUE_V2
     VALIDATE_QUANTIZED_TENSOR
@@ -100,9 +95,6 @@ foreach(_feature
     UNARY_GELU
     UNARY_APPROXGELU
     DEFINE_SOFTMAX
-    DYNAMIC_RANGE_QD8_OPS
-    DYNAMIC_RANGE_FULLY_CONNECTED_SUBGRAPH
-    DYNAMIC_RANGE_CONV2D_SUBGRAPH
     TRANSPOSE_WEIGHTS_FLAG
     STATIC_RESHAPE
     COPY
@@ -116,9 +108,7 @@ foreach(_feature
     PTHREADPOOL_CREATE
     FP16_FLAGS
     QS8_DATATYPES
-    QS8_SUBGRAPH_OPS
-    DYNAMIC_QUANT_DATATYPES
-    DYNAMIC_RANGE_SUBGRAPH_OPS)
+    QS8_SUBGRAPH_OPS)
   unset(TVM_XNNPACK_HAS_${_feature} CACHE)
 endforeach()
 
@@ -261,22 +251,7 @@ check_cxx_source_compiles("
   int main() { return xnn_datatype_qcint32 == xnn_datatype_invalid; }" TVM_XNNPACK_HAS_DATATYPE_QCINT32)
 check_cxx_source_compiles("
   #include <xnnpack.h>
-  int main() { return xnn_datatype_qdint8 == xnn_datatype_invalid; }" TVM_XNNPACK_HAS_DATATYPE_QDINT8)
-check_cxx_source_compiles("
-  #include <xnnpack.h>
-  int main() { return xnn_datatype_qduint8 == xnn_datatype_invalid; }" TVM_XNNPACK_HAS_DATATYPE_QDUINT8)
-check_cxx_source_compiles("
-  #include <xnnpack.h>
-  int main() { return xnn_datatype_qpint8 == xnn_datatype_invalid; }" TVM_XNNPACK_HAS_DATATYPE_QPINT8)
-check_cxx_source_compiles("
-  #include <xnnpack.h>
   int main() { return XNN_EXTRA_QUANTIZATION_PARAMS == 0; }" TVM_XNNPACK_HAS_EXTRA_QUANTIZATION_PARAMS)
-check_cxx_source_compiles("
-  #include <xnnpack.h>
-  int main() {
-    (void)xnn_define_convert(nullptr, 0, 1, 0);
-    return 0;
-  }" TVM_XNNPACK_HAS_DEFINE_CONVERT)
 check_cxx_source_compiles("
   #include <xnnpack.h>
   int main() {
@@ -286,15 +261,6 @@ check_cxx_source_compiles("
                                             dims, nullptr, XNN_INVALID_VALUE_ID, 0, &id);
     return 0;
   }" TVM_XNNPACK_HAS_DEFINE_QUANTIZED_TENSOR_VALUE)
-check_cxx_source_compiles("
-  #include <xnnpack.h>
-  int main() {
-    uint32_t id = 0;
-    const size_t dims[1] = {1};
-    (void)xnn_define_dynamically_quantized_tensor_value(nullptr, xnn_datatype_qdint8, 1, 1, dims,
-                                                        XNN_INVALID_VALUE_ID, 0, &id);
-    return 0;
-  }" TVM_XNNPACK_HAS_DEFINE_DYNAMICALLY_QUANTIZED_TENSOR_VALUE)
 check_cxx_source_compiles("
   #include <xnnpack.h>
   int main() {
@@ -397,42 +363,6 @@ check_cxx_source_compiles("
   }" TVM_XNNPACK_HAS_GET_EXTERNAL_VALUE_SHAPE)
 check_cxx_source_compiles("
   #include <xnnpack.h>
-  int main() {
-    (void)&xnn_create_fully_connected_nc_qd8_f32_qc8w;
-    (void)&xnn_create_convolution2d_nhwc_qd8_f32_qc8w;
-    return 0;
-  }" TVM_XNNPACK_HAS_DYNAMIC_RANGE_QD8_OPS)
-check_cxx_source_compiles("
-  #include <xnnpack.h>
-  int main() {
-    xnn_subgraph_t subgraph = nullptr;
-    (void)xnn_create_subgraph(4, 0, &subgraph);
-    uint32_t input = 0;
-    uint32_t dynamic_input = 0;
-    uint32_t weight = 0;
-    uint32_t output = 0;
-    const size_t input_shape[2] = {1, 4};
-    const size_t weight_shape[2] = {3, 4};
-    const size_t output_shape[2] = {1, 3};
-    const float scales[3] = {0.5f, 0.25f, 0.125f};
-    (void)xnn_define_tensor_value(subgraph, xnn_datatype_fp32, 2, input_shape, nullptr, 0,
-                                  XNN_VALUE_FLAG_EXTERNAL_INPUT, &input);
-    (void)xnn_define_dynamically_quantized_tensor_value(subgraph, xnn_datatype_qdint8, 2, 2,
-                                                        input_shape, XNN_INVALID_VALUE_ID, 0,
-                                                        &dynamic_input);
-    (void)xnn_define_convert(subgraph, input, dynamic_input, 0);
-    (void)xnn_define_channelwise_quantized_tensor_value_v2(
-        subgraph, xnn_datatype_qcint8, 0, scales, 2, 0, weight_shape, nullptr,
-        XNN_INVALID_VALUE_ID, 0, &weight);
-    (void)xnn_define_tensor_value(subgraph, xnn_datatype_fp32, 2, output_shape, nullptr, 1,
-                                  XNN_VALUE_FLAG_EXTERNAL_OUTPUT, &output);
-    (void)xnn_define_fully_connected(subgraph, -1.0f, 1.0f, dynamic_input, weight,
-                                     XNN_INVALID_VALUE_ID, output, 0);
-    (void)xnn_delete_subgraph(subgraph);
-    return 0;
-  }" TVM_XNNPACK_HAS_DYNAMIC_RANGE_FULLY_CONNECTED_SUBGRAPH)
-check_cxx_source_compiles("
-  #include <xnnpack.h>
   int main() { return XNN_FLAG_TRANSPOSE_WEIGHTS == 0; }" TVM_XNNPACK_HAS_TRANSPOSE_WEIGHTS_FLAG)
 check_cxx_source_compiles("
   #include <xnnpack.h>
@@ -474,18 +404,9 @@ if(TVM_XNNPACK_HAS_DATATYPE_QINT8 AND TVM_XNNPACK_HAS_DATATYPE_QINT32 AND
    TVM_XNNPACK_HAS_DEFINE_QUANTIZED_TENSOR_VALUE)
   set(TVM_XNNPACK_HAS_QS8_DATATYPES 1)
 endif()
-if(TVM_XNNPACK_HAS_QS8_DATATYPES AND TVM_XNNPACK_HAS_FULLY_CONNECTED AND
-   TVM_XNNPACK_HAS_DEPTHWISE_CONVOLUTION_2D AND TVM_XNNPACK_HAS_STATIC_RESHAPE AND
-   TVM_XNNPACK_HAS_COPY)
+if(TVM_XNNPACK_HAS_QS8_DATATYPES AND TVM_XNNPACK_HAS_STATIC_RESHAPE AND
+   TVM_XNNPACK_HAS_COPY AND TVM_XNNPACK_HAS_DEFINE_BINARY)
   set(TVM_XNNPACK_HAS_QS8_SUBGRAPH_OPS 1)
-endif()
-if(TVM_XNNPACK_HAS_DATATYPE_QDINT8 AND TVM_XNNPACK_HAS_DATATYPE_QDUINT8 AND
-   TVM_XNNPACK_HAS_DATATYPE_QPINT8 AND
-   TVM_XNNPACK_HAS_DEFINE_DYNAMICALLY_QUANTIZED_TENSOR_VALUE)
-  set(TVM_XNNPACK_HAS_DYNAMIC_QUANT_DATATYPES 1)
-endif()
-if(TVM_XNNPACK_HAS_DYNAMIC_RANGE_FULLY_CONNECTED_SUBGRAPH)
-  set(TVM_XNNPACK_HAS_DYNAMIC_RANGE_SUBGRAPH_OPS 1)
 endif()
 if(TVM_XNNPACK_HAS_RUNTIME_RESHAPE AND TVM_XNNPACK_HAS_RESHAPE_EXTERNAL_VALUE AND
    TVM_XNNPACK_HAS_SETUP_RUNTIME_V2 AND TVM_XNNPACK_HAS_GET_EXTERNAL_VALUE_SHAPE)
@@ -521,13 +442,8 @@ foreach(_feature
     DATATYPE_QINT32
     DATATYPE_QCINT8
     DATATYPE_QCINT32
-    DATATYPE_QDINT8
-    DATATYPE_QDUINT8
-    DATATYPE_QPINT8
     EXTRA_QUANTIZATION_PARAMS
-    DEFINE_CONVERT
     DEFINE_QUANTIZED_TENSOR_VALUE
-    DEFINE_DYNAMICALLY_QUANTIZED_TENSOR_VALUE
     DEFINE_CHANNELWISE_QUANTIZED_TENSOR_VALUE
     DEFINE_CHANNELWISE_QUANTIZED_TENSOR_VALUE_V2
     VALIDATE_QUANTIZED_TENSOR
@@ -537,9 +453,6 @@ foreach(_feature
     UNARY_GELU
     UNARY_APPROXGELU
     DEFINE_SOFTMAX
-    DYNAMIC_RANGE_QD8_OPS
-    DYNAMIC_RANGE_FULLY_CONNECTED_SUBGRAPH
-    DYNAMIC_RANGE_CONV2D_SUBGRAPH
     STATIC_RESHAPE
     COPY
     RUNTIME_RESHAPE
@@ -553,9 +466,7 @@ foreach(_feature
     PTHREADPOOL_CREATE
     FP16_FLAGS
     QS8_DATATYPES
-    QS8_SUBGRAPH_OPS
-    DYNAMIC_QUANT_DATATYPES
-    DYNAMIC_RANGE_SUBGRAPH_OPS)
+    QS8_SUBGRAPH_OPS)
   if(TVM_XNNPACK_HAS_${_feature})
     add_definitions(-DTVM_XNNPACK_HAS_${_feature}=1)
   endif()
@@ -572,10 +483,7 @@ message(STATUS "XNNPACK MLP features: unary_gelu=${TVM_XNNPACK_HAS_UNARY_GELU}, 
                "unary_approxgelu=${TVM_XNNPACK_HAS_UNARY_APPROXGELU}, "
                "softmax=${TVM_XNNPACK_HAS_DEFINE_SOFTMAX}")
 message(STATUS "XNNPACK quantization features: qs8_datatypes=${TVM_XNNPACK_HAS_QS8_DATATYPES}, "
-               "qs8_subgraph_ops=${TVM_XNNPACK_HAS_QS8_SUBGRAPH_OPS}, "
-               "dynamic_quant_datatypes=${TVM_XNNPACK_HAS_DYNAMIC_QUANT_DATATYPES}, "
-               "dynamic_range_qd8_ops=${TVM_XNNPACK_HAS_DYNAMIC_RANGE_QD8_OPS}, "
-               "dynamic_range_subgraph_ops=${TVM_XNNPACK_HAS_DYNAMIC_RANGE_SUBGRAPH_OPS}")
+               "qs8_subgraph_ops=${TVM_XNNPACK_HAS_QS8_SUBGRAPH_OPS}")
 message(STATUS "XNNPACK reshape/copy features: static_reshape=${TVM_XNNPACK_HAS_STATIC_RESHAPE}, "
                "copy=${TVM_XNNPACK_HAS_COPY}, runtime_reshape=${TVM_XNNPACK_HAS_RUNTIME_RESHAPE}, "
                "dynamic_batch_runtime=${TVM_XNNPACK_HAS_DYNAMIC_BATCH_RUNTIME}")

@@ -1145,9 +1145,38 @@ def _count_xnnpack_partitions(mod):
 
 
 def _partition(mod, precision="fp32", **kwargs):
-    from tvm.relax.backend.xnnpack import partition_for_xnnpack
+    from tvm.relax.backend.xnnpack import (
+        XNNPACKCostConfig,
+        XNNPACKPartitionConfig,
+        XNNPACKRuntimeConfig,
+        partition_for_xnnpack,
+    )
 
-    return partition_for_xnnpack(mod, precision=precision, **kwargs)
+    cost_keys = {
+        "partition_policy",
+        "layout",
+        "min_subgraph_size",
+        "min_compute_to_copy_ratio",
+        "allow_isolated_elementwise",
+        "allow_layout_rewrite",
+        "allow_cast_boundary",
+        "report_partition_decisions",
+    }
+    cost_kwargs = {key: kwargs.pop(key) for key in list(kwargs) if key in cost_keys}
+    dynamic_shape_policy = kwargs.pop("dynamic_shape_policy", "none")
+    dynamic_batch_bounds = kwargs.pop("dynamic_batch_bounds", None)
+    if kwargs:
+        raise TypeError(f"Unsupported _partition test options: {sorted(kwargs)}")
+
+    return partition_for_xnnpack(
+        mod,
+        config=XNNPACKPartitionConfig(
+            runtime=XNNPACKRuntimeConfig(precision=precision),
+            cost=XNNPACKCostConfig(**cost_kwargs),
+            dynamic_shape_policy=dynamic_shape_policy,
+            dynamic_batch_bounds=dynamic_batch_bounds,
+        ),
+    )
 
 
 def _bind_cnn_params(mod=ConvBiasReluPoolModule):
@@ -1256,28 +1285,6 @@ def _init_first_external_module(mod):
     return ext_mod, symbol
 
 
-def _skip_if_local_xnnpack_rejects_qs8(exc):
-    message = str(exc)
-    if "xnn_create_runtime" in message and (
-        "status 2" in message or "status 4" in message or "status 5" in message
-    ):
-        pytest.skip(f"linked XNNPACK build rejected this QS8 runtime: {message}")
-    if "xnn_define_average_pooling_2d failed with status 2" in message:
-        pytest.skip(f"linked XNNPACK build rejected QS8 average pooling: {message}")
-    raise exc
-
-
-def _skip_if_local_xnnpack_rejects_dynamic_range(exc):
-    message = str(exc)
-    if "dynamic-range" in message or "xnn_define_convert" in message:
-        pytest.skip(f"linked XNNPACK build rejected dynamic-range runtime: {message}")
-    if "xnn_create_runtime" in message and (
-        "status 2" in message or "status 4" in message or "status 5" in message
-    ):
-        pytest.skip(f"linked XNNPACK build rejected dynamic-range runtime: {message}")
-    raise exc
-
-
 def _first_external_runtime_options(mod):
     ext_mod = mod.attrs["external_mods"][0]
     return ext_mod["get_runtime_options"]()
@@ -1315,11 +1322,6 @@ def _assert_report_fields(report):
         "qparams_summary",
         "qparam_equality_required",
         "qparam_rejection_reason",
-        "dynamic_range",
-        "weight_qscheme",
-        "activation_boundary_dtype",
-        "output_boundary_dtype",
-        "estimated_quantization_overhead",
         "dynamic_batch",
         "dynamic_batch_symbol",
         "dynamic_batch_lower",
@@ -1333,30 +1335,46 @@ def _assert_report_fields(report):
 
 
 def test_xnnpack_python_module_importable():
-    from tvm.relax.backend.xnnpack import partition_for_xnnpack
+    from tvm.relax.backend.xnnpack import (
+        XNNPACKCostConfig,
+        XNNPACKPartitionConfig,
+        XNNPACKRuntimeConfig,
+        partition_for_xnnpack,
+    )
 
     assert callable(partition_for_xnnpack)
+    assert XNNPACKPartitionConfig().runtime == XNNPACKRuntimeConfig()
+    assert XNNPACKPartitionConfig().cost == XNNPACKCostConfig()
 
 
 def test_partition_for_xnnpack_rejects_invalid_precision():
-    from tvm.relax.backend.xnnpack import partition_for_xnnpack
+    from tvm.relax.backend.xnnpack import (
+        XNNPACKPartitionConfig,
+        XNNPACKRuntimeConfig,
+        partition_for_xnnpack,
+    )
 
     with pytest.raises(ValueError, match="Unsupported XNNPACK precision"):
-        partition_for_xnnpack(ReluModule, precision="explicit_fp16")
+        partition_for_xnnpack(
+            ReluModule,
+            config=XNNPACKPartitionConfig(runtime=XNNPACKRuntimeConfig(precision="explicit_fp16")),
+        )
 
 
-def test_partition_for_xnnpack_rejects_invalid_quantization():
+def test_partition_for_xnnpack_rejects_old_keyword_options():
     from tvm.relax.backend.xnnpack import partition_for_xnnpack
 
-    with pytest.raises(ValueError, match="Unsupported XNNPACK quantization"):
+    with pytest.raises(TypeError):
         partition_for_xnnpack(ReluModule, quantization="weight_only")
 
 
 def test_partition_for_xnnpack_rejects_invalid_dynamic_shape_policy():
-    from tvm.relax.backend.xnnpack import partition_for_xnnpack
+    from tvm.relax.backend.xnnpack import XNNPACKPartitionConfig, partition_for_xnnpack
 
     with pytest.raises(ValueError, match="Unsupported XNNPACK dynamic_shape_policy"):
-        partition_for_xnnpack(ReluModule, dynamic_shape_policy="full")
+        partition_for_xnnpack(
+            ReluModule, config=XNNPACKPartitionConfig(dynamic_shape_policy="full")
+        )
 
 
 @pytest.mark.parametrize(
@@ -1369,17 +1387,20 @@ def test_partition_for_xnnpack_rejects_invalid_dynamic_shape_policy():
     ],
 )
 def test_partition_for_xnnpack_rejects_invalid_policy_options(kwargs, match):
-    from tvm.relax.backend.xnnpack import partition_for_xnnpack
+    from tvm.relax.backend.xnnpack import XNNPACKCostConfig, XNNPACKPartitionConfig, partition_for_xnnpack
 
     with pytest.raises(ValueError, match=match):
-        partition_for_xnnpack(ReluModule, **kwargs)
+        partition_for_xnnpack(ReluModule, config=XNNPACKPartitionConfig(cost=XNNPACKCostConfig(**kwargs)))
 
 
 def test_partition_for_xnnpack_dynamic_batch_requires_bounds():
-    from tvm.relax.backend.xnnpack import partition_for_xnnpack
+    from tvm.relax.backend.xnnpack import XNNPACKPartitionConfig, partition_for_xnnpack
 
     with pytest.raises(ValueError, match="dynamic_shape_policy='batch_only' requires"):
-        partition_for_xnnpack(DynamicBatchFullyConnectedModule, dynamic_shape_policy="batch_only")
+        partition_for_xnnpack(
+            DynamicBatchFullyConnectedModule,
+            config=XNNPACKPartitionConfig(dynamic_shape_policy="batch_only"),
+        )
 
 
 @pytest.mark.parametrize("bounds", [{"n": 4}, {"n": (1, 4)}, {"n": [1, 4]}])
@@ -1420,10 +1441,7 @@ def test_partition_for_xnnpack_dynamic_batch_partitions_conv2d():
         (DynamicHWConv2DModule, {}),
         (DynamicChannelConv2DModule, {}),
         (DynamicBatchQS8FullyConnectedModule, {}),
-        (
-            DynamicBatchDynamicRangeFullyConnectedModule,
-            {"quantization": "dynamic_range"},
-        ),
+        (DynamicBatchDynamicRangeFullyConnectedModule, {}),
     ],
 )
 def test_partition_for_xnnpack_dynamic_batch_rejects_unsupported_dynamic_cases(mod, kwargs):
@@ -1458,16 +1476,11 @@ def test_xnnpack_registers_relu_pattern():
 
     pattern_names = {pattern.name for pattern in get_patterns_with_prefix("xnnpack")}
     assert {
-        "xnnpack.qs8_fully_connected",
-        "xnnpack.qs8_conv2d_bias_relu",
-        "xnnpack.qs8_depthwise_conv2d_bias_clip",
         "xnnpack.qs8_reshape",
         "xnnpack.qs8_flatten",
         "xnnpack.qs8_copy",
         "xnnpack.qs8_max_pool2d",
-        "xnnpack.qs8_avg_pool2d",
         "xnnpack.qs8_add",
-        "xnnpack.dynamic_range_fully_connected",
         "xnnpack.conv2d_bias_relu",
         "xnnpack.max_pool2d",
         "xnnpack.add",
@@ -1579,85 +1592,21 @@ def test_partition_for_xnnpack_does_not_partition_qdq(policy, mod):
 
 @pytest.mark.parametrize(
     "mod",
-    [QS8FullyConnectedBiasRelu6Module, QS8Conv2DBiasReluModule,
-     QS8DepthwiseConv2DBiasRelu6Module],
-)
-def test_partition_for_xnnpack_partitions_static_qs8_weighted_ops(mod):
-    mod = _partition(mod)
-    assert _has_codegen_attr(mod)
-
-
-def test_partition_for_xnnpack_partitions_dynamic_range_fully_connected_only_when_enabled():
-    mod = _partition(DynamicRangeFullyConnectedModule)
-    assert not _has_codegen_attr(mod)
-
-    mod = _partition(DynamicRangeFullyConnectedModule, quantization="dynamic_range")
-    assert _has_codegen_attr(mod)
-
-
-def test_partition_for_xnnpack_rejects_dynamic_range_bias_activation():
-    mod = _partition(DynamicRangeFullyConnectedBiasRelu6Module, quantization="dynamic_range")
-    assert _has_codegen_attr(mod)
-    assert "dynamic_range_fully_connected_bias" not in mod.script()
-
-
-@pytest.mark.parametrize(
-    "mod",
     [
+        DynamicRangeFullyConnectedModule,
+        DynamicRangeFullyConnectedBiasRelu6Module,
         DynamicRangeFullyConnectedPerTensorWeightModule,
         DynamicRangeFullyConnectedBadWeightZeroPointModule,
         DynamicRangeFullyConnectedQU8WeightModule,
+        QS8Conv2DBiasReluModule,
+        QS8DepthwiseConv2DBiasRelu6Module,
         QS8FullyConnectedModule,
+        QS8FullyConnectedBiasRelu6Module,
     ],
 )
-def test_partition_for_xnnpack_rejects_unsupported_dynamic_range_patterns(mod):
-    mod = _partition(mod, quantization="dynamic_range")
+def test_partition_for_xnnpack_rejects_pruned_quantized_patterns(mod):
+    mod = _partition(mod)
     assert not _has_codegen_attr(mod)
-
-
-def test_xnnpack_cost_policy_reports_dynamic_range_overhead():
-    mod, report = _partition(
-        DynamicRangeTinyFullyConnectedModule,
-        quantization="dynamic_range",
-        partition_policy="cost",
-        report_partition_decisions=True,
-    )
-    assert not _has_codegen_attr(mod)
-    _assert_report_fields(report)
-    assert any(entry["reason"] == "rejected_dynamic_range_overhead" for entry in report)
-    assert any(entry["dynamic_range"] for entry in report)
-
-
-def test_xnnpack_partition_report_has_dynamic_range_fields():
-    mod, report = _partition(
-        DynamicRangeFullyConnectedModule,
-        quantization="dynamic_range",
-        partition_policy="debug_all_supported",
-        report_partition_decisions=True,
-    )
-    assert _has_codegen_attr(mod)
-    accepted = [entry for entry in report if entry["accepted"]]
-    assert accepted
-    assert accepted[0]["dynamic_range"] is True
-    assert accepted[0]["weight_qscheme"] == "per_channel"
-    assert accepted[0]["activation_boundary_dtype"] == "float32"
-    assert accepted[0]["output_boundary_dtype"] == "float32"
-
-
-def test_xnnpack_cost_policy_reports_qs8_weighted_candidate():
-    mod, report = _partition(
-        QS8FullyConnectedBiasRelu6Module,
-        partition_policy="cost",
-        report_partition_decisions=True,
-    )
-    assert _has_codegen_attr(mod)
-    _assert_report_fields(report)
-    accepted = [entry for entry in report if entry["accepted"]]
-    assert accepted
-    assert accepted[0]["quantized"] is True
-    assert accepted[0]["qparam_source"] == "constant"
-    assert accepted[0]["qparam_validation_result"] == "ok"
-    assert accepted[0]["quantized_op_type"] == "qs8_fully_connected"
 
 
 @tvm.script.ir_module
@@ -1693,8 +1642,6 @@ def test_partition_for_xnnpack_rejects_invalid_qs8_qparams(mod):
         QS8FlattenModule,
         QS8CopyModule,
         QS8MaxPool2DModule,
-        QS8AvgPool2DModule,
-        QS8GlobalAvgPoolAsAvgPool2DModule,
         QS8AddModule,
         QS8AddRelu6Module,
     ],
@@ -1709,6 +1656,8 @@ def test_partition_for_xnnpack_partitions_static_qs8_island_ops(mod):
     [
         QS8ReshapeMismatchedQParamsModule,
         QS8MaxPoolNCHWModule,
+        QS8AvgPool2DModule,
+        QS8GlobalAvgPoolAsAvgPool2DModule,
         QS8AddBroadcastModule,
     ],
 )
@@ -1748,7 +1697,7 @@ def test_partition_for_xnnpack_rejects_float16_even_with_fp16_policy():
 
 
 @pytest.mark.parametrize("mod", [AddModule, ClipModule, SigmoidModule, TanhModule])
-def test_partition_for_xnnpack_partitions_supported_phase3_patterns(mod):
+def test_partition_for_xnnpack_partitions_supported_static_fp32_patterns(mod):
     mod = _partition(mod)
     assert _has_codegen_attr(mod)
 
@@ -1891,7 +1840,7 @@ def test_xnnpack_benchmark_model_listing_and_args():
     models = set(bench.available_models())
     assert "xnnpack_large_cnn_fp32" in models
     assert "xnnpack_large_mlp_fp32" in models
-    assert "xnnpack_large_qs8_cnn" in models
+    assert "xnnpack_large_qs8_island" in models
     assert "torchvision:mobilenet_v2" in models
 
     args = bench.parse_args(
@@ -1915,7 +1864,7 @@ def test_xnnpack_benchmark_model_listing_and_args():
 
 @pytest.mark.parametrize(
     "loader",
-    ["load_large_cnn", "load_large_mlp", "load_large_static_qs8_cnn"],
+    ["load_large_cnn", "load_large_mlp", "load_large_static_qs8_island"],
 )
 def test_xnnpack_benchmark_large_fixtures_construct_without_torch(loader):
     bench = _load_xnnpack_benchmark_module()
@@ -1928,7 +1877,7 @@ def test_xnnpack_benchmark_large_fixtures_construct_without_torch(loader):
 
 @pytest.mark.parametrize(
     "loader",
-    ["load_large_cnn", "load_large_mlp", "load_large_static_qs8_cnn"],
+    ["load_large_cnn", "load_large_mlp", "load_large_static_qs8_island"],
 )
 def test_xnnpack_benchmark_large_fixtures_partition_report(loader):
     bench = _load_xnnpack_benchmark_module()
@@ -1960,7 +1909,7 @@ def test_xnnpack_benchmark_torchvision_missing_dependency_reports_cleanly(monkey
 
 def test_xnnpack_benchmark_static_qs8_fixture_partitions():
     bench = _load_xnnpack_benchmark_module()
-    mod, _, _ = bench.load_static_qs8_tiny_cnn(seed=0)
+    mod, _, _ = bench.load_static_qs8_island(seed=0)
     mod, report = _partition(mod, report_partition_decisions=True)
     assert _has_codegen_attr(mod)
     _assert_report_fields(report)
@@ -2482,122 +2431,10 @@ def test_xnnpack_runtime_quantization_metadata_debug_dump_empty_for_fp32_graph()
 @pytest.mark.parametrize(
     "mod, inputs, output_shape",
     [
-        (
-            QS8FullyConnectedBiasRelu6Module,
-            [
-                np.array([[-3, -1, 2], [4, 1, -2]], dtype="int8"),
-                np.array([[1, -2, 3, -4], [2, 1, -1, 3], [-3, 2, 1, -2]], dtype="int8"),
-                np.array([1, -2, 3, -4], dtype="int32"),
-            ],
-            (2, 4),
-        ),
-        (
-            QS8Conv2DBiasReluModule,
-            [
-                np.arange(-16, 16, dtype="int8").reshape(1, 4, 4, 2),
-                np.arange(-27, 27, dtype="int8").reshape(3, 3, 3, 2),
-                np.array([1, -2, 3], dtype="int32"),
-            ],
-            (1, 2, 2, 3),
-        ),
-        (
-            QS8DepthwiseConv2DBiasRelu6Module,
-            [
-                np.arange(-16, 16, dtype="int8").reshape(1, 4, 4, 2),
-                np.arange(-9, 9, dtype="int8").reshape(3, 3, 2, 1),
-                np.array([1, -2], dtype="int32"),
-            ],
-            (1, 2, 2, 2),
-        ),
-    ],
-)
-def test_xnnpack_qs8_weighted_ops_external_runtime(mod, inputs, output_shape):
-    capabilities = _xnnpack_capabilities()
-    required = (
-        capabilities.get("datatype_qint8")
-        and capabilities.get("datatype_qint32")
-        and capabilities.get("datatype_qcint8")
-        and capabilities.get("define_quantized_tensor_value")
-        and capabilities.get("define_channelwise_quantized_tensor_value")
-        and capabilities.get("fully_connected")
-        and capabilities.get("depthwise_convolution_2d")
-        and capabilities.get("transpose_weights")
-    )
-    if not required:
-        pytest.skip("XNNPACK QS8 tensor APIs are unavailable")
-    partitioned = _partition(mod)
-    assert _has_codegen_attr(partitioned)
-    codegen_mod = relax.transform.RunCodegen()(partitioned)
-    assert _has_external_mods(codegen_mod)
-
-    ref_ex = tvm.compile(mod, target="llvm")
-    ref_vm = relax.VirtualMachine(ref_ex, tvm.cpu())
-    expected = ref_vm["main"](tvm.runtime.tensor(inputs[0])).numpy()
-    try:
-        ext_mod, result = _run_first_external_module(
-            codegen_mod, inputs, output_shape, output_dtype="int8"
-        )
-    except tvm.error.TVMError as err:
-        _skip_if_local_xnnpack_rejects_qs8(err)
-    max_diff = np.max(np.abs(result.astype("int16") - expected.astype("int16")))
-    if max_diff > 1 and mod is QS8FullyConnectedBiasRelu6Module:
-        pytest.skip("linked XNNPACK build does not produce matching QS8 fully_connected output")
-    assert max_diff <= 1
-    metadata = json.loads(ext_mod["get_quantization_metadata_json"]())
-    assert metadata
-
-
-@pytest.mark.skipif(
-    not (_has_xnnpack_codegen() and _has_xnnpack_runtime()),
-    reason="XNNPACK codegen/runtime is not enabled",
-)
-@pytest.mark.parametrize(
-    "mod",
-    [DynamicRangeFullyConnectedModule],
-)
-def test_xnnpack_dynamic_range_fully_connected_vm_execution(mod):
-    capabilities = _xnnpack_capabilities()
-    if not capabilities.get("dynamic_range_fully_connected"):
-        pytest.skip("XNNPACK dynamic-range fully_connected subgraph APIs are unavailable")
-    partitioned = _partition(mod, quantization="dynamic_range")
-    assert _has_codegen_attr(partitioned)
-    codegen_mod = relax.transform.RunCodegen()(partitioned)
-    assert _has_external_mods(codegen_mod)
-
-    x_np = np.array([[-1.0, 0.5, 1.25], [2.0, -0.75, 0.25]], dtype="float32")
-    ref_ex = tvm.compile(mod, target="llvm")
-    ref_vm = relax.VirtualMachine(ref_ex, tvm.cpu())
-    expected = ref_vm["main"](tvm.runtime.tensor(x_np)).numpy()
-
-    try:
-        xnn_ex = tvm.compile(codegen_mod, target="llvm")
-        xnn_vm = relax.VirtualMachine(xnn_ex, tvm.cpu())
-        result = xnn_vm["main"](tvm.runtime.tensor(x_np)).numpy()
-    except tvm.error.TVMError as err:
-        _skip_if_local_xnnpack_rejects_dynamic_range(err)
-    try:
-        tvm.testing.assert_allclose(result, expected, rtol=0.0, atol=0.75)
-    except AssertionError as err:
-        pytest.skip(f"linked XNNPACK build produced mismatched dynamic-range output: {err}")
-
-
-@pytest.mark.skipif(
-    not (_has_xnnpack_codegen() and _has_xnnpack_runtime()),
-    reason="XNNPACK codegen/runtime is not enabled",
-)
-@pytest.mark.parametrize(
-    "mod, inputs, output_shape",
-    [
         (QS8ReshapeModule, [np.array([[-3, -1, 2], [4, 1, -2]], dtype="int8")], (1, 6)),
         (QS8FlattenModule, [np.arange(-12, 12, dtype="int8").reshape(2, 3, 4)], (24,)),
         (QS8CopyModule, [np.array([[-3, -1, 2], [4, 1, -2]], dtype="int8")], (2, 3)),
         (QS8MaxPool2DModule, [np.arange(-16, 16, dtype="int8").reshape(1, 4, 4, 2)], (1, 2, 2, 2)),
-        (QS8AvgPool2DModule, [np.arange(-16, 16, dtype="int8").reshape(1, 4, 4, 2)], (1, 2, 2, 2)),
-        (
-            QS8GlobalAvgPoolAsAvgPool2DModule,
-            [np.arange(-16, 16, dtype="int8").reshape(1, 4, 4, 2)],
-            (1, 1, 1, 2),
-        ),
         (
             QS8AddModule,
             [
@@ -2635,12 +2472,9 @@ def test_xnnpack_qs8_island_ops_external_runtime(mod, inputs, output_shape):
     ref_ex = tvm.compile(mod, target="llvm")
     ref_vm = relax.VirtualMachine(ref_ex, tvm.cpu())
     expected = ref_vm["main"](*[tvm.runtime.tensor(input_np) for input_np in inputs]).numpy()
-    try:
-        ext_mod, result = _run_first_external_module(
-            codegen_mod, inputs, output_shape, output_dtype="int8"
-        )
-    except tvm.error.TVMError as err:
-        _skip_if_local_xnnpack_rejects_qs8(err)
+    ext_mod, result = _run_first_external_module(
+        codegen_mod, inputs, output_shape, output_dtype="int8"
+    )
     max_diff = np.max(np.abs(result.astype("int16") - expected.astype("int16")))
     assert max_diff <= 1
     metadata = json.loads(ext_mod["get_quantization_metadata_json"]())
@@ -2668,21 +2502,11 @@ def test_xnnpack_quantization_capabilities_are_reported():
     assert "datatype_qint8" in capabilities
     assert "datatype_quint8" in capabilities
     assert "datatype_qcint8" in capabilities
-    assert "datatype_qdint8" in capabilities
-    assert "datatype_qduint8" in capabilities
-    assert "datatype_qpint8" in capabilities
     assert "qs8_datatypes" in capabilities
     assert "qs8_subgraph_ops" in capabilities
-    assert "dynamic_quant_datatypes" in capabilities
-    assert "dynamic_range_qd8_ops" in capabilities
-    assert "dynamic_range_subgraph_ops" in capabilities
-    assert "dynamic_range_fully_connected" in capabilities
-    assert "dynamic_range_conv2d" in capabilities
     assert "unary_gelu" in capabilities
     assert "unary_approxgelu" in capabilities
     assert "softmax" in capabilities
-    assert "define_dynamically_quantized_tensor_value" in capabilities
-    assert "define_convert" in capabilities
     assert "extra_quantization_params" in capabilities
     assert "runtime_reshape" in capabilities
     assert "reshape_external_value" in capabilities

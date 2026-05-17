@@ -331,7 +331,7 @@ Supported Backends
        broadcasting, and no-padding 2D pooling.
 
 
-XNNPACK CNN MVP
+XNNPACK Backend
 ---------------
 
 XNNPACK support is opt-in and disabled by default. Build with
@@ -340,11 +340,12 @@ XNNPACK support is opt-in and disabled by default. Build with
 prefix. TVM does not vendor XNNPACK and does not download it during CMake
 configuration.
 
-The current integration proves a conservative CNN MVP on CPU tensors with
-static shape and ``float32`` dtype. ``tvm.relax.backend.xnnpack.partition_for_xnnpack``
-registers only patterns that can be represented by the public XNNPACK subgraph
-API and must leave all unsupported graphs on TVM's normal lowering path. Static
-weights and biases must be bound into the Relax module before partitioning.
+The current integration is a conservative CPU backend for static ``float32``
+CNN/MLP islands, limited dynamic-batch ``float32`` dense/conv2d islands, and a
+small stable signed-int8 QDQ subset. ``partition_for_xnnpack`` registers only
+patterns that can be represented by the public XNNPACK subgraph API and leaves
+all unsupported graphs on TVM's normal lowering path. Static weights and biases
+must be bound into the Relax module before partitioning.
 
 Build examples::
 
@@ -355,21 +356,30 @@ Build examples::
 Python usage::
 
   from tvm import relax
-  from tvm.relax.backend.xnnpack import partition_for_xnnpack
+  from tvm.relax.backend.xnnpack import (
+      XNNPACKCostConfig,
+      XNNPACKPartitionConfig,
+      XNNPACKRuntimeConfig,
+      partition_for_xnnpack,
+  )
 
   mod = relax.transform.BindParams("main", {"w": weight_np, "b": bias_np})(mod)
-  mod = partition_for_xnnpack(mod, precision="fp32")
-  mod = relax.transform.RunCodegen({"xnnpack": {"num_threads": 1, "precision": "fp32"}})(mod)
+  config = XNNPACKPartitionConfig(
+      runtime=XNNPACKRuntimeConfig(precision="fp32"),
+      cost=XNNPACKCostConfig(partition_policy="greedy"),
+  )
+  mod = partition_for_xnnpack(mod, config=config)
+  mod = relax.transform.RunCodegen({"xnnpack": config.runtime.run_codegen_options()})(mod)
   executable = tvm.compile(mod, target="llvm")
   vm = relax.VirtualMachine(executable, tvm.cpu())
 
-Partition policy options are passed to ``partition_for_xnnpack``. The default
-``partition_policy="greedy"`` preserves the historical behavior and partitions
-every supported pattern. ``partition_policy="cost"`` applies a conservative
-heuristic before creating XNNPACK regions, so small unary or binary islands may
-stay on TVM when external call overhead and padded boundary copies are likely
-to dominate. ``partition_policy="debug_all_supported"`` is intended only for
-debugging supported-pattern coverage and is not performance-oriented.
+Advanced partition options are passed through ``XNNPACKPartitionConfig``. The
+default cost policy ``"greedy"`` partitions every supported pattern.
+``"cost"`` applies a conservative heuristic before creating XNNPACK regions, so
+small unary or binary islands may stay on TVM when external call overhead and
+padded boundary copies are likely to dominate. ``"debug_all_supported"`` is
+intended only for debugging supported-pattern coverage and is not
+performance-oriented.
 
 The cost model estimates operator count, FLOPs, input/output/constant bytes,
 ``XNN_EXTRA_BYTES`` padded copy bytes, graph boundaries, and visible dtype or
@@ -383,8 +393,12 @@ Partition decisions can be inspected without changing runtime behavior::
 
   mod, report = partition_for_xnnpack(
       mod,
-      partition_policy="cost",
-      report_partition_decisions=True,
+      config=XNNPACKPartitionConfig(
+          cost=XNNPACKCostConfig(
+              partition_policy="cost",
+              report_partition_decisions=True,
+          ),
+      ),
   )
 
 Each report entry includes stable fields such as ``candidate_id``,
@@ -399,10 +413,10 @@ policy. Common reasons include ``accepted_compute_heavy``,
 The layout option is ``"auto"`` by default, which preserves the current strict
 NHWC/OHWI policy. ``layout="preserve"`` never requests layout changes.
 ``layout="NHWC"`` is reported as the desired policy for cost decisions, but
-Phase 5D does not introduce broad layout rewrite or transpose insertion.
-Explicit FP16 cast boundaries are likewise not lowered in this phase:
-``allow_cast_boundary`` is accepted as a policy option for reporting, but
-explicit ``float16`` Relax graphs remain unsupported and fall back to TVM.
+the backend does not introduce broad layout rewrite or transpose insertion.
+Explicit FP16 cast boundaries are likewise not lowered: ``allow_cast_boundary``
+is accepted as a policy option for reporting, but explicit ``float16`` Relax
+graphs remain unsupported and fall back to TVM.
 
 Runtime options are passed to ``RunCodegen`` and are stored in the generated
 XNNPACK runtime module:
@@ -437,16 +451,14 @@ XNNPACK runtime module:
 
 ``fp16_hint`` and ``fp16_force`` are XNNPACK runtime policies only. They do not
 rewrite Relax IR dtypes, do not allow explicit ``float16`` Relax graphs to be
-partitioned, and do not change TVM's visible input/output dtypes. The current
-partitioner still accepts only static ``float32`` tensors. Explicit
+partitioned, and do not change TVM's visible input/output dtypes. Explicit
 ``xnn_datatype_fp16`` lowering, mixed dtype partitioning, and FP32 static
 weights or biases in FP16 partitions are left for future work.
 
-Quantization metadata plumbing is present for static signed-int8 weighted
+Quantization metadata plumbing is present for the retained static signed-int8
 operators. The canonical imported representation is Relax QDQ:
-``relax.dequantize`` around signed-int8 activations and static weights, a
-float Relax weighted operator, an optional float bias add and activation, and a
-final ``relax.quantize`` back to signed int8. The runtime metadata schema
+``relax.dequantize`` around signed-int8 tensors, a supported float Relax
+operator, and a final ``relax.quantize`` back to signed int8. The runtime metadata schema
 contains ``dtype``, ``qscheme`` (``none``, ``per_tensor``, or
 ``per_channel``), ``scale``, ``zero_point``, ``axis``, ``channel_dim``, and
 ``signedness``.
@@ -462,48 +474,14 @@ quantization parameter arrays are padded with ``XNN_EXTRA_QUANTIZATION_PARAMS``
 where XNNPACK may overread, and their lifetime is tied to the XNNPACK runtime
 or subgraph that uses them.
 
-The TFLite Relax frontend imports signed-int8 ``QUANTIZE``, ``DEQUANTIZE``,
-``FULLY_CONNECTED``, ``CONV_2D``, and ``DEPTHWISE_CONV_2D`` as these QDQ
-graphs when all quantization parameters are static. ``FULLY_CONNECTED`` maps
-TFLite ``[out, in]`` weights to Relax ``[in, out]`` and remaps per-channel
-weight scales to axis 1. ``CONV_2D`` keeps TFLite ``[out, kh, kw, in]``
-weights as OHWI. ``DEPTHWISE_CONV_2D`` maps TFLite
-``[1, kh, kw, in * depth_multiplier]`` weights to HWOI for the XNNPACK
-patterns. Phase 5C-2B also keeps small signed-int8 QDQ islands inside XNNPACK
-for reshape/flatten/copy, max pooling, average pooling expressed as
-``avg_pool2d`` including full-spatial global average pooling, and same-shape
-residual add. QU8/``uint8``, dynamic range quantization, weight-only
-quantization, dynamic quantization parameters, and unsupported quantized TFLite
-operators are rejected rather than silently lowered.
-
-Dynamic-range quantization is available as an explicit partitioning mode:
-
-.. code-block:: python
-
-   mod = tvm.relax.backend.xnnpack.partition_for_xnnpack(
-       mod,
-       quantization="dynamic_range",
-   )
-
-This mode is separate from static QS8. Relax graph boundaries remain
-``float32``; static weights are signed ``int8`` with per-channel scales; and
-XNNPACK computes activation quantization parameters at runtime. Phase 5C-3
-only registers the fully-connected form
-``float32 input -> dequantize(static int8 weight) -> relax.matmul -> float32
-output``. The weight must be static, rank-2, signed int8, zero-point 0, and
-per-channel quantized on the output-channel axis. Bias, dynamic-range Conv2D,
-QU8, weight-only quantization, dynamic qparams, 4-bit/2-bit weights, and
-mixed static-QS8/dynamic-range islands are intentionally not supported.
-
-The dynamic-range path is guarded by XNNPACK feature probes for the public QD8
-datatypes, dynamically quantized tensor values, ``xnn_define_convert``, and
-the fully-connected subgraph construction. Some XNNPACK revisions expose these
-public APIs but reject or miscompile particular dynamic-range subgraphs at
-runtime; TVM tests skip those enabled-runtime cases cleanly and the docs do not
-claim runtime acceleration unless the linked XNNPACK build passes numerical
-validation. The partition report marks these candidates with
-``dynamic_range=True``, ``weight_qscheme``, ``activation_boundary_dtype``,
-``output_boundary_dtype``, and an estimated activation-quantization overhead.
+The TFLite Relax frontend may preserve signed-int8 quantization metadata as
+QDQ graphs, but this backend currently offloads only small QDQ islands:
+reshape/flatten/copy, max pooling, and same-shape residual add when their
+qparams meet the backend checks. QS8 fully-connected, QS8 conv2d, QS8
+depthwise conv2d, QS8 average pooling, QU8/``uint8``, dynamic-range
+quantization, weight-only quantization, dynamic quantization parameters, and
+unsupported quantized TFLite operators are rejected rather than silently
+lowered.
 
 Limited dynamic batch support is available as an opt-in policy:
 
@@ -511,8 +489,10 @@ Limited dynamic batch support is available as an opt-in policy:
 
    mod = partition_for_xnnpack(
        mod,
-       dynamic_shape_policy="batch_only",
-       dynamic_batch_bounds={"n": 8},
+       config=XNNPACKPartitionConfig(
+           dynamic_shape_policy="batch_only",
+           dynamic_batch_bounds={"n": 8},
+       ),
    )
 
 The default remains ``dynamic_shape_policy="none"``, which preserves the
@@ -525,7 +505,7 @@ When explicit bounds are omitted, the partitioner can read
 API-provided bounds take precedence and are attached to generated XNNPACK
 external functions.
 
-Phase 5F supports dynamic batch only for ``float32`` fully-connected
+Dynamic batch is supported only for ``float32`` fully-connected
 (``relax.matmul`` with static rank-2 weights) and ``float32`` NHWC/OHWI
 ``conv2d`` with ``groups=1``. Static QS8, dynamic-range quantization,
 depthwise convolution, pooling, elementwise operators, concat, resize, dynamic
@@ -574,18 +554,6 @@ overflow-like shapes.
      - Equal static input shapes only. Broadcasting is intentionally rejected.
    * - ``relax.nn.max_pool2d`` and ``relax.nn.avg_pool2d``
      - NHWC input/output, dilation 1, ``ceil_mode=False``, and zero padding.
-   * - QDQ ``relax.matmul``
-     - Static signed-int8 input/output, static signed-int8 weights, optional
-       static int32 bias, rank-2 only, per-tensor activation/output qparams,
-       per-tensor or per-channel weight qparams, and ReLU/ReLU6/clip fusion.
-   * - QDQ ``relax.nn.conv2d``
-     - Static signed-int8 NHWC input/output, OHWI static weights, ``groups=1``,
-       optional static int32 bias, per-channel weight axis 0, and
-       ReLU/ReLU6/clip fusion.
-   * - QDQ depthwise ``relax.nn.conv2d``
-     - Static signed-int8 NHWC input/output, HWOI static weights,
-       ``groups=input_channels``, depth multiplier 1, optional static int32
-       bias, per-channel weight axis 2, and ReLU/ReLU6/clip fusion.
    * - QDQ ``relax.reshape`` / ``relax.flatten`` / copy
      - Static signed-int8 tensors with exactly matching input/output scale and
        zero point. The copy case is represented as
@@ -594,19 +562,10 @@ overflow-like shapes.
      - Static signed-int8 NHWC tensors, constant qparams, exactly matching
        input/output qparams, static pool/stride/padding/dilation,
        ``ceil_mode=False``.
-   * - QDQ ``relax.nn.avg_pool2d``
-     - Static signed-int8 NHWC tensors, constant per-tensor qparams, static
-       pool/stride/padding, dilation 1, ``ceil_mode=False``,
-       ``count_include_pad=False``. Full-spatial average pooling is supported
-       only through this ``avg_pool2d`` form, not generic ``relax.mean``.
    * - QDQ ``relax.add``
      - Static signed-int8 tensors, exactly equal input shapes, constant
        per-tensor qparams, no scalar or channel broadcasting, and optional
        ReLU/ReLU6/clip fusion.
-   * - Dynamic-range ``relax.matmul``
-     - Opt-in with ``quantization="dynamic_range"``. Float32 input/output,
-       static signed-int8 rank-2 weights, per-channel weight scales on axis 1,
-       zero weight zero-point, and no bias or fused activation in this phase.
    * - Dynamic-batch ``relax.matmul``
      - Opt-in with ``dynamic_shape_policy="batch_only"``. Float32 input/output,
        symbolic leading batch only, finite positive batch bounds, static rank-2
@@ -619,14 +578,15 @@ overflow-like shapes.
 
 There is no full attention lowering, batch matrix multiply, SwiGLU,
 ``log_softmax``, int8 multiply/subtract/concat/pad/resize, generic spatial
-mean, dynamic-range Conv2D, QU8/``uint8``, 4-bit, weight-only quantization,
+mean, QS8 fully-connected, QS8 conv2d, QS8 depthwise conv2d, QS8 average
+pooling, dynamic-range quantization, QU8/``uint8``, 4-bit, weight-only quantization,
 dynamic qparams, layout conversion, dynamic-shape support, broad broadcasting,
-or broad CNN coverage in this phase. Explicit ``float16`` Relax graphs are
+or broad CNN coverage. Explicit ``float16`` Relax graphs are
 also unsupported and must fall back to TVM. Dynamic-shape support is limited to
 the explicit batch-only cases above; arbitrary symbolic shapes still fall back
 to TVM. The cost policy can reject isolated small fp32 or int8 elementwise,
-unary, reshape/copy, and tiny dynamic-range dense islands, even when the
-greedy/debug policies would partition them. Dynamic-batch report entries set
+unary, and reshape/copy islands, even when the greedy/debug policies would
+partition them. Dynamic-batch report entries set
 ``dynamic_batch=True`` and include the symbol name, lower/upper bounds, and
 min/max FLOP and copy-byte estimates.
 
@@ -732,16 +692,11 @@ Troubleshooting:
 * If CMake fails during feature probing, verify that the configured
   ``xnnpack.h`` and XNNPACK library come from the same external installation.
   TVM fails configure only for baseline public APIs required by the current
-  runtime; optional FP16, QS8, workspace, profiling, and future dynamic-quant
+  runtime; optional FP16, QS8, workspace, and profiling
   features are reported as unavailable instead.
-* Dynamic quantization/QD8 capability bits report public API availability for
-  the opt-in dynamic-range dense path. They do not enable dynamic-range Conv2D,
-  weight-only quantization, QU8, or additional partition patterns.
-* If a dynamic-range dense partition is present but runtime validation skips or
-  fails, the linked XNNPACK revision exposed the required public APIs but did
-  not produce a numerically valid subgraph for the tested shape. Use normal TVM
-  lowering or ``quantization="none"`` for that model until the XNNPACK build is
-  updated or the backend grows a tested alternate lowering.
+* Dynamic-range, weight-only, and QU8 quantization are not part of the cleaned
+  backend. Use normal TVM lowering for those models until a separate tested
+  implementation is added.
 
 Deployment and platform notes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

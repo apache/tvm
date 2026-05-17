@@ -595,15 +595,15 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
       (void)CheckedQParamBytes(parsed.padded_scale.size());
     }
 
-    // Map Relax QDQ axis to XNNPACK channel_dim directly in Phase 5C-0. Quantized
-    // layout rewrites are intentionally not implemented in this metadata-only phase.
+    // Map Relax QDQ axis to XNNPACK channel_dim directly. Quantized layout
+    // rewrites are intentionally not implemented.
     int64_t normalized_axis = parsed.axis;
     if (normalized_axis < 0) normalized_axis += static_cast<int64_t>(parsed.shape.size());
     TVM_FFI_ICHECK_GE(normalized_axis, 0) << "XNNPACK quantization axis is out of range.";
     TVM_FFI_ICHECK_LT(static_cast<size_t>(normalized_axis), parsed.shape.size())
         << "XNNPACK quantization axis is out of range.";
     TVM_FFI_ICHECK_EQ(static_cast<size_t>(normalized_axis), parsed.channel_dim)
-        << "XNNPACK quantization axis must match channel_dim in Phase 5C-0.";
+        << "XNNPACK quantization axis must match channel_dim.";
 
     (void)QuantizedDatatype(parsed);
 #if defined(TVM_XNNPACK_HAS_VALIDATE_QUANTIZED_TENSOR)
@@ -1014,15 +1014,10 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
         "fully_connected",
         "max_pool2d",
         "avg_pool2d",
-        "qs8_fully_connected",
-        "qs8_conv2d",
-        "qs8_depthwise_conv2d",
         "qs8_reshape",
         "qs8_copy",
         "qs8_max_pool2d",
-        "qs8_avg_pool2d",
         "qs8_add",
-        "dynamic_range_fully_connected",
     };
     return supported.count(op_kind) != 0;
   }
@@ -1131,26 +1126,15 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
       return;
     }
     if (op_kind == "max_pool2d" || op_kind == "avg_pool2d" ||
-        op_kind == "qs8_max_pool2d" || op_kind == "qs8_avg_pool2d") {
+        op_kind == "qs8_max_pool2d") {
       RequireAttrs(node, {"pool_size", "strides", "padding", "dilation", "activation_min",
                           "activation_max"});
-    }
-    if (op_kind == "qs8_fully_connected" || op_kind == "qs8_conv2d" ||
-        op_kind == "qs8_depthwise_conv2d") {
-      RequireAttrs(node, {"has_bias", "activation_min", "activation_max"});
-      RequireQParams(node, "input");
-      RequireQParams(node, "weight");
-      RequireQParams(node, "output");
-      if (static_cast<int64_t>(node.GetAttr<int64_t>("has_bias")) != 0) {
-        RequireQParams(node, "bias");
-      }
-      return;
     }
     if (op_kind == "qs8_reshape") {
       RequireAttrs(node, {"new_shape"});
     }
     if (op_kind == "qs8_reshape" || op_kind == "qs8_copy" ||
-        op_kind == "qs8_max_pool2d" || op_kind == "qs8_avg_pool2d") {
+        op_kind == "qs8_max_pool2d") {
       RequireQParams(node, "input");
       RequireQParams(node, "output");
       return;
@@ -1162,12 +1146,6 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
       RequireQParams(node, "output");
       TVM_FFI_ICHECK_EQ(node.GetInputs().size(), 2U)
           << "XNNPACK qs8_add JSON node expects two inputs.";
-      return;
-    }
-    if (op_kind == "dynamic_range_fully_connected") {
-      RequireAttrs(node, {"quantization", "weight_qscheme", "weight_scales", "weight_zero_point",
-                          "weight_axis", "weight_channel_dim", "activation_min",
-                          "activation_max"});
       return;
     }
   }
@@ -1235,30 +1213,6 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
     const size_t bytes = CheckedBytes(shape, ElementSize(dtype));
     constant_buffers_.emplace_back(CheckedPaddedBytes(bytes, XNN_EXTRA_BYTES));
     std::memcpy(constant_buffers_.back().data(), TensorData(tensor), bytes);
-    std::memset(constant_buffers_.back().data() + bytes, 0, XNN_EXTRA_BYTES);
-    return constant_buffers_.back().data();
-  }
-
-  const void* PrepareTransposedInt8MatrixConstant(uint32_t eid, const JSONGraphNode& node,
-                                                  uint32_t index) {
-    const DLTensor* tensor = data_entry_[eid];
-    std::vector<size_t> shape = GetShape(node, index);
-    DLDataType dtype = GetDType(node, index);
-    ValidateTensor(tensor, shape, dtype, "dynamic-range weight constant");
-    TVM_FFI_ICHECK(IsInt8(dtype));
-    TVM_FFI_ICHECK_EQ(shape.size(), 2U);
-    const int8_t* src = static_cast<const int8_t*>(TensorData(tensor));
-    const size_t rows = shape[0];
-    const size_t cols = shape[1];
-    const size_t bytes = CheckedMul(CheckedMul(rows, cols, "transposed matrix element count"),
-                                    sizeof(int8_t), "transposed matrix byte size");
-    constant_buffers_.emplace_back(CheckedPaddedBytes(bytes, XNN_EXTRA_BYTES));
-    int8_t* dst = reinterpret_cast<int8_t*>(constant_buffers_.back().data());
-    for (size_t i = 0; i < rows; ++i) {
-      for (size_t j = 0; j < cols; ++j) {
-        dst[j * rows + i] = src[i * cols + j];
-      }
-    }
     std::memset(constant_buffers_.back().data() + bytes, 0, XNN_EXTRA_BYTES);
     return constant_buffers_.back().data();
   }
@@ -1404,134 +1358,6 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
     }
   }
 
-  void DefineQS8Inputs(const JSONGraphNode& node, const std::vector<JSONGraphNodeEntry>& inputs) {
-    TVM_FFI_ICHECK(inputs.size() == 2U || inputs.size() == 3U);
-    const uint32_t input_eid = EntryID(inputs[0]);
-    const uint32_t input_nid = inputs[0].id_;
-    CheckInt8DType(nodes_[input_nid], inputs[0].index_);
-    std::vector<size_t> input_shape = GetShape(nodes_[input_nid], inputs[0].index_);
-    QuantizationMetadata input_qparams = GetNodeQParams(node, "input", input_shape, "int8");
-    DefineQuantizedTensor(input_eid, input_shape, input_qparams, XNN_VALUE_FLAG_EXTERNAL_INPUT);
-    if (std::none_of(external_tensors_.begin(), external_tensors_.end(),
-                     [input_eid](const ExternalTensor& entry) { return entry.eid == input_eid; })) {
-      external_tensors_.push_back(
-          {input_eid, input_shape, "input", GetDType(nodes_[input_nid], inputs[0].index_),
-           sizeof(int8_t), false, false, StaticShapeTemplate(input_shape), {}});
-    }
-
-    const uint32_t weight_eid = EntryID(inputs[1]);
-    const uint32_t weight_nid = inputs[1].id_;
-    CheckInt8DType(nodes_[weight_nid], inputs[1].index_);
-    std::vector<size_t> weight_shape = GetShape(nodes_[weight_nid], inputs[1].index_);
-    const void* weight_data =
-        PrepareTypedConstant(weight_eid, nodes_[weight_nid], inputs[1].index_);
-    QuantizationMetadata weight_qparams = GetNodeQParams(node, "weight", weight_shape, "int8");
-    DefineQuantizedTensor(weight_eid, weight_shape, weight_qparams, 0, weight_data);
-
-    if (inputs.size() == 3U) {
-      const uint32_t bias_eid = EntryID(inputs[2]);
-      const uint32_t bias_nid = inputs[2].id_;
-      CheckInt32DType(nodes_[bias_nid], inputs[2].index_);
-      std::vector<size_t> bias_shape = GetShape(nodes_[bias_nid], inputs[2].index_);
-      const void* bias_data = PrepareTypedConstant(bias_eid, nodes_[bias_nid], inputs[2].index_);
-      QuantizationMetadata bias_qparams = GetNodeQParams(node, "bias", bias_shape, "int32");
-      DefineQuantizedTensor(bias_eid, bias_shape, bias_qparams, 0, bias_data);
-    }
-  }
-
-  void DefineQS8DepthwiseInputs(const JSONGraphNode& node,
-                                const std::vector<JSONGraphNodeEntry>& inputs) {
-    TVM_FFI_ICHECK(inputs.size() == 2U || inputs.size() == 3U);
-    const uint32_t input_eid = EntryID(inputs[0]);
-    const uint32_t input_nid = inputs[0].id_;
-    CheckInt8DType(nodes_[input_nid], inputs[0].index_);
-    std::vector<size_t> input_shape = GetShape(nodes_[input_nid], inputs[0].index_);
-    QuantizationMetadata input_qparams = GetNodeQParams(node, "input", input_shape, "int8");
-    DefineQuantizedTensor(input_eid, input_shape, input_qparams, XNN_VALUE_FLAG_EXTERNAL_INPUT);
-    if (std::none_of(external_tensors_.begin(), external_tensors_.end(),
-                     [input_eid](const ExternalTensor& entry) { return entry.eid == input_eid; })) {
-      external_tensors_.push_back(
-          {input_eid, input_shape, "input", GetDType(nodes_[input_nid], inputs[0].index_),
-           sizeof(int8_t), false, false, StaticShapeTemplate(input_shape), {}});
-    }
-
-    const uint32_t weight_eid = EntryID(inputs[1]);
-    const uint32_t weight_nid = inputs[1].id_;
-    CheckInt8DType(nodes_[weight_nid], inputs[1].index_);
-    std::vector<size_t> hwoi_shape = GetShape(nodes_[weight_nid], inputs[1].index_);
-    TVM_FFI_ICHECK_EQ(hwoi_shape.size(), 4U);
-    TVM_FFI_ICHECK_EQ(hwoi_shape[3], 1U)
-        << "XNNPACK QS8 depthwise currently requires depth_multiplier=1.";
-    std::vector<size_t> xnn_shape = {1, hwoi_shape[0], hwoi_shape[1],
-                                     hwoi_shape[2] * hwoi_shape[3]};
-    const void* weight_data =
-        PrepareTypedConstant(weight_eid, nodes_[weight_nid], inputs[1].index_);
-    QuantizationMetadata weight_qparams = GetNodeQParams(node, "weight", xnn_shape, "int8");
-    DefineQuantizedTensor(weight_eid, xnn_shape, weight_qparams, 0, weight_data);
-
-    if (inputs.size() == 3U) {
-      const uint32_t bias_eid = EntryID(inputs[2]);
-      const uint32_t bias_nid = inputs[2].id_;
-      CheckInt32DType(nodes_[bias_nid], inputs[2].index_);
-      std::vector<size_t> bias_shape = GetShape(nodes_[bias_nid], inputs[2].index_);
-      const void* bias_data = PrepareTypedConstant(bias_eid, nodes_[bias_nid], inputs[2].index_);
-      QuantizationMetadata bias_qparams = GetNodeQParams(node, "bias", bias_shape, "int32");
-      DefineQuantizedTensor(bias_eid, bias_shape, bias_qparams, 0, bias_data);
-    }
-  }
-
-  uint32_t DefineDynamicallyQuantizedTensor(const std::vector<size_t>& shape) {
-#if defined(TVM_XNNPACK_HAS_DEFINE_DYNAMICALLY_QUANTIZED_TENSOR_VALUE)
-    uint32_t id = XNN_INVALID_VALUE_ID;
-    CheckXNNStatus(
-      xnn_define_dynamically_quantized_tensor_value(subgraph_, xnn_datatype_qdint8, shape.size(),
-                                                    shape.size(), shape.data(),
-                                                    XNN_INVALID_VALUE_ID, 0, &id),
-        "xnn_define_dynamically_quantized_tensor_value");
-    return id;
-#else
-    TVM_FFI_THROW(RuntimeError)
-        << "XNNPACK dynamically quantized tensor definition API is unavailable.";
-#endif
-  }
-
-  void DefineDynamicRangeInputs(const JSONGraphNode& node,
-                                const std::vector<JSONGraphNodeEntry>& inputs) {
-    const bool has_bias = static_cast<int64_t>(node.GetAttr<int64_t>("has_bias")) != 0;
-    TVM_FFI_ICHECK_EQ(inputs.size(), has_bias ? 3U : 2U);
-    const uint32_t input_eid = EntryID(inputs[0]);
-    const uint32_t input_nid = inputs[0].id_;
-    CheckFloat32DType(nodes_[input_nid], inputs[0].index_);
-    TVM_FFI_ICHECK_NE(value_ids_[input_eid], XNN_INVALID_VALUE_ID)
-        << "XNNPACK dynamic-range input value must be defined before use.";
-
-    const uint32_t weight_eid = EntryID(inputs[1]);
-    const uint32_t weight_nid = inputs[1].id_;
-    CheckInt8DType(nodes_[weight_nid], inputs[1].index_);
-    std::vector<size_t> weight_shape = GetShape(nodes_[weight_nid], inputs[1].index_);
-    TVM_FFI_ICHECK_EQ(weight_shape.size(), 2U);
-    const void* weight_data =
-        PrepareTransposedInt8MatrixConstant(weight_eid, nodes_[weight_nid], inputs[1].index_);
-    QuantizationMetadata weight_qparams = GetNodeQParams(node, "weight", weight_shape, "int8");
-    TVM_FFI_ICHECK_EQ(weight_qparams.qscheme, "per_channel")
-        << "XNNPACK dynamic-range fully_connected requires per-channel int8 weights.";
-    std::vector<size_t> xnn_weight_shape = {weight_shape[1], weight_shape[0]};
-    weight_qparams.channel_dim = 0;
-    weight_qparams.axis = 0;
-    weight_qparams.shape = xnn_weight_shape;
-    DefineQuantizedTensor(weight_eid, xnn_weight_shape, weight_qparams, 0, weight_data);
-
-    if (has_bias) {
-      const uint32_t bias_eid = EntryID(inputs[2]);
-      const uint32_t bias_nid = inputs[2].id_;
-      CheckFloat32DType(nodes_[bias_nid], inputs[2].index_);
-      if (value_ids_[bias_eid] == XNN_INVALID_VALUE_ID) {
-        const void* bias_data = PrepareConstant(bias_eid, nodes_[bias_nid]);
-        DefineTensor(bias_eid, nodes_[bias_nid], inputs[2].index_, 0, bias_data);
-      }
-    }
-  }
-
   void DefineUnary(const JSONGraphNode& node, const std::vector<JSONGraphNodeEntry>& inputs,
                    uint32_t output_id) {
     TVM_FFI_ICHECK_EQ(inputs.size(), 1U);
@@ -1673,112 +1499,6 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
                    "xnn_define_fully_connected(fp32)");
 #else
     TVM_FFI_THROW(RuntimeError) << "XNNPACK fully_connected API is unavailable.";
-#endif
-  }
-
-  void DefineQS8FullyConnected(const JSONGraphNode& node,
-                               const std::vector<JSONGraphNodeEntry>& inputs,
-                               uint32_t output_id) {
-#if defined(TVM_XNNPACK_HAS_FULLY_CONNECTED)
-    const bool has_bias = static_cast<int64_t>(node.GetAttr<int64_t>("has_bias")) != 0;
-    TVM_FFI_ICHECK_EQ(inputs.size(), has_bias ? 3U : 2U);
-    const uint32_t bias_id = has_bias ? value_ids_[EntryID(inputs[2])] : XNN_INVALID_VALUE_ID;
-    uint32_t flags = 0;
-#if defined(TVM_XNNPACK_HAS_TRANSPOSE_WEIGHTS_FLAG)
-    flags |= XNN_FLAG_TRANSPOSE_WEIGHTS;
-#else
-    TVM_FFI_THROW(RuntimeError)
-        << "XNNPACK fully_connected with Relax [input_channels, output_channels] weights "
-           "requires XNN_FLAG_TRANSPOSE_WEIGHTS.";
-#endif
-    CheckXNNStatus(xnn_define_fully_connected(
-                       subgraph_, GetFloatAttr(node, "activation_min"),
-                       GetFloatAttr(node, "activation_max"), value_ids_[EntryID(inputs[0])],
-                       value_ids_[EntryID(inputs[1])], bias_id, output_id, flags),
-                   "xnn_define_fully_connected");
-#else
-    TVM_FFI_THROW(RuntimeError) << "XNNPACK fully_connected API is unavailable.";
-#endif
-  }
-
-  void DefineDynamicRangeFullyConnected(const JSONGraphNode& node,
-                                        const std::vector<JSONGraphNodeEntry>& inputs,
-                                        uint32_t output_id) {
-#if defined(TVM_XNNPACK_HAS_DYNAMIC_RANGE_FULLY_CONNECTED_SUBGRAPH)
-    const bool has_bias = static_cast<int64_t>(node.GetAttr<int64_t>("has_bias")) != 0;
-    TVM_FFI_ICHECK_EQ(inputs.size(), has_bias ? 3U : 2U);
-    const uint32_t input_eid = EntryID(inputs[0]);
-    const uint32_t bias_id = has_bias ? value_ids_[EntryID(inputs[2])] : XNN_INVALID_VALUE_ID;
-    std::vector<size_t> input_shape = GetShape(nodes_[inputs[0].id_], inputs[0].index_);
-    const uint32_t dynamic_input_id = DefineDynamicallyQuantizedTensor(input_shape);
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-#endif
-    CheckXNNStatus(xnn_define_convert(subgraph_, value_ids_[input_eid], dynamic_input_id, 0),
-                   "xnn_define_convert(dynamic_range_input)");
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic pop
-#endif
-    uint32_t flags = 0;
-    CheckXNNStatus(xnn_define_fully_connected(
-                       subgraph_, GetFloatAttr(node, "activation_min"),
-                       GetFloatAttr(node, "activation_max"), dynamic_input_id,
-                       value_ids_[EntryID(inputs[1])], bias_id, output_id, flags),
-                   "xnn_define_fully_connected(dynamic_range)");
-#else
-    TVM_FFI_THROW(RuntimeError)
-        << "XNNPACK dynamic-range fully_connected subgraph APIs are unavailable.";
-#endif
-  }
-
-  void DefineQS8Conv2D(const JSONGraphNode& node, const std::vector<JSONGraphNodeEntry>& inputs,
-                       uint32_t output_id) {
-    const bool has_bias = static_cast<int64_t>(node.GetAttr<int64_t>("has_bias")) != 0;
-    TVM_FFI_ICHECK_EQ(inputs.size(), has_bias ? 3U : 2U);
-    auto padding = GetUIntArray(node, "padding");
-    auto strides = GetUIntArray(node, "strides");
-    auto dilation = GetUIntArray(node, "dilation");
-    TVM_FFI_ICHECK_EQ(padding.size(), 4U);
-    TVM_FFI_ICHECK_EQ(strides.size(), 2U);
-    TVM_FFI_ICHECK_EQ(dilation.size(), 2U);
-    std::vector<size_t> weight_shape = GetShape(nodes_[inputs[1].id_], inputs[1].index_);
-    TVM_FFI_ICHECK_EQ(weight_shape.size(), 4U);
-    const uint32_t bias_id = has_bias ? value_ids_[EntryID(inputs[2])] : XNN_INVALID_VALUE_ID;
-    CheckXNNStatus(xnn_define_convolution_2d(
-                       subgraph_, padding[0], padding[3], padding[2], padding[1], weight_shape[1],
-                       weight_shape[2], strides[0], strides[1], dilation[0], dilation[1], 1,
-                       weight_shape[3], weight_shape[0], GetFloatAttr(node, "activation_min"),
-                       GetFloatAttr(node, "activation_max"), value_ids_[EntryID(inputs[0])],
-                       value_ids_[EntryID(inputs[1])], bias_id, output_id, 0),
-                   "xnn_define_convolution_2d(qs8)");
-  }
-
-  void DefineQS8DepthwiseConv2D(const JSONGraphNode& node,
-                                const std::vector<JSONGraphNodeEntry>& inputs,
-                                uint32_t output_id) {
-#if defined(TVM_XNNPACK_HAS_DEPTHWISE_CONVOLUTION_2D)
-    const bool has_bias = static_cast<int64_t>(node.GetAttr<int64_t>("has_bias")) != 0;
-    TVM_FFI_ICHECK_EQ(inputs.size(), has_bias ? 3U : 2U);
-    auto padding = GetUIntArray(node, "padding");
-    auto strides = GetUIntArray(node, "strides");
-    auto dilation = GetUIntArray(node, "dilation");
-    std::vector<size_t> input_shape = GetShape(nodes_[inputs[0].id_], inputs[0].index_);
-    std::vector<size_t> weight_shape = GetShape(nodes_[inputs[1].id_], inputs[1].index_);
-    TVM_FFI_ICHECK_EQ(input_shape.size(), 4U);
-    TVM_FFI_ICHECK_EQ(weight_shape.size(), 4U);
-    const uint32_t input_channels = static_cast<uint32_t>(input_shape[3]);
-    const uint32_t depth_multiplier = static_cast<uint32_t>(weight_shape[3]);
-    const uint32_t bias_id = has_bias ? value_ids_[EntryID(inputs[2])] : XNN_INVALID_VALUE_ID;
-    CheckXNNStatus(xnn_define_depthwise_convolution_2d(
-                       subgraph_, padding[0], padding[3], padding[2], padding[1], weight_shape[0],
-                       weight_shape[1], strides[0], strides[1], dilation[0], dilation[1],
-                       depth_multiplier, input_channels, GetFloatAttr(node, "activation_min"),
-                       GetFloatAttr(node, "activation_max"), value_ids_[EntryID(inputs[0])],
-                       value_ids_[EntryID(inputs[1])], bias_id, output_id, 0),
-                   "xnn_define_depthwise_convolution_2d(qs8)");
-#else
-    TVM_FFI_THROW(RuntimeError) << "XNNPACK depthwise convolution API is unavailable.";
 #endif
   }
 
@@ -2007,21 +1727,8 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
       auto inputs = node.GetInputs();
       const std::string op_kind = node.GetAttr<ffi::String>("op_kind");
       uint32_t output_id = XNN_INVALID_VALUE_ID;
-      if (op_kind == "qs8_fully_connected" || op_kind == "qs8_conv2d" ||
-          op_kind == "qs8_depthwise_conv2d") {
-        if (op_kind == "qs8_depthwise_conv2d") {
-          DefineQS8DepthwiseInputs(node, inputs);
-        } else {
-          DefineQS8Inputs(node, inputs);
-        }
-        output_id = DefineQS8Output(node, output_entry, graph_output_eids);
-      } else if (op_kind == "dynamic_range_fully_connected") {
-        DefineDynamicRangeInputs(node, inputs);
-        DefineOutput(node, output_entry, graph_output_eids);
-        output_id = value_ids_[EntryID(output_entry)];
-      } else if (op_kind == "qs8_reshape" || op_kind == "qs8_max_pool2d" ||
-                 op_kind == "qs8_avg_pool2d" || op_kind == "qs8_add" ||
-                 op_kind == "qs8_copy") {
+      if (op_kind == "qs8_reshape" || op_kind == "qs8_max_pool2d" ||
+          op_kind == "qs8_add" || op_kind == "qs8_copy") {
         DefineQS8IslandInputs(node, inputs);
         output_id = DefineQS8Output(node, output_entry, graph_output_eids);
       } else {
@@ -2045,22 +1752,12 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
         DefineConv2D(node, inputs, output_id);
       } else if (op_kind == "fully_connected") {
         DefineFullyConnected(node, inputs, output_id);
-      } else if (op_kind == "qs8_fully_connected") {
-        DefineQS8FullyConnected(node, inputs, output_id);
-      } else if (op_kind == "dynamic_range_fully_connected") {
-        DefineDynamicRangeFullyConnected(node, inputs, output_id);
-      } else if (op_kind == "qs8_conv2d") {
-        DefineQS8Conv2D(node, inputs, output_id);
-      } else if (op_kind == "qs8_depthwise_conv2d") {
-        DefineQS8DepthwiseConv2D(node, inputs, output_id);
       } else if (op_kind == "qs8_reshape") {
         DefineQS8Reshape(node, inputs, output_id);
       } else if (op_kind == "qs8_copy") {
         DefineQS8Copy(inputs, output_id);
       } else if (op_kind == "qs8_max_pool2d") {
         DefinePool2D(node, inputs, output_id, true);
-      } else if (op_kind == "qs8_avg_pool2d") {
-        DefinePool2D(node, inputs, output_id, false);
       } else if (op_kind == "qs8_add") {
         DefineQS8Add(node, inputs, output_id);
       } else if (op_kind == "max_pool2d") {
@@ -2245,27 +1942,6 @@ ffi::Map<ffi::String, ffi::Any> XNNPACKJSONRuntimeGetCapabilities() {
                                      0
 #endif
                                      ));
-  result.Set("datatype_qdint8", static_cast<int64_t>(
-#if defined(TVM_XNNPACK_HAS_DATATYPE_QDINT8)
-                                    1
-#else
-                                    0
-#endif
-                                    ));
-  result.Set("datatype_qduint8", static_cast<int64_t>(
-#if defined(TVM_XNNPACK_HAS_DATATYPE_QDUINT8)
-                                     1
-#else
-                                     0
-#endif
-                                     ));
-  result.Set("datatype_qpint8", static_cast<int64_t>(
-#if defined(TVM_XNNPACK_HAS_DATATYPE_QPINT8)
-                                    1
-#else
-                                    0
-#endif
-                                    ));
   result.Set("extra_quantization_params", static_cast<int64_t>(
 #if defined(TVM_XNNPACK_HAS_EXTRA_QUANTIZATION_PARAMS)
                                               XNN_EXTRA_QUANTIZATION_PARAMS
@@ -2280,20 +1956,6 @@ ffi::Map<ffi::String, ffi::Any> XNNPACKJSONRuntimeGetCapabilities() {
                                                   0
 #endif
                                                   ));
-  result.Set("define_dynamically_quantized_tensor_value", static_cast<int64_t>(
-#if defined(TVM_XNNPACK_HAS_DEFINE_DYNAMICALLY_QUANTIZED_TENSOR_VALUE)
-                                                              1
-#else
-                                                              0
-#endif
-                                                              ));
-  result.Set("define_convert", static_cast<int64_t>(
-#if defined(TVM_XNNPACK_HAS_DEFINE_CONVERT)
-                                    1
-#else
-                                    0
-#endif
-                                    ));
   result.Set("define_channelwise_quantized_tensor_value", static_cast<int64_t>(
 #if defined(TVM_XNNPACK_HAS_DEFINE_CHANNELWISE_QUANTIZED_TENSOR_VALUE) || \
     defined(TVM_XNNPACK_HAS_DEFINE_CHANNELWISE_QUANTIZED_TENSOR_VALUE_V2)
@@ -2435,41 +2097,6 @@ ffi::Map<ffi::String, ffi::Any> XNNPACKJSONRuntimeGetCapabilities() {
                                       0
 #endif
                                       ));
-  result.Set("dynamic_quant_datatypes", static_cast<int64_t>(
-#if defined(TVM_XNNPACK_HAS_DYNAMIC_QUANT_DATATYPES)
-                                             1
-#else
-                                             0
-#endif
-                                             ));
-  result.Set("dynamic_range_qd8_ops", static_cast<int64_t>(
-#if defined(TVM_XNNPACK_HAS_DYNAMIC_RANGE_QD8_OPS)
-                                           1
-#else
-                                           0
-#endif
-                                           ));
-  result.Set("dynamic_range_subgraph_ops", static_cast<int64_t>(
-#if defined(TVM_XNNPACK_HAS_DYNAMIC_RANGE_SUBGRAPH_OPS)
-                                               1
-#else
-                                               0
-#endif
-                                               ));
-  result.Set("dynamic_range_fully_connected", static_cast<int64_t>(
-#if defined(TVM_XNNPACK_HAS_DYNAMIC_RANGE_FULLY_CONNECTED_SUBGRAPH)
-                                                  1
-#else
-                                                  0
-#endif
-                                                  ));
-  result.Set("dynamic_range_conv2d", static_cast<int64_t>(
-#if defined(TVM_XNNPACK_HAS_DYNAMIC_RANGE_CONV2D_SUBGRAPH)
-                                          1
-#else
-                                          0
-#endif
-                                          ));
   result.Set("reshape_external_value", static_cast<int64_t>(
 #if defined(TVM_XNNPACK_HAS_RESHAPE_EXTERNAL_VALUE)
                                                1

@@ -77,7 +77,7 @@ class TinyCNNModule:
 
 
 @tvm.script.ir_module
-class StaticQS8TinyCNNModule:
+class StaticQS8IslandModule:
     @R.function
     def main(
         x: R.Tensor((1, 4, 4, 2), "int8"), y: R.Tensor((1, 4, 4, 2), "int8")
@@ -192,7 +192,7 @@ class LargeMLPModule:
 
 
 @tvm.script.ir_module
-class LargeStaticQS8CNNModule:
+class LargeStaticQS8IslandModule:
     @R.function
     def main(
         x: R.Tensor((1, 16, 16, 8), "int8"), y: R.Tensor((1, 16, 16, 8), "int8")
@@ -235,10 +235,10 @@ class LargeStaticQS8CNNModule:
 
 IN_TREE_MODELS = (
     "xnnpack_tiny_cnn",
-    "xnnpack_static_qs8_tiny_cnn",
+    "xnnpack_static_qs8_island",
     "xnnpack_large_cnn_fp32",
     "xnnpack_large_mlp_fp32",
-    "xnnpack_large_qs8_cnn",
+    "xnnpack_large_qs8_island",
 )
 TORCHVISION_MODELS = ("mobilenet_v2", "mobilenet_v3_small", "resnet18")
 
@@ -300,15 +300,15 @@ def load_tiny_cnn(seed: int) -> Tuple[tvm.IRModule, List[tvm.runtime.Tensor], st
     return bind_tiny_cnn_params(), make_tiny_cnn_inputs(seed), "xnnpack_tiny_cnn"
 
 
-def make_static_qs8_tiny_cnn_inputs(seed: int) -> List[tvm.runtime.Tensor]:
+def make_static_qs8_island_inputs(seed: int) -> List[tvm.runtime.Tensor]:
     rng = np.random.default_rng(seed)
     x_np = rng.integers(-8, 8, size=(1, 4, 4, 2), dtype=np.int8)
     y_np = rng.integers(-4, 4, size=(1, 4, 4, 2), dtype=np.int8)
     return [tvm.runtime.tensor(x_np), tvm.runtime.tensor(y_np)]
 
 
-def load_static_qs8_tiny_cnn(seed: int) -> Tuple[tvm.IRModule, List[tvm.runtime.Tensor], str]:
-    return StaticQS8TinyCNNModule, make_static_qs8_tiny_cnn_inputs(seed), "xnnpack_static_qs8_tiny_cnn"
+def load_static_qs8_island(seed: int) -> Tuple[tvm.IRModule, List[tvm.runtime.Tensor], str]:
+    return StaticQS8IslandModule, make_static_qs8_island_inputs(seed), "xnnpack_static_qs8_island"
 
 
 def bind_large_cnn_params() -> tvm.IRModule:
@@ -353,18 +353,18 @@ def load_large_mlp(seed: int) -> Tuple[tvm.IRModule, List[tvm.runtime.Tensor], s
     return bind_large_mlp_params(), make_large_mlp_inputs(seed), "xnnpack_large_mlp_fp32"
 
 
-def make_large_static_qs8_cnn_inputs(seed: int) -> List[tvm.runtime.Tensor]:
+def make_large_static_qs8_island_inputs(seed: int) -> List[tvm.runtime.Tensor]:
     rng = np.random.default_rng(seed)
     x_np = rng.integers(-8, 8, size=(1, 16, 16, 8), dtype=np.int8)
     y_np = rng.integers(-8, 8, size=(1, 16, 16, 8), dtype=np.int8)
     return [tvm.runtime.tensor(x_np), tvm.runtime.tensor(y_np)]
 
 
-def load_large_static_qs8_cnn(seed: int) -> Tuple[tvm.IRModule, List[tvm.runtime.Tensor], str]:
+def load_large_static_qs8_island(seed: int) -> Tuple[tvm.IRModule, List[tvm.runtime.Tensor], str]:
     return (
-        LargeStaticQS8CNNModule,
-        make_large_static_qs8_cnn_inputs(seed),
-        "xnnpack_large_qs8_cnn",
+        LargeStaticQS8IslandModule,
+        make_large_static_qs8_island_inputs(seed),
+        "xnnpack_large_qs8_island",
     )
 
 
@@ -466,14 +466,14 @@ def resolve_model_name(model: str, quantization_mode: str, model_size: str) -> s
         return "xnnpack_large_cnn_fp32" if model_size in ("medium", "large") else "xnnpack_tiny_cnn"
     if model in ("xnnpack_mlp_fp32", "mlp"):
         return "xnnpack_large_mlp_fp32"
-    if model in ("xnnpack_qs8_cnn", "qs8_cnn"):
+    if model in ("xnnpack_qs8_island", "qs8_island"):
         return (
-            "xnnpack_large_qs8_cnn"
+            "xnnpack_large_qs8_island"
             if model_size in ("medium", "large")
-            else "xnnpack_static_qs8_tiny_cnn"
+            else "xnnpack_static_qs8_island"
         )
     if quantization_mode == "static_qs8" and model == "xnnpack_tiny_cnn":
-        return "xnnpack_static_qs8_tiny_cnn"
+        return "xnnpack_static_qs8_island"
     return model
 
 
@@ -481,12 +481,12 @@ def load_model(args: argparse.Namespace, model_override: str | None = None):
     model = resolve_model_name(model_override or args.model, args.quantization_mode, args.model_size)
     if args.quantization_mode == "static_qs8" and model.startswith("torchvision:"):
         raise RuntimeError("torchvision models are only supported with --quantization-mode fp32")
-    if model == "xnnpack_static_qs8_tiny_cnn" or (
+    if model == "xnnpack_static_qs8_island" or (
         args.quantization_mode == "static_qs8" and model == "xnnpack_tiny_cnn"
     ):
-        return load_static_qs8_tiny_cnn(args.seed)
-    if model == "xnnpack_large_qs8_cnn":
-        return load_large_static_qs8_cnn(args.seed)
+        return load_static_qs8_island(args.seed)
+    if model == "xnnpack_large_qs8_island":
+        return load_large_static_qs8_island(args.seed)
     if model == "xnnpack_tiny_cnn":
         return load_tiny_cnn(args.seed)
     if model == "xnnpack_large_cnn_fp32":
@@ -498,25 +498,30 @@ def load_model(args: argparse.Namespace, model_override: str | None = None):
     raise RuntimeError(
         "supported models are "
         + ", ".join(IN_TREE_MODELS)
-        + ", xnnpack_cnn_fp32, xnnpack_mlp_fp32, xnnpack_qs8_cnn, "
+        + ", xnnpack_cnn_fp32, xnnpack_mlp_fp32, xnnpack_qs8_island, "
         + "and torchvision:<name>"
     )
 
 
 def partition_for_xnnpack(mod: tvm.IRModule, args: argparse.Namespace):
     from tvm.relax.backend.xnnpack import partition_for_xnnpack as partition
+    from tvm.relax.backend.xnnpack import XNNPACKCostConfig, XNNPACKPartitionConfig, XNNPACKRuntimeConfig
 
     return partition(
         mod,
-        precision=args.precision,
-        partition_policy=args.partition_policy,
-        layout=args.layout,
-        min_subgraph_size=args.min_subgraph_size,
-        min_compute_to_copy_ratio=args.min_compute_to_copy_ratio,
-        allow_isolated_elementwise=args.allow_isolated_elementwise,
-        allow_layout_rewrite=not args.disable_layout_rewrite,
-        allow_cast_boundary=args.allow_cast_boundary,
-        report_partition_decisions=args.report_partition_decisions,
+        config=XNNPACKPartitionConfig(
+            runtime=XNNPACKRuntimeConfig(precision=args.precision),
+            cost=XNNPACKCostConfig(
+                partition_policy=args.partition_policy,
+                layout=args.layout,
+                min_subgraph_size=args.min_subgraph_size,
+                min_compute_to_copy_ratio=args.min_compute_to_copy_ratio,
+                allow_isolated_elementwise=args.allow_isolated_elementwise,
+                allow_layout_rewrite=not args.disable_layout_rewrite,
+                allow_cast_boundary=args.allow_cast_boundary,
+                report_partition_decisions=args.report_partition_decisions,
+            ),
+        ),
     )
 
 
@@ -628,7 +633,7 @@ def parse_args(argv=None) -> argparse.Namespace:
         "--model-size",
         choices=("small", "medium", "large"),
         default="small",
-        help="Size selector for model aliases such as xnnpack_cnn_fp32 and xnnpack_qs8_cnn.",
+        help="Size selector for model aliases such as xnnpack_cnn_fp32 and xnnpack_qs8_island.",
     )
     parser.add_argument(
         "--compare-models",
@@ -680,7 +685,7 @@ def available_models() -> List[str]:
         *IN_TREE_MODELS,
         "xnnpack_cnn_fp32",
         "xnnpack_mlp_fp32",
-        "xnnpack_qs8_cnn",
+        "xnnpack_qs8_island",
         *(f"torchvision:{name}" for name in TORCHVISION_MODELS),
     ]
 
