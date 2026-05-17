@@ -81,6 +81,9 @@ foreach(_feature
     DEFINE_CHANNELWISE_QUANTIZED_TENSOR_VALUE_V2
     VALIDATE_QUANTIZED_TENSOR
     VALIDATE_CHANNELWISE_QUANTIZED_TENSOR
+    FULLY_CONNECTED
+    DEPTHWISE_CONVOLUTION_2D
+    TRANSPOSE_WEIGHTS_FLAG
     DONT_SPIN_WORKERS_FLAG
     TRANSIENT_INDIRECTION_BUFFER_FLAG
     PTHREADPOOL_CREATE)
@@ -213,6 +216,22 @@ check_cxx_source_compiles("
   }" TVM_XNNPACK_HAS_VALIDATE_CHANNELWISE_QUANTIZED_TENSOR)
 check_cxx_source_compiles("
   #include <xnnpack.h>
+  int main() {
+    (void)xnn_define_fully_connected(nullptr, -1.0f, 1.0f, 0, 1, XNN_INVALID_VALUE_ID, 2, 0);
+    return 0;
+  }" TVM_XNNPACK_HAS_FULLY_CONNECTED)
+check_cxx_source_compiles("
+  #include <xnnpack.h>
+  int main() {
+    (void)xnn_define_depthwise_convolution_2d(nullptr, 0, 0, 0, 0, 3, 3, 1, 1, 1, 1, 1, 1,
+                                             -1.0f, 1.0f, 0, 1, XNN_INVALID_VALUE_ID, 2, 0);
+    return 0;
+  }" TVM_XNNPACK_HAS_DEPTHWISE_CONVOLUTION_2D)
+check_cxx_source_compiles("
+  #include <xnnpack.h>
+  int main() { return XNN_FLAG_TRANSPOSE_WEIGHTS == 0; }" TVM_XNNPACK_HAS_TRANSPOSE_WEIGHTS_FLAG)
+check_cxx_source_compiles("
+  #include <xnnpack.h>
   int main() { return XNN_FLAG_DONT_SPIN_WORKERS == 0; }" TVM_XNNPACK_HAS_DONT_SPIN_WORKERS_FLAG)
 check_cxx_source_compiles("
   #include <xnnpack.h>
@@ -252,6 +271,9 @@ foreach(_feature
     DEFINE_CHANNELWISE_QUANTIZED_TENSOR_VALUE_V2
     VALIDATE_QUANTIZED_TENSOR
     VALIDATE_CHANNELWISE_QUANTIZED_TENSOR
+    FULLY_CONNECTED
+    DEPTHWISE_CONVOLUTION_2D
+    TRANSPOSE_WEIGHTS_FLAG
     DONT_SPIN_WORKERS_FLAG
     TRANSIENT_INDIRECTION_BUFFER_FLAG
     PTHREADPOOL_CREATE)

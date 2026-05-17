@@ -120,6 +120,156 @@ class DequantizeModule:
 
 
 @tvm.script.ir_module
+class QS8FullyConnectedModule:
+    @R.function
+    def main(x: R.Tensor((2, 3), "int8")) -> R.Tensor((2, 4), "int8"):
+        with R.dataflow():
+            x_f = R.dequantize(
+                x, R.const(0.25, "float32"), R.const(0, "int8"), axis=-1, out_dtype="float32"
+            )
+            w = R.const(
+                np.array([[1, -2, 3, -4], [2, 1, -1, 3], [-3, 2, 1, -2]], dtype="int8")
+            )
+            w_f = R.dequantize(
+                w,
+                R.const(np.array([0.5, 0.25, 0.125, 0.375], dtype="float32")),
+                R.const(0, "int8"),
+                axis=1,
+                out_dtype="float32",
+            )
+            y = R.matmul(x_f, w_f)
+            z = R.quantize(
+                y, R.const(0.5, "float32"), R.const(0, "int8"), axis=-1, out_dtype="int8"
+            )
+            R.output(z)
+        return z
+
+
+@tvm.script.ir_module
+class QS8FullyConnectedBiasRelu6Module:
+    @R.function
+    def main(x: R.Tensor((2, 3), "int8")) -> R.Tensor((2, 4), "int8"):
+        with R.dataflow():
+            x_f = R.dequantize(
+                x, R.const(0.25, "float32"), R.const(0, "int8"), axis=-1, out_dtype="float32"
+            )
+            w = R.const(
+                np.array([[1, -2, 3, -4], [2, 1, -1, 3], [-3, 2, 1, -2]], dtype="int8")
+            )
+            w_f = R.dequantize(
+                w,
+                R.const(np.array([0.5, 0.25, 0.125, 0.375], dtype="float32")),
+                R.const(0, "int8"),
+                axis=1,
+                out_dtype="float32",
+            )
+            b = R.const(np.array([1, -2, 3, -4], dtype="int32"))
+            b_f = R.dequantize(
+                b,
+                R.const(np.array([0.125, 0.0625, 0.03125, 0.09375], dtype="float32")),
+                R.const(0, "int32"),
+                axis=0,
+                out_dtype="float32",
+            )
+            y = R.matmul(x_f, w_f)
+            biased = relax.op.add(y, b_f)
+            clipped = relax.op.clip(biased, 0, 6)
+            z = R.quantize(
+                clipped, R.const(0.5, "float32"), R.const(0, "int8"), axis=-1, out_dtype="int8"
+            )
+            R.output(z)
+        return z
+
+
+@tvm.script.ir_module
+class QS8Conv2DBiasReluModule:
+    @R.function
+    def main(x: R.Tensor((1, 4, 4, 2), "int8")) -> R.Tensor((1, 2, 2, 3), "int8"):
+        with R.dataflow():
+            x_f = R.dequantize(
+                x, R.const(0.25, "float32"), R.const(0, "int8"), axis=-1, out_dtype="float32"
+            )
+            w = R.const(np.arange(-27, 27, dtype="int8").reshape(3, 3, 3, 2))
+            w_f = R.dequantize(
+                w,
+                R.const(np.array([0.5, 0.25, 0.125], dtype="float32")),
+                R.const(0, "int8"),
+                axis=0,
+                out_dtype="float32",
+            )
+            y = relax.op.nn.conv2d(
+                x_f,
+                w_f,
+                strides=[1, 1],
+                padding=[0, 0, 0, 0],
+                dilation=[1, 1],
+                groups=1,
+                data_layout="NHWC",
+                kernel_layout="OHWI",
+                out_layout="NHWC",
+            )
+            b = R.const(np.array([1, -2, 3], dtype="int32"))
+            b_f = R.dequantize(
+                b,
+                R.const(np.array([0.125, 0.0625, 0.03125], dtype="float32")),
+                R.const(0, "int32"),
+                axis=0,
+                out_dtype="float32",
+            )
+            biased = relax.op.add(y, b_f)
+            relu = relax.op.nn.relu(biased)
+            z = R.quantize(
+                relu, R.const(0.5, "float32"), R.const(0, "int8"), axis=-1, out_dtype="int8"
+            )
+            R.output(z)
+        return z
+
+
+@tvm.script.ir_module
+class QS8DepthwiseConv2DBiasRelu6Module:
+    @R.function
+    def main(x: R.Tensor((1, 4, 4, 2), "int8")) -> R.Tensor((1, 2, 2, 2), "int8"):
+        with R.dataflow():
+            x_f = R.dequantize(
+                x, R.const(0.25, "float32"), R.const(0, "int8"), axis=-1, out_dtype="float32"
+            )
+            w = R.const(np.arange(-9, 9, dtype="int8").reshape(3, 3, 2, 1))
+            w_f = R.dequantize(
+                w,
+                R.const(np.array([0.5, 0.25], dtype="float32")),
+                R.const(0, "int8"),
+                axis=2,
+                out_dtype="float32",
+            )
+            y = relax.op.nn.conv2d(
+                x_f,
+                w_f,
+                strides=[1, 1],
+                padding=[0, 0, 0, 0],
+                dilation=[1, 1],
+                groups=2,
+                data_layout="NHWC",
+                kernel_layout="HWOI",
+                out_layout="NHWC",
+            )
+            b = R.const(np.array([1, -2], dtype="int32"))
+            b_f = R.dequantize(
+                b,
+                R.const(np.array([0.125, 0.0625], dtype="float32")),
+                R.const(0, "int32"),
+                axis=0,
+                out_dtype="float32",
+            )
+            biased = relax.op.add(y, b_f)
+            clipped = relax.op.clip(biased, 0, 6)
+            z = R.quantize(
+                clipped, R.const(0.5, "float32"), R.const(0, "int8"), axis=-1, out_dtype="int8"
+            )
+            R.output(z)
+        return z
+
+
+@tvm.script.ir_module
 class ClipModule:
     @R.function
     def main(x: R.Tensor((2, 3), "float32")):
@@ -411,7 +561,7 @@ def _run_tiny_cnn_with_options(options=None, precision="fp32", rtol=1e-5, atol=1
     return partitioned, expected, (x_np, residual_np)
 
 
-def _run_first_external_module(mod, inputs, output_shape):
+def _run_first_external_module(mod, inputs, output_shape, output_dtype="float32"):
     ext_mod = mod.attrs["external_mods"][0]
     symbol = ext_mod["get_symbol"]()
     const_names = list(ext_mod["get_const_vars"]())
@@ -419,7 +569,7 @@ def _run_first_external_module(mod, inputs, output_shape):
     consts = [const_map[name] for name in const_names]
     ext_mod["__init_" + symbol](consts)
 
-    output_np = np.empty(output_shape, dtype="float32")
+    output_np = np.empty(output_shape, dtype=output_dtype)
     output = tvm.runtime.tensor(output_np)
     ext_mod[symbol](*[tvm.runtime.tensor(input_np) for input_np in inputs], output)
     return ext_mod, output.numpy()
@@ -449,6 +599,11 @@ def _assert_report_fields(report):
         "boundary_count",
         "compute_to_copy_ratio",
         "policy",
+        "quantized",
+        "qscheme",
+        "qdq_boundary_count",
+        "qparam_source",
+        "qparam_validation_result",
     }
     assert expected_fields.issubset(report[0].keys())
 
@@ -487,6 +642,9 @@ def test_xnnpack_registers_relu_pattern():
 
     pattern_names = {pattern.name for pattern in get_patterns_with_prefix("xnnpack")}
     assert {
+        "xnnpack.qs8_fully_connected",
+        "xnnpack.qs8_conv2d_bias_relu",
+        "xnnpack.qs8_depthwise_conv2d_bias_clip",
         "xnnpack.conv2d_bias_relu",
         "xnnpack.max_pool2d",
         "xnnpack.add",
@@ -543,6 +701,57 @@ def test_partition_for_xnnpack_does_not_partition_qdq(policy, mod):
 
     mod = relax.transform.RunCodegen()(mod)
     assert not _has_external_mods(mod)
+
+
+@pytest.mark.parametrize(
+    "mod",
+    [QS8FullyConnectedBiasRelu6Module, QS8Conv2DBiasReluModule,
+     QS8DepthwiseConv2DBiasRelu6Module],
+)
+def test_partition_for_xnnpack_partitions_static_qs8_weighted_ops(mod):
+    mod = _partition(mod)
+    assert _has_codegen_attr(mod)
+
+
+def test_xnnpack_cost_policy_reports_qs8_weighted_candidate():
+    mod, report = _partition(
+        QS8FullyConnectedBiasRelu6Module,
+        partition_policy="cost",
+        report_partition_decisions=True,
+    )
+    assert _has_codegen_attr(mod)
+    _assert_report_fields(report)
+    accepted = [entry for entry in report if entry["accepted"]]
+    assert accepted
+    assert accepted[0]["quantized"] is True
+    assert accepted[0]["qparam_source"] == "constant"
+    assert accepted[0]["qparam_validation_result"] == "ok"
+
+
+@tvm.script.ir_module
+class QS8FullyConnectedBadWeightZeroPointModule:
+    @R.function
+    def main(x: R.Tensor((2, 3), "uint8")) -> R.Tensor((2, 4), "int8"):
+        with R.dataflow():
+            x_f = R.dequantize(
+                x, R.const(0.25, "float32"), R.const(0, "uint8"), axis=-1, out_dtype="float32"
+            )
+            w = R.const(np.ones((3, 4), dtype="int8"))
+            w_f = R.dequantize(
+                w, R.const(0.5, "float32"), R.const(1, "int8"), axis=1, out_dtype="float32"
+            )
+            y = R.matmul(x_f, w_f)
+            z = R.quantize(
+                y, R.const(0.5, "float32"), R.const(0, "int8"), axis=-1, out_dtype="int8"
+            )
+            R.output(z)
+        return z
+
+
+@pytest.mark.parametrize("mod", [QS8FullyConnectedBadWeightZeroPointModule])
+def test_partition_for_xnnpack_rejects_invalid_qs8_qparams(mod):
+    mod = _partition(mod)
+    assert not _has_codegen_attr(mod)
 
 
 def test_partition_for_xnnpack_rejects_float16_even_with_fp16_policy():
@@ -900,6 +1109,72 @@ def test_xnnpack_runtime_quantization_metadata_debug_dump_empty_for_fp32_graph()
     x_np = np.array([[-1.0, 0.0, 1.5], [2.0, -3.0, 4.0]], dtype="float32")
     ext_mod, _ = _run_first_external_module(mod, [x_np], x_np.shape)
     assert json.loads(ext_mod["get_quantization_metadata_json"]()) == []
+
+
+@pytest.mark.skipif(
+    not (_has_xnnpack_codegen() and _has_xnnpack_runtime()),
+    reason="XNNPACK codegen/runtime is not enabled",
+)
+@pytest.mark.parametrize(
+    "mod, inputs, output_shape",
+    [
+        (
+            QS8FullyConnectedBiasRelu6Module,
+            [
+                np.array([[-3, -1, 2], [4, 1, -2]], dtype="int8"),
+                np.array([[1, -2, 3, -4], [2, 1, -1, 3], [-3, 2, 1, -2]], dtype="int8"),
+                np.array([1, -2, 3, -4], dtype="int32"),
+            ],
+            (2, 4),
+        ),
+        (
+            QS8Conv2DBiasReluModule,
+            [
+                np.arange(-16, 16, dtype="int8").reshape(1, 4, 4, 2),
+                np.arange(-27, 27, dtype="int8").reshape(3, 3, 3, 2),
+                np.array([1, -2, 3], dtype="int32"),
+            ],
+            (1, 2, 2, 3),
+        ),
+        (
+            QS8DepthwiseConv2DBiasRelu6Module,
+            [
+                np.arange(-16, 16, dtype="int8").reshape(1, 4, 4, 2),
+                np.arange(-9, 9, dtype="int8").reshape(3, 3, 2, 1),
+                np.array([1, -2], dtype="int32"),
+            ],
+            (1, 2, 2, 2),
+        ),
+    ],
+)
+def test_xnnpack_qs8_weighted_ops_external_runtime(mod, inputs, output_shape):
+    capabilities = _xnnpack_capabilities()
+    required = (
+        capabilities.get("datatype_qint8")
+        and capabilities.get("datatype_qint32")
+        and capabilities.get("datatype_qcint8")
+        and capabilities.get("define_quantized_tensor_value")
+        and capabilities.get("define_channelwise_quantized_tensor_value")
+        and capabilities.get("fully_connected")
+        and capabilities.get("depthwise_convolution_2d")
+        and capabilities.get("transpose_weights")
+    )
+    if not required:
+        pytest.skip("XNNPACK QS8 tensor APIs are unavailable")
+    partitioned = _partition(mod)
+    assert _has_codegen_attr(partitioned)
+    codegen_mod = relax.transform.RunCodegen()(partitioned)
+    assert _has_external_mods(codegen_mod)
+
+    ref_ex = tvm.compile(mod, target="llvm")
+    ref_vm = relax.VirtualMachine(ref_ex, tvm.cpu())
+    expected = ref_vm["main"](tvm.runtime.tensor(inputs[0])).numpy()
+    ext_mod, result = _run_first_external_module(
+        codegen_mod, inputs, output_shape, output_dtype="int8"
+    )
+    np.testing.assert_array_less(np.abs(result.astype("int16") - expected.astype("int16")), 2)
+    metadata = json.loads(ext_mod["get_quantization_metadata_json"]())
+    assert metadata
 
 
 @pytest.mark.skipif(not _has_xnnpack_codegen(), reason="XNNPACK codegen is not enabled")

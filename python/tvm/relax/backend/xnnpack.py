@@ -19,6 +19,7 @@
 
 from collections.abc import Callable
 
+import numpy as np
 import tvm
 from tvm.ir import IRModule
 from tvm import relax
@@ -32,7 +33,9 @@ _SUPPORTED_PRECISIONS = ("fp32", "fp16_hint", "fp16_force")
 _SUPPORTED_PARTITION_POLICIES = ("greedy", "cost", "debug_all_supported")
 _SUPPORTED_LAYOUT_POLICIES = ("auto", "NHWC", "preserve")
 _XNN_EXTRA_BYTES = 16
-_DTYPE_BYTES = {"float16": 2, "float32": 4}
+_DTYPE_BYTES = {"float16": 2, "float32": 4, "int8": 1, "uint8": 1, "int32": 4}
+_QPARAM_SCALE_RTOL = 1e-5
+_QPARAM_SCALE_ATOL = 1e-8
 
 
 def _get_static_shape(expr: relax.Expr) -> list[int] | None:
@@ -87,6 +90,50 @@ def _tensor_nbytes(expr: relax.Expr) -> int:
     return num_elements * _DTYPE_BYTES[dtype]
 
 
+def _const_numpy(expr: relax.Expr) -> np.ndarray | None:
+    if not isinstance(expr, relax.Constant):
+        return None
+    return expr.data.numpy()
+
+
+def _const_scalar_float(expr: relax.Expr) -> float | None:
+    arr = _const_numpy(expr)
+    if arr is None or arr.size != 1:
+        return None
+    value = float(arr.reshape(-1)[0])
+    if not np.isfinite(value):
+        return None
+    return value
+
+
+def _const_int_array(expr: relax.Expr) -> np.ndarray | None:
+    arr = _const_numpy(expr)
+    if arr is None:
+        return None
+    if not np.issubdtype(arr.dtype, np.integer):
+        return None
+    return arr.astype("int64")
+
+
+def _const_float_array(expr: relax.Expr) -> np.ndarray | None:
+    arr = _const_numpy(expr)
+    if arr is None:
+        return None
+    if not np.issubdtype(arr.dtype, np.floating):
+        return None
+    arr = arr.astype("float64")
+    if not np.all(np.isfinite(arr)):
+        return None
+    return arr
+
+
+def _const_scalar_int(expr: relax.Expr) -> int | None:
+    arr = _const_int_array(expr)
+    if arr is None or arr.size != 1:
+        return None
+    return int(arr.reshape(-1)[0])
+
+
 def _same_static_shape(lhs: relax.Expr, rhs: relax.Expr) -> bool:
     lhs_shape = _get_static_shape(lhs)
     rhs_shape = _get_static_shape(rhs)
@@ -116,6 +163,213 @@ def _call_op_name(expr: relax.Expr) -> str | None:
     return None
 
 
+def _attrs_axis(attrs) -> int:
+    return int(attrs.axis) if attrs is not None and hasattr(attrs, "axis") else -1
+
+
+def _normalize_axis(axis: int, rank: int) -> int | None:
+    if axis < 0:
+        axis += rank
+    if axis < 0 or axis >= rank:
+        return None
+    return axis
+
+
+def _qscheme_from_scale(scale: relax.Expr) -> str | None:
+    arr = _const_float_array(scale)
+    if arr is None:
+        return None
+    return "per_tensor" if arr.size == 1 else "per_channel"
+
+
+def _parse_qparams(
+    scale: relax.Expr,
+    zero_point: relax.Expr,
+    dtype: str,
+    shape: list[int],
+    axis: int,
+    *,
+    allow_per_channel: bool,
+    channel_dim: int | None = None,
+    require_zero_point_zero: bool = False,
+) -> dict[str, object] | None:
+    scale_arr = _const_float_array(scale)
+    zp_arr = _const_int_array(zero_point)
+    if scale_arr is None or zp_arr is None:
+        return None
+    if not np.all(scale_arr > 0):
+        return None
+    if dtype == "int8":
+        if np.any(zp_arr < -128) or np.any(zp_arr > 127):
+            return None
+    elif dtype == "int32":
+        if np.any(zp_arr < np.iinfo("int32").min) or np.any(zp_arr > np.iinfo("int32").max):
+            return None
+    else:
+        return None
+    if require_zero_point_zero and np.any(zp_arr != 0):
+        return None
+
+    rank = len(shape)
+    normalized_axis = _normalize_axis(axis, rank)
+    if normalized_axis is None:
+        return None
+    if channel_dim is None:
+        channel_dim = normalized_axis
+    if channel_dim < 0 or channel_dim >= rank:
+        return None
+
+    if scale_arr.size == 1 and zp_arr.size == 1:
+        return {
+            "qscheme": "per_tensor",
+            "scale": scale_arr.reshape(-1).astype("float64"),
+            "zero_point": int(zp_arr.reshape(-1)[0]),
+            "axis": normalized_axis,
+            "channel_dim": channel_dim,
+        }
+
+    if not allow_per_channel:
+        return None
+    if scale_arr.ndim != 1 or scale_arr.size != shape[channel_dim]:
+        return None
+    if zp_arr.size not in (1, scale_arr.size):
+        return None
+    if zp_arr.size != 1 and np.any(zp_arr != zp_arr.reshape(-1)[0]):
+        return None
+    return {
+        "qscheme": "per_channel",
+        "scale": scale_arr.reshape(-1).astype("float64"),
+        "zero_point": int(zp_arr.reshape(-1)[0]),
+        "axis": normalized_axis,
+        "channel_dim": channel_dim,
+    }
+
+
+def _parse_dequantize(
+    expr: relax.Expr,
+    *,
+    expected_dtype: str,
+    allow_per_channel: bool,
+    channel_dim: int | None = None,
+    require_constant_input: bool = False,
+    require_zero_point_zero: bool = False,
+) -> dict[str, object] | None:
+    if _call_op_name(expr) != "relax.dequantize":
+        return None
+    input_expr, scale, zero_point = expr.args[:3]
+    if require_constant_input and not isinstance(input_expr, relax.Constant):
+        return None
+    if _tensor_dtype(input_expr) != expected_dtype or _tensor_dtype(expr) != "float32":
+        return None
+    shape = _get_static_shape(input_expr)
+    if shape is None:
+        return None
+    qparams = _parse_qparams(
+        scale,
+        zero_point,
+        expected_dtype,
+        shape,
+        _attrs_axis(expr.attrs),
+        allow_per_channel=allow_per_channel,
+        channel_dim=channel_dim,
+        require_zero_point_zero=require_zero_point_zero,
+    )
+    if qparams is None:
+        return None
+    qparams.update({"value": input_expr, "shape": shape, "dtype": expected_dtype})
+    return qparams
+
+
+def _parse_activation_qdq(expr: relax.Expr) -> dict[str, object] | None:
+    qdq = _parse_dequantize(
+        expr,
+        expected_dtype="int8",
+        allow_per_channel=False,
+        require_constant_input=False,
+    )
+    if qdq is None or not _is_external_input(qdq["value"]):
+        return None
+    return qdq
+
+
+def _parse_weight_qdq(expr: relax.Expr, channel_dim: int) -> dict[str, object] | None:
+    return _parse_dequantize(
+        expr,
+        expected_dtype="int8",
+        allow_per_channel=True,
+        channel_dim=channel_dim,
+        require_constant_input=True,
+        require_zero_point_zero=True,
+    )
+
+
+def _parse_bias_qdq(
+    expr: relax.Expr,
+    input_scale: np.ndarray,
+    weight_scale: np.ndarray,
+    output_channels: int,
+) -> dict[str, object] | None:
+    qdq = _parse_dequantize(
+        expr,
+        expected_dtype="int32",
+        allow_per_channel=True,
+        channel_dim=0,
+        require_constant_input=True,
+        require_zero_point_zero=True,
+    )
+    if qdq is None or qdq["shape"] != [output_channels]:
+        return None
+    expected = input_scale.reshape(-1)[0] * weight_scale
+    if expected.size == 1 and qdq["scale"].size == output_channels:
+        expected = np.full((output_channels,), expected.reshape(-1)[0])
+    if qdq["scale"].size == 1 and expected.size == output_channels:
+        return None
+    if not np.allclose(qdq["scale"], expected, rtol=_QPARAM_SCALE_RTOL, atol=_QPARAM_SCALE_ATOL):
+        return None
+    return qdq
+
+
+def _parse_output_quantize(expr: relax.Expr) -> dict[str, object] | None:
+    if _call_op_name(expr) != "relax.quantize":
+        return None
+    input_expr, scale, zero_point = expr.args[:3]
+    if _tensor_dtype(input_expr) != "float32" or _tensor_dtype(expr) != "int8":
+        return None
+    shape = _get_static_shape(expr)
+    if shape is None:
+        return None
+    qparams = _parse_qparams(
+        scale,
+        zero_point,
+        "int8",
+        shape,
+        _attrs_axis(expr.attrs),
+        allow_per_channel=False,
+    )
+    if qparams is None:
+        return None
+    qparams.update({"value": input_expr, "shape": shape, "dtype": "int8"})
+    return qparams
+
+
+def _activation_bounds(root: relax.Expr, inner: relax.Expr) -> tuple[relax.Expr, float, float] | None:
+    if root.same_as(inner) or (
+        isinstance(root, relax.Call)
+        and isinstance(inner, relax.Call)
+        and _call_op_name(root) == _call_op_name(inner)
+    ):
+        return inner, -float("inf"), float("inf")
+    if _call_op_name(root) == "relax.nn.relu" and root.args[0].same_as(inner):
+        return root, 0.0, float("inf")
+    if _call_op_name(root) == "relax.clip" and root.args[0].same_as(inner):
+        min_value = _as_float_prim_value(root.args[1])
+        max_value = _as_float_prim_value(root.args[2])
+        if min_value is None or max_value is None or min_value > max_value:
+            return None
+        return root, min_value, max_value
+    return None
+
+
 def _collect_op_names(expr: relax.Expr) -> list[str]:
     names: list[str] = []
 
@@ -132,8 +386,52 @@ def _collect_op_names(expr: relax.Expr) -> list[str]:
     return names
 
 
+def _find_call_in_expr(expr: relax.Expr, op_name: str) -> relax.Call | None:
+    if isinstance(expr, relax.Call):
+        if _call_op_name(expr) == op_name:
+            return expr
+        for arg in expr.args:
+            found = _find_call_in_expr(arg, op_name)
+            if found is not None:
+                return found
+    return None
+
+
+def _find_bias_dequantize(expr: relax.Expr, weighted: relax.Expr) -> relax.Call | None:
+    if isinstance(expr, relax.Call):
+        if _call_op_name(expr) == "relax.add":
+            lhs, rhs = expr.args
+            if lhs.same_as(weighted) and _call_op_name(rhs) == "relax.dequantize":
+                return rhs
+            if rhs.same_as(weighted) and _call_op_name(lhs) == "relax.dequantize":
+                return lhs
+        for arg in expr.args:
+            found = _find_bias_dequantize(arg, weighted)
+            if found is not None:
+                return found
+    return None
+
+
 def _op_list_from_pattern(pattern_name: str, root: relax.Expr) -> list[str]:
     op_list = _collect_op_names(root)
+    if "qs8_fully_connected" in pattern_name:
+        return [
+            "relax.dequantize",
+            "relax.matmul",
+            *(["relax.add"] if "bias" in pattern_name else []),
+            *(["relax.nn.relu"] if "relu" in pattern_name else []),
+            *(["relax.clip"] if "clip" in pattern_name else []),
+            "relax.quantize",
+        ]
+    if "qs8_conv2d" in pattern_name or "qs8_depthwise_conv2d" in pattern_name:
+        return [
+            "relax.dequantize",
+            "relax.nn.conv2d",
+            *(["relax.add"] if "bias" in pattern_name else []),
+            *(["relax.nn.relu"] if "relu" in pattern_name else []),
+            *(["relax.clip"] if "clip" in pattern_name else []),
+            "relax.quantize",
+        ]
     if "conv2d" in pattern_name:
         op_list = ["relax.nn.conv2d"]
         if "bias" in pattern_name:
@@ -174,7 +472,7 @@ def _candidate_layout(context: PatternCheckContext) -> str:
 
 
 def _candidate_dtype(context: PatternCheckContext) -> str:
-    for key in ("root", "conv", "input", "data", "lhs", "rhs"):
+    for key in ("root", "conv", "weighted", "input", "data", "lhs", "rhs"):
         expr = context.annotated_expr.get(key)
         if expr is not None:
             dtype = _tensor_dtype(expr)
@@ -317,6 +615,117 @@ def _check_conv2d(context: PatternCheckContext) -> bool:
     return root_name in ("relax.nn.relu", "relax.add", "relax.nn.conv2d")
 
 
+def _qs8_weighted_parts(context: PatternCheckContext) -> tuple[dict[str, object], ...] | None:
+    output = _parse_output_quantize(context.matched_expr)
+    if output is None:
+        return None
+    q_root = output["value"]
+    weighted = _find_call_in_expr(q_root, "relax.matmul") or _find_call_in_expr(
+        q_root, "relax.nn.conv2d"
+    )
+    if weighted is None:
+        return None
+
+    data = _parse_activation_qdq(weighted.args[0])
+    if data is None:
+        return None
+    return (data, output, {"weighted": weighted})
+
+
+def _check_qs8_fully_connected(context: PatternCheckContext) -> bool:
+    if _tensor_dtype(context.annotated_expr.get("root")) != "int8":
+        return False
+    matmul = context.annotated_expr["weighted"]
+    if _call_op_name(matmul) != "relax.matmul":
+        return False
+    data = {"value": context.annotated_expr["data"], "scale": np.array([1.0])}
+    weight = {"value": context.annotated_expr["weight"], "scale": np.array([1.0])}
+    if _tensor_dtype(data["value"]) != "int8" or _tensor_dtype(weight["value"]) != "int8":
+        return False
+    if context.annotated_expr.get("bias_dq") is None:
+        return True
+    data_shape = _get_static_shape(data["value"])
+    weight_shape = _get_static_shape(weight["value"])
+    out_shape = _get_static_shape(context.matched_expr)
+    if data_shape is None or weight_shape is None or out_shape is None:
+        return False
+    if len(data_shape) != 2 or len(weight_shape) != 2 or len(out_shape) != 2:
+        return False
+    if data_shape[1] != weight_shape[0] or out_shape != [data_shape[0], weight_shape[1]]:
+        return False
+    return True
+
+
+def _check_qs8_conv2d(context: PatternCheckContext) -> bool:
+    if _tensor_dtype(context.annotated_expr.get("root")) != "int8":
+        return False
+    data = {"value": context.annotated_expr["data"], "scale": np.array([1.0])}
+    conv = context.annotated_expr["weighted"]
+    if _call_op_name(conv) != "relax.nn.conv2d":
+        return False
+    weight = {"value": context.annotated_expr["weight"], "scale": np.array([1.0])}
+    if _tensor_dtype(data["value"]) != "int8" or _tensor_dtype(weight["value"]) != "int8":
+        return False
+    data_shape = _get_static_shape(data["value"])
+    weight_shape = _get_static_shape(weight["value"])
+    conv_shape = _get_static_shape(conv)
+    root_shape = _get_static_shape(context.matched_expr)
+    if data_shape is None or weight_shape is None or conv_shape is None or root_shape is None:
+        return False
+    if len(data_shape) != 4 or len(weight_shape) != 4 or len(conv_shape) != 4:
+        return False
+    attrs = conv.attrs
+    out_layout = attrs.out_layout if attrs.out_layout else attrs.data_layout
+    if attrs.data_layout != "NHWC" or out_layout != "NHWC" or attrs.kernel_layout != "OHWI":
+        return False
+    if int(attrs.groups) != 1 or attrs.out_dtype not in ("", "float32"):
+        return False
+    if _padding_2d(attrs.padding) is None:
+        return False
+    if data_shape[3] != weight_shape[3] or conv_shape[3] != weight_shape[0]:
+        return False
+    if root_shape != conv_shape:
+        return False
+    return True
+
+
+def _check_qs8_depthwise_conv2d(context: PatternCheckContext) -> bool:
+    if _tensor_dtype(context.annotated_expr.get("root")) != "int8":
+        return False
+    data = {"value": context.annotated_expr["data"], "scale": np.array([1.0])}
+    conv = context.annotated_expr["weighted"]
+    if _call_op_name(conv) != "relax.nn.conv2d":
+        return False
+    weight = {"value": context.annotated_expr["weight"], "scale": np.array([1.0])}
+    if _tensor_dtype(data["value"]) != "int8" or _tensor_dtype(weight["value"]) != "int8":
+        return False
+    data_shape = _get_static_shape(data["value"])
+    weight_shape = _get_static_shape(weight["value"])
+    conv_shape = _get_static_shape(conv)
+    root_shape = _get_static_shape(context.matched_expr)
+    if data_shape is None or weight_shape is None or conv_shape is None or root_shape is None:
+        return False
+    if len(data_shape) != 4 or len(weight_shape) != 4 or len(conv_shape) != 4:
+        return False
+    attrs = conv.attrs
+    out_layout = attrs.out_layout if attrs.out_layout else attrs.data_layout
+    if attrs.data_layout != "NHWC" or out_layout != "NHWC" or attrs.kernel_layout != "HWOI":
+        return False
+    if attrs.out_dtype not in ("", "float32") or _padding_2d(attrs.padding) is None:
+        return False
+    input_channels = data_shape[3]
+    depth_multiplier = weight_shape[3]
+    if depth_multiplier != 1:
+        return False
+    if int(attrs.groups) != input_channels:
+        return False
+    if weight_shape[2] != input_channels or conv_shape[3] != input_channels * depth_multiplier:
+        return False
+    if root_shape != conv_shape:
+        return False
+    return True
+
+
 def _unary_pattern(pattern_name: str, op_name: str):
     input_expr = wildcard()
     root = is_op(op_name)(input_expr)
@@ -397,6 +806,83 @@ def _conv2d_patterns():
     ]
 
 
+def _qdq_input_pattern():
+    q_data = wildcard()
+    data_scale = is_const()
+    data_zp = is_const()
+    return q_data, is_op("relax.dequantize")(q_data, data_scale, data_zp)
+
+
+def _qdq_const_pattern():
+    q_const = is_const()
+    scale = is_const()
+    zero_point = is_const()
+    return q_const, is_op("relax.dequantize")(q_const, scale, zero_point)
+
+
+def _qs8_weighted_patterns(prefix: str, weighted, check):
+    q_data, data_dq = _qdq_input_pattern()
+    q_weight, weight_dq = _qdq_const_pattern()
+    base_weighted = weighted(data_dq, weight_dq)
+    q_bias, bias_dq = _qdq_const_pattern()
+    bias_add = is_op("relax.add")(base_weighted, bias_dq)
+    relu = is_op("relax.nn.relu")(base_weighted)
+    bias_relu = is_op("relax.nn.relu")(bias_add)
+    min_value = wildcard()
+    max_value = wildcard()
+    clip = is_op("relax.clip")(base_weighted, min_value, max_value)
+    bias_clip = is_op("relax.clip")(bias_add, min_value, max_value)
+    out_scale = is_const()
+    out_zp = is_const()
+
+    def make(name_suffix, expr, has_bias=False):
+        root = is_op("relax.quantize")(expr, out_scale, out_zp)
+        annotations = {
+            "data": q_data,
+            "data_dq": data_dq,
+            "weight": q_weight,
+            "weight_dq": weight_dq,
+            "weighted": base_weighted,
+            "root": root,
+        }
+        if has_bias:
+            annotations.update({"bias": q_bias, "bias_dq": bias_dq})
+        return (f"xnnpack.{prefix}{name_suffix}", root, annotations, check)
+
+    return [
+        make("_bias_clip", bias_clip, True),
+        make("_bias_relu", bias_relu, True),
+        make("_clip", clip),
+        make("_relu", relu),
+        make("_bias", bias_add, True),
+        make("", base_weighted),
+    ]
+
+
+def _qs8_fully_connected_patterns():
+    return _qs8_weighted_patterns(
+        "qs8_fully_connected",
+        lambda data, weight: is_op("relax.matmul")(data, weight),
+        _check_qs8_fully_connected,
+    )
+
+
+def _qs8_conv2d_patterns():
+    return _qs8_weighted_patterns(
+        "qs8_conv2d",
+        lambda data, weight: is_op("relax.nn.conv2d")(data, weight),
+        _check_qs8_conv2d,
+    )
+
+
+def _qs8_depthwise_conv2d_patterns():
+    return _qs8_weighted_patterns(
+        "qs8_depthwise_conv2d",
+        lambda data, weight: is_op("relax.nn.conv2d")(data, weight),
+        _check_qs8_depthwise_conv2d,
+    )
+
+
 def _conv2d_flops(conv: relax.Expr) -> int:
     if not isinstance(conv, relax.Call):
         return 0
@@ -410,6 +896,30 @@ def _conv2d_flops(conv: relax.Expr) -> int:
     out_elems = out_shape[0] * out_shape[1] * out_shape[2] * out_shape[3]
     kernel_h, kernel_w, in_channels = weight_shape[1], weight_shape[2], weight_shape[3]
     return int(out_elems * kernel_h * kernel_w * in_channels * 2)
+
+
+def _depthwise_conv2d_flops(conv: relax.Expr) -> int:
+    if not isinstance(conv, relax.Call):
+        return 0
+    weight_shape = _get_static_shape(conv.args[1])
+    out_shape = _get_static_shape(conv)
+    if weight_shape is None or out_shape is None or len(weight_shape) != 4 or len(out_shape) != 4:
+        return 0
+    out_elems = out_shape[0] * out_shape[1] * out_shape[2] * out_shape[3]
+    return int(out_elems * weight_shape[0] * weight_shape[1] * 2)
+
+
+def _matmul_flops(matmul: relax.Expr) -> int:
+    if not isinstance(matmul, relax.Call):
+        return 0
+    lhs_shape = _get_static_shape(matmul.args[0])
+    rhs_shape = _get_static_shape(matmul.args[1])
+    out_shape = _get_static_shape(matmul)
+    if lhs_shape is None or rhs_shape is None or out_shape is None:
+        return 0
+    if len(lhs_shape) != 2 or len(rhs_shape) != 2 or len(out_shape) != 2:
+        return 0
+    return int(out_shape[0] * out_shape[1] * lhs_shape[1] * 2)
 
 
 def _pool2d_flops(pool: relax.Expr) -> int:
@@ -426,6 +936,10 @@ def _pool2d_flops(pool: relax.Expr) -> int:
 def _estimate_flops(context: PatternCheckContext, pattern_name: str) -> int:
     root = context.annotated_expr.get("root", context.matched_expr)
     op_names = _collect_op_names(root)
+    if "qs8_fully_connected" in pattern_name:
+        return _matmul_flops(context.annotated_expr.get("weighted", root))
+    if "qs8_depthwise_conv2d" in pattern_name:
+        return _depthwise_conv2d_flops(context.annotated_expr.get("weighted", root))
     if "relax.nn.conv2d" in op_names or "conv2d" in pattern_name:
         return _conv2d_flops(context.annotated_expr.get("conv", root))
     if _call_op_name(root) in ("relax.nn.max_pool2d", "relax.nn.avg_pool2d"):
@@ -437,7 +951,7 @@ def _estimate_flops(context: PatternCheckContext, pattern_name: str) -> int:
 
 
 def _is_compute_heavy(pattern_name: str, context: PatternCheckContext, flops: int) -> bool:
-    if "conv2d" in pattern_name:
+    if "conv2d" in pattern_name or "fully_connected" in pattern_name:
         return True
     root = context.annotated_expr.get("root", context.matched_expr)
     if _call_op_name(root) in ("relax.nn.max_pool2d", "relax.nn.avg_pool2d"):
@@ -488,6 +1002,15 @@ def _make_report_entry(
     ratio = float("inf") if padded_copy_bytes == 0 and flops > 0 else 0.0
     if padded_copy_bytes > 0:
         ratio = float(flops) / float(padded_copy_bytes)
+    quantized = "qs8_" in pattern_name
+    qscheme = "none"
+    if quantized:
+        weighted = _find_call_in_expr(context.matched_expr, "relax.matmul") or _find_call_in_expr(
+            context.matched_expr, "relax.nn.conv2d"
+        )
+        qscheme = _qscheme_from_scale(weighted.args[1].args[1]) if weighted is not None else None
+        qscheme = qscheme or "unknown"
+    qdq_count = sum(1 for op in op_list if op in ("relax.quantize", "relax.dequantize"))
     return {
         "candidate_id": -1,
         "accepted": accepted,
@@ -505,6 +1028,11 @@ def _make_report_entry(
         "boundary_count": len(external_inputs) + 1,
         "compute_to_copy_ratio": ratio,
         "policy": policy,
+        "quantized": quantized,
+        "qscheme": qscheme,
+        "qdq_boundary_count": qdq_count,
+        "qparam_source": "constant" if quantized else "none",
+        "qparam_validation_result": "ok" if quantized and accepted else reason,
     }
 
 
@@ -554,7 +1082,7 @@ def _cost_accepts(
     ratio = float(entry["compute_to_copy_ratio"])
     flops = int(entry["estimated_flops"])
 
-    if dtype != "float32":
+    if dtype != "float32" and not ("qs8_" in pattern_name and dtype == "int8"):
         return False, "rejected_unsupported_dtype"
     if layout_policy == "NHWC" and layout not in ("NHWC", "none") and not allow_layout_rewrite:
         return False, "rejected_layout_rewrite_overhead"
@@ -594,7 +1122,8 @@ def _wrap_patterns_for_policy(
             def check_with_policy(context: PatternCheckContext) -> bool:
                 supported = True if check is None else bool(check(context))
                 if not supported:
-                    if _candidate_dtype(context) != "float32":
+                    candidate_dtype = _candidate_dtype(context)
+                    if candidate_dtype not in ("float32", "int8"):
                         reason = "rejected_unsupported_dtype"
                     elif layout_policy == "NHWC" and _candidate_layout(context) not in (
                         "NHWC",
@@ -646,6 +1175,9 @@ def _wrap_patterns_for_policy(
 
 register_patterns(
     [
+        *_qs8_fully_connected_patterns(),
+        *_qs8_conv2d_patterns(),
+        *_qs8_depthwise_conv2d_patterns(),
         *_conv2d_patterns(),
         _pool2d_pattern("xnnpack.max_pool2d", "relax.nn.max_pool2d"),
         _pool2d_pattern("xnnpack.avg_pool2d", "relax.nn.avg_pool2d"),

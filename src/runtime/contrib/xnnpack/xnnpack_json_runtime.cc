@@ -169,9 +169,9 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
     for (auto& entry : external_tensors_) {
       TVM_FFI_ICHECK_LT(entry.eid, data_entry_.size());
       const DLTensor* tensor = data_entry_[entry.eid];
-      ValidateTensor(tensor, entry.shape, entry.name.c_str());
+      ValidateTensor(tensor, entry.shape, entry.dtype, entry.name.c_str());
 
-      const size_t bytes = NumElements(entry.shape) * sizeof(float);
+      const size_t bytes = NumElements(entry.shape) * entry.element_size;
       entry.buffer.resize(bytes + XNN_EXTRA_BYTES);
       if (entry.is_output) {
         std::memset(entry.buffer.data(), 0, bytes + XNN_EXTRA_BYTES);
@@ -193,7 +193,7 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
 
     for (auto& entry : external_tensors_) {
       if (!entry.is_output) continue;
-      const size_t bytes = NumElements(entry.shape) * sizeof(float);
+      const size_t bytes = NumElements(entry.shape) * entry.element_size;
       std::memcpy(MutableTensorData(data_entry_[entry.eid]), entry.buffer.data(), bytes);
     }
   }
@@ -213,6 +213,8 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
     uint32_t eid{0};
     std::vector<size_t> shape;
     std::string name;
+    DLDataType dtype{kDLFloat, 32, 1};
+    size_t element_size{sizeof(float)};
     bool is_output{false};
     std::vector<uint8_t> buffer;
   };
@@ -283,6 +285,28 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
 
   static bool IsFloat32(const DLDataType& dtype) {
     return dtype.code == kDLFloat && dtype.bits == 32 && dtype.lanes == 1;
+  }
+
+  static bool IsInt8(const DLDataType& dtype) {
+    return dtype.code == kDLInt && dtype.bits == 8 && dtype.lanes == 1;
+  }
+
+  static bool IsInt32(const DLDataType& dtype) {
+    return dtype.code == kDLInt && dtype.bits == 32 && dtype.lanes == 1;
+  }
+
+  static size_t ElementSize(const DLDataType& dtype) {
+    TVM_FFI_ICHECK_EQ(dtype.lanes, 1);
+    return (dtype.bits + 7) / 8;
+  }
+
+  static std::string DTypeName(const DLDataType& dtype) {
+    if (IsFloat32(dtype)) return "float32";
+    if (IsInt8(dtype)) return "int8";
+    if (IsInt32(dtype)) return "int32";
+    std::ostringstream os;
+    os << "code=" << static_cast<int>(dtype.code) << ",bits=" << static_cast<int>(dtype.bits);
+    return os.str();
   }
 
   static int64_t AnyToInt64(const ffi::Any& value, const char* name) {
@@ -590,11 +614,15 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
   }
 
   static void ValidateTensor(const DLTensor* tensor, const std::vector<size_t>& expected_shape,
-                             const char* name) {
+                             const DLDataType& expected_dtype, const char* name) {
     TVM_FFI_ICHECK(tensor != nullptr) << "Missing XNNPACK " << name << " tensor.";
     TVM_FFI_ICHECK_EQ(tensor->device.device_type, kDLCPU)
         << "XNNPACK " << name << " tensor must be on CPU.";
-    TVM_FFI_ICHECK(IsFloat32(tensor->dtype)) << "XNNPACK " << name << " tensor must be float32.";
+    TVM_FFI_ICHECK(tensor->dtype.code == expected_dtype.code &&
+                   tensor->dtype.bits == expected_dtype.bits &&
+                   tensor->dtype.lanes == expected_dtype.lanes)
+        << "XNNPACK " << name << " tensor dtype mismatch: expected " << DTypeName(expected_dtype)
+        << ", got " << DTypeName(tensor->dtype) << ".";
     TVM_FFI_ICHECK_EQ(static_cast<size_t>(tensor->ndim), expected_shape.size())
         << "XNNPACK " << name << " tensor rank mismatch.";
 
@@ -624,10 +652,25 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
     return shape;
   }
 
-  static void CheckDType(const JSONGraphNode& node, uint32_t index) {
+  static DLDataType GetDType(const JSONGraphNode& node, uint32_t index) {
     auto dtypes = node.GetOpDataType();
     TVM_FFI_ICHECK_LT(index, dtypes.size());
-    TVM_FFI_ICHECK(IsFloat32(dtypes[index])) << "XNNPACK only supports float32 tensors.";
+    return dtypes[index];
+  }
+
+  static void CheckFloat32DType(const JSONGraphNode& node, uint32_t index) {
+    DLDataType dtype = GetDType(node, index);
+    TVM_FFI_ICHECK(IsFloat32(dtype)) << "XNNPACK float path only supports float32 tensors.";
+  }
+
+  static void CheckInt8DType(const JSONGraphNode& node, uint32_t index) {
+    DLDataType dtype = GetDType(node, index);
+    TVM_FFI_ICHECK(IsInt8(dtype)) << "XNNPACK QS8 path only supports int8 tensor boundaries.";
+  }
+
+  static void CheckInt32DType(const JSONGraphNode& node, uint32_t index) {
+    DLDataType dtype = GetDType(node, index);
+    TVM_FFI_ICHECK(IsInt32(dtype)) << "XNNPACK QS8 bias tensors must be int32.";
   }
 
   static std::vector<uint32_t> GetUIntArray(const JSONGraphNode& node, const std::string& key) {
@@ -642,6 +685,61 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
 
   static float GetFloatAttr(const JSONGraphNode& node, const std::string& key) {
     return static_cast<float>(node.GetAttr<double>(key));
+  }
+
+  static std::vector<float> ParseFloatList(const std::string& value) {
+    std::vector<float> result;
+    size_t offset = 0;
+    while (offset <= value.size()) {
+      size_t comma = value.find(',', offset);
+      if (comma == std::string::npos) comma = value.size();
+      if (comma > offset) {
+        result.push_back(static_cast<float>(std::stod(value.substr(offset, comma - offset))));
+      }
+      if (comma == value.size()) break;
+      offset = comma + 1;
+    }
+    TVM_FFI_ICHECK(!result.empty()) << "XNNPACK qparam scale list must be non-empty.";
+    return result;
+  }
+
+  QuantizationMetadata GetNodeQParams(const JSONGraphNode& node, const std::string& prefix,
+                                      const std::vector<size_t>& shape, const std::string& dtype) {
+    QuantizationMetadata metadata;
+    metadata.dtype = dtype;
+    metadata.qscheme = std::string(node.GetAttr<ffi::String>(prefix + "_qscheme"));
+    metadata.scale = ParseFloatList(std::string(node.GetAttr<ffi::String>(prefix + "_scales")));
+    metadata.zero_point = static_cast<int32_t>(node.GetAttr<int64_t>(prefix + "_zero_point"));
+    metadata.axis = node.GetAttr<int64_t>(prefix + "_axis");
+    int64_t channel_dim = node.GetAttr<int64_t>(prefix + "_channel_dim");
+    if (channel_dim < 0) {
+      channel_dim = metadata.axis < 0 ? metadata.axis + static_cast<int64_t>(shape.size())
+                                      : metadata.axis;
+    }
+    metadata.channel_dim = static_cast<size_t>(channel_dim);
+    metadata.signedness = "signed";
+    metadata.shape = shape;
+    metadata = ParseQuantizationMetadata(MetadataMap(metadata), shape);
+    quantization_metadata_.push_back(metadata);
+    return quantization_metadata_.back();
+  }
+
+  static ffi::Map<ffi::String, ffi::Any> MetadataMap(const QuantizationMetadata& metadata) {
+    ffi::Map<ffi::String, ffi::Any> map;
+    map.Set("dtype", metadata.dtype);
+    map.Set("qscheme", metadata.qscheme);
+    if (metadata.scale.size() == 1) {
+      map.Set("scale", static_cast<double>(metadata.scale[0]));
+    } else {
+      ffi::Array<ffi::Any> scales;
+      for (float scale : metadata.scale) scales.push_back(static_cast<double>(scale));
+      map.Set("scale", scales);
+    }
+    map.Set("zero_point", static_cast<int64_t>(metadata.zero_point));
+    map.Set("axis", metadata.axis);
+    map.Set("channel_dim", static_cast<int64_t>(metadata.channel_dim));
+    map.Set("signedness", metadata.signedness);
+    return map;
   }
 
   static bool IsGraphOutput(const std::unordered_set<uint32_t>& output_eids, uint32_t eid) {
@@ -665,7 +763,7 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
   void DefineTensor(uint32_t eid, const JSONGraphNode& node, uint32_t index, uint32_t flags,
                     const void* data = nullptr) {
     if (value_ids_[eid] != XNN_INVALID_VALUE_ID) return;
-    CheckDType(node, index);
+    CheckFloat32DType(node, index);
     std::vector<size_t> shape = GetShape(node, index);
     uint32_t id = XNN_INVALID_VALUE_ID;
     const uint32_t external_id = flags != 0 ? eid : XNN_INVALID_VALUE_ID;
@@ -681,7 +779,7 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
   const void* PrepareConstant(uint32_t eid, const JSONGraphNode& node) {
     const DLTensor* tensor = data_entry_[eid];
     std::vector<size_t> shape = GetShape(node, 0);
-    ValidateTensor(tensor, shape, "constant");
+    ValidateTensor(tensor, shape, GetDType(node, 0), "constant");
     const size_t bytes = NumElements(shape) * sizeof(float);
     constant_buffers_.emplace_back(bytes + XNN_EXTRA_BYTES);
     std::memcpy(constant_buffers_.back().data(), TensorData(tensor), bytes);
@@ -689,15 +787,74 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
     return constant_buffers_.back().data();
   }
 
+  const void* PrepareTypedConstant(uint32_t eid, const JSONGraphNode& node, uint32_t index) {
+    const DLTensor* tensor = data_entry_[eid];
+    std::vector<size_t> shape = GetShape(node, index);
+    DLDataType dtype = GetDType(node, index);
+    ValidateTensor(tensor, shape, dtype, "constant");
+    const size_t bytes = NumElements(shape) * ElementSize(dtype);
+    constant_buffers_.emplace_back(bytes + XNN_EXTRA_BYTES);
+    std::memcpy(constant_buffers_.back().data(), TensorData(tensor), bytes);
+    std::memset(constant_buffers_.back().data() + bytes, 0, XNN_EXTRA_BYTES);
+    return constant_buffers_.back().data();
+  }
+
+  void DefineQuantizedTensor(uint32_t eid, const std::vector<size_t>& shape,
+                             const QuantizationMetadata& metadata, uint32_t flags,
+                             const void* data = nullptr) {
+    if (value_ids_[eid] != XNN_INVALID_VALUE_ID) return;
+    uint32_t id = XNN_INVALID_VALUE_ID;
+    const uint32_t external_id = flags != 0 ? eid : XNN_INVALID_VALUE_ID;
+    if (metadata.qscheme == "per_tensor") {
+#if defined(TVM_XNNPACK_HAS_DEFINE_QUANTIZED_TENSOR_VALUE)
+      CheckXNNStatus(
+          xnn_define_quantized_tensor_value(
+              subgraph_, QuantizedDatatype(metadata), metadata.zero_point, metadata.scale[0],
+              shape.size(), shape.data(), data, external_id, flags, &id),
+          "xnn_define_quantized_tensor_value");
+#else
+      TVM_FFI_THROW(RuntimeError) << "XNNPACK quantized tensor definition API is unavailable.";
+#endif
+    } else {
+#if defined(TVM_XNNPACK_HAS_DEFINE_CHANNELWISE_QUANTIZED_TENSOR_VALUE_V2)
+      CheckXNNStatus(
+          xnn_define_channelwise_quantized_tensor_value_v2(
+              subgraph_, QuantizedDatatype(metadata), metadata.zero_point,
+              metadata.padded_scale.data(), shape.size(), metadata.channel_dim, shape.data(), data,
+              external_id, flags, &id),
+          "xnn_define_channelwise_quantized_tensor_value_v2");
+#elif defined(TVM_XNNPACK_HAS_DEFINE_CHANNELWISE_QUANTIZED_TENSOR_VALUE)
+      TVM_FFI_ICHECK_EQ(metadata.zero_point, 0)
+          << "XNNPACK channelwise quantized tensor definition without v2 requires zero_point=0.";
+      CheckXNNStatus(
+          xnn_define_channelwise_quantized_tensor_value(
+              subgraph_, QuantizedDatatype(metadata), metadata.padded_scale.data(), shape.size(),
+              metadata.channel_dim, shape.data(), data, external_id, flags, &id),
+          "xnn_define_channelwise_quantized_tensor_value");
+#else
+      TVM_FFI_THROW(RuntimeError)
+          << "XNNPACK channelwise quantized tensor definition API is unavailable.";
+#endif
+    }
+    if (flags != 0) {
+      TVM_FFI_ICHECK_EQ(id, eid);
+    }
+    value_ids_[eid] = id;
+  }
+
   void DefineGraphInputsAndConstants() {
     for (uint32_t eid : input_var_eid_) {
       const uint32_t nid = NodeIDFromEntryID(eid);
+      if (!IsFloat32(GetDType(nodes_[nid], 0))) continue;
       DefineTensor(eid, nodes_[nid], 0, XNN_VALUE_FLAG_EXTERNAL_INPUT);
-      external_tensors_.push_back({eid, GetShape(nodes_[nid], 0), "input", false, {}});
+      external_tensors_.push_back(
+          {eid, GetShape(nodes_[nid], 0), "input", GetDType(nodes_[nid], 0), sizeof(float), false,
+           {}});
     }
 
     for (uint32_t nid : const_idx_) {
       const uint32_t eid = EntryID(nid, 0);
+      if (!IsFloat32(GetDType(nodes_[nid], 0))) continue;
       const void* data = PrepareConstant(eid, nodes_[nid]);
       DefineTensor(eid, nodes_[nid], 0, 0, data);
     }
@@ -719,7 +876,105 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
         IsGraphOutput(graph_output_eids, eid) ? XNN_VALUE_FLAG_EXTERNAL_OUTPUT : 0;
     DefineTensor(eid, node, output_entry.index_, flags);
     if (flags != 0) {
-      external_tensors_.push_back({eid, GetShape(node, output_entry.index_), "output", true, {}});
+      external_tensors_.push_back({eid, GetShape(node, output_entry.index_), "output",
+                                   GetDType(node, output_entry.index_), sizeof(float), true, {}});
+    }
+  }
+
+  uint32_t DefineQS8Output(const JSONGraphNode& node, const JSONGraphNodeEntry& output_entry,
+                           const std::unordered_set<uint32_t>& graph_output_eids) {
+    const uint32_t eid = EntryID(output_entry);
+    const uint32_t flags =
+        IsGraphOutput(graph_output_eids, eid) ? XNN_VALUE_FLAG_EXTERNAL_OUTPUT : 0;
+    CheckInt8DType(node, output_entry.index_);
+    std::vector<size_t> shape = GetShape(node, output_entry.index_);
+    QuantizationMetadata qparams = GetNodeQParams(node, "output", shape, "int8");
+    DefineQuantizedTensor(eid, shape, qparams, flags);
+    if (flags != 0) {
+      external_tensors_.push_back(
+          {eid, shape, "output", GetDType(node, output_entry.index_), sizeof(int8_t), true, {}});
+    }
+    return value_ids_[eid];
+  }
+
+  void DefineQS8Inputs(const JSONGraphNode& node, const std::vector<JSONGraphNodeEntry>& inputs) {
+    TVM_FFI_ICHECK(inputs.size() == 2U || inputs.size() == 3U);
+    const uint32_t input_eid = EntryID(inputs[0]);
+    const uint32_t input_nid = inputs[0].id_;
+    CheckInt8DType(nodes_[input_nid], inputs[0].index_);
+    std::vector<size_t> input_shape = GetShape(nodes_[input_nid], inputs[0].index_);
+    QuantizationMetadata input_qparams = GetNodeQParams(node, "input", input_shape, "int8");
+    DefineQuantizedTensor(input_eid, input_shape, input_qparams, XNN_VALUE_FLAG_EXTERNAL_INPUT);
+    if (std::none_of(external_tensors_.begin(), external_tensors_.end(),
+                     [input_eid](const ExternalTensor& entry) { return entry.eid == input_eid; })) {
+      external_tensors_.push_back(
+          {input_eid, input_shape, "input", GetDType(nodes_[input_nid], inputs[0].index_),
+           sizeof(int8_t), false, {}});
+    }
+
+    const uint32_t weight_eid = EntryID(inputs[1]);
+    const uint32_t weight_nid = inputs[1].id_;
+    CheckInt8DType(nodes_[weight_nid], inputs[1].index_);
+    std::vector<size_t> weight_shape = GetShape(nodes_[weight_nid], inputs[1].index_);
+    QuantizationMetadata weight_qparams = GetNodeQParams(node, "weight", weight_shape, "int8");
+    DefineQuantizedTensor(weight_eid, weight_shape, weight_qparams, XNN_VALUE_FLAG_EXTERNAL_INPUT);
+    external_tensors_.push_back(
+        {weight_eid, weight_shape, "weight", GetDType(nodes_[weight_nid], inputs[1].index_),
+         sizeof(int8_t), false, {}});
+
+    if (inputs.size() == 3U) {
+      const uint32_t bias_eid = EntryID(inputs[2]);
+      const uint32_t bias_nid = inputs[2].id_;
+      CheckInt32DType(nodes_[bias_nid], inputs[2].index_);
+      std::vector<size_t> bias_shape = GetShape(nodes_[bias_nid], inputs[2].index_);
+      QuantizationMetadata bias_qparams = GetNodeQParams(node, "bias", bias_shape, "int32");
+      DefineQuantizedTensor(bias_eid, bias_shape, bias_qparams, XNN_VALUE_FLAG_EXTERNAL_INPUT);
+      external_tensors_.push_back(
+          {bias_eid, bias_shape, "bias", GetDType(nodes_[bias_nid], inputs[2].index_),
+           sizeof(int32_t), false, {}});
+    }
+  }
+
+  void DefineQS8DepthwiseInputs(const JSONGraphNode& node,
+                                const std::vector<JSONGraphNodeEntry>& inputs) {
+    TVM_FFI_ICHECK(inputs.size() == 2U || inputs.size() == 3U);
+    const uint32_t input_eid = EntryID(inputs[0]);
+    const uint32_t input_nid = inputs[0].id_;
+    CheckInt8DType(nodes_[input_nid], inputs[0].index_);
+    std::vector<size_t> input_shape = GetShape(nodes_[input_nid], inputs[0].index_);
+    QuantizationMetadata input_qparams = GetNodeQParams(node, "input", input_shape, "int8");
+    DefineQuantizedTensor(input_eid, input_shape, input_qparams, XNN_VALUE_FLAG_EXTERNAL_INPUT);
+    if (std::none_of(external_tensors_.begin(), external_tensors_.end(),
+                     [input_eid](const ExternalTensor& entry) { return entry.eid == input_eid; })) {
+      external_tensors_.push_back(
+          {input_eid, input_shape, "input", GetDType(nodes_[input_nid], inputs[0].index_),
+           sizeof(int8_t), false, {}});
+    }
+
+    const uint32_t weight_eid = EntryID(inputs[1]);
+    const uint32_t weight_nid = inputs[1].id_;
+    CheckInt8DType(nodes_[weight_nid], inputs[1].index_);
+    std::vector<size_t> hwoi_shape = GetShape(nodes_[weight_nid], inputs[1].index_);
+    TVM_FFI_ICHECK_EQ(hwoi_shape.size(), 4U);
+    TVM_FFI_ICHECK_EQ(hwoi_shape[3], 1U)
+        << "XNNPACK QS8 depthwise currently requires depth_multiplier=1.";
+    std::vector<size_t> xnn_shape = {1, hwoi_shape[0], hwoi_shape[1], hwoi_shape[2] * hwoi_shape[3]};
+    QuantizationMetadata weight_qparams = GetNodeQParams(node, "weight", xnn_shape, "int8");
+    DefineQuantizedTensor(weight_eid, hwoi_shape, weight_qparams, XNN_VALUE_FLAG_EXTERNAL_INPUT);
+    external_tensors_.push_back(
+        {weight_eid, hwoi_shape, "weight", GetDType(nodes_[weight_nid], inputs[1].index_),
+         sizeof(int8_t), false, {}});
+
+    if (inputs.size() == 3U) {
+      const uint32_t bias_eid = EntryID(inputs[2]);
+      const uint32_t bias_nid = inputs[2].id_;
+      CheckInt32DType(nodes_[bias_nid], inputs[2].index_);
+      std::vector<size_t> bias_shape = GetShape(nodes_[bias_nid], inputs[2].index_);
+      QuantizationMetadata bias_qparams = GetNodeQParams(node, "bias", bias_shape, "int32");
+      DefineQuantizedTensor(bias_eid, bias_shape, bias_qparams, XNN_VALUE_FLAG_EXTERNAL_INPUT);
+      external_tensors_.push_back(
+          {bias_eid, bias_shape, "bias", GetDType(nodes_[bias_nid], inputs[2].index_),
+           sizeof(int32_t), false, {}});
     }
   }
 
@@ -781,6 +1036,81 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
                        GetFloatAttr(node, "activation_max"), value_ids_[EntryID(inputs[0])],
                        value_ids_[EntryID(inputs[1])], bias_id, output_id, 0),
                    "xnn_define_convolution_2d");
+  }
+
+  void DefineQS8FullyConnected(const JSONGraphNode& node,
+                               const std::vector<JSONGraphNodeEntry>& inputs,
+                               uint32_t output_id) {
+#if defined(TVM_XNNPACK_HAS_FULLY_CONNECTED)
+    const bool has_bias = static_cast<int64_t>(node.GetAttr<int64_t>("has_bias")) != 0;
+    TVM_FFI_ICHECK_EQ(inputs.size(), has_bias ? 3U : 2U);
+    const uint32_t bias_id = has_bias ? value_ids_[EntryID(inputs[2])] : XNN_INVALID_VALUE_ID;
+    uint32_t flags = 0;
+#if defined(TVM_XNNPACK_HAS_TRANSPOSE_WEIGHTS_FLAG)
+    flags |= XNN_FLAG_TRANSPOSE_WEIGHTS;
+#else
+    TVM_FFI_THROW(RuntimeError)
+        << "XNNPACK fully_connected with Relax [input_channels, output_channels] weights "
+           "requires XNN_FLAG_TRANSPOSE_WEIGHTS.";
+#endif
+    CheckXNNStatus(xnn_define_fully_connected(
+                       subgraph_, GetFloatAttr(node, "activation_min"),
+                       GetFloatAttr(node, "activation_max"), value_ids_[EntryID(inputs[0])],
+                       value_ids_[EntryID(inputs[1])], bias_id, output_id, flags),
+                   "xnn_define_fully_connected");
+#else
+    TVM_FFI_THROW(RuntimeError) << "XNNPACK fully_connected API is unavailable.";
+#endif
+  }
+
+  void DefineQS8Conv2D(const JSONGraphNode& node, const std::vector<JSONGraphNodeEntry>& inputs,
+                       uint32_t output_id) {
+    const bool has_bias = static_cast<int64_t>(node.GetAttr<int64_t>("has_bias")) != 0;
+    TVM_FFI_ICHECK_EQ(inputs.size(), has_bias ? 3U : 2U);
+    auto padding = GetUIntArray(node, "padding");
+    auto strides = GetUIntArray(node, "strides");
+    auto dilation = GetUIntArray(node, "dilation");
+    TVM_FFI_ICHECK_EQ(padding.size(), 4U);
+    TVM_FFI_ICHECK_EQ(strides.size(), 2U);
+    TVM_FFI_ICHECK_EQ(dilation.size(), 2U);
+    std::vector<size_t> weight_shape = GetShape(nodes_[inputs[1].id_], inputs[1].index_);
+    TVM_FFI_ICHECK_EQ(weight_shape.size(), 4U);
+    const uint32_t bias_id = has_bias ? value_ids_[EntryID(inputs[2])] : XNN_INVALID_VALUE_ID;
+    CheckXNNStatus(xnn_define_convolution_2d(
+                       subgraph_, padding[0], padding[3], padding[2], padding[1], weight_shape[1],
+                       weight_shape[2], strides[0], strides[1], dilation[0], dilation[1], 1,
+                       weight_shape[3], weight_shape[0], GetFloatAttr(node, "activation_min"),
+                       GetFloatAttr(node, "activation_max"), value_ids_[EntryID(inputs[0])],
+                       value_ids_[EntryID(inputs[1])], bias_id, output_id, 0),
+                   "xnn_define_convolution_2d(qs8)");
+  }
+
+  void DefineQS8DepthwiseConv2D(const JSONGraphNode& node,
+                                const std::vector<JSONGraphNodeEntry>& inputs,
+                                uint32_t output_id) {
+#if defined(TVM_XNNPACK_HAS_DEPTHWISE_CONVOLUTION_2D)
+    const bool has_bias = static_cast<int64_t>(node.GetAttr<int64_t>("has_bias")) != 0;
+    TVM_FFI_ICHECK_EQ(inputs.size(), has_bias ? 3U : 2U);
+    auto padding = GetUIntArray(node, "padding");
+    auto strides = GetUIntArray(node, "strides");
+    auto dilation = GetUIntArray(node, "dilation");
+    std::vector<size_t> input_shape = GetShape(nodes_[inputs[0].id_], inputs[0].index_);
+    std::vector<size_t> weight_shape = GetShape(nodes_[inputs[1].id_], inputs[1].index_);
+    TVM_FFI_ICHECK_EQ(input_shape.size(), 4U);
+    TVM_FFI_ICHECK_EQ(weight_shape.size(), 4U);
+    const uint32_t input_channels = static_cast<uint32_t>(input_shape[3]);
+    const uint32_t depth_multiplier = static_cast<uint32_t>(weight_shape[3]);
+    const uint32_t bias_id = has_bias ? value_ids_[EntryID(inputs[2])] : XNN_INVALID_VALUE_ID;
+    CheckXNNStatus(xnn_define_depthwise_convolution_2d(
+                       subgraph_, padding[0], padding[3], padding[2], padding[1], weight_shape[0],
+                       weight_shape[1], strides[0], strides[1], dilation[0], dilation[1],
+                       depth_multiplier, input_channels, GetFloatAttr(node, "activation_min"),
+                       GetFloatAttr(node, "activation_max"), value_ids_[EntryID(inputs[0])],
+                       value_ids_[EntryID(inputs[1])], bias_id, output_id, 0),
+                   "xnn_define_depthwise_convolution_2d(qs8)");
+#else
+    TVM_FFI_THROW(RuntimeError) << "XNNPACK depthwise convolution API is unavailable.";
+#endif
   }
 
   void DefinePool2D(const JSONGraphNode& node, const std::vector<JSONGraphNodeEntry>& inputs,
@@ -968,10 +1298,14 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
   }
 
   std::string GetQuantizationMetadataJSON() const {
-    // Phase 5C-0 only adds quantization metadata plumbing. Existing executable
-    // XNNPACK graphs remain float32-only and therefore have no quantized tensor
-    // metadata to report.
-    return "[]";
+    std::ostringstream os;
+    os << "[";
+    for (size_t i = 0; i < quantization_metadata_.size(); ++i) {
+      if (i != 0) os << ",";
+      os << QuantizationMetadataToJSON(quantization_metadata_[i]);
+    }
+    os << "]";
+    return os.str();
   }
 
   void BuildRuntime() {
@@ -979,6 +1313,7 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
     value_ids_.assign(NumEntries(), XNN_INVALID_VALUE_ID);
     external_tensors_.clear();
     constant_buffers_.clear();
+    quantization_metadata_.clear();
 
     std::unordered_set<uint32_t> graph_output_eids;
     for (const auto& output : outputs_) {
@@ -992,23 +1327,40 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
       if (node.GetOpType() != "kernel") continue;
       TVM_FFI_ICHECK_EQ(node.GetNumOutput(), 1U);
       const JSONGraphNodeEntry output_entry(static_cast<int>(nid), 0);
-      DefineOutput(node, output_entry, graph_output_eids);
-      const uint32_t output_id = value_ids_[EntryID(output_entry)];
-
       auto inputs = node.GetInputs();
+      const std::string op_kind = node.GetAttr<ffi::String>("op_kind");
+      uint32_t output_id = XNN_INVALID_VALUE_ID;
+      if (op_kind == "qs8_fully_connected" || op_kind == "qs8_conv2d" ||
+          op_kind == "qs8_depthwise_conv2d") {
+        if (op_kind == "qs8_depthwise_conv2d") {
+          DefineQS8DepthwiseInputs(node, inputs);
+        } else {
+          DefineQS8Inputs(node, inputs);
+        }
+        output_id = DefineQS8Output(node, output_entry, graph_output_eids);
+      } else {
+        DefineOutput(node, output_entry, graph_output_eids);
+        output_id = value_ids_[EntryID(output_entry)];
+      }
+
       for (const auto& input : inputs) {
         TVM_FFI_ICHECK_LT(EntryID(input), value_ids_.size());
         TVM_FFI_ICHECK_NE(value_ids_[EntryID(input)], XNN_INVALID_VALUE_ID)
             << "XNNPACK input value was not defined before its use.";
       }
 
-      const std::string op_kind = node.GetAttr<ffi::String>("op_kind");
       if (op_kind == "unary") {
         DefineUnary(node, inputs, output_id);
       } else if (op_kind == "add") {
         DefineAdd(node, inputs, output_id);
       } else if (op_kind == "conv2d") {
         DefineConv2D(node, inputs, output_id);
+      } else if (op_kind == "qs8_fully_connected") {
+        DefineQS8FullyConnected(node, inputs, output_id);
+      } else if (op_kind == "qs8_conv2d") {
+        DefineQS8Conv2D(node, inputs, output_id);
+      } else if (op_kind == "qs8_depthwise_conv2d") {
+        DefineQS8DepthwiseConv2D(node, inputs, output_id);
       } else if (op_kind == "max_pool2d") {
         DefinePool2D(node, inputs, output_id, true);
       } else {
@@ -1036,6 +1388,7 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
   std::vector<uint32_t> value_ids_;
   std::vector<ExternalTensor> external_tensors_;
   std::vector<std::vector<uint8_t>> constant_buffers_;
+  std::vector<QuantizationMetadata> quantization_metadata_;
 };
 
 ffi::Module XNNPACKJSONRuntimeCreate(const ffi::String& symbol_name, const ffi::String& graph_json,
@@ -1195,6 +1548,27 @@ ffi::Map<ffi::String, ffi::Any> XNNPACKJSONRuntimeGetCapabilities() {
                                                           0
 #endif
                                                           ));
+  result.Set("fully_connected", static_cast<int64_t>(
+#if defined(TVM_XNNPACK_HAS_FULLY_CONNECTED)
+                                            1
+#else
+                                            0
+#endif
+                                            ));
+  result.Set("depthwise_convolution_2d", static_cast<int64_t>(
+#if defined(TVM_XNNPACK_HAS_DEPTHWISE_CONVOLUTION_2D)
+                                                     1
+#else
+                                                     0
+#endif
+                                                     ));
+  result.Set("transpose_weights", static_cast<int64_t>(
+#if defined(TVM_XNNPACK_HAS_TRANSPOSE_WEIGHTS_FLAG)
+                                              1
+#else
+                                              0
+#endif
+                                              ));
   result.Set("fp32_static_weights", static_cast<int64_t>(
 #if defined(TVM_XNNPACK_HAS_FP32_STATIC_WEIGHTS_FLAG)
                                         1

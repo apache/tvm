@@ -26,6 +26,7 @@
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
+#include <tvm/relax/attrs/qdq.h>
 #include <tvm/relax/attrs/nn.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
@@ -170,6 +171,10 @@ class XNNPACKJSONSerializer : public JSONSerializer {
     TVM_FFI_ICHECK(IsSupportedComposite(composite_name))
         << "Unsupported XNNPACK composite pattern: " << composite_name;
 
+    if (IsQuantizedComposite(composite_name)) {
+      return VisitQuantizedComposite(call_node, fn, composite_name);
+    }
+
     NodeEntries inputs;
     for (const auto& arg : call_node->args) {
       auto res = VisitExpr(arg);
@@ -203,8 +208,30 @@ class XNNPACKJSONSerializer : public JSONSerializer {
         "xnnpack.relu",
         "xnnpack.sigmoid",
         "xnnpack.tanh",
+        "xnnpack.qs8_fully_connected_bias_clip",
+        "xnnpack.qs8_fully_connected_bias_relu",
+        "xnnpack.qs8_fully_connected_clip",
+        "xnnpack.qs8_fully_connected_relu",
+        "xnnpack.qs8_fully_connected_bias",
+        "xnnpack.qs8_fully_connected",
+        "xnnpack.qs8_conv2d_bias_clip",
+        "xnnpack.qs8_conv2d_bias_relu",
+        "xnnpack.qs8_conv2d_clip",
+        "xnnpack.qs8_conv2d_relu",
+        "xnnpack.qs8_conv2d_bias",
+        "xnnpack.qs8_conv2d",
+        "xnnpack.qs8_depthwise_conv2d_bias_clip",
+        "xnnpack.qs8_depthwise_conv2d_bias_relu",
+        "xnnpack.qs8_depthwise_conv2d_clip",
+        "xnnpack.qs8_depthwise_conv2d_relu",
+        "xnnpack.qs8_depthwise_conv2d_bias",
+        "xnnpack.qs8_depthwise_conv2d",
     };
     return std::find(supported.begin(), supported.end(), name) != supported.end();
+  }
+
+  static bool IsQuantizedComposite(const std::string& name) {
+    return name.find("xnnpack.qs8_") == 0;
   }
 
   static std::string OpName(const CallNode* call) {
@@ -241,6 +268,26 @@ class XNNPACKJSONSerializer : public JSONSerializer {
       }
     }
     return nullptr;
+  }
+
+  static const CallNode* AsCall(const Expr& expr, const char* name) {
+    const auto* call = expr.as<CallNode>();
+    TVM_FFI_ICHECK(call) << name << " must be a Relax call.";
+    return call;
+  }
+
+  static Constant AsConstant(const Expr& expr, const char* name) {
+    TVM_FFI_ICHECK(expr.as<ConstantNode>()) << name << " must be a Relax constant.";
+    return Downcast<Constant>(expr);
+  }
+
+  static Expr ResolveExpr(const Expr& expr, const ffi::Map<Var, Expr>& local_bindings) {
+    if (const auto* var = expr.as<VarNode>()) {
+      Var ref = ffi::GetRef<Var>(var);
+      auto it = local_bindings.find(ref);
+      if (it != local_bindings.end()) return (*it).second;
+    }
+    return expr;
   }
 
   static const CallNode* RootCall(const std::vector<const CallNode*>& calls) {
@@ -287,12 +334,200 @@ class XNNPACKJSONSerializer : public JSONSerializer {
     return result;
   }
 
+  static std::vector<double> ConstantFloatArray(const Expr& expr, const char* name) {
+    const auto* constant = expr.as<ConstantNode>();
+    TVM_FFI_ICHECK(constant) << name << " must be a constant.";
+    auto sinfo = Downcast<TensorStructInfo>(constant->struct_info_);
+    TVM_FFI_ICHECK(sinfo->dtype == DataType::Float(32)) << name << " must be float32.";
+    size_t count = 1;
+    if (sinfo->shape.defined()) {
+      auto shape = Downcast<ShapeExpr>(sinfo->shape.value());
+      count = 1;
+      for (PrimExpr dim : shape->values) {
+        const auto* int_dim = dim.as<IntImmNode>();
+        TVM_FFI_ICHECK(int_dim) << name << " must have static shape.";
+        count *= static_cast<size_t>(int_dim->value);
+      }
+    }
+    const float* data = static_cast<const float*>(constant->data->data);
+    std::vector<double> result;
+    for (size_t i = 0; i < count; ++i) result.push_back(data[i]);
+    return result;
+  }
+
+  static int64_t ConstantIntScalar(const Expr& expr, const char* name) {
+    const auto* constant = expr.as<ConstantNode>();
+    TVM_FFI_ICHECK(constant) << name << " must be a constant.";
+    auto sinfo = Downcast<TensorStructInfo>(constant->struct_info_);
+    size_t count = 1;
+    if (sinfo->shape.defined()) {
+      auto shape = Downcast<ShapeExpr>(sinfo->shape.value());
+      for (PrimExpr dim : shape->values) {
+        const auto* int_dim = dim.as<IntImmNode>();
+        TVM_FFI_ICHECK(int_dim) << name << " must have static shape.";
+        count *= static_cast<size_t>(int_dim->value);
+      }
+    }
+    TVM_FFI_ICHECK_EQ(count, 1U) << name << " must be a scalar.";
+    if (sinfo->dtype == DataType::Int(8)) {
+      return static_cast<const int8_t*>(constant->data->data)[0];
+    }
+    if (sinfo->dtype == DataType::Int(32)) {
+      return static_cast<const int32_t*>(constant->data->data)[0];
+    }
+    TVM_FFI_THROW(ValueError) << name << " must be int8 or int32.";
+  }
+
+  static ffi::String JoinFloats(const std::vector<double>& values) {
+    std::ostringstream os;
+    for (size_t i = 0; i < values.size(); ++i) {
+      if (i != 0) os << ",";
+      os << values[i];
+    }
+    return ffi::String(os.str());
+  }
+
+  static std::string QScheme(const std::vector<double>& scale) {
+    return scale.size() == 1 ? "per_tensor" : "per_channel";
+  }
+
+  static void SetQParams(const JSONGraphObjectPtr& node, const std::string& prefix,
+                         const CallNode* qdq_call, int64_t channel_dim) {
+    const auto* attrs = qdq_call->attrs.as<QuantizeAttrs>();
+    TVM_FFI_ICHECK(attrs) << "relax.quantize/dequantize is missing QuantizeAttrs.";
+    const std::vector<double> scales = ConstantFloatArray(qdq_call->args[1], "qparam scale");
+    node->SetAttr(prefix + "_qscheme", ffi::String(QScheme(scales)));
+    node->SetAttr(prefix + "_scales", JoinFloats(scales));
+    node->SetAttr(prefix + "_zero_point", ConstantIntScalar(qdq_call->args[2], "qparam zero_point"));
+    node->SetAttr(prefix + "_axis", static_cast<int64_t>(attrs->axis));
+    node->SetAttr(prefix + "_channel_dim", channel_dim);
+  }
+
+  static const CallNode* FindBiasDequantize(const std::vector<const CallNode*>& calls,
+                                            const CallNode* weighted_call,
+                                            const ffi::Map<Var, Expr>& local_bindings) {
+    for (const CallNode* call : calls) {
+      if (call->op.as<OpNode>() && OpName(call) == "relax.add") {
+        Expr lhs_expr = ResolveExpr(call->args[0], local_bindings);
+        Expr rhs_expr = ResolveExpr(call->args[1], local_bindings);
+        const CallNode* lhs = lhs_expr.as<CallNode>();
+        const CallNode* rhs = rhs_expr.as<CallNode>();
+        if (lhs == weighted_call && rhs != nullptr && OpName(rhs) == "relax.dequantize") {
+          return rhs;
+        }
+        if (rhs == weighted_call && lhs != nullptr && OpName(lhs) == "relax.dequantize") {
+          return lhs;
+        }
+      }
+    }
+    return nullptr;
+  }
+
   static void SetActivationAttrs(const JSONGraphObjectPtr& node, const std::string& activation,
                                  double min_value = -kXNNPACKInfinity,
                                  double max_value = kXNNPACKInfinity) {
     node->SetAttr("activation", ffi::String(activation));
     node->SetAttr("activation_min", min_value);
     node->SetAttr("activation_max", max_value);
+  }
+
+  NodeEntries VisitQuantizedComposite(const CallNode* call_node, const Function& fn,
+                                      const std::string& composite_name) {
+    const auto calls = CollectCalls(fn);
+    const auto local_bindings = AnalyzeVar2Value(fn);
+    const CallNode* weighted_call = nullptr;
+    if (composite_name.find("fully_connected") != std::string::npos) {
+      weighted_call = FindCall(calls, "relax.matmul");
+    } else {
+      weighted_call = FindCall(calls, "relax.nn.conv2d");
+    }
+    TVM_FFI_ICHECK(weighted_call) << composite_name << " is missing its weighted op.";
+
+    const CallNode* data_dq =
+        AsCall(ResolveExpr(weighted_call->args[0], local_bindings), "quantized input dequantize");
+    const CallNode* weight_dq =
+        AsCall(ResolveExpr(weighted_call->args[1], local_bindings), "quantized weight dequantize");
+    TVM_FFI_ICHECK_EQ(OpName(data_dq), "relax.dequantize");
+    TVM_FFI_ICHECK_EQ(OpName(weight_dq), "relax.dequantize");
+    const CallNode* bias_dq = FindBiasDequantize(calls, weighted_call, local_bindings);
+    const bool has_bias = composite_name.find("_bias") != std::string::npos;
+    TVM_FFI_ICHECK_EQ(has_bias, bias_dq != nullptr);
+
+    NodeEntries inputs;
+    TVM_FFI_ICHECK_GE(call_node->args.size(), 1U)
+        << composite_name << " expects one external quantized input.";
+    auto data_res = VisitExpr(call_node->args[0]);
+    inputs.insert(inputs.end(), data_res.begin(), data_res.end());
+    TVM_FFI_ICHECK_GE(call_node->args.size(), 2U)
+        << composite_name << " expects quantized data and weight inputs.";
+    auto weight_res = VisitExpr(ResolveExpr(call_node->args[1], bindings_));
+    inputs.insert(inputs.end(), weight_res.begin(), weight_res.end());
+    if (has_bias) {
+      TVM_FFI_ICHECK_GE(call_node->args.size(), 3U)
+          << composite_name << " expects quantized data, weight, and bias inputs.";
+      auto bias_res = VisitExpr(ResolveExpr(call_node->args[2], bindings_));
+      inputs.insert(inputs.end(), bias_res.begin(), bias_res.end());
+    }
+
+    auto node = std::make_shared<JSONGraphNode>(composite_name, "kernel", inputs, 1);
+    SetQuantizedCompositeAttrs(node, fn, composite_name, inputs.size(), weighted_call, data_dq,
+                               weight_dq, bias_dq);
+    return AddNode(node, ffi::GetRef<Expr>(call_node));
+  }
+
+  static void SetQuantizedActivationAttrs(const JSONGraphObjectPtr& node, const Function& fn,
+                                          const std::string& composite_name) {
+    const auto calls = CollectCalls(fn);
+    if (composite_name.find("_relu") != std::string::npos) {
+      SetActivationAttrs(node, "clamp", 0.0, kXNNPACKInfinity);
+    } else if (composite_name.find("_clip") != std::string::npos) {
+      const CallNode* clip = FindCall(calls, "relax.clip");
+      TVM_FFI_ICHECK(clip) << composite_name << " must contain relax.clip.";
+      SetActivationAttrs(node, "clamp", PrimValueToDouble(clip->args[1]),
+                         PrimValueToDouble(clip->args[2]));
+    } else {
+      SetActivationAttrs(node, "none");
+    }
+  }
+
+  static void SetQuantizedCompositeAttrs(const JSONGraphObjectPtr& node, const Function& fn,
+                                         const std::string& composite_name, size_t num_inputs,
+                                         const CallNode* weighted_call, const CallNode* data_dq,
+                                         const CallNode* weight_dq, const CallNode* bias_dq) {
+    const bool has_bias = composite_name.find("_bias") != std::string::npos;
+    TVM_FFI_ICHECK_EQ(num_inputs, has_bias ? 3U : 2U);
+    node->SetAttr("quantized", static_cast<int64_t>(1));
+    node->SetAttr("signedness", ffi::String("qs8"));
+    node->SetAttr("has_bias", static_cast<int64_t>(has_bias));
+    SetQParams(node, "input", data_dq, -1);
+    SetQParams(node, "output", RootCall(CollectCalls(fn)), -1);
+
+    if (composite_name.find("fully_connected") != std::string::npos) {
+      node->SetAttr("op_kind", ffi::String("qs8_fully_connected"));
+      SetQParams(node, "weight", weight_dq, 1);
+      if (has_bias) SetQParams(node, "bias", bias_dq, 0);
+    } else if (composite_name.find("depthwise") != std::string::npos) {
+      const auto* attrs = weighted_call->attrs.as<Conv2DAttrs>();
+      TVM_FFI_ICHECK(attrs) << "relax.nn.conv2d is missing Conv2DAttrs.";
+      node->SetAttr("op_kind", ffi::String("qs8_depthwise_conv2d"));
+      node->SetAttr("strides", AsIntArray(attrs->strides));
+      node->SetAttr("padding", NormalizePadding(attrs->padding));
+      node->SetAttr("dilation", AsIntArray(attrs->dilation));
+      node->SetAttr("groups", static_cast<int64_t>(attrs->groups));
+      SetQParams(node, "weight", weight_dq, 3);
+      if (has_bias) SetQParams(node, "bias", bias_dq, 0);
+    } else {
+      const auto* attrs = weighted_call->attrs.as<Conv2DAttrs>();
+      TVM_FFI_ICHECK(attrs) << "relax.nn.conv2d is missing Conv2DAttrs.";
+      node->SetAttr("op_kind", ffi::String("qs8_conv2d"));
+      node->SetAttr("strides", AsIntArray(attrs->strides));
+      node->SetAttr("padding", NormalizePadding(attrs->padding));
+      node->SetAttr("dilation", AsIntArray(attrs->dilation));
+      node->SetAttr("groups", static_cast<int64_t>(attrs->groups));
+      SetQParams(node, "weight", weight_dq, 0);
+      if (has_bias) SetQParams(node, "bias", bias_dq, 0);
+    }
+    SetQuantizedActivationAttrs(node, fn, composite_name);
   }
 
   static void SetConv2DAttrs(const JSONGraphObjectPtr& node, const Function& fn,
