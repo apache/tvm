@@ -70,6 +70,17 @@ foreach(_feature
     FP32_STATIC_WEIGHTS_FLAG
     FP32_STATIC_BIASES_FLAG
     DATATYPE_FP16
+    DATATYPE_QINT8
+    DATATYPE_QUINT8
+    DATATYPE_QINT32
+    DATATYPE_QCINT8
+    DATATYPE_QCINT32
+    EXTRA_QUANTIZATION_PARAMS
+    DEFINE_QUANTIZED_TENSOR_VALUE
+    DEFINE_CHANNELWISE_QUANTIZED_TENSOR_VALUE
+    DEFINE_CHANNELWISE_QUANTIZED_TENSOR_VALUE_V2
+    VALIDATE_QUANTIZED_TENSOR
+    VALIDATE_CHANNELWISE_QUANTIZED_TENSOR
     DONT_SPIN_WORKERS_FLAG
     TRANSIENT_INDIRECTION_BUFFER_FLAG
     PTHREADPOOL_CREATE)
@@ -138,6 +149,70 @@ check_cxx_source_compiles("
   int main() { return xnn_datatype_fp16 == xnn_datatype_invalid; }" TVM_XNNPACK_HAS_DATATYPE_FP16)
 check_cxx_source_compiles("
   #include <xnnpack.h>
+  int main() { return xnn_datatype_qint8 == xnn_datatype_invalid; }" TVM_XNNPACK_HAS_DATATYPE_QINT8)
+check_cxx_source_compiles("
+  #include <xnnpack.h>
+  int main() { return xnn_datatype_quint8 == xnn_datatype_invalid; }" TVM_XNNPACK_HAS_DATATYPE_QUINT8)
+check_cxx_source_compiles("
+  #include <xnnpack.h>
+  int main() { return xnn_datatype_qint32 == xnn_datatype_invalid; }" TVM_XNNPACK_HAS_DATATYPE_QINT32)
+check_cxx_source_compiles("
+  #include <xnnpack.h>
+  int main() { return xnn_datatype_qcint8 == xnn_datatype_invalid; }" TVM_XNNPACK_HAS_DATATYPE_QCINT8)
+check_cxx_source_compiles("
+  #include <xnnpack.h>
+  int main() { return xnn_datatype_qcint32 == xnn_datatype_invalid; }" TVM_XNNPACK_HAS_DATATYPE_QCINT32)
+check_cxx_source_compiles("
+  #include <xnnpack.h>
+  int main() { return XNN_EXTRA_QUANTIZATION_PARAMS == 0; }" TVM_XNNPACK_HAS_EXTRA_QUANTIZATION_PARAMS)
+check_cxx_source_compiles("
+  #include <xnnpack.h>
+  int main() {
+    uint32_t id = 0;
+    const size_t dims[1] = {1};
+    (void)xnn_define_quantized_tensor_value(nullptr, xnn_datatype_qint8, 0, 1.0f, 1,
+                                            dims, nullptr, XNN_INVALID_VALUE_ID, 0, &id);
+    return 0;
+  }" TVM_XNNPACK_HAS_DEFINE_QUANTIZED_TENSOR_VALUE)
+check_cxx_source_compiles("
+  #include <xnnpack.h>
+  int main() {
+    uint32_t id = 0;
+    const size_t dims[1] = {1};
+    const float scale[1] = {1.0f};
+    (void)xnn_define_channelwise_quantized_tensor_value(nullptr, xnn_datatype_qcint8, scale, 1,
+                                                        0, dims, nullptr,
+                                                        XNN_INVALID_VALUE_ID, 0, &id);
+    return 0;
+  }" TVM_XNNPACK_HAS_DEFINE_CHANNELWISE_QUANTIZED_TENSOR_VALUE)
+check_cxx_source_compiles("
+  #include <xnnpack.h>
+  int main() {
+    uint32_t id = 0;
+    const size_t dims[1] = {1};
+    const float scale[1] = {1.0f};
+    (void)xnn_define_channelwise_quantized_tensor_value_v2(nullptr, xnn_datatype_qcint8, 0, scale,
+                                                           1, 0, dims, nullptr,
+                                                           XNN_INVALID_VALUE_ID, 0, &id);
+    return 0;
+  }" TVM_XNNPACK_HAS_DEFINE_CHANNELWISE_QUANTIZED_TENSOR_VALUE_V2)
+check_cxx_source_compiles("
+  #include <xnnpack.h>
+  int main() {
+    const size_t dims[1] = {1};
+    (void)xnn_validate_quantized_tensor(xnn_datatype_qint8, 0, 1.0f, 1, dims);
+    return 0;
+  }" TVM_XNNPACK_HAS_VALIDATE_QUANTIZED_TENSOR)
+check_cxx_source_compiles("
+  #include <xnnpack.h>
+  int main() {
+    const size_t dims[1] = {1};
+    const float scale[1] = {1.0f};
+    (void)xnn_validate_channelwise_quantized_tensor(xnn_datatype_qcint8, 0, scale, 1, 0, dims);
+    return 0;
+  }" TVM_XNNPACK_HAS_VALIDATE_CHANNELWISE_QUANTIZED_TENSOR)
+check_cxx_source_compiles("
+  #include <xnnpack.h>
   int main() { return XNN_FLAG_DONT_SPIN_WORKERS == 0; }" TVM_XNNPACK_HAS_DONT_SPIN_WORKERS_FLAG)
 check_cxx_source_compiles("
   #include <xnnpack.h>
@@ -166,6 +241,17 @@ foreach(_feature
     FP32_STATIC_WEIGHTS_FLAG
     FP32_STATIC_BIASES_FLAG
     DATATYPE_FP16
+    DATATYPE_QINT8
+    DATATYPE_QUINT8
+    DATATYPE_QINT32
+    DATATYPE_QCINT8
+    DATATYPE_QCINT32
+    EXTRA_QUANTIZATION_PARAMS
+    DEFINE_QUANTIZED_TENSOR_VALUE
+    DEFINE_CHANNELWISE_QUANTIZED_TENSOR_VALUE
+    DEFINE_CHANNELWISE_QUANTIZED_TENSOR_VALUE_V2
+    VALIDATE_QUANTIZED_TENSOR
+    VALIDATE_CHANNELWISE_QUANTIZED_TENSOR
     DONT_SPIN_WORKERS_FLAG
     TRANSIENT_INDIRECTION_BUFFER_FLAG
     PTHREADPOOL_CREATE)

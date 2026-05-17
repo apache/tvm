@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import json
+
 import numpy as np
 import pytest
 
@@ -81,6 +83,38 @@ class AddBroadcastModule:
     def main(x: R.Tensor((2, 3), "float32"), y: R.Tensor((3,), "float32")):
         with R.dataflow():
             z = relax.op.add(x, y)
+            R.output(z)
+        return z
+
+
+@tvm.script.ir_module
+class QuantizeModule:
+    @R.function
+    def main(x: R.Tensor((2, 4), "float32")) -> R.Tensor((2, 4), "int8"):
+        with R.dataflow():
+            z = R.quantize(
+                x,
+                R.const(0.5, "float32"),
+                R.const(0, "int8"),
+                axis=-1,
+                out_dtype="int8",
+            )
+            R.output(z)
+        return z
+
+
+@tvm.script.ir_module
+class DequantizeModule:
+    @R.function
+    def main(x: R.Tensor((2, 4), "int8")) -> R.Tensor((2, 4), "float32"):
+        with R.dataflow():
+            z = R.dequantize(
+                x,
+                R.const(0.5, "float32"),
+                R.const(0, "int8"),
+                axis=-1,
+                out_dtype="float32",
+            )
             R.output(z)
         return z
 
@@ -266,6 +300,25 @@ def _xnnpack_capability(name):
     if func is None:
         return False
     return bool(int(func()[name]))
+
+
+def _xnnpack_capabilities():
+    func = tvm.get_global_func("runtime.XNNPACKJSONRuntimeGetCapabilities", allow_missing=True)
+    if func is None:
+        return {}
+    return {str(key): int(value) for key, value in func().items()}
+
+
+def _quant_metadata_validator():
+    return tvm.get_global_func(
+        "runtime.XNNPACKJSONRuntimeValidateQuantizationMetadata", allow_missing=True
+    )
+
+
+def _quant_tensor_smoke():
+    return tvm.get_global_func(
+        "runtime.XNNPACKJSONRuntimeQuantizedTensorDefinitionSmoke", allow_missing=True
+    )
 
 
 def _has_codegen_attr(mod):
@@ -476,6 +529,16 @@ def test_partition_for_xnnpack_records_precision_attr():
 )
 def test_partition_for_xnnpack_rejects_unsupported_patterns(mod):
     mod = _partition(mod)
+    assert not _has_codegen_attr(mod)
+
+    mod = relax.transform.RunCodegen()(mod)
+    assert not _has_external_mods(mod)
+
+
+@pytest.mark.parametrize("policy", ["greedy", "cost", "debug_all_supported"])
+@pytest.mark.parametrize("mod", [QuantizeModule, DequantizeModule])
+def test_partition_for_xnnpack_does_not_partition_qdq(policy, mod):
+    mod = _partition(mod, partition_policy=policy)
     assert not _has_codegen_attr(mod)
 
     mod = relax.transform.RunCodegen()(mod)
@@ -827,6 +890,18 @@ def test_xnnpack_profile_json():
     assert "time_ns" in profile_json
 
 
+@pytest.mark.skipif(
+    not (_has_xnnpack_codegen() and _has_xnnpack_runtime()),
+    reason="XNNPACK codegen/runtime is not enabled",
+)
+def test_xnnpack_runtime_quantization_metadata_debug_dump_empty_for_fp32_graph():
+    mod = _partition(ReluModule)
+    mod = relax.transform.RunCodegen()(mod)
+    x_np = np.array([[-1.0, 0.0, 1.5], [2.0, -3.0, 4.0]], dtype="float32")
+    ext_mod, _ = _run_first_external_module(mod, [x_np], x_np.shape)
+    assert json.loads(ext_mod["get_quantization_metadata_json"]()) == []
+
+
 @pytest.mark.skipif(not _has_xnnpack_codegen(), reason="XNNPACK codegen is not enabled")
 def test_xnnpack_codegen_registration_accepts_empty_input():
     codegen = tvm.get_global_func("relax.ext.xnnpack")
@@ -836,6 +911,199 @@ def test_xnnpack_codegen_registration_accepts_empty_input():
 @pytest.mark.skipif(not _has_xnnpack_runtime(), reason="XNNPACK runtime is not enabled")
 def test_xnnpack_runtime_registration_available():
     assert tvm.get_global_func("runtime.XNNPACKJSONRuntimeCreate") is not None
+
+
+@pytest.mark.skipif(not _has_xnnpack_runtime(), reason="XNNPACK runtime is not enabled")
+def test_xnnpack_quantization_capabilities_are_reported():
+    capabilities = _xnnpack_capabilities()
+    assert "datatype_qint8" in capabilities
+    assert "datatype_quint8" in capabilities
+    assert "datatype_qcint8" in capabilities
+    assert "extra_quantization_params" in capabilities
+
+
+@pytest.mark.skipif(not _has_xnnpack_runtime(), reason="XNNPACK runtime is not enabled")
+def test_xnnpack_quantization_metadata_per_tensor_roundtrip():
+    validator = _quant_metadata_validator()
+    assert validator is not None
+    result = json.loads(
+        validator(
+            {
+                "dtype": "int8",
+                "qscheme": "per_tensor",
+                "scale": 0.25,
+                "zero_point": 3,
+                "axis": -1,
+                "channel_dim": 1,
+                "signedness": "signed",
+            },
+            [2, 4],
+        )
+    )
+    assert result["dtype"] == "int8"
+    assert result["qscheme"] == "per_tensor"
+    assert result["scale"] == pytest.approx(0.25)
+    assert result["zero_point"] == 3
+    assert result["xnn_datatype"] == "xnn_datatype_qint8"
+
+
+@pytest.mark.skipif(not _has_xnnpack_runtime(), reason="XNNPACK runtime is not enabled")
+def test_xnnpack_quantization_metadata_per_channel_roundtrip():
+    validator = _quant_metadata_validator()
+    assert validator is not None
+    result = json.loads(
+        validator(
+            {
+                "dtype": "int8",
+                "qscheme": "per_channel",
+                "scale": [0.25, 0.5, 1.0],
+                "zero_point": 0,
+                "axis": 0,
+                "channel_dim": 0,
+                "signedness": "signed",
+            },
+            [3, 3, 3, 4],
+        )
+    )
+    assert result["qscheme"] == "per_channel"
+    assert result["scale"] == pytest.approx([0.25, 0.5, 1.0])
+    assert result["xnn_datatype"] == "xnn_datatype_qcint8"
+    assert result["padded_scale_length"] >= 3
+
+
+@pytest.mark.skipif(not _has_xnnpack_runtime(), reason="XNNPACK runtime is not enabled")
+@pytest.mark.parametrize(
+    "metadata, shape, match",
+    [
+        (
+            {
+                "dtype": "int8",
+                "qscheme": "per_tensor",
+                "scale": 0.0,
+                "zero_point": 0,
+                "axis": -1,
+                "channel_dim": 1,
+                "signedness": "signed",
+            },
+            [2, 4],
+            "positive",
+        ),
+        (
+            {
+                "dtype": "int8",
+                "qscheme": "per_tensor",
+                "scale": 0.5,
+                "zero_point": 200,
+                "axis": -1,
+                "channel_dim": 1,
+                "signedness": "signed",
+            },
+            [2, 4],
+            "zero_point",
+        ),
+        (
+            {
+                "dtype": "int8",
+                "qscheme": "per_channel",
+                "scale": [0.5, 1.0],
+                "zero_point": 0,
+                "axis": 0,
+                "channel_dim": 0,
+                "signedness": "signed",
+            },
+            [3, 3, 3, 4],
+            "scale length",
+        ),
+        (
+            {
+                "dtype": "int8",
+                "qscheme": "per_channel",
+                "scale": [0.5, 1.0, 2.0],
+                "zero_point": 0,
+                "axis": 1,
+                "channel_dim": 0,
+                "signedness": "signed",
+            },
+            [3, 3, 3, 4],
+            "axis must match",
+        ),
+        (
+            {
+                "dtype": "uint8",
+                "qscheme": "per_channel",
+                "scale": [0.5, 1.0, 2.0],
+                "zero_point": 0,
+                "axis": 0,
+                "channel_dim": 0,
+                "signedness": "unsigned",
+            },
+            [3, 3, 3, 4],
+            "per-channel",
+        ),
+        (
+            {
+                "dtype": "uint8",
+                "qscheme": "per_tensor",
+                "scale": 0.5,
+                "zero_point": 0,
+                "axis": -1,
+                "channel_dim": 1,
+                "signedness": "signed",
+            },
+            [2, 4],
+            "signedness",
+        ),
+    ],
+)
+def test_xnnpack_quantization_metadata_invalid_qparams(metadata, shape, match):
+    validator = _quant_metadata_validator()
+    assert validator is not None
+    with pytest.raises(tvm.error.TVMError, match=match):
+        validator(metadata, shape)
+
+
+@pytest.mark.skipif(not _has_xnnpack_runtime(), reason="XNNPACK runtime is not enabled")
+def test_xnnpack_quantized_tensor_definition_smoke():
+    capabilities = _xnnpack_capabilities()
+    if not (
+        capabilities.get("define_quantized_tensor_value")
+        and capabilities.get("define_channelwise_quantized_tensor_value")
+    ):
+        pytest.skip("XNNPACK quantized tensor definition APIs are unavailable")
+    smoke = _quant_tensor_smoke()
+    assert smoke is not None
+
+    per_tensor = json.loads(
+        smoke(
+            {
+                "dtype": "int8",
+                "qscheme": "per_tensor",
+                "scale": 0.5,
+                "zero_point": 0,
+                "axis": -1,
+                "channel_dim": 1,
+                "signedness": "signed",
+            },
+            [2, 4],
+        )
+    )
+    assert per_tensor["xnn_datatype"] == "xnn_datatype_qint8"
+
+    per_channel = json.loads(
+        smoke(
+            {
+                "dtype": "int8",
+                "qscheme": "per_channel",
+                "scale": [0.25, 0.5, 1.0],
+                "zero_point": 0,
+                "axis": 0,
+                "channel_dim": 0,
+                "signedness": "signed",
+            },
+            [3, 3, 3, 4],
+        )
+    )
+    assert per_channel["xnn_datatype"] == "xnn_datatype_qcint8"
 
 
 if __name__ == "__main__":

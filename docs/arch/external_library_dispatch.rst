@@ -442,6 +442,27 @@ partitioner still accepts only static ``float32`` tensors. Explicit
 ``xnn_datatype_fp16`` lowering, mixed dtype partitioning, and FP32 static
 weights or biases in FP16 partitions are left for future work.
 
+Quantization metadata plumbing is present for future int8 work, but quantized
+operator execution is not enabled in this phase. ``relax.quantize`` and
+``relax.dequantize`` graphs are not partitioned for XNNPACK, and there is no
+QDQ, int8 convolution, requantization, or explicit quantized runtime execution
+coverage yet. The metadata schema used by the runtime-side validation helpers
+contains ``dtype``, ``qscheme`` (``none``, ``per_tensor``, or
+``per_channel``), ``scale``, ``zero_point``, ``axis``, ``channel_dim``, and
+``signedness``.
+
+Supported metadata forms are scalar per-tensor parameters for ``int8``,
+``uint8``, and ``int32``, and per-channel scale arrays for ``int8`` and
+``int32`` weights. Scales must be static, finite, and positive; zero points
+must be static and in range for the dtype; and per-channel scale length must
+match the selected channel dimension. Dynamic quantization parameters,
+per-channel zero-point arrays, mixed signedness, unsupported dtypes, and axis
+remapping after quantized layout conversion are rejected. Runtime-owned
+quantization parameter arrays are padded with ``XNN_EXTRA_QUANTIZATION_PARAMS``
+where XNNPACK may overread, and their lifetime is tied to the XNNPACK runtime
+or subgraph that uses them. Phase 5C-1 is expected to add the first tested
+quantized operator pattern on top of this metadata layer.
+
 .. list-table::
    :header-rows: 1
    :widths: 30 70

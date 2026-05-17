@@ -28,6 +28,7 @@
 #include <xnnpack.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -60,6 +61,21 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
   static std::string DefaultOptionsString() {
     return "use_weights_cache=0;use_workspace=0;profile=0;dont_spin_workers=0;"
            "transient_indirection_buffer=0;num_threads=1;precision=fp32;";
+  }
+
+  static std::string ValidateQuantizationMetadataJSON(
+      const ffi::Map<ffi::String, ffi::Any>& metadata, const ffi::Array<ffi::Any>& shape) {
+    const QuantizationMetadata parsed =
+        ParseQuantizationMetadata(metadata, ShapeFromAnyArray(shape));
+    return QuantizationMetadataToJSON(parsed);
+  }
+
+  static std::string QuantizedTensorDefinitionSmoke(const ffi::Map<ffi::String, ffi::Any>& metadata,
+                                                    const ffi::Array<ffi::Any>& shape) {
+    const QuantizationMetadata parsed =
+        ParseQuantizationMetadata(metadata, ShapeFromAnyArray(shape));
+    DefineQuantizedTensorForSmoke(parsed);
+    return QuantizationMetadataToJSON(parsed);
   }
 
   ~XNNPACKJSONRuntime() {
@@ -103,6 +119,11 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
     if (name == "get_runtime_options") {
       return ffi::Function([sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) {
         *rv = ffi::String(this->options_string_);
+      });
+    }
+    if (name == "get_quantization_metadata_json") {
+      return ffi::Function([sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) {
+        *rv = ffi::String(this->GetQuantizationMetadataJSON());
       });
     }
     return JSONRuntimeBase::GetFunction(name);
@@ -196,6 +217,18 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
     std::vector<uint8_t> buffer;
   };
 
+  struct QuantizationMetadata {
+    std::string dtype;
+    std::string qscheme;
+    std::vector<float> scale;
+    int32_t zero_point{0};
+    int64_t axis{-1};
+    size_t channel_dim{0};
+    std::string signedness;
+    std::vector<size_t> shape;
+    std::vector<float> padded_scale;
+  };
+
   static RuntimeOptions ParseOptions(const std::string& options) {
     RuntimeOptions parsed;
     size_t offset = 0;
@@ -250,6 +283,296 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
 
   static bool IsFloat32(const DLDataType& dtype) {
     return dtype.code == kDLFloat && dtype.bits == 32 && dtype.lanes == 1;
+  }
+
+  static int64_t AnyToInt64(const ffi::Any& value, const char* name) {
+    if (auto opt = value.try_cast<int64_t>()) return opt.value();
+    TVM_FFI_THROW(ValueError) << "XNNPACK quantization metadata field '" << name
+                              << "' must be an integer.";
+  }
+
+  static double AnyToDouble(const ffi::Any& value, const char* name) {
+    if (auto opt = value.try_cast<double>()) return opt.value();
+    if (auto opt = value.try_cast<int64_t>()) return static_cast<double>(opt.value());
+    TVM_FFI_THROW(ValueError) << "XNNPACK quantization metadata field '" << name
+                              << "' must be numeric.";
+  }
+
+  static std::string AnyToString(const ffi::Any& value, const char* name) {
+    if (auto opt = value.try_cast<ffi::String>()) return std::string(opt.value());
+    TVM_FFI_THROW(ValueError) << "XNNPACK quantization metadata field '" << name
+                              << "' must be a string.";
+  }
+
+  static ffi::Any RequiredField(const ffi::Map<ffi::String, ffi::Any>& metadata,
+                                const std::string& key) {
+    auto it = metadata.find(key);
+    TVM_FFI_ICHECK(it != metadata.end()) << "Missing XNNPACK quantization metadata field: " << key;
+    return (*it).second;
+  }
+
+  static std::vector<size_t> ShapeFromAnyArray(const ffi::Array<ffi::Any>& shape) {
+    std::vector<size_t> result;
+    for (const ffi::Any& dim : shape) {
+      const int64_t value = AnyToInt64(dim, "shape");
+      TVM_FFI_ICHECK_GT(value, 0) << "XNNPACK quantization metadata shape must be static positive.";
+      result.push_back(static_cast<size_t>(value));
+    }
+    return result;
+  }
+
+  static std::vector<float> ScaleFromAny(const ffi::Any& value) {
+    std::vector<float> result;
+    if (auto opt_arr = value.try_cast<ffi::Array<ffi::Any>>()) {
+      for (const ffi::Any& item : opt_arr.value()) {
+        result.push_back(static_cast<float>(AnyToDouble(item, "scale")));
+      }
+    } else {
+      result.push_back(static_cast<float>(AnyToDouble(value, "scale")));
+    }
+    return result;
+  }
+
+  static std::string ExpectedSignedness(const std::string& dtype) {
+    if (dtype == "uint8") return "unsigned";
+    if (dtype == "int8" || dtype == "int32") return "signed";
+    TVM_FFI_THROW(ValueError) << "Unsupported XNNPACK quantized dtype: " << dtype;
+  }
+
+  static void CheckZeroPointRange(const std::string& dtype, int64_t zero_point) {
+    if (dtype == "int8") {
+      TVM_FFI_ICHECK_GE(zero_point, -128)
+          << "XNNPACK int8 quantization zero_point must be in [-128, 127].";
+      TVM_FFI_ICHECK_LE(zero_point, 127)
+          << "XNNPACK int8 quantization zero_point must be in [-128, 127].";
+    } else if (dtype == "uint8") {
+      TVM_FFI_ICHECK_GE(zero_point, 0)
+          << "XNNPACK uint8 quantization zero_point must be in [0, 255].";
+      TVM_FFI_ICHECK_LE(zero_point, 255)
+          << "XNNPACK uint8 quantization zero_point must be in [0, 255].";
+    } else if (dtype == "int32") {
+      TVM_FFI_ICHECK_GE(zero_point, std::numeric_limits<int32_t>::min());
+      TVM_FFI_ICHECK_LE(zero_point, std::numeric_limits<int32_t>::max());
+    } else {
+      TVM_FFI_THROW(ValueError) << "Unsupported XNNPACK quantized dtype: " << dtype;
+    }
+  }
+
+  static xnn_datatype QuantizedDatatype(const QuantizationMetadata& metadata) {
+    if (metadata.qscheme == "per_tensor") {
+      if (metadata.dtype == "int8") {
+#if defined(TVM_XNNPACK_HAS_DATATYPE_QINT8)
+        return xnn_datatype_qint8;
+#else
+        TVM_FFI_THROW(RuntimeError) << "XNNPACK qint8 datatype is unavailable.";
+#endif
+      }
+      if (metadata.dtype == "uint8") {
+#if defined(TVM_XNNPACK_HAS_DATATYPE_QUINT8)
+        return xnn_datatype_quint8;
+#else
+        TVM_FFI_THROW(RuntimeError) << "XNNPACK quint8 datatype is unavailable.";
+#endif
+      }
+      if (metadata.dtype == "int32") {
+#if defined(TVM_XNNPACK_HAS_DATATYPE_QINT32)
+        return xnn_datatype_qint32;
+#else
+        TVM_FFI_THROW(RuntimeError) << "XNNPACK qint32 datatype is unavailable.";
+#endif
+      }
+    } else if (metadata.qscheme == "per_channel") {
+      if (metadata.dtype == "int8") {
+#if defined(TVM_XNNPACK_HAS_DATATYPE_QCINT8)
+        return xnn_datatype_qcint8;
+#else
+        TVM_FFI_THROW(RuntimeError) << "XNNPACK qcint8 datatype is unavailable.";
+#endif
+      }
+      if (metadata.dtype == "int32") {
+#if defined(TVM_XNNPACK_HAS_DATATYPE_QCINT32)
+        return xnn_datatype_qcint32;
+#else
+        TVM_FFI_THROW(RuntimeError) << "XNNPACK qcint32 datatype is unavailable.";
+#endif
+      }
+    }
+    TVM_FFI_THROW(ValueError) << "Unsupported XNNPACK quantization dtype/qscheme combination: "
+                              << metadata.dtype << "/" << metadata.qscheme;
+  }
+
+  static std::string QuantizedDatatypeName(const QuantizationMetadata& metadata) {
+    if (metadata.qscheme == "per_tensor") {
+      if (metadata.dtype == "int8") return "xnn_datatype_qint8";
+      if (metadata.dtype == "uint8") return "xnn_datatype_quint8";
+      if (metadata.dtype == "int32") return "xnn_datatype_qint32";
+    } else if (metadata.qscheme == "per_channel") {
+      if (metadata.dtype == "int8") return "xnn_datatype_qcint8";
+      if (metadata.dtype == "int32") return "xnn_datatype_qcint32";
+    }
+    return "unsupported";
+  }
+
+  static size_t ExtraQuantizationParams() {
+#if defined(TVM_XNNPACK_HAS_EXTRA_QUANTIZATION_PARAMS)
+    return XNN_EXTRA_QUANTIZATION_PARAMS;
+#else
+    return 0;
+#endif
+  }
+
+  static QuantizationMetadata ParseQuantizationMetadata(
+      const ffi::Map<ffi::String, ffi::Any>& metadata, std::vector<size_t> shape) {
+    QuantizationMetadata parsed;
+    parsed.dtype = AnyToString(RequiredField(metadata, "dtype"), "dtype");
+    parsed.qscheme = AnyToString(RequiredField(metadata, "qscheme"), "qscheme");
+    parsed.signedness = AnyToString(RequiredField(metadata, "signedness"), "signedness");
+    parsed.shape = std::move(shape);
+
+    TVM_FFI_ICHECK(parsed.qscheme == "none" || parsed.qscheme == "per_tensor" ||
+                   parsed.qscheme == "per_channel")
+        << "Unsupported XNNPACK quantization qscheme: " << parsed.qscheme;
+    if (parsed.qscheme == "none") {
+      return parsed;
+    }
+
+    parsed.scale = ScaleFromAny(RequiredField(metadata, "scale"));
+    const int64_t zero_point = AnyToInt64(RequiredField(metadata, "zero_point"), "zero_point");
+    CheckZeroPointRange(parsed.dtype, zero_point);
+    parsed.zero_point = static_cast<int32_t>(zero_point);
+    parsed.axis = AnyToInt64(RequiredField(metadata, "axis"), "axis");
+    const int64_t channel_dim = AnyToInt64(RequiredField(metadata, "channel_dim"), "channel_dim");
+    TVM_FFI_ICHECK_GE(channel_dim, 0) << "XNNPACK quantization channel_dim must be non-negative.";
+    TVM_FFI_ICHECK_LT(static_cast<size_t>(channel_dim), parsed.shape.size())
+        << "XNNPACK quantization channel_dim is out of range.";
+    parsed.channel_dim = static_cast<size_t>(channel_dim);
+
+    TVM_FFI_ICHECK_EQ(parsed.signedness, ExpectedSignedness(parsed.dtype))
+        << "XNNPACK quantization signedness does not match dtype.";
+    for (float scale : parsed.scale) {
+      TVM_FFI_ICHECK(std::isfinite(scale) && scale > 0.0f)
+          << "XNNPACK quantization scales must be finite and positive.";
+    }
+
+    if (parsed.qscheme == "per_tensor") {
+      TVM_FFI_ICHECK_EQ(parsed.scale.size(), 1U)
+          << "XNNPACK per-tensor quantization expects a scalar scale.";
+      TVM_FFI_ICHECK(parsed.dtype == "int8" || parsed.dtype == "uint8" || parsed.dtype == "int32")
+          << "Unsupported XNNPACK per-tensor quantized dtype: " << parsed.dtype;
+    } else {
+      TVM_FFI_ICHECK(parsed.dtype == "int8" || parsed.dtype == "int32")
+          << "Unsupported XNNPACK per-channel quantized dtype: " << parsed.dtype;
+      TVM_FFI_ICHECK_EQ(parsed.scale.size(), parsed.shape[parsed.channel_dim])
+          << "XNNPACK per-channel quantization scale length must match channel_dim.";
+      parsed.padded_scale = parsed.scale;
+      parsed.padded_scale.resize(parsed.scale.size() + ExtraQuantizationParams(), 0.0f);
+    }
+
+    // Map Relax QDQ axis to XNNPACK channel_dim directly in Phase 5C-0. Quantized
+    // layout rewrites are intentionally not implemented in this metadata-only phase.
+    int64_t normalized_axis = parsed.axis;
+    if (normalized_axis < 0) normalized_axis += static_cast<int64_t>(parsed.shape.size());
+    TVM_FFI_ICHECK_GE(normalized_axis, 0) << "XNNPACK quantization axis is out of range.";
+    TVM_FFI_ICHECK_LT(static_cast<size_t>(normalized_axis), parsed.shape.size())
+        << "XNNPACK quantization axis is out of range.";
+    TVM_FFI_ICHECK_EQ(static_cast<size_t>(normalized_axis), parsed.channel_dim)
+        << "XNNPACK quantization axis must match channel_dim in Phase 5C-0.";
+
+    (void)QuantizedDatatype(parsed);
+#if defined(TVM_XNNPACK_HAS_VALIDATE_QUANTIZED_TENSOR)
+    if (parsed.qscheme == "per_tensor") {
+      CheckXNNStatus(
+          xnn_validate_quantized_tensor(QuantizedDatatype(parsed), parsed.zero_point,
+                                        parsed.scale[0], parsed.shape.size(), parsed.shape.data()),
+          "xnn_validate_quantized_tensor");
+    }
+#endif
+#if defined(TVM_XNNPACK_HAS_VALIDATE_CHANNELWISE_QUANTIZED_TENSOR)
+    if (parsed.qscheme == "per_channel") {
+      CheckXNNStatus(xnn_validate_channelwise_quantized_tensor(
+                         QuantizedDatatype(parsed), parsed.zero_point, parsed.padded_scale.data(),
+                         parsed.shape.size(), parsed.channel_dim, parsed.shape.data()),
+                     "xnn_validate_channelwise_quantized_tensor");
+    }
+#endif
+    return parsed;
+  }
+
+  static std::string QuantizationMetadataToJSON(const QuantizationMetadata& metadata) {
+    std::ostringstream os;
+    os << "{\"dtype\":\"" << EscapeJSON(metadata.dtype) << "\",";
+    os << "\"qscheme\":\"" << EscapeJSON(metadata.qscheme) << "\",";
+    os << "\"signedness\":\"" << EscapeJSON(metadata.signedness) << "\",";
+    os << "\"axis\":" << metadata.axis << ",";
+    os << "\"channel_dim\":" << metadata.channel_dim << ",";
+    os << "\"zero_point\":" << metadata.zero_point << ",";
+    os << "\"scale\":";
+    if (metadata.scale.size() == 1) {
+      os << metadata.scale[0];
+    } else {
+      os << "[";
+      for (size_t i = 0; i < metadata.scale.size(); ++i) {
+        if (i != 0) os << ",";
+        os << metadata.scale[i];
+      }
+      os << "]";
+    }
+    os << ",\"xnn_datatype\":\"" << QuantizedDatatypeName(metadata) << "\",";
+    os << "\"extra_quantization_params\":" << ExtraQuantizationParams() << ",";
+    os << "\"padded_scale_length\":" << metadata.padded_scale.size() << "}";
+    return os.str();
+  }
+
+  static void DefineQuantizedTensorForSmoke(const QuantizationMetadata& metadata) {
+    TVM_FFI_ICHECK_NE(metadata.qscheme, "none")
+        << "XNNPACK quantized tensor smoke test requires quantized metadata.";
+    const xnn_status init_status = xnn_initialize(nullptr);
+    TVM_FFI_ICHECK_EQ(init_status, xnn_status_success)
+        << "Failed to initialize XNNPACK for quantized tensor smoke test.";
+
+    xnn_subgraph_t subgraph = nullptr;
+    CheckXNNStatus(xnn_create_subgraph(1, 0, &subgraph), "xnn_create_subgraph");
+    auto delete_subgraph = [&subgraph]() {
+      if (subgraph != nullptr) {
+        xnn_delete_subgraph(subgraph);
+        subgraph = nullptr;
+      }
+    };
+
+    uint32_t id = XNN_INVALID_VALUE_ID;
+    xnn_status status = xnn_status_invalid_parameter;
+    if (metadata.qscheme == "per_tensor") {
+#if defined(TVM_XNNPACK_HAS_DEFINE_QUANTIZED_TENSOR_VALUE)
+      status = xnn_define_quantized_tensor_value(
+          subgraph, QuantizedDatatype(metadata), metadata.zero_point, metadata.scale[0],
+          metadata.shape.size(), metadata.shape.data(), nullptr, XNN_INVALID_VALUE_ID, 0, &id);
+#else
+      delete_subgraph();
+      TVM_FFI_THROW(RuntimeError) << "XNNPACK quantized tensor definition API is unavailable.";
+#endif
+    } else {
+#if defined(TVM_XNNPACK_HAS_DEFINE_CHANNELWISE_QUANTIZED_TENSOR_VALUE_V2)
+      status = xnn_define_channelwise_quantized_tensor_value_v2(
+          subgraph, QuantizedDatatype(metadata), metadata.zero_point, metadata.padded_scale.data(),
+          metadata.shape.size(), metadata.channel_dim, metadata.shape.data(), nullptr,
+          XNN_INVALID_VALUE_ID, 0, &id);
+#elif defined(TVM_XNNPACK_HAS_DEFINE_CHANNELWISE_QUANTIZED_TENSOR_VALUE)
+      TVM_FFI_ICHECK_EQ(metadata.zero_point, 0)
+          << "XNNPACK channelwise quantized tensor definition without v2 requires zero_point=0.";
+      status = xnn_define_channelwise_quantized_tensor_value(
+          subgraph, QuantizedDatatype(metadata), metadata.padded_scale.data(),
+          metadata.shape.size(), metadata.channel_dim, metadata.shape.data(), nullptr,
+          XNN_INVALID_VALUE_ID, 0, &id);
+#else
+      delete_subgraph();
+      TVM_FFI_THROW(RuntimeError)
+          << "XNNPACK channelwise quantized tensor definition API is unavailable.";
+#endif
+    }
+    delete_subgraph();
+    CheckXNNStatus(status, "xnn_define_*quantized_tensor_value");
+    TVM_FFI_ICHECK_NE(id, XNN_INVALID_VALUE_ID)
+        << "XNNPACK quantized tensor smoke test did not define a value.";
   }
 
   static size_t NumElements(const std::vector<size_t>& shape) {
@@ -644,6 +967,13 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
 #endif
   }
 
+  std::string GetQuantizationMetadataJSON() const {
+    // Phase 5C-0 only adds quantization metadata plumbing. Existing executable
+    // XNNPACK graphs remain float32-only and therefore have no quantized tensor
+    // metadata to report.
+    return "[]";
+  }
+
   void BuildRuntime() {
     CheckXNNStatus(xnn_create_subgraph(NumEntries(), 0, &subgraph_), "xnn_create_subgraph");
     value_ids_.assign(NumEntries(), XNN_INVALID_VALUE_ID);
@@ -794,6 +1124,77 @@ ffi::Map<ffi::String, ffi::Any> XNNPACKJSONRuntimeGetCapabilities() {
                                   0
 #endif
                                   ));
+  result.Set("datatype_qint8", static_cast<int64_t>(
+#if defined(TVM_XNNPACK_HAS_DATATYPE_QINT8)
+                                   1
+#else
+                                   0
+#endif
+                                   ));
+  result.Set("datatype_quint8", static_cast<int64_t>(
+#if defined(TVM_XNNPACK_HAS_DATATYPE_QUINT8)
+                                    1
+#else
+                                    0
+#endif
+                                    ));
+  result.Set("datatype_qint32", static_cast<int64_t>(
+#if defined(TVM_XNNPACK_HAS_DATATYPE_QINT32)
+                                    1
+#else
+                                    0
+#endif
+                                    ));
+  result.Set("datatype_qcint8", static_cast<int64_t>(
+#if defined(TVM_XNNPACK_HAS_DATATYPE_QCINT8)
+                                    1
+#else
+                                    0
+#endif
+                                    ));
+  result.Set("datatype_qcint32", static_cast<int64_t>(
+#if defined(TVM_XNNPACK_HAS_DATATYPE_QCINT32)
+                                     1
+#else
+                                     0
+#endif
+                                     ));
+  result.Set("extra_quantization_params", static_cast<int64_t>(
+#if defined(TVM_XNNPACK_HAS_EXTRA_QUANTIZATION_PARAMS)
+                                              XNN_EXTRA_QUANTIZATION_PARAMS
+#else
+                                              0
+#endif
+                                              ));
+  result.Set("define_quantized_tensor_value", static_cast<int64_t>(
+#if defined(TVM_XNNPACK_HAS_DEFINE_QUANTIZED_TENSOR_VALUE)
+                                                  1
+#else
+                                                  0
+#endif
+                                                  ));
+  result.Set("define_channelwise_quantized_tensor_value", static_cast<int64_t>(
+#if defined(TVM_XNNPACK_HAS_DEFINE_CHANNELWISE_QUANTIZED_TENSOR_VALUE) || \
+    defined(TVM_XNNPACK_HAS_DEFINE_CHANNELWISE_QUANTIZED_TENSOR_VALUE_V2)
+                                                              1
+#else
+                                                              0
+#endif
+                                                              ));
+  result.Set("validate_quantized_tensor", static_cast<int64_t>(
+#if defined(TVM_XNNPACK_HAS_VALIDATE_QUANTIZED_TENSOR)
+                                              1
+#else
+                                              0
+#endif
+                                              ));
+  result.Set("validate_channelwise_quantized_tensor", static_cast<int64_t>(
+#if defined(TVM_XNNPACK_HAS_VALIDATE_CHANNELWISE_QUANTIZED_TENSOR)
+                                                          1
+#else
+                                                          0
+#endif
+                                                          ));
   result.Set("fp32_static_weights", static_cast<int64_t>(
 #if defined(TVM_XNNPACK_HAS_FP32_STATIC_WEIGHTS_FLAG)
                                         1
@@ -837,6 +1238,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef()
       .def("runtime.XNNPACKJSONRuntimeCreate", XNNPACKJSONRuntimeCreate)
       .def("runtime.XNNPACKJSONRuntimeGetCapabilities", XNNPACKJSONRuntimeGetCapabilities)
+      .def("runtime.XNNPACKJSONRuntimeValidateQuantizationMetadata",
+           XNNPACKJSONRuntime::ValidateQuantizationMetadataJSON)
+      .def("runtime.XNNPACKJSONRuntimeQuantizedTensorDefinitionSmoke",
+           XNNPACKJSONRuntime::QuantizedTensorDefinitionSmoke)
       .def("ffi.Module.load_from_bytes.xnnpack_json", XNNPACKJSONRuntimeLoadFromBytes);
 }
 
