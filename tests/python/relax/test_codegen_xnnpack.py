@@ -1882,6 +1882,80 @@ def test_xnnpack_benchmark_report_helpers_are_stable():
     assert summary["rejected"] == 1
     assert summary["totals"]["copy_bytes"] == 20
     assert summary["reasons"]["rejected_low_compute_to_copy_ratio"] == 1
+    assert summary["accepted_candidate_ratio"] == 0.5
+    assert summary["accepted_flop_ratio"] > 0.0
+
+
+def test_xnnpack_benchmark_model_listing_and_args():
+    bench = _load_xnnpack_benchmark_module()
+    models = set(bench.available_models())
+    assert "xnnpack_large_cnn_fp32" in models
+    assert "xnnpack_large_mlp_fp32" in models
+    assert "xnnpack_large_qs8_cnn" in models
+    assert "torchvision:mobilenet_v2" in models
+
+    args = bench.parse_args(
+        [
+            "--model",
+            "xnnpack_cnn_fp32",
+            "--model-size",
+            "large",
+            "--compare-models",
+            "xnnpack_large_cnn_fp32,xnnpack_large_mlp_fp32",
+            "--dump-partition-report-json",
+            "/tmp/xnnpack-report.json",
+        ]
+    )
+    assert args.model_size == "large"
+    assert args.compare_models == "xnnpack_large_cnn_fp32,xnnpack_large_mlp_fp32"
+    assert bench.resolve_model_name(args.model, args.quantization_mode, args.model_size) == (
+        "xnnpack_large_cnn_fp32"
+    )
+
+
+@pytest.mark.parametrize(
+    "loader",
+    ["load_large_cnn", "load_large_mlp", "load_large_static_qs8_cnn"],
+)
+def test_xnnpack_benchmark_large_fixtures_construct_without_torch(loader):
+    bench = _load_xnnpack_benchmark_module()
+    mod, inputs, model_name = getattr(bench, loader)(seed=0)
+    metadata = bench.model_metadata(mod, inputs, model_name)
+    assert metadata["fixture_size"] == "large"
+    assert metadata["input_shapes"]
+    assert metadata["op_count_estimate"] > 0
+
+
+@pytest.mark.parametrize(
+    "loader",
+    ["load_large_cnn", "load_large_mlp", "load_large_static_qs8_cnn"],
+)
+def test_xnnpack_benchmark_large_fixtures_partition_report(loader):
+    bench = _load_xnnpack_benchmark_module()
+    mod, _, _ = getattr(bench, loader)(seed=0)
+    mod, report = _partition(mod, report_partition_decisions=True)
+    assert _has_codegen_attr(mod)
+    _assert_report_fields(report)
+    summary = bench.summarize_partition_report(report)
+    assert summary["candidates"] >= summary["accepted"] >= 1
+
+
+def test_xnnpack_benchmark_torchvision_missing_dependency_reports_cleanly(monkeypatch):
+    bench = _load_xnnpack_benchmark_module()
+    original_find_spec = bench.importlib.util.find_spec
+
+    def fake_find_spec(name, *args, **kwargs):
+        if name in ("torch", "torchvision"):
+            return None
+        return original_find_spec(name, *args, **kwargs)
+
+    monkeypatch.setattr(bench.importlib.util, "find_spec", fake_find_spec)
+    args = bench.parse_args(
+        ["--model", "torchvision:resnet18", "--number", "1", "--repeat", "1"]
+    )
+    result = bench.run_benchmark(args)
+    assert result["baseline_status"] == "not run"
+    assert "torch and torchvision are required" in result["load_error"]
 
 
 def test_xnnpack_benchmark_static_qs8_fixture_partitions():
