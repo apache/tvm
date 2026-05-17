@@ -998,6 +998,10 @@ def _quant_tensor_smoke():
     )
 
 
+def _xnnpack_runtime_create():
+    return tvm.get_global_func("runtime.XNNPACKJSONRuntimeCreate", allow_missing=True)
+
+
 def _has_codegen_attr(mod):
     found = False
 
@@ -1166,6 +1170,10 @@ def _skip_if_local_xnnpack_rejects_dynamic_range(exc):
 def _first_external_runtime_options(mod):
     ext_mod = mod.attrs["external_mods"][0]
     return ext_mod["get_runtime_options"]()
+
+
+def _first_external_graph_json(mod):
+    return str(mod.attrs["external_mods"][0].inspect_source("json"))
 
 
 def _assert_report_fields(report):
@@ -1908,6 +1916,88 @@ def test_xnnpack_dynamic_batch_out_of_bounds_fails_clearly():
     not (_has_xnnpack_codegen() and _has_xnnpack_runtime()),
     reason="XNNPACK codegen/runtime is not enabled",
 )
+@pytest.mark.parametrize(
+    "input_np, output_np, match",
+    [
+        (np.ones((2, 3), dtype="int32"), np.empty((2, 3), dtype="float32"), "dtype mismatch"),
+        (np.ones((6,), dtype="float32"), np.empty((2, 3), dtype="float32"), "rank mismatch"),
+        (
+            np.ones((3, 2), dtype="float32"),
+            np.empty((3, 2), dtype="float32"),
+            "shape mismatch",
+        ),
+        (np.ones((2, 3), dtype="float32"), np.empty((2, 3), dtype="int32"), "dtype mismatch"),
+    ],
+)
+def test_xnnpack_runtime_rejects_invalid_external_tensors(input_np, output_np, match):
+    mod = relax.transform.RunCodegen()(_partition(ReluModule))
+    ext_mod, symbol = _init_first_external_module(mod)
+    with pytest.raises(tvm.error.TVMError, match=match):
+        ext_mod[symbol](tvm.runtime.tensor(input_np), tvm.runtime.tensor(output_np))
+
+
+@pytest.mark.skipif(
+    not (_has_xnnpack_codegen() and _has_xnnpack_runtime()),
+    reason="XNNPACK codegen/runtime is not enabled",
+)
+def test_xnnpack_dynamic_batch_lower_bound_fails_clearly():
+    if not _xnnpack_capability("dynamic_batch_runtime"):
+        pytest.skip("XNNPACK runtime reshape APIs are unavailable")
+    partitioned = _partition(
+        _bind_dynamic_batch_fc_params(),
+        dynamic_shape_policy="batch_only",
+        dynamic_batch_bounds={"n": (2, 4)},
+    )
+    codegen_mod = relax.transform.RunCodegen()(partitioned)
+    ext_mod, symbol = _init_first_external_module(codegen_mod)
+    x_np = np.zeros((1, 3), dtype="float32")
+    output = tvm.runtime.tensor(np.empty((1, 4), dtype="float32"))
+    with pytest.raises(tvm.error.TVMError, match="lower bound"):
+        ext_mod[symbol](tvm.runtime.tensor(x_np), output)
+
+
+@pytest.mark.skipif(not _has_xnnpack_runtime(), reason="XNNPACK runtime is not enabled")
+def test_xnnpack_runtime_rejects_malformed_options():
+    create = _xnnpack_runtime_create()
+    assert create is not None
+    mod = relax.transform.RunCodegen()(_partition(ReluModule))
+    graph_json = _first_external_graph_json(mod)
+    with pytest.raises(tvm.error.TVMError, match="must be 0 or 1"):
+        create("bad_options", graph_json, [], "use_weights_cache=true;")
+    with pytest.raises(tvm.error.TVMError, match="batch symbol"):
+        create(
+            "bad_dynamic",
+            graph_json,
+            [],
+            "dynamic_shape_policy=batch_only;dynamic_batch_lower=1;dynamic_batch_upper=4;",
+        )
+
+
+@pytest.mark.skipif(not _has_xnnpack_runtime(), reason="XNNPACK runtime is not enabled")
+@pytest.mark.parametrize(
+    "mutate, match",
+    [
+        (lambda graph: graph["nodes"][1]["attrs"].pop("op_kind"), "op_kind"),
+        (lambda graph: graph["nodes"][1]["attrs"].__setitem__("op_kind", "bogus"), "op_kind"),
+        (lambda graph: graph["heads"].__setitem__(0, [99, 0, 0]), "output"),
+        (lambda graph: graph["nodes"][1]["inputs"].__setitem__(0, [99, 0, 0]), "input"),
+        (lambda graph: graph["nodes"][0]["attrs"]["dtype"].append("float32"), "shape"),
+    ],
+)
+def test_xnnpack_runtime_rejects_malformed_json_metadata(mutate, match):
+    create = _xnnpack_runtime_create()
+    assert create is not None
+    mod = relax.transform.RunCodegen()(_partition(ReluModule))
+    graph = json.loads(_first_external_graph_json(mod))
+    mutate(graph)
+    with pytest.raises(tvm.error.TVMError, match=match):
+        create("bad_json", json.dumps(graph), [], _first_external_runtime_options(mod))
+
+
+@pytest.mark.skipif(
+    not (_has_xnnpack_codegen() and _has_xnnpack_runtime()),
+    reason="XNNPACK codegen/runtime is not enabled",
+)
 def test_xnnpack_runtime_options_persist_precision():
     mod = _partition(ReluModule, precision="fp16_hint")
     mod = relax.transform.RunCodegen()(mod)
@@ -2342,6 +2432,32 @@ def test_xnnpack_quantization_metadata_per_channel_roundtrip():
             {
                 "dtype": "int8",
                 "qscheme": "per_tensor",
+                "scale": float("nan"),
+                "zero_point": 0,
+                "axis": -1,
+                "channel_dim": 1,
+                "signedness": "signed",
+            },
+            [2, 4],
+            "finite",
+        ),
+        (
+            {
+                "dtype": "int8",
+                "qscheme": "per_tensor",
+                "scale": float("inf"),
+                "zero_point": 0,
+                "axis": -1,
+                "channel_dim": 1,
+                "signedness": "signed",
+            },
+            [2, 4],
+            "finite",
+        ),
+        (
+            {
+                "dtype": "int8",
+                "qscheme": "per_tensor",
                 "scale": 0.5,
                 "zero_point": 200,
                 "axis": -1,
@@ -2402,6 +2518,19 @@ def test_xnnpack_quantization_metadata_per_channel_roundtrip():
             },
             [2, 4],
             "signedness",
+        ),
+        (
+            {
+                "dtype": "int8",
+                "qscheme": "per_tensor",
+                "scale": 0.5,
+                "zero_point": 0,
+                "axis": -1,
+                "channel_dim": 1,
+                "signedness": "signed",
+            },
+            [2**62, 8],
+            "overflow",
         ),
     ],
 )

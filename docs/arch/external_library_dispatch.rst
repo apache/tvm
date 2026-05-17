@@ -627,6 +627,38 @@ thread. Runtime-owned input, output, and static constant buffers are padded by
 workspace, optional pthreadpool, subgraph, and runtime handles are owned by the
 runtime module and released when the module is destroyed.
 
+Runtime validation is deliberately strict. XNNPACK JSON modules validate graph
+metadata when the runtime module is created: every node must carry shape and
+dtype metadata, kernel nodes must use a supported ``op_kind`` and required
+operator attrs, node references must point to existing tensor entries, and graph
+outputs must be valid. Constants are checked during runtime initialization so
+their dtype, rank, shape, compact layout, device, byte offset alignment, and
+byte size match the serialized metadata before XNNPACK sees the pointer.
+
+External tensors are checked on every invocation. The runtime rejects non-CPU
+tensors, dtype mismatches, rank mismatches, static-dimension mismatches,
+non-positive dimensions, non-compact strides, and unaligned byte offsets. For
+dynamic batch, the actual leading dimension must stay within the configured
+lower/upper bounds while all non-batch dimensions remain static. Size
+calculations for element counts, tensor bytes, padded tensor bytes, and
+quantization-parameter arrays use checked arithmetic and fail before allocation
+when a shape would overflow host ``size_t``.
+
+Quantization metadata validation checks that scales are finite and positive,
+zero points are in range for the signedness and dtype, per-channel axes are
+valid, scale length matches the channel dimension, signedness matches dtype,
+and padded scale arrays account for ``XNN_EXTRA_QUANTIZATION_PARAMS``. Invalid
+metadata fails with explicit messages such as ``scales must be finite and
+positive``, ``zero_point must be in [-128, 127]``, ``scale length must match
+channel_dim``, or ``axis must match channel_dim``.
+
+Typical validation failures look like ``tensor dtype mismatch``, ``tensor rank
+mismatch``, ``tensor shape mismatch at dim 0``, ``tensor must be compact``,
+``dynamic batch exceeds the configured upper bound``, ``Unsupported XNNPACK
+JSON op_kind``, or ``tensor byte size overflows size_t``. These failures are
+intentional: invalid or malformed XNNPACK regions must fail clearly rather than
+silently falling back to incorrect execution.
+
 When available, TVM prefers ``xnn_create_runtime_v4`` so weights cache,
 workspace, threadpool, and runtime flags can be configured together. If v4 is
 not available, TVM falls back to v3 for weights-cache-only configurations, or

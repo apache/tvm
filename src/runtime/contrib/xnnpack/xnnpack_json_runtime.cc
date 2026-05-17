@@ -56,7 +56,9 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
                      const std::string& options = DefaultOptionsString())
       : JSONRuntimeBase(symbol_name, graph_json, const_names),
         options_string_(options),
-        options_(ParseOptions(options)) {}
+        options_(ParseOptions(options)) {
+    ValidateGraphMetadata();
+  }
 
   static std::string DefaultOptionsString() {
     return "use_weights_cache=0;use_workspace=0;profile=0;dont_spin_workers=0;"
@@ -159,6 +161,7 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
         << "The number of input constants must match the number of required constants.";
 
     SetupConstants(consts);
+    ValidateConstants();
 
     const xnn_status status = xnn_initialize(nullptr);
     TVM_FFI_ICHECK_EQ(status, xnn_status_success)
@@ -305,17 +308,16 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
         TVM_FFI_ICHECK(equals != std::string::npos) << "Malformed XNNPACK runtime option: " << item;
         const std::string key = item.substr(0, equals);
         const std::string value = item.substr(equals + 1);
-        const bool bool_value = value == "1";
         if (key == "use_weights_cache") {
-          parsed.use_weights_cache = bool_value;
+          parsed.use_weights_cache = ParseBoolOption(key, value);
         } else if (key == "use_workspace") {
-          parsed.use_workspace = bool_value;
+          parsed.use_workspace = ParseBoolOption(key, value);
         } else if (key == "profile") {
-          parsed.profile = bool_value;
+          parsed.profile = ParseBoolOption(key, value);
         } else if (key == "dont_spin_workers") {
-          parsed.dont_spin_workers = bool_value;
+          parsed.dont_spin_workers = ParseBoolOption(key, value);
         } else if (key == "transient_indirection_buffer") {
-          parsed.transient_indirection_buffer = bool_value;
+          parsed.transient_indirection_buffer = ParseBoolOption(key, value);
         } else if (key == "num_threads") {
           parsed.num_threads = std::stoll(value);
         } else if (key == "precision") {
@@ -342,12 +344,27 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
                    parsed.dynamic_shape_policy == "batch_only")
         << "Unsupported XNNPACK dynamic_shape_policy: " << parsed.dynamic_shape_policy;
     if (parsed.dynamic_shape_policy == "batch_only") {
+      TVM_FFI_ICHECK(!parsed.dynamic_batch_symbol.empty())
+          << "XNNPACK dynamic batch requires a batch symbol.";
       TVM_FFI_ICHECK_GE(parsed.dynamic_batch_upper, parsed.dynamic_batch_lower)
           << "XNNPACK dynamic batch upper bound must be >= lower bound.";
       TVM_FFI_ICHECK_GT(parsed.dynamic_batch_lower, 0)
           << "XNNPACK dynamic batch lower bound must be positive.";
+    } else {
+      TVM_FFI_ICHECK(parsed.dynamic_batch_symbol.empty())
+          << "XNNPACK dynamic batch symbol is only valid with batch_only policy.";
+      TVM_FFI_ICHECK_EQ(parsed.dynamic_batch_lower, 1)
+          << "XNNPACK dynamic batch lower bound is only valid with batch_only policy.";
+      TVM_FFI_ICHECK_EQ(parsed.dynamic_batch_upper, -1)
+          << "XNNPACK dynamic batch upper bound is only valid with batch_only policy.";
     }
     return parsed;
+  }
+
+  static bool ParseBoolOption(const std::string& key, const std::string& value) {
+    TVM_FFI_ICHECK(value == "0" || value == "1")
+        << "XNNPACK boolean runtime option '" << key << "' must be 0 or 1.";
+    return value == "1";
   }
 
   static void CheckXNNStatus(xnn_status status, const char* call) {
@@ -421,6 +438,7 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
       TVM_FFI_ICHECK_GT(value, 0) << "XNNPACK quantization metadata shape must be static positive.";
       result.push_back(static_cast<size_t>(value));
     }
+    (void)CheckedBytes(result, 1);
     return result;
   }
 
@@ -524,6 +542,10 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
 #endif
   }
 
+  static size_t CheckedScaleCount(size_t scale_count, const char* name) {
+    return CheckedAdd(scale_count, ExtraQuantizationParams(), name);
+  }
+
   static QuantizationMetadata ParseQuantizationMetadata(
       const ffi::Map<ffi::String, ffi::Any>& metadata, std::vector<size_t> shape) {
     QuantizationMetadata parsed;
@@ -568,7 +590,9 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
       TVM_FFI_ICHECK_EQ(parsed.scale.size(), parsed.shape[parsed.channel_dim])
           << "XNNPACK per-channel quantization scale length must match channel_dim.";
       parsed.padded_scale = parsed.scale;
-      parsed.padded_scale.resize(parsed.scale.size() + ExtraQuantizationParams(), 0.0f);
+      parsed.padded_scale.resize(CheckedScaleCount(parsed.scale.size(), "qparam scale padding"),
+                                 0.0f);
+      (void)CheckedQParamBytes(parsed.padded_scale.size());
     }
 
     // Map Relax QDQ axis to XNNPACK channel_dim directly in Phase 5C-0. Quantized
@@ -678,13 +702,11 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
         << "XNNPACK quantized tensor smoke test did not define a value.";
   }
 
-  static size_t NumElements(const std::vector<size_t>& shape) {
+  static size_t CheckedNumel(const std::vector<size_t>& shape) {
     size_t result = 1;
     for (size_t dim : shape) {
-      TVM_FFI_ICHECK(dim != 0);
-      TVM_FFI_ICHECK_LE(result, std::numeric_limits<size_t>::max() / dim)
-          << "XNNPACK tensor shape size overflows size_t.";
-      result *= dim;
+      TVM_FFI_ICHECK_NE(dim, 0U) << "XNNPACK tensor dimensions must be positive.";
+      result = CheckedMul(result, dim, "tensor shape size");
     }
     return result;
   }
@@ -702,11 +724,21 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
   }
 
   static size_t CheckedBytes(const std::vector<size_t>& shape, size_t element_size) {
-    return CheckedMul(NumElements(shape), element_size, "tensor byte size");
+    return CheckedMul(CheckedNumel(shape), element_size, "tensor byte size");
   }
 
   static size_t CheckedPaddedBytes(size_t bytes, size_t padding) {
     return CheckedAdd(bytes, padding, "padded tensor byte size");
+  }
+
+  static size_t CheckedQParamBytes(size_t scale_count) {
+    return CheckedMul(scale_count, sizeof(float), "quantization parameter byte size");
+  }
+
+  static void CheckedAlignment(uint64_t byte_offset, size_t element_size, const char* name) {
+    TVM_FFI_ICHECK_NE(element_size, 0U);
+    TVM_FFI_ICHECK_EQ(byte_offset % element_size, 0U)
+        << "XNNPACK " << name << " tensor byte_offset must be aligned to element size.";
   }
 
   static const void* TensorData(const DLTensor* tensor) {
@@ -721,6 +753,12 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
   static void ValidateTensor(const DLTensor* tensor, const std::vector<size_t>& expected_shape,
                              const DLDataType& expected_dtype, const char* name) {
     TVM_FFI_ICHECK(tensor != nullptr) << "Missing XNNPACK " << name << " tensor.";
+    TVM_FFI_ICHECK(tensor->data != nullptr) << "XNNPACK " << name << " tensor data is null.";
+    TVM_FFI_ICHECK_GE(tensor->ndim, 0) << "XNNPACK " << name << " tensor rank must be non-negative.";
+    if (tensor->ndim > 0) {
+      TVM_FFI_ICHECK(tensor->shape != nullptr)
+          << "XNNPACK " << name << " tensor shape pointer is null.";
+    }
     TVM_FFI_ICHECK_EQ(tensor->device.device_type, kDLCPU)
         << "XNNPACK " << name << " tensor must be on CPU.";
     TVM_FFI_ICHECK(tensor->dtype.code == expected_dtype.code &&
@@ -730,8 +768,11 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
         << ", got " << DTypeName(tensor->dtype) << ".";
     TVM_FFI_ICHECK_EQ(static_cast<size_t>(tensor->ndim), expected_shape.size())
         << "XNNPACK " << name << " tensor rank mismatch.";
+    CheckedAlignment(tensor->byte_offset, ElementSize(expected_dtype), name);
 
     for (size_t i = 0; i < expected_shape.size(); ++i) {
+      TVM_FFI_ICHECK_GT(tensor->shape[i], 0)
+          << "XNNPACK " << name << " tensor dimensions must be positive.";
       TVM_FFI_ICHECK_EQ(static_cast<size_t>(tensor->shape[i]), expected_shape[i])
           << "XNNPACK " << name << " tensor shape mismatch at dim " << i << ".";
     }
@@ -741,6 +782,9 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
       for (int i = tensor->ndim - 1; i >= 0; --i) {
         TVM_FFI_ICHECK_EQ(tensor->strides[i], expected_stride)
             << "XNNPACK " << name << " tensor must be compact.";
+        TVM_FFI_ICHECK_LE(expected_stride,
+                          std::numeric_limits<int64_t>::max() / tensor->shape[i])
+            << "XNNPACK " << name << " tensor stride calculation overflows int64_t.";
         expected_stride *= tensor->shape[i];
       }
     }
@@ -748,6 +792,12 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
 
   std::vector<size_t> ResolveTensorShape(const ExternalTensor& entry, const DLTensor* tensor) const {
     TVM_FFI_ICHECK(tensor != nullptr) << "Missing XNNPACK " << entry.name << " tensor.";
+    TVM_FFI_ICHECK_GE(tensor->ndim, 0)
+        << "XNNPACK " << entry.name << " tensor rank must be non-negative.";
+    if (tensor->ndim > 0) {
+      TVM_FFI_ICHECK(tensor->shape != nullptr)
+          << "XNNPACK " << entry.name << " tensor shape pointer is null.";
+    }
     TVM_FFI_ICHECK_EQ(static_cast<size_t>(tensor->ndim), entry.shape_template.size())
         << "XNNPACK " << entry.name << " tensor rank mismatch.";
     std::vector<size_t> actual;
@@ -955,6 +1005,180 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
     return output_eids.find(eid) != output_eids.end();
   }
 
+  static bool IsSupportedOpKind(const std::string& op_kind) {
+    static const std::unordered_set<std::string> supported = {
+        "unary",
+        "add",
+        "conv2d",
+        "fully_connected",
+        "max_pool2d",
+        "avg_pool2d",
+        "qs8_fully_connected",
+        "qs8_conv2d",
+        "qs8_depthwise_conv2d",
+        "qs8_reshape",
+        "qs8_copy",
+        "qs8_max_pool2d",
+        "qs8_avg_pool2d",
+        "qs8_add",
+        "dynamic_range_fully_connected",
+    };
+    return supported.count(op_kind) != 0;
+  }
+
+  static void RequireAttrs(const JSONGraphNode& node, std::initializer_list<const char*> keys) {
+    for (const char* key : keys) {
+      TVM_FFI_ICHECK(node.HasAttr(key)) << "XNNPACK JSON node '" << node.GetOpName()
+                                        << "' is missing required attr '" << key << "'.";
+    }
+  }
+
+  static void RequireAttr(const JSONGraphNode& node, const std::string& key) {
+    TVM_FFI_ICHECK(node.HasAttr(key)) << "XNNPACK JSON node '" << node.GetOpName()
+                                      << "' is missing required attr '" << key << "'.";
+  }
+
+  static void RequireQParams(const JSONGraphNode& node, const std::string& prefix) {
+    RequireAttr(node, prefix + "_qscheme");
+    RequireAttr(node, prefix + "_scales");
+    RequireAttr(node, prefix + "_zero_point");
+    RequireAttr(node, prefix + "_axis");
+    RequireAttr(node, prefix + "_channel_dim");
+  }
+
+  void ValidateGraphMetadata() const {
+    TVM_FFI_ICHECK(!nodes_.empty()) << "XNNPACK JSON graph must contain at least one node.";
+    TVM_FFI_ICHECK_EQ(node_row_ptr_.size(), nodes_.size() + 1)
+        << "XNNPACK JSON node_row_ptr size must be nodes.size + 1.";
+    TVM_FFI_ICHECK_EQ(node_row_ptr_.front(), 0U)
+        << "XNNPACK JSON node_row_ptr must start at zero.";
+    for (size_t nid = 0; nid < nodes_.size(); ++nid) {
+      TVM_FFI_ICHECK_LE(node_row_ptr_[nid], node_row_ptr_[nid + 1])
+          << "XNNPACK JSON node_row_ptr must be monotonic.";
+      const JSONGraphNode& node = nodes_[nid];
+      TVM_FFI_ICHECK(node.GetOpType() == "input" || node.GetOpType() == "const" ||
+                     node.GetOpType() == "kernel")
+          << "XNNPACK JSON unsupported node op type: " << node.GetOpType();
+      TVM_FFI_ICHECK(node.HasAttr("shape")) << "XNNPACK JSON node '" << node.GetOpName()
+                                            << "' is missing shape metadata.";
+      TVM_FFI_ICHECK(node.HasAttr("dtype")) << "XNNPACK JSON node '" << node.GetOpName()
+                                            << "' is missing dtype metadata.";
+      TVM_FFI_ICHECK_EQ(node.GetOpShape().size(), node.GetOpDataType().size())
+          << "XNNPACK JSON shape/dtype arity mismatch for node '" << node.GetOpName() << "'.";
+      TVM_FFI_ICHECK_EQ(node_row_ptr_[nid + 1] - node_row_ptr_[nid], node.GetNumOutput())
+          << "XNNPACK JSON node_row_ptr does not match node output count.";
+      TVM_FFI_ICHECK_EQ(node.GetOpShape().size(), node.GetNumOutput())
+          << "XNNPACK JSON shape count must match node output count.";
+
+      for (const auto& input : node.GetInputs()) {
+        TVM_FFI_ICHECK_LT(input.id_, nodes_.size())
+            << "XNNPACK JSON input references a non-existent node.";
+        TVM_FFI_ICHECK_LT(input.index_, nodes_[input.id_].GetNumOutput())
+            << "XNNPACK JSON input references a non-existent node output.";
+        TVM_FFI_ICHECK_LT(EntryID(input), NumEntries())
+            << "XNNPACK JSON input entry id is out of range.";
+      }
+
+      if (node.GetOpType() != "kernel") continue;
+      RequireAttrs(node, {"op_kind"});
+      const std::string op_kind = node.GetAttr<ffi::String>("op_kind");
+      TVM_FFI_ICHECK(IsSupportedOpKind(op_kind))
+          << "Unsupported XNNPACK JSON op_kind: " << op_kind;
+      ValidateKernelMetadata(node, op_kind);
+    }
+
+    for (uint32_t nid : input_nodes_) {
+      TVM_FFI_ICHECK_LT(nid, nodes_.size()) << "XNNPACK JSON arg node id is out of range.";
+      TVM_FFI_ICHECK(nodes_[nid].GetOpType() == "input" || nodes_[nid].GetOpType() == "const")
+          << "XNNPACK JSON arg nodes must be inputs or constants.";
+    }
+    TVM_FFI_ICHECK(!outputs_.empty()) << "XNNPACK JSON graph must contain at least one output.";
+    for (const auto& output : outputs_) {
+      TVM_FFI_ICHECK_LT(output.id_, nodes_.size())
+          << "XNNPACK JSON output references a non-existent node.";
+      TVM_FFI_ICHECK_LT(output.index_, nodes_[output.id_].GetNumOutput())
+          << "XNNPACK JSON output references a non-existent node output.";
+      TVM_FFI_ICHECK_LT(EntryID(output), NumEntries())
+          << "XNNPACK JSON output entry id is out of range.";
+    }
+  }
+
+  static void ValidateKernelMetadata(const JSONGraphNode& node, const std::string& op_kind) {
+    if (op_kind == "unary") {
+      RequireAttrs(node, {"unary_op", "activation_min", "activation_max"});
+      return;
+    }
+    if (op_kind == "add") {
+      RequireAttrs(node, {"activation_min", "activation_max"});
+      TVM_FFI_ICHECK_EQ(node.GetInputs().size(), 2U)
+          << "XNNPACK add JSON node expects two inputs.";
+      return;
+    }
+    if (op_kind == "conv2d") {
+      RequireAttrs(node, {"has_bias", "padding", "strides", "dilation", "groups",
+                          "activation_min", "activation_max"});
+      return;
+    }
+    if (op_kind == "fully_connected") {
+      RequireAttrs(node, {"has_bias", "activation_min", "activation_max"});
+      return;
+    }
+    if (op_kind == "max_pool2d" || op_kind == "avg_pool2d" ||
+        op_kind == "qs8_max_pool2d" || op_kind == "qs8_avg_pool2d") {
+      RequireAttrs(node, {"pool_size", "strides", "padding", "dilation", "activation_min",
+                          "activation_max"});
+    }
+    if (op_kind == "qs8_fully_connected" || op_kind == "qs8_conv2d" ||
+        op_kind == "qs8_depthwise_conv2d") {
+      RequireAttrs(node, {"has_bias", "activation_min", "activation_max"});
+      RequireQParams(node, "input");
+      RequireQParams(node, "weight");
+      RequireQParams(node, "output");
+      if (static_cast<int64_t>(node.GetAttr<int64_t>("has_bias")) != 0) {
+        RequireQParams(node, "bias");
+      }
+      return;
+    }
+    if (op_kind == "qs8_reshape") {
+      RequireAttrs(node, {"new_shape"});
+    }
+    if (op_kind == "qs8_reshape" || op_kind == "qs8_copy" ||
+        op_kind == "qs8_max_pool2d" || op_kind == "qs8_avg_pool2d") {
+      RequireQParams(node, "input");
+      RequireQParams(node, "output");
+      return;
+    }
+    if (op_kind == "qs8_add") {
+      RequireAttrs(node, {"activation_min", "activation_max"});
+      RequireQParams(node, "lhs");
+      RequireQParams(node, "rhs");
+      RequireQParams(node, "output");
+      TVM_FFI_ICHECK_EQ(node.GetInputs().size(), 2U)
+          << "XNNPACK qs8_add JSON node expects two inputs.";
+      return;
+    }
+    if (op_kind == "dynamic_range_fully_connected") {
+      RequireAttrs(node, {"quantization", "weight_qscheme", "weight_scales", "weight_zero_point",
+                          "weight_axis", "weight_channel_dim", "activation_min",
+                          "activation_max"});
+      return;
+    }
+  }
+
+  void ValidateConstants() const {
+    for (uint32_t nid : const_idx_) {
+      const uint32_t eid = EntryID(nid, 0);
+      TVM_FFI_ICHECK_LT(eid, data_entry_.size());
+      const JSONGraphNode& node = nodes_[nid];
+      TVM_FFI_ICHECK_EQ(node.GetOpShape().size(), 1U)
+          << "XNNPACK constants must have one output.";
+      const std::vector<size_t> shape = GetShape(node, 0);
+      const DLDataType dtype = GetDType(node, 0);
+      ValidateTensor(data_entry_[eid], shape, dtype, "constant");
+      (void)CheckedBytes(shape, ElementSize(dtype));
+    }
+  }
+
   static std::string EscapeJSON(const std::string& value) {
     std::ostringstream os;
     for (char ch : value) {
@@ -989,8 +1213,8 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
     const DLTensor* tensor = data_entry_[eid];
     std::vector<size_t> shape = GetShape(node, 0);
     ValidateTensor(tensor, shape, GetDType(node, 0), "constant");
-    const size_t bytes = NumElements(shape) * sizeof(float);
-    constant_buffers_.emplace_back(bytes + XNN_EXTRA_BYTES);
+    const size_t bytes = CheckedBytes(shape, sizeof(float));
+    constant_buffers_.emplace_back(CheckedPaddedBytes(bytes, XNN_EXTRA_BYTES));
     std::memcpy(constant_buffers_.back().data(), TensorData(tensor), bytes);
     std::memset(constant_buffers_.back().data() + bytes, 0, XNN_EXTRA_BYTES);
     return constant_buffers_.back().data();
@@ -1001,8 +1225,8 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
     std::vector<size_t> shape = GetShape(node, index);
     DLDataType dtype = GetDType(node, index);
     ValidateTensor(tensor, shape, dtype, "constant");
-    const size_t bytes = NumElements(shape) * ElementSize(dtype);
-    constant_buffers_.emplace_back(bytes + XNN_EXTRA_BYTES);
+    const size_t bytes = CheckedBytes(shape, ElementSize(dtype));
+    constant_buffers_.emplace_back(CheckedPaddedBytes(bytes, XNN_EXTRA_BYTES));
     std::memcpy(constant_buffers_.back().data(), TensorData(tensor), bytes);
     std::memset(constant_buffers_.back().data() + bytes, 0, XNN_EXTRA_BYTES);
     return constant_buffers_.back().data();
@@ -1019,8 +1243,9 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
     const int8_t* src = static_cast<const int8_t*>(TensorData(tensor));
     const size_t rows = shape[0];
     const size_t cols = shape[1];
-    const size_t bytes = rows * cols * sizeof(int8_t);
-    constant_buffers_.emplace_back(bytes + XNN_EXTRA_BYTES);
+    const size_t bytes = CheckedMul(CheckedMul(rows, cols, "transposed matrix element count"),
+                                    sizeof(int8_t), "transposed matrix byte size");
+    constant_buffers_.emplace_back(CheckedPaddedBytes(bytes, XNN_EXTRA_BYTES));
     int8_t* dst = reinterpret_cast<int8_t*>(constant_buffers_.back().data());
     for (size_t i = 0; i < rows; ++i) {
       for (size_t j = 0; j < cols; ++j) {
