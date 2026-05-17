@@ -16,6 +16,9 @@
 # under the License.
 
 import json
+import importlib.util
+import pathlib
+import sys
 
 import numpy as np
 import pytest
@@ -688,6 +691,15 @@ def _xnnpack_capabilities():
     return {str(key): int(value) for key, value in func().items()}
 
 
+def _load_xnnpack_benchmark_module():
+    path = pathlib.Path(__file__).with_name("benchmark_xnnpack.py")
+    spec = importlib.util.spec_from_file_location("benchmark_xnnpack", path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
 def _quant_metadata_validator():
     return tvm.get_global_func(
         "runtime.XNNPACKJSONRuntimeValidateQuantizationMetadata", allow_missing=True
@@ -1163,6 +1175,55 @@ def test_xnnpack_partition_report_has_stable_fields_and_reasons():
     assert isinstance(report[0]["op_list"], list)
 
 
+def test_xnnpack_benchmark_report_helpers_are_stable():
+    bench = _load_xnnpack_benchmark_module()
+
+    class FakeResult:
+        results = [0.001, 0.002, 0.004]
+
+    formatted = bench.format_result(FakeResult())
+    assert "p50_ms" in formatted
+    assert "p90_ms" in formatted
+    assert "p99_ms" in formatted
+    assert "steady_state_mean_ms" in formatted
+
+    summary = bench.summarize_partition_report(
+        [
+            {
+                "accepted": True,
+                "reason": "accepted_compute_heavy",
+                "copy_bytes": 16,
+                "padded_copy_bytes": 64,
+                "layout_transform_bytes": 0,
+                "cast_bytes": 0,
+                "estimated_flops": 128,
+            },
+            {
+                "accepted": False,
+                "reason": "rejected_low_compute_to_copy_ratio",
+                "copy_bytes": 4,
+                "padded_copy_bytes": 32,
+                "layout_transform_bytes": 0,
+                "cast_bytes": 0,
+                "estimated_flops": 2,
+            },
+        ]
+    )
+    assert summary["accepted"] == 1
+    assert summary["rejected"] == 1
+    assert summary["totals"]["copy_bytes"] == 20
+    assert summary["reasons"]["rejected_low_compute_to_copy_ratio"] == 1
+
+
+def test_xnnpack_benchmark_static_qs8_fixture_partitions():
+    bench = _load_xnnpack_benchmark_module()
+    mod, _, _ = bench.load_static_qs8_tiny_cnn(seed=0)
+    mod, report = _partition(mod, report_partition_decisions=True)
+    assert _has_codegen_attr(mod)
+    _assert_report_fields(report)
+    assert any(entry["accepted"] and entry["quantized"] for entry in report)
+
+
 @pytest.mark.skipif(
     not (_has_xnnpack_codegen() and _has_xnnpack_runtime()),
     reason="XNNPACK codegen/runtime is not enabled",
@@ -1570,10 +1631,22 @@ def test_xnnpack_runtime_registration_available():
 @pytest.mark.skipif(not _has_xnnpack_runtime(), reason="XNNPACK runtime is not enabled")
 def test_xnnpack_quantization_capabilities_are_reported():
     capabilities = _xnnpack_capabilities()
+    assert "runtime_v2" in capabilities
+    assert "baseline_subgraph" in capabilities
+    assert "baseline_fp32_ops" in capabilities
+    assert "fp16_flags" in capabilities
     assert "datatype_qint8" in capabilities
     assert "datatype_quint8" in capabilities
     assert "datatype_qcint8" in capabilities
+    assert "datatype_qdint8" in capabilities
+    assert "datatype_qduint8" in capabilities
+    assert "qs8_datatypes" in capabilities
+    assert "qs8_subgraph_ops" in capabilities
+    assert "dynamic_quant_datatypes" in capabilities
+    assert "dynamic_range_qd8_ops" in capabilities
+    assert "define_dynamically_quantized_tensor_value" in capabilities
     assert "extra_quantization_params" in capabilities
+    assert "runtime_reshape" in capabilities
 
 
 @pytest.mark.skipif(not _has_xnnpack_runtime(), reason="XNNPACK runtime is not enabled")

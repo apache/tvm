@@ -1529,6 +1529,31 @@ ffi::Map<ffi::String, ffi::Any> XNNPACKJSONRuntimeGetCapabilities() {
                                0
 #endif
                                ));
+  result.Set("runtime_v2", static_cast<int64_t>(
+#if defined(TVM_XNNPACK_HAS_RUNTIME_V2)
+                               1
+#else
+                               0
+#endif
+                               ));
+  result.Set("baseline_subgraph", static_cast<int64_t>(
+#if defined(TVM_XNNPACK_HAS_INITIALIZE) && defined(TVM_XNNPACK_HAS_CREATE_SUBGRAPH) && \
+    defined(TVM_XNNPACK_HAS_RUNTIME_V2)
+                                      1
+#else
+                                      0
+#endif
+                                      ));
+  result.Set("baseline_fp32_ops", static_cast<int64_t>(
+#if defined(TVM_XNNPACK_HAS_DEFINE_TENSOR_VALUE) && defined(TVM_XNNPACK_HAS_DEFINE_UNARY) && \
+    defined(TVM_XNNPACK_HAS_DEFINE_BINARY) && defined(TVM_XNNPACK_HAS_DEFINE_CONVOLUTION_2D) && \
+    defined(TVM_XNNPACK_HAS_DEFINE_MAX_POOLING_2D) && \
+    defined(TVM_XNNPACK_HAS_DEFINE_AVERAGE_POOLING_2D)
+                                      1
+#else
+                                      0
+#endif
+                                      ));
   result.Set("weights_cache", static_cast<int64_t>(
 #if defined(TVM_XNNPACK_HAS_WEIGHTS_CACHE)
                                   1
@@ -1606,6 +1631,20 @@ ffi::Map<ffi::String, ffi::Any> XNNPACKJSONRuntimeGetCapabilities() {
                                      0
 #endif
                                      ));
+  result.Set("datatype_qdint8", static_cast<int64_t>(
+#if defined(TVM_XNNPACK_HAS_DATATYPE_QDINT8)
+                                    1
+#else
+                                    0
+#endif
+                                    ));
+  result.Set("datatype_qduint8", static_cast<int64_t>(
+#if defined(TVM_XNNPACK_HAS_DATATYPE_QDUINT8)
+                                     1
+#else
+                                     0
+#endif
+                                     ));
   result.Set("extra_quantization_params", static_cast<int64_t>(
 #if defined(TVM_XNNPACK_HAS_EXTRA_QUANTIZATION_PARAMS)
                                               XNN_EXTRA_QUANTIZATION_PARAMS
@@ -1620,6 +1659,13 @@ ffi::Map<ffi::String, ffi::Any> XNNPACKJSONRuntimeGetCapabilities() {
                                                   0
 #endif
                                                   ));
+  result.Set("define_dynamically_quantized_tensor_value", static_cast<int64_t>(
+#if defined(TVM_XNNPACK_HAS_DEFINE_DYNAMICALLY_QUANTIZED_TENSOR_VALUE)
+                                                              1
+#else
+                                                              0
+#endif
+                                                              ));
   result.Set("define_channelwise_quantized_tensor_value", static_cast<int64_t>(
 #if defined(TVM_XNNPACK_HAS_DEFINE_CHANNELWISE_QUANTIZED_TENSOR_VALUE) || \
     defined(TVM_XNNPACK_HAS_DEFINE_CHANNELWISE_QUANTIZED_TENSOR_VALUE_V2)
@@ -1670,6 +1716,13 @@ ffi::Map<ffi::String, ffi::Any> XNNPACKJSONRuntimeGetCapabilities() {
                              0
 #endif
                              ));
+  result.Set("runtime_reshape", static_cast<int64_t>(
+#if defined(TVM_XNNPACK_HAS_RUNTIME_RESHAPE)
+                                      1
+#else
+                                      0
+#endif
+                                      ));
   result.Set("transpose_weights", static_cast<int64_t>(
 #if defined(TVM_XNNPACK_HAS_TRANSPOSE_WEIGHTS_FLAG)
                                               1
@@ -1712,6 +1765,41 @@ ffi::Map<ffi::String, ffi::Any> XNNPACKJSONRuntimeGetCapabilities() {
                                                  0
 #endif
                                                  ));
+  result.Set("fp16_flags", static_cast<int64_t>(
+#if defined(TVM_XNNPACK_HAS_FP16_FLAGS)
+                                  1
+#else
+                                  0
+#endif
+                                  ));
+  result.Set("qs8_datatypes", static_cast<int64_t>(
+#if defined(TVM_XNNPACK_HAS_QS8_DATATYPES)
+                                     1
+#else
+                                     0
+#endif
+                                     ));
+  result.Set("qs8_subgraph_ops", static_cast<int64_t>(
+#if defined(TVM_XNNPACK_HAS_QS8_SUBGRAPH_OPS)
+                                      1
+#else
+                                      0
+#endif
+                                      ));
+  result.Set("dynamic_quant_datatypes", static_cast<int64_t>(
+#if defined(TVM_XNNPACK_HAS_DYNAMIC_QUANT_DATATYPES)
+                                             1
+#else
+                                             0
+#endif
+                                             ));
+  result.Set("dynamic_range_qd8_ops", static_cast<int64_t>(
+#if defined(TVM_XNNPACK_HAS_DYNAMIC_RANGE_QD8_OPS)
+                                           1
+#else
+                                           0
+#endif
+                                           ));
   return result;
 }
 

@@ -59,8 +59,17 @@ foreach(_lib ${XNNPACK_MICROKERNELS_LIBRARY} ${PTHREADPOOL_LIBRARY} ${CPUINFO_LI
 endforeach()
 
 foreach(_feature
+    INITIALIZE
+    CREATE_SUBGRAPH
+    RUNTIME_V2
     RUNTIME_V4
     RUNTIME_V3
+    DEFINE_TENSOR_VALUE
+    DEFINE_UNARY
+    DEFINE_BINARY
+    DEFINE_CONVOLUTION_2D
+    DEFINE_MAX_POOLING_2D
+    DEFINE_AVERAGE_POOLING_2D
     WEIGHTS_CACHE
     WORKSPACE
     PROFILING
@@ -75,21 +84,94 @@ foreach(_feature
     DATATYPE_QINT32
     DATATYPE_QCINT8
     DATATYPE_QCINT32
+    DATATYPE_QDINT8
+    DATATYPE_QDUINT8
     EXTRA_QUANTIZATION_PARAMS
     DEFINE_QUANTIZED_TENSOR_VALUE
+    DEFINE_DYNAMICALLY_QUANTIZED_TENSOR_VALUE
     DEFINE_CHANNELWISE_QUANTIZED_TENSOR_VALUE
     DEFINE_CHANNELWISE_QUANTIZED_TENSOR_VALUE_V2
     VALIDATE_QUANTIZED_TENSOR
     VALIDATE_CHANNELWISE_QUANTIZED_TENSOR
     FULLY_CONNECTED
     DEPTHWISE_CONVOLUTION_2D
+    DYNAMIC_RANGE_QD8_OPS
     TRANSPOSE_WEIGHTS_FLAG
+    STATIC_RESHAPE
+    COPY
+    RUNTIME_RESHAPE
     DONT_SPIN_WORKERS_FLAG
     TRANSIENT_INDIRECTION_BUFFER_FLAG
-    PTHREADPOOL_CREATE)
+    PTHREADPOOL_CREATE
+    FP16_FLAGS
+    QS8_DATATYPES
+    QS8_SUBGRAPH_OPS
+    DYNAMIC_QUANT_DATATYPES)
   unset(TVM_XNNPACK_HAS_${_feature} CACHE)
 endforeach()
 
+check_cxx_source_compiles("
+  #include <xnnpack.h>
+  int main() {
+    (void)xnn_initialize(nullptr);
+    return 0;
+  }" TVM_XNNPACK_HAS_INITIALIZE)
+check_cxx_source_compiles("
+  #include <xnnpack.h>
+  int main() {
+    xnn_subgraph_t subgraph = nullptr;
+    (void)xnn_create_subgraph(0, 0, &subgraph);
+    return 0;
+  }" TVM_XNNPACK_HAS_CREATE_SUBGRAPH)
+check_cxx_source_compiles("
+  #include <xnnpack.h>
+  int main() {
+    xnn_runtime_t runtime = nullptr;
+    (void)xnn_create_runtime_v2(nullptr, nullptr, 0, &runtime);
+    return 0;
+  }" TVM_XNNPACK_HAS_RUNTIME_V2)
+check_cxx_source_compiles("
+  #include <xnnpack.h>
+  int main() {
+    uint32_t id = 0;
+    const size_t dims[1] = {1};
+    (void)xnn_define_tensor_value(nullptr, xnn_datatype_fp32, 1, dims, nullptr,
+                                  XNN_INVALID_VALUE_ID, 0, &id);
+    return 0;
+  }" TVM_XNNPACK_HAS_DEFINE_TENSOR_VALUE)
+check_cxx_source_compiles("
+  #include <xnnpack.h>
+  int main() {
+    (void)xnn_define_unary(nullptr, xnn_unary_clamp, nullptr, 0, 1, 0);
+    return 0;
+  }" TVM_XNNPACK_HAS_DEFINE_UNARY)
+check_cxx_source_compiles("
+  #include <xnnpack.h>
+  int main() {
+    (void)xnn_define_binary(nullptr, xnn_binary_add, nullptr, 0, 1, 2, 0);
+    return 0;
+  }" TVM_XNNPACK_HAS_DEFINE_BINARY)
+check_cxx_source_compiles("
+  #include <xnnpack.h>
+  int main() {
+    (void)xnn_define_convolution_2d(nullptr, 0, 0, 0, 0, 3, 3, 1, 1, 1, 1, 1, 1, 1,
+                                   -1.0f, 1.0f, 0, 1, 2, 3, 0);
+    return 0;
+  }" TVM_XNNPACK_HAS_DEFINE_CONVOLUTION_2D)
+check_cxx_source_compiles("
+  #include <xnnpack.h>
+  int main() {
+    (void)xnn_define_max_pooling_2d(nullptr, 0, 0, 0, 0, 2, 2, 1, 1, 1, 1,
+                                   -1.0f, 1.0f, 0, 1, 0);
+    return 0;
+  }" TVM_XNNPACK_HAS_DEFINE_MAX_POOLING_2D)
+check_cxx_source_compiles("
+  #include <xnnpack.h>
+  int main() {
+    (void)xnn_define_average_pooling_2d(nullptr, 0, 0, 0, 0, 2, 2, 1, 1,
+                                       -1.0f, 1.0f, 0, 1, 0);
+    return 0;
+  }" TVM_XNNPACK_HAS_DEFINE_AVERAGE_POOLING_2D)
 check_cxx_source_compiles("
   #include <xnnpack.h>
   int main() {
@@ -167,6 +249,12 @@ check_cxx_source_compiles("
   int main() { return xnn_datatype_qcint32 == xnn_datatype_invalid; }" TVM_XNNPACK_HAS_DATATYPE_QCINT32)
 check_cxx_source_compiles("
   #include <xnnpack.h>
+  int main() { return xnn_datatype_qdint8 == xnn_datatype_invalid; }" TVM_XNNPACK_HAS_DATATYPE_QDINT8)
+check_cxx_source_compiles("
+  #include <xnnpack.h>
+  int main() { return xnn_datatype_qduint8 == xnn_datatype_invalid; }" TVM_XNNPACK_HAS_DATATYPE_QDUINT8)
+check_cxx_source_compiles("
+  #include <xnnpack.h>
   int main() { return XNN_EXTRA_QUANTIZATION_PARAMS == 0; }" TVM_XNNPACK_HAS_EXTRA_QUANTIZATION_PARAMS)
 check_cxx_source_compiles("
   #include <xnnpack.h>
@@ -177,6 +265,15 @@ check_cxx_source_compiles("
                                             dims, nullptr, XNN_INVALID_VALUE_ID, 0, &id);
     return 0;
   }" TVM_XNNPACK_HAS_DEFINE_QUANTIZED_TENSOR_VALUE)
+check_cxx_source_compiles("
+  #include <xnnpack.h>
+  int main() {
+    uint32_t id = 0;
+    const size_t dims[1] = {1};
+    (void)xnn_define_dynamically_quantized_tensor_value(nullptr, xnn_datatype_qdint8, 1, 1, dims,
+                                                        XNN_INVALID_VALUE_ID, 0, &id);
+    return 0;
+  }" TVM_XNNPACK_HAS_DEFINE_DYNAMICALLY_QUANTIZED_TENSOR_VALUE)
 check_cxx_source_compiles("
   #include <xnnpack.h>
   int main() {
@@ -242,6 +339,19 @@ check_cxx_source_compiles("
   }" TVM_XNNPACK_HAS_COPY)
 check_cxx_source_compiles("
   #include <xnnpack.h>
+  int main() {
+    (void)xnn_reshape_runtime(nullptr);
+    return 0;
+  }" TVM_XNNPACK_HAS_RUNTIME_RESHAPE)
+check_cxx_source_compiles("
+  #include <xnnpack.h>
+  int main() {
+    (void)&xnn_create_fully_connected_nc_qd8_f32_qc8w;
+    (void)&xnn_create_convolution2d_nhwc_qd8_f32_qc8w;
+    return 0;
+  }" TVM_XNNPACK_HAS_DYNAMIC_RANGE_QD8_OPS)
+check_cxx_source_compiles("
+  #include <xnnpack.h>
   int main() { return XNN_FLAG_TRANSPOSE_WEIGHTS == 0; }" TVM_XNNPACK_HAS_TRANSPOSE_WEIGHTS_FLAG)
 check_cxx_source_compiles("
   #include <xnnpack.h>
@@ -258,12 +368,56 @@ check_cxx_source_compiles("
     return 0;
   }" TVM_XNNPACK_HAS_PTHREADPOOL_CREATE)
 
+foreach(_required
+    INITIALIZE
+    CREATE_SUBGRAPH
+    RUNTIME_V2
+    DEFINE_TENSOR_VALUE
+    DEFINE_UNARY
+    DEFINE_BINARY
+    DEFINE_CONVOLUTION_2D
+    DEFINE_MAX_POOLING_2D
+    DEFINE_AVERAGE_POOLING_2D)
+  if(NOT TVM_XNNPACK_HAS_${_required})
+    message(FATAL_ERROR
+            "USE_XNNPACK is enabled, but required XNNPACK baseline feature ${_required} "
+            "was not found in the configured header/library")
+  endif()
+endforeach()
+
+if(TVM_XNNPACK_HAS_HINT_FP16_INFERENCE_FLAG AND TVM_XNNPACK_HAS_FORCE_FP16_INFERENCE_FLAG)
+  set(TVM_XNNPACK_HAS_FP16_FLAGS 1)
+endif()
+if(TVM_XNNPACK_HAS_DATATYPE_QINT8 AND TVM_XNNPACK_HAS_DATATYPE_QINT32 AND
+   TVM_XNNPACK_HAS_DATATYPE_QCINT8 AND TVM_XNNPACK_HAS_DATATYPE_QCINT32 AND
+   TVM_XNNPACK_HAS_DEFINE_QUANTIZED_TENSOR_VALUE)
+  set(TVM_XNNPACK_HAS_QS8_DATATYPES 1)
+endif()
+if(TVM_XNNPACK_HAS_QS8_DATATYPES AND TVM_XNNPACK_HAS_FULLY_CONNECTED AND
+   TVM_XNNPACK_HAS_DEPTHWISE_CONVOLUTION_2D AND TVM_XNNPACK_HAS_STATIC_RESHAPE AND
+   TVM_XNNPACK_HAS_COPY)
+  set(TVM_XNNPACK_HAS_QS8_SUBGRAPH_OPS 1)
+endif()
+if(TVM_XNNPACK_HAS_DATATYPE_QDINT8 AND TVM_XNNPACK_HAS_DATATYPE_QDUINT8 AND
+   TVM_XNNPACK_HAS_DEFINE_DYNAMICALLY_QUANTIZED_TENSOR_VALUE)
+  set(TVM_XNNPACK_HAS_DYNAMIC_QUANT_DATATYPES 1)
+endif()
+
 set(CMAKE_REQUIRED_INCLUDES "${_XNNPACK_PREV_REQUIRED_INCLUDES}")
 set(CMAKE_REQUIRED_LIBRARIES "${_XNNPACK_PREV_REQUIRED_LIBRARIES}")
 
 foreach(_feature
+    INITIALIZE
+    CREATE_SUBGRAPH
+    RUNTIME_V2
     RUNTIME_V4
     RUNTIME_V3
+    DEFINE_TENSOR_VALUE
+    DEFINE_UNARY
+    DEFINE_BINARY
+    DEFINE_CONVOLUTION_2D
+    DEFINE_MAX_POOLING_2D
+    DEFINE_AVERAGE_POOLING_2D
     WEIGHTS_CACHE
     WORKSPACE
     PROFILING
@@ -278,24 +432,47 @@ foreach(_feature
     DATATYPE_QINT32
     DATATYPE_QCINT8
     DATATYPE_QCINT32
+    DATATYPE_QDINT8
+    DATATYPE_QDUINT8
     EXTRA_QUANTIZATION_PARAMS
     DEFINE_QUANTIZED_TENSOR_VALUE
+    DEFINE_DYNAMICALLY_QUANTIZED_TENSOR_VALUE
     DEFINE_CHANNELWISE_QUANTIZED_TENSOR_VALUE
     DEFINE_CHANNELWISE_QUANTIZED_TENSOR_VALUE_V2
     VALIDATE_QUANTIZED_TENSOR
     VALIDATE_CHANNELWISE_QUANTIZED_TENSOR
     FULLY_CONNECTED
     DEPTHWISE_CONVOLUTION_2D
+    DYNAMIC_RANGE_QD8_OPS
     STATIC_RESHAPE
     COPY
+    RUNTIME_RESHAPE
     TRANSPOSE_WEIGHTS_FLAG
     DONT_SPIN_WORKERS_FLAG
     TRANSIENT_INDIRECTION_BUFFER_FLAG
-    PTHREADPOOL_CREATE)
+    PTHREADPOOL_CREATE
+    FP16_FLAGS
+    QS8_DATATYPES
+    QS8_SUBGRAPH_OPS
+    DYNAMIC_QUANT_DATATYPES)
   if(TVM_XNNPACK_HAS_${_feature})
     add_definitions(-DTVM_XNNPACK_HAS_${_feature}=1)
   endif()
 endforeach()
+
+message(STATUS "XNNPACK baseline: runtime_v2=${TVM_XNNPACK_HAS_RUNTIME_V2}, "
+               "fp32_subgraph_ops=${TVM_XNNPACK_HAS_DEFINE_CONVOLUTION_2D}")
+message(STATUS "XNNPACK runtime features: v4=${TVM_XNNPACK_HAS_RUNTIME_V4}, "
+               "weights_cache=${TVM_XNNPACK_HAS_WEIGHTS_CACHE}, "
+               "workspace=${TVM_XNNPACK_HAS_WORKSPACE}, profiling=${TVM_XNNPACK_HAS_PROFILING}")
+message(STATUS "XNNPACK precision features: fp16_flags=${TVM_XNNPACK_HAS_FP16_FLAGS}, "
+               "datatype_fp16=${TVM_XNNPACK_HAS_DATATYPE_FP16}")
+message(STATUS "XNNPACK quantization features: qs8_datatypes=${TVM_XNNPACK_HAS_QS8_DATATYPES}, "
+               "qs8_subgraph_ops=${TVM_XNNPACK_HAS_QS8_SUBGRAPH_OPS}, "
+               "dynamic_quant_datatypes=${TVM_XNNPACK_HAS_DYNAMIC_QUANT_DATATYPES}, "
+               "dynamic_range_qd8_ops=${TVM_XNNPACK_HAS_DYNAMIC_RANGE_QD8_OPS}")
+message(STATUS "XNNPACK reshape/copy features: static_reshape=${TVM_XNNPACK_HAS_STATIC_RESHAPE}, "
+               "copy=${TVM_XNNPACK_HAS_COPY}, runtime_reshape=${TVM_XNNPACK_HAS_RUNTIME_RESHAPE}")
 
 tvm_file_glob(GLOB XNNPACK_RELAX_CONTRIB_SRC src/relax/backend/contrib/xnnpack/*.cc)
 list(APPEND COMPILER_SRCS ${XNNPACK_RELAX_CONTRIB_SRC})

@@ -559,10 +559,17 @@ Benchmarking and validation::
   python tests/python/relax/benchmark_xnnpack.py --model xnnpack_tiny_cnn --partition-policy cost --report-partition-decisions
   python tests/python/relax/benchmark_xnnpack.py --model xnnpack_tiny_cnn --use-weights-cache --use-workspace --profile
   python tests/python/relax/benchmark_xnnpack.py --model xnnpack_tiny_cnn --precision fp16_hint
+  python tests/python/relax/benchmark_xnnpack.py --quantization-mode static_qs8 --report-partition-decisions
   python tests/python/relax/benchmark_xnnpack.py --model torchvision:mobilenet_v2
 
 The in-tree ``xnnpack_tiny_cnn`` benchmark uses only supported NHWC ``float32``
 operators and compares normal TVM CPU execution with XNNPACK BYOC execution.
+``--quantization-mode static_qs8`` uses an in-tree signed-int8 QDQ fixture with
+no TensorFlow or PyTorch dependency. The benchmark prints platform and
+architecture information, detected XNNPACK feature flags, partition counts,
+partition-report reason summaries and byte estimates when requested, p50/p90/p99
+latency, first-run latency, steady-state latency, optional memory deltas, and
+XNNPACK profiling summaries when profiling is both requested and available.
 The optional ``torchvision:*`` path is best-effort and may report zero XNNPACK
 partitions for models that rely on unsupported depthwise convolution, dense
 layers, NCHW layout, or other unsupported operators.
@@ -592,6 +599,134 @@ Troubleshooting:
   ``runtime.XNNPACKJSONRuntimeGetCapabilities`` or the benchmark's
   ``xnnpack_capabilities`` output to confirm the linked XNNPACK revision
   exposes the required public APIs.
+* If CMake fails during feature probing, verify that the configured
+  ``xnnpack.h`` and XNNPACK library come from the same external installation.
+  TVM fails configure only for baseline public APIs required by the current
+  runtime; optional FP16, QS8, workspace, profiling, and future dynamic-quant
+  features are reported as unavailable instead.
+* Dynamic quantization/QD8 capability bits are detection-only. They do not
+  enable dynamic-range quantization, weight-only quantization, or additional
+  partition patterns.
+
+Deployment and platform notes
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+XNNPACK remains an external dependency. TVM does not vendor XNNPACK, does not
+download it from CMake, and does not add it to the default build. The
+recommended deployment flow is:
+
+1. Build and install XNNPACK for the target platform with the platform's normal
+   CMake toolchain.
+2. Configure TVM with ``USE_XNNPACK=/path/to/xnnpack/prefix`` using the same
+   compiler and ABI.
+3. Run the XNNPACK Relax smoke tests and the benchmark script on the target, or
+   through the platform's normal remote execution flow.
+
+This integration has local smoke coverage only for the developer machine used
+to build the patch. The following platform commands are maintainer reproduction
+recipes, not claims that every platform was tested as part of this change.
+
+Linux x86_64 and Linux aarch64::
+
+  cmake -S /path/to/XNNPACK -B /tmp/xnnpack-build \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/opt/xnnpack
+  cmake --build /tmp/xnnpack-build --target install -j
+
+  cmake -S /path/to/tvm -B /tmp/tvm-build \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DUSE_XNNPACK=/opt/xnnpack
+  cmake --build /tmp/tvm-build --target tvm_runtime tvm_compiler -j
+
+  python tests/python/relax/test_codegen_xnnpack.py -q
+  python tests/python/relax/benchmark_xnnpack.py --model xnnpack_tiny_cnn --number 10 --repeat 3
+  python tests/python/relax/benchmark_xnnpack.py --quantization-mode static_qs8 --number 10 --repeat 3
+
+For Linux shared builds, ensure the XNNPACK, pthreadpool, cpuinfo, and
+microkernel libraries are discoverable by the runtime loader. For static builds,
+link all dependent XNNPACK libraries into the TVM runtime binary or final
+application. FP16 availability depends on the target CPU and XNNPACK runtime
+creation flags; ``fp16_force`` may fail clearly on hardware that cannot honor
+the request. QS8 paths require the signed-int8 datatype and subgraph APIs
+reported by ``runtime.XNNPACKJSONRuntimeGetCapabilities``.
+
+Android arm64-v8a::
+
+  cmake -S /path/to/XNNPACK -B /tmp/xnnpack-android \
+        -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK/build/cmake/android.toolchain.cmake \
+        -DANDROID_ABI=arm64-v8a \
+        -DANDROID_PLATFORM=android-23 \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/opt/xnnpack-android
+  cmake --build /tmp/xnnpack-android --target install -j
+
+  cmake -S /path/to/tvm -B /tmp/tvm-android \
+        -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK/build/cmake/android.toolchain.cmake \
+        -DANDROID_ABI=arm64-v8a \
+        -DANDROID_PLATFORM=android-23 \
+        -DUSE_XNNPACK=/opt/xnnpack-android
+
+Use the same NDK, ABI, API level, and C++ runtime for XNNPACK and TVM. Run smoke
+tests through the existing TVM Android RPC or app deployment flow. Multi-thread
+configuration requires pthreadpool support in the linked XNNPACK build; the
+default ``num_threads=1`` path keeps caller-thread execution.
+
+iOS arm64::
+
+  cmake -S /path/to/XNNPACK -B /tmp/xnnpack-ios \
+        -DCMAKE_SYSTEM_NAME=iOS \
+        -DCMAKE_OSX_ARCHITECTURES=arm64 \
+        -DCMAKE_OSX_SYSROOT=iphoneos \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/opt/xnnpack-ios
+  cmake --build /tmp/xnnpack-ios --target install -j
+
+  cmake -S /path/to/tvm -B /tmp/tvm-ios \
+        -DCMAKE_SYSTEM_NAME=iOS \
+        -DCMAKE_OSX_ARCHITECTURES=arm64 \
+        -DCMAKE_OSX_SYSROOT=iphoneos \
+        -DUSE_XNNPACK=/opt/xnnpack-ios
+
+iOS deployments usually prefer static linking into the final application. Keep
+bitcode, minimum deployment target, C++ standard library, and symbol visibility
+settings consistent between XNNPACK, TVM, and the host app. Run validation in an
+iOS simulator or on-device test harness; these platform tests are not part of
+default TVM CI.
+
+Emscripten wasm32 with SIMD::
+
+  emcmake cmake -S /path/to/XNNPACK -B /tmp/xnnpack-wasm \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_C_FLAGS="-msimd128" \
+        -DCMAKE_CXX_FLAGS="-msimd128" \
+        -DCMAKE_INSTALL_PREFIX=/opt/xnnpack-wasm
+  cmake --build /tmp/xnnpack-wasm --target install -j
+
+  emcmake cmake -S /path/to/tvm -B /tmp/tvm-wasm \
+        -DUSE_XNNPACK=/opt/xnnpack-wasm
+
+Emscripten pthreads, SIMD, and memory settings must match between XNNPACK, TVM,
+and the final web application. Use ``num_threads=1`` unless the web deployment
+has SharedArrayBuffer and pthreads configured. WASM benchmark results are highly
+browser- and flag-dependent; record browser, engine, SIMD, pthread, and memory
+settings with every result.
+
+Optional maintainer CI recipe
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Default TVM CI should remain unchanged and must not require XNNPACK. A
+maintainer-run XNNPACK Linux job can be reproduced with:
+
+1. Install XNNPACK externally into a known prefix.
+2. Configure TVM with ``USE_XNNPACK=/path/to/prefix``.
+3. Build ``tvm_runtime`` and ``tvm_compiler``.
+4. Run ``pytest tests/python/relax/test_codegen_xnnpack.py -q``.
+5. Run a benchmark dry-run, for example
+   ``python tests/python/relax/benchmark_xnnpack.py --number 1 --repeat 1`` and
+   ``python tests/python/relax/benchmark_xnnpack.py --quantization-mode static_qs8 --number 1 --repeat 1``.
+
+Android, iOS, and WASM jobs should remain manual until the project agrees on an
+external-dependency CI policy for XNNPACK.
 
 
 Source Code Map

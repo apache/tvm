@@ -22,6 +22,8 @@ reproducible without downloading model files.
 
 import argparse
 import importlib
+import json
+import platform
 import sys
 import time
 from typing import Dict, List, Tuple
@@ -69,6 +71,43 @@ class TinyCNNModule:
             )
             added = relax.op.add(pooled, residual)
             z = relax.op.tanh(added)
+            R.output(z)
+        return z
+
+
+@tvm.script.ir_module
+class StaticQS8TinyCNNModule:
+    @R.function
+    def main(
+        x: R.Tensor((1, 4, 4, 2), "int8"), y: R.Tensor((1, 4, 4, 2), "int8")
+    ) -> R.Tensor((1, 2, 8, 2), "int8"):
+        with R.dataflow():
+            x_f = R.dequantize(
+                x, R.const(0.25, "float32"), R.const(0, "int8"), axis=-1, out_dtype="float32"
+            )
+            y_f = R.dequantize(
+                y,
+                R.const(0.25, "float32"),
+                R.const(0, "int8"),
+                axis=-1,
+                out_dtype="float32",
+            )
+            added = relax.op.add(x_f, y_f)
+            clipped = relax.op.clip(added, 0, 6)
+            added_q = R.quantize(
+                clipped, R.const(0.25, "float32"), R.const(0, "int8"), axis=-1, out_dtype="int8"
+            )
+            added_f = R.dequantize(
+                added_q,
+                R.const(0.25, "float32"),
+                R.const(0, "int8"),
+                axis=-1,
+                out_dtype="float32",
+            )
+            reshaped = relax.op.reshape(added_f, [1, 2, 8, 2])
+            z = R.quantize(
+                reshaped, R.const(0.25, "float32"), R.const(0, "int8"), axis=-1, out_dtype="int8"
+            )
             R.output(z)
         return z
 
@@ -130,6 +169,17 @@ def load_tiny_cnn(seed: int) -> Tuple[tvm.IRModule, List[tvm.runtime.Tensor], st
     return bind_tiny_cnn_params(), make_tiny_cnn_inputs(seed), "xnnpack_tiny_cnn"
 
 
+def make_static_qs8_tiny_cnn_inputs(seed: int) -> List[tvm.runtime.Tensor]:
+    rng = np.random.default_rng(seed)
+    x_np = rng.integers(-8, 8, size=(1, 4, 4, 2), dtype=np.int8)
+    y_np = rng.integers(-4, 4, size=(1, 4, 4, 2), dtype=np.int8)
+    return [tvm.runtime.tensor(x_np), tvm.runtime.tensor(y_np)]
+
+
+def load_static_qs8_tiny_cnn(seed: int) -> Tuple[tvm.IRModule, List[tvm.runtime.Tensor], str]:
+    return StaticQS8TinyCNNModule, make_static_qs8_tiny_cnn_inputs(seed), "xnnpack_static_qs8_tiny_cnn"
+
+
 def load_torchvision_model(model_name: str, input_shape: Tuple[int, ...]):
     torch_spec = importlib.util.find_spec("torch")
     torchvision_spec = importlib.util.find_spec("torchvision")
@@ -175,14 +225,34 @@ def summarize_partition_report(report: List[Dict[str, object]]) -> Dict[str, obj
     accepted = sum(1 for entry in report if entry["accepted"])
     rejected = len(report) - accepted
     reasons: Dict[str, int] = {}
+    totals = {
+        "estimated_flops": 0.0,
+        "copy_bytes": 0,
+        "padded_copy_bytes": 0,
+        "layout_transform_bytes": 0,
+        "cast_bytes": 0,
+    }
     for entry in report:
         reason = str(entry["reason"])
         reasons[reason] = reasons.get(reason, 0) + 1
+        for key in totals:
+            totals[key] += entry.get(key, 0) or 0
     return {
         "candidates": len(report),
         "accepted": accepted,
         "rejected": rejected,
         "reasons": reasons,
+        "totals": totals,
+    }
+
+
+def platform_info() -> Dict[str, str]:
+    return {
+        "system": platform.system(),
+        "release": platform.release(),
+        "machine": platform.machine(),
+        "processor": platform.processor(),
+        "python": platform.python_version(),
     }
 
 
@@ -201,17 +271,41 @@ def benchmark_vm(
 
 def format_result(result) -> Dict[str, object]:
     results = [float(x) for x in result.results]
+    steady_state = results[1:] if len(results) > 1 else results
     return {
         "mean_ms": float(np.mean(results) * 1000.0),
-        "median_ms": float(np.median(results) * 1000.0),
+        "median_ms": float(np.percentile(results, 50) * 1000.0),
+        "p50_ms": float(np.percentile(results, 50) * 1000.0),
+        "p90_ms": float(np.percentile(results, 90) * 1000.0),
+        "p99_ms": float(np.percentile(results, 99) * 1000.0),
+        "steady_state_mean_ms": float(np.mean(steady_state) * 1000.0),
         "raw_ms": [x * 1000.0 for x in results],
     }
 
 
-def correctness_tolerance(precision: str) -> Tuple[float, float]:
+def correctness_tolerance(precision: str, quantization_mode: str) -> Tuple[float, float]:
+    if quantization_mode == "static_qs8":
+        return 0.0, 1.0
     if precision == "fp32":
         return 1e-5, 1e-5
     return 5e-2, 5e-2
+
+
+def summarize_profile_json(profile_json: str) -> Dict[str, object]:
+    if not profile_json:
+        return {"available": False}
+    try:
+        parsed = json.loads(profile_json)
+    except json.JSONDecodeError:
+        return {"available": True, "raw": profile_json}
+    if isinstance(parsed, list):
+        operators = parsed
+    elif isinstance(parsed, dict):
+        operators = parsed.get("operators", [])
+    else:
+        operators = []
+    total_us = sum(float(op.get("time_us", 0.0) or 0.0) for op in operators)
+    return {"available": True, "operator_count": len(operators), "total_time_us": total_us}
 
 
 def parse_shape(shape: str) -> Tuple[int, ...]:
@@ -225,6 +319,12 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", default="xnnpack_tiny_cnn")
     parser.add_argument("--target", default="llvm")
+    parser.add_argument(
+        "--quantization-mode",
+        choices=("fp32", "static_qs8"),
+        default="fp32",
+        help="Benchmark graph family. Runtime precision remains controlled by --precision.",
+    )
     parser.add_argument("--number", type=int, default=10)
     parser.add_argument("--repeat", type=int, default=3)
     parser.add_argument("--seed", type=int, default=0)
@@ -259,6 +359,8 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    if args.quantization_mode == "static_qs8" and args.model.startswith("torchvision:"):
+        raise RuntimeError("torchvision models are only supported with --quantization-mode fp32")
     xnnpack_enabled = has_xnnpack_enabled()
     xnnpack_options = {
         "use_weights_cache": args.use_weights_cache,
@@ -273,13 +375,20 @@ def main() -> None:
 
     load_error = None
     try:
-        if args.model == "xnnpack_tiny_cnn":
+        if args.quantization_mode == "static_qs8" and args.model == "xnnpack_tiny_cnn":
+            mod, inputs, model_name = load_static_qs8_tiny_cnn(args.seed)
+        elif args.model in ("xnnpack_static_qs8_tiny_cnn", "static_qs8_tiny_cnn"):
+            mod, inputs, model_name = load_static_qs8_tiny_cnn(args.seed)
+        elif args.model == "xnnpack_tiny_cnn":
             mod, inputs, model_name = load_tiny_cnn(args.seed)
         elif args.model.startswith("torchvision:"):
             model = args.model.split(":", 1)[1]
             mod, inputs, model_name = load_torchvision_model(model, args.input_shape)
         else:
-            raise RuntimeError("supported models are xnnpack_tiny_cnn and torchvision:<name>")
+            raise RuntimeError(
+                "supported models are xnnpack_tiny_cnn, xnnpack_static_qs8_tiny_cnn, "
+                "and torchvision:<name>"
+            )
     except Exception as err:  # pylint: disable=broad-except
         mod, inputs, model_name = None, [], args.model
         load_error = str(err)
@@ -292,6 +401,7 @@ def main() -> None:
     byoc_first_run_ms = None
     byoc_compile_ms = None
     partition_report_summary = None
+    profile_summary = None
     memory_before_kib = get_memory_kib()
     memory_after_kib = -1
 
@@ -317,7 +427,7 @@ def main() -> None:
                     first_run_start = time.perf_counter()
                     byoc_output = byoc_vm["main"](*inputs)
                     byoc_first_run_ms = (time.perf_counter() - first_run_start) * 1000.0
-                    rtol, atol = correctness_tolerance(args.precision)
+                    rtol, atol = correctness_tolerance(args.precision, args.quantization_mode)
                     tvm.testing.assert_allclose(
                         byoc_output.numpy(), baseline_output.numpy(), rtol=rtol, atol=atol
                     )
@@ -325,6 +435,13 @@ def main() -> None:
                     byoc_timing = format_result(
                         benchmark_vm(byoc_vm, inputs, args.number, args.repeat)
                     )
+                    if args.profile and byoc_mod.attrs and "external_mods" in byoc_mod.attrs:
+                        profile_entries = []
+                        for ext_mod in byoc_mod.attrs["external_mods"]:
+                            get_profile = ext_mod.get_function("get_profile_json", query_imports=True)
+                            if get_profile is not None:
+                                profile_entries.append(summarize_profile_json(get_profile()))
+                        profile_summary = profile_entries
                 else:
                     correctness = "not run: no XNNPACK partitions"
             except Exception as err:  # pylint: disable=broad-except
@@ -335,7 +452,12 @@ def main() -> None:
     memory_after_kib = get_memory_kib()
 
     print(f"model: {model_name}")
+    print(f"platform: {platform_info()}")
+    print(f"architecture: {platform.machine()}")
     print(f"target: {args.target}")
+    print(f"tvm_target: {args.target}")
+    print(f"precision: {args.precision}")
+    print(f"quantization_mode: {args.quantization_mode}")
     print(f"xnnpack_enabled: {xnnpack_enabled}")
     print(f"xnnpack_capabilities: {capabilities if capabilities else 'not available'}")
     print(f"xnnpack_runtime_options: {xnnpack_options}")
@@ -368,6 +490,7 @@ def main() -> None:
         print("max_rss_delta_kib: not available")
     print(f"baseline_latency: {baseline_timing if baseline_timing is not None else 'not measured'}")
     print(f"xnnpack_byoc_latency: {byoc_timing if byoc_timing is not None else 'not measured'}")
+    print(f"xnnpack_profile_summary: {profile_summary if profile_summary is not None else 'not requested'}")
     if baseline_timing is not None and byoc_timing is not None:
         speedup = baseline_timing["mean_ms"] / byoc_timing["mean_ms"]
         print(f"speedup_vs_baseline_mean: {speedup:.6f}")
