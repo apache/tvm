@@ -505,6 +505,46 @@ validation. The partition report marks these candidates with
 ``dynamic_range=True``, ``weight_qscheme``, ``activation_boundary_dtype``,
 ``output_boundary_dtype``, and an estimated activation-quantization overhead.
 
+Limited dynamic batch support is available as an opt-in policy:
+
+.. code-block:: python
+
+   mod = partition_for_xnnpack(
+       mod,
+       dynamic_shape_policy="batch_only",
+       dynamic_batch_bounds={"n": 8},
+   )
+
+The default remains ``dynamic_shape_policy="none"``, which preserves the
+static-shape-only checks. With ``"batch_only"``, only the leading dimension may
+be symbolic. Rank, all non-batch dimensions, weights, bias, qparams, and
+operator attributes must stay static. Bounds may be supplied as
+``{"n": upper}``, which implies lower bound 1, or ``{"n": (lower, upper)}``.
+When explicit bounds are omitted, the partitioner can read
+``tir_var_upper_bound`` and optional ``tir_var_lower_bound`` function attrs.
+API-provided bounds take precedence and are attached to generated XNNPACK
+external functions.
+
+Phase 5F supports dynamic batch only for ``float32`` fully-connected
+(``relax.matmul`` with static rank-2 weights) and ``float32`` NHWC/OHWI
+``conv2d`` with ``groups=1``. Static QS8, dynamic-range quantization,
+depthwise convolution, pooling, elementwise operators, concat, resize, dynamic
+H/W, dynamic channels, dynamic rank, and dynamic qparams remain unsupported.
+The runtime requires public XNNPACK reshape/setup APIs:
+``xnn_reshape_external_value``, ``xnn_reshape_runtime``,
+``xnn_setup_runtime_v2``, and ``xnn_get_external_value_shape``. If those APIs
+are not available, requesting dynamic batch fails clearly and enabled-runtime
+tests skip.
+
+At execution time the XNNPACK runtime validates actual DLTensor ranks, static
+dimensions, and batch bounds. It tracks the last shape signature and reshapes
+external values plus the XNNPACK runtime only when the batch size changes.
+The runtime module exposes ``get_runtime_counters`` with ``reshape_count``,
+``setup_count``, ``invoke_count``, and ``last_batch_size`` for debugging. Size
+calculations for element counts, byte counts, padded buffers, and quantization
+parameter padding use checked multiplication and fail before allocation on
+overflow-like shapes.
+
 .. list-table::
    :header-rows: 1
    :widths: 30 70
@@ -556,14 +596,27 @@ validation. The partition report marks these candidates with
      - Opt-in with ``quantization="dynamic_range"``. Float32 input/output,
        static signed-int8 rank-2 weights, per-channel weight scales on axis 1,
        zero weight zero-point, and no bias or fused activation in this phase.
+   * - Dynamic-batch ``relax.matmul``
+     - Opt-in with ``dynamic_shape_policy="batch_only"``. Float32 input/output,
+       symbolic leading batch only, finite positive batch bounds, static rank-2
+       weights, optional static float32 bias, and optional ReLU/ReLU6/clip.
+   * - Dynamic-batch ``relax.nn.conv2d``
+     - Opt-in with ``dynamic_shape_policy="batch_only"``. Float32 NHWC
+       input/output, symbolic leading batch only, finite positive batch bounds,
+       OHWI static weights, ``groups=1``, static attributes, optional static
+       float32 bias, and optional ReLU/ReLU6/clip.
 
 There is no int8 multiply/subtract/concat/pad/resize, generic spatial mean,
 softmax, dynamic-range Conv2D, QU8/``uint8``, 4-bit, weight-only quantization,
 dynamic qparams, layout conversion, dynamic-shape support, broad broadcasting,
 or broad CNN coverage in this phase. Explicit ``float16`` Relax graphs are
-also unsupported and must fall back to TVM. The cost policy can reject isolated
-small int8 elementwise or reshape/copy islands, and tiny dynamic-range dense
-islands, even when the greedy/debug policies would partition them.
+also unsupported and must fall back to TVM. Dynamic-shape support is limited to
+the explicit batch-only cases above; arbitrary symbolic shapes still fall back
+to TVM. The cost policy can reject isolated small int8 elementwise or
+reshape/copy islands, and tiny dynamic-range dense islands, even when the
+greedy/debug policies would partition them. Dynamic-batch report entries set
+``dynamic_batch=True`` and include the symbol name, lower/upper bounds, and
+min/max FLOP and copy-byte estimates.
 
 The runtime uses XNNPACK's public ``xnnpack.h`` API only. It initializes
 XNNPACK with ``xnn_initialize`` and does not include

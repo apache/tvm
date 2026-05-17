@@ -59,6 +59,10 @@ struct XNNPACKRuntimeOptions {
   bool transient_indirection_buffer{false};
   int64_t num_threads{1};
   std::string precision{"fp32"};
+  std::string dynamic_shape_policy{"none"};
+  std::string dynamic_batch_symbol{""};
+  int64_t dynamic_batch_lower{1};
+  int64_t dynamic_batch_upper{-1};
 
   std::string Serialize() const {
     std::ostringstream os;
@@ -69,6 +73,10 @@ struct XNNPACKRuntimeOptions {
     os << "transient_indirection_buffer=" << (transient_indirection_buffer ? 1 : 0) << ";";
     os << "num_threads=" << num_threads << ";";
     os << "precision=" << precision << ";";
+    os << "dynamic_shape_policy=" << dynamic_shape_policy << ";";
+    os << "dynamic_batch_symbol=" << dynamic_batch_symbol << ";";
+    os << "dynamic_batch_lower=" << dynamic_batch_lower << ";";
+    os << "dynamic_batch_upper=" << dynamic_batch_upper << ";";
     return os.str();
   }
 };
@@ -105,6 +113,11 @@ ffi::Optional<ffi::String> GetStringOption(const ffi::Map<ffi::String, ffi::Any>
 void ValidatePrecision(const std::string& precision) {
   static const std::unordered_set<std::string> supported = {"fp32", "fp16_hint", "fp16_force"};
   TVM_FFI_ICHECK(supported.count(precision)) << "Unsupported XNNPACK precision: " << precision;
+}
+
+int64_t GetIntAttr(const Function& func, const std::string& key, int64_t default_value) {
+  auto value = func->GetAttr<IntImm>(key);
+  return value ? value.value()->value : default_value;
 }
 
 XNNPACKRuntimeOptions ParseRuntimeOptions(const ffi::Map<ffi::String, ffi::Any>& options,
@@ -144,6 +157,7 @@ XNNPACKRuntimeOptions ParseRuntimeOptions(const ffi::Map<ffi::String, ffi::Any>&
     parsed.precision = option_precision.value();
   }
   ValidatePrecision(parsed.precision);
+  parsed.dynamic_shape_policy = "none";
   TVM_FFI_ICHECK_GE(parsed.num_threads, 1)
       << "XNNPACK RunCodegen option 'num_threads' must be >= 1.";
   return parsed;
@@ -217,6 +231,18 @@ class XNNPACKJSONSerializer : public JSONSerializer {
         "xnnpack.dynamic_range_fully_connected_relu",
         "xnnpack.dynamic_range_fully_connected_bias",
         "xnnpack.dynamic_range_fully_connected",
+        "xnnpack.dynamic_batch_fully_connected_bias_clip",
+        "xnnpack.dynamic_batch_fully_connected_bias_relu",
+        "xnnpack.dynamic_batch_fully_connected_clip",
+        "xnnpack.dynamic_batch_fully_connected_relu",
+        "xnnpack.dynamic_batch_fully_connected_bias",
+        "xnnpack.dynamic_batch_fully_connected",
+        "xnnpack.dynamic_batch_conv2d_bias_clip",
+        "xnnpack.dynamic_batch_conv2d_bias_relu",
+        "xnnpack.dynamic_batch_conv2d_clip",
+        "xnnpack.dynamic_batch_conv2d_relu",
+        "xnnpack.dynamic_batch_conv2d_bias",
+        "xnnpack.dynamic_batch_conv2d",
         "xnnpack.qs8_fully_connected_bias_clip",
         "xnnpack.qs8_fully_connected_bias_relu",
         "xnnpack.qs8_fully_connected_clip",
@@ -780,6 +806,28 @@ class XNNPACKJSONSerializer : public JSONSerializer {
     }
   }
 
+  static void SetFullyConnectedAttrs(const JSONGraphObjectPtr& node, const Function& fn,
+                                     const std::string& composite_name, size_t num_inputs) {
+    const auto calls = CollectCalls(fn);
+    const CallNode* matmul_call = FindCall(calls, "relax.matmul");
+    TVM_FFI_ICHECK(matmul_call) << composite_name << " must contain relax.matmul.";
+    const bool has_bias = composite_name.find("_bias") != std::string::npos;
+    TVM_FFI_ICHECK_EQ(num_inputs, has_bias ? 3U : 2U)
+        << composite_name << " expects data, weight, and optional bias inputs.";
+    node->SetAttr("op_kind", ffi::String("fully_connected"));
+    node->SetAttr("has_bias", static_cast<int64_t>(has_bias));
+    if (composite_name.find("_relu") != std::string::npos) {
+      SetActivationAttrs(node, "clamp", 0.0, kXNNPACKInfinity);
+    } else if (composite_name.find("_clip") != std::string::npos) {
+      const CallNode* root = RootCall(calls);
+      TVM_FFI_ICHECK_EQ(OpName(root), "relax.clip");
+      SetActivationAttrs(node, "clamp", PrimValueToDouble(root->args[1]),
+                         PrimValueToDouble(root->args[2]));
+    } else {
+      SetActivationAttrs(node, "none");
+    }
+  }
+
   static void SetPool2DAttrs(const JSONGraphObjectPtr& node, const Function& fn,
                              const std::string& composite_name, size_t num_inputs) {
     TVM_FFI_ICHECK_EQ(num_inputs, 1U) << composite_name << " expects one input.";
@@ -826,8 +874,11 @@ class XNNPACKJSONSerializer : public JSONSerializer {
 
   static void SetCompositeAttrs(const JSONGraphObjectPtr& node, const Function& fn,
                                 const std::string& composite_name, size_t num_inputs) {
-    if (composite_name.find("xnnpack.conv2d") == 0) {
+    if (composite_name.find("xnnpack.conv2d") == 0 ||
+        composite_name.find("xnnpack.dynamic_batch_conv2d") == 0) {
       SetConv2DAttrs(node, fn, composite_name, num_inputs);
+    } else if (composite_name.find("xnnpack.dynamic_batch_fully_connected") == 0) {
+      SetFullyConnectedAttrs(node, fn, composite_name, num_inputs);
     } else if (composite_name == "xnnpack.max_pool2d" || composite_name == "xnnpack.avg_pool2d") {
       SetPool2DAttrs(node, fn, composite_name, num_inputs);
     } else if (composite_name == "xnnpack.add") {
@@ -849,8 +900,19 @@ ffi::Array<ffi::Module> XNNPACKCompiler(ffi::Array<Function> functions,
   const auto pf = tvm::ffi::Function::GetGlobalRequired("runtime.XNNPACKJSONRuntimeCreate");
 
   for (const auto& func : functions) {
-    const std::string runtime_options =
-        ParseRuntimeOptions(options, func->GetAttr<ffi::String>("xnnpack_precision")).Serialize();
+    XNNPACKRuntimeOptions parsed_options =
+        ParseRuntimeOptions(options, func->GetAttr<ffi::String>("xnnpack_precision"));
+    if (auto policy = func->GetAttr<ffi::String>("xnnpack_dynamic_shape_policy")) {
+      parsed_options.dynamic_shape_policy = std::string(policy.value());
+      auto symbol = func->GetAttr<ffi::String>("xnnpack_dynamic_batch_symbol");
+      TVM_FFI_ICHECK(symbol) << "XNNPACK dynamic batch function is missing its batch symbol.";
+      parsed_options.dynamic_batch_symbol = std::string(symbol.value());
+      parsed_options.dynamic_batch_lower = GetIntAttr(func, "xnnpack_dynamic_batch_lower", 1);
+      parsed_options.dynamic_batch_upper = GetIntAttr(func, "xnnpack_dynamic_batch_upper", -1);
+      TVM_FFI_ICHECK_EQ(parsed_options.dynamic_shape_policy, "batch_only");
+      TVM_FFI_ICHECK_GE(parsed_options.dynamic_batch_upper, parsed_options.dynamic_batch_lower);
+    }
+    const std::string runtime_options = parsed_options.Serialize();
     XNNPACKJSONSerializer serializer(constant_names, AnalyzeVar2Value(func));
     serializer.serialize(func);
     auto graph_json = serializer.GetJSON();

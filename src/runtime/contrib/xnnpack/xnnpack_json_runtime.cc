@@ -60,7 +60,9 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
 
   static std::string DefaultOptionsString() {
     return "use_weights_cache=0;use_workspace=0;profile=0;dont_spin_workers=0;"
-           "transient_indirection_buffer=0;num_threads=1;precision=fp32;";
+           "transient_indirection_buffer=0;num_threads=1;precision=fp32;"
+           "dynamic_shape_policy=none;dynamic_batch_symbol=;dynamic_batch_lower=1;"
+           "dynamic_batch_upper=-1;";
   }
 
   static std::string ValidateQuantizationMetadataJSON(
@@ -126,6 +128,15 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
         *rv = ffi::String(this->GetQuantizationMetadataJSON());
       });
     }
+    if (name == "get_runtime_counters") {
+      return ffi::Function([sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) {
+        std::ostringstream os;
+        os << "{\"reshape_count\":" << reshape_count_ << ",\"setup_count\":" << setup_count_
+           << ",\"invoke_count\":" << invoke_count_ << ",\"last_batch_size\":"
+           << last_batch_size_ << "}";
+        *rv = ffi::String(os.str());
+      });
+    }
     return JSONRuntimeBase::GetFunction(name);
   }
 
@@ -166,35 +177,79 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
 
     std::vector<xnn_external_value> external_values;
     external_values.reserve(external_tensors_.size());
+    bool signature_changed = !setup_valid_;
+    bool pointer_changed = false;
+    std::vector<size_t> signature;
+    std::vector<std::vector<size_t>> actual_shapes;
 
     for (auto& entry : external_tensors_) {
       TVM_FFI_ICHECK_LT(entry.eid, data_entry_.size());
       const DLTensor* tensor = data_entry_[entry.eid];
-      ValidateTensor(tensor, entry.shape, entry.dtype, entry.name.c_str());
+      std::vector<size_t> actual_shape = ResolveTensorShape(entry, tensor);
+      signature.insert(signature.end(), actual_shape.begin(), actual_shape.end());
+      actual_shapes.push_back(actual_shape);
+      ValidateTensor(tensor, actual_shape, entry.dtype, entry.name.c_str());
 
-      const size_t bytes = NumElements(entry.shape) * entry.element_size;
-      entry.buffer.resize(bytes + XNN_EXTRA_BYTES);
+      const size_t bytes = CheckedBytes(actual_shape, entry.element_size);
+      const size_t padded_bytes = CheckedPaddedBytes(bytes, XNN_EXTRA_BYTES);
+      uint8_t* old_ptr = entry.buffer.empty() ? nullptr : entry.buffer.data();
+      entry.buffer.resize(padded_bytes);
+      pointer_changed = pointer_changed || (old_ptr != nullptr && old_ptr != entry.buffer.data());
       if (entry.is_output) {
-        std::memset(entry.buffer.data(), 0, bytes + XNN_EXTRA_BYTES);
+        std::memset(entry.buffer.data(), 0, padded_bytes);
       } else {
         std::memcpy(entry.buffer.data(), TensorData(tensor), bytes);
         std::memset(entry.buffer.data() + bytes, 0, XNN_EXTRA_BYTES);
       }
-
-      CheckXNNStatus(
-          xnn_reshape_external_value(runtime_, entry.eid, entry.shape.size(), entry.shape.data()),
-          "xnn_reshape_external_value");
       external_values.push_back({entry.eid, entry.buffer.data()});
     }
-    CheckXNNStatus(xnn_reshape_runtime(runtime_), "xnn_reshape_runtime");
+    if (last_shape_signature_ != signature) {
+      signature_changed = true;
+    }
+    if (signature_changed && options_.dynamic_shape_policy == "batch_only") {
+#if defined(TVM_XNNPACK_HAS_DYNAMIC_BATCH_RUNTIME)
+      for (size_t i = 0; i < external_tensors_.size(); ++i) {
+        CheckXNNStatus(xnn_reshape_external_value(runtime_, external_tensors_[i].eid,
+                                                  actual_shapes[i].size(), actual_shapes[i].data()),
+                       "xnn_reshape_external_value");
+      }
+      CheckXNNStatus(xnn_reshape_runtime(runtime_), "xnn_reshape_runtime");
+      ++reshape_count_;
+      ValidateDynamicOutputShapes();
+      last_shape_signature_ = signature;
+      last_batch_size_ = DynamicBatchFromSignature(signature);
+#else
+      TVM_FFI_THROW(RuntimeError)
+          << "XNNPACK dynamic batch requires xnn_reshape_external_value, xnn_reshape_runtime, "
+             "xnn_setup_runtime_v2, and xnn_get_external_value_shape.";
+#endif
+    } else if (signature_changed) {
+      last_shape_signature_ = signature;
+    }
 
-    CheckXNNStatus(xnn_setup_runtime_v2(runtime_, external_values.size(), external_values.data()),
-                   "xnn_setup_runtime_v2");
+    if (!setup_valid_ || signature_changed || pointer_changed) {
+      if (options_.dynamic_shape_policy == "batch_only") {
+#if defined(TVM_XNNPACK_HAS_SETUP_RUNTIME_V2)
+        CheckXNNStatus(
+            xnn_setup_runtime_v2(runtime_, external_values.size(), external_values.data()),
+            "xnn_setup_runtime_v2");
+#else
+        TVM_FFI_THROW(RuntimeError) << "XNNPACK dynamic batch requires xnn_setup_runtime_v2.";
+#endif
+      } else {
+        CheckXNNStatus(xnn_setup_runtime(runtime_, external_values.size(), external_values.data()),
+                       "xnn_setup_runtime");
+      }
+      setup_valid_ = true;
+      ++setup_count_;
+    }
     CheckXNNStatus(xnn_invoke_runtime(runtime_), "xnn_invoke_runtime");
+    ++invoke_count_;
 
     for (auto& entry : external_tensors_) {
       if (!entry.is_output) continue;
-      const size_t bytes = NumElements(entry.shape) * entry.element_size;
+      const size_t bytes = CheckedBytes(ResolveTensorShape(entry, data_entry_[entry.eid]),
+                                       entry.element_size);
       std::memcpy(MutableTensorData(data_entry_[entry.eid]), entry.buffer.data(), bytes);
     }
   }
@@ -208,6 +263,10 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
     bool transient_indirection_buffer{false};
     int64_t num_threads{1};
     std::string precision{"fp32"};
+    std::string dynamic_shape_policy{"none"};
+    std::string dynamic_batch_symbol{""};
+    int64_t dynamic_batch_lower{1};
+    int64_t dynamic_batch_upper{-1};
   };
 
   struct ExternalTensor {
@@ -217,6 +276,8 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
     DLDataType dtype{kDLFloat, 32, 1};
     size_t element_size{sizeof(float)};
     bool is_output{false};
+    bool dynamic_batch{false};
+    std::vector<int64_t> shape_template;
     std::vector<uint8_t> buffer;
   };
 
@@ -259,6 +320,14 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
           parsed.num_threads = std::stoll(value);
         } else if (key == "precision") {
           parsed.precision = value;
+        } else if (key == "dynamic_shape_policy") {
+          parsed.dynamic_shape_policy = value;
+        } else if (key == "dynamic_batch_symbol") {
+          parsed.dynamic_batch_symbol = value;
+        } else if (key == "dynamic_batch_lower") {
+          parsed.dynamic_batch_lower = std::stoll(value);
+        } else if (key == "dynamic_batch_upper") {
+          parsed.dynamic_batch_upper = std::stoll(value);
         } else {
           TVM_FFI_THROW(ValueError) << "Unsupported XNNPACK runtime option: " << key;
         }
@@ -269,6 +338,15 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
     TVM_FFI_ICHECK(parsed.precision == "fp32" || parsed.precision == "fp16_hint" ||
                    parsed.precision == "fp16_force")
         << "Unsupported XNNPACK precision: " << parsed.precision;
+    TVM_FFI_ICHECK(parsed.dynamic_shape_policy == "none" ||
+                   parsed.dynamic_shape_policy == "batch_only")
+        << "Unsupported XNNPACK dynamic_shape_policy: " << parsed.dynamic_shape_policy;
+    if (parsed.dynamic_shape_policy == "batch_only") {
+      TVM_FFI_ICHECK_GE(parsed.dynamic_batch_upper, parsed.dynamic_batch_lower)
+          << "XNNPACK dynamic batch upper bound must be >= lower bound.";
+      TVM_FFI_ICHECK_GT(parsed.dynamic_batch_lower, 0)
+          << "XNNPACK dynamic batch lower bound must be positive.";
+    }
     return parsed;
   }
 
@@ -601,8 +679,34 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
   }
 
   static size_t NumElements(const std::vector<size_t>& shape) {
-    return std::accumulate(shape.begin(), shape.end(), static_cast<size_t>(1),
-                           std::multiplies<size_t>());
+    size_t result = 1;
+    for (size_t dim : shape) {
+      TVM_FFI_ICHECK(dim != 0);
+      TVM_FFI_ICHECK_LE(result, std::numeric_limits<size_t>::max() / dim)
+          << "XNNPACK tensor shape size overflows size_t.";
+      result *= dim;
+    }
+    return result;
+  }
+
+  static size_t CheckedMul(size_t lhs, size_t rhs, const char* name) {
+    TVM_FFI_ICHECK(rhs == 0 || lhs <= std::numeric_limits<size_t>::max() / rhs)
+        << "XNNPACK " << name << " overflows size_t.";
+    return lhs * rhs;
+  }
+
+  static size_t CheckedAdd(size_t lhs, size_t rhs, const char* name) {
+    TVM_FFI_ICHECK_LE(lhs, std::numeric_limits<size_t>::max() - rhs)
+        << "XNNPACK " << name << " overflows size_t.";
+    return lhs + rhs;
+  }
+
+  static size_t CheckedBytes(const std::vector<size_t>& shape, size_t element_size) {
+    return CheckedMul(NumElements(shape), element_size, "tensor byte size");
+  }
+
+  static size_t CheckedPaddedBytes(size_t bytes, size_t padding) {
+    return CheckedAdd(bytes, padding, "padded tensor byte size");
   }
 
   static const void* TensorData(const DLTensor* tensor) {
@@ -642,15 +746,109 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
     }
   }
 
+  std::vector<size_t> ResolveTensorShape(const ExternalTensor& entry, const DLTensor* tensor) const {
+    TVM_FFI_ICHECK(tensor != nullptr) << "Missing XNNPACK " << entry.name << " tensor.";
+    TVM_FFI_ICHECK_EQ(static_cast<size_t>(tensor->ndim), entry.shape_template.size())
+        << "XNNPACK " << entry.name << " tensor rank mismatch.";
+    std::vector<size_t> actual;
+    actual.reserve(entry.shape_template.size());
+    for (size_t i = 0; i < entry.shape_template.size(); ++i) {
+      TVM_FFI_ICHECK_GT(tensor->shape[i], 0)
+          << "XNNPACK " << entry.name << " tensor dimensions must be positive.";
+      const size_t value = static_cast<size_t>(tensor->shape[i]);
+      const int64_t expected = entry.shape_template[i];
+      if (expected == -1) {
+        TVM_FFI_ICHECK(entry.dynamic_batch && i == 0)
+            << "XNNPACK only supports dynamic shape in the leading batch dimension.";
+        TVM_FFI_ICHECK_GE(static_cast<int64_t>(value), options_.dynamic_batch_lower)
+            << "XNNPACK dynamic batch is below the configured lower bound.";
+        TVM_FFI_ICHECK_LE(static_cast<int64_t>(value), options_.dynamic_batch_upper)
+            << "XNNPACK dynamic batch exceeds the configured upper bound.";
+      } else {
+        TVM_FFI_ICHECK_EQ(value, static_cast<size_t>(expected))
+            << "XNNPACK " << entry.name << " tensor shape mismatch at dim " << i << ".";
+      }
+      actual.push_back(value);
+    }
+    return actual;
+  }
+
+  size_t DynamicBatchFromSignature(const std::vector<size_t>& signature) const {
+    if (options_.dynamic_shape_policy != "batch_only" || signature.empty()) return 0;
+    return signature[0];
+  }
+
+  void ValidateDynamicOutputShapes() const {
+#if defined(TVM_XNNPACK_HAS_GET_EXTERNAL_VALUE_SHAPE)
+    if (options_.dynamic_shape_policy != "batch_only") return;
+    for (const auto& entry : external_tensors_) {
+      if (!entry.is_output || !entry.dynamic_batch) continue;
+      size_t num_dims = entry.shape_template.size();
+      std::vector<size_t> dims(num_dims);
+      CheckXNNStatus(xnn_get_external_value_shape(runtime_, entry.eid, &num_dims, dims.data()),
+                     "xnn_get_external_value_shape");
+      TVM_FFI_ICHECK_EQ(num_dims, entry.shape_template.size());
+      for (size_t i = 0; i < dims.size(); ++i) {
+        if (entry.shape_template[i] == -1) continue;
+        TVM_FFI_ICHECK_EQ(dims[i], static_cast<size_t>(entry.shape_template[i]))
+            << "XNNPACK dynamic output shape mismatch at static dim " << i << ".";
+      }
+    }
+#else
+    if (options_.dynamic_shape_policy == "batch_only") {
+      TVM_FFI_THROW(RuntimeError)
+          << "XNNPACK dynamic batch requires xnn_get_external_value_shape.";
+    }
+#endif
+  }
+
   static std::vector<size_t> GetShape(const JSONGraphNode& node, uint32_t index) {
     auto shapes = node.GetOpShape();
     TVM_FFI_ICHECK_LT(index, shapes.size());
     std::vector<size_t> shape;
     for (int64_t dim : shapes[index]) {
-      TVM_FFI_ICHECK_GT(dim, 0) << "XNNPACK only supports static positive shapes.";
+      TVM_FFI_ICHECK_GT(dim, 0) << "XNNPACK only supports static positive shapes here.";
       shape.push_back(static_cast<size_t>(dim));
     }
     return shape;
+  }
+
+  std::vector<size_t> GetDefineShape(const JSONGraphNode& node, uint32_t index) const {
+    auto shapes = node.GetOpShape();
+    TVM_FFI_ICHECK_LT(index, shapes.size());
+    std::vector<size_t> shape;
+    for (size_t i = 0; i < shapes[index].size(); ++i) {
+      int64_t dim = shapes[index][i];
+      if (dim == -1 && i == 0 && options_.dynamic_shape_policy == "batch_only") {
+        shape.push_back(static_cast<size_t>(options_.dynamic_batch_upper));
+      } else {
+        TVM_FFI_ICHECK_GT(dim, 0) << "XNNPACK only supports static shapes or leading dynamic batch.";
+        shape.push_back(static_cast<size_t>(dim));
+      }
+    }
+    return shape;
+  }
+
+  static std::vector<int64_t> GetShapeTemplate(const JSONGraphNode& node, uint32_t index) {
+    auto shapes = node.GetOpShape();
+    TVM_FFI_ICHECK_LT(index, shapes.size());
+    std::vector<int64_t> shape;
+    for (int64_t dim : shapes[index]) {
+      TVM_FFI_ICHECK(dim > 0 || dim == -1)
+          << "XNNPACK only supports static shapes or leading dynamic batch.";
+      shape.push_back(dim);
+    }
+    return shape;
+  }
+
+  static std::vector<int64_t> StaticShapeTemplate(const std::vector<size_t>& shape) {
+    std::vector<int64_t> result;
+    result.reserve(shape.size());
+    for (size_t dim : shape) {
+      TVM_FFI_ICHECK_LE(dim, static_cast<size_t>(std::numeric_limits<int64_t>::max()));
+      result.push_back(static_cast<int64_t>(dim));
+    }
+    return result;
   }
 
   static DLDataType GetDType(const JSONGraphNode& node, uint32_t index) {
@@ -775,7 +973,7 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
                     const void* data = nullptr) {
     if (value_ids_[eid] != XNN_INVALID_VALUE_ID) return;
     CheckFloat32DType(node, index);
-    std::vector<size_t> shape = GetShape(node, index);
+    std::vector<size_t> shape = GetDefineShape(node, index);
     uint32_t id = XNN_INVALID_VALUE_ID;
     const uint32_t external_id = flags != 0 ? eid : XNN_INVALID_VALUE_ID;
     CheckXNNStatus(xnn_define_tensor_value(subgraph_, xnn_datatype_fp32, shape.size(), shape.data(),
@@ -881,9 +1079,11 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
       const uint32_t nid = NodeIDFromEntryID(eid);
       if (!IsFloat32(GetDType(nodes_[nid], 0))) continue;
       DefineTensor(eid, nodes_[nid], 0, XNN_VALUE_FLAG_EXTERNAL_INPUT);
+      auto shape_template = GetShapeTemplate(nodes_[nid], 0);
+      bool dynamic_batch = !shape_template.empty() && shape_template[0] == -1;
       external_tensors_.push_back(
-          {eid, GetShape(nodes_[nid], 0), "input", GetDType(nodes_[nid], 0), sizeof(float), false,
-           {}});
+          {eid, GetDefineShape(nodes_[nid], 0), "input", GetDType(nodes_[nid], 0), sizeof(float),
+           false, dynamic_batch, shape_template, {}});
     }
 
     for (uint32_t nid : const_idx_) {
@@ -910,8 +1110,11 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
         IsGraphOutput(graph_output_eids, eid) ? XNN_VALUE_FLAG_EXTERNAL_OUTPUT : 0;
     DefineTensor(eid, node, output_entry.index_, flags);
     if (flags != 0) {
-      external_tensors_.push_back({eid, GetShape(node, output_entry.index_), "output",
-                                   GetDType(node, output_entry.index_), sizeof(float), true, {}});
+      auto shape_template = GetShapeTemplate(node, output_entry.index_);
+      bool dynamic_batch = !shape_template.empty() && shape_template[0] == -1;
+      external_tensors_.push_back({eid, GetDefineShape(node, output_entry.index_), "output",
+                                   GetDType(node, output_entry.index_), sizeof(float), true,
+                                   dynamic_batch, shape_template, {}});
     }
   }
 
@@ -926,7 +1129,8 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
     DefineQuantizedTensor(eid, shape, qparams, flags);
     if (flags != 0) {
       external_tensors_.push_back(
-          {eid, shape, "output", GetDType(node, output_entry.index_), sizeof(int8_t), true, {}});
+          {eid, shape, "output", GetDType(node, output_entry.index_), sizeof(int8_t), true, false,
+           StaticShapeTemplate(shape), {}});
     }
     return value_ids_[eid];
   }
@@ -951,7 +1155,7 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
                                     })) {
       external_tensors_.push_back(
           {input_eid, input_shape, "input", GetDType(nodes_[input_nid], inputs[input_index].index_),
-           sizeof(int8_t), false, {}});
+           sizeof(int8_t), false, false, StaticShapeTemplate(input_shape), {}});
     }
   }
 
@@ -980,7 +1184,7 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
                      [input_eid](const ExternalTensor& entry) { return entry.eid == input_eid; })) {
       external_tensors_.push_back(
           {input_eid, input_shape, "input", GetDType(nodes_[input_nid], inputs[0].index_),
-           sizeof(int8_t), false, {}});
+           sizeof(int8_t), false, false, StaticShapeTemplate(input_shape), {}});
     }
 
     const uint32_t weight_eid = EntryID(inputs[1]);
@@ -1016,7 +1220,7 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
                      [input_eid](const ExternalTensor& entry) { return entry.eid == input_eid; })) {
       external_tensors_.push_back(
           {input_eid, input_shape, "input", GetDType(nodes_[input_nid], inputs[0].index_),
-           sizeof(int8_t), false, {}});
+           sizeof(int8_t), false, false, StaticShapeTemplate(input_shape), {}});
     }
 
     const uint32_t weight_eid = EntryID(inputs[1]);
@@ -1190,6 +1394,29 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
                        GetFloatAttr(node, "activation_max"), value_ids_[EntryID(inputs[0])],
                        value_ids_[EntryID(inputs[1])], bias_id, output_id, 0),
                    "xnn_define_convolution_2d");
+  }
+
+  void DefineFullyConnected(const JSONGraphNode& node, const std::vector<JSONGraphNodeEntry>& inputs,
+                            uint32_t output_id) {
+#if defined(TVM_XNNPACK_HAS_FULLY_CONNECTED)
+    const bool has_bias = static_cast<int64_t>(node.GetAttr<int64_t>("has_bias")) != 0;
+    TVM_FFI_ICHECK_EQ(inputs.size(), has_bias ? 3U : 2U);
+    const uint32_t bias_id = has_bias ? value_ids_[EntryID(inputs[2])] : XNN_INVALID_VALUE_ID;
+    uint32_t flags = 0;
+#if defined(TVM_XNNPACK_HAS_TRANSPOSE_WEIGHTS_FLAG)
+    flags |= XNN_FLAG_TRANSPOSE_WEIGHTS;
+#else
+    TVM_FFI_THROW(RuntimeError)
+        << "XNNPACK fully_connected requires XNN_FLAG_TRANSPOSE_WEIGHTS for Relax weights.";
+#endif
+    CheckXNNStatus(xnn_define_fully_connected(
+                       subgraph_, GetFloatAttr(node, "activation_min"),
+                       GetFloatAttr(node, "activation_max"), value_ids_[EntryID(inputs[0])],
+                       value_ids_[EntryID(inputs[1])], bias_id, output_id, flags),
+                   "xnn_define_fully_connected(fp32)");
+#else
+    TVM_FFI_THROW(RuntimeError) << "XNNPACK fully_connected API is unavailable.";
+#endif
   }
 
   void DefineQS8FullyConnected(const JSONGraphNode& node,
@@ -1494,11 +1721,19 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
   }
 
   void BuildRuntime() {
+#if !defined(TVM_XNNPACK_HAS_DYNAMIC_BATCH_RUNTIME)
+    if (options_.dynamic_shape_policy == "batch_only") {
+      TVM_FFI_THROW(RuntimeError)
+          << "XNNPACK dynamic batch was requested but runtime reshape/setup APIs are unavailable.";
+    }
+#endif
     CheckXNNStatus(xnn_create_subgraph(NumEntries(), 0, &subgraph_), "xnn_create_subgraph");
     value_ids_.assign(NumEntries(), XNN_INVALID_VALUE_ID);
     external_tensors_.clear();
     constant_buffers_.clear();
     quantization_metadata_.clear();
+    last_shape_signature_.clear();
+    setup_valid_ = false;
 
     std::unordered_set<uint32_t> graph_output_eids;
     for (const auto& output : outputs_) {
@@ -1549,6 +1784,8 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
         DefineAdd(node, inputs, output_id);
       } else if (op_kind == "conv2d") {
         DefineConv2D(node, inputs, output_id);
+      } else if (op_kind == "fully_connected") {
+        DefineFullyConnected(node, inputs, output_id);
       } else if (op_kind == "qs8_fully_connected") {
         DefineQS8FullyConnected(node, inputs, output_id);
       } else if (op_kind == "dynamic_range_fully_connected") {
@@ -1595,6 +1832,12 @@ class XNNPACKJSONRuntime : public JSONRuntimeBase {
   std::vector<ExternalTensor> external_tensors_;
   std::vector<std::vector<uint8_t>> constant_buffers_;
   std::vector<QuantizationMetadata> quantization_metadata_;
+  std::vector<size_t> last_shape_signature_;
+  bool setup_valid_{false};
+  uint64_t reshape_count_{0};
+  uint64_t setup_count_{0};
+  uint64_t invoke_count_{0};
+  uint64_t last_batch_size_{0};
 };
 
 ffi::Module XNNPACKJSONRuntimeCreate(const ffi::String& symbol_name, const ffi::String& graph_json,
@@ -1947,6 +2190,34 @@ ffi::Map<ffi::String, ffi::Any> XNNPACKJSONRuntimeGetCapabilities() {
                                           0
 #endif
                                           ));
+  result.Set("reshape_external_value", static_cast<int64_t>(
+#if defined(TVM_XNNPACK_HAS_RESHAPE_EXTERNAL_VALUE)
+                                               1
+#else
+                                               0
+#endif
+                                               ));
+  result.Set("setup_runtime_v2", static_cast<int64_t>(
+#if defined(TVM_XNNPACK_HAS_SETUP_RUNTIME_V2)
+                                          1
+#else
+                                          0
+#endif
+                                          ));
+  result.Set("get_external_value_shape", static_cast<int64_t>(
+#if defined(TVM_XNNPACK_HAS_GET_EXTERNAL_VALUE_SHAPE)
+                                                   1
+#else
+                                                   0
+#endif
+                                                   ));
+  result.Set("dynamic_batch_runtime", static_cast<int64_t>(
+#if defined(TVM_XNNPACK_HAS_DYNAMIC_BATCH_RUNTIME)
+                                               1
+#else
+                                               0
+#endif
+                                               ));
   return result;
 }
 

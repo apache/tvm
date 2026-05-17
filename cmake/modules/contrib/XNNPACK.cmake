@@ -104,6 +104,10 @@ foreach(_feature
     STATIC_RESHAPE
     COPY
     RUNTIME_RESHAPE
+    RESHAPE_EXTERNAL_VALUE
+    SETUP_RUNTIME_V2
+    GET_EXTERNAL_VALUE_SHAPE
+    DYNAMIC_BATCH_RUNTIME
     DONT_SPIN_WORKERS_FLAG
     TRANSIENT_INDIRECTION_BUFFER_FLAG
     PTHREADPOOL_CREATE
@@ -360,6 +364,24 @@ check_cxx_source_compiles("
 check_cxx_source_compiles("
   #include <xnnpack.h>
   int main() {
+    (void)&xnn_reshape_external_value;
+    return 0;
+  }" TVM_XNNPACK_HAS_RESHAPE_EXTERNAL_VALUE)
+check_cxx_source_compiles("
+  #include <xnnpack.h>
+  int main() {
+    (void)&xnn_setup_runtime_v2;
+    return 0;
+  }" TVM_XNNPACK_HAS_SETUP_RUNTIME_V2)
+check_cxx_source_compiles("
+  #include <xnnpack.h>
+  int main() {
+    (void)&xnn_get_external_value_shape;
+    return 0;
+  }" TVM_XNNPACK_HAS_GET_EXTERNAL_VALUE_SHAPE)
+check_cxx_source_compiles("
+  #include <xnnpack.h>
+  int main() {
     (void)&xnn_create_fully_connected_nc_qd8_f32_qc8w;
     (void)&xnn_create_convolution2d_nhwc_qd8_f32_qc8w;
     return 0;
@@ -449,6 +471,10 @@ endif()
 if(TVM_XNNPACK_HAS_DYNAMIC_RANGE_FULLY_CONNECTED_SUBGRAPH)
   set(TVM_XNNPACK_HAS_DYNAMIC_RANGE_SUBGRAPH_OPS 1)
 endif()
+if(TVM_XNNPACK_HAS_RUNTIME_RESHAPE AND TVM_XNNPACK_HAS_RESHAPE_EXTERNAL_VALUE AND
+   TVM_XNNPACK_HAS_SETUP_RUNTIME_V2 AND TVM_XNNPACK_HAS_GET_EXTERNAL_VALUE_SHAPE)
+  set(TVM_XNNPACK_HAS_DYNAMIC_BATCH_RUNTIME 1)
+endif()
 
 set(CMAKE_REQUIRED_INCLUDES "${_XNNPACK_PREV_REQUIRED_INCLUDES}")
 set(CMAKE_REQUIRED_LIBRARIES "${_XNNPACK_PREV_REQUIRED_LIBRARIES}")
@@ -498,6 +524,10 @@ foreach(_feature
     STATIC_RESHAPE
     COPY
     RUNTIME_RESHAPE
+    RESHAPE_EXTERNAL_VALUE
+    SETUP_RUNTIME_V2
+    GET_EXTERNAL_VALUE_SHAPE
+    DYNAMIC_BATCH_RUNTIME
     TRANSPOSE_WEIGHTS_FLAG
     DONT_SPIN_WORKERS_FLAG
     TRANSIENT_INDIRECTION_BUFFER_FLAG
@@ -525,7 +555,8 @@ message(STATUS "XNNPACK quantization features: qs8_datatypes=${TVM_XNNPACK_HAS_Q
                "dynamic_range_qd8_ops=${TVM_XNNPACK_HAS_DYNAMIC_RANGE_QD8_OPS}, "
                "dynamic_range_subgraph_ops=${TVM_XNNPACK_HAS_DYNAMIC_RANGE_SUBGRAPH_OPS}")
 message(STATUS "XNNPACK reshape/copy features: static_reshape=${TVM_XNNPACK_HAS_STATIC_RESHAPE}, "
-               "copy=${TVM_XNNPACK_HAS_COPY}, runtime_reshape=${TVM_XNNPACK_HAS_RUNTIME_RESHAPE}")
+               "copy=${TVM_XNNPACK_HAS_COPY}, runtime_reshape=${TVM_XNNPACK_HAS_RUNTIME_RESHAPE}, "
+               "dynamic_batch_runtime=${TVM_XNNPACK_HAS_DYNAMIC_BATCH_RUNTIME}")
 
 tvm_file_glob(GLOB XNNPACK_RELAX_CONTRIB_SRC src/relax/backend/contrib/xnnpack/*.cc)
 list(APPEND COMPILER_SRCS ${XNNPACK_RELAX_CONTRIB_SRC})

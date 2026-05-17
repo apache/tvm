@@ -28,6 +28,7 @@ import tvm.testing
 from tvm import relax
 from tvm.relax.backend.pattern_registry import get_patterns_with_prefix
 from tvm.script import relax as R
+from tvm.script import tirx as T
 
 
 @tvm.script.ir_module
@@ -375,6 +376,180 @@ class DynamicRangeFullyConnectedQU8WeightModule:
                 w,
                 R.const(np.array([0.5, 0.25, 0.125, 0.375], dtype="float32")),
                 R.const(0, "uint8"),
+                axis=1,
+                out_dtype="float32",
+            )
+            z = R.matmul(x, w_f)
+            R.output(z)
+        return z
+
+
+@tvm.script.ir_module
+class DynamicBatchFullyConnectedModule:
+    @R.function
+    def main(x: R.Tensor(("n", 3), "float32")) -> R.Tensor(("n", 4), "float32"):
+        with R.dataflow():
+            w = R.const(
+                np.array([[1.0, -2.0, 3.0, -4.0], [2.0, 1.0, -1.0, 3.0], [-3.0, 2.0, 1.0, -2.0]], dtype="float32")
+            )
+            z = R.matmul(x, w)
+            R.output(z)
+        return z
+
+
+@tvm.script.ir_module
+class DynamicBatchFullyConnectedWithAttrsModule:
+    @R.function
+    def main(
+        x: R.Tensor(("n", 3), "float32"),
+        w: R.Tensor((3, 4), "float32"),
+    ) -> R.Tensor(("n", 4), "float32"):
+        R.func_attr({"tir_var_upper_bound": {"n": T.int64(4)}, "tir_var_lower_bound": {"n": T.int64(1)}})
+        with R.dataflow():
+            z = R.matmul(x, w)
+            R.output(z)
+        return z
+
+
+@tvm.script.ir_module
+class DynamicBatchFullyConnectedParamModule:
+    @R.function
+    def main(
+        x: R.Tensor(("n", 3), "float32"),
+        w: R.Tensor((3, 4), "float32"),
+    ) -> R.Tensor(("n", 4), "float32"):
+        with R.dataflow():
+            z = R.matmul(x, w)
+            R.output(z)
+        return z
+
+
+@tvm.script.ir_module
+class DynamicBatchConv2DModule:
+    @R.function
+    def main(x: R.Tensor(("n", 5, 5, 3), "float32")) -> R.Tensor(("n", 3, 3, 4), "float32"):
+        with R.dataflow():
+            w = R.const(
+                np.linspace(-0.2, 0.2, num=4 * 3 * 3 * 3, dtype="float32").reshape(4, 3, 3, 3)
+            )
+            z = relax.op.nn.conv2d(
+                x,
+                w,
+                strides=[1, 1],
+                padding=[0, 0, 0, 0],
+                dilation=[1, 1],
+                groups=1,
+                data_layout="NHWC",
+                kernel_layout="OHWI",
+                out_layout="NHWC",
+            )
+            R.output(z)
+        return z
+
+
+@tvm.script.ir_module
+class DynamicBatchConv2DParamModule:
+    @R.function
+    def main(
+        x: R.Tensor(("n", 5, 5, 3), "float32"),
+        w: R.Tensor((4, 3, 3, 3), "float32"),
+    ) -> R.Tensor(("n", 3, 3, 4), "float32"):
+        with R.dataflow():
+            z = relax.op.nn.conv2d(
+                x,
+                w,
+                strides=[1, 1],
+                padding=[0, 0, 0, 0],
+                dilation=[1, 1],
+                groups=1,
+                data_layout="NHWC",
+                kernel_layout="OHWI",
+                out_layout="NHWC",
+            )
+            R.output(z)
+        return z
+
+
+@tvm.script.ir_module
+class DynamicHWConv2DModule:
+    @R.function
+    def main(x: R.Tensor(("n", "h", 5, 3), "float32")):
+        with R.dataflow():
+            w = R.const(np.zeros((4, 3, 3, 3), dtype="float32"))
+            z = relax.op.nn.conv2d(
+                x,
+                w,
+                strides=[1, 1],
+                padding=[0, 0, 0, 0],
+                dilation=[1, 1],
+                groups=1,
+                data_layout="NHWC",
+                kernel_layout="OHWI",
+                out_layout="NHWC",
+            )
+            R.output(z)
+        return z
+
+
+@tvm.script.ir_module
+class DynamicChannelConv2DModule:
+    @R.function
+    def main(x: R.Tensor(("n", 5, 5, "c"), "float32")):
+        with R.dataflow():
+            w = R.const(np.zeros((4, 3, 3, 3), dtype="float32"))
+            z = relax.op.nn.conv2d(
+                x,
+                w,
+                strides=[1, 1],
+                padding=[0, 0, 0, 0],
+                dilation=[1, 1],
+                groups=1,
+                data_layout="NHWC",
+                kernel_layout="OHWI",
+                out_layout="NHWC",
+            )
+            R.output(z)
+        return z
+
+
+@tvm.script.ir_module
+class DynamicBatchQS8FullyConnectedModule:
+    @R.function
+    def main(x: R.Tensor(("n", 3), "int8")) -> R.Tensor(("n", 4), "int8"):
+        with R.dataflow():
+            x_f = R.dequantize(
+                x, R.const(0.25, "float32"), R.const(0, "int8"), axis=-1, out_dtype="float32"
+            )
+            w = R.const(
+                np.array([[1, -2, 3, -4], [2, 1, -1, 3], [-3, 2, 1, -2]], dtype="int8")
+            )
+            w_f = R.dequantize(
+                w,
+                R.const(np.array([0.5, 0.25, 0.125, 0.375], dtype="float32")),
+                R.const(0, "int8"),
+                axis=1,
+                out_dtype="float32",
+            )
+            y = R.matmul(x_f, w_f)
+            z = R.quantize(
+                y, R.const(0.5, "float32"), R.const(0, "int8"), axis=-1, out_dtype="int8"
+            )
+            R.output(z)
+        return z
+
+
+@tvm.script.ir_module
+class DynamicBatchDynamicRangeFullyConnectedModule:
+    @R.function
+    def main(x: R.Tensor(("n", 3), "float32")) -> R.Tensor(("n", 4), "float32"):
+        with R.dataflow():
+            w = R.const(
+                np.array([[1, -2, 3, -4], [2, 1, -1, 3], [-3, 2, 1, -2]], dtype="int8")
+            )
+            w_f = R.dequantize(
+                w,
+                R.const(np.array([0.5, 0.25, 0.125, 0.375], dtype="float32")),
+                R.const(0, "int8"),
                 axis=1,
                 out_dtype="float32",
             )
@@ -883,6 +1058,35 @@ def _bind_tiny_cnn_params():
     return relax.transform.BindParams("main", {"w": weight, "b": bias})(TinyCNNModule)
 
 
+def _dynamic_batch_fc_weight():
+    return np.array(
+        [[1.0, -2.0, 3.0, -4.0], [2.0, 1.0, -1.0, 3.0], [-3.0, 2.0, 1.0, -2.0]],
+        dtype="float32",
+    )
+
+
+def _bind_dynamic_batch_fc_params():
+    return relax.transform.BindParams("main", {"w": _dynamic_batch_fc_weight()})(
+        DynamicBatchFullyConnectedParamModule
+    )
+
+
+def _bind_dynamic_batch_fc_attrs_params():
+    return relax.transform.BindParams("main", {"w": _dynamic_batch_fc_weight()})(
+        DynamicBatchFullyConnectedWithAttrsModule
+    )
+
+
+def _dynamic_batch_conv_weight():
+    return np.linspace(-0.2, 0.2, num=4 * 3 * 3 * 3, dtype="float32").reshape(4, 3, 3, 3)
+
+
+def _bind_dynamic_batch_conv_params():
+    return relax.transform.BindParams("main", {"w": _dynamic_batch_conv_weight()})(
+        DynamicBatchConv2DParamModule
+    )
+
+
 def _tiny_cnn_inputs():
     rng = np.random.default_rng(0)
     x_np = rng.uniform(-1.0, 1.0, size=(1, 8, 8, 3)).astype("float32")
@@ -925,6 +1129,16 @@ def _run_first_external_module(mod, inputs, output_shape, output_dtype="float32"
     output = tvm.runtime.tensor(output_np)
     ext_mod[symbol](*[tvm.runtime.tensor(input_np) for input_np in inputs], output)
     return ext_mod, output.numpy()
+
+
+def _init_first_external_module(mod):
+    ext_mod = mod.attrs["external_mods"][0]
+    symbol = ext_mod["get_symbol"]()
+    const_names = list(ext_mod["get_const_vars"]())
+    const_map = mod.attrs.get("const_name_to_constant", {})
+    consts = [const_map[name] for name in const_names]
+    ext_mod["__init_" + symbol](consts)
+    return ext_mod, symbol
 
 
 def _skip_if_local_xnnpack_rejects_qs8(exc):
@@ -987,6 +1201,14 @@ def _assert_report_fields(report):
         "activation_boundary_dtype",
         "output_boundary_dtype",
         "estimated_quantization_overhead",
+        "dynamic_batch",
+        "dynamic_batch_symbol",
+        "dynamic_batch_lower",
+        "dynamic_batch_upper",
+        "estimated_min_flops",
+        "estimated_max_flops",
+        "estimated_min_copy_bytes",
+        "estimated_max_copy_bytes",
     }
     assert expected_fields.issubset(report[0].keys())
 
@@ -1011,6 +1233,13 @@ def test_partition_for_xnnpack_rejects_invalid_quantization():
         partition_for_xnnpack(ReluModule, quantization="weight_only")
 
 
+def test_partition_for_xnnpack_rejects_invalid_dynamic_shape_policy():
+    from tvm.relax.backend.xnnpack import partition_for_xnnpack
+
+    with pytest.raises(ValueError, match="Unsupported XNNPACK dynamic_shape_policy"):
+        partition_for_xnnpack(ReluModule, dynamic_shape_policy="full")
+
+
 @pytest.mark.parametrize(
     "kwargs, match",
     [
@@ -1025,6 +1254,84 @@ def test_partition_for_xnnpack_rejects_invalid_policy_options(kwargs, match):
 
     with pytest.raises(ValueError, match=match):
         partition_for_xnnpack(ReluModule, **kwargs)
+
+
+def test_partition_for_xnnpack_dynamic_batch_requires_bounds():
+    from tvm.relax.backend.xnnpack import partition_for_xnnpack
+
+    with pytest.raises(ValueError, match="dynamic_shape_policy='batch_only' requires"):
+        partition_for_xnnpack(DynamicBatchFullyConnectedModule, dynamic_shape_policy="batch_only")
+
+
+@pytest.mark.parametrize("bounds", [{"n": 4}, {"n": (1, 4)}, {"n": [1, 4]}])
+def test_partition_for_xnnpack_dynamic_batch_partitions_fully_connected_with_api_bounds(bounds):
+    mod = _partition(
+        _bind_dynamic_batch_fc_params(),
+        dynamic_shape_policy="batch_only",
+        dynamic_batch_bounds=bounds,
+    )
+    assert _has_codegen_attr(mod)
+    assert "dynamic_batch_fully_connected" in mod.script()
+
+
+def test_partition_for_xnnpack_dynamic_batch_infers_function_attrs():
+    mod = _partition(_bind_dynamic_batch_fc_attrs_params(), dynamic_shape_policy="batch_only")
+    assert _has_codegen_attr(mod)
+    assert "dynamic_batch_fully_connected" in mod.script()
+
+
+def test_partition_for_xnnpack_dynamic_batch_default_policy_rejects_symbolic_batch():
+    mod = _partition(DynamicBatchFullyConnectedModule)
+    assert not _has_codegen_attr(mod)
+
+
+def test_partition_for_xnnpack_dynamic_batch_partitions_conv2d():
+    mod = _partition(
+        _bind_dynamic_batch_conv_params(),
+        dynamic_shape_policy="batch_only",
+        dynamic_batch_bounds={"n": 4},
+    )
+    assert _has_codegen_attr(mod)
+    assert "dynamic_batch_conv2d" in mod.script()
+
+
+@pytest.mark.parametrize(
+    "mod, kwargs",
+    [
+        (DynamicHWConv2DModule, {}),
+        (DynamicChannelConv2DModule, {}),
+        (DynamicBatchQS8FullyConnectedModule, {}),
+        (
+            DynamicBatchDynamicRangeFullyConnectedModule,
+            {"quantization": "dynamic_range"},
+        ),
+    ],
+)
+def test_partition_for_xnnpack_dynamic_batch_rejects_unsupported_dynamic_cases(mod, kwargs):
+    mod = _partition(
+        mod,
+        dynamic_shape_policy="batch_only",
+        dynamic_batch_bounds={"n": 4, "h": 5, "h_out": 3, "c": 3},
+        **kwargs,
+    )
+    assert not _has_codegen_attr(mod)
+
+
+def test_xnnpack_dynamic_batch_partition_report_fields():
+    mod, report = _partition(
+        _bind_dynamic_batch_conv_params(),
+        dynamic_shape_policy="batch_only",
+        dynamic_batch_bounds={"n": (1, 4)},
+        report_partition_decisions=True,
+    )
+    assert _has_codegen_attr(mod)
+    _assert_report_fields(report)
+    accepted = [entry for entry in report if entry["accepted"] and entry["dynamic_batch"]]
+    assert accepted
+    assert accepted[0]["dynamic_batch_symbol"] == "n"
+    assert accepted[0]["dynamic_batch_lower"] == 1
+    assert accepted[0]["dynamic_batch_upper"] == 4
+    assert accepted[0]["estimated_min_flops"] <= accepted[0]["estimated_max_flops"]
 
 
 def test_xnnpack_registers_relu_pattern():
@@ -1520,6 +1827,87 @@ def test_xnnpack_cost_policy_composes_with_runtime_options():
     not (_has_xnnpack_codegen() and _has_xnnpack_runtime()),
     reason="XNNPACK codegen/runtime is not enabled",
 )
+def test_xnnpack_dynamic_batch_fully_connected_external_runtime():
+    if not _xnnpack_capability("dynamic_batch_runtime"):
+        pytest.skip("XNNPACK runtime reshape APIs are unavailable")
+    partitioned = _partition(
+        _bind_dynamic_batch_fc_params(),
+        dynamic_shape_policy="batch_only",
+        dynamic_batch_bounds={"n": 4},
+    )
+    codegen_mod = relax.transform.RunCodegen()(partitioned)
+    assert _has_external_mods(codegen_mod)
+    ext_mod, symbol = _init_first_external_module(codegen_mod)
+    weight = _dynamic_batch_fc_weight()
+
+    counters = []
+    for n in [1, 1, 2, 4]:
+        x_np = np.arange(n * 3, dtype="float32").reshape(n, 3) / 4.0
+        output = tvm.runtime.tensor(np.empty((n, 4), dtype="float32"))
+        ext_mod[symbol](tvm.runtime.tensor(x_np), output)
+        tvm.testing.assert_allclose(output.numpy(), x_np @ weight, rtol=1e-5, atol=1e-5)
+        counters.append(json.loads(ext_mod["get_runtime_counters"]()))
+    assert counters[0]["reshape_count"] == 1
+    assert counters[1]["reshape_count"] == counters[0]["reshape_count"]
+    assert counters[2]["reshape_count"] == counters[1]["reshape_count"] + 1
+    assert counters[3]["last_batch_size"] == 4
+
+
+@pytest.mark.skipif(
+    not (_has_xnnpack_codegen() and _has_xnnpack_runtime()),
+    reason="XNNPACK codegen/runtime is not enabled",
+)
+def test_xnnpack_dynamic_batch_conv2d_external_runtime():
+    if not _xnnpack_capability("dynamic_batch_runtime"):
+        pytest.skip("XNNPACK runtime reshape APIs are unavailable")
+    bound_mod = _bind_dynamic_batch_conv_params()
+    partitioned = _partition(
+        bound_mod,
+        dynamic_shape_policy="batch_only",
+        dynamic_batch_bounds={"n": 4},
+    )
+    codegen_mod = relax.transform.RunCodegen()(partitioned)
+    assert _has_external_mods(codegen_mod)
+    ext_mod, symbol = _init_first_external_module(codegen_mod)
+
+    ref_ex = tvm.compile(bound_mod, target="llvm")
+    ref_vm = relax.VirtualMachine(ref_ex, tvm.cpu())
+    counters = []
+    for n in [1, 2, 4]:
+        x_np = np.linspace(-1.0, 1.0, num=n * 5 * 5 * 3, dtype="float32").reshape(n, 5, 5, 3)
+        expected = ref_vm["main"](tvm.runtime.tensor(x_np)).numpy()
+        output = tvm.runtime.tensor(np.empty((n, 3, 3, 4), dtype="float32"))
+        ext_mod[symbol](tvm.runtime.tensor(x_np), output)
+        tvm.testing.assert_allclose(output.numpy(), expected, rtol=1e-5, atol=1e-5)
+        counters.append(json.loads(ext_mod["get_runtime_counters"]()))
+    assert counters[0]["reshape_count"] == 1
+    assert counters[-1]["last_batch_size"] == 4
+
+
+@pytest.mark.skipif(
+    not (_has_xnnpack_codegen() and _has_xnnpack_runtime()),
+    reason="XNNPACK codegen/runtime is not enabled",
+)
+def test_xnnpack_dynamic_batch_out_of_bounds_fails_clearly():
+    if not _xnnpack_capability("dynamic_batch_runtime"):
+        pytest.skip("XNNPACK runtime reshape APIs are unavailable")
+    partitioned = _partition(
+        _bind_dynamic_batch_fc_params(),
+        dynamic_shape_policy="batch_only",
+        dynamic_batch_bounds={"n": 2},
+    )
+    codegen_mod = relax.transform.RunCodegen()(partitioned)
+    ext_mod, symbol = _init_first_external_module(codegen_mod)
+    x_np = np.zeros((3, 3), dtype="float32")
+    output = tvm.runtime.tensor(np.empty((3, 4), dtype="float32"))
+    with pytest.raises(tvm.error.TVMError, match="upper bound"):
+        ext_mod[symbol](tvm.runtime.tensor(x_np), output)
+
+
+@pytest.mark.skipif(
+    not (_has_xnnpack_codegen() and _has_xnnpack_runtime()),
+    reason="XNNPACK codegen/runtime is not enabled",
+)
 def test_xnnpack_runtime_options_persist_precision():
     mod = _partition(ReluModule, precision="fp16_hint")
     mod = relax.transform.RunCodegen()(mod)
@@ -1878,6 +2266,10 @@ def test_xnnpack_quantization_capabilities_are_reported():
     assert "define_convert" in capabilities
     assert "extra_quantization_params" in capabilities
     assert "runtime_reshape" in capabilities
+    assert "reshape_external_value" in capabilities
+    assert "setup_runtime_v2" in capabilities
+    assert "get_external_value_shape" in capabilities
+    assert "dynamic_batch_runtime" in capabilities
 
 
 @pytest.mark.skipif(not _has_xnnpack_runtime(), reason="XNNPACK runtime is not enabled")

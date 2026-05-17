@@ -33,6 +33,7 @@ _SUPPORTED_PRECISIONS = ("fp32", "fp16_hint", "fp16_force")
 _SUPPORTED_PARTITION_POLICIES = ("greedy", "cost", "debug_all_supported")
 _SUPPORTED_LAYOUT_POLICIES = ("auto", "NHWC", "preserve")
 _SUPPORTED_QUANTIZATIONS = ("none", "dynamic_range")
+_SUPPORTED_DYNAMIC_SHAPE_POLICIES = ("none", "batch_only")
 _XNN_EXTRA_BYTES = 16
 _DTYPE_BYTES = {"float16": 2, "float32": 4, "int8": 1, "uint8": 1, "int32": 4}
 _QPARAM_SCALE_RTOL = 1e-5
@@ -55,6 +56,105 @@ def _get_static_shape(expr: relax.Expr) -> list[int] | None:
             return None
         shape.append(dim)
     return shape
+
+
+def _shape_dims(expr: relax.Expr) -> list[object] | None:
+    sinfo = expr.struct_info
+    if not isinstance(sinfo, relax.TensorStructInfo):
+        return None
+    if sinfo.shape is None or not hasattr(sinfo.shape, "values"):
+        return None
+    return list(sinfo.shape.values)
+
+
+def _symbol_name(dim) -> str | None:
+    if isinstance(dim, (tvm.tirx.expr.IntImm, int)):
+        return None
+    if hasattr(dim, "name"):
+        return str(dim.name)
+    if hasattr(dim, "name_hint"):
+        return str(dim.name_hint)
+    text = str(dim)
+    return text if text else None
+
+
+def _get_batch_only_shape(expr: relax.Expr) -> tuple[str, list[int | None]] | None:
+    dims = _shape_dims(expr)
+    if dims is None or len(dims) == 0:
+        return None
+    result: list[int | None] = []
+    symbol: str | None = None
+    for index, dim in enumerate(dims):
+        if isinstance(dim, (tvm.tirx.expr.IntImm, int)):
+            value = int(dim)
+            if value <= 0:
+                return None
+            result.append(value)
+            continue
+        name = _symbol_name(dim)
+        if index != 0 or name is None:
+            return None
+        symbol = name
+        result.append(None)
+    if symbol is None:
+        return None
+    return symbol, result
+
+
+def _same_batch_only_shape(lhs: relax.Expr, rhs: relax.Expr) -> bool:
+    lhs_info = _get_batch_only_shape(lhs)
+    rhs_info = _get_batch_only_shape(rhs)
+    return lhs_info is not None and lhs_info == rhs_info
+
+
+def _batch_bounds_from_attrs(func: relax.Function) -> dict[str, tuple[int, int]]:
+    result: dict[str, tuple[int, int]] = {}
+    if not func.attrs:
+        return result
+    upper = func.attrs.get("tir_var_upper_bound")
+    lower = func.attrs.get("tir_var_lower_bound")
+    if upper is None:
+        return result
+    for key, value in upper.items():
+        upper_value = _as_bound_int(value)
+        lower_value = 1
+        if lower is not None and key in lower:
+            lower_value = _as_bound_int(lower[key])
+        result[str(key)] = (lower_value, upper_value)
+    return result
+
+
+def _as_bound_int(value) -> int:
+    if hasattr(value, "value"):
+        return int(value.value)
+    return int(value)
+
+
+def _normalize_dynamic_batch_bounds(
+    mod: IRModule, dynamic_batch_bounds
+) -> dict[str, tuple[int, int]]:
+    result: dict[str, tuple[int, int]] = {}
+    for func in mod.functions.values():
+        if isinstance(func, relax.Function):
+            result.update(_batch_bounds_from_attrs(func))
+    if dynamic_batch_bounds:
+        for key, value in dynamic_batch_bounds.items():
+            if isinstance(value, tuple):
+                lower, upper = value
+            elif isinstance(value, list):
+                if len(value) != 2:
+                    raise ValueError("XNNPACK dynamic_batch_bounds list values must have 2 items.")
+                lower, upper = value
+            else:
+                lower, upper = 1, value
+            result[str(key)] = (int(lower), int(upper))
+    for symbol, (lower, upper) in result.items():
+        if lower <= 0 or upper < lower:
+            raise ValueError(
+                f"Invalid XNNPACK dynamic batch bounds for {symbol!r}: "
+                f"expected 0 < lower <= upper, got ({lower}, {upper})."
+            )
+    return result
 
 
 def _is_float32_tensor(expr: relax.Expr) -> bool:
@@ -701,6 +801,107 @@ def _check_conv2d(context: PatternCheckContext) -> bool:
     return root_name in ("relax.nn.relu", "relax.add", "relax.nn.conv2d")
 
 
+def _check_dynamic_batch_fully_connected(
+    context: PatternCheckContext, bounds: dict[str, tuple[int, int]]
+) -> bool:
+    if not _check_no_leaks(context):
+        return False
+    data = context.annotated_expr["data"]
+    weight = context.annotated_expr["weight"]
+    matmul = context.annotated_expr["weighted"]
+    root = context.annotated_expr["root"]
+    bias = context.annotated_expr.get("bias")
+    if not _is_external_input(data) or not isinstance(weight, relax.Constant):
+        return False
+    if bias is not None and not isinstance(bias, relax.Constant):
+        return False
+    if not _is_float32_tensor(data) or not _is_static_float32(weight) or not _is_float32_tensor(root):
+        return False
+    if bias is not None and not _is_static_float32(bias):
+        return False
+    if _call_op_name(matmul) != "relax.matmul" or _tensor_dtype(matmul) != "float32":
+        return False
+    data_info = _get_batch_only_shape(data)
+    matmul_info = _get_batch_only_shape(matmul)
+    root_info = _get_batch_only_shape(root)
+    weight_shape = _get_static_shape(weight)
+    if data_info is None or matmul_info is None or root_info is None or weight_shape is None:
+        return False
+    symbol, data_shape = data_info
+    if symbol not in bounds:
+        return False
+    if matmul_info[0] != symbol or root_info[0] != symbol:
+        return False
+    if len(data_shape) != 2 or len(weight_shape) != 2:
+        return False
+    if data_shape[1] != weight_shape[0]:
+        return False
+    expected = [None, weight_shape[1]]
+    if matmul_info[1] != expected or root_info[1] != expected:
+        return False
+    if bias is not None and _get_static_shape(bias) != [weight_shape[1]]:
+        return False
+    root_name = _call_op_name(root)
+    if root.same_as(matmul) or root_name in ("relax.matmul", "relax.add", "relax.nn.relu"):
+        return True
+    if root_name == "relax.clip":
+        clip_min = _as_float_prim_value(root.args[1])
+        clip_max = _as_float_prim_value(root.args[2])
+        return clip_min is not None and clip_max is not None and clip_min <= clip_max
+    return False
+
+
+def _check_dynamic_batch_conv2d(
+    context: PatternCheckContext, bounds: dict[str, tuple[int, int]]
+) -> bool:
+    if not _check_no_leaks(context):
+        return False
+    data = context.annotated_expr["data"]
+    weight = context.annotated_expr["weight"]
+    conv = context.annotated_expr["conv"]
+    root = context.annotated_expr["root"]
+    bias = context.annotated_expr.get("bias")
+    if not _is_external_input(data) or not isinstance(weight, relax.Constant):
+        return False
+    if bias is not None and not isinstance(bias, relax.Constant):
+        return False
+    if not _is_float32_tensor(data) or not _is_static_float32(weight) or not _is_float32_tensor(root):
+        return False
+    if bias is not None and not _is_static_float32(bias):
+        return False
+    data_info = _get_batch_only_shape(data)
+    conv_info = _get_batch_only_shape(conv)
+    root_info = _get_batch_only_shape(root)
+    weight_shape = _get_static_shape(weight)
+    if data_info is None or conv_info is None or root_info is None or weight_shape is None:
+        return False
+    symbol, data_shape = data_info
+    if symbol not in bounds or conv_info[0] != symbol or root_info[0] != symbol:
+        return False
+    if len(data_shape) != 4 or len(weight_shape) != 4 or len(conv_info[1]) != 4:
+        return False
+    attrs = conv.attrs
+    out_layout = attrs.out_layout if attrs.out_layout else attrs.data_layout
+    if attrs.data_layout != "NHWC" or out_layout != "NHWC" or attrs.kernel_layout != "OHWI":
+        return False
+    if int(attrs.groups) != 1 or attrs.out_dtype not in ("", "float32"):
+        return False
+    if _padding_2d(attrs.padding) is None or weight_shape[1] <= 0 or weight_shape[2] <= 0:
+        return False
+    if data_shape[3] != weight_shape[3] or conv_info[1][3] != weight_shape[0]:
+        return False
+    if conv_info[1] != root_info[1]:
+        return False
+    if bias is not None and _get_static_shape(bias) != [weight_shape[0]]:
+        return False
+    root_name = _call_op_name(root)
+    if root_name == "relax.clip":
+        clip_min = _as_float_prim_value(root.args[1])
+        clip_max = _as_float_prim_value(root.args[2])
+        return clip_min is not None and clip_max is not None and clip_min <= clip_max
+    return root_name in ("relax.nn.relu", "relax.add", "relax.nn.conv2d")
+
+
 def _qs8_weighted_parts(context: PatternCheckContext) -> tuple[dict[str, object], ...] | None:
     matched_expr = _resolve_bound_expr(context, context.matched_expr)
     output = _parse_output_quantize(matched_expr)
@@ -1114,6 +1315,74 @@ def _conv2d_patterns():
     ]
 
 
+def _dynamic_batch_fully_connected_patterns(bounds: dict[str, tuple[int, int]]):
+    data = wildcard()
+    weight = is_const()
+    bias = is_const()
+    matmul = is_op("relax.matmul")(data, weight)
+    bias_add = is_op("relax.add")(matmul, bias)
+    relu = is_op("relax.nn.relu")(matmul)
+    bias_relu = is_op("relax.nn.relu")(bias_add)
+    min_value = wildcard()
+    max_value = wildcard()
+    clip = is_op("relax.clip")(matmul, min_value, max_value)
+    bias_clip = is_op("relax.clip")(bias_add, min_value, max_value)
+
+    def make(suffix, expr, bias_expr=None):
+        annotations = {"data": data, "weight": weight, "weighted": matmul, "root": expr}
+        if bias_expr is not None:
+            annotations["bias"] = bias_expr
+        return FusionPattern(
+            f"xnnpack.dynamic_batch_fully_connected{suffix}",
+            expr,
+            annotations,
+            lambda context: _check_dynamic_batch_fully_connected(context, bounds),
+        )
+
+    return [
+        make("_bias_clip", bias_clip, bias),
+        make("_bias_relu", bias_relu, bias),
+        make("_clip", clip),
+        make("_relu", relu),
+        make("_bias", bias_add, bias),
+        make("", matmul),
+    ]
+
+
+def _dynamic_batch_conv2d_patterns(bounds: dict[str, tuple[int, int]]):
+    data = wildcard()
+    weight = is_const()
+    bias = is_const()
+    conv = is_op("relax.nn.conv2d")(data, weight)
+    bias_add = is_op("relax.add")(conv, bias)
+    conv_relu = is_op("relax.nn.relu")(conv)
+    bias_relu = is_op("relax.nn.relu")(bias_add)
+    min_value = wildcard()
+    max_value = wildcard()
+    conv_clip = is_op("relax.clip")(conv, min_value, max_value)
+    bias_clip = is_op("relax.clip")(bias_add, min_value, max_value)
+
+    def make(suffix, expr, bias_expr=None):
+        annotations = {"data": data, "weight": weight, "conv": conv, "root": expr}
+        if bias_expr is not None:
+            annotations["bias"] = bias_expr
+        return FusionPattern(
+            f"xnnpack.dynamic_batch_conv2d{suffix}",
+            expr,
+            annotations,
+            lambda context: _check_dynamic_batch_conv2d(context, bounds),
+        )
+
+    return [
+        make("_bias_clip", bias_clip, bias),
+        make("_bias_relu", bias_relu, bias),
+        make("_clip", conv_clip),
+        make("_relu", conv_relu),
+        make("_bias", bias_add, bias),
+        make("", conv),
+    ]
+
+
 def _qdq_input_pattern():
     q_data = wildcard()
     data_scale = is_const()
@@ -1426,6 +1695,7 @@ def _make_report_entry(
     policy: str,
     accepted: bool,
     reason: str,
+    dynamic_batch_bounds: dict[str, tuple[int, int]] | None = None,
 ) -> dict[str, object]:
     root = context.annotated_expr.get("root", context.matched_expr)
     op_list = _op_list_from_pattern(pattern_name, root)
@@ -1436,6 +1706,8 @@ def _make_report_entry(
     constant_bytes = sum(_tensor_nbytes(expr) for expr in constants)
     copy_bytes = input_bytes + output_bytes + constant_bytes
     dynamic_range = "dynamic_range_" in pattern_name
+    dynamic_batch_info = _get_batch_only_shape(root)
+    dynamic_batch = "dynamic_batch_" in pattern_name and dynamic_batch_info is not None
     estimated_quantization_overhead = (
         _tensor_nbytes(context.annotated_expr.get("data", root)) if dynamic_range else 0
     )
@@ -1445,6 +1717,10 @@ def _make_report_entry(
         + estimated_quantization_overhead
     )
     flops = _estimate_flops(context, pattern_name)
+    batch_lower = 0
+    batch_upper = 0
+    if dynamic_batch:
+        batch_lower, batch_upper = (dynamic_batch_bounds or {}).get(dynamic_batch_info[0], (1, -1))
     ratio = float("inf") if padded_copy_bytes == 0 and flops > 0 else 0.0
     if padded_copy_bytes > 0:
         ratio = float(flops) / float(padded_copy_bytes)
@@ -1506,12 +1782,29 @@ def _make_report_entry(
         "activation_boundary_dtype": "float32" if dynamic_range else "none",
         "output_boundary_dtype": "float32" if dynamic_range else "none",
         "estimated_quantization_overhead": estimated_quantization_overhead,
+        "dynamic_batch": dynamic_batch,
+        "dynamic_batch_symbol": dynamic_batch_info[0] if dynamic_batch else "none",
+        "dynamic_batch_lower": batch_lower,
+        "dynamic_batch_upper": batch_upper,
+        "estimated_min_flops": (
+            flops
+            if not dynamic_batch or batch_upper <= 0
+            else flops * batch_lower // batch_upper
+        ),
+        "estimated_max_flops": flops,
+        "estimated_min_copy_bytes": (
+            copy_bytes
+            if not dynamic_batch or batch_upper <= 0
+            else copy_bytes * batch_lower // batch_upper
+        ),
+        "estimated_max_copy_bytes": copy_bytes,
     }
 
 
 def _validate_partition_options(
     precision: str,
     quantization: str,
+    dynamic_shape_policy: str,
     partition_policy: str,
     layout: str,
     min_subgraph_size: int,
@@ -1526,6 +1819,11 @@ def _validate_partition_options(
         raise ValueError(
             "Unsupported XNNPACK quantization. Expected one of "
             f"{_SUPPORTED_QUANTIZATIONS}, but got {quantization!r}."
+        )
+    if dynamic_shape_policy not in _SUPPORTED_DYNAMIC_SHAPE_POLICIES:
+        raise ValueError(
+            "Unsupported XNNPACK dynamic_shape_policy. Expected one of "
+            f"{_SUPPORTED_DYNAMIC_SHAPE_POLICIES}, but got {dynamic_shape_policy!r}."
         )
     if partition_policy not in _SUPPORTED_PARTITION_POLICIES:
         raise ValueError(
@@ -1552,9 +1850,10 @@ def _cost_accepts(
     allow_isolated_elementwise: bool,
     allow_layout_rewrite: bool,
     allow_cast_boundary: bool,
+    dynamic_batch_bounds: dict[str, tuple[int, int]] | None,
 ) -> tuple[bool, str]:
     del allow_cast_boundary  # Explicit fp16 and cast-boundary lowering are not implemented yet.
-    entry = _make_report_entry(context, pattern_name, "cost", True, "")
+    entry = _make_report_entry(context, pattern_name, "cost", True, "", dynamic_batch_bounds)
     op_count = len(entry["op_list"])
     dtype = entry["dtype"]
     layout = entry["layout"]
@@ -1600,6 +1899,7 @@ def _wrap_patterns_for_policy(
     allow_isolated_elementwise: bool,
     allow_layout_rewrite: bool,
     allow_cast_boundary: bool,
+    dynamic_batch_bounds: dict[str, tuple[int, int]] | None,
     report: list[dict[str, object]] | None,
 ) -> list[FusionPattern]:
     if partition_policy == "greedy" and report is None:
@@ -1642,10 +1942,16 @@ def _wrap_patterns_for_policy(
                         allow_isolated_elementwise,
                         allow_layout_rewrite,
                         allow_cast_boundary,
+                        dynamic_batch_bounds,
                     )
                 if report is not None:
                     entry = _make_report_entry(
-                        context, pattern_name, partition_policy, accepted, reason
+                        context,
+                        pattern_name,
+                        partition_policy,
+                        accepted,
+                        reason,
+                        dynamic_batch_bounds,
                     )
                     entry["candidate_id"] = len(report)
                     report.append(entry)
@@ -1693,6 +1999,8 @@ def partition_for_xnnpack(
     mod: IRModule,
     precision: str = "fp32",
     quantization: str = "none",
+    dynamic_shape_policy: str = "none",
+    dynamic_batch_bounds=None,
     partition_policy: str = "greedy",
     layout: str = "auto",
     min_subgraph_size: int = 2,
@@ -1710,13 +2018,28 @@ def partition_for_xnnpack(
     _validate_partition_options(
         precision,
         quantization,
+        dynamic_shape_policy,
         partition_policy,
         layout,
         min_subgraph_size,
         min_compute_to_copy_ratio,
     )
 
+    batch_bounds = _normalize_dynamic_batch_bounds(mod, dynamic_batch_bounds)
+    if dynamic_shape_policy == "batch_only" and not batch_bounds:
+        raise ValueError(
+            "XNNPACK dynamic_shape_policy='batch_only' requires dynamic_batch_bounds "
+            "or Relax tir_var_upper_bound attrs."
+        )
+
     patterns = list(reversed(get_patterns_with_prefix("xnnpack")))
+    patterns = [pattern for pattern in patterns if "dynamic_batch_" not in pattern.name]
+    if dynamic_shape_policy == "batch_only":
+        patterns = [
+            *_dynamic_batch_fully_connected_patterns(batch_bounds),
+            *_dynamic_batch_conv2d_patterns(batch_bounds),
+            *patterns,
+        ]
     if quantization != "dynamic_range":
         patterns = [pattern for pattern in patterns if "dynamic_range_" not in pattern.name]
     else:
@@ -1731,6 +2054,7 @@ def partition_for_xnnpack(
         allow_isolated_elementwise,
         allow_layout_rewrite,
         allow_cast_boundary,
+        batch_bounds,
         report,
     )
     mod = FuseOpsByPattern(patterns, bind_constants=True, annotate_codegen=True)(mod)
@@ -1741,7 +2065,21 @@ def partition_for_xnnpack(
             and func.attrs
             and func.attrs.get("Codegen") == "xnnpack"
         ):
-            mod[gv] = func.with_attr("xnnpack_precision", precision)
+            func = func.with_attr("xnnpack_precision", precision)
+            if dynamic_shape_policy == "batch_only":
+                symbol = None
+                for param in func.params:
+                    info = _get_batch_only_shape(param)
+                    if info is not None:
+                        symbol = info[0]
+                        break
+                if symbol is not None and symbol in batch_bounds:
+                    lower, upper = batch_bounds[symbol]
+                    func = func.with_attr("xnnpack_dynamic_shape_policy", "batch_only")
+                    func = func.with_attr("xnnpack_dynamic_batch_symbol", symbol)
+                    func = func.with_attr("xnnpack_dynamic_batch_lower", lower)
+                    func = func.with_attr("xnnpack_dynamic_batch_upper", upper)
+            mod[gv] = func
     if report is not None:
         return mod, report
     return mod
