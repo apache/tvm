@@ -3688,6 +3688,7 @@ _tfl_stablehlo_dyn_slice_opts = _get_tflite_schema_module("StablehloDynamicSlice
 _tfl_stablehlo_gather_opts = _get_tflite_schema_module("StablehloGatherOptions")
 _tfl_stablehlo_reduce_opts = _get_tflite_schema_module("StablehloReduceOptions")
 _tfl_stablehlo_reduce_window_opts = _get_tflite_schema_module("StablehloReduceWindowOptions")
+_tfl_stablehlo_scatter_opts = _get_tflite_schema_module("StablehloScatterOptions")
 _tfl_stablehlo_sort_opts = _get_tflite_schema_module("StablehloSortOptions")
 _tfl_dimension_metadata = _get_tflite_schema_module("DimensionMetadata")
 _tfl_fully_connected_options = _get_tflite_schema_module("FullyConnectedOptions")
@@ -4208,6 +4209,91 @@ def _build_stablehlo_reduce_window_model(
     )
 
 
+def _build_stablehlo_scatter_model(reducer_name="STABLEHLO_ADD", update_window_dims=None):
+    """Build a canonical point-update STABLEHLO_SCATTER model."""
+    builder = flatbuffers.Builder(1024)
+    if update_window_dims is None:
+        update_window_dims = []
+
+    update_window_dims_vec = _tflite_int64_vector(
+        builder,
+        _tfl_stablehlo_scatter_opts.StablehloScatterOptionsStartUpdateWindowDimsVector,
+        update_window_dims,
+    )
+    inserted_window_dims_vec = _tflite_int64_vector(
+        builder,
+        _tfl_stablehlo_scatter_opts.StablehloScatterOptionsStartInsertedWindowDimsVector,
+        [0],
+    )
+    scatter_dims_vec = _tflite_int64_vector(
+        builder,
+        _tfl_stablehlo_scatter_opts.StablehloScatterOptionsStartScatterDimsToOperandDimsVector,
+        [0],
+    )
+
+    _tfl_stablehlo_scatter_opts.StablehloScatterOptionsStart(builder)
+    _tfl_stablehlo_scatter_opts.StablehloScatterOptionsAddUpdateWindowDims(
+        builder, update_window_dims_vec
+    )
+    _tfl_stablehlo_scatter_opts.StablehloScatterOptionsAddInsertedWindowDims(
+        builder, inserted_window_dims_vec
+    )
+    _tfl_stablehlo_scatter_opts.StablehloScatterOptionsAddScatterDimsToOperandDims(
+        builder, scatter_dims_vec
+    )
+    _tfl_stablehlo_scatter_opts.StablehloScatterOptionsAddIndexVectorDim(builder, 1)
+    _tfl_stablehlo_scatter_opts.StablehloScatterOptionsAddUpdateComputationSubgraphIndex(
+        builder, 1
+    )
+    scatter_opts = _tfl_stablehlo_scatter_opts.StablehloScatterOptionsEnd(builder)
+
+    scatter_builtin = _get_stablehlo_builtin_operator("STABLEHLO_SCATTER")
+    reducer_builtin = _get_stablehlo_builtin_operator(reducer_name)
+    scatter_code = _build_operator_code(builder, scatter_builtin)
+    reducer_code = _build_operator_code(builder, reducer_builtin)
+
+    main_tensors = [
+        _build_tensor(builder, 0, [4]),
+        _build_tensor(builder, 1, [2, 1], tensor_type=_tfl_tensor_type.INT32),
+        _build_tensor(builder, 2, [2]),
+        _build_tensor(builder, 3, [4]),
+    ]
+    scatter_op = _build_operator(
+        builder,
+        0,
+        [0, 1, 2],
+        [3],
+        builtin_options2_type=_tfl_builtin_options2.StablehloScatterOptions,
+        builtin_options2=scatter_opts,
+    )
+    main_subgraph = _build_subgraph(
+        builder,
+        tensors=main_tensors,
+        operators=[scatter_op],
+        inputs=[0, 1, 2],
+        outputs=[3],
+    )
+
+    body_tensors = [_build_tensor(builder, buffer_idx, []) for buffer_idx in range(4, 7)]
+    reducer_op = _build_operator(builder, 1, [0, 1], [2])
+    body_subgraph = _build_subgraph(
+        builder,
+        tensors=body_tensors,
+        operators=[reducer_op],
+        inputs=[0, 1],
+        outputs=[2],
+    )
+
+    buffers = [_build_buffer(builder) for _ in range(7)]
+    return _finish_tflite_model(
+        builder,
+        subgraph=main_subgraph,
+        extra_subgraphs=[body_subgraph],
+        operator_codes=[scatter_code, reducer_code],
+        buffers=buffers,
+    )
+
+
 def _build_stablehlo_typed_binary_model(*, builtin_name, tensor_type):
     """Build a minimal TFLite StableHLO binary model with the requested tensor type."""
     builder = flatbuffers.Builder(1024)
@@ -4474,6 +4560,62 @@ def test_stablehlo_reduce_window_base_dilation_unsupported():
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
 
     with pytest.raises(tvm.error.OpNotImplemented, match="base dilation"):
+        from_tflite(tflite_model)
+
+
+@pytest.mark.parametrize(
+    "reducer_name, reduction",
+    [
+        ("STABLEHLO_ADD", "add"),
+        ("STABLEHLO_MAXIMUM", "max"),
+        ("STABLEHLO_MINIMUM", "min"),
+        ("STABLEHLO_MULTIPLY", "mul"),
+    ],
+)
+def test_stablehlo_scatter(reducer_name, reduction):
+    """TFLite StableHLO SCATTER point updates lower to Relax scatter_nd."""
+    mod = _load_model_from_buffer(_build_stablehlo_scatter_model(reducer_name))
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            operand: R.Tensor((4,), dtype="float32"),
+            indices: R.Tensor((2, 1), dtype="int32"),
+            updates: R.Tensor((2,), dtype="float32"),
+        ) -> R.Tensor((4,), dtype="float32"):
+            R.func_attr({"num_input": 3})
+            with R.dataflow():
+                gv: R.Tensor((4,), dtype="float32") = R.scatter_nd(
+                    operand, indices, updates, reduction=reduction
+                )
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_stablehlo_scatter_unsupported_reducer():
+    """TFLite StableHLO SCATTER rejects unsupported update computation ops."""
+    buf = _build_stablehlo_scatter_model(reducer_name="STABLEHLO_SUBTRACT")
+    if hasattr(tflite.Model, "Model"):
+        tflite_model = tflite.Model.Model.GetRootAsModel(buf, 0)
+    else:
+        tflite_model = tflite.Model.GetRootAsModel(buf, 0)
+
+    with pytest.raises(tvm.error.OpNotImplemented, match="reducer"):
+        from_tflite(tflite_model)
+
+
+def test_stablehlo_scatter_update_window_unsupported():
+    """TFLite StableHLO SCATTER rejects slice update windows in the point subset."""
+    buf = _build_stablehlo_scatter_model(update_window_dims=[0])
+    if hasattr(tflite.Model, "Model"):
+        tflite_model = tflite.Model.Model.GetRootAsModel(buf, 0)
+    else:
+        tflite_model = tflite.Model.GetRootAsModel(buf, 0)
+
+    with pytest.raises(tvm.error.OpNotImplemented, match="point updates"):
         from_tflite(tflite_model)
 
 

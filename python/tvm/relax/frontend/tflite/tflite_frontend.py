@@ -288,6 +288,7 @@ class OperatorConverter:
             "STABLEHLO_REDUCE_WINDOW": self._convert_stablehlo_reduce_window,
             "STABLEHLO_REMAINDER": self._convert_stablehlo_remainder,
             "STABLEHLO_RSQRT": functools.partial(self._convert_stablehlo_unary, relax_op=_op.rsqrt),
+            "STABLEHLO_SCATTER": self._convert_stablehlo_scatter,
             "STABLEHLO_SELECT": functools.partial(
                 self._convert_stablehlo_ternary, relax_op=_op.where
             ),
@@ -1716,6 +1717,73 @@ class OperatorConverter:
                 layout="NHWC",
                 out_layout="NHWC",
             )
+        )
+
+    def _convert_stablehlo_scatter(self, op):
+        """Convert the canonical point-update STABLEHLO_SCATTER subset."""
+        from tflite.StablehloScatterOptions import StablehloScatterOptions
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 3, "input tensors length should be 3"
+        assert len(self.get_output_tensors(op)) == 1
+
+        opts = self._get_stablehlo_options(op, StablehloScatterOptions)
+        operand_shape = self._get_static_tensor_shape(input_tensors[0], "STABLEHLO_SCATTER")
+        indices_shape = self._get_static_tensor_shape(input_tensors[1], "STABLEHLO_SCATTER")
+        updates_shape = self._get_static_tensor_shape(input_tensors[2], "STABLEHLO_SCATTER")
+        operand_rank = len(operand_shape)
+        indices_rank = len(indices_shape)
+
+        update_window_dims = self._get_stablehlo_i64_vector(opts.UpdateWindowDimsAsNumpy(), [])
+        inserted_window_dims = self._get_stablehlo_i64_vector(
+            opts.InsertedWindowDimsAsNumpy(), []
+        )
+        scatter_dims_to_operand_dims = self._get_stablehlo_i64_vector(
+            opts.ScatterDimsToOperandDimsAsNumpy(), []
+        )
+        index_vector_dim = int(opts.IndexVectorDim())
+
+        if indices_rank == 0 or index_vector_dim != indices_rank - 1:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_SCATTER only supports trailing index-vector dimensions"
+            )
+        if update_window_dims:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_SCATTER only supports point updates without update windows"
+            )
+        if inserted_window_dims != list(range(operand_rank)):
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_SCATTER only supports point updates for every operand dimension"
+            )
+        if scatter_dims_to_operand_dims != list(range(operand_rank)):
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_SCATTER only supports canonical scatter-to-operand dimensions"
+            )
+        if indices_shape[-1] != operand_rank or updates_shape != indices_shape[:-1]:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_SCATTER requires point update shapes to match scatter indices"
+            )
+
+        body_op = self._get_stablehlo_simple_body_op(
+            int(opts.UpdateComputationSubgraphIndex()), "STABLEHLO_SCATTER", 2
+        )
+        reducer_name = self.get_op_code_str(body_op)
+        reductions = {
+            "STABLEHLO_ADD": "add",
+            "STABLEHLO_MAXIMUM": "max",
+            "STABLEHLO_MINIMUM": "min",
+            "STABLEHLO_MULTIPLY": "mul",
+        }
+        if reducer_name not in reductions:
+            raise tvm.error.OpNotImplemented(
+                f"STABLEHLO_SCATTER reducer {reducer_name} is not supported"
+            )
+
+        operand = self.get_tensor_expr(input_tensors[0])
+        indices = self.get_tensor_expr(input_tensors[1])
+        updates = self.get_tensor_expr(input_tensors[2])
+        return self.bb.normalize(
+            relax.op.scatter_nd(operand, indices, updates, reductions[reducer_name])
         )
 
     def _convert_stablehlo_sort(self, op):
