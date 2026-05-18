@@ -3687,6 +3687,7 @@ _tfl_stablehlo_pad_opts = _get_tflite_schema_module("StablehloPadOptions")
 _tfl_stablehlo_dyn_slice_opts = _get_tflite_schema_module("StablehloDynamicSliceOptions")
 _tfl_stablehlo_gather_opts = _get_tflite_schema_module("StablehloGatherOptions")
 _tfl_stablehlo_reduce_opts = _get_tflite_schema_module("StablehloReduceOptions")
+_tfl_stablehlo_sort_opts = _get_tflite_schema_module("StablehloSortOptions")
 _tfl_dimension_metadata = _get_tflite_schema_module("DimensionMetadata")
 _tfl_fully_connected_options = _get_tflite_schema_module("FullyConnectedOptions")
 _tfl_int32_vector = _get_tflite_schema_module("Int32Vector")
@@ -4022,6 +4023,78 @@ def _build_stablehlo_reduce_model(reducer_name, init_value):
     )
 
 
+def _build_stablehlo_sort_model(comparison_direction, is_stable=False):
+    """Build a single-input STABLEHLO_SORT model with a compare body."""
+    builder = flatbuffers.Builder(1024)
+
+    _tfl_stablehlo_sort_opts.StablehloSortOptionsStart(builder)
+    _tfl_stablehlo_sort_opts.StablehloSortOptionsAddDimension(builder, 1)
+    _tfl_stablehlo_sort_opts.StablehloSortOptionsAddIsStable(builder, is_stable)
+    _tfl_stablehlo_sort_opts.StablehloSortOptionsAddComparatorSubgraphIndex(builder, 1)
+    sort_opts = _tfl_stablehlo_sort_opts.StablehloSortOptionsEnd(builder)
+
+    _tfl_stablehlo_compare_opts.StablehloCompareOptionsStart(builder)
+    _tfl_stablehlo_compare_opts.StablehloCompareOptionsAddComparisonDirection(
+        builder, comparison_direction
+    )
+    compare_opts = _tfl_stablehlo_compare_opts.StablehloCompareOptionsEnd(builder)
+
+    sort_builtin = _get_stablehlo_builtin_operator("STABLEHLO_SORT")
+    compare_builtin = _get_stablehlo_builtin_operator("STABLEHLO_COMPARE")
+    sort_code = _build_operator_code(builder, sort_builtin)
+    compare_code = _build_operator_code(builder, compare_builtin)
+
+    main_tensors = [
+        _build_tensor(builder, 0, [2, 3]),
+        _build_tensor(builder, 1, [2, 3]),
+    ]
+    sort_op = _build_operator(
+        builder,
+        0,
+        [0],
+        [1],
+        builtin_options2_type=_tfl_builtin_options2.StablehloSortOptions,
+        builtin_options2=sort_opts,
+    )
+    main_subgraph = _build_subgraph(
+        builder,
+        tensors=main_tensors,
+        operators=[sort_op],
+        inputs=[0],
+        outputs=[1],
+    )
+
+    body_tensors = [
+        _build_tensor(builder, 2, []),
+        _build_tensor(builder, 3, []),
+        _build_tensor(builder, 4, [], tensor_type=_tfl_tensor_type.BOOL),
+    ]
+    compare_op = _build_operator(
+        builder,
+        1,
+        [0, 1],
+        [2],
+        builtin_options2_type=_tfl_builtin_options2.StablehloCompareOptions,
+        builtin_options2=compare_opts,
+    )
+    body_subgraph = _build_subgraph(
+        builder,
+        tensors=body_tensors,
+        operators=[compare_op],
+        inputs=[0, 1],
+        outputs=[2],
+    )
+
+    buffers = [_build_buffer(builder) for _ in range(5)]
+    return _finish_tflite_model(
+        builder,
+        subgraph=main_subgraph,
+        extra_subgraphs=[body_subgraph],
+        operator_codes=[sort_code, compare_code],
+        buffers=buffers,
+    )
+
+
 def _build_stablehlo_typed_binary_model(*, builtin_name, tensor_type):
     """Build a minimal TFLite StableHLO binary model with the requested tensor type."""
     builder = flatbuffers.Builder(1024)
@@ -4178,6 +4251,64 @@ def test_stablehlo_reduce_non_identity_init_unsupported():
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
 
     with pytest.raises(tvm.error.OpNotImplemented, match="init value"):
+        from_tflite(tflite_model)
+
+
+@pytest.mark.parametrize(
+    "comparison_direction, descending",
+    [
+        (
+            _tfl_stablehlo_comp_dir.StablehloComparisonDirection.STABLEHLO_COMPARISON_DIRECTION_LT,
+            False,
+        ),
+        (
+            _tfl_stablehlo_comp_dir.StablehloComparisonDirection.STABLEHLO_COMPARISON_DIRECTION_GT,
+            True,
+        ),
+    ],
+)
+def test_stablehlo_sort(comparison_direction, descending):
+    """TFLite StableHLO SORT with LT/GT scalar compare body subgraphs."""
+    mod = _load_model_from_buffer(_build_stablehlo_sort_model(comparison_direction))
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 3), dtype="float32")) -> R.Tensor((2, 3), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((2, 3), dtype="float32") = R.sort(
+                    x, axis=1, descending=descending
+                )
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_stablehlo_sort_unsupported_comparator():
+    """TFLite StableHLO SORT rejects non-ordering comparators."""
+    _DIR = _tfl_stablehlo_comp_dir.StablehloComparisonDirection
+    buf = _build_stablehlo_sort_model(_DIR.STABLEHLO_COMPARISON_DIRECTION_EQ)
+    if hasattr(tflite.Model, "Model"):
+        tflite_model = tflite.Model.Model.GetRootAsModel(buf, 0)
+    else:
+        tflite_model = tflite.Model.GetRootAsModel(buf, 0)
+
+    with pytest.raises(tvm.error.OpNotImplemented, match="LT or GT"):
+        from_tflite(tflite_model)
+
+
+def test_stablehlo_sort_stable_unsupported():
+    """TFLite StableHLO SORT rejects stable sort until Relax exposes that contract."""
+    _DIR = _tfl_stablehlo_comp_dir.StablehloComparisonDirection
+    buf = _build_stablehlo_sort_model(_DIR.STABLEHLO_COMPARISON_DIRECTION_LT, is_stable=True)
+    if hasattr(tflite.Model, "Model"):
+        tflite_model = tflite.Model.Model.GetRootAsModel(buf, 0)
+    else:
+        tflite_model = tflite.Model.GetRootAsModel(buf, 0)
+
+    with pytest.raises(tvm.error.OpNotImplemented, match="stable sort"):
         from_tflite(tflite_model)
 
 

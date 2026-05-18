@@ -293,6 +293,7 @@ class OperatorConverter:
             "STABLEHLO_SHIFT_LEFT": functools.partial(
                 self._convert_stablehlo_binary, relax_op=_op.left_shift
             ),
+            "STABLEHLO_SORT": self._convert_stablehlo_sort,
             "STABLEHLO_SUBTRACT": functools.partial(
                 self._convert_stablehlo_binary, relax_op=_op.subtract
             ),
@@ -1545,24 +1546,24 @@ class OperatorConverter:
         product = self.bb.normalize(relax.op.multiply(rhs, truncated))
         return self.bb.normalize(relax.op.subtract(lhs, product))
 
-    def _get_stablehlo_reduce_body_op_name(self, body_subgraph_index):
-        """Return the StableHLO op name for a simple reduce body subgraph."""
+    def _get_stablehlo_simple_body_op(self, body_subgraph_index, parent_op_name, input_count):
+        """Return the single operator from a simple StableHLO body subgraph."""
         if body_subgraph_index <= 0 or body_subgraph_index >= self.model.SubgraphsLength():
             raise tvm.error.OpNotImplemented(
-                "STABLEHLO_REDUCE requires a valid non-main body subgraph"
+                f"{parent_op_name} requires a valid non-main body subgraph"
             )
 
         body_subgraph = self.model.Subgraphs(body_subgraph_index)
         if (
-            body_subgraph.InputsLength() != 2
+            body_subgraph.InputsLength() != input_count
             or body_subgraph.OutputsLength() != 1
             or body_subgraph.OperatorsLength() != 1
         ):
             raise tvm.error.OpNotImplemented(
-                "STABLEHLO_REDUCE only supports single-op binary reducer subgraphs"
+                f"{parent_op_name} only supports single-op body subgraphs"
             )
 
-        return self.get_op_code_str(body_subgraph.Operators(0))
+        return body_subgraph.Operators(0)
 
     def _check_stablehlo_reduce_init(self, init_tensor, reducer_name):
         """Validate that the StableHLO reduce init value matches the Relax identity."""
@@ -1615,7 +1616,10 @@ class OperatorConverter:
 
         opts = self._get_stablehlo_options(op, StablehloReduceOptions)
         dimensions = self._get_stablehlo_i64_vector(opts.DimensionsAsNumpy(), [])
-        reducer_name = self._get_stablehlo_reduce_body_op_name(int(opts.BodySubgraphIndex()))
+        body_op = self._get_stablehlo_simple_body_op(
+            int(opts.BodySubgraphIndex()), "STABLEHLO_REDUCE", 2
+        )
+        reducer_name = self.get_op_code_str(body_op)
 
         reducers = {
             "STABLEHLO_ADD": relax.op.sum,
@@ -1631,6 +1635,58 @@ class OperatorConverter:
         self._check_stablehlo_reduce_init(input_tensors[1], reducer_name)
         data = self.get_tensor_expr(input_tensors[0])
         return self.bb.normalize(reducers[reducer_name](data, axis=dimensions, keepdims=False))
+
+    def _convert_stablehlo_sort(self, op):
+        """Convert the single-input STABLEHLO_SORT subset to Relax sort."""
+        from tflite.StablehloCompareOptions import StablehloCompareOptions
+        from tflite.StablehloComparisonDirection import StablehloComparisonDirection
+        from tflite.StablehloComparisonType import StablehloComparisonType
+        from tflite.StablehloSortOptions import StablehloSortOptions
+
+        input_tensors = self.get_input_tensors(op)
+        output_tensors = self.get_output_tensors(op)
+        if len(input_tensors) != 1 or len(output_tensors) != 1:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_SORT only supports single-input single-output sort"
+            )
+
+        opts = self._get_stablehlo_options(op, StablehloSortOptions)
+        if opts.IsStable():
+            raise tvm.error.OpNotImplemented("STABLEHLO_SORT stable sort is not supported")
+
+        body_op = self._get_stablehlo_simple_body_op(
+            int(opts.ComparatorSubgraphIndex()), "STABLEHLO_SORT", 2
+        )
+        comparator_name = self.get_op_code_str(body_op)
+        if comparator_name != "STABLEHLO_COMPARE":
+            raise tvm.error.OpNotImplemented(
+                f"STABLEHLO_SORT comparator {comparator_name} is not supported"
+            )
+
+        compare_opts = self._get_stablehlo_options(body_op, StablehloCompareOptions)
+        if (
+            compare_opts.CompareType()
+            == StablehloComparisonType.STABLEHLO_COMPARISON_TYPE_FLOAT_TOTAL_ORDER
+        ):
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_SORT with TOTALORDER comparator is not supported"
+            )
+
+        direction = compare_opts.ComparisonDirection()
+        _DIR = StablehloComparisonDirection
+        if direction == _DIR.STABLEHLO_COMPARISON_DIRECTION_LT:
+            descending = False
+        elif direction == _DIR.STABLEHLO_COMPARISON_DIRECTION_GT:
+            descending = True
+        else:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_SORT only supports LT or GT comparators"
+            )
+
+        data = self.get_tensor_expr(input_tensors[0])
+        return self.bb.normalize(
+            relax.op.sort(data, axis=int(opts.Dimension()), descending=descending)
+        )
 
     def _convert_stablehlo_convert(self, op):
         """Convert STABLEHLO_CONVERT to Relax (astype).
