@@ -245,8 +245,14 @@ class TCPEventHandler(tornado_util.TCPHandler):
                 msg = py_str(bytes(self._data[: self._msg_size]))
                 del self._data[: self._msg_size]
                 self._msg_size = 0
-                # pylint: disable=broad-except
-                self.call_handler(json.loads(msg))
+                try:
+                    self.call_handler(json.loads(msg))
+                except Exception:  # pylint: disable=broad-except
+                    logger.warning(
+                        "Error handling message from %s", self.name(), exc_info=True
+                    )
+                    self.close()
+                    return
             else:
                 return
 
