@@ -28,12 +28,12 @@ def test_str_metadata():
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def foo() -> None:
             A = str_imm
             B = str_imm
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def foo1() -> None:
             A = str_imm
 

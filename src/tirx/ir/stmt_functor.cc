@@ -24,6 +24,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 #include <tvm/tirx/function.h>
+#include <tvm/tirx/layout.h>
 #include <tvm/tirx/stmt_functor.h>
 
 #include <functional>
@@ -57,6 +58,10 @@ void StmtVisitor::VisitStmt_(const WhileNode* op) {
   this->VisitExpr(op->condition);
   this->VisitStmt(op->body);
 }
+
+void StmtVisitor::VisitStmt_(const BreakNode* op) {}
+
+void StmtVisitor::VisitStmt_(const ContinueNode* op) {}
 
 void StmtVisitor::VisitBufferDef(const Buffer& buffer, bool alloc_data) {
   for (const auto& e : buffer->shape) this->VisitExpr(e);
@@ -140,6 +145,35 @@ void StmtVisitor::VisitStmt_(const SBlockRealizeNode* op) {
   VisitArray(op->iter_values, [this](const PrimExpr& e) { this->VisitExpr(e); });
   this->VisitExpr(op->predicate);
   this->VisitStmt(op->block);
+}
+
+void StmtVisitor::VisitStmt_(const ExecScopeStmtNode* op) {
+  // Visit expressions inside exec_scope (scope_id_def extents); skip deferred
+  // defs whose extents are NullOpt.
+  for (const auto& def : op->exec_scope->scope_id_def) {
+    if (!def->extents.has_value()) continue;
+    for (const auto& e : def->extents.value()) {
+      this->VisitExpr(e);
+    }
+  }
+  this->VisitStmt(op->body);
+}
+
+void StmtVisitor::VisitStmt_(const tirx::TilePrimitiveCallNode* op) {
+  auto fvisit = [this](const ffi::Any& e) {
+    if (e == nullptr) return;
+    if (auto buffer_region = e.as<BufferRegion>()) {
+      return;
+    } else if (auto expr = e.as<PrimExpr>()) {
+      this->VisitExpr(expr.value());
+    } else if (auto stmt = e.as<Stmt>()) {
+      this->VisitStmt(stmt.value());
+    }
+  };
+  VisitArray(op->args, fvisit);
+  for (const auto& [key, value] : op->config) {
+    fvisit(value);
+  }
 }
 
 class StmtMutator::Internal {
@@ -307,6 +341,10 @@ Stmt StmtMutator::VisitStmt_(const WhileNode* op) {
   }
 }
 
+Stmt StmtMutator::VisitStmt_(const BreakNode* op) { return ffi::GetRef<Stmt>(op); }
+
+Stmt StmtMutator::VisitStmt_(const ContinueNode* op) { return ffi::GetRef<Stmt>(op); }
+
 Buffer StmtMutator::VisitBufferDef(const Buffer& buffer, bool alloc_data) {
   if (auto it = buffer_remap_.find(buffer); it != buffer_remap_.end()) {
     return (*it).second;
@@ -319,8 +357,33 @@ Buffer StmtMutator::VisitBufferDef(const Buffer& buffer, bool alloc_data) {
   auto strides = buffer->strides.Map([this](const PrimExpr& e) { return this->VisitExpr(e); });
   PrimExpr elem_offset = this->VisitExpr(buffer->elem_offset);
 
+  // Visit the layout's per-iter extent/stride PrimExprs too: they share dtype
+  // semantics with the shape, e.g. ``IndexDataTypeRewriter`` (int32 -> int64)
+  // must rewrite layout fields together with the shape, otherwise the layout
+  // diverges from the rewritten shape and structural-equal mismatches occur.
+  ffi::Optional<Layout> new_layout = buffer->layout;
+  bool layout_changed = false;
+  if (buffer->layout.defined()) {
+    if (auto opt_tile = buffer->layout.value().as<TileLayoutNode>()) {
+      auto remap_iter = [this](const Iter& it) -> Iter {
+        PrimExpr new_extent = this->VisitExpr(it->extent);
+        PrimExpr new_stride = this->VisitExpr(it->stride);
+        if (new_extent.same_as(it->extent) && new_stride.same_as(it->stride)) {
+          return it;
+        }
+        return Iter(new_extent, new_stride, it->axis);
+      };
+      auto new_shard = opt_tile->shard.Map(remap_iter);
+      auto new_replica = opt_tile->replica.Map(remap_iter);
+      if (!new_shard.same_as(opt_tile->shard) || !new_replica.same_as(opt_tile->replica)) {
+        new_layout = TileLayout(new_shard, new_replica, opt_tile->offset);
+        layout_changed = true;
+      }
+    }
+  }
+
   if (shape.same_as(buffer->shape) && strides.same_as(buffer->strides) &&
-      elem_offset.same_as(buffer->elem_offset)) {
+      elem_offset.same_as(buffer->elem_offset) && !layout_changed) {
     return buffer;
   }
   Buffer new_buf = buffer;
@@ -328,6 +391,9 @@ Buffer StmtMutator::VisitBufferDef(const Buffer& buffer, bool alloc_data) {
   n->shape = std::move(shape);
   n->strides = std::move(strides);
   n->elem_offset = std::move(elem_offset);
+  if (layout_changed) {
+    n->layout = std::move(new_layout);
+  }
   buffer_remap_.Set(buffer, new_buf);
   return new_buf;
 }
@@ -504,7 +570,7 @@ Stmt StmtMutator::VisitStmt_(const SBlockNode* op) {
   ffi::Array<BufferRegion> writes = Internal::Mutate(this, op->writes);
   ffi::Array<MatchBufferRegion> match_buffers = Internal::Mutate(this, op->match_buffers);
   ffi::Optional<Stmt> init = std::nullopt;
-  if (op->init.defined()) {
+  if (op->init.has_value()) {
     init = VisitStmt(op->init.value());
   }
   Stmt body = VisitStmt(op->body);
@@ -536,6 +602,81 @@ Stmt StmtMutator::VisitStmt_(const SBlockRealizeNode* op) {
     n->iter_values = std::move(v);
     n->predicate = std::move(pred);
     n->block = Downcast<SBlock>(block);
+    return Stmt(n);
+  }
+}
+
+Stmt StmtMutator::VisitStmt_(const ExecScopeStmtNode* op) {
+  Stmt body = this->VisitStmt(op->body);
+  // Mutate expressions inside exec_scope.scope_id_def extents; deferred defs
+  // (extents=NullOpt) have nothing to mutate -- pass them through unchanged.
+  ExecScope new_scope = op->exec_scope;
+  bool scope_changed = false;
+  ffi::Array<ScopeIdDef> new_scope_id_def;
+  bool sid_changed = false;
+  for (const auto& def : op->exec_scope->scope_id_def) {
+    if (!def->extents.has_value()) {
+      new_scope_id_def.push_back(def);
+      continue;
+    }
+    ffi::Array<PrimExpr> new_def_extents;
+    bool def_ext_changed = false;
+    for (const auto& e : def->extents.value()) {
+      PrimExpr new_e = this->VisitExpr(e);
+      if (!new_e.same_as(e)) def_ext_changed = true;
+      new_def_extents.push_back(new_e);
+    }
+    if (def_ext_changed) {
+      sid_changed = true;
+      new_scope_id_def.push_back(
+          ScopeIdDef(def->def_ids, new_def_extents, def->scope, def->preferred_extents));
+    } else {
+      new_scope_id_def.push_back(def);
+    }
+  }
+  if (sid_changed) {
+    scope_changed = true;
+    new_scope = ExecScope(op->exec_scope->kind, new_scope_id_def);
+  }
+  if (body.same_as(op->body) && !scope_changed) {
+    return ffi::GetRef<Stmt>(op);
+  } else {
+    auto n = CopyOnWrite(op);
+    n->body = std::move(body);
+    if (scope_changed) n->exec_scope = std::move(new_scope);
+    return Stmt(n);
+  }
+}
+
+Stmt StmtMutator::VisitStmt_(const tirx::TilePrimitiveCallNode* op) {
+  auto fmutate = [&](const ffi::Any& e) -> ffi::Any {
+    if (e == nullptr) return e;
+    if (auto buffer_region = e.as<BufferRegion>()) {
+      return Internal::Mutate(this, {buffer_region.value()})[0];
+    } else if (auto expr = e.as<PrimExpr>()) {
+      return this->VisitExpr(expr.value());
+    } else if (auto stmt = e.as<Stmt>()) {
+      return this->VisitStmt(stmt.value());
+    }
+    return e;
+  };
+  ffi::Array<ffi::Any> args = Internal::MutateArray(this, op->args, fmutate);
+  // Also mutate PrimExpr values in the config map
+  ffi::Map<ffi::String, ffi::Any> config(op->config.begin(), op->config.end());
+  bool config_changed = false;
+  for (const auto& [key, value] : op->config) {
+    ffi::Any new_value = fmutate(value);
+    if (!new_value.same_as(value)) {
+      config.Set(key, new_value);
+      config_changed = true;
+    }
+  }
+  if (args.same_as(op->args) && !config_changed) {
+    return ffi::GetRef<Stmt>(op);
+  } else {
+    auto n = CopyOnWrite(op);
+    n->args = std::move(args);
+    if (config_changed) n->config = std::move(config);
     return Stmt(n);
   }
 }

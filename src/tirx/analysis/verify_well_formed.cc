@@ -40,84 +40,7 @@
 namespace tvm {
 namespace tirx {
 
-namespace {
-
-template <typename DerivedVerifier>
-class Verifier : protected TIRVisitorWithPath {
- public:
-  template <typename TirNodeRef>
-  static bool Verify(const TirNodeRef& node, bool assert_on_error) {
-    DerivedVerifier verifier(assert_on_error);
-    verifier(node);
-    return !verifier.has_error_;
-  }
-
- protected:
-  explicit Verifier(bool assert_on_error) : assert_on_error_(assert_on_error) {}
-
-  /* \brief Helper class to handle the bool-or-assert handles
-   *
-   * Each verifier can either return a boolean, or assert on failure.
-   * To avoid needing to duplicate this logic at every step, the
-   * Verify() method can be used.  Similar to `TVM_FFI_THROW(InternalError)` or
-   * `LOG(DEBUG)`, it returns an object that can accept streamed
-   * context information.
-   *
-   * If the error should be raised, then the context is collected
-   * identically to `TVM_FFI_THROW(InternalError)`.  If a boolean is returned, or if the
-   * condition passes, then the streamed context is discarded.
-   *
-   * Usage:
-   *
-   *     Verify(value == expected_value)
-   *            << value
-   *            << " was not the expected value of " << expected_value;
-   */
-  class VerifyStream {
-   public:
-    explicit VerifyStream(bool log_fatal) {
-      if (log_fatal) {
-        log_.emplace();
-      }
-    }
-
-    VerifyStream(const VerifyStream&) = delete;
-    VerifyStream& operator=(const VerifyStream&) = delete;
-    VerifyStream(VerifyStream&& other) { std::swap(log_, other.log_); }
-    VerifyStream& operator=(VerifyStream&& other) {
-      std::swap(log_, other.log_);
-      return *this;
-    }
-
-    template <typename T>
-    VerifyStream& operator<<(T&& t) {
-      if (log_.has_value()) {
-        log_.value() << std::forward<T>(t);
-      }
-      return *this;
-    }
-
-    ~VerifyStream() noexcept(false) {
-      if (log_.has_value()) {
-        TVM_FFI_THROW(ValueError) << log_->str();
-      }
-    }
-
-    std::optional<std::ostringstream> log_{std::nullopt};
-  };
-
-  // TODO(Lunderberg): Add the filename/linenum with
-  // std::source_location when C++20 is available.
-  VerifyStream Verify(bool condition) {
-    has_error_ = has_error_ || !condition;
-    return VerifyStream(!condition && assert_on_error_);
-  }
-
-  bool assert_on_error_;
-  bool has_error_{false};
-};
-
-}  // namespace
+using AccessPath = ffi::reflection::AccessPath;
 
 /*! \brief Verify all Expr inside the block does not contain:
  *    1. loop vars outside the current block.
@@ -232,24 +155,35 @@ class UndefinedVarVerifier : public Verifier<UndefinedVarVerifier> {
 
  private:
   using Verifier::Visit;
-  void Visit(const PrimFunc& prim_func, ffi::reflection::AccessPath path) override {
+  void Visit(const PrimFunc& prim_func, AccessPath path) override {
     Verifier::Visit(prim_func, path);
     redefine_allowed_within_function_.clear();
   }
 
-  void EnterDef(const IterVar& iter_var, ffi::reflection::AccessPath path) override {
+  void EnterDef(const IterVar& iter_var, AccessPath path) override {
     Verifier::EnterDef(iter_var, path);
     if (iter_var->iter_type == IterVarType::kThreadIndex) {
       redefine_allowed_within_function_.insert(iter_var->var);
     }
   }
 
-  void EnterDef(const Var& var, ffi::reflection::AccessPath path) override {
+  void EnterDef(const Buffer& buffer, AccessPath path) override {
+    // A buffer definition implicitly defines its data Var when that Var has no
+    // prior definition (e.g., tmem buffers where DeclBuffer auto-creates data).
+    if (currently_defined_.find(buffer->data) == currently_defined_.end() &&
+        previously_defined_.find(buffer->data) == previously_defined_.end()) {
+      currently_defined_.insert({buffer->data, path->Attr("data")});
+    }
+    Verifier::EnterDef(buffer, path);
+  }
+
+  void EnterDef(const Var& var, AccessPath path) override {
     bool redefine_is_allowed = redefine_allowed_within_function_.count(var);
     {
       auto it = currently_defined_.find(var);
       auto verify = Verify(it == currently_defined_.end() || redefine_is_allowed);
-      verify << "TIR is ill-formed, "
+      verify << "ValueError: "
+             << "TIR is ill-formed, "
              << "due to multiple nested definitions of variable " << var << ".";
       if (it != currently_defined_.end()) {
         verify << " It was first defined at " << it->second << ", and was re-defined at " << path;
@@ -259,7 +193,8 @@ class UndefinedVarVerifier : public Verifier<UndefinedVarVerifier> {
     {
       auto it = previously_defined_.find(var);
       auto verify = Verify(it == previously_defined_.end() || redefine_is_allowed);
-      verify << "TIR is ill-formed, "
+      verify << "ValueError: "
+             << "TIR is ill-formed, "
              << "due to multiple definitions of variable " << var << ".";
       if (it != previously_defined_.end()) {
         verify << " It was first defined at " << it->second << ", and was later re-defined at "
@@ -270,19 +205,20 @@ class UndefinedVarVerifier : public Verifier<UndefinedVarVerifier> {
     currently_defined_.insert({var, path});
   }
 
-  void ExitDef(const Var& var, ffi::reflection::AccessPath path) override {
+  void ExitDef(const Var& var, AccessPath path) override {
     auto active_def = currently_defined_.find(var);
 
     currently_defined_.erase(active_def);
     previously_defined_.insert({var, path});
   }
 
-  void VisitExpr_(const VarNode* op, ffi::reflection::AccessPath path) override {
+  void VisitExpr_(const VarNode* op, AccessPath path) override {
     auto var = ffi::GetRef<Var>(op);
 
     auto active_def = currently_defined_.find(var);
     auto verify = Verify(active_def != currently_defined_.end());
-    verify << "Invalid use of undefined variable " << var << " at " << path << ".";
+    verify << "ValueError: "
+           << "Invalid use of undefined variable " << var << " at " << path << ".";
 
     // Check if there was a previous definition, and append the
     // location to the error message if there was.  This is to aid in
@@ -296,10 +232,10 @@ class UndefinedVarVerifier : public Verifier<UndefinedVarVerifier> {
   }
 
   // Variables that are defined in the currently-visited scope.
-  std::unordered_map<Var, ffi::reflection::AccessPath> currently_defined_;
+  std::unordered_map<Var, AccessPath> currently_defined_;
 
   // Variables that were previously defined, and are now out of scope.
-  std::unordered_map<Var, ffi::reflection::AccessPath> previously_defined_;
+  std::unordered_map<Var, AccessPath> previously_defined_;
 
   // Special variables that are allowed to be re-defined, so long as
   // that re-definition occurs within the same PrimFunc.  For example
@@ -326,20 +262,20 @@ class UndefinedBufferVerifier : public Verifier<UndefinedBufferVerifier> {
  private:
   using Verifier::Visit;
 
-  void Visit(const PrimFunc& prim_func, ffi::reflection::AccessPath path) override {
+  void Visit(const PrimFunc& prim_func, AccessPath path) override {
     Verifier::Visit(prim_func, path);
     // Clear per-function state (buffers should not cross function boundaries).
     currently_defined_.clear();
     previously_defined_.clear();
   }
 
-  void EnterDef(const Buffer& buffer, ffi::reflection::AccessPath path) override {
+  void EnterDef(const Buffer& buffer, AccessPath path) override {
     // Call the base class to visit buffer's internal vars (shape, strides, etc.)
     Verifier::EnterDef(buffer, path);
     currently_defined_.insert({buffer, path});
   }
 
-  void ExitDef(const Buffer& buffer, ffi::reflection::AccessPath path) override {
+  void ExitDef(const Buffer& buffer, AccessPath path) override {
     auto active_def = currently_defined_.find(buffer);
     if (active_def != currently_defined_.end()) {
       currently_defined_.erase(active_def);
@@ -347,7 +283,7 @@ class UndefinedBufferVerifier : public Verifier<UndefinedBufferVerifier> {
     previously_defined_.insert({buffer, path});
   }
 
-  void VisitBufferUse(const Buffer& buffer, ffi::reflection::AccessPath path) override {
+  void VisitBufferUse(const Buffer& buffer, AccessPath path) override {
     bool is_declared = currently_defined_.count(buffer);
     bool was_declared = previously_defined_.count(buffer);
 
@@ -367,10 +303,10 @@ class UndefinedBufferVerifier : public Verifier<UndefinedBufferVerifier> {
   }
 
   // Buffers defined in the currently-visited scope.
-  std::unordered_map<Buffer, ffi::reflection::AccessPath, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+  std::unordered_map<Buffer, AccessPath, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       currently_defined_;
   // Buffers that were previously defined and are now out of scope.
-  std::unordered_map<Buffer, ffi::reflection::AccessPath, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+  std::unordered_map<Buffer, AccessPath, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       previously_defined_;
 };
 
@@ -387,16 +323,17 @@ class SingleEnvThreadVerifier : public Verifier<SingleEnvThreadVerifier> {
   using Verifier::Verifier;
 
  private:
-  void Visit(const PrimFunc& prim_func, ffi::reflection::AccessPath path) override {
+  void Visit(const PrimFunc& prim_func, AccessPath path) override {
     Verifier::Visit(prim_func, path);
     env_thread_vars_.clear();
   }
 
-  void EnterDef(const IterVar& iter_var, ffi::reflection::AccessPath path) override {
+  void EnterDef(const IterVar& iter_var, AccessPath path) override {
     if (iter_var->iter_type == IterVarType::kThreadIndex) {
       if (auto it = env_thread_vars_.find(iter_var->thread_tag); it != env_thread_vars_.end()) {
         const auto& [prev_var, prev_path] = it->second;
         Verify(prev_var.same_as(iter_var->var))
+            << "ValueError: "
             << "PrimFunc uses multiple distinct TIR variables "
             << " for the environment thread \"" << iter_var->thread_tag << "\".  "
             << "While multiple tirx::AttrStmt may define the same environment thread, "
@@ -411,7 +348,7 @@ class SingleEnvThreadVerifier : public Verifier<SingleEnvThreadVerifier> {
     }
   }
 
-  std::unordered_map<ffi::String, std::tuple<Var, ffi::reflection::AccessPath>> env_thread_vars_;
+  std::unordered_map<ffi::String, std::tuple<Var, AccessPath>> env_thread_vars_;
 };
 
 bool VerifyWellFormed(const PrimFunc& func, bool assert_mode) {

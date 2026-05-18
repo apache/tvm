@@ -107,6 +107,16 @@ def test_split_index_simplify():
     ck.verify(fld(flm(x, 2), 7), 0)
     ck.verify(fld(fld(flm(x, 16), 2) * 2, 6), fld(flm(x, 16), 6))
 
+    # floordiv(floormod(sum, m*n), n) => floormod(floordiv(sum, n), m)
+    # when sum has parts divisible by n
+    d_tile = te.var("d_tile")
+    i = te.var("i")
+    v = te.var("v")
+    ck.analyzer.update(d_tile, tvm.arith.ConstIntBound(0, 7), True)
+    ck.analyzer.update(i, tvm.arith.ConstIntBound(0, 1), True)
+    ck.analyzer.update(v, tvm.arith.ConstIntBound(0, 7), True)
+    ck.verify(fld(flm(d_tile * 16 + i * 8 + v, 64), 8), flm(d_tile * 2 + i, 8))
+
     # cannot simplify mixed case, unless we canonicalize into one mode.
     ck.verify(tdiv(x, 6) * 2 + tmod(fld(x, 3), 2), tdiv(x, 6) * 2 + tmod(fld(x, 3), 2))
 

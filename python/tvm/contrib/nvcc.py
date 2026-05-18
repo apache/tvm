@@ -135,6 +135,11 @@ def _compile_cuda_nvcc(
     file_name = "tvm_kernels"
     if target_format is None and not use_nvshmem:
         target_format = "ptx"
+
+    tvm_kernel_dump = os.environ.get("TVM_KERNEL_DUMP", None)
+    if tvm_kernel_dump is not None:
+        target_format = "fatbin"  # use fatbin to get cubin for SASS extraction
+
     if target_format not in ["cubin", "ptx", "fatbin"]:
         raise ValueError("target_format must be in cubin, ptx, fatbin")
     temp_code = temp.relpath(f"{file_name}.cu")
@@ -146,6 +151,9 @@ def _compile_cuda_nvcc(
         if "cuda.kernels_output_dir" in pass_context.config
         else None
     )
+    if tvm_kernel_dump is not None:
+        kernels_output_dir = tvm_kernel_dump
+
     if kernels_output_dir is not None:
         if not os.path.isdir(kernels_output_dir):
             os.makedirs(kernels_output_dir)
@@ -162,12 +170,32 @@ def _compile_cuda_nvcc(
 
     cmd = ["nvcc"]
     cmd += [f"--{target_format}", "-O3"]
-    if kernels_output_dir is not None:
+    if tvm_kernel_dump is not None:
         cmd += ["-lineinfo"]
+        cmd += ["--keep", f"--keep-dir={tvm_kernel_dump}"]
+    if os.environ.get("TVM_KERNEL_DEBUG", "0") == "1":
+        cmd += ["-g"]
+        cmd += ["-G"]
     if isinstance(arch, list):
         cmd += arch
     elif isinstance(arch, str):
         cmd += ["-arch", arch]
+
+    cmd += [
+        "-U__CUDA_NO_HALF_OPERATORS__",
+        "-U__CUDA_NO_HALF_CONVERSIONS__",
+        "-U__CUDA_NO_BFLOAT16_OPERATORS__",
+        "-U__CUDA_NO_BFLOAT16_CONVERSIONS__",
+        "-U__CUDA_NO_BFLOAT162_OPERATORS__",
+        "-U__CUDA_NO_BFLOAT162_CONVERSIONS__",
+        "--expt-relaxed-constexpr",
+        "--expt-extended-lambda",
+        "--use_fast_math",
+        "--ptxas-options=-v",  # printing out number of registers
+        "--ptxas-options=--verbose,--register-usage-level=10,--warn-on-local-memory-usage",  # printing out number of registers  # noqa: E501
+    ]
+
+    major, _ = parse_compute_version(get_target_compute_version(Target.current(allow_none=True)))
 
     if options:
         if isinstance(options, str):
@@ -786,6 +814,9 @@ def tvm_callback_cuda_compile(code):
         Compiler backend: "nvcc" (default) or "nvrtc"
         - "nvcc": Use nvcc subprocess, generates fatbin
         - "nvrtc": Use NVRTC via cuda-python for faster JIT, generates cubin
+    TVM_KERNEL_DUMP : str
+        If set, dump generated CUDA/intermediate files and append "-lineinfo" so profilers can
+        correlate SASS back to the dumped source.
 
     Parameters
     ----------
@@ -910,7 +941,15 @@ def get_target_compute_version(target=None):
 
     # 3. GPU compute version
     if tvm.cuda(0).exist:
-        return tvm.cuda(0).compute_version
+        cv = tvm.cuda(0).compute_version
+        # Append 'a' suffix for SM 9.0+ (Hopper, Blackwell) which need
+        # architecture-specific instructions (wgmma, tcgen05, etc.).
+        major_minor = cv.split(".")
+        if len(major_minor) == 2 and major_minor[0].isdigit():
+            major = int(major_minor[0])
+            if major >= 9:
+                return cv + ".a"
+        return cv
 
     raise ValueError(
         "No CUDA architecture was specified or GPU detected."

@@ -154,7 +154,7 @@ def test_nvshmem_compile():
     init_dfunc(uid, num_workers, 0)
     sess.sync_worker_0()
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(A: T.Buffer((8, 16), "float32"), B: T.Buffer((16, 8), "float32")):
         for i in T.thread_binding(T.int64(8), thread="threadIdx.y"):
             for j in T.thread_binding(T.int64(16), thread="threadIdx.x"):
@@ -220,9 +220,9 @@ def _test_nvshmem_kernel_compile_impl():
 
     try:
 
-        @I.ir_module
+        @I.ir_module(s_tir=True)
         class NvshmemQueryModule:
-            @T.prim_func
+            @T.prim_func(s_tir=True)
             def query_pe(
                 my_pe_out: T.Buffer((1,), "int32"),
                 n_pes_out: T.Buffer((1,), "int32"),

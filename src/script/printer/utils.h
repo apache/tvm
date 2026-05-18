@@ -116,6 +116,9 @@ inline ExprDoc TIR(const IRDocsifier& d, const ffi::String& attr) {
   return IdDoc(d->cfg->GetExtraConfig<ffi::String>("tirx.prefix", "T"))->Attr(attr);
 }
 
+/*! \brief Alias for TIR — historical TIRx name used by tirx printer code */
+inline ExprDoc TIRx(const IRDocsifier& d, const ffi::String& attr) { return TIR(d, attr); }
+
 /*! \brief Creates the Relax common prefix, which is by default `R` */
 inline ExprDoc Relax(const IRDocsifier& d, const ffi::String& attr) {
   d->ir_usage.insert("relax");
@@ -136,6 +139,10 @@ inline Doc HeaderWrapper(const IRDocsifier& d, const Doc& doc) {
     if (d->ir_usage.count("tirx")) {
       stmts.push_back(CommentDoc("from tvm.script import tirx as " +
                                  d->cfg->GetExtraConfig<ffi::String>("tirx.prefix", "T")));
+      // Layout sugar like `4 @ Axis.laneid` references registered axes via the
+      // `Axis` class attribute. Mirror the `Axis` injection in `_default_globals`
+      // so readers see the dependency. Decorative only.
+      stmts.push_back(CommentDoc("from tvm.tirx.layout import Axis"));
     }
     if (d->ir_usage.count("relax")) {
       stmts.push_back(CommentDoc("from tvm.script import relax as " +

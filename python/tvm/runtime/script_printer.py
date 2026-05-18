@@ -34,6 +34,9 @@ class PrinterConfig(Object):
     binding_names: Sequence[str]
     show_meta: bool
     ir_prefix: str
+    tir_prefix: str
+    tir_import_module: str
+    relax_prefix: str
     module_alias: str
     int_dtype: str
     float_dtype: str
@@ -56,6 +59,7 @@ class PrinterConfig(Object):
         show_meta: bool = False,
         ir_prefix: str = "I",
         tir_prefix: str = "T",
+        tir_import_module: str = "tir",
         relax_prefix: str = "R",
         module_alias: str = "cls",
         buffer_dtype: str = "float32",
@@ -78,6 +82,9 @@ class PrinterConfig(Object):
         cfg = {
             "show_meta": show_meta,
             "ir_prefix": ir_prefix,
+            "tir_prefix": tir_prefix,
+            "tir_import_module": tir_import_module,
+            "relax_prefix": relax_prefix,
             "module_alias": module_alias,
             "int_dtype": int_dtype,
             "float_dtype": float_dtype,
@@ -125,6 +132,7 @@ class Scriptable:
         show_meta: bool = False,
         ir_prefix: str = "I",
         tir_prefix: str = "T",
+        tir_import_module: str = "tir",
         relax_prefix: str = "R",
         module_alias: str = "cls",
         buffer_dtype: str = "float32",
@@ -153,7 +161,10 @@ class Scriptable:
         ir_prefix : str = "I"
             The prefix of AST nodes from tvm.ir
         tir_prefix : str = "T"
-            The prefix of AST nodes from tvm.tirx
+            The prefix of AST nodes from tvm.tir
+        tir_import_module : str = "tir"
+            The module name in the printed import (e.g. \"tir\" or \"tirx\").
+            Use tir_import_module=\"tirx\" with tir_prefix=\"Tx\" for all-Tx output.
         relax_prefix : str = "R"
             The prefix of AST nodes from tvm.relax
         module_alias : str = "cls"
@@ -196,13 +207,45 @@ class Scriptable:
             The TVM Script of the given TVM IR
 
         """
+        # Auto-switch to tirx (`Tx`/`tirx`) flavor only when explicitly
+        # printing a PrimFunc / IRModule that has no s_tir-tagged content.
+        # Free objects (Buffer, BufferRegion, ...) keep the default `T`/`tir`
+        # flavor — they have no enclosing function to indicate tirx vs s_tir.
+        tir_prefix_val = tir_prefix
+        tir_import_module_val = tir_import_module
+        if tir_prefix == "T" and tir_import_module == "tir":
+            from tvm.ir import IRModule  # pylint: disable=import-outside-toplevel
+            from tvm.tirx import PrimFunc  # pylint: disable=import-outside-toplevel
+
+            switch_to_tirx = False
+            if isinstance(self, PrimFunc):
+                attrs = getattr(self, "attrs", None)
+                if attrs is None or not attrs.get("s_tir", False):
+                    switch_to_tirx = True
+            elif isinstance(self, IRModule):
+                any_prim = False
+                any_s_tir = False
+                for _, base_func in self.functions.items():
+                    if isinstance(base_func, PrimFunc):
+                        any_prim = True
+                        if getattr(base_func, "attrs", None) and base_func.attrs.get(
+                            "s_tir", False
+                        ):
+                            any_s_tir = True
+                            break
+                if any_prim and not any_s_tir:
+                    switch_to_tirx = True
+            if switch_to_tirx:
+                tir_prefix_val = "Tx"
+                tir_import_module_val = "tirx"
         return _script(
             self,
             PrinterConfig(
                 name=name,
                 show_meta=show_meta,
                 ir_prefix=ir_prefix,
-                tir_prefix=tir_prefix,
+                tir_prefix=tir_prefix_val,
+                tir_import_module=tir_import_module_val,
                 relax_prefix=relax_prefix,
                 module_alias=module_alias,
                 buffer_dtype=buffer_dtype,
@@ -229,6 +272,7 @@ class Scriptable:
         show_meta: bool = False,
         ir_prefix: str = "I",
         tir_prefix: str = "T",
+        tir_import_module: str = "tir",
         relax_prefix: str = "R",
         module_alias: str = "cls",
         buffer_dtype: str = "float32",
@@ -252,6 +296,7 @@ class Scriptable:
                 show_meta=show_meta,
                 ir_prefix=ir_prefix,
                 tir_prefix=tir_prefix,
+                tir_import_module=tir_import_module,
                 relax_prefix=relax_prefix,
                 module_alias=module_alias,
                 buffer_dtype=buffer_dtype,
@@ -279,6 +324,7 @@ class Scriptable:
         show_meta: bool = False,
         ir_prefix: str = "I",
         tir_prefix: str = "T",
+        tir_import_module: str = "tir",
         relax_prefix: str = "R",
         module_alias: str = "cls",
         buffer_dtype: str = "float32",
@@ -368,9 +414,7 @@ class Scriptable:
             Object to be annotated
 
         """
-        from tvm.script.highlight import (  # pylint: disable=import-outside-toplevel
-            cprint,
-        )
+        from tvm.script.highlight import cprint  # pylint: disable=import-outside-toplevel
 
         if black_format is None:
             env = os.environ.get("TVM_BLACK_FORMAT")
@@ -382,6 +426,7 @@ class Scriptable:
                 show_meta=show_meta,
                 ir_prefix=ir_prefix,
                 tir_prefix=tir_prefix,
+                tir_import_module=tir_import_module,
                 relax_prefix=relax_prefix,
                 module_alias=module_alias,
                 buffer_dtype=buffer_dtype,

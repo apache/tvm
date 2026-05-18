@@ -23,9 +23,9 @@ from tvm.script import tirx as T
 # fmt: off
 
 
-@I.ir_module
+@I.ir_module(s_tir=True)
 class Module:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(
         A: T.Buffer((729, 729), "float32"),
         B: T.Buffer((729, 729), "float32"),

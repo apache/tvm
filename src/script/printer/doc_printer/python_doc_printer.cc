@@ -20,6 +20,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/script/printer/doc.h>
+#include <tvm/tirx/tirx_op.h>
 
 #include <algorithm>
 #include <cmath>
@@ -103,6 +104,7 @@ ExprPrecedence GetExprPrecedence(const ExprDoc& doc) {
         {OpKind::kGtE, ExprPrecedence::kComparison},
         {OpKind::kAnd, ExprPrecedence::kBooleanAnd},
         {OpKind::kOr, ExprPrecedence::kBooleanOr},
+        {OpKind::kMatMul, ExprPrecedence::kMult},
         {OpKind::kIfThenElse, ExprPrecedence::kIfThenElse},
     };
     int n = static_cast<int>(OpKind::kSpecialEnd);
@@ -164,6 +166,8 @@ class PythonDocPrinter : public DocPrinter {
   void PrintTypedDoc(const AssignDoc& doc) final;
   void PrintTypedDoc(const IfDoc& doc) final;
   void PrintTypedDoc(const WhileDoc& doc) final;
+  void PrintTypedDoc(const BreakDoc& doc) final;
+  void PrintTypedDoc(const ContinueDoc& doc) final;
   void PrintTypedDoc(const ForDoc& doc) final;
   void PrintTypedDoc(const ExprStmtDoc& doc) final;
   void PrintTypedDoc(const AssertDoc& doc) final;
@@ -173,6 +177,7 @@ class PythonDocPrinter : public DocPrinter {
   void PrintTypedDoc(const ClassDoc& doc) final;
   void PrintTypedDoc(const CommentDoc& doc) final;
   void PrintTypedDoc(const DocStringDoc& doc) final;
+  void PrintTypedDoc(const OpCallDoc& doc) final;
 
  private:
   void NewLineWithoutIndent() {
@@ -404,6 +409,7 @@ const std::string OperatorToString(OperationDocNode::Kind operation_kind) {
         {OpKind::kGtE, ">="},       //
         {OpKind::kAnd, "and"},      //
         {OpKind::kOr, "or"},        //
+        {OpKind::kMatMul, "@"},     //
     };
 
     std::vector<std::string> table;
@@ -609,6 +615,10 @@ void PythonDocPrinter::PrintTypedDoc(const WhileDoc& doc) {
   PrintIndentedBlock(doc->body);
 }
 
+void PythonDocPrinter::PrintTypedDoc(const BreakDoc& doc) { output_ << "break"; }
+
+void PythonDocPrinter::PrintTypedDoc(const ContinueDoc& doc) { output_ << "continue"; }
+
 void PythonDocPrinter::PrintTypedDoc(const ForDoc& doc) {
   MaybePrintCommenMultiLines(doc, true);
   output_ << "for ";
@@ -715,6 +725,70 @@ void PythonDocPrinter::PrintTypedDoc(const DocStringDoc& doc) {
   if (doc->comment.has_value() && !doc->comment.value().empty()) {
     PrintDocString(doc->comment.value());
   }
+}
+
+void PythonDocPrinter::PrintTypedDoc(const OpCallDoc& doc) {
+  PrintDoc(doc->callee);
+
+  output_ << "(";
+
+  // Print positional args
+  bool wrote_any = false;
+  for (const Doc& arg : doc->args) {
+    if (wrote_any) {
+      output_ << ", ";
+    }
+    wrote_any = true;
+    PrintDoc(arg);
+  }
+  // workspace first (if present and non-empty)
+  if (doc->workspace.has_value() && !doc->workspace.value()->keys.empty()) {
+    if (wrote_any) output_ << ", ";
+    wrote_any = true;
+    output_ << "workspace=";
+    PrintDoc(doc->workspace.value());
+  }
+  // dispatch next (if present)
+  if (doc->dispatch.has_value()) {
+    if (wrote_any) output_ << ", ";
+    wrote_any = true;
+    output_ << "dispatch=";
+    PrintDoc(doc->dispatch.value());
+  }
+  // Flatten config as keyword args: key=value
+  if (doc->config.has_value() && !doc->config.value()->keys.empty()) {
+    const auto* dict = doc->config.value().as<DictDocNode>();
+    // Only flatten if all keys are literal strings; otherwise, fallback to config={...}
+    bool all_str_keys = true;
+    for (const ExprDoc& k : dict->keys) {
+      if (!k.as<LiteralDocNode>()) {
+        all_str_keys = false;
+        break;
+      }
+      const auto* lit = k.as<LiteralDocNode>();
+      if (!lit->value.as<ffi::String>()) {
+        all_str_keys = false;
+        break;
+      }
+    }
+    if (all_str_keys) {
+      int n = dict->keys.size();
+      for (int i = 0; i < n; ++i) {
+        const auto* lit = dict->keys[i].as<LiteralDocNode>();
+        std::string key = Downcast<ffi::String>(lit->value);
+        if (wrote_any) output_ << ", ";
+        wrote_any = true;
+        output_ << key << "=";
+        PrintDoc(dict->values[i]);
+      }
+    } else {
+      if (wrote_any) output_ << ", ";
+      wrote_any = true;
+      output_ << "config=";
+      PrintDoc(doc->config.value());
+    }
+  }
+  output_ << ")";
 }
 
 ffi::String DocToPythonScript(Doc doc, const PrinterConfig& cfg) {

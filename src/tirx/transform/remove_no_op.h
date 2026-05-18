@@ -53,7 +53,7 @@ namespace tirx {
  */
 Stmt RemoveNoOp(Stmt stmt, arith::Analyzer* analyzer,
                 std::optional<ControlFlowGraph> touch_pattern = std::nullopt,
-                const StmtNode* context = nullptr);
+                const StmtNode* context = nullptr, bool ignore_profiler_call = false);
 
 }  // namespace tirx
 }  // namespace tvm

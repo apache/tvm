@@ -43,7 +43,7 @@ def check_error(func, rel_lineno):
     try:
         source_code = inspect.getsource(func)
         indent = len(re.match(r"^\s*", source_code).group(0))
-        source_code = "@T.prim_func\n" + "\n".join(
+        source_code = "@T.prim_func(s_tir=True)\n" + "\n".join(
             line[indent:] for line in source_code.splitlines()
         )
         from_source(source_code)
@@ -417,7 +417,7 @@ def test_implicit_root_has_attrs():
     check_error(implicit_root_has_axes, 2)
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def elementwise_not_affine(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128, 128))
@@ -428,7 +428,7 @@ def elementwise_not_affine(a: T.handle, b: T.handle) -> None:
             B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def elementwise_non_single_branch(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128))
     C = T.sblock_alloc_buffer((128, 128, 128))

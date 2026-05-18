@@ -19,7 +19,7 @@
 from tvm_ffi import register_object as _register_object
 
 from tvm.script.ir_builder.base import IRBuilderFrame
-from tvm.tirx import Var
+from tvm.tirx import Buffer, Var
 
 
 @_register_object("script.ir_builder.tirx.TIRFrame")
@@ -32,6 +32,16 @@ class PrimFuncFrame(TIRFrame): ...
 
 @_register_object("script.ir_builder.tirx.SSBlockFrame")
 class SBlockFrame(TIRFrame): ...
+
+
+@_register_object("script.ir_builder.tirx.ExecScopeFrame")
+class ExecScopeFrame(TIRFrame):
+    """A frame that represents an execution scope (e.g. cta, warp, thread).
+
+    When exiting this frame, it produces an ExecScopeStmt wrapping the body.
+    To narrow execution to a subset of the scope, wrap the ``with`` in an
+    ``if T.filter(var, lo, hi):`` guard.
+    """
 
 
 @_register_object("script.ir_builder.tirx.SBlockInitFrame")
@@ -47,6 +57,18 @@ class ForFrame(TIRFrame):
 
 @_register_object("script.ir_builder.tirx.AssertFrame")
 class AssertFrame(TIRFrame): ...
+
+
+class LetFrame(TIRFrame):
+    def __enter__(self) -> Var:
+        super().__enter__()
+        return self.var
+
+
+class AllocateFrame(TIRFrame):
+    def __enter__(self) -> Buffer:
+        super().__enter__()
+        return self.buffer_var
 
 
 @_register_object("script.ir_builder.tirx.AttrFrame")
@@ -69,8 +91,30 @@ class ThenFrame(TIRFrame): ...
 class ElseFrame(TIRFrame): ...
 
 
+@_register_object("script.ir_builder.tirx.DeclBufferFrame")
+class DeclBufferFrame(TIRFrame):
+    def __enter__(self) -> Buffer:
+        super().__enter__()
+        return self.buffer
+
+
 @_register_object("script.ir_builder.tirx.LaunchThreadFrame")
 class LaunchThreadFrame(TIRFrame):
     def __enter__(self) -> Var:
         super().__enter__()
         return self.iter_var.var
+
+
+@_register_object("script.ir_builder.tirx.ComposeOpFrame")
+class ComposeOpFrame(TIRFrame): ...
+
+
+@_register_object("script.ir_builder.tirx.AllocBufferFrame")
+class AllocBufferFrame(TIRFrame):
+    def __enter__(self) -> Buffer:
+        super().__enter__()
+        return self.buffer
+
+
+@_register_object("script.ir_builder.tirx.HintFrame")
+class HintFrame(TIRFrame): ...

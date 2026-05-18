@@ -231,6 +231,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   void VisitStmt_(const SeqStmtNode* op) override;
   void VisitStmt_(const EvaluateNode* op) override;
   void VisitStmt_(const DeclBufferNode* op) override;
+  void VisitStmt_(const ExecScopeStmtNode* op) override;
 
   // Get constant string
   llvm::Constant* GetConstString(const std::string& str);

@@ -264,6 +264,8 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
       return VisitRightShift(op);
     } else if (op->op.same_as(tirx::builtin::bitwise_and())) {
       return VisitBitwiseAnd(op);
+    } else if (op->op.same_as(tirx::builtin::shift_left())) {
+      return VisitLeftShift(op);
     } else {
       return Everything();
     }
@@ -277,6 +279,15 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
     } else {
       return Everything();
     }
+  }
+
+  Entry VisitLeftShift(const CallNode* op) {
+    Entry a = VisitExpr(op->args[0]);
+    Entry b = VisitExpr(op->args[1]);
+    if (b.is_const()) {
+      return Entry(a.coeff << b.base, a.base << b.base);
+    }
+    return Everything();
   }
 
   Entry VisitRightShift(const CallNode* op) {

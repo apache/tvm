@@ -345,6 +345,8 @@ inline const char* DLDeviceType2Str(int type) {
       return "webgpu";
     case kDLHexagon:
       return "hexagon";
+    case kDLTrn:
+      return "trn";
     default:
       TVM_FFI_THROW(InternalError) << "unknown type = " << type;
   }
@@ -414,6 +416,7 @@ TVM_RUNTIME_DLL bool RuntimeEnabled(const ffi::String& target);
 
 /*! \brief namespace for constant symbols */
 namespace symbol {
+constexpr const char* tvm_global_barrier_state = "__tvm_global_barrier_state";
 /*! \brief global function to set device */
 constexpr const char* tvm_set_device = "__tvm_set_device";
 }  // namespace symbol

@@ -79,6 +79,8 @@ class CodeGenWebGPU final : public CodeGenC {
   void VisitStmt_(const AllocBufferNode* op) final;
   void VisitStmt_(const AssertStmtNode* op) final;
   void VisitStmt_(const WhileNode* op) final;
+  void VisitStmt_(const BreakNode* op) final;
+  void VisitStmt_(const ContinueNode* op) final;
 
  private:
   /*!
