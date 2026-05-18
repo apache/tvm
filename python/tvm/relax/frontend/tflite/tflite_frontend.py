@@ -284,6 +284,7 @@ class OperatorConverter:
             "STABLEHLO_POWER": functools.partial(
                 self._convert_stablehlo_binary, relax_op=_op.power
             ),
+            "STABLEHLO_REDUCE": self._convert_stablehlo_reduce,
             "STABLEHLO_REMAINDER": self._convert_stablehlo_remainder,
             "STABLEHLO_RSQRT": functools.partial(self._convert_stablehlo_unary, relax_op=_op.rsqrt),
             "STABLEHLO_SELECT": functools.partial(
@@ -1499,7 +1500,7 @@ class OperatorConverter:
 
     def _get_stablehlo_i64_vector(self, vector, default):
         """Convert an optional StableHLO int64 vector field to a Python int list."""
-        if vector is None:
+        if vector is None or isinstance(vector, int):
             return list(default)
         return [int(v) for v in vector]
 
@@ -1543,6 +1544,93 @@ class OperatorConverter:
         truncated = self.bb.normalize(relax.op.trunc(quotient))
         product = self.bb.normalize(relax.op.multiply(rhs, truncated))
         return self.bb.normalize(relax.op.subtract(lhs, product))
+
+    def _get_stablehlo_reduce_body_op_name(self, body_subgraph_index):
+        """Return the StableHLO op name for a simple reduce body subgraph."""
+        if body_subgraph_index <= 0 or body_subgraph_index >= self.model.SubgraphsLength():
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_REDUCE requires a valid non-main body subgraph"
+            )
+
+        body_subgraph = self.model.Subgraphs(body_subgraph_index)
+        if (
+            body_subgraph.InputsLength() != 2
+            or body_subgraph.OutputsLength() != 1
+            or body_subgraph.OperatorsLength() != 1
+        ):
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_REDUCE only supports single-op binary reducer subgraphs"
+            )
+
+        return self.get_op_code_str(body_subgraph.Operators(0))
+
+    def _check_stablehlo_reduce_init(self, init_tensor, reducer_name):
+        """Validate that the StableHLO reduce init value matches the Relax identity."""
+        if self.has_expr(init_tensor.tensor_idx):
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_REDUCE with dynamic init values is not supported"
+            )
+
+        init_value = np.asarray(self.get_tensor_value(init_tensor))
+        if init_value.shape not in [(), (1,)]:
+            raise tvm.error.OpNotImplemented("STABLEHLO_REDUCE requires scalar init values")
+
+        dtype = init_value.dtype
+        scalar = init_value.item()
+        if reducer_name == "STABLEHLO_ADD":
+            is_identity = bool(np.isclose(scalar, 0))
+        elif reducer_name == "STABLEHLO_MULTIPLY":
+            is_identity = bool(np.isclose(scalar, 1))
+        elif reducer_name == "STABLEHLO_MAXIMUM":
+            if np.issubdtype(dtype, np.floating):
+                is_identity = bool(np.isneginf(scalar))
+            elif np.issubdtype(dtype, np.integer):
+                is_identity = scalar == np.iinfo(dtype).min
+            else:
+                is_identity = False
+        elif reducer_name == "STABLEHLO_MINIMUM":
+            if np.issubdtype(dtype, np.floating):
+                is_identity = bool(np.isposinf(scalar))
+            elif np.issubdtype(dtype, np.integer):
+                is_identity = scalar == np.iinfo(dtype).max
+            else:
+                is_identity = False
+        else:
+            raise tvm.error.OpNotImplemented(
+                f"STABLEHLO_REDUCE reducer {reducer_name} is not supported"
+            )
+
+        if not is_identity:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_REDUCE init value must match the reducer identity"
+            )
+
+    def _convert_stablehlo_reduce(self, op):
+        """Convert the single-input STABLEHLO_REDUCE subset to Relax reductions."""
+        from tflite.StablehloReduceOptions import StablehloReduceOptions
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+        assert len(self.get_output_tensors(op)) == 1
+
+        opts = self._get_stablehlo_options(op, StablehloReduceOptions)
+        dimensions = self._get_stablehlo_i64_vector(opts.DimensionsAsNumpy(), [])
+        reducer_name = self._get_stablehlo_reduce_body_op_name(int(opts.BodySubgraphIndex()))
+
+        reducers = {
+            "STABLEHLO_ADD": relax.op.sum,
+            "STABLEHLO_MAXIMUM": relax.op.max,
+            "STABLEHLO_MINIMUM": relax.op.min,
+            "STABLEHLO_MULTIPLY": relax.op.prod,
+        }
+        if reducer_name not in reducers:
+            raise tvm.error.OpNotImplemented(
+                f"STABLEHLO_REDUCE reducer {reducer_name} is not supported"
+            )
+
+        self._check_stablehlo_reduce_init(input_tensors[1], reducer_name)
+        data = self.get_tensor_expr(input_tensors[0])
+        return self.bb.normalize(reducers[reducer_name](data, axis=dimensions, keepdims=False))
 
     def _convert_stablehlo_convert(self, op):
         """Convert STABLEHLO_CONVERT to Relax (astype).

@@ -3686,6 +3686,7 @@ _tfl_stablehlo_comp_type = _get_tflite_schema_module("StablehloComparisonType")
 _tfl_stablehlo_pad_opts = _get_tflite_schema_module("StablehloPadOptions")
 _tfl_stablehlo_dyn_slice_opts = _get_tflite_schema_module("StablehloDynamicSliceOptions")
 _tfl_stablehlo_gather_opts = _get_tflite_schema_module("StablehloGatherOptions")
+_tfl_stablehlo_reduce_opts = _get_tflite_schema_module("StablehloReduceOptions")
 _tfl_dimension_metadata = _get_tflite_schema_module("DimensionMetadata")
 _tfl_fully_connected_options = _get_tflite_schema_module("FullyConnectedOptions")
 _tfl_int32_vector = _get_tflite_schema_module("Int32Vector")
@@ -3954,6 +3955,73 @@ def _build_stablehlo_model_with_unused_subgraph():
     )
 
 
+def _build_stablehlo_reduce_model(reducer_name, init_value):
+    """Build a single-input STABLEHLO_REDUCE model with a binary reducer body."""
+    builder = flatbuffers.Builder(1024)
+
+    dimensions_vec = _tflite_int64_vector(
+        builder,
+        _tfl_stablehlo_reduce_opts.StablehloReduceOptionsStartDimensionsVector,
+        [1],
+    )
+    _tfl_stablehlo_reduce_opts.StablehloReduceOptionsStart(builder)
+    _tfl_stablehlo_reduce_opts.StablehloReduceOptionsAddDimensions(builder, dimensions_vec)
+    _tfl_stablehlo_reduce_opts.StablehloReduceOptionsAddBodySubgraphIndex(builder, 1)
+    reduce_opts = _tfl_stablehlo_reduce_opts.StablehloReduceOptionsEnd(builder)
+
+    reduce_builtin = _get_stablehlo_builtin_operator("STABLEHLO_REDUCE")
+    reducer_builtin = _get_stablehlo_builtin_operator(reducer_name)
+    reduce_code = _build_operator_code(builder, reduce_builtin)
+    reducer_code = _build_operator_code(builder, reducer_builtin)
+
+    main_tensors = [
+        _build_tensor(builder, 0, [2, 3]),
+        _build_tensor(builder, 1, []),
+        _build_tensor(builder, 2, [2]),
+    ]
+    reduce_op = _build_operator(
+        builder,
+        0,
+        [0, 1],
+        [2],
+        builtin_options2_type=_tfl_builtin_options2.StablehloReduceOptions,
+        builtin_options2=reduce_opts,
+    )
+    main_subgraph = _build_subgraph(
+        builder,
+        tensors=main_tensors,
+        operators=[reduce_op],
+        inputs=[0],
+        outputs=[2],
+    )
+
+    body_tensors = [_build_tensor(builder, buffer_idx, []) for buffer_idx in range(3, 6)]
+    reducer_op = _build_operator(builder, 1, [0, 1], [2])
+    body_subgraph = _build_subgraph(
+        builder,
+        tensors=body_tensors,
+        operators=[reducer_op],
+        inputs=[0, 1],
+        outputs=[2],
+    )
+
+    buffers = [
+        _build_buffer(builder),
+        _build_buffer(builder, np.array(init_value, dtype=np.float32).tobytes()),
+        _build_buffer(builder),
+        _build_buffer(builder),
+        _build_buffer(builder),
+        _build_buffer(builder),
+    ]
+    return _finish_tflite_model(
+        builder,
+        subgraph=main_subgraph,
+        extra_subgraphs=[body_subgraph],
+        operator_codes=[reduce_code, reducer_code],
+        buffers=buffers,
+    )
+
+
 def _build_stablehlo_typed_binary_model(*, builtin_name, tensor_type):
     """Build a minimal TFLite StableHLO binary model with the requested tensor type."""
     builder = flatbuffers.Builder(1024)
@@ -4061,6 +4129,56 @@ def test_stablehlo_model_with_unused_subgraph():
             return gv
 
     tvm.ir.assert_structural_equal(mod, Expected)
+
+
+@pytest.mark.parametrize(
+    "reducer_name, init_value, relax_op",
+    [
+        ("STABLEHLO_ADD", 0.0, R.sum),
+        ("STABLEHLO_MAXIMUM", -np.inf, R.max),
+        ("STABLEHLO_MINIMUM", np.inf, R.min),
+        ("STABLEHLO_MULTIPLY", 1.0, R.prod),
+    ],
+)
+def test_stablehlo_reduce(reducer_name, init_value, relax_op):
+    """TFLite StableHLO REDUCE with simple binary reducer body subgraphs."""
+    mod = _load_model_from_buffer(_build_stablehlo_reduce_model(reducer_name, init_value))
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 3), dtype="float32")) -> R.Tensor((2,), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((2,), dtype="float32") = relax_op(x, axis=[1], keepdims=False)
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_stablehlo_reduce_unsupported_reducer():
+    """TFLite StableHLO REDUCE rejects unsupported body reducer ops."""
+    buf = _build_stablehlo_reduce_model("STABLEHLO_SUBTRACT", 0.0)
+    if hasattr(tflite.Model, "Model"):
+        tflite_model = tflite.Model.Model.GetRootAsModel(buf, 0)
+    else:
+        tflite_model = tflite.Model.GetRootAsModel(buf, 0)
+
+    with pytest.raises(tvm.error.OpNotImplemented, match="reducer"):
+        from_tflite(tflite_model)
+
+
+def test_stablehlo_reduce_non_identity_init_unsupported():
+    """TFLite StableHLO REDUCE rejects init values that Relax reductions cannot express."""
+    buf = _build_stablehlo_reduce_model("STABLEHLO_ADD", 1.0)
+    if hasattr(tflite.Model, "Model"):
+        tflite_model = tflite.Model.Model.GetRootAsModel(buf, 0)
+    else:
+        tflite_model = tflite.Model.GetRootAsModel(buf, 0)
+
+    with pytest.raises(tvm.error.OpNotImplemented, match="init value"):
+        from_tflite(tflite_model)
 
 
 @pytest.mark.parametrize(
