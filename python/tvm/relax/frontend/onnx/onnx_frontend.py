@@ -526,6 +526,20 @@ class Div(BinaryBase):
 
     @classmethod
     def _impl_v7(cls, bb, inputs, attr, params):
+        try:
+            lhs_code = DataType(inputs[0].struct_info.dtype).type_code
+            rhs_code = DataType(inputs[1].struct_info.dtype).type_code
+        except (AttributeError, ValueError, TypeError, TVMError):
+            return cls.base_impl(bb, inputs, attr, params)
+
+        lhs_is_integer = lhs_code == DataTypeCode.INT or lhs_code == DataTypeCode.UINT
+        rhs_is_integer = rhs_code == DataTypeCode.INT or rhs_code == DataTypeCode.UINT
+        if not (lhs_is_integer and rhs_is_integer):
+            return cls.base_impl(bb, inputs, attr, params)
+
+        if isinstance(inputs[1], relax.Constant) and bool(_np.any(inputs[1].data.numpy() == 0)):
+            raise ValueError("ONNX Div with integer inputs encountered divisor value 0.")
+
         return cls.base_impl(bb, inputs, attr, params)
 
 

@@ -591,6 +591,25 @@ def test_binary(op_name: str):
     verify_binary_scalar(op_name)
 
 
+def test_div_integer_constant_zero_divisor_raises_valueerror():
+    b_init = numpy_helper.from_array(np.array([3, 0, -2, 1], dtype=np.int32), name="b")
+    node = helper.make_node("Div", ["a", "b"], ["y"])
+    graph = helper.make_graph(
+        [node],
+        "div_const_zero",
+        [helper.make_tensor_value_info("a", TensorProto.INT32, [4])],
+        [helper.make_tensor_value_info("y", TensorProto.INT32, [4])],
+        initializer=[b_init],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 18)])
+    model.ir_version = 9
+
+    with pytest.raises(
+        ValueError, match="ONNX Div with integer inputs encountered divisor value 0"
+    ):
+        from_onnx(model, opset=18, keep_params_in_input=False)
+
+
 @pytest.mark.parametrize("int_mode", [True, False])
 def test_mod(int_mode: bool):
     if int_mode:
