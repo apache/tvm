@@ -3850,12 +3850,15 @@ def _build_subgraph(builder, *, tensors, operators, inputs, outputs):
     return _tfl_subgraph.SubGraphEnd(builder)
 
 
-def _finish_tflite_model(builder, *, subgraph, operator_codes, buffers):
+def _finish_tflite_model(builder, *, subgraph, operator_codes, buffers, extra_subgraphs=None):
+    all_subgraphs = [subgraph] + (extra_subgraphs or [])
     buffers_vec = _tflite_offset_vector(builder, _tfl_model.ModelStartBuffersVector, buffers)
     opcodes_vec = _tflite_offset_vector(
         builder, _tfl_model.ModelStartOperatorCodesVector, operator_codes
     )
-    subgraphs_vec = _tflite_offset_vector(builder, _tfl_model.ModelStartSubgraphsVector, [subgraph])
+    subgraphs_vec = _tflite_offset_vector(
+        builder, _tfl_model.ModelStartSubgraphsVector, all_subgraphs
+    )
 
     _tfl_model.ModelStart(builder)
     _tfl_model.ModelAddBuffers(builder, buffers_vec)
@@ -3909,6 +3912,45 @@ def _build_stablehlo_model(*, builtin_name, input_count):
     buffers = [_build_buffer(builder) for _ in range(input_count + 1)]
     return _finish_tflite_model(
         builder, subgraph=subgraph, operator_codes=operator_codes, buffers=buffers
+    )
+
+
+def _build_stablehlo_model_with_unused_subgraph():
+    """Build a StableHLO model with an unused extra subgraph."""
+    builder = flatbuffers.Builder(1024)
+    builtin_op = _get_stablehlo_builtin_operator("STABLEHLO_ADD")
+
+    main_tensors = [_build_tensor(builder, buffer_idx, [2, 2]) for buffer_idx in range(3)]
+    main_op = _build_operator(builder, 0, [0, 1], [2])
+    main_subgraph = _build_subgraph(
+        builder,
+        tensors=main_tensors,
+        operators=[main_op],
+        inputs=[0, 1],
+        outputs=[2],
+    )
+
+    # Give the unused subgraph a conflicting input tensor name and different
+    # shape. from_tflite should infer the main function input shape only from
+    # Subgraphs(0).
+    extra_tensors = [_build_tensor(builder, buffer_idx, [4, 4]) for buffer_idx in range(3, 6)]
+    extra_op = _build_operator(builder, 0, [0, 1], [2])
+    extra_subgraph = _build_subgraph(
+        builder,
+        tensors=extra_tensors,
+        operators=[extra_op],
+        inputs=[0, 1],
+        outputs=[2],
+    )
+
+    operator_codes = [_build_operator_code(builder, builtin_op)]
+    buffers = [_build_buffer(builder) for _ in range(6)]
+    return _finish_tflite_model(
+        builder,
+        subgraph=main_subgraph,
+        extra_subgraphs=[extra_subgraph],
+        operator_codes=operator_codes,
+        buffers=buffers,
     )
 
 
@@ -3995,6 +4037,26 @@ def test_stablehlo_binary(builtin_name, relax_op):
             R.func_attr({"num_input": 2})
             with R.dataflow():
                 gv: R.Tensor((2, 2), dtype="float32") = relax_op(x, y)
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_stablehlo_model_with_unused_subgraph():
+    """TFLite StableHLO import ignores unused non-main subgraphs."""
+    mod = _load_model_from_buffer(_build_stablehlo_model_with_unused_subgraph())
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((2, 2), dtype="float32"),
+            y: R.Tensor((2, 2), dtype="float32"),
+        ) -> R.Tensor((2, 2), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                gv: R.Tensor((2, 2), dtype="float32") = R.add(x, y)
                 R.output(gv)
             return gv
 
