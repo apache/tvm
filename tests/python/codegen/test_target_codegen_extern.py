@@ -32,7 +32,7 @@ def test_add_pipeline():
     # CPU version: serial loop with vectorized operations
     @I.ir_module
     class ModuleCPU:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((64,), "float32"), C: T.Buffer((64,), "float32")):
             for i in T.serial((64 + 1) // 2):
                 C[T.Ramp(i * 2, 1, 2)] = A[T.Ramp(i * 2, 1, 2)] + T.Broadcast(T.float32(1), 2)
@@ -40,7 +40,7 @@ def test_add_pipeline():
     # GPU version: thread bindings with vectorized operations
     @I.ir_module
     class ModuleGPU:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((64,), "float32"), C: T.Buffer((64,), "float32")):
             bx = T.launch_thread("blockIdx.x", (64 + 4 - 1) // 4)
             tx = T.launch_thread("threadIdx.x", 4)
@@ -73,7 +73,7 @@ def test_pack_buffer_simple():
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((1024,), "float32"), C: T.Buffer((1024,), "float32")):
             T.evaluate(T.call_packed("my_extern_array_func1", A, C))
 

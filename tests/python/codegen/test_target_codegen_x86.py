@@ -37,9 +37,9 @@ def test_fp16_to_fp32():
     def fp16_to_fp32(target, width, match=None, not_match=None):
         elements = 64
 
-        @I.ir_module
+        @I.ir_module(s_tir=True)
         class Module:
-            @T.prim_func
+            @T.prim_func(s_tir=True)
             def main(
                 A: T.Buffer((elements, width), "float16"),
                 B: T.Buffer((elements, width), "float32"),

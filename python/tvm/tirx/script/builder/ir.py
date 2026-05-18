@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: RUF005
 """IRBuilder for TIR"""
 
 import contextlib
@@ -22,27 +21,31 @@ import functools
 import inspect
 import threading
 from collections.abc import Callable
+from functools import partial
 from numbers import Integral
-from typing import Any, ParamSpec, TypeVar
+from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar, Union
 
 # isort: off
 from typing import Literal
 
 # isort: on
 
-import tvm_ffi
 from tvm_ffi.core import String
 
-from tvm import ir, tirx
+from tvm import DataType, ir
+from tvm import tirx as tir
 from tvm.ir import Type
+from tvm.ir import register_op_attr as _register_op_attr
 from tvm.ir.base import deprecated
 from tvm.runtime import convert
+from tvm.script.ir_builder.base import IRBuilder
 from tvm.target import Target
 
 # pylint: disable=unused-import
 from tvm.target.codegen import llvm_lookup_intrinsic_id
 from tvm.tirx import Buffer, BufferRegion, IndexMap, PrimExpr, type_annotation
 from tvm.tirx import op as _tir_op
+from tvm.tirx.exec_scope import ExecScope, ScopeIdDef, Var
 
 # import tirx.expr for direct ir construction to pass structural_equal comparison
 from tvm.tirx.expr import (
@@ -80,17 +83,144 @@ from tvm.tirx.expr import (
     SizeVar,
     StringImm,
     Sub,
-    Var,
 )
 from tvm.tirx.generic import cast
+from tvm.tirx.layout import ComposeLayout, Iter, Layout, R, S, SwizzleLayout, TileLayout
 
-from . import _ffi_api, frame
+from . import _ffi_api, frame, utils
 from .external_kernel import call_kernel
 
 # pylint: enable=unused-import
 
 
+def _current_s_tir() -> bool:
+    """Return True if the innermost enclosing PrimFuncFrame has ``s_tir=True``.
+
+    Gates the parser's default layout fill: ``s_tir=True`` PrimFuncs leave
+    ``layout=None`` (so s_tir-style passes that don't touch layout round-trip
+    cleanly); ``s_tir=False`` (default, tirx) get ``DefaultLayout(shape)``.
+    """
+    from tvm.script.ir_builder.base import IRBuilder  # local import to avoid cycle
+
+    if not IRBuilder.is_in_scope():
+        return False
+    builder = IRBuilder.current()
+    for f in reversed(list(builder.frames)):
+        if isinstance(f, frame.PrimFuncFrame):
+            return bool(f.s_tir)
+    return False
+
+
+def _get_layout(layout: str | Layout | None, shape: list[PrimExpr], scope: str) -> Layout | None:
+    if layout is None:
+        return None
+    if isinstance(layout, Layout):
+        return layout
+    assert isinstance(layout, str)
+    if layout == "default":
+        if _current_s_tir():
+            return None
+        if scope in ["trn.sbuf", "trn.psum"]:
+            return None
+        return TileLayout(S[tuple(shape)])
+    shape = tuple(shape)
+    if scope == "trn.sbuf":
+        layout = TileLayout.trainium(layout, shape)
+    elif scope == "trn.psum":
+        layout = TileLayout.trainium(layout, shape).to_psum()
+    return layout
+
+
+def _get_elem_offset(elem_offset, byte_offset, dtype: str):
+    assert elem_offset is None or byte_offset is None, (
+        "elem_offset and byte_offset cannot be set at the same time"
+    )
+    if elem_offset is not None:
+        return elem_offset
+    if byte_offset is None:
+        return None
+    return byte_offset * 8 // (DataType(dtype).bits)
+
+
 _block_name_suffix = threading.local()
+_meta_construction_state = threading.local()
+_THIS_FILE = __file__
+
+
+class _MetaResourceRecord:
+    """Resource created while constructing a meta_class instance."""
+
+    def __init__(
+        self, value: Any, filename: str, lineno: int, colno: int | None, code: str
+    ) -> None:
+        self.value = value
+        self.filename = filename
+        self.lineno = lineno
+        self.colno = colno
+        self.code = code
+
+
+class _MetaConstructionScope:
+    """Thread-local construction scope for a single meta_class __init__ call."""
+
+    def __init__(self, instance: Any, cls: type) -> None:
+        self.instance = instance
+        self.cls = cls
+        self.created: list[_MetaResourceRecord] = []
+
+    def record(self, value: Any, frame_info: inspect.FrameInfo) -> None:
+        positions = getattr(frame_info, "positions", None)
+        colno = None
+        if positions is not None and positions.col_offset is not None:
+            colno = positions.col_offset + 1
+        code = frame_info.code_context[0].strip() if frame_info.code_context else ""
+        self.created.append(
+            _MetaResourceRecord(
+                value=value,
+                filename=frame_info.filename,
+                lineno=frame_info.lineno,
+                colno=colno,
+                code=code,
+            )
+        )
+
+
+def _meta_construction_stack() -> list[_MetaConstructionScope]:
+    stack = getattr(_meta_construction_state, "stack", None)
+    if stack is None:
+        stack = []
+        _meta_construction_state.stack = stack
+    return stack
+
+
+def _current_meta_construction_scope() -> _MetaConstructionScope | None:
+    stack = _meta_construction_stack()
+    return stack[-1] if stack else None
+
+
+@contextlib.contextmanager
+def _with_meta_construction_scope(instance: Any, cls: type):
+    scope = _MetaConstructionScope(instance, cls)
+    stack = _meta_construction_stack()
+    stack.append(scope)
+    try:
+        yield scope
+    finally:
+        stack.pop()
+
+
+def _record_meta_resource(value: Any, skip_frames: int = 2) -> None:
+    scope = _current_meta_construction_scope()
+    if scope is not None:
+        stack = inspect.stack(context=1)
+        frame_info = None
+        for candidate in stack[2:]:
+            if candidate.filename != _THIS_FILE:
+                frame_info = candidate
+                break
+        if frame_info is None:
+            frame_info = stack[min(skip_frames + 1, len(stack) - 1)]
+        scope.record(value, frame_info)
 
 
 def _get_sblock_name_suffix() -> str:
@@ -125,11 +255,15 @@ def buffer(
     data: Var = None,
     strides: list[PrimExpr] | None = None,
     elem_offset: PrimExpr = None,
+    byte_offset: PrimExpr = None,
     scope: str = "global",
     align: int = 0,
     offset_factor: int = 0,
     buffer_type: str = "",
     axis_separators: list[int] | None = None,
+    layout: str | Layout | None = "default",
+    allocated_addr: int | tuple[int, ...] | None = None,
+    buffer_name: str = "",
 ) -> Buffer:
     """The buffer declaration function.
 
@@ -165,6 +299,9 @@ def buffer(
     axis_separators : List[int]
         The separators between input axes when generating flattened output axes.
 
+    buffer_name : str
+        The name of the buffer.
+
     Returns
     -------
     res : Buffer
@@ -175,18 +312,24 @@ def buffer(
         strides = [Var(s, "int32") if isinstance(s, str) else s for s in strides]
     else:
         strides = []
+    if allocated_addr is None:
+        allocated_addr = []
+    if not isinstance(allocated_addr, list | tuple):
+        allocated_addr = [allocated_addr]
     return _ffi_api.Buffer(  # type: ignore[attr-defined] # pylint: disable=no-member
         shape,
         dtype,
-        "",
+        buffer_name,
         data,
         strides,
-        elem_offset,
+        _get_elem_offset(elem_offset, byte_offset, dtype),
         scope,
         align,
         offset_factor,
         buffer_type,
         axis_separators,
+        _get_layout(layout, shape, scope),
+        allocated_addr,
     )
 
 
@@ -195,22 +338,37 @@ def buffer_decl(*args, **kwargs):
     return buffer(*args, **kwargs)
 
 
-def prim_func(is_private: bool = False) -> frame.PrimFuncFrame:
+def prim_func(
+    is_private: bool = False,
+    s_tir: bool = False,
+    persistent: bool = False,
+    *,
+    private: bool | None = None,
+) -> frame.PrimFuncFrame:
     """The primitive function statement.
 
     Parameters
     ----------
     is_private : bool
-        Whether the PrimFunc is annotated as private
-        (if yes, it does not have a global symbol assigned;
-        otherwise, the global symbol is the PrimFunc's name)
+        Whether the PrimFunc is annotated as private.
+    s_tir : bool
+        Whether this PrimFunc uses s_tir (apache-derived TIR) semantics:
+        parser fills layout=None on buffers, ScriptComplete wraps body in a
+        root SBlock. Default (False) selects tirx semantics: parser fills
+        ``DefaultLayout(shape)`` and no root-block wrapping.
+    persistent : bool
+        Whether this is a persistent kernel.
+    private : bool
+        Alias for ``is_private`` (used in decorator syntax).
 
     Returns
     -------
     res : frame.PrimFuncFrame
         The PrimFuncFrame.
     """
-    return _ffi_api.PrimFunc(is_private)  # type: ignore[attr-defined] # pylint: disable=no-member
+    if private is not None:
+        is_private = private
+    return _ffi_api.PrimFunc(is_private, s_tir, persistent)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def arg(name: str, obj: Var | Buffer) -> Var | Buffer:
@@ -282,6 +440,7 @@ def match_buffer(
     offset_factor: int = 0,
     buffer_type: str = "default",
     axis_separators: list[int] | None = None,
+    layout: str | Layout | None = "default",
 ) -> Buffer:
     """The buffer match function.
 
@@ -336,6 +495,9 @@ def match_buffer(
     axis_separators : List[int]
         The separators between input axes when generating flattened output axes.
 
+    layout: Optional[Union[str, Layout]]
+        The layout of the buffer.
+
     Returns
     -------
     res : Buffer
@@ -365,10 +527,11 @@ def match_buffer(
         offset_factor,
         buffer_type,
         axis_separators,
+        _get_layout(layout, shape, scope),
     )
 
 
-def sblock(name: str = "", no_realize: bool = False) -> frame.SBlockFrame:
+def sblock(name: str = "", no_realize: bool = False, exec_scope: str = "") -> frame.SBlockFrame:
     """The sblock declaration statement.
 
     Parameters
@@ -379,15 +542,173 @@ def sblock(name: str = "", no_realize: bool = False) -> frame.SBlockFrame:
     no_realize : bool
         The flag whether to construct SBlockRealize or SBlock.
 
+    exec_scope : str
+        The execution scope of the block.
+
     Returns
     -------
     res : frame.SBlockFrame
         The SBlockFrame.
     """
+    if isinstance(name, list):
+        # tir+
+        return _ffi_api.ScopeSlice(name, no_realize)
     block_suffix = _get_sblock_name_suffix()
     if block_suffix and name:
         name = name + block_suffix
-    return _ffi_api.Block(name, no_realize)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.Block(name, no_realize, exec_scope)  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
+def _scope_guards(args: tuple[Any, ...]) -> list[PrimExpr]:
+    if not args:
+        return []
+    if len(args) == 1:
+        return [args[0]]
+    raise ValueError(
+        "Exec scope guards expect no args or one predicate expression. "
+        "Use `with Tx.scope((0 <= var) & (var < hi))` for structural predicates, "
+        "or `with Tx.scope(Tx.filter(var, opaque_selector))` when a selector annotation is needed."
+    )
+
+
+def kernel(*guards: Any) -> frame.ExecScopeFrame:
+    """Open a ``kernel``-level execution scope."""
+    return _ffi_api.Kernel(_scope_guards(guards))  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
+def cluster(*guards: Any) -> frame.ExecScopeFrame:
+    """Open a ``cluster``-level execution scope."""
+    return _ffi_api.Cluster(_scope_guards(guards))  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
+def cta(*guards: Any) -> frame.ExecScopeFrame:
+    """Open a ``cta``-level execution scope."""
+    return _ffi_api.CTA(_scope_guards(guards))  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
+def warpgroup(*guards: Any) -> frame.ExecScopeFrame:
+    """Open a ``warpgroup``-level execution scope."""
+    return _ffi_api.WarpGroup(_scope_guards(guards))  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
+def warp(*guards: Any) -> frame.ExecScopeFrame:
+    """Open a ``warp``-level execution scope."""
+    return _ffi_api.Warp(_scope_guards(guards))  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
+def thread(*guards: Any) -> frame.ExecScopeFrame:
+    """Open a ``thread``-level execution scope."""
+    return _ffi_api.Thread(_scope_guards(guards))  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
+def elected():
+    """Stub that rejects the removed ``Tx.elected()`` sugar.
+
+    Write the explicit form instead::
+
+        if Tx.ptx.elect_sync():
+            with Tx.thread():
+                ...
+    """
+    raise RuntimeError(
+        "Tx.elected() is no longer available. Write explicitly: "
+        "`if Tx.ptx.elect_sync(): with Tx.thread():`"
+    )
+
+
+def scope_id(extents: list[PrimExpr | int] | None, parent: str, cur: str) -> Var | list[Var]:
+    ret = _ffi_api.ScopeId(extents, parent, "T.scope_id", cur)  # type: ignore[attr-defined] # pylint: disable=no-member
+    if len(ret) == 1:
+        return ret[0]
+    return ret
+
+
+def cluster_id(extents: list[PrimExpr | int] | None = None) -> Var | list[Var]:
+    """Define a kernel→cluster scope id. Pass ``None`` (the default) to defer the
+    extent; it will be inferred at LowerTIRx from sibling ScopeIdDef closure."""
+    ret = _ffi_api.ClusterId(extents, "kernel")  # type: ignore[attr-defined] # pylint: disable=no-member
+    if len(ret) == 1:
+        return ret[0]
+    return ret
+
+
+def cta_id(extents: list[PrimExpr | int] | None = None, preferred=None) -> Var | list[Var]:
+    """Define a kernel→cta scope id. Pass ``None`` (the default) to defer the
+    extent; it will be inferred at LowerTIRx from sibling ScopeIdDef closure."""
+    ret = _ffi_api.CtaId(extents, "kernel", preferred)  # type: ignore[attr-defined] # pylint: disable=no-member
+    if len(ret) == 1:
+        return ret[0]
+    return ret
+
+
+def cta_id_in_cluster(
+    extents: list[PrimExpr | int] | None = None, preferred=None
+) -> Var | list[Var]:
+    """Define a cluster→cta scope id. Pass ``None`` (the default) to defer the
+    extent; it will be inferred at LowerTIRx from sibling ScopeIdDef closure."""
+    ret = _ffi_api.CtaId(extents, "cluster", preferred)  # type: ignore[attr-defined] # pylint: disable=no-member
+    if len(ret) == 1:
+        return ret[0]
+    return ret
+
+
+def cta_id_in_pair() -> Var:
+    ret = _ffi_api.CtaIdInPair()  # type: ignore[attr-defined] # pylint: disable=no-member
+    return ret[0]
+
+
+def warpgroup_id(extents: list[PrimExpr | int] | None = None) -> Var | list[Var]:
+    """Define a cta→warpgroup scope id. Pass ``None`` (the default) to defer
+    the extent; it will be inferred at LowerTIRx from sibling closure."""
+    ret = _ffi_api.WarpgroupId(extents, "cta")  # type: ignore[attr-defined] # pylint: disable=no-member
+    if len(ret) == 1:
+        return ret[0]
+    return ret
+
+
+def warp_id(extents: list[PrimExpr | int] | None = None) -> Var | list[Var]:
+    """Define a cta→warp scope id. Pass ``None`` (the default) to defer the
+    extent; it will be inferred at LowerTIRx from sibling closure."""
+    ret = _ffi_api.WarpId(extents, "cta")  # type: ignore[attr-defined] # pylint: disable=no-member
+    if len(ret) == 1:
+        return ret[0]
+    return ret
+
+
+def warp_id_in_wg(extents: list[PrimExpr | int] | None = None) -> Var | list[Var]:
+    """Define a warpgroup→warp scope id. Pass ``None`` (the default) to defer
+    the extent; it will be inferred at LowerTIRx from sibling closure."""
+    ret = _ffi_api.WarpId(extents, "warpgroup")  # type: ignore[attr-defined] # pylint: disable=no-member
+    if len(ret) == 1:
+        return ret[0]
+    return ret
+
+
+def lane_id(extents: list[PrimExpr | int] | None = None) -> Var | list[Var]:
+    """Define a warp→thread scope id. Pass ``None`` (the default) to defer the
+    extent; it will be inferred at LowerTIRx from sibling closure."""
+    ret = _ffi_api.ThreadId(extents, "warp")  # type: ignore[attr-defined] # pylint: disable=no-member
+    if len(ret) == 1:
+        return ret[0]
+    return ret
+
+
+def thread_id(extents: list[PrimExpr | int] | None = None) -> Var | list[Var]:
+    """Define a cta→thread scope id. Pass ``None`` (the default) to defer the
+    extent; it will be inferred at LowerTIRx from sibling closure."""
+    ret = _ffi_api.ThreadId(extents, "cta")  # type: ignore[attr-defined] # pylint: disable=no-member
+    if len(ret) == 1:
+        return ret[0]
+    return ret
+
+
+def thread_id_in_wg(extents: list[PrimExpr | int] | None = None) -> Var | list[Var]:
+    """Define a warpgroup→thread scope id. Pass ``None`` (the default) to defer
+    the extent; it will be inferred at LowerTIRx from sibling closure."""
+    ret = _ffi_api.ThreadId(extents, "warpgroup")  # type: ignore[attr-defined] # pylint: disable=no-member
+    if len(ret) == 1:
+        return ret[0]
+    return ret
 
 
 def init() -> frame.BlockInitFrame:
@@ -460,7 +781,7 @@ def writes(*buffer_slices: list[BufferRegion | BufferLoad]) -> None:
 
 
 def sblock_attr(attrs: dict[str, Any]) -> None:
-    """The block annotation statement.
+    """The block annotation statement (for non-tirx SBlock usage).
 
     Parameters
     ----------
@@ -473,7 +794,17 @@ def sblock_attr(attrs: dict[str, Any]) -> None:
 def alloc_buffer(
     shape: list[PrimExpr] | tuple[PrimExpr] | PrimExpr | Integral,
     dtype: str = "float32",
+    data: Var | None = None,
+    strides: list[PrimExpr] | None = None,
+    elem_offset: PrimExpr | None = None,
+    byte_offset: PrimExpr | None = None,
     scope: str = "global",
+    align: int = -1,
+    offset_factor: int = 0,
+    buffer_type: str = "default",
+    axis_separators: list[int] | None = None,
+    layout: str | Layout | None = "default",
+    allocated_addr: int | tuple[int, ...] | None = None,
     annotations: dict[str, Any] | None = None,
 ) -> Buffer:
     """Statement-level buffer allocation (creates an AllocBuffer IR node).
@@ -493,6 +824,26 @@ def alloc_buffer(
         The data type of the buffer elements.
     scope : str
         The storage scope of the buffer (e.g., "global", "shared").
+    data : Optional[Var]
+        Optional explicit data pointer.
+    strides : Optional[List[PrimExpr]]
+        Optional strides.
+    elem_offset : Optional[PrimExpr]
+        Optional element offset.
+    byte_offset : Optional[PrimExpr]
+        Optional byte offset.
+    align : int
+        Alignment requirement in bytes.
+    offset_factor : int
+        Offset factor.
+    buffer_type : str
+        Buffer type.
+    axis_separators : Optional[List[int]]
+        Optional axis separators.
+    layout : Optional[Union[str, Layout]]
+        Optional layout.
+    allocated_addr : Optional[Union[int, Tuple[int, ...]]]
+        Optional pre-allocated address metadata.
     annotations : Optional[Dict[str, Any]]
         Optional annotations for the allocation.
 
@@ -502,12 +853,41 @@ def alloc_buffer(
         The allocated buffer.
     """
     shape = (shape,) if isinstance(shape, PrimExpr | Integral) else shape
-    return _ffi_api.AllocBuffer(  # type: ignore[attr-defined] # pylint: disable=no-member
-        shape,
-        dtype,
-        scope,
-        annotations,
+    buf = buffer(
+        shape=shape,
+        dtype=dtype,
+        data=data,
+        strides=strides,
+        elem_offset=elem_offset,
+        byte_offset=byte_offset,
+        scope=scope,
+        align=align,
+        offset_factor=offset_factor,
+        buffer_type=buffer_type,
+        axis_separators=axis_separators,
+        layout=layout,
+        allocated_addr=allocated_addr,
+        buffer_name="",
     )
+    _record_meta_resource(buf, skip_frames=2)
+
+    # AllocBuffer.annotations holds typed IR values. The C++ side stores
+    # alignment / shape-like ints as ``IntImm(int32, ...)``; if the user
+    # (or a parsed-source round-trip) passes a bare Python int, normalize
+    # it so structural equality is preserved against the LowerOpaqueBlock
+    # output. Booleans must stay as IntImm("bool", ...).
+    def _normalize_ann_value(v):
+        if isinstance(v, bool):
+            return tir.IntImm("bool", int(v))
+        if isinstance(v, int):
+            return tir.IntImm("int32", v)
+        if isinstance(v, float):
+            return tir.FloatImm("float32", v)
+        return v
+
+    norm_annotations = {k: _normalize_ann_value(v) for k, v in (annotations or {}).items()}
+    _ffi_api.AddToParent(tir.AllocBuffer(buf, norm_annotations))  # type: ignore[attr-defined] # pylint: disable=no-member
+    return buf
 
 
 def sblock_alloc_buffer(
@@ -521,10 +901,10 @@ def sblock_alloc_buffer(
     offset_factor: int = 0,
     buffer_type: str = "default",
     axis_separators: list[int] | None = None,
+    layout: str | Layout | None = "default",
+    allocated_addr: int | tuple[int, ...] | None = None,
 ) -> Buffer:
     """SBlock-level buffer allocation function.
-
-    Adds a buffer to the alloc_buffers list of the nearest SBlock or root PrimFunc.
 
     Parameters
     ----------
@@ -549,6 +929,15 @@ def sblock_alloc_buffer(
     axis_separators : List[int]
         The separators between input axes when generating flattened output axes.
 
+    layout: Optional[Union[str, Layout]]
+        The layout of the buffer.
+
+    allocated_addr: Optional[Union[int, Tuple[int]]]
+        The address of the allocated buffer. Might be multi-dimensional.
+        There can be pooled storage scopes on some devices. For example,
+        the Trainium device has a pooled storage scope for the SRAN buffers. ("trn.sbuf")
+        CUDA has a pooled storage scope for the shared memory ("shared.dyn")
+
     Returns
     -------
     res : Buffer
@@ -559,7 +948,13 @@ def sblock_alloc_buffer(
         strides = [Var(s, "int32") if isinstance(s, str) else s for s in strides]
     else:
         strides = []
-    return _ffi_api.SBlockAllocBuffer(  # type: ignore[attr-defined] # pylint: disable=no-member
+    if axis_separators is None:
+        axis_separators = []
+    if allocated_addr is None:
+        allocated_addr = []
+    if not isinstance(allocated_addr, list | tuple):
+        allocated_addr = [allocated_addr]
+    alloc_frame = _ffi_api.SBlockAllocBuffer(  # type: ignore[attr-defined] # pylint: disable=no-member
         shape,
         dtype,
         data,
@@ -570,7 +965,16 @@ def sblock_alloc_buffer(
         offset_factor,
         buffer_type,
         axis_separators,
+        _get_layout(layout, shape, scope),
+        allocated_addr,
     )
+    if isinstance(alloc_frame, frame.AllocBufferFrame):
+        alloc_frame.add_callback(partial(alloc_frame.__exit__, None, None, None))
+        buf = alloc_frame.__enter__()
+    else:
+        buf = alloc_frame
+    _record_meta_resource(buf, skip_frames=2)
+    return buf
 
 
 def _as_range(dom: ir.Range | list[PrimExpr]) -> ir.Range:
@@ -592,7 +996,7 @@ def _as_range(dom: ir.Range | list[PrimExpr]) -> ir.Range:
         from tvm.arith import Analyzer  # pylint: disable=import-outside-toplevel
 
         extent = Analyzer().simplify(dom[1] - dom[0])
-        if isinstance(extent, tirx.IntImm):
+        if isinstance(extent, tir.IntImm):
             return ir.Range.from_min_extent(dom[0], extent)
         return ir.Range(dom[0], dom[1])
     if hasattr(dom, "dtype"):
@@ -750,6 +1154,7 @@ def serial(
     *,
     annotations: dict[str, Any] | None = None,
     step: PrimExpr | None = None,
+    unroll: bool | None = None,
 ) -> frame.ForFrame:
     """The serial For statement.
 
@@ -767,11 +1172,23 @@ def serial(
     step : PrimExpr
         The optional step value of iteration.
 
+    unroll : bool, optional
+        If True, adds ``{"pragma_unroll": True}`` annotation, which asks CUDA codegen
+        to emit ``#pragma unroll`` while preserving the loop as a C++ ``for``.
+        If False, adds ``{"disable_unroll": True}`` annotation.
+        Shorthand for ``annotations={"disable_unroll": True}``.
+
     Returns
     -------
     res : frame.ForFrame
         The ForFrame.
     """
+    if unroll is not None:
+        annotations = dict(annotations) if annotations else {}
+        if unroll:
+            annotations["pragma_unroll"] = True
+        else:
+            annotations["disable_unroll"] = True
     if stop is None:
         stop = start
         if hasattr(start, "dtype"):
@@ -940,19 +1357,33 @@ def thread_binding(
     )
 
 
-def grid(*extents: PrimExpr) -> frame.ForFrame:
+def grid(*extents: tuple[PrimExpr | tuple[PrimExpr, PrimExpr]]) -> frame.ForFrame:
     """The grid For statement.
 
     Parameters
     ----------
-    extents : PrimExpr
-        The extents of the iteration.
+    extents : Tuple[Union[PrimExpr, Tuple[PrimExpr, PrimExpr]]]
+        If a single PrimExpr is provided, it is used as the extent of the iteration.
+        If a tuple of two PrimExpr is provided, the first is the start of the iteration,
+        and the second is the extent of the iteration.
 
     Returns
     -------
     res : frame.ForFrame
         The ForFrame.
     """
+    # Convert integer extents to IntImm
+    # TODO(@bohan): fix this after FFI refactor
+    processed_extents = []
+    for extent in extents:
+        if isinstance(extent, tuple):
+            start, extent = extent
+            start = IntImm("int32", start) if isinstance(start, int) else start
+            extent = IntImm("int32", extent) if isinstance(extent, int) else extent
+            processed_extents.append((start, extent))
+        else:
+            processed_extents.append(IntImm("int32", extent) if isinstance(extent, int) else extent)
+    extents = tuple(processed_extents)
     return _ffi_api.Grid(extents)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
@@ -984,7 +1415,7 @@ def Assert(condition: PrimExpr, message, error_kind: str = "RuntimeError") -> fr
     return _ffi_api.Assert(condition, error_kind, message)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def bind(
+def Bind(  # pylint: disable=invalid-name
     value: PrimExpr,
     type_annotation: Type | None = None,  # pylint: disable=redefined-outer-name
     *,
@@ -1024,69 +1455,199 @@ def Let(  # pylint: disable=invalid-name
     """Create a Let expression binding"""
     assert len(where) == 1, "T.Let only allows `where` to have exactly one element"
     var, value = next(iter(where.items()))  # pylint: disable=redefined-outer-name
-    return tirx.Let(var, value, expr)
+    return tir.Let(var, value, expr)
 
 
-def let(
-    v: Var,
-    value: PrimExpr,
-    body: PrimExpr = None,
-) -> Var:
-    """Create a new let binding.
+bind = Bind
+
+
+class LetAnnotation:
+    """Marker for explicit LetStmt. Created by T.let or T.let[type].
+    Usage in TVMScript:
+        x: T.let[T.int32] = expr   # LetStmt with explicit type
+        x: T.let = expr             # LetStmt with auto-typed RHS
+    """
+
+    def __init__(self, type_spec=None):
+        self.type_spec = type_spec
+
+    def __class_getitem__(cls, item):
+        return LetAnnotation(item)
+
+    def __getitem__(self, item):
+        return LetAnnotation(item)
+
+    def as_var(self, rhs_dtype=None):
+        """Resolve to a tir.Var."""
+        if self.type_spec is not None:
+            if isinstance(self.type_spec, Var):
+                return self.type_spec  # Already a Var (e.g. Tx.handle(...))
+            elif callable(self.type_spec):
+                return self.type_spec()  # e.g. T.int32() -> Var
+            elif isinstance(self.type_spec, Type):
+                return Var("", self.type_spec)
+            else:
+                raise TypeError(f"Invalid type for T.let: {self.type_spec}")
+        elif rhs_dtype is not None:
+            return Var("", ir.PrimType(rhs_dtype))
+        else:
+            raise TypeError("T.let requires either a type or an RHS value")
+
+
+let = LetAnnotation()  # Singleton for T.let (no subscript)
+
+
+class LocalVectorAnnotation:
+    """Marker for local vector/tensor allocation via type annotation subscript.
+
+    Created when a DtypeConstructor is subscripted, e.g. ``Tx.float32[N]`` or
+    ``Tx.float32[M, N]``.  The parser's ``visit_ann_assign`` recognises this
+    object and lowers it to ``T.alloc_local(shape=..., dtype=...)``.
+    """
+
+    __slots__ = ("dtype", "shape")
+
+    def __init__(self, dtype: str, shape: tuple):
+        self.dtype = dtype
+        self.shape = shape
+
+
+class DtypeConstructor:
+    """Callable + subscriptable dtype object.
+
+    Replaces the plain functions previously returned by ``func_gen``.
+
+    * ``Tx.float32()``        — same FFI call as before (returns ``Var``).
+    * ``Tx.float32[N]``       — returns ``LocalVectorAnnotation("float32", (N,))``.
+    * ``Tx.float32[M, N]``    — returns ``LocalVectorAnnotation("float32", (M, N))``.
+    * ``x: Tx.float32``       — parser calls this object, gets a ``Var``.
+    """
+
+    def __init__(self, ffi_name: str, dtype_str: str):
+        self._ffi_name = ffi_name
+        self._dtype_str = dtype_str
+
+    def __call__(
+        self,
+        expr: "None | PrimExpr | Literal['inf', '-inf', 'nan'] | int | float" = None,
+        *,
+        is_size_var: bool = False,
+    ) -> "PrimExpr":
+        if isinstance(expr, str):
+            expr = float(expr)
+        return getattr(_ffi_api, self._ffi_name)(expr, is_size_var)
+
+    def __getitem__(self, shape):
+        if isinstance(shape, tuple):
+            return LocalVectorAnnotation(self._dtype_str, shape)
+        return LocalVectorAnnotation(self._dtype_str, (shape,))
+
+    def __repr__(self):
+        return f"DtypeConstructor({self._dtype_str!r})"
+
+
+def allocate(
+    extents: list[PrimExpr],
+    dtype: str,
+    scope: str = "global",
+    condition: PrimExpr = None,
+    annotations=None,
+) -> frame.AllocateFrame:
+    """Allocate node.
 
     Parameters
     ----------
-    v : Var
-        The variable to bind.
+    extents : List[PrimExpr]
+        The extents of the allocate.
 
-    value : PrimExpr
-        The value to be bound.
+    dtype : str
+        The data type of the buffer.
 
-    body : PrimExpr
-        The body expression, None will be used if it was not specified.
+    scope : str
+        The storage scope.
+
+    condition : PrimExpr
+        The condition.
+
+    annotations: Optional[Mapping[str, Object]]
+        Additional annotation hints.
+    """
+    if isinstance(condition, bool):
+        condition = IntImm("bool", condition)
+    return _ffi_api.Allocate(  # type: ignore[attr-defined] # pylint: disable=no-member
+        extents, dtype, scope, condition, annotations
+    )
+
+
+def attr(
+    node_or_dict: Any, attr_key: str | None = None, value: PrimExpr | str | None = None
+) -> Union[frame.AttrFrame, "utils._FrameScope"]:
+    """Create an attribute node, or multiple attribute nodes from a dict.
+
+    Usage 1 — single attr::
+
+        with T.attr(node, key, value):
+            ...
+
+    Usage 2 — dict sugar (node defaults to ``T.int32(0)``)::
+
+        with T.attr({"key1": value1, "key2": value2}):
+            ...
+
+    Parameters
+    ----------
+    node_or_dict : Any
+        If a dict, each key-value pair becomes an AttrStmt with
+        ``node=T.int32(0)``.  Otherwise the node to annotate.
+
+    attr_key : str, optional
+        Attribute type key (required when ``node_or_dict`` is not a dict).
+
+    value : Union[PrimExpr, str], optional
+        The attribute value (required when ``node_or_dict`` is not a dict).
 
     Returns
     -------
-    res : Var
-        The bound variable.
+    res : Union[frame.AttrFrame, _FrameScope]
+        A single AttrFrame, or a _FrameScope wrapping multiple AttrFrames.
     """
-
-    @deprecated("T.let", "T.Let")
-    def let_expr(v: Var, value: PrimExpr, body: PrimExpr) -> PrimExpr:
-        return tirx.Let(v, value, body)
-
-    @deprecated("T.let", "T.bind")
-    def let_stmt(v: Var, value: PrimExpr) -> Var:
-        return bind(value, var=v)
-
-    if body is None:
-        return let_stmt(v, value)
+    if isinstance(node_or_dict, dict):
+        frames = []
+        for k, v in node_or_dict.items():
+            if isinstance(v, bool):
+                v = IntImm("bool", v)
+            frames.append(
+                _ffi_api.Attr(  # type: ignore[attr-defined]
+                    convert(IntImm("int32", 0)), k, convert(v)
+                )
+            )
+        if len(frames) == 1:
+            return frames[0]
+        return utils._FrameScope(frames)
     else:
-        return let_expr(v, value, body)
+        if attr_key is None or value is None:
+            raise ValueError("T.attr(node, attr_key, value) requires all three arguments")
+        node_or_dict = convert(node_or_dict)
+        value = convert(value)
+        return _ffi_api.Attr(node_or_dict, attr_key, value)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def attr(node: Any, attr_key: str, value: PrimExpr | str) -> frame.AttrFrame:
-    """Create an attribute node.
+def hint(message: str = "", **attrs) -> frame.HintFrame:
+    """Universal directive primitive for the sketch language.
 
     Parameters
     ----------
-    node : Any
-        The node to annotate the attribute.
-
-    attr_key : str
-        Attribute type key.
-
-    value : Union[PrimExpr, str]
-        The value of the attribute.
+    message : str
+        Free-form directive string that the agent interprets.
+    **attrs
+        Optional structured key-value attributes for known patterns.
 
     Returns
     -------
-    res : frame.AttrFrame
-        The result AttrFrame.
+    res : frame.HintFrame
+        Usable as context manager (with T.hint("msg"):) or bare statement (T.hint("msg")).
     """
-    node = convert(node)
-    value = convert(value)
-    return _ffi_api.Attr(node, attr_key, value)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.Hint(message, attrs or {})  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def While(condition: PrimExpr) -> frame.WhileFrame:  # pylint: disable=invalid-name
@@ -1105,6 +1666,16 @@ def While(condition: PrimExpr) -> frame.WhileFrame:  # pylint: disable=invalid-n
     if isinstance(condition, bool):
         condition = IntImm("bool", condition)
     return _ffi_api.While(condition)  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
+def Break() -> None:  # pylint: disable=invalid-name
+    """Create a break node."""
+    return _ffi_api.Break()  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
+def Continue() -> None:  # pylint: disable=invalid-name
+    """Create a continue node."""
+    return _ffi_api.Continue()  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def If(condition: PrimExpr) -> frame.IfFrame:  # pylint: disable=invalid-name
@@ -1154,18 +1725,19 @@ def decl_buffer(
     data=None,
     strides=None,
     elem_offset=None,
+    byte_offset=None,
     scope="global",
     align=0,
     offset_factor=0,
     buffer_type="",
     axis_separators=None,
+    layout="default",
+    allocated_addr=None,
 ) -> Buffer:
     """Create a buffer declaration node.
 
     When ``data`` is provided, creates a DeclBuffer (alias to existing data).
     When ``data`` is None, creates an AllocBuffer (new allocation).
-
-    Emits the statement and returns the Buffer directly.
 
     Parameters
     ----------
@@ -1184,6 +1756,9 @@ def decl_buffer(
     elem_offset : PrimExpr
         The offset in terms of number of dtype elements (including lanes).
 
+    byte_offset : PrimExpr
+        The offset in terms of number of bytes.
+
     scope : str
         The optional storage scope of buffer data pointer.
 
@@ -1199,6 +1774,9 @@ def decl_buffer(
     axis_separators : List[int]
         The separators between input axes when generating flattened output axes.
 
+    layout : Layout
+        The layout of the buffer.
+
     Returns
     -------
     res : Buffer
@@ -1209,19 +1787,346 @@ def decl_buffer(
         strides = [Var(s, "int32") if isinstance(s, str) else s for s in strides]
     else:
         strides = []
-    return _ffi_api.DeclBuffer(  # type: ignore[attr-defined] # pylint: disable=no-member
+    decl_frame = _ffi_api.DeclBuffer(  # type: ignore[attr-defined] # pylint: disable=no-member
         shape,
         dtype,
         "",
         data,
         strides,
-        elem_offset,
+        _get_elem_offset(elem_offset, byte_offset, dtype),
         scope,
         align,
         offset_factor,
         buffer_type,
         axis_separators,
+        _get_layout(layout, shape, scope),
+        allocated_addr,
     )
+    if isinstance(decl_frame, frame.DeclBufferFrame):
+        decl_frame.add_callback(partial(decl_frame.__exit__, None, None, None))
+        buf = decl_frame.__enter__()
+    else:
+        buf = decl_frame
+    _record_meta_resource(buf, skip_frames=2)
+    return buf
+
+
+alloc_shared = functools.partial(alloc_buffer, scope="shared")
+alloc_local = functools.partial(alloc_buffer, scope="local")
+smem = alloc_shared
+tmem = functools.partial(alloc_buffer, scope="tmem")
+
+
+if TYPE_CHECKING:
+    ScalarT = TypeVar("ScalarT")
+
+    # Keep type checking/linting simple by treating wrapper as identity.
+    def scalar_wrapper(x: ScalarT) -> ScalarT:
+        return x
+
+else:
+
+    class scalar_wrapper:
+        """Internal wrapper to allow IRBuilder auto-naming on scalar assignment."""
+
+        def __init__(self, scalar: BufferLoad):
+            assert isinstance(scalar, BufferLoad)
+            self.scalar = scalar
+
+        def __getattr__(self, name: str) -> Any:
+            return getattr(self.scalar, name)
+
+        def __add__(self, other):
+            return self.scalar + other
+
+        def __radd__(self, other):
+            return other + self.scalar
+
+        def __sub__(self, other):
+            return self.scalar - other
+
+        def __rsub__(self, other):
+            return other - self.scalar
+
+        def __mul__(self, other):
+            return self.scalar * other
+
+        def __rmul__(self, other):
+            return other * self.scalar
+
+        def __truediv__(self, other):
+            return self.scalar / other
+
+        def __rtruediv__(self, other):
+            return other / self.scalar
+
+        def __floordiv__(self, other):
+            return self.scalar // other
+
+        def __rfloordiv__(self, other):
+            return other // self.scalar
+
+        def __mod__(self, other):
+            return self.scalar % other
+
+        def __rmod__(self, other):
+            return other % self.scalar
+
+        def __lt__(self, other):
+            return self.scalar < other
+
+        def __le__(self, other):
+            return self.scalar <= other
+
+        def __gt__(self, other):
+            return self.scalar > other
+
+        def __ge__(self, other):
+            return self.scalar >= other
+
+        def __eq__(self, other):
+            return self.scalar == other
+
+        def __ne__(self, other):
+            return self.scalar != other
+
+        def __and__(self, other):
+            return self.scalar & other
+
+        def __rand__(self, other):
+            return other & self.scalar
+
+        def __or__(self, other):
+            return self.scalar | other
+
+        def __ror__(self, other):
+            return other | self.scalar
+
+        def __xor__(self, other):
+            return self.scalar ^ other
+
+        def __rxor__(self, other):
+            return other ^ self.scalar
+
+        def __neg__(self):
+            return -self.scalar
+
+        def __invert__(self):
+            return ~self.scalar
+
+
+def alloc_scalar(dtype: str = "float32", scope: str = "global") -> BufferLoad:
+    """Allocate a zero-dimensional buffer (scalar)."""
+    buf = alloc_buffer(shape=(1,), dtype=dtype, scope=scope, layout=TileLayout(S[1]))
+    assert isinstance(buf, Buffer)
+    scalar = buf[0]
+    if _current_meta_construction_scope() is not None:
+        return scalar
+    return scalar_wrapper(scalar)
+
+
+def decl_scalar(dtype, data, scope, elem_offset=None, byte_offset=None) -> BufferLoad:
+    """Declare a zero-dimensional buffer (scalar) from a pointer."""
+    buf = decl_buffer(
+        shape=(1,),
+        dtype=dtype,
+        data=data,
+        scope=scope,
+        elem_offset=_get_elem_offset(elem_offset, byte_offset, dtype),
+        strides=None,
+        align=-1,
+        offset_factor=0,
+        buffer_type="default",
+        axis_separators=None,
+        layout=TileLayout(S[1]),
+    )
+    assert isinstance(buf, Buffer)
+    scalar = buf[0]
+    if _current_meta_construction_scope() is not None:
+        return scalar
+    return scalar_wrapper(scalar)
+
+
+def shared_scalar(dtype: str = "float32") -> BufferLoad:
+    """Allocate a zero-dimensional buffer in shared memory."""
+    return alloc_scalar(dtype=dtype, scope="shared")
+
+
+def local_scalar(dtype: str = "float32") -> BufferLoad:
+    """Allocate a zero-dimensional buffer in local memory."""
+    return alloc_scalar(dtype=dtype, scope="local")
+
+
+def _is_meta_class_instance(value: Any) -> bool:
+    return getattr(type(value), "_is_meta_class", False)
+
+
+def _sanitize_meta_name_part(value: Any, fallback: str) -> str:
+    if isinstance(value, str) and value.isidentifier():
+        return value
+    if isinstance(value, str):
+        sanitized = "".join(c if c.isalnum() or c == "_" else "_" for c in value)
+        if sanitized and sanitized[0].isalpha():
+            return sanitized
+    return fallback
+
+
+def _meta_resource_for_value(value: Any) -> Any | None:
+    if isinstance(value, scalar_wrapper):
+        return value.scalar.buffer
+    if isinstance(value, BufferLoad):
+        return value.buffer
+    if isinstance(value, Buffer):
+        return value
+    return None
+
+
+def _resource_in(resource: Any, resources: list[Any]) -> bool:
+    return any(_same_meta_resource(resource, other) for other in resources)
+
+
+def _name_meta_value(
+    prefix: str,
+    value: Any,
+    visited: set[int] | None = None,
+    owned_resources: list[Any] | None = None,
+    named_resources: list[Any] | None = None,
+) -> None:
+    if visited is None:
+        visited = set()
+    if named_resources is None:
+        named_resources = []
+    obj_id = id(value)
+    if obj_id in visited:
+        return
+    visited.add(obj_id)
+
+    resource = _meta_resource_for_value(value)
+    if resource is not None:
+        if owned_resources is not None and not _resource_in(resource, owned_resources):
+            return
+        if _resource_in(resource, named_resources):
+            return
+        IRBuilder.name(prefix, resource)
+        named_resources.append(resource)
+        return
+    if isinstance(value, Var | IterVar):
+        if owned_resources is not None:
+            return
+        IRBuilder.name(prefix, value)
+        return
+    if _is_meta_class_instance(value):
+        existing_prefix = getattr(value, "_tirx_meta_name", None)
+        if existing_prefix is not None and existing_prefix != prefix:
+            return
+        object.__setattr__(value, "_tirx_meta_name", prefix)
+        instance_owned_resources = getattr(value, "_tirx_meta_owned_resources", [])
+        for field_name, field_value in vars(value).items():
+            if field_name.startswith("_tirx_"):
+                continue
+            _name_meta_value(
+                f"{prefix}_{field_name}",
+                field_value,
+                visited,
+                instance_owned_resources,
+                named_resources,
+            )
+        return
+    if isinstance(value, list | tuple):
+        for i, item in enumerate(value):
+            _name_meta_value(f"{prefix}_{i}", item, visited, owned_resources, named_resources)
+        return
+    if isinstance(value, dict):
+        for i, (key, item) in enumerate(value.items()):
+            part = _sanitize_meta_name_part(key, f"item{i}")
+            _name_meta_value(f"{prefix}_{part}", item, visited, owned_resources, named_resources)
+
+
+def _same_meta_resource(lhs: Any, rhs: Any) -> bool:
+    same_as = getattr(lhs, "same_as", None)
+    if same_as is not None:
+        try:
+            return bool(same_as(rhs))
+        except TypeError:
+            pass
+    return lhs is rhs
+
+
+def _collect_meta_resources(value: Any, visited: set[int] | None = None) -> list[Any]:
+    if visited is None:
+        visited = set()
+    obj_id = id(value)
+    if obj_id in visited:
+        return []
+    visited.add(obj_id)
+
+    resource = _meta_resource_for_value(value)
+    if resource is not None:
+        return [resource]
+    if _is_meta_class_instance(value):
+        owned = []
+        for field_name, field_value in vars(value).items():
+            if field_name.startswith("_tirx_"):
+                continue
+            owned.extend(_collect_meta_resources(field_value, visited))
+        return owned
+    if isinstance(value, list | tuple):
+        owned = []
+        for item in value:
+            owned.extend(_collect_meta_resources(item, visited))
+        return owned
+    if isinstance(value, dict):
+        owned = []
+        for item in value.values():
+            owned.extend(_collect_meta_resources(item, visited))
+        return owned
+    return []
+
+
+def _format_unowned_meta_resource_error(cls: type, record: _MetaResourceRecord, total: int) -> str:
+    count = "" if total == 1 else f" ({total} total)"
+    location = f"{record.filename}:{record.lineno}"
+    if record.colno is not None:
+        location = f"{location}:{record.colno}"
+    message = [
+        f"TIRx meta_class constructor created an unowned resource{count}.",
+        f"  class: {cls.__name__}",
+        f"  location: {location}",
+    ]
+    if record.code:
+        message.extend(["", f"  {record.code}", "  ^ resource must be assigned to self.<field>"])
+    message.extend(
+        [
+            "",
+            "Resources created in a meta_class constructor must be reachable from the",
+            "constructed instance.",
+            "unowned resource at "
+            f"{location}: assign it to self.<field>, or move the allocation into a "
+            "parser-owned assignment.",
+        ]
+    )
+    return "\n".join(message)
+
+
+def _validate_meta_construction_scope(scope: _MetaConstructionScope) -> None:
+    if not scope.created:
+        object.__setattr__(scope.instance, "_tirx_meta_owned_resources", [])
+        return
+    created_resources = [record.value for record in scope.created]
+    owned_resources = _collect_meta_resources(scope.instance)
+    missing = [
+        record
+        for record in scope.created
+        if not any(_same_meta_resource(record.value, owned) for owned in owned_resources)
+    ]
+    if missing:
+        raise ValueError(_format_unowned_meta_resource_error(scope.cls, missing[0], len(missing)))
+    object.__setattr__(scope.instance, "_tirx_meta_owned_resources", created_resources)
+
+
+def name_meta_class_value(prefix: str, value: Any) -> None:
+    """Name all TIR resources owned by a meta_class instance."""
+    _name_meta_value(prefix, value)
 
 
 def launch_thread(
@@ -1305,7 +2210,7 @@ def buffer_store(
     """
     from tvm.arith import Analyzer  # pylint: disable=import-outside-toplevel
 
-    if not isinstance(indices, list | tuple | tvm_ffi.Array):
+    if not isinstance(indices, list | tuple | ir.Array):
         indices = [indices]
 
     expr_indices = []
@@ -1343,25 +2248,37 @@ def evaluate(value: PrimExpr) -> None:
     return _ffi_api.Evaluate(value)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
+def _ffi_name_to_dtype(name: str) -> str:
+    """Convert an FFI type name to its TVM dtype string.
+
+    Examples: "Float32" -> "float32", "Int8x4" -> "int8x4",
+    "Float8E4M3" -> "float8_e4m3", "Float8E4M3B11FNUZ" -> "float8_e4m3b11fnuz".
+    """
+    import re
+
+    # Insert underscore before E-notation in float8 names (E3M4, E4M3, etc.)
+    s = re.sub(r"(?<=[a-z0-9])E(\d)", r"_e\1", name, flags=re.IGNORECASE)
+    return s.lower()
+
+
 def func_gen(name: str):
-    """Generate a function for each PrimExpr dtype.
+    """Generate a DtypeConstructor for each PrimExpr dtype.
 
     Parameters
     ----------
     name: str
-        The ffi function name to call.
+        The ffi function name to call, e.g. "Float32", "Int32".
     """
+    return DtypeConstructor(name, _ffi_name_to_dtype(name))
 
-    def func(
-        expr: None | PrimExpr | Literal["inf", "-inf", "nan"] | int | float = None,
-        *,
-        is_size_var: bool = False,
-    ) -> PrimExpr:
-        if isinstance(expr, str):
-            expr = float(expr)
-        return getattr(_ffi_api, name)(expr, is_size_var)
 
-    return func
+def static_assert(x: Any, message: str = ""):
+    assert x, message
+
+
+def add_to_parent(stmt: tir.Stmt) -> None:
+    """Add a statement to the parent frame."""
+    _ffi_api.AddToParent(stmt)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 # pylint: disable=invalid-name
@@ -1369,6 +2286,10 @@ int8 = func_gen("Int8")
 int16 = func_gen("Int16")
 int32 = func_gen("Int32")
 int64 = func_gen("Int64")
+int8x2 = func_gen("Int8x2")
+int16x2 = func_gen("Int16x2")
+int32x2 = func_gen("Int32x2")
+int64x2 = func_gen("Int64x2")
 int8x4 = func_gen("Int8x4")
 int16x4 = func_gen("Int16x4")
 int32x4 = func_gen("Int32x4")
@@ -1394,6 +2315,10 @@ uint8 = func_gen("UInt8")
 uint16 = func_gen("UInt16")
 uint32 = func_gen("UInt32")
 uint64 = func_gen("UInt64")
+uint8x2 = func_gen("UInt8x2")
+uint16x2 = func_gen("UInt16x2")
+uint32x2 = func_gen("UInt32x2")
+uint64x2 = func_gen("UInt64x2")
 uint8x4 = func_gen("UInt8x4")
 uint16x4 = func_gen("UInt16x4")
 uint32x4 = func_gen("UInt32x4")
@@ -1529,6 +2454,20 @@ float4_e2m1fnx32 = func_gen("Float4E2M1FNx32")
 float4_e2m1fnx64 = func_gen("Float4E2M1FNx64")
 
 bfloat16 = func_gen("BFloat16")
+
+# Shorthand aliases
+f16 = float16
+f32 = float32
+f64 = float64
+bf16 = bfloat16
+i8 = int8
+i16 = int16
+i32 = int32
+i64 = int64
+u8 = uint8
+u16 = uint16
+u32 = uint32
+u64 = uint64
 # pylint: enable=invalid-name
 
 
@@ -1575,8 +2514,8 @@ def handle(
     res : PrimExpr
         The new tirx.Var with type handle or casted expression with type handle.
     """
-    if dtype == "tensormap":
-        return _ffi_api.TensormapHandle()  # type: ignore[attr-defined] # pylint: disable=no-member
+    if dtype in ("TensorMap", "tensormap", "CUtensorMap", "cuTensorMap"):
+        return _ffi_api.TensorMap()  # type: ignore[attr-defined] # pylint: disable=no-member
     is_unknown_type = dtype is None
     if dtype is None:
         dtype = "void"
@@ -1586,6 +2525,16 @@ def handle(
         is_size_var,
         is_unknown_type,
     )
+
+
+def TensorMap() -> Var:  # pylint: disable=invalid-name
+    """Create a TIRx var that represents a CUDA tensor-map descriptor.
+
+    The host/runtime ABI passes a handle to descriptor storage. CUDA kernel
+    codegen lowers this type to ``const __grid_constant__ CUtensorMap`` when it
+    appears as a kernel parameter.
+    """
+    return _ffi_api.TensorMap()  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def void(expr: PrimExpr | None = None, *, is_size_var: bool = False) -> PrimExpr:
@@ -1825,25 +2774,76 @@ def Range(begin: PrimExpr, end: PrimExpr) -> ir.Range:  # pylint: disable=invali
     return ir.Range(begin, end)
 
 
-class meta_var:  # pylint: disable=invalid-name
-    """A meta variable used in TVMScript metaprogramming. It means that the value of the variable
-    does not appear in the final TIR, but only stays in the parser.
+if TYPE_CHECKING:
+    T = TypeVar("T")
+    C = TypeVar("C")
 
-    Parameters
-    ----------
-    value: Any
-        The meta variable.
-    """
+    # When type checking (and by extension, for linters like Pylint), treat
+    # meta_var as an identity function.
+    def meta_var(x: T) -> T:
+        return x
 
-    def __init__(self, value: Any) -> None:
-        self.value = value
+    def meta_class(cls: C) -> C:
+        return cls
 
-    def __iter__(self):
-        def f():
-            for i in self.value:
-                yield meta_var(i)
+else:
 
-        return f()
+    def _install_meta_class(cls):
+        if cls.__dict__.get("_tirx_meta_class_installed", False):
+            cls._is_meta_class = True
+            return cls
+
+        original_init = getattr(cls, "__init__", object.__init__)
+        original_setattr = getattr(cls, "__setattr__", object.__setattr__)
+        original_init_subclass = getattr(cls, "__init_subclass__", None)
+
+        def __init__(self, *args, **kwargs):
+            with _with_meta_construction_scope(self, type(self)) as scope:
+                original_init(self, *args, **kwargs)
+                _validate_meta_construction_scope(scope)
+
+        def __setattr__(self, name, value):
+            if isinstance(value, scalar_wrapper):
+                value = value.scalar
+            original_setattr(self, name, value)
+
+        @classmethod
+        def __init_subclass__(subcls, **kwargs):
+            if original_init_subclass is not None:
+                original_init_subclass(**kwargs)
+            _install_meta_class(subcls)
+
+        cls.__init__ = __init__
+        cls.__setattr__ = __setattr__
+        cls.__init_subclass__ = __init_subclass__
+        cls._is_meta_class = True
+        cls._tirx_meta_class_installed = True
+        return cls
+
+    def meta_class(cls):
+        """Decorator for utility classes used inside @T.prim_func.
+
+        Instances of decorated classes are treated as parser meta values.
+        """
+        return _install_meta_class(cls)
+
+    class meta_var:
+        """A meta variable used in TVMScript metaprogramming.
+
+        The value does not appear in the final TIR and only exists in the parser.
+
+        Parameters
+        ----------
+        value: Any
+            The meta variable.
+        """
+
+        def __init__(self, value: Any) -> None:
+            self.value = value
+
+        def __iter__(self):
+            # Return a generator that yields wrapped items.
+            return (meta_var(i) for i in self.value)
 
 
 # pylint: disable=invalid-name
@@ -1860,7 +2860,582 @@ def _op_wrapper(func: Callable[P, T]) -> Callable[P, T]:
             kwargs.pop("dtype")
         return func(*args, **kwargs)
 
+    # Expose underlying tir op name for printer registration
+    try:
+        wrapped.__tir_op_name__ = getattr(func, "__name__", None)
+    except Exception:  # pragma: no cover
+        pass
     return wrapped
+
+
+def _dtype_forward(func):
+    @functools.wraps(func)
+    def wrapped(*args, **kwargs):
+        if "dtype" in kwargs:
+            args = (kwargs.pop("dtype"), *args)
+        return func(*args, **kwargs)
+
+    # Expose underlying tir op name for printer registration
+    try:
+        wrapped.__tir_op_name__ = getattr(func, "__name__", None)
+    except Exception:  # pragma: no cover
+        pass
+    return wrapped
+
+
+class PTXNamespace:
+    """The PTX instruction submodule."""
+
+    def __init__(self):
+        self.ldmatrix = _dtype_forward(_tir_op.ptx_ldmatrix)
+        # Apache-compatible variant. Same lowered intrinsic as
+        # ``ldmatrix`` but accepts the historical ``(trans, num, dtype,
+        # local_ptr, local_offset, smem_ptr, smem_offset)`` form. Coexists
+        # with the fork-native version so upstream-derived tests keep
+        # working without rewriting their tirx code.
+        self.ldmatrix_legacy = _dtype_forward(_tir_op.ptx_ldmatrix_legacy)
+        self.stmatrix = _op_wrapper(_tir_op.ptx_stmatrix)
+        self.setmaxnreg: Callable[..., Any] = _op_wrapper(_tir_op.ptx_setmaxnreg)
+        self.elect_sync: Callable[..., Any] = _op_wrapper(_tir_op.ptx_elect_sync)
+        self.fetch_register: Callable[..., Any] = _op_wrapper(_tir_op.ptx_fetch_register)
+        self.ld = _op_wrapper(_tir_op.ptx_ld)
+        self.ld_acquire = _op_wrapper(_tir_op.ptx_ld_acquire)
+        self.ld_volatile = _op_wrapper(_tir_op.ptx_ld_volatile)
+        self.ld_global_acquire = _op_wrapper(_tir_op.ptx_ld_global_acquire)
+        self.red_scalar = _op_wrapper(_tir_op.ptx_red_scalar)
+        self.atom_scalar = _op_wrapper(_tir_op.ptx_atom_scalar)
+        self.prefetch_tensormap = _op_wrapper(_tir_op.ptx_prefetch_tensormap)
+        self.mbarrier_test_wait_parity = _op_wrapper(_tir_op.ptx_mbarrier_test_wait_parity)
+        self.cp_async_bulk_g2s_cta = _op_wrapper(_tir_op.ptx_cp_async_bulk_g2s_cta)
+        self.cp_async_bulk_g2s_cluster = _op_wrapper(_tir_op.ptx_cp_async_bulk_g2s_cluster)
+        self.cp_async_bulk_s2s_cluster = _op_wrapper(_tir_op.ptx_cp_async_bulk_s2s_cluster)
+        self.cp_async_bulk_s2g = _op_wrapper(_tir_op.ptx_cp_async_bulk_s2g)
+        self.st = _op_wrapper(_tir_op.ptx_st)
+        self.st_bulk = _op_wrapper(_tir_op.ptx_st_bulk)
+        self.fns_b32 = _op_wrapper(_tir_op.ptx_fns_b32)
+        self.add_rn_f32_bf16 = _op_wrapper(_tir_op.ptx_add_rn_f32_bf16)
+        self.mapa = _op_wrapper(_tir_op.ptx_mapa)
+        self.map_shared_rank = _op_wrapper(_tir_op.ptx_map_shared_rank)
+        self.any_sync = _op_wrapper(_tir_op.ptx_any_sync)
+        # Math operations
+        self.exp2 = _op_wrapper(_tir_op.ptx_exp2)
+        self.rcp = _op_wrapper(_tir_op.ptx_rcp)
+        self.reduce3_min_f32 = _op_wrapper(_tir_op.ptx_reduce3_min_f32)
+        self.reduce3_max_f32 = _op_wrapper(_tir_op.ptx_reduce3_max_f32)
+        # add/sub/mul/fma DPS form: (d_addr, a, b[, c], *, rounding, ftz[, sat])
+        self.add_f32 = _op_wrapper(_tir_op.ptx_add_f32)
+        self.add_f32x2 = _op_wrapper(_tir_op.ptx_add_f32x2)
+        self.add_f64 = _op_wrapper(_tir_op.ptx_add_f64)
+        self.sub_f32 = _op_wrapper(_tir_op.ptx_sub_f32)
+        self.sub_f32x2 = _op_wrapper(_tir_op.ptx_sub_f32x2)
+        self.sub_f64 = _op_wrapper(_tir_op.ptx_sub_f64)
+        self.mul_f32 = _op_wrapper(_tir_op.ptx_mul_f32)
+        self.mul_f32x2 = _op_wrapper(_tir_op.ptx_mul_f32x2)
+        self.mul_f64 = _op_wrapper(_tir_op.ptx_mul_f64)
+        self.fma_f32 = _op_wrapper(_tir_op.ptx_fma_f32)
+        self.fma_f32x2 = _op_wrapper(_tir_op.ptx_fma_f32x2)
+        self.fma_f64 = _op_wrapper(_tir_op.ptx_fma_f64)
+        self.max_f32 = _op_wrapper(_tir_op.ptx_max_f32)
+        self.mma = MmaNamespace()
+        self.cp_async = CpAsyncNamespace()
+        self.wgmma = WgmmaNamespace()
+        self.mbarrier = MbarrierNamespace()
+        self.tcgen05 = Tcgen05Namespace()
+        self.bar = BarNamespace()
+        self.barrier = BarrierNamespace()
+        self.fence = FenceNamespace()
+        self.griddepcontrol = GriddepcontrolNamespace()
+
+
+class MmaNamespace:
+    """The MMA instruction submodule."""
+
+    def __init__(self):
+        self.sp = _dtype_forward(_tir_op.ptx_mma_sp)
+        # Apache-compatible variant of ptx_mma. Coexists with the
+        # fork-native ``__call__`` form (``T.ptx.mma(...)``).
+        self.legacy = _dtype_forward(_tir_op.ptx_mma_legacy)
+        # __call__ corresponds to ptx_mma
+        self.__tir_call_op_name__ = "ptx_mma"
+
+    def __call__(self, *args, **kwds):
+        return _dtype_forward(_tir_op.ptx_mma)(*args, **kwds)
+
+
+class CpAsyncNamespace:
+    """The CpAsync instruction submodule."""
+
+    def __init__(self):
+        self.commit_group = _op_wrapper(_tir_op.ptx_cp_async_commit_group)
+        self.wait_group = _op_wrapper(_tir_op.ptx_cp_async_wait_group)
+        # Legacy variant: takes (dst_ptr, dst_offset, src_ptr, src_offset,
+        # cp_size). Offsets are folded into the pointers; coexists with
+        # the fork-native ``__call__`` form.
+        self.legacy = _dtype_forward(_tir_op.ptx_cp_async_legacy)
+        self.bulk = CpAsyncBulkNamespace()
+        self.mbarrier = CpAsyncMbarrierNamespace()
+
+    def __call__(self, *args, **kwds):
+        # Accept the legacy 6-arg form ``(elem_dtype, dst, dst_off, src,
+        # src_off, cp_size)`` that the printer round-trips for the raw
+        # ``tirx.ptx_cp_async`` Call emitted by ``s_tir/transform/
+        # InjectPTXAsyncCopy``. The pass-emitted Call has 5 args (no
+        # ``tvm_access_ptr`` fold) and a per-element-dtype Call.dtype,
+        # so build it directly.
+        if len(args) == 6 and isinstance(args[0], str) and "dtype" not in kwds:
+            import tvm
+
+            elem_dtype, dst, dst_off, src, src_off, cp_size = args
+            return tvm.tirx.Call(
+                tvm.DataType(elem_dtype),
+                tvm.ir.Op.get("tirx.ptx_cp_async"),
+                [dst, dst_off, src, src_off, cp_size],
+            )
+        return _dtype_forward(_tir_op.ptx_cp_async)(*args, **kwds)
+
+    # __call__ corresponds to ptx_cp_async
+    __tir_call_op_name__ = "ptx_cp_async"
+
+
+class CpAsyncBulkNamespace:
+    """The CpAsyncBulk instruction submodule."""
+
+    def __init__(self):
+        self.commit_group = _op_wrapper(_tir_op.ptx_cp_async_bulk_commit_group)
+        self.wait_group = _op_wrapper(_tir_op.ptx_cp_async_bulk_wait_group)
+        self.tensor = CpAsyncBulkTensorNamespace()
+        self.s2c = _op_wrapper(_tir_op.ptx_cp_async_bulk_shared_to_cluster)
+
+    def __call__(self, *args, **kwds):
+        return _dtype_forward(_tir_op.ptx_cp_async_bulk)(*args, **kwds)
+
+    # __call__ corresponds to ptx_cp_async_bulk
+    __tir_call_op_name__ = "ptx_cp_async_bulk"
+
+
+class CpAsyncBulkTensorNamespace:
+    """The CpAsyncBulkTensor instruction submodule."""
+
+    def __init__(self):
+        self.g2c = _op_wrapper(_tir_op.ptx_cp_async_bulk_tensor_global_to_cluster)
+        self.g2c_tile_gather4 = _op_wrapper(
+            _tir_op.ptx_cp_async_bulk_tensor_tile_gather4_global_to_cluster
+        )
+        self.s2g = _op_wrapper(_tir_op.ptx_cp_async_bulk_tensor_shared_to_global)
+        self.s2g_reduce = _op_wrapper(_tir_op.ptx_cp_async_bulk_tensor_shared_to_global_reduce)
+        self.g2c_prefetch = _op_wrapper(_tir_op.ptx_cp_async_bulk_tensor_global_to_cluster_prefetch)
+
+    @staticmethod
+    def g2c_bar_addr(
+        dim,
+        dst_ptr,
+        bar_addr,
+        tensormap_addr,
+        cta_mask,
+        cta_group,
+        cache_hint,
+        *coords,
+        cache_policy=None,
+    ):
+        _tir_op._choice("cta_group", cta_group, _tir_op._TCGEN05_CTA_GROUP)
+        cache_policy, has_cache_policy = _tir_op._resolve_cache_policy(cache_hint, cache_policy)
+        return _tir_op.call_intrin(
+            "",
+            "tirx.ptx_cp_async_bulk_tensor_global_to_cluster",
+            dim,
+            dst_ptr,
+            bar_addr,
+            tensormap_addr,
+            cta_mask,
+            cta_group,
+            cache_policy,
+            int(has_cache_policy),
+            1,
+            *coords,
+        )
+
+    @staticmethod
+    def g2c_tile_gather4_bar_addr(
+        dim,
+        dst_ptr,
+        bar_addr,
+        tensormap_addr,
+        cta_mask,
+        cta_group,
+        cache_hint,
+        *coords,
+        cache_policy=None,
+    ):
+        _tir_op._choice("cta_group", cta_group, _tir_op._TCGEN05_CTA_GROUP)
+        cache_policy, has_cache_policy = _tir_op._resolve_cache_policy(cache_hint, cache_policy)
+        return _tir_op.call_intrin(
+            "",
+            "tirx.ptx_cp_async_bulk_tensor_tile_gather4_global_to_cluster",
+            dim,
+            dst_ptr,
+            bar_addr,
+            tensormap_addr,
+            cta_mask,
+            cta_group,
+            cache_policy,
+            int(has_cache_policy),
+            1,
+            *coords,
+        )
+
+
+class CpAsyncMbarrierNamespace:
+    """The CpAsyncMbarrier instruction submodule."""
+
+    def __init__(self):
+        self.arrive = _op_wrapper(_tir_op.ptx_cp_async_mbarrier_arrive)
+
+
+class WgmmaNamespace:
+    """The WGMMA instruction submodule."""
+
+    def __init__(self):
+        self.fence: Callable[..., Any] = _op_wrapper(_tir_op.ptx_wgmma_fence)
+        self.commit_group = _op_wrapper(_tir_op.ptx_wgmma_commit_group)
+        self.wait_group = _op_wrapper(_tir_op.ptx_wgmma_wait_group)
+        self.noop_barrier = _op_wrapper(_tir_op.ptx_wgmma_noop_barrier)
+        self.mma_async = WgmmaMmaAsyncNamespace()
+        self.encode_matrix_descriptor = _op_wrapper(_tir_op.ptx_wgmma_encode_matrix_descriptor)
+
+
+class WgmmaMmaAsyncNamespace:
+    """The WGMMA MMAAsync instruction submodule."""
+
+    def __init__(self):
+        self.ss = _op_wrapper(_tir_op.ptx_wgmma_mma_async_ss)
+        self.rs = _op_wrapper(_tir_op.ptx_wgmma_mma_async_rs)
+
+
+class MbarrierNamespace:
+    """The Mbarrier instruction submodule."""
+
+    def __init__(self):
+        self.init = _op_wrapper(_tir_op.ptx_mbarrier_init)
+        self.try_wait = _op_wrapper(_tir_op.ptx_mbarrier_try_wait)
+        self.try_wait_once = _op_wrapper(_tir_op.ptx_mbarrier_try_wait_once)
+        self.arrive = MbarrierArriveNamespace()
+
+
+class MbarrierArriveNamespace:
+    """The Mbarrier Arrive instruction submodule."""
+
+    def __init__(self):
+        self.expect_tx = _op_wrapper(_tir_op.ptx_mbarrier_arrive_expect_tx)
+
+    def __call__(self, *args, **kwds):
+        return _op_wrapper(_tir_op.ptx_mbarrier_arrive)(*args, **kwds)
+
+    # __call__ corresponds to ptx_mbarrier_arrive
+    __tir_call_op_name__ = "ptx_mbarrier_arrive"
+
+
+class Tcgen05Namespace:
+    """The Tcgen05 instruction submodule."""
+
+    def __init__(self):
+        self.alloc = _op_wrapper(_tir_op.ptx_tcgen05_alloc)
+        self.dealloc = _op_wrapper(_tir_op.ptx_tcgen05_dealloc)
+        self.relinquish_alloc_permit = _op_wrapper(_tir_op.ptx_tcgen05_relinquish_alloc_permit)
+        self.encode_matrix_descriptor = _op_wrapper(_tir_op.ptx_tcgen05_encode_matrix_descriptor)
+        self.encode_instr_descriptor = _op_wrapper(_tir_op.ptx_tcgen05_encode_instr_descriptor)
+        self.encode_instr_descriptor_block_scaled = _op_wrapper(
+            _tir_op.ptx_tcgen05_encode_instr_descriptor_block_scaled
+        )
+        self.ld = _op_wrapper(_tir_op.ptx_tcgen05_ld)
+        self.st = _op_wrapper(_tir_op.ptx_tcgen05_st)
+        self.cp = _op_wrapper(_tir_op.ptx_tcgen05_cp)
+        self.shift = _op_wrapper(_tir_op.ptx_tcgen05_shift)
+        self.commit = _op_wrapper(_tir_op.ptx_tcgen05_commit)
+        self.wait = Tcgen05WaitNamespace()
+        self.mma = Tcgen05MmaNamespace()
+        self.fence = Tcgen05FenceNamespace()
+
+
+class Tcgen05FenceNamespace:
+    """The Tcgen05 Fence instruction submodule."""
+
+    def __init__(self):
+        self.before_thread_sync = _op_wrapper(_tir_op.ptx_tcgen05_fence_before_thread_sync)
+        self.after_thread_sync = _op_wrapper(_tir_op.ptx_tcgen05_fence_after_thread_sync)
+
+
+class Tcgen05MmaNamespace:
+    """The Tcgen05 MMA instruction submodule."""
+
+    def __init__(self):
+        self.block_scale = _op_wrapper(_tir_op.ptx_tcgen05_mma_block_scale)
+        self.sp = Tcgen05MmaSpNamespace()
+
+    def __call__(self, *args, **kwds):
+        return _op_wrapper(_tir_op.ptx_tcgen05_mma)(*args, **kwds)
+
+    # __call__ corresponds to ptx_tcgen05_mma
+    __tir_call_op_name__ = "ptx_tcgen05_mma"
+
+
+class Tcgen05MmaSpNamespace:
+    """Tcgen05 Sparse MMA instruction submodule."""
+
+    def __init__(self):
+        self.block_scale = _op_wrapper(_tir_op.ptx_tcgen05_mma_sp_block_scale)
+
+    def __call__(self, *args, **kwds):
+        return _op_wrapper(_tir_op.ptx_tcgen05_mma_sp)(*args, **kwds)
+
+    # __call__ corresponds to ptx_tcgen05_mma_sp
+    __tir_call_op_name__ = "ptx_tcgen05_mma_sp"
+
+
+class Tcgen05WaitNamespace:
+    """The Tcgen05 Wait instruction submodule."""
+
+    def __init__(self):
+        self.ld = _op_wrapper(_tir_op.ptx_tcgen05_wait_ld)
+        self.st = _op_wrapper(_tir_op.ptx_tcgen05_wait_st)
+
+
+class BarNamespace:
+    """The Bar instruction submodule."""
+
+    def __init__(self):
+        self.arrive = _op_wrapper(_tir_op.ptx_bar_arrive)
+        self.sync = _op_wrapper(_tir_op.ptx_bar_sync)
+
+
+class BarrierNamespace:
+    """The Barrier instruction submodule."""
+
+    def __init__(self):
+        self.cluster = BarrierClusterNamespace()
+
+
+class BarrierClusterNamespace:
+    """The BarrierCluster instruction submodule."""
+
+    def __init__(self):
+        self.arrive = _op_wrapper(_tir_op.ptx_barrier_cluster_arrive)
+        self.wait = _op_wrapper(_tir_op.ptx_barrier_cluster_wait)
+
+
+class FenceNamespace:
+    """PTX fence instruction submodule."""
+
+    def __init__(self):
+        self.proxy_async = _op_wrapper(_tir_op.ptx_fence_proxy_async)
+        self.mbarrier_init = _op_wrapper(_tir_op.ptx_fence_mbarrier_init)
+
+    def __call__(self, *args, **kwds):
+        return _op_wrapper(_tir_op.ptx_fence)(*args, **kwds)
+
+    __tir_call_op_name__ = "ptx_fence"
+
+
+class GriddepcontrolNamespace:
+    """PTX griddepcontrol instruction submodule (sm_90+)."""
+
+    def __init__(self):
+        self.wait = _op_wrapper(_tir_op.ptx_griddepcontrol_wait)
+        self.launch_dependents = _op_wrapper(_tir_op.ptx_griddepcontrol_launch_dependents)
+
+
+class CUDANamespace:
+    """The CUDA intrinsics submodule."""
+
+    def __init__(self):
+        self.atomic_add = _op_wrapper(_tir_op.cuda_atomic_add)
+        self.thread_fence = _op_wrapper(_tir_op.cuda_thread_fence)
+        self.warpgroup_sync = _op_wrapper(_tir_op.cuda_warpgroup_sync)
+        self.warp_sync = _op_wrapper(_tir_op.cuda_warp_sync)
+        self.warp_reduce = _op_wrapper(_tir_op.cuda_warp_reduce)
+        self.warp_sum = _op_wrapper(_tir_op.cuda_warp_sum)
+        self.warp_max = _op_wrapper(_tir_op.cuda_warp_max)
+        self.warp_min = _op_wrapper(_tir_op.cuda_warp_min)
+        self.cta_reduce = _op_wrapper(_tir_op.cuda_cta_reduce)
+        self.cta_sum = _op_wrapper(_tir_op.cuda_cta_sum)
+        self.cta_max = _op_wrapper(_tir_op.cuda_cta_max)
+        self.cta_min = _op_wrapper(_tir_op.cuda_cta_min)
+        self.copy_128b = _op_wrapper(_tir_op.cuda_copy_128b)
+        self.copy_64b = _op_wrapper(_tir_op.cuda_copy_64b)
+        self.copy_32b = _op_wrapper(_tir_op.cuda_copy_32b)
+        self.copy_16b = _op_wrapper(_tir_op.cuda_copy_16b)
+        self.copy_8b = _op_wrapper(_tir_op.cuda_copy_8b)
+        self.cta_sync = _op_wrapper(_tir_op.cuda_cta_sync)
+        self.grid_sync = _op_wrapper(_tir_op.cuda_grid_sync)
+        self.cluster_sync = _op_wrapper(_tir_op.cuda_cluster_sync)
+        self.thread_rank = _op_wrapper(_tir_op.cuda_thread_rank)
+        self.trap_when_assert_failed = _op_wrapper(_tir_op.cuda_trap_when_assert_failed)
+        self.runtime_instr_desc = _op_wrapper(_tir_op.cuda_runtime_instr_desc)
+        self.half2float = _op_wrapper(_tir_op.cuda_half2float)
+        self.bfloat162float = _op_wrapper(_tir_op.cuda_bfloat162float)
+        self.float22half2 = _op_wrapper(_tir_op.cuda_float22half2)
+        self.half8tofloat8 = _op_wrapper(_tir_op.cuda_half8tofloat8)
+        self.float8tohalf8 = _op_wrapper(_tir_op.cuda_float8tohalf8)
+        self.syncthreads_and = _op_wrapper(_tir_op.cuda_syncthreads_and)
+        self.syncthreads_or = _op_wrapper(_tir_op.cuda_syncthreads_or)
+        self.nano_sleep = _op_wrapper(_tir_op.cuda_nano_sleep)
+        self.atomic_cas = _op_wrapper(_tir_op.cuda_atomic_cas)
+        self.func_call = _op_wrapper(_tir_op.cuda_func_call)
+        self.printf = _op_wrapper(_tir_op.cuda_printf)
+        self.ldg = _op_wrapper(_tir_op.cuda_ldg)
+        self.get_tmem_addr = _op_wrapper(_tir_op.cuda_get_tmem_addr)
+        self.cvta_generic_to_shared = _op_wrapper(_tir_op.cuda_cvta_generic_to_shared)
+        self.smem_addr_from_uint64 = _op_wrapper(_tir_op.cuda_smem_addr_from_uint64)
+        self.sm100_tma_2sm_mbarrier_addr = _op_wrapper(_tir_op.cuda_sm100_tma_2sm_mbarrier_addr)
+        self.uint_as_float = _op_wrapper(_tir_op.cuda_uint_as_float)
+        self.float_as_uint = _op_wrapper(_tir_op.cuda_float_as_uint)
+        self.ballot_sync = _op_wrapper(_tir_op.cuda_ballot_sync)
+        self.ffs_u32 = _op_wrapper(_tir_op.cuda_ffs_u32)
+        self.reduce_add_sync_u32 = _op_wrapper(_tir_op.cuda_reduce_add_sync_u32)
+        self.reduce_min_sync_u32 = _op_wrapper(_tir_op.cuda_reduce_min_sync_u32)
+        self.clock64 = _op_wrapper(_tir_op.cuda_clock64)
+        self.make_float2 = _op_wrapper(_tir_op.cuda_make_float2)
+        self.float2_x = _op_wrapper(_tir_op.cuda_float2_x)
+        self.float2_y = _op_wrapper(_tir_op.cuda_float2_y)
+        self.fmul2_rn = _op_wrapper(_tir_op.cuda_fmul2_rn)
+        self.fadd2_rn = _op_wrapper(_tir_op.cuda_fadd2_rn)
+        self.float22bfloat162_rn = _op_wrapper(_tir_op.cuda_float22bfloat162_rn)
+        self.float22bfloat162_rn_from_float2 = _op_wrapper(
+            _tir_op.cuda_float22bfloat162_rn_from_float2
+        )
+        self.bfloat1622float2 = _op_wrapper(_tir_op.cuda_bfloat1622float2)
+        self.hmin2 = _op_wrapper(_tir_op.cuda_hmin2)
+        self.hmax2 = _op_wrapper(_tir_op.cuda_hmax2)
+        self.fp8x4_e4m3_from_float4 = _op_wrapper(_tir_op.cuda_fp8x4_e4m3_from_float4)
+
+
+class NVSHMEMNamespace:
+    """The NVSHMEM intrinsics submodule."""
+
+    def __init__(self):
+        self.my_pe = _op_wrapper(_tir_op.nvshmem_my_pe)
+        self.n_pes = _op_wrapper(_tir_op.nvshmem_n_pes)
+        self.signal_op = _op_wrapper(_tir_op.nvshmem_signal_op)
+        self.wait_until = _op_wrapper(_tir_op.nvshmem_wait_until)
+        self.quiet = _op_wrapper(_tir_op.nvshmem_quiet)
+        self.fence = _op_wrapper(_tir_op.nvshmem_fence)
+        self.barrier_all = _op_wrapper(_tir_op.nvshmem_barrier_all)
+        self.getmem_nbi = NVSHMEMGetMemNBINamespace()
+        self.putmem_nbi = NVSHMEMPutMemNBINamespace()
+        self.putmem_signal_nbi = NVSHMEMPutMemSignalNBINamespace()
+
+
+class NVSHMEMGetMemNBINamespace:
+    """The NVSHMEM GetMemNBI intrinsics submodule."""
+
+    def __init__(self):
+        self.warp = _op_wrapper(_tir_op.nvshmem_getmem_nbi_warp)
+        self.block = _op_wrapper(_tir_op.nvshmem_getmem_nbi_block)
+
+    def __call__(self, *args, **kwds):
+        return _op_wrapper(_tir_op.nvshmem_getmem_nbi)(*args, **kwds)
+
+    # __call__ corresponds to nvshmem_getmem_nbi
+    __tir_call_op_name__ = "nvshmem_getmem_nbi"
+
+
+class NVSHMEMPutMemNBINamespace:
+    """The NVSHMEM PutMemNBI intrinsics submodule."""
+
+    def __init__(self):
+        self.warp = _op_wrapper(_tir_op.nvshmem_putmem_nbi_warp)
+        self.block = _op_wrapper(_tir_op.nvshmem_putmem_nbi_block)
+
+    def __call__(self, *args, **kwds):
+        return _op_wrapper(_tir_op.nvshmem_putmem_nbi)(*args, **kwds)
+
+    # __call__ corresponds to nvshmem_putmem_nbi
+    __tir_call_op_name__ = "nvshmem_putmem_nbi"
+
+
+class NVSHMEMPutMemSignalNBINamespace:
+    """The NVSHMEM PutMemSignalNBI intrinsics submodule."""
+
+    def __init__(self):
+        self.warp = _op_wrapper(_tir_op.nvshmem_putmem_signal_nbi_warp)
+        self.block = _op_wrapper(_tir_op.nvshmem_putmem_signal_nbi_block)
+
+    def __call__(self, *args, **kwds):
+        return _op_wrapper(_tir_op.nvshmem_putmem_signal_nbi)(*args, **kwds)
+
+    # __call__ corresponds to nvshmem_putmem_signal_nbi
+    __tir_call_op_name__ = "nvshmem_putmem_signal_nbi"
+
+
+class NKINamespace:
+    """The NKI instructions submodule."""
+
+    def __init__(self):
+        self.load = _op_wrapper(_tir_op.nki_load)
+        self.store = _op_wrapper(_tir_op.nki_store)
+        self.tensor_copy = _op_wrapper(_tir_op.nki_tensor_copy)
+        self.matmul = _op_wrapper(_tir_op.nki_matmul)
+        self.activation = _op_wrapper(_tir_op.nki_activation)
+        self.activation_reduce = _op_wrapper(_tir_op.nki_activation_reduce)
+        self.reciprocal = _op_wrapper(_tir_op.nki_reciprocal)
+        self.tensorreduce = _op_wrapper(_tir_op.nki_tensorreduce)
+        self.tensortensor = _op_wrapper(_tir_op.nki_tensortensor)
+        self.tensorscalar = _op_wrapper(_tir_op.nki_tensorscalar)
+        self.tensorscalar_reduce = _op_wrapper(_tir_op.nki_tensorscalar_reduce)
+        self.scalar_tensor_tensor = _op_wrapper(_tir_op.nki_scalar_tensor_tensor)
+        self.scalar_tensor_scalar = _op_wrapper(_tir_op.nki_scalar_tensor_scalar)
+        self.memset = _op_wrapper(_tir_op.nki_memset)
+        self.identity = _op_wrapper(_tir_op.nki_identity)
+        self.affine_select = _op_wrapper(_tir_op.nki_affine_select)
+
+
+ptx = PTXNamespace()
+cuda = CUDANamespace()
+nvshmem = NVSHMEMNamespace()
+nki = NKINamespace()
+
+
+#
+# Register printer namespace mapping from the builder namespaces
+# so that the TVMScript printer emits T.cuda/T.ptx/T.nvshmem/T.nki dotted names.
+# This keeps parser and printer consistent using a single registration source.
+#
+def _register_tir_namespace_printer_names():
+    def visit(ns_obj, dotted_prefix):
+        # If the namespace object itself maps to an op via __call__
+        call_op = getattr(ns_obj, "__tir_call_op_name__", None)
+        if call_op:
+            _register_op_attr(f"tirx.{call_op}", "TScriptPrinterName", dotted_prefix, level=20)
+        # Walk attributes to find wrapped ops and sub-namespaces
+        for name in dir(ns_obj):
+            if name.startswith("_"):
+                continue
+            try:
+                val = getattr(ns_obj, name)
+            except Exception:
+                continue
+            # Sub-namespace: recurse
+            if hasattr(val, "__dict__") and val.__class__.__name__.endswith("Namespace"):
+                visit(val, f"{dotted_prefix}.{name}")
+                continue
+            # Wrapped op (callable with attached __tir_op_name__)
+            op_name = getattr(val, "__tir_op_name__", None)
+            if callable(val) and op_name:
+                _register_op_attr(
+                    f"tirx.{op_name}", "TScriptPrinterName", f"{dotted_prefix}.{name}", level=20
+                )
+
+    try:
+        visit(ptx, "ptx")
+        visit(cuda, "cuda")
+        visit(nvshmem, "nvshmem")
+        visit(nki, "nki")
+    except Exception:
+        # Best-effort registration; avoid import-time hard failure
+        pass
+
+
+# Execute registration on import so printer picks up dotted names
+_register_tir_namespace_printer_names()
 
 
 abs = _op_wrapper(_tir_op.abs)  # pylint: disable=redefined-builtin
@@ -1885,6 +3460,8 @@ erf = _op_wrapper(_tir_op.erf)
 exp = _op_wrapper(_tir_op.exp)
 exp2 = _op_wrapper(_tir_op.exp2)
 exp10 = _op_wrapper(_tir_op.exp10)
+filter = _op_wrapper(_tir_op.filter)  # pylint: disable=redefined-builtin
+selector = _op_wrapper(_tir_op.selector)
 floor = _op_wrapper(_tir_op.floor)
 ceildiv = _op_wrapper(_tir_op.ceildiv)
 floordiv = _op_wrapper(_tir_op.floordiv)
@@ -1950,17 +3527,12 @@ tvm_bmma_sync = _op_wrapper(_tir_op.tvm_bmma_sync)
 tvm_fill_fragment = _op_wrapper(_tir_op.tvm_fill_fragment)
 tvm_store_matrix_sync = _op_wrapper(_tir_op.tvm_store_matrix_sync)
 tvm_storage_sync = _tir_op.tvm_storage_sync
+tvm_global_barrier_kinit = _tir_op.tvm_global_barrier_kinit
 tvm_warp_shuffle = _tir_op.tvm_warp_shuffle
 tvm_warp_shuffle_up = _tir_op.tvm_warp_shuffle_up
 tvm_warp_shuffle_down = _tir_op.tvm_warp_shuffle_down
+tvm_warp_shuffle_xor = _tir_op.tvm_warp_shuffle_xor
 tvm_warp_activemask = _tir_op.tvm_warp_activemask
-ptx_wait_group = _op_wrapper(_tir_op.ptx_wait_group)
-ptx_commit_group = _op_wrapper(_tir_op.ptx_commit_group)
-ptx_cp_async_barrier = _op_wrapper(_tir_op.ptx_cp_async_barrier)
-ptx_init_barrier_thread_count = _op_wrapper(_tir_op.ptx_init_barrier_thread_count)
-ptx_arrive_barrier = _op_wrapper(_tir_op.ptx_arrive_barrier)
-ptx_arrive_barrier_expect_tx = _op_wrapper(_tir_op.ptx_arrive_barrier_expect_tx)
-ptx_wait_barrier = _op_wrapper(_tir_op.ptx_wait_barrier)
 make_filled_simdgroup_matrix = _op_wrapper(_tir_op.make_filled_simdgroup_matrix)
 simdgroup_load = _op_wrapper(_tir_op.simdgroup_load)
 simdgroup_store = _op_wrapper(_tir_op.simdgroup_store)
@@ -1969,7 +3541,6 @@ cooperative_tensor_fill = _op_wrapper(_tir_op.cooperative_tensor_fill)
 cooperative_tensor_load = _op_wrapper(_tir_op.cooperative_tensor_load)
 cooperative_tensor_store = _op_wrapper(_tir_op.cooperative_tensor_store)
 cooperative_tensor_multiply_accumulate = _op_wrapper(_tir_op.cooperative_tensor_multiply_accumulate)
-create_barriers = _op_wrapper(_tir_op.create_barriers)
 assume = _op_wrapper(_tir_op.assume)
 undef = _op_wrapper(_tir_op.undef)
 TVMBackendAllocWorkspace = _op_wrapper(_tir_op.TVMBackendAllocWorkspace)
@@ -1982,17 +3553,11 @@ anylist_setitem_call_packed = _op_wrapper(_tir_op.anylist_setitem_call_packed)
 anylist_setitem_call_cpacked = _op_wrapper(_tir_op.anylist_setitem_call_cpacked)
 vscale = _op_wrapper(_tir_op.vscale)
 ignore_loop_partition = _op_wrapper(_tir_op.ignore_loop_partition)
-
-
-def _dtype_forward(func):
-    @functools.wraps(func)
-    def wrapped(*args, **kwargs):
-        if "dtype" in kwargs:
-            args = (kwargs.pop("dtype"),) + args
-        return func(*args, **kwargs)
-
-    return wrapped
-
+print_buffer = _op_wrapper(_tir_op.print_buffer)
+timer_init_cuda = _op_wrapper(_tir_op.timer_init_cuda)
+timer_start_cuda = _op_wrapper(_tir_op.timer_start_cuda)
+timer_end_cuda = _op_wrapper(_tir_op.timer_end_cuda)
+timer_finalize_cuda = _op_wrapper(_tir_op.timer_finalize_cuda)
 
 reinterpret = _dtype_forward(_tir_op.reinterpret)
 call_extern = _dtype_forward(_tir_op.call_extern)
@@ -2000,13 +3565,10 @@ call_intrin = _dtype_forward(_tir_op.call_intrin)
 call_llvm_intrin = _dtype_forward(_tir_op.call_llvm_intrin)
 call_llvm_pure_intrin = _dtype_forward(_tir_op.call_llvm_pure_intrin)
 call_pure_extern = _dtype_forward(_tir_op.call_pure_extern)
-ptx_mma = _dtype_forward(_tir_op.ptx_mma)
-ptx_mma_sp = _dtype_forward(_tir_op.ptx_mma_sp)
-ptx_ldmatrix = _dtype_forward(_tir_op.ptx_ldmatrix)
-ptx_cp_async = _dtype_forward(_tir_op.ptx_cp_async)
-ptx_cp_async_bulk = _dtype_forward(_tir_op.ptx_cp_async_bulk)
 mma_store = _dtype_forward(_tir_op.mma_store)
 mma_fill = _dtype_forward(_tir_op.mma_fill)
+mma_store_legacy = _dtype_forward(_tir_op.mma_store_legacy)
+mma_fill_legacy = _dtype_forward(_tir_op.mma_fill_legacy)
 vectorlow = _dtype_forward(_tir_op.vectorlow)
 vectorhigh = _dtype_forward(_tir_op.vectorhigh)
 vectorcombine = _dtype_forward(_tir_op.vectorcombine)
@@ -2048,11 +3610,16 @@ for base in bases:
         suffix = f"x{lane}" if lane != 1 else ""
         float_types.append(f"{base}{suffix}")
 
-__all__ = float_types + [
+__all__ = [
+    *float_types,
     "int8",
     "int16",
     "int32",
     "int64",
+    "int8x2",
+    "int16x2",
+    "int32x2",
+    "int64x2",
     "int8x4",
     "int16x4",
     "int32x4",
@@ -2077,6 +3644,10 @@ __all__ = float_types + [
     "uint16",
     "uint32",
     "uint64",
+    "uint8x2",
+    "uint16x2",
+    "uint32x2",
+    "uint64x2",
     "uint8x4",
     "uint16x4",
     "uint32x4",
@@ -2097,6 +3668,46 @@ __all__ = float_types + [
     "uint16x64",
     "uint32x64",
     "uint64x64",
+    "float8_e4m3fn",
+    "float8_e5m2",
+    "float4_e2m1fn",
+    "float16",
+    "float32",
+    "float64",
+    "float4_e2m1fnx2",
+    "float8_e4m3fnx4",
+    "float8_e5m2x4",
+    "float4_e2m1fnx4",
+    "float16x2",
+    "float32x2",
+    "float64x2",
+    "float16x4",
+    "float32x4",
+    "float64x4",
+    "float8_e4m3fnx8",
+    "float8_e5m2x8",
+    "float4_e2m1fnx8",
+    "float16x8",
+    "float32x8",
+    "float64x8",
+    "float8_e4m3fnx16",
+    "float8_e5m2x16",
+    "float4_e2m1fnx16",
+    "float16x16",
+    "float32x16",
+    "float64x16",
+    "float8_e4m3fnx32",
+    "float8_e5m2x32",
+    "float4_e2m1fnx32",
+    "float16x32",
+    "float32x32",
+    "float64x32",
+    "float8_e4m3fnx64",
+    "float8_e5m2x64",
+    "float4_e2m1fnx64",
+    "float16x64",
+    "float32x64",
+    "float64x64",
     "bfloat16",
     "buffer",
     "buffer_decl",
@@ -2124,7 +3735,10 @@ __all__ = float_types + [
     "grid",
     "Assert",
     "attr",
+    "hint",
     "While",
+    "Break",
+    "Continue",
     "If",
     "Then",
     "Else",
@@ -2173,6 +3787,8 @@ __all__ = float_types + [
     "floordiv",
     "floormod",
     "fmod",
+    "filter",
+    "selector",
     "hypot",
     "if_then_else",
     "infinity",
@@ -2239,22 +3855,12 @@ __all__ = float_types + [
     "tvm_fill_fragment",
     "tvm_store_matrix_sync",
     "tvm_storage_sync",
+    "tvm_global_barrier_kinit",
     "tvm_warp_shuffle",
     "tvm_warp_shuffle_up",
     "tvm_warp_shuffle_down",
+    "tvm_warp_shuffle_xor",
     "tvm_warp_activemask",
-    "ptx_mma",
-    "ptx_mma_sp",
-    "ptx_ldmatrix",
-    "ptx_cp_async",
-    "ptx_cp_async_bulk",
-    "ptx_wait_group",
-    "ptx_commit_group",
-    "ptx_cp_async_barrier",
-    "ptx_init_barrier_thread_count",
-    "ptx_arrive_barrier",
-    "ptx_arrive_barrier_expect_tx",
-    "ptx_wait_barrier",
     "make_filled_simdgroup_matrix",
     "simdgroup_load",
     "simdgroup_store",
@@ -2263,9 +3869,10 @@ __all__ = float_types + [
     "cooperative_tensor_load",
     "cooperative_tensor_store",
     "cooperative_tensor_multiply_accumulate",
-    "create_barriers",
     "mma_store",
     "mma_fill",
+    "mma_store_legacy",
+    "mma_fill_legacy",
     "vectorlow",
     "vectorhigh",
     "vectorcombine",
@@ -2325,7 +3932,11 @@ __all__ = float_types + [
     "Call",
     "CallEffectKind",
     "let",
+    "Bind",
     "bind",
+    "LetAnnotation",
+    "LocalVectorAnnotation",
+    "DtypeConstructor",
     "Let",
     "IterVar",
     "CommReducer",
@@ -2334,4 +3945,57 @@ __all__ = float_types + [
     "get_active_lane_mask",
     "call_kernel",
     "ignore_loop_partition",
+    "print_buffer",
+    "timer_init_cuda",
+    "timer_start_cuda",
+    "timer_end_cuda",
+    "timer_finalize_cuda",
 ]
+
+__all__ += [
+    "ComposeLayout",
+    "ExecScope",
+    "Iter",
+    "Layout",
+    "R",
+    "S",
+    "ScopeIdDef",
+    "SwizzleLayout",
+    "TileLayout",
+    "Var",
+    "add_to_parent",
+    "alloc_local",
+    "alloc_scalar",
+    "alloc_shared",
+    "cluster",
+    "cluster_id",
+    "cta",
+    "cta_id",
+    "cta_id_in_cluster",
+    "cta_id_in_pair",
+    "cuda",
+    "decl_scalar",
+    "kernel",
+    "lane_id",
+    "local_scalar",
+    "nki",
+    "nvshmem",
+    "ptx",
+    "scalar_wrapper",
+    "scope_id",
+    "shared_scalar",
+    "smem",
+    "static_assert",
+    "thread",
+    "thread_id",
+    "thread_id_in_wg",
+    "tmem",
+    "warp",
+    "warp_id",
+    "warp_id_in_wg",
+    "warpgroup",
+    "warpgroup_id",
+]
+
+# Shorthand dtype aliases
+__all__ += ["bf16", "f16", "f32", "f64", "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64"]

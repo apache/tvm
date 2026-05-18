@@ -269,6 +269,12 @@ std::string CodeGenC::GetBufferRef(DataType t, const BufferNode* buffer, PrimExp
     os << "*("
        << "(" << ptr_cast(t) << vid << ")"
        << " + " << index_str << " / " << div_factor << ")";
+  } else if (t.is_float4_e2m1fn() && t.lanes() == 1) {
+    // float4_e2m1fn: sizeof(__nv_fp4_e2m1) = 1 byte, but data is packed
+    // 2 elements per byte.  Divide element index by 2 to get byte offset.
+    // This returns an lvalue so it works for address_of() and stores.
+    // Nibble extraction (for loads) is handled in VisitExpr_(BufferLoadNode*).
+    os << "*(" << ptr_cast(t) << "(" << vid << " + " << index_str << " / 2))";
   } else if (t == buffer_element_dtype) {
     os << buffer_str << "[" << index_str << "]";
   } else {
@@ -698,10 +704,32 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       os << result;
     } else if (op->op.same_as(builtin::address_of())) {
       const BufferLoadNode* load = op->args[0].as<BufferLoadNode>();
-      TVM_FFI_ICHECK(op->args.size() == 1 && load);
-      TVM_FFI_ICHECK_EQ(load->indices.size(), 1)
-          << "CodeGenC only supports flat memory allocations.";
-      os << "(&(" << GetBufferRef(load->dtype, load->buffer.get(), load->indices[0]) << "))";
+      TVM_FFI_ICHECK(op->args.size() == 1);
+      if (load) {
+        TVM_FFI_ICHECK_EQ(load->indices.size(), 1)
+            << "CodeGenC only supports flat memory allocations.";
+        os << "(&(" << GetBufferRef(load->dtype, load->buffer.get(), load->indices[0]) << "))";
+      } else {
+        auto* var = op->args[0].as<tirx::VarNode>();
+        TVM_FFI_ICHECK(var)
+            << "Builtin address_of() expects the argument to be a BufferLoad or Var, but "
+            << "received argument " << op->args[0];
+        if (auto* ptr = var->type_annotation.as<PointerTypeNode>()) {
+          if (ptr->element_type.as<TensorMapTypeNode>()) {
+            os << "((unsigned long long)(&(";
+            this->PrintExpr(op->args[0], os);
+            os << ")))";
+          } else {
+            os << "(&(";
+            this->PrintExpr(op->args[0], os);
+            os << "))";
+          }
+        } else {
+          os << "(&(";
+          this->PrintExpr(op->args[0], os);
+          os << "))";
+        }
+      }
     } else if (op->op.same_as(builtin::tvm_struct_get())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 3U);
       os << GetStructRef(op->dtype, op->args[0], op->args[1], op->args[2].as<IntImmNode>()->value);
@@ -779,6 +807,8 @@ void CodeGenC::VisitStmt_(const DeclBufferNode* op) {
   // DeclBuffer is a flat statement with no body — nothing to emit.
 }
 
+void CodeGenC::VisitStmt_(const ExecScopeStmtNode* op) { this->PrintStmt(op->body); }
+
 void CodeGenC::VisitExpr_(const BufferLoadNode* op, std::ostream& os) {  // NOLINT(*)
   TVM_FFI_ICHECK_EQ(op->indices.size(), 1) << "Load from non-flat memory not supported.";
   TVM_FFI_ICHECK(!op->predicate.defined()) << "Predicated buffer load is not supported.";
@@ -792,7 +822,17 @@ void CodeGenC::VisitExpr_(const BufferLoadNode* op, std::ostream& os) {  // NOLI
   // delcare type.
   if (value_dtype.lanes() == element_dtype.lanes()) {
     std::string ref = GetBufferRef(op->dtype, op->buffer.get(), index);
-    HandleVolatileLoads(ref, op, os);
+    if (value_dtype.is_float4_e2m1fn() && value_dtype.lanes() == 1) {
+      // GetBufferRef returns an lvalue: *(ptr + index/2), which reads the
+      // full byte.  Extract the correct nibble (low for even, high for odd).
+      std::string index_str = PrintExpr(index);
+      std::ostringstream nibble;
+      nibble << "([](__nv_fp4_storage_t v) { __nv_fp4_e2m1 t; t.__x = v; return t; })"
+             << "(((" << ref << ").__x >> ((" << index_str << " % 2) * 4)) & 0xF)";
+      HandleVolatileLoads(nibble.str(), op, os);
+    } else {
+      HandleVolatileLoads(ref, op, os);
+    }
   } else {
     bool can_vector_load = false;
     arith::PVar<PrimExpr> base;
@@ -1195,6 +1235,8 @@ void CodeGenC::VisitStmt_(const ForNode* op) {
 
 void CodeGenC::VisitStmt_(const WhileNode* op) {
   PrintIndent();
+  stream << "#pragma unroll 1\n";
+  PrintIndent();
   stream << "while (1) {\n";
   int while_scope = BeginScope();
   std::string cond = PrintExpr(op->condition);
@@ -1204,6 +1246,16 @@ void CodeGenC::VisitStmt_(const WhileNode* op) {
   this->EndScope(while_scope);
   PrintIndent();
   stream << "}\n";
+}
+
+void CodeGenC::VisitStmt_(const BreakNode* op) {
+  PrintIndent();
+  stream << "break;\n";
+}
+
+void CodeGenC::VisitStmt_(const ContinueNode* op) {
+  PrintIndent();
+  stream << "continue;\n";
 }
 
 void CodeGenC::VisitStmt_(const IfThenElseNode* op) {

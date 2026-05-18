@@ -841,7 +841,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       if (value.same_as(op->value)) {
         return ffi::GetRef<Stmt>(op);
       } else {
-        return Bind(op->var, value);
+        return Bind(op->var, value, op->span);
       }
     }
   }

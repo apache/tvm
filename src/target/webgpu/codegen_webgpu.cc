@@ -726,6 +726,16 @@ void CodeGenWebGPU::VisitStmt_(const WhileNode* op) {
   stream << "}\n";
 }
 
+void CodeGenWebGPU::VisitStmt_(const BreakNode* op) {
+  PrintIndent();
+  stream << "break;\n";
+}
+
+void CodeGenWebGPU::VisitStmt_(const ContinueNode* op) {
+  PrintIndent();
+  stream << "continue;\n";
+}
+
 //-------------------------------------------------
 // Build logic.
 //-------------------------------------------------

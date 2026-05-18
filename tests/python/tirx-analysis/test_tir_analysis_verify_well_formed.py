@@ -25,7 +25,7 @@ from tvm.script import tirx as T
 
 
 def test_pass_simple():
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def element_wise(
         A: T.Buffer((128, 128), "float32"),
         C: T.Buffer((128, 128), "float32"),
@@ -45,7 +45,7 @@ def test_pass_simple():
 
 
 def test_fail_use_out_loop_var():
-    @T.prim_func(check_well_formed=False)
+    @T.prim_func(check_well_formed=False, s_tir=True)
     def element_wise(
         A: T.Buffer((128, 128), "float32"),
         B: T.Buffer((128, 128), "float32"),
@@ -81,7 +81,8 @@ def test_error_for_out_of_scope_usage():
     func = tvm.tirx.PrimFunc([], body)
 
     with pytest.raises(
-        ValueError, match="Invalid use of undefined variable i at .* no longer in-scope."
+        (ValueError, tvm.error.InternalError),
+        match="Invalid use of undefined variable i at .* no longer in-scope.",
     ):
         tvm.tirx.analysis.verify_well_formed(func)
 
@@ -89,7 +90,7 @@ def test_error_for_out_of_scope_usage():
 def test_error_for_nested_rebind_usage():
     """A variable may not be re-defined within the initial scope"""
 
-    @T.prim_func(check_well_formed=False)
+    @T.prim_func(check_well_formed=False, s_tir=True)
     def func():
         i = T.int32()
         T.bind(42, var=i)
@@ -97,7 +98,8 @@ def test_error_for_nested_rebind_usage():
         T.evaluate(i)
 
     with pytest.raises(
-        ValueError, match="ill-formed, due to multiple nested definitions of variable i"
+        (ValueError, tvm.error.InternalError),
+        match="ill-formed, due to multiple nested definitions of variable i",
     ):
         tvm.tirx.analysis.verify_well_formed(func)
 
@@ -110,7 +112,7 @@ def test_error_for_repeated_binding():
     scope extends to all subsequent siblings).
     """
 
-    @T.prim_func(check_well_formed=False)
+    @T.prim_func(check_well_formed=False, s_tir=True)
     def func():
         i = T.int32()
         T.bind(42, var=i)
@@ -118,7 +120,9 @@ def test_error_for_repeated_binding():
         T.bind(17, var=i)
         T.evaluate(i)
 
-    with pytest.raises(ValueError, match="multiple nested definitions of variable i"):
+    with pytest.raises(
+        (ValueError, tvm.error.InternalError), match="multiple nested definitions of variable i"
+    ):
         tvm.tirx.analysis.verify_well_formed(func)
 
 
@@ -127,19 +131,21 @@ def test_error_for_cross_function_reuse():
 
     i = tvm.tirx.Var("i", "int32")
 
-    @I.ir_module(check_well_formed=False)
+    @I.ir_module(check_well_formed=False, s_tir=True)
     class mod:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def func1():
             T.bind(42, var=i)
             T.evaluate(i)
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def func2():
             T.bind(42, var=i)
             T.evaluate(i)
 
-    with pytest.raises(ValueError, match="multiple definitions of variable i"):
+    with pytest.raises(
+        (ValueError, tvm.error.InternalError), match="multiple definitions of variable i"
+    ):
         tvm.tirx.analysis.verify_well_formed(mod)
 
 
@@ -150,7 +156,7 @@ def test_reuse_of_env_thread_in_function_is_well_formed():
     multiple locations without the TIR being considered ill-formed.
     """
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def func(A: T.Buffer([256], "float32")):
         threadIdx_x = T.env_thread("threadIdx.x")
         with T.launch_thread(threadIdx_x, 256):
@@ -172,7 +178,7 @@ def test_reuse_of_env_thread_in_function_is_mandatory():
     instances, it is ill-formed.
     """
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def func(A: T.Buffer([256], "float32")):
         with T.launch_thread("threadIdx.x", 256) as threadIdx_x:
             A[threadIdx_x] = A[threadIdx_x] + 1.0
@@ -193,9 +199,9 @@ def test_reuse_of_env_thread_across_functions_is_ill_formed():
 
     threadIdx_x = tvm.tirx.Var("threadIdx_x", "int32")
 
-    @I.ir_module(check_well_formed=False)
+    @I.ir_module(check_well_formed=False, s_tir=True)
     class mod:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def kernel_1(A: T.Buffer([256], "float32")):
             T.attr(
                 T.iter_var(threadIdx_x, T.Range(0, 256), "ThreadIndex", "threadIdx.x"),
@@ -204,7 +210,7 @@ def test_reuse_of_env_thread_across_functions_is_ill_formed():
             )
             A[threadIdx_x] = A[threadIdx_x] + T.float32(1)
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def kernel_2(A: T.Buffer([256], "float32")):
             T.attr(
                 T.iter_var(threadIdx_x, T.Range(0, 256), "ThreadIndex", "threadIdx.x"),
@@ -213,7 +219,9 @@ def test_reuse_of_env_thread_across_functions_is_ill_formed():
             )
             A[threadIdx_x] = A[threadIdx_x] + T.float32(1)
 
-    with pytest.raises(ValueError, match="multiple definitions of variable threadIdx_x"):
+    with pytest.raises(
+        (ValueError, tvm.error.InternalError), match="multiple definitions of variable threadIdx_x"
+    ):
         tvm.tirx.analysis.verify_well_formed(mod)
 
 
@@ -225,9 +233,9 @@ def test_multiple_buffer_arguments_may_share_allocation():
     occurrences are usages of that definition.
     """
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class mod:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def func(A_handle: T.handle, B_handle: T.handle):
             A = T.match_buffer(A_handle, [256], "float32")
             B = T.match_buffer(B_handle, [256], "float32", data=A.data)
@@ -240,9 +248,9 @@ def test_multiple_buffer_arguments_may_share_allocation():
 def test_block_match_buffer_defines_buffer_obj():
     """In a block, T.match_buffer defines a buffer view"""
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class mod:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def func(A: T.Buffer([256, 256], "float32")):
             for iters in T.grid(16, 16, 16, 16):
                 with T.sblock("compute"):
@@ -259,9 +267,9 @@ def test_block_match_buffer_defines_buffer_obj():
 def test_block_match_buffer_defines_symbolic_variables():
     """In a block, T.match_buffer may define symbolic variables"""
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class mod:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def func(A: T.Buffer([256, 256], "int32")):
             for iters in T.grid(16, 16, 16, 16):
                 with T.sblock("compute"):
@@ -291,7 +299,7 @@ def test_error_message_without_previous_definition_location():
     IS known, so the message includes location info.
     """
 
-    @T.prim_func(check_well_formed=False)
+    @T.prim_func(check_well_formed=False, s_tir=True)
     def func():
         x = T.int32()
 
@@ -301,7 +309,7 @@ def test_error_message_without_previous_definition_location():
         T.bind(99, var=x)  # This should trigger the error
         T.evaluate(x)
 
-    with pytest.raises(ValueError) as exc_info:
+    with pytest.raises((ValueError, tvm.error.InternalError)) as exc_info:
         tvm.tirx.analysis.verify_well_formed(func, assert_mode=True)
 
     error_msg = str(exc_info.value)
@@ -318,7 +326,7 @@ def test_error_message_with_previous_definition_location():
     contain 'It was first defined at' with the location information.
     """
 
-    @T.prim_func(check_well_formed=False)
+    @T.prim_func(check_well_formed=False, s_tir=True)
     def func():
         x = T.int32()
 
@@ -326,7 +334,7 @@ def test_error_message_with_previous_definition_location():
         T.bind(99, var=x)  # This should trigger the error
         T.evaluate(x)
 
-    with pytest.raises(ValueError) as exc_info:
+    with pytest.raises((ValueError, tvm.error.InternalError)) as exc_info:
         tvm.tirx.analysis.verify_well_formed(func, assert_mode=True)
 
     error_msg = str(exc_info.value)
@@ -347,7 +355,7 @@ def test_sequential_redefinition_with_location():
     are treated as nested definitions with location info.
     """
 
-    @T.prim_func(check_well_formed=False)
+    @T.prim_func(check_well_formed=False, s_tir=True)
     def func():
         x = T.int32()
 
@@ -357,7 +365,7 @@ def test_sequential_redefinition_with_location():
         T.bind(2, var=x)  # This should trigger the error
         T.evaluate(x)
 
-    with pytest.raises(ValueError) as exc_info:
+    with pytest.raises((ValueError, tvm.error.InternalError)) as exc_info:
         tvm.tirx.analysis.verify_well_formed(func, assert_mode=True)
 
     error_msg = str(exc_info.value)
@@ -371,7 +379,7 @@ def test_sequential_redefinition_with_location():
 def test_buffer_in_buffer_map_is_well_formed():
     """Buffers defined via function parameter buffer_map are in scope for the body."""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def func(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
         for i in T.grid(128):
             B[i] = A[i] * 2.0
@@ -382,7 +390,7 @@ def test_buffer_in_buffer_map_is_well_formed():
 def test_decl_buffer_is_well_formed():
     """A DeclBuffer statement introduces a buffer into scope for its body."""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def func(A: T.Buffer((128,), "float32")):
         B = T.alloc_buffer((128,), "float32")
         for i in T.grid(128):
@@ -394,9 +402,9 @@ def test_decl_buffer_is_well_formed():
 def test_alloc_buffer_in_block_is_well_formed():
     """SBlock::alloc_buffers introduces a buffer into scope for the block body."""
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class mod:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def func(A: T.Buffer((128,), "float32")):
             with T.sblock("root"):
                 B = T.sblock_alloc_buffer([128], "float32")
@@ -411,9 +419,9 @@ def test_alloc_buffer_in_block_is_well_formed():
 def test_match_buffer_in_block_is_well_formed():
     """SBlock::match_buffers introduces a buffer into scope for the block body."""
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class mod:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def func(A: T.Buffer((128, 128), "float32")):
             for iters in T.grid(8, 8, 16, 16):
                 with T.sblock("compute"):
@@ -464,7 +472,9 @@ def test_error_undeclared_buffer_in_schedulable_tir():
     )
 
     # B is used in the block but was never declared — should fail.
-    with pytest.raises(ValueError, match="buffer B.*without a prior DeclBuffer"):
+    with pytest.raises(
+        (ValueError, tvm.error.InternalError), match="buffer B.*without a prior DeclBuffer"
+    ):
         tvm.tirx.analysis.verify_well_formed(prim_func)
 
 

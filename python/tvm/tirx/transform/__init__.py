@@ -20,3 +20,4 @@
 
 from .function_pass import prim_func_pass, PrimFuncPass
 from .transform import *
+from . import trn

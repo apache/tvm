@@ -651,6 +651,14 @@ void CodeGenLLVM::AddAliasInfo(llvm::Instruction* inst, const VarNode* buffer_va
     base = ptr->value;
     xwith = 1;
   }
+  if (access_dtype.is_scalable_vector()) {
+    llvm::MDNode* meta = md_tbaa_root_;
+    std::ostringstream buffer_addr;
+    buffer_addr << buffer_var;
+    meta = md_builder_->createTBAAScalarTypeNode(buffer_addr.str(), meta);
+    inst->setMetadata("tbaa", md_builder_->createTBAAStructTagNode(meta, meta, 0));
+    return;
+  }
   // adjust address index unit to byte
   const int64_t unit_bit_width = 8;
   const int64_t access_elem_bits = access_dtype.bits() * access_dtype.lanes();
@@ -1652,6 +1660,9 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const LetNode* op) {
 }
 
 bool CodeGenLLVM::HasAlignmentPadding(DataType dtype) {
+  if (dtype.is_scalable_vector()) {
+    return false;
+  }
   const llvm::DataLayout& data_layout = module_->getDataLayout();
   int bytes = data_layout.getTypeAllocSize(DTypeToLLVMType(dtype));
   int bytes_scalar = data_layout.getTypeAllocSize(DTypeToLLVMType(dtype.element_of()));
@@ -1683,8 +1694,10 @@ void CodeGenLLVM::BufferAccessHelper(
   }
 
   PrimExpr last_index = indices[indices.size() - 1];
+  int last_index_lanes = last_index.dtype().get_lanes_or_vscale_factor();
+  int buffer_element_lanes = buffer_element_dtype.get_lanes_or_vscale_factor();
   TVM_FFI_ICHECK_EQ(value_dtype.get_lanes_or_vscale_factor(),
-                    last_index.dtype().get_lanes_or_vscale_factor() * buffer_element_dtype.lanes());
+                    last_index_lanes * buffer_element_lanes);
 
   // Record index and elemtype in original form used for alias info
   PrimExpr last_index_origin = last_index;
@@ -1697,19 +1710,22 @@ void CodeGenLLVM::BufferAccessHelper(
   if (const RampNode* ramp_index = last_index.as<RampNode>()) {
     if (is_one(ramp_index->stride)) {
       last_index = ramp_index->base;
+      last_index_lanes = last_index.dtype().get_lanes_or_vscale_factor();
     }
   }
 
   // All TVM arrays are densely packed.  If the vectorized LLVM type
   // contains padding for alignment, we need to index based on the
   // size of the scalar type to avoid introducing that padding.
-  if (last_index.dtype().lanes() == 1 && HasAlignmentPadding(buffer_element_dtype)) {
-    last_index = buffer_element_dtype.lanes() * last_index;
+  bool last_index_is_scalar = !last_index.dtype().is_scalable_vector() && last_index_lanes == 1;
+  if (last_index_is_scalar && HasAlignmentPadding(buffer_element_dtype)) {
+    last_index = buffer_element_lanes * last_index;
     buffer_element_dtype = buffer_element_dtype.element_of();
+    buffer_element_lanes = 1;
   }
 
   int alignment;
-  if (last_index.dtype().lanes() == 1) {
+  if (last_index_is_scalar) {
     // If we are accessing with a single index, then the vectorized
     // element being accessed may require more alignment than the
     // underlying data type.
@@ -1722,8 +1738,10 @@ void CodeGenLLVM::BufferAccessHelper(
     alignment = value_dtype.bits() / 8;
   }
 
+  TVM_FFI_ICHECK(!last_index.dtype().is_scalable_vector())
+      << "Scalable vector indices are not supported in LLVM buffer access codegen";
   llvm::Value* cached_vector_index = nullptr;
-  for (int i = 0; i < last_index.dtype().lanes(); ++i) {
+  for (int i = 0; i < last_index_lanes; ++i) {
     llvm::Value* last_index_value;
     int subelement_i = i;
     if (const RampNode* ramp = last_index.as<RampNode>()) {
@@ -1751,10 +1769,9 @@ void CodeGenLLVM::BufferAccessHelper(
         value_dtype.is_scalable_vector()
             ? CreateBufferPtr(MakeValue(buffer->data), buffer_element_dtype, all_index_values,
                               value_dtype.with_scalable_vscale_factor(value_dtype.vscale_factor() /
-                                                                      last_index.dtype().lanes()))
-            : CreateBufferPtr(
-                  MakeValue(buffer->data), buffer_element_dtype, all_index_values,
-                  value_dtype.with_lanes(value_dtype.lanes() / last_index.dtype().lanes()));
+                                                                      last_index_lanes))
+            : CreateBufferPtr(MakeValue(buffer->data), buffer_element_dtype, all_index_values,
+                              value_dtype.with_lanes(value_dtype.lanes() / last_index_lanes));
     auto instruction =
         make_instruction(buffer_ptr, subelement_i, predicate_value, alignment, is_volatile);
     AddAliasInfo(instruction, buffer->data.get(), last_index_origin, buffer_element_dtype_origin);
@@ -2094,6 +2111,8 @@ void CodeGenLLVM::VisitStmt_(const SeqStmtNode* op) {
 }
 
 void CodeGenLLVM::VisitStmt_(const DeclBufferNode* op) { EmitDebugLocation(op); }
+
+void CodeGenLLVM::VisitStmt_(const ExecScopeStmtNode* op) { VisitStmt(op->body); }
 
 void CodeGenLLVM::VisitStmt_(const EvaluateNode* op) {
   EmitDebugLocation(op);

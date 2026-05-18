@@ -30,6 +30,7 @@ Doc PrintBlock(IRDocsifier d, tirx::SBlock block, AccessPath block_p,  //
   const tirx::SBlockRealizeNode* realize =
       opt_realize.defined() ? opt_realize.value().get() : nullptr;
   AccessPath realize_p = *opt_realize_p;
+
   // Step 1. Handle block var and block bindings
   // Step 1.1. Obtain all loop var defined along path
   std::unordered_map<const tirx::VarNode*, tirx::For> loop_vars;
@@ -107,9 +108,6 @@ Doc PrintBlock(IRDocsifier d, tirx::SBlock block, AccessPath block_p,  //
   auto print_remapped_iter_var = [&]() {
     if (remap_vars_indices.size()) {
       int m = remap_vars_indices.size();
-      if (!m) {
-        return;
-      }
       if (m == 1) {
         print_single_iter_var(remap_vars_indices[0]);
         remap_vars_indices.clear();
@@ -233,6 +231,37 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 TVM_REGISTER_SCRIPT_AS_REPR(tirx::SBlockNode, ReprPrintTIR);
 TVM_REGISTER_SCRIPT_AS_REPR(tirx::SBlockRealizeNode, ReprPrintTIR);
+
+TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
+    .set_dispatch<tirx::ExecScopeStmt>("",
+                                       [](tirx::ExecScopeStmt stmt, AccessPath p, IRDocsifier d)
+                                           -> Doc { return ExecScopeStmtDoc(stmt, p, d, {}); });
+
+TVM_SCRIPT_REPR(tirx::ExecScopeStmtNode, ReprPrintTIR);
+
+TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
+    .set_dispatch<tirx::ExecScope>(
+        "", [](tirx::ExecScope exec_scope, AccessPath p, IRDocsifier d) -> Doc {
+          Doc doc =
+              TIR(d, "ExecScope")->Call({LiteralDoc::Str(exec_scope->name(), p->Attr("name"))});
+          return doc;
+        });
+TVM_SCRIPT_REPR(tirx::ExecScopeNode, ReprPrintTIR);
+
+TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
+    .set_dispatch<tirx::ScopeIdDef>(
+        "", [](tirx::ScopeIdDef def, AccessPath p, IRDocsifier d) -> Doc {
+          auto [parent, cur] = tirx::ScopeBindingToStringPair(def->scope);
+          ExprDoc extents_doc = def->extents.has_value()
+                                    ? d->AsDoc<ExprDoc>(def->extents.value(), p->Attr("extents"))
+                                    : LiteralDoc::None(p->Attr("extents"));
+          Doc doc = TIR(d, "ScopeIdDef")
+                        ->Call({d->AsDoc<ExprDoc>(def->def_ids, p->Attr("def_ids")), extents_doc,
+                                LiteralDoc::Str(parent, p->Attr("parent")),
+                                LiteralDoc::Str(cur, p->Attr("cur"))});
+          return doc;
+        });
+TVM_SCRIPT_REPR(tirx::ScopeIdDefNode, ReprPrintTIR);
 
 }  // namespace printer
 }  // namespace script

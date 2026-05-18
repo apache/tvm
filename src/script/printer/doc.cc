@@ -46,6 +46,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   AssignDocNode::RegisterReflection();
   IfDocNode::RegisterReflection();
   WhileDocNode::RegisterReflection();
+  BreakDocNode::RegisterReflection();
+  ContinueDocNode::RegisterReflection();
   ForDocNode::RegisterReflection();
   ScopeDocNode::RegisterReflection();
   ExprStmtDocNode::RegisterReflection();
@@ -195,6 +197,16 @@ WhileDoc::WhileDoc(ExprDoc predicate, ffi::Array<StmtDoc> body) {
   this->data_ = std::move(n);
 }
 
+BreakDoc::BreakDoc() {
+  ffi::ObjectPtr<BreakDocNode> n = ffi::make_object<BreakDocNode>();
+  this->data_ = std::move(n);
+}
+
+ContinueDoc::ContinueDoc() {
+  ffi::ObjectPtr<ContinueDocNode> n = ffi::make_object<ContinueDocNode>();
+  this->data_ = std::move(n);
+}
+
 ForDoc::ForDoc(ExprDoc lhs, ExprDoc rhs, ffi::Array<StmtDoc> body) {
   ffi::ObjectPtr<ForDocNode> n = ffi::make_object<ForDocNode>();
   n->lhs = lhs;
@@ -266,6 +278,17 @@ CommentDoc::CommentDoc(ffi::String comment) {
 DocStringDoc::DocStringDoc(ffi::String docs) {
   ffi::ObjectPtr<DocStringDocNode> n = ffi::make_object<DocStringDocNode>();
   n->comment = docs;
+  this->data_ = std::move(n);
+}
+
+OpCallDoc::OpCallDoc(ExprDoc callee, ffi::Array<Doc> args, ffi::Optional<DictDoc> workspace,
+                     ffi::Optional<DictDoc> config, ffi::Optional<ExprDoc> dispatch) {
+  ffi::ObjectPtr<OpCallDocNode> n = ffi::make_object<OpCallDocNode>();
+  n->callee = callee;
+  n->args = args;
+  n->workspace = workspace;
+  n->config = config;
+  n->dispatch = dispatch;
   this->data_ = std::move(n);
 }
 
@@ -405,6 +428,16 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("script.printer.BreakDoc", []() { return BreakDoc(); });
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("script.printer.ContinueDoc", []() { return ContinueDoc(); });
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "script.printer.ForDoc",
       [](ExprDoc lhs, ExprDoc rhs, ffi::Array<StmtDoc> body) { return ForDoc(lhs, rhs, body); });
@@ -463,6 +496,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("script.printer.DocStringDoc",
                         [](ffi::String docs) { return DocStringDoc(docs); });
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("script.printer.OpCallDoc",
+                        [](ExprDoc callee, ffi::Array<Doc> args, DictDoc workspace, DictDoc config,
+                           ffi::Optional<ExprDoc> dispatch) {
+                          return OpCallDoc(callee, args, workspace, config, dispatch);
+                        });
 }
 
 }  // namespace printer

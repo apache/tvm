@@ -40,7 +40,7 @@ def get_dense_mat_by_mask(val, mask):
     return ret.reshape(m, n_chunks * 4)
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def mma_sp_m16n8k16_f16f16f16(a: T.handle, b: T.handle, c: T.handle, _metadata: T.handle):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
     A = T.match_buffer(a, [16, 8], dtype="float16")
@@ -69,7 +69,7 @@ def mma_sp_m16n8k16_f16f16f16(a: T.handle, b: T.handle, c: T.handle, _metadata: 
     meta_local[0] = metadata[tx // 4]
 
     T.evaluate(
-        T.ptx_mma_sp(
+        T.ptx.mma.sp(
             "m16n8k16",
             "row",
             "col",
@@ -94,7 +94,7 @@ def mma_sp_m16n8k16_f16f16f16(a: T.handle, b: T.handle, c: T.handle, _metadata: 
         C[i // 2 * 8 + tx // 4, tx % 4 * 2 + i % 2] = accum[i]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def mma_sp_m16n8k16_f16f16f32(a: T.handle, b: T.handle, c: T.handle, _metadata: T.handle):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
     A = T.match_buffer(a, [16, 8], dtype="float16")
@@ -123,7 +123,7 @@ def mma_sp_m16n8k16_f16f16f32(a: T.handle, b: T.handle, c: T.handle, _metadata: 
     meta_local[0] = metadata[tx // 4]
 
     T.evaluate(
-        T.ptx_mma_sp(
+        T.ptx.mma.sp(
             "m16n8k16",
             "row",
             "col",
@@ -148,7 +148,7 @@ def mma_sp_m16n8k16_f16f16f32(a: T.handle, b: T.handle, c: T.handle, _metadata: 
         C[i // 2 * 8 + tx // 4, tx % 4 * 2 + i % 2] = accum[i]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def mma_sp_m16n8k32_f16f16f16(a: T.handle, b: T.handle, c: T.handle, _metadata: T.handle):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
     A = T.match_buffer(a, [16, 16], dtype="float16")
@@ -177,7 +177,7 @@ def mma_sp_m16n8k32_f16f16f16(a: T.handle, b: T.handle, c: T.handle, _metadata: 
     meta_local[0] = metadata[tx // 4 * 2 + tx % 2]
 
     T.evaluate(
-        T.ptx_mma_sp(
+        T.ptx.mma.sp(
             "m16n8k32",
             "row",
             "col",
@@ -202,7 +202,7 @@ def mma_sp_m16n8k32_f16f16f16(a: T.handle, b: T.handle, c: T.handle, _metadata: 
         C[i // 2 * 8 + tx // 4, tx % 4 * 2 + i % 2] = accum[i]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def mma_sp_m16n8k32_f16f16f32(a: T.handle, b: T.handle, c: T.handle, _metadata: T.handle):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
     A = T.match_buffer(a, [16, 16], dtype="float16")
@@ -231,7 +231,7 @@ def mma_sp_m16n8k32_f16f16f32(a: T.handle, b: T.handle, c: T.handle, _metadata: 
     meta_local[0] = metadata[tx // 4 * 2 + tx % 2]
 
     T.evaluate(
-        T.ptx_mma_sp(
+        T.ptx.mma.sp(
             "m16n8k32",
             "row",
             "col",

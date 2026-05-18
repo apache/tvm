@@ -56,18 +56,18 @@ def split_host_device_mods(mod: IRModule) -> tuple[IRModule, dict[Target, IRModu
 
         @I.ir_module
         class Module:
-            @T.prim_func(private=True)
+            @T.prim_func(private=True, s_tir=True)
             def add(a: T.int32, b: T.int32) -> T.int32:
                 T.func_attr({"target": T.target({"arch": "sm_90", "keys": ["cuda", "gpu"],
                                                 "kind": "cuda", "max_num_threads": 1024}))
                 return a + b
 
-            @T.prim_func(private=True)
+            @T.prim_func(private=True, s_tir=True)
             def add_host(a: T.int32, b: T.int32) -> T.int32:
                 T.func_attr({"target": T.target({"keys": ["cpu"], "kind": "c"}))
                 return a + b
 
-            @T.prim_func
+            @T.prim_func(s_tir=True)
             def main_kernel(A: T.handle, B: T.handle, C: T.handle, length: T.int32):
                 T.func_attr({"target": T.target({"arch": "sm_90", "keys": ["cuda", "gpu"],
                                                 "kind": "cuda"}),
@@ -75,7 +75,7 @@ def split_host_device_mods(mod: IRModule) -> tuple[IRModule, dict[Target, IRModu
                             "tirx.is_global_func": True})
                 # ... kernel implementation
 
-            @T.prim_func
+            @T.prim_func(s_tir=True)
             def main(self_handle: T.handle, args: T.handle, num_args: T.int32, result: T.handle):
                 T.func_attr({"target": T.target({"keys": ["cpu"], "kind": "c"}),
                             "calling_conv": 1,  # kCPackedFunc for entry functions
@@ -217,20 +217,22 @@ def build(
     # Step 4: Apply the tirx pipeline
     if pipeline is not None:
         # custom pipeline
-        if isinstance(pipeline, str):
-            pipeline = tvm.tirx.get_tir_pipeline(pipeline)
+        assert isinstance(pipeline, str)
+        pipeline, finalize_host_passes, finalize_device_passes = tvm.tirx.get_tir_pipeline(pipeline)
     else:
         # default pipeline depends on the target
-        pipeline = tvm.tirx.get_default_tir_pipeline(target)
+        pipeline, finalize_host_passes, finalize_device_passes = tvm.tirx.get_default_tir_pipeline(
+            target
+        )
     mod = pipeline(mod)
 
     # Step 5: Get host and device modules
     host_mod, device_mod_dict = split_host_device_mods(mod)
 
     # Step 6: Apply finalization passes
-    host_mod = tvm.tirx.pipeline.finalize_host_passes()(host_mod)
+    host_mod = finalize_host_passes()(host_mod)
     device_mod_dict = {
-        target: tvm.tirx.pipeline.finalize_device_passes()(device_mod)
+        target: finalize_device_passes()(device_mod)
         for target, device_mod in device_mod_dict.items()
     }
 

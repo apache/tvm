@@ -38,9 +38,9 @@ def test_int_intrin(target, dev, dtype):
     for tvm_intrin, np_func in test_funcs:
         n = 128
 
-        @I.ir_module
+        @I.ir_module(s_tir=True)
         class Module:
-            @T.prim_func
+            @T.prim_func(s_tir=True)
             def main(
                 A: T.Buffer((n,), dtype),
                 B: T.Buffer((n,), dtype),
