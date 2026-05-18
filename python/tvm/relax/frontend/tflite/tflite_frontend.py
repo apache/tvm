@@ -285,6 +285,7 @@ class OperatorConverter:
                 self._convert_stablehlo_binary, relax_op=_op.power
             ),
             "STABLEHLO_REDUCE": self._convert_stablehlo_reduce,
+            "STABLEHLO_REDUCE_WINDOW": self._convert_stablehlo_reduce_window,
             "STABLEHLO_REMAINDER": self._convert_stablehlo_remainder,
             "STABLEHLO_RSQRT": functools.partial(self._convert_stablehlo_unary, relax_op=_op.rsqrt),
             "STABLEHLO_SELECT": functools.partial(
@@ -1565,16 +1566,18 @@ class OperatorConverter:
 
         return body_subgraph.Operators(0)
 
-    def _check_stablehlo_reduce_init(self, init_tensor, reducer_name):
+    def _check_stablehlo_reduce_init(
+        self, init_tensor, reducer_name, parent_op_name="STABLEHLO_REDUCE"
+    ):
         """Validate that the StableHLO reduce init value matches the Relax identity."""
         if self.has_expr(init_tensor.tensor_idx):
             raise tvm.error.OpNotImplemented(
-                "STABLEHLO_REDUCE with dynamic init values is not supported"
+                f"{parent_op_name} with dynamic init values is not supported"
             )
 
         init_value = np.asarray(self.get_tensor_value(init_tensor))
         if init_value.shape not in [(), (1,)]:
-            raise tvm.error.OpNotImplemented("STABLEHLO_REDUCE requires scalar init values")
+            raise tvm.error.OpNotImplemented(f"{parent_op_name} requires scalar init values")
 
         dtype = init_value.dtype
         scalar = init_value.item()
@@ -1598,12 +1601,12 @@ class OperatorConverter:
                 is_identity = False
         else:
             raise tvm.error.OpNotImplemented(
-                f"STABLEHLO_REDUCE reducer {reducer_name} is not supported"
+                f"{parent_op_name} reducer {reducer_name} is not supported"
             )
 
         if not is_identity:
             raise tvm.error.OpNotImplemented(
-                "STABLEHLO_REDUCE init value must match the reducer identity"
+                f"{parent_op_name} init value must match the reducer identity"
             )
 
     def _convert_stablehlo_reduce(self, op):
@@ -1635,6 +1638,85 @@ class OperatorConverter:
         self._check_stablehlo_reduce_init(input_tensors[1], reducer_name)
         data = self.get_tensor_expr(input_tensors[0])
         return self.bb.normalize(reducers[reducer_name](data, axis=dimensions, keepdims=False))
+
+    def _convert_stablehlo_reduce_window(self, op):
+        """Convert the NHWC 2D max-pool STABLEHLO_REDUCE_WINDOW subset."""
+        from tflite.StablehloReduceWindowOptions import StablehloReduceWindowOptions
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+        assert len(self.get_output_tensors(op)) == 1
+
+        opts = self._get_stablehlo_options(op, StablehloReduceWindowOptions)
+        body_op = self._get_stablehlo_simple_body_op(
+            int(opts.BodySubgraphIndex()), "STABLEHLO_REDUCE_WINDOW", 2
+        )
+        reducer_name = self.get_op_code_str(body_op)
+        if reducer_name != "STABLEHLO_MAXIMUM":
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_REDUCE_WINDOW only supports MAXIMUM reducer windows"
+            )
+        self._check_stablehlo_reduce_init(
+            input_tensors[1], reducer_name, "STABLEHLO_REDUCE_WINDOW"
+        )
+
+        data_shape = self._get_static_tensor_shape(input_tensors[0], "STABLEHLO_REDUCE_WINDOW")
+        if len(data_shape) != 4:
+            raise tvm.error.OpNotImplemented("STABLEHLO_REDUCE_WINDOW only supports 4D input")
+
+        window_dimensions = self._get_stablehlo_i64_vector(opts.WindowDimensionsAsNumpy(), [])
+        window_strides = self._get_stablehlo_i64_vector(
+            opts.WindowStridesAsNumpy(), [1] * len(window_dimensions)
+        )
+        base_dilations = self._get_stablehlo_i64_vector(
+            opts.BaseDilationsAsNumpy(), [1] * len(window_dimensions)
+        )
+        window_dilations = self._get_stablehlo_i64_vector(
+            opts.WindowDilationsAsNumpy(), [1] * len(window_dimensions)
+        )
+        padding = self._get_stablehlo_i64_vector(
+            opts.PaddingAsNumpy(), [0] * (2 * len(window_dimensions))
+        )
+
+        if (
+            len(window_dimensions) != 4
+            or len(window_strides) != 4
+            or len(base_dilations) != 4
+            or len(window_dilations) != 4
+            or len(padding) != 8
+        ):
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_REDUCE_WINDOW only supports rank-4 window attributes"
+            )
+        if window_dimensions[0] != 1 or window_dimensions[3] != 1:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_REDUCE_WINDOW only supports pooling over spatial dimensions"
+            )
+        if window_strides[0] != 1 or window_strides[3] != 1:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_REDUCE_WINDOW only supports unit batch/channel strides"
+            )
+        if base_dilations != [1, 1, 1, 1]:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_REDUCE_WINDOW with base dilation is not supported"
+            )
+        if padding[0] != 0 or padding[1] != 0 or padding[6] != 0 or padding[7] != 0:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_REDUCE_WINDOW only supports spatial padding"
+            )
+
+        data = self.get_tensor_expr(input_tensors[0])
+        return self.bb.normalize(
+            relax.op.nn.max_pool2d(
+                data,
+                pool_size=[window_dimensions[1], window_dimensions[2]],
+                strides=[window_strides[1], window_strides[2]],
+                padding=[padding[2], padding[4], padding[3], padding[5]],
+                dilation=[window_dilations[1], window_dilations[2]],
+                layout="NHWC",
+                out_layout="NHWC",
+            )
+        )
 
     def _convert_stablehlo_sort(self, op):
         """Convert the single-input STABLEHLO_SORT subset to Relax sort."""

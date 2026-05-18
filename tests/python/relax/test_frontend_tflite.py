@@ -3687,6 +3687,7 @@ _tfl_stablehlo_pad_opts = _get_tflite_schema_module("StablehloPadOptions")
 _tfl_stablehlo_dyn_slice_opts = _get_tflite_schema_module("StablehloDynamicSliceOptions")
 _tfl_stablehlo_gather_opts = _get_tflite_schema_module("StablehloGatherOptions")
 _tfl_stablehlo_reduce_opts = _get_tflite_schema_module("StablehloReduceOptions")
+_tfl_stablehlo_reduce_window_opts = _get_tflite_schema_module("StablehloReduceWindowOptions")
 _tfl_stablehlo_sort_opts = _get_tflite_schema_module("StablehloSortOptions")
 _tfl_dimension_metadata = _get_tflite_schema_module("DimensionMetadata")
 _tfl_fully_connected_options = _get_tflite_schema_module("FullyConnectedOptions")
@@ -4095,6 +4096,118 @@ def _build_stablehlo_sort_model(comparison_direction, is_stable=False):
     )
 
 
+def _build_stablehlo_reduce_window_model(
+    reducer_name="STABLEHLO_MAXIMUM",
+    init_value=-np.inf,
+    base_dilations=None,
+):
+    """Build an NHWC 2D STABLEHLO_REDUCE_WINDOW model."""
+    builder = flatbuffers.Builder(1024)
+    if base_dilations is None:
+        base_dilations = [1, 1, 1, 1]
+
+    window_dimensions_vec = _tflite_int64_vector(
+        builder,
+        _tfl_stablehlo_reduce_window_opts.StablehloReduceWindowOptionsStartWindowDimensionsVector,
+        [1, 2, 2, 1],
+    )
+    window_strides_vec = _tflite_int64_vector(
+        builder,
+        _tfl_stablehlo_reduce_window_opts.StablehloReduceWindowOptionsStartWindowStridesVector,
+        [1, 2, 2, 1],
+    )
+    base_dilations_vec = _tflite_int64_vector(
+        builder,
+        _tfl_stablehlo_reduce_window_opts.StablehloReduceWindowOptionsStartBaseDilationsVector,
+        base_dilations,
+    )
+    window_dilations_vec = _tflite_int64_vector(
+        builder,
+        _tfl_stablehlo_reduce_window_opts.StablehloReduceWindowOptionsStartWindowDilationsVector,
+        [1, 1, 1, 1],
+    )
+    padding_vec = _tflite_int64_vector(
+        builder,
+        _tfl_stablehlo_reduce_window_opts.StablehloReduceWindowOptionsStartPaddingVector,
+        [0, 0, 0, 0, 0, 0, 0, 0],
+    )
+
+    _tfl_stablehlo_reduce_window_opts.StablehloReduceWindowOptionsStart(builder)
+    _tfl_stablehlo_reduce_window_opts.StablehloReduceWindowOptionsAddWindowDimensions(
+        builder, window_dimensions_vec
+    )
+    _tfl_stablehlo_reduce_window_opts.StablehloReduceWindowOptionsAddWindowStrides(
+        builder, window_strides_vec
+    )
+    _tfl_stablehlo_reduce_window_opts.StablehloReduceWindowOptionsAddBaseDilations(
+        builder, base_dilations_vec
+    )
+    _tfl_stablehlo_reduce_window_opts.StablehloReduceWindowOptionsAddWindowDilations(
+        builder, window_dilations_vec
+    )
+    _tfl_stablehlo_reduce_window_opts.StablehloReduceWindowOptionsAddPadding(
+        builder, padding_vec
+    )
+    _tfl_stablehlo_reduce_window_opts.StablehloReduceWindowOptionsAddBodySubgraphIndex(
+        builder, 1
+    )
+    reduce_window_opts = _tfl_stablehlo_reduce_window_opts.StablehloReduceWindowOptionsEnd(
+        builder
+    )
+
+    reduce_window_builtin = _get_stablehlo_builtin_operator("STABLEHLO_REDUCE_WINDOW")
+    reducer_builtin = _get_stablehlo_builtin_operator(reducer_name)
+    reduce_window_code = _build_operator_code(builder, reduce_window_builtin)
+    reducer_code = _build_operator_code(builder, reducer_builtin)
+
+    main_tensors = [
+        _build_tensor(builder, 0, [1, 4, 4, 1]),
+        _build_tensor(builder, 1, []),
+        _build_tensor(builder, 2, [1, 2, 2, 1]),
+    ]
+    reduce_window_op = _build_operator(
+        builder,
+        0,
+        [0, 1],
+        [2],
+        builtin_options2_type=_tfl_builtin_options2.StablehloReduceWindowOptions,
+        builtin_options2=reduce_window_opts,
+    )
+    main_subgraph = _build_subgraph(
+        builder,
+        tensors=main_tensors,
+        operators=[reduce_window_op],
+        inputs=[0],
+        outputs=[2],
+    )
+
+    body_tensors = [_build_tensor(builder, buffer_idx, []) for buffer_idx in range(3, 6)]
+    reducer_op = _build_operator(builder, 1, [0, 1], [2])
+    body_subgraph = _build_subgraph(
+        builder,
+        tensors=body_tensors,
+        operators=[reducer_op],
+        inputs=[0, 1],
+        outputs=[2],
+    )
+
+    buffers = [
+        _build_buffer(builder),
+        _build_buffer(builder, np.array(init_value, dtype=np.float32).tobytes()),
+        _build_buffer(builder),
+        _build_buffer(builder),
+        _build_buffer(builder),
+        _build_buffer(builder),
+    ]
+    return _finish_tflite_model(
+        builder,
+        subgraph=main_subgraph,
+        extra_subgraphs=[body_subgraph],
+        operator_codes=[reduce_window_code, reducer_code],
+        buffers=buffers,
+    )
+
+
 def _build_stablehlo_typed_binary_model(*, builtin_name, tensor_type):
     """Build a minimal TFLite StableHLO binary model with the requested tensor type."""
     builder = flatbuffers.Builder(1024)
@@ -4309,6 +4422,58 @@ def test_stablehlo_sort_stable_unsupported():
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
 
     with pytest.raises(tvm.error.OpNotImplemented, match="stable sort"):
+        from_tflite(tflite_model)
+
+
+def test_stablehlo_reduce_window_max_pool2d():
+    """TFLite StableHLO REDUCE_WINDOW max reducer lowers to NHWC max_pool2d."""
+    mod = _load_model_from_buffer(_build_stablehlo_reduce_window_model())
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((1, 4, 4, 1), dtype="float32"),
+        ) -> R.Tensor((1, 2, 2, 1), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((1, 2, 2, 1), dtype="float32") = R.nn.max_pool2d(
+                    x,
+                    pool_size=[2, 2],
+                    strides=[2, 2],
+                    padding=[0, 0, 0, 0],
+                    dilation=[1, 1],
+                    ceil_mode=False,
+                    layout="NHWC",
+                    out_layout="NHWC",
+                )
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_stablehlo_reduce_window_unsupported_reducer():
+    """TFLite StableHLO REDUCE_WINDOW rejects non-max reducers in the pool subset."""
+    buf = _build_stablehlo_reduce_window_model(reducer_name="STABLEHLO_ADD", init_value=0.0)
+    if hasattr(tflite.Model, "Model"):
+        tflite_model = tflite.Model.Model.GetRootAsModel(buf, 0)
+    else:
+        tflite_model = tflite.Model.GetRootAsModel(buf, 0)
+
+    with pytest.raises(tvm.error.OpNotImplemented, match="MAXIMUM"):
+        from_tflite(tflite_model)
+
+
+def test_stablehlo_reduce_window_base_dilation_unsupported():
+    """TFLite StableHLO REDUCE_WINDOW rejects base dilation in the pool subset."""
+    buf = _build_stablehlo_reduce_window_model(base_dilations=[1, 2, 1, 1])
+    if hasattr(tflite.Model, "Model"):
+        tflite_model = tflite.Model.Model.GetRootAsModel(buf, 0)
+    else:
+        tflite_model = tflite.Model.GetRootAsModel(buf, 0)
+
+    with pytest.raises(tvm.error.OpNotImplemented, match="base dilation"):
         from_tflite(tflite_model)
 
 
