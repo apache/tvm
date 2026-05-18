@@ -47,3 +47,4 @@ from .params import (
 from . import disco
 
 from .support import _regex_match
+from tvm_ffi import Shape as ShapeTuple

@@ -38,7 +38,7 @@ def test_const_shape_arg():
             R.func_attr({"relax.force_pure": True})
             return x
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def extra_func(H: T.Buffer(T.int64(4), "int64")):
             """Extra function, checks if the pass preserves it."""
             H[T.int64(1)] = H[T.int64(0)] + T.int64(1)
@@ -65,7 +65,7 @@ def test_const_shape_arg():
             )
             return x
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def extra_func(H: T.Buffer(T.int64(4), "int64")):
             H[T.int64(1)] = H[T.int64(0)] + T.int64(1)
 
@@ -191,7 +191,7 @@ def test_symbolic_compute():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def shape_func(H: T.Buffer(T.int64(4), "int64")):
             # generated compute function
             T.func_attr({"tirx.is_host_func": True})
@@ -525,7 +525,7 @@ def test_return_match_check_with_new_expr():
             )
             return out
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def shape_func(H: T.Buffer(T.int64(2), "int64")):
             # generated compute function
             T.func_attr({"tirx.is_host_func": True})

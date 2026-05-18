@@ -72,6 +72,7 @@ class Optimizer:
     For detailed examples, please see the tutorial.
 
     .. code-block:: python
+
         # Construct the optimizer
         opt = relax.optimizer.SGD(0.1)
 
@@ -195,6 +196,7 @@ class Optimizer:
         gradient descent method with lr = 0.1.
 
         .. code-block:: python
+
             @R.function
             def SGD(
                 params: R.Tuple(R.Tensor((3, 3), "float32"), R.Tensor((3,), "float32")),
@@ -245,6 +247,7 @@ class SGD(Optimizer):
     The returned function of `get_function()` is equivalent to the following numpy code:
 
     .. code-block:: python
+
         def SGD(param_tuple, grad_tuple, state_tuple):
             num_steps = state_tuple[0]
             param_tuple_new, state_tuple_new = [], []
@@ -357,6 +360,7 @@ class MomentumSGD(Optimizer):
     The returned function of `get_function()` is equivalent to the following numpy code:
 
     .. code-block:: python
+
         def MomentumSGD(param_tuple, grad_tuple, state_tuple):
             num_steps = state_tuple[0]
             param_tuple_new, state_tuple_new = [], []
@@ -516,6 +520,7 @@ class Adam(Optimizer):
     The returned function of `get_function()` is equivalent to the following numpy code:
 
     .. code-block:: python
+
         def Adam(param_tuple, grad_tuple, state_tuple):
             num_steps = state_tuple[0]
             num_steps_new = num_steps + 1
@@ -580,6 +585,7 @@ class Adam(Optimizer):
         The state of Adam is
 
         .. code-block:: python
+
             (
                 num_steps,
                 beta_0_prod, # beta0 ** num_steps

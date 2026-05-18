@@ -40,7 +40,7 @@ from ._kernel_common import get_max_num_threads_per_block
 def _kv_cache_transpose_append(num_key_value_heads, head_dim, dtype, page_size: int = 16):
     """Return the TIR function that appends new k/v data to PagedKVCache."""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def tir_kv_cache_transpose_append(
         var_pages: T.handle,
         var_k_data: T.handle,
@@ -77,7 +77,7 @@ def _kv_cache_transpose_append(num_key_value_heads, head_dim, dtype, page_size: 
 def _kv_cache_transpose_append_mla(d_qk: int, dtype, page_size: int = 16):
     """Return the TIR function that appends new compressed KV data to PagedKVCache for MLA."""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def tir_kv_cache_transpose_append_mla(
         var_pages: T.handle,
         var_kv_data: T.handle,
@@ -106,7 +106,7 @@ def _kv_cache_transpose_append_mla(d_qk: int, dtype, page_size: int = 16):
 def _kv_cache_debug_get_kv(num_hidden_layers, num_key_value_heads, head_dim, dtype):
     """Return the TIR function that fetches the k/v data on given positions and layer."""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def tir_kv_cache_debug_get_kv(
         var_pages: T.handle,
         var_position_map: T.handle,
@@ -139,7 +139,7 @@ def _kv_cache_debug_get_kv(num_hidden_layers, num_key_value_heads, head_dim, dty
 def _kv_cache_debug_get_kv_mla(num_hidden_layers, d_qk, dtype):
     """Return the TIR function that fetches the k/v data on given positions and layer."""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def tir_kv_cache_debug_get_kv_mla(
         var_pages: T.handle,
         var_position_map: T.handle,
@@ -169,7 +169,7 @@ def _kv_cache_debug_get_kv_mla(num_hidden_layers, d_qk, dtype):
 def _copy_single_page(num_heads, page_size, head_dim, dtype, target: Target):
     tx = get_max_num_threads_per_block(target)
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def copy_single_page(var_pages: T.handle, src_page_id: T.int64, tgt_page_id: T.int64, copy_length: T.int64):
         T.func_attr({"tirx.is_scheduled": True})
         num_pages = T.int32()
@@ -192,7 +192,7 @@ def _copy_single_page(num_heads, page_size, head_dim, dtype, target: Target):
 def _copy_single_page_mla(page_size, head_dim, dtype, target: Target):
     tx = get_max_num_threads_per_block(target)
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def copy_single_page_mla(var_pages: T.handle, src_page_id: T.int64, tgt_page_id: T.int64, copy_length: T.int64):
         T.func_attr({"tirx.is_scheduled": True})
         num_pages = T.int32()
@@ -213,7 +213,7 @@ def _copy_single_page_mla(page_size, head_dim, dtype, target: Target):
 def _copy_single_page_cpu(num_heads, page_size, head_dim, dtype):
     tx = 1
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def copy_single_page_cpu(var_pages: T.handle, src_page_id: T.int64, tgt_page_id: T.int64, copy_length: T.int64):
         T.func_attr({"tirx.is_scheduled": True})
         num_pages = T.int32()
@@ -235,7 +235,7 @@ def _copy_single_page_cpu(num_heads, page_size, head_dim, dtype):
 def _compact_kv_copy(num_heads, head_dim, dtype, target: Target, page_size: int = 16):
     tx = get_max_num_threads_per_block(target)
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def compact_kv_copy(var_pages: T.handle, var_copy_length_indptr: T.handle, var_copy_src_dst_pos: T.handle, batch_size: T.int32):
         T.func_attr({"tirx.is_scheduled": True})
         num_pages = T.int32()
@@ -266,7 +266,7 @@ def _compact_kv_copy(num_heads, head_dim, dtype, target: Target, page_size: int 
 def _compact_kv_copy_cpu(num_heads, head_dim, dtype, page_size: int = 16):
     tx = 8
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def compact_kv_copy_cpu(var_pages: T.handle, var_copy_length_indptr: T.handle, var_copy_src_dst_pos: T.handle, batch_size: T.int32):
         T.func_attr({"tirx.is_scheduled": True})
         num_pages = T.int32()

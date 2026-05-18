@@ -20,29 +20,29 @@ import tvm
 from tvm.script import tirx as T
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def bad_load(A: T.Buffer((2, 3), "float32"), B: T.Buffer((3, 2), "float32")):
     B[0, 0] = A[2, 2]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def bad_load_loop(A: T.Buffer((2, 3), "float32"), B: T.Buffer((3, 2), "float32")):
     for i in range(3):
         B[i, 0] = A[i, 2]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def bad_store(A: T.Buffer((2, 3), "float32"), B: T.Buffer((3, 2), "float32")):
     B[0, 3] = A[1, 2]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def bad_store_loop(A: T.Buffer((2, 3), "float32"), B: T.Buffer((3, 2), "float32")):
     for i in range(3):
         B[0, i] = A[1, i]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def unknown_bounds(A: T.Buffer((2, 3), "float32"), B: T.Buffer((3, 2), "float32"), N: T.int32):
     for i in range(3):
         B[0, N] = A[1, i]

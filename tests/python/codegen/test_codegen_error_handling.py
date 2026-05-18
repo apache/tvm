@@ -40,7 +40,7 @@ codegen_target = tvm.testing.parameter("llvm", "c")
 def test_wrong_argument_count_error(codegen_target):
     """Wrong argument count produces TypeError with function signature."""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def func(a: T.handle, b: T.handle):
         n0 = T.int64()
         A = T.match_buffer(a, (n0,), "float32")
@@ -69,7 +69,7 @@ def test_wrong_argument_count_error(codegen_target):
 def test_type_mismatch_non_tensor(codegen_target):
     """Passing a non-tensor where a tensor is expected raises TypeError."""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def func(a: T.handle, b: T.handle):
         n0 = T.int64()
         A = T.match_buffer(a, (n0,), "float32")
@@ -99,7 +99,7 @@ def test_type_mismatch_non_tensor(codegen_target):
 def test_shape_mismatch_shared_variable(codegen_target):
     """b has different shape than a when they share symbolic variable n0."""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def func(a: T.handle, b: T.handle):
         n0 = T.int64()
         A = T.match_buffer(a, (n0,), "float32")
@@ -127,7 +127,7 @@ def test_shape_mismatch_shared_variable(codegen_target):
 def test_invalid_shape_fixed(codegen_target):
     """Passing wrong shape for a fixed buffer dimension raises ValueError."""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def func(a: T.Buffer((128,), "float32"), b: T.Buffer((128,), "float32")):
         for i in range(128):
             b[i] = a[i] + T.float32(1)
@@ -156,7 +156,7 @@ def test_invalid_shape_fixed(codegen_target):
 def test_ndim_mismatch_error(codegen_target):
     """ndim mismatch produces ValueError with function signature."""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def func(a: T.Buffer((4, 8), "float32"), b: T.Buffer((4, 8), "float32")):
         for i, j in T.grid(4, 8):
             b[i, j] = a[i, j]
@@ -185,7 +185,7 @@ def test_ndim_mismatch_error(codegen_target):
 def test_dtype_mismatch_error(codegen_target):
     """dtype mismatch produces TypeError with function signature."""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def func(a: T.Buffer((8,), "float32"), b: T.Buffer((8,), "float32")):
         for i in range(8):
             b[i] = a[i]
@@ -215,7 +215,7 @@ def test_dtype_mismatch_error(codegen_target):
 def test_data_alignment_error(codegen_target):
     """Misaligned buffer data pointer raises ValueError."""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def func(a: T.Buffer((128,), "float32"), b: T.Buffer((128,), "float32")):
         for i in range(128):
             b[i] = a[i] + T.float32(1)
@@ -247,7 +247,7 @@ def test_data_alignment_error(codegen_target):
 def test_strides_mismatch_transposed(codegen_target):
     """Transposed (non-compact) strides raise ValueError."""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def func(a: T.Buffer((128, 128), "float32"), b: T.Buffer((128, 128), "float32")):
         for i, j in T.grid(128, 128):
             b[i, j] = a[i, j] + T.float32(1)
@@ -280,7 +280,7 @@ def test_strides_mismatch_transposed(codegen_target):
 def test_device_mismatch_error():
     """Passing GPU tensor to CPU function raises ValueError."""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def func(a: T.Buffer((128,), "float32"), b: T.Buffer((128,), "float32")):
         for i in range(128):
             b[i] = a[i] + T.float32(1)
@@ -310,7 +310,7 @@ def test_device_mismatch_error():
 def test_type_mismatch_int_parameter(codegen_target):
     """Passing a tensor where an int is expected raises TypeError."""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def func(x: T.int32) -> T.int32:
         if x > 0:
             return 10
@@ -333,7 +333,7 @@ def test_type_mismatch_int_parameter(codegen_target):
 def test_type_mismatch_float_parameter(codegen_target):
     """Passing a tensor where a float is expected raises TypeError."""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def func(x: T.float32) -> T.int32:
         if x > T.float32(0):
             return 1
@@ -356,7 +356,7 @@ def test_type_mismatch_float_parameter(codegen_target):
 def test_type_mismatch_bool_parameter(codegen_target):
     """Passing a tensor where a bool is expected raises TypeError."""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def func(x: T.bool) -> T.int32:
         if x:
             return 1
@@ -388,7 +388,7 @@ def test_forward_reference_symbolic_shape(codegen_target):
     message uses rendered access paths (e.g. "B.shape[0] + 1") for shape checks.
     """
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def func(a: T.handle, b: T.handle):
         batch_size = T.int64()
         A = T.match_buffer(a, (batch_size + 1,), "int32")
@@ -424,7 +424,7 @@ def test_forward_reference_symbolic_shape(codegen_target):
 def test_invalid_arguments_mixed_params(codegen_target):
     """Mixed bool + tensor function: type, dtype, and shape errors."""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def func(a0: T.bool, a1: T.Buffer([10], "float32")) -> T.int32:
         return 0
 

@@ -301,8 +301,9 @@ if RUN_EXAMPLE:
 #
 # **Deployment Checklist:**
 # When moving to another host (via RPC or SCP), you must copy **both** files:
-#   1. ``mlp_cpu.so`` (or ``mlp_cuda.so`` for GPU) - The compiled model code
-#   2. ``model_params.npz`` - The model parameters (serialized as NumPy arrays)
+#
+# 1. ``mlp_cpu.so`` (or ``mlp_cuda.so`` for GPU) - the compiled model code
+# 2. ``model_params.npz`` - the model parameters, serialized as NumPy arrays
 #
 # The remote machine needs both files in the same directory. The script above
 # assumes they are in ``relax_export_artifacts/`` relative to the script location.
@@ -363,21 +364,21 @@ if RUN_EXAMPLE:
 # FAQ
 # ---
 # **Can I run the ``.so`` as a standalone executable (like ``./mlp_cpu.so``)?**
-#     No. The ``.so`` file is a shared library, not a standalone executable binary.
-#     You cannot run it directly from the terminal. It must be loaded through a TVM
-#     runtime program (as shown in the "Loading and Running" section above). The
-#     ``.so`` bundles VM bytecode and compiled kernels, but still requires the TVM
-#     runtime to execute.
+# No. The ``.so`` file is a shared library, not a standalone executable binary.
+# You cannot run it directly from the terminal. It must be loaded through a TVM
+# runtime program (as shown in the "Loading and Running" section above). The
+# ``.so`` bundles VM bytecode and compiled kernels, but still requires the TVM
+# runtime to execute.
 #
 # **Which devices can run the exported library?**
-#     The target must match the ISA you compiled for (``llvm`` in this example).
-#     As long as the target triple, runtime ABI, and available devices line up,
-#     you can move the artifact between machines. For heterogeneous builds (CPU
-#     plus GPU), ship the extra device libraries as well.
+# The target must match the ISA you compiled for (``llvm`` in this example).
+# As long as the target triple, runtime ABI, and available devices line up,
+# you can move the artifact between machines. For heterogeneous builds (CPU
+# plus GPU), ship the extra device libraries as well.
 #
 # **What about the ``.params`` and ``metadata.json`` files?**
-#     These auxiliary files are only generated in specific configurations. In this
-#     tutorial, since we pass parameters at runtime, they are not generated. When
-#     they do appear, they may be kept alongside the ``.so`` for inspection, but
-#     the essential content is typically embedded in the shared object itself, so
-#     deploying the ``.so`` alone is usually sufficient.
+# These auxiliary files are only generated in specific configurations. In this
+# tutorial, since we pass parameters at runtime, they are not generated. When
+# they do appear, they may be kept alongside the ``.so`` for inspection, but
+# the essential content is typically embedded in the shared object itself, so
+# deploying the ``.so`` alone is usually sufficient.

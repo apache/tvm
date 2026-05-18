@@ -19,6 +19,7 @@
 #include <cuda.h>
 #include <nvshmem.h>
 #include <nvshmemx.h>
+#include <tvm/ffi/extra/c_env_api.h>
 #include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -137,13 +138,25 @@ void NVSHMEMXCumoduleInit(void* cuModule) {
   }
 }
 
+void NVSHMEMBarrierAllOnStream(TVMStreamHandle stream) {
+  CUstream strm = static_cast<CUstream>(stream);
+  nvshmemx_barrier_all_on_stream(strm);
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.disco.nvshmem.init_nvshmem_uid", InitNVSHMEMUID)
       .def("runtime.disco.nvshmem.init_nvshmem", InitNVSHMEM)
       .def("runtime.disco.nvshmem.init_nvshmem_wrapper", InitNVSHMEMWrapper)
-      .def("runtime.nvshmem.cumodule_init", NVSHMEMXCumoduleInit);
+      .def("runtime.disco.nvshmem.barrier_all_on_stream", NVSHMEMBarrierAllOnStream)
+      .def("runtime.nvshmem.cumodule_init", NVSHMEMXCumoduleInit)
+      .def("runtime.disco.nvshmem.barrier_all_on_current_stream", []() {
+        int device_id;
+        CUDA_CALL(cudaGetDevice(&device_id));
+        TVMStreamHandle stream = TVMFFIEnvGetStream(kDLCUDA, device_id);
+        NVSHMEMBarrierAllOnStream(stream);
+      });
 }
 
 }  // namespace runtime

@@ -20,7 +20,7 @@
 
 import tvm
 from tvm import s_tir, tirx
-from tvm.tirx import pipeline as tir_pipeline
+from tvm.tirx import compilation_pipeline as tir_pipeline
 
 
 def default_tir_pipeline():

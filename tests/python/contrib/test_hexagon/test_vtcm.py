@@ -26,7 +26,7 @@ from tvm.script import tirx as T
 from .infrastructure import get_hexagon_target
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def scale_by_two(buffer_a: T.Buffer((8192,), "int8"), buffer_c: T.Buffer((8192,), "int8")):
     for i in T.serial(
         0,

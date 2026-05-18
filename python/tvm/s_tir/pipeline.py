@@ -20,7 +20,9 @@
 
 import tvm
 from tvm import s_tir, tirx
-from tvm.tirx import pipeline as tir_pipeline
+from tvm.tirx import compilation_pipeline as tir_pipeline
+
+tir = tirx  # alias for backward compat
 
 
 def default_s_tir_pipeline():
@@ -119,7 +121,7 @@ def default_s_tir_pipeline():
         mod = tvm.ir.transform.Sequential(passes)(mod)
         return mod
 
-    return _pipeline
+    return _pipeline, finalize_host_passes, finalize_device_passes
 
 
 def finalize_host_passes():  # pylint: disable=unused-argument
@@ -130,6 +132,17 @@ def finalize_host_passes():  # pylint: disable=unused-argument
         tirx.transform.LowerIntrin(),
     ]
     return tvm.ir.transform.Sequential(host_pass_list)
+
+
+def finalize_device_passes():  # pylint: disable=unused-argument
+    """The default finalization passes for TIR backend."""
+    device_pass_list = [
+        tir.transform.LowerWarpMemory(),
+        tir.transform.Simplify(),
+        tir.transform.LowerCustomDatatypes(),
+        tir.transform.LowerIntrin(),
+    ]
+    return tvm.ir.transform.Sequential(device_pass_list)
 
 
 tir_pipeline.PIPELINE_MAP["s_tir"] = default_s_tir_pipeline

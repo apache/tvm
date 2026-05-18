@@ -42,11 +42,11 @@
 #include "cutlass/gemm/kernel/gemm_universal.hpp"
 // clang-format on
 
-#define CUTLASS_CHECK(status)                                       \
-  {                                                                 \
-    cutlass::Status error = status;                                 \
-    TVM_FFI_CHECK(error == cutlass::Status::kSuccess, RuntimeError) \
-        << "Got cutlass error: " << cutlassGetStatusString(error);  \
+#define CUTLASS_CHECK(status)                                      \
+  {                                                                \
+    cutlass::Status error = status;                                \
+    TVM_FFI_ICHECK(error == cutlass::Status::kSuccess)             \
+        << "Got cutlass error: " << cutlassGetStatusString(error); \
   }
 
 using namespace cute;
@@ -158,7 +158,7 @@ struct CutlassGroupGemmRunner {
                                        hw_info};
     Gemm gemm_op;
     CUTLASS_CHECK(gemm_op.can_implement(arguments));
-    TVM_FFI_CHECK_GE(workspace_size, gemm_op.get_workspace_size(arguments), RuntimeError);
+    TVM_FFI_ICHECK_GE(workspace_size, gemm_op.get_workspace_size(arguments));
     CUTLASS_CHECK(gemm_op.initialize(arguments, workspace, stream));
     CUTLASS_CHECK(gemm_op.run(stream));
   }

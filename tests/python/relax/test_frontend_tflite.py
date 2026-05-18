@@ -1,3 +1,8 @@
+# ruff: noqa: E402
+import pytest
+
+pytest.importorskip("tensorflow", reason="tensorflow not available")
+
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -734,6 +739,18 @@ def test_swish():
             return gv
 
     verify(TfInput, Expected)
+
+
+def test_prelu_constant_alpha():
+    alpha_init = tf.keras.initializers.Constant(np.linspace(0.1, 0.3, 30, dtype=np.float32))
+    prelu = tf.keras.layers.PReLU(alpha_initializer=alpha_init)
+
+    class TfInput(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
+        def func(self, x):
+            return prelu(x)
+
+    verify(TfInput)
 
 
 def test_fill():
@@ -2400,8 +2417,8 @@ def _convert_detection_postprocess_with_options(
     converter.exp_tab = tflite_frontend.ExprTable()
     converter.get_input_tensors = lambda op: inputs
     converter.get_expr = lambda tensor_idx: {0: loc, 1: cls}[tensor_idx]
-    converter.get_tensor_value = (
-        lambda tensor: _DETECTION_POSTPROCESS_ANCHORS if tensor.tensor_idx == 2 else None
+    converter.get_tensor_value = lambda tensor: (
+        _DETECTION_POSTPROCESS_ANCHORS if tensor.tensor_idx == 2 else None
     )
     converter.get_tensor_type_str = lambda tensor_type: "float32"
     op = _StubDetectionPostprocessOp(custom_options)

@@ -65,7 +65,7 @@ def test_infer_concrete_shape_error_when_uninferrable():
 
 @I.ir_module
 class AddModuleSymbolic(BasePyModule):
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def add_tir(var_x: T.handle, var_y: T.handle, var_out: T.handle):
         T.func_attr({"global_symbol": "add_tir"})
         n = T.int64()
@@ -195,7 +195,7 @@ def test_infer_concrete_shape_wrong_ndim():
 
 @I.ir_module
 class MatrixModuleSymbolic(BasePyModule):
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def matmul_tir(var_a: T.handle, var_b: T.handle, var_c: T.handle):
         T.func_attr({"global_symbol": "matmul_tir"})
         m = T.int64()

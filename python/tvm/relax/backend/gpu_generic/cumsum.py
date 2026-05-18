@@ -95,7 +95,9 @@ def gpu_2d_continuous_cumsum(
                     shared_buf = T.sblock_alloc_buffer((block_elem,), out_dtype, scope="shared")
                     for ty in T.thread_binding(TY, thread="threadIdx.y"):
                         for tx in T.thread_binding(TX, thread="threadIdx.x"):
-                            tx_idx = bx * block_elem + ty * warp_elem + tx * thread_elem
+                            tx_idx: T.let[T.int64] = (
+                                bx * block_elem + ty * warp_elem + tx * thread_elem
+                            )
                             # Load data from global memory
                             for i in T.vectorized(N):
                                 local_buf[i] = T.if_then_else(
@@ -112,7 +114,7 @@ def gpu_2d_continuous_cumsum(
                             # Inclusive scan inside warp
                             for i in T.unroll(LOG_TX):
                                 for j in T.vectorized(N):
-                                    idx: T.int64 = ty * warp_elem + tx * thread_elem
+                                    idx: T.let[T.int64] = ty * warp_elem + tx * thread_elem
                                     if tx >= (1 << i):
                                         shared_buf[idx + j] += shared_buf[
                                             idx - (1 << i) * thread_elem + N - 1
@@ -121,11 +123,11 @@ def gpu_2d_continuous_cumsum(
                             for i in T.unroll(1, TY):
                                 for j in T.vectorized(N):
                                     if ty == 0:
-                                        idx: T.int64 = i * warp_elem + tx * thread_elem
+                                        idx: T.let[T.int64] = i * warp_elem + tx * thread_elem
                                         shared_buf[idx + j] += shared_buf[i * warp_elem - 1]
                             # Write sum of block to global memory
                             for i in T.vectorized(N):
-                                idx: T.int64 = ty * warp_elem + tx * thread_elem + i
+                                idx: T.let[T.int64] = ty * warp_elem + tx * thread_elem + i
                                 if bx * block_elem + idx < cur_len:
                                     output[by, src_offset + bx * block_elem + idx] = shared_buf[idx]
                             if tx == 0 and ty == 0:
@@ -146,26 +148,28 @@ def gpu_2d_continuous_cumsum(
                 for ty in T.thread_binding(TY, thread="threadIdx.y"):
                     for tx in T.thread_binding(TX, thread="threadIdx.x"):
                         for i in T.serial(N):
-                            idx: T.int64 = bx * block_elem + ty * warp_elem + i * TX + tx
+                            idx: T.let[T.int64] = bx * block_elem + ty * warp_elem + i * TX + tx
                             if idx < cur_len:
                                 output[by, out_offset + idx] += T.if_then_else(
                                     bx > 0, source[by, src_offset + bx - 1], 0
                                 )
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def cumsum(var_a: T.handle, var_out: T.handle):
         T.func_attr({"tirx.is_scheduled": True})  # prevent further scheduling
         m, n = T.int64(), T.int64()
         A = T.match_buffer(var_a, [m, n], dtype=in_dtype)
         Out = T.match_buffer(var_out, [m, n], dtype=out_dtype)
         Tmp = T.alloc_buffer([m, n], dtype=out_dtype)
-        total_rounds = T.Cast("int64", T.ceil(T.log2(T.Cast("float32", n)))) // LOG_BLOCK_N
+        total_rounds: T.let[T.int64] = (
+            T.Cast("int64", T.ceil(T.log2(T.Cast("float32", n)))) // LOG_BLOCK_N
+        )
 
         block_inclusive_inside_block(
             m, n, A, Out, Tmp, src_offset=T.int64(0), tmp_offset=T.int64(0)
         )
         for i in range(total_rounds):
-            cur_len = T.ceildiv(n, 1 << (LOG_BLOCK_N * (i + 1)))
+            cur_len: T.let[T.int64] = T.ceildiv(n, 1 << (LOG_BLOCK_N * (i + 1)))
             block_inclusive_inside_block(
                 m,
                 cur_len,
@@ -176,8 +180,8 @@ def gpu_2d_continuous_cumsum(
                 tmp_offset=(i + 1) * T.ceildiv(n, block_elem),
             )
         for i in range(total_rounds - 1):
-            real_idx = total_rounds - 1 - i - 1
-            cur_len = T.ceildiv(n, 1 << (LOG_BLOCK_N * (real_idx + 1)))
+            real_idx: T.let[T.int64] = total_rounds - 1 - i - 1
+            cur_len: T.let[T.int64] = T.ceildiv(n, 1 << (LOG_BLOCK_N * (real_idx + 1)))
             update_cross_block(
                 m,
                 cur_len,

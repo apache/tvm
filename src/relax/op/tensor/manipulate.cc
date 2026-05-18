@@ -495,7 +495,7 @@ InferLayoutOutput InferLayoutExpandDims(
       output_layout.push_back(new_layout.at(j++));
     }
   }
-  return InferLayoutOutput({existing_layout}, {LayoutDecision(Layout(output_layout))},
+  return InferLayoutOutput({existing_layout}, {LayoutDecision(SLayout(output_layout))},
                            Attrs(call->attrs));
 }
 
@@ -1387,7 +1387,7 @@ InferLayoutOutput InferLayoutSqueeze(
 
   ffi::ObjectPtr<SqueezeAttrs> new_attrs = ffi::make_object<SqueezeAttrs>(*attrs);
   new_attrs->axis = new_axis;
-  return InferLayoutOutput({existing_layout}, {LayoutDecision(Layout(output_layout))},
+  return InferLayoutOutput({existing_layout}, {LayoutDecision(SLayout(output_layout))},
                            Attrs(new_attrs));
 }
 
@@ -1635,7 +1635,7 @@ InferLayoutOutput InferLayoutStack(
   std::string layout_str = layout->layout.name();
   int axis = attrs->axis.defined() ? attrs->axis.value()->value : 0;
   layout_str.insert(static_cast<size_t>(axis), "S");  // Add stack dimension
-  Layout output_layout = Layout(layout_str);
+  SLayout output_layout = SLayout(layout_str);
   output_layouts.push_back(LayoutDecision(output_layout));
 
   ffi::ObjectPtr<StackAttrs> new_attrs = ffi::make_object<StackAttrs>(*attrs);
@@ -1960,8 +1960,8 @@ InferLayoutOutput InferLayoutTile(
 
   // Tile operation repeats data along each axis.
   // When layout changes, we need to transform the repeats array to match the new layout.
-  Layout initial_layout = InitialLayout(ndim);
-  Layout existing_layout_obj = existing_layout->layout;
+  SLayout initial_layout = InitialLayout(ndim);
+  SLayout existing_layout_obj = existing_layout->layout;
 
   // Transform repeats array according to layout change.
   // The repeats array semantics:
@@ -1976,7 +1976,7 @@ InferLayoutOutput InferLayoutTile(
     // Same dimension: reorder repeats according to layout transformation.
     // If len(repeats) < ndim, it's padded with 1s at the beginning.
     for (int i = 0; i < ndim; ++i) {
-      const tirx::LayoutAxis& axis = existing_layout_obj[i];
+      const tirx::SLayoutAxis& axis = existing_layout_obj[i];
       int pos_in_initial = initial_layout.IndexOf(axis);
       TVM_FFI_ICHECK_NE(pos_in_initial, -1) << "Axis not found in initial layout";
       // If len(repeats) < ndim, repeats are right-aligned.
@@ -1998,7 +1998,7 @@ InferLayoutOutput InferLayoutTile(
     }
     // Repeats for existing dimensions need to be permuted.
     for (int i = 0; i < ndim; ++i) {
-      const tirx::LayoutAxis& axis = existing_layout_obj[i];
+      const tirx::SLayoutAxis& axis = existing_layout_obj[i];
       int pos_in_initial = initial_layout.IndexOf(axis);
       TVM_FFI_ICHECK_NE(pos_in_initial, -1) << "Axis not found in initial layout";
       new_repeats.push_back(attrs->repeats[pos_in_initial + num_new_dims]);

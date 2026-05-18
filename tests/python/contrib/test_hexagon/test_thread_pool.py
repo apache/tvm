@@ -34,7 +34,7 @@ class ElemwiseSumIRModule:
     """IRModule definition for elementwise sum"""
 
     # pylint: disable=no-self-argument,invalid-name,missing-function-docstring
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def elemwise_sum_serial(a: T.handle, b: T.handle, c: T.handle, n: T.int32):
         T.func_attr({"global_symbol": "elemwise_sum_serial", "tirx.noalias": True})
         A = T.match_buffer(a, (n,), dtype="float32")
@@ -45,7 +45,7 @@ class ElemwiseSumIRModule:
                 vi = T.axis.spatial(n, i)
                 C[vi] = A[vi] + B[vi]
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def elemwise_sum_parallel(a: T.handle, b: T.handle, c: T.handle, n: T.int32):
         T.func_attr({"global_symbol": "elemwise_sum_parallel", "tirx.noalias": True})
         A = T.match_buffer(a, (n,), dtype="float32")

@@ -37,7 +37,7 @@ from tvm.script import relax as R
 from tvm.script import tirx as T
 
 
-@I.ir_module
+@I.ir_module(s_tir=True)
 class TestPyFuncModule(BasePyModule):
     """Test module with Python functions using @I.pyfunc decorator."""
 
@@ -58,7 +58,7 @@ class TestPyFuncModule(BasePyModule):
         result = torch.nn.functional.dropout(result, p=0.1, training=False)
         return result * 10.0
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def simple_tir_func(
         var_A: T.handle,
         var_B: T.handle,

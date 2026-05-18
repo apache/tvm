@@ -67,9 +67,13 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<PointerType>("", [](PointerType ty, AccessPath ty_p, IRDocsifier d) -> Doc {
       ExprDoc element_type{ffi::UnsafeInit()};
+      TVM_FFI_ICHECK(ty->element_type.defined())
+          << "InternalError: PointerType.element_type is null";
       if (const auto* prim_type = ty->element_type.as<PrimTypeNode>()) {
         element_type = LiteralDoc::DataType(prim_type->dtype,  //
                                             ty_p->Attr("element_type")->Attr("dtype"));
+      } else if (ty->element_type.as<TensorMapTypeNode>()) {
+        return TIR(d, "TensorMap")->Call({});
       } else {
         element_type = d->AsDoc<ExprDoc>(ty->element_type, ty_p->Attr("element_type"));
       }

@@ -36,8 +36,12 @@ fp8_dtype = "float8_e4m3fn"
 ################# Helpers #################
 ###########################################
 def has_flashinfer():
-    """Check if FlashInfer is available"""
+    """Check if FlashInfer is available with the SM100 grouped-gemm symbol."""
     try:
+        from flashinfer.gemm import (  # pylint: disable=import-outside-toplevel,unused-import
+            gen_gemm_sm100_module,
+        )
+
         from tvm.relax.backend.cuda import (  # pylint: disable=import-outside-toplevel
             flashinfer,
         )

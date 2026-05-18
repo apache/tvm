@@ -35,7 +35,7 @@ deep statement-form imports.
 import importlib
 from typing import Any
 
-from . import _core, ir
+from . import _core, ir, tirx
 from ._core import parse
 from .ir import ir_module
 

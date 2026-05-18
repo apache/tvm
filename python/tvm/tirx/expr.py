@@ -259,6 +259,9 @@ class EqualOp(ObjectConvertible, ExprOp):
         """Convert object."""
         return _ffi_api._OpEQ(self.a, self.b, self.span)  # type: ignore
 
+    def __repr__(self) -> str:
+        return f"EqualOp({self.a!r}, {self.b!r})"
+
 
 class NotEqualOp(ObjectConvertible, ExprOp):
     """Deferred NE operator.
@@ -295,6 +298,9 @@ class NotEqualOp(ObjectConvertible, ExprOp):
     def asobject(self) -> PrimExpr:
         """Convert object."""
         return _ffi_api._OpNE(self.a, self.b, self.span)  # type: ignore
+
+    def __repr__(self) -> str:
+        return f"NotEqualOp({self.a!r}, {self.b!r})"
 
 
 class IntImmEnum(ObjectConvertible):

@@ -34,7 +34,7 @@ from tvm.script import tirx as T
 
 @tvm.script.ir_module
 class MatmulModule:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(  # type: ignore
         a: T.handle,
         b: T.handle,
@@ -54,7 +54,7 @@ class MatmulModule:
 
 @tvm.script.ir_module
 class MatmulReluModule:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(  # type: ignore
         a: T.handle,
         b: T.handle,
@@ -79,7 +79,7 @@ class MatmulReluModule:
 
 @tvm.script.ir_module
 class BatchMatmulModule:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(  # type: ignore
         a: T.handle,
         b: T.handle,

@@ -118,9 +118,9 @@ def test_texture_copy(backend, dtype, channel_size, read_width):
     if read_width > lanes:
         return
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class TextureCopy:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((M, N), dtype), B: T.Buffer((M, N), dtype)):
             T.func_attr({"global_symbol": "main"})
             for li, lj in T.grid(M, N):

@@ -17,6 +17,7 @@
 """This file tests advanced emit_te features with help of TVMScript assertion"""
 
 # The tests here depend on tvmscript
+
 import tvm
 from tvm import relax as rx
 from tvm import te, tirx
@@ -41,9 +42,9 @@ def test_emit_te_with_symbolic_arg():
 
     after = bb.get()
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def te_func(
             A: T.Buffer((T.int64(10),), "float32"),
             B: T.Buffer((T.int64(10),), "float32"),
@@ -91,9 +92,9 @@ def test_symbolic_shape_in_prim_value():
 
         return bb.get()
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def te_slice(
             A: T.Buffer([T.int64(16), T.int64(16)], "float32"),
             Output: T.Buffer(T.int64(16), "float32"),
@@ -101,7 +102,7 @@ def test_symbolic_shape_in_prim_value():
         ):
             T.func_attr({"tirx.noalias": True})
 
-            for i in range(A.shape[1]):
+            for i in T.serial(T.int64(0), A.shape[1]):
                 with T.sblock("slice"):
                     vi = T.axis.remap("S", [i])
                     Output[vi] = A[row_index, vi]

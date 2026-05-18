@@ -82,4 +82,17 @@ Target TargetTag::AddTag(ffi::String name, ffi::Map<ffi::String, ffi::Any> confi
   return Target(config);
 }
 
+/**********  Register Trainium target tags  **********/
+
+#define TVM_REGISTER_TAG_AWS_TRN1(Name, Cores)                                       \
+  TVM_REGISTER_TARGET_TAG(Name).set_config({{"kind", ffi::String("trn")},            \
+                                            {"num-cores", Cores},                    \
+                                            {"partition_size", 128},                 \
+                                            {"max_sbuf_size_per_partition", 196608}, \
+                                            {"max_psum_size_per_partition", 16384}});
+
+TVM_REGISTER_TAG_AWS_TRN1("aws/trn1/trn1.2xlarge", 2);
+TVM_REGISTER_TAG_AWS_TRN1("aws/trn1/trn1.32xlarge", 32);
+#undef TVM_REGISTER_TAG_AWS_TRN1
+
 }  // namespace tvm

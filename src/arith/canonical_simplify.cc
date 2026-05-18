@@ -1022,6 +1022,38 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
         return make_zero(a.dtype());
       }
     }
+    // Identity: floordiv(floormod(index, m*n), n) = floormod(floordiv(index, n), m)
+    // Only apply when the raw index is a SumExpr with parts divisible by cval,
+    // so that SeparateDivisibleParts can simplify what SplitDivConst cannot.
+    if (const auto* split_a = a.as<SplitExprNode>()) {
+      if (split_a->lower_factor == 1 && split_a->scale == 1 &&
+          split_a->upper_factor != SplitExprNode::kPosInf && split_a->upper_factor % cval == 0 &&
+          split_a->DivModeCompatibleTo(kFloorDiv)) {
+        PrimExpr raw_index = this->CanonicalMutate(split_a->index);
+        if (const auto* psum = raw_index.as<SumExprNode>()) {
+          SumExpr lhs, extra;
+          SeparateDivisibleParts(psum, cval, &lhs, &extra);
+          if (!lhs->IsZero()) {
+            // Divisible parts exist — the identity helps simplification.
+            int64_t new_mod = split_a->upper_factor / cval;
+            // Compute floordiv(index, cval) using the SumExpr decomposition
+            lhs.CopyOnWrite()->DivideBy(cval);
+            PrimExpr temp = Normalize(extra);
+            if (const auto* pconst = temp.as<IntImmNode>()) {
+              lhs.CopyOnWrite()->AddToSelf(floordiv(pconst->value, cval));
+            } else {
+              if (!(TryCompare(temp, cval) == CompareResult::kLT &&
+                    analyzer_->CanProveGreaterEqual(temp, 0))) {
+                lhs.CopyOnWrite()->AddToSelf(SplitDivConst(ToSplitExpr(temp), cval, kFloorDiv), 1);
+              }
+            }
+            // Apply floormod(floordiv_result, m) to complete the identity
+            PrimExpr div_result = Normalize(lhs);
+            return this->VisitExpr(floormod(div_result, make_const(a.dtype(), new_mod)));
+          }
+        }
+      }
+    }
     return SplitDivConst(ToSplitExpr(std::move(a)), cval, kFloorDiv);
   }
   // normal path

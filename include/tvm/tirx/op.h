@@ -25,8 +25,8 @@
  *   when the type is int32 or int64 for simplifying the index expressions.
  */
 // Acknowledgement: Most operator APIs originate from Halide.
-#ifndef TVM_TIR_OP_H_
-#define TVM_TIR_OP_H_
+#ifndef TVM_TIRX_OP_H_
+#define TVM_TIRX_OP_H_
 
 #include <tvm/ir/expr.h>
 #include <tvm/ir/op.h>
@@ -34,6 +34,8 @@
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/expr.h>
 #include <tvm/tirx/stmt.h>
+#include <tvm/tirx/target_builtin/cuda.h>
+#include <tvm/tirx/target_builtin/trn.h>
 
 #include <algorithm>
 #include <limits>
@@ -43,6 +45,8 @@ namespace tvm {
 
 #define TVM_TIR_REGISTER_OP(OpName) \
   TVM_REGISTER_OP("tirx." OpName).set_attr<TScriptPrinterName>("TScriptPrinterName", OpName)
+
+#define TVM_TIRX_REGISTER_OP(OpName) TVM_TIR_REGISTER_OP(OpName)
 
 // Most common operators can be overloaded by argument type(PrimExpr).
 // So we put them under the root namespace.

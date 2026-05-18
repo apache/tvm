@@ -71,9 +71,10 @@ RelaxModule.show()
 
 @I.ir_module
 class RelaxModuleWithTIR:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def relu(x: T.handle, y: T.handle):
-        n, m = T.int64(), T.int64()
+        n = T.int64()
+        m = T.int64()
         X = T.match_buffer(x, (n, m), "float32")
         Y = T.match_buffer(y, (n, m), "float32")
         for i, j in T.grid(n, m):
@@ -163,9 +164,11 @@ mod.show()
 # Tensor Expression(TE), TensorIR functions or other TVM packed functions.
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def tir_linear(x: T.handle, w: T.handle, b: T.handle, z: T.handle):
-    M, N, K = T.int64(), T.int64(), T.int64()
+    M = T.int64()
+    N = T.int64()
+    K = T.int64()
     X = T.match_buffer(x, (M, K), "float32")
     W = T.match_buffer(w, (N, K), "float32")
     B = T.match_buffer(b, (N,), "float32")

@@ -41,6 +41,7 @@ ALLOW_EXTENSION = {
     "sh",
     "py",
     # configurations
+    "cfg",
     "mk",
     "in",
     "cmake",
@@ -57,6 +58,7 @@ ALLOW_EXTENSION = {
     "rst",
     "css",
     "html",
+    "ipynb",
     # ios
     "pbxproj",
     "plist",
@@ -118,6 +120,9 @@ def filename_allowed(name: str) -> bool:
         return True
 
     if name.startswith("3rdparty"):
+        return True
+
+    if name.startswith(".txdev") or name.startswith(".claude"):
         return True
 
     if name in ALLOW_SPECIFIC_FILE:

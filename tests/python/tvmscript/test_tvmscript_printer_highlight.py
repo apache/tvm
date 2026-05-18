@@ -27,7 +27,7 @@ from tvm.script.highlight import _format, cprint
 def test_highlight_script():
     @tvm.script.ir_module
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(  # type: ignore
             a: T.handle,
             b: T.handle,

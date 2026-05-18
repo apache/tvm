@@ -29,6 +29,8 @@
 #include <utility>
 #include <vector>
 
+#include "../../support/utils.h"
+
 namespace tvm {
 namespace codegen {
 
@@ -54,27 +56,32 @@ enum class DataType : int {
   kUInt32 = 7,
   kInt64 = 8,
   kUInt64 = 9,
-  kFloat8_e4m3 = 10,
-  kFloat8_e5m2 = 11,
-  kFloat16 = 12,
-  kBFloat16 = 13,
-  kFloat16x2 = 14,
-  kFloat32 = 15,
-  kTensorFloat32 = 16,
-  kFloat64 = 17,
-  kBit1 = 18,
-  kBit8 = 19,
-  kBit16 = 20,
-  kBit32 = 21,
-  kBit64 = 22
+  kFloat4_e2m1fn = 10,
+  kFloat6_e2m3fn = 11,
+  kFloat6_e3m2fn = 12,
+  kFloat8_e4m3fn = 13,
+  kFloat8_e4m3fnuz = 14,
+  kFloat8_e5m2 = 15,
+  kFloat8_e8m0fnu = 16,
+  kFloat16 = 17,
+  kBFloat16 = 18,
+  kFloat16x2 = 19,
+  kFloat32 = 20,
+  kTensorFloat32 = 21,
+  kFloat64 = 22,
+  kBit1 = 23,
+  kBit8 = 24,
+  kBit16 = 25,
+  kBit32 = 26,
+  kBit64 = 27,
 };
 
-static const char* dtype_str[] = {".s4",  ".u4",   ".s8",    ".u8",  ".s16",  ".u16",
-                                  ".s32", ".u32",  ".s64",   ".u64", ".e4m3", ".e5m2",
-                                  ".f16", ".bf16", ".f16x2", ".f32", ".tf32", ".f64",
-                                  ".b1",  ".b8",   ".b16",   ".b32", ".b64"};
-static const uint32_t num_bits[] = {4,  4,  8,  8,  16, 16, 32, 32, 64, 64, 8, 8,
-                                    16, 16, 32, 32, 32, 64, 1,  8,  16, 32, 64};
+static const char* dtype_str[] = {".s4",    ".u4",   ".s8",    ".u8",   ".s16",  ".u16",   ".s32",
+                                  ".u32",   ".s64",  ".u64",   ".e2m1", ".e2m3", ".e3m2",  ".e4m3",
+                                  ".ue4m3", ".e5m2", ".ue8m0", ".f16",  ".bf16", ".f16x2", ".f32",
+                                  ".tf32",  ".f64",  ".b1",    ".b8",   ".b16",  ".b32",   ".b64"};
+static const uint32_t num_bits[] = {4, 4, 8, 8,  16, 16, 32, 32, 64, 64, 4, 6,  6,  8,
+                                    7, 8, 8, 16, 16, 32, 32, 32, 64, 1,  8, 16, 32, 64};
 
 /*!
  * \brief Create PTX data type from string.
@@ -100,10 +107,21 @@ inline DataType DTypeFromString(const std::string str) {
     return DataType::kInt64;
   } else if (str == "uint64" || str == ".u64") {
     return DataType::kUInt64;
-  } else if (str == "e4m3" || str == ".e4m3") {
-    return DataType::kFloat8_e4m3;
-  } else if (str == "e5m2" || str == ".e5m2") {
+  } else if (str == "e2m1" || str == ".e2m1" || str == "float4_e2m1fn") {
+    return DataType::kFloat4_e2m1fn;
+  } else if (str == "e2m3" || str == ".e2m3" || str == "float6_e2m3fn") {
+    return DataType::kFloat6_e2m3fn;
+  } else if (str == "e3m2" || str == ".e3m2" || str == "float6_e3m2fn") {
+    return DataType::kFloat6_e3m2fn;
+  } else if (str == "e4m3" || str == ".e4m3" || str == "float8_e4m3fn") {
+    return DataType::kFloat8_e4m3fn;
+  } else if (str == "float8_e4m3fnuz" || str == "float8_e4m3b11fnuz") {
+    return DataType::kFloat8_e4m3fnuz;
+  } else if (str == "e5m2" || str == ".e5m2" || str == "float8_e5m2" || str == "float8_e5m2fn" ||
+             str == "float8_e5m2fnuz") {
     return DataType::kFloat8_e5m2;
+  } else if (str == "ue8m0" || str == ".ue8m0" || str == "float8_e8m0fnu") {
+    return DataType::kFloat8_e8m0fnu;
   } else if (str == "float16" || str == "fp16" || str == ".f16") {
     return DataType::kFloat16;
   } else if (str == "bfloat16" || str == "bf16") {
@@ -131,10 +149,24 @@ inline DataType DTypeFromString(const std::string str) {
   }
 }
 
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def(
+      "tirx.intrinsics.cuda.PTXDTypeFromString",
+      [](const std::string& str) -> int { return static_cast<int>(DTypeFromString(str)); });
+}
+
 /*!
  * \brief Get the string representation of given PTX data type.
  */
 inline std::string DTypeToString(DataType dtype) { return dtype_str[static_cast<int>(dtype)]; }
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def(
+      "tirx.intrinsics.cuda.PTXDTypeToString",
+      [](const int dtype) -> std::string { return DTypeToString(static_cast<DataType>(dtype)); });
+}
 
 /*!
  * \brief Get the number of bits of given PTX data type.
@@ -239,8 +271,8 @@ const MMAConfig valid_mma_configs[] = {
     MMAConfig(16, 8, 128, DataType::kInt4, false, true),
     MMAConfig(16, 8, 64, DataType::kUInt4, false, true),
     MMAConfig(16, 8, 128, DataType::kUInt4, false, true),
-    MMAConfig(16, 8, 32, DataType::kFloat8_e4m3, false, false),
-    MMAConfig(16, 8, 64, DataType::kFloat8_e4m3, false, true),
+    MMAConfig(16, 8, 32, DataType::kFloat8_e4m3fn, false, false),
+    MMAConfig(16, 8, 64, DataType::kFloat8_e4m3fn, false, true),
     MMAConfig(16, 8, 32, DataType::kFloat8_e5m2, false, false),
     MMAConfig(16, 8, 64, DataType::kFloat8_e5m2, false, true),
 };
@@ -276,9 +308,9 @@ void CheckMMADTypeCompatible(DataType dtype_a, DataType dtype_b, DataType dtype_
       TVM_FFI_ICHECK(dtype_b == DataType::kInt8 || dtype_b == DataType::kUInt8)
           << ab_not_match_err_str;
       break;
-    case DataType::kFloat8_e4m3:
+    case DataType::kFloat8_e4m3fn:
     case DataType::kFloat8_e5m2:
-      TVM_FFI_ICHECK(dtype_b == DataType::kFloat8_e4m3 || dtype_b == DataType::kFloat8_e5m2)
+      TVM_FFI_ICHECK(dtype_b == DataType::kFloat8_e4m3fn || dtype_b == DataType::kFloat8_e5m2)
           << ab_not_match_err_str;
       break;
     default:
@@ -309,7 +341,7 @@ void CheckMMADTypeCompatible(DataType dtype_a, DataType dtype_b, DataType dtype_
       TVM_FFI_ICHECK(dtype_c == DataType::kFloat64)
           << "For multiplicand data type f64, accumulator data type can only be f64.";
       break;
-    case DataType::kFloat8_e4m3:
+    case DataType::kFloat8_e4m3fn:
     case DataType::kFloat8_e5m2:
       TVM_FFI_ICHECK(dtype_c == DataType::kFloat32)
           << "For multiplicand data type e4m3/e5m2, accumulator data type can only be f32.";
@@ -396,7 +428,7 @@ inline FragAttrs GetFragAttrs(DataType dtype) {
     case DataType::kUInt4:
     case DataType::kInt8:
     case DataType::kUInt8:
-    case DataType::kFloat8_e4m3:
+    case DataType::kFloat8_e4m3fn:
     case DataType::kFloat8_e5m2:
     case DataType::kBit16:
     case DataType::kFloat16:  // .f16x2 register
@@ -543,6 +575,63 @@ inline std::tuple<std::string, std::string, std::string> GetMMAOperands(int m, i
   return std::make_tuple(templates.str(), inputs.str(), outputs.str());
 }
 
+// ldmatrix assembly emitter.
+// `local_elem_offset` / `smem_elem_offset` are element offsets in the
+// respective buffer's dtype; the generated C expression `ptr + offset`
+// relies on C pointer arithmetic to scale them to bytes.
+inline std::tuple<std::string, std::string> GetLoadMatrixOperands(
+    int num, const std::string& local_ptr, const std::string& local_elem_offset) {
+  std::stringstream templates, outputs;
+  int arg_counter = 0;
+  templates << "{%" << arg_counter++;
+  for (int i = 1; i < num; ++i) {
+    templates << ", %" << arg_counter++;
+  }
+  templates << "}, [%" << arg_counter++ << "]";
+  std::string ptr_type = "(unsigned *)";
+  for (int i = 0; i < num; ++i) {
+    if (i != 0) outputs << ", ";
+    outputs << "\"=r\"((" << ptr_type << "(" << local_ptr << " + " << local_elem_offset << "))["
+            << i << "])";
+  }
+  return std::make_tuple(templates.str(), outputs.str());
+}
+
+std::string PrintLoadMatrixAssembly(bool trans, int num, const std::string& type,
+                                    const std::string& local_ptr,
+                                    const std::string& local_elem_offset,
+                                    const std::string& smem_ptr,
+                                    const std::string& smem_elem_offset) {
+  TVM_FFI_ICHECK(num == 1 || num == 2 || num == 4)
+      << "ldmatrix only accept loading 1/2/4 matrices.";
+  ptx::DataType data_type = ptx::DTypeFromString(type);
+  TVM_FFI_ICHECK(data_type == ptx::DataType::kBit16)
+      << "ldmatrix only accept matrix with type .b16.";
+  std::string asm_code = R"(
+  {
+    unsigned int addr = __cvta_generic_to_shared({smem_addr});
+    __asm__ __volatile__(
+      "ldmatrix.sync.aligned{.shape}{.num}{.trans}{.ss}{.type}"
+      "{templates};\n"
+      : {outputs}
+      : "r"(addr)
+    );
+  }
+)";
+  auto [templates_str, outputs_str] = GetLoadMatrixOperands(num, local_ptr, local_elem_offset);
+  Replacer replacer;
+  replacer.register_rule("{.shape}", ".m8n8");
+  replacer.register_rule("{.num}", ".x" + std::to_string(num));
+  replacer.register_rule("{.trans}", trans ? ".trans" : "");
+  replacer.register_rule("{.ss}", ".shared");
+  replacer.register_rule("{.type}", ptx::DTypeToString(data_type));
+  replacer.register_rule("{smem_addr}", smem_ptr + " + " + smem_elem_offset);
+  replacer.register_rule("{templates}", templates_str);
+  replacer.register_rule("{outputs}", outputs_str);
+  asm_code = replacer.rewrite(asm_code);
+  return asm_code;
+}
+
 std::string PrintMMAAssembly(const std::string& shape, const std::string& A_layout,
                              const std::string& B_layout, const std::string& A_dtype,
                              const std::string& B_dtype, const std::string& C_dtype,
@@ -598,146 +687,6 @@ std::string PrintMMAAssembly(const std::string& shape, const std::string& A_layo
   return asm_code;
 }
 
-inline std::tuple<std::string, std::string> GetLoadMatrixOperands(
-    int num, const std::string& local_ptr, const std::string& local_elem_offset) {
-  std::stringstream templates, outputs;
-  int arg_counter = 0;
-  // generate templates
-  templates << "{%" << arg_counter++;
-  for (int i = 1; i < num; ++i) {
-    templates << ", %" << arg_counter++;
-  }
-  templates << "}, [%" << arg_counter++ << "]";
-  // generate outputs
-  std::string ptr_type = "(unsigned *)";
-  for (int i = 0; i < num; ++i) {
-    if (i != 0) {
-      outputs << ", ";
-    }
-    outputs << "\"=r\"((" << ptr_type << "(" << local_ptr << " + " << local_elem_offset << "))["
-            << i << "])";
-  }
-  return std::make_tuple(templates.str(), outputs.str());
-}
-
-std::string PrintLoadMatrixAssembly(bool trans, int num, const std::string& type,
-                                    const std::string& local_ptr,
-                                    const std::string& local_elem_offset,
-                                    const std::string& smem_ptr,
-                                    const std::string& smem_elem_offset) {
-  TVM_FFI_ICHECK(num == 1 || num == 2 || num == 4)
-      << "ldmatrix only accept loading 1/2/4 matrices.";
-  ptx::DataType data_type = ptx::DTypeFromString(type);
-  TVM_FFI_ICHECK(data_type == ptx::DataType::kBit16)
-      << "ldmatrix only accept matrix with type .b16.";
-  std::string asm_code = R"(
-  {
-    unsigned int addr = cast_smem_ptr_to_int({smem_addr});
-    __asm__ __volatile__(
-      "ldmatrix.sync.aligned{.shape}{.num}{.trans}{.ss}{.type}"
-      "{templates};\n"
-      : {outputs}
-      : "r"(addr)
-    );
-  }
-)";
-  auto [templates_str, outputs_str] = GetLoadMatrixOperands(num, local_ptr, local_elem_offset);
-
-  Replacer replacer;
-  replacer.register_rule("{.shape}", ".m8n8");
-  replacer.register_rule("{.num}", ".x" + std::to_string(num));
-  replacer.register_rule("{.trans}", trans ? ".trans" : "");
-  replacer.register_rule("{.ss}", ".shared");
-  replacer.register_rule("{.type}", ptx::DTypeToString(data_type));
-  replacer.register_rule("{smem_addr}", smem_ptr + " + " + smem_elem_offset);
-  replacer.register_rule("{templates}", templates_str);
-  replacer.register_rule("{outputs}", outputs_str);
-  asm_code = replacer.rewrite(asm_code);
-  return asm_code;
-}
-
-std::string PrintCpAsyncAssembly(const std::string& shared_ptr,
-                                 const std::string& shared_elem_offset,
-                                 const std::string& global_ptr,
-                                 const std::string& global_elem_offset, const std::string& bytes) {
-  std::string asm_code = R"(
-  {
-    unsigned int addr = cast_smem_ptr_to_int({smem_addr});
-    __asm__ __volatile__(
-      #if TVM_ENABLE_L2_PREFETCH
-        "cp.async.{cg_or_ca}.shared.global.L2::128B [%0], [%1], %2;"
-      #else
-        "cp.async.{cg_or_ca}.shared.global [%0], [%1], %2;"
-      #endif
-        :: "r"(addr), "l"((void*)({global_ptr})), "n"({bytes})
-    );
-  }
-)";
-  Replacer replacer;
-  replacer.register_rule("{smem_addr}", shared_ptr + " + " + shared_elem_offset);
-  replacer.register_rule("{global_ptr}", global_ptr + " + " + global_elem_offset);
-  replacer.register_rule("{bytes}", bytes);
-  replacer.register_rule("{cg_or_ca}", bytes == "16" ? "cg" : "ca");
-  asm_code = replacer.rewrite(asm_code);
-  return asm_code;
-}
-
-std::string PrintPredicatedCpAsyncAssembly(const std::string& shared_ptr,
-                                           const std::string& shared_elem_offset,
-                                           const std::string& global_ptr,
-                                           const std::string& global_elem_offset,
-                                           const std::string& bytes,
-                                           const std::string& predicate_value) {
-  TVM_FFI_ICHECK(bytes == "16" || bytes == "12" || bytes == "8" || bytes == "4" || bytes == "2" ||
-                 bytes == "1")
-      << "Only support 16, 12, 8, 4, 2, 1 bytes for predicated cp.async";
-  std::string predicated_asm_code = R"(
-  {
-    unsigned int addr = cast_smem_ptr_to_int({smem_addr});
-    int pred_guard = (int){pred_guard};
-    __asm__ __volatile__(
-        "{  .reg .pred p;"
-        "  setp.ne.b32 p, %0, 0;"
-      #if TVM_ENABLE_L2_PREFETCH
-        " @p cp.async.{cg_or_ca}.shared.global.L2::128B [%1], [%2], %3;"
-      #else
-        " @p cp.async.{cg_or_ca}.shared.global [%1], [%2], %3;"
-      #endif
-      "  @!p {store_shared};}"
-        :: "r"(pred_guard), "r"(addr), "l"((void*)({global_ptr})), "n"({bytes}), {nopreg}
-    );
-  }
-)";
-  auto [store_shared, nopreg] = [](const std::string& bytes) {
-    if (bytes == "16")
-      return std::make_tuple("st.shared.v4.u32 [%1], {%4, %5, %6, %7}",
-                             "\"r\"(0), \"r\"(0), \"r\"(0),\"r\"(0)");
-    else if (bytes == "12")
-      return std::make_tuple("st.shared.v3.u32 [%1], {%4, %5, %6}", "\"r\"(0), \"r\"(0), \"r\"(0)");
-    else if (bytes == "8")
-      return std::make_tuple("st.shared.v2.u32 [%1], {%4, %5}", "\"r\"(0), \"r\"(0)");
-    else if (bytes == "4")
-      return std::make_tuple("st.shared.u32 [%1], {%4}", "\"r\"(0)");
-    else if (bytes == "2")
-      return std::make_tuple("st.shared.u16 [%1], {%4}", "\"r\"(0)");
-    else if (bytes == "1")
-      return std::make_tuple("st.shared.u8 [%1], {%4}", "\"r\"(0)");
-    else
-      return std::make_tuple("", "");
-  }(bytes);
-
-  Replacer replacer;
-  replacer.register_rule("{smem_addr}", shared_ptr + " + " + shared_elem_offset);
-  replacer.register_rule("{global_ptr}", global_ptr + " + " + global_elem_offset);
-  replacer.register_rule("{bytes}", bytes);
-  replacer.register_rule("{cg_or_ca}", bytes == "16" ? "cg" : "ca");
-  replacer.register_rule("{store_shared}", store_shared);
-  replacer.register_rule("{nopreg}", nopreg);
-  replacer.register_rule("{pred_guard}", predicate_value);
-  predicated_asm_code = replacer.rewrite(predicated_asm_code);
-  return predicated_asm_code;
-}
-
 std::string PrintCpAsyncBulkAsm(const std::string& shared_ptr,
                                 const std::string& shared_elem_offset,
                                 const std::string& global_ptr,
@@ -745,8 +694,8 @@ std::string PrintCpAsyncBulkAsm(const std::string& shared_ptr,
                                 const std::string& barrier) {
   std::string asm_code = R"(
   {
-    unsigned int smem_addr_int = cast_smem_ptr_to_int({smem_addr});
-    unsigned int barrier_addr_int = cast_smem_ptr_to_int({barrier});
+    unsigned int smem_addr_int = __cvta_generic_to_shared({smem_addr});
+    unsigned int barrier_addr_int = __cvta_generic_to_shared({barrier});
     __asm__ __volatile__(
       "cp.async.bulk.shared::cluster.global.mbarrier::complete_tx::bytes [%0], [%1], %2, [%3];"
       :: "r"(smem_addr_int), "l"({global_ptr}), "r"({bytes}), "r"(barrier_addr_int)
@@ -767,85 +716,10 @@ std::string PrintCpAsyncBulkAsm(const std::string& shared_ptr,
 std::string PrintCpAsyncBarrierAsm(const std::string& barrier) {
   std::string predicated_asm_code = R"(
   {
-    unsigned int barrier_addr_int = cast_smem_ptr_to_int({barrier});
+    unsigned int barrier_addr_int = __cvta_generic_to_shared({barrier});
     __asm__ __volatile__(
       "cp.async.mbarrier.arrive.shared.b64 [%0];"
       :: "r" (barrier_addr_int)
-    );
-  }
-)";
-
-  Replacer replacer;
-  replacer.register_rule("{barrier}", "&" + barrier);
-  predicated_asm_code = replacer.rewrite(predicated_asm_code);
-  return predicated_asm_code;
-}
-
-std::string PrintInitBarrierThreadCountAsm(const std::string& barrier,
-                                           const std::string& thread_count) {
-  std::string predicated_asm_code = R"(
-  {
-    unsigned int barrier_addr_int = cast_smem_ptr_to_int({barrier});
-    int thread_count = {thread_count};
-    __asm__ __volatile__(
-      "mbarrier.init.shared.b64 [%0], %1;"
-      :: "r"(barrier_addr_int), "r"(thread_count)
-    );
-  }
-)";
-
-  Replacer replacer;
-  replacer.register_rule("{barrier}", "&" + barrier);
-  replacer.register_rule("{thread_count}", thread_count);
-  predicated_asm_code = replacer.rewrite(predicated_asm_code);
-  return predicated_asm_code;
-}
-
-std::string PrintArriveBarrierAsm(const std::string& barrier) {
-  std::string predicated_asm_code = R"(
-  {
-    unsigned int barrier_addr_int = cast_smem_ptr_to_int({barrier});
-    __asm__ __volatile__(
-      "{ .reg .b64 state; mbarrier.arrive.shared.b64 state, [%0]; }"
-      :: "r"(barrier_addr_int)
-    );
-  }
-)";
-
-  Replacer replacer;
-  replacer.register_rule("{barrier}", "&" + barrier);
-  predicated_asm_code = replacer.rewrite(predicated_asm_code);
-  return predicated_asm_code;
-}
-
-std::string PrintArriveBarrierExpectTxAsm(const std::string& barrier,
-                                          const std::string& byte_count) {
-  std::string predicated_asm_code = R"(
-  {
-    unsigned int barrier_addr_int = cast_smem_ptr_to_int({barrier});
-    int byte_count = {byte_count};
-    __asm__ __volatile__(
-      "mbarrier.arrive.expect_tx.shared.b64 _, [%0], %1;"
-      :: "r"(barrier_addr_int), "r"(byte_count)
-    );
-  }
-)";
-
-  Replacer replacer;
-  replacer.register_rule("{barrier}", "&" + barrier);
-  replacer.register_rule("{byte_count}", byte_count);
-  predicated_asm_code = replacer.rewrite(predicated_asm_code);
-  return predicated_asm_code;
-}
-
-std::string PrintWaitBarrierAsm(const std::string& barrier) {
-  std::string predicated_asm_code = R"(
-  {
-    unsigned int barrier_addr_int = cast_smem_ptr_to_int({barrier});
-    constexpr int phase_bit = 0;
-    __asm__ __volatile__(
-      "{ .reg .pred P; WAIT: mbarrier.try_wait.parity.shared.b64 P, [%0], %1; @P bra.uni DONE; bra.uni WAIT; DONE: }"
-      :: "r"(barrier_addr_int), "r"(phase_bit)
     );
   }
 )";

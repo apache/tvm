@@ -17,6 +17,7 @@
 # pylint: disable=missing-docstring
 # ruff: noqa: E501
 
+
 import tvm.testing
 from tvm.s_tir import dlight as dl
 from tvm.script import tirx as T
@@ -26,7 +27,7 @@ from tvm.target import Target
 def test_batch_decode_gemv():
     # fmt: off
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(lv429: T.Buffer((T.int64(4096), T.int64(3584)), "uint32"), lv430: T.Buffer((T.int64(4096), T.int64(896)), "float16"), p_lv807: T.handle, p_output0: T.handle):
         T.func_attr({"tirx.noalias": True, "tirx.HoistIfThenElseExprWithBlock": 1})
         batch_size = T.int64()
@@ -56,7 +57,7 @@ def test_batch_decode_gemv():
                     NT_matmul_intermediate[v_i0, v_i1, v_i2] = T.float16(0)
                 NT_matmul_intermediate[v_i0, v_i1, v_i2] = NT_matmul_intermediate[v_i0, v_i1, v_i2] + lv807[v_i0, v_i1, v_k] * dequantize_intermediate_intermediate[v_i2, v_k]
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(lv429: T.Buffer((T.int64(4096), T.int64(3584)), "uint32"), lv430: T.Buffer((T.int64(4096), T.int64(896)), "float16"), p_lv807: T.handle, p_output0: T.handle):
         T.func_attr({"tirx.HoistIfThenElseExprWithBlock": 1, "tirx.is_scheduled": True, "tirx.noalias": True})
         batch_size = T.int64()
@@ -102,7 +103,7 @@ def test_batch_decode_gemv():
                 for ax3_fused_0_ax3_fused_1_fused in T.thread_binding(T.int64(8), thread="threadIdx.x"):
                     for ax0 in T.thread_binding(T.int64(32), thread="threadIdx.y"):
                         for ax3_fused_2_0 in T.serial(T.int64(1), annotations={"pragma_auto_unroll_max_step": 8, "pragma_unroll_explicit": 1}):
-                            for ax2 in range(T.int64(4)):
+                            for ax2 in T.serial(T.int64(0), T.int64(4)):
                                 for ax3_fused_2_1 in T.vectorized(T.int64(2)):
                                     with T.sblock("NT_matmul_rf_init"):
                                         vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused_0 = T.axis.spatial(T.int64(32), ax0)
@@ -111,7 +112,7 @@ def test_batch_decode_gemv():
                                         T.reads()
                                         T.writes(NT_matmul_intermediate_pad_rf_local_1[vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused_0, v0, T.int64(0), v1])
                                         NT_matmul_intermediate_pad_rf_local_1[vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused_0, v0, T.int64(0), v1] = T.float16(0)
-                                    for ax1 in range(T.int64(4)):
+                                    for ax1 in T.serial(T.int64(0), T.int64(4)):
                                         with T.sblock("NT_matmul_rf_update"):
                                             vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused_0, vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused_1 = T.axis.remap("SR", [ax0, ax1])
                                             v0 = T.axis.spatial((batch_size + T.int64(3)) // T.int64(4) * T.int64(4), ax0_0 * T.int64(4) + ax2)
@@ -131,9 +132,9 @@ def test_batch_decode_gemv():
                                 with T.init():
                                     NT_matmul_intermediate_pad_local[v0, T.int64(0), v1] = T.float16(0)
                                 NT_matmul_intermediate_pad_local[v0, T.int64(0), v1] = NT_matmul_intermediate_pad_local[v0, T.int64(0), v1] + NT_matmul_intermediate_pad_rf_local_1[vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused_0, v0, T.int64(0), v1]
-                for ax0 in range(T.int64(4)):
+                for ax0 in T.serial(T.int64(0), T.int64(4)):
                     for ax1_fused_0_ax1_fused_1_fused in T.thread_binding(T.int64(8), thread="threadIdx.x"):
-                        for ax1_fused_2 in range(T.int64(2)):
+                        for ax1_fused_2 in T.serial(T.int64(0), T.int64(2)):
                             with T.sblock("NT_matmul_intermediate_pad"):
                                 v0 = T.axis.spatial(batch_size, ax0_0 * T.int64(4) + ax0)
                                 v1 = T.axis.spatial(T.int64(4096), u_fused_ax1_fused_fused_0 * T.int64(16) + ax1_fused_0_ax1_fused_1_fused * T.int64(2) + ax1_fused_2)
@@ -154,7 +155,7 @@ def test_batch_gemv():
     K = 4096
 
     # fmt: off
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(var_A: T.handle, B: T.Buffer((T.int64(N), T.int64(K)), "float16"), var_NT_matmul: T.handle):
         T.func_attr({"tirx.noalias": True, "tirx.HoistIfThenElseExprWithBlock": 1})
         batch_size = T.int64()
@@ -170,7 +171,7 @@ def test_batch_gemv():
                     NT_matmul[v_i0, v_i1, v_i2] = T.float16(0)
                 NT_matmul[v_i0, v_i1, v_i2] = NT_matmul[v_i0, v_i1, v_i2] + A[v_i0, v_i1, v_k] * B[v_i2, v_k]
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(var_A: T.handle, B: T.Buffer((T.int64(4096), T.int64(4096)), "float16"), var_NT_matmul: T.handle):
         T.func_attr({"tirx.HoistIfThenElseExprWithBlock": 1, "tirx.is_scheduled": True, "tirx.noalias": True})
         batch_size = T.int64()
@@ -207,7 +208,7 @@ def test_batch_gemv():
                 for ax3_fused_0_ax3_fused_1_fused in T.thread_binding(T.int64(8), thread="threadIdx.x"):
                     for ax0 in T.thread_binding(T.int64(32), thread="threadIdx.y"):
                         for ax3_fused_2_0 in T.serial(T.int64(1), annotations={"pragma_auto_unroll_max_step": 8, "pragma_unroll_explicit": 1}):
-                            for ax2 in range(T.int64(4)):
+                            for ax2 in T.serial(T.int64(0), T.int64(4)):
                                 for ax3_fused_2_1 in T.vectorized(T.int64(2)):
                                     with T.sblock("NT_matmul_rf_init"):
                                         vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused_0 = T.axis.spatial(T.int64(32), ax0)
@@ -216,7 +217,7 @@ def test_batch_gemv():
                                         T.reads()
                                         T.writes(NT_matmul_pad_rf_local_1[vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused_0, v0, T.int64(0), v1])
                                         NT_matmul_pad_rf_local_1[vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused_0, v0, T.int64(0), v1] = T.float16(0)
-                                    for ax1 in range(T.int64(4)):
+                                    for ax1 in T.serial(T.int64(0), T.int64(4)):
                                         with T.sblock("NT_matmul_rf_update"):
                                             vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused_0, vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused_1 = T.axis.remap("SR", [ax0, ax1])
                                             v0 = T.axis.spatial((batch_size + T.int64(3)) // T.int64(4) * T.int64(4), ax0_0 * T.int64(4) + ax2)
@@ -236,9 +237,9 @@ def test_batch_gemv():
                                 with T.init():
                                     NT_matmul_pad_local[v0, T.int64(0), v1] = T.float16(0)
                                 NT_matmul_pad_local[v0, T.int64(0), v1] = NT_matmul_pad_local[v0, T.int64(0), v1] + NT_matmul_pad_rf_local_1[vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused_0, v0, T.int64(0), v1]
-                for ax0 in range(T.int64(4)):
+                for ax0 in T.serial(T.int64(0), T.int64(4)):
                     for ax1_fused_0_ax1_fused_1_fused in T.thread_binding(T.int64(8), thread="threadIdx.x"):
-                        for ax1_fused_2 in range(T.int64(2)):
+                        for ax1_fused_2 in T.serial(T.int64(0), T.int64(2)):
                             with T.sblock("NT_matmul_pad"):
                                 v0 = T.axis.spatial(batch_size, ax0_0 * T.int64(4) + ax0)
                                 v1 = T.axis.spatial(T.int64(4096), u_fused_ax1_fused_fused_0 * T.int64(16) + ax1_fused_0_ax1_fused_1_fused * T.int64(2) + ax1_fused_2)
@@ -255,7 +256,7 @@ def test_batch_gemv():
 
 def test_reduction_symbolic_var():
     # fmt: off
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(var_A: T.handle, var_B: T.handle, matmul: T.Buffer((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float32")):
         T.func_attr({"tirx.noalias": True})
         kv_seq_len = T.int64()
@@ -278,7 +279,7 @@ def test_reduction_symbolic_var():
 
 
 def test_small_spatial_axis():
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def func(var_A: T.handle, B: T.Buffer((T.int64(8), T.int64(4096)), "float16"), var_C: T.handle):
         T.func_attr({"tirx.noalias": True})
         batch_size = T.int64()
@@ -294,7 +295,7 @@ def test_small_spatial_axis():
                 C[v_i0, v_i1] = C[v_i0, v_i1] + A[v_i0, v_k] * B[v_i1, v_k]
 
     # fmt: off
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(var_A: T.handle, B: T.Buffer((T.int64(8), T.int64(4096)), "float16"), var_C: T.handle):
         T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
         batch_size = T.int64()
@@ -333,7 +334,7 @@ def test_small_spatial_axis():
                 for ax3_fused_0_ax3_fused_1_fused in T.thread_binding(T.int64(16), thread="threadIdx.y"):
                     for ax0 in T.thread_binding(T.int64(32), thread="threadIdx.x"):
                         for ax3_fused_2_0 in T.serial(T.int64(1), annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
-                            for ax2 in range(T.int64(4)):
+                            for ax2 in T.serial(T.int64(0), T.int64(4)):
                                 for ax3_fused_2_1 in T.vectorized(T.int64(2)):
                                     with T.sblock("NT_matmul_rf_init"):
                                         vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused_0 = T.axis.spatial(T.int64(32), ax0)
@@ -343,7 +344,7 @@ def test_small_spatial_axis():
                                         T.reads()
                                         T.writes(C_pad_rf_local_1[vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused_0, v0, v1])
                                         C_pad_rf_local_1[vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused_0, v0, v1] = T.float16(0)
-                                    for ax1 in range(T.int64(4)):
+                                    for ax1 in T.serial(T.int64(0), T.int64(4)):
                                         with T.sblock("NT_matmul_rf_update"):
                                             vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused_0, vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused_1 = T.axis.remap("SR", [ax0, ax1])
                                             v0 = T.axis.spatial((batch_size + T.int64(3)) // T.int64(4) * T.int64(4), ax0_0 * T.int64(4) + ax2)
@@ -365,9 +366,9 @@ def test_small_spatial_axis():
                                 with T.init():
                                     C_pad_local[v0, v1] = T.float16(0)
                                 C_pad_local[v0, v1] = C_pad_local[v0, v1] + C_pad_rf_local_1[vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused_0, v0, v1]
-                for ax0 in range(T.int64(4)):
+                for ax0 in T.serial(T.int64(0), T.int64(4)):
                     for ax1_fused_0_ax1_fused_1_fused in T.thread_binding(T.int64(16), thread="threadIdx.y"):
-                        for ax1_fused_2 in range(T.int64(2)):
+                        for ax1_fused_2 in T.serial(T.int64(0), T.int64(2)):
                             with T.sblock("C_pad"):
                                 v0 = T.axis.spatial(batch_size, ax0_0 * T.int64(4) + ax0)
                                 v1 = T.axis.spatial(T.int64(8), ax1_fused_0_ax1_fused_1_fused * T.int64(2) + ax1_fused_2)
@@ -385,7 +386,7 @@ def test_small_spatial_axis():
 
 def test_outer_reduction():
     # fmt: off
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(
         B0: T.Buffer((512, 6144), "uint32"),
         B1: T.Buffer((128, 6144), "float16"),
@@ -412,7 +413,7 @@ def test_outer_reduction():
                     C[v_i0, v_i1, v_i2] = T.float16(0)
                 C[v_i0, v_i1, v_i2] = C[v_i0, v_i1, v_i2] + A[v_i0, v_i1, v_k] * B[v_k, v_i2]
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(B0: T.Buffer((512, 6144), "uint32"), B1: T.Buffer((128, 6144), "float16"), var_A: T.handle, var_C: T.handle):
         T.func_attr({"tirx.is_scheduled": True})
         batch_size = T.int32()
@@ -531,7 +532,7 @@ def test_outer_reduction():
 
 def test_low_batch_gemv_cuda_target_without_max_shared_memory_per_block():
     # fmt: off
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(var_A: T.handle, B: T.Buffer((T.int64(128), T.int64(128)), "float16"), var_C: T.handle):
         T.func_attr({"tir.noalias": True})
         batch_size = T.int64()

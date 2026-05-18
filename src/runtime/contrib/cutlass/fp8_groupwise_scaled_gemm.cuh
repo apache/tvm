@@ -43,36 +43,35 @@ void tvm_cutlass_fp8_groupwise_scaled_gemm_impl(Tensor a, Tensor b, Tensor scale
   // Recommened size is 4MB.
   cudaStream_t stream = static_cast<cudaStream_t>(TVMFFIEnvGetStream(kDLCUDA, a->device.device_id));
 
-  TVM_FFI_CHECK_GE(a->ndim, 2, ValueError);
-  TVM_FFI_CHECK_EQ(scales_a->ndim, a->ndim, ValueError);
-  TVM_FFI_CHECK_EQ(b->ndim, 2, ValueError);
-  TVM_FFI_CHECK_EQ(scales_b->ndim, 2, ValueError);
-  TVM_FFI_CHECK_EQ(workspace->ndim, 1, ValueError);
-  TVM_FFI_CHECK_EQ(out->ndim, a->ndim, ValueError);
+  TVM_FFI_ICHECK_GE(a->ndim, 2);
+  TVM_FFI_ICHECK_EQ(scales_a->ndim, a->ndim);
+  TVM_FFI_ICHECK_EQ(b->ndim, 2);
+  TVM_FFI_ICHECK_EQ(scales_b->ndim, 2);
+  TVM_FFI_ICHECK_EQ(workspace->ndim, 1);
+  TVM_FFI_ICHECK_EQ(out->ndim, a->ndim);
   int64_t m = 1;
   for (int64_t i = 0; i < a->ndim - 1; ++i) {
     m *= a->shape[i];
   }
   int64_t n = b->shape[0];
-  TVM_FFI_CHECK_EQ(a->shape[a->ndim - 1], b->shape[1], ValueError)
-      << "Only col-major B is supported now.";
+  TVM_FFI_ICHECK_EQ(a->shape[a->ndim - 1], b->shape[1]) << "Only col-major B is supported now.";
   int64_t k = a->shape[a->ndim - 1];
 
   // scales_a is col-major of (*a_shape[:-1], k / block_size)
-  TVM_FFI_CHECK_EQ(scales_a->shape[0] * block_size_1, k, ValueError);
+  TVM_FFI_ICHECK_EQ(scales_a->shape[0] * block_size_1, k);
   for (int64_t i = 1; i < scales_a->ndim; ++i) {
-    TVM_FFI_CHECK_EQ(scales_a->shape[i], a->shape[i - 1], ValueError);
+    TVM_FFI_ICHECK_EQ(scales_a->shape[i], a->shape[i - 1]);
   }
   // scales_b is col-major of (k / block_size, n / block_size)
-  TVM_FFI_CHECK_EQ((n + block_size_0 - 1) / block_size_0, scales_b->shape[0], ValueError);
-  TVM_FFI_CHECK_EQ(scales_b->shape[1] * block_size_1, k, ValueError);
+  TVM_FFI_ICHECK_EQ((n + block_size_0 - 1) / block_size_0, scales_b->shape[0]);
+  TVM_FFI_ICHECK_EQ(scales_b->shape[1] * block_size_1, k);
 
   using tvm::runtime::DataType;
-  TVM_FFI_CHECK_EQ(DataType(a->dtype), DataType::Float8E4M3FN(), ValueError);
-  TVM_FFI_CHECK_EQ(DataType(b->dtype), DataType::Float8E4M3FN(), ValueError);
-  TVM_FFI_CHECK_EQ(DataType(scales_a->dtype), DataType::Float(32), ValueError);
-  TVM_FFI_CHECK_EQ(DataType(scales_b->dtype), DataType::Float(32), ValueError);
-  TVM_FFI_CHECK_EQ(DataType(workspace->dtype), DataType::UInt(8), ValueError);
+  TVM_FFI_ICHECK_EQ(DataType(a->dtype), DataType::Float8E4M3FN());
+  TVM_FFI_ICHECK_EQ(DataType(b->dtype), DataType::Float8E4M3FN());
+  TVM_FFI_ICHECK_EQ(DataType(scales_a->dtype), DataType::Float(32));
+  TVM_FFI_ICHECK_EQ(DataType(scales_b->dtype), DataType::Float(32));
+  TVM_FFI_ICHECK_EQ(DataType(workspace->dtype), DataType::UInt(8));
 
   if (DataType(out->dtype) == DataType::Float(16)) {
     CutlassFP8GroupwiseGemm<Arch, TileShape, ClusterShape, cutlass::float_e4m3_t,
@@ -109,35 +108,35 @@ void tvm_cutlass_fp8_groupwise_scaled_bmm_impl(Tensor a, Tensor b, Tensor scales
   // Recommened size is 4MB.
   cudaStream_t stream = static_cast<cudaStream_t>(TVMFFIEnvGetStream(kDLCUDA, a->device.device_id));
 
-  TVM_FFI_CHECK_EQ(a->ndim, 3, ValueError);
-  TVM_FFI_CHECK_EQ(scales_a->ndim, 3, ValueError);
-  TVM_FFI_CHECK_EQ(b->ndim, 3, ValueError);
-  TVM_FFI_CHECK_EQ(scales_b->ndim, 3, ValueError);
-  TVM_FFI_CHECK_EQ(workspace->ndim, 1, ValueError);
-  TVM_FFI_CHECK_EQ(out->ndim, 3, ValueError);
+  TVM_FFI_ICHECK_EQ(a->ndim, 3);
+  TVM_FFI_ICHECK_EQ(scales_a->ndim, 3);
+  TVM_FFI_ICHECK_EQ(b->ndim, 3);
+  TVM_FFI_ICHECK_EQ(scales_b->ndim, 3);
+  TVM_FFI_ICHECK_EQ(workspace->ndim, 1);
+  TVM_FFI_ICHECK_EQ(out->ndim, 3);
   int64_t batch_size = a->shape[0];
   int64_t m = a->shape[1];
   int64_t n = b->shape[1];
-  TVM_FFI_CHECK_EQ(a->shape[2], b->shape[2], ValueError) << "Only col-major B is supported now.";
+  TVM_FFI_ICHECK_EQ(a->shape[2], b->shape[2]) << "Only col-major B is supported now.";
   int64_t k = a->shape[2];
-  TVM_FFI_CHECK_EQ(b->shape[0], batch_size, ValueError);
-  TVM_FFI_CHECK_EQ(scales_a->shape[0], batch_size, ValueError);
-  TVM_FFI_CHECK_EQ(scales_b->shape[0], batch_size, ValueError);
-  TVM_FFI_CHECK_EQ(out->shape[0], batch_size, ValueError);
+  TVM_FFI_ICHECK_EQ(b->shape[0], batch_size);
+  TVM_FFI_ICHECK_EQ(scales_a->shape[0], batch_size);
+  TVM_FFI_ICHECK_EQ(scales_b->shape[0], batch_size);
+  TVM_FFI_ICHECK_EQ(out->shape[0], batch_size);
 
   // scales_a is col-major of (batch_size, m, k / block_size)
-  TVM_FFI_CHECK_EQ(scales_a->shape[1] * block_size_1, k, ValueError);
-  TVM_FFI_CHECK_EQ(scales_a->shape[2], m, ValueError);
+  TVM_FFI_ICHECK_EQ(scales_a->shape[1] * block_size_1, k);
+  TVM_FFI_ICHECK_EQ(scales_a->shape[2], m);
   // scales_b is col-major of (k / block_size, n / block_size)
-  TVM_FFI_CHECK_EQ(scales_b->shape[1] * block_size_0, n, ValueError);
-  TVM_FFI_CHECK_EQ(scales_b->shape[2] * block_size_1, k, ValueError);
+  TVM_FFI_ICHECK_EQ(scales_b->shape[1] * block_size_0, n);
+  TVM_FFI_ICHECK_EQ(scales_b->shape[2] * block_size_1, k);
 
   using tvm::runtime::DataType;
-  TVM_FFI_CHECK_EQ(DataType(a->dtype), DataType::Float8E4M3FN(), ValueError);
-  TVM_FFI_CHECK_EQ(DataType(b->dtype), DataType::Float8E4M3FN(), ValueError);
-  TVM_FFI_CHECK_EQ(DataType(scales_a->dtype), DataType::Float(32), ValueError);
-  TVM_FFI_CHECK_EQ(DataType(scales_b->dtype), DataType::Float(32), ValueError);
-  TVM_FFI_CHECK_EQ(DataType(workspace->dtype), DataType::UInt(8), ValueError);
+  TVM_FFI_ICHECK_EQ(DataType(a->dtype), DataType::Float8E4M3FN());
+  TVM_FFI_ICHECK_EQ(DataType(b->dtype), DataType::Float8E4M3FN());
+  TVM_FFI_ICHECK_EQ(DataType(scales_a->dtype), DataType::Float(32));
+  TVM_FFI_ICHECK_EQ(DataType(scales_b->dtype), DataType::Float(32));
+  TVM_FFI_ICHECK_EQ(DataType(workspace->dtype), DataType::UInt(8));
 
   if (DataType(out->dtype) == DataType::Float(16)) {
     CutlassFP8GroupwiseGemm<Arch, TileShape, ClusterShape, cutlass::float_e4m3_t,

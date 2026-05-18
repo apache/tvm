@@ -672,11 +672,11 @@ def test_compiled_function_with_zero_arguments(call_with_unused_argument):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def func_without_arg() -> T.int64:
             return T.int64(42)
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def func_with_arg(unused: T.int64) -> T.int64:
             return T.int64(42)
 

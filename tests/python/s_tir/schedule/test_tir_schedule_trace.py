@@ -31,7 +31,7 @@ from tvm.script import tirx as T
 # pylint: disable=no-member,invalid-name,unused-variable
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def elementwise(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     B = T.sblock_alloc_buffer((128, 128))
@@ -46,7 +46,7 @@ def elementwise(a: T.handle, c: T.handle) -> None:
             C[vi, vj] = B[vi, vj] + 1.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def elementwise_inlined(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     C = T.match_buffer(c, (128, 128))
@@ -363,7 +363,7 @@ def _test_apply_annotation_trace_from_json(annotation: str):
     sch = tvm.s_tir.Schedule(elementwise, debug_mask="all")
     Trace.apply_json_to_schedule(json_obj, sch)
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def elementwise_expected(a: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (128, 128))
         B = T.sblock_alloc_buffer((128, 128))

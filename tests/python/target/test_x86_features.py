@@ -23,6 +23,23 @@ from tvm.target.codegen import target_has_features
 
 LLVM_VERSION = codegen.llvm_version_major()
 
+# Some x86 features have been removed from upstream LLVM. Tests for these
+# features only meaningfully run on LLVM versions that still recognise them.
+# The keys are feature names (matching the ``x86_feature`` parameter); the
+# values are the highest LLVM major version that still supports the feature.
+_FEATURE_REMOVED_AFTER_LLVM = {
+    "avx512er": 18,  # removed in LLVM 19
+    "avx512pf": 18,  # removed in LLVM 19
+}
+
+
+def _feature_supported_by_llvm(x86_feature) -> bool:
+    if not isinstance(x86_feature, str):
+        return True
+    cap = _FEATURE_REMOVED_AFTER_LLVM.get(x86_feature)
+    return cap is None or LLVM_VERSION <= cap
+
+
 min_llvm_version, tvm_target, x86_feature, is_supported = tvm.testing.parameters(
     # sse4.1
     (-1, {"kind": "llvm", "mtriple": "x86_64--", "mcpu": "btver2"}, "sse4a", True),
@@ -171,6 +188,10 @@ def test_x86_target_features(min_llvm_version, tvm_target, x86_feature, is_suppo
 
     # skip test on llvm_version
     if LLVM_VERSION < min_llvm_version:
+        return
+
+    # skip features that have been removed from the installed LLVM
+    if not _feature_supported_by_llvm(x86_feature):
         return
 
     # check for feature via the python api (with explicit target, no context target)

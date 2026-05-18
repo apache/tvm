@@ -31,7 +31,7 @@ from tvm.script import tirx as T
 ########## Function before schedule ##########
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def resize(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (1, 3, 40, 40))
     B = T.match_buffer(b, (1, 3, 80, 80))
@@ -41,7 +41,7 @@ def resize(a: T.handle, b: T.handle) -> None:
             B[n, c, vi, vj] = A[n, c, vi // 4 + vj // 4, vj // 2]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def resize_cache_index(
     A: T.Buffer((1, 3, 40, 40), "float32"), B: T.Buffer((1, 3, 80, 80), "float32")
 ) -> None:
@@ -67,7 +67,7 @@ def resize_cache_index(
             B[n, c, vi, vj] = A[n, c, index_var_0[vi, vj], index_var_1[vj]]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def bilinear_resize(
     x: T.Buffer((1, 3, 40, 40), "float16"), resize: T.Buffer((1, 3, 80, 80), "float16")
 ):
@@ -336,7 +336,7 @@ def bilinear_resize(
             )
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def cached_bilinear_resize(
     x: T.Buffer((1, 3, 40, 40), "float16"), resize: T.Buffer((1, 3, 80, 80), "float16")
 ):

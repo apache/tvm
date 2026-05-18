@@ -49,7 +49,7 @@ class MatmulModule:
     """Matmultest class"""
 
     # pylint: disable=no-self-argument
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(a: T.handle, b: T.handle, c: T.handle) -> None:  # type: ignore
         # pylint: disable=missing-function-docstring
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
@@ -241,7 +241,7 @@ class ModuleVRMPYAutoTensorize:
     """Vector Reduce Multimply auto tensorize test class."""
 
     # pylint: disable=no-self-argument
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(  # type: ignore
         X: T.Buffer((128, 768), "uint8"),  # type: ignore
         packed_width: T.Buffer((24, 192, 32, 4), "uint8"),  # type: ignore

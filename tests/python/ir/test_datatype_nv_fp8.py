@@ -40,7 +40,7 @@ except ImportError:
 
 
 def fp8_unary(dtype: str):
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def func(
         a: T.handle,
         b: T.handle,

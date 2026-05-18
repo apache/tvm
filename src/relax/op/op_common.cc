@@ -187,11 +187,11 @@ InferLayoutOutput InferLayoutUnaryEwise(
   return InferLayoutOutput({layout}, {layout}, Attrs(call->attrs));
 }
 
-bool CanProveLayoutTransform(const Layout& input_layout, const Layout& desired_layout,
+bool CanProveLayoutTransform(const SLayout& input_layout, const SLayout& desired_layout,
                              ffi::Array<PrimExpr> shape) {
   bool can_prove = true;
   try {
-    tirx::BijectiveLayout todesired(input_layout, desired_layout);
+    tirx::SBijectiveLayout todesired(input_layout, desired_layout);
     ffi::Array<PrimExpr> desired_shape = todesired.ForwardShape(shape);
     ffi::Array<PrimExpr> back_shape = todesired.BackwardShape(desired_shape);
     arith::Analyzer analyzer;

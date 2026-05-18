@@ -34,7 +34,7 @@ from tvm.script import tirx as T
 ########## Function before schedule ##########
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def elementwise(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     B = T.sblock_alloc_buffer((128, 128))
@@ -49,7 +49,7 @@ def elementwise(a: T.handle, c: T.handle) -> None:
             C[vi, vj] = B[vi, vj] + 1.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def elementwise_shape_int64(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (T.int64(128), T.int64(128)))
     B = T.sblock_alloc_buffer((T.int64(128), T.int64(128)))
@@ -64,7 +64,7 @@ def elementwise_shape_int64(a: T.handle, c: T.handle) -> None:
             C[vi, vj] = B[vi, vj] + 1.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def elementwise_reindex_cache_read(
     A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")
 ):
@@ -90,7 +90,7 @@ def elementwise_reindex_cache_read(
             C[vi, vj] = B_shared[vj, vi // 2, vi % 2] + T.float32(1)
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def elementwise_reindex_cache_write(
     A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")
 ):
@@ -116,7 +116,7 @@ def elementwise_reindex_cache_write(
             C[vi, vj] = B[vi, vj] + T.float32(1)
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def reduce(A: T.Buffer((128, 128, 128, 128), "float32"), C: T.Buffer((128, 128), "float32")):
     B = T.sblock_alloc_buffer((128, 128, 128), dtype="float32")
     for i, j, k in T.grid(128, 128, 128):
@@ -133,7 +133,7 @@ def reduce(A: T.Buffer((128, 128, 128, 128), "float32"), C: T.Buffer((128, 128),
             C[vi, vj] = C[vi, vj] + B[vi, vj, vk]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def reduce_reindex_cache_write_0(
     A: T.Buffer((128, 128, 128, 128), "float32"), C: T.Buffer((128, 128), "float32")
 ):
@@ -162,7 +162,7 @@ def reduce_reindex_cache_write_0(
             C[vi, vj] = C[vi, vj] + B[vi, vj, vk]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def reduce_reindex_cache_write_1(
     A: T.Buffer((128, 128, 128, 128), "float32"), C: T.Buffer((128, 128), "float32")
 ):
@@ -198,7 +198,7 @@ def reduce_reindex_cache_write_1(
             C[vi, vj] = C_shared[vj, vi]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def func_nested_seq(b: T.handle, c: T.handle) -> None:
     A = T.sblock_alloc_buffer((128, 128))
     B = T.match_buffer(b, (128, 128))
@@ -225,7 +225,7 @@ def func_nested_seq(b: T.handle, c: T.handle) -> None:
             C[vi, vj] = A[vi, vj] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def access_under_scope(b: T.handle, c: T.handle) -> None:
     A = T.sblock_alloc_buffer((128, 128))
     B = T.match_buffer(b, (128, 128))
@@ -250,7 +250,7 @@ def access_under_scope(b: T.handle, c: T.handle) -> None:
             C[vi, vj] = A[vi, vj] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def opaque_access(a: T.handle, b: T.handle, c: T.handle, d: T.handle) -> None:
     A = T.match_buffer(a, (128, 128), dtype="float16")
     B = T.match_buffer(b, (128, 128), dtype="float16")
@@ -335,7 +335,7 @@ def opaque_access(a: T.handle, b: T.handle, c: T.handle, d: T.handle) -> None:
             )
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def func_multi_consumer() -> None:
     A = T.sblock_alloc_buffer(128)
     B = T.sblock_alloc_buffer(128)
@@ -355,7 +355,7 @@ def func_multi_consumer() -> None:
             C[vi] = A[vi]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def reindex_cache_read_multi_consumer() -> None:
     A = T.sblock_alloc_buffer((128,))
     B = T.sblock_alloc_buffer((128,))
@@ -388,7 +388,7 @@ def reindex_cache_read_multi_consumer() -> None:
             C[vi] = A[vi]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def func_multi_producer() -> None:
     A = T.sblock_alloc_buffer(128)
     B = T.sblock_alloc_buffer(128)
@@ -406,7 +406,7 @@ def func_multi_producer() -> None:
             B[vi] = A[vi]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def func_with_block_predicate() -> None:
     A = T.sblock_alloc_buffer(120)
     B = T.sblock_alloc_buffer(120)
@@ -422,7 +422,7 @@ def func_with_block_predicate() -> None:
             B[ax] = A[ax] + 1.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def inplace_func(data_io: T.Buffer((64), "int32")):
     data_1d = T.sblock_alloc_buffer([64], dtype="int32")
     for i0 in T.serial(64):
@@ -440,7 +440,7 @@ def inplace_func(data_io: T.Buffer((64), "int32")):
             data_io[v0] = data_1d[v0]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def inplace_call(data_io: T.Buffer((64), "int32")):
     for i0 in T.serial(1):
         with T.sblock("ext_call"):
@@ -449,7 +449,7 @@ def inplace_call(data_io: T.Buffer((64), "int32")):
             T.evaluate(T.call_extern("call_impl", data_io.data, dtype=""))
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def cache_read_nested_seq_target(
     B: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")
 ) -> None:
@@ -490,7 +490,7 @@ def cache_read_nested_seq_target(
             C[vi, vj] = A_global[vi, vj] * T.float32(2)
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def nested_buffer_access(var_A: T.handle, var_B: T.handle, var_C: T.handle):
     A = T.match_buffer(var_A, (T.int64(7), T.int64(512)), dtype="float32")
     B = T.match_buffer(var_B, T.int64(1), dtype="int32")
@@ -506,7 +506,7 @@ def nested_buffer_access(var_A: T.handle, var_B: T.handle, var_C: T.handle):
 ########## Expected function after cache_read ##########
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def cache_read_elementwise(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     C = T.match_buffer(c, (128, 128))
@@ -531,7 +531,7 @@ def cache_read_elementwise(a: T.handle, c: T.handle) -> None:
             C[vi, vj] = B_local[vi, vj] + 1.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def cache_read_under_scope(b: T.handle, c: T.handle) -> None:
     A = T.sblock_alloc_buffer((128, 128))
     B = T.match_buffer(b, (128, 128))
@@ -567,7 +567,7 @@ def cache_read_under_scope(b: T.handle, c: T.handle) -> None:
             C[vi, vj] = A_global[vi, vj] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def cache_read_opaque_access(a: T.handle, b: T.handle, c: T.handle, d: T.handle) -> None:
     A = T.match_buffer(a, (128, 128), dtype="float16")
     B = T.match_buffer(b, (128, 128), dtype="float16")
@@ -657,7 +657,7 @@ def cache_read_opaque_access(a: T.handle, b: T.handle, c: T.handle, d: T.handle)
             )
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def cache_read_multi_consumer() -> None:
     A = T.sblock_alloc_buffer(128)
     B = T.sblock_alloc_buffer(128)
@@ -683,7 +683,7 @@ def cache_read_multi_consumer() -> None:
             C[vi] = A_global[vi]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def cache_read_multi_consumer_target() -> None:
     A = T.sblock_alloc_buffer(128)
     B = T.sblock_alloc_buffer(128)
@@ -709,7 +709,7 @@ def cache_read_multi_consumer_target() -> None:
             C[vi] = A_global[vi]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def continuous_cache_read(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     C = T.match_buffer(c, (128, 128))
@@ -734,7 +734,7 @@ def continuous_cache_read(a: T.handle, c: T.handle) -> None:
             C[vi, vj] = B_local[vi, vj] + 1.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def block_predicate_cache_read() -> None:
     A = T.sblock_alloc_buffer([120], dtype="float32")
     B = T.sblock_alloc_buffer([120], dtype="float32")
@@ -755,7 +755,7 @@ def block_predicate_cache_read() -> None:
             B[ax] = A_shared[ax] + T.float32(1)
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def cache_read_shape_int64(var_A: T.handle, var_C: T.handle) -> None:
     A = T.match_buffer(var_A, (T.int64(128), T.int64(128)), dtype="float32")
     C = T.match_buffer(var_C, (T.int64(128), T.int64(128)), dtype="float32")
@@ -781,7 +781,7 @@ def cache_read_shape_int64(var_A: T.handle, var_C: T.handle) -> None:
             C[vi, vj] = B[vi, vj] + T.float32(1)
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def cache_read_inplace(data_io: T.Buffer(64, "int32")) -> None:
     data_1d = T.sblock_alloc_buffer([64], dtype="int32")
     data_io_local = T.sblock_alloc_buffer([64], dtype="int32", scope="local")
@@ -810,7 +810,7 @@ def cache_read_inplace(data_io: T.Buffer(64, "int32")) -> None:
             data_io[v0] = data_1d[v0]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def cache_inplace_buffer(data_io: T.Buffer(64, "int32")) -> None:
     data_io_local = T.sblock_alloc_buffer([64], dtype="int32", scope="local")
     data_io_global = T.sblock_alloc_buffer([64], dtype="int32")
@@ -846,7 +846,7 @@ def cache_inplace_buffer(data_io: T.Buffer(64, "int32")) -> None:
             data_io[v0] = data_io_global_1[v0]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def cache_read_nested_buffer_access(var_A: T.handle, var_B: T.handle, var_C: T.handle):
     A = T.match_buffer(var_A, (T.int64(7), T.int64(512)), dtype="float32")
     B = T.match_buffer(var_B, T.int64(1), dtype="int32")
@@ -869,7 +869,7 @@ def cache_read_nested_buffer_access(var_A: T.handle, var_B: T.handle, var_C: T.h
 ########## Expected function after cache_write ##########
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def cache_write_elementwise(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     C = T.match_buffer(c, (128, 128))
@@ -894,7 +894,7 @@ def cache_write_elementwise(a: T.handle, c: T.handle) -> None:
             C[vi, vj] = C_local[vi, vj]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def cache_write_under_scope(b: T.handle, c: T.handle) -> None:
     A = T.sblock_alloc_buffer((128, 128))
     B = T.match_buffer(b, (128, 128))
@@ -936,7 +936,7 @@ def cache_write_under_scope(b: T.handle, c: T.handle) -> None:
             C[vi, vj] = A[vi, vj] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def cache_write_opaque_access(a: T.handle, b: T.handle, c: T.handle, d: T.handle) -> None:
     A = T.match_buffer(a, (128, 128), dtype="float16")
     B = T.match_buffer(b, (128, 128), dtype="float16")
@@ -1037,7 +1037,7 @@ def cache_write_opaque_access(a: T.handle, b: T.handle, c: T.handle, d: T.handle
             C[vi, vj] = C_global[vi, vj]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def cache_write_multi_consumer() -> None:
     A = T.sblock_alloc_buffer(128)
     B = T.sblock_alloc_buffer(128)
@@ -1063,7 +1063,7 @@ def cache_write_multi_consumer() -> None:
             C[vi] = A[vi]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def cache_write_multi_consumer_B_consume_cache():
     A = T.sblock_alloc_buffer([128], dtype="float32")
     B = T.sblock_alloc_buffer([128], dtype="float32")
@@ -1088,7 +1088,7 @@ def cache_write_multi_consumer_B_consume_cache():
             C[vi] = A[vi]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def cache_write_multi_consumer_C_consume_cache():
     A = T.sblock_alloc_buffer([128], dtype="float32")
     B = T.sblock_alloc_buffer([128], dtype="float32")
@@ -1113,7 +1113,7 @@ def cache_write_multi_consumer_C_consume_cache():
             C[vi] = A_global[vi]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def cache_write_multi_consumer_all_consume_cache():
     A = T.sblock_alloc_buffer([128], dtype="float32")
     B = T.sblock_alloc_buffer([128], dtype="float32")
@@ -1138,7 +1138,7 @@ def cache_write_multi_consumer_all_consume_cache():
             A[v0] = A_global[v0]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def continuous_cache_write(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     B = T.sblock_alloc_buffer((128, 128))
@@ -1163,7 +1163,7 @@ def continuous_cache_write(a: T.handle, c: T.handle) -> None:
             C[vi, vj] = B[vi, vj] + 1.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def block_predicate_cache_write_intermediate_buf() -> None:
     A = T.sblock_alloc_buffer([120], dtype="float32")
     B = T.sblock_alloc_buffer([120], dtype="float32")
@@ -1184,7 +1184,7 @@ def block_predicate_cache_write_intermediate_buf() -> None:
             B[ax] = A[ax] + 1.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def block_predicate_cache_write_output_buf() -> None:
     A = T.sblock_alloc_buffer([120], dtype="float32")
     B = T.sblock_alloc_buffer([120], dtype="float32")
@@ -1205,7 +1205,7 @@ def block_predicate_cache_write_output_buf() -> None:
             B[v0] = B_shared[v0]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def symbolic_matmul_blocked(var_A: T.handle, var_B: T.handle, var_C: T.handle, n: T.int32):
     A = T.match_buffer(var_A, ((n + 31) // 32 * 32, 4))
     B = T.match_buffer(var_B, (4, (n + 31) // 32 * 32))
@@ -1231,7 +1231,7 @@ def symbolic_matmul_blocked(var_A: T.handle, var_B: T.handle, var_C: T.handle, n
                     )
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def symbolic_matmul_blocked_cache_read(
     var_A: T.handle, var_B: T.handle, var_C: T.handle, n: T.int32
 ):
@@ -1267,7 +1267,7 @@ def symbolic_matmul_blocked_cache_read(
                     )
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def symbolic_matmul_blocked_cache_write(
     var_A: T.handle, var_B: T.handle, var_C: T.handle, n: T.int32
 ):
@@ -1671,7 +1671,7 @@ def test_symbolic_matmul_blocked_cache_write(use_block_name):
 
 
 def test_cache_write_with_nested_block_predicate():
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(A: T.handle, C: T.handle) -> None:
         A_buf = T.match_buffer(A, (12, 24), "float32")
         C_buf = T.match_buffer(C, (10, 20), "float32")
@@ -1684,7 +1684,7 @@ def test_cache_write_with_nested_block_predicate():
                     T.where(vi < 10 and vj < 20)
                     C_buf[vi, vj] = A_buf[vi, vj] * 2.0
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def expected(A_buf: T.Buffer((12, 24), "float32"), C_buf: T.Buffer((10, 20), "float32")):
         with T.sblock("root"):
             C_buf_local = T.sblock_alloc_buffer((10, 20), scope="local")
@@ -1712,7 +1712,7 @@ def test_cache_write_with_nested_block_predicate():
 
 
 def test_cache_read_with_nested_block_predicate():
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(A: T.handle, C: T.handle) -> None:
         A_buf = T.match_buffer(A, (12, 24), "float32")
         C_buf = T.match_buffer(C, (10, 20), "float32")
@@ -1725,7 +1725,7 @@ def test_cache_read_with_nested_block_predicate():
                     T.where(vi < 10 and vj < 20)
                     C_buf[vi, vj] = A_buf[vi, vj] * 2.0
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def expected(A_buf: T.Buffer((12, 24), "float32"), C_buf: T.Buffer((10, 20), "float32")):
         with T.sblock("root"):
             A_buf_local = T.sblock_alloc_buffer((10, 20), scope="local")
@@ -1769,7 +1769,7 @@ def test_cache_write_sibling_nested_block_predicates_use_union():
     were never loaded into C_buf_local — resulting in incorrect output.
     """
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(A: T.handle, C: T.handle) -> None:
         A_buf = T.match_buffer(A, (12, 24), "float32")
         C_buf = T.match_buffer(C, (12, 24), "float32")
@@ -1814,7 +1814,7 @@ def test_cache_read_sibling_nested_block_predicates_use_union():
     is incorrect.
     """
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(A: T.handle, C: T.handle) -> None:
         A_buf = T.match_buffer(A, (12, 24), "float32")
         C_buf = T.match_buffer(C, (12, 24), "float32")

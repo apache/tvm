@@ -41,11 +41,11 @@ def _get_before_module():
             B = R.add(A, R.prim_value(T.float32(1.0)))
             return B
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def tir_main(A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32")):
             Module.tir_subroutine(A.data, B.data)
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def tir_subroutine(A_data: T.ptr("float32"), B_data: T.ptr("float32")):
             A = T.decl_buffer(16, "float32", data=A_data)
             B = T.decl_buffer(16, "float32", data=B_data)
@@ -99,11 +99,11 @@ def test_replace_relax_main():
             B = R.add(A, R.prim_value(T.float32(1.0)))
             return B
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def tir_main(A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32")):
             Expected.tir_subroutine(A.data, B.data)
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def tir_subroutine(A_data: T.ptr("float32"), B_data: T.ptr("float32")):
             A = T.decl_buffer(16, "float32", data=A_data)
             B = T.decl_buffer(16, "float32", data=B_data)
@@ -148,11 +148,11 @@ def test_replace_relax_subroutine():
             B = R.add(A, R.prim_value(T.float32(1.0)))
             return B
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def tir_main(A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32")):
             Expected.tir_subroutine(A.data, B.data)
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def tir_subroutine(A_data: T.ptr("float32"), B_data: T.ptr("float32")):
             A = T.decl_buffer(16, "float32", data=A_data)
             B = T.decl_buffer(16, "float32", data=B_data)
@@ -195,11 +195,11 @@ def test_replace_tir_main():
             B = R.add(A, R.prim_value(T.float32(1.0)))
             return B
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def tir_main_with_new_name(A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32")):
             Expected.tir_subroutine(A.data, B.data)
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def tir_subroutine(A_data: T.ptr("float32"), B_data: T.ptr("float32")):
             A = T.decl_buffer(16, "float32", data=A_data)
             B = T.decl_buffer(16, "float32", data=B_data)
@@ -242,11 +242,11 @@ def test_replace_tir_subroutine():
             B = R.add(A, R.prim_value(T.float32(1.0)))
             return B
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def tir_main(A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32")):
             Expected.tir_subroutine_with_new_name(A.data, B.data)
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def tir_subroutine_with_new_name(A_data: T.ptr("float32"), B_data: T.ptr("float32")):
             A = T.decl_buffer(16, "float32", data=A_data)
             B = T.decl_buffer(16, "float32", data=B_data)
@@ -290,11 +290,11 @@ def test_simultaneous_replacements():
             B = R.add(A, R.prim_value(T.float32(1.0)))
             return B
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def tir_main_with_new_name(A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32")):
             Expected.tir_subroutine_with_new_name(A.data, B.data)
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def tir_subroutine_with_new_name(A_data: T.ptr("float32"), B_data: T.ptr("float32")):
             A = T.decl_buffer(16, "float32", data=A_data)
             B = T.decl_buffer(16, "float32", data=B_data)

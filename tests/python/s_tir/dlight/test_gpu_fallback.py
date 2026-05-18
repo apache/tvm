@@ -25,9 +25,9 @@ from tvm.target import Target
 
 
 def test_fallback():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(
             A: T.Buffer((1, 32, 1, 128), "float16"),
             C: T.Buffer((1, 1, 4096), "float16"),
@@ -42,9 +42,9 @@ def test_fallback():
                     vi, vj, vk = T.axis.remap("SSS", [i, j, k])
                     C[vi, vj, vk] = B[0, 0, vk % 4096 // 128, vk % 128]
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class After:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(
             A: T.Buffer((1, 32, 1, 128), "float16"),
             C: T.Buffer((1, 1, 4096), "float16"),
@@ -67,9 +67,9 @@ def test_fallback():
 
 
 def test_fallback_reduction():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((1, 6144), "float32"), B: T.Buffer((1,), "float32")):
             for ax0, ax1 in T.grid(1, 6144):
                 with T.sblock("block"):
@@ -81,9 +81,9 @@ def test_fallback_reduction():
                         B[v0] = T.float32(0)
                     B[v0] = B[v0] + T.Cast("float32", A[v0, v1])
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((1, 6144), "float32"), B: T.Buffer((1,), "float32")):
             T.func_attr({"tirx.is_scheduled": True})
             for ax0_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
@@ -111,7 +111,7 @@ def test_fallback_reduction():
 
 
 def test_fallback_irregular_spatial():
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def func(
         var_pages: T.handle,
         var_page_table_indptr: T.handle,
@@ -143,7 +143,7 @@ def test_fallback_irregular_spatial():
                 ]
 
     # fmt: off
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(var_pages: T.handle, var_page_table_indptr: T.handle, var_page_table_values: T.handle, var_values: T.handle, seq_id: T.int32):
         T.func_attr({"tirx.is_scheduled": True})
         nhead = T.int32()
@@ -181,11 +181,11 @@ def test_fallback_irregular_spatial():
 
 
 def test_gpu_fallback_ignores_non_gpu_functions():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
         # This function has no "target" attribute, and is scheduled
         # using the `Target.current`.
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def gpu_func(
             A: T.Buffer((1, 32, 1, 128), "float16"),
             C: T.Buffer((1, 1, 4096), "float16"),
@@ -203,7 +203,7 @@ def test_gpu_fallback_ignores_non_gpu_functions():
         # This function is identical, except that it is explicitly
         # annotated with the "target" attribute, and is scheduled
         # based on the annotation's target.
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def cpu_func(
             A: T.Buffer((1, 32, 1, 128), "float16"),
             C: T.Buffer((1, 1, 4096), "float16"),
@@ -219,9 +219,9 @@ def test_gpu_fallback_ignores_non_gpu_functions():
                     vi, vj, vk = T.axis.remap("SSS", [i, j, k])
                     C[vi, vj, vk] = B[0, 0, vk % 4096 // 128, vk % 128]
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class After:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def gpu_func(
             A: T.Buffer((1, 32, 1, 128), "float16"),
             C: T.Buffer((1, 1, 4096), "float16"),
@@ -235,7 +235,7 @@ def test_gpu_fallback_ignores_non_gpu_functions():
                         T.writes(C[0, 0, v0])
                         C[0, 0, v0] = A[0, v0 // 128, 0, v0 % 128]
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def cpu_func(
             A: T.Buffer((1, 32, 1, 128), "float16"),
             C: T.Buffer((1, 1, 4096), "float16"),
