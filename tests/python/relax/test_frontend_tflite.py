@@ -3677,6 +3677,7 @@ _tfl_dilate_options = _get_tflite_schema_module("DilateOptions")
 # ── StableHLO BuiltinOptions2 schema modules ────────────────────────────
 _tfl_stablehlo_concat_opts = _get_tflite_schema_module("StablehloConcatenateOptions")
 _tfl_stablehlo_bcast_opts = _get_tflite_schema_module("StablehloBroadcastInDimOptions")
+_tfl_stablehlo_composite_opts = _get_tflite_schema_module("StableHLOCompositeOptions")
 _tfl_stablehlo_conv_opts = _get_tflite_schema_module("StablehloConvolutionOptions")
 _tfl_stablehlo_dot_opts = _get_tflite_schema_module("StablehloDotGeneralOptions")
 _tfl_stablehlo_iota_opts = _get_tflite_schema_module("StablehloIotaOptions")
@@ -4294,6 +4295,79 @@ def _build_stablehlo_scatter_model(reducer_name="STABLEHLO_ADD", update_window_d
     )
 
 
+def _build_stablehlo_composite_model(with_attributes=False):
+    """Build a STABLEHLO_COMPOSITE model that decomposes to STABLEHLO_NEGATE."""
+    builder = flatbuffers.Builder(1024)
+
+    name = builder.CreateString("test.negate")
+    attributes = None
+    if with_attributes:
+        _tfl_stablehlo_composite_opts.StableHLOCompositeOptionsStartCompositeAttributesVector(
+            builder, 1
+        )
+        builder.PrependUint8(1)
+        attributes = builder.EndVector()
+
+    _tfl_stablehlo_composite_opts.StableHLOCompositeOptionsStart(builder)
+    _tfl_stablehlo_composite_opts.StableHLOCompositeOptionsAddName(builder, name)
+    _tfl_stablehlo_composite_opts.StableHLOCompositeOptionsAddVersion(builder, 1)
+    _tfl_stablehlo_composite_opts.StableHLOCompositeOptionsAddDecompositionSubgraphIndex(
+        builder, 1
+    )
+    if attributes is not None:
+        _tfl_stablehlo_composite_opts.StableHLOCompositeOptionsAddCompositeAttributes(
+            builder, attributes
+        )
+    composite_opts = _tfl_stablehlo_composite_opts.StableHLOCompositeOptionsEnd(builder)
+
+    composite_builtin = _get_stablehlo_builtin_operator("STABLEHLO_COMPOSITE")
+    negate_builtin = _get_stablehlo_builtin_operator("STABLEHLO_NEGATE")
+    composite_code = _build_operator_code(builder, composite_builtin)
+    negate_code = _build_operator_code(builder, negate_builtin)
+
+    main_tensors = [
+        _build_tensor(builder, 0, [2, 2]),
+        _build_tensor(builder, 1, [2, 2]),
+    ]
+    composite_op = _build_operator(
+        builder,
+        0,
+        [0],
+        [1],
+        builtin_options2_type=_tfl_builtin_options2.StableHLOCompositeOptions,
+        builtin_options2=composite_opts,
+    )
+    main_subgraph = _build_subgraph(
+        builder,
+        tensors=main_tensors,
+        operators=[composite_op],
+        inputs=[0],
+        outputs=[1],
+    )
+
+    decomposition_tensors = [
+        _build_tensor(builder, 2, [2, 2]),
+        _build_tensor(builder, 3, [2, 2]),
+    ]
+    negate_op = _build_operator(builder, 1, [0], [1])
+    decomposition_subgraph = _build_subgraph(
+        builder,
+        tensors=decomposition_tensors,
+        operators=[negate_op],
+        inputs=[0],
+        outputs=[1],
+    )
+
+    buffers = [_build_buffer(builder) for _ in range(4)]
+    return _finish_tflite_model(
+        builder,
+        subgraph=main_subgraph,
+        extra_subgraphs=[decomposition_subgraph],
+        operator_codes=[composite_code, negate_code],
+        buffers=buffers,
+    )
+
+
 def _build_stablehlo_typed_binary_model(*, builtin_name, tensor_type):
     """Build a minimal TFLite StableHLO binary model with the requested tensor type."""
     builder = flatbuffers.Builder(1024)
@@ -4616,6 +4690,35 @@ def test_stablehlo_scatter_update_window_unsupported():
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
 
     with pytest.raises(tvm.error.OpNotImplemented, match="point updates"):
+        from_tflite(tflite_model)
+
+
+def test_stablehlo_composite():
+    """TFLite StableHLO COMPOSITE inlines a simple decomposition subgraph."""
+    mod = _load_model_from_buffer(_build_stablehlo_composite_model())
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 2), dtype="float32")) -> R.Tensor((2, 2), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((2, 2), dtype="float32") = R.negative(x)
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_stablehlo_composite_attributes_unsupported():
+    """TFLite StableHLO COMPOSITE rejects attributes until they are parsed."""
+    buf = _build_stablehlo_composite_model(with_attributes=True)
+    if hasattr(tflite.Model, "Model"):
+        tflite_model = tflite.Model.Model.GetRootAsModel(buf, 0)
+    else:
+        tflite_model = tflite.Model.GetRootAsModel(buf, 0)
+
+    with pytest.raises(tvm.error.OpNotImplemented, match="composite attributes"):
         from_tflite(tflite_model)
 
 
