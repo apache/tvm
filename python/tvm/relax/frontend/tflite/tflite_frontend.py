@@ -1826,8 +1826,9 @@ class OperatorConverter:
                 f"STABLEHLO_COMPOSITE {composite_name} only supports single-output decompositions"
             )
 
+        decomposition_exp_tab = ExprTable()
         decomposition_converter = OperatorConverter(
-            self.model, decomposition_subgraph, self.exp_tab, self.bb
+            self.model, decomposition_subgraph, decomposition_exp_tab, self.bb
         )
         for decomposition_input_idx, composite_input in zip(
             decomposition_subgraph.InputsAsNumpy(), input_tensors
@@ -1835,7 +1836,7 @@ class OperatorConverter:
             decomposition_input_name = get_tensor_name(
                 decomposition_subgraph, int(decomposition_input_idx)
             )
-            self.exp_tab.set_expr(
+            decomposition_exp_tab.set_expr(
                 decomposition_input_name,
                 self.get_tensor_expr(composite_input),
                 force_override=True,
@@ -1847,6 +1848,10 @@ class OperatorConverter:
         decomposition_output_tensor = decomposition_converter.get_tensors(
             [decomposition_output_idx]
         )[0]
+        for _, value in decomposition_exp_tab.params.values():
+            param_name = f"_param_{self.exp_tab.const_ctr}"
+            self.exp_tab.const_ctr += 1
+            self.exp_tab.params[param_name] = (relax.const(value), value)
         return decomposition_converter.get_tensor_expr(decomposition_output_tensor)
 
     def _convert_stablehlo_sort(self, op):

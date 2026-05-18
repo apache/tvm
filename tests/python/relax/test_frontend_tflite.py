@@ -4295,7 +4295,7 @@ def _build_stablehlo_scatter_model(reducer_name="STABLEHLO_ADD", update_window_d
     )
 
 
-def _build_stablehlo_composite_model(with_attributes=False):
+def _build_stablehlo_composite_model(with_attributes=False, use_main_input_after_composite=False):
     """Build a STABLEHLO_COMPOSITE model that decomposes to STABLEHLO_NEGATE."""
     builder = flatbuffers.Builder(1024)
 
@@ -4322,12 +4322,15 @@ def _build_stablehlo_composite_model(with_attributes=False):
 
     composite_builtin = _get_stablehlo_builtin_operator("STABLEHLO_COMPOSITE")
     negate_builtin = _get_stablehlo_builtin_operator("STABLEHLO_NEGATE")
+    add_builtin = _get_stablehlo_builtin_operator("STABLEHLO_ADD")
     composite_code = _build_operator_code(builder, composite_builtin)
     negate_code = _build_operator_code(builder, negate_builtin)
+    add_code = _build_operator_code(builder, add_builtin)
 
     main_tensors = [
         _build_tensor(builder, 0, [2, 2]),
         _build_tensor(builder, 1, [2, 2]),
+        _build_tensor(builder, 2, [2, 2]),
     ]
     composite_op = _build_operator(
         builder,
@@ -4337,12 +4340,18 @@ def _build_stablehlo_composite_model(with_attributes=False):
         builtin_options2_type=_tfl_builtin_options2.StableHLOCompositeOptions,
         builtin_options2=composite_opts,
     )
+    main_ops = [composite_op]
+    main_outputs = [1]
+    if use_main_input_after_composite:
+        main_ops.append(_build_operator(builder, 2, [0, 1], [2]))
+        main_outputs = [2]
+
     main_subgraph = _build_subgraph(
         builder,
         tensors=main_tensors,
-        operators=[composite_op],
+        operators=main_ops,
         inputs=[0],
-        outputs=[1],
+        outputs=main_outputs,
     )
 
     decomposition_tensors = [
@@ -4363,7 +4372,7 @@ def _build_stablehlo_composite_model(with_attributes=False):
         builder,
         subgraph=main_subgraph,
         extra_subgraphs=[decomposition_subgraph],
-        operator_codes=[composite_code, negate_code],
+        operator_codes=[composite_code, negate_code, add_code],
         buffers=buffers,
     )
 
@@ -4704,6 +4713,26 @@ def test_stablehlo_composite():
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((2, 2), dtype="float32") = R.negative(x)
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_stablehlo_composite_does_not_overwrite_main_bindings():
+    """TFLite StableHLO COMPOSITE decomposition tensor names are scoped locally."""
+    mod = _load_model_from_buffer(
+        _build_stablehlo_composite_model(use_main_input_after_composite=True)
+    )
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 2), dtype="float32")) -> R.Tensor((2, 2), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((2, 2), dtype="float32") = R.negative(x)
+                gv: R.Tensor((2, 2), dtype="float32") = R.add(x, lv)
                 R.output(gv)
             return gv
 
