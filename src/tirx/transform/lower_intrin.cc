@@ -46,11 +46,21 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
   using IRMutatorWithAnalyzer::VisitStmt_;
   using FLowerGeneral = ffi::TypedFunction<PrimExpr(PrimExpr)>;
 
-  IntrinInjecter(arith::Analyzer* analyzer, std::string target, std::string mtriple = "")
-      : IRMutatorWithAnalyzer(analyzer) {
+  IntrinInjecter(arith::Analyzer* analyzer, const Target& tgt) : IRMutatorWithAnalyzer(analyzer) {
+    std::string target = tgt->kind->name;
+    ffi::String mtriple = tgt->GetAttr<ffi::String>("mtriple").value_or("");
+
     std::vector<std::string> patterns;
+    // For CUDA targets, we need to add the fast math patterns if enable_fast_math is true.
+    // The priority of the fast math patterns is higher than the normal patterns.
+    bool is_fast_math = tgt->GetAttr<bool>("enable_fast_math").value_or(false);
+    if (is_fast_math) {
+      patterns.push_back(target + ".fastmath.FLowerIntrinsic");
+      patterns.push_back(target + ".fastmath.FLegalize");
+    }
     patterns.push_back(target + ".FLowerIntrinsic");
     patterns.push_back(target + ".FLegalize");
+
     bool is_llvm_aarch64 = (mtriple.find("aarch64") != std::string::npos);
     if (is_llvm_aarch64) {
       patterns.push_back(target + ".aarch64.FLowerIntrinsic");
@@ -354,7 +364,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
 
 Stmt LowerIntrinStmt(Stmt stmt, const std::string& target) {
   arith::Analyzer analyzer;
-  return IntrinInjecter(&analyzer, target)(std::move(stmt));
+  return IntrinInjecter(&analyzer, Target(ffi::String(target)))(std::move(stmt));
 }
 
 namespace transform {
@@ -365,9 +375,7 @@ Pass LowerIntrin() {
     auto target = f->GetAttr<Target>(tvm::attr::kTarget);
     TVM_FFI_ICHECK(target.defined()) << "LowerIntrin: Require the target attribute";
     arith::Analyzer analyzer;
-    auto mtriple = target.value()->GetAttr<ffi::String>("mtriple", "");
-    n->body =
-        IntrinInjecter(&analyzer, target.value()->kind->name, mtriple.value())(std::move(n->body));
+    n->body = IntrinInjecter(&analyzer, target.value())(std::move(n->body));
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tirx.LowerIntrin", {});

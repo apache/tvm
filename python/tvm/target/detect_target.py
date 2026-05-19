@@ -41,6 +41,7 @@ def _detect_cuda(dev: Device) -> Target:
             "max_threads_per_block": dev.max_threads_per_block,
             "thread_warp_size": dev.warp_size,
             "arch": "sm_" + dev.compute_version.replace(".", ""),
+            "enable_fast_math": False,
         }
     )
 
