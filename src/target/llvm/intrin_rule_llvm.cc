@@ -141,36 +141,6 @@ TVM_REGISTER_OP("tirx.tan")
       return tan_x;
     });
 
-TVM_REGISTER_OP("tirx.cosh")
-    .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
-      using tirx::make_const;
-      using tirx::make_zero;
-      const tirx::CallNode* call = e.as<tirx::CallNode>();
-      TVM_FFI_ICHECK(call != nullptr);
-      const PrimExpr& x = call->args[0];
-      PrimExpr two = make_const(x.dtype(), 2);
-      PrimExpr neg_one = make_const(x.dtype(), -1);
-      PrimExpr exp_negx = exp(neg_one * x);
-      PrimExpr exp_posx = exp(x);
-      PrimExpr ret = (exp_posx + exp_negx) / two;
-      return ret;
-    });
-
-TVM_REGISTER_OP("tirx.sinh")
-    .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
-      using tirx::make_const;
-      using tirx::make_zero;
-      const tirx::CallNode* call = e.as<tirx::CallNode>();
-      TVM_FFI_ICHECK(call != nullptr);
-      const PrimExpr& x = call->args[0];
-      PrimExpr two = make_const(x.dtype(), 2);
-      PrimExpr neg_one = make_const(x.dtype(), -1);
-      PrimExpr exp_negx = exp(neg_one * x);
-      PrimExpr exp_posx = exp(x);
-      PrimExpr ret = (exp_posx - exp_negx) / two;
-      return ret;
-    });
-
 TVM_REGISTER_OP("tirx.asin")
     .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
       using namespace intrin;
@@ -187,39 +157,6 @@ TVM_REGISTER_OP("tirx.acos")
       return ::tvm::codegen::intrin::DispatchPureExtern<::tvm::codegen::intrin::FloatSuffix>(e);
     });
 
-TVM_REGISTER_OP("tirx.atan")
-    .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
-      using tirx::make_const;
-      const tirx::CallNode* call = e.as<tirx::CallNode>();
-      TVM_FFI_ICHECK(call != nullptr) << "Invalid call node in atan legalization";
-      const PrimExpr& x = call->args[0];
-      PrimExpr one = make_const(x.dtype(), 1.0);
-      PrimExpr denom = sqrt(x * x + one);
-      return asin(x / denom);
-    });
-
-TVM_REGISTER_OP("tirx.asinh")
-    .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
-      using tirx::make_const;
-      const tirx::CallNode* call = e.as<tirx::CallNode>();
-      TVM_FFI_ICHECK(call != nullptr) << "Invalid call node in asinh legalization";
-      const PrimExpr& x = call->args[0];
-      PrimExpr one = make_const(x.dtype(), 1.0);
-      PrimExpr sqrt_val = sqrt(x * x + one);
-      return log(x + sqrt_val);
-    });
-
-TVM_REGISTER_OP("tirx.acosh")
-    .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
-      using tirx::make_const;
-      const tirx::CallNode* call = e.as<tirx::CallNode>();
-      TVM_FFI_ICHECK(call != nullptr) << "Invalid call node in acosh legalization";
-      const PrimExpr& x = call->args[0];
-      PrimExpr one = make_const(x.dtype(), 1.0);
-      PrimExpr sqrt_val = sqrt(x * x - one);
-      return log(x + sqrt_val);
-    });
-
 TVM_REGISTER_OP("tirx.atanh")
     .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
       using tirx::make_const;
@@ -228,25 +165,6 @@ TVM_REGISTER_OP("tirx.atanh")
       const PrimExpr& x = call->args[0];
       PrimExpr one = make_const(x.dtype(), 1.0);
       return (log(one + x) - log(one - x)) * make_const(x.dtype(), 0.5);
-    });
-
-TVM_REGISTER_OP("tirx.erf")
-    .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
-      using tirx::make_const;
-      const tirx::CallNode* call = e.as<tirx::CallNode>();
-      TVM_FFI_ICHECK(call != nullptr) << "Invalid call node in erf legalization";
-      const PrimExpr& x = call->args[0];
-      PrimExpr abs_x = tvm::abs(x);
-      PrimExpr t = make_const(x.dtype(), 1.0) /
-                   (make_const(x.dtype(), 1.0) + make_const(x.dtype(), 0.3275911) * abs_x);
-      PrimExpr a1 = make_const(x.dtype(), 0.254829592);
-      PrimExpr a2 = make_const(x.dtype(), -0.284496736);
-      PrimExpr a3 = make_const(x.dtype(), 1.421413741);
-      PrimExpr a4 = make_const(x.dtype(), -1.453152027);
-      PrimExpr a5 = make_const(x.dtype(), 1.061405429);
-      PrimExpr poly = (((((a5 * t + a4) * t + a3) * t + a2) * t + a1) * t);
-      PrimExpr approx = make_const(x.dtype(), 1.0) - poly * exp(-abs_x * abs_x);
-      return tvm::tirx::Select(x < 0, -approx, approx);
     });
 
 TVM_REGISTER_OP("tirx.clz")
