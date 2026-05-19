@@ -148,6 +148,7 @@ def test_target_tag_0():
     assert tgt.attrs["max_threads_per_block"] == 1024
     assert tgt.attrs["thread_warp_size"] == 32
     assert tgt.attrs["registers_per_block"] == 65536
+    assert not tgt.attrs["enable_fast_math"]
 
 
 def test_target_tag_1():
@@ -158,15 +159,19 @@ def test_target_tag_1():
     assert tgt.attrs["max_threads_per_block"] == 1024
     assert tgt.attrs["thread_warp_size"] == 32
     assert tgt.attrs["registers_per_block"] == 32768
+    assert not tgt.attrs["enable_fast_math"]
 
 
 def test_target_tag_override():
     """Test creating a target from a tag with attribute overrides."""
-    tgt = tvm.target.Target({"tag": "nvidia/nvidia-a100", "l2_cache_size_bytes": 12345})
+    tgt = tvm.target.Target(
+        {"tag": "nvidia/nvidia-a100", "l2_cache_size_bytes": 12345, "enable_fast_math": True}
+    )
     assert tgt.kind.name == "cuda"
     assert tgt.attrs["arch"] == "sm_80"
     # Override should take effect
     assert int(tgt.attrs["l2_cache_size_bytes"]) == 12345
+    assert tgt.attrs["enable_fast_math"]
     # Base tag fields should be preserved
     assert tgt.attrs["max_shared_memory_per_block"] == 49152
     assert tgt.attrs["thread_warp_size"] == 32
@@ -189,12 +194,14 @@ def test_target_host_tags():
     assert tgt.attrs["max_threads_per_block"] == 1024
     assert tgt.attrs["thread_warp_size"] == 32
     assert tgt.attrs["registers_per_block"] == 32768
+    assert not tgt.attrs["enable_fast_math"]
     assert tgt.host.kind.name == "cuda"
     assert tgt.host.attrs["arch"] == "sm_75"
     assert tgt.host.attrs["max_shared_memory_per_block"] == 49152
     assert tgt.host.attrs["max_threads_per_block"] == 1024
     assert tgt.host.attrs["thread_warp_size"] == 32
     assert tgt.host.attrs["registers_per_block"] == 65536
+    assert not tgt.host.attrs["enable_fast_math"]
 
 
 def test_target_host_tag_dict():
@@ -205,6 +212,7 @@ def test_target_host_tag_dict():
     assert tgt.attrs["max_threads_per_block"] == 1024
     assert tgt.attrs["thread_warp_size"] == 32
     assert tgt.attrs["registers_per_block"] == 32768
+    assert not tgt.attrs["enable_fast_math"]
     assert tgt.host.kind.name == "llvm"
 
 
@@ -217,6 +225,7 @@ def test_target_host_single_dict():
     assert tgt.host.attrs["max_threads_per_block"] == 1024
     assert tgt.host.attrs["thread_warp_size"] == 32
     assert tgt.host.attrs["registers_per_block"] == 32768
+    assert not tgt.host.attrs["enable_fast_math"]
 
 
 def test_target_host_single_string():
@@ -234,6 +243,7 @@ def test_target_host_single_string_with_tag():
     assert tgt.host.attrs["max_threads_per_block"] == 1024
     assert tgt.host.attrs["thread_warp_size"] == 32
     assert tgt.host.attrs["registers_per_block"] == 32768
+    assert not tgt.host.attrs["enable_fast_math"]
 
 
 def test_target_host_merge_0():
@@ -245,6 +255,7 @@ def test_target_host_merge_0():
     assert tgt.host.attrs["max_threads_per_block"] == 1024
     assert tgt.host.attrs["thread_warp_size"] == 32
     assert tgt.host.attrs["registers_per_block"] == 32768
+    assert not tgt.host.attrs["enable_fast_math"]
 
 
 def test_target_host_merge_1():
@@ -295,6 +306,7 @@ def test_target_with_host():
     assert tgt.host.attrs["max_threads_per_block"] == 1024
     assert tgt.host.attrs["thread_warp_size"] == 32
     assert tgt.host.attrs["registers_per_block"] == 32768
+    assert not tgt.host.attrs["enable_fast_math"]
 
 
 def test_target_attr_bool_value():

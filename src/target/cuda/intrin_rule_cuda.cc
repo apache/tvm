@@ -176,37 +176,46 @@ TVM_REGISTER_OP("tirx.nearbyint")
     .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAMath>);
 
 TVM_REGISTER_OP("tirx.exp")
-    .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAFastMath>);
+    .set_attr<FLowerIntrinsic>("cuda.fastmath.FLowerIntrinsic", DispatchPureExtern<CUDAFastMath>)
+    .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAMath>);
 
 TVM_REGISTER_OP("tirx.exp2")
     .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAMath>);
 
 TVM_REGISTER_OP("tirx.exp10")
-    .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAFastMath>);
+    .set_attr<FLowerIntrinsic>("cuda.fastmath.FLowerIntrinsic", DispatchPureExtern<CUDAFastMath>)
+    .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAMath>);
 
 TVM_REGISTER_OP("tirx.erf")
     .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAMath>);
 
 TVM_REGISTER_OP("tirx.log")
-    .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAFastMath>);
+    .set_attr<FLowerIntrinsic>("cuda.fastmath.FLowerIntrinsic", DispatchPureExtern<CUDAFastMath>)
+    .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAMath>);
 
 TVM_REGISTER_OP("tirx.log2")
-    .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAFastMath>);
+    .set_attr<FLowerIntrinsic>("cuda.fastmath.FLowerIntrinsic", DispatchPureExtern<CUDAFastMath>)
+    .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAMath>);
 
 TVM_REGISTER_OP("tirx.log10")
-    .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAFastMath>);
+    .set_attr<FLowerIntrinsic>("cuda.fastmath.FLowerIntrinsic", DispatchPureExtern<CUDAFastMath>)
+    .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAMath>);
 
 TVM_REGISTER_OP("tirx.tan")
-    .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAFastMathTan>);
+    // Now the fast math version of tan and the default version of tan are same.
+    .set_attr<FLowerIntrinsic>("cuda.fastmath.FLowerIntrinsic", DispatchPureExtern<CUDAFastMathTan>)
+    .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAMath>);
 
 TVM_REGISTER_OP("tirx.cos")
-    .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAFastMath>);
+    .set_attr<FLowerIntrinsic>("cuda.fastmath.FLowerIntrinsic", DispatchPureExtern<CUDAFastMath>)
+    .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAMath>);
 
 TVM_REGISTER_OP("tirx.cosh")
     .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAMath>);
 
 TVM_REGISTER_OP("tirx.sin")
-    .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAFastMath>);
+    .set_attr<FLowerIntrinsic>("cuda.fastmath.FLowerIntrinsic", DispatchPureExtern<CUDAFastMath>)
+    .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAMath>);
 
 TVM_REGISTER_OP("tirx.sinh")
     .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAMath>);
@@ -215,12 +224,17 @@ TVM_REGISTER_OP("tirx.atan")
     .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAMath>);
 
 TVM_REGISTER_OP("tirx.tanh")
+    .set_attr<FLowerIntrinsic>("cuda.fastmath.FLowerIntrinsic", DispatchPureExtern<CUDAFastMath>)
     .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAMath>);
 
 TVM_REGISTER_OP("tirx.sqrt")
     .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAMath>);
 
+TVM_REGISTER_OP("tirx.rsqrt")
+    .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAMath>);
+
 TVM_REGISTER_OP("tirx.pow")
+    .set_attr<FLowerIntrinsic>("cuda.fastmath.FLowerIntrinsic", DispatchPureExtern<CUDAFastMath>)
     .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAMath>);
 
 TVM_REGISTER_OP("tirx.popcount")
