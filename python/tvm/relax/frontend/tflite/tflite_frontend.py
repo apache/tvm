@@ -2179,6 +2179,7 @@ class OperatorConverter:
         update_indices = np.indices(update_shape, dtype=np.int64)
         for axis, start in enumerate(start_vals):
             update_indices[axis] += start
+        update_indices = np.moveaxis(update_indices, 0, -1)
 
         operand = self.get_tensor_expr(operand_tensor)
         update = self.get_tensor_expr(update_tensor)

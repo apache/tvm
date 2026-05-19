@@ -5866,7 +5866,7 @@ def test_stablehlo_dynamic_update_slice():
             with R.dataflow():
                 gv: R.Tensor((3, 4), dtype="float32") = R.scatter_nd(
                     operand,
-                    R.const([[[1, 1], [2, 2]], [[1, 2], [1, 2]]], dtype="int64"),
+                    R.const([[[1, 1], [1, 2]], [[2, 1], [2, 2]]], dtype="int64"),
                     update,
                     reduction="update",
                 )
