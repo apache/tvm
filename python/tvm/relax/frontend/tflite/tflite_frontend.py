@@ -1848,10 +1848,10 @@ class OperatorConverter:
         decomposition_output_tensor = decomposition_converter.get_tensors(
             [decomposition_output_idx]
         )[0]
-        for _, value in decomposition_exp_tab.params.values():
+        for const_expr, value in decomposition_exp_tab.params.values():
             param_name = f"_param_{self.exp_tab.const_ctr}"
             self.exp_tab.const_ctr += 1
-            self.exp_tab.params[param_name] = (relax.const(value), value)
+            self.exp_tab.params[param_name] = (const_expr, value)
         return decomposition_converter.get_tensor_expr(decomposition_output_tensor)
 
     def _convert_stablehlo_sort(self, op):
