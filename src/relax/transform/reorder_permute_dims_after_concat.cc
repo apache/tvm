@@ -158,10 +158,10 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
     if (old_concat_axis < 0) {
       old_concat_axis += ndim;
     }
-    TVM_FFI_ICHECK_GE(old_concat_axis, 0) << "concat axis " << old_concat_axis
-                                          << " out of range for " << ndim << "-D input";
-    TVM_FFI_ICHECK_LT(old_concat_axis, ndim) << "concat axis " << old_concat_axis
-                                             << " out of range for " << ndim << "-D input";
+    TVM_FFI_ICHECK_GE(old_concat_axis, 0)
+        << "concat axis " << old_concat_axis << " out of range for " << ndim << "-D input";
+    TVM_FFI_ICHECK_LT(old_concat_axis, ndim)
+        << "concat axis " << old_concat_axis << " out of range for " << ndim << "-D input";
 
     Integer new_concat_axis = permute_dims_axes[static_cast<size_t>(old_concat_axis)];
 
