@@ -724,9 +724,9 @@ def test_bitwise_shift(direction: str):
         "Sinh",
         "Cosh",
         "Tanh",
-        # "Asin",  // TODO @jikechao, fix the precision loss due to the Taylor approximation
-        # "Acos",
-        # "Atan",
+        "Asin",
+        "Acos",
+        # "Atan",  // TODO: fix x²+1 overflow in llvm legalize for huge inputs (issue #19560)
         "Asinh",
         "Acosh",
         "Atanh",
