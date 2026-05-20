@@ -3690,6 +3690,7 @@ _tfl_int32_vector = _get_tflite_schema_module("Int32Vector")
 _tfl_model = _get_tflite_schema_module("Model")
 _tfl_operator = _get_tflite_schema_module("Operator")
 _tfl_operator_code = _get_tflite_schema_module("OperatorCode")
+_tfl_quantization_parameters = _get_tflite_schema_module("QuantizationParameters")
 _tfl_sparsity_parameters = _get_tflite_schema_module("SparsityParameters")
 _tfl_subgraph = _get_tflite_schema_module("SubGraph")
 _tfl_tensor = _get_tflite_schema_module("Tensor")
@@ -3718,6 +3719,13 @@ def _tflite_int32_vector(builder, start_vector_fn, values):
     start_vector_fn(builder, len(values))
     for value in reversed(values):
         builder.PrependInt32(value)
+    return builder.EndVector()
+
+
+def _tflite_int64_vector(builder, start_vector_fn, values):
+    start_vector_fn(builder, len(values))
+    for value in reversed(values):
+        builder.PrependInt64(value)
     return builder.EndVector()
 
 
@@ -3752,7 +3760,30 @@ def _tflite_shape(builder, shape):
     return _tflite_int32_vector(builder, _tfl_tensor.TensorStartShapeVector, shape)
 
 
-def _build_tensor(builder, buffer_idx, shape, sparsity=None, tensor_type=None):
+def _tflite_float32_vector(builder, start_vector_fn, values):
+    start_vector_fn(builder, len(values))
+    for value in reversed(values):
+        builder.PrependFloat32(float(value))
+    return builder.EndVector()
+
+
+def _build_quantization(builder, scale, zero_point, axis=-1):
+    scale = np.asarray(scale, dtype="float32").reshape(-1)
+    zero_point = np.asarray(zero_point, dtype="int64").reshape(-1)
+    scale_vec = _tflite_float32_vector(
+        builder, _tfl_quantization_parameters.QuantizationParametersStartScaleVector, scale
+    )
+    zp_vec = _tflite_int64_vector(
+        builder, _tfl_quantization_parameters.QuantizationParametersStartZeroPointVector, zero_point
+    )
+    _tfl_quantization_parameters.QuantizationParametersStart(builder)
+    _tfl_quantization_parameters.QuantizationParametersAddScale(builder, scale_vec)
+    _tfl_quantization_parameters.QuantizationParametersAddZeroPoint(builder, zp_vec)
+    _tfl_quantization_parameters.QuantizationParametersAddQuantizedDimension(builder, axis)
+    return _tfl_quantization_parameters.QuantizationParametersEnd(builder)
+
+
+def _build_tensor(builder, buffer_idx, shape, sparsity=None, tensor_type=None, quantization=None):
     """Helper to build a TFLite tensor."""
     if tensor_type is None:
         tensor_type = _tfl_tensor_type.FLOAT32
@@ -3764,6 +3795,8 @@ def _build_tensor(builder, buffer_idx, shape, sparsity=None, tensor_type=None):
     _tfl_tensor.TensorAddShape(builder, shape_vec)
     if sparsity is not None:
         _tfl_tensor.TensorAddSparsity(builder, sparsity)
+    if quantization is not None:
+        _tfl_tensor.TensorAddQuantization(builder, quantization)
     _tfl_tensor.TensorAddType(builder, tensor_type)
     return _tfl_tensor.TensorEnd(builder)
 
