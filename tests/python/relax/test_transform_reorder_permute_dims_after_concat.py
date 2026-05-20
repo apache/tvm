@@ -283,7 +283,7 @@ class TestNegativeConcatAxis(Base):
             x: R.Tensor([1, 4, 8, 8], "float32"),
             y: R.Tensor([1, 4, 8, 8], "float32"),
         ):
-            with.R.dataflow():
+            with R.dataflow():
                 merged = R.concat([x, y], axis=1)
                 out = R.permute_dims(merged, axes=[0, 2, 3, 1])
                 R.output(out)
