@@ -77,6 +77,8 @@ logger.addHandler(console_handler)
 logger.setLevel(logging.INFO)
 logger.propagate = False
 
+MAX_TRACKER_MSG_BYTES = 1 << 20
+
 
 class Scheduler:
     """Abstract interface of scheduler."""
@@ -222,18 +224,21 @@ class TCPEventHandler(tornado_util.TCPHandler):
 
         while True:
             if self._msg_size == 0:
-                if len(self._data) >= 4:
-                    self._msg_size = struct.unpack("<i", self._data[:4])[0]
-                else:
+                if len(self._data) < 4:
                     return
-            if self._msg_size != 0 and len(self._data) >= self._msg_size + 4:
-                msg = py_str(bytes(self._data[4 : 4 + self._msg_size]))
-                del self._data[: 4 + self._msg_size]
-                self._msg_size = 0
-                # pylint: disable=broad-except
-                self.call_handler(json.loads(msg))
-            else:
+                self._msg_size = struct.unpack("<i", self._data[:4])[0]
+                del self._data[:4]
+                if self._msg_size <= 0 or self._msg_size > MAX_TRACKER_MSG_BYTES:
+                    logger.warning("Invalid message size %d from %s", self._msg_size, self.name())
+                    self.close()
+                    return
+            if len(self._data) < self._msg_size:
                 return
+            msg = py_str(bytes(self._data[: self._msg_size]))
+            del self._data[: self._msg_size]
+            self._msg_size = 0
+            self.call_handler(json.loads(msg))
+
 
     def ret_value(self, data):
         """return value to the output"""
