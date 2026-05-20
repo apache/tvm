@@ -4147,15 +4147,9 @@ def _build_stablehlo_reduce_window_model(
     _tfl_stablehlo_reduce_window_opts.StablehloReduceWindowOptionsAddWindowDilations(
         builder, window_dilations_vec
     )
-    _tfl_stablehlo_reduce_window_opts.StablehloReduceWindowOptionsAddPadding(
-        builder, padding_vec
-    )
-    _tfl_stablehlo_reduce_window_opts.StablehloReduceWindowOptionsAddBodySubgraphIndex(
-        builder, 1
-    )
-    reduce_window_opts = _tfl_stablehlo_reduce_window_opts.StablehloReduceWindowOptionsEnd(
-        builder
-    )
+    _tfl_stablehlo_reduce_window_opts.StablehloReduceWindowOptionsAddPadding(builder, padding_vec)
+    _tfl_stablehlo_reduce_window_opts.StablehloReduceWindowOptionsAddBodySubgraphIndex(builder, 1)
+    reduce_window_opts = _tfl_stablehlo_reduce_window_opts.StablehloReduceWindowOptionsEnd(builder)
 
     reduce_window_builtin = _get_stablehlo_builtin_operator("STABLEHLO_REDUCE_WINDOW")
     reducer_builtin = _get_stablehlo_builtin_operator(reducer_name)
@@ -4243,9 +4237,7 @@ def _build_stablehlo_scatter_model(reducer_name="STABLEHLO_ADD", update_window_d
         builder, scatter_dims_vec
     )
     _tfl_stablehlo_scatter_opts.StablehloScatterOptionsAddIndexVectorDim(builder, 1)
-    _tfl_stablehlo_scatter_opts.StablehloScatterOptionsAddUpdateComputationSubgraphIndex(
-        builder, 1
-    )
+    _tfl_stablehlo_scatter_opts.StablehloScatterOptionsAddUpdateComputationSubgraphIndex(builder, 1)
     scatter_opts = _tfl_stablehlo_scatter_opts.StablehloScatterOptionsEnd(builder)
 
     scatter_builtin = _get_stablehlo_builtin_operator("STABLEHLO_SCATTER")
@@ -4311,9 +4303,7 @@ def _build_stablehlo_composite_model(with_attributes=False, use_main_input_after
     _tfl_stablehlo_composite_opts.StableHLOCompositeOptionsStart(builder)
     _tfl_stablehlo_composite_opts.StableHLOCompositeOptionsAddName(builder, name)
     _tfl_stablehlo_composite_opts.StableHLOCompositeOptionsAddVersion(builder, 1)
-    _tfl_stablehlo_composite_opts.StableHLOCompositeOptionsAddDecompositionSubgraphIndex(
-        builder, 1
-    )
+    _tfl_stablehlo_composite_opts.StableHLOCompositeOptionsAddDecompositionSubgraphIndex(builder, 1)
     if attributes is not None:
         _tfl_stablehlo_composite_opts.StableHLOCompositeOptionsAddCompositeAttributes(
             builder, attributes
@@ -4559,9 +4549,7 @@ def test_stablehlo_sort(comparison_direction, descending):
         def main(x: R.Tensor((2, 3), dtype="float32")) -> R.Tensor((2, 3), dtype="float32"):
             R.func_attr({"num_input": 1})
             with R.dataflow():
-                gv: R.Tensor((2, 3), dtype="float32") = R.sort(
-                    x, axis=1, descending=descending
-                )
+                gv: R.Tensor((2, 3), dtype="float32") = R.sort(x, axis=1, descending=descending)
                 R.output(gv)
             return gv
 
@@ -5766,14 +5754,10 @@ def test_stablehlo_cbrt():
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 lv: R.Tensor((2, 2), dtype="float32") = R.negative(x)
-                lv1: R.Tensor((2, 2), dtype="float32") = R.power(
-                    lv, R.const(1.0 / 3.0, "float32")
-                )
+                lv1: R.Tensor((2, 2), dtype="float32") = R.power(lv, R.const(1.0 / 3.0, "float32"))
                 lv2: R.Tensor((2, 2), dtype="bool") = R.less(x, R.const(0, "float32"))
                 lv3: R.Tensor((2, 2), dtype="float32") = R.negative(lv1)
-                lv4: R.Tensor((2, 2), dtype="float32") = R.power(
-                    x, R.const(1.0 / 3.0, "float32")
-                )
+                lv4: R.Tensor((2, 2), dtype="float32") = R.power(x, R.const(1.0 / 3.0, "float32"))
                 gv: R.Tensor((2, 2), dtype="float32") = R.where(lv2, lv3, lv4)
                 R.output(gv)
             return gv
@@ -6046,12 +6030,8 @@ def _build_stablehlo_convolution_model(feature_group_count=1, input_batch_dimens
         builder, window_strides_vec
     )
     _tfl_stablehlo_conv_opts.StablehloConvolutionOptionsAddPadding(builder, padding_vec)
-    _tfl_stablehlo_conv_opts.StablehloConvolutionOptionsAddLhsDilation(
-        builder, lhs_dilation_vec
-    )
-    _tfl_stablehlo_conv_opts.StablehloConvolutionOptionsAddRhsDilation(
-        builder, rhs_dilation_vec
-    )
+    _tfl_stablehlo_conv_opts.StablehloConvolutionOptionsAddLhsDilation(builder, lhs_dilation_vec)
+    _tfl_stablehlo_conv_opts.StablehloConvolutionOptionsAddRhsDilation(builder, rhs_dilation_vec)
     _tfl_stablehlo_conv_opts.StablehloConvolutionOptionsAddWindowReversal(
         builder, window_reversal_vec
     )
@@ -6062,12 +6042,8 @@ def _build_stablehlo_convolution_model(feature_group_count=1, input_batch_dimens
     _tfl_stablehlo_conv_opts.StablehloConvolutionOptionsAddInputSpatialDimensions(
         builder, input_spatial_vec
     )
-    _tfl_stablehlo_conv_opts.StablehloConvolutionOptionsAddKernelInputFeatureDimension(
-        builder, 2
-    )
-    _tfl_stablehlo_conv_opts.StablehloConvolutionOptionsAddKernelOutputFeatureDimension(
-        builder, 3
-    )
+    _tfl_stablehlo_conv_opts.StablehloConvolutionOptionsAddKernelInputFeatureDimension(builder, 2)
+    _tfl_stablehlo_conv_opts.StablehloConvolutionOptionsAddKernelOutputFeatureDimension(builder, 3)
     _tfl_stablehlo_conv_opts.StablehloConvolutionOptionsAddKernelSpatialDimensions(
         builder, kernel_spatial_vec
     )

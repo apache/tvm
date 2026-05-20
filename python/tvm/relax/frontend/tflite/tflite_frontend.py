@@ -1658,9 +1658,7 @@ class OperatorConverter:
             raise tvm.error.OpNotImplemented(
                 "STABLEHLO_REDUCE_WINDOW only supports MAXIMUM reducer windows"
             )
-        self._check_stablehlo_reduce_init(
-            input_tensors[1], reducer_name, "STABLEHLO_REDUCE_WINDOW"
-        )
+        self._check_stablehlo_reduce_init(input_tensors[1], reducer_name, "STABLEHLO_REDUCE_WINDOW")
 
         data_shape = self._get_static_tensor_shape(input_tensors[0], "STABLEHLO_REDUCE_WINDOW")
         if len(data_shape) != 4:
@@ -1736,9 +1734,7 @@ class OperatorConverter:
         indices_rank = len(indices_shape)
 
         update_window_dims = self._get_stablehlo_i64_vector(opts.UpdateWindowDimsAsNumpy(), [])
-        inserted_window_dims = self._get_stablehlo_i64_vector(
-            opts.InsertedWindowDimsAsNumpy(), []
-        )
+        inserted_window_dims = self._get_stablehlo_i64_vector(opts.InsertedWindowDimsAsNumpy(), [])
         scatter_dims_to_operand_dims = self._get_stablehlo_i64_vector(
             opts.ScatterDimsToOperandDimsAsNumpy(), []
         )
@@ -1897,9 +1893,7 @@ class OperatorConverter:
         elif direction == _DIR.STABLEHLO_COMPARISON_DIRECTION_GT:
             descending = True
         else:
-            raise tvm.error.OpNotImplemented(
-                "STABLEHLO_SORT only supports LT or GT comparators"
-            )
+            raise tvm.error.OpNotImplemented("STABLEHLO_SORT only supports LT or GT comparators")
 
         data = self.get_tensor_expr(input_tensors[0])
         return self.bb.normalize(
@@ -2287,9 +2281,7 @@ class OperatorConverter:
         rhs_dilation = self._get_stablehlo_i64_vector(opts.RhsDilationAsNumpy(), [1, 1])
         window_reversal = opts.WindowReversalAsNumpy()
         window_reversal = (
-            [False, False]
-            if window_reversal is None
-            else [bool(v) for v in window_reversal]
+            [False, False] if window_reversal is None else [bool(v) for v in window_reversal]
         )
 
         if len(window_strides) != 2 or len(rhs_dilation) != 2:
