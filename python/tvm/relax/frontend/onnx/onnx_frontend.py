@@ -3799,9 +3799,10 @@ class RMSNormalization(OnnxOpConverter):
         stash_type = attr.get("stash_type", 1)
 
         # Determine normalization axes: from `axis` to the last dimension
-        ndim = len(data.struct_info.shape)
-        if axis < 0:
-            axis = ndim + axis
+        ndim = _get_known_tensor_rank(data)
+        if ndim is None:
+            raise ValueError("RMSNormalization requires a statically known input rank.")
+        axis = _normalize_constant_axes([axis], ndim, "RMSNormalization")[0]
         axes = list(range(axis, ndim))
 
         # If stash_type requires float32 computation and input is not float32, cast
