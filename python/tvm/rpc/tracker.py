@@ -237,8 +237,12 @@ class TCPEventHandler(tornado_util.TCPHandler):
             msg = py_str(bytes(self._data[: self._msg_size]))
             del self._data[: self._msg_size]
             self._msg_size = 0
-            self.call_handler(json.loads(msg))
-
+            try:
+                self.call_handler(json.loads(msg))
+            except (json.JSONDecodeError, Exception) as e:
+                logger.warning("Error processing message from %s: %s", self.name(), e)
+                self.close()
+                return
 
     def ret_value(self, data):
         """return value to the output"""
