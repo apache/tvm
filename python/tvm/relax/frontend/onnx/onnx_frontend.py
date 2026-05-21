@@ -3787,6 +3787,42 @@ class LayerNormalization(OnnxOpConverter):
         return relax.Tuple([output, placeholder, placeholder])
 
 
+class RMSNormalization(OnnxOpConverter):
+    """Converts an onnx RMSNormalization node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v23(cls, bb, inputs, attr, params):
+        data = inputs[0]
+        scale = inputs[1]
+        axis = attr.get("axis", -1)
+        epsilon = attr.get("epsilon", 1e-05)
+        stash_type = attr.get("stash_type", 1)
+
+        # Determine normalization axes: from `axis` to the last dimension
+        ndim = _get_known_tensor_rank(data)
+        if ndim is None:
+            raise ValueError("RMSNormalization requires a statically known input rank.")
+        axis = _normalize_constant_axes([axis], ndim, "RMSNormalization")[0]
+        axes = list(range(axis, ndim))
+
+        # If stash_type requires float32 computation and input is not float32, cast
+        input_dtype = data.struct_info.dtype
+        if stash_type == 1 and input_dtype != "float32":
+            data_compute = relax.op.astype(data, "float32")
+            scale_compute = relax.op.astype(scale, "float32")
+        else:
+            data_compute = data
+            scale_compute = scale
+
+        output = relax.op.nn.rms_norm(data_compute, scale_compute, axes, epsilon)
+
+        # Cast back to original dtype if needed
+        if stash_type == 1 and input_dtype != "float32":
+            output = relax.op.astype(output, input_dtype)
+
+        return output
+
+
 class ReduceMax(OnnxOpConverter):
     """Converts an onnx ReduceMax node into an equivalent Relax expression."""
 
@@ -5129,6 +5165,7 @@ def _get_convert_map():
         # Normalization
         "BatchNormalization": BatchNormalization,
         "LayerNormalization": LayerNormalization,
+        "RMSNormalization": RMSNormalization,
         "SkipLayerNormalization": SkipLayerNormalization,
         "EmbedLayerNormalization": EmbedLayerNormalization,
         "InstanceNormalization": InstanceNormalization,
