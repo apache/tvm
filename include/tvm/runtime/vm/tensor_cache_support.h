@@ -86,7 +86,8 @@ struct TensorCacheMetadata {
   /*! \brief Load the metadata from a specific directory */
   TVM_RUNTIME_DLL static TensorCacheMetadata Load(const std::string& path);
   /*! \brief Load the metadata from a given JSON string */
-  static TensorCacheMetadata LoadFromStr(const std::string& json_str, const std::string& path);
+  TVM_RUNTIME_DLL static TensorCacheMetadata LoadFromStr(const std::string& json_str,
+                                                         const std::string& path);
 };
 
 }  // namespace vm
