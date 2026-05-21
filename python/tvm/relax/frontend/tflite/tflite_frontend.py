@@ -244,15 +244,20 @@ class OperatorConverter:
             "STABLEHLO_ADD": functools.partial(self._convert_stablehlo_binary, relax_op=_op.add),
             "STABLEHLO_AND": self._convert_stablehlo_and,
             "STABLEHLO_BROADCAST_IN_DIM": self._convert_stablehlo_broadcast_in_dim,
+            "STABLEHLO_CBRT": self._convert_stablehlo_cbrt,
             "STABLEHLO_CLAMP": self._convert_stablehlo_clamp,
             "STABLEHLO_COMPARE": self._convert_stablehlo_compare,
+            "STABLEHLO_COMPOSITE": self._convert_stablehlo_composite,
             "STABLEHLO_CONCATENATE": self._convert_stablehlo_concatenate,
+            "STABLEHLO_CONVOLUTION": self._convert_stablehlo_convolution,
             "STABLEHLO_CONVERT": self._convert_stablehlo_convert,
             "STABLEHLO_COSINE": functools.partial(self._convert_stablehlo_unary, relax_op=_op.cos),
             "STABLEHLO_DIVIDE": functools.partial(
                 self._convert_stablehlo_binary, relax_op=_op.divide
             ),
+            "STABLEHLO_DOT_GENERAL": self._convert_stablehlo_dot_general,
             "STABLEHLO_DYNAMIC_SLICE": self._convert_stablehlo_dynamic_slice,
+            "STABLEHLO_DYNAMIC_UPDATE_SLICE": self._convert_stablehlo_dynamic_update_slice,
             "STABLEHLO_EXPONENTIAL": functools.partial(
                 self._convert_stablehlo_unary, relax_op=_op.exp
             ),
@@ -280,13 +285,18 @@ class OperatorConverter:
             "STABLEHLO_POWER": functools.partial(
                 self._convert_stablehlo_binary, relax_op=_op.power
             ),
+            "STABLEHLO_REDUCE": self._convert_stablehlo_reduce,
+            "STABLEHLO_REDUCE_WINDOW": self._convert_stablehlo_reduce_window,
+            "STABLEHLO_REMAINDER": self._convert_stablehlo_remainder,
             "STABLEHLO_RSQRT": functools.partial(self._convert_stablehlo_unary, relax_op=_op.rsqrt),
+            "STABLEHLO_SCATTER": self._convert_stablehlo_scatter,
             "STABLEHLO_SELECT": functools.partial(
                 self._convert_stablehlo_ternary, relax_op=_op.where
             ),
             "STABLEHLO_SHIFT_LEFT": functools.partial(
                 self._convert_stablehlo_binary, relax_op=_op.left_shift
             ),
+            "STABLEHLO_SORT": self._convert_stablehlo_sort,
             "STABLEHLO_SUBTRACT": functools.partial(
                 self._convert_stablehlo_binary, relax_op=_op.subtract
             ),
@@ -1483,6 +1493,413 @@ class OperatorConverter:
         result.Init(op_options.Bytes, op_options.Pos)
         return result
 
+    def _get_static_tensor_shape(self, tensor, op_name):
+        """Return a statically-known TFLite tensor shape as Python ints."""
+        try:
+            return [int(dim) for dim in self.get_tensor_shape(tensor)]
+        except (TypeError, ValueError) as err:
+            raise tvm.error.OpNotImplemented(
+                f"{op_name} requires statically-known tensor shapes"
+            ) from err
+
+    def _get_stablehlo_i64_vector(self, vector, default):
+        """Convert an optional StableHLO int64 vector field to a Python int list."""
+        if vector is None or isinstance(vector, int):
+            return list(default)
+        return [int(v) for v in vector]
+
+    def _ensure_stablehlo_float_dtype(self, expr, op_name):
+        """Return expr dtype if the StableHLO subset supports it."""
+        dtype = expr.struct_info.dtype
+        if not dtype.startswith("float"):
+            raise tvm.error.OpNotImplemented(f"{op_name} with dtype {dtype} is not supported")
+        return dtype
+
+    def _convert_stablehlo_cbrt(self, op):
+        """Convert STABLEHLO_CBRT to a sign-preserving Relax expression."""
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+        assert len(self.get_output_tensors(op)) == 1
+
+        data = self.get_tensor_expr(input_tensors[0])
+        dtype = self._ensure_stablehlo_float_dtype(data, "STABLEHLO_CBRT")
+        zero = relax.const(0, dtype)
+        exponent = relax.const(1.0 / 3.0, dtype)
+
+        is_negative = self.bb.normalize(relax.op.less(data, zero))
+        negative_base = self.bb.normalize(relax.op.negative(data))
+        negative_root = self.bb.normalize(relax.op.power(negative_base, exponent))
+        negative_result = self.bb.normalize(relax.op.negative(negative_root))
+        positive_result = self.bb.normalize(relax.op.power(data, exponent))
+        return self.bb.normalize(relax.op.where(is_negative, negative_result, positive_result))
+
+    def _convert_stablehlo_remainder(self, op):
+        """Convert STABLEHLO_REMAINDER to truncating remainder for float tensors."""
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+        assert len(self.get_output_tensors(op)) == 1
+
+        lhs = self.get_tensor_expr(input_tensors[0])
+        rhs = self.get_tensor_expr(input_tensors[1])
+        self._ensure_stablehlo_float_dtype(lhs, "STABLEHLO_REMAINDER")
+        self._ensure_stablehlo_float_dtype(rhs, "STABLEHLO_REMAINDER")
+
+        quotient = self.bb.normalize(relax.op.divide(lhs, rhs))
+        truncated = self.bb.normalize(relax.op.trunc(quotient))
+        product = self.bb.normalize(relax.op.multiply(rhs, truncated))
+        return self.bb.normalize(relax.op.subtract(lhs, product))
+
+    def _get_stablehlo_simple_body_op(self, body_subgraph_index, parent_op_name, input_count):
+        """Return the single operator from a simple StableHLO body subgraph."""
+        if body_subgraph_index <= 0 or body_subgraph_index >= self.model.SubgraphsLength():
+            raise tvm.error.OpNotImplemented(
+                f"{parent_op_name} requires a valid non-main body subgraph"
+            )
+
+        body_subgraph = self.model.Subgraphs(body_subgraph_index)
+        if (
+            body_subgraph.InputsLength() != input_count
+            or body_subgraph.OutputsLength() != 1
+            or body_subgraph.OperatorsLength() != 1
+        ):
+            raise tvm.error.OpNotImplemented(
+                f"{parent_op_name} only supports single-op body subgraphs"
+            )
+
+        return body_subgraph.Operators(0)
+
+    def _check_stablehlo_reduce_init(
+        self, init_tensor, reducer_name, parent_op_name="STABLEHLO_REDUCE"
+    ):
+        """Validate that the StableHLO reduce init value matches the Relax identity."""
+        if self.has_expr(init_tensor.tensor_idx):
+            raise tvm.error.OpNotImplemented(
+                f"{parent_op_name} with dynamic init values is not supported"
+            )
+
+        init_value = np.asarray(self.get_tensor_value(init_tensor))
+        if init_value.shape not in [(), (1,)]:
+            raise tvm.error.OpNotImplemented(f"{parent_op_name} requires scalar init values")
+
+        dtype = init_value.dtype
+        scalar = init_value.item()
+        if reducer_name == "STABLEHLO_ADD":
+            is_identity = bool(np.isclose(scalar, 0))
+        elif reducer_name == "STABLEHLO_MULTIPLY":
+            is_identity = bool(np.isclose(scalar, 1))
+        elif reducer_name == "STABLEHLO_MAXIMUM":
+            if np.issubdtype(dtype, np.floating):
+                is_identity = bool(np.isneginf(scalar))
+            elif np.issubdtype(dtype, np.integer):
+                is_identity = scalar == np.iinfo(dtype).min
+            else:
+                is_identity = False
+        elif reducer_name == "STABLEHLO_MINIMUM":
+            if np.issubdtype(dtype, np.floating):
+                is_identity = bool(np.isposinf(scalar))
+            elif np.issubdtype(dtype, np.integer):
+                is_identity = scalar == np.iinfo(dtype).max
+            else:
+                is_identity = False
+        else:
+            raise tvm.error.OpNotImplemented(
+                f"{parent_op_name} reducer {reducer_name} is not supported"
+            )
+
+        if not is_identity:
+            raise tvm.error.OpNotImplemented(
+                f"{parent_op_name} init value must match the reducer identity"
+            )
+
+    def _convert_stablehlo_reduce(self, op):
+        """Convert the single-input STABLEHLO_REDUCE subset to Relax reductions."""
+        from tflite.StablehloReduceOptions import StablehloReduceOptions
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+        assert len(self.get_output_tensors(op)) == 1
+
+        opts = self._get_stablehlo_options(op, StablehloReduceOptions)
+        dimensions = self._get_stablehlo_i64_vector(opts.DimensionsAsNumpy(), [])
+        body_op = self._get_stablehlo_simple_body_op(
+            int(opts.BodySubgraphIndex()), "STABLEHLO_REDUCE", 2
+        )
+        reducer_name = self.get_op_code_str(body_op)
+
+        reducers = {
+            "STABLEHLO_ADD": relax.op.sum,
+            "STABLEHLO_MAXIMUM": relax.op.max,
+            "STABLEHLO_MINIMUM": relax.op.min,
+            "STABLEHLO_MULTIPLY": relax.op.prod,
+        }
+        if reducer_name not in reducers:
+            raise tvm.error.OpNotImplemented(
+                f"STABLEHLO_REDUCE reducer {reducer_name} is not supported"
+            )
+
+        self._check_stablehlo_reduce_init(input_tensors[1], reducer_name)
+        data = self.get_tensor_expr(input_tensors[0])
+        return self.bb.normalize(reducers[reducer_name](data, axis=dimensions, keepdims=False))
+
+    def _convert_stablehlo_reduce_window(self, op):
+        """Convert the NHWC 2D max-pool STABLEHLO_REDUCE_WINDOW subset."""
+        from tflite.StablehloReduceWindowOptions import StablehloReduceWindowOptions
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+        assert len(self.get_output_tensors(op)) == 1
+
+        opts = self._get_stablehlo_options(op, StablehloReduceWindowOptions)
+        body_op = self._get_stablehlo_simple_body_op(
+            int(opts.BodySubgraphIndex()), "STABLEHLO_REDUCE_WINDOW", 2
+        )
+        reducer_name = self.get_op_code_str(body_op)
+        if reducer_name != "STABLEHLO_MAXIMUM":
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_REDUCE_WINDOW only supports MAXIMUM reducer windows"
+            )
+        self._check_stablehlo_reduce_init(input_tensors[1], reducer_name, "STABLEHLO_REDUCE_WINDOW")
+
+        data_shape = self._get_static_tensor_shape(input_tensors[0], "STABLEHLO_REDUCE_WINDOW")
+        if len(data_shape) != 4:
+            raise tvm.error.OpNotImplemented("STABLEHLO_REDUCE_WINDOW only supports 4D input")
+
+        window_dimensions = self._get_stablehlo_i64_vector(opts.WindowDimensionsAsNumpy(), [])
+        window_strides = self._get_stablehlo_i64_vector(
+            opts.WindowStridesAsNumpy(), [1] * len(window_dimensions)
+        )
+        base_dilations = self._get_stablehlo_i64_vector(
+            opts.BaseDilationsAsNumpy(), [1] * len(window_dimensions)
+        )
+        window_dilations = self._get_stablehlo_i64_vector(
+            opts.WindowDilationsAsNumpy(), [1] * len(window_dimensions)
+        )
+        padding = self._get_stablehlo_i64_vector(
+            opts.PaddingAsNumpy(), [0] * (2 * len(window_dimensions))
+        )
+
+        if (
+            len(window_dimensions) != 4
+            or len(window_strides) != 4
+            or len(base_dilations) != 4
+            or len(window_dilations) != 4
+            or len(padding) != 8
+        ):
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_REDUCE_WINDOW only supports rank-4 window attributes"
+            )
+        if window_dimensions[0] != 1 or window_dimensions[3] != 1:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_REDUCE_WINDOW only supports pooling over spatial dimensions"
+            )
+        if window_strides[0] != 1 or window_strides[3] != 1:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_REDUCE_WINDOW only supports unit batch/channel strides"
+            )
+        if base_dilations != [1, 1, 1, 1]:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_REDUCE_WINDOW with base dilation is not supported"
+            )
+        if padding[0] != 0 or padding[1] != 0 or padding[6] != 0 or padding[7] != 0:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_REDUCE_WINDOW only supports spatial padding"
+            )
+
+        data = self.get_tensor_expr(input_tensors[0])
+        return self.bb.normalize(
+            relax.op.nn.max_pool2d(
+                data,
+                pool_size=[window_dimensions[1], window_dimensions[2]],
+                strides=[window_strides[1], window_strides[2]],
+                padding=[padding[2], padding[4], padding[3], padding[5]],
+                dilation=[window_dilations[1], window_dilations[2]],
+                layout="NHWC",
+                out_layout="NHWC",
+            )
+        )
+
+    def _convert_stablehlo_scatter(self, op):
+        """Convert the canonical point-update STABLEHLO_SCATTER subset."""
+        from tflite.StablehloScatterOptions import StablehloScatterOptions
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 3, "input tensors length should be 3"
+        assert len(self.get_output_tensors(op)) == 1
+
+        opts = self._get_stablehlo_options(op, StablehloScatterOptions)
+        operand_shape = self._get_static_tensor_shape(input_tensors[0], "STABLEHLO_SCATTER")
+        indices_shape = self._get_static_tensor_shape(input_tensors[1], "STABLEHLO_SCATTER")
+        updates_shape = self._get_static_tensor_shape(input_tensors[2], "STABLEHLO_SCATTER")
+        operand_rank = len(operand_shape)
+        indices_rank = len(indices_shape)
+
+        update_window_dims = self._get_stablehlo_i64_vector(opts.UpdateWindowDimsAsNumpy(), [])
+        inserted_window_dims = self._get_stablehlo_i64_vector(opts.InsertedWindowDimsAsNumpy(), [])
+        scatter_dims_to_operand_dims = self._get_stablehlo_i64_vector(
+            opts.ScatterDimsToOperandDimsAsNumpy(), []
+        )
+        index_vector_dim = int(opts.IndexVectorDim())
+
+        if indices_rank == 0 or index_vector_dim != indices_rank - 1:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_SCATTER only supports trailing index-vector dimensions"
+            )
+        if update_window_dims:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_SCATTER only supports point updates without update windows"
+            )
+        if inserted_window_dims != list(range(operand_rank)):
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_SCATTER only supports point updates for every operand dimension"
+            )
+        if scatter_dims_to_operand_dims != list(range(operand_rank)):
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_SCATTER only supports canonical scatter-to-operand dimensions"
+            )
+        if indices_shape[-1] != operand_rank or updates_shape != indices_shape[:-1]:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_SCATTER requires point update shapes to match scatter indices"
+            )
+
+        body_op = self._get_stablehlo_simple_body_op(
+            int(opts.UpdateComputationSubgraphIndex()), "STABLEHLO_SCATTER", 2
+        )
+        reducer_name = self.get_op_code_str(body_op)
+        reductions = {
+            "STABLEHLO_ADD": "add",
+            "STABLEHLO_MAXIMUM": "max",
+            "STABLEHLO_MINIMUM": "min",
+            "STABLEHLO_MULTIPLY": "mul",
+        }
+        if reducer_name not in reductions:
+            raise tvm.error.OpNotImplemented(
+                f"STABLEHLO_SCATTER reducer {reducer_name} is not supported"
+            )
+
+        operand = self.get_tensor_expr(input_tensors[0])
+        indices = self.get_tensor_expr(input_tensors[1])
+        updates = self.get_tensor_expr(input_tensors[2])
+        return self.bb.normalize(
+            relax.op.scatter_nd(operand, indices, updates, reductions[reducer_name])
+        )
+
+    def _convert_stablehlo_composite(self, op):
+        """Convert STABLEHLO_COMPOSITE by inlining a simple decomposition subgraph."""
+        from tflite.StableHLOCompositeOptions import StableHLOCompositeOptions
+
+        input_tensors = self.get_input_tensors(op)
+        output_tensors = self.get_output_tensors(op)
+        if len(output_tensors) != 1:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_COMPOSITE only supports single-output decompositions"
+            )
+
+        opts = self._get_stablehlo_options(op, StableHLOCompositeOptions)
+        composite_name = opts.Name()
+        composite_name = (
+            composite_name.decode("utf-8") if composite_name is not None else "<unnamed>"
+        )
+        if opts.CompositeAttributesLength() != 0:
+            raise tvm.error.OpNotImplemented(
+                f"STABLEHLO_COMPOSITE {composite_name} with composite attributes is not supported"
+            )
+
+        decomposition_subgraph_index = int(opts.DecompositionSubgraphIndex())
+        if (
+            decomposition_subgraph_index <= 0
+            or decomposition_subgraph_index >= self.model.SubgraphsLength()
+        ):
+            raise tvm.error.OpNotImplemented(
+                f"STABLEHLO_COMPOSITE {composite_name} requires a valid decomposition subgraph"
+            )
+        decomposition_subgraph = self.model.Subgraphs(decomposition_subgraph_index)
+        if decomposition_subgraph.InputsLength() != len(input_tensors):
+            raise tvm.error.OpNotImplemented(
+                f"STABLEHLO_COMPOSITE {composite_name} decomposition input count mismatch"
+            )
+        if decomposition_subgraph.OutputsLength() != 1:
+            raise tvm.error.OpNotImplemented(
+                f"STABLEHLO_COMPOSITE {composite_name} only supports single-output decompositions"
+            )
+
+        decomposition_exp_tab = ExprTable()
+        decomposition_converter = OperatorConverter(
+            self.model, decomposition_subgraph, decomposition_exp_tab, self.bb
+        )
+        for decomposition_input_idx, composite_input in zip(
+            decomposition_subgraph.InputsAsNumpy(), input_tensors
+        ):
+            decomposition_input_name = get_tensor_name(
+                decomposition_subgraph, int(decomposition_input_idx)
+            )
+            decomposition_exp_tab.set_expr(
+                decomposition_input_name,
+                self.get_tensor_expr(composite_input),
+                force_override=True,
+            )
+
+        decomposition_converter.check_unsupported_ops()
+        decomposition_converter.convert_op_to_relax()
+        decomposition_output_idx = int(decomposition_subgraph.Outputs(0))
+        decomposition_output_tensor = decomposition_converter.get_tensors(
+            [decomposition_output_idx]
+        )[0]
+        for const_expr, value in decomposition_exp_tab.params.values():
+            param_name = f"_param_{self.exp_tab.const_ctr}"
+            self.exp_tab.const_ctr += 1
+            self.exp_tab.params[param_name] = (const_expr, value)
+        return decomposition_converter.get_tensor_expr(decomposition_output_tensor)
+
+    def _convert_stablehlo_sort(self, op):
+        """Convert the single-input STABLEHLO_SORT subset to Relax sort."""
+        from tflite.StablehloCompareOptions import StablehloCompareOptions
+        from tflite.StablehloComparisonDirection import StablehloComparisonDirection
+        from tflite.StablehloComparisonType import StablehloComparisonType
+        from tflite.StablehloSortOptions import StablehloSortOptions
+
+        input_tensors = self.get_input_tensors(op)
+        output_tensors = self.get_output_tensors(op)
+        if len(input_tensors) != 1 or len(output_tensors) != 1:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_SORT only supports single-input single-output sort"
+            )
+
+        opts = self._get_stablehlo_options(op, StablehloSortOptions)
+        if opts.IsStable():
+            raise tvm.error.OpNotImplemented("STABLEHLO_SORT stable sort is not supported")
+
+        body_op = self._get_stablehlo_simple_body_op(
+            int(opts.ComparatorSubgraphIndex()), "STABLEHLO_SORT", 2
+        )
+        comparator_name = self.get_op_code_str(body_op)
+        if comparator_name != "STABLEHLO_COMPARE":
+            raise tvm.error.OpNotImplemented(
+                f"STABLEHLO_SORT comparator {comparator_name} is not supported"
+            )
+
+        compare_opts = self._get_stablehlo_options(body_op, StablehloCompareOptions)
+        if (
+            compare_opts.CompareType()
+            == StablehloComparisonType.STABLEHLO_COMPARISON_TYPE_FLOAT_TOTAL_ORDER
+        ):
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_SORT with TOTALORDER comparator is not supported"
+            )
+
+        direction = compare_opts.ComparisonDirection()
+        _DIR = StablehloComparisonDirection
+        if direction == _DIR.STABLEHLO_COMPARISON_DIRECTION_LT:
+            descending = False
+        elif direction == _DIR.STABLEHLO_COMPARISON_DIRECTION_GT:
+            descending = True
+        else:
+            raise tvm.error.OpNotImplemented("STABLEHLO_SORT only supports LT or GT comparators")
+
+        data = self.get_tensor_expr(input_tensors[0])
+        return self.bb.normalize(
+            relax.op.sort(data, axis=int(opts.Dimension()), descending=descending)
+        )
+
     def _convert_stablehlo_convert(self, op):
         """Convert STABLEHLO_CONVERT to Relax (astype).
 
@@ -1718,6 +2135,189 @@ class OperatorConverter:
         strides = _const_1d(stride_vals)
 
         return self.bb.normalize(relax.op.dynamic_strided_slice(operand, begin, end, strides))
+
+    def _convert_stablehlo_dynamic_update_slice(self, op):
+        """Convert STABLEHLO_DYNAMIC_UPDATE_SLICE to Relax for static starts."""
+        input_tensors = self.get_input_tensors(op)
+        # operand + update + N start-index scalars
+        assert len(input_tensors) >= 3, "input tensors length should be >= 3"
+        assert len(self.get_output_tensors(op)) == 1
+
+        operand_tensor = input_tensors[0]
+        update_tensor = input_tensors[1]
+        start_tensors = input_tensors[2:]
+
+        op_name = "STABLEHLO_DYNAMIC_UPDATE_SLICE"
+        operand_shape = self._get_static_tensor_shape(operand_tensor, op_name)
+        update_shape = self._get_static_tensor_shape(update_tensor, op_name)
+        rank = len(operand_shape)
+        if len(update_shape) != rank or len(start_tensors) != rank:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_DYNAMIC_UPDATE_SLICE requires operand, update, "
+                "and start-index ranks to match"
+            )
+
+        if any(self.has_expr(t.tensor_idx) for t in start_tensors):
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_DYNAMIC_UPDATE_SLICE with dynamic start indices is not supported"
+            )
+
+        start_vals = [int(np.asarray(self.get_tensor_value(t)).item()) for t in start_tensors]
+        for start, size, dim in zip(start_vals, update_shape, operand_shape):
+            if start < 0 or start + size > dim:
+                raise tvm.error.OpNotImplemented(
+                    "STABLEHLO_DYNAMIC_UPDATE_SLICE with out-of-bounds update "
+                    "indices is not supported"
+                )
+
+        update_indices = np.indices(update_shape, dtype=np.int64)
+        for axis, start in enumerate(start_vals):
+            update_indices[axis] += start
+        update_indices = np.moveaxis(update_indices, 0, -1)
+
+        operand = self.get_tensor_expr(operand_tensor)
+        update = self.get_tensor_expr(update_tensor)
+        indices = self.bb.normalize(relax.const(update_indices, dtype="int64"))
+        return self.bb.normalize(relax.op.scatter_nd(operand, indices, update, "update"))
+
+    def _convert_stablehlo_dot_general(self, op):
+        """Convert the canonical 2D STABLEHLO_DOT_GENERAL subset to Relax matmul."""
+        from tflite.StablehloDotGeneralOptions import StablehloDotGeneralOptions
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+        assert len(self.get_output_tensors(op)) == 1
+
+        opts = self._get_stablehlo_options(op, StablehloDotGeneralOptions)
+        lhs_batch_dims = self._get_stablehlo_i64_vector(opts.LhsBatchingDimensionsAsNumpy(), [])
+        rhs_batch_dims = self._get_stablehlo_i64_vector(opts.RhsBatchingDimensionsAsNumpy(), [])
+        lhs_contract_dims = self._get_stablehlo_i64_vector(
+            opts.LhsContractingDimensionsAsNumpy(), []
+        )
+        rhs_contract_dims = self._get_stablehlo_i64_vector(
+            opts.RhsContractingDimensionsAsNumpy(), []
+        )
+
+        lhs_shape = self._get_static_tensor_shape(input_tensors[0], "STABLEHLO_DOT_GENERAL")
+        rhs_shape = self._get_static_tensor_shape(input_tensors[1], "STABLEHLO_DOT_GENERAL")
+        if len(lhs_shape) != 2 or len(rhs_shape) != 2:
+            raise tvm.error.OpNotImplemented("STABLEHLO_DOT_GENERAL only supports 2D matmul")
+        if lhs_batch_dims or rhs_batch_dims:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_DOT_GENERAL with batching dimensions is not supported"
+            )
+        if lhs_contract_dims != [1] or rhs_contract_dims != [0]:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_DOT_GENERAL only supports canonical contracting dimensions"
+            )
+
+        lhs = self.get_tensor_expr(input_tensors[0])
+        rhs = self.get_tensor_expr(input_tensors[1])
+        return self.bb.normalize(relax.op.matmul(lhs, rhs))
+
+    def _convert_stablehlo_convolution(self, op):
+        """Convert the canonical 2D NHWC/HWIO STABLEHLO_CONVOLUTION subset."""
+        from tflite.StablehloConvolutionOptions import StablehloConvolutionOptions
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+        assert len(self.get_output_tensors(op)) == 1
+
+        opts = self._get_stablehlo_options(op, StablehloConvolutionOptions)
+        input_spatial_dims = self._get_stablehlo_i64_vector(
+            opts.InputSpatialDimensionsAsNumpy(), []
+        )
+        kernel_spatial_dims = self._get_stablehlo_i64_vector(
+            opts.KernelSpatialDimensionsAsNumpy(), []
+        )
+        output_spatial_dims = self._get_stablehlo_i64_vector(
+            opts.OutputSpatialDimensionsAsNumpy(), []
+        )
+        if input_spatial_dims != [1, 2]:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_CONVOLUTION only supports NHWC input layout"
+            )
+        if kernel_spatial_dims != [0, 1]:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_CONVOLUTION only supports HWIO kernel layout"
+            )
+        if output_spatial_dims != [1, 2]:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_CONVOLUTION only supports NHWC output layout"
+            )
+
+        if (
+            int(opts.InputBatchDimension()) != 0
+            or int(opts.InputFeatureDimension()) != 3
+            or int(opts.KernelInputFeatureDimension()) != 2
+            or int(opts.KernelOutputFeatureDimension()) != 3
+            or int(opts.OutputBatchDimension()) != 0
+            or int(opts.OutputFeatureDimension()) != 3
+        ):
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_CONVOLUTION only supports canonical NHWC/HWIO dimension numbers"
+            )
+        if int(opts.BatchGroupCount()) != 1:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_CONVOLUTION with batch_group_count > 1 is not supported"
+            )
+        if int(opts.FeatureGroupCount()) != 1:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_CONVOLUTION with feature_group_count > 1 is not supported"
+            )
+
+        data_shape = self._get_static_tensor_shape(input_tensors[0], "STABLEHLO_CONVOLUTION")
+        kernel_shape = self._get_static_tensor_shape(input_tensors[1], "STABLEHLO_CONVOLUTION")
+        if len(data_shape) != 4 or len(kernel_shape) != 4:
+            raise tvm.error.OpNotImplemented("STABLEHLO_CONVOLUTION only supports 2D convolution")
+        if data_shape[3] != kernel_shape[2]:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_CONVOLUTION input channels must match kernel input channels"
+            )
+
+        window_strides = self._get_stablehlo_i64_vector(opts.WindowStridesAsNumpy(), [1, 1])
+        padding = self._get_stablehlo_i64_vector(opts.PaddingAsNumpy(), [0, 0, 0, 0])
+        lhs_dilation = self._get_stablehlo_i64_vector(opts.LhsDilationAsNumpy(), [1, 1])
+        rhs_dilation = self._get_stablehlo_i64_vector(opts.RhsDilationAsNumpy(), [1, 1])
+        window_reversal = opts.WindowReversalAsNumpy()
+        window_reversal = (
+            [False, False] if window_reversal is None else [bool(v) for v in window_reversal]
+        )
+
+        if len(window_strides) != 2 or len(rhs_dilation) != 2:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_CONVOLUTION only supports two spatial dimensions"
+            )
+        if lhs_dilation != [1, 1]:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_CONVOLUTION with lhs dilation is not supported"
+            )
+        if any(window_reversal):
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_CONVOLUTION with window reversal is not supported"
+            )
+        if len(padding) != 4:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_CONVOLUTION only supports 2D low/high padding"
+            )
+
+        # StableHLO stores padding as [low_h, high_h, low_w, high_w].
+        relax_padding = [padding[0], padding[2], padding[1], padding[3]]
+        data = self.get_tensor_expr(input_tensors[0])
+        kernel = self.get_tensor_expr(input_tensors[1])
+        self._ensure_stablehlo_float_dtype(data, "STABLEHLO_CONVOLUTION")
+        self._ensure_stablehlo_float_dtype(kernel, "STABLEHLO_CONVOLUTION")
+        return self.bb.normalize(
+            relax.op.nn.conv2d(
+                data,
+                kernel,
+                strides=window_strides,
+                padding=relax_padding,
+                dilation=rhs_dilation,
+                data_layout="NHWC",
+                kernel_layout="HWIO",
+            )
+        )
 
     def _convert_stablehlo_gather(self, op):
         """Convert STABLEHLO_GATHER to Relax (take-equivalent subset only).
@@ -5528,19 +6128,18 @@ def _input_type(model):
     assert subgraph_count > 0
     shape_dict = {}
     dtype_dict = {}
-    for subgraph_index in range(subgraph_count):
-        subgraph = model.Subgraphs(subgraph_index)
-        inputs_count = subgraph.InputsLength()
-        # TFLite subgraphs can validly have zero inputs (e.g. constant-only RANGE models).
-        for input_index in range(inputs_count):
-            input_ = subgraph.Inputs(input_index)
-            assert subgraph.TensorsLength() > input_
-            tensor = subgraph.Tensors(input_)
-            input_shape = tuple(tensor.ShapeAsNumpy())
-            tensor_type = tensor.Type()
-            input_name = get_tensor_name(subgraph, input_)
-            shape_dict[input_name] = input_shape
-            dtype_dict[input_name] = _decode_type(tensor_type)
+    subgraph = model.Subgraphs(0)
+    inputs_count = subgraph.InputsLength()
+    # TFLite subgraphs can validly have zero inputs (e.g. constant-only RANGE models).
+    for input_index in range(inputs_count):
+        input_ = subgraph.Inputs(input_index)
+        assert subgraph.TensorsLength() > input_
+        tensor = subgraph.Tensors(input_)
+        input_shape = tuple(tensor.ShapeAsNumpy())
+        tensor_type = tensor.Type()
+        input_name = get_tensor_name(subgraph, input_)
+        shape_dict[input_name] = input_shape
+        dtype_dict[input_name] = _decode_type(tensor_type)
 
     return shape_dict, dtype_dict
 
@@ -5652,8 +6251,10 @@ def from_tflite(
     if dtype_dict is not None:
         _dtype_dict.update(dtype_dict)
 
-    # keep the same as tflite
-    assert model.SubgraphsLength() == 1, "only support one subgraph (main subgraph)"
+    # Only Subgraphs(0) is converted into Relax main. Additional subgraphs are
+    # region bodies referenced by specific TFLite ops and are consumed by those
+    # op converters as needed.
+    assert model.SubgraphsLength() >= 1, "TFLite model must contain at least one subgraph"
     subgraph = model.Subgraphs(0)
 
     # model inputs / outputs
