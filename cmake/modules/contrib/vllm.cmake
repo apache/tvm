@@ -21,5 +21,7 @@ if(USE_VLLM)
   enable_language(CUDA)
 
   tvm_file_glob(GLOB VLLM_CONTRIB_SRC src/runtime/contrib/vllm/*.cu src/runtime/contrib/vllm/*.cc)
-  list(APPEND RUNTIME_SRCS ${VLLM_CONTRIB_SRC})
+  add_library(tvm_vllm_objs OBJECT ${VLLM_CONTRIB_SRC})
+  target_link_libraries(tvm_vllm_objs PRIVATE tvm_runtime_extra_defs)
+  target_link_libraries(tvm_runtime_extra PRIVATE tvm_vllm_objs)
 endif(USE_VLLM)

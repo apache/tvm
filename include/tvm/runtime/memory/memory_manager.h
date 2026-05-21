@@ -54,7 +54,7 @@ struct Buffer {
   AllocatorType alloc_type;
 };
 
-class Allocator {
+class TVM_RUNTIME_DLL Allocator {
  public:
   explicit Allocator(AllocatorType type) : type_(type) {}
   virtual ~Allocator() = default;
@@ -65,8 +65,8 @@ class Allocator {
    *  \param mem_scope The device memory scope hint.
    *  \return The empty Tensor.
    */
-  TVM_RUNTIME_DLL Tensor Empty(ffi::Shape shape, DLDataType dtype, Device dev,
-                               ffi::Optional<ffi::String> mem_scope = std::nullopt);
+  Tensor Empty(ffi::Shape shape, DLDataType dtype, Device dev,
+               ffi::Optional<ffi::String> mem_scope = std::nullopt);
   /*! \brief Return the allocator type. */
   inline AllocatorType type() const { return type_; }
   /*! \brief Allocate a buffer given a size, alignment and type.
@@ -76,8 +76,7 @@ class Allocator {
    *  \param type_hint A type hint to the allocator.
    *  \return A sized allocation in the form of a buffer.
    */
-  TVM_RUNTIME_DLL virtual Buffer Alloc(Device dev, size_t nbytes, size_t alignment,
-                                       DLDataType type_hint) = 0;
+  virtual Buffer Alloc(Device dev, size_t nbytes, size_t alignment, DLDataType type_hint) = 0;
   /*! \brief Allocate a buffer given a shape and type.
    *  \param dev The device where the array is allocated.
    *  \param shape The shape of the tensor.
@@ -85,8 +84,8 @@ class Allocator {
    *  \param mem_scope A memory scope of the buffer.
    *  \return A sized allocation in the form of a buffer.
    */
-  TVM_RUNTIME_DLL virtual Buffer Alloc(Device dev, ffi::Shape shape, DLDataType type_hint,
-                                       const std::string& mem_scope = "");
+  virtual Buffer Alloc(Device dev, ffi::Shape shape, DLDataType type_hint,
+                       const std::string& mem_scope = "");
 
   /*! \brief Create a view for the buffer given a shape, type and scope.
    *  \param buffer The existing buffer upon which we need to create a view.
@@ -95,9 +94,8 @@ class Allocator {
    *  \param mem_scope A memory scope of the view.
    *  \return A device pointer to the created view.
    */
-  TVM_RUNTIME_DLL virtual void* CreateView(const Buffer& buffer, ffi::Shape shape,
-                                           DLDataType type_hint,
-                                           const std::string& mem_scope = "global") {
+  virtual void* CreateView(const Buffer& buffer, ffi::Shape shape, DLDataType type_hint,
+                           const std::string& mem_scope = "global") {
     return buffer.data;
   }
 
@@ -105,22 +103,22 @@ class Allocator {
    *  \param dev is the device where this view is created
    *  \param data The view pointer to be freed.
    */
-  TVM_RUNTIME_DLL virtual void FreeView(Device dev, void* data) {}
+  virtual void FreeView(Device dev, void* data) {}
 
   /*! \brief Free a buffer allocated by the allocator.
    *  \param buffer The buffer to free.
    */
-  TVM_RUNTIME_DLL virtual void Free(const Buffer& buffer) = 0;
+  virtual void Free(const Buffer& buffer) = 0;
   /*! \brief Clear the allocated memory. */
-  TVM_RUNTIME_DLL virtual void Clear();
+  virtual void Clear();
   /*! \brief The amount of memory currently allocated.
    *  \return The amount of memory currently allocated.
    */
-  TVM_RUNTIME_DLL virtual size_t UsedMemory() const = 0;
+  virtual size_t UsedMemory() const = 0;
 
  protected:
   /*! \brief Check if the given memory scope is allowed to allocate by the allocator. */
-  TVM_RUNTIME_DLL virtual bool AllowMemoryScope(const std::string& mem_scope) const;
+  virtual bool AllowMemoryScope(const std::string& mem_scope) const;
 
  private:
   AllocatorType type_;

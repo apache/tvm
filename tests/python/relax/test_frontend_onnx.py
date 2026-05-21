@@ -2311,9 +2311,7 @@ def test_layer_norm_with_nd_gamma_beta():
 
 def test_rms_norm():
     # Basic test: default axis=-1
-    rms_norm_node = helper.make_node(
-        "RMSNormalization", ["input", "scale"], ["Y"], epsilon=1e-05
-    )
+    rms_norm_node = helper.make_node("RMSNormalization", ["input", "scale"], ["Y"], epsilon=1e-05)
 
     graph = helper.make_graph(
         [rms_norm_node],
