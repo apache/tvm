@@ -44,7 +44,12 @@ from .params import (
     load_param_dict_from_file,
 )
 
-from . import disco
+try:
+    from . import disco
+except (ImportError, ValueError):
+    # disco C++ runtime is in libtvm_runtime_extra which may not be present.
+    # Make the disco module optional.
+    disco = None  # type: ignore[assignment]
 
 from .support import _regex_match
 from tvm_ffi import Shape as ShapeTuple
