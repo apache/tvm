@@ -124,7 +124,11 @@ class MetalModuleNode final : public ffi::ModuleObj {
 
     if (fmt_ == "metal") {
       MTLCompileOptions* opts = [MTLCompileOptions alloc];
+#if defined(__MAC_OS_X_VERSION_MAX_ALLOWED) && __MAC_OS_X_VERSION_MAX_ALLOWED >= 260000
+      opts.languageVersion = MTLLanguageVersion4_0;
+#else
       opts.languageVersion = MTLLanguageVersion2_3;
+#endif
       opts.fastMathEnabled = YES;
       // opts = nil;
       // Per-kernel payload is bytes; treat as UTF-8 MSL source.
