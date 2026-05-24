@@ -496,7 +496,8 @@ class StoragePlanRewriter : public StmtExprMutator {
       if (se->bits_offset != 0) {
         offset = make_const(offset.dtype(), se->bits_offset / elem_bits) + offset;
       }
-      return Call(op->dtype, op->op, {op->args[0], se->alloc_var, offset, extent, op->args[4]});
+      return Call(op->dtype, op->op, {op->args[0], se->alloc_var, offset, extent, op->args[4]},
+                  op->annotations, op->span);
     } else {
       return StmtExprMutator::VisitExpr_(op);
     }

@@ -62,8 +62,10 @@ tir = tirx  # alias for backward compat with upstream tir.convert() calls
 
 def _pack_buffer(buf, span=None):
     """Build intrinsics that packs the buffer."""
-    shape = Call("handle", "tirx.tvm_stack_make_shape", buf.shape, span)
-    strides = Call("handle", "tirx.tvm_stack_make_shape", buf.strides, span) if buf.strides else 0
+    shape = Call("handle", "tirx.tvm_stack_make_shape", buf.shape, span=span)
+    strides = (
+        Call("handle", "tirx.tvm_stack_make_shape", buf.strides, span=span) if buf.strides else 0
+    )
     pack_args = [
         buf.data,
         shape,
@@ -72,7 +74,7 @@ def _pack_buffer(buf, span=None):
         const(0, dtype=buf.dtype),
         buf.elem_offset,
     ]
-    return Call("handle", Op.get("tirx.tvm_stack_make_array"), pack_args, span)
+    return Call("handle", Op.get("tirx.tvm_stack_make_array"), pack_args, span=span)
 
 
 def call_packed_lowered(*args, span=None):
@@ -101,7 +103,7 @@ def call_packed_lowered(*args, span=None):
     te.extern : Create tensor with extern function call.
     """
     call_args = [_pack_buffer(x) if isinstance(x, Buffer) else x for x in args]
-    return Call("int32", Op.get("tirx.tvm_call_packed_lowered"), call_args, span)
+    return Call("int32", Op.get("tirx.tvm_call_packed_lowered"), call_args, span=span)
 
 
 def call_cpacked_lowered(*args, span=None):
@@ -127,7 +129,7 @@ def call_cpacked_lowered(*args, span=None):
     te.extern : Create tensor with extern function call.
     """
     call_args = [_pack_buffer(x) if isinstance(x, Buffer) else x for x in args]
-    return Call("int32", Op.get("tirx.tvm_call_cpacked_lowered"), call_args, span)
+    return Call("int32", Op.get("tirx.tvm_call_cpacked_lowered"), call_args, span=span)
 
 
 def call_packed(*args, span=None):
@@ -158,7 +160,7 @@ def call_packed(*args, span=None):
     te.extern : Create tensor with extern function call.
     """
     call_args = [_pack_buffer(x) if isinstance(x, Buffer) else x for x in args]
-    return Call("int32", Op.get("tirx.tvm_call_packed"), call_args, span)
+    return Call("int32", Op.get("tirx.tvm_call_packed"), call_args, span=span)
 
 
 def call_cpacked(*args, span=None):
@@ -185,10 +187,10 @@ def call_cpacked(*args, span=None):
     te.extern : Create tensor with extern function call.
     """
     call_args = [_pack_buffer(x) if isinstance(x, Buffer) else x for x in args]
-    return Call("int32", Op.get("tirx.tvm_call_cpacked"), call_args, span)
+    return Call("int32", Op.get("tirx.tvm_call_cpacked"), call_args, span=span)
 
 
-def call_intrin(dtype, func_name, *args, span=None):
+def call_intrin(dtype, func_name, *args, annotations=None, span=None):
     """Build expression by calling an intrinsic function.
 
     Intrinsics can be overloaded with multiple data types via
@@ -205,6 +207,9 @@ def call_intrin(dtype, func_name, *args, span=None):
     args : list
         Positional arguments.
 
+    annotations : Optional[Dict[str, Object]]
+        Additional annotations about the call.
+
     span : Optional[Span]
         The location of this operator in the source code.
 
@@ -213,7 +218,11 @@ def call_intrin(dtype, func_name, *args, span=None):
     call : PrimExpr
         The call expression.
     """
-    return Call(dtype, func_name, args, span)
+    if annotations is not None:
+        annotations = {
+            k: const(v) if isinstance(v, int | bool) else v for k, v in annotations.items()
+        }
+    return Call(dtype, func_name, args, annotations=annotations, span=span)
 
 
 def call_pure_extern(dtype, func_name, *args, span=None):
@@ -238,7 +247,7 @@ def call_pure_extern(dtype, func_name, *args, span=None):
     call : PrimExpr
         The call expression.
     """
-    return Call(dtype, Op.get("tirx.call_pure_extern"), [func_name, *args], span)
+    return Call(dtype, Op.get("tirx.call_pure_extern"), [func_name, *args], span=span)
 
 
 def call_extern(dtype, func_name, *args, span=None):

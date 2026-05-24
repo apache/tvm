@@ -736,19 +736,19 @@ inline void CheckMathUnaryOpInputDType(const char* op_name, DataType dtype) {
 }
 
 // Intrinsic operators
-#define TVM_DECLARE_INTRIN_UNARY_WITH_CHECK(OpName, CheckInputDType)     \
-  inline PrimExpr OpName(PrimExpr x, Span span = Span()) {               \
-    static const Op& op = Op::Get("tirx." #OpName);                      \
-    CheckInputDType(#OpName, x.dtype());                                 \
-    if (x.dtype().is_bfloat16()) {                                       \
-      DataType bf16_dtype = x.dtype();                                   \
-      DataType fp32_dtype(kDLFloat, 32, bf16_dtype.lanes());             \
-      PrimExpr x_fp32 = tirx::Cast(fp32_dtype, {x}, span);               \
-      PrimExpr result_fp32 = tirx::Call(fp32_dtype, op, {x_fp32}, span); \
-      return tirx::Cast(bf16_dtype, {result_fp32}, span);                \
-    } else {                                                             \
-      return tirx::Call(x.dtype(), op, {x}, span);                       \
-    }                                                                    \
+#define TVM_DECLARE_INTRIN_UNARY_WITH_CHECK(OpName, CheckInputDType)         \
+  inline PrimExpr OpName(PrimExpr x, Span span = Span()) {                   \
+    static const Op& op = Op::Get("tirx." #OpName);                          \
+    CheckInputDType(#OpName, x.dtype());                                     \
+    if (x.dtype().is_bfloat16()) {                                           \
+      DataType bf16_dtype = x.dtype();                                       \
+      DataType fp32_dtype(kDLFloat, 32, bf16_dtype.lanes());                 \
+      PrimExpr x_fp32 = tirx::Cast(fp32_dtype, {x}, span);                   \
+      PrimExpr result_fp32 = tirx::Call(fp32_dtype, op, {x_fp32}, {}, span); \
+      return tirx::Cast(bf16_dtype, {result_fp32}, span);                    \
+    } else {                                                                 \
+      return tirx::Call(x.dtype(), op, {x}, {}, span);                       \
+    }                                                                        \
   }
 
 #define TVM_DECLARE_INTRIN_UNARY(OpName) \
@@ -786,7 +786,7 @@ TVM_DECLARE_INTRIN_UNARY(clz);
 #define TVM_DECLARE_INTRIN_BINARY(OpName)                              \
   inline PrimExpr OpName(PrimExpr x, PrimExpr y, Span span = Span()) { \
     static const Op& op = Op::Get("tirx." #OpName);                    \
-    return tirx::Call(x.dtype(), op, {x, y}, span);                    \
+    return tirx::Call(x.dtype(), op, {x, y}, {}, span);                \
   }
 
 TVM_DECLARE_INTRIN_BINARY(atan2);
