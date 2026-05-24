@@ -139,9 +139,7 @@ def check_tracker_rejects_oversized_msg_size():
                     break
                 time.sleep(0.05)
             else:
-                raise AssertionError(
-                    "tracker did not close connection after oversized msg_size"
-                )
+                raise AssertionError("tracker did not close connection after oversized msg_size")
         finally:
             tserver.terminate()
     except ImportError:
