@@ -48,6 +48,7 @@ TVM_REGISTER_PASS_CONFIG_OPTION("tirx.merge_static_smem", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tirx.instrument_lwp", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tirx.vtcm_capacity", Integer);
 TVM_REGISTER_PASS_CONFIG_OPTION("tirx.ptx_ldg32", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("tirx.enable_fast_math", Bool);
 
 /*!
  * \brief Function level pass that applies transformations to all
