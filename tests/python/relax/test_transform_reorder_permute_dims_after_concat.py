@@ -261,5 +261,34 @@ class TestCheckForRewriteBeforeIncompatibleChange(Base):
             return out
 
 
+class TestNegativeConcatAxis(Base):
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            x: R.Tensor([1, 4, 8, 8], "float32"),
+            y: R.Tensor([1, 4, 8, 8], "float32"),
+        ):
+            with R.dataflow():
+                xt = R.permute_dims(x, axes=[0, 2, 3, 1])
+                yt = R.permute_dims(y, axes=[0, 2, 3, 1])
+                out = R.concat([xt, yt], axis=-1)
+                R.output(out)
+            return out
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor([1, 4, 8, 8], "float32"),
+            y: R.Tensor([1, 4, 8, 8], "float32"),
+        ):
+            with R.dataflow():
+                merged = R.concat([x, y], axis=1)
+                out = R.permute_dims(merged, axes=[0, 2, 3, 1])
+                R.output(out)
+            return out
+
+
 if __name__ == "__main__":
     tvm.testing.main()
