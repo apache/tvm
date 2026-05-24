@@ -155,6 +155,11 @@ def test_expr_constructor():
     assert bool(mutated.annotations["disable_tma"])
     assert mutated.args[1].same_as(y)
 
+    x_from_intrin = tvm.tirx.call_intrin(
+        "float32", "tirx.call_extern", tvm.tirx.StringImm("xyz"), annotations={"disable_tma": True}
+    )
+    assert int(x_from_intrin.annotations["disable_tma"]) == 1
+
     cond0 = tvm.tirx.Var("cond0", "bool")
     cond1 = tvm.tirx.Var("cond1", "bool")
     inner_if = tvm.tirx.Call(

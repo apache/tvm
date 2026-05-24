@@ -188,7 +188,7 @@ def call_cpacked(*args, span=None):
     return Call("int32", Op.get("tirx.tvm_call_cpacked"), call_args, span)
 
 
-def call_intrin(dtype, func_name, *args, span=None):
+def call_intrin(dtype, func_name, *args, annotations=None, span=None):
     """Build expression by calling an intrinsic function.
 
     Intrinsics can be overloaded with multiple data types via
@@ -205,6 +205,9 @@ def call_intrin(dtype, func_name, *args, span=None):
     args : list
         Positional arguments.
 
+    annotations : Optional[Dict[str, Object]]
+        Additional annotations about the call.
+
     span : Optional[Span]
         The location of this operator in the source code.
 
@@ -213,7 +216,11 @@ def call_intrin(dtype, func_name, *args, span=None):
     call : PrimExpr
         The call expression.
     """
-    return Call(dtype, func_name, args, span)
+    if annotations is not None:
+        annotations = {
+            k: const(v) if isinstance(v, int | bool) else v for k, v in annotations.items()
+        }
+    return Call(dtype, func_name, args, span=span, annotations=annotations)
 
 
 def call_pure_extern(dtype, func_name, *args, span=None):
