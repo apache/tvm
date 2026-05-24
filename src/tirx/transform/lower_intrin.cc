@@ -364,10 +364,9 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
 
 Stmt LowerIntrinStmt(Stmt stmt, const std::string& target) {
   arith::Analyzer analyzer;
-  bool enable_fast_math =
-      transform::PassContext::Current()
-          ->GetConfig<Bool>("tirx.enable_fast_math", Bool(false))
-          .value();
+  bool enable_fast_math = transform::PassContext::Current()
+                              ->GetConfig<Bool>("tirx.enable_fast_math", Bool(false))
+                              .value();
   return IntrinInjecter(&analyzer, Target(ffi::String(target)), enable_fast_math)(std::move(stmt));
 }
 
