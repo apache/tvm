@@ -674,7 +674,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 PrimExpr TypeAnnotation(DataType dtype, Span span) {
   static auto op = Op::Get("tirx.type_annotation");
-  return tirx::Call(dtype, op, {}, span);
+  return tirx::Call(dtype, op, {}, {}, span);
 }
 
 TVM_TIRX_REGISTER_OP("type_annotation")
