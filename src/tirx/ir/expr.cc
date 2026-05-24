@@ -621,8 +621,8 @@ static ffi::Array<PrimExpr> ConvertCallArgs(ffi::Array<CallArg> args) {
   return prim_expr_args;
 }
 
-Call::Call(DataType dtype, RelaxExpr op, ffi::Array<PrimExpr> args, Span span,
-           ffi::Map<ffi::String, ffi::Any> annotations) {
+Call::Call(DataType dtype, RelaxExpr op, ffi::Array<PrimExpr> args,
+           ffi::Map<ffi::String, ffi::Any> annotations, Span span) {
   for (size_t i = 0; i < args.size(); ++i) {
     TVM_FFI_ICHECK(args[i].defined()) << "arg " << i << " is not defined()";
   }
@@ -636,18 +636,22 @@ Call::Call(DataType dtype, RelaxExpr op, ffi::Array<PrimExpr> args, Span span,
   data_ = std::move(node);
 }
 
+Call::Call(DataType dtype, RelaxExpr op, ffi::Array<PrimExpr> args, Span span)
+    : Call(dtype, std::move(op), std::move(args), ffi::Map<ffi::String, ffi::Any>(), span) {}
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("tirx.Call",
            [](ffi::Optional<DataType> dtype, RelaxExpr op, ffi::Array<CallArg> args, Span span) {
-             return Call(dtype.value_or(DataType::Void()), op, ConvertCallArgs(args), span);
+             return Call(dtype.value_or(DataType::Void()), op, ConvertCallArgs(args),
+                         ffi::Map<ffi::String, ffi::Any>(), span);
            })
       .def("tirx.CallWithAnnotations",
-           [](ffi::Optional<DataType> dtype, RelaxExpr op, ffi::Array<CallArg> args, Span span,
-              ffi::Optional<ffi::Map<ffi::String, ffi::Any>> annotations) {
-             return Call(dtype.value_or(DataType::Void()), op, ConvertCallArgs(args), span,
-                         annotations.value_or(ffi::Map<ffi::String, ffi::Any>()));
+           [](ffi::Optional<DataType> dtype, RelaxExpr op, ffi::Array<CallArg> args,
+              ffi::Optional<ffi::Map<ffi::String, ffi::Any>> annotations, Span span) {
+             return Call(dtype.value_or(DataType::Void()), op, ConvertCallArgs(args),
+                         annotations.value_or(ffi::Map<ffi::String, ffi::Any>()), span);
            });
 }
 

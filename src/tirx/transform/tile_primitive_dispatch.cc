@@ -1160,7 +1160,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
         args.push_back(new_arg);
       }
       if (changed) {
-        return tirx::Call(call->dtype, call->op, args, call->span, call->annotations);
+        return tirx::Call(call->dtype, call->op, args, call->annotations, call->span);
       }
     }
     return pred;

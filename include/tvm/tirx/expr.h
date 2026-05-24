@@ -755,8 +755,10 @@ class CallNode : public PrimExprNode {
  */
 class Call : public PrimExpr {
  public:
-  TVM_DLL Call(DataType dtype, RelaxExpr op, ffi::Array<PrimExpr> args, Span span = Span(),
-               ffi::Map<ffi::String, ffi::Any> annotations = ffi::Map<ffi::String, ffi::Any>());
+  TVM_DLL Call(DataType dtype, RelaxExpr op, ffi::Array<PrimExpr> args,
+               ffi::Map<ffi::String, ffi::Any> annotations = ffi::Map<ffi::String, ffi::Any>(),
+               Span span = Span());
+  TVM_DLL Call(DataType dtype, RelaxExpr op, ffi::Array<PrimExpr> args, Span span);
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Call, PrimExpr, CallNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(CallNode);
 };

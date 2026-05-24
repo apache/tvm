@@ -1316,9 +1316,12 @@ class Call(PrimExprWithOp):
         dtype: str,
         op: Op | str,
         args: list[PrimExpr],
-        span: Span | None = None,
         annotations: dict | None = None,
+        span: Span | None = None,
     ) -> None:
+        if isinstance(annotations, Span):
+            span = annotations
+            annotations = None
         if isinstance(op, str):
             if not op.startswith("tirx."):
                 raise ValueError(
@@ -1332,7 +1335,7 @@ class Call(PrimExprWithOp):
             op = Op.get(op)
         if annotations:
             self.__init_handle_by_constructor__(  # type: ignore
-                _ffi_api.CallWithAnnotations, dtype, op, args, span, annotations
+                _ffi_api.CallWithAnnotations, dtype, op, args, annotations, span
             )
         else:
             self.__init_handle_by_constructor__(_ffi_api.Call, dtype, op, args, span)  # type: ignore
