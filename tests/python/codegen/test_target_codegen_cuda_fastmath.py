@@ -203,7 +203,7 @@ def make_mod(
     dtype: str, case: MathCase, enable_fast_math: bool
 ) -> tuple[tvm.target.Target, tvm.IRModule]:
     """Make a module for the given dtype and case."""
-    target = tvm.target.Target({"kind": "cuda", "enable_fast_math": enable_fast_math})
+    target = tvm.target.Target("cuda")
     prim_func = make_prim_func(case.name, dtype, case.num_inputs, case.op)
     return target, tvm.IRModule.from_expr(prim_func.with_attr("target", target))
 
@@ -227,7 +227,8 @@ def check_lowered_ir(
 ) -> tuple[tvm.target.Target, IRModule]:
     """Check the lowered IR for the given dtype and case."""
     target, mod = make_mod(dtype, case, enable_fast_math)
-    lowered_mod = tvm.tirx.transform.LowerIntrin()(mod)
+    with tvm.transform.PassContext(config={"tirx.enable_fast_math": enable_fast_math}):
+        lowered_mod = tvm.tirx.transform.LowerIntrin()(mod)
     script = lowered_mod.script(show_meta=False)
     expected = expected_intrinsic(dtype, case, enable_fast_math)
     assert re.search(rf"""["']{re.escape(expected)}["']""", script)
@@ -242,7 +243,8 @@ def check_cuda_source(
     enable_fast_math: bool,
 ) -> Executable:
     """Check the CUDA source for the given dtype and case."""
-    executable = tvm.compile(mod, target=target)
+    with tvm.transform.PassContext(config={"tirx.enable_fast_math": enable_fast_math}):
+        executable = tvm.compile(mod, target=target)
     source = executable.mod.imports[0].inspect_source()
     expected = expected_intrinsic(dtype, case, enable_fast_math)
     assert re.search(rf"(?<!_)\b{re.escape(expected)}\s*\(", source)
@@ -277,6 +279,11 @@ def check_runtime(dtype: str, case: MathCase, executable: Executable):
     actual = output.numpy()
 
     np.testing.assert_allclose(actual, expected, rtol=case.rtol, atol=case.atol)
+
+
+@pytest.mark.parametrize("enable_fast_math", [False, True], ids=["default", "fast_math"])
+def test_cuda_math_intrinsic_lowering_pass_context(enable_fast_math):
+    check_lowered_ir("float32", MATH_CASES[0], enable_fast_math)
 
 
 @tvm.testing.requires_gpu
