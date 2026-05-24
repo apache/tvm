@@ -1319,9 +1319,6 @@ class Call(PrimExprWithOp):
         annotations: dict | None = None,
         span: Span | None = None,
     ) -> None:
-        if isinstance(annotations, Span):
-            span = annotations
-            annotations = None
         if isinstance(op, str):
             if not op.startswith("tirx."):
                 raise ValueError(

@@ -636,9 +636,6 @@ Call::Call(DataType dtype, RelaxExpr op, ffi::Array<PrimExpr> args,
   data_ = std::move(node);
 }
 
-Call::Call(DataType dtype, RelaxExpr op, ffi::Array<PrimExpr> args, Span span)
-    : Call(dtype, std::move(op), std::move(args), ffi::Map<ffi::String, ffi::Any>(), span) {}
-
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
