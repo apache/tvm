@@ -495,7 +495,7 @@ class ExprMutator(ExprFunctor):
         if all(old_arg is new_arg for old_arg, new_arg in zip(op.args, args)):
             return op
         else:
-            return tvm.tirx.Call(op.dtype, op.op, args)
+            return tvm.tirx.Call(op.dtype, op.op, args, span=op.span, annotations=op.annotations)
 
     def _mutate_binary_op(self, op_cls, op):
         """Helper to mutate binary operators."""

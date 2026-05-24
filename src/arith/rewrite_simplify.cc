@@ -2343,7 +2343,8 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const CallNode* op) {
       // Only check constant cases to avoid recursion
       if (is_const_number(inner_else_expr) && is_const_number(else_expr) &&
           analyzer_->CanProve(inner_else_expr == else_expr)) {
-        return if_then_else(cond && inner_cond, inner_then_expr, else_expr);
+        return Call(op->dtype, op->op, {cond && inner_cond, inner_then_expr, else_expr}, op->span,
+                    op->annotations);
       }
     }
   }

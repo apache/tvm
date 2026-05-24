@@ -19,6 +19,19 @@ import pytest
 
 import tvm
 from tvm import te, topi
+from tvm.tirx.expr_functor import ExprMutator
+
+
+class ReplaceVar(ExprMutator):
+    def __init__(self, old_var, new_var):
+        super().__init__()
+        self.old_var = old_var
+        self.new_var = new_var
+
+    def visit_var_(self, op):
+        if op.same_as(self.old_var):
+            return self.new_var
+        return op
 
 
 def test_expr_constructor():
@@ -120,6 +133,45 @@ def test_expr_constructor():
     assert x.dtype == "float32"
     assert x.op.name == "tirx.call_extern"
     assert x.args[1] == a
+    assert len(x.annotations) == 0
+
+    annotated_arg = tvm.tirx.Var("annotated_arg", "float32")
+    x_with_annotations = tvm.tirx.Call(
+        "float32",
+        "tirx.call_extern",
+        [tvm.tirx.StringImm("xyz"), annotated_arg],
+        annotations={"disable_tma": True},
+    )
+    assert bool(x_with_annotations.annotations["disable_tma"])
+    assert not tvm.ir.structural_equal(x, x_with_annotations)
+    script = tvm.tirx.Evaluate(x_with_annotations).script()
+    assert "annotations" in script
+    assert "disable_tma" in script
+    func = tvm.tirx.PrimFunc([], tvm.tirx.Evaluate(x_with_annotations))
+    assert tvm.script.from_source(func.script()).script() == func.script()
+
+    y = tvm.tirx.Var("y", "float32")
+    mutated = ReplaceVar(annotated_arg, y)(x_with_annotations)
+    assert bool(mutated.annotations["disable_tma"])
+    assert mutated.args[1].same_as(y)
+
+    cond0 = tvm.tirx.Var("cond0", "bool")
+    cond1 = tvm.tirx.Var("cond1", "bool")
+    inner_if = tvm.tirx.Call(
+        "int32",
+        "tirx.if_then_else",
+        [cond1, tvm.tirx.IntImm("int32", 1), tvm.tirx.IntImm("int32", 0)],
+    )
+    outer_if = tvm.tirx.Call(
+        "int32",
+        "tirx.if_then_else",
+        [cond0, inner_if, tvm.tirx.IntImm("int32", 0)],
+        annotations={"keep": True},
+    )
+    simplified = tvm.tirx.transform.Simplify()(
+        tvm.IRModule({"main": tvm.tirx.PrimFunc([], tvm.tirx.Evaluate(outer_if))})
+    )["main"].body.value
+    assert bool(simplified.annotations["keep"])
 
     v = tvm.tirx.Var("aa", "int32")
     x = tvm.tirx.Let(v, 1, v)

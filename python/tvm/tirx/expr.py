@@ -1302,13 +1302,22 @@ class Call(PrimExprWithOp):
 
     span : Optional[Span]
         The location of this expression in the source code.
+
+    annotations : Optional[dict]
+        Additional metadata attached to the call.
     """
 
     op: Op
     args: list[PrimExpr]
+    annotations: dict
 
     def __init__(
-        self, dtype: str, op: Op | str, args: list[PrimExpr], span: Span | None = None
+        self,
+        dtype: str,
+        op: Op | str,
+        args: list[PrimExpr],
+        span: Span | None = None,
+        annotations: dict | None = None,
     ) -> None:
         if isinstance(op, str):
             if not op.startswith("tirx."):
@@ -1321,7 +1330,12 @@ class Call(PrimExprWithOp):
                     % op
                 )
             op = Op.get(op)
-        self.__init_handle_by_constructor__(_ffi_api.Call, dtype, op, args, span)  # type: ignore
+        if annotations:
+            self.__init_handle_by_constructor__(  # type: ignore
+                _ffi_api.CallWithAnnotations, dtype, op, args, span, annotations
+            )
+        else:
+            self.__init_handle_by_constructor__(_ffi_api.Call, dtype, op, args, span)  # type: ignore
 
 
 @tvm_ffi.register_object("tirx.Let")
