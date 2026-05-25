@@ -77,7 +77,7 @@ ffi::Array<GlobalVar> CollectCallees(const BaseFunc& func) {
   if (auto opt = func.as<relax::Function>()) {
     RelaxCalleeCollector visitor(&raw);
     visitor(opt.value());
-  } else if (func.as<relax::ExternFuncNode>()) {
+  } else if (func.as<relax::ExternFunc>()) {
     // no callees
   } else if (auto opt = func.as<tirx::PrimFunc>()) {
     TIRxCalleeCollector visitor(&raw);
