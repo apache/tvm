@@ -3710,6 +3710,8 @@ _tfl_padding = _get_tflite_schema_enum("Padding")
 _tfl_sparse_index_vector = _get_tflite_schema_enum("SparseIndexVector")
 _tfl_tensor_type = _get_tflite_schema_enum("TensorType")
 
+_tfl_sequence_rnn_options = _get_tflite_schema_module("SequenceRNNOptions")
+
 _DENSIFY_TEST_VALUES = np.array([1.0, 2.0], dtype=np.float32)
 _DENSIFY_TEST_DENSE = np.array([[1.0, 0.0], [0.0, 2.0]], dtype=np.float32)
 _DENSIFY_ROW_PTRS = [0, 1, 2]
@@ -6729,6 +6731,211 @@ def test_dilate_dynamic_dilations():
             return gv
 
     tvm.ir.assert_structural_equal(mod, Expected)
+
+
+# ── UNIDIRECTIONAL_SEQUENCE_RNN ───────────────────────────────────────────────
+
+
+def _build_unidirectional_sequence_rnn_model(
+    batch,
+    time,
+    input_size,
+    num_units,
+    weights,
+    recurrent_weights,
+    bias,
+    activation,
+    *,
+    time_major=False,
+):
+    """Build a minimal TFLite flatbuffer model containing one UNIDIRECTIONAL_SEQUENCE_RNN op.
+
+    Tensor layout (indices 0-5):
+      0 - input          [batch, time, input_size]  (or [time, batch, input_size] if time_major)
+      1 - input_weights  [num_units, input_size]    (constant)
+      2 - recurrent_wts  [num_units, num_units]     (constant)
+      3 - bias           [num_units]                (constant)
+      4 - hidden_state   [batch, num_units]         (variable, zero-initialised)
+      5 - output         [batch, time, num_units]
+    """
+    builder = flatbuffers.Builder(4096)
+
+    _tfl_sequence_rnn_options.SequenceRNNOptionsStart(builder)
+    _tfl_sequence_rnn_options.SequenceRNNOptionsAddTimeMajor(builder, time_major)
+    _tfl_sequence_rnn_options.SequenceRNNOptionsAddFusedActivationFunction(builder, activation)
+    rnn_opts = _tfl_sequence_rnn_options.SequenceRNNOptionsEnd(builder)
+
+    rnn_op_code = _build_operator_code(builder, _tfl_builtin_operator.UNIDIRECTIONAL_SEQUENCE_RNN)
+
+    input_shape = [time, batch, input_size] if time_major else [batch, time, input_size]
+
+    def _t(buf_idx, shape, is_variable=False):
+        shape_vec = _tflite_shape(builder, shape)
+        _tfl_tensor.TensorStart(builder)
+        _tfl_tensor.TensorAddBuffer(builder, buf_idx)
+        _tfl_tensor.TensorAddHasRank(builder, True)
+        _tfl_tensor.TensorAddIsVariable(builder, is_variable)
+        _tfl_tensor.TensorAddShape(builder, shape_vec)
+        _tfl_tensor.TensorAddType(builder, _tfl_tensor_type.FLOAT32)
+        return _tfl_tensor.TensorEnd(builder)
+
+    tensors = [
+        _t(0, input_shape),
+        _t(1, [num_units, input_size]),
+        _t(2, [num_units, num_units]),
+        _t(3, [num_units]),
+        _t(4, [batch, num_units], is_variable=True),
+        _t(5, [batch, time, num_units]),
+    ]
+
+    rnn_op = _build_operator(
+        builder,
+        0,
+        [0, 1, 2, 3, 4],
+        [5],
+        builtin_options_type=_tfl_builtin_options.SequenceRNNOptions,
+        builtin_options=rnn_opts,
+    )
+
+    subgraph = _build_subgraph(
+        builder,
+        tensors=tensors,
+        operators=[rnn_op],
+        inputs=[0],
+        outputs=[5],
+    )
+
+    buffers = [
+        _build_buffer(builder),
+        _build_buffer(builder, weights.tobytes()),
+        _build_buffer(builder, recurrent_weights.tobytes()),
+        _build_buffer(builder, bias.tobytes()),
+        _build_buffer(builder),
+        _build_buffer(builder),
+    ]
+
+    return _finish_tflite_model(
+        builder,
+        subgraph=subgraph,
+        operator_codes=[rnn_op_code],
+        buffers=buffers,
+    )
+
+
+def test_unidirectional_sequence_rnn_none_activation():
+    """UNIDIRECTIONAL_SEQUENCE_RNN with NONE activation, time=1, lowers to matmul/add/stack.
+
+    Cell equation: h_t = x_t @ W.T + h_{t-1} @ Wr.T + b  (no activation for NONE)
+    """
+    from tflite.ActivationFunctionType import ActivationFunctionType
+
+    batch, time, input_size, num_units = 2, 1, 2, 2
+    weights = np.eye(num_units, input_size, dtype=np.float32)
+    recurrent_weights = np.eye(num_units, dtype=np.float32)
+    bias = np.zeros(num_units, dtype=np.float32)
+
+    mod = _load_model_from_buffer(
+        _build_unidirectional_sequence_rnn_model(
+            batch,
+            time,
+            input_size,
+            num_units,
+            weights,
+            recurrent_weights,
+            bias,
+            ActivationFunctionType.NONE,
+        )
+    )
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 1, 2), dtype="float32")) -> R.Tensor((2, 1, 2), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((2, 2), dtype="float32") = R.squeeze(x, axis=[1])
+                lv1: R.Tensor((2, 2), dtype="float32") = R.permute_dims(
+                    R.const(np.eye(2, dtype=np.float32)), axes=None
+                )
+                lv2: R.Tensor((2, 2), dtype="float32") = R.matmul(lv, lv1, out_dtype="void")
+                lv3: R.Tensor((2, 2), dtype="float32") = R.zeros(R.shape([2, 2]), dtype="float32")
+                lv4: R.Tensor((2, 2), dtype="float32") = R.permute_dims(
+                    R.const(np.eye(2, dtype=np.float32)), axes=None
+                )
+                lv5: R.Tensor((2, 2), dtype="float32") = R.matmul(lv3, lv4, out_dtype="void")
+                lv6: R.Tensor((2, 2), dtype="float32") = R.add(lv2, lv5)
+                lv7: R.Tensor((2, 2), dtype="float32") = R.add(
+                    lv6, R.const(np.zeros(2, dtype=np.float32))
+                )
+                gv: R.Tensor((2, 1, 2), dtype="float32") = R.stack((lv7,), axis=1)
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_unidirectional_sequence_rnn_relu_activation():
+    """UNIDIRECTIONAL_SEQUENCE_RNN with RELU activation and multiple time steps."""
+    from tflite.ActivationFunctionType import ActivationFunctionType
+
+    batch, time, input_size, num_units = 2, 3, 4, 8
+    np.random.seed(42)
+    weights = np.random.randn(num_units, input_size).astype(np.float32)
+    recurrent_weights = np.random.randn(num_units, num_units).astype(np.float32)
+    bias = np.random.randn(num_units).astype(np.float32)
+
+    mod = _load_model_from_buffer(
+        _build_unidirectional_sequence_rnn_model(
+            batch,
+            time,
+            input_size,
+            num_units,
+            weights,
+            recurrent_weights,
+            bias,
+            ActivationFunctionType.RELU,
+        )
+    )
+
+    fn = mod["main"]
+    assert len(fn.params) == 1, "only the sequence input should be a graph input"
+    in_shape = fn.params[0].struct_info.shape
+    assert tuple(int(d) for d in in_shape) == (batch, time, input_size)
+    out_shape = fn.ret_struct_info.shape
+    assert tuple(int(d) for d in out_shape) == (batch, time, num_units)
+
+
+def test_unidirectional_sequence_rnn_time_major():
+    """UNIDIRECTIONAL_SEQUENCE_RNN with time_major=True transposes before unrolling."""
+    from tflite.ActivationFunctionType import ActivationFunctionType
+
+    batch, time, input_size, num_units = 3, 4, 2, 5
+    np.random.seed(7)
+    weights = np.random.randn(num_units, input_size).astype(np.float32)
+    recurrent_weights = np.random.randn(num_units, num_units).astype(np.float32)
+    bias = np.zeros(num_units, dtype=np.float32)
+
+    mod = _load_model_from_buffer(
+        _build_unidirectional_sequence_rnn_model(
+            batch,
+            time,
+            input_size,
+            num_units,
+            weights,
+            recurrent_weights,
+            bias,
+            ActivationFunctionType.NONE,
+            time_major=True,
+        )
+    )
+
+    fn = mod["main"]
+    # Input to the graph is the raw time-major tensor [time, batch, input_size].
+    in_shape = fn.params[0].struct_info.shape
+    assert tuple(int(d) for d in in_shape) == (time, batch, input_size)
+    # Output is always batch-major [batch, time, num_units].
+    out_shape = fn.ret_struct_info.shape
+    assert tuple(int(d) for d in out_shape) == (batch, time, num_units)
 
 
 if __name__ == "__main__":
