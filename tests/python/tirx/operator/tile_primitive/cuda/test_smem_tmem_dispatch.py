@@ -33,6 +33,8 @@ from tvm.script import tirx as Tx
 from tvm.tirx.layout import R, S, TCol, TileLayout, TLane
 from tvm.tirx.operator.tile_primitive.cuda.tma_utils import SwizzleMode, mma_shared_layout
 
+pytestmark = tvm.testing.requires_cuda.marks()
+
 T_LAY_BASIC = TileLayout(S[(32, 16) : (1 @ TLane, 1 @ TCol)] + R[4 : 32 @ TLane])
 
 
@@ -285,6 +287,7 @@ def _execute(kernel, A_init, expected):
         ),
     ],
 )
+@tvm.testing.requires_cuda_compute_version(10)
 def test_single_cp(name, s_full, s_full_shape, s_region):
     A_np = np.arange(int(np.prod(s_full_shape)), dtype=np.uint8).reshape(s_full_shape)
     r0, r1 = s_region[0]
@@ -452,6 +455,7 @@ def test_align_middle_2_to_1_nvfp4_sfb():
         ),
     ],
 )
+@tvm.testing.requires_cuda_compute_version(10)
 def test_dispatch_rejects_bad_inputs(bad):
     """Configurations where cp 32x128b cannot read the user's intended sub-tile.
     Compilation should fail with a clear ValueError from the dispatch."""

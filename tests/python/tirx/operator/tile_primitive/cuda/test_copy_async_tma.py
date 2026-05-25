@@ -38,6 +38,8 @@ from tvm.tirx.operator.tile_primitive.ops import CopyAsync
 from tvm.tirx.stmt import DeclBuffer, TilePrimitiveCall
 from tvm.tirx.stmt_functor import StmtExprVisitor
 
+pytestmark = tvm.testing.requires_cuda.marks()
+
 # ===========================================================================
 # Helpers
 # ===========================================================================
@@ -1000,6 +1002,7 @@ TMA_CASES = [
 
 
 @pytest.mark.parametrize("case", TMA_CASES)
+@tvm.testing.requires_cuda_compute_version(9)
 def test_copy_tma_codegen(case):
     """Unified structural-golden driver for every TMA unit test case.
 

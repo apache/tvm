@@ -25,6 +25,8 @@ import tvm.testing
 from tvm.script import tirx as Tx
 from tvm.tirx.layout import S, TileLayout
 
+pytestmark = tvm.testing.requires_cuda.marks()
+
 
 @pytest.mark.parametrize(
     "task",

@@ -20,7 +20,10 @@ import numpy as np
 import pytest
 
 import tvm
+import tvm.testing
 from tvm.script import tirx as Tx
+
+pytestmark = tvm.testing.requires_cuda.marks()
 
 DEV = tvm.cuda(0)
 TARGET = tvm.target.Target("cuda")

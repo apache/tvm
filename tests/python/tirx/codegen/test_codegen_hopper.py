@@ -25,6 +25,8 @@ import tvm.testing
 from tvm.script import tirx as Tx
 from tvm.tirx import Buffer
 
+pytestmark = tvm.testing.requires_cuda.marks()
+
 
 def _get_source(func: tvm.tirx.PrimFunc) -> tuple[str, tvm.IRModule]:
     target = tvm.target.Target("cuda")
@@ -139,6 +141,7 @@ def test_stmatrix_sync_aligned(trans):
 
 @pytest.mark.parametrize("trans", [False, True])
 @pytest.mark.parametrize("num", [1, 2, 4])
+@tvm.testing.requires_cuda_compute_version(9)
 def test_ptx_stmatrix(trans, num):
     # fmt: off
     @Tx.prim_func

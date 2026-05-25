@@ -22,6 +22,8 @@ import tvm.testing
 from tvm.script import tirx as Tx
 from tvm.tirx.layout import R, S, TileLayout, laneid, wg_local_layout
 
+pytestmark = tvm.testing.requires_cuda.marks()
+
 
 @pytest.mark.parametrize(
     "src_shape, dst_shape, axes, st_src, st_dst, extent_src, extent_dst",

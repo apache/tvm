@@ -29,6 +29,8 @@ from tvm.runtime import ShapeTuple
 from tvm.runtime import disco as di
 from tvm.script import tirx as Tx
 
+pytestmark = tvm.testing.requires_cuda.marks()
+
 NUM_WORKERS = 4
 
 

@@ -40,6 +40,8 @@ from tvm.tirx.operator.tile_primitive.cuda.tma_utils import (
     mma_shared_layout,
 )
 
+pytestmark = tvm.testing.requires_cuda.marks()
+
 # ---------------------------------------------------------------------------
 # Shared test helpers
 # ---------------------------------------------------------------------------

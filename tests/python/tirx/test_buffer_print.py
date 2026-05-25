@@ -23,6 +23,8 @@ import tvm
 import tvm.testing
 from tvm.script import tirx as Tx
 
+pytestmark = tvm.testing.requires_cuda.marks()
+
 
 def generate_random_data(shape, dtype):
     np.random.seed(0)

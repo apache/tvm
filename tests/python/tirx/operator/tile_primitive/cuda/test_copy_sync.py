@@ -24,6 +24,8 @@ import tvm.testing
 from tvm.script import tirx as Tx
 from tvm.tirx.layout import ComposeLayout, S, SwizzleLayout, TCol, TileLayout, TLane, tid_in_wg
 
+pytestmark = tvm.testing.requires_cuda.marks()
+
 ml_dtypes_dict = {
     "float8_e4m3fn": ml_dtypes.float8_e4m3fn,
     "float8_e5m2": ml_dtypes.float8_e5m2,

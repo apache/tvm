@@ -23,6 +23,8 @@ import tvm
 import tvm.testing
 from tvm.script import tirx as Tx
 
+pytestmark = tvm.testing.requires_cuda.marks()
+
 DEV = tvm.device("cuda")
 
 
@@ -60,6 +62,7 @@ def test_serial_pragma_unroll_codegen():
     assert "break;" in src
 
 
+@tvm.testing.requires_cuda_compute_version(9)
 def test_cluster_cta_id_codegen_uses_coordinate_sregs():
     @Tx.prim_func
     def main(A: Tx.Buffer((1,), "int32")):
@@ -139,6 +142,7 @@ def test_ptx_ld_acquire_and_volatile_codegen():
     assert "ld.volatile.global.u64" in src
 
 
+@tvm.testing.requires_cuda_compute_version(9)
 def test_megamoe_extracted_intrinsics_codegen():
     @Tx.prim_func
     def main(
@@ -245,6 +249,7 @@ def test_megamoe_extracted_intrinsics_codegen():
         assert snippet in src
 
 
+@tvm.testing.requires_cuda_compute_version(9)
 def test_ptx_cp_async_bulk_non_tma_form_codegen():
     @Tx.prim_func
     def main(
@@ -274,6 +279,7 @@ def test_ptx_cp_async_bulk_non_tma_form_codegen():
     assert "unsigned long long cache_policy" in src
 
 
+@tvm.testing.requires_cuda_compute_version(9)
 def test_tensor_map_param_codegen():
     @Tx.prim_func
     def main(A_map: Tx.TensorMap()):
@@ -288,6 +294,7 @@ def test_tensor_map_param_codegen():
     assert "((unsigned long long)(&(A_map)))" in src
 
 
+@tvm.testing.requires_cuda_compute_version(10)
 def test_tma_cache_policy_operand_codegen():
     @Tx.prim_func
     def main(Cache: Tx.Buffer((1,), "uint64")):
@@ -528,6 +535,7 @@ def test_warp_shuffle_xor_sync():
 @pytest.mark.parametrize("prefetch_size", [-1, 64, 128, 256])
 @pytest.mark.parametrize("predicate", [-1, Tx.int32(0), Tx.int32(1)])
 @pytest.mark.parametrize("fill_mode", ["", "zero"])
+@tvm.testing.requires_cuda_compute_version(8)
 def test_ptx_cp_async(cp_size, cache_hint, prefetch_size, predicate, fill_mode):
     if fill_mode != "" and predicate == -1:
         return
@@ -569,6 +577,7 @@ def test_ptx_cp_async(cp_size, cache_hint, prefetch_size, predicate, fill_mode):
 
 @pytest.mark.parametrize("trans", [False, True])
 @pytest.mark.parametrize("num", [1, 2, 4])
+@tvm.testing.requires_cuda_compute_version(7, 5)
 def test_ptx_ldmatrix(trans, num):
     dtype = ".b16"
 
@@ -642,6 +651,7 @@ def test_ptx_ldmatrix(trans, num):
 
 @pytest.mark.parametrize("d_type", ["float16", "float32"])
 @pytest.mark.parametrize("no_c_ptr", [False, True])
+@tvm.testing.requires_cuda_compute_version(8)
 def test_ptx_mma_half_m16n8k16(d_type, no_c_ptr):
     shape = "m16n8k16"
     a_type = "float16"
@@ -733,6 +743,7 @@ def test_ptx_mma_half_m16n8k16(d_type, no_c_ptr):
 
 @pytest.mark.parametrize("d_type", ["float16", "float32"])
 @pytest.mark.parametrize("no_c_ptr", [False, True])
+@tvm.testing.requires_cuda_compute_version(8)
 def test_ptx_mma_half_m16n8k8(d_type, no_c_ptr):
     shape = "m16n8k8"
     a_type = "float16"
