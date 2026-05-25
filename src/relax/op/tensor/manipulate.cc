@@ -2025,7 +2025,7 @@ TVM_REGISTER_OP("relax.tile")
 
 /* relax.flip */
 
-Expr flip(Expr data, Integer axis) {
+Expr flip(Expr data, ffi::Optional<int64_t> axis) {
   auto attrs = ffi::make_object<FlipAttrs>();
   attrs->axis = std::move(axis);
   static const Op& op = Op::Get("relax.flip");
@@ -2043,7 +2043,7 @@ StructInfo InferStructInfoFlip(const Call& call, const BlockBuilder& ctx) {
   }
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
   const auto* attrs = call->attrs.as<FlipAttrs>();
-  int axis = attrs->axis.IntValue();
+  int axis = static_cast<int>(attrs->axis.value());
   if (!data_sinfo->IsUnknownNdim()) {
     int ndim = data_sinfo->ndim;
     if (axis < -ndim || axis >= ndim) {
@@ -2073,7 +2073,7 @@ InferLayoutOutput InferLayoutFlip(
     existing_layout = LayoutDecision(InitialLayout(ndim));
   }
 
-  int axis = attrs->axis.IntValue();
+  int axis = static_cast<int>(attrs->axis.value());
   if (axis < 0) {
     axis += ndim;
   }
@@ -2082,7 +2082,7 @@ InferLayoutOutput InferLayoutFlip(
   TVM_FFI_ICHECK_GE(new_axis, 0) << "Failed to find transformed axis";
 
   ffi::ObjectPtr<FlipAttrs> new_attrs = ffi::make_object<FlipAttrs>(*attrs);
-  new_attrs->axis = Integer(new_axis);
+  new_attrs->axis = static_cast<int64_t>(new_axis);
 
   return InferLayoutOutput({existing_layout}, {existing_layout}, Attrs(new_attrs));
 }

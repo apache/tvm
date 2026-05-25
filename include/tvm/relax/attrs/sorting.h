@@ -68,7 +68,7 @@ struct ArgsortAttrs : public AttrsNodeReflAdapter<ArgsortAttrs> {
                 "If it is not specified, it defaults to the ascending order.",
                 refl::DefaultValue(false))
         .def_ro("dtype", &ArgsortAttrs::dtype, "DType of the output indices.",
-                refl::DefaultValue(NullValue<DataType>()));
+                refl::DefaultValue(DataType::Void()));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ArgsortAttrs", ArgsortAttrs, BaseAttrsNode);
 };  // struct ArgsortAttrs
@@ -98,7 +98,7 @@ struct TopKAttrs : public AttrsNodeReflAdapter<TopKAttrs> {
                 "By default, return the largest k elements.",
                 refl::DefaultValue(true))
         .def_ro("dtype", &TopKAttrs::dtype, "Data type of the output indices.",
-                refl::DefaultValue(NullValue<DataType>()));
+                refl::DefaultValue(DataType::Void()));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.TopKAttrs", TopKAttrs, BaseAttrsNode);
 };  // struct TopKAttrs

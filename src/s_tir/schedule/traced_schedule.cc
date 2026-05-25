@@ -31,7 +31,7 @@ Schedule Schedule::Traced(IRModule mod, LinearCongruentialEngine::TRandState see
   n->analyzer_ = std::make_unique<arith::Analyzer>();
   n->trace_ = Trace();
   n->Seed(seed);
-  GlobalVar gv = NullValue<GlobalVar>();
+  GlobalVar gv;
   if (FindEntryFunc(mod, &gv) != nullptr) {
     n->func_working_on_ = gv;
   } else {
@@ -118,7 +118,7 @@ LoopRV TracedScheduleNode::SampleComputeLocation(const SBlockRV& block_rv,
 
 SBlockRV TracedScheduleNode::GetSBlock(const ffi::String& name,
                                        const ffi::Optional<ffi::String>& func_name) {
-  GlobalVar gv = NullValue<GlobalVar>();
+  GlobalVar gv;
   if (func_name.has_value()) {
     gv = state_->mod->GetGlobalVar(func_name.value());
   } else if (func_working_on_.defined()) {

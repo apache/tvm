@@ -186,13 +186,12 @@ struct TileAttrs : public AttrsNodeReflAdapter<TileAttrs> {
 
 /*! \brief Attributes used in flip operators */
 struct FlipAttrs : public AttrsNodeReflAdapter<FlipAttrs> {
-  Integer axis;
+  ffi::Optional<int64_t> axis;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<FlipAttrs>().def_ro("axis", &FlipAttrs::axis,
-                                        "The axis along which to flip over.",
-                                        refl::DefaultValue(NullValue<Integer>()));
+                                        "The axis along which to flip over.");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.FlipAttrs", FlipAttrs, BaseAttrsNode);
 };  // struct FlipAttrs
