@@ -46,7 +46,7 @@ def _has_tile_call_options(workspace, dispatch, kwargs):
     )
 
 
-def _to_region(buffer: BufferRegion | Buffer | BufferLoad):
+def _to_region(buffer: BufferRegion | Buffer | BufferLoad) -> BufferRegion:
     if isinstance(buffer, BufferLoad):
         return BufferRegion.from_point(buffer.buffer, buffer.indices)
     if isinstance(buffer, Buffer):
@@ -746,8 +746,8 @@ def reciprocal(
 
 
 def silu(
-    dst: BufferRegion | Buffer,
-    src: BufferRegion | Buffer | None = None,
+    dst: BufferRegion | Buffer | BufferLoad,
+    src: BufferRegion | Buffer | BufferLoad | None = None,
     workspace: dict[str, Buffer] | None = None,
     dispatch: str | None = None,
     **kwargs,
