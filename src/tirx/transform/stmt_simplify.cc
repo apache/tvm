@@ -58,7 +58,7 @@ struct StmtSimplifyConfigNode : public ffi::Object {
                 "If true, simplify conditionals into an AND of ORs", refl::DefaultValue(false))
         .def_ro("apply_constraints_to_boolean_branches",
                 &StmtSimplifyConfigNode::apply_constraints_to_boolean_branches,
-                "If true, simplify each branch of AND/OR under a constraints provided by the other "
+                "If true, simplify each branch of AND/OR under constraints provided by the other "
                 "branch",
                 refl::DefaultValue(false));
   }

@@ -242,7 +242,10 @@ def test_remove_empty_else_case():
 
 
 def test_suppress_removal_of_unused_write():
-    """Sequential writes to the same location are not removed without dataflow analysis."""
+    """Sequential writes to the same location are not removed.
+
+    Dataflow analysis is no longer supported.
+    """
 
     @T.prim_func(private=True, s_tir=True)
     def before(A: T.Buffer(16, "int32")):
