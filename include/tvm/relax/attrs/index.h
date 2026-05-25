@@ -30,7 +30,7 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Attributes used in take operator */
-struct TakeAttrs : public AttrsNodeReflAdapter<TakeAttrs> {
+struct TakeAttrs : public BaseAttrsNode {
   ffi::Optional<int64_t> axis;
   ffi::String mode;
 
@@ -45,7 +45,7 @@ struct TakeAttrs : public AttrsNodeReflAdapter<TakeAttrs> {
 };  // struct TakeAttrs
 
 /*! \brief Attributes used in strided_slice operator */
-struct StridedSliceAttrs : public AttrsNodeReflAdapter<StridedSliceAttrs> {
+struct StridedSliceAttrs : public BaseAttrsNode {
   bool assume_inbound;
 
   static void RegisterReflection() {

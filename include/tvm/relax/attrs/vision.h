@@ -32,8 +32,7 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Attributes used in AllClassNonMaximumSuppression operator */
-struct AllClassNonMaximumSuppressionAttrs
-    : public AttrsNodeReflAdapter<AllClassNonMaximumSuppressionAttrs> {
+struct AllClassNonMaximumSuppressionAttrs : public BaseAttrsNode {
   ffi::String output_format;
 
   static void RegisterReflection() {
@@ -48,7 +47,7 @@ struct AllClassNonMaximumSuppressionAttrs
 };  // struct AllClassNonMaximumSuppressionAttrs
 
 /*! \brief Attributes used in ROIAlign operator */
-struct ROIAlignAttrs : public AttrsNodeReflAdapter<ROIAlignAttrs> {
+struct ROIAlignAttrs : public BaseAttrsNode {
   ffi::Array<int64_t> pooled_size;
   double spatial_scale;
   int sample_ratio;
@@ -73,7 +72,7 @@ struct ROIAlignAttrs : public AttrsNodeReflAdapter<ROIAlignAttrs> {
 };  // struct ROIAlignAttrs
 
 /*! \brief Attributes used in ROIPool operator */
-struct ROIPoolAttrs : public AttrsNodeReflAdapter<ROIPoolAttrs> {
+struct ROIPoolAttrs : public BaseAttrsNode {
   ffi::Array<int64_t> pooled_size;
   double spatial_scale;
   ffi::String layout;
@@ -90,7 +89,7 @@ struct ROIPoolAttrs : public AttrsNodeReflAdapter<ROIPoolAttrs> {
 };  // struct ROIPoolAttrs
 
 /*! \brief Attributes used in GetValidCounts operator */
-struct GetValidCountsAttrs : public AttrsNodeReflAdapter<GetValidCountsAttrs> {
+struct GetValidCountsAttrs : public BaseAttrsNode {
   double score_threshold;
   int id_index;
   int score_index;
@@ -110,7 +109,7 @@ struct GetValidCountsAttrs : public AttrsNodeReflAdapter<GetValidCountsAttrs> {
 };  // struct GetValidCountsAttrs
 
 /*! \brief Attributes used in NonMaximumSuppression operator */
-struct NonMaximumSuppressionAttrs : public AttrsNodeReflAdapter<NonMaximumSuppressionAttrs> {
+struct NonMaximumSuppressionAttrs : public BaseAttrsNode {
   int max_output_size;
   double iou_threshold;
   bool force_suppress;
@@ -154,7 +153,7 @@ struct NonMaximumSuppressionAttrs : public AttrsNodeReflAdapter<NonMaximumSuppre
 };  // struct NonMaximumSuppressionAttrs
 
 /*! \brief Attributes for multibox_transform_loc (SSD / TFLite-style box decode). */
-struct MultiboxTransformLocAttrs : public AttrsNodeReflAdapter<MultiboxTransformLocAttrs> {
+struct MultiboxTransformLocAttrs : public BaseAttrsNode {
   bool clip;
   double threshold;
   ffi::Array<double> variances;

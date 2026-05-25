@@ -31,7 +31,7 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Attributes used in allreduce operators */
-struct AllReduceAttrs : public tvm::AttrsNodeReflAdapter<AllReduceAttrs> {
+struct AllReduceAttrs : public tvm::BaseAttrsNode {
   ffi::String op_type;
   bool in_group;
 
@@ -49,7 +49,7 @@ struct AllReduceAttrs : public tvm::AttrsNodeReflAdapter<AllReduceAttrs> {
 };  // struct AllReduceAttrs
 
 /*! \brief Attributes used in allgather operators */
-struct AllGatherAttrs : public tvm::AttrsNodeReflAdapter<AllGatherAttrs> {
+struct AllGatherAttrs : public tvm::BaseAttrsNode {
   int num_workers;
   bool in_group;
 
@@ -67,7 +67,7 @@ struct AllGatherAttrs : public tvm::AttrsNodeReflAdapter<AllGatherAttrs> {
 };  // struct AllGatherAttrs
 
 /*! \brief Attributes used in scatter operators */
-struct ScatterCollectiveAttrs : public tvm::AttrsNodeReflAdapter<ScatterCollectiveAttrs> {
+struct ScatterCollectiveAttrs : public tvm::BaseAttrsNode {
   int num_workers;
   int axis;
 

@@ -30,7 +30,7 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Attributes used in full/full_like, ones/ones_like, and zeros/zeros_like operators */
-struct InitAttrs : public AttrsNodeReflAdapter<InitAttrs> {
+struct InitAttrs : public BaseAttrsNode {
   DataType dtype;
 
   static void RegisterReflection() {
@@ -42,7 +42,7 @@ struct InitAttrs : public AttrsNodeReflAdapter<InitAttrs> {
 };  // struct InitAttrs
 
 /*! \brief Attributes used in tril and triu operator */
-struct TriluAttrs : public AttrsNodeReflAdapter<TriluAttrs> {
+struct TriluAttrs : public BaseAttrsNode {
   int k;
 
   static void RegisterReflection() {

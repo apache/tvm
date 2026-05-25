@@ -30,7 +30,7 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Attributes for search operators */
-struct ArgmaxArgminAttrs : public AttrsNodeReflAdapter<ArgmaxArgminAttrs> {
+struct ArgmaxArgminAttrs : public BaseAttrsNode {
   ffi::Optional<int64_t> axis;
   bool keepdims;
 
@@ -49,7 +49,7 @@ struct ArgmaxArgminAttrs : public AttrsNodeReflAdapter<ArgmaxArgminAttrs> {
 };  // struct ArgmaxArgminAttrs
 
 /*! \brief Attributes for bucketize operator */
-struct BucketizeAttrs : public tvm::AttrsNodeReflAdapter<BucketizeAttrs> {
+struct BucketizeAttrs : public tvm::BaseAttrsNode {
   bool out_int32;
   bool right;
 

@@ -30,7 +30,7 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Attributes used in astype operator */
-struct AstypeAttrs : public AttrsNodeReflAdapter<AstypeAttrs> {
+struct AstypeAttrs : public BaseAttrsNode {
   DataType dtype;
 
   static void RegisterReflection() {
@@ -41,7 +41,7 @@ struct AstypeAttrs : public AttrsNodeReflAdapter<AstypeAttrs> {
 };  // struct AstypeAttrs.
 
 /*! \brief Attributes used in wrap_param operator */
-struct WrapParamAttrs : public AttrsNodeReflAdapter<WrapParamAttrs> {
+struct WrapParamAttrs : public BaseAttrsNode {
   DataType dtype;
 
   static void RegisterReflection() {

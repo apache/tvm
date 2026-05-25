@@ -31,7 +31,7 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Attributes used in sort operator */
-struct SortAttrs : public AttrsNodeReflAdapter<SortAttrs> {
+struct SortAttrs : public BaseAttrsNode {
   int axis;
   bool descending;
 
@@ -51,7 +51,7 @@ struct SortAttrs : public AttrsNodeReflAdapter<SortAttrs> {
 };  // struct SortAttrs
 
 /*! \brief Attributes used in argsort operator */
-struct ArgsortAttrs : public AttrsNodeReflAdapter<ArgsortAttrs> {
+struct ArgsortAttrs : public BaseAttrsNode {
   int axis;
   bool descending;
   DataType dtype;
@@ -74,7 +74,7 @@ struct ArgsortAttrs : public AttrsNodeReflAdapter<ArgsortAttrs> {
 };  // struct ArgsortAttrs
 
 /*! \brief Attributes used in topk operator */
-struct TopKAttrs : public AttrsNodeReflAdapter<TopKAttrs> {
+struct TopKAttrs : public BaseAttrsNode {
   int k;
   int axis;
   bool largest;
