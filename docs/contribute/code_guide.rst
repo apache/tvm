@@ -128,6 +128,8 @@ Python Code Styles
 Writing Python Tests
 --------------------
 We use `pytest <https://docs.pytest.org/en/stable/>`_ for all python testing. ``tests/python`` contains all the tests.
+See :doc:`testing` for details on running tests, target parametrization,
+and the target-specific marks used by CI.
 
 If you want your test to run over a variety of targets, use the :py:func:`tvm.testing.parametrize_targets` decorator. For example:
 

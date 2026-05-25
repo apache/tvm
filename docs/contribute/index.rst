@@ -46,6 +46,7 @@ Here are guidelines for contributing to various aspect of the project:
    committer_guide
    document
    code_guide
+   testing
    git_howto
    ci
    release_process

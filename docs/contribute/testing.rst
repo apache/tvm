@@ -15,11 +15,17 @@
     specific language governing permissions and limitations
     under the License.
 
+Testing TVM
+===========
+
+This page describes how to write and run Python tests for TVM,
+including the target parametrization utilities used by CI.
+
 Python Target Parametrization
-=============================
+-----------------------------
 
 Summary
--------
+~~~~~~~
 
 For any supported runtime, TVM should produce numerically
 correct results.  Therefore, when writing unit tests that validate
@@ -28,7 +34,7 @@ runtimes.  Since this is a very common use case, TVM has helper
 functions to parametrize unit tests such that they will run on all
 targets that are enabled and have a compatible device.
 
-A single python function in the test suite can expand to several
+A single Python function in the test suite can expand to several
 parameterized unit tests, each of which tests a single target device.
 In order for a test to be run, all of the following must be true.
 
@@ -47,7 +53,7 @@ In order for a test to be run, all of the following must be true.
   runtime.
 
 Unit-Test File Contents
------------------------
+~~~~~~~~~~~~~~~~~~~~~~~
 
 .. _pytest-marks: https://docs.pytest.org/en/stable/how-to/mark.html
 
@@ -160,27 +166,28 @@ listed as skipped.
 There also exists a ``tvm.testing.enabled_targets()`` that returns
 all targets that are enabled and runnable on the current machine,
 based on the environment variable ``TVM_TEST_TARGETS``, the build
-configuration, and the physical hardware present.  Most current tests
+configuration, and the physical hardware present.  Some legacy tests
 explicitly loop over the targets returned from ``enabled_targets()``,
-but it should not be used for new tests.  The pytest output for this
-style silently skips runtimes that are disabled in ``config.cmake``,
-or do not have a device on which they can run.  In addition, the test
-halts on the first target to fail, which is ambiguous as to whether
-the error occurs on a particular target, or on every target.
+but this style should not be used for new tests.  The pytest output
+for this style silently skips runtimes that are disabled in
+``config.cmake``, or do not have a device on which they can run.  In
+addition, the test halts on the first target to fail, which is
+ambiguous as to whether the error occurs on a particular target, or on
+every target.
 
 .. code-block:: python
 
     # Old style, do not use.
     def test_function():
-        for target,dev in tvm.testing.enabled_targets():
+        for target, dev in tvm.testing.enabled_targets():
             # Test code goes here
 
 
 
-Running locally
----------------
+Running Locally
+~~~~~~~~~~~~~~~
 
-To run the python unit-tests locally, use the command ``pytest`` in
+To run the Python unit tests locally, use the command ``pytest`` in
 the ``${TVM_HOME}`` directory.
 
 - Environment variables
@@ -206,19 +213,19 @@ the ``${TVM_HOME}`` directory.
       system without a specific backend installed.
 
     - The ``-m`` argument only runs unit tests that are tagged with a
-      specific pytest marker. The most frequent usage is to use ``m
-      gpu`` to run only tests that are marked with
+      specific pytest marker. The most frequent usage is to use
+      ``-m gpu`` to run only tests that are marked with
       ``@pytest.mark.gpu`` and use a GPU to run. It can also be used
-      to run only tests that do not use a GPU, by passing ``m 'not
-      gpu'``.
+      to run only tests that do not use a GPU, by passing ``not gpu``
+      as the marker expression to ``-m``.
 
       Note: This filtering takes place after the selection of targets
       based on the ``TVM_TEST_TARGETS`` environment variable.  Even if
       ``-m gpu`` is specified, if ``TVM_TEST_TARGETS`` does not
       contain GPU targets, no GPU tests will be run.
 
-Running in local docker container
----------------------------------
+Running in a Local Docker Container
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. _tlcpack: https://hub.docker.com/u/tlcpack
 
@@ -243,7 +250,7 @@ and make a symlink from ``build`` to the appropriate folder when
 entering/exiting docker.
 
 Running in CI
--------------
+~~~~~~~~~~~~~
 
 Everything in the CI starts from the task definitions present in the
 Jenkinsfile.  This includes defining which docker image gets used,

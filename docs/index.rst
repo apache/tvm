@@ -49,7 +49,6 @@ driving its costs down.
    how_to/tutorials/export_and_load_executable
    how_to/tutorials/mix_python_and_tvm_with_pymodule
    how_to/tutorials/bring_your_own_codegen
-   how_to/dev/index
 
 .. The Deep Dive content is comprehensive
 .. we maintain a ``maxdepth`` of 2 to display more information on the main page.
@@ -61,6 +60,12 @@ driving its costs down.
    arch/index
    deep_dive/tensor_ir/index
    deep_dive/relax/index
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Troubleshooting
+
+   errors
 
 .. toctree::
    :maxdepth: 1
