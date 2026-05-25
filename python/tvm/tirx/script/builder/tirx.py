@@ -22,7 +22,7 @@ from collections.abc import Callable
 import tvm.tirx.operator as tirx_op
 from tvm.ir import Op
 from tvm.tirx import Buffer, BufferRegion, PrimExpr
-from tvm.tirx.expr import FloatImm
+from tvm.tirx.expr import BufferLoad, FloatImm
 from tvm.tirx.lang.alloc_pool import SMEMPool, TMEMPool
 from tvm.tirx.predicate import Predicate
 
@@ -34,9 +34,23 @@ def _is_buffer_or_region(x):
     return isinstance(x, Buffer | BufferRegion)
 
 
-def _to_region(buffer: BufferRegion | Buffer):
+def _is_buffer_region_or_load(x):
+    return isinstance(x, Buffer | BufferRegion | BufferLoad)
+
+
+def _has_tile_call_options(workspace, dispatch, kwargs):
+    return (
+        workspace is not None
+        or dispatch is not None
+        or any(key != "dtype" for key in kwargs.keys())
+    )
+
+
+def _to_region(buffer: BufferRegion | Buffer | BufferLoad):
+    if isinstance(buffer, BufferLoad):
+        return BufferRegion.from_point(buffer.buffer, buffer.indices)
     if isinstance(buffer, Buffer):
-        return buffer[[slice(None, None, None) for _ in range(len(buffer.shape))]]
+        return BufferRegion.full_region(buffer)
     assert isinstance(buffer, BufferRegion)
     return buffer
 
@@ -115,7 +129,13 @@ def sqrt(
     # Expression-form overload: ``sqrt(value)`` returns the underlying expression.
     from tvm import tirx as _tirx
 
-    if not _is_buffer_or_region(dst):
+    if (
+        src is None
+        and bias is None
+        and scale is None
+        and not _has_tile_call_options(workspace, dispatch, kwargs)
+        and not _is_buffer_or_region(dst)
+    ):
         return _tirx.sqrt(dst)
     if src is None:
         src = dst
@@ -124,7 +144,7 @@ def sqrt(
     config = kwargs or {}
     dst = _to_region(dst)
     src = _to_region(src)
-    if bias is not None and isinstance(bias, Buffer):
+    if bias is not None and isinstance(bias, Buffer | BufferLoad):
         bias = _to_region(bias)
     return f_insert(
         tirx_op.Sqrt(dst, src, bias, scale, workspace=workspace, config=config, dispatch=dispatch)
@@ -159,9 +179,9 @@ def add(
         workspace = {}
     config = kwargs or {}
     dst = _to_region(dst)
-    if isinstance(src1, Buffer):
+    if isinstance(src1, Buffer | BufferLoad):
         src1 = _to_region(src1)
-    if isinstance(src2, Buffer):
+    if isinstance(src2, Buffer | BufferLoad):
         src2 = _to_region(src2)
     return f_insert(
         tirx_op.Add(dst, src1, src2, workspace=workspace, config=config, dispatch=dispatch)
@@ -196,9 +216,9 @@ def sub(
         workspace = {}
     config = kwargs or {}
     dst = _to_region(dst)
-    if isinstance(src1, Buffer):
+    if isinstance(src1, Buffer | BufferLoad):
         src1 = _to_region(src1)
-    if isinstance(src2, Buffer):
+    if isinstance(src2, Buffer | BufferLoad):
         src2 = _to_region(src2)
     return f_insert(
         tirx_op.Sub(dst, src1, src2, workspace=workspace, config=config, dispatch=dispatch)
@@ -233,9 +253,9 @@ def mul(
         workspace = {}
     config = kwargs or {}
     dst = _to_region(dst)
-    if isinstance(src1, Buffer):
+    if isinstance(src1, Buffer | BufferLoad):
         src1 = _to_region(src1)
-    if isinstance(src2, Buffer):
+    if isinstance(src2, Buffer | BufferLoad):
         src2 = _to_region(src2)
     return f_insert(
         tirx_op.Mul(dst, src1, src2, workspace=workspace, config=config, dispatch=dispatch)
@@ -271,7 +291,7 @@ def fdiv(
     config = kwargs or {}
     dst = _to_region(dst)
     src1 = _to_region(src1)
-    if isinstance(src2, Buffer):
+    if isinstance(src2, Buffer | BufferLoad):
         src2 = _to_region(src2)
     return f_insert(
         tirx_op.FDiv(dst, src1, src2, workspace=workspace, config=config, dispatch=dispatch)
@@ -311,9 +331,9 @@ def fma(
     config = kwargs or {}
     dst = _to_region(dst)
     src = _to_region(src)
-    if isinstance(scale, Buffer):
+    if isinstance(scale, Buffer | BufferLoad):
         scale = _to_region(scale)
-    if isinstance(bias, Buffer):
+    if isinstance(bias, Buffer | BufferLoad):
         bias = _to_region(bias)
     return f_insert(
         tirx_op.FMA(dst, src, scale, bias, workspace=workspace, config=config, dispatch=dispatch)
@@ -623,7 +643,16 @@ def max(
     """
     from tvm import tirx as _tirx
 
-    if not isinstance(dst, BufferRegion | Buffer) or not isinstance(src, BufferRegion | Buffer):
+    if not _is_buffer_region_or_load(dst) or not _is_buffer_region_or_load(src):
+        # Expression-level max
+        return _tirx.max(dst, src)
+    if (
+        isinstance(dst, BufferLoad)
+        and isinstance(src, BufferLoad)
+        and axes == -1
+        and not accum
+        and not _has_tile_call_options(workspace, dispatch, kwargs)
+    ):
         # Expression-level max
         return _tirx.max(dst, src)
     if workspace is None:
@@ -653,7 +682,15 @@ def min(
     """
     from tvm import tirx as _tirx
 
-    if not isinstance(dst, BufferRegion | Buffer) or not isinstance(src, BufferRegion | Buffer):
+    if not _is_buffer_region_or_load(dst) or not _is_buffer_region_or_load(src):
+        return _tirx.min(dst, src)
+    if (
+        isinstance(dst, BufferLoad)
+        and isinstance(src, BufferLoad)
+        and axes == -1
+        and not accum
+        and not _has_tile_call_options(workspace, dispatch, kwargs)
+    ):
         return _tirx.min(dst, src)
     if workspace is None:
         workspace = {}
@@ -690,7 +727,11 @@ def reciprocal(
     # Expression-form overload: ``reciprocal(value)`` returns the underlying expression.
     from tvm import tirx as _tirx
 
-    if not _is_buffer_or_region(dst):
+    if (
+        src is None
+        and not _has_tile_call_options(workspace, dispatch, kwargs)
+        and not _is_buffer_or_region(dst)
+    ):
         return _tirx.reciprocal(dst)
     if src is None:
         src = dst
@@ -706,7 +747,7 @@ def reciprocal(
 
 def silu(
     dst: BufferRegion | Buffer,
-    src: BufferRegion | Buffer,
+    src: BufferRegion | Buffer | None = None,
     workspace: dict[str, Buffer] | None = None,
     dispatch: str | None = None,
     **kwargs,
@@ -727,8 +768,14 @@ def silu(
     # Expression-form overload: ``silu(value)`` returns the underlying expression.
     from tvm import tirx as _tirx
 
-    if not _is_buffer_or_region(dst):
+    if (
+        src is None
+        and not _has_tile_call_options(workspace, dispatch, kwargs)
+        and not _is_buffer_or_region(dst)
+    ):
         return _tirx.silu(dst)
+    if src is None:
+        src = dst
     if workspace is None:
         workspace = {}
     config = kwargs or {}
@@ -794,9 +841,9 @@ def maximum(
         workspace = {}
     config = kwargs or {}
     dst = _to_region(dst)
-    if isinstance(src1, Buffer):
+    if isinstance(src1, Buffer | BufferLoad):
         src1 = _to_region(src1)
-    if isinstance(src2, Buffer):
+    if isinstance(src2, Buffer | BufferLoad):
         src2 = _to_region(src2)
     return f_insert(
         tirx_op.Maximum(dst, src1, src2, workspace=workspace, config=config, dispatch=dispatch)
@@ -831,9 +878,9 @@ def minimum(
         workspace = {}
     config = kwargs or {}
     dst = _to_region(dst)
-    if isinstance(src1, Buffer):
+    if isinstance(src1, Buffer | BufferLoad):
         src1 = _to_region(src1)
-    if isinstance(src2, Buffer):
+    if isinstance(src2, Buffer | BufferLoad):
         src2 = _to_region(src2)
     return f_insert(
         tirx_op.Minimum(dst, src1, src2, workspace=workspace, config=config, dispatch=dispatch)
@@ -872,7 +919,13 @@ def exp(
     # Expression-form overload: ``exp(value)`` returns the underlying expression.
     from tvm import tirx as _tirx
 
-    if not _is_buffer_or_region(dst):
+    if (
+        src is None
+        and bias is None
+        and scale is None
+        and not _has_tile_call_options(workspace, dispatch, kwargs)
+        and not _is_buffer_or_region(dst)
+    ):
         return _tirx.exp(dst)
     if src is None:
         src = dst
@@ -881,7 +934,7 @@ def exp(
     config = kwargs or {}
     dst = _to_region(dst)
     src = _to_region(src)
-    if bias is not None and isinstance(bias, Buffer):
+    if bias is not None and isinstance(bias, Buffer | BufferLoad):
         bias = _to_region(bias)
     return f_insert(
         tirx_op.Exp(dst, src, bias, scale, workspace=workspace, config=config, dispatch=dispatch)
@@ -920,7 +973,13 @@ def exp2(
     # Expression-form overload: ``exp2(value)`` returns the underlying expression.
     from tvm import tirx as _tirx
 
-    if not _is_buffer_or_region(dst):
+    if (
+        src is None
+        and bias is None
+        and scale is None
+        and not _has_tile_call_options(workspace, dispatch, kwargs)
+        and not _is_buffer_or_region(dst)
+    ):
         return _tirx.exp2(dst)
     if src is None:
         src = dst
@@ -929,7 +988,7 @@ def exp2(
     config = kwargs or {}
     dst = _to_region(dst)
     src = _to_region(src)
-    if bias is not None and isinstance(bias, Buffer):
+    if bias is not None and isinstance(bias, Buffer | BufferLoad):
         bias = _to_region(bias)
     return f_insert(
         tirx_op.Exp2(dst, src, bias, scale, workspace=workspace, config=config, dispatch=dispatch)
@@ -1009,9 +1068,9 @@ def binary_reduce(
         workspace = {}
     binary_output = _to_region(binary_output)
     reduce_output = _to_region(reduce_output)
-    if isinstance(binary_input1, Buffer):
+    if isinstance(binary_input1, Buffer | BufferLoad):
         binary_input1 = _to_region(binary_input1)
-    if isinstance(binary_input2, Buffer):
+    if isinstance(binary_input2, Buffer | BufferLoad):
         binary_input2 = _to_region(binary_input2)
     reduce_axes = _wrap_elem_in_tuple(reduce_axes)
 
@@ -1090,7 +1149,7 @@ def unary_reduce(
     reduce_output = _to_region(reduce_output)
     unary_input = _to_region(unary_input)
 
-    if bias is not None and isinstance(bias, Buffer):
+    if bias is not None and isinstance(bias, Buffer | BufferLoad):
         bias = _to_region(bias)
 
     reduce_axes = _wrap_elem_in_tuple(reduce_axes)
@@ -1171,9 +1230,9 @@ def binary_chain(
     output = _to_region(output)
     data = _to_region(data)
 
-    if isinstance(operand0, Buffer):
+    if isinstance(operand0, Buffer | BufferLoad):
         operand0 = _to_region(operand0)
-    if isinstance(operand1, Buffer):
+    if isinstance(operand1, Buffer | BufferLoad):
         operand1 = _to_region(operand1)
 
     if isinstance(op0, str):
@@ -1280,9 +1339,9 @@ def select(
         The predicate to evaluate. The callable should take the same number of arguments as the dimensions of the destination buffer.
     """  # noqa: E501
     dst = _to_region(dst)
-    if isinstance(true_value, Buffer):
+    if isinstance(true_value, Buffer | BufferLoad):
         true_value = _to_region(true_value)
-    if isinstance(false_value, Buffer):
+    if isinstance(false_value, Buffer | BufferLoad):
         false_value = _to_region(false_value)
     if not isinstance(pred, Predicate):
         pred = Predicate(pred)

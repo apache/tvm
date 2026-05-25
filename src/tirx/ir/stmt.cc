@@ -522,6 +522,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("tirx.BufferRegion", [](Buffer buffer, ffi::Array<Range> region) {
     return BufferRegion(buffer, region);
   });
+  refl::GlobalDef().def("tirx.BufferRegionFullRegion",
+                        [](Buffer buffer) { return BufferRegion::FullRegion(buffer); });
+  refl::GlobalDef().def("tirx.BufferRegionFromPoint",
+                        [](Buffer buffer, ffi::Array<PrimExpr> indices) {
+                          return BufferRegion::FromPoint(buffer, indices);
+                        });
 }
 
 // MatchBufferRegion

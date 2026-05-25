@@ -630,6 +630,16 @@ class BufferRegion(Object, Scriptable):
     def __init__(self, buffer: Buffer, region: list[Range]) -> None:
         self.__init_handle_by_constructor__(_ffi_api.BufferRegion, buffer, region)  # type: ignore
 
+    @staticmethod
+    def full_region(buffer: Buffer) -> "BufferRegion":
+        """Create a BufferRegion covering the full buffer."""
+        return _ffi_api.BufferRegionFullRegion(buffer)  # type: ignore
+
+    @staticmethod
+    def from_point(buffer: Buffer, indices: list[PrimExpr]) -> "BufferRegion":
+        """Create a single-point BufferRegion from buffer indices."""
+        return _ffi_api.BufferRegionFromPoint(buffer, indices)  # type: ignore
+
     def __getitem__(self, indices):
         from ..arith import Analyzer
 

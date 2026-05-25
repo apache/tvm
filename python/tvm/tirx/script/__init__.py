@@ -62,14 +62,16 @@ def __getattr__(name: str):
             workspace = {}
         if config is None:
             config = kwargs or {}
-        # Convert Buffer args to BufferRegion (covers full extent)
+        # Convert buffer-like tile args to BufferRegion.
         from tvm.tirx import Buffer as _TBuffer
+        from tvm.tirx.expr import BufferLoad as _TBufferLoad
+
+        from .builder.tirx import _to_region
 
         new_args = []
         for a in args:
-            if isinstance(a, _TBuffer):
-                slices = [slice(None) for _ in range(len(a.shape))]
-                a = a[slices]
+            if isinstance(a, _TBuffer | _TBufferLoad):
+                a = _to_region(a)
             new_args.append(a)
         # Insert into the active frame using same FFI hook as registered ops.
         from .builder.tirx import f_insert as _f_insert

@@ -34,7 +34,7 @@ from tvm_ffi.core import String
 
 from tvm import DataType, ir
 from tvm import tirx as tir
-from tvm.ir import Type
+from tvm.ir import PointerType, PrimType, Type
 from tvm.ir import register_op_attr as _register_op_attr
 from tvm.ir.base import deprecated
 from tvm.runtime import convert
@@ -1809,6 +1809,78 @@ def decl_buffer(
         buf = decl_frame
     _record_meta_resource(buf, skip_frames=2)
     return buf
+
+
+def _infer_pointer_var_dtype_scope(var):
+    type_annotation = getattr(var, "type_annotation", None)
+    if isinstance(type_annotation, PointerType):
+        dtype = None
+        if isinstance(type_annotation.element_type, PrimType):
+            dtype = type_annotation.element_type.dtype
+        scope = type_annotation.storage_scope or None
+        return dtype, scope
+    return None, None
+
+
+def buffer_from_ptr(
+    ptr,
+    shape,
+    dtype=None,
+    strides=None,
+    elem_offset=None,
+    byte_offset=None,
+    scope=None,
+    align=0,
+    offset_factor=0,
+    buffer_type="",
+    axis_separators=None,
+    layout="default",
+) -> Buffer:
+    """Create a buffer view from a pointer or buffer element.
+
+    When ``ptr`` is a BufferLoad, this helper creates a pointer to the loaded
+    element with ``T.address_of``.  The pointer expression is then bound to a
+    Var before it is used as ``T.decl_buffer(..., data=...)``, preserving the
+    invariant that ``Buffer.data`` is a Var.
+    """
+    if isinstance(ptr, Buffer):
+        raise ValueError(
+            "buffer_from_ptr expects a pointer or BufferLoad; use T.address_of(buffer) "
+            "for an explicit base pointer"
+        )
+    if isinstance(ptr, BufferLoad):
+        if dtype is None:
+            dtype = ptr.dtype
+        if scope is None:
+            scope = ptr.buffer.scope()
+        ptr = address_of(ptr)
+    elif isinstance(ptr, Var):
+        ptr_dtype, ptr_scope = _infer_pointer_var_dtype_scope(ptr)
+        if dtype is None:
+            dtype = ptr_dtype
+        if scope is None:
+            scope = ptr_scope
+
+    if dtype is None:
+        raise ValueError("buffer_from_ptr requires dtype when ptr is not a BufferLoad or typed Var")
+    if scope is None:
+        scope = "global"
+
+    data = ptr if isinstance(ptr, Var) else Bind(ptr, handle(dtype, scope))
+    return decl_buffer(
+        shape,
+        dtype=dtype,
+        data=data,
+        strides=strides,
+        elem_offset=elem_offset,
+        byte_offset=byte_offset,
+        scope=scope,
+        align=align,
+        offset_factor=offset_factor,
+        buffer_type=buffer_type,
+        axis_separators=axis_separators,
+        layout=layout,
+    )
 
 
 alloc_shared = functools.partial(alloc_buffer, scope="shared")
@@ -3743,6 +3815,7 @@ __all__ = [
     "Then",
     "Else",
     "decl_buffer",
+    "buffer_from_ptr",
     "launch_thread",
     "env_thread",
     "buffer_store",

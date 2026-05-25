@@ -142,11 +142,7 @@ inline IfFrame FindIfFrame(const ffi::String& method) {
  * \return The converted BufferRegion.
  */
 inline tvm::tirx::BufferRegion BufferRegionFromLoad(tvm::tirx::BufferLoad buffer_load) {
-  ffi::Array<Range> ranges;
-  for (const PrimExpr& index : buffer_load->indices) {
-    ranges.push_back(Range::FromMinExtent(index, IntImm(index->dtype, 1)));
-  }
-  return tvm::tirx::BufferRegion(buffer_load->buffer, ranges);
+  return tvm::tirx::BufferRegion::FromPoint(buffer_load->buffer, buffer_load->indices);
 }
 
 }  // namespace tirx
