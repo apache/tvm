@@ -61,3 +61,19 @@ TEST_FILES=(
 for TEST_FILE in ${TEST_FILES[@]}; do
     run_pytest ${TEST_FILE}, tests/python/${TEST_FILE}
 done
+
+# Run CPU-safe TIRX DSL tests that live under tests/python/tirx.  The full
+# directory also contains CUDA/codegen/operator tests, so keep those in the
+# GPU/codegen-specific suites instead of adding them to the general Python
+# unittest job.
+run_pytest tirx-dsl tests/python/tirx \
+    --ignore=tests/python/tirx/codegen \
+    --ignore=tests/python/tirx/operator \
+    --ignore=tests/python/tirx/test_buffer_print.py \
+    --ignore=tests/python/tirx/test_control_flow.py
+
+run_pytest tirx-operator-trn \
+    tests/python/tirx/operator/tile_primitive/test_dispatcher.py \
+    tests/python/tirx/operator/tile_primitive/trn
+
+run_pytest tirx-codegen-nki tests/python/tirx/codegen/test_codegen_nki.py
