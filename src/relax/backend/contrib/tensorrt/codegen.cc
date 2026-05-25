@@ -46,7 +46,7 @@ namespace relax {
 namespace contrib {
 
 /*! \brief Attributes to store the compiler options for TensorRT. */
-struct TensorRTCompilerConfigNode : public AttrsNodeReflAdapter<TensorRTCompilerConfigNode> {
+struct TensorRTCompilerConfigNode : public ffi::Object {
   ffi::Array<Integer> tensorrt_version;
   bool use_implicit_batch;
   size_t max_workspace_size;
@@ -72,12 +72,12 @@ struct TensorRTCompilerConfigNode : public AttrsNodeReflAdapter<TensorRTCompiler
                 refl::DefaultValue(false));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.ext.attrs.TensorRTCompilerConfig",
-                                    TensorRTCompilerConfigNode, BaseAttrsNode);
+                                    TensorRTCompilerConfigNode, ffi::Object);
 };
 
-class TensorRTCompilerConfig : public Attrs {
+class TensorRTCompilerConfig : public ffi::ObjectRef {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorRTCompilerConfig, Attrs,
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorRTCompilerConfig, ffi::ObjectRef,
                                                 TensorRTCompilerConfigNode);
 };
 

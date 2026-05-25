@@ -41,7 +41,7 @@ namespace relax {
 namespace contrib {
 
 /*! \brief Attributes to store the compiler options for OpenCLML. */
-struct OpenCLMLCompilerConfigNode : public AttrsNodeReflAdapter<OpenCLMLCompilerConfigNode> {
+struct OpenCLMLCompilerConfigNode : public ffi::Object {
   Integer clml_version;
 
   static void RegisterReflection() {
@@ -51,12 +51,12 @@ struct OpenCLMLCompilerConfigNode : public AttrsNodeReflAdapter<OpenCLMLCompiler
         "OpenCLML version as (major, minor, patch).", refl::DefaultValue(Integer(3)));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.ext.attrs.OpenCLMLCompilerConfig",
-                                    OpenCLMLCompilerConfigNode, BaseAttrsNode);
+                                    OpenCLMLCompilerConfigNode, ffi::Object);
 };
 
-class OpenCLMLCompilerConfig : public Attrs {
+class OpenCLMLCompilerConfig : public ffi::ObjectRef {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(OpenCLMLCompilerConfig, Attrs,
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(OpenCLMLCompilerConfig, ffi::ObjectRef,
                                                 OpenCLMLCompilerConfigNode);
 };
 

@@ -58,7 +58,7 @@ enum class HoistedLetBindings : int {
   kLetExpr = (1 << 2),
 };
 
-struct HoistExpressionConfigNode : public AttrsNodeReflAdapter<HoistExpressionConfigNode> {
+struct HoistExpressionConfigNode : public ffi::Object {
   int hoisted_conditionals;
   int hoisted_let_bindings;
 
@@ -87,7 +87,7 @@ struct HoistExpressionConfigNode : public AttrsNodeReflAdapter<HoistExpressionCo
                                     HoistExpressionConfigNode, ffi::Object);
 };
 
-class HoistExpressionConfig : public Attrs {
+class HoistExpressionConfig : public ffi::ObjectRef {
  public:
   HoistExpressionConfig(int hoisted_conditionals, int hoisted_let_bindings) {
     auto node = ffi::make_object<HoistExpressionConfigNode>();
@@ -95,7 +95,7 @@ class HoistExpressionConfig : public Attrs {
     node->hoisted_let_bindings = hoisted_let_bindings;
     data_ = std::move(node);
   }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(HoistExpressionConfig, Attrs,
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(HoistExpressionConfig, ffi::ObjectRef,
                                                 HoistExpressionConfigNode);
 };
 
@@ -103,7 +103,7 @@ TVM_FFI_STATIC_INIT_BLOCK() { HoistExpressionConfigNode::RegisterReflection(); }
 
 TVM_REGISTER_PASS_CONFIG_OPTION("s_tir.HoistExpression", HoistExpressionConfig);
 
-struct HoistIfThenElseConfigNode : public AttrsNodeReflAdapter<HoistIfThenElseConfigNode> {
+struct HoistIfThenElseConfigNode : public ffi::Object {
   bool support_block_scope_hoisting;
 
   static void RegisterReflection() {
@@ -116,9 +116,9 @@ struct HoistIfThenElseConfigNode : public AttrsNodeReflAdapter<HoistIfThenElseCo
                                     HoistIfThenElseConfigNode, ffi::Object);
 };
 
-class HoistIfThenElseConfig : public Attrs {
+class HoistIfThenElseConfig : public ffi::ObjectRef {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(HoistIfThenElseConfig, Attrs,
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(HoistIfThenElseConfig, ffi::ObjectRef,
                                                 HoistIfThenElseConfigNode);
 };
 

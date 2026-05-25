@@ -44,7 +44,7 @@
 namespace tvm {
 namespace tirx {
 
-struct RemoveNoOpConfigNode : public AttrsNodeReflAdapter<RemoveNoOpConfigNode> {
+struct RemoveNoOpConfigNode : public ffi::Object {
   bool use_dataflow_analysis;
   int64_t max_simplification_steps;
   bool ignore_profiler_call;
@@ -65,12 +65,13 @@ struct RemoveNoOpConfigNode : public AttrsNodeReflAdapter<RemoveNoOpConfigNode> 
                 "If true, profiler calls are rendered as no-ops.", refl::DefaultValue(false));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.transform.RemoveNoOpConfig", RemoveNoOpConfigNode,
-                                    BaseAttrsNode);
+                                    ffi::Object);
 };
 
-class RemoveNoOpConfig : public Attrs {
+class RemoveNoOpConfig : public ffi::ObjectRef {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(RemoveNoOpConfig, Attrs, RemoveNoOpConfigNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(RemoveNoOpConfig, ffi::ObjectRef,
+                                                RemoveNoOpConfigNode);
 };
 
 TVM_FFI_STATIC_INIT_BLOCK() { RemoveNoOpConfigNode::RegisterReflection(); }
