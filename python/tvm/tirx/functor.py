@@ -38,14 +38,12 @@ from .expr import (
     Broadcast,
     BufferLoad,
     Call,
-    CallEffectKind,
     Cast,
     Div,
     FloatImm,
     FloorDiv,
     FloorMod,
     IntImm,
-    IterVar,
     Let,
     Max,
     Min,
@@ -263,6 +261,121 @@ class _PyStmtExprVisitor(tvm_ffi.core.Object):
             f_visit_int_imm,
             f_visit_float_imm,
             f_visit_string_imm,
+        )
+
+
+@tvm_ffi.register_object("tirx.PyStmtExprVisitorWithAnalyzer")
+class _PyStmtExprVisitorWithAnalyzer(tvm_ffi.core.Object):
+    """
+    An internal C++-backed wrapper for analyzer-aware Python StmtExprVisitor.
+    """
+
+    def __init__(
+        self,
+        f_visit_stmt: Callable | None = None,
+        f_visit_expr: Callable | None = None,
+        # Stmt
+        f_visit_bind: Callable | None = None,
+        f_visit_attr_stmt: Callable | None = None,
+        f_visit_if_then_else: Callable | None = None,
+        f_visit_for: Callable | None = None,
+        f_visit_while: Callable | None = None,
+        f_visit_alloc_buffer: Callable | None = None,
+        f_visit_decl_buffer: Callable | None = None,
+        f_visit_buffer_store: Callable | None = None,
+        f_visit_assert_stmt: Callable | None = None,
+        f_visit_seq_stmt: Callable | None = None,
+        f_visit_evaluate: Callable | None = None,
+        f_visit_block: Callable | None = None,
+        f_visit_sblock_realize: Callable | None = None,
+        # PrimExpr
+        f_visit_var: Callable | None = None,
+        f_visit_size_var: Callable | None = None,
+        f_visit_buffer_load: Callable | None = None,
+        f_visit_producer_load: Callable | None = None,
+        f_visit_let: Callable | None = None,
+        f_visit_call: Callable | None = None,
+        f_visit_add: Callable | None = None,
+        f_visit_sub: Callable | None = None,
+        f_visit_mul: Callable | None = None,
+        f_visit_div: Callable | None = None,
+        f_visit_mod: Callable | None = None,
+        f_visit_floor_div: Callable | None = None,
+        f_visit_floor_mod: Callable | None = None,
+        f_visit_min: Callable | None = None,
+        f_visit_max: Callable | None = None,
+        f_visit_eq: Callable | None = None,
+        f_visit_ne: Callable | None = None,
+        f_visit_lt: Callable | None = None,
+        f_visit_le: Callable | None = None,
+        f_visit_gt: Callable | None = None,
+        f_visit_ge: Callable | None = None,
+        f_visit_and: Callable | None = None,
+        f_visit_or: Callable | None = None,
+        f_visit_reduce: Callable | None = None,
+        f_visit_cast: Callable | None = None,
+        f_visit_not: Callable | None = None,
+        f_visit_select: Callable | None = None,
+        f_visit_ramp: Callable | None = None,
+        f_visit_broadcast: Callable | None = None,
+        f_visit_shuffle: Callable | None = None,
+        f_visit_int_imm: Callable | None = None,
+        f_visit_float_imm: Callable | None = None,
+        f_visit_string_imm: Callable | None = None,
+    ) -> None:
+        """Constructor."""
+        self.__init_handle_by_constructor__(
+            _ffi_api.MakePyStmtExprVisitorWithAnalyzer,  # type: ignore
+            [
+                f_visit_stmt,
+                f_visit_expr,
+                f_visit_bind,
+                f_visit_attr_stmt,
+                f_visit_if_then_else,
+                f_visit_for,
+                f_visit_while,
+                f_visit_alloc_buffer,
+                f_visit_decl_buffer,
+                f_visit_buffer_store,
+                f_visit_assert_stmt,
+                f_visit_seq_stmt,
+                f_visit_evaluate,
+                f_visit_block,
+                f_visit_sblock_realize,
+                f_visit_var,
+                f_visit_size_var,
+                f_visit_buffer_load,
+                f_visit_producer_load,
+                f_visit_let,
+                f_visit_call,
+                f_visit_add,
+                f_visit_sub,
+                f_visit_mul,
+                f_visit_div,
+                f_visit_mod,
+                f_visit_floor_div,
+                f_visit_floor_mod,
+                f_visit_min,
+                f_visit_max,
+                f_visit_eq,
+                f_visit_ne,
+                f_visit_lt,
+                f_visit_le,
+                f_visit_gt,
+                f_visit_ge,
+                f_visit_and,
+                f_visit_or,
+                f_visit_reduce,
+                f_visit_cast,
+                f_visit_not,
+                f_visit_select,
+                f_visit_ramp,
+                f_visit_broadcast,
+                f_visit_shuffle,
+                f_visit_int_imm,
+                f_visit_float_imm,
+                f_visit_string_imm,
+            ],
         )
 
 
@@ -947,217 +1060,53 @@ class PyStmtExprVisitor:
         _ffi_api.PyStmtExprVisitorDefaultVisitExpr(self._outer(), op)  # type: ignore
 
 
-class _AnalyzerContextMixin:
-    """Shared analyzer context helpers for Python functors."""
+def _analyzer_from_module(mod):
+    from tvm.arith.analyzer import Analyzer  # pylint: disable=import-outside-toplevel
 
-    def _init_analyzer(self, analyzer):
+    analyzer = Analyzer.__new__(Analyzer)
+    analyzer._const_int_bound = mod("const_int_bound")
+    analyzer._const_int_bound_update = mod("const_int_bound_update")
+    analyzer._const_int_bound_is_bound = mod("const_int_bound_is_bound")
+    analyzer._bind = mod("bind")
+    analyzer._modular_set = mod("modular_set")
+    analyzer._simplify = mod("Simplify")
+    analyzer._rewrite_simplify = mod("rewrite_simplify")
+    analyzer._get_rewrite_simplify_stats = mod("get_rewrite_simplify_stats")
+    analyzer._reset_rewrite_simplify_stats = mod("reset_rewrite_simplify_stats")
+    analyzer._canonical_simplify = mod("canonical_simplify")
+    analyzer._int_set = mod("int_set")
+    analyzer._enter_constraint_context = mod("enter_constraint_context")
+    analyzer._can_prove_equal = mod("can_prove_equal")
+    analyzer._can_prove = mod("can_prove")
+    analyzer._get_enabled_extensions = mod("get_enabled_extensions")
+    analyzer._set_enabled_extensions = mod("set_enabled_extensions")
+    return analyzer
+
+
+class _AnalyzerBackedVisitorMixin:
+    @property
+    def analyzer(self):
+        analyzer = getattr(self, "_analyzer", None)
         if analyzer is None:
-            from tvm.arith import Analyzer  # pylint: disable=import-outside-toplevel
-
-            analyzer = Analyzer()
-        self.analyzer = analyzer
-        self._constraint_scopes = []
-
-    def _real_condition(self, condition):
-        if isinstance(condition, Call) and getattr(condition.op, "name", None) == "tirx.likely":
-            return condition.args[0]
-        return condition
-
-    def _negated_condition(self, condition):
-        return self.analyzer.rewrite_simplify(Not(condition))
-
-    def _is_pure(self, expr):
-        if isinstance(expr, BufferLoad | ProducerLoad):
-            return False
-        if isinstance(expr, Call):
-            try:
-                effect = expr.op.get_attr("TCallEffectKind")
-            except AttributeError:
-                return False
-            if effect is None:
-                return False
-            effect_value = getattr(effect, "value", effect)
-            return effect_value <= CallEffectKind.Pure.value and all(
-                self._is_pure(arg) for arg in expr.args
-            )
-        if isinstance(expr, Let):
-            return self._is_pure(expr.value) and self._is_pure(expr.body)
-        if isinstance(expr, Reduce):
-            return (
-                all(self._is_pure(source) for source in expr.source)
-                and all(self._is_pure(init) for init in expr.init)
-                and self._is_pure(expr.condition)
-            )
-        if isinstance(expr, Select):
-            return (
-                self._is_pure(expr.condition)
-                and self._is_pure(expr.true_value)
-                and self._is_pure(expr.false_value)
-            )
-        if isinstance(expr, Ramp):
-            return (
-                self._is_pure(expr.base)
-                and self._is_pure(expr.stride)
-                and self._is_pure(expr.lanes)
-            )
-        if isinstance(expr, Broadcast):
-            return self._is_pure(expr.value) and self._is_pure(expr.lanes)
-        if isinstance(expr, Shuffle):
-            return all(self._is_pure(vec) for vec in expr.vectors) and all(
-                self._is_pure(index) for index in expr.indices
-            )
-        if isinstance(expr, Cast):
-            return self._is_pure(expr.value)
-        if isinstance(expr, Not):
-            return self._is_pure(expr.a)
-        if isinstance(
-            expr,
-            Add
-            | Sub
-            | Mul
-            | Div
-            | Mod
-            | FloorDiv
-            | FloorMod
-            | Min
-            | Max
-            | EQ
-            | NE
-            | LT
-            | LE
-            | GT
-            | GE
-            | And
-            | Or,
-        ):
-            return self._is_pure(expr.a) and self._is_pure(expr.b)
-
-        return isinstance(expr, Var | SizeVar | IntImm | FloatImm | StringImm)
-
-    def _push_constraint(self, constraint):
-        scope = self.analyzer.constraint_scope(constraint)
-        scope.__enter__()
-        self._constraint_scopes.append(scope)
-
-    def _pop_constraints(self, depth):
-        while len(self._constraint_scopes) > depth:
-            self._constraint_scopes.pop().__exit__(None, None, None)
+            mod = _ffi_api.PyStmtExprVisitorWithAnalyzerGetAnalyzer(self._outer())  # type: ignore
+            analyzer = _analyzer_from_module(mod)
+            self._analyzer = analyzer
+        return analyzer
 
 
-class PyStmtExprVisitorWithAnalyzer(PyStmtExprVisitor, _AnalyzerContextMixin):
-    """A Python StmtExprVisitor that maintains an arithmetic analyzer context.
+class PyStmtExprVisitorWithAnalyzer(PyStmtExprVisitor, _AnalyzerBackedVisitorMixin):
+    """A C++-backed Python StmtExprVisitor with an arithmetic analyzer context."""
 
-    The analyzer is available as ``self.analyzer`` from user callbacks. The default
-    traversal binds loop variables, block iter variables, let variables, and branch
-    conditions before visiting nested nodes, so callbacks can query the analyzer
-    using the surrounding IR context.
-    """
+    _tvm_metadata = {
+        **PyStmtExprVisitor._tvm_metadata,
+        "cls": _PyStmtExprVisitorWithAnalyzer,
+    }
 
-    def __init__(self, analyzer=None):
-        super().__init__()
-        self._init_analyzer(analyzer)
+    def visit_stmt(self, stmt: Stmt) -> None:
+        _ffi_api.PyStmtExprVisitorWithAnalyzerVisitStmt(self._outer(), stmt)  # type: ignore
 
-    def visit_for_(self, op: For) -> None:
-        from tvm.ir import Range  # pylint: disable=import-outside-toplevel
-
-        depth = len(self._constraint_scopes)
-        self.visit_expr(op.min)
-        self.visit_expr(op.extent)
-        if op.step is not None:
-            self.visit_expr(op.step)
-        self.analyzer.bind(op.loop_var, Range.from_min_extent(op.min, op.extent))
-        try:
-            self.visit_stmt(op.body)
-        finally:
-            self._pop_constraints(depth)
-
-    def visit_attr_stmt_(self, op: AttrStmt) -> None:
-        from tvm.ir import Range  # pylint: disable=import-outside-toplevel
-
-        depth = len(self._constraint_scopes)
-        self.visit_expr(op.value)
-        if op.attr_key in ("thread_extent", "virtual_thread") and isinstance(op.node, IterVar):
-            self.analyzer.bind(
-                op.node.var, Range.from_min_extent(IntImm(op.value.dtype, 0), op.value)
-            )
-        try:
-            self.visit_stmt(op.body)
-        finally:
-            self._pop_constraints(depth)
-
-    def visit_sblock_(self, op: SBlock) -> None:
-        depth = len(self._constraint_scopes)
-        try:
-            for iter_var in op.iter_vars:
-                self.analyzer.bind(iter_var.var, iter_var.dom)
-            _ffi_api.PyStmtExprVisitorDefaultVisitStmt(self._outer(), op)  # type: ignore
-        finally:
-            self._pop_constraints(depth)
-
-    def visit_bind_(self, op: Bind) -> None:
-        self.visit_expr(op.value)
-        if self._is_pure(op.value):
-            self.analyzer.bind(op.var, op.value)
-
-    def visit_seq_stmt_(self, op: SeqStmt) -> None:
-        depth = len(self._constraint_scopes)
-        try:
-            _ffi_api.PyStmtExprVisitorDefaultVisitStmt(self._outer(), op)  # type: ignore
-        finally:
-            self._pop_constraints(depth)
-
-    def visit_if_then_else_(self, op: IfThenElse) -> None:
-        condition = self._real_condition(op.condition)
-        self.visit_expr(op.condition)
-        depth = len(self._constraint_scopes)
-        with self.analyzer.constraint_scope(condition):
-            try:
-                self.visit_stmt(op.then_case)
-            finally:
-                self._pop_constraints(depth)
-        if op.else_case is not None:
-            with self.analyzer.constraint_scope(self._negated_condition(condition)):
-                try:
-                    self.visit_stmt(op.else_case)
-                finally:
-                    self._pop_constraints(depth)
-
-    def visit_assert_stmt_(self, op: AssertStmt) -> None:
-        self.visit_expr(op.condition)
-        self._push_constraint(op.condition)
-        self.visit_expr(op.error_kind)
-        for msg in op.message_parts:
-            self.visit_expr(msg)
-
-    def visit_let_(self, op: Let) -> None:
-        self.visit_expr(op.value)
-        if self._is_pure(op.value):
-            self.analyzer.bind(op.var, op.value)
-        self.visit_expr(op.body)
-
-    def visit_call_(self, op: Call) -> None:
-        if getattr(op.op, "name", None) != "tirx.if_then_else":
-            _ffi_api.PyStmtExprVisitorDefaultVisitExpr(self._outer(), op)  # type: ignore
-            return
-
-        condition = op.args[0]
-        self.visit_expr(condition)
-        with self.analyzer.constraint_scope(condition):
-            self.visit_expr(op.args[1])
-        with self.analyzer.constraint_scope(self._negated_condition(condition)):
-            self.visit_expr(op.args[2])
-
-    def visit_select_(self, op: Select) -> None:
-        self.visit_expr(op.condition)
-        with self.analyzer.constraint_scope(op.condition):
-            self.visit_expr(op.true_value)
-        with self.analyzer.constraint_scope(self._negated_condition(op.condition)):
-            self.visit_expr(op.false_value)
-
-    def visit_reduce_(self, op: Reduce) -> None:
-        for iter_var in op.axis:
-            self.analyzer.bind(iter_var.var, iter_var.dom)
-        _ffi_api.PyStmtExprVisitorDefaultVisitExpr(self._outer(), op)  # type: ignore
+    def visit_expr(self, expr: PrimExpr) -> None:
+        _ffi_api.PyStmtExprVisitorWithAnalyzerVisitExpr(self._outer(), expr)  # type: ignore
 
 
 @tvm_ffi.register_object("tirx.PyStmtExprMutator")
@@ -1277,6 +1226,121 @@ class _PyStmtExprMutator(tvm_ffi.core.Object):
             f_visit_int_imm,
             f_visit_float_imm,
             f_visit_string_imm,
+        )
+
+
+@tvm_ffi.register_object("tirx.PyStmtExprMutatorWithAnalyzer")
+class _PyStmtExprMutatorWithAnalyzer(tvm_ffi.core.Object):
+    """
+    An internal C++-backed wrapper for analyzer-aware Python StmtExprMutator.
+    """
+
+    def __init__(
+        self,
+        f_visit_stmt: Callable | None = None,
+        f_visit_expr: Callable | None = None,
+        # Stmt
+        f_visit_bind: Callable | None = None,
+        f_visit_attr_stmt: Callable | None = None,
+        f_visit_if_then_else: Callable | None = None,
+        f_visit_for: Callable | None = None,
+        f_visit_while: Callable | None = None,
+        f_visit_alloc_buffer: Callable | None = None,
+        f_visit_decl_buffer: Callable | None = None,
+        f_visit_buffer_store: Callable | None = None,
+        f_visit_assert_stmt: Callable | None = None,
+        f_visit_seq_stmt: Callable | None = None,
+        f_visit_evaluate: Callable | None = None,
+        f_visit_block: Callable | None = None,
+        f_visit_sblock_realize: Callable | None = None,
+        # PrimExpr
+        f_visit_var: Callable | None = None,
+        f_visit_size_var: Callable | None = None,
+        f_visit_buffer_load: Callable | None = None,
+        f_visit_producer_load: Callable | None = None,
+        f_visit_let: Callable | None = None,
+        f_visit_call: Callable | None = None,
+        f_visit_add: Callable | None = None,
+        f_visit_sub: Callable | None = None,
+        f_visit_mul: Callable | None = None,
+        f_visit_div: Callable | None = None,
+        f_visit_mod: Callable | None = None,
+        f_visit_floor_div: Callable | None = None,
+        f_visit_floor_mod: Callable | None = None,
+        f_visit_min: Callable | None = None,
+        f_visit_max: Callable | None = None,
+        f_visit_eq: Callable | None = None,
+        f_visit_ne: Callable | None = None,
+        f_visit_lt: Callable | None = None,
+        f_visit_le: Callable | None = None,
+        f_visit_gt: Callable | None = None,
+        f_visit_ge: Callable | None = None,
+        f_visit_and: Callable | None = None,
+        f_visit_or: Callable | None = None,
+        f_visit_reduce: Callable | None = None,
+        f_visit_cast: Callable | None = None,
+        f_visit_not: Callable | None = None,
+        f_visit_select: Callable | None = None,
+        f_visit_ramp: Callable | None = None,
+        f_visit_broadcast: Callable | None = None,
+        f_visit_shuffle: Callable | None = None,
+        f_visit_int_imm: Callable | None = None,
+        f_visit_float_imm: Callable | None = None,
+        f_visit_string_imm: Callable | None = None,
+    ) -> None:
+        """Constructor."""
+        self.__init_handle_by_constructor__(
+            _ffi_api.MakePyStmtExprMutatorWithAnalyzer,  # type: ignore
+            [
+                f_visit_stmt,
+                f_visit_expr,
+                f_visit_bind,
+                f_visit_attr_stmt,
+                f_visit_if_then_else,
+                f_visit_for,
+                f_visit_while,
+                f_visit_alloc_buffer,
+                f_visit_decl_buffer,
+                f_visit_buffer_store,
+                f_visit_assert_stmt,
+                f_visit_seq_stmt,
+                f_visit_evaluate,
+                f_visit_block,
+                f_visit_sblock_realize,
+                f_visit_var,
+                f_visit_size_var,
+                f_visit_buffer_load,
+                f_visit_producer_load,
+                f_visit_let,
+                f_visit_call,
+                f_visit_add,
+                f_visit_sub,
+                f_visit_mul,
+                f_visit_div,
+                f_visit_mod,
+                f_visit_floor_div,
+                f_visit_floor_mod,
+                f_visit_min,
+                f_visit_max,
+                f_visit_eq,
+                f_visit_ne,
+                f_visit_lt,
+                f_visit_le,
+                f_visit_gt,
+                f_visit_ge,
+                f_visit_and,
+                f_visit_or,
+                f_visit_reduce,
+                f_visit_cast,
+                f_visit_not,
+                f_visit_select,
+                f_visit_ramp,
+                f_visit_broadcast,
+                f_visit_shuffle,
+                f_visit_int_imm,
+                f_visit_float_imm,
+                f_visit_string_imm,
+            ],
         )
 
 
@@ -2193,180 +2257,118 @@ class PyStmtExprMutator:
         return _ffi_api.PyStmtExprMutatorDefaultVisitExpr(self._outer(), op)  # type: ignore
 
 
-class PyStmtExprMutatorWithAnalyzer(PyStmtExprMutator, _AnalyzerContextMixin):
-    """A Python StmtExprMutator that maintains an arithmetic analyzer context.
+class _AnalyzerBackedMutatorMixin:
+    @property
+    def analyzer(self):
+        analyzer = getattr(self, "_analyzer", None)
+        if analyzer is None:
+            mod = _ffi_api.PyStmtExprMutatorWithAnalyzerGetAnalyzer(self._outer())  # type: ignore
+            analyzer = _analyzer_from_module(mod)
+            self._analyzer = analyzer
+        return analyzer
 
-    The analyzer is available as ``self.analyzer`` from user callbacks. The default
-    mutation binds loop variables, block iter variables, let variables, and branch
-    conditions before mutating nested nodes, so callbacks can query the analyzer
-    using the surrounding IR context.
-    """
 
-    def __init__(self, analyzer=None):
-        super().__init__()
-        self._init_analyzer(analyzer)
+class PyStmtExprMutatorWithAnalyzer(PyStmtExprMutator, _AnalyzerBackedMutatorMixin):
+    """A C++-backed Python StmtExprMutator with an arithmetic analyzer context."""
 
-    def visit_for_(self, op: For) -> Stmt:
-        from tvm.ir import Range  # pylint: disable=import-outside-toplevel
+    _tvm_metadata = {
+        **PyStmtExprMutator._tvm_metadata,
+        "cls": _PyStmtExprMutatorWithAnalyzer,
+    }
 
-        depth = len(self._constraint_scopes)
-        min_value = self.visit_expr(op.min)
-        extent = self.visit_expr(op.extent)
-        step = self.visit_expr(op.step) if op.step is not None else None
-        self.analyzer.bind(op.loop_var, Range.from_min_extent(min_value, extent))
-        try:
-            body = self.visit_stmt(op.body)
-        finally:
-            self._pop_constraints(depth)
-        if (
-            min_value.same_as(op.min)
-            and extent.same_as(op.extent)
-            and body.same_as(op.body)
-            and (
-                (step is None and op.step is None)
-                or (step is not None and op.step is not None and step.same_as(op.step))
-            )
-        ):
-            return op
-        return For(
-            op.loop_var,
-            min_value,
-            extent,
-            op.kind,
-            body,
-            op.thread_binding,
-            op.annotations,
-            step,
-            op.span,
-        )
+    def visit_expr(self, expr: PrimExpr) -> PrimExpr:
+        return _ffi_api.PyStmtExprMutatorWithAnalyzerVisitExpr(self._outer(), expr)  # type: ignore
 
-    def visit_attr_stmt_(self, op: AttrStmt) -> Stmt:
-        from tvm.ir import Range  # pylint: disable=import-outside-toplevel
+    def visit_stmt(self, stmt: Stmt) -> Stmt:
+        return _ffi_api.PyStmtExprMutatorWithAnalyzerVisitStmt(self._outer(), stmt)  # type: ignore
 
-        depth = len(self._constraint_scopes)
-        value = self.visit_expr(op.value)
-        if op.attr_key in ("thread_extent", "virtual_thread") and isinstance(op.node, IterVar):
-            self.analyzer.bind(op.node.var, Range.from_min_extent(IntImm(value.dtype, 0), value))
-        try:
-            body = self.visit_stmt(op.body)
-        finally:
-            self._pop_constraints(depth)
-        if value.same_as(op.value) and body.same_as(op.body):
-            return op
-        return AttrStmt(op.node, op.attr_key, value, body, op.span)
 
-    def visit_sblock_(self, op: SBlock) -> Stmt:
-        depth = len(self._constraint_scopes)
-        try:
-            for iter_var in op.iter_vars:
-                self.analyzer.bind(iter_var.var, iter_var.dom)
-            return _ffi_api.PyStmtExprMutatorDefaultVisitStmt(self._outer(), op)  # type: ignore
-        finally:
-            self._pop_constraints(depth)
+def _make_analyzer_visitor_default_stmt():
+    def visit(self, op):
+        _ffi_api.PyStmtExprVisitorWithAnalyzerDefaultVisitStmt(self._outer(), op)  # type: ignore
 
-    def visit_bind_(self, op: Bind) -> Stmt:
-        value = self.visit_expr(op.value)
-        if self._is_pure(value):
-            self.analyzer.bind(op.var, value)
-        if value.same_as(op.value):
-            return op
-        return Bind(op.var, value, op.span)
+    return visit
 
-    def visit_seq_stmt_(self, op: SeqStmt) -> Stmt:
-        depth = len(self._constraint_scopes)
-        try:
-            seq = [self.visit_stmt(stmt) for stmt in op.seq]
-        finally:
-            self._pop_constraints(depth)
-        if all(new.same_as(old) for new, old in zip(seq, op.seq)):
-            return op
-        return SeqStmt(seq, op.span)
 
-    def visit_if_then_else_(self, op: IfThenElse) -> Stmt:
-        condition = self.visit_expr(op.condition)
-        real_condition = self._real_condition(condition)
-        depth = len(self._constraint_scopes)
-        with self.analyzer.constraint_scope(real_condition):
-            try:
-                then_case = self.visit_stmt(op.then_case)
-            finally:
-                self._pop_constraints(depth)
-        else_case = None
-        if op.else_case is not None:
-            with self.analyzer.constraint_scope(self._negated_condition(real_condition)):
-                try:
-                    else_case = self.visit_stmt(op.else_case)
-                finally:
-                    self._pop_constraints(depth)
-        if (
-            condition.same_as(op.condition)
-            and then_case.same_as(op.then_case)
-            and (
-                (else_case is None and op.else_case is None)
-                or (
-                    else_case is not None
-                    and op.else_case is not None
-                    and else_case.same_as(op.else_case)
-                )
-            )
-        ):
-            return op
-        return IfThenElse(condition, then_case, else_case, op.span)
+def _make_analyzer_visitor_default_expr():
+    def visit(self, op):
+        _ffi_api.PyStmtExprVisitorWithAnalyzerDefaultVisitExpr(self._outer(), op)  # type: ignore
 
-    def visit_assert_stmt_(self, op: AssertStmt) -> Stmt:
-        condition = self.visit_expr(op.condition)
-        self._push_constraint(condition)
-        message_parts = [self.visit_expr(msg) for msg in op.message_parts]
-        if condition.same_as(op.condition) and all(
-            new.same_as(old) for new, old in zip(message_parts, op.message_parts)
-        ):
-            return op
-        return AssertStmt(condition, op.error_kind, message_parts, op.span)
+    return visit
 
-    def visit_let_(self, op: Let) -> PrimExpr:
-        value = self.visit_expr(op.value)
-        if self._is_pure(value):
-            self.analyzer.bind(op.var, value)
-        body = self.visit_expr(op.body)
-        if value.same_as(op.value) and body.same_as(op.body):
-            return op
-        return Let(op.var, value, body, op.span)
 
-    def visit_reduce_(self, op: Reduce) -> PrimExpr:
-        for iter_var in op.axis:
-            self.analyzer.bind(iter_var.var, iter_var.dom)
-        return _ffi_api.PyStmtExprMutatorDefaultVisitExpr(self._outer(), op)  # type: ignore
+def _make_analyzer_mutator_default_stmt():
+    def visit(self, op):
+        return _ffi_api.PyStmtExprMutatorWithAnalyzerDefaultVisitStmt(self._outer(), op)  # type: ignore
 
-    def visit_call_(self, op: Call) -> PrimExpr:
-        if getattr(op.op, "name", None) != "tirx.if_then_else":
-            args = [self.visit_expr(arg) for arg in op.args]
-            if all(new.same_as(old) for new, old in zip(args, op.args)):
-                return op
-            return Call(op.dtype, op.op, args, op.annotations, op.span)
+    return visit
 
-        condition = self.visit_expr(op.args[0])
-        with self.analyzer.constraint_scope(condition):
-            true_value = self.visit_expr(op.args[1])
-        with self.analyzer.constraint_scope(self._negated_condition(condition)):
-            false_value = self.visit_expr(op.args[2])
-        if (
-            condition.same_as(op.args[0])
-            and true_value.same_as(op.args[1])
-            and false_value.same_as(op.args[2])
-        ):
-            return op
-        return Call(op.dtype, op.op, [condition, true_value, false_value], op.annotations, op.span)
 
-    def visit_select_(self, op: Select) -> PrimExpr:
-        condition = self.visit_expr(op.condition)
-        with self.analyzer.constraint_scope(condition):
-            true_value = self.visit_expr(op.true_value)
-        with self.analyzer.constraint_scope(self._negated_condition(condition)):
-            false_value = self.visit_expr(op.false_value)
-        if (
-            condition.same_as(op.condition)
-            and true_value.same_as(op.true_value)
-            and false_value.same_as(op.false_value)
-        ):
-            return op
-        return Select(condition, true_value, false_value, op.span)
+def _make_analyzer_mutator_default_expr():
+    def visit(self, op):
+        return _ffi_api.PyStmtExprMutatorWithAnalyzerDefaultVisitExpr(self._outer(), op)  # type: ignore
+
+    return visit
+
+
+_STMT_VISIT_METHODS = [
+    "visit_bind_",
+    "visit_attr_stmt_",
+    "visit_if_then_else_",
+    "visit_for_",
+    "visit_while_",
+    "visit_alloc_buffer_",
+    "visit_decl_buffer_",
+    "visit_buffer_store_",
+    "visit_assert_stmt_",
+    "visit_seq_stmt_",
+    "visit_evaluate_",
+    "visit_sblock_",
+    "visit_sblock_realize_",
+]
+
+_EXPR_VISIT_METHODS = [
+    "visit_var_",
+    "visit_size_var_",
+    "visit_buffer_load_",
+    "visit_producer_load_",
+    "visit_let_",
+    "visit_call_",
+    "visit_add_",
+    "visit_sub_",
+    "visit_mul_",
+    "visit_div_",
+    "visit_mod_",
+    "visit_floor_div_",
+    "visit_floor_mod_",
+    "visit_min_",
+    "visit_max_",
+    "visit_eq_",
+    "visit_ne_",
+    "visit_lt_",
+    "visit_le_",
+    "visit_gt_",
+    "visit_ge_",
+    "visit_and_",
+    "visit_or_",
+    "visit_reduce_",
+    "visit_cast_",
+    "visit_not_",
+    "visit_select_",
+    "visit_ramp_",
+    "visit_broadcast_",
+    "visit_shuffle_",
+    "visit_int_imm_",
+    "visit_float_imm_",
+    "visit_string_imm_",
+]
+
+for _method in _STMT_VISIT_METHODS:
+    setattr(PyStmtExprVisitorWithAnalyzer, _method, _make_analyzer_visitor_default_stmt())
+    setattr(PyStmtExprMutatorWithAnalyzer, _method, _make_analyzer_mutator_default_stmt())
+
+for _method in _EXPR_VISIT_METHODS:
+    setattr(PyStmtExprVisitorWithAnalyzer, _method, _make_analyzer_visitor_default_expr())
+    setattr(PyStmtExprMutatorWithAnalyzer, _method, _make_analyzer_mutator_default_expr())
+
+del _method

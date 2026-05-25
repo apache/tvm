@@ -267,6 +267,28 @@ class PredicateVisitor(PyStmtExprVisitorWithAnalyzer):
         super().visit_evaluate_(op)
 
 
+@tirx.functor.visitor
+class AssertMessageVisitor(PyStmtExprVisitorWithAnalyzer):
+    """Record string immediates reached through analyzer-aware assert traversal."""
+
+    def __init__(self):
+        super().__init__()
+        self.strings = []
+
+    def visit_string_imm_(self, op: StringImm):
+        self.strings.append(op.value)
+
+
+@tirx.functor.mutator
+class AssertMessageMutator(PyStmtExprMutatorWithAnalyzer):
+    """Rewrite assert message strings through analyzer-aware traversal."""
+
+    def visit_string_imm_(self, op: StringImm):
+        if op.value == "bad":
+            return StringImm("rewritten")
+        return op
+
+
 def test_basic_visitor():
     """Test the basic AST printer visitor"""
     expr = Add(Var("x", dtype="int32"), Var("y", dtype="int32"))
@@ -446,6 +468,22 @@ def test_analyzer_aware_visitor_assert_context():
     assert visitor.facts == [True]
 
 
+def test_analyzer_aware_assert_visits_error_kind_and_message():
+    """Test that analyzer-aware assert traversal covers error kind and message parts."""
+    x = Var("x", dtype="int32")
+    stmt = AssertStmt(LT(x, IntImm("int32", 4)), StringImm("ValueError"), [StringImm("bad")])
+
+    visitor = AssertMessageVisitor()
+    visitor.visit_stmt(stmt)
+
+    assert visitor.strings == ["ValueError", "bad"]
+
+    result = AssertMessageMutator().visit_stmt(stmt)
+
+    assert result.error_kind.value == "ValueError"
+    assert [part.value for part in result.message_parts] == ["rewritten"]
+
+
 def test_analyzer_aware_visitor_pure_bind_context():
     """Test that pure Bind values are visible to later statements in the same sequence."""
     x = Var("x", dtype="int32")
@@ -474,7 +512,8 @@ def test_analyzer_aware_mutator_skips_opaque_bind_context():
 
     result = AnalyzerAwareMutator().visit_stmt(stmt)
 
-    assert isinstance(result, SeqStmt)
+    assert isinstance(result, tirx.Bind)
+    assert result.var.same_as(h)
 
 
 def test_analyzer_aware_visitor_branch_assert_does_not_leak():
