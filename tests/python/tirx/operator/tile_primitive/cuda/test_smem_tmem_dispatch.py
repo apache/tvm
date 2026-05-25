@@ -33,7 +33,7 @@ from tvm.script import tirx as Tx
 from tvm.tirx.layout import R, S, TCol, TileLayout, TLane
 from tvm.tirx.operator.tile_primitive.cuda.tma_utils import SwizzleMode, mma_shared_layout
 
-pytestmark = tvm.testing.requires_cuda.marks()
+pytestmark = tvm.testing.requires_cuda_compute_version_marks(10)
 
 T_LAY_BASIC = TileLayout(S[(32, 16) : (1 @ TLane, 1 @ TCol)] + R[4 : 32 @ TLane])
 

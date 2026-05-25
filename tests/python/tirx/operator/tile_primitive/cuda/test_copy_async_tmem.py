@@ -26,7 +26,7 @@ from tvm.script import tirx as Tx
 from tvm.tirx.layout import S, TCol, TileLayout, TLane
 from tvm.tirx.layout import tid_in_wg as axis_tid_in_wg
 
-pytestmark = tvm.testing.requires_cuda.marks()
+pytestmark = tvm.testing.requires_cuda_compute_version_marks(10)
 
 
 @pytest.mark.parametrize("dtype", ["float16", "float32"])

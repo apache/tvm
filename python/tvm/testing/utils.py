@@ -1225,14 +1225,13 @@ def requires_nvcc_version(major_version, minor_version=0, release_version=0):
     return inner
 
 
-def requires_cuda_compute_version(major_version, minor_version=0, exact=False):
-    """Mark a test as requiring at least a compute architecture
+def requires_cuda_compute_version_marks(major_version, minor_version=0, exact=False):
+    """Return pytest marks requiring at least a CUDA compute architecture.
 
-    Unit test marked with this decorator will run only if the CUDA
-    compute architecture of the GPU is at least `(major_version,
-    minor_version)`.
+    Tests marked with the returned marks will run only if the CUDA compute
+    architecture of the GPU is at least `(major_version, minor_version)`.
 
-    This also marks the test as requiring a cuda support.
+    This also marks the test as requiring CUDA support.
 
     Parameters
     ----------
@@ -1255,13 +1254,35 @@ def requires_cuda_compute_version(major_version, minor_version=0, exact=False):
 
     min_version_str = ".".join(str(v) for v in min_version)
     compute_version_str = ".".join(str(v) for v in compute_version)
-    requires = [
+    return [
         pytest.mark.skipif(
             compute_version < min_version or (exact and compute_version != min_version),
             reason=f"Requires CUDA compute >= {min_version_str}, but have {compute_version_str}",
         ),
         *requires_cuda.marks(),
     ]
+
+
+def requires_cuda_compute_version(major_version, minor_version=0, exact=False):
+    """Mark a test as requiring at least a compute architecture
+
+    Unit test marked with this decorator will run only if the CUDA
+    compute architecture of the GPU is at least `(major_version,
+    minor_version)`.
+
+    This also marks the test as requiring a cuda support.
+
+    Parameters
+    ----------
+    major_version: int
+
+        The major version of the (major,minor) version tuple.
+
+    minor_version: int
+
+        The minor version of the (major,minor) version tuple.
+    """
+    requires = requires_cuda_compute_version_marks(major_version, minor_version, exact)
 
     def inner(func):
         return _compose([func], requires)

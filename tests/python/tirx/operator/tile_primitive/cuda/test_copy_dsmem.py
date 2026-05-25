@@ -38,7 +38,7 @@ from tvm.tirx.operator.tile_primitive.dispatcher import DispatchFail
 from tvm.tirx.operator.tile_primitive.ops import CopyAsync
 from tvm.tirx.stmt_functor import StmtExprVisitor
 
-pytestmark = tvm.testing.requires_cuda.marks()
+pytestmark = tvm.testing.requires_cuda_compute_version_marks(9)
 
 
 def _make_dsmem_dispatch_call(shape, dtype, src_layout, dst_layout):

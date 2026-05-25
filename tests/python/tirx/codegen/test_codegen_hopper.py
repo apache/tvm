@@ -25,7 +25,7 @@ import tvm.testing
 from tvm.script import tirx as Tx
 from tvm.tirx import Buffer
 
-pytestmark = tvm.testing.requires_cuda.marks()
+pytestmark = tvm.testing.requires_cuda_compute_version_marks(9)
 
 
 def _get_source(func: tvm.tirx.PrimFunc) -> tuple[str, tvm.IRModule]:

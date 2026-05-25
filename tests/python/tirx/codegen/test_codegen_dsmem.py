@@ -21,7 +21,7 @@ import tvm
 import tvm.testing
 from tvm.script import tirx as Tx
 
-pytestmark = tvm.testing.requires_cuda.marks()
+pytestmark = tvm.testing.requires_cuda_compute_version_marks(9)
 
 
 def _get_source(func: tvm.tirx.PrimFunc) -> str:
