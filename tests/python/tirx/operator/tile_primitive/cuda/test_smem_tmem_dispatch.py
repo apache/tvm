@@ -238,7 +238,6 @@ def _execute(kernel, A_init, expected):
     )
 
 
-@tvm.testing.requires_cuda_compute_version(10)
 @pytest.mark.parametrize(
     "name,s_full,s_full_shape,s_region",
     [
@@ -287,7 +286,6 @@ def _execute(kernel, A_init, expected):
         ),
     ],
 )
-@tvm.testing.requires_cuda_compute_version(10)
 def test_single_cp(name, s_full, s_full_shape, s_region):
     A_np = np.arange(int(np.prod(s_full_shape)), dtype=np.uint8).reshape(s_full_shape)
     r0, r1 = s_region[0]
@@ -296,7 +294,6 @@ def test_single_cp(name, s_full, s_full_shape, s_region):
     _run_2d(s_full, T_LAY_BASIC, s_full_shape, s_region, "uint8", A_np, expected)
 
 
-@tvm.testing.requires_cuda_compute_version(10)
 def test_multi_cp_sw0_4tiles():
     s_full = TileLayout(S[(4, 32, 16) : (512, 16, 1)])
     t_full = TileLayout(S[(4, 32, 16) : (16 @ TCol, 1 @ TLane, 1 @ TCol)] + R[4 : 32 @ TLane])
@@ -305,7 +302,6 @@ def test_multi_cp_sw0_4tiles():
     _run_3d_4tile(s_full, t_full, [4, 32, 16], "uint8", A_np, expected)
 
 
-@tvm.testing.requires_cuda_compute_version(10)
 def test_align_middle_2_to_1_nvfp4_sfb():
     """SFB-style nvfp4 case: TMEM mid canonicalizes to single iter
     (16@TCol + 4@TCol merge), but SMEM mid stays as 2 iters
@@ -427,7 +423,6 @@ def test_align_middle_2_to_1_nvfp4_sfb():
     _execute(kernel, A_np, expected)
 
 
-@tvm.testing.requires_cuda_compute_version(10)
 @pytest.mark.parametrize(
     "bad",
     [
@@ -455,7 +450,6 @@ def test_align_middle_2_to_1_nvfp4_sfb():
         ),
     ],
 )
-@tvm.testing.requires_cuda_compute_version(10)
 def test_dispatch_rejects_bad_inputs(bad):
     """Configurations where cp 32x128b cannot read the user's intended sub-tile.
     Compilation should fail with a clear ValueError from the dispatch."""

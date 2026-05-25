@@ -161,7 +161,7 @@ def test_compute_groups_small_tensors():
 def test_compute_groups_large_tensors():
     """Inputs >= 3x L2 need only 1 group."""
     # 16384x16384 fp32 = 1GB >> 3*128MB = 384MB
-    input_bytes = tensor_bytes(torch.empty(16384, 16384, dtype=torch.float32))
+    input_bytes = 16384 * 16384 * 4
     n = _compute_group_count(input_bytes, l2_bytes=128 * 1024 * 1024)
     assert n == 1
 
@@ -169,7 +169,7 @@ def test_compute_groups_large_tensors():
 def test_compute_groups_moderate_tensors():
     """Moderate tensors: floor(3*L2 / input) + 1."""
     # 8192x8192 bf16 = 128MB.  floor(384M / 128M) + 1 = 4
-    input_bytes = tensor_bytes(torch.empty(8192, 8192, dtype=torch.bfloat16))
+    input_bytes = 8192 * 8192 * 2
     n = _compute_group_count(input_bytes, l2_bytes=128 * 1024 * 1024)
     assert n == 4
 

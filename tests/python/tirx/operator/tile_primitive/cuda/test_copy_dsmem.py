@@ -123,7 +123,6 @@ def _layout_physical_elements(layout):
     return max_offset + 1
 
 
-@tvm.testing.requires_cuda_compute_version(9)
 @pytest.mark.parametrize("shape,dtype,src_spec,dst_spec,expected", DSMEM_CONFIGS)
 def test_dsmem(shape, dtype, src_spec, dst_spec, expected):
     """Dispatch assertion + GPU correctness for DSMEM copy.
