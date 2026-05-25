@@ -1363,6 +1363,27 @@ def test_flip_symbolic():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_flip_axis_none():
+    """axis=None flips all axes; verify by running on a concrete tensor via numpy."""
+    import numpy as np
+
+    @I.ir_module(s_tir=True)
+    class Flip:
+        @R.function
+        def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
+            gv = R.flip(x)
+            return gv
+
+    mod = LegalizeOps()(Flip)
+    # After legalization the module should still be valid and runnable.
+    ex = tvm.compile(mod, target=tvm.target.Target("llvm", host="llvm"))
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+    data = np.arange(6, dtype="float32").reshape(2, 3)
+    out = vm["main"](tvm.runtime.tensor(data)).numpy()
+    expected = np.flip(data)
+    np.testing.assert_array_equal(out, expected)
+
+
 def test_scatter_elements():
     # fmt: off
     @I.ir_module(s_tir=True)
