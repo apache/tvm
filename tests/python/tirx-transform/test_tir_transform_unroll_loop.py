@@ -149,7 +149,7 @@ def test_unroll_local_access():
         }
     ):
         after = tvm.tirx.transform.UnrollLoop()(Before)
-        after = tvm.tirx.transform.Simplify()(after)
+        after = tvm.tirx.transform.StmtSimplify()(after)
 
     tvm.ir.assert_structural_equal(after, Expected)
 

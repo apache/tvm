@@ -352,7 +352,7 @@ def test_binary_with_guard():
     with target:
         mod = tvm.IRModule({"main": binary})
         mod = tvm.tirx.transform.LowerTIRx()(mod)
-        mod = tvm.tirx.transform.Simplify()(mod)
+        mod = tvm.tirx.transform.StmtSimplify()(mod)
         assert_structural_equal(mod["main"], expected)
 
 

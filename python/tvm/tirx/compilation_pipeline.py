@@ -33,13 +33,13 @@ def default_tir_pipeline():
         passes = [
             tirx.transform.LowerInitBlock(),
             tvm.s_tir.transform.UnifyThreadBinding(),
-            tirx.transform.Simplify(),
+            tirx.transform.StmtSimplify(),
             tirx.transform.FlattenBuffer(),
             tirx.transform.BF16ComputeLegalize(),
             tirx.transform.NarrowDataType(32),
             tirx.transform.VectorizeLoop(not bool(config.get("tir.disable_vectorize", False))),
             tirx.transform.UnrollLoop(),
-            tirx.transform.Simplify(),
+            tirx.transform.StmtSimplify(),
         ]
         if not bool(config.get("tir.disable_cse_tir", False)):
             passes.append(tirx.transform.CommonSubexprElim())
@@ -73,14 +73,14 @@ def tirx_pipeline():
         passes = [
             tirx.transform.LowerTIRx(),
             tvm.s_tir.transform.UnifyThreadBinding(),
-            tirx.transform.Simplify(),
+            tirx.transform.StmtSimplify(),
             tirx.transform.LowerTIRxOpaque(),
             tirx.transform.FlattenBuffer(),
             tirx.transform.BF16ComputeLegalize(),
             tirx.transform.NarrowDataType(32),
             tirx.transform.VectorizeLoop(not bool(config.get("tir.disable_vectorize", False))),
             tirx.transform.UnrollLoop(),
-            tirx.transform.Simplify(),
+            tirx.transform.StmtSimplify(),
         ]
         if not bool(config.get("tir.disable_cse_tir", False)):
             passes.append(tirx.transform.CommonSubexprElim())
@@ -115,11 +115,11 @@ def trn_pipeline():
             tirx.transform.trn.TrnNaiveAllocator(),
             tirx.transform.LowerTIRx(),
             tvm.s_tir.transform.DecorateDeviceScope(),
-            tirx.transform.Simplify(),
+            tirx.transform.StmtSimplify(),
             tirx.transform.LowerTIRxOpaque(),
             tvm.s_tir.transform.LoopPartition(),
             tvm.s_tir.transform.HoistIfThenElse(),
-            tirx.transform.Simplify(),
+            tirx.transform.StmtSimplify(),
             tirx.transform.RemoveNoOp(),
             tirx.transform.AnnotateEntryFunc(),
             tirx.transform.AnnotateDeviceRegions(),
@@ -146,7 +146,7 @@ def finalize_device_passes():  # pylint: disable=unused-argument
     """The default finalization passes for TIR backend."""
     device_pass_list = [
         tirx.transform.LowerWarpMemory(),
-        tirx.transform.Simplify(),
+        tirx.transform.StmtSimplify(),
         tirx.transform.LowerCustomDatatypes(),
         tirx.transform.LowerIntrin(),
     ]
@@ -161,7 +161,7 @@ def finalize_device_passes_tirx():  # pylint: disable=unused-argument
 
 def finalize_device_passes_trn():  # pylint: disable=unused-argument
     """The default finalization passes for TRN backend."""
-    device_pass_list = [tirx.transform.Simplify()]
+    device_pass_list = [tirx.transform.StmtSimplify()]
     return tvm.ir.transform.Sequential(device_pass_list)
 
 

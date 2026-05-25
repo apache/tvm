@@ -50,7 +50,7 @@ def test_unique_name_reduction_block():
 def _check_workload(te_workload, tir_workload, index_dtype_override=None, do_simplify=False):
     func = te.create_prim_func(te_workload(), index_dtype_override)
     if do_simplify:
-        simplify = tirx.transform.Simplify()
+        simplify = tirx.transform.StmtSimplify()
         func = simplify(tvm.IRModule.from_expr(func))["main"]
         tir_workload = simplify(tvm.IRModule.from_expr(tir_workload))["main"]
     tvm.ir.assert_structural_equal(func, tir_workload)

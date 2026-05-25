@@ -37,7 +37,7 @@ class BaseCompactTest:
         before = tvm.IRModule.from_expr(self.before.with_attr("global_symbol", "main"))
         expected = tvm.IRModule.from_expr(self.expected.with_attr("global_symbol", "main"))
         simplify = tvm.transform.Sequential(
-            [tirx.transform.Simplify(), tirx.transform.RemoveNoOp()]
+            [tirx.transform.StmtSimplify(), tirx.transform.RemoveNoOp()]
         )
         after = simplify(s_tir.transform.CompactBufferAllocation(is_strict=is_strict)(before))
         expected = simplify(expected)

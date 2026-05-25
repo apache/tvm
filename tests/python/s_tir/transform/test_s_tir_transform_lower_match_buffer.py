@@ -26,7 +26,7 @@ from tvm.script import tirx as T
 def _check(original, transformed):
     mod = tvm.IRModule.from_expr(original.with_attr("global_symbol", "main"))
     mod = tvm.s_tir.transform.LowerMatchBuffer()(mod)
-    mod = tvm.tirx.transform.Simplify()(mod)
+    mod = tvm.tirx.transform.StmtSimplify()(mod)
     tvm.ir.assert_structural_equal(mod["main"], transformed.with_attr("global_symbol", "main"))
 
 

@@ -43,7 +43,7 @@ def test_multi_loop():
 
     mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
     mod = tvm.s_tir.transform.LoopPartition()(mod)
-    stmt = tvm.tirx.transform.Simplify()(mod)["main"].body
+    stmt = tvm.tirx.transform.StmtSimplify()(mod)["main"].body
 
     assert not any(collect_visit(stmt.body[0], lambda x: isinstance(x, tvm.tirx.IfThenElse)))
 
@@ -65,7 +65,7 @@ def test_multi_if():
 
     mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
     mod = tvm.s_tir.transform.LoopPartition()(mod)
-    stmt = tvm.tirx.transform.Simplify()(mod)["main"].body
+    stmt = tvm.tirx.transform.StmtSimplify()(mod)["main"].body
 
     assert not any(collect_visit(stmt.body[0], lambda x: isinstance(x, tvm.tirx.IfThenElse)))
 
@@ -79,7 +79,7 @@ def test_condition():
 
     mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
     mod = tvm.s_tir.transform.LoopPartition()(mod)
-    stmt = tvm.tirx.transform.Simplify()(mod)["main"].body
+    stmt = tvm.tirx.transform.StmtSimplify()(mod)["main"].body
 
     assert not any(collect_visit(stmt[0], lambda x: isinstance(x, tvm.tirx.Select)))
 
@@ -93,7 +93,7 @@ def test_condition_EQ():
     mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
     with tvm.transform.PassContext(config={"s_tir.LoopPartition": {"partition_const_loop": True}}):
         mod = tvm.s_tir.transform.LoopPartition()(mod)
-        stmt = tvm.tirx.transform.Simplify()(mod)["main"].body
+        stmt = tvm.tirx.transform.StmtSimplify()(mod)["main"].body
 
     assert not any(collect_visit(stmt[0], lambda x: isinstance(x, tvm.tirx.Select)))
 
@@ -109,7 +109,7 @@ def test_everything_during_deduction():
 
     mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
     mod = tvm.s_tir.transform.LoopPartition()(mod)
-    stmt = tvm.tirx.transform.Simplify()(mod)["main"].body
+    stmt = tvm.tirx.transform.StmtSimplify()(mod)["main"].body
 
     assert isinstance(stmt.body.body, tvm.tirx.IfThenElse)
 
@@ -139,7 +139,7 @@ def test_oneD_pool():
 
     with tvm.transform.PassContext(config={"s_tir.LoopPartition": {"partition_const_loop": True}}):
         mod = tvm.s_tir.transform.LoopPartition()(mod)
-        stmt = tvm.tirx.transform.Simplify()(mod)["main"].body
+        stmt = tvm.tirx.transform.StmtSimplify()(mod)["main"].body
 
     assert not any(collect_visit(stmt, lambda x: isinstance(x, tvm.tirx.IfThenElse)))
 
@@ -160,7 +160,7 @@ def test_cce_loop_1():
     mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
     with tvm.transform.PassContext(config={"s_tir.LoopPartition": {"partition_const_loop": True}}):
         mod = tvm.s_tir.transform.LoopPartition()(mod)
-        stmt = tvm.tirx.transform.Simplify()(mod)["main"].body
+        stmt = tvm.tirx.transform.StmtSimplify()(mod)["main"].body
 
     assert not any(collect_visit(stmt, lambda x: isinstance(x, tvm.tirx.IfThenElse)))
 
@@ -181,7 +181,7 @@ def test_cce_loop_2():
     mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
     with tvm.transform.PassContext(config={"s_tir.LoopPartition": {"partition_const_loop": True}}):
         mod = tvm.s_tir.transform.LoopPartition()(mod)
-        stmt = tvm.tirx.transform.Simplify()(mod)["main"].body
+        stmt = tvm.tirx.transform.StmtSimplify()(mod)["main"].body
 
     assert not any(collect_visit(stmt, lambda x: isinstance(x, tvm.tirx.IfThenElse)))
 
@@ -202,7 +202,7 @@ def test_cce_loop_3():
 
     with tvm.transform.PassContext(config={"s_tir.LoopPartition": {"partition_const_loop": True}}):
         mod = tvm.s_tir.transform.LoopPartition()(mod)
-        stmt = tvm.tirx.transform.Simplify()(mod)["main"].body
+        stmt = tvm.tirx.transform.StmtSimplify()(mod)["main"].body
 
     assert not any(collect_visit(stmt, lambda x: isinstance(x, tvm.tirx.IfThenElse)))
 
@@ -225,7 +225,7 @@ def partition_from_scheduled_tir(prim_func, pass_cfg, do_flatten=True):
         if do_flatten:
             mod = tvm.tirx.transform.FlattenBuffer()(mod)
         mod = tvm.s_tir.transform.LoopPartition()(mod)
-        mod = tvm.tirx.transform.Simplify()(mod)
+        mod = tvm.tirx.transform.StmtSimplify()(mod)
         mod = tvm.tirx.transform.RemoveNoOp()(mod)
         return mod
 
@@ -329,7 +329,7 @@ def test_loop_partition_unroll_hint():
     )
     mod = tvm.tirx.transform.UnrollLoop()(mod)
     mod = tvm.tirx.transform.RemoveNoOp()(mod)
-    mod = tvm.tirx.transform.Simplify()(mod)
+    mod = tvm.tirx.transform.StmtSimplify()(mod)
     tvm.ir.assert_structural_equal(mod["main"], partitioned_main.with_attr("global_symbol", "main"))
 
 

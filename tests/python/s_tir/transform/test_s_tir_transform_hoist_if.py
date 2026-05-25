@@ -467,7 +467,7 @@ def test_hoisting_block_scope_2():
                             ] + T.float32(1.3)
 
     mod = Module
-    mod = tvm.tirx.transform.Simplify()(mod)
+    mod = tvm.tirx.transform.StmtSimplify()(mod)
     mod = tvm.tirx.transform.RemoveNoOp()(mod)
     stmt = mod["main"].body
 

@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file simplify.cc
+ * \file stmt_simplify.cc
  * \brief Statement simplifier based on analyzer
  */
 
-#include "../../tirx/transform/simplify.h"
+#include "../../tirx/transform/stmt_simplify.h"
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
@@ -41,27 +41,28 @@ namespace arith {
 
 using namespace tirx;
 
-struct SimplifyConfigNode : public ffi::Object {
+struct StmtSimplifyConfigNode : public ffi::Object {
   bool transitively_prove_inequalities;
   bool convert_boolean_to_and_of_ors;
   bool apply_constraints_to_boolean_branches;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<SimplifyConfigNode>()
+    refl::ObjectDef<StmtSimplifyConfigNode>()
         .def_ro("transitively_prove_inequalities",
-                &SimplifyConfigNode::transitively_prove_inequalities,
+                &StmtSimplifyConfigNode::transitively_prove_inequalities,
                 "If true, simplify conditionals with transitive combinations of scoped constraints",
                 refl::DefaultValue(false))
-        .def_ro("convert_boolean_to_and_of_ors", &SimplifyConfigNode::convert_boolean_to_and_of_ors,
+        .def_ro("convert_boolean_to_and_of_ors",
+                &StmtSimplifyConfigNode::convert_boolean_to_and_of_ors,
                 "If true, simplify conditionals into an AND of ORs", refl::DefaultValue(false))
         .def_ro("apply_constraints_to_boolean_branches",
-                &SimplifyConfigNode::apply_constraints_to_boolean_branches,
+                &StmtSimplifyConfigNode::apply_constraints_to_boolean_branches,
                 "If true, simplify each branch of AND/OR under a constraints provided by the other "
                 "branch",
                 refl::DefaultValue(false));
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.transform.SimplifyConfig", SimplifyConfigNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.transform.StmtSimplifyConfig", StmtSimplifyConfigNode,
                                     ffi::Object);
 
   RewriteSimplifier::Extension GetEnabledExtensions() const {
@@ -81,24 +82,25 @@ struct SimplifyConfigNode : public ffi::Object {
   }
 };
 
-class SimplifyConfig : public ffi::ObjectRef {
+class StmtSimplifyConfig : public ffi::ObjectRef {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SimplifyConfig, ffi::ObjectRef, SimplifyConfigNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(StmtSimplifyConfig, ffi::ObjectRef,
+                                                StmtSimplifyConfigNode);
 };
 
-static SimplifyConfig MakeDefaultSimplifyConfig() {
-  return AttrsWithDefaultValues<SimplifyConfig>();
+static StmtSimplifyConfig MakeDefaultStmtSimplifyConfig() {
+  return AttrsWithDefaultValues<StmtSimplifyConfig>();
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() { SimplifyConfigNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { StmtSimplifyConfigNode::RegisterReflection(); }
 
-TVM_REGISTER_PASS_CONFIG_OPTION("tirx.Simplify", SimplifyConfig);
+TVM_REGISTER_PASS_CONFIG_OPTION("tirx.StmtSimplify", StmtSimplifyConfig);
 
 class StmtSimplifier : public IRMutatorWithAnalyzer {
  public:
   static PrimFunc Apply(PrimFunc func, Analyzer* analyzer,
-                        ffi::Optional<SimplifyConfig> config_opt = std::nullopt) {
-    auto config = config_opt.value_or(MakeDefaultSimplifyConfig());
+                        ffi::Optional<StmtSimplifyConfig> config_opt = std::nullopt) {
+    auto config = config_opt.value_or(MakeDefaultStmtSimplifyConfig());
     analyzer->rewrite_simplify.SetEnabledExtensions(config->GetEnabledExtensions());
 
     StmtSimplifier simplifier(analyzer, config);
@@ -108,7 +110,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
   }
 
  private:
-  explicit StmtSimplifier(Analyzer* analyzer, SimplifyConfig config)
+  explicit StmtSimplifier(Analyzer* analyzer, StmtSimplifyConfig config)
       : IRMutatorWithAnalyzer(analyzer), config_(config) {}
 
   using Parent = IRMutatorWithAnalyzer;
@@ -237,7 +239,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
     }
   }
 
-  SimplifyConfig config_;
+  StmtSimplifyConfig config_;
 
   // Pure Bind values kept for substitution into assert conditions.
   // Grows monotonically under SSA — no scope-based cleanup required.
@@ -248,25 +250,25 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
 
 namespace tirx {
 
-PrimFunc Simplify(PrimFunc func, arith::Analyzer* analyzer) {
+PrimFunc StmtSimplify(PrimFunc func, arith::Analyzer* analyzer) {
   return arith::StmtSimplifier::Apply(std::move(func), analyzer);
 }
 
 namespace transform {
 
-Pass Simplify() {
+Pass StmtSimplify() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     arith::Analyzer analyzer;
-    auto cfg = ctx->GetConfig<arith::SimplifyConfig>("tirx.Simplify");
+    auto cfg = ctx->GetConfig<arith::StmtSimplifyConfig>("tirx.StmtSimplify");
 
     return arith::StmtSimplifier::Apply(f, &analyzer, cfg);
   };
-  return CreatePrimFuncPass(pass_func, 0, "tirx.Simplify", {});
+  return CreatePrimFuncPass(pass_func, 0, "tirx.StmtSimplify", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tirx.transform.Simplify", Simplify);
+  refl::GlobalDef().def("tirx.transform.StmtSimplify", StmtSimplify);
 }
 
 }  // namespace transform

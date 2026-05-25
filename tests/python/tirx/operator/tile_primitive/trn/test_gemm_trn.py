@@ -291,7 +291,7 @@ def test_gemm_with_sbuf_output():
         mod = tvm.IRModule({"main": gemm})
         mod = tvm.tirx.transform.trn.TrnPrivateBufferAlloc()(mod)
         mod = tvm.tirx.transform.LowerTIRx()(mod)
-        mod = tvm.tirx.transform.Simplify()(mod)
+        mod = tvm.tirx.transform.StmtSimplify()(mod)
         assert_structural_equal(mod["main"], expected)
 
 
@@ -421,7 +421,7 @@ def test_gemm_sbuf_output_with_workspace():
     with target:
         mod = tvm.IRModule({"main": gemm})
         mod = tvm.tirx.transform.LowerTIRx()(mod)
-        mod = tvm.tirx.transform.Simplify()(mod)
+        mod = tvm.tirx.transform.StmtSimplify()(mod)
         assert_structural_equal(mod["main"], expected)
 
 
@@ -548,7 +548,7 @@ def test_gemm_guard():
         mod = tvm.IRModule({"main": gemm})
         mod = tvm.tirx.transform.trn.TrnPrivateBufferAlloc()(mod)
         mod = tvm.tirx.transform.LowerTIRx()(mod)
-        mod = tvm.tirx.transform.Simplify()(mod)
+        mod = tvm.tirx.transform.StmtSimplify()(mod)
         assert_structural_equal(mod["main"], expected)
 
 
@@ -593,7 +593,7 @@ def test_gemm_guard2():
     with target:
         mod = tvm.IRModule({"main": gemm})
         mod = tvm.tirx.transform.LowerTIRx()(mod)
-        mod = tvm.tirx.transform.Simplify()(mod)
+        mod = tvm.tirx.transform.StmtSimplify()(mod)
         assert_structural_equal(mod["main"], expected)
 
 

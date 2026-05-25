@@ -319,11 +319,11 @@ tvm::transform::Sequential PassListForPerStoreFeature() {
       s_tir::transform::PlanAndUpdateBufferAllocationLocation(),
       s_tir::transform::ConvertBlocksToOpaque(),
       s_tir::transform::CompactBufferAllocation(),
-      tirx::transform::Simplify(),
+      tirx::transform::StmtSimplify(),
       s_tir::transform::LowerAutoCopy(),
       s_tir::transform::UnifyThreadBinding(),
       s_tir::transform::LowerMatchBuffer(),
-      tirx::transform::Simplify(),
+      tirx::transform::StmtSimplify(),
   });
 }
 

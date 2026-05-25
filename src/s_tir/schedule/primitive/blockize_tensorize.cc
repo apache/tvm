@@ -23,7 +23,7 @@
 #include <functional>
 
 #include "../../../tirx/ir/data_type_rewriter.h"
-#include "../../../tirx/transform/simplify.h"
+#include "../../../tirx/transform/stmt_simplify.h"
 #include "../ir_comparator.h"
 #include "../utils.h"
 
@@ -768,7 +768,7 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
   }
 
   arith::Analyzer analyzer;
-  PrimFunc intrin_desc = Simplify(intrin->desc, &analyzer);
+  PrimFunc intrin_desc = StmtSimplify(intrin->desc, &analyzer);
   PrimFunc intrin_impl = DeepCopy(intrin->impl);
 
   int index_dtype_bits = -1;

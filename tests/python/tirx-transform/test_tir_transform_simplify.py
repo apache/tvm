@@ -32,7 +32,7 @@ def test_stmt_simplify():
                 A_ptr[i] = C_ptr[i]
 
     mod = tvm.IRModule.from_expr(func)
-    body = tvm.tirx.transform.Simplify()(mod)["main"].body
+    body = tvm.tirx.transform.StmtSimplify()(mod)["main"].body
     # Navigate through DeclBuffer nodes to reach the inner body
     while isinstance(body, tvm.tirx.DeclBuffer):
         body = body.body
@@ -58,7 +58,7 @@ def test_thread_extent_simplify():
                     A_ptr[tx] = C_ptr[tx + ty]
 
     mod = tvm.IRModule.from_expr(func)
-    body = tvm.tirx.transform.Simplify()(mod)["main"].body
+    body = tvm.tirx.transform.StmtSimplify()(mod)["main"].body
     # Navigate through DeclBuffer nodes to reach the inner body
     while isinstance(body, tvm.tirx.DeclBuffer):
         body = body.body
@@ -86,7 +86,7 @@ def test_if_likely():
                         A_ptr[tx] = C_ptr[tx * 32 + ty]
 
     mod = tvm.IRModule.from_expr(func)
-    body = tvm.tirx.transform.Simplify()(mod)["main"].body
+    body = tvm.tirx.transform.StmtSimplify()(mod)["main"].body
     # With flat semantics, skip DeclBuffer/AllocBuffer siblings to find the For
     if isinstance(body, tvm.tirx.SeqStmt):
         for_stmts = [s for s in body.seq if isinstance(s, tvm.tirx.For)]
@@ -104,7 +104,7 @@ def _apply_simplify(
 ):
     """Helper to apply simplify transform with config options."""
     config = {
-        "tirx.Simplify": {
+        "tirx.StmtSimplify": {
             "transitively_prove_inequalities": transitively_prove_inequalities,
             "convert_boolean_to_and_of_ors": convert_boolean_to_and_of_ors,
             "apply_constraints_to_boolean_branches": apply_constraints_to_boolean_branches,
@@ -112,7 +112,7 @@ def _apply_simplify(
     }
     mod = tvm.IRModule.from_expr(func)
     with tvm.transform.PassContext(config=config):
-        mod = tvm.tirx.transform.Simplify()(mod)
+        mod = tvm.tirx.transform.StmtSimplify()(mod)
     return mod["main"]
 
 
@@ -1255,7 +1255,7 @@ def test_buffer_shape_constraint():
             A = T.match_buffer(a, (n * 32,), "float32")
             A[T.int64(0)] = T.float32(0)
 
-    after = tvm.tirx.transform.Simplify()(Before)
+    after = tvm.tirx.transform.StmtSimplify()(Before)
     tvm.ir.assert_structural_equal(after["main"], Expected["main"])
 
 
@@ -1276,7 +1276,7 @@ def test_buffer_shape_constraint_with_offset():
             A = T.match_buffer(a, (n * 32 + 1 - 2,), "float32")
             A[T.int64(1)] = T.float32(0)
 
-    after = tvm.tirx.transform.Simplify()(Before)
+    after = tvm.tirx.transform.StmtSimplify()(Before)
     tvm.ir.assert_structural_equal(after["main"], Expected["main"])
 
 

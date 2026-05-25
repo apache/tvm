@@ -44,7 +44,7 @@ def test_double_buffer():
     mod = Module
 
     opt = tvm.transform.Sequential(
-        [tvm.s_tir.transform.InjectDoubleBuffer(), tvm.tirx.transform.Simplify()]
+        [tvm.s_tir.transform.InjectDoubleBuffer(), tvm.tirx.transform.StmtSimplify()]
     )
 
     with tvm.transform.PassContext(config={"s_tir.InjectDoubleBuffer": {"split_loop": 2}}):
@@ -78,7 +78,7 @@ def test_double_buffer_transform():
     transform = tvm.ir.transform.Sequential(
         [
             tvm.s_tir.transform.InjectDoubleBuffer(),
-            tvm.tirx.transform.Simplify(),
+            tvm.tirx.transform.StmtSimplify(),
         ]
     )
 
@@ -118,7 +118,7 @@ def test_double_buffer_with_decl_buffer():
     transform = tvm.ir.transform.Sequential(
         [
             tvm.s_tir.transform.InjectDoubleBuffer(),
-            tvm.tirx.transform.Simplify(),
+            tvm.tirx.transform.StmtSimplify(),
         ]
     )
 
