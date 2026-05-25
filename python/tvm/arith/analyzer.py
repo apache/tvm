@@ -108,7 +108,16 @@ class Analyzer:
     """
 
     def __init__(self):
-        _mod = _ffi_api.CreateAnalyzer()
+        self._init_from_module(_ffi_api.CreateAnalyzer())
+
+    @classmethod
+    def _from_module(cls, mod):
+        analyzer = cls.__new__(cls)
+        analyzer._init_from_module(mod)
+        return analyzer
+
+    def _init_from_module(self, mod):
+        _mod = mod
         self._const_int_bound = _mod("const_int_bound")
         self._const_int_bound_update = _mod("const_int_bound_update")
         self._const_int_bound_is_bound = _mod("const_int_bound_is_bound")

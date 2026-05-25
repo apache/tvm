@@ -1063,24 +1063,7 @@ class PyStmtExprVisitor:
 def _analyzer_from_module(mod):
     from tvm.arith.analyzer import Analyzer  # pylint: disable=import-outside-toplevel
 
-    analyzer = Analyzer.__new__(Analyzer)
-    analyzer._const_int_bound = mod("const_int_bound")
-    analyzer._const_int_bound_update = mod("const_int_bound_update")
-    analyzer._const_int_bound_is_bound = mod("const_int_bound_is_bound")
-    analyzer._bind = mod("bind")
-    analyzer._modular_set = mod("modular_set")
-    analyzer._simplify = mod("Simplify")
-    analyzer._rewrite_simplify = mod("rewrite_simplify")
-    analyzer._get_rewrite_simplify_stats = mod("get_rewrite_simplify_stats")
-    analyzer._reset_rewrite_simplify_stats = mod("reset_rewrite_simplify_stats")
-    analyzer._canonical_simplify = mod("canonical_simplify")
-    analyzer._int_set = mod("int_set")
-    analyzer._enter_constraint_context = mod("enter_constraint_context")
-    analyzer._can_prove_equal = mod("can_prove_equal")
-    analyzer._can_prove = mod("can_prove")
-    analyzer._get_enabled_extensions = mod("get_enabled_extensions")
-    analyzer._set_enabled_extensions = mod("set_enabled_extensions")
-    return analyzer
+    return Analyzer._from_module(mod)
 
 
 class _AnalyzerBackedVisitorMixin:

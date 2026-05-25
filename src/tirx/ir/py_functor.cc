@@ -112,8 +112,8 @@ ffi::Function MakeAnalyzerModule(std::shared_ptr<arith::Analyzer> analyzer) {
       });
     } else if (name == "enter_constraint_context") {
       return ffi::Function([analyzer](ffi::PackedArgs args, ffi::Any* ret) {
-        auto ctx = std::shared_ptr<With<arith::ConstraintContext>>(
-            new With<arith::ConstraintContext>(analyzer.get(), args[0].cast<PrimExpr>()));
+        auto ctx = std::make_shared<With<arith::ConstraintContext>>(analyzer.get(),
+                                                                    args[0].cast<PrimExpr>());
         auto fexit = [ctx](ffi::PackedArgs, ffi::Any*) mutable { ctx.reset(); };
         *ret = ffi::Function::FromPacked(fexit);
       });
