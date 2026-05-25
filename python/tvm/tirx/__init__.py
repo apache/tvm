@@ -104,7 +104,12 @@ from . import analysis
 from . import backend
 from . import stmt_functor
 
-from .functor import PyStmtExprVisitor, PyStmtExprMutator
+from .functor import (
+    PyStmtExprVisitor,
+    PyStmtExprMutator,
+    PyStmtExprVisitorWithAnalyzer,
+    PyStmtExprMutatorWithAnalyzer,
+)
 
 # Compiler-only submodules. Skip under `TVM_USE_RUNTIME_LIB=1` since they
 # perform compiler-side FFI at module load (schema engine looks up

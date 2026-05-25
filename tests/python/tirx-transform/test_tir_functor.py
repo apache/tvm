@@ -21,8 +21,10 @@ import tvm.testing
 from tvm import tirx
 from tvm.tirx import (
     EQ,
+    GE,
     LT,
     Add,
+    AssertStmt,
     Cast,
     Evaluate,
     FloatImm,
@@ -33,7 +35,11 @@ from tvm.tirx import (
     Min,
     Mul,
     PyStmtExprMutator,
+    PyStmtExprMutatorWithAnalyzer,
     PyStmtExprVisitor,
+    PyStmtExprVisitorWithAnalyzer,
+    Select,
+    SeqStmt,
     StringImm,
     Sub,
     Var,
@@ -202,6 +208,65 @@ class ComplexMutator(PyStmtExprMutator):
         return Add(Mul(a, IntImm("int32", 2)), b)
 
 
+@tirx.functor.visitor
+class AnalyzerAwareVisitor(PyStmtExprVisitorWithAnalyzer):
+    """Record analyzer facts visible from Python visitor callbacks."""
+
+    def __init__(self, var):
+        super().__init__()
+        self.var = var
+        self.facts = []
+
+    def visit_evaluate_(self, op: Evaluate):
+        if op.value.same_as(self.var):
+            self.facts.append(self.analyzer.can_prove(GE(self.var, IntImm("int32", 0))))
+            self.facts.append(self.analyzer.can_prove(LT(self.var, IntImm("int32", 10))))
+        super().visit_evaluate_(op)
+
+
+@tirx.functor.mutator
+class AnalyzerAwareMutator(PyStmtExprMutatorWithAnalyzer):
+    """Use branch constraints from the analyzer to rewrite proven predicates."""
+
+    def _rewrite_if_proven(self, value):
+        if value.dtype == "bool" and self.analyzer.can_prove(value):
+            return IntImm("bool", True)
+        return value
+
+    def visit_lt_(self, op: LT):
+        a = self.visit_expr(op.a)
+        b = self.visit_expr(op.b)
+        value = op if a.same_as(op.a) and b.same_as(op.b) else LT(a, b, op.span)
+        return self._rewrite_if_proven(value)
+
+    def visit_ge_(self, op: GE):
+        a = self.visit_expr(op.a)
+        b = self.visit_expr(op.b)
+        value = op if a.same_as(op.a) and b.same_as(op.b) else GE(a, b, op.span)
+        return self._rewrite_if_proven(value)
+
+    def visit_evaluate_(self, op: Evaluate):
+        value = self.visit_expr(op.value)
+        value = self._rewrite_if_proven(value)
+        if value.same_as(op.value):
+            return op
+        return Evaluate(value, op.span)
+
+
+@tirx.functor.visitor
+class PredicateVisitor(PyStmtExprVisitorWithAnalyzer):
+    """Record whether boolean Evaluate nodes are provable in analyzer context."""
+
+    def __init__(self):
+        super().__init__()
+        self.facts = []
+
+    def visit_evaluate_(self, op: Evaluate):
+        if op.value.dtype == "bool":
+            self.facts.append(self.analyzer.can_prove(op.value))
+        super().visit_evaluate_(op)
+
+
 def test_basic_visitor():
     """Test the basic AST printer visitor"""
     expr = Add(Var("x", dtype="int32"), Var("y", dtype="int32"))
@@ -328,6 +393,144 @@ def test_complex_mutator():
     modified_expr = result.value
     assert isinstance(modified_expr, Add)
     assert isinstance(modified_expr.a, Mul)  # First operand should be multiplied by 2
+
+
+def test_analyzer_aware_visitor_loop_context():
+    """Test that analyzer-aware visitors expose loop bounds to Python callbacks."""
+    i = Var("i", dtype="int32")
+    stmt = For(
+        i,
+        IntImm("int32", 0),
+        IntImm("int32", 10),
+        tirx.ForKind.SERIAL,
+        Evaluate(i),
+    )
+
+    visitor = AnalyzerAwareVisitor(i)
+    visitor.visit_stmt(stmt)
+
+    assert visitor.facts == [True, True]
+
+
+def test_analyzer_aware_mutator_branch_context():
+    """Test that analyzer-aware mutators expose branch predicates to Python callbacks."""
+    x = Var("x", dtype="int32")
+    stmt = IfThenElse(
+        LT(x, IntImm("int32", 4)),
+        Evaluate(LT(x, IntImm("int32", 8))),
+        Evaluate(GE(x, IntImm("int32", 4))),
+    )
+
+    result = AnalyzerAwareMutator().visit_stmt(stmt)
+
+    assert isinstance(result, IfThenElse)
+    assert isinstance(result.then_case.value, IntImm)
+    assert isinstance(result.else_case.value, IntImm)
+    assert result.then_case.value.value == 1
+    assert result.else_case.value.value == 1
+
+
+def test_analyzer_aware_visitor_assert_context():
+    """Test that assert constraints are visible to later statements in the same sequence."""
+    x = Var("x", dtype="int32")
+    stmt = SeqStmt(
+        [
+            AssertStmt(LT(x, IntImm("int32", 4)), StringImm("ValueError")),
+            Evaluate(LT(x, IntImm("int32", 8))),
+        ]
+    )
+
+    visitor = PredicateVisitor()
+    visitor.visit_stmt(stmt)
+
+    assert visitor.facts == [True]
+
+
+def test_analyzer_aware_visitor_pure_bind_context():
+    """Test that pure Bind values are visible to later statements in the same sequence."""
+    x = Var("x", dtype="int32")
+    stmt = SeqStmt(
+        [
+            tirx.Bind(x, IntImm("int32", 4)),
+            Evaluate(GE(x, IntImm("int32", 4))),
+        ]
+    )
+
+    visitor = PredicateVisitor()
+    visitor.visit_stmt(stmt)
+
+    assert visitor.facts == [True]
+
+
+def test_analyzer_aware_mutator_skips_opaque_bind_context():
+    """Test that opaque Bind values are not inserted into the analyzer context."""
+    h = Var("h", dtype="handle")
+    stmt = SeqStmt(
+        [
+            tirx.Bind(h, tirx.tvm_stack_alloca("tvm_ffi_any", 1)),
+            Evaluate(IntImm("int32", 0)),
+        ]
+    )
+
+    result = AnalyzerAwareMutator().visit_stmt(stmt)
+
+    assert isinstance(result, SeqStmt)
+
+
+def test_analyzer_aware_visitor_branch_assert_does_not_leak():
+    """Test that assert constraints inside a branch do not leak to following statements."""
+    x = Var("x", dtype="int32")
+    stmt = SeqStmt(
+        [
+            IfThenElse(
+                LT(x, IntImm("int32", 4)),
+                AssertStmt(LT(x, IntImm("int32", 1)), StringImm("ValueError")),
+                None,
+            ),
+            Evaluate(LT(x, IntImm("int32", 1))),
+        ]
+    )
+
+    visitor = PredicateVisitor()
+    visitor.visit_stmt(stmt)
+
+    assert visitor.facts == [False]
+
+
+def test_analyzer_aware_mutator_select_context():
+    """Test that analyzer-aware mutators expose Select branch predicates."""
+    x = Var("x", dtype="int32")
+    stmt = Evaluate(
+        Select(
+            LT(x, IntImm("int32", 4)),
+            LT(x, IntImm("int32", 8)),
+            GE(x, IntImm("int32", 4)),
+        )
+    )
+
+    result = AnalyzerAwareMutator().visit_stmt(stmt)
+
+    assert isinstance(result.value, IntImm)
+    assert result.value.value == 1
+
+
+def test_analyzer_aware_mutator_if_then_else_call_context():
+    """Test that analyzer-aware mutators expose tirx.if_then_else expression predicates."""
+    x = Var("x", dtype="int32")
+    stmt = Evaluate(
+        tirx.if_then_else(
+            LT(x, IntImm("int32", 4)),
+            LT(x, IntImm("int32", 8)),
+            GE(x, IntImm("int32", 4)),
+        )
+    )
+
+    result = AnalyzerAwareMutator().visit_stmt(stmt)
+
+    assert isinstance(result.value.args[1], IntImm)
+    assert isinstance(result.value.args[2], IntImm)
+    assert result.value.args[1].value == 1
+    assert result.value.args[2].value == 1
 
 
 def test_different_expr_types():
