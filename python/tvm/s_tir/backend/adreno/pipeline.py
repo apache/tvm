@@ -108,14 +108,13 @@ def default_tir_pipeline():
             passes.append(s_tir.transform.InjectPTXLDG32())
         passes.extend(
             [
+                s_tir.transform.MergeSharedMemoryAllocations(),
                 tirx.transform.AnnotateDeviceRegions(),
                 tirx.transform.SplitHostDevice(),
-                # MergeSharedMemoryAllocations must follow SplitHostDevice.
-                s_tir.transform.MergeSharedMemoryAllocations(),
+                tirx.transform.LowerDeviceKernelLaunch(),
                 tirx.transform.MakePackedAPI(),
                 tirx.transform.FP8StorageLegalize(),
                 tirx.transform.BF16StorageLegalize(),
-                tirx.transform.LowerDeviceKernelLaunch(),
             ]
         )
         mod = tvm.ir.transform.Sequential(passes)(mod)
