@@ -86,11 +86,10 @@ def test_remove_no_op_with_invalid_extent():
     assert isinstance(ret, tvm.tirx.Evaluate)
 
 
-def _apply_remove_no_op(mod, use_dataflow_analysis=False, max_simplification_steps=0):
+def _apply_remove_no_op(mod, max_simplification_steps=0):
     """Helper function to apply RemoveNoOp transform with config."""
     config = {
         "tirx.RemoveNoOp": {
-            "use_dataflow_analysis": use_dataflow_analysis,
             "max_simplification_steps": max_simplification_steps,
         }
     }
@@ -242,30 +241,8 @@ def test_remove_empty_else_case():
     tvm.ir.assert_structural_equal(mod["main"], expected)
 
 
-def test_remove_unused_write():
-    """For two sequential writes, the first is a no-op"""
-
-    @T.prim_func(private=True, s_tir=True)
-    def before(A: T.Buffer(16, "int32")):
-        for i in T.serial(16):
-            A[i] = 100
-            A[i] = 42
-
-    @T.prim_func(private=True, s_tir=True)
-    def expected(A: T.Buffer(16, "int32")):
-        for i in T.serial(16):
-            A[i] = 42
-
-    mod = tvm.IRModule.from_expr(before)
-    mod = _apply_remove_no_op(mod, use_dataflow_analysis=True)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
-
-
 def test_suppress_removal_of_unused_write():
-    """Dataflow analysis requires the config to opt-in
-
-    Like test_remove_unused_write, but dataflow analysis isn't enabled.
-    """
+    """Sequential writes to the same location are not removed without dataflow analysis."""
 
     @T.prim_func(private=True, s_tir=True)
     def before(A: T.Buffer(16, "int32")):
@@ -274,28 +251,8 @@ def test_suppress_removal_of_unused_write():
             A[i] = 42
 
     mod = tvm.IRModule.from_expr(before)
-    mod = _apply_remove_no_op(mod, use_dataflow_analysis=False)
+    mod = _apply_remove_no_op(mod)
     tvm.ir.assert_structural_equal(mod["main"], before)
-
-
-def test_keep_side_effects_of_unused_write():
-    """For two sequential writes, the first value may have side effects"""
-
-    @T.prim_func(private=True, s_tir=True)
-    def before(A: T.Buffer(16, "int32")):
-        for i in T.serial(16):
-            A[i] = T.call_extern("extern_func", dtype="int32")
-            A[i] = 42
-
-    @T.prim_func(private=True, s_tir=True)
-    def expected(A: T.Buffer(16, "int32")):
-        for i in T.serial(16):
-            T.evaluate(T.call_extern("extern_func", dtype="int32"))
-            A[i] = 42
-
-    mod = tvm.IRModule.from_expr(before)
-    mod = _apply_remove_no_op(mod, use_dataflow_analysis=True)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_keep_first_write_when_used():
@@ -310,56 +267,6 @@ def test_keep_first_write_when_used():
     mod = tvm.IRModule.from_expr(before)
     mod = _apply_remove_no_op(mod)
     tvm.ir.assert_structural_equal(mod["main"], before)
-
-
-def test_remove_overwritten_loop():
-    """Remove repeated writes to the same region
-
-    If two loops write to the same region, the first is a no-op.
-    """
-
-    @T.prim_func(private=True, s_tir=True)
-    def before(A: T.Buffer(16, "int32")):
-        for i in T.serial(16):
-            A[i] = 100
-
-        for i in T.serial(16):
-            A[i] = 42
-
-    @T.prim_func(private=True, s_tir=True)
-    def expected(A: T.Buffer(16, "int32")):
-        for i in T.serial(16):
-            A[i] = 42
-
-    mod = tvm.IRModule.from_expr(before)
-    mod = _apply_remove_no_op(mod, use_dataflow_analysis=True)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
-
-
-def test_remove_overwritten_subloop():
-    """Remove repeated writes to the same region
-
-    If the first loop writes to a subset of the region, the first loop
-    is a no-op.  Similar to test_remove_overwritten_loop, but the first
-    loop's extents are a subset of the second loop.
-    """
-
-    @T.prim_func(private=True, s_tir=True)
-    def before(A: T.Buffer(16, "int32")):
-        for i in T.serial(4, 12):
-            A[i] = 100
-
-        for i in T.serial(16):
-            A[i] = 42
-
-    @T.prim_func(private=True, s_tir=True)
-    def expected(A: T.Buffer(16, "int32")):
-        for i in T.serial(16):
-            A[i] = 42
-
-    mod = tvm.IRModule.from_expr(before)
-    mod = _apply_remove_no_op(mod, use_dataflow_analysis=True)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_keep_partially_overwritten_loop():
@@ -381,148 +288,6 @@ def test_keep_partially_overwritten_loop():
     mod = tvm.IRModule.from_expr(before)
     mod = _apply_remove_no_op(mod)
     tvm.ir.assert_structural_equal(mod["main"], before)
-
-
-def test_remove_overwritten_predicated_loop_with_identical_condition():
-    """Remove repeated writes to the same predicated region.
-
-    Similar to test_keep_partially_overwritten_loop, except the first loop
-    has the same predicate as the second, and can therefore be
-    removed.
-
-    In the past, this test has had performance regressions in which
-    the runtime increased from a few seconds to nearly ten minutes.
-    The "max_simplification_steps" parameter is set at twice the
-    current number of steps required, in order to prevent similar
-    performance regression.
-    """
-
-    @T.prim_func(private=True, s_tir=True)
-    def before(A: T.Buffer(16, "int32")):
-        for i in T.serial(16):
-            if i < 12:
-                A[i] = 100
-
-        for i in T.serial(16):
-            if i < 12:
-                A[i] = 42
-
-    @T.prim_func(private=True, s_tir=True)
-    def expected(A: T.Buffer(16, "int32")):
-        for i in T.serial(16):
-            if i < 12:
-                A[i] = 42
-
-    mod = tvm.IRModule.from_expr(before)
-    mod = _apply_remove_no_op(mod, use_dataflow_analysis=True, max_simplification_steps=200000)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
-
-
-def test_remove_overwritten_predicated_loop_with_provable_condition():
-    """Remove repeated writes to the same predicated region.
-
-    Similar to
-    test_remove_overwritten_predicated_loop_with_identical_condition, except
-    the first loop's predicate is not a precise match for the second
-    loop's predicate.  So long as the regions written in the first
-    loop are a subset of those written in the second loop, they can be
-    removed.
-
-    In the past, this test has had performance regressions in which
-    the runtime increased from a few seconds to nearly ten minutes.
-    The "max_simplification_steps" parameter is set at twice the
-    current number of steps required, in order to prevent similar
-    performance regression.
-    """
-
-    @T.prim_func(private=True, s_tir=True)
-    def before(A: T.Buffer(16, "int32")):
-        for i in T.serial(16):
-            if i < 10:
-                A[i] = 100
-
-        for i in T.serial(16):
-            if i // 4 < 3:
-                A[i] = 42
-
-    @T.prim_func(private=True, s_tir=True)
-    def expected(A: T.Buffer(16, "int32")):
-        for i in T.serial(16):
-            if i // 4 < 3:
-                A[i] = 42
-
-    mod = tvm.IRModule.from_expr(before)
-    mod = _apply_remove_no_op(mod, use_dataflow_analysis=True, max_simplification_steps=200000)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
-
-
-def test_remove_separated_overwrites():
-    """Remove repeated writes to the same predicated region.
-
-    Similar to test_remove_overwritten_loop, but with an
-    independent loop between the first and second write of the buffer.
-    """
-
-    @T.prim_func(private=True, s_tir=True)
-    def before(A: T.Buffer(16, "int32"), B: T.Buffer(16, "int32")):
-        for i in T.serial(16):
-            A[i] = 100
-
-        for i in T.serial(16):
-            B[i] = 0
-
-        for i in T.serial(16):
-            A[i] = 42
-
-    @T.prim_func(private=True, s_tir=True)
-    def expected(A: T.Buffer(16, "int32"), B: T.Buffer(16, "int32")):
-        for i in T.serial(16):
-            B[i] = 0
-
-        for i in T.serial(16):
-            A[i] = 42
-
-    mod = tvm.IRModule.from_expr(before)
-    mod = _apply_remove_no_op(mod, use_dataflow_analysis=True)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
-
-
-@pytest.mark.xfail(reason="Not implemented yet")
-def test_remove_separated_overwrite_of_predicated_loop():
-    """Remove repeated writes to the same predicated region.
-
-    Similar to test_remove_separated_overwrites, but the independent loop
-    between the first and second writes to a different subset
-    of the same buffer.
-    """
-
-    @T.prim_func(private=True, s_tir=True)
-    def before(A: T.Buffer(16, "int32")):
-        for i in T.serial(16):
-            if i < 12:
-                A[i] = 100
-
-        for i in T.serial(16):
-            if i > 12:
-                A[i] = 15
-
-        for i in T.serial(16):
-            if i < 12:
-                A[i] = 42
-
-    @T.prim_func(private=True, s_tir=True)
-    def expected(A: T.Buffer(16, "int32")):
-        for i in T.serial(16):
-            if i > 12:
-                A[i] = 15
-
-        for i in T.serial(16):
-            if i < 12:
-                A[i] = 42
-
-    mod = tvm.IRModule.from_expr(before)
-    mod = _apply_remove_no_op(mod, use_dataflow_analysis=True)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_remove_read_write():
@@ -604,54 +369,6 @@ def test_remove_read_write_same_index_using_constraint():
 
     mod = tvm.IRModule.from_expr(before)
     mod = _apply_remove_no_op(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
-
-
-def test_remove_writing_of_known_value():
-    """Writing a value that already exists at that index is a no-op"""
-
-    @T.prim_func(private=True, s_tir=True)
-    def before(A: T.Buffer(16, "int32")):
-        for i in T.serial(16):
-            A[i] = i
-
-        A[4] = 4
-
-    @T.prim_func(private=True, s_tir=True)
-    def expected(A: T.Buffer(16, "int32")):
-        for i in T.serial(16):
-            A[i] = i
-
-    mod = tvm.IRModule.from_expr(before)
-    mod = _apply_remove_no_op(mod, use_dataflow_analysis=True)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
-
-
-def test_keep_one_of_duplicate_loops():
-    """Must not reason based on a touch point after removing it.
-
-    If the first loop is removed because it is overwritten by the
-    second loop, and the second loop is removed because it writes the
-    same value as the first loop, the overall transformation is no
-    longer valid.  In this case, only one of the two should be
-    removed.
-    """
-
-    @T.prim_func(private=True, s_tir=True)
-    def before(A: T.Buffer(16, "int32")):
-        for i in T.serial(16):
-            A[i] = i
-
-        for i in T.serial(16):
-            A[i] = i
-
-    @T.prim_func(private=True, s_tir=True)
-    def expected(A: T.Buffer(16, "int32")):
-        for i in T.serial(16):
-            A[i] = i
-
-    mod = tvm.IRModule.from_expr(before)
-    mod = _apply_remove_no_op(mod, use_dataflow_analysis=True)
     tvm.ir.assert_structural_equal(mod["main"], expected)
 
 

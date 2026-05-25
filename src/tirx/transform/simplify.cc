@@ -34,10 +34,7 @@
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/transform.h>
 
-#include <optional>
-
 #include "../../arith/ir_mutator_with_analyzer.h"
-#include "../../tirx/analysis/control_flow_graph.h"
 
 namespace tvm {
 namespace arith {
@@ -46,8 +43,6 @@ using namespace tirx;
 
 struct SimplifyConfigNode : public ffi::Object {
   bool transitively_prove_inequalities;
-  bool propagate_knowns_to_prove_conditional;
-  bool propagate_knowns_to_simplify_expressions;
   bool convert_boolean_to_and_of_ors;
   bool apply_constraints_to_boolean_branches;
 
@@ -58,17 +53,6 @@ struct SimplifyConfigNode : public ffi::Object {
                 &SimplifyConfigNode::transitively_prove_inequalities,
                 "If true, simplify conditionals with transitive combinations of scoped constraints",
                 refl::DefaultValue(false))
-        .def_ro(
-            "propagate_knowns_to_prove_conditional",
-            &SimplifyConfigNode::propagate_knowns_to_prove_conditional,
-            "If true, known buffer values are propagated and used to statically prove conditionals",
-            refl::DefaultValue(false))
-        .def_ro(
-            "propagate_knowns_to_simplify_expressions",
-            &SimplifyConfigNode::propagate_knowns_to_simplify_expressions,
-            "If true, known buffer values are propagated and used to replace BufferLoad wherever "
-            "possible",
-            refl::DefaultValue(false))
         .def_ro("convert_boolean_to_and_of_ors", &SimplifyConfigNode::convert_boolean_to_and_of_ors,
                 "If true, simplify conditionals into an AND of ORs", refl::DefaultValue(false))
         .def_ro("apply_constraints_to_boolean_branches",
@@ -117,22 +101,15 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
     auto config = config_opt.value_or(MakeDefaultSimplifyConfig());
     analyzer->rewrite_simplify.SetEnabledExtensions(config->GetEnabledExtensions());
 
-    std::optional<ControlFlowGraph> touch_pattern = std::nullopt;
-    if (config->propagate_knowns_to_prove_conditional ||
-        config->propagate_knowns_to_simplify_expressions) {
-      touch_pattern = ControlFlowGraph(func->body);
-    }
-
-    StmtSimplifier simplifier(analyzer, config, std::move(touch_pattern));
+    StmtSimplifier simplifier(analyzer, config);
     simplifier.MarkBufferMapShapes(func);
     func.CopyOnWrite()->body = simplifier(func->body);
     return func;
   }
 
  private:
-  explicit StmtSimplifier(Analyzer* analyzer, SimplifyConfig config,
-                          std::optional<ControlFlowGraph> touch_pattern)
-      : IRMutatorWithAnalyzer(analyzer), config_(config), touch_pattern_(touch_pattern) {}
+  explicit StmtSimplifier(Analyzer* analyzer, SimplifyConfig config)
+      : IRMutatorWithAnalyzer(analyzer), config_(config) {}
 
   using Parent = IRMutatorWithAnalyzer;
   using Parent::VisitExpr_;
@@ -152,23 +129,9 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
   // to prevent inlining LetStmt vars that appear in buffer definitions.
   Buffer VisitBufferDef(const Buffer& buffer, bool alloc_data) override { return buffer; }
 
-  PrimExpr VisitExpr(const PrimExpr& expr) final {
-    if (config_->propagate_knowns_to_simplify_expressions) {
-      return touch_pattern_->SimplifyInContext(expr, current_stmt_.value(), analyzer_);
-    } else {
-      return analyzer_->Simplify(expr);
-    }
-  }
+  PrimExpr VisitExpr(const PrimExpr& expr) final { return analyzer_->Simplify(expr); }
 
   Stmt Simplify(Stmt stmt) { return operator()(std::move(stmt)); }
-
-  Stmt VisitStmt(const Stmt& stmt) override {
-    ffi::Optional<Stmt> cache = this->current_stmt_;
-    this->current_stmt_ = stmt;
-    Stmt output = Parent::VisitStmt(stmt);
-    this->current_stmt_ = std::move(cache);
-    return output;
-  }
 
   Stmt VisitStmt_(const ForNode* op) final {
     analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
@@ -262,17 +225,11 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
 
   /* \brief Internal utility for checking conditionals
    *
-   * Uses more aggressive optimization, such as performing additional
-   * inlining and tracking known buffer values.
+   * Substitutes any known Bind values and then simplifies with the analyzer.
    */
   ffi::Optional<Bool> ProveCondition(PrimExpr condition) const {
     condition = Substitute(condition, non_inlined_bindings_);
-    if (config_->propagate_knowns_to_prove_conditional) {
-      TVM_FFI_ICHECK(touch_pattern_.has_value());
-      condition = touch_pattern_->SimplifyInContext(condition, current_stmt_.value(), analyzer_);
-    } else {
-      condition = analyzer_->Simplify(condition);
-    }
+    condition = analyzer_->Simplify(condition);
     if (const int64_t* as_int = as_const_int(condition)) {
       return Bool(*as_int);
     } else {
@@ -281,12 +238,10 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
   }
 
   SimplifyConfig config_;
-  std::optional<ControlFlowGraph> touch_pattern_;
 
   // Pure Bind values kept for substitution into assert conditions.
   // Grows monotonically under SSA — no scope-based cleanup required.
   ffi::Map<Var, PrimExpr> non_inlined_bindings_;
-  ffi::Optional<Stmt> current_stmt_{std::nullopt};
 };
 
 }  // namespace arith
