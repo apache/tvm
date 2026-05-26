@@ -165,46 +165,6 @@ class DictAttrs : public Attrs {
 };
 
 /*!
- * \brief Copy the DictAttrs, but overrides attributes with the
- * entries from \p attrs.
- *
- * \param attrs The DictAttrs to update
- *
- * \param new_attrs Key/values attributes to add to \p attrs.
- *
- * \returns The new DictAttrs with updated attributes.
- */
-DictAttrs WithAttrs(DictAttrs attrs, ffi::Map<ffi::String, Any> new_attrs);
-
-/*!
- * \brief Copy the DictAttrs, but overrides a single attribute.
- *
- * \param attrs The DictAttrs to update
- *
- * \param key The update to insert or update.
- *
- * \param value The new value of the attribute
- *
- * \returns The new DictAttrs with updated attributes.
- */
-DictAttrs WithAttr(DictAttrs attrs, ffi::String key, Any value);
-
-inline DictAttrs WithAttr(DictAttrs attrs, const std::string& key, Any value) {
-  return WithAttr(std::move(attrs), ffi::String(key), std::move(value));
-}
-
-/*!
- * \brief Copy the DictAttrs, but without a specific attribute.
- *
- * \param attrs The DictAttrs to update
- *
- * \param key The key to remove
- *
- * \returns The new DictAttrs with updated attributes.
- */
-DictAttrs WithoutAttr(DictAttrs attrs, const std::string& key);
-
-/*!
  * \brief Copy the function or module, but overrides
  *        the attribute value key with the value.
  *
@@ -236,7 +196,7 @@ inline TFunc WithAttr(TFunc input, const std::string& attr_key, Any attr_value) 
   using TNode = typename TFunc::ContainerType;
   static_assert(TNode::_type_final, "Can only operate on the leaf nodes");
   TNode* node = input.CopyOnWrite();
-  node->attrs = WithAttr(std::move(node->attrs), attr_key, attr_value);
+  node->attrs.CopyOnWrite()->dict.Set(attr_key, std::move(attr_value));
   return input;
 }
 
@@ -254,10 +214,12 @@ template <typename TFunc>
 inline TFunc WithAttrs(TFunc input, ffi::Map<ffi::String, Any> attrs) {
   using TNode = typename TFunc::ContainerType;
   static_assert(TNode::_type_final, "Can only operate on the leaf nodes");
+  if (attrs.empty()) return input;
   TNode* node = input.CopyOnWrite();
-
-  node->attrs = WithAttrs(std::move(node->attrs), attrs);
-
+  auto* dict_node = node->attrs.CopyOnWrite();
+  for (const auto& [k, v] : attrs) {
+    dict_node->dict.Set(k, v);
+  }
   return input;
 }
 
@@ -291,10 +253,8 @@ template <typename TFunc>
 inline TFunc WithoutAttr(TFunc input, const std::string& attr_key) {
   using TNode = typename TFunc::ContainerType;
   static_assert(TNode::_type_final, "Can only operate on the leaf nodes");
-
   TNode* node = input.CopyOnWrite();
-  node->attrs = WithoutAttr(std::move(node->attrs), attr_key);
-
+  node->attrs.CopyOnWrite()->dict.erase(attr_key);
   return input;
 }
 
