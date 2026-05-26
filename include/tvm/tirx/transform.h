@@ -94,11 +94,11 @@ TVM_DLL Pass UnrollLoop();
 TVM_DLL Pass RemoveNoOp();
 
 /*!
- * \brief Run arithmetic simplifications on the statements and expressions.
+ * \brief Run statement-level arithmetic simplifications on the TIR PrimFunc.
  *
  * \return The pass.
  */
-TVM_DLL Pass Simplify();
+TVM_DLL Pass StmtSimplify();
 
 /*!
  * \brief Convert an IRModule to be SSA form.

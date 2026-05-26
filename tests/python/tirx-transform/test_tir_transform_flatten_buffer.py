@@ -24,7 +24,7 @@ def _transform():
     return tvm.transform.Sequential(
         [
             tvm.tirx.transform.FlattenBuffer(),
-            tvm.tirx.transform.Simplify(),
+            tvm.tirx.transform.StmtSimplify(),
         ]
     )
 

@@ -123,7 +123,7 @@ class After_simplified:
 def test_renormalize_split_pattern():
     after = tvm.s_tir.transform.RenormalizeSplitPattern()(Before)
     tvm.ir.assert_structural_equal(after, After)
-    after = tvm.tirx.transform.Simplify()(after)
+    after = tvm.tirx.transform.StmtSimplify()(after)
     tvm.ir.assert_structural_equal(after, After_simplified)
 
 
@@ -166,7 +166,7 @@ def test_analyze_inside_integer_conditional(integer_condition):
     """
 
     # Similar issue would occur in most transformations that subclass
-    # IRMutatorWithAnalyzer.  tirx.transform.Simplify() is an
+    # IRMutatorWithAnalyzer.  tirx.transform.StmtSimplify() is an
     # exception, as it rewrites the integer conditionals first.  These
     # tests are written using RenormalizeSplitPattern as it is the
     # first case identified.

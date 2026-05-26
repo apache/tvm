@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file simplify.cc
+ * \file stmt_simplify.cc
  * \brief Statement simplifier based on analyzer
  */
 
-#include "../../tirx/transform/simplify.h"
+#include "../../tirx/transform/stmt_simplify.h"
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
@@ -34,50 +34,35 @@
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/transform.h>
 
-#include <optional>
-
 #include "../../arith/ir_mutator_with_analyzer.h"
-#include "../../tirx/analysis/control_flow_graph.h"
 
 namespace tvm {
 namespace arith {
 
 using namespace tirx;
 
-struct SimplifyConfigNode : public ffi::Object {
+struct StmtSimplifyConfigNode : public ffi::Object {
   bool transitively_prove_inequalities;
-  bool propagate_knowns_to_prove_conditional;
-  bool propagate_knowns_to_simplify_expressions;
   bool convert_boolean_to_and_of_ors;
   bool apply_constraints_to_boolean_branches;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<SimplifyConfigNode>()
+    refl::ObjectDef<StmtSimplifyConfigNode>()
         .def_ro("transitively_prove_inequalities",
-                &SimplifyConfigNode::transitively_prove_inequalities,
+                &StmtSimplifyConfigNode::transitively_prove_inequalities,
                 "If true, simplify conditionals with transitive combinations of scoped constraints",
                 refl::DefaultValue(false))
-        .def_ro(
-            "propagate_knowns_to_prove_conditional",
-            &SimplifyConfigNode::propagate_knowns_to_prove_conditional,
-            "If true, known buffer values are propagated and used to statically prove conditionals",
-            refl::DefaultValue(false))
-        .def_ro(
-            "propagate_knowns_to_simplify_expressions",
-            &SimplifyConfigNode::propagate_knowns_to_simplify_expressions,
-            "If true, known buffer values are propagated and used to replace BufferLoad wherever "
-            "possible",
-            refl::DefaultValue(false))
-        .def_ro("convert_boolean_to_and_of_ors", &SimplifyConfigNode::convert_boolean_to_and_of_ors,
+        .def_ro("convert_boolean_to_and_of_ors",
+                &StmtSimplifyConfigNode::convert_boolean_to_and_of_ors,
                 "If true, simplify conditionals into an AND of ORs", refl::DefaultValue(false))
         .def_ro("apply_constraints_to_boolean_branches",
-                &SimplifyConfigNode::apply_constraints_to_boolean_branches,
-                "If true, simplify each branch of AND/OR under a constraints provided by the other "
+                &StmtSimplifyConfigNode::apply_constraints_to_boolean_branches,
+                "If true, simplify each branch of AND/OR under constraints provided by the other "
                 "branch",
                 refl::DefaultValue(false));
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.transform.SimplifyConfig", SimplifyConfigNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.transform.StmtSimplifyConfig", StmtSimplifyConfigNode,
                                     ffi::Object);
 
   RewriteSimplifier::Extension GetEnabledExtensions() const {
@@ -97,42 +82,36 @@ struct SimplifyConfigNode : public ffi::Object {
   }
 };
 
-class SimplifyConfig : public ffi::ObjectRef {
+class StmtSimplifyConfig : public ffi::ObjectRef {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SimplifyConfig, ffi::ObjectRef, SimplifyConfigNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(StmtSimplifyConfig, ffi::ObjectRef,
+                                                StmtSimplifyConfigNode);
 };
 
-static SimplifyConfig MakeDefaultSimplifyConfig() {
-  return AttrsWithDefaultValues<SimplifyConfig>();
+static StmtSimplifyConfig MakeDefaultStmtSimplifyConfig() {
+  return AttrsWithDefaultValues<StmtSimplifyConfig>();
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() { SimplifyConfigNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { StmtSimplifyConfigNode::RegisterReflection(); }
 
-TVM_REGISTER_PASS_CONFIG_OPTION("tirx.Simplify", SimplifyConfig);
+TVM_REGISTER_PASS_CONFIG_OPTION("tirx.StmtSimplify", StmtSimplifyConfig);
 
 class StmtSimplifier : public IRMutatorWithAnalyzer {
  public:
   static PrimFunc Apply(PrimFunc func, Analyzer* analyzer,
-                        ffi::Optional<SimplifyConfig> config_opt = std::nullopt) {
-    auto config = config_opt.value_or(MakeDefaultSimplifyConfig());
+                        ffi::Optional<StmtSimplifyConfig> config_opt = std::nullopt) {
+    auto config = config_opt.value_or(MakeDefaultStmtSimplifyConfig());
     analyzer->rewrite_simplify.SetEnabledExtensions(config->GetEnabledExtensions());
 
-    std::optional<ControlFlowGraph> touch_pattern = std::nullopt;
-    if (config->propagate_knowns_to_prove_conditional ||
-        config->propagate_knowns_to_simplify_expressions) {
-      touch_pattern = ControlFlowGraph(func->body);
-    }
-
-    StmtSimplifier simplifier(analyzer, config, std::move(touch_pattern));
+    StmtSimplifier simplifier(analyzer, config);
     simplifier.MarkBufferMapShapes(func);
     func.CopyOnWrite()->body = simplifier(func->body);
     return func;
   }
 
  private:
-  explicit StmtSimplifier(Analyzer* analyzer, SimplifyConfig config,
-                          std::optional<ControlFlowGraph> touch_pattern)
-      : IRMutatorWithAnalyzer(analyzer), config_(config), touch_pattern_(touch_pattern) {}
+  explicit StmtSimplifier(Analyzer* analyzer, StmtSimplifyConfig config)
+      : IRMutatorWithAnalyzer(analyzer), config_(config) {}
 
   using Parent = IRMutatorWithAnalyzer;
   using Parent::VisitExpr_;
@@ -152,23 +131,9 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
   // to prevent inlining LetStmt vars that appear in buffer definitions.
   Buffer VisitBufferDef(const Buffer& buffer, bool alloc_data) override { return buffer; }
 
-  PrimExpr VisitExpr(const PrimExpr& expr) final {
-    if (config_->propagate_knowns_to_simplify_expressions) {
-      return touch_pattern_->SimplifyInContext(expr, current_stmt_.value(), analyzer_);
-    } else {
-      return analyzer_->Simplify(expr);
-    }
-  }
+  PrimExpr VisitExpr(const PrimExpr& expr) final { return analyzer_->Simplify(expr); }
 
   Stmt Simplify(Stmt stmt) { return operator()(std::move(stmt)); }
-
-  Stmt VisitStmt(const Stmt& stmt) override {
-    ffi::Optional<Stmt> cache = this->current_stmt_;
-    this->current_stmt_ = stmt;
-    Stmt output = Parent::VisitStmt(stmt);
-    this->current_stmt_ = std::move(cache);
-    return output;
-  }
 
   Stmt VisitStmt_(const ForNode* op) final {
     analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
@@ -262,17 +227,11 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
 
   /* \brief Internal utility for checking conditionals
    *
-   * Uses more aggressive optimization, such as performing additional
-   * inlining and tracking known buffer values.
+   * Substitutes any known Bind values and then simplifies with the analyzer.
    */
   ffi::Optional<Bool> ProveCondition(PrimExpr condition) const {
     condition = Substitute(condition, non_inlined_bindings_);
-    if (config_->propagate_knowns_to_prove_conditional) {
-      TVM_FFI_ICHECK(touch_pattern_.has_value());
-      condition = touch_pattern_->SimplifyInContext(condition, current_stmt_.value(), analyzer_);
-    } else {
-      condition = analyzer_->Simplify(condition);
-    }
+    condition = analyzer_->Simplify(condition);
     if (const int64_t* as_int = as_const_int(condition)) {
       return Bool(*as_int);
     } else {
@@ -280,38 +239,36 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
     }
   }
 
-  SimplifyConfig config_;
-  std::optional<ControlFlowGraph> touch_pattern_;
+  StmtSimplifyConfig config_;
 
   // Pure Bind values kept for substitution into assert conditions.
   // Grows monotonically under SSA — no scope-based cleanup required.
   ffi::Map<Var, PrimExpr> non_inlined_bindings_;
-  ffi::Optional<Stmt> current_stmt_{std::nullopt};
 };
 
 }  // namespace arith
 
 namespace tirx {
 
-PrimFunc Simplify(PrimFunc func, arith::Analyzer* analyzer) {
+PrimFunc StmtSimplify(PrimFunc func, arith::Analyzer* analyzer) {
   return arith::StmtSimplifier::Apply(std::move(func), analyzer);
 }
 
 namespace transform {
 
-Pass Simplify() {
+Pass StmtSimplify() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     arith::Analyzer analyzer;
-    auto cfg = ctx->GetConfig<arith::SimplifyConfig>("tirx.Simplify");
+    auto cfg = ctx->GetConfig<arith::StmtSimplifyConfig>("tirx.StmtSimplify");
 
     return arith::StmtSimplifier::Apply(f, &analyzer, cfg);
   };
-  return CreatePrimFuncPass(pass_func, 0, "tirx.Simplify", {});
+  return CreatePrimFuncPass(pass_func, 0, "tirx.StmtSimplify", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tirx.transform.Simplify", Simplify);
+  refl::GlobalDef().def("tirx.transform.StmtSimplify", StmtSimplify);
 }
 
 }  // namespace transform

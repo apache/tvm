@@ -179,7 +179,7 @@ ffi::Array<tvm::transform::Pass> GetVTCMCompactionPasses() {
   pass_list.push_back(s_tir::transform::InjectSoftwarePipeline());
   pass_list.push_back(s_tir::transform::LowerOpaqueBlock());
   pass_list.push_back(tirx::transform::FlattenBuffer());
-  pass_list.push_back(tirx::transform::Simplify());
+  pass_list.push_back(tirx::transform::StmtSimplify());
   pass_list.push_back(tirx::transform::VectorizeLoop(true));
   pass_list.push_back(tirx::transform::StorageRewrite());
   return pass_list;

@@ -32,12 +32,10 @@
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
 
-#include <optional>
 #include <unordered_map>
 
 #include "../../arith/const_fold.h"
 #include "../../arith/ir_mutator_with_analyzer.h"
-#include "../analysis/control_flow_graph.h"
 #include "../analysis/var_use_def_analysis.h"
 #include "ir_utils.h"
 
@@ -45,17 +43,12 @@ namespace tvm {
 namespace tirx {
 
 struct RemoveNoOpConfigNode : public ffi::Object {
-  bool use_dataflow_analysis;
   int64_t max_simplification_steps;
   bool ignore_profiler_call;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<RemoveNoOpConfigNode>()
-        .def_ro("use_dataflow_analysis", &RemoveNoOpConfigNode::use_dataflow_analysis,
-                "If true, known buffer values are propagated and used "
-                "to statically prove statements as no-ops.",
-                refl::DefaultValue(false))
         .def_ro("max_simplification_steps", &RemoveNoOpConfigNode::max_simplification_steps,
                 "If non-zero, RewriteSimplifier will throw an error "
                 "after the number of steps specified.  "
@@ -81,10 +74,8 @@ TVM_REGISTER_PASS_CONFIG_OPTION("tirx.RemoveNoOp", RemoveNoOpConfig);
 // Mark the statement of each stage.
 class NoOpRemover : public arith::IRMutatorWithAnalyzer {
  public:
-  static Stmt Apply(Stmt stmt, arith::Analyzer* analyzer,
-                    std::optional<ControlFlowGraph> touch_pattern, const StmtNode* context,
-                    bool ignore_profiler_call = false) {
-    NoOpRemover visitor(analyzer, touch_pattern, context, ignore_profiler_call);
+  static Stmt Apply(Stmt stmt, arith::Analyzer* analyzer, bool ignore_profiler_call = false) {
+    NoOpRemover visitor(analyzer, ignore_profiler_call);
     return visitor(std::move(stmt));
   }
 
@@ -93,12 +84,8 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
   using Parent::VisitStmt;
   using Parent::VisitStmt_;
 
-  NoOpRemover(arith::Analyzer* analyzer, std::optional<ControlFlowGraph> touch_pattern,
-              const StmtNode* context, bool ignore_profiler_call = false)
-      : Parent(analyzer),
-        touch_pattern_(touch_pattern),
-        context_(context),
-        ignore_profiler_call_(ignore_profiler_call) {}
+  NoOpRemover(arith::Analyzer* analyzer, bool ignore_profiler_call = false)
+      : Parent(analyzer), ignore_profiler_call_(ignore_profiler_call) {}
 
   Stmt VisitStmt_(const BindNode* op) final {
     // Simply mutate the value and return.
@@ -195,27 +182,11 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
       return this->VisitStmt(SeqStmt(statements));
     };
 
-    if (touch_pattern_.has_value()) {
-      // A write that is later overwritten is a no-op.
-      Stmt context = context_ ? ffi::GetRef<Stmt>(context_) : store;
-      if (touch_pattern_->IsOverwrittenWithoutEffect(store, context)) {
-        touch_pattern_->RemoveStore(store);
-        return only_side_effects();
-      }
-    }
-
     // A write whose destination is known to already contain the
     // values to be written is a no-op.
-    // PrimExpr stores_existing_value = store->value == BufferLoad(store->buffer, store->indices);
     PrimExpr stores_existing_value =
         store->value - BufferLoad(store->buffer, store->indices, store->predicate) == 0;
-    if (touch_pattern_.has_value()) {
-      Stmt context_arg = context_ ? ffi::GetRef<Stmt>(context_) : Stmt(store);
-      stores_existing_value =
-          touch_pattern_->SimplifyInContext(stores_existing_value, context_arg, analyzer_);
-    } else {
-      stores_existing_value = analyzer_->Simplify(stores_existing_value);
-    }
+    stores_existing_value = analyzer_->Simplify(stores_existing_value);
     if (is_one(stores_existing_value)) {
       return only_side_effects();
     }
@@ -289,29 +260,19 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
   }
 
   std::unordered_map<const VarNode*, arith::IntSet> var_range_map_;
-  std::optional<ControlFlowGraph> touch_pattern_;
-  const StmtNode* context_;
   bool ignore_profiler_call_{false};
 };
 
-Stmt RemoveNoOp(Stmt stmt, arith::Analyzer* analyzer, std::optional<ControlFlowGraph> touch_pattern,
-                const StmtNode* context, bool ignore_profiler_call = false) {
-  return NoOpRemover::Apply(std::move(stmt), analyzer, std::move(touch_pattern), context,
-                            ignore_profiler_call);
+Stmt RemoveNoOp(Stmt stmt, arith::Analyzer* analyzer, bool ignore_profiler_call) {
+  return NoOpRemover::Apply(std::move(stmt), analyzer, ignore_profiler_call);
 }
 
 namespace transform {
 
 Pass RemoveNoOp() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
-    std::optional<ControlFlowGraph> touch_pattern = std::nullopt;
-
     RemoveNoOpConfig config = ctx->GetConfig<RemoveNoOpConfig>("tirx.RemoveNoOp")
                                   .value_or(AttrsWithDefaultValues<RemoveNoOpConfig>());
-
-    if (config->use_dataflow_analysis) {
-      touch_pattern.emplace(f->body, config->max_simplification_steps);
-    }
 
     arith::Analyzer analyzer;
     analyzer.rewrite_simplify.SetMaximumRewriteSteps(config->max_simplification_steps);
@@ -320,8 +281,8 @@ Pass RemoveNoOp() {
 
     {
       auto* write_ptr = f.CopyOnWrite();
-      write_ptr->body = NoOpRemover::Apply(std::move(write_ptr->body), &analyzer,
-                                           std::move(touch_pattern), nullptr, ignore_profiler_call);
+      write_ptr->body =
+          NoOpRemover::Apply(std::move(write_ptr->body), &analyzer, ignore_profiler_call);
     }
     return f;
   };

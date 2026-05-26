@@ -286,7 +286,7 @@ def test_unary_with_guard():
     with target:
         mod = tvm.IRModule({"main": unary})
         mod = tvm.tirx.transform.LowerTIRx()(mod)
-        mod = tvm.tirx.transform.Simplify()(mod)
+        mod = tvm.tirx.transform.StmtSimplify()(mod)
         assert_structural_equal(mod["main"], expected)
 
 

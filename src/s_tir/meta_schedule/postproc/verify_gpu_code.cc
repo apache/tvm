@@ -166,7 +166,7 @@ class VerifyGPUCodeNode : public PostprocNode {
           pass_list.push_back(s_tir::transform::LiftThreadBinding());
           pass_list.push_back(s_tir::transform::ManifestSharedMemoryLocalStage());
           pass_list.push_back(s_tir::transform::CompactBufferAllocation());
-          pass_list.push_back(tirx::transform::Simplify());
+          pass_list.push_back(tirx::transform::StmtSimplify());
           pass_list.push_back(s_tir::transform::LowerAutoCopy());
           pass_list.push_back(s_tir::transform::UnifyThreadBinding());
           pass_list.push_back(s_tir::transform::LowerMatchBuffer());
@@ -175,7 +175,7 @@ class VerifyGPUCodeNode : public PostprocNode {
           pass_list.push_back(tirx::transform::FlattenBuffer());
           pass_list.push_back(tirx::transform::BF16ComputeLegalize());
           pass_list.push_back(tirx::transform::NarrowDataType(32));
-          pass_list.push_back(tirx::transform::Simplify());
+          pass_list.push_back(tirx::transform::StmtSimplify());
           // Phase 2
           pass_list.push_back(tirx::transform::VectorizeLoop(true));
           pass_list.push_back(s_tir::transform::InjectVirtualThread());

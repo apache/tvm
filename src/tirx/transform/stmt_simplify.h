@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file simplify.h
- * \brief Helper functions to construct and compose IR nodes.
+ * \file stmt_simplify.h
+ * \brief Statement-level simplification of TIR PrimFuncs.
  */
-#ifndef TVM_TIR_TRANSFORM_SIMPLIFY_H_
-#define TVM_TIR_TRANSFORM_SIMPLIFY_H_
+#ifndef TVM_TIR_TRANSFORM_STMT_SIMPLIFY_H_
+#define TVM_TIR_TRANSFORM_STMT_SIMPLIFY_H_
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/tirx/function.h>
@@ -30,12 +30,12 @@
 namespace tvm {
 namespace tirx {
 
-/* \brief Simplifies the prim func
+/* \brief Simplify statements in the prim func
  *
- * Applies the same behavior as the tirx.transform.Simplify pass.
+ * Applies the same behavior as the tirx.transform.StmtSimplify pass.
  */
-PrimFunc Simplify(PrimFunc stmt, arith::Analyzer* analyzer);
+PrimFunc StmtSimplify(PrimFunc func, arith::Analyzer* analyzer);
 
 }  // namespace tirx
 }  // namespace tvm
-#endif  // TVM_TIR_TRANSFORM_SIMPLIFY_H_
+#endif  // TVM_TIR_TRANSFORM_STMT_SIMPLIFY_H_

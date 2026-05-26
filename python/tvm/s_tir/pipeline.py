@@ -45,7 +45,7 @@ def default_s_tir_pipeline():
             s_tir.transform.LowerAutoCopy(),
             s_tir.transform.UnifyThreadBinding(),
             s_tir.transform.LowerMatchBuffer(),
-            tirx.transform.Simplify(),
+            tirx.transform.StmtSimplify(),
             s_tir.transform.InjectPermutedLayout(),
             s_tir.transform.AnnotateIrregularLoop(),
             s_tir.transform.InjectSoftwarePipeline(),
@@ -68,7 +68,7 @@ def default_s_tir_pipeline():
                 s_tir.transform.HoistIfThenElse(),
                 tirx.transform.UnrollLoop(),
                 s_tir.transform.RenormalizeSplitPattern(),
-                tirx.transform.Simplify(),
+                tirx.transform.StmtSimplify(),
                 tirx.transform.RemoveNoOp(),
                 s_tir.transform.RewriteUnsafeSelect(),
             ]
@@ -137,10 +137,10 @@ def finalize_host_passes():  # pylint: disable=unused-argument
 def finalize_device_passes():  # pylint: disable=unused-argument
     """The default finalization passes for TIR backend."""
     device_pass_list = [
-        tir.transform.LowerWarpMemory(),
-        tir.transform.Simplify(),
-        tir.transform.LowerCustomDatatypes(),
-        tir.transform.LowerIntrin(),
+        tirx.transform.LowerWarpMemory(),
+        tirx.transform.StmtSimplify(),
+        tirx.transform.LowerCustomDatatypes(),
+        tirx.transform.LowerIntrin(),
     ]
     return tvm.ir.transform.Sequential(device_pass_list)
 
