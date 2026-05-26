@@ -213,6 +213,13 @@ class DeviceKernelMutator : public StmtExprMutator {
     auto it = device_info_map_.find(gvar.get());
     TVM_FFI_ICHECK(it != device_info_map_.end());
     current_target_ = it->second.target;
+    // Track whether the caller is a host function (i.e. its target
+    // still has a host attached).  The same-target shortcut at the
+    // call site is only safe when caller and callee are both device-
+    // resident; a host caller must take the kernel-launch path even
+    // if Target::WithoutHost() makes the strings match.
+    current_caller_is_host_ =
+        func->GetAttr<Target>(tvm::attr::kTarget).value()->GetHost().defined();
 
     auto body = VisitStmt(func->body);
     if (!body.same_as(func->body)) {
@@ -220,6 +227,7 @@ class DeviceKernelMutator : public StmtExprMutator {
     }
 
     current_target_ = std::nullopt;
+    current_caller_is_host_ = false;
     return func;
   }
 
@@ -275,26 +283,45 @@ class DeviceKernelMutator : public StmtExprMutator {
     auto caller_target = current_target_.value();
     auto callee_target = dev_info.target;
 
-    bool same_target = caller_target->str() == callee_target->str();
-    if (same_target) {
-      // Calls within the same target may be handled at codegen time
-      // as internal subroutine calls.
-      return node;
-    }
+    // A callee with non-empty launch_params has thread_extent
+    // bindings in its body, i.e. it is a real device kernel that
+    // must be invoked via a kernel-launch ABI.  In that case the
+    // same-target / same-device-type shortcuts below are unsafe
+    // when the caller is a host function: Target::WithoutHost()
+    // on a host caller can make the strings (or device types)
+    // match the kernel's, but the call still crosses the
+    // host/device boundary and must be lowered to a kernel
+    // launch.  Otherwise codegen emits the kernel with default
+    // calling convention (__device__ instead of __global__) and
+    // the host body is left with a raw GlobalVar call that no
+    // subsequent pass will rewrite (MakePackedAPI's subroutine
+    // rewriter skips functions that already have a non-default
+    // calling convention or no global symbol).
+    bool callee_is_kernel = dev_info.launch_params.size() > 0;
+    bool force_kernel_launch = callee_is_kernel && current_caller_is_host_;
 
-    bool same_device_type =
-        caller_target->GetTargetDeviceType() == callee_target->GetTargetDeviceType();
-    if (same_device_type) {
-      // Calls to another target using the same device (e.g. LLVM
-      // calling a custom TIRToRuntime target) do not require a kernel
-      // launch, but need to be replaced with call_extern.
-      extern_function_call_.insert(gvar);
-      ffi::Array<PrimExpr> args;
-      args.push_back(StringImm(gvar->name_hint));
-      for (const auto& arg : node->args) {
-        args.push_back(arg);
+    if (!force_kernel_launch) {
+      bool same_target = caller_target->str() == callee_target->str();
+      if (same_target) {
+        // Calls within the same target may be handled at codegen time
+        // as internal subroutine calls.
+        return node;
       }
-      return Call(node->dtype, builtin::call_extern(), args);
+
+      bool same_device_type =
+          caller_target->GetTargetDeviceType() == callee_target->GetTargetDeviceType();
+      if (same_device_type) {
+        // Calls to another target using the same device (e.g. LLVM
+        // calling a custom TIRToRuntime target) do not require a kernel
+        // launch, but need to be replaced with call_extern.
+        extern_function_call_.insert(gvar);
+        ffi::Array<PrimExpr> args;
+        args.push_back(StringImm(gvar->name_hint));
+        for (const auto& arg : node->args) {
+          args.push_back(arg);
+        }
+        return Call(node->dtype, builtin::call_extern(), args);
+      }
     }
 
     TVM_FFI_ICHECK(dev_info.launch_params.defined())
@@ -336,6 +363,11 @@ class DeviceKernelMutator : public StmtExprMutator {
   }
 
   ffi::Optional<Target> current_target_;
+  // True iff the caller currently being rewritten is a host function
+  // (its kTarget had a host attached).  Used to suppress the
+  // same-target shortcut when a host calls a device kernel that
+  // happens to share a target string after WithoutHost().
+  bool current_caller_is_host_{false};
   std::unordered_map<const GlobalVarNode*, KernelInfo> device_info_map_;
   std::unordered_set<const GlobalVarNode*> device_kernel_launch_;
   std::unordered_set<const GlobalVarNode*> extern_function_call_;
