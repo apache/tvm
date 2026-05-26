@@ -357,6 +357,15 @@ class SharedMemoryRewriter : public StmtExprMutator {
       collector(op->body);
       scope.shmem_allocs = std::move(collector.shmem_allocs_);
 
+      // Per-scope early bail-out: if this thread_extent block has ≤1 shmem
+      // allocation, there is nothing to merge.  Skip liveness analysis,
+      // memory planning, and rewriting entirely.
+      if (scope.shmem_allocs.size() <= 1) {
+        scope_stack_.pop_back();
+        in_thread_env_ = false;
+        return StmtExprMutator::VisitStmt_(op);
+      }
+
       // 3. Liveness + reuse plan over this subtree only.
       // Run the finder on the full AttrStmt (not just op->body) so that
       // VisitNewScope creates the proper scope pair entry for the thread_extent.
@@ -794,11 +803,24 @@ class SharedMemoryRewriter : public StmtExprMutator {
 };
 
 Stmt MergeSharedMemoryAllocations(Stmt stmt, bool merge_static_smem) {
-  SharedMemoryRewriter dyn_rewriter(/*is_dynamic=*/true);
-  stmt = dyn_rewriter(std::move(stmt));
+  // Function-level early-out: skip the rewriter entirely if the PrimFunc
+  // has ≤1 dynamic shared-memory allocation (nothing to merge).
+  {
+    AllocateCollector dyn_probe(/*is_dynamic=*/true);
+    dyn_probe(stmt);
+    if (dyn_probe.shmem_allocs_.size() > 1) {
+      SharedMemoryRewriter dyn_rewriter(/*is_dynamic=*/true);
+      stmt = dyn_rewriter(std::move(stmt));
+    }
+  }
   if (merge_static_smem) {
-    SharedMemoryRewriter static_rewriter(/*is_dynamic=*/false);
-    stmt = static_rewriter(std::move(stmt));
+    // Similarly skip the static rewriter if there is ≤1 static shmem alloc.
+    AllocateCollector static_probe(/*is_dynamic=*/false);
+    static_probe(stmt);
+    if (static_probe.shmem_allocs_.size() > 1) {
+      SharedMemoryRewriter static_rewriter(/*is_dynamic=*/false);
+      stmt = static_rewriter(std::move(stmt));
+    }
   }
   return stmt;
 }
