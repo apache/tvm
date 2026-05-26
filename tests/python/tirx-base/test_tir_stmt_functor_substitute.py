@@ -29,7 +29,7 @@ def _apply_substitute(mod):
     new_func = (
         tvm.tirx.PrimFunc(params=[], body=substitute(func.body, vmap))
         .with_attr("global_symbol", func.attrs["global_symbol"])
-        .with_attr("s_tir", tvm.tirx.IntImm("bool", 1))
+        .with_attr("s_tir", True)
     )
     return tvm.IRModule.from_expr(new_func)
 

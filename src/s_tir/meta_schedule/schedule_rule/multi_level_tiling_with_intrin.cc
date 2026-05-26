@@ -102,8 +102,8 @@ class MultiLevelTilingWithIntrinNode : public MultiLevelTilingNode {
 
 ScheduleRule ScheduleRule::MultiLevelTilingWithIntrin(
     ffi::String intrin_name, ffi::String structure,
-    ffi::Optional<ffi::Array<ffi::String>> tile_binds, ffi::Optional<Integer> max_innermost_factor,
-    ffi::Optional<ffi::Array<Integer>> vector_load_lens,
+    ffi::Optional<ffi::Array<ffi::String>> tile_binds, ffi::Optional<int64_t> max_innermost_factor,
+    ffi::Optional<ffi::Array<int64_t>> vector_load_lens,
     ffi::Optional<ffi::Map<ffi::String, ffi::Any>> reuse_read,
     ffi::Optional<ffi::Map<ffi::String, ffi::Any>> reuse_write) {
   TVM_FFI_ICHECK(tirx::TensorIntrin::Get(intrin_name).defined())

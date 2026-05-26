@@ -67,7 +67,7 @@
 namespace tvm {
 namespace relax {
 
-TVM_REGISTER_PASS_CONFIG_OPTION("relax.backend.use_cuda_graph", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("relax.backend.use_cuda_graph", bool);
 
 /*! \brief The rewriting plan of lifting a region for either allocation or capturing for cuda graph
  * execution
@@ -247,13 +247,13 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
         // 'relax.rewrite_cuda_graph.capture_symbolic_vars' annotation, the actual variables with
         // these names are extracted from the struct info for the capturing.
         const auto& func = Downcast<Function>(pair.second);
-        auto num_inputs =
-            func->attrs.GetAttr<Integer>(attr::kNumInput).value_or(Integer(func->params.size()));
+        int64_t num_inputs =
+            func->attrs.GetAttr<int64_t>(attr::kNumInput).value_or(func->params.size());
         auto capture_symbolic_var_name_hints = ExtractSymbolicVarHints(func);
         for (int i = 0; i < static_cast<int>(func->params.size()); ++i) {
           ffi::Array<tirx::Var> symbolic_vars = DefinableTIRVarsInStructInfo(
               Downcast<StructInfo>(func->params[i]->struct_info_.value()));
-          if (i < num_inputs.IntValue()) {
+          if (i < num_inputs) {
             for (const auto& symbolic_var : symbolic_vars) {
               if (capture_symbolic_var_name_hints.count(symbolic_var->name_hint)) {
                 capture_symbolic_vars_.insert(symbolic_var.get());
@@ -891,8 +891,7 @@ namespace transform {
 Pass RewriteCUDAGraph() {
   auto pass_func =  //
       [=](IRModule mod, PassContext pc) {
-        bool use_cuda_graph =
-            pc->GetConfig<Bool>("relax.backend.use_cuda_graph").value_or(Bool(false))->value;
+        bool use_cuda_graph = pc->GetConfig<bool>("relax.backend.use_cuda_graph").value_or(false);
         if (use_cuda_graph) {
           mod = ::tvm::relax::RewriteCUDAGraph(std::move(mod));
         }

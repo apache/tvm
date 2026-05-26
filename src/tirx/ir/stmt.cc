@@ -678,9 +678,9 @@ PrimExpr TypeAnnotation(DataType dtype, Span span) {
 }
 
 TVM_TIRX_REGISTER_OP("type_annotation")
-    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure))
+    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
     .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
-                                         Integer(ScriptDtypePrintLocation::kFirst));
+                                         static_cast<int64_t>(ScriptDtypePrintLocation::kFirst));
 
 }  // namespace tirx
 }  // namespace tvm

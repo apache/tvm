@@ -94,7 +94,13 @@ struct ReuseConfig {
   /*! \brief Construct from a configuration dictionary */
   explicit ReuseConfig(const ffi::Map<ffi::String, ffi::Any>& config)
       : req(Str2ReuseType(Downcast<ffi::String>(config.at("req")))),
-        levels(support::AsVector<Integer, int>(Downcast<ffi::Array<Integer>>(config.at("levels")))),
+        levels([&]() {
+          auto arr = Downcast<ffi::Array<int64_t>>(config.at("levels"));
+          std::vector<int> r;
+          r.reserve(arr.size());
+          for (int64_t v : arr) r.push_back(static_cast<int>(v));
+          return r;
+        }()),
         scope(Downcast<ffi::String>(config.at("scope"))) {
     TVM_FFI_ICHECK_EQ(config.size(), 3);
   }
@@ -237,17 +243,22 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
 template <typename NodeType>
 ffi::ObjectPtr<NodeType> MultiLevelTilingInitCommon(
     ffi::String structure, ffi::Optional<ffi::Array<ffi::String>> tile_binds,
-    ffi::Optional<Integer> max_innermost_factor,
-    ffi::Optional<ffi::Array<Integer>> vector_load_lens,
+    ffi::Optional<int64_t> max_innermost_factor,
+    ffi::Optional<ffi::Array<int64_t>> vector_load_lens,
     ffi::Optional<ffi::Map<ffi::String, ffi::Any>> reuse_read,
     ffi::Optional<ffi::Map<ffi::String, ffi::Any>> reuse_write) {
   ffi::ObjectPtr<NodeType> n = ffi::make_object<NodeType>();
   n->structure = structure;
   n->tile_binds = tile_binds.value_or({});
-  n->max_innermost_factor = max_innermost_factor.value_or(Integer(-1))->value;
-  n->vector_load_lens = vector_load_lens.defined()
-                            ? support::AsVector<Integer, int>(vector_load_lens.value())
-                            : std::vector<int>();
+  n->max_innermost_factor = max_innermost_factor.value_or(-1);
+  n->vector_load_lens = [&]() {
+    if (!vector_load_lens.has_value()) return std::vector<int>();
+    auto arr = vector_load_lens.value();
+    std::vector<int> r;
+    r.reserve(arr.size());
+    for (int64_t v : arr) r.push_back(static_cast<int>(v));
+    return r;
+  }();
   n->reuse_read_ = reuse_read.defined() ? ReuseConfig(reuse_read.value()) : ReuseConfig();
   n->reuse_write_ = reuse_write.defined() ? ReuseConfig(reuse_write.value()) : ReuseConfig();
   for (int i = 0, len = structure.size(); i < len; ++i) {

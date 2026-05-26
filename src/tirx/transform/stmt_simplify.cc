@@ -169,8 +169,8 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
   }
 
   Stmt VisitStmt_(const IfThenElseNode* op) override {
-    if (ffi::Optional<Bool> cond = ProveCondition(op->condition)) {
-      if (cond.value()->value) {
+    if (ffi::Optional<bool> cond = ProveCondition(op->condition)) {
+      if (cond.value()) {
         return this->VisitStmt(op->then_case);
       } else if (op->else_case) {
         return this->VisitStmt(op->else_case.value());
@@ -184,8 +184,8 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
 
   PrimExpr VisitExpr_(const CallNode* op) override {
     if (op->op.same_as(builtin::if_then_else())) {
-      if (ffi::Optional<Bool> cond = ProveCondition(op->args[0])) {
-        if (cond.value()->value) {
+      if (ffi::Optional<bool> cond = ProveCondition(op->args[0])) {
+        if (cond.value()) {
           return this->VisitExpr(op->args[1]);
         } else {
           return this->VisitExpr(op->args[2]);
@@ -229,11 +229,11 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
    *
    * Substitutes any known Bind values and then simplifies with the analyzer.
    */
-  ffi::Optional<Bool> ProveCondition(PrimExpr condition) const {
+  ffi::Optional<bool> ProveCondition(PrimExpr condition) const {
     condition = Substitute(condition, non_inlined_bindings_);
     condition = analyzer_->Simplify(condition);
     if (const int64_t* as_int = as_const_int(condition)) {
-      return Bool(*as_int);
+      return *as_int != 0;
     } else {
       return std::nullopt;
     }

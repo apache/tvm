@@ -99,11 +99,10 @@ class CallTIRMutator : public ExprMutator {
                                         "alloc"));
         } else {
           // if there is only one output, it must be an in-place argument, but check anyway
-          TVM_FFI_ICHECK(inplace_attrs->inplace_indices[0].IntValue() != -1)
+          TVM_FFI_ICHECK(inplace_attrs->inplace_indices[0] != -1)
               << "If calling call_tir_inplace and there is one output, its in-place index must not"
                  " be -1.";
-          outs.push_back(
-              Downcast<Tuple>(call->args[1])->fields[inplace_attrs->inplace_indices[0].IntValue()]);
+          outs.push_back(Downcast<Tuple>(call->args[1])->fields[inplace_attrs->inplace_indices[0]]);
         }
       } else if (const auto& _tuple_sinfo = MatchStructInfo<TupleStructInfo>(expr)) {
         // multiple output case
@@ -126,7 +125,7 @@ class CallTIRMutator : public ExprMutator {
             scope = field_tensor->vdevice.value()->memory_scope;
           }
 
-          if (!is_inplace || inplace_attrs->inplace_indices[i].IntValue() == -1) {
+          if (!is_inplace || inplace_attrs->inplace_indices[i] == -1) {
             outs.push_back(builder_->Emit(Call(alloc_tensor_op,
                                                {Downcast<ShapeExpr>(field_tensor->shape.value()),
                                                 DataTypeImm(field_tensor->dtype),
@@ -134,8 +133,8 @@ class CallTIRMutator : public ExprMutator {
                                                Attrs(), {field_tensor}),
                                           "alloc"));
           } else {
-            outs.push_back(Downcast<Tuple>(call->args[1])
-                               ->fields[inplace_attrs->inplace_indices[i].IntValue()]);
+            outs.push_back(
+                Downcast<Tuple>(call->args[1])->fields[inplace_attrs->inplace_indices[i]]);
           }
         }
       } else {
@@ -152,7 +151,7 @@ class CallTIRMutator : public ExprMutator {
           args.insert(args.end(), outs.begin(), outs.end());
         } else {
           for (size_t i = 0; i < outs.size(); i++) {
-            if (inplace_attrs->inplace_indices[i].IntValue() == -1) {
+            if (inplace_attrs->inplace_indices[i] == -1) {
               args.push_back(outs[i]);
             }
           }

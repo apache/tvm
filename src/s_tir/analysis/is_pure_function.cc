@@ -69,7 +69,7 @@ class PurityChecker : TIRVisitorWithPath {
     static auto op_call_effect = Op::GetAttrMap<TCallEffectKind>("TCallEffectKind");
     CallEffectKind effect = [&]() {
       if (auto opt = call->op.as<Op>()) {
-        return static_cast<CallEffectKind>(op_call_effect[opt.value()]->value);
+        return static_cast<CallEffectKind>(op_call_effect[opt.value()]);
       } else {
         return CallEffectKind::kOpaque;
       }

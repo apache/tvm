@@ -522,9 +522,8 @@ bool OpSupportsInplace(const Op& op) { return SUPPORTED_OPS.count(op->name); }
  */
 class InplaceOpportunityNode : public ffi::Object {
  public:
-  // need to use Array for the benefit of the FFI
-  Integer binding_idx;
-  ffi::Array<Integer> arg_idxs;
+  int64_t binding_idx;
+  ffi::Array<int64_t> arg_idxs;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -540,7 +539,7 @@ TVM_FFI_STATIC_INIT_BLOCK() { InplaceOpportunityNode::RegisterReflection(); }
 
 class InplaceOpportunity : public ffi::ObjectRef {
  public:
-  TVM_DLL InplaceOpportunity(const Integer& binding_idx, const ffi::Array<Integer>& arg_idxs) {
+  TVM_DLL InplaceOpportunity(int64_t binding_idx, const ffi::Array<int64_t>& arg_idxs) {
     auto node = ffi::make_object<InplaceOpportunityNode>();
     node->binding_idx = binding_idx;
     node->arg_idxs = arg_idxs;
@@ -670,24 +669,25 @@ FindInplaceOpportunities(const DataflowBlock& block, const ffi::Array<Var>& inpu
         }
 
         // produce a list of candidates for this index
-        ffi::Array<Integer> size_candidate_list;
+        ffi::Array<int64_t> size_candidate_list;
         for (auto candidate : candidates) {
-          size_candidate_list.push_back(Integer(candidate));
+          size_candidate_list.push_back(static_cast<int64_t>(candidate));
         }
-        size_match_list.push_back(InplaceOpportunity(Integer(i), size_candidate_list));
+        size_match_list.push_back(InplaceOpportunity(static_cast<int64_t>(i), size_candidate_list));
 
         // also gather up the exact match candidates if there are any
-        ffi::Array<Integer> exact_candidate_list;
+        ffi::Array<int64_t> exact_candidate_list;
         for (auto candidate : candidates) {
           if (!exact_match_candidates.count(candidate)) {
             continue;
           }
-          exact_candidate_list.push_back(Integer(candidate));
+          exact_candidate_list.push_back(static_cast<int64_t>(candidate));
         }
         if (exact_candidate_list.empty()) {
           continue;
         }
-        exact_match_list.push_back(InplaceOpportunity(Integer(i), exact_candidate_list));
+        exact_match_list.push_back(
+            InplaceOpportunity(static_cast<int64_t>(i), exact_candidate_list));
       }
     }
   }
@@ -819,9 +819,9 @@ class ModuleInplaceTransformer : public ExprMutator {
     // Note: Not passing any input values for now, as we can't make any assumptions
     // about them.
     auto matches_found = FindInplaceOpportunities(block, {}, builder_);
-    ffi::Map<Binding, ffi::Array<Integer>> new_idxs;
+    ffi::Map<Binding, ffi::Array<int64_t>> new_idxs;
     for (auto match : matches_found.second) {
-      new_idxs.Set(block->bindings[match->binding_idx.IntValue()], match->arg_idxs);
+      new_idxs.Set(block->bindings[match->binding_idx], match->arg_idxs);
     }
 
     inplace_idxs = new_idxs;
@@ -863,7 +863,7 @@ class ModuleInplaceTransformer : public ExprMutator {
   // Given the call and indices of arguments that could be done in-place,
   // replace the call with a call to an in-place PrimFunc.
   // (Made public for testing.)
-  Call CreateInplaceCall(const Call& call, const ffi::Array<Integer>& inplace_indices) {
+  Call CreateInplaceCall(const Call& call, const ffi::Array<int64_t>& inplace_indices) {
     static const auto& legalize_map = Op::GetAttrMap<FLegalize>("FLegalize");
     static const auto& call_tir_inplace_op = Op::Get("relax.call_tir_inplace");
 
@@ -897,7 +897,7 @@ class ModuleInplaceTransformer : public ExprMutator {
     for (size_t i = 0; i < num_outs; i++) {
       // we will substitute output i with the corresponding param indicated by inplace indices
       auto output_var = old_primfunc->params[num_params - num_outs + i];
-      auto inplace_var = old_primfunc->params[inplace_indices[i].IntValue()];
+      auto inplace_var = old_primfunc->params[inplace_indices[i]];
       var_subst_map.Set(output_var, inplace_var);
 
       // also do the same with the buffer vars
@@ -960,14 +960,14 @@ class ModuleInplaceTransformer : public ExprMutator {
   // (we are assuming good behavior on the user's part).
   ffi::Array<Var> func_params;
   // map of eligible bindings to indices of arguments that can be used as the in-place target
-  ffi::Map<Binding, ffi::Array<Integer>> inplace_idxs;
+  ffi::Map<Binding, ffi::Array<int64_t>> inplace_idxs;
 };
 
 namespace transform {
 
-ffi::Map<Var, ffi::Array<Integer>> DataflowLivenessAnalysis(const DataflowBlock& block) {
+ffi::Map<Var, ffi::Array<int64_t>> DataflowLivenessAnalysis(const DataflowBlock& block) {
   auto liveness_ranges = AnalyzeLiveness(block);
-  ffi::Map<Var, ffi::Array<Integer>> ret;
+  ffi::Map<Var, ffi::Array<int64_t>> ret;
   for (auto kv : liveness_ranges) {
     ret.Set(kv.first, {kv.second.first, kv.second.second});
   }
@@ -980,19 +980,19 @@ ffi::Array<ffi::ObjectRef> DataflowAliasAnalysis(const DataflowBlock& block,
   auto res = analyzer.Analyze(block, inputs);
   auto alias_sets = res.first;
   auto tuple_map = res.second;
-  ffi::Map<Var, ffi::Array<Integer>> new_alias_sets;
-  ffi::Map<Integer, ffi::Array<ffi::Array<Integer>>> new_tuple_map;
+  ffi::Map<Var, ffi::Array<int64_t>> new_alias_sets;
+  ffi::Map<Integer, ffi::Array<ffi::Array<int64_t>>> new_tuple_map;
   for (auto kv : alias_sets) {
-    ffi::Array<Integer> aliases;
+    ffi::Array<int64_t> aliases;
     for (auto alias : kv.second) {
       aliases.push_back(alias);
     }
     new_alias_sets.Set(kv.first, aliases);
   }
   for (auto kv : tuple_map) {
-    ffi::Array<ffi::Array<Integer>> elem_aliases;
+    ffi::Array<ffi::Array<int64_t>> elem_aliases;
     for (auto alias_set : kv.second) {
-      ffi::Array<Integer> dim_aliases;
+      ffi::Array<int64_t> dim_aliases;
       for (auto alias : alias_set) {
         dim_aliases.push_back(alias);
       }
@@ -1031,7 +1031,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("relax.testing.transform.DataflowInplaceAnalysis", DataflowInplaceAnalysis)
       .def("relax.testing.transform.SingleInplaceCall",
            [](const IRModule& mod, const Call& call,
-              const ffi::Array<Integer>& inplace_indices) -> ffi::Array<ffi::ObjectRef> {
+              const ffi::Array<int64_t>& inplace_indices) -> ffi::Array<ffi::ObjectRef> {
              ModuleInplaceTransformer transformer(mod);
              auto ret_call = transformer.CreateInplaceCall(call, inplace_indices);
              return ffi::Array<ffi::ObjectRef>{ret_call, transformer.CurrentMod()};

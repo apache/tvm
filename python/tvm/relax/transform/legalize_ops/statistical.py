@@ -31,21 +31,21 @@ def _statistical(te_func: TEFunc) -> LegalizeFunc:
     return statistical_call_te
 
 
-def _compute_shape_prod(x: te.Tensor, axis: list[tirx.IntImm]) -> tirx.PrimExpr:
+def _compute_shape_prod(x: te.Tensor, axis: list[int]) -> tirx.PrimExpr:
     shape_prod = tirx.const(1, "int32")
-    axes = [_axis.value for _axis in axis] if axis is not None else range(0, len(x.shape))
+    axes = list(axis) if axis is not None else range(0, len(x.shape))
     for dim in axes:
         shape_prod = shape_prod * x.shape[dim]
     return shape_prod
 
 
-def _te_mean(x: te.Tensor, axis: list[tirx.IntImm], keepdims: bool) -> te.Tensor:
+def _te_mean(x: te.Tensor, axis: list[int], keepdims: bool) -> te.Tensor:
     shape_prod = _compute_shape_prod(x, axis)
     res_sum = topi.sum(x, axis, keepdims)
     return topi.divide(res_sum, shape_prod)
 
 
-def _te_variance(x: te.Tensor, axis: list[tirx.IntImm], keepdims: bool) -> te.Tensor:
+def _te_variance(x: te.Tensor, axis: list[int], keepdims: bool) -> te.Tensor:
     dev = x - _te_mean(x, axis, True)
     return _te_mean(dev * dev, axis, keepdims)
     # This version has better memory locality and performance
@@ -55,7 +55,7 @@ def _te_variance(x: te.Tensor, axis: list[tirx.IntImm], keepdims: bool) -> te.Te
 
 
 def _te_median(
-    x: te.Tensor, axis: list[tirx.IntImm], keepdims: bool
+    x: te.Tensor, axis: list[int], keepdims: bool
 ) -> te.Tensor | tuple[te.Tensor, te.Tensor]:
     # currently only supports one axis or no axis ~ same pytorch
     # todo: support multiple axis ~ same numpy
@@ -63,10 +63,10 @@ def _te_median(
     mid_index = (shape_prod - 1) // 2
 
     if axis is None or len(axis) == 0:
-        x = topi.reshape(x, [shape_prod.value])
+        x = topi.reshape(x, [shape_prod])
         ax = -1
     else:
-        ax = axis[0].value
+        ax = axis[0]
     index_sorted = topi.argsort(x, axis=ax, is_ascend=True, dtype="int64")
     x_sorted = topi.gather(x, axis=ax, indices=index_sorted)
 
@@ -97,7 +97,7 @@ def _mean(bb: BlockBuilder, call: Call) -> Expr:
 
 @register_legalize("relax.std")
 def _std(bb: BlockBuilder, call: Call) -> Expr:
-    def te_std(x: te.Tensor, axis: list[tirx.IntImm], keepdims: bool) -> te.Tensor:
+    def te_std(x: te.Tensor, axis: list[int], keepdims: bool) -> te.Tensor:
         return topi.sqrt(_te_variance(x, axis, keepdims))
 
     return bb.call_te(

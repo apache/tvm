@@ -99,7 +99,7 @@ using support::LinkNode;
 
 constexpr uint32_t kMaxFusedOps = 256;
 
-TVM_REGISTER_PASS_CONFIG_OPTION("relax.FuseOps.max_depth", Integer);
+TVM_REGISTER_PASS_CONFIG_OPTION("relax.FuseOps.max_depth", int64_t);
 
 class GraphCreator : public ExprVisitor {
  public:
@@ -151,8 +151,8 @@ class GraphCreator : public ExprVisitor {
       SetNodePattern(param_node, OpPatternKind::kOpaque);
       AddToPostDFSOrder(param_node, param.get());
     }
-    if (auto opt_num_input = func->GetAttr<Integer>(attr::kNumInput)) {
-      for (int i = static_cast<int>(opt_num_input.value()->value);
+    if (auto opt_num_input = func->GetAttr<int64_t>(attr::kNumInput)) {
+      for (int i = static_cast<int>(opt_num_input.value());
            i < static_cast<int>(func->params.size()); ++i) {
         input_params_.insert(func->params[i].get());
       }
@@ -211,9 +211,9 @@ class GraphCreator : public ExprVisitor {
       // Override args for call_tir
       args = Downcast<Tuple>(call->args[1])->fields;
 
-      ffi::Optional<Integer> opt_pattern = func->GetAttr<Integer>("op_pattern");
-      if (opt_pattern.defined()) {
-        pattern = static_cast<OpPatternKind>(Downcast<IntImm>(opt_pattern)->value);
+      ffi::Optional<int64_t> opt_pattern = func->GetAttr<int64_t>("op_pattern");
+      if (opt_pattern.has_value()) {
+        pattern = static_cast<OpPatternKind>(opt_pattern.value());
       } else {
         pattern = OpPatternKind::kOpaque;
       }
@@ -1443,8 +1443,8 @@ Pass FuseOps(int fuse_opt_level) {
   auto pass_func =  //
       [=](IRModule m, PassContext pc) {
         int opt_level = fuse_opt_level == -1 ? pc->opt_level : fuse_opt_level;
-        auto max_fuse_depth = pc->GetConfig("relax.FuseOps.max_depth", Integer(kMaxFusedOps));
-        return relax::FuseOps(m, opt_level, max_fuse_depth.value().IntValue());
+        auto max_fuse_depth = pc->GetConfig<int64_t>("relax.FuseOps.max_depth", kMaxFusedOps);
+        return relax::FuseOps(m, opt_level, static_cast<size_t>(max_fuse_depth.value()));
       };
   return CreateModulePass(/*pass_function=*/pass_func,  //
                           /*opt_level=*/0,              //

@@ -85,11 +85,11 @@ class LayoutConvertMutator : public ExprMutator {
       : desired_layouts_(desired_layouts), layout_cb_(layout_cb) {}
 
  private:
-  ffi::Array<Integer> LayoutToIntegers(const SLayout& layout) {
-    ffi::Array<Integer> ret;
+  ffi::Array<int64_t> LayoutToIntegers(const SLayout& layout) {
+    ffi::Array<int64_t> ret;
     LayoutDecision src = InitialLayoutDecision(layout.ndim());
     for (size_t i = 0; i < layout.ndim(); ++i) {
-      ret.push_back(Integer(src->layout.IndexOf(layout[i])));
+      ret.push_back(static_cast<int64_t>(src->layout.IndexOf(layout[i])));
     }
     return ret;
   }

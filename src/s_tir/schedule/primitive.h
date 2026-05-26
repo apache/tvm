@@ -56,9 +56,9 @@ std::vector<int32_t> SampleWithoutReplacement(LinearCongruentialEngine::TRandSta
  * \return The random variable sampled from candidates
  */
 TVM_DLL int64_t SampleCategorical(LinearCongruentialEngine::TRandState* rand_state,
-                                  const ffi::Array<Integer>& candidates,
+                                  const ffi::Array<int64_t>& candidates,
                                   const ffi::Array<FloatImm>& probs,
-                                  ffi::Optional<Integer>* decision);
+                                  ffi::Optional<int64_t>* decision);
 /*!
  * \brief Create a sampling function that does multinomial sampling.
  * \param rand_state The random state.
@@ -99,7 +99,7 @@ TVM_DLL std::vector<int64_t> SamplePerfectTile(LinearCongruentialEngine::TRandSt
 TVM_DLL std::vector<int64_t> SamplePerfectTile(LinearCongruentialEngine::TRandState* rand_state,  //
                                                const tirx::StmtSRef& loop_sref, int32_t n_split,
                                                int32_t max_innermost_factor,
-                                               ffi::Optional<ffi::Array<Integer>>* decision);
+                                               ffi::Optional<ffi::Array<int64_t>>* decision);
 /*!
  * \brief Sample the factors to a partitioned tile for a specific loop
  *
@@ -137,7 +137,7 @@ TVM_DLL std::vector<int64_t> SamplePartitionedTile(
 TVM_DLL std::vector<int64_t> SamplePartitionedTile(
     LinearCongruentialEngine::TRandState* rand_state,  //
     const tirx::StmtSRef& loop_sref, int32_t n_split, int32_t partition_pos,
-    int32_t innerpart_factor, ffi::Optional<ffi::Array<Integer>>* decision);
+    int32_t innerpart_factor, ffi::Optional<ffi::Array<int64_t>>* decision);
 /*!
  * \brief Sample a compute-at location of the given block
  * \param self The schedule state
@@ -149,7 +149,7 @@ TVM_DLL std::vector<int64_t> SamplePartitionedTile(
 TVM_DLL tirx::StmtSRef SampleComputeLocation(s_tir::ScheduleState self,
                                              LinearCongruentialEngine::TRandState* rand_state,
                                              const tirx::StmtSRef& block_sref,
-                                             ffi::Optional<Integer>* decision);
+                                             ffi::Optional<int64_t>* decision);
 
 /******** Schedule: Get blocks & loops ********/
 /*!
@@ -277,7 +277,7 @@ TVM_DLL void Reorder(ScheduleState self, const ffi::Array<StmtSRef>& ordered_loo
  * \param new_order The new itervar order.
  */
 TVM_DLL void ReorderBlockIterVar(ScheduleState self, const StmtSRef& block_sref,
-                                 const ffi::Array<Integer>& new_order);
+                                 const ffi::Array<int64_t>& new_order);
 
 /*!
  * \brief Create a new unit loop on top of the specific block or loop.
@@ -702,7 +702,7 @@ TVM_DLL StmtSRef DecomposePadding(ScheduleState self, const StmtSRef& block_sref
  * \param padding The padding for each block iter.
  */
 TVM_DLL void PadEinsum(ScheduleState self, const StmtSRef& block_sref,
-                       const ffi::Array<Integer>& padding);
+                       const ffi::Array<int64_t>& padding);
 /******** Schedule: Buffer transformation ********/
 /*!
  * \brief Compute the target buffer via rolling buffering.

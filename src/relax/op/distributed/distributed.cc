@@ -65,7 +65,7 @@ TVM_REGISTER_OP("relax.dist.annotate_sharding")
     .add_argument("input", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAnnotateSharding)
     .set_attr<FInferStructInfo>("dist.FInferStructInfo", InferStructInfoAnnotateSharding)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.dist.redistribute */
 
@@ -95,7 +95,7 @@ TVM_REGISTER_OP("relax.dist.redistribute")
     .set_num_inputs(1)
     .add_argument("input", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("dist.FInferStructInfo", InferDistStructInfoRedistribute)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 StructInfo InferStructInfoCallTIRLocalView(const Call& call, const BlockBuilder& ctx) {
   if (call->sinfo_args.size() != 1) {
@@ -117,7 +117,7 @@ TVM_REGISTER_OP("relax.dist.call_tir_local_view")
                   "ShapeExpr representing a tuple of ints to unpack during runtime. Omitted from "
                   "args if unused")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallTIRLocalView)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 Expr MakeCallTIRLocalView(Expr func, Tuple args,
                           ffi::Array<distributed::DTensorStructInfo> out_sinfo_list,
@@ -232,7 +232,7 @@ TVM_REGISTER_OP("relax.dist.redistribute_replica_to_shard")
     .set_attrs_type<ScatterCollectiveAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoRtoS)
     .set_attr<FInferStructInfo>("dist.FInferStructInfo", InferDistStructInfoRtoS)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 }  // namespace relax
 }  // namespace tvm

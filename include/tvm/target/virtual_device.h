@@ -295,8 +295,8 @@ class VirtualDevice : public ffi::ObjectRef {
   static VirtualDevice ForDeviceType(int device_type, int virtual_device_id = -1) {
     return ForDeviceType(static_cast<DLDeviceType>(device_type), virtual_device_id);
   }
-  static VirtualDevice ForDeviceType(const Integer& device_type, int virtual_device_id = -1) {
-    return ForDeviceType(static_cast<int>(device_type->value), virtual_device_id);
+  static VirtualDevice ForDeviceType(int64_t device_type, int virtual_device_id = -1) {
+    return ForDeviceType(static_cast<int>(device_type), virtual_device_id);
   }
 
   /*! \brief Returns the \p VirtualDevice for \p device. */

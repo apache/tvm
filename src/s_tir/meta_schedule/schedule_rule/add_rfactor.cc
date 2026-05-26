@@ -71,10 +71,10 @@ class AddRFactorNode : public ScheduleRuleNode {
 };
 
 ScheduleRule ScheduleRule::AddRFactor(int max_jobs_per_core,
-                                      ffi::Optional<Integer> max_innermost_factor) {
+                                      ffi::Optional<int64_t> max_innermost_factor) {
   ffi::ObjectPtr<AddRFactorNode> n = ffi::make_object<AddRFactorNode>();
   n->max_jobs_per_core = max_jobs_per_core;
-  n->max_innermost_factor = max_innermost_factor.value_or(Integer(-1))->value;
+  n->max_innermost_factor = max_innermost_factor.value_or(-1);
   n->max_parallel_extent_ = -1;
   n->max_parallel_basic_ = -1;
   return ScheduleRule(n);

@@ -110,9 +110,9 @@ class FunctionFrameNode : public SeqExprFrameNode {
    */
   ffi::Optional<tvm::relax::StructInfo> ret_struct_info;
   /*! \brief Whether the function is annotated as pure */
-  ffi::Optional<Bool> is_pure;
+  ffi::Optional<bool> is_pure;
   /*! \brief Whether the function is annotated as private */
-  ffi::Optional<Bool> is_private;
+  ffi::Optional<bool> is_private;
   /*! \brief The function attributes. */
   ffi::Map<ffi::String, Any> attrs;
   /*! \brief The block builder to create Relax function. */

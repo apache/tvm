@@ -151,7 +151,7 @@ class DictAttrs : public Attrs {
    * \code
    *
    *  void GetAttrExample(const BaseFunc& f) {
-   *    auto value = f->attrs.GetAttr<Integer>("AttrKey", 0);
+   *    auto value = f->attrs.GetAttr<int64_t>("AttrKey", 0);
    *  }
    *
    * \endcode
@@ -194,7 +194,7 @@ class DictAttrs : public Attrs {
    * \endcode
    */
   bool HasNonzeroAttr(const std::string& attr_key) const {
-    return GetAttr<Integer>(attr_key, 0).value_or(0).IntValue() != 0;
+    return GetAttr<int64_t>(attr_key, 0).value_or(0) != 0;
   }
 
   explicit DictAttrs(::tvm::ffi::ObjectPtr<DictAttrsNode> n) : Attrs(n) {}

@@ -112,7 +112,7 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
       // indices.shape = [batch1]
 
       // reordered_weight.shape = [infeatures, table_size, outfeatures]
-      auto reordered_weight = permute_dims(weights, ffi::Array{Integer(1), Integer(0), Integer(2)});
+      auto reordered_weight = permute_dims(weights, ffi::Array<int64_t>{1, 0, 2});
       // fused_weight.shape = [infeatures, table_size * outfeatures]
       auto fused_weight = reshape(reordered_weight,
                                   ShapeExpr({weight_shape[1], weight_shape[0] * weight_shape[2]}));

@@ -169,7 +169,7 @@ std::tuple<ArgTypes...> GetArgStructInfo(const Call& call, const BlockBuilder& c
       .add_argument("x", "Tensor", "The input tensor.")                                            \
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)                     \
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow) \
-      .set_attr<Bool>("FPurity", Bool(true))
+      .set_attr<bool>("FPurity", true)
 
 /*!
  * \brief Quick helper macro to expose a make-function to construct the operator.
@@ -412,7 +412,7 @@ ffi::Optional<ffi::Array<PrimExpr>> InferBinaryBroadcastShape(const Call& call,
  * \throw Throw exception if there exists out-of-range axis index or repetitive indices.
  */
 std::vector<int> NormalizeAxes(const Call& call, const BlockBuilder& ctx, int ndim,
-                               const ffi::Array<Integer>& axes);
+                               const ffi::Array<int64_t>& axes);
 
 /*!
  * \brief Convert the given axis to non-negative index. Meanwhile check if the axis is in range

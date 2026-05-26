@@ -593,8 +593,8 @@ static Pass HoistIfThenElseImpl() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     auto cfg = ctx->GetConfig<HoistIfThenElseConfig>("s_tir.HoistIfThenElse");
-    auto flag = f->GetAttr<Integer>("tirx.HoistIfThenElseExprWithBlock");
-    if (flag && flag.value().IntValue() == 1) {
+    auto flag = f->GetAttr<int64_t>("tirx.HoistIfThenElseExprWithBlock");
+    if (flag && flag.value() == 1) {
       HoistExpressionConfig config(static_cast<int>(HoistedConditionals::kUsingBlockVar) |
                                        static_cast<int>(HoistedConditionals::kIfElseExpr),
                                    static_cast<int>(HoistedLetBindings::kNone));

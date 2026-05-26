@@ -33,11 +33,11 @@ class AutoBindNode : public ScheduleRuleNode {
   // Inherited from ScheduleRuleNode
   void InitializeWithTuneContext(const TuneContext& context) final {
     TVM_FFI_CHECK(context->target.defined(), ValueError) << "target is not defined";
-    ffi::Optional<Integer> max_threads_per_block =
-        context->target.value()->GetAttr<Integer>("max_threads_per_block");
-    TVM_FFI_CHECK(max_threads_per_block.defined(), ValueError)
+    ffi::Optional<int64_t> max_threads_per_block =
+        context->target.value()->GetAttr<int64_t>("max_threads_per_block");
+    TVM_FFI_CHECK(max_threads_per_block.has_value(), ValueError)
         << "missing attribute `max_threads_per_block` in the target";
-    this->max_threads_per_block_ = max_threads_per_block.value().IntValue();
+    this->max_threads_per_block_ = max_threads_per_block.value();
   }
 
   // Inherited from ScheduleRuleNode
@@ -56,7 +56,7 @@ class AutoBindNode : public ScheduleRuleNode {
   /*! \brief The max number of threadblocks in the CUDA device */
   int64_t max_threadblocks_ = -1;
   /*! \brief thread_extents Candidates of thread axis extent. */
-  ffi::Array<Integer> thread_extents_;
+  ffi::Array<int64_t> thread_extents_;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -73,7 +73,7 @@ ffi::Array<s_tir::Schedule> AutoBindNode::Apply(const s_tir::Schedule& sch,
   return {sch};
 }
 
-ScheduleRule ScheduleRule::AutoBind(int max_threadblocks, ffi::Array<Integer> thread_extents,
+ScheduleRule ScheduleRule::AutoBind(int max_threadblocks, ffi::Array<int64_t> thread_extents,
                                     int max_threads_per_block) {
   ffi::ObjectPtr<AutoBindNode> n = ffi::make_object<AutoBindNode>();
   n->max_threadblocks_ = max_threadblocks;

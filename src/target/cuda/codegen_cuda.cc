@@ -153,11 +153,12 @@ void CodeGenCUDA::Init(bool output_ssa) {
 
 void CodeGenCUDA::PrintFunctionSignature(const ffi::String& function_name, const PrimFunc& func,
                                          std::ostream& os) {
-  auto calling_conv =
-      func->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(tvm::CallingConv::kDefault));
-  if (calling_conv == CallingConv::kDeviceKernelLaunch) {
+  int64_t calling_conv = func->GetAttr<int64_t>(tvm::attr::kCallingConv,
+                                                static_cast<int64_t>(tvm::CallingConv::kDefault))
+                             .value();
+  if (calling_conv == static_cast<int64_t>(CallingConv::kDeviceKernelLaunch)) {
     os << "extern \"C\" __global__ ";
-  } else if (calling_conv == CallingConv::kDefault) {
+  } else if (calling_conv == static_cast<int64_t>(CallingConv::kDefault)) {
     os << "extern \"C\" __device__ ";
   } else {
     TVM_FFI_THROW(InternalError) << "Unsupported calling convention for cuda codegen: "
@@ -2095,10 +2096,12 @@ ffi::Module BuildCUDA(IRModule mod, Target target) {
   for (auto [gvar, base_func] : mod->functions) {
     TVM_FFI_ICHECK(base_func->IsInstance<PrimFuncNode>()) << "CodeGenCUDA: Can only take PrimFunc";
     auto prim_func = Downcast<PrimFunc>(base_func);
-    auto calling_conv =
-        prim_func->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(tvm::CallingConv::kDefault));
-    TVM_FFI_ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch ||
-                   calling_conv == CallingConv::kDefault)
+    int64_t calling_conv = prim_func
+                               ->GetAttr<int64_t>(tvm::attr::kCallingConv,
+                                                  static_cast<int64_t>(tvm::CallingConv::kDefault))
+                               .value();
+    TVM_FFI_ICHECK(calling_conv == static_cast<int64_t>(CallingConv::kDeviceKernelLaunch) ||
+                   calling_conv == static_cast<int64_t>(CallingConv::kDefault))
         << "CodeGenCUDA: expect calling_conv equals CallingConv::kDeviceKernelLaunch or "
            "CallingConv::kDefault";
     functions.Set(gvar, prim_func);

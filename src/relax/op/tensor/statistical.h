@@ -43,7 +43,7 @@ namespace relax {
  *  2. be prepended with a prefix "relax." as the identifier string in the operator registry.
  */
 #define RELAX_REGISTER_STATISTICAL_OP_INTERFACE(OpName)                            \
-  Expr OpName(Expr x, ffi::Optional<ffi::Array<Integer>> axis, bool keepdims) {    \
+  Expr OpName(Expr x, ffi::Optional<ffi::Array<int64_t>> axis, bool keepdims) {    \
     ffi::ObjectPtr<StatisticalAttrs> attrs = ffi::make_object<StatisticalAttrs>(); \
     attrs->axis = std::move(axis);                                                 \
     attrs->keepdims = keepdims;                                                    \
@@ -58,7 +58,7 @@ namespace relax {
       .add_argument("x", "Tensor", "The input data tensor")                        \
       .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoStatistical)  \
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStatistical)    \
-      .set_attr<Bool>("FPurity", Bool(true))
+      .set_attr<bool>("FPurity", true)
 
 /*!
  * \brief Computes the maximum value of tensor elements over given axes.
@@ -68,22 +68,22 @@ namespace relax {
  * reduced are left in the result as dimensions with size one. With this option, the result will
  * broadcast correctly against the input tensor. \return The result after reduction.
  */
-Expr max(Expr x, ffi::Optional<ffi::Array<Integer>> axis, bool keepdims);
+Expr max(Expr x, ffi::Optional<ffi::Array<int64_t>> axis, bool keepdims);
 
 /*! \brief Computes the mean of tensor elements over given axes. */
-Expr mean(Expr x, ffi::Optional<ffi::Array<Integer>> axis, bool keepdims);
+Expr mean(Expr x, ffi::Optional<ffi::Array<int64_t>> axis, bool keepdims);
 
 /*! \brief Computes the min of tensor elements over given axes. */
-Expr min(Expr x, ffi::Optional<ffi::Array<Integer>> axis, bool keepdims);
+Expr min(Expr x, ffi::Optional<ffi::Array<int64_t>> axis, bool keepdims);
 
 /*! \brief Computes the product of tensor elements over given axes. */
-Expr prod(Expr x, ffi::Optional<ffi::Array<Integer>> axis, bool keepdims);
+Expr prod(Expr x, ffi::Optional<ffi::Array<int64_t>> axis, bool keepdims);
 
 /*! \brief Computes the standard deviation of tensor elements over given axes. */
-Expr std(Expr x, ffi::Optional<ffi::Array<Integer>> axis, bool keepdims);
+Expr std(Expr x, ffi::Optional<ffi::Array<int64_t>> axis, bool keepdims);
 
 /*! \brief Computes the sum of tensor elements over given axes. */
-Expr sum(Expr x, ffi::Optional<ffi::Array<Integer>> axis, bool keepdims);
+Expr sum(Expr x, ffi::Optional<ffi::Array<int64_t>> axis, bool keepdims);
 
 /*!
  * \brief Numpy style cumprod op. Return the cumulative inclusive product of the elements along
@@ -99,7 +99,7 @@ Expr sum(Expr x, ffi::Optional<ffi::Array<Integer>> axis, bool keepdims);
  * result.
  */
 Expr cumprod(Expr data, ffi::Optional<int64_t> axis = std::nullopt,
-             ffi::Optional<DataType> dtype = std::nullopt, Bool exclusive = Bool(false));
+             ffi::Optional<DataType> dtype = std::nullopt, bool exclusive = false);
 
 /*!
  * \brief Numpy style cumsum op. Return the cumulative inclusive sum of the elements along
@@ -114,13 +114,13 @@ Expr cumprod(Expr data, ffi::Optional<int64_t> axis = std::nullopt,
  * \return The computed result.
  */
 Expr cumsum(Expr data, ffi::Optional<int64_t> axis = std::nullopt,
-            ffi::Optional<DataType> dtype = std::nullopt, Bool exclusive = Bool(false));
+            ffi::Optional<DataType> dtype = std::nullopt, bool exclusive = false);
 
 /*! \brief Computes the variance of tensor elements over given axes. */
-Expr variance(Expr x, ffi::Optional<ffi::Array<Integer>> axis, bool keepdims);
+Expr variance(Expr x, ffi::Optional<ffi::Array<int64_t>> axis, bool keepdims);
 
 /*! \brief Computes the median of tensor elements over given axes. */
-Expr median(Expr x, ffi::Optional<ffi::Array<Integer>> axis, bool keepdims);
+Expr median(Expr x, ffi::Optional<ffi::Array<int64_t>> axis, bool keepdims);
 
 }  // namespace relax
 }  // namespace tvm

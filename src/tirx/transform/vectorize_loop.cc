@@ -79,9 +79,9 @@ inline PrimExpr BroadcastTo(PrimExpr e, int lanes, bool is_scalable) {
 
 bool EnableBufferLevelPredication(Target target) {
   transform::PassContext pass_ctx = transform::PassContext::Current();
-  ffi::Optional<Bool> enable_buffer_predication =
-      pass_ctx->GetConfig<Bool>("tirx.enable_buffer_level_predication");
-  if (enable_buffer_predication.defined()) {
+  ffi::Optional<bool> enable_buffer_predication =
+      pass_ctx->GetConfig<bool>("tirx.enable_buffer_level_predication");
+  if (enable_buffer_predication.has_value()) {
     return enable_buffer_predication.value();
   }
 

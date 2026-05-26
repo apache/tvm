@@ -113,7 +113,7 @@ class GradientSimplifier : private ExprMutator {
     if (ndim == 1) {
       return expr;
     }
-    auto axes = ffi::Array<Integer>();
+    auto axes = ffi::Array<int64_t>();
     for (int i = 0; i < ndim - 2; ++i) {
       axes.push_back(i);
     }

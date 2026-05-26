@@ -381,10 +381,10 @@ ffi::Module BuildCHost(IRModule mod, Target target) {
 
   CodeGenCHost cg;
   cg.Init(output_ssa, emit_asserts, emit_fwd_func_decl, target->str(), devices);
-  cg.SetConstantsByteAlignment(target->GetAttr<Integer>("constants-byte-alignment").value_or(16));
+  cg.SetConstantsByteAlignment(target->GetAttr<int64_t>("constants-byte-alignment").value_or(16));
 
   auto is_aot_executor_fn = [](const PrimFunc& func) -> bool {
-    return func->GetAttr<Bool>("runner_function", Bool(false)).value();
+    return func->GetAttr<bool>("runner_function", false).value();
   };
 
   std::vector<std::pair<GlobalVar, PrimFunc>> funcs;

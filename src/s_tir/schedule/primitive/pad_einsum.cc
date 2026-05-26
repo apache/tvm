@@ -69,7 +69,7 @@ ffi::Optional<ffi::Array<Var>> CheckTrivialBufferAccess(const BufferRegion& buff
 /*! \brief The schedule error class when the padding size is invalid. */
 class InvalidPaddingError : public ScheduleError {
  public:
-  InvalidPaddingError(IRModule mod, SBlock block, ffi::Array<Integer> padding)
+  InvalidPaddingError(IRModule mod, SBlock block, ffi::Array<int64_t> padding)
       : mod_(std::move(mod)), block_(std::move(block)), padding_(std::move(padding)) {}
   IRModule mod() const final { return mod_; }
   ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {block_}; }
@@ -83,12 +83,12 @@ class InvalidPaddingError : public ScheduleError {
     return os.str();
   }
 
-  static void Check(const ScheduleState& self, const SBlock& block, ffi::Array<Integer> padding) {
+  static void Check(const ScheduleState& self, const SBlock& block, ffi::Array<int64_t> padding) {
     if (padding.size() != block->iter_vars.size()) {
       throw InvalidPaddingError(self->mod, block, padding);
     }
-    for (const auto& pad : padding) {
-      if (pad->value <= 0) {
+    for (int64_t pad : padding) {
+      if (pad <= 0) {
         throw InvalidPaddingError(self->mod, block, padding);
       }
     }
@@ -97,7 +97,7 @@ class InvalidPaddingError : public ScheduleError {
  private:
   IRModule mod_;
   SBlock block_;
-  ffi::Array<Integer> padding_;
+  ffi::Array<int64_t> padding_;
 };
 
 /*! \brief The schedule error class when the block body is not an Einsum pattern. */
@@ -374,7 +374,7 @@ class PadEinsumBufferReplacer : public StmtExprMutator {
   ffi::Map<SBlock, SBlock> block_sref_reuse_;
 };
 
-void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const ffi::Array<Integer>& padding) {
+void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const ffi::Array<int64_t>& padding) {
   arith::Analyzer analyzer;
   // Step 1: Input checking and error handling
   const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
@@ -389,7 +389,8 @@ void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const ffi::Array<
   for (int i = 0, n = padding.size(); i < n; ++i) {
     const IterVar& iter = block->iter_vars[i];
     PrimExpr dom = iter->dom->extent;
-    PrimExpr new_dom = analyzer.Simplify(ceildiv(dom, padding[i]) * padding[i]);
+    PrimExpr pad_imm = IntImm(dom->dtype, padding[i]);
+    PrimExpr new_dom = analyzer.Simplify(ceildiv(dom, pad_imm) * pad_imm);
     if (!analyzer.CanProveEqual(new_dom, dom)) {
       replacer.iter2padded_extents.Set(iter->var, new_dom);
       if (const auto* loop_var = realize->iter_values[i].as<VarNode>()) {
@@ -495,12 +496,12 @@ struct PadEinsumTraits : public UnpackedInstTraits<PadEinsumTraits> {
   static constexpr size_t kNumAttrs = 1;
   static constexpr size_t kNumDecisions = 0;
 
-  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block, ffi::Array<Integer> padding) {
+  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block, ffi::Array<int64_t> padding) {
     sch->PadEinsum(block, padding);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block,
-                                      ffi::Array<Integer> padding) {
+                                      ffi::Array<int64_t> padding) {
     PythonAPICall py("pad_einsum");
     py.Input("block", block);
     py.Input("padding", padding);

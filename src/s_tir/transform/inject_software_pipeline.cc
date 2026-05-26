@@ -1141,9 +1141,9 @@ class PipelineInjector : private StmtExprMutator {
     }
 
     auto pipeline_stages =
-        Downcast<ffi::Array<Integer>>(op->annotations.at(s_tir::attr::software_pipeline_stage));
+        Downcast<ffi::Array<int64_t>>(op->annotations.at(s_tir::attr::software_pipeline_stage));
     auto pipeline_orders =
-        Downcast<ffi::Array<Integer>>(op->annotations.at(s_tir::attr::software_pipeline_order));
+        Downcast<ffi::Array<int64_t>>(op->annotations.at(s_tir::attr::software_pipeline_order));
     TVM_FFI_ICHECK_EQ(pipeline_stages.size(), original_order.size())
         << "PrimFunc " << global_symbol_ << " has original order "
         << original_order.Map([](const auto& block) { return block->name_hint; })
@@ -1155,8 +1155,8 @@ class PipelineInjector : private StmtExprMutator {
 
     std::unordered_set<int> pipeline_async_stages;
     if (auto annot = op->annotations.Get(s_tir::attr::software_pipeline_async_stages)) {
-      for (auto s : Downcast<ffi::Array<Integer>>(annot.value())) {
-        pipeline_async_stages.insert(s->value);
+      for (int64_t s : Downcast<ffi::Array<int64_t>>(annot.value())) {
+        pipeline_async_stages.insert(static_cast<int>(s));
       }
     }
 
@@ -1171,11 +1171,10 @@ class PipelineInjector : private StmtExprMutator {
     }
 
     for (size_t i = 0; i < pipeline_stages.size(); i++) {
-      int stage = static_cast<int>(pipeline_stages[i]->value);
+      int stage = static_cast<int>(pipeline_stages[i]);
       bool is_async = pipeline_async_stages.find(stage) != pipeline_async_stages.end();
       PipelineAnnotation stage_order{stage,
-                                     /*order=*/static_cast<int>(pipeline_orders[i]->value),
-                                     is_async};
+                                     /*order=*/static_cast<int>(pipeline_orders[i]), is_async};
       pipeline_info.emplace(original_order[i], stage_order);
     }
 

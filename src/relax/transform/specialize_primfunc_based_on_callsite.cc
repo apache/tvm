@@ -144,7 +144,7 @@ class SpecializeTIRCallArgs : ExprMutator {
       auto* ptr = buffer->data->type_annotation.as<PointerTypeNode>();
       TVM_FFI_ICHECK(ptr) << "Buffer Var's type annotation must be of PointerType";
     }
-    auto new_prim_func = WithAttr(new_pfunc, "scoped", Integer(1));
+    auto new_prim_func = WithAttr(new_pfunc, "scoped", static_cast<int64_t>(1));
     updates_->Add(gv, new_prim_func);
     return call;
   }

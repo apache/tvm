@@ -85,7 +85,7 @@ TVM_REGISTER_OP("relax.bucketize")
                   "1-D tensor, must contain a strictly increasing sequence, or the return value is "
                   "undefined.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoBucketize)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.where */
 Expr where(Expr condition, Expr x1, Expr x2) {
@@ -184,7 +184,7 @@ TVM_REGISTER_OP("relax.where")
     .add_argument("x1", "Tensor", "The first input tensor.")
     .add_argument("x2", "Tensor", "The second input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoWhere)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.argmax & relax.argmin */
 
@@ -262,7 +262,7 @@ StructInfo InferStructInfoArgmaxArgmin(const Call& call, const BlockBuilder& ctx
       .set_num_inputs(1)                                                             \
       .add_argument("x", "Tensor", "The input data tensor")                          \
       .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoArgmaxArgmin)   \
-      .set_attr<Bool>("FPurity", Bool(true));
+      .set_attr<bool>("FPurity", true);
 
 RELAX_REGISTER_ARGMAX_ARGMIN_OP(argmax);
 RELAX_REGISTER_ARGMAX_ARGMIN_OP(argmin);

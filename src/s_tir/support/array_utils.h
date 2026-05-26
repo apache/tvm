@@ -116,11 +116,11 @@ inline ffi::Array<T> AsArray(const std::list<T>& list) {
  * \param shape The shape tuple
  * \return An array of the shape tuple
  */
-inline ffi::Array<Integer> AsArray(const ffi::Shape& shape) {
-  ffi::Array<Integer> result;
+inline ffi::Array<int64_t> AsArray(const ffi::Shape& shape) {
+  ffi::Array<int64_t> result;
   result.reserve(shape->size);
   for (ffi::Shape::index_type i : shape) {
-    result.push_back(Integer(i));
+    result.push_back(i);
   }
   return result;
 }

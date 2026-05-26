@@ -261,7 +261,7 @@ inline ffi::Optional<TObjectRef> GetAnn(const TStmtNode* stmt, const ffi::String
   const ffi::Map<ffi::String, ffi::Any>* annotations = &stmt->annotations;
   for (const auto& ann : *annotations) {
     if (ann.first == ann_key) {
-      return Downcast<TObjectRef>(ann.second);
+      return ann.second.cast<TObjectRef>();
     }
   }
   return std::nullopt;
@@ -306,8 +306,8 @@ inline bool HasAnn(const StmtSRef& sref, const ffi::String& ann_key, const ffi::
  * \return Whether a Block/For has a specific pair of annotation key and values
  */
 inline bool HasAnn(const StmtSRef& sref, const ffi::String& ann_key, bool ann_val) {
-  ffi::Optional<Bool> result = GetAnn<Bool>(sref, ann_key);
-  return result.defined() && result.value() == ann_val;
+  ffi::Optional<bool> result = GetAnn<bool>(sref, ann_key);
+  return result.has_value() && result.value() == ann_val;
 }
 
 /********** Helper Functions for RuleAddRFactor and RuleCrossThreadReduction **********/

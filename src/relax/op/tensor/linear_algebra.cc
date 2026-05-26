@@ -171,7 +171,7 @@ TVM_REGISTER_OP("relax.matmul")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoMatmul)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
     .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionMatmul)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.einsum */
 
@@ -259,7 +259,7 @@ TVM_REGISTER_OP("relax.einsum")
     .set_num_inputs(1)
     .add_argument("operands", "Tensor", "The input tensors.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoEinsum)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.outer */
 
@@ -300,7 +300,7 @@ TVM_REGISTER_OP("relax.outer")
     .add_argument("x2", "Tensor", "The second input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoOuter)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 }  // namespace relax
 }  // namespace tvm

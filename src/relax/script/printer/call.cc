@@ -117,9 +117,9 @@ ffi::Optional<ExprDoc> PrintCallTIRDPSPacked(const relax::Call& n, const AccessP
     kwargs_keys.push_back("inplace_indices");
     ffi::Array<ExprDoc> index_fields;
     if (auto* call_tir_inplace_attrs = n->attrs.as<relax::CallTIRInplaceAttrs>()) {
-      for (auto inplace_index : call_tir_inplace_attrs->inplace_indices) {
+      for (int64_t inplace_index : call_tir_inplace_attrs->inplace_indices) {
         index_fields.push_back(
-            LiteralDoc::Int(inplace_index.IntValue(), n_p->Attr("attrs")->Attr("inplace_indices")));
+            LiteralDoc::Int(inplace_index, n_p->Attr("attrs")->Attr("inplace_indices")));
       }
     }
     kwargs_values.push_back(ListDoc(index_fields));

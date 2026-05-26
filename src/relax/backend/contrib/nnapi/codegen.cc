@@ -58,7 +58,7 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
     if (permute_dims_attr->axes) {
       ffi::Array<int64_t> axes;
       for (auto axis : permute_dims_attr->axes.value()) {
-        axes.push_back(axis.IntValue());
+        axes.push_back(axis);
       }
       node_->SetAttr("axes", std::move(axes));
     }
@@ -78,7 +78,7 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
     {
       ffi::Array<int64_t> axis;
       for (auto dim : mean_attrs->axis.value()) {
-        axis.push_back(dim->value);
+        axis.push_back(dim);
       }
       node_->SetAttr("axis", std::move(axis));
     }

@@ -175,7 +175,7 @@ Pass LowerAsyncDMA() {
     auto fptr = f.CopyOnWrite();
     arith::Analyzer analyzer;
     bool dma_bypass_cache =
-        ctx->GetConfig<Bool>("tirx.experimental_dma_bypass_cache", Bool(false)).value();
+        ctx->GetConfig<bool>("tirx.experimental_dma_bypass_cache", false).value();
     fptr->body = AsyncDMALowerer(dma_bypass_cache, &analyzer)(std::move(fptr->body));
     return f;
   };

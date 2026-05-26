@@ -742,11 +742,11 @@ class TensorizeInfoNode : public ffi::Object {
   /*! \brief Maps loops in a target block to the ones in an intrinsic description */
   ffi::Map<tirx::StmtSRef, tirx::For> loop_map;
   /*! \brief Maps loops in an intrinsic description to its index, outer to inner */
-  ffi::Map<tirx::For, Integer> desc_loop_indexer;
+  ffi::Map<tirx::For, int64_t> desc_loop_indexer;
   /*! \brief Optional padded extents of the block iters when padding is needed to match the
    * intrinsic description
    */
-  ffi::Optional<ffi::Array<Integer>> block_iter_paddings;
+  ffi::Optional<ffi::Array<int64_t>> block_iter_paddings;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;

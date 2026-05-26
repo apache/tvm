@@ -353,7 +353,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
       Stmt visited_body = StmtExprMutator::VisitStmt(op->body);
       ffi::Map<ffi::String, ffi::Any> annotations;
       if (has_volatile_alloc_) {
-        annotations.Set(tirx::attr::kVolatile, Bool(true));
+        annotations.Set(tirx::attr::kVolatile, true);
       }
       Stmt alloc_stmt = AllocBuffer(merged_buf, annotations);
       Stmt new_body = SeqStmt::Flatten(alloc_stmt, visited_body);
@@ -738,7 +738,7 @@ namespace transform {
 
 Pass MergeSharedMemoryAllocations() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
-    bool merge_static_smem = ctx->GetConfig<Bool>("tirx.merge_static_smem", Bool(false)).value();
+    bool merge_static_smem = ctx->GetConfig<bool>("tirx.merge_static_smem", false).value();
     auto* n = f.CopyOnWrite();
     n->body = s_tir::MergeSharedMemoryAllocations(std::move(n->body), merge_static_smem);
     return f;

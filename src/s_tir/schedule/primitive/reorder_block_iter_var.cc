@@ -32,7 +32,7 @@ using namespace tvm::tirx;
  */
 class InvalidReorderIndex : public ScheduleError {
  public:
-  explicit InvalidReorderIndex(IRModule mod, SBlock block, ffi::Array<Integer> new_order)
+  explicit InvalidReorderIndex(IRModule mod, SBlock block, ffi::Array<int64_t> new_order)
       : mod_(mod), block_(block), new_order_(new_order) {}
   IRModule mod() const final { return mod_; }
   ffi::String FastErrorString() const final {
@@ -49,7 +49,7 @@ class InvalidReorderIndex : public ScheduleError {
  private:
   IRModule mod_;
   SBlock block_;
-  ffi::Array<Integer> new_order_;
+  ffi::Array<int64_t> new_order_;
 };
 
 class BlockIterVarRewriter : public StmtMutator {
@@ -85,7 +85,7 @@ class BlockIterVarRewriter : public StmtMutator {
 };
 
 void ReorderBlockIterVar(ScheduleState self, const StmtSRef& block_sref,
-                         const ffi::Array<Integer>& new_order) {
+                         const ffi::Array<int64_t>& new_order) {
   const SBlockNode* block_n = TVM_SREF_TO_SBLOCK(block_sref);
   std::vector<int> new_order_vec;
   for (const Integer& x : new_order) {
@@ -132,12 +132,12 @@ struct ReorderBlockIterVarTraits : public UnpackedInstTraits<ReorderBlockIterVar
   static constexpr size_t kNumAttrs = 0;
   static constexpr size_t kNumDecisions = 0;
 
-  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block, ffi::Array<Integer> new_order) {
+  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block, ffi::Array<int64_t> new_order) {
     sch->ReorderBlockIterVar(block, new_order);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block,
-                                      ffi::Array<Integer> new_order) {
+                                      ffi::Array<int64_t> new_order) {
     PythonAPICall py("reorder_block_iter_var");
     py.Input("block", block);
     py.Input("new_order", new_order);
