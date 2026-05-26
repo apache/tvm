@@ -36,63 +36,35 @@ SPIRVSupport::SPIRVSupport(tvm::Target target) {
   TVM_FFI_ICHECK(device_type == kDLVulkan || device_type == kDLOpenCL || device_type == kDLWebGPU)
       << "Unsupported device type for SPIRV codegen:" << device_type;
 
-  if (target->GetAttr<Integer>("vulkan_api_version")) {
-    vulkan_api_version = target->GetAttr<Integer>("vulkan_api_version").value().IntValue();
-  }
-
-  if (target->GetAttr<Integer>("supported_subgroup_operations")) {
-    supported_subgroup_operations =
-        target->GetAttr<Integer>("supported_subgroup_operations").value().IntValue();
-  }
-  if (target->GetAttr<Integer>("max_push_constants_size")) {
-    max_push_constants_size =
-        target->GetAttr<Integer>("max_push_constants_size").value().IntValue();
-  }
-  if (target->GetAttr<Integer>("max_uniform_buffer_range")) {
-    max_uniform_buffer_range =
-        target->GetAttr<Integer>("max_uniform_buffer_range").value().IntValue();
-  }
-  if (target->GetAttr<Integer>("max_storage_buffer_range")) {
-    max_storage_buffer_range =
-        target->GetAttr<Integer>("max_storage_buffer_range").value().IntValue();
-  }
-  if (target->GetAttr<Integer>("max_shared_memory_per_block")) {
-    max_shared_memory_per_block =
-        target->GetAttr<Integer>("max_shared_memory_per_block").value().IntValue();
-  }
-  if (target->GetAttr<Integer>("max_per_stage_descriptor_storage_buffer")) {
-    max_per_stage_descriptor_storage_buffers =
-        target->GetAttr<Integer>("max_per_stage_descriptor_storage_buffer").value().IntValue();
-  }
-  if (target->GetAttr<Bool>("supports_storage_buffer_storage_class")) {
-    supports_storage_buffer_storage_class =
-        target->GetAttr<Bool>("supports_storage_buffer_storage_class").value();
-  }
-  if (target->GetAttr<Bool>("supports_8bit_buffer")) {
-    supports_storage_buffer_8bit_access = target->GetAttr<Bool>("supports_8bit_buffer").value();
-  }
-  if (target->GetAttr<Bool>("supports_16bit_buffer")) {
-    supports_storage_buffer_16bit_access = target->GetAttr<Bool>("supports_16bit_buffer").value();
-  }
-  if (target->GetAttr<Bool>("supports_float16")) {
-    supports_float16 = target->GetAttr<Bool>("supports_float16").value();
-  }
-  if (target->GetAttr<Bool>("supports_float64")) {
-    supports_float64 = target->GetAttr<Bool>("supports_float64").value();
-  }
-  if (target->GetAttr<Bool>("supports_int8")) {
-    supports_int8 = target->GetAttr<Bool>("supports_int8").value();
-  }
-  if (target->GetAttr<Bool>("supports_int16")) {
-    supports_int16 = target->GetAttr<Bool>("supports_int16").value();
-  }
-  if (target->GetAttr<Bool>("supports_int64")) {
-    supports_int64 = target->GetAttr<Bool>("supports_int64").value();
-  }
+  vulkan_api_version = target->GetAttr<int64_t>("vulkan_api_version").value_or(vulkan_api_version);
+  supported_subgroup_operations = target->GetAttr<int64_t>("supported_subgroup_operations")
+                                      .value_or(supported_subgroup_operations);
+  max_push_constants_size =
+      target->GetAttr<int64_t>("max_push_constants_size").value_or(max_push_constants_size);
+  max_uniform_buffer_range =
+      target->GetAttr<int64_t>("max_uniform_buffer_range").value_or(max_uniform_buffer_range);
+  max_storage_buffer_range =
+      target->GetAttr<int64_t>("max_storage_buffer_range").value_or(max_storage_buffer_range);
+  max_shared_memory_per_block =
+      target->GetAttr<int64_t>("max_shared_memory_per_block").value_or(max_shared_memory_per_block);
+  max_per_stage_descriptor_storage_buffers =
+      target->GetAttr<int64_t>("max_per_stage_descriptor_storage_buffer")
+          .value_or(max_per_stage_descriptor_storage_buffers);
+  supports_storage_buffer_storage_class =
+      target->GetAttr<bool>("supports_storage_buffer_storage_class")
+          .value_or(supports_storage_buffer_storage_class);
+  supports_storage_buffer_8bit_access =
+      target->GetAttr<bool>("supports_8bit_buffer").value_or(supports_storage_buffer_8bit_access);
+  supports_storage_buffer_16bit_access =
+      target->GetAttr<bool>("supports_16bit_buffer").value_or(supports_storage_buffer_16bit_access);
+  supports_float16 = target->GetAttr<bool>("supports_float16").value_or(supports_float16);
+  supports_float64 = target->GetAttr<bool>("supports_float64").value_or(supports_float64);
+  supports_int8 = target->GetAttr<bool>("supports_int8").value_or(supports_int8);
+  supports_int16 = target->GetAttr<bool>("supports_int16").value_or(supports_int16);
+  supports_int64 = target->GetAttr<bool>("supports_int64").value_or(supports_int64);
   // Check whether integer dot product is enabled in the target string.
-  if (target->GetAttr<Bool>("supports_integer_dot_product")) {
-    supports_integer_dot_product = target->GetAttr<Bool>("supports_integer_dot_product").value();
-  }
+  supports_integer_dot_product =
+      target->GetAttr<bool>("supports_integer_dot_product").value_or(supports_integer_dot_product);
   // Check whether integer dot product is enabled in mattr.
   if (const ffi::Optional<ffi::Array<ffi::String>>& v =
           target->GetAttr<ffi::Array<ffi::String>>("mattr")) {
@@ -104,9 +76,8 @@ SPIRVSupport::SPIRVSupport(tvm::Target target) {
     }
   }
   // Check whether cooperative matrix is enabled in the target string.
-  if (target->GetAttr<Bool>("supports_cooperative_matrix")) {
-    supports_cooperative_matrix = target->GetAttr<Bool>("supports_cooperative_matrix").value();
-  }
+  supports_cooperative_matrix =
+      target->GetAttr<bool>("supports_cooperative_matrix").value_or(supports_cooperative_matrix);
 }
 
 }  // namespace codegen

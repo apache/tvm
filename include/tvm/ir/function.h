@@ -172,7 +172,7 @@ class BaseFuncNode : public RelaxExprNode {
    * \code
    *
    *  void GetAttrExample(const BaseFunc& f) {
-   *    auto value = f->GetAttr<Integer>("AttrKey", 0);
+   *    auto value = f->GetAttr<int64_t>("AttrKey", 0);
    *  }
    *
    * \endcode

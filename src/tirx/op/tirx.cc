@@ -44,8 +44,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   TVM_REGISTER_OP("tirx." #OpName)                  \
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String(#OpName), /*plevel=*/9)
 
-#define TIRX_DEFINE_OP(OpName) \
-  TIRX_DEFINE_BUILTIN_FUNC(OpName).set_attr<Bool>("TIsTIRxOp", Bool(true))
+#define TIRX_DEFINE_OP(OpName) TIRX_DEFINE_BUILTIN_FUNC(OpName).set_attr<bool>("TIsTIRxOp", true)
 
 /********************* ScheduleContext **********************/
 template <typename Key, typename Value>
@@ -185,8 +184,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 /********************* Dispatch Ops **********************/
-#define TIRX_DEFINE_DISPATCH_OP(OpName) \
-  TIRX_DEFINE_OP(OpName).set_attr<Bool>("TIsDispatchOp", Bool(true))
+#define TIRX_DEFINE_DISPATCH_OP(OpName) TIRX_DEFINE_OP(OpName).set_attr<bool>("TIsDispatchOp", true)
 
 TIRX_DEFINE_DISPATCH_OP(zero);
 TIRX_DEFINE_DISPATCH_OP(sqrt);
@@ -217,13 +215,12 @@ TIRX_DEFINE_DISPATCH_OP(silu);
 TIRX_DEFINE_DISPATCH_OP(permute_dims);
 
 /********************* Compose Ops **********************/
-#define TIRX_DEFINE_COMPOSE_OP(OpName) \
-  TIRX_DEFINE_OP(OpName).set_attr<Bool>("TIsComposeOp", Bool(true))
+#define TIRX_DEFINE_COMPOSE_OP(OpName) TIRX_DEFINE_OP(OpName).set_attr<bool>("TIsComposeOp", true)
 
 TIRX_DEFINE_COMPOSE_OP(compose_op);
 
 /********************* Async Ops **********************/
-#define TIRX_DEFINE_ASYNC_OP(OpName) TIRX_DEFINE_OP(OpName).set_attr<Bool>("TIsAsyncOp", Bool(true))
+#define TIRX_DEFINE_ASYNC_OP(OpName) TIRX_DEFINE_OP(OpName).set_attr<bool>("TIsAsyncOp", true)
 
 TIRX_DEFINE_ASYNC_OP(copy_async);
 TIRX_DEFINE_ASYNC_OP(gemm_async);

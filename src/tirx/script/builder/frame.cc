@@ -106,10 +106,10 @@ void PrimFuncFrameNode::ExitWithScope() {
     insert_attr(tvm::attr::kGlobalSymbol, name.value());
   }
   if (s_tir) {
-    insert_attr(tvm::attr::kSTir, tvm::Bool(true));
+    insert_attr(tvm::attr::kSTir, true);
   }
   if (persistent) {
-    insert_attr(tvm::tirx::attr::kPersistentKernel, tvm::Bool(true));
+    insert_attr(tvm::tirx::attr::kPersistentKernel, true);
   }
   // s_tir-mode normalization: drop stale default layouts (see comment on
   // STirBufferLayoutNormalizer above) and rewrite body references coherently.
