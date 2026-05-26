@@ -21,7 +21,6 @@ import enum
 from collections.abc import Callable
 
 from ... import ffi as _ffi
-from ... import ir as _ir
 from . import _ffi_api
 from . import function_pass as _fpass
 
@@ -107,7 +106,7 @@ def PointerValueTypeRewrite():
 
 
 @_ffi.register_object("tirx.transform.UnrollLoopConfig")
-class UnrollLoopConfig(_ir.Attrs):
+class UnrollLoopConfig(_ffi.Object):
     """Config for unroll loop pass"""
 
 
@@ -125,7 +124,7 @@ def UnrollLoop():
 
 
 @_ffi.register_object("tirx.transform.RemoveNoOpConfig")
-class RemoveNoOpConfig(_ir.Attrs):
+class RemoveNoOpConfig(_ffi.Object):
     """Config for remove no op pass"""
 
 
@@ -212,7 +211,7 @@ def CommonSubexprElim():
 
 
 @_ffi.register_object("tirx.transform.SimplifyConfig")
-class SimplifyConfig(_ir.Attrs):
+class SimplifyConfig(_ffi.Object):
     """Config for simplify pass"""
 
 
@@ -429,7 +428,7 @@ def VerifyMemory():
 
 
 @_ffi.register_object("s_tir.transform.HoistIfThenElseConfig")
-class HoistIfThenElseConfig(_ir.Attrs):
+class HoistIfThenElseConfig(_ffi.Object):
     """Config for hoist if then else pass"""
 
 
@@ -483,7 +482,7 @@ class HoistedLetBindings(enum.Flag):
 
 
 @_ffi.register_object("s_tir.transform.HoistExpressionConfig")
-class HoistExpressionConfig(_ir.Attrs):
+class HoistExpressionConfig(_ffi.Object):
     """Config for hoist expression pass"""
 
 

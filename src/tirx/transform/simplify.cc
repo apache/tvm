@@ -44,7 +44,7 @@ namespace arith {
 
 using namespace tirx;
 
-struct SimplifyConfigNode : public AttrsNodeReflAdapter<SimplifyConfigNode> {
+struct SimplifyConfigNode : public ffi::Object {
   bool transitively_prove_inequalities;
   bool propagate_knowns_to_prove_conditional;
   bool propagate_knowns_to_simplify_expressions;
@@ -78,7 +78,7 @@ struct SimplifyConfigNode : public AttrsNodeReflAdapter<SimplifyConfigNode> {
                 refl::DefaultValue(false));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.transform.SimplifyConfig", SimplifyConfigNode,
-                                    BaseAttrsNode);
+                                    ffi::Object);
 
   RewriteSimplifier::Extension GetEnabledExtensions() const {
     RewriteSimplifier::Extension flags = RewriteSimplifier::kNone;
@@ -97,10 +97,14 @@ struct SimplifyConfigNode : public AttrsNodeReflAdapter<SimplifyConfigNode> {
   }
 };
 
-class SimplifyConfig : public Attrs {
+class SimplifyConfig : public ffi::ObjectRef {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SimplifyConfig, Attrs, SimplifyConfigNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SimplifyConfig, ffi::ObjectRef, SimplifyConfigNode);
 };
+
+static SimplifyConfig MakeDefaultSimplifyConfig() {
+  return AttrsWithDefaultValues<SimplifyConfig>();
+}
 
 TVM_FFI_STATIC_INIT_BLOCK() { SimplifyConfigNode::RegisterReflection(); }
 
@@ -110,7 +114,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
  public:
   static PrimFunc Apply(PrimFunc func, Analyzer* analyzer,
                         ffi::Optional<SimplifyConfig> config_opt = std::nullopt) {
-    auto config = config_opt.value_or(AttrsWithDefaultValues<arith::SimplifyConfig>());
+    auto config = config_opt.value_or(MakeDefaultSimplifyConfig());
     analyzer->rewrite_simplify.SetEnabledExtensions(config->GetEnabledExtensions());
 
     std::optional<ControlFlowGraph> touch_pattern = std::nullopt;
