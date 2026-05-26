@@ -45,15 +45,10 @@ namespace tvm {
 
 /*!
  * \brief Base class of all attribute class
- * \note Do not subclass AttrBaseNode directly,
- *       subclass AttrsNode instead.
- * \sa AttrsNode
+ * \sa Attrs
  */
 class BaseAttrsNode : public ffi::Object {
  public:
-  /*! \brief virtual destructor */
-  virtual ~BaseAttrsNode() {}
-
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   TVM_FFI_DECLARE_OBJECT_INFO("ir.Attrs", BaseAttrsNode, ffi::Object);
 };
@@ -98,10 +93,14 @@ class DictAttrs : public Attrs {
    */
   explicit DictAttrs(ffi::UnsafeInit tag) : Attrs(tag) {}
   /*!
-   * \brief Consruct a Attrs backed by DictAttrsNode.
+   * \brief Construct a Attrs backed by DictAttrsNode.
    * \param dict The attributes.
    */
-  TVM_DLL explicit DictAttrs(ffi::Map<ffi::String, Any> dict = {});
+  explicit DictAttrs(ffi::Map<ffi::String, Any> dict = {}) {
+    ffi::ObjectPtr<DictAttrsNode> n = ffi::make_object<DictAttrsNode>();
+    n->dict = std::move(dict);
+    data_ = std::move(n);
+  }
 
   // Utils for accessing attributes
   // This needs to be on DictAttrs, not DictAttrsNode because we return the default

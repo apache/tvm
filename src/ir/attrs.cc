@@ -50,12 +50,6 @@ DictAttrs WithoutAttr(DictAttrs attrs, const std::string& key) {
   return attrs;
 }
 
-DictAttrs::DictAttrs(ffi::Map<ffi::String, Any> dict) {
-  ffi::ObjectPtr<DictAttrsNode> n = ffi::make_object<DictAttrsNode>();
-  n->dict = std::move(dict);
-  data_ = std::move(n);
-}
-
 TVM_FFI_STATIC_INIT_BLOCK() { tvm::ffi::reflection::ObjectDef<BaseAttrsNode>(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
