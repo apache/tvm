@@ -22,6 +22,8 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/container/variant.h>
+#include <tvm/ffi/extra/base64.h>
+#include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -29,6 +31,7 @@
 #include <tvm/ir/global_var_supply.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/type_functor.h>
+#include <tvm/target/codegen.h>
 
 #include <algorithm>
 #include <fstream>
@@ -230,6 +233,18 @@ IRModule IRModule::FromExpr(const RelaxExpr& expr,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  refl::TypeAttrDef<ffi::ModuleObj>()
+      .def("__data_to_json__",
+           [](const ffi::ModuleObj* node) {
+             std::string bytes = codegen::SerializeModuleToBytes(ffi::GetRef<ffi::Module>(node),
+                                                                 /*export_dso*/ false);
+             return ffi::Base64Encode(ffi::Bytes(bytes));
+           })
+      .def("__data_from_json__", [](const ffi::String& base64_bytes) {
+        ffi::Bytes bytes = ffi::Base64Decode(base64_bytes);
+        ffi::Module rtmod = codegen::DeserializeModuleFromBytes(bytes.operator std::string());
+        return rtmod;
+      });
   refl::GlobalDef()
       .def("ir.IRModule",
            [](tvm::ffi::Map<GlobalVar, BaseFunc> funcs, tvm::ffi::ObjectRef attrs,
