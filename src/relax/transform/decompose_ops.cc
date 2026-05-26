@@ -253,8 +253,7 @@ Pass ApplyDecomposeToFunction(Pass pass, ffi::String func_name) {
     IRModule subset;
 
     for (auto [gvar, func] : mod->functions) {
-      std::string name = gvar->name_hint;
-      if (name == std::string(func_name)) {
+      if (gvar->name_hint == func_name) {
         if (!func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value()) {
           // Mark internal functions as externally-exposed so that
           // call-tracing transforms inside the pass do not remove them.
@@ -264,7 +263,7 @@ Pass ApplyDecomposeToFunction(Pass pass, ffi::String func_name) {
       } else {
         // Replace non-target functions with stubs to keep references intact.
         keep_original_version.insert(gvar->name_hint);
-        func = relax::ExternFunc("dummy_" + name);
+        func = relax::ExternFunc("dummy_" + std::string(gvar->name_hint));
         func->struct_info_ = gvar->struct_info_;
       }
       subset->Add(gvar, func);
@@ -291,9 +290,7 @@ Pass ApplyDecomposeToFunction(Pass pass, ffi::String func_name) {
     return mod;
   };
 
-  auto pass_name =
-      static_cast<const std::stringstream&>(std::stringstream() << "ApplyDecomposeTo" << func_name)
-          .str();
+  std::string pass_name = "ApplyDecomposeTo" + std::string(func_name);
   return CreateModulePass(pass_func, 0, pass_name, {});
 }
 
