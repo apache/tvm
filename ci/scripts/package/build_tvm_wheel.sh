@@ -212,9 +212,10 @@ inject_cuda_runtime() {
 
 auditwheel_excludes() {
   local cuda_lib="$1"
-  local seen=" libtvm_runtime_cuda.so libcuda.so.1 libcuda.so libcudart.so.11.0 libcudart.so.12 libcudart.so.12.0 "
+  local seen=" libtvm_runtime_cuda.so libtvm_ffi.so libcuda.so.1 libcuda.so libcudart.so.11.0 libcudart.so.12 libcudart.so.12.0 "
 
   printf '%s\n' "--exclude" "libtvm_runtime_cuda.so"
+  printf '%s\n' "--exclude" "libtvm_ffi.so"
   printf '%s\n' "--exclude" "libcuda.so.1"
   printf '%s\n' "--exclude" "libcuda.so"
   printf '%s\n' "--exclude" "libcudart.so.11.0"
@@ -278,7 +279,11 @@ repair_wheel() {
     Darwin)
       require_cmd delocate-wheel
       echo "Repairing macOS wheel with delocate"
-      delocate-wheel --ignore-missing-dependencies -w "$TVM_WHEELHOUSE" -v "$injected_wheel"
+      delocate-wheel \
+        --ignore-missing-dependencies \
+        --exclude libtvm_ffi.dylib \
+        -w "$TVM_WHEELHOUSE" \
+        -v "$injected_wheel"
       ;;
     *)
       cp "$injected_wheel" "$TVM_WHEELHOUSE/"
