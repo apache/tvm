@@ -85,6 +85,20 @@ class DictAttrsNode : public AttrsNode {
 /*!
  * \brief Managed reference to DictAttrsNode
  * \sa DictAttrsNode.
+ *
+ * \note DictAttrs is NOTNULLABLE: every instance must hold a backing
+ *       DictAttrsNode. The class enforces this end-to-end by:
+ *       - the default constructor (no args) allocating an empty backing,
+ *       - the copy/move ctors and assignments leaving the moved-from
+ *         instance in a defined-but-empty state rather than null,
+ *       - the FFI type traits rejecting None at deserialization boundaries
+ *         (since `_type_is_nullable == false`), and
+ *       - the FFI lambda for ``ir.IRModule`` explicitly normalizing a
+ *         missing/None attrs argument to ``DictAttrs()`` before forwarding
+ *         to the C++ constructor.
+ *       Callers (including third-party code via templates like ``WithAttr``)
+ *       can therefore rely on ``attrs->dict`` being safe to dereference
+ *       without a ``.defined()`` guard.
  */
 class DictAttrs : public Attrs {
  public:
@@ -99,6 +113,34 @@ class DictAttrs : public Attrs {
     n->dict = std::move(dict);
     data_ = std::move(n);
   }
+
+  /*!
+   * \brief Move constructor that leaves the source in a defined-but-empty
+   *        state rather than null, preserving the NOTNULLABLE invariant
+   *        even after `std::move`.
+   */
+  DictAttrs(DictAttrs&& other) noexcept : Attrs(ffi::UnsafeInit{}) {
+    data_ = std::move(other.data_);
+    other.data_ = ffi::make_object<DictAttrsNode>();
+  }
+
+  /*!
+   * \brief Move assignment that leaves the source in a defined-but-empty
+   *        state rather than null, preserving the NOTNULLABLE invariant
+   *        even after `std::move`.
+   */
+  DictAttrs& operator=(DictAttrs&& other) noexcept {
+    if (this != &other) {
+      data_ = std::move(other.data_);
+      other.data_ = ffi::make_object<DictAttrsNode>();
+    }
+    return *this;
+  }
+
+  // Explicit copy ctor/assign defaults. Declaring the move members above
+  // would otherwise suppress the implicit copy members.
+  DictAttrs(const DictAttrs& other) = default;
+  DictAttrs& operator=(const DictAttrs& other) = default;
 
   // Utils for accessing attributes
   /*!
@@ -160,7 +202,16 @@ class DictAttrs : public Attrs {
     return GetAttr<int64_t>(attr_key, 0).value_or(0) != 0;
   }
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DictAttrs, Attrs, DictAttrsNode);
+  // Inline-expand TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE here, minus
+  // the default copy/move it normally injects (we define our own move members
+  // above so the moved-from instance stays defined-but-empty).
+  explicit DictAttrs(::tvm::ffi::UnsafeInit tag) : Attrs(tag) {}
+  using __PtrType =
+      std::conditional_t<DictAttrsNode::_type_mutable, DictAttrsNode*, const DictAttrsNode*>;
+  __PtrType operator->() const { return static_cast<__PtrType>(data_.get()); }
+  __PtrType get() const { return static_cast<__PtrType>(data_.get()); }
+  static constexpr bool _type_is_nullable = false;
+  using ContainerType = DictAttrsNode;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(DictAttrsNode);
 };
 
@@ -196,6 +247,9 @@ inline TFunc WithAttr(TFunc input, const std::string& attr_key, Any attr_value) 
   using TNode = typename TFunc::ContainerType;
   static_assert(TNode::_type_final, "Can only operate on the leaf nodes");
   TNode* node = input.CopyOnWrite();
+  // node->attrs is NOTNULLABLE by contract, but defend against a caller
+  // that left a moved-from DictAttrs in place by re-initializing here.
+  if (!node->attrs.defined()) node->attrs = DictAttrs();
   node->attrs.CopyOnWrite()->dict.Set(attr_key, std::move(attr_value));
   return input;
 }
@@ -216,6 +270,9 @@ inline TFunc WithAttrs(TFunc input, ffi::Map<ffi::String, Any> attrs) {
   static_assert(TNode::_type_final, "Can only operate on the leaf nodes");
   if (attrs.empty()) return input;
   TNode* node = input.CopyOnWrite();
+  // node->attrs is NOTNULLABLE by contract, but defend against a caller
+  // that left a moved-from DictAttrs in place by re-initializing here.
+  if (!node->attrs.defined()) node->attrs = DictAttrs();
   auto* dict_node = node->attrs.CopyOnWrite();
   for (const auto& [k, v] : attrs) {
     dict_node->dict.Set(k, v);
@@ -254,6 +311,13 @@ inline TFunc WithoutAttr(TFunc input, const std::string& attr_key) {
   using TNode = typename TFunc::ContainerType;
   static_assert(TNode::_type_final, "Can only operate on the leaf nodes");
   TNode* node = input.CopyOnWrite();
+  // node->attrs is NOTNULLABLE by contract, but defend against a caller
+  // that left a moved-from DictAttrs in place; nothing to erase from an
+  // empty dict.
+  if (!node->attrs.defined()) {
+    node->attrs = DictAttrs();
+    return input;
+  }
   node->attrs.CopyOnWrite()->dict.erase(attr_key);
   return input;
 }
