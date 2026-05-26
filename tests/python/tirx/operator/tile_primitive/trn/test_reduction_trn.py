@@ -240,7 +240,7 @@ def test_reduction_with_guard():
         mod = tvm.IRModule({"main": reduction})
         mod = tvm.tirx.transform.trn.TrnPrivateBufferAlloc()(mod)
         mod = tvm.tirx.transform.LowerTIRx()(mod)
-        mod = tvm.tirx.transform.Simplify()(mod)
+        mod = tvm.tirx.transform.StmtSimplify()(mod)
         assert_structural_equal(mod["main"], expected)
 
 

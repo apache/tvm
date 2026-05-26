@@ -210,20 +210,20 @@ def CommonSubexprElim():
     return _ffi_api.CommonSubexprElim()  # type: ignore
 
 
-@_ffi.register_object("tirx.transform.SimplifyConfig")
-class SimplifyConfig(_ffi.Object):
-    """Config for simplify pass"""
+@_ffi.register_object("tirx.transform.StmtSimplifyConfig")
+class StmtSimplifyConfig(_ffi.Object):
+    """Config for stmt simplify pass"""
 
 
-def Simplify():
-    """Run arithmetic simplifications on the statements and expressions.
+def StmtSimplify():
+    """Run statement-level arithmetic simplifications on the TIR PrimFunc.
 
     Returns
     -------
     fpass : tvm.transform.Pass
         The result pass
     """
-    return _ffi_api.Simplify()  # type: ignore
+    return _ffi_api.StmtSimplify()  # type: ignore
 
 
 def ConvertSSA():

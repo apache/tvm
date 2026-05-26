@@ -173,7 +173,7 @@ def test_expr_constructor():
         [cond0, inner_if, tvm.tirx.IntImm("int32", 0)],
         annotations={"keep": True},
     )
-    simplified = tvm.tirx.transform.Simplify()(
+    simplified = tvm.tirx.transform.StmtSimplify()(
         tvm.IRModule({"main": tvm.tirx.PrimFunc([], tvm.tirx.Evaluate(outer_if))})
     )["main"].body.value
     assert bool(simplified.annotations["keep"])

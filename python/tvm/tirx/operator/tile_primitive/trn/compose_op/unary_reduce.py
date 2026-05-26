@@ -118,7 +118,7 @@ def unary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc |
         import tvm
 
         mod = tvm.IRModule({"main": impl})
-        mod = tvm.tirx.transform.Simplify()(mod)
+        mod = tvm.tirx.transform.StmtSimplify()(mod)
         return mod["main"]
     else:
         # fmt: off
