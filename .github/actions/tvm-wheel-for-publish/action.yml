@@ -40,8 +40,22 @@ runs:
       with:
         ref: ${{ inputs.checkout_ref }}
         submodules: recursive
-        fetch-depth: 0
+        fetch-depth: 1
         fetch-tags: true
+
+    - name: Free runner disk space
+      shell: bash -l {0}
+      run: |
+        set -eux
+        df -h
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf /usr/local/lib/android
+        sudo rm -rf /opt/ghc
+        sudo rm -rf /opt/hostedtoolcache/CodeQL
+        sudo rm -rf /usr/local/share/boost
+        docker image prune -af || true
+        sudo apt-get clean
+        df -h
 
     - name: Set up TVM build environment
       uses: ./.github/actions/setup
@@ -78,4 +92,8 @@ runs:
         TVM_WHEEL_DIST_NAME: ${{ inputs.distribution_name }}
       run: |
         set -eux
-        ci/scripts/package/build_tvm_wheel.sh all
+        ci/scripts/package/build_tvm_wheel.sh cuda
+        ci/scripts/package/build_tvm_wheel.sh wheel
+        ci/scripts/package/build_tvm_wheel.sh inject
+        ci/scripts/package/build_tvm_wheel.sh repair
+        ci/scripts/package/build_tvm_wheel.sh verify
