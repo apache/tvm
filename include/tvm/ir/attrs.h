@@ -23,7 +23,7 @@
  *  This module enables declaration of named attributes
  *  which support default value setup and bound checking.
  *
- * \sa AttrsNode, AttrsWithDefaultValues
+ * \sa AttrsNode
  */
 #ifndef TVM_IR_ATTRS_H_
 #define TVM_IR_ATTRS_H_
@@ -256,23 +256,6 @@ inline TFunc WithoutAttr(TFunc input, const std::string& attr_key) {
   TNode* node = input.CopyOnWrite();
   node->attrs.CopyOnWrite()->dict.erase(attr_key);
   return input;
-}
-
-/*!
- * \brief Create an object with all default values, using the reflection defaults.
- * \tparam TObj the ObjectRef type to be created.
- * \return An instance with all reflection-defined default values applied.
- */
-template <typename TObj>
-inline TObj AttrsWithDefaultValues() {
-  static_assert(std::is_base_of_v<ffi::ObjectRef, TObj>, "Can only create ObjectRef-derived types");
-  using ContainerType = typename TObj::ContainerType;
-  static auto finit_object = ffi::Function::GetGlobalRequired("ffi.MakeObjectFromPackedArgs");
-  AnyView packed_args[1];
-  packed_args[0] = ContainerType::RuntimeTypeIndex();
-  ffi::Any rv;
-  finit_object.CallPacked(ffi::PackedArgs(packed_args, 1), &rv);
-  return rv.cast<TObj>();
 }
 
 }  // namespace tvm

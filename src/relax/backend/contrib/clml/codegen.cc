@@ -267,7 +267,7 @@ class OpenCLMLJSONSerializer : public JSONSerializer {
     auto ctx = transform::PassContext::Current();
     auto cfg = ctx->GetConfig<OpenCLMLCompilerConfig>("relax.ext.clml.options");
     if (!cfg.defined()) {
-      cfg = AttrsWithDefaultValues<OpenCLMLCompilerConfig>();
+      cfg = transform::PassConfigWithDefaults<OpenCLMLCompilerConfig>();
     }
     node->SetAttr("clml_version", static_cast<int64_t>(cfg.value()->clml_version.IntValue()));
   }

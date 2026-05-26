@@ -271,8 +271,9 @@ namespace transform {
 
 Pass RemoveNoOp() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
-    RemoveNoOpConfig config = ctx->GetConfig<RemoveNoOpConfig>("tirx.RemoveNoOp")
-                                  .value_or(AttrsWithDefaultValues<RemoveNoOpConfig>());
+    RemoveNoOpConfig config =
+        ctx->GetConfig<RemoveNoOpConfig>("tirx.RemoveNoOp")
+            .value_or(tvm::transform::PassConfigWithDefaults<RemoveNoOpConfig>());
 
     arith::Analyzer analyzer;
     analyzer.rewrite_simplify.SetMaximumRewriteSteps(config->max_simplification_steps);
