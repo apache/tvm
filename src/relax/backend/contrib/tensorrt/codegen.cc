@@ -183,9 +183,9 @@ class TensorRTJSONSerializer : public JSONSerializer {
       cfg = AttrsWithDefaultValues<TensorRTCompilerConfig>();
     }
     TVM_FFI_ICHECK_EQ(cfg.value()->tensorrt_version.size(), 3);
-    ffi::Array<int64_t> tensorrt_version = {cfg.value()->tensorrt_version[0].IntValue(),
-                                            cfg.value()->tensorrt_version[1].IntValue(),
-                                            cfg.value()->tensorrt_version[2].IntValue()};
+    ffi::Array<int64_t> tensorrt_version = {cfg.value()->tensorrt_version[0],
+                                            cfg.value()->tensorrt_version[1],
+                                            cfg.value()->tensorrt_version[2]};
     node->SetAttr("tensorrt_version", std::move(tensorrt_version));
     node->SetAttr("use_implicit_batch", static_cast<int64_t>(cfg.value()->use_implicit_batch));
     node->SetAttr("max_workspace_size", static_cast<int64_t>(cfg.value()->max_workspace_size));

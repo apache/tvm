@@ -254,10 +254,7 @@ class OpenCLMLJSONSerializer : public JSONSerializer {
       auto p = pad_attr->pad_width;
       // Pad layout for TVM: dimension wise pre and post padding.
       // CLML takes dimension wise pre-padding followed by dimension wise post-padding for W, H.
-      json_node->SetAttr(
-          "padding",
-          ffi::Array<int64_t>{p[4].as<IntImmNode>()->value, p[6].as<IntImmNode>()->value,
-                              p[5].as<IntImmNode>()->value, p[7].as<IntImmNode>()->value});
+      json_node->SetAttr("padding", ffi::Array<int64_t>{p[4], p[6], p[5], p[7]});
     }
 
     if (nodes.activation) {
