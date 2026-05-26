@@ -542,10 +542,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Function::Function(ffi::Array<Var> params, Expr body, ffi::Optional<StructInfo> ret_struct_info,
                    bool is_pure, DictAttrs attrs, Span span) {
-  if (!attrs.defined()) {
-    attrs = DictAttrs();
-  }
-
   // Set the function type.
   // For function, we take a conservative approach and require the function type
   // to be known at construction time.

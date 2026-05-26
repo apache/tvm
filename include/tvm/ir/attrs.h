@@ -89,11 +89,9 @@ class DictAttrsNode : public AttrsNode {
 class DictAttrs : public Attrs {
  public:
   /*!
-   * \brief constructor with UnsafeInit
-   */
-  explicit DictAttrs(ffi::UnsafeInit tag) : Attrs(tag) {}
-  /*!
-   * \brief Construct a Attrs backed by DictAttrsNode.
+   * \brief Construct a DictAttrs backed by DictAttrsNode.
+   *
+   * The no-argument form constructs an empty (but always defined) DictAttrs.
    * \param dict The attributes.
    */
   explicit DictAttrs(ffi::Map<ffi::String, Any> dict = {}) {
@@ -103,8 +101,6 @@ class DictAttrs : public Attrs {
   }
 
   // Utils for accessing attributes
-  // This needs to be on DictAttrs, not DictAttrsNode because we return the default
-  // value if DictAttrsNode is not defined.
   /*!
    * \brief Get a function attribute.
    *
@@ -128,8 +124,7 @@ class DictAttrs : public Attrs {
   ffi::Optional<TObjectRef> GetAttr(
       const std::string& attr_key,
       ffi::Optional<TObjectRef> default_value = ffi::Optional<TObjectRef>(std::nullopt)) const {
-    if (!defined()) return default_value;
-    const DictAttrsNode* node = this->as<DictAttrsNode>();
+    const DictAttrsNode* node = get();
     auto it = node->dict.find(attr_key);
     if (it != node->dict.end()) {
       return (*it).second.cast<TObjectRef>();
@@ -165,14 +160,7 @@ class DictAttrs : public Attrs {
     return GetAttr<int64_t>(attr_key, 0).value_or(0) != 0;
   }
 
-  explicit DictAttrs(::tvm::ffi::ObjectPtr<DictAttrsNode> n) : Attrs(n) {}
-  DictAttrs(const DictAttrs&) = default;
-  DictAttrs(DictAttrs&&) = default;
-  DictAttrs& operator=(const DictAttrs&) = default;
-  DictAttrs& operator=(DictAttrs&&) = default;
-  const DictAttrsNode* operator->() const { return static_cast<const DictAttrsNode*>(data_.get()); }
-  const DictAttrsNode* get() const { return operator->(); }
-  using ContainerType = DictAttrsNode;
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DictAttrs, Attrs, DictAttrsNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(DictAttrsNode);
 };
 

@@ -106,7 +106,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         if (d->cfg->syntax_sugar && CountVarOccurrence(func, var) == 2 &&
             func->buffer_map.count(var)) {
           tirx::Buffer buffer = func->buffer_map[var];
-          bool s_tir = func->attrs.defined() && func->attrs->dict.count(tvm::attr::kSTir);
+          bool s_tir = func->attrs->dict.count(tvm::attr::kSTir);
           if (IsSimpleBuffer(buffer, s_tir) && buffer_data_counter.at(buffer->data.get()) == 1) {
             AccessPath buffer_p = p->Attr("buffer_map")->MapItem(var);
             IdDoc lhs = DefineBuffer(buffer, *f, d);
@@ -120,7 +120,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         args.push_back(AssignDoc(DefineVar(var, *f, d), std::nullopt, a));
       }
       // Step 2. Handle `func->attrs`
-      if (func->attrs.defined() && !func->attrs->dict.empty()) {
+      if (!func->attrs->dict.empty()) {
         // for global symbol, don't display it if it matches the func name
         std::unordered_set<ffi::String> keys_to_remove;
         if (func->attrs->dict.count(tvm::attr::kGlobalSymbol) &&
@@ -214,15 +214,15 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       ffi::Array<ffi::String, void> kwargs_keys;
       ffi::Array<ExprDoc, void> kwargs_values;
       // mark private if there is no global symbol
-      if (!func->attrs.defined() || !func->attrs->dict.count(tvm::attr::kGlobalSymbol)) {
+      if (!func->attrs->dict.count(tvm::attr::kGlobalSymbol)) {
         kwargs_keys.push_back("private");
         kwargs_values.push_back(LiteralDoc::Boolean(true, ffi::Optional<AccessPath>()));
       }
-      if (func->attrs.defined() && func->attrs->dict.count(tvm::attr::kSTir)) {
+      if (func->attrs->dict.count(tvm::attr::kSTir)) {
         kwargs_keys.push_back("s_tir");
         kwargs_values.push_back(LiteralDoc::Boolean(true, ffi::Optional<AccessPath>()));
       }
-      if (func->attrs.defined() && func->attrs->dict.count(tirx::attr::kPersistentKernel)) {
+      if (func->attrs->dict.count(tirx::attr::kPersistentKernel)) {
         kwargs_keys.push_back("persistent");
         kwargs_values.push_back(LiteralDoc::Boolean(true, ffi::Optional<AccessPath>()));
       }

@@ -84,7 +84,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       // Step 3. Clean up func variables
       (*f)->func_vars = nullptr;
       // Step 4. Print attributes
-      if (n->attrs.defined() && !n->attrs->dict.empty()) {
+      if (!n->attrs->dict.empty()) {
         // If the function is a global function and has a global symbol,
         // then don't print the global symbol (it will be implicit from not being private).
         // For a function without an IR module whose global symbol
@@ -119,8 +119,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       }
       // if the function is global or is not in a module and does not have a global symbol,
       // indicate that it's private
-      if (AtTopLevelFunction(d) &&
-          (!n->attrs.defined() || !n->attrs->dict.count(tvm::attr::kGlobalSymbol))) {
+      if (AtTopLevelFunction(d) && !n->attrs->dict.count(tvm::attr::kGlobalSymbol)) {
         dec_keys.push_back("private");
         dec_values.push_back(LiteralDoc::Boolean(true, ffi::Optional<AccessPath>()));
       }
