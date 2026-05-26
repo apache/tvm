@@ -141,10 +141,10 @@ void FindSampleVectorize(const Trace& trace, std::vector<Instruction>* inst,
           // Skip mutating the sampling instructions who have only single candidate.
           continue;
         }
-        const ffi::ObjectRef& decision = kv.second.cast<ffi::ObjectRef>();
-        const auto* d = TVM_TYPE_AS(decision, IntImmNode);
+        // SampleCategorical decision is Optional<int64_t> after the
+        // Integer phase-out, so the Any holds a bare POD int.
         instructions.push_back(inst);
-        decisions.push_back(d->value);
+        decisions.push_back(kv.second.cast<int64_t>());
       }
     }
   }
@@ -232,7 +232,7 @@ ffi::Optional<Trace> MutateSampleTileSize(const Trace& trace, Instruction inst,
     }
     tiles[x] /= divide_factor;
     tiles[y] *= divide_factor;
-    return trace->WithDecision(inst, support::AsArray<int64_t, IntImm>(tiles),
+    return trace->WithDecision(inst, ffi::Array<int64_t>(tiles.begin(), tiles.end()),
                                /*remove_postproc=*/true);
   }
 }
@@ -247,7 +247,7 @@ ffi::Optional<Trace> MutateSampleVectorize(const Trace& trace, Instruction inst,
   if (result >= original_decision) {
     result += 1;
   }
-  return trace->WithDecision(inst, Integer(result), /*remove_postproc=*/true);
+  return trace->WithDecision(inst, static_cast<int64_t>(result), /*remove_postproc=*/true);
 }
 
 ffi::Optional<Trace> MutateTileSizeNode::Apply(const Trace& trace, TRandState* rand_state) {
