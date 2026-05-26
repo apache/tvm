@@ -16,6 +16,7 @@
 # under the License.
 """Common base structures."""
 
+from tvm_ffi import _ffi_api as _tvm_ffi_api
 from tvm_ffi import get_global_func, register_object
 
 import tvm.error
@@ -207,7 +208,7 @@ def structural_equal(lhs, rhs, map_free_vars=False):
     """
     lhs = tvm.runtime.convert(lhs)
     rhs = tvm.runtime.convert(rhs)
-    return bool(_ffi_node_api.StructuralEqual(lhs, rhs, False, map_free_vars))  # type: ignore # pylint: disable=no-member
+    return _tvm_ffi_api.GetFirstStructuralMismatch(lhs, rhs, map_free_vars, False) is None  # type: ignore # pylint: disable=no-member
 
 
 def get_first_structural_mismatch(lhs, rhs, map_free_vars=False, skip_tensor_content=False):
@@ -236,7 +237,7 @@ def get_first_structural_mismatch(lhs, rhs, map_free_vars=False, skip_tensor_con
     """
     lhs = tvm.runtime.convert(lhs)
     rhs = tvm.runtime.convert(rhs)
-    return _ffi_node_api.GetFirstStructuralMismatch(lhs, rhs, map_free_vars, skip_tensor_content)  # type: ignore # pylint: disable=no-member
+    return _tvm_ffi_api.GetFirstStructuralMismatch(lhs, rhs, map_free_vars, skip_tensor_content)  # type: ignore # pylint: disable=no-member
 
 
 def assert_structural_equal(lhs, rhs, map_free_vars=False):
@@ -264,7 +265,22 @@ def assert_structural_equal(lhs, rhs, map_free_vars=False):
     """
     lhs = tvm.runtime.convert(lhs)
     rhs = tvm.runtime.convert(rhs)
-    _ffi_node_api.StructuralEqual(lhs, rhs, True, map_free_vars)  # type: ignore # pylint: disable=no-member
+    first_mismatch = _tvm_ffi_api.GetFirstStructuralMismatch(lhs, rhs, map_free_vars, False)  # type: ignore # pylint: disable=no-member
+    if first_mismatch is not None:
+        from tvm.runtime.script_printer import (  # pylint: disable=import-outside-toplevel
+            PrinterConfig,
+            _script,
+        )
+
+        lhs_path, rhs_path = first_mismatch
+        lhs_script = _script(lhs, PrinterConfig(syntax_sugar=False, path_to_underline=[lhs_path]))
+        rhs_script = _script(rhs, PrinterConfig(syntax_sugar=False, path_to_underline=[rhs_path]))
+        raise ValueError(
+            f"StructuralEqual check failed, caused by lhs at {lhs_path}:\n"
+            f"{lhs_script}\n"
+            f"and rhs at {rhs_path}:\n"
+            f"{rhs_script}"
+        )
 
 
 def structural_hash(node, map_free_vars=False):
@@ -306,7 +322,7 @@ def structural_hash(node, map_free_vars=False):
     --------
     structrual_equal
     """
-    return _ffi_node_api.StructuralHash(node, map_free_vars)  # type: ignore # pylint: disable=no-member
+    return _tvm_ffi_api.StructuralHash(node, map_free_vars, False)  # type: ignore # pylint: disable=no-member
 
 
 def deprecated(
