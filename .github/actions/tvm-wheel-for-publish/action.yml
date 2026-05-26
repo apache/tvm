@@ -79,4 +79,3 @@ runs:
       run: |
         set -eux
         ci/scripts/package/build_tvm_wheel.sh all
-
