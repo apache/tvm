@@ -257,7 +257,7 @@ inline constexpr bool IsTensorRTRuntimeEnabled() {
  */
 ffi::Array<int64_t> GetTensorRTVersion() {
 #if TVM_GRAPH_EXECUTOR_TENSORRT
-  return {Integer(NV_TENSORRT_MAJOR), Integer(NV_TENSORRT_MINOR), Integer(NV_TENSORRT_PATCH)};
+  return {NV_TENSORRT_MAJOR, NV_TENSORRT_MINOR, NV_TENSORRT_PATCH};
 #else
   return {};
 #endif  // TVM_GRAPH_EXECUTOR_TENSORRT

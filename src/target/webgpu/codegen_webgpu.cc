@@ -126,7 +126,7 @@ void CodeGenWebGPU::InitFuncState(const PrimFunc& f) {
 }
 
 CodeGenWebGPU::CodeGenWebGPU(Target target) : target_(target) {
-  enable_subgroups_ = target_->GetAttr<bool>("supports_subgroups").value_or(Bool(false));
+  enable_subgroups_ = target_->GetAttr<bool>("supports_subgroups").value_or(false);
 }
 
 runtime::FunctionInfo CodeGenWebGPU::AddFunction(const PrimFunc& f, bool skip_readonly_decl) {
