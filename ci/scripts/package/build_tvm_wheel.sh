@@ -235,6 +235,17 @@ auditwheel_excludes() {
   fi
 }
 
+llvm_libdir() {
+  if [[ "$TVM_USE_LLVM" == "OFF" || "$TVM_USE_LLVM" == "0" ]]; then
+    return 0
+  fi
+  if command -v "$TVM_USE_LLVM" >/dev/null 2>&1; then
+    "$TVM_USE_LLVM" --libdir
+  elif [[ -x "$TVM_USE_LLVM" ]]; then
+    "$TVM_USE_LLVM" --libdir
+  fi
+}
+
 repair_wheel() {
   rm -rf "$TVM_WHEELHOUSE"
   mkdir -p "$TVM_WHEELHOUSE"
@@ -255,7 +266,14 @@ repair_wheel() {
       cuda_lib="$(cuda_runtime_path || true)"
       mapfile -t exclude_args < <(auditwheel_excludes "$cuda_lib")
       echo "Repairing Linux wheel with auditwheel"
-      auditwheel repair "${exclude_args[@]}" -w "$TVM_WHEELHOUSE" "$injected_wheel"
+      (
+        llvm_dir="$(llvm_libdir || true)"
+        if [[ -n "${llvm_dir:-}" && -d "$llvm_dir" ]]; then
+          echo "Adding LLVM libdir to LD_LIBRARY_PATH for auditwheel: ${llvm_dir}"
+          export LD_LIBRARY_PATH="${llvm_dir}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+        fi
+        auditwheel repair "${exclude_args[@]}" -w "$TVM_WHEELHOUSE" "$injected_wheel"
+      )
       ;;
     Darwin)
       require_cmd delocate-wheel
