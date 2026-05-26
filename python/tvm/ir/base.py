@@ -16,10 +16,9 @@
 # under the License.
 """Common base structures."""
 
-from tvm_ffi import _ffi_api as _tvm_ffi_api
+import tvm_ffi
 from tvm_ffi import get_global_func, register_object
 
-import tvm.error
 from tvm.runtime import Object, _ffi_node_api
 
 from . import _ffi_api, json_compact
@@ -206,9 +205,7 @@ def structural_equal(lhs, rhs, map_free_vars=False):
     structural_hash
     assert_strucural_equal
     """
-    lhs = tvm.runtime.convert(lhs)
-    rhs = tvm.runtime.convert(rhs)
-    return _tvm_ffi_api.GetFirstStructuralMismatch(lhs, rhs, map_free_vars, False) is None  # type: ignore # pylint: disable=no-member
+    return tvm_ffi.structural_equal(lhs, rhs, map_free_vars)
 
 
 def get_first_structural_mismatch(lhs, rhs, map_free_vars=False, skip_tensor_content=False):
@@ -235,9 +232,7 @@ def get_first_structural_mismatch(lhs, rhs, map_free_vars=False, skip_tensor_con
         `None` if `lhs` and `rhs` are structurally equal.
         Otherwise, a tuple of two AccessPath objects that point to the first detected mismtach.
     """
-    lhs = tvm.runtime.convert(lhs)
-    rhs = tvm.runtime.convert(rhs)
-    return _tvm_ffi_api.GetFirstStructuralMismatch(lhs, rhs, map_free_vars, skip_tensor_content)  # type: ignore # pylint: disable=no-member
+    return tvm_ffi.get_first_structural_mismatch(lhs, rhs, map_free_vars, skip_tensor_content)
 
 
 def assert_structural_equal(lhs, rhs, map_free_vars=False):
@@ -263,9 +258,7 @@ def assert_structural_equal(lhs, rhs, map_free_vars=False):
     --------
     structural_equal
     """
-    lhs = tvm.runtime.convert(lhs)
-    rhs = tvm.runtime.convert(rhs)
-    first_mismatch = _tvm_ffi_api.GetFirstStructuralMismatch(lhs, rhs, map_free_vars, False)  # type: ignore # pylint: disable=no-member
+    first_mismatch = tvm_ffi.get_first_structural_mismatch(lhs, rhs, map_free_vars)
     if first_mismatch is not None:
         from tvm.runtime.script_printer import (  # pylint: disable=import-outside-toplevel
             PrinterConfig,
@@ -322,7 +315,7 @@ def structural_hash(node, map_free_vars=False):
     --------
     structrual_equal
     """
-    return _tvm_ffi_api.StructuralHash(node, map_free_vars, False)  # type: ignore # pylint: disable=no-member
+    return tvm_ffi.structural_hash(node, map_free_vars)
 
 
 def deprecated(
