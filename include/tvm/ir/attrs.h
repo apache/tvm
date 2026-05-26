@@ -23,7 +23,7 @@
  *  This module enables declaration of named attributes
  *  which support default value setup and bound checking.
  *
- * \sa AttrsNode, TVM_DECLARE_ATTRS, TVM_ATTR_FIELD
+ * \sa BaseAttrsNode, AttrsWithDefaultValues
  */
 #ifndef TVM_IR_ATTRS_H_
 #define TVM_IR_ATTRS_H_
@@ -32,35 +32,16 @@
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/extra/structural_hash.h>
 #include <tvm/ffi/function.h>
-#include <tvm/ffi/reflection/accessor.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/cow.h>
 #include <tvm/ir/expr.h>
 
-#include <functional>
 #include <string>
 #include <type_traits>
 #include <unordered_map>
 #include <utility>
-#include <vector>
 
 namespace tvm {
-
-/*!
- * \brief Create a NodeRef type that represents null.
- * \tparam TNodeRef the type to be created.
- * \return A instance that will represent None.
- */
-template <typename TObjectRef>
-inline TObjectRef NullValue() {
-  static_assert(TObjectRef::_type_is_nullable, "Can only get NullValue for nullable types");
-  return TObjectRef(ffi::ObjectPtr<typename TObjectRef::ContainerType>(nullptr));
-}
-
-template <>
-inline DataType NullValue<DataType>() {
-  return DataType(DataType::kHandle, 0, 0);
-}
 
 /*!
  * \brief Information about attribute fields in string representations.
@@ -103,22 +84,6 @@ class BaseAttrsNode : public ffi::Object {
  public:
   /*! \brief virtual destructor */
   virtual ~BaseAttrsNode() {}
-  /*!
-   * \brief Initialize the attributes by sequence of arguments
-   * \param args The positional arguments in the form
-   *        [key0, value0, key1, value1, ..., key_n, value_n]
-   */
-  template <typename... Args>
-  inline void InitBySeq(Args&&... args);
-  /*!
-   * \brief Initialize the attributes by arguments.
-   * \param kwargs The key value pairs for initialization.
-   *        [key0, value0, key1, value1, ..., key_n, value_n]
-   * \param allow_unknown Whether allow additional unknown fields.
-   * \note This function throws when the required field is not present.
-   */
-  TVM_DLL virtual void InitByPackedArgs(const ffi::PackedArgs& kwargs,
-                                        bool allow_unknown = false) = 0;
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   TVM_FFI_DECLARE_OBJECT_INFO("ir.Attrs", BaseAttrsNode, ffi::Object);
@@ -148,8 +113,6 @@ class DictAttrsNode : public BaseAttrsNode {
     namespace rfl = ffi::reflection;
     rfl::ObjectDef<DictAttrsNode>().def_ro("__dict__", &DictAttrsNode::dict);
   }
-
-  void InitByPackedArgs(const ffi::PackedArgs& args, bool allow_unknown) final;
 
   // type info
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.DictAttrs", DictAttrsNode, BaseAttrsNode);
@@ -380,48 +343,20 @@ inline TFunc WithoutAttr(TFunc input, const std::string& attr_key) {
 }
 
 /*!
- * \brief Adapter for AttrsNode with the new reflection API.
- *
- * We will phaseout the old AttrsNode in future in favor of the new reflection API.
- * This adapter allows us to gradually migrate to the new reflection API.
- *
- * \tparam DerivedType The final attribute type.
+ * \brief Create an object with all default values, using the reflection defaults.
+ * \tparam TObj the ObjectRef type to be created.
+ * \return An instance with all reflection-defined default values applied.
  */
-template <typename DerivedType>
-class AttrsNodeReflAdapter : public BaseAttrsNode {
- public:
-  void InitByPackedArgs(const ffi::PackedArgs& args, bool allow_unknown) final {
-    TVM_FFI_THROW(InternalError) << "`" << DerivedType::_type_key
-                                 << "` uses new reflection mechanism for init";
-  }
-
- private:
-  DerivedType* self() const {
-    return const_cast<DerivedType*>(static_cast<const DerivedType*>(this));
-  }
-};
-
-/*!
- * \brief Create an Attr object with all default values.
- * \tparam TAttrNode the type to be created.
- * \return A instance that will represent None.
- */
-template <typename TAttrs>
-inline TAttrs AttrsWithDefaultValues() {
-  static_assert(std::is_base_of_v<Attrs, TAttrs>, "Can only take attr nodes");
-  using ContainerType = typename TAttrs::ContainerType;
-  if constexpr (std::is_base_of_v<AttrsNodeReflAdapter<ContainerType>, ContainerType>) {
-    static auto finit_object = ffi::Function::GetGlobalRequired("ffi.MakeObjectFromPackedArgs");
-    AnyView packed_args[1];
-    packed_args[0] = ContainerType::RuntimeTypeIndex();
-    ffi::Any rv;
-    finit_object.CallPacked(ffi::PackedArgs(packed_args, 1), &rv);
-    return rv.cast<TAttrs>();
-  } else {
-    auto n = ffi::make_object<ContainerType>();
-    n->InitByPackedArgs(ffi::PackedArgs(nullptr, 0), false);
-    return TAttrs(n);
-  }
+template <typename TObj>
+inline TObj AttrsWithDefaultValues() {
+  static_assert(std::is_base_of_v<ffi::ObjectRef, TObj>, "Can only create ObjectRef-derived types");
+  using ContainerType = typename TObj::ContainerType;
+  static auto finit_object = ffi::Function::GetGlobalRequired("ffi.MakeObjectFromPackedArgs");
+  AnyView packed_args[1];
+  packed_args[0] = ContainerType::RuntimeTypeIndex();
+  ffi::Any rv;
+  finit_object.CallPacked(ffi::PackedArgs(packed_args, 1), &rv);
+  return rv.cast<TObj>();
 }
 
 }  // namespace tvm
