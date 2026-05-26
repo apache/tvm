@@ -721,7 +721,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
         StorageEntry* e = it->second;
         e->const_nbits = std::max(const_nbits, e->const_nbits);
         scope.const_free_map.erase(it);
-        it->second->allocs.push_back({buf->data.get()});
+        e->allocs.push_back({buf->data.get()});
         return e;
       }
       // Then start looking at smaller buffers.
