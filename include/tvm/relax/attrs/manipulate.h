@@ -186,7 +186,7 @@ struct TileAttrs : public BaseAttrsNode {
 
 /*! \brief Attributes used in flip operators */
 struct FlipAttrs : public BaseAttrsNode {
-  ffi::Optional<int64_t> axis;
+  int64_t axis;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;

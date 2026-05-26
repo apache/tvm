@@ -432,7 +432,7 @@ def tile(data: Expr, repeats: int | tuple[int] | list[int]) -> Expr:
     return _ffi_api.tile(data, repeats)  # type: ignore
 
 
-def flip(data, axis=None):
+def flip(data, axis):
     """Reverses the order of elements along given axis while preserving array shape.
 
     Parameters
@@ -440,9 +440,8 @@ def flip(data, axis=None):
     data : relax.Expr
         The input data to the operator.
 
-    axis: int, optional
-        The axis along which to flip. If ``None`` (default), flip all axes,
-        which is equivalent to NumPy's ``np.flip(data)`` with no axis argument.
+    axis: int
+        The axis along which to flip over.
 
     Returns
     -------
@@ -457,8 +456,6 @@ def flip(data, axis=None):
         relax.flip(x, axis=0) = [[3., 4.], [1., 2.]]
 
         relax.flip(x, axis=1) = [[2., 1.], [4., 3.]]
-
-        relax.flip(x) = [[4., 3.], [2., 1.]]  # flip all axes
     """
     return _ffi_api.flip(data, axis)  # type: ignore
 

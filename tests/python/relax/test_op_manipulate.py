@@ -3213,18 +3213,6 @@ def test_flip_infer_struct_info_wrong_inputs():
         bb.normalize(relax.op.flip(x0, axis=3))
 
 
-def test_flip_infer_struct_info_axis_none():
-    # axis=None (flip all axes) should produce the same struct info as the input.
-    bb = relax.BlockBuilder()
-    x0 = relax.Var("x", R.Tensor((2, 10, 4), "float32"))
-    x1 = relax.Var("x", R.Tensor("float16", ndim=3))
-    x2 = relax.Var("x", R.Tensor("int32"))
-
-    _check_inference(bb, relax.op.flip(x0), relax.TensorStructInfo((2, 10, 4), "float32"))
-    _check_inference(bb, relax.op.flip(x1), R.Tensor("float16", ndim=3))
-    _check_inference(bb, relax.op.flip(x2), R.Tensor("int32"))
-
-
 def test_gather_elements_infer_struct_info():
     bb = relax.BlockBuilder()
     vdev0 = VDevice("llvm")

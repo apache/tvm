@@ -2025,9 +2025,9 @@ TVM_REGISTER_OP("relax.tile")
 
 /* relax.flip */
 
-Expr flip(Expr data, ffi::Optional<int64_t> axis) {
+Expr flip(Expr data, int64_t axis) {
   auto attrs = ffi::make_object<FlipAttrs>();
-  attrs->axis = std::move(axis);
+  attrs->axis = axis;
   static const Op& op = Op::Get("relax.flip");
   return Call(op, {std::move(data)}, Attrs{attrs}, {});
 }
@@ -2043,16 +2043,13 @@ StructInfo InferStructInfoFlip(const Call& call, const BlockBuilder& ctx) {
   }
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
   const auto* attrs = call->attrs.as<FlipAttrs>();
-  // axis == nullopt means flip all axes (NumPy semantics); shape is unchanged.
-  if (attrs->axis.has_value()) {
-    int axis = static_cast<int>(attrs->axis.value());
-    if (!data_sinfo->IsUnknownNdim()) {
-      int ndim = data_sinfo->ndim;
-      if (axis < -ndim || axis >= ndim) {
-        ctx->ReportFatal(Diagnostic::Error(call) << "Flip requires the input axis belongs range "
-                                                    "[-ndim, ndim - 1]. However, the input axis is "
-                                                 << axis << ", while ndim is " << ndim);
-      }
+  int axis = static_cast<int>(attrs->axis);
+  if (!data_sinfo->IsUnknownNdim()) {
+    int ndim = data_sinfo->ndim;
+    if (axis < -ndim || axis >= ndim) {
+      ctx->ReportFatal(Diagnostic::Error(call) << "Flip requires the input axis belongs range "
+                                                  "[-ndim, ndim - 1]. However, the input axis is "
+                                               << axis << ", while ndim is " << ndim);
     }
   }
   return data_sinfo;
@@ -2076,12 +2073,7 @@ InferLayoutOutput InferLayoutFlip(
     existing_layout = LayoutDecision(InitialLayout(ndim));
   }
 
-  // axis == nullopt means flip all axes; no layout remapping needed.
-  if (!attrs->axis.has_value()) {
-    return InferLayoutOutput({existing_layout}, {existing_layout}, call->attrs);
-  }
-
-  int axis = static_cast<int>(attrs->axis.value());
+  int axis = static_cast<int>(attrs->axis);
   if (axis < 0) {
     axis += ndim;
   }

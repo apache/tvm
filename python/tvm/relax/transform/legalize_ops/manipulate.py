@@ -167,22 +167,7 @@ def _tile(bb: BlockBuilder, call: Call) -> Expr:
 
 @register_legalize("relax.flip")
 def _flip(bb: BlockBuilder, call: Call) -> Expr:
-    axis = call.attrs.axis
-    if axis is None:
-        # axis=None means flip all axes (NumPy semantics).
-        # Get the number of dimensions from the input struct info.
-        data_sinfo = call.args[0].struct_info
-        ndim = data_sinfo.ndim
-        if ndim < 0:
-            raise ValueError(
-                "relax.flip with axis=None requires static ndim to lower to TE; ndim is unknown."
-            )
-        # Apply topi.flip for each axis in sequence.
-        result = call.args[0]
-        for i in range(ndim):
-            result = bb.emit_te(topi.flip, result, i)
-        return result
-    return bb.call_te(topi.flip, call.args[0], int(axis))
+    return bb.call_te(topi.flip, call.args[0], int(call.attrs.axis))
 
 
 @register_legalize("relax.gather_elements")
