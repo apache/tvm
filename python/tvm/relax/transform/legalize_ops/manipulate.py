@@ -175,8 +175,7 @@ def _flip(bb: BlockBuilder, call: Call) -> Expr:
         ndim = data_sinfo.ndim
         if ndim < 0:
             raise ValueError(
-                "relax.flip with axis=None requires static ndim to lower to TE; "
-                "ndim is unknown."
+                "relax.flip with axis=None requires static ndim to lower to TE; ndim is unknown."
             )
         # Apply topi.flip for each axis in sequence.
         result = call.args[0]
