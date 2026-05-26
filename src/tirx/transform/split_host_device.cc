@@ -113,18 +113,18 @@ class HostDeviceSplitter : public StmtMutator {
                                                      {tirx::attr::kNoAlias, true},
                                                      {tirx::attr::kIsGlobalFunc, true}});
     if (cur_func_->attrs.defined() && cur_func_->attrs->dict.count(tvm::attr::kSTir)) {
-      device_func = WithAttr(std::move(device_func), tvm::attr::kSTir, tvm::Bool(true));
+      device_func = WithAttr(std::move(device_func), tvm::attr::kSTir, true);
     }
-    auto num_inputs = cur_func_->GetAttr<Integer>(tvm::attr::kNumInputs);
-    if (num_inputs.defined()) {
+    auto num_inputs = cur_func_->GetAttr<int64_t>(tvm::attr::kNumInputs);
+    if (num_inputs.has_value()) {
       device_func = WithAttr(std::move(device_func), tvm::attr::kNumInputs, num_inputs);
     }
-    auto persistent = cur_func_->GetAttr<Bool>(tirx::attr::kPersistentKernel);
-    if (persistent.defined()) {
+    auto persistent = cur_func_->GetAttr<bool>(tirx::attr::kPersistentKernel);
+    if (persistent.has_value()) {
       device_func = WithAttr(std::move(device_func), tirx::attr::kPersistentKernel, persistent);
     }
-    auto entry_cluster_sync = cur_func_->GetAttr<Bool>(kEntryClusterSyncAttr);
-    if (entry_cluster_sync.defined()) {
+    auto entry_cluster_sync = cur_func_->GetAttr<bool>(kEntryClusterSyncAttr);
+    if (entry_cluster_sync.has_value()) {
       device_func = WithAttr(std::move(device_func), kEntryClusterSyncAttr, entry_cluster_sync);
     }
     GlobalVar kernel_symbol_global = var_supply_();

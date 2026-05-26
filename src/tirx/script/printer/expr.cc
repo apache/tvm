@@ -286,8 +286,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         }
         prefix = TIR(d, name);
         if (dtype_locations.count(op)) {
-          dtype_print_location =
-              static_cast<tirx::ScriptDtypePrintLocation>(dtype_locations[op].IntValue());
+          dtype_print_location = static_cast<tirx::ScriptDtypePrintLocation>(dtype_locations[op]);
         }
         if (name == "call_llvm_pure_intrin" || name == "call_llvm_intrin") {
           int n_args = call->args.size();

@@ -177,8 +177,8 @@ std::vector<ffi::String> VerifyMemory_(const PrimFunc& func) {
           << "' for primitive:" << std::endl
           << func;
 
-  if (func->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(CallingConv::kDefault)) ==
-      CallingConv::kDefault) {
+  if (func->GetAttr<int64_t>(tvm::attr::kCallingConv, static_cast<int64_t>(CallingConv::kDefault))
+          .value() == static_cast<int64_t>(CallingConv::kDefault)) {
     MemoryAccessVerifier v(func, target.value()->GetTargetDeviceType());
     v.Run();
     return v.Errors();

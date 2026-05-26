@@ -44,7 +44,7 @@ def test_ir_builder_tir_primfunc_base():
         body=tirx.Evaluate(0),
         ret_type=None,
         buffer_map=None,
-        attrs=tvm.ir.make_node("ir.DictAttrs", s_tir=tirx.IntImm("bool", 1)),
+        attrs=tvm.ir.make_node("ir.DictAttrs", s_tir=True),
     )
 
     # Check if the generated ir is expected
@@ -91,7 +91,7 @@ def test_ir_builder_tir_primfunc_complete():
         body=tirx.Evaluate(0),
         ret_type=tvm.ir.PrimType("int64"),
         buffer_map={c_handle: c_buffer, d_handle: d_buffer, e_handle: e_buffer},
-        attrs=tvm.ir.make_node("ir.DictAttrs", key="value", s_tir=tirx.IntImm("bool", 1)),
+        attrs=tvm.ir.make_node("ir.DictAttrs", key="value", s_tir=True),
     )
 
     # Check if the generated ir is expected
@@ -349,7 +349,7 @@ def test_ir_builder_tir_thread():
     # the expected prim_func
     iter_var = tirx.IterVar((0, 1), "v", iter_type=1, thread_tag="blockIdx.y")
     attr_stmt = tirx.AttrStmt(iter_var, "thread_extent", 1, tirx.Evaluate(0))
-    func = tirx.PrimFunc([], attr_stmt).with_attr("s_tir", tirx.IntImm("bool", 1))
+    func = tirx.PrimFunc([], attr_stmt).with_attr("s_tir", True)
 
     # Check if the generated ir is expected
     assert_structural_equal(ir_actual, func, map_free_vars=True)

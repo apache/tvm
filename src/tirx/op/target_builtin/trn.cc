@@ -38,53 +38,53 @@ namespace builtin {
   }                                                 \
   TVM_TIRX_REGISTER_OP(#OpName)
 
-TIRX_DEFINE_BUILTIN_FUNC(nki_load).set_attr<TCallEffectKind>("TCallEffectKind",
-                                                             Integer(CallEffectKind::kOpaque));
+TIRX_DEFINE_BUILTIN_FUNC(nki_load).set_attr<TCallEffectKind>(
+    "TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
-TIRX_DEFINE_BUILTIN_FUNC(nki_store).set_attr<TCallEffectKind>("TCallEffectKind",
-                                                              Integer(CallEffectKind::kOpaque));
+TIRX_DEFINE_BUILTIN_FUNC(nki_store).set_attr<TCallEffectKind>(
+    "TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
 TIRX_DEFINE_BUILTIN_FUNC(nki_tensor_copy)
-    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
+    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
 TIRX_DEFINE_BUILTIN_FUNC(nki_matmul)
-    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
+    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
 TIRX_DEFINE_BUILTIN_FUNC(nki_activation)
-    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
+    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
 TIRX_DEFINE_BUILTIN_FUNC(nki_reciprocal)
-    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
+    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
 TIRX_DEFINE_BUILTIN_FUNC(nki_tensortensor)
-    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
+    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
 TIRX_DEFINE_BUILTIN_FUNC(nki_tensorscalar)
-    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
+    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
 TIRX_DEFINE_BUILTIN_FUNC(nki_memset)
-    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
+    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
 TIRX_DEFINE_BUILTIN_FUNC(nki_tensorreduce)
-    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
+    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
 TIRX_DEFINE_BUILTIN_FUNC(nki_activation_reduce)
-    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
+    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
 TIRX_DEFINE_BUILTIN_FUNC(nki_tensorscalar_reduce)
-    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
+    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
 TIRX_DEFINE_BUILTIN_FUNC(nki_identity)
-    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
+    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
 TIRX_DEFINE_BUILTIN_FUNC(nki_scalar_tensor_tensor)
-    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
+    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
 TIRX_DEFINE_BUILTIN_FUNC(nki_scalar_tensor_scalar)
-    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
+    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
 TIRX_DEFINE_BUILTIN_FUNC(nki_affine_select)
-    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
+    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
 }  // namespace builtin
 }  // namespace tirx

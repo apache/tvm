@@ -38,7 +38,7 @@ namespace transform {
 
 using tvm::ffi::Any;
 
-TVM_REGISTER_PASS_CONFIG_OPTION("testing.immutable_module", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("testing.immutable_module", bool);
 
 struct PassContextThreadLocalEntry {
   /*! \brief The default pass context. */
@@ -301,7 +301,7 @@ IRModule Pass::operator()(IRModule mod, const PassContext& pass_ctx) const {
     return mod;
   }
   IRModule ret;
-  if (pass_ctx->GetConfig<Bool>("testing.immutable_module", Bool(false)).value()) {
+  if (pass_ctx->GetConfig<bool>("testing.immutable_module", false).value()) {
     ret = Pass::AssertImmutableModule(mod, node, pass_ctx);
   } else {
     ret = node->operator()(std::move(mod), pass_ctx);

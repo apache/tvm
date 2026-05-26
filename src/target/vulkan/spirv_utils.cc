@@ -49,9 +49,8 @@ class SPIRVTools {
  public:
   explicit SPIRVTools(Target target) {
     uint32_t vulkan_version =
-        target->GetAttr<Integer>("vulkan_api_version").value_or(VK_API_VERSION_1_0).IntValue();
-    uint32_t spirv_version =
-        target->GetAttr<Integer>("max_spirv_version").value_or(0x10000).IntValue();
+        target->GetAttr<int64_t>("vulkan_api_version").value_or(VK_API_VERSION_1_0);
+    uint32_t spirv_version = target->GetAttr<int64_t>("max_spirv_version").value_or(0x10000);
 
     spv_target_env validation_version;
     if (target->kind->name == "opencl") {
@@ -125,8 +124,9 @@ std::pair<std::unordered_map<std::string, runtime::SPIRVShader>, std::string> Lo
   for (auto kv : mod->functions) {
     TVM_FFI_ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenSPIRV: Can only take PrimFunc";
     auto f = Downcast<PrimFunc>(kv.second);
-    auto calling_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv);
-    TVM_FFI_ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch)
+    auto calling_conv = f->GetAttr<int64_t>(tvm::attr::kCallingConv);
+    TVM_FFI_ICHECK(calling_conv.has_value() &&
+                   calling_conv.value() == static_cast<int64_t>(CallingConv::kDeviceKernelLaunch))
         << "CodeGenSPIRV: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
     auto global_symbol = f->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
     TVM_FFI_ICHECK(global_symbol.has_value())

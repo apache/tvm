@@ -90,15 +90,14 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             LOG(WARNING) << "No TScriptPrinterName attribute for " << op->name;
           }
 
-          static const auto& tirx_op_map = Op::GetAttrMap<Bool>("TIsTIRxOp");
-          static const auto& dispatch_op_map = Op::GetAttrMap<Bool>("TIsDispatchOp");
-          static const auto& compose_op_map = Op::GetAttrMap<Bool>("TIsComposeOp");
-          static const auto& async_op_map = Op::GetAttrMap<Bool>("TIsAsyncOp");
-          TVM_FFI_ICHECK(bool(tirx_op_map.get(op, tvm::Bool(false))))
+          static const auto& tirx_op_map = Op::GetAttrMap<bool>("TIsTIRxOp");
+          static const auto& dispatch_op_map = Op::GetAttrMap<bool>("TIsDispatchOp");
+          static const auto& compose_op_map = Op::GetAttrMap<bool>("TIsComposeOp");
+          static const auto& async_op_map = Op::GetAttrMap<bool>("TIsAsyncOp");
+          TVM_FFI_ICHECK(tirx_op_map.get(op, false))
               << "Only TIRX ops can be used in tirx::TilePrimitiveCall";
           ffi::String name = op_names.get(op, op->name);
-          if (bool(dispatch_op_map.get(op, tvm::Bool(false))) ||
-              bool(async_op_map.get(op, tvm::Bool(false)))) {
+          if (dispatch_op_map.get(op, false) || async_op_map.get(op, false)) {
             // Dispatch ops
             // Trim trailing None args (e.g. optional bias=None, scale=None)
             size_t n_args = op_call->args.size();
@@ -130,7 +129,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             return OpCallDoc(TIRx(d, name), args,
                              d->AsDoc<DictDoc>(op_call->workspace, p->Attr("workspace")),
                              d->AsDoc<DictDoc>(op_call->config, p->Attr("config")), disp);
-          } else if (bool(compose_op_map.get(op, tvm::Bool(false)))) {
+          } else if (compose_op_map.get(op, false)) {
             // Compose ops
             With<TIRFrame> f(d, op_call);
             ffi::Array<tirx::Stmt> stmts;
