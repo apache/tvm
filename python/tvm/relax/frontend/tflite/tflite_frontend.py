@@ -96,6 +96,64 @@ class TensorWrapper:
 class OperatorConverter:
     """Operator Converted for converting TFLite ops to Relax ops"""
 
+    _SUPPORTED_QUANTIZED_OPS = frozenset(
+        {
+            "ABS",
+            "ADD",
+            "ATAN2",
+            "CEIL",
+            "CONCATENATION",
+            "CONV_2D",
+            "COS",
+            "DEPTHWISE_CONV_2D",
+            "DEQUANTIZE",
+            "DETECTION_POSTPROCESS",
+            "DIV",
+            "EQUAL",
+            "EXP",
+            "FLOOR",
+            "FLOOR_DIV",
+            "FLOOR_MOD",
+            "FULLY_CONNECTED",
+            "GREATER",
+            "GREATER_EQUAL",
+            "HARD_SWISH",
+            "LEAKY_RELU",
+            "LESS",
+            "LESS_EQUAL",
+            "LOG",
+            "LOGISTIC",
+            "LOG_SOFTMAX",
+            "MAXIMUM",
+            "MEAN",
+            "MINIMUM",
+            "MUL",
+            "NEG",
+            "NOT_EQUAL",
+            "POW",
+            "QUANTIZE",
+            "REDUCE_MAX",
+            "REDUCE_MIN",
+            "REDUCE_PROD",
+            "RELU",
+            "RELU6",
+            "RELU_N1_TO_1",
+            "RESHAPE",
+            "RESIZE_BILINEAR",
+            "ROUND",
+            "RSQRT",
+            "SIN",
+            "SOFTMAX",
+            "SQRT",
+            "SQUARED_DIFFERENCE",
+            "SUB",
+            "SUM",
+            "TAN",
+            "TANH",
+            "TRANSPOSE_CONV",
+        }
+    )
+
     def __init__(self, model, subgraph, exp_tab, ctx):
         from tflite.ActivationFunctionType import ActivationFunctionType
         from tflite.BuiltinOperator import BuiltinOperator
@@ -326,6 +384,7 @@ class OperatorConverter:
         """Check unsupported TFLite ops in our converter."""
         unsupported_ops_set = set()
         dynamic_range_ops_set = set()
+        unsupported_quantized_ops_set = set()
         for op_idx in range(self.subgraph.OperatorsLength()):
             op = self.subgraph.Operators(op_idx)
             op_code_str = self.get_op_code_str(op)
@@ -334,18 +393,22 @@ class OperatorConverter:
                 continue
 
             # Trying to exclude "dynamic range quantization" optimized ops as not supported in TVM
-            qnn_in_cnt = len(
-                [_.qnn_params for _ in self.get_input_tensors(op)[0:1] if _.qnn_params is not None]
-            )
+            input_tensors = self.get_input_tensors(op)
+            output_tensors = self.get_output_tensors(op)
+            qnn_in_cnt = len([_.qnn_params for _ in input_tensors[0:1] if _.qnn_params is not None])
             qnn_weight_cnt = len(
-                [_.qnn_params for _ in self.get_input_tensors(op)[1:] if _.qnn_params is not None]
+                [_.qnn_params for _ in input_tensors[1:] if _.qnn_params is not None]
             )
-            qnn_out_cnt = len(
-                [_.qnn_params for _ in self.get_output_tensors(op) if _.qnn_params is not None]
-            )
+            qnn_out_cnt = len([_.qnn_params for _ in output_tensors if _.qnn_params is not None])
 
             if qnn_in_cnt == 0 and qnn_out_cnt == 0 and qnn_weight_cnt > 0:
                 dynamic_range_ops_set.add(op_code_str)
+
+            if (
+                qnn_in_cnt + qnn_weight_cnt + qnn_out_cnt > 0
+                and op_code_str not in self._SUPPORTED_QUANTIZED_OPS
+            ):
+                unsupported_quantized_ops_set.add(op_code_str)
 
         raise_msg = ""
 
@@ -358,7 +421,15 @@ class OperatorConverter:
             raise_msg += (
                 f"The following operators are likely to have dynamic range quantization: {ops}. "
                 f"If you are running an optimized graph, please turn off dynamic range "
-                f"quantization or use full integer quantization"
+                f"quantization or use full integer quantization\n"
+            )
+
+        if unsupported_quantized_ops_set:
+            ops = ", ".join(f"'{op}'" for op in sorted(unsupported_quantized_ops_set))
+            raise_msg += (
+                f"The following quantized TFLite operators are not supported in frontend "
+                f"TFLite yet: {ops}. Quantized operators require explicit QDQ lowering "
+                f"to avoid applying Relax ops directly to quantized integer tensors.\n"
             )
 
         if len(raise_msg) > 0:

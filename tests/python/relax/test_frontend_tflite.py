@@ -7081,6 +7081,40 @@ def test_quantized_add_without_output_qparams_invalid():
         from_tflite(tflite_model)
 
 
+def test_quantized_square_unsupported():
+    """Quantized SQUARE is rejected instead of applying integer power directly."""
+    builder = flatbuffers.Builder(1024)
+
+    in_q = _build_quantization_parameters(
+        builder, scale=[0.5], zero_point=[3], quantized_dimension=0
+    )
+    out_q = _build_quantization_parameters(
+        builder, scale=[1.0], zero_point=[0], quantized_dimension=0
+    )
+
+    t_in = _build_tensor(builder, 0, [2], tensor_type=_tfl_tensor_type.INT8, quantization=in_q)
+    t_out = _build_tensor(builder, 1, [2], tensor_type=_tfl_tensor_type.INT8, quantization=out_q)
+
+    square_op = _build_operator(builder, 0, [0], [1])
+    subgraph = _build_subgraph(
+        builder,
+        tensors=[t_in, t_out],
+        operators=[square_op],
+        inputs=[0],
+        outputs=[1],
+    )
+    operator_codes = [_build_operator_code(builder, _tfl_builtin_operator.SQUARE)]
+    buf = _finish_tflite_model(
+        builder,
+        subgraph=subgraph,
+        operator_codes=operator_codes,
+        buffers=[_build_buffer(builder)] * 2,
+    )
+
+    with pytest.raises(tvm.error.OpNotImplemented, match="SQUARE"):
+        _load_model_from_buffer(buf)
+
+
 def test_quantized_conv2d_with_int32_bias_dequantizes_bias():
     """Conv2D with INT32 bias dequantizes bias with in_scale x wt_scale."""
     import flatbuffers
