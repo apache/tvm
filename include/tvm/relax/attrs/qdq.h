@@ -30,7 +30,7 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Attributes for relax.quantize/relax.dequantize operator */
-struct QuantizeAttrs : public AttrsNodeReflAdapter<QuantizeAttrs> {
+struct QuantizeAttrs : public BaseAttrsNode {
   DataType out_dtype;
   int axis;
 

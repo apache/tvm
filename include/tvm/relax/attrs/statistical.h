@@ -30,7 +30,7 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Attributes for statistical operators */
-struct StatisticalAttrs : public AttrsNodeReflAdapter<StatisticalAttrs> {
+struct StatisticalAttrs : public BaseAttrsNode {
   ffi::Optional<ffi::Array<Integer>> axis;
   bool keepdims;
 
@@ -49,7 +49,7 @@ struct StatisticalAttrs : public AttrsNodeReflAdapter<StatisticalAttrs> {
 };  // struct StatisticalAttrs
 
 /*! \brief Attributes used in scan operators like cumsum, cumprod */
-struct ScanopAttrs : public AttrsNodeReflAdapter<ScanopAttrs> {
+struct ScanopAttrs : public BaseAttrsNode {
   ffi::Optional<int64_t> axis;
   DataType dtype;
   Bool exclusive = Bool(false);

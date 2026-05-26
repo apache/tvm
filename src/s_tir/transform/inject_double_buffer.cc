@@ -36,7 +36,7 @@ namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 
-struct InjectDoubleBufferConfigNode : public AttrsNodeReflAdapter<InjectDoubleBufferConfigNode> {
+struct InjectDoubleBufferConfigNode : public ffi::Object {
   int split_loop;
 
   static void RegisterReflection() {
@@ -46,12 +46,12 @@ struct InjectDoubleBufferConfigNode : public AttrsNodeReflAdapter<InjectDoubleBu
         refl::DefaultValue(1));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.transform.InjectDoubleBufferConfig",
-                                    InjectDoubleBufferConfigNode, BaseAttrsNode);
+                                    InjectDoubleBufferConfigNode, ffi::Object);
 };
 
-class InjectDoubleBufferConfig : public Attrs {
+class InjectDoubleBufferConfig : public ffi::ObjectRef {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(InjectDoubleBufferConfig, Attrs,
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(InjectDoubleBufferConfig, ffi::ObjectRef,
                                                 InjectDoubleBufferConfigNode);
 };
 

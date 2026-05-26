@@ -30,7 +30,7 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Attributes for matmul operator */
-struct MatmulAttrs : public AttrsNodeReflAdapter<MatmulAttrs> {
+struct MatmulAttrs : public BaseAttrsNode {
   DataType out_dtype;
 
   static void RegisterReflection() {
@@ -42,7 +42,7 @@ struct MatmulAttrs : public AttrsNodeReflAdapter<MatmulAttrs> {
 };  // struct MatmulAttrs
 
 /*! \brief Attributes used in einsum operator */
-struct EinsumAttrs : public AttrsNodeReflAdapter<EinsumAttrs> {
+struct EinsumAttrs : public BaseAttrsNode {
   ffi::String subscripts;
 
   static void RegisterReflection() {

@@ -53,14 +53,6 @@ DictAttrs WithoutAttr(DictAttrs attrs, const std::string& key) {
   return attrs;
 }
 
-void DictAttrsNode::InitByPackedArgs(const ffi::PackedArgs& args, bool allow_unknown) {
-  for (int i = 0; i < args.size(); i += 2) {
-    ffi::String key = args[i].cast<ffi::String>();
-    ffi::AnyView val = args[i + 1];
-    dict.Set(key, val);
-  }
-}
-
 DictAttrs::DictAttrs(ffi::Map<ffi::String, Any> dict) {
   ffi::ObjectPtr<DictAttrsNode> n = ffi::make_object<DictAttrsNode>();
   n->dict = std::move(dict);

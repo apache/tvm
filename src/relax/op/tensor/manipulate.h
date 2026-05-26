@@ -179,7 +179,7 @@ Expr tile(Expr data, ffi::Array<Integer> repeats);
  * \param axis The axis to flip on
  * \return The computed result.
  */
-Expr flip(Expr data, Integer axis);
+Expr flip(Expr data, int64_t axis);
 
 /*!
  * \brief Gather elements from a tensor using indices.

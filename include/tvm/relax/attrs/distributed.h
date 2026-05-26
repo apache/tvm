@@ -32,7 +32,7 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Attributes for redistribute and annotate_sharding operator */
-struct DistributionAttrs : public AttrsNodeReflAdapter<DistributionAttrs> {
+struct DistributionAttrs : public BaseAttrsNode {
   distributed::DeviceMesh device_mesh;
   distributed::Placement placement;
 

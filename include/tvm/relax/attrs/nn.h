@@ -30,7 +30,7 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Attributes used in Conv1d operator */
-struct Conv1DAttrs : public AttrsNodeReflAdapter<Conv1DAttrs> {
+struct Conv1DAttrs : public BaseAttrsNode {
   ffi::Array<int64_t> strides;
   ffi::Array<int64_t> padding;
   ffi::Array<int64_t> dilation;
@@ -74,7 +74,7 @@ struct Conv1DAttrs : public AttrsNodeReflAdapter<Conv1DAttrs> {
 };  // struct Conv1dAttrs
 
 /*! \brief Attributes used in Conv2d operator */
-struct Conv2DAttrs : public AttrsNodeReflAdapter<Conv2DAttrs> {
+struct Conv2DAttrs : public BaseAttrsNode {
   ffi::Array<int64_t> strides;
   ffi::Array<int64_t> padding;
   ffi::Array<int64_t> dilation;
@@ -120,7 +120,7 @@ struct Conv2DAttrs : public AttrsNodeReflAdapter<Conv2DAttrs> {
 };  // struct Conv2dAttrs
 
 /*! \brief Attributes used in Conv3d operator */
-struct Conv3DAttrs : public AttrsNodeReflAdapter<Conv3DAttrs> {
+struct Conv3DAttrs : public BaseAttrsNode {
   ffi::Array<int64_t> strides;
   ffi::Array<int64_t> padding;
   ffi::Array<int64_t> dilation;
@@ -168,7 +168,7 @@ struct Conv3DAttrs : public AttrsNodeReflAdapter<Conv3DAttrs> {
 };  // struct Conv3dAttrs
 
 /*! \brief Attributes used in Conv1DTranspose operator */
-struct Conv1DTransposeAttrs : public AttrsNodeReflAdapter<Conv1DTransposeAttrs> {
+struct Conv1DTransposeAttrs : public BaseAttrsNode {
   ffi::Array<int64_t> strides;
   ffi::Array<int64_t> padding;
   ffi::Array<int64_t> output_padding;
@@ -217,7 +217,7 @@ struct Conv1DTransposeAttrs : public AttrsNodeReflAdapter<Conv1DTransposeAttrs> 
 };  // struct Conv1DTransposeAttrs
 
 /*! \brief Attributes used in Conv2d operator */
-struct Conv2DTransposeAttrs : public AttrsNodeReflAdapter<Conv2DTransposeAttrs> {
+struct Conv2DTransposeAttrs : public BaseAttrsNode {
   ffi::Array<int64_t> strides;
   ffi::Array<int64_t> padding;
   ffi::Array<int64_t> output_padding;
@@ -268,7 +268,7 @@ struct Conv2DTransposeAttrs : public AttrsNodeReflAdapter<Conv2DTransposeAttrs> 
 };  // struct Conv2DTransposeAttrs
 
 /*! \brief Attributes used in Conv3dTranspose operator */
-struct Conv3DTransposeAttrs : public AttrsNodeReflAdapter<Conv3DTransposeAttrs> {
+struct Conv3DTransposeAttrs : public BaseAttrsNode {
   ffi::Array<int64_t> strides;
   ffi::Array<int64_t> padding;
   ffi::Array<int64_t> output_padding;
@@ -321,7 +321,7 @@ struct Conv3DTransposeAttrs : public AttrsNodeReflAdapter<Conv3DTransposeAttrs> 
 };  // struct Conv3DTransposeAttrs
 
 /*! \brief Attributes used in max_pool1d and avg_pool1d operator */
-struct Pool1DAttrs : public AttrsNodeReflAdapter<Pool1DAttrs> {
+struct Pool1DAttrs : public BaseAttrsNode {
   ffi::Array<int64_t> pool_size;
   ffi::Array<int64_t> strides;
   ffi::Array<int64_t> padding;
@@ -362,7 +362,7 @@ struct Pool1DAttrs : public AttrsNodeReflAdapter<Pool1DAttrs> {
 };  // struct Pool1dAttrs
 
 /*! \brief Attributes used in max_pool2d and avg_pool2d operator */
-struct Pool2DAttrs : public AttrsNodeReflAdapter<Pool2DAttrs> {
+struct Pool2DAttrs : public BaseAttrsNode {
   ffi::Array<int64_t> pool_size;
   ffi::Array<int64_t> strides;
   ffi::Array<int64_t> padding;
@@ -405,7 +405,7 @@ struct Pool2DAttrs : public AttrsNodeReflAdapter<Pool2DAttrs> {
 };  // struct Pool2dAttrs
 
 /*! \brief Attributes used in max_pool3d and avg_pool3d operator */
-struct Pool3DAttrs : public AttrsNodeReflAdapter<Pool3DAttrs> {
+struct Pool3DAttrs : public BaseAttrsNode {
   ffi::Array<int64_t> pool_size;
   ffi::Array<int64_t> strides;
   ffi::Array<int64_t> padding;
@@ -448,7 +448,7 @@ struct Pool3DAttrs : public AttrsNodeReflAdapter<Pool3DAttrs> {
 };  // struct Pool3dAttrs
 
 /*! \brief Attributes for 1d adaptive pool operator */
-struct AdaptivePool1DAttrs : public AttrsNodeReflAdapter<AdaptivePool1DAttrs> {
+struct AdaptivePool1DAttrs : public BaseAttrsNode {
   ffi::Optional<ffi::Array<int64_t>> output_size;
   ffi::String layout;
   ffi::String out_layout;
@@ -473,7 +473,7 @@ struct AdaptivePool1DAttrs : public AttrsNodeReflAdapter<AdaptivePool1DAttrs> {
 };  // struct AdaptivePool1DAttrs
 
 /*! \brief Attributes for 2d adaptive pool operator */
-struct AdaptivePool2DAttrs : public AttrsNodeReflAdapter<AdaptivePool2DAttrs> {
+struct AdaptivePool2DAttrs : public BaseAttrsNode {
   ffi::Optional<ffi::Array<int64_t>> output_size;
   ffi::String layout;
   ffi::String out_layout;
@@ -498,7 +498,7 @@ struct AdaptivePool2DAttrs : public AttrsNodeReflAdapter<AdaptivePool2DAttrs> {
 };  // struct AdaptivePool2DAttrs
 
 /*! \brief Attributes for 3d adaptive pool operator */
-struct AdaptivePool3DAttrs : public AttrsNodeReflAdapter<AdaptivePool3DAttrs> {
+struct AdaptivePool3DAttrs : public BaseAttrsNode {
   ffi::Optional<ffi::Array<int64_t>> output_size;
   ffi::String layout;
   ffi::String out_layout;
@@ -523,7 +523,7 @@ struct AdaptivePool3DAttrs : public AttrsNodeReflAdapter<AdaptivePool3DAttrs> {
 };  // struct AdaptivePool3DAttrs
 
 /*! \brief Attributes used in softmax operators */
-struct SoftmaxAttrs : public AttrsNodeReflAdapter<SoftmaxAttrs> {
+struct SoftmaxAttrs : public BaseAttrsNode {
   int axis;
 
   static void RegisterReflection() {
@@ -535,7 +535,7 @@ struct SoftmaxAttrs : public AttrsNodeReflAdapter<SoftmaxAttrs> {
 };
 
 /*! \brief Attributes used in softmax operators */
-struct LeakyReluAttrs : public AttrsNodeReflAdapter<LeakyReluAttrs> {
+struct LeakyReluAttrs : public BaseAttrsNode {
   double alpha;
 
   static void RegisterReflection() {
@@ -547,7 +547,7 @@ struct LeakyReluAttrs : public AttrsNodeReflAdapter<LeakyReluAttrs> {
 };
 
 /*! \brief Attributes used in softplus operators */
-struct SoftplusAttrs : public AttrsNodeReflAdapter<SoftplusAttrs> {
+struct SoftplusAttrs : public BaseAttrsNode {
   double beta;
   double threshold;
 
@@ -563,7 +563,7 @@ struct SoftplusAttrs : public AttrsNodeReflAdapter<SoftplusAttrs> {
 };
 
 /*! \brief Attributes used in PReLU operator */
-struct PReluAttrs : public AttrsNodeReflAdapter<PReluAttrs> {
+struct PReluAttrs : public BaseAttrsNode {
   int axis;
 
   static void RegisterReflection() {
@@ -575,7 +575,7 @@ struct PReluAttrs : public AttrsNodeReflAdapter<PReluAttrs> {
 };
 
 /*! \brief Attributes used in batch_norm operator */
-struct BatchNormAttrs : public AttrsNodeReflAdapter<BatchNormAttrs> {
+struct BatchNormAttrs : public BaseAttrsNode {
   int axis;
   double epsilon;
   bool center;
@@ -602,7 +602,7 @@ struct BatchNormAttrs : public AttrsNodeReflAdapter<BatchNormAttrs> {
 };  // struct BatchNormAttrs
 
 /*! \brief Attributes used in layer_norm operator */
-struct LayerNormAttrs : public AttrsNodeReflAdapter<LayerNormAttrs> {
+struct LayerNormAttrs : public BaseAttrsNode {
   ffi::Array<Integer> axes;
   double epsilon;
   bool center;
@@ -624,7 +624,7 @@ struct LayerNormAttrs : public AttrsNodeReflAdapter<LayerNormAttrs> {
 };  // struct LayerNormAttrs
 
 /*! \brief Attributes used in group_norm operator */
-struct GroupNormAttrs : public AttrsNodeReflAdapter<GroupNormAttrs> {
+struct GroupNormAttrs : public BaseAttrsNode {
   int num_groups;
   int channel_axis;
   ffi::Array<Integer> axes;
@@ -653,7 +653,7 @@ struct GroupNormAttrs : public AttrsNodeReflAdapter<GroupNormAttrs> {
 };  // struct GroupNormAttrs
 
 /*! \brief Attributes used in instance_norm operator */
-struct InstanceNormAttrs : public AttrsNodeReflAdapter<InstanceNormAttrs> {
+struct InstanceNormAttrs : public BaseAttrsNode {
   int channel_axis;
   ffi::Array<Integer> axes;
   double epsilon;
@@ -679,7 +679,7 @@ struct InstanceNormAttrs : public AttrsNodeReflAdapter<InstanceNormAttrs> {
 };  // struct InstanceNormAttrs
 
 /*! \brief Attributes used in rms_norm operator */
-struct RMSNormAttrs : public AttrsNodeReflAdapter<RMSNormAttrs> {
+struct RMSNormAttrs : public BaseAttrsNode {
   ffi::Array<Integer> axes;
   double epsilon;
 
@@ -695,7 +695,7 @@ struct RMSNormAttrs : public AttrsNodeReflAdapter<RMSNormAttrs> {
 };  // struct RMSNormAttrs
 
 /*! \brief Attributes used in nll_loss operator */
-struct NLLLossAttrs : public AttrsNodeReflAdapter<NLLLossAttrs> {
+struct NLLLossAttrs : public BaseAttrsNode {
   ffi::String reduction;
   int ignore_index;
 
@@ -712,7 +712,7 @@ struct NLLLossAttrs : public AttrsNodeReflAdapter<NLLLossAttrs> {
 };  // struct NLLLossAttrs
 
 /*! \brief Attributes used in dropout operator */
-struct DropoutAttrs : public AttrsNodeReflAdapter<DropoutAttrs> {
+struct DropoutAttrs : public BaseAttrsNode {
   double rate;
 
   static void RegisterReflection() {
@@ -725,7 +725,7 @@ struct DropoutAttrs : public AttrsNodeReflAdapter<DropoutAttrs> {
 };  // struct DropoutAttrs
 
 /*! \brief Attributes used in Attention operator */
-struct AttentionAttrs : public AttrsNodeReflAdapter<AttentionAttrs> {
+struct AttentionAttrs : public BaseAttrsNode {
   ffi::Optional<FloatImm> scale;
   ffi::Optional<ffi::String> causal_mask;
   ffi::Optional<IntImm> window_size;
@@ -745,7 +745,7 @@ struct AttentionAttrs : public AttrsNodeReflAdapter<AttentionAttrs> {
 };  // struct AttentionAttrs
 
 /*! \brief Attributes used for the padding operator */
-struct PadAttrs : public AttrsNodeReflAdapter<PadAttrs> {
+struct PadAttrs : public BaseAttrsNode {
   ffi::Array<Integer> pad_width;
   double pad_value = 0.0;
   tvm::ffi::String pad_mode;
@@ -768,7 +768,7 @@ struct PadAttrs : public AttrsNodeReflAdapter<PadAttrs> {
 };
 
 /*! \brief Attributes used for the pixel shuffle operator */
-struct PixelShuffleAttrs : public AttrsNodeReflAdapter<PixelShuffleAttrs> {
+struct PixelShuffleAttrs : public BaseAttrsNode {
   int upscale_factor;
 
   static void RegisterReflection() {

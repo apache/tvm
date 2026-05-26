@@ -31,7 +31,7 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Attributes used in sort operator */
-struct SortAttrs : public AttrsNodeReflAdapter<SortAttrs> {
+struct SortAttrs : public BaseAttrsNode {
   int axis;
   bool descending;
 
@@ -51,7 +51,7 @@ struct SortAttrs : public AttrsNodeReflAdapter<SortAttrs> {
 };  // struct SortAttrs
 
 /*! \brief Attributes used in argsort operator */
-struct ArgsortAttrs : public AttrsNodeReflAdapter<ArgsortAttrs> {
+struct ArgsortAttrs : public BaseAttrsNode {
   int axis;
   bool descending;
   DataType dtype;
@@ -68,13 +68,13 @@ struct ArgsortAttrs : public AttrsNodeReflAdapter<ArgsortAttrs> {
                 "If it is not specified, it defaults to the ascending order.",
                 refl::DefaultValue(false))
         .def_ro("dtype", &ArgsortAttrs::dtype, "DType of the output indices.",
-                refl::DefaultValue(NullValue<DataType>()));
+                refl::DefaultValue(DataType::Void()));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ArgsortAttrs", ArgsortAttrs, BaseAttrsNode);
 };  // struct ArgsortAttrs
 
 /*! \brief Attributes used in topk operator */
-struct TopKAttrs : public AttrsNodeReflAdapter<TopKAttrs> {
+struct TopKAttrs : public BaseAttrsNode {
   int k;
   int axis;
   bool largest;
@@ -98,7 +98,7 @@ struct TopKAttrs : public AttrsNodeReflAdapter<TopKAttrs> {
                 "By default, return the largest k elements.",
                 refl::DefaultValue(true))
         .def_ro("dtype", &TopKAttrs::dtype, "Data type of the output indices.",
-                refl::DefaultValue(NullValue<DataType>()));
+                refl::DefaultValue(DataType::Void()));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.TopKAttrs", TopKAttrs, BaseAttrsNode);
 };  // struct TopKAttrs

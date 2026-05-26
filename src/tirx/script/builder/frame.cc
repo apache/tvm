@@ -145,7 +145,7 @@ void PrimFuncFrameNode::ExitWithScope() {
       /*body=*/body,
       /*ret_type=*/ret_type.value_or(TupleType::Empty()),
       /*buffer_map=*/effective_buffer_map,
-      /*attrs=*/attrs.defined() ? DictAttrs(attrs) : NullValue<DictAttrs>(),
+      /*attrs=*/attrs.defined() ? DictAttrs(attrs) : DictAttrs(),
       /*span=*/tvm::Span());
   func = tvm::tirx::ScriptComplete(func, effective_root_alloc_buffers, s_tir);
   IRBuilder builder = IRBuilder::Current();

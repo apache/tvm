@@ -31,7 +31,7 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Attributes used in concat operators */
-struct ConcatAttrs : public AttrsNodeReflAdapter<ConcatAttrs> {
+struct ConcatAttrs : public BaseAttrsNode {
   ffi::Optional<int64_t> axis;
 
   static void RegisterReflection() {
@@ -44,7 +44,7 @@ struct ConcatAttrs : public AttrsNodeReflAdapter<ConcatAttrs> {
 };  // struct ConcatAttrs
 
 /*! \brief Attributes used in expand_dims operators */
-struct ExpandDimsAttrs : public AttrsNodeReflAdapter<ExpandDimsAttrs> {
+struct ExpandDimsAttrs : public BaseAttrsNode {
   ffi::Array<Integer> axis;
 
   static void RegisterReflection() {
@@ -59,7 +59,7 @@ struct ExpandDimsAttrs : public AttrsNodeReflAdapter<ExpandDimsAttrs> {
 };  // struct ExpandDimsAttrs
 
 /*! \brief Attributes used in layout_transform operator */
-struct LayoutTransformAttrs : public AttrsNodeReflAdapter<LayoutTransformAttrs> {
+struct LayoutTransformAttrs : public BaseAttrsNode {
   tirx::IndexMap index_map;
   // pad_value is chosen to be of PrimValue type, as it represents constant TIR POD expression. This
   // needs to be revisited in case PrimValue is evolved to represent symbolic expression in future.
@@ -97,7 +97,7 @@ struct LayoutTransformAttrs : public AttrsNodeReflAdapter<LayoutTransformAttrs> 
 };  // struct LayoutTransformAttrs
 
 /*! \brief Attributes used in permute_dims operator */
-struct PermuteDimsAttrs : public AttrsNodeReflAdapter<PermuteDimsAttrs> {
+struct PermuteDimsAttrs : public BaseAttrsNode {
   ffi::Optional<ffi::Array<Integer>> axes;
 
   static void RegisterReflection() {
@@ -110,7 +110,7 @@ struct PermuteDimsAttrs : public AttrsNodeReflAdapter<PermuteDimsAttrs> {
 };  // struct PermuteDimsAttrs
 
 /*! \brief Attributes used in split operator */
-struct SplitAttrs : public AttrsNodeReflAdapter<SplitAttrs> {
+struct SplitAttrs : public BaseAttrsNode {
   ffi::ObjectRef indices_or_sections;
   int axis;
 
@@ -125,7 +125,7 @@ struct SplitAttrs : public AttrsNodeReflAdapter<SplitAttrs> {
 };  // struct SplitAttrs
 
 /*! \brief Attributes used in squeeze operators */
-struct SqueezeAttrs : public AttrsNodeReflAdapter<SqueezeAttrs> {
+struct SqueezeAttrs : public BaseAttrsNode {
   ffi::Optional<ffi::Array<Integer>> axis;
 
   static void RegisterReflection() {
@@ -140,7 +140,7 @@ struct SqueezeAttrs : public AttrsNodeReflAdapter<SqueezeAttrs> {
 };  // struct SqueezeAttrs
 
 /*! \brief Attributes used in stack operators */
-struct StackAttrs : public AttrsNodeReflAdapter<StackAttrs> {
+struct StackAttrs : public BaseAttrsNode {
   ffi::Optional<Integer> axis;
 
   static void RegisterReflection() {
@@ -156,7 +156,7 @@ struct StackAttrs : public AttrsNodeReflAdapter<StackAttrs> {
 };  // struct StackAttrs
 
 /*! \brief Attributes used in repeat operators */
-struct RepeatAttrs : public AttrsNodeReflAdapter<RepeatAttrs> {
+struct RepeatAttrs : public BaseAttrsNode {
   int repeats;
   ffi::Optional<int64_t> axis;
 
@@ -173,7 +173,7 @@ struct RepeatAttrs : public AttrsNodeReflAdapter<RepeatAttrs> {
 };  // struct RepeatAttrs
 
 /*! \brief Attributes used in tile operators */
-struct TileAttrs : public AttrsNodeReflAdapter<TileAttrs> {
+struct TileAttrs : public BaseAttrsNode {
   ffi::Array<Integer> repeats;
 
   static void RegisterReflection() {
@@ -185,20 +185,19 @@ struct TileAttrs : public AttrsNodeReflAdapter<TileAttrs> {
 };  // struct TileAttrs
 
 /*! \brief Attributes used in flip operators */
-struct FlipAttrs : public AttrsNodeReflAdapter<FlipAttrs> {
-  Integer axis;
+struct FlipAttrs : public BaseAttrsNode {
+  int64_t axis;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<FlipAttrs>().def_ro("axis", &FlipAttrs::axis,
-                                        "The axis along which to flip over.",
-                                        refl::DefaultValue(NullValue<Integer>()));
+                                        "The axis along which to flip over.");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.FlipAttrs", FlipAttrs, BaseAttrsNode);
 };  // struct FlipAttrs
 
 /*! \brief Attributes used in gather_elements operators */
-struct GatherElementsAttrs : public AttrsNodeReflAdapter<GatherElementsAttrs> {
+struct GatherElementsAttrs : public BaseAttrsNode {
   Integer axis;
 
   static void RegisterReflection() {
@@ -212,7 +211,7 @@ struct GatherElementsAttrs : public AttrsNodeReflAdapter<GatherElementsAttrs> {
 };  // struct GatherElementsAttrs
 
 /*! \brief Attributes used in gather_nd operators */
-struct GatherNDAttrs : public AttrsNodeReflAdapter<GatherNDAttrs> {
+struct GatherNDAttrs : public BaseAttrsNode {
   Integer batch_dims;
 
   static void RegisterReflection() {
@@ -224,7 +223,7 @@ struct GatherNDAttrs : public AttrsNodeReflAdapter<GatherNDAttrs> {
 };  // struct GatherNDAttrs
 
 /*! \brief Attributes used in index_put operator */
-struct IndexPutAttrs : public AttrsNodeReflAdapter<IndexPutAttrs> {
+struct IndexPutAttrs : public BaseAttrsNode {
   bool accumulate;
 
   static void RegisterReflection() {
@@ -240,7 +239,7 @@ struct IndexPutAttrs : public AttrsNodeReflAdapter<IndexPutAttrs> {
 };  // struct IndexPutAttrs
 
 /*! \brief Attribute used in meshgrid operator */
-struct MeshgridAttrs : public AttrsNodeReflAdapter<MeshgridAttrs> {
+struct MeshgridAttrs : public BaseAttrsNode {
   ffi::Optional<ffi::String> indexing;
 
   static void RegisterReflection() {
@@ -252,7 +251,7 @@ struct MeshgridAttrs : public AttrsNodeReflAdapter<MeshgridAttrs> {
 };
 
 /*! \brief Attributes used in scatter_elements operators */
-struct ScatterElementsAttrs : public AttrsNodeReflAdapter<ScatterElementsAttrs> {
+struct ScatterElementsAttrs : public BaseAttrsNode {
   Integer axis;
   ffi::String reduction;
 
@@ -271,7 +270,7 @@ struct ScatterElementsAttrs : public AttrsNodeReflAdapter<ScatterElementsAttrs> 
 };  // struct ScatterElementsAttrs
 
 /*! \brief Attributes used in scatter_nd operators */
-struct ScatterNDAttrs : public AttrsNodeReflAdapter<ScatterNDAttrs> {
+struct ScatterNDAttrs : public BaseAttrsNode {
   ffi::String reduction;
 
   static void RegisterReflection() {
@@ -286,7 +285,7 @@ struct ScatterNDAttrs : public AttrsNodeReflAdapter<ScatterNDAttrs> {
 };  // struct ScatterNDAttrs
 
 /*! \brief Attributes used in slice_scatter operator */
-struct SliceScatterAttrs : public AttrsNodeReflAdapter<SliceScatterAttrs> {
+struct SliceScatterAttrs : public BaseAttrsNode {
   int axis;
 
   static void RegisterReflection() {
@@ -300,7 +299,7 @@ struct SliceScatterAttrs : public AttrsNodeReflAdapter<SliceScatterAttrs> {
 };  // struct SliceScatterAttrs
 
 /*! \brief Attributes used in one_hot operator */
-struct OneHotAttrs : public AttrsNodeReflAdapter<OneHotAttrs> {
+struct OneHotAttrs : public BaseAttrsNode {
   int depth;
   int axis;
 

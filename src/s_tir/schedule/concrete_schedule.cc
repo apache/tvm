@@ -35,7 +35,7 @@ Schedule Schedule::Concrete(IRModule mod, LinearCongruentialEngine::TRandState s
   n->symbol_table_ = {};
   n->analyzer_ = std::make_unique<arith::Analyzer>();
   n->Seed(seed);
-  GlobalVar gv = NullValue<GlobalVar>();
+  GlobalVar gv;
   if (FindEntryFunc(mod, &gv) != nullptr) {
     n->func_working_on_ = gv;
   } else {
@@ -316,7 +316,7 @@ SBlockRV ConcreteScheduleNode::GetSBlock(const ffi::String& name,
     IRModule mod_;
     ffi::Array<SBlock> blocks_;
   };
-  GlobalVar gv = NullValue<GlobalVar>();
+  GlobalVar gv;
   if (func_name.has_value()) {
     gv = state_->mod->GetGlobalVar(func_name.value());
   } else if (func_working_on_.has_value()) {

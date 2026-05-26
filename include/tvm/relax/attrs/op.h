@@ -31,7 +31,7 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Attributes used in call_tir_with_grad */
-struct CallTIRWithGradAttrs : public AttrsNodeReflAdapter<CallTIRWithGradAttrs> {
+struct CallTIRWithGradAttrs : public BaseAttrsNode {
   ffi::String te_grad_name;
   ffi::Map<ffi::String, Any> te_grad_kwargs;
 
@@ -49,7 +49,7 @@ struct CallTIRWithGradAttrs : public AttrsNodeReflAdapter<CallTIRWithGradAttrs> 
 };  // struct CallTIRAttrs
 
 /*! \brief Attributes used in call_tir_inplace */
-struct CallTIRInplaceAttrs : public AttrsNodeReflAdapter<CallTIRInplaceAttrs> {
+struct CallTIRInplaceAttrs : public BaseAttrsNode {
   /*!
    * \brief Indices that describe which input corresponds to which output.
    *
@@ -69,7 +69,7 @@ struct CallTIRInplaceAttrs : public AttrsNodeReflAdapter<CallTIRInplaceAttrs> {
 };  // struct CallTIRInplaceAttrs
 
 /*! \brief Attributes used in call_inplace_packed */
-struct CallInplacePackedAttrs : public AttrsNodeReflAdapter<CallInplacePackedAttrs> {
+struct CallInplacePackedAttrs : public BaseAttrsNode {
   /*!
    * \brief Indices that describe which input corresponds to which output.
    *
@@ -89,7 +89,7 @@ struct CallInplacePackedAttrs : public AttrsNodeReflAdapter<CallInplacePackedAtt
 };  // struct CallInplacePackedAttrs
 
 /*! \brief Attributes used in to_vdevice */
-struct ToVDeviceAttrs : public AttrsNodeReflAdapter<ToVDeviceAttrs> {
+struct ToVDeviceAttrs : public BaseAttrsNode {
   VDevice dst_vdevice;
 
   static void RegisterReflection() {
@@ -101,7 +101,7 @@ struct ToVDeviceAttrs : public AttrsNodeReflAdapter<ToVDeviceAttrs> {
 };  // struct ToVDeviceAttrs
 
 /*! \brief Attributes used in hint_on_device */
-struct HintOnDeviceAttrs : public AttrsNodeReflAdapter<HintOnDeviceAttrs> {
+struct HintOnDeviceAttrs : public BaseAttrsNode {
   int32_t device_type;
   int32_t index;
   MemoryScope memory_scope;

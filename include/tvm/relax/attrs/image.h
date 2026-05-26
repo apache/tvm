@@ -30,7 +30,7 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Attributes used in image resize2d operator */
-struct Resize2DAttrs : public AttrsNodeReflAdapter<Resize2DAttrs> {
+struct Resize2DAttrs : public BaseAttrsNode {
   ffi::Array<FloatImm> roi;
   ffi::String layout;
   ffi::String method;
@@ -79,7 +79,7 @@ struct Resize2DAttrs : public AttrsNodeReflAdapter<Resize2DAttrs> {
 };  // struct Resize2dAttrs
 
 /*! \brief Attributes used in image resize3d operator */
-struct Resize3DAttrs : public AttrsNodeReflAdapter<Resize3DAttrs> {
+struct Resize3DAttrs : public BaseAttrsNode {
   ffi::Array<FloatImm> roi;
   ffi::String layout;
   ffi::String method;
@@ -128,7 +128,7 @@ struct Resize3DAttrs : public AttrsNodeReflAdapter<Resize3DAttrs> {
 };  // struct Resize3DAttrs
 
 /*! \brief Attributes used in image grid_sample operator */
-struct GridSampleAttrs : public AttrsNodeReflAdapter<GridSampleAttrs> {
+struct GridSampleAttrs : public BaseAttrsNode {
   ffi::String method;
   ffi::String layout;
   ffi::String padding_mode;

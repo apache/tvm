@@ -159,8 +159,7 @@ class ThreadBindingUnifier : public StmtExprMutator {
       // necessary for unit tests.
       result = For(thread_binding->var, thread_binding->dom->min, thread_binding->dom->extent,
                    ForKind::kThreadBinding, result,
-                   IterVar(NullValue<Range>(), Var(""), IterVarType::kThreadIndex,
-                           thread_binding->thread_tag),
+                   IterVar(Range(), Var(""), IterVarType::kThreadIndex, thread_binding->thread_tag),
                    {}, std::nullopt);
       launch_threads_.pop_back();
     }
