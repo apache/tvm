@@ -34,7 +34,7 @@
 namespace tvm {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  FieldInfoNode::RegisterReflection();
+  ArgumentInfoNode::RegisterReflection();
   OpNode::RegisterReflection();
 }
 
