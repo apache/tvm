@@ -60,7 +60,6 @@ StructInfo InferStructInfoSort(const Call& call, const BlockBuilder& ctx) {
 TVM_REGISTER_OP("relax.sort")
     .set_attrs_type<SortAttrs>()
     .set_num_inputs(1)
-    .add_argument("data", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoSort)
     .set_attr<bool>("FPurity", true);
 
@@ -94,7 +93,6 @@ StructInfo InferStructInfoArgsort(const Call& call, const BlockBuilder& ctx) {
 TVM_REGISTER_OP("relax.argsort")
     .set_attrs_type<ArgsortAttrs>()
     .set_num_inputs(1)
-    .add_argument("data", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoArgsort)
     .set_attr<bool>("FPurity", true);
 
@@ -162,7 +160,6 @@ StructInfo InferStructInfoTopK(const Call& call, const BlockBuilder& ctx) {
 TVM_REGISTER_OP("relax.topk")
     .set_attrs_type<TopKAttrs>()
     .set_num_inputs(1)
-    .add_argument("data", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTopK)
     .set_attr<bool>("FPurity", true);
 

@@ -44,37 +44,6 @@
 namespace tvm {
 
 /*!
- * \brief Information about attribute fields in string representations.
- */
-class AttrFieldInfoNode : public ffi::Object {
- public:
-  /*! \brief name of the field */
-  ffi::String name;
-  /*! \brief type docstring information in str. */
-  ffi::String type_info;
-  /*! \brief detailed description of the type */
-  ffi::String description;
-
-  static void RegisterReflection() {
-    namespace rfl = ffi::reflection;
-    rfl::ObjectDef<AttrFieldInfoNode>()
-        .def_ro("name", &AttrFieldInfoNode::name)
-        .def_ro("type_info", &AttrFieldInfoNode::type_info)
-        .def_ro("description", &AttrFieldInfoNode::description);
-  }
-
-  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.AttrFieldInfo", AttrFieldInfoNode, ffi::Object);
-};
-
-/*! \brief AttrFieldInfo */
-class AttrFieldInfo : public ffi::ObjectRef {
- public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(AttrFieldInfo, ffi::ObjectRef, AttrFieldInfoNode);
-};
-
-/*!
  * \brief Base class of all attribute class
  * \note Do not subclass AttrBaseNode directly,
  *       subclass AttrsNode instead.

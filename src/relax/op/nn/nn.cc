@@ -75,7 +75,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 TVM_REGISTER_OP("relax.nn.leakyrelu")
     .set_num_inputs(1)
-    .add_argument("data", "Tensor", "The input tensor.")
     .set_attrs_type<LeakyReluAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo",
                                 InferStructInfoUnaryArith</*require_float_dtype=*/true>)
@@ -98,7 +97,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 TVM_REGISTER_OP("relax.nn.softplus")
     .set_num_inputs(1)
-    .add_argument("data", "Tensor", "The input tensor.")
     .set_attrs_type<SoftplusAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo",
                                 InferStructInfoUnaryArith</*require_float_dtype=*/true>)
@@ -161,8 +159,6 @@ InferLayoutOutput InferLayoutPRelu(
 
 TVM_REGISTER_OP("relax.nn.prelu")
     .set_num_inputs(2)
-    .add_argument("data", "Tensor", "The input tensor.")
-    .add_argument("alpha", "Tensor", "The channel-wise learnable slope.")
     .set_attrs_type<PReluAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoPRelu)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPRelu)
@@ -224,7 +220,6 @@ InferLayoutOutput InferLayoutSoftmax(
 
 TVM_REGISTER_OP("relax.nn.softmax")
     .set_num_inputs(1)
-    .add_argument("data", "Tensor", "The input tensor.")
     .set_attrs_type<SoftmaxAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoSoftmax)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutSoftmax)
@@ -245,7 +240,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 TVM_REGISTER_OP("relax.nn.log_softmax")
     .set_num_inputs(1)
-    .add_argument("data", "Tensor", "The input tensor.")
     .set_attrs_type<SoftmaxAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoSoftmax)
     .set_attr<bool>("FPurity", true);
@@ -292,7 +286,6 @@ StructInfo InferStructInfoPad(const Call& call, const BlockBuilder& ctx) {
 
 TVM_REGISTER_OP("relax.nn.pad")
     .set_num_inputs(1)
-    .add_argument("data", "Tensor", "The input tensor.")
     .set_attrs_type<PadAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoPad)
     .set_attr<bool>("FPurity", true);
@@ -364,7 +357,6 @@ StructInfo InferStructInfoPixelShuffle(const Call& call, const BlockBuilder& ctx
 
 TVM_REGISTER_OP("relax.nn.pixel_shuffle")
     .set_num_inputs(1)
-    .add_argument("data", "Tensor", "The input tensor.")
     .set_attrs_type<PixelShuffleAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoPixelShuffle)
     .set_attr<bool>("FPurity", true);
@@ -374,7 +366,7 @@ bool NormCheckDtypeAndShape(const Call& call, const BlockBuilder& ctx,
                             const ffi::Array<TensorStructInfo>& input_sinfo,
                             ffi::Array<int64_t> axes) {
   Op op = Downcast<Op>(call->op);
-  int n_input = op->arguments.size();
+  int n_input = op->num_inputs;
 
   TensorStructInfo data_sinfo = input_sinfo[0];
 
@@ -394,13 +386,13 @@ bool NormCheckDtypeAndShape(const Call& call, const BlockBuilder& ctx,
     if (input_sinfo[i]->dtype != data_sinfo->dtype) {
       ctx->ReportFatal(Diagnostic::Error(call)
                        << op
-                       << " requires all the input tensors to have the same dtype. However, the "
-                       << op->arguments[i]->name << " has dtype " << input_sinfo[i]->dtype
+                       << " requires all the input tensors to have the same dtype. However, input["
+                       << i << "] has dtype " << input_sinfo[i]->dtype
                        << " which is other than the input data's dtype " << data_sinfo->dtype);
     } else if (input_sinfo[i]->ndim != n_axis) {
       ctx->ReportFatal(Diagnostic::Error(call)
-                       << op << " requires the input " << op->arguments[i]->name
-                       << " to have as many dimensions as the length of input axes. However, the "
+                       << op << " requires input[" << i
+                       << "] to have as many dimensions as the length of input axes. However, the "
                           "given one has ndim "
                        << input_sinfo[i]->ndim << ", which is other than the length of axes "
                        << n_axis);
@@ -514,11 +506,6 @@ InferLayoutOutput InferLayoutBatchNorm(
 TVM_REGISTER_OP("relax.nn.batch_norm")
     .set_attrs_type<BatchNormAttrs>()
     .set_num_inputs(5)
-    .add_argument("data", "Tensor", "Input to which batch_norm will be applied.")
-    .add_argument("gamma", "Tensor", "The gamma scale factor.")
-    .add_argument("beta", "Tensor", "The beta offset factor.")
-    .add_argument("moving_mean", "Tensor", "Running mean of input.")
-    .add_argument("moving_var", "Tensor", "Running variance of input.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoBatchNorm)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutBatchNorm)
     .set_attr<bool>("FPurity", true);
@@ -583,9 +570,6 @@ InferLayoutOutput InferLayoutLayerNorm(
 TVM_REGISTER_OP("relax.nn.layer_norm")
     .set_attrs_type<LayerNormAttrs>()
     .set_num_inputs(3)
-    .add_argument("data", "Tensor", "Input to which layer_norm will be applied.")
-    .add_argument("gamma", "Tensor", "The gamma scale factor.")
-    .add_argument("beta", "Tensor", "The beta offset factor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoLayerNorm)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutLayerNorm)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
@@ -642,7 +626,7 @@ StructInfo InferStructInfoGroupNorm(const Call& call, const BlockBuilder& ctx) {
                      << op << " expects that the size of channel_axis must be divisible by "
                      << attrs->num_groups << ", but got " << data_shape->values[channel_axis]);
   }
-  for (int i = 1; i < static_cast<int>(op->arguments.size()); ++i) {
+  for (int i = 1; i < op->num_inputs; ++i) {
     if (input_sinfo[i]->dtype != data_sinfo->dtype) {
       ctx->ReportFatal(Diagnostic::Error(call)
                        << op << " expects that all inputs must have the same dtype, but got "
@@ -697,9 +681,6 @@ InferLayoutOutput InferLayoutGroupNorm(
 TVM_REGISTER_OP("relax.nn.group_norm")
     .set_attrs_type<GroupNormAttrs>()
     .set_num_inputs(3)
-    .add_argument("data", "Tensor", "Input to which group_norm will be applied.")
-    .add_argument("gamma", "Tensor", "The gamma scale factor.")
-    .add_argument("beta", "Tensor", "The beta offset factor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoGroupNorm)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutGroupNorm)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
@@ -746,7 +727,7 @@ StructInfo InferStructInfoInstanceNorm(const Call& call, const BlockBuilder& ctx
   }
   const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
   arith::Analyzer* analyzer = ctx->GetAnalyzer();
-  for (int i = 1; i < static_cast<int>(op->arguments.size()); ++i) {
+  for (int i = 1; i < op->num_inputs; ++i) {
     if (input_sinfo[i]->dtype != data_sinfo->dtype) {
       ctx->ReportFatal(Diagnostic::Error(call)
                        << op << " expects that all inputs must have the same dtype, but got "
@@ -800,9 +781,6 @@ InferLayoutOutput InferLayoutInstanceNorm(
 TVM_REGISTER_OP("relax.nn.instance_norm")
     .set_attrs_type<InstanceNormAttrs>()
     .set_num_inputs(3)
-    .add_argument("data", "Tensor", "Input to which instance_norm will be applied.")
-    .add_argument("gamma", "Tensor", "The gamma scale factor.")
-    .add_argument("beta", "Tensor", "The beta offset factor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoInstanceNorm)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutInstanceNorm)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
@@ -861,8 +839,6 @@ InferLayoutOutput InferLayoutRMSNorm(
 TVM_REGISTER_OP("relax.nn.rms_norm")
     .set_attrs_type<RMSNormAttrs>()
     .set_num_inputs(2)
-    .add_argument("data", "Tensor", "Input to which rms_norm will be applied.")
-    .add_argument("weight", "Tensor", "The scale factor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoRMSNorm)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutRMSNorm)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
@@ -891,7 +867,6 @@ StructInfo InferStructInfoDropout(const Call& call, const BlockBuilder& ctx) {
 TVM_REGISTER_OP("relax.nn.dropout")
     .set_attrs_type<DropoutAttrs>()
     .set_num_inputs(1)
-    .add_argument("data", "Tensor", "Input to which dropout will be applied.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoDropout)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
@@ -956,8 +931,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 TVM_REGISTER_OP("relax.nn.cross_entropy_with_logits")
     .set_num_inputs(2)
-    .add_argument("predictions", "Tensor", "The predictions.")
-    .add_argument("labels", "Tensor", "The labels.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCrossEntropy)
     .set_attr<bool>("FPurity", true);
 
@@ -1187,9 +1160,6 @@ StructInfo InferStructInfoNLLLoss(const Call& call, const BlockBuilder& ctx) {
 TVM_REGISTER_OP("relax.nn.nll_loss")
     .set_attrs_type<NLLLossAttrs>()
     .set_num_inputs(3)
-    .add_argument("predictions", "Tensor", "The prediction tensor.")
-    .add_argument("targets", "Tensor", "The target tensor.")
-    .add_argument("weights", "ffi::Optional<Tensor>", "The weight of each target values.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoNLLLoss)
     .set_attr<bool>("FPurity", true);
 
@@ -1238,7 +1208,6 @@ StructInfo InferStructInfoBatchFlatten(const Call& call, const BlockBuilder& ctx
 
 TVM_REGISTER_OP("relax.nn.batch_flatten")
     .set_num_inputs(1)
-    .add_argument("data", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoBatchFlatten)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<bool>("FPurity", true);

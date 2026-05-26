@@ -115,9 +115,6 @@ StructInfo InferStructInfoCallPurePacked(const Call& call, const BlockBuilder& c
 
 TVM_REGISTER_OP("relax.call_pure_packed")
     .set_num_inputs(-1)
-    .add_argument("args", "ffi::Array<Expr>",
-                  "The first argument is the function being called. The rest are the "
-                  "arguments to that function.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallPurePacked)
     .set_attr<bool>("FPurity", true);
 
@@ -231,9 +228,6 @@ StructInfo InferStructInfoCallInplacePacked(const Call& call, const BlockBuilder
 TVM_REGISTER_OP("relax.call_inplace_packed")
     .set_num_inputs(-1)
     .set_attrs_type<CallInplacePackedAttrs>()
-    .add_argument("args", "ffi::Array<Expr>",
-                  "The first argument is the function being called. The rest are the "
-                  "arguments to that function.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallInplacePacked)
     // Warning: considered pure, but it has the potential to create visible effects!
     // This should only be used if it has been *checked* that it is safe (no aliases, in-place
@@ -576,11 +570,6 @@ void ValidateCallTIR(Call call) {
 
 TVM_REGISTER_OP("relax.call_tir")
     .set_num_inputs(3)
-    .add_argument("func", "Expr", "The destination-passing-style function.")
-    .add_argument("args", "Tuple", "The input arguments.")
-    .add_argument("packed_ints", "Expr",
-                  "ShapeExpr representing a tuple of ints to unpack during runtime. Omitted from "
-                  "args if unused")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallTIR)
     .set_attr<FNormalize>("FNormalize", NormalizeCallTIR)
     .set_attr<FValidate>("FValidate", ValidateCallTIR)
@@ -624,11 +613,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TVM_REGISTER_OP("relax.call_tir_with_grad")
     .set_num_inputs(3)
     .set_attrs_type<CallTIRWithGradAttrs>()
-    .add_argument("func", "Expr", "The destination-passing-style function.")
-    .add_argument("args", "Tuple", "The input arguments.")
-    .add_argument("packed_ints", "Expr",
-                  "ShapeExpr representing a tuple of ints to unpack during runtime. Omitted from "
-                  "args if unused")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallTIR)
     .set_attr<FNormalize>("FNormalize", NormalizeCallTIR)
     .set_attr<FValidate>("FValidate", ValidateCallTIR)
@@ -766,11 +750,6 @@ Expr NormalizeCallTIRInPlace(const BlockBuilder& ctx, Call call) {
 TVM_REGISTER_OP("relax.call_tir_inplace")
     .set_num_inputs(3)
     .set_attrs_type<CallTIRInplaceAttrs>()
-    .add_argument("func", "Expr", "The destination-passing-style function.")
-    .add_argument("args", "Tuple", "The input arguments.")
-    .add_argument("packed_ints", "Expr",
-                  "ShapeExpr representing a tuple of ints to unpack during runtime. Omitted from "
-                  "args if unused")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallTIR)
     .set_attr<FNormalize>("FNormalize", NormalizeCallTIRInPlace)
     .set_attr<FValidate>("FValidate", ValidateCallTIR)
@@ -828,8 +807,6 @@ StructInfo InferStructInfoCallDPSPacked(const Call& call, const BlockBuilder& ct
 
 TVM_REGISTER_OP("relax.call_dps_packed")
     .set_num_inputs(2)
-    .add_argument("func", "Expr", "The destination-passing-style function.")
-    .add_argument("args", "Tuple", "The input arguments.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallDPSPacked)
     // technically, an impure op could be used with this, but there is
     // little reason to use DPS with an impure op
@@ -894,8 +871,6 @@ void ValidateCallPyFunc(Call call) {
 
 TVM_REGISTER_OP("relax.call_py_func")
     .set_num_inputs(2)
-    .add_argument("func_name", "StringImm", "The name of the Python function to call.")
-    .add_argument("args", "Tuple", "The input arguments.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallPyFunc)
     .set_attr<FValidate>("FValidate", ValidateCallPyFunc)
     .set_attr<bool>("FPurity", true);
@@ -938,8 +913,6 @@ StructInfo InferStructInfoCallBuiltinWithCtx(const Call& call, const BlockBuilde
 
 TVM_REGISTER_OP("relax.call_builtin_with_ctx")
     .set_num_inputs(4)
-    .add_argument("func", "Expr", "The builtin packed func.")
-    .add_argument("args", "Tuple", "The input arguments.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallBuiltinWithCtx)
     // Most builtins are pure, but some are not, like `vm.builtin.attention_kv_cache_append`
     .set_attr<bool>("FPurity", false);
@@ -973,9 +946,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 TVM_REGISTER_OP("relax.print")
     .set_num_inputs(-1)
-    .add_argument("vals", "ffi::Array<Expr>",
-                  "The first value is Python-style format string to use to print. The others "
-                  "are values to print")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnVoidStructInfo)
     .set_attr<FCallPacked>("FCallPacked", "relax.run.print")
     .set_attr<bool>("FPurity", false);
@@ -1018,10 +988,6 @@ StructInfo InferAssertStructInfo(const Call& call, const BlockBuilder& ctx) {
 
 TVM_REGISTER_OP("relax.assert_op")
     .set_num_inputs(-1)
-    .add_argument("vals", "ffi::Array<Expr>",
-                  "The first value is used as the assertion condition. The second value is "
-                  "Python-style format string to use for displaying an error message, if the "
-                  "assert fails. The others are used as format arguments if there is an error.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferAssertStructInfo)
     .set_attr<FCallPacked>("FCallPacked", "relax.run.assert_op")
     .set_attr<bool>("FPurity", false);
@@ -1045,8 +1011,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 TVM_REGISTER_OP("relax.make_closure")
     .set_num_inputs(2)
-    .add_argument("func", "Expr", "The closure.")
-    .add_argument("args", "Tuple", "The captured variables.")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnObjectStructInfo)
     .set_attr<bool>("FPurity", true);
 
@@ -1074,8 +1038,6 @@ StructInfo InferStructInfoInvokeClosure(const Call& call, const BlockBuilder& ct
 
 TVM_REGISTER_OP("relax.invoke_closure")
     .set_num_inputs(2)
-    .add_argument("closure", "Expr", "The VMClosure.")
-    .add_argument("args", "Tuple", "The captured variables.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoInvokeClosure)
     // Not all closures are pure. Use invoke_pure_closure for specifying purity
     .set_attr<bool>("FPurity", false);
@@ -1094,8 +1056,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 TVM_REGISTER_OP("relax.invoke_pure_closure")
     .set_num_inputs(2)
-    .add_argument("closure", "Expr", "The VMClosure.")
-    .add_argument("args", "Tuple", "The captured variables.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoInvokeClosure)
     .set_attr<bool>("FPurity", true);
 
@@ -1113,7 +1073,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 TVM_REGISTER_OP("relax.shape_of")
     .set_num_inputs(1)
-    .add_argument("input", "Expr", "The input expression")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoShapeOf)
     .set_attr<bool>("FPurity", true);
 
@@ -1139,7 +1098,6 @@ StructInfo InferStructInfoSize(const Call& call, const BlockBuilder& ctx) {
 
 TVM_REGISTER_OP("relax.size")
     .set_num_inputs(1)
-    .add_argument("input", "Expr", "The input tensor")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoSize)
     .set_attr<bool>("FPurity", true);
 
@@ -1176,7 +1134,6 @@ StructInfo ReturnTensorToShapeStructInfo(const Call& call, const BlockBuilder& c
 
 TVM_REGISTER_OP("relax.tensor_to_shape")
     .set_num_inputs(1)
-    .add_argument("input", "Expr", "The input expression")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnTensorToShapeStructInfo)
     .set_attr<bool>("FPurity", true);
 
@@ -1202,7 +1159,6 @@ StructInfo ReturnShapeToTensorStructInfo(const Call& call, const BlockBuilder& c
 
 TVM_REGISTER_OP("relax.shape_to_tensor")
     .set_num_inputs(1)
-    .add_argument("input", "Expr", "The input expression")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnShapeToTensorStructInfo)
     .set_attr<FCallPacked>("FCallPacked", "relax.run.shape_to_tensor")
     .set_attr<bool>("FPurity", true);
@@ -1243,13 +1199,6 @@ StructInfo InferStructInfoAllocateTensor(const Call& call, const BlockBuilder& c
 
 TVM_REGISTER_OP("relax.builtin.alloc_tensor")
     .set_num_inputs(4)
-    .add_argument("shape", "Expr", "The shape of the tensor to allocate.")
-    .add_argument("dtype", "DataTypeImm", "The dtype of the tensor to allocate.")
-    .add_argument("runtime_device_index", "PrimValue",
-                  "The device index indicating on which device the tensor is to be "
-                  "allocated at runtime. Index -1 is reserved for the host device.")
-    .add_argument("storage_scope", "StringImm",
-                  "The storage scope of the storage to allocate. Default is global.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAllocateTensor)
     // memory allocation isn't considered a "visible effect" as far as purity is concerned
     .set_attr<bool>("FPurity", true)
@@ -1270,14 +1219,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 TVM_REGISTER_OP("relax.memory.alloc_storage")
     .set_num_inputs(4)
-    .add_argument("total_space", "Expr", "The total space of the storage to allocate.")
-    .add_argument(
-        "virtual_device_index", "PrimValue",
-        "The virtual device index indicating on which device the storage is to be allocated, "
-        "Index -1 is reserved for the host device.")
-    .add_argument("storage_scope", "StringImm",
-                  "The storage scope of the storage to allocate. Default is global.")
-    .add_argument("dtype", "DataTypeImm", "The dtype of the tensor to allocate.")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnObjectStructInfo)
     // memory allocation isn't considered a "visible effect" as far as purity is concerned
     .set_attr<bool>("FPurity", true)
@@ -1321,13 +1262,6 @@ StructInfo InferStructInfoMemAllocTensor(const Call& call, const BlockBuilder& c
 
 TVM_REGISTER_OP("relax.memory.alloc_tensor")
     .set_num_inputs(5)
-    .add_argument("storage", "Expr", "The storage to allocate the tensor to.")
-    .add_argument("offset", "PrimValue", "Storage offset to allocate the tensor.")
-    .add_argument("shape", "Expr", "The shape of the tensor to allocate.")
-    .add_argument("dtype", "DataTypeImm", "The dtype of the tensor to allocate.")
-    .add_argument("runtime_device_index", "PrimValue",
-                  "The device index indicating on which device the tensor is to be "
-                  "allocated at runtime. Index -1 is reserved for the host device.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoMemAllocTensor)
     // memory allocation isn't considered a "visible effect" as far as purity is concerned
     .set_attr<bool>("FPurity", true)
@@ -1359,7 +1293,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 TVM_REGISTER_OP("relax.memory.kill_storage")
     .set_num_inputs(1)
-    .add_argument("storage", "Expr", "The storage to be killed.")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnVoidStructInfo)
     // We mark this as impure so it wouldn't be removed by "remove_all_unused"
     .set_attr<bool>("FPurity", false);
@@ -1378,7 +1311,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 TVM_REGISTER_OP("relax.memory.kill_tensor")
     .set_num_inputs(1)
-    .add_argument("tensor", "Expr", "The tensor to be killed.")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnVoidStructInfo)
     // We mark this as impure so it wouldn't be removed by "remove_all_unused"
     .set_attr<bool>("FPurity", false);
@@ -1397,13 +1329,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 TVM_REGISTER_OP("relax.vm.alloc_storage")
     .set_num_inputs(4)
-    .add_argument("size", "Expr", "The size of the storage to allocate.")
-    .add_argument("dtype", "DataTypeImm", "The dtype of the tensor to allocate.")
-    .add_argument("runtime_device_index", "PrimValue",
-                  "The device index indicating on which device the tensor is "
-                  "to be allocated at runtime.")
-    .add_argument("storage_scope", "StringImm",
-                  "The storage scope of the storage to allocate. Default is global.")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnObjectStructInfo)
     // memory allocation isn't considered a "visible effect" as far as purity is concerned
     .set_attr<bool>("FPurity", true)
@@ -1448,13 +1373,6 @@ StructInfo InferStructInfoVMAllocTensor(const Call& call, const BlockBuilder& ct
 
 TVM_REGISTER_OP("relax.vm.alloc_tensor")
     .set_num_inputs(5)
-    .add_argument("storage", "Expr", "The storage to allocate the tensor to.")
-    .add_argument("offset", "PrimValue", "Storage offset to allocate the tensor.")
-    .add_argument("shape", "Expr", "The shape of the tensor to allocate.")
-    .add_argument("dtype", "DataTypeImm", "The dtype of the tensor to allocate.")
-    .add_argument("runtime_device_index", "PrimValue",
-                  "The device index indicating on which device the tensor is "
-                  "to be allocated at runtime.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoVMAllocTensor)
     // memory allocation isn't considered a "visible effect" as far as purity is concerned
     .set_attr<bool>("FPurity", true)
@@ -1484,7 +1402,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // vm kill_object
 TVM_REGISTER_OP("relax.vm.kill_object")
     .set_num_inputs(1)
-    .add_argument("obj", "Expr", "The object to be killed.")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnVoidStructInfo)
     // We mark this as impure so it wouldn't be removed by "remove_all_unused"
     .set_attr<bool>("FPurity", false);
@@ -1503,9 +1420,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 TVM_REGISTER_OP("relax.vm.call_tir_dyn")
     .set_num_inputs(2)
-    .add_argument("func", "Expr", "The destination-passing-style function.")
-    .add_argument("args", "Tuple",
-                  "The input arguments (list of tensors and last argument is ShapeExpr)")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnVoidStructInfo)
     // "relax.vm.call_tir_dyn" works in an in-place way, which is impure.
     .set_attr<bool>("FPurity", false);
@@ -1527,7 +1441,6 @@ StructInfo InferStructInfoStopLiftParams(const Call& call, const BlockBuilder& c
 
 TVM_REGISTER_OP("relax.builtin.stop_lift_params")
     .set_num_inputs(1)
-    .add_argument("x", "Expr", "The input data")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoStopLiftParams)
     .set_attr<bool>("FPurity", true);
 
@@ -1558,7 +1471,6 @@ StructInfo InferToVDeviceStructInfo(const Call& call, const BlockBuilder& ctx) {
 TVM_REGISTER_OP("relax.to_vdevice")
     .set_num_inputs(1)
     .set_attrs_type<ToVDeviceAttrs>()
-    .add_argument("data", "Expr", "The input expression to be copied")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferToVDeviceStructInfo)
     .set_attr<bool>("FPurity", true);
 
@@ -1586,7 +1498,6 @@ StructInfo InferHintOnDeviceStructInfo(const Call& call, const BlockBuilder& ctx
 TVM_REGISTER_OP("relax.hint_on_device")
     .set_num_inputs(1)
     .set_attrs_type<HintOnDeviceAttrs>()
-    .add_argument("data", "Expr", "The input expression")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferHintOnDeviceStructInfo)
     .set_attr<bool>("FPurity", true);
 

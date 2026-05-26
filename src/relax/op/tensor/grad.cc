@@ -48,7 +48,6 @@ StructInfo InferStructInfoNoGrad(const Call& call, const BlockBuilder& ctx) {
 
 TVM_REGISTER_OP("relax.grad.no_grad")
     .set_num_inputs(1)
-    .add_argument("x", "Expr", "The corresponding input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoNoGrad)
     .set_attr<bool>("FPurity", true);
 
@@ -73,7 +72,6 @@ StructInfo InferStructInfoStartCheckpoint(const Call& call, const BlockBuilder& 
 
 TVM_REGISTER_OP("relax.grad.start_checkpoint")
     .set_num_inputs(1)
-    .add_argument("x", "Expr", "The tensor marking the input of the checkpoint stage.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoStartCheckpoint)
     .set_attr<bool>("FPurity", true);
 
@@ -98,7 +96,6 @@ StructInfo InferStructInfoEndCheckpoint(const Call& call, const BlockBuilder& ct
 
 TVM_REGISTER_OP("relax.grad.end_checkpoint")
     .set_num_inputs(1)
-    .add_argument("x", "Expr", "The output of the checkpoint stage.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoEndCheckpoint)
     .set_attr<bool>("FPurity", true);
 
@@ -133,10 +130,6 @@ StructInfo InferStructInfoNLLLossBackward(const Call& call, const BlockBuilder& 
 TVM_REGISTER_OP("relax.grad.nll_loss_backward")
     .set_attrs_type<NLLLossAttrs>()
     .set_num_inputs(4)
-    .add_argument("output_grad", "Tensor", "The output gradient.")
-    .add_argument("predictions", "Tensor", "The prediction tensor.")
-    .add_argument("targets", "Tensor", "The target tensor.")
-    .add_argument("weights", "ffi::Optional<Tensor>", "The weight of each target values.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoNLLLossBackward)
     .set_attr<bool>("FPurity", true);
 
@@ -169,8 +162,6 @@ StructInfo InferStructInfoMaxPool2DBackward(const Call& call, const BlockBuilder
 
 TVM_REGISTER_OP("relax.grad.max_pool2d_backward")
     .set_num_inputs(2)
-    .add_argument("output_grad", "Tensor", "The output gradient.")
-    .add_argument("data", "Tensor", "The input tensor")
     .set_attrs_type<Pool2DAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoMaxPool2DBackward)
     .set_attr<bool>("FPurity", true);
@@ -204,8 +195,6 @@ StructInfo InferStructInfoAvgPool2DBackward(const Call& call, const BlockBuilder
 
 TVM_REGISTER_OP("relax.grad.avg_pool2d_backward")
     .set_num_inputs(2)
-    .add_argument("output_grad", "Tensor", "The output gradient.")
-    .add_argument("data", "Tensor", "The input tensor")
     .set_attrs_type<Pool2DAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAvgPool2DBackward)
     .set_attr<bool>("FPurity", true);
@@ -232,9 +221,6 @@ StructInfo InferStructInfoTakeBackward(const Call& call, const BlockBuilder& ctx
 TVM_REGISTER_OP("relax.grad.take_backward")
     .set_attrs_type<TakeAttrs>()
     .set_num_inputs(3)
-    .add_argument("output_grad", "Tensor", "The output gradient.")
-    .add_argument("x", "Tensor", "The source tensor.")
-    .add_argument("indices", "Tensor", "The indices of the values to extract.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTakeBackward)
     .set_attr<bool>("FPurity", true);
 

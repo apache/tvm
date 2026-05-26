@@ -39,7 +39,7 @@ ffi::Array<Expr> GetCallArgs(const Call& call) {
 
 void CheckNumArguments(const Call& call, const BlockBuilder& ctx) {
   Op op = Downcast<Op>(call->op);
-  int expected_input = op->arguments.size();
+  int expected_input = op->num_inputs;
   if (static_cast<int>(call->args.size()) != expected_input) {
     ctx->ReportFatal(Diagnostic::Error(call)
                      << "Operator " << op << " expects " << expected_input << " arguments"
@@ -50,10 +50,10 @@ void CheckNumArguments(const Call& call, const BlockBuilder& ctx) {
 TensorStructInfo GetInputTensorStructInfo(const Call& call, size_t i_arg, const BlockBuilder& ctx) {
   Op op = Downcast<Op>(call->op);
 
-  TVM_FFI_ICHECK_EQ(op->arguments.size(), call->args.size())
+  TVM_FFI_ICHECK_EQ(static_cast<size_t>(op->num_inputs), call->args.size())
       << "Failure caught by this check "
       << "should have previously been caught by `CheckNumArguments`";
-  TVM_FFI_ICHECK_LT(i_arg, op->arguments.size());
+  TVM_FFI_ICHECK_LT(i_arg, static_cast<size_t>(op->num_inputs));
 
   auto arg = call->args[i_arg];
   auto sinfo = GetStructInfo(arg);
@@ -62,8 +62,8 @@ TensorStructInfo GetInputTensorStructInfo(const Call& call, size_t i_arg, const 
     return tensor_sinfo.value();
   } else {
     ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Operator " << op << " requires argument " << i_arg << " ("
-                     << op->arguments[i_arg]->name << ") to be a tensor.  "
+                     << "Operator " << op << " requires argument input[" << i_arg
+                     << "] to be a tensor.  "
                      << "However, the argument " << arg << " is instead of type " << sinfo);
     // Unreachable, but [[noreturn]] attribute on virtual function
     // `ReportFatal` is insufficient to silence -Wreturn-type, as

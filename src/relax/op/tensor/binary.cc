@@ -35,7 +35,7 @@ template <typename FType>
 StructInfo InferStructInfoBroadcast(const Call& call, const BlockBuilder& ctx,
                                     FType f_compute_out_dtype) {
   Op op = Downcast<Op>(call->op);
-  size_t n_input = op->arguments.size();
+  size_t n_input = op->num_inputs;
   if (call->args.size() != n_input) {
     ctx->ReportFatal(Diagnostic::Error(call)
                      << call->op << " op should have " << n_input << " arguments");

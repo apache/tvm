@@ -26,10 +26,7 @@
 
 namespace tvm {
 
-TVM_FFI_STATIC_INIT_BLOCK() {
-  AttrFieldInfoNode::RegisterReflection();
-  DictAttrsNode::RegisterReflection();
-}
+TVM_FFI_STATIC_INIT_BLOCK() { DictAttrsNode::RegisterReflection(); }
 
 DictAttrs WithAttrs(DictAttrs attrs, ffi::Map<ffi::String, ffi::Any> new_attrs) {
   if (new_attrs.empty()) {

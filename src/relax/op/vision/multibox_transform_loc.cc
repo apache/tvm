@@ -194,10 +194,6 @@ TVM_REGISTER_OP("relax.vision.multibox_transform_loc")
         "inference. Very large variances (w,h) can overflow exp in half box sizes.")
     .set_attrs_type<MultiboxTransformLocAttrs>()
     .set_num_inputs(3)
-    .add_argument("cls_pred", "Tensor", "[B,C,N] class logits (pre-softmax).")
-    .add_argument("loc_pred", "Tensor",
-                  "[B,4*N] box encodings (x,y,w,h); TFLite yxhw order remapped to xywh.")
-    .add_argument("anchor", "Tensor", "[1,N,4] priors as ltrb (left,top,right,bottom).")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoMultiboxTransformLoc)
     .set_attr<bool>("FPurity", true);
 

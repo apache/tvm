@@ -70,9 +70,6 @@ RELAX_REGISTER_UNARY_ARITH_OP_AND_IMPL(erf, /*require_float_dtype=*/true);
 // relax.clip
 TVM_REGISTER_OP("relax.clip")
     .set_num_inputs(3)
-    .add_argument("x", "Tensor", "The input tensor.")
-    .add_argument("min", "PrimValue", "The lower-bound of the range to be clipped to")
-    .add_argument("max", "PrimValue", "The upper-bound of the range to be clipped to")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnStructInfoFromArg<0>)
     .set_attr<bool>("FPurity", true);
 

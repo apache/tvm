@@ -148,23 +148,6 @@ StructInfo InferStructInfoUnique(const Call& call, const BlockBuilder& ctx) {
 
 TVM_REGISTER_OP("relax.unique")
     .set_num_inputs(6)
-    .add_argument("x", "Tensor", "The input tensor")
-    .add_argument(
-        "sorted", "Tensor",
-        "Whether to sort the unique elements in ascending order before returning as output.")
-    .add_argument(
-        "return_index", "Tensor",
-        "Whether to return an additional tensor with indices for where elements in the unique "
-        "tensor come from the original input.")
-    .add_argument("return_inverse", "Tensor",
-                  "Whether to return an additional tensor with indices for where elements in the "
-                  "original input ended up in the returned unique list.")
-    .add_argument("return_counts", "Tensor",
-                  "Whether to return an additional tensor with counts of each unique elements")
-    .add_argument("axis", "Tensor",
-                  "The dimension to apply unique. If it is std::nullopt, the unique values of the "
-                  "flattened input "
-                  "are returned.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoUnique)
     .set_attr<FCallPacked>("FCallPacked", "relax.run.unique")
     .set_attr<bool>("FPurity", true);
@@ -187,7 +170,6 @@ StructInfo InferStructInfoNonzero(const Call& call, const BlockBuilder& ctx) {
 
 TVM_REGISTER_OP("relax.nonzero")
     .set_num_inputs(1)
-    .add_argument("x", "Tensor", "The input tensor")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoNonzero)
     .set_attr<FCallPacked>("FCallPacked", "relax.run.nonzero")
     .set_attr<bool>("FPurity", true);

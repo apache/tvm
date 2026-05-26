@@ -104,14 +104,6 @@ StructInfo InferStructInfoAllClassNMS(const Call& call, const BlockBuilder& ctx)
 TVM_REGISTER_OP("relax.vision.all_class_non_max_suppression")
     .set_attrs_type<AllClassNonMaximumSuppressionAttrs>()
     .set_num_inputs(5)
-    .add_argument("boxes", "Tensor", "The input boxes in the format [batch, num_boxes, 4].")
-    .add_argument("scores", "Tensor",
-                  "Scores for each box and class in the format [batch, num_classes, num_boxes].")
-    .add_argument("max_output_boxes_per_class", "Tensor",
-                  "The maximum number of output boxes per class.")
-    .add_argument("iou_threshold", "Tensor", "The IoU threshold for box the overlap test.")
-    .add_argument("score_threshold", "Tensor",
-                  "The score threshold to filter out low score boxes early.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAllClassNMS)
     .set_attr<bool>("FPurity", true);
 
@@ -186,8 +178,6 @@ StructInfo InferStructInfoGetValidCounts(const Call& call, const BlockBuilder& c
 TVM_REGISTER_OP("relax.vision.get_valid_counts")
     .set_attrs_type<GetValidCountsAttrs>()
     .set_num_inputs(1)
-    .add_argument("data", "Tensor",
-                  "Input data, 3-D tensor [batch_size, num_anchors, elem_length].")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoGetValidCounts)
     .set_attr<bool>("FPurity", true);
 
@@ -366,10 +356,6 @@ StructInfo InferStructInfoNMS(const Call& call, const BlockBuilder& ctx) {
 TVM_REGISTER_OP("relax.vision.non_max_suppression")
     .set_attrs_type<NonMaximumSuppressionAttrs>()
     .set_num_inputs(3)
-    .add_argument("data", "Tensor",
-                  "Input data, 3-D tensor [batch_size, num_anchors, elem_length].")
-    .add_argument("valid_count", "Tensor", "1-D tensor for valid number of boxes.")
-    .add_argument("indices", "Tensor", "2-D tensor with shape [batch_size, num_anchors].")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoNMS)
     .set_attr<bool>("FPurity", true);
 

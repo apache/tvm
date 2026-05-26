@@ -166,8 +166,6 @@ Call InferMixedPrecisionMatmul(const Call& call, const DataType& out_dtype) {
 
 TVM_REGISTER_OP("relax.matmul")
     .set_num_inputs(2)
-    .add_argument("x1", "Tensor", "The first input tensor.")
-    .add_argument("x2", "Tensor", "The second input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoMatmul)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
     .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionMatmul)
@@ -257,7 +255,6 @@ StructInfo InferStructInfoEinsum(const Call& call, const BlockBuilder& ctx) {
 TVM_REGISTER_OP("relax.einsum")
     .set_attrs_type<EinsumAttrs>()
     .set_num_inputs(1)
-    .add_argument("operands", "Tensor", "The input tensors.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoEinsum)
     .set_attr<bool>("FPurity", true);
 
@@ -296,8 +293,6 @@ StructInfo InferStructInfoOuter(const Call& call, const BlockBuilder& ctx) {
 
 TVM_REGISTER_OP("relax.outer")
     .set_num_inputs(2)
-    .add_argument("x1", "Tensor", "The first input tensor.")
-    .add_argument("x2", "Tensor", "The second input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoOuter)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
     .set_attr<bool>("FPurity", true);

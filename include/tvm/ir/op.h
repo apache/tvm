@@ -67,8 +67,6 @@ class OpNode : public RelaxExprNode {
    *  This can be used to generate docstring automatically for the operator.
    */
   ffi::String description;
-  /* \brief Information of input arguments to the operator */
-  ffi::Array<AttrFieldInfo> arguments;
   /*!
    * \brief The type key of the attribute field
    *  This can be empty, in which case it defaults to anything.
@@ -97,7 +95,6 @@ class OpNode : public RelaxExprNode {
         .def_ro("name", &OpNode::name)
         .def_ro("op_type", &OpNode::op_type, refl::AttachFieldFlag::SEqHashIgnore())
         .def_ro("description", &OpNode::description, refl::AttachFieldFlag::SEqHashIgnore())
-        .def_ro("arguments", &OpNode::arguments, refl::AttachFieldFlag::SEqHashIgnore())
         .def_ro("attrs_type_key", &OpNode::attrs_type_key, refl::AttachFieldFlag::SEqHashIgnore())
         .def_ro("num_inputs", &OpNode::num_inputs, refl::AttachFieldFlag::SEqHashIgnore())
         .def_ro("support_level", &OpNode::support_level, refl::AttachFieldFlag::SEqHashIgnore());
@@ -179,15 +176,6 @@ class OpRegEntry {
    * \return reference to self.
    */
   inline OpRegEntry& describe(const std::string& descr);  // NOLINT(*)
-  /*!
-   * \brief Add argument information to the function.
-   * \param name Name of the argument.
-   * \param type Type of the argument.
-   * \param description Description of the argument.
-   * \return reference to self.
-   */
-  inline OpRegEntry& add_argument(const std::string& name, const std::string& type,
-                                  const std::string& description);
   /*!
    * \brief Set the attrs type key and index to be AttrsType.
    * \tparam AttrsType the attribute type to b set.
@@ -325,16 +313,6 @@ inline OpNode* OpRegEntry::get() { return const_cast<OpNode*>(op_.operator->());
 
 inline OpRegEntry& OpRegEntry::describe(const std::string& descr) {  // NOLINT(*)
   get()->description = descr;
-  return *this;
-}
-
-inline OpRegEntry& OpRegEntry::add_argument(const std::string& name, const std::string& type,
-                                            const std::string& description) {
-  auto n = ffi::make_object<AttrFieldInfoNode>();
-  n->name = name;
-  n->type_info = type;
-  n->description = description;
-  get()->arguments.push_back(AttrFieldInfo(n));
   return *this;
 }
 
