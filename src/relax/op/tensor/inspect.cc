@@ -150,6 +150,7 @@ Expr LegalizeTensorDtypeCode(const BlockBuilder& bb, const Call& call) {
 
 TVM_REGISTER_OP("relax.inspect.tensor_dtype_code")
     .set_num_inputs(1)
+    .add_argument("tensor", "Tensor", "The tensor to be inspected")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTensorDtypeCode)
     .set_attr<FLegalize>("FLegalize", LegalizeTensorDtypeCode)
     .set_attr<bool>("RequiresArgumentShapes", false)
@@ -187,6 +188,7 @@ Expr LegalizeTensorDtypeBits(const BlockBuilder& bb, const Call& call) {
 
 TVM_REGISTER_OP("relax.inspect.tensor_dtype_bits")
     .set_num_inputs(1)
+    .add_argument("tensor", "Tensor", "The tensor to be inspected")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTensorDtypeBits)
     .set_attr<FLegalize>("FLegalize", LegalizeTensorDtypeBits)
     .set_attr<bool>("RequiresArgumentShapes", false)
@@ -224,6 +226,7 @@ Expr LegalizeTensorDtypeLanes(const BlockBuilder& bb, const Call& call) {
 
 TVM_REGISTER_OP("relax.inspect.tensor_dtype_lanes")
     .set_num_inputs(1)
+    .add_argument("tensor", "Tensor", "The tensor to be inspected")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTensorDtypeLanes)
     .set_attr<FLegalize>("FLegalize", LegalizeTensorDtypeLanes)
     .set_attr<bool>("RequiresArgumentShapes", false)
@@ -261,6 +264,7 @@ Expr LegalizeTensorNDim(const BlockBuilder& bb, const Call& call) {
 
 TVM_REGISTER_OP("relax.inspect.tensor_ndim")
     .set_num_inputs(1)
+    .add_argument("tensor", "Tensor", "The tensor to be inspected")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTensorNDim)
     .set_attr<FLegalize>("FLegalize", LegalizeTensorNDim)
     .set_attr<bool>("RequiresArgumentShapes", false)
@@ -338,6 +342,8 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
 
 TVM_REGISTER_OP("relax.inspect.tensor_shape_i")
     .set_num_inputs(2)
+    .add_argument("tensor", "Tensor", "The tensor to be inspected")
+    .add_argument("axis", "Prim(int64)", "The axis whose extent should be returned")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTensorShape)
     .set_attr<FLegalize>("FLegalize", LegalizeTensorShape)
     .set_attr<bool>("RequiresArgumentShapes", false)
@@ -385,6 +391,8 @@ StructInfo InferStructInfoTensorStride(const Call& call, const BlockBuilder&) {
 
 TVM_REGISTER_OP("relax.inspect.tensor_stride_i")
     .set_num_inputs(2)
+    .add_argument("tensor", "Tensor", "The tensor to be inspected")
+    .add_argument("axis", "Prim(int64)", "The axis whose extent should be returned")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTensorStride)
     .set_attr<bool>("RequiresArgumentShapes", false)
     .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimValue)
@@ -415,6 +423,7 @@ StructInfo InferStructInfoTensorByteOffset(const Call& call, const BlockBuilder&
 
 TVM_REGISTER_OP("relax.inspect.tensor_byte_offset")
     .set_num_inputs(1)
+    .add_argument("tensor", "Tensor", "The tensor to be inspected")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTensorByteOffset)
     .set_attr<bool>("RequiresArgumentShapes", false)
     .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimValue)
@@ -445,6 +454,7 @@ StructInfo InferStructInfoTensorElemOffset(const Call& call, const BlockBuilder&
 
 TVM_REGISTER_OP("relax.inspect.tensor_elem_offset")
     .set_num_inputs(1)
+    .add_argument("tensor", "Tensor", "The tensor to be inspected")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTensorElemOffset)
     .set_attr<bool>("RequiresArgumentShapes", false)
     .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimValue)

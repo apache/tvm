@@ -47,6 +47,8 @@ namespace relax {
   }                                                                                                \
   TVM_REGISTER_OP("relax." #OpName)                                                                \
       .set_num_inputs(2)                                                                           \
+      .add_argument("x1", "Tensor", "The first input tensor.")                                     \
+      .add_argument("x2", "Tensor", "The second input tensor.")                                    \
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutBinaryEwise)                    \
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow) \
       .set_attr<bool>("FPurity", true)

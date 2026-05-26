@@ -56,6 +56,7 @@ StructInfo InferStructInfoAllReduce(const Call& call, const BlockBuilder& ctx) {
 TVM_REGISTER_OP("relax.ccl.allreduce")
     .set_attrs_type<AllReduceAttrs>()
     .set_num_inputs(1)
+    .add_argument("x", "Tensor", "Input to which allreduce will be applied.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAllReduce)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
     .set_attr<bool>("FPurity", true);
@@ -94,6 +95,7 @@ StructInfo InferStructInfoAllGather(const Call& call, const BlockBuilder& ctx) {
 
 TVM_REGISTER_OP("relax.ccl.allgather")
     .set_num_inputs(1)
+    .add_argument("x", "Tensor", "Input to which allgather will be applied.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAllGather)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
     .set_attr<bool>("FPurity", true);
@@ -116,6 +118,7 @@ StructInfo InferStructInfoBroadcastFromZero(const Call& call, const BlockBuilder
 
 TVM_REGISTER_OP("relax.ccl.broadcast_from_worker0")
     .set_num_inputs(1)
+    .add_argument("x", "Tensor", "Input to be broadcast.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoBroadcastFromZero)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
     .set_attr<bool>("FPurity", true);
@@ -163,6 +166,8 @@ StructInfo InferStructInfoScatter(const Call& call, const BlockBuilder& ctx) {
 
 TVM_REGISTER_OP("relax.ccl.scatter_from_worker0")
     .set_num_inputs(1)
+    .add_argument("x", "Tensor",
+                  "The buffer to be divided into equal parts and sent to each worker accordingly.")
     .set_attrs_type<ScatterCollectiveAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoScatter)
     .set_attr<bool>("FPurity", true);

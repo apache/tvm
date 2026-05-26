@@ -102,6 +102,20 @@ class Op(RelaxExpr):
         """
         _ffi_api.OpResetAttr(self, attr_name)
 
+    def add_argument(self, name, type, description):  # pylint: disable=redefined-builtin
+        """Add arguments information to the function.
+
+        Parameters
+        ----------
+        name : str
+            The argument name.
+        type : str
+            The argument type.
+        description : str
+            The argument description.
+        """
+        _ffi_api.OpAddArgument(self, name, type, description)
+
     def set_support_level(self, level):
         """Set the support level of op.
 

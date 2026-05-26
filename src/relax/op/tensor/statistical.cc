@@ -262,6 +262,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TVM_REGISTER_OP("relax.cumprod")
     .set_attrs_type<ScanopAttrs>()
     .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoScan)
     .set_attr<bool>("FPurity", true);
 
@@ -284,6 +285,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TVM_REGISTER_OP("relax.cumsum")
     .set_attrs_type<ScanopAttrs>()
     .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoScan)
     .set_attr<bool>("FPurity", true);
 
@@ -303,6 +305,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 TVM_REGISTER_OP("relax.median")
     .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoStatisticalExtension)
     .set_attr<bool>("FPurity", true);
 

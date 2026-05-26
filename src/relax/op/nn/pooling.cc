@@ -144,6 +144,7 @@ InferLayoutOutput InferLayoutPool1d(
 
 TVM_REGISTER_OP("relax.nn.max_pool1d")
     .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor")
     .set_attrs_type<Pool1DAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoPool1D)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool1d)
@@ -294,6 +295,7 @@ InferLayoutOutput InferLayoutPool2d(
 
 TVM_REGISTER_OP("relax.nn.max_pool2d")
     .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor")
     .set_attrs_type<Pool2DAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoPool2D)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool2d)
@@ -439,6 +441,7 @@ InferLayoutOutput InferLayoutPool3d(
 
 TVM_REGISTER_OP("relax.nn.max_pool3d")
     .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor")
     .set_attrs_type<Pool3DAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoPool3D)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool3d)
@@ -460,6 +463,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 TVM_REGISTER_OP("relax.nn.avg_pool1d")
     .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor")
     .set_attrs_type<Pool1DAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoPool1D)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool1d)
@@ -481,6 +485,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 TVM_REGISTER_OP("relax.nn.avg_pool2d")
     .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor")
     .set_attrs_type<Pool2DAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoPool2D)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool2d)
@@ -502,6 +507,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 TVM_REGISTER_OP("relax.nn.avg_pool3d")
     .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor")
     .set_attrs_type<Pool3DAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoPool3D)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool3d)
@@ -584,6 +590,7 @@ InferLayoutOutput InferLayoutAdaptiveAvgPool1D(
 TVM_REGISTER_OP("relax.nn.adaptive_avg_pool1d")
     .set_attrs_type<AdaptivePool1DAttrs>()
     .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAdaptiveAvgPool1D)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutAdaptiveAvgPool1D)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
@@ -685,6 +692,7 @@ InferLayoutOutput InferLayoutAdaptiveAvgPool2D(
 TVM_REGISTER_OP("relax.nn.adaptive_avg_pool2d")
     .set_attrs_type<AdaptivePool2DAttrs>()
     .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAdaptiveAvgPool2D)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutAdaptiveAvgPool2D)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
@@ -771,6 +779,7 @@ InferLayoutOutput InferLayoutAdaptiveAvgPool3D(
 TVM_REGISTER_OP("relax.nn.adaptive_avg_pool3d")
     .set_attrs_type<AdaptivePool3DAttrs>()
     .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAdaptiveAvgPool3D)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutAdaptiveAvgPool3D)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)

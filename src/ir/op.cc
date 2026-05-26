@@ -33,7 +33,10 @@
 
 namespace tvm {
 
-TVM_FFI_STATIC_INIT_BLOCK() { OpNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() {
+  FieldInfoNode::RegisterReflection();
+  OpNode::RegisterReflection();
+}
 
 using ffi::Any;
 using ffi::Function;
@@ -112,6 +115,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  << "Operator " << op_name << " is registered before";
              auto& op = OpRegistry::Global()->RegisterOrGet(op_name).set_name();
              op.describe(descr);
+           })
+      .def("ir.OpAddArgument",
+           [](Op op, ffi::String name, ffi::String type, ffi::String description) {
+             auto& reg = OpRegistry::Global()->RegisterOrGet(op->name).set_name();
+             reg.add_argument(name, type, description);
            })
       .def("ir.OpSetSupportLevel",
            [](Op op, int level) {

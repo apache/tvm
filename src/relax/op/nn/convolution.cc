@@ -195,6 +195,8 @@ Call InferMixedPrecisionConv1d(const Call& call, const DataType& out_dtype) {
 
 TVM_REGISTER_OP("relax.nn.conv1d")
     .set_num_inputs(2)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("weight", "Tensor", "The weight tensor.")
     .set_attrs_type<Conv1DAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoConv1d)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv1d)
@@ -401,6 +403,8 @@ Call InferMixedPrecisionConv2d(const Call& call, const DataType& out_dtype) {
 
 TVM_REGISTER_OP("relax.nn.conv2d")
     .set_num_inputs(2)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("weight", "Tensor", "The weight tensor.")
     .set_attrs_type<Conv2DAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoConv2d)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv2d)
@@ -581,6 +585,8 @@ Call InferMixedPrecisionConv3d(const Call& call, const DataType& out_dtype) {
 
 TVM_REGISTER_OP("relax.nn.conv3d")
     .set_num_inputs(2)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("weight", "Tensor", "The weight tensor.")
     .set_attrs_type<Conv3DAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoConv3d)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv3d)
@@ -761,6 +767,8 @@ Call InferMixedPrecisionConv1dTranspose(const Call& call, const DataType& out_dt
 
 TVM_REGISTER_OP("relax.nn.conv1d_transpose")
     .set_num_inputs(2)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("weight", "Tensor", "The weight tensor.")
     .set_attrs_type<Conv1DTransposeAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoConv1dTranspose)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv1dTranspose)
@@ -990,6 +998,8 @@ Call InferMixedPrecisionConv2dTranspose(const Call& call, const DataType& out_dt
 
 TVM_REGISTER_OP("relax.nn.conv2d_transpose")
     .set_num_inputs(2)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("weight", "Tensor", "The weight tensor.")
     .set_attrs_type<Conv2DTransposeAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoConv2dTranspose)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv2dTranspose)
@@ -1230,6 +1240,8 @@ Call InferMixedPrecisionConv3dTranspose(const Call& call, const DataType& out_dt
 
 TVM_REGISTER_OP("relax.nn.conv3d_transpose")
     .set_num_inputs(2)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("weight", "Tensor", "The weight tensor.")
     .set_attrs_type<Conv3DTransposeAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoConv3dTranspose)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv3dTranspose)

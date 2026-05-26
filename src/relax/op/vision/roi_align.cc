@@ -130,6 +130,9 @@ StructInfo InferStructInfoROIAlign(const Call& call, const BlockBuilder& ctx) {
 TVM_REGISTER_OP("relax.vision.roi_align")
     .set_attrs_type<ROIAlignAttrs>()
     .set_num_inputs(2)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("rois", "Tensor",
+                  "The input rois with shape (num_roi, 5) in [batch_idx, x1, y1, x2, y2] format.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoROIAlign)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<bool>("FPurity", true);

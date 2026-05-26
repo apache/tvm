@@ -79,6 +79,11 @@ StructInfo InferStructInfoBucketize(const Call& call, const BlockBuilder& ctx) {
 
 TVM_REGISTER_OP("relax.bucketize")
     .set_num_inputs(2)
+    .add_argument("input_tensor", "Tensor",
+                  " N-D tensor or a Scalar containing the search value(s).")
+    .add_argument("boundaries", "Tensor",
+                  "1-D tensor, must contain a strictly increasing sequence, or the return value is "
+                  "undefined.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoBucketize)
     .set_attr<bool>("FPurity", true);
 
@@ -175,6 +180,9 @@ StructInfo InferStructInfoWhere(const Call& call, const BlockBuilder& ctx) {
 
 TVM_REGISTER_OP("relax.where")
     .set_num_inputs(3)
+    .add_argument("condition", "Tensor", "When True, yield `x1`; otherwise, yield `x2`.")
+    .add_argument("x1", "Tensor", "The first input tensor.")
+    .add_argument("x2", "Tensor", "The second input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoWhere)
     .set_attr<bool>("FPurity", true);
 
@@ -252,6 +260,7 @@ StructInfo InferStructInfoArgmaxArgmin(const Call& call, const BlockBuilder& ctx
   }                                                                                  \
   TVM_REGISTER_OP("relax." #OpName)                                                  \
       .set_num_inputs(1)                                                             \
+      .add_argument("x", "Tensor", "The input data tensor")                          \
       .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoArgmaxArgmin)   \
       .set_attr<bool>("FPurity", true);
 

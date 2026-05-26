@@ -142,10 +142,10 @@ std::tuple<ArgTypes...> GetArgStructInfoHelper(const Call& call, const Op& op,
 template <typename... ArgTypes>
 std::tuple<ArgTypes...> GetArgStructInfo(const Call& call, const BlockBuilder& ctx) {
   Op op = Downcast<Op>(call->op);
-  size_t n_input = op->num_inputs;
+  size_t n_input = op->arguments.size();
 
-  // Unfortunately, because the `.set_num_inputs()` call in
-  // TVM_REGISTER_OP occurs during initialization of globals and is
+  // Unfortunately, because the `.add_argument()` calls in
+  // TVM_REGISTER_OP occur during initialization of globals and are
   // not available at compile-time, this cannot be a static_assert.
   TVM_FFI_ICHECK_EQ(n_input, sizeof...(ArgTypes))
       << "Internal error: " << op << " op defines " << n_input
@@ -166,6 +166,7 @@ std::tuple<ArgTypes...> GetArgStructInfo(const Call& call, const BlockBuilder& c
 #define RELAX_REGISTER_UNARY_OP(OpRegName)                                                         \
   TVM_REGISTER_OP("relax." OpRegName)                                                              \
       .set_num_inputs(1)                                                                           \
+      .add_argument("x", "Tensor", "The input tensor.")                                            \
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)                     \
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow) \
       .set_attr<bool>("FPurity", true)
@@ -234,7 +235,7 @@ inline StructInfo InferStructInfoUnary(const Call& call, const BlockBuilder& ctx
 template <int arg_index>
 StructInfo ReturnStructInfoFromArg(const Call& call, const BlockBuilder& ctx) {
   Op op = Downcast<Op>(call->op);
-  int n_input = op->num_inputs;
+  int n_input = op->arguments.size();
   if (static_cast<int>(call->args.size()) != n_input) {
     ctx->ReportFatal(Diagnostic::Error(call)
                      << op << " op should have " << n_input << " arguments");

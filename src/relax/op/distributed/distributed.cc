@@ -62,6 +62,7 @@ StructInfo InferStructInfoAnnotateSharding(const Call& call, const BlockBuilder&
 
 TVM_REGISTER_OP("relax.dist.annotate_sharding")
     .set_num_inputs(1)
+    .add_argument("input", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAnnotateSharding)
     .set_attr<FInferStructInfo>("dist.FInferStructInfo", InferStructInfoAnnotateSharding)
     .set_attr<bool>("FPurity", true);
@@ -92,6 +93,7 @@ StructInfo InferDistStructInfoRedistribute(const Call& call, const BlockBuilder&
 
 TVM_REGISTER_OP("relax.dist.redistribute")
     .set_num_inputs(1)
+    .add_argument("input", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("dist.FInferStructInfo", InferDistStructInfoRedistribute)
     .set_attr<bool>("FPurity", true);
 
@@ -109,6 +111,11 @@ StructInfo InferStructInfoCallTIRLocalView(const Call& call, const BlockBuilder&
 
 TVM_REGISTER_OP("relax.dist.call_tir_local_view")
     .set_num_inputs(3)
+    .add_argument("func", "Expr", "The destination-passing-style function.")
+    .add_argument("args", "Tuple", "The input arguments.")
+    .add_argument("packed_ints", "Expr",
+                  "ShapeExpr representing a tuple of ints to unpack during runtime. Omitted from "
+                  "args if unused")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallTIRLocalView)
     .set_attr<bool>("FPurity", true);
 
@@ -221,6 +228,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 TVM_REGISTER_OP("relax.dist.redistribute_replica_to_shard")
     .set_num_inputs(1)
+    .add_argument("input", "Tensor", "The buffer to be sliced.")
     .set_attrs_type<ScatterCollectiveAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoRtoS)
     .set_attr<FInferStructInfo>("dist.FInferStructInfo", InferDistStructInfoRtoS)

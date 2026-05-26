@@ -44,6 +44,41 @@ namespace tvm {
 template <typename>
 class OpAttrMap;
 
+/*!
+ * \brief Information about an input field of an Op (name, type, description).
+ *
+ *  Populated via OpRegEntry::add_argument and consumed both by
+ *  internal sanity checks / error messages and by external tooling
+ *  that wants to introspect an Op's argument schema.
+ */
+class FieldInfoNode : public ffi::Object {
+ public:
+  /*! \brief name of the field */
+  ffi::String name;
+  /*! \brief type docstring information in str. */
+  ffi::String type_info;
+  /*! \brief detailed description of the type */
+  ffi::String description;
+
+  static void RegisterReflection() {
+    namespace rfl = ffi::reflection;
+    rfl::ObjectDef<FieldInfoNode>()
+        .def_ro("name", &FieldInfoNode::name)
+        .def_ro("type_info", &FieldInfoNode::type_info)
+        .def_ro("description", &FieldInfoNode::description);
+  }
+
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
+
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.FieldInfo", FieldInfoNode, ffi::Object);
+};
+
+/*! \brief Managed reference to FieldInfoNode. */
+class FieldInfo : public ffi::ObjectRef {
+ public:
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(FieldInfo, ffi::ObjectRef, FieldInfoNode);
+};
+
 // TODO(tvm-team): migrate low-level intrinsics to use Op
 /*!
  * \brief Primitive Op(builtin intrinsics)
@@ -67,6 +102,8 @@ class OpNode : public RelaxExprNode {
    *  This can be used to generate docstring automatically for the operator.
    */
   ffi::String description;
+  /* \brief Information of input arguments to the operator */
+  ffi::Array<FieldInfo> arguments;
   /*!
    * \brief The type key of the attribute field
    *  This can be empty, in which case it defaults to anything.
@@ -95,6 +132,7 @@ class OpNode : public RelaxExprNode {
         .def_ro("name", &OpNode::name)
         .def_ro("op_type", &OpNode::op_type, refl::AttachFieldFlag::SEqHashIgnore())
         .def_ro("description", &OpNode::description, refl::AttachFieldFlag::SEqHashIgnore())
+        .def_ro("arguments", &OpNode::arguments, refl::AttachFieldFlag::SEqHashIgnore())
         .def_ro("attrs_type_key", &OpNode::attrs_type_key, refl::AttachFieldFlag::SEqHashIgnore())
         .def_ro("num_inputs", &OpNode::num_inputs, refl::AttachFieldFlag::SEqHashIgnore())
         .def_ro("support_level", &OpNode::support_level, refl::AttachFieldFlag::SEqHashIgnore());
@@ -176,6 +214,15 @@ class OpRegEntry {
    * \return reference to self.
    */
   inline OpRegEntry& describe(const std::string& descr);  // NOLINT(*)
+  /*!
+   * \brief Add argument information to the function.
+   * \param name Name of the argument.
+   * \param type Type of the argument.
+   * \param description Description of the argument.
+   * \return reference to self.
+   */
+  inline OpRegEntry& add_argument(const std::string& name, const std::string& type,
+                                  const std::string& description);
   /*!
    * \brief Set the attrs type key and index to be AttrsType.
    * \tparam AttrsType the attribute type to b set.
@@ -313,6 +360,16 @@ inline OpNode* OpRegEntry::get() { return const_cast<OpNode*>(op_.operator->());
 
 inline OpRegEntry& OpRegEntry::describe(const std::string& descr) {  // NOLINT(*)
   get()->description = descr;
+  return *this;
+}
+
+inline OpRegEntry& OpRegEntry::add_argument(const std::string& name, const std::string& type,
+                                            const std::string& description) {
+  auto n = ffi::make_object<FieldInfoNode>();
+  n->name = name;
+  n->type_info = type;
+  n->description = description;
+  get()->arguments.push_back(FieldInfo(n));
   return *this;
 }
 

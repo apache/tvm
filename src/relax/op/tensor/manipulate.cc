@@ -135,6 +135,8 @@ StructInfo InferStructInfoBroadcastTo(const Call& call, const BlockBuilder& ctx)
 
 TVM_REGISTER_OP("relax.broadcast_to")
     .set_num_inputs(2)
+    .add_argument("x", "Tensor", "The input tensor.")
+    .add_argument("shape", "Shape", "The target shape.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoBroadcastTo)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<bool>("FPurity", true);
@@ -396,6 +398,7 @@ InferLayoutOutput InferLayoutConcat(
 TVM_REGISTER_OP("relax.concat")
     .set_attrs_type<ConcatAttrs>()
     .set_num_inputs(1)
+    .add_argument("tensors", "Tuple of Tensors", "The input list of tensors.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoConcat)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConcat)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
@@ -499,6 +502,7 @@ InferLayoutOutput InferLayoutExpandDims(
 TVM_REGISTER_OP("relax.expand_dims")
     .set_num_inputs(1)
     .set_attrs_type<ExpandDimsAttrs>()
+    .add_argument("x", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoExpandDims)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutExpandDims)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
@@ -545,6 +549,7 @@ StructInfo InferStructInfoFlatten(const Call& call, const BlockBuilder& ctx) {
 
 TVM_REGISTER_OP("relax.flatten")
     .set_num_inputs(1)
+    .add_argument("x", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoFlatten)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<bool>("FPurity", true);
@@ -693,6 +698,8 @@ StructInfo InferStructInfoIndexTensor(const Call& call, const BlockBuilder& ctx)
 
 TVM_REGISTER_OP("relax.index_tensor")
     .set_num_inputs(2)
+    .add_argument("data", "Tensor", "The input data.")
+    .add_argument("indices", "List of Tensors", "The indices used to index.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoIndexTensor)
     .set_attr<bool>("FPurity", true);
 
@@ -765,6 +772,7 @@ StructInfo InferStructInfoLayoutTransform(const Call& call, const BlockBuilder& 
 TVM_REGISTER_OP("relax.layout_transform")
     .set_num_inputs(1)
     .set_attrs_type<LayoutTransformAttrs>()
+    .add_argument("x", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoLayoutTransform)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<bool>("FPurity", true);
@@ -884,6 +892,7 @@ InferLayoutOutput InferLayoutPermuteDims(
 TVM_REGISTER_OP("relax.permute_dims")
     .set_attrs_type<PermuteDimsAttrs>()
     .set_num_inputs(1)
+    .add_argument("x", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoPermuteDims)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPermuteDims)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
@@ -1046,6 +1055,8 @@ StructInfo InferStructInfoReshape(const Call& call, const BlockBuilder& ctx) {
 
 TVM_REGISTER_OP("relax.reshape")
     .set_num_inputs(2)
+    .add_argument("x", "Tensor", "The input tensor.")
+    .add_argument("shape", "Shape", "The input new shape.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoReshape)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<bool>("FPurity", true);
@@ -1223,6 +1234,7 @@ InferLayoutOutput InferLayoutSplit(
 TVM_REGISTER_OP("relax.split")
     .set_attrs_type<SplitAttrs>()
     .set_num_inputs(1)
+    .add_argument("x", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoSplit)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutSplit)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
@@ -1382,6 +1394,7 @@ InferLayoutOutput InferLayoutSqueeze(
 TVM_REGISTER_OP("relax.squeeze")
     .set_num_inputs(1)
     .set_attrs_type<SqueezeAttrs>()
+    .add_argument("x", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoSqueeze)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutSqueeze)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
@@ -1634,6 +1647,7 @@ InferLayoutOutput InferLayoutStack(
 TVM_REGISTER_OP("relax.stack")
     .set_attrs_type<StackAttrs>()
     .set_num_inputs(1)
+    .add_argument("tensors", "Tuple of Tensors", "The input list of tensors to stack")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoStack)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStack)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
@@ -1682,6 +1696,9 @@ StructInfo InferStructInfoCollapseSumLike(const Call& call, const BlockBuilder& 
 
 TVM_REGISTER_OP("relax.collapse_sum_like")
     .set_num_inputs(2)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("collapse_target", "Tensor",
+                  "The tensor whose shape is the shape to collapse to.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCollapseSumLike)
     .set_attr<bool>("FPurity", true);
 
@@ -1732,6 +1749,8 @@ StructInfo InferStructInfoCollapseSumTo(const Call& call, const BlockBuilder& ct
 
 TVM_REGISTER_OP("relax.collapse_sum_to")
     .set_num_inputs(2)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("shape", "Shape", "The shape to collapse to.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCollapseSumTo)
     .set_attr<bool>("FPurity", true);
 
@@ -1856,6 +1875,7 @@ InferLayoutOutput InferLayoutRepeat(
 TVM_REGISTER_OP("relax.repeat")
     .set_attrs_type<RepeatAttrs>()
     .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoRepeat)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutRepeat)
     .set_attr<bool>("FPurity", true);
@@ -2000,6 +2020,7 @@ InferLayoutOutput InferLayoutTile(
 TVM_REGISTER_OP("relax.tile")
     .set_attrs_type<TileAttrs>()
     .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTile)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutTile)
     .set_attr<bool>("FPurity", true);
@@ -2071,6 +2092,7 @@ InferLayoutOutput InferLayoutFlip(
 TVM_REGISTER_OP("relax.flip")
     .set_attrs_type<FlipAttrs>()
     .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoFlip)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutFlip)
     .set_attr<bool>("FPurity", true);
@@ -2174,6 +2196,8 @@ InferLayoutOutput InferLayoutGatherElements(
 TVM_REGISTER_OP("relax.gather_elements")
     .set_attrs_type<GatherElementsAttrs>()
     .set_num_inputs(2)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("indices", "Tensor", "The indices tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoGatherElements)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutGatherElements)
     .set_attr<bool>("FPurity", true);
@@ -2269,6 +2293,8 @@ StructInfo InferStructInfoGatherND(const Call& call, const BlockBuilder& ctx) {
 TVM_REGISTER_OP("relax.gather_nd")
     .set_attrs_type<GatherNDAttrs>()
     .set_num_inputs(2)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("indices", "Tensor", "The indices tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoGatherND)
     .set_attr<bool>("FPurity", true);
 
@@ -2415,6 +2441,9 @@ StructInfo InferStructInfoIndexPut(const Call& call, const BlockBuilder& ctx) {
 TVM_REGISTER_OP("relax.index_put")
     .set_attrs_type<IndexPutAttrs>()
     .set_num_inputs(3)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("indices", "Tensor", "The indices tensor(s).")
+    .add_argument("values", "Tensor", "The values to put.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoIndexPut)
     .set_attr<bool>("FPurity", true);
 
@@ -2518,6 +2547,7 @@ StructInfo InferStructInfoMeshgrid(const Call& call, const BlockBuilder& ctx) {
 TVM_REGISTER_OP("relax.meshgrid")
     .set_attrs_type<MeshgridAttrs>()
     .set_num_inputs(1)
+    .add_argument("tensors", "Tuple of Tensors", "The input list of tensors.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoMeshgrid)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<bool>("FPurity", true);
@@ -2659,6 +2689,9 @@ InferLayoutOutput InferLayoutScatterElements(
 TVM_REGISTER_OP("relax.scatter_elements")
     .set_attrs_type<ScatterElementsAttrs>()
     .set_num_inputs(3)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("indices", "Tensor", "The indices tensor.")
+    .add_argument("updates", "Tensor", "The input tensor of updates.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoScatterElements)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutScatterElements)
     .set_attr<bool>("FPurity", true);
@@ -2833,6 +2866,9 @@ InferLayoutOutput InferLayoutScatterND(
 TVM_REGISTER_OP("relax.scatter_nd")
     .set_attrs_type<ScatterNDAttrs>()
     .set_num_inputs(3)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("indices", "Tensor", "The indices tensor.")
+    .add_argument("updates", "Tensor", "The input tensor of updates.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoScatterND)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutScatterND)
     .set_attr<bool>("FPurity", true);
@@ -2986,6 +3022,11 @@ StructInfo InferStructInfoSliceScatter(const Call& call, const BlockBuilder& ctx
 TVM_REGISTER_OP("relax.slice_scatter")
     .set_attrs_type<SliceScatterAttrs>()
     .set_num_inputs(5)
+    .add_argument("input", "Tensor", "The input tensor.")
+    .add_argument("src", "Tensor", "The source tensor to scatter.")
+    .add_argument("start", "PrimValue", "The starting index of the slice (inclusive).")
+    .add_argument("end", "PrimValue", "The ending index of the slice (exclusive).")
+    .add_argument("step", "PrimValue", "The step of the slice.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoSliceScatter)
     .set_attr<bool>("FPurity", true);
 
@@ -3060,6 +3101,9 @@ StructInfo InferStructInfoOneHot(const Call& call, const BlockBuilder& ctx) {
 TVM_REGISTER_OP("relax.one_hot")
     .set_attrs_type<OneHotAttrs>()
     .set_num_inputs(3)
+    .add_argument("indices", "Tensor", "The indices tensor.")
+    .add_argument("on_value", "PrimValue", "The value to fill at specified indices.")
+    .add_argument("off_value", "PrimValue", "The value to fill at other indices.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoOneHot)
     .set_attr<bool>("FPurity", true);
 

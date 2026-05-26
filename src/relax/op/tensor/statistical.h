@@ -55,6 +55,7 @@ namespace relax {
   }                                                                                \
   TVM_REGISTER_OP("relax." #OpName)                                                \
       .set_num_inputs(1)                                                           \
+      .add_argument("x", "Tensor", "The input data tensor")                        \
       .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoStatistical)  \
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStatistical)    \
       .set_attr<bool>("FPurity", true)

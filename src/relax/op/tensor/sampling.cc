@@ -139,6 +139,9 @@ StructInfo InferStructInfoMultinomialFromUniform(const Call& call, const BlockBu
 TVM_REGISTER_OP("relax.multinomial_from_uniform")
     .set_attrs_type<MultinomialFromUniformAttrs>()
     .set_num_inputs(3)
+    .add_argument("prob", "Tensor", "The probability tensor.")
+    .add_argument("uniform_sample", "Tensor", "The uniform sample tensor.")
+    .add_argument("sample_indices", "Tensor", "The sample indices tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoMultinomialFromUniform)
     .set_attr<bool>("FPurity", true);
 

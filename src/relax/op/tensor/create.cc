@@ -94,6 +94,8 @@ StructInfo InferStructInfoFull(const Call& call, const BlockBuilder& ctx) {
 TVM_REGISTER_OP("relax.full")
     .set_attrs_type<InitAttrs>()
     .set_num_inputs(2)
+    .add_argument("shape", "Shape", "The shape of the created tensor.")
+    .add_argument("fill_value", "Tensor", "The scalar tensor, denoting the value to fill.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoFull)
     .set_attr<bool>("RequiresArgumentShapes", false)
     .set_attr<bool>("FDataDependent", true)
@@ -136,6 +138,8 @@ StructInfo InferStructInfoFullLike(const Call& call, const BlockBuilder& ctx) {
 TVM_REGISTER_OP("relax.full_like")
     .set_attrs_type<InitAttrs>()
     .set_num_inputs(2)
+    .add_argument("x", "Tensor", "The input tensor.")
+    .add_argument("fill_value", "Tensor", "The scalar value to fill.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoFullLike)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<bool>("FPurity", true);
@@ -195,6 +199,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TVM_REGISTER_OP("relax.ones")
     .set_attrs_type<InitAttrs>()
     .set_num_inputs(1)
+    .add_argument("shape", "Shape", "The shape of the created tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoOnesZeros)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<bool>("FPurity", true);
@@ -202,6 +207,7 @@ TVM_REGISTER_OP("relax.ones")
 TVM_REGISTER_OP("relax.ones_like")
     .set_attrs_type<InitAttrs>()
     .set_num_inputs(1)
+    .add_argument("x", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoOnesLikeZerosLike)
     .set_attr<bool>("FPurity", true);
 
@@ -230,6 +236,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TVM_REGISTER_OP("relax.zeros")
     .set_attrs_type<InitAttrs>()
     .set_num_inputs(1)
+    .add_argument("shape", "Shape", "The shape of the created tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoOnesZeros)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<bool>("FPurity", true);
@@ -237,6 +244,7 @@ TVM_REGISTER_OP("relax.zeros")
 TVM_REGISTER_OP("relax.zeros_like")
     .set_attrs_type<InitAttrs>()
     .set_num_inputs(1)
+    .add_argument("x", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoOnesLikeZerosLike)
     .set_attr<bool>("FPurity", true);
 
@@ -311,6 +319,9 @@ StructInfo InferStructInfoEyeLike(const Call& call, const BlockBuilder& ctx) {
 TVM_REGISTER_OP("relax.eye")
     .set_attrs_type<InitAttrs>()
     .set_num_inputs(3)
+    .add_argument("n", "PrimValue", "Number of rows in the output.")
+    .add_argument("m", "PrimValue", "Number of columns in the output.")
+    .add_argument("k", "PrimValue", "Index of the diagonal.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoEye)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<bool>("FPurity", true);
@@ -318,6 +329,8 @@ TVM_REGISTER_OP("relax.eye")
 TVM_REGISTER_OP("relax.eye_like")
     .set_attrs_type<InitAttrs>()
     .set_num_inputs(2)
+    .add_argument("x", "Tensor", "The input tensor.")
+    .add_argument("k", "PrimValue", "Index of the diagonal.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoEyeLike)
     .set_attr<bool>("FPurity", true);
 
@@ -369,6 +382,9 @@ StructInfo InferStructInfoArange(const Call& call, const BlockBuilder& ctx) {
 TVM_REGISTER_OP("relax.arange")
     .set_attrs_type<InitAttrs>()
     .set_num_inputs(3)
+    .add_argument("start", "PrimValue", "The starting value for the set of points.")
+    .add_argument("end", "PrimValue", "The ending value for the set of points.")
+    .add_argument("step", "PrimValue", "The gap between each pair of adjacent points.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoArange)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<bool>("FPurity", true);
@@ -417,6 +433,12 @@ StructInfo InferStructInfoHammingWindow(const Call& call, const BlockBuilder& ct
 TVM_REGISTER_OP("relax.hamming_window")
     .set_attrs_type<InitAttrs>()
     .set_num_inputs(4)
+    .add_argument("window_size", "PrimValue", "The size of the window")
+    .add_argument("periodic", "PrimValue",
+                  "If True, returns a window to be used as periodic function. If False, return a "
+                  "symmetric window")
+    .add_argument("alpha", "PrimValue", "The coefficient alpha")
+    .add_argument("beta", "PrimValue", "The coefficient beta")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoHammingWindow)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<bool>("FPurity", true);
@@ -458,11 +480,15 @@ StructInfo InferStructInfoTrilTriu(const Call& call, const BlockBuilder& ctx) {
 
 TVM_REGISTER_OP("relax.tril")
     .set_num_inputs(2)
+    .add_argument("x", "Tensor", "The input tensor.")
+    .add_argument("k", "PrimValue", "The offset of the diagonal.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTrilTriu)
     .set_attr<bool>("FPurity", true);
 
 TVM_REGISTER_OP("relax.triu")
     .set_num_inputs(2)
+    .add_argument("x", "Tensor", "The input tensor.")
+    .add_argument("k", "PrimValue", "The offset of the diagonal.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTrilTriu)
     .set_attr<bool>("FPurity", true);
 
