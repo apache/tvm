@@ -84,7 +84,6 @@ and the Firefly-RK3399 for an OpenCL example.
 #
 #      INFO:root:RPCServer: bind to 0.0.0.0:9090
 #
-
 ######################################################################
 # Declare and Cross Compile Kernel on Local Machine
 # -------------------------------------------------
@@ -201,6 +200,194 @@ time_f = func.time_evaluator("add_one", dev, number=10)
 cost = time_f(a, b).mean
 print(f"{cost:g} secs/op")
 
+######################################################################
+# Scale RPC to Shared Devices
+# ---------------------------
+#
+# The direct RPC server used above is the simplest way to run on one remote
+# device.  In shared environments, the same compile/upload/run flow is usually
+# kept, but the connection is managed by an RPC tracker and, when needed, an
+# RPC proxy.
+#
+# This setup is useful when:
+#
+# - multiple users or CI jobs share a small number of boards,
+# - devices are registered by key rather than by fixed IP address,
+# - the host cannot directly reach the device because of the network layout, or
+# - the target device only has the minimal runtime stack needed for execution.
+#
+# The pieces fit together as follows:
+#
+# - **RPC server**: runs on the target device and executes uploaded modules.
+# - **RPC tracker**: runs on a host and assigns matching RPC servers to clients.
+# - **RPC proxy**: forwards traffic when the client cannot connect directly to
+#   the RPC server.
+#
+# .. figure:: https://raw.githubusercontent.com/tlc-pack/web-data/main/images/dev/how-to/rpc_system_suggested_arch.svg
+#    :align: center
+#    :width: 85%
+#
+# In the figure above, machine A connects through the tracker.  Machine B runs
+# an RPC proxy because machines C and D are not directly reachable from A.  The
+# tracker keeps a queue per RPC key.  If a matching server is available, it is
+# assigned to the client; otherwise, the request waits in that key's queue.
+#
+# Start the Tracker and Proxy
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#
+# The tracker and proxy generally run on a host machine, not on the target
+# device.  They do not require target-specific drivers.
+#
+# .. code-block:: shell
+#
+#   python3 -m tvm.exec.rpc_tracker --host RPC_TRACKER_IP --port 9190 --port-end 9191
+#
+# .. code-block:: shell
+#
+#   python3 -m tvm.exec.rpc_proxy \
+#       --host RPC_PROXY_IP \
+#       --port 9090 \
+#       --port-end 9091 \
+#       --tracker RPC_TRACKER_IP:RPC_TRACKER_PORT
+#
+# Replace the host names, ports, and port ranges for your environment.  The
+# ``--port-end`` option is useful in CI because it prevents the service from
+# silently choosing an unexpected port.
+#
+# Package a Minimal RPC Runtime
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#
+# If the target can build TVM directly, install TVM on the target and launch
+# the RPC server there.  Otherwise, cross-compile the TVM runtime and package
+# it with the Python RPC server.
+#
+# A typical CMake toolchain file for 64-bit ARM Linux looks like this:
+#
+# .. code-block:: cmake
+#
+#   set(CMAKE_SYSTEM_NAME Linux)
+#   set(root_dir "/XXX/gcc-linaro-7.5.0-2019.12-x86_64_aarch64-linux-gnu")
+#
+#   set(CMAKE_C_COMPILER "${root_dir}/bin/aarch64-linux-gnu-gcc")
+#   set(CMAKE_CXX_COMPILER "${root_dir}/bin/aarch64-linux-gnu-g++")
+#   set(CMAKE_SYSROOT "${root_dir}/aarch64-linux-gnu/libc")
+#
+#   set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+#   set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+#   set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+#   set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
+#
+# Build the runtime from the TVM repository root.  Enable target-specific
+# options such as ``USE_OPENCL`` or vendor runtime support in ``config.cmake``.
+# Build any target-specific runtime libraries that your deployment needs, such
+# as ``tvm_runtime_opencl`` for OpenCL.
+#
+# .. code-block:: shell
+#
+#   mkdir cross_build
+#   cd cross_build
+#   cp ../cmake/config.cmake ./
+#
+#   # Enable other options as needed, e.g. USE_OPENCL or vendor runtimes.
+#   sed -i "s|USE_LLVM.*)|USE_LLVM OFF)|" config.cmake
+#
+#   cmake -DCMAKE_TOOLCHAIN_FILE=/YYY/aarch64-linux-gnu.cmake -DCMAKE_BUILD_TYPE=Release ..
+#   cmake --build . --target runtime -j
+#   # Optional example when USE_OPENCL is enabled:
+#   # cmake --build . --target tvm_runtime_opencl -j
+#   cd ..
+#
+# Then package the Python RPC server with the cross-compiled runtime and copy
+# it to the device.
+#
+# .. code-block:: shell
+#
+#   rm -rf tvm_runtime_package
+#   mkdir tvm_runtime_package
+#   cp -a python tvm_runtime_package/
+#   cp cross_build/lib/libtvm_ffi.so tvm_runtime_package/python/tvm/
+#   cp cross_build/lib/libtvm_runtime*.so tvm_runtime_package/python/tvm/
+#   tar -czf tvm_runtime.tar.gz -C tvm_runtime_package python
+#
+# On the target device:
+#
+# .. code-block:: shell
+#
+#   tar -xzf tvm_runtime.tar.gz
+#   export PYTHONPATH=`pwd`/python:${PYTHONPATH}
+#
+# Launch the Server
+# ~~~~~~~~~~~~~~~~~
+#
+# Launch the RPC server on the target device.  Use the proxy form when the
+# server connects through an RPC proxy; otherwise connect directly to the
+# tracker.
+#
+# .. code-block:: shell
+#
+#   # Through an RPC proxy.
+#   python3 -m tvm.exec.rpc_server \
+#       --host RPC_PROXY_IP \
+#       --port RPC_PROXY_PORT \
+#       --through-proxy \
+#       --key RPC_KEY
+#
+#   # Directly to an RPC tracker.
+#   python3 -m tvm.exec.rpc_server \
+#       --tracker RPC_TRACKER_IP:RPC_TRACKER_PORT \
+#       --key RPC_KEY
+#
+# Query the tracker from the host to confirm that the servers are visible:
+#
+# .. code-block:: shell
+#
+#   python3 -m tvm.exec.query_rpc_tracker --host RPC_TRACKER_IP --port RPC_TRACKER_PORT
+#
+# If three servers connect through a proxy, the output should look similar to:
+#
+# .. code-block:: text
+#
+#   Tracker address RPC_TRACKER_IP:RPC_TRACKER_PORT
+#
+#   Server List
+#   ----------------------------
+#   server-address  key
+#   ----------------------------
+#   RPC_PROXY_IP:RPC_PROXY_PORT       server:proxy[RPC_KEY0,RPC_KEY1,RPC_KEY2]
+#   ----------------------------
+#
+#   Queue Status
+#   ---------------------------------------
+#   key               total  free  pending
+#   ---------------------------------------
+#   RPC_KEY0          0      0     3
+#   ---------------------------------------
+#
+# Once the tracker assigns a server, the client-side code still follows the
+# same pattern used earlier in this tutorial.  Only the session creation
+# changes from a direct connection to a tracker request:
+#
+# .. code-block:: python
+#
+#   tracker = rpc.connect_tracker("RPC_TRACKER_IP", RPC_TRACKER_PORT)
+#   remote = tracker.request("RPC_KEY", priority=0, session_timeout=600)
+#
+# After that, use the same ``remote.upload()``, ``remote.load_module()``, remote
+# device creation, and ``time_evaluator`` flow shown above.
+#
+# Troubleshooting Minimal Device Environments
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#
+# Some target devices have intentionally small Python environments.  The TVM
+# runtime itself does not require full NumPy support for RPC execution, but the
+# Python RPC server may import modules that import ``numpy``.  If installing or
+# cross-compiling NumPy is not practical, a small ``numpy.py`` shim in the
+# device's Python ``site-packages`` directory can be enough for server startup.
+#
+# If ``cloudpickle`` is missing, copy it from another Python environment into
+# the device's ``site-packages`` directory.  It is a pure Python package, so it
+# usually does not need cross-compilation.
+#
 #########################################################################
 # Run OpenCL Kernel Remotely by RPC
 # ---------------------------------
