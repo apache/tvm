@@ -3959,12 +3959,18 @@ def _build_tflite_call_model(
     call_subgraph_index=1,
     callee_inputs=None,
     callee_outputs=None,
+    callee_output_shape=None,
+    callee_output_type=None,
 ):
     """Build a TFLite model where main CALLs a subgraph computing x + 1."""
     builder = flatbuffers.Builder(1024)
 
     callee_inputs = [0] if callee_inputs is None else callee_inputs
     callee_outputs = [2] if callee_outputs is None else callee_outputs
+    callee_output_shape = [2, 2] if callee_output_shape is None else callee_output_shape
+    callee_output_type = (
+        _tfl_tensor_type.FLOAT32 if callee_output_type is None else callee_output_type
+    )
     call_options = _build_call_options(builder, call_subgraph_index)
     one = np.array(1.0, dtype=np.float32)
 
@@ -3991,7 +3997,7 @@ def _build_tflite_call_model(
     callee_tensors = [
         _build_tensor(builder, 0, [2, 2]),
         _build_tensor(builder, 1, []),
-        _build_tensor(builder, 2, [2, 2]),
+        _build_tensor(builder, 2, callee_output_shape, tensor_type=callee_output_type),
     ]
     callee_add = _build_operator(builder, 1, [0, 1], [2])
     callee_subgraph = _build_subgraph(
@@ -4171,10 +4177,22 @@ def test_call_subgraph_io_mismatch_unsupported():
         _load_model_from_buffer(_build_tflite_call_model(callee_inputs=[]))
 
 
+def test_call_subgraph_output_metadata_mismatch_unsupported():
+    """Test CALL rejects callees whose output metadata does not match the call site."""
+    with pytest.raises(
+        tvm.error.OpNotImplemented, match="CALL subgraph output tensor metadata mismatch"
+    ):
+        _load_model_from_buffer(_build_tflite_call_model(callee_output_shape=[2]))
+
+
 def _build_tflite_if_model(
     condition_type=_tfl_tensor_type.BOOL,
+    then_subgraph_index=1,
+    else_subgraph_index=2,
     then_outputs=None,
     else_outputs=None,
+    else_input_shape=None,
+    else_input_type=None,
     else_output_shape=None,
     else_output_type=None,
 ):
@@ -4183,9 +4201,11 @@ def _build_tflite_if_model(
 
     then_outputs = [2] if then_outputs is None else then_outputs
     else_outputs = [2] if else_outputs is None else else_outputs
+    else_input_shape = [2, 2] if else_input_shape is None else else_input_shape
+    else_input_type = _tfl_tensor_type.FLOAT32 if else_input_type is None else else_input_type
     else_output_shape = [2, 2] if else_output_shape is None else else_output_shape
     else_output_type = _tfl_tensor_type.FLOAT32 if else_output_type is None else else_output_type
-    if_options = _build_if_options(builder, 1, 2)
+    if_options = _build_if_options(builder, then_subgraph_index, else_subgraph_index)
     one = np.array(1.0, dtype=np.float32)
 
     main_tensors = [
@@ -4224,7 +4244,7 @@ def _build_tflite_if_model(
     )
 
     else_tensors = [
-        _build_tensor(builder, 1, [2, 2]),
+        _build_tensor(builder, 1, else_input_shape, tensor_type=else_input_type),
         _build_tensor(builder, 2, []),
         _build_tensor(builder, 3, else_output_shape, tensor_type=else_output_type),
     ]
@@ -4493,10 +4513,24 @@ def test_if_subgraphs_non_bool_condition_unsupported():
         _load_model_from_buffer(_build_tflite_if_model(condition_type=_tfl_tensor_type.INT32))
 
 
+def test_if_subgraphs_invalid_index_unsupported():
+    """Test IF rejects invalid branch subgraph indices before lowering."""
+    with pytest.raises(tvm.error.OpNotImplemented, match="IF requires a valid subgraph index"):
+        _load_model_from_buffer(_build_tflite_if_model(then_subgraph_index=3))
+
+
 def test_if_subgraphs_output_count_mismatch_unsupported():
     """Test IF rejects branches whose output arity does not match the call site."""
     with pytest.raises(tvm.error.OpNotImplemented, match="IF subgraph output count mismatch"):
         _load_model_from_buffer(_build_tflite_if_model(else_outputs=[]))
+
+
+def test_if_subgraphs_input_metadata_mismatch_unsupported():
+    """Test IF rejects branches whose input metadata does not match the call site."""
+    with pytest.raises(
+        tvm.error.OpNotImplemented, match="IF subgraph input tensor metadata mismatch"
+    ):
+        _load_model_from_buffer(_build_tflite_if_model(else_input_shape=[2]))
 
 
 def test_if_subgraphs_output_metadata_mismatch_unsupported():
@@ -4508,21 +4542,26 @@ def test_if_subgraphs_output_metadata_mismatch_unsupported():
 
 
 def _build_tflite_while_model(
+    cond_subgraph_index=1,
+    body_subgraph_index=2,
     cond_output_type=_tfl_tensor_type.BOOL,
+    cond_input_type=_tfl_tensor_type.INT32,
     body_outputs=None,
+    body_input_type=_tfl_tensor_type.INT32,
     body_output_type=_tfl_tensor_type.INT32,
+    main_output_type=_tfl_tensor_type.INT32,
 ):
     """Build a TFLite WHILE model incrementing an int32 scalar until i < 3 is false."""
     builder = flatbuffers.Builder(1024)
 
     body_outputs = [2] if body_outputs is None else body_outputs
-    while_options = _build_while_options(builder, 1, 2)
+    while_options = _build_while_options(builder, cond_subgraph_index, body_subgraph_index)
     one = np.array(1, dtype=np.int32)
     three = np.array(3, dtype=np.int32)
 
     main_tensors = [
         _build_tensor(builder, 0, [], tensor_type=_tfl_tensor_type.INT32),
-        _build_tensor(builder, 3, [], tensor_type=_tfl_tensor_type.INT32),
+        _build_tensor(builder, 3, [], tensor_type=main_output_type),
     ]
     main_while = _build_operator(
         builder,
@@ -4541,7 +4580,7 @@ def _build_tflite_while_model(
     )
 
     cond_tensors = [
-        _build_tensor(builder, 0, [], tensor_type=_tfl_tensor_type.INT32),
+        _build_tensor(builder, 0, [], tensor_type=cond_input_type),
         _build_tensor(builder, 1, [], tensor_type=_tfl_tensor_type.INT32),
         _build_tensor(builder, 3, [], tensor_type=cond_output_type),
     ]
@@ -4555,7 +4594,7 @@ def _build_tflite_while_model(
     )
 
     body_tensors = [
-        _build_tensor(builder, 0, [], tensor_type=_tfl_tensor_type.INT32),
+        _build_tensor(builder, 0, [], tensor_type=body_input_type),
         _build_tensor(builder, 2, [], tensor_type=_tfl_tensor_type.INT32),
         _build_tensor(builder, 3, [], tensor_type=body_output_type),
     ]
@@ -4579,6 +4618,126 @@ def _build_tflite_while_model(
         _build_buffer(builder, one.tobytes()),
         _build_buffer(builder),
     ]
+    return _finish_tflite_model(
+        builder,
+        subgraph=main_subgraph,
+        extra_subgraphs=[cond_subgraph, body_subgraph],
+        operator_codes=operator_codes,
+        buffers=buffers,
+    )
+
+
+def _build_tflite_repeated_while_model():
+    """Build a TFLite model where two WHILE ops share the same cond/body subgraphs."""
+    builder = flatbuffers.Builder(1024)
+
+    while_options = _build_while_options(builder, 1, 2)
+    one = np.array(1, dtype=np.int32)
+    three = np.array(3, dtype=np.int32)
+
+    main_tensors = [
+        _build_tensor(builder, 0, [], tensor_type=_tfl_tensor_type.INT32),
+        _build_tensor(builder, 3, [], tensor_type=_tfl_tensor_type.INT32),
+        _build_tensor(builder, 4, [], tensor_type=_tfl_tensor_type.INT32),
+    ]
+    main_while_0 = _build_operator(
+        builder,
+        0,
+        [0],
+        [1],
+        builtin_options_type=_tfl_builtin_options.WhileOptions,
+        builtin_options=while_options,
+    )
+    main_while_1 = _build_operator(
+        builder,
+        0,
+        [1],
+        [2],
+        builtin_options_type=_tfl_builtin_options.WhileOptions,
+        builtin_options=while_options,
+    )
+    main_subgraph = _build_subgraph(
+        builder,
+        tensors=main_tensors,
+        operators=[main_while_0, main_while_1],
+        inputs=[0],
+        outputs=[2],
+    )
+
+    cond_tensors = [
+        _build_tensor(builder, 0, [], tensor_type=_tfl_tensor_type.INT32),
+        _build_tensor(builder, 1, [], tensor_type=_tfl_tensor_type.INT32),
+        _build_tensor(builder, 3, [], tensor_type=_tfl_tensor_type.BOOL),
+    ]
+    cond_less = _build_operator(builder, 1, [0, 1], [2])
+    cond_subgraph = _build_subgraph(
+        builder,
+        tensors=cond_tensors,
+        operators=[cond_less],
+        inputs=[0],
+        outputs=[2],
+    )
+
+    body_tensors = [
+        _build_tensor(builder, 0, [], tensor_type=_tfl_tensor_type.INT32),
+        _build_tensor(builder, 2, [], tensor_type=_tfl_tensor_type.INT32),
+        _build_tensor(builder, 3, [], tensor_type=_tfl_tensor_type.INT32),
+    ]
+    body_add = _build_operator(builder, 2, [0, 1], [2])
+    body_subgraph = _build_subgraph(
+        builder,
+        tensors=body_tensors,
+        operators=[body_add],
+        inputs=[0],
+        outputs=[2],
+    )
+
+    operator_codes = [
+        _build_operator_code(builder, _get_builtin_operator("WHILE")),
+        _build_operator_code(builder, _get_builtin_operator("LESS")),
+        _build_operator_code(builder, _get_builtin_operator("ADD")),
+    ]
+    buffers = [
+        _build_buffer(builder),
+        _build_buffer(builder, three.tobytes()),
+        _build_buffer(builder, one.tobytes()),
+        _build_buffer(builder),
+        _build_buffer(builder),
+    ]
+    return _finish_tflite_model(
+        builder,
+        subgraph=main_subgraph,
+        extra_subgraphs=[cond_subgraph, body_subgraph],
+        operator_codes=operator_codes,
+        buffers=buffers,
+    )
+
+
+def _build_tflite_zero_var_while_model():
+    """Build a TFLite WHILE model with no loop-carried tensors."""
+    builder = flatbuffers.Builder(1024)
+
+    while_options = _build_while_options(builder, 1, 2)
+    main_while = _build_operator(
+        builder,
+        0,
+        [],
+        [],
+        builtin_options_type=_tfl_builtin_options.WhileOptions,
+        builtin_options=while_options,
+    )
+    main_subgraph = _build_subgraph(
+        builder,
+        tensors=[],
+        operators=[main_while],
+        inputs=[],
+        outputs=[],
+    )
+    cond_subgraph = _build_subgraph(builder, tensors=[], operators=[], inputs=[], outputs=[])
+    body_subgraph = _build_subgraph(builder, tensors=[], operators=[], inputs=[], outputs=[])
+
+    operator_codes = [_build_operator_code(builder, _get_builtin_operator("WHILE"))]
+    buffers = [_build_buffer(builder)]
     return _finish_tflite_model(
         builder,
         subgraph=main_subgraph,
@@ -4640,6 +4799,13 @@ def test_while_subgraphs():
             return gv
 
     tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_while_subgraphs_repeated_cond_body_pair():
+    """Test repeated WHILE ops reuse the same recursive private function."""
+    mod = _load_model_from_buffer(_build_tflite_repeated_while_model())
+    names = [gv.name_hint for gv in mod.get_global_vars()]
+    assert names.count("tflite_while_subgraph_1_2") == 1
 
 
 def _build_tflite_two_var_while_model():
@@ -4812,10 +4978,40 @@ def test_while_subgraphs_non_bool_condition_unsupported():
         _load_model_from_buffer(_build_tflite_while_model(cond_output_type=_tfl_tensor_type.INT32))
 
 
+def test_while_subgraphs_invalid_index_unsupported():
+    """Test WHILE rejects invalid cond/body subgraph indices before lowering."""
+    with pytest.raises(tvm.error.OpNotImplemented, match="WHILE requires a valid subgraph index"):
+        _load_model_from_buffer(_build_tflite_while_model(cond_subgraph_index=3))
+
+
+def test_while_subgraphs_zero_loop_vars_unsupported():
+    """Test WHILE rejects operators without loop-carried tensors."""
+    with pytest.raises(tvm.error.OpNotImplemented, match="WHILE requires loop-carried inputs"):
+        _load_model_from_buffer(_build_tflite_zero_var_while_model())
+
+
+def test_while_subgraphs_loop_state_metadata_mismatch_unsupported():
+    """Test WHILE rejects loop outputs whose metadata does not match loop inputs."""
+    with pytest.raises(
+        tvm.error.OpNotImplemented, match="WHILE loop state tensor metadata mismatch"
+    ):
+        _load_model_from_buffer(
+            _build_tflite_while_model(main_output_type=_tfl_tensor_type.FLOAT32)
+        )
+
+
 def test_while_subgraphs_output_count_mismatch_unsupported():
     """Test WHILE rejects body subgraphs whose output arity does not match loop vars."""
     with pytest.raises(tvm.error.OpNotImplemented, match="WHILE subgraph output count mismatch"):
         _load_model_from_buffer(_build_tflite_while_model(body_outputs=[]))
+
+
+def test_while_subgraphs_input_metadata_mismatch_unsupported():
+    """Test WHILE rejects cond subgraph inputs whose metadata does not match loop vars."""
+    with pytest.raises(
+        tvm.error.OpNotImplemented, match="WHILE subgraph input tensor metadata mismatch"
+    ):
+        _load_model_from_buffer(_build_tflite_while_model(cond_input_type=_tfl_tensor_type.FLOAT32))
 
 
 def test_while_subgraphs_output_metadata_mismatch_unsupported():
@@ -4828,17 +5024,29 @@ def test_while_subgraphs_output_metadata_mismatch_unsupported():
         )
 
 
-def _build_tflite_call_once_model(init_has_op=False):
+def _build_tflite_call_once_model(
+    init_has_op=False,
+    init_subgraph_index=1,
+    call_once_inputs=None,
+    call_once_outputs=None,
+    init_inputs=None,
+    init_outputs=None,
+):
     """Build a TFLite model with CALL_ONCE and one pass-through output."""
     builder = flatbuffers.Builder(1024)
 
-    call_once_options = _build_call_once_options(builder, 1)
+    call_once_inputs = [] if call_once_inputs is None else call_once_inputs
+    call_once_outputs = [] if call_once_outputs is None else call_once_outputs
+    init_inputs = [] if init_inputs is None else init_inputs
+    init_outputs = [] if init_outputs is None else init_outputs
+
+    call_once_options = _build_call_once_options(builder, init_subgraph_index)
     main_tensors = [_build_tensor(builder, 0, [2, 2])]
     main_call_once = _build_operator(
         builder,
         0,
-        [],
-        [],
+        call_once_inputs,
+        call_once_outputs,
         builtin_options_type=_tfl_builtin_options.CallOnceOptions,
         builtin_options=call_once_options,
     )
@@ -4864,7 +5072,11 @@ def _build_tflite_call_once_model(init_has_op=False):
             _build_buffer(builder),
         ]
     else:
-        init_tensors = []
+        init_tensors = (
+            [_build_tensor(builder, 0, [2, 2])]
+            if len(init_inputs) != 0 or len(init_outputs) != 0
+            else []
+        )
         init_op = None
         buffers = [_build_buffer(builder)]
 
@@ -4872,8 +5084,8 @@ def _build_tflite_call_once_model(init_has_op=False):
         builder,
         tensors=init_tensors,
         operators=[] if init_op is None else [init_op],
-        inputs=[],
-        outputs=[],
+        inputs=init_inputs,
+        outputs=init_outputs,
     )
 
     operator_codes = [_build_operator_code(builder, _get_builtin_operator("CALL_ONCE"))]
@@ -4911,6 +5123,30 @@ def test_call_once_non_empty_init_subgraph_unsupported():
     """Test CALL_ONCE rejects init subgraphs with side-effect-like bodies."""
     with pytest.raises(tvm.error.OpNotImplemented, match="CALL_ONCE"):
         _load_model_from_buffer(_build_tflite_call_once_model(init_has_op=True))
+
+
+def test_call_once_inputs_outputs_unsupported():
+    """Test CALL_ONCE rejects operator inputs and outputs."""
+    with pytest.raises(tvm.error.OpNotImplemented, match="CALL_ONCE with inputs or outputs"):
+        _load_model_from_buffer(
+            _build_tflite_call_once_model(call_once_inputs=[0], call_once_outputs=[0])
+        )
+
+
+def test_call_once_init_subgraph_io_unsupported():
+    """Test CALL_ONCE rejects init subgraphs with inputs or outputs."""
+    with pytest.raises(
+        tvm.error.OpNotImplemented, match="CALL_ONCE with non-empty init subgraph I/O"
+    ):
+        _load_model_from_buffer(_build_tflite_call_once_model(init_inputs=[0], init_outputs=[0]))
+
+
+def test_call_once_invalid_index_unsupported():
+    """Test CALL_ONCE rejects invalid init subgraph indices before lowering."""
+    with pytest.raises(
+        tvm.error.OpNotImplemented, match="CALL_ONCE requires a valid subgraph index"
+    ):
+        _load_model_from_buffer(_build_tflite_call_once_model(init_subgraph_index=2))
 
 
 def _get_stablehlo_builtin_operator(builtin_name):

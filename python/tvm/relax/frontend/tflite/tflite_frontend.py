@@ -172,6 +172,7 @@ class OperatorConverter:
             conversion_state = {
                 "lowered_subgraphs": {},
                 "lowered_if_functions": {},
+                "lowered_while_functions": {},
                 "lowering_stack": [],
             }
         self.conversion_state = conversion_state
@@ -1908,8 +1909,8 @@ class OperatorConverter:
             raise tvm.error.OpNotImplemented(f"{options_cls.__name__} is required")
 
         options_type = getattr(BuiltinOptions, options_cls.__name__, None)
-        if options_type is not None:
-            assert op.BuiltinOptionsType() == options_type, (
+        if options_type is not None and op.BuiltinOptionsType() != options_type:
+            raise tvm.error.OpNotImplemented(
                 f"Unexpected BuiltinOptions type: expected "
                 f"{options_cls.__name__}, got {op.BuiltinOptionsType()}"
             )
@@ -1940,6 +1941,42 @@ class OperatorConverter:
             raise tvm.error.OpNotImplemented(f"{op_name} subgraph output count mismatch")
         return subgraph
 
+    def _check_subgraph_interface(
+        self,
+        subgraph_index,
+        op_name,
+        input_tensors=None,
+        output_tensors=None,
+        input_count=None,
+        output_count=None,
+    ):
+        """Validate a referenced subgraph's arity and tensor metadata."""
+        if input_tensors is not None:
+            input_count = len(input_tensors)
+        if output_tensors is not None:
+            output_count = len(output_tensors)
+
+        subgraph = self._check_subgraph_io(
+            subgraph_index, op_name, input_count=input_count, output_count=output_count
+        )
+        if input_tensors is not None:
+            self._check_subgraph_tensor_metadata(
+                subgraph,
+                op_name,
+                "subgraph input",
+                subgraph.InputsAsNumpy(),
+                input_tensors,
+            )
+        if output_tensors is not None:
+            self._check_subgraph_tensor_metadata(
+                subgraph,
+                op_name,
+                "subgraph output",
+                subgraph.OutputsAsNumpy(),
+                output_tensors,
+            )
+        return subgraph
+
     def _get_tensor_metadata(self, tensor):
         """Return static shape and dtype metadata for a TFLite tensor."""
         if isinstance(tensor, TensorWrapper):
@@ -1967,8 +2004,10 @@ class OperatorConverter:
 
     def _require_scalar_bool_tensor(self, tensor, op_name):
         """Validate that a TFLite tensor is a scalar bool tensor."""
-        dtype = self.get_tensor_type_str(tensor.tensor.Type())
-        if dtype != "bool" or tensor.tensor.ShapeLength() != 0:
+        if isinstance(tensor, TensorWrapper):
+            tensor = tensor.tensor
+        dtype = self.get_tensor_type_str(tensor.Type())
+        if dtype != "bool" or tensor.ShapeLength() != 0:
             raise tvm.error.OpNotImplemented(f"{op_name} requires a scalar bool condition")
 
     def _get_subgraph_params(self, subgraph):
@@ -2086,6 +2125,40 @@ class OperatorConverter:
         lowered_if_functions[cache_key] = gv
         return gv
 
+    def _lower_while_to_function(
+        self,
+        cond_subgraph_index,
+        body_subgraph_index,
+        loop_var_count,
+        cond_func,
+        body_func,
+        body_subgraph,
+    ):
+        """Lower a TFLite WHILE op into a recursive private Relax function."""
+        cache_key = (cond_subgraph_index, body_subgraph_index, loop_var_count)
+        lowered_while_functions = self.conversion_state["lowered_while_functions"]
+        if cache_key in lowered_while_functions:
+            return lowered_while_functions[cache_key]
+
+        loop_name = f"tflite_while_subgraph_{cond_subgraph_index}_{body_subgraph_index}"
+        params, _ = self._get_subgraph_params(body_subgraph)
+        dummy_body = self._make_tuple_or_single(params)
+        loop_gv = self.bb.add_func(relax.Function(params, dummy_body), loop_name)
+        lowered_while_functions[cache_key] = loop_gv
+
+        loop_bb = relax.BlockBuilder()
+        with loop_bb.function(loop_name, params=params, private=True):
+            cond = loop_bb.emit(relax.Call(cond_func, params), "while_cond")
+            next_state = relax.Call(body_func, params)
+            next_args = self._bind_call_outputs(next_state, loop_var_count)
+            true_branch = relax.Call(loop_gv, next_args)
+            false_branch = self._make_tuple_or_single(params)
+            result = relax.If(cond, true_branch, false_branch)
+            loop_bb.emit_func_output(result)
+        loop_func = loop_bb.get()[loop_name]
+        self.bb.update_func(loop_gv, loop_func)
+        return loop_gv
+
     def convert_call(self, op):
         """Convert TFLite CALL to a Relax private function call."""
         from tflite.CallOptions import CallOptions
@@ -2094,22 +2167,11 @@ class OperatorConverter:
         subgraph_index = int(opts.Subgraph())
         input_tensors = self.get_input_tensors(op)
         output_tensors = self.get_output_tensors(op)
-        callee_subgraph = self._check_subgraph_io(
-            subgraph_index, "CALL", input_count=len(input_tensors), output_count=len(output_tensors)
-        )
-        self._check_subgraph_tensor_metadata(
-            callee_subgraph,
+        self._check_subgraph_interface(
+            subgraph_index,
             "CALL",
-            "subgraph input",
-            callee_subgraph.InputsAsNumpy(),
-            input_tensors,
-        )
-        self._check_subgraph_tensor_metadata(
-            callee_subgraph,
-            "CALL",
-            "subgraph output",
-            callee_subgraph.OutputsAsNumpy(),
-            output_tensors,
+            input_tensors=input_tensors,
+            output_tensors=output_tensors,
         )
 
         callee = self._lower_subgraph_to_function(
@@ -2133,46 +2195,18 @@ class OperatorConverter:
         self._require_scalar_bool_tensor(input_tensors[0], "IF")
         branch_input_count = len(input_tensors) - 1
         output_count = len(output_tensors)
-        then_subgraph = self._check_subgraph_io(
+        branch_input_tensors = input_tensors[1:]
+        self._check_subgraph_interface(
             then_subgraph_index,
             "IF",
-            input_count=branch_input_count,
-            output_count=output_count,
+            input_tensors=branch_input_tensors,
+            output_tensors=output_tensors,
         )
-        else_subgraph = self._check_subgraph_io(
+        self._check_subgraph_interface(
             else_subgraph_index,
             "IF",
-            input_count=branch_input_count,
-            output_count=output_count,
-        )
-        branch_input_tensors = input_tensors[1:]
-        self._check_subgraph_tensor_metadata(
-            then_subgraph,
-            "IF",
-            "subgraph input",
-            then_subgraph.InputsAsNumpy(),
-            branch_input_tensors,
-        )
-        self._check_subgraph_tensor_metadata(
-            else_subgraph,
-            "IF",
-            "subgraph input",
-            else_subgraph.InputsAsNumpy(),
-            branch_input_tensors,
-        )
-        self._check_subgraph_tensor_metadata(
-            then_subgraph,
-            "IF",
-            "subgraph output",
-            then_subgraph.OutputsAsNumpy(),
-            output_tensors,
-        )
-        self._check_subgraph_tensor_metadata(
-            else_subgraph,
-            "IF",
-            "subgraph output",
-            else_subgraph.OutputsAsNumpy(),
-            output_tensors,
+            input_tensors=branch_input_tensors,
+            output_tensors=output_tensors,
         )
 
         if_func = self._lower_if_to_function(
@@ -2200,42 +2234,22 @@ class OperatorConverter:
         if len(output_tensors) != loop_var_count:
             raise tvm.error.OpNotImplemented("WHILE output count must match input count")
 
-        cond_subgraph = self._check_subgraph_io(
-            cond_subgraph_index, "WHILE", input_count=loop_var_count, output_count=1
+        cond_subgraph = self._check_subgraph_interface(
+            cond_subgraph_index,
+            "WHILE",
+            input_tensors=input_tensors,
+            output_count=1,
         )
-        body_subgraph = self._check_subgraph_io(
+        body_subgraph = self._check_subgraph_interface(
             body_subgraph_index,
             "WHILE",
-            input_count=loop_var_count,
-            output_count=loop_var_count,
+            input_tensors=input_tensors,
+            output_tensors=input_tensors,
         )
         for input_tensor, output_tensor in zip(input_tensors, output_tensors):
             self._check_tensor_metadata_match(input_tensor, output_tensor, "WHILE", "loop state")
-        self._check_subgraph_tensor_metadata(
-            cond_subgraph,
-            "WHILE",
-            "subgraph input",
-            cond_subgraph.InputsAsNumpy(),
-            input_tensors,
-        )
-        self._check_subgraph_tensor_metadata(
-            body_subgraph,
-            "WHILE",
-            "subgraph input",
-            body_subgraph.InputsAsNumpy(),
-            input_tensors,
-        )
-        self._check_subgraph_tensor_metadata(
-            body_subgraph,
-            "WHILE",
-            "subgraph output",
-            body_subgraph.OutputsAsNumpy(),
-            input_tensors,
-        )
         cond_output = cond_subgraph.Tensors(int(cond_subgraph.Outputs(0)))
-        self._require_scalar_bool_tensor(
-            TensorWrapper(int(cond_subgraph.Outputs(0)), cond_output, 0), "WHILE"
-        )
+        self._require_scalar_bool_tensor(cond_output, "WHILE")
 
         cond_func = self._lower_subgraph_to_function(
             cond_subgraph_index,
@@ -2248,33 +2262,40 @@ class OperatorConverter:
             op_name="WHILE",
         )
 
-        loop_name = f"tflite_while_subgraph_{cond_subgraph_index}_{body_subgraph_index}"
-        params, _ = self._get_subgraph_params(body_subgraph)
-        dummy_body = self._make_tuple_or_single(params)
-        loop_gv = self.bb.add_func(relax.Function(params, dummy_body), loop_name)
-
-        loop_bb = relax.BlockBuilder()
-        with loop_bb.function(loop_name, params=params, private=True):
-            cond = loop_bb.emit(relax.Call(cond_func, params), "while_cond")
-            next_state = relax.Call(body_func, params)
-            next_args = self._bind_call_outputs(next_state, loop_var_count)
-            true_branch = relax.Call(loop_gv, next_args)
-            false_branch = self._make_tuple_or_single(params)
-            result = relax.If(cond, true_branch, false_branch)
-            loop_bb.emit_func_output(result)
-        loop_func = loop_bb.get()[loop_name]
-        self.bb.update_func(loop_gv, loop_func)
+        loop_gv = self._lower_while_to_function(
+            cond_subgraph_index,
+            body_subgraph_index,
+            loop_var_count,
+            cond_func,
+            body_func,
+            body_subgraph,
+        )
 
         args = [self.get_tensor_expr(tensor) for tensor in input_tensors]
         return relax.Call(loop_gv, args)
 
     def convert_call_once(self, op):
-        """Convert the no-op subset of TFLite CALL_ONCE."""
+        """Convert the no-op subset of TFLite CALL_ONCE.
+
+        Non-empty CALL_ONCE init subgraphs are used for resource initialization
+        side effects in TFLite.  The Relax TFLite frontend does not yet support
+        TFLite resource variable operators, so only the empty no-op form is safe
+        to import.
+        """
         from tflite.CallOnceOptions import CallOnceOptions
 
         opts = self._get_builtin_options(op, CallOnceOptions)
         init_subgraph_index = int(opts.InitSubgraphIndex())
+        input_tensors = self.get_input_tensors(op)
+        output_tensors = self.get_output_tensors(op)
+        if len(input_tensors) != 0 or len(output_tensors) != 0:
+            raise tvm.error.OpNotImplemented("CALL_ONCE with inputs or outputs is not supported")
+
         init_subgraph = self._get_subgraph(init_subgraph_index, "CALL_ONCE")
+        if init_subgraph.InputsLength() != 0 or init_subgraph.OutputsLength() != 0:
+            raise tvm.error.OpNotImplemented(
+                "CALL_ONCE with non-empty init subgraph I/O is not supported"
+            )
         if init_subgraph.OperatorsLength() != 0:
             raise tvm.error.OpNotImplemented(
                 "CALL_ONCE with non-empty init subgraphs is not supported"
