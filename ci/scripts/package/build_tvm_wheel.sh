@@ -205,6 +205,9 @@ inject_cuda_runtime() {
   if [[ -n "$TVM_WHEEL_DIST_VERSION" ]]; then
     inject_args+=(--distribution-version "$TVM_WHEEL_DIST_VERSION")
   fi
+  if [[ "$(uname -s)" == "Linux" ]]; then
+    inject_args+=(--set-rpath '$ORIGIN')
+  fi
 
   echo "Injecting sidecar/metadata into ${raw_wheel}"
   "$TVM_PYTHON" "$SCRIPT_DIR/inject_cuda_runtime.py" "$raw_wheel" "${inject_args[@]}"
@@ -212,8 +215,11 @@ inject_cuda_runtime() {
 
 auditwheel_excludes() {
   local cuda_lib="$1"
-  local seen=" libtvm_runtime_cuda.so libtvm_ffi.so libcuda.so.1 libcuda.so libcudart.so.11.0 libcudart.so.12 libcudart.so.12.0 "
+  local seen
+  seen=" libtvm_runtime.so libtvm_runtime_cuda.so libtvm_ffi.so "
+  seen+="libcuda.so.1 libcuda.so libcudart.so.11.0 libcudart.so.12 libcudart.so.12.0 "
 
+  printf '%s\n' "--exclude" "libtvm_runtime.so"
   printf '%s\n' "--exclude" "libtvm_runtime_cuda.so"
   printf '%s\n' "--exclude" "libtvm_ffi.so"
   printf '%s\n' "--exclude" "libcuda.so.1"

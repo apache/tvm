@@ -23,8 +23,8 @@ validation:
 1. Build `libtvm_runtime_cuda.so` in a CUDA-enabled CMake build.
 2. Build the main Python wheel with LLVM enabled and CUDA disabled.
 3. Inject the CUDA runtime DSO into `tvm/lib/` inside the wheel.
-4. Repair the wheel, excluding CUDA driver/runtime DSOs and `libtvm_ffi`
-   from vendoring.
+4. Repair the wheel, excluding CUDA driver/runtime DSOs, `libtvm_ffi`, and
+   intra-wheel TVM DSOs from vendoring.
 5. Verify the wheel in a fresh virtualenv.
 6. Upload with `twine`.
 
