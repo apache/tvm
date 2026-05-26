@@ -53,6 +53,7 @@ if(USE_VULKAN)
     target_compile_options(tvm_runtime_vulkan_objs PRIVATE "${TVM_VISIBILITY_FLAG}")
   endif()
   add_library(tvm_runtime_vulkan SHARED $<TARGET_OBJECTS:tvm_runtime_vulkan_objs>)
+  list(APPEND TVM_RUNTIME_BACKEND_LIBS tvm_runtime_vulkan)
   target_link_libraries(tvm_runtime_vulkan PUBLIC tvm_runtime ${Vulkan_LIBRARY})
   set_target_properties(tvm_runtime_vulkan PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
