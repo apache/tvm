@@ -19,25 +19,9 @@
 /*!
  * \file src/ir/structural_hash.cc
  */
-#include <tvm/ffi/cast.h>
-#include <tvm/ffi/extra/base64.h>
-#include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/extra/structural_hash.h>
 #include <tvm/ffi/function.h>
-#include <tvm/ffi/reflection/access_path.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/node_functor.h>
-#include <tvm/runtime/tensor.h>
-#include <tvm/support/io.h>
-#include <tvm/target/codegen.h>
-
-#include <algorithm>
-#include <unordered_map>
-
-#include "../support/base64.h"
-#include "../support/bytes_io.h"
-#include "../support/str_escape.h"
-#include "../support/utils.h"
 
 namespace tvm {
 
@@ -47,43 +31,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                         [](const Any& object, bool map_free_vars) -> int64_t {
                           return ffi::StructuralHash::Hash(object, map_free_vars);
                         });
-  refl::TypeAttrDef<ffi::ModuleObj>()
-      .def("__data_to_json__",
-           [](const ffi::ModuleObj* node) {
-             std::string bytes = codegen::SerializeModuleToBytes(ffi::GetRef<ffi::Module>(node),
-                                                                 /*export_dso*/ false);
-             return ffi::Base64Encode(ffi::Bytes(bytes));
-           })
-      .def("__data_from_json__", [](const ffi::String& base64_bytes) {
-        ffi::Bytes bytes = ffi::Base64Decode(base64_bytes);
-        ffi::Module rtmod = codegen::DeserializeModuleFromBytes(bytes.operator std::string());
-        return rtmod;
-      });
-
-  refl::TypeAttrDef<ffi::TensorObj>()
-      .def("__data_to_json__",
-           [](const ffi::TensorObj* node) {
-             std::string result;
-             support::BytesOutStream mstrm(&result);
-             support::Base64OutStream b64strm(&mstrm);
-             runtime::SaveDLTensor(&b64strm, node);
-             b64strm.Finish();
-             return ffi::String(std::move(result));
-           })
-      .def("__data_from_json__", [](const std::string& blob) {
-        support::BytesInStream mstrm(blob);
-        support::Base64InStream b64strm(&mstrm);
-        b64strm.InitPosition();
-        runtime::Tensor temp;
-        TVM_FFI_ICHECK(temp.Load(&b64strm));
-        return temp;
-      });
 }
-
-struct RefToObjectPtr : public ffi::ObjectRef {
-  static ffi::ObjectPtr<ffi::Object> Get(const ffi::ObjectRef& ref) {
-    return ffi::details::ObjectUnsafe::ObjectPtrFromObjectRef<ffi::Object>(ref);
-  }
-};
 
 }  // namespace tvm
