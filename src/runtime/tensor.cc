@@ -29,10 +29,9 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/tensor.h>
 
-#include "tvm/runtime/data_type.h"
-
 #include "../support/base64.h"
 #include "../support/bytes_io.h"
+#include "tvm/runtime/data_type.h"
 
 namespace tvm {
 namespace runtime {
