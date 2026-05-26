@@ -746,13 +746,12 @@ PrimFunc GenerateAndCompletePrimFunc(const ffi::Array<te::Tensor>& arg_list,
     TVM_FFI_ICHECK(it != info->tensor2buffers.end());
     buffer_map.Set(arg, it->second);
   }
-  PrimFunc func = WithAttrs(PrimFunc(/*params=*/std::move(parameters),
-                                     /*body=*/SeqStmt::Flatten(root_stmts),
-                                     /*ret_type=*/VoidType(),
-                                     /*buffer_map=*/std::move(buffer_map)),
-                            {{"global_symbol", ffi::String("main")},
-                             {"tirx.noalias", true},
-                             {tvm::attr::kSTir, tvm::Bool(true)}});
+  PrimFunc func = WithAttrs(
+      PrimFunc(/*params=*/std::move(parameters),
+               /*body=*/SeqStmt::Flatten(root_stmts),
+               /*ret_type=*/VoidType(),
+               /*buffer_map=*/std::move(buffer_map)),
+      {{"global_symbol", ffi::String("main")}, {"tirx.noalias", true}, {tvm::attr::kSTir, true}});
   const auto fcomplete = tvm::ffi::Function::GetGlobal("script.Complete");
   TVM_FFI_ICHECK(fcomplete.has_value());
   func = (*fcomplete)(std::move(func), info->root_alloc, true).cast<PrimFunc>();
@@ -818,13 +817,12 @@ PrimFunc GenerateAndCompletePrimFunc(const ffi::Array<ffi::ObjectRef>& arg_tir_v
       parameters.push_back(var.value());
     }
   }
-  PrimFunc func = WithAttrs(PrimFunc(/*params=*/std::move(parameters),
-                                     /*body=*/SeqStmt::Flatten(root_stmts),
-                                     /*ret_type=*/VoidType(),
-                                     /*buffer_map=*/std::move(buffer_map)),
-                            {{"global_symbol", ffi::String("main")},
-                             {"tirx.noalias", true},
-                             {tvm::attr::kSTir, tvm::Bool(true)}});
+  PrimFunc func = WithAttrs(
+      PrimFunc(/*params=*/std::move(parameters),
+               /*body=*/SeqStmt::Flatten(root_stmts),
+               /*ret_type=*/VoidType(),
+               /*buffer_map=*/std::move(buffer_map)),
+      {{"global_symbol", ffi::String("main")}, {"tirx.noalias", true}, {tvm::attr::kSTir, true}});
   const auto fcomplete = tvm::ffi::Function::GetGlobal("script.Complete");
   TVM_FFI_ICHECK(fcomplete.has_value());
   func = (*fcomplete)(std::move(func), info->root_alloc, true).cast<PrimFunc>();

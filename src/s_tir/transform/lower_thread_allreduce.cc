@@ -102,7 +102,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     cow->buffer = replacement;
     if (replacement.scope() == "shared") {
       auto annotations = cow->annotations;
-      annotations.Set(tirx::attr::kVolatile, Bool(true));
+      annotations.Set(tirx::attr::kVolatile, true);
       cow->annotations = annotations;
     }
     return node;
@@ -864,7 +864,7 @@ class DeferredRemapper : public StmtExprMutator {
         cow->buffer = replacement;
         if (replacement.scope() == "shared") {
           auto annotations = cow->annotations;
-          annotations.Set(tirx::attr::kVolatile, Bool(true));
+          annotations.Set(tirx::attr::kVolatile, true);
           cow->annotations = annotations;
         }
       }

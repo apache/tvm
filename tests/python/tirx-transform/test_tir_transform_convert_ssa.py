@@ -38,7 +38,7 @@ def test_reuse_in_sequential_bind():
             tirx.Evaluate(var),
         ]
     )
-    before = tirx.PrimFunc([], sequential_bindings).with_attr("s_tir", tirx.IntImm("bool", 1))
+    before = tirx.PrimFunc([], sequential_bindings).with_attr("s_tir", True)
 
     @T.prim_func(private=True, s_tir=True)
     def expected():

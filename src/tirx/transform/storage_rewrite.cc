@@ -674,7 +674,7 @@ class StoragePlanRewriter : public StmtExprMutator {
           Buffer buf = RemapBuffer(e->allocs[0]->buffer, e->alloc_var);
           ffi::Map<ffi::String, ffi::Any> annotations;
           if (e->is_volatile) {
-            annotations.Set(attr::kVolatile, Bool(true));
+            annotations.Set(attr::kVolatile, true);
           }
           e->alloc_nest.push_back(AllocBuffer(buf, annotations));
           continue;
@@ -711,7 +711,7 @@ class StoragePlanRewriter : public StmtExprMutator {
           Buffer buf = RemapBuffer(e->allocs[0]->buffer, e->alloc_var);
           ffi::Map<ffi::String, ffi::Any> annotations;
           if (e->is_volatile) {
-            annotations.Set(attr::kVolatile, Bool(true));
+            annotations.Set(attr::kVolatile, true);
           }
           e->alloc_nest.push_back(AllocBuffer(buf, annotations));
         } else {
@@ -756,7 +756,7 @@ class StoragePlanRewriter : public StmtExprMutator {
                      e->alloc_var->name_hint, 0, 0, BufferType::kDefault);
           ffi::Map<ffi::String, ffi::Any> annotations;
           if (e->is_volatile) {
-            annotations.Set(attr::kVolatile, Bool(true));
+            annotations.Set(attr::kVolatile, true);
           }
           e->alloc_nest.push_back(AllocBuffer(buf, annotations));
         }
@@ -798,7 +798,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     }
     ffi::Map<ffi::String, ffi::Any> annotations;
     if (any_volatile) {
-      annotations.Set(attr::kVolatile, Bool(true));
+      annotations.Set(attr::kVolatile, true);
     }
     e->alloc_nest.push_back(AllocBuffer(buf, annotations));
   }

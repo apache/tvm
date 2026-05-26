@@ -584,7 +584,8 @@ Feature::ArithOps::ArithOps(const BufferStoreNode* store, int64_t prod_loop_exte
 
     void VisitExpr_(const CallNode* op) final {
       static auto op_call_effect_ = Op::GetAttrMap<TCallEffectKind>("TCallEffectKind");
-      TCallEffectKind effect_kind = op_call_effect_[Downcast<Op>(op->op)];
+      CallEffectKind effect_kind =
+          static_cast<CallEffectKind>(op_call_effect_[Downcast<Op>(op->op)]);
       bool is_pure =
           effect_kind == CallEffectKind::kPure || effect_kind == CallEffectKind::kExprAnnotation;
       if (is_pure) {
