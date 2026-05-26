@@ -36,6 +36,7 @@ driving its costs down.
    install/index
    get_started/tutorials/quick_start
    get_started/tutorials/ir_module
+   errors
 
 .. toctree::
    :maxdepth: 1
@@ -60,12 +61,6 @@ driving its costs down.
    arch/index
    deep_dive/tensor_ir/index
    deep_dive/relax/index
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Troubleshooting
-
-   errors
 
 .. toctree::
    :maxdepth: 1

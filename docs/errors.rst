@@ -16,8 +16,8 @@
     under the License.
 
 
-Troubleshooting TVM Errors
-==========================
+TVM Errors
+==========
 
 TVM may raise errors from Python code, from C++ code reached through the
 FFI, or from generated runtime modules.  Error messages usually include
