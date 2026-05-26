@@ -79,6 +79,19 @@ if(USE_CUDA)
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
     ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
   )
+  if(TVM_BUILD_PYTHON_MODULE)
+    if(APPLE)
+      set_target_properties(tvm_runtime_cuda PROPERTIES
+        BUILD_RPATH "@loader_path"
+        INSTALL_RPATH "@loader_path"
+      )
+    elseif(LINUX)
+      set_target_properties(tvm_runtime_cuda PROPERTIES
+        BUILD_RPATH "\$ORIGIN"
+        INSTALL_RPATH "\$ORIGIN"
+      )
+    endif()
+  endif()
   install(TARGETS tvm_runtime_cuda DESTINATION lib${LIB_SUFFIX})
   if(TVM_BUILD_PYTHON_MODULE)
     install(TARGETS tvm_runtime_cuda DESTINATION "lib")
