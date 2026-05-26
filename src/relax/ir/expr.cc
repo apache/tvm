@@ -229,7 +229,7 @@ TupleGetItem::TupleGetItem(Expr tuple, int index, Span span) {
 }
 
 TupleGetItem WithFields(TupleGetItem tuple_get_item, ffi::Optional<Expr> opt_tuple,
-                        ffi::Optional<Integer> opt_index, ffi::Optional<Span> opt_span) {
+                        ffi::Optional<int64_t> opt_index, ffi::Optional<Span> opt_span) {
   Expr tuple = opt_tuple.value_or(tuple_get_item->tuple);
   Integer index = opt_index.value_or(tuple_get_item->index);
   Span span = opt_span.value_or(tuple_get_item->span);

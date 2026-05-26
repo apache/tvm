@@ -708,16 +708,16 @@ std::vector<State> MultiLevelTilingTensorCoreNode::AddSoftwarePipeline(
   //   compute matmul with fragment K1 - 1
   //
   sch->Annotate(state->tiles[r_indices_[1]].back(), s_tir::attr::software_pipeline_stage,
-                ffi::Array<Integer>{0, 0, 1});
+                ffi::Array<int64_t>{0, 0, 1});
   sch->Annotate(state->tiles[r_indices_[1]].back(), s_tir::attr::software_pipeline_order,
-                ffi::Array<Integer>{0, 1, 2});
+                ffi::Array<int64_t>{0, 1, 2});
   if (state->is_mma && state->use_async) {
     sch->Annotate(state->tiles[r_indices_[0]].back(), s_tir::attr::software_pipeline_async_stages,
-                  ffi::Array<Integer>{0});
+                  ffi::Array<int64_t>{0});
     sch->Annotate(state->tiles[r_indices_[0]].back(), s_tir::attr::software_pipeline_stage,
-                  ffi::Array<Integer>{0, 0, 1, 2, 2});
+                  ffi::Array<int64_t>{0, 0, 1, 2, 2});
     sch->Annotate(state->tiles[r_indices_[0]].back(), s_tir::attr::software_pipeline_order,
-                  ffi::Array<Integer>{0, 1, 3, 2, 4});
+                  ffi::Array<int64_t>{0, 1, 3, 2, 4});
   } else {
     // Outer software pipeline: Interleave the outer loop with the (pipelined) inner loop.
     // The prefetching stage of the inner pipeline is executed by one iteration in the outer loop.
@@ -760,9 +760,9 @@ std::vector<State> MultiLevelTilingTensorCoreNode::AddSoftwarePipeline(
     //   compute matmul with fragment K1 - 1 of tile K0 - 1
     //
     sch->Annotate(state->tiles[r_indices_[0]].back(), s_tir::attr::software_pipeline_stage,
-                  ffi::Array<Integer>{0, 0, 0, 0, 0, 1, 1});
+                  ffi::Array<int64_t>{0, 0, 0, 0, 0, 1, 1});
     sch->Annotate(state->tiles[r_indices_[0]].back(), s_tir::attr::software_pipeline_order,
-                  ffi::Array<Integer>{0, 3, 1, 4, 5, 2, 6});
+                  ffi::Array<int64_t>{0, 3, 1, 4, 5, 2, 6});
   }
 
   return {state};
@@ -914,8 +914,8 @@ inline std::vector<State> MultiLevelTilingTensorCoreNode::TransformForTensorizat
 
 ScheduleRule ScheduleRule::MultiLevelTilingTensorCore(
     ffi::Array<ffi::Map<ffi::String, ffi::String>> intrin_groups, ffi::String structure,
-    ffi::Optional<ffi::Array<ffi::String>> tile_binds, ffi::Optional<Integer> max_innermost_factor,
-    ffi::Optional<ffi::Array<Integer>> vector_load_lens,
+    ffi::Optional<ffi::Array<ffi::String>> tile_binds, ffi::Optional<int64_t> max_innermost_factor,
+    ffi::Optional<ffi::Array<int64_t>> vector_load_lens,
     ffi::Optional<ffi::Map<ffi::String, ffi::Any>> reuse_read,
     ffi::Optional<ffi::Map<ffi::String, ffi::Any>> reuse_write, bool use_software_pipeline) {
   if (tile_binds.defined()) {

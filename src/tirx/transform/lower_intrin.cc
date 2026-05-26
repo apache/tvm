@@ -364,9 +364,8 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
 
 Stmt LowerIntrinStmt(Stmt stmt, const std::string& target) {
   arith::Analyzer analyzer;
-  bool enable_fast_math = transform::PassContext::Current()
-                              ->GetConfig<Bool>("tirx.enable_fast_math", Bool(false))
-                              .value();
+  bool enable_fast_math =
+      transform::PassContext::Current()->GetConfig<bool>("tirx.enable_fast_math", false).value();
   return IntrinInjecter(&analyzer, Target(ffi::String(target)), enable_fast_math)(std::move(stmt));
 }
 
@@ -378,7 +377,7 @@ Pass LowerIntrin() {
     auto target = f->GetAttr<Target>(tvm::attr::kTarget);
     TVM_FFI_ICHECK(target.defined()) << "LowerIntrin: Require the target attribute";
     arith::Analyzer analyzer;
-    bool enable_fast_math = ctx->GetConfig<Bool>("tirx.enable_fast_math", Bool(false)).value();
+    bool enable_fast_math = ctx->GetConfig<bool>("tirx.enable_fast_math", false).value();
     n->body = IntrinInjecter(&analyzer, target.value(), enable_fast_math)(std::move(n->body));
     return f;
   };

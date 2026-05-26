@@ -157,7 +157,7 @@ TVM_REGISTER_OP("relax.nn.attention")
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
     .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionAttention)
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAttention)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 TVM_REGISTER_OP("relax.nn.attention_bias")
     .set_attrs_type<AttentionAttrs>()
@@ -169,7 +169,7 @@ TVM_REGISTER_OP("relax.nn.attention_bias")
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
     .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionAttention)
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAttention)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 TVM_REGISTER_OP("relax.nn.attention_var_len")
     .set_attrs_type<AttentionAttrs>()
@@ -184,7 +184,7 @@ TVM_REGISTER_OP("relax.nn.attention_var_len")
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
     .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionAttention)
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAttention)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 TVM_FFI_STATIC_INIT_BLOCK() { AttentionAttrs::RegisterReflection(); }
 

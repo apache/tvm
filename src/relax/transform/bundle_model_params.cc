@@ -42,9 +42,9 @@ class ModelParamBundler : public ExprMutator {
 
   Expr VisitExpr_(const FunctionNode* op) override {
     Function func = ffi::GetRef<Function>(op);
-    auto opt_num_input = func->attrs.GetAttr<Integer>(attr::kNumInput);
+    auto opt_num_input = func->attrs.GetAttr<int64_t>(attr::kNumInput);
     if (!opt_num_input) return func;
-    auto signed_num_input = opt_num_input.value()->value;
+    auto signed_num_input = opt_num_input.value();
 
     TVM_FFI_ICHECK_GE(signed_num_input, 0);
     TVM_FFI_ICHECK_LE(signed_num_input, func->params.size())

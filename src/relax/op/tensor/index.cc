@@ -133,7 +133,7 @@ TVM_REGISTER_OP("relax.take")
     .add_argument("x", "Tensor", "The source tensor.")
     .add_argument("indices", "Tensor", "The indices of the values to extract.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTake)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.strided_slice */
 
@@ -198,7 +198,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
  * a tuple from a `TensorStructInfo`.)
  *
  * \tparam PrimType The subtype of PrimExpr to extract.  For example,
- *     extracting an `ffi::Array<Integer>`
+ *     extracting an `ffi::Array<int64_t>`
  *
  * \param sinfo The StructInfo to inspect
  *
@@ -256,7 +256,7 @@ ffi::Optional<ffi::Array<PrimType>> UnpackTupleOfPrimValue(ffi::Optional<StructI
  * a tuple from a `TensorStructInfo`.)
  *
  * \tparam PrimType The subtype of PrimExpr to extract.  For example,
- *     extracting an `ffi::Array<Integer>`
+ *     extracting an `ffi::Array<int64_t>`
  *
  * \param expr The `relax::Expr` to inspect
  *
@@ -355,7 +355,7 @@ StructInfo InferStructInfoStridedSlice(const Call& call, const BlockBuilder& ctx
     if (!data_sinfo) return std::nullopt;
     if (!data_sinfo->shape) return std::nullopt;
 
-    auto opt_axes_tuple = UnpackTupleOfPrimValue<Integer>(axes);
+    auto opt_axes_tuple = UnpackTupleOfPrimValue<IntImm>(axes);
     if (!opt_axes_tuple) return std::nullopt;
     auto axes_tuple = opt_axes_tuple.value();
 
@@ -404,7 +404,10 @@ StructInfo InferStructInfoStridedSlice(const Call& call, const BlockBuilder& ctx
       return std::nullopt;
     }
 
-    std::vector<int> axes = NormalizeAxes(call, ctx, data_sinfo->ndim, axes_tuple);
+    ffi::Array<int64_t> axes_tuple_i64;
+    axes_tuple_i64.reserve(axes_tuple.size());
+    for (const IntImm& v : axes_tuple) axes_tuple_i64.push_back(v->value);
+    std::vector<int> axes = NormalizeAxes(call, ctx, data_sinfo->ndim, axes_tuple_i64);
     auto attrs = call->attrs.as<StridedSliceAttrs>();
 
     ffi::Array<PrimExpr> output_shape = data_sinfo->GetShape().value();
@@ -457,12 +460,12 @@ InferLayoutOutput InferLayoutStridedSlice(
     existing_layout = LayoutDecision(InitialLayout(tensor_sinfo->ndim));
   }
 
-  auto opt_axes_tuple = UnpackTupleOfPrimValue<Integer>(GetStructInfo(call->args[1]));
+  auto opt_axes_tuple = UnpackTupleOfPrimValue<IntImm>(GetStructInfo(call->args[1]));
   TVM_FFI_ICHECK(opt_axes_tuple) << "Layout inference of " << call->op
                                  << " requires slices to be along static axes.  "
                                  << "However, expression " << call
                                  << " slices along non-static axes " << call->args[1];
-  ffi::Array<Integer> axes_tuple = opt_axes_tuple.value();
+  ffi::Array<IntImm> axes_tuple = opt_axes_tuple.value();
 
   ffi::Array<Expr> new_axes;
   for (const auto& axis : axes_tuple) {
@@ -481,7 +484,7 @@ TVM_REGISTER_OP("relax.strided_slice")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoStridedSlice)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStridedSlice)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.dynamic_strided_slice */
 Expr dynamic_strided_slice(Expr x,      //
@@ -579,8 +582,8 @@ TVM_REGISTER_OP("relax.dynamic_strided_slice")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoDynStridedSlice)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutDynStridedSlice)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<Bool>("FPurity", Bool(true))
-    .set_attr<Bool>("FDataDependent", Bool(true));
+    .set_attr<bool>("FPurity", true)
+    .set_attr<bool>("FDataDependent", true);
 
 }  // namespace relax
 }  // namespace tvm

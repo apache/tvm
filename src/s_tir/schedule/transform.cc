@@ -411,7 +411,8 @@ ffi::Optional<LoopRV> TileWithTensorIntrin(const s_tir::Schedule& sch,
     TVM_FFI_ICHECK_EQ(split.size(), 2);
     inner_loops.insert(sch->GetSRef(split[1]).operator->());
     // The inner split will be reordered to the loop domain that is tensorized
-    int desc_loop_index = info->desc_loop_indexer.at(ffi::GetRef<tirx::For>(desc_loop)).IntValue();
+    int desc_loop_index =
+        static_cast<int>(info->desc_loop_indexer.at(ffi::GetRef<tirx::For>(desc_loop)));
     reorder_suffix[desc_loop_index] = split[1];
   }
   // Reorder the loops

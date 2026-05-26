@@ -31,7 +31,7 @@ namespace relax {
 
 /*! \brief Attributes for statistical operators */
 struct StatisticalAttrs : public BaseAttrsNode {
-  ffi::Optional<ffi::Array<Integer>> axis;
+  ffi::Optional<ffi::Array<int64_t>> axis;
   bool keepdims;
 
   static void RegisterReflection() {
@@ -52,7 +52,7 @@ struct StatisticalAttrs : public BaseAttrsNode {
 struct ScanopAttrs : public BaseAttrsNode {
   ffi::Optional<int64_t> axis;
   DataType dtype;
-  Bool exclusive = Bool(false);
+  bool exclusive = false;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -64,7 +64,7 @@ struct ScanopAttrs : public BaseAttrsNode {
                 "The output data type."
                 "If dtype is not specified, it defaults to the dtype of input data.")
         .def_ro("exclusive", &ScanopAttrs::exclusive, "The first element is not included",
-                refl::DefaultValue(Bool(false)));
+                refl::DefaultValue(false));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ScanopAttrs", ScanopAttrs, BaseAttrsNode);
 };  // struct ScanopAttrs

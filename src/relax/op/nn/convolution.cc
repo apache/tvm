@@ -202,7 +202,7 @@ TVM_REGISTER_OP("relax.nn.conv1d")
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv1d)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
     .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionConv1d)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.nn.conv2d */
 
@@ -410,7 +410,7 @@ TVM_REGISTER_OP("relax.nn.conv2d")
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv2d)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
     .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionConv2d)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.nn.conv3d */
 
@@ -592,7 +592,7 @@ TVM_REGISTER_OP("relax.nn.conv3d")
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv3d)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
     .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionConv3d)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 Expr conv1d_transpose(Expr data, Expr weight, ffi::Array<int64_t> strides,
                       ffi::Array<int64_t> padding, ffi::Array<int64_t> output_padding,
@@ -774,7 +774,7 @@ TVM_REGISTER_OP("relax.nn.conv1d_transpose")
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv1dTranspose)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
     .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionConv1dTranspose)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.nn.conv2d_transpose */
 
@@ -1005,7 +1005,7 @@ TVM_REGISTER_OP("relax.nn.conv2d_transpose")
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv2dTranspose)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
     .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionConv2dTranspose)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.nn.conv3d_transpose */
 
@@ -1247,7 +1247,7 @@ TVM_REGISTER_OP("relax.nn.conv3d_transpose")
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv3dTranspose)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
     .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionConv3dTranspose)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 }  // namespace relax
 }  // namespace tvm

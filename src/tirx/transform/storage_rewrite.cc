@@ -1754,7 +1754,7 @@ Pass StorageRewrite() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     bool enable_reuse = true;
     bool reuse_require_exact_matched_dtype = false;
-    bool merge_static_smem = ctx->GetConfig<Bool>("tirx.merge_static_smem", Bool(false)).value();
+    bool merge_static_smem = ctx->GetConfig<bool>("tirx.merge_static_smem", false).value();
     if (merge_static_smem) {
       // When `merge_static_smem` is true, we will reuse and merge shared
       // memory in a dedicated pass `MergeSharedMemoryAllocations`.

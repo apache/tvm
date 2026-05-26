@@ -32,7 +32,7 @@ using namespace tvm::tirx;
  * \param axis The axis name expected
  * \return std::nullopt if parsing fails; Otherwise, the extent of thread axis
  */
-ffi::Optional<Integer> ParseThreadBinding(const Schedule& sch, const Instruction& inst,
+ffi::Optional<int64_t> ParseThreadBinding(const Schedule& sch, const Instruction& inst,
                                           ffi::String axis) {
   static InstructionKind inst_kind_bind = InstructionKind::Get("Bind");
   if (!inst->kind.same_as(inst_kind_bind)) {
@@ -44,7 +44,7 @@ ffi::Optional<Integer> ParseThreadBinding(const Schedule& sch, const Instruction
   if (thread_axis != axis) {
     return std::nullopt;
   }
-  return Downcast<Integer>(sch->Get(Downcast<LoopRV>(inst->inputs[0]))->extent);
+  return Downcast<IntImm>(sch->Get(Downcast<LoopRV>(inst->inputs[0]))->extent)->value;
 }
 
 /*!
@@ -128,8 +128,8 @@ class RewriteCooperativeFetchNode : public PostprocNode {
 
   // Inherited from PostprocNode
   void InitializeWithTuneContext(const TuneContext& context) final {
-    if (ffi::Optional<Integer> v = context->target.value()->GetAttr<Integer>("thread_warp_size")) {
-      this->thread_warp_size_ = v.value()->value;
+    if (ffi::Optional<int64_t> v = context->target.value()->GetAttr<int64_t>("thread_warp_size")) {
+      this->thread_warp_size_ = v.value();
     } else {
       TVM_PY_LOG(INFO, context->logger) << "'thread_warp_size' is not defined in the target";
     }
@@ -158,14 +158,14 @@ bool RewriteCooperativeFetchNode::Apply(const s_tir::Schedule& sch) {
   int64_t vector_lane = 1;
   std::vector<std::function<void()>> tasks;
   for (const s_tir::Instruction& inst : trace->insts) {
-    if (ffi::Optional<Integer> new_thread_extent =
+    if (ffi::Optional<int64_t> new_thread_extent =
             s_tir::ParseThreadBinding(sch, inst, "threadIdx.x")) {
-      thread_extent_x = new_thread_extent.value()->value;
+      thread_extent_x = new_thread_extent.value();
       continue;
     }
-    if (ffi::Optional<Integer> new_thread_extent =
+    if (ffi::Optional<int64_t> new_thread_extent =
             s_tir::ParseThreadBinding(sch, inst, "threadIdx.y")) {
-      thread_extent_y = new_thread_extent.value()->value;
+      thread_extent_y = new_thread_extent.value();
       continue;
     }
     if (s_tir::ParseWarpExecutionAnn(sch, inst)) {

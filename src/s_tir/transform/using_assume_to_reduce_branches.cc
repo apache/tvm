@@ -366,11 +366,11 @@ Pass UseAssumeToReduceBranches() {
     // The pass runs & eliminates pad branch with overcompute only if,
     // the primfunc has op_pattern defined and is an elementwise op.
     // AnnotateTIROpPattern pass will set op_pattern in op attributes of the primfunc.
-    if (n->attrs.GetAttr<Integer>("op_pattern").defined()) {
-      ffi::Optional<Integer> opt_pattern = f->GetAttr<Integer>("op_pattern");
-      if (opt_pattern.defined()) {
+    if (n->attrs.GetAttr<int64_t>("op_pattern").has_value()) {
+      ffi::Optional<int64_t> opt_pattern = f->GetAttr<int64_t>("op_pattern");
+      if (opt_pattern.has_value()) {
         relax::OpPatternKind pattern;
-        pattern = static_cast<relax::OpPatternKind>(Downcast<IntImm>(opt_pattern)->value);
+        pattern = static_cast<relax::OpPatternKind>(opt_pattern.value());
 
         if (pattern == relax::OpPatternKind::kElemWise ||
             pattern == relax::OpPatternKind::kBroadcast) {

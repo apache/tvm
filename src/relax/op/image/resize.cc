@@ -148,7 +148,7 @@ TVM_REGISTER_OP("relax.image.resize2d")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoResize2D)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutResize2d)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.resize3d */
 
@@ -261,7 +261,7 @@ TVM_REGISTER_OP("relax.image.resize3d")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoResize3D)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutResize3d)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.grid_sample */
 
@@ -339,7 +339,7 @@ TVM_REGISTER_OP("relax.image.grid_sample")
     .add_argument("grid", "Tensor", "The grid tensor for sampling.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoGridSample)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.image.affine_grid */
 
@@ -431,7 +431,7 @@ TVM_REGISTER_OP("relax.image.affine_grid")
     .add_argument("size", "Shape", "The target output shape (H, W).")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAffineGrid)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 }  // namespace relax
 }  // namespace tvm

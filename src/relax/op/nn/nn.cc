@@ -79,7 +79,7 @@ TVM_REGISTER_OP("relax.nn.leakyrelu")
     .set_attrs_type<LeakyReluAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo",
                                 InferStructInfoUnaryArith</*require_float_dtype=*/true>)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.nn.softplus */
 
@@ -102,7 +102,7 @@ TVM_REGISTER_OP("relax.nn.softplus")
     .set_attrs_type<SoftplusAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo",
                                 InferStructInfoUnaryArith</*require_float_dtype=*/true>)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.nn.prelu */
 
@@ -166,7 +166,7 @@ TVM_REGISTER_OP("relax.nn.prelu")
     .set_attrs_type<PReluAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoPRelu)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPRelu)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.nn.softmax */
 
@@ -228,7 +228,7 @@ TVM_REGISTER_OP("relax.nn.softmax")
     .set_attrs_type<SoftmaxAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoSoftmax)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutSoftmax)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.nn.log_softmax */
 Expr log_softmax(Expr data, int axis) {
@@ -248,11 +248,11 @@ TVM_REGISTER_OP("relax.nn.log_softmax")
     .add_argument("data", "Tensor", "The input tensor.")
     .set_attrs_type<SoftmaxAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoSoftmax)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.nn.pad */
 
-Expr pad(Expr data, ffi::Array<Integer> pad_width, ffi::String pad_mode, double pad_value) {
+Expr pad(Expr data, ffi::Array<int64_t> pad_width, ffi::String pad_mode, double pad_value) {
   auto attrs = ffi::make_object<PadAttrs>();
   attrs->pad_width = std::move(pad_width);
   attrs->pad_mode = std::move(pad_mode);
@@ -270,7 +270,7 @@ StructInfo InferStructInfoPad(const Call& call, const BlockBuilder& ctx) {
   ffi::Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
   const auto* attrs = call->attrs.as<PadAttrs>();
   int ndim = input_sinfo[0]->ndim;
-  ffi::Array<Integer> pad_width = attrs->pad_width;
+  ffi::Array<int64_t> pad_width = attrs->pad_width;
   TVM_FFI_ICHECK(static_cast<int>(pad_width.size()) == 2 * ndim) << "Illegal pad_width";
 
   ffi::Array<PrimExpr> out_shape;
@@ -279,7 +279,7 @@ StructInfo InferStructInfoPad(const Call& call, const BlockBuilder& ctx) {
     const auto* data_shape = input_sinfo[0]->shape.as<ShapeExprNode>();
     for (int i = 0; i < ndim; i++) {
       // Sum pad width for this axis.
-      PrimExpr added_width = pad_width[2 * i] + pad_width[(2 * i) + 1];
+      PrimExpr added_width = IntImm(DataType::Int(64), pad_width[2 * i] + pad_width[(2 * i) + 1]);
       const PrimExpr current_width = data_shape->values[i];
       out_shape.push_back(current_width + added_width);
     }
@@ -295,7 +295,7 @@ TVM_REGISTER_OP("relax.nn.pad")
     .add_argument("data", "Tensor", "The input tensor.")
     .set_attrs_type<PadAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoPad)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.nn.pixel_shuffle */
 
@@ -367,12 +367,12 @@ TVM_REGISTER_OP("relax.nn.pixel_shuffle")
     .add_argument("data", "Tensor", "The input tensor.")
     .set_attrs_type<PixelShuffleAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoPixelShuffle)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.nn.batchnorm */
 bool NormCheckDtypeAndShape(const Call& call, const BlockBuilder& ctx,
                             const ffi::Array<TensorStructInfo>& input_sinfo,
-                            ffi::Array<Integer> axes) {
+                            ffi::Array<int64_t> axes) {
   Op op = Downcast<Op>(call->op);
   int n_input = op->arguments.size();
 
@@ -521,11 +521,11 @@ TVM_REGISTER_OP("relax.nn.batch_norm")
     .add_argument("moving_var", "Tensor", "Running variance of input.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoBatchNorm)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutBatchNorm)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.nn.layer_norm */
 
-Expr layer_norm(Expr data, Expr gamma, Expr beta, ffi::Array<Integer> axes, double epsilon,
+Expr layer_norm(Expr data, Expr gamma, Expr beta, ffi::Array<int64_t> axes, double epsilon,
                 bool center, bool scale) {
   ffi::ObjectPtr<LayerNormAttrs> attrs = ffi::make_object<LayerNormAttrs>();
   attrs->axes = std::move(axes);
@@ -571,11 +571,11 @@ InferLayoutOutput InferLayoutLayerNorm(
   ffi::ObjectPtr<LayerNormAttrs> new_attrs = ffi::make_object<LayerNormAttrs>(*attrs);
   const auto* input_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
   int ndim = input_sinfo->ndim;
-  std::vector<Integer> new_axis;
-  for (const auto& axis : attrs->axes) {
-    new_axis.push_back(FindAxis(layout->layout, (axis->value + ndim) % ndim));
+  std::vector<int64_t> new_axis;
+  for (int64_t axis : attrs->axes) {
+    new_axis.push_back(FindAxis(layout->layout, (axis + ndim) % ndim));
   }
-  new_attrs->axes = std::move(new_axis);
+  new_attrs->axes = ffi::Array<int64_t>(new_axis.begin(), new_axis.end());
   return InferLayoutOutput({layout, initial_layouts[1], initial_layouts[2]}, {layout},
                            Attrs(new_attrs));
 }
@@ -589,12 +589,12 @@ TVM_REGISTER_OP("relax.nn.layer_norm")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoLayerNorm)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutLayerNorm)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.nn.group_norm */
 
 Expr group_norm(Expr data, Expr gamma, Expr beta, int num_groups, int channel_axis,
-                ffi::Array<Integer> axes, double epsilon, bool center, bool scale) {
+                ffi::Array<int64_t> axes, double epsilon, bool center, bool scale) {
   ffi::ObjectPtr<GroupNormAttrs> attrs = ffi::make_object<GroupNormAttrs>();
   attrs->num_groups = num_groups;
   attrs->channel_axis = channel_axis;
@@ -684,11 +684,11 @@ InferLayoutOutput InferLayoutGroupNorm(
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
   ffi::ObjectPtr<GroupNormAttrs> new_attrs = ffi::make_object<GroupNormAttrs>(*attrs);
-  std::vector<Integer> new_axes;
-  for (const auto& axis : attrs->axes) {
-    new_axes.push_back(FindAxis(layout->layout, axis->value));
+  std::vector<int64_t> new_axes;
+  for (int64_t axis : attrs->axes) {
+    new_axes.push_back(FindAxis(layout->layout, axis));
   }
-  new_attrs->axes = std::move(new_axes);
+  new_attrs->axes = ffi::Array<int64_t>(new_axes.begin(), new_axes.end());
   new_attrs->channel_axis = FindAxis(layout->layout, attrs->channel_axis);
   return InferLayoutOutput({layout, initial_layouts[1], initial_layouts[2]}, {layout},
                            Attrs(new_attrs));
@@ -703,11 +703,11 @@ TVM_REGISTER_OP("relax.nn.group_norm")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoGroupNorm)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutGroupNorm)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.nn.instance_norm */
 
-Expr instance_norm(Expr data, Expr gamma, Expr beta, int channel_axis, ffi::Array<Integer> axes,
+Expr instance_norm(Expr data, Expr gamma, Expr beta, int channel_axis, ffi::Array<int64_t> axes,
                    double epsilon, bool center, bool scale) {
   ffi::ObjectPtr<InstanceNormAttrs> attrs = ffi::make_object<InstanceNormAttrs>();
   attrs->channel_axis = std::move(channel_axis);
@@ -787,11 +787,11 @@ InferLayoutOutput InferLayoutInstanceNorm(
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
   ffi::ObjectPtr<InstanceNormAttrs> new_attrs = ffi::make_object<InstanceNormAttrs>(*attrs);
-  std::vector<Integer> new_axes;
-  for (const auto& axis : attrs->axes) {
-    new_axes.push_back(FindAxis(layout->layout, (axis->value)));
+  std::vector<int64_t> new_axes;
+  for (int64_t axis : attrs->axes) {
+    new_axes.push_back(FindAxis(layout->layout, axis));
   }
-  new_attrs->axes = std::move(new_axes);
+  new_attrs->axes = ffi::Array<int64_t>(new_axes.begin(), new_axes.end());
   new_attrs->channel_axis = FindAxis(layout->layout, attrs->channel_axis);
   return InferLayoutOutput({layout, initial_layouts[1], initial_layouts[2]}, {layout},
                            Attrs(new_attrs));
@@ -806,10 +806,10 @@ TVM_REGISTER_OP("relax.nn.instance_norm")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoInstanceNorm)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutInstanceNorm)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 /* relax.nn.rms_norm */
 
-Expr rms_norm(Expr data, Expr weight, ffi::Array<Integer> axes, double epsilon) {
+Expr rms_norm(Expr data, Expr weight, ffi::Array<int64_t> axes, double epsilon) {
   ffi::ObjectPtr<RMSNormAttrs> attrs = ffi::make_object<RMSNormAttrs>();
   attrs->axes = std::move(axes);
   attrs->epsilon = epsilon;
@@ -850,11 +850,11 @@ InferLayoutOutput InferLayoutRMSNorm(
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
   ffi::ObjectPtr<RMSNormAttrs> new_attrs = ffi::make_object<RMSNormAttrs>(*attrs);
-  std::vector<Integer> new_axes;
-  for (const auto& axis : attrs->axes) {
-    new_axes.push_back(FindAxis(layout->layout, axis->value));
+  std::vector<int64_t> new_axes;
+  for (int64_t axis : attrs->axes) {
+    new_axes.push_back(FindAxis(layout->layout, axis));
   }
-  new_attrs->axes = std::move(new_axes);
+  new_attrs->axes = ffi::Array<int64_t>(new_axes.begin(), new_axes.end());
   return InferLayoutOutput({layout, initial_layouts[1]}, {layout}, Attrs(new_attrs));
 }
 
@@ -866,7 +866,7 @@ TVM_REGISTER_OP("relax.nn.rms_norm")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoRMSNorm)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutRMSNorm)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.nn.dropout */
 
@@ -895,7 +895,7 @@ TVM_REGISTER_OP("relax.nn.dropout")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoDropout)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.nn.cross_entropy_with_logits */
 StructInfo InferStructInfoCrossEntropy(const Call& call, const BlockBuilder& ctx) {
@@ -959,7 +959,7 @@ TVM_REGISTER_OP("relax.nn.cross_entropy_with_logits")
     .add_argument("predictions", "Tensor", "The predictions.")
     .add_argument("labels", "Tensor", "The labels.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCrossEntropy)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.nn.nll_loss */
 
@@ -1191,7 +1191,7 @@ TVM_REGISTER_OP("relax.nn.nll_loss")
     .add_argument("targets", "Tensor", "The target tensor.")
     .add_argument("weights", "ffi::Optional<Tensor>", "The weight of each target values.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoNLLLoss)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.nn.batch_flatten */
 
@@ -1241,7 +1241,7 @@ TVM_REGISTER_OP("relax.nn.batch_flatten")
     .add_argument("data", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoBatchFlatten)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 }  // namespace relax
 }  // namespace tvm

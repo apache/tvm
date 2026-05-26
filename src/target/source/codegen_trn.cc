@@ -104,7 +104,7 @@ void CodeGenTrainium::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
   this->stream << "def " << static_cast<std::string>(global_symbol.value()) << "(";
 
   // Buffer arguments
-  auto num_inputs = func->GetAttr<Integer>(tvm::attr::kNumInputs);
+  auto num_inputs = func->GetAttr<int64_t>(tvm::attr::kNumInputs);
   TVM_FFI_ICHECK(num_inputs.has_value());
   std::vector<std::string> output_vids;
   size_t num_buffer = 0;
@@ -114,7 +114,7 @@ void CodeGenTrainium::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
       LOG(FATAL) << "Trainium codegen currently only support buffer arguments";
     };
     std::string vid = AllocVarID(v.get());
-    if (i >= static_cast<size_t>(num_inputs.value()->value)) {
+    if (i >= static_cast<size_t>(num_inputs.value())) {
       this->stream << vid << ": nt.mutable_tensor, ";
       output_vids.push_back(vid);
     } else {

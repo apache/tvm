@@ -122,7 +122,7 @@ TVM_REGISTER_OP("relax.vision.roi_pool")
                   "The input rois with shape (num_roi, 5) in [batch_idx, x1, y1, x2, y2] format.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoROIPool)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 }  // namespace relax
 }  // namespace tvm

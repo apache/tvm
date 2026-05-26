@@ -45,7 +45,7 @@ class ExternFunctionRewriter : ExprMutator {
   std::unordered_map<const GlobalVarNode*, Function> Run() {
     std::unordered_map<const GlobalVarNode*, Function> ret;
     for (const auto& [gvar, f] : builder_->GetContextIRModule()->functions) {
-      if (f->GetAttr<Integer>(attr::kWorkspaceSize)) {
+      if (f->GetAttr<int64_t>(attr::kWorkspaceSize)) {
         ret[gvar.get()] = Downcast<Function>(VisitExpr(f));
       }
     }
@@ -57,7 +57,7 @@ class ExternFunctionRewriter : ExprMutator {
         !func_node->GetAttr<ffi::String>(attr::kComposite)) {
       return ExprMutator::VisitExpr_(func_node);
     }
-    if (auto workspace = func_node->GetAttr<Integer>(attr::kWorkspaceSize)) {
+    if (auto workspace = func_node->GetAttr<int64_t>(attr::kWorkspaceSize)) {
       // Append the workspace parameter to this function.
       ffi::Array<Var> new_params = func_node->params;
 
@@ -109,8 +109,8 @@ class WorkspaceProvider : ExprMutator {
 
   IRModule Run() {
     for (const auto& [gvar, f] : mod_->functions) {
-      if (auto workspace = f->GetAttr<Integer>(relax::attr::kWorkspaceSize)) {
-        max_workspace_size_ = std::max<size_t>(max_workspace_size_, workspace.value()->value);
+      if (auto workspace = f->GetAttr<int64_t>(relax::attr::kWorkspaceSize)) {
+        max_workspace_size_ = std::max<size_t>(max_workspace_size_, workspace.value());
       }
     }
 

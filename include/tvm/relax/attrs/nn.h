@@ -603,7 +603,7 @@ struct BatchNormAttrs : public BaseAttrsNode {
 
 /*! \brief Attributes used in layer_norm operator */
 struct LayerNormAttrs : public BaseAttrsNode {
-  ffi::Array<Integer> axes;
+  ffi::Array<int64_t> axes;
   double epsilon;
   bool center;
   bool scale;
@@ -627,7 +627,7 @@ struct LayerNormAttrs : public BaseAttrsNode {
 struct GroupNormAttrs : public BaseAttrsNode {
   int num_groups;
   int channel_axis;
-  ffi::Array<Integer> axes;
+  ffi::Array<int64_t> axes;
   double epsilon;
   bool center;
   bool scale;
@@ -655,7 +655,7 @@ struct GroupNormAttrs : public BaseAttrsNode {
 /*! \brief Attributes used in instance_norm operator */
 struct InstanceNormAttrs : public BaseAttrsNode {
   int channel_axis;
-  ffi::Array<Integer> axes;
+  ffi::Array<int64_t> axes;
   double epsilon;
   bool center;
   bool scale;
@@ -680,7 +680,7 @@ struct InstanceNormAttrs : public BaseAttrsNode {
 
 /*! \brief Attributes used in rms_norm operator */
 struct RMSNormAttrs : public BaseAttrsNode {
-  ffi::Array<Integer> axes;
+  ffi::Array<int64_t> axes;
   double epsilon;
 
   static void RegisterReflection() {
@@ -746,7 +746,7 @@ struct AttentionAttrs : public BaseAttrsNode {
 
 /*! \brief Attributes used for the padding operator */
 struct PadAttrs : public BaseAttrsNode {
-  ffi::Array<Integer> pad_width;
+  ffi::Array<int64_t> pad_width;
   double pad_value = 0.0;
   tvm::ffi::String pad_mode;
 

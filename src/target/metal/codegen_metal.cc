@@ -90,7 +90,7 @@ void CodeGenMetal::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
 
   // Buffer arguments
   size_t num_buffer = 0;
-  size_t limit = target_->GetAttr<Integer>("max_function_args").value().IntValue();
+  size_t limit = target_->GetAttr<int64_t>("max_function_args").value();
   if (func->params.size() > limit) {
     LOG(WARNING) << "Probably you won't be able to execute your kernel due to high number of "
                     "buffers in the kernel";
@@ -468,8 +468,9 @@ ffi::Module BuildMetal(IRModule mod, Target target) {
     CodeGenMetal cg(target);
     cg.Init(output_ssa);
     auto f = Downcast<PrimFunc>(kv.second);
-    auto calling_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv);
-    TVM_FFI_ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch)
+    auto calling_conv = f->GetAttr<int64_t>(tvm::attr::kCallingConv);
+    TVM_FFI_ICHECK(calling_conv.has_value() &&
+                   calling_conv.value() == static_cast<int64_t>(CallingConv::kDeviceKernelLaunch))
         << "CodeGenMetal: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
 
     cg.AddFunction(kv.first, f);

@@ -51,7 +51,7 @@ namespace relax {
       .add_argument("x2", "Tensor", "The second input tensor.")                                    \
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutBinaryEwise)                    \
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow) \
-      .set_attr<Bool>("FPurity", Bool(true))
+      .set_attr<bool>("FPurity", true)
 
 #define RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(OpName)             \
   RELAX_REGISTER_BINARY_OP_AND_IMPL(OpName).set_attr<FInferStructInfo>( \

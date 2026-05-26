@@ -36,62 +36,58 @@ SPIRVSupport::SPIRVSupport(tvm::Target target) {
   TVM_FFI_ICHECK(device_type == kDLVulkan || device_type == kDLOpenCL || device_type == kDLWebGPU)
       << "Unsupported device type for SPIRV codegen:" << device_type;
 
-  if (target->GetAttr<Integer>("vulkan_api_version")) {
-    vulkan_api_version = target->GetAttr<Integer>("vulkan_api_version").value().IntValue();
+  if (target->GetAttr<int64_t>("vulkan_api_version")) {
+    vulkan_api_version = target->GetAttr<int64_t>("vulkan_api_version").value();
   }
 
-  if (target->GetAttr<Integer>("supported_subgroup_operations")) {
+  if (target->GetAttr<int64_t>("supported_subgroup_operations")) {
     supported_subgroup_operations =
-        target->GetAttr<Integer>("supported_subgroup_operations").value().IntValue();
+        target->GetAttr<int64_t>("supported_subgroup_operations").value();
   }
-  if (target->GetAttr<Integer>("max_push_constants_size")) {
-    max_push_constants_size =
-        target->GetAttr<Integer>("max_push_constants_size").value().IntValue();
+  if (target->GetAttr<int64_t>("max_push_constants_size")) {
+    max_push_constants_size = target->GetAttr<int64_t>("max_push_constants_size").value();
   }
-  if (target->GetAttr<Integer>("max_uniform_buffer_range")) {
-    max_uniform_buffer_range =
-        target->GetAttr<Integer>("max_uniform_buffer_range").value().IntValue();
+  if (target->GetAttr<int64_t>("max_uniform_buffer_range")) {
+    max_uniform_buffer_range = target->GetAttr<int64_t>("max_uniform_buffer_range").value();
   }
-  if (target->GetAttr<Integer>("max_storage_buffer_range")) {
-    max_storage_buffer_range =
-        target->GetAttr<Integer>("max_storage_buffer_range").value().IntValue();
+  if (target->GetAttr<int64_t>("max_storage_buffer_range")) {
+    max_storage_buffer_range = target->GetAttr<int64_t>("max_storage_buffer_range").value();
   }
-  if (target->GetAttr<Integer>("max_shared_memory_per_block")) {
-    max_shared_memory_per_block =
-        target->GetAttr<Integer>("max_shared_memory_per_block").value().IntValue();
+  if (target->GetAttr<int64_t>("max_shared_memory_per_block")) {
+    max_shared_memory_per_block = target->GetAttr<int64_t>("max_shared_memory_per_block").value();
   }
-  if (target->GetAttr<Integer>("max_per_stage_descriptor_storage_buffer")) {
+  if (target->GetAttr<int64_t>("max_per_stage_descriptor_storage_buffer")) {
     max_per_stage_descriptor_storage_buffers =
-        target->GetAttr<Integer>("max_per_stage_descriptor_storage_buffer").value().IntValue();
+        target->GetAttr<int64_t>("max_per_stage_descriptor_storage_buffer").value();
   }
-  if (target->GetAttr<Bool>("supports_storage_buffer_storage_class")) {
+  if (target->GetAttr<bool>("supports_storage_buffer_storage_class")) {
     supports_storage_buffer_storage_class =
-        target->GetAttr<Bool>("supports_storage_buffer_storage_class").value();
+        target->GetAttr<bool>("supports_storage_buffer_storage_class").value();
   }
-  if (target->GetAttr<Bool>("supports_8bit_buffer")) {
-    supports_storage_buffer_8bit_access = target->GetAttr<Bool>("supports_8bit_buffer").value();
+  if (target->GetAttr<bool>("supports_8bit_buffer")) {
+    supports_storage_buffer_8bit_access = target->GetAttr<bool>("supports_8bit_buffer").value();
   }
-  if (target->GetAttr<Bool>("supports_16bit_buffer")) {
-    supports_storage_buffer_16bit_access = target->GetAttr<Bool>("supports_16bit_buffer").value();
+  if (target->GetAttr<bool>("supports_16bit_buffer")) {
+    supports_storage_buffer_16bit_access = target->GetAttr<bool>("supports_16bit_buffer").value();
   }
-  if (target->GetAttr<Bool>("supports_float16")) {
-    supports_float16 = target->GetAttr<Bool>("supports_float16").value();
+  if (target->GetAttr<bool>("supports_float16")) {
+    supports_float16 = target->GetAttr<bool>("supports_float16").value();
   }
-  if (target->GetAttr<Bool>("supports_float64")) {
-    supports_float64 = target->GetAttr<Bool>("supports_float64").value();
+  if (target->GetAttr<bool>("supports_float64")) {
+    supports_float64 = target->GetAttr<bool>("supports_float64").value();
   }
-  if (target->GetAttr<Bool>("supports_int8")) {
-    supports_int8 = target->GetAttr<Bool>("supports_int8").value();
+  if (target->GetAttr<bool>("supports_int8")) {
+    supports_int8 = target->GetAttr<bool>("supports_int8").value();
   }
-  if (target->GetAttr<Bool>("supports_int16")) {
-    supports_int16 = target->GetAttr<Bool>("supports_int16").value();
+  if (target->GetAttr<bool>("supports_int16")) {
+    supports_int16 = target->GetAttr<bool>("supports_int16").value();
   }
-  if (target->GetAttr<Bool>("supports_int64")) {
-    supports_int64 = target->GetAttr<Bool>("supports_int64").value();
+  if (target->GetAttr<bool>("supports_int64")) {
+    supports_int64 = target->GetAttr<bool>("supports_int64").value();
   }
   // Check whether integer dot product is enabled in the target string.
-  if (target->GetAttr<Bool>("supports_integer_dot_product")) {
-    supports_integer_dot_product = target->GetAttr<Bool>("supports_integer_dot_product").value();
+  if (target->GetAttr<bool>("supports_integer_dot_product")) {
+    supports_integer_dot_product = target->GetAttr<bool>("supports_integer_dot_product").value();
   }
   // Check whether integer dot product is enabled in mattr.
   if (const ffi::Optional<ffi::Array<ffi::String>>& v =
@@ -104,8 +100,8 @@ SPIRVSupport::SPIRVSupport(tvm::Target target) {
     }
   }
   // Check whether cooperative matrix is enabled in the target string.
-  if (target->GetAttr<Bool>("supports_cooperative_matrix")) {
-    supports_cooperative_matrix = target->GetAttr<Bool>("supports_cooperative_matrix").value();
+  if (target->GetAttr<bool>("supports_cooperative_matrix")) {
+    supports_cooperative_matrix = target->GetAttr<bool>("supports_cooperative_matrix").value();
   }
 }
 

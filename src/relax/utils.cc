@@ -221,10 +221,10 @@ bool IsLeafOrTuple(const Expr& expr) {
 bool IsImpureCall(const Call& call) {
   if (auto op_ptr = call->op.as<OpNode>()) {
     auto op = ffi::GetRef<Op>(op_ptr);
-    static auto purity_map = Op::GetAttrMap<Bool>("FPurity");
+    static auto purity_map = Op::GetAttrMap<bool>("FPurity");
     TVM_FFI_ICHECK(purity_map.count(op))
         << "Cannot find the registered purity of this op: " << op->name;
-    return !(purity_map[op]->value);
+    return !(purity_map[op]);
   }
   // the StructInfo must be FuncStructInfo
   auto func_struct_info = GetStructInfoAs<FuncStructInfoNode>(call->op);

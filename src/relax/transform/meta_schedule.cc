@@ -37,8 +37,8 @@ namespace transform {
 
 class MetaScheduleTuner {
  public:
-  explicit MetaScheduleTuner(Target target, ffi::String work_dir, Integer max_trials_global,
-                             Integer max_trials_per_task,
+  explicit MetaScheduleTuner(Target target, ffi::String work_dir, int64_t max_trials_global,
+                             int64_t max_trials_per_task,
                              ffi::Optional<ffi::Array<ffi::String>> op_names,
                              ffi::Map<ffi::String, runtime::Tensor> params = {})
       : target_(target),
@@ -69,8 +69,8 @@ class MetaScheduleTuner {
  private:
   Target target_;
   ffi::String work_dir_;
-  Integer max_trials_global_;
-  Integer max_trials_per_task_;
+  int64_t max_trials_global_;
+  int64_t max_trials_per_task_;
   ffi::Optional<ffi::Array<ffi::String>> op_names_;
   ffi::Map<ffi::String, runtime::Tensor> params_;
   tvm::ffi::Function normalize_mod_func_;
@@ -153,8 +153,8 @@ Pass MetaScheduleApplyDatabase(ffi::Optional<ffi::String> work_dir, bool enable_
 }
 
 Pass MetaScheduleTuneIRMod(ffi::Map<ffi::String, runtime::Tensor> params, ffi::String work_dir,
-                           Integer max_trials_global,
-                           ffi::Optional<Integer> max_trials_per_task = std::nullopt,
+                           int64_t max_trials_global,
+                           ffi::Optional<int64_t> max_trials_per_task = std::nullopt,
                            ffi::Optional<ffi::Array<ffi::String>> op_names = std::nullopt) {
   Target target = Target::Current(false);
   auto pass_func = [=](IRModule m, PassContext ctx) {
@@ -168,7 +168,7 @@ Pass MetaScheduleTuneIRMod(ffi::Map<ffi::String, runtime::Tensor> params, ffi::S
                           /*traceable*/ true);
 }
 
-Pass MetaScheduleTuneTIR(ffi::String work_dir, Integer max_trials_global) {
+Pass MetaScheduleTuneTIR(ffi::String work_dir, int64_t max_trials_global) {
   Target target = Target::Current(false);
   ffi::TypedFunction<tirx::PrimFunc(tirx::PrimFunc, IRModule, PassContext)> pass_func =
       [=](tirx::PrimFunc f, IRModule mod, PassContext ctx) {

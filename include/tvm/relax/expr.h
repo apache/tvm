@@ -297,7 +297,7 @@ class TupleGetItem : public Expr {
  */
 TupleGetItem WithFields(TupleGetItem tuple_get_item,
                         ffi::Optional<Expr> opt_tuple = ffi::Optional<Expr>(),
-                        ffi::Optional<Integer> opt_index = ffi::Optional<Integer>(),
+                        ffi::Optional<int64_t> opt_index = ffi::Optional<int64_t>(),
                         ffi::Optional<Span> opt_span = ffi::Optional<Span>());
 
 /*!

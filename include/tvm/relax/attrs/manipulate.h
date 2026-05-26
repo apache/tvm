@@ -45,7 +45,7 @@ struct ConcatAttrs : public BaseAttrsNode {
 
 /*! \brief Attributes used in expand_dims operators */
 struct ExpandDimsAttrs : public BaseAttrsNode {
-  ffi::Array<Integer> axis;
+  ffi::Array<int64_t> axis;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -98,7 +98,7 @@ struct LayoutTransformAttrs : public BaseAttrsNode {
 
 /*! \brief Attributes used in permute_dims operator */
 struct PermuteDimsAttrs : public BaseAttrsNode {
-  ffi::Optional<ffi::Array<Integer>> axes;
+  ffi::Optional<ffi::Array<int64_t>> axes;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -126,7 +126,7 @@ struct SplitAttrs : public BaseAttrsNode {
 
 /*! \brief Attributes used in squeeze operators */
 struct SqueezeAttrs : public BaseAttrsNode {
-  ffi::Optional<ffi::Array<Integer>> axis;
+  ffi::Optional<ffi::Array<int64_t>> axis;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -141,7 +141,7 @@ struct SqueezeAttrs : public BaseAttrsNode {
 
 /*! \brief Attributes used in stack operators */
 struct StackAttrs : public BaseAttrsNode {
-  ffi::Optional<Integer> axis;
+  ffi::Optional<int64_t> axis;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -174,7 +174,7 @@ struct RepeatAttrs : public BaseAttrsNode {
 
 /*! \brief Attributes used in tile operators */
 struct TileAttrs : public BaseAttrsNode {
-  ffi::Array<Integer> repeats;
+  ffi::Array<int64_t> repeats;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -198,7 +198,7 @@ struct FlipAttrs : public BaseAttrsNode {
 
 /*! \brief Attributes used in gather_elements operators */
 struct GatherElementsAttrs : public BaseAttrsNode {
-  Integer axis;
+  int64_t axis;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -212,7 +212,7 @@ struct GatherElementsAttrs : public BaseAttrsNode {
 
 /*! \brief Attributes used in gather_nd operators */
 struct GatherNDAttrs : public BaseAttrsNode {
-  Integer batch_dims;
+  int64_t batch_dims;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -252,7 +252,7 @@ struct MeshgridAttrs : public BaseAttrsNode {
 
 /*! \brief Attributes used in scatter_elements operators */
 struct ScatterElementsAttrs : public BaseAttrsNode {
-  Integer axis;
+  int64_t axis;
   ffi::String reduction;
 
   static void RegisterReflection() {

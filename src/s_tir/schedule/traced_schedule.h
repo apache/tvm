@@ -45,16 +45,16 @@ class TracedScheduleNode : public ConcreteScheduleNode {
 
  public:
   /******** Schedule: Sampling ********/
-  ExprRV SampleCategorical(const ffi::Array<Integer>& candidates, const ffi::Array<FloatImm>& probs,
-                           ffi::Optional<Integer> decision = std::nullopt) final;
+  ExprRV SampleCategorical(const ffi::Array<int64_t>& candidates, const ffi::Array<FloatImm>& probs,
+                           ffi::Optional<int64_t> decision = std::nullopt) final;
   ffi::Array<ExprRV> SamplePerfectTile(
       const LoopRV& loop_rv, int n, int max_innermost_factor,
-      ffi::Optional<ffi::Array<Integer>> decision = std::nullopt) final;
+      ffi::Optional<ffi::Array<int64_t>> decision = std::nullopt) final;
   ffi::Array<ExprRV> SamplePartitionedTile(
       const LoopRV& loop_rv, int n, int partition_pos, int innerpart_factor,
-      ffi::Optional<ffi::Array<Integer>> decision = std::nullopt) final;
+      ffi::Optional<ffi::Array<int64_t>> decision = std::nullopt) final;
   LoopRV SampleComputeLocation(const SBlockRV& block_rv,
-                               ffi::Optional<Integer> decision = std::nullopt) final;
+                               ffi::Optional<int64_t> decision = std::nullopt) final;
   /******** Schedule: Get blocks & loops ********/
   SBlockRV GetSBlock(const ffi::String& name, const ffi::Optional<ffi::String>& func_name) final;
   ffi::Array<LoopRV> GetLoops(const SBlockRV& block_rv) final;
@@ -73,7 +73,7 @@ class TracedScheduleNode : public ConcreteScheduleNode {
                                    const ffi::Array<ffi::Optional<ExprRV>>& factor_rvs,
                                    bool preserve_unit_iters) final;
   void Reorder(const ffi::Array<LoopRV>& ordered_loop_rvs) final;
-  void ReorderBlockIterVar(const SBlockRV& block_rv, const ffi::Array<Integer> new_order) final;
+  void ReorderBlockIterVar(const SBlockRV& block_rv, const ffi::Array<int64_t> new_order) final;
   LoopRV AddUnitLoop(const SBlockRV& block_rv) final;
   LoopRV AddUnitLoop(const LoopRV& loop_rv) final;
   /******** Schedule: Manipulate ForKind ********/
@@ -141,7 +141,7 @@ class TracedScheduleNode : public ConcreteScheduleNode {
                         const ffi::Array<IntImm>& axis_separators) final;
   /******** Schedule: Padding ********/
   SBlockRV DecomposePadding(const SBlockRV& block_rv, const LoopRV& loop_rv) final;
-  void PadEinsum(const SBlockRV& block_rv, const ffi::Array<Integer>& padding) final;
+  void PadEinsum(const SBlockRV& block_rv, const ffi::Array<int64_t>& padding) final;
   /******** Schedule: Buffer transformation ********/
   void RollingBuffer(const SBlockRV& block_rv, int write_buffer_index) final;
   /******** Schedule: Misc ********/

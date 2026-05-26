@@ -47,7 +47,7 @@ namespace contrib {
 
 /*! \brief Attributes to store the compiler options for TensorRT. */
 struct TensorRTCompilerConfigNode : public ffi::Object {
-  ffi::Array<Integer> tensorrt_version;
+  ffi::Array<int64_t> tensorrt_version;
   bool use_implicit_batch;
   size_t max_workspace_size;
   bool remove_no_mac_subgraphs;
@@ -59,7 +59,7 @@ struct TensorRTCompilerConfigNode : public ffi::Object {
     refl::ObjectDef<TensorRTCompilerConfigNode>()
         .def_ro("tensorrt_version", &TensorRTCompilerConfigNode::tensorrt_version,
                 "TensorRT version as (major, minor, patch).",
-                refl::DefaultValue(ffi::Array<Integer>({6, 0, 1})))
+                refl::DefaultValue(ffi::Array<int64_t>({6, 0, 1})))
         .def_ro("use_implicit_batch", &TensorRTCompilerConfigNode::use_implicit_batch,
                 "Use implicit batch", refl::DefaultValue(true))
         .def_ro("max_workspace_size", &TensorRTCompilerConfigNode::max_workspace_size,
@@ -255,7 +255,7 @@ inline constexpr bool IsTensorRTRuntimeEnabled() {
  * \return Array of three integers for major, minor, and patch, or empty array if TensorRT graph
  * runtime is not enabled.
  */
-ffi::Array<Integer> GetTensorRTVersion() {
+ffi::Array<int64_t> GetTensorRTVersion() {
 #if TVM_GRAPH_EXECUTOR_TENSORRT
   return {Integer(NV_TENSORRT_MAJOR), Integer(NV_TENSORRT_MINOR), Integer(NV_TENSORRT_PATCH)};
 #else

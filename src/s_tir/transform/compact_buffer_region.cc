@@ -256,9 +256,9 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     auto record_explicit_region = [&](const ffi::String& attr_key, BufferIndexType index_type) {
       auto it = op->annotations.find(attr_key);
       if (it != op->annotations.end()) {
-        ffi::Array<Integer> buffer_indices = Downcast<ffi::Array<Integer>>((*it).second);
-        for (const auto& index : buffer_indices) {
-          int buffer_index = index->value;
+        ffi::Array<int64_t> buffer_indices = Downcast<ffi::Array<int64_t>>((*it).second);
+        for (int64_t index : buffer_indices) {
+          int buffer_index = static_cast<int>(index);
           if (buffer_index >= 0 && buffer_index < static_cast<int>(op->reads.size())) {
             const BufferRegion& explicit_region = index_type == BufferIndexType::kRead
                                                       ? op->reads[buffer_index]

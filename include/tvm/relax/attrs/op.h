@@ -57,7 +57,7 @@ struct CallTIRInplaceAttrs : public BaseAttrsNode {
    * store the `i`th output. If an element has the value -1, that means a new tensor should be
    * allocated for that output.
    */
-  ffi::Array<Integer> inplace_indices;
+  ffi::Array<int64_t> inplace_indices;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -77,7 +77,7 @@ struct CallInplacePackedAttrs : public BaseAttrsNode {
    * store the `i`th output. If an element has the value -1, that means the output will be newly
    * allocated.
    */
-  ffi::Array<Integer> inplace_indices;
+  ffi::Array<int64_t> inplace_indices;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;

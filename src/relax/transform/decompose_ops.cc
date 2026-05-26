@@ -40,11 +40,11 @@ TensorStructInfo MatchTensorStructInfo(Expr data) {
   return _sinfo.value();
 }
 
-Expr ExpandToMatchInput(Expr data, int ndim, ffi::Array<Integer> axes) {
+Expr ExpandToMatchInput(Expr data, int ndim, ffi::Array<int64_t> axes) {
   axes = GetOrderedPositiveAxes(axes, ndim);
-  ffi::Array<Integer> expand_axes;
+  ffi::Array<int64_t> expand_axes;
   for (int i = 0, j = 0; i < ndim; ++i) {
-    if (j < static_cast<int>(axes.size()) && i == axes[j]->value) {
+    if (j < static_cast<int>(axes.size()) && i == axes[j]) {
       ++j;
     } else {
       expand_axes.push_back(i);
@@ -93,7 +93,7 @@ Expr MutateBatchNormForTraining(Call call) {
 
   TensorStructInfo sinfo = MatchTensorStructInfo(data);
 
-  ffi::Array<Integer> reduce_axes;
+  ffi::Array<int64_t> reduce_axes;
   for (int i = 0; i < sinfo->ndim; ++i) {
     if (i != attrs->axis) {
       reduce_axes.push_back(i);

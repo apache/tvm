@@ -139,7 +139,7 @@ TVM_REGISTER_OP("relax.quantize")
     .add_argument("scale", "Tensor", "The quantization scale of the output tensor.")
     .add_argument("zero_point", "Tensor", "The quantization zero_point of the output tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoQuantize)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.dequantize */
 
@@ -246,7 +246,7 @@ TVM_REGISTER_OP("relax.dequantize")
     .add_argument("scale", "Tensor", "The quantization scale of the input tensor.")
     .add_argument("zero_point", "Tensor", "The quantization zero_point of the input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoDequantize)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 }  // namespace relax
 }  // namespace tvm

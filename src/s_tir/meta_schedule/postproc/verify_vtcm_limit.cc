@@ -27,14 +27,14 @@ namespace meta_schedule {
 
 class VerifyVTCMLimitNode : public PostprocNode {
  public:
-  Integer vtcm_capacity;
+  int64_t vtcm_capacity = 0;
 
   void InitializeWithTuneContext(const TuneContext& context) final {
     TVM_FFI_ICHECK(context->target.defined());
     Target target = context->target.value();
     TVM_FFI_ICHECK(target->kind->name == "hexagon");
     // The value of 0 will disable VTCM verification.
-    vtcm_capacity = target->GetAttr<Integer>("vtcm-capacity").value_or(0);
+    vtcm_capacity = target->GetAttr<int64_t>("vtcm-capacity").value_or(0);
   }
 
   bool Verify(const IRModule& mod) const {

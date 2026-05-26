@@ -86,7 +86,7 @@ class IRModuleNode : public ffi::Object {
    * \code
    *
    *  void GetAttrExample(const IRModule& mod) {
-   *    auto value = f->GetAttr<Integer>("AttrKey", 0);
+   *    auto value = f->GetAttr<int64_t>("AttrKey", 0);
    *  }
    *
    * \endcode

@@ -309,7 +309,7 @@ TVM_DLL Pass SplitLayoutRewritePreproc();
  * \return The Pass.
  */
 TVM_DLL Pass
-LiftTransformParams(ffi::Variant<Bool, ffi::Array<ffi::String>> shared_transform = Bool(false));
+LiftTransformParams(ffi::Variant<bool, ffi::Array<ffi::String>> shared_transform = false);
 
 /*!
  * \brief Update virtual device.

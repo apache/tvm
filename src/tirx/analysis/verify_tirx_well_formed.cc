@@ -62,7 +62,7 @@ class ExecScopeVerifier : public Verifier<ExecScopeVerifier> {
 
   void VisitStmt_(const tirx::TilePrimitiveCallNode* op,
                   ffi::reflection::AccessPath path) override {
-    static const tvm::OpAttrMap<Bool>& tirx_op_map_ = Op::GetAttrMap<Bool>("TIsTIRxOp");
+    static const tvm::OpAttrMap<bool>& tirx_op_map_ = Op::GetAttrMap<bool>("TIsTIRxOp");
     Verify(tirx_op_map_.count(op->op))
         << "TIRxError: TilePrimitiveCall at " << path << " has unknown TIRX op " << op->op;
   }

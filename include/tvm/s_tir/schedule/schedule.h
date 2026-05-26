@@ -229,9 +229,9 @@ class ScheduleNode : public ffi::Object {
    * \param decision The sampling decision
    * \return The random variable sampled from candidates
    */
-  virtual ExprRV SampleCategorical(const ffi::Array<Integer>& candidates,
+  virtual ExprRV SampleCategorical(const ffi::Array<int64_t>& candidates,
                                    const ffi::Array<FloatImm>& probs,
-                                   ffi::Optional<Integer> decision = std::nullopt) = 0;
+                                   ffi::Optional<int64_t> decision = std::nullopt) = 0;
   /*!
    * \brief Sample the factors to perfect tile a specific loop
    * \param loop_rv The loop to be tiled
@@ -242,7 +242,7 @@ class ScheduleNode : public ffi::Object {
    */
   virtual ffi::Array<ExprRV> SamplePerfectTile(
       const LoopRV& loop_rv, int n, int max_innermost_factor,
-      ffi::Optional<ffi::Array<Integer>> decision = std::nullopt) = 0;
+      ffi::Optional<ffi::Array<int64_t>> decision = std::nullopt) = 0;
   /*!
    * \brief Sample the factors to a partitioned tile for a specific loop
    *
@@ -260,7 +260,7 @@ class ScheduleNode : public ffi::Object {
    */
   virtual ffi::Array<ExprRV> SamplePartitionedTile(
       const LoopRV& loop_rv, int n, int partition_pos, int innerpart_factor,
-      ffi::Optional<ffi::Array<Integer>> decision = std::nullopt) = 0;
+      ffi::Optional<ffi::Array<int64_t>> decision = std::nullopt) = 0;
   /*!
    * \brief Sample a compute-at location of the given block
    * \param block_rv The block whose compute-at location is to be sampled
@@ -268,7 +268,7 @@ class ScheduleNode : public ffi::Object {
    * \return The sampled loop where the input block is to be computed at
    */
   virtual LoopRV SampleComputeLocation(const SBlockRV& block_rv,
-                                       ffi::Optional<Integer> decision = std::nullopt) = 0;
+                                       ffi::Optional<int64_t> decision = std::nullopt) = 0;
 
   /******** Schedule: Get blocks & loops ********/
   /*!
@@ -397,7 +397,7 @@ class ScheduleNode : public ffi::Object {
    * \param new_order The new itervar order.
    */
   virtual void ReorderBlockIterVar(const SBlockRV& block_rv,
-                                   const ffi::Array<Integer> new_order) = 0;
+                                   const ffi::Array<int64_t> new_order) = 0;
   /*!
    * \brief Create a new unit loop on top of the specific block.
    * \param block_rv The block above which the new loop is created
@@ -835,7 +835,7 @@ class ScheduleNode : public ffi::Object {
    * The size of the producer buffers are infered from the padding size of the Einsum computation.
    * The producer buffers are padded by the initial value of the corresponding reduction.
    */
-  virtual void PadEinsum(const SBlockRV& block_rv, const ffi::Array<Integer>& padding) = 0;
+  virtual void PadEinsum(const SBlockRV& block_rv, const ffi::Array<int64_t>& padding) = 0;
 
   /******** Schedule: Buffer transformation ********/
   /*!

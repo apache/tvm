@@ -256,14 +256,14 @@ void ScheduleUsingAnchorTrace(Schedule sch, const Trace& anchor_trace, const tvm
   } else if (target->kind->name == "llvm" || target->kind->name == "hexagon") {
     sch->Parallel(sch->Fuse(sch->GetLoops(last_block)));
   } else if (IsGPUTarget(target->kind->name)) {
-    auto max_threads_per_block = target->GetAttr<Integer>("max_threads_per_block");
-    TVM_FFI_CHECK(max_threads_per_block.defined(), ValueError)
+    auto max_threads_per_block = target->GetAttr<int64_t>("max_threads_per_block");
+    TVM_FFI_CHECK(max_threads_per_block.has_value(), ValueError)
         << "missing attribute `max_threads_per_block` in the target";
 
     auto auto_bind_rule =
         ScheduleRule::AutoBind(/*max_threadblocks=*/256,
-                               /*thread_extents*/ ffi::Array<Integer>{32, 64, 128, 256, 512, 1024},
-                               max_threads_per_block.value()->value);
+                               /*thread_extents*/ ffi::Array<int64_t>{32, 64, 128, 256, 512, 1024},
+                               max_threads_per_block.value());
     auto_bind_rule->Apply(sch, last_block);
   }
 }

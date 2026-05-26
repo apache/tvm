@@ -37,7 +37,7 @@ namespace relax {
  * \param is_private Whether the function is annotated as private.
  * \return The created ir_builder Function frame.
  */
-TVM_DLL FunctionFrame Function(const Bool& is_pure, const Bool& is_private);
+TVM_DLL FunctionFrame Function(bool is_pure, bool is_private);
 
 /*!
  * \brief Add a parameter to the last function frame.

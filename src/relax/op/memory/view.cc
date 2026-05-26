@@ -359,9 +359,9 @@ TVM_REGISTER_OP("relax.memory.view")
     .add_argument("dtype", "DataType", "The view's data type.")
     .add_argument("relative_byte_offset", "Prim(\"int64\")",
                   "The view's byte offset, relative to the input tensor's byte offset.")
-    .set_attr<Bool>("RequiresArgumentShapes", Bool(false))
+    .set_attr<bool>("RequiresArgumentShapes", false)
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoView)
-    .set_attr<Bool>("FPurity", Bool(true))
+    .set_attr<bool>("FPurity", true)
     .set_attr<FLowerBuiltin>("FLowerBuiltin", LowerBuiltinView);
 
 Expr ensure_zero_offset(const Expr& x) {
@@ -391,9 +391,9 @@ Expr LowerBuiltinEnsureZeroOffset(const BlockBuilder& bb, const Call& call) {
 TVM_REGISTER_OP("relax.memory.ensure_zero_offset")
     .set_num_inputs(1)
     .add_argument("x", "Tensor", "The input tensor.")
-    .set_attr<Bool>("RequiresArgumentShapes", Bool(false))
+    .set_attr<bool>("RequiresArgumentShapes", false)
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoEnsureZeroOffset)
-    .set_attr<Bool>("FPurity", Bool(true))
+    .set_attr<bool>("FPurity", true)
     .set_attr<FLowerBuiltin>("FLowerBuiltin", LowerBuiltinEnsureZeroOffset);
 
 }  // namespace relax

@@ -738,7 +738,7 @@ namespace transform {
 
 Pass MergeSharedMemoryAllocations() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
-    bool merge_static_smem = ctx->GetConfig<Bool>("tirx.merge_static_smem", Bool(false)).value();
+    bool merge_static_smem = ctx->GetConfig<bool>("tirx.merge_static_smem", false).value();
     auto* n = f.CopyOnWrite();
     n->body = s_tir::MergeSharedMemoryAllocations(std::move(n->body), merge_static_smem);
     return f;
