@@ -26,7 +26,10 @@ import csv
 import hashlib
 import io
 import re
+import shutil
+import subprocess
 import sys
+import tempfile
 import zipfile
 from email.parser import Parser
 from pathlib import Path
@@ -83,6 +86,19 @@ def _metadata_headers(metadata: bytes) -> tuple[str, str]:
     return name, version
 
 
+def _is_elf_shared_lib(name: str, data: bytes) -> bool:
+    return name.startswith("tvm/lib/") and name.endswith(".so") and data.startswith(b"\x7fELF")
+
+
+def _set_rpath(data: bytes, rpath: str, name: str) -> bytes:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = Path(tmpdir) / Path(name).name
+        path.write_bytes(data)
+        path.chmod(0o755)
+        subprocess.run(["patchelf", "--set-rpath", rpath, str(path)], check=True)
+        return path.read_bytes()
+
+
 def _retag_wheel_filename(
     wheel: Path,
     dist_name: str,
@@ -102,6 +118,7 @@ def rewrite_wheel(
     target_path: str,
     distribution_name: str | None,
     distribution_version: str | None,
+    set_rpath: str | None,
 ) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(wheel, "r") as zin:
@@ -134,10 +151,14 @@ def rewrite_wheel(
                     data = _replace_header(data, "Name", final_name)
                 if distribution_version is not None:
                     data = _replace_header(data, "Version", final_version)
+            if set_rpath is not None and _is_elf_shared_lib(mapped_name, data):
+                data = _set_rpath(data, set_rpath, mapped_name)
             entries.append((_copy_info(info, mapped_name), data))
 
         if cuda_runtime is not None:
             data = cuda_runtime.read_bytes()
+            if set_rpath is not None and _is_elf_shared_lib(target_path, data):
+                data = _set_rpath(data, set_rpath, target_path)
             info = zipfile.ZipInfo(target_path)
             info.compress_type = zipfile.ZIP_DEFLATED
             info.external_attr = 0o644 << 16
@@ -169,11 +190,14 @@ def main() -> int:
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--distribution-name")
     parser.add_argument("--distribution-version")
+    parser.add_argument("--set-rpath")
     args = parser.parse_args()
 
     cuda_runtime = args.cuda_runtime
     if cuda_runtime is not None and not cuda_runtime.is_file():
         parser.error(f"CUDA runtime DSO does not exist: {cuda_runtime}")
+    if args.set_rpath and shutil.which("patchelf") is None:
+        parser.error("--set-rpath requires patchelf on PATH")
 
     target_path = args.target_path
     if target_path is None:
@@ -189,6 +213,7 @@ def main() -> int:
         target_path=target_path,
         distribution_name=args.distribution_name,
         distribution_version=args.distribution_version,
+        set_rpath=args.set_rpath,
     )
     print(output_path)
     return 0
