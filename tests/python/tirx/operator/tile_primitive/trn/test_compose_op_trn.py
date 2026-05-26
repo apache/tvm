@@ -575,7 +575,7 @@ def test_binary_reduce_guard():
     with target:
         mod = tvm.IRModule({"main": binary_reduce})
         mod = tvm.tirx.transform.LowerTIRx()(mod)
-        mod = tvm.tirx.transform.Simplify()(mod)
+        mod = tvm.tirx.transform.StmtSimplify()(mod)
         assert_structural_equal(mod["main"], expected)
 
 
@@ -623,7 +623,7 @@ def test_unary_reduce_guard():
         mod = tvm.IRModule({"main": unary_reduce})
         mod = tvm.tirx.transform.trn.TrnPrivateBufferAlloc()(mod)
         mod = tvm.tirx.transform.LowerTIRx()(mod)
-        mod = tvm.tirx.transform.Simplify()(mod)
+        mod = tvm.tirx.transform.StmtSimplify()(mod)
         assert_structural_equal(mod["main"], expected)
 
 
@@ -663,7 +663,7 @@ def test_binary_chain_guard():
     with target:
         mod = tvm.IRModule({"main": binary_chain})
         mod = tvm.tirx.transform.LowerTIRx()(mod)
-        mod = tvm.tirx.transform.Simplify()(mod)
+        mod = tvm.tirx.transform.StmtSimplify()(mod)
         assert_structural_equal(mod["main"], expected)
 
 

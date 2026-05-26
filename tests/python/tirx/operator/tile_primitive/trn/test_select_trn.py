@@ -73,7 +73,7 @@ def test_select():
     with target:
         mod = tvm.IRModule({"main": select})
         mod = tvm.tirx.transform.LowerTIRx()(mod)
-        mod = tvm.tirx.transform.Simplify()(mod)
+        mod = tvm.tirx.transform.StmtSimplify()(mod)
         assert_structural_equal(mod["main"], expected)
 
 
@@ -109,7 +109,7 @@ def test_select_in_loop():
     with target:
         mod = tvm.IRModule({"main": select})
         mod = tvm.tirx.transform.LowerTIRx()(mod)
-        mod = tvm.tirx.transform.Simplify()(mod)
+        mod = tvm.tirx.transform.StmtSimplify()(mod)
         assert_structural_equal(mod["main"], expected)
 
 
@@ -143,7 +143,7 @@ def test_select_expr_affine():
     with target:
         mod = tvm.IRModule({"main": select})
         mod = tvm.tirx.transform.LowerTIRx()(mod)
-        mod = tvm.tirx.transform.Simplify()(mod)
+        mod = tvm.tirx.transform.StmtSimplify()(mod)
         assert_structural_equal(mod["main"], expected)
 
 
@@ -180,7 +180,7 @@ def test_select_with_guard():
     with target:
         mod = tvm.IRModule({"main": select})
         mod = tvm.tirx.transform.LowerTIRx()(mod)
-        mod = tvm.tirx.transform.Simplify()(mod)
+        mod = tvm.tirx.transform.StmtSimplify()(mod)
         assert_structural_equal(mod["main"], expected)
 
 

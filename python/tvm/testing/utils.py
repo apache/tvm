@@ -2017,7 +2017,7 @@ class CompareBeforeAfter:
     .. code-block:: python
 
         class TestRemoveIf(tvm.testing.CompareBeforeAfter):
-            transform = tvm.tirx.transform.Simplify()
+            transform = tvm.tirx.transform.StmtSimplify()
 
             def before(A: T.Buffer(1, "int32")):
                 if True:
