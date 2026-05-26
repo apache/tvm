@@ -30,7 +30,7 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Attributes used in full/full_like, ones/ones_like, and zeros/zeros_like operators */
-struct InitAttrs : public BaseAttrsNode {
+struct InitAttrs : public AttrsNode {
   DataType dtype;
 
   static void RegisterReflection() {
@@ -38,11 +38,11 @@ struct InitAttrs : public BaseAttrsNode {
     refl::ObjectDef<InitAttrs>().def_ro("dtype", &InitAttrs::dtype,
                                         "The data type of the created tensor.");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.InitAttrs", InitAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.InitAttrs", InitAttrs, AttrsNode);
 };  // struct InitAttrs
 
 /*! \brief Attributes used in tril and triu operator */
-struct TriluAttrs : public BaseAttrsNode {
+struct TriluAttrs : public AttrsNode {
   int k;
 
   static void RegisterReflection() {
@@ -51,7 +51,7 @@ struct TriluAttrs : public BaseAttrsNode {
         "k", &TriluAttrs::k,
         "The number of diagonals above or below the main diagonal to exclude or include.");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.TriluAttrs", TriluAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.TriluAttrs", TriluAttrs, AttrsNode);
 };  // struct TriluAttrs
 
 }  // namespace relax

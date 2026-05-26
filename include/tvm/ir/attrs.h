@@ -23,7 +23,7 @@
  *  This module enables declaration of named attributes
  *  which support default value setup and bound checking.
  *
- * \sa BaseAttrsNode, AttrsWithDefaultValues
+ * \sa AttrsNode, AttrsWithDefaultValues
  */
 #ifndef TVM_IR_ATTRS_H_
 #define TVM_IR_ATTRS_H_
@@ -47,19 +47,19 @@ namespace tvm {
  * \brief Base class of all attribute class
  * \sa Attrs
  */
-class BaseAttrsNode : public ffi::Object {
+class AttrsNode : public ffi::Object {
  public:
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO("ir.Attrs", BaseAttrsNode, ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("ir.Attrs", AttrsNode, ffi::Object);
 };
 
 /*!
- * \brief Managed reference to BaseAttrsNode.
- * \sa AttrsNode, BaseAttrsNode
+ * \brief Managed reference to AttrsNode.
+ * \sa AttrsNode
  */
 class Attrs : public ffi::ObjectRef {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Attrs, ffi::ObjectRef, BaseAttrsNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Attrs, ffi::ObjectRef, AttrsNode);
 };
 
 /*!
@@ -68,7 +68,7 @@ class Attrs : public ffi::ObjectRef {
  *  its fields are directly accessible via object.field_name
  *  like other normal nodes.
  */
-class DictAttrsNode : public BaseAttrsNode {
+class DictAttrsNode : public AttrsNode {
  public:
   /*! \brief internal attrs map */
   ffi::Map<ffi::String, ffi::Any> dict;
@@ -79,7 +79,7 @@ class DictAttrsNode : public BaseAttrsNode {
   }
 
   // type info
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.DictAttrs", DictAttrsNode, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.DictAttrs", DictAttrsNode, AttrsNode);
 };
 
 /*!

@@ -50,7 +50,7 @@ DictAttrs WithoutAttr(DictAttrs attrs, const std::string& key) {
   return attrs;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() { tvm::ffi::reflection::ObjectDef<BaseAttrsNode>(); }
+TVM_FFI_STATIC_INIT_BLOCK() { tvm::ffi::reflection::ObjectDef<AttrsNode>(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
