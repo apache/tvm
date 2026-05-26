@@ -389,8 +389,8 @@ void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const ffi::Array<
   for (int i = 0, n = padding.size(); i < n; ++i) {
     const IterVar& iter = block->iter_vars[i];
     PrimExpr dom = iter->dom->extent;
-    PrimExpr new_dom = analyzer.Simplify(ceildiv(dom, IntImm(DataType::Int(64), padding[i])) *
-                                         IntImm(DataType::Int(64), padding[i]));
+    PrimExpr pad_imm = IntImm(dom->dtype, padding[i]);
+    PrimExpr new_dom = analyzer.Simplify(ceildiv(dom, pad_imm) * pad_imm);
     if (!analyzer.CanProveEqual(new_dom, dom)) {
       replacer.iter2padded_extents.Set(iter->var, new_dom);
       if (const auto* loop_var = realize->iter_values[i].as<VarNode>()) {
