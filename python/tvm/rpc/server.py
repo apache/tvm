@@ -48,8 +48,15 @@ from tvm.support import utils
 from tvm.support.popen_pool import PopenWorker
 
 # pylint: disable=unused-import
-from . import _ffi_api, base, testing
+from . import _ffi_api, base
 from .base import TrackerCode
+
+try:
+    # Register RPC unit-test helpers when the testing dependencies are present.
+    from . import testing
+except ModuleNotFoundError as err:
+    if err.name != "pytest":
+        raise
 
 logger = logging.getLogger("RPCServer")
 console_handler = logging.StreamHandler()
