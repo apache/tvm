@@ -834,7 +834,7 @@ if(USE_CUDA AND USE_CUTLASS)
 endif()
 
 if(USE_CUDA AND USE_NVTX)
-  set_source_files_properties(src/runtime/nvtx.cc PROPERTIES COMPILE_DEFINITIONS "TVM_NVTX_ENABLED=1")
+  add_compile_definitions(TVM_NVTX_ENABLED=1)
 endif()
 
 # Note: NCCL, NVSHMEM, RCCL target_link_libraries are handled in the inline
