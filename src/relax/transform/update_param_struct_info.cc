@@ -32,7 +32,6 @@
 #include <unordered_map>
 #include <vector>
 
-#include "../../runtime/regex.h"
 #include "utils.h"
 
 namespace tvm {
