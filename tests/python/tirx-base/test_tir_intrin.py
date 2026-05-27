@@ -24,7 +24,7 @@ import scipy
 import tvm
 import tvm.testing
 from tvm import te, tirx, topi
-from tvm.contrib import clang, utils
+from tvm.support import clang, utils
 from tvm.script import tirx as T
 
 

@@ -187,7 +187,7 @@ def test_vectorized_uint8():
 
 @tvm.testing.requires_metal(support_required="compile-only")
 def test_func_with_trailing_pod_params():
-    from tvm.contrib import xcode  # pylint: disable=import-outside-toplevel
+    from tvm.support import xcode  # pylint: disable=import-outside-toplevel
 
     @T.prim_func(s_tir=True)
     def func(A: T.Buffer((16), "float32"), B: T.Buffer((16), "float32"), x: T.float32):
