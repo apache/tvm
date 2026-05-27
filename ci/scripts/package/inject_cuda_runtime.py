@@ -108,7 +108,7 @@ def _retag_wheel_filename(
     if len(parts) not in (5, 6):
         raise ValueError(f"Unsupported wheel filename: {wheel.name}")
     tags = parts[2:]
-    return f"{_wheel_escape(dist_name)}-{version}-{'-'.join(tags)}.whl"
+    return f"{_wheel_escape(dist_name)}-{_wheel_escape(version)}-{'-'.join(tags)}.whl"
 
 
 def rewrite_wheel(
@@ -129,7 +129,7 @@ def rewrite_wheel(
 
         final_name = distribution_name or original_name
         final_version = distribution_version or original_version
-        final_dist_info = f"{_wheel_escape(final_name)}-{final_version}.dist-info"
+        final_dist_info = f"{_wheel_escape(final_name)}-{_wheel_escape(final_version)}.dist-info"
         record_path = f"{final_dist_info}/RECORD"
         output_path = output_dir / _retag_wheel_filename(wheel, final_name, final_version)
 

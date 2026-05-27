@@ -31,6 +31,10 @@ inputs:
     description: "Manylinux image tag to use on Linux runners"
     required: false
     default: ""
+  linux_image_tag:
+    description: "Pinned manylinux container tag shared with the CUDA runtime build"
+    required: false
+    default: ""
   distribution_name:
     description: "Optional wheel distribution name override, useful for TestPyPI"
     required: false
@@ -39,10 +43,14 @@ inputs:
     description: "CMake CUDA architectures for libtvm_runtime_cuda.so"
     required: false
     default: "75"
-  skip_cuda:
-    description: "Set to true to build a CPU-only wheel without the CUDA runtime"
+  include_cuda_runtime:
+    description: "Set to true to inject the CUDA runtime library"
     required: false
     default: "false"
+  cuda_runtime_path:
+    description: "Absolute path to libtvm_runtime_cuda.so produced by build-cuda"
+    required: false
+    default: ""
 
 runs:
   using: "composite"
@@ -56,14 +64,37 @@ runs:
       run: |
         set -eux
         wheel_platform_tag=""
+        manylinux_container_image=""
+        cibw_manylinux_x86_64_image="${{ inputs.linux_image }}"
+        cibw_manylinux_aarch64_image="${{ inputs.linux_image }}"
+        cibw_container_engine=""
         if [[ "${RUNNER_OS}" == "Linux" ]]; then
           if [[ -z "${{ inputs.linux_image }}" ]]; then
             echo "linux_image is required on Linux runners" >&2
             exit 1
           fi
           wheel_platform_tag="${{ inputs.linux_image }}_${{ inputs.arch }}"
+          if [[ -n "${{ inputs.linux_image_tag }}" ]]; then
+            manylinux_container_image="quay.io/pypa/${{ inputs.linux_image }}_${{ inputs.arch }}:${{ inputs.linux_image_tag }}"
+          else
+            manylinux_container_image="${{ inputs.linux_image }}"
+          fi
+          if [[ "${{ inputs.arch }}" == "x86_64" ]]; then
+            cibw_manylinux_x86_64_image="${manylinux_container_image}"
+          elif [[ "${{ inputs.arch }}" == "aarch64" ]]; then
+            cibw_manylinux_aarch64_image="${manylinux_container_image}"
+          fi
+          cibw_container_engine="docker; create_args: --volume /opt/llvm:/opt/llvm"
+          if [[ -n "${{ inputs.cuda_runtime_path }}" ]]; then
+            cuda_runtime_dir="$(dirname "${{ inputs.cuda_runtime_path }}")"
+            cibw_container_engine+=" --volume ${cuda_runtime_dir}:${cuda_runtime_dir}:ro"
+          fi
         fi
         echo "wheel_platform_tag=${wheel_platform_tag}" >> "${GITHUB_OUTPUT}"
+        echo "manylinux_container_image=${manylinux_container_image}" >> "${GITHUB_OUTPUT}"
+        echo "cibw_manylinux_x86_64_image=${cibw_manylinux_x86_64_image}" >> "${GITHUB_OUTPUT}"
+        echo "cibw_manylinux_aarch64_image=${cibw_manylinux_aarch64_image}" >> "${GITHUB_OUTPUT}"
+        echo "cibw_container_engine=${cibw_container_engine}" >> "${GITHUB_OUTPUT}"
 
     # ---- Cache LLVM prefix ----
     - name: Cache LLVM
@@ -157,12 +188,13 @@ runs:
         CIBW_ARCHS_LINUX: ${{ inputs.arch }}
         CIBW_ARCHS_MACOS: ${{ inputs.arch }}
         CIBW_ARCHS_WINDOWS: ${{ inputs.arch }}
-        CIBW_MANYLINUX_X86_64_IMAGE: ${{ inputs.linux_image }}
-        CIBW_MANYLINUX_AARCH64_IMAGE: ${{ inputs.linux_image }}
+        CIBW_MANYLINUX_X86_64_IMAGE: ${{ steps.wheel_inputs.outputs.cibw_manylinux_x86_64_image }}
+        CIBW_MANYLINUX_AARCH64_IMAGE: ${{ steps.wheel_inputs.outputs.cibw_manylinux_aarch64_image }}
         CIBW_BUILD_VERBOSITY: 1
         CMAKE_BUILD_PARALLEL_LEVEL: ${{ steps.env_vars.outputs.cpu_count }}
-        CIBW_CONTAINER_ENGINE: "docker; create_args: --volume /opt/llvm:/opt/llvm"
+        CIBW_CONTAINER_ENGINE: ${{ steps.wheel_inputs.outputs.cibw_container_engine }}
         CIBW_BEFORE_BUILD_LINUX: >-
+          if command -v dnf >/dev/null 2>&1; then dnf -y install libxml2; fi &&
           python -m pip install -U pip cmake ninja scikit-build-core wheel auditwheel &&
           python -m pip install -v "{project}/3rdparty/tvm-ffi"
         CIBW_BEFORE_BUILD_MACOS: >-
@@ -177,7 +209,8 @@ runs:
           CMAKE_ARGS="-DUSE_LLVM=/opt/llvm/bin/llvm-config-static -DUSE_CUDA=OFF -DBUILD_TESTING=OFF -DTVM_BUILD_PYTHON_MODULE=ON -DCMAKE_PREFIX_PATH=/opt/llvm"
           TVM_CUDA_ARCHITECTURES="${{ inputs.cuda_architectures }}"
           TVM_WHEEL_DIST_NAME="${{ inputs.distribution_name }}"
-          TVM_SKIP_CUDA="${{ inputs.skip_cuda == 'true' && '1' || '0' }}"
+          TVM_SKIP_CUDA="${{ inputs.include_cuda_runtime == 'true' && '0' || '1' }}"
+          TVM_CUDA_RUNTIME_PATH="${{ inputs.cuda_runtime_path }}"
           TVM_AUDITWHEEL_PLAT="${{ steps.wheel_inputs.outputs.wheel_platform_tag }}"
           TVM_BUILD_PARALLEL_LEVEL="${{ steps.env_vars.outputs.cpu_count }}"
         CIBW_ENVIRONMENT_WINDOWS: >-
@@ -186,7 +219,8 @@ runs:
           CMAKE_ARGS="-DUSE_LLVM=C:/opt/llvm/Library/bin/llvm-config-static.bat -DUSE_CUDA=OFF -DBUILD_TESTING=OFF -DTVM_BUILD_PYTHON_MODULE=ON -DCMAKE_PREFIX_PATH=C:/opt/llvm/Library"
           TVM_CUDA_ARCHITECTURES="${{ inputs.cuda_architectures }}"
           TVM_WHEEL_DIST_NAME="${{ inputs.distribution_name }}"
-          TVM_SKIP_CUDA="${{ inputs.skip_cuda == 'true' && '1' || '0' }}"
+          TVM_SKIP_CUDA="${{ inputs.include_cuda_runtime == 'true' && '0' || '1' }}"
+          TVM_CUDA_RUNTIME_PATH="${{ inputs.cuda_runtime_path }}"
           TVM_BUILD_PARALLEL_LEVEL="${{ steps.env_vars.outputs.cpu_count }}"
         CIBW_REPAIR_WHEEL_COMMAND_LINUX: >-
           bash "{project}/ci/scripts/package/tvm_wheel_helper.sh" cibw-repair "{wheel}" "{dest_dir}"

@@ -24,6 +24,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 TVM_PYTHON="${TVM_PYTHON:-python}"
 TVM_WHEELHOUSE="${TVM_WHEELHOUSE:-${REPO_ROOT}/wheelhouse}"
 TVM_CUDA_BUILD_DIR="${TVM_CUDA_BUILD_DIR:-${REPO_ROOT}/build-wheel-cuda}"
+TVM_CUDA_RUNTIME_PATH="${TVM_CUDA_RUNTIME_PATH:-}"
 TVM_USE_LLVM="${TVM_USE_LLVM:-llvm-config --link-static}"
 TVM_USE_CUDA="${TVM_USE_CUDA:-ON}"
 TVM_CUDA_ARCHITECTURES="${TVM_CUDA_ARCHITECTURES:-75}"
@@ -36,11 +37,12 @@ TVM_KEEP_BUILD_DIRS="${TVM_KEEP_BUILD_DIRS:-0}"
 
 usage() {
   cat <<'EOF'
-Usage: ci/scripts/package/tvm_wheel_helper.sh [cuda|manylinux-cuda|cibw-repair|validate|verify|verify-installed|upload|verify-pypi]
+Usage: ci/scripts/package/tvm_wheel_helper.sh [cuda|cuda-path|manylinux-cuda|cibw-repair|validate|verify|verify-installed|upload|verify-pypi]
 
 Environment knobs:
   TVM_USE_LLVM                 LLVM config used by repair helpers, default "llvm-config --link-static"
   TVM_USE_CUDA                 CUDA root or ON for the CUDA build, default ON
+  TVM_CUDA_RUNTIME_PATH        Explicit libtvm_runtime_cuda.so path for repair
   TVM_CUDA_ARCHITECTURES       CMake CUDA arch list, default 75
   TVM_WHEEL_DIST_NAME          Optional distribution rename for TestPyPI
   TVM_WHEEL_DIST_VERSION       Optional distribution version rewrite
@@ -49,8 +51,10 @@ Environment knobs:
   TVM_SKIP_REPAIR=1            Keep injected wheel as final wheel
   TVM_KEEP_BUILD_DIRS=1        Reuse CMake build dirs instead of cleaning them
   TVM_MANYLINUX_IMAGE          manylinux image tag for manylinux-cuda
+  TVM_MANYLINUX_IMAGE_TAG      optional pinned image tag for manylinux-cuda
   TVM_ARCH                     Target architecture for manylinux-cuda
   TVM_AUDITWHEEL_PLAT          Optional auditwheel --plat value
+  TVM_AUDITWHEEL_LIBRARY_PATH  Optional library search path for auditwheel repair
   TVM_EXPECT_WHEEL_PLATFORM_TAG
                                 Require the final wheel filename to include this tag
   TVM_TEST_INDEX_URL           Package index for verify-pypi, default TestPyPI
@@ -99,10 +103,29 @@ PY
 }
 
 cuda_runtime_path() {
+  if [[ -n "$TVM_CUDA_RUNTIME_PATH" ]]; then
+    if [[ -f "$TVM_CUDA_RUNTIME_PATH" ]]; then
+      echo "$TVM_CUDA_RUNTIME_PATH"
+    fi
+    return 0
+  fi
   if [[ ! -d "$TVM_CUDA_BUILD_DIR" ]]; then
     return 0
   fi
   find "$TVM_CUDA_BUILD_DIR" -type f -name 'libtvm_runtime_cuda.so' | sort | tail -n 1
+}
+
+manylinux_image_name() {
+  local base="$1"
+  local arch="$2"
+  local tag="${3:-}"
+  if [[ "$base" == *"/"* || "$base" == *":"* ]]; then
+    echo "$base"
+  elif [[ -n "$tag" ]]; then
+    echo "quay.io/pypa/${base}_${arch}:${tag}"
+  else
+    echo "quay.io/pypa/${base}_${arch}:latest"
+  fi
 }
 
 run_manylinux_cuda_container() {
@@ -122,13 +145,18 @@ run_manylinux_cuda_container() {
     return 1
   fi
 
-  local image="quay.io/pypa/${TVM_MANYLINUX_IMAGE}_${TVM_ARCH}:latest"
+  local image
+  image="$(manylinux_image_name "$TVM_MANYLINUX_IMAGE" "$TVM_ARCH" "${TVM_MANYLINUX_IMAGE_TAG:-}")"
   local container="tvm_wheel_cuda_${GITHUB_RUN_ID:-local}_${GITHUB_RUN_ATTEMPT:-1}_${TVM_ARCH}"
+  local host_cuda_build_dir="$TVM_CUDA_BUILD_DIR"
+  local container_cuda_build_dir="/workspace-cuda-build"
+  mkdir -p "$host_cuda_build_dir"
   docker pull "$image"
   docker rm -f "$container" >/dev/null 2>&1 || true
   docker run --name "$container" -d \
     --workdir /workspace \
     --volume "${REPO_ROOT}:/workspace" \
+    --volume "${host_cuda_build_dir}:${container_cuda_build_dir}" \
     "$image" tail -f /dev/null
   trap "docker rm -f '${container}' >/dev/null 2>&1 || true" EXIT
 
@@ -147,6 +175,7 @@ run_manylinux_cuda_container() {
     -e TVM_PYTHON=/opt/python/cp310-cp310/bin/python \
     -e TVM_USE_CUDA=/usr/local/cuda \
     -e TVM_CUDA_ARCHITECTURES="$TVM_CUDA_ARCHITECTURES" \
+    -e TVM_CUDA_BUILD_DIR="$container_cuda_build_dir" \
     -e TVM_SKIP_CUDA="$TVM_SKIP_CUDA" \
     -e CMAKE_BUILD_PARALLEL_LEVEL="$TVM_BUILD_PARALLEL_LEVEL" \
     -e TVM_BUILD_PARALLEL_LEVEL="$TVM_BUILD_PARALLEL_LEVEL" \
@@ -160,7 +189,7 @@ run_manylinux_cuda_container() {
       ci/scripts/package/tvm_wheel_helper.sh cuda'
 
   docker exec "$container" bash -lc \
-    "chown -R $(id -u):$(id -g) /workspace/build-wheel-cuda || true"
+    "chown -R $(id -u):$(id -g) ${container_cuda_build_dir} || true"
 }
 
 build_cuda_runtime() {
@@ -294,6 +323,58 @@ llvm_prefix() {
   fi
 }
 
+prepare_repair_libdir() {
+  local source_dir="$1"
+  shift
+  local repair_libdir
+  repair_libdir="$(mktemp -d)"
+  shopt -s nullglob
+  local pattern lib
+  for pattern in "$@"; do
+    for lib in "$source_dir"/$pattern; do
+      ln -sf "$lib" "$repair_libdir/$(basename "$lib")"
+    done
+  done
+  shopt -u nullglob
+  if find "$repair_libdir" -type l -print -quit | grep -q .; then
+    echo "$repair_libdir"
+  else
+    rm -rf "$repair_libdir"
+  fi
+}
+
+diagnose_wheel_elf() (
+  local wheel="$1"
+  if ! command -v readelf >/dev/null 2>&1; then
+    return 0
+  fi
+  local tmpdir
+  tmpdir="$(mktemp -d)"
+  trap 'rm -rf "$tmpdir"' EXIT
+  "$TVM_PYTHON" - "$wheel" "$tmpdir" <<'PY'
+from pathlib import Path
+import sys
+import zipfile
+
+wheel = Path(sys.argv[1])
+target = Path(sys.argv[2])
+with zipfile.ZipFile(wheel) as zf:
+    for name in zf.namelist():
+        if name.endswith(".so") or ".so." in name:
+            zf.extract(name, target)
+PY
+  local lib rel
+  while IFS= read -r lib; do
+    rel="${lib#"$tmpdir"/}"
+    echo "::group::ELF diagnostics: ${rel}"
+    readelf -d "$lib" | sed -n 's/.*Shared library: \[\(.*\)\].*/NEEDED \1/p; s/.*Library .*path: \[\(.*\)\].*/RPATH \1/p' || true
+    readelf --version-info "$lib" \
+      | sed -n 's/.*Name: \(GLIBC[^ ]*\|GLIBCXX[^ ]*\|CXXABI[^ ]*\).*/VERSION \1/p' \
+      | sort -Vu || true
+    echo "::endgroup::"
+  done < <(find "$tmpdir" -type f \( -name '*.so' -o -name '*.so.*' \) | sort)
+)
+
 repair_wheel_to_dir() {
   local injected_wheel="$1"
   local output_dir="$2"
@@ -316,42 +397,37 @@ repair_wheel_to_dir() {
       done < <(auditwheel_excludes "$cuda_lib")
       echo "Repairing Linux wheel with auditwheel"
       (
-        auditwheel_libdir=""
-        trap '[[ -z "${auditwheel_libdir:-}" ]] || rm -rf "$auditwheel_libdir"' EXIT
         auditwheel_plat_args=()
         if [[ -n "${TVM_AUDITWHEEL_PLAT:-}" ]]; then
           auditwheel_plat_args+=(--plat "$TVM_AUDITWHEEL_PLAT")
         fi
-        llvm_dir="$(llvm_libdir || true)"
-        if [[ -n "${llvm_dir:-}" && -d "$llvm_dir" ]]; then
-          auditwheel_libdir="$(mktemp -d)"
-          shopt -s nullglob
-          lib=""
-          for lib in "$llvm_dir"/*.so "$llvm_dir"/*.so.*; do
-            case "$(basename "$lib")" in
-              libstdc++*|libgcc*|libgomp*|libatomic*|libasan*|libtsan*|libubsan*)
-                ;;
-              *)
-                ln -sf "$lib" "$auditwheel_libdir/$(basename "$lib")"
-                ;;
-            esac
-          done
-          shopt -u nullglob
-          echo "Adding filtered LLVM libdir to LD_LIBRARY_PATH for auditwheel: ${auditwheel_libdir}"
-          export LD_LIBRARY_PATH="${auditwheel_libdir}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+        if [[ -n "${TVM_AUDITWHEEL_LIBRARY_PATH:-}" ]]; then
+          echo "Adding explicit library path to LD_LIBRARY_PATH for auditwheel: ${TVM_AUDITWHEEL_LIBRARY_PATH}"
+          export LD_LIBRARY_PATH="${TVM_AUDITWHEEL_LIBRARY_PATH}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
         fi
-        auditwheel repair "${auditwheel_plat_args[@]}" "${exclude_args[@]}" \
-          -w "$output_dir" "$injected_wheel"
+        if ! auditwheel -v repair "${auditwheel_plat_args[@]}" "${exclude_args[@]}" \
+          -w "$output_dir" "$injected_wheel"; then
+          echo "auditwheel repair failed; printing diagnostics for ${injected_wheel}" >&2
+          auditwheel -v show "$injected_wheel" >&2 || true
+          diagnose_wheel_elf "$injected_wheel" >&2 || true
+          return 1
+        fi
       )
       ;;
     Darwin)
       require_cmd delocate-wheel
       echo "Repairing macOS wheel with delocate"
       (
+        repair_libdir=""
+        trap '[[ -z "${repair_libdir:-}" ]] || rm -rf "$repair_libdir"' EXIT
         llvm_dir="$(llvm_libdir || true)"
         if [[ -n "${llvm_dir:-}" && -d "$llvm_dir" ]]; then
-          echo "Adding LLVM libdir to DYLD_LIBRARY_PATH for delocate: ${llvm_dir}"
-          export DYLD_LIBRARY_PATH="${llvm_dir}${DYLD_LIBRARY_PATH:+:${DYLD_LIBRARY_PATH}}"
+          repair_libdir="$(prepare_repair_libdir "$llvm_dir" \
+            'libxml2*.dylib' 'libz*.dylib' 'libzstd*.dylib' 'liblzma*.dylib' 'libiconv*.dylib' || true)"
+          if [[ -n "${repair_libdir:-}" ]]; then
+            echo "Adding filtered LLVM libdir to DYLD_LIBRARY_PATH for delocate: ${repair_libdir}"
+            export DYLD_LIBRARY_PATH="${repair_libdir}${DYLD_LIBRARY_PATH:+:${DYLD_LIBRARY_PATH}}"
+          fi
         fi
         delocate-wheel \
           --ignore-missing-dependencies \
@@ -454,6 +530,7 @@ main() {
   local step="${1:-help}"
   case "$step" in
     cuda) build_cuda_runtime ;;
+    cuda-path) cuda_runtime_path ;;
     manylinux-cuda) run_manylinux_cuda_container ;;
     cibw-repair)
       if [[ "$#" -ne 3 ]]; then

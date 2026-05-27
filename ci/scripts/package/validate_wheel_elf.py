@@ -86,11 +86,18 @@ def validate(wheel: Path) -> None:
         if not libdir.is_dir():
             raise RuntimeError(f"wheel does not contain {libdir.relative_to(root)}")
 
+        bundled_tvm_ffi = sorted(
+            str(path.relative_to(root)) for path in root.rglob("libtvm_ffi*.so*") if path.is_file()
+        )
+        if bundled_tvm_ffi:
+            raise RuntimeError(
+                "TVM wheel must depend on tvm_ffi instead of bundling libtvm_ffi: "
+                + ", ".join(bundled_tvm_ffi)
+            )
+
         libs = {path.name: path for path in sorted(libdir.glob("*.so*")) if path.is_file()}
         if "libtvm_runtime.so" not in libs:
             raise RuntimeError("wheel does not contain tvm/lib/libtvm_runtime.so")
-        if "libtvm_ffi.so" in libs:
-            raise RuntimeError("TVM wheel must depend on tvm_ffi instead of bundling libtvm_ffi.so")
         bundled_llvm = sorted(
             str(path.relative_to(root)) for path in root.rglob("libLLVM*.so*") if path.is_file()
         )
