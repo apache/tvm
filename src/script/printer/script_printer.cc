@@ -21,7 +21,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/cast.h>
 #include <tvm/ir/expr.h>
-#include <tvm/script/printer/config.h>
+#include <tvm/script/printer/printer.h>
 
 #include <algorithm>
 
@@ -34,8 +34,7 @@ TVMScriptPrinter::FType& TVMScriptPrinter::vtable() {
   return inst;
 }
 
-std::string TVMScriptPrinter::Script(const ffi::ObjectRef& node,
-                                     const ffi::Optional<PrinterConfig>& cfg) {
+std::string Script(const ffi::ObjectRef& node, const ffi::Optional<PrinterConfig>& cfg) {
   if (!TVMScriptPrinter::vtable().can_dispatch(node)) {
     // Fall back to ffi::ReprPrint for types not registered with TVMScriptPrinter.
     return std::string(ffi::ReprPrint(ffi::Any(node)));
@@ -174,7 +173,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef()
       .def("node.PrinterConfig",
            [](ffi::Map<ffi::String, Any> config_dict) { return PrinterConfig(config_dict); })
-      .def("node.TVMScriptPrinterScript", TVMScriptPrinter::Script);
+      .def("node.TVMScriptPrinterScript", tvm::Script);
 }
 
 }  // namespace tvm

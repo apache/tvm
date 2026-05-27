@@ -17,7 +17,7 @@
  * under the License.
  */
 #include <tvm/runtime/logging.h>
-#include <tvm/script/printer/config.h>
+#include <tvm/script/printer/printer.h>
 
 #include <sstream>
 
@@ -25,7 +25,7 @@ namespace tvm {
 
 std::string RedirectedReprPrinterMethod(const ffi::ObjectRef& obj) {
   try {
-    return TVMScriptPrinter::Script(obj, std::nullopt);
+    return tvm::Script(obj, std::nullopt);
   } catch (const tvm::ffi::Error& e) {
     LOG(WARNING) << "TVMScript printer falls back to the basic address printer with the error:\n"
                  << e.what();
