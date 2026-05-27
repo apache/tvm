@@ -40,7 +40,7 @@ TVM_KEEP_BUILD_DIRS="${TVM_KEEP_BUILD_DIRS:-0}"
 
 usage() {
   cat <<'EOF'
-Usage: ci/scripts/package/build_tvm_wheel.sh [all|cuda|wheel|inject|repair|verify|upload|verify-pypi]
+Usage: ci/scripts/package/build_tvm_wheel.sh [all|cuda|wheel|inject|repair|validate|verify|upload|verify-pypi]
 
 Environment knobs:
   TVM_USE_LLVM                 LLVM config for the base wheel, default ON
@@ -216,11 +216,9 @@ inject_cuda_runtime() {
 auditwheel_excludes() {
   local cuda_lib="$1"
   local seen
-  seen=" libtvm_runtime.so libtvm_runtime_cuda.so libtvm_ffi.so "
+  seen=" libtvm_ffi.so "
   seen+="libcuda.so.1 libcuda.so libcudart.so.11.0 libcudart.so.12 libcudart.so.12.0 "
 
-  printf '%s\n' "--exclude" "libtvm_runtime.so"
-  printf '%s\n' "--exclude" "libtvm_runtime_cuda.so"
   printf '%s\n' "--exclude" "libtvm_ffi.so"
   printf '%s\n' "--exclude" "libcuda.so.1"
   printf '%s\n' "--exclude" "libcuda.so"
@@ -300,9 +298,18 @@ repair_wheel() {
   single_wheel "$TVM_WHEELHOUSE" >/dev/null
 }
 
+validate_wheel_elf() {
+  local final_wheel
+  final_wheel="$(single_wheel "$TVM_WHEELHOUSE")"
+  if [[ "$(uname -s)" == "Linux" ]]; then
+    "$TVM_PYTHON" "$SCRIPT_DIR/validate_wheel_elf.py" "$final_wheel"
+  fi
+}
+
 verify_wheel() {
   local final_wheel
   final_wheel="$(single_wheel "$TVM_WHEELHOUSE")"
+  validate_wheel_elf
 
   local venv="${TVM_VERIFY_VENV:-${REPO_ROOT}/build-wheel-verify-venv}"
   rm -rf "$venv"
@@ -391,6 +398,7 @@ main() {
     wheel) build_base_wheel ;;
     inject) inject_cuda_runtime ;;
     repair) repair_wheel ;;
+    validate) validate_wheel_elf ;;
     verify) verify_wheel ;;
     upload) upload_wheel ;;
     verify-pypi) verify_pypi_wheel ;;

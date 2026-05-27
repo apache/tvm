@@ -51,6 +51,7 @@ if(USE_OPENCL)
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
     ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
   )
+  tvm_set_python_module_relative_rpath(tvm_runtime_opencl)
   install(TARGETS tvm_runtime_opencl DESTINATION lib${LIB_SUFFIX})
   if(TVM_BUILD_PYTHON_MODULE)
     install(TARGETS tvm_runtime_opencl DESTINATION "lib")

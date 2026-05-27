@@ -104,6 +104,24 @@ tvm_option(USE_NVSHMEM "Build with NVSHMEM support" OFF)
 # Python package options
 tvm_option(TVM_BUILD_PYTHON_MODULE "Build Python module with scikit-build-core" OFF)
 
+function(tvm_set_python_module_relative_rpath target_name)
+  if(NOT TVM_BUILD_PYTHON_MODULE OR NOT TARGET ${target_name})
+    return()
+  endif()
+
+  if(APPLE)
+    set_target_properties(${target_name} PROPERTIES
+      BUILD_RPATH "@loader_path"
+      INSTALL_RPATH "@loader_path"
+    )
+  elseif(UNIX)
+    set_target_properties(${target_name} PROPERTIES
+      BUILD_RPATH "\$ORIGIN"
+      INSTALL_RPATH "\$ORIGIN"
+    )
+  endif()
+endfunction()
+
 # include directories
 include_directories(${CMAKE_INCLUDE_PATH})
 include_directories("include")
@@ -531,6 +549,7 @@ set_target_properties(tvm_runtime_extra PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
   ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
 )
+tvm_set_python_module_relative_rpath(tvm_runtime_extra)
 
 install(TARGETS tvm_runtime_extra DESTINATION lib${LIB_SUFFIX})
 if(TVM_BUILD_PYTHON_MODULE)
@@ -845,17 +864,12 @@ endif()
 if(TVM_BUILD_PYTHON_MODULE)
   message(STATUS "Configuring Python package installation")
 
-  # Set RPATH for tvm_compiler and tvm_runtime to find each other relatively
-  # (libtvm_compiler.so links against libtvm_runtime.so).
-  if(APPLE)
-    # macOS uses @loader_path
-    set_target_properties(tvm_compiler PROPERTIES INSTALL_RPATH "@loader_path")
-    set_target_properties(tvm_runtime PROPERTIES INSTALL_RPATH "@loader_path")
-  elseif(LINUX)
-    # Linux uses $ORIGIN
-    set_target_properties(tvm_compiler PROPERTIES INSTALL_RPATH "\$ORIGIN")
-    set_target_properties(tvm_runtime PROPERTIES INSTALL_RPATH "\$ORIGIN")
-  endif()
+  # Keep wheel-internal shared libraries relocatable in both build and install
+  # trees.  Several runtime DSOs link against libtvm_runtime.so and are installed
+  # into the same tvm/lib directory inside the wheel.
+  tvm_set_python_module_relative_rpath(tvm_compiler)
+  tvm_set_python_module_relative_rpath(tvm_runtime)
+  tvm_set_python_module_relative_rpath(tvm_runtime_extra)
 
   # Install compiled shared libraries into <project>/lib so that
   # tvm_ffi.libinfo.load_lib_ctypes(package="tvm", target_name=...) can find
@@ -865,9 +879,11 @@ if(TVM_BUILD_PYTHON_MODULE)
 
   # Install third-party compiled dependencies into the same lib/ dir.
   if(TARGET fpA_intB_gemm)
+    tvm_set_python_module_relative_rpath(fpA_intB_gemm)
     install(TARGETS fpA_intB_gemm DESTINATION "lib")
   endif()
   if(TARGET flash_attn)
+    tvm_set_python_module_relative_rpath(flash_attn)
     install(TARGETS flash_attn DESTINATION "lib")
   endif()
 
