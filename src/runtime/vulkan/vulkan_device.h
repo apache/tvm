@@ -30,7 +30,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "../thread_map.h"
+#include "thread_map.h"
 #include "vulkan/vulkan_core.h"
 #include "vulkan_buffer.h"
 #include "vulkan_stream.h"

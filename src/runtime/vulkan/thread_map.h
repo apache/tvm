@@ -17,8 +17,8 @@
  * under the License.
  */
 
-#ifndef TVM_RUNTIME_THREAD_MAP_H_
-#define TVM_RUNTIME_THREAD_MAP_H_
+#ifndef TVM_RUNTIME_VULKAN_THREAD_MAP_H_
+#define TVM_RUNTIME_VULKAN_THREAD_MAP_H_
 
 #include <functional>
 #include <memory>
@@ -172,4 +172,4 @@ class ThreadMap {
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_THREAD_MAP_H_
+#endif  // TVM_RUNTIME_VULKAN_THREAD_MAP_H_

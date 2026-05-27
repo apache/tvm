@@ -21,8 +21,8 @@
  * \file texture.h
  * \brief Texture utilities
  */
-#ifndef TVM_RUNTIME_TEXTURE_H_
-#define TVM_RUNTIME_TEXTURE_H_
+#ifndef TVM_RUNTIME_OPENCL_TEXTURE_H_
+#define TVM_RUNTIME_OPENCL_TEXTURE_H_
 
 #include <tvm/runtime/device_api.h>
 
@@ -135,4 +135,4 @@ inline DataType GetChannelType(size_t channel_size) {
 
 }  // namespace runtime
 }  // namespace tvm
-#endif  // TVM_RUNTIME_TEXTURE_H_
+#endif  // TVM_RUNTIME_OPENCL_TEXTURE_H_
