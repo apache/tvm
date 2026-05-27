@@ -21,6 +21,7 @@ vendor SDK integrations and experimental features."""
 
 import json
 import os
+import platform
 import sys
 import textwrap
 
@@ -41,12 +42,12 @@ def describe():
     info = dict(sorted(info, key=lambda x: x[0]))
     print("Python Environment")
     sys_version = sys.version.replace("\n", " ")
-    uname = os.uname()
-    uname = f"{uname.sysname} {uname.release} {uname.version} {uname.machine}"
+    uname = platform.uname()
+    uname = f"{uname.system} {uname.release} {uname.version} {uname.machine}"
     lines = [
         f"TVM version    = {tvm.__version__}",
         f"Python version = {sys_version} ({sys.maxsize.bit_length() + 1} bit)",
-        f"os.uname()     = {uname}",
+        f"uname          = {uname}",
     ]
     print(textwrap.indent("\n".join(lines), prefix="  "))
     print("CMake Options:")
