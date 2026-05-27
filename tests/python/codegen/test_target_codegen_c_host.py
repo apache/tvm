@@ -19,7 +19,7 @@ import numpy as np
 
 import tvm
 import tvm.testing
-from tvm.contrib import utils
+from tvm.support import utils
 from tvm.script import ir as I
 from tvm.script import tirx as T
 

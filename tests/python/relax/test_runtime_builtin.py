@@ -21,7 +21,8 @@ import tvm_ffi
 
 import tvm
 import tvm.testing
-from tvm.contrib import tvmjs, utils
+from tvm.contrib import tvmjs
+from tvm.support import utils
 from tvm.ir import assert_structural_equal
 from tvm.relax.testing.runtime_builtin import MakeShapeCode, MatchShapeCode
 

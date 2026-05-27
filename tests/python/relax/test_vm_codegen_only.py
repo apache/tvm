@@ -122,7 +122,7 @@ def test_vm_exec_serialize_export_library(exec_mode):
     mod = TestVMMove
     target = tvm.target.Target("llvm", host="llvm")
     ex = codegen(mod, target)
-    from tvm.contrib import utils
+    from tvm.support import utils
 
     temp_dir = utils.tempdir()
     path_exec = temp_dir.relpath("exec.so")

@@ -29,7 +29,7 @@ from tvm_ffi import DLDeviceType
 
 import tvm.runtime
 from tvm.base import TVMError
-from tvm.contrib import utils
+from tvm.support import utils
 
 from . import _ffi_api, base, server
 

@@ -20,7 +20,8 @@ import numpy as np
 
 import tvm
 from tvm import relax, rpc
-from tvm.contrib import tvmjs, utils
+from tvm.contrib import tvmjs
+from tvm.support import utils
 from tvm.script import relax as R
 
 proxy_host = "127.0.0.1"

@@ -25,7 +25,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import relax, s_tir, tirx
-from tvm.contrib import utils
+from tvm.support import utils
 from tvm.relax.dpl import is_op, wildcard
 from tvm.relax.testing import transform
 from tvm.script import ir as I

@@ -22,7 +22,7 @@
 import os
 import subprocess
 
-from tvm.contrib import utils
+from tvm.support import utils
 from tvm.contrib.hexagon.profiling.process_lwp_data import process_lwp_output
 from tvm.ir.transform import PassContext
 
