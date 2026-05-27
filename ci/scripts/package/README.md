@@ -17,12 +17,13 @@
 
 # TVM wheel packaging helper
 
-This helper follows the CUDA-sidecar packaging flow used for release
-validation:
+The GitHub Actions release-validation flow is:
 
 1. Build `libtvm_runtime_cuda.so` in a CUDA-enabled CMake build.
-2. Build the main Python wheel with LLVM enabled and CUDA disabled.
-3. Inject the CUDA runtime DSO into `tvm/lib/` inside the wheel.
+2. Build the main Python wheel with `cibuildwheel`, LLVM enabled, and CUDA
+   disabled.
+3. Inject the CUDA runtime DSO into `tvm/lib/` during the `cibuildwheel`
+   repair hook.
 4. Repair the wheel, excluding CUDA driver/runtime DSOs and `libtvm_ffi`.
 5. Validate ELF links so intra-wheel TVM DSOs resolve through relative rpaths.
    LLVM is expected to be linked statically; the final wheel must not bundle
@@ -59,6 +60,16 @@ packaging pattern. This avoids accidentally publishing a wheel tagged for the
 GitHub runner's host glibc, such as `manylinux_2_39`, which would not install
 on older supported Linux systems.
 
+The workflow mirrors the TVM-FFI `.github` layout: a small matrix workflow
+directly calls focused composite actions under `.github/actions`.
+
+- `.github/actions/detect-env-vars`: shared environment detection.
+- `.github/actions/build-cuda-sidecar`: builds only the optional CUDA sidecar.
+  On Linux this action owns the manylinux Docker/CUDA setup.
+- `.github/actions/build-wheel-for-publish`: installs the cached LLVM prefix
+  and runs `pypa/cibuildwheel` for the LLVM-enabled runtime wheel. Its custom
+  repair hook injects the sidecar before `auditwheel`/`delocate`/copy repair.
+
 To test this from the fork `tlopex/tvm` without publishing:
 
 ```bash
@@ -81,6 +92,10 @@ to the fork's default branch first. GitHub only lists manually dispatched
 workflows once the workflow file exists in the repository.
 
 Typical TestPyPI dry run:
+
+The local helper keeps the same CUDA injection, repair, and verification
+steps for debugging outside GitHub Actions. The GitHub workflow uses
+`cibuildwheel` for the main wheel build.
 
 ```bash
 python version.py --git-describe

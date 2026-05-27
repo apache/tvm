@@ -40,7 +40,7 @@ TVM_KEEP_BUILD_DIRS="${TVM_KEEP_BUILD_DIRS:-0}"
 
 usage() {
   cat <<'EOF'
-Usage: ci/scripts/package/build_tvm_wheel.sh [all|cuda|wheel|inject|repair|validate|verify|upload|verify-pypi]
+Usage: ci/scripts/package/build_tvm_wheel.sh [all|cuda|manylinux-cuda|wheel|inject|repair|cibw-repair|validate|verify|verify-installed|upload|verify-pypi]
 
 Environment knobs:
   TVM_USE_LLVM                 LLVM config for the base wheel, default "llvm-config --link-static"
@@ -53,6 +53,8 @@ Environment knobs:
   TVM_SKIP_REPAIR=1            Keep injected wheel as final wheel
   TVM_BUILD_NO_ISOLATION=1     Pass --no-isolation to python -m build
   TVM_KEEP_BUILD_DIRS=1        Reuse CMake build dirs instead of cleaning them
+  TVM_MANYLINUX_IMAGE          manylinux image tag for manylinux-cuda
+  TVM_ARCH                     Target architecture for manylinux-cuda
   TVM_AUDITWHEEL_PLAT          Optional auditwheel --plat value
   TVM_EXPECT_WHEEL_PLATFORM_TAG
                                 Require the final wheel filename to include this tag
@@ -117,6 +119,64 @@ cuda_runtime_path() {
     return 0
   fi
   find "$TVM_CUDA_BUILD_DIR" -type f -name 'libtvm_runtime_cuda.so' | sort | tail -n 1
+}
+
+run_manylinux_cuda_container() {
+  if [[ "$TVM_SKIP_CUDA" == "1" ]]; then
+    echo "Skipping manylinux CUDA sidecar build because TVM_SKIP_CUDA=1"
+    return 0
+  fi
+
+  require_cmd docker
+  require_cmd curl
+  if [[ -z "${TVM_MANYLINUX_IMAGE:-}" ]]; then
+    echo "error: TVM_MANYLINUX_IMAGE is required for manylinux-cuda" >&2
+    return 1
+  fi
+  if [[ -z "${TVM_ARCH:-}" ]]; then
+    echo "error: TVM_ARCH is required for manylinux-cuda" >&2
+    return 1
+  fi
+
+  local image="quay.io/pypa/${TVM_MANYLINUX_IMAGE}_${TVM_ARCH}:latest"
+  local container="tvm_wheel_cuda_${GITHUB_RUN_ID:-local}_${GITHUB_RUN_ATTEMPT:-1}_${TVM_ARCH}"
+  docker pull "$image"
+  docker rm -f "$container" >/dev/null 2>&1 || true
+  docker run --name "$container" -d \
+    --workdir /workspace \
+    --volume "${REPO_ROOT}:/workspace" \
+    "$image" tail -f /dev/null
+  trap "docker rm -f '${container}' >/dev/null 2>&1 || true" EXIT
+
+  local cuda_rpm="cuda-repo-rhel8-13-0-local-13.0.2_580.95.05-1.${TVM_ARCH}.rpm"
+  curl -fsSLo "$cuda_rpm" "https://developer.download.nvidia.com/compute/cuda/13.0.2/local_installers/${cuda_rpm}"
+  docker cp "$cuda_rpm" "${container}:/${cuda_rpm}"
+  rm "$cuda_rpm"
+  docker exec "$container" bash -lc "
+    rpm -i /${cuda_rpm} && \
+    dnf clean all && \
+    dnf -y install cuda-toolkit-13-0 && \
+    rm /${cuda_rpm} && \
+    dnf clean all"
+
+  docker exec \
+    -e TVM_PYTHON=/opt/python/cp310-cp310/bin/python \
+    -e TVM_USE_CUDA=/usr/local/cuda \
+    -e TVM_CUDA_ARCHITECTURES="$TVM_CUDA_ARCHITECTURES" \
+    -e TVM_SKIP_CUDA="$TVM_SKIP_CUDA" \
+    -e CMAKE_BUILD_PARALLEL_LEVEL="$TVM_BUILD_PARALLEL_LEVEL" \
+    -e TVM_BUILD_PARALLEL_LEVEL="$TVM_BUILD_PARALLEL_LEVEL" \
+    "$container" bash -lc '
+      set -eux
+      export PATH=/opt/python/cp310-cp310/bin:/usr/local/cuda/bin:$PATH
+      python -m pip install -U pip cmake ninja
+      python --version
+      cmake --version
+      nvcc --version
+      ci/scripts/package/build_tvm_wheel.sh cuda'
+
+  docker exec "$container" bash -lc \
+    "chown -R $(id -u):$(id -g) /workspace/build-wheel-cuda || true"
 }
 
 build_cuda_runtime() {
@@ -193,14 +253,13 @@ build_base_wheel() {
   single_wheel "$TVM_RAW_DIST" >/dev/null
 }
 
-inject_cuda_runtime() {
-  rm -rf "$TVM_INJECTED_DIST"
-  mkdir -p "$TVM_INJECTED_DIST"
+inject_wheel_file() {
+  local raw_wheel="$1"
+  local output_dir="$2"
+  rm -rf "$output_dir"
+  mkdir -p "$output_dir"
 
-  local raw_wheel
-  raw_wheel="$(single_wheel "$TVM_RAW_DIST")"
-
-  local inject_args=(--output-dir "$TVM_INJECTED_DIST")
+  local inject_args=(--output-dir "$output_dir")
   if [[ "$TVM_SKIP_CUDA" != "1" ]]; then
     local cuda_lib
     cuda_lib="$(cuda_runtime_path)"
@@ -222,6 +281,12 @@ inject_cuda_runtime() {
 
   echo "Injecting sidecar/metadata into ${raw_wheel}"
   "$TVM_PYTHON" "$SCRIPT_DIR/inject_cuda_runtime.py" "$raw_wheel" "${inject_args[@]}"
+}
+
+inject_cuda_runtime() {
+  local raw_wheel
+  raw_wheel="$(single_wheel "$TVM_RAW_DIST")"
+  inject_wheel_file "$raw_wheel" "$TVM_INJECTED_DIST"
 }
 
 auditwheel_excludes() {
@@ -298,16 +363,13 @@ base_cmake_args() {
   printf '%q ' "${args[@]}"
 }
 
-repair_wheel() {
-  rm -rf "$TVM_WHEELHOUSE"
-  mkdir -p "$TVM_WHEELHOUSE"
-
-  local injected_wheel
-  injected_wheel="$(single_wheel "$TVM_INJECTED_DIST")"
-
+repair_wheel_to_dir() {
+  local injected_wheel="$1"
+  local output_dir="$2"
+  mkdir -p "$output_dir"
   if [[ "$TVM_SKIP_REPAIR" == "1" ]]; then
-    cp "$injected_wheel" "$TVM_WHEELHOUSE/"
-    echo "Repair skipped; final wheel copied to ${TVM_WHEELHOUSE}"
+    cp "$injected_wheel" "$output_dir/"
+    echo "Repair skipped; final wheel copied to ${output_dir}"
     return 0
   fi
 
@@ -333,7 +395,7 @@ repair_wheel() {
           export LD_LIBRARY_PATH="${llvm_dir}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
         fi
         auditwheel repair "${auditwheel_plat_args[@]}" "${exclude_args[@]}" \
-          -w "$TVM_WHEELHOUSE" "$injected_wheel"
+          -w "$output_dir" "$injected_wheel"
       )
       ;;
     Darwin)
@@ -342,16 +404,37 @@ repair_wheel() {
       delocate-wheel \
         --ignore-missing-dependencies \
         --exclude libtvm_ffi.dylib \
-        -w "$TVM_WHEELHOUSE" \
+        -w "$output_dir" \
         -v "$injected_wheel"
       ;;
     *)
-      cp "$injected_wheel" "$TVM_WHEELHOUSE/"
-      echo "No repair step for this platform; final wheel copied to ${TVM_WHEELHOUSE}"
+      cp "$injected_wheel" "$output_dir/"
+      echo "No repair step for this platform; final wheel copied to ${output_dir}"
       ;;
   esac
 
-  single_wheel "$TVM_WHEELHOUSE" >/dev/null
+  single_wheel "$output_dir" >/dev/null
+}
+
+repair_wheel() {
+  rm -rf "$TVM_WHEELHOUSE"
+  mkdir -p "$TVM_WHEELHOUSE"
+
+  local injected_wheel
+  injected_wheel="$(single_wheel "$TVM_INJECTED_DIST")"
+  repair_wheel_to_dir "$injected_wheel" "$TVM_WHEELHOUSE"
+}
+
+cibw_repair_wheel() {
+  local raw_wheel="$1"
+  local dest_dir="$2"
+  local injected_dir
+  injected_dir="$(mktemp -d)"
+  inject_wheel_file "$raw_wheel" "$injected_dir"
+  local injected_wheel
+  injected_wheel="$(single_wheel "$injected_dir")"
+  repair_wheel_to_dir "$injected_wheel" "$dest_dir"
+  rm -rf "$injected_dir"
 }
 
 validate_wheel_elf() {
@@ -384,31 +467,7 @@ verify_wheel() {
 
   "$venv_python" -m pip install --upgrade pip
   "$venv_python" -m pip install --extra-index-url "${TVM_EXTRA_INDEX_URL:-https://pypi.org/simple}" "$final_wheel"
-  "$venv_python" - <<'PY'
-from pathlib import Path
-import sys
-import tvm
-
-root = Path(tvm.__file__).resolve().parent
-libdir = root / "lib"
-if sys.platform == "darwin":
-    runtime_lib = libdir / "libtvm_runtime.dylib"
-    cuda_sidecar = libdir / "libtvm_runtime_cuda.dylib"
-elif sys.platform == "win32":
-    runtime_lib = libdir / "tvm_runtime.dll"
-    cuda_sidecar = libdir / "tvm_runtime_cuda.dll"
-else:
-    runtime_lib = libdir / "libtvm_runtime.so"
-    cuda_sidecar = libdir / "libtvm_runtime_cuda.so"
-
-print("tvm version:", tvm.__version__)
-print("tvm package:", root)
-print("llvm enabled:", tvm.runtime.enabled("llvm"))
-print("cuda runtime enabled:", tvm.runtime.enabled("cuda"))
-print("runtime library:", runtime_lib)
-assert runtime_lib.exists()
-print("cuda sidecar present:", cuda_sidecar.exists())
-PY
+  "$venv_python" "$SCRIPT_DIR/verify_tvm_install.py"
 }
 
 upload_wheel() {
@@ -444,31 +503,7 @@ verify_pypi_wheel() {
     --index-url "$index_url" \
     --extra-index-url "$extra_index_url" \
     "${package_name}==${package_version}"
-  "$venv_python" - <<'PY'
-from pathlib import Path
-import sys
-import tvm
-
-root = Path(tvm.__file__).resolve().parent
-libdir = root / "lib"
-if sys.platform == "darwin":
-    runtime_lib = libdir / "libtvm_runtime.dylib"
-    cuda_sidecar = libdir / "libtvm_runtime_cuda.dylib"
-elif sys.platform == "win32":
-    runtime_lib = libdir / "tvm_runtime.dll"
-    cuda_sidecar = libdir / "tvm_runtime_cuda.dll"
-else:
-    runtime_lib = libdir / "libtvm_runtime.so"
-    cuda_sidecar = libdir / "libtvm_runtime_cuda.so"
-
-print("tvm version:", tvm.__version__)
-print("tvm package:", root)
-print("llvm enabled:", tvm.runtime.enabled("llvm"))
-print("cuda runtime enabled:", tvm.runtime.enabled("cuda"))
-print("runtime library:", runtime_lib)
-assert runtime_lib.exists()
-print("cuda sidecar present:", cuda_sidecar.exists())
-PY
+  "$venv_python" "$SCRIPT_DIR/verify_tvm_install.py"
 }
 
 main() {
@@ -482,11 +517,20 @@ main() {
       verify_wheel
       ;;
     cuda) build_cuda_runtime ;;
+    manylinux-cuda) run_manylinux_cuda_container ;;
     wheel) build_base_wheel ;;
     inject) inject_cuda_runtime ;;
     repair) repair_wheel ;;
+    cibw-repair)
+      if [[ "$#" -ne 3 ]]; then
+        echo "error: cibw-repair requires <wheel> <dest-dir>" >&2
+        return 1
+      fi
+      cibw_repair_wheel "$2" "$3"
+      ;;
     validate) validate_wheel_elf ;;
     verify) verify_wheel ;;
+    verify-installed) "$TVM_PYTHON" "$SCRIPT_DIR/verify_tvm_install.py" ;;
     upload) upload_wheel ;;
     verify-pypi) verify_pypi_wheel ;;
     -h|--help|help) usage ;;

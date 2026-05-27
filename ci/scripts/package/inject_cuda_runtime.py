@@ -211,8 +211,8 @@ def main() -> int:
         output_dir=args.output_dir,
         cuda_runtime=cuda_runtime,
         target_path=target_path,
-        distribution_name=args.distribution_name,
-        distribution_version=args.distribution_version,
+        distribution_name=args.distribution_name or None,
+        distribution_version=args.distribution_version or None,
         set_rpath=args.set_rpath,
     )
     print(output_path)
