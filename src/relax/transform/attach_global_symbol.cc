@@ -24,14 +24,128 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
-#include <tvm/ir/replace_global_vars.h>
+#include <tvm/relax/expr_functor.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
 #include <tvm/tirx/function.h>
+#include <tvm/tirx/stmt_functor.h>
+
+#include <vector>
 
 namespace tvm {
 namespace relax {
 namespace transform {
+
+namespace {
+
+// File-local mutator: replace GlobalVar references inside a relax::Function.
+struct RelaxGvarMutator : ExprMutator {
+  ffi::Map<GlobalVar, GlobalVar> replacements;
+  explicit RelaxGvarMutator(ffi::Map<GlobalVar, GlobalVar> replacements)
+      : replacements(replacements) {}
+
+  using ExprMutator::VisitExpr_;
+  Expr VisitExpr_(const GlobalVarNode* node) override {
+    auto gvar = ffi::GetRef<GlobalVar>(node);
+    return replacements.Get(gvar).value_or(gvar);
+  }
+};
+
+// File-local mutator: replace GlobalVar references inside a tirx::PrimFunc.
+struct TirxGvarMutator : tirx::StmtExprMutator {
+  ffi::Map<GlobalVar, GlobalVar> replacements;
+  explicit TirxGvarMutator(ffi::Map<GlobalVar, GlobalVar> replacements)
+      : replacements(replacements) {}
+
+  PrimExpr VisitExpr_(const tirx::CallNode* node) override {
+    auto call = Downcast<tirx::Call>(tirx::StmtExprMutator::VisitExpr_(node));
+    if (auto old_gvar = call->op.as<GlobalVar>()) {
+      if (auto new_gvar = replacements.Get(old_gvar.value())) {
+        call.CopyOnWrite()->op = new_gvar.value();
+      }
+    }
+    return call;
+  }
+};
+
+// Replace GlobalVar references across all functions in the module.
+// Direct dispatch on function type — no NodeFunctor indirection needed
+// since this file already includes the relax + tirx headers.
+IRModule ReplaceGlobalVarsInModule(IRModule mod, ffi::Map<GlobalVar, GlobalVar> replacements) {
+  if (replacements.empty()) {
+    return mod;
+  }
+
+  std::vector<GlobalVar> to_remove;
+  IRModule updates;
+
+  for (const auto& [old_gvar, old_func] : mod->functions) {
+    auto new_gvar = replacements.Get(old_gvar).value_or(old_gvar);
+    BaseFunc new_func;
+
+    if (auto* prim_func_node = old_func.as<tirx::PrimFuncNode>()) {
+      auto func = ffi::GetRef<tirx::PrimFunc>(prim_func_node);
+      TirxGvarMutator mutator(replacements);
+      auto new_body = mutator(func->body);
+      if (!new_body.same_as(func->body)) {
+        func.CopyOnWrite()->body = new_body;
+      }
+      // Update kGlobalSymbol if the function is externally exposed and being renamed.
+      if (auto opt = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol)) {
+        auto name = opt.value();
+        for (const auto& [before, after] : replacements) {
+          if (before->name_hint == name) {
+            if (after->name_hint != name) {
+              func = WithAttr(func, tvm::attr::kGlobalSymbol, after->name_hint);
+            }
+            break;
+          }
+        }
+      }
+      new_func = func;
+    } else if (auto* relax_func_node = old_func.as<FunctionNode>()) {
+      RelaxGvarMutator mutator(replacements);
+      auto new_relax_func =
+          Downcast<Function>(mutator(Downcast<Function>(ffi::GetRef<Function>(relax_func_node))));
+      // Update kGlobalSymbol if the function is externally exposed and being renamed.
+      if (auto opt = new_relax_func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol)) {
+        auto name = opt.value();
+        for (const auto& [before, after] : replacements) {
+          if (before->name_hint == name) {
+            if (after->name_hint != name) {
+              new_relax_func = WithAttr(new_relax_func, tvm::attr::kGlobalSymbol, after->name_hint);
+            }
+            break;
+          }
+        }
+      }
+      new_func = new_relax_func;
+    } else if (old_func.as<ExternFuncNode>()) {
+      // ExternFunc: no internal GlobalVar references to update.
+      new_func = old_func;
+    } else {
+      new_func = old_func;
+    }
+
+    if (!new_gvar.same_as(old_gvar)) {
+      to_remove.push_back(old_gvar);
+    }
+    if (!old_gvar.same_as(new_gvar) || !old_func.same_as(new_func)) {
+      updates->Add(new_gvar, new_func);
+    }
+  }
+
+  if (to_remove.size() || updates->functions.size()) {
+    auto write_ptr = mod.CopyOnWrite();
+    for (const auto& old_gvar : to_remove) {
+      write_ptr->Remove(old_gvar);
+    }
+    write_ptr->Update(updates);
+  }
+  return mod;
+}
+
+}  // namespace
 
 Pass AttachGlobalSymbol() {
   auto pass_func = [=](IRModule mod, PassContext pc) {
@@ -74,7 +188,7 @@ Pass AttachGlobalSymbol() {
       mod.CopyOnWrite()->Update(updates);
 
       if (gvar_updates.size()) {
-        mod = tvm::transform::ReplaceGlobalVars(mod, gvar_updates);
+        mod = ReplaceGlobalVarsInModule(mod, gvar_updates);
       }
     }
     return mod;
