@@ -93,8 +93,7 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::Buffer buffer, const AccessPath
   }
   // Step 2. Handle `buffer.dtype`
   {
-    DataType default_buf_dtype =
-        d->cfg->GetExtraConfig<DataType>("tirx.buffer_dtype", DataType::Float(32));
+    DataType default_buf_dtype = d->cfg->buffer_dtype;
     if (buffer->dtype != default_buf_dtype) {
       kwargs.Set("dtype", LiteralDoc::DataType(buffer->dtype, buffer_p->Attr("dtype")));
     }

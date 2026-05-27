@@ -20,6 +20,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <tvm/runtime/data_type.h>
+#include <tvm/script/printer/printer.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/expr.h>
 
@@ -195,7 +196,7 @@ TEST(ScalableDataType, TestScalableIntrinCall) {
                                    ::llvm::Intrinsic::experimental_stepvector)});
 #endif
   ASSERT_EQ(call->dtype, scalable_type);
-  ASSERT_EQ(call->Script(),
+  ASSERT_EQ(tvm::Script(call),
 #if TVM_LLVM_VERSION >= 200
             "T.call_llvm_intrin(\"int32xvscalex4\", \"llvm.stepvector\")");
 #else

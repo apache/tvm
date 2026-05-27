@@ -24,6 +24,7 @@
 #include <tvm/ir/expr.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/script/printer/config.h>
 
 #include <string>
 

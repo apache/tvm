@@ -53,6 +53,8 @@ class PrinterConfigNode : public ffi::Object {
    * \note Directly use module name if it's empty.
    */
   ffi::String module_alias = "cls";
+  /*! \brief Default buffer dtype */
+  DataType buffer_dtype = DataType::Float(32);
   /*! \brief Default data type of integer literals */
   DataType int_dtype = DataType::Int(32);
   /*!
@@ -88,7 +90,6 @@ class PrinterConfigNode : public ffi::Object {
    *
    * Keys are conventionally namespaced as "<dialect>.<knob>", e.g.:
    *   "tirx.prefix"              — the TIR prefix (default "T")
-   *   "tirx.buffer_dtype"        — default buffer dtype (default float32)
    *   "relax.prefix"             — the Relax prefix (default "R")
    *   "relax.show_all_struct_info" — whether to show all struct info (default true)
    *
@@ -116,6 +117,7 @@ class PrinterConfigNode : public ffi::Object {
         .def_ro("show_meta", &PrinterConfigNode::show_meta)
         .def_ro("ir_prefix", &PrinterConfigNode::ir_prefix)
         .def_ro("module_alias", &PrinterConfigNode::module_alias)
+        .def_ro("buffer_dtype", &PrinterConfigNode::buffer_dtype)
         .def_ro("int_dtype", &PrinterConfigNode::int_dtype)
         .def_ro("float_dtype", &PrinterConfigNode::float_dtype)
         .def_ro("verbose_expr", &PrinterConfigNode::verbose_expr)

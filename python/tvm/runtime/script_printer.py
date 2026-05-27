@@ -35,6 +35,7 @@ class PrinterConfig(Object):
     show_meta: bool
     ir_prefix: str
     module_alias: str
+    buffer_dtype: str
     int_dtype: str
     float_dtype: str
     verbose_expr: bool
@@ -56,6 +57,7 @@ class PrinterConfig(Object):
         show_meta: bool = False,
         ir_prefix: str = "I",
         module_alias: str = "cls",
+        buffer_dtype: str = "float32",
         int_dtype: str = "int32",
         float_dtype: str = "void",
         verbose_expr: bool = False,
@@ -77,6 +79,7 @@ class PrinterConfig(Object):
             "show_meta": show_meta,
             "ir_prefix": ir_prefix,
             "module_alias": module_alias,
+            "buffer_dtype": buffer_dtype,
             "int_dtype": int_dtype,
             "float_dtype": float_dtype,
             "verbose_expr": verbose_expr,
@@ -173,7 +176,7 @@ class Scriptable:
         extra_config : Optional[dict] = None
             Dialect-specific configuration passed through to PrinterConfig.extra_config.
             Keys are conventionally namespaced as "<dialect>.<knob>", e.g.
-            ``{"tirx.prefix": "Tx", "tirx.buffer_dtype": "float16"}``.
+            ``{"tirx.prefix": "Tx"}``.
         path_to_underline : Optional[List[AccessPath]] = None
             Object path to be underlined
         path_to_annotate : Optional[Dict[AccessPath, str]] = None

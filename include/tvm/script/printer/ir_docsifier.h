@@ -23,6 +23,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/cast.h>
 #include <tvm/ir/module.h>
+#include <tvm/script/printer/config.h>
 #include <tvm/script/printer/doc.h>
 #include <tvm/script/printer/ir_docsifier_functor.h>
 
